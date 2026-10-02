@@ -1,0 +1,93 @@
+### Spring Boot ###
+HELP.md
+build/
+out/
+bin/
+
+### Gradle ###
+.gradle/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+### Java ###
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+replay_pid*
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+
+### Eclipse / STS ###
+.apt_generated/
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/
+
+### macOS ###
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+### Windows ###
+Thumbs.db
+Desktop.ini
+
+### Environment Variables / Secrets ###
+.env
+.env.*
+!.env.example
+
+### Spring Local Configuration ###
+src/main/resources/application-local.yml
+src/main/resources/application-local.yaml
+src/main/resources/application-secret.yml
+src/main/resources/application-secret.yaml
+
+### Logs ###
+logs/
+*.log
+
+### Temporary Files ###
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+### Test / Coverage ###
+coverage/
+test-results/
+
+### Docker Local Overrides ###
+docker-compose.override.yml
+compose.override.yml
+
+### Local Database / Redis Data ###
+postgres-data/
+redis-data/
+data/
+
+### IDE HTTP Client ###
+.http/
+http-client.private.env.json

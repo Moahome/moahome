@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: moahome-server
+
+  profiles:
+    active: local
+
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+server:
+  port: 8080
