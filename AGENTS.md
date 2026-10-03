@@ -34,6 +34,7 @@ Server는 Layered Architecture를 사용합니다.
 - React Component: `PascalCase`
 - Type / Interface: `PascalCase`
 - 상수: `UPPER_SNAKE_CASE`
+- CSS 클래스명 / 사용자 정의 속성 / `@keyframes` 이름: `kebab-case`
 - DB 테이블 / 컬럼: `snake_case`
 
 다음 이름은 예외로 합니다.

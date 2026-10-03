@@ -26,6 +26,13 @@ shared
 app → pages → widgets → features → entities → shared
 ```
 
+### Next.js 라우터와 페이지 레이어
+
+- `src/app/`은 Next.js App Router와 전역 설정에 사용합니다.
+- FSD의 `pages` 레이어는 실제 디렉터리명으로 `src/_pages/`를 사용합니다. Next.js의 Pages Router 디렉터리인 `src/pages/`와의 충돌을 피하기 위한 명명 예외입니다.
+- `src/_pages/`에도 기존 `pages` 레이어의 책임, 의존성, 슬라이스와 페이지 전용 코드 규칙을 동일하게 적용합니다.
+- `src/app/`의 `page.tsx`는 페이지 슬라이스의 공개 API를 통해 화면을 연결합니다.
+
 하위 레이어가 상위 레이어를 참조하면 안 됩니다.
 
 예:
@@ -113,6 +120,8 @@ app → pages → widgets → features → entities → shared
 - 페이지 내부 전용 폴더와 단일 보조 파일에는 Page-Local Code Rules에 따라 `_` 접두사를 허용합니다. 그 외 코드 이름은 기존 명명 규칙을 유지합니다.
 - React Component 이름: `PascalCase`
 - Hook 이름: `useCamelCase`
+- CSS 클래스명, 사용자 정의 속성과 `@keyframes` 이름: `kebab-case` (`hero-copy`, `--primary-soft`, `device-float`)
+- CSS Modules의 kebab-case 클래스는 `styles["hero-copy"]`처럼 대괄호 표기로 참조합니다. 스타일 이름을 camelCase 별칭으로 바꾸지 않습니다.
 
 예:
 
@@ -146,6 +155,31 @@ Next.js와 도구가 사용하는 `page.tsx`, `layout.tsx`, `not-found.tsx`,
 - 임의의 HEX 값이나 별도 다크 모드 팔레트를 컴포넌트에 추가하지 않습니다.
 
 기존 공통 UI 컴포넌트가 있으면 우선 재사용합니다.
+
+### JSX / CSS 작성 형식
+
+- 들여쓰기는 공백 2칸을 사용합니다.
+- 중첩 JSX, 여러 요소를 반환하는 `map` 콜백과 긴 속성 목록은 줄을 나누어 계층이 드러나도록 작성합니다.
+- 여러 JSX 요소나 여러 문장을 한 줄로 압축하지 않습니다.
+- CSS 선언은 속성마다 한 줄로 작성하고, 스타일 블록 사이에는 빈 줄을 둡니다.
+- CSS Modules는 기본 클래스 아래에 자식 요소, 상태와 의사 요소를 중첩하는 계층형 CSS로 작성합니다.
+- 상태와 의사 요소는 `&:hover`, `&[open]`, `&::after`처럼 부모 선택자를 명시합니다.
+- 관련 없는 클래스는 함께 중첩하지 않으며, 선택자 우선순위와 미디어 쿼리의 적용 순서를 유지합니다.
+
+```css
+.navigation {
+  display: flex;
+  gap: 24px;
+
+  a {
+    color: var(--foreground);
+
+    &:hover {
+      color: var(--primary);
+    }
+  }
+}
+```
 
 ## 5. Component Rules
 
@@ -264,6 +298,8 @@ _usePaymentFilter
 - 페이지 전용 코드도 현재 페이지 슬라이스 안에 배치합니다.
 - 기존 `ui`, `model`, `lib`, `api` 등의 역할 구분을 유지합니다.
 - `_components`는 `ui` 내부에 둡니다.
+- 소개 문구, 메뉴 목록과 목업 데이터 등 화면 구성용 상수는 `ui/_constants`에 둡니다.
+- 컴포넌트 구현에 직접 연결된 작은 매핑은 사용 파일에 유지할 수 있습니다. 상수라는 이유만으로 각각 파일을 만들거나 `shared`로 이동하지 않습니다.
 - 페이지 상태용 `_types`와 `_hooks`는 `model` 내부에 둘 수 있습니다.
 - 페이지 내부 보조 함수인 `_utils`는 `lib` 내부에 둘 수 있습니다.
 - 타입과 함수는 이름만 보고 한곳에 모으지 않고 실제 책임에 따라 배치합니다.

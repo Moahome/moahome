@@ -16,7 +16,7 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+랜딩 페이지는 `/`에서 확인할 수 있습니다. 라우팅 진입점은 `src/app/(landing)/page.tsx`이며, 화면 구현은 `src/_pages/landing/ui/landingPage.tsx`에 있습니다. 페이지 전용 컴포넌트는 같은 슬라이스의 `ui/_components/`에서 관리합니다.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
