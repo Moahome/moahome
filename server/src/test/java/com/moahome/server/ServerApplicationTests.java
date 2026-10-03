@@ -25,14 +25,6 @@ class ServerApplicationTests {
 		new SecureRandom().nextBytes(key);
 		String secret = Base64.getEncoder().encodeToString(key);
 		registry.add("moahome.security.jwt-secret-base64", () -> secret);
-		registry.add("moahome.phone-security.encryption-keys.v1", ServerApplicationTests::randomKey);
-		registry.add("moahome.phone-security.hmac-key-base64", ServerApplicationTests::randomKey);
-	}
-
-	private static String randomKey() {
-		byte[] bytes = new byte[32];
-		new SecureRandom().nextBytes(bytes);
-		return Base64.getEncoder().encodeToString(bytes);
 	}
 
 	@Test

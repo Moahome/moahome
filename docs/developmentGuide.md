@@ -1,7 +1,7 @@
 # 개발 환경 가이드
 
 이 문서는 현재 저장소의 설정과 이미 준비된 환경변수를 기준으로 로컬 실행 및 검증 방법을 설명합니다.
-기존 `client/.env`와 `server/.env`의 연결 변수를 사용하며, Security 실행에는 서명 키와 전화번호 암호화 / HMAC 키를 추가로 준비합니다. 실제 값은 이 문서에 기록하지 않습니다.
+기존 `client/.env`와 `server/.env`의 연결 변수를 사용하며, Security 실행에는 서명 키를 추가로 준비합니다. 실제 값은 이 문서에 기록하지 않습니다.
 
 ## 1. 필요한 도구
 
@@ -71,13 +71,11 @@ Next.js는 `client/`에서 실행하면 해당 프로젝트의 `.env`를 읽습�
 | `KAKAO_CLIENT_SECRET` | 카카오 로그인 연동용 Secret. 현재 OAuth 설정에는 연결되어 있지 않습니다. |
 | `KAKAO_REDIRECT_URI` | 카카오 로그인 연동용 Redirect URI. 현재 OAuth 설정에는 연결되어 있지 않습니다. |
 | `JWT_SECRET_BASE64` | Security 실행에 새로 필요한 서명 키. 32바이트 이상의 무작위 값을 Base64로 인코딩하여 준비합니다. |
-| `PHONE_ENCRYPTION_KEY_BASE64` | 전화번호 AES-256-GCM 암호화 키. 무작위 32바이트를 Base64로 인코딩합니다. 기본 키 ID는 `v1`입니다. |
-| `PHONE_HMAC_KEY_BASE64` | 전화번호 조회용 HMAC-SHA-256 키. 암호화 키와 다른 무작위 32바이트를 Base64로 인코딩합니다. |
 | `WEB_ALLOWED_ORIGINS` | CORS 허용 웹 Origin의 쉼표 구분 목록. 기본값은 `http://localhost:3000`이며 경로나 와일드카드를 포함하지 않습니다. |
 
 `JWT_SECRET_BASE64`는 기존 `server/.env` 또는 실행 환경에 별도로 추가해야 합니다. 키를 생성할 때는 `openssl rand -base64 32`를 사용할 수 있습니다. 생성한 값은 공유 문서, 코드나 로그에 기록하지 않고 환경 설정에만 보관합니다. 서버 인스턴스들은 같은 환경의 서명 키를 사용해야 합니다.
 
-`PHONE_ENCRYPTION_KEY_BASE64`와 `PHONE_HMAC_KEY_BASE64`도 `openssl rand -base64 32`를 각각 따로 실행하여 생성합니다. JWT 서명 키, 전화번호 암호화 키와 HMAC 키를 재사용하지 않습니다. 실제 값은 `server/.env` 또는 배포 환경의 비밀 설정에만 저장하며, 공유 문서나 코드에 기록하지 않습니다. 전화번호 암호화 키를 잃으면 저장한 번호를 복호화할 수 없습니다. 키 교체 방식은 [JWT 인증 설계](securityDesign.md)의 전화번호 저장 절을 따릅니다.
+현재 `users`에는 전화번호를 저장하지 않으므로 전화번호 암호화 / HMAC 환경변수를 사용하지 않습니다. 공통 `PhoneSecurity`와 키 설정 자료형은 유지하며, Bean 등록과 외부 키 설정은 주민 명부 / 가입 요청의 연락처 저장을 구현할 때 연결합니다. 현재 로그인 서버 실행에는 전화번호 키가 필요하지 않습니다.
 
 Refresh 쿠키는 기본적으로 `Secure=true`이고 `local` Profile에서만 HTTP 개발을 위해 `false`로 설정됩니다. 운영 실행에는 `local` 이외의 Profile을 명시하고 HTTPS 및 실제 `WEB_ALLOWED_ORIGINS`를 설정합니다.
 
@@ -179,13 +177,13 @@ npm run start
 ```
 
 - `build`에는 `test`가 포함됩니다.
-- 현재 테스트에는 애플리케이션 Context, JWT / 설정 / Entity / Service / 전화번호 보안 단위 테스트, Security / Redis 통합 테스트와 User / 소셜 계정 PostgreSQL 통합 테스트가 있습니다.
+- 현재 테스트에는 애플리케이션 Context, JWT / 설정 / Entity / Service / 공통 전화번호 보안 단위 테스트, Security / Redis 통합 테스트와 User / 소셜 계정 PostgreSQL 통합 테스트가 있습니다.
 - `application-test.yml`은 DB / JPA / Flyway 자동 구성을 제외하여 개발 DB를 사용하지 않습니다. `database-test` Profile의 PostgreSQL 통합 테스트는 별도의 임시 클러스터에 Flyway를 적용하고 JPA 매핑을 검증합니다.
 - Security 통합 테스트는 `redis-server` 실행 파일로 저장 기능을 끈 일회성 Redis를 임의 포트에서 시작하고 종료합니다. 실행 파일이 PATH에 없다면 `REDIS_SERVER_EXECUTABLE`에 경로를 지정합니다. 개발 Redis를 재사용하지 않습니다.
 - PostgreSQL 통합 테스트는 PATH의 `initdb`와 `postgres` 실행 파일로 임시 디렉터리 / 임의 포트의 로컬 전용 DB를 실행하고 종료합니다. PATH에 없다면 `POSTGRES_INITDB_EXECUTABLE`과 `POSTGRES_SERVER_EXECUTABLE`에 같은 PostgreSQL 설치의 실행 파일 경로를 지정합니다. Compose의 개발 DB를 재사용하지 않습니다. PostgreSQL 17 이상을 사용합니다.
-- 테스트 JWT / 전화번호 암호화 / HMAC 키는 실행 시 무작위로 생성하여 주입하며 실제 `server/.env`의 키를 읽지 않습니다.
+- 테스트 JWT 키와 공통 전화번호 보안 단위 테스트의 암호화 / HMAC 키는 실행 시 무작위로 생성하며 실제 `server/.env`의 키를 읽지 않습니다. Context 테스트는 전화번호 키 없이 서버가 시작되는 것도 확인합니다.
 - Spring Context 테스트에는 `test` Profile을 명시해 로컬 `.env` Import를 제외합니다. DB 통합 테스트는 `database-test` Profile에서 격리된 테스트 DB를 명시하고, Security 테스트의 일회성 Redis와 개발 Redis를 구분합니다.
-- User / 소셜 계정 통합 테스트는 빈 DB의 Migration 적용, 기존 스키마 재검증, 유일성 / 전화번호 무결성 제약, 탈퇴 후 재가입, 동시 가입과 실패 시 롤백을 확인합니다.
+- User / 소셜 계정 통합 테스트는 빈 DB의 전체 Migration 적용, 기존 스키마에서 후속 Migration 적용과 계정 / 소셜 연결 보존, 유일성 / 상태 무결성 제약, 탈퇴 후 재가입, 동시 가입과 실패 시 롤백을 확인합니다.
 - `-x test`로 제외한 빌드를 전체 검증 완료로 기록하지 않습니다.
 
 ## 7. 실행 중 확인할 문제

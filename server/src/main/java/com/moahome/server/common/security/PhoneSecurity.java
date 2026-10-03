@@ -1,4 +1,4 @@
-package com.moahome.server.user.security;
+package com.moahome.server.common.security;
 
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -17,11 +17,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import com.moahome.server.config.PhoneSecurityProperties;
 
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.stereotype.Component;
-
-@Component
-@EnableConfigurationProperties(PhoneSecurityProperties.class)
+/** Shared phone encryption and lookup helper; register a bean when contact storage is implemented. */
 public class PhoneSecurity {
 	private static final int NONCE_LENGTH = 12;
 	private static final int TAG_LENGTH_BITS = 128;
@@ -124,6 +120,7 @@ public class PhoneSecurity {
 	}
 
 	private byte[] aad(String keyId) {
+		// Preserve the v1 context for compatibility with previously encrypted phone values.
 		return ("moahome:user:phone:" + FORMAT_VERSION + ":" + keyId).getBytes(StandardCharsets.UTF_8);
 	}
 

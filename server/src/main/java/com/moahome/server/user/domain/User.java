@@ -17,8 +17,6 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import lombok.Getter;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 @Getter
 @Entity
@@ -33,20 +31,6 @@ public class User {
 
 	@Column(name = "profile_image_url", length = 500)
 	private String profileImageUrl;
-
-	@Column(name = "phone_encrypted", columnDefinition = "text")
-	private String phoneEncrypted;
-
-	@JdbcTypeCode(SqlTypes.CHAR)
-	@Column(name = "phone_hmac", length = 64, columnDefinition = "char(64)")
-	private String phoneHmac;
-
-	@JdbcTypeCode(SqlTypes.CHAR)
-	@Column(name = "phone_last4", length = 4, columnDefinition = "char(4)")
-	private String phoneLast4;
-
-	@Column(name = "phone_verified_at", columnDefinition = "timestamptz")
-	private OffsetDateTime phoneVerifiedAt;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
@@ -87,18 +71,6 @@ public class User {
 		validateProfile(displayName, profileImageUrl);
 		this.displayName = displayName.strip();
 		this.profileImageUrl = profileImageUrl;
-	}
-
-	public void verifyPhone(String encrypted, String hmac, String last4, OffsetDateTime verifiedAt) {
-		requireActive();
-		if (encrypted == null || encrypted.isBlank() || hmac == null || !hmac.matches("[0-9a-f]{64}")
-			|| last4 == null || !last4.matches("[0-9]{4}") || verifiedAt == null) {
-			throw new IllegalArgumentException("Invalid verified phone data");
-		}
-		phoneEncrypted = encrypted;
-		phoneHmac = hmac;
-		phoneLast4 = last4;
-		phoneVerifiedAt = verifiedAt;
 	}
 
 	public void recordLogin(OffsetDateTime at) {

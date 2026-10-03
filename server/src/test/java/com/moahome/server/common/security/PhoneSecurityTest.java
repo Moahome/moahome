@@ -1,4 +1,4 @@
-package com.moahome.server.user.security;
+package com.moahome.server.common.security;
 
 import java.security.SecureRandom;
 import java.util.Base64;

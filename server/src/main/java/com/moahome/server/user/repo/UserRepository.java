@@ -1,6 +1,5 @@
 package com.moahome.server.user.repo;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -14,8 +13,6 @@ import org.springframework.data.repository.query.Param;
 
 public interface UserRepository extends JpaRepository<User, UUID> {
 	Optional<User> findByIdAndDeletedAtIsNull(UUID id);
-
-	List<User> findAllByPhoneHmacAndDeletedAtIsNull(String phoneHmac);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select u from User u where u.id = :id and u.deletedAt is null")

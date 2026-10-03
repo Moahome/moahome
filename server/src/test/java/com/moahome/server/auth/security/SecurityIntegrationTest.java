@@ -96,14 +96,6 @@ class SecurityIntegrationTest {
 		String secret = Base64.getEncoder().encodeToString(key);
 		registry.add("moahome.security.jwt-secret-base64", () -> secret);
 		registry.add("spring.data.redis.port", REDIS::port);
-		registry.add("moahome.phone-security.encryption-keys.v1", SecurityIntegrationTest::randomKey);
-		registry.add("moahome.phone-security.hmac-key-base64", SecurityIntegrationTest::randomKey);
-	}
-
-	private static String randomKey() {
-		byte[] bytes = new byte[32];
-		new SecureRandom().nextBytes(bytes);
-		return Base64.getEncoder().encodeToString(bytes);
 	}
 
 	@BeforeEach
