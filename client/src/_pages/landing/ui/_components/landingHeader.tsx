@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { NAVIGATION_ITEMS } from "../_constants/landingContent";
 import { BrandLogo } from "./brandLogo";
 import { LandingIcon } from "./landingIcon";
 import styles from "../landingPage.module.css";
 
-function LoginStatus() {
+function LoginLink({ onClick }: { onClick?: () => void }) {
   return (
     <div className={styles["login-area"]}>
-      <button type="button" disabled title="로그인 기능을 준비하고 있습니다.">
+      <Link href="/login" onClick={onClick}>
         로그인
-      </button>
-      <span>준비 중</span>
+      </Link>
     </div>
   );
 }
@@ -69,7 +69,7 @@ export function LandingHeader() {
           ))}
         </nav>
         <div className={styles["desktop-login"]}>
-          <LoginStatus />
+          <LoginLink />
         </div>
         <button
           className={styles["menu-toggle"]}
@@ -130,8 +130,8 @@ export function LandingHeader() {
             ))}
           </nav>
           <div className={styles["drawer-login"]}>
-            <LoginStatus />
-            <p>로그인 기능을 준비하고 있어요.</p>
+            <LoginLink onClick={closeMenu} />
+            <p>카카오로 모아홈을 시작해보세요.</p>
           </div>
           <p className={styles["drawer-tagline"]}>
             함께 만드는

@@ -22,6 +22,9 @@ html {
   --success: #16a34a;
   --warning: #f59e0b;
   --danger: #ef4444;
+  /* 카카오 로그인 버튼에만 사용하는 외부 서비스 공식 색상입니다. */
+  --kakao-background: #fee500;
+  --kakao-foreground: #000000;
 }
 
 @theme inline {

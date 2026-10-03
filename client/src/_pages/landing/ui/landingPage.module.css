@@ -116,18 +116,6 @@
   letter-spacing: -0.2px;
 }
 
-.logo-house {
-  fill: var(--primary);
-}
-
-.logo-roof {
-  fill: var(--primary-dark);
-}
-
-.logo-door {
-  fill: var(--secondary-teal);
-}
-
 .navigation {
   display: flex;
   align-items: center;
@@ -172,20 +160,14 @@
   align-items: center;
   gap: 7px;
 
-  button {
+  a {
     font-size: 14px;
-    color: var(--sub-text);
-    cursor: not-allowed;
-  }
+    color: var(--primary);
+    font-weight: 600;
 
-  > span {
-    color: var(--sub-text);
-    font-size: 10px;
-    background: var(--background);
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    padding: 3px 5px;
-    white-space: nowrap;
+    &:hover {
+      color: var(--primary-dark);
+    }
   }
 }
 
@@ -345,12 +327,8 @@
   .login-area {
     margin-left: 0;
 
-    button {
+    a {
       font-size: 15px;
-    }
-
-    > span {
-      display: inline;
     }
   }
 
@@ -1982,12 +1960,6 @@
     padding-left: 18px;
   }
 
-  .login-area {
-    > span {
-      display: none;
-    }
-  }
-
   .hero-inner {
     grid-template-columns: 1fr;
     gap: 20px;
@@ -2220,14 +2192,8 @@
     margin-left: auto;
     gap: 5px;
 
-    button {
+    a {
       font-size: 12px;
-    }
-
-    > span {
-      display: inline;
-      font-size: 9px;
-      padding: 2px 4px;
     }
   }
 

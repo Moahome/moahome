@@ -1,0 +1,76 @@
+.kakao-login {
+  position: relative;
+}
+
+.login-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 68px;
+  padding: 18px 24px;
+  border-radius: 12px;
+  background: var(--kakao-background);
+  color: color-mix(in srgb, var(--kakao-foreground) 85%, transparent);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  cursor: pointer;
+  transition: box-shadow 0.2s, transform 0.2s;
+
+  svg {
+    width: 28px;
+    height: 28px;
+    fill: var(--kakao-foreground);
+  }
+
+  &:hover {
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--kakao-foreground) 8%, transparent);
+    transform: translateY(-2px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 5px;
+  }
+}
+
+.notice {
+  margin-top: 12px;
+  color: var(--sub-text);
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.5;
+  word-break: keep-all;
+
+  &:empty {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .login-button {
+    min-height: 60px;
+    font-size: 17px;
+
+    svg {
+      width: 25px;
+      height: 25px;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-button {
+    transition: none;
+
+    &:hover {
+      transform: none;
+    }
+  }
+}
