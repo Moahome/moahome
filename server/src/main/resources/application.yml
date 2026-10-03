@@ -33,6 +33,14 @@ spring:
 server:
   port: 8080
 
+moahome:
+  security:
+    jwt-secret-base64: ${JWT_SECRET_BASE64:}
+    issuer: moahome-server
+    audience: moahome-api
+    allowed-origins: ${WEB_ALLOWED_ORIGINS:http://localhost:3000}
+    cookie-secure: true
+
 ---
 
 spring:
@@ -40,3 +48,7 @@ spring:
     activate:
       on-profile: local
     import: "optional:file:.env[.properties]"
+
+moahome:
+  security:
+    cookie-secure: false

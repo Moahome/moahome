@@ -1,6 +1,6 @@
 # JWT 인증 설계
 
-이 문서는 Server Security 구현에 사용할 토큰 수명, 웹과 앱의 전달 방식, Redis 인증 상태와 로그아웃 정책을 정의합니다. 아래 내용은 확정한 구현 기준이며, 현재 저장소에는 Security 설정과 카카오 OAuth 연동이 아직 구현되지 않았습니다.
+이 문서는 Server Security의 토큰 수명, 웹과 앱의 전달 방식, Redis 인증 상태와 로그아웃 정책을 정의합니다. JWT 검증, Redis 로그인 세션, 웹·앱 재발급 / 로그아웃 API와 CSRF / CORS 설정은 구현되어 있습니다. 카카오 OAuth 로그인, 사용자 계정 저장과 Client 인증 연동은 아직 구현되지 않았습니다.
 
 ## 1. 인증 기준
 
@@ -79,13 +79,29 @@
 - 업무 API는 쿠키를 인증 수단으로 사용하지 않고 Bearer 헤더만 허용합니다. 앱의 Refresh JSON 경로도 쿠키 인증을 받지 않습니다. CSRF 예외는 이렇게 자동 쿠키 인증이 없는 경로에 한정합니다.
 - OAuth 로그인 시도는 만료가 있는 일회용 `state`를 Redis에서 관리하고 시작한 브라우저 또는 앱 시도와 연결하여 콜백에서 검증합니다. JWT 사용을 이유로 CSRF 보호를 전역 비활성화하지 않습니다.
 
-## 7. 후속 구현과 검증
+## 7. 현재 API와 연동 범위
+
+| API | 인증과 요청 | 응답 |
+| --- | --- | --- |
+| `GET /api/auth/web/csrf` | 웹 Refresh 쿠키 | `csrfToken` JSON |
+| `POST /api/auth/web/refresh` | 웹 Refresh 쿠키, 허용 Origin, `X-CSRF-TOKEN` 헤더 | Access Token JSON과 교체된 Refresh 쿠키 |
+| `POST /api/auth/web/logout` | 웹 Refresh 쿠키, 허용 Origin, `X-CSRF-TOKEN` 헤더 | `204`, Refresh 쿠키 삭제 |
+| `POST /api/auth/app/refresh` | JSON의 `refreshToken`, 앱 세션 검증 | 두 토큰과 만료시각 JSON |
+| `POST /api/auth/app/logout` | JSON의 `refreshToken`, 앱 세션 검증 | `204` |
+
+웹 Access 응답에는 `accessToken`, `tokenType`, `accessExpiresAt`이 있습니다. 앱 재발급 응답에는 추가로 `refreshToken`, `refreshExpiresAt`이 있습니다. 인증 오류 응답은 `code`, `message` 구조이며, Access 만료는 `401 / ACCESS_TOKEN_EXPIRED`, 세션 만료는 `401 / SESSION_EXPIRED`, 토큰 재사용은 `401 / REFRESH_TOKEN_REUSED`, 권한 부족은 `403 / ACCESS_DENIED`, CSRF 실패는 `403 / CSRF_INVALID`, Redis 장애는 `503 / AUTH_SERVICE_UNAVAILABLE`로 구분합니다.
+
+카카오 로그인과 영속 사용자 조회를 연결할 때 검증된 사용자 ID로 `AuthService.startSession()`을 호출합니다. 사용자 ID를 직접 받아 토큰을 발급하는 공개 API는 제공하지 않습니다. OAuth 시작 / 콜백, 앱 교환 코드와 화면 이동은 후속 로그인 구현에 포함되며, 구현 전에는 해당 경로를 공개하지 않습니다. 관리대상별 권한은 토큰에 전역 역할을 넣는 방식으로 대신하지 않고 해당 업무 Service에서 검사합니다.
+
+서명은 HS256을 사용하며 32바이트 이상의 무작위 키를 Base64로 인코딩해 `JWT_SECRET_BASE64`로 주입해야 합니다. 누락·잘못된 인코딩·짧은 키는 서버 시작 시 거부합니다. 운영 Origin과 로컬 실행 설정은 [개발 환경 가이드](developmentGuide.md)를 따릅니다.
+
+## 8. 후속 구현과 검증
 
 로그인 성공 이후의 실제 Client 경로, 앱의 등록 도메인, 운영 Origin과 `ADMIN` / `MANAGER`의 상세 업무 권한은 해당 화면·배포·업무 API 구현 시 확정합니다. 로그인 이후 관리대상 수와 역할에 따른 진입 기준은 기존 [도메인 규칙](domainRules.md)을 따릅니다.
 
-인증 구현 시에는 토큰 만료와 종류 혼용, Rotation과 재사용 탐지, 재발급·로그아웃 경합, 동시 로그인 유지, 로그아웃 후 Access Token 거부, 웹 CSRF·CORS, Redis 장애를 검증합니다. 이 문서 작성 단계에서 미사용 코드나 테스트를 미리 추가하지 않습니다.
+Security 테스트는 토큰 만료와 종류 혼용, 서명·발급자·대상 검증, Rotation과 재사용 탐지, 동시 재발급, 로그아웃 후 세션 재생성 방지, 동시 로그인 유지, 웹 CSRF·CORS와 Redis 장애를 검증합니다. 테스트용 Redis는 일회성 프로세스로 시작하며 개발 Redis를 사용하지 않습니다. 카카오 로그인과 실제 Client 연동은 구현 시 별도로 검증합니다.
 
-## 8. 참고 문서
+## 9. 참고 문서
 
 수명과 전달 방식은 이 프로젝트의 정책입니다. Rotation과 재사용 탐지, 쿠키 인증의 CSRF 보호, 네이티브 로그인 및 저장소 설계는 다음 공식 문서를 참고합니다.
 

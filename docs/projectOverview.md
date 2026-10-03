@@ -138,7 +138,7 @@ Property
 
 - Client에는 `/` 경로의 반응형 랜딩 페이지와 공통 색상 토큰이 있습니다. 서비스 소개, 주요 기능, 이용 대상과 FAQ를 제공하며, 서비스 화면은 예시 목업입니다.
 - Client의 `/login`에는 `(auth)` 라우트 그룹의 반응형 카카오 로그인 화면이 있습니다. 카카오 버튼과 약관은 준비 중 안내를 제공하며, 실제 인증은 아직 연결되지 않았습니다.
-- Server에는 Spring Boot 기본 애플리케이션과 기본 테스트가 있습니다.
+- Server에는 JWT 검증, Redis 로그인 세션, 웹·앱 재발급 / 로그아웃 API와 CSRF / CORS 설정이 있습니다. 인증 동작은 단위 테스트와 격리된 Redis 통합 테스트로 검증합니다.
 - 카카오 OAuth 연동과 업무 화면, 도메인 로직과 업무용 Migration은 아직 구현되어 있지 않습니다.
 - 위 서비스 구성의 기능 목록은 서비스 목표이며 구현 완료 목록이 아닙니다.
 
@@ -289,7 +289,7 @@ API 계약은 기능별 구현 범위를 정한 뒤 별도 문서로 작성합�
 
 - [도메인 규칙](domainRules.md): 용어, 도메인 관계, 기존 업무 기준과 미정 정책
 - [개발 환경 가이드](developmentGuide.md): 환경변수, PostgreSQL / Redis 준비와 Client / Server 실행 방법
-- [JWT 인증 설계](securityDesign.md): Security 구현 전 확정한 인증 정책과 Client 연동 기준
+- [JWT 인증 설계](securityDesign.md): 인증 정책, 구현된 Security API와 후속 Client 연동 기준
 - [루트 AGENTS.md](../AGENTS.md): 공통 구조, 명명, 색상과 작업 규칙
 - [Client AGENTS.md](../client/AGENTS.md): FSD, UI, 테스트와 빌드 규칙
 - [Server AGENTS.md](../server/AGENTS.md): Java / Spring / JPA, Entity, 트랜잭션, Redis, Migration과 검증 규칙

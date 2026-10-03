@@ -424,6 +424,6 @@ BankTransactionRepository.java
 - Redis 사용 기능은 필요할 때 별도 통합 테스트를 추가합니다.
 - 통합 테스트는 운영 / 공유 DB와 분리한 테스트 DB를 사용하고 테스트 간 데이터가 섞이지 않도록 합니다. 필요한 경우 Testcontainers를 도입합니다.
 - 정상 흐름뿐 아니라 잘못된 상태, 권한 부족, 중복 처리와 트랜잭션 실패 시 결과도 검증합니다.
-- 현재 테스트는 기본 `contextLoads`만 있습니다. DB / Redis 연결이 필요한 테스트는 테스트 환경을 구성한 뒤 실행합니다.
+- 현재 테스트는 Context, JWT / 설정 / Service 단위 테스트와 Security / Redis 통합 테스트입니다. `test` Profile은 DB / JPA / Flyway 자동 구성을 제외합니다. Security 통합 테스트는 일회성 `redis-server` 프로세스를 사용하며, 실행 파일이 PATH에 없으면 `REDIS_SERVER_EXECUTABLE`에 경로를 지정합니다. DB 테스트는 별도 테스트 환경을 구성한 뒤 실행합니다.
 - 아직 구현하지 않은 도메인이나 Migration의 테스트를 미리 만들지 않습니다.
 - 문서만 변경한 경우 루트 Verification 규칙을 따릅니다.
