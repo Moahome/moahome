@@ -11,6 +11,12 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 
+import com.moahome.server.user.service.UserService;
+import com.moahome.server.user.repo.UserRepository;
+import com.moahome.server.auth.repo.SocialAccountRepository;
+import com.moahome.server.user.exception.UserErrorCode;
+import com.moahome.server.user.exception.UserException;
+
 import com.moahome.server.auth.controller.AppAuthController;
 import com.moahome.server.auth.domain.AuthPrincipal;
 import com.moahome.server.auth.domain.ClientType;
@@ -42,6 +48,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -78,6 +85,9 @@ class SecurityIntegrationTest {
 	@Autowired private ObjectMapper mapper;
 	@Autowired private MutableClock clock;
 	@MockitoSpyBean private RedisAuthSessionRepository sessions;
+	@MockitoBean private UserService users;
+	@MockitoBean private UserRepository userRepository;
+	@MockitoBean private SocialAccountRepository socialAccounts;
 
 	@DynamicPropertySource
 	static void infrastructure(DynamicPropertyRegistry registry) {
@@ -86,6 +96,14 @@ class SecurityIntegrationTest {
 		String secret = Base64.getEncoder().encodeToString(key);
 		registry.add("moahome.security.jwt-secret-base64", () -> secret);
 		registry.add("spring.data.redis.port", REDIS::port);
+		registry.add("moahome.phone-security.encryption-keys.v1", SecurityIntegrationTest::randomKey);
+		registry.add("moahome.phone-security.hmac-key-base64", SecurityIntegrationTest::randomKey);
+	}
+
+	private static String randomKey() {
+		byte[] bytes = new byte[32];
+		new SecureRandom().nextBytes(bytes);
+		return Base64.getEncoder().encodeToString(bytes);
 	}
 
 	@BeforeEach
@@ -95,7 +113,7 @@ class SecurityIntegrationTest {
 
 	@AfterEach
 	void resetSpies() {
-		reset(sessions);
+		reset(sessions, users);
 	}
 
 	@AfterAll
@@ -105,20 +123,20 @@ class SecurityIntegrationTest {
 
 	@Test
 	void requiresBearerForBusinessEndpointsAndDoesNotOpenUnknownAuthPaths() throws Exception {
-		var pair = auth.startSession("user-1", ClientType.WEB);
+		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.WEB);
 		mvc.perform(get("/api/test/identity")).andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
 		mvc.perform(get("/api/test/identity").cookie(refreshCookie(pair))).andExpect(status().isUnauthorized());
 		mvc.perform(get("/api/auth/unknown")).andExpect(status().isUnauthorized());
 		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + pair.accessToken()))
-			.andExpect(status().isOk()).andExpect(jsonPath("userId").value("user-1"));
+			.andExpect(status().isOk()).andExpect(jsonPath("userId").value("00000000-0000-0000-0000-000000000001"));
 		mvc.perform(post("/api/test/action").header("Authorization", "Bearer " + pair.accessToken()))
 			.andExpect(status().isOk());
 	}
 
 	@Test
 	void rejectsMalformedTamperedAndRefreshBearerTokens() throws Exception {
-		var pair = auth.startSession("user-1", ClientType.APP);
+		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer invalid"))
 			.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("INVALID_TOKEN"));
 		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + pair.refreshToken()))
@@ -129,14 +147,14 @@ class SecurityIntegrationTest {
 
 	@Test
 	void returnsJson403ForDeniedMethod() throws Exception {
-		var pair = auth.startSession("user-1", ClientType.APP);
+		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		mvc.perform(get("/api/test/denied").header("Authorization", "Bearer " + pair.accessToken()))
 			.andExpect(status().isForbidden()).andExpect(jsonPath("code").value("ACCESS_DENIED"));
 	}
 
 	@Test
 	void expiredAccessCanRefreshButExpiredRefreshRequiresLogin() throws Exception {
-		var pair = auth.startSession("user-1", ClientType.APP);
+		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		clock.advance(Duration.ofHours(1));
 		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + pair.accessToken()))
 			.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("ACCESS_TOKEN_EXPIRED"));
@@ -150,7 +168,7 @@ class SecurityIntegrationTest {
 
 	@Test
 	void webRefreshRequiresOriginAndCsrfHeaderAndKeepsRefreshOutOfJson() throws Exception {
-		var pair = auth.startSession("user-1", ClientType.WEB);
+		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.WEB);
 		String csrf = csrfToken(pair);
 		mvc.perform(post(WebAuthSupport.REFRESH_PATH).cookie(refreshCookie(pair)))
 			.andExpect(status().isForbidden()).andExpect(jsonPath("code").value("CSRF_INVALID"));
@@ -182,8 +200,8 @@ class SecurityIntegrationTest {
 
 	@Test
 	void webLogoutInvalidatesAccessImmediatelyAndPreservesOtherLogin() throws Exception {
-		var webPair = auth.startSession("user-1", ClientType.WEB);
-		var appPair = auth.startSession("user-1", ClientType.APP);
+		var webPair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.WEB);
+		var appPair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		mvc.perform(post(WebAuthSupport.LOGOUT_PATH).cookie(refreshCookie(webPair)).header("Origin", ORIGIN)
 			.header("X-CSRF-TOKEN", csrfToken(webPair)))
 			.andExpect(status().isNoContent()).andExpect(cookie().maxAge(WebAuthSupport.COOKIE_NAME, 0));
@@ -196,7 +214,7 @@ class SecurityIntegrationTest {
 
 	@Test
 	void appLogoutAcceptsRefreshAfterAccessExpiresAndDoesNotUseCookie() throws Exception {
-		var pair = auth.startSession("user-1", ClientType.APP);
+		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		clock.advance(Duration.ofHours(1));
 		mvc.perform(post(AppAuthController.LOGOUT_PATH).cookie(refreshCookie(pair)).contentType(MediaType.APPLICATION_JSON)
 			.content("{}"))
@@ -208,30 +226,30 @@ class SecurityIntegrationTest {
 
 	@Test
 	void cannotUseWebRefreshThroughAppRouteOrAppRefreshThroughWebRoute() throws Exception {
-		var webPair = auth.startSession("user-1", ClientType.WEB);
-		var appPair = auth.startSession("user-1", ClientType.APP);
+		var webPair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.WEB);
+		var appPair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		mvc.perform(appRequest(AppAuthController.REFRESH_PATH, webPair.refreshToken()))
 			.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("INVALID_TOKEN"));
 		mvc.perform(get(WebAuthSupport.CSRF_PATH).cookie(refreshCookie(appPair)).header("Origin", ORIGIN))
 			.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("INVALID_TOKEN"));
-		assertThat(auth.authenticateAccess(webPair.accessToken()).userId()).isEqualTo("user-1");
-		assertThat(auth.authenticateAccess(appPair.accessToken()).userId()).isEqualTo("user-1");
+		assertThat(auth.authenticateAccess(webPair.accessToken()).userId()).isEqualTo("00000000-0000-0000-0000-000000000001");
+		assertThat(auth.authenticateAccess(appPair.accessToken()).userId()).isEqualTo("00000000-0000-0000-0000-000000000001");
 	}
 
 	@Test
 	void refreshReplayRevokesThatSessionIncludingNewTokens() {
-		var pair = auth.startSession("user-1", ClientType.APP);
-		var other = auth.startSession("user-1", ClientType.APP);
+		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
+		var other = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		var refreshed = auth.refresh(pair.refreshToken(), ClientType.APP);
 		assertCode(() -> auth.refresh(pair.refreshToken(), ClientType.APP), AuthErrorCode.REFRESH_TOKEN_REUSED);
 		assertCode(() -> auth.authenticateAccess(refreshed.accessToken()), AuthErrorCode.SESSION_EXPIRED);
 		assertCode(() -> auth.refresh(refreshed.refreshToken(), ClientType.APP), AuthErrorCode.SESSION_EXPIRED);
-		assertThat(auth.authenticateAccess(other.accessToken()).userId()).isEqualTo("user-1");
+		assertThat(auth.authenticateAccess(other.accessToken()).userId()).isEqualTo("00000000-0000-0000-0000-000000000001");
 	}
 
 	@Test
 	void redisStoresOnlyRefreshHashAndRotationDoesNotExtendTtl() {
-		var pair = auth.startSession("user-1", ClientType.APP);
+		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		String sid = tokens.readAccess(pair.accessToken()).getClaimAsString("sid");
 		String key = "auth:session:" + sid;
 		long ttlBefore = redis.getExpire(key);
@@ -246,7 +264,7 @@ class SecurityIntegrationTest {
 
 	@Test
 	void concurrentRefreshDoesNotAcceptTheSameTokenTwice() throws Exception {
-		var pair = auth.startSession("user-1", ClientType.APP);
+		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		CountDownLatch ready = new CountDownLatch(2);
 		CountDownLatch start = new CountDownLatch(1);
 		Callable<Boolean> task = () -> {
@@ -273,7 +291,7 @@ class SecurityIntegrationTest {
 
 	@Test
 	void deletedSessionCannotBeRecreatedByAnInFlightRotation() {
-		var pair = auth.startSession("user-1", ClientType.APP);
+		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		var session = auth.authenticateRefresh(pair.refreshToken(), ClientType.APP);
 		auth.logout(pair.refreshToken(), ClientType.APP);
 		assertThat(sessions.rotate(session, TokenService.hash(pair.refreshToken()), "new-hash")).isZero();
@@ -282,12 +300,25 @@ class SecurityIntegrationTest {
 
 	@Test
 	void redisFailureReturns503InsteadOfAcceptingSignedJwt() throws Exception {
-		var pair = auth.startSession("user-1", ClientType.APP);
+		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		doThrow(new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE)).when(sessions).find(anyString());
 		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + pair.accessToken()))
 			.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("code").value("AUTH_SERVICE_UNAVAILABLE"));
 		mvc.perform(appRequest(AppAuthController.REFRESH_PATH, pair.refreshToken()))
 			.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("code").value("AUTH_SERVICE_UNAVAILABLE"));
+	}
+
+	@Test
+	void inactiveAccountCannotUseExistingAccessOrRefreshButCanLogout() throws Exception {
+		String id = "00000000-0000-0000-0000-000000000001";
+		var pair = auth.startSession(id, ClientType.APP);
+		org.mockito.Mockito.when(users.requireActive(java.util.UUID.fromString(id)))
+			.thenThrow(new UserException(UserErrorCode.ACCOUNT_UNAVAILABLE));
+		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + pair.accessToken()))
+			.andExpect(status().isForbidden()).andExpect(jsonPath("code").value("ACCOUNT_UNAVAILABLE"));
+		mvc.perform(appRequest(AppAuthController.REFRESH_PATH, pair.refreshToken()))
+			.andExpect(status().isForbidden()).andExpect(jsonPath("code").value("ACCOUNT_UNAVAILABLE"));
+		mvc.perform(appRequest(AppAuthController.LOGOUT_PATH, pair.refreshToken())).andExpect(status().isNoContent());
 	}
 
 	private String csrfToken(TokenService.TokenPair pair) throws Exception {

@@ -1,6 +1,6 @@
 # JWT 인증 설계
 
-이 문서는 Server Security의 토큰 수명, 웹과 앱의 전달 방식, Redis 인증 상태와 로그아웃 정책을 정의합니다. JWT 검증, Redis 로그인 세션, 웹·앱 재발급 / 로그아웃 API와 CSRF / CORS 설정은 구현되어 있습니다. 카카오 OAuth 로그인, 사용자 계정 저장과 Client 인증 연동은 아직 구현되지 않았습니다.
+이 문서는 Server Security의 토큰 수명, 웹과 앱의 전달 방식, Redis 인증 상태와 로그아웃 정책을 정의합니다. JWT 검증, Redis 로그인 세션, 웹·앱 재발급 / 로그아웃 API와 CSRF / CORS 설정은 구현되어 있습니다. 사용자 / 소셜 계정 저장과 서버가 검증한 소셜 프로필을 기존 세션으로 연결하는 내부 Service도 구현되어 있습니다. 카카오 OAuth 검증 / 콜백과 Client 인증 연동은 아직 구현되지 않았습니다.
 
 ## 1. 인증 기준
 
@@ -91,7 +91,7 @@
 
 웹 Access 응답에는 `accessToken`, `tokenType`, `accessExpiresAt`이 있습니다. 앱 재발급 응답에는 추가로 `refreshToken`, `refreshExpiresAt`이 있습니다. 인증 오류 응답은 `code`, `message` 구조이며, Access 만료는 `401 / ACCESS_TOKEN_EXPIRED`, 세션 만료는 `401 / SESSION_EXPIRED`, 토큰 재사용은 `401 / REFRESH_TOKEN_REUSED`, 권한 부족은 `403 / ACCESS_DENIED`, CSRF 실패는 `403 / CSRF_INVALID`, Redis 장애는 `503 / AUTH_SERVICE_UNAVAILABLE`로 구분합니다.
 
-카카오 로그인과 영속 사용자 조회를 연결할 때 검증된 사용자 ID로 `AuthService.startSession()`을 호출합니다. 사용자 ID를 직접 받아 토큰을 발급하는 공개 API는 제공하지 않습니다. OAuth 시작 / 콜백, 앱 교환 코드와 화면 이동은 후속 로그인 구현에 포함되며, 구현 전에는 해당 경로를 공개하지 않습니다. 관리대상별 권한은 토큰에 전역 역할을 넣는 방식으로 대신하지 않고 해당 업무 Service에서 검사합니다.
+카카오 로그인 검증을 연결할 때 서버가 검증한 프로필로 `SocialLoginService.loginVerified()`를 호출합니다. 내부 `SocialAccountService`가 제공자와 제공자 사용자 ID로 사용자를 조회 / 생성하고 DB 트랜잭션을 커밋한 뒤, 검증된 사용자 ID로 `AuthService.startSession()`을 호출합니다. 사용자 ID를 직접 받아 토큰을 발급하는 공개 API는 제공하지 않습니다. OAuth 시작 / 콜백, 앱 교환 코드와 화면 이동은 후속 로그인 구현에 포함되며, 구현 전에는 해당 경로를 공개하지 않습니다. 관리대상별 권한은 토큰에 전역 역할을 넣는 방식으로 대신하지 않고 해당 업무 Service에서 검사합니다.
 
 서명은 HS256을 사용하며 32바이트 이상의 무작위 키를 Base64로 인코딩해 `JWT_SECRET_BASE64`로 주입해야 합니다. 누락·잘못된 인코딩·짧은 키는 서버 시작 시 거부합니다. 운영 Origin과 로컬 실행 설정은 [개발 환경 가이드](developmentGuide.md)를 따릅니다.
 
@@ -111,3 +111,20 @@ Security 테스트는 토큰 만료와 종류 혼용, 서명·발급자·대상 
 - [네이티브 앱 OAuth RFC 8252](https://www.rfc-editor.org/rfc/rfc8252.html)
 - [Apple Keychain](https://developer.apple.com/documentation/security/keychain-services)
 - [Android Keystore](https://developer.android.com/privacy-and-security/keystore)
+
+
+## 8. 사용자 / 소셜 계정과 전화번호 저장
+
+- `users`는 모아홈 사용자, `social_accounts`는 외부 로그인 계정 연결을 저장합니다. 소셜 계정에서 사용자로 단방향 LAZY 관계를 사용합니다.
+- `SocialAccountService.resolveVerifiedUser()`는 동일한 소셜 식별자의 가입 / 로그인을 PostgreSQL 트랜잭션 advisory lock으로 직렬화합니다. DB의 부분 유일 인덱스도 삭제되지 않은 소셜 식별자의 중복을 차단합니다.
+- `VerifiedSocialProfile`은 서버의 제공자 검증 결과를 전달하는 내부 자료형입니다. 자료형 생성만으로 OAuth 검증이 수행되는 것은 아닙니다. Client가 보낸 사용자 ID나 이메일로 직접 생성하여 로그인시키지 않습니다.
+- `SocialLoginService.loginVerified()`는 외부 DB 트랜잭션 안에서 실행할 수 없습니다. 사용자 / 소셜 계정 저장 커밋 후 Redis 세션을 생성합니다. Redis 세션 생성이 실패하면 DB 계정은 유지하고 로그인 재시도 시 기존 계정을 사용합니다.
+- ACTIVE 계정만 세션 생성, Access Token 인증과 토큰 재발급을 허용합니다. 매 요청에서 DB의 계정 상태를 확인하여 정지 / 탈퇴 계정의 기존 토큰도 차단합니다. 로그아웃은 해당 계정의 현재 Redis 세션으로 처리할 수 있습니다.
+- `SocialAccountService.withdrawUser()`는 사용자와 연결된 소셜 계정을 함께 소프트 삭제합니다. 권한 확인을 마친 서버 호출자가 실제 처리자 ID를 전달해야 합니다. 탈퇴와 정지 / 해제의 공개 API는 아직 제공하지 않습니다.
+- 전화번호는 국가번호가 포함된 `+821012345678` 형태로 정규화합니다. 공백, 괄호와 하이픈을 제거하며 국가번호 없는 로컬 번호의 국가를 추정하지 않습니다. 형식 검사가 실제 번호 소유 인증을 대신하지 않습니다.
+- `UserService.verifyPhone()`은 서버가 소유 인증을 완료한 번호와 인증 시각만 받는 내부 진입점입니다. 암호문, HMAC, 마지막 4자리와 인증 시각을 하나의 Entity 메서드로 갱신합니다. 실제 전화번호 인증 API는 아직 구현되지 않았습니다.
+- `phone_encrypted`와 Java의 `phoneEncrypted`에는 모두 암호문을 보관합니다. 자동 복호화 Converter를 사용하지 않고 `PhoneSecurity.decrypt()`를 필요한 작업에서 명시적으로 호출합니다.
+- 전화번호 암호화는 AES-256-GCM, 암호화마다 새로운 12바이트 nonce와 128비트 인증 태그를 사용합니다. 저장 형식은 `v1:<key-id>:<base64url-nonce>:<base64url-ciphertext-and-tag>`입니다. 형식 버전, 용도와 키 ID도 AAD로 인증합니다.
+- 검색은 별도 키의 HMAC-SHA-256을 64자리 소문자 hex로 저장하여 수행합니다. 마스킹용 마지막 4자리는 별도 보관합니다. 평문 / 암호문 / HMAC을 일반 로그나 응답에 노출하지 않습니다.
+- 기본 암호화 키 ID는 `v1`입니다. 키 교체 시 외부 설정의 `moahome.phone-security.encryption-keys`에 새 키와 기존 키를 함께 등록하고 `active-key-id`를 새 키 ID로 바꿉니다. 기존 암호문을 재암호화하기 전까지 복호화용 이전 키를 유지합니다. HMAC 키 교체에는 기존 검색값 재계산이 필요하며 자동 교체 기능은 제공하지 않습니다.
+- 재가입, 상태와 전화번호 필수 여부는 [도메인 규칙](domainRules.md)을 따릅니다. 탈퇴 개인정보 보존 / 파기 정책은 미정이며, 현재 소프트 삭제가 개인정보 파기를 수행하지는 않습니다.

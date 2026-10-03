@@ -13,7 +13,10 @@ import com.moahome.server.auth.domain.ClientType;
 import com.moahome.server.auth.exception.AuthErrorCode;
 import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.auth.repo.RedisAuthSessionRepository;
+import com.moahome.server.user.exception.UserException;
+import com.moahome.server.user.service.UserService;
 
+import org.springframework.dao.DataAccessException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
@@ -22,12 +25,14 @@ public class AuthService {
 	private final TokenService tokens;
 	private final RedisAuthSessionRepository sessions;
 	private final Clock clock;
+	private final UserService users;
 	private final SecureRandom random = new SecureRandom();
 
-	public AuthService(TokenService tokens, RedisAuthSessionRepository sessions, Clock clock) {
+	public AuthService(TokenService tokens, RedisAuthSessionRepository sessions, Clock clock, UserService users) {
 		this.tokens = tokens;
 		this.sessions = sessions;
 		this.clock = clock;
+		this.users = users;
 	}
 
 	/** Only call after a login provider has verified and resolved a persisted service user. */
@@ -35,6 +40,7 @@ public class AuthService {
 		if (verifiedUserId == null || verifiedUserId.isBlank() || clientType == null) {
 			throw new IllegalArgumentException("Verified user and client type are required");
 		}
+		requireActiveAccount(verifiedUserId);
 		Instant now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
 		String sessionId = UUID.randomUUID().toString();
 		Instant expiresAt = now.plus(TokenService.REFRESH_LIFETIME);
@@ -49,6 +55,7 @@ public class AuthService {
 	public AuthPrincipal authenticateAccess(String accessToken) {
 		Jwt jwt = tokens.readAccess(accessToken);
 		AuthSession session = requireSession(jwt);
+		requireActiveAccount(session.userId());
 		return new AuthPrincipal(session.userId(), session.sessionId());
 	}
 
@@ -64,6 +71,7 @@ public class AuthService {
 
 	public TokenService.TokenPair refresh(String refreshToken, ClientType clientType) {
 		AuthSession session = authenticateRefresh(refreshToken, clientType);
+		requireActiveAccount(session.userId());
 		TokenService.TokenPair pair = tokens.issue(session.userId(), session.sessionId(), session.expiresAt());
 		requireSuccess(sessions.rotate(session, TokenService.hash(refreshToken), TokenService.hash(pair.refreshToken())));
 		return pair;
@@ -97,5 +105,17 @@ public class AuthService {
 			throw new AuthException(AuthErrorCode.INVALID_TOKEN);
 		}
 		throw new AuthException(AuthErrorCode.SESSION_EXPIRED);
+	}
+
+	private void requireActiveAccount(String userId) {
+		try {
+			users.requireActive(UUID.fromString(userId));
+		} catch (IllegalArgumentException exception) {
+			throw new AuthException(AuthErrorCode.INVALID_TOKEN);
+		} catch (UserException exception) {
+			throw new AuthException(AuthErrorCode.ACCOUNT_UNAVAILABLE);
+		} catch (DataAccessException exception) {
+			throw new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE);
+		}
 	}
 }
