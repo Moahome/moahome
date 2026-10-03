@@ -1,4 +1,4 @@
-package com.moahome.server.auth;
+package com.moahome.server.auth.domain;
 
 import java.time.Instant;
 

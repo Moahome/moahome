@@ -1,4 +1,4 @@
-package com.moahome.server.auth;
+package com.moahome.server.auth.support;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -6,18 +6,18 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 
-final class MutableClock extends Clock {
+public final class MutableClock extends Clock {
 	private Instant current;
 
-	MutableClock(Instant current) {
+	public MutableClock(Instant current) {
 		this.current = current;
 	}
 
-	void set(Instant current) {
+	public void set(Instant current) {
 		this.current = current;
 	}
 
-	void advance(Duration duration) {
+	public void advance(Duration duration) {
 		current = current.plus(duration);
 	}
 

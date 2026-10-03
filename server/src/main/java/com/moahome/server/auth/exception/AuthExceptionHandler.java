@@ -1,4 +1,8 @@
-package com.moahome.server.auth;
+package com.moahome.server.auth.exception;
+
+import com.moahome.server.auth.controller.AppAuthController;
+import com.moahome.server.auth.controller.WebAuthController;
+import com.moahome.server.auth.security.AuthErrorHandler;
 
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;

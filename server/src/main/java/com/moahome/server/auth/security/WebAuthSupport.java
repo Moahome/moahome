@@ -1,10 +1,14 @@
-package com.moahome.server.auth;
+package com.moahome.server.auth.security;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 
+import com.moahome.server.auth.domain.AuthSession;
+import com.moahome.server.auth.exception.AuthErrorCode;
+import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.config.SecurityProperties;
+
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseCookie;

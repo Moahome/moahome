@@ -1,4 +1,4 @@
-package com.moahome.server.auth;
+package com.moahome.server.auth.support;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -8,11 +8,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 
-final class RedisTestServer implements AutoCloseable {
+public final class RedisTestServer implements AutoCloseable {
 	private final Process process;
 	private final int port;
 
-	RedisTestServer() {
+	public RedisTestServer() {
 		try {
 			try (ServerSocket socket = new ServerSocket(0)) {
 				port = socket.getLocalPort();
@@ -42,7 +42,7 @@ final class RedisTestServer implements AutoCloseable {
 		}
 	}
 
-	int port() {
+	public int port() {
 		return port;
 	}
 

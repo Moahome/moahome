@@ -1,9 +1,14 @@
-package com.moahome.server.auth;
+package com.moahome.server.auth.repo;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
+import com.moahome.server.auth.domain.AuthSession;
+import com.moahome.server.auth.domain.ClientType;
+import com.moahome.server.auth.exception.AuthErrorCode;
+import com.moahome.server.auth.exception.AuthException;
 
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;

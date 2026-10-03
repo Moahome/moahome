@@ -4,16 +4,17 @@ import java.net.URI;
 import java.time.Clock;
 import java.util.Base64;
 import java.util.List;
-
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
-import com.moahome.server.auth.AppAuthController;
-import com.moahome.server.auth.AuthErrorHandler;
-import com.moahome.server.auth.AuthService;
-import com.moahome.server.auth.JwtAuthenticationFilter;
-import com.moahome.server.auth.SessionCsrfTokenRepository;
-import com.moahome.server.auth.WebAuthSupport;
+import com.moahome.server.auth.controller.AppAuthController;
+import com.moahome.server.auth.security.AuthErrorHandler;
+import com.moahome.server.auth.security.JwtAuthenticationFilter;
+import com.moahome.server.auth.security.SessionCsrfTokenRepository;
+import com.moahome.server.auth.security.WebAuthSupport;
+import com.moahome.server.auth.service.AuthService;
+import com.moahome.server.auth.service.TokenService;
+
 import jakarta.servlet.DispatcherType;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;

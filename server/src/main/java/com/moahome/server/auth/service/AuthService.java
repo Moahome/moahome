@@ -1,4 +1,4 @@
-package com.moahome.server.auth;
+package com.moahome.server.auth.service;
 
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -6,6 +6,13 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.UUID;
+
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.auth.domain.AuthSession;
+import com.moahome.server.auth.domain.ClientType;
+import com.moahome.server.auth.exception.AuthErrorCode;
+import com.moahome.server.auth.exception.AuthException;
+import com.moahome.server.auth.repo.RedisAuthSessionRepository;
 
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;

@@ -1,4 +1,4 @@
-package com.moahome.server.auth;
+package com.moahome.server.auth.security;
 
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -10,6 +10,17 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+
+import com.moahome.server.auth.controller.AppAuthController;
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.auth.domain.ClientType;
+import com.moahome.server.auth.exception.AuthErrorCode;
+import com.moahome.server.auth.exception.AuthException;
+import com.moahome.server.auth.repo.RedisAuthSessionRepository;
+import com.moahome.server.auth.service.AuthService;
+import com.moahome.server.auth.service.TokenService;
+import com.moahome.server.auth.support.MutableClock;
+import com.moahome.server.auth.support.RedisTestServer;
 
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterAll;

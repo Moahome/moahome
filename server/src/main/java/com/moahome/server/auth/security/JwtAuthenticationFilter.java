@@ -1,7 +1,15 @@
-package com.moahome.server.auth;
+package com.moahome.server.auth.security;
 
 import java.io.IOException;
 import java.util.List;
+
+import com.moahome.server.auth.controller.AppAuthController;
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.auth.domain.AuthSession;
+import com.moahome.server.auth.domain.ClientType;
+import com.moahome.server.auth.exception.AuthErrorCode;
+import com.moahome.server.auth.exception.AuthException;
+import com.moahome.server.auth.service.AuthService;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

@@ -1,6 +1,8 @@
-package com.moahome.server.auth;
+package com.moahome.server.auth.security;
 
 import java.io.IOException;
+
+import com.moahome.server.auth.exception.AuthErrorCode;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

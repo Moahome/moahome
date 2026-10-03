@@ -1,4 +1,8 @@
-package com.moahome.server.auth;
+package com.moahome.server.auth.security;
+
+import com.moahome.server.auth.domain.AuthSession;
+import com.moahome.server.auth.exception.AuthErrorCode;
+import com.moahome.server.auth.exception.AuthException;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

@@ -1,4 +1,4 @@
-package com.moahome.server.auth;
+package com.moahome.server.auth.exception;
 
 public class AuthException extends RuntimeException {
 	private final AuthErrorCode code;

@@ -1,6 +1,10 @@
-package com.moahome.server.auth;
+package com.moahome.server.auth.controller;
 
 import java.time.Instant;
+
+import com.moahome.server.auth.domain.ClientType;
+import com.moahome.server.auth.service.AuthService;
+import com.moahome.server.auth.service.TokenService;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;

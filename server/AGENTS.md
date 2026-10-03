@@ -41,11 +41,12 @@ Controller → Service
 - 기능은 **도메인 단위**로 분리합니다.
 - Controller, Service, Repository를 전역 폴더에 한꺼번에 모으지 않습니다.
 - 각 도메인 내부에서 Controller / Service / Repository를 구성합니다.
+- 각 도메인의 Controller는 `controller/`, Service는 `service/`, Repository는 `repo/`, Entity와 업무 Enum은 `domain/`에 둡니다.
 - Controller가 Repository, EntityManager 또는 JDBC를 직접 호출하지 않습니다.
 - Service는 유스케이스와 트랜잭션 흐름을 조율합니다.
 - 객체 자체의 업무 규칙과 상태 변경은 Entity의 메서드에 작성합니다.
 - DB 접근 로직은 Repository에 작성합니다.
-- JPA Entity는 도메인 패키지에 둡니다. JPA 매핑 어노테이션은 허용하되 Entity에서 Repository, Redis, HTTP API를 호출하지 않습니다.
+- JPA Entity는 해당 업무의 `domain/` 패키지에 둡니다. JPA 매핑 어노테이션은 허용하되 Entity에서 Repository, Redis, HTTP API를 호출하지 않습니다.
 
 ---
 
@@ -65,10 +66,14 @@ server/
     │   │   ├── membership/
     │   │   ├── billing/
     │   │   ├── payment/
-    │   │   │   ├── PaymentController.java
-    │   │   │   ├── PaymentService.java
-    │   │   │   ├── PaymentRepository.java
-    │   │   │   ├── Payment.java
+    │   │   │   ├── controller/
+    │   │   │   │   └── PaymentController.java
+    │   │   │   ├── service/
+    │   │   │   │   └── PaymentService.java
+    │   │   │   ├── repo/
+    │   │   │   │   └── PaymentRepository.java
+    │   │   │   ├── domain/
+    │   │   │   │   └── Payment.java
     │   │   │   └── dto/
     │   │   │       ├── ConfirmPaymentRequest.java
     │   │   │       └── PaymentResponse.java
@@ -85,14 +90,17 @@ server/
     └── test/
         ├── java/com/moahome/server/
         │   └── payment/
-        │       ├── PaymentTest.java
-        │       └── PaymentServiceTest.java
+        │       ├── domain/
+        │       │   └── PaymentTest.java
+        │       └── service/
+        │           └── PaymentServiceTest.java
         └── resources/
 ```
 
 실제 기능이 없는 도메인 폴더를 미리 만들지 않습니다.
 
 위 구조는 기능 구현 시의 예시입니다. 테스트 패키지는 대상 소스의 패키지 구조를 따릅니다.
+인증 필터와 쿠키 / CSRF 처리는 `auth/security/`, 인증 오류는 `auth/exception/`에 둡니다. 테스트 공통 지원 코드는 대상 테스트 영역의 `support/`를 사용할 수 있습니다.
 
 ---
 
