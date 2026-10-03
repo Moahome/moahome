@@ -19,6 +19,7 @@ class UserTest {
 		assertThat(user.getId()).isNotNull();
 		assertThat(user.getDisplayName()).isEqualTo("사용자");
 		assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
+		assertThat(user.getSystemRole()).isEqualTo(SystemRole.USER);
 		assertThatThrownBy(() -> User.create(" ", null)).isInstanceOf(IllegalArgumentException.class);
 	}
 

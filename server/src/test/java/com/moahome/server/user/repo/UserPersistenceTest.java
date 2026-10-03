@@ -11,6 +11,7 @@ import com.moahome.server.auth.domain.SocialProvider;
 import com.moahome.server.auth.domain.VerifiedSocialProfile;
 import com.moahome.server.auth.repo.SocialAccountRepository;
 import com.moahome.server.auth.service.SocialAccountService;
+import com.moahome.server.user.domain.SystemRole;
 import com.moahome.server.user.domain.User;
 import com.moahome.server.user.domain.UserStatus;
 import com.moahome.server.user.exception.UserException;
@@ -79,13 +80,14 @@ class UserPersistenceTest {
 	void migratesEmptyDatabaseAndRevalidatesExistingSchemaWithoutLosingData() {
 		UUID id = socialAccounts.resolveVerifiedUser(profile("123", null));
 		flyway.validate();
-		assertThat(flyway.info().applied()).hasSize(2);
+		assertThat(flyway.info().applied()).hasSize(3);
 		assertThat(flyway.migrate().migrationsExecuted).isZero();
 		assertThat(users.findById(id)).isPresent();
 		User persisted = users.findById(id).orElseThrow();
 		assertThat(persisted.getCreatedAt()).isNotNull();
 		assertThat(persisted.getUpdatedAt()).isNotNull();
 		assertThat(persisted.getLastLoginAt()).isNotNull();
+		assertThat(persisted.getSystemRole()).isEqualTo(SystemRole.USER);
 		assertThat(phoneColumns("public")).isZero();
 	}
 
@@ -108,16 +110,65 @@ class UserPersistenceTest {
 		Flyway upgraded = Flyway.configure()
 			.dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			.schemas(schema).defaultSchema(schema).load();
-		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(2);
 		upgraded.validate();
 		assertThat(phoneColumns(schema)).isZero();
 		assertThat(jdbc.queryForObject("select display_name from " + schema + ".users where id = ?",
 			String.class, userId)).isEqualTo("기존 사용자");
 		assertThat(jdbc.queryForObject("select status from " + schema + ".users where id = ?",
 			String.class, userId)).isEqualTo("ACTIVE");
+		assertThat(jdbc.queryForObject("select system_role from " + schema + ".users where id = ?",
+			String.class, userId)).isEqualTo("USER");
 		assertThat(jdbc.queryForObject("select user_id from " + schema + ".social_accounts "
 			+ "where provider = 'KAKAO' and provider_user_id = ?", UUID.class, "legacy-identity"))
 			.isEqualTo(userId);
+	}
+
+	@Test
+	void addsDefaultSystemRoleToExistingAccountsWithoutChangingTheirStatus() {
+		String schema = "migration_" + UUID.randomUUID().toString().replace("-", "");
+		Flyway previous = Flyway.configure()
+			.dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+			.schemas(schema).defaultSchema(schema).target("20261003103819").load();
+		previous.migrate();
+		UUID activeId = UUID.randomUUID();
+		UUID suspendedId = UUID.randomUUID();
+		UUID withdrawnId = UUID.randomUUID();
+		jdbc.update("insert into " + schema + ".users (id, display_name, status) values (?, ?, 'ACTIVE')",
+			activeId, "정상 사용자");
+		jdbc.update("insert into " + schema + ".users (id, display_name, status) values (?, ?, 'SUSPENDED')",
+			suspendedId, "정지 사용자");
+		jdbc.update("insert into " + schema + ".users (id, display_name, status, deleted_at, deleted_by) "
+			+ "values (?, ?, 'WITHDRAWN', CURRENT_TIMESTAMP, ?)", withdrawnId, "탈퇴 사용자", activeId);
+		Flyway upgraded = Flyway.configure()
+			.dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+			.schemas(schema).defaultSchema(schema).load();
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
+		upgraded.validate();
+		for (UUID id : new UUID[]{activeId, suspendedId, withdrawnId}) {
+			assertThat(jdbc.queryForObject("select system_role from " + schema + ".users where id = ?",
+				String.class, id)).isEqualTo("USER");
+		}
+		assertThat(jdbc.queryForObject("select status from " + schema + ".users where id = ?",
+			String.class, suspendedId)).isEqualTo("SUSPENDED");
+		assertThat(jdbc.queryForObject("select deleted_by from " + schema + ".users where id = ?",
+			UUID.class, withdrawnId)).isEqualTo(activeId);
+		assertThat(jdbc.queryForObject("select status from " + schema + ".users where id = ?",
+			String.class, withdrawnId)).isEqualTo("WITHDRAWN");
+	}
+
+	@Test
+	void persistsSystemRolesAndRejectsInvalidDatabaseValues() {
+		UUID id = socialAccounts.resolveVerifiedUser(profile("platform-admin", null));
+		assertThat(users.findById(id).orElseThrow().getSystemRole()).isEqualTo(SystemRole.USER);
+		jdbc.update("update users set system_role = 'ADMIN' where id = ?", id);
+		assertThat(users.findById(id).orElseThrow().getSystemRole()).isEqualTo(SystemRole.ADMIN);
+		assertThat(socialAccounts.resolveVerifiedUser(profile("platform-admin", null))).isEqualTo(id);
+		assertThat(users.findById(id).orElseThrow().getSystemRole()).isEqualTo(SystemRole.ADMIN);
+		assertThatThrownBy(() -> jdbc.update("update users set system_role = 'MANAGER' where id = ?", id))
+			.isInstanceOf(DataIntegrityViolationException.class);
+		assertThatThrownBy(() -> jdbc.update("update users set system_role = null where id = ?", id))
+			.isInstanceOf(DataIntegrityViolationException.class);
 	}
 
 	@Test
@@ -143,6 +194,7 @@ class UserPersistenceTest {
 	@Test
 	void withdrawalDeletesSocialLinkAndRejoinCreatesNewUserWithoutRestoringHistory() {
 		UUID oldId = socialAccounts.resolveVerifiedUser(profile("123", null));
+		jdbc.update("update users set system_role = 'ADMIN' where id = ?", oldId);
 		UUID oldSocialId = accounts.findActiveIdentity(SocialProvider.KAKAO, "123").orElseThrow().getId();
 		socialAccounts.withdrawUser(oldId, oldId);
 		assertThat(users.findByIdAndDeletedAtIsNull(oldId)).isEmpty();
@@ -153,6 +205,7 @@ class UserPersistenceTest {
 		assertThat(accounts.findById(oldSocialId).orElseThrow().getDeletedBy()).isEqualTo(oldId);
 		assertThat(accounts.findActiveIdentity(SocialProvider.KAKAO, "123").orElseThrow().getUser().getId()).isEqualTo(newId);
 		assertThat(users.count()).isEqualTo(2);
+		assertThat(users.findById(newId).orElseThrow().getSystemRole()).isEqualTo(SystemRole.USER);
 	}
 
 	@Test

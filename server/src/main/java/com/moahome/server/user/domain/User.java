@@ -33,6 +33,10 @@ public class User {
 	private String profileImageUrl;
 
 	@Enumerated(EnumType.STRING)
+	@Column(name = "system_role", nullable = false, length = 20)
+	private SystemRole systemRole;
+
+	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private UserStatus status;
 
@@ -59,6 +63,7 @@ public class User {
 		id = UUID.randomUUID();
 		this.displayName = displayName.strip();
 		this.profileImageUrl = profileImageUrl;
+		systemRole = SystemRole.USER;
 		status = UserStatus.ACTIVE;
 	}
 
