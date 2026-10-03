@@ -66,9 +66,11 @@
   letter-spacing: -1.5px;
   line-height: 1;
 
-  svg {
+  img {
+    flex-shrink: 0;
     width: 44px;
     height: 48px;
+    object-fit: contain;
   }
 }
 
@@ -402,9 +404,11 @@
   .mobile-brand-mark {
     display: flex;
 
-    svg {
+    img {
+      flex-shrink: 0;
       width: 49px;
       height: 54px;
+      object-fit: contain;
     }
   }
 

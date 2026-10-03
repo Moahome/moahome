@@ -95,9 +95,11 @@
   gap: 11px;
   line-height: 1.2;
 
-  > svg {
+  > img {
+    flex-shrink: 0;
     width: 43px;
     height: 47px;
+    object-fit: contain;
   }
 
   strong {
@@ -258,7 +260,7 @@
   .compact-brand {
     gap: 8px;
 
-    > svg {
+    > img {
       width: 30px;
       height: 34px;
     }
@@ -695,7 +697,7 @@
 .compact-brand {
   gap: 5px;
 
-  > svg {
+  > img {
     width: 20px;
     height: 23px;
   }
@@ -1105,7 +1107,7 @@
   margin-bottom: 13px;
 
   .compact-brand {
-    > svg {
+    > img {
       width: 17px;
       height: 19px;
     }
@@ -1603,7 +1605,7 @@
       font-size: 24px;
     }
 
-    > svg {
+    > img {
       width: 35px;
       height: 39px;
     }
@@ -1938,7 +1940,7 @@
       font-size: 25px;
     }
 
-    > svg {
+    > img {
       width: 35px;
       height: 39px;
     }
@@ -2177,7 +2179,7 @@
       font-size: 24px;
     }
 
-    > svg {
+    > img {
       width: 33px;
       height: 36px;
     }
@@ -2325,7 +2327,7 @@
       gap: 2px;
       padding-left: 1px;
 
-      > svg {
+      > img {
         width: 11px;
         height: 13px;
       }
@@ -2567,7 +2569,7 @@
     .compact-brand {
       gap: 3px;
 
-      > svg {
+      > img {
         width: 10px;
         height: 12px;
       }
@@ -2876,7 +2878,7 @@
         font-size: 22px;
       }
 
-      > svg {
+      > img {
         width: 29px;
         height: 33px;
       }
