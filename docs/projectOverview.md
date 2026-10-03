@@ -41,6 +41,8 @@
 
 관리자는 실제 공동주택 관리 업무를 처리합니다.
 
+관리대상별 관리소장(`ADMIN`)과 부담당자(`MANAGER`)를 구분합니다. 둘 다 주민 가입을 승인할 수 있고, 관리대상 역할 변경은 관리소장만 수행합니다. 서비스 전체 운영을 위한 플랫폼 관리자 권한은 이 역할과 별도로 관리합니다. 상세 정책은 [도메인 규칙](domainRules.md)을 따릅니다.
+
 주요 기능:
 
 - 관리대상 관리
@@ -275,6 +277,7 @@ API 계약은 기능별 구현 범위를 정한 뒤 별도 문서로 작성합�
 
 - `projectOverview.md`: 프로젝트의 목적, 전체 범위와 핵심 흐름
 - `domainRules.md`: 도메인 용어, 업무 규칙, 상태와 미정 정책
+- `erd.md`: 테이블, 컬럼, 관계, 제약과 데이터 설계의 확정 범위
 - `developmentGuide.md`: 기존 환경변수, 로컬 실행과 검증 방법
 - `securityDesign.md`: JWT 수명, 웹과 앱의 토큰 전달, Redis 인증 상태와 로그아웃 정책
 - 루트 `AGENTS.md`: 프로젝트 전체에 적용되는 Codex 공통 규칙
@@ -288,6 +291,7 @@ API 계약은 기능별 구현 범위를 정한 뒤 별도 문서로 작성합�
 ## 10. 관련 문서
 
 - [도메인 규칙](domainRules.md): 용어, 도메인 관계, 기존 업무 기준과 미정 정책
+- [ERD](erd.md): 테이블, 컬럼, 관계, 제약과 확정 범위
 - [개발 환경 가이드](developmentGuide.md): 환경변수, PostgreSQL / Redis 준비와 Client / Server 실행 방법
 - [JWT 인증 설계](securityDesign.md): 인증 정책, 구현된 Security API와 후속 Client 연동 기준
 - [루트 AGENTS.md](../AGENTS.md): 공통 구조, 명명, 색상과 작업 규칙
