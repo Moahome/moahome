@@ -40,6 +40,7 @@ docker compose version
 
 별도 `application-local.yml` 없이 `application.yml`의 `local` Profile 문서에서 기존 `.env`를 읽습니다.
 DataSource와 Redis는 기존 변수에 연결되어 있고, 카카오 OAuth 연결 설정은 아직 없습니다.
+JWT 수명, 웹과 앱의 전달 방식 및 Redis 인증 상태 정책은 [JWT 인증 설계](securityDesign.md)를 따릅니다. 설계 확정과 실제 OAuth / Security 설정 적용은 구분합니다.
 
 ### Client 환경변수
 

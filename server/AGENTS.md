@@ -348,6 +348,7 @@ Request DTO에 Jakarta Bean Validation을 사용하고 Controller에서 `@Valid`
 
 ## 12. Security
 
+- 인증 구현은 [JWT 인증 설계](../docs/securityDesign.md)의 토큰 수명, 전달 방식, Redis 세션과 로그아웃 정책을 따릅니다.
 - `.env`, API Key, Secret, Token을 코드에 직접 작성하지 않습니다.
 - Access Token / Refresh Token 원문을 로그에 출력하지 않습니다.
 - 전화번호, 계좌번호, 입금자명 등 개인정보 원문을 로그에 남기지 않습니다.

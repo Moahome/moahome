@@ -276,6 +276,7 @@ API 계약은 기능별 구현 범위를 정한 뒤 별도 문서로 작성합�
 - `projectOverview.md`: 프로젝트의 목적, 전체 범위와 핵심 흐름
 - `domainRules.md`: 도메인 용어, 업무 규칙, 상태와 미정 정책
 - `developmentGuide.md`: 기존 환경변수, 로컬 실행과 검증 방법
+- `securityDesign.md`: JWT 수명, 웹과 앱의 토큰 전달, Redis 인증 상태와 로그아웃 정책
 - 루트 `AGENTS.md`: 프로젝트 전체에 적용되는 Codex 공통 규칙
 - `client/AGENTS.md`: Client 아키텍처, UI와 구현 규칙
 - `server/AGENTS.md`: Server 아키텍처, Java / Spring / JPA / Redis / DB 구현 규칙
@@ -288,6 +289,7 @@ API 계약은 기능별 구현 범위를 정한 뒤 별도 문서로 작성합�
 
 - [도메인 규칙](domainRules.md): 용어, 도메인 관계, 기존 업무 기준과 미정 정책
 - [개발 환경 가이드](developmentGuide.md): 환경변수, PostgreSQL / Redis 준비와 Client / Server 실행 방법
+- [JWT 인증 설계](securityDesign.md): Security 구현 전 확정한 인증 정책과 Client 연동 기준
 - [루트 AGENTS.md](../AGENTS.md): 공통 구조, 명명, 색상과 작업 규칙
 - [Client AGENTS.md](../client/AGENTS.md): FSD, UI, 테스트와 빌드 규칙
 - [Server AGENTS.md](../server/AGENTS.md): Java / Spring / JPA, Entity, 트랜잭션, Redis, Migration과 검증 규칙
