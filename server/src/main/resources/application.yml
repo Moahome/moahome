@@ -3,13 +3,40 @@ spring:
     name: moahome-server
 
   profiles:
-    active: local
+    default: local
+
+  datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT}/${POSTGRES_DB}
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      connect-timeout: 3s
+      timeout: 3s
 
   jpa:
     open-in-view: false
+    hibernate:
+      ddl-auto: validate
     properties:
       hibernate:
         format_sql: true
 
+  flyway:
+    enabled: true
+    clean-disabled: true
+
 server:
   port: 8080
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: local
+    import: "optional:file:.env[.properties]"
