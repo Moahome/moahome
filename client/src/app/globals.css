@@ -22,6 +22,9 @@ html {
   --success: #16a34a;
   --warning: #f59e0b;
   --danger: #ef4444;
+  /* 시작 화면의 강아지 일러스트에 사용하는 크림색과 연갈색입니다. */
+  --puppy-cream: #fff3d9;
+  --puppy-light-brown: #c69c72;
   /* 카카오 로그인 버튼에만 사용하는 외부 서비스 공식 색상입니다. */
   --kakao-background: #fee500;
   --kakao-foreground: #000000;

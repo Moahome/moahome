@@ -1,6 +1,7 @@
 "use client";
 
 import { StartIcon } from "../start-icon/startIcon";
+import motion from "../../startMotion.module.css";
 import styles from "./pendingRequestCard.module.css";
 
 export function PendingRequestCard({
@@ -11,7 +12,7 @@ export function PendingRequestCard({
   return (
     <button
       type="button"
-      className={styles["pending-card"]}
+      className={`${styles["pending-card"]} ${motion.reveal}`}
       onClick={onSelect}
     >
       <span

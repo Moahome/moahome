@@ -552,7 +552,13 @@ test("시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
   await expect(page.getByLabel("모아 주민님 계정 정보")).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("startDesktop.png"), fullPage: true });
 
+  const createCard = page.locator('section[data-kind="create"]');
+  // 최초 등장 완료 후 안내창으로 포커스가 옮겨져도 카드가 다시 투명해지면 안 됩니다.
+  await createCard.evaluate(async (element) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished));
+  });
   await page.getByRole("button", { name: "관리할 곳 만들기", exact: true }).click();
+  expect(await createCard.evaluate((element) => getComputedStyle(element).opacity)).toBe("1");
   await expect(page.getByRole("dialog", { name: "관리할 곳 만들기" })).toContainText("관리대상 등록 기능을 준비하고 있어요.");
   await page.getByRole("button", { name: "확인", exact: true }).click();
   await page.getByRole("button", { name: "초대코드로 참여하기", exact: true }).click();
@@ -567,7 +573,7 @@ test("시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
   await expect(page.getByRole("heading", { name: "초대로 참여하기" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("startMobile.png"), fullPage: true });
-  await page.getByLabel("모아 주민님 계정 정보").click();
-  await expect(page.getByText("모아홈에 오신 것을 환영해요.")).toBeVisible();
+  await page.getByRole("button", { name: "모아 주민님 메뉴 열기" }).click();
+  await expect(page.getByRole("dialog", { name: "메뉴", exact: true }).getByText("모아홈에 오신 것을 환영해요.")).toBeVisible();
   expect(requests).toEqual(["csrf", "refresh", "me"]);
 });

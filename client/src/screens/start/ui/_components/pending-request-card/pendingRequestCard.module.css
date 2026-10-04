@@ -1,4 +1,6 @@
 .pending-card {
+  --reveal-delay: 320ms;
+
   display: flex;
   align-items: center;
   gap: 22px;

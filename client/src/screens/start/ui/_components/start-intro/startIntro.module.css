@@ -10,12 +10,6 @@
   }
 }
 
-.wave {
-  display: inline-block;
-  margin-left: 12px;
-  font-size: 0.88em;
-}
-
 .desktop-description {
   margin-top: 14px;
   color: var(--sub-text);
@@ -30,6 +24,17 @@
   display: none;
 }
 
+@keyframes neighborhood-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
 @media (max-width: 640px) {
   .intro {
     min-height: 215px;
@@ -42,7 +47,6 @@
     }
   }
 
-  .wave,
   .desktop-description {
     display: none;
   }
@@ -75,6 +79,7 @@
     svg {
       width: 100%;
       height: auto;
+      animation: neighborhood-float 7s ease-in-out 800ms infinite;
     }
   }
 
@@ -89,5 +94,11 @@
     font-style: italic;
     font-weight: 600;
     line-height: 1.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-illustration svg {
+    animation: none;
   }
 }

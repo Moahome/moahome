@@ -12,6 +12,7 @@ import { StartSessionState } from "./_components/start-session-state/startSessio
 import { PendingRequestCard } from "./_components/pending-request-card/pendingRequestCard";
 import { StartCard } from "./_components/start-card/startCard";
 import styles from "./startPage.module.css";
+import motion from "./startMotion.module.css";
 
 /** 세션과 본인 정보가 확인된 사용자에게만 시작 화면을 표시합니다. */
 export function StartPage() {
@@ -88,7 +89,7 @@ export function StartPage() {
         <NeighborhoodIllustration />
       </div>
       <footer
-        className={styles.footer}
+        className={`${styles.footer} ${motion.reveal}`}
       >
         우리의 공간이 더 특별해지는, 모아홈
       </footer>

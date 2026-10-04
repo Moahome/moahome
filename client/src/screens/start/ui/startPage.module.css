@@ -50,6 +50,7 @@
   svg {
     width: 100%;
     height: auto;
+    animation: neighborhood-float 8s ease-in-out infinite;
   }
 }
 
@@ -59,9 +60,15 @@
 
 .background-right {
   right: -140px;
+
+  svg {
+    animation-delay: -4s;
+  }
 }
 
 .footer {
+  --reveal-delay: 420ms;
+
   position: relative;
   z-index: 1;
   margin-top: auto;
@@ -69,6 +76,17 @@
   color: color-mix(in srgb, var(--sub-text) 75%, var(--card));
   font-size: 14px;
   text-align: center;
+}
+
+@keyframes neighborhood-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-5px);
+  }
 }
 
 @media (max-width: 640px) {
@@ -94,5 +112,12 @@
 @media (max-width: 374px) {
   .main {
     width: calc(100% - 32px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .background-left svg,
+  .background-right svg {
+    animation: none;
   }
 }

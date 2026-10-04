@@ -7,6 +7,8 @@
 }
 
 .start-card {
+  --reveal-delay: 120ms;
+
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -16,12 +18,18 @@
   background: var(--card);
   text-align: center;
   box-shadow: 0 8px 28px color-mix(in srgb, var(--primary) 3%, transparent);
+  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+
+  &[data-kind="join"] {
+    --reveal-delay: 220ms;
+  }
 }
 
 .card-illustration {
   width: 242px;
   height: 182px;
   margin-bottom: 12px;
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
 
   svg {
     width: 100%;
@@ -60,7 +68,6 @@
   color: var(--card);
   font-size: 19px;
   font-weight: 700;
-  transition: background 150ms ease, box-shadow 150ms ease;
 
   svg {
     width: 19px;
@@ -78,6 +85,20 @@
 
     &:hover {
       background: color-mix(in srgb, var(--primary) 5%, var(--card));
+    }
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .start-card {
+    &:hover {
+      transform: translateY(-5px);
+      border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+      box-shadow: 0 16px 36px color-mix(in srgb, var(--primary) 9%, transparent);
+
+      .card-illustration {
+        transform: translateY(-3px) scale(1.025);
+      }
     }
   }
 }
@@ -139,7 +160,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .start-action {
+  .start-card,
+  .card-illustration {
     transition: none;
+  }
+
+  .start-card:hover,
+  .start-card:hover .card-illustration {
+    transform: none;
   }
 }

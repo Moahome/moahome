@@ -2,6 +2,7 @@
 
 import { StartIcon } from "../start-icon/startIcon";
 import { StartIllustration } from "./startIllustration";
+import motion from "../../startMotion.module.css";
 import styles from "./startCard.module.css";
 
 const START_OPTIONS = {
@@ -37,7 +38,8 @@ export function StartCard({
 
   return (
     <section
-      className={styles["start-card"]}
+      className={`${styles["start-card"]} ${motion.reveal}`}
+      data-kind={kind}
       aria-labelledby={`start-${kind}-title`}
     >
       <div

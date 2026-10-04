@@ -1,22 +1,19 @@
 import { NeighborhoodIllustration } from "@/shared/ui/neighborhood-illustration";
+import { WelcomePuppy } from "../welcome-puppy/welcomePuppy";
+import motion from "../../startMotion.module.css";
 import styles from "./startIntro.module.css";
 
 export function StartIntro() {
   return (
     <section
-      className={styles.intro}
+      className={`${styles.intro} ${motion.reveal}`}
       aria-labelledby="home-title"
     >
       <h1
         id="home-title"
       >
         모아홈을 시작해 보세요!
-        <span
-          className={styles.wave}
-          aria-hidden="true"
-        >
-          👋
-        </span>
+        <WelcomePuppy />
       </h1>
       <p
         className={styles["desktop-description"]}

@@ -1,0 +1,82 @@
+.puppy {
+  --puppy-outline: color-mix(in srgb, var(--puppy-light-brown) 38%, var(--puppy-cream));
+
+  display: inline-block;
+  width: 78px;
+  height: 78px;
+  margin-left: 12px;
+  vertical-align: middle;
+  line-height: 0;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.tail {
+  transform-box: view-box;
+  transform-origin: 78px 73px;
+  animation: tail-wag 2400ms ease-in-out 600ms infinite;
+}
+
+.head {
+  transform-box: view-box;
+  transform-origin: 57px 70px;
+  animation: puppy-hello 2800ms ease-in-out 700ms 2;
+}
+
+@keyframes tail-wag {
+  0%,
+  60%,
+  100% {
+    transform: rotate(0deg);
+  }
+
+  10%,
+  30%,
+  50% {
+    transform: rotate(16deg);
+  }
+
+  20%,
+  40% {
+    transform: rotate(-16deg);
+  }
+}
+
+@keyframes puppy-hello {
+  0%,
+  50%,
+  100% {
+    transform: rotate(0deg);
+  }
+
+  20% {
+    transform: rotate(-8deg);
+  }
+
+  35% {
+    transform: rotate(5deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .puppy {
+    position: absolute;
+    z-index: 2;
+    right: 3px;
+    bottom: -2px;
+    width: 64px;
+    height: 64px;
+    margin-left: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tail,
+  .head {
+    animation: none;
+  }
+}
