@@ -159,6 +159,34 @@ class KakaoOAuthIntegrationTest {
 		assertThat(redis.getExpire("auth:oauth:" + first.state())).isBetween(295L, 300L);
 		assertThat(challenge((String) stored.get("verifier"))).isEqualTo(first.challenge());
 		assertThat(first.result().getResponse().getRedirectedUrl()).doesNotContain("code_verifier", properties.clientSecret());
+		assertThat(UriComponentsBuilder.fromUriString(first.result().getResponse().getRedirectedUrl())
+			.build().getQueryParams()).doesNotContainKey("prompt");
+	}
+
+	@Test
+	void requestsLoginPromptForAccountSwitchAndCompletesPkceCallback() throws Exception {
+		var attempt = start("login");
+		var query = UriComponentsBuilder.fromUriString(attempt.result().getResponse().getRedirectedUrl()).build().getQueryParams();
+		assertThat(query.get("prompt")).containsExactly("login");
+		assertThat(URLDecoder.decode(query.getFirst("redirect_uri"), StandardCharsets.UTF_8)).isEqualTo(properties.redirectUri().toString());
+		assertThat(attempt.cookie().isHttpOnly()).isTrue();
+		assertThat(attempt.cookie().getSecure()).isTrue();
+		expectLogin(attempt, USER_RESPONSE);
+		callback(attempt).andExpect(status().isFound())
+			.andExpect(header().string("Location", properties.webLoginSuccessUri().toString()))
+			.andExpect(cookie().httpOnly(WebAuthSupport.COOKIE_NAME, true))
+			.andExpect(cookie().maxAge(attempt.cookie().getName(), 0));
+		assertThat(redis.hasKey("auth:oauth:" + attempt.state())).isFalse();
+	}
+
+	@Test
+	void doesNotForwardUnsupportedPromptOrOtherProviderOptions() throws Exception {
+		var result = mvc.perform(get(KakaoOAuthConfig.START_PATH).param("prompt", "consent")
+			.param("login_hint", "untrusted-hint").param("scope", "talk_message"))
+			.andExpect(status().isFound()).andReturn();
+		var query = UriComponentsBuilder.fromUriString(result.getResponse().getRedirectedUrl()).build().getQueryParams();
+		assertThat(query).doesNotContainKeys("prompt", "login_hint");
+		assertThat(query.getFirst("scope")).isEqualTo("profile_nickname");
 	}
 
 	@Test
@@ -315,14 +343,22 @@ class KakaoOAuthIntegrationTest {
 		mvc.perform(post(KakaoOAuthConfig.START_PATH)).andExpect(status().isUnauthorized());
 		mvc.perform(post(KakaoOAuthConfig.CALLBACK_PATH)).andExpect(status().isUnauthorized());
 		var result = mvc.perform(get(KakaoOAuthConfig.START_PATH).param("redirect_uri", "https://evil.example")
-			.param("next", "https://evil.example").header("Host", "evil.example")
+			.param("next", "https://evil.example").param("prompt", "login").header("Host", "evil.example")
 			.header("Authorization", "Bearer expired-or-invalid")).andExpect(status().isFound()).andReturn();
 		var query = UriComponentsBuilder.fromUriString(result.getResponse().getRedirectedUrl()).build().getQueryParams();
 		assertThat(URLDecoder.decode(query.getFirst("redirect_uri"), StandardCharsets.UTF_8)).isEqualTo(properties.redirectUri().toString());
 	}
 
 	private Attempt start() throws Exception {
-		var result = mvc.perform(get(KakaoOAuthConfig.START_PATH)).andExpect(status().isFound()).andReturn();
+		return start(null);
+	}
+
+	private Attempt start(String prompt) throws Exception {
+		var request = get(KakaoOAuthConfig.START_PATH);
+		if (prompt != null) {
+			request.param("prompt", prompt);
+		}
+		var result = mvc.perform(request).andExpect(status().isFound()).andReturn();
 		var query = UriComponentsBuilder.fromUriString(result.getResponse().getRedirectedUrl()).build().getQueryParams();
 		String state = query.getFirst("state");
 		assertThat(query.getFirst("code_challenge_method")).isEqualTo("S256");

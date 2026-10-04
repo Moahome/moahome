@@ -60,12 +60,29 @@ public class KakaoOAuthConfig {
 		return new OAuth2AuthorizationRequestResolver() {
 			@Override
 			public OAuth2AuthorizationRequest resolve(HttpServletRequest request) {
-				return isStart(request) ? delegate.resolve(request) : null;
+				if (!isStart(request)) {
+					return null;
+				}
+				return withLoginPrompt(request, delegate.resolve(request));
 			}
 
 			@Override
 			public OAuth2AuthorizationRequest resolve(HttpServletRequest request, String registrationId) {
-				return isStart(request) && "kakao".equals(registrationId) ? delegate.resolve(request, registrationId) : null;
+				if (!isStart(request) || !"kakao".equals(registrationId)) {
+					return null;
+				}
+				return withLoginPrompt(request, delegate.resolve(request, registrationId));
+			}
+
+			/** 계정 변경 요청에만 재인증 옵션을 적용하고 기존 state와 PKCE 검증 정보를 유지합니다. */
+			private OAuth2AuthorizationRequest withLoginPrompt(HttpServletRequest request,
+				OAuth2AuthorizationRequest authorization) {
+				if (authorization == null || !"login".equals(request.getParameter("prompt"))) {
+					return authorization;
+				}
+				// 공유 resolver를 변경하지 않고 요청별로 복사하며, 임의의 카카오 옵션은 전달하지 않습니다.
+				return OAuth2AuthorizationRequest.from(authorization)
+					.additionalParameters(parameters -> parameters.put("prompt", "login")).build();
 			}
 
 			private boolean isStart(HttpServletRequest request) {

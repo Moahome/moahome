@@ -70,6 +70,27 @@ test("카카오 버튼은 서버 로그인 시작 주소로 이동", async ({ pa
   await expect(page).toHaveURL(`${API_ORIGIN}/oauth2/authorization/kakao`);
 });
 
+test("다른 계정 로그인은 서버에 재인증 옵션을 전달", async ({ page }) => {
+  const loginUrl = `${API_ORIGIN}/oauth2/authorization/kakao?prompt=login`;
+  await page.route(loginUrl, async (route) => {
+    expect(route.request().method()).toBe("GET");
+    await route.fulfill({ contentType: "text/html", body: "<p>OAuth 시작</p>" });
+  });
+  await page.goto("/login");
+  await page.getByRole("button", { name: "다른 계정으로 로그인" }).click();
+  await expect(page).toHaveURL(loginUrl);
+});
+
+test("카카오톡 내부 브라우저의 다른 계정 로그인은 외부 브라우저 사용 안내", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "userAgent", { value: "Mozilla/5.0 KAKAOTALK" });
+  });
+  await page.goto("/login");
+  await page.getByRole("button", { name: "다른 계정으로 로그인" }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("status")).toContainText("Chrome이나 Safari에서 열어주세요.");
+});
+
 test("로그인 취소와 알 수 없는 실패 코드는 안전한 안내 문구로 표시", async ({ page }) => {
   await page.goto("/login?error=LOGIN_CANCELLED");
   await expect(page.getByRole("main").getByRole("alert")).toContainText("카카오 로그인을 취소했어요.");

@@ -138,6 +138,7 @@ Client는 로그인 버튼에서 Server의 로그인 시작 주소로 브라우�
 
 ### Spring Security와 기존 인증 연결
 
+- 일반 로그인은 `GET /oauth2/authorization/kakao`로 시작합니다. 로그인 화면에서 `다른 계정으로 로그인`을 선택하면 `?prompt=login`을 붙여 카카오 인증 화면을 다시 요청합니다. Server는 이 값만 허용된 추가 옵션으로 전달하며 기존 state, PKCE와 설정된 Redirect URI를 유지합니다. 모아홈 로그아웃과 카카오 브라우저 로그인 상태는 별개입니다. 카카오톡 내부 브라우저는 `prompt=login`을 지원하지 않아 Client에서 Chrome / Safari 사용을 안내합니다. 지원 범위는 [카카오 로그인 REST API 문서](https://developers.kakao.com/docs/ko/kakaologin/rest-api#request-code)를 따릅니다.
 - 기존 `spring-boot-starter-security-oauth2-client`의 `oauth2Login()`을 연결하고 `requireProofKey=true`로 PKCE S256을 적용합니다. `OAuthAuthorizationRequestRepository`가 브라우저 쿠키를 처리하고 `RedisOAuthStateRepository`가 임시 상태를 저장합니다. 기본 HttpSession에 의존하지 않습니다.
 - OAuth 인증 성공 처리를 기존 `SocialLoginService`와 `WebAuthSupport`에 연결합니다. 업무 API의 JWT 인증과 Redis 세션 검증은 유지하고, OAuth 로그인 결과를 별도 장기 HttpSession 인증으로 사용하지 않습니다.
 - 카카오 토큰은 사용자 검증에 필요한 동안만 Server에서 사용하며 DB에 저장하거나 별도 장기 보관하지 않습니다. Spring의 OAuth Authorized Client 저장도 이 범위에 맞춥니다.
