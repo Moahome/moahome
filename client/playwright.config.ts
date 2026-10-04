@@ -11,7 +11,7 @@ export default defineConfig({
     baseURL: "http://localhost:3100",
   },
   projects: [
-    { name: "api", testMatch: ["customApi.spec.ts", "sessionRestore.spec.ts"] },
+    { name: "api", testMatch: ["customApi.spec.ts", "sessionRestore.spec.ts", "authenticatedApi.spec.ts"] },
     {
       name: "chromium",
       testMatch: "authFlow.spec.ts",

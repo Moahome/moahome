@@ -209,7 +209,7 @@ npx playwright install chromium
 npm test
 ```
 
-Playwright로 공통 API / 세션 복원 테스트와 로그인 화면 통합 테스트를 실행합니다. `npm run test:api`는 브라우저 없이 API / 세션 복원만 검증하고, `npm run test:e2e`는 화면 통합 테스트만 실행합니다. 설치된 Chrome을 사용하면 `PLAYWRIGHT_CHANNEL=chrome npm test`로 실행할 수 있습니다.
+Playwright로 공통 API / 세션 복원 / 업무 API 인증 테스트와 로그인 화면 통합 테스트를 실행합니다. `npm run test:api`는 브라우저 없이 API / 세션 복원 / 업무 API 인증을 검증하고, `npm run test:e2e`는 화면 통합 테스트만 실행합니다. 설치된 Chrome을 사용하면 `PLAYWRIGHT_CHANNEL=chrome npm test`로 실행할 수 있습니다.
 
 통합 테스트 서버는 포트 3100과 `.next-test/` 결과를 사용합니다. 테스트는 인증 서버 응답을 모의 처리하며 실제 카카오 / 개발 DB / Redis를 호출하지 않습니다. lint, 타입 검사와 빌드 통과를 단위 테스트 통과로 보고하지 않습니다. 기본 빌드가 실행 환경 제한으로 실패했을 때 대체 검증 명령은 `npm run build -- --webpack`이며 검증 보고에 webpack 방식을 명시합니다.
 

@@ -50,13 +50,26 @@ await customAPI({
 
 위 `/api/example`은 호출 형식 설명용이며 실제 서버 API가 아닙니다. `credentials: "include"`, `cache: "no-store"`, JSON 응답 파싱과 15초 요청 제한은 공통 처리합니다. HTTP 오류는 `ApiError`의 `status`와 `code`로 구분합니다. 본문 없는 API는 `customAPI<void>()`로 호출합니다. 경로는 `/`로 시작하는 API 호스트 내부 경로만 허용합니다.
 
-CSRF나 Bearer 인증이 필요한 호출은 선택적인 `headers`로 `X-CSRF-TOKEN` / `Authorization`을 전달합니다. 공통 전송 코드는 상위 FSD 레이어의 인증 상태를 직접 참조하지 않습니다. 자동 Bearer 주입과 업무 API의 Access 만료 재시도는 후속 연결 범위입니다.
+쿠키 인증 API의 CSRF 헤더나 직접 지정할 보안 헤더는 선택적인 `headers`로 전달합니다. 공통 전송 코드는 상위 FSD 레이어의 인증 상태를 직접 참조하지 않습니다.
+
+브라우저의 업무 API는 `src/entities/session/`의 `authenticatedAPI`를 사용합니다. 로그인 콜백이나 호출자가 세션을 복원한 뒤 메모리의 Access Token을 Bearer 헤더에 자동으로 넣습니다. `401 / ACCESS_TOKEN_EXPIRED`에서만 세션을 재발급하고 원래 메서드 / URL / 데이터 / 다른 헤더를 유지해 한 번 재시도합니다. 다른 401, 403, 503과 네트워크 오류는 자동 재발급하지 않으며, 재발급 실패나 재시도 실패도 그대로 전달합니다. 메모리 세션이 없으면 `401 / AUTHENTICATION_REQUIRED`로 거부합니다. 쿠키 인증의 CSRF / 재발급 / 로그아웃 요청은 `customAPI`로 호출하여 업무 API 재시도 대상에 포함하지 않습니다.
+
+```ts
+import { authenticatedAPI } from "@/entities/session";
+
+const result = await authenticatedAPI<{ count: number }>({
+  url: "/api/example",
+  data: { page: 1 },
+});
+```
+
+위 경로는 호출 형식 설명용이며 실제 업무 API가 아닙니다. 세션 API를 `entities` 레이어에 두어 다른 업무 Feature도 FSD 경계를 지키며 재사용할 수 있습니다.
 
 ## 세션 복원
 
-`src/features/restore-session/`의 `restoreSession()`을 콜백 화면이나 후속 앱 초기화에서 재사용합니다. `GET /api/auth/web/csrf` → `POST /api/auth/web/refresh` 순서로 호출하고 `src/entities/session/`의 브라우저 메모리에 Access Token과 만료시각, CSRF 토큰을 보관합니다. Refresh Token은 HttpOnly 쿠키로만 전달합니다.
+`src/entities/session/`의 `restoreSession()`을 콜백 화면이나 후속 앱 초기화에서 재사용합니다. 기존 `src/features/restore-session/` 진입점도 같은 함수를 공개합니다. `GET /api/auth/web/csrf` → `POST /api/auth/web/refresh` 순서로 호출하고 브라우저 메모리에 Access Token과 만료시각, CSRF 토큰을 보관합니다. Refresh Token은 HttpOnly 쿠키로만 전달합니다.
 
-같은 탭의 중복 복원은 Promise를 공유하고 유효한 메모리 토큰은 재사용합니다. 여러 탭은 [Web Locks](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API)로 CSRF 조회와 쿠키 교체 전체를 직렬화합니다. Web Locks가 없는 환경은 동시 재발급을 허용하지 않고 브라우저 업데이트를 안내합니다. 운영 HTTPS / 로컬 localhost 기준은 [인증 설계](../docs/securityDesign.md)를 따릅니다.
+같은 탭의 중복 복원은 Promise를 공유하고 유효한 메모리 토큰은 재사용합니다. 업무 API가 만료 응답을 받으면 해당 요청의 Access Token을 전달해 로컬 만료시각과 관계없이 교체합니다. 다른 요청이 이미 갱신한 경우 새 토큰을 재사용하여 늦게 도착한 만료 응답이 추가 Rotation을 일으키지 않게 합니다. 여러 탭은 [Web Locks](https://developer.mozilla.org/en-US/docs/Web/API/Web_Locks_API)로 CSRF 조회와 쿠키 교체 전체를 직렬화합니다. Web Locks가 없는 환경은 동시 재발급을 허용하지 않고 브라우저 업데이트를 안내합니다. 운영 HTTPS / 로컬 localhost 기준은 [인증 설계](../docs/securityDesign.md)를 따릅니다.
 
 인증 거부는 재로그인을 안내하며, 503은 기존 메모리 세션을 지우지 않고 사용자가 재시도할 수 있게 합니다. 재발급 응답이 유실되거나 잘못된 토큰 응답을 받으면 추가 재발급을 차단하고 다시 로그인하도록 안내합니다. 모든 페이지의 전역 세션 자동 복원은 후속 연결 범위입니다.
 
@@ -70,7 +83,7 @@ npx playwright install chromium
 npm test
 ```
 
-`npm run test:api`는 공통 API / 세션 복원 테스트, `npm run test:e2e`는 로그인 화면 통합 테스트를 실행합니다. 설치된 Chrome을 이용할 때는 `PLAYWRIGHT_CHANNEL=chrome npm test`를 사용합니다. 통합 테스트는 포트 3100과 별도 `.next-test/` 결과를 사용하며 서버 인증 응답을 모의 처리합니다. 실제 카카오 로그인 성공이나 서버 DB / Redis 연결은 별도로 확인합니다.
+`npm run test:api`는 공통 API / 세션 복원 / 업무 API 인증 테스트, `npm run test:e2e`는 로그인 화면 통합 테스트를 실행합니다. 설치된 Chrome을 이용할 때는 `PLAYWRIGHT_CHANNEL=chrome npm test`를 사용합니다. 통합 테스트는 포트 3100과 별도 `.next-test/` 결과를 사용하며 서버 인증 응답을 모의 처리합니다. 실제 카카오 로그인 성공이나 서버 DB / Redis 연결은 별도로 확인합니다.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

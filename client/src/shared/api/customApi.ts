@@ -2,7 +2,7 @@ import { getApiUrl } from "./apiUrl";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-interface CustomApiOptions {
+export interface CustomApiOptions {
   url: string;
   method?: HttpMethod;
   data?: unknown;

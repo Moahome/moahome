@@ -1,7 +1,7 @@
 "use client";
 
-import { clearSession, getSession, setSession, type WebSession } from "@/entities/session";
 import { ApiError, customAPI } from "@/shared/api";
+import { clearSession, getSession, setSession, type WebSession } from "./sessionStore";
 
 const SESSION_LOCK_NAME = "moahome-web-session";
 let pendingRestore: Promise<WebSession> | null = null;
@@ -53,23 +53,31 @@ async function requestSession(): Promise<WebSession> {
   return session;
 }
 
-/** 같은 탭은 진행 중인 작업을 공유하고, 여러 탭은 같은 잠금 안에서 쿠키 조회와 교체를 실행합니다. */
-export function restoreSession(): Promise<WebSession> {
+/** 중복 복원을 직렬화하며, 서버가 거부한 Access Token은 로컬 만료시각과 관계없이 교체합니다. */
+export function restoreSession(expiredAccessToken?: string): Promise<WebSession> {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("세션 복원은 브라우저에서만 실행할 수 있습니다."));
   }
 
-  if (requiresLogin) {
+  const currentSession = getSession();
+
+  if (requiresLogin && !currentSession) {
     return Promise.reject(new ApiError(0, "LOGIN_REQUIRED", "다시 로그인해 주세요."));
   }
+
+  // 새 로그인으로 메모리 세션이 설정된 경우 이전 실패의 재발급 차단을 해제합니다.
+  requiresLogin = false;
 
   if (pendingRestore) {
     return pendingRestore;
   }
 
-  const currentSession = getSession();
-
-  if (currentSession && Date.parse(currentSession.accessExpiresAt) > Date.now()) {
+  // 늦게 도착한 만료 응답은 다른 요청이 이미 갱신한 토큰을 재사용하여 추가 Rotation을 막습니다.
+  if (
+    currentSession &&
+    currentSession.accessToken !== expiredAccessToken &&
+    Date.parse(currentSession.accessExpiresAt) > Date.now()
+  ) {
     return Promise.resolve(currentSession);
   }
 
