@@ -107,7 +107,9 @@ export function LoginCallbackPage() {
   }
 
   return (
-    <main className={styles.page}>
+    <main
+      className={styles.page}
+    >
       <section
         className={styles.card}
         aria-labelledby="callback-title"
@@ -119,7 +121,9 @@ export function LoginCallbackPage() {
           aria-label="모아홈 홈으로"
         >
           <BrandMark />
-          <span>모아홈</span>
+          <span>
+            모아홈
+          </span>
         </Link>
         <div
           className={styles.content}
@@ -132,20 +136,37 @@ export function LoginCallbackPage() {
             data-status={state.status}
             aria-hidden="true"
           >
-            {state.status === "loading" && <span className={styles.spinner} />}
-            {state.status === "success" && <span>✓</span>}
-            {state.status === "error" && <span>!</span>}
+            {state.status === "loading" && <span
+              className={styles.spinner}
+                                           />}
+            {state.status === "success" && <span>
+              ✓
+            </span>}
+            {state.status === "error" && <span>
+              !
+            </span>}
           </div>
-          <h1 id="callback-title">{title}</h1>
-          <p>{description}</p>
+          <h1
+            id="callback-title"
+          >
+            {title}
+          </h1>
+          <p>
+            {description}
+          </p>
         </div>
         {state.status === "success" && (
-          <Link href="/" className={styles.action}>
+          <Link
+            href="/"
+            className={styles.action}
+          >
             모아홈 홈으로
           </Link>
         )}
         {state.status === "error" && (
-          <div className={styles.actions}>
+          <div
+            className={styles.actions}
+          >
             {state.canRetry && (
               <button
                 type="button"
@@ -155,7 +176,10 @@ export function LoginCallbackPage() {
                 다시 시도
               </button>
             )}
-            <Link href="/login" className={styles["secondary-action"]}>
+            <Link
+              href="/login"
+              className={styles["secondary-action"]}
+            >
               로그인 화면으로
             </Link>
           </div>

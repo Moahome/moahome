@@ -9,8 +9,13 @@ import styles from "./landingHeader.module.css";
 
 function LoginLink({ onClick }: { onClick?: () => void }) {
   return (
-    <div className={styles["login-area"]}>
-      <Link href="/login" onClick={onClick}>
+    <div
+      className={styles["login-area"]}
+    >
+      <Link
+        href="/login"
+        onClick={onClick}
+      >
         로그인
       </Link>
     </div>
@@ -52,8 +57,12 @@ export function LandingHeader() {
   }
 
   return (
-    <header className={styles.header}>
-      <div className={styles["header-inner"]}>
+    <header
+      className={styles.header}
+    >
+      <div
+        className={styles["header-inner"]}
+      >
         <a
           href="#top"
           className={styles["brand-link"]}
@@ -61,14 +70,22 @@ export function LandingHeader() {
         >
           <BrandLogo />
         </a>
-        <nav className={styles.navigation} aria-label="주요 메뉴">
+        <nav
+          className={styles.navigation}
+          aria-label="주요 메뉴"
+        >
           {NAVIGATION_ITEMS.map(({ href, label }) => (
-            <a key={href} href={href}>
+            <a
+              key={href}
+              href={href}
+            >
               {label}
             </a>
           ))}
         </nav>
-        <div className={styles["desktop-login"]}>
+        <div
+          className={styles["desktop-login"]}
+        >
           <LoginLink />
         </div>
         <button
@@ -80,7 +97,9 @@ export function LandingHeader() {
           aria-controls="landing-mobile-menu"
           aria-haspopup="dialog"
         >
-          <LandingIcon name="menu" />
+          <LandingIcon
+            name="menu"
+          />
         </button>
       </div>
       <dialog
@@ -97,10 +116,21 @@ export function LandingHeader() {
           aria-label="메뉴 바깥 영역을 눌러 닫기"
           tabIndex={-1}
         />
-        <div className={styles["drawer-panel"]}>
-          <div className={styles["drawer-heading"]}>
-            <a href="#top" onClick={closeMenu} aria-label="모아홈 처음으로">
-              <BrandLogo compact variant="drawer" />
+        <div
+          className={styles["drawer-panel"]}
+        >
+          <div
+            className={styles["drawer-heading"]}
+          >
+            <a
+              href="#top"
+              onClick={closeMenu}
+              aria-label="모아홈 처음으로"
+            >
+              <BrandLogo
+                compact
+                variant="drawer"
+              />
             </a>
             <button
               ref={closeButtonRef}
@@ -109,10 +139,15 @@ export function LandingHeader() {
               onClick={closeMenu}
               aria-label="메뉴 닫기"
             >
-              <LandingIcon name="close" />
+              <LandingIcon
+                name="close"
+              />
             </button>
           </div>
-          <h2 id="mobile-menu-title" className={styles["drawer-title"]}>
+          <h2
+            id="mobile-menu-title"
+            className={styles["drawer-title"]}
+          >
             모아홈 둘러보기
           </h2>
           <nav
@@ -120,23 +155,42 @@ export function LandingHeader() {
             aria-label="모바일 주요 메뉴"
           >
             {NAVIGATION_ITEMS.map(({ href, label }, index) => (
-              <a key={href} href={href} onClick={closeMenu}>
+              <a
+                key={href}
+                href={href}
+                onClick={closeMenu}
+              >
                 <span>
-                  <small>0{index + 1}</small>
+                  <small>
+                    0
+                    {index + 1}
+                  </small>
                   {label}
                 </span>
-                <LandingIcon name="arrow" />
+                <LandingIcon
+                  name="arrow"
+                />
               </a>
             ))}
           </nav>
-          <div className={styles["drawer-login"]}>
-            <LoginLink onClick={closeMenu} />
-            <p>카카오로 모아홈을 시작해보세요.</p>
+          <div
+            className={styles["drawer-login"]}
+          >
+            <LoginLink
+              onClick={closeMenu}
+            />
+            <p>
+              카카오로 모아홈을 시작해보세요.
+            </p>
           </div>
-          <p className={styles["drawer-tagline"]}>
+          <p
+            className={styles["drawer-tagline"]}
+          >
             함께 만드는
             <br />
-            <strong>더 좋은 우리 집, 모아홈</strong>
+            <strong>
+              더 좋은 우리 집, 모아홈
+            </strong>
           </p>
         </div>
       </dialog>

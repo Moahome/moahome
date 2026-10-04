@@ -92,7 +92,15 @@ const eslintConfig = defineConfig([
     plugins: {
       architecture: { rules: { "import-boundaries": importBoundaries } },
     },
-    rules: { "architecture/import-boundaries": "error" },
+    rules: {
+      "architecture/import-boundaries": "error",
+      "react/jsx-first-prop-new-line": ["error", "always"],
+      "react/jsx-max-props-per-line": ["error", { maximum: 1, when: "always" }],
+      "react/jsx-closing-bracket-location": ["error", "tag-aligned"],
+      "react/jsx-one-expression-per-line": ["error", { allow: "none" }],
+      "react/jsx-indent": ["error", 2],
+      "react/jsx-indent-props": ["error", 2],
+    },
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([

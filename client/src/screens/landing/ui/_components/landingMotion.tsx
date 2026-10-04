@@ -57,7 +57,11 @@ export function LandingMotion({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <div ref={rootRef} className={styles.page} id="top">
+    <div
+      ref={rootRef}
+      className={styles.page}
+      id="top"
+    >
       {children}
     </div>
   );

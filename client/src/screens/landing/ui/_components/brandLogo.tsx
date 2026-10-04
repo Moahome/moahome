@@ -16,9 +16,13 @@ export function BrandLogo({
     >
       <BrandMark />
       <span>
-        <strong>모아홈</strong>
+        <strong>
+          모아홈
+        </strong>
         {!compact && (
-          <span className={styles["brand-tagline"]}>
+          <span
+            className={styles["brand-tagline"]}
+          >
             함께 만드는 더 좋은 우리 집
           </span>
         )}

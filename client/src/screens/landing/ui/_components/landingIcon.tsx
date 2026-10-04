@@ -43,7 +43,9 @@ export function LandingIcon({
       className={className}
       style={style}
     >
-      <path d={ICON_PATHS[name]} />
+      <path
+        d={ICON_PATHS[name]}
+      />
     </svg>
   );
 }
