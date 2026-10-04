@@ -88,8 +88,11 @@
 | `POST /api/auth/web/logout` | 웹 Refresh 쿠키, 허용 Origin, `X-CSRF-TOKEN` 헤더 | `204`, Refresh 쿠키 삭제 |
 | `POST /api/auth/app/refresh` | JSON의 `refreshToken`, 앱 세션 검증 | 두 토큰과 만료시각 JSON |
 | `POST /api/auth/app/logout` | JSON의 `refreshToken`, 앱 세션 검증 | `204` |
+| `GET /api/users/me` | Access Token Bearer, Redis 세션과 정상 계정 검증 | `id`, `displayName`, `profileImageUrl`, `systemRole`, `status` JSON |
 
 웹 Access 응답에는 `accessToken`, `tokenType`, `accessExpiresAt`이 있습니다. 앱 재발급 응답에는 추가로 `refreshToken`, `refreshExpiresAt`이 있습니다. 인증 오류 응답은 `code`, `message` 구조이며, Access 만료는 `401 / ACCESS_TOKEN_EXPIRED`, 세션 만료는 `401 / SESSION_EXPIRED`, 토큰 재사용은 `401 / REFRESH_TOKEN_REUSED`, 권한 부족은 `403 / ACCESS_DENIED`, CSRF 실패는 `403 / CSRF_INVALID`, Redis 장애는 `503 / AUTH_SERVICE_UNAVAILABLE`로 구분합니다.
+
+본인 정보 조회는 요청의 사용자 ID가 아닌 인증된 계정으로 조회하며 `Cache-Control: no-store`로 응답합니다. 프로필 이미지는 선택 정보로 `null`일 수 있고 정상 계정의 `status`는 `ACTIVE`입니다. `systemRole`은 플랫폼 역할(`USER` / `ADMIN`)이며 관리대상별 역할을 대신하지 않습니다. 소셜 식별자, 이메일, 전화번호와 내부 생성 / 삭제 이력은 응답하지 않습니다. 인증 후 계정이 이용 불가 상태로 바뀌면 `403 / ACCOUNT_UNAVAILABLE`, 조회 저장소 장애는 `503 / AUTH_SERVICE_UNAVAILABLE`로 처리합니다.
 
 카카오 로그인 콜백은 서버가 검증한 프로필로 `SocialLoginService.loginVerified()`를 호출합니다. 내부 `SocialAccountService`가 제공자와 제공자 사용자 ID로 사용자를 조회 / 생성하고 DB 트랜잭션을 커밋한 뒤, 검증된 사용자 ID로 `AuthService.startSession()`을 호출합니다. 사용자 ID를 직접 받아 토큰을 발급하는 공개 API는 제공하지 않습니다. 웹 OAuth 시작 / 콜백, Refresh 쿠키 설정 후 Client 이동과 Client의 CSRF 조회 / 재발급은 구현되어 있으며 경로는 8절을 따릅니다. 앱 교환 코드와 최종 서비스 진입 분기는 후속 구현 범위입니다. 관리대상별 권한은 토큰에 전역 역할을 넣는 방식으로 대신하지 않고 해당 업무 Service에서 검사합니다.
 

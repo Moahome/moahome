@@ -7,11 +7,15 @@ import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 
 import com.moahome.server.user.service.UserService;
+import com.moahome.server.user.domain.SystemRole;
+import com.moahome.server.user.domain.UserStatus;
+import com.moahome.server.user.dto.CurrentUserResponse;
 import com.moahome.server.user.repo.UserRepository;
 import com.moahome.server.auth.repo.SocialAccountRepository;
 import com.moahome.server.user.exception.UserErrorCode;
@@ -41,6 +45,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -63,6 +68,8 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -124,6 +131,51 @@ class SecurityIntegrationTest {
 			.andExpect(status().isOk()).andExpect(jsonPath("userId").value("00000000-0000-0000-0000-000000000001"));
 		mvc.perform(post("/api/test/action").header("Authorization", "Bearer " + pair.accessToken()))
 			.andExpect(status().isOk());
+	}
+
+	@Test
+	void currentUserRequiresBearerAndUsesAuthenticatedIdentityInsteadOfRequestInput() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+		var pair = auth.startSession(userId.toString(), ClientType.WEB);
+		when(users.getCurrentUser(userId)).thenReturn(new CurrentUserResponse(userId, "모아 주민", null,
+			SystemRole.USER, UserStatus.ACTIVE));
+
+		mvc.perform(get("/api/users/me")).andExpect(status().isUnauthorized());
+		mvc.perform(get("/api/users/me").cookie(refreshCookie(pair))).andExpect(status().isUnauthorized());
+		mvc.perform(get("/api/users/me").param("userId", UUID.randomUUID().toString())
+			.header("Authorization", "Bearer " + pair.accessToken()))
+			.andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+			.andExpect(jsonPath("id").value(userId.toString()))
+			.andExpect(jsonPath("displayName").value("모아 주민"))
+			.andExpect(jsonPath("profileImageUrl").value(org.hamcrest.Matchers.nullValue()))
+			.andExpect(jsonPath("systemRole").value("USER"))
+			.andExpect(jsonPath("status").value("ACTIVE"))
+			.andExpect(jsonPath("$.length()").value(5));
+		verify(users).getCurrentUser(userId);
+	}
+
+	@Test
+	void currentUserRejectsAccountThatBecameUnavailableAfterAuthentication() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+		var pair = auth.startSession(userId.toString(), ClientType.WEB);
+		when(users.getCurrentUser(userId)).thenThrow(new UserException(UserErrorCode.ACCOUNT_UNAVAILABLE));
+
+		mvc.perform(get("/api/users/me").header("Authorization", "Bearer " + pair.accessToken()))
+			.andExpect(status().isForbidden()).andExpect(header().string("Cache-Control", "no-store"))
+			.andExpect(jsonPath("code").value("ACCOUNT_UNAVAILABLE"))
+			.andExpect(jsonPath("displayName").doesNotExist());
+	}
+
+	@Test
+	void currentUserStorageFailureReturnsSafeRetryableResponse() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+		var pair = auth.startSession(userId.toString(), ClientType.WEB);
+		when(users.getCurrentUser(userId)).thenThrow(new DataAccessResourceFailureException("private-database-detail"));
+
+		mvc.perform(get("/api/users/me").header("Authorization", "Bearer " + pair.accessToken()))
+			.andExpect(status().isServiceUnavailable()).andExpect(header().string("Cache-Control", "no-store"))
+			.andExpect(jsonPath("code").value("AUTH_SERVICE_UNAVAILABLE"))
+			.andExpect(jsonPath("message").value(not(containsString("private-database-detail"))));
 	}
 
 	@Test

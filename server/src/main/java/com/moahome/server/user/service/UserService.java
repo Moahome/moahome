@@ -5,6 +5,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import com.moahome.server.user.domain.User;
+import com.moahome.server.user.dto.CurrentUserResponse;
 import com.moahome.server.user.exception.UserErrorCode;
 import com.moahome.server.user.exception.UserException;
 import com.moahome.server.user.repo.UserRepository;
@@ -33,6 +34,14 @@ public class UserService {
 			.orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND));
 		user.requireActive();
 		return user;
+	}
+
+	/** 정상 계정의 최신 프로필과 플랫폼 역할을 조회하며 관리대상 권한으로 해석하지 않습니다. */
+	@Transactional(readOnly = true)
+	public CurrentUserResponse getCurrentUser(UUID userId) {
+		User user = requireActive(userId);
+		return new CurrentUserResponse(user.getId(), user.getDisplayName(), user.getProfileImageUrl(),
+			user.getSystemRole(), user.getStatus());
 	}
 
 	@Transactional
