@@ -254,6 +254,8 @@ import { PaymentCard } from '@/entities/payment/ui/paymentCard';
 | `ui/_constants/` | 내부 화면 구성 상수 |
 
 - 화면 컴포넌트와 CSS Modules는 `ui/`에 둡니다. UI 내부 보조 폴더도 같은 `ui/` 안에 두며, 화면 슬라이스 루트로 분리하지 않습니다.
+- `ui/_components/`의 내부 컴포넌트는 컴포넌트별 `kebab-case` 폴더로 묶습니다. 예를 들어 `start-card/startCard.tsx`와 `start-card/startCard.module.css`를 함께 둡니다.
+- 해당 컴포넌트에서만 쓰는 보조 UI는 같은 컴포넌트 폴더에 두고, 여러 내부 컴포넌트가 공유하는 UI는 별도의 컴포넌트 폴더로 관리합니다.
 - 한 컴포넌트의 Props, 작은 표시 상태 타입과 보조 함수는 해당 컴포넌트 파일에 함께 둘 수 있습니다. 타입이나 함수라는 이유만으로 파일을 분리하지 않습니다.
 - 여러 내부 파일에서 공유하거나 복잡해져 읽기 어려워진 보조 코드는 필요한 `_types/`, `_utils/` 등으로 분리합니다. 내부 폴더는 선택 사항이며 파일 하나를 위해 반드시 만들지 않습니다.
 - 업무 상태 / 데이터 타입과 관련 로직은 `model/`, API 요청 / 응답 타입은 `api/`에 직접 둡니다. 타입이나 보조 함수라는 이유로 `model/_types/`, `model/_utils/`, `lib/_utils/` 같은 추가 폴더를 만들지 않습니다.

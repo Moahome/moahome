@@ -1,0 +1,13 @@
+import type { Metadata } from "next";
+import { StartPage } from "@/screens/start";
+
+export const metadata: Metadata = {
+  title: "시작하기",
+  robots: { index: false, follow: false },
+};
+
+export default function Page() {
+  return (
+    <StartPage />
+  );
+}

@@ -1,0 +1,40 @@
+.session-state {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  min-height: 100svh;
+  padding: 32px 24px;
+  background: var(--background);
+  text-align: center;
+
+  h1 {
+    font-size: 24px;
+    font-weight: 700;
+  }
+
+  p {
+    color: var(--sub-text);
+  }
+
+  button {
+    min-height: 48px;
+    padding: 12px 24px;
+    border-radius: 10px;
+    background: var(--primary);
+    color: var(--card);
+    cursor: pointer;
+  }
+
+  a {
+    color: var(--primary);
+  }
+
+  button:focus-visible,
+  a:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 5px;
+  }
+}

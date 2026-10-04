@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getKakaoLoginErrorMessage, KakaoLoginButton } from "@/features/kakao-login";
 import { BrandMark } from "@/shared/ui/brand-mark";
-import { NeighborhoodIllustration } from "./_components/neighborhoodIllustration";
+import { NeighborhoodIllustration } from "@/shared/ui/neighborhood-illustration";
 import { LoginFooter } from "./_components/loginFooter";
 import styles from "./loginPage.module.css";
 

@@ -10,7 +10,7 @@ async function fulfillJson(route: Route, body: unknown, status = 200, cookie?: s
     headers: {
       "Access-Control-Allow-Origin": "http://localhost:3100",
       "Access-Control-Allow-Credentials": "true",
-      "Access-Control-Allow-Headers": "X-CSRF-TOKEN",
+      "Access-Control-Allow-Headers": "X-CSRF-TOKEN, Authorization",
       "Cache-Control": "no-store",
       ...(cookie ? { "Set-Cookie": cookie } : {}),
     },
@@ -39,6 +39,27 @@ function accessResponse() {
   };
 }
 
+function currentUserResponse() {
+  return {
+    id: "00000000-0000-0000-0000-000000000001",
+    displayName: "모아 주민",
+    profileImageUrl: null,
+    systemRole: "USER",
+    status: "ACTIVE",
+  };
+}
+
+test.beforeEach(async ({ context }) => {
+  // 공개 화면의 전역 초기화도 실제 서버를 호출하지 않도록 기본 비로그인 응답을 제공합니다.
+  await context.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
+    await fulfillJson(route, { code: "AUTHENTICATION_REQUIRED" }, 401);
+  });
+  await context.route(`${API_ORIGIN}/api/users/me`, async (route) => {
+    expect(route.request().headers().authorization).toBe("Bearer test-access-memory-only");
+    await fulfillJson(route, currentUserResponse());
+  });
+});
+
 test("카카오 버튼은 서버 로그인 시작 주소로 이동", async ({ page }) => {
   await page.route(`${API_ORIGIN}/oauth2/authorization/kakao`, async (route) => {
     expect(route.request().method()).toBe("GET");
@@ -57,7 +78,7 @@ test("로그인 취소와 알 수 없는 실패 코드는 안전한 안내 문�
   await expect(page.getByRole("main")).not.toContainText("untrusted-error-detail");
 });
 
-test("콜백은 CSRF 조회 후 한 번 재발급하고, 새로고침 후 다시 복원", async ({ page, context }) => {
+test("콜백은 전역 조회를 공유해 시작 화면으로 이동하고 시작 화면 새로고침 후 다시 조회", async ({ page, context }) => {
   await addRefreshCookie(context);
   const requests: string[] = [];
   await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
@@ -77,16 +98,25 @@ test("콜백은 CSRF 조회 후 한 번 재발급하고, 새로고침 후 다시
     expect(request.postData()).toBeNull();
     await fulfillJson(route, accessResponse(), 200, "moahome-refresh=test-rotated; Path=/api/auth/web; HttpOnly; SameSite=Lax");
   });
+  await page.route(`${API_ORIGIN}/api/users/me`, async (route) => {
+    requests.push("me");
+    expect(route.request().headers().authorization).toBe("Bearer test-access-memory-only");
+    await fulfillJson(route, currentUserResponse());
+  });
 
   await page.goto("/login/callback");
-  await expect(page.getByRole("heading", { name: "로그인했어요" })).toBeVisible();
-  expect(requests).toEqual(["csrf", "refresh"]);
+  await expect(page).toHaveURL(/\/start$/);
+  await expect(page.getByRole("heading", { name: "모아홈을 시작해 보세요!" })).toBeVisible();
+  await expect(page.getByLabel("모아 주민님 계정 정보")).toBeVisible();
+  expect(requests).toEqual(["csrf", "refresh", "me"]);
   const storage = await page.evaluate(() => ({ local: { ...localStorage }, session: { ...sessionStorage }, cookies: document.cookie }));
   expect(JSON.stringify(storage)).not.toContain("test-access-memory-only");
   expect(storage.cookies).not.toContain("moahome-refresh");
   await page.reload();
-  await expect(page.getByRole("heading", { name: "로그인했어요" })).toBeVisible();
-  expect(requests).toEqual(["csrf", "refresh", "csrf", "refresh"]);
+  await expect(page).toHaveURL(/\/start$/);
+  await expect(page.getByRole("heading", { name: "모아홈을 시작해 보세요!" })).toBeVisible();
+  await expect(page.getByLabel("모아 주민님 계정 정보")).toBeVisible();
+  expect(requests).toEqual(["csrf", "refresh", "me", "csrf", "refresh", "me"]);
 });
 
 test("CSRF 응답을 기다리는 동안 로그인 처리 중 상태 표시", async ({ page }) => {
@@ -105,7 +135,8 @@ test("CSRF 응답을 기다리는 동안 로그인 처리 중 상태 표시", as
   await expect(page.getByRole("heading", { name: "로그인하고 있어요" })).toBeVisible();
   await expect(page.locator("section")).toHaveAttribute("aria-busy", "true");
   releaseResponse();
-  await expect(page.getByRole("heading", { name: "로그인했어요" })).toBeVisible();
+  await expect(page).toHaveURL(/\/start$/);
+  await expect(page.getByRole("heading", { name: "모아홈을 시작해 보세요!" })).toBeVisible();
 });
 
 test("쿠키가 없으면 재발급 없이 재로그인 안내", async ({ page }) => {
@@ -141,7 +172,8 @@ test("재발급 서비스의 503은 자동 반복 없이 사용자가 재시도"
   await expect(page.getByRole("alert", { name: "로그인을 확인해 주세요" })).toContainText("잠시 후 다시 시도해 주세요.");
   expect(refreshAttempts).toBe(1);
   await page.getByRole("button", { name: "다시 시도" }).click();
-  await expect(page.getByRole("heading", { name: "로그인했어요" })).toBeVisible();
+  await expect(page).toHaveURL(/\/start$/);
+  await expect(page.getByRole("heading", { name: "모아홈을 시작해 보세요!" })).toBeVisible();
   expect(refreshAttempts).toBe(2);
 });
 
@@ -203,17 +235,231 @@ test("두 탭은 쿠키 교체가 끝난 뒤 다음 CSRF 조회를 실행", asyn
   await expect.poll(async () => (await second.evaluate(() => navigator.locks.query())).pending?.length).toBe(1);
   expect(requests).toEqual(["csrf", "refresh"]);
   releaseFirstRefresh();
-  await expect(first.getByRole("heading", { name: "로그인했어요" })).toBeVisible();
-  await expect(second.getByRole("heading", { name: "로그인했어요" })).toBeVisible();
+  await expect(first).toHaveURL(/\/start$/);
+  await expect(second).toHaveURL(/\/start$/);
   expect(requests).toEqual(["csrf", "refresh", "csrf", "refresh"]);
 });
 
-test("모바일 콜백 완료 화면이 가로로 넘치지 않음", async ({ page }) => {
+test("모바일 시작 화면은 긴 닉네임에도 가로로 넘치지 않음", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
   await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
     await fulfillJson(route, route.request().url().endsWith("/csrf") ? { csrfToken: "test-csrf" } : accessResponse());
   });
+  await page.route(`${API_ORIGIN}/api/users/me`, async (route) => {
+    await fulfillJson(route, { ...currentUserResponse(), displayName: "모".repeat(50) });
+  });
   await page.goto("/login/callback");
-  await expect(page.getByRole("heading", { name: "로그인했어요" })).toBeVisible();
+  await expect(page).toHaveURL(/\/start$/);
+  await expect(page.getByRole("heading", { name: "모아홈을 시작해 보세요!" })).toBeVisible();
+  await expect(page.getByLabel(`${"모".repeat(50)}님 계정 정보`)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath("startMobileLongName.png") });
+});
+
+test("랜딩에서 전역 복원하고 화면 이동·포커스 전환은 복원과 내 정보 조회를 반복하지 않음", async ({ page }) => {
+  const requests: string[] = [];
+  await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
+    const action = route.request().url().endsWith("/csrf") ? "csrf" : "refresh";
+    requests.push(action);
+    await fulfillJson(route, action === "csrf" ? { csrfToken: "test-csrf" } : accessResponse());
+  });
+  await page.route(`${API_ORIGIN}/api/users/me`, async (route) => {
+    requests.push("me");
+    await fulfillJson(route, currentUserResponse());
+  });
+
+  await page.goto("/");
+  await expect.poll(() => requests).toEqual(["csrf", "refresh", "me"]);
+  await page.getByRole("link", { name: "로그인", exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await page.getByRole("link", { name: "서비스 소개 보기" }).click();
+  await expect(page).toHaveURL(/\/#service$/);
+  await page.goBack();
+  await expect(page.getByRole("heading", { name: "로그인", exact: true })).toBeVisible();
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event("blur"));
+    window.dispatchEvent(new Event("focus"));
+  });
+  expect(requests).toEqual(["csrf", "refresh", "me"]);
+});
+
+test("비로그인 상태에서도 공개 화면을 표시하고 화면 이동 시 인증 실패를 자동 재시도하지 않음", async ({ page }) => {
+  let csrfRequests = 0;
+  await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
+    csrfRequests += 1;
+    await fulfillJson(route, { code: "AUTHENTICATION_REQUIRED" }, 401);
+  });
+
+  await page.goto("/");
+  await expect.poll(() => csrfRequests).toBe(1);
+  await page.getByRole("link", { name: "로그인", exact: true }).click();
+  await expect(page.getByRole("button", { name: "카카오로 시작하기" })).toBeVisible();
+  await page.getByRole("link", { name: "서비스 소개 보기" }).click();
+  await expect(page).toHaveURL(/\/#service$/);
+  expect(csrfRequests).toBe(1);
+});
+
+test("내 정보 조회가 끝나기 전에는 시작 화면으로 이동하지 않음", async ({ page }) => {
+  let releaseUser: () => void = () => {};
+  const userGate = new Promise<void>((resolve) => { releaseUser = resolve; });
+  await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
+    await fulfillJson(route, route.request().url().endsWith("/csrf") ? { csrfToken: "test-csrf" } : accessResponse());
+  });
+  await page.route(`${API_ORIGIN}/api/users/me`, async (route) => {
+    await userGate;
+    await fulfillJson(route, currentUserResponse());
+  });
+
+  await page.goto("/login/callback");
+  await expect(page.getByRole("heading", { name: "로그인하고 있어요" })).toBeVisible();
+  await expect(page).toHaveURL(/\/login\/callback$/);
+  await expect(page.getByRole("heading", { name: "모아홈을 시작해 보세요!" })).toHaveCount(0);
+  releaseUser();
+  await expect(page.getByLabel("모아 주민님 계정 정보")).toBeVisible();
+});
+
+test("내 정보 조회 장애를 재시도하면 유효한 토큰을 재사용하고 내 정보만 다시 요청", async ({ page }) => {
+  let refreshAttempts = 0;
+  let userAttempts = 0;
+  await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
+    if (route.request().url().endsWith("/csrf")) {
+      await fulfillJson(route, { csrfToken: "test-csrf" });
+      return;
+    }
+    refreshAttempts += 1;
+    await fulfillJson(route, accessResponse());
+  });
+  await page.route(`${API_ORIGIN}/api/users/me`, async (route) => {
+    userAttempts += 1;
+    if (userAttempts === 1) {
+      await fulfillJson(route, { code: "AUTH_SERVICE_UNAVAILABLE" }, 503);
+      return;
+    }
+    await fulfillJson(route, currentUserResponse());
+  });
+
+  await page.goto("/login/callback");
+  await expect(page.getByRole("alert", { name: "로그인을 확인해 주세요" })).toContainText("잠시 후 다시 시도해 주세요.");
+  expect(userAttempts).toBe(1);
+  await page.getByRole("button", { name: "다시 시도" }).click();
+  await expect(page.getByLabel("모아 주민님 계정 정보")).toBeVisible();
+  expect(refreshAttempts).toBe(1);
+  expect(userAttempts).toBe(2);
+});
+
+for (const failure of [
+  { name: "계정 이용 불가", body: { code: "ACCOUNT_UNAVAILABLE" }, status: 403, message: "현재 이용할 수 없는 계정이에요." },
+  { name: "잘못된 사용자 응답", body: { displayName: "닉네임만 있는 응답" }, status: 200, message: "다시 로그인해 주세요." },
+]) {
+  test(`내 정보 조회 실패 (${failure.name}) 시 시작 화면으로 이동하지 않음`, async ({ page }) => {
+    let userAttempts = 0;
+    await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
+      await fulfillJson(route, route.request().url().endsWith("/csrf") ? { csrfToken: "test-csrf" } : accessResponse());
+    });
+    await page.route(`${API_ORIGIN}/api/users/me`, async (route) => {
+      userAttempts += 1;
+      await fulfillJson(route, failure.body, failure.status);
+    });
+
+    await page.goto("/login/callback");
+    await expect(page.getByRole("alert", { name: "로그인을 확인해 주세요" })).toContainText(failure.message);
+    await expect(page).toHaveURL(/\/login\/callback$/);
+    await expect(page.getByRole("heading", { name: "모아홈을 시작해 보세요!" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "다시 시도" })).toHaveCount(0);
+    expect(userAttempts).toBe(1);
+  });
+}
+
+test("시작 화면에 직접 진입한 비로그인 사용자는 시작 화면 없이 로그인 화면으로 이동", async ({ page }) => {
+  const requests: string[] = [];
+  let releaseResponse: () => void = () => {};
+  const responseGate = new Promise<void>((resolve) => { releaseResponse = resolve; });
+  await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
+    requests.push(route.request().url());
+    await responseGate;
+    await fulfillJson(route, { code: "AUTHENTICATION_REQUIRED" }, 401);
+  });
+
+  await page.goto("/start");
+  await expect(page.getByRole("status")).toContainText("로그인 정보를 확인하고 있어요.");
+  await expect(page.getByRole("heading", { name: "모아홈을 시작해 보세요!" })).toHaveCount(0);
+  releaseResponse();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("heading", { name: "모아홈을 시작해 보세요!" })).toHaveCount(0);
+  expect(requests).toHaveLength(1);
+});
+
+test("시작 화면 조회 장애에는 시작 화면 없이 재시도 안내를 표시하고 토큰 재발급 없이 복원", async ({ page }) => {
+  let refreshAttempts = 0;
+  let userAttempts = 0;
+  await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
+    if (route.request().url().endsWith("/csrf")) {
+      await fulfillJson(route, { csrfToken: "test-csrf" });
+      return;
+    }
+    refreshAttempts += 1;
+    await fulfillJson(route, accessResponse());
+  });
+  await page.route(`${API_ORIGIN}/api/users/me`, async (route) => {
+    userAttempts += 1;
+    if (userAttempts === 1) {
+      await fulfillJson(route, { code: "AUTH_SERVICE_UNAVAILABLE" }, 503);
+      return;
+    }
+    await fulfillJson(route, currentUserResponse());
+  });
+
+  const failedUserResponse = page.waitForResponse(`${API_ORIGIN}/api/users/me`);
+  await page.goto("/start");
+  await failedUserResponse;
+  await expect(page).toHaveURL(/\/start$/);
+  await expect(page.getByRole("alert", { name: "로그인 정보를 확인하지 못했어요" })).toContainText("잠시 후 다시 시도해 주세요.");
+  await expect(page.getByRole("heading", { name: "모아홈을 시작해 보세요!" })).toHaveCount(0);
+  await expect(page.getByLabel("모아 주민님 계정 정보")).toHaveCount(0);
+  expect(refreshAttempts).toBe(1);
+  expect(userAttempts).toBe(1);
+  await page.getByRole("button", { name: "다시 시도" }).click();
+  await expect(page.getByLabel("모아 주민님 계정 정보")).toBeVisible();
+  expect(refreshAttempts).toBe(1);
+  expect(userAttempts).toBe(2);
+});
+
+test("시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안내", async ({ page }) => {
+  const requests: string[] = [];
+  await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
+    const action = route.request().url().endsWith("/csrf") ? "csrf" : "refresh";
+    requests.push(action);
+    await fulfillJson(route, action === "csrf" ? { csrfToken: "test-csrf" } : accessResponse());
+  });
+  await page.route(`${API_ORIGIN}/api/users/me`, async (route) => {
+    requests.push("me");
+    await fulfillJson(route, currentUserResponse());
+  });
+
+  await page.setViewportSize({ width: 1536, height: 1024 });
+  await page.goto("/start");
+  await expect(page.getByRole("heading", { name: "모아홈을 시작해 보세요!" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "관리할 곳 만들기" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "초대코드로 참여하기" })).toBeVisible();
+  await expect(page.getByLabel("모아 주민님 계정 정보")).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("startDesktop.png"), fullPage: true });
+
+  await page.getByRole("button", { name: "관리할 곳 만들기", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "관리할 곳 만들기" })).toContainText("관리대상 등록 기능을 준비하고 있어요.");
+  await page.getByRole("button", { name: "확인", exact: true }).click();
+  await page.getByRole("button", { name: "초대코드로 참여하기", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "초대코드로 참여하기" })).toContainText("초대코드 참여 기능을 준비하고 있어요.");
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: /^승인 대기 중인 요청/ }).click();
+  await expect(page.getByRole("dialog", { name: "승인 대기 중인 요청" })).toContainText("가입 요청 조회 기능을 준비하고 있어요.");
+  await page.getByRole("button", { name: "확인", exact: true }).click();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("heading", { name: "관리 시작하기" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "초대로 참여하기" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath("startMobile.png"), fullPage: true });
+  await page.getByLabel("모아 주민님 계정 정보").click();
+  await expect(page.getByText("모아홈에 오신 것을 환영해요.")).toBeVisible();
+  expect(requests).toEqual(["csrf", "refresh", "me"]);
 });

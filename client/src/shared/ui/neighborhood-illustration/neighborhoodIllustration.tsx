@@ -1,4 +1,9 @@
+"use client";
+
+import { useId } from "react";
+
 export function NeighborhoodIllustration() {
+  const illustrationId = useId();
   return (
     <svg
       viewBox="0 0 680 330"
@@ -7,7 +12,7 @@ export function NeighborhoodIllustration() {
     >
       <defs>
         <linearGradient
-          id="login-hill"
+          id={`${illustrationId}-hill`}
           x1="340"
           y1="120"
           x2="340"
@@ -25,7 +30,7 @@ export function NeighborhoodIllustration() {
           />
         </linearGradient>
         <linearGradient
-          id="login-building"
+          id={`${illustrationId}-building`}
           x1="285"
           y1="70"
           x2="426"
@@ -41,7 +46,7 @@ export function NeighborhoodIllustration() {
           />
         </linearGradient>
         <linearGradient
-          id="login-side"
+          id={`${illustrationId}-side`}
           x1="262"
           y1="170"
           x2="291"
@@ -59,7 +64,7 @@ export function NeighborhoodIllustration() {
           />
         </linearGradient>
         <linearGradient
-          id="login-window"
+          id={`${illustrationId}-window`}
           x1="0"
           y1="0"
           x2="1"
@@ -76,7 +81,7 @@ export function NeighborhoodIllustration() {
           />
         </linearGradient>
         <linearGradient
-          id="login-tree"
+          id={`${illustrationId}-tree`}
           x1="0"
           y1="0"
           x2="1"
@@ -91,7 +96,7 @@ export function NeighborhoodIllustration() {
           />
         </linearGradient>
         <linearGradient
-          id="login-roof"
+          id={`${illustrationId}-roof`}
           x1="222"
           y1="145"
           x2="300"
@@ -109,7 +114,7 @@ export function NeighborhoodIllustration() {
           />
         </linearGradient>
         <g
-          id="login-cloud"
+          id={`${illustrationId}-cloud`}
           fill="var(--card)"
         >
           <path
@@ -117,11 +122,11 @@ export function NeighborhoodIllustration() {
           />
         </g>
         <g
-          id="login-small-tree"
+          id={`${illustrationId}-small-tree`}
         >
           <path
             d="M4 75 17 28c5-17 21-17 26 0l14 47c8 31-61 31-53 0Z"
-            fill="url(#login-tree)"
+            fill={`url(#${illustrationId}-tree)`}
           />
           <path
             d="M30 70v50m0-33L20 76m10 22 11-13"
@@ -133,8 +138,8 @@ export function NeighborhoodIllustration() {
           />
         </g>
         <g
-          id="login-bush"
-          fill="url(#login-tree)"
+          id={`${illustrationId}-bush`}
+          fill={`url(#${illustrationId}-tree)`}
         >
           <path
             d="M0 28a17 17 0 0 1 23-16 23 23 0 0 1 43 2 16 16 0 0 1 22 14v6H0Z"
@@ -144,16 +149,16 @@ export function NeighborhoodIllustration() {
 
       <path
         d="M0 228c55-33 74-65 125-37l80 43c86 47 144-34 209-21 46 9 63 42 113 28 45-13 80-76 123-55l30 17v127H0Z"
-        fill="url(#login-hill)"
+        fill={`url(#${illustrationId}-hill)`}
       />
       <use
-        href="#login-cloud"
+        href={`#${illustrationId}-cloud`}
         x="21"
         y="68"
         opacity="0.9"
       />
       <use
-        href="#login-cloud"
+        href={`#${illustrationId}-cloud`}
         x="560"
         y="96"
         transform="translate(115 19) scale(.8)"
@@ -307,7 +312,7 @@ export function NeighborhoodIllustration() {
       />
       <path
         d="m292 111-23 9a12 12 0 0 0-7 11v182h30Z"
-        fill="url(#login-side)"
+        fill={`url(#${illustrationId}-side)`}
       />
       <rect
         x="291"
@@ -315,11 +320,11 @@ export function NeighborhoodIllustration() {
         width="119"
         height="214"
         rx="9"
-        fill="url(#login-building)"
+        fill={`url(#${illustrationId}-building)`}
       />
       <path
         d="m215 173 19-20h57v160h-76Z"
-        fill="url(#login-side)"
+        fill={`url(#${illustrationId}-side)`}
       />
       <path
         d="M232 157h59v156h-70V174Z"
@@ -328,7 +333,7 @@ export function NeighborhoodIllustration() {
       />
       <path
         d="m215 175 22-42h50v15h-42l-18 33a7 7 0 0 1-12-6Z"
-        fill="url(#login-roof)"
+        fill={`url(#${illustrationId}-roof)`}
       />
 
       {[0, 1, 2, 3].map((row) => (
@@ -345,7 +350,7 @@ export function NeighborhoodIllustration() {
                 width="24"
                 height="25"
                 rx="2"
-                fill="url(#login-window)"
+                fill={`url(#${illustrationId}-window)`}
               />
               <path
                 d={`M${324 + column * 46} ${124 + row * 39}v23`}
@@ -366,7 +371,7 @@ export function NeighborhoodIllustration() {
             width="23"
             height="24"
             rx="2"
-            fill="url(#login-window)"
+            fill={`url(#${illustrationId}-window)`}
           />
           <path
             d={`M260 ${170 + row * 33}v22`}
@@ -382,7 +387,7 @@ export function NeighborhoodIllustration() {
         width="39"
         height="31"
         rx="2"
-        fill="url(#login-window)"
+        fill={`url(#${illustrationId}-window)`}
       />
       <path
         d="M349 283v30"
@@ -401,12 +406,12 @@ export function NeighborhoodIllustration() {
       />
 
       <use
-        href="#login-small-tree"
+        href={`#${illustrationId}-small-tree`}
         x="91"
         y="198"
       />
       <use
-        href="#login-small-tree"
+        href={`#${illustrationId}-small-tree`}
         x="186"
         y="185"
         transform="translate(21 -8) scale(1.05)"
@@ -414,7 +419,7 @@ export function NeighborhoodIllustration() {
       <g>
         <path
           d="M444 265c-32-7-30-55-8-67-4-37 57-52 65-13 32 7 40 59 12 76-17 15-53 20-69 4Z"
-          fill="url(#login-tree)"
+          fill={`url(#${illustrationId}-tree)`}
         />
         <path
           d="M472 246v66m0-39-17-18m17 30 18-22"
@@ -426,24 +431,24 @@ export function NeighborhoodIllustration() {
         />
       </g>
       <use
-        href="#login-bush"
+        href={`#${illustrationId}-bush`}
         x="151"
         y="281"
       />
       <use
-        href="#login-bush"
+        href={`#${illustrationId}-bush`}
         x="236"
         y="285"
         transform="translate(33 38) scale(.88)"
       />
       <use
-        href="#login-bush"
+        href={`#${illustrationId}-bush`}
         x="417"
         y="283"
         transform="translate(173 126) scale(.6)"
       />
       <use
-        href="#login-bush"
+        href={`#${illustrationId}-bush`}
         x="566"
         y="282"
         transform="translate(113 49) scale(.84)"
@@ -462,7 +467,7 @@ export function NeighborhoodIllustration() {
         />
         <path
           d="M554 283c-13-6-13-23 1-29-2-24 31-22 30-3 23 11 5 43-16 34Z"
-          fill="url(#login-tree)"
+          fill={`url(#${illustrationId}-tree)`}
         />
         <path
           d="M567 277v36m0-22-8-8m8 14 9-9"

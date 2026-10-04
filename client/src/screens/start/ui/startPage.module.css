@@ -1,0 +1,98 @@
+.page {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 100svh;
+  overflow: clip;
+  background: radial-gradient(ellipse at 50% 22%, var(--card), color-mix(in srgb, var(--primary) 4%, var(--background)) 76%);
+  font-family: var(--font-geist-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  word-break: keep-all;
+
+  button,
+  summary {
+    cursor: pointer;
+  }
+
+  a:focus-visible,
+  button:focus-visible,
+  summary:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 5px;
+  }
+}
+
+.main {
+  position: relative;
+  z-index: 1;
+  width: min(100% - 48px, 864px);
+  margin-inline: auto;
+  padding-top: 72px;
+  padding-bottom: 32px;
+}
+
+.start-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-top: 36px;
+}
+
+.background-left,
+.background-right {
+  position: absolute;
+  z-index: -1;
+  bottom: 110px;
+  width: min(35vw, 530px);
+  pointer-events: none;
+
+  svg {
+    width: 100%;
+    height: auto;
+  }
+}
+
+.background-left {
+  left: -150px;
+}
+
+.background-right {
+  right: -140px;
+}
+
+.footer {
+  position: relative;
+  z-index: 1;
+  margin-top: auto;
+  padding: 26px 24px 42px;
+  color: color-mix(in srgb, var(--sub-text) 75%, var(--card));
+  font-size: 14px;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .main {
+    width: calc(100% - 40px);
+    padding-top: 28px;
+    padding-bottom: 28px;
+  }
+
+  .background-left,
+  .background-right,
+  .footer {
+    display: none;
+  }
+
+  .start-options {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 374px) {
+  .main {
+    width: calc(100% - 32px);
+  }
+}

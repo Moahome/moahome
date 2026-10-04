@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { restoreSession } from "@/features/restore-session";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { useSession } from "@/entities/session";
 import { BrandMark } from "@/shared/ui/brand-mark";
 import { ApiError } from "@/shared/api";
 import styles from "./loginCallbackPage.module.css";
@@ -10,9 +11,6 @@ import styles from "./loginCallbackPage.module.css";
 type CallbackState =
   | {
       status: "loading";
-    }
-  | {
-      status: "success";
     }
   | {
       status: "error";
@@ -62,44 +60,29 @@ function getFailureState(error: unknown): CallbackState {
 }
 
 export function LoginCallbackPage() {
-  const [state, setState] = useState<CallbackState>({ status: "loading" });
-  const [attempt, setAttempt] = useState(0);
+  const session = useSession();
+  const router = useRouter();
+  let state: CallbackState = { status: "loading" };
+
+  if (!session.isFetching && session.isError) {
+    state = getFailureState(session.error);
+  }
 
   useEffect(() => {
-    let active = true;
-
-    // 언마운트는 화면 갱신만 중단합니다. 진행 중인 Rotation을 취소하면 응답이 유실될 수 있습니다.
-    restoreSession().then(
-      () => {
-        if (active) {
-          setState({ status: "success" });
-        }
-      },
-      (error: unknown) => {
-        if (active) {
-          setState(getFailureState(error));
-        }
-      },
-    );
-
-    return () => {
-      active = false;
-    };
-  }, [attempt]);
+    // 본인 정보까지 확인한 후 이동하며 콜백을 이력에 남기지 않아 뒤로 가기로 복원을 반복하지 않습니다.
+    if (!session.isFetching && session.isSuccess) {
+      router.replace("/start");
+    }
+  }, [router, session.isFetching, session.isSuccess]);
 
   /** 재시도가 가능한 조회 실패나 일시 장애에 한해 세션 복원을 다시 요청합니다. */
   function retryRestore() {
-    setState({ status: "loading" });
-    setAttempt((currentAttempt) => currentAttempt + 1);
+    // 진행 중인 Rotation을 취소하면 응답이 유실될 수 있어 같은 요청을 끝까지 공유합니다.
+    void session.refetch({ cancelRefetch: false });
   }
 
   let title = "로그인하고 있어요";
   let description = "잠시만 기다려 주세요.";
-
-  if (state.status === "success") {
-    title = "로그인했어요";
-    description = "모아홈에 오신 것을 환영해요.";
-  }
 
   if (state.status === "error") {
     title = "로그인을 확인해 주세요";
@@ -139,9 +122,6 @@ export function LoginCallbackPage() {
             {state.status === "loading" && <span
               className={styles.spinner}
                                            />}
-            {state.status === "success" && <span>
-              ✓
-            </span>}
             {state.status === "error" && <span>
               !
             </span>}
@@ -155,14 +135,6 @@ export function LoginCallbackPage() {
             {description}
           </p>
         </div>
-        {state.status === "success" && (
-          <Link
-            href="/"
-            className={styles.action}
-          >
-            모아홈 홈으로
-          </Link>
-        )}
         {state.status === "error" && (
           <div
             className={styles.actions}
