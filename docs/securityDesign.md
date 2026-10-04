@@ -1,6 +1,6 @@
 # JWT 인증 설계
 
-이 문서는 Server Security의 카카오 로그인, 토큰 수명, 웹과 앱의 전달 방식, Redis 인증 상태와 로그아웃 정책을 정의합니다. JWT 검증, Redis 로그인 세션, 웹·앱 재발급 / 로그아웃 API와 CSRF / CORS 설정은 구현되어 있습니다. 사용자 / 소셜 계정 저장과 서버가 검증한 소셜 프로필을 기존 세션으로 연결하는 내부 Service도 구현되어 있습니다. 웹 카카오 로그인은 백엔드 중심 Authorization Code + PKCE S256 방식으로 OAuth 시작 / 콜백과 기존 JWT 세션 발급까지 구현되어 있습니다. Client 로그인 버튼 / 콜백 화면과 네이티브 앱의 일회용 코드 교환은 아직 구현되지 않았습니다.
+이 문서는 Server Security의 카카오 로그인, 토큰 수명, 웹과 앱의 전달 방식, Redis 인증 상태와 로그아웃 정책을 정의합니다. JWT 검증, Redis 로그인 세션, 웹·앱 재발급 / 로그아웃 API와 CSRF / CORS 설정은 구현되어 있습니다. 사용자 / 소셜 계정 저장과 서버가 검증한 소셜 프로필을 기존 세션으로 연결하는 내부 Service도 구현되어 있습니다. 웹 카카오 로그인은 백엔드 중심 Authorization Code + PKCE S256 방식으로 OAuth 시작 / 콜백과 기존 JWT 세션 발급까지 구현되어 있습니다. Client 로그인 버튼, 콜백 화면, 공통 세션 복원과 Access Token 메모리 보관도 구현되어 있습니다. 최종 서비스 진입 분기, 전역 세션 초기화 / 업무 API의 만료 재시도와 네이티브 앱의 일회용 코드 교환은 후속 구현 범위입니다.
 
 ## 1. 인증 기준
 
@@ -91,13 +91,13 @@
 
 웹 Access 응답에는 `accessToken`, `tokenType`, `accessExpiresAt`이 있습니다. 앱 재발급 응답에는 추가로 `refreshToken`, `refreshExpiresAt`이 있습니다. 인증 오류 응답은 `code`, `message` 구조이며, Access 만료는 `401 / ACCESS_TOKEN_EXPIRED`, 세션 만료는 `401 / SESSION_EXPIRED`, 토큰 재사용은 `401 / REFRESH_TOKEN_REUSED`, 권한 부족은 `403 / ACCESS_DENIED`, CSRF 실패는 `403 / CSRF_INVALID`, Redis 장애는 `503 / AUTH_SERVICE_UNAVAILABLE`로 구분합니다.
 
-카카오 로그인 콜백은 서버가 검증한 프로필로 `SocialLoginService.loginVerified()`를 호출합니다. 내부 `SocialAccountService`가 제공자와 제공자 사용자 ID로 사용자를 조회 / 생성하고 DB 트랜잭션을 커밋한 뒤, 검증된 사용자 ID로 `AuthService.startSession()`을 호출합니다. 사용자 ID를 직접 받아 토큰을 발급하는 공개 API는 제공하지 않습니다. 웹 OAuth 시작 / 콜백과 Refresh 쿠키 설정 후 Client 이동은 구현되어 있으며 경로는 8절을 따릅니다. 앱 교환 코드와 Client 인증 연동은 후속 구현 범위입니다. 관리대상별 권한은 토큰에 전역 역할을 넣는 방식으로 대신하지 않고 해당 업무 Service에서 검사합니다.
+카카오 로그인 콜백은 서버가 검증한 프로필로 `SocialLoginService.loginVerified()`를 호출합니다. 내부 `SocialAccountService`가 제공자와 제공자 사용자 ID로 사용자를 조회 / 생성하고 DB 트랜잭션을 커밋한 뒤, 검증된 사용자 ID로 `AuthService.startSession()`을 호출합니다. 사용자 ID를 직접 받아 토큰을 발급하는 공개 API는 제공하지 않습니다. 웹 OAuth 시작 / 콜백, Refresh 쿠키 설정 후 Client 이동과 Client의 CSRF 조회 / 재발급은 구현되어 있으며 경로는 8절을 따릅니다. 앱 교환 코드와 최종 서비스 진입 분기는 후속 구현 범위입니다. 관리대상별 권한은 토큰에 전역 역할을 넣는 방식으로 대신하지 않고 해당 업무 Service에서 검사합니다.
 
 서명은 HS256을 사용하며 32바이트 이상의 무작위 키를 Base64로 인코딩해 `JWT_SECRET_BASE64`로 주입해야 합니다. 누락·잘못된 인코딩·짧은 키는 서버 시작 시 거부합니다. 운영 Origin과 로컬 실행 설정은 [개발 환경 가이드](developmentGuide.md)를 따릅니다.
 
 ## 8. 카카오 로그인 설계와 구현 범위
 
-아래 Server 로그인 시작 / 콜백과 로그인 결과 처리는 구현되어 있습니다. Client 콜백 화면과 네이티브 앱의 일회용 코드 교환은 후속 구현 범위입니다. 실제 카카오 로그인의 완전한 연동에는 카카오디벨로퍼스 설정과 Client 인증 연동이 필요합니다.
+아래 Server 로그인 시작 / 콜백과 로그인 결과 처리, Client 버튼 / 콜백의 세션 복원은 구현되어 있습니다. 최종 서비스 진입 분기와 네이티브 앱의 일회용 코드 교환은 후속 구현 범위입니다. 실제 카카오 로그인에는 카카오디벨로퍼스 설정과 Server / Client 실행 환경의 연결 확인이 필요합니다.
 
 ### 처리 책임과 웹 로그인 흐름
 
@@ -107,7 +107,7 @@ Client는 로그인 버튼에서 Server의 로그인 시작 주소로 브라우�
 | --- | --- | --- |
 | Server 로그인 시작 | `GET /oauth2/authorization/kakao` | 로그인 시도를 생성하고 카카오 인증 화면으로 브라우저를 이동 |
 | Server 카카오 콜백 | `GET /login/oauth2/code/kakao` | 카카오의 인가 결과 수신. `KAKAO_REDIRECT_URI`에 설정하고 카카오디벨로퍼스에도 동일하게 등록 |
-| Client 로그인 완료 | `WEB_LOGIN_SUCCESS_URI` | Refresh 쿠키 설정 후 이동할 주소. 로컬 예정 경로는 `http://localhost:3000/login/callback` |
+| Client 로그인 완료 | `WEB_LOGIN_SUCCESS_URI` | Refresh 쿠키 설정 후 이동할 주소. 로컬 경로는 `http://localhost:3000/login/callback` |
 | Client 로그인 실패 | 완료 주소와 같은 Origin의 `/login` | 로그인 취소 / 실패 안내와 재시도 |
 
 1. Server가 로그인 시도마다 무작위 `state`와 PKCE `code_verifier`를 생성합니다. 시작한 브라우저와 연결할 임시 HttpOnly 쿠키를 설정하고, 로그인 시도 정보를 Redis에 저장합니다.
@@ -117,9 +117,9 @@ Client는 로그인 버튼에서 Server의 로그인 시작 주소로 브라우�
 5. Server가 카카오 Access Token으로 사용자 정보를 조회하고 검증한 결과를 `VerifiedSocialProfile`로 전달합니다. 로그인 식별자는 `KAKAO`와 카카오 사용자 ID이며, 이메일 일치로 다른 계정을 연결하지 않습니다. 닉네임은 기존 User 생성 규칙에 따라 필요하고 이메일 / 프로필 이미지는 선택 정보입니다. 전화번호를 로그인 정보로 수집 / 저장하지 않습니다.
 6. `SocialLoginService.loginVerified(profile, ClientType.WEB)`로 사용자 / 소셜 계정 저장을 커밋한 뒤 Redis 로그인 세션과 모아홈 JWT를 생성합니다.
 7. Server가 기존 규칙의 Refresh 쿠키를 설정하고 `WEB_LOGIN_SUCCESS_URI`로 이동시킵니다. 카카오 토큰과 모아홈 Access / Refresh Token을 이동 URL에 넣지 않습니다.
-8. Client 콜백 화면이 `credentials: include`로 `GET /api/auth/web/csrf`를 호출한 뒤, 받은 CSRF 토큰으로 `POST /api/auth/web/refresh`를 호출합니다. 응답의 Access Token을 메모리에 보관하고 기존 도메인 규칙에 따라 다음 화면으로 이동합니다.
+8. Client 콜백 화면이 `credentials: include`로 `GET /api/auth/web/csrf`를 호출한 뒤, 받은 CSRF 토큰으로 `POST /api/auth/web/refresh`를 호출합니다. 응답의 Access Token을 메모리에 보관하고 로그인 완료 상태를 표시합니다. 기존 도메인 규칙에 따른 최종 진입 분기는 해당 조회 API와 화면 구현 시 연결합니다.
 
-1~7단계는 Server에 구현되어 있으며 8단계는 Client의 후속 구현입니다. 카카오 인가 요청의 scope는 `profile_nickname`만 명시합니다. 사용자 조회의 `property_keys`는 `kakao_account.profile`과 `kakao_account.email`로 제한하고 `secure_resource=true`로 HTTPS 이미지 주소를 요청합니다. 응답에 이메일 / 프로필 이미지가 제공되면 선택 정보로 전달하며, 닉네임 누락이나 기존 자료형의 길이 제한에 맞지 않는 응답은 `OAUTH_PROFILE_INVALID`로 거부합니다.
+1~7단계는 Server에, 8단계의 세션 복원과 완료 표시는 Client에 구현되어 있습니다. 카카오 인가 요청의 scope는 `profile_nickname`만 명시합니다. 사용자 조회의 `property_keys`는 `kakao_account.profile`과 `kakao_account.email`로 제한하고 `secure_resource=true`로 HTTPS 이미지 주소를 요청합니다. 응답에 이메일 / 프로필 이미지가 제공되면 선택 정보로 전달하며, 닉네임 누락이나 기존 자료형의 길이 제한에 맞지 않는 응답은 `OAUTH_PROFILE_INVALID`로 거부합니다.
 
 실패 이동 주소의 `error`에는 Server가 정한 코드만 전달합니다. 사용자 취소는 `LOGIN_CANCELLED`, 로그인 시도 검증 실패는 `OAUTH_STATE_INVALID`, 잘못된 사용자 정보는 `OAUTH_PROFILE_INVALID`, 카카오 연동 오류는 `OAUTH_PROVIDER_UNAVAILABLE`, 이용 불가 계정은 `ACCOUNT_UNAVAILABLE`, Redis / 내부 저장 실패는 `AUTH_SERVICE_UNAVAILABLE`로 구분합니다. 기타 로그인 처리 실패는 `OAUTH_LOGIN_FAILED`로 안내합니다. 제공자 오류 설명과 서비스 토큰을 전달하지 않습니다.
 
@@ -144,7 +144,11 @@ Client는 로그인 버튼에서 Server의 로그인 시작 주소로 브라우�
 
 ## 9. 후속 구현과 검증
 
-Client 로그인 콜백은 8절의 예정 경로를 기준으로 구현하며 최종 서비스 진입 화면, 앱의 등록 도메인과 운영 Origin은 해당 화면 / 배포 구현 시 확정합니다. 관리소장(`ADMIN`)과 부담당자(`MANAGER`)의 주민 가입 승인, 관리소장만 가능한 관리대상 역할 변경과 그 밖의 권한 구분은 [도메인 규칙](domainRules.md)을 따릅니다. 로그인 이후 관리대상 수와 역할에 따른 진입 기준도 같은 문서를 따릅니다.
+Client 로그인 콜백은 `/login/callback`에서 세션 복원 후 로그인 완료 상태를 표시합니다. 공통 `customAPI`는 쿠키 / 캐시 설정과 JSON 처리를 담당하며, 인증 기능의 `restoreSession()`은 같은 탭의 중복 호출을 공유하고 Web Locks로 여러 탭의 CSRF 조회 / Rotation을 직렬화합니다. Web Locks가 없는 환경에서는 재발급을 중단하고 브라우저 업데이트를 안내합니다. 현재 앱 전역의 자동 세션 초기화와 업무 API의 Bearer 주입 / Access 만료 재시도는 후속 구현 범위입니다.
+
+최종 서비스 진입 화면, 앱의 등록 도메인과 운영 Origin은 해당 화면 / 배포 구현 시 확정합니다. 관리소장(`ADMIN`)과 부담당자(`MANAGER`)의 주민 가입 승인, 관리소장만 가능한 관리대상 역할 변경과 그 밖의 권한 구분은 [도메인 규칙](domainRules.md)을 따릅니다. 로그인 이후 관리대상 수와 역할에 따른 진입 기준도 같은 문서를 따릅니다.
+
+Client Playwright 테스트는 공통 API 설정 / 데이터 직렬화 / 오류 처리, CSRF → 재발급 순서, 메모리 보관 / 새로고침 복원, 같은 탭의 중복 복원과 여러 탭의 쿠키 교체 직렬화, 실패 / 장애 / 응답 유실 안내와 모바일 표시를 검증합니다. 서버 응답은 모의 처리하며 실제 카카오 로그인 성공과 개발 DB / Redis 연결은 별도로 확인합니다. 실행 명령은 [Client 규칙](../client/AGENTS.md)의 검증 절을 따릅니다.
 
 Security 테스트는 토큰 만료와 종류 혼용, 서명·발급자·대상 검증, Rotation과 재사용 탐지, 동시 재발급, 로그아웃 후 세션 재생성 방지, 동시 로그인 유지, 웹 CSRF·CORS와 Redis 장애를 검증합니다. 테스트용 Redis는 일회성 프로세스로 시작하며 개발 Redis를 사용하지 않습니다.
 

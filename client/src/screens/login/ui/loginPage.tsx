@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { KakaoLoginButton } from "@/features/kakao-login";
+import { getKakaoLoginErrorMessage, KakaoLoginButton } from "@/features/kakao-login";
 import { BrandMark } from "@/shared/ui/brand-mark";
 import { NeighborhoodIllustration } from "./_components/neighborhoodIllustration";
 import { LoginFooter } from "./_components/loginFooter";
 import styles from "./loginPage.module.css";
 
-export function LoginPage() {
+export function LoginPage({ errorCode }: { errorCode?: string }) {
+  const errorMessage = getKakaoLoginErrorMessage(errorCode);
+
   return (
     <div className={styles.page}>
       <a className={styles["skip-link"]} href="#login">
@@ -59,6 +61,11 @@ export function LoginPage() {
               <h2 id="login-title">로그인</h2>
               <p>관리비 조회와 관리 업무를 시작해보세요.</p>
             </div>
+            {errorMessage && (
+              <p className={styles["login-error"]} role="alert">
+                {errorMessage}
+              </p>
+            )}
             <KakaoLoginButton />
             <div className={styles["service-intro"]}>
               <div className={styles.divider}>

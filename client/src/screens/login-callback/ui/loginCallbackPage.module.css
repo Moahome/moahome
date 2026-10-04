@@ -1,0 +1,149 @@
+.page {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-height: 100svh;
+  padding: 40px 24px;
+  font-family: var(--font-geist-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  word-break: keep-all;
+
+  a:focus-visible,
+  button:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 5px;
+  }
+}
+
+.card {
+  width: min(100%, 440px);
+  padding: 40px 32px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--card);
+  text-align: center;
+  box-shadow: 0 16px 48px color-mix(in srgb, var(--primary) 6%, transparent);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -1px;
+
+  img {
+    width: 36px;
+    height: 40px;
+    object-fit: contain;
+  }
+}
+
+.content {
+  margin-top: 32px;
+
+  h1 {
+    margin-top: 24px;
+    font-size: 25px;
+    font-weight: 700;
+    letter-spacing: -1px;
+  }
+
+  p {
+    margin-top: 12px;
+    color: var(--sub-text);
+    font-size: 15px;
+    line-height: 1.8;
+  }
+}
+
+.indicator {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-inline: auto;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary) 8%, var(--card));
+  color: var(--primary);
+  font-size: 32px;
+  font-weight: 700;
+
+  &[data-status="success"] {
+    background: color-mix(in srgb, var(--success) 8%, var(--card));
+    color: var(--success);
+  }
+
+  &[data-status="error"] {
+    background: color-mix(in srgb, var(--danger) 8%, var(--card));
+    color: var(--danger);
+  }
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid color-mix(in srgb, var(--primary) 20%, transparent);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: session-spin 0.8s linear infinite;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+}
+
+.action,
+.secondary-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  margin-top: 28px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.action {
+  background: var(--primary);
+  color: var(--card);
+
+  &:hover {
+    background: var(--primary-dark);
+  }
+}
+
+.secondary-action {
+  border: 1px solid var(--border);
+  color: var(--sub-text);
+
+  &:hover {
+    color: var(--primary);
+  }
+}
+
+@keyframes session-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 32px 24px;
+  }
+
+  .content h1 {
+    font-size: 23px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}

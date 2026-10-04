@@ -197,6 +197,17 @@
   }
 }
 
+.login-error {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--danger) 25%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--danger) 5%, var(--card));
+  color: var(--danger);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
 .divider {
   display: flex;
   align-items: center;

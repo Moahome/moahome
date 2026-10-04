@@ -261,14 +261,15 @@ import { PaymentCard } from '@/entities/payment/ui/paymentCard';
 - 기존 공용 타입과 함수를 먼저 확인하고, 같은 내용을 내부 폴더에 중복 정의하지 않습니다.
 
 ```text
-src/screens/login/
+src/screens/login-callback/
 ├── index.ts
 └── ui/
-    ├── loginPage.tsx
-    └── loginPage.module.css
+    ├── loginCallbackPage.tsx
+    └── loginCallbackPage.module.css
 ```
 
 `index.ts`에는 외부에서 사용하는 화면 진입점만 공개합니다.
+위 화면의 표시 상태 타입과 오류 안내 함수는 `loginCallbackPage.tsx`에서 함께 관리합니다.
 
 ### 타입 배치
 
@@ -316,10 +317,14 @@ src/screens/login/
 npm run lint
 npx --no-install tsc --noEmit
 npm run build
+npm test
 ```
 
 - 구현 변경 후 위 ESLint, TypeScript 타입 검사, 프로덕션 빌드를 수행합니다.
-- 현재 테스트 러너와 `test` 스크립트는 설정되어 있지 않습니다. 위 검증을 단위 테스트 통과로 보고하지 않습니다.
+- Playwright로 공통 API / 세션 복원 테스트와 로그인 화면 통합 테스트를 실행합니다. 최초 브라우저 준비는 `npx playwright install chromium`을 사용합니다.
+- `npm run test:api`는 브라우저 없이 API / 세션 복원 테스트만 실행하고, `npm run test:e2e`는 로그인 화면 통합 테스트만 실행합니다. 설치된 Chrome을 사용하려면 `PLAYWRIGHT_CHANNEL=chrome npm test`로 실행합니다.
+- 통합 테스트 서버는 포트 `3100`과 `.next-test/`를 사용합니다. 테스트는 인증 응답을 모의 처리하며 실제 카카오, 개발 서버 DB나 Redis를 호출하지 않습니다.
+- ESLint, 타입 검사와 빌드 결과를 단위 테스트 통과로 보고하지 않습니다. 기본 빌드가 실행 환경 제한으로 실패해 대체 빌드를 검증한 경우 명령과 빌드 방식을 함께 기록합니다.
 - 업무 로직을 구현할 때 필요한 테스트 환경과 실행 스크립트를 함께 추가하고, 실제 명령을 이 문서에 갱신합니다.
 - 금액 / 상태 계산은 단위 테스트로, 사용자 상호작용과 로딩 / 오류 / 빈 상태는 컴포넌트 테스트로 검증합니다.
 - 로그인, 관리비 부과, 수납 확정 등 핵심 흐름은 해당 기능이 구현되는 시점에 필요한 통합 / E2E 테스트를 추가합니다.
