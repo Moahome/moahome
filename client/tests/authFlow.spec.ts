@@ -139,6 +139,73 @@ test("CSRF 응답을 기다리는 동안 로그인 처리 중 상태 표시", as
   await expect(page.getByRole("heading", { name: "모아홈을 시작해 보세요!" })).toBeVisible();
 });
 
+test("모바일 사이드 메뉴에서 로그아웃하면 쿠키를 제거하고 시작 화면 재진입 차단", async ({ page, context }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await addRefreshCookie(context);
+  let loggedOut = false;
+  await context.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
+    const request = route.request();
+
+    if (loggedOut) {
+      await fulfillJson(route, { code: "AUTHENTICATION_REQUIRED" }, 401);
+      return;
+    }
+
+    if (request.url().endsWith("/csrf")) {
+      await fulfillJson(route, { csrfToken: "test-csrf" });
+      return;
+    }
+
+    if (request.url().endsWith("/logout")) {
+      expect(request.method()).toBe("POST");
+      expect(request.headers()["x-csrf-token"]).toBe("test-csrf");
+      loggedOut = true;
+      await route.fulfill({
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": "http://localhost:3100",
+          "Access-Control-Allow-Credentials": "true",
+          "Set-Cookie": "moahome-refresh=; Path=/api/auth/web; Max-Age=0; HttpOnly; SameSite=Lax",
+        },
+      });
+      return;
+    }
+
+    await fulfillJson(route, accessResponse());
+  });
+
+  await page.goto("/start");
+  await page.getByRole("button", { name: "모아 주민님 메뉴 열기" }).click();
+  await expect(page.getByRole("dialog", { name: "메뉴", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "로그아웃", exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole("button", { name: "카카오로 시작하기" })).toBeVisible();
+  expect(loggedOut).toBe(true);
+  expect((await context.cookies()).some((cookie) => cookie.name === "moahome-refresh")).toBe(false);
+  await page.goto("/start");
+  await expect(page).toHaveURL(/\/login$/);
+});
+
+test("로그아웃 장애는 프로필 메뉴에 재시도 안내를 표시하고 시작 화면 유지", async ({ page }) => {
+  await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+
+    if (path.endsWith("/logout")) {
+      await fulfillJson(route, { code: "AUTH_SERVICE_UNAVAILABLE" }, 503);
+      return;
+    }
+
+    await fulfillJson(route, path.endsWith("/csrf") ? { csrfToken: "test-csrf" } : accessResponse());
+  });
+
+  await page.goto("/start");
+  await page.getByLabel("모아 주민님 계정 정보").click();
+  await page.getByRole("button", { name: "로그아웃", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("로그아웃하지 못했어요.");
+  await expect(page).toHaveURL(/\/start$/);
+  await expect(page.getByRole("button", { name: "로그아웃", exact: true })).toBeEnabled();
+});
+
 test("쿠키가 없으면 재발급 없이 재로그인 안내", async ({ page }) => {
   const requests: string[] = [];
   await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
@@ -251,9 +318,50 @@ test("모바일 시작 화면은 긴 닉네임에도 가로로 넘치지 않음"
   await page.goto("/login/callback");
   await expect(page).toHaveURL(/\/start$/);
   await expect(page.getByRole("heading", { name: "모아홈을 시작해 보세요!" })).toBeVisible();
-  await expect(page.getByLabel(`${"모".repeat(50)}님 계정 정보`)).toBeVisible();
+  await expect(page.getByRole("button", { name: `${"모".repeat(50)}님 메뉴 열기` })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole("button", { name: `${"모".repeat(50)}님 메뉴 열기` }).click();
+  const menu = page.getByRole("dialog", { name: "메뉴", exact: true });
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("button", { name: "로그아웃", exact: true })).toBeVisible();
+  expect(await menu.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath("startMobileLongName.png") });
+});
+
+test("모바일 사이드 메뉴는 닫기·바깥 영역·Escape·데스크톱 전환 시 닫히고 스크롤 복구", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
+    await fulfillJson(route, route.request().url().endsWith("/csrf") ? { csrfToken: "test-csrf" } : accessResponse());
+  });
+  await page.goto("/start");
+  const trigger = page.getByRole("button", { name: "모아 주민님 메뉴 열기" });
+  const menu = page.getByRole("dialog", { name: "메뉴", exact: true });
+
+  await expect(page.getByRole("button", { name: "알림", exact: true })).toHaveCount(1);
+  await trigger.click();
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("button", { name: "알림", exact: true })).toHaveCount(0);
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  await expect(menu.getByRole("button", { name: "메뉴 닫기", exact: true })).toBeFocused();
+  await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe("hidden");
+  await menu.getByRole("button", { name: "메뉴 닫기", exact: true }).click();
+  await expect(menu).not.toBeVisible();
+  await expect(trigger).toBeFocused();
+
+  await trigger.click();
+  await page.keyboard.press("Escape");
+  await expect(menu).not.toBeVisible();
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+  await trigger.click();
+  await menu.getByRole("button", { name: "메뉴 바깥 영역을 눌러 닫기" }).click({ position: { x: 10, y: 100 } });
+  await expect(menu).not.toBeVisible();
+
+  await trigger.click();
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(menu).not.toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe("");
+  await expect(page.getByLabel("모아 주민님 계정 정보")).toBeVisible();
 });
 
 test("랜딩에서 전역 복원하고 화면 이동·포커스 전환은 복원과 내 정보 조회를 반복하지 않음", async ({ page }) => {

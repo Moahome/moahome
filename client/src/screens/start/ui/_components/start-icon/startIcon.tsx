@@ -1,6 +1,11 @@
-type StartIconName = "bell" | "person" | "chevron" | "clock";
+type StartIconName = "bell" | "person" | "chevron" | "clock" | "close";
 
 const ICON_PATHS = {
+  close: (
+    <path
+      d="m6 6 12 12M18 6 6 18"
+    />
+  ),
   bell: (
     <>
       <path

@@ -1,0 +1,48 @@
+.logout {
+  margin-top: 16px;
+
+  &[data-variant="menu"] {
+    margin-top: 0;
+
+    button {
+      min-height: 48px;
+      padding-inline: 12px;
+      border: 0;
+      text-align: left;
+      color: var(--sub-text);
+      font-size: 15px;
+    }
+  }
+
+  button {
+    width: 100%;
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--foreground);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--background);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+  }
+
+  p {
+    margin-top: 8px;
+    color: var(--danger);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+}

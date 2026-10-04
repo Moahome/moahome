@@ -1,10 +1,12 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import type { CurrentUser } from "@/entities/session";
+import { LogoutButton } from "@/features/logout";
 import { BrandMark } from "@/shared/ui/brand-mark";
 import { StartIcon } from "../start-icon/startIcon";
+import { StartAvatar } from "../start-avatar/startAvatar";
+import { StartMobileMenu } from "../start-mobile-menu/startMobileMenu";
 import styles from "./startHeader.module.css";
 
 export function StartHeader({
@@ -47,23 +49,9 @@ export function StartHeader({
           <summary
             aria-label={`${user.displayName}님 계정 정보`}
           >
-            <span
-              className={styles.avatar}
-            >
-              {user.profileImageUrl ? (
-                <Image
-                  src={user.profileImageUrl}
-                  alt=""
-                  width={44}
-                  height={44}
-                  unoptimized
-                />
-              ) : (
-                <StartIcon
-                  name="person"
-                />
-              )}
-            </span>
+            <StartAvatar
+              user={user}
+            />
             <span
               className={styles["profile-name"]}
             >
@@ -88,8 +76,12 @@ export function StartHeader({
             <p>
               모아홈에 오신 것을 환영해요.
             </p>
+            <LogoutButton />
           </div>
         </details>
+        <StartMobileMenu
+          user={user}
+        />
       </div>
     </header>
   );

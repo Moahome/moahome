@@ -1,0 +1,22 @@
+.avatar {
+  display: grid;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--sub-text) 10%, var(--card));
+  color: color-mix(in srgb, var(--sub-text) 65%, var(--card));
+
+  svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}

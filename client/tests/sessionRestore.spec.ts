@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { clearSession, getSession, setSession } from "../src/entities/session";
+import { clearSession, getSession, logoutSession, setSession } from "../src/entities/session";
 import { restoreSession } from "../src/features/restore-session";
 
 const originalFetch = globalThis.fetch;
@@ -99,5 +99,101 @@ test("Rotation 응답 유실 뒤에는 추가 재발급을 차단", async () => 
   await expect(restoreSession()).rejects.toMatchObject({ code: "LOGIN_REQUIRED" });
   await expect(restoreSession()).rejects.toMatchObject({ code: "LOGIN_REQUIRED" });
   expect(refreshRequests).toBe(1);
+  expect(getSession()).toBeNull();
+});
+
+test("로그아웃은 현재 쿠키의 CSRF 토큰을 전송하고 성공하면 메모리 세션 제거", async () => {
+  setSession({ accessToken: "test-access", tokenType: "Bearer", csrfToken: "old-csrf", accessExpiresAt: new Date(Date.now() + 60_000).toISOString() });
+  const requests: string[] = [];
+  globalThis.fetch = async (input, options) => {
+    const path = new URL(String(input)).pathname;
+    requests.push(path);
+    expect(options?.credentials).toBe("include");
+
+    if (path.endsWith("/csrf")) {
+      return Response.json({ csrfToken: "current-csrf" });
+    }
+
+    expect(options?.method).toBe("POST");
+    expect(new Headers(options?.headers).get("X-CSRF-TOKEN")).toBe("current-csrf");
+    expect(options?.body).toBeUndefined();
+    return new Response(null, { status: 204 });
+  };
+
+  await logoutSession();
+  expect(getSession()).toBeNull();
+  expect(requests).toEqual(["/api/auth/web/csrf", "/api/auth/web/logout"]);
+});
+
+for (const expiredAt of ["csrf", "logout"]) {
+  test(`${expiredAt}의 401은 이미 종료된 세션으로 처리`, async () => {
+    setSession({ accessToken: "test-access", tokenType: "Bearer", csrfToken: "test-csrf", accessExpiresAt: new Date(Date.now() + 60_000).toISOString() });
+    globalThis.fetch = async (input) => {
+      const path = new URL(String(input)).pathname;
+
+      if (path.endsWith(`/${expiredAt}`)) {
+        return Response.json({ code: "SESSION_EXPIRED" }, { status: 401 });
+      }
+
+      return Response.json({ csrfToken: "test-csrf" });
+    };
+
+    await logoutSession();
+    expect(getSession()).toBeNull();
+  });
+}
+
+for (const status of [403, 503]) {
+  test(`로그아웃 ${status}는 오류를 전달하고 로그인 상태 유지`, async () => {
+    const session = { accessToken: "test-access", tokenType: "Bearer" as const, csrfToken: "test-csrf", accessExpiresAt: new Date(Date.now() + 60_000).toISOString() };
+    setSession(session);
+    globalThis.fetch = async (input) => new URL(String(input)).pathname.endsWith("/csrf")
+      ? Response.json({ csrfToken: "test-csrf" })
+      : Response.json({ code: "AUTH_ERROR" }, { status });
+
+    await expect(logoutSession()).rejects.toMatchObject({ status });
+    expect(getSession()).toBe(session);
+  });
+}
+
+test("로그아웃은 진행 중인 Rotation이 완료된 뒤 실행되어 세션을 되살리지 않음", async () => {
+  let queue: Promise<unknown> = Promise.resolve();
+  Object.defineProperty(globalThis, "navigator", {
+    value: { locks: { request: (_name: string, callback: () => unknown) => {
+      queue = queue.then(callback);
+      return queue;
+    } } },
+    configurable: true,
+  });
+  setSession({ accessToken: "expired-access", tokenType: "Bearer", csrfToken: "test-csrf", accessExpiresAt: new Date(Date.now() - 60_000).toISOString() });
+  const requests: string[] = [];
+  let releaseRefresh: () => void = () => {};
+  let markRefreshStarted: () => void = () => {};
+  const refreshGate = new Promise<void>((resolve) => { releaseRefresh = resolve; });
+  const refreshStarted = new Promise<void>((resolve) => { markRefreshStarted = resolve; });
+  globalThis.fetch = async (input) => {
+    const path = new URL(String(input)).pathname;
+    requests.push(path);
+
+    if (path.endsWith("/csrf")) {
+      return Response.json({ csrfToken: "test-csrf" });
+    }
+
+    if (path.endsWith("/logout")) {
+      return new Response(null, { status: 204 });
+    }
+
+    markRefreshStarted();
+    await refreshGate;
+    return Response.json({ accessToken: "rotated-access", tokenType: "Bearer", accessExpiresAt: new Date(Date.now() + 60_000).toISOString() });
+  };
+
+  const restore = restoreSession();
+  await refreshStarted;
+  const logout = logoutSession();
+  expect(requests).toEqual(["/api/auth/web/csrf", "/api/auth/web/refresh"]);
+  releaseRefresh();
+  await Promise.all([restore, logout]);
+  expect(requests).toEqual(["/api/auth/web/csrf", "/api/auth/web/refresh", "/api/auth/web/csrf", "/api/auth/web/logout"]);
   expect(getSession()).toBeNull();
 });
