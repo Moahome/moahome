@@ -12,18 +12,26 @@ import com.moahome.server.auth.security.AuthErrorHandler;
 import com.moahome.server.auth.security.JwtAuthenticationFilter;
 import com.moahome.server.auth.security.SessionCsrfTokenRepository;
 import com.moahome.server.auth.security.WebAuthSupport;
+import com.moahome.server.auth.security.OAuthAuthorizationRequestRepository;
+import com.moahome.server.auth.security.OAuthLoginHandler;
+import com.moahome.server.auth.service.KakaoOAuthUserService;
 import com.moahome.server.auth.service.AuthService;
-import com.moahome.server.auth.service.TokenService;
 
 import jakarta.servlet.DispatcherType;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.client.endpoint.RestClientAuthorizationCodeTokenResponseClient;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.client.web.OAuth2LoginAuthenticationFilter;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -31,9 +39,11 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.context.NullSecurityContextRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
@@ -97,7 +107,11 @@ public class SecurityConfig {
 
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http, AuthService auth, WebAuthSupport web,
-		AuthErrorHandler errors, UrlBasedCorsConfigurationSource corsConfigurationSource) throws Exception {
+		AuthErrorHandler errors, UrlBasedCorsConfigurationSource corsConfigurationSource,
+		OAuthAuthorizationRequestRepository oauthRequests, OAuthLoginHandler oauthHandler,
+		OAuth2AuthorizationRequestResolver kakaoAuthorizationResolver, KakaoOAuthUserService kakaoUsers,
+		RestClientAuthorizationCodeTokenResponseClient kakaoTokenClient,
+		OAuth2AuthorizedClientRepository kakaoAuthorizedClients) throws Exception {
 		http
 			.cors(cors -> cors.configurationSource(corsConfigurationSource))
 			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -105,6 +119,30 @@ public class SecurityConfig {
 			.formLogin(AbstractHttpConfigurer::disable)
 			.httpBasic(AbstractHttpConfigurer::disable)
 			.logout(AbstractHttpConfigurer::disable)
+			.oauth2Login(oauth -> oauth
+				.loginPage("/login")
+				.securityContextRepository(new NullSecurityContextRepository())
+				.authorizedClientRepository(kakaoAuthorizedClients)
+				.authorizationEndpoint(endpoint -> endpoint
+					.authorizationRequestResolver(kakaoAuthorizationResolver).authorizationRequestRepository(oauthRequests))
+				.tokenEndpoint(endpoint -> endpoint.accessTokenResponseClient(kakaoTokenClient))
+				.userInfoEndpoint(endpoint -> endpoint.userService(kakaoUsers))
+				.successHandler(oauthHandler).failureHandler(oauthHandler)
+				.withObjectPostProcessor(new ObjectPostProcessor<OAuth2AuthorizationRequestRedirectFilter>() {
+					@Override
+					public <O extends OAuth2AuthorizationRequestRedirectFilter> O postProcess(O filter) {
+						filter.setAuthenticationFailureHandler(oauthHandler);
+						return filter;
+					}
+				})
+				.withObjectPostProcessor(new ObjectPostProcessor<OAuth2LoginAuthenticationFilter>() {
+					@Override
+					public <O extends OAuth2LoginAuthenticationFilter> O postProcess(O filter) {
+						filter.setRequiresAuthenticationRequestMatcher(PathPatternRequestMatcher.withDefaults()
+							.matcher(HttpMethod.GET, KakaoOAuthConfig.CALLBACK_PATH));
+						return filter;
+					}
+				}))
 			.csrf(csrf -> csrf
 				.requireCsrfProtectionMatcher(request -> WebAuthSupport.isWebAuthRequest(request)
 					&& "POST".equals(request.getMethod()))
@@ -118,6 +156,7 @@ public class SecurityConfig {
 			.exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(errors).accessDeniedHandler(errors))
 			.authorizeHttpRequests(requests -> requests
 				.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+				.requestMatchers(HttpMethod.GET, KakaoOAuthConfig.START_PATH, KakaoOAuthConfig.CALLBACK_PATH).permitAll()
 				.requestMatchers(HttpMethod.POST, AppAuthController.REFRESH_PATH, AppAuthController.LOGOUT_PATH).permitAll()
 				.anyRequest().authenticated())
 			.addFilterBefore(new JwtAuthenticationFilter(auth, web, errors), CsrfFilter.class);

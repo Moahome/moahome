@@ -59,10 +59,12 @@ Desktop.ini
 !.env.example
 
 ### Spring Local Configuration ###
+src/main/resources/application.yml
 src/main/resources/application-local.yml
 src/main/resources/application-local.yaml
 src/main/resources/application-secret.yml
 src/main/resources/application-secret.yaml
+src/test/resources/application-test.yml
 
 ### Logs ###
 logs/

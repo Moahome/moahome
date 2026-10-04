@@ -1,12 +1,12 @@
 # JWT 인증 설계
 
-이 문서는 Server Security의 토큰 수명, 웹과 앱의 전달 방식, Redis 인증 상태와 로그아웃 정책을 정의합니다. JWT 검증, Redis 로그인 세션, 웹·앱 재발급 / 로그아웃 API와 CSRF / CORS 설정은 구현되어 있습니다. 사용자 / 소셜 계정 저장과 서버가 검증한 소셜 프로필을 기존 세션으로 연결하는 내부 Service도 구현되어 있습니다. 카카오 OAuth 검증 / 콜백과 Client 인증 연동은 아직 구현되지 않았습니다.
+이 문서는 Server Security의 카카오 로그인, 토큰 수명, 웹과 앱의 전달 방식, Redis 인증 상태와 로그아웃 정책을 정의합니다. JWT 검증, Redis 로그인 세션, 웹·앱 재발급 / 로그아웃 API와 CSRF / CORS 설정은 구현되어 있습니다. 사용자 / 소셜 계정 저장과 서버가 검증한 소셜 프로필을 기존 세션으로 연결하는 내부 Service도 구현되어 있습니다. 웹 카카오 로그인은 백엔드 중심 Authorization Code + PKCE S256 방식으로 OAuth 시작 / 콜백과 기존 JWT 세션 발급까지 구현되어 있습니다. Client 로그인 버튼 / 콜백 화면과 네이티브 앱의 일회용 코드 교환은 아직 구현되지 않았습니다.
 
 ## 1. 인증 기준
 
 | 항목 | 기준 |
 | --- | --- |
-| 로그인 | 카카오 OAuth |
+| 로그인 | Server가 처리하는 카카오 OAuth Authorization Code + PKCE S256 |
 | 서비스 인증 | Server가 발급하는 Access / Refresh JWT |
 | Access Token 수명 | 발급 시점부터 1시간 |
 | Refresh Token 수명 | 최초 로그인 시점부터 14일 |
@@ -91,17 +91,75 @@
 
 웹 Access 응답에는 `accessToken`, `tokenType`, `accessExpiresAt`이 있습니다. 앱 재발급 응답에는 추가로 `refreshToken`, `refreshExpiresAt`이 있습니다. 인증 오류 응답은 `code`, `message` 구조이며, Access 만료는 `401 / ACCESS_TOKEN_EXPIRED`, 세션 만료는 `401 / SESSION_EXPIRED`, 토큰 재사용은 `401 / REFRESH_TOKEN_REUSED`, 권한 부족은 `403 / ACCESS_DENIED`, CSRF 실패는 `403 / CSRF_INVALID`, Redis 장애는 `503 / AUTH_SERVICE_UNAVAILABLE`로 구분합니다.
 
-카카오 로그인 검증을 연결할 때 서버가 검증한 프로필로 `SocialLoginService.loginVerified()`를 호출합니다. 내부 `SocialAccountService`가 제공자와 제공자 사용자 ID로 사용자를 조회 / 생성하고 DB 트랜잭션을 커밋한 뒤, 검증된 사용자 ID로 `AuthService.startSession()`을 호출합니다. 사용자 ID를 직접 받아 토큰을 발급하는 공개 API는 제공하지 않습니다. OAuth 시작 / 콜백, 앱 교환 코드와 화면 이동은 후속 로그인 구현에 포함되며, 구현 전에는 해당 경로를 공개하지 않습니다. 관리대상별 권한은 토큰에 전역 역할을 넣는 방식으로 대신하지 않고 해당 업무 Service에서 검사합니다.
+카카오 로그인 콜백은 서버가 검증한 프로필로 `SocialLoginService.loginVerified()`를 호출합니다. 내부 `SocialAccountService`가 제공자와 제공자 사용자 ID로 사용자를 조회 / 생성하고 DB 트랜잭션을 커밋한 뒤, 검증된 사용자 ID로 `AuthService.startSession()`을 호출합니다. 사용자 ID를 직접 받아 토큰을 발급하는 공개 API는 제공하지 않습니다. 웹 OAuth 시작 / 콜백과 Refresh 쿠키 설정 후 Client 이동은 구현되어 있으며 경로는 8절을 따릅니다. 앱 교환 코드와 Client 인증 연동은 후속 구현 범위입니다. 관리대상별 권한은 토큰에 전역 역할을 넣는 방식으로 대신하지 않고 해당 업무 Service에서 검사합니다.
 
 서명은 HS256을 사용하며 32바이트 이상의 무작위 키를 Base64로 인코딩해 `JWT_SECRET_BASE64`로 주입해야 합니다. 누락·잘못된 인코딩·짧은 키는 서버 시작 시 거부합니다. 운영 Origin과 로컬 실행 설정은 [개발 환경 가이드](developmentGuide.md)를 따릅니다.
 
-## 8. 후속 구현과 검증
+## 8. 카카오 로그인 설계와 구현 범위
 
-로그인 성공 이후의 실제 Client 경로, 앱의 등록 도메인과 운영 Origin은 해당 화면 / 배포 구현 시 확정합니다. 관리소장(`ADMIN`)과 부담당자(`MANAGER`)의 주민 가입 승인, 관리소장만 가능한 관리대상 역할 변경과 그 밖의 권한 구분은 [도메인 규칙](domainRules.md)을 따릅니다. 로그인 이후 관리대상 수와 역할에 따른 진입 기준도 같은 문서를 따릅니다.
+아래 Server 로그인 시작 / 콜백과 로그인 결과 처리는 구현되어 있습니다. Client 콜백 화면과 네이티브 앱의 일회용 코드 교환은 후속 구현 범위입니다. 실제 카카오 로그인의 완전한 연동에는 카카오디벨로퍼스 설정과 Client 인증 연동이 필요합니다.
 
-Security 테스트는 토큰 만료와 종류 혼용, 서명·발급자·대상 검증, Rotation과 재사용 탐지, 동시 재발급, 로그아웃 후 세션 재생성 방지, 동시 로그인 유지, 웹 CSRF·CORS와 Redis 장애를 검증합니다. 테스트용 Redis는 일회성 프로세스로 시작하며 개발 Redis를 사용하지 않습니다. 카카오 로그인과 실제 Client 연동은 구현 시 별도로 검증합니다.
+### 처리 책임과 웹 로그인 흐름
 
-## 9. 참고 문서
+Client는 로그인 버튼에서 Server의 로그인 시작 주소로 브라우저를 이동시킵니다. Server는 로그인 시도 생성, 카카오 인가 요청, 콜백 검증, 토큰 교환, 사용자 조회와 모아홈 세션 발급을 담당합니다. 카카오 Client Secret과 카카오 토큰은 Client에 전달하지 않습니다.
+
+| 구분 | 경로 / 설정 | 역할 |
+| --- | --- | --- |
+| Server 로그인 시작 | `GET /oauth2/authorization/kakao` | 로그인 시도를 생성하고 카카오 인증 화면으로 브라우저를 이동 |
+| Server 카카오 콜백 | `GET /login/oauth2/code/kakao` | 카카오의 인가 결과 수신. `KAKAO_REDIRECT_URI`에 설정하고 카카오디벨로퍼스에도 동일하게 등록 |
+| Client 로그인 완료 | `WEB_LOGIN_SUCCESS_URI` | Refresh 쿠키 설정 후 이동할 주소. 로컬 예정 경로는 `http://localhost:3000/login/callback` |
+| Client 로그인 실패 | 완료 주소와 같은 Origin의 `/login` | 로그인 취소 / 실패 안내와 재시도 |
+
+1. Server가 로그인 시도마다 무작위 `state`와 PKCE `code_verifier`를 생성합니다. 시작한 브라우저와 연결할 임시 HttpOnly 쿠키를 설정하고, 로그인 시도 정보를 Redis에 저장합니다.
+2. Server가 `client_id`, `redirect_uri`, `response_type=code`, `state`, `code_challenge`, `code_challenge_method=S256`을 포함한 카카오 인가 주소로 브라우저를 이동시킵니다. challenge는 verifier의 SHA-256 결과를 패딩 없는 Base64url로 인코딩합니다.
+3. 카카오가 Server 콜백으로 `code` 또는 오류와 `state`를 전달합니다. Server는 state의 존재 / 만료, 제공자와 Client 종류, 브라우저 연결을 확인하고 유효한 로그인 시도를 원자적으로 한 번만 소비합니다.
+4. Server가 인가 코드와 저장한 verifier로 카카오 토큰을 요청합니다. `client_id`는 REST API 키이며, Client Secret은 `client_secret_post` 방식으로 전달합니다. `redirect_uri`는 인가 요청에 사용한 주소와 동일해야 합니다.
+5. Server가 카카오 Access Token으로 사용자 정보를 조회하고 검증한 결과를 `VerifiedSocialProfile`로 전달합니다. 로그인 식별자는 `KAKAO`와 카카오 사용자 ID이며, 이메일 일치로 다른 계정을 연결하지 않습니다. 닉네임은 기존 User 생성 규칙에 따라 필요하고 이메일 / 프로필 이미지는 선택 정보입니다. 전화번호를 로그인 정보로 수집 / 저장하지 않습니다.
+6. `SocialLoginService.loginVerified(profile, ClientType.WEB)`로 사용자 / 소셜 계정 저장을 커밋한 뒤 Redis 로그인 세션과 모아홈 JWT를 생성합니다.
+7. Server가 기존 규칙의 Refresh 쿠키를 설정하고 `WEB_LOGIN_SUCCESS_URI`로 이동시킵니다. 카카오 토큰과 모아홈 Access / Refresh Token을 이동 URL에 넣지 않습니다.
+8. Client 콜백 화면이 `credentials: include`로 `GET /api/auth/web/csrf`를 호출한 뒤, 받은 CSRF 토큰으로 `POST /api/auth/web/refresh`를 호출합니다. 응답의 Access Token을 메모리에 보관하고 기존 도메인 규칙에 따라 다음 화면으로 이동합니다.
+
+1~7단계는 Server에 구현되어 있으며 8단계는 Client의 후속 구현입니다. 카카오 인가 요청의 scope는 `profile_nickname`만 명시합니다. 사용자 조회의 `property_keys`는 `kakao_account.profile`과 `kakao_account.email`로 제한하고 `secure_resource=true`로 HTTPS 이미지 주소를 요청합니다. 응답에 이메일 / 프로필 이미지가 제공되면 선택 정보로 전달하며, 닉네임 누락이나 기존 자료형의 길이 제한에 맞지 않는 응답은 `OAUTH_PROFILE_INVALID`로 거부합니다.
+
+실패 이동 주소의 `error`에는 Server가 정한 코드만 전달합니다. 사용자 취소는 `LOGIN_CANCELLED`, 로그인 시도 검증 실패는 `OAUTH_STATE_INVALID`, 잘못된 사용자 정보는 `OAUTH_PROFILE_INVALID`, 카카오 연동 오류는 `OAUTH_PROVIDER_UNAVAILABLE`, 이용 불가 계정은 `ACCOUNT_UNAVAILABLE`, Redis / 내부 저장 실패는 `AUTH_SERVICE_UNAVAILABLE`로 구분합니다. 기타 로그인 처리 실패는 `OAUTH_LOGIN_FAILED`로 안내합니다. 제공자 오류 설명과 서비스 토큰을 전달하지 않습니다.
+
+### PKCE와 OAuth 임시 상태
+
+- 백엔드 처리와 PKCE를 함께 사용합니다. PKCE는 인가 코드가 해당 로그인 시도의 verifier와 연결되었는지 카카오가 검증하게 합니다. Client Secret, state와 시작 브라우저 연결 검증도 유지합니다.
+- 카카오 REST API는 PKCE를 지원하며 공식 OpenID Connect 메타데이터에는 `code_challenge_methods_supported: ["S256"]`이 명시되어 있습니다. 일반 REST API 파라미터 표에 상세 안내가 없지만 카카오 담당자의 지원 답변도 확인되어 있습니다. 근거는 아래 참고 문서에 연결합니다.
+- Redis OAuth Key는 `auth:oauth:{state}`를 사용합니다. 제공자 `KAKAO`, Client 종류 `WEB`, 브라우저 토큰의 SHA-256 해시, verifier, 만료시각과 인가 요청 주소 / scope를 저장하고 TTL은 5분입니다. Redis Lua에서 브라우저 연결 / 만료를 검증하고 로그인 시도를 원자적으로 소비합니다. 로그인 세션의 14일 수명과 분리합니다.
+- 웹 임시 쿠키는 `moahome-oauth-{state}`, Path `/`, 수명 5분이며 API 호스트에만 적용합니다. `HttpOnly`, `SameSite=Lax`, 운영 `Secure=true`를 사용하고 로컬에서만 `Secure=false`를 허용합니다. 로그인 시도별 쿠키로 여러 탭의 시도를 분리합니다. 검증값은 state만으로 대체하지 않으며, 검증된 성공 / 취소 / 실패 처리 후 해당 시도의 임시 정보를 정리합니다. 브라우저 연결이 확인되지 않은 Redis 상태는 소비하지 않고 TTL로 만료시킵니다.
+- state와 verifier는 매 로그인마다 생성하며 환경변수나 Client 영속 저장소에 넣지 않습니다. 콜백 재사용, 만료되거나 다른 브라우저에서 가져온 로그인 시도는 거부합니다. 실패 시 이미 소비한 시도를 복구하지 않고 새 로그인을 시작합니다.
+- OAuth Redis 저장 / 검증 장애 시 카카오 코드만으로 모아홈 세션을 발급하지 않습니다. 사용자 취소와 내부 장애를 구분해 안내하며 인가 코드, verifier, 토큰, Secret과 제공자 오류 원문을 Client 이동 URL / 일반 로그에 노출하지 않습니다.
+- 네이티브 앱의 일회용 교환 코드에 적용하는 PKCE는 별도 구간입니다. 카카오 인가 코드 교환용 verifier는 Server가 보관하고, 앱 → 모아홈 코드 교환용 verifier는 앱이 보관합니다. 앱 복귀 주소 / challenge 연결과 60초 수명은 4절을 따릅니다.
+
+### Spring Security와 기존 인증 연결
+
+- 기존 `spring-boot-starter-security-oauth2-client`의 `oauth2Login()`을 연결하고 `requireProofKey=true`로 PKCE S256을 적용합니다. `OAuthAuthorizationRequestRepository`가 브라우저 쿠키를 처리하고 `RedisOAuthStateRepository`가 임시 상태를 저장합니다. 기본 HttpSession에 의존하지 않습니다.
+- OAuth 인증 성공 처리를 기존 `SocialLoginService`와 `WebAuthSupport`에 연결합니다. 업무 API의 JWT 인증과 Redis 세션 검증은 유지하고, OAuth 로그인 결과를 별도 장기 HttpSession 인증으로 사용하지 않습니다.
+- 카카오 토큰은 사용자 검증에 필요한 동안만 Server에서 사용하며 DB에 저장하거나 별도 장기 보관하지 않습니다. Spring의 OAuth Authorized Client 저장도 이 범위에 맞춥니다.
+- 로그인 시작과 콜백의 정확한 GET 경로만 인증 없이 진입할 수 있으며 각 경로의 OAuth 검증을 적용합니다. 이 경로에는 기존 Bearer Token을 요구하지 않습니다. 업무 API나 쿠키 인증 API를 함께 공개하지 않습니다.
+- 성공 / 실패 이동 주소는 Server 설정으로 결정합니다. `WEB_LOGIN_SUCCESS_URI`의 Origin은 `WEB_ALLOWED_ORIGINS`에 포함되어야 하고 운영에서는 HTTPS를 사용합니다. 사용자 요청의 임의 URL로 이동하지 않습니다.
+- 환경변수의 의미, 중복 키 정리 방향과 카카오디벨로퍼스 설정은 [개발 환경 가이드](developmentGuide.md)의 카카오 로그인 설정 절을 따릅니다.
+
+## 9. 후속 구현과 검증
+
+Client 로그인 콜백은 8절의 예정 경로를 기준으로 구현하며 최종 서비스 진입 화면, 앱의 등록 도메인과 운영 Origin은 해당 화면 / 배포 구현 시 확정합니다. 관리소장(`ADMIN`)과 부담당자(`MANAGER`)의 주민 가입 승인, 관리소장만 가능한 관리대상 역할 변경과 그 밖의 권한 구분은 [도메인 규칙](domainRules.md)을 따릅니다. 로그인 이후 관리대상 수와 역할에 따른 진입 기준도 같은 문서를 따릅니다.
+
+Security 테스트는 토큰 만료와 종류 혼용, 서명·발급자·대상 검증, Rotation과 재사용 탐지, 동시 재발급, 로그아웃 후 세션 재생성 방지, 동시 로그인 유지, 웹 CSRF·CORS와 Redis 장애를 검증합니다. 테스트용 Redis는 일회성 프로세스로 시작하며 개발 Redis를 사용하지 않습니다.
+
+`KakaoOAuthIntegrationTest`는 모의 카카오 HTTP 응답과 일회성 Redis로 다음 서버 흐름을 검증합니다. 실제 제공자의 PKCE 강제 검증과 Client 화면 연동은 후속 확인이며 Mock 결과로 대체하지 않습니다.
+
+- 검증한 카카오 프로필의 기존 로그인 Service 연결, Refresh 쿠키 발급과 기존 CSRF / 재발급 연결. 최초 가입 / 기존 계정 로그인 / 탈퇴 후 재가입과 DB 무결성은 기존 사용자 / 소셜 계정 테스트에서 검증
+- state 누락 / 불일치 / 만료, 브라우저 연결 불일치와 콜백 중복 소비
+- S256 challenge 생성과 verifier 전달, 카카오 토큰 교환 실패, 사용자 취소 / 사용자 조회 실패
+- Redis 장애와 DB 저장 이후 세션 생성 실패, 실패 시 임시 정보 정리
+- 고정된 성공 / 실패 주소, 서비스 토큰의 URL 노출 방지, Refresh 쿠키와 Client CSRF / 재발급 연결
+- 여러 탭의 로그인 시도 분리, OAuth 임시 상태 5분 수명과 Redis 원자적 소비, HttpSession 미사용
+
+`KakaoOAuthPropertiesTest`는 고정된 콜백 경로, 허용 웹 Origin, 운영 HTTPS와 로컬 localhost HTTP 주소, 설정 문자열의 비밀값 숨김을 검증합니다. 실제 카카오 연동에서는 정상 verifier와 누락 / 불일치 verifier의 결과를 별도로 확인합니다.
+
+## 10. 참고 문서
 
 수명과 전달 방식은 이 프로젝트의 정책입니다. Rotation과 재사용 탐지, 쿠키 인증의 CSRF 보호, 네이티브 로그인 및 저장소 설계는 다음 공식 문서를 참고합니다.
 
@@ -109,11 +167,17 @@ Security 테스트는 토큰 만료와 종류 혼용, 서명·발급자·대상 
 - [Spring Security CSRF](https://docs.spring.io/spring-security/reference/features/exploits/csrf.html)
 - [쿠키 속성 MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie)
 - [네이티브 앱 OAuth RFC 8252](https://www.rfc-editor.org/rfc/rfc8252.html)
+- [PKCE RFC 7636](https://www.rfc-editor.org/rfc/rfc7636.html)
+- [카카오 로그인 REST API](https://developers.kakao.com/docs/ko/kakaologin/rest-api)
+- [카카오 로그인 설정](https://developers.kakao.com/docs/ko/kakaologin/prerequisite)
+- [카카오 OpenID Connect 메타데이터](https://kauth.kakao.com/.well-known/openid-configuration)
+- [카카오 담당자의 REST API PKCE 지원 답변](https://devtalk.kakao.com/t/oauth2-pkce/144590)
+- [Spring Security Authorization Grant 지원](https://docs.spring.io/spring-security/reference/servlet/oauth2/client/authorization-grants.html)
 - [Apple Keychain](https://developer.apple.com/documentation/security/keychain-services)
 - [Android Keystore](https://developer.android.com/privacy-and-security/keystore)
 
 
-## 8. 사용자 / 소셜 계정과 전화번호 저장
+## 11. 사용자 / 소셜 계정과 전화번호 저장
 
 - `users`는 모아홈 사용자, `social_accounts`는 외부 로그인 계정 연결을 저장합니다. 소셜 계정에서 사용자로 단방향 LAZY 관계를 사용합니다.
 - `SocialAccountService.resolveVerifiedUser()`는 동일한 소셜 식별자의 가입 / 로그인을 PostgreSQL 트랜잭션 advisory lock으로 직렬화합니다. DB의 부분 유일 인덱스도 삭제되지 않은 소셜 식별자의 중복을 차단합니다.

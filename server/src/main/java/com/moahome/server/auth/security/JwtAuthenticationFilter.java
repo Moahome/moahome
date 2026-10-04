@@ -10,6 +10,7 @@ import com.moahome.server.auth.domain.ClientType;
 import com.moahome.server.auth.exception.AuthErrorCode;
 import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.auth.service.AuthService;
+import com.moahome.server.config.KakaoOAuthConfig;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -32,6 +33,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		this.auth = auth;
 		this.web = web;
 		this.errors = errors;
+	}
+
+	@Override
+	protected boolean shouldNotFilter(HttpServletRequest request) {
+		String path = request.getRequestURI().substring(request.getContextPath().length());
+		return "GET".equals(request.getMethod())
+			&& (KakaoOAuthConfig.START_PATH.equals(path) || KakaoOAuthConfig.CALLBACK_PATH.equals(path));
 	}
 
 	@Override
