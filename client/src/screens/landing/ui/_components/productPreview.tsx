@@ -7,13 +7,13 @@ import {
 } from "../_constants/previewData";
 import { BrandLogo } from "./brandLogo";
 import { LandingIcon } from "./landingIcon";
-import styles from "../landingPage.module.css";
+import styles from "./productPreview.module.css";
 
 function DashboardPreview() {
   return (
     <div className={styles.dashboard}>
       <aside className={styles["preview-sidebar"]}>
-        <BrandLogo compact />
+        <BrandLogo compact variant="sidebar" />
         <div className={styles["preview-menu"]}>
           {PREVIEW_MENU.map(({ icon, label }, index) => (
             <div
@@ -197,7 +197,7 @@ function ResidentPreview() {
   return (
     <div className={styles["phone-screen"]}>
       <div className={styles["phone-header"]}>
-        <BrandLogo compact />
+        <BrandLogo compact variant="phone" />
         <LandingIcon name="bell" />
       </div>
       <h3>안녕하세요, 김모아님</h3>

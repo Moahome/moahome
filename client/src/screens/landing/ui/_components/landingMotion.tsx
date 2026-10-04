@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import styles from "../landingPage.module.css";
+import styles from "./landingMotion.module.css";
 
 export function LandingMotion({ children }: { children: ReactNode }) {
   const rootRef = useRef<HTMLDivElement>(null);

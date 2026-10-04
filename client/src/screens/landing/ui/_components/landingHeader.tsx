@@ -5,7 +5,7 @@ import Link from "next/link";
 import { NAVIGATION_ITEMS } from "../_constants/landingContent";
 import { BrandLogo } from "./brandLogo";
 import { LandingIcon } from "./landingIcon";
-import styles from "../landingPage.module.css";
+import styles from "./landingHeader.module.css";
 
 function LoginLink({ onClick }: { onClick?: () => void }) {
   return (
@@ -100,7 +100,7 @@ export function LandingHeader() {
         <div className={styles["drawer-panel"]}>
           <div className={styles["drawer-heading"]}>
             <a href="#top" onClick={closeMenu} aria-label="모아홈 처음으로">
-              <BrandLogo compact />
+              <BrandLogo compact variant="drawer" />
             </a>
             <button
               ref={closeButtonRef}

@@ -16,7 +16,7 @@ Client와 Server의 상세 규칙은 각 디렉터리의 `AGENTS.md`에서 별�
 
 ### Client
 
-Client는 FSD(Feature-Sliced Design)를 사용합니다.
+Client는 FSD(Feature-Sliced Design)를 사용하며, 화면 레이어의 디렉터리명은 `screens`로 정합니다.
 
 ### Server
 
@@ -44,7 +44,7 @@ Server는 Layered Architecture를 사용합니다.
 - 프레임워크 / 도구 설정 파일: 정해진 이름 유지 (`next.config.ts`, `build.gradle`, `application.yml`)
 - 표준 문서: `AGENTS.md`, `README.md` 등 기존 이름 유지
 - Flyway Migration 파일: `server/AGENTS.md`의 명명 규칙 적용
-- 페이지 내부 전용 폴더와 단일 보조 파일: `client/AGENTS.md`의 Page-Local Code Rules에 따라 `_components/`, `_utils.ts`, `_types.ts` 등의 `_` 접두사 허용
+- UI 내부에서만 사용하는 보조 코드의 폴더: `client/AGENTS.md`의 Internal Code Rules에 따라 `ui/_components/`, `ui/_types/`, `ui/_utils/` 등으로 작성합니다. 파일명과 함수 / 타입 이름에는 `_`를 붙이지 않습니다.
 
 ## 4. Design Color
 

@@ -229,7 +229,7 @@ export function LandingPage() {
 
       <footer className={styles.footer}>
         <div className={`${styles.container} ${styles["footer-inner"]}`}>
-          <BrandLogo />
+          <BrandLogo variant="footer" />
           <p>
             소규모 공동주택을 위한 더 쉬운 관리.
             <br />
