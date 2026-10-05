@@ -130,6 +130,9 @@ class SecurityIntegrationTest {
 
 	@Test
 	void doesNotExposeDocumentationWhenDisabledOutsideLocalProfile() throws Exception {
+		mvc.perform(options("/api/users/me").header("Origin", "http://localhost:4000")
+			.header("Access-Control-Request-Method", "GET"))
+			.andExpect(status().isForbidden()).andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
 		for (String path : List.of("/swagger-ui.html", "/swagger-ui/index.html", "/v3/api-docs",
 			"/v3/api-docs/swagger-config", "/v3/api-docs.yaml")) {
 			mvc.perform(get(path)).andExpect(status().isUnauthorized())

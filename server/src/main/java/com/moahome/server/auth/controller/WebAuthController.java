@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @Tag(name = "웹 인증", description = "로그인 시 설정된 HttpOnly Refresh 쿠키를 브라우저가 자동 전송합니다. "
-	+ "POST에는 허용된 Origin과 X-CSRF-TOKEN이 필요합니다. Swagger에서 호출하려면 Swagger의 Origin도 WEB_ALLOWED_ORIGINS에 등록합니다.")
+	+ "POST에는 허용된 Origin과 X-CSRF-TOKEN이 필요합니다. local Profile에서는 http://localhost:4000을 자동 허용합니다.")
 @SecurityRequirement(name = "webRefreshCookie")
 @ApiResponses({
 	@ApiResponse(responseCode = "401", description = "쿠키 없음, 유효하지 않거나 만료된 토큰 / 세션, REFRESH_TOKEN_REUSED",

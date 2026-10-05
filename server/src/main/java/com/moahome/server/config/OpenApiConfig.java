@@ -14,6 +14,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 @ConditionalOnProperty(name = "springdoc.api-docs.enabled", havingValue = "true")
@@ -40,16 +41,18 @@ public class OpenApiConfig {
 	/** 활성화한 문서의 GET만 공개하고, 별도 체인으로 업무 API의 JWT·쿠키·CSRF 검증을 유지합니다. */
 	@Bean
 	@Order(0)
-	SecurityFilterChain openApiSecurityFilterChain(HttpSecurity http) throws Exception {
+	SecurityFilterChain openApiSecurityFilterChain(HttpSecurity http,
+		UrlBasedCorsConfigurationSource corsConfigurationSource) throws Exception {
 		return http
-			.securityMatcher("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml")
+			.securityMatcher("/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml")
+			// 4000 포트의 UI에서도 문서를 읽을 수 있도록 업무 API와 같은 Origin 허용 목록을 적용합니다.
+			.cors(cors -> cors.configurationSource(corsConfigurationSource))
 			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 			.requestCache(AbstractHttpConfigurer::disable)
 			// 문서 GET은 상태를 변경하지 않으며, 다른 HTTP 메서드는 아래 인가에서 모두 거부합니다.
 			.csrf(AbstractHttpConfigurer::disable)
 			.authorizeHttpRequests(requests -> requests
-				.requestMatchers(HttpMethod.GET, "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs",
-					"/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
+				.requestMatchers(HttpMethod.GET, "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml").permitAll()
 				.anyRequest().denyAll())
 			.build();
 	}

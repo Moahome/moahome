@@ -1,4 +1,18 @@
 services:
+  swagger-ui:
+    image: docker.swagger.io/swaggerapi/swagger-ui:v5.33.1
+    profiles: [tools]
+
+    environment:
+      # 문서는 컨테이너가 아닌 브라우저에서 조회하므로 호스트 API 주소를 사용합니다.
+      SWAGGER_JSON_URL: http://localhost:8080/v3/api-docs
+      WITH_CREDENTIALS: "true"
+      PERSIST_AUTHORIZATION: "false"
+      VALIDATOR_URL: none
+
+    ports:
+      - "127.0.0.1:4000:8080"
+
   postgres:
     image: postgres:17
     container_name: moahome-postgres

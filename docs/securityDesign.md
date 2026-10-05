@@ -72,7 +72,7 @@
 
 ## 6. 웹 CORS와 CSRF
 
-- CORS는 환경별 웹 Origin을 정확한 허용 목록으로 관리합니다. 로컬 기본값은 `http://localhost:3000`이며 운영 주소는 배포 시 설정합니다.
+- CORS는 환경별 웹 Origin을 정확한 허용 목록으로 관리합니다. 로컬 기본값은 `http://localhost:3000`이며 `local` Profile은 별도 Swagger UI의 `http://localhost:4000`을 추가합니다. 문서 조회에도 같은 CORS 허용 목록을 적용합니다. 실행과 사용법은 [README의 로컬 API 문서](../README.md#로컬-api-문서)를 따르며 운영 주소는 배포 시 설정합니다.
 - 쿠키 요청을 위해 credentials를 허용하고 Origin 와일드카드는 사용하지 않습니다. 허용한 Origin의 사전 요청은 인증 없이 처리하되 업무 요청 자체의 인증을 생략하지 않습니다.
 - 쿠키로 인증하는 웹 재발급·로그아웃 요청은 POST와 CSRF 토큰 헤더 `X-CSRF-TOKEN` 검증을 사용합니다. Origin도 허용 목록과 비교합니다. CORS나 SameSite만으로 CSRF 검증을 대신하지 않습니다.
 - 웹은 유효한 Refresh 쿠키로 `/api/auth/web/csrf`에서 CSRF 토큰을 JSON으로 받아 메모리에 보관합니다. 응답은 캐시하지 않고, 허용한 웹 Origin에서만 읽을 수 있게 합니다. CSRF 토큰은 해당 Redis 세션에 연결합니다.

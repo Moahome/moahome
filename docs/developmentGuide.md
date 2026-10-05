@@ -33,14 +33,15 @@ docker compose version
 | --- | --- |
 | `client/.env` | 이미 준비된 Client 환경변수 |
 | `server/.env` | 이미 준비된 PostgreSQL, Redis와 카카오 환경변수 |
-| `server/docker-compose.yml` | PostgreSQL과 Redis 컨테이너 구성 |
+| `server/docker-compose.yml` | PostgreSQL, Redis와 별도 Swagger UI 컨테이너 구성 |
 | `server/src/main/resources/application.yml` | DataSource / Redis 연결과 Spring 공통 설정. 기본 Profile은 `local`, HTTP 포트는 `8080`입니다. |
-| `server/src/main/resources/application.properties` | 추적되는 Swagger / OpenAPI 공통 설정. 기본 비활성화, 인증 입력 영속 저장 제외 |
-| `server/src/main/resources/application-local.properties` | `local` Profile의 Swagger / OpenAPI 활성화 |
+| `server/src/main/resources/application.properties` | 로컬 OpenAPI 공통 설정. 문서 기본 비활성화, 내장 Swagger UI 제외 |
+| `server/src/main/resources/application-local.properties` | `local` Profile의 OpenAPI 활성화와 Swagger Origin 추가 |
 | `client/package.json` | Client 개발 서버, lint, 테스트와 빌드 명령 |
 | `server/build.gradle` | Java Toolchain, 서버 의존성과 테스트 / 빌드 구성 |
 
 별도 `application-local.yml` 없이 `application.yml`의 `local` Profile 문서에서 기존 `.env`를 읽습니다.
+`application.yml`과 두 `application*.properties`는 로컬 설정으로 Git에서 제외합니다. `jwtSecurity.properties`와 `propertyRegistration.properties`는 실제 비밀값 없이 환경변수 연결만 정의하는 공통 파일로 추적합니다.
 DataSource, Redis와 카카오 OAuth는 환경변수에 연결되어 있습니다.
 JWT 검증, 웹과 앱의 재발급 / 로그아웃 및 Redis 인증 상태 관리는 구현되어 있습니다. API와 전달 방식은 [JWT 인증 설계](securityDesign.md)를 따릅니다. 사용자 / 소셜 계정 저장, 웹 카카오 OAuth 시작 / 콜백과 검증된 프로필의 세션 연결은 구현되어 있습니다. Client 로그인 버튼, 콜백의 세션 복원과 Access Token 메모리 보관도 구현되어 있습니다. 최종 서비스 진입 분기와 네이티브 앱의 일회용 코드 교환은 후속 구현 범위입니다.
 
@@ -88,7 +89,7 @@ Next.js는 `client/`에서 실행하면 해당 프로젝트의 `.env`를 읽습�
 
 현재 `users`에는 전화번호를 저장하지 않으므로 전화번호 암호화 / HMAC 환경변수를 사용하지 않습니다. 공통 `PhoneSecurity`와 키 설정 자료형은 유지하며, Bean 등록과 외부 키 설정은 주민 명부 / 가입 요청의 연락처 저장을 구현할 때 연결합니다. 현재 로그인 서버 실행에는 전화번호 키가 필요하지 않습니다.
 
-Refresh 쿠키는 기본적으로 `Secure=true`이고 `local` Profile에서만 HTTP 개발을 위해 `false`로 설정됩니다. 운영 실행에는 `local` 이외의 Profile을 명시하고 HTTPS 및 실제 `WEB_ALLOWED_ORIGINS`를 설정합니다.
+Refresh 쿠키는 기본적으로 `Secure=true`이고 `local` Profile에서만 HTTP 개발을 위해 `false`로 설정됩니다. `local` Profile은 기존 `WEB_ALLOWED_ORIGINS`를 유지하며 Swagger UI의 `http://localhost:4000`을 추가합니다. 운영 실행에는 `local` 이외의 Profile을 명시하고 HTTPS 및 실제 `WEB_ALLOWED_ORIGINS`를 설정합니다.
 
 Compose는 `server/`에서 실행할 때 기존 `.env`를 변수 치환에 사용합니다.
 Spring은 별도로 `local` Profile의 `.env` Import를 통해 같은 파일을 읽습니다.
@@ -158,7 +159,7 @@ cd server
 - 다른 Profile을 명시하면 로컬 `.env`를 읽지 않습니다. 해당 환경에서 DB / Redis 변수를 주입하거나 `SPRING_DATASOURCE_*`, `SPRING_DATA_REDIS_*`로 연결 정보를 덮어씁니다.
 - JPA의 `ddl-auto`는 `validate`이고 스키마 변경은 Flyway가 담당합니다. Redis 연결 / 읽기 Timeout은 각각 `3s`입니다.
 - 기본 HTTP 주소는 `http://localhost:8080`입니다.
-- `local` Profile의 API 문서 주소와 인증 호출 방법은 [README의 로컬 API 문서](../README.md#로컬-api-문서)를 따릅니다. 다른 Profile에서는 Swagger UI와 OpenAPI를 기본 비활성화합니다.
+- `local` Profile의 API 문서 주소와 인증 호출 방법은 [README의 로컬 API 문서](../README.md#로컬-api-문서)를 따릅니다. Swagger UI는 `docker compose up -d swagger-ui`로 별도 실행하며 `http://localhost:4000`에서 `8080`의 OpenAPI를 읽습니다. `tools` Profile의 서비스이므로 전체 기본 Compose 실행에는 포함하지 않고 명시적으로 실행합니다. 다른 Spring Profile에서는 OpenAPI를 기본 비활성화합니다.
 - IDE에서도 Working Directory를 `server/`로 지정합니다. 다른 디렉터리에서는 상대 경로 `.env`를 찾지 못합니다.
 - 웹 카카오 로그인 시작은 `GET /oauth2/authorization/kakao`, 콜백은 `GET /login/oauth2/code/kakao`입니다. Server 설정과 카카오디벨로퍼스 등록 주소를 일치시킵니다. Client는 `/login/callback`에서 세션을 복원합니다. [관리대상 등록 API](propertyRegistrationApi.md)의 기본 정보 검증 / 최종 저장 / 결과 조회를 구현했으며 등록 화면 연결은 후속 범위입니다.
 
@@ -241,7 +242,7 @@ npm run start
 
 - `build`에는 `test`가 포함됩니다.
 - 현재 테스트에는 애플리케이션 Context, JWT / 설정 / Entity / Service / 전화번호·계좌번호 보안 단위 테스트, 등록 Controller 검증, Security / Redis 통합 테스트와 User / 소셜 계정 / 관리대상 등록 PostgreSQL 통합 테스트가 있습니다.
-- OpenAPI 통합 테스트는 UI / 정적 파일 / JSON / YAML 접근, 구현된 API의 인증과 응답 계약, 문서 쓰기 차단을 확인합니다. Security 통합 테스트는 문서 비활성화 시 인증된 사용자에게도 문서가 제공되지 않는지 확인합니다.
+- OpenAPI 통합 테스트는 JSON / YAML 접근, 구현된 API의 인증과 응답 계약, 문서 쓰기 차단과 Swagger Origin의 CORS를 확인합니다. local 설정의 기존 Origin 유지와 4000 포트 추가도 검증합니다. Security 통합 테스트는 다른 Profile의 Swagger Origin 차단과 문서 비활성화 시 인증된 사용자에게도 문서가 제공되지 않는지 확인합니다.
 - `application-test.yml`은 DB / JPA / Flyway 자동 구성을 제외하여 개발 DB를 사용하지 않습니다. `database-test` Profile의 PostgreSQL 통합 테스트는 별도의 임시 클러스터에 Flyway를 적용하고 JPA 매핑을 검증합니다.
 - Security 통합 테스트는 `redis-server` 실행 파일로 저장 기능을 끈 일회성 Redis를 임의 포트에서 시작하고 종료합니다. 실행 파일이 PATH에 없다면 `REDIS_SERVER_EXECUTABLE`에 경로를 지정합니다. 개발 Redis를 재사용하지 않습니다.
 - PostgreSQL 통합 테스트는 PATH의 `initdb`와 `postgres` 실행 파일로 임시 디렉터리 / 임의 포트의 로컬 전용 DB를 실행하고 종료합니다. PATH에 없다면 `POSTGRES_INITDB_EXECUTABLE`과 `POSTGRES_SERVER_EXECUTABLE`에 같은 PostgreSQL 설치의 실행 파일 경로를 지정합니다. Compose의 개발 DB를 재사용하지 않습니다. PostgreSQL 17 이상을 사용합니다.

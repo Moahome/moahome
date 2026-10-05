@@ -13,6 +13,8 @@ import com.moahome.server.user.repo.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -26,12 +28,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = {"springdoc.api-docs.enabled=true", "springdoc.swagger-ui.enabled=true"})
+@SpringBootTest(properties = {"springdoc.api-docs.enabled=true",
+	"moahome.security.allowed-origins=http://localhost:3000,http://localhost:4000,https://app.example.test"})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class OpenApiIntegrationTest {
@@ -56,23 +60,43 @@ class OpenApiIntegrationTest {
 	}
 
 	@Test
-	void servesUiAssetsAndDefinitionsWithoutAuthenticationOrTokenValidation() throws Exception {
-		mvc.perform(get("/swagger-ui.html")).andExpect(status().isFound())
-			.andExpect(redirectedUrl("/swagger-ui/index.html"));
-		mvc.perform(get("/swagger-ui/index.html")).andExpect(status().isOk())
-			.andExpect(content().string(containsString("Swagger UI")));
-		for (String path : List.of("/swagger-ui/swagger-ui.css", "/swagger-ui/swagger-ui-bundle.js")) {
-			mvc.perform(get(path)).andExpect(status().isOk());
-		}
+	void servesDefinitionsWithoutAuthenticationOrTokenValidation() throws Exception {
 		mvc.perform(get("/v3/api-docs").header("Authorization", "Bearer expired-token"))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.info.title").value("모아홈 API"));
 		mvc.perform(get("/v3/api-docs.yaml")).andExpect(status().isOk())
 			.andExpect(content().string(containsString("openapi:")));
-		mvc.perform(get("/v3/api-docs/swagger-config")).andExpect(status().isOk())
-			.andExpect(jsonPath("$.url").value("/v3/api-docs"))
-			.andExpect(jsonPath("$.persistAuthorization").value(false))
-			.andExpect(jsonPath("$.withCredentials").value(true));
 		verifyNoInteractions(auth);
+	}
+
+	@Test
+	void allowsSwaggerOriginForDefinitionsAndBusinessPreflightButRejectsUnknownOrigins() throws Exception {
+		mvc.perform(get("/v3/api-docs").header("Origin", "http://localhost:4000"))
+			.andExpect(status().isOk())
+			.andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:4000"))
+			.andExpect(header().string("Access-Control-Allow-Credentials", "true"));
+		for (String path : List.of("/v3/api-docs", "/api/property-registrations", "/api/auth/web/refresh")) {
+			mvc.perform(options(path).header("Origin", "http://localhost:4000")
+				.header("Access-Control-Request-Method", path.equals("/v3/api-docs") ? "GET" : "POST")
+				.header("Access-Control-Request-Headers", "Authorization,Content-Type,X-CSRF-TOKEN"))
+				.andExpect(status().isOk())
+				.andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:4000"));
+		}
+		mvc.perform(get("/v3/api-docs").header("Origin", "https://unknown.example.test"))
+			.andExpect(status().isForbidden()).andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
+	}
+
+	@Test
+	void localSettingsKeepExistingOriginsAndAddSwaggerWithoutEnablingEmbeddedUi() {
+		new ApplicationContextRunner()
+			.withInitializer(new ConfigDataApplicationContextInitializer())
+			.withPropertyValues("spring.config.location=classpath:application.properties", "spring.profiles.active=local",
+				"WEB_ALLOWED_ORIGINS=https://app.example.test")
+			.run(context -> {
+				assertThat(context.getEnvironment().getProperty("moahome.security.allowed-origins"))
+					.isEqualTo("https://app.example.test,http://localhost:4000");
+				assertThat(context.getEnvironment().getProperty("springdoc.api-docs.enabled", Boolean.class)).isTrue();
+				assertThat(context.getEnvironment().getProperty("springdoc.swagger-ui.enabled", Boolean.class)).isFalse();
+			});
 	}
 
 	@Test
@@ -82,6 +106,7 @@ class OpenApiIntegrationTest {
 		mvc.perform(get("/api/auth/web/csrf")).andExpect(status().isUnauthorized());
 		mvc.perform(post("/v3/api-docs")).andExpect(status().isForbidden());
 		mvc.perform(get("/v3/api-docs-other")).andExpect(status().isUnauthorized());
+		mvc.perform(get("/swagger-ui.html")).andExpect(status().isUnauthorized());
 	}
 
 	@Test
