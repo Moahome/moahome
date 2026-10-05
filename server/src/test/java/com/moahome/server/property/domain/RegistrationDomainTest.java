@@ -49,6 +49,23 @@ class RegistrationDomainTest {
 	}
 
 	@Test
+	void normalizesBuildingNamesAndPreservesTextUnitIdentifiers() {
+		Property property = Property.create("동 있음", "주소", null, null, true, at);
+		Building building = Building.create(property, " 101 ", 0, at);
+		assertThat(building.getName()).isEqualTo("101동");
+		assertThat(Building.create(property, "A", 1, at).getName()).isEqualTo("A동");
+		assertThat(Building.create(property, "101동", 2, at).getName()).isEqualTo("101동");
+		assertThat(Unit.create(property, building, "001", null, null, UnitStatus.ACTIVE, at).getUnitNumber())
+			.isEqualTo("001");
+		for (String number : new String[] {"A101", "101호", "B01", "관리실", "001"}) {
+			assertThat(Unit.create(property, building, number, null, null, UnitStatus.ACTIVE, at).getUnitNumber())
+				.isEqualTo(number);
+		}
+		assertThatThrownBy(() -> Unit.create(property, building, "101", null, null, UnitStatus.INACTIVE, at))
+			.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
 	void initialAccountAndTemplatePreserveDefaultsAndExactMoney() {
 		Property property = Property.create("동 없음", "주소", null, null, false, at);
 		var security = new AccountNumberSecurity(RegistrationTestKeys.accountProperties());

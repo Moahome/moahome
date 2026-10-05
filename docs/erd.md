@@ -32,7 +32,7 @@
 | 부과 / 수납 / 은행 / 지출 / 회계 / 마감 / 감사 | 기존 기준 + 설계안 | 각 영역의 도메인 규칙을 유지하고 해당 기능 구현 전에 상세 정책 / DDL 확정 |
 | 초기 관리계좌의 예금주 | 확정 | 예금주 이름 필수, 주민 명부 연결 선택, 주민 연결은 명부 등록 이후 가능 |
 | 초기 계좌 / 기본 관리비 | 확정 | 공용계좌, 기본 계좌 정확히 1개, 사용 시작일은 등록 완료일, 기본 금액은 0원 이상 정수 |
-| 최종 등록 API / 성공 결과 | Server 구현 | 전체 저장 계약과 중복 방지 / 응답 유실 결과 조회, property_registration_results의 원자적 저장. Client 기본 정보 화면 / 검증은 구현, 이후 설정과 전체 제출은 후속 구현 |
+| 최종 등록 API / 성공 결과 | Server 구현 | 전체 저장 계약과 중복 방지 / 응답 유실 결과 조회, property_registration_results의 원자적 저장. Client 기본 정보 화면 / 검증과 동·세대 설정은 구현, 관리계좌 이후 설정과 전체 제출은 후속 구현 |
 | 연락처 변경 / 알림 발송 / 후속 확장 | 후속 검토 | 해당 기능 구현 시 결정 |
 
 업무 규칙은 [domainRules.md](domainRules.md), 보안 코드와 인증 구현 기준은 [securityDesign.md](securityDesign.md), 작업 절차는 [AGENTS.md](../AGENTS.md)를 따른다. 차이가 발견되면 미정 정책을 추측해 코드나 ERD를 맞추지 않고 먼저 확인한다.
@@ -423,7 +423,7 @@ WHERE deleted_at IS NULL
 | `id` | uuid | N | PK |
 | `property_id` | uuid | N | FK |
 | `building_id` | uuid | Y | FK → buildings.id |
-| `unit_number` | varchar(30) | N | 101 / 1201 등 |
+| `unit_number` | varchar(30) | N | 문자·앞자리 0을 보존하는 호수 문자열 |
 | `display_name` | varchar(50) | Y | 화면 표시명 |
 | `floor` | smallint | Y | 층 |
 | `status` | varchar(20) | N | `ACTIVE / VACANT / INACTIVE` |
@@ -431,6 +431,8 @@ WHERE deleted_at IS NULL
 | `updated_at` | timestamptz | N | 수정 |
 | `deleted_at` | timestamptz | Y | 소프트 삭제 |
 | `deleted_by` | uuid | Y | 삭제 처리자 |
+
+초기 등록의 동 이름 정리와 허용 상태는 [등록 API](propertyRegistrationApi.md#세대)를 따릅니다. 기존 상태 컬럼은 유지하며 초기 등록 입력에서는 `ACTIVE / VACANT`만 받습니다.
 
 ### 제약
 

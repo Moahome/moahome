@@ -1,0 +1,89 @@
+.dialog {
+  width: min(calc(100% - 32px), 500px);
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 24px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 20px 64px color-mix(in srgb, var(--foreground) 16%, transparent);
+  font-family: var(--font-geist-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+
+  &::backdrop {
+    background: color-mix(in srgb, var(--foreground) 35%, transparent);
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+
+  h2 {
+    font-size: 24px;
+    font-weight: 800;
+  }
+}
+
+.fields {
+  display: grid;
+  gap: 20px;
+
+  .delete-button[data-variant] {
+    display: none;
+    width: 100%;
+    border-color: var(--danger);
+    color: var(--danger);
+
+    &[data-kind="building"] {
+      display: flex;
+    }
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--danger) 6%, var(--card));
+    }
+  }
+}
+
+.number-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.error {
+  color: var(--danger);
+  font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 640px) {
+  .fields {
+    .delete-button[data-variant] {
+      display: flex;
+    }
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 374px) {
+  .dialog {
+    padding: 18px;
+  }
+}

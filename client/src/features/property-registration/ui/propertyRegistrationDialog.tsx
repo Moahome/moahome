@@ -25,13 +25,9 @@ import {
   getBasicInfoErrors,
   getTextLength,
   normalizeBasicInfo,
+  type BasicInfo,
   type BasicInfoDraft
 } from '../model/basicInfo';
-import {
-  discardBasicInfoDraft,
-  restoreBasicInfoDraft,
-  saveBasicInfoDraft
-} from '../model/basicInfoDraft';
 import { AddressSearch } from './_components/address-search/addressSearch';
 import { RegistrationIcon } from './_components/registration-icon/registrationIcon';
 import styles from './propertyRegistrationDialog.module.css';
@@ -48,10 +44,14 @@ function getValidationError(error: unknown) {
 
 /** PC 모달과 모바일 전체 화면에서 같은 기본 정보와 검증 흐름을 사용합니다. */
 export function PropertyRegistrationDialog({
-  userId,
+  draft,
+  onChange,
+  onValidated,
   onClose,
 }: {
-  userId: string;
+  draft: BasicInfoDraft;
+  onChange: (changes: Partial<BasicInfoDraft>) => void;
+  onValidated: (basicInfo: BasicInfo) => void;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -60,11 +60,9 @@ export function PropertyRegistrationDialog({
   const detailRef = useRef<HTMLInputElement>(null);
   const requestInFlight = useRef(false);
   const activeRef = useRef(false);
-  const [draft, setDraft] = useState(() => restoreBasicInfoDraft(userId));
   const [isSearching, setIsSearching] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-  const [isValidated, setIsValidated] = useState(false);
   const errors = getBasicInfoErrors(draft);
   const canContinue = Object.keys(errors).length === 0;
   const nameLength = getTextLength(draft.name);
@@ -80,41 +78,32 @@ export function PropertyRegistrationDialog({
     document.body.style.overflow = 'hidden';
 
     return () => {
-      // 이탈한 폼의 검증 응답은 무시하고 취소·로그아웃 뒤에는 입력 초안을 남기지 않습니다.
+      // 이전 단계로 돌아오더라도 이탈한 폼의 늦은 검증 응답은 새 화면에 적용하지 않습니다.
       activeRef.current = false;
       dialog?.close();
       document.body.style.overflow = previousOverflow;
-      discardBasicInfoDraft();
     };
   }, []);
 
-  useEffect(() => {
-    saveBasicInfoDraft(userId, draft);
-  }, [userId, draft]);
-
-  /** 입력 수정은 이전 검증 성공 표시를 해제하며 현재 사용자의 입력 초안만 갱신합니다. */
+  /** 입력 수정은 등록 흐름의 초안에 반영하며 이전 서버 검증 결과는 더 이상 사용하지 않습니다. */
   function updateDraft<K extends keyof BasicInfoDraft>(field: K, value: BasicInfoDraft[K]) {
-    setDraft((previous) => ({
-      ...previous,
+    onChange({
       [field]: value
-    }));
-    setIsValidated(false);
+    });
     setErrorMessage('');
   }
 
   const selectAddress = useCallback((address: string) => {
-    setDraft((previous) => ({
-      ...previous,
+    onChange({
       address
-    }));
-    setIsValidated(false);
+    });
     setErrorMessage('');
     setIsSearching(false);
     // 주소 검색 다이얼로그가 닫힌 다음 상세주소로 이동해 바로 입력할 수 있게 합니다.
     requestAnimationFrame(() => detailRef.current?.focus());
-  }, []);
+  }, [onChange]);
 
-  /** 기본 검증만 호출하고 실패에는 입력을 유지합니다. 후속 설정 전에는 저장 완료를 표시하지 않습니다. */
+  /** 기본 정보 검증 성공에서만 동·세대로 이동하며 실패에는 현재 입력과 단계를 유지합니다. */
   async function submitBasicInfo(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -123,25 +112,18 @@ export function PropertyRegistrationDialog({
     requestInFlight.current = true;
     setIsValidating(true);
     setErrorMessage('');
-    setIsValidated(false);
 
     try {
       const basicInfo = await validateBasicInfo(normalizeBasicInfo(draft));
 
       if (!activeRef.current) return;
 
-      setDraft({
-        ...basicInfo,
-        addressDetail: basicInfo.addressDetail ?? '',
-        propertyType: basicInfo.propertyType ?? '',
-      });
-      setIsValidated(true);
+      onValidated(basicInfo);
     } catch (error) {
       if (!activeRef.current) return;
 
       // 인증·계정 오류에만 초안을 폐기하고 로그인으로 이동하며 통신 실패는 입력을 유지합니다.
       if (error instanceof ApiError && (error.status === 401 || error.code === 'ACCOUNT_UNAVAILABLE')) {
-        discardBasicInfoDraft();
         router.replace('/login');
         return;
       }
@@ -369,16 +351,6 @@ export function PropertyRegistrationDialog({
             role={'alert'}
           >
             {errorMessage}
-          </p>
-        )}
-        {isValidated && (
-          <p
-            className={styles['validation-result']}
-            role={'status'}
-          >
-            기본 정보를 확인했어요. 동·세대 설정 화면은 준비 중이에요.
-            <br />
-            입력한 정보는 아직 저장되지 않았어요.
           </p>
         )}
         <div

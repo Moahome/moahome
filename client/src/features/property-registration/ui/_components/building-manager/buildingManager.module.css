@@ -1,0 +1,134 @@
+.dialog {
+  width: min(calc(100% - 32px), 480px);
+  max-height: calc(100dvh - 48px);
+  margin: auto;
+  padding: 24px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 20px 64px color-mix(in srgb, var(--foreground) 16%, transparent);
+  font-family: var(--font-geist-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+
+  &::backdrop {
+    background: color-mix(in srgb, var(--foreground) 35%, transparent);
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+
+  h2 {
+    font-size: 24px;
+    font-weight: 800;
+  }
+}
+
+.description {
+  margin-bottom: 18px;
+  color: var(--sub-text);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.list {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+
+  .edit-button[data-variant] {
+    color: var(--success);
+  }
+
+  .delete-button[data-variant] {
+    color: var(--danger);
+  }
+
+  .row-header {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  li {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 12px;
+    background: var(--background);
+  }
+}
+
+.delete-scope {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+  border: 0;
+
+  legend {
+    margin-bottom: 10px;
+    font-weight: 700;
+  }
+}
+
+.identity {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+
+  strong {
+    overflow-wrap: anywhere;
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  span {
+    color: var(--sub-text);
+    font-size: 13px;
+  }
+}
+
+.empty {
+  padding: 24px 12px;
+  color: var(--sub-text);
+  text-align: center;
+}
+
+.error {
+  margin-top: 14px;
+  color: var(--danger);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.add {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.footer {
+  margin-top: 24px;
+
+  button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 374px) {
+  .dialog {
+    padding: 18px;
+  }
+}

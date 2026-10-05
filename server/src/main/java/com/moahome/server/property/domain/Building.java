@@ -45,6 +45,13 @@ public class Building {
 	protected Building() {
 	}
 
+	/** 접미사가 없는 숫자·문자 동 이름도 같은 저장 이름으로 정리해 요청의 중복 검증과 공유합니다. */
+	public static String normalizeName(String name) {
+		String normalized = TextValues.strip(name);
+		if (normalized == null || normalized.isEmpty() || normalized.endsWith("동")) return normalized;
+		return normalized + "동";
+	}
+
 	/** 동 구분이 있는 관리대상에만 동을 만들고 입력 순서를 보존합니다. */
 	public static Building create(Property property, String name, int sortOrder, OffsetDateTime at) {
 		if (!property.isHasBuildings() || sortOrder < 0) {
@@ -52,7 +59,7 @@ public class Building {
 		}
 		Building building = new Building();
 		building.propertyId = property.getId();
-		building.name = TextValues.required(name, 50);
+		building.name = TextValues.required(normalizeName(name), 50);
 		building.sortOrder = sortOrder;
 		building.status = BuildingStatus.ACTIVE;
 		building.initialize(at);

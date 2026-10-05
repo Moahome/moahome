@@ -1,0 +1,148 @@
+.dialog {
+  width: min(calc(100% - 32px), 580px);
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 24px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 20px 64px color-mix(in srgb, var(--foreground) 16%, transparent);
+
+  &::backdrop {
+    background: color-mix(in srgb, var(--foreground) 35%, transparent);
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+
+  h2 {
+    font-size: 24px;
+    font-weight: 800;
+  }
+}
+
+.description {
+  margin-bottom: 20px;
+  color: var(--sub-text);
+  font-size: 14px;
+  line-height: 1.7;
+
+  span {
+    display: block;
+    margin-top: 4px;
+  }
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.hint {
+  margin-top: 12px;
+  color: var(--sub-text);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.preview {
+  margin-top: 24px;
+
+  h3 {
+    font-size: 16px;
+    font-weight: 700;
+  }
+}
+
+.summary {
+  margin-top: 8px;
+  color: var(--primary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.preview-scroll {
+  max-height: 230px;
+  margin-top: 12px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+
+  &:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 3px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 14px;
+  }
+
+  th,
+  td {
+    padding: 10px 12px;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  thead {
+    position: sticky;
+    top: 0;
+    background: var(--background);
+    color: var(--sub-text);
+  }
+
+  tbody tr:not(:last-child) {
+    border-bottom: 1px solid var(--border);
+  }
+
+  tr[data-duplicate="true"] {
+    background: var(--background);
+    color: var(--sub-text);
+  }
+}
+
+.empty {
+  margin-top: 12px;
+  padding: 20px 12px;
+  border-radius: 10px;
+  background: var(--background);
+  color: var(--sub-text);
+  font-size: 14px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 480px) {
+  .dialog {
+    padding: 18px;
+  }
+
+  .fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    .count-field {
+      grid-column: 1 / -1;
+    }
+  }
+}

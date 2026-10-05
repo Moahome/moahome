@@ -33,3 +33,15 @@ export const BUILDING_PRESENCE_OPTIONS = [
     description: '101동, 102동처럼 동이 있어요.'
   },
 ] as const satisfies readonly Option<boolean>[];
+
+// 초기 등록에서는 사용중·공실만 선택하며 비활성화는 등록 이후의 미정 정책과 구분합니다.
+export const UNIT_STATUS_OPTIONS = [
+  {
+    value: 'ACTIVE',
+    label: '사용중'
+  },
+  {
+    value: 'VACANT',
+    label: '공실'
+  },
+] as const satisfies readonly Option[];

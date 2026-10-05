@@ -2,6 +2,8 @@
 
 import {
   useId,
+  useRef,
+  type ChangeEvent,
   type ComponentPropsWithRef,
   type ReactNode
 } from 'react';
@@ -13,6 +15,7 @@ import {
 import styles from './input.module.css';
 
 export interface InputProps extends Omit<ComponentPropsWithRef<'input'>, 'children'>, FormFieldOptions {
+  digitsOnly?: boolean;
   leadingIcon?: ReactNode;
   trailingContent?: ReactNode;
 }
@@ -27,6 +30,7 @@ export function Input({
   className,
   leadingIcon,
   trailingContent,
+  digitsOnly = false,
   type = 'text',
   required,
   disabled,
@@ -36,6 +40,7 @@ export function Input({
   ...inputProps
 }: InputProps) {
   const generatedId = useId();
+  const acceptedValueRef = useRef(String(inputProps.value ?? inputProps.defaultValue ?? ''));
   const controlId = id ?? generatedId;
   const invalid = error ? true : ariaInvalid;
   const describedBy = getFieldDescription({
@@ -44,6 +49,17 @@ export function Input({
     error,
     describedBy: ariaDescribedBy
   });
+
+  /** 숫자 전용 입력은 잘못된 타이핑·붙여넣기를 거부하고 기존 값을 유지해 다른 번호로 조용히 바꾸지 않습니다. */
+  function handleChange(event: ChangeEvent<HTMLInputElement>) {
+    if (digitsOnly && !/^[0-9]*$/.test(event.currentTarget.value)) {
+      event.currentTarget.value = String(inputProps.value ?? acceptedValueRef.current);
+      return;
+    }
+
+    acceptedValueRef.current = event.currentTarget.value;
+    inputProps.onChange?.(event);
+  }
 
   return (
     <FormField
@@ -68,7 +84,10 @@ export function Input({
       <input
         {...inputProps}
         id={controlId}
-        type={type}
+        type={digitsOnly ? 'text' : type}
+        inputMode={digitsOnly ? 'numeric' : inputProps.inputMode}
+        pattern={digitsOnly ? '[0-9]*' : inputProps.pattern}
+        onChange={handleChange}
         className={[styles.input, className].filter(Boolean).join(' ')}
         required={required}
         disabled={disabled}

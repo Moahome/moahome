@@ -22,7 +22,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 `/login/callback`은 CSRF 조회 후 토큰을 재발급하고 로그인 완료 상태를 표시합니다. 화면 구현은 `src/screens/login-callback/ui/loginCallbackPage.tsx`이며, 화면 상태 타입과 오류 안내 함수도 같은 파일에서 관리합니다. 최종 관리대상별 진입 화면은 후속 연결 범위입니다. 설정은 [개발 가이드](../docs/developmentGuide.md)의 카카오 로그인 절을 따릅니다.
 
-관리대상 기본 정보 등록은 `/start`의 `관리할 곳 만들기`에서 열립니다. `/start?registration=basic`에서 PC 모달 / 모바일 전체 화면, 필수 입력에 따른 계속 버튼 활성화, 카카오 주소 검색, 기본 정보 검증 API와 같은 사용자 / 탭의 새로고침 입력 복원을 제공합니다. 동·세대 이후 설정과 최종 등록은 후속 구현 범위입니다. 검증 성공 후에는 기본 정보를 확인했으며 아직 저장하지 않았음을 안내합니다. 화면 / 초안 설계는 [Client 등록 설계](docs/propertyRegistration.md), 요청 / 응답 / 오류 계약은 [공통 등록 API](../docs/propertyRegistrationApi.md)를 참조합니다.
+관리대상 기본 정보 등록은 `/start`의 `관리할 곳 만들기`에서 열립니다. `/start?registration=basic`에서 PC 모달 / 모바일 전체 화면, 필수 입력에 따른 계속 버튼 활성화, 카카오 주소 검색, 기본 정보 검증 API와 같은 사용자 / 탭의 새로고침 입력 복원을 제공합니다. 검증 성공 후 `/start?registration=units`의 동·세대 설정으로 이동하며 PC 표 / 모바일 카드, 동·세대 추가·수정·초안 삭제, 검색과 이전 단계 이동을 제공합니다. 기본 정보와 동·세대는 단계 이동과 같은 사용자 / 탭의 새로고침에서 유지합니다. 관리계좌 이후 설정과 최종 등록은 후속 구현 범위입니다. 화면 / 초안 설계는 [Client 등록 설계](docs/propertyRegistration.md), 요청 / 응답 / 오류 계약은 [공통 등록 API](../docs/propertyRegistrationApi.md)를 참조합니다.
 
 ## 코드 배치
 
@@ -34,7 +34,7 @@ FSD의 의존성 경계를 유지하며 화면 전용 UI와 로직은 먼저 해
 
 ## 공통 입력 컴포넌트
 
-모달과 페이지의 입력 필드는 `src/shared/ui/form-controls/`의 `Input`, `Dropdown`, `Radio`를 사용합니다. Input / Dropdown은 라벨, 필수 표시, 설명, 오류와 비활성 상태를 지원합니다. Input / Radio는 기본 HTML 입력 속성, 이벤트와 `ref`를 전달합니다. Dropdown의 `ref`는 선택 트리거 버튼에 연결하며 `onChange(value)`로 선택값을 전달합니다. `value` / `onChange`와 `defaultValue` 방식 모두 사용할 수 있습니다.
+모달과 페이지의 입력 필드는 `src/shared/ui/form-controls/`의 `Input`, `Dropdown`, `Radio`를 사용합니다. Input / Dropdown은 라벨, 필수 표시, 설명, 오류와 비활성 상태를 지원합니다. Input / Radio는 기본 HTML 입력 속성, 이벤트와 `ref`를 전달합니다. Input의 `digitsOnly`는 문자열의 ASCII 숫자만 허용하고 숫자 키보드를 안내합니다. 문자가 섞인 타이핑 / 붙여넣기는 기존 값으로 되돌리며 앞자리 0을 보존합니다. Dropdown의 `ref`는 선택 트리거 버튼에 연결하며 `onChange(value)`로 선택값을 전달합니다. `value` / `onChange`와 `defaultValue` 방식 모두 사용할 수 있습니다.
 
 컴포넌트별 폴더 안에 소스와 CSS Modules를 함께 둡니다. `FormField`는 입력 컴포넌트의 라벨과 안내를 구성하는 모듈 내부 컴포넌트이며, 외부에서는 모듈 루트의 `index.ts` 공개 API를 사용합니다.
 
@@ -100,7 +100,7 @@ Radio는 기본 HTML radio로 그룹 선택과 키보드 이동을 유지하며 
 
 ### 공통 버튼과 옵션
 
-일반 클릭 버튼은 `src/shared/ui/button/`의 `Button`을 사용합니다. `variant`는 `primary` / `outline` / `ghost`, `size`는 `sm` / `md` / `lg`이며, `leadingIcon`, `trailingIcon`, `iconOnly`와 `loading`을 지원합니다. 기본 `type`은 `button`이며 제출 버튼은 `type="submit"`을 명시합니다. 아이콘만 있는 버튼에는 `aria-label`을 지정합니다. `loading`과 `disabled` 상태에서는 클릭을 막습니다. 화면 CSS는 버튼 위치·폭·배치만 담당하며 색상·포커스·비활성 표현은 공통 Button이 담당합니다.
+일반 클릭 버튼은 `src/shared/ui/button/`의 `Button`을 사용합니다. `variant`는 `primary` / `outline` / `ghost` / `text`, `size`는 `sm` / `md` / `lg`이며, `leadingIcon`, `trailingIcon`, `iconOnly`와 `loading`을 지원합니다. 기본 `type`은 `button`이며 제출 버튼은 `type="submit"`을 명시합니다. 아이콘만 있는 버튼에는 `aria-label`을 지정합니다. `loading`과 `disabled` 상태에서는 클릭을 막습니다. 화면 CSS는 버튼 위치·폭·배치만 담당하며 색상·포커스·비활성 표현은 공통 Button이 담당합니다.
 
 `shared/lib/options`의 `Option<T>`는 선택값 / 표시 이름 / 설명 / 비활성 여부를 위한 공통 자료형입니다. 건물 유형과 동 구분처럼 도메인에 속한 고정 옵션은 `entities/property/constants/propertyOptions.ts`에 모으고 `entities/property`의 공개 API로 가져옵니다. 상수라는 이유만으로 도메인 옵션을 `shared`에 모으지 않습니다.
 

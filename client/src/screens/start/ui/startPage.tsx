@@ -10,7 +10,7 @@ import {
   useState
 } from 'react';
 import { useSession } from '@/entities/session';
-import { PropertyRegistrationDialog } from '@/features/property-registration';
+import { PropertyRegistrationFlow } from '@/features/property-registration';
 import { ApiError } from '@/shared/api';
 import { NeighborhoodIllustration } from '@/shared/ui/neighborhood-illustration';
 import { StartHeader } from './_components/start-header/startHeader';
@@ -27,7 +27,9 @@ export function StartPage() {
   const session = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isRegistering = searchParams.get('registration') === 'basic';
+  const registration = searchParams.get('registration');
+  const registrationStep = registration === 'basic' || registration === 'units' ? registration : null;
+  const isUnitStep = registrationStep === 'units';
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [notice, setNotice] = useState({
     title: '',
@@ -72,32 +74,48 @@ export function StartPage() {
     <div
       className={styles.page}
     >
-      <StartHeader
-        user={session.data}
-        onNotify={() => showNotice('알림', '알림 기능을 준비하고 있어요.')}
-      />
-      <main
-        className={styles.main}
+      <div
+        className={isUnitStep ? styles['setup-header'] : undefined}
       >
-        <StartIntro />
-        <div
-          className={styles['start-options']}
-        >
-          <StartCard
-            kind={'create'}
-            onSelect={() => router.push('/start?registration=basic', {
-              scroll: false
-            })}
-          />
-          <StartCard
-            kind={'join'}
-            onSelect={() => showNotice('초대코드로 참여하기', '초대코드 참여 기능을 준비하고 있어요.')}
-          />
-        </div>
-        <PendingRequestCard
-          onSelect={() => showNotice('승인 대기 중인 요청', '가입 요청 조회 기능을 준비하고 있어요.')}
+        <StartHeader
+          user={session.data}
+          onNotify={() => showNotice('알림', '알림 기능을 준비하고 있어요.')}
         />
-      </main>
+      </div>
+      {registrationStep && (
+        <PropertyRegistrationFlow
+          key={session.data.id}
+          userId={session.data.id}
+          step={registrationStep}
+          onClose={() => router.replace('/start', {
+            scroll: false
+          })}
+        />
+      )}
+      {!isUnitStep && (
+        <main
+          className={styles.main}
+        >
+          <StartIntro />
+          <div
+            className={styles['start-options']}
+          >
+            <StartCard
+              kind={'create'}
+              onSelect={() => router.push('/start?registration=basic', {
+                scroll: false
+              })}
+            />
+            <StartCard
+              kind={'join'}
+              onSelect={() => showNotice('초대코드로 참여하기', '초대코드 참여 기능을 준비하고 있어요.')}
+            />
+          </div>
+          <PendingRequestCard
+            onSelect={() => showNotice('승인 대기 중인 요청', '가입 요청 조회 기능을 준비하고 있어요.')}
+          />
+        </main>
+      )}
       <div
         className={styles['background-left']}
       >
@@ -109,7 +127,7 @@ export function StartPage() {
         <NeighborhoodIllustration />
       </div>
       <footer
-        className={`${styles.footer} ${motion.reveal}`}
+        className={isUnitStep ? styles.footer : `${styles.footer} ${motion.reveal}`}
       >
         우리의 공간이 더 특별해지는, 모아홈
       </footer>
@@ -118,15 +136,6 @@ export function StartPage() {
         title={notice.title}
         message={notice.message}
       />
-      {isRegistering && (
-        <PropertyRegistrationDialog
-          key={session.data.id}
-          userId={session.data.id}
-          onClose={() => router.replace('/start', {
-            scroll: false
-          })}
-        />
-      )}
     </div>
   );
 }

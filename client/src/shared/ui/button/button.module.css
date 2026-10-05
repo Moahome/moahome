@@ -45,6 +45,15 @@
     }
   }
 
+  &[data-variant="text"] {
+    background: transparent;
+    color: var(--primary);
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--primary) 5%, var(--card));
+    }
+  }
+
   &[data-size="sm"] {
     min-height: 40px;
     padding: 8px 12px;

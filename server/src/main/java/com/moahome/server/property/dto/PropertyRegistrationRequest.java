@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 import com.moahome.server.common.validation.TextInput;
 import com.moahome.server.common.validation.TextValues;
+import com.moahome.server.property.domain.Building;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 
@@ -22,7 +23,7 @@ public record PropertyRegistrationRequest(
 		@TextInput(max = 50) String name
 	) {
 		public BuildingInput {
-			name = TextValues.strip(name);
+			name = Building.normalizeName(name);
 		}
 	}
 
@@ -31,8 +32,9 @@ public record PropertyRegistrationRequest(
 		@TextInput(max = 30) String unitNumber,
 		@TextInput(max = 50, optional = true) String displayName,
 		@Min(value = -32768, message = "OUT_OF_RANGE") @Max(value = 32767, message = "OUT_OF_RANGE") Integer floor,
-		@NotNull(message = "REQUIRED") @Pattern(regexp = "ACTIVE|VACANT|INACTIVE", message = "INVALID_FORMAT") String status
+		@NotNull(message = "REQUIRED") @Pattern(regexp = "ACTIVE|VACANT", message = "INVALID_FORMAT") String status
 	) {
+		/** 호수는 문자와 앞자리 0을 유지하는 문자열로 정리하고 층만 정수로 받습니다. */
 		public UnitInput {
 			unitNumber = TextValues.strip(unitNumber);
 			displayName = TextValues.optional(displayName);

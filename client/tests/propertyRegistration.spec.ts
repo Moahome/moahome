@@ -378,7 +378,15 @@ test('기본 정보만 정규화해서 검증하고 대기 중 중복 제출과 
   }).locator('form').dispatchEvent('submit');
   await expect.poll(() => requestCount).toBe(1);
   releaseResponse();
-  await expect(page.getByRole('status')).toContainText('입력한 정보는 아직 저장되지 않았어요.');
+  await expect(page).toHaveURL(/registration=units$/);
+  await expect(page.getByRole('heading', {
+    name: '동·세대 설정',
+    exact: true
+  })).toBeVisible();
+  await page.getByRole('button', {
+    name: '이전',
+    exact: true
+  }).click();
   await expect(page.getByLabel('관리대상 이름')).toHaveValue('성내빌라');
   expect(finalRequests).toHaveLength(0);
   await page.getByLabel('관리대상 이름').fill('새 빌라');
@@ -439,7 +447,10 @@ for (const failure of [
     await page.getByRole('button', {
       name: '등록하고 계속'
     }).click();
-    await expect(page.getByRole('status')).toContainText('기본 정보를 확인했어요.');
+    await expect(page.getByRole('heading', {
+      name: '동·세대 설정',
+      exact: true
+    })).toBeVisible();
     expect(attempts).toBe(2);
   });
 }
@@ -473,7 +484,1500 @@ test('동 있음·지번 주소·선택 입력은 선택한 값 그대로 검증
     propertyType: '아파트',
     hasBuildings: true,
   });
-  await expect(page.getByRole('status')).toContainText('기본 정보를 확인했어요.');
+  await expect(page.getByRole('heading', {
+    name: '동·세대 설정',
+    exact: true
+  })).toBeVisible();
+});
+
+/** 기본 정보의 실제 검증 성공을 거쳐 동·세대 단계로 이동합니다. */
+async function openUnitSetup(page: Page, hasBuildings = false) {
+  await openRegistration(page);
+  await fillRequiredFields(page);
+  if (hasBuildings) await page.getByRole('radio', {
+    name: /^동 있음/
+  }).check();
+  await page.getByRole('button', {
+    name: '등록하고 계속'
+  }).click();
+  await expect(page.getByRole('heading', {
+    name: '동·세대 설정',
+    exact: true
+  })).toBeVisible();
+}
+
+/** 사용자에게 보이는 편집 창에서 호수·선택 층·동을 입력해 세대를 추가합니다. */
+async function addUnit(page: Page, unitNumber: string, floor = '', buildingName?: string, vacant = false) {
+  await page.getByRole('button', {
+    name: '세대 추가',
+    exact: true
+  }).click();
+  const editor = page.getByRole('dialog', {
+    name: '세대 추가',
+    exact: true
+  });
+  await editor.getByRole('textbox', {
+    name: '호수',
+    exact: true
+  }).fill(unitNumber);
+  await editor.getByLabel('층', {
+    exact: true
+  }).fill(floor);
+  if (buildingName) {
+    await editor.getByRole('combobox', {
+      name: '동',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: buildingName,
+      exact: true
+    }).click();
+  }
+  if (vacant) {
+    await editor.getByRole('combobox', {
+      name: '상태',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '공실',
+      exact: true
+    }).click();
+  }
+  await editor.getByRole('button', {
+    name: '추가',
+    exact: true
+  }).click();
+}
+
+/** 삭제 대상 확인을 거쳐야 등록 초안에서 제거됩니다. */
+async function confirmUnitDeletion(page: Page) {
+  await page.getByRole('alertdialog', {
+    name: '세대 삭제 확인',
+    exact: true
+  }).getByRole('button', {
+    name: '삭제',
+    exact: true
+  }).click();
+}
+
+/** 동 관리를 통해 이름만 입력하며 초안 식별자는 화면에서 생성합니다. */
+async function addBuilding(page: Page, name: string) {
+  await page.getByRole('button', {
+    name: '동 관리',
+    exact: true
+  }).click();
+  const manager = page.getByRole('dialog', {
+    name: '동 관리',
+    exact: true
+  });
+  await manager.getByRole('button', {
+    name: '동 추가',
+    exact: true
+  }).click();
+  await manager.getByLabel('새 동 이름').fill(name);
+  await manager.getByRole('button', {
+    name: '추가',
+    exact: true
+  }).click();
+  await manager.getByRole('button', {
+    name: '완료',
+    exact: true
+  }).click();
+}
+
+test('동 없음은 빈 목록에서 시작하고 추가·중복 검증·수정·검색과 이전 이동에 입력을 유지', async ({ page }) => {
+  const finalRequests: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url() === `${API_ORIGIN}/api/property-registrations`) finalRequests.push(request.url());
+  });
+  await openUnitSetup(page);
+  await expect(page.getByText('아직 등록한 세대가 없어요.')).toBeVisible();
+  await expect(page.getByRole('button', {
+    name: '다음',
+    exact: true
+  })).toBeDisabled();
+  await addUnit(page, '201', '2');
+  await addUnit(page, '201');
+  await expect(page.getByRole('dialog', {
+    name: '세대 추가',
+    exact: true
+  }).getByRole('alert')).toContainText('이미 등록한 호수');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', {
+    name: '201호 수정',
+    exact: true
+  }).click();
+  const editor = page.getByRole('dialog', {
+    name: '세대 수정',
+    exact: true
+  });
+  await editor.getByLabel('층', {
+    exact: true
+  }).fill('-1');
+  await editor.getByRole('combobox', {
+    name: '상태',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '공실',
+    exact: true
+  }).click();
+  await editor.getByRole('button', {
+    name: '수정',
+    exact: true
+  }).click();
+  const row = page.getByRole('row').filter({
+    has: page.getByRole('button', {
+      name: '201호 수정',
+      exact: true
+    })
+  });
+  await expect(row).toContainText('B1층');
+  await expect(row).toContainText('공실');
+  await page.getByLabel('호수 검색').fill('999');
+  await expect(page.getByText('검색 결과가 없어요.')).toBeVisible();
+  await page.getByLabel('호수 검색').fill('201호');
+  await expect(row).toBeVisible();
+  await page.getByRole('button', {
+    name: '이전',
+    exact: true
+  }).click();
+  await expect(page.getByLabel('관리대상 이름')).toHaveValue('성내빌라');
+  await page.getByRole('button', {
+    name: '등록하고 계속'
+  }).click();
+  await expect(row).toContainText('공실');
+  await page.getByRole('button', {
+    name: '다음',
+    exact: true
+  }).click();
+  await expect(page.getByRole('status').filter({
+    hasText: '입력한 정보는 아직 저장되지 않았어요.'
+  })).toBeVisible();
+  expect(finalRequests).toHaveLength(0);
+});
+
+test('호수의 문자·붙여넣기와 앞자리 0을 보존하고 층은 정수로 검증', async ({ page }) => {
+  await openUnitSetup(page);
+  await page.getByRole('button', {
+    name: '세대 추가',
+    exact: true
+  }).click();
+  const editor = page.getByRole('dialog', {
+    name: '세대 추가',
+    exact: true
+  });
+  const number = editor.getByRole('textbox', {
+    name: '호수',
+    exact: true
+  });
+  await number.fill('001');
+  await number.pressSequentially('A');
+  await expect(number).toHaveValue('001A');
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.evaluate(() => navigator.clipboard.writeText('B01'));
+  await number.selectText();
+  await number.press('Meta+V');
+  await expect(number).toHaveValue('B01');
+  await editor.getByLabel('층', {
+    exact: true
+  }).fill('1.5');
+  await editor.getByRole('button', {
+    name: '추가',
+    exact: true
+  }).click();
+  await expect(editor.getByRole('alert')).toContainText('정수로 입력해주세요.');
+  await editor.getByLabel('층', {
+    exact: true
+  }).fill('-1');
+  await editor.getByRole('combobox', {
+    name: '상태',
+    exact: true
+  }).click();
+  await expect(page.getByRole('option')).toHaveText(['사용중', '공실']);
+  await page.keyboard.press('Escape');
+  await editor.getByRole('button', {
+    name: '추가',
+    exact: true
+  }).click();
+  await addUnit(page, '관리실');
+  await addUnit(page, '201호');
+  await addUnit(page, '001');
+  const stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+  expect(stored.units.map((unit: { unitNumber: string }) => unit.unitNumber)).toEqual(['B01', '관리실', '201호', '001']);
+  expect(stored.units[0].floor).toBe(-1);
+  for (const label of ['B01', '관리실', '201호', '001호']) {
+    await expect(page.getByRole('button', {
+      name: `${label} 수정`,
+      exact: true
+    })).toBeVisible();
+  }
+});
+
+test('동 접미사 유무가 같은 이름으로 저장되고 중복 검증하며 문자 동 이름도 허용', async ({ page }) => {
+  await openUnitSetup(page, true);
+  await addBuilding(page, '101');
+  await addBuilding(page, 'A');
+  await expect(page.getByRole('group', {
+    name: '동별 보기',
+    exact: true
+  }).getByRole('button')).toHaveText(['전체', '101동', 'A동']);
+  await page.getByRole('button', {
+    name: '동 관리',
+    exact: true
+  }).click();
+  const manager = page.getByRole('dialog', {
+    name: '동 관리',
+    exact: true
+  });
+  await manager.getByRole('button', {
+    name: '동 추가',
+    exact: true
+  }).click();
+  await manager.getByLabel('새 동 이름').fill('101동');
+  await manager.getByRole('button', {
+    name: '추가',
+    exact: true
+  }).click();
+  await expect(manager.getByRole('alert')).toContainText('이미 등록한 동');
+  const stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+  expect(stored.buildings.map((building: { name: string }) => building.name)).toEqual(['101동', 'A동']);
+});
+
+test('세대 자동 입력은 층별 미리보기에서 중복을 제외하고 규칙을 다른 동과 새로고침에 재사용', async ({ page }) => {
+  await page.setViewportSize({
+    width: 1448,
+    height: 1086
+  });
+  await openUnitSetup(page, true);
+  await addBuilding(page, '101');
+  await addBuilding(page, '102');
+  await addUnit(page, '201', '7', '101동');
+  const original = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).units[0], DRAFT_STORAGE_KEY);
+  const choices = page.getByRole('group', {
+    name: '동별 보기',
+    exact: true
+  });
+  await choices.getByRole('button', {
+    name: '101동',
+    exact: true
+  }).click();
+  const openAutomatic = page.getByRole('button', {
+    name: '세대 자동 입력',
+    exact: true
+  });
+  await openAutomatic.click();
+  const automatic = page.getByRole('dialog', {
+    name: '세대 자동 입력',
+    exact: true
+  });
+  await expect(automatic.getByRole('combobox', {
+    name: '추가할 동'
+  })).toContainText('101동');
+  await automatic.getByLabel('시작 층').fill('2');
+  await automatic.getByLabel('마지막 층').fill('6');
+  await automatic.getByLabel('층당 세대 수').fill('2');
+  await expect(automatic.getByRole('status')).toHaveText('총 10세대 · 추가 9세대 · 중복 제외 1세대');
+  const previewRows = automatic.getByRole('table').locator('tbody tr');
+  await expect(previewRows.locator('td:first-child')).toHaveText(['201호', '202호', '301호', '302호', '401호', '402호', '501호', '502호', '601호', '602호']);
+  await expect(previewRows.first()).toContainText('중복 제외');
+  await page.screenshot({
+    path: test.info().outputPath('automaticUnitsDesktop.png')
+  });
+  await automatic.getByRole('button', {
+    name: '추가',
+    exact: true
+  }).click();
+  let stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+  expect(stored.units).toHaveLength(10);
+  expect(stored.units.find((unit: { clientId: string }) => unit.clientId === original.clientId)).toEqual(original);
+  expect(stored.units.find((unit: { unitNumber: string }) => unit.unitNumber === '602').floor).toBe(6);
+  expect(new Set(stored.units.map((unit: { clientId: string }) => unit.clientId)).size).toBe(10);
+  await openAutomatic.click();
+  await expect(automatic.getByRole('status')).toHaveText('총 10세대 · 추가 0세대 · 중복 제외 10세대');
+  await expect(automatic.getByRole('button', {
+    name: '추가',
+    exact: true
+  })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await choices.getByRole('button', {
+    name: '102동',
+    exact: true
+  }).click();
+  await openAutomatic.click();
+  await expect(automatic.getByLabel('시작 층')).toHaveValue('2');
+  await expect(automatic.getByLabel('마지막 층')).toHaveValue('6');
+  await expect(automatic.getByLabel('층당 세대 수')).toHaveValue('2');
+  await expect(automatic.getByRole('status')).toHaveText('총 10세대 · 추가 10세대 · 중복 제외 0세대');
+  await automatic.getByRole('button', {
+    name: '추가',
+    exact: true
+  }).click();
+  stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+  expect(stored.units).toHaveLength(20);
+  const secondBuilding = stored.buildings.find((building: { name: string }) => building.name === '102동');
+  expect(stored.units.filter((unit: { buildingClientId: string }) => unit.buildingClientId === secondBuilding.clientId)).toHaveLength(10);
+  await page.getByRole('button', {
+    name: '201호 수정',
+    exact: true
+  }).click();
+  const editor = page.getByRole('dialog', {
+    name: '세대 수정',
+    exact: true
+  });
+  await editor.getByRole('textbox', {
+    name: '호수',
+    exact: true
+  }).fill('B01');
+  await editor.getByLabel('층', {
+    exact: true
+  }).fill('-1');
+  await editor.getByRole('button', {
+    name: '수정',
+    exact: true
+  }).click();
+  await expect(page.getByRole('button', {
+    name: 'B01 수정',
+    exact: true
+  })).toBeVisible();
+  await page.reload();
+  await openAutomatic.click();
+  await expect(automatic.getByLabel('시작 층')).toHaveValue('2');
+  await expect(automatic.getByLabel('마지막 층')).toHaveValue('6');
+  await expect(automatic.getByLabel('층당 세대 수')).toHaveValue('2');
+  await automatic.getByRole('combobox', {
+    name: '추가할 동'
+  }).click();
+  await page.getByRole('option', {
+    name: '101동',
+    exact: true
+  }).click();
+  await expect(automatic.getByRole('status')).toHaveText('총 10세대 · 추가 0세대 · 중복 제외 10세대');
+});
+
+test('동 없는 자동 입력은 잘못된 범위를 막고 취소에 세대를 추가하지 않으며 320px에서 미리보기와 추가를 제공', async ({ page }) => {
+  await page.setViewportSize({
+    width: 320,
+    height: 640
+  });
+  await openUnitSetup(page);
+  const openAutomatic = page.getByRole('button', {
+    name: '세대 자동 입력',
+    exact: true
+  });
+  await openAutomatic.click();
+  const automatic = page.getByRole('dialog', {
+    name: '세대 자동 입력',
+    exact: true
+  });
+  const add = automatic.getByRole('button', {
+    name: '추가',
+    exact: true
+  });
+  await expect(automatic.getByRole('combobox', {
+    name: '추가할 동'
+  })).toHaveCount(0);
+  await expect(add).toBeDisabled();
+  await automatic.getByLabel('시작 층').fill('6');
+  await automatic.getByLabel('마지막 층').fill('2');
+  await automatic.getByLabel('층당 세대 수').fill('2');
+  await expect(automatic.getByRole('alert')).toContainText('시작 층 이상');
+  await expect(add).toBeDisabled();
+  await automatic.getByLabel('시작 층').fill('2.5');
+  await expect(automatic.getByRole('alert')).toContainText('정수로 입력');
+  await automatic.getByLabel('시작 층').fill('2');
+  await automatic.getByLabel('마지막 층').fill('32768');
+  await expect(automatic.getByRole('alert')).toContainText('정수로 입력');
+  await automatic.getByLabel('마지막 층').fill('100');
+  await automatic.getByLabel('층당 세대 수').fill('99');
+  await expect(automatic.getByRole('alert')).toContainText('최대 1,000세대');
+  await automatic.getByLabel('마지막 층').fill('6');
+  await automatic.getByLabel('층당 세대 수').fill('0');
+  await expect(automatic.getByRole('alert')).toContainText('1~99개');
+  await automatic.getByLabel('층당 세대 수').fill('2');
+  await expect(automatic.getByRole('status')).toHaveText('총 10세대 · 추가 10세대 · 중복 제외 0세대');
+  await automatic.getByRole('button', {
+    name: '취소',
+    exact: true
+  }).click();
+  await expect(page.getByText('아직 등록한 세대가 없어요.')).toBeVisible();
+  await expect(openAutomatic).toBeFocused();
+  await openAutomatic.click();
+  expect(await automatic.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await add.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: test.info().outputPath('automaticUnits320.png')
+  });
+  await add.click();
+  await expect(automatic).toHaveCount(0);
+  const stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+  expect(stored.units).toHaveLength(10);
+  expect(stored.units.every((unit: { buildingClientId: string | null }) => unit.buildingClientId === null)).toBe(true);
+  await expect(page.getByRole('button', {
+    name: '602호 수정',
+    exact: true
+  })).toBeVisible();
+});
+
+test('세대 자동 입력은 지하를 B로 표시하고 0층을 제외한 수량과 중복을 계산', async ({ page }) => {
+  await page.setViewportSize({
+    width: 320,
+    height: 640
+  });
+  await openUnitSetup(page);
+  await addUnit(page, 'B101', '-1');
+  await page.getByRole('button', {
+    name: '세대 자동 입력',
+    exact: true
+  }).click();
+  const automatic = page.getByRole('dialog', {
+    name: '세대 자동 입력',
+    exact: true
+  });
+  const add = automatic.getByRole('button', {
+    name: '추가',
+    exact: true
+  });
+  await automatic.getByLabel('시작 층').fill('0');
+  await automatic.getByLabel('마지막 층').fill('0');
+  await automatic.getByLabel('층당 세대 수').fill('2');
+  await expect(automatic.getByRole('alert')).toContainText('0층은 생성하지 않습니다');
+  await expect(add).toBeDisabled();
+  await expect(automatic.getByRole('table')).toHaveCount(0);
+
+  await automatic.getByLabel('마지막 층').fill('1');
+  await expect(automatic.getByRole('status')).toHaveText('총 2세대 · 추가 2세대 · 중복 제외 0세대');
+  await automatic.getByLabel('시작 층').fill('-1');
+  await automatic.getByLabel('마지막 층').fill('0');
+  await expect(automatic.getByRole('status')).toHaveText('총 2세대 · 추가 1세대 · 중복 제외 1세대');
+
+  // 0층을 빼면 10개 층이므로 990세대는 한 번의 생성 제한을 넘지 않습니다.
+  await automatic.getByLabel('시작 층').fill('-5');
+  await automatic.getByLabel('마지막 층').fill('5');
+  await automatic.getByLabel('층당 세대 수').fill('99');
+  await expect(automatic.getByRole('status')).toHaveText('총 990세대 · 추가 989세대 · 중복 제외 1세대');
+  await expect(add).toBeEnabled();
+  await automatic.getByLabel('마지막 층').fill('6');
+  await expect(automatic.getByRole('alert')).toContainText('최대 1,000세대');
+  await expect(add).toBeDisabled();
+
+  await automatic.getByLabel('시작 층').fill('-2');
+  await automatic.getByLabel('마지막 층').fill('1');
+  await automatic.getByLabel('층당 세대 수').fill('2');
+  await expect(automatic.getByRole('status')).toHaveText('총 6세대 · 추가 5세대 · 중복 제외 1세대');
+  const rows = automatic.getByRole('table').locator('tbody tr');
+  await expect(rows.locator('td:first-child')).toHaveText(['B201호', 'B202호', 'B101호', 'B102호', '101호', '102호']);
+  await expect(rows.locator('td:nth-child(2)')).toHaveText(['B2층', 'B2층', 'B1층', 'B1층', '1층', '1층']);
+  await expect(add).toBeEnabled();
+  await add.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: test.info().outputPath('automaticBasement320.png')
+  });
+  await add.click();
+  const stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+  expect(stored.units).toHaveLength(6);
+  expect(stored.units.map((unit: { unitNumber: string }) => unit.unitNumber).sort()).toEqual(['101', '102', 'B101', 'B102', 'B201', 'B202']);
+  expect(stored.units.some((unit: { floor: number }) => unit.floor === 0)).toBe(false);
+  expect(stored.units.find((unit: { unitNumber: string }) => unit.unitNumber === 'B201').floor).toBe(-2);
+  await expect(page.getByRole('button', {
+    name: 'B201호 수정',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('row').filter({
+    hasText: 'B2층'
+  })).toHaveCount(2);
+});
+
+test('동별 중복 범위와 이름 수정의 세대 연결을 유지하고 동 삭제 범위를 확인', async ({ page }) => {
+  await openUnitSetup(page, true);
+  await expect(page.getByRole('button', {
+    name: '세대 추가',
+    exact: true
+  })).toBeDisabled();
+  await addBuilding(page, '101동');
+  await addUnit(page, '201', '2');
+  await addBuilding(page, '102동');
+  await addUnit(page, '201', '', '102동');
+  await expect(page.getByRole('button', {
+    name: '201호 수정',
+    exact: true
+  })).toHaveCount(2);
+  await expect(page.getByRole('combobox', {
+    name: '동별 보기',
+    exact: true
+  })).toHaveCount(0);
+  await page.getByRole('button', {
+    name: '동 관리',
+    exact: true
+  }).click();
+  const manager = page.getByRole('dialog', {
+    name: '동 관리',
+    exact: true
+  });
+  const editBuilding = manager.getByRole('button', {
+    name: '101동 수정',
+    exact: true
+  });
+  const deleteBuilding = manager.getByRole('button', {
+    name: '101동 삭제',
+    exact: true
+  });
+  await expect(editBuilding).toHaveCSS('color', 'rgb(22, 163, 74)');
+  await expect(editBuilding.locator('svg')).toBeVisible();
+  await expect(editBuilding).toHaveText('');
+  await expect(deleteBuilding).toHaveCSS('color', 'rgb(239, 68, 68)');
+  await deleteBuilding.click();
+  await expect(page.getByRole('alertdialog', {
+    name: '동 삭제 확인',
+    exact: true
+  })).toBeVisible();
+  await page.getByRole('alertdialog', {
+    name: '동 삭제 확인',
+    exact: true
+  }).getByRole('button', {
+    name: '취소',
+    exact: true
+  }).click();
+  await editBuilding.click();
+  await manager.getByLabel('동 이름').fill('A동');
+  await manager.getByRole('button', {
+    name: '수정',
+    exact: true
+  }).click();
+  await manager.getByRole('button', {
+    name: '완료',
+    exact: true
+  }).click();
+  await page.getByRole('group', {
+    name: '동별 보기',
+    exact: true
+  }).getByRole('button', {
+    name: 'A동',
+    exact: true
+  }).click();
+  await expect(page.getByRole('button', {
+    name: '201호 수정',
+    exact: true
+  })).toHaveCount(1);
+  const stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+  const renamedBuilding = stored.buildings.find((building: { name: string }) => building.name === 'A동');
+  expect(stored.units[0].buildingClientId).toBe(renamedBuilding.clientId);
+  await page.getByRole('button', {
+    name: '이전',
+    exact: true
+  }).click();
+  await page.getByRole('radio', {
+    name: /^동 없음/
+  }).check();
+  await page.getByRole('button', {
+    name: '등록하고 계속'
+  }).click();
+  await expect(page.getByRole('button', {
+    name: '동 연결 해제',
+    exact: true
+  })).toBeVisible();
+  await page.getByRole('button', {
+    name: '동 연결 해제',
+    exact: true
+  }).click();
+  await expect(page.getByRole('button', {
+    name: '201호 수정',
+    exact: true
+  })).toHaveCount(2);
+  await expect(page.getByRole('button', {
+    name: '다음',
+    exact: true
+  })).toBeDisabled();
+});
+
+for (const viewport of [{
+  width: 1448,
+  height: 1086
+}, {
+  width: 320,
+  height: 640
+}]) {
+  test(`동별 세대 전체 삭제는 확인 후 동과 다른 세대를 유지하고 자동 입력을 재사용 (${viewport.width}px)`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await openUnitSetup(page, true);
+    for (const name of ['101동', '102동', '103동']) await addBuilding(page, name);
+    await addUnit(page, '202', '2', '102동');
+    const choices = page.getByRole('group', {
+      name: '동별 보기',
+      exact: true
+    });
+    await choices.getByRole('button', {
+      name: '101동',
+      exact: true
+    }).click();
+    const openAutomatic = page.getByRole('button', {
+      name: '세대 자동 입력',
+      exact: true
+    });
+    const automatic = page.getByRole('dialog', {
+      name: '세대 자동 입력',
+      exact: true
+    });
+    await openAutomatic.click();
+    await automatic.getByLabel('시작 층').fill('2');
+    await automatic.getByLabel('마지막 층').fill('3');
+    await automatic.getByLabel('층당 세대 수').fill('2');
+    await automatic.getByRole('button', {
+      name: '추가',
+      exact: true
+    }).click();
+    const before = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+    const manage = page.getByRole('button', {
+      name: '동 관리',
+      exact: true
+    });
+    const manager = page.getByRole('dialog', {
+      name: '동 관리',
+      exact: true
+    });
+    const clear = manager.getByRole('button', {
+      name: '101동 삭제',
+      exact: true
+    });
+    const confirmation = page.getByRole('alertdialog', {
+      name: '동 삭제 확인',
+      exact: true
+    });
+    await manage.click();
+    await expect(manager.getByRole('button', {
+      name: /세대 전체 삭제/
+    })).toHaveCount(0);
+    await manager.getByRole('button', {
+      name: '103동 삭제',
+      exact: true
+    }).click();
+    await expect(confirmation.getByRole('radio', {
+      name: /^세대만 전체 삭제/
+    })).toBeDisabled();
+    await expect(confirmation.getByRole('radio', {
+      name: /^동과 세대 모두 삭제/
+    })).toBeChecked();
+    await confirmation.getByRole('button', {
+      name: '취소',
+      exact: true
+    }).click();
+    await expect(clear).toHaveCSS('color', 'rgb(239, 68, 68)');
+    await page.screenshot({
+      path: test.info().outputPath('buildingUnitsClearManager.png')
+    });
+    await clear.click();
+    await expect(confirmation).toContainText('101동의 4세대');
+    await expect(confirmation).toContainText('동은 유지됩니다');
+    await expect(confirmation.getByRole('button', {
+      name: '취소',
+      exact: true
+    })).toBeFocused();
+    await confirmation.getByRole('button', {
+      name: '취소',
+      exact: true
+    }).click();
+    await expect(clear).toBeFocused();
+    expect(await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY)).toEqual(before);
+    await clear.click();
+    await page.keyboard.press('Escape');
+    await expect(confirmation).toHaveCount(0);
+    await expect(manager).toBeVisible();
+    await expect(clear).toBeFocused();
+    await clear.click();
+    const confirm = confirmation.getByRole('button', {
+      name: '삭제',
+      exact: true
+    });
+    await expect(confirm).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    await expect(confirm).toHaveCSS('color', 'rgb(239, 68, 68)');
+    expect(await confirmation.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath('buildingUnitsClearConfirmation.png')
+    });
+    await confirm.click();
+    await expect(confirmation).toHaveCount(0);
+    await expect(manager).toBeVisible();
+    await expect(manager.getByRole('listitem').filter({
+      has: clear
+    })).toContainText('0세대');
+    expect(await manager.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+    expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden');
+    const after = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+    expect(after.buildings).toEqual(before.buildings);
+    expect(after.units).toEqual([before.units[0]]);
+    expect(after.automaticUnitRule).toEqual(before.automaticUnitRule);
+    await manager.getByRole('button', {
+      name: '완료',
+      exact: true
+    }).click();
+    await expect(manage).toBeFocused();
+    await expect(page.getByRole('button', {
+      name: '다음',
+      exact: true
+    })).toBeEnabled();
+    await page.reload();
+    await choices.getByRole('button', {
+      name: '101동',
+      exact: true
+    }).click();
+    await openAutomatic.click();
+    await expect(automatic.getByRole('status')).toHaveText('총 4세대 · 추가 4세대 · 중복 제외 0세대');
+    await automatic.getByRole('button', {
+      name: '추가',
+      exact: true
+    }).click();
+    await manage.click();
+    for (const name of ['101동', '102동']) {
+      await manager.getByRole('button', {
+        name: `${name} 삭제`,
+        exact: true
+      }).click();
+      if (name === '102동') await confirmation.getByRole('radio', {
+        name: /^동과 세대 모두 삭제/
+      }).check();
+      await confirmation.getByRole('button', {
+        name: '삭제',
+        exact: true
+      }).click();
+    }
+    await manager.getByRole('button', {
+      name: '완료',
+      exact: true
+    }).click();
+    await expect(page.getByRole('button', {
+      name: '다음',
+      exact: true
+    })).toBeDisabled();
+    const empty = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+    expect(empty.units).toEqual([]);
+    expect(empty.buildings).toEqual(before.buildings.filter((building: { name: string }) => building.name !== '102동'));
+    expect(empty.automaticUnitRule).toEqual(before.automaticUnitRule);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}
+
+for (const viewport of [{
+  width: 1448,
+  height: 1086
+}, {
+  width: 320,
+  height: 640
+}]) {
+  test(`세대 선택 삭제는 10개 중 2개만 지우고 동·검색 변경에 선택을 초기화 (${viewport.width}px)`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await openUnitSetup(page, true);
+    for (const name of ['101동', '102동']) await addBuilding(page, name);
+    await addUnit(page, '201', '2', '102동');
+    const choices = page.getByRole('group', {
+      name: '동별 보기',
+      exact: true
+    });
+    await choices.getByRole('button', {
+      name: '101동',
+      exact: true
+    }).click();
+    await page.getByRole('button', {
+      name: '세대 자동 입력',
+      exact: true
+    }).click();
+    const automatic = page.getByRole('dialog', {
+      name: '세대 자동 입력',
+      exact: true
+    });
+    await automatic.getByLabel('시작 층').fill('2');
+    await automatic.getByLabel('마지막 층').fill('6');
+    await automatic.getByLabel('층당 세대 수').fill('2');
+    await automatic.getByRole('button', {
+      name: '추가',
+      exact: true
+    }).click();
+    const before = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+    const search = page.getByRole('textbox', {
+      name: '호수 검색',
+      exact: true
+    });
+    const all = page.getByRole('checkbox', {
+      name: '현재 목록 전체 선택',
+      exact: true
+    });
+    const room = (name: string) => page.getByRole('checkbox', {
+      name,
+      exact: true
+    });
+    await page.getByRole('button', {
+      name: '편집',
+      exact: true
+    }).click();
+    await expect(page.getByRole('button', {
+      name: '선택한 0세대 삭제',
+      exact: true
+    })).toBeDisabled();
+    await room('101동 201호 선택').check();
+    await page.getByRole('button', {
+      name: '완료',
+      exact: true
+    }).click();
+    await expect(all).toHaveCount(0);
+    await expect(page.getByRole('button', {
+      name: '편집',
+      exact: true
+    })).toHaveAttribute('aria-pressed', 'false');
+    expect(await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY)).toEqual(before);
+    await expect(page.getByRole('status').filter({
+      hasText: '101동 · 총 10세대'
+    })).toBeVisible();
+    await page.screenshot({
+      path: test.info().outputPath('unitListEditHeading.png')
+    });
+    await page.getByRole('button', {
+      name: '편집',
+      exact: true
+    }).click();
+    await expect(room('101동 201호 선택')).not.toBeChecked();
+    await room('101동 201호 선택').check();
+    await search.fill('201');
+    await expect(room('101동 201호 선택')).not.toBeChecked();
+    await all.check();
+    await expect(page.getByRole('button', {
+      name: '선택한 1세대 삭제',
+      exact: true
+    })).toBeEnabled();
+    await search.clear();
+    await expect(room('101동 201호 선택')).not.toBeChecked();
+    await room('101동 201호 선택').check();
+    await choices.getByRole('button', {
+      name: '102동',
+      exact: true
+    }).click();
+    await expect(room('102동 201호 선택')).not.toBeChecked();
+    await all.check();
+    await choices.getByRole('button', {
+      name: '전체',
+      exact: true
+    }).click();
+    await expect(room('102동 201호 선택')).not.toBeChecked();
+    await choices.getByRole('button', {
+      name: '101동',
+      exact: true
+    }).click();
+    await all.check();
+    await expect(page.getByRole('button', {
+      name: '선택한 10세대 삭제',
+      exact: true
+    })).toBeEnabled();
+    await all.uncheck();
+    await room('101동 201호 선택').check();
+    await room('101동 602호 선택').check();
+    await expect(all).toHaveJSProperty('indeterminate', true);
+    await page.screenshot({
+      path: test.info().outputPath('selectedUnits.png'),
+      fullPage: true
+    });
+    const deleteSelected = page.getByRole('button', {
+      name: '선택한 2세대 삭제',
+      exact: true
+    });
+    const confirmation = page.getByRole('alertdialog', {
+      name: '선택한 세대 삭제 확인',
+      exact: true
+    });
+    await deleteSelected.click();
+    await expect(confirmation.getByRole('list', {
+      name: '삭제할 세대'
+    }).getByRole('listitem')).toHaveText(['101동 201호', '101동 602호']);
+    await page.keyboard.press('Escape');
+    await expect(deleteSelected).toBeFocused();
+    await expect(room('101동 201호 선택')).toBeChecked();
+    await deleteSelected.click();
+    await confirmation.getByRole('button', {
+      name: '취소',
+      exact: true
+    }).click();
+    expect(await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY)).toEqual(before);
+    await deleteSelected.click();
+    await page.screenshot({
+      path: test.info().outputPath('selectedUnitsConfirmation.png')
+    });
+    await confirmation.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(confirmation).toHaveCount(0);
+    await expect(page.getByRole('button', {
+      name: '편집',
+      exact: true
+    })).toBeFocused();
+    const after = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+    const buildingId = before.buildings.find((building: { name: string }) => building.name === '101동').clientId;
+    expect(after.units).toEqual(before.units.filter((unit: { buildingClientId: string; unitNumber: string }) => unit.buildingClientId !== buildingId || !['201', '602'].includes(unit.unitNumber)));
+    expect(after.units).toHaveLength(9);
+    expect(after.buildings).toEqual(before.buildings);
+    expect(after.automaticUnitRule).toEqual(before.automaticUnitRule);
+    await page.reload();
+    await choices.getByRole('button', {
+      name: '101동',
+      exact: true
+    }).click();
+    await page.getByRole('button', {
+      name: '편집',
+      exact: true
+    }).click();
+    await all.check();
+    await page.getByRole('button', {
+      name: '선택한 8세대 삭제',
+      exact: true
+    }).click();
+    await confirmation.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(page.getByRole('button', {
+      name: '다음',
+      exact: true
+    })).toBeEnabled();
+    await choices.getByRole('button', {
+      name: '102동',
+      exact: true
+    }).click();
+    await page.getByRole('button', {
+      name: '편집',
+      exact: true
+    }).click();
+    await all.check();
+    await page.getByRole('button', {
+      name: '선택한 1세대 삭제',
+      exact: true
+    }).click();
+    await confirmation.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(page.getByRole('button', {
+      name: '다음',
+      exact: true
+    })).toBeDisabled();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}
+
+test('동 없는 세대 목록도 문자 호수와 앞자리 0을 개별 선택하여 삭제', async ({ page }) => {
+  await openUnitSetup(page);
+  for (const value of ['관리실', '001', 'B101']) await addUnit(page, value);
+  await page.getByRole('button', {
+    name: '편집',
+    exact: true
+  }).click();
+  await page.getByRole('checkbox', {
+    name: '관리실 선택',
+    exact: true
+  }).check();
+  await page.getByRole('checkbox', {
+    name: '001호 선택',
+    exact: true
+  }).check();
+  await page.getByRole('button', {
+    name: '선택한 2세대 삭제',
+    exact: true
+  }).click();
+  const confirmation = page.getByRole('alertdialog', {
+    name: '선택한 세대 삭제 확인',
+    exact: true
+  });
+  await expect(confirmation.getByRole('list', {
+    name: '삭제할 세대'
+  }).getByRole('listitem')).toHaveText(['001호', '관리실']);
+  await confirmation.getByRole('button', {
+    name: '삭제',
+    exact: true
+  }).click();
+  const stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+  expect(stored.units.map((unit: { unitNumber: string }) => unit.unitNumber)).toEqual(['B101']);
+});
+
+test('모바일 동 선택과 검색을 단순하게 표시하고 동 관리에서 추가·수정·삭제와 참조 검증을 처리', async ({ page }) => {
+  await page.emulateMedia({
+    reducedMotion: 'reduce'
+  });
+  await page.setViewportSize({
+    width: 390,
+    height: 844
+  });
+  await openUnitSetup(page, true);
+  await expect(page.getByRole('combobox', {
+    name: '동별 보기',
+    exact: true
+  })).toBeHidden();
+  await expect(page.getByRole('button', {
+    name: '동 추가',
+    exact: true
+  })).toBeHidden();
+  const manageButton = page.getByRole('button', {
+    name: '동 관리',
+    exact: true
+  });
+  await manageButton.click();
+  const manager = page.getByRole('dialog', {
+    name: '동 관리',
+    exact: true
+  });
+  for (const name of ['101동', '102동', '103동']) {
+    await manager.getByRole('button', {
+      name: '동 추가',
+      exact: true
+    }).click();
+    await manager.getByRole('textbox', {
+      name: '새 동 이름',
+      exact: true
+    }).fill(name);
+    await manager.getByRole('button', {
+      name: '추가',
+      exact: true
+    }).click();
+  }
+  await manager.getByRole('button', {
+    name: '동 추가',
+    exact: true
+  }).click();
+  await manager.getByRole('textbox', {
+    name: '새 동 이름',
+    exact: true
+  }).fill('101동');
+  await manager.getByRole('button', {
+    name: '추가',
+    exact: true
+  }).click();
+  await expect(manager.getByRole('alert')).toContainText('이미 등록한 동');
+  await manager.getByRole('button', {
+    name: '취소',
+    exact: true
+  }).click();
+  await page.keyboard.press('Escape');
+  await expect(manageButton).toBeFocused();
+
+  const choices = page.getByRole('group', {
+    name: '동별 보기',
+    exact: true
+  });
+  await choices.getByRole('button', {
+    name: '101동',
+    exact: true
+  }).click();
+  await addUnit(page, '102', '1');
+  await choices.getByRole('button', {
+    name: '102동',
+    exact: true
+  }).click();
+  await addUnit(page, '202', '2');
+  await expect(page.getByRole('status')).toContainText('102동 · 총 1세대');
+  await expect(page.getByRole('button', {
+    name: '102호 수정',
+    exact: true
+  })).toHaveCount(0);
+  await choices.getByRole('button', {
+    name: '101동',
+    exact: true
+  }).click();
+  await expect(page.getByRole('status')).toContainText('101동 · 총 1세대');
+  const search = page.getByRole('textbox', {
+    name: '호수 검색',
+    exact: true
+  });
+  await search.fill('202');
+  await expect(page.getByText('검색 결과가 없어요.')).toBeVisible();
+  await search.clear();
+  await page.screenshot({
+    path: test.info().outputPath('unitSetupBuildingsMobile.png'),
+    fullPage: true
+  });
+
+  await manageButton.click();
+  await manager.getByRole('button', {
+    name: '101동 삭제',
+    exact: true
+  }).click();
+  await expect(page.getByRole('alertdialog', {
+    name: '동 삭제 확인',
+    exact: true
+  })).toBeVisible();
+  await page.getByRole('alertdialog', {
+    name: '동 삭제 확인',
+    exact: true
+  }).getByRole('button', {
+    name: '취소',
+    exact: true
+  }).click();
+  await manager.getByRole('button', {
+    name: '101동 수정',
+    exact: true
+  }).click();
+  await manager.getByRole('textbox', {
+    name: '동 이름',
+    exact: true
+  }).fill('A동');
+  await manager.getByRole('button', {
+    name: '수정',
+    exact: true
+  }).click();
+  await manager.getByRole('button', {
+    name: '완료',
+    exact: true
+  }).click();
+  await expect(page.getByRole('status')).toContainText('A동 · 총 1세대');
+  await expect(page.getByRole('button', {
+    name: '102호 수정',
+    exact: true
+  })).toBeVisible();
+  await choices.getByRole('button', {
+    name: '103동',
+    exact: true
+  }).click();
+  await manageButton.click();
+  await manager.getByRole('button', {
+    name: '103동 삭제',
+    exact: true
+  }).click();
+  await page.getByRole('alertdialog', {
+    name: '동 삭제 확인',
+    exact: true
+  }).getByRole('button', {
+    name: '삭제',
+    exact: true
+  }).click();
+  await page.setViewportSize({
+    width: 320,
+    height: 640
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await manager.getByRole('button', {
+    name: '완료',
+    exact: true
+  }).click();
+  await expect(choices.getByRole('button', {
+    name: '전체',
+    exact: true
+  })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('status')).toContainText('전체 동 · 총 2세대');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
+
+test('동·세대는 숫자를 인식하는 이름순으로 표시하고 PC 삭제와 모바일 칩·편집 배치를 제공', async ({ page }) => {
+  await page.setViewportSize({
+    width: 1448,
+    height: 1086
+  });
+  await openUnitSetup(page, true);
+  for (const name of ['101동', '10동', '2동', '1동']) {
+    await addBuilding(page, name);
+  }
+  const choices = page.getByRole('group', {
+    name: '동별 보기',
+    exact: true
+  });
+  await expect(choices.getByRole('button')).toHaveText(['전체', '1동', '2동', '10동', '101동']);
+  await expect(choices.getByRole('button', {
+    name: '1동',
+    exact: true
+  }).locator('svg')).toBeVisible();
+  await page.getByRole('button', {
+    name: '동 관리',
+    exact: true
+  }).click();
+  const manager = page.getByRole('dialog', {
+    name: '동 관리',
+    exact: true
+  });
+  await expect(manager.getByRole('listitem').locator('strong')).toHaveText(['1동', '2동', '10동', '101동']);
+  await manager.getByRole('button', {
+    name: '완료',
+    exact: true
+  }).click();
+  await addUnit(page, '1001', '10', '10동');
+  await addUnit(page, '1001', '10', '1동');
+  await addUnit(page, '102', '1', '1동');
+  await addUnit(page, '101', '1', '1동');
+  await addUnit(page, '201', '2', '2동');
+  const rows = page.getByRole('table', {
+    name: '등록할 세대 목록'
+  }).getByRole('row').filter({
+    has: page.getByRole('cell')
+  });
+  await expect(rows.locator('td:first-child strong')).toHaveText(['101호', '102호', '1001호', '201호', '1001호']);
+  await expect(rows.locator('td:nth-child(2)')).toHaveText(['1동', '1동', '1동', '2동', '10동']);
+  await expect(page.getByRole('button', {
+    name: '102호 수정',
+    exact: true
+  })).toHaveCSS('color', 'rgb(22, 163, 74)');
+  await expect(page.getByRole('button', {
+    name: '102호 삭제',
+    exact: true
+  })).toHaveCSS('color', 'rgb(239, 68, 68)');
+  await page.screenshot({
+    path: test.info().outputPath('sortedUnitSetupDesktop.png'),
+    fullPage: true
+  });
+  await page.getByRole('button', {
+    name: '102호 삭제',
+    exact: true
+  }).click();
+  const confirmation = page.getByRole('alertdialog', {
+    name: '세대 삭제 확인',
+    exact: true
+  });
+  await expect(confirmation).toContainText('1동 102호');
+  const confirmDelete = confirmation.getByRole('button', {
+    name: '삭제',
+    exact: true
+  });
+  await expect(confirmDelete).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(confirmDelete).toHaveCSS('color', 'rgb(239, 68, 68)');
+  await expect(confirmDelete).toHaveCSS('border-color', 'rgb(239, 68, 68)');
+  await confirmation.getByRole('button', {
+    name: '취소',
+    exact: true
+  }).click();
+  await expect(rows.locator('td:first-child strong')).toHaveText(['101호', '102호', '1001호', '201호', '1001호']);
+  await page.getByRole('button', {
+    name: '102호 삭제',
+    exact: true
+  }).click();
+  await confirmUnitDeletion(page);
+  await expect(rows.locator('td:first-child strong')).toHaveText(['101호', '1001호', '201호', '1001호']);
+  const before = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+  expect(before.buildings.map((building: { name: string }) => building.name)).toEqual(['101동', '10동', '2동', '1동']);
+  await page.getByRole('button', {
+    name: '101호 수정',
+    exact: true
+  }).click();
+  const editor = page.getByRole('dialog', {
+    name: '세대 수정',
+    exact: true
+  });
+  await expect(editor.getByRole('button', {
+    name: '세대 삭제',
+    exact: true
+  })).toBeHidden();
+  await editor.getByRole('combobox', {
+    name: '동',
+    exact: true
+  }).click();
+  await expect(page.getByRole('option')).toHaveText(['1동', '2동', '10동', '101동']);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({
+    width: 320,
+    height: 640
+  });
+  const firstChip = choices.getByRole('button', {
+    name: '1동',
+    exact: true
+  });
+  await expect(firstChip).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(firstChip).toHaveCSS('border-color', 'rgb(226, 232, 240)');
+  await expect(firstChip.locator('svg')).toBeHidden();
+  await firstChip.click();
+  await page.mouse.move(0, 0);
+  await expect(firstChip).toHaveCSS('background-color', 'rgb(37, 99, 235)');
+  await expect(page.getByRole('button', {
+    name: '101호 삭제',
+    exact: true
+  })).toBeHidden();
+  await page.getByRole('button', {
+    name: '101호 수정',
+    exact: true
+  }).click();
+  const mobileDelete = editor.getByRole('button', {
+    name: '세대 삭제',
+    exact: true
+  });
+  await mobileDelete.scrollIntoViewIfNeeded();
+  expect(await editor.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.screenshot({
+    path: test.info().outputPath('buildingUnitEditor320.png')
+  });
+  await mobileDelete.click();
+  await expect(confirmation).toContainText('1동 101호');
+  await expect(confirmation.getByRole('button', {
+    name: '취소',
+    exact: true
+  })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(editor.getByRole('textbox', {
+    name: '호수',
+    exact: true
+  })).toHaveValue('101');
+  await expect(mobileDelete).toBeFocused();
+  await mobileDelete.click();
+  await page.screenshot({
+    path: test.info().outputPath('unitDeleteConfirmation320.png')
+  });
+  await confirmUnitDeletion(page);
+  await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden');
+  await expect(editor).toHaveCount(0);
+  await expect(page.getByRole('button', {
+    name: '101호 수정',
+    exact: true
+  })).toHaveCount(0);
+  await expect(firstChip).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('동·세대와 현재 단계는 새로고침에 복원하고 흐름 이탈과 다른 계정에는 폐기', async ({ page }) => {
+  await openUnitSetup(page);
+  await addUnit(page, '201', '2');
+  await page.reload();
+  await expect(page.getByRole('button', {
+    name: '201호 수정',
+    exact: true
+  })).toBeVisible();
+  await expect(page).toHaveURL(/registration=units$/);
+  await page.route(`${API_ORIGIN}/api/users/me`, (route) => fulfillJson(route, {
+    ...CURRENT_USER,
+    id: '00000000-0000-0000-0000-000000000002',
+  }));
+  await page.reload();
+  await expect(page).toHaveURL(/registration=basic$/);
+  await expect(page.getByLabel('관리대상 이름')).toHaveValue('');
+  await page.getByRole('button', {
+    name: '취소',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/\/start$/);
+  expect(await page.evaluate((key) => sessionStorage.getItem(key), DRAFT_STORAGE_KEY)).toBeNull();
+  await page.goto('/start?registration=units');
+  await expect(page).toHaveURL(/registration=basic$/);
+});
+
+test('층 범위·선택 입력을 검증하고 세대 삭제 후 최소 한 세대 조건을 다시 적용', async ({ page }) => {
+  await openUnitSetup(page);
+  await addUnit(page, '201', '32768');
+  const editor = page.getByRole('dialog', {
+    name: '세대 추가',
+    exact: true
+  });
+  await expect(editor.getByRole('alert')).toContainText('정수로 입력해주세요.');
+  await editor.getByLabel('층', {
+    exact: true
+  }).fill('');
+  await editor.getByRole('button', {
+    name: '추가',
+    exact: true
+  }).click();
+  await page.getByRole('button', {
+    name: '201호 수정',
+    exact: true
+  }).click();
+  await expect(page.getByRole('dialog', {
+    name: '세대 수정',
+    exact: true
+  }).getByRole('button', {
+    name: '세대 삭제',
+    exact: true
+  })).toBeHidden();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', {
+    name: '201호 삭제',
+    exact: true
+  }).click();
+  await confirmUnitDeletion(page);
+  await expect(page.getByText('아직 등록한 세대가 없어요.')).toBeVisible();
+  await expect(page.getByRole('button', {
+    name: '다음',
+    exact: true
+  })).toBeDisabled();
+});
+
+test('동·세대 화면은 PC 표·모바일 카드와 하단 버튼을 표시하고 320px에서도 넘치지 않음', async ({ page }) => {
+  await page.setViewportSize({
+    width: 1448,
+    height: 1086
+  });
+  await openUnitSetup(page);
+  await addUnit(page, '201', '2');
+  await addUnit(page, '202', '2');
+  await addUnit(page, '301', '3');
+  await addUnit(page, '302', '3', undefined, true);
+  await expect(page.getByRole('columnheader', {
+    name: '호수',
+    exact: true
+  })).toBeVisible();
+  await page.screenshot({
+    path: test.info().outputPath('unitSetupDesktop.png'),
+    fullPage: true
+  });
+  await page.setViewportSize({
+    width: 390,
+    height: 844
+  });
+  await expect(page.getByText('초기 설정', {
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('banner')).toBeHidden();
+  await expect(page.getByRole('button', {
+    name: '다음',
+    exact: true
+  })).toBeInViewport();
+  await page.screenshot({
+    path: test.info().outputPath('unitSetupMobile.png'),
+    fullPage: true
+  });
+  await page.getByRole('button', {
+    name: '302호 수정',
+    exact: true
+  }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', {
+    name: '302호 수정',
+    exact: true
+  })).toBeFocused();
+  await page.setViewportSize({
+    width: 320,
+    height: 640
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole('button', {
+    name: '302호 수정',
+    exact: true
+  }).click();
+  const editor = page.getByRole('dialog', {
+    name: '세대 수정',
+    exact: true
+  });
+  const deleteUnit = editor.getByRole('button', {
+    name: '세대 삭제',
+    exact: true
+  });
+  const cancel = editor.getByRole('button', {
+    name: '취소',
+    exact: true
+  });
+  const save = editor.getByRole('button', {
+    name: '수정',
+    exact: true
+  });
+  await expect(deleteUnit).toHaveCSS('color', 'rgb(239, 68, 68)');
+  await expect(deleteUnit).toHaveCSS('border-color', 'rgb(239, 68, 68)');
+  await save.scrollIntoViewIfNeeded();
+  const cancelBox = (await cancel.boundingBox())!;
+  const saveBox = (await save.boundingBox())!;
+  const deleteBox = (await deleteUnit.boundingBox())!;
+  expect(deleteBox.width).toBe(saveBox.x + saveBox.width - cancelBox.x);
+  expect(deleteBox.y + deleteBox.height).toBeLessThan(cancelBox.y);
+  expect(cancelBox.width).toBe(saveBox.width);
+  expect(cancelBox.y).toBe(saveBox.y);
+  expect(cancelBox.x + cancelBox.width).toBeLessThan(saveBox.x);
+  expect(await editor.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+  await page.screenshot({
+    path: test.info().outputPath('unitEditor320.png')
+  });
+  await save.click();
+  await expect(editor).toHaveCount(0);
+  await page.getByRole('button', {
+    name: '기본 정보로 돌아가기',
+    exact: true
+  }).click();
+  await expect(page.getByRole('dialog', {
+    name: '관리할 곳 등록',
+    exact: true
+  })).toBeVisible();
 });
 
 test('새로고침에는 같은 사용자 초안을 복원하고 취소·뒤로 이동 이후 새 등록은 비워 둠', async ({ page }) => {

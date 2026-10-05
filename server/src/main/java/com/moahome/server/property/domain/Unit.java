@@ -59,10 +59,15 @@ public class Unit {
 			|| (floor != null && (floor < Short.MIN_VALUE || floor > Short.MAX_VALUE))) {
 			throw new IllegalArgumentException("Invalid unit configuration");
 		}
+		String normalizedNumber = TextValues.required(unitNumber, 30);
+		// 직접 생성에서도 초기 사용중·공실 상태를 지켜 API 검증 우회를 막습니다.
+		if (status == UnitStatus.INACTIVE) {
+			throw new IllegalArgumentException("Invalid initial unit configuration");
+		}
 		Unit unit = new Unit();
 		unit.propertyId = property.getId();
 		unit.buildingId = building == null ? null : building.getId();
-		unit.unitNumber = TextValues.required(unitNumber, 30);
+		unit.unitNumber = normalizedNumber;
 		unit.displayName = TextValues.optional(displayName, 50);
 		unit.floor = floor == null ? null : floor.shortValue();
 		unit.status = Objects.requireNonNull(status);

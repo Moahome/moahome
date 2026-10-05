@@ -176,16 +176,6 @@
   line-height: 1.6;
 }
 
-.validation-result {
-  margin: 0;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  color: var(--sub-text);
-  font-size: 14px;
-  line-height: 1.6;
-}
-
 .actions {
   display: flex;
   justify-content: flex-end;

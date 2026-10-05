@@ -128,6 +128,19 @@ class PropertyRegistrationControllerTest {
 	}
 
 	@Test
+	void acceptsTextUnitNumbersAndPreservesTheirOriginalValues() throws Exception {
+		for (String number : List.of("201호", "B01", "관리실", "001")) {
+			var request = RegistrationFixtures.withUnits(RegistrationFixtures.request(REQUEST_ID, false),
+				List.of(new PropertyRegistrationRequest.UnitInput(null, number, null, -1, "ACTIVE")));
+			when(registrations.register(USER_ID, request))
+				.thenReturn(new PropertyRegistrationService.RegistrationOutcome(response(), true));
+			mvc.perform(post(PATH).with(identity()).contentType(MediaType.APPLICATION_JSON)
+				.content(mapper.writeValueAsString(request))).andExpect(status().isCreated());
+			verify(registrations).register(USER_ID, request);
+		}
+	}
+
+	@Test
 	void finalInputRejectsCoercionFractionsNullElementsUnknownNestedFieldsAndRangeOverflow() throws Exception {
 		String valid = mapper.writeValueAsString(RegistrationFixtures.request(REQUEST_ID, true));
 		for (String body : List.of(
@@ -141,6 +154,7 @@ class PropertyRegistrationControllerTest {
 			valid.replace("\"isPrimary\":true", "\"isPrimary\":\"true\""),
 			valid.replace("\"accountNumber\":\"00012345678\"", "\"accountNumber\":12345678"),
 			valid.replace("\"status\":\"ACTIVE\"", "\"status\":\"DELETED\""),
+			valid.replace("\"status\":\"ACTIVE\"", "\"status\":\"INACTIVE\""),
 			valid.replace("\"bankCode\":\"SAMPLE\"", "\"bankCode\":\"SAMPLE\",\"holderResidentId\":\"private-id\""),
 			valid.replace("\"units\":[{", "\"units\":[null,{"),
 			valid.replace("\"units\":[", "\"units\":null,\"unused\":[")

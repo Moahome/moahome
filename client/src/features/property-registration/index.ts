@@ -1,3 +1,3 @@
 export {
-  PropertyRegistrationDialog
-} from './ui/propertyRegistrationDialog';
+  PropertyRegistrationFlow
+} from './ui/propertyRegistrationFlow';

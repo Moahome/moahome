@@ -5,7 +5,7 @@ import type {
 import styles from './button.module.css';
 
 export interface ButtonProps extends ComponentPropsWithRef<'button'> {
-  variant?: 'primary' | 'outline' | 'ghost';
+  variant?: 'primary' | 'outline' | 'ghost' | 'text';
   size?: 'sm' | 'md' | 'lg';
   iconOnly?: boolean;
   leadingIcon?: ReactNode;
