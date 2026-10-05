@@ -129,6 +129,21 @@ class SecurityIntegrationTest {
 	}
 
 	@Test
+	void doesNotExposeDocumentationWhenDisabledOutsideLocalProfile() throws Exception {
+		for (String path : List.of("/swagger-ui.html", "/swagger-ui/index.html", "/v3/api-docs",
+			"/v3/api-docs/swagger-config", "/v3/api-docs.yaml")) {
+			mvc.perform(get(path)).andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
+		}
+		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.WEB);
+		for (String path : List.of("/swagger-ui.html", "/swagger-ui/index.html", "/v3/api-docs",
+			"/v3/api-docs/swagger-config", "/v3/api-docs.yaml")) {
+			mvc.perform(get(path).header("Authorization", "Bearer " + pair.accessToken()))
+				.andExpect(status().isNotFound());
+		}
+	}
+
+	@Test
 	void requiresBearerForBusinessEndpointsAndDoesNotOpenUnknownAuthPaths() throws Exception {
 		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.WEB);
 		mvc.perform(get("/api/test/identity")).andExpect(status().isUnauthorized())

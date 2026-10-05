@@ -1,0 +1,127 @@
+package com.moahome.server.config;
+
+import java.security.SecureRandom;
+import java.util.Base64;
+import java.util.List;
+
+import com.moahome.server.auth.repo.SocialAccountRepository;
+import com.moahome.server.auth.service.AuthService;
+import com.moahome.server.property.repo.PropertyRegistrationLock;
+import com.moahome.server.property.service.PropertyRegistrationService;
+import com.moahome.server.property.support.RegistrationTestKeys;
+import com.moahome.server.user.repo.UserRepository;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import tools.jackson.databind.ObjectMapper;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest(properties = {"springdoc.api-docs.enabled=true", "springdoc.swagger-ui.enabled=true"})
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+class OpenApiIntegrationTest {
+	@Autowired private MockMvc mvc;
+	@Autowired private ObjectMapper mapper;
+	@MockitoBean private AuthService auth;
+	@MockitoBean private UserRepository users;
+	@MockitoBean private SocialAccountRepository socialAccounts;
+	@MockitoBean private PropertyRegistrationService registrations;
+	@MockitoBean private PropertyRegistrationLock registrationLock;
+
+	@DynamicPropertySource
+	static void securityProperties(DynamicPropertyRegistry registry) {
+		RegistrationTestKeys.register(registry);
+		SecureRandom random = new SecureRandom();
+		byte[] accessKey = new byte[64];
+		byte[] refreshKey = new byte[64];
+		random.nextBytes(accessKey);
+		random.nextBytes(refreshKey);
+		registry.add("moahome.security.jwt-access-secret-base64", () -> Base64.getEncoder().encodeToString(accessKey));
+		registry.add("moahome.security.jwt-refresh-secret-base64", () -> Base64.getEncoder().encodeToString(refreshKey));
+	}
+
+	@Test
+	void servesUiAssetsAndDefinitionsWithoutAuthenticationOrTokenValidation() throws Exception {
+		mvc.perform(get("/swagger-ui.html")).andExpect(status().isFound())
+			.andExpect(redirectedUrl("/swagger-ui/index.html"));
+		mvc.perform(get("/swagger-ui/index.html")).andExpect(status().isOk())
+			.andExpect(content().string(containsString("Swagger UI")));
+		for (String path : List.of("/swagger-ui/swagger-ui.css", "/swagger-ui/swagger-ui-bundle.js")) {
+			mvc.perform(get(path)).andExpect(status().isOk());
+		}
+		mvc.perform(get("/v3/api-docs").header("Authorization", "Bearer expired-token"))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.info.title").value("모아홈 API"));
+		mvc.perform(get("/v3/api-docs.yaml")).andExpect(status().isOk())
+			.andExpect(content().string(containsString("openapi:")));
+		mvc.perform(get("/v3/api-docs/swagger-config")).andExpect(status().isOk())
+			.andExpect(jsonPath("$.url").value("/v3/api-docs"))
+			.andExpect(jsonPath("$.persistAuthorization").value(false))
+			.andExpect(jsonPath("$.withCredentials").value(true));
+		verifyNoInteractions(auth);
+	}
+
+	@Test
+	void keepsBusinessAndWebAuthenticationProtectedAndRejectsDocumentWrites() throws Exception {
+		mvc.perform(get("/api/users/me")).andExpect(status().isUnauthorized());
+		mvc.perform(post("/api/property-registrations")).andExpect(status().isUnauthorized());
+		mvc.perform(get("/api/auth/web/csrf")).andExpect(status().isUnauthorized());
+		mvc.perform(post("/v3/api-docs")).andExpect(status().isForbidden());
+		mvc.perform(get("/v3/api-docs-other")).andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
+		var document = mapper.readTree(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
+			.andReturn().getResponse().getContentAsString());
+		assertThat(document.path("paths").properties()).hasSize(9);
+		assertThat(document.at("/components/securitySchemes/bearerAuth/type").asText()).isEqualTo("http");
+		assertThat(document.at("/components/securitySchemes/webRefreshCookie/in").asText()).isEqualTo("cookie");
+		assertThat(document.at("/paths/~1api~1users~1me/get/security/0/bearerAuth").isArray()).isTrue();
+		assertThat(document.at("/paths/~1api~1users~1me/get/parameters").isMissingNode()).isTrue();
+		var register = document.at("/paths/~1api~1property-registrations/post");
+		assertThat(register.at("/security/0/bearerAuth").isArray()).isTrue();
+		assertThat(register.at("/responses/200/content/application~1json/schema/$ref").asText())
+			.isEqualTo("#/components/schemas/PropertyRegistrationResponse");
+		assertThat(register.at("/responses/201/content/application~1json/schema/$ref").asText())
+			.isEqualTo("#/components/schemas/PropertyRegistrationResponse");
+		assertThat(register.at("/responses/409").isMissingNode()).isFalse();
+		assertThat(register.at("/responses/400/content/application~1json/schema/$ref").asText())
+			.isEqualTo("#/components/schemas/RegistrationErrorResponse");
+		assertThat(register.at("/responses/401/content/application~1json/schema/$ref").asText())
+			.isEqualTo("#/components/schemas/AuthErrorResponse");
+		assertThat(register.at("/requestBody/content/application~1json/schema/$ref").asText())
+			.isEqualTo("#/components/schemas/PropertyRegistrationRequest");
+		var webRefresh = document.at("/paths/~1api~1auth~1web~1refresh/post");
+		assertThat(webRefresh.at("/security/0/webRefreshCookie").isArray()).isTrue();
+		assertThat(webRefresh.at("/parameters/0/name").asText()).isEqualTo("X-CSRF-TOKEN");
+		assertThat(webRefresh.at("/parameters/0/in").asText()).isEqualTo("header");
+		assertThat(webRefresh.at("/parameters/0/required").asBoolean()).isTrue();
+		assertThat(document.at("/paths/~1api~1auth~1app~1refresh/post/security").isMissingNode()).isTrue();
+		for (String client : List.of("web", "app")) {
+			var responses = document.path("paths").path("/api/auth/" + client + "/logout").path("post").path("responses");
+			assertThat(responses.path("204").path("content").isMissingNode()).isTrue();
+			assertThat(responses.path("200").isMissingNode()).isTrue();
+		}
+		var basicSchema = document.at("/components/schemas/BasicInfoRequest");
+		assertThat(basicSchema.path("required").toString()).contains("name", "address", "hasBuildings");
+		assertThat(basicSchema.path("additionalProperties").asBoolean()).isFalse();
+		assertThat(basicSchema.at("/properties/name/maxLength").asInt()).isEqualTo(50);
+		assertThat(document.at("/components/schemas/UnitInput/properties/status/enum").toString())
+			.contains("ACTIVE", "VACANT").doesNotContain("INACTIVE");
+	}
+}

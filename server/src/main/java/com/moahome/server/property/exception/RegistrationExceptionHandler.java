@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.property.controller.PropertyRegistrationController;
 import com.moahome.server.user.exception.UserException;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.*;
@@ -95,7 +96,11 @@ public class RegistrationExceptionHandler {
 		return builder.body(new ErrorResponse(code, message, errors));
 	}
 
-	public record ErrorResponse(String code, String message,
+	@Schema(name = "RegistrationErrorResponse", description = "등록 오류. 입력 원문과 계좌번호는 포함하지 않습니다.")
+	public record ErrorResponse(
+		@Schema(example = "INVALID_REQUEST") String code,
+		@Schema(example = "등록 정보를 확인해주세요.") String message,
+		@Schema(description = "최종 등록의 필드 오류 상세. 기본 정보 검증과 상세가 없는 오류에는 생략", nullable = true)
 		@JsonInclude(JsonInclude.Include.NON_NULL) List<RegistrationException.FieldError> errors) {
 	}
 }
