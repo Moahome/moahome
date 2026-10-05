@@ -5,41 +5,41 @@ import {
   FAQ_ITEMS,
   MANAGEMENT_STEPS,
   ROLES,
-} from "./_constants/landingContent";
-import { BrandLogo } from "./_components/brandLogo";
-import { LandingHeader } from "./_components/landingHeader";
-import { LandingIcon } from "./_components/landingIcon";
-import { LandingMotion } from "./_components/landingMotion";
-import { ProductPreview } from "./_components/productPreview";
-import styles from "./landingPage.module.css";
+} from './_constants/landingContent';
+import { BrandLogo } from './_components/brandLogo';
+import { LandingHeader } from './_components/landingHeader';
+import { LandingIcon } from './_components/landingIcon';
+import { LandingMotion } from './_components/landingMotion';
+import { ProductPreview } from './_components/productPreview';
+import styles from './landingPage.module.css';
 
 export function LandingPage() {
   return (
     <LandingMotion>
       <a
-        className={styles["skip-link"]}
-        href="#main"
+        className={styles['skip-link']}
+        href={'#main'}
       >
         본문으로 바로가기
       </a>
       <LandingHeader />
 
       <main
-        id="main"
+        id={'main'}
       >
         <section
           className={styles.hero}
-          aria-labelledby="hero-title"
+          aria-labelledby={'hero-title'}
         >
           <div
-            className={styles["hero-glow"]}
-            aria-hidden="true"
+            className={styles['hero-glow']}
+            aria-hidden={'true'}
           />
           <div
-            className={`${styles.container} ${styles["hero-inner"]}`}
+            className={`${styles.container} ${styles['hero-inner']}`}
           >
             <div
-              className={styles["hero-copy"]}
+              className={styles['hero-copy']}
             >
               <p
                 className={styles.eyebrow}
@@ -47,24 +47,24 @@ export function LandingPage() {
                 소규모 공동주택 관리비 통합 플랫폼
               </p>
               <h1
-                id="hero-title"
+                id={'hero-title'}
               >
                 우리 집 관리,
                 <br />
                 이제
-                {" "}
+                {' '}
                 <span>
                   모아홈
                 </span>
                 에서
                 <br
-                  className={styles["hero-mobile-break"]}
+                  className={styles['hero-mobile-break']}
                 />
                 {' '}
                 쉽고 투명하게
               </h1>
               <p
-                className={styles["hero-description"]}
+                className={styles['hero-description']}
               >
                 주민은 관리비를 쉽게 확인하고,
                 <br />
@@ -73,16 +73,16 @@ export function LandingPage() {
                 회계까지 하나로 연결되는 우리 집 관리.
               </p>
               <div
-                className={styles["role-highlights"]}
+                className={styles['role-highlights']}
               >
                 {ROLES.map(({ icon, title, summary }, index) => (
                   <a
                     href={`#role-${index}`}
-                    className={styles["role-highlight"]}
+                    className={styles['role-highlight']}
                     key={title}
                   >
                     <span
-                      className={`${styles["icon-bubble"]} ${index === 1 ? styles["teal-bubble"] : ""}`}
+                      className={`${styles['icon-bubble']} ${index === 1 ? styles['teal-bubble'] : ''}`}
                     >
                       <LandingIcon
                         name={icon}
@@ -100,17 +100,17 @@ export function LandingPage() {
                 ))}
               </div>
               <a
-                className={styles["intro-button"]}
-                href="#service"
+                className={styles['intro-button']}
+                href={'#service'}
               >
                 서비스 소개 보기
-                {" "}
+                {' '}
                 <LandingIcon
-                  name="arrow"
+                  name={'arrow'}
                 />
               </a>
               <p
-                className={styles["hero-note"]}
+                className={styles['hero-note']}
               >
                 <span />
                 {' '}
@@ -122,9 +122,9 @@ export function LandingPage() {
         </section>
 
         <section
-          className={`${styles.container} ${styles["benefits-section"]}`}
-          id="features"
-          aria-label="모아홈의 주요 기능"
+          className={`${styles.container} ${styles['benefits-section']}`}
+          id={'features'}
+          aria-label={'모아홈의 주요 기능'}
         >
           <div
             className={styles.benefits}
@@ -136,7 +136,7 @@ export function LandingPage() {
                 key={title}
               >
                 <span
-                  className={styles["icon-bubble"]}
+                  className={styles['icon-bubble']}
                 >
                   <LandingIcon
                     name={icon}
@@ -154,12 +154,12 @@ export function LandingPage() {
             ))}
           </div>
           <div
-            className={styles["brand-statement"]}
+            className={styles['brand-statement']}
             data-reveal
           >
             <p>
               “ 함께 만드는
-              {" "}
+              {' '}
               <span>
                 더 좋은 우리 집, 모아홈
               </span>
@@ -173,7 +173,7 @@ export function LandingPage() {
                 >
                   <span>
                     <LandingIcon
-                      name="check"
+                      name={'check'}
                     />
                   </span>
                   {text}
@@ -185,11 +185,11 @@ export function LandingPage() {
 
         <section
           className={`${styles.container} ${styles.section}`}
-          id="service"
-          aria-labelledby="service-title"
+          id={'service'}
+          aria-labelledby={'service-title'}
         >
           <div
-            className={styles["section-heading"]}
+            className={styles['section-heading']}
             data-reveal
           >
             <p
@@ -198,11 +198,11 @@ export function LandingPage() {
               하나의 서비스, 연결되는 일상
             </p>
             <h2
-              id="service-title"
+              id={'service-title'}
             >
               주민부터 관리자까지,
               <br
-                className={styles["mobile-break"]}
+                className={styles['mobile-break']}
               />
               {' '}
               모두에게 쉬운 관리
@@ -212,17 +212,17 @@ export function LandingPage() {
             </p>
           </div>
           <div
-            className={styles["service-cards"]}
+            className={styles['service-cards']}
           >
             {ROLES.map(({ icon, title, description, items }, index) => (
               <article
-                className={styles["service-card"]}
+                className={styles['service-card']}
                 data-reveal
                 id={`role-${index}`}
                 key={title}
               >
                 <span
-                  className={`${styles["icon-bubble"]} ${index === 1 ? styles["teal-bubble"] : ""}`}
+                  className={`${styles['icon-bubble']} ${index === 1 ? styles['teal-bubble'] : ''}`}
                 >
                   <LandingIcon
                     name={icon}
@@ -240,7 +240,7 @@ export function LandingPage() {
                       key={item}
                     >
                       <LandingIcon
-                        name="check"
+                        name={'check'}
                       />
                       {item}
                     </li>
@@ -250,9 +250,9 @@ export function LandingPage() {
             ))}
           </div>
           <div
-            className={styles["connection-flow"]}
+            className={styles['connection-flow']}
             data-reveal
-            aria-label="관리비 업무 연결 흐름"
+            aria-label={'관리비 업무 연결 흐름'}
           >
             {MANAGEMENT_STEPS.map((step, index) => (
               <span
@@ -267,7 +267,7 @@ export function LandingPage() {
                 </b>
                 {index < MANAGEMENT_STEPS.length - 1 && (
                   <LandingIcon
-                    name="arrow"
+                    name={'arrow'}
                   />
                 )}
               </span>
@@ -276,15 +276,15 @@ export function LandingPage() {
         </section>
 
         <section
-          className={styles["audience-section"]}
-          id="audience"
-          aria-labelledby="audience-title"
+          className={styles['audience-section']}
+          id={'audience'}
+          aria-labelledby={'audience-title'}
         >
           <div
-            className={`${styles.container} ${styles["audience-inner"]}`}
+            className={`${styles.container} ${styles['audience-inner']}`}
           >
             <div
-              className={styles["section-heading"]}
+              className={styles['section-heading']}
               data-reveal
             >
               <p
@@ -293,7 +293,7 @@ export function LandingPage() {
                 우리 주택에 꼭 맞게
               </p>
               <h2
-                id="audience-title"
+                id={'audience-title'}
               >
                 작은 주택의 관리도,
                 <br />
@@ -306,7 +306,7 @@ export function LandingPage() {
               </p>
             </div>
             <div
-              className={styles["audience-cards"]}
+              className={styles['audience-cards']}
             >
               {AUDIENCE_ITEMS.map(({ title, text, icon }) => (
                 <article
@@ -314,7 +314,7 @@ export function LandingPage() {
                   key={title}
                 >
                   <span
-                    className={styles["icon-bubble"]}
+                    className={styles['icon-bubble']}
                   >
                     <LandingIcon
                       name={icon}
@@ -335,12 +335,12 @@ export function LandingPage() {
         </section>
 
         <section
-          className={`${styles.container} ${styles.section} ${styles["faq-section"]}`}
-          id="faq"
-          aria-labelledby="faq-title"
+          className={`${styles.container} ${styles.section} ${styles['faq-section']}`}
+          id={'faq'}
+          aria-labelledby={'faq-title'}
         >
           <div
-            className={styles["section-heading"]}
+            className={styles['section-heading']}
             data-reveal
           >
             <p
@@ -349,17 +349,17 @@ export function LandingPage() {
               궁금한 점이 있으신가요?
             </p>
             <h2
-              id="faq-title"
+              id={'faq-title'}
             >
               자주 묻는 질문
             </h2>
           </div>
           <div
-            className={styles["faq-list"]}
+            className={styles['faq-list']}
           >
             {FAQ_ITEMS.map(({ question, answer }) => (
               <details
-                className={styles["faq-item"]}
+                className={styles['faq-item']}
                 data-reveal
                 key={question}
               >
@@ -368,7 +368,7 @@ export function LandingPage() {
                     {question}
                   </span>
                   <LandingIcon
-                    name="chevron"
+                    name={'chevron'}
                   />
                 </summary>
                 <p>
@@ -384,29 +384,29 @@ export function LandingPage() {
         className={styles.footer}
       >
         <div
-          className={`${styles.container} ${styles["footer-inner"]}`}
+          className={`${styles.container} ${styles['footer-inner']}`}
         >
           <BrandLogo
-            variant="footer"
+            variant={'footer'}
           />
           <p>
             소규모 공동주택을 위한 더 쉬운 관리.
             <br />
             <span>
               ©
-              {" "}
+              {' '}
               {new Date().getFullYear()}
               {' '}
               MoaHome.
             </span>
           </p>
           <a
-            href="#top"
+            href={'#top'}
           >
             맨 위로
-            {" "}
+            {' '}
             <LandingIcon
-              name="arrow"
+              name={'arrow'}
             />
           </a>
         </div>

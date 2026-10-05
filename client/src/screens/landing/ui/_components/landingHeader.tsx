@@ -1,19 +1,23 @@
-"use client";
+'use client';
 
-import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { NAVIGATION_ITEMS } from "../_constants/landingContent";
-import { BrandLogo } from "./brandLogo";
-import { LandingIcon } from "./landingIcon";
-import styles from "./landingHeader.module.css";
+import {
+  useEffect,
+  useRef,
+  useState
+} from 'react';
+import Link from 'next/link';
+import { NAVIGATION_ITEMS } from '../_constants/landingContent';
+import { BrandLogo } from './brandLogo';
+import { LandingIcon } from './landingIcon';
+import styles from './landingHeader.module.css';
 
 function LoginLink({ onClick }: { onClick?: () => void }) {
   return (
     <div
-      className={styles["login-area"]}
+      className={styles['login-area']}
     >
       <Link
-        href="/login"
+        href={'/login'}
         onClick={onClick}
       >
         로그인
@@ -28,19 +32,19 @@ export function LandingHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
-    const mobileQuery = window.matchMedia("(max-width: 768px)");
+    const mobileQuery = window.matchMedia('(max-width: 768px)');
     const closeOnDesktop = () => {
       if (!mobileQuery.matches) dialogRef.current?.close();
     };
-    mobileQuery.addEventListener("change", closeOnDesktop);
-    return () => mobileQuery.removeEventListener("change", closeOnDesktop);
+    mobileQuery.addEventListener('change', closeOnDesktop);
+    return () => mobileQuery.removeEventListener('change', closeOnDesktop);
   }, []);
 
   useEffect(() => {
     if (!isMenuOpen) return;
 
     const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = previousOverflow;
     };
@@ -61,18 +65,18 @@ export function LandingHeader() {
       className={styles.header}
     >
       <div
-        className={styles["header-inner"]}
+        className={styles['header-inner']}
       >
         <a
-          href="#top"
-          className={styles["brand-link"]}
-          aria-label="모아홈 처음으로"
+          href={'#top'}
+          className={styles['brand-link']}
+          aria-label={'모아홈 처음으로'}
         >
           <BrandLogo />
         </a>
         <nav
           className={styles.navigation}
-          aria-label="주요 메뉴"
+          aria-label={'주요 메뉴'}
         >
           {NAVIGATION_ITEMS.map(({ href, label }) => (
             <a
@@ -84,75 +88,75 @@ export function LandingHeader() {
           ))}
         </nav>
         <div
-          className={styles["desktop-login"]}
+          className={styles['desktop-login']}
         >
           <LoginLink />
         </div>
         <button
-          className={styles["menu-toggle"]}
-          type="button"
+          className={styles['menu-toggle']}
+          type={'button'}
           onClick={openMenu}
-          aria-label="메뉴 열기"
+          aria-label={'메뉴 열기'}
           aria-expanded={isMenuOpen}
-          aria-controls="landing-mobile-menu"
-          aria-haspopup="dialog"
+          aria-controls={'landing-mobile-menu'}
+          aria-haspopup={'dialog'}
         >
           <LandingIcon
-            name="menu"
+            name={'menu'}
           />
         </button>
       </div>
       <dialog
         ref={dialogRef}
-        className={styles["mobile-dialog"]}
-        id="landing-mobile-menu"
-        aria-labelledby="mobile-menu-title"
+        className={styles['mobile-dialog']}
+        id={'landing-mobile-menu'}
+        aria-labelledby={'mobile-menu-title'}
         onClose={() => setIsMenuOpen(false)}
       >
         <button
-          className={styles["drawer-backdrop"]}
-          type="button"
+          className={styles['drawer-backdrop']}
+          type={'button'}
           onClick={closeMenu}
-          aria-label="메뉴 바깥 영역을 눌러 닫기"
+          aria-label={'메뉴 바깥 영역을 눌러 닫기'}
           tabIndex={-1}
         />
         <div
-          className={styles["drawer-panel"]}
+          className={styles['drawer-panel']}
         >
           <div
-            className={styles["drawer-heading"]}
+            className={styles['drawer-heading']}
           >
             <a
-              href="#top"
+              href={'#top'}
               onClick={closeMenu}
-              aria-label="모아홈 처음으로"
+              aria-label={'모아홈 처음으로'}
             >
               <BrandLogo
                 compact
-                variant="drawer"
+                variant={'drawer'}
               />
             </a>
             <button
               ref={closeButtonRef}
-              className={styles["menu-close"]}
-              type="button"
+              className={styles['menu-close']}
+              type={'button'}
               onClick={closeMenu}
-              aria-label="메뉴 닫기"
+              aria-label={'메뉴 닫기'}
             >
               <LandingIcon
-                name="close"
+                name={'close'}
               />
             </button>
           </div>
           <h2
-            id="mobile-menu-title"
-            className={styles["drawer-title"]}
+            id={'mobile-menu-title'}
+            className={styles['drawer-title']}
           >
             모아홈 둘러보기
           </h2>
           <nav
-            className={styles["drawer-navigation"]}
-            aria-label="모바일 주요 메뉴"
+            className={styles['drawer-navigation']}
+            aria-label={'모바일 주요 메뉴'}
           >
             {NAVIGATION_ITEMS.map(({ href, label }, index) => (
               <a
@@ -168,13 +172,13 @@ export function LandingHeader() {
                   {label}
                 </span>
                 <LandingIcon
-                  name="arrow"
+                  name={'arrow'}
                 />
               </a>
             ))}
           </nav>
           <div
-            className={styles["drawer-login"]}
+            className={styles['drawer-login']}
           >
             <LoginLink
               onClick={closeMenu}
@@ -184,7 +188,7 @@ export function LandingHeader() {
             </p>
           </div>
           <p
-            className={styles["drawer-tagline"]}
+            className={styles['drawer-tagline']}
           >
             함께 만드는
             <br />

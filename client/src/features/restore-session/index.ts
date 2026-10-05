@@ -1,1 +1,3 @@
-export { restoreSession } from "@/entities/session";
+export {
+  restoreSession
+} from '@/entities/session';

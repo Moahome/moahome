@@ -1,1 +1,3 @@
-export { LandingPage as default } from "@/screens/landing";
+export {
+  LandingPage as default
+} from '@/screens/landing';

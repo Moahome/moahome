@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import type { CurrentUser } from "@/entities/session";
-import { LogoutButton } from "@/features/logout";
-import { BrandMark } from "@/shared/ui/brand-mark";
-import { StartIcon } from "../start-icon/startIcon";
-import { StartAvatar } from "../start-avatar/startAvatar";
-import { StartMobileMenu } from "../start-mobile-menu/startMobileMenu";
-import styles from "./startHeader.module.css";
+import Link from 'next/link';
+import type { CurrentUser } from '@/entities/session';
+import { LogoutButton } from '@/features/logout';
+import { BrandMark } from '@/shared/ui/brand-mark';
+import { StartIcon } from '../start-icon/startIcon';
+import { StartAvatar } from '../start-avatar/startAvatar';
+import { StartMobileMenu } from '../start-mobile-menu/startMobileMenu';
+import styles from './startHeader.module.css';
 
 export function StartHeader({
   user,
   onNotify,
 }: {
-  user: Pick<CurrentUser, "displayName" | "profileImageUrl">;
+  user: Pick<CurrentUser, 'displayName' | 'profileImageUrl'>;
   onNotify: () => void;
 }) {
   return (
@@ -21,9 +21,9 @@ export function StartHeader({
       className={styles.header}
     >
       <Link
-        href="/start"
+        href={'/start'}
         className={styles.brand}
-        aria-label="모아홈 시작 화면으로"
+        aria-label={'모아홈 시작 화면으로'}
       >
         <BrandMark />
         <span>
@@ -31,16 +31,16 @@ export function StartHeader({
         </span>
       </Link>
       <div
-        className={styles["header-actions"]}
+        className={styles['header-actions']}
       >
         <button
-          type="button"
-          className={styles["notification-button"]}
-          aria-label="알림"
+          type={'button'}
+          className={styles['notification-button']}
+          aria-label={'알림'}
           onClick={onNotify}
         >
           <StartIcon
-            name="bell"
+            name={'bell'}
           />
         </button>
         <details
@@ -53,21 +53,21 @@ export function StartHeader({
               user={user}
             />
             <span
-              className={styles["profile-name"]}
+              className={styles['profile-name']}
             >
               {user.displayName}
               님
             </span>
             <span
-              className={styles["profile-chevron"]}
+              className={styles['profile-chevron']}
             >
               <StartIcon
-                name="chevron"
+                name={'chevron'}
               />
             </span>
           </summary>
           <div
-            className={styles["profile-panel"]}
+            className={styles['profile-panel']}
           >
             <strong>
               {user.displayName}

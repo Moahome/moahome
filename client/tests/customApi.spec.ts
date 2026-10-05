@@ -1,11 +1,18 @@
-import { expect, test } from "@playwright/test";
-import { ApiError, customAPI, getApiUrl } from "../src/shared/api";
+import {
+  expect,
+  test
+} from '@playwright/test';
+import {
+  ApiError,
+  customAPI,
+  getApiUrl
+} from '../src/shared/api';
 
 const originalFetch = globalThis.fetch;
 const originalApiHost = process.env.NEXT_PUBLIC_API_HOST;
 
 test.beforeEach(() => {
-  process.env.NEXT_PUBLIC_API_HOST = "http://localhost:8080";
+  process.env.NEXT_PUBLIC_API_HOST = 'http://localhost:8080';
 });
 
 test.afterEach(() => {
@@ -18,89 +25,147 @@ test.afterEach(() => {
   }
 });
 
-test("GET 쿼리 인코딩과 공통 쿠키·캐시 설정", async () => {
+test('GET 쿼리 인코딩과 공통 쿠키·캐시 설정', async () => {
   globalThis.fetch = async (input, options) => {
     const url = new URL(String(input));
-    expect(url.origin).toBe("http://localhost:8080");
-    expect(url.pathname).toBe("/api/example");
-    expect(url.searchParams.get("page")).toBe("2");
-    expect(url.searchParams.get("name")).toBe("모아 홈&");
-    expect(url.searchParams.getAll("role")).toEqual(["ADMIN", "RESIDENT"]);
-    expect(url.searchParams.get("active")).toBe("false");
-    expect(url.searchParams.has("empty")).toBe(false);
-    expect(options?.method).toBe("GET");
+    expect(url.origin).toBe('http://localhost:8080');
+    expect(url.pathname).toBe('/api/example');
+    expect(url.searchParams.get('page')).toBe('2');
+    expect(url.searchParams.get('name')).toBe('모아 홈&');
+    expect(url.searchParams.getAll('role')).toEqual(['ADMIN', 'RESIDENT']);
+    expect(url.searchParams.get('active')).toBe('false');
+    expect(url.searchParams.has('empty')).toBe(false);
+    expect(options?.method).toBe('GET');
     expect(options?.body).toBeUndefined();
-    expect(options?.credentials).toBe("include");
-    expect(options?.cache).toBe("no-store");
-    return Response.json({ count: 2 });
+    expect(options?.credentials).toBe('include');
+    expect(options?.cache).toBe('no-store');
+    return Response.json({
+      count: 2
+    });
   };
 
   const result = await customAPI<{ count: number }>({
-    url: "/api/example",
-    data: { page: 2, name: "모아 홈&", role: ["ADMIN", "RESIDENT"], active: false, empty: null },
+    url: '/api/example',
+    data: {
+      page: 2,
+      name: '모아 홈&',
+      role: ['ADMIN', 'RESIDENT'],
+      active: false,
+      empty: null
+    },
   });
   expect(result.count).toBe(2);
 });
 
-test("POST는 JSON 본문과 선택한 보안 헤더를 전달", async () => {
+test('POST는 JSON 본문과 선택한 보안 헤더를 전달', async () => {
   globalThis.fetch = async (_input, options) => {
     const headers = new Headers(options?.headers);
-    expect(options?.method).toBe("POST");
-    expect(options?.body).toBe(JSON.stringify({ name: "모아홈" }));
-    expect(headers.get("Content-Type")).toBe("application/json");
-    expect(headers.get("X-CSRF-TOKEN")).toBe("test-csrf");
-    expect(headers.get("Authorization")).toBe("Bearer test-access");
-    return Response.json({ ok: true });
+    expect(options?.method).toBe('POST');
+    expect(options?.body).toBe(JSON.stringify({
+      name: '모아홈'
+    }));
+    expect(headers.get('Content-Type')).toBe('application/json');
+    expect(headers.get('X-CSRF-TOKEN')).toBe('test-csrf');
+    expect(headers.get('Authorization')).toBe('Bearer test-access');
+    return Response.json({
+      ok: true
+    });
   };
 
   await customAPI({
-    url: "/api/example",
-    method: "POST",
-    data: { name: "모아홈" },
-    headers: { "X-CSRF-TOKEN": "test-csrf", Authorization: "Bearer test-access" },
+    url: '/api/example',
+    method: 'POST',
+    data: {
+      name: '모아홈'
+    },
+    headers: {
+      'X-CSRF-TOKEN': 'test-csrf',
+      Authorization: 'Bearer test-access'
+    },
   });
 });
 
-test("204 응답은 JSON 파싱 오류 없이 처리", async () => {
-  globalThis.fetch = async () => new Response(null, { status: 204 });
-  await expect(customAPI<void>({ url: "/api/example", method: "DELETE" })).resolves.toBeUndefined();
+test('204 응답은 JSON 파싱 오류 없이 처리', async () => {
+  globalThis.fetch = async () => new Response(null, {
+    status: 204
+  });
+  await expect(customAPI<void>({
+    url: '/api/example',
+    method: 'DELETE'
+  })).resolves.toBeUndefined();
 });
 
-test("인증 실패의 HTTP 상태와 서버 코드를 유지하고 응답 원문은 오류에 포함하지 않음", async () => {
+test('인증 실패의 HTTP 상태와 서버 코드를 유지하고 응답 원문은 오류에 포함하지 않음', async () => {
   globalThis.fetch = async () => Response.json(
-    { code: "SESSION_EXPIRED", message: "private-response-value" },
-    { status: 401 },
+    {
+      code: 'SESSION_EXPIRED',
+      message: 'private-response-value'
+    },
+    {
+      status: 401
+    },
   );
 
-  const error = await customAPI({ url: "/api/example" }).catch((error: unknown) => error);
+  const error = await customAPI({
+    url: '/api/example'
+  }).catch((error: unknown) => error);
   expect(error).toBeInstanceOf(ApiError);
-  expect(error).toMatchObject({ status: 401, code: "SESSION_EXPIRED" });
-  expect(String(error)).not.toContain("private-response-value");
+  expect(error).toMatchObject({
+    status: 401,
+    code: 'SESSION_EXPIRED'
+  });
+  expect(String(error)).not.toContain('private-response-value');
 });
 
-test("JSON이 아닌 장애 응답도 503 상태를 유지", async () => {
-  globalThis.fetch = async () => new Response("<html>Unavailable</html>", { status: 503 });
-  await expect(customAPI({ url: "/api/example" })).rejects.toMatchObject({ status: 503, code: "HTTP_ERROR" });
+test('JSON이 아닌 장애 응답도 503 상태를 유지', async () => {
+  globalThis.fetch = async () => new Response('<html>Unavailable</html>', {
+    status: 503
+  });
+  await expect(customAPI({
+    url: '/api/example'
+  })).rejects.toMatchObject({
+    status: 503,
+    code: 'HTTP_ERROR'
+  });
 });
 
-test("잘못된 성공 응답과 네트워크 실패를 구분", async () => {
-  globalThis.fetch = async () => new Response("invalid-json");
-  await expect(customAPI({ url: "/api/example" })).rejects.toMatchObject({ status: 200, code: "INVALID_RESPONSE" });
+test('잘못된 성공 응답과 네트워크 실패를 구분', async () => {
+  globalThis.fetch = async () => new Response('invalid-json');
+  await expect(customAPI({
+    url: '/api/example'
+  })).rejects.toMatchObject({
+    status: 200,
+    code: 'INVALID_RESPONSE'
+  });
 
-  globalThis.fetch = async () => { throw new TypeError("private-network-detail"); };
-  await expect(customAPI({ url: "/api/example" })).rejects.toMatchObject({ status: 0, code: "NETWORK_ERROR" });
+  globalThis.fetch = async () => { throw new TypeError('private-network-detail'); };
+  await expect(customAPI({
+    url: '/api/example'
+  })).rejects.toMatchObject({
+    status: 0,
+    code: 'NETWORK_ERROR'
+  });
 });
 
-test("GET 중첩 데이터와 다른 호스트의 URL은 전송 전에 거부", async () => {
+test('GET 중첩 데이터와 다른 호스트의 URL은 전송 전에 거부', async () => {
   let requests = 0;
   globalThis.fetch = async () => {
     requests += 1;
     return Response.json({});
   };
 
-  await expect(customAPI({ url: "/api/example", data: { nested: { value: 1 } } })).rejects.toMatchObject({ code: "INVALID_REQUEST" });
-  expect(() => getApiUrl("https://external.example/api")).toThrow();
-  expect(() => getApiUrl("//external.example/api")).toThrow();
-  expect(() => getApiUrl("/\\external.example/api")).toThrow();
+  await expect(customAPI({
+    url: '/api/example',
+    data: {
+      nested: {
+        value: 1
+      }
+    }
+  })).rejects.toMatchObject({
+    code: 'INVALID_REQUEST'
+  });
+  expect(() => getApiUrl('https://external.example/api')).toThrow();
+  expect(() => getApiUrl('//external.example/api')).toThrow();
+  expect(() => getApiUrl('/\\external.example/api')).toThrow();
   expect(requests).toBe(0);
 });

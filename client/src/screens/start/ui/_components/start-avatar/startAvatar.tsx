@@ -1,12 +1,12 @@
-import Image from "next/image";
-import type { CurrentUser } from "@/entities/session";
-import { StartIcon } from "../start-icon/startIcon";
-import styles from "./startAvatar.module.css";
+import Image from 'next/image';
+import type { CurrentUser } from '@/entities/session';
+import { StartIcon } from '../start-icon/startIcon';
+import styles from './startAvatar.module.css';
 
 export function StartAvatar({
   user,
 }: {
-  user: Pick<CurrentUser, "profileImageUrl">;
+  user: Pick<CurrentUser, 'profileImageUrl'>;
 }) {
   return (
     <span
@@ -15,14 +15,14 @@ export function StartAvatar({
       {user.profileImageUrl ? (
         <Image
           src={user.profileImageUrl}
-          alt=""
+          alt={''}
           width={44}
           height={44}
           unoptimized
         />
       ) : (
         <StartIcon
-          name="person"
+          name={'person'}
         />
       )}
     </span>

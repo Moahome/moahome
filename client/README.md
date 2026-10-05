@@ -83,18 +83,22 @@ import { Input, Dropdown } from "@/shared/ui/form-controls";
 `src/shared/api/`의 `customAPI`는 서버 경로, HTTP 메서드와 데이터를 받습니다. 메서드를 생략하면 GET입니다. GET 데이터는 쿼리로, POST / PUT / PATCH / DELETE 데이터는 JSON 본문으로 전달합니다. GET 배열은 같은 쿼리 키를 반복하고 null / undefined 값은 생략합니다. 중첩 쿼리 객체는 허용하지 않습니다.
 
 ```ts
-import { customAPI } from "@/shared/api";
+import { customAPI } from '@/shared/api';
 
 const result = await customAPI<{ count: number }>({
-  url: "/api/example",
-  method: "GET",
-  data: { page: 1 },
+  url: '/api/example',
+  method: 'GET',
+  data: {
+    page: 1,
+  },
 });
 
 await customAPI({
-  url: "/api/example",
-  method: "POST",
-  data: { name: "모아홈" },
+  url: '/api/example',
+  method: 'POST',
+  data: {
+    name: '모아홈',
+  },
 });
 ```
 
@@ -105,11 +109,13 @@ await customAPI({
 브라우저의 업무 API는 `src/entities/session/`의 `authenticatedAPI`를 사용합니다. 로그인 콜백이나 호출자가 세션을 복원한 뒤 메모리의 Access Token을 Bearer 헤더에 자동으로 넣습니다. `401 / ACCESS_TOKEN_EXPIRED`에서만 세션을 재발급하고 원래 메서드 / URL / 데이터 / 다른 헤더를 유지해 한 번 재시도합니다. 다른 401, 403, 503과 네트워크 오류는 자동 재발급하지 않으며, 재발급 실패나 재시도 실패도 그대로 전달합니다. 메모리 세션이 없으면 `401 / AUTHENTICATION_REQUIRED`로 거부합니다. 쿠키 인증의 CSRF / 재발급 / 로그아웃 요청은 `customAPI`로 호출하여 업무 API 재시도 대상에 포함하지 않습니다.
 
 ```ts
-import { authenticatedAPI } from "@/entities/session";
+import { authenticatedAPI } from '@/entities/session';
 
 const result = await authenticatedAPI<{ count: number }>({
-  url: "/api/example",
-  data: { page: 1 },
+  url: '/api/example',
+  data: {
+    page: 1,
+  },
 });
 ```
 

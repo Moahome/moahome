@@ -4,10 +4,10 @@ import {
   PREVIEW_PHONE_ACTIONS,
   PREVIEW_PHONE_NAVIGATION,
   PREVIEW_SCHEDULES,
-} from "../_constants/previewData";
-import { BrandLogo } from "./brandLogo";
-import { LandingIcon } from "./landingIcon";
-import styles from "./productPreview.module.css";
+} from '../_constants/previewData';
+import { BrandLogo } from './brandLogo';
+import { LandingIcon } from './landingIcon';
+import styles from './productPreview.module.css';
 
 function DashboardPreview() {
   return (
@@ -15,19 +15,19 @@ function DashboardPreview() {
       className={styles.dashboard}
     >
       <aside
-        className={styles["preview-sidebar"]}
+        className={styles['preview-sidebar']}
       >
         <BrandLogo
           compact
-          variant="sidebar"
+          variant={'sidebar'}
         />
         <div
-          className={styles["preview-menu"]}
+          className={styles['preview-menu']}
         >
           {PREVIEW_MENU.map(({ icon, label }, index) => (
             <div
               key={label}
-              className={index === 0 ? styles["active-menu"] : undefined}
+              className={index === 0 ? styles['active-menu'] : undefined}
             >
               <LandingIcon
                 name={icon}
@@ -37,29 +37,29 @@ function DashboardPreview() {
           ))}
         </div>
         <span
-          className={styles["sidebar-bottom"]}
+          className={styles['sidebar-bottom']}
         >
           함께 만드는 더 좋은 우리 집
         </span>
       </aside>
       <div
-        className={styles["preview-workspace"]}
+        className={styles['preview-workspace']}
       >
         <div
-          className={styles["preview-topbar"]}
+          className={styles['preview-topbar']}
         >
           <span>
             우리빌라
-            {" "}
+            {' '}
             <LandingIcon
-              name="chevron"
+              name={'chevron'}
             />
           </span>
           <span>
             <LandingIcon
-              name="bell"
+              name={'bell'}
             />
-            {" "}
+            {' '}
             <span
               className={styles.avatar}
             >
@@ -70,27 +70,27 @@ function DashboardPreview() {
           </span>
         </div>
         <div
-          className={styles["preview-content"]}
+          className={styles['preview-content']}
         >
           <h3>
             안녕하세요, 김모아님
-            {" "}
+            {' '}
             <span
-              className={styles["greeting-dot"]}
+              className={styles['greeting-dot']}
             />
           </h3>
           <p>
             2026년 10월 관리 현황입니다.
           </p>
           <div
-            className={styles["preview-stats"]}
+            className={styles['preview-stats']}
           >
             <div>
               <span
-                className={styles["stat-icon"]}
+                className={styles['stat-icon']}
               >
                 <LandingIcon
-                  name="receipt"
+                  name={'receipt'}
                 />
               </span>
               <span>
@@ -107,13 +107,13 @@ function DashboardPreview() {
               </span>
             </div>
             <div
-              className={styles["teal-stat"]}
+              className={styles['teal-stat']}
             >
               <span
-                className={styles["stat-icon"]}
+                className={styles['stat-icon']}
               >
                 <LandingIcon
-                  name="wallet"
+                  name={'wallet'}
                 />
               </span>
               <span>
@@ -130,10 +130,10 @@ function DashboardPreview() {
               </span>
             </div>
             <div
-              className={styles["danger-stat"]}
+              className={styles['danger-stat']}
             >
               <span
-                className={styles["stat-icon"]}
+                className={styles['stat-icon']}
               >
                 !
               </span>
@@ -152,31 +152,31 @@ function DashboardPreview() {
             </div>
           </div>
           <div
-            className={styles["preview-columns"]}
+            className={styles['preview-columns']}
           >
             <div>
               <div
-                className={styles["preview-panel"]}
+                className={styles['preview-panel']}
               >
                 <h4>
                   <LandingIcon
-                    name="check"
+                    name={'check'}
                   />
                   {' '}
                   처리할 일이 있어요
-                  {" "}
+                  {' '}
                   <small>
                     전체보기 ›
                   </small>
                 </h4>
                 <div
-                  className={styles["task-row"]}
+                  className={styles['task-row']}
                 >
                   <span
-                    className={styles["danger-stat"]}
+                    className={styles['danger-stat']}
                   >
                     <LandingIcon
-                      name="notice"
+                      name={'notice'}
                     />
                   </span>
                   <div>
@@ -192,13 +192,13 @@ function DashboardPreview() {
                   </em>
                 </div>
                 <div
-                  className={styles["task-row"]}
+                  className={styles['task-row']}
                 >
                   <span
-                    className={styles["warning-stat"]}
+                    className={styles['warning-stat']}
                   >
                     <LandingIcon
-                      name="clock"
+                      name={'clock'}
                     />
                   </span>
                   <div>
@@ -214,11 +214,11 @@ function DashboardPreview() {
                   </em>
                 </div>
                 <div
-                  className={styles["task-row"]}
+                  className={styles['task-row']}
                 >
                   <span>
                     <LandingIcon
-                      name="people"
+                      name={'people'}
                     />
                   </span>
                   <div>
@@ -235,21 +235,21 @@ function DashboardPreview() {
                 </div>
               </div>
               <div
-                className={styles["preview-panel"]}
+                className={styles['preview-panel']}
               >
                 <h4>
                   <LandingIcon
-                    name="wallet"
+                    name={'wallet'}
                   />
                   {' '}
                   최근 입금
-                  {" "}
+                  {' '}
                   <small>
                     전체보기 ›
                   </small>
                 </h4>
                 <table
-                  className={styles["preview-table"]}
+                  className={styles['preview-table']}
                 >
                   <thead>
                     <tr>
@@ -284,9 +284,9 @@ function DashboardPreview() {
                         <td>
                           <span
                             className={
-                              payment.status === "일부납부"
-                                ? styles["partial-badge"]
-                                : styles["paid-badge"]
+                              payment.status === '일부납부'
+                                ? styles['partial-badge']
+                                : styles['paid-badge']
                             }
                           >
                             {payment.status}
@@ -300,18 +300,18 @@ function DashboardPreview() {
             </div>
             <div>
               <div
-                className={styles["preview-panel"]}
+                className={styles['preview-panel']}
               >
                 <h4>
                   <LandingIcon
-                    name="receipt"
+                    name={'receipt'}
                   />
                   {' '}
                   이번 달 일정
                 </h4>
                 {PREVIEW_SCHEDULES.map(({ day, label }) => (
                   <div
-                    className={styles["schedule-row"]}
+                    className={styles['schedule-row']}
                     key={day}
                   >
                     <span>
@@ -329,27 +329,27 @@ function DashboardPreview() {
                 ))}
               </div>
               <div
-                className={styles["preview-panel"]}
+                className={styles['preview-panel']}
               >
                 <h4>
                   <LandingIcon
-                    name="notice"
+                    name={'notice'}
                   />
                   {' '}
                   공지사항
                 </h4>
                 <p
-                  className={styles["preview-notice"]}
+                  className={styles['preview-notice']}
                 >
                   · 10월 관리비가 부과되었습니다.
                 </p>
                 <p
-                  className={styles["preview-notice"]}
+                  className={styles['preview-notice']}
                 >
                   · 주차 공간 이용 안내
                 </p>
                 <p
-                  className={styles["preview-notice"]}
+                  className={styles['preview-notice']}
                 >
                   · 공용 공간 청소 일정 안내
                 </p>
@@ -365,37 +365,37 @@ function DashboardPreview() {
 function ResidentPreview() {
   return (
     <div
-      className={styles["phone-screen"]}
+      className={styles['phone-screen']}
     >
       <div
-        className={styles["phone-header"]}
+        className={styles['phone-header']}
       >
         <BrandLogo
           compact
-          variant="phone"
+          variant={'phone'}
         />
         <LandingIcon
-          name="bell"
+          name={'bell'}
         />
       </div>
       <h3>
         안녕하세요, 김모아님
       </h3>
       <div
-        className={styles["property-selector"]}
+        className={styles['property-selector']}
       >
         우리빌라
-        {" "}
+        {' '}
         <LandingIcon
-          name="chevron"
+          name={'chevron'}
         />
       </div>
       <div
-        className={styles["mobile-bill"]}
+        className={styles['mobile-bill']}
       >
         <div>
           이번 달 관리비
-          {" "}
+          {' '}
           <span>
             납부완료
           </span>
@@ -411,7 +411,7 @@ function ResidentPreview() {
         </small>
       </div>
       <div
-        className={styles["phone-actions"]}
+        className={styles['phone-actions']}
       >
         {PREVIEW_PHONE_ACTIONS.map(({ icon, label }) => (
           <div
@@ -427,11 +427,11 @@ function ResidentPreview() {
         ))}
       </div>
       <div
-        className={styles["phone-notices"]}
+        className={styles['phone-notices']}
       >
         <h4>
           공지사항
-          {" "}
+          {' '}
           <small>
             더보기 ›
           </small>
@@ -456,7 +456,7 @@ function ResidentPreview() {
         </p>
       </div>
       <div
-        className={styles["phone-navigation"]}
+        className={styles['phone-navigation']}
       >
         {PREVIEW_PHONE_NAVIGATION.map(({ icon, label }) => (
           <span
@@ -476,14 +476,14 @@ function ResidentPreview() {
 export function ProductPreview() {
   return (
     <figure
-      className={styles["product-figure"]}
+      className={styles['product-figure']}
     >
       <div
-        className={styles["device-stage"]}
-        aria-hidden="true"
+        className={styles['device-stage']}
+        aria-hidden={'true'}
       >
         <div
-          className={styles["preview-handwriting"]}
+          className={styles['preview-handwriting']}
         >
           우리 집 관리가
           <br />
@@ -494,7 +494,7 @@ export function ProductPreview() {
           className={styles.laptop}
         >
           <div
-            className={styles["laptop-screen"]}
+            className={styles['laptop-screen']}
           >
             <span
               className={styles.webcam}
@@ -502,7 +502,7 @@ export function ProductPreview() {
             <DashboardPreview />
           </div>
           <div
-            className={styles["laptop-base"]}
+            className={styles['laptop-base']}
           >
             <span />
           </div>
@@ -511,14 +511,14 @@ export function ProductPreview() {
           className={styles.phone}
         >
           <span
-            className={styles["phone-notch"]}
+            className={styles['phone-notch']}
           />
           <ResidentPreview />
         </div>
       </div>
       <figcaption>
         주민과 관리자를 연결하는 모아홈
-        {" "}
+        {' '}
         <span>
           · 서비스 화면 예시
         </span>

@@ -1,10 +1,18 @@
-"use client";
+'use client';
 
-import { useId, type ComponentPropsWithRef, type ReactNode } from "react";
-import { FormField, getFieldDescription, type FormFieldOptions } from "../form-field/formField";
-import styles from "./input.module.css";
+import {
+  useId,
+  type ComponentPropsWithRef,
+  type ReactNode
+} from 'react';
+import {
+  FormField,
+  getFieldDescription,
+  type FormFieldOptions
+} from '../form-field/formField';
+import styles from './input.module.css';
 
-export interface InputProps extends Omit<ComponentPropsWithRef<"input">, "children">, FormFieldOptions {
+export interface InputProps extends Omit<ComponentPropsWithRef<'input'>, 'children'>, FormFieldOptions {
   leadingIcon?: ReactNode;
   trailingContent?: ReactNode;
 }
@@ -19,18 +27,23 @@ export function Input({
   className,
   leadingIcon,
   trailingContent,
-  type = "text",
+  type = 'text',
   required,
   disabled,
   readOnly,
-  "aria-describedby": ariaDescribedBy,
-  "aria-invalid": ariaInvalid,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid,
   ...inputProps
 }: InputProps) {
   const generatedId = useId();
   const controlId = id ?? generatedId;
   const invalid = error ? true : ariaInvalid;
-  const describedBy = getFieldDescription({ controlId, description, error, describedBy: ariaDescribedBy });
+  const describedBy = getFieldDescription({
+    controlId,
+    description,
+    error,
+    describedBy: ariaDescribedBy
+  });
 
   return (
     <FormField
@@ -46,8 +59,8 @@ export function Input({
     >
       {leadingIcon && (
         <span
-          className={styles["leading-icon"]}
-          aria-hidden="true"
+          className={styles['leading-icon']}
+          aria-hidden={'true'}
         >
           {leadingIcon}
         </span>
@@ -56,7 +69,7 @@ export function Input({
         {...inputProps}
         id={controlId}
         type={type}
-        className={[styles.input, className].filter(Boolean).join(" ")}
+        className={[styles.input, className].filter(Boolean).join(' ')}
         required={required}
         disabled={disabled}
         readOnly={readOnly}
@@ -65,7 +78,7 @@ export function Input({
       />
       {trailingContent != null && (
         <span
-          className={styles["trailing-content"]}
+          className={styles['trailing-content']}
         >
           {trailingContent}
         </span>

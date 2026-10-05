@@ -1,1 +1,3 @@
-export { NeighborhoodIllustration } from "./neighborhoodIllustration";
+export {
+  NeighborhoodIllustration
+} from './neighborhoodIllustration';

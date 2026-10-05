@@ -1,1 +1,3 @@
-export { LoginCallbackPage } from "./ui/loginCallbackPage";
+export {
+  LoginCallbackPage
+} from './ui/loginCallbackPage';

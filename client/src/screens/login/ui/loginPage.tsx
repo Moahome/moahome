@@ -1,9 +1,12 @@
-import Link from "next/link";
-import { getKakaoLoginErrorMessage, KakaoLoginButton } from "@/features/kakao-login";
-import { BrandMark } from "@/shared/ui/brand-mark";
-import { NeighborhoodIllustration } from "@/shared/ui/neighborhood-illustration";
-import { LoginFooter } from "./_components/loginFooter";
-import styles from "./loginPage.module.css";
+import Link from 'next/link';
+import {
+  getKakaoLoginErrorMessage,
+  KakaoLoginButton
+} from '@/features/kakao-login';
+import { BrandMark } from '@/shared/ui/brand-mark';
+import { NeighborhoodIllustration } from '@/shared/ui/neighborhood-illustration';
+import { LoginFooter } from './_components/loginFooter';
+import styles from './loginPage.module.css';
 
 export function LoginPage({ errorCode }: { errorCode?: string }) {
   const errorMessage = getKakaoLoginErrorMessage(errorCode);
@@ -13,8 +16,8 @@ export function LoginPage({ errorCode }: { errorCode?: string }) {
       className={styles.page}
     >
       <a
-        className={styles["skip-link"]}
-        href="#login"
+        className={styles['skip-link']}
+        href={'#login'}
       >
         로그인으로 바로가기
       </a>
@@ -22,9 +25,9 @@ export function LoginPage({ errorCode }: { errorCode?: string }) {
         className={styles.header}
       >
         <Link
-          href="/"
+          href={'/'}
           className={styles.brand}
-          aria-label="모아홈 홈으로"
+          aria-label={'모아홈 홈으로'}
         >
           <BrandMark />
           <span>
@@ -41,16 +44,16 @@ export function LoginPage({ errorCode }: { errorCode?: string }) {
       >
         <section
           className={styles.introduction}
-          aria-labelledby="brand-title"
+          aria-labelledby={'brand-title'}
         >
           <div
-            className={styles["intro-copy"]}
+            className={styles['intro-copy']}
           >
             <h1
-              id="brand-title"
+              id={'brand-title'}
             >
               <span
-                className={styles["mobile-brand-mark"]}
+                className={styles['mobile-brand-mark']}
               >
                 <BrandMark />
               </span>
@@ -71,7 +74,7 @@ export function LoginPage({ errorCode }: { errorCode?: string }) {
               주거 생활을 도와드립니다.
             </p>
             <p
-              className={styles["mobile-description"]}
+              className={styles['mobile-description']}
             >
               관리비 조회와 관리 업무를 시작해보세요.
             </p>
@@ -80,7 +83,7 @@ export function LoginPage({ errorCode }: { errorCode?: string }) {
             className={styles.neighborhood}
           >
             <p
-              className={styles["neighbor-note"]}
+              className={styles['neighbor-note']}
             >
               좋은 이웃,
               <br />
@@ -88,12 +91,12 @@ export function LoginPage({ errorCode }: { errorCode?: string }) {
                 더 좋은 일상
               </span>
               <svg
-                viewBox="0 0 38 30"
-                fill="none"
-                aria-hidden="true"
+                viewBox={'0 0 38 30'}
+                fill={'none'}
+                aria-hidden={'true'}
               >
                 <path
-                  d="m6 4-4 11M20 10l-9 12M34 20l-13 7"
+                  d={'m6 4-4 11M20 10l-9 12M34 20l-13 7'}
                 />
               </svg>
             </p>
@@ -102,18 +105,18 @@ export function LoginPage({ errorCode }: { errorCode?: string }) {
         </section>
 
         <div
-          className={styles["login-area"]}
+          className={styles['login-area']}
         >
           <section
-            className={styles["login-card"]}
-            id="login"
-            aria-labelledby="login-title"
+            className={styles['login-card']}
+            id={'login'}
+            aria-labelledby={'login-title'}
           >
             <div
-              className={styles["card-heading"]}
+              className={styles['card-heading']}
             >
               <h2
-                id="login-title"
+                id={'login-title'}
               >
                 로그인
               </h2>
@@ -123,15 +126,15 @@ export function LoginPage({ errorCode }: { errorCode?: string }) {
             </div>
             {errorMessage && (
               <p
-                className={styles["login-error"]}
-                role="alert"
+                className={styles['login-error']}
+                role={'alert'}
               >
                 {errorMessage}
               </p>
             )}
             <KakaoLoginButton />
             <div
-              className={styles["service-intro"]}
+              className={styles['service-intro']}
             >
               <div
                 className={styles.divider}
@@ -141,42 +144,42 @@ export function LoginPage({ errorCode }: { errorCode?: string }) {
                 </span>
               </div>
               <Link
-                href="/#service"
-                className={styles["intro-link"]}
+                href={'/#service'}
+                className={styles['intro-link']}
               >
                 <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  aria-hidden="true"
+                  viewBox={'0 0 24 24'}
+                  fill={'none'}
+                  aria-hidden={'true'}
                 >
                   <rect
-                    x="5"
-                    y="3"
-                    width="14"
-                    height="18"
-                    rx="3"
+                    x={'5'}
+                    y={'3'}
+                    width={'14'}
+                    height={'18'}
+                    rx={'3'}
                   />
                   <path
-                    d="M9 8h6M9 12h6M9 16h3"
+                    d={'M9 8h6M9 12h6M9 16h3'}
                   />
                 </svg>
                 서비스 소개 보기
               </Link>
             </div>
             <p
-              className={styles["invitation-note"]}
+              className={styles['invitation-note']}
             >
               <svg
-                viewBox="0 0 24 24"
-                aria-hidden="true"
+                viewBox={'0 0 24 24'}
+                aria-hidden={'true'}
               >
                 <circle
-                  cx="12"
-                  cy="12"
-                  r="10"
+                  cx={'12'}
+                  cy={'12'}
+                  r={'10'}
                 />
                 <path
-                  d="M12 11v6M12 7v.5"
+                  d={'M12 11v6M12 7v.5'}
                 />
               </svg>
               <span>

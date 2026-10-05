@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { StartIcon } from "../start-icon/startIcon";
-import motion from "../../startMotion.module.css";
-import styles from "./pendingRequestCard.module.css";
+import { StartIcon } from '../start-icon/startIcon';
+import motion from '../../startMotion.module.css';
+import styles from './pendingRequestCard.module.css';
 
 export function PendingRequestCard({
   onSelect,
@@ -11,19 +11,19 @@ export function PendingRequestCard({
 }) {
   return (
     <button
-      type="button"
-      className={`${styles["pending-card"]} ${motion.reveal}`}
+      type={'button'}
+      className={`${styles['pending-card']} ${motion.reveal}`}
       onClick={onSelect}
     >
       <span
-        className={styles["pending-icon"]}
+        className={styles['pending-icon']}
       >
         <StartIcon
-          name="clock"
+          name={'clock'}
         />
       </span>
       <span
-        className={styles["pending-copy"]}
+        className={styles['pending-copy']}
       >
         <strong>
           승인 대기 중인 요청
@@ -33,7 +33,7 @@ export function PendingRequestCard({
         </span>
       </span>
       <StartIcon
-        name="chevron"
+        name={'chevron'}
       />
     </button>
   );

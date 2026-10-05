@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
-import { LoginPage } from "@/screens/login";
+import type { Metadata } from 'next';
+import { LoginPage } from '@/screens/login';
 
 export const metadata: Metadata = {
-  title: "로그인",
+  title: '로그인',
 };
 
 export default async function Page({
@@ -16,7 +16,7 @@ export default async function Page({
 
   return (
     <LoginPage
-      errorCode={typeof error === "string" ? error : undefined}
+      errorCode={typeof error === 'string' ? error : undefined}
     />
   );
 }

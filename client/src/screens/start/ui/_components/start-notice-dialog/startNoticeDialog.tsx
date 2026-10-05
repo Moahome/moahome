@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import type { RefObject } from "react";
-import styles from "./startNoticeDialog.module.css";
+import type { RefObject } from 'react';
+import styles from './startNoticeDialog.module.css';
 
 export function StartNoticeDialog({
   dialogRef,
@@ -15,25 +15,25 @@ export function StartNoticeDialog({
   return (
     <dialog
       ref={dialogRef}
-      className={styles["notice-dialog"]}
-      aria-labelledby="notice-title"
-      aria-describedby="notice-description"
+      className={styles['notice-dialog']}
+      aria-labelledby={'notice-title'}
+      aria-describedby={'notice-description'}
     >
       <h2
-        id="notice-title"
+        id={'notice-title'}
       >
         {title}
       </h2>
       <p
-        id="notice-description"
+        id={'notice-description'}
       >
         {message}
       </p>
       <form
-        method="dialog"
+        method={'dialog'}
       >
         <button
-          type="submit"
+          type={'submit'}
         >
           확인
         </button>

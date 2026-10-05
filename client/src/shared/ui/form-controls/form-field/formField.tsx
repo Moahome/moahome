@@ -1,5 +1,8 @@
-import type { AriaAttributes, ReactNode } from "react";
-import styles from "./formField.module.css";
+import type {
+  AriaAttributes,
+  ReactNode
+} from 'react';
+import styles from './formField.module.css';
 
 export interface FormFieldOptions {
   label?: string;
@@ -13,7 +16,7 @@ interface FormFieldProps extends FormFieldOptions {
   required?: boolean;
   disabled?: boolean;
   readOnly?: boolean;
-  invalid?: AriaAttributes["aria-invalid"];
+  invalid?: AriaAttributes['aria-invalid'];
   children: ReactNode;
 }
 
@@ -35,7 +38,7 @@ export function getFieldDescription({
     error ? `${controlId}-error` : undefined,
   ];
 
-  return descriptionIds.filter(Boolean).join(" ") || undefined;
+  return descriptionIds.filter(Boolean).join(' ') || undefined;
 }
 
 /** 입력과 선택 필드의 라벨·필수 표시·안내·오류를 동일한 구조로 표시합니다. */
@@ -51,11 +54,11 @@ export function FormField({
   invalid,
   children,
 }: FormFieldProps) {
-  const isInvalid = invalid !== undefined && invalid !== false && invalid !== "false";
+  const isInvalid = invalid !== undefined && invalid !== false && invalid !== 'false';
 
   return (
     <div
-      className={[styles.field, fieldClassName].filter(Boolean).join(" ")}
+      className={[styles.field, fieldClassName].filter(Boolean).join(' ')}
       data-disabled={disabled || undefined}
     >
       {label && (
@@ -67,7 +70,7 @@ export function FormField({
           {required && (
             <span
               className={styles.required}
-              aria-hidden="true"
+              aria-hidden={'true'}
             >
               *
             </span>
@@ -94,7 +97,7 @@ export function FormField({
         <p
           id={`${controlId}-error`}
           className={styles.error}
-          role="alert"
+          role={'alert'}
         >
           {error}
         </p>
