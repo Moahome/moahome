@@ -8,6 +8,7 @@
 - [프로젝트 개요](docs/projectOverview.md)
 - [도메인 규칙](docs/domainRules.md)
 - [ERD](docs/erd.md)
+- [관리대상 기본 정보 API](docs/propertyRegistrationApi.md)
 - [개발 환경 가이드](docs/developmentGuide.md)
 - [JWT 인증 설계](docs/securityDesign.md)
 - [공통 개발 규칙](AGENTS.md)

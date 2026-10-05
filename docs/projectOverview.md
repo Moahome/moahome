@@ -271,6 +271,8 @@ Property
 
 API 계약은 기능별 구현 범위를 정한 뒤 별도 문서로 작성합니다.
 
+관리대상 기본 정보의 검증 요청 / 응답 / 오류는 [관리대상 기본 정보 API](propertyRegistrationApi.md)에 정의합니다. 해당 API와 관리대상 업무 데이터 저장은 아직 구현되지 않았습니다.
+
 ---
 
 ## 9. 문서 역할
@@ -280,6 +282,7 @@ API 계약은 기능별 구현 범위를 정한 뒤 별도 문서로 작성합�
 - `projectOverview.md`: 프로젝트의 목적, 전체 범위와 핵심 흐름
 - `domainRules.md`: 도메인 용어, 업무 규칙, 상태와 미정 정책
 - `erd.md`: 테이블, 컬럼, 관계, 제약과 데이터 설계의 확정 범위
+- `propertyRegistrationApi.md`: 관리대상 기본 정보 검증 API 계약과 초기 설정 연결 기준
 - `developmentGuide.md`: 기존 환경변수, 로컬 실행과 검증 방법
 - `securityDesign.md`: JWT 수명, 웹과 앱의 토큰 전달, Redis 인증 상태와 로그아웃 정책
 - 루트 `AGENTS.md`: 프로젝트 전체에 적용되는 Codex 공통 규칙
@@ -294,6 +297,7 @@ API 계약은 기능별 구현 범위를 정한 뒤 별도 문서로 작성합�
 
 - [도메인 규칙](domainRules.md): 용어, 도메인 관계, 기존 업무 기준과 미정 정책
 - [ERD](erd.md): 테이블, 컬럼, 관계, 제약과 확정 범위
+- [관리대상 기본 정보 API](propertyRegistrationApi.md): 기본 정보 검증 요청 / 응답 / 오류
 - [개발 환경 가이드](developmentGuide.md): 환경변수, PostgreSQL / Redis 준비와 Client / Server 실행 방법
 - [JWT 인증 설계](securityDesign.md): 인증 정책, 구현된 Security API와 후속 Client 연동 기준
 - [루트 AGENTS.md](../AGENTS.md): 공통 구조, 명명, 색상과 작업 규칙

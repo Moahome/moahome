@@ -1,8 +1,8 @@
 # 모아홈 ERD v0.2 — Current Working Version
 
-> 기준일: 2026-10-03
+> 기준일: 2026-10-05
 >
-> 기준 문서: 기존 `빌라 관리비 관리 시스템 물리 ERD v0.1` + [도메인 규칙](domainRules.md)의 확정된 User / SocialAccount / Resident 구조
+> 기준 문서: 기존 `빌라 관리비 관리 시스템 물리 ERD v0.1` + [도메인 규칙](domainRules.md)의 확정된 사용자 / 주민 설계와 관리대상 등록 정책
 >
 > DB 기준: PostgreSQL
 >
@@ -27,9 +27,10 @@
 | --- | --- | --- |
 | 사용자 / 소셜 계정 | 확정 범위 있음 | 로그인 계정과 소셜 식별자 분리, 닉네임 필수, 계정에 전화번호 미저장. `system_role` Entity / Migration 구현, 기본값 USER |
 | 주민 / 가입 승인 | 확정 범위 있음 | 주민 연락처 관리, 사전 등록과 승인 시 신규 등록 모두 지원, 주민 명부 재등록 시 소프트 삭제 해제, 관리자 승인 |
-| 관리대상 / 동 / 세대 / 권한 | 확정 범위 있음 + 설계안 | Property 기준, 동 선택, 주민의 현재 세대 한 개 제한, 관리소장 / 부담당자 승인 가능, 역할 변경은 관리소장만 가능 |
+| 관리대상 / 동 / 세대 / 권한 | 확정 범위 있음 + 설계안 | Property 기준, 이름 최대 50자, 동 구분 저장, 초기 설정 전체 저장과 생성자 관리소장 자동 지정, 주민의 현재 세대 한 개 제한, 역할별 승인 / 변경 범위 |
 | 가입 요청 입력 / 중복 / 재신청 | 확정 | 신청 전화번호 필수, 실명 입력 / 세대 관계 선택 없음, 같은 계정의 같은 세대 중복 대기 요청 제한, 다른 주민 신청 허용, 거절 후 재신청 / 재입주 재승인 |
 | 부과 / 수납 / 은행 / 지출 / 회계 / 마감 / 감사 | 기존 기준 + 설계안 | 각 영역의 도메인 규칙을 유지하고 해당 기능 구현 전에 상세 정책 / DDL 확정 |
+| 초기 관리계좌의 예금주 | 확정 | 예금주 이름 필수, 주민 명부 연결 선택, 주민 연결은 명부 등록 이후 가능 |
 | 연락처 변경 / 알림 발송 / 후속 확장 | 후속 검토 | 해당 기능 구현 시 결정 |
 
 업무 규칙은 [domainRules.md](domainRules.md), 보안 코드와 인증 구현 기준은 [securityDesign.md](securityDesign.md), 작업 절차는 [AGENTS.md](../AGENTS.md)를 따른다. 차이가 발견되면 미정 정책을 추측해 코드나 ERD를 맞추지 않고 먼저 확인한다.
@@ -346,10 +347,11 @@ OAuth 세션/토큰 상태는 Redis 영역으로 분리한다.
 | 컬럼 | 타입 | Null | 설명 |
 |---|---|---:|---|
 | `id` | uuid | N | PK |
-| `name` | varchar(100) | N | 관리대상명 |
+| `name` | varchar(50) | N | 관리대상명, 앞뒤 공백 제거 후 1~50자 |
 | `address` | varchar(255) | N | 주소 |
 | `address_detail` | varchar(255) | Y | 상세주소 |
 | `property_type` | varchar(30) | Y | 빌라/아파트 등 |
+| `has_buildings` | boolean | N | 동 구분 있음 / 없음, 등록 시 명시적으로 선택 |
 | `status` | varchar(20) | N | `ACTIVE / INACTIVE` |
 | `created_at` | timestamptz | N | 생성 |
 | `updated_at` | timestamptz | N | 수정 |
@@ -361,6 +363,16 @@ OAuth 세션/토큰 상태는 Redis 영역으로 분리한다.
 모든 업무 테이블의 tenant 기준.
 
 대부분의 조회는 `property_id`를 조건에 포함한다.
+
+### 확정된 등록 범위
+
+확정일: 2026-10-05. `name`의 최대 길이는 50자로 맞추고 `has_buildings`에 동 있음 / 없음 선택을 저장한다. 이름은 앞뒤 공백을 제거하고 공백만 있는 값을 허용하지 않는다. 동 구분은 건물 유형이나 현재 동 개수로 대신 판단하지 않는다.
+
+기본 정보 입력과 단계 이동에서는 업무 레코드를 저장하지 않는다. 마지막 `관리 시작하기`에서 관리대상, 필요한 동, 세대, 관리계좌, 관리비 템플릿 / 항목과 생성자 참여를 하나의 DB 트랜잭션으로 저장한다. 초기 등록에는 세대 / 관리계좌 / 관리비 항목 각각 최소 1개가 필요하다. 초안 전용 테이블이나 `DRAFT` 상태를 추가하지 않는다.
+
+`has_buildings = false`이면 동을 생성하지 않고 모든 세대의 `building_id`를 NULL로 둔다. `true`이면 최소 1개의 동이 필요하며 각 세대의 동이 동일한 관리대상에 속해야 한다. 이름 / 동 구분의 저장 제약과 관계 검증은 실제 Migration / Service 구현 시 이 기준에 맞춘다.
+
+기본 정보 검증 API는 [관리대상 기본 정보 API](propertyRegistrationApi.md)를 따른다. 이 문서의 등록 구조는 구현 기준이며 관련 Entity / Migration은 아직 없다. 동 구조 변경과 비활성화 / 삭제의 상세 정책은 확정하지 않는다.
 
 ---
 
@@ -554,6 +566,14 @@ Property P002 → RESIDENT
 ```
 
 주민 가입 승인은 관리소장과 부담당자 모두 가능하고, 관리대상 역할 변경은 관리소장만 가능하다. 부담당자가 주민 가입을 승인하며 기본 `RESIDENT` 참여 권한을 반영하는 것은 관리자 역할을 부여 / 변경하는 기능과 구분한다. 플랫폼 관리자 권한과 역할별 상세 업무 범위는 [도메인 규칙](domainRules.md)을 따른다.
+
+### 확정된 생성자 권한
+
+확정일: 2026-10-05. 관리대상을 생성할 때 인증된 생성자의 `property_members`를 함께 저장한다. 생성자 참여의 `role`은 `ADMIN`, `status`는 `ACTIVE`, `joined_at`은 권한 부여 시각으로 설정한다.
+
+`properties`와 생성자 참여는 같은 DB 트랜잭션에서 저장한다. 생성자 ID와 역할을 Client 입력으로 결정하지 않으며 `users.system_role`은 변경하지 않는다. 생성자 권한 부여는 주민 명부 / 세대 관계의 자동 연결을 의미하지 않는다.
+
+`ADMIN`은 생성자 참여의 값이며 `role` 컬럼 전체의 기본값으로 설정하지 않는다. 이후 주민 승인과 부담당자 지정은 각각 해당 업무의 역할을 명시한다. 참여 중복 방지 제약은 실제 스키마 확정 시 함께 검토한다.
 
 ---
 
@@ -901,7 +921,7 @@ Soft Delete 없음.
 | `id` | uuid | N | PK |
 | `property_id` | uuid | N | FK |
 | `building_id` | uuid | Y | 동별 계좌 |
-| `holder_resident_id` | uuid | N | 예금주 주민 |
+| `holder_resident_id` | uuid | Y | FK → residents.id, 예금주 주민 명부 연결 선택 |
 | `holder_name_snapshot` | varchar(50) | N | 등록 당시 예금주명 |
 | `bank_code` | varchar(20) | N | 은행코드 |
 | `bank_name` | varchar(50) | N | 은행명 |
@@ -917,6 +937,14 @@ Soft Delete 없음.
 | `updated_at` | timestamptz | N | 수정 |
 | `deleted_at` | timestamptz | Y | 삭제 |
 | `deleted_by` | uuid | Y | 삭제 처리자 |
+
+### 확정된 예금주 저장과 주민 연결
+
+확정일: 2026-10-05. 예금주 이름인 `holder_name_snapshot`은 필수로 유지하고 `holder_resident_id`는 NULL을 허용한다. 초기 설정에서 주민 명부 등록이나 주민 선택을 선행 조건으로 요구하지 않는다.
+
+주민 명부가 준비되면 같은 관리대상의 주민을 확인해 연결할 수 있다. 연결을 저장할 때 계좌와 주민의 `property_id`가 같은지 검증한다. 이름 일치로 주민을 자동 생성 / 연결하지 않으며 연결 변경만으로 `holder_name_snapshot`을 덮어쓰지 않는다.
+
+초기 설정의 연결 선택 정책 외 계좌 변경 / 주민 연결의 상세 권한과 절차는 해당 기능 구현 시 결정한다. 사용기간, 주계좌 지정과 공용 / 동별 계좌 안내 기준은 기존 설계안과 도메인 규칙의 미정 범위를 유지한다.
 
 ---
 
@@ -1439,6 +1467,7 @@ erDiagram
     CHARGES ||--o{ PAYMENT_ALLOCATIONS : receives
 
     PROPERTIES ||--o{ BANK_ACCOUNTS : has
+    RESIDENTS o|--o{ BANK_ACCOUNTS : holder
     BANK_ACCOUNTS ||--o{ IMPORT_BATCHES : has
     BANK_ACCOUNTS ||--o{ BANK_TRANSACTIONS : has
     IMPORT_BATCHES ||--o{ BANK_TRANSACTIONS : imports
@@ -1732,6 +1761,15 @@ User.display_name은 닉네임이며 NULL / 공백만 있는 값 허용 안 함
 플랫폼 관리자와 관리대상별 역할을 분리
 ADMIN(관리소장) / MANAGER(부담당자)는 주민 가입 승인 가능
 관리대상 역할 변경은 ADMIN(관리소장)만 가능
+
+[확정 2026-10-05]
+관리대상 이름 최대 50자 / has_buildings로 동 구분 저장
+이전 단계 입력과 새로고침 복원 / 취소와 탭 닫기 시 초안 폐기
+초기 설정 마지막에 전체 정보를 하나의 DB 트랜잭션으로 저장
+세대 / 관리계좌 / 관리비 항목 각각 최소 1개 필요
+인증된 생성자의 PropertyMember는 ADMIN / ACTIVE
+관리계좌 예금주 이름 필수 / holder_resident_id는 NULL 허용
+주민 명부 등록 이후 예금주 주민 연결 가능
 
 [구현 기준]
 관리자 승인 결과의 주민 / 계정 연결, 세대 관계, 권한, 요청 상태는
