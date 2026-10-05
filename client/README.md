@@ -30,6 +30,8 @@ FSD의 의존성 경계를 유지하며 화면 전용 UI와 로직은 먼저 해
 
 다른 슬라이스는 `index.ts` 공개 API로 사용하고, 같은 레이어의 다른 슬라이스는 직접 참조하지 않습니다. `npm run lint`에서 경계를 검사합니다. 상세 기준은 [Client 규칙](AGENTS.md)을 따릅니다.
 
+`eslint.config.mjs`는 ESLint 9의 flat config로 Next / React / TypeScript 기본 검사를 유지합니다. 작은따옴표, JSX 속성 중괄호, Import / 객체 줄바꿈, 2칸 들여쓰기와 미사용 코드 규칙은 경고로 적용합니다. `npm run lint:fix`는 자동 수정 가능한 서식을 적용하며 세미콜론은 강제하지 않습니다.
+
 ## 공통 입력 컴포넌트
 
 모달과 페이지의 입력 필드는 `src/shared/ui/form-controls/`의 `Input`, `Dropdown`을 사용합니다. 두 컴포넌트는 라벨, 필수 표시, 설명, 오류와 비활성 상태를 지원하고 기본 HTML 속성, 이벤트와 `ref`를 해당 입력 요소에 전달합니다. `value` / `onChange`와 `defaultValue` 방식 모두 사용할 수 있습니다.
