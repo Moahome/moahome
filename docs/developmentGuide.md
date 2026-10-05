@@ -71,10 +71,15 @@ Next.js는 `client/`에서 실행하면 해당 프로젝트의 `.env`를 읽습�
 | `KAKAO_CLIENT_SECRET` | REST API 키의 Client Secret. `moahome.kakao.client-secret`에 연결하고 Server의 카카오 토큰 교환에 사용합니다. |
 | `KAKAO_REDIRECT_URI` | 카카오 인가 결과를 받는 Server 콜백 주소. `moahome.kakao.redirect-uri`에 연결하며 로컬은 `http://localhost:8080/login/oauth2/code/kakao`를 사용합니다. |
 | `JWT_SECRET_BASE64` | Security 실행에 새로 필요한 서명 키. 32바이트 이상의 무작위 값을 Base64로 인코딩하여 준비합니다. |
+| `ACCOUNT_ENCRYPTION_KEY_BASE64` | 관리계좌 AES-256-GCM 암호화 키. 무작위 32바이트의 Base64 값이며 초기 키 ID는 `v1`입니다. |
+| `ACCOUNT_HMAC_KEY_BASE64` | 계좌번호 검색 HMAC 키. 암호화 키와 다른 무작위 32바이트의 Base64 값입니다. |
+| `REGISTRATION_FINGERPRINT_KEY_BASE64` | 등록 정규화 본문 비교 HMAC 키. 별도로 생성한 무작위 32바이트의 Base64 값이며 초기 버전은 `v1`입니다. |
 | `WEB_ALLOWED_ORIGINS` | CORS 허용 웹 Origin의 쉼표 구분 목록. 기본값은 `http://localhost:3000`이며 경로나 와일드카드를 포함하지 않습니다. |
 | `WEB_LOGIN_SUCCESS_URI` | `moahome.kakao.web-login-success-uri`에 연결한 Client 로그인 완료 주소. 로컬은 `http://localhost:3000/login/callback`이며 CSRF 조회 / 재발급 후 로그인 완료를 표시합니다. |
 
 `JWT_SECRET_BASE64`는 기존 `server/.env` 또는 실행 환경에 별도로 추가해야 합니다. 키를 생성할 때는 `openssl rand -base64 32`를 사용할 수 있습니다. 생성한 값은 공유 문서, 코드나 로그에 기록하지 않고 환경 설정에만 보관합니다. 서버 인스턴스들은 같은 환경의 서명 키를 사용해야 합니다.
+
+등록 기능의 세 보안 키도 각각 새로 생성해 `server/.env` 또는 실행 환경에 설정합니다. 추적되는 `server/src/main/resources/propertyRegistration.properties`가 환경변수를 Spring 설정으로 연결하며 실제 값은 포함하지 않습니다. 모든 서버 인스턴스에서 같은 키를 사용합니다. 키 교체 시 외부 설정의 `moahome.account-security.active-key-id / encryption-keys`와 `moahome.registration-security.active-key-version / fingerprint-keys`에 신규 키와 기존 키를 함께 유지합니다. 기존 키를 제거하면 이전 계좌 복호화 또는 이전 requestId의 본문 비교를 수행할 수 없습니다.
 
 현재 `users`에는 전화번호를 저장하지 않으므로 전화번호 암호화 / HMAC 환경변수를 사용하지 않습니다. 공통 `PhoneSecurity`와 키 설정 자료형은 유지하며, Bean 등록과 외부 키 설정은 주민 명부 / 가입 요청의 연락처 저장을 구현할 때 연결합니다. 현재 로그인 서버 실행에는 전화번호 키가 필요하지 않습니다.
 
@@ -149,7 +154,7 @@ cd server
 - JPA의 `ddl-auto`는 `validate`이고 스키마 변경은 Flyway가 담당합니다. Redis 연결 / 읽기 Timeout은 각각 `3s`입니다.
 - 기본 HTTP 주소는 `http://localhost:8080`입니다.
 - IDE에서도 Working Directory를 `server/`로 지정합니다. 다른 디렉터리에서는 상대 경로 `.env`를 찾지 못합니다.
-- 웹 카카오 로그인 시작은 `GET /oauth2/authorization/kakao`, 콜백은 `GET /login/oauth2/code/kakao`입니다. Server 설정과 카카오디벨로퍼스 등록 주소를 일치시킵니다. Client는 `/login/callback`에서 세션을 복원합니다. 업무 API는 아직 구현되지 않았습니다.
+- 웹 카카오 로그인 시작은 `GET /oauth2/authorization/kakao`, 콜백은 `GET /login/oauth2/code/kakao`입니다. Server 설정과 카카오디벨로퍼스 등록 주소를 일치시킵니다. Client는 `/login/callback`에서 세션을 복원합니다. [관리대상 등록 API](propertyRegistrationApi.md)의 기본 정보 검증 / 최종 저장 / 결과 조회를 구현했으며 등록 화면 연결은 후속 범위입니다.
 
 서버 프로세스는 `Ctrl+C`로 종료합니다.
 
@@ -229,11 +234,11 @@ npm run start
 ```
 
 - `build`에는 `test`가 포함됩니다.
-- 현재 테스트에는 애플리케이션 Context, JWT / 설정 / Entity / Service / 공통 전화번호 보안 단위 테스트, Security / Redis 통합 테스트와 User / 소셜 계정 PostgreSQL 통합 테스트가 있습니다.
+- 현재 테스트에는 애플리케이션 Context, JWT / 설정 / Entity / Service / 전화번호·계좌번호 보안 단위 테스트, 등록 Controller 검증, Security / Redis 통합 테스트와 User / 소셜 계정 / 관리대상 등록 PostgreSQL 통합 테스트가 있습니다.
 - `application-test.yml`은 DB / JPA / Flyway 자동 구성을 제외하여 개발 DB를 사용하지 않습니다. `database-test` Profile의 PostgreSQL 통합 테스트는 별도의 임시 클러스터에 Flyway를 적용하고 JPA 매핑을 검증합니다.
 - Security 통합 테스트는 `redis-server` 실행 파일로 저장 기능을 끈 일회성 Redis를 임의 포트에서 시작하고 종료합니다. 실행 파일이 PATH에 없다면 `REDIS_SERVER_EXECUTABLE`에 경로를 지정합니다. 개발 Redis를 재사용하지 않습니다.
 - PostgreSQL 통합 테스트는 PATH의 `initdb`와 `postgres` 실행 파일로 임시 디렉터리 / 임의 포트의 로컬 전용 DB를 실행하고 종료합니다. PATH에 없다면 `POSTGRES_INITDB_EXECUTABLE`과 `POSTGRES_SERVER_EXECUTABLE`에 같은 PostgreSQL 설치의 실행 파일 경로를 지정합니다. Compose의 개발 DB를 재사용하지 않습니다. PostgreSQL 17 이상을 사용합니다.
-- 테스트 JWT 키와 공통 전화번호 보안 단위 테스트의 암호화 / HMAC 키는 실행 시 무작위로 생성하며 실제 `server/.env`의 키를 읽지 않습니다. Context 테스트는 전화번호 키 없이 서버가 시작되는 것도 확인합니다.
+- 테스트 JWT / 전화번호·계좌번호 암호화 / HMAC / 등록 지문 키는 실행 시 무작위로 생성하며 실제 `server/.env`의 키를 읽지 않습니다. Context 테스트는 전화번호 키 없이 서버가 시작되는 것도 확인합니다.
 - Spring Context 테스트에는 `test` Profile을 명시해 로컬 `.env` Import를 제외합니다. DB 통합 테스트는 `database-test` Profile에서 격리된 테스트 DB를 명시하고, Security 테스트의 일회성 Redis와 개발 Redis를 구분합니다.
 - User / 소셜 계정 통합 테스트는 빈 DB의 전체 Migration 적용, 기존 스키마에서 후속 Migration 적용과 계정 / 소셜 연결 보존, 유일성 / 상태 무결성 제약, 탈퇴 후 재가입, 동시 가입과 실패 시 롤백을 확인합니다.
 - 카카오 OAuth 통합 테스트는 모의 카카오 HTTP 응답과 일회성 Redis로 PKCE 전달, 브라우저 연결 / state 검증, 만료 / 중복 소비, 취소 / 제공자 오류 / 저장소 장애, Refresh 쿠키와 기존 CSRF / 재발급 연결을 확인합니다. `test` Profile의 카카오 설정은 개발 `.env`를 사용하지 않으며 Client Secret은 무작위로 생성합니다. 실제 카카오 / Client 화면 연동은 별도 확인합니다.

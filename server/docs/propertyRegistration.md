@@ -2,7 +2,7 @@
 
 이 문서는 관리대상 등록 API의 Server 검증, 저장 초기값, 트랜잭션과 중복 방지 구현을 설명합니다. 요청 / 응답 / 오류는 [공통 등록 API](../../docs/propertyRegistrationApi.md), 컬럼 / 관계 / 제약은 [ERD](../../docs/erd.md), 확정 정책은 [도메인 규칙](../../docs/domainRules.md)을 참조합니다.
 
-작성일: 2026-10-05. 현재 관리대상 등록 Controller / Service / Entity / Migration은 없습니다. 이 문서는 기존 API 설계에서 Server 책임을 분리한 구현 설계이며 새로운 업무 정책을 확정하지 않습니다.
+작성일: 2026-10-05. 관리대상 등록 Controller / Service / Entity와 Migration을 구현했습니다. 이 문서는 저장 흐름과 현재 구현 범위를 설명하며 후속 주민 / 계좌 변경 / 월별 부과 정책은 확정하지 않습니다.
 
 ## 1. 검증과 계층 책임
 
@@ -25,7 +25,9 @@
 
 외부 은행 확인이나 알림 발송을 이 DB 트랜잭션의 성공 조건으로 추가하지 않습니다. 등록 요청 원문을 Redis 초안이나 DB 초안으로 보관하지 않으며, 성공 결과 레코드에는 민감한 요청 본문을 저장하지 않습니다. 현재 API에서 성공 결과에 자동 만료를 두지 않고, 삭제 / 탈퇴에 따른 보존·정리는 해당 정책을 정할 때 중복 방지 보장과 함께 검토합니다.
 
-트랜잭션 경계는 등록 Service의 유스케이스에 두고 관련 도메인의 저장 책임을 조율합니다. 기본 정보 검증은 입력 정리만 수행하고 업무 데이터 생성은 최종 등록 Service에서 처리합니다. 현재 초기 구성 단계이므로 이 기능에 필요한 Entity / Repository / Migration만 후속 구현에서 만듭니다.
+트랜잭션 경계는 `property/service/PropertyRegistrationService`의 유스케이스에 두고 관련 도메인의 Repository를 조합합니다. 기본 정보 검증은 입력 정리만 수행하고 업무 데이터 생성은 최종 등록 Service에서 처리합니다. `V20261005034120__create_property_registration.sql`은 등록에 필요한 8개 테이블만 추가합니다. `property_members`의 일반 참여 중복 정책은 미정이므로 조회 인덱스만 두고, 이번 등록의 생성자 중복은 관리대상 생성과 성공 결과의 직렬 처리로 방지합니다.
+
+`units`와 `bank_accounts`의 동 관계는 `property_id + building_id` 복합 FK로 같은 관리대상 소속을 보장합니다. 미구현 주민 / 회계 테이블의 연결 컬럼은 이번 등록에서 NULL로 두며 해당 테이블을 구현할 때 FK를 추가합니다.
 
 ## 3. 내부 초기값과 금액 처리
 
@@ -46,7 +48,9 @@
 
 정규화한 계좌번호로 account_number_encrypted, account_number_hmac과 account_last4를 생성합니다. 앞자리 0을 유지하고 공백 / 하이픈 제거와 입력 검증은 공통 계약을 따릅니다. 암호화 / HMAC 키는 외부 설정으로 관리하며 요청 / 응답 로그와 오류에 원문을 기록하지 않습니다.
 
-현재 전화번호용 PhoneSecurity는 계좌번호를 처리하는 API가 아닙니다. 공통 코드의 재사용 가능 범위를 확인하고 실제 계좌 보호와 키 설정은 이 저장 기능을 구현할 때 연결합니다. 계좌번호 보호나 은행 확인이 이미 구현된 것으로 문서화하지 않습니다.
+전화번호용 `PhoneSecurity`의 암호화 방식을 확인했으며 전화번호 정규화와 기존 암호문 호환성을 유지하기 위해 그대로 둡니다. 계좌 전용 `common/security/AccountNumberSecurity`가 AES-256-GCM과 무작위 nonce, 버전 / 키 ID가 포함된 암호문, 별도의 HMAC-SHA256과 마지막 네 자리를 생성합니다. 계좌용 AAD / HMAC 문맥은 전화번호와 구분하며 외부 은행의 실계좌 확인은 수행하지 않습니다.
+
+외부 키 설정은 [개발 환경 가이드](../../docs/developmentGuide.md#server-환경변수)를 따릅니다. `config/PropertyRegistrationConfig`가 추적되는 `propertyRegistration.properties`의 환경변수 연결을 읽습니다. 키를 코드나 Migration에 넣지 않으며 설정이 없거나 잘못된 키이면 시작을 거부합니다. 암호화 키 교체 시 기존 키 ID를 유지하고, 등록 지문 키 교체 시 기존 버전을 유지해야 기존 계좌 복호화와 성공 요청 재비교가 가능합니다.
 
 ## 5. 중복 방지와 등록 결과
 
@@ -59,6 +63,10 @@
 - 결과 조회의 404는 커밋된 성공 결과가 없다는 의미이며 진행 중 요청이 없거나 저장 실패가 확정되었다는 의미가 아닙니다.
 - 결과 조회 / 재반환마다 제출자와 현재 접근권한을 검증합니다. 이전 스냅샷의 ADMIN을 현재 역할로 복구하지 않습니다.
 - 커밋 전 실패는 모든 변경을 롤백합니다. 커밋 후 응답 전달 실패에는 성공 결과를 유지해 조회 / 동일 요청 재시도로 복구합니다.
+
+`property/repo/PropertyRegistrationLock`은 사용자 / requestId에서 만든 64비트 키로 PostgreSQL `pg_advisory_xact_lock`을 사용합니다. 잠금 대기는 3초로 제한하며 SQLSTATE `55P03`이면 처리 중 오류로 응답하고 트랜잭션을 롤백합니다. 성공 시 기존 lock_timeout을 복원하고 잠금은 커밋 / 롤백 때 자동 해제됩니다. 등록 트랜잭션에 `READ_COMMITTED`를 명시해 잠금 대기 뒤 최초 요청이 커밋한 결과를 새로 조회합니다. 키 해시 충돌은 관계없는 요청을 직렬 처리할 수 있지만 서로의 성공 결과나 접근권한을 공유하지 않습니다.
+
+`RegistrationFingerprint`는 requestId를 제외한 정규화 DTO의 고정된 JSON 표현으로 HMAC을 계산합니다. 저장된 키 버전으로 재비교하고 배열 순서와 전체 입력을 비교합니다. 결과 반환은 현재 활성 참여와 관리대상 상태를 확인하며 스냅샷을 권한 복구에 사용하지 않습니다.
 
 ## 6. 구현 시 검증
 
@@ -84,4 +92,6 @@
 - 커밋 후 응답 유실에서 결과 조회와 같은 ID 재시도가 같은 property.id를 반환하고 업무 데이터가 1회만 생성됨.
 - 기본 정보 검증 이후 최종 입력을 변경해도 전체 재검증이 수행됨.
 
-검증 명령은 [Server AGENTS.md](../AGENTS.md)를 따릅니다. PostgreSQL 무결성 / 동시 저장 / 전체 롤백과 Migration은 실제 PostgreSQL로 검증합니다. 위 항목은 후속 구현에서 실행할 기준이며 이미 통과한 테스트를 의미하지 않습니다.
+검증 명령은 [Server AGENTS.md](../AGENTS.md)를 따릅니다. 자동 테스트는 `property/controller/PropertyRegistrationControllerTest`, `property/service/PropertyRegistrationServiceTest`, `property/domain/RegistrationDomainTest`, `property/repo/PropertyRegistrationPersistenceTest`와 `common/security/AccountNumberSecurityTest`에 있습니다. 기존 `SecurityIntegrationTest`에서도 등록 API의 Bearer 인증과 CSRF 없는 업무 POST를 검증합니다.
+
+PostgreSQL 테스트는 별도 임시 클러스터에서 빈 DB / 기존 사용자 스키마의 Migration, 정상 저장, 저장 8단계별 강제 실패의 전체 롤백, 순차 / 동시 재시도, 3초 잠금 제한과 현재 권한 해제를 확인합니다. 위 상세 목록은 검증 기준이며 테스트 실행 결과는 실제 명령을 기준으로 보고합니다.

@@ -18,9 +18,12 @@ import org.springframework.test.context.DynamicPropertySource;
 class ServerApplicationTests {
 	@MockitoBean private UserRepository users;
 	@MockitoBean private SocialAccountRepository socialAccounts;
+	@MockitoBean private com.moahome.server.property.service.PropertyRegistrationService registrations;
+	@MockitoBean private com.moahome.server.property.repo.PropertyRegistrationLock registrationLock;
 
 	@DynamicPropertySource
 	static void securityProperties(DynamicPropertyRegistry registry) {
+		com.moahome.server.property.support.RegistrationTestKeys.register(registry);
 		byte[] key = new byte[32];
 		new SecureRandom().nextBytes(key);
 		String secret = Base64.getEncoder().encodeToString(key);

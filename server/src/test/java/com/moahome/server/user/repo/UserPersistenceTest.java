@@ -80,7 +80,7 @@ class UserPersistenceTest {
 	void migratesEmptyDatabaseAndRevalidatesExistingSchemaWithoutLosingData() {
 		UUID id = socialAccounts.resolveVerifiedUser(profile("123", null));
 		flyway.validate();
-		assertThat(flyway.info().applied()).hasSize(3);
+		assertThat(flyway.info().applied()).hasSize(4);
 		assertThat(flyway.migrate().migrationsExecuted).isZero();
 		assertThat(users.findById(id)).isPresent();
 		User persisted = users.findById(id).orElseThrow();
@@ -110,7 +110,7 @@ class UserPersistenceTest {
 		Flyway upgraded = Flyway.configure()
 			.dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			.schemas(schema).defaultSchema(schema).load();
-		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(2);
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(3);
 		upgraded.validate();
 		assertThat(phoneColumns(schema)).isZero();
 		assertThat(jdbc.queryForObject("select display_name from " + schema + ".users where id = ?",
@@ -143,7 +143,7 @@ class UserPersistenceTest {
 		Flyway upgraded = Flyway.configure()
 			.dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			.schemas(schema).defaultSchema(schema).load();
-		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(2);
 		upgraded.validate();
 		for (UUID id : new UUID[]{activeId, suspendedId, withdrawnId}) {
 			assertThat(jdbc.queryForObject("select system_role from " + schema + ".users where id = ?",

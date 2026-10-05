@@ -95,9 +95,12 @@ class SecurityIntegrationTest {
 	@MockitoBean private UserService users;
 	@MockitoBean private UserRepository userRepository;
 	@MockitoBean private SocialAccountRepository socialAccounts;
+	@MockitoBean private com.moahome.server.property.service.PropertyRegistrationService registrations;
+	@MockitoBean private com.moahome.server.property.repo.PropertyRegistrationLock registrationLock;
 
 	@DynamicPropertySource
 	static void infrastructure(DynamicPropertyRegistry registry) {
+		com.moahome.server.property.support.RegistrationTestKeys.register(registry);
 		byte[] key = new byte[32];
 		new SecureRandom().nextBytes(key);
 		String secret = Base64.getEncoder().encodeToString(key);
@@ -131,6 +134,35 @@ class SecurityIntegrationTest {
 			.andExpect(status().isOk()).andExpect(jsonPath("userId").value("00000000-0000-0000-0000-000000000001"));
 		mvc.perform(post("/api/test/action").header("Authorization", "Bearer " + pair.accessToken()))
 			.andExpect(status().isOk());
+	}
+
+	@Test
+	void registrationEndpointsRequireBearerAndAcceptBusinessPostWithoutCsrf() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+		UUID requestId = UUID.randomUUID();
+		var pair = auth.startSession(userId.toString(), ClientType.WEB);
+		for (String path : List.of("/api/property-registrations/basic-info/validate", "/api/property-registrations")) {
+			mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content("{}"))
+				.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"))
+				.andExpect(header().string("Cache-Control", "no-store"));
+			mvc.perform(post(path).cookie(refreshCookie(pair)).contentType(MediaType.APPLICATION_JSON).content("{}"))
+				.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
+		}
+		mvc.perform(get("/api/property-registrations/" + requestId).cookie(refreshCookie(pair)))
+			.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
+		var basic = new com.moahome.server.property.dto.BasicInfoRequest("모아빌라", "주소", null, null, false);
+		when(registrations.validateBasicInfo(userId, basic)).thenReturn(basic);
+		mvc.perform(post("/api/property-registrations/basic-info/validate")
+			.header("Authorization", "Bearer " + pair.accessToken()).contentType(MediaType.APPLICATION_JSON)
+			.content(mapper.writeValueAsString(basic)))
+			.andExpect(status().isOk()).andExpect(jsonPath("hasBuildings").value(false))
+			.andExpect(header().string("Cache-Control", "no-store"));
+		verify(registrations).validateBasicInfo(userId, basic);
+		org.mockito.Mockito.doThrow(new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE)).when(sessions).find(anyString());
+		mvc.perform(post("/api/property-registrations/basic-info/validate")
+			.header("Authorization", "Bearer " + pair.accessToken()).contentType(MediaType.APPLICATION_JSON)
+			.content(mapper.writeValueAsString(basic)))
+			.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("code").value("AUTH_SERVICE_UNAVAILABLE"));
 	}
 
 	@Test
