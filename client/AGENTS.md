@@ -201,6 +201,13 @@ Next.js와 도구가 사용하는 `page.tsx`, `layout.tsx`, `not-found.tsx`,
 - 프로젝트 전체의 `components/`에 모든 컴포넌트를 모으지 않습니다. 화면 / 기능 / 도메인별 책임 가까이에 둡니다.
 - 동일한 UI를 중복 구현하지 않습니다.
 
+### 컴포넌트 폴더 구조
+
+- 독립적인 UI 컴포넌트는 컴포넌트 이름의 `kebab-case` 폴더를 만들고, 소스 파일과 CSS Modules를 그 안에 함께 둡니다. `shared/ui`의 공통 컴포넌트와 `ui/_components/`의 내부 컴포넌트에 같은 기준을 적용합니다.
+- 여러 컴포넌트를 묶는 모듈은 모듈 아래에 컴포넌트별 폴더를 둡니다. 예를 들어 `form-controls/form-field/`, `form-controls/input/`, `form-controls/dropdown/`으로 나누며, 모듈 루트에 여러 컴포넌트의 소스와 CSS를 나열하지 않습니다.
+- 모듈의 `index.ts`는 모듈 루트에 두고 외부에서 사용하는 공개 API만 내보냅니다. 컴포넌트 전용 보조 코드는 해당 컴포넌트 폴더에서 관리합니다.
+- 화면 진입 컴포넌트와 CSS Modules는 기존 화면 슬라이스의 `ui/`에 두고, `page.tsx`, `layout.tsx` 등 프레임워크 파일은 정해진 위치와 이름을 유지합니다.
+
 ### Server / Client Component 선택
 
 - 컴포넌트를 작성하거나 변경할 때 실제 처리 책임을 기준으로 Server / Client 여부를 판단합니다.

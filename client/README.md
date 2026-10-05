@@ -28,6 +28,52 @@ FSD의 의존성 경계를 유지하며 화면 전용 UI와 로직은 먼저 해
 
 다른 슬라이스는 `index.ts` 공개 API로 사용하고, 같은 레이어의 다른 슬라이스는 직접 참조하지 않습니다. `npm run lint`에서 경계를 검사합니다. 상세 기준은 [Client 규칙](AGENTS.md)을 따릅니다.
 
+## 공통 입력 컴포넌트
+
+모달과 페이지의 입력 필드는 `src/shared/ui/form-controls/`의 `Input`, `Dropdown`을 사용합니다. 두 컴포넌트는 라벨, 필수 표시, 설명, 오류와 비활성 상태를 지원하고 기본 HTML 속성, 이벤트와 `ref`를 해당 입력 요소에 전달합니다. `value` / `onChange`와 `defaultValue` 방식 모두 사용할 수 있습니다.
+
+컴포넌트별 폴더 안에 소스와 CSS Modules를 함께 둡니다. `FormField`는 두 입력 컴포넌트의 라벨과 안내를 구성하는 모듈 내부 컴포넌트이며, 외부에서는 모듈 루트의 `index.ts`를 통해 `Input`, `Dropdown`을 가져옵니다.
+
+```text
+src/shared/ui/form-controls/
+├── index.ts
+├── form-field/
+│   ├── formField.tsx
+│   └── formField.module.css
+├── input/
+│   ├── input.tsx
+│   └── input.module.css
+└── dropdown/
+    ├── dropdown.tsx
+    └── dropdown.module.css
+```
+
+```tsx
+import { Input, Dropdown } from "@/shared/ui/form-controls";
+
+<Input
+  name="name"
+  label="이름"
+  placeholder="이름을 입력해주세요"
+  description="화면에 표시할 이름입니다."
+  required
+/>
+
+<Dropdown
+  name="type"
+  label="유형"
+  placeholder="유형을 선택해주세요"
+  options={[
+    { value: "first", label: "첫 번째 유형" },
+    { value: "second", label: "두 번째 유형" },
+  ]}
+/>
+```
+
+`Input`의 `leadingIcon`에는 장식용 아이콘, `trailingContent`에는 글자 수나 버튼 등 부가 내용을 전달할 수 있습니다. `readOnly`도 지원합니다. Dropdown은 단일 선택용 기본 `select`를 사용하며 옵션의 `value`는 비어 있지 않은 고유한 문자열로 지정합니다. 선택 사항인 Dropdown은 빈 선택으로 돌아갈 수 있고, 필수 Dropdown은 빈 값이 제출되지 않도록 기본 HTML 검증을 적용합니다.
+
+`error`에 메시지를 전달하면 오류 안내와 `aria-invalid`를 연결합니다. `id`를 생략하면 고유 ID를 생성하며 기존 `aria-describedby`도 유지합니다. 라벨을 숨기는 검색 필드 등은 `aria-label`이나 `aria-labelledby`로 이름을 지정합니다. `className`은 입력 요소, `fieldClassName`은 라벨과 안내를 포함한 필드 전체에 적용합니다. 입력값 정규화, 글자 수 계산과 도메인 검증은 사용하는 화면이나 기능에서 관리합니다.
+
 ## 공통 API 호출
 
 `src/shared/api/`의 `customAPI`는 서버 경로, HTTP 메서드와 데이터를 받습니다. 메서드를 생략하면 GET입니다. GET 데이터는 쿼리로, POST / PUT / PATCH / DELETE 데이터는 JSON 본문으로 전달합니다. GET 배열은 같은 쿼리 키를 반복하고 null / undefined 값은 생략합니다. 중첩 쿼리 객체는 허용하지 않습니다.
