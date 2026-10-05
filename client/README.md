@@ -34,9 +34,9 @@ FSD의 의존성 경계를 유지하며 화면 전용 UI와 로직은 먼저 해
 
 ## 공통 입력 컴포넌트
 
-모달과 페이지의 입력 필드는 `src/shared/ui/form-controls/`의 `Input`, `Dropdown`을 사용합니다. 두 컴포넌트는 라벨, 필수 표시, 설명, 오류와 비활성 상태를 지원하고 기본 HTML 속성, 이벤트와 `ref`를 해당 입력 요소에 전달합니다. `value` / `onChange`와 `defaultValue` 방식 모두 사용할 수 있습니다.
+모달과 페이지의 입력 필드는 `src/shared/ui/form-controls/`의 `Input`, `Dropdown`, `Radio`를 사용합니다. Input / Dropdown은 라벨, 필수 표시, 설명, 오류와 비활성 상태를 지원합니다. Input / Radio는 기본 HTML 입력 속성, 이벤트와 `ref`를 전달합니다. Dropdown의 `ref`는 선택 트리거 버튼에 연결하며 `onChange(value)`로 선택값을 전달합니다. `value` / `onChange`와 `defaultValue` 방식 모두 사용할 수 있습니다.
 
-컴포넌트별 폴더 안에 소스와 CSS Modules를 함께 둡니다. `FormField`는 두 입력 컴포넌트의 라벨과 안내를 구성하는 모듈 내부 컴포넌트이며, 외부에서는 모듈 루트의 `index.ts`를 통해 `Input`, `Dropdown`을 가져옵니다.
+컴포넌트별 폴더 안에 소스와 CSS Modules를 함께 둡니다. `FormField`는 입력 컴포넌트의 라벨과 안내를 구성하는 모듈 내부 컴포넌트이며, 외부에서는 모듈 루트의 `index.ts` 공개 API를 사용합니다.
 
 ```text
 src/shared/ui/form-controls/
@@ -47,36 +47,70 @@ src/shared/ui/form-controls/
 ├── input/
 │   ├── input.tsx
 │   └── input.module.css
-└── dropdown/
-    ├── dropdown.tsx
-    └── dropdown.module.css
+├── dropdown/
+│   ├── dropdown.tsx
+│   └── dropdown.module.css
+└── radio/
+    ├── radio.tsx
+    └── radio.module.css
 ```
 
 ```tsx
-import { Input, Dropdown } from "@/shared/ui/form-controls";
+import {
+  Input,
+  Dropdown,
+  Radio
+} from '@/shared/ui/form-controls';
 
 <Input
-  name="name"
-  label="이름"
-  placeholder="이름을 입력해주세요"
-  description="화면에 표시할 이름입니다."
+  name={'name'}
+  label={'이름'}
+  placeholder={'이름을 입력해주세요'}
+  description={'화면에 표시할 이름입니다.'}
   required
 />
 
 <Dropdown
-  name="type"
-  label="유형"
-  placeholder="유형을 선택해주세요"
+  name={'type'}
+  label={'유형'}
+  placeholder={'유형을 선택해주세요'}
   options={[
-    { value: "first", label: "첫 번째 유형" },
-    { value: "second", label: "두 번째 유형" },
+    {
+      value: 'first',
+      label: '첫 번째 유형'
+    },
+    {
+      value: 'second',
+      label: '두 번째 유형'
+    },
   ]}
+/>
+
+<Radio
+  name={'hasBuildings'}
+  value={'false'}
+  label={'동 없음'}
+  description={'한 동으로만 구성된 건물이에요.'}
+  variant={'card'}
+  required
 />
 ```
 
-`Input`의 `leadingIcon`에는 장식용 아이콘, `trailingContent`에는 글자 수나 버튼 등 부가 내용을 전달할 수 있습니다. `readOnly`도 지원합니다. Dropdown은 단일 선택용 기본 `select`를 사용하며 옵션의 `value`는 비어 있지 않은 고유한 문자열로 지정합니다. 선택 사항인 Dropdown은 빈 선택으로 돌아갈 수 있고, 필수 Dropdown은 빈 값이 제출되지 않도록 기본 HTML 검증을 적용합니다.
+`Input`의 `leadingIcon`에는 장식용 아이콘, `trailingContent`에는 글자 수나 버튼 등 부가 내용을 전달할 수 있습니다. `readOnly`도 지원합니다.
+
+Dropdown은 공통 목록의 폭·간격·선택 표시를 사용하며 옵션의 `value`는 비어 있지 않은 고유한 문자열로 지정합니다. `placeholder`는 미선택 트리거에만 표시하고 옵션으로 추가하지 않습니다. 방향키 / Home / End로 탐색하고 Enter / Space로 선택하며 Escape는 기존 값으로 목록만 닫습니다. 선택 입력에는 별도 선택 해제 버튼을 제공하며 `clearable={false}`로 숨길 수 있습니다. 필수 입력에는 선택 해제를 제공하지 않습니다. 내부 입력을 통해 `name`, `form`, 필수 검증과 FormData 값도 유지합니다.
+
+목록의 열림 / 닫힘은 0.18초의 이동과 투명도 전환을 사용하며 화살표도 같은 시간 동안 회전합니다. 닫힌 목록은 클릭과 접근성 탐색에서 제외하며 `prefers-reduced-motion`에서는 애니메이션을 생략합니다.
+
+Radio는 기본 HTML radio로 그룹 선택과 키보드 이동을 유지하며 `variant="plain"`과 설명을 포함한 `variant="card"`를 지원합니다. 같은 `name`으로 그룹을 구성하고 `checked` / `onChange` 또는 `defaultChecked`를 전달합니다.
 
 `error`에 메시지를 전달하면 오류 안내와 `aria-invalid`를 연결합니다. `id`를 생략하면 고유 ID를 생성하며 기존 `aria-describedby`도 유지합니다. 라벨을 숨기는 검색 필드 등은 `aria-label`이나 `aria-labelledby`로 이름을 지정합니다. `className`은 입력 요소, `fieldClassName`은 라벨과 안내를 포함한 필드 전체에 적용합니다. 입력값 정규화, 글자 수 계산과 도메인 검증은 사용하는 화면이나 기능에서 관리합니다.
+
+### 공통 버튼과 옵션
+
+일반 클릭 버튼은 `src/shared/ui/button/`의 `Button`을 사용합니다. `variant`는 `primary` / `outline` / `ghost`, `size`는 `sm` / `md` / `lg`이며, `leadingIcon`, `trailingIcon`, `iconOnly`와 `loading`을 지원합니다. 기본 `type`은 `button`이며 제출 버튼은 `type="submit"`을 명시합니다. 아이콘만 있는 버튼에는 `aria-label`을 지정합니다. `loading`과 `disabled` 상태에서는 클릭을 막습니다. 화면 CSS는 버튼 위치·폭·배치만 담당하며 색상·포커스·비활성 표현은 공통 Button이 담당합니다.
+
+`shared/lib/options`의 `Option<T>`는 선택값 / 표시 이름 / 설명 / 비활성 여부를 위한 공통 자료형입니다.
 
 ## 공통 API 호출
 

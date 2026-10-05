@@ -162,6 +162,9 @@ Next.js와 도구가 사용하는 `page.tsx`, `layout.tsx`, `not-found.tsx`,
 
 기존 공통 UI 컴포넌트가 있으면 우선 재사용합니다.
 
+- 일반 클릭 버튼은 `shared/ui/button`의 Button, 입력과 선택은 `shared/ui/form-controls`의 Input / Dropdown / Radio를 우선 사용합니다. 화면에는 업무 처리와 배치만 두고 색상·포커스·비활성 표현을 중복 구현하지 않습니다.
+- Dropdown의 placeholder는 미선택 표시이며 실제 옵션에 추가하지 않습니다. 옵션은 고유한 값으로 관리하고 선택 해제는 별도 UI로 제공합니다.
+
 ### TypeScript / JSX / CSS 작성 형식
 
 - 들여쓰기는 공백 2칸을 사용합니다.

@@ -1,0 +1,101 @@
+.radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  color: var(--foreground);
+  cursor: pointer;
+
+  &[data-variant="card"] {
+    gap: 14px;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--card);
+    transition: background 0.15s, border-color 0.15s;
+
+    &:has(input:checked) {
+      border-color: var(--primary);
+      background: color-mix(in srgb, var(--primary) 5%, var(--card));
+    }
+  }
+
+  &:has(input:focus-visible) {
+    outline: 3px solid var(--primary);
+    outline-offset: 3px;
+  }
+
+  &:has(input:disabled) {
+    cursor: not-allowed;
+  }
+
+  input {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    margin: 2px 0 0;
+    appearance: none;
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    outline: none;
+    background: var(--card);
+    cursor: inherit;
+
+    &:checked {
+      border: 7px solid var(--primary);
+    }
+  }
+
+  .copy {
+    min-width: 0;
+  }
+
+  .label {
+    display: block;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+
+  .description {
+    display: block;
+    margin-top: 2px;
+    color: var(--sub-text);
+    font-size: 14px;
+    line-height: 1.5;
+    letter-spacing: -0.4px;
+  }
+}
+
+@media (max-width: 640px) {
+  .radio[data-variant="card"] {
+    gap: 10px;
+    padding: 12px 10px;
+
+    input {
+      width: 22px;
+      height: 22px;
+
+      &:checked {
+        border-width: 6px;
+      }
+    }
+
+    .description {
+      font-size: 12px;
+    }
+  }
+}
+
+@media (max-width: 360px) {
+  .radio[data-variant="card"] {
+    gap: 8px;
+    padding-inline: 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radio {
+    transition: none;
+  }
+}

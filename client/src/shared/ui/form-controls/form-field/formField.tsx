@@ -63,6 +63,7 @@ export function FormField({
     >
       {label && (
         <label
+          id={`${controlId}-label`}
           className={styles.label}
           htmlFor={controlId}
         >
