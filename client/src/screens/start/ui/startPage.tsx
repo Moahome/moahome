@@ -1,12 +1,16 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import {
+  useRouter,
+  useSearchParams
+} from 'next/navigation';
 import {
   useEffect,
   useRef,
   useState
 } from 'react';
 import { useSession } from '@/entities/session';
+import { PropertyRegistrationDialog } from '@/features/property-registration';
 import { ApiError } from '@/shared/api';
 import { NeighborhoodIllustration } from '@/shared/ui/neighborhood-illustration';
 import { StartHeader } from './_components/start-header/startHeader';
@@ -22,6 +26,8 @@ import motion from './startMotion.module.css';
 export function StartPage() {
   const session = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const isRegistering = searchParams.get('registration') === 'basic';
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [notice, setNotice] = useState({
     title: '',
@@ -79,11 +85,13 @@ export function StartPage() {
         >
           <StartCard
             kind={'create'}
-            onSelect={showNotice}
+            onSelect={() => router.push('/start?registration=basic', {
+              scroll: false
+            })}
           />
           <StartCard
             kind={'join'}
-            onSelect={showNotice}
+            onSelect={() => showNotice('초대코드로 참여하기', '초대코드 참여 기능을 준비하고 있어요.')}
           />
         </div>
         <PendingRequestCard
@@ -110,6 +118,15 @@ export function StartPage() {
         title={notice.title}
         message={notice.message}
       />
+      {isRegistering && (
+        <PropertyRegistrationDialog
+          key={session.data.id}
+          userId={session.data.id}
+          onClose={() => router.replace('/start', {
+            scroll: false
+          })}
+        />
+      )}
     </div>
   );
 }

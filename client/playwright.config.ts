@@ -20,7 +20,7 @@ export default defineConfig({
     },
     {
       name: 'chromium',
-      testMatch: 'authFlow.spec.ts',
+      testMatch: ['authFlow.spec.ts', 'propertyRegistration.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
         channel: process.env.PLAYWRIGHT_CHANNEL,

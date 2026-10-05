@@ -22,7 +22,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 `/login/callback`은 CSRF 조회 후 토큰을 재발급하고 로그인 완료 상태를 표시합니다. 화면 구현은 `src/screens/login-callback/ui/loginCallbackPage.tsx`이며, 화면 상태 타입과 오류 안내 함수도 같은 파일에서 관리합니다. 최종 관리대상별 진입 화면은 후속 연결 범위입니다. 설정은 [개발 가이드](../docs/developmentGuide.md)의 카카오 로그인 절을 따릅니다.
 
-관리대상 등록 화면 / 단계 이동 / 초안 / 오류 처리 설계는 [Client 등록 설계](docs/propertyRegistration.md), 요청 / 응답 / 오류 계약은 [공통 등록 API](../docs/propertyRegistrationApi.md)를 참조합니다. 등록 화면과 초안 처리는 아직 구현되지 않았습니다.
+관리대상 기본 정보 등록은 `/start`의 `관리할 곳 만들기`에서 열립니다. `/start?registration=basic`에서 PC 모달 / 모바일 전체 화면, 필수 입력에 따른 계속 버튼 활성화, 카카오 주소 검색, 기본 정보 검증 API와 같은 사용자 / 탭의 새로고침 입력 복원을 제공합니다. 동·세대 이후 설정과 최종 등록은 후속 구현 범위입니다. 검증 성공 후에는 기본 정보를 확인했으며 아직 저장하지 않았음을 안내합니다. 화면 / 초안 설계는 [Client 등록 설계](docs/propertyRegistration.md), 요청 / 응답 / 오류 계약은 [공통 등록 API](../docs/propertyRegistrationApi.md)를 참조합니다.
 
 ## 코드 배치
 
@@ -61,6 +61,7 @@ import {
   Dropdown,
   Radio
 } from '@/shared/ui/form-controls';
+import { PROPERTY_TYPE_OPTIONS } from '@/entities/property';
 
 <Input
   name={'name'}
@@ -74,16 +75,7 @@ import {
   name={'type'}
   label={'유형'}
   placeholder={'유형을 선택해주세요'}
-  options={[
-    {
-      value: 'first',
-      label: '첫 번째 유형'
-    },
-    {
-      value: 'second',
-      label: '두 번째 유형'
-    },
-  ]}
+  options={PROPERTY_TYPE_OPTIONS}
 />
 
 <Radio
@@ -110,7 +102,7 @@ Radio는 기본 HTML radio로 그룹 선택과 키보드 이동을 유지하며 
 
 일반 클릭 버튼은 `src/shared/ui/button/`의 `Button`을 사용합니다. `variant`는 `primary` / `outline` / `ghost`, `size`는 `sm` / `md` / `lg`이며, `leadingIcon`, `trailingIcon`, `iconOnly`와 `loading`을 지원합니다. 기본 `type`은 `button`이며 제출 버튼은 `type="submit"`을 명시합니다. 아이콘만 있는 버튼에는 `aria-label`을 지정합니다. `loading`과 `disabled` 상태에서는 클릭을 막습니다. 화면 CSS는 버튼 위치·폭·배치만 담당하며 색상·포커스·비활성 표현은 공통 Button이 담당합니다.
 
-`shared/lib/options`의 `Option<T>`는 선택값 / 표시 이름 / 설명 / 비활성 여부를 위한 공통 자료형입니다.
+`shared/lib/options`의 `Option<T>`는 선택값 / 표시 이름 / 설명 / 비활성 여부를 위한 공통 자료형입니다. 건물 유형과 동 구분처럼 도메인에 속한 고정 옵션은 `entities/property/constants/propertyOptions.ts`에 모으고 `entities/property`의 공개 API로 가져옵니다. 상수라는 이유만으로 도메인 옵션을 `shared`에 모으지 않습니다.
 
 ## 공통 API 호출
 
@@ -173,7 +165,7 @@ npx playwright install chromium
 npm test
 ```
 
-`npm run test:api`는 공통 API / 세션 복원 / 업무 API 인증 테스트, `npm run test:e2e`는 로그인 화면 통합 테스트를 실행합니다. 설치된 Chrome을 이용할 때는 `PLAYWRIGHT_CHANNEL=chrome npm test`를 사용합니다. 통합 테스트는 포트 3100과 별도 `.next-test/` 결과를 사용하며 서버 인증 응답을 모의 처리합니다. 실제 카카오 로그인 성공이나 서버 DB / Redis 연결은 별도로 확인합니다.
+`npm run test:api`는 공통 API / 세션 복원 / 업무 API 인증 테스트, `npm run test:e2e`는 로그인 / 기본 정보 등록 화면 통합 테스트를 실행합니다. 설치된 Chrome을 이용할 때는 `PLAYWRIGHT_CHANNEL=chrome npm test`를 사용합니다. 통합 테스트는 포트 3100과 별도 `.next-test/` 결과를 사용하며 인증 / 등록 응답과 주소 검색 SDK를 모의 처리합니다. 실제 카카오 로그인, 주소 검색 외부 서비스나 서버 DB / Redis 연결은 별도로 확인합니다.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

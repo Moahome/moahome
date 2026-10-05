@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Suspense } from 'react';
 import { StartPage } from '@/screens/start';
 
 export const metadata: Metadata = {
@@ -11,6 +12,8 @@ export const metadata: Metadata = {
 
 export default function Page() {
   return (
-    <StartPage />
+    <Suspense>
+      <StartPage />
+    </Suspense>
   );
 }

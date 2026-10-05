@@ -2,7 +2,7 @@
 
 이 문서는 Client와 Server가 함께 사용하는 관리대상 등록의 기본 정보 검증, 최종 일괄 저장과 결과 조회 API 계약을 정의합니다. API의 입력, 응답, 오류와 중복 요청의 의미를 이 문서에서 관리합니다.
 
-작성일: 2026-10-05. 업무 정책은 [도메인 규칙](domainRules.md), 데이터 구조는 [ERD](erd.md)를 따릅니다. Server의 세 API와 Service / Entity / Migration을 구현했으며 등록 화면은 후속 구현 범위입니다. 내부 처리와 검증은 [Server 등록 설계](../server/docs/propertyRegistration.md)를 따릅니다.
+작성일: 2026-10-05. 업무 정책은 [도메인 규칙](domainRules.md), 데이터 구조는 [ERD](erd.md)를 따릅니다. Server의 세 API와 Service / Entity / Migration, Client 기본 정보 화면과 검증 API 연결을 구현했습니다. 동·세대 이후 설정과 전체 등록 제출의 Client 처리는 후속 구현 범위입니다. 내부 처리와 검증은 [Server 등록 설계](../server/docs/propertyRegistration.md)를 따릅니다.
 
 ## 1. 공통 적용 기준
 

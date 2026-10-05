@@ -289,7 +289,7 @@ test('로그아웃 장애는 프로필 메뉴에 재시도 안내를 표시하�
     name: '로그아웃',
     exact: true
   }).click();
-  await expect(page.getByRole('alert')).toContainText('로그아웃하지 못했어요.');
+  await expect(page.getByRole('banner').getByRole('alert')).toContainText('로그아웃하지 못했어요.');
   await expect(page).toHaveURL(/\/start$/);
   await expect(page.getByRole('button', {
     name: '로그아웃',
@@ -473,6 +473,12 @@ test('모바일 시작 화면은 긴 닉네임에도 가로로 넘치지 않음'
     name: '로그아웃',
     exact: true
   })).toBeVisible();
+  // 메뉴의 진입 이동이 끝난 뒤 최종 배치의 넘침을 확인합니다.
+  await menu.evaluate(async (element) => {
+    await Promise.all(element.getAnimations({
+      subtree: true
+    }).map((animation) => animation.finished));
+  });
   expect(await menu.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   await page.screenshot({
     path: test.info().outputPath('startMobileLongName.png')
@@ -831,10 +837,13 @@ test('시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
   }).click();
   expect(await createCard.evaluate((element) => getComputedStyle(element).opacity)).toBe('1');
   await expect(page.getByRole('dialog', {
-    name: '관리할 곳 만들기'
-  })).toContainText('관리대상 등록 기능을 준비하고 있어요.');
+    name: '관리할 곳 등록'
+  })).toBeVisible();
+  await expect(page.getByRole('button', {
+    name: '등록하고 계속'
+  })).toBeDisabled();
   await page.getByRole('button', {
-    name: '확인',
+    name: '취소',
     exact: true
   }).click();
   await page.getByRole('button', {

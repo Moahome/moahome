@@ -1,7 +1,7 @@
 'use client';
 
 import { StartIcon } from '../start-icon/startIcon';
-import { StartIllustration } from './startIllustration';
+import { HomeIllustration } from '@/shared/ui/home-illustration';
 import motion from '../../startMotion.module.css';
 import styles from './startCard.module.css';
 
@@ -13,7 +13,6 @@ const START_OPTIONS = {
     continuation: '관리자로 시작합니다.',
     action: '관리 시작하기',
     mobileAction: '관리할 곳 만들기',
-    notice: '관리대상 등록 기능을 준비하고 있어요.',
   },
   join: {
     title: '초대코드로 참여하기',
@@ -22,7 +21,6 @@ const START_OPTIONS = {
     continuation: '우리 집에 참여합니다.',
     action: '초대코드 입력',
     mobileAction: '초대코드 입력',
-    notice: '초대코드 참여 기능을 준비하고 있어요.',
   },
 } as const;
 
@@ -32,7 +30,7 @@ export function StartCard({
   onSelect,
 }: {
   kind: keyof typeof START_OPTIONS;
-  onSelect: (title: string, message: string) => void;
+  onSelect: () => void;
 }) {
   const option = START_OPTIONS[kind];
 
@@ -45,7 +43,7 @@ export function StartCard({
       <div
         className={styles['card-illustration']}
       >
-        <StartIllustration
+        <HomeIllustration
           kind={kind}
         />
       </div>
@@ -77,7 +75,7 @@ export function StartCard({
         className={styles['start-action']}
         data-kind={kind}
         aria-label={option.title}
-        onClick={() => onSelect(option.title, option.notice)}
+        onClick={onSelect}
       >
         <span
           className={styles['desktop-label']}
