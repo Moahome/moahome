@@ -344,6 +344,7 @@ npm test
 
 ## 10. General Rules
 
+- 문서 배치는 [공통 Project Structure 규칙](../AGENTS.md#1-project-structure)을 따릅니다. Client 전용 등록 화면 / 초안 설계는 [docs/propertyRegistration.md](docs/propertyRegistration.md)에서 관리하고 공통 API 계약을 참조합니다.
 - 기존 구조를 먼저 확인한 후 새 Slice를 만듭니다.
 - 단순한 기능을 불필요하게 여러 레이어로 분리하지 않습니다.
 - 공통화가 필요하지 않은 코드를 미리 `shared`로 이동하지 않습니다.

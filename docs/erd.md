@@ -31,6 +31,8 @@
 | 가입 요청 입력 / 중복 / 재신청 | 확정 | 신청 전화번호 필수, 실명 입력 / 세대 관계 선택 없음, 같은 계정의 같은 세대 중복 대기 요청 제한, 다른 주민 신청 허용, 거절 후 재신청 / 재입주 재승인 |
 | 부과 / 수납 / 은행 / 지출 / 회계 / 마감 / 감사 | 기존 기준 + 설계안 | 각 영역의 도메인 규칙을 유지하고 해당 기능 구현 전에 상세 정책 / DDL 확정 |
 | 초기 관리계좌의 예금주 | 확정 | 예금주 이름 필수, 주민 명부 연결 선택, 주민 연결은 명부 등록 이후 가능 |
+| 초기 계좌 / 기본 관리비 | 확정 | 공용계좌, 기본 계좌 정확히 1개, 사용 시작일은 등록 완료일, 기본 금액은 0원 이상 정수 |
+| 최종 등록 API / 성공 결과 | 설계안 | 전체 저장 계약과 중복 방지 / 응답 유실 결과 조회, property_registration_results의 원자적 저장 |
 | 연락처 변경 / 알림 발송 / 후속 확장 | 후속 검토 | 해당 기능 구현 시 결정 |
 
 업무 규칙은 [domainRules.md](domainRules.md), 보안 코드와 인증 구현 기준은 [securityDesign.md](securityDesign.md), 작업 절차는 [AGENTS.md](../AGENTS.md)를 따른다. 차이가 발견되면 미정 정책을 추측해 코드나 ERD를 맞추지 않고 먼저 확인한다.
@@ -113,6 +115,7 @@ WHERE user_id IS NOT NULL
 USERS
  ├──< SOCIAL_ACCOUNTS
  ├──< PROPERTY_MEMBERS >── PROPERTIES
+ ├──< PROPERTY_REGISTRATION_RESULTS >── PROPERTIES
  └──< RESIDENTS >────────── PROPERTIES
              │
              └──< UNIT_RESIDENTS >── UNITS
@@ -372,7 +375,7 @@ OAuth 세션/토큰 상태는 Redis 영역으로 분리한다.
 
 `has_buildings = false`이면 동을 생성하지 않고 모든 세대의 `building_id`를 NULL로 둔다. `true`이면 최소 1개의 동이 필요하며 각 세대의 동이 동일한 관리대상에 속해야 한다. 이름 / 동 구분의 저장 제약과 관계 검증은 실제 Migration / Service 구현 시 이 기준에 맞춘다.
 
-기본 정보 검증 API는 [관리대상 기본 정보 API](propertyRegistrationApi.md)를 따른다. 이 문서의 등록 구조는 구현 기준이며 관련 Entity / Migration은 아직 없다. 동 구조 변경과 비활성화 / 삭제의 상세 정책은 확정하지 않는다.
+기본 정보 검증, 최종 저장과 중복 방지 / 결과 조회는 [관리대상 등록 API](propertyRegistrationApi.md)를 따른다. 저장 내부 흐름은 [Server 등록 설계](../server/docs/propertyRegistration.md)에서 관리한다. 이 문서의 등록 구조는 구현 기준이며 관련 Entity / Migration은 아직 없다. 동 구조 변경과 비활성화 / 삭제의 상세 정책은 확정하지 않는다.
 
 ---
 
@@ -602,6 +605,37 @@ Property P002 → RESIDENT
 
 ---
 
+## 5.8 property_registration_results
+
+### 목적과 상태
+
+최종 등록 API의 성공 결과와 중복 방지를 위한 **설계안**이다. 현재 테이블 / Migration은 없다. 단계별 입력 초안이나 처리 중 상태를 저장하는 테이블이 아니며, 관리대상과 관련 업무 데이터의 저장 성공 시에만 같은 트랜잭션에서 레코드를 생성한다.
+
+### 컬럼 설계
+
+| 컬럼 | 타입 | Null | 설명 |
+| --- | --- | --- | --- |
+| `user_id` | uuid | N | FK → users.id, 인증된 제출자, 복합 PK |
+| `request_id` | uuid | N | Client 중복 방지 ID, 복합 PK |
+| `request_fingerprint` | char(64) | N | 정규화한 제출 본문의 HMAC 지문, 개인정보 원문 저장 없음 |
+| `fingerprint_key_version` | varchar(30) | N | 지문 생성 키 버전, 키 교체 후 기존 요청 비교에 사용 |
+| `property_id` | uuid | N | FK → properties.id, 생성한 관리대상, UNIQUE |
+| `response_snapshot` | jsonb | N | 최종 API 성공 응답 스냅샷, 계좌번호 / 예금주 / 제출 원문 / 인증정보 제외 |
+| `created_at` | timestamptz | N | 최초 성공 등록 시각 |
+
+### 제약과 처리
+
+- `(user_id, request_id)`를 복합 PK로 두고 같은 사용자 / ID의 성공 결과가 둘 이상 생기지 않게 한다. 관리대상당 최초 등록 결과는 1개이다.
+- 동일 키의 저장은 DB 트랜잭션 수준에서 직렬화하고, 요청이 겹친 상태에서 업무 데이터만 중복 생성되지 않도록 한다. 단순 사전 조회 또는 Redis TTL만으로 보장하지 않는다.
+- HMAC 비교는 저장된 키 버전으로 수행하고 키 원문은 외부 설정으로 관리한다. 제출 본문이나 계좌번호를 평문 / JSON으로 보관하지 않는다.
+- 성공 응답 스냅샷은 최초 결과를 유지한다. 요청자와 현재 관리대상 접근권한은 결과 반환마다 별도로 확인한다.
+- 자동 TTL을 두지 않는다. 후속 삭제 / 탈퇴의 보존·정리 정책을 확정할 때 이 결과와 중복 방지의 수명을 함께 검토한다.
+- GET에서 레코드가 없다는 것은 커밋된 성공 결과가 없다는 의미이며 아직 진행 중인 요청이 없음을 보장하지 않는다. 요청 실패 시 업무 데이터와 이 레코드를 함께 롤백한다.
+
+요청 비교와 반환 상태는 [등록 API](propertyRegistrationApi.md)의 계약, 동시성 처리와 저장 순서는 [Server 등록 설계](../server/docs/propertyRegistration.md)를 따른다. 관련 도메인의 초안 저장 정책은 변경하지 않는다.
+
+---
+
 # 6. 가입 / 초대
 
 ## 6.1 invitations
@@ -774,6 +808,8 @@ WHERE deleted_at IS NULL
 | `deleted_at` | timestamptz | Y | 삭제 |
 | `deleted_by` | uuid | Y | 삭제 처리자 |
 
+초기 등록의 `default_amount`는 2026-10-05에 확정한 0원 이상 정수 원 단위 정책을 따른다. 입력과 합계는 [등록 API](propertyRegistrationApi.md) 설계의 numeric(15,0) 범위로 검증한다. 템플릿 / 항목을 기본값으로 저장하며 실제 청구나 회계 전표는 생성하지 않는다.
+
 ---
 
 ## 7.4 charges
@@ -944,7 +980,11 @@ Soft Delete 없음.
 
 주민 명부가 준비되면 같은 관리대상의 주민을 확인해 연결할 수 있다. 연결을 저장할 때 계좌와 주민의 `property_id`가 같은지 검증한다. 이름 일치로 주민을 자동 생성 / 연결하지 않으며 연결 변경만으로 `holder_name_snapshot`을 덮어쓰지 않는다.
 
-초기 설정의 연결 선택 정책 외 계좌 변경 / 주민 연결의 상세 권한과 절차는 해당 기능 구현 시 결정한다. 사용기간, 주계좌 지정과 공용 / 동별 계좌 안내 기준은 기존 설계안과 도메인 규칙의 미정 범위를 유지한다.
+### 확정된 초기 계좌 범위와 기본 계좌
+
+확정일: 2026-10-05. 최종 등록의 계좌는 공용계좌이며 `building_id`를 NULL로 저장한다. 최소 1개를 받고 `is_primary = true`인 계좌를 정확히 1개 지정한다. `valid_from`은 등록 완료일로 자동 설정하고 Client에 시작일 입력을 요구하지 않는다. 날짜의 시간대는 [등록 API](propertyRegistrationApi.md), 상세 초기값은 [Server 등록 설계](../server/docs/propertyRegistration.md)를 따른다.
+
+계좌 변경 / 주민 연결의 상세 권한과 절차는 해당 기능 구현 시 결정한다. 초기 설정 이후의 사용기간 변경, 기본 계좌 변경과 공용 / 동별 계좌 안내 기준은 기존 설계안과 도메인 규칙의 미정 범위를 유지한다.
 
 ---
 
@@ -1430,6 +1470,9 @@ erDiagram
     USERS ||--o{ SOCIAL_ACCOUNTS : has
     USERS ||--o{ PROPERTY_MEMBERS : has
     USERS ||--o{ RESIDENTS : links
+    USERS ||--o{ PROPERTY_REGISTRATION_RESULTS : submits
+
+    PROPERTIES ||--o| PROPERTY_REGISTRATION_RESULTS : registered_by
 
     PROPERTIES ||--o{ BUILDINGS : contains
     PROPERTIES ||--o{ UNITS : contains
@@ -1679,7 +1722,7 @@ CLOSED
 
 # 17. 현재 기준 엔티티 목록
 
-총 35개.
+업무 엔티티 35개와 최종 등록 성공 결과 설계 1개, 총 36개. 구현된 테이블 수를 의미하지 않는다.
 
 ```text
 01 users
@@ -1717,6 +1760,7 @@ CLOSED
 33 period_closings
 34 closing_check_results
 35 audit_logs
+36 property_registration_results
 ```
 
 ---
@@ -1770,6 +1814,12 @@ ADMIN(관리소장) / MANAGER(부담당자)는 주민 가입 승인 가능
 인증된 생성자의 PropertyMember는 ADMIN / ACTIVE
 관리계좌 예금주 이름 필수 / holder_resident_id는 NULL 허용
 주민 명부 등록 이후 예금주 주민 연결 가능
+초기 계좌는 공용계좌 / 기본 계좌 정확히 1개 / 사용 시작일은 등록 완료일
+초기 기본 관리비 항목의 금액은 0원 이상 정수
+
+[설계안]
+최종 등록 요청 / 응답 / 오류와 requestId를 이용한 중복 방지 / 결과 조회
+property_registration_results는 성공한 전체 등록과 같은 트랜잭션에서 저장
 
 [구현 기준]
 관리자 승인 결과의 주민 / 계정 연결, 세대 관계, 권한, 요청 상태는

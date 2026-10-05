@@ -271,7 +271,7 @@ Property
 
 API 계약은 기능별 구현 범위를 정한 뒤 별도 문서로 작성합니다.
 
-관리대상 기본 정보의 검증 요청 / 응답 / 오류는 [관리대상 기본 정보 API](propertyRegistrationApi.md)에 정의합니다. 해당 API와 관리대상 업무 데이터 저장은 아직 구현되지 않았습니다.
+기본 정보 검증, 전체 정보 저장과 결과 조회의 요청 / 응답 / 오류는 [관리대상 등록 API](propertyRegistrationApi.md)에 함께 정의합니다. 화면 / 초안 관리는 [Client 등록 설계](../client/docs/propertyRegistration.md), 저장 / 중복 방지는 [Server 등록 설계](../server/docs/propertyRegistration.md)에서 관리합니다. 해당 API와 관리대상 업무 데이터 저장은 아직 구현되지 않았습니다.
 
 ---
 
@@ -282,14 +282,16 @@ API 계약은 기능별 구현 범위를 정한 뒤 별도 문서로 작성합�
 - `projectOverview.md`: 프로젝트의 목적, 전체 범위와 핵심 흐름
 - `domainRules.md`: 도메인 용어, 업무 규칙, 상태와 미정 정책
 - `erd.md`: 테이블, 컬럼, 관계, 제약과 데이터 설계의 확정 범위
-- `propertyRegistrationApi.md`: 관리대상 기본 정보 검증 API 계약과 초기 설정 연결 기준
+- `propertyRegistrationApi.md`: 기본 정보 검증, 최종 등록과 결과 조회의 공통 API 계약
+- `client/docs/`: Client 전용 화면, 상태와 브라우저 처리의 구현 설계
+- `server/docs/`: Server 전용 검증, 저장, 트랜잭션과 동시성의 구현 설계
 - `developmentGuide.md`: 기존 환경변수, 로컬 실행과 검증 방법
 - `securityDesign.md`: JWT 수명, 웹과 앱의 토큰 전달, Redis 인증 상태와 로그아웃 정책
 - 루트 `AGENTS.md`: 프로젝트 전체에 적용되는 Codex 공통 규칙
 - `client/AGENTS.md`: Client 아키텍처, UI와 구현 규칙
 - `server/AGENTS.md`: Server 아키텍처, Java / Spring / JPA / Redis / DB 구현 규칙
 
-동일한 상세 규칙을 여러 문서에 반복해서 정의하지 않습니다.
+같은 기능의 관련 API는 하나의 계약 문서에 모으고 영역별 설계는 공통 정책 / API / ERD를 링크로 참조합니다. 짧은 실행 / 사용법은 기존 README에 두며 실제 설명이 필요한 문서만 추가합니다. 동일한 상세 규칙을 여러 문서에 반복해서 정의하지 않습니다.
 
 ---
 
@@ -297,7 +299,9 @@ API 계약은 기능별 구현 범위를 정한 뒤 별도 문서로 작성합�
 
 - [도메인 규칙](domainRules.md): 용어, 도메인 관계, 기존 업무 기준과 미정 정책
 - [ERD](erd.md): 테이블, 컬럼, 관계, 제약과 확정 범위
-- [관리대상 기본 정보 API](propertyRegistrationApi.md): 기본 정보 검증 요청 / 응답 / 오류
+- [관리대상 등록 API](propertyRegistrationApi.md): 기본 정보 검증 / 최종 저장 / 결과 조회 계약
+- [Client 등록 설계](../client/docs/propertyRegistration.md): 화면 흐름, 초안과 오류 처리
+- [Server 등록 설계](../server/docs/propertyRegistration.md): 내부 검증, 저장과 중복 방지
 - [개발 환경 가이드](developmentGuide.md): 환경변수, PostgreSQL / Redis 준비와 Client / Server 실행 방법
 - [JWT 인증 설계](securityDesign.md): 인증 정책, 구현된 Security API와 후속 Client 연동 기준
 - [루트 AGENTS.md](../AGENTS.md): 공통 구조, 명명, 색상과 작업 규칙

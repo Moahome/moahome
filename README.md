@@ -8,9 +8,14 @@
 - [프로젝트 개요](docs/projectOverview.md)
 - [도메인 규칙](docs/domainRules.md)
 - [ERD](docs/erd.md)
-- [관리대상 기본 정보 API](docs/propertyRegistrationApi.md)
+- [관리대상 등록 API](docs/propertyRegistrationApi.md)
 - [개발 환경 가이드](docs/developmentGuide.md)
 - [JWT 인증 설계](docs/securityDesign.md)
 - [공통 개발 규칙](AGENTS.md)
 - [프론트엔드 개발 규칙](client/AGENTS.md)
 - [백엔드 개발 규칙](server/AGENTS.md)
+
+## 영역별 구현 설계
+
+- [Client 관리대상 등록](client/docs/propertyRegistration.md): 화면, 단계 이동과 브라우저 초안 관리
+- [Server 관리대상 등록](server/docs/propertyRegistration.md): 검증, 저장과 중복 방지

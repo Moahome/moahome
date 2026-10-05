@@ -286,6 +286,7 @@ Redis 사용 범위는 다음을 기본으로 합니다.
 - 도메인 작업 전에 해당 문서의 용어, 기존 기준과 미정 항목을 확인합니다.
 - 업무 규칙은 해당 문서에서 관리하며 이 파일에 같은 규칙을 중복 정의하지 않습니다.
 - 핵심 업무 규칙을 임의로 변경하거나 미정인 정책을 추측하여 구현하지 않습니다.
+- 문서 배치는 [공통 Project Structure 규칙](../AGENTS.md#1-project-structure)을 따릅니다. Server 전용 등록 저장 / 중복 방지 설계는 [docs/propertyRegistration.md](docs/propertyRegistration.md)에서 관리하고 공통 API 계약과 ERD를 참조합니다.
 
 ---
 
