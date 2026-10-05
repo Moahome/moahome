@@ -46,7 +46,7 @@ class KakaoOAuthPropertiesTest {
 	}
 
 	private SecurityProperties security(boolean secure) {
-		return new SecurityProperties("unused", "issuer", "audience",
+		return new SecurityProperties("unused-access", "unused-refresh", "issuer", "audience",
 			List.of("http://localhost:3000", "https://app.example.test"), secure);
 	}
 }

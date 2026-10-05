@@ -70,14 +70,17 @@ Next.js는 `client/`에서 실행하면 해당 프로젝트의 `.env`를 읽습�
 | `KAKAO_CLIENT_ID` | 카카오 앱의 REST API 키. `moahome.kakao.client-id`에 연결하고 OAuth의 `client_id`로 사용합니다. |
 | `KAKAO_CLIENT_SECRET` | REST API 키의 Client Secret. `moahome.kakao.client-secret`에 연결하고 Server의 카카오 토큰 교환에 사용합니다. |
 | `KAKAO_REDIRECT_URI` | 카카오 인가 결과를 받는 Server 콜백 주소. `moahome.kakao.redirect-uri`에 연결하며 로컬은 `http://localhost:8080/login/oauth2/code/kakao`를 사용합니다. |
-| `JWT_SECRET_BASE64` | Security 실행에 새로 필요한 서명 키. 32바이트 이상의 무작위 값을 Base64로 인코딩하여 준비합니다. |
+| `JWT_ACCESS_SECRET_BASE64` | Access JWT 전용 HS256 서명 키. 독립적으로 생성한 무작위 64바이트의 Base64 값을 사용합니다. 검증 최소 길이는 32바이트입니다. |
+| `JWT_REFRESH_SECRET_BASE64` | Refresh JWT 전용 HS256 서명 키. Access 키와 다른 무작위 64바이트의 Base64 값을 사용합니다. 검증 최소 길이는 32바이트입니다. |
 | `ACCOUNT_ENCRYPTION_KEY_BASE64` | 관리계좌 AES-256-GCM 암호화 키. 무작위 32바이트의 Base64 값이며 초기 키 ID는 `v1`입니다. |
 | `ACCOUNT_HMAC_KEY_BASE64` | 계좌번호 검색 HMAC 키. 암호화 키와 다른 무작위 32바이트의 Base64 값입니다. |
 | `REGISTRATION_FINGERPRINT_KEY_BASE64` | 등록 정규화 본문 비교 HMAC 키. 별도로 생성한 무작위 32바이트의 Base64 값이며 초기 버전은 `v1`입니다. |
 | `WEB_ALLOWED_ORIGINS` | CORS 허용 웹 Origin의 쉼표 구분 목록. 기본값은 `http://localhost:3000`이며 경로나 와일드카드를 포함하지 않습니다. |
 | `WEB_LOGIN_SUCCESS_URI` | `moahome.kakao.web-login-success-uri`에 연결한 Client 로그인 완료 주소. 로컬은 `http://localhost:3000/login/callback`이며 CSRF 조회 / 재발급 후 로그인 완료를 표시합니다. |
 
-`JWT_SECRET_BASE64`는 기존 `server/.env` 또는 실행 환경에 별도로 추가해야 합니다. 키를 생성할 때는 `openssl rand -base64 32`를 사용할 수 있습니다. 생성한 값은 공유 문서, 코드나 로그에 기록하지 않고 환경 설정에만 보관합니다. 서버 인스턴스들은 같은 환경의 서명 키를 사용해야 합니다.
+`JWT_ACCESS_SECRET_BASE64`와 `JWT_REFRESH_SECRET_BASE64`는 `server/.env` 또는 실행 환경에 각각 설정합니다. 추적되는 `server/src/main/resources/jwtSecurity.properties`가 두 환경변수를 Spring 설정으로 연결하며 실제 키 값은 포함하지 않습니다. 각 키는 `openssl rand -base64 64 | tr -d '\n'`을 별도로 실행해 생성할 수 있으며, Base64 문자열 64글자가 아니라 디코딩한 원본 64바이트를 의미합니다. 출력한 값은 해당 환경 설정에만 보관하고 공유 문서, 코드나 로그에 기록하지 않습니다. 서버 인스턴스들은 같은 환경의 Access 키와 같은 환경의 Refresh 키를 각각 공유합니다.
+
+기존 단일 `JWT_SECRET_BASE64`는 더 이상 읽지 않으며 새 두 변수를 모두 준비한 뒤 서버를 재시작합니다. Access / Refresh 키가 같으면 서버 시작을 거부합니다. 이번 교체에는 이전 키를 허용하는 호환 처리가 없으므로 기존 토큰은 사용할 수 없고 사용자는 다시 로그인해야 합니다. 키 길이 변경만으로 HS256을 HS512로 변경하지 않습니다.
 
 등록 기능의 세 보안 키도 각각 새로 생성해 `server/.env` 또는 실행 환경에 설정합니다. 추적되는 `server/src/main/resources/propertyRegistration.properties`가 환경변수를 Spring 설정으로 연결하며 실제 값은 포함하지 않습니다. 모든 서버 인스턴스에서 같은 키를 사용합니다. 키 교체 시 외부 설정의 `moahome.account-security.active-key-id / encryption-keys`와 `moahome.registration-security.active-key-version / fingerprint-keys`에 신규 키와 기존 키를 함께 유지합니다. 기존 키를 제거하면 이전 계좌 복호화 또는 이전 requestId의 본문 비교를 수행할 수 없습니다.
 

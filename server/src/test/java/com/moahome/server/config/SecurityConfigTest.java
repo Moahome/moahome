@@ -15,7 +15,11 @@ class SecurityConfigTest {
 	@Test
 	void refusesMissingShortOrInvalidSigningKeys() {
 		for (String secret : List.of("", Base64.getEncoder().encodeToString(new byte[16]), "invalid-base64!")) {
-			assertThatThrownBy(() -> config.jwtSigningKey(properties(secret, "http://localhost:3000")))
+			assertThatThrownBy(() -> config.jwtAccessSigningKey(properties(secret, "http://localhost:3000")))
+				.isInstanceOf(IllegalArgumentException.class);
+			var properties = new SecurityProperties(randomSecret(64), secret, "moahome-server", "moahome-api",
+				List.of("http://localhost:3000"), true);
+			assertThatThrownBy(() -> config.jwtRefreshSigningKey(properties, config.jwtAccessSigningKey(properties)))
 				.isInstanceOf(IllegalArgumentException.class);
 		}
 	}
@@ -30,16 +34,33 @@ class SecurityConfigTest {
 	}
 
 	@Test
-	void usesAtLeast256BitKeyAndRedactsPropertyString() {
-		byte[] key = new byte[32];
-		new SecureRandom().nextBytes(key);
-		String secret = Base64.getEncoder().encodeToString(key);
-		var properties = properties(secret, "https://app.example.com");
-		assertThat(config.jwtSigningKey(properties).getEncoded()).hasSize(32);
-		assertThat(properties.toString()).doesNotContain(secret);
+	void supports32And64ByteIndependentKeysAndRedactsBothSecrets() {
+		for (int length : List.of(32, 64)) {
+			String secret = randomSecret(length);
+			var properties = properties(secret, "https://app.example.com");
+			var accessKey = config.jwtAccessSigningKey(properties);
+			assertThat(accessKey.getEncoded()).hasSize(length);
+			assertThat(config.jwtRefreshSigningKey(properties, accessKey).getEncoded()).hasSize(64);
+			assertThat(properties.toString()).doesNotContain(secret, properties.jwtRefreshSecretBase64());
+		}
+	}
+
+	@Test
+	void rejectsTheSameDecodedKeyEvenWithDifferentBase64Padding() {
+		String secret = randomSecret(64);
+		var properties = new SecurityProperties(secret, secret.replace("=", ""), "moahome-server", "moahome-api",
+			List.of("https://app.example.com"), true);
+		assertThatThrownBy(() -> config.jwtRefreshSigningKey(properties, config.jwtAccessSigningKey(properties)))
+			.isInstanceOf(IllegalArgumentException.class).hasMessageContaining("must be different");
 	}
 
 	private SecurityProperties properties(String secret, String origin) {
-		return new SecurityProperties(secret, "moahome-server", "moahome-api", List.of(origin), true);
+		return new SecurityProperties(secret, randomSecret(64), "moahome-server", "moahome-api", List.of(origin), true);
+	}
+
+	private String randomSecret(int length) {
+		byte[] bytes = new byte[length];
+		new SecureRandom().nextBytes(bytes);
+		return Base64.getEncoder().encodeToString(bytes);
 	}
 }

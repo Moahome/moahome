@@ -15,6 +15,7 @@ import com.moahome.server.auth.exception.AuthErrorCode;
 import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.config.SecurityProperties;
 
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -30,18 +31,26 @@ public class TokenService {
 	public static final Duration ACCESS_LIFETIME = Duration.ofHours(1);
 	public static final Duration REFRESH_LIFETIME = Duration.ofDays(14);
 
-	private final JwtEncoder encoder;
-	private final JwtDecoder decoder;
+	private final JwtEncoder accessEncoder;
+	private final JwtEncoder refreshEncoder;
+	private final JwtDecoder accessDecoder;
+	private final JwtDecoder refreshDecoder;
 	private final SecurityProperties properties;
 	private final Clock clock;
 
-	public TokenService(JwtEncoder encoder, JwtDecoder decoder, SecurityProperties properties, Clock clock) {
-		this.encoder = encoder;
-		this.decoder = decoder;
+	public TokenService(@Qualifier("jwtAccessEncoder") JwtEncoder accessEncoder,
+		@Qualifier("jwtRefreshEncoder") JwtEncoder refreshEncoder,
+		@Qualifier("jwtAccessDecoder") JwtDecoder accessDecoder,
+		@Qualifier("jwtRefreshDecoder") JwtDecoder refreshDecoder, SecurityProperties properties, Clock clock) {
+		this.accessEncoder = accessEncoder;
+		this.refreshEncoder = refreshEncoder;
+		this.accessDecoder = accessDecoder;
+		this.refreshDecoder = refreshDecoder;
 		this.properties = properties;
 		this.clock = clock;
 	}
 
+	/** 같은 로그인 세션의 두 토큰을 각각 전용 키로 발급하고 Access 만료를 세션의 절대 만료 이내로 제한합니다. */
 	public TokenPair issue(String userId, String sessionId, Instant sessionExpiresAt) {
 		Instant now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
 		Instant accessExpiresAt = now.plus(ACCESS_LIFETIME);
@@ -49,18 +58,20 @@ public class TokenService {
 			accessExpiresAt = sessionExpiresAt;
 		}
 		return new TokenPair(
-			encode(userId, sessionId, "access", now, accessExpiresAt),
-			encode(userId, sessionId, "refresh", now, sessionExpiresAt),
+			encode(accessEncoder, userId, sessionId, "access", now, accessExpiresAt),
+			encode(refreshEncoder, userId, sessionId, "refresh", now, sessionExpiresAt),
 			accessExpiresAt, sessionExpiresAt
 		);
 	}
 
+	/** 업무 API는 Access 키와 종류를 모두 검증해 Refresh 토큰의 사용을 거부합니다. */
 	public Jwt readAccess(String token) {
-		return read(token, "access", AuthErrorCode.ACCESS_TOKEN_EXPIRED);
+		return read(accessDecoder, token, "access", AuthErrorCode.ACCESS_TOKEN_EXPIRED);
 	}
 
+	/** 재발급과 로그아웃은 Refresh 키와 종류를 모두 검증합니다. */
 	public Jwt readRefresh(String token) {
-		return read(token, "refresh", AuthErrorCode.REFRESH_TOKEN_EXPIRED);
+		return read(refreshDecoder, token, "refresh", AuthErrorCode.REFRESH_TOKEN_EXPIRED);
 	}
 
 	public static String hash(String token) {
@@ -72,7 +83,8 @@ public class TokenService {
 		}
 	}
 
-	private String encode(String userId, String sessionId, String type, Instant now, Instant expiresAt) {
+	/** 선택한 종류별 서명기로 발급자, 대상, 사용자와 세션 식별자를 포함한 JWT를 생성합니다. */
+	private String encode(JwtEncoder encoder, String userId, String sessionId, String type, Instant now, Instant expiresAt) {
 		JwtClaimsSet claims = JwtClaimsSet.builder()
 			.issuer(properties.issuer()).audience(List.of(properties.audience()))
 			.subject(userId).id(UUID.randomUUID().toString()).issuedAt(now).notBefore(now)
@@ -81,7 +93,8 @@ public class TokenService {
 		return encoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
 	}
 
-	private Jwt read(String token, String type, AuthErrorCode expiredCode) {
+	/** 종류별 서명 검증 후 필수 클레임과 유효 시각을 확인하고 내부 검증 오류를 공통 인증 오류로 변환합니다. */
+	private Jwt read(JwtDecoder decoder, String token, String type, AuthErrorCode expiredCode) {
 		try {
 			Jwt jwt = decoder.decode(token);
 			Instant now = clock.instant();

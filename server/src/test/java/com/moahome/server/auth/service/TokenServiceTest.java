@@ -30,18 +30,26 @@ class TokenServiceTest {
 	private MutableClock clock;
 	private TokenService tokens;
 	private NimbusJwtEncoder encoder;
+	private NimbusJwtEncoder refreshEncoder;
 
 	@BeforeEach
 	void setUp() {
-		byte[] bytes = new byte[32];
+		byte[] bytes = new byte[64];
 		new SecureRandom().nextBytes(bytes);
+		byte[] refreshBytes = new byte[64];
+		new SecureRandom().nextBytes(refreshBytes);
 		SecretKeySpec key = new SecretKeySpec(bytes, "HmacSHA256");
+		SecretKeySpec refreshKey = new SecretKeySpec(refreshBytes, "HmacSHA256");
 		encoder = NimbusJwtEncoder.withSecretKey(key).algorithm(MacAlgorithm.HS256).build();
+		refreshEncoder = NimbusJwtEncoder.withSecretKey(refreshKey).algorithm(MacAlgorithm.HS256).build();
 		NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+		NimbusJwtDecoder refreshDecoder = NimbusJwtDecoder.withSecretKey(refreshKey).macAlgorithm(MacAlgorithm.HS256).build();
 		decoder.setJwtValidator(jwt -> OAuth2TokenValidatorResult.success());
+		refreshDecoder.setJwtValidator(jwt -> OAuth2TokenValidatorResult.success());
 		clock = new MutableClock(now);
-		tokens = new TokenService(encoder, decoder,
-			new SecurityProperties(Base64.getEncoder().encodeToString(bytes), "moahome-server", "moahome-api",
+		tokens = new TokenService(encoder, refreshEncoder, decoder, refreshDecoder,
+			new SecurityProperties(Base64.getEncoder().encodeToString(bytes), Base64.getEncoder().encodeToString(refreshBytes),
+				"moahome-server", "moahome-api",
 				List.of("http://localhost:3000"), true), clock);
 	}
 
@@ -52,6 +60,18 @@ class TokenServiceTest {
 		assertThat(tokens.readRefresh(pair.refreshToken()).getExpiresAt()).isEqualTo(now.plus(Duration.ofDays(14)));
 		assertCode(() -> tokens.readAccess(pair.refreshToken()), AuthErrorCode.INVALID_TOKEN);
 		assertCode(() -> tokens.readRefresh(pair.accessToken()), AuthErrorCode.INVALID_TOKEN);
+	}
+
+	@Test
+	void rejectsTokensWithCorrectTypeButSignedWithTheOtherKindsKey() {
+		assertCode(() -> tokens.readAccess(signed(refreshEncoder, "access")), AuthErrorCode.INVALID_TOKEN);
+		assertCode(() -> tokens.readRefresh(signed(encoder, "refresh")), AuthErrorCode.INVALID_TOKEN);
+	}
+
+	@Test
+	void rejectsWrongTypeEvenWhenSignedWithTheExpectedKey() {
+		assertCode(() -> tokens.readAccess(signed(encoder, "refresh")), AuthErrorCode.INVALID_TOKEN);
+		assertCode(() -> tokens.readRefresh(signed(refreshEncoder, "access")), AuthErrorCode.INVALID_TOKEN);
 	}
 
 	@Test
@@ -106,6 +126,15 @@ class TokenServiceTest {
 		}
 		return encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).type("JWT").build(), builder.build()))
 			.getTokenValue();
+	}
+
+	/** 종류 클레임과 서명 키를 독립적으로 지정해 검증 경계의 혼용 방지를 확인합니다. */
+	private String signed(NimbusJwtEncoder signingEncoder, String type) {
+		var claims = JwtClaimsSet.builder().issuer("moahome-server").audience(List.of("moahome-api"))
+			.subject("user-1").id("token-1").issuedAt(now).notBefore(now).expiresAt(now.plusSeconds(60))
+			.claim("sid", "session-1").claim("token_type", type).build();
+		return signingEncoder.encode(JwtEncoderParameters.from(
+			JwsHeader.with(MacAlgorithm.HS256).type("JWT").build(), claims)).getTokenValue();
 	}
 
 	private void assertCode(Runnable action, AuthErrorCode code) {

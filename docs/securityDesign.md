@@ -96,7 +96,9 @@
 
 카카오 로그인 콜백은 서버가 검증한 프로필로 `SocialLoginService.loginVerified()`를 호출합니다. 내부 `SocialAccountService`가 제공자와 제공자 사용자 ID로 사용자를 조회 / 생성하고 DB 트랜잭션을 커밋한 뒤, 검증된 사용자 ID로 `AuthService.startSession()`을 호출합니다. 사용자 ID를 직접 받아 토큰을 발급하는 공개 API는 제공하지 않습니다. 웹 OAuth 시작 / 콜백, Refresh 쿠키 설정 후 Client 이동과 Client의 CSRF 조회 / 재발급은 구현되어 있으며 경로는 8절을 따릅니다. 앱 교환 코드와 최종 서비스 진입 분기는 후속 구현 범위입니다. 관리대상별 권한은 토큰에 전역 역할을 넣는 방식으로 대신하지 않고 해당 업무 Service에서 검사합니다.
 
-서명은 HS256을 사용하며 32바이트 이상의 무작위 키를 Base64로 인코딩해 `JWT_SECRET_BASE64`로 주입해야 합니다. 누락·잘못된 인코딩·짧은 키는 서버 시작 시 거부합니다. 운영 Origin과 로컬 실행 설정은 [개발 환경 가이드](developmentGuide.md)를 따릅니다.
+서명은 HS256을 사용합니다. 2026-10-05 사용자 요청에 따라 Access / Refresh 서명 키를 분리하고 각각 독립적으로 생성한 무작위 64바이트의 Base64 값을 사용합니다. 환경변수는 `JWT_ACCESS_SECRET_BASE64`, `JWT_REFRESH_SECRET_BASE64`이며, 누락·잘못된 인코딩·디코딩 후 32바이트 미만 또는 두 키가 같은 설정은 서버 시작 시 거부합니다. 키를 분리해 종류가 맞는 토큰도 다른 종류의 키로 서명되면 검증에 실패하도록 하며, 기존 `token_type` 검증도 유지합니다.
+
+이전 단일 키 환경변수는 사용하지 않으며 이전 서명 키에 대한 호환 검증은 제공하지 않습니다. 새 설정을 적용하면 기존 Access / Refresh 토큰을 모두 거부하고 다시 로그인해야 합니다. 키 생성 / 실행 환경과 서버 인스턴스 간 설정은 [개발 환경 가이드](developmentGuide.md)를 따릅니다. 종류별 검증 규칙과 서명 키 분리의 근거는 [RFC 8725 3.12절](https://www.rfc-editor.org/rfc/rfc8725.html#section-3.12)을 참조합니다.
 
 ## 8. 카카오 로그인 설계와 구현 범위
 

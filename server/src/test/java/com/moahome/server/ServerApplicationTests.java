@@ -24,10 +24,15 @@ class ServerApplicationTests {
 	@DynamicPropertySource
 	static void securityProperties(DynamicPropertyRegistry registry) {
 		com.moahome.server.property.support.RegistrationTestKeys.register(registry);
-		byte[] key = new byte[32];
-		new SecureRandom().nextBytes(key);
-		String secret = Base64.getEncoder().encodeToString(key);
-		registry.add("moahome.security.jwt-secret-base64", () -> secret);
+		byte[] accessKey = new byte[64];
+		byte[] refreshKey = new byte[64];
+		SecureRandom random = new SecureRandom();
+		random.nextBytes(accessKey);
+		random.nextBytes(refreshKey);
+		String accessSecret = Base64.getEncoder().encodeToString(accessKey);
+		String refreshSecret = Base64.getEncoder().encodeToString(refreshKey);
+		registry.add("moahome.security.jwt-access-secret-base64", () -> accessSecret);
+		registry.add("moahome.security.jwt-refresh-secret-base64", () -> refreshSecret);
 	}
 
 	@Test
