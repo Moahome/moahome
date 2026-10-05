@@ -6,27 +6,44 @@ import {
   useState
 } from 'react';
 import Link from 'next/link';
+import { useSession } from '@/entities/session';
+import { Button } from '@/shared/ui/button';
 import { NAVIGATION_ITEMS } from '../_constants/landingContent';
 import { BrandLogo } from './brandLogo';
 import { LandingIcon } from './landingIcon';
 import styles from './landingHeader.module.css';
 
-function LoginLink({ onClick }: { onClick?: () => void }) {
+/** 복원 중에는 진입을 기다리고 본인 정보가 확인된 사용자는 로그인 없이 시작 화면으로 연결합니다. */
+function EntryLink({ onClick }: { onClick?: () => void }) {
+  const session = useSession();
+
   return (
     <div
       className={styles['login-area']}
     >
-      <Link
-        href={'/login'}
-        onClick={onClick}
-      >
-        로그인
-      </Link>
+      {session.isPending || session.isFetching ? (
+        <Button
+          variant={'text'}
+          size={'sm'}
+          disabled
+          aria-busy
+        >
+          확인 중
+        </Button>
+      ) : (
+        <Link
+          href={session.isSuccess ? '/start' : '/login'}
+          onClick={onClick}
+        >
+          {session.isSuccess ? '시작하기' : '로그인'}
+        </Link>
+      )}
     </div>
   );
 }
 
 export function LandingHeader() {
+  const session = useSession();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -90,7 +107,7 @@ export function LandingHeader() {
         <div
           className={styles['desktop-login']}
         >
-          <LoginLink />
+          <EntryLink />
         </div>
         <button
           className={styles['menu-toggle']}
@@ -180,11 +197,11 @@ export function LandingHeader() {
           <div
             className={styles['drawer-login']}
           >
-            <LoginLink
+            <EntryLink
               onClick={closeMenu}
             />
             <p>
-              카카오로 모아홈을 시작해보세요.
+              {session.isSuccess ? '모아홈에서 관리를 이어가세요.' : '카카오로 모아홈을 시작해보세요.'}
             </p>
           </div>
           <p

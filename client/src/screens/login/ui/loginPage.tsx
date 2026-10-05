@@ -1,15 +1,85 @@
+'use client';
+
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { useSession } from '@/entities/session';
 import {
   getKakaoLoginErrorMessage,
   KakaoLoginButton
 } from '@/features/kakao-login';
 import { BrandMark } from '@/shared/ui/brand-mark';
+import { ApiError } from '@/shared/api';
+import { Button } from '@/shared/ui/button';
 import { NeighborhoodIllustration } from '@/shared/ui/neighborhood-illustration';
 import { LoginFooter } from './_components/loginFooter';
 import styles from './loginPage.module.css';
 
+/** 세션 확인이 끝난 비로그인 사용자에게만 로그인 수단을 표시하고 정상 사용자는 시작 화면으로 이동합니다. */
 export function LoginPage({ errorCode }: { errorCode?: string }) {
+  const session = useSession();
+  const router = useRouter();
   const errorMessage = getKakaoLoginErrorMessage(errorCode);
+  const canLogin = session.isError && session.error instanceof ApiError
+    && (session.error.status === 401 || session.error.status === 403
+      || session.error.code === 'LOGIN_REQUIRED' || session.error.code === 'ACCOUNT_UNAVAILABLE');
+  const isChecking = session.isPending || session.isFetching || session.isSuccess;
+  const unsupportedBrowser = session.error instanceof ApiError && session.error.code === 'BROWSER_UNSUPPORTED';
+
+  useEffect(() => {
+    // 본인 정보까지 검증한 뒤 로그인 URL을 이력에서 교체해 뒤로 가기로 로그인 폼에 돌아오지 않게 합니다.
+    if (!session.isFetching && session.isSuccess) {
+      router.replace('/start');
+    }
+  }, [router, session.isFetching, session.isSuccess]);
+
+  /** 일시 장애를 비로그인으로 간주하지 않고 진행 중인 토큰 교체를 취소하지 않은 채 재시도합니다. */
+  function retrySession() {
+    void session.refetch({
+      cancelRefetch: false
+    });
+  }
+
+  if (isChecking || !canLogin) {
+    let description = '잠시만 기다려 주세요.';
+
+    if (!isChecking) {
+      description = unsupportedBrowser
+        ? '브라우저를 업데이트한 뒤 다시 로그인해 주세요.'
+        : '로그인 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.';
+    }
+
+    return (
+      <main
+        className={`${styles.page} ${styles['session-state']}`}
+        aria-busy={isChecking}
+      >
+        <div
+          role={isChecking ? 'status' : 'alert'}
+          aria-live={'polite'}
+        >
+          <h1>
+            {isChecking ? '로그인 상태를 확인하고 있어요' : '로그인 상태를 확인해 주세요'}
+          </h1>
+          <p>
+            {description}
+          </p>
+        </div>
+        {!isChecking && !unsupportedBrowser && (
+          <Button
+            onClick={retrySession}
+          >
+            다시 시도
+          </Button>
+        )}
+        <Link
+          href={'/'}
+        >
+          서비스 소개 보기
+        </Link>
+      </main>
+    );
+  }
 
   return (
     <div

@@ -570,17 +570,15 @@ test('랜딩에서 전역 복원하고 화면 이동·포커스 전환은 복원
   await page.goto('/');
   await expect.poll(() => requests).toEqual(['csrf', 'refresh', 'me']);
   await page.getByRole('link', {
-    name: '로그인',
+    name: '시작하기',
     exact: true
   }).click();
-  await expect(page).toHaveURL(/\/login$/);
-  await page.getByRole('link', {
-    name: '서비스 소개 보기'
-  }).click();
-  await expect(page).toHaveURL(/\/#service$/);
+  await expect(page).toHaveURL(/\/start$/);
+  await expect(page.getByLabel('모아 주민님 계정 정보')).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole('heading', {
-    name: '로그인',
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole('link', {
+    name: '시작하기',
     exact: true
   })).toBeVisible();
   await page.evaluate(() => {
@@ -588,6 +586,153 @@ test('랜딩에서 전역 복원하고 화면 이동·포커스 전환은 복원
     window.dispatchEvent(new Event('focus'));
   });
   expect(requests).toEqual(['csrf', 'refresh', 'me']);
+});
+
+test('모바일 랜딩은 로그인된 사용자에게 시작하기를 표시하고 시작 화면으로 이동', async ({ page }) => {
+  await page.setViewportSize({
+    width: 360,
+    height: 800
+  });
+  await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
+    await fulfillJson(route, route.request().url().endsWith('/csrf') ? {
+      csrfToken: 'test-csrf'
+    } : accessResponse());
+  });
+
+  await page.goto('/');
+  await page.getByRole('button', {
+    name: '메뉴 열기',
+    exact: true
+  }).click();
+  const entry = page.getByRole('link', {
+    name: '시작하기',
+    exact: true
+  });
+  await expect(entry).toHaveAttribute('href', '/start');
+  await expect(page.getByRole('link', {
+    name: '로그인',
+    exact: true
+  })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({
+    path: test.info().outputPath('landingSignedInMobile.png')
+  });
+  await entry.click();
+  await expect(page).toHaveURL(/\/start$/);
+  await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe('');
+});
+
+test('랜딩은 세션 복원 중 로그인 링크 대신 대기 상태를 표시', async ({ page }) => {
+  let releaseResponse: () => void = () => {};
+  const responseGate = new Promise<void>((resolve) => { releaseResponse = resolve; });
+  await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
+    await responseGate;
+    await fulfillJson(route, route.request().url().endsWith('/csrf') ? {
+      csrfToken: 'test-csrf'
+    } : accessResponse());
+  });
+
+  await page.goto('/');
+  await expect(page.getByRole('button', {
+    name: '확인 중',
+    exact: true
+  })).toBeDisabled();
+  await expect(page.getByRole('link', {
+    name: '로그인',
+    exact: true
+  })).toHaveCount(0);
+  releaseResponse();
+  await expect(page.getByRole('link', {
+    name: '시작하기',
+    exact: true
+  })).toHaveAttribute('href', '/start');
+  await page.screenshot({
+    path: test.info().outputPath('landingSignedInDesktop.png')
+  });
+});
+
+test('로그인 직접 접근은 본인 정보 확인 전 폼을 숨기고 정상 세션이면 시작 화면으로 대체', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('link', {
+    name: '로그인',
+    exact: true
+  })).toBeVisible();
+  let releaseUser: () => void = () => {};
+  const userGate = new Promise<void>((resolve) => { releaseUser = resolve; });
+  await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
+    await fulfillJson(route, route.request().url().endsWith('/csrf') ? {
+      csrfToken: 'test-csrf'
+    } : accessResponse());
+  });
+  await page.route(`${API_ORIGIN}/api/users/me`, async (route) => {
+    await userGate;
+    await fulfillJson(route, currentUserResponse());
+  });
+
+  await page.goto('/login?error=LOGIN_CANCELLED');
+  await expect(page.getByRole('heading', {
+    name: '로그인 상태를 확인하고 있어요'
+  })).toBeVisible();
+  await expect(page.getByRole('button', {
+    name: '카카오로 시작하기'
+  })).toHaveCount(0);
+  await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0);
+  await page.screenshot({
+    path: test.info().outputPath('loginCheckingDesktop.png')
+  });
+  await page.setViewportSize({
+    width: 360,
+    height: 800
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({
+    path: test.info().outputPath('loginCheckingMobile.png')
+  });
+  await page.setViewportSize({
+    width: 1280,
+    height: 720
+  });
+  releaseUser();
+  await expect(page).toHaveURL(/\/start$/);
+  await expect(page.getByLabel('모아 주민님 계정 정보')).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel('모아 주민님 계정 정보')).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/$/);
+});
+
+test('로그인페이지의 일시 조회 장애는 재로그인 폼 대신 재시도하고 기존 토큰을 재사용', async ({ page }) => {
+  let refreshAttempts = 0;
+  let userAttempts = 0;
+  await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
+    if (route.request().url().endsWith('/csrf')) {
+      await fulfillJson(route, {
+        csrfToken: 'test-csrf'
+      });
+      return;
+    }
+    refreshAttempts += 1;
+    await fulfillJson(route, accessResponse());
+  });
+  await page.route(`${API_ORIGIN}/api/users/me`, async (route) => {
+    userAttempts += 1;
+    await fulfillJson(route, userAttempts === 1 ? {
+      code: 'SERVICE_UNAVAILABLE'
+    } : currentUserResponse(), userAttempts === 1 ? 503 : 200);
+  });
+
+  await page.goto('/login');
+  await expect(page.getByRole('main').getByRole('alert')).toContainText('로그인 상태를 확인하지 못했어요.');
+  await expect(page.getByRole('button', {
+    name: '카카오로 시작하기'
+  })).toHaveCount(0);
+  await page.getByRole('button', {
+    name: '다시 시도',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/\/start$/);
+  expect(refreshAttempts).toBe(1);
+  expect(userAttempts).toBe(2);
 });
 
 test('비로그인 상태에서도 공개 화면을 표시하고 화면 이동 시 인증 실패를 자동 재시도하지 않음', async ({ page }) => {
