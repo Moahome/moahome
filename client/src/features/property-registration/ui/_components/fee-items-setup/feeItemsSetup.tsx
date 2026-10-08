@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { Button } from '@/shared/ui/button';
 import { HomeIllustration } from '@/shared/ui/home-illustration';
+import { IconButton } from '@/shared/ui/icon-button';
 import {
   formatFeeAmount,
   getFeeItemsError,
@@ -276,21 +277,21 @@ export function FeeItemsSetup({
               </span>
             </div>
           )}
-          <Button
+          <IconButton
             ref={addRef}
             variant={'outline'}
             className={styles['add-button']}
             onClick={() => setEditing({
               item: null
             })}
-            leadingIcon={(
+            icon={(
               <RegistrationIcon
                 name={'plus'}
               />
             )}
           >
             관리비 항목 추가
-          </Button>
+          </IconButton>
           <div
             className={styles.total}
             aria-live={'polite'}
