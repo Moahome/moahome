@@ -18,8 +18,10 @@ import {
 } from '../model/registrationDraft';
 import { PropertyRegistrationDialog } from './propertyRegistrationDialog';
 import { UnitSetup } from './_components/unit-setup/unitSetup';
+import { BankAccountSetup } from './_components/bank-account-setup/bankAccountSetup';
+import { getUnitSetupError } from '../model/unitSetup';
 
-/** 등록 흐름 전체가 초안을 소유해 기본 정보 모달이 닫혀도 동·세대와 이전 입력을 유지합니다. */
+/** 등록 흐름 전체가 초안을 소유해 기본 정보·동·세대·계좌의 단계 이동과 입력 복원을 유지합니다. */
 export function PropertyRegistrationFlow({
   userId,
   step,
@@ -31,25 +33,36 @@ export function PropertyRegistrationFlow({
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState(() => restoreRegistrationDraft(userId));
-  const isUnitStep = step === 'units' && draft.basicInfoValidated;
+  const unitsValid = !getUnitSetupError(draft.basicInfo.hasBuildings === true, draft.buildings, draft.units);
+  const isAccountStep = step === 'account' && draft.basicInfoValidated && unitsValid;
+  let currentStep: RegistrationStep = 'basic';
+  if (step !== 'basic' && draft.basicInfoValidated) currentStep = 'units';
+  if (isAccountStep) currentStep = 'account';
 
   useEffect(() => () => discardRegistrationDraft(), []);
 
   useEffect(() => {
     saveRegistrationDraft(userId, {
       ...draft,
-      step: isUnitStep ? 'units' : 'basic'
+      step: currentStep
     });
-  }, [userId, draft, isUnitStep]);
+  }, [userId, draft, currentStep]);
 
   useEffect(() => {
     // URL만으로 검증 단계를 건너뛰지 않으며 새 등록이나 다른 계정은 기본 정보부터 시작합니다.
-    if (step === 'units' && !draft.basicInfoValidated) {
+    if (step !== 'basic' && !draft.basicInfoValidated) {
       router.replace('/start?registration=basic', {
         scroll: false
       });
+      return;
     }
-  }, [step, draft.basicInfoValidated, router]);
+    // 계좌 직접 진입이나 이전 단계 변경에도 세대 최소 수·참조 조건을 확인합니다.
+    if (step === 'account' && !unitsValid) {
+      router.replace('/start?registration=units', {
+        scroll: false
+      });
+    }
+  }, [step, draft.basicInfoValidated, unitsValid, router]);
 
   /** 기본 정보 수정은 기존 동·세대 입력을 유지하되 이전 검증 성공 상태를 해제합니다. */
   const updateBasicInfo = useCallback((changes: Partial<BasicInfoDraft>) => {
@@ -91,7 +104,34 @@ export function PropertyRegistrationFlow({
     });
   }
 
-  if (isUnitStep) {
+  /** 같은 흐름의 초안을 유지하며 이전·다음 URL만 변경하고 중간 저장 API는 호출하지 않습니다. */
+  function navigateSetup(nextStep: 'units' | 'account') {
+    if (nextStep === 'account' && !unitsValid) return;
+
+    setDraft((previous) => ({
+      ...previous,
+      step: nextStep
+    }));
+    router.push(`/start?registration=${nextStep}`, {
+      scroll: false
+    });
+  }
+
+  if (isAccountStep) {
+    return (
+      <BankAccountSetup
+        propertyName={draft.basicInfo.name}
+        account={draft.bankAccount}
+        onChange={(bankAccount) => setDraft((previous) => ({
+          ...previous,
+          bankAccount
+        }))}
+        onPrevious={() => navigateSetup('units')}
+      />
+    );
+  }
+
+  if (currentStep === 'units') {
     return (
       <UnitSetup
         basicInfo={draft.basicInfo}
@@ -109,6 +149,7 @@ export function PropertyRegistrationFlow({
           step: 'units'
         }))}
         onPrevious={returnToBasicInfo}
+        onNext={() => navigateSetup('account')}
       />
     );
   }

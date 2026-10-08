@@ -9,20 +9,28 @@ import {
 } from './basicInfo';
 import {
   normalizeBuildingName,
+  getUnitSetupError,
   type BuildingDraft,
   type UnitDraft
 } from './unitSetup';
+import {
+  EMPTY_BANK_ACCOUNT,
+  isBankAccountDraft,
+  normalizeAccountNumber,
+  type BankAccountDraft
+} from './bankAccount';
 import { UNIT_STATUS_OPTIONS } from '@/entities/property';
 
 const DRAFT_STORAGE_KEY = 'moahome.property-registration.basic-info';
 
-export type RegistrationStep = 'basic' | 'units';
+export type RegistrationStep = 'basic' | 'units' | 'account';
 
 export interface RegistrationDraft {
   basicInfo: BasicInfoDraft;
   buildings: BuildingDraft[];
   units: UnitDraft[];
   automaticUnitRule: AutomaticUnitRule;
+  bankAccount: BankAccountDraft;
   step: RegistrationStep;
   basicInfoValidated: boolean;
 }
@@ -37,6 +45,9 @@ function createEmptyDraft(): RegistrationDraft {
     units: [],
     automaticUnitRule: {
       ...EMPTY_AUTOMATIC_UNIT_RULE
+    },
+    bankAccount: {
+      ...EMPTY_BANK_ACCOUNT
     },
     step: 'basic',
     basicInfoValidated: false,
@@ -98,6 +109,13 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
     }
 
     const basicInfoValidated = data.basicInfoValidated === true && Object.keys(getBasicInfoErrors(basicInfo)).length === 0;
+    const unitsValid = basicInfoValidated && !getUnitSetupError(basicInfo.hasBuildings === true, buildings, units);
+    let step: RegistrationStep = 'basic';
+    if (basicInfoValidated && (data.step === 'units' || data.step === 'account')) step = 'units';
+    if (data.step === 'account' && unitsValid) step = 'account';
+
+    // 이전 초안의 구분 기호를 정리하고 숫자가 아닌 문자가 남으면 번호를 다시 입력받습니다.
+    const accountNumber = isBankAccountDraft(data.bankAccount) ? normalizeAccountNumber(data.bankAccount.accountNumber) : '';
 
     return {
       basicInfo: {
@@ -120,7 +138,16 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
         status: unit.status,
       })),
       automaticUnitRule: restoredRule,
-      step: data.step === 'units' && basicInfoValidated ? 'units' : 'basic',
+      bankAccount: isBankAccountDraft(data.bankAccount) ? {
+        bankCode: data.bankAccount.bankCode,
+        bankName: data.bankAccount.bankName,
+        accountNumber: /^[0-9]*$/.test(accountNumber) ? accountNumber : '',
+        holderName: data.bankAccount.holderName,
+        isPrimary: data.bankAccount.isPrimary,
+      } : {
+        ...EMPTY_BANK_ACCOUNT
+      },
+      step,
       basicInfoValidated,
     };
   } catch {
@@ -129,15 +156,16 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
   }
 }
 
-/** 등록 중 기본 정보와 동·세대만 보관하며 저장소가 차단되어도 현재 화면 입력은 유지합니다. */
+/** 같은 탭 새로고침 복원용 입력을 보관하고 저장소 차단 시에도 현재 화면의 메모리 입력은 유지합니다. */
 export function saveRegistrationDraft(userId: string, draft: RegistrationDraft) {
   try {
+    // 진행 중 계좌 입력도 확정된 새로고침 복원 정책에 따라 탭 초안에 포함하고 이탈·로그아웃에 폐기합니다.
     sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({
       userId,
       ...draft
     }));
   } catch {
-    // 토큰과 최종 제출 정보를 넣지 않으며 저장 차단은 등록 입력을 막지 않습니다.
+    // 인증 토큰은 초안에 넣지 않으며 저장 차단은 등록 입력을 막지 않습니다.
   }
 }
 

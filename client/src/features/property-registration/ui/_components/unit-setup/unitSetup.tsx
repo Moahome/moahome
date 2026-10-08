@@ -26,18 +26,9 @@ import {
   type EditorTarget
 } from '../setup-editor/setupEditor';
 import { UnitDeleteConfirmation } from '../unit-delete-confirmation/unitDeleteConfirmation';
+import { SetupProgress } from '../setup-progress/setupProgress';
 import { UnitList } from '../unit-list/unitList';
 import styles from './unitSetup.module.css';
-
-const REGISTRATION_STEPS = ['기본 정보', '동·세대', '관리계좌', '관리비 항목', '등록 정보 확인'];
-
-/** 저장 전 진행 상태만 표시하며 마지막 확인 단계를 등록 완료로 표시하지 않습니다. */
-function getStepState(index: number) {
-  if (index === 0) return 'complete';
-  if (index === 1) return 'current';
-
-  return 'pending';
-}
 
 /** 같은 동·세대 초안을 PC 표와 모바일 카드로 표시하고 검색·편집·이전 이동을 연결합니다. */
 export function UnitSetup({
@@ -48,6 +39,7 @@ export function UnitSetup({
   onAutomaticRuleChange,
   onChange,
   onPrevious,
+  onNext,
 }: {
   basicInfo: BasicInfoDraft;
   buildings: BuildingDraft[];
@@ -56,6 +48,7 @@ export function UnitSetup({
   onAutomaticRuleChange: (rule: AutomaticUnitRule) => void;
   onChange: (buildings: BuildingDraft[], units: UnitDraft[]) => void;
   onPrevious: () => void;
+  onNext: () => void;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const hasBuildings = basicInfo.hasBuildings === true;
@@ -65,7 +58,6 @@ export function UnitSetup({
   const [pendingUnitId, setPendingUnitId] = useState<string | null>(null);
   const pendingUnit = units.find((unit) => unit.clientId === pendingUnitId);
   const pendingBuilding = buildings.find((building) => building.clientId === pendingUnit?.buildingClientId);
-  const [nextMessage, setNextMessage] = useState('');
   const setupError = getUnitSetupError(hasBuildings, buildings, units);
   const hasOldBuildings = !hasBuildings && (buildings.length > 0 || units.some((unit) => unit.buildingClientId !== null));
 
@@ -84,7 +76,6 @@ export function UnitSetup({
     const exists = buildings.some((entry) => entry.clientId === building.clientId);
     const nextBuildings = exists ? buildings.map((entry) => entry.clientId === building.clientId ? building : entry) : [...buildings, building];
     onChange(nextBuildings, units);
-    setNextMessage('');
     setEditing(null);
   }
 
@@ -93,7 +84,6 @@ export function UnitSetup({
     const exists = units.some((entry) => entry.clientId === unit.clientId);
     const nextUnits = exists ? units.map((entry) => entry.clientId === unit.clientId ? unit : entry) : [...units, unit];
     onChange(buildings, nextUnits);
-    setNextMessage('');
     setEditing(null);
   }
 
@@ -103,7 +93,6 @@ export function UnitSetup({
     if (!generated.length) return;
 
     onChange(buildings, [...units, ...generated]);
-    setNextMessage('');
     setAutomaticTarget(null);
   }
 
@@ -114,27 +103,23 @@ export function UnitSetup({
     }
 
     onChange(buildings.filter((entry) => entry.clientId !== clientId), units);
-    setNextMessage('');
     return null;
   }
 
   /** PC 목록과 모바일 편집 창에서 같은 세대 초안을 제거하고 다음 단계 조건을 다시 확인합니다. */
   function deleteUnit(clientId: string) {
     onChange(buildings, units.filter((entry) => entry.clientId !== clientId));
-    setNextMessage('');
   }
 
   /** 삭제 확인 후 동과 연결 세대를 한 번에 제거하고 다른 동의 세대와 자동 입력 규칙을 보존합니다. */
   function deleteBuildingWithUnits(clientId: string) {
     onChange(buildings.filter((building) => building.clientId !== clientId), units.filter((unit) => unit.buildingClientId !== clientId));
-    setNextMessage('');
   }
 
   /** 목록에서 확인한 초안 ID만 제거하며 선택하지 않은 세대와 동은 보존합니다. */
   function deleteSelectedUnits(clientIds: string[]) {
     const selectedIds = new Set(clientIds);
     onChange(buildings, units.filter((unit) => !selectedIds.has(unit.clientId)));
-    setNextMessage('');
   }
 
   /** 초안 항목만 제거하고 동 삭제의 참조 검증은 관리 창과 편집 창에서 공유합니다. */
@@ -150,7 +135,6 @@ export function UnitSetup({
       return null;
     }
 
-    setNextMessage('');
     setEditing(null);
     return null;
   }
@@ -170,14 +154,13 @@ export function UnitSetup({
       ...unit,
       buildingClientId: null
     })));
-    setNextMessage('');
   }
 
-  /** 아직 없는 관리계좌 화면에는 저장이나 완료를 표시하지 않고 현재 입력을 유지합니다. */
+  /** 동·세대 초안이 유효할 때만 관리계좌 설정으로 이동하며 업무 데이터를 저장하지 않습니다. */
   function continueSetup() {
     if (setupError) return;
 
-    setNextMessage('동·세대 정보를 확인했어요. 관리계좌 설정 화면을 준비하고 있어요. 입력한 정보는 아직 저장되지 않았어요.');
+    onNext();
   }
 
   return (
@@ -219,51 +202,9 @@ export function UnitSetup({
           관리 운영에 필요한 정보를 설정해주세요.
         </p>
       </header>
-      <nav
-        className={styles.progress}
-        aria-label={'초기 설정 진행 단계'}
-      >
-        <ol>
-          {REGISTRATION_STEPS.map((label, index) => (
-            <li
-              key={label}
-              data-step={getStepState(index)}
-              aria-current={index === 1 ? 'step' : undefined}
-            >
-              <span
-                className={styles['step-number']}
-                aria-hidden={'true'}
-              >
-                {index === 0 ? (
-                  <RegistrationIcon
-                    name={'check'}
-                  />
-                ) : index + 1}
-              </span>
-              <span>
-                {label}
-              </span>
-            </li>
-          ))}
-        </ol>
-        <div
-          className={styles['mobile-progress']}
-          aria-label={'5단계 중 2단계: 동·세대'}
-        >
-          <span>
-            <strong>
-              2
-            </strong>
-            {' / 5'}
-          </span>
-          <div
-            className={styles['progress-track']}
-            aria-hidden={'true'}
-          >
-            <span />
-          </div>
-        </div>
-      </nav>
+      <SetupProgress
+        currentStep={2}
+      />
       <section
         className={styles.card}
         aria-labelledby={'unit-setup-title'}
@@ -374,14 +315,6 @@ export function UnitSetup({
             role={'alert'}
           >
             {setupError}
-          </p>
-        )}
-        {nextMessage && (
-          <p
-            className={styles['next-message']}
-            role={'status'}
-          >
-            {nextMessage}
           </p>
         )}
         <footer

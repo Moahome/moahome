@@ -28,8 +28,8 @@ export function StartPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const registration = searchParams.get('registration');
-  const registrationStep = registration === 'basic' || registration === 'units' ? registration : null;
-  const isUnitStep = registrationStep === 'units';
+  const registrationStep = registration === 'basic' || registration === 'units' || registration === 'account' ? registration : null;
+  const isSetupStep = registrationStep === 'units' || registrationStep === 'account';
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [notice, setNotice] = useState({
     title: '',
@@ -75,7 +75,7 @@ export function StartPage() {
       className={styles.page}
     >
       <div
-        className={isUnitStep ? styles['setup-header'] : undefined}
+        className={isSetupStep ? styles['setup-header'] : undefined}
       >
         <StartHeader
           user={session.data}
@@ -92,7 +92,7 @@ export function StartPage() {
           })}
         />
       )}
-      {!isUnitStep && (
+      {!isSetupStep && (
         <main
           className={styles.main}
         >
@@ -127,7 +127,7 @@ export function StartPage() {
         <NeighborhoodIllustration />
       </div>
       <footer
-        className={isUnitStep ? styles.footer : `${styles.footer} ${motion.reveal}`}
+        className={isSetupStep ? styles.footer : `${styles.footer} ${motion.reveal}`}
       >
         우리의 공간이 더 특별해지는, 모아홈
       </footer>
