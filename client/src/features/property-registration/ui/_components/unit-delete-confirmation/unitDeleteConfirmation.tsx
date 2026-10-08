@@ -9,13 +9,12 @@ import {
 import { Button } from '@/shared/ui/button';
 import styles from './unitDeleteConfirmation.module.css';
 
-/** 개별·동별 전체 삭제에 같은 확인 절차를 제공하고 중첩 창의 취소·포커스 복귀를 처리합니다. */
+/** 개별·선택 세대와 동 삭제에 같은 확인 절차를 제공하고 중첩 창의 취소·포커스 복귀를 처리합니다. */
 export function UnitDeleteConfirmation({
   label,
   title = '세대 삭제 확인',
   description,
   children,
-  confirmDisabled = false,
   fallbackFocusRef,
   onConfirm,
   onClose,
@@ -24,7 +23,6 @@ export function UnitDeleteConfirmation({
   title?: string;
   description?: string;
   children?: ReactNode;
-  confirmDisabled?: boolean;
   fallbackFocusRef?: RefObject<HTMLElement | null>;
   onConfirm: () => void;
   onClose: () => void;
@@ -103,7 +101,6 @@ export function UnitDeleteConfirmation({
         <Button
           variant={'outline'}
           className={styles['delete-button']}
-          disabled={confirmDisabled}
           onClick={onConfirm}
         >
           삭제

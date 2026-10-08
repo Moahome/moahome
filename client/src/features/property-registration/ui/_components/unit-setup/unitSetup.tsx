@@ -124,15 +124,7 @@ export function UnitSetup({
     setNextMessage('');
   }
 
-  /** 확인한 동은 유지하고 해당 동의 세대만 초안에서 제거해 다른 동과 생성 규칙을 보존합니다. */
-  function deleteBuildingUnits(clientId: string) {
-    if (!buildings.some((building) => building.clientId === clientId)) return;
-
-    onChange(buildings, units.filter((unit) => unit.buildingClientId !== clientId));
-    setNextMessage('');
-  }
-
-  /** 범위 확인 후 동과 그 동의 세대를 한 번에 제거해 존재하지 않는 동 참조가 남지 않게 합니다. */
+  /** 삭제 확인 후 동과 연결 세대를 한 번에 제거하고 다른 동의 세대와 자동 입력 규칙을 보존합니다. */
   function deleteBuildingWithUnits(clientId: string) {
     onChange(buildings.filter((building) => building.clientId !== clientId), units.filter((unit) => unit.buildingClientId !== clientId));
     setNextMessage('');
@@ -441,7 +433,6 @@ export function UnitSetup({
           units={units}
           onSave={saveBuilding}
           onDelete={deleteBuildingWithUnits}
-          onDeleteUnits={deleteBuildingUnits}
           onClose={() => setIsManagingBuildings(false)}
         />
       )}

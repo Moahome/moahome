@@ -1097,7 +1097,7 @@ for (const viewport of [{
   width: 320,
   height: 640
 }]) {
-  test(`동별 세대 전체 삭제는 확인 후 동과 다른 세대를 유지하고 자동 입력을 재사용 (${viewport.width}px)`, async ({ page }) => {
+  test(`동과 세대 모두 삭제는 확인 후 해당 동만 제거하고 다른 동과 자동 입력을 유지 (${viewport.width}px)`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await openUnitSetup(page, true);
     for (const name of ['101동', '102동', '103동']) await addBuilding(page, name);
@@ -1151,12 +1151,12 @@ for (const viewport of [{
       name: '103동 삭제',
       exact: true
     }).click();
-    await expect(confirmation.getByRole('radio', {
-      name: /^세대만 전체 삭제/
-    })).toBeDisabled();
-    await expect(confirmation.getByRole('radio', {
-      name: /^동과 세대 모두 삭제/
-    })).toBeChecked();
+    await expect(confirmation.getByRole('radio')).toHaveCount(0);
+    await expect(confirmation).toContainText('103동과 연결된 0세대');
+    await expect(confirmation.getByRole('button', {
+      name: '삭제',
+      exact: true
+    })).toBeEnabled();
     await confirmation.getByRole('button', {
       name: '취소',
       exact: true
@@ -1166,8 +1166,8 @@ for (const viewport of [{
       path: test.info().outputPath('buildingUnitsClearManager.png')
     });
     await clear.click();
-    await expect(confirmation).toContainText('101동의 4세대');
-    await expect(confirmation).toContainText('동은 유지됩니다');
+    await expect(confirmation).toContainText('101동과 연결된 4세대');
+    await expect(confirmation).toContainText('동과 해당 동에 입력한 모든 세대가 함께 삭제됩니다.');
     await expect(confirmation.getByRole('button', {
       name: '취소',
       exact: true
@@ -1197,13 +1197,19 @@ for (const viewport of [{
     await confirm.click();
     await expect(confirmation).toHaveCount(0);
     await expect(manager).toBeVisible();
-    await expect(manager.getByRole('listitem').filter({
-      has: clear
-    })).toContainText('0세대');
+    await expect(clear).toHaveCount(0);
+    await expect(choices.getByRole('button', {
+      name: '101동',
+      exact: true
+    })).toHaveCount(0);
+    await expect(manager.getByRole('button', {
+      name: '102동 삭제',
+      exact: true
+    })).toBeVisible();
     expect(await manager.evaluate((element) => element.contains(document.activeElement))).toBe(true);
     expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden');
     const after = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
-    expect(after.buildings).toEqual(before.buildings);
+    expect(after.buildings).toEqual(before.buildings.filter((building: { name: string }) => building.name !== '101동'));
     expect(after.units).toEqual([before.units[0]]);
     expect(after.automaticUnitRule).toEqual(before.automaticUnitRule);
     await manager.getByRole('button', {
@@ -1216,6 +1222,11 @@ for (const viewport of [{
       exact: true
     })).toBeEnabled();
     await page.reload();
+    await expect(choices.getByRole('button', {
+      name: '101동',
+      exact: true
+    })).toHaveCount(0);
+    await addBuilding(page, '101동');
     await choices.getByRole('button', {
       name: '101동',
       exact: true
@@ -1232,9 +1243,6 @@ for (const viewport of [{
         name: `${name} 삭제`,
         exact: true
       }).click();
-      if (name === '102동') await confirmation.getByRole('radio', {
-        name: /^동과 세대 모두 삭제/
-      }).check();
       await confirmation.getByRole('button', {
         name: '삭제',
         exact: true
@@ -1250,7 +1258,7 @@ for (const viewport of [{
     })).toBeDisabled();
     const empty = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
     expect(empty.units).toEqual([]);
-    expect(empty.buildings).toEqual(before.buildings.filter((building: { name: string }) => building.name !== '102동'));
+    expect(empty.buildings).toEqual(before.buildings.filter((building: { name: string }) => building.name !== '101동' && building.name !== '102동'));
     expect(empty.automaticUnitRule).toEqual(before.automaticUnitRule);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });

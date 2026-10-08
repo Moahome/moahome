@@ -7,10 +7,7 @@ import {
   type FormEvent
 } from 'react';
 import { Button } from '@/shared/ui/button';
-import {
-  Input,
-  Radio
-} from '@/shared/ui/form-controls';
+import { Input } from '@/shared/ui/form-controls';
 import {
   getBuildingNameError,
   normalizeBuildingName,
@@ -28,14 +25,12 @@ export function BuildingManager({
   units,
   onSave,
   onDelete,
-  onDeleteUnits,
   onClose,
 }: {
   buildings: BuildingDraft[];
   units: UnitDraft[];
   onSave: (building: BuildingDraft) => void;
   onDelete: (clientId: string) => void;
-  onDeleteUnits: (clientId: string) => void;
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -46,7 +41,6 @@ export function BuildingManager({
   const [name, setName] = useState('');
   const [message, setMessage] = useState('');
   const [pendingBuildingId, setPendingBuildingId] = useState<string | null>(null);
-  const [deleteScope, setDeleteScope] = useState<'units' | 'building'>('units');
   const pendingBuilding = buildings.find((building) => building.clientId === pendingBuildingId);
   const pendingUnitCount = units.filter((unit) => unit.buildingClientId === pendingBuildingId).length;
   const sortedBuildings = getSortedBuildings(buildings);
@@ -94,12 +88,11 @@ export function BuildingManager({
     setEditingId(undefined);
   }
 
-  /** 확인한 삭제 범위에 따라 세대만 비우거나 동과 연결 세대를 함께 제거합니다. */
-  function confirmBuildingUnitsDeletion() {
-    if (!pendingBuilding || (deleteScope === 'units' && !pendingUnitCount)) return;
+  /** 확인한 동과 연결 세대를 함께 제거하며 취소 전에는 초안을 변경하지 않습니다. */
+  function confirmBuildingDeletion() {
+    if (!pendingBuilding) return;
 
-    if (deleteScope === 'units') onDeleteUnits(pendingBuilding.clientId);
-    else onDelete(pendingBuilding.clientId);
+    onDelete(pendingBuilding.clientId);
     setPendingBuildingId(null);
     setMessage('');
   }
@@ -225,7 +218,6 @@ export function BuildingManager({
                         aria-label={`${building.name} 삭제`}
                         onClick={() => {
                           setPendingBuildingId(building.clientId);
-                          setDeleteScope(unitCount ? 'units' : 'building');
                           setMessage('');
                         }}
                         leadingIcon={(
@@ -276,37 +268,11 @@ export function BuildingManager({
       {pendingBuilding && (
         <UnitDeleteConfirmation
           title={'동 삭제 확인'}
-          label={deleteScope === 'units' ? `${pendingBuilding.name}의 ${pendingUnitCount}세대` : `${pendingBuilding.name}과 연결된 ${pendingUnitCount}세대`}
-          description={deleteScope === 'units' ? '동은 유지됩니다. 해당 동에 입력한 모든 세대가 삭제됩니다.' : '동과 해당 동에 입력한 모든 세대가 삭제됩니다.'}
-          confirmDisabled={deleteScope === 'units' && !pendingUnitCount}
-          onConfirm={confirmBuildingUnitsDeletion}
+          label={`${pendingBuilding.name}과 연결된 ${pendingUnitCount}세대`}
+          description={'동과 해당 동에 입력한 모든 세대가 함께 삭제됩니다.'}
+          onConfirm={confirmBuildingDeletion}
           onClose={() => setPendingBuildingId(null)}
-        >
-          <fieldset
-            className={styles['delete-scope']}
-          >
-            <legend>
-              삭제 범위
-            </legend>
-            <Radio
-              name={'building-delete-scope'}
-              label={'세대만 전체 삭제'}
-              description={'동 유지'}
-              variant={'card'}
-              checked={deleteScope === 'units'}
-              disabled={!pendingUnitCount}
-              onChange={() => setDeleteScope('units')}
-            />
-            <Radio
-              name={'building-delete-scope'}
-              label={'동과 세대 모두 삭제'}
-              description={'동도 함께 삭제'}
-              variant={'card'}
-              checked={deleteScope === 'building'}
-              onChange={() => setDeleteScope('building')}
-            />
-          </fieldset>
-        </UnitDeleteConfirmation>
+        />
       )}
       {editingId === undefined && (
         <footer

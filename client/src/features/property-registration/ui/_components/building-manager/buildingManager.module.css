@@ -64,18 +64,6 @@
   }
 }
 
-.delete-scope {
-  display: grid;
-  gap: 10px;
-  margin-top: 20px;
-  border: 0;
-
-  legend {
-    margin-bottom: 10px;
-    font-weight: 700;
-  }
-}
-
 .identity {
   display: grid;
   flex: 1;
