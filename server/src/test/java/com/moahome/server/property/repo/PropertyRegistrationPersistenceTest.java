@@ -123,6 +123,19 @@ class PropertyRegistrationPersistenceTest {
 	}
 
 	@Test
+	void savesNegativeFeeAndSignedTotalInDatabaseAndResultSnapshot() {
+		var r = RegistrationFixtures.request(UUID.randomUUID(), false);
+		var request = new PropertyRegistrationRequest(r.requestId(), r.basicInfo(), r.buildings(), r.units(), r.bankAccounts(),
+			List.of(new PropertyRegistrationRequest.FeeItemInput("차감", -15000L),
+				new PropertyRegistrationRequest.FeeItemInput("영", 0L)));
+		var outcome = registrations.register(userId, request);
+		assertThat(outcome.response().summary().monthlyDefaultAmount()).isEqualTo(-15000);
+		assertThat(jdbc.queryForList("select default_amount from fee_template_items order by sort_order", java.math.BigDecimal.class))
+			.containsExactly(new java.math.BigDecimal("-15000"), java.math.BigDecimal.ZERO);
+		assertThat(registrations.getResult(userId, request.requestId())).isEqualTo(outcome.response());
+	}
+
+	@Test
 	void basicValidationNeverPersistsBusinessData() {
 		for (int index = 0; index < 3; index++) {
 			assertThat(registrations.validateBasicInfo(userId,
@@ -241,7 +254,7 @@ class PropertyRegistrationPersistenceTest {
 			.isInstanceOf(DataIntegrityViolationException.class);
 		assertThatThrownBy(() -> jdbc.update("update units set unit_number = '201' where property_id = ?",
 			second.response().property().id())).isInstanceOf(DataIntegrityViolationException.class);
-		assertThatThrownBy(() -> jdbc.update("update fee_template_items set default_amount = -1"))
+		assertThatThrownBy(() -> jdbc.update("update fee_template_items set default_amount = -1000000000000000"))
 			.isInstanceOf(DataIntegrityViolationException.class);
 		assertThatThrownBy(() -> jdbc.update("update property_members set role = 'PLATFORM_ADMIN'"))
 			.isInstanceOf(DataIntegrityViolationException.class);
@@ -250,9 +263,37 @@ class PropertyRegistrationPersistenceTest {
 	}
 
 	@Test
+	void upgradesExistingFeeRowsAndAllowsNegativeAmountsAfterMigration() {
+		String schema = "signed_fees_" + UUID.randomUUID().toString().replace("-", "");
+		Flyway old = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+			.schemas(schema).defaultSchema(schema).target("20261005034120").load();
+		old.migrate();
+		UUID propertyId = UUID.randomUUID();
+		UUID templateId = UUID.randomUUID();
+		UUID itemId = UUID.randomUUID();
+		jdbc.update("insert into " + schema + ".properties (id,name,address,has_buildings,status,created_at,updated_at) "
+			+ "values (?,'기존 대상','주소',false,'ACTIVE',now(),now())", propertyId);
+		jdbc.update("insert into " + schema + ".fee_templates (id,property_id,name,is_default,status,created_at,updated_at) "
+			+ "values (?,?,'기본 관리비',true,'ACTIVE',now(),now())", templateId, propertyId);
+		jdbc.update("insert into " + schema + ".fee_template_items (id,fee_template_id,item_name,default_amount,sort_order,is_active,created_at,updated_at) "
+			+ "values (?,?,'기존 항목',15000,0,true,now(),now())", itemId, templateId);
+		assertThatThrownBy(() -> jdbc.update("update " + schema + ".fee_template_items set default_amount=-1"))
+			.isInstanceOf(DataIntegrityViolationException.class);
+		Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+			.schemas(schema).defaultSchema(schema).load();
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
+		upgraded.validate();
+		assertThat(jdbc.queryForObject("select default_amount from " + schema + ".fee_template_items where id=?",
+			Long.class, itemId)).isEqualTo(15000);
+		assertThat(jdbc.update("update " + schema + ".fee_template_items set default_amount=-1 where id=?", itemId)).isEqualTo(1);
+		assertThat(jdbc.queryForObject("select default_amount from " + schema + ".fee_template_items where id=?",
+			Long.class, itemId)).isEqualTo(-1);
+	}
+
+	@Test
 	void migratesEmptyAndExistingUserSchemaWithoutChangingIdentity() {
 		flyway.validate();
-		assertThat(flyway.info().applied()).hasSize(4);
+		assertThat(flyway.info().applied()).hasSize(5);
 		assertThat(flyway.migrate().migrationsExecuted).isZero();
 		String schema = "registration_" + UUID.randomUUID().toString().replace("-", "");
 		Flyway old = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
@@ -262,7 +303,7 @@ class PropertyRegistrationPersistenceTest {
 		jdbc.update("insert into " + schema + ".users (id, display_name, status) values (?, '기존 사용자', 'ACTIVE')", legacyId);
 		Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			.schemas(schema).defaultSchema(schema).load();
-		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(2);
 		upgraded.validate();
 		assertThat(jdbc.queryForObject("select system_role from " + schema + ".users where id = ?", String.class, legacyId))
 			.isEqualTo("USER");

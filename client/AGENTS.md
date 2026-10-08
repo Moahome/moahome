@@ -340,7 +340,7 @@ npm test
 
 - 구현 변경 후 위 ESLint, TypeScript 타입 검사, 프로덕션 빌드를 수행합니다.
 - Playwright로 공통 API / 세션 복원 / 업무 API 인증 테스트와 로그인 / 기본 정보 등록 화면 통합 테스트를 실행합니다. 최초 브라우저 준비는 `npx playwright install chromium`을 사용합니다.
-- `npm run test:api`는 브라우저 없이 API / 세션 복원 / 업무 API 인증 테스트만 실행하고, `npm run test:e2e`는 로그인 / 기본 정보 등록 화면 통합 테스트만 실행합니다. 설치된 Chrome을 사용하려면 `PLAYWRIGHT_CHANNEL=chrome npm test`로 실행합니다.
+- `npm run test:api`는 브라우저 없이 API / 세션 복원 / 업무 API 인증과 관리비 금액 계산 단위 테스트를 실행하고, `npm run test:e2e`는 로그인 / 초기 설정 화면 통합 테스트를 실행합니다. 설치된 Chrome을 사용하려면 `PLAYWRIGHT_CHANNEL=chrome npm test`로 실행합니다.
 - 통합 테스트 서버는 포트 `3100`과 `.next-test/`를 사용합니다. 테스트는 인증 / 등록 응답과 주소 검색 SDK를 모의 처리하며 실제 카카오, 개발 서버 DB나 Redis를 호출하지 않습니다.
 - ESLint, 타입 검사와 빌드 결과를 단위 테스트 통과로 보고하지 않습니다. 기본 빌드가 실행 환경 제한으로 실패해 대체 빌드를 검증한 경우 명령과 빌드 방식을 함께 기록합니다.
 - 업무 로직을 구현할 때 필요한 테스트 환경과 실행 스크립트를 함께 추가하고, 실제 명령을 이 문서에 갱신합니다.

@@ -156,8 +156,7 @@
   }
 }
 
-.error,
-.next-message {
+.error {
   margin-top: 8px;
   font-size: 14px;
   line-height: 1.7;
@@ -166,10 +165,6 @@
 
 .error {
   color: var(--danger);
-}
-
-.next-message {
-  color: var(--sub-text);
 }
 
 .actions {

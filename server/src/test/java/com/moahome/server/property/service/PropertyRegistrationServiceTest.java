@@ -84,6 +84,9 @@ class PropertyRegistrationServiceTest {
 			Arguments.of(change(r, r.basicInfo(), r.buildings(), r.units(), r.bankAccounts(),
 				List.of(new FeeItemInput("상한", PropertyRegistrationRequest.MAX_AMOUNT), new FeeItemInput("초과", 1L))),
 				"feeItems", "OUT_OF_RANGE"),
+			Arguments.of(change(r, r.basicInfo(), r.buildings(), r.units(), r.bankAccounts(),
+				List.of(new FeeItemInput("하한", -PropertyRegistrationRequest.MAX_AMOUNT), new FeeItemInput("초과", -1L))),
+				"feeItems", "OUT_OF_RANGE"),
 			Arguments.of(change(r, r.basicInfo(), r.buildings(), List.of(), r.bankAccounts(), r.feeItems()), "units", "REQUIRED"),
 			Arguments.of(change(r, r.basicInfo(), r.buildings(), r.units(), List.of(), r.feeItems()), "bankAccounts", "REQUIRED"),
 			Arguments.of(change(r, r.basicInfo(), r.buildings(), r.units(), r.bankAccounts(), List.of()), "feeItems", "REQUIRED"),
@@ -127,6 +130,20 @@ class PropertyRegistrationServiceTest {
 			List.of(new FeeItemInput("최대", PropertyRegistrationRequest.MAX_AMOUNT), new FeeItemInput("영", 0L)));
 		assertThat(service.register(user.getId(), request).response().summary().monthlyDefaultAmount())
 			.isEqualTo(PropertyRegistrationRequest.MAX_AMOUNT);
+	}
+
+	@Test
+	void acceptsNegativeTotalsAndOffsettingItemsWithoutOrderDependentRejection() {
+		var r = RegistrationFixtures.request(UUID.randomUUID(), false);
+		long maximum = PropertyRegistrationRequest.MAX_AMOUNT;
+		for (List<FeeItemInput> fees : List.of(
+			List.of(new FeeItemInput("하한", -maximum), new FeeItemInput("영", 0L)),
+			List.of(new FeeItemInput("음수", -maximum), new FeeItemInput("음수2", -maximum), new FeeItemInput("상쇄", maximum)),
+			List.of(new FeeItemInput("양수", maximum), new FeeItemInput("양수2", maximum), new FeeItemInput("상쇄", -maximum)))) {
+			var request = change(r, r.basicInfo(), r.buildings(), r.units(), r.bankAccounts(), fees);
+			long expected = fees.stream().mapToLong(FeeItemInput::defaultAmount).sum();
+			assertThat(service.register(user.getId(), request).response().summary().monthlyDefaultAmount()).isEqualTo(expected);
+		}
 	}
 
 	@Test

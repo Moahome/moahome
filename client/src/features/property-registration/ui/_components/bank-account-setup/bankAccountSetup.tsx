@@ -29,15 +29,16 @@ export function BankAccountSetup({
   account,
   onChange,
   onPrevious,
+  onNext,
 }: {
   propertyName: string;
   account: BankAccountDraft;
   onChange: (account: BankAccountDraft) => void;
   onPrevious: () => void;
+  onNext: () => void;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [touched, setTouched] = useState<Partial<Record<keyof BankAccountDraft, boolean>>>({});
-  const [nextMessage, setNextMessage] = useState('');
   const errors = getBankAccountErrors(account);
   const isValid = Object.keys(errors).length === 0;
 
@@ -51,13 +52,12 @@ export function BankAccountSetup({
     });
   }, []);
 
-  /** 선택한 은행의 코드와 이름을 함께 변경하고 입력 수정 시 이전 확인 안내를 지웁니다. */
+  /** 선택한 은행의 코드와 이름 또는 입력값을 같은 계좌 초안에 반영합니다. */
   function updateAccount(changes: Partial<BankAccountDraft>) {
     onChange({
       ...account,
       ...changes
     });
-    setNextMessage('');
   }
 
   /** 복사한 번호의 구분 기호만 제거하고 다른 문자가 있으면 붙여넣기를 거부해 번호 변형을 막습니다. */
@@ -75,12 +75,12 @@ export function BankAccountSetup({
     requestAnimationFrame(() => input.setSelectionRange(start + number.length, start + number.length));
   }
 
-  /** 다음 단계의 준비 상태를 안내하며 계좌 입력을 유지하고 저장 완료로 표시하지 않습니다. */
+  /** 유효한 계좌 입력을 유지하며 관리비 항목 설정으로 이동하고 업무 데이터는 저장하지 않습니다. */
   function continueSetup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!isValid) return;
 
-    setNextMessage('관리계좌 정보를 확인했어요. 다음 관리비 항목 설정은 준비 중이에요. 입력한 정보는 아직 저장되지 않았어요.');
+    onNext();
   }
 
   return (
@@ -262,14 +262,6 @@ export function BankAccountSetup({
               </span>
             </p>
           </aside>
-          {nextMessage && (
-            <p
-              className={styles['next-message']}
-              role={'status'}
-            >
-              {nextMessage}
-            </p>
-          )}
           <div
             className={styles.actions}
           >

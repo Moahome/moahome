@@ -21,7 +21,7 @@ public record PropertyRegistrationRequest(
 	@NotEmpty(message = "REQUIRED") List<@NotNull(message = "REQUIRED") @Valid UnitInput> units,
 	@Schema(description = "최소 1개의 공용계좌. isPrimary=true는 정확히 1개. 계좌번호 중복 불가")
 	@NotEmpty(message = "REQUIRED") List<@NotNull(message = "REQUIRED") @Valid BankAccountInput> bankAccounts,
-	@Schema(description = "최소 1개. 항목 이름 중복 불가, 금액 합계도 최대 999999999999999원")
+	@Schema(description = "최소 1개. 금액과 합계는 -999999999999999원부터 999999999999999원까지의 정수")
 	@NotEmpty(message = "REQUIRED") List<@NotNull(message = "REQUIRED") @Valid FeeItemInput> feeItems
 ) {
 	public static final long MAX_AMOUNT = 999_999_999_999_999L;
@@ -92,8 +92,8 @@ public record PropertyRegistrationRequest(
 	public record FeeItemInput(
 		@Schema(description = "기본 관리비 항목 이름", example = "공용 전기료", minLength = 1, maxLength = 100, requiredMode = Schema.RequiredMode.REQUIRED)
 		@TextInput(max = 100) String itemName,
-		@Schema(description = "0원 이상 정수 원 단위. 실제 청구 / 회계 전표를 생성하지 않음", example = "10000")
-		@NotNull(message = "REQUIRED") @Min(value = 0, message = "OUT_OF_RANGE")
+		@Schema(description = "정수 원 단위. 0원과 음수 허용. 실제 청구 / 회계 전표를 생성하지 않음", example = "10000")
+		@NotNull(message = "REQUIRED") @Min(value = -MAX_AMOUNT, message = "OUT_OF_RANGE")
 		@Max(value = MAX_AMOUNT, message = "OUT_OF_RANGE") Long defaultAmount
 	) {
 		public FeeItemInput {

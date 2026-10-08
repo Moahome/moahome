@@ -43,7 +43,7 @@
 | 표시 순서 | 동과 항목 각각 요청 배열 순서대로 sort_order를 0부터 부여 |
 | 생성자 참여 | 인증된 사용자의 ADMIN / ACTIVE, joined_at은 공통 등록 시각, 플랫폼 역할 / 주민 명부 변경 없음 |
 
-금액은 최소 화폐 단위 정수 또는 BigDecimal로 정확히 합산합니다. 개별 값과 합계는 공통 API의 범위를 검증해 numeric(15,0)과 향후 charges.total_amount의 저장 범위에 맞춥니다. 합계는 세대당 월 기본값이고 실제 청구는 생성하지 않습니다.
+금액은 정수 원 단위로 받고 0원과 음수를 허용합니다. BigInteger로 전체를 정확히 합산한 뒤 최종 양·음수 범위를 검사합니다. 중간 합계 초과를 뒤의 음수 항목이 상쇄할 수 있으므로 요청 순서에 따른 거부는 하지 않습니다. 개별 값과 합계는 공통 API의 범위를 검증해 numeric(15,0)과 향후 charges.total_amount의 저장 범위에 맞춥니다. 합계는 부호를 유지한 세대당 월 기본값이고 실제 청구는 생성하지 않습니다. `V20261008132205__allow_signed_fee_template_amount.sql`은 기존 행을 보존하며 `default_amount`의 양수 CHECK만 제거합니다.
 
 ## 4. 계좌번호 보호
 
@@ -86,7 +86,7 @@
 - 세대 / 계좌 / 항목의 빈 배열, 동 없음에서 동 입력, 누락된 동 참조, 중복 동 이름 / clientId / 동 내부 세대번호의 거부와 같은 번호의 다른 동 세대 허용.
 - 각 문자열 경계와 공백 입력, 잘못된 타입 / 상태, smallint 층수 경계, 계좌번호의 앞자리 0 / 공백 / 하이픈 정규화.
 - 예금주 이름 필수와 주민 연결 없이 저장, 기본 계좌 0개 / 2개 이상 거부, 공용계좌 저장과 Asia/Seoul 날짜 경계, 재조회 시 사용 시작일 유지.
-- 관리비 0원 허용, 음수 / 소수 / 숫자 문자열 거부, 개별 / 합계 금액 범위와 항목별 순서 유지.
+- 관리비 0원·음수 허용, 소수 / 숫자 문자열 거부, 개별 / 최종 합계의 양·음수 범위, 상쇄 항목과 항목별 순서 유지.
 - 생성자 ID / 역할 등 계약 밖 입력 거부, 정상 계정 인증, 인증 장애와 업무 저장 장애의 구분, 오류 / 로그 / 응답의 계좌번호 원문 미포함.
 - 동 / 세대 / 계좌 / 템플릿 / 참여 / 성공 결과 중 하나의 저장 실패에서 업무 데이터와 성공 결과 모두 롤백.
 - 같은 ID / 본문의 순차·동시 재시도, 다른 본문의 ID 재사용 거부, 다른 사용자의 결과 조회 차단, 현재 권한 해제 시 결과 접근 거부.
@@ -95,4 +95,4 @@
 
 검증 명령은 [Server AGENTS.md](../AGENTS.md)를 따릅니다. 자동 테스트는 `property/controller/PropertyRegistrationControllerTest`, `property/service/PropertyRegistrationServiceTest`, `property/domain/RegistrationDomainTest`, `property/repo/PropertyRegistrationPersistenceTest`와 `common/security/AccountNumberSecurityTest`에 있습니다. 기존 `SecurityIntegrationTest`에서도 등록 API의 Bearer 인증과 CSRF 없는 업무 POST를 검증합니다.
 
-PostgreSQL 테스트는 별도 임시 클러스터에서 빈 DB / 기존 사용자 스키마의 Migration, 정상 저장, 저장 8단계별 강제 실패의 전체 롤백, 순차 / 동시 재시도, 3초 잠금 제한과 현재 권한 해제를 확인합니다. 위 상세 목록은 검증 기준이며 테스트 실행 결과는 실제 명령을 기준으로 보고합니다.
+PostgreSQL 테스트는 별도 임시 클러스터에서 빈 DB / 기존 사용자·관리비 항목이 있는 스키마의 Migration, 정상 저장, 저장 8단계별 강제 실패의 전체 롤백, 순차 / 동시 재시도, 3초 잠금 제한과 현재 권한 해제를 확인합니다. 위 상세 목록은 검증 기준이며 테스트 실행 결과는 실제 명령을 기준으로 보고합니다.

@@ -141,12 +141,24 @@ class PropertyRegistrationControllerTest {
 	}
 
 	@Test
+	void acceptsNegativeIntegerFeeAndPreservesItsSign() throws Exception {
+		var r = RegistrationFixtures.request(REQUEST_ID, false);
+		var request = new PropertyRegistrationRequest(r.requestId(), r.basicInfo(), r.buildings(), r.units(), r.bankAccounts(),
+			List.of(new PropertyRegistrationRequest.FeeItemInput("차감", -1L)));
+		when(registrations.register(USER_ID, request))
+			.thenReturn(new PropertyRegistrationService.RegistrationOutcome(response(), true));
+		mvc.perform(post(PATH).with(identity()).contentType(MediaType.APPLICATION_JSON)
+			.content(mapper.writeValueAsString(request))).andExpect(status().isCreated());
+		verify(registrations).register(USER_ID, request);
+	}
+
+	@Test
 	void finalInputRejectsCoercionFractionsNullElementsUnknownNestedFieldsAndRangeOverflow() throws Exception {
 		String valid = mapper.writeValueAsString(RegistrationFixtures.request(REQUEST_ID, true));
 		for (String body : List.of(
 			valid.replace("\"defaultAmount\":15000", "\"defaultAmount\":\"15000\""),
 			valid.replace("\"defaultAmount\":15000", "\"defaultAmount\":0.0"),
-			valid.replace("\"defaultAmount\":15000", "\"defaultAmount\":-1"),
+			valid.replace("\"defaultAmount\":15000", "\"defaultAmount\":-1000000000000000"),
 			valid.replace("\"defaultAmount\":15000", "\"defaultAmount\":1000000000000000"),
 			valid.replace("\"floor\":2", "\"floor\":\"2\""),
 			valid.replace("\"floor\":2", "\"floor\":2.0"),

@@ -1,5 +1,6 @@
 package com.moahome.server.property.service;
 
+import java.math.BigInteger;
 import java.time.*;
 import java.util.*;
 import com.moahome.server.auth.exception.*;
@@ -214,15 +215,16 @@ public class PropertyRegistrationService {
 		if (input.bankAccounts().stream().filter(account -> account.isPrimary()).count() != 1) {
 			throw invalid("bankAccounts", "INVALID_COMBINATION", "기본 계좌를 정확히 하나 지정해주세요.");
 		}
-		long total = 0;
+		BigInteger total = BigInteger.ZERO;
 		for (var item : input.feeItems()) {
-			// 덧셈 전에 남은 범위를 검사해 long 오버플로와 numeric(15,0) 초과를 함께 방지합니다.
-			if (item.defaultAmount() > PropertyRegistrationRequest.MAX_AMOUNT - total) {
-				throw invalid("feeItems", "OUT_OF_RANGE", "관리비 합계가 허용 범위를 초과합니다.");
-			}
-			total += item.defaultAmount();
+			// 음수 항목이 중간 합계를 상쇄할 수 있으므로 전체를 정확하게 합산한 뒤 최종 범위를 검사합니다.
+			total = total.add(BigInteger.valueOf(item.defaultAmount()));
 		}
-		return total;
+		BigInteger maximum = BigInteger.valueOf(PropertyRegistrationRequest.MAX_AMOUNT);
+		if (total.abs().compareTo(maximum) > 0) {
+			throw invalid("feeItems", "OUT_OF_RANGE", "관리비 합계가 허용 범위를 초과합니다.");
+		}
+		return total.longValueExact();
 	}
 
 	private RegistrationException invalid(String field, String reason, String message) {

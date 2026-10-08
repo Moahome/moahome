@@ -1,4 +1,11 @@
 const ICON_PATHS = {
+  receipt: (
+    <>
+      <path
+        d={'M6 3h8l4 4v14H6ZM14 3v5h4M9 12h6M9 16h6'}
+      />
+    </>
+  ),
   plus: (
     <path
       d={'M12 5v14M5 12h14'}

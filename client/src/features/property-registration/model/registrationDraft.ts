@@ -16,14 +16,19 @@ import {
 import {
   EMPTY_BANK_ACCOUNT,
   isBankAccountDraft,
+  getBankAccountErrors,
   normalizeAccountNumber,
   type BankAccountDraft
 } from './bankAccount';
+import {
+  isFeeItemDraftList,
+  type FeeItemDraft
+} from './feeItems';
 import { UNIT_STATUS_OPTIONS } from '@/entities/property';
 
 const DRAFT_STORAGE_KEY = 'moahome.property-registration.basic-info';
 
-export type RegistrationStep = 'basic' | 'units' | 'account';
+export type RegistrationStep = 'basic' | 'units' | 'account' | 'fees';
 
 export interface RegistrationDraft {
   basicInfo: BasicInfoDraft;
@@ -31,6 +36,7 @@ export interface RegistrationDraft {
   units: UnitDraft[];
   automaticUnitRule: AutomaticUnitRule;
   bankAccount: BankAccountDraft;
+  feeItems: FeeItemDraft[];
   step: RegistrationStep;
   basicInfoValidated: boolean;
 }
@@ -49,6 +55,7 @@ function createEmptyDraft(): RegistrationDraft {
     bankAccount: {
       ...EMPTY_BANK_ACCOUNT
     },
+    feeItems: [],
     step: 'basic',
     basicInfoValidated: false,
   };
@@ -111,11 +118,21 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
     const basicInfoValidated = data.basicInfoValidated === true && Object.keys(getBasicInfoErrors(basicInfo)).length === 0;
     const unitsValid = basicInfoValidated && !getUnitSetupError(basicInfo.hasBuildings === true, buildings, units);
     let step: RegistrationStep = 'basic';
-    if (basicInfoValidated && (data.step === 'units' || data.step === 'account')) step = 'units';
-    if (data.step === 'account' && unitsValid) step = 'account';
+    if (basicInfoValidated && ['units', 'account', 'fees'].includes(data.step)) step = 'units';
+    if ((data.step === 'account' || data.step === 'fees') && unitsValid) step = 'account';
 
     // 이전 초안의 구분 기호를 정리하고 숫자가 아닌 문자가 남으면 번호를 다시 입력받습니다.
     const accountNumber = isBankAccountDraft(data.bankAccount) ? normalizeAccountNumber(data.bankAccount.accountNumber) : '';
+    const bankAccount = isBankAccountDraft(data.bankAccount) ? {
+      bankCode: data.bankAccount.bankCode,
+      bankName: data.bankAccount.bankName,
+      accountNumber: /^[0-9]*$/.test(accountNumber) ? accountNumber : '',
+      holderName: data.bankAccount.holderName,
+      isPrimary: data.bankAccount.isPrimary,
+    } : {
+      ...EMPTY_BANK_ACCOUNT
+    };
+    if (data.step === 'fees' && unitsValid && !Object.keys(getBankAccountErrors(bankAccount)).length) step = 'fees';
 
     return {
       basicInfo: {
@@ -138,15 +155,8 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
         status: unit.status,
       })),
       automaticUnitRule: restoredRule,
-      bankAccount: isBankAccountDraft(data.bankAccount) ? {
-        bankCode: data.bankAccount.bankCode,
-        bankName: data.bankAccount.bankName,
-        accountNumber: /^[0-9]*$/.test(accountNumber) ? accountNumber : '',
-        holderName: data.bankAccount.holderName,
-        isPrimary: data.bankAccount.isPrimary,
-      } : {
-        ...EMPTY_BANK_ACCOUNT
-      },
+      bankAccount,
+      feeItems: isFeeItemDraftList(data.feeItems) ? data.feeItems : [],
       step,
       basicInfoValidated,
     };

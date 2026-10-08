@@ -9,7 +9,7 @@ import {
 import { Button } from '@/shared/ui/button';
 import styles from './unitDeleteConfirmation.module.css';
 
-/** 개별·선택 세대와 동 삭제에 같은 확인 절차를 제공하고 중첩 창의 취소·포커스 복귀를 처리합니다. */
+/** 세대·동·관리비 항목 삭제에 같은 확인 절차를 제공하고 중첩 창의 취소·포커스 복귀를 처리합니다. */
 export function UnitDeleteConfirmation({
   label,
   title = '세대 삭제 확인',

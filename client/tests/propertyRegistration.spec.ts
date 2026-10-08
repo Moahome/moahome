@@ -803,7 +803,14 @@ test('계좌와 이전 단계 입력을 이력 이동·새로고침에 복원하
     name: '다음',
     exact: true
   }).click();
-  await expect(page.getByRole('status')).toContainText('아직 저장되지 않았어요');
+  await expect(page.getByRole('heading', {
+    name: '관리비 항목 설정',
+    exact: true
+  })).toBeVisible();
+  await page.getByRole('button', {
+    name: '이전',
+    exact: true
+  }).click();
   await page.getByRole('button', {
     name: '이전',
     exact: true
@@ -842,6 +849,10 @@ test('관리계좌 직접 진입과 새로고침의 유효하지 않은 세대�
   await page.getByRole('button', {
     name: '등록하고 계속'
   }).click();
+  await expect(page.getByRole('heading', {
+    name: '동·세대 설정',
+    exact: true
+  })).toBeVisible();
   await page.evaluate(() => history.pushState(null, '', '/start?registration=account'));
   await page.reload();
   await expect(page).toHaveURL(/registration=units/);
@@ -922,6 +933,320 @@ for (const width of [1440, 390, 320]) {
         exact: true
       })).toBeVisible();
     }
+  });
+}
+
+/** 선행 계좌 입력을 실제 화면에서 완료한 뒤 관리비 설정으로 이동합니다. */
+async function openFeeItemsSetup(page: Page) {
+  await openBankAccountSetup(page);
+  await fillBankAccount(page);
+  await page.getByRole('button', {
+    name: '다음',
+    exact: true
+  }).click();
+  await expect(page.getByRole('heading', {
+    name: '관리비 항목 설정',
+    exact: true
+  })).toBeVisible();
+}
+
+/** 가상 관리비 항목을 실제 추가창으로 입력해 표시·합계·초안을 검증합니다. */
+async function addFeeItem(page: Page, itemName: string, amount: string) {
+  await page.getByRole('button', {
+    name: '관리비 항목 추가',
+    exact: true
+  }).click();
+  const editor = page.getByRole('dialog', {
+    name: '관리비 항목 추가',
+    exact: true
+  });
+  await editor.getByLabel('항목명').fill(itemName);
+  await editor.getByLabel('기본 금액').fill(amount);
+  await editor.getByRole('button', {
+    name: '추가',
+    exact: true
+  }).click();
+  await expect(editor).toHaveCount(0);
+}
+
+test('관리비는 빈 목록·0원으로 시작하고 0원과 음수 항목의 합계를 세대당 금액으로 표시', async ({ page }) => {
+  const finalRequests: string[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url() === `${API_ORIGIN}/api/property-registrations`) finalRequests.push(request.url());
+  });
+  await openFeeItemsSetup(page);
+  const next = page.getByRole('button', {
+    name: '다음',
+    exact: true
+  });
+  const total = page.getByLabel('세대당 월 기본 관리비', {
+    exact: true
+  });
+  await expect(page.getByText('등록된 관리비 항목이 없어요.')).toBeVisible();
+  await expect(total).toContainText('0원');
+  await expect(next).toBeDisabled();
+  await addFeeItem(page, '0원 항목', '0');
+  await expect(next).toBeEnabled();
+  await addFeeItem(page, '일반관리비', '15000');
+  await addFeeItem(page, '차감', '-5000');
+  await expect(total).toContainText('10,000원');
+  await page.getByRole('button', {
+    name: '차감 수정',
+    exact: true
+  }).click();
+  const editor = page.getByRole('dialog', {
+    name: '관리비 항목 수정',
+    exact: true
+  });
+  await editor.getByLabel('기본 금액').fill('-25000');
+  await editor.getByRole('button', {
+    name: '수정',
+    exact: true
+  }).click();
+  await expect(total).toContainText('-10,000원');
+  const stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).feeItems, DRAFT_STORAGE_KEY);
+  expect(stored.map((item: { defaultAmount: string }) => item.defaultAmount)).toEqual(['0', '15000', '-25000']);
+  await next.click();
+  await expect(page.getByRole('status')).toContainText('아직 저장되지 않았어요');
+  expect(finalRequests).toHaveLength(0);
+});
+
+test('관리비 추가창은 빈 이름·부호만 입력·범위 초과를 막고 금액의 문자·소수 입력을 거부', async ({ page }) => {
+  await openFeeItemsSetup(page);
+  await page.getByRole('button', {
+    name: '관리비 항목 추가',
+    exact: true
+  }).click();
+  const editor = page.getByRole('dialog', {
+    name: '관리비 항목 추가',
+    exact: true
+  });
+  const save = editor.getByRole('button', {
+    name: '추가',
+    exact: true
+  });
+  const amount = editor.getByLabel('기본 금액');
+  await expect(editor.getByLabel('항목명')).toBeFocused();
+  await expect(save).toBeDisabled();
+  await editor.getByLabel('항목명').fill('   ');
+  await amount.fill('0');
+  await expect(save).toBeDisabled();
+  await editor.getByLabel('항목명').fill('😀'.repeat(101));
+  await expect(save).toBeDisabled();
+  await editor.getByLabel('항목명').fill('😀'.repeat(100));
+  await expect(save).toBeEnabled();
+  for (const invalid of ['-', '-1000000000000000', '1000000000000000']) {
+    await amount.fill(invalid);
+    await expect(save).toBeDisabled();
+  }
+  await amount.fill('-123');
+  for (const rejected of ['1.5', '1e3', '12a', '1-2', '１２３']) {
+    await amount.fill(rejected);
+    await expect(amount).toHaveValue('-123');
+  }
+  await amount.fill('-999999999999999');
+  await expect(save).toBeEnabled();
+  await editor.getByRole('button', {
+    name: '취소',
+    exact: true
+  }).click();
+  await expect(page.getByText('등록된 관리비 항목이 없어요.')).toBeVisible();
+});
+
+test('관리비 최종 합계의 범위 초과는 진행을 막고 음수 상쇄 항목을 추가하면 복구', async ({ page }) => {
+  await openFeeItemsSetup(page);
+  await addFeeItem(page, '상한', '999999999999999');
+  await addFeeItem(page, '더하기', '1');
+  const next = page.getByRole('button', {
+    name: '다음',
+    exact: true
+  });
+  await expect(next).toBeDisabled();
+  await expect(page.getByRole('alert').filter({
+    hasText: '관리비 합계'
+  })).toBeVisible();
+  await addFeeItem(page, '상쇄', '-1');
+  await expect(next).toBeEnabled();
+  await expect(page.getByLabel('세대당 월 기본 관리비', {
+    exact: true
+  })).toContainText('999,999,999,999,999원');
+});
+
+for (const width of [1440, 320]) {
+  test(`관리비 ${width}px에서 수정 취소·삭제 취소·확인과 마지막 항목 삭제의 진행 조건을 유지`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 844
+    });
+    await openFeeItemsSetup(page);
+    await addFeeItem(page, '차감', '-5000');
+    const edit = page.getByRole('button', {
+      name: '차감 수정',
+      exact: true
+    });
+    await edit.click();
+    const editor = page.getByRole('dialog', {
+      name: '관리비 항목 수정',
+      exact: true
+    });
+    await editor.getByLabel('기본 금액').fill('-7000');
+    await page.keyboard.press('Escape');
+    await expect(edit).toBeFocused();
+    await expect(page.getByLabel('세대당 월 기본 관리비', {
+      exact: true
+    })).toContainText('-5,000원');
+    await edit.click();
+    await editor.getByLabel('기본 금액').fill('-7000');
+    if (width > 640) {
+      await expect(editor.getByRole('button', {
+        name: '항목 삭제',
+        exact: true,
+        includeHidden: true
+      })).toBeHidden();
+      await editor.getByRole('button', {
+        name: '취소',
+        exact: true
+      }).click();
+    }
+    const deleteButton = width > 640 ? page.getByRole('button', {
+      name: '차감 삭제',
+      exact: true
+    }) : editor.getByRole('button', {
+      name: '항목 삭제',
+      exact: true
+    });
+    await deleteButton.click();
+    const confirmation = page.getByRole('alertdialog', {
+      name: '관리비 항목 삭제 확인',
+      exact: true
+    });
+    await expect(confirmation).toContainText('차감');
+    await expect(confirmation.getByRole('button', {
+      name: '취소',
+      exact: true
+    })).toBeFocused();
+    await page.keyboard.press('Escape');
+    if (width <= 640) {
+      await expect(editor).toBeVisible();
+      await expect(editor.getByLabel('기본 금액')).toHaveValue('-7000');
+    } else {
+      await expect(editor).toHaveCount(0);
+    }
+    await expect(deleteButton).toBeFocused();
+    await deleteButton.click();
+    await confirmation.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(editor).toHaveCount(0);
+    await expect(page.getByText('등록된 관리비 항목이 없어요.')).toBeVisible();
+    await expect(page.getByRole('button', {
+      name: '관리비 항목 추가',
+      exact: true
+    })).toBeFocused();
+    await expect(page.getByRole('button', {
+      name: '다음',
+      exact: true
+    })).toBeDisabled();
+    expect(await page.evaluate(() => document.body.style.overflow)).toBe('');
+  });
+}
+
+test('관리비 항목·순서와 이전 입력은 이동·새로고침에 복원하고 잘못된 계좌는 선행 단계로 복귀', async ({ page }) => {
+  await openFeeItemsSetup(page);
+  await addFeeItem(page, '일반관리비', '15000');
+  await addFeeItem(page, '차감', '-5000');
+  await page.reload();
+  await expect(page).toHaveURL(/registration=fees/);
+  await expect(page.getByLabel('세대당 월 기본 관리비', {
+    exact: true
+  })).toContainText('10,000원');
+  await page.getByRole('button', {
+    name: '이전',
+    exact: true
+  }).click();
+  await expect(page.getByLabel('계좌번호')).toHaveValue('00012345678');
+  await page.getByRole('button', {
+    name: '다음',
+    exact: true
+  }).click();
+  await expect(page.getByLabel('세대당 월 기본 관리비', {
+    exact: true
+  })).toContainText('10,000원');
+  await page.goBack();
+  await expect(page).toHaveURL(/registration=account/);
+  await page.goForward();
+  await expect(page).toHaveURL(/registration=fees/);
+  await page.evaluate((key) => {
+    const draft = JSON.parse(sessionStorage.getItem(key)!);
+    draft.bankAccount.accountNumber = '';
+    sessionStorage.setItem(key, JSON.stringify(draft));
+  }, DRAFT_STORAGE_KEY);
+  await page.reload();
+  await expect(page).toHaveURL(/registration=account/);
+  await page.getByLabel('계좌번호').fill('00012345678');
+  await page.getByRole('button', {
+    name: '다음',
+    exact: true
+  }).click();
+  await expect(page.getByLabel('세대당 월 기본 관리비', {
+    exact: true
+  })).toContainText('10,000원');
+  await page.evaluate((key) => {
+    const draft = JSON.parse(sessionStorage.getItem(key)!);
+    draft.feeItems[0].defaultAmount = 'invalid';
+    sessionStorage.setItem(key, JSON.stringify(draft));
+  }, DRAFT_STORAGE_KEY);
+  await page.reload();
+  await expect(page.getByText('등록된 관리비 항목이 없어요.')).toBeVisible();
+  await page.getByRole('button', {
+    name: '이전',
+    exact: true
+  }).click();
+  await expect(page.getByLabel('예금주')).toHaveValue('예시 관리단');
+  await page.goto('/start');
+  await page.goto('/start?registration=fees');
+  await expect(page).toHaveURL(/registration=basic/);
+});
+
+for (const width of [1440, 390, 320]) {
+  test(`관리비 ${width}px의 표·카드·금액·버튼은 긴 항목명에도 화면을 넘치지 않음`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: width > 640 ? 1000 : 844
+    });
+    await openFeeItemsSetup(page);
+    await page.screenshot({
+      path: test.info().outputPath(`feeItemsEmpty${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    for (const [name, amount] of [['일반관리비', '15000'], ['청소용역비', '8000'], ['엘리베이터비', '25300'], ['기타(수선비 등)', '1700']]) {
+      await addFeeItem(page, name, amount);
+    }
+    await expect(page.getByLabel('세대당 월 기본 관리비', {
+      exact: true
+    })).toContainText('50,000원');
+    await page.getByRole('heading', {
+      name: '관리비 항목 설정',
+      exact: true
+    }).click();
+    await page.screenshot({
+      path: test.info().outputPath(`feeItems${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    if (width <= 640) await expect(page.getByLabel('5단계 중 4단계: 관리비 항목')).toBeVisible();
+    await addFeeItem(page, '긴 항목명'.repeat(16), '-999999999999999');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.getByRole('button', {
+      name: '이전',
+      exact: true
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '관리계좌 설정',
+      exact: true
+    })).toBeVisible();
   });
 }
 

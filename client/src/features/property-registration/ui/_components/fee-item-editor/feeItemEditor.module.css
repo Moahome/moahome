@@ -1,0 +1,70 @@
+.dialog {
+  width: min(calc(100% - 32px), 500px);
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 24px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--card);
+  color: var(--foreground);
+
+  &::backdrop {
+    background: color-mix(in srgb, var(--foreground) 35%, transparent);
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 24px;
+
+  h2 {
+    font-size: 24px;
+    font-weight: 800;
+  }
+}
+
+.fields {
+  display: grid;
+  gap: 20px;
+}
+
+.delete-button[data-variant] {
+  /* PC에서는 목록에서 삭제하고, 별도 삭제 버튼이 없는 모바일에서만 편집창에 표시합니다. */
+  display: none;
+  border-color: var(--danger);
+  color: var(--danger);
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 6%, var(--card));
+  }
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 640px) {
+  .delete-button[data-variant] {
+    display: inline-flex;
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 374px) {
+  .dialog {
+    padding: 18px;
+  }
+}

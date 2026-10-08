@@ -82,7 +82,10 @@ class RegistrationDomainTest {
 		assertThat(FeeTemplateItem.create(template, "0원 항목", 0, 0, at).getDefaultAmount()).isZero();
 		assertThat(FeeTemplateItem.create(template, "상한", 999_999_999_999_999L, 1, at).getDefaultAmount())
 			.isEqualByComparingTo("999999999999999");
-		assertThatThrownBy(() -> FeeTemplateItem.create(template, "음수", -1, 0, at))
+		assertThat(FeeTemplateItem.create(template, "음수", -1, 0, at).getDefaultAmount()).isEqualByComparingTo("-1");
+		assertThat(FeeTemplateItem.create(template, "하한", -999_999_999_999_999L, 0, at).getDefaultAmount())
+			.isEqualByComparingTo("-999999999999999");
+		assertThatThrownBy(() -> FeeTemplateItem.create(template, "하한 초과", -1_000_000_000_000_000L, 0, at))
 			.isInstanceOf(IllegalArgumentException.class);
 	}
 }
