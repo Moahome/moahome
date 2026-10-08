@@ -100,6 +100,14 @@ Radio는 기본 HTML radio로 그룹 선택과 키보드 이동을 유지하며 
 
 `error`에 메시지를 전달하면 오류 안내와 `aria-invalid`를 연결합니다. `id`를 생략하면 고유 ID를 생성하며 기존 `aria-describedby`도 유지합니다. 라벨을 숨기는 검색 필드 등은 `aria-label`이나 `aria-labelledby`로 이름을 지정합니다. `className`은 입력 요소, `fieldClassName`은 라벨과 안내를 포함한 필드 전체에 적용합니다. 입력값 정규화, 글자 수 계산과 도메인 검증은 사용하는 화면이나 기능에서 관리합니다.
 
+### 검색 가능한 SelectDropdown
+
+`shared/ui/form-controls`의 `SelectDropdown`은 선택 입력칸에서 직접 검색하고 `onChange(value)`로 확정한 옵션 값만 전달합니다. 검색을 취소하면 기존 선택을 유지합니다. `ref`는 검색 입력에 연결되며 `name` / `form`의 FormData에는 검색어 대신 선택값이 들어갑니다. `value` / `onChange`와 비제어 `defaultValue`를 모두 지원합니다.
+
+옵션은 고유한 문자열 `value`, 표시할 `label`, 선택적 `icon`(ReactNode), `iconPosition`(`start` / `end`), `searchKeywords`(검색 별칭 배열), `disabled`를 받습니다. `layout`은 기본 `list`이며 `grid`로 지정할 수 있습니다. `searchLayout`은 기본적으로 `layout`을 따르며 검색 결과만 다른 배치로 보여줄 때 지정합니다. 아이콘 기본 위치는 컴포넌트의 `iconPosition`으로 지정하고 옵션에서 덮어쓸 수 있습니다. 그리드의 `start` 아이콘은 이름 위에, 리스트와 선택 입력의 `start` 아이콘은 이름 앞에 표시합니다. 코드 등 내부 값은 검색하거나 표시하지 않습니다.
+
+관리계좌는 `layout="grid"`, `searchLayout="list"`를 사용합니다. `entities/banking`의 `BankIcon`과 로컬 은행 자산을 옵션에 전달하며 다른 도메인은 각자의 아이콘과 옵션을 전달해 재사용합니다. 기존 검색 없는 `Dropdown`은 유지합니다.
+
 ### 공통 버튼과 옵션
 
 일반 클릭 버튼은 `src/shared/ui/button/`의 `Button`을 사용합니다. `variant`는 `primary` / `outline` / `ghost` / `text`, `size`는 `sm` / `md` / `lg`이며, `leadingIcon`, `trailingIcon`, `iconOnly`와 `loading`을 지원합니다. 기본 `type`은 `button`이며 제출 버튼은 `type="submit"`을 명시합니다. 아이콘만 있는 버튼에는 `aria-label`을 지정합니다. `loading`과 `disabled` 상태에서는 클릭을 막습니다. 화면 CSS는 버튼 위치·폭·배치만 담당하며 색상·포커스·비활성 표현은 공통 Button이 담당합니다.

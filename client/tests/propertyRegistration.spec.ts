@@ -761,7 +761,7 @@ test('관리계좌는 빈 폼으로 시작하고 필수·번호 형식·예금�
   await expect(next).toBeEnabled();
 });
 
-test('은행 드롭다운의 국내 은행 선택은 코드와 이름을 함께 유지하고 키보드·Escape를 지원', async ({ page }) => {
+test('은행 SelectDropdown은 코드와 이름을 함께 유지하고 키보드·Escape를 지원', async ({ page }) => {
   await openBankAccountSetup(page);
   const bank = page.getByRole('combobox', {
     name: '은행',
@@ -778,10 +778,202 @@ test('은행 드롭다운의 국내 은행 선택은 코드와 이름을 함께 
   await expect(page).toHaveURL(/registration=account/);
   await bank.press('ArrowDown');
   await bank.press('Enter');
-  await expect(bank).toHaveText('국민은행');
+  await expect(bank).toHaveValue('국민은행');
   const account = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).bankAccount, DRAFT_STORAGE_KEY);
   expect(account.bankCode).toBe('004');
   expect(account.bankName).toBe('국민은행');
+});
+
+test('은행 선택은 24개 로컬 아이콘 그리드로 열리고 이름·별칭 검색 후 선택한 아이콘과 이름을 표시', async ({ page }) => {
+  await openBankAccountSetup(page);
+  const bank = page.getByRole('combobox', {
+    name: '은행',
+    exact: true
+  });
+  const list = page.getByRole('listbox', {
+    name: '은행',
+    exact: true
+  });
+  await bank.click();
+  await expect(page.getByRole('option')).toHaveCount(24);
+  await expect(list).toHaveAttribute('data-layout', 'grid');
+  // 원격 이미지나 모의 아이콘 없이 모든 실제 로컬 자산이 브라우저에서 로드되는지 확인합니다.
+  expect(await page.getByRole('option').locator('img').evaluateAll(async (images) => {
+    await Promise.all(images.map((image) => (image as HTMLImageElement).decode()));
+    return images.every((image) => (image as HTMLImageElement).naturalWidth > 0 && image.getAttribute('src')?.startsWith('/banks/'));
+  })).toBe(true);
+  await bank.fill(' kB ');
+  await expect(page.getByRole('option')).toHaveCount(2);
+  await expect(page.getByRole('option', {
+    name: '케이뱅크',
+    exact: true
+  })).toBeVisible();
+  await expect(list).toHaveAttribute('data-layout', 'list');
+  const kb = page.getByRole('option', {
+    name: '국민은행',
+    exact: true
+  });
+  await expect(kb.locator('img')).toBeVisible();
+  await expect(kb).toHaveText('국민은행');
+  await kb.click();
+  await expect(bank).toHaveValue('국민은행');
+  await expect(bank).toHaveAttribute('aria-expanded', 'false');
+  await expect(bank.locator('..').locator('img:visible')).toHaveAttribute('src', '/banks/bank004.png');
+  await bank.click();
+  await expect(page.getByRole('option')).toHaveCount(24);
+  await expect(kb).toHaveAttribute('aria-selected', 'true');
+  await bank.fill('대구');
+  await expect(page.getByRole('option', {
+    name: '아이엠뱅크',
+    exact: true
+  })).toBeVisible();
+  await bank.press('Enter');
+  await expect(bank).toHaveValue('아이엠뱅크');
+  const account = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).bankAccount, DRAFT_STORAGE_KEY);
+  expect(account.bankCode).toBe('031');
+  expect(account.bankName).toBe('아이엠뱅크');
+});
+
+test('은행 검색의 빈 결과·Escape·Tab·외부 클릭은 확정한 계좌와 이전 단계 입력을 바꾸지 않음', async ({ page }) => {
+  await openBankAccountSetup(page);
+  await fillBankAccount(page);
+  const bank = page.getByRole('combobox', {
+    name: '은행',
+    exact: true
+  });
+  const next = page.getByRole('button', {
+    name: '다음',
+    exact: true
+  });
+  await bank.click();
+  await bank.fill('004');
+  await expect(page.getByRole('option')).toHaveCount(0);
+  await expect(page.getByRole('status')).toContainText('검색 결과가 없어요.');
+  await expect(bank).not.toHaveAttribute('aria-activedescendant');
+  await bank.press('Enter');
+  await expect(bank).toHaveAttribute('aria-expanded', 'true');
+  await expect(page).toHaveURL(/registration=account/);
+  await bank.press('Escape');
+  await expect(bank).toHaveValue('하나은행');
+  for (const action of ['Tab', 'outside', 'toggle']) {
+    await bank.click();
+    await bank.fill('신한');
+    if (action === 'Tab') await bank.press('Tab');
+    if (action === 'outside') await page.getByLabel('예금주').click();
+    if (action === 'toggle') await page.getByRole('button', {
+      name: '은행 목록 닫기',
+      exact: true
+    }).click();
+    await expect(bank).toHaveAttribute('aria-expanded', 'false');
+    await expect(bank).toHaveValue('하나은행');
+  }
+  await expect(next).toBeEnabled();
+  await bank.click();
+  await expect(page.getByRole('option', {
+    name: '하나은행',
+    exact: true
+  })).toHaveAttribute('aria-selected', 'true');
+  await bank.fill('SC 제일');
+  await expect(page.getByRole('option')).toHaveCount(1);
+  await bank.press('Enter');
+  await expect(bank).toHaveValue('SC제일은행');
+  await expect(page.getByLabel('계좌번호')).toHaveValue('00012345678');
+  await expect(page.getByLabel('예금주')).toHaveValue('예시 관리단');
+});
+
+test('은행 검색은 한글 조합 중 Enter를 선택으로 처리하지 않고 조합 완료 후 후보만 확정', async ({ page }) => {
+  await openBankAccountSetup(page);
+  const bank = page.getByRole('combobox', {
+    name: '은행',
+    exact: true
+  });
+  await bank.click();
+  await bank.dispatchEvent('compositionstart', {
+    data: ''
+  });
+  await bank.fill('신한');
+  await bank.press('Enter');
+  await expect(bank).toHaveAttribute('aria-expanded', 'true');
+  const account = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).bankAccount, DRAFT_STORAGE_KEY);
+  expect(account.bankCode).toBe('');
+  await bank.dispatchEvent('compositionend', {
+    data: '신한'
+  });
+  await bank.press('Enter');
+  await expect(bank).toHaveValue('신한은행');
+  await expect(bank).toHaveAttribute('aria-expanded', 'false');
+});
+
+test.describe('은행 SelectDropdown 모바일 터치', () => {
+  test.use({
+    hasTouch: true,
+    viewport: {
+      width: 390,
+      height: 844
+    }
+  });
+
+  test('아이콘 그리드·검색 결과를 터치해 선택하고 다시 열어 현재 선택을 확인', async ({ page }) => {
+    await openBankAccountSetup(page);
+    const bank = page.getByRole('combobox', {
+      name: '은행',
+      exact: true
+    });
+    await bank.tap();
+    await page.getByRole('option', {
+      name: '국민은행',
+      exact: true
+    }).tap();
+    await expect(bank).toHaveValue('국민은행');
+    await bank.tap();
+    await expect(page.getByRole('option', {
+      name: '국민은행',
+      exact: true
+    })).toHaveAttribute('aria-selected', 'true');
+    await bank.fill('하나');
+    await page.getByRole('option', {
+      name: '하나은행',
+      exact: true
+    }).tap();
+    await expect(bank).toHaveValue('하나은행');
+    await expect(bank).toHaveAttribute('aria-expanded', 'false');
+    await expect(bank.locator('..').locator('img:visible')).toHaveAttribute('src', '/banks/bank081.png');
+  });
+});
+
+test('은행 선택은 짧은 모바일 화면과 화면 축소 후에도 입력 아래에 선택 가능한 후보를 유지', async ({ page }) => {
+  await page.setViewportSize({
+    width: 390,
+    height: 480
+  });
+  await openBankAccountSetup(page);
+  const bank = page.getByRole('combobox', {
+    name: '은행',
+    exact: true
+  });
+  await bank.click();
+  const list = page.getByRole('listbox', {
+    name: '은행',
+    exact: true
+  });
+  for (const height of [480, 340]) {
+    await page.setViewportSize({
+      width: 390,
+      height
+    });
+    await expect.poll(async () => {
+      const inputBounds = await bank.boundingBox();
+      const menuBounds = await list.boundingBox();
+      return Boolean(inputBounds && menuBounds && menuBounds.height >= 108
+        && menuBounds.y > inputBounds.y + inputBounds.height && menuBounds.y + menuBounds.height <= height);
+    }).toBe(true);
+  }
+  await bank.fill('하나');
+  await page.getByRole('option', {
+    name: '하나은행',
+    exact: true
+  }).click();
+  await expect(bank).toHaveValue('하나은행');
 });
 
 test('계좌와 이전 단계 입력을 이력 이동·새로고침에 복원하고 확인 버튼으로 최종 저장을 호출하지 않음', async ({ page }) => {
@@ -832,7 +1024,7 @@ test('계좌와 이전 단계 입력을 이력 이동·새로고침에 복원하
   await expect(page.getByRole('combobox', {
     name: '은행',
     exact: true
-  })).toHaveText('하나은행');
+  })).toHaveValue('하나은행');
   await expect(page.getByLabel('계좌번호')).toHaveValue('00012345678');
   await expect(page.getByLabel('예금주')).toHaveValue('예시 관리단');
   expect(finalRequests).toHaveLength(0);
@@ -911,6 +1103,25 @@ for (const width of [1440, 390, 320]) {
     }).boundingBox();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    const bank = page.getByRole('combobox', {
+      name: '은행',
+      exact: true
+    });
+    const inputBounds = await bank.boundingBox();
+    expect(bounds!.y).toBeGreaterThan(inputBounds!.y + inputBounds!.height);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(width > 640 ? 1000 : 844);
+    await page.screenshot({
+      path: test.info().outputPath(`bankSelectGrid${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    await bank.fill('bnk');
+    await expect(page.getByRole('option')).toHaveCount(2);
+    await page.screenshot({
+      path: test.info().outputPath(`bankSelectSearch${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
     await page.keyboard.press('Escape');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.getByRole('heading', {

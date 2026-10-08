@@ -7,10 +7,13 @@ import {
   type ClipboardEvent,
   type FormEvent
 } from 'react';
-import { BANK_OPTIONS } from '@/entities/banking';
+import {
+  BANK_OPTIONS,
+  BankIcon
+} from '@/entities/banking';
 import { Button } from '@/shared/ui/button';
 import {
-  Dropdown,
+  SelectDropdown,
   Input
 } from '@/shared/ui/form-controls';
 import {
@@ -22,6 +25,15 @@ import { RegistrationIcon } from '../registration-icon/registrationIcon';
 import { SetupProgress } from '../setup-progress/setupProgress';
 import { BankIllustration } from './bankIllustration';
 import styles from './bankAccountSetup.module.css';
+
+const BANK_SELECT_OPTIONS = BANK_OPTIONS.map((option) => ({
+  ...option,
+  icon: (
+    <BankIcon
+      bankCode={option.value}
+    />
+  )
+}));
 
 /** 공용 관리계좌 하나를 초안으로 입력하며 이전 이동과 새로고침에서 같은 폼을 복원합니다. */
 export function BankAccountSetup({
@@ -161,11 +173,13 @@ export function BankAccountSetup({
           <div
             className={styles.fields}
           >
-            <Dropdown
+            <SelectDropdown
               label={'은행'}
               required
-              options={BANK_OPTIONS}
-              placeholder={'은행을 선택해주세요'}
+              options={BANK_SELECT_OPTIONS}
+              layout={'grid'}
+              searchLayout={'list'}
+              placeholder={'은행을 선택하거나 검색해주세요'}
               value={account.bankCode}
               fieldClassName={styles.field}
               error={touched.bankCode ? errors.bankCode : undefined}
