@@ -3609,7 +3609,7 @@ test('등록 확인은 많은 세대를 펼쳐 보고 동·세대 수정 뒤 남
     name: '동·세대 수정',
     exact: true
   }).click();
-  for (let i = 301; i < 308; i++) await addUnit(page, String(i));
+  for (let i = 301; i < 308; i++) await addUnit(page, String(i), '3');
   await page.getByRole('button', {
     name: '다음',
     exact: true
@@ -3631,7 +3631,11 @@ test('등록 확인은 많은 세대를 펼쳐 보고 동·세대 수정 뒤 남
     exact: true
   })).toHaveCount(1);
   await expect(unitGroup.getByRole('button')).toHaveCount(0);
-  // 실제 호수 위치로 PC 최대 4열과 모바일 최대 2열의 줄바꿈을 확인합니다.
+  const thirdFloor = unitGroup.getByRole('list', {
+    name: '3층 세대 목록',
+    exact: true
+  });
+  // 같은 층에 7세대가 있을 때만 PC 최대 4열과 모바일 최대 2열의 줄바꿈을 확인합니다.
   for (const layout of [
     {
       width: 1440,
@@ -3650,7 +3654,7 @@ test('등록 확인은 많은 세대를 펼쳐 보고 동·세대 수정 뒤 남
       width: layout.width,
       height: 900
     });
-    await expect.poll(async () => unitGroup.getByRole('listitem').evaluateAll((items) => {
+    await expect.poll(async () => thirdFloor.getByRole('listitem').evaluateAll((items) => {
       const firstTop = items[0].getBoundingClientRect().top;
 
       return items.filter((item) => Math.abs(item.getBoundingClientRect().top - firstTop) < 1).length;
@@ -3675,6 +3679,107 @@ test('등록 확인은 많은 세대를 펼쳐 보고 동·세대 수정 뒤 남
     name: '관리비 요약'
   })).toContainText('17,000원');
 });
+
+for (const width of [1440, 320]) {
+  test(`등록 확인 층별 배치 ${width}px는 층당 1·2·3·4·5세대를 구분하고 다음 층을 새 줄로 표시`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    await openRegistrationReview(page);
+    await page.getByRole('button', {
+      name: '동·세대 수정',
+      exact: true
+    }).click();
+    const floors = [
+      {
+        label: 'B1층',
+        value: '-1',
+        units: ['B101', 'B102']
+      },
+      {
+        label: '1층',
+        value: '1',
+        units: ['101']
+      },
+      {
+        label: '2층',
+        value: '2',
+        units: ['201', '202']
+      },
+      {
+        label: '3층',
+        value: '3',
+        units: ['301', '302', '303']
+      },
+      {
+        label: '4층',
+        value: '4',
+        units: ['401', '402', '403', '404']
+      },
+      {
+        label: '5층',
+        value: '5',
+        units: ['501', '502', '503', '504', '505']
+      },
+      {
+        label: '6층',
+        value: '6',
+        units: ['601', '602']
+      },
+      {
+        label: '층 미입력',
+        value: '',
+        units: ['001', '관리실']
+      }
+    ];
+    for (const floor of floors) {
+      for (const unit of floor.units) {
+        if (unit !== '201') await addUnit(page, unit, floor.value);
+      }
+    }
+    await page.getByRole('button', {
+      name: '다음',
+      exact: true
+    }).click();
+    await finishSequentialReview(page, 'account');
+    await page.getByRole('button', {
+      name: '세대 목록 펼치기',
+      exact: true
+    }).click();
+    const unitGroup = page.getByRole('region', {
+      name: '동 없음 세대 목록'
+    });
+    await expect(unitGroup.getByRole('list')).toHaveCount(floors.length);
+    let previousBottom = 0;
+    for (const floor of floors) {
+      const list = unitGroup.getByRole('list', {
+        name: `${floor.label} 세대 목록`,
+        exact: true
+      });
+      await expect(list.getByRole('listitem')).toHaveText(floor.units.map((unit) => unit === '관리실' ? unit : `${unit}호`));
+      const positions = await list.getByRole('listitem').evaluateAll((items) => items.map((item) => {
+        const box = item.getBoundingClientRect();
+
+        return {
+          top: box.top,
+          bottom: box.bottom
+        };
+      }));
+      // 동 전체 세대 수와 관계없이 실제 층당 개수로 열을 정하고 층 경계에서 반드시 줄을 나눕니다.
+      const columns = Math.min(floor.units.length, width < 768 ? 2 : 4);
+      expect(positions.filter((position) => Math.abs(position.top - positions[0].top) < 1)).toHaveLength(columns);
+      expect(positions[0].top).toBeGreaterThanOrEqual(previousBottom);
+      previousBottom = Math.max(...positions.map((position) => position.bottom));
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`reviewUnitFloors${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+  });
+}
 
 test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전체 본문을 한 번 저장한 뒤 초안을 폐기', async ({ page }) => {
   let release!: () => void;

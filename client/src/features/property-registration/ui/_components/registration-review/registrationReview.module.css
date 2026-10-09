@@ -282,6 +282,8 @@
 }
 
 .unit-group {
+  container: registration-units / inline-size;
+
   & + & {
     margin-top: 16px;
     padding-top: 16px;
@@ -319,19 +321,61 @@
 }
 
 .units {
-  --unit-min-width: 140px;
+  --unit-columns: 1;
 
   display: grid;
-  /* 빈 열은 접고, 호수당 최소 너비와 3개 간격을 확보해 최대 4열로 표시합니다. */
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(var(--unit-min-width), calc((100% - 36px) / 4))), 1fr));
+  grid-template-columns: repeat(var(--unit-columns), minmax(0, 1fr));
   gap: 8px 12px;
+  margin: 0;
   padding: 0;
   list-style: none;
   color: var(--sub-text);
   font-size: 14px;
 
+  & + & {
+    margin-top: 8px;
+  }
+
+  &[data-columns='2'] {
+    --unit-columns: 2;
+  }
+
+  &[data-columns='3'] {
+    --unit-columns: 3;
+  }
+
+  &[data-columns='4'] {
+    --unit-columns: 4;
+  }
+
+  /* 실제 층당 세대 수를 상한으로 두고 목록 공간이 좁을 때만 열 수를 줄입니다. */
+  @container registration-units (max-width: 599px) {
+    &[data-columns='4'] {
+      --unit-columns: 3;
+    }
+  }
+
+  @container registration-units (max-width: 439px) {
+    &[data-columns='3'],
+    &[data-columns='4'] {
+      --unit-columns: 2;
+    }
+  }
+
+  @container registration-units (max-width: 207px) {
+    &[data-columns] {
+      --unit-columns: 1;
+    }
+  }
+
   &[data-wide-labels='true'] {
-    --unit-min-width: 240px;
+    --unit-columns: 1;
+
+    @container registration-units (min-width: 480px) {
+      &:not([data-columns='1']) {
+        --unit-columns: 2;
+      }
+    }
   }
 
   li {
@@ -579,13 +623,21 @@
   }
 
   .units {
-    --unit-min-width: 100px;
-
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, max(var(--unit-min-width), calc((100% - 8px) / 2))), 1fr));
     gap: 8px;
 
-    &[data-wide-labels='true'] {
-      grid-template-columns: minmax(0, 1fr);
+    &[data-columns='3'],
+    &[data-columns='4'] {
+      --unit-columns: 2;
+    }
+
+    &[data-wide-labels='true'][data-columns] {
+      --unit-columns: 1;
+    }
+
+    @container registration-units (max-width: 207px) {
+      &[data-columns] {
+        --unit-columns: 1;
+      }
     }
 
     li {

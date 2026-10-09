@@ -14,7 +14,11 @@ import type {
 } from '../../../model/registrationDraft';
 import type { RegistrationResult } from '../../../api/registrationApi';
 import { getFeeItemsTotal } from '../../../model/feeItems';
-import { getUnitLabel } from '../../../model/unitSetup';
+import {
+  getFloorLabel,
+  getUnitLabel,
+  type UnitDraft
+} from '../../../model/unitSetup';
 import {
   getSortedBuildings,
   getSortedUnits
@@ -277,18 +281,23 @@ export function RegistrationReview({ draft, status, result, message, canRetry, o
                         세대
                       </span>
                     </header>
-                    <ul
-                      className={styles.units}
-                      data-wide-labels={group.units.some((unit) => Array.from(getUnitLabel(unit)).length > 10)}
-                    >
-                      {group.units.map((unit) => (
-                        <li
-                          key={unit.clientId}
-                        >
-                          {getUnitLabel(unit)}
-                        </li>
-                      ))}
-                    </ul>
+                    {groupReviewUnitsByFloor(group.units).map((floorGroup) => (
+                      <ul
+                        key={floorGroup.floor ?? 'no-floor'}
+                        className={styles.units}
+                        aria-label={`${floorGroup.floor === null ? '층 미입력' : getFloorLabel(floorGroup.floor)} 세대 목록`}
+                        data-columns={Math.min(floorGroup.units.length, 4)}
+                        data-wide-labels={floorGroup.units.some((unit) => Array.from(getUnitLabel(unit)).length > 10)}
+                      >
+                        {floorGroup.units.map((unit) => (
+                          <li
+                            key={unit.clientId}
+                          >
+                            {getUnitLabel(unit)}
+                          </li>
+                        ))}
+                      </ul>
+                    ))}
                     {group.units.length === 0 && (
                       <p>
                         등록된 세대가 없습니다.
@@ -521,6 +530,28 @@ export function RegistrationReview({ draft, status, result, message, canRetry, o
       </section>
     </main>
   );
+}
+
+/** 동 안의 실제 층별 세대를 모아 다음 층이 남은 열을 채우지 않게 하고, 층 미입력은 호수로 추측하지 않습니다. */
+function groupReviewUnitsByFloor(units: UnitDraft[]) {
+  const floors = new Map<number | null, UnitDraft[]>();
+  for (const unit of units) {
+    const entries = floors.get(unit.floor) ?? [];
+    entries.push(unit);
+    floors.set(unit.floor, entries);
+  }
+
+  // 지하부터 지상으로 표시하며 각 층의 호수 정렬은 기존 목록 순서를 유지합니다.
+  return Array.from(floors, ([floor, entries]) => ({
+    floor,
+    units: entries
+  })).sort((left, right) => {
+    if (left.floor === right.floor) return 0;
+    if (left.floor === null) return 1;
+    if (right.floor === null) return -1;
+
+    return left.floor - right.floor;
+  });
 }
 
 /** 요약 전체는 실제 펼치기 버튼으로 만들고 오른쪽 수정 동작은 독립된 버튼으로 두어 펼침 상태와 분리합니다. */
