@@ -3390,6 +3390,400 @@ function registrationResult(body: { requestId: string; basicInfo: { name: string
   };
 }
 
+const COMPLETED_REQUEST_ID = 'c29cad4e-749c-432a-9c60-2eaa97936e8e';
+const COMPLETED_URL = `/start?registration=complete&requestId=${COMPLETED_REQUEST_ID}`;
+
+/** 재진입 검증은 개인정보가 없는 결과 계약만 준비하고 입력 폼이나 실제 서버에 의존하지 않습니다. */
+function completedResult() {
+  return registrationResult({
+    requestId: COMPLETED_REQUEST_ID,
+    basicInfo: {
+      name: '서버 확인 빌라',
+      hasBuildings: false
+    },
+    buildings: [],
+    units: [{}],
+    feeItems: [{
+      defaultAmount: 10000
+    }]
+  });
+}
+
+for (const width of [1440, 320]) {
+  test(`완료 재진입 ${width}px는 저장소 요약을 신뢰하지 않고 서버 권한 확인 뒤 결과만 표시`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    await page.addInitScript(({ key, userId, result }) => {
+      sessionStorage.setItem(key, JSON.stringify({
+        userId,
+        result: {
+          ...result,
+          property: {
+            ...result.property,
+            name: '조작된 이전 정보'
+          }
+        }
+      }));
+    }, {
+      key: RECEIPT_KEY,
+      userId: CURRENT_USER.id,
+      result: completedResult()
+    });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let lookups = 0;
+    await page.route(LOOKUP_URL, async (route) => {
+      if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+      lookups++;
+      expect(route.request().headers().authorization).toBe('Bearer test-access');
+      await gate;
+      await fulfillJson(route, completedResult());
+    });
+    await page.goto(COMPLETED_URL);
+    await expect(page.getByRole('heading', {
+      name: '등록 결과를 확인하고 있습니다'
+    })).toBeVisible();
+    await expect(page.getByRole('heading', {
+      name: '관리대상 등록이 완료되었습니다!'
+    })).toHaveCount(0);
+    await expect(page.getByRole('main')).not.toContainText('조작된 이전 정보');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`resultChecking${width}.png`),
+      fullPage: true
+    });
+    release();
+    await expect(page.getByRole('heading', {
+      name: '관리대상 등록이 완료되었습니다!'
+    })).toBeVisible();
+    await expect(page.getByRole('region', {
+      name: '등록된 정보',
+      exact: true
+    })).toContainText('서버 확인 빌라');
+    expect(await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), RECEIPT_KEY)).toEqual({
+      userId: CURRENT_USER.id,
+      requestId: COMPLETED_REQUEST_ID
+    });
+    await page.reload();
+    await expect(page.getByRole('heading', {
+      name: '관리대상 등록이 완료되었습니다!'
+    })).toBeVisible();
+    expect(lookups).toBe(2);
+    await expect(page.getByRole('main')).not.toContainText('조작된 이전 정보');
+  });
+}
+
+for (const status of [403, 404]) {
+  test(`완료 주소의 ${status}는 다른 사용자·해제된 권한의 정보와 재등록 폼을 표시하지 않음`, async ({ page }) => {
+    let posts = 0;
+    await page.route(FINAL_URL, async (route) => {
+      if (route.request().method() === 'POST') posts++;
+      await fulfillJson(route, {}, 503);
+    });
+    await page.route(LOOKUP_URL, (route) => fulfillJson(route, {
+      code: status === 403 ? 'ACCESS_DENIED' : 'REGISTRATION_NOT_FOUND'
+    }, status));
+    await page.goto(COMPLETED_URL);
+    await expect(page).toHaveURL(/\/start$/);
+    await expect(page.getByRole('heading', {
+      name: '모아홈을 시작해 보세요!'
+    })).toBeVisible();
+    await expect(page.getByRole('heading', {
+      name: '관리대상 등록이 완료되었습니다!'
+    })).toHaveCount(0);
+    await expect(page.getByRole('dialog', {
+      name: '관리할 곳 등록',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByText('서버 확인 빌라')).toHaveCount(0);
+    expect(posts).toBe(0);
+  });
+}
+
+for (const suffix of ['', '&requestId=invalid']) {
+  test(`조회 ID가 없는·잘못된 완료 주소(${suffix || '없음'})는 성공 화면을 만들지 않음`, async ({ page }) => {
+    let lookups = 0;
+    await page.route(LOOKUP_URL, async (route) => {
+      lookups++;
+      await fulfillJson(route, completedResult());
+    });
+    await page.goto(`/start?registration=complete${suffix}`);
+    await expect(page).toHaveURL(/\/start$/);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.getByRole('heading', {
+      name: '관리대상 등록이 완료되었습니다!'
+    })).toHaveCount(0);
+    expect(lookups).toBe(0);
+  });
+}
+
+test('비로그인 사용자는 완료 URL의 조회 ID가 있어도 로그인 화면으로 이동', async ({ page }) => {
+  await page.route(`${API_ORIGIN}/api/auth/web/**`, (route) => fulfillJson(route, {
+    code: 'AUTHENTICATION_REQUIRED'
+  }, 401));
+  let lookups = 0;
+  await page.route(LOOKUP_URL, async (route) => {
+    lookups++;
+    await fulfillJson(route, completedResult());
+  });
+  await page.goto(COMPLETED_URL);
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('button', {
+    name: '카카오로 시작하기'
+  })).toBeVisible();
+  expect(lookups).toBe(0);
+});
+
+test('완료 조회의 일시 장애에는 이전 정보를 숨기고 재제출 없이 같은 결과만 재확인', async ({ page }) => {
+  let available = false;
+  let lookups = 0;
+  let posts = 0;
+  await page.route(FINAL_URL, async (route) => {
+    if (route.request().method() === 'POST') posts++;
+    await fulfillJson(route, {}, 503);
+  });
+  await page.route(LOOKUP_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    lookups++;
+    await fulfillJson(route, available ? completedResult() : {
+      code: 'SERVICE_UNAVAILABLE'
+    }, available ? 200 : 503);
+  });
+  await page.goto(COMPLETED_URL);
+  await expect(page.getByRole('heading', {
+    name: '등록 결과를 확인하지 못했어요'
+  })).toBeVisible();
+  await expect(page.getByText('서버 확인 빌라')).toHaveCount(0);
+  await expect(page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  })).toHaveCount(0);
+  available = true;
+  await page.getByRole('button', {
+    name: '다시 확인',
+    exact: true
+  }).click();
+  await expect(page.getByRole('heading', {
+    name: '관리대상 등록이 완료되었습니다!'
+  })).toBeVisible();
+  expect(lookups).toBe(2);
+  expect(posts).toBe(0);
+});
+
+test('완료 뒤 뒤로가기는 서버 권한을 다시 확인하고 권한 해제 시 과거 계좌와 입력 폼을 숨김', async ({ page }) => {
+  let posts = 0;
+  let lookups = 0;
+  await page.route(FINAL_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    posts++;
+    await fulfillJson(route, registrationResult(route.request().postDataJSON()), 201);
+  });
+  await page.route(LOOKUP_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    lookups++;
+    await fulfillJson(route, {
+      code: 'ACCESS_DENIED'
+    }, 403);
+  });
+  await openRegistrationReview(page);
+  await page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/registration=complete&requestId=/);
+  await expect(page.getByRole('region', {
+    name: '등록된 정보',
+    exact: true
+  })).toContainText('00012345678');
+  await page.goBack();
+  await expect(page).toHaveURL(/\/start$/);
+  await expect(page.getByRole('heading', {
+    name: '모아홈을 시작해 보세요!'
+  })).toBeVisible();
+  await expect(page.getByRole('main')).not.toContainText('00012345678');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(lookups).toBe(1);
+  expect(posts).toBe(1);
+});
+
+test('완료 조회의 인증 거부는 캐시된 로그인 성공을 버리고 로그인 화면을 표시', async ({ page }) => {
+  let expired = false;
+  await page.route(`${API_ORIGIN}/api/auth/web/**`, (route) => {
+    if (expired) return fulfillJson(route, {
+      code: 'AUTHENTICATION_REQUIRED'
+    }, 401);
+    return fulfillJson(route, route.request().url().endsWith('/csrf') ? {
+      csrfToken: 'test-csrf'
+    } : {
+      accessToken: 'test-access',
+      tokenType: 'Bearer',
+      accessExpiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+    });
+  });
+  await page.route(LOOKUP_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    expired = true;
+    await fulfillJson(route, {
+      code: 'AUTHENTICATION_REQUIRED'
+    }, 401);
+  });
+  await page.goto(COMPLETED_URL);
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('button', {
+    name: '카카오로 시작하기'
+  })).toBeVisible();
+  await expect(page.getByText('서버 확인 빌라')).toHaveCount(0);
+});
+
+test('완료 화면에서 실제 로그아웃 뒤 뒤로가도 이전 입력과 계좌를 다시 표시하지 않음', async ({ page }) => {
+  await page.route(FINAL_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    await fulfillJson(route, registrationResult(route.request().postDataJSON()), 201);
+  });
+  await openRegistrationReview(page);
+  await page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/registration=complete&requestId=/);
+  await page.route(`${API_ORIGIN}/api/auth/web/logout`, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    await page.route(`${API_ORIGIN}/api/auth/web/**`, (nextRoute) => fulfillJson(nextRoute, {
+      code: 'AUTHENTICATION_REQUIRED'
+    }, 401));
+    await route.fulfill({
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true'
+      }
+    });
+  });
+  await page.getByLabel('모아 주민님 계정 정보').click();
+  await page.getByRole('button', {
+    name: '로그아웃',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('button', {
+    name: '카카오로 시작하기'
+  })).toBeVisible();
+  await expect(page.getByText('00012345678')).toHaveCount(0);
+});
+
+test('다른 계정으로 접속하면 이전 사용자의 완료 기록을 조회하거나 표시하지 않음', async ({ page }) => {
+  await page.addInitScript(({ key, userId, result }) => {
+    sessionStorage.setItem(key, JSON.stringify({
+      userId,
+      result
+    }));
+  }, {
+    key: RECEIPT_KEY,
+    userId: CURRENT_USER.id,
+    result: completedResult()
+  });
+  await page.route(`${API_ORIGIN}/api/users/me`, (route) => fulfillJson(route, {
+    ...CURRENT_USER,
+    id: '00000000-0000-0000-0000-000000000002',
+    displayName: '다른 사용자'
+  }));
+  let lookups = 0;
+  await page.route(LOOKUP_URL, async (route) => {
+    lookups++;
+    await fulfillJson(route, completedResult());
+  });
+  await page.goto('/start?registration=complete');
+  await expect(page).toHaveURL(/\/start$/);
+  await expect(page.getByRole('heading', {
+    name: '모아홈을 시작해 보세요!'
+  })).toBeVisible();
+  await expect(page.getByText('서버 확인 빌라')).toHaveCount(0);
+  expect(lookups).toBe(0);
+  expect(await page.evaluate((key) => sessionStorage.getItem(key), RECEIPT_KEY)).toBeNull();
+});
+
+test('완료 화면의 조회 ID가 바뀌면 직전 정보를 숨기고 새 ID의 서버 결과를 확인', async ({ page }) => {
+  const otherId = 'c29cad4e-749c-432a-9c60-2eaa97936e8f';
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route(LOOKUP_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    if (route.request().url().endsWith(otherId)) {
+      await gate;
+      return fulfillJson(route, {
+        code: 'REGISTRATION_NOT_FOUND'
+      }, 404);
+    }
+    await fulfillJson(route, completedResult());
+  });
+  await page.goto(COMPLETED_URL);
+  await expect(page.getByRole('heading', {
+    name: '관리대상 등록이 완료되었습니다!'
+  })).toBeVisible();
+  await page.evaluate((id) => window.history.pushState(null, '', `/start?registration=complete&requestId=${id}`), otherId);
+  await expect(page.getByRole('heading', {
+    name: '등록 결과를 확인하고 있습니다'
+  })).toBeVisible();
+  await expect(page.getByText('서버 확인 빌라')).toHaveCount(0);
+  release();
+  await expect(page).toHaveURL(/\/start$/);
+  await expect(page.getByRole('heading', {
+    name: '모아홈을 시작해 보세요!'
+  })).toBeVisible();
+});
+
+test('캐시 복원 이벤트는 이전 화면을 가리고 로그아웃된 세션부터 다시 확인', async ({ page }) => {
+  let lookups = 0;
+  await page.route(FINAL_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    await fulfillJson(route, registrationResult(route.request().postDataJSON()), 201);
+  });
+  await page.route(LOOKUP_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    lookups++;
+    await fulfillJson(route, completedResult());
+  });
+  await openRegistrationReview(page);
+  await page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  }).click();
+  await expect(page.getByRole('heading', {
+    name: '관리대상 등록이 완료되었습니다!'
+  })).toBeVisible();
+  await page.getByRole('button', {
+    name: '등록 정보 다시 보기',
+    exact: true
+  }).click();
+  await page.getByRole('button', {
+    name: '관리계좌 상세 펼치기',
+    exact: true
+  }).click();
+  const details = page.locator('#review-account-details');
+  await expect(details).toBeVisible();
+  await expect(details).toContainText('00012345678');
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide', {
+    persisted: true
+  })));
+  await expect(details).toBeHidden();
+  await page.route(`${API_ORIGIN}/api/auth/web/**`, (route) => fulfillJson(route, {
+    code: 'AUTHENTICATION_REQUIRED'
+  }, 401));
+  await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', {
+    persisted: true
+  })));
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('button', {
+    name: '카카오로 시작하기'
+  })).toBeVisible();
+  await expect(page.getByText('00012345678')).toHaveCount(0);
+  expect(lookups).toBe(0);
+});
+
 for (const width of [1440, 390, 320]) {
   test(`등록 확인 ${width}px는 전체 계좌번호·실제 요약·수정 후 순차 진행·새로고침을 유지하고 성공 전 완료를 표시하지 않음`, async ({ page }) => {
     await page.setViewportSize({
@@ -3784,6 +4178,12 @@ test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전�
   let release!: () => void;
   const waitForRelease = new Promise<void>((resolve) => { release = resolve; });
   const bodies: RegistrationRequest[] = [];
+  let lookups = 0;
+  await page.route(LOOKUP_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    lookups++;
+    await fulfillJson(route, registrationResult(bodies[0]));
+  });
   await page.route(FINAL_URL, async (route) => {
     if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
     const body = route.request().postDataJSON();
@@ -3824,7 +4224,10 @@ test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전�
   expect(await page.evaluate((keys) => keys.map((key) => sessionStorage.getItem(key)), [DRAFT_STORAGE_KEY, SUBMISSION_KEY])).toEqual([null, null]);
   expect(await page.evaluate((key) => localStorage.getItem(key), PENDING_KEY)).toBeNull();
   const receipt = await page.evaluate((key) => sessionStorage.getItem(key), RECEIPT_KEY);
-  expect(receipt).not.toContain('00012345678');
+  expect(JSON.parse(receipt!)).toEqual({
+    userId: CURRENT_USER.id,
+    requestId: bodies[0].requestId
+  });
   await expect(page).toHaveURL(/registration=complete/);
   await page.getByRole('button', {
     name: '등록 정보 다시 보기',
@@ -3856,6 +4259,11 @@ test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전�
   }).click();
   await page.goBack();
   await expect(page).toHaveURL(/registration=complete/);
+  await expect.poll(() => lookups).toBe(1);
+  await expect(page.getByRole('heading', {
+    name: '관리대상 등록이 완료되었습니다!',
+    exact: true
+  })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', {
     name: '관리대상 등록이 완료되었습니다!',
@@ -3863,6 +4271,7 @@ test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전�
   })).toBeVisible();
   await expect(page.getByRole('main')).not.toContainText('00012345678');
   expect(bodies).toHaveLength(1);
+  expect(lookups).toBe(2);
 });
 
 test('최종 등록 응답 유실은 기존 ID의 결과 조회로 성공을 확인하고 새 등록을 보내지 않음', async ({ page }) => {

@@ -28,9 +28,11 @@ export function StartPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const registration = searchParams.get('registration');
+  const completionRequestId = searchParams.get('requestId');
   const registrationStep = registration === 'basic' || registration === 'units' || registration === 'account' || registration === 'fees' || registration === 'review' || registration === 'complete' ? registration : null;
   const isSetupStep = registrationStep !== null && registrationStep !== 'basic';
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
   const [notice, setNotice] = useState({
     title: '',
     message: ''
@@ -44,6 +46,28 @@ export function StartPage() {
       router.replace('/login');
     }
   }, [router, session.isFetching, requiresLogin]);
+
+  useEffect(() => {
+    /** 브라우저가 문서를 보관하기 전에 개인정보를 가려 로그아웃 뒤 복원 프레임에도 노출하지 않습니다. */
+    function hideLeavingPage() {
+      if (!pageRef.current) return;
+      // 펼친 상세의 visibility: visible에도 숨김이 유지되도록 부모의 렌더링 자체를 중단합니다.
+      pageRef.current.style.display = 'none';
+      pageRef.current.inert = true;
+    }
+
+    /** bfcache 복원은 이전 로그인 메모리도 복원하므로 새 문서에서 세션과 결과 권한을 재검증합니다. */
+    function revalidateRestoredPage(event: PageTransitionEvent) {
+      if (event.persisted) window.location.reload();
+    }
+
+    window.addEventListener('pagehide', hideLeavingPage);
+    window.addEventListener('pageshow', revalidateRestoredPage);
+    return () => {
+      window.removeEventListener('pagehide', hideLeavingPage);
+      window.removeEventListener('pageshow', revalidateRestoredPage);
+    };
+  }, []);
 
   /** 아직 제공하지 않는 기능은 대기 요청이나 알림이 있다고 가정하지 않고 준비 상태를 안내합니다. */
   function showNotice(title: string, message: string) {
@@ -72,6 +96,7 @@ export function StartPage() {
 
   return (
     <div
+      ref={pageRef}
       className={styles.page}
     >
       <div
@@ -87,6 +112,7 @@ export function StartPage() {
           key={session.data.id}
           userId={session.data.id}
           step={registrationStep}
+          completionRequestId={completionRequestId}
           onClose={() => router.replace('/start', {
             scroll: false
           })}

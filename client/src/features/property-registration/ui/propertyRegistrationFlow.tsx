@@ -30,6 +30,7 @@ import { getFeeItemsError } from '../model/feeItems';
 import { FeeItemsSetup } from './_components/fee-items-setup/feeItemsSetup';
 import { RegistrationReview } from './_components/registration-review/registrationReview';
 import { RegistrationComplete } from './_components/registration-complete/registrationComplete';
+import { RegistrationResultState } from './_components/registration-result-state/registrationResultState';
 import { SubmissionDialog } from './_components/submission-dialog/submissionDialog';
 import { useRegistrationSubmission } from './_hooks/useRegistrationSubmission';
 import styles from './propertyRegistrationFlow.module.css';
@@ -38,11 +39,13 @@ import styles from './propertyRegistrationFlow.module.css';
 export function PropertyRegistrationFlow({
   userId,
   step,
+  completionRequestId,
   onClose,
   onDashboard,
 }: {
   userId: string;
   step: RegistrationStep | 'complete';
+  completionRequestId: string | null;
   onClose: () => void;
   onDashboard: () => void;
 }) {
@@ -67,7 +70,11 @@ export function PropertyRegistrationFlow({
       scroll: false
     });
   }, [router]);
-  const submission = useRegistrationSubmission(userId, showInputError);
+  const submission = useRegistrationSubmission(userId, showInputError, step === 'complete', completionRequestId);
+  // URL의 다른 ID를 확인하기 전에는 직전 결과를 한 프레임도 표시하지 않습니다.
+  const resultMismatch = step === 'complete' && completionRequestId !== null
+    && submission.result?.requestId !== completionRequestId;
+  const confirmingResult = (submission.isCompletionLookup && submission.status !== 'complete') || resultMismatch;
   const locked = submission.status !== 'idle';
   let currentStep: RegistrationStep | 'complete' = 'basic';
   if (step !== 'basic' && draft.basicInfoValidated) currentStep = 'units';
@@ -86,7 +93,7 @@ export function PropertyRegistrationFlow({
   }, []);
 
   useEffect(() => {
-    if (currentStep === 'complete') {
+    if (currentStep === 'complete' || submission.isCompletionLookup) {
       discardRegistrationDraft();
       return;
     }
@@ -94,14 +101,20 @@ export function PropertyRegistrationFlow({
       ...draft,
       step: currentStep
     });
-  }, [userId, draft, currentStep, submission.status]);
+  }, [userId, draft, currentStep, submission.isCompletionLookup]);
 
   useEffect(() => {
-    if (step === currentStep) return;
-    router.replace(`/start?registration=${currentStep}`, {
+    if (confirmingResult) return;
+    const requestId = currentStep === 'complete' ? submission.result?.requestId : null;
+    if (step === currentStep && (!requestId || completionRequestId === requestId)) return;
+    const query = new URLSearchParams({
+      registration: currentStep
+    });
+    if (requestId) query.set('requestId', requestId);
+    router.replace(`/start?${query}`, {
       scroll: false
     });
-  }, [step, currentStep, router]);
+  }, [step, currentStep, completionRequestId, submission.result, confirmingResult, router]);
 
   useEffect(() => {
     if (inputMessage) errorRef.current?.focus();
@@ -170,7 +183,15 @@ export function PropertyRegistrationFlow({
   }
 
   let content;
-  if (currentStep === 'complete' && submission.result && !showRegisteredDetails) {
+  if (confirmingResult) {
+    content = (
+      <RegistrationResultState
+        failed={submission.status === 'unknown'}
+        onRetry={checkRegistrationResult}
+        onClose={onClose}
+      />
+    );
+  } else if (currentStep === 'complete' && submission.result && !showRegisteredDetails) {
     content = (
       <RegistrationComplete
         result={submission.result}
@@ -273,7 +294,7 @@ export function PropertyRegistrationFlow({
         </p>
       )}
       {content}
-      {submissionDialogOpen && ['submitting', 'checking', 'failed', 'unknown'].includes(submission.status) && (
+      {!submission.isCompletionLookup && !confirmingResult && submissionDialogOpen && ['submitting', 'checking', 'failed', 'unknown'].includes(submission.status) && (
         <SubmissionDialog
           status={submission.status}
           message={submission.message}

@@ -1,9 +1,5 @@
 import { ApiError } from '@/shared/api';
-import {
-  readRegistrationResult,
-  type RegistrationRequest,
-  type RegistrationResult
-} from '../api/registrationApi';
+import { type RegistrationRequest } from '../api/registrationApi';
 import { normalizeBasicInfo } from './basicInfo';
 import { getUnitSetupError } from './unitSetup';
 import {
@@ -155,26 +151,37 @@ export function clearPendingRegistration(userId: string, requestId: string) {
   } catch { /* 저장소 차단은 완료 표시를 막지 않습니다. */ }
 }
 
-/** 성공 결과에는 계좌 원문을 남기지 않으며 새로고침에서도 저장 완료를 다시 확인할 수 있게 합니다. */
-export function saveRegistrationReceipt(userId: string, result: RegistrationResult) {
+/** 완료 기록에는 조회용 ID만 남기며 표시할 정보와 현재 권한은 서버에서 다시 확인합니다. */
+export function saveRegistrationReceipt(userId: string, requestId: string) {
   try { sessionStorage.setItem(RECEIPT_KEY, JSON.stringify({
     userId,
-    result
+    requestId
   })); } catch { /* 현재 화면의 완료 상태를 유지합니다. */ }
 }
 
-/** 완료 화면의 새로고침에서만 본인 성공 결과를 복원하며 이탈 뒤 새 등록에 재사용하지 않습니다. */
-export function restoreRegistrationReceipt(userId: string): RegistrationResult | null {
+/** 브라우저 기록은 성공 증명이 아니며 본인의 기존 기록에서도 서버 조회에 쓸 ID만 읽습니다. */
+export function restoreRegistrationReceipt(userId: string): string | null {
   try {
-    const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
     const data = JSON.parse(sessionStorage.getItem(RECEIPT_KEY) ?? 'null');
-    if (navigation?.type === 'reload' && data?.userId === userId) return readRegistrationResult(data.result, data.result?.requestId);
-  } catch { /* 손상된 완료 기록은 성공으로 표시하지 않습니다. */ }
+    // 이전 버전의 요약도 ID만 사용해 조작된 요약이나 해제된 권한을 그대로 복원하지 않습니다.
+    const requestId = data?.requestId ?? data?.result?.requestId;
+    if (data?.userId === userId && isRegistrationRequestId(requestId)) {
+      // 조회가 실패해도 이전 버전의 요약을 브라우저에 계속 보관하지 않습니다.
+      saveRegistrationReceipt(userId, requestId);
+      return requestId;
+    }
+  } catch { /* 손상된 기록은 완료 화면을 여는 근거로 사용하지 않습니다. */ }
 
+  discardRegistrationReceipt();
   return null;
 }
 
-/** 완료 화면 이탈 뒤에는 이전 성공 스냅샷을 새 등록에 재사용하지 않도록 폐기합니다. */
+/** URL과 저장소의 조회 ID는 형식만 검증하며 소유권과 현재 권한은 API가 검증합니다. */
+export function isRegistrationRequestId(value: unknown): value is string {
+  return typeof value === 'string' && UUID_PATTERN.test(value);
+}
+
+/** 완료 화면 이탈 뒤에는 이전 조회 ID를 새 등록에 재사용하지 않도록 폐기합니다. */
 export function discardRegistrationReceipt() {
   try { sessionStorage.removeItem(RECEIPT_KEY); } catch { /* 저장소가 차단되어도 화면을 닫습니다. */ }
 }
