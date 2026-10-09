@@ -169,3 +169,45 @@ test('GET 중첩 데이터와 다른 호스트의 URL은 전송 전에 거부', 
   expect(() => getApiUrl('/\\external.example/api')).toThrow();
   expect(requests).toBe(0);
 });
+
+test('입력 오류는 안전한 필드·reason만 유지하고 응답 메시지·원문과 잘못된 경로를 제외', async () => {
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    code: 'INVALID_REQUEST',
+    message: 'private-token-original',
+    errors: [
+      {
+        field: 'bankAccounts[0].holderName',
+        reason: 'REQUIRED',
+        message: 'private-account-original',
+        value: 'private-value'
+      },
+      {
+        field: '<script>',
+        reason: 'REQUIRED'
+      },
+      {
+        field: 'feeItems[0].itemName',
+        reason: 'private-reason'
+      }
+    ]
+  }), {
+    status: 400
+  });
+  try {
+    await customAPI({
+      url: '/api/property-registrations',
+      method: 'POST',
+      data: {}
+    });
+    throw new Error('expected failure');
+  } catch (error) {
+    expect(error).toBeInstanceOf(ApiError);
+    const apiError = error as ApiError;
+    expect(apiError.errors).toEqual([{
+      field: 'bankAccounts[0].holderName',
+      reason: 'REQUIRED'
+    }]);
+    expect(JSON.stringify(apiError)).not.toContain('private-');
+    expect(apiError.message).not.toContain('private-');
+  }
+});

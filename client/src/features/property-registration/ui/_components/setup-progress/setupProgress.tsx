@@ -13,8 +13,12 @@ function getStepState(step: number, currentStep: number) {
 /** PC 단계 목록과 모바일 진행률이 같은 현재 단계를 표시하며 마지막 단계도 저장 전 확인으로 유지합니다. */
 export function SetupProgress({
   currentStep,
+  complete = false,
+  mobileCountInHeader = false,
 }: {
   currentStep: number;
+  complete?: boolean;
+  mobileCountInHeader?: boolean;
 }) {
   return (
     <nav
@@ -25,27 +29,28 @@ export function SetupProgress({
         {REGISTRATION_STEPS.map((label, index) => (
           <li
             key={label}
-            data-step={getStepState(index + 1, currentStep)}
+            data-step={complete ? 'complete' : getStepState(index + 1, currentStep)}
             aria-current={index + 1 === currentStep ? 'step' : undefined}
           >
             <span
               className={styles['step-number']}
               aria-hidden={'true'}
             >
-              {index + 1 < currentStep ? (
+              {complete || index + 1 < currentStep ? (
                 <RegistrationIcon
                   name={'check'}
                 />
               ) : index + 1}
             </span>
             <span>
-              {label}
+              {complete && index === 4 ? '완료' : label}
             </span>
           </li>
         ))}
       </ol>
       <div
         className={styles['mobile-progress']}
+        data-count-in-header={mobileCountInHeader}
         aria-label={`5단계 중 ${currentStep}단계: ${REGISTRATION_STEPS[currentStep - 1]}`}
       >
         <span>

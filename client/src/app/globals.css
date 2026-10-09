@@ -22,6 +22,11 @@ html {
   --success: #16a34a;
   --warning: #f59e0b;
   --danger: #ef4444;
+  /* 등록 확인 화면의 항목 아이콘은 제공된 시안의 색상 구분을 사용합니다. */
+  --registration-icon-building: #7c3aed;
+  --registration-icon-units: var(--secondary-teal);
+  --registration-icon-bank: var(--primary);
+  --registration-icon-fees: var(--warning);
   /* 시작 화면의 강아지 일러스트에 사용하는 크림색과 연갈색입니다. */
   --puppy-cream: #fff3d9;
   --puppy-light-brown: #c69c72;

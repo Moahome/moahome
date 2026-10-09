@@ -4,6 +4,7 @@ import {
   type Page,
   type Route
 } from '@playwright/test';
+import type { RegistrationRequest } from '../src/features/property-registration/api/registrationApi';
 
 const API_ORIGIN = 'http://localhost:8080';
 const VALIDATE_URL = `${API_ORIGIN}/api/property-registrations/basic-info/validate`;
@@ -1228,7 +1229,10 @@ test('관리비는 빈 목록·0원으로 시작하고 0원과 음수 항목의 
   const stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).feeItems, DRAFT_STORAGE_KEY);
   expect(stored.map((item: { defaultAmount: string }) => item.defaultAmount)).toEqual(['0', '15000', '-25000']);
   await next.click();
-  await expect(page.getByRole('status')).toContainText('아직 저장되지 않았어요');
+  await expect(page.getByRole('heading', {
+    name: '등록 정보를 확인해주세요',
+    exact: true
+  })).toBeVisible();
   expect(finalRequests).toHaveLength(0);
 });
 
@@ -3210,4 +3214,716 @@ test('PC 모달·모바일 전체 화면에서 가로 넘침 없이 표시하고
     exact: true
   }).click();
   await expect(dialog).toHaveCount(0);
+});
+
+const FINAL_URL = `${API_ORIGIN}/api/property-registrations`;
+const LOOKUP_URL = new RegExp(`${FINAL_URL}/[0-9a-f-]{36}$`);
+const SUBMISSION_KEY = 'moahome.property-registration.submission';
+const RECEIPT_KEY = 'moahome.property-registration.receipt';
+const PENDING_KEY = `moahome.property-registration.pending.${CURRENT_USER.id}`;
+
+/** 실제 입력 화면을 거쳐 확인 화면까지 이동하며 저장 API는 아직 호출하지 않습니다. */
+async function openRegistrationReview(page: Page) {
+  await openFeeItemsSetup(page);
+  await addFeeItem(page, '일반관리비', '15000');
+  await addFeeItem(page, '차감', '-5000');
+  await page.getByRole('button', {
+    name: '다음',
+    exact: true
+  }).click();
+  await expect(page.getByRole('heading', {
+    name: '등록 정보를 확인해주세요',
+    exact: true
+  })).toBeVisible();
+}
+
+/** 상세 안에 있는 수정 동작을 사용하기 전에 같은 항목의 아코디언을 펼칩니다. */
+/** 수정 뒤 첫 이동부터 남은 단계를 순서대로 확인하여 5단계 직행을 허용하지 않습니다. */
+async function finishSequentialReview(page: Page, firstStep: string) {
+  const steps = ['units', 'account', 'fees', 'review'];
+  const start = steps.indexOf(firstStep);
+  expect(start).toBeGreaterThanOrEqual(0);
+  await expect(page).toHaveURL(new RegExp(`registration=${firstStep}`));
+  for (let index = start; index < steps.length - 1; index++) {
+    await page.getByRole('button', {
+      name: '다음',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(new RegExp(`registration=${steps[index + 1]}`));
+  }
+}
+
+/** 등록 당시 API 계약의 최소 성공 스냅샷을 모의 응답으로 사용합니다. */
+function registrationResult(body: { requestId: string; basicInfo: { name: string; hasBuildings: boolean }; buildings: unknown[]; units: unknown[]; feeItems: { defaultAmount: number }[] }) {
+  return {
+    requestId: body.requestId,
+    property: {
+      id: 'f5405dd1-42ea-4279-9302-812ffcc2d21b',
+      name: body.basicInfo.name,
+      hasBuildings: body.basicInfo.hasBuildings,
+      status: 'ACTIVE'
+    },
+    membership: {
+      id: '6114debb-fdf5-4e92-ac9d-ea665f7e13ed',
+      role: 'ADMIN',
+      status: 'ACTIVE'
+    },
+    summary: {
+      buildingCount: body.buildings.length,
+      unitCount: body.units.length,
+      bankAccountCount: 1,
+      feeItemCount: body.feeItems.length,
+      monthlyDefaultAmount: body.feeItems.reduce((sum, item) => sum + item.defaultAmount, 0)
+    },
+    createdAt: '2026-10-09T01:00:00Z'
+  };
+}
+
+for (const width of [1440, 390, 320]) {
+  test(`등록 확인 ${width}px는 계좌 마스킹·실제 요약·수정 후 순차 진행·새로고침을 유지하고 성공 전 완료를 표시하지 않음`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    let posts = 0;
+    await page.route(FINAL_URL, async (route) => {
+      if (route.request().method() === 'POST') posts++;
+      await fulfillJson(route, {}, 503);
+    });
+    await openRegistrationReview(page);
+    const account = page.getByRole('region', {
+      name: '관리계좌 요약'
+    });
+    await expect(account).toContainText('····5678');
+    await expect(account).not.toContainText('00012345678');
+    await expect(page.getByRole('region', {
+      name: '관리비 요약'
+    })).toContainText('10,000원');
+    await expect(page.getByRole('heading', {
+      name: '설정이 완료되었습니다'
+    })).toHaveCount(0);
+    await page.getByRole('button', {
+      name: '관리계좌 수정',
+      exact: true
+    }).click();
+    await page.getByLabel('예금주').fill('변경 관리단');
+    await page.getByRole('button', {
+      name: '다음',
+      exact: true
+    }).click();
+    await finishSequentialReview(page, 'fees');
+    await expect(account).toContainText('변경 관리단');
+    await page.getByRole('button', {
+      name: '관리대상 수정',
+      exact: true
+    }).click();
+    await page.getByLabel('관리대상 이름').fill('수정한 빌라');
+    await page.getByRole('button', {
+      name: '등록하고 계속',
+      exact: true
+    }).click();
+    await finishSequentialReview(page, 'units');
+    await expect(page.getByRole('region', {
+      name: '관리대상 요약'
+    })).toContainText('수정한 빌라');
+    await page.reload();
+    await expect(account).toContainText('변경 관리단');
+    expect(posts).toBe(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`registrationReview${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+  });
+}
+
+for (const width of [390, 320]) {
+  test(`모바일 확인 ${width}px는 요약 전체를 펼치고 오른쪽 수정 글씨에서 단계 순서를 유지`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    await openRegistrationReview(page);
+    const toggles = page.getByRole('button', {
+      name: /^(관리대상 상세|세대 목록|관리계좌 상세|관리비 항목) 펼치기$/
+    });
+    await expect(toggles).toHaveCount(4);
+    await expect(page.getByRole('button', {
+      name: /^(관리대상|동·세대|관리계좌|관리비 항목) 수정$/
+    })).toHaveCount(4);
+    const icons = page.getByRole('region', {
+      name: /^(관리대상|동·세대|관리계좌|관리비) 요약$/
+    }).locator('[data-icon]');
+    const iconColors = await icons.evaluateAll((elements) => elements.map((element) => getComputedStyle(element).color));
+    expect(new Set(iconColors).size).toBe(4);
+    const positions: number[] = [];
+
+    for (const item of [
+      {
+        region: '관리대상 요약',
+        toggle: '관리대상 상세',
+        edit: '관리대상 수정',
+        step: 'basic',
+        next: '등록하고 계속',
+        id: 'review-property-details'
+      },
+      {
+        region: '동·세대 요약',
+        toggle: '세대 목록',
+        edit: '동·세대 수정',
+        step: 'units',
+        next: '다음',
+        id: 'review-unit-list'
+      },
+      {
+        region: '관리계좌 요약',
+        toggle: '관리계좌 상세',
+        edit: '관리계좌 수정',
+        step: 'account',
+        next: '다음',
+        id: 'review-account-details'
+      },
+      {
+        region: '관리비 요약',
+        toggle: '관리비 항목',
+        edit: '관리비 항목 수정',
+        step: 'fees',
+        next: '다음',
+        id: 'review-fee-details'
+      }
+    ]) {
+      const region = page.getByRole('region', {
+        name: item.region
+      });
+      await region.click({
+        position: {
+          x: 26,
+          y: 30
+        }
+      });
+      await expect(page).toHaveURL(/registration=review/);
+      const content = page.locator(`#${item.id}`);
+      await expect(content).toBeVisible();
+      if (item.step === 'basic') await expect(content).toContainText('건물 유형');
+      if (item.step === 'account') {
+        await expect(content).toContainText('예금주');
+        await expect(content).not.toContainText('00012345678');
+      }
+      if (item.step === 'units') await expect(content.getByRole('listitem')).toHaveCount(1);
+      if (item.step === 'fees') await expect(content.getByRole('table')).toBeVisible();
+      const toggle = region.getByRole('button', {
+        name: new RegExp(`^${item.toggle} (접기|펼치기)$`)
+      });
+      await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      await toggle.click();
+      await expect(content).toBeHidden();
+      await expect(content).toHaveAttribute('inert', '');
+      await expect(region.getByRole('button', {
+        name: item.edit,
+        exact: true
+      })).toHaveCount(1);
+      await toggle.focus();
+      await toggle.press('Enter');
+      await expect(content).toBeVisible();
+      const edit = region.getByRole('button', {
+        name: item.edit,
+        exact: true
+      });
+      await expect(edit).toHaveText('수정');
+      await expect(edit.locator('svg')).toHaveCount(0);
+      const appearance = await edit.evaluate((element) => {
+        const style = getComputedStyle(element);
+
+        return {
+          color: style.color,
+          border: style.borderTopWidth,
+          background: style.backgroundColor
+        };
+      });
+      expect(appearance).toEqual({
+        color: 'rgb(37, 99, 235)',
+        border: '0px',
+        background: 'rgba(0, 0, 0, 0)'
+      });
+      const editBox = await edit.boundingBox();
+      const summaryBox = await toggle.boundingBox();
+      expect(Math.abs(editBox!.y + editBox!.height / 2 - summaryBox!.y - summaryBox!.height / 2)).toBeLessThan(1);
+      expect(editBox!.x).toBeGreaterThan(summaryBox!.x + summaryBox!.width * 0.6);
+      await edit.hover();
+      const hover = await edit.evaluate((element) => ({
+        underline: getComputedStyle(element).textDecorationLine,
+        transform: getComputedStyle(element).transform
+      }));
+      expect(hover).toEqual({
+        underline: 'none',
+        transform: 'none'
+      });
+      positions.push(editBox!.x);
+      await edit.click();
+      await expect(page).toHaveURL(new RegExp(`registration=${item.step}`));
+      await page.getByRole('button', {
+        name: item.next,
+        exact: true
+      }).click();
+      const nextSteps: Record<string, string> = {
+        basic: 'units',
+        units: 'account',
+        account: 'fees',
+        fees: 'review'
+      };
+      await finishSequentialReview(page, nextSteps[item.step]);
+    }
+    expect(Math.max(...positions) - Math.min(...positions)).toBeLessThan(1);
+    await expect(page.getByText('항목 추가 또는 수정은 관리비 설정 단계에서 가능합니다.')).toHaveCount(0);
+    await page.emulateMedia({
+      reducedMotion: 'reduce'
+    });
+    const motion = await page.getByRole('button', {
+      name: '관리대상 상세 펼치기',
+      exact: true
+    }).evaluate((element) => getComputedStyle(element).transitionDuration);
+    expect(motion).toBe('0s');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+}
+
+test('등록 확인은 많은 세대를 펼쳐 보고 동·세대 수정 뒤 남은 단계를 순서대로 진행', async ({ page }) => {
+  await page.setViewportSize({
+    width: 1440,
+    height: 900
+  });
+  await openRegistrationReview(page);
+  await page.getByRole('button', {
+    name: '동·세대 수정',
+    exact: true
+  }).click();
+  for (let i = 301; i < 308; i++) await addUnit(page, String(i));
+  await page.getByRole('button', {
+    name: '다음',
+    exact: true
+  }).click();
+  await finishSequentialReview(page, 'account');
+  const units = page.locator('#review-unit-list');
+  await expect(units).toBeHidden();
+  await page.getByRole('button', {
+    name: '세대 목록 펼치기',
+    exact: true
+  }).click();
+  await expect(units).toBeVisible();
+  await expect(units.getByRole('listitem')).toHaveCount(8);
+  const unitGroup = units.getByRole('region', {
+    name: '동 없음 세대 목록'
+  });
+  await expect(unitGroup.getByRole('heading')).toHaveText('동 없음');
+  await expect(unitGroup.getByText('8세대', {
+    exact: true
+  })).toHaveCount(1);
+  await expect(unitGroup.getByRole('button')).toHaveCount(0);
+  // 실제 호수 위치로 PC 최대 4열과 모바일 최대 2열의 줄바꿈을 확인합니다.
+  for (const layout of [
+    {
+      width: 1440,
+      columns: 4
+    },
+    {
+      width: 390,
+      columns: 2
+    },
+    {
+      width: 320,
+      columns: 2
+    }
+  ]) {
+    await page.setViewportSize({
+      width: layout.width,
+      height: 900
+    });
+    await expect.poll(async () => unitGroup.getByRole('listitem').evaluateAll((items) => {
+      const firstTop = items[0].getBoundingClientRect().top;
+
+      return items.filter((item) => Math.abs(item.getBoundingClientRect().top - firstTop) < 1).length;
+    })).toBe(layout.columns);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+  await page.getByRole('button', {
+    name: '세대 목록 접기',
+    exact: true
+  }).click();
+  await expect(units).toBeHidden();
+  await page.getByRole('button', {
+    name: '관리비 항목 수정',
+    exact: true
+  }).click();
+  await addFeeItem(page, '청소비', '7000');
+  await page.getByRole('button', {
+    name: '다음',
+    exact: true
+  }).click();
+  await expect(page.getByRole('region', {
+    name: '관리비 요약'
+  })).toContainText('17,000원');
+});
+
+test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전체 본문을 한 번 저장한 뒤 초안을 폐기', async ({ page }) => {
+  let release!: () => void;
+  const waitForRelease = new Promise<void>((resolve) => { release = resolve; });
+  const bodies: RegistrationRequest[] = [];
+  await page.route(FINAL_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    const body = route.request().postDataJSON();
+    bodies.push(body);
+    await waitForRelease;
+    await fulfillJson(route, registrationResult(body), 201);
+  });
+  await openRegistrationReview(page);
+  await page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  }).evaluate((button: HTMLButtonElement) => { button.click(); button.click(); });
+  await expect(page.getByRole('button', {
+    name: '저장 중이에요'
+  })).toBeDisabled();
+  await expect(page.getByRole('button', {
+    name: '관리대상 수정'
+  })).toHaveCount(0);
+  await page.goBack();
+  await expect(page).toHaveURL(/registration=review/);
+  await expect.poll(() => bodies.length).toBe(1);
+  expect(bodies[0].units[0]).not.toHaveProperty('clientId');
+  expect(bodies[0].feeItems[0]).toEqual({
+    itemCode: null,
+    itemName: '일반관리비',
+    defaultAmount: 15000
+  });
+  expect(bodies[0]).not.toHaveProperty('automaticUnitRule');
+  release();
+  await expect(page.getByRole('heading', {
+    name: '설정이 완료되었습니다',
+    exact: true
+  })).toBeVisible();
+  expect(await page.evaluate((keys) => keys.map((key) => sessionStorage.getItem(key)), [DRAFT_STORAGE_KEY, SUBMISSION_KEY])).toEqual([null, null]);
+  expect(await page.evaluate((key) => localStorage.getItem(key), PENDING_KEY)).toBeNull();
+  const receipt = await page.evaluate((key) => sessionStorage.getItem(key), RECEIPT_KEY);
+  expect(receipt).not.toContain('00012345678');
+  await page.reload();
+  await expect(page.getByRole('heading', {
+    name: '설정이 완료되었습니다',
+    exact: true
+  })).toBeVisible();
+  expect(bodies).toHaveLength(1);
+});
+
+test('최종 등록 응답 유실은 기존 ID의 결과 조회로 성공을 확인하고 새 등록을 보내지 않음', async ({ page }) => {
+  let body: RegistrationRequest;
+  let posts = 0;
+  await page.route(FINAL_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    posts++;
+    body = route.request().postDataJSON();
+    await route.abort('failed');
+  });
+  await page.route(LOOKUP_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    expect(route.request().url()).toBe(`${FINAL_URL}/${body.requestId}`);
+    await fulfillJson(route, registrationResult(body));
+  });
+  await openRegistrationReview(page);
+  await page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  }).click();
+  await expect(page.getByRole('heading', {
+    name: '설정이 완료되었습니다',
+    exact: true
+  })).toBeVisible();
+  expect(posts).toBe(1);
+});
+
+test('등록 결과 404와 새로고침 뒤에도 기존 ID·본문을 유지해 재시도하고 성공까지 입력을 잠금', async ({ page }) => {
+  const bodies: RegistrationRequest[] = [];
+  let succeed = false;
+  await page.route(FINAL_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    const body = route.request().postDataJSON();
+    bodies.push(body);
+    if (!succeed) return route.abort('failed');
+    await fulfillJson(route, registrationResult(body), 200);
+  });
+  await page.route(LOOKUP_URL, (route) => fulfillJson(route, {
+    code: 'REGISTRATION_NOT_FOUND'
+  }, 404));
+  await openRegistrationReview(page);
+  await page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  }).click();
+  await expect(page.getByRole('button', {
+    name: '같은 정보로 다시 시도',
+    exact: true
+  })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', {
+    name: '같은 정보로 다시 시도',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('button', {
+    name: '관리계좌 수정'
+  })).toHaveCount(0);
+  succeed = true;
+  await page.getByRole('button', {
+    name: '같은 정보로 다시 시도',
+    exact: true
+  }).click();
+  await expect(page.getByRole('heading', {
+    name: '설정이 완료되었습니다',
+    exact: true
+  })).toBeVisible();
+  expect(bodies).toHaveLength(2);
+  expect(bodies[1]).toEqual(bodies[0]);
+});
+
+test('명확한 등록 입력 오류는 해당 단계로 돌아가 값을 유지하고 수정 후 새 ID로 저장', async ({ page }) => {
+  const ids: string[] = [];
+  await page.route(FINAL_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    const body = route.request().postDataJSON();
+    ids.push(body.requestId);
+    if (ids.length === 1) return fulfillJson(route, {
+      code: 'INVALID_REQUEST',
+      errors: [{
+        field: 'bankAccounts[0].holderName',
+        reason: 'INVALID_FORMAT',
+        message: 'private-error-original'
+      }]
+    }, 400);
+    await fulfillJson(route, registrationResult(body), 201);
+  });
+  await openRegistrationReview(page);
+  await page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/registration=account/);
+  await expect(page.getByRole('alert').filter({
+    hasText: '관리계좌:'
+  })).toContainText('관리계좌');
+  await expect(page.getByRole('alert').filter({
+    hasText: '관리계좌:'
+  })).not.toContainText('private-error-original');
+  await expect(page.getByLabel('예금주')).toHaveValue('예시 관리단');
+  await page.getByLabel('예금주').fill('수정 관리단');
+  await page.getByRole('button', {
+    name: '다음',
+    exact: true
+  }).click();
+  await finishSequentialReview(page, 'fees');
+  await page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  }).click();
+  await expect(page.getByRole('heading', {
+    name: '설정이 완료되었습니다',
+    exact: true
+  })).toBeVisible();
+  expect(ids).toHaveLength(2);
+  expect(ids[1]).not.toBe(ids[0]);
+});
+
+test('등록 결과 조회 자체가 실패하면 새 요청·수정을 막고 같은 ID 조회만 재시도', async ({ page }) => {
+  let body: RegistrationRequest;
+  let posts = 0;
+  let recover = false;
+  await page.route(FINAL_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    body = route.request().postDataJSON();
+    posts++;
+    await fulfillJson(route, {
+      code: 'REGISTRATION_SERVICE_UNAVAILABLE'
+    }, 503);
+  });
+  await page.route(LOOKUP_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    await fulfillJson(route, recover ? registrationResult(body) : {
+      code: 'REGISTRATION_SERVICE_UNAVAILABLE'
+    }, recover ? 200 : 503);
+  });
+  await openRegistrationReview(page);
+  await page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  }).click();
+  await expect(page.getByRole('button', {
+    name: '등록 결과 확인',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('button', {
+    name: '같은 정보로 다시 시도',
+    exact: true
+  })).toHaveCount(0);
+  recover = true;
+  await page.getByRole('button', {
+    name: '등록 결과 확인',
+    exact: true
+  }).click();
+  await expect(page.getByRole('heading', {
+    name: '설정이 완료되었습니다',
+    exact: true
+  })).toBeVisible();
+  expect(posts).toBe(1);
+});
+
+test('제출 중 새로고침은 기존 요청의 성공 결과를 조회하고 POST를 추가하지 않음', async ({ page }) => {
+  let body: RegistrationRequest;
+  let posts = 0;
+  let release!: () => void;
+  const responseGate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route(FINAL_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    posts++;
+    body = route.request().postDataJSON();
+    await responseGate;
+    await fulfillJson(route, registrationResult(body), 201).catch(() => {});
+  });
+  await page.route(LOOKUP_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    await fulfillJson(route, registrationResult(body));
+  });
+  await openRegistrationReview(page);
+  await page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  }).click();
+  await expect.poll(() => posts).toBe(1);
+  await page.reload();
+  await expect(page.getByRole('heading', {
+    name: '설정이 완료되었습니다',
+    exact: true
+  })).toBeVisible();
+  release();
+  expect(posts).toBe(1);
+});
+
+test('이탈·재진입은 제출 본문을 폐기하고 본인 요청 ID만으로 결과를 복구', async ({ page }) => {
+  let body: RegistrationRequest;
+  let found = false;
+  let posts = 0;
+  await page.route(FINAL_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    posts++;
+    body = route.request().postDataJSON();
+    await route.abort('failed');
+  });
+  await page.route(LOOKUP_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    await fulfillJson(route, found ? registrationResult(body) : {
+      code: 'REGISTRATION_NOT_FOUND'
+    }, found ? 200 : 404);
+  });
+  await openRegistrationReview(page);
+  await page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  }).click();
+  await expect(page.getByRole('button', {
+    name: '같은 정보로 다시 시도',
+    exact: true
+  })).toBeVisible();
+  await page.goto('/start');
+  await expect(page.getByRole('button', {
+    name: '관리할 곳 만들기',
+    exact: true
+  })).toBeVisible();
+  expect(await page.evaluate((key) => sessionStorage.getItem(key), SUBMISSION_KEY)).toBeNull();
+  expect(await page.evaluate((key) => localStorage.getItem(key), PENDING_KEY)).toBe(body!.requestId);
+  found = true;
+  await page.goto('/start?registration=review');
+  await expect(page.getByRole('heading', {
+    name: '설정이 완료되었습니다',
+    exact: true
+  })).toBeVisible();
+  expect(posts).toBe(1);
+});
+
+test('다른 사용자에게 이전 제출 본문·성공 결과를 보여주거나 요청 ID를 조회하지 않음', async ({ page }) => {
+  const requestId = '7f0c8c26-33d9-4bb3-8ca7-2c7c99e7f0ef';
+  let lookups = 0;
+  await page.route(LOOKUP_URL, async (route) => { lookups++; await fulfillJson(route, {}, 404); });
+  await page.goto('/start');
+  await page.evaluate(({ key, requestId }) => localStorage.setItem(key, requestId), {
+    key: PENDING_KEY,
+    requestId
+  });
+  await page.route(`${API_ORIGIN}/api/users/me`, (route) => fulfillJson(route, {
+    ...CURRENT_USER,
+    id: '00000000-0000-0000-0000-000000000002'
+  }));
+  await page.goto('/start?registration=review');
+  await expect(page.getByRole('dialog', {
+    name: '관리할 곳 등록',
+    exact: true
+  })).toBeVisible();
+  await expect(page).toHaveURL(/registration=basic/);
+  expect(lookups).toBe(0);
+});
+
+test('손상된 제출 본문은 재전송하지 않고 남아 있는 요청 ID로 결과만 확인', async ({ page }) => {
+  await page.route(FINAL_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    await route.abort('failed');
+  });
+  await page.route(LOOKUP_URL, (route) => fulfillJson(route, route.request().method() === 'OPTIONS' ? {} : {
+    code: 'REGISTRATION_NOT_FOUND'
+  }, route.request().method() === 'OPTIONS' ? 200 : 404));
+  await openRegistrationReview(page);
+  await page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  }).click();
+  await expect(page.getByRole('button', {
+    name: '같은 정보로 다시 시도',
+    exact: true
+  })).toBeVisible();
+  await page.evaluate((key) => {
+    const data = JSON.parse(sessionStorage.getItem(key)!);
+    data.request.bankAccounts[0].accountNumber = 1234;
+    sessionStorage.setItem(key, JSON.stringify(data));
+  }, SUBMISSION_KEY);
+  await page.reload();
+  await expect(page.getByRole('button', {
+    name: '등록 결과 확인',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('button', {
+    name: '같은 정보로 다시 시도',
+    exact: true
+  })).toHaveCount(0);
+});
+
+test('잘못된 성공 응답은 완료로 믿지 않고 기존 요청 ID의 유효한 결과를 확인', async ({ page }) => {
+  let body: RegistrationRequest;
+  let lookups = 0;
+  await page.route(FINAL_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    body = route.request().postDataJSON();
+    await fulfillJson(route, {
+      ...registrationResult(body),
+      requestId: 'wrong-request'
+    }, 201);
+  });
+  await page.route(LOOKUP_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    lookups++;
+    await fulfillJson(route, registrationResult(body));
+  });
+  await openRegistrationReview(page);
+  await page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  }).click();
+  await expect(page.getByRole('heading', {
+    name: '설정이 완료되었습니다',
+    exact: true
+  })).toBeVisible();
+  expect(lookups).toBe(1);
 });

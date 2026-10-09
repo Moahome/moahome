@@ -48,11 +48,13 @@ export function PropertyRegistrationDialog({
   onChange,
   onValidated,
   onClose,
+  serverMessage,
 }: {
   draft: BasicInfoDraft;
   onChange: (changes: Partial<BasicInfoDraft>) => void;
   onValidated: (basicInfo: BasicInfo) => void;
   onClose: () => void;
+  serverMessage?: string;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -345,12 +347,12 @@ export function PropertyRegistrationDialog({
             </span>
           </p>
         </aside>
-        {errorMessage && (
+        {(errorMessage || serverMessage) && (
           <p
             className={styles.error}
             role={'alert'}
           >
-            {errorMessage}
+            {errorMessage || serverMessage}
           </p>
         )}
         <div

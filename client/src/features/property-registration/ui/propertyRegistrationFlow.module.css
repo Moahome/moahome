@@ -1,0 +1,13 @@
+.error {
+  position: relative;
+  z-index: 2;
+  width: min(100% - 40px, 836px);
+  margin: 20px auto 0;
+  padding: 16px;
+  border: 1px solid var(--danger);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--danger);
+  line-height: 1.6;
+  outline: none;
+}

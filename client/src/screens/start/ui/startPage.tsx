@@ -28,7 +28,7 @@ export function StartPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const registration = searchParams.get('registration');
-  const registrationStep = registration === 'basic' || registration === 'units' || registration === 'account' || registration === 'fees' ? registration : null;
+  const registrationStep = registration === 'basic' || registration === 'units' || registration === 'account' || registration === 'fees' || registration === 'review' ? registration : null;
   const isSetupStep = registrationStep !== null && registrationStep !== 'basic';
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [notice, setNotice] = useState({

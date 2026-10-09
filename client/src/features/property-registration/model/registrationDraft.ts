@@ -22,13 +22,14 @@ import {
 } from './bankAccount';
 import {
   isFeeItemDraftList,
+  getFeeItemsError,
   type FeeItemDraft
 } from './feeItems';
 import { UNIT_STATUS_OPTIONS } from '@/entities/property';
 
 const DRAFT_STORAGE_KEY = 'moahome.property-registration.basic-info';
 
-export type RegistrationStep = 'basic' | 'units' | 'account' | 'fees';
+export type RegistrationStep = 'basic' | 'units' | 'account' | 'fees' | 'review';
 
 export interface RegistrationDraft {
   basicInfo: BasicInfoDraft;
@@ -118,8 +119,8 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
     const basicInfoValidated = data.basicInfoValidated === true && Object.keys(getBasicInfoErrors(basicInfo)).length === 0;
     const unitsValid = basicInfoValidated && !getUnitSetupError(basicInfo.hasBuildings === true, buildings, units);
     let step: RegistrationStep = 'basic';
-    if (basicInfoValidated && ['units', 'account', 'fees'].includes(data.step)) step = 'units';
-    if ((data.step === 'account' || data.step === 'fees') && unitsValid) step = 'account';
+    if (basicInfoValidated && ['units', 'account', 'fees', 'review'].includes(data.step)) step = 'units';
+    if (['account', 'fees', 'review'].includes(data.step) && unitsValid) step = 'account';
 
     // 이전 초안의 구분 기호를 정리하고 숫자가 아닌 문자가 남으면 번호를 다시 입력받습니다.
     const accountNumber = isBankAccountDraft(data.bankAccount) ? normalizeAccountNumber(data.bankAccount.accountNumber) : '';
@@ -132,7 +133,7 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
     } : {
       ...EMPTY_BANK_ACCOUNT
     };
-    if (data.step === 'fees' && unitsValid && !Object.keys(getBankAccountErrors(bankAccount)).length) step = 'fees';
+    if (['fees', 'review'].includes(data.step) && unitsValid && !Object.keys(getBankAccountErrors(bankAccount)).length) step = 'fees';
 
     // 코드 필드가 없던 기존 초안은 직접 입력으로 복원하고 이름으로 종류를 추측하지 않습니다.
     const feeItems = Array.isArray(data.feeItems) ? data.feeItems.map((item: unknown) => {
@@ -143,6 +144,8 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
         itemCode: 'itemCode' in item ? item.itemCode : null
       };
     }) : data.feeItems;
+
+    if (data.step === 'review' && step === 'fees' && isFeeItemDraftList(feeItems) && !getFeeItemsError(feeItems)) step = 'review';
 
     return {
       basicInfo: {

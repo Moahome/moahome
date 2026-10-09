@@ -40,17 +40,18 @@ export function FeeItemsSetup({
   items,
   onChange,
   onPrevious,
+  onNext,
 }: {
   propertyName: string;
   items: FeeItemDraft[];
   onChange: (items: FeeItemDraft[]) => void;
   onPrevious: () => void;
+  onNext: () => void;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const addRef = useRef<HTMLButtonElement>(null);
   const [editing, setEditing] = useState<{ item: FeeItemDraft | null } | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [nextMessage, setNextMessage] = useState('');
   const error = getFeeItemsError(items);
   const pendingItem = items.find((item) => item.clientId === pendingDeleteId);
 
@@ -69,7 +70,6 @@ export function FeeItemsSetup({
     const exists = items.some((entry) => entry.clientId === item.clientId);
     onChange(exists ? items.map((entry) => entry.clientId === item.clientId ? item : entry) : [...items, item]);
     setEditing(null);
-    setNextMessage('');
   }
 
   /** 확인한 항목 ID만 제거하며 취소 시 편집창과 미확정 입력을 그대로 유지합니다. */
@@ -78,14 +78,13 @@ export function FeeItemsSetup({
     onChange(items.filter((item) => item.clientId !== pendingItem.clientId));
     setPendingDeleteId(null);
     setEditing(null);
-    setNextMessage('');
     requestAnimationFrame(() => addRef.current?.focus());
   }
 
-  /** 후속 확인 화면의 준비 상태를 정확히 안내하고 최종 저장 API는 호출하지 않습니다. */
+  /** 유효한 항목의 요약 단계로 이동하며 최종 저장은 확인 화면에서만 시작합니다. */
   function continueSetup() {
     if (error) return;
-    setNextMessage('관리비 항목을 확인했어요. 다음 등록 정보 확인 화면은 준비 중이에요. 입력한 정보는 아직 저장되지 않았어요.');
+    onNext();
   }
 
   return (
@@ -334,14 +333,6 @@ export function FeeItemsSetup({
               role={'alert'}
             >
               {error}
-            </p>
-          )}
-          {nextMessage && (
-            <p
-              className={styles['next-message']}
-              role={'status'}
-            >
-              {nextMessage}
             </p>
           )}
           <footer
