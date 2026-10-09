@@ -321,8 +321,7 @@ export function RegistrationReview({ draft, status, result, message, canRetry, o
                   <strong>
                     {draft.bankAccount.bankName}
                     {' '}
-                    ····
-                    {draft.bankAccount.accountNumber.slice(-4)}
+                    {draft.bankAccount.accountNumber}
                   </strong>
                   <span
                     className={styles['summary-line']}
@@ -350,8 +349,7 @@ export function RegistrationReview({ draft, status, result, message, canRetry, o
                     계좌번호
                   </dt>
                   <dd>
-                    ····
-                    {draft.bankAccount.accountNumber.slice(-4)}
+                    {draft.bankAccount.accountNumber}
                   </dd>
                 </div>
                 <div>

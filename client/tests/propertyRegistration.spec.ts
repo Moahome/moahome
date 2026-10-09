@@ -3391,7 +3391,7 @@ function registrationResult(body: { requestId: string; basicInfo: { name: string
 }
 
 for (const width of [1440, 390, 320]) {
-  test(`등록 확인 ${width}px는 계좌 마스킹·실제 요약·수정 후 순차 진행·새로고침을 유지하고 성공 전 완료를 표시하지 않음`, async ({ page }) => {
+  test(`등록 확인 ${width}px는 전체 계좌번호·실제 요약·수정 후 순차 진행·새로고침을 유지하고 성공 전 완료를 표시하지 않음`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -3405,8 +3405,7 @@ for (const width of [1440, 390, 320]) {
     const account = page.getByRole('region', {
       name: '관리계좌 요약'
     });
-    await expect(account).toContainText('····5678');
-    await expect(account).not.toContainText('00012345678');
+    await expect(account).toContainText('00012345678');
     await expect(page.getByRole('region', {
       name: '관리비 요약'
     })).toContainText('10,000원');
@@ -3519,7 +3518,7 @@ for (const width of [390, 320]) {
       if (item.step === 'basic') await expect(content).toContainText('건물 유형');
       if (item.step === 'account') {
         await expect(content).toContainText('예금주');
-        await expect(content).not.toContainText('00012345678');
+        await expect(content).toContainText('00012345678');
       }
       if (item.step === 'units') await expect(content.getByRole('listitem')).toHaveCount(1);
       if (item.step === 'fees') await expect(content.getByRole('table')).toBeVisible();
