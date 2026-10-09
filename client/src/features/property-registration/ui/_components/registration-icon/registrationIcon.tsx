@@ -6,6 +6,49 @@ const ICON_PATHS = {
       />
     </>
   ),
+  cleaning: (
+    <path
+      d={'m15 3-6 10m-2-1 6 4-5 6-6-4 5-6Zm-3 6 5 3'}
+    />
+  ),
+  elevator: (
+    <>
+      <rect
+        x={'4'}
+        y={'3'}
+        width={'16'}
+        height={'18'}
+        rx={'2'}
+      />
+      <path
+        d={'M12 10v11M8 7l2-2 2 2m1-2 2 2 2-2'}
+      />
+    </>
+  ),
+  electricity: (
+    <path
+      d={'m13 2-9 12h7l-1 8 10-13h-8l1-7Z'}
+    />
+  ),
+  water: (
+    <path
+      d={'M12 3s-7 8-7 12a7 7 0 0 0 14 0c0-4-7-12-7-12Zm-3 12a3 3 0 0 0 3 3'}
+    />
+  ),
+  septic: (
+    <>
+      <rect
+        x={'3'}
+        y={'7'}
+        width={'18'}
+        height={'14'}
+        rx={'2'}
+      />
+      <path
+        d={'M7 7V3h5M3 11h18M6 15c2-2 4 2 6 0s4 2 6 0M6 18c2-2 4 2 6 0s4 2 6 0'}
+      />
+    </>
+  ),
   plus: (
     <path
       d={'M12 5v14M5 12h14'}
@@ -95,10 +138,12 @@ const ICON_PATHS = {
   ),
 };
 
+export type RegistrationIconName = keyof typeof ICON_PATHS;
+
 export function RegistrationIcon({
   name,
 }: {
-  name: keyof typeof ICON_PATHS;
+  name: RegistrationIconName;
 }) {
   return (
     <svg

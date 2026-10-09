@@ -5,6 +5,9 @@ import java.util.*;
 import java.util.concurrent.*;
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.auth.support.MutableClock;
+import com.moahome.server.billing.domain.FeeItemCode;
+import com.moahome.server.billing.domain.FeeTemplateItem;
+import com.moahome.server.billing.repo.FeeTemplateItemRepository;
 import com.moahome.server.common.security.AccountNumberSecurity;
 import com.moahome.server.property.dto.*;
 import com.moahome.server.property.exception.*;
@@ -52,6 +55,7 @@ class PropertyRegistrationPersistenceTest {
 	@Autowired PropertyRegistrationService registrations;
 	@Autowired PropertyRegistrationLock lock;
 	@Autowired UserRepository users;
+	@Autowired FeeTemplateItemRepository feeItems;
 	@Autowired JdbcTemplate jdbc;
 	@Autowired Flyway flyway;
 	@Autowired AccountNumberSecurity accountSecurity;
@@ -123,11 +127,42 @@ class PropertyRegistrationPersistenceTest {
 	}
 
 	@Test
+	void storesRecommendedCodesAsVarcharAndReloadsEnumsAlongsideDirectInput() {
+		List<PropertyRegistrationRequest.FeeItemInput> inputs = new ArrayList<>();
+		for (FeeItemCode code : FeeItemCode.values()) {
+			inputs.add(new PropertyRegistrationRequest.FeeItemInput(code, "종류와 독립된 이름 " + inputs.size(), 1000L));
+		}
+		inputs.add(new PropertyRegistrationRequest.FeeItemInput(null, "공용 인터넷 이용료", 500L));
+		var request = RegistrationFixtures.withFees(RegistrationFixtures.request(UUID.randomUUID(), false), inputs);
+		var first = registrations.register(userId, request);
+		List<String> expectedCodes = new ArrayList<>(Arrays.stream(FeeItemCode.values()).map(Enum::name).toList());
+		expectedCodes.add(null);
+		assertThat(jdbc.queryForList("select item_code from fee_template_items order by sort_order", String.class))
+			.containsExactlyElementsOf(expectedCodes);
+		assertThat(jdbc.queryForObject("select data_type from information_schema.columns where table_schema = 'public' "
+			+ "and table_name = 'fee_template_items' and column_name = 'item_code'", String.class))
+			.isEqualTo("character varying");
+		var reloaded = feeItems.findAll().stream().sorted(Comparator.comparingInt(FeeTemplateItem::getSortOrder)).toList();
+		assertThat(reloaded).extracting(FeeTemplateItem::getItemCode)
+			.containsExactlyElementsOf(inputs.stream().map(PropertyRegistrationRequest.FeeItemInput::itemCode).toList());
+		assertThat(reloaded).extracting(FeeTemplateItem::getItemName)
+			.containsExactlyElementsOf(inputs.stream().map(PropertyRegistrationRequest.FeeItemInput::itemName).toList());
+		assertThat(registrations.register(userId, request).created()).isFalse();
+		assertThat(registrations.getResult(userId, request.requestId())).isEqualTo(first.response());
+		List<PropertyRegistrationRequest.FeeItemInput> changed = new ArrayList<>(inputs);
+		var original = changed.getFirst();
+		changed.set(0, new PropertyRegistrationRequest.FeeItemInput(FeeItemCode.CLEANING, original.itemName(), original.defaultAmount()));
+		assertCode(() -> registrations.register(userId, RegistrationFixtures.withFees(request, changed)),
+			RegistrationErrorCode.REGISTRATION_REQUEST_CONFLICT);
+		assertThat(count("fee_template_items")).isEqualTo(inputs.size());
+	}
+
+	@Test
 	void savesNegativeFeeAndSignedTotalInDatabaseAndResultSnapshot() {
 		var r = RegistrationFixtures.request(UUID.randomUUID(), false);
 		var request = new PropertyRegistrationRequest(r.requestId(), r.basicInfo(), r.buildings(), r.units(), r.bankAccounts(),
-			List.of(new PropertyRegistrationRequest.FeeItemInput("차감", -15000L),
-				new PropertyRegistrationRequest.FeeItemInput("영", 0L)));
+			List.of(new PropertyRegistrationRequest.FeeItemInput(null, "차감", -15000L),
+				new PropertyRegistrationRequest.FeeItemInput(null, "영", 0L)));
 		var outcome = registrations.register(userId, request);
 		assertThat(outcome.response().summary().monthlyDefaultAmount()).isEqualTo(-15000);
 		assertThat(jdbc.queryForList("select default_amount from fee_template_items order by sort_order", java.math.BigDecimal.class))
@@ -175,7 +210,7 @@ class PropertyRegistrationPersistenceTest {
 		assertThat(jdbc.queryForObject("select valid_from from bank_accounts", java.sql.Date.class).toString())
 			.isEqualTo("2026-10-06");
 		var changed = new PropertyRegistrationRequest(request.requestId(), request.basicInfo(), request.buildings(),
-			request.units(), request.bankAccounts(), List.of(new PropertyRegistrationRequest.FeeItemInput("다름", 1L)));
+			request.units(), request.bankAccounts(), List.of(new PropertyRegistrationRequest.FeeItemInput(null, "다름", 1L)));
 		assertCode(() -> registrations.register(userId, changed), RegistrationErrorCode.REGISTRATION_REQUEST_CONFLICT);
 		assertThat(count("properties")).isEqualTo(1);
 	}

@@ -1,18 +1,26 @@
+import {
+  FEE_ITEM_OPTIONS,
+  type FeeItemCode
+} from '@/entities/billing';
 import { getTextLength } from './basicInfo';
 
 export const MAX_FEE_AMOUNT = BigInt('999999999999999');
 
 export interface FeeItemDraft {
   clientId: string;
+  itemCode: FeeItemCode | null;
   itemName: string;
   defaultAmount: string;
 }
 
-export type FeeItemErrors = Partial<Record<'itemName' | 'defaultAmount', string>>;
+export type FeeItemErrors = Partial<Record<'itemCode' | 'itemName' | 'defaultAmount', string>>;
 
-/** 원 단위 정수의 부호·길이를 검증하며 0원과 음수도 그대로 허용합니다. */
-export function getFeeItemErrors(item: Pick<FeeItemDraft, 'itemName' | 'defaultAmount'>): FeeItemErrors {
+/** 추천 코드·이름과 원 단위 정수를 검증하며 직접 입력의 null 코드와 0원·음수를 허용합니다. */
+export function getFeeItemErrors(item: Pick<FeeItemDraft, 'itemCode' | 'itemName' | 'defaultAmount'>): FeeItemErrors {
   const errors: FeeItemErrors = {};
+  if (item.itemCode !== null && !FEE_ITEM_OPTIONS.some((option) => option.value === item.itemCode)) {
+    errors.itemCode = '관리비 항목 종류를 확인해주세요.';
+  }
   const nameLength = getTextLength(item.itemName);
   if (!nameLength) errors.itemName = '항목명을 입력해주세요.';
   if (nameLength > 100) errors.itemName = '항목명은 100자 이내로 입력해주세요.';

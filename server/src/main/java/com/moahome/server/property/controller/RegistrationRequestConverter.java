@@ -33,6 +33,11 @@ public class RegistrationRequestConverter extends AbstractHttpMessageConverter<O
 				.setCoercion(CoercionInputShape.Integer, CoercionAction.Fail)
 				.setCoercion(CoercionInputShape.Float, CoercionAction.Fail)
 				.setCoercion(CoercionInputShape.Boolean, CoercionAction.Fail))
+			.withCoercionConfig(LogicalType.Enum, coercion -> coercion
+				.setCoercion(CoercionInputShape.Integer, CoercionAction.Fail)
+				.setCoercion(CoercionInputShape.Float, CoercionAction.Fail)
+				.setCoercion(CoercionInputShape.Boolean, CoercionAction.Fail)
+				.setCoercion(CoercionInputShape.EmptyString, CoercionAction.Fail))
 			.build();
 	}
 
@@ -75,7 +80,7 @@ public class RegistrationRequestConverter extends AbstractHttpMessageConverter<O
 		var allowed = java.util.Set.of("requestId", "basicInfo", "name", "address", "addressDetail", "propertyType",
 			"hasBuildings", "buildings", "clientId", "units", "buildingClientId", "unitNumber", "displayName",
 			"floor", "status", "bankAccounts", "bankCode", "bankName", "accountNumber", "holderName",
-			"isPrimary", "feeItems", "itemName", "defaultAmount");
+			"isPrimary", "feeItems", "itemCode", "itemName", "defaultAmount");
 		StringBuilder path = new StringBuilder();
 		for (var reference : exception.getPath()) {
 			String name = reference.getPropertyName();

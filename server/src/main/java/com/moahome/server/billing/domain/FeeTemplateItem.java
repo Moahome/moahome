@@ -20,8 +20,9 @@ public class FeeTemplateItem {
 	@Column(name = "fee_template_id", nullable = false, updatable = false)
 	private UUID feeTemplateId;
 
+	@Enumerated(EnumType.STRING)
 	@Column(name = "item_code", length = 30)
-	private String itemCode;
+	private FeeItemCode itemCode;
 
 	@Column(name = "item_name", nullable = false, length = 100)
 	private String itemName;
@@ -53,14 +54,16 @@ public class FeeTemplateItem {
 	protected FeeTemplateItem() {
 	}
 
-	/** 정수 원 단위와 저장 범위를 검증하고 항목 순서를 보존합니다. */
-	public static FeeTemplateItem create(FeeTemplate template, String itemName, long amount, int sortOrder,
+	/** 선택한 종류와 표시 이름을 별도로 보존하고 정수 원 단위·저장 범위·항목 순서를 검증합니다. */
+	public static FeeTemplateItem create(FeeTemplate template, FeeItemCode itemCode, String itemName, long amount, int sortOrder,
 		OffsetDateTime at) {
 		if (amount < -999_999_999_999_999L || amount > 999_999_999_999_999L || sortOrder < 0) {
 			throw new IllegalArgumentException("Invalid fee item configuration");
 		}
 		FeeTemplateItem item = new FeeTemplateItem();
 		item.feeTemplateId = template.getId();
+		// 직접 입력과 기존 항목은 null을 유지하며 표시 이름으로 종류를 추측하지 않습니다.
+		item.itemCode = itemCode;
 		item.itemName = TextValues.required(itemName, 100);
 		item.defaultAmount = java.math.BigDecimal.valueOf(amount);
 		item.sortOrder = sortOrder;

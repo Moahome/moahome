@@ -79,13 +79,13 @@ class RegistrationDomainTest {
 		assertThat(template.getName()).isEqualTo("기본 관리비");
 		assertThat(template.isDefaultTemplate()).isTrue();
 		assertThat(template.getEffectiveFrom()).isNull();
-		assertThat(FeeTemplateItem.create(template, "0원 항목", 0, 0, at).getDefaultAmount()).isZero();
-		assertThat(FeeTemplateItem.create(template, "상한", 999_999_999_999_999L, 1, at).getDefaultAmount())
+		assertThat(FeeTemplateItem.create(template, null, "0원 항목", 0, 0, at).getDefaultAmount()).isZero();
+		assertThat(FeeTemplateItem.create(template, null, "상한", 999_999_999_999_999L, 1, at).getDefaultAmount())
 			.isEqualByComparingTo("999999999999999");
-		assertThat(FeeTemplateItem.create(template, "음수", -1, 0, at).getDefaultAmount()).isEqualByComparingTo("-1");
-		assertThat(FeeTemplateItem.create(template, "하한", -999_999_999_999_999L, 0, at).getDefaultAmount())
+		assertThat(FeeTemplateItem.create(template, null, "음수", -1, 0, at).getDefaultAmount()).isEqualByComparingTo("-1");
+		assertThat(FeeTemplateItem.create(template, null, "하한", -999_999_999_999_999L, 0, at).getDefaultAmount())
 			.isEqualByComparingTo("-999999999999999");
-		assertThatThrownBy(() -> FeeTemplateItem.create(template, "하한 초과", -1_000_000_000_000_000L, 0, at))
+		assertThatThrownBy(() -> FeeTemplateItem.create(template, null, "하한 초과", -1_000_000_000_000_000L, 0, at))
 			.isInstanceOf(IllegalArgumentException.class);
 	}
 }

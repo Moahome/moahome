@@ -1171,6 +1171,13 @@ async function addFeeItem(page: Page, itemName: string, amount: string) {
     name: '관리비 항목 추가',
     exact: true
   });
+  await editor.getByRole('combobox', {
+    name: '항목 종류'
+  }).click();
+  await editor.getByRole('option', {
+    name: '직접 입력',
+    exact: true
+  }).click();
   await editor.getByLabel('항목명').fill(itemName);
   await editor.getByLabel('기본 금액').fill(amount);
   await editor.getByRole('button', {
@@ -1194,6 +1201,9 @@ test('관리비는 빈 목록·0원으로 시작하고 0원과 음수 항목의 
     exact: true
   });
   await expect(page.getByText('등록된 관리비 항목이 없어요.')).toBeVisible();
+  await expect(page.getByRole('alert').filter({
+    hasText: '관리비 항목을 하나 이상 추가해주세요.'
+  })).toHaveCount(0);
   await expect(total).toContainText('0원');
   await expect(next).toBeDisabled();
   await addFeeItem(page, '0원 항목', '0');
@@ -1222,6 +1232,210 @@ test('관리비는 빈 목록·0원으로 시작하고 0원과 음수 항목의 
   expect(finalRequests).toHaveLength(0);
 });
 
+for (const width of [1440, 320]) {
+  test(`관리비 종류 ${width}px에서 추천 이름 고정·직접 입력 초기화·개별 오류·취소·복원을 유지`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 844
+    });
+    await openFeeItemsSetup(page);
+    await page.getByRole('button', {
+      name: '관리비 항목 추가',
+      exact: true
+    }).click();
+    let editor = page.getByRole('dialog', {
+      name: '관리비 항목 추가',
+      exact: true
+    });
+    const kind = editor.getByRole('combobox', {
+      name: '항목 종류'
+    });
+    const amount = editor.getByLabel('기본 금액');
+    await expect(kind).toBeFocused();
+    await expect(editor.getByLabel('항목명')).toHaveCount(0);
+    await expect(editor.locator('[aria-invalid="true"]')).toHaveCount(0);
+    await kind.click();
+    await expect(editor.getByRole('option')).toHaveCount(8);
+    await page.screenshot({
+      path: test.info().outputPath(`feeKindMenu${width}.png`),
+      animations: 'disabled'
+    });
+    await editor.getByRole('option', {
+      name: '청소비',
+      exact: true
+    }).click();
+    await expect(editor.getByLabel('항목명')).toHaveCount(0);
+    await expect(editor.locator('[aria-invalid="true"]')).toHaveCount(0);
+    await expect(editor.getByText('계단·복도 등 공용 공간 청소', {
+      exact: true
+    })).toBeVisible();
+    await page.screenshot({
+      path: test.info().outputPath(`feeKindSelected${width}.png`),
+      animations: 'disabled'
+    });
+    await expect(editor.getByRole('button', {
+      name: '추가',
+      exact: true
+    })).toBeDisabled();
+    await amount.fill('8000');
+    await editor.getByRole('button', {
+      name: '추가',
+      exact: true
+    }).click();
+    let stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).feeItems, DRAFT_STORAGE_KEY);
+    const clientId = stored[0].clientId;
+    expect(stored[0]).toMatchObject({
+      itemCode: 'CLEANING',
+      itemName: '청소비',
+      defaultAmount: '8000'
+    });
+    await page.reload();
+    await page.getByRole('button', {
+      name: '청소비 수정',
+      exact: true
+    }).click();
+    editor = page.getByRole('dialog', {
+      name: '관리비 항목 수정',
+      exact: true
+    });
+    const editKind = editor.getByRole('combobox', {
+      name: '항목 종류'
+    });
+    await expect(editKind).toHaveText('청소비');
+    await expect(editor.getByLabel('항목명')).toHaveCount(0);
+    await editKind.click();
+    await page.keyboard.press('Escape');
+    await expect(editor).toBeVisible();
+    await expect(editKind).toHaveAttribute('aria-expanded', 'false');
+    await editKind.click();
+    await editor.getByRole('option', {
+      name: '공용 전기료',
+      exact: true
+    }).click();
+    await expect(editor.getByLabel('항목명')).toHaveCount(0);
+    await editor.getByRole('button', {
+      name: '취소',
+      exact: true
+    }).click();
+    await page.getByRole('button', {
+      name: '청소비 수정',
+      exact: true
+    }).click();
+    await expect(editKind).toHaveText('청소비');
+    await editKind.press('ArrowDown');
+    await editKind.press('End');
+    await editKind.press('Enter');
+    await expect(editKind).toHaveText('직접 입력');
+    const name = editor.getByLabel('항목명');
+    await expect(name).toHaveValue('');
+    await expect(name).not.toHaveAttribute('aria-invalid', 'true');
+    await expect(editor.getByLabel('기본 금액')).toHaveValue('8000');
+    await expect(editor.getByRole('button', {
+      name: '수정',
+      exact: true
+    })).toBeDisabled();
+    await name.fill('새 이름');
+    await editKind.click();
+    await editor.getByRole('option', {
+      name: '일반관리비',
+      exact: true
+    }).click();
+    await expect(name).toHaveCount(0);
+    await editKind.click();
+    await editor.getByRole('option', {
+      name: '직접 입력',
+      exact: true
+    }).click();
+    await expect(name).toHaveValue('');
+    await expect(name).not.toHaveAttribute('aria-invalid', 'true');
+    await name.fill('공용 인터넷 이용료');
+    await editor.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).feeItems, DRAFT_STORAGE_KEY);
+    expect(stored[0]).toEqual({
+      clientId,
+      itemCode: null,
+      itemName: '공용 인터넷 이용료',
+      defaultAmount: '8000'
+    });
+    await page.reload();
+    await page.getByRole('button', {
+      name: '공용 인터넷 이용료 수정',
+      exact: true
+    }).click();
+    await expect(editKind).toHaveText('직접 입력');
+    await expect(name).toHaveValue('공용 인터넷 이용료');
+    await page.evaluate((key) => {
+      const draft = JSON.parse(sessionStorage.getItem(key)!);
+      draft.feeItems[0].itemCode = 'UNKNOWN';
+      sessionStorage.setItem(key, JSON.stringify(draft));
+    }, DRAFT_STORAGE_KEY);
+    await page.reload();
+    await expect(page.getByText('등록된 관리비 항목이 없어요.')).toBeVisible();
+    await page.getByRole('button', {
+      name: '이전',
+      exact: true
+    }).click();
+    await expect(page.getByLabel('예금주')).toHaveValue('예시 관리단');
+  });
+}
+
+test('모바일 관리비는 추천 종류마다 다른 아이콘과 직접 입력의 공통 아이콘을 표시', async ({ page }) => {
+  await page.setViewportSize({
+    width: 390,
+    height: 844
+  });
+  await openFeeItemsSetup(page);
+  const names = ['일반관리비', '청소비', '승강기 유지비', '공용 전기료', '공용 수도료', '정화조 청소비', '생활폐기물 처리비'];
+  for (const name of names) {
+    await page.getByRole('button', {
+      name: '관리비 항목 추가',
+      exact: true
+    }).click();
+    const editor = page.getByRole('dialog', {
+      name: '관리비 항목 추가',
+      exact: true
+    });
+    await editor.getByRole('combobox', {
+      name: '항목 종류'
+    }).click();
+    await editor.getByRole('option', {
+      name,
+      exact: true
+    }).click();
+    await editor.getByLabel('기본 금액').fill('100');
+    await editor.getByRole('button', {
+      name: '추가',
+      exact: true
+    }).click();
+  }
+  await addFeeItem(page, '공용 인터넷', '100');
+  await addFeeItem(page, '정화조 청소', '100');
+  await page.reload();
+  const stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).feeItems, DRAFT_STORAGE_KEY);
+  expect(stored.map((item: { itemCode: string | null }) => item.itemCode)).toEqual([
+    'GENERAL_MANAGEMENT', 'CLEANING', 'ELEVATOR_MAINTENANCE', 'COMMON_ELECTRICITY', 'COMMON_WATER',
+    'SEPTIC_TANK_CLEANING',
+    'WASTE_DISPOSAL', null, null
+  ]);
+  expect(stored.map((item: { itemName: string }) => item.itemName)).toEqual([...names, '공용 인터넷', '정화조 청소']);
+  const list = page.getByRole('list', {
+    name: '기본 관리비 항목'
+  });
+  await expect(list.getByRole('listitem')).toHaveCount(names.length + 2);
+  const icons = await list.locator('li > span > svg').evaluateAll((elements) => elements.map((element) => element.innerHTML));
+  expect(new Set(icons.slice(0, names.length)).size).toBe(names.length);
+  expect(icons[names.length]).toBe(icons[names.length + 1]);
+  expect(icons.slice(0, names.length)).not.toContain(icons[names.length]);
+  await page.screenshot({
+    path: test.info().outputPath('feeKindIcons390.png'),
+    fullPage: true,
+    animations: 'disabled'
+  });
+});
+
 test('관리비 추가창은 빈 이름·부호만 입력·범위 초과를 막고 금액의 문자·소수 입력을 거부', async ({ page }) => {
   await openFeeItemsSetup(page);
   await page.getByRole('button', {
@@ -1237,11 +1451,23 @@ test('관리비 추가창은 빈 이름·부호만 입력·범위 초과를 막�
     exact: true
   });
   const amount = editor.getByLabel('기본 금액');
-  await expect(editor.getByLabel('항목명')).toBeFocused();
+  const kind = editor.getByRole('combobox', {
+    name: '항목 종류'
+  });
+  await expect(kind).toBeFocused();
   await expect(save).toBeDisabled();
+  await kind.click();
+  await editor.getByRole('option', {
+    name: '직접 입력',
+    exact: true
+  }).click();
+  await expect(editor.getByLabel('항목명')).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(amount).not.toHaveAttribute('aria-invalid', 'true');
   await editor.getByLabel('항목명').fill('   ');
   await amount.fill('0');
   await expect(save).toBeDisabled();
+  await expect(editor.getByLabel('항목명')).toHaveAttribute('aria-invalid', 'true');
+  await expect(amount).not.toHaveAttribute('aria-invalid', 'true');
   await editor.getByLabel('항목명').fill('😀'.repeat(101));
   await expect(save).toBeDisabled();
   await editor.getByLabel('항목명').fill('😀'.repeat(100));
@@ -1367,11 +1593,19 @@ test('관리비 항목·순서와 이전 입력은 이동·새로고침에 복�
   await openFeeItemsSetup(page);
   await addFeeItem(page, '일반관리비', '15000');
   await addFeeItem(page, '차감', '-5000');
+  // 코드가 없던 이전 버전 초안도 이름·금액·순서를 유지해 직접 입력으로 복원합니다.
+  await page.evaluate((key) => {
+    const draft = JSON.parse(sessionStorage.getItem(key)!);
+    for (const item of draft.feeItems) delete item.itemCode;
+    sessionStorage.setItem(key, JSON.stringify(draft));
+  }, DRAFT_STORAGE_KEY);
   await page.reload();
   await expect(page).toHaveURL(/registration=fees/);
   await expect(page.getByLabel('세대당 월 기본 관리비', {
     exact: true
   })).toContainText('10,000원');
+  expect(await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).feeItems.map((item: { itemCode: string | null }) => item.itemCode), DRAFT_STORAGE_KEY))
+    .toEqual([null, null]);
   await page.getByRole('button', {
     name: '이전',
     exact: true

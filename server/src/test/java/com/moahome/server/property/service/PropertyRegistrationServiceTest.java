@@ -6,6 +6,7 @@ import java.util.stream.Stream;
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.banking.domain.BankAccount;
 import com.moahome.server.banking.repo.BankAccountRepository;
+import com.moahome.server.billing.domain.FeeItemCode;
 import com.moahome.server.billing.repo.*;
 import com.moahome.server.common.security.AccountNumberSecurity;
 import com.moahome.server.membership.domain.*;
@@ -82,10 +83,10 @@ class PropertyRegistrationServiceTest {
 					new BankAccountInput("BANK", "은행", "23456789", "예금주", true)), r.feeItems()),
 				"bankAccounts", "INVALID_COMBINATION"),
 			Arguments.of(change(r, r.basicInfo(), r.buildings(), r.units(), r.bankAccounts(),
-				List.of(new FeeItemInput("상한", PropertyRegistrationRequest.MAX_AMOUNT), new FeeItemInput("초과", 1L))),
+				List.of(new FeeItemInput(null, "상한", PropertyRegistrationRequest.MAX_AMOUNT), new FeeItemInput(null, "초과", 1L))),
 				"feeItems", "OUT_OF_RANGE"),
 			Arguments.of(change(r, r.basicInfo(), r.buildings(), r.units(), r.bankAccounts(),
-				List.of(new FeeItemInput("하한", -PropertyRegistrationRequest.MAX_AMOUNT), new FeeItemInput("초과", -1L))),
+				List.of(new FeeItemInput(null, "하한", -PropertyRegistrationRequest.MAX_AMOUNT), new FeeItemInput(null, "초과", -1L))),
 				"feeItems", "OUT_OF_RANGE"),
 			Arguments.of(change(r, r.basicInfo(), r.buildings(), List.of(), r.bankAccounts(), r.feeItems()), "units", "REQUIRED"),
 			Arguments.of(change(r, r.basicInfo(), r.buildings(), r.units(), List.of(), r.feeItems()), "bankAccounts", "REQUIRED"),
@@ -127,7 +128,7 @@ class PropertyRegistrationServiceTest {
 	void acceptsZeroAndExactMaximumAndDoesNotMultiplyByUnitCount() {
 		var r = RegistrationFixtures.request(UUID.randomUUID(), false);
 		var request = change(r, r.basicInfo(), r.buildings(), r.units(), r.bankAccounts(),
-			List.of(new FeeItemInput("최대", PropertyRegistrationRequest.MAX_AMOUNT), new FeeItemInput("영", 0L)));
+			List.of(new FeeItemInput(null, "최대", PropertyRegistrationRequest.MAX_AMOUNT), new FeeItemInput(null, "영", 0L)));
 		assertThat(service.register(user.getId(), request).response().summary().monthlyDefaultAmount())
 			.isEqualTo(PropertyRegistrationRequest.MAX_AMOUNT);
 	}
@@ -137,9 +138,9 @@ class PropertyRegistrationServiceTest {
 		var r = RegistrationFixtures.request(UUID.randomUUID(), false);
 		long maximum = PropertyRegistrationRequest.MAX_AMOUNT;
 		for (List<FeeItemInput> fees : List.of(
-			List.of(new FeeItemInput("하한", -maximum), new FeeItemInput("영", 0L)),
-			List.of(new FeeItemInput("음수", -maximum), new FeeItemInput("음수2", -maximum), new FeeItemInput("상쇄", maximum)),
-			List.of(new FeeItemInput("양수", maximum), new FeeItemInput("양수2", maximum), new FeeItemInput("상쇄", -maximum)))) {
+			List.of(new FeeItemInput(null, "하한", -maximum), new FeeItemInput(null, "영", 0L)),
+			List.of(new FeeItemInput(null, "음수", -maximum), new FeeItemInput(null, "음수2", -maximum), new FeeItemInput(null, "상쇄", maximum)),
+			List.of(new FeeItemInput(null, "양수", maximum), new FeeItemInput(null, "양수2", maximum), new FeeItemInput(null, "상쇄", -maximum)))) {
 			var request = change(r, r.basicInfo(), r.buildings(), r.units(), r.bankAccounts(), fees);
 			long expected = fees.stream().mapToLong(FeeItemInput::defaultAmount).sum();
 			assertThat(service.register(user.getId(), request).response().summary().monthlyDefaultAmount()).isEqualTo(expected);
@@ -173,6 +174,38 @@ class PropertyRegistrationServiceTest {
 		Collections.reverse(reversed);
 		assertThat(rotated.matches(fingerprint, change(r, r.basicInfo(), r.buildings(), r.units(),
 			r.bankAccounts(), reversed), "v1")).isFalse();
+	}
+
+	@Test
+	void feeCodesPreserveLegacyFingerprintForDirectInputAndDistinguishCodedRequests() throws Exception {
+		String encodedKey = RegistrationTestKeys.randomKey();
+		var fingerprints = new RegistrationFingerprint(new com.moahome.server.config.RegistrationSecurityProperties("v1",
+			Map.of("v1", encodedKey)), mapper);
+		var request = RegistrationFixtures.request(UUID.randomUUID(), false);
+		// 필드 추가 전 성공 결과의 지문을 재현해 null 코드가 기존 재시도를 충돌로 바꾸지 않는지 확인합니다.
+		var legacyFees = request.feeItems().stream().map(item -> {
+			Map<String, Object> fields = new LinkedHashMap<>();
+			fields.put("itemName", item.itemName());
+			fields.put("defaultAmount", item.defaultAmount());
+			return fields;
+		}).toList();
+		var mac = javax.crypto.Mac.getInstance("HmacSHA256");
+		mac.init(new javax.crypto.spec.SecretKeySpec(Base64.getDecoder().decode(encodedKey), "HmacSHA256"));
+		mac.update("moahome:property-registration:v1:".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+		String legacy = HexFormat.of().formatHex(mac.doFinal(mapper.writeValueAsBytes(List.of(request.basicInfo(),
+			request.buildings(), request.units(), request.bankAccounts(), legacyFees))));
+		assertThat(fingerprints.matches(legacy, request, "v1")).isTrue();
+		var explicitNull = mapper.readValue(mapper.writeValueAsString(request)
+			.replace("\"itemName\":", "\"itemCode\":null,\"itemName\":"), PropertyRegistrationRequest.class);
+		assertThat(fingerprints.matches(legacy, explicitNull, "v1")).isTrue();
+		List<FeeItemInput> coded = new ArrayList<>(request.feeItems());
+		var first = coded.getFirst();
+		coded.set(0, new FeeItemInput(FeeItemCode.GENERAL_MANAGEMENT, first.itemName(), first.defaultAmount()));
+		var codedRequest = RegistrationFixtures.withFees(request, coded);
+		assertThat(fingerprints.matches(legacy, codedRequest, "v1")).isFalse();
+		String codedFingerprint = fingerprints.create(codedRequest, "v1");
+		coded.set(0, new FeeItemInput(FeeItemCode.CLEANING, first.itemName(), first.defaultAmount()));
+		assertThat(fingerprints.matches(codedFingerprint, RegistrationFixtures.withFees(request, coded), "v1")).isFalse();
 	}
 
 	private static PropertyRegistrationRequest change(PropertyRegistrationRequest r, BasicInfoRequest basic,

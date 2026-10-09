@@ -5,6 +5,7 @@ import java.util.*;
 import java.util.stream.Stream;
 import com.moahome.server.auth.domain.AuthPrincipal;
 import com.moahome.server.auth.exception.*;
+import com.moahome.server.billing.domain.FeeItemCode;
 import com.moahome.server.property.dto.*;
 import com.moahome.server.property.dto.PropertyRegistrationResponse.*;
 import com.moahome.server.property.exception.*;
@@ -13,6 +14,7 @@ import com.moahome.server.property.support.RegistrationFixtures;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -144,12 +146,59 @@ class PropertyRegistrationControllerTest {
 	void acceptsNegativeIntegerFeeAndPreservesItsSign() throws Exception {
 		var r = RegistrationFixtures.request(REQUEST_ID, false);
 		var request = new PropertyRegistrationRequest(r.requestId(), r.basicInfo(), r.buildings(), r.units(), r.bankAccounts(),
-			List.of(new PropertyRegistrationRequest.FeeItemInput("차감", -1L)));
+			List.of(new PropertyRegistrationRequest.FeeItemInput(null, "차감", -1L)));
 		when(registrations.register(USER_ID, request))
 			.thenReturn(new PropertyRegistrationService.RegistrationOutcome(response(), true));
 		mvc.perform(post(PATH).with(identity()).contentType(MediaType.APPLICATION_JSON)
 			.content(mapper.writeValueAsString(request))).andExpect(status().isCreated());
 		verify(registrations).register(USER_ID, request);
+	}
+
+	@ParameterizedTest
+	@EnumSource(FeeItemCode.class)
+	void acceptsEveryRecommendedFeeCodeAndIndependentDisplayName(FeeItemCode code) throws Exception {
+		var request = RegistrationFixtures.withFees(RegistrationFixtures.request(REQUEST_ID, false),
+			List.of(new PropertyRegistrationRequest.FeeItemInput(code, " 별도 표시 이름 ", 1000L)));
+		when(registrations.register(USER_ID, request))
+			.thenReturn(new PropertyRegistrationService.RegistrationOutcome(response(), true));
+		mvc.perform(post(PATH).with(identity()).contentType(MediaType.APPLICATION_JSON)
+			.content(mapper.writeValueAsString(request))).andExpect(status().isCreated());
+		verify(registrations).register(USER_ID, request);
+		assertThat(request.feeItems().getFirst().itemName()).isEqualTo("별도 표시 이름");
+	}
+
+	@Test
+	void acceptsMissingOrNullFeeCodeAsDirectInput() throws Exception {
+		var request = RegistrationFixtures.request(REQUEST_ID, false);
+		String missing = mapper.writeValueAsString(request);
+		assertThat(missing).doesNotContain("itemCode");
+		when(registrations.register(USER_ID, request))
+			.thenReturn(new PropertyRegistrationService.RegistrationOutcome(response(), true));
+		for (String body : List.of(missing, missing.replace("\"itemName\":", "\"itemCode\":null,\"itemName\":"))) {
+			mvc.perform(post(PATH).with(identity()).contentType(MediaType.APPLICATION_JSON).content(body))
+				.andExpect(status().isCreated());
+		}
+		verify(registrations, times(2)).register(USER_ID, request);
+	}
+
+	@Test
+	void rejectsInvalidFeeCodesWithoutExposingInputAndRequiresDisplayName() throws Exception {
+		String valid = mapper.writeValueAsString(RegistrationFixtures.request(REQUEST_ID, false));
+		for (String code : List.of("\"private-unknown-code\"", "\"cleaning\"", "\"\"", "\" \"", "0", "1.0", "true", "{}", "[]")) {
+			String body = valid.replaceFirst("\"itemName\":", "\"itemCode\":" + code + ",\"itemName\":");
+			String error = mvc.perform(post(PATH).with(identity()).contentType(MediaType.APPLICATION_JSON).content(body))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("code").value("INVALID_REQUEST"))
+				.andExpect(jsonPath("errors[0].field").value("feeItems[0].itemCode"))
+				.andReturn().getResponse().getContentAsString();
+			assertThat(error).doesNotContain("private-unknown-code");
+		}
+		for (String name : List.of("\"\"", "null")) {
+			String body = valid.replace("\"itemName\":\"일반관리비\"", "\"itemCode\":\"CLEANING\",\"itemName\":" + name);
+			mvc.perform(post(PATH).with(identity()).contentType(MediaType.APPLICATION_JSON).content(body))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("errors[0].field").value("feeItems[0].itemName"))
+				.andExpect(jsonPath("errors[0].reason").value("REQUIRED"));
+		}
+		verifyNoInteractions(registrations);
 	}
 
 	@Test

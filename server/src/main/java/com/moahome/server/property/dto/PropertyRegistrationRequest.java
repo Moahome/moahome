@@ -2,6 +2,8 @@ package com.moahome.server.property.dto;
 
 import java.util.List;
 import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.moahome.server.billing.domain.FeeItemCode;
 import com.moahome.server.common.validation.TextInput;
 import com.moahome.server.common.validation.TextValues;
 import com.moahome.server.property.domain.Building;
@@ -90,12 +92,15 @@ public record PropertyRegistrationRequest(
 
 	@Schema(additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
 	public record FeeItemInput(
+		@Schema(description = "추천 항목 코드. 생략 / null은 직접 입력이며 항목명은 별도로 필수", example = "COMMON_ELECTRICITY", nullable = true)
+		@JsonInclude(JsonInclude.Include.NON_NULL) FeeItemCode itemCode,
 		@Schema(description = "기본 관리비 항목 이름", example = "공용 전기료", minLength = 1, maxLength = 100, requiredMode = Schema.RequiredMode.REQUIRED)
 		@TextInput(max = 100) String itemName,
 		@Schema(description = "정수 원 단위. 0원과 음수 허용. 실제 청구 / 회계 전표를 생성하지 않음", example = "10000")
 		@NotNull(message = "REQUIRED") @Min(value = -MAX_AMOUNT, message = "OUT_OF_RANGE")
 		@Max(value = MAX_AMOUNT, message = "OUT_OF_RANGE") Long defaultAmount
 	) {
+		/** 이름은 종류와 독립적으로 정리하며 null 코드는 직렬화에서 생략해 기존 요청 지문을 유지합니다. */
 		public FeeItemInput {
 			itemName = TextValues.strip(itemName);
 		}

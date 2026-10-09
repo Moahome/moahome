@@ -5,6 +5,7 @@ import {
   useRef,
   useState
 } from 'react';
+import type { FeeItemCode } from '@/entities/billing';
 import { Button } from '@/shared/ui/button';
 import { HomeIllustration } from '@/shared/ui/home-illustration';
 import { IconButton } from '@/shared/ui/icon-button';
@@ -15,10 +16,23 @@ import {
   type FeeItemDraft
 } from '../../../model/feeItems';
 import { FeeItemEditor } from '../fee-item-editor/feeItemEditor';
-import { RegistrationIcon } from '../registration-icon/registrationIcon';
+import {
+  RegistrationIcon,
+  type RegistrationIconName
+} from '../registration-icon/registrationIcon';
 import { SetupProgress } from '../setup-progress/setupProgress';
 import { UnitDeleteConfirmation } from '../unit-delete-confirmation/unitDeleteConfirmation';
 import styles from './feeItemsSetup.module.css';
+
+const FEE_ITEM_ICONS = {
+  GENERAL_MANAGEMENT: 'building',
+  CLEANING: 'cleaning',
+  ELEVATOR_MAINTENANCE: 'elevator',
+  COMMON_ELECTRICITY: 'electricity',
+  COMMON_WATER: 'water',
+  SEPTIC_TANK_CLEANING: 'septic',
+  WASTE_DISPOSAL: 'trash'
+} as const satisfies Record<FeeItemCode, RegistrationIconName>;
 
 /** 세대당 월 기본 항목만 편집하며 실제 청구와 저장은 마지막 등록 단계의 책임으로 유지합니다. */
 export function FeeItemsSetup({
@@ -231,7 +245,7 @@ export function FeeItemsSetup({
                   className={styles['item-icon']}
                 >
                   <RegistrationIcon
-                    name={'receipt'}
+                    name={item.itemCode ? FEE_ITEM_ICONS[item.itemCode] : 'receipt'}
                   />
                 </span>
                 <div
@@ -314,7 +328,7 @@ export function FeeItemsSetup({
               설정한 금액은 기본값입니다. 실제 관리비 부과 시 세대별 금액을 수정할 수 있어요.
             </p>
           </aside>
-          {error && (
+          {items.length > 0 && error && (
             <p
               className={styles.error}
               role={'alert'}

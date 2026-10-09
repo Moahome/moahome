@@ -115,7 +115,7 @@ public class PropertyRegistrationService {
 		List<FeeTemplateItem> feeItems = new ArrayList<>();
 		for (int index = 0; index < input.feeItems().size(); index++) {
 			var item = input.feeItems().get(index);
-			feeItems.add(FeeTemplateItem.create(template, item.itemName(), item.defaultAmount(), index, at));
+			feeItems.add(FeeTemplateItem.create(template, item.itemCode(), item.itemName(), item.defaultAmount(), index, at));
 		}
 		items.saveAllAndFlush(feeItems);
 

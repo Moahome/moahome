@@ -4,6 +4,7 @@ import {
 } from '@playwright/test';
 import {
   getFeeItemErrors,
+  isFeeItemDraftList,
   getFeeItemsError,
   getFeeItemsTotal,
   MAX_FEE_AMOUNT,
@@ -15,6 +16,7 @@ import {
 function feeItems(amounts: string[]): FeeItemDraft[] {
   return amounts.map((defaultAmount, index) => ({
     clientId: String(index),
+    itemCode: null,
     itemName: `항목 ${index}`,
     defaultAmount
   }));
@@ -30,6 +32,23 @@ test('관리비는 0원·음수·양쪽 경계를 허용하고 소수·지수·�
   expect(getFeeItemsError([])).toBeTruthy();
   expect(getFeeItemsError(feeItems(['0']))).toBeNull();
   expect(formatFeeAmount('-15000')).toBe('-15,000원');
+});
+
+test('추천 코드와 직접 입력을 허용하고 초안의 잘못된 코드·중복 ID를 거부', () => {
+  const item = feeItems(['0'])[0];
+  expect(isFeeItemDraftList([item])).toBe(true);
+  expect(isFeeItemDraftList([{
+    ...item,
+    itemCode: 'CLEANING',
+    itemName: '별도 표시 이름'
+  }])).toBe(true);
+  for (const itemCode of ['UNKNOWN', 'cleaning', '', 0, false, {}, []]) {
+    expect(isFeeItemDraftList([{
+      ...item,
+      itemCode
+    }])).toBe(false);
+  }
+  expect(isFeeItemDraftList([item, item])).toBe(false);
 });
 
 test('합계는 입력 순서와 중간 초과에 영향을 받지 않고 양수·음수 최종 범위를 정확히 검증', () => {

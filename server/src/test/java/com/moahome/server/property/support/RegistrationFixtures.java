@@ -14,12 +14,17 @@ public final class RegistrationFixtures {
 			List.of(new UnitInput(hasBuildings ? "a" : null, "201", "201호", 2, "ACTIVE"),
 				new UnitInput(hasBuildings ? "b" : null, "202", null, null, "VACANT")),
 			List.of(new BankAccountInput("SAMPLE", "예시은행", "000-1234-5678", "예금주", true)),
-			List.of(new FeeItemInput("일반관리비", 15000L), new FeeItemInput("청소용역비", 8000L),
-				new FeeItemInput("엘리베이터비", 25300L), new FeeItemInput("기타", 1700L)));
+			List.of(new FeeItemInput(null, "일반관리비", 15000L), new FeeItemInput(null, "청소용역비", 8000L),
+				new FeeItemInput(null, "엘리베이터비", 25300L), new FeeItemInput(null, "기타", 1700L)));
 	}
 
 	public static PropertyRegistrationRequest withUnits(PropertyRegistrationRequest request, List<UnitInput> units) {
 		return new PropertyRegistrationRequest(request.requestId(), request.basicInfo(), request.buildings(), units,
 			request.bankAccounts(), request.feeItems());
+	}
+
+	public static PropertyRegistrationRequest withFees(PropertyRegistrationRequest request, List<FeeItemInput> fees) {
+		return new PropertyRegistrationRequest(request.requestId(), request.basicInfo(), request.buildings(), request.units(),
+			request.bankAccounts(), fees);
 	}
 }

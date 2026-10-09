@@ -2,7 +2,7 @@
 
 이 문서는 Client와 Server가 함께 사용하는 관리대상 등록의 기본 정보 검증, 최종 일괄 저장과 결과 조회 API 계약을 정의합니다. API의 입력, 응답, 오류와 중복 요청의 의미를 이 문서에서 관리합니다.
 
-작성일: 2026-10-05. 업무 정책은 [도메인 규칙](domainRules.md), 데이터 구조는 [ERD](erd.md)를 따릅니다. Server의 세 API와 Service / Entity / Migration, Client 기본 정보 화면과 검증 API 연결, 동·세대, 관리계좌와 관리비 항목 설정을 구현했습니다. 등록 정보 확인과 전체 등록 제출의 Client 처리는 후속 구현 범위입니다. 내부 처리와 검증은 [Server 등록 설계](../server/docs/propertyRegistration.md)를 따릅니다.
+작성일: 2026-10-05. 수정일: 2026-10-09. 업무 정책은 [도메인 규칙](domainRules.md), 데이터 구조는 [ERD](erd.md)를 따릅니다. Server의 세 API와 Service / Entity / Migration, Client 기본 정보 화면과 검증 API 연결, 동·세대, 관리계좌와 관리비 항목 설정을 구현했습니다. 등록 정보 확인과 전체 등록 제출의 Client 처리는 후속 구현 범위입니다. 내부 처리와 검증은 [Server 등록 설계](../server/docs/propertyRegistration.md)를 따릅니다.
 
 ## 1. 공통 적용 기준
 
@@ -211,8 +211,23 @@ Client의 초기 관리계좌 화면은 국내 은행과 아래 예금 취급 �
 
 | 필드 | 타입 | 필수 | 검증 |
 | --- | --- | --- | --- |
-| `feeItems[].itemName` | string | 필수 | 공백 정리 후 1~100자 |
+| `feeItems[].itemCode` | string 또는 null | 선택 | 아래 추천 코드, 생략 / null은 직접 입력 |
+| `feeItems[].itemName` | string | 필수 | 종류 선택 여부와 관계없이 공백 정리 후 1~100자 |
 | `feeItems[].defaultAmount` | integer | 필수 | 원 단위, -999,999,999,999,999~999,999,999,999,999 |
+
+추천 항목 코드는 다음과 같습니다.
+
+| 추천 항목 | 코드 |
+| --- | --- |
+| 일반관리비 | `GENERAL_MANAGEMENT` |
+| 청소비 | `CLEANING` |
+| 승강기 유지비 | `ELEVATOR_MAINTENANCE` |
+| 공용 전기료 | `COMMON_ELECTRICITY` |
+| 공용 수도료 | `COMMON_WATER` |
+| 정화조 청소비 | `SEPTIC_TANK_CLEANING` |
+| 생활폐기물 처리비 | `WASTE_DISPOSAL` |
+
+코드 없이 항목명과 금액만 보내는 기존 요청을 허용합니다. 목록 밖 코드, 빈 코드 문자열과 숫자 / 불리언 / 객체 / 배열 코드는 거부하며 오류 경로는 `feeItems[index].itemCode`입니다. 코드의 생략과 null은 동일하게 처리합니다. 항목명은 코드와 독립적인 표시 이름이며 추천 이름으로 자동 치환하거나 이름에서 코드를 추측하지 않습니다. 직접 입력에는 `CUSTOM` 같은 코드를 보내지 않습니다. 현재 Client는 추천 종류와 직접 입력을 선택하고 코드를 초안에 보존합니다. Client는 추천 종류에 정해진 이름을 사용하며 항목명 입력칸은 직접 입력을 선택할 때만 표시합니다. 직접 입력으로 전환하면 이름을 비우고 금액은 유지합니다. Server는 기존 계약대로 요청한 항목명을 보존합니다. 최종 등록 제출의 Client 처리는 후속 구현 범위입니다.
 
 0원과 음수를 허용하고 소수 금액과 숫자 문자열은 거부합니다. 항목 합계도 -999,999,999,999,999~999,999,999,999,999 범위로 검증합니다. 중간 합계가 범위를 넘어도 상쇄 항목을 모두 합산한 최종 값으로 검증하며 요청 순서에 따라 유효성이 달라지지 않습니다.
 
@@ -252,10 +267,10 @@ Client의 초기 관리계좌 화면은 국내 은행과 아래 예금 취급 �
     }
   ],
   "feeItems": [
-    { "itemName": "일반관리비", "defaultAmount": 15000 },
-    { "itemName": "청소용역비", "defaultAmount": 8000 },
-    { "itemName": "엘리베이터비", "defaultAmount": 25300 },
-    { "itemName": "기타", "defaultAmount": 1700 }
+    { "itemCode": "GENERAL_MANAGEMENT", "itemName": "일반관리비", "defaultAmount": 15000 },
+    { "itemCode": "CLEANING", "itemName": "청소비", "defaultAmount": 8000 },
+    { "itemCode": "ELEVATOR_MAINTENANCE", "itemName": "승강기 유지비", "defaultAmount": 25300 },
+    { "itemCode": null, "itemName": "공용 인터넷 이용료", "defaultAmount": 1700 }
   ]
 }
 ```
@@ -306,7 +321,7 @@ ID는 Server가 생성한 UUID, `createdAt`은 UTC ISO 8601 시각입니다. 응
 
 중복 방지 범위는 인증된 `userId + requestId`입니다. 다른 사용자의 같은 ID는 결과 접근 권한을 주지 않습니다. 다른 ID로 같은 이름 / 주소를 제출한 요청까지 같은 등록으로 추측해 합치지 않습니다.
 
-비교 대상은 `requestId`를 제외한 전체 정규화 본문입니다. JSON 객체 키 순서와 선택 값의 생략 / null 등 정규화 후 같은 표현은 동일하게 처리하고, 배열 순서는 표시 순서이므로 비교에 포함합니다. 중복 방지의 영속 저장과 동시성 제어는 [Server 등록 설계](../server/docs/propertyRegistration.md)를 따릅니다. 실패 트랜잭션은 성공 결과도 남기지 않습니다.
+비교 대상은 `requestId`를 제외한 전체 정규화 본문입니다. JSON 객체 키 순서와 선택 값의 생략 / null 등 정규화 후 같은 표현은 동일하게 처리하고, 배열 순서는 표시 순서이므로 비교에 포함합니다. 항목 코드의 생략 / null은 같은 직접 입력이며, 이름과 금액이 같아도 코드가 달라지면 다른 본문입니다. 중복 방지의 영속 저장과 동시성 제어는 [Server 등록 설계](../server/docs/propertyRegistration.md)를 따릅니다. 실패 트랜잭션은 성공 결과도 남기지 않습니다.
 
 #### 결과 조회
 

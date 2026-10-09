@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.moahome.server.auth.repo.SocialAccountRepository;
 import com.moahome.server.auth.service.AuthService;
+import com.moahome.server.billing.domain.FeeItemCode;
 import com.moahome.server.property.repo.PropertyRegistrationLock;
 import com.moahome.server.property.service.PropertyRegistrationService;
 import com.moahome.server.property.support.RegistrationTestKeys;
@@ -148,5 +149,12 @@ class OpenApiIntegrationTest {
 		assertThat(basicSchema.at("/properties/name/maxLength").asInt()).isEqualTo(50);
 		assertThat(document.at("/components/schemas/UnitInput/properties/status/enum").toString())
 			.contains("ACTIVE", "VACANT").doesNotContain("INACTIVE");
+		var feeSchema = document.at("/components/schemas/FeeItemInput");
+		assertThat(feeSchema.path("required").toString()).contains("itemName", "defaultAmount").doesNotContain("itemCode");
+		var feeCodes = feeSchema.at("/properties/itemCode/enum");
+		assertThat(feeCodes.size()).isEqualTo(FeeItemCode.values().length);
+		for (FeeItemCode code : FeeItemCode.values()) {
+			assertThat(feeCodes.toString()).contains("\"" + code.name() + "\"");
+		}
 	}
 }

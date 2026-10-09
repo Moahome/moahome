@@ -134,6 +134,16 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
     };
     if (data.step === 'fees' && unitsValid && !Object.keys(getBankAccountErrors(bankAccount)).length) step = 'fees';
 
+    // 코드 필드가 없던 기존 초안은 직접 입력으로 복원하고 이름으로 종류를 추측하지 않습니다.
+    const feeItems = Array.isArray(data.feeItems) ? data.feeItems.map((item: unknown) => {
+      if (!item || typeof item !== 'object') return item;
+
+      return {
+        ...item,
+        itemCode: 'itemCode' in item ? item.itemCode : null
+      };
+    }) : data.feeItems;
+
     return {
       basicInfo: {
         name: basicInfo.name,
@@ -156,7 +166,7 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
       })),
       automaticUnitRule: restoredRule,
       bankAccount,
-      feeItems: isFeeItemDraftList(data.feeItems) ? data.feeItems : [],
+      feeItems: isFeeItemDraftList(feeItems) ? feeItems : [],
       step,
       basicInfoValidated,
     };

@@ -7,14 +7,28 @@ import {
   type ChangeEvent,
   type FormEvent
 } from 'react';
+import { FEE_ITEM_OPTIONS } from '@/entities/billing';
 import { Button } from '@/shared/ui/button';
-import { Input } from '@/shared/ui/form-controls';
+import {
+  Dropdown,
+  Input
+} from '@/shared/ui/form-controls';
 import {
   getFeeItemErrors,
+  type FeeItemErrors,
   type FeeItemDraft
 } from '../../../model/feeItems';
 import { RegistrationIcon } from '../registration-icon/registrationIcon';
 import styles from './feeItemEditor.module.css';
+
+const DIRECT_INPUT = 'direct-input';
+const FEE_KIND_OPTIONS = [
+  ...FEE_ITEM_OPTIONS,
+  {
+    value: DIRECT_INPUT,
+    label: '직접 입력'
+  }
+];
 
 /** 항목 편집은 확인 전까지 로컬 입력으로 두고 취소·Escape에서 목록과 금액을 보존합니다. */
 export function FeeItemEditor({
@@ -29,14 +43,20 @@ export function FeeItemEditor({
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const nameRef = useRef<HTMLInputElement>(null);
-  const [itemName, setItemName] = useState(item?.itemName ?? '');
+  const kindRef = useRef<HTMLButtonElement>(null);
+  const [feeKind, setFeeKind] = useState(item ? item.itemCode ?? DIRECT_INPUT : '');
+  const [itemName, setItemName] = useState(item?.itemCode ? '' : item?.itemName ?? '');
   const [defaultAmount, setDefaultAmount] = useState(item?.defaultAmount ?? '');
-  const [touched, setTouched] = useState(false);
+  // 모달의 초기 자동 포커스 이동은 검증으로 취급하지 않으며 종류 미선택 오류는 제출 시에만 표시합니다.
+  const [touched, setTouched] = useState<Partial<Record<keyof FeeItemErrors, boolean>>>({});
+  const selectedOption = FEE_ITEM_OPTIONS.find((option) => option.value === feeKind);
+  const resolvedItemName = selectedOption?.label ?? itemName;
   const errors = getFeeItemErrors({
-    itemName,
+    itemCode: selectedOption?.value ?? null,
+    itemName: resolvedItemName,
     defaultAmount
   });
+  if (!feeKind) errors.itemCode = '항목 종류를 선택해주세요.';
   const title = `관리비 항목 ${item ? '수정' : '추가'}`;
 
   useEffect(() => {
@@ -45,13 +65,29 @@ export function FeeItemEditor({
     const previousOverflow = document.body.style.overflow;
     dialog?.showModal();
     document.body.style.overflow = 'hidden';
-    nameRef.current?.focus();
+    kindRef.current?.focus();
     return () => {
       dialog?.close();
       document.body.style.overflow = previousOverflow;
       if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
     };
   }, []);
+
+  /** 추천 이름은 선택지로 고정하고 직접 입력으로 전환하면 이전 이름·검증 표시를 비워 새로 작성하게 합니다. */
+  function changeFeeKind(value: string) {
+    if (value === feeKind) return;
+
+    const option = FEE_ITEM_OPTIONS.find((entry) => entry.value === value);
+    if (!option && value !== DIRECT_INPUT) return;
+
+    setFeeKind(value);
+    setItemName('');
+    setTouched((previous) => ({
+      ...previous,
+      itemCode: false,
+      itemName: false
+    }));
+  }
 
   /** 맨 앞의 음수 부호와 ASCII 숫자만 받고 소수·문자를 제거해 다른 금액으로 바꾸지 않습니다. */
   function changeAmount(event: ChangeEvent<HTMLInputElement>) {
@@ -61,11 +97,16 @@ export function FeeItemEditor({
   /** 확인한 항목만 목록에 반영하고 0·음수 부호를 정규화해 같은 초안 ID와 순서를 유지합니다. */
   function saveItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setTouched(true);
+    setTouched({
+      itemCode: true,
+      itemName: true,
+      defaultAmount: true
+    });
     if (Object.keys(errors).length) return;
     onSave({
       clientId: item?.clientId ?? crypto.randomUUID(),
-      itemName: itemName.trim(),
+      itemCode: selectedOption?.value ?? null,
+      itemName: resolvedItemName.trim(),
       defaultAmount: BigInt(defaultAmount).toString()
     });
   }
@@ -107,16 +148,31 @@ export function FeeItemEditor({
         <div
           className={styles.fields}
         >
-          <Input
-            ref={nameRef}
-            label={'항목명'}
+          <Dropdown
+            ref={kindRef}
+            label={'항목 종류'}
             required
-            value={itemName}
-            placeholder={'예) 일반관리비'}
-            error={touched ? errors.itemName : undefined}
-            onBlur={() => setTouched(true)}
-            onChange={(event) => setItemName(event.target.value)}
+            value={feeKind}
+            options={FEE_KIND_OPTIONS}
+            placeholder={'항목 종류를 선택해주세요'}
+            description={selectedOption?.description ?? '목록에 없는 항목은 직접 입력을 선택해주세요.'}
+            error={touched.itemCode ? errors.itemCode : undefined}
+            onChange={changeFeeKind}
           />
+          {feeKind === DIRECT_INPUT && (
+            <Input
+              label={'항목명'}
+              required
+              value={itemName}
+              placeholder={'항목명을 입력해주세요'}
+              error={touched.itemName ? errors.itemName : undefined}
+              onBlur={() => setTouched((previous) => ({
+                ...previous,
+                itemName: true
+              }))}
+              onChange={(event) => setItemName(event.target.value)}
+            />
+          )}
           <Input
             label={'기본 금액'}
             required
@@ -126,8 +182,11 @@ export function FeeItemEditor({
             pattern={'-?[0-9]+'}
             trailingContent={'원'}
             description={'0원과 음수도 입력할 수 있어요.'}
-            error={touched ? errors.defaultAmount : undefined}
-            onBlur={() => setTouched(true)}
+            error={touched.defaultAmount ? errors.defaultAmount : undefined}
+            onBlur={() => setTouched((previous) => ({
+              ...previous,
+              defaultAmount: true
+            }))}
             onChange={changeAmount}
           />
           {item && (

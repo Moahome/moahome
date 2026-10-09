@@ -2,7 +2,7 @@
 
 이 문서는 관리대상 등록 API의 Server 검증, 저장 초기값, 트랜잭션과 중복 방지 구현을 설명합니다. 요청 / 응답 / 오류는 [공통 등록 API](../../docs/propertyRegistrationApi.md), 컬럼 / 관계 / 제약은 [ERD](../../docs/erd.md), 확정 정책은 [도메인 규칙](../../docs/domainRules.md)을 참조합니다.
 
-작성일: 2026-10-05. 관리대상 등록 Controller / Service / Entity와 Migration을 구현했습니다. 이 문서는 저장 흐름과 현재 구현 범위를 설명하며 후속 주민 / 계좌 변경 / 월별 부과 정책은 확정하지 않습니다.
+작성일: 2026-10-05. 수정일: 2026-10-09. 관리대상 등록 Controller / Service / Entity와 Migration을 구현했습니다. 이 문서는 저장 흐름과 현재 구현 범위를 설명하며 후속 주민 / 계좌 변경 / 월별 부과 정책은 확정하지 않습니다.
 
 ## 1. 검증과 계층 책임
 
@@ -39,11 +39,13 @@
 | 관리계좌 | building_id / holder_resident_id / gl_account_id / valid_to는 NULL, 상태 ACTIVE, 예금주 이름은 holder_name_snapshot |
 | 계좌 사용 시작일 | 공통 등록 시각 createdAt을 Asia/Seoul로 변환한 날짜, 재시도 시 최초 날짜 유지 |
 | 관리비 템플릿 | 이름 기본 관리비, is_default=true, ACTIVE, effective_from / effective_to는 NULL |
-| 관리비 항목 | item_code / revenue_account_id는 NULL, is_active=true |
+| 관리비 항목 | item_code는 요청의 enum 이름 또는 NULL, item_name은 요청의 표시 이름, revenue_account_id는 NULL, is_active=true |
 | 표시 순서 | 동과 항목 각각 요청 배열 순서대로 sort_order를 0부터 부여 |
 | 생성자 참여 | 인증된 사용자의 ADMIN / ACTIVE, joined_at은 공통 등록 시각, 플랫폼 역할 / 주민 명부 변경 없음 |
 
 금액은 정수 원 단위로 받고 0원과 음수를 허용합니다. BigInteger로 전체를 정확히 합산한 뒤 최종 양·음수 범위를 검사합니다. 중간 합계 초과를 뒤의 음수 항목이 상쇄할 수 있으므로 요청 순서에 따른 거부는 하지 않습니다. 개별 값과 합계는 공통 API의 범위를 검증해 numeric(15,0)과 향후 charges.total_amount의 저장 범위에 맞춥니다. 합계는 부호를 유지한 세대당 월 기본값이고 실제 청구는 생성하지 않습니다. `V20261008132205__allow_signed_fee_template_amount.sql`은 기존 행을 보존하며 `default_amount`의 양수 CHECK만 제거합니다.
+
+`billing/domain/FeeItemCode`는 공통 등록 API의 추천 종류를 표현합니다. 요청 DTO와 `FeeTemplateItem.itemCode`에 같은 enum을 사용하고 `@Enumerated(EnumType.STRING)`으로 기존 `varchar(30)`에 저장합니다. 등록 JSON 변환기는 enum의 숫자 / 빈 문자열 변환을 거부하고 잘못된 코드의 필드 경로만 반환합니다. 생략 / null은 코드 없는 직접 입력이며 표시 이름은 기존 검증으로 별도 보존합니다. DB 자체에 코드 제한을 추가하거나 기존 항목을 자동 분류하지 않습니다. 기존 컬럼을 사용하므로 Migration은 추가하지 않습니다.
 
 ## 4. 계좌번호 보호
 
@@ -67,7 +69,7 @@
 
 `property/repo/PropertyRegistrationLock`은 사용자 / requestId에서 만든 64비트 키로 PostgreSQL `pg_advisory_xact_lock`을 사용합니다. 잠금 대기는 3초로 제한하며 SQLSTATE `55P03`이면 처리 중 오류로 응답하고 트랜잭션을 롤백합니다. 성공 시 기존 lock_timeout을 복원하고 잠금은 커밋 / 롤백 때 자동 해제됩니다. 등록 트랜잭션에 `READ_COMMITTED`를 명시해 잠금 대기 뒤 최초 요청이 커밋한 결과를 새로 조회합니다. 키 해시 충돌은 관계없는 요청을 직렬 처리할 수 있지만 서로의 성공 결과나 접근권한을 공유하지 않습니다.
 
-`RegistrationFingerprint`는 requestId를 제외한 정규화 DTO의 고정된 JSON 표현으로 HMAC을 계산합니다. 저장된 키 버전으로 재비교하고 배열 순서와 전체 입력을 비교합니다. 결과 반환은 현재 활성 참여와 관리대상 상태를 확인하며 스냅샷을 권한 복구에 사용하지 않습니다.
+`RegistrationFingerprint`는 requestId를 제외한 정규화 DTO의 고정된 JSON 표현으로 HMAC을 계산합니다. 저장된 키 버전으로 재비교하고 배열 순서와 전체 입력을 비교합니다. 관리비 코드가 있으면 지문에 포함하고 `FeeItemInput.itemCode`가 null이면 해당 JSON 필드를 생략합니다. 코드 필드가 없던 이전 직렬화 표현을 유지해 기존 성공 요청의 재시도를 허용하며, 코드의 생략 / 명시적 null은 같은 지문입니다. 이름·금액이 같아도 코드만 바뀌면 충돌로 처리합니다. 결과 반환은 현재 활성 참여와 관리대상 상태를 확인하며 스냅샷을 권한 복구에 사용하지 않습니다.
 
 ## 6. 구현 시 검증
 
@@ -86,6 +88,8 @@
 - 세대 / 계좌 / 항목의 빈 배열, 동 없음에서 동 입력, 누락된 동 참조, 중복 동 이름 / clientId / 동 내부 세대번호의 거부와 같은 번호의 다른 동 세대 허용.
 - 각 문자열 경계와 공백 입력, 잘못된 타입 / 상태, smallint 층수 경계, 계좌번호의 앞자리 0 / 공백 / 하이픈 정규화.
 - 예금주 이름 필수와 주민 연결 없이 저장, 기본 계좌 0개 / 2개 이상 거부, 공용계좌 저장과 Asia/Seoul 날짜 경계, 재조회 시 사용 시작일 유지.
+- 추천 항목 코드 전체와 직접 입력의 저장 / enum 재조회, DB varchar 유지, 잘못된 코드 / 숫자 / 빈 문자열 거부, 코드 선택 시에도 표시 이름 필수.
+- 코드 생략 / null의 기존 지문 호환과 코드만 변경한 같은 requestId의 충돌.
 - 관리비 0원·음수 허용, 소수 / 숫자 문자열 거부, 개별 / 최종 합계의 양·음수 범위, 상쇄 항목과 항목별 순서 유지.
 - 생성자 ID / 역할 등 계약 밖 입력 거부, 정상 계정 인증, 인증 장애와 업무 저장 장애의 구분, 오류 / 로그 / 응답의 계좌번호 원문 미포함.
 - 동 / 세대 / 계좌 / 템플릿 / 참여 / 성공 결과 중 하나의 저장 실패에서 업무 데이터와 성공 결과 모두 롤백.
