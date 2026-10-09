@@ -36,7 +36,9 @@ FSD의 의존성 경계를 유지하며 화면 전용 UI와 로직은 먼저 해
 
 ## 공통 입력 컴포넌트
 
-모달과 페이지의 입력 필드는 `src/shared/ui/form-controls/`의 `Input`, `Dropdown`, `Radio`를 사용합니다. Input / Dropdown은 라벨, 필수 표시, 설명, 오류와 비활성 상태를 지원합니다. Input / Radio는 기본 HTML 입력 속성, 이벤트와 `ref`를 전달합니다. Input의 `digitsOnly`는 문자열의 ASCII 숫자만 허용하고 숫자 키보드를 안내합니다. 문자가 섞인 타이핑 / 붙여넣기는 기존 값으로 되돌리며 앞자리 0을 보존합니다. Dropdown의 `ref`는 선택 트리거 버튼에 연결하며 `onChange(value)`로 선택값을 전달합니다. `value` / `onChange`와 `defaultValue` 방식 모두 사용할 수 있습니다.
+모달과 페이지의 입력 필드는 `src/shared/ui/form-controls/`의 `Input`, `AmountInput`, `Dropdown`, `Radio`를 사용합니다. Input / Dropdown은 라벨, 필수 표시, 설명, 오류와 비활성 상태를 지원합니다. Input / Radio는 기본 HTML 입력 속성, 이벤트와 `ref`를 전달합니다. Input의 `digitsOnly`는 문자열의 ASCII 숫자만 허용하고 숫자 키보드를 안내합니다. 문자가 섞인 타이핑 / 붙여넣기는 기존 값으로 되돌리며 앞자리 0을 보존합니다. Dropdown의 `ref`는 선택 트리거 버튼에 연결하며 `onChange(value)`로 선택값을 전달합니다. `value` / `onChange`와 `defaultValue` 방식 모두 사용할 수 있습니다.
+
+`AmountInput`은 제어 방식의 `value` / `onChange(value)`로 콤마 없는 정수 문자열을 주고받으며 화면에는 천 단위 콤마를 표시합니다. 포커스가 있으면 금액은 왼쪽, 포커스가 없으면 오른쪽으로 정렬하고 원 단위 표시는 오른쪽에 유지합니다. 빈칸과 입력 중 `-`를 유지하고 중간 입력·선택 교체·콤마 경계의 삭제에서 커서 위치를 보정합니다. 음수 부호 입력을 위해 텍스트 키보드를 유지하며 금액 범위·필수 검증은 사용하는 업무 모델에서 처리합니다. 정수 또는 올바른 천 단위 콤마가 포함된 붙여넣기를 허용하고 소수·문자·잘못된 콤마 붙여넣기는 거부합니다. 표시용 `formatInteger` / `formatWon`은 `shared/lib/format`에서 가져옵니다. 문자열·BigInt는 자릿수를 보존하며 `number`는 안전한 정수만 받습니다.
 
 컴포넌트별 폴더 안에 소스와 CSS Modules를 함께 둡니다. `FormField`는 입력 컴포넌트의 라벨과 안내를 구성하는 모듈 내부 컴포넌트이며, 외부에서는 모듈 루트의 `index.ts` 공개 API를 사용합니다.
 
@@ -49,6 +51,9 @@ src/shared/ui/form-controls/
 ├── input/
 │   ├── input.tsx
 │   └── input.module.css
+├── amount-input/
+│   ├── amountInput.tsx
+│   └── amountInput.module.css
 ├── dropdown/
 │   ├── dropdown.tsx
 │   └── dropdown.module.css

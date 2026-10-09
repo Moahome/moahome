@@ -4,12 +4,12 @@ import {
   useEffect,
   useRef,
   useState,
-  type ChangeEvent,
   type FormEvent
 } from 'react';
 import { FEE_ITEM_OPTIONS } from '@/entities/billing';
 import { Button } from '@/shared/ui/button';
 import {
+  AmountInput,
   Dropdown,
   Input
 } from '@/shared/ui/form-controls';
@@ -87,11 +87,6 @@ export function FeeItemEditor({
       itemCode: false,
       itemName: false
     }));
-  }
-
-  /** 맨 앞의 음수 부호와 ASCII 숫자만 받고 소수·문자를 제거해 다른 금액으로 바꾸지 않습니다. */
-  function changeAmount(event: ChangeEvent<HTMLInputElement>) {
-    if (/^-?[0-9]*$/.test(event.target.value)) setDefaultAmount(event.target.value);
   }
 
   /** 확인한 항목만 목록에 반영하고 0·음수 부호를 정규화해 같은 초안 ID와 순서를 유지합니다. */
@@ -173,13 +168,11 @@ export function FeeItemEditor({
               onChange={(event) => setItemName(event.target.value)}
             />
           )}
-          <Input
+          <AmountInput
             label={'기본 금액'}
             required
             value={defaultAmount}
             placeholder={'금액을 입력해주세요'}
-            inputMode={'text'}
-            pattern={'-?[0-9]+'}
             trailingContent={'원'}
             description={'0원과 음수도 입력할 수 있어요.'}
             error={touched.defaultAmount ? errors.defaultAmount : undefined}
@@ -187,7 +180,7 @@ export function FeeItemEditor({
               ...previous,
               defaultAmount: true
             }))}
-            onChange={changeAmount}
+            onChange={setDefaultAmount}
           />
           {item && (
             <Button

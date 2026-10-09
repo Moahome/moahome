@@ -8,7 +8,6 @@ import {
   getFeeItemsError,
   getFeeItemsTotal,
   MAX_FEE_AMOUNT,
-  formatFeeAmount,
   type FeeItemDraft
 } from '../src/features/property-registration/model/feeItems';
 
@@ -31,7 +30,6 @@ test('관리비는 0원·음수·양쪽 경계를 허용하고 소수·지수·�
   }
   expect(getFeeItemsError([])).toBeTruthy();
   expect(getFeeItemsError(feeItems(['0']))).toBeNull();
-  expect(formatFeeAmount('-15000')).toBe('-15,000원');
 });
 
 test('추천 코드와 직접 입력을 허용하고 초안의 잘못된 코드·중복 ID를 거부', () => {

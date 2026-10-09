@@ -51,11 +51,6 @@ export function getFeeItemsError(items: FeeItemDraft[]) {
   return null;
 }
 
-/** 숫자를 부동소수점으로 바꾸지 않고 원 단위 표시와 음수 부호를 유지합니다. */
-export function formatFeeAmount(amount: string | bigint) {
-  return `${BigInt(amount).toLocaleString('ko-KR')}원`;
-}
-
 /** 손상된 목록은 해당 단계만 비워 복원하고 앞 단계의 입력은 그대로 유지합니다. */
 export function isFeeItemDraftList(value: unknown): value is FeeItemDraft[] {
   if (!Array.isArray(value)) return false;

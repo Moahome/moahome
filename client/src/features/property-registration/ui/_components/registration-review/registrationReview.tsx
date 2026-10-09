@@ -7,15 +7,13 @@ import {
   type ReactNode
 } from 'react';
 import { Button } from '@/shared/ui/button';
+import { formatWon } from '@/shared/lib/format';
 import type {
   RegistrationDraft,
   RegistrationStep
 } from '../../../model/registrationDraft';
 import type { RegistrationResult } from '../../../api/registrationApi';
-import {
-  formatFeeAmount,
-  getFeeItemsTotal
-} from '../../../model/feeItems';
+import { getFeeItemsTotal } from '../../../model/feeItems';
 import { getUnitLabel } from '../../../model/unitSetup';
 import {
   getSortedBuildings,
@@ -379,7 +377,7 @@ export function RegistrationReview({ draft, status, result, message, canRetry, o
                   <strong
                     className={styles.amount}
                   >
-                    {formatFeeAmount(String(result?.summary.monthlyDefaultAmount ?? getFeeItemsTotal(draft.feeItems)))}
+                    {formatWon(result?.summary.monthlyDefaultAmount ?? getFeeItemsTotal(draft.feeItems))}
                   </strong>
                   <span
                     className={styles['summary-line']}
@@ -421,7 +419,7 @@ export function RegistrationReview({ draft, status, result, message, canRetry, o
                         {item.itemName}
                       </th>
                       <td>
-                        {formatFeeAmount(item.defaultAmount)}
+                        {formatWon(item.defaultAmount)}
                       </td>
                     </tr>
                   ))}
@@ -446,7 +444,7 @@ export function RegistrationReview({ draft, status, result, message, canRetry, o
             </p>
             <p>
               세대당 월 기본 관리비
-              {formatFeeAmount(String(result.summary.monthlyDefaultAmount))}
+              {formatWon(result.summary.monthlyDefaultAmount)}
             </p>
           </div>
         )}

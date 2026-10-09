@@ -338,14 +338,35 @@
   }
 
   .item-icon {
+    --fee-icon-color: var(--sub-text);
+
     display: grid;
     flex-shrink: 0;
     width: 42px;
     height: 42px;
     place-items: center;
     border-radius: 50%;
-    background: color-mix(in srgb, var(--primary) 6%, var(--card));
-    color: var(--primary);
+    background: color-mix(in srgb, var(--fee-icon-color) 12%, var(--card));
+    color: var(--fee-icon-color);
+
+    &[data-kind='GENERAL_MANAGEMENT'] {
+      --fee-icon-color: var(--registration-icon-building);
+    }
+
+    &[data-kind='CLEANING'],
+    &[data-kind='SEPTIC_TANK_CLEANING'] {
+      --fee-icon-color: var(--secondary-teal);
+    }
+
+    &[data-kind='ELEVATOR_MAINTENANCE'],
+    &[data-kind='COMMON_WATER'] {
+      --fee-icon-color: var(--primary);
+    }
+
+    &[data-kind='COMMON_ELECTRICITY'],
+    &[data-kind='WASTE_DISPOSAL'] {
+      --fee-icon-color: var(--registration-icon-fees);
+    }
 
     svg {
       width: 24px;

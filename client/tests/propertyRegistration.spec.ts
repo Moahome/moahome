@@ -1333,7 +1333,7 @@ for (const width of [1440, 320]) {
     const name = editor.getByLabel('항목명');
     await expect(name).toHaveValue('');
     await expect(name).not.toHaveAttribute('aria-invalid', 'true');
-    await expect(editor.getByLabel('기본 금액')).toHaveValue('8000');
+    await expect(editor.getByLabel('기본 금액')).toHaveValue('8,000');
     await expect(editor.getByRole('button', {
       name: '수정',
       exact: true
@@ -1386,7 +1386,7 @@ for (const width of [1440, 320]) {
   });
 }
 
-test('모바일 관리비는 추천 종류마다 다른 아이콘과 직접 입력의 공통 아이콘을 표시', async ({ page }) => {
+test('모바일 관리비는 종류별 아이콘·색상·연한 배경과 직접 입력의 중립색 공통 아이콘을 표시', async ({ page }) => {
   await page.setViewportSize({
     width: 390,
     height: 844
@@ -1433,12 +1433,123 @@ test('모바일 관리비는 추천 종류마다 다른 아이콘과 직접 입�
   expect(new Set(icons.slice(0, names.length)).size).toBe(names.length);
   expect(icons[names.length]).toBe(icons[names.length + 1]);
   expect(icons.slice(0, names.length)).not.toContain(icons[names.length]);
+  const appearances = await list.locator('li > span').evaluateAll((elements) => elements.map((element) => ({
+    color: getComputedStyle(element).color,
+    background: getComputedStyle(element).backgroundColor
+  })));
+  expect(new Set(appearances.slice(0, names.length).map((appearance) => appearance.color)).size).toBe(4);
+  expect(new Set(appearances.slice(0, names.length).map((appearance) => appearance.background)).size).toBe(4);
+  expect(appearances[names.length]).toEqual(appearances[names.length + 1]);
+  expect(appearances[names.length].color).toBe('rgb(100, 116, 139)');
+  expect(appearances.slice(0, names.length).map((appearance) => appearance.color)).not.toContain(appearances[names.length].color);
+  const edits = list.getByRole('button', {
+    name: / 수정$/
+  });
+  expect(await edits.evaluateAll((elements) => elements.every((element) => getComputedStyle(element).color === 'rgb(37, 99, 235)'))).toBe(true);
+  expect(await edits.locator('svg').evaluateAll((elements) => elements.every((element) => getComputedStyle(element).color === 'rgb(37, 99, 235)'))).toBe(true);
   await page.screenshot({
     path: test.info().outputPath('feeKindIcons390.png'),
     fullPage: true,
     animations: 'disabled'
   });
 });
+
+for (const width of [1440, 320]) {
+  test(`관리비 금액 ${width}px는 콤마·중간 커서·선택 교체·구분자 삭제를 유지하고 원본 정수를 저장`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    await openFeeItemsSetup(page);
+    await page.getByRole('button', {
+      name: '관리비 항목 추가',
+      exact: true
+    }).click();
+    const editor = page.getByRole('dialog', {
+      name: '관리비 항목 추가',
+      exact: true
+    });
+    await editor.getByRole('combobox', {
+      name: '항목 종류'
+    }).click();
+    await editor.getByRole('option', {
+      name: '일반관리비',
+      exact: true
+    }).click();
+    const amount = editor.getByLabel('기본 금액');
+    const add = editor.getByRole('button', {
+      name: '추가',
+      exact: true
+    });
+    await amount.fill('-');
+    await expect(amount).toHaveValue('-');
+    await expect(add).toBeDisabled();
+    await amount.pressSequentially('1000');
+    await expect(amount).toHaveValue('-1,000');
+    await expect(add).toBeEnabled();
+    await amount.fill('0');
+    await expect(add).toBeEnabled();
+    await amount.press('Backspace');
+    await expect(amount).toHaveValue('');
+    await expect(add).toBeDisabled();
+
+    await amount.fill('12345');
+    await expect(amount).toHaveValue('12,345');
+    await amount.evaluate((element: HTMLInputElement) => element.setSelectionRange(2, 2));
+    await amount.pressSequentially('9');
+    await expect(amount).toHaveValue('129,345');
+    expect(await amount.evaluate((element: HTMLInputElement) => element.selectionStart)).toBe(3);
+    await amount.pressSequentially('8');
+    await expect(amount).toHaveValue('1,298,345');
+    expect(await amount.evaluate((element: HTMLInputElement) => element.selectionStart)).toBe(5);
+    await amount.evaluate((element: HTMLInputElement) => element.setSelectionRange(2, 5));
+    await amount.pressSequentially('0');
+    await expect(amount).toHaveValue('10,345');
+    await amount.evaluate((element: HTMLInputElement) => element.setSelectionRange(3, 3));
+    await amount.press('Backspace');
+    await expect(amount).toHaveValue('1,345');
+    expect(await amount.evaluate((element: HTMLInputElement) => element.selectionStart)).toBe(1);
+    await amount.press('Delete');
+    await expect(amount).toHaveValue('145');
+    expect(await amount.evaluate((element: HTMLInputElement) => element.selectionStart)).toBe(1);
+
+    await amount.fill('10,000');
+    await expect(amount).toHaveValue('10,000');
+    await amount.fill('1.5');
+    await expect(amount).toHaveValue('10,000');
+    const rejectedPaste = await amount.evaluate((element) => {
+      const clipboard = new DataTransfer();
+      clipboard.setData('text/plain', '12,34');
+
+      return !element.dispatchEvent(new ClipboardEvent('paste', {
+        clipboardData: clipboard,
+        bubbles: true,
+        cancelable: true
+      }));
+    });
+    expect(rejectedPaste).toBe(true);
+    await expect(amount).toHaveValue('10,000');
+    await amount.fill('-12345');
+    await expect(amount).toHaveValue('-12,345');
+    await add.click();
+    const stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).feeItems, DRAFT_STORAGE_KEY);
+    expect(stored[0].defaultAmount).toBe('-12345');
+    await expect(page.getByLabel('세대당 월 기본 관리비', {
+      exact: true
+    })).toContainText('-12,345원');
+    await page.getByRole('button', {
+      name: '일반관리비 수정',
+      exact: true
+    }).click();
+    await expect(page.getByLabel('기본 금액')).toHaveValue('-12,345');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`feeAmountFormatter${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+  });
+}
 
 test('관리비 추가창은 빈 이름·부호만 입력·범위 초과를 막고 금액의 문자·소수 입력을 거부', async ({ page }) => {
   await openFeeItemsSetup(page);
@@ -1569,7 +1680,7 @@ for (const width of [1440, 320]) {
     await page.keyboard.press('Escape');
     if (width <= 640) {
       await expect(editor).toBeVisible();
-      await expect(editor.getByLabel('기본 금액')).toHaveValue('-7000');
+      await expect(editor.getByLabel('기본 금액')).toHaveValue('-7,000');
     } else {
       await expect(editor).toHaveCount(0);
     }

@@ -9,8 +9,8 @@ import type { FeeItemCode } from '@/entities/billing';
 import { Button } from '@/shared/ui/button';
 import { HomeIllustration } from '@/shared/ui/home-illustration';
 import { IconButton } from '@/shared/ui/icon-button';
+import { formatWon } from '@/shared/lib/format';
 import {
-  formatFeeAmount,
   getFeeItemsError,
   getFeeItemsTotal,
   type FeeItemDraft
@@ -200,7 +200,7 @@ export function FeeItemsSetup({
                     {item.itemName}
                   </td>
                   <td>
-                    {formatFeeAmount(item.defaultAmount)}
+                    {formatWon(item.defaultAmount)}
                   </td>
                   <td>
                     <div
@@ -242,6 +242,7 @@ export function FeeItemsSetup({
               >
                 <span
                   className={styles['item-icon']}
+                  data-kind={item.itemCode ?? 'DIRECT_INPUT'}
                 >
                   <RegistrationIcon
                     name={item.itemCode ? FEE_ITEM_ICONS[item.itemCode] : 'receipt'}
@@ -254,11 +255,11 @@ export function FeeItemsSetup({
                     {item.itemName}
                   </strong>
                   <span>
-                    {formatFeeAmount(item.defaultAmount)}
+                    {formatWon(item.defaultAmount)}
                   </span>
                 </div>
                 <Button
-                  variant={'ghost'}
+                  variant={'text'}
                   size={'sm'}
                   aria-label={`${item.itemName} 수정`}
                   onClick={() => setEditing({
@@ -314,7 +315,7 @@ export function FeeItemsSetup({
               세대당 월 기본 관리비
             </strong>
             <span>
-              {formatFeeAmount(getFeeItemsTotal(items))}
+              {formatWon(getFeeItemsTotal(items))}
             </span>
           </div>
           <aside
