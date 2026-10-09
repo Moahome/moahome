@@ -1,9 +1,9 @@
 import Image from 'next/image';
 import type { CurrentUser } from '@/entities/session';
-import { StartIcon } from '../start-icon/startIcon';
-import styles from './startAvatar.module.css';
+import { ServiceIcon } from '@/shared/ui/service-icon';
+import styles from './headerAvatar.module.css';
 
-export function StartAvatar({
+export function HeaderAvatar({
   user,
 }: {
   user: Pick<CurrentUser, 'profileImageUrl'>;
@@ -21,7 +21,7 @@ export function StartAvatar({
           unoptimized
         />
       ) : (
-        <StartIcon
+        <ServiceIcon
           name={'person'}
         />
       )}

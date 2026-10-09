@@ -1,4 +1,4 @@
-type StartIconName = 'bell' | 'person' | 'chevron' | 'clock' | 'close';
+type ServiceIconName = 'bell' | 'person' | 'chevron' | 'clock' | 'close';
 
 const ICON_PATHS = {
   close: (
@@ -47,10 +47,10 @@ const ICON_PATHS = {
   ),
 };
 
-export function StartIcon({
+export function ServiceIcon({
   name,
 }: {
-  name: StartIconName;
+  name: ServiceIconName;
 }) {
   return (
     <svg

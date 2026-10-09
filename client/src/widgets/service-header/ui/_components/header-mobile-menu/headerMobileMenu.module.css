@@ -155,3 +155,27 @@
     display: block;
   }
 }
+
+.management-content {
+  flex: 1;
+  min-height: 0;
+  padding-block: 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.panel[data-management='true'] {
+  width: min(360px, calc(100% - 48px));
+  padding-inline: 18px;
+
+  .account {
+    padding-block: 20px;
+  }
+}
+
+@media (max-width: 767px) {
+  .menu-trigger[data-management='true'] {
+    display: block;
+  }
+}

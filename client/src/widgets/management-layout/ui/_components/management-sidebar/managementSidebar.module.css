@@ -1,0 +1,33 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--card);
+
+  .navigation {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 14px 10px;
+    scrollbar-width: thin;
+
+    > ul {
+      display: grid;
+      gap: 5px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+  }
+
+  &[data-variant='drawer'] {
+    height: auto;
+
+    .navigation {
+      overflow: visible;
+      padding: 0;
+    }
+  }
+}

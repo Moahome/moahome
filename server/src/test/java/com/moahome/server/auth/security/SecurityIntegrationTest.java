@@ -92,6 +92,7 @@ class SecurityIntegrationTest {
 	@Autowired private ObjectMapper mapper;
 	@Autowired private MutableClock clock;
 	@MockitoSpyBean private RedisAuthSessionRepository sessions;
+	@MockitoBean private com.moahome.server.property.service.ManagementAccessService management;
 	@MockitoBean private UserService users;
 	@MockitoBean private UserRepository userRepository;
 	@MockitoBean private SocialAccountRepository socialAccounts;
@@ -207,6 +208,27 @@ class SecurityIntegrationTest {
 			.andExpect(jsonPath("status").value("ACTIVE"))
 			.andExpect(jsonPath("$.length()").value(5));
 		verify(users).getCurrentUser(userId);
+	}
+
+	@Test
+	void managementQueriesRequireBearerAndUseItsIdentityInsteadOfClientIdentity() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+		UUID propertyId = UUID.randomUUID();
+		var pair = auth.startSession(userId.toString(), ClientType.WEB);
+		String list = "/api/users/me/managed-properties";
+		String context = "/api/properties/" + propertyId + "/management-context";
+		var property = new com.moahome.server.property.dto.ManagementPropertyResponse(propertyId, "대상",
+			com.moahome.server.membership.domain.PropertyMemberRole.MANAGER);
+		when(management.getManagedProperties(userId)).thenReturn(new com.moahome.server.property.dto.ManagedPropertiesResponse(List.of(property)));
+		when(management.getManagementContext(userId, propertyId)).thenReturn(property);
+		for (String path : List.of(list, context)) {
+			mvc.perform(get(path)).andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
+			mvc.perform(get(path).cookie(refreshCookie(pair))).andExpect(status().isUnauthorized());
+			mvc.perform(get(path).header("Authorization", "Bearer " + pair.accessToken()).param("userId", UUID.randomUUID().toString()))
+				.andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"));
+		}
+		verify(management).getManagedProperties(userId);
+		verify(management).getManagementContext(userId, propertyId);
 	}
 
 	@Test

@@ -219,7 +219,7 @@ export function PropertyRegistrationDialog({
           <Input
             id={'property-name'}
             name={'name'}
-            label={'관리대상 이름'}
+            label={'건물·단지 이름'}
             required
             placeholder={'예) 성내빌라'}
             description={'주민에게 표시되는 이름입니다.'}

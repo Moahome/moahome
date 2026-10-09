@@ -3,20 +3,28 @@
 import Link from 'next/link';
 import {
   useEffect,
+  useId,
   useRef,
-  useState
+  useState,
+  type ReactNode
 } from 'react';
 import type { CurrentUser } from '@/entities/session';
 import { LogoutButton } from '@/features/logout';
-import { StartAvatar } from '../start-avatar/startAvatar';
-import { StartIcon } from '../start-icon/startIcon';
-import styles from './startMobileMenu.module.css';
+import { HeaderAvatar } from '../header-avatar/headerAvatar';
+import { ServiceIcon } from '@/shared/ui/service-icon';
+import styles from './headerMobileMenu.module.css';
 
 /** 모바일 계정 메뉴를 모달로 열고 화면 크기 변경과 닫기 시 배경 스크롤을 복구합니다. */
-export function StartMobileMenu({
+export function HeaderMobileMenu({
   user,
+  homeHref,
+  homeLabel,
+  content,
 }: {
   user: Pick<CurrentUser, 'displayName' | 'profileImageUrl'>;
+  homeHref: string;
+  homeLabel: string;
+  content?: (onNavigate: () => void) => ReactNode;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -25,9 +33,12 @@ export function StartMobileMenu({
   const animationsRef = useRef<Animation[]>([]);
   const isClosingRef = useRef(false);
   const [isOpen, setIsOpen] = useState(false);
+  const isManagement = Boolean(content);
+  const historyId = useId();
+  const ownsHistoryRef = useRef(false);
 
   useEffect(() => {
-    const mobileQuery = window.matchMedia('(max-width: 640px)');
+    const mobileQuery = window.matchMedia(isManagement ? '(max-width: 767px)' : '(max-width: 640px)');
 
     function closeOnDesktop() {
       if (!mobileQuery.matches) {
@@ -35,12 +46,28 @@ export function StartMobileMenu({
       }
     }
 
+    /** 메뉴에서 뒤로가기를 누르면 현재 페이지를 유지하고 메뉴만 닫습니다. */
+    function closeOnBack() {
+      if (!ownsHistoryRef.current || window.history.state?.moahomeMenu === historyId) return;
+      ownsHistoryRef.current = false;
+      dialogRef.current?.dispatchEvent(new Event('cancel', {
+        cancelable: true
+      }));
+    }
+
     mobileQuery.addEventListener('change', closeOnDesktop);
+    window.addEventListener('popstate', closeOnBack);
     return () => {
       mobileQuery.removeEventListener('change', closeOnDesktop);
+      window.removeEventListener('popstate', closeOnBack);
       animationsRef.current.forEach((animation) => animation.cancel());
+      // 페이지 이동 중 언마운트에서는 이력을 이동시키지 않고 메뉴 표시만 제거합니다.
+      if (ownsHistoryRef.current && window.history.state?.moahomeMenu === historyId) {
+        const { moahomeMenu: _menu, ...state } = window.history.state;
+        window.history.replaceState(state, '');
+      }
     };
-  }, []);
+  }, [isManagement, historyId]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -95,7 +122,15 @@ export function StartMobileMenu({
 
   /** 모달을 표시한 프레임 안에서 이동을 시작하고 포커스 이동으로 인한 스크롤을 막습니다. */
   function openMenu() {
+    if (dialogRef.current?.open) return;
     dialogRef.current?.showModal();
+    if (isManagement) {
+      window.history.pushState({
+        ...window.history.state,
+        moahomeMenu: historyId
+      }, '');
+      ownsHistoryRef.current = true;
+    }
     setIsOpen(true);
     animateMenu(true);
     closeButtonRef.current?.focus({
@@ -128,6 +163,20 @@ export function StartMobileMenu({
     animationsRef.current = [];
     isClosingRef.current = false;
     setIsOpen(false);
+    if (ownsHistoryRef.current && window.history.state?.moahomeMenu === historyId) {
+      ownsHistoryRef.current = false;
+      window.history.back();
+    }
+  }
+
+  /** 메뉴에서 선택한 페이지는 메뉴의 임시 이력을 대체하므로 닫기에서 다시 뒤로가지 않습니다. */
+  function closeForNavigation() {
+    if (ownsHistoryRef.current && window.history.state?.moahomeMenu === historyId) {
+      const { moahomeMenu: _menu, ...state } = window.history.state;
+      window.history.replaceState(state, '');
+      ownsHistoryRef.current = false;
+    }
+    closeMenu();
   }
 
   return (
@@ -135,13 +184,14 @@ export function StartMobileMenu({
       <button
         type={'button'}
         className={styles['menu-trigger']}
+        data-management={isManagement || undefined}
         aria-label={`${user.displayName}님 메뉴 열기`}
         aria-expanded={isOpen}
         aria-controls={'start-mobile-menu'}
         aria-haspopup={'dialog'}
         onClick={openMenu}
       >
-        <StartAvatar
+        <HeaderAvatar
           user={user}
         />
       </button>
@@ -167,6 +217,7 @@ export function StartMobileMenu({
         <div
           ref={panelRef}
           className={styles.panel}
+          data-management={isManagement || undefined}
         >
           <div
             className={styles.heading}
@@ -183,7 +234,7 @@ export function StartMobileMenu({
               aria-label={'메뉴 닫기'}
               onClick={closeMenu}
             >
-              <StartIcon
+              <ServiceIcon
                 name={'close'}
               />
             </button>
@@ -191,7 +242,7 @@ export function StartMobileMenu({
           <div
             className={styles.account}
           >
-            <StartAvatar
+            <HeaderAvatar
               user={user}
             />
             <div>
@@ -199,25 +250,40 @@ export function StartMobileMenu({
                 {user.displayName}
                 님
               </strong>
-              <p>
-                모아홈에 오신 것을 환영해요.
-              </p>
+              {!isManagement && (
+                <p>
+                  모아홈에 오신 것을 환영해요.
+                </p>
+              )}
             </div>
           </div>
-          <nav
-            className={styles.navigation}
-            aria-label={'모바일 주요 메뉴'}
-          >
-            <Link
-              href={'/start'}
-              onClick={closeMenu}
+          {content ? (
+            isOpen && (
+              <div
+                className={styles['management-content']}
+              >
+                <MobileMenuContent
+                  renderContent={content}
+                  onNavigate={closeForNavigation}
+                />
+              </div>
+            )
+          ) : (
+            <nav
+              className={styles.navigation}
+              aria-label={'모바일 주요 메뉴'}
             >
-              시작 화면
-              <StartIcon
-                name={'chevron'}
-              />
-            </Link>
-          </nav>
+              <Link
+                href={homeHref}
+                onClick={closeMenu}
+              >
+                {homeLabel}
+                <ServiceIcon
+                  name={'chevron'}
+                />
+              </Link>
+            </nav>
+          )}
           <div
             className={styles.footer}
           >
@@ -229,4 +295,12 @@ export function StartMobileMenu({
       </dialog>
     </>
   );
+}
+
+/** 메뉴 콘텐츠에는 이동 이벤트만 전달하고 드로어의 참조·애니메이션 상태는 노출하지 않습니다. */
+function MobileMenuContent({ renderContent, onNavigate }: {
+  renderContent: (onNavigate: () => void) => ReactNode;
+  onNavigate: () => void;
+}) {
+  return renderContent(onNavigate);
 }

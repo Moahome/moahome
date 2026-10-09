@@ -1,0 +1,45 @@
+.link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+  padding: 7px 10px 7px 45px;
+  border-radius: 8px;
+  color: var(--sub-text);
+  font-size: 13px;
+  text-decoration: none;
+
+  &[data-icon='true'] {
+    min-height: 44px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--foreground);
+  }
+
+  &[aria-current='page'] {
+    background: color-mix(in srgb, var(--primary) 9%, var(--card));
+    color: var(--primary);
+  }
+
+  &[aria-disabled='true'] {
+    color: var(--sub-text);
+  }
+
+  small {
+    margin-left: auto;
+    white-space: nowrap;
+    font-size: 10px;
+    font-weight: 400;
+    opacity: 0.75;
+  }
+
+  &:any-link:hover {
+    background: color-mix(in srgb, var(--primary) 6%, var(--card));
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+  }
+}

@@ -154,7 +154,7 @@ export function SubmissionDialog({
             className={styles['save-items']}
             aria-label={'등록할 정보'}
           >
-            {['관리대상', '동·세대', '관리계좌 및 기본 관리비'].map((item) => (
+            {['관리할 곳', '동·세대', '관리계좌 및 기본 관리비'].map((item) => (
               <li
                 key={item}
               >

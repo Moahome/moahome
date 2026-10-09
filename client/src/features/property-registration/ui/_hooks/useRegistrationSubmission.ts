@@ -7,6 +7,8 @@ import {
   useState
 } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { getManagedPropertiesQueryKey } from '@/entities/property';
 import { ApiError } from '@/shared/api';
 import {
   getRegistrationResult,
@@ -41,6 +43,7 @@ export function useRegistrationSubmission(
   requestedId: string | null
 ) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [initial] = useState(() => {
     const savedId = restoreRegistrationReceipt(userId);
     const completionRequested = isCompletionPage || savedId !== null;
@@ -83,6 +86,9 @@ export function useRegistrationSubmission(
   const finish = useCallback((response: RegistrationResult, hasDetails: boolean) => {
     if (!activeRef.current) return;
     saveRegistrationReceipt(userId, response.requestId);
+    void queryClient.invalidateQueries({
+      queryKey: getManagedPropertiesQueryKey(userId)
+    });
     clearPendingRegistration(userId, response.requestId);
     discardRegistrationDraft();
     pendingRef.current = null;
@@ -94,7 +100,7 @@ export function useRegistrationSubmission(
     setMessage('');
     setCanRetry(false);
     setCanEdit(false);
-  }, [userId]);
+  }, [queryClient, userId]);
 
   /** 404에는 입력 수정을 허용하되 ID를 재사용해 늦게 끝난 원래 요청과 중복 생성되지 않게 합니다. */
   const lookup = useCallback(async (pending: PendingRegistration) => {
@@ -144,7 +150,7 @@ export function useRegistrationSubmission(
       setCanRetry(notFound && pending.request !== null);
       setCanEdit(notFound);
       setMessage(notFound ? '저장된 등록 정보가 없어요. 다시 시도하거나 입력한 내용을 수정해주세요.' : '등록 결과를 확인하지 못했어요. 연결이 복구되면 다시 확인해주세요.');
-      if (error instanceof ApiError && error.code === 'ACCESS_DENIED') setMessage('이 관리대상에 접근할 권한이 없어요. 등록 결과를 표시할 수 없습니다.');
+      if (error instanceof ApiError && error.code === 'ACCESS_DENIED') setMessage('이곳에 접근할 권한이 없어요. 등록 결과를 표시할 수 없습니다.');
     }
   }, [finish, router, onInputError]);
 

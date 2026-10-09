@@ -108,6 +108,7 @@ class KakaoOAuthIntegrationTest {
 	@Autowired private ObjectMapper mapper;
 	@MockitoSpyBean private RedisOAuthStateRepository stateRepository;
 	@MockitoSpyBean private RedisAuthSessionRepository sessions;
+	@MockitoBean private com.moahome.server.property.service.ManagementAccessService management;
 	@MockitoBean private SocialAccountService identities;
 	@MockitoBean private UserService users;
 	@MockitoBean private UserRepository userRepository;

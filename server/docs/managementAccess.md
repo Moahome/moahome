@@ -1,6 +1,6 @@
 # Server 관리 영역 접근 설계
 
-작성일: 2026-10-09. **상태: 구현 예정 설계.** 현재는 관리대상 등록 API와 본인 정보 조회만 구현되어 있으며, 이 문서의 관리대상 목록 / 현재 관리 권한 API는 아직 없습니다.
+작성일: 2026-10-09. **상태: 목록 / 현재 관리 권한 API 구현.** 기존 참여와 관리대상 테이블을 사용하며 새 Migration은 없습니다.
 
 업무 정책은 [도메인 규칙](../../docs/domainRules.md#로그인-이후-진입-기준), 데이터 구조는 [ERD](../../docs/erd.md#56-property_members), 요청·응답·오류·조회 조건은 [공통 관리 영역 접근 API](../../docs/managementAccessApi.md)를 기준으로 합니다. 이 문서는 API 필드를 다시 정의하지 않고 서버 책임과 구현 순서를 설명합니다.
 
@@ -26,7 +26,7 @@
 | `property/dto/` | 목록 / 단건의 불변 응답 DTO |
 | `membership/repo/PropertyMemberRepository.java` | 관리대상과 참여를 결합하는 목록 / 단건 조회 |
 
-위 이름은 구현 배치 설계안입니다. 공통 Base Controller, Repository Interface 계층이나 독립적인 권한 저장소를 미리 추가하지 않습니다. 현재 저장소와 예외 처리의 재사용 범위를 확인한 뒤 필요한 코드만 만듭니다.
+위 이름으로 구현했습니다. 공통 Base Controller, Repository Interface 계층이나 독립적인 권한 저장소를 미리 추가하지 않습니다. 현재 저장소와 예외 처리의 재사용 범위를 확인한 뒤 필요한 코드만 만듭니다.
 
 응답 DTO는 Java record를 우선 사용하고 Entity를 그대로 반환하지 않습니다. Repository의 투영 / DTO 조회로 필요한 이름·ID·역할만 읽어 Entity 순회에 따른 추가 조회를 피합니다.
 
@@ -57,7 +57,7 @@
 
 응답은 `Cache-Control: no-store`로 제공하고 개인정보 원문·토큰·내부 SQL을 오류나 로그에 기록하지 않습니다. 인증 / 정상 계정 확인 장애와 업무 조회 오류는 공통 계약에 맞춰 구분하며, 내부 예외를 원문 그대로 전달하지 않습니다.
 
-현재 DB의 일반 참여 중복 / 역할 충돌 정책은 미정입니다. 구현 전에 공통 API의 데이터 조건 확인 항목을 검토하며, 조회 기능을 이유로 역할 우선순위나 기존 행 정리 / 유일성 Migration을 임의로 만들지 않습니다.
+동일 역할의 중복 행은 한 대상으로 묶습니다. 서로 다른 관리자 역할이 충돌하면 우선순위를 정하지 않고 내부 오류로 실패합니다. 충돌 행의 정리나 역할 우선순위 / 유일성 Migration은 도입하지 않았습니다.
 
 ## 6. 후속 업무 API의 권한
 
@@ -75,4 +75,4 @@
 - 조회 중단 / 장애: 데이터 쓰기·부분 상태·빈 목록으로의 오류 변환이 없음.
 - DB 검증: 기존 등록 Migration으로 만든 관리대상 / 참여를 읽으며 새 Migration 없이 동작함.
 
-실제 구현 후 [Server AGENTS.md](../AGENTS.md)의 테스트와 빌드를 수행합니다. 이번 문서 작성에서는 위 테스트를 새로 만들거나 실행하지 않습니다.
+Service / Controller 단위 검사, 기존 Bearer Security 통합 검사와 격리 PostgreSQL의 `ManagementAccessPersistenceTest`에 검증을 작성했습니다. 실행과 빌드는 [Server AGENTS.md](../AGENTS.md)를 따릅니다.

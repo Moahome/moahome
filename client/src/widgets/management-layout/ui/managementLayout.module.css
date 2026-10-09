@@ -1,0 +1,50 @@
+.shell {
+  --header-height: 77px;
+
+  .service-header {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--card);
+  }
+
+  @media (max-width: 640px) {
+    --header-height: 92px;
+  }
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  min-height: calc(100svh - var(--header-height));
+  background: var(--background);
+
+  .sidebar {
+    position: sticky;
+    top: var(--header-height);
+    height: calc(100dvh - var(--header-height));
+    min-height: 0;
+    border-right: 1px solid var(--border);
+  }
+
+  .workspace {
+    min-width: 0;
+  }
+
+  .main {
+    padding: 32px;
+    font-size: 16px;
+  }
+
+  @media (max-width: 767px) {
+    grid-template-columns: minmax(0, 1fr);
+
+    .sidebar {
+      display: none;
+    }
+
+    .main {
+      padding: 24px 20px;
+    }
+  }
+}

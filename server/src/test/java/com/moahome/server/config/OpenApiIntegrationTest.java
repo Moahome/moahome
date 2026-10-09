@@ -42,6 +42,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OpenApiIntegrationTest {
 	@Autowired private MockMvc mvc;
 	@Autowired private ObjectMapper mapper;
+	@MockitoBean private com.moahome.server.property.service.ManagementAccessService management;
 	@MockitoBean private AuthService auth;
 	@MockitoBean private UserRepository users;
 	@MockitoBean private SocialAccountRepository socialAccounts;
@@ -114,7 +115,10 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(9);
+		assertThat(document.path("paths").properties()).hasSize(11);
+		for (String path : List.of("/api/users/me/managed-properties", "/api/properties/{propertyId}/management-context")) {
+			assertThat(document.path("paths").path(path).at("/get/security/0/bearerAuth").isArray()).isTrue();
+		}
 		assertThat(document.at("/components/securitySchemes/bearerAuth/type").asText()).isEqualTo("http");
 		assertThat(document.at("/components/securitySchemes/webRefreshCookie/in").asText()).isEqualTo("cookie");
 		assertThat(document.at("/paths/~1api~1users~1me/get/security/0/bearerAuth").isArray()).isTrue();

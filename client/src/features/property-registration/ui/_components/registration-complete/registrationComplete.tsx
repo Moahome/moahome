@@ -32,7 +32,7 @@ export function RegistrationComplete({
   const hasDraft = showDetails && draft.basicInfoValidated && draft.units.length > 0;
   const information: { label: string; value: string; icon: RegistrationIconName }[] = [
     {
-      label: '관리대상',
+      label: '관리할 곳',
       value: result.property.name,
       icon: 'building'
     },
@@ -97,7 +97,7 @@ export function RegistrationComplete({
             id={'registration-complete-title'}
             tabIndex={-1}
           >
-            관리대상 등록이 완료되었습니다!
+            관리할 곳이 등록되었습니다!
           </h1>
           <p>
             {result.property.name}
@@ -156,7 +156,7 @@ export function RegistrationComplete({
           <ul
             className={styles['completed-items']}
           >
-            {['관리대상 등록 완료', '동·세대 설정 완료', '관리계좌 및 기본 관리비 설정 완료'].map((item) => (
+            {['관리할 곳 등록 완료', '동·세대 설정 완료', '관리계좌 및 기본 관리비 설정 완료'].map((item) => (
               <li
                 key={item}
               >

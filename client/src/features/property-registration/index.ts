@@ -4,3 +4,6 @@ export {
 export {
   RegistrationDraftLifecycle
 } from './ui/registrationDraftLifecycle';
+export {
+  hasPendingRegistration
+} from './model/registrationSubmission';

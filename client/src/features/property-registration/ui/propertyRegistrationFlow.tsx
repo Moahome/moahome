@@ -47,7 +47,7 @@ export function PropertyRegistrationFlow({
   step: RegistrationStep | 'complete';
   completionRequestId: string | null;
   onClose: () => void;
-  onDashboard: () => void;
+  onDashboard: (propertyId: string) => void;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState(() => restoreRegistrationDraft(userId));
@@ -198,7 +198,7 @@ export function PropertyRegistrationFlow({
         draft={draft}
         showDetails={submission.resultHasDetails}
         onReview={() => setShowRegisteredDetails(true)}
-        onDashboard={onDashboard}
+        onDashboard={() => onDashboard(submission.result!.property.id)}
       />
     );
   } else if (currentStep === 'review' || currentStep === 'complete') {

@@ -8,9 +8,11 @@ import styles from './startSessionState.module.css';
 export function StartSessionState({
   error,
   onRetry,
+  kind = 'session',
 }: {
   error: Error | null;
   onRetry: () => void;
+  kind?: 'session' | 'property';
 }) {
   if (!error) {
     return (
@@ -21,14 +23,14 @@ export function StartSessionState({
         aria-busy={'true'}
       >
         <p>
-          로그인 정보를 확인하고 있어요.
+          {kind === 'property' ? '관리할 곳을 확인하고 있어요.' : '로그인 정보를 확인하고 있어요.'}
         </p>
       </main>
     );
   }
 
-  const canRetry = error instanceof ApiError
-    && (error.status === 503 || error.code === 'NETWORK_ERROR');
+  const canRetry = kind === 'property' || (error instanceof ApiError
+    && (error.status === 503 || error.code === 'NETWORK_ERROR'));
 
   return (
     <main
@@ -39,7 +41,7 @@ export function StartSessionState({
       <h1
         id={'session-title'}
       >
-        로그인 정보를 확인하지 못했어요
+        {kind === 'property' ? '관리할 곳을 확인하지 못했어요' : '로그인 정보를 확인하지 못했어요'}
       </h1>
       <p>
         {canRetry ? '잠시 후 다시 시도해 주세요.' : '다시 로그인해 주세요.'}

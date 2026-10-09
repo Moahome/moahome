@@ -184,7 +184,7 @@ export function RegistrationReview({
             {title}
           </h2>
           <p>
-            {complete ? `${propertyName}의 관리대상과 초기 설정 정보를 저장했어요.` : '입력한 정보를 확인한 뒤 관리 시작하기를 눌러주세요.'}
+            {complete ? `${propertyName}의 건물·단지 정보와 초기 설정을 저장했어요.` : '입력한 정보를 확인한 뒤 관리 시작하기를 눌러주세요.'}
           </p>
         </header>
         {hasDraft && (
@@ -195,13 +195,13 @@ export function RegistrationReview({
               등록 정보
             </h3>
             <ReviewRow
-              label={'관리대상'}
-              regionLabel={'관리대상 요약'}
+              label={'건물·단지 정보'}
+              regionLabel={'건물·단지 정보 요약'}
               icon={'building'}
               locked={locked}
-              editLabel={'관리대상 수정'}
+              editLabel={'건물·단지 정보 수정'}
               onEdit={() => onEdit('basic')}
-              toggleName={'관리대상 상세'}
+              toggleName={'건물·단지 정보 상세'}
               detailsId={'review-property-details'}
               summary={(
                 <>
@@ -223,7 +223,7 @@ export function RegistrationReview({
               >
                 <div>
                   <dt>
-                    관리대상 이름
+                    건물·단지 이름
                   </dt>
                   <dd>
                     {propertyName}

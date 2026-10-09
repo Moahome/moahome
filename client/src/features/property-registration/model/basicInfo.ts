@@ -33,8 +33,8 @@ export function getBasicInfoErrors(draft: BasicInfoDraft): BasicInfoErrors {
   const nameLength = getTextLength(draft.name);
   const addressLength = getTextLength(draft.address);
 
-  if (nameLength === 0) errors.name = '관리대상 이름을 입력해주세요.';
-  if (nameLength > 50) errors.name = '관리대상 이름은 50자 이내로 입력해주세요.';
+  if (nameLength === 0) errors.name = '건물·단지 이름을 입력해주세요.';
+  if (nameLength > 50) errors.name = '건물·단지 이름은 50자 이내로 입력해주세요.';
   if (addressLength === 0) errors.address = '주소를 검색해주세요.';
   if (addressLength > 255) errors.address = '주소는 255자 이내로 선택해주세요.';
   if (getTextLength(draft.addressDetail) > 255) errors.addressDetail = '상세주소는 255자 이내로 입력해주세요.';

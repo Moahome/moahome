@@ -1,6 +1,6 @@
 'use client';
 
-import { StartIcon } from '../start-icon/startIcon';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import motion from '../../startMotion.module.css';
 import styles from './pendingRequestCard.module.css';
 
@@ -18,7 +18,7 @@ export function PendingRequestCard({
       <span
         className={styles['pending-icon']}
       >
-        <StartIcon
+        <ServiceIcon
           name={'clock'}
         />
       </span>
@@ -32,7 +32,7 @@ export function PendingRequestCard({
           가입 요청 후 관리자의 승인을 기다리는 경우 여기에서 확인할 수 있어요.
         </span>
       </span>
-      <StartIcon
+      <ServiceIcon
         name={'chevron'}
       />
     </button>

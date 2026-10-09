@@ -16,6 +16,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @SpringBootTest
 @ActiveProfiles("test")
 class ServerApplicationTests {
+	@MockitoBean private com.moahome.server.property.service.ManagementAccessService management;
 	@MockitoBean private UserRepository users;
 	@MockitoBean private SocialAccountRepository socialAccounts;
 	@MockitoBean private com.moahome.server.property.service.PropertyRegistrationService registrations;

@@ -186,6 +186,17 @@ export function discardRegistrationReceipt() {
   try { sessionStorage.removeItem(RECEIPT_KEY); } catch { /* 저장소가 차단되어도 화면을 닫습니다. */ }
 }
 
+/** 일반 시작 진입이 미확인 제출 복구를 건너뛰지 않도록 본인 요청의 존재만 확인합니다. */
+export function hasPendingRegistration(userId: string) {
+  try {
+    if (isRegistrationRequestId(localStorage.getItem(PENDING_PREFIX + userId))) return true;
+  } catch { /* 탭의 제출 기록도 확인합니다. */ }
+  try {
+    const data = JSON.parse(sessionStorage.getItem(SUBMISSION_KEY) ?? 'null');
+    return data?.userId === userId && isRegistrationRequestId(data?.request?.requestId);
+  } catch { return false; }
+}
+
 /** 서버 필드 경로를 입력 단계와 화면용 설명으로 바꾸고 서버 메시지·입력 원문을 노출하지 않습니다. */
 export function getRegistrationInputError(error: ApiError): { step: RegistrationStep; message: string } {
   const field = error.errors[0]?.field ?? '';

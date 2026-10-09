@@ -2,7 +2,7 @@
 
 이 문서는 Client와 Server가 함께 사용하는 관리대상 등록의 기본 정보 검증, 최종 일괄 저장과 결과 조회 API 계약을 정의합니다. API의 입력, 응답, 오류와 중복 요청의 의미를 이 문서에서 관리합니다.
 
-작성일: 2026-10-05. 수정일: 2026-10-09. 업무 정책은 [도메인 규칙](domainRules.md), 데이터 구조는 [ERD](erd.md)를 따릅니다. Server의 세 API와 Service / Entity / Migration, Client 기본 정보 화면과 검증 API 연결, 동·세대, 관리계좌와 관리비 항목 설정을 구현했습니다. 등록 정보 확인과 최종 제출 / 결과 조회 / 완료 표시도 Client에 구현했습니다. 저장 후 관리자 화면 연결은 후속 범위입니다. 내부 처리와 검증은 [Server 등록 설계](../server/docs/propertyRegistration.md)를 따릅니다.
+작성일: 2026-10-05. 수정일: 2026-10-09. 업무 정책은 [도메인 규칙](domainRules.md), 데이터 구조는 [ERD](erd.md)를 따릅니다. Server의 세 API와 Service / Entity / Migration, Client 기본 정보 화면과 검증 API 연결, 동·세대, 관리계좌와 관리비 항목 설정을 구현했습니다. 등록 정보 확인과 최종 제출 / 결과 조회 / 완료 표시도 Client에 구현했습니다. 저장 후 임시 대시보드 연결은 구현했으며 본인 관리대상 목록 / 현재 관리자 권한 조회도 연결했습니다. 내부 처리와 검증은 [Server 등록 설계](../server/docs/propertyRegistration.md)를 따릅니다.
 
 ## 1. 공통 적용 기준
 
@@ -306,7 +306,7 @@ Client의 초기 관리계좌 화면은 국내 은행과 아래 예금 취급 �
 }
 ```
 
-ID는 Server가 생성한 UUID, `createdAt`은 UTC ISO 8601 시각입니다. 응답은 등록 당시 결과의 스냅샷이며 계좌번호 원문, 예금주 이름, 요청 본문이나 인증정보를 포함하지 않습니다. 이후 데이터나 역할이 바뀌어도 이 스냅샷을 현재 조회 / 권한 검증 대신 사용하지 않습니다. Client는 저장 성공을 확인한 뒤 완료를 표시하고 입력 초안을 폐기합니다. `property.id`를 사용한 관리자 진입은 후속 구현 범위이며, 예정된 경로와 완료 페이지 연결은 [Client 서비스 진입 설계](../client/docs/serviceEntry.md#6-기존-등록-흐름과-연결), 현재 관리 권한 조회는 [관리 영역 접근 API](managementAccessApi.md)를 따릅니다.
+ID는 Server가 생성한 UUID, `createdAt`은 UTC ISO 8601 시각입니다. 응답은 등록 당시 결과의 스냅샷이며 계좌번호 원문, 예금주 이름, 요청 본문이나 인증정보를 포함하지 않습니다. 이후 데이터나 역할이 바뀌어도 이 스냅샷을 현재 조회 / 권한 검증 대신 사용하지 않습니다. Client는 저장 성공을 확인한 뒤 완료를 표시하고 입력 초안을 폐기합니다. `property.id`를 사용한 임시 대시보드 연결과 현재 권한 API 적용 기준은 [Client 서비스 진입 설계](../client/docs/serviceEntry.md#6-기존-등록-흐름과-연결), 현재 관리 권한 조회는 [관리 영역 접근 API](managementAccessApi.md)를 따릅니다.
 
 ### 중복 방지와 결과 조회
 
@@ -378,7 +378,7 @@ Client의 필드별 오류 연결과 공통 전송 변경 범위는 [Client 등�
 
 - [Client 관리대상 등록 설계](../client/docs/propertyRegistration.md): 화면 구성, 단계 이동, 초안 복원과 최종 제출 / 오류 처리.
 - [Server 관리대상 등록 설계](../server/docs/propertyRegistration.md): 검증 책임, 트랜잭션, 저장 초기값, 계좌번호 보호와 중복 방지.
-- [관리 영역 접근 API](managementAccessApi.md): 등록 완료 뒤 연결할 본인 관리대상 목록과 현재 관리 권한 조회 계약, 구현 예정.
+- [관리 영역 접근 API](managementAccessApi.md): 등록 완료 뒤 연결할 본인 관리대상 목록과 현재 관리 권한 조회 계약, 구현.
 - [도메인 규칙](domainRules.md): 확정된 등록 정책과 후속 검토 범위.
 - [ERD](erd.md): 테이블 / 컬럼 / 관계와 등록 성공 결과의 데이터 설계.
 

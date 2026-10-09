@@ -57,6 +57,9 @@ function currentUserResponse() {
 }
 
 test.beforeEach(async ({ context }) => {
+  await context.route(`${API_ORIGIN}/api/users/me/managed-properties`, (route) => fulfillJson(route, {
+    properties: []
+  }));
   // 공개 화면의 전역 초기화도 실제 서버를 호출하지 않도록 기본 비로그인 응답을 제공합니다.
   await context.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
     await fulfillJson(route, {

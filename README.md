@@ -28,7 +28,7 @@ API 서버는 `8080`에서 OpenAPI 문서와 업무 API를 제공하고, Swagger
 - [도메인 규칙](docs/domainRules.md)
 - [ERD](docs/erd.md)
 - [관리대상 등록 API](docs/propertyRegistrationApi.md)
-- [관리 영역 접근 API](docs/managementAccessApi.md): 본인 관리대상 목록과 현재 관리 권한 조회 계약, 구현 예정
+- [관리 영역 접근 API](docs/managementAccessApi.md): 본인 관리대상 목록과 현재 관리 권한 조회 계약, 구현
 - [개발 환경 가이드](docs/developmentGuide.md)
 - [JWT 인증 설계](docs/securityDesign.md)
 - [공통 개발 규칙](AGENTS.md)
@@ -38,7 +38,7 @@ API 서버는 `8080`에서 OpenAPI 문서와 업무 API를 제공하고, Swagger
 ## 영역별 구현 설계
 
 - [Client 관리대상 등록](client/docs/propertyRegistration.md): 화면, 단계 이동과 브라우저 초안 관리
-- [Client 서비스 진입](client/docs/serviceEntry.md): 로그인 후 목적지, 최근 선택과 등록 흐름 연결, 구현 예정
-- [Client 관리 레이아웃](client/docs/managementLayout.md): 공통 틀, 사이드바·드롭다운·링크 분리와 메뉴별 페이지 연결, 구현 예정
+- [Client 서비스 진입](client/docs/serviceEntry.md): 서버 목록 기반 기본 진입과 현재 관리 권한 확인 구현
+- [Client 관리 레이아웃](client/docs/managementLayout.md): 공통 사이드바·드롭다운·링크와 임시 대시보드 구현, 메뉴별 업무 페이지는 후속
 - [Server 관리대상 등록](server/docs/propertyRegistration.md): 검증, 저장과 중복 방지
-- [Server 관리 영역 접근](server/docs/managementAccess.md): 현재 관리자 참여 조회와 접근 검증, 구현 예정
+- [Server 관리 영역 접근](server/docs/managementAccess.md): 현재 관리자 참여 조회와 접근 검증 구현

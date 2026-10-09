@@ -1,6 +1,6 @@
 'use client';
 
-import { StartIcon } from '../start-icon/startIcon';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import { HomeIllustration } from '@/shared/ui/home-illustration';
 import motion from '../../startMotion.module.css';
 import styles from './startCard.module.css';
@@ -87,7 +87,7 @@ export function StartCard({
         >
           {option.mobileAction}
         </span>
-        <StartIcon
+        <ServiceIcon
           name={'chevron'}
         />
       </button>

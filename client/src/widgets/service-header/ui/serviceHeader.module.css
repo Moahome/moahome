@@ -148,3 +148,11 @@
     padding-inline: 20px;
   }
 }
+
+@media (max-width: 767px) {
+  .header[data-management='true'] {
+    .profile {
+      display: none;
+    }
+  }
+}

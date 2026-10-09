@@ -1,9 +1,9 @@
 'use client';
 
 import type { RefObject } from 'react';
-import styles from './startNoticeDialog.module.css';
+import styles from './noticeDialog.module.css';
 
-export function StartNoticeDialog({
+export function NoticeDialog({
   dialogRef,
   title,
   message,

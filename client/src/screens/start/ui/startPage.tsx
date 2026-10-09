@@ -10,12 +10,17 @@ import {
   useState
 } from 'react';
 import { useSession } from '@/entities/session';
-import { PropertyRegistrationFlow } from '@/features/property-registration';
+import { getManagementDashboardPath } from '@/entities/property';
+import {
+  PropertyRegistrationFlow,
+  hasPendingRegistration
+} from '@/features/property-registration';
+import { useManagementEntry } from '@/features/enter-service';
 import { ApiError } from '@/shared/api';
 import { NeighborhoodIllustration } from '@/shared/ui/neighborhood-illustration';
-import { StartHeader } from './_components/start-header/startHeader';
+import { ServiceHeader } from '@/widgets/service-header';
 import { StartIntro } from './_components/start-intro/startIntro';
-import { StartNoticeDialog } from './_components/start-notice-dialog/startNoticeDialog';
+import { NoticeDialog } from '@/shared/ui/notice-dialog';
 import { StartSessionState } from './_components/start-session-state/startSessionState';
 import { PendingRequestCard } from './_components/pending-request-card/pendingRequestCard';
 import { StartCard } from './_components/start-card/startCard';
@@ -31,6 +36,8 @@ export function StartPage() {
   const completionRequestId = searchParams.get('requestId');
   const registrationStep = registration === 'basic' || registration === 'units' || registration === 'account' || registration === 'fees' || registration === 'review' || registration === 'complete' ? registration : null;
   const isSetupStep = registrationStep !== null && registrationStep !== 'basic';
+  const hasPendingSubmission = Boolean(session.data && hasPendingRegistration(session.data.id));
+  const registeredProperty = useManagementEntry(session.data?.id, registrationStep === null && !hasPendingSubmission);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
   const [notice, setNotice] = useState({
@@ -46,6 +53,18 @@ export function StartPage() {
       router.replace('/login');
     }
   }, [router, session.isFetching, requiresLogin]);
+
+  useEffect(() => {
+    if (registrationStep || hasPendingSubmission || registeredProperty.isFetching) return;
+    const error = registeredProperty.error;
+    if (error instanceof ApiError && (error.status === 401 || error.code === 'ACCOUNT_UNAVAILABLE')) {
+      window.location.replace('/login');
+      return;
+    }
+    if (registeredProperty.isSuccess && registeredProperty.data) {
+      router.replace(getManagementDashboardPath(registeredProperty.data.propertyId));
+    }
+  }, [registrationStep, hasPendingSubmission, registeredProperty.data, registeredProperty.error, registeredProperty.isFetching, registeredProperty.isSuccess, router]);
 
   useEffect(() => {
     /** 브라우저가 문서를 보관하기 전에 개인정보를 가려 로그아웃 뒤 복원 프레임에도 노출하지 않습니다. */
@@ -94,6 +113,18 @@ export function StartPage() {
     );
   }
 
+  if (!registrationStep && !hasPendingSubmission && (!registeredProperty.isSuccess || registeredProperty.isFetching || registeredProperty.data)) {
+    return (
+      <StartSessionState
+        kind={'property'}
+        error={registeredProperty.isFetching ? null : registeredProperty.error}
+        onRetry={() => void registeredProperty.refetch({
+          cancelRefetch: false
+        })}
+      />
+    );
+  }
+
   return (
     <div
       ref={pageRef}
@@ -102,7 +133,7 @@ export function StartPage() {
       <div
         className={isSetupStep && registrationStep !== 'complete' ? styles['setup-header'] : undefined}
       >
-        <StartHeader
+        <ServiceHeader
           user={session.data}
           onNotify={() => showNotice('알림', '알림 기능을 준비하고 있어요.')}
         />
@@ -116,7 +147,7 @@ export function StartPage() {
           onClose={() => router.replace('/start', {
             scroll: false
           })}
-          onDashboard={() => showNotice('대시보드 준비 중', '관리대상 등록은 완료되었습니다. 관리자 대시보드는 준비 중이에요.')}
+          onDashboard={(propertyId) => router.push(getManagementDashboardPath(propertyId))}
         />
       )}
       {!isSetupStep && (
@@ -158,7 +189,7 @@ export function StartPage() {
       >
         우리의 공간이 더 특별해지는, 모아홈
       </footer>
-      <StartNoticeDialog
+      <NoticeDialog
         dialogRef={dialogRef}
         title={notice.title}
         message={notice.message}

@@ -92,7 +92,7 @@ async function selectAddress(page: Page, type: '도로명' | '지번' = '도로�
 
 /** 기본 제출 조건을 만족시키되 선택 입력은 비워 둡니다. */
 async function fillRequiredFields(page: Page) {
-  await page.getByLabel('관리대상 이름').fill('성내빌라');
+  await page.getByLabel('건물·단지 이름').fill('성내빌라');
   await selectAddress(page);
   await page.getByRole('radio', {
     name: /^동 없음/
@@ -100,6 +100,14 @@ async function fillRequiredFields(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
+  await page.route(`${API_ORIGIN}/api/users/me/managed-properties`, (route) => fulfillJson(route, {
+    properties: []
+  }));
+  await page.route(`${API_ORIGIN}/api/properties/*/management-context`, (route) => fulfillJson(route, {
+    propertyId: 'f5405dd1-42ea-4279-9302-812ffcc2d21b',
+    name: '관리대상',
+    role: 'ADMIN'
+  }));
   await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
     const response = route.request().url().endsWith('/csrf') ? {
       csrfToken: 'test-csrf'
@@ -136,10 +144,10 @@ test('이름·주소·명시적인 동 구분을 모두 입력해야 계속 버�
   await expect(page.getByRole('radio', {
     name: /^동 있음/
   })).not.toBeChecked();
-  await page.getByLabel('관리대상 이름').fill('   ');
+  await page.getByLabel('건물·단지 이름').fill('   ');
   await expect(continueButton).toBeDisabled();
   await selectAddress(page);
-  await page.getByLabel('관리대상 이름').fill('성내빌라');
+  await page.getByLabel('건물·단지 이름').fill('성내빌라');
   await expect(continueButton).toBeDisabled();
   await page.getByRole('radio', {
     name: /^동 없음/
@@ -158,7 +166,7 @@ test('이름·주소·명시적인 동 구분을 모두 입력해야 계속 버�
     exact: true
   }).click();
   await expect(continueButton).toBeEnabled();
-  await page.getByLabel('관리대상 이름').fill('');
+  await page.getByLabel('건물·단지 이름').fill('');
   await expect(continueButton).toBeDisabled();
 });
 
@@ -168,7 +176,7 @@ test('Unicode 글자 수와 선택 입력 길이를 검증하고 정상 입력�
   const continueButton = page.getByRole('button', {
     name: '등록하고 계속'
   });
-  const nameInput = page.getByLabel('관리대상 이름');
+  const nameInput = page.getByLabel('건물·단지 이름');
   await nameInput.fill(`  ${'🏠'.repeat(50)}  `);
   await expect(page.getByText('50/50', {
     exact: true
@@ -242,7 +250,7 @@ test('건물 유형은 placeholder를 목록에 넣지 않고 고정 옵션·선
     name: '아파트',
     exact: true
   })).toHaveAttribute('aria-selected', 'true');
-  await page.getByLabel('관리대상 이름').click();
+  await page.getByLabel('건물·단지 이름').click();
   await expect(listbox).toHaveCount(0);
   await expect(dropdown).toHaveText('아파트');
   await page.getByRole('button', {
@@ -365,14 +373,14 @@ test('기본 정보만 정규화해서 검증하고 대기 중 중복 제출과 
 
   await openRegistration(page);
   await fillRequiredFields(page);
-  await page.getByLabel('관리대상 이름').fill('  성내빌라  ');
+  await page.getByLabel('건물·단지 이름').fill('  성내빌라  ');
   await page.getByRole('button', {
     name: '등록하고 계속'
   }).click();
   await expect(page.getByRole('button', {
     name: '확인 중…'
   })).toBeDisabled();
-  await expect(page.getByLabel('관리대상 이름')).toBeDisabled();
+  await expect(page.getByLabel('건물·단지 이름')).toBeDisabled();
   await page.getByRole('dialog', {
     name: '관리할 곳 등록',
     exact: true
@@ -388,9 +396,9 @@ test('기본 정보만 정규화해서 검증하고 대기 중 중복 제출과 
     name: '이전',
     exact: true
   }).click();
-  await expect(page.getByLabel('관리대상 이름')).toHaveValue('성내빌라');
+  await expect(page.getByLabel('건물·단지 이름')).toHaveValue('성내빌라');
   expect(finalRequests).toHaveLength(0);
-  await page.getByLabel('관리대상 이름').fill('새 빌라');
+  await page.getByLabel('건물·단지 이름').fill('새 빌라');
   await expect(page.getByRole('status')).toHaveCount(0);
 });
 
@@ -440,7 +448,7 @@ for (const failure of [
       name: '관리할 곳 등록',
       exact: true
     }).getByRole('alert')).toContainText(failure.message);
-    await expect(page.getByLabel('관리대상 이름')).toHaveValue('성내빌라');
+    await expect(page.getByLabel('건물·단지 이름')).toHaveValue('성내빌라');
     await expect(page.getByRole('radio', {
       name: /^동 없음/
     })).toBeChecked();
@@ -458,7 +466,7 @@ for (const failure of [
 
 test('동 있음·지번 주소·선택 입력은 선택한 값 그대로 검증 요청에 전달', async ({ page }) => {
   await openRegistration(page);
-  await page.getByLabel('관리대상 이름').fill('아파트');
+  await page.getByLabel('건물·단지 이름').fill('아파트');
   await selectAddress(page, '지번');
   await page.getByRole('radio', {
     name: /^동 있음/
@@ -643,7 +651,7 @@ test('동 없음은 빈 목록에서 시작하고 추가·중복 검증·수정�
     name: '이전',
     exact: true
   }).click();
-  await expect(page.getByLabel('관리대상 이름')).toHaveValue('성내빌라');
+  await expect(page.getByLabel('건물·단지 이름')).toHaveValue('성내빌라');
   await page.getByRole('button', {
     name: '등록하고 계속'
   }).click();
@@ -1076,7 +1084,7 @@ test('손상된 계좌 초안은 이전 단계를 보존하고 다른 사용자�
   }));
   await page.reload();
   await expect(page).toHaveURL(/registration=basic/);
-  await expect(page.getByLabel('관리대상 이름')).toHaveValue('');
+  await expect(page.getByLabel('건물·단지 이름')).toHaveValue('');
   const stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
   expect(stored.bankAccount.accountNumber).toBe('');
   expect(stored.bankAccount.holderName).toBe('');
@@ -2996,7 +3004,7 @@ test('동·세대와 현재 단계는 새로고침에 복원하고 흐름 이탈
   }));
   await page.reload();
   await expect(page).toHaveURL(/registration=basic$/);
-  await expect(page.getByLabel('관리대상 이름')).toHaveValue('');
+  await expect(page.getByLabel('건물·단지 이름')).toHaveValue('');
   await page.getByRole('button', {
     name: '취소',
     exact: true
@@ -3148,7 +3156,7 @@ test('새로고침에는 같은 사용자 초안을 복원하고 취소·뒤로 
     exact: true
   }).fill('201호');
   await page.reload();
-  await expect(page.getByLabel('관리대상 이름')).toHaveValue('성내빌라');
+  await expect(page.getByLabel('건물·단지 이름')).toHaveValue('성내빌라');
   await expect(page.getByLabel('상세주소', {
     exact: true
   })).toHaveValue('201호');
@@ -3165,8 +3173,8 @@ test('새로고침에는 같은 사용자 초안을 복원하고 취소·뒤로 
     name: '관리할 곳 만들기',
     exact: true
   }).click();
-  await expect(page.getByLabel('관리대상 이름')).toHaveValue('');
-  await page.getByLabel('관리대상 이름').fill('새 입력');
+  await expect(page.getByLabel('건물·단지 이름')).toHaveValue('');
+  await page.getByLabel('건물·단지 이름').fill('새 입력');
   await page.goBack();
   await expect(page.getByRole('dialog', {
     name: '관리할 곳 등록',
@@ -3183,7 +3191,7 @@ test('다른 계정으로 새로고침하면 이전 계정 입력을 복원하�
     id: '00000000-0000-0000-0000-000000000002'
   }));
   await page.reload();
-  await expect(page.getByLabel('관리대상 이름')).toHaveValue('');
+  await expect(page.getByLabel('건물·단지 이름')).toHaveValue('');
   await expect(page.getByRole('button', {
     name: '등록하고 계속'
   })).toBeDisabled();
@@ -3192,7 +3200,7 @@ test('다른 계정으로 새로고침하면 이전 계정 입력을 복원하�
 test('주소 검색 로딩 실패는 닫거나 재시도할 수 있고 폼 입력이 사라지지 않음', async ({ page }) => {
   await page.route(POSTCODE_SCRIPT_URL, (route) => route.abort());
   await openRegistration(page);
-  await page.getByLabel('관리대상 이름').fill('성내빌라');
+  await page.getByLabel('건물·단지 이름').fill('성내빌라');
   await page.getByRole('button', {
     name: '주소 검색',
     exact: true
@@ -3209,7 +3217,7 @@ test('주소 검색 로딩 실패는 닫거나 재시도할 수 있고 폼 입�
   await page.getByRole('button', {
     name: '도로명 주소 선택'
   }).click();
-  await expect(page.getByLabel('관리대상 이름')).toHaveValue('성내빌라');
+  await expect(page.getByLabel('건물·단지 이름')).toHaveValue('성내빌라');
   await expect(page.getByRole('textbox', {
     name: '주소',
     exact: true
@@ -3257,7 +3265,7 @@ test('검증 중 취소 후 늦게 도착한 성공 응답은 새 등록 입력�
     exact: true
   }).click();
   releaseResponse();
-  await expect(page.getByLabel('관리대상 이름')).toHaveValue('');
+  await expect(page.getByLabel('건물·단지 이름')).toHaveValue('');
   await expect(page.getByRole('status')).toHaveCount(0);
 });
 
@@ -3446,7 +3454,7 @@ for (const width of [1440, 320]) {
       name: '등록 결과를 확인하고 있습니다'
     })).toBeVisible();
     await expect(page.getByRole('heading', {
-      name: '관리대상 등록이 완료되었습니다!'
+      name: '관리할 곳이 등록되었습니다!'
     })).toHaveCount(0);
     await expect(page.getByRole('main')).not.toContainText('조작된 이전 정보');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -3456,7 +3464,7 @@ for (const width of [1440, 320]) {
     });
     release();
     await expect(page.getByRole('heading', {
-      name: '관리대상 등록이 완료되었습니다!'
+      name: '관리할 곳이 등록되었습니다!'
     })).toBeVisible();
     await expect(page.getByRole('region', {
       name: '등록된 정보',
@@ -3468,7 +3476,7 @@ for (const width of [1440, 320]) {
     });
     await page.reload();
     await expect(page.getByRole('heading', {
-      name: '관리대상 등록이 완료되었습니다!'
+      name: '관리할 곳이 등록되었습니다!'
     })).toBeVisible();
     expect(lookups).toBe(2);
     await expect(page.getByRole('main')).not.toContainText('조작된 이전 정보');
@@ -3491,7 +3499,7 @@ for (const status of [403, 404]) {
       name: '모아홈을 시작해 보세요!'
     })).toBeVisible();
     await expect(page.getByRole('heading', {
-      name: '관리대상 등록이 완료되었습니다!'
+      name: '관리할 곳이 등록되었습니다!'
     })).toHaveCount(0);
     await expect(page.getByRole('dialog', {
       name: '관리할 곳 등록',
@@ -3513,7 +3521,7 @@ for (const suffix of ['', '&requestId=invalid']) {
     await expect(page).toHaveURL(/\/start$/);
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(page.getByRole('heading', {
-      name: '관리대상 등록이 완료되었습니다!'
+      name: '관리할 곳이 등록되었습니다!'
     })).toHaveCount(0);
     expect(lookups).toBe(0);
   });
@@ -3566,7 +3574,7 @@ test('완료 조회의 일시 장애에는 이전 정보를 숨기고 재제출 
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
-    name: '관리대상 등록이 완료되었습니다!'
+    name: '관리할 곳이 등록되었습니다!'
   })).toBeVisible();
   expect(lookups).toBe(2);
   expect(posts).toBe(0);
@@ -3722,7 +3730,7 @@ test('완료 화면의 조회 ID가 바뀌면 직전 정보를 숨기고 새 ID�
   });
   await page.goto(COMPLETED_URL);
   await expect(page.getByRole('heading', {
-    name: '관리대상 등록이 완료되었습니다!'
+    name: '관리할 곳이 등록되었습니다!'
   })).toBeVisible();
   await page.evaluate((id) => window.history.pushState(null, '', `/start?registration=complete&requestId=${id}`), otherId);
   await expect(page.getByRole('heading', {
@@ -3753,7 +3761,7 @@ test('캐시 복원 이벤트는 이전 화면을 가리고 로그아웃된 세�
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
-    name: '관리대상 등록이 완료되었습니다!'
+    name: '관리할 곳이 등록되었습니다!'
   })).toBeVisible();
   await page.getByRole('button', {
     name: '등록 정보 다시 보기',
@@ -3804,7 +3812,7 @@ for (const width of [1440, 390, 320]) {
       name: '관리비 요약'
     })).toContainText('10,000원');
     await expect(page.getByRole('heading', {
-      name: '관리대상 등록이 완료되었습니다!'
+      name: '관리할 곳이 등록되었습니다!'
     })).toHaveCount(0);
     await page.getByRole('button', {
       name: '관리계좌 수정',
@@ -3818,17 +3826,17 @@ for (const width of [1440, 390, 320]) {
     await finishSequentialReview(page, 'fees');
     await expect(account).toContainText('변경 관리단');
     await page.getByRole('button', {
-      name: '관리대상 수정',
+      name: '건물·단지 정보 수정',
       exact: true
     }).click();
-    await page.getByLabel('관리대상 이름').fill('수정한 빌라');
+    await page.getByLabel('건물·단지 이름').fill('수정한 빌라');
     await page.getByRole('button', {
       name: '등록하고 계속',
       exact: true
     }).click();
     await finishSequentialReview(page, 'units');
     await expect(page.getByRole('region', {
-      name: '관리대상 요약'
+      name: '건물·단지 정보 요약'
     })).toContainText('수정한 빌라');
     await page.reload();
     await expect(account).toContainText('변경 관리단');
@@ -3850,14 +3858,14 @@ for (const width of [390, 320]) {
     });
     await openRegistrationReview(page);
     const toggles = page.getByRole('button', {
-      name: /^(관리대상 상세|세대 목록|관리계좌 상세|관리비 항목) 펼치기$/
+      name: /^(건물·단지 정보 상세|세대 목록|관리계좌 상세|관리비 항목) 펼치기$/
     });
     await expect(toggles).toHaveCount(4);
     await expect(page.getByRole('button', {
-      name: /^(관리대상|동·세대|관리계좌|관리비 항목) 수정$/
+      name: /^(건물·단지 정보|동·세대|관리계좌|관리비 항목) 수정$/
     })).toHaveCount(4);
     const icons = page.getByRole('region', {
-      name: /^(관리대상|동·세대|관리계좌|관리비) 요약$/
+      name: /^(건물·단지 정보|동·세대|관리계좌|관리비) 요약$/
     }).locator('[data-icon]');
     const iconColors = await icons.evaluateAll((elements) => elements.map((element) => getComputedStyle(element).color));
     expect(new Set(iconColors).size).toBe(4);
@@ -3865,9 +3873,9 @@ for (const width of [390, 320]) {
 
     for (const item of [
       {
-        region: '관리대상 요약',
-        toggle: '관리대상 상세',
-        edit: '관리대상 수정',
+        region: '건물·단지 정보 요약',
+        toggle: '건물·단지 정보 상세',
+        edit: '건물·단지 정보 수정',
         step: 'basic',
         next: '등록하고 계속',
         id: 'review-property-details'
@@ -3984,7 +3992,7 @@ for (const width of [390, 320]) {
       reducedMotion: 'reduce'
     });
     const motion = await page.getByRole('button', {
-      name: '관리대상 상세 펼치기',
+      name: '건물·단지 정보 상세 펼치기',
       exact: true
     }).evaluate((element) => getComputedStyle(element).transitionDuration);
     expect(motion).toBe('0s');
@@ -4204,7 +4212,7 @@ test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전�
     name: '관리 환경을 준비하고 있습니다'
   })).toBeVisible();
   await expect(page.getByRole('button', {
-    name: '관리대상 수정'
+    name: '건물·단지 정보 수정'
   })).toHaveCount(0);
   await page.goBack();
   await expect(page).toHaveURL(/registration=review/);
@@ -4218,7 +4226,7 @@ test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전�
   expect(bodies[0]).not.toHaveProperty('automaticUnitRule');
   release();
   await expect(page.getByRole('heading', {
-    name: '관리대상 등록이 완료되었습니다!',
+    name: '관리할 곳이 등록되었습니다!',
     exact: true
   })).toBeVisible();
   expect(await page.evaluate((keys) => keys.map((key) => sessionStorage.getItem(key)), [DRAFT_STORAGE_KEY, SUBMISSION_KEY])).toEqual([null, null]);
@@ -4248,25 +4256,19 @@ test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전�
     name: '관리자 대시보드로 이동',
     exact: true
   }).click();
-  const dashboardNotice = page.getByRole('dialog', {
-    name: '대시보드 준비 중',
-    exact: true
-  });
-  await expect(dashboardNotice).toBeVisible();
-  await dashboardNotice.getByRole('button', {
-    name: '확인',
-    exact: true
-  }).click();
+  await expect(page).toHaveURL(/\/manage\/[0-9a-f-]+\/dashboard$/);
+  await expect(page.getByRole('main')).toHaveText('임시 페이지');
+  expect(lookups).toBe(0);
   await page.goBack();
   await expect(page).toHaveURL(/registration=complete/);
   await expect.poll(() => lookups).toBe(1);
   await expect(page.getByRole('heading', {
-    name: '관리대상 등록이 완료되었습니다!',
+    name: '관리할 곳이 등록되었습니다!',
     exact: true
   })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('heading', {
-    name: '관리대상 등록이 완료되었습니다!',
+    name: '관리할 곳이 등록되었습니다!',
     exact: true
   })).toBeVisible();
   await expect(page.getByRole('main')).not.toContainText('00012345678');
@@ -4294,7 +4296,7 @@ test('최종 등록 응답 유실은 기존 ID의 결과 조회로 성공을 확
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
-    name: '관리대상 등록이 완료되었습니다!',
+    name: '관리할 곳이 등록되었습니다!',
     exact: true
   })).toBeVisible();
   expect(posts).toBe(1);
@@ -4336,7 +4338,7 @@ test('등록 결과 404와 새로고침 뒤에도 기존 ID·본문을 유지해
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
-    name: '관리대상 등록이 완료되었습니다!',
+    name: '관리할 곳이 등록되었습니다!',
     exact: true
   })).toBeVisible();
   expect(bodies).toHaveLength(2);
@@ -4381,12 +4383,12 @@ for (const originalCompletes of [false, true]) {
       exact: true
     }).click();
     await expect(page).toHaveURL(/registration=basic/);
-    await expect(page.getByLabel('관리대상 이름')).toHaveValue('성내빌라');
+    await expect(page.getByLabel('건물·단지 이름')).toHaveValue('성내빌라');
     await expect(page.getByRole('dialog', {
       name: '관리할 곳 등록',
       exact: true
     }).getByRole('alert')).toHaveCount(0);
-    await page.getByLabel('관리대상 이름').fill('수정한 빌라');
+    await page.getByLabel('건물·단지 이름').fill('수정한 빌라');
     await page.getByRole('button', {
       name: '등록하고 계속',
       exact: true
@@ -4458,7 +4460,7 @@ test('등록 설정을 나간 뒤 등록 내역이 없으면 새 입력 화면�
     exact: true
   })).toBeVisible();
   await expect(page).toHaveURL(/registration=basic/);
-  await expect(page.getByLabel('관리대상 이름')).toHaveValue('');
+  await expect(page.getByLabel('건물·단지 이름')).toHaveValue('');
   await expect(page.getByRole('dialog', {
     name: '관리할 곳 등록',
     exact: true
@@ -4525,7 +4527,7 @@ test('명확한 등록 입력 오류는 해당 단계로 돌아가 값을 유지
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
-    name: '관리대상 등록이 완료되었습니다!',
+    name: '관리할 곳이 등록되었습니다!',
     exact: true
   })).toBeVisible();
   expect(ids).toHaveLength(2);
@@ -4569,7 +4571,7 @@ test('등록 결과 조회 자체가 실패하면 새 요청·수정을 막고 �
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
-    name: '관리대상 등록이 완료되었습니다!',
+    name: '관리할 곳이 등록되었습니다!',
     exact: true
   })).toBeVisible();
   expect(posts).toBe(1);
@@ -4629,7 +4631,7 @@ for (const closeMethod of ['닫기 버튼', 'Escape', '배경 클릭']) {
       exact: true
     })).toBeVisible();
     await expect(page.getByRole('button', {
-      name: '관리대상 수정',
+      name: '건물·단지 정보 수정',
       exact: true
     })).toHaveCount(0);
     expect(await page.evaluate((key) => localStorage.getItem(key), PENDING_KEY)).toBe(bodies[0].requestId);
@@ -4722,7 +4724,7 @@ test('제출 중 새로고침은 기존 요청의 성공 결과를 조회하고 
   await expect.poll(() => posts).toBe(1);
   await page.reload();
   await expect(page.getByRole('heading', {
-    name: '관리대상 등록이 완료되었습니다!',
+    name: '관리할 곳이 등록되었습니다!',
     exact: true
   })).toBeVisible();
   release();
@@ -4764,7 +4766,7 @@ test('이탈·재진입은 제출 본문을 폐기하고 본인 요청 ID만으�
   found = true;
   await page.goto('/start?registration=review');
   await expect(page.getByRole('heading', {
-    name: '관리대상 등록이 완료되었습니다!',
+    name: '관리할 곳이 등록되었습니다!',
     exact: true
   })).toBeVisible();
   expect(posts).toBe(1);
@@ -4852,7 +4854,7 @@ test('잘못된 성공 응답은 완료로 믿지 않고 기존 요청 ID의 유
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
-    name: '관리대상 등록이 완료되었습니다!',
+    name: '관리할 곳이 등록되었습니다!',
     exact: true
   })).toBeVisible();
   expect(lookups).toBe(1);
@@ -4921,7 +4923,7 @@ for (const width of [1440, 390, 320]) {
       exact: true
     }).click();
     await expect(page.getByRole('heading', {
-      name: '관리대상 등록이 완료되었습니다!',
+      name: '관리할 곳이 등록되었습니다!',
       exact: true
     })).toBeVisible();
     await expect(page).toHaveURL(/registration=complete/);
