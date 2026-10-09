@@ -145,7 +145,7 @@ Property
 - Server에는 JWT 검증, Redis 로그인 세션, 웹·앱 재발급 / 로그아웃 API, Bearer 기반 `GET /api/users/me`와 CSRF / CORS 설정이 있습니다. 본인 정보는 ID, 닉네임, 선택 프로필 이미지, 플랫폼 역할과 정상 계정 상태를 제공합니다. 인증 동작은 단위 테스트와 격리된 Redis 통합 테스트로 검증합니다.
 - 웹 카카오 OAuth 시작 / 콜백과 사용자 / 소셜 계정의 세션 연결은 Server에 구현되어 있습니다. Client 공통 API / 세션 복원과 로그인 화면은 모의 인증 응답 기반 Playwright 테스트로 검증하며 실제 카카오 계정 로그인은 별도로 확인합니다.
 - 관리대상 기본 정보 검증, 최종 전체 등록과 성공 결과 조회를 구현했습니다. 초기 설정 / 생성자 ADMIN 참여 / 성공 결과를 한 PostgreSQL 트랜잭션에 저장하고 계좌번호 보호와 동시 요청 중복 방지를 제공합니다. 기본 관리비는 선택적인 추천 항목 코드를 검증·저장하며 직접 입력도 허용합니다. Client에도 추천 종류 / 직접 입력 선택과 코드 초안 복원을 구현했습니다. 상세 범위는 [Server 등록 설계](../server/docs/propertyRegistration.md)를 따릅니다.
-- 관리대상별 로그인 진입 분기와 업무 화면, 주민 참여 / 월별 부과 등 나머지 업무 도메인과 Migration은 후속 구현 범위입니다. 공통 진입과 화면 / 폴더 배치의 후속 설계안은 [Client 서비스 진입 설계](../client/docs/serviceEntry.md)를 참조합니다.
+- 관리대상별 로그인 진입 분기와 업무 화면, 주민 참여 / 월별 부과 등 나머지 업무 도메인과 Migration은 후속 구현 범위입니다. 관리자 영역의 다음 단계는 공통 사이드바·펼침 메뉴, `/manage/[propertyId]/dashboard`의 `임시 페이지`와 관리 가능한 대상에 따른 기본 진입입니다. [Client 서비스 진입 설계](../client/docs/serviceEntry.md), [Client 관리 레이아웃 설계](../client/docs/managementLayout.md), [관리 영역 접근 API](managementAccessApi.md)와 [Server 관리 영역 접근 설계](../server/docs/managementAccess.md)에 구현 예정 기준을 정리했습니다.
 - 위 서비스 구성의 기능 목록은 서비스 목표이며 구현 완료 목록이 아닙니다.
 
 현재 개발 상태가 변경되면 이 문서의 상태 설명도 함께 갱신합니다.

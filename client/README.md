@@ -22,7 +22,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 `/login/callback`은 CSRF 조회 후 토큰을 재발급하고 로그인 완료 상태를 표시합니다. 화면 구현은 `src/screens/login-callback/ui/loginCallbackPage.tsx`이며, 화면 상태 타입과 오류 안내 함수도 같은 파일에서 관리합니다. 최종 관리대상별 진입 화면은 후속 연결 범위입니다. 설정은 [개발 가이드](../docs/developmentGuide.md)의 카카오 로그인 절을 따릅니다.
 
-관리대상별 진입은 관련 조회 API와 업무 화면을 준비한 뒤 구현합니다. 공통 `/entry`, 역할별 목적지와 폴더 배치의 후속 설계안은 [Client 서비스 진입 설계](docs/serviceEntry.md)를 참조합니다. 현재 로그인 사용자의 목적지는 `/start`입니다.
+현재 로그인 사용자의 목적지는 `/start`입니다. 후속 구현에서는 공통 `/entry`와 관리대상 조회 API를 연결해 관리 가능한 대상이 있으면 `/manage/[propertyId]/dashboard`로 이동합니다. [Client 서비스 진입 설계](docs/serviceEntry.md)에 목적지 결정과 등록 흐름 연결을, [관리 레이아웃 설계](docs/managementLayout.md)에 사이드바·드롭다운·링크의 컴포넌트 분리와 메뉴별 목적지를 정리했습니다. 각 메뉴는 자기 페이지를 가지며 `/manage/[propertyId]/layout.tsx`가 공통 틀을 제공합니다. 대시보드는 기본 도착지인 메뉴이며 본문은 `임시 페이지`만 표시하는 계획입니다. 아직 구현하지 않았습니다.
 
 관리대상 기본 정보 등록은 `/start`의 `관리할 곳 만들기`에서 열립니다. `/start?registration=basic`에서 PC 모달 / 모바일 전체 화면, 필수 입력에 따른 계속 버튼 활성화, 카카오 주소 검색, 기본 정보 검증 API와 같은 사용자 / 탭의 새로고침 입력 복원을 제공합니다. 검증 성공 후 `/start?registration=units`의 동·세대 설정으로 이동하며 PC 표 / 모바일 카드, 동·세대 추가·수정·초안 삭제, 검색과 이전 단계 이동을 제공합니다. 기본 정보와 동·세대는 단계 이동과 같은 사용자 / 탭의 새로고침에서 유지합니다. 관리계좌 이후 설정과 최종 등록은 후속 구현 범위입니다. 화면 / 초안 설계는 [Client 등록 설계](docs/propertyRegistration.md), 요청 / 응답 / 오류 계약은 [공통 등록 API](../docs/propertyRegistrationApi.md)를 참조합니다.
 
