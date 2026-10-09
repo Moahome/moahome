@@ -131,7 +131,7 @@ export function restorePendingRegistration(userId: string): PendingRegistration 
         request: readStoredRequest(data.request)
       };
     }
-  } catch { /* 깨진 본문을 재전송하지 않고 남아 있는 ID로 조회만 허용합니다. */ }
+  } catch { /* 깨진 본문을 재전송하지 않고 남아 있는 ID로 결과부터 확인합니다. */ }
 
   return requestId && UUID_PATTERN.test(requestId) ? {
     requestId,

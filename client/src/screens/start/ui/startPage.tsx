@@ -28,7 +28,7 @@ export function StartPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const registration = searchParams.get('registration');
-  const registrationStep = registration === 'basic' || registration === 'units' || registration === 'account' || registration === 'fees' || registration === 'review' ? registration : null;
+  const registrationStep = registration === 'basic' || registration === 'units' || registration === 'account' || registration === 'fees' || registration === 'review' || registration === 'complete' ? registration : null;
   const isSetupStep = registrationStep !== null && registrationStep !== 'basic';
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [notice, setNotice] = useState({
@@ -75,7 +75,7 @@ export function StartPage() {
       className={styles.page}
     >
       <div
-        className={isSetupStep ? styles['setup-header'] : undefined}
+        className={isSetupStep && registrationStep !== 'complete' ? styles['setup-header'] : undefined}
       >
         <StartHeader
           user={session.data}
@@ -90,6 +90,7 @@ export function StartPage() {
           onClose={() => router.replace('/start', {
             scroll: false
           })}
+          onDashboard={() => showNotice('대시보드 준비 중', '관리대상 등록은 완료되었습니다. 관리자 대시보드는 준비 중이에요.')}
         />
       )}
       {!isSetupStep && (

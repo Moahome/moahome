@@ -677,6 +677,14 @@
     > button:last-child:not(:first-child) {
       flex: 1.8;
     }
+
+    &[data-recovery='true'] {
+      flex-direction: column;
+
+      > button {
+        flex: initial;
+      }
+    }
   }
 
   .result-summary {

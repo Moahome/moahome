@@ -3410,7 +3410,7 @@ for (const width of [1440, 390, 320]) {
       name: '관리비 요약'
     })).toContainText('10,000원');
     await expect(page.getByRole('heading', {
-      name: '설정이 완료되었습니다'
+      name: '관리대상 등록이 완료되었습니다!'
     })).toHaveCount(0);
     await page.getByRole('button', {
       name: '관리계좌 수정',
@@ -3796,9 +3796,13 @@ test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전�
     name: '관리 시작하기',
     exact: true
   }).evaluate((button: HTMLButtonElement) => { button.click(); button.click(); });
-  await expect(page.getByRole('button', {
-    name: '저장 중이에요'
-  })).toBeDisabled();
+  await expect(page.getByRole('dialog', {
+    name: '관리 환경을 준비하고 있습니다'
+  })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', {
+    name: '관리 환경을 준비하고 있습니다'
+  })).toBeVisible();
   await expect(page.getByRole('button', {
     name: '관리대상 수정'
   })).toHaveCount(0);
@@ -3814,18 +3818,50 @@ test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전�
   expect(bodies[0]).not.toHaveProperty('automaticUnitRule');
   release();
   await expect(page.getByRole('heading', {
-    name: '설정이 완료되었습니다',
+    name: '관리대상 등록이 완료되었습니다!',
     exact: true
   })).toBeVisible();
   expect(await page.evaluate((keys) => keys.map((key) => sessionStorage.getItem(key)), [DRAFT_STORAGE_KEY, SUBMISSION_KEY])).toEqual([null, null]);
   expect(await page.evaluate((key) => localStorage.getItem(key), PENDING_KEY)).toBeNull();
   const receipt = await page.evaluate((key) => sessionStorage.getItem(key), RECEIPT_KEY);
   expect(receipt).not.toContain('00012345678');
+  await expect(page).toHaveURL(/registration=complete/);
+  await page.getByRole('button', {
+    name: '등록 정보 다시 보기',
+    exact: true
+  }).click();
+  await expect(page.getByRole('region', {
+    name: '관리계좌 요약'
+  })).toContainText('00012345678');
+  await expect(page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  })).toHaveCount(0);
+  await page.getByRole('button', {
+    name: '완료 화면으로 돌아가기',
+    exact: true
+  }).click();
+  await page.getByRole('button', {
+    name: '관리자 대시보드로 이동',
+    exact: true
+  }).click();
+  const dashboardNotice = page.getByRole('dialog', {
+    name: '대시보드 준비 중',
+    exact: true
+  });
+  await expect(dashboardNotice).toBeVisible();
+  await dashboardNotice.getByRole('button', {
+    name: '확인',
+    exact: true
+  }).click();
+  await page.goBack();
+  await expect(page).toHaveURL(/registration=complete/);
   await page.reload();
   await expect(page.getByRole('heading', {
-    name: '설정이 완료되었습니다',
+    name: '관리대상 등록이 완료되었습니다!',
     exact: true
   })).toBeVisible();
+  await expect(page.getByRole('main')).not.toContainText('00012345678');
   expect(bodies).toHaveLength(1);
 });
 
@@ -3849,7 +3885,7 @@ test('최종 등록 응답 유실은 기존 ID의 결과 조회로 성공을 확
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
-    name: '설정이 완료되었습니다',
+    name: '관리대상 등록이 완료되었습니다!',
     exact: true
   })).toBeVisible();
   expect(posts).toBe(1);
@@ -3891,14 +3927,145 @@ test('등록 결과 404와 새로고침 뒤에도 기존 ID·본문을 유지해
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
-    name: '설정이 완료되었습니다',
+    name: '관리대상 등록이 완료되었습니다!',
     exact: true
   })).toBeVisible();
   expect(bodies).toHaveLength(2);
   expect(bodies[1]).toEqual(bodies[0]);
 });
 
-test('명확한 등록 입력 오류는 해당 단계로 돌아가 값을 유지하고 수정 후 새 ID로 저장', async ({ page }) => {
+for (const originalCompletes of [false, true]) {
+  test(`등록 내역 404 뒤 입력 수정은 같은 ID로 재등록하며 늦은 기존 성공(${originalCompletes})도 중복 생성하지 않음`, async ({ page }) => {
+    const bodies: RegistrationRequest[] = [];
+    let originalFound = false;
+    await page.route(FINAL_URL, async (route) => {
+      if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+      const body = route.request().postDataJSON();
+      bodies.push(body);
+      if (bodies.length === 1) return route.abort('failed');
+      if (originalCompletes) {
+        originalFound = true;
+        return fulfillJson(route, {
+          code: 'REGISTRATION_REQUEST_CONFLICT'
+        }, 409);
+      }
+      await fulfillJson(route, registrationResult(body), 201);
+    });
+    await page.route(LOOKUP_URL, async (route) => {
+      if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+      await fulfillJson(route, originalFound ? registrationResult(bodies[0]) : {
+        code: 'REGISTRATION_NOT_FOUND'
+      }, originalFound ? 200 : 404);
+    });
+    await openRegistrationReview(page);
+    await page.getByRole('button', {
+      name: '관리 시작하기',
+      exact: true
+    }).click();
+    const dialog = page.getByRole('dialog', {
+      name: '등록을 완료하지 못했어요',
+      exact: true
+    });
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', {
+      name: '입력 수정하기',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(/registration=basic/);
+    await expect(page.getByLabel('관리대상 이름')).toHaveValue('성내빌라');
+    await expect(page.getByRole('dialog', {
+      name: '관리할 곳 등록',
+      exact: true
+    }).getByRole('alert')).toHaveCount(0);
+    await page.getByLabel('관리대상 이름').fill('수정한 빌라');
+    await page.getByRole('button', {
+      name: '등록하고 계속',
+      exact: true
+    }).click();
+    await finishSequentialReview(page, 'units');
+    await page.getByRole('button', {
+      name: '관리 시작하기',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(/registration=complete/);
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1].requestId).toBe(bodies[0].requestId);
+    expect(bodies[1].basicInfo.name).toBe('수정한 빌라');
+    const information = page.getByRole('region', {
+      name: '등록된 정보',
+      exact: true
+    });
+    await expect(information).toContainText(originalCompletes ? '성내빌라' : '수정한 빌라');
+    if (originalCompletes) {
+      await expect(information).not.toContainText('수정한 빌라');
+      await expect(information).not.toContainText('00012345678');
+      await page.getByRole('button', {
+        name: '등록 정보 다시 보기',
+        exact: true
+      }).click();
+      await expect(page.getByRole('heading', {
+        name: '등록된 정보를 확인해주세요',
+        exact: true
+      })).toBeVisible();
+      await expect(page.getByRole('region', {
+        name: '관리계좌 요약'
+      })).toHaveCount(0);
+    }
+  });
+}
+
+test('등록 설정을 나간 뒤 등록 내역이 없으면 새 입력 화면에서 다시 등록할 수 있음', async ({ page }) => {
+  const bodies: RegistrationRequest[] = [];
+  await page.route(FINAL_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    const body = route.request().postDataJSON();
+    bodies.push(body);
+    if (bodies.length === 1) return route.abort('failed');
+    await fulfillJson(route, registrationResult(body), 201);
+  });
+  await page.route(LOOKUP_URL, (route) => fulfillJson(route, route.request().method() === 'OPTIONS' ? {} : {
+    code: 'REGISTRATION_NOT_FOUND'
+  }, route.request().method() === 'OPTIONS' ? 200 : 404));
+  await openRegistrationReview(page);
+  await page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  }).click();
+  await page.getByRole('button', {
+    name: '등록 안내 닫기',
+    exact: true
+  }).click();
+  await page.getByRole('button', {
+    name: '등록 설정 나가기',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL('/start');
+  await page.getByRole('button', {
+    name: '관리할 곳 만들기',
+    exact: true
+  }).click();
+  await expect(page.getByRole('dialog', {
+    name: '관리할 곳 등록',
+    exact: true
+  })).toBeVisible();
+  await expect(page).toHaveURL(/registration=basic/);
+  await expect(page.getByLabel('관리대상 이름')).toHaveValue('');
+  await expect(page.getByRole('dialog', {
+    name: '관리할 곳 등록',
+    exact: true
+  }).getByRole('alert')).toHaveCount(0);
+  // 기존 입력을 폐기한 새 진입도 같은 ID를 사용해 아직 끝나지 않은 첫 요청과 중복 생성되지 않습니다.
+  await openRegistrationReview(page);
+  await page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/registration=complete/);
+  expect(bodies).toHaveLength(2);
+  expect(bodies[1].requestId).toBe(bodies[0].requestId);
+});
+
+test('명확한 등록 입력 오류는 해당 단계로 돌아가 값을 유지하고 수정 후 기존 ID로 저장', async ({ page }) => {
   const ids: string[] = [];
   await page.route(FINAL_URL, async (route) => {
     if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
@@ -3917,6 +4084,17 @@ test('명확한 등록 입력 오류는 해당 단계로 돌아가 값을 유지
   await openRegistrationReview(page);
   await page.getByRole('button', {
     name: '관리 시작하기',
+    exact: true
+  }).click();
+  const failureDialog = page.getByRole('dialog', {
+    name: '등록에 실패했습니다',
+    exact: true
+  });
+  await expect(failureDialog).toBeVisible();
+  await expect(failureDialog).toContainText('관리계좌: 입력 형식을 확인해주세요.');
+  await expect(failureDialog).not.toContainText('private-error-original');
+  await failureDialog.getByRole('button', {
+    name: '입력 수정하기',
     exact: true
   }).click();
   await expect(page).toHaveURL(/registration=account/);
@@ -3938,11 +4116,11 @@ test('명확한 등록 입력 오류는 해당 단계로 돌아가 값을 유지
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
-    name: '설정이 완료되었습니다',
+    name: '관리대상 등록이 완료되었습니다!',
     exact: true
   })).toBeVisible();
   expect(ids).toHaveLength(2);
-  expect(ids[1]).not.toBe(ids[0]);
+  expect(ids[1]).toBe(ids[0]);
 });
 
 test('등록 결과 조회 자체가 실패하면 새 요청·수정을 막고 같은 ID 조회만 재시도', async ({ page }) => {
@@ -3982,9 +4160,132 @@ test('등록 결과 조회 자체가 실패하면 새 요청·수정을 막고 �
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
-    name: '설정이 완료되었습니다',
+    name: '관리대상 등록이 완료되었습니다!',
     exact: true
   })).toBeVisible();
+  expect(posts).toBe(1);
+});
+
+for (const closeMethod of ['닫기 버튼', 'Escape', '배경 클릭']) {
+  test(`결과 미확인 모달 ${closeMethod}은 안내만 닫고 같은 요청 확인·재시도를 유지`, async ({ page }) => {
+    await page.setViewportSize({
+      width: closeMethod === 'Escape' ? 1440 : 320,
+      height: 900
+    });
+    const bodies: RegistrationRequest[] = [];
+    const lookups: string[] = [];
+    await page.route(FINAL_URL, async (route) => {
+      if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+      const body = route.request().postDataJSON();
+      bodies.push(body);
+      if (bodies.length === 1) return route.abort('failed');
+      await fulfillJson(route, registrationResult(body), 201);
+    });
+    await page.route(LOOKUP_URL, async (route) => {
+      if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+      lookups.push(route.request().url());
+      await fulfillJson(route, {
+        code: 'REGISTRATION_NOT_FOUND'
+      }, 404);
+    });
+    await openRegistrationReview(page);
+    await page.getByRole('button', {
+      name: '관리 시작하기',
+      exact: true
+    }).click();
+    const dialog = page.getByRole('dialog', {
+      name: '등록을 완료하지 못했어요',
+      exact: true
+    });
+    await expect(dialog).toBeVisible();
+    if (closeMethod === '닫기 버튼') {
+      await dialog.getByRole('button', {
+        name: '등록 안내 닫기',
+        exact: true
+      }).click();
+    } else if (closeMethod === 'Escape') {
+      await page.keyboard.press('Escape');
+    } else {
+      await page.mouse.click(2, 2);
+    }
+    await expect(dialog).toHaveCount(0);
+    await expect(page).toHaveURL(/registration=review/);
+    const checkButton = page.getByRole('button', {
+      name: '등록 결과 확인',
+      exact: true
+    });
+    await expect(checkButton).toBeFocused();
+    await expect(page.getByRole('button', {
+      name: '등록 설정 나가기',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('button', {
+      name: '관리대상 수정',
+      exact: true
+    })).toHaveCount(0);
+    expect(await page.evaluate((key) => localStorage.getItem(key), PENDING_KEY)).toBe(bodies[0].requestId);
+    expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    if (closeMethod === '닫기 버튼') {
+      await page.screenshot({
+        path: test.info().outputPath('registrationRecovery320.png'),
+        fullPage: true,
+        animations: 'disabled'
+      });
+    }
+    await checkButton.click();
+    await expect(dialog).toBeVisible();
+    expect(lookups).toEqual([`${FINAL_URL}/${bodies[0].requestId}`, `${FINAL_URL}/${bodies[0].requestId}`]);
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', {
+      name: '같은 정보로 다시 시도',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(/registration=complete/);
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1]).toEqual(bodies[0]);
+  });
+}
+
+test('결과 미확인 안내를 닫고 등록 설정을 나가도 재진입에서 기존 결과를 조회하고 새 등록을 보내지 않음', async ({ page }) => {
+  let body: RegistrationRequest;
+  let posts = 0;
+  let found = false;
+  await page.route(FINAL_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    posts++;
+    body = route.request().postDataJSON();
+    await route.abort('failed');
+  });
+  await page.route(LOOKUP_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    expect(route.request().url()).toBe(`${FINAL_URL}/${body.requestId}`);
+    await fulfillJson(route, found ? registrationResult(body) : {
+      code: 'REGISTRATION_NOT_FOUND'
+    }, found ? 200 : 404);
+  });
+  await openRegistrationReview(page);
+  await page.getByRole('button', {
+    name: '관리 시작하기',
+    exact: true
+  }).click();
+  await page.getByRole('button', {
+    name: '등록 안내 닫기',
+    exact: true
+  }).click();
+  await page.getByRole('button', {
+    name: '등록 설정 나가기',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL('/start');
+  expect(await page.evaluate((key) => sessionStorage.getItem(key), SUBMISSION_KEY)).toBeNull();
+  expect(await page.evaluate((key) => localStorage.getItem(key), PENDING_KEY)).toBe(body!.requestId);
+  found = true;
+  await page.getByRole('button', {
+    name: '관리할 곳 만들기',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/registration=complete/);
   expect(posts).toBe(1);
 });
 
@@ -4012,7 +4313,7 @@ test('제출 중 새로고침은 기존 요청의 성공 결과를 조회하고 
   await expect.poll(() => posts).toBe(1);
   await page.reload();
   await expect(page.getByRole('heading', {
-    name: '설정이 완료되었습니다',
+    name: '관리대상 등록이 완료되었습니다!',
     exact: true
   })).toBeVisible();
   release();
@@ -4054,7 +4355,7 @@ test('이탈·재진입은 제출 본문을 폐기하고 본인 요청 ID만으�
   found = true;
   await page.goto('/start?registration=review');
   await expect(page.getByRole('heading', {
-    name: '설정이 완료되었습니다',
+    name: '관리대상 등록이 완료되었습니다!',
     exact: true
   })).toBeVisible();
   expect(posts).toBe(1);
@@ -4082,7 +4383,7 @@ test('다른 사용자에게 이전 제출 본문·성공 결과를 보여주거
   expect(lookups).toBe(0);
 });
 
-test('손상된 제출 본문은 재전송하지 않고 남아 있는 요청 ID로 결과만 확인', async ({ page }) => {
+test('손상된 제출 본문은 재전송하지 않고 결과가 없으면 기본 정보 입력을 다시 허용', async ({ page }) => {
   await page.route(FINAL_URL, async (route) => {
     if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
     await route.abort('failed');
@@ -4105,10 +4406,15 @@ test('손상된 제출 본문은 재전송하지 않고 남아 있는 요청 ID�
     sessionStorage.setItem(key, JSON.stringify(data));
   }, SUBMISSION_KEY);
   await page.reload();
-  await expect(page.getByRole('button', {
-    name: '등록 결과 확인',
+  await expect(page.getByRole('dialog', {
+    name: '관리할 곳 등록',
     exact: true
   })).toBeVisible();
+  await expect(page).toHaveURL(/registration=basic/);
+  await expect(page.getByRole('dialog', {
+    name: '관리할 곳 등록',
+    exact: true
+  }).getByRole('alert')).toHaveCount(0);
   await expect(page.getByRole('button', {
     name: '같은 정보로 다시 시도',
     exact: true
@@ -4137,8 +4443,90 @@ test('잘못된 성공 응답은 완료로 믿지 않고 기존 요청 ID의 유
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
-    name: '설정이 완료되었습니다',
+    name: '관리대상 등록이 완료되었습니다!',
     exact: true
   })).toBeVisible();
   expect(lookups).toBe(1);
 });
+
+for (const width of [1440, 390, 320]) {
+  test(`등록 상태 ${width}px는 로딩·실패 모달과 별도 완료 페이지를 표시하고 완료 전 입력을 유지`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    let release!: () => void;
+    const responseGate = new Promise<void>((resolve) => { release = resolve; });
+    let posts = 0;
+    await page.route(FINAL_URL, async (route) => {
+      if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+      posts++;
+      const body = route.request().postDataJSON();
+      if (posts === 1) {
+        await responseGate;
+        return fulfillJson(route, {
+          code: 'INVALID_REQUEST',
+          errors: [{
+            field: 'feeItems[0].defaultAmount',
+            reason: 'OUT_OF_RANGE'
+          }]
+        }, 400);
+      }
+      await fulfillJson(route, registrationResult(body), 201);
+    });
+    await openRegistrationReview(page);
+    await page.getByRole('button', {
+      name: '관리 시작하기',
+      exact: true
+    }).click();
+    const loading = page.getByRole('dialog', {
+      name: '관리 환경을 준비하고 있습니다',
+      exact: true
+    });
+    await expect(loading).toBeVisible();
+    await expect(loading).toContainText('관리계좌 및 기본 관리비');
+    await page.screenshot({
+      path: test.info().outputPath(`registrationLoading${width}.png`),
+      animations: 'disabled'
+    });
+    release();
+    const failure = page.getByRole('dialog', {
+      name: '등록에 실패했습니다',
+      exact: true
+    });
+    await expect(failure).toBeVisible();
+    await page.screenshot({
+      path: test.info().outputPath(`registrationFailure${width}.png`),
+      animations: 'disabled'
+    });
+    await failure.getByRole('button', {
+      name: '등록 정보로 돌아가기',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(/registration=review/);
+    await expect(page.getByRole('region', {
+      name: '관리계좌 요약'
+    })).toContainText('00012345678');
+    await page.getByRole('button', {
+      name: '관리 시작하기',
+      exact: true
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '관리대상 등록이 완료되었습니다!',
+      exact: true
+    })).toBeVisible();
+    await expect(page).toHaveURL(/registration=complete/);
+    await expect(page.getByRole('region', {
+      name: '등록된 정보',
+      exact: true
+    })).toContainText('00012345678');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`registrationComplete${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    expect(posts).toBe(2);
+  });
+}

@@ -1,4 +1,40 @@
 const ICON_PATHS = {
+  alert: (
+    <>
+      <circle
+        cx={'12'}
+        cy={'12'}
+        r={'9'}
+      />
+      <path
+        d={'M12 7v6m0 4h.01'}
+      />
+    </>
+  ),
+  location: (
+    <>
+      <path
+        d={'M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z'}
+      />
+      <circle
+        cx={'12'}
+        cy={'10'}
+        r={'3'}
+      />
+    </>
+  ),
+  person: (
+    <>
+      <circle
+        cx={'12'}
+        cy={'7'}
+        r={'4'}
+      />
+      <path
+        d={'M4 21v-2a8 8 0 0 1 16 0v2'}
+      />
+    </>
+  ),
   coins: (
     <>
       <ellipse

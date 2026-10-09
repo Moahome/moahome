@@ -30,23 +30,46 @@ import {
 } from '../registration-icon/registrationIcon';
 import styles from './registrationReview.module.css';
 
-export type SubmissionStatus = 'idle' | 'submitting' | 'checking' | 'unknown' | 'complete';
+export type SubmissionStatus = 'idle' | 'submitting' | 'checking' | 'failed' | 'unknown' | 'complete';
 
-/** 저장 전에는 초안 요약과 수정 이동을 제공하고 성공 응답을 확인한 뒤에만 완료를 표시합니다. */
-export function RegistrationReview({ draft, status, result, message, canRetry, onEdit, onPrevious, onSubmit, onCheck, onRetry, onClose }: {
+/** 저장 전에는 초안 수정·제출을 제공하고 완료 페이지의 다시 보기에서는 읽기 전용 요약을 표시합니다. */
+export function RegistrationReview({
+  draft,
+  status,
+  result,
+  message,
+  canRetry,
+  canEdit,
+  showResultDetails,
+  dialogOpen,
+  onEdit,
+  onPrevious,
+  onSubmit,
+  onCheck,
+  onRetry,
+  onEditRegistration,
+  onExit,
+  onClose,
+}: {
   draft: RegistrationDraft;
   status: SubmissionStatus;
   result: RegistrationResult | null;
   message: string;
   canRetry: boolean;
+  canEdit: boolean;
+  showResultDetails: boolean;
+  dialogOpen: boolean;
   onEdit: (step: RegistrationStep) => void;
   onPrevious: () => void;
   onSubmit: () => void;
   onCheck: () => void;
   onRetry: () => void;
+  onEditRegistration: () => void;
+  onExit: () => void;
   onClose: () => void;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const recoveryRef = useRef<HTMLButtonElement>(null);
   const complete = status === 'complete' && result !== null;
   const locked = status !== 'idle';
   const busy = status === 'submitting' || status === 'checking';
@@ -65,8 +88,8 @@ export function RegistrationReview({ draft, status, result, message, canRetry, o
     }];
   const firstUnit = units[0];
   const firstUnitLabel = firstUnit ? `${draft.buildings.find((building) => building.clientId === firstUnit.buildingClientId)?.name ?? ''} ${getUnitLabel(firstUnit)}`.trim() : '';
-  const hasDraft = draft.units.length > 0 && draft.feeItems.length > 0;
-  const title = complete ? '설정이 완료되었습니다' : '등록 정보를 확인해주세요';
+  const hasDraft = (!complete || showResultDetails) && draft.units.length > 0 && draft.feeItems.length > 0;
+  const title = complete ? '등록된 정보를 확인해주세요' : '등록 정보를 확인해주세요';
   const propertyName = result?.property.name ?? draft.basicInfo.name;
 
   useEffect(() => {
@@ -78,6 +101,13 @@ export function RegistrationReview({ draft, status, result, message, canRetry, o
       behavior: 'instant'
     });
   }, [complete]);
+
+  useEffect(() => {
+    // 모달 닫기에서 비활성 제출 버튼으로 포커스가 돌아가지 않도록 결과 확인 버튼을 복귀점으로 둡니다.
+    if (status === 'unknown' && !dialogOpen) recoveryRef.current?.focus({
+      preventScroll: true
+    });
+  }, [status, dialogOpen]);
 
   return (
     <main
@@ -467,16 +497,23 @@ export function RegistrationReview({ draft, status, result, message, canRetry, o
             </p>
           </aside>
         )}
-        {message && (
+        {message && (status === 'idle' || (status === 'unknown' && !dialogOpen)) && (
           <p
             className={styles.message}
-            role={status === 'idle' || status === 'unknown' ? 'alert' : 'status'}
+            role={'alert'}
           >
             {message}
+            {status === 'unknown' && (
+              <>
+                <br />
+                이 화면을 나가도 이미 요청한 저장은 취소되지 않습니다.
+              </>
+            )}
           </p>
         )}
         <footer
           className={styles.actions}
+          data-recovery={status === 'unknown'}
         >
           {status === 'idle' && (
             <>
@@ -493,26 +530,41 @@ export function RegistrationReview({ draft, status, result, message, canRetry, o
               </Button>
             </>
           )}
-          {busy && (
+          {(busy || status === 'failed' || (status === 'unknown' && dialogOpen)) && (
             <Button
-              loading
+              disabled
             >
-              {status === 'submitting' ? '저장 중이에요' : '등록 결과를 확인하고 있어요'}
+              관리 시작하기
             </Button>
           )}
-          {status === 'unknown' && (
+          {status === 'unknown' && !dialogOpen && (
             <>
               <Button
-                variant={'outline'}
+                variant={'ghost'}
+                onClick={onExit}
+              >
+                등록 설정 나가기
+              </Button>
+              <Button
+                ref={recoveryRef}
                 onClick={onCheck}
               >
                 등록 결과 확인
               </Button>
               {canRetry && (
                 <Button
+                  variant={'outline'}
                   onClick={onRetry}
                 >
                   같은 정보로 다시 시도
+                </Button>
+              )}
+              {canEdit && (
+                <Button
+                  variant={'outline'}
+                  onClick={onEditRegistration}
+                >
+                  입력 수정하기
                 </Button>
               )}
             </>
@@ -521,7 +573,7 @@ export function RegistrationReview({ draft, status, result, message, canRetry, o
             <Button
               onClick={onClose}
             >
-              확인
+              완료 화면으로 돌아가기
             </Button>
           )}
         </footer>

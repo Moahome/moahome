@@ -29,6 +29,8 @@ import { getBankAccountErrors } from '../model/bankAccount';
 import { getFeeItemsError } from '../model/feeItems';
 import { FeeItemsSetup } from './_components/fee-items-setup/feeItemsSetup';
 import { RegistrationReview } from './_components/registration-review/registrationReview';
+import { RegistrationComplete } from './_components/registration-complete/registrationComplete';
+import { SubmissionDialog } from './_components/submission-dialog/submissionDialog';
 import { useRegistrationSubmission } from './_hooks/useRegistrationSubmission';
 import styles from './propertyRegistrationFlow.module.css';
 
@@ -37,14 +39,18 @@ export function PropertyRegistrationFlow({
   userId,
   step,
   onClose,
+  onDashboard,
 }: {
   userId: string;
-  step: RegistrationStep;
+  step: RegistrationStep | 'complete';
   onClose: () => void;
+  onDashboard: () => void;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState(() => restoreRegistrationDraft(userId));
   const [inputMessage, setInputMessage] = useState('');
+  const [showRegisteredDetails, setShowRegisteredDetails] = useState(false);
+  const [submissionDialogOpen, setSubmissionDialogOpen] = useState(true);
   const errorRef = useRef<HTMLParagraphElement>(null);
   const unitsValid = !getUnitSetupError(draft.basicInfo.hasBuildings === true, draft.buildings, draft.units);
   const accountValid = Object.keys(getBankAccountErrors(draft.bankAccount)).length === 0;
@@ -63,13 +69,15 @@ export function PropertyRegistrationFlow({
   }, [router]);
   const submission = useRegistrationSubmission(userId, showInputError);
   const locked = submission.status !== 'idle';
-  let currentStep: RegistrationStep = 'basic';
+  let currentStep: RegistrationStep | 'complete' = 'basic';
   if (step !== 'basic' && draft.basicInfoValidated) currentStep = 'units';
   if (['account', 'fees', 'review'].includes(step) && draft.basicInfoValidated && unitsValid) currentStep = 'account';
   if (['fees', 'review'].includes(step) && currentStep === 'account' && accountValid) currentStep = 'fees';
   if (step === 'review' && currentStep === 'fees' && feesValid) currentStep = 'review';
   // 제출 이후에는 URL 뒤로가기도 수정으로 처리하지 않고 저장 결과부터 확인합니다.
   if (locked) currentStep = 'review';
+  // 저장 성공 뒤에는 이전 단계 이력도 완료 화면으로 치환해 같은 등록을 다시 제출하지 않습니다.
+  if (submission.status === 'complete' && submission.result) currentStep = 'complete';
 
   useEffect(() => () => {
     discardRegistrationDraft();
@@ -78,7 +86,7 @@ export function PropertyRegistrationFlow({
   }, []);
 
   useEffect(() => {
-    if (submission.status === 'complete') {
+    if (currentStep === 'complete') {
       discardRegistrationDraft();
       return;
     }
@@ -143,21 +151,54 @@ export function PropertyRegistrationFlow({
     });
   }
 
+  /** 닫았던 안내도 사용자가 결과 확인·재시도를 선택하면 다시 열며 동일 요청의 복구 처리를 사용합니다. */
+  function checkRegistrationResult() {
+    setSubmissionDialogOpen(true);
+    void submission.check();
+  }
+
+  /** 결과가 없는 것을 확인한 요청에 한해 고정한 ID·본문으로 다시 제출합니다. */
+  function retryRegistration() {
+    setSubmissionDialogOpen(true);
+    submission.retry();
+  }
+
+  /** 새 제출의 안내 표시를 복원하며 중복 제출 여부는 기존 제출 상태에서 검증합니다. */
+  function submitRegistrationDraft() {
+    setSubmissionDialogOpen(true);
+    submission.submit(draft);
+  }
+
   let content;
-  if (currentStep === 'review') {
+  if (currentStep === 'complete' && submission.result && !showRegisteredDetails) {
+    content = (
+      <RegistrationComplete
+        result={submission.result}
+        draft={draft}
+        showDetails={submission.resultHasDetails}
+        onReview={() => setShowRegisteredDetails(true)}
+        onDashboard={onDashboard}
+      />
+    );
+  } else if (currentStep === 'review' || currentStep === 'complete') {
     content = (
       <RegistrationReview
         draft={draft}
         status={submission.status}
         result={submission.result}
         message={submission.message}
-        canRetry={submission.canRetry}
         onEdit={navigateSetup}
         onPrevious={() => navigateSetup('fees')}
-        onSubmit={() => submission.submit(draft)}
-        onCheck={() => { void submission.check(); }}
-        onRetry={submission.retry}
-        onClose={onClose}
+        onSubmit={submitRegistrationDraft}
+        canRetry={submission.canRetry}
+        canEdit={submission.canEdit}
+        showResultDetails={submission.resultHasDetails}
+        dialogOpen={submissionDialogOpen}
+        onCheck={checkRegistrationResult}
+        onRetry={retryRegistration}
+        onEditRegistration={submission.editRegistration}
+        onExit={onClose}
+        onClose={() => setShowRegisteredDetails(false)}
       />
     );
   } else if (currentStep === 'fees') {
@@ -221,7 +262,7 @@ export function PropertyRegistrationFlow({
 
   return (
     <>
-      {inputMessage && currentStep !== 'review' && currentStep !== 'basic' && (
+      {inputMessage && currentStep !== 'review' && currentStep !== 'basic' && currentStep !== 'complete' && (
         <p
           className={styles.error}
           role={'alert'}
@@ -232,6 +273,19 @@ export function PropertyRegistrationFlow({
         </p>
       )}
       {content}
+      {submissionDialogOpen && ['submitting', 'checking', 'failed', 'unknown'].includes(submission.status) && (
+        <SubmissionDialog
+          status={submission.status}
+          message={submission.message}
+          canRetry={submission.canRetry}
+          canEdit={submission.canEdit}
+          onCheck={checkRegistrationResult}
+          onRetry={retryRegistration}
+          onEditRegistration={submission.editRegistration}
+          onDismissFailure={submission.dismissFailure}
+          onDismiss={() => setSubmissionDialogOpen(false)}
+        />
+      )}
     </>
   );
 }

@@ -1,0 +1,203 @@
+.dialog {
+  width: min(100% - 40px, 600px);
+  max-height: calc(100dvh - 40px);
+  margin: auto;
+  padding: 40px 36px 28px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 24px 80px color-mix(in srgb, var(--foreground) 20%, transparent);
+  text-align: center;
+  word-break: keep-all;
+
+  &::backdrop {
+    background: color-mix(in srgb, var(--foreground) 40%, transparent);
+  }
+
+  h2 {
+    margin-top: 24px;
+    outline: none;
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1.4;
+  }
+}
+
+.close-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.spinner {
+  display: block;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto;
+  border: 8px solid color-mix(in srgb, var(--primary) 14%, var(--card));
+  border-top-color: var(--primary);
+  border-right-color: var(--primary);
+  border-radius: 50%;
+  animation: submission-spin 900ms linear infinite;
+}
+
+.status-icon {
+  display: grid;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--warning) 12%, var(--card));
+  color: var(--warning);
+
+  svg {
+    width: 48px;
+    height: 48px;
+  }
+
+  [data-state='failed'] & {
+    background: color-mix(in srgb, var(--danger) 10%, var(--card));
+    color: var(--danger);
+  }
+}
+
+.description {
+  margin-top: 14px;
+  color: var(--sub-text);
+  font-size: 16px;
+  line-height: 1.8;
+}
+
+.save-items {
+  display: grid;
+  gap: 18px;
+  width: fit-content;
+  margin: 30px auto;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-weight: 600;
+  }
+
+  svg {
+    width: 24px;
+    height: 24px;
+    color: var(--primary);
+  }
+}
+
+.hint {
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  color: var(--sub-text);
+  font-size: 14px;
+}
+
+.reason {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 28px;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, var(--warning) 40%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--warning) 5%, var(--card));
+  text-align: left;
+
+  > svg {
+    flex: 0 0 24px;
+    width: 24px;
+    height: 24px;
+    color: var(--warning);
+  }
+
+  strong {
+    font-weight: 700;
+  }
+
+  p {
+    margin-top: 8px;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+  }
+
+  [data-state='failed'] & {
+    border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+    background: color-mix(in srgb, var(--danger) 5%, var(--card));
+
+    > svg,
+    strong {
+      color: var(--danger);
+    }
+  }
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 28px;
+
+  > button {
+    flex: 1;
+    min-width: 0;
+    min-height: 52px;
+    padding-inline: 12px;
+    white-space: normal;
+  }
+}
+
+.footer {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  color: var(--sub-text);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+@keyframes submission-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 767px) {
+  .dialog {
+    width: min(100% - 32px, 480px);
+    padding: 28px 20px 22px;
+    border-radius: 18px;
+
+    h2 {
+      font-size: 23px;
+    }
+  }
+
+  .description {
+    font-size: 14px;
+  }
+
+  .reason {
+    gap: 10px;
+    padding: 16px;
+    font-size: 14px;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
