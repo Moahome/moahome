@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 public interface ResidentRepository extends JpaRepository<Resident, UUID> {
 	java.util.List<Resident> findByPropertyIdAndNameAndPhoneHmac(UUID propertyId, String name, String phoneHmac);
 	java.util.Optional<Resident> findByIdAndPropertyId(UUID id, UUID propertyId);
+	/** 내보내기에서 해당 대상의 미삭제 주민만 한 번에 읽어 다른 대상의 연락처가 섞이지 않게 합니다. */
+	List<Resident> findByPropertyIdAndIdInAndDeletedAtIsNull(UUID propertyId, java.util.Collection<UUID> ids);
 	/**
 	 * 명부 전체를 주민당 한 행으로 읽고 현재 소속과 가입 상태의 근거를 조회합니다.
 	 * 호수·전화번호만으로 사람을 추측하지 않고 확인된 연결과 실제 승인·참여를 사용합니다.

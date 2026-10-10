@@ -9,7 +9,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
-@RestControllerAdvice(assignableTypes = {ResidentListController.class, ResidentRegistrationController.class, com.moahome.server.resident.controller.ResidentImportController.class, com.moahome.server.resident.controller.ResidentManagementController.class})
+@RestControllerAdvice(assignableTypes = {ResidentListController.class, ResidentRegistrationController.class, com.moahome.server.resident.controller.ResidentImportController.class, com.moahome.server.resident.controller.ResidentManagementController.class, com.moahome.server.resident.controller.ResidentExportController.class})
 public class ResidentListExceptionHandler {
 	/** 입력값·SQL·명부·전화번호 원문 대신 원인별 고정 안내만 반환합니다. */
 	@ExceptionHandler({IllegalArgumentException.class, org.springframework.web.bind.MethodArgumentNotValidException.class,

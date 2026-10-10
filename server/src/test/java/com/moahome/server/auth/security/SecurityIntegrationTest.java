@@ -98,6 +98,7 @@ class SecurityIntegrationTest {
 	@MockitoBean private com.moahome.server.resident.service.ResidentRegistrationService residentRegistration;
 	@MockitoBean private com.moahome.server.resident.service.ResidentImportService residentImport;
 	@MockitoBean private com.moahome.server.resident.service.ResidentManagementService residentManagement;
+	@MockitoBean private com.moahome.server.resident.service.ResidentExportService residentExport;
 	@MockitoBean private UserService users;
 	@MockitoBean private UserRepository userRepository;
 	@MockitoBean private SocialAccountRepository socialAccounts;

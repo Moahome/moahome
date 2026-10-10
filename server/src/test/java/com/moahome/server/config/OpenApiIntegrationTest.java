@@ -48,6 +48,7 @@ class OpenApiIntegrationTest {
 	@MockitoBean private com.moahome.server.resident.service.ResidentRegistrationService residentRegistration;
 	@MockitoBean private com.moahome.server.resident.service.ResidentImportService residentImport;
 	@MockitoBean private com.moahome.server.resident.service.ResidentManagementService residentManagement;
+	@MockitoBean private com.moahome.server.resident.service.ResidentExportService residentExport;
 	@MockitoBean private AuthService auth;
 	@MockitoBean private UserRepository users;
 	@MockitoBean private SocialAccountRepository socialAccounts;
@@ -120,7 +121,10 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(21);
+		assertThat(document.path("paths").properties()).hasSize(22);
+		assertThat(document.path("paths").path("/api/properties/{propertyId}/residents/export").at("/post/security/0/bearerAuth").isArray()).isTrue();
+		assertThat(document.at("/components/schemas/ResidentExportRow/properties").properties()).extracting(java.util.Map.Entry::getKey)
+			.containsExactlyInAnyOrder("name", "phone", "unitLabel");
 		for (String method : List.of("get", "put", "delete")) {
 			assertThat(document.path("paths").path("/api/properties/{propertyId}/residents/{residentId}").path(method).at("/security/0/bearerAuth").isArray()).isTrue();
 		}
