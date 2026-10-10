@@ -21,8 +21,34 @@ public class UnitResident {
 	@Column(name = "created_at", nullable = false, columnDefinition = "timestamptz") private OffsetDateTime createdAt;
 	@Column(name = "updated_at", nullable = false, columnDefinition = "timestamptz") private OffsetDateTime updatedAt;
 	@Column(name = "deleted_at", columnDefinition = "timestamptz") private OffsetDateTime deletedAt;
+	@Column(name = "deleted_by") private UUID deletedBy;
+	@Column(name = "move_out_date") private java.time.LocalDate moveOutDate;
 
 	protected UnitResident() { }
+
+	/** 같은 세대에서 주민 구분만 바꾸며 대표 여부는 임의로 변경하지 않습니다. */
+	public void changeRelation(String relation, OffsetDateTime at) {
+		if (!java.util.Set.of("OWNER", "TENANT", "FAMILY", "OTHER").contains(relation)) throw new IllegalArgumentException("Invalid relation");
+		relationType = relation;
+		updatedAt = at;
+	}
+
+	/** 관리소장이 선택한 주민에게만 대표를 넘기며 자동 승계하지 않습니다. */
+	public void designateRepresentative(OffsetDateTime at) {
+		householdRep = true;
+		updatedAt = at;
+	}
+
+	/** 세대 이동·명부 삭제에서 현재 관계를 종료하고 과거 소속과 대표 이력을 보존합니다. */
+	public void end(UUID actor, OffsetDateTime at, boolean deleted) {
+		status = "MOVED_OUT";
+		moveOutDate = at.toLocalDate();
+		updatedAt = at;
+		if (deleted) {
+			deletedAt = at;
+			deletedBy = actor;
+		}
+	}
 
 	/** 같은 관리대상의 신규 주민과 기존 세대만 연결하며 대표 여부는 잠금 아래 최초 등록 판정으로 전달받습니다. */
 	public static UnitResident register(Resident resident, Unit unit, String relationType, boolean representative, OffsetDateTime at) {

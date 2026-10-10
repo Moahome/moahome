@@ -48,6 +48,28 @@ public class Resident implements org.springframework.data.domain.Persistable<UUI
 	protected Resident() {
 	}
 
+	/** 수정에서도 연락처의 암호문·검색값·마스킹 값을 한 묶음으로 변경합니다. */
+	public void update(String name, String encryptedPhone, String phoneHmac, String phoneLast4, OffsetDateTime at) {
+		if ((encryptedPhone == null) != (phoneHmac == null) || (encryptedPhone == null) != (phoneLast4 == null)) {
+			throw new IllegalArgumentException("Incomplete protected contact");
+		}
+		this.name = com.moahome.server.common.validation.TextValues.required(name, 50);
+		this.phoneEncrypted = encryptedPhone;
+		this.phoneHmac = phoneHmac;
+		this.phoneLast4 = phoneLast4;
+		this.updatedAt = java.util.Objects.requireNonNull(at);
+	}
+
+	/** 명부는 이력과 연결 ID를 보존하고 소프트 삭제하며 권한 종료는 같은 트랜잭션의 서비스가 조율합니다. */
+	public void delete(UUID actor, OffsetDateTime at) {
+		deletedAt = java.util.Objects.requireNonNull(at);
+		deletedBy = java.util.Objects.requireNonNull(actor);
+		updatedAt = at;
+	}
+
+	/** 대표가 된 주민의 이전 상세로 수정·삭제하지 못하도록 대표 변경도 조회 버전에 반영합니다. */
+	public void touch(OffsetDateTime at) { updatedAt = java.util.Objects.requireNonNull(at); }
+
 	/** 명부 등록만으로 계정·가입 권한을 연결하지 않고 연락처의 세 저장값은 함께 설정합니다. */
 	public static Resident register(UUID id, UUID propertyId, String name, String encryptedPhone,
 		String phoneHmac, String phoneLast4, OffsetDateTime at) {

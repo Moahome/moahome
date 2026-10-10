@@ -9,4 +9,14 @@ public interface UnitResidentRepository extends JpaRepository<UnitResident, UUID
 	// 최초 등록 여부는 과거·삭제 관계까지 포함하며 대표 부재를 자동 재지정으로 해석하지 않습니다.
 	boolean existsByPropertyIdAndUnitId(UUID propertyId, UUID unitId);
 	Optional<UnitResident> findByPropertyIdAndResidentIdAndStatusAndDeletedAtIsNull(UUID propertyId, UUID residentId, String status);
+
+	/** 대표 후보는 같은 세대의 현재 관계와 삭제되지 않은 실제 명부로 한정합니다. */
+	@org.springframework.data.jpa.repository.Query("""
+		select ur from UnitResident ur, Resident r
+		where ur.propertyId = :propertyId and ur.unitId = :unitId
+		and ur.status = 'ACTIVE' and ur.deletedAt is null
+		and r.id = ur.residentId and r.propertyId = ur.propertyId and r.deletedAt is null
+		order by r.name, r.id
+		""")
+	java.util.List<UnitResident> findCurrentUnitResidents(UUID propertyId, UUID unitId);
 }

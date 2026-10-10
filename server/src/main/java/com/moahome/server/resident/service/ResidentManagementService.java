@@ -1,0 +1,181 @@
+package com.moahome.server.resident.service;
+
+import java.time.*;
+import java.util.*;
+import com.moahome.server.auth.exception.*;
+import com.moahome.server.common.security.PhoneSecurity;
+import com.moahome.server.common.validation.TextValues;
+import com.moahome.server.membership.domain.PropertyMemberRole;
+import com.moahome.server.membership.repo.*;
+import com.moahome.server.property.repo.*;
+import com.moahome.server.property.service.ManagementAccessService;
+import com.moahome.server.resident.domain.*;
+import com.moahome.server.resident.dto.*;
+import com.moahome.server.resident.exception.ResidentRegistrationException;
+import com.moahome.server.resident.repo.*;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import static com.moahome.server.resident.exception.ResidentRegistrationException.Code.*;
+
+@Service
+public class ResidentManagementService {
+    private final ManagementAccessService access;
+    private final PropertyRepository properties;
+    private final ResidentRepository residents;
+    private final UnitResidentRepository affiliations;
+    private final ResidentListService lists;
+    private final ResidentRegistrationService registrations;
+    private final PropertyMemberRepository members;
+    private final MembershipRequestRepository requests;
+    private final ObjectProvider<PhoneSecurity> phones;
+    private final Clock clock;
+
+    public ResidentManagementService(ManagementAccessService access, PropertyRepository properties,
+        ResidentRepository residents, UnitResidentRepository affiliations, ResidentListService lists,
+        ResidentRegistrationService registrations, PropertyMemberRepository members,
+        MembershipRequestRepository requests, ObjectProvider<PhoneSecurity> phones, Clock clock) {
+        this.access = access; this.properties = properties; this.residents = residents; this.affiliations = affiliations;
+        this.lists = lists; this.registrations = registrations; this.members = members;
+        this.requests = requests; this.phones = phones; this.clock = clock;
+    }
+
+    /** 상세 조회에서도 매번 관리소장 권한·관리대상·미삭제 명부를 확인하고 마스킹된 정보만 반환합니다. */
+    @Transactional(readOnly = true)
+    public ResidentDetailResponse detail(UUID actor, UUID propertyId, UUID residentId) {
+        requireAdmin(actor, propertyId);
+        var resident = requireResident(propertyId, residentId);
+        var directory = lists.list(actor, propertyId);
+        var row = directory.residents().stream().filter(item -> item.id().equals(residentId)).findFirst().orElseThrow(() -> failure(RESIDENT_NOT_FOUND));
+        String building = directory.buildings().stream().filter(item -> item.id().equals(row.buildingId())).map(item -> item.name()).findFirst().orElse(null);
+        var current = affiliations.findByPropertyIdAndResidentIdAndStatusAndDeletedAtIsNull(propertyId, residentId, "ACTIVE").orElse(null);
+        // 세대 삭제로 표시 동·호수가 없어도 남아 있는 관계의 대표 승계는 직접 선택할 수 있어야 합니다.
+        var candidateIds = current != null && current.isHouseholdRep()
+            ? affiliations.findCurrentUnitResidents(propertyId, current.getUnitId()).stream().map(UnitResident::getResidentId).filter(id -> !id.equals(residentId)).toList()
+            : List.<UUID>of();
+        var candidates = !candidateIds.isEmpty()
+            ? directory.residents().stream().filter(item -> candidateIds.contains(item.id()))
+                .map(item -> new ResidentDetailResponse.Candidate(item.id(), item.name())).toList()
+            : List.<ResidentDetailResponse.Candidate>of();
+        return new ResidentDetailResponse(residentId, propertyId, resident.getName(), resident.getPhoneLast4(),
+            row.unitId(), row.buildingId(), building, row.unitNumber(), row.relationType(), row.representative(),
+            row.signupStatus(), resident.getCreatedAt(), resident.getUpdatedAt(),
+            !requests.findLinked(propertyId, residentId, resident.getUserId()).isEmpty(), candidates);
+    }
+
+    /** 전체 번호는 사용자 버튼 요청에만 복호화하며 키 장애·변조 암호문을 원문 없는 고정 오류로 변환합니다. */
+    @Transactional(readOnly = true)
+    public String revealPhone(UUID actor, UUID propertyId, UUID residentId) {
+        requireAdmin(actor, propertyId);
+        var resident = requireResident(propertyId, residentId);
+        if (resident.getPhoneEncrypted() == null) return null;
+        try { return phones.getObject().decrypt(resident.getPhoneEncrypted()); }
+        catch (BeansException | IllegalArgumentException | IllegalStateException exception) { throw failure(PHONE_SECURITY_UNAVAILABLE); }
+    }
+
+    /** 등록과 같은 대상 잠금 아래 명부·연락처·확인된 신청·현재 세대·직접 선택한 대표를 원자적으로 수정합니다. */
+    @Transactional
+    public ResidentDetailResponse update(UUID actor, UUID propertyId, UUID residentId, ResidentUpdateRequest input) {
+        requireAdmin(actor, propertyId);
+        var property = properties.findForUnitUpdate(propertyId).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+        var resident = requireResident(propertyId, residentId);
+        requireUnchanged(resident, input.expectedUpdatedAt());
+        var unit = registrations.requireUnit(property, input.unitId());
+        var current = affiliations.findByPropertyIdAndResidentIdAndStatusAndDeletedAtIsNull(propertyId, residentId, "ACTIVE").orElse(null);
+        boolean moving = current == null || !current.getUnitId().equals(unit.getId());
+        var successor = requireSuccessor(propertyId, residentId, moving ? current : null, input.replacementResidentId());
+        var linked = requests.findLinked(propertyId, residentId, resident.getUserId());
+        var name = TextValues.required(input.name(), 50);
+        String encrypted = resident.getPhoneEncrypted(), hmac = resident.getPhoneHmac(), last4 = resident.getPhoneLast4();
+        switch (input.phoneAction()) {
+            case "KEEP" -> { if (input.phone() != null) throw new IllegalArgumentException("Unexpected contact"); }
+            case "REMOVE" -> {
+                if (!linked.isEmpty()) throw failure(CONTACT_REQUIRED_FOR_REQUEST);
+                encrypted = null; hmac = null; last4 = null;
+            }
+            case "REPLACE" -> {
+                var protectedPhone = registrations.protectPhone(input.phone());
+                if (protectedPhone == null) throw new IllegalArgumentException("Contact required");
+                encrypted = protectedPhone.encrypted(); hmac = protectedPhone.hmac(); last4 = protectedPhone.last4();
+            }
+            default -> throw new IllegalArgumentException("Invalid contact action");
+        }
+        if (hmac != null) {
+            var duplicates = residents.findByPropertyIdAndNameAndPhoneHmac(propertyId, name, hmac).stream().filter(item -> !item.getId().equals(residentId)).toList();
+            if (!duplicates.isEmpty()) throw failure(duplicates.stream().anyMatch(item -> item.getDeletedAt() == null) ? DUPLICATE_RESIDENT : RESIDENT_RESTORE_REQUIRED);
+        }
+        // PostgreSQL timestamptz의 마이크로초 정밀도와 맞춰 응답의 수정 시각을 다음 요청에서도 비교할 수 있게 합니다.
+        var at = OffsetDateTime.now(clock).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        resident.update(name, encrypted, hmac, last4, at);
+        if (input.phoneAction().equals("REPLACE")) {
+            for (var request : linked) request.changePhone(encrypted, hmac, last4, at);
+        }
+        if (moving) {
+            if (current != null) current.end(actor, at, false);
+            designateSuccessor(successor, at);
+            // 현재 세대 유일 인덱스에 걸리지 않도록 이전 관계의 종료를 먼저 반영하고 새 관계를 추가합니다.
+            affiliations.flush();
+            boolean first = !affiliations.existsByPropertyIdAndUnitId(propertyId, unit.getId());
+            affiliations.saveAndFlush(UnitResident.register(resident, unit, input.relationType(), first, at));
+        } else current.changeRelation(input.relationType(), at);
+        residents.flush();
+        return detail(actor, propertyId, residentId);
+    }
+
+    /** 명부·현재 관계를 소프트 삭제하고 선택한 대표 승계·해당 대상의 주민 권한 종료·확인된 대기 취소를 함께 저장합니다. */
+    @Transactional
+    public void delete(UUID actor, UUID propertyId, UUID residentId, ResidentDeleteRequest input) {
+        requireAdmin(actor, propertyId);
+        properties.findForUnitUpdate(propertyId).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+        var resident = residents.findByIdAndPropertyId(residentId, propertyId).orElseThrow(() -> failure(RESIDENT_NOT_FOUND));
+        if (resident.getDeletedAt() != null) return;
+        requireUnchanged(resident, input.expectedUpdatedAt());
+        var current = affiliations.findByPropertyIdAndResidentIdAndStatusAndDeletedAtIsNull(propertyId, residentId, "ACTIVE").orElse(null);
+        var successor = requireSuccessor(propertyId, residentId, current, input.replacementResidentId());
+        var at = OffsetDateTime.now(clock).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        if (current != null) current.end(actor, at, true);
+        designateSuccessor(successor, at);
+        resident.delete(actor, at);
+        if (resident.getUserId() != null) {
+            members.findByPropertyIdAndUserIdAndDeletedAtIsNull(propertyId, resident.getUserId()).stream()
+                .filter(member -> member.getRole() == PropertyMemberRole.RESIDENT && member.getEndedAt() == null)
+                .forEach(member -> member.endResidentAccess(actor, at));
+        }
+        requests.findLinked(propertyId, residentId, resident.getUserId()).forEach(request -> request.cancelPending(at));
+    }
+
+    /** 남은 주민이 있는 대표의 이탈은 관리소장의 명시적 선택을 요구하고 다른 세대·삭제 주민·본인을 거부합니다. */
+    private UnitResident requireSuccessor(UUID propertyId, UUID residentId, UnitResident current, UUID selected) {
+        if (current == null || !current.isHouseholdRep()) {
+            if (selected != null) throw failure(INVALID_REPRESENTATIVE);
+            return null;
+        }
+        var remaining = affiliations.findCurrentUnitResidents(propertyId, current.getUnitId()).stream().filter(item -> !item.getResidentId().equals(residentId)).toList();
+        if (remaining.isEmpty() && selected == null) return null;
+        if (selected == null) throw failure(REPRESENTATIVE_REQUIRED);
+        return remaining.stream().filter(item -> item.getResidentId().equals(selected)).findFirst().orElseThrow(() -> failure(INVALID_REPRESENTATIVE));
+    }
+
+    private Resident requireResident(UUID propertyId, UUID residentId) {
+        return residents.findByIdAndPropertyId(residentId, propertyId).filter(item -> item.getDeletedAt() == null).orElseThrow(() -> failure(RESIDENT_NOT_FOUND));
+    }
+
+    /** 대표 선택도 해당 주민의 수정 시각을 갱신해 이전 화면에서 새 대표 여부를 놓친 변경을 거부합니다. */
+    private void designateSuccessor(UnitResident successor, OffsetDateTime at) {
+        if (successor == null) return;
+        successor.designateRepresentative(at);
+        requireResident(successor.getPropertyId(), successor.getResidentId()).touch(at);
+    }
+
+    /** 조회 시점 이후 변경된 입력으로 다른 관리 작업을 덮어쓰지 않습니다. */
+    private void requireUnchanged(Resident resident, OffsetDateTime expected) {
+        if (expected == null || !resident.getUpdatedAt().isEqual(expected)) throw failure(RESIDENT_CHANGED);
+    }
+
+    private void requireAdmin(UUID actor, UUID propertyId) {
+        if (access.getManagementContext(actor, propertyId).role() != PropertyMemberRole.ADMIN) throw new AuthException(AuthErrorCode.ACCESS_DENIED);
+    }
+
+    private ResidentRegistrationException failure(ResidentRegistrationException.Code code) { return new ResidentRegistrationException(code); }
+}

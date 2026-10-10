@@ -4,6 +4,11 @@ import org.springframework.http.HttpStatus;
 
 public class ResidentRegistrationException extends RuntimeException {
 	public enum Code {
+		RESIDENT_NOT_FOUND(HttpStatus.NOT_FOUND, "주민 정보를 찾을 수 없습니다."),
+		RESIDENT_CHANGED(HttpStatus.CONFLICT, "주민 정보가 변경되었습니다. 다시 조회해주세요."),
+		REPRESENTATIVE_REQUIRED(HttpStatus.CONFLICT, "남은 주민 중 새 대표를 선택해주세요."),
+		INVALID_REPRESENTATIVE(HttpStatus.BAD_REQUEST, "같은 세대의 다른 현재 주민을 대표로 선택해주세요."),
+		CONTACT_REQUIRED_FOR_REQUEST(HttpStatus.CONFLICT, "가입 신청이 연결된 주민의 연락처는 비울 수 없습니다."),
 		INVALID_UNIT(HttpStatus.BAD_REQUEST, "등록할 세대를 다시 선택해주세요."),
 		DUPLICATE_RESIDENT(HttpStatus.CONFLICT, "이름과 연락처가 같은 주민이 이미 있습니다. 기존 주민을 확인해주세요."),
 		RESIDENT_RESTORE_REQUIRED(HttpStatus.CONFLICT, "삭제된 명부에 이름과 연락처가 같은 주민이 있습니다. 기존 주민을 확인해주세요."),

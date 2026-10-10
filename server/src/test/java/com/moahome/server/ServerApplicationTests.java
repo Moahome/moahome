@@ -21,6 +21,7 @@ class ServerApplicationTests {
 	@MockitoBean private com.moahome.server.resident.service.ResidentListService residentList;
 	@MockitoBean private com.moahome.server.resident.service.ResidentRegistrationService residentRegistration;
 	@MockitoBean private com.moahome.server.resident.service.ResidentImportService residentImport;
+	@MockitoBean private com.moahome.server.resident.service.ResidentManagementService residentManagement;
 	@MockitoBean private UserRepository users;
 	@MockitoBean private SocialAccountRepository socialAccounts;
 	@MockitoBean private com.moahome.server.property.service.PropertyRegistrationService registrations;

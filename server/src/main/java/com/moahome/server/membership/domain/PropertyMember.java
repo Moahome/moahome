@@ -53,6 +53,14 @@ public class PropertyMember {
 	protected PropertyMember() {
 	}
 
+	/** 명부 삭제는 해당 대상의 주민 참여만 종료하며 관리자 역할이나 다른 대상의 참여를 변경하지 않습니다. */
+	public void endResidentAccess(UUID actor, OffsetDateTime at) {
+		if (role != PropertyMemberRole.RESIDENT) throw new IllegalStateException("Resident participation required");
+		status = PropertyMemberStatus.INACTIVE;
+		endedAt = at;
+		updatedAt = at;
+	}
+
 	/** 인증된 정상 계정을 생성자 ADMIN으로 지정하며 계정의 플랫폼 역할은 변경하지 않습니다. */
 	public static PropertyMember creator(Property property, User user, OffsetDateTime at) {
 		user.requireActive();

@@ -113,6 +113,7 @@ class KakaoOAuthIntegrationTest {
 	@MockitoBean private com.moahome.server.resident.service.ResidentListService residentList;
 	@MockitoBean private com.moahome.server.resident.service.ResidentRegistrationService residentRegistration;
 	@MockitoBean private com.moahome.server.resident.service.ResidentImportService residentImport;
+	@MockitoBean private com.moahome.server.resident.service.ResidentManagementService residentManagement;
 	@MockitoBean private SocialAccountService identities;
 	@MockitoBean private UserService users;
 	@MockitoBean private UserRepository userRepository;
