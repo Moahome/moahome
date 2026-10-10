@@ -28,6 +28,7 @@ API 서버는 `8080`에서 OpenAPI 문서와 업무 API를 제공하고, Swagger
 - [도메인 규칙](docs/domainRules.md)
 - [ERD](docs/erd.md)
 - [관리대상 등록 API](docs/propertyRegistrationApi.md)
+- [세대 관리 API](docs/unitManagementApi.md): 저장된 세대 조회·추가·수정·삭제, 동 관리와 일괄 추가 계약
 - [관리 영역 접근 API](docs/managementAccessApi.md): 본인 관리대상 목록과 현재 관리 권한 조회 계약, 구현
 - [개발 환경 가이드](docs/developmentGuide.md)
 - [JWT 인증 설계](docs/securityDesign.md)
@@ -38,7 +39,8 @@ API 서버는 `8080`에서 OpenAPI 문서와 업무 API를 제공하고, Swagger
 ## 영역별 구현 설계
 
 - [Client 관리대상 등록](client/docs/propertyRegistration.md): 화면, 단계 이동과 브라우저 초안 관리
+- [Client 세대 목록](client/docs/unitList.md): 세대 관리 아래 화면 구조, 상세·수정·삭제의 역할과 구조 검증
 - [Client 서비스 진입](client/docs/serviceEntry.md): 서버 목록 기반 기본 진입과 현재 관리 권한 확인 구현
-- [Client 관리 레이아웃](client/docs/managementLayout.md): 공통 사이드바·드롭다운·링크와 임시 대시보드 구현, 메뉴별 업무 페이지는 후속
+- [Client 관리 레이아웃](client/docs/managementLayout.md): 공통 사이드바·드롭다운·링크와 임시 대시보드 구현, 세대 목록 연결, 그 외 업무 페이지는 후속
 - [Server 관리대상 등록](server/docs/propertyRegistration.md): 검증, 저장과 중복 방지
 - [Server 관리 영역 접근](server/docs/managementAccess.md): 현재 관리자 참여 조회와 접근 검증 구현

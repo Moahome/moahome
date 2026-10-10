@@ -30,14 +30,14 @@
 
 ## 2. URL과 진입점
 
-관리 영역은 `/manage/[propertyId]/...` 아래에 둡니다. `/manage/[propertyId]/dashboard`는 로그인 후 기본 도착지이자 대시보드 메뉴의 목적지입니다. 세대 목록·주민 목록 등 다른 메뉴는 각자의 URL과 페이지를 가지며 대시보드와 같은 공통 레이아웃을 사용합니다. 현재는 `/start`의 목록 조회와 임시 대시보드의 현재 관리 권한 조회를 연결했고 업무 메뉴 페이지는 후속 범위입니다.
+관리 영역은 `/manage/[propertyId]/...` 아래에 둡니다. `/manage/[propertyId]/dashboard`는 로그인 후 기본 도착지이자 대시보드 메뉴의 목적지입니다. 세대 목록·주민 목록 등 다른 메뉴는 각자의 URL과 페이지를 가지며 대시보드와 같은 공통 레이아웃을 사용합니다. 현재는 `/start`의 목록 조회, 임시 대시보드의 현재 관리 권한 조회와 세대 목록을 연결했습니다. 그 외 업무 메뉴 페이지는 후속 범위입니다.
 
 | 화면 | URL | Client 화면 슬라이스 |
 | --- | --- | --- |
 | 공통 진입 처리 — 후속 | `/entry` | `screens/service-entry/` |
 | 만들기 / 초대코드 참여 | `/start` — 기존 경로 | `screens/start/` — 기존 슬라이스 |
 | 관리자 대시보드 — 임시 구현 | `/manage/[propertyId]/dashboard` | `screens/management-dashboard/` |
-| 세대 목록 — 후속 경로 설계안 | `/manage/[propertyId]/households` | 해당 메뉴 구현 시 화면 슬라이스 추가 |
+| 세대 목록 — 연결됨 | `/manage/[propertyId]/households` | 기준: `screens/household/unit-list/`, [구조 검증](unitList.md#6-구조와-동작-검증) |
 | 주민 목록 — 후속 경로 설계안 | `/manage/[propertyId]/residents` | 해당 메뉴 구현 시 화면 슬라이스 추가 |
 | 관리 영역의 후속 업무 | `/manage/[propertyId]/...` | 해당 업무 화면 구현 시 추가 |
 
@@ -62,7 +62,7 @@
 | 위치 | 책임 |
 | --- | --- |
 | 후속 `app/(main)/entry/page.tsx` | 별도 진입 화면으로 분리할 때 추가 |
-| `screens/start/ui/startPage.tsx` | 세션 / 관리대상 조회 조합, 확인 중 / 오류 표시와 최종 라우터 이동 |
+| `screens/start/ui/start-page/startPage.tsx` | 세션 / 관리대상 조회 조합, 확인 중 / 오류 표시와 최종 라우터 이동 |
 | `features/enter-service/api/managementAccessApi.ts` | 기존 authenticatedAPI로 관리 영역 접근 API 호출, 응답 자료형·내용 검증 |
 | `features/enter-service/model/` | 공통 목적지 결정, 사용자별 최근 선택 기록과 공유 조회 상태 |
 | `entities/session/` | 기존 세션 복원 / 본인 정보 조회 재사용 |

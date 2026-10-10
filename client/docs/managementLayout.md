@@ -1,6 +1,6 @@
 # Client 관리 레이아웃 설계
 
-작성일: 2026-10-09. **상태: 공통 사이드바와 임시 대시보드 구현.** 목록 / 현재 관리자 권한 API를 연결했으며 메뉴별 업무 화면은 후속 범위입니다.
+작성일: 2026-10-09. **상태: 공통 사이드바·임시 대시보드·세대 목록 구현.** 목록 / 현재 관리자 권한 API와 세대 목록을 연결했습니다. 세대 목록의 구조·삭제 진입점과 검증 기준은 [세대 목록 설계](unitList.md#6-구조와-동작-검증)에서 관리하며 다른 메뉴별 업무 화면은 후속 범위입니다.
 
 이번 범위는 사이드바·드롭다운·메뉴 링크를 분리한 공통 관리 레이아웃과 `임시 페이지`만 표시하는 대시보드입니다. 각 업무 메뉴는 자기 경로와 페이지를 가지며 같은 레이아웃을 공유합니다. 기본 진입은 [서비스 진입 설계](serviceEntry.md), 관리 권한은 [공통 관리 영역 접근 API](../../docs/managementAccessApi.md), 업무 정책은 [도메인 규칙](../../docs/domainRules.md)을 따릅니다.
 
@@ -20,11 +20,11 @@
 | --- | --- |
 | `app/(main)/manage/[propertyId]/layout.tsx` | 관리 영역 전체의 공통 레이아웃 연결 |
 | 메뉴별 `app/.../page.tsx` | 해당 URL을 화면 슬라이스의 공개 API에 연결 |
-| 메뉴별 `screens/<화면>/ui/...Page.tsx` | 해당 메뉴의 실제 본문 구성 |
+| 메뉴별 `screens/<업무 그룹>/<화면 슬라이스>/ui/<화면 컴포넌트>/...Page.tsx` | 메뉴 계층에 속한 실제 본문 구성, 단독 화면은 업무 그룹 생략 |
 
 `app`의 `page.tsx`와 `screens`의 화면 컴포넌트는 한 페이지의 라우팅 연결과 본문을 나눈 것입니다. 각 업무 화면은 자기 화면 슬라이스를 사용하며 사이드바가 화면 컴포넌트를 직접 가져와 교체하지 않습니다.
 
-아래는 구현한 대시보드와 후속 메뉴 페이지의 관계입니다. 공통 `layout.tsx`와 임시 대시보드는 구현했으며, 후속 업무 페이지 파일은 해당 메뉴를 구현할 때 추가합니다.
+아래는 구현한 대시보드와 후속 메뉴 페이지의 관계입니다. 공통 `layout.tsx`와 임시 대시보드는 구현했으며, 세대 목록 페이지도 구현했고 다른 후속 업무 페이지 파일은 해당 메뉴를 구현할 때 추가합니다.
 
 ```text
 src/app/(main)/manage/[propertyId]/
@@ -32,7 +32,7 @@ src/app/(main)/manage/[propertyId]/
 ├── dashboard/
 │   └── page.tsx               ← 대시보드 메뉴
 ├── households/
-│   └── page.tsx               ← 세대 목록 메뉴, 후속
+│   └── page.tsx               ← 세대 목록 메뉴, 구현
 ├── residents/
 │   └── page.tsx               ← 주민 목록 메뉴, 후속
 └── billing/
@@ -42,10 +42,15 @@ src/app/(main)/manage/[propertyId]/
 src/screens/management-dashboard/
 ├── index.ts
 └── ui/
-    └── managementDashboardPage.tsx
+    └── management-dashboard-page/
+        └── managementDashboardPage.tsx
 ```
 
-후속 메뉴도 각자의 `screens` 공개 API를 연결합니다. 위 트리에서 후속으로 표시한 페이지는 아직 생성하지 않았습니다.
+대시보드도 [UI 폴더 규칙](../AGENTS.md#컴포넌트-폴더-구조)에 따라 컴포넌트 폴더에 배치합니다. 스타일이 없는 현재 대시보드에는 빈 CSS 파일을 만들지 않습니다.
+
+`세대 관리 → 세대 목록`의 화면 기준 경로는 `screens/household/unit-list/`입니다. 라우팅 파일은 그 화면의 `index.ts`를 통해 연결합니다. 진입 UI 배치와 편집·수정·삭제의 역할은 [세대 목록 설계](unitList.md)에서 관리합니다.
+
+후속 메뉴도 각자의 `screens` 공개 API를 연결합니다. 위 트리에서 후속으로 표시한 주민·관리비 페이지는 아직 생성하지 않았습니다.
 
 - `layout.tsx`는 Client 조합 경계인 `managementShell.tsx`로 본문을 연결합니다. 이 조합은 `widgets/management-layout`의 현재 권한 확인과 메뉴 슬롯을 `widgets/service-header`에 전달하며 두 Widget은 서로를 직접 참조하지 않습니다. 라우터의 `layout.tsx`는 Server Component로 유지합니다.
 - `ManagementLayout`은 인증·현재 접근 확인, 사이드바, 모바일 메뉴 버튼과 본문 영역을 조합합니다. 전용 조회 API로 현재 관리자 역할을 검증합니다. 메뉴 목록·드롭다운·링크의 JSX와 스타일은 각각의 컴포넌트가 담당합니다.
@@ -63,8 +68,9 @@ src/screens/management-dashboard/
 src/widgets/management-layout/
 ├── index.ts
 └── ui/
-    ├── managementLayout.tsx
-    ├── managementLayout.module.css
+    ├── management-layout/
+    │   ├── managementLayout.tsx
+    │   └── managementLayout.module.css
     ├── _components/
     │   └── management-sidebar/
     │       ├── managementSidebar.tsx
@@ -130,7 +136,7 @@ Widget 외부에는 `ManagementLayout`의 공개 API를 제공합니다. 페이�
 
 이동 가능한 항목은 `SidebarLink` 안에서 실제 `href`를 가진 Next.js `Link`로 렌더링합니다. 예를 들어 세대 목록의 완성된 주소는 `/manage/{실제 관리대상 UUID}/households`입니다. 링크를 누르면 해당 URL의 `page.tsx`가 연결한 본문으로 이동하며 공통 레이아웃은 유지됩니다. 링크의 새 탭 열기와 브라우저 기본 동작도 유지합니다.
 
-이번 연결에서는 대시보드만 이동 가능한 상태로 둡니다. 나머지 항목도 위 표의 목적지 설계를 유지하되 실제 업무 페이지를 구현하기 전에는 준비 중으로 표시합니다. 준비 중 항목을 누르면 없는 주소나 `#`로 이동시키지 않습니다. 해당 업무를 구현할 때 메뉴별 `page.tsx`와 화면 슬라이스를 연결하고 링크를 활성화합니다. 사이드바 작업을 위해 업무 화면의 내용이나 빈 페이지를 일괄 생성하지 않습니다.
+대시보드와 세대 목록을 이동 가능한 상태로 둡니다. 세대 목록은 실제 저장 데이터를 조회하고 기존 모달로 추가·수정·동 관리를 수행합니다. 세대 삭제는 상세 모달에서 한 세대를 확인한 뒤 처리합니다. 화면 구조·동작·구조 검증은 [세대 목록 설계](unitList.md), 요청·응답·오류는 [세대 관리 API](../../docs/unitManagementApi.md)를 따릅니다. 그 외 항목도 위 표의 목적지 설계를 유지하되 실제 업무 페이지를 구현하기 전에는 준비 중으로 표시합니다. 준비 중 항목을 누르면 없는 주소나 `#`로 이동시키지 않습니다. 해당 업무를 구현할 때 메뉴별 `page.tsx`와 화면 슬라이스를 연결하고 링크를 활성화합니다. 사이드바 작업을 위해 업무 화면의 내용이나 빈 페이지를 일괄 생성하지 않습니다.
 
 ## 3. 펼침과 현재 페이지 표시
 
@@ -139,7 +145,7 @@ Widget 외부에는 `ManagementLayout`의 공개 API를 제공합니다. 페이�
 - 페이지가 바뀌면 `SidebarDropdown`은 해당 페이지의 그룹을 펼치고 `SidebarLink`는 현재 링크를 강조합니다. 경로 비교는 실제 메뉴 경로와 구간을 사용해 다른 메뉴 이름의 일부가 우연히 일치하는 것으로 선택하지 않습니다.
 - `SidebarLink`는 선택한 링크에 `aria-current="page"`를, `SidebarDropdown`은 펼침 버튼에 `aria-expanded`와 `aria-controls`를 제공합니다. 닫힌 하위 항목은 포커스 / 접근성 탐색에서 제외합니다.
 - 각 그룹의 열림 상태는 해당 `SidebarDropdown`에서 관리하며 공통 레이아웃이 유지되는 동안 보존합니다. 메뉴 펼침을 기억하기 위한 별도 브라우저 영속 기록은 만들지 않습니다.
-- 아이콘, 선택 표시, 배경·글씨·테두리는 기존 브랜드와 전역 색상 토큰을 사용합니다. 펼침 애니메이션은 짧게 적용하고 `prefers-reduced-motion`에서는 생략합니다.
+- 아이콘, 선택 표시, 배경·글씨·테두리는 기존 브랜드와 전역 색상 토큰을 사용합니다. 펼친 상위 메뉴는 연한 회색 배경과 본문색 글씨를, 현재 하위 메뉴는 연한 파란색 배경·파란 굵은 글씨·왼쪽 표시선을 사용해 구분합니다. 하위 목록은 상위 메뉴보다 들여쓰며 PC와 모바일에 같은 표현을 적용합니다. 펼침 애니메이션은 짧게 적용하고 `prefers-reduced-motion`에서는 생략합니다.
 
 기존 `shared/ui/form-controls`의 Dropdown은 값을 선택하는 입력입니다. 메뉴 탐색의 펼침 처리는 별도 `SidebarDropdown`으로 분리합니다. 기존 Button을 공개 API로 재사용하며 사이드바의 조합 코드에 입력 Dropdown의 업무를 추가하지 않습니다. 로그아웃은 헤더의 계정 메뉴가 담당합니다.
 

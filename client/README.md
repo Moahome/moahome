@@ -16,21 +16,23 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-랜딩 페이지는 `/`에서 확인할 수 있습니다. 헤더의 데스크톱 / 모바일 메뉴는 세션 확인 중 진입을 기다리고, 비로그인 사용자에게는 `로그인`(`/login`), 로그인 사용자에게는 `시작하기`(`/start`)를 표시합니다. 라우팅 진입점은 `src/app/(landing)/page.tsx`이며, 화면 구현은 `src/screens/landing/ui/landingPage.tsx`에 있습니다. 내부 컴포넌트는 같은 `ui/` 안의 `_components/`, 화면 구성 상수는 `_constants/`에서 관리합니다. 헤더, 로고, 제품 미리보기와 등장 효과의 스타일은 각 컴포넌트 옆의 CSS Modules에서 관리하며, 화면 CSS는 화면 배치와 섹션 스타일을 담당합니다.
+랜딩 페이지는 `/`에서 확인할 수 있습니다. 헤더의 데스크톱 / 모바일 메뉴는 세션 확인 중 진입을 기다리고, 비로그인 사용자에게는 `로그인`(`/login`), 로그인 사용자에게는 `시작하기`(`/start`)를 표시합니다. 라우팅 진입점은 `src/app/(landing)/page.tsx`이며, 화면 구현은 `src/screens/landing/ui/landing-page/landingPage.tsx`에 있습니다. 내부 컴포넌트는 같은 `ui/` 안의 `_components/`, 화면 구성 상수는 `_constants/`에서 관리합니다. 헤더, 로고, 제품 미리보기와 등장 효과의 스타일은 각 컴포넌트 옆의 CSS Modules에서 관리하며, 화면 CSS는 화면 배치와 섹션 스타일을 담당합니다.
 
-로그인 페이지는 `/login`에서 확인할 수 있습니다. 세션 복원과 본인 정보 확인 중에는 로그인 폼을 숨기며, 정상 로그인 사용자는 `/start`로 이동합니다. 일시 장애에는 로그인 폼 대신 재시도 안내를 표시합니다. 라우팅 진입점은 `src/app/(auth)/login/page.tsx`이며, 화면 구현은 `src/screens/login/ui/loginPage.tsx`에 있습니다. 카카오 버튼은 `src/features/kakao-login/`, 공통 로고 심볼은 `src/shared/ui/brand-mark/`에서 관리합니다. 버튼은 `NEXT_PUBLIC_API_HOST`의 `/oauth2/authorization/kakao`로 브라우저를 이동시킵니다. 서버의 로그인 취소 / 실패 코드는 `/login?error=...`에서 안내합니다. 이용약관과 개인정보처리방침은 준비 중 안내를 제공합니다.
+로그인 페이지는 `/login`에서 확인할 수 있습니다. 세션 복원과 본인 정보 확인 중에는 로그인 폼을 숨기며, 정상 로그인 사용자는 `/start`로 이동합니다. 일시 장애에는 로그인 폼 대신 재시도 안내를 표시합니다. 라우팅 진입점은 `src/app/(auth)/login/page.tsx`이며, 화면 구현은 `src/screens/login/ui/login-page/loginPage.tsx`에 있습니다. 카카오 버튼은 `src/features/kakao-login/`, 공통 로고 심볼은 `src/shared/ui/brand-mark/`에서 관리합니다. 버튼은 `NEXT_PUBLIC_API_HOST`의 `/oauth2/authorization/kakao`로 브라우저를 이동시킵니다. 서버의 로그인 취소 / 실패 코드는 `/login?error=...`에서 안내합니다. 이용약관과 개인정보처리방침은 준비 중 안내를 제공합니다.
 
-`/login/callback`은 CSRF 조회 후 토큰을 재발급하고 로그인 완료 상태를 표시합니다. 화면 구현은 `src/screens/login-callback/ui/loginCallbackPage.tsx`이며, 화면 상태 타입과 오류 안내 함수도 같은 파일에서 관리합니다. 최종 관리대상별 진입 화면은 후속 연결 범위입니다. 설정은 [개발 가이드](../docs/developmentGuide.md)의 카카오 로그인 절을 따릅니다.
+`/login/callback`은 CSRF 조회 후 토큰을 재발급하고 로그인 완료 상태를 표시합니다. 화면 구현은 `src/screens/login-callback/ui/login-callback-page/loginCallbackPage.tsx`이며, 화면 상태 타입과 오류 안내 함수도 같은 파일에서 관리합니다. 최종 관리대상별 진입 화면은 후속 연결 범위입니다. 설정은 [개발 가이드](../docs/developmentGuide.md)의 카카오 로그인 절을 따릅니다.
 
 현재 로그인 진입은 `/start`로 연결됩니다. 일반 시작 화면은 서버의 현재 관리자 참여 목록을 조회한 뒤 `/manage/[propertyId]/dashboard`로 이동합니다. 등록 완료 버튼도 같은 경로에 연결했습니다. 공통 사이드바·독립 드롭다운·메뉴 링크와 모바일 메뉴를 구현했고 대시보드 본문은 `임시 페이지`만 표시합니다. 후속 메뉴는 자기 목적지 경로를 정의하되 업무 페이지 구현 전에는 준비 중으로 표시합니다. [서비스 진입 설계](docs/serviceEntry.md)와 [관리 레이아웃 설계](docs/managementLayout.md)를 참조합니다. 관리대상 목록과 현재 관리자 권한을 조회하며 브라우저 등록 기록 없이도 진입합니다. 별도 `/entry` 분리는 후속 범위입니다.
 
-관리대상 기본 정보 등록은 `/start`의 `관리할 곳 만들기`에서 열립니다. `/start?registration=basic`에서 PC 모달 / 모바일 전체 화면, 필수 입력에 따른 계속 버튼 활성화, 카카오 주소 검색, 기본 정보 검증 API와 같은 사용자 / 탭의 새로고침 입력 복원을 제공합니다. 검증 성공 후 `/start?registration=units`의 동·세대 설정으로 이동하며 PC 표 / 모바일 카드, 동·세대 추가·수정·초안 삭제, 검색과 이전 단계 이동을 제공합니다. 기본 정보와 동·세대는 단계 이동과 같은 사용자 / 탭의 새로고침에서 유지합니다. 관리계좌 이후 설정과 최종 등록은 후속 구현 범위입니다. 화면 / 초안 설계는 [Client 등록 설계](docs/propertyRegistration.md), 요청 / 응답 / 오류 계약은 [공통 등록 API](../docs/propertyRegistrationApi.md)를 참조합니다.
+관리대상 등록은 `/start`의 `관리할 곳 만들기`에서 열립니다. 기본 정보 → 동·세대 → 관리계좌 → 관리비 항목 → 등록 확인을 거쳐 최종 제출·결과 조회와 완료 표시로 연결합니다. 단계 입력은 같은 사용자·탭의 새로고침에서 복원하며 초기 등록의 동·세대 삭제는 저장 전 초안을 변경합니다. 화면·초안·제출 상태와 진입 UI의 폴더 배치는 [Client 등록 설계](docs/propertyRegistration.md), 요청·응답·오류 계약은 [공통 등록 API](../docs/propertyRegistrationApi.md)를 참조합니다.
+
+세대 목록은 `/manage/[propertyId]/households` 또는 사이드바의 `세대 목록`에서 확인합니다. 화면의 기준 구조는 `screens/household/unit-list`, 진입 TSX/CSS는 `ui/unit-list-page/`이며 표시 개수 드롭다운은 목록 위 오른쪽에 두고 편집 모드는 제거합니다. 일반 행은 상세 모달을 열고 상세의 수정 버튼은 기존 입력 모달로 연결합니다. 행 수정과 관리 열은 제거했으며 삭제는 상세의 삭제 버튼과 확인 창을 사용합니다. 세대·동 모달은 공통 `ClientModal`로 열고 성공 알림은 본문 대신 공통 토스트로 표시합니다. 화면·역할·구조 검증은 [Client 세대 목록 설계](docs/unitList.md), 요청·응답·오류는 [세대 관리 API](../docs/unitManagementApi.md)를 참조합니다.
 
 ## 코드 배치
 
-FSD의 의존성 경계를 유지하며 화면 전용 UI와 로직은 먼저 해당 화면에 둡니다. 공유 범위나 독립적인 책임이 분명해지면 `features`, `entities`, `widgets`로 분리합니다. 범용 UI는 `shared/ui`, 타입은 해당 화면 / 기능 / 도메인 / API 가까이에 둡니다. 작은 Props와 화면 상태는 컴포넌트 파일에 함께 둘 수 있으며 전역 `components/`, `types/`에 모으지 않습니다.
+FSD의 의존성 경계를 유지하며 상위 업무 메뉴와 하위 화면의 관계는 `screens/<업무 그룹>/<화면 슬라이스>/`로 표현합니다. 화면 진입 UI도 다른 컴포넌트처럼 자기 폴더 안에 TSX와 CSS Modules를 함께 둡니다. 화면 전용 UI와 로직은 먼저 해당 화면에 둡니다. 공유 범위나 독립적인 책임이 분명해지면 `features`, `entities`, `widgets`로 분리합니다. 범용 UI는 `shared/ui`, 타입은 해당 화면 / 기능 / 도메인 / API 가까이에 둡니다. 작은 Props와 화면 상태는 컴포넌트 파일에 함께 둘 수 있으며 전역 `components/`, `types/`에 모으지 않습니다.
 
-다른 슬라이스는 `index.ts` 공개 API로 사용하고, 같은 레이어의 다른 슬라이스는 직접 참조하지 않습니다. `npm run lint`에서 경계를 검사합니다. 상세 기준은 [Client 규칙](AGENTS.md)을 따릅니다.
+다른 슬라이스는 `index.ts` 공개 API로 사용하고, 같은 레이어의 다른 슬라이스는 직접 참조하지 않습니다. `npm run lint`에서 업무 그룹 아래 최종 슬라이스의 경계·공개 API와 UI 진입점의 컴포넌트 폴더 배치를 검사합니다. 이 경계는 `tests/architecture.spec.ts`에서도 검증합니다. 상세 기준은 [Client 규칙](AGENTS.md)을 따릅니다.
 
 `eslint.config.mjs`는 ESLint 9의 flat config로 Next / React / TypeScript 기본 검사를 유지합니다. 작은따옴표, JSX 속성 중괄호, Import / 객체 줄바꿈, 2칸 들여쓰기와 미사용 코드 규칙은 경고로 적용합니다. `npm run lint:fix`는 자동 수정 가능한 서식을 적용하며 세미콜론은 강제하지 않습니다.
 

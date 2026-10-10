@@ -37,6 +37,34 @@ app → screens → widgets → features → entities → shared
 - FSD의 `pages` 역할은 `src/screens/`에서 담당합니다. 화면 레이어 이름에 `_`를 붙이지 않습니다.
 - `src/app/`의 `page.tsx`는 화면 슬라이스의 공개 API를 통해 화면을 연결합니다.
 
+### 화면 그룹과 화면 슬라이스
+
+- 상위 업무 메뉴 아래에 하위 화면이 있으면 `screens/<업무 그룹>/<화면 슬라이스>/`로 배치합니다. 메뉴의 상위·하위 관계가 있는 화면을 `screens/` 바로 아래에 평탄하게 나열하지 않습니다.
+- 세대 관리의 그룹명은 `household`, 세대 목록의 화면 슬라이스명은 `unit-list`입니다. 세대 목록의 기준 경로는 `screens/household/unit-list/`이며 `screens/unit-list/`로 두지 않습니다.
+- 업무 그룹은 화면을 묶는 디렉터리입니다. 그룹에 `ui/`, `model/`, `api/`나 통합 `index.ts`를 두지 않습니다. 각 화면 슬라이스가 필요한 세그먼트와 자기 `index.ts`를 소유합니다.
+- 같은 업무 그룹의 서로 다른 화면도 별도 슬라이스입니다. 형제 화면의 내부 코드나 공개 API를 직접 참조하지 않으며, 실제 공유 코드는 하위 레이어에 둡니다.
+- 단독 화면에는 불필요한 업무 그룹을 만들지 않습니다. 아직 없는 하위 메뉴·화면의 빈 폴더도 미리 만들지 않습니다.
+- URL 경로와 화면 그룹명은 서로 다른 책임입니다. 화면 폴더 정리만을 이유로 기존 `/manage/[propertyId]/households` URL을 변경하지 않습니다.
+
+```text
+src/screens/
+├── household/                       # 세대 관리: 업무 그룹
+│   └── unit-list/                   # 세대 목록: 화면 슬라이스
+│       ├── index.ts                 # 이 화면의 공개 API
+│       ├── api/
+│       ├── model/
+│       └── ui/
+│           └── unit-list-page/
+│               ├── unitListPage.tsx
+│               └── unitListPage.module.css
+└── login-callback/                  # 단독 화면 슬라이스
+    ├── index.ts
+    └── ui/
+        └── login-callback-page/
+            ├── loginCallbackPage.tsx
+            └── loginCallbackPage.module.css
+```
+
 하위 레이어가 상위 레이어를 참조하면 안 됩니다.
 
 예:
@@ -165,6 +193,12 @@ Next.js와 도구가 사용하는 `page.tsx`, `layout.tsx`, `not-found.tsx`,
 - 일반 클릭 버튼은 `shared/ui/button`의 Button, 입력과 선택은 `shared/ui/form-controls`의 Input / Dropdown / Radio를 우선 사용합니다. 화면에는 업무 처리와 배치만 두고 색상·포커스·비활성 표현을 중복 구현하지 않습니다.
 - Dropdown의 placeholder는 미선택 표시이며 실제 옵션에 추가하지 않습니다. 옵션은 고유한 값으로 관리하고 선택 해제는 별도 UI로 제공합니다.
 
+### 화면 동작의 기준
+
+- 편집·수정·삭제 등 사용자 행동은 사용자가 정한 흐름과 해당 화면 설계를 따릅니다. 명칭이 비슷하다는 이유로 역할을 재정의하거나, API·공유 컴포넌트에 기능이 있다는 이유로 버튼을 추가하지 않습니다.
+- 기존 화면을 재사용할 때는 입력·검증·모달과 현재 화면의 동작 구성을 구분합니다. 다른 화면의 모든 버튼을 함께 복사하지 않습니다.
+- 같은 삭제 동작을 행 버튼·관리 열·편집 도구에 중복 노출하지 않습니다. 화면별 진입점과 적용 범위는 해당 Client 설계 문서에 기록합니다. 세대 목록은 [세대 목록 설계](docs/unitList.md#3-상세수정삭제의-역할)를 따릅니다.
+
 ### TypeScript / JSX / CSS 작성 형식
 
 - 들여쓰기는 공백 2칸을 사용합니다.
@@ -209,12 +243,19 @@ Next.js와 도구가 사용하는 `page.tsx`, `layout.tsx`, `not-found.tsx`,
 - 프로젝트 전체의 `components/`에 모든 컴포넌트를 모으지 않습니다. 화면 / 기능 / 도메인별 책임 가까이에 둡니다.
 - 동일한 UI를 중복 구현하지 않습니다.
 
+### 공통 모달과 처리 알림
+
+- 일반 모달은 `shared/ui/client-modal`의 `ClientModal`로 열기·닫기·초기 포커스·포커스 복귀·스크롤 잠금을 재사용합니다. 모달 내용, 저장 요청과 업무별 오류는 호출자가 관리합니다. 저장 중에는 `busy`로 Escape 닫기를 막고 닫기 버튼도 비활성화합니다.
+- 짧은 업무 처리 성공은 `shared/ui/toast`의 `Toast`를 사용합니다. 본문에 성공 문구를 계속 남기지 않습니다. 입력 오류와 저장 실패는 수정·재시도할 수 있도록 해당 폼이나 모달에 유지합니다.
+
 ### 컴포넌트 폴더 구조
 
-- 독립적인 UI 컴포넌트는 컴포넌트 이름의 `kebab-case` 폴더를 만들고, 소스 파일과 CSS Modules를 그 안에 함께 둡니다. `shared/ui`의 공통 컴포넌트와 `ui/_components/`의 내부 컴포넌트에 같은 기준을 적용합니다.
+- 모든 UI 컴포넌트는 컴포넌트 이름의 `kebab-case` 폴더를 만들고, TSX와 해당 CSS Modules를 그 안에 함께 둡니다. 화면 진입점·기능의 진입 UI·공통 UI·내부 컴포넌트에 같은 기준을 적용하며 진입점이라는 이유로 예외를 두지 않습니다. 스타일이 없는 컴포넌트에는 빈 CSS 파일을 만들지 않습니다.
 - 여러 컴포넌트를 묶는 모듈은 모듈 아래에 컴포넌트별 폴더를 둡니다. 예를 들어 `form-controls/form-field/`, `form-controls/input/`, `form-controls/dropdown/`으로 나누며, 모듈 루트에 여러 컴포넌트의 소스와 CSS를 나열하지 않습니다.
 - 모듈의 `index.ts`는 모듈 루트에 두고 외부에서 사용하는 공개 API만 내보냅니다. 컴포넌트 전용 보조 코드는 해당 컴포넌트 폴더에서 관리합니다.
-- 화면 진입 컴포넌트와 CSS Modules는 기존 화면 슬라이스의 `ui/`에 두고, `page.tsx`, `layout.tsx` 등 프레임워크 파일은 정해진 위치와 이름을 유지합니다.
+- `ui/`는 UI 컴포넌트 폴더를 담는 세그먼트입니다. `ui/` 바로 아래에 진입 TSX나 CSS Modules를 나열하지 않습니다. 화면 진입점은 `ui/unit-list-page/unitListPage.tsx`와 `ui/unit-list-page/unitListPage.module.css`처럼 함께 둡니다.
+- `features/property-registration`도 같은 기준을 적용합니다. `ui/property-registration-dialog/`에 `propertyRegistrationDialog.tsx`와 CSS를, `ui/property-registration-flow/`에 `propertyRegistrationFlow.tsx`와 CSS를 각각 함께 둡니다. `registrationDraftLifecycle.tsx`처럼 스타일이 없는 컴포넌트도 `ui/registration-draft-lifecycle/` 폴더에 둡니다.
+- `app`의 `page.tsx`, `layout.tsx`, `not-found.tsx` 등 프레임워크 파일은 라우팅이 요구하는 위치와 이름을 유지합니다. 이 예외를 `screens`나 `features`의 일반 UI 진입점에 적용하지 않습니다.
 
 ### Server / Client Component 선택
 
@@ -235,8 +276,9 @@ FSD 레이어 경계를 우회하는 상대 경로 Import를 만들지 않습니
 다른 Slice의 내부 구현 파일을 직접 참조하지 않습니다.
 
 - 같은 Slice 내부에서는 상대 경로로 참조하며 자기 Slice의 `index.ts`를 거치지 않습니다.
+- 업무 그룹 아래 화면은 최종 화면 슬라이스의 공개 API를 사용합니다. 세대 목록의 외부 Import는 `@/screens/household/unit-list`이며, `@/screens/household`나 `@/screens/household/unit-list/ui/...`로 우회하지 않습니다.
 - `shared/api`, `shared/ui/brand-mark`처럼 공통 모듈별 공개 API를 사용합니다. `shared` 전체를 하나의 `index.ts`로 모으지 않습니다.
-- `npm run lint`의 `architecture/import-boundaries` 규칙으로 상위 레이어 참조, 같은 레이어의 다른 슬라이스 참조와 슬라이스 공개 API 우회를 검사합니다. 별칭과 상대 경로, 문자열 리터럴을 사용하는 동적 Import와 재노출에도 적용합니다.
+- `npm run lint`의 `architecture/import-boundaries` 규칙으로 상위 레이어 참조, 같은 레이어의 다른 슬라이스 참조와 슬라이스 공개 API 우회를 검사합니다. 별칭과 상대 경로, 문자열 리터럴을 사용하는 동적 Import와 재노출에도 적용합니다. 검사기는 업무 그룹과 최종 화면 슬라이스를 구분해야 하며 같은 그룹의 형제 화면도 다른 슬라이스로 검사해야 합니다.
 
 예:
 
@@ -268,7 +310,7 @@ import { PaymentCard } from '@/entities/payment/ui/paymentCard';
 | `ui/_hooks/` | UI 내부 Hook |
 | `ui/_constants/` | 내부 화면 구성 상수 |
 
-- 화면 컴포넌트와 CSS Modules는 `ui/`에 둡니다. UI 내부 보조 폴더도 같은 `ui/` 안에 두며, 화면 슬라이스 루트로 분리하지 않습니다.
+- 화면 컴포넌트와 CSS Modules는 `ui/<화면 컴포넌트>/`에 함께 둡니다. 특정 UI만 사용하는 `_hooks/`, `_utils/`, `_types/`, `_constants/`, `_components/`는 그 UI 컴포넌트 폴더 안에 둘 수 있습니다. 같은 슬라이스의 여러 UI가 공유하는 보조 폴더는 `ui/` 아래에 두며 화면 슬라이스 루트로 분리하지 않습니다.
 - `ui/_components/`의 내부 컴포넌트는 컴포넌트별 `kebab-case` 폴더로 묶습니다. 예를 들어 `start-card/startCard.tsx`와 `start-card/startCard.module.css`를 함께 둡니다.
 - 해당 컴포넌트에서만 쓰는 보조 UI는 같은 컴포넌트 폴더에 두고, 여러 내부 컴포넌트가 공유하는 UI는 별도의 컴포넌트 폴더로 관리합니다.
 - 한 컴포넌트의 Props, 작은 표시 상태 타입과 보조 함수는 해당 컴포넌트 파일에 함께 둘 수 있습니다. 타입이나 함수라는 이유만으로 파일을 분리하지 않습니다.
@@ -282,8 +324,9 @@ import { PaymentCard } from '@/entities/payment/ui/paymentCard';
 src/screens/login-callback/
 ├── index.ts
 └── ui/
-    ├── loginCallbackPage.tsx
-    └── loginCallbackPage.module.css
+    └── login-callback-page/
+        ├── loginCallbackPage.tsx
+        └── loginCallbackPage.module.css
 ```
 
 `index.ts`에는 외부에서 사용하는 화면 진입점만 공개합니다.
@@ -339,14 +382,17 @@ npm test
 ```
 
 - 구현 변경 후 위 ESLint, TypeScript 타입 검사, 프로덕션 빌드를 수행합니다.
-- Playwright로 공통 API / 세션 복원 / 업무 API 인증 테스트와 로그인 / 기본 정보 등록 화면 통합 테스트를 실행합니다. 최초 브라우저 준비는 `npx playwright install chromium`을 사용합니다.
-- `npm run test:api`는 브라우저 없이 API / 세션 복원 / 업무 API 인증과 관리비 금액 계산 단위 테스트를 실행하고, `npm run test:e2e`는 로그인 / 초기 설정 화면 통합 테스트를 실행합니다. 설치된 Chrome을 사용하려면 `PLAYWRIGHT_CHANNEL=chrome npm test`로 실행합니다.
+- Playwright로 구조 경계 / 공통 API / 세션 복원 / 업무 API 인증 테스트와 로그인 / 기본 정보 등록 화면 통합 테스트를 실행합니다. 최초 브라우저 준비는 `npx playwright install chromium`을 사용합니다.
+- `npm run test:api`는 브라우저 없이 구조 경계 / API / 세션 복원 / 업무 API 인증과 관리비 금액 계산 단위 테스트를 실행하고, `npm run test:e2e`는 로그인 / 초기 설정 화면 통합 테스트를 실행합니다. 설치된 Chrome을 사용하려면 `PLAYWRIGHT_CHANNEL=chrome npm test`로 실행합니다.
 - 통합 테스트 서버는 포트 `3100`과 `.next-test/`를 사용합니다. 테스트는 인증 / 등록 응답과 주소 검색 SDK를 모의 처리하며 실제 카카오, 개발 서버 DB나 Redis를 호출하지 않습니다.
 - ESLint, 타입 검사와 빌드 결과를 단위 테스트 통과로 보고하지 않습니다. 기본 빌드가 실행 환경 제한으로 실패해 대체 빌드를 검증한 경우 명령과 빌드 방식을 함께 기록합니다.
 - 업무 로직을 구현할 때 필요한 테스트 환경과 실행 스크립트를 함께 추가하고, 실제 명령을 이 문서에 갱신합니다.
 - 금액 / 상태 계산은 단위 테스트로, 사용자 상호작용과 로딩 / 오류 / 빈 상태는 컴포넌트 테스트로 검증합니다.
 - 로그인, 관리비 부과, 수납 확정 등 핵심 흐름은 해당 기능이 구현되는 시점에 필요한 통합 / E2E 테스트를 추가합니다.
 - UI 변경은 개발 서버(`npm run dev`)에서 영향받는 화면과 반응형 표시도 확인합니다.
+- 구조 변경 전에는 메뉴 계층 → 업무 그룹 → 최종 화면 슬라이스 → 공개 API → UI 컴포넌트 폴더를 대조합니다. 진입 TSX/CSS의 같은 폴더 배치, 형제 화면 참조 금지와 기존 모달 재사용도 함께 확인합니다.
+- 화면 동작은 해당 Client 설계의 일반 / 편집 상태와 대조합니다. 선택 삭제가 있는 화면에 행 삭제를 임의로 더하지 않았는지 확인합니다.
+- ESLint의 `architecture/import-boundaries`는 `SCREEN_GROUPS`에 등록한 업무 그룹 아래 최종 화면을 별도 슬라이스로 검사하고, `architecture/ui-folders`는 `ui/` 또는 `_components/` 바로 아래의 진입 TSX를 차단합니다. 그룹을 추가할 때 그룹 설정과 경계 테스트도 함께 맞춥니다. CSS의 동일 폴더 배치는 별도로 확인합니다.
 - 스냅샷이나 구현 내부를 그대로 따라가는 테스트보다 사용자에게 보이는 결과와 업무 규칙을 검증합니다.
 - 문서만 변경한 경우 루트 Verification 규칙을 따릅니다.
 
