@@ -13,7 +13,13 @@ public record ResidentRegistrationRequest(
 	@NotNull UUID unitId,
 	@NotBlank @Pattern(regexp = "OWNER|TENANT|FAMILY|OTHER") String relationType
 ) {
-	public ResidentRegistrationRequest { name = TextValues.strip(name); phone = TextValues.optional(phone); }
+	/** 구분을 모르는 등록도 허용하되 저장 관계는 항상 명시적인 OTHER 값으로 정규화합니다. */
+	public ResidentRegistrationRequest {
+		name = TextValues.strip(name);
+		phone = TextValues.optional(phone);
+		relationType = TextValues.optional(relationType);
+		if (relationType == null) relationType = "OTHER";
+	}
 
 	@Override public String toString() { return "ResidentRegistrationRequest[REDACTED]"; }
 }

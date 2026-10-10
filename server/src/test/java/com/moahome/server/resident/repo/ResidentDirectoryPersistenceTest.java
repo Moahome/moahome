@@ -366,7 +366,7 @@ class ResidentDirectoryPersistenceTest {
         var existing = registrations.register(actor, property.getId(), registration(existingUnit.getId(), "기존 대표", null));
         var preview = imports.preview(actor, property.getId(), excel(new String[][] {
             {"", "301", "선택 안 함", "소유주", ""},
-            {"", "301", "첫 선택", "임차인", ""},
+            {"", "301", "첫 선택", "", ""},
             {"", "301", "두 번째", "가족", ""},
             {"", "302", "기존 세대 추가", "가족", ""},
             {"", "999", "오류 제외", "가족", ""}
@@ -381,6 +381,7 @@ class ResidentDirectoryPersistenceTest {
         assertThat(directory).hasSize(4);
         assertThat(directory.stream().filter(row -> row.id().equals(existing.id())).findFirst().orElseThrow().representative()).isTrue();
         assertThat(directory).allMatch(row -> row.signupStatus() == ResidentSignupStatus.NOT_JOINED);
+        assertThat(directory.stream().filter(row -> row.name().equals("첫 선택")).findFirst().orElseThrow().relationType()).isEqualTo("OTHER");
     }
 
     @Test

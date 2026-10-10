@@ -52,6 +52,16 @@ class ResidentRegistrationControllerTest {
     }
 
     @Test
+    void defaultsOmittedNullOrBlankRelationToOther() throws Exception {
+        when(service.register(eq(actor), eq(propertyId), any())).thenReturn(new ResidentRegistrationResponse(requestId, propertyId, unitId, true));
+        for (String relation : List.of("", ",\"relationType\":null", ",\"relationType\":\"  \"")) {
+            String body = "{\"requestId\":\"%s\",\"name\":\"주민\",\"unitId\":\"%s\"%s}".formatted(requestId, unitId, relation);
+            mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated());
+        }
+        verify(service, times(3)).register(eq(actor), eq(propertyId), argThat(request -> request.relationType().equals("OTHER")));
+    }
+
+    @Test
     void requiresAuthenticationAndValidatesBodyWithoutLeakingInput() throws Exception {
         mvc.perform(post(url).contentType(MediaType.APPLICATION_JSON).content(input("주민", "null", "TENANT"))).andExpect(status().isUnauthorized());
         for (String body : List.of("{}", input("  ", "null", "TENANT"), input("주민", "null", "ADMIN"), "{broken")) {

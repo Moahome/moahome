@@ -61,7 +61,7 @@ export function ResidentRegistrationForm({
   const [phone, setPhone] = useState('');
   const [buildingId, setBuildingId] = useState(resident?.buildingId ?? '');
   const [unitId, setUnitId] = useState(resident?.unitId ?? '');
-  const [relationType, setRelationType] = useState(resident?.relationType ?? '');
+  const [relationType, setRelationType] = useState(resident?.relationType ?? 'OTHER');
   const [phoneAction, setPhoneAction] = useState<'KEEP' | 'REPLACE' | 'REMOVE'>('KEEP');
   const [replacementResidentId, setReplacementResidentId] = useState('');
   const [attempted, setAttempted] = useState(false);
@@ -283,7 +283,6 @@ export function ResidentRegistrationForm({
         />
         <Dropdown
           label={'주민 구분'}
-          required
           value={relationType}
           options={RESIDENT_RELATION_OPTIONS}
           onChange={setRelationType}

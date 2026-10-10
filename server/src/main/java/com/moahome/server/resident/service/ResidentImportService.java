@@ -163,6 +163,8 @@ public class ResidentImportService {
     private String key(String building, String number) { return building + "\u0000" + number; }
     private String clip(String value) { return value == null ? "" : value.substring(0, Math.min(120, value.length())); }
     private String relation(String input) {
+        // 비어 있는 주민 구분은 미확인 기타로 저장하고 잘못 입력한 값은 기존처럼 행 오류로 안내합니다.
+        if (input == null || input.isBlank()) return "OTHER";
         return switch (input) {
             case "소유주", "소유자", "주인", "OWNER" -> "OWNER";
             case "임차인", "세입자", "TENANT" -> "TENANT";
