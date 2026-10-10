@@ -1,9 +1,10 @@
 'use client';
 
+import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/entities/session';
 import { useManagementContext } from '@/features/enter-service';
-import { ResidentRegistrationForm } from '@/features/resident-registration';
+import { ResidentRegistrationForm } from '@/features/resident-management';
 import styles from './residentRegistrationPage.module.css';
 
 /** 모바일의 독립 등록 주소를 제공하고 직접 접근에서도 현재 관리소장에게만 폼을 표시합니다. */
@@ -13,6 +14,7 @@ export function ResidentRegistrationPage({
   propertyId: string;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const session = useSession();
   const context = useManagementContext(session.data?.id, propertyId, false);
   const listPath = `/manage/${propertyId}/residents`;
@@ -48,7 +50,7 @@ export function ResidentRegistrationPage({
           주민 등록
         </h1>
         <p>
-          주민 정보와 소속 세대를 입력해주세요.
+          주민 정보와 동·호수를 입력해주세요.
         </p>
       </header>
       <div
@@ -57,7 +59,12 @@ export function ResidentRegistrationPage({
         <ResidentRegistrationForm
           propertyId={propertyId}
           onCancel={() => router.replace(listPath)}
-          onRegistered={() => router.replace(`${listPath}?registered=1`)}
+          onSaved={() => {
+            void queryClient.invalidateQueries({
+              predicate: (query) => ['property-residents', 'property-units'].includes(String(query.queryKey[0]))
+            });
+            router.replace(`${listPath}?registered=1`);
+          }}
         />
       </div>
     </section>

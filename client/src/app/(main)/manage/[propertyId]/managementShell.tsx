@@ -36,10 +36,20 @@ export function ManagementShell({
 
 /** 직접 접근에서도 같은 관리대상 안의 목록·상세로 돌아가는 모바일 헤더를 구성합니다. */
 function getMobileBack(pathname: string, basePath: string) {
+  if (pathname === `${basePath}/residents/import`) return {
+    href: `${basePath}/residents`,
+    label: '주민 목록으로 돌아가기',
+    title: '엑셀 업로드'
+  };
   if (pathname === `${basePath}/residents/new`) return {
     href: `${basePath}/residents`,
     label: '주민 목록으로 돌아가기',
     title: '주민 등록'
+  };
+  if (pathname.startsWith(`${basePath}/residents/`)) return {
+    href: `${basePath}/residents`,
+    label: '주민 목록으로 돌아가기',
+    title: '주민 상세'
   };
   if (!pathname.startsWith(`${basePath}/households/`)) return undefined;
   if (pathname.endsWith('/edit')) return {

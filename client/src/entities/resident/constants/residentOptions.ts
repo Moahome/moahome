@@ -3,7 +3,7 @@ import type { Option } from '@/shared/lib/options';
 export const RESIDENT_RELATION_OPTIONS: readonly Option[] = [
   {
     value: 'OWNER',
-    label: '소유자'
+    label: '소유주'
   },
   {
     value: 'TENANT',

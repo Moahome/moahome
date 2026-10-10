@@ -19,11 +19,13 @@ export function ResidentListTable({
   buildings,
   hasBuildings,
   hasFilters,
+  onOpen,
 }: {
   residents: ResidentRow[];
   buildings: ResidentList['buildings'];
   hasBuildings: boolean;
   hasFilters: boolean;
+  onOpen: (row: ResidentRow) => void;
 }) {
   const buildingNames = new Map(buildings.map((building) => [building.id, building.name]));
   const columns: DataTableColumn<ResidentRow>[] = [
@@ -31,7 +33,16 @@ export function ResidentListTable({
       key: 'name',
       header: '주민명',
       rowHeader: true,
-      render: (row) => row.name
+      render: (row) => (
+        <button
+          type={'button'}
+          className={styles['name-button']}
+          aria-label={`${row.name} 상세 보기`}
+          onClick={() => onOpen(row)}
+        >
+          {row.name}
+        </button>
+      )
     },
     {
       key: 'phone',
@@ -40,12 +51,12 @@ export function ResidentListTable({
     },
     {
       key: 'unit',
-      header: '소속 세대',
+      header: '동·호수',
       render: (row) => getResidentUnitLabel(row, buildingNames, hasBuildings)
     },
     {
       key: 'relation',
-      header: '관계',
+      header: '주민 구분',
       render: (row) => RESIDENT_RELATION_OPTIONS.find((option) => option.value === row.relationType)?.label ?? '—'
     },
     {
@@ -80,6 +91,7 @@ export function ResidentListTable({
       columns={columns}
       getRowKey={(row) => row.id}
       minWidth={760}
+      onRowClick={onOpen}
       emptyState={hasFilters ? '검색 결과가 없어요.' : '등록된 주민이 없어요.'}
     />
   );

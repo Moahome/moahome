@@ -13,7 +13,7 @@ export function getSortedBuildings<T extends { name: string }>(buildings: readon
 }
 
 /** 동 이름을 먼저 비교하고 같은 동의 세대는 표시 이름 대신 원본 호수의 숫자 순서로 표시합니다. */
-export function getSortedUnits(units: UnitDraft[], buildings: BuildingDraft[], hasBuildings: boolean) {
+export function getSortedUnits<T extends Pick<UnitDraft, 'buildingClientId' | 'unitNumber'>>(units: readonly T[], buildings: readonly Pick<BuildingDraft, 'clientId' | 'name'>[], hasBuildings: boolean) {
   const buildingNames = new Map(buildings.map((building) => [building.clientId, building.name]));
 
   return [...units].sort((left, right) => {

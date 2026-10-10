@@ -1,4 +1,5 @@
 import { ApiError } from '@/shared/api';
+import { getSortedUnits } from '@/entities/property';
 import type {
   ResidentList,
   ResidentRow
@@ -18,6 +19,10 @@ export const EMPTY_RESIDENT_FILTERS: ResidentFilters = {
   signupStatus: ''
 };
 
+const NAME_COLLATOR = new Intl.Collator('ko', {
+  numeric: true
+});
+
 /** 소속이 없는 명부는 대시로 표시하고 같은 세대 문구를 표와 검색에서 함께 사용합니다. */
 export function getResidentUnitLabel(row: ResidentRow, buildings: ReadonlyMap<string, string>, hasBuildings: boolean) {
   if (!row.unitNumber) return '—';
@@ -27,7 +32,7 @@ export function getResidentUnitLabel(row: ResidentRow, buildings: ReadonlyMap<st
   return `${buildings.get(row.buildingId ?? '') ?? '—'} ${number}`;
 }
 
-/** 주민을 한 행으로 검색·필터링하고 결과가 줄어들어도 유효한 페이지로 표시합니다. */
+/** 동·호수를 숫자 순으로 정렬한 뒤 페이지를 나누며 같은 세대는 이름·ID 순, 소속 없는 주민은 마지막에 표시합니다. */
 export function getResidentListView(data: ResidentList, filters: ResidentFilters, page: number, pageSize: number) {
   const buildings = new Map(data.buildings.map((building) => [building.id, building.name]));
   const search = filters.query.trim().toLocaleLowerCase();
@@ -35,12 +40,24 @@ export function getResidentListView(data: ResidentList, filters: ResidentFilters
     && (!filters.relationType || row.relationType === filters.relationType)
     && (!filters.signupStatus || row.signupStatus === filters.signupStatus)
     && `${row.name} ${row.phoneLast4 ?? ''} ${getResidentUnitLabel(row, buildings, data.hasBuildings)}`.toLocaleLowerCase().includes(search));
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const byName = [...filtered].sort((left, right) => NAME_COLLATOR.compare(left.name, right.name) || left.id.localeCompare(right.id));
+  const sorted = [
+    ...getSortedUnits(byName.filter((row) => row.unitNumber !== null).map((row) => ({
+      ...row,
+      buildingClientId: row.buildingId,
+      unitNumber: row.unitNumber ?? ''
+    })), data.buildings.map((building) => ({
+      clientId: building.id,
+      name: building.name
+    })), data.hasBuildings),
+    ...byName.filter((row) => row.unitNumber === null)
+  ];
+  const pageCount = Math.max(1, Math.ceil(sorted.length / pageSize));
   const currentPage = Math.max(1, Math.min(page, pageCount));
 
   return {
-    filtered,
-    rows: filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    filtered: sorted,
+    rows: sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize),
     currentPage,
     pageCount,
     hasFilters: Boolean(filters.query || filters.buildingId || filters.relationType || filters.signupStatus)

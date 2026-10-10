@@ -68,12 +68,12 @@ export function ResidentListFilters({
         />
       )}
       <Dropdown
-        aria-label={'관계 필터'}
+        aria-label={'주민 구분 필터'}
         clearable={false}
         value={filters.relationType || 'ALL'}
         options={[{
           value: 'ALL',
-          label: '전체 관계'
+          label: '전체 주민 구분'
         }, ...RESIDENT_RELATION_OPTIONS]}
         onChange={(value) => onChange({
           ...filters,

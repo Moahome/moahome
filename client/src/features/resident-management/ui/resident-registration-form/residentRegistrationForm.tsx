@@ -27,18 +27,25 @@ import {
   normalizeResidentPhone
 } from '../../model/residentRegistration';
 import styles from './residentRegistrationForm.module.css';
+import {
+  updateResident,
+  type ResidentDetail
+} from '../../api/residentManagementApi';
+import { getResidentManagementError } from '../../model/residentManagement';
 
 /** 웹 모달과 모바일 페이지가 같은 입력·세대 선택·저장 검증을 사용하며 초안을 저장소에 남기지 않습니다. */
 export function ResidentRegistrationForm({
   propertyId,
-  onRegistered,
+  onSaved,
   onCancel,
-  onBusyChange
+  onBusyChange,
+  resident
 }: {
   propertyId: string;
-  onRegistered: () => void;
+  onSaved: (resident?: ResidentDetail) => void;
   onCancel: () => void;
   onBusyChange?: (busy: boolean) => void;
+  resident?: ResidentDetail;
 }) {
   const session = useSession();
   const options = useQuery({
@@ -50,11 +57,13 @@ export function ResidentRegistrationForm({
     gcTime: 0,
     refetchOnWindowFocus: false
   });
-  const [name, setName] = useState('');
+  const [name, setName] = useState(resident?.name ?? '');
   const [phone, setPhone] = useState('');
-  const [buildingId, setBuildingId] = useState('');
-  const [unitId, setUnitId] = useState('');
-  const [relationType, setRelationType] = useState('');
+  const [buildingId, setBuildingId] = useState(resident?.buildingId ?? '');
+  const [unitId, setUnitId] = useState(resident?.unitId ?? '');
+  const [relationType, setRelationType] = useState(resident?.relationType ?? '');
+  const [phoneAction, setPhoneAction] = useState<'KEEP' | 'REPLACE' | 'REMOVE'>('KEEP');
+  const [replacementResidentId, setReplacementResidentId] = useState('');
   const [attempted, setAttempted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -84,25 +93,43 @@ export function ResidentRegistrationForm({
   let normalizedPhone: string | null = null;
   let phoneError = '';
   try {
-    normalizedPhone = normalizeResidentPhone(phone);
+    normalizedPhone = normalizeResidentPhone(resident && phoneAction !== 'REPLACE' ? '' : phone);
+    if (resident && phoneAction === 'REPLACE' && !normalizedPhone) phoneError = '새 연락처를 입력해주세요.';
   } catch {
     phoneError = '올바른 연락처를 입력해주세요.';
   }
   const nameError = !name.trim() || [...name.trim()].length > 50 ? '이름을 1~50자로 입력해주세요.' : '';
-  const unitError = !selectable.some((unit) => unit.clientId === unitId) ? '소속 세대를 선택해주세요.' : '';
-  const relationError = !RESIDENT_RELATION_OPTIONS.some((item) => item.value === relationType) ? '관계를 선택해주세요.' : '';
+  const unitError = !selectable.some((unit) => unit.clientId === unitId) ? '동·호수를 선택해주세요.' : '';
+  const relationError = !RESIDENT_RELATION_OPTIONS.some((item) => item.value === relationType) ? '주민 구분을 선택해주세요.' : '';
+  const needsRepresentative = Boolean(resident && resident.unitId !== unitId && resident.representativeCandidates.length);
+  const representativeError = needsRepresentative && !replacementResidentId ? '남은 주민 중 새 대표를 선택해주세요.' : '';
+  const submitLabel = resident ? '수정' : '등록';
+  const pendingLabel = resident ? '수정 중…' : '등록 중…';
 
   /** 중복 클릭을 즉시 차단하며 실패에는 입력과 요청 ID를 유지하여 같은 저장을 안전하게 재시도합니다. */
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAttempted(true);
-    if (pendingRef.current || !options.isSuccess || nameError || phoneError || unitError || relationError) return;
+    if (pendingRef.current || !options.isSuccess || nameError || phoneError || unitError || relationError || representativeError) return;
     pendingRef.current = true;
     setBusy(true);
     setMessage('');
     onBusyChange?.(true);
     requestId.current ??= crypto.randomUUID();
     try {
+      if (resident) {
+        const saved = await updateResident(propertyId, resident.id, {
+          name: name.trim(),
+          unitId,
+          relationType,
+          phoneAction,
+          phone: phoneAction === 'REPLACE' ? normalizedPhone : null,
+          replacementResidentId: needsRepresentative ? replacementResidentId : null,
+          expectedUpdatedAt: resident.updatedAt
+        });
+        if (activeRef.current) onSaved(saved);
+        return;
+      }
       await registerResident(propertyId, {
         requestId: requestId.current,
         name: name.trim(),
@@ -110,9 +137,9 @@ export function ResidentRegistrationForm({
         unitId,
         relationType
       });
-      if (activeRef.current) onRegistered();
+      if (activeRef.current) onSaved();
     } catch (error) {
-      if (activeRef.current) setMessage(getResidentRegistrationError(error));
+      if (activeRef.current) setMessage(resident ? getResidentManagementError(error) : getResidentRegistrationError(error));
     } finally {
       pendingRef.current = false;
       if (activeRef.current) {
@@ -188,17 +215,42 @@ export function ResidentRegistrationForm({
           error={attempted ? nameError : undefined}
           placeholder={'이름을 입력해주세요'}
         />
-        <Input
-          label={'연락처 (선택)'}
-          name={'residentPhone'}
-          type={'tel'}
-          autoComplete={'off'}
-          value={phone}
-          onChange={(event) => setPhone(event.target.value)}
-          error={attempted ? phoneError : undefined}
-          placeholder={'010-1234-5678'}
-          description={'목록에는 끝 4자리만 표시됩니다.'}
-        />
+        {resident && (
+          <Dropdown
+            label={'연락처 변경'}
+            value={phoneAction}
+            clearable={false}
+            options={[
+              {
+                value: 'KEEP',
+                label: `기존 연락처 유지${resident.phoneLast4 ? ` (•••• ${resident.phoneLast4})` : ' (없음)'}`
+              },
+              {
+                value: 'REPLACE',
+                label: '새 연락처로 변경'
+              },
+              ...(!resident.hasLinkedRequests ? [{
+                value: 'REMOVE',
+                label: '연락처 삭제'
+              }] : [])
+            ]}
+            onChange={(value) => { setPhoneAction(value as 'KEEP' | 'REPLACE' | 'REMOVE'); setPhone(''); }}
+          />
+        )}
+        {(!resident || phoneAction === 'REPLACE') && (
+          <Input
+            label={resident ? '새 연락처' : '연락처 (선택)'}
+            required={Boolean(resident)}
+            name={'residentPhone'}
+            type={'tel'}
+            autoComplete={'off'}
+            value={phone}
+            onChange={(event) => setPhone(event.target.value)}
+            error={attempted ? phoneError : undefined}
+            placeholder={'010-1234-5678'}
+            description={'목록에는 끝 4자리만 표시됩니다.'}
+          />
+        )}
         {data?.hasBuildings && (
           <Dropdown
             label={'동'}
@@ -217,7 +269,7 @@ export function ResidentRegistrationForm({
           />
         )}
         <Dropdown
-          label={'소속 세대'}
+          label={'동·호수'}
           required
           value={unitId}
           options={selectable.map((unit) => ({
@@ -230,19 +282,33 @@ export function ResidentRegistrationForm({
           error={attempted ? unitError : undefined}
         />
         <Dropdown
-          label={'세대와의 관계'}
+          label={'주민 구분'}
           required
           value={relationType}
           options={RESIDENT_RELATION_OPTIONS}
           onChange={setRelationType}
-          placeholder={'관계를 선택해주세요'}
+          placeholder={'주민 구분을 선택해주세요'}
           error={attempted ? relationError : undefined}
         />
+        {needsRepresentative && (
+          <Dropdown
+            label={'기존 동·호수의 새 대표'}
+            required
+            value={replacementResidentId}
+            options={resident!.representativeCandidates.map((item) => ({
+              value: item.id,
+              label: item.name
+            }))}
+            onChange={setReplacementResidentId}
+            placeholder={'남은 주민 중 선택해주세요'}
+            error={attempted ? representativeError : undefined}
+          />
+        )}
       </fieldset>
       <p
         className={styles.notice}
       >
-        해당 세대에 처음 등록되는 주민은 대표로 지정됩니다. 주민 등록 후 서비스 가입은 별도로 진행합니다.
+        {resident ? '연락처 변경은 연결된 가입 신청에도 반영합니다. 동·호수를 옮기는 대표 주민은 기존 세대의 새 대표를 직접 선택해주세요.' : '해당 세대에 처음 등록되는 주민은 대표로 지정됩니다. 주민 등록 후 서비스 가입은 별도로 진행합니다.'}
       </p>
       {message && (
         <p
@@ -264,9 +330,11 @@ export function ResidentRegistrationForm({
         </Button>
         <Button
           type={'submit'}
+          variant={resident ? 'outline' : 'primary'}
+          tone={resident ? 'success' : undefined}
           loading={busy}
         >
-          {busy ? '등록 중…' : '등록'}
+          {busy ? pendingLabel : submitLabel}
         </Button>
       </div>
     </form>

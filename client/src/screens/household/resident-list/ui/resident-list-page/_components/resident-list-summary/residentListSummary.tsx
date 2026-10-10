@@ -1,5 +1,5 @@
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import { SummaryCard } from '@/shared/ui/summary-card';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import type { ResidentRow } from '../../../../api/residentApi';
 import styles from './residentListSummary.module.css';
 

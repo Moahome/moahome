@@ -1,0 +1,41 @@
+.checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+}
+
+.badge {
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--sub-text);
+  white-space: nowrap;
+
+  &[data-status='READY'],
+  &[data-status='SUCCESS'] {
+    background: color-mix(in srgb, var(--success) 10%, var(--card));
+    color: var(--success);
+  }
+
+  &[data-status='DUPLICATE'] {
+    color: var(--warning);
+  }
+
+  &[data-status='ERROR'] {
+    background: color-mix(in srgb, var(--danger) 8%, var(--card));
+    color: var(--danger);
+  }
+}
+
+.reason {
+  display: block;
+  min-width: 180px;
+  max-width: 260px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.single-line {
+  white-space: nowrap;
+}
