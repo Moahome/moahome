@@ -1,9 +1,10 @@
 .link {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 36px;
-  padding: 7px 10px 7px 45px;
+  min-height: 40px;
+  padding: 9px 12px 9px 24px;
   border-radius: 8px;
   color: var(--sub-text);
   font-size: 13px;
@@ -18,8 +19,25 @@
   }
 
   &[aria-current='page'] {
-    background: color-mix(in srgb, var(--primary) 9%, var(--card));
+    background: color-mix(in srgb, var(--primary) 8%, var(--card));
     color: var(--primary);
+    font-weight: 700;
+
+    &:not([data-icon='true'])::before {
+      position: absolute;
+      top: 50%;
+      left: 10px;
+      width: 3px;
+      height: 18px;
+      border-radius: 999px;
+      background: var(--primary);
+      content: '';
+      transform: translateY(-50%);
+    }
+
+    &:hover {
+      background: color-mix(in srgb, var(--primary) 10%, var(--card));
+    }
   }
 
   &[aria-disabled='true'] {
