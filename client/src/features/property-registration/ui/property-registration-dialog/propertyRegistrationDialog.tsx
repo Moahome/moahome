@@ -20,6 +20,7 @@ import {
   Radio
 } from '@/shared/ui/form-controls';
 import { HomeIllustration } from '@/shared/ui/home-illustration';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import { validateBasicInfo } from '../../api/basicInfoApi';
 import {
   getBasicInfoErrors,
@@ -29,7 +30,6 @@ import {
   type BasicInfoDraft
 } from '../../model/basicInfo';
 import { AddressSearch } from '../_components/address-search/addressSearch';
-import { RegistrationIcon } from '../_components/registration-icon/registrationIcon';
 import styles from './propertyRegistrationDialog.module.css';
 
 /** 오류 코드를 안전한 화면 안내로 바꾸고 서버 응답 원문을 노출하지 않습니다. */
@@ -158,8 +158,9 @@ export function PropertyRegistrationDialog({
           aria-label={'등록 취소하고 돌아가기'}
           onClick={onClose}
           leadingIcon={(
-            <RegistrationIcon
-              name={'back'}
+            <ServiceIcon
+              name={'chevron'}
+              direction={'left'}
             />
           )}
         />
@@ -175,7 +176,7 @@ export function PropertyRegistrationDialog({
         aria-label={'관리할 곳 등록 닫기'}
         onClick={onClose}
         leadingIcon={(
-          <RegistrationIcon
+          <ServiceIcon
             name={'close'}
           />
         )}
@@ -254,7 +255,7 @@ export function PropertyRegistrationDialog({
                 value={draft.address}
                 placeholder={'주소를 검색해주세요.'}
                 leadingIcon={(
-                  <RegistrationIcon
+                  <ServiceIcon
                     name={'search'}
                   />
                 )}
@@ -335,7 +336,7 @@ export function PropertyRegistrationDialog({
         <aside
           className={styles.notice}
         >
-          <RegistrationIcon
+          <ServiceIcon
             name={'info'}
           />
           <p>
@@ -373,8 +374,9 @@ export function PropertyRegistrationDialog({
             disabled={!canContinue}
             loading={isValidating}
             trailingIcon={(
-              <RegistrationIcon
-                name={'next'}
+              <ServiceIcon
+                name={'chevron'}
+                direction={'right'}
               />
             )}
           >

@@ -6,7 +6,7 @@ import {
   type ReactNode
 } from 'react';
 import { Button } from '@/shared/ui/button';
-import { ManagementIcon } from '../../management-icon/managementIcon';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './sidebarDropdown.module.css';
 
 /** 각 그룹은 독립적으로 펼치며 현재 페이지가 속한 그룹으로 이동하면 자동으로 엽니다. */
@@ -57,8 +57,10 @@ export function SidebarDropdown({
           className={styles.chevron}
           data-open={open}
         >
-          <ManagementIcon
+          <ServiceIcon
+            size={22}
             name={'chevron'}
+            direction={'down'}
           />
         </span>
       </Button>

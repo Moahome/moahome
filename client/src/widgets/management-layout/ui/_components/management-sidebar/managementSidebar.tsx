@@ -1,8 +1,8 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import { MANAGEMENT_NAVIGATION } from '../../_constants/managementNavigation';
-import { ManagementIcon } from '../management-icon/managementIcon';
 import { SidebarDropdown } from './sidebar-dropdown/sidebarDropdown';
 import { SidebarLink } from './sidebar-link/sidebarLink';
 import styles from './managementSidebar.module.css';
@@ -38,7 +38,8 @@ export function ManagementSidebar({
                 <SidebarDropdown
                   label={item.label}
                   icon={(
-                    <ManagementIcon
+                    <ServiceIcon
+                      size={22}
                       name={item.icon}
                     />
                   )}
@@ -63,7 +64,8 @@ export function ManagementSidebar({
                   propertyId={propertyId}
                   pathname={pathname}
                   icon={(
-                    <ManagementIcon
+                    <ServiceIcon
+                      size={22}
                       name={item.icon}
                     />
                   )}

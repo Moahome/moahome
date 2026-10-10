@@ -1,4 +1,4 @@
-import { RegistrationIcon } from '../registration-icon/registrationIcon';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './setupProgress.module.css';
 
 const REGISTRATION_STEPS = ['기본 정보', '동·세대', '관리계좌', '관리비 항목', '등록 정보 확인'];
@@ -37,7 +37,7 @@ export function SetupProgress({
               aria-hidden={'true'}
             >
               {complete || index + 1 < currentStep ? (
-                <RegistrationIcon
+                <ServiceIcon
                   name={'check'}
                 />
               ) : index + 1}

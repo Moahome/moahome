@@ -8,9 +8,9 @@ import {
 import Link from 'next/link';
 import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import { NAVIGATION_ITEMS } from '../../_constants/landingContent';
 import { BrandLogo } from '../brand-logo/brandLogo';
-import { LandingIcon } from '../landing-icon/landingIcon';
 import styles from './landingHeader.module.css';
 
 /** 복원 중에는 진입을 기다리고 본인 정보가 확인된 사용자는 로그인 없이 시작 화면으로 연결합니다. */
@@ -118,7 +118,7 @@ export function LandingHeader() {
           aria-controls={'landing-mobile-menu'}
           aria-haspopup={'dialog'}
         >
-          <LandingIcon
+          <ServiceIcon
             name={'menu'}
           />
         </button>
@@ -160,7 +160,7 @@ export function LandingHeader() {
               onClick={closeMenu}
               aria-label={'메뉴 닫기'}
             >
-              <LandingIcon
+              <ServiceIcon
                 name={'close'}
               />
             </button>
@@ -188,7 +188,7 @@ export function LandingHeader() {
                   </small>
                   {label}
                 </span>
-                <LandingIcon
+                <ServiceIcon
                   name={'arrow'}
                 />
               </a>

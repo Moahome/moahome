@@ -1,14 +1,14 @@
-import type { LandingIconName } from '../_components/landing-icon/landingIcon';
+import type { ServiceIconName } from '@/shared/ui/service-icon';
 
 export const ROLES: {
-  icon: LandingIconName;
+  icon: ServiceIconName;
   title: string;
   summary: string;
   description: string;
   items: string[];
 }[] = [
   {
-    icon: 'people',
+    icon: 'users',
     title: '주민 관리',
     summary: '조회 · 계좌 · 납부상태',
     description: '우리 집 관리비, 궁금할 때 바로 확인해요.',
@@ -43,7 +43,7 @@ export const ROLES: {
 ];
 
 export const BENEFITS: {
-  icon: LandingIconName;
+  icon: ServiceIconName;
   title: string;
   description: string;
 }[] = [
@@ -53,7 +53,7 @@ export const BENEFITS: {
     description: '주민이 언제든지\n내역을 확인할 수 있습니다.',
   },
   {
-    icon: 'bolt',
+    icon: 'electricity',
     title: '간편한 업무',
     description: '반복되는 관리 업무를\n더 쉽게 처리할 수 있습니다.',
   },
@@ -63,7 +63,7 @@ export const BENEFITS: {
     description: '확정된 부과·수납·지출을\n회계 기록으로 연결합니다.',
   },
   {
-    icon: 'people',
+    icon: 'users',
     title: '소규모 주택에 최적화',
     description: '빌라, 다세대, 소규모 공동주택을\n위한 서비스입니다.',
   },
@@ -120,12 +120,12 @@ export const AUDIENCE_ITEMS = [
   {
     title: '직접 관리하는 주민 · 관리자',
     text: '관리 경험이 적어도 이해하기 쉽게.',
-    icon: 'people',
+    icon: 'users',
   },
 ] as const satisfies readonly {
   title: string;
   text: string;
-  icon: LandingIconName;
+  icon: ServiceIconName;
 }[];
 
 export const NAVIGATION_ITEMS = [

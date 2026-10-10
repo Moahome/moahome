@@ -7,6 +7,7 @@ import {
 import { UNIT_STATUS_OPTIONS } from '@/entities/property';
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/form-controls';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   getFloorLabel,
   getUnitLabel,
@@ -17,7 +18,6 @@ import {
   getSortedBuildings,
   getSortedUnits
 } from '../../_utils/setupSorting';
-import { RegistrationIcon } from '../registration-icon/registrationIcon';
 import { UnitDeleteConfirmation } from '../unit-delete-confirmation/unitDeleteConfirmation';
 import styles from './unitList.module.css';
 
@@ -110,7 +110,7 @@ export function UnitList({
               size={'sm'}
               onClick={onManageBuildings}
               trailingIcon={(
-                <RegistrationIcon
+                <ServiceIcon
                   name={'settings'}
                 />
               )}
@@ -141,7 +141,7 @@ export function UnitList({
                   className={styles['chip-icon']}
                   aria-hidden={'true'}
                 >
-                  <RegistrationIcon
+                  <ServiceIcon
                     name={'building'}
                   />
                 </span>
@@ -164,7 +164,7 @@ export function UnitList({
             onChange={(event) => changeFilter(activeBuildingFilter, event.target.value)}
             fieldClassName={styles.search}
             leadingIcon={(
-              <RegistrationIcon
+              <ServiceIcon
                 name={'search'}
               />
             )}
@@ -183,7 +183,7 @@ export function UnitList({
             onClick={() => onAdd(activeBuildingFilter || undefined)}
             disabled={hasBuildings && !buildings.length}
             leadingIcon={(
-              <RegistrationIcon
+              <ServiceIcon
                 name={'plus'}
               />
             )}
@@ -332,7 +332,7 @@ export function UnitList({
                       <span
                         className={styles['unit-icon']}
                       >
-                        <RegistrationIcon
+                        <ServiceIcon
                           name={'building'}
                         />
                       </span>
@@ -408,8 +408,9 @@ export function UnitList({
                         aria-label={`${label} 수정`}
                         onClick={() => onEdit(unit.clientId)}
                         trailingIcon={(
-                          <RegistrationIcon
-                            name={'next'}
+                          <ServiceIcon
+                            name={'chevron'}
+                            direction={'right'}
                           />
                         )}
                       >
@@ -425,7 +426,7 @@ export function UnitList({
           <div
             className={styles.empty}
           >
-            <RegistrationIcon
+            <ServiceIcon
               name={'building'}
             />
             <h3>
@@ -476,7 +477,7 @@ export function UnitList({
         onClick={() => onAdd(activeBuildingFilter || undefined)}
         disabled={hasBuildings && !buildings.length}
         leadingIcon={(
-          <RegistrationIcon
+          <ServiceIcon
             name={'plus'}
           />
         )}

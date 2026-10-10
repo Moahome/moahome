@@ -5,8 +5,8 @@ import {
   useRef
 } from 'react';
 import { Button } from '@/shared/ui/button';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import type { SubmissionStatus } from '../registration-review/registrationReview';
-import { RegistrationIcon } from '../registration-icon/registrationIcon';
 import styles from './submissionDialog.module.css';
 
 /** 저장 결과를 확인할 수 없을 때와 등록 내역이 없을 때의 복구 행동을 구분합니다. */
@@ -113,7 +113,7 @@ export function SubmissionDialog({
           aria-label={'등록 안내 닫기'}
           onClick={dismiss}
           leadingIcon={(
-            <RegistrationIcon
+            <ServiceIcon
               name={'close'}
             />
           )}
@@ -129,7 +129,7 @@ export function SubmissionDialog({
           className={styles['status-icon']}
           aria-hidden={'true'}
         >
-          <RegistrationIcon
+          <ServiceIcon
             name={'alert'}
           />
         </span>
@@ -158,7 +158,7 @@ export function SubmissionDialog({
               <li
                 key={item}
               >
-                <RegistrationIcon
+                <ServiceIcon
                   name={'receipt'}
                 />
                 {item}
@@ -178,7 +178,7 @@ export function SubmissionDialog({
             className={styles.reason}
             role={'alert'}
           >
-            <RegistrationIcon
+            <ServiceIcon
               name={'alert'}
             />
             <div>

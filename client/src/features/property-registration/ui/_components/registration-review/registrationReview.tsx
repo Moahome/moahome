@@ -8,6 +8,10 @@ import {
 } from 'react';
 import { Button } from '@/shared/ui/button';
 import { formatWon } from '@/shared/lib/format';
+import {
+  ServiceIcon,
+  type ServiceIconName
+} from '@/shared/ui/service-icon';
 import type {
   RegistrationDraft,
   RegistrationStep
@@ -24,10 +28,6 @@ import {
   getSortedUnits
 } from '../../_utils/setupSorting';
 import { SetupProgress } from '../setup-progress/setupProgress';
-import {
-  RegistrationIcon,
-  type RegistrationIconName
-} from '../registration-icon/registrationIcon';
 import styles from './registrationReview.module.css';
 
 export type SubmissionStatus = 'idle' | 'submitting' | 'checking' | 'failed' | 'unknown' | 'complete';
@@ -123,8 +123,9 @@ export function RegistrationReview({
             aria-label={'관리비 항목 설정으로 돌아가기'}
             onClick={onPrevious}
             leadingIcon={(
-              <RegistrationIcon
-                name={'back'}
+              <ServiceIcon
+                name={'chevron'}
+                direction={'left'}
               />
             )}
           />
@@ -172,7 +173,7 @@ export function RegistrationReview({
             data-complete={complete}
             aria-hidden={'true'}
           >
-            <RegistrationIcon
+            <ServiceIcon
               name={complete ? 'check' : 'receipt'}
             />
           </span>
@@ -266,7 +267,7 @@ export function RegistrationReview({
             <ReviewRow
               label={'동·세대'}
               regionLabel={'동·세대 요약'}
-              icon={'units'}
+              icon={'users'}
               locked={locked}
               editLabel={'동·세대 수정'}
               onEdit={() => onEdit('units')}
@@ -489,7 +490,7 @@ export function RegistrationReview({
           <aside
             className={styles.notice}
           >
-            <RegistrationIcon
+            <ServiceIcon
               name={'info'}
             />
             <p>
@@ -620,7 +621,7 @@ function ReviewRow({
 }: {
   label: string;
   regionLabel: string;
-  icon: RegistrationIconName;
+  icon: ServiceIconName;
   locked: boolean;
   editLabel: string;
   onEdit: () => void;
@@ -653,7 +654,7 @@ function ReviewRow({
             data-icon={icon}
             aria-hidden={'true'}
           >
-            <RegistrationIcon
+            <ServiceIcon
               name={icon}
             />
           </span>
@@ -678,8 +679,9 @@ function ReviewRow({
             <span
               className={styles.chevron}
             >
-              <RegistrationIcon
-                name={'down'}
+              <ServiceIcon
+                name={'chevron'}
+                direction={'down'}
               />
             </span>
           </span>

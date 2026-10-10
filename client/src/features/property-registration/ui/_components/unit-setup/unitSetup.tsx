@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { Button } from '@/shared/ui/button';
 import { HomeIllustration } from '@/shared/ui/home-illustration';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   createAutomaticUnits,
   type AutomaticUnitRule
@@ -24,7 +25,6 @@ import {
 } from '@/entities/property';
 import { AutomaticUnitEditor } from '../automatic-unit-editor/automaticUnitEditor';
 import { BuildingManager } from '../building-manager/buildingManager';
-import { RegistrationIcon } from '../registration-icon/registrationIcon';
 import { UnitDeleteConfirmation } from '../unit-delete-confirmation/unitDeleteConfirmation';
 import { SetupProgress } from '../setup-progress/setupProgress';
 import { UnitList } from '../unit-list/unitList';
@@ -176,8 +176,9 @@ export function UnitSetup({
           aria-label={'기본 정보로 돌아가기'}
           onClick={onPrevious}
           leadingIcon={(
-            <RegistrationIcon
-              name={'back'}
+            <ServiceIcon
+              name={'chevron'}
+              direction={'left'}
             />
           )}
         />
@@ -239,7 +240,7 @@ export function UnitSetup({
             <span
               className={styles['building-badge']}
             >
-              <RegistrationIcon
+              <ServiceIcon
                 name={'building'}
               />
               {hasBuildings ? '동 구분 있음' : '동 구분 없음'}
@@ -296,7 +297,7 @@ export function UnitSetup({
           <span
             className={styles['notice-icon']}
           >
-            <RegistrationIcon
+            <ServiceIcon
               name={'info'}
             />
           </span>
@@ -332,8 +333,9 @@ export function UnitSetup({
             disabled={Boolean(setupError)}
             onClick={continueSetup}
             trailingIcon={(
-              <RegistrationIcon
-                name={'next'}
+              <ServiceIcon
+                name={'chevron'}
+                direction={'right'}
               />
             )}
           >

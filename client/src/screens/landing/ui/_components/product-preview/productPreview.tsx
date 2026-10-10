@@ -1,3 +1,4 @@
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   PREVIEW_MENU,
   PREVIEW_PAYMENTS,
@@ -6,7 +7,6 @@ import {
   PREVIEW_SCHEDULES,
 } from '../../_constants/previewData';
 import { BrandLogo } from '../brand-logo/brandLogo';
-import { LandingIcon } from '../landing-icon/landingIcon';
 import styles from './productPreview.module.css';
 
 function DashboardPreview() {
@@ -29,7 +29,7 @@ function DashboardPreview() {
               key={label}
               className={index === 0 ? styles['active-menu'] : undefined}
             >
-              <LandingIcon
+              <ServiceIcon
                 name={icon}
               />
               {label}
@@ -51,12 +51,13 @@ function DashboardPreview() {
           <span>
             우리빌라
             {' '}
-            <LandingIcon
+            <ServiceIcon
               name={'chevron'}
+              direction={'down'}
             />
           </span>
           <span>
-            <LandingIcon
+            <ServiceIcon
               name={'bell'}
             />
             {' '}
@@ -89,7 +90,7 @@ function DashboardPreview() {
               <span
                 className={styles['stat-icon']}
               >
-                <LandingIcon
+                <ServiceIcon
                   name={'receipt'}
                 />
               </span>
@@ -112,7 +113,7 @@ function DashboardPreview() {
               <span
                 className={styles['stat-icon']}
               >
-                <LandingIcon
+                <ServiceIcon
                   name={'wallet'}
                 />
               </span>
@@ -159,7 +160,7 @@ function DashboardPreview() {
                 className={styles['preview-panel']}
               >
                 <h4>
-                  <LandingIcon
+                  <ServiceIcon
                     name={'check'}
                   />
                   {' '}
@@ -175,7 +176,7 @@ function DashboardPreview() {
                   <span
                     className={styles['danger-stat']}
                   >
-                    <LandingIcon
+                    <ServiceIcon
                       name={'notice'}
                     />
                   </span>
@@ -197,7 +198,7 @@ function DashboardPreview() {
                   <span
                     className={styles['warning-stat']}
                   >
-                    <LandingIcon
+                    <ServiceIcon
                       name={'clock'}
                     />
                   </span>
@@ -217,8 +218,8 @@ function DashboardPreview() {
                   className={styles['task-row']}
                 >
                   <span>
-                    <LandingIcon
-                      name={'people'}
+                    <ServiceIcon
+                      name={'users'}
                     />
                   </span>
                   <div>
@@ -238,7 +239,7 @@ function DashboardPreview() {
                 className={styles['preview-panel']}
               >
                 <h4>
-                  <LandingIcon
+                  <ServiceIcon
                     name={'wallet'}
                   />
                   {' '}
@@ -303,7 +304,7 @@ function DashboardPreview() {
                 className={styles['preview-panel']}
               >
                 <h4>
-                  <LandingIcon
+                  <ServiceIcon
                     name={'receipt'}
                   />
                   {' '}
@@ -332,7 +333,7 @@ function DashboardPreview() {
                 className={styles['preview-panel']}
               >
                 <h4>
-                  <LandingIcon
+                  <ServiceIcon
                     name={'notice'}
                   />
                   {' '}
@@ -374,7 +375,7 @@ function ResidentPreview() {
           compact
           variant={'phone'}
         />
-        <LandingIcon
+        <ServiceIcon
           name={'bell'}
         />
       </div>
@@ -386,8 +387,9 @@ function ResidentPreview() {
       >
         우리빌라
         {' '}
-        <LandingIcon
+        <ServiceIcon
           name={'chevron'}
+          direction={'down'}
         />
       </div>
       <div
@@ -418,7 +420,7 @@ function ResidentPreview() {
             key={label}
           >
             <span>
-              <LandingIcon
+              <ServiceIcon
                 name={icon}
               />
             </span>
@@ -462,7 +464,7 @@ function ResidentPreview() {
           <span
             key={label}
           >
-            <LandingIcon
+            <ServiceIcon
               name={icon}
             />
             {label}

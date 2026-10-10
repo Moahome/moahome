@@ -1,7 +1,7 @@
-import type { LandingIconName } from '../_components/landing-icon/landingIcon';
+import type { ServiceIconName } from '@/shared/ui/service-icon';
 
 type PreviewMenuItem = {
-  icon: LandingIconName;
+  icon: ServiceIconName;
   label: string;
 };
 
@@ -11,7 +11,7 @@ export const PREVIEW_MENU = [
     label: '대시보드'
   },
   {
-    icon: 'people',
+    icon: 'users',
     label: '세대 관리'
   },
   {
@@ -113,7 +113,7 @@ export const PREVIEW_PHONE_NAVIGATION = [
     label: '공지'
   },
   {
-    icon: 'people',
+    icon: 'users',
     label: '내 정보'
   },
 ] as const satisfies readonly PreviewMenuItem[];

@@ -13,6 +13,7 @@ import {
 } from 'react';
 import type { Option } from '@/shared/lib/options';
 import { Button } from '@/shared/ui/button';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   FormField,
   getFieldDescription,
@@ -370,17 +371,9 @@ export function SelectDropdown({
           onPointerDown={(event) => event.preventDefault()}
           onClick={() => selectValue('')}
           leadingIcon={(
-            <svg
-              viewBox={'0 0 24 24'}
-              fill={'none'}
-              stroke={'currentColor'}
-              strokeWidth={'1.8'}
-              aria-hidden={'true'}
-            >
-              <path
-                d={'m8 8 8 8M16 8l-8 8'}
-              />
-            </svg>
+            <ServiceIcon
+              name={'close'}
+            />
           )}
         />
       )}
@@ -402,18 +395,11 @@ export function SelectDropdown({
           }
         }}
         leadingIcon={(
-          <svg
-            viewBox={'0 0 24 24'}
-            fill={'none'}
-            stroke={'currentColor'}
-            strokeWidth={'2'}
-            strokeLinecap={'round'}
-            aria-hidden={'true'}
-          >
-            <path
-              d={'m6 9 6 6 6-6'}
-            />
-          </svg>
+          <ServiceIcon
+            name={'chevron'}
+            direction={'down'}
+            strokeWidth={2}
+          />
         )}
       />
       <div
@@ -459,18 +445,11 @@ export function SelectDropdown({
               {option.label}
             </span>
             {selectedValue === option.value && (
-              <svg
+              <ServiceIcon
+                name={'check'}
                 className={styles.check}
-                viewBox={'0 0 24 24'}
-                fill={'none'}
-                stroke={'currentColor'}
-                strokeWidth={'2'}
-                aria-hidden={'true'}
-              >
-                <path
-                  d={'m5 12 4 4 10-10'}
-                />
-              </svg>
+                strokeWidth={2}
+              />
             )}
           </div>
         ))}

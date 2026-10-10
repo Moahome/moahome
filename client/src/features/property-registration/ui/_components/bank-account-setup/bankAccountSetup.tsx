@@ -16,12 +16,12 @@ import {
   SelectDropdown,
   Input
 } from '@/shared/ui/form-controls';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   getBankAccountErrors,
   normalizeAccountNumber,
   type BankAccountDraft
 } from '../../../model/bankAccount';
-import { RegistrationIcon } from '../registration-icon/registrationIcon';
 import { SetupProgress } from '../setup-progress/setupProgress';
 import { BankIllustration } from './bankIllustration';
 import styles from './bankAccountSetup.module.css';
@@ -108,8 +108,9 @@ export function BankAccountSetup({
           aria-label={'동·세대 설정으로 돌아가기'}
           onClick={onPrevious}
           leadingIcon={(
-            <RegistrationIcon
-              name={'back'}
+            <ServiceIcon
+              name={'chevron'}
+              direction={'left'}
             />
           )}
         />
@@ -263,7 +264,7 @@ export function BankAccountSetup({
             <span
               className={styles['notice-icon']}
             >
-              <RegistrationIcon
+              <ServiceIcon
                 name={'info'}
               />
             </span>
@@ -289,8 +290,9 @@ export function BankAccountSetup({
               type={'submit'}
               disabled={!isValid}
               trailingIcon={(
-                <RegistrationIcon
-                  name={'next'}
+                <ServiceIcon
+                  name={'chevron'}
+                  direction={'right'}
                 />
               )}
             >

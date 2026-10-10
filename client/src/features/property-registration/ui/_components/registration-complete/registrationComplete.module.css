@@ -93,7 +93,7 @@
   }
 
   &[data-icon='location'],
-  &[data-icon='units'] {
+  &[data-icon='users'] {
     --complete-icon-color: var(--secondary-teal);
   }
 

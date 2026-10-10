@@ -6,12 +6,12 @@ import {
 } from 'react';
 import { Button } from '@/shared/ui/button';
 import { formatWon } from '@/shared/lib/format';
+import {
+  ServiceIcon,
+  type ServiceIconName
+} from '@/shared/ui/service-icon';
 import type { RegistrationResult } from '../../../api/registrationApi';
 import type { RegistrationDraft } from '../../../model/registrationDraft';
-import {
-  RegistrationIcon,
-  type RegistrationIconName
-} from '../registration-icon/registrationIcon';
 import styles from './registrationComplete.module.css';
 
 /** 성공한 결과로만 완료를 표시하고 계좌·예금주 원문은 현재 메모리에서만 읽습니다. */
@@ -30,7 +30,7 @@ export function RegistrationComplete({
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const hasDraft = showDetails && draft.basicInfoValidated && draft.units.length > 0;
-  const information: { label: string; value: string; icon: RegistrationIconName }[] = [
+  const information: { label: string; value: string; icon: ServiceIconName }[] = [
     {
       label: '관리할 곳',
       value: result.property.name,
@@ -44,7 +44,7 @@ export function RegistrationComplete({
     {
       label: '동·세대',
       value: `${result.property.hasBuildings ? `${result.summary.buildingCount}개 동` : '동 없음'} · 총 ${result.summary.unitCount}세대`,
-      icon: 'units'
+      icon: 'users'
     },
     {
       label: '관리계좌',
@@ -88,7 +88,7 @@ export function RegistrationComplete({
             className={styles['success-icon']}
             aria-hidden={'true'}
           >
-            <RegistrationIcon
+            <ServiceIcon
               name={'check'}
             />
           </span>
@@ -128,7 +128,7 @@ export function RegistrationComplete({
                   className={styles.icon}
                   aria-hidden={'true'}
                 >
-                  <RegistrationIcon
+                  <ServiceIcon
                     name={item.icon}
                   />
                 </span>
@@ -163,7 +163,7 @@ export function RegistrationComplete({
                 <span
                   aria-hidden={'true'}
                 >
-                  <RegistrationIcon
+                  <ServiceIcon
                     name={'check'}
                   />
                 </span>
@@ -175,7 +175,7 @@ export function RegistrationComplete({
         <aside
           className={styles.notice}
         >
-          <RegistrationIcon
+          <ServiceIcon
             name={'info'}
           />
           <p>

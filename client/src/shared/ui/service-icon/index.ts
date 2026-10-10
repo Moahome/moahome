@@ -1,3 +1,4 @@
 export {
-  ServiceIcon
+  ServiceIcon,
+  type ServiceIconName
 } from './serviceIcon';

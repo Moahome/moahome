@@ -1,4 +1,4 @@
-import type { ManagementIconName } from '../_components/management-icon/managementIcon';
+import type { ServiceIconName } from '@/shared/ui/service-icon';
 
 export interface ManagementMenuLink {
   id: string;
@@ -10,7 +10,7 @@ export interface ManagementMenuLink {
 type ManagementMenuItem = {
   id: string;
   label: string;
-  icon: ManagementIconName;
+  icon: ServiceIconName;
 } & ({ children: ManagementMenuLink[] } | { path: string; available: boolean });
 
 export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [

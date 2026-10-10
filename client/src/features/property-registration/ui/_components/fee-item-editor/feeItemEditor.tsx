@@ -13,12 +13,12 @@ import {
   Dropdown,
   Input
 } from '@/shared/ui/form-controls';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   getFeeItemErrors,
   type FeeItemErrors,
   type FeeItemDraft
 } from '../../../model/feeItems';
-import { RegistrationIcon } from '../registration-icon/registrationIcon';
 import styles from './feeItemEditor.module.css';
 
 const DIRECT_INPUT = 'direct-input';
@@ -130,7 +130,7 @@ export function FeeItemEditor({
           aria-label={`${title} 닫기`}
           onClick={onClose}
           leadingIcon={(
-            <RegistrationIcon
+            <ServiceIcon
               name={'close'}
             />
           )}

@@ -12,6 +12,7 @@ import {
 } from 'react';
 import type { Option } from '@/shared/lib/options';
 import { Button } from '@/shared/ui/button';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   FormField,
   getFieldDescription,
@@ -302,21 +303,12 @@ export function Dropdown({
         >
           {selectedOption?.label ?? (selectedValue || placeholder)}
         </span>
-        <svg
+        <ServiceIcon
+          name={'chevron'}
           className={styles['dropdown-icon']}
-          viewBox={'0 0 24 24'}
-          fill={'none'}
-          stroke={'currentColor'}
-          strokeWidth={'2'}
-          strokeLinecap={'round'}
-          strokeLinejoin={'round'}
-          aria-hidden={'true'}
-          focusable={'false'}
-        >
-          <path
-            d={'m6 9 6 6 6-6'}
-          />
-        </svg>
+          direction={'down'}
+          strokeWidth={2}
+        />
       </button>
       {showClear && (
         <Button
@@ -328,18 +320,9 @@ export function Dropdown({
           aria-label={`${label ?? ariaLabel ?? '선택'} 선택 해제`}
           onClick={() => selectValue('')}
           leadingIcon={(
-            <svg
-              viewBox={'0 0 24 24'}
-              fill={'none'}
-              stroke={'currentColor'}
-              strokeWidth={'1.8'}
-              strokeLinecap={'round'}
-              aria-hidden={'true'}
-            >
-              <path
-                d={'m8 8 8 8M16 8l-8 8'}
-              />
-            </svg>
+            <ServiceIcon
+              name={'close'}
+            />
           )}
         />
       )}
@@ -375,19 +358,10 @@ export function Dropdown({
               {option.label}
             </span>
             {selectedValue === option.value && (
-              <svg
-                viewBox={'0 0 24 24'}
-                fill={'none'}
-                stroke={'currentColor'}
-                strokeWidth={'2'}
-                strokeLinecap={'round'}
-                strokeLinejoin={'round'}
-                aria-hidden={'true'}
-              >
-                <path
-                  d={'m5 12 4 4 10-10'}
-                />
-              </svg>
+              <ServiceIcon
+                name={'check'}
+                strokeWidth={2}
+              />
             )}
           </div>
         ))}

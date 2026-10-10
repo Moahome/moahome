@@ -1,3 +1,4 @@
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   AUDIENCE_ITEMS,
   BENEFITS,
@@ -8,7 +9,6 @@ import {
 } from '../_constants/landingContent';
 import { BrandLogo } from '../_components/brand-logo/brandLogo';
 import { LandingHeader } from '../_components/landing-header/landingHeader';
-import { LandingIcon } from '../_components/landing-icon/landingIcon';
 import { LandingMotion } from '../_components/landing-motion/landingMotion';
 import { ProductPreview } from '../_components/product-preview/productPreview';
 import styles from './landingPage.module.css';
@@ -84,7 +84,7 @@ export function LandingPage() {
                     <span
                       className={`${styles['icon-bubble']} ${index === 1 ? styles['teal-bubble'] : ''}`}
                     >
-                      <LandingIcon
+                      <ServiceIcon
                         name={icon}
                       />
                     </span>
@@ -105,7 +105,7 @@ export function LandingPage() {
               >
                 서비스 소개 보기
                 {' '}
-                <LandingIcon
+                <ServiceIcon
                   name={'arrow'}
                 />
               </a>
@@ -138,7 +138,7 @@ export function LandingPage() {
                 <span
                   className={styles['icon-bubble']}
                 >
-                  <LandingIcon
+                  <ServiceIcon
                     name={icon}
                   />
                 </span>
@@ -172,7 +172,7 @@ export function LandingPage() {
                   key={text}
                 >
                   <span>
-                    <LandingIcon
+                    <ServiceIcon
                       name={'check'}
                     />
                   </span>
@@ -224,7 +224,7 @@ export function LandingPage() {
                 <span
                   className={`${styles['icon-bubble']} ${index === 1 ? styles['teal-bubble'] : ''}`}
                 >
-                  <LandingIcon
+                  <ServiceIcon
                     name={icon}
                   />
                 </span>
@@ -239,7 +239,7 @@ export function LandingPage() {
                     <li
                       key={item}
                     >
-                      <LandingIcon
+                      <ServiceIcon
                         name={'check'}
                       />
                       {item}
@@ -266,7 +266,7 @@ export function LandingPage() {
                   {step}
                 </b>
                 {index < MANAGEMENT_STEPS.length - 1 && (
-                  <LandingIcon
+                  <ServiceIcon
                     name={'arrow'}
                   />
                 )}
@@ -316,7 +316,7 @@ export function LandingPage() {
                   <span
                     className={styles['icon-bubble']}
                   >
-                    <LandingIcon
+                    <ServiceIcon
                       name={icon}
                     />
                   </span>
@@ -367,8 +367,9 @@ export function LandingPage() {
                   <span>
                     {question}
                   </span>
-                  <LandingIcon
+                  <ServiceIcon
                     name={'chevron'}
+                    direction={'down'}
                   />
                 </summary>
                 <p>
@@ -405,7 +406,7 @@ export function LandingPage() {
           >
             맨 위로
             {' '}
-            <LandingIcon
+            <ServiceIcon
               name={'arrow'}
             />
           </a>

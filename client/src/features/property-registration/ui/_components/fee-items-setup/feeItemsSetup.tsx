@@ -11,15 +11,15 @@ import { HomeIllustration } from '@/shared/ui/home-illustration';
 import { IconButton } from '@/shared/ui/icon-button';
 import { formatWon } from '@/shared/lib/format';
 import {
+  ServiceIcon,
+  type ServiceIconName
+} from '@/shared/ui/service-icon';
+import {
   getFeeItemsError,
   getFeeItemsTotal,
   type FeeItemDraft
 } from '../../../model/feeItems';
 import { FeeItemEditor } from '../fee-item-editor/feeItemEditor';
-import {
-  RegistrationIcon,
-  type RegistrationIconName
-} from '../registration-icon/registrationIcon';
 import { SetupProgress } from '../setup-progress/setupProgress';
 import { UnitDeleteConfirmation } from '../unit-delete-confirmation/unitDeleteConfirmation';
 import styles from './feeItemsSetup.module.css';
@@ -32,7 +32,7 @@ const FEE_ITEM_ICONS = {
   COMMON_WATER: 'water',
   SEPTIC_TANK_CLEANING: 'septic',
   WASTE_DISPOSAL: 'trash'
-} as const satisfies Record<FeeItemCode, RegistrationIconName>;
+} as const satisfies Record<FeeItemCode, ServiceIconName>;
 
 /** 세대당 월 기본 항목만 편집하며 실제 청구와 저장은 마지막 등록 단계의 책임으로 유지합니다. */
 export function FeeItemsSetup({
@@ -100,8 +100,9 @@ export function FeeItemsSetup({
           aria-label={'관리계좌 설정으로 돌아가기'}
           onClick={onPrevious}
           leadingIcon={(
-            <RegistrationIcon
-              name={'back'}
+            <ServiceIcon
+              name={'chevron'}
+              direction={'left'}
             />
           )}
         />
@@ -244,7 +245,7 @@ export function FeeItemsSetup({
                   className={styles['item-icon']}
                   data-kind={item.itemCode ?? 'DIRECT_INPUT'}
                 >
-                  <RegistrationIcon
+                  <ServiceIcon
                     name={item.itemCode ? FEE_ITEM_ICONS[item.itemCode] : 'receipt'}
                   />
                 </span>
@@ -266,8 +267,9 @@ export function FeeItemsSetup({
                     item
                   })}
                   trailingIcon={(
-                    <RegistrationIcon
-                      name={'next'}
+                    <ServiceIcon
+                      name={'chevron'}
+                      direction={'right'}
                     />
                   )}
                 >
@@ -280,7 +282,7 @@ export function FeeItemsSetup({
             <div
               className={styles.empty}
             >
-              <RegistrationIcon
+              <ServiceIcon
                 name={'receipt'}
               />
               <p>
@@ -299,7 +301,7 @@ export function FeeItemsSetup({
               item: null
             })}
             icon={(
-              <RegistrationIcon
+              <ServiceIcon
                 name={'plus'}
               />
             )}
@@ -321,7 +323,7 @@ export function FeeItemsSetup({
           <aside
             className={styles.notice}
           >
-            <RegistrationIcon
+            <ServiceIcon
               name={'info'}
             />
             <p>
@@ -349,8 +351,9 @@ export function FeeItemsSetup({
               disabled={Boolean(error)}
               onClick={continueSetup}
               trailingIcon={(
-                <RegistrationIcon
-                  name={'next'}
+                <ServiceIcon
+                  name={'chevron'}
+                  direction={'right'}
                 />
               )}
             >

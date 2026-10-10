@@ -147,7 +147,7 @@
     --review-icon-color: var(--registration-icon-building);
   }
 
-  &[data-icon='units'] {
+  &[data-icon='users'] {
     --review-icon-color: var(--registration-icon-units);
   }
 

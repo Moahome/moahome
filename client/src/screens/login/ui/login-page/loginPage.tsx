@@ -12,6 +12,7 @@ import { BrandMark } from '@/shared/ui/brand-mark';
 import { ApiError } from '@/shared/api';
 import { Button } from '@/shared/ui/button';
 import { NeighborhoodIllustration } from '@/shared/ui/neighborhood-illustration';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import { LoginFooter } from '../_components/login-footer/loginFooter';
 import styles from './loginPage.module.css';
 
@@ -217,41 +218,18 @@ export function LoginPage({ errorCode }: { errorCode?: string }) {
                 href={'/#service'}
                 className={styles['intro-link']}
               >
-                <svg
-                  viewBox={'0 0 24 24'}
-                  fill={'none'}
-                  aria-hidden={'true'}
-                >
-                  <rect
-                    x={'5'}
-                    y={'3'}
-                    width={'14'}
-                    height={'18'}
-                    rx={'3'}
-                  />
-                  <path
-                    d={'M9 8h6M9 12h6M9 16h3'}
-                  />
-                </svg>
+                <ServiceIcon
+                  name={'document'}
+                />
                 서비스 소개 보기
               </Link>
             </div>
             <p
               className={styles['invitation-note']}
             >
-              <svg
-                viewBox={'0 0 24 24'}
-                aria-hidden={'true'}
-              >
-                <circle
-                  cx={'12'}
-                  cy={'12'}
-                  r={'10'}
-                />
-                <path
-                  d={'M12 11v6M12 7v.5'}
-                />
-              </svg>
+              <ServiceIcon
+                name={'info'}
+              />
               <span>
                 초대받은 주민은 로그인 후 초대코드로 참여할 수 있어요.
               </span>
