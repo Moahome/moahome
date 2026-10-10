@@ -8,6 +8,7 @@ import com.moahome.server.banking.domain.BankAccount;
 import com.moahome.server.banking.repo.BankAccountRepository;
 import com.moahome.server.billing.domain.*;
 import com.moahome.server.billing.repo.*;
+import com.moahome.server.billing.service.BillingGenerationService;
 import com.moahome.server.common.security.AccountNumberSecurity;
 import com.moahome.server.membership.domain.PropertyMember;
 import com.moahome.server.membership.repo.PropertyMemberRepository;
@@ -41,12 +42,13 @@ public class PropertyRegistrationService {
 	private final Validator validator;
 	private final ObjectMapper mapper;
 	private final Clock clock;
+	private final BillingGenerationService billing;
 
 	public PropertyRegistrationService(UserService users, PropertyRepository properties, BuildingRepository buildings,
 		UnitRepository units, BankAccountRepository bankAccounts, FeeTemplateRepository templates,
 		FeeTemplateItemRepository items, PropertyMemberRepository members, PropertyRegistrationResultRepository results,
 		PropertyRegistrationLock lock, AccountNumberSecurity accountSecurity, RegistrationFingerprint fingerprints,
-		Validator validator, ObjectMapper mapper, Clock clock) {
+		Validator validator, ObjectMapper mapper, Clock clock, BillingGenerationService billing) {
 		this.users = users;
 		this.properties = properties;
 		this.buildings = buildings;
@@ -62,6 +64,7 @@ public class PropertyRegistrationService {
 		this.validator = validator;
 		this.mapper = mapper;
 		this.clock = clock;
+		this.billing = billing;
 	}
 
 	/** 기본 정보만 다시 검증하고 정리한 값을 반환하며 업무 레코드와 중복 방지 ID를 생성하지 않습니다. */
@@ -72,7 +75,7 @@ public class PropertyRegistrationService {
 		return input;
 	}
 
-	/** 입력 전체와 현재 계정을 검증하고 초기 설정·권한·성공 결과를 하나의 트랜잭션으로 저장합니다. */
+	/** 입력 전체와 현재 계정을 검증하고 초기 설정·권한·등록월 청구·성공 결과를 하나의 트랜잭션으로 저장합니다. */
 	@Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
 	public RegistrationOutcome register(UUID userId, PropertyRegistrationRequest input) {
 		User user = requireActiveUser(userId);
@@ -121,6 +124,8 @@ public class PropertyRegistrationService {
 
 		PropertyMember member = PropertyMember.creator(property, user, at);
 		members.saveAndFlush(member);
+		// 첫 부과를 다음 달까지 미루지 않습니다. 청구 저장이 실패하면 등록 전체도 롤백합니다.
+		billing.generate(property.getId(), BillingCalendar.firstMonth(property));
 		PropertyRegistrationResponse response = new PropertyRegistrationResponse(input.requestId(),
 			new PropertySummary(property.getId(), property.getName(), property.isHasBuildings(), property.getStatus().name()),
 			new MembershipSummary(member.getId(), member.getRole().name(), member.getStatus().name()),

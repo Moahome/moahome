@@ -41,13 +41,14 @@ class PropertyRegistrationServiceTest {
 	private final PropertyMemberRepository members = mock(PropertyMemberRepository.class);
 	private final PropertyRegistrationResultRepository results = mock(PropertyRegistrationResultRepository.class);
 	private final PropertyRegistrationLock lock = mock(PropertyRegistrationLock.class);
+	private final com.moahome.server.billing.service.BillingGenerationService billing = mock(com.moahome.server.billing.service.BillingGenerationService.class);
 	private final ObjectMapper mapper = JsonMapper.builder().build();
 	private final ValidatorFactory validation = Validation.buildDefaultValidatorFactory();
 	private final User user = User.create("등록자", null);
 	private final Clock clock = Clock.fixed(Instant.parse("2026-10-05T15:00:00Z"), ZoneOffset.UTC);
 	private final PropertyRegistrationService service = new PropertyRegistrationService(users, properties, buildings, units,
 		accounts, templates, items, members, results, lock, new AccountNumberSecurity(RegistrationTestKeys.accountProperties()),
-		new RegistrationFingerprint(RegistrationTestKeys.fingerprintProperties(), mapper), validation.getValidator(), mapper, clock);
+		new RegistrationFingerprint(RegistrationTestKeys.fingerprintProperties(), mapper), validation.getValidator(), mapper, clock, billing);
 
 	@BeforeEach void prepare() { when(users.requireActive(user.getId())).thenReturn(user); }
 	@AfterEach void closeValidation() { validation.close(); }

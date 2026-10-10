@@ -29,7 +29,7 @@
 | 주민 / 가입 승인 | 확정 범위 있음 | 주민 연락처 관리, 사전 등록과 승인 시 신규 등록 모두 지원, 주민 명부 재등록 시 소프트 삭제 해제, 관리자 승인 |
 | 관리대상 / 동 / 세대 / 권한 | 확정 범위 있음 + 설계안 | Property 기준, 이름 최대 50자, 동 구분 저장, 초기 설정 전체 저장과 생성자 관리소장 자동 지정, 주민의 현재 세대 한 개 제한, 역할별 승인 / 변경 범위 |
 | 가입 요청 입력 / 중복 / 재신청 | 확정 | 신청 전화번호 필수, 실명 입력 / 세대 관계 선택 없음, 같은 계정의 같은 세대 중복 대기 요청 제한, 다른 주민 신청 허용, 거절 후 재신청 / 재입주 재승인 |
-| 관리비 부과 | 확정 범위 있음 + 설계안 | 전체 세대 대상, 매월 1일 생성·자동 확정 / 해당 월 말일 납부기한, 기본 설정 변경은 다음 달 적용, 실제 청구 0원·음수 허용, 수정 사유 필수. 상세 DDL은 후속 설계 |
+| 관리비 부과 | 구현 | 월별 기간·세대 청구·항목 스냅샷, 설정 버전과 필수 사유, 자동 생성·확정. 수납·환급·회계·취소 연결은 후속 범위 |
 | 수납 / 은행 / 지출 / 회계 / 마감 / 감사 | 기존 기준 + 설계안 | 각 영역의 도메인 규칙을 유지하고 해당 기능 구현 전에 상세 정책 / DDL 확정 |
 | 초기 관리계좌의 예금주 | 확정 | 예금주 이름 필수, 주민 명부 연결 선택, 주민 연결은 명부 등록 이후 가능 |
 | 초기 계좌 / 기본 관리비 | 확정 | 공용계좌, 기본 계좌 정확히 1개, 사용 시작일은 등록 완료일, 기본 금액은 0원·음수를 허용하는 정수 |
@@ -372,7 +372,7 @@ OAuth 세션/토큰 상태는 Redis 영역으로 분리한다.
 
 확정일: 2026-10-05. `name`의 최대 길이는 50자로 맞추고 `has_buildings`에 동 있음 / 없음 선택을 저장한다. 이름은 앞뒤 공백을 제거하고 공백만 있는 값을 허용하지 않는다. 동 구분은 건물 유형이나 현재 동 개수로 대신 판단하지 않는다.
 
-기본 정보 입력과 단계 이동에서는 업무 레코드를 저장하지 않는다. 마지막 `관리 시작하기`에서 관리대상, 필요한 동, 세대, 관리계좌, 관리비 템플릿 / 항목과 생성자 참여를 하나의 DB 트랜잭션으로 저장한다. 초기 등록에는 세대 / 관리계좌 / 관리비 항목 각각 최소 1개가 필요하다. 초안 전용 테이블이나 `DRAFT` 상태를 추가하지 않는다.
+기본 정보 입력과 단계 이동에서는 업무 레코드를 저장하지 않는다. 마지막 `관리 시작하기`에서 관리대상, 필요한 동, 세대, 관리계좌, 관리비 템플릿 / 항목과 생성자 참여를 하나의 DB 트랜잭션으로 저장한다. 초기 등록에는 세대 / 관리계좌 / 관리비 항목 각각 최소 1개가 필요하다. 등록월 청구·항목과 자동 확정도 같은 트랜잭션으로 저장한다. 초안 전용 테이블이나 `DRAFT` 상태를 추가하지 않는다.
 
 `has_buildings = false`이면 동을 생성하지 않고 모든 세대의 `building_id`를 NULL로 둔다. `true`이면 최소 1개의 동이 필요하며 각 세대의 동이 동일한 관리대상에 속해야 한다. 이름 / 동 구분의 저장 제약과 관계 검증은 실제 Migration / Service 구현 시 이 기준에 맞춘다.
 
@@ -772,15 +772,15 @@ CREATE UNIQUE INDEX membership_requests_pending_user_unit_idx
 
 # 7. 관리비 부과
 
-2026-10-10에 확정한 부과 범위·날짜·기본 설정 변경 적용·금액·수정 사유와 월별 스케줄 정책은 [관리비 부과 도메인 규칙](domainRules.md#5-관리비-부과--청구)을 기준으로 합니다. 아래 `billing_periods`, `charges`, `charge_items`는 설계안이며 실제 테이블 / Migration은 아직 구현하지 않았습니다. 현재 구현한 저장 범위는 초기 등록의 `fee_templates` / `fee_template_items`입니다. 기본 설정과 청구의 변경 이력에 필수 수정 사유를 보존하는 저장 구조는 후속 설계에서 구체화하며, 기존 `cancel_reason`을 일반 수정 사유의 저장 필드로 대신 사용하지 않습니다.
+[도메인 규칙](domainRules.md#5-관리비-부과--청구)과 [관리비 API](billingApi.md)를 따릅니다. `V20261010131153__create_monthly_billing.sql`에서 아래 기간·청구·항목과 기본 설정 버전을 구현했습니다. 취소·재발행·월 마감·수납·회계 연결 컬럼은 이번 Migration에 추가하지 않았습니다.
 
 ## 7.1 billing_periods
 
 ### 목적
 
-관리비를 월 단위로 생성/확정/마감하는 기간.
+관리비를 월 단위로 생성·확정하는 기간. 월 마감은 후속 범위입니다.
 
-`billing_date`와 `default_due_date`에 부과일 / 기본 납부기한을 보존하며, 날짜 계산은 도메인 규칙의 월별 스케줄 정책을 따릅니다. 스케줄은 생성 후 자동 확정까지 수행하고 `billing_periods`와 `charges`의 상태 / 확정 정보를 보존해야 합니다. 실행 시각 / 시간대와 시스템 자동 확정 주체의 기록 방식은 후속 설계에서 정하며, 스케줄 설정용 테이블 / 컬럼을 현재 확정한 것으로 취급하지 않습니다. 동별 부과 범위를 위한 필드는 이번 범위에 추가하지 않습니다.
+부과일·납부기한은 필수이며 월 1일·실제 월말로 CHECK 합니다. 자동 확정 주체는 `confirmation_source='SCHEDULE'`로 기록합니다. `DRAFT` 생성과 `ISSUED` 확정은 하나의 트랜잭션 안에서 처리합니다.
 
 | 컬럼 | 타입 | Null | 설명 |
 |---|---|---:|---|
@@ -790,21 +790,16 @@ CREATE UNIQUE INDEX membership_requests_pending_user_unit_idx
 | `billing_month` | smallint | N | 부과월 |
 | `billing_date` | date | N | 부과일 |
 | `default_due_date` | date | N | 기본 납부기한 |
-| `status` | varchar(20) | N | `DRAFT / ISSUED / CLOSED` |
-| `confirmed_by` | uuid | Y | 확정자 |
+| `status` | varchar(20) | N | `DRAFT / ISSUED` |
+| `confirmation_source` | varchar(20) | N | `SCHEDULE` |
 | `confirmed_at` | timestamptz | Y | 확정 |
-| `closed_by` | uuid | Y | 마감자 |
-| `closed_at` | timestamptz | Y | 마감 |
 | `created_at` | timestamptz | N | 생성 |
 | `updated_at` | timestamptz | N | 수정 |
-| `deleted_at` | timestamptz | Y | 삭제 |
-| `deleted_by` | uuid | Y | 삭제 처리자 |
 
 ### 제약
 
 ```sql
 UNIQUE(property_id, billing_year, billing_month)
-WHERE deleted_at IS NULL
 ```
 
 ---
@@ -815,7 +810,7 @@ WHERE deleted_at IS NULL
 
 매월 반복되는 관리비 기본 항목 묶음.
 
-기본 설정의 다음 달 적용을 위해 당월 기준과 적용 예정 기준을 구분하는 저장 설계가 필요합니다. 아래 `effective_from` / `effective_to`를 활용할지, 템플릿과 항목을 버전별로 보존할지는 후속 설계에서 정합니다. 현재 등록 구현은 두 날짜를 NULL로 저장하며, 정책 문서 변경만으로 적용 예약 / 버전 보존이 구현된 것은 아닙니다.
+설정을 변경할 때 기존 행과 항목을 보존하고 새 템플릿·항목을 추가합니다. `revision`은 관리대상별 증가하며 `(property_id, revision)`이 유일합니다. `effective_from`이 조회월 이하인 버전 중 가장 큰 revision을 사용합니다. 최초 버전은 등록한 한국시간 월의 1일을 기록하며, 기존 NULL도 같은 기준으로 보정합니다. `effective_to`는 이번 기능에서 사용하지 않습니다.
 
 | 컬럼 | 타입 | Null | 설명 |
 |---|---|---:|---|
@@ -823,7 +818,10 @@ WHERE deleted_at IS NULL
 | `property_id` | uuid | N | FK |
 | `name` | varchar(100) | N | 템플릿명 |
 | `is_default` | boolean | N | 기본 템플릿 |
-| `effective_from` | date | Y | 적용 시작 |
+| `effective_from` | date | N | 적용월의 1일 |
+| `revision` | bigint | N | 최초 0, 변경마다 증가 |
+| `change_reason` | varchar(1000) | Y | 변경 버전에서 필수 |
+| `changed_by` | uuid | Y | 변경자 users FK, 변경 버전에서 필수 |
 | `effective_to` | date | Y | 적용 종료 |
 | `status` | varchar(20) | N | `ACTIVE / INACTIVE` |
 | `created_at` | timestamptz | N | 생성 |
@@ -854,7 +852,7 @@ WHERE deleted_at IS NULL
 | `deleted_at` | timestamptz | Y | 삭제 |
 | `deleted_by` | uuid | Y | 삭제 처리자 |
 
-초기 등록의 `default_amount`는 2026-10-08에 변경한 0원·음수 허용 정수 원 단위 정책을 따른다. 기존 양수 제약은 후속 Migration으로 제거하고 numeric(15,0)의 범위는 유지한다. 입력과 합계는 [등록 API](propertyRegistrationApi.md) 설계의 numeric(15,0) 범위로 검증한다. 템플릿 / 항목을 기본값으로 저장하며 실제 청구나 회계 전표는 생성하지 않는다.
+초기 등록의 `default_amount`는 2026-10-08에 변경한 0원·음수 허용 정수 원 단위 정책을 따른다. 기존 양수 제약은 후속 Migration으로 제거하고 numeric(15,0)의 범위는 유지한다. 입력과 합계는 [등록 API](propertyRegistrationApi.md) 설계의 numeric(15,0) 범위로 검증한다. 템플릿 / 항목을 기본값으로 저장하고 최종 등록에서 등록월 청구를 함께 생성·확정한다. 회계 전표는 별도 구현이다.
 
 `item_code`는 기존 nullable varchar(30)을 유지하고 PostgreSQL ENUM이나 코드 CHECK 제약을 추가하지 않는다. 허용 코드와 직접 입력의 의미는 [등록 API](propertyRegistrationApi.md#기본-관리비-항목)를 따른다. 기존 NULL은 유지하며 항목명과 코드는 별도로 보존한다. enum 매핑과 저장 처리는 [Server 등록 설계](../server/docs/propertyRegistration.md#3-내부-초기값과-금액-처리)를 참조한다.
 
@@ -873,29 +871,28 @@ WHERE deleted_at IS NULL
 | `id` | uuid | N | PK |
 | `property_id` | uuid | N | FK |
 | `billing_period_id` | uuid | N | FK |
-| `unit_id` | uuid | N | FK |
+| `unit_id` | uuid | N | 관리대상·세대 복합 FK |
+| `building_name_snapshot` | varchar(50) | N | 부과 당시 동명, 동 없음은 빈 문자열 |
+| `unit_number_snapshot` | varchar(30) | N | 부과 당시 호수 |
+| `unit_display_name_snapshot` | varchar(50) | Y | 부과 당시 별칭 |
 | `total_amount` | numeric(15,0) | N | 총 청구액 |
 | `due_date` | date | N | 납부기한 |
-| `status` | varchar(20) | N | `DRAFT / ISSUED / CANCELED` |
-| `issued_by` | uuid | Y | 발행자 |
+| `status` | varchar(20) | N | `DRAFT / ISSUED` |
 | `issued_at` | timestamptz | Y | 발행 |
-| `canceled_by` | uuid | Y | 취소자 |
-| `canceled_at` | timestamptz | Y | 취소 |
-| `cancel_reason` | varchar(255) | Y | 취소사유 |
 | `created_at` | timestamptz | N | 생성 |
 | `updated_at` | timestamptz | N | 수정 |
-| `deleted_at` | timestamptz | Y | 삭제 |
-| `deleted_by` | uuid | Y | 삭제 처리자 |
 
 ### 제약
 
 ```sql
 UNIQUE(billing_period_id, unit_id)
+FOREIGN KEY(property_id, billing_period_id) REFERENCES billing_periods(property_id, id)
+FOREIGN KEY(property_id, unit_id) REFERENCES units(property_id, id)
 ```
 
 ### 납부상태
 
-별도 Y/N으로 저장하지 않고 `payment_allocations` 합계로 계산.
+납부 상태 API와 계산은 이번 범위에서 구현하지 않습니다. 향후 수납 배분으로 계산하며 0원·음수의 납부·환급 정책은 별도 결정합니다.
 
 ---
 
@@ -912,7 +909,7 @@ UNIQUE(billing_period_id, unit_id)
 | `id` | uuid | N | PK |
 | `property_id` | uuid | N | FK |
 | `charge_id` | uuid | N | FK |
-| `source_template_item_id` | uuid | Y | 원본 템플릿 항목 |
+| `source_template_item_id` | uuid | N | 원본 템플릿 항목 |
 | `item_code` | varchar(30) | Y | 추천 항목 코드 스냅샷, 직접 입력은 NULL |
 | `item_name` | varchar(100) | N | 항목명 스냅샷 |
 | `amount` | numeric(15,0) | N | 청구금액 |
@@ -920,8 +917,8 @@ UNIQUE(billing_period_id, unit_id)
 | `sort_order` | int | N | 표시순서 |
 | `created_at` | timestamptz | N | 생성 |
 | `updated_at` | timestamptz | N | 수정 |
-| `deleted_at` | timestamptz | Y | 삭제 |
-| `deleted_by` | uuid | Y | 삭제 처리자 |
+
+`(property_id, charge_id)` 복합 FK와 `(charge_id, sort_order)` UNIQUE를 적용합니다. 기간·청구는 ISSUED일 때만 확정·발행 시각이 존재하도록 CHECK 합니다.
 
 ---
 

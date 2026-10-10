@@ -78,7 +78,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties="moahome.billing.scheduler-enabled=false")
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import({SecurityIntegrationTest.TestBeans.class, SecurityIntegrationTest.ProbeController.class})
@@ -92,6 +92,9 @@ class SecurityIntegrationTest {
 	@Autowired private ObjectMapper mapper;
 	@Autowired private MutableClock clock;
 	@MockitoSpyBean private RedisAuthSessionRepository sessions;
+	@MockitoBean private com.moahome.server.billing.service.BillingService billing;
+	@MockitoBean private com.moahome.server.billing.service.BillingTemplates billingTemplates;
+	@MockitoBean private com.moahome.server.billing.service.BillingGenerationService billingGeneration;
 	@MockitoBean private com.moahome.server.property.service.ManagementAccessService management;
 	@MockitoBean private com.moahome.server.property.service.UnitManagementService unitManagement;
 	@MockitoBean private com.moahome.server.resident.service.ResidentListService residentList;

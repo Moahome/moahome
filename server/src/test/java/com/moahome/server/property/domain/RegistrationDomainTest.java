@@ -125,7 +125,7 @@ class RegistrationDomainTest {
 		FeeTemplate template = FeeTemplate.createDefault(property.getId(), at);
 		assertThat(template.getName()).isEqualTo("기본 관리비");
 		assertThat(template.isDefaultTemplate()).isTrue();
-		assertThat(template.getEffectiveFrom()).isNull();
+		assertThat(template.getEffectiveFrom()).isEqualTo(LocalDate.of(2026, 10, 1));
 		assertThat(FeeTemplateItem.create(template, null, "0원 항목", 0, 0, at).getDefaultAmount()).isZero();
 		assertThat(FeeTemplateItem.create(template, null, "상한", 999_999_999_999_999L, 1, at).getDefaultAmount())
 			.isEqualByComparingTo("999999999999999");

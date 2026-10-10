@@ -44,13 +44,14 @@ import static org.assertj.core.api.Assertions.*;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @Import({PropertyRegistrationService.class, PropertyRegistrationLock.class, UserService.class,
-	PropertyRegistrationPersistenceTest.TestBeans.class})
+	PropertyRegistrationPersistenceTest.TestBeans.class, com.moahome.server.billing.service.BillingGenerationService.class,
+    com.moahome.server.billing.service.BillingTemplates.class})
 @ActiveProfiles("database-test")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class PropertyRegistrationPersistenceTest {
 	private static final PostgresTestServer POSTGRES = new PostgresTestServer();
-	private static final List<String> TABLES = List.of("property_registration_results", "property_members",
+	private static final List<String> TABLES = List.of("charge_items", "charges", "billing_periods", "property_registration_results", "property_members",
 		"fee_template_items", "fee_templates", "bank_accounts", "units", "buildings", "properties");
 	@Autowired PropertyRegistrationService registrations;
 	@Autowired PropertyRegistrationLock lock;
@@ -105,6 +106,10 @@ class PropertyRegistrationPersistenceTest {
 		assertThat(count("fee_template_items")).isEqualTo(4);
 		assertThat(count("property_members")).isEqualTo(1);
 		assertThat(count("property_registration_results")).isEqualTo(1);
+		assertThat(count("billing_periods")).isEqualTo(1);
+		assertThat(count("charges")).isEqualTo(2);
+		assertThat(count("charge_items")).isEqualTo(8);
+		assertThat(jdbc.queryForObject("select status from billing_periods", String.class)).isEqualTo("ISSUED");
 		var account = jdbc.queryForMap("select * from bank_accounts");
 		assertThat(account.get("building_id")).isNull();
 		assertThat(account.get("holder_resident_id")).isNull();
@@ -183,7 +188,7 @@ class PropertyRegistrationPersistenceTest {
 
 	@ParameterizedTest
 	@ValueSource(strings = {"properties", "buildings", "units", "bank_accounts", "fee_templates",
-		"fee_template_items", "property_members", "property_registration_results"})
+		"fee_template_items", "property_members", "property_registration_results", "billing_periods", "charges", "charge_items"})
 	void rollsBackEveryTableAndAllowsSameIdRetryWhenAnySaveFails(String table) {
 		jdbc.execute("create function fail_registration() returns trigger language plpgsql as $$ "
 			+ "begin raise exception 'test registration failure'; end; $$");
@@ -316,7 +321,7 @@ class PropertyRegistrationPersistenceTest {
 			.isInstanceOf(DataIntegrityViolationException.class);
 		Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			.schemas(schema).defaultSchema(schema).load();
-		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(4);
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(5);
 		upgraded.validate();
 		assertThat(jdbc.queryForObject("select default_amount from " + schema + ".fee_template_items where id=?",
 			Long.class, itemId)).isEqualTo(15000);
@@ -328,7 +333,7 @@ class PropertyRegistrationPersistenceTest {
 	@Test
 	void migratesEmptyAndExistingUserSchemaWithoutChangingIdentity() {
 		flyway.validate();
-		assertThat(flyway.info().applied()).hasSize(8);
+		assertThat(flyway.info().applied()).hasSize(9);
 		assertThat(flyway.migrate().migrationsExecuted).isZero();
 		String schema = "registration_" + UUID.randomUUID().toString().replace("-", "");
 		Flyway old = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
@@ -338,7 +343,7 @@ class PropertyRegistrationPersistenceTest {
 		jdbc.update("insert into " + schema + ".users (id, display_name, status) values (?, '기존 사용자', 'ACTIVE')", legacyId);
 		Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			.schemas(schema).defaultSchema(schema).load();
-		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(5);
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(6);
 		upgraded.validate();
 		assertThat(jdbc.queryForObject("select system_role from " + schema + ".users where id = ?", String.class, legacyId))
 			.isEqualTo("USER");

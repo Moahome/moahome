@@ -36,6 +36,15 @@ public class FeeTemplate {
 	@Column(nullable = false, length = 20)
 	private FeeTemplateStatus status;
 
+	@Column(nullable = false)
+	private long revision;
+
+	@Column(name = "change_reason", length = 1000)
+	private String changeReason;
+
+	@Column(name = "changed_by")
+	private UUID changedBy;
+
 	@Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "timestamptz")
 	private OffsetDateTime createdAt;
 
@@ -58,7 +67,20 @@ public class FeeTemplate {
 		template.name = "기본 관리비";
 		template.defaultTemplate = true;
 		template.status = FeeTemplateStatus.ACTIVE;
+		template.effectiveFrom = at.atZoneSameInstant(BillingCalendar.ZONE).toLocalDate().withDayOfMonth(1);
 		template.initialize(at);
+		return template;
+	}
+
+	/** 기존 내용을 덮어쓰지 않고 다음 달부터 사용할 새 버전과 필수 수정 사유를 보존합니다. */
+	public static FeeTemplate schedule(UUID propertyId, long revision, java.time.YearMonth month,
+		String reason, UUID actorId, OffsetDateTime at) {
+		if (revision <= 0) throw new IllegalArgumentException("Invalid template revision");
+		var template = createDefault(propertyId, at);
+		template.revision = revision;
+		template.effectiveFrom = month.atDay(1);
+		template.changeReason = TextValues.required(reason, 1000);
+		template.changedBy = Objects.requireNonNull(actorId);
 		return template;
 	}
 

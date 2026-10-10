@@ -13,9 +13,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-@SpringBootTest
+@SpringBootTest(properties="moahome.billing.scheduler-enabled=false")
 @ActiveProfiles("test")
 class ServerApplicationTests {
+	@MockitoBean private com.moahome.server.billing.service.BillingService billing;
+	@MockitoBean private com.moahome.server.billing.service.BillingTemplates billingTemplates;
+	@MockitoBean private com.moahome.server.billing.service.BillingGenerationService billingGeneration;
 	@MockitoBean private com.moahome.server.property.service.ManagementAccessService management;
 	@MockitoBean private com.moahome.server.property.service.UnitManagementService unitManagement;
 	@MockitoBean private com.moahome.server.resident.service.ResidentListService residentList;
