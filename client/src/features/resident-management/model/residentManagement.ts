@@ -21,10 +21,3 @@ export function getResidentManagementError(error: unknown) {
 
   return '처리 결과를 확인하지 못했어요. 다시 시도하거나 최신 정보를 확인해주세요.';
 }
-
-/** 국내 휴대폰은 읽기 쉬운 표기로 보이며 국제번호는 서버가 정규화한 번호를 유지합니다. */
-export function formatResidentPhone(phone: string) {
-  const local = phone.startsWith('+82') ? `0${phone.slice(3)}` : phone;
-
-  return local.replace(/^(01\d)(\d{3,4})(\d{4})$/, '$1-$2-$3');
-}

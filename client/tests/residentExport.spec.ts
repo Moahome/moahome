@@ -7,10 +7,12 @@ import {
   unzipSync
 } from 'fflate';
 import type { ResidentList } from '../src/screens/household/resident-list/api/residentApi';
+import type { ResidentExportRow } from '../src/screens/household/resident-list/api/residentExportApi';
 import { createResidentWorkbook } from '../src/screens/household/resident-list/model/residentExport';
 import {
   EMPTY_RESIDENT_FILTERS,
-  getResidentListView
+  getResidentListView,
+  getResidentUnitLabel
 } from '../src/screens/household/resident-list/model/residentList';
 
 /** 현재 페이지보다 큰 명부와 숫자 순서가 다른 동을 구성해 실제 내려받는 범위를 확인합니다. */
@@ -52,25 +54,44 @@ async function readWorkbook(blob: Blob) {
   return {
     sheet,
     cells,
-    strings
+    strings,
+    styles: strFromU8(files['xl/styles.xml'])
   };
 }
 
-test('주민 XLSX는 현재 페이지와 관계없이 동·호수 순서의 전체 결과와 마스킹 연락처를 저장', async () => {
+/** 별도 내보내기 응답을 모의하되 목록의 필터·정렬 순서대로 허용된 세 항목만 구성합니다. */
+function exportRows(data: ResidentList, rows: ResidentList['residents']): ResidentExportRow[] {
+  const buildings = new Map(data.buildings.map((building) => [building.id, building.name]));
+
+  return rows.map((row) => ({
+    name: row.name,
+    phone: '+821012340037',
+    unitLabel: getResidentUnitLabel(row, buildings, data.hasBuildings)
+  }));
+}
+
+test('주민 XLSX는 현재 페이지와 관계없이 전체 결과의 세 열과 전체 연락처만 저장', async () => {
   const data = residentDirectory();
   const view = getResidentListView(data, EMPTY_RESIDENT_FILTERS, 2, 10);
   expect(view.rows).toHaveLength(2);
-  const { sheet, cells, strings } = await readWorkbook(await createResidentWorkbook(data, view.filtered));
+  const { sheet, cells, strings, styles } = await readWorkbook(await createResidentWorkbook(exportRows(data, view.filtered)));
 
   expect((sheet.match(/<row /g) ?? []).length).toBe(13);
   expect(cells.A2).toBe('주민 02');
   expect(cells.C2).toBe('102동 201호');
   expect(cells.A13).toBe('주민 01');
   expect(cells.C13).toBe('103동 301호');
-  expect(cells.B2).toBe('•••• 0037');
-  expect(cells.D13).toBe('소유주');
-  expect(cells.E13).toBe('대표');
-  expect(cells.F13).toBe('가입 완료');
+  expect(cells.B2).toBe('010-1234-0037');
+  expect([cells.A1, cells.B1, cells.C1]).toEqual(['주민명', '연락처', '동·호수']);
+  expect(Object.keys(cells).some((cell) => /^[D-Z]/.test(cell))).toBe(false);
+  for (const excluded of ['주민 구분', '대표 주민', '가입 상태', '소유주', '대표', '가입 완료']) {
+    expect(strings).not.toContain(excluded);
+  }
+  expect(sheet).toContain('ySplit="1"');
+  expect(sheet).toContain('ht="43"');
+  expect(sheet).toContain('ht="32"');
+  for (const color of ['EDEFF1', 'FFFFFF', 'F7F8F9', 'DFE3E8']) expect(styles).toContain(color);
+  expect(styles).toContain('맑은 고딕');
   expect(strings.join(' ')).not.toContain(data.propertyId);
   expect(strings.join(' ')).not.toContain(data.residents[0].id);
 });
@@ -82,17 +103,39 @@ test('주민 XLSX는 필터로 제외한 주민을 내보내지 않고 수식 �
     ...EMPTY_RESIDENT_FILTERS,
     buildingId: '103'
   }, 1, 10);
-  // 예기치 않은 원문 필드가 있어도 명시한 목록 표시 값 이외의 데이터는 파일에 넣지 않습니다.
-  const rows = view.filtered.map((row) => ({
+  // 구분·가입·대표 필드가 전달되어도 허용한 세 항목 이외의 값을 파일에 넣지 않습니다.
+  const rows = exportRows(data, view.filtered).map((row) => ({
     ...row,
-    phone: '01012340037'
+    relationType: 'OWNER',
+    representative: true,
+    signupStatus: 'APPROVED'
   }));
-  const { sheet, cells, strings } = await readWorkbook(await createResidentWorkbook(data, rows));
+  const { sheet, cells, strings } = await readWorkbook(await createResidentWorkbook(rows));
 
   expect((sheet.match(/<row /g) ?? []).length).toBe(2);
   expect(cells.A2).toBe('=2+2');
-  expect(cells.B2).toBe('•••• 0037');
+  expect(cells.B2).toBe('010-1234-0037');
   expect(sheet).not.toContain('<f');
   expect(strings).not.toContain('주민 02');
-  expect(strings.join(' ')).not.toContain('01012340037');
+  expect(strings.join(' ')).not.toContain('OWNER');
+  expect(strings.join(' ')).not.toContain('APPROVED');
+});
+
+test('연락처 없는 주민은 빈 연락처 셀을 저장하고 국제 번호는 앞자리와 전체 번호를 보존', async () => {
+  const { cells, strings } = await readWorkbook(await createResidentWorkbook([
+    {
+      name: '연락처 없음',
+      phone: null,
+      unitLabel: '—'
+    },
+    {
+      name: '+문자열 주민',
+      phone: '+441234567890',
+      unitLabel: '001호'
+    }
+  ]));
+  expect(cells.B2 ?? '').toBe('');
+  expect(cells.B3).toBe('+441234567890');
+  expect(cells.C3).toBe('001호');
+  expect(strings.join(' ')).not.toContain('••••');
 });

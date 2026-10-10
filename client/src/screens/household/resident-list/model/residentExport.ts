@@ -1,34 +1,49 @@
 import type { SheetData } from 'write-excel-file/universal';
-import {
-  RESIDENT_RELATION_OPTIONS,
-  RESIDENT_SIGNUP_OPTIONS
-} from '@/entities/resident';
-import type {
-  ResidentList,
-  ResidentRow
-} from '../api/residentApi';
-import { getResidentUnitLabel } from './residentList';
+import { formatResidentPhone } from '@/entities/resident';
+import type { ResidentExportRow } from '../api/residentExportApi';
 
-/** 목록과 동일한 표시 값으로 XLSX를 만들며 필터·정렬된 전체 결과는 호출 화면에서 전달합니다. */
-export async function createResidentWorkbook(data: ResidentList, rows: readonly ResidentRow[]): Promise<Blob> {
-  const buildings = new Map(data.buildings.map((building) => [building.id, building.name]));
-  const headers = ['주민명', '연락처', '동·호수', '주민 구분', '대표 주민', '가입 상태'];
-  const sheet: SheetData = [headers.map((value) => ({
+export const RESIDENT_EXPORT_HEADERS = ['주민명', '연락처', '동·호수'] as const;
+
+/** 모바일 페이지 이동에는 현재 결과의 ID만 일시 전달하며 전체 연락처는 캐시에 담지 않습니다. */
+export function getResidentExportSelectionKey(userId: string, propertyId: string) {
+  return ['resident-export-selection', userId, propertyId] as const;
+}
+
+/** 엑셀 파일에 허용된 세 항목을 구성하며 연락처는 전체 번호로 저장합니다. */
+export function getResidentExportValues(row: ResidentExportRow) {
+  return [row.name, row.phone ? formatResidentPhone(row.phone) : '', row.unitLabel];
+}
+
+/** 첨부 시트의 회색 헤더·교차 행·테두리·행 높이를 적용하고 세 항목만 문자열 셀로 저장합니다. */
+export async function createResidentWorkbook(rows: readonly ResidentExportRow[]): Promise<Blob> {
+  // 이 중립 색상은 사용자가 전달한 주민목록.xlsx의 문서 스타일이며 웹 UI 색상 토큰과 구분합니다.
+  const baseStyle = {
+    fontFamily: '맑은 고딕',
+    align: 'center' as const,
+    alignVertical: 'center' as const,
+    borderStyle: 'thin' as const,
+    borderColor: '#DFE3E8'
+  };
+  const sheet: SheetData = [RESIDENT_EXPORT_HEADERS.map((value) => ({
+    ...baseStyle,
     value,
     type: String,
-    fontWeight: 'bold'
-  })), ...rows.map((row) => [
-    row.name,
-    row.phoneLast4 ? `•••• ${row.phoneLast4}` : '—',
-    getResidentUnitLabel(row, buildings, data.hasBuildings),
-    RESIDENT_RELATION_OPTIONS.find((option) => option.value === row.relationType)?.label ?? '—',
-    row.representative ? '대표' : '—',
-    RESIDENT_SIGNUP_OPTIONS.find((option) => option.value === row.signupStatus)?.label ?? '—'
-  ].map((value) => ({
-    // 전체 번호를 추가 조회하지 않으며 =, + 등으로 시작하는 이름도 수식 대신 문자열로 저장합니다.
+    fontSize: 13,
+    fontWeight: 'bold',
+    textColor: '#27313C',
+    backgroundColor: '#EDEFF1',
+    bottomBorderColor: '#9CA3AF',
+    height: 43
+  })), ...rows.map((row, index) => getResidentExportValues(row).map((value) => ({
+    ...baseStyle,
+    // 이름이 =, + 등으로 시작해도 수식으로 해석하지 않고 연락처의 앞자리 0도 보존합니다.
     value,
     type: String,
-    format: '@'
+    format: '@',
+    fontSize: 12,
+    textColor: '#334155',
+    backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#F7F8F9',
+    height: 32
   })))];
   // 다운로드 시에만 라이브러리를 불러와 목록의 초기 로딩에 포함하지 않습니다.
   const { default: writeExcelFile } = await import('write-excel-file/universal');
@@ -36,7 +51,7 @@ export async function createResidentWorkbook(data: ResidentList, rows: readonly 
   return writeExcelFile(sheet, {
     sheet: '주민 목록',
     stickyRowsCount: 1,
-    columns: [18, 18, 24, 14, 14, 16].map((width) => ({
+    columns: [16, 20, 23].map((width) => ({
       width
     }))
   }).toBlob();

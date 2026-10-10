@@ -12,7 +12,8 @@ import {
 import { useSession } from '@/entities/session';
 import {
   RESIDENT_RELATION_OPTIONS,
-  RESIDENT_SIGNUP_OPTIONS
+  RESIDENT_SIGNUP_OPTIONS,
+  formatResidentPhone
 } from '@/entities/resident';
 import { Button } from '@/shared/ui/button';
 import { DetailActions } from '@/shared/ui/detail-actions';
@@ -25,10 +26,7 @@ import {
   getResidentDetail,
   revealResidentPhone
 } from '../../api/residentManagementApi';
-import {
-  formatResidentPhone,
-  getResidentManagementError
-} from '../../model/residentManagement';
+import { getResidentManagementError } from '../../model/residentManagement';
 import { ResidentRegistrationForm } from '../resident-registration-form/residentRegistrationForm';
 import styles from './residentDetails.module.css';
 

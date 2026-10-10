@@ -1475,6 +1475,92 @@ test('동 삭제는 연결 세대를 확인하고 다른 동은 유지하며 삭
 const RESIDENTS = `/manage/${PROPERTY_ID}/residents`;
 const RESIDENTS_URL = `${API_ORIGIN}/api/properties/${PROPERTY_ID}/residents`;
 
+for (const width of [1440, 375, 320]) {
+  test(`주민 엑셀 다운로드 ${width}px는 연락처 마스킹 미리보기와 필터 전체 다운로드를 제공`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 960
+    });
+    const data = residentDirectory();
+    const selected = data.residents.filter((row) => row.relationType === 'FAMILY');
+    let requests = 0;
+    await page.route(RESIDENTS_URL, (route) => fulfillJson(route, data));
+    await page.route(`${RESIDENTS_URL}/export`, (route) => {
+      requests++;
+      expect(route.request().method()).toBe('POST');
+      expect(route.request().postDataJSON().residentIds).toEqual(selected.map((row) => row.id));
+      return fulfillJson(route, {
+        residents: selected.map((row) => ({
+          name: row.name,
+          phone: '+821012345678',
+          unitLabel: '103동 301호'
+        }))
+      });
+    });
+    await page.goto(RESIDENTS);
+    const main = page.getByRole('main');
+    await expect(main).not.toContainText('010-1234-5678');
+    await main.getByRole('combobox', {
+      name: '주민 구분 필터',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '가족',
+      exact: true
+    }).click();
+    await main.getByRole('button', {
+      name: '다음 페이지',
+      exact: true
+    }).click();
+    await main.getByRole('button', {
+      name: '엑셀 다운로드',
+      exact: true
+    }).click();
+    const preview = width >= 768 ? page.getByRole('dialog') : main;
+    if (width < 768) {
+      await expect(page).toHaveURL(`${RESIDENTS}/export`);
+      await expect(page.getByRole('link', {
+        name: '주민 목록으로 돌아가기'
+      })).toBeVisible();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    }
+    await expect(preview.getByRole('table', {
+      name: '주민 엑셀 미리보기'
+    })).toBeVisible();
+    await expect(preview.getByRole('columnheader')).toHaveText(['주민명', '연락처', '동·호수']);
+    await expect(preview).toContainText('총 11명');
+    await expect(preview.getByRole('row')).toHaveCount(6);
+    await expect(preview).toContainText('**** 5678');
+    await expect(preview).not.toContainText('010-1234-5678');
+    await expect(preview).not.toContainText('+821012345678');
+    await expect(preview).not.toContainText('주민 구분');
+    const previewRequests = requests;
+    const downloadPromise = page.waitForEvent('download');
+    await preview.getByRole('button', {
+      name: '엑셀 다운로드',
+      exact: true
+    }).click();
+    expect((await downloadPromise).suggestedFilename()).toBe('주민_목록.xlsx');
+    expect(requests).toBe(previewRequests);
+    await expect(preview).toContainText('**** 5678');
+    await expect(preview).not.toContainText('010-1234-5678');
+    await expect(preview).not.toContainText('+821012345678');
+    if (width >= 768) {
+      await preview.getByRole('button', {
+        name: '닫기',
+        exact: true
+      }).click();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(main).not.toContainText('010-1234-5678');
+    } else {
+      await page.reload();
+      await expect(main).toContainText('주민 목록에서 엑셀 다운로드를 다시 선택해주세요.');
+      await expect(main).not.toContainText('010-1234-5678');
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}
+
 /** 한 호수의 여러 주민과 세 가지 가입 상태를 함께 반환해 행·집계·대표 표시를 검증합니다. */
 function residentDirectory(hasBuildings = true) {
   return {

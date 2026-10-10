@@ -3,3 +3,6 @@ export {
   RESIDENT_SIGNUP_OPTIONS,
   type ResidentSignupStatus
 } from './constants/residentOptions';
+export {
+  formatResidentPhone
+} from './model/residentPhone';
