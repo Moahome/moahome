@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@/shared/ui/button';
+import { Pagination } from '@/shared/ui/pagination';
 import { Toast } from '@/shared/ui/toast';
 import { getUnitListError } from '../../model/unitList';
 import { useUnitList } from './_hooks/useUnitList';
@@ -9,7 +10,6 @@ import { UnitListSummary } from './_components/unit-list-summary/unitListSummary
 import { UnitListFilters } from './_components/unit-list-filters/unitListFilters';
 import { UnitListToolbar } from './_components/unit-list-toolbar/unitListToolbar';
 import { UnitListTable } from './_components/unit-list-table/unitListTable';
-import { UnitListPagination } from './_components/unit-list-pagination/unitListPagination';
 import { UnitListDialogs } from './_components/unit-list-dialogs/unitListDialogs';
 import styles from './unitListPage.module.css';
 
@@ -89,7 +89,9 @@ export function UnitListPage({
           hasFilters={view.hasFilters}
           onOpenDetail={controller.openDetail}
         />
-        <UnitListPagination
+        <Pagination
+          label={'세대 목록 페이지'}
+          unit={'세대'}
           total={view.filtered.length}
           page={view.currentPage}
           pageCount={view.pageCount}

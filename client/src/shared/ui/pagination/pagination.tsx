@@ -1,14 +1,20 @@
+'use client';
+
 import { Button } from '@/shared/ui/button';
-import styles from './unitListPagination.module.css';
+import styles from './pagination.module.css';
 
 /** 페이지 수가 줄어든 결과를 기준으로 이동 버튼과 현재 표시 범위를 함께 갱신합니다. */
-export function UnitListPagination({
+export function Pagination({
+  label,
+  unit,
   total,
   page,
   pageCount,
   pageSize,
   onPageChange,
 }: {
+  label: string;
+  unit: string;
   total: number;
   page: number;
   pageCount: number;
@@ -31,12 +37,12 @@ export function UnitListPagination({
       >
         총
         {total}
-        세대
+        {unit}
         {total > 0 && ` 중 ${firstIndex + 1}–${Math.min(firstIndex + pageSize, total)}`}
       </p>
       <nav
         className={styles.pagination}
-        aria-label={'세대 목록 페이지'}
+        aria-label={label}
       >
         <Button
           variant={'outline'}
