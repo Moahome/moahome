@@ -18,7 +18,7 @@
 
 ### 진입 UI의 폴더 배치
 
-[Client UI 폴더 규칙](../AGENTS.md#컴포넌트-폴더-구조)은 등록 기능의 진입 UI에도 동일하게 적용합니다. 현재 경로는 다음과 같습니다.
+[Client UI 폴더 규칙](../AGENTS.md#컴포넌트-폴더-구조)에 따라 단일 진입 UI는 `ui/`에 바로 두고 여러 진입 UI는 폴더로 구분합니다. 등록 기능에는 세 진입 UI가 있으므로 다음 폴더 구분을 유지합니다.
 
 ```text
 src/features/property-registration/ui/

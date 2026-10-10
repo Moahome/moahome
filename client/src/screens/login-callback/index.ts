@@ -1,3 +1,3 @@
 export {
   LoginCallbackPage
-} from './ui/login-callback-page/loginCallbackPage';
+} from './ui/loginCallbackPage';

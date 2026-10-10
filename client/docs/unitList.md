@@ -13,8 +13,8 @@
 | 화면 슬라이스 | `src/screens/household/unit-list/` |
 | 화면 공개 API | `src/screens/household/unit-list/index.ts` |
 | 외부 Import | `@/screens/household/unit-list` |
-| 진입 UI | `ui/unit-list-page/unitListPage.tsx` |
-| 진입 UI 스타일 | `ui/unit-list-page/unitListPage.module.css` |
+| 진입 UI | `ui/unitListPage.tsx` |
+| 진입 UI 스타일 | `ui/unitListPage.module.css` |
 | 기존 URL | `/manage/[propertyId]/households` |
 
 `household`에는 업무 그룹을 위한 통합 UI나 공개 API를 만들지 않습니다. 실제 화면이 필요한 코드와 공개 API를 소유합니다. 같은 그룹의 형제 화면도 서로 다른 슬라이스이며 직접 참조하지 않습니다.
@@ -29,17 +29,16 @@ src/screens/household/unit-list/
 ├── model/
 │   └── unitList.ts
 └── ui/
-    └── unit-list-page/
-        ├── unitListPage.tsx
-        ├── unitListPage.module.css
-        ├── _hooks/
-        │   └── useUnitList.ts
-        └── _components/
-            ├── unit-list-header/
-            ├── unit-list-summary/
-            ├── unit-list-filters/
-            ├── unit-list-table/
-            └── unit-list-dialogs/
+    ├── unitListPage.tsx
+    ├── unitListPage.module.css
+    ├── _hooks/
+    │   └── useUnitList.ts
+    └── _components/
+        ├── unit-list-header/
+        ├── unit-list-summary/
+        ├── unit-list-filters/
+        ├── unit-list-table/
+        └── unit-list-dialogs/
 ```
 
 - 진입 UI는 화면 블록을 조합합니다. 조회·변경 상태와 이벤트 처리 전체를 진입 TSX에 넣지 않습니다.
@@ -53,7 +52,7 @@ src/screens/household/unit-list/
 - 페이지 이동·표시 범위·반응형 배치는 `shared/ui/pagination`의 `Pagination`을 사용합니다. `세대` 단위와 `세대 목록 페이지` 접근성 이름은 화면이 전달하며 필터·페이지 크기·유효 페이지 계산은 기존 모델과 Hook에서 관리합니다. 표시 개수 선택은 기존 목록 위 오른쪽 위치를 유지합니다.
 - 추가·수정·동 관리·자동 입력·삭제 확인은 기존 `entities/property`의 모달과 검증을 재사용합니다. 초기 등록과 저장된 목록의 상태·저장 방식은 각 호출자가 관리합니다. 상세와 공유 모달의 열기·닫기·초기 포커스·복귀·중첩 스크롤 잠금은 `shared/ui/client-modal`의 `ClientModal`을 사용합니다. 도메인 입력과 저장 정책은 모달 호출자가 소유합니다.
 
-전체 UI의 동일 폴더 배치와 공개 API 규칙은 [Client AGENTS.md](../AGENTS.md#5-component-rules)를 따릅니다. `property-registration`의 진입 UI도 예외가 아닙니다.
+진입 UI 수에 따른 배치와 공개 API 규칙은 [Client AGENTS.md](../AGENTS.md#5-component-rules)를 따릅니다. 세대 목록은 단일 진입 UI이므로 `ui/`에 바로 두고, `property-registration`은 여러 진입 UI를 각각의 폴더로 구분합니다.
 
 ## 3. 상세·수정·삭제의 역할
 
@@ -112,7 +111,7 @@ src/screens/household/unit-list/
 ## 6. 구조와 동작 검증
 
 - 목록 라우팅은 `@/screens/household/unit-list`, 독립 페이지는 `@/screens/household/unit-entry`의 공개 API를 사용합니다. 그룹 통합 Import, 화면 내부 파일 우회와 같은 그룹의 형제 화면 참조는 ESLint가 거부합니다.
-- 화면·기능·Widget의 진입 UI와 내부 컴포넌트가 `ui/` 또는 `_components/` 바로 아래에 TSX를 나열하면 ESLint가 거부합니다. TSX의 CSS Modules는 같은 컴포넌트 폴더에 있는지 함께 확인합니다.
+- 단일 진입 UI는 `ui/` 바로 아래에 TSX와 CSS Modules를 함께 둡니다. 복수 진입 UI는 각각의 폴더로 구분하며 실제 배치는 구조 테스트로 확인합니다. 내부 보조 컴포넌트를 `_components/` 바로 아래에 나열하면 ESLint가 거부합니다.
 - `tests/architecture.spec.ts`에서 그룹·단독 화면 공개 API, 형제 화면 참조 금지, 상위 레이어 참조 금지와 UI 폴더 배치를 검증합니다.
 - `tests/managementLayout.spec.ts`에서 행 상세·키보드 진입·수정 전환·모바일 배치와 관리·등록 주민 열과 편집 제거, 가입 현황과 상단 표시 개수 드롭다운, 토스트 자동 닫기, 상세 삭제의 취소·실패·중복 제출·목록 갱신과 동 삭제를 검증합니다.
 - 320 / 767px에서 모바일 헤더 뒤로가기·독립 주소·새로고침·저장 실패와 재시도·수정·삭제·대상 없음과 페이지 폭을 확인하며 1440px에서는 기존 모달 동작을 검증합니다.

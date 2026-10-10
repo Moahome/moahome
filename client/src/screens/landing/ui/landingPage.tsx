@@ -6,11 +6,11 @@ import {
   FAQ_ITEMS,
   MANAGEMENT_STEPS,
   ROLES,
-} from '../_constants/landingContent';
-import { BrandLogo } from '../_components/brand-logo/brandLogo';
-import { LandingHeader } from '../_components/landing-header/landingHeader';
-import { LandingMotion } from '../_components/landing-motion/landingMotion';
-import { ProductPreview } from '../_components/product-preview/productPreview';
+} from './_constants/landingContent';
+import { BrandLogo } from './_components/brand-logo/brandLogo';
+import { LandingHeader } from './_components/landing-header/landingHeader';
+import { LandingMotion } from './_components/landing-motion/landingMotion';
+import { ProductPreview } from './_components/product-preview/productPreview';
 import styles from './landingPage.module.css';
 
 export function LandingPage() {

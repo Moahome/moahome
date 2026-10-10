@@ -200,6 +200,8 @@ npm run dev
 
 현재 랜딩, 로그인, 로그인 콜백 화면은 각각 `src/screens/<화면>/ui/`에 배치합니다. 랜딩의 헤더, 로고, 제품 미리보기와 등장 효과는 컴포넌트 옆의 CSS Modules를 사용하며 화면 CSS는 화면 배치와 섹션 스타일을 담당합니다. 로그인 콜백의 표시 상태 타입과 오류 안내 함수는 `loginCallbackPage.tsx`에서 함께 관리합니다.
 
+진입 UI 수에 따른 파일·폴더 배치와 내부 보조 UI의 위치, 구조 검증 기준은 [Client UI 폴더 규칙](../client/AGENTS.md#컴포넌트-폴더-구조)을 따릅니다.
+
 ### Server / Client Component 선택
 
 컴포넌트 작성 시 처리 책임을 보고 실행 환경을 판단합니다. 화면 조합 / 서버 데이터 조회는 Server Component를 기본으로 하고, 상태 / Effect / 이벤트 핸들러 / 브라우저 API가 필요한 부분에는 `"use client"`를 선언합니다. `page.tsx`의 라우팅 연결과 `metadata` 처리는 가능한 Server Component로 유지합니다. 자세한 작성 기준은 [Client Component 규칙](../client/AGENTS.md#5-component-rules)을 따릅니다.

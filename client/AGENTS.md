@@ -54,15 +54,13 @@ src/screens/
 │       ├── api/
 │       ├── model/
 │       └── ui/
-│           └── unit-list-page/
-│               ├── unitListPage.tsx
-│               └── unitListPage.module.css
+│           ├── unitListPage.tsx
+│           └── unitListPage.module.css
 └── login-callback/                  # 단독 화면 슬라이스
     ├── index.ts
     └── ui/
-        └── login-callback-page/
-            ├── loginCallbackPage.tsx
-            └── loginCallbackPage.module.css
+        ├── loginCallbackPage.tsx
+        └── loginCallbackPage.module.css
 ```
 
 하위 레이어가 상위 레이어를 참조하면 안 됩니다.
@@ -259,12 +257,13 @@ Next.js와 도구가 사용하는 `page.tsx`, `layout.tsx`, `not-found.tsx`,
 
 ### 컴포넌트 폴더 구조
 
-- 모든 UI 컴포넌트는 컴포넌트 이름의 `kebab-case` 폴더를 만들고, TSX와 해당 CSS Modules를 그 안에 함께 둡니다. 화면 진입점·기능의 진입 UI·공통 UI·내부 컴포넌트에 같은 기준을 적용하며 진입점이라는 이유로 예외를 두지 않습니다. 스타일이 없는 컴포넌트에는 빈 CSS 파일을 만들지 않습니다.
-- 여러 컴포넌트를 묶는 모듈은 모듈 아래에 컴포넌트별 폴더를 둡니다. 예를 들어 `form-controls/form-field/`, `form-controls/input/`, `form-controls/dropdown/`으로 나누며, 모듈 루트에 여러 컴포넌트의 소스와 CSS를 나열하지 않습니다.
-- 모듈의 `index.ts`는 모듈 루트에 두고 외부에서 사용하는 공개 API만 내보냅니다. 컴포넌트 전용 보조 코드는 해당 컴포넌트 폴더에서 관리합니다.
-- `ui/`는 UI 컴포넌트 폴더를 담는 세그먼트입니다. `ui/` 바로 아래에 진입 TSX나 CSS Modules를 나열하지 않습니다. 화면 진입점은 `ui/unit-list-page/unitListPage.tsx`와 `ui/unit-list-page/unitListPage.module.css`처럼 함께 둡니다.
-- `features/property-registration`도 같은 기준을 적용합니다. `ui/property-registration-dialog/`에 `propertyRegistrationDialog.tsx`와 CSS를, `ui/property-registration-flow/`에 `propertyRegistrationFlow.tsx`와 CSS를 각각 함께 둡니다. `registrationDraftLifecycle.tsx`처럼 스타일이 없는 컴포넌트도 `ui/registration-draft-lifecycle/` 폴더에 둡니다.
-- `app`의 `page.tsx`, `layout.tsx`, `not-found.tsx` 등 프레임워크 파일은 라우팅이 요구하는 위치와 이름을 유지합니다. 이 예외를 `screens`나 `features`의 일반 UI 진입점에 적용하지 않습니다.
+- 슬라이스의 진입 UI가 하나면 TSX와 해당 CSS Modules를 `ui/` 바로 아래에 둡니다. `ui/unitListPage.tsx`와 `ui/unitListPage.module.css`처럼 작성하며 같은 이름의 중간 폴더를 만들지 않습니다. 이 기준은 `screens`, `widgets`, `features`, `entities`에 동일하게 적용합니다.
+- 같은 슬라이스에 진입 UI가 둘 이상 생기면 각각 `kebab-case` 폴더로 묶고 TSX와 CSS Modules를 함께 옮깁니다. 단일 진입 파일과 여러 진입 폴더를 혼합하지 않습니다. `resident-list`는 목록과 엑셀 다운로드 페이지가 있으므로 `ui/resident-list-page/`, `ui/resident-export-page/`로 구분합니다.
+- 진입 UI의 수는 외부에서 조합하는 페이지·컴포넌트 기준입니다. CSS, Hook이나 내부 보조 컴포넌트가 늘었다는 이유로 단일 진입 UI에 중간 폴더를 추가하지 않습니다. `residentExportPreview`처럼 여러 진입 UI가 공유하는 보조 컴포넌트는 `ui/_components/`에 둡니다.
+- 내부 보조 컴포넌트는 `_components/<컴포넌트>/`에 TSX와 CSS Modules를 함께 둡니다. `shared/ui`의 공통 UI는 모듈별 폴더와 공개 API를 유지하며, 여러 컴포넌트를 묶는 `form-controls`는 `form-field/`, `input/`, `dropdown/`처럼 구분합니다. 스타일이 없는 컴포넌트에는 빈 CSS 파일을 만들지 않습니다.
+- 슬라이스와 공통 모듈의 `index.ts`는 기존 루트에 두고 외부에서 사용하는 공개 API만 내보냅니다. 파일을 이동할 때 같은 슬라이스 내부의 상대 경로와 공개 API의 재노출 경로도 함께 맞춥니다.
+- `features/property-registration`은 Dialog, Flow, 초안 수명 관리의 세 진입 UI가 있으므로 각각의 폴더를 유지합니다. `features/kakao-login`, `features/logout`처럼 진입 UI가 하나인 기능은 `ui/`에 바로 둡니다.
+- `app`의 `page.tsx`, `layout.tsx`, `not-found.tsx` 등 프레임워크 파일은 라우팅이 요구하는 위치와 이름을 유지합니다.
 
 ### Server / Client Component 선택
 
@@ -319,7 +318,7 @@ import { PaymentCard } from '@/entities/payment/ui/paymentCard';
 | `ui/_hooks/` | UI 내부 Hook |
 | `ui/_constants/` | 내부 화면 구성 상수 |
 
-- 화면 컴포넌트와 CSS Modules는 `ui/<화면 컴포넌트>/`에 함께 둡니다. 특정 UI만 사용하는 `_hooks/`, `_utils/`, `_types/`, `_constants/`, `_components/`는 그 UI 컴포넌트 폴더 안에 둘 수 있습니다. 같은 슬라이스의 여러 UI가 공유하는 보조 폴더는 `ui/` 아래에 두며 화면 슬라이스 루트로 분리하지 않습니다.
+- 단일 진입 UI의 TSX와 CSS Modules는 `ui/`에 함께 두고 내부 보조 폴더도 `ui/_components/`, `ui/_hooks/`처럼 둡니다. 여러 진입 UI가 있으면 특정 UI만 사용하는 보조 폴더는 `ui/<진입 UI>/` 안에 둘 수 있습니다. 같은 슬라이스의 여러 UI가 공유하는 보조 폴더는 `ui/` 아래에 두며 화면 슬라이스 루트로 분리하지 않습니다.
 - `ui/_components/`의 내부 컴포넌트는 컴포넌트별 `kebab-case` 폴더로 묶습니다. 예를 들어 `start-card/startCard.tsx`와 `start-card/startCard.module.css`를 함께 둡니다.
 - 해당 컴포넌트에서만 쓰는 보조 UI는 같은 컴포넌트 폴더에 두고, 여러 내부 컴포넌트가 공유하는 UI는 별도의 컴포넌트 폴더로 관리합니다.
 - 한 컴포넌트의 Props, 작은 표시 상태 타입과 보조 함수는 해당 컴포넌트 파일에 함께 둘 수 있습니다. 타입이나 함수라는 이유만으로 파일을 분리하지 않습니다.
@@ -333,9 +332,8 @@ import { PaymentCard } from '@/entities/payment/ui/paymentCard';
 src/screens/login-callback/
 ├── index.ts
 └── ui/
-    └── login-callback-page/
-        ├── loginCallbackPage.tsx
-        └── loginCallbackPage.module.css
+    ├── loginCallbackPage.tsx
+    └── loginCallbackPage.module.css
 ```
 
 `index.ts`에는 외부에서 사용하는 화면 진입점만 공개합니다.
@@ -399,9 +397,9 @@ npm test
 - 금액 / 상태 계산은 단위 테스트로, 사용자 상호작용과 로딩 / 오류 / 빈 상태는 컴포넌트 테스트로 검증합니다.
 - 로그인, 관리비 부과, 수납 확정 등 핵심 흐름은 해당 기능이 구현되는 시점에 필요한 통합 / E2E 테스트를 추가합니다.
 - UI 변경은 개발 서버(`npm run dev`)에서 영향받는 화면과 반응형 표시도 확인합니다.
-- 구조 변경 전에는 메뉴 계층 → 업무 그룹 → 최종 화면 슬라이스 → 공개 API → UI 컴포넌트 폴더를 대조합니다. 진입 TSX/CSS의 같은 폴더 배치, 형제 화면 참조 금지와 기존 모달 재사용도 함께 확인합니다.
+- 구조 변경 전에는 메뉴 계층 → 업무 그룹 → 최종 화면 슬라이스 → 공개 API → 진입 UI 수에 따른 배치를 대조합니다. 단일 진입 UI의 `ui/` 직접 배치, 복수 진입 UI의 폴더 구분, TSX/CSS의 같은 위치, 형제 화면 참조 금지와 기존 모달 재사용도 함께 확인합니다.
 - 화면 동작은 해당 Client 설계의 일반 / 편집 상태와 대조합니다. 선택 삭제가 있는 화면에 행 삭제를 임의로 더하지 않았는지 확인합니다.
-- ESLint의 `architecture/import-boundaries`는 `SCREEN_GROUPS`에 등록한 업무 그룹 아래 최종 화면을 별도 슬라이스로 검사하고, `architecture/ui-folders`는 `ui/` 또는 `_components/` 바로 아래의 진입 TSX를 차단합니다. 그룹을 추가할 때 그룹 설정과 경계 테스트도 함께 맞춥니다. CSS의 동일 폴더 배치는 별도로 확인합니다.
+- ESLint의 `architecture/import-boundaries`는 `SCREEN_GROUPS`에 등록한 업무 그룹 아래 최종 화면을 별도 슬라이스로 검사합니다. `architecture/ui-folders`는 단일 진입 UI의 `ui/` 직접 배치를 허용하고 `_components/` 바로 아래의 TSX는 차단합니다. `tests/architecture.spec.ts`는 실제 슬라이스의 단일·복수 진입 UI 배치와 TSX/CSS의 같은 위치도 확인합니다. 그룹을 추가할 때 그룹 설정과 경계 테스트도 함께 맞춥니다.
 - 스냅샷이나 구현 내부를 그대로 따라가는 테스트보다 사용자에게 보이는 결과와 업무 규칙을 검증합니다.
 - 문서만 변경한 경우 루트 Verification 규칙을 따릅니다.
 

@@ -62,7 +62,7 @@
 | 위치 | 책임 |
 | --- | --- |
 | 후속 `app/(main)/entry/page.tsx` | 별도 진입 화면으로 분리할 때 추가 |
-| `screens/start/ui/start-page/startPage.tsx` | 세션 / 관리대상 조회 조합, 확인 중 / 오류 표시와 최종 라우터 이동 |
+| `screens/start/ui/startPage.tsx` | 세션 / 관리대상 조회 조합, 확인 중 / 오류 표시와 최종 라우터 이동 |
 | `features/enter-service/api/managementAccessApi.ts` | 기존 authenticatedAPI로 관리 영역 접근 API 호출, 응답 자료형·내용 검증 |
 | `features/enter-service/model/` | 공통 목적지 결정, 사용자별 최근 선택 기록과 공유 조회 상태 |
 | `entities/session/` | 기존 세션 복원 / 본인 정보 조회 재사용 |

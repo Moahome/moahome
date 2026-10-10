@@ -3,4 +3,4 @@ export {
 } from './constants/bankOptions';
 export {
   BankIcon
-} from './ui/bank-icon/bankIcon';
+} from './ui/bankIcon';

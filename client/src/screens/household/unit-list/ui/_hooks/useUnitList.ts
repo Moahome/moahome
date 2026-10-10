@@ -31,7 +31,7 @@ import {
   EMPTY_UNIT_LIST_FILTERS,
   getUnitListView,
   type UnitListFilters
-} from '../../../model/unitList';
+} from '../../model/unitList';
 
 type UnitListDialog = {
   kind: 'unit';

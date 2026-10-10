@@ -1,3 +1,3 @@
 export {
   UnitEntryPage
-} from './ui/unit-entry-page/unitEntryPage';
+} from './ui/unitEntryPage';

@@ -1,3 +1,3 @@
 export {
   ResidentImportPage
-} from './ui/resident-import-page/residentImportPage';
+} from './ui/residentImportPage';

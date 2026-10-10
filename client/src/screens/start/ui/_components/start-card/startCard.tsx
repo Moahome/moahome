@@ -2,7 +2,7 @@
 
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { HomeIllustration } from '@/shared/ui/home-illustration';
-import motion from '../../start-page/startMotion.module.css';
+import motion from '../../startMotion.module.css';
 import styles from './startCard.module.css';
 
 const START_OPTIONS = {

@@ -11,8 +11,8 @@ import { LogoutButton } from '@/features/logout';
 import { BrandMark } from '@/shared/ui/brand-mark';
 import { NoticeDialog } from '@/shared/ui/notice-dialog';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import { HeaderAvatar } from '../_components/header-avatar/headerAvatar';
-import { HeaderMobileMenu } from '../_components/header-mobile-menu/headerMobileMenu';
+import { HeaderAvatar } from './_components/header-avatar/headerAvatar';
+import { HeaderMobileMenu } from './_components/header-mobile-menu/headerMobileMenu';
 import styles from './serviceHeader.module.css';
 
 export function ServiceHeader({

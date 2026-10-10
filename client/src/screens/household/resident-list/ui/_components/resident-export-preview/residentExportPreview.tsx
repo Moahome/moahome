@@ -14,7 +14,7 @@ import { Toast } from '@/shared/ui/toast';
 import {
   getResidentExport,
   type ResidentExportRow
-} from '../../api/residentExportApi';
+} from '../../../api/residentExportApi';
 import { downloadResidents } from './_utils/downloadResidents';
 import styles from './residentExportPreview.module.css';
 

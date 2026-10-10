@@ -1,6 +1,6 @@
 import { NeighborhoodIllustration } from '@/shared/ui/neighborhood-illustration';
 import { WelcomePuppy } from '../welcome-puppy/welcomePuppy';
-import motion from '../../start-page/startMotion.module.css';
+import motion from '../../startMotion.module.css';
 import styles from './startIntro.module.css';
 
 export function StartIntro() {

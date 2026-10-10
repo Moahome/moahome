@@ -1,3 +1,3 @@
 export {
   LoginPage
-} from './ui/login-page/loginPage';
+} from './ui/loginPage';

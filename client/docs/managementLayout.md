@@ -20,7 +20,7 @@
 | --- | --- |
 | `app/(main)/manage/[propertyId]/layout.tsx` | 관리 영역 전체의 공통 레이아웃 연결 |
 | 메뉴별 `app/.../page.tsx` | 해당 URL을 화면 슬라이스의 공개 API에 연결 |
-| 메뉴별 `screens/<업무 그룹>/<화면 슬라이스>/ui/<화면 컴포넌트>/...Page.tsx` | 메뉴 계층에 속한 실제 본문 구성, 단독 화면은 업무 그룹 생략 |
+| 메뉴별 `screens/<업무 그룹>/<화면 슬라이스>/ui/...Page.tsx` | 단일 진입 화면의 본문 구성. 복수 진입 UI는 `ui/<진입 UI>/`로 구분하며 단독 화면은 업무 그룹 생략 |
 
 `app`의 `page.tsx`와 `screens`의 화면 컴포넌트는 한 페이지의 라우팅 연결과 본문을 나눈 것입니다. 각 업무 화면은 자기 화면 슬라이스를 사용하며 사이드바가 화면 컴포넌트를 직접 가져와 교체하지 않습니다.
 
@@ -42,11 +42,10 @@ src/app/(main)/manage/[propertyId]/
 src/screens/management-dashboard/
 ├── index.ts
 └── ui/
-    └── management-dashboard-page/
-        └── managementDashboardPage.tsx
+    └── managementDashboardPage.tsx
 ```
 
-대시보드도 [UI 폴더 규칙](../AGENTS.md#컴포넌트-폴더-구조)에 따라 컴포넌트 폴더에 배치합니다. 스타일이 없는 현재 대시보드에는 빈 CSS 파일을 만들지 않습니다.
+대시보드는 진입 UI가 하나이므로 [UI 폴더 규칙](../AGENTS.md#컴포넌트-폴더-구조)에 따라 `ui/`에 바로 배치합니다. 스타일이 없는 현재 대시보드에는 빈 CSS 파일을 만들지 않습니다.
 
 `세대 관리 → 세대 목록`의 화면 기준 경로는 `screens/household/unit-list/`입니다. 라우팅 파일은 그 화면의 `index.ts`를 통해 연결합니다. 진입 UI 배치와 편집·수정·삭제의 역할은 [세대 목록 설계](unitList.md)에서 관리합니다.
 
@@ -68,9 +67,8 @@ src/screens/management-dashboard/
 src/widgets/management-layout/
 ├── index.ts
 └── ui/
-    ├── management-layout/
-    │   ├── managementLayout.tsx
-    │   └── managementLayout.module.css
+    ├── managementLayout.tsx
+    ├── managementLayout.module.css
     ├── _components/
     │   └── management-sidebar/
     │       ├── managementSidebar.tsx
@@ -94,7 +92,7 @@ src/widgets/management-layout/
 | `SidebarLink` | 메뉴 목적지의 Next.js `Link`, 현재 페이지 강조와 준비 중 표시 |
 | `managementNavigation` | 메뉴 ID·이름·아이콘·그룹 자식·목적지 경로·이동 가능 상태 |
 
-각 UI 컴포넌트는 자신의 폴더와 CSS Module을 가집니다. 사이드바 전용 드롭다운과 링크는 `management-sidebar` 내부에 두고 별도 파일로 구현합니다. `ManagementSidebar`는 이 컴포넌트를 조합하며 펼침 동작과 각 링크의 표현을 한 파일에 작성하지 않습니다.
+단일 진입 UI인 `ManagementLayout`은 `ui/`에 TSX와 CSS Module을 함께 두고, 내부 보조 컴포넌트는 `_components/` 아래의 컴포넌트별 폴더에 둡니다. 사이드바 전용 드롭다운과 링크는 `management-sidebar` 내부에 두고 별도 파일로 구현합니다. `ManagementSidebar`는 이 컴포넌트를 조합하며 펼침 동작과 각 링크의 표현을 한 파일에 작성하지 않습니다.
 
 Widget 외부에는 `ManagementLayout`의 공개 API를 제공합니다. 페이지는 공통 레이아웃이 적용된 경로 아래에 본문을 연결하므로 사이드바를 페이지마다 가져오지 않습니다. Widget이 상위 레이어의 `screens`를 참조하지 않으며 링크는 URL로 페이지를 연결합니다.
 

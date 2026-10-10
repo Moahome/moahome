@@ -1,3 +1,3 @@
 export {
   ServiceHeader
-} from './ui/service-header/serviceHeader';
+} from './ui/serviceHeader';

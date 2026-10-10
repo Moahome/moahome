@@ -1,6 +1,6 @@
 import { RESIDENT_RELATION_OPTIONS } from '@/entities/resident';
 import { DataTable } from '@/shared/ui/data-table';
-import type { ImportRow } from '../../../../api/residentImportApi';
+import type { ImportRow } from '../../../api/residentImportApi';
 import styles from './importTable.module.css';
 
 export const IMPORT_STATUS_LABELS = {

@@ -126,13 +126,13 @@ const importBoundaries = {
   },
 };
 
-/** 진입 UI도 내부 컴포넌트와 같은 폴더 규칙으로 검사해 ui/ 바로 아래의 TSX 배치를 차단합니다. */
+/** 단일 진입 UI는 ui/에 직접 두고 내부 보조 컴포넌트만 컴포넌트별 폴더를 사용합니다. */
 const uiFolders = {
   meta: {
     type: 'problem',
     schema: [],
     messages: {
-      componentFolder: 'UI 컴포넌트는 ui/ 또는 _components/ 바로 아래가 아닌 컴포넌트별 폴더에 배치하세요.',
+      componentFolder: '내부 보조 컴포넌트는 _components/ 바로 아래가 아닌 컴포넌트별 폴더에 배치하세요.',
     },
   },
   create(context) {
@@ -140,7 +140,7 @@ const uiFolders = {
       Program(node) {
         const parts = relative(SOURCE_DIRECTORY, context.filename).split(sep);
         const parent = parts.at(-2);
-        if (!parts.includes('ui') || !/\.tsx$/.test(context.filename) || !['ui', '_components'].includes(parent)) return;
+        if (!parts.includes('ui') || !/\.tsx$/.test(context.filename) || parent !== '_components') return;
 
         context.report({
           node,

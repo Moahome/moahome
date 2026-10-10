@@ -9,7 +9,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
 import { getResidentExportSelectionKey } from '../../model/residentExport';
-import { ResidentExportPreview } from '../resident-export-preview/residentExportPreview';
+import { ResidentExportPreview } from '../_components/resident-export-preview/residentExportPreview';
 
 /** 모바일 다운로드는 독립 주소로 제공하고 전체 번호·이름·검색어를 URL이나 저장소로 전달하지 않습니다. */
 export function ResidentExportPage({

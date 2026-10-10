@@ -1,3 +1,3 @@
 export {
   UnitListPage
-} from './ui/unit-list-page/unitListPage';
+} from './ui/unitListPage';

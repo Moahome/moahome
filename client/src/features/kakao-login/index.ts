@@ -1,6 +1,6 @@
 export {
   KakaoLoginButton
-} from './ui/kakao-login-button/kakaoLoginButton';
+} from './ui/kakaoLoginButton';
 export {
   getKakaoLoginErrorMessage
 } from './lib/loginErrorMessage';

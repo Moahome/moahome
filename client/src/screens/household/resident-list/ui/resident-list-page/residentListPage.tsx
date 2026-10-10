@@ -21,7 +21,7 @@ import { ResidentListTable } from './_components/resident-list-table/residentLis
 import { ListToolbar } from '@/shared/ui/list-toolbar';
 import { ListCard } from '@/shared/ui/list-card';
 import { ResidentRegistrationModal } from './_components/resident-registration-modal/residentRegistrationModal';
-import { ResidentExportPreview } from '../resident-export-preview/residentExportPreview';
+import { ResidentExportPreview } from '../_components/resident-export-preview/residentExportPreview';
 import { getResidentExportSelectionKey } from '../../model/residentExport';
 import styles from './residentListPage.module.css';
 

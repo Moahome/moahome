@@ -10,8 +10,8 @@ import { useSession } from '@/entities/session';
 import { isPropertyId } from '@/entities/property';
 import { useManagementContext } from '@/features/enter-service';
 import { ApiError } from '@/shared/api';
-import { ManagementAccessState } from '../_components/management-access-state/managementAccessState';
-import { ManagementSidebar } from '../_components/management-sidebar/managementSidebar';
+import { ManagementAccessState } from './_components/management-access-state/managementAccessState';
+import { ManagementSidebar } from './_components/management-sidebar/managementSidebar';
 import styles from './managementLayout.module.css';
 
 type HeaderSlots = {

@@ -1,3 +1,3 @@
 export {
   LandingPage
-} from './ui/landing-page/landingPage';
+} from './ui/landingPage';
