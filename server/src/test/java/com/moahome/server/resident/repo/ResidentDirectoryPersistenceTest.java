@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.*;
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({ResidentListService.class, ManagementAccessService.class, UserService.class, ResidentDirectoryPersistenceTest.Beans.class, com.moahome.server.resident.service.ResidentRegistrationService.class})
+@Import({com.moahome.server.property.service.UnitManagementService.class, ResidentListService.class, ManagementAccessService.class, UserService.class, ResidentDirectoryPersistenceTest.Beans.class, com.moahome.server.resident.service.ResidentRegistrationService.class, com.moahome.server.resident.service.ResidentImportService.class, com.moahome.server.resident.service.ResidentExcelReader.class, com.moahome.server.resident.service.ResidentManagementService.class})
 @ActiveProfiles("database-test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -43,10 +43,14 @@ class ResidentDirectoryPersistenceTest {
 	@Autowired UnitRepository units;
 	@Autowired UserRepository users;
 	@Autowired ResidentListService service;
+	@Autowired com.moahome.server.property.service.UnitManagementService unitManagement;
+	@Autowired com.moahome.server.resident.service.ResidentManagementService management;
 	@Autowired com.moahome.server.resident.service.ResidentRegistrationService registrations;
 	@Autowired com.moahome.server.common.security.PhoneSecurity phoneSecurity;
 	@Autowired JdbcTemplate jdbc;
 	@Autowired Flyway flyway;
+    @Autowired com.moahome.server.resident.service.ResidentImportService imports;
+    @Autowired ResidentImportBatchRepository batches;
 
 	@DynamicPropertySource
 	static void infrastructure(DynamicPropertyRegistry registry) {
@@ -83,6 +87,10 @@ class ResidentDirectoryPersistenceTest {
 		assertThat(representative.representative()).isTrue();
 		assertThat(representative.phoneLast4()).isEqualTo("1234");
 		assertThat(representative.signupStatus()).isEqualTo(ResidentSignupStatus.NOT_JOINED);
+        var summary = unitManagement.list(actor.getId(), property.getId()).residentSummaries().get(unit.getId());
+        assertThat(summary.representativeName()).isEqualTo("김민수");
+        assertThat(summary.total()).isEqualTo(2);
+        assertThat(summary.notJoined()).isEqualTo(2);
 		assertThat(response.residents().stream().filter(item -> item.id().equals(second)).findFirst().orElseThrow().representative()).isFalse();
 	}
 
@@ -167,10 +175,14 @@ class ResidentDirectoryPersistenceTest {
             .containsEntry(linkedOnly, ResidentSignupStatus.NOT_JOINED)
             .containsEntry(possible, ResidentSignupStatus.NOT_JOINED)
             .containsEntry(oldPending, ResidentSignupStatus.NOT_JOINED);
+        var summaries = unitManagement.list(actor, property.getId()).residentSummaries();
+        assertThat(summaries.get(unit.getId())).isEqualTo(new com.moahome.server.property.dto.UnitListResponse.ResidentSummary(null, 5, 1, 1, 3));
+        assertThat(summaries.get(oldUnit.getId())).isEqualTo(new com.moahome.server.property.dto.UnitListResponse.ResidentSummary(null, 0, 0, 0, 0));
         // 과거 승인이 있어도 현재 참여가 끝났거나 현재 세대의 승인이 아니면 가입 완료가 아닙니다.
         jdbc.update("update property_members set ended_at=now() where property_id=? and user_id=?", property.getId(), approvedUser);
         assertThat(service.list(actor, property.getId()).residents().stream().filter(item -> item.id().equals(approved)).findFirst().orElseThrow().signupStatus())
             .isEqualTo(ResidentSignupStatus.NOT_JOINED);
+        assertThat(unitManagement.list(actor, property.getId()).residentSummaries().get(unit.getId()).approved()).isZero();
         jdbc.update("update property_members set ended_at=null where property_id=? and user_id=?", property.getId(), approvedUser);
         jdbc.update("update membership_requests set unit_id=? where user_id=? and status='APPROVED'", oldUnit.getId(), approvedUser);
         assertThat(service.list(actor, property.getId()).residents().stream().filter(item -> item.id().equals(approved)).findFirst().orElseThrow().signupStatus())
@@ -316,8 +328,277 @@ class ResidentDirectoryPersistenceTest {
         assertThat(registrations.register(actor, property.getId(), registration(unit.getId(), "후속 주민", null)).representative()).isFalse();
     }
 
+    @Test
+    void importPreviewMasksEncryptsAndExcludesDuplicatesAndInvalidRowsWithoutRegistering() throws Exception {
+        var property = property(true);
+        var actor = users.saveAndFlush(User.create("업로드 관리자", null)).getId();
+        member(property.getId(), actor);
+        var building = buildings.saveAndFlush(Building.create(property, "102동", 0, AT));
+        var unit = units.saveAndFlush(Unit.create(property, building, "301", null, null, UnitStatus.ACTIVE, AT));
+        registrations.register(actor, property.getId(), registration(unit.getId(), "기존 주민", "010-1234-5678"));
+        var preview = imports.preview(actor, property.getId(), excel(new String[][] {
+            {"102", "301호", "신규 주민", "소유주", "010-2345-6789"},
+            {"102동", "301", "신규 주민", "가족", "+82 10 2345 6789"},
+            {"102동", "301", "기존 주민", "소유자", "01012345678"},
+            {"102동", "999", "세대 오류", "가족", ""},
+            {"102동", "301", "번호 오류", "가족", "1012345678"},
+            {"102동", "301", "연락처 없음", "가족", ""}
+        }));
+        assertThat(preview.rows()).extracting(row -> row.status()).containsExactly("READY", "DUPLICATE", "DUPLICATE", "ERROR", "ERROR", "READY");
+        assertThat(preview.rows().get(2).relationType()).isEqualTo("OWNER");
+        assertThat(preview.rows().getFirst().phoneLast4()).isEqualTo("6789");
+        assertThat(preview.rows().getFirst().relationType()).isEqualTo("OWNER");
+        assertThat(service.list(actor, property.getId()).residents()).hasSize(1);
+        var payload = batches.findById(preview.importId()).orElseThrow().getRowsPayload();
+        assertThat(payload).contains("phoneEncrypted").doesNotContain("010-2345-6789", "+821023456789", "01012345678");
+        assertThat(new tools.jackson.databind.ObjectMapper().writeValueAsString(preview)).doesNotContain("phoneEncrypted", "phoneHmac");
+        assertThatThrownBy(() -> imports.commit(actor, property.getId(), preview.importId(), new com.moahome.server.resident.dto.ResidentImportCommitRequest(List.of(3))))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void importKeepsExcelOrderFirstSelectedRepresentativeAndReplaysContactlessRows() throws Exception {
+        var property = property(false);
+        var actor = users.saveAndFlush(User.create("업로드 관리자", null)).getId();
+        member(property.getId(), actor);
+        var unit = units.saveAndFlush(Unit.create(property, null, "301", null, null, UnitStatus.ACTIVE, AT));
+        var existingUnit = units.saveAndFlush(Unit.create(property, null, "302", null, null, UnitStatus.ACTIVE, AT));
+        var existing = registrations.register(actor, property.getId(), registration(existingUnit.getId(), "기존 대표", null));
+        var preview = imports.preview(actor, property.getId(), excel(new String[][] {
+            {"", "301", "선택 안 함", "소유주", ""},
+            {"", "301", "첫 선택", "임차인", ""},
+            {"", "301", "두 번째", "가족", ""},
+            {"", "302", "기존 세대 추가", "가족", ""},
+            {"", "999", "오류 제외", "가족", ""}
+        }));
+        var selection = new com.moahome.server.resident.dto.ResidentImportCommitRequest(List.of(5, 4, 3));
+        var result = imports.commit(actor, property.getId(), preview.importId(), selection);
+        assertThat(result.rows()).extracting(row -> row.status()).containsExactly("NOT_SELECTED", "SUCCESS", "SUCCESS", "SUCCESS", "ERROR");
+        assertThat(result.rows()).extracting(row -> row.representative()).containsExactly(false, true, false, false, false);
+        var replay = imports.commit(actor, property.getId(), preview.importId(), selection);
+        assertThat(replay).isEqualTo(result);
+        var directory = service.list(actor, property.getId()).residents();
+        assertThat(directory).hasSize(4);
+        assertThat(directory.stream().filter(row -> row.id().equals(existing.id())).findFirst().orElseThrow().representative()).isTrue();
+        assertThat(directory).allMatch(row -> row.signupStatus() == ResidentSignupStatus.NOT_JOINED);
+    }
+
+    @Test
+    void importRechecksChangedRowsAndContinuesAfterDuplicateOrDeletedUnit() throws Exception {
+        var property = property(false);
+        var actor = users.saveAndFlush(User.create("업로드 관리자", null)).getId();
+        member(property.getId(), actor);
+        var unit = units.saveAndFlush(Unit.create(property, null, "301", null, null, UnitStatus.ACTIVE, AT));
+        var removedUnit = units.saveAndFlush(Unit.create(property, null, "302", null, null, UnitStatus.ACTIVE, AT));
+        var preview = imports.preview(actor, property.getId(), excel(new String[][] {
+            {"", "301", "경합 주민", "가족", "010-1234-5678"},
+            {"", "302", "세대 삭제", "가족", ""},
+            {"", "301", "정상 주민", "가족", ""}
+        }));
+        registrations.register(actor, property.getId(), registration(unit.getId(), "경합 주민", "01012345678"));
+        jdbc.update("update units set deleted_at=now() where id=?", removedUnit.getId());
+        var result = imports.commit(actor, property.getId(), preview.importId(), new com.moahome.server.resident.dto.ResidentImportCommitRequest(List.of(2,3,4)));
+        assertThat(result.rows()).extracting(row -> row.status()).containsExactly("DUPLICATE", "ERROR", "SUCCESS");
+        assertThat(service.list(actor, property.getId()).residents()).hasSize(2);
+    }
+
+    @Test
+    void importChecksAuthorRolePropertyExpiryAndDeletesExpiredPayloads() throws Exception {
+        var property = property(false);
+        var actor = users.saveAndFlush(User.create("업로드 관리자", null)).getId();
+        var other = users.saveAndFlush(User.create("다른 관리자", null)).getId();
+        member(property.getId(), actor);
+        member(property.getId(), other);
+        units.saveAndFlush(Unit.create(property, null, "301", null, null, UnitStatus.ACTIVE, AT));
+        var file = excel(new String[][] {{"", "301", "주민", "가족", ""}});
+        var preview = imports.preview(actor, property.getId(), file);
+        var selection = new com.moahome.server.resident.dto.ResidentImportCommitRequest(List.of(2));
+        assertThatThrownBy(() -> imports.commit(other, property.getId(), preview.importId(), selection))
+            .isInstanceOf(com.moahome.server.resident.exception.ResidentImportException.class);
+        jdbc.update("update property_members set role='MANAGER' where property_id=? and user_id=?", property.getId(), other);
+        assertThatThrownBy(() -> imports.preview(other, property.getId(), file)).isInstanceOf(com.moahome.server.auth.exception.AuthException.class);
+        assertThatThrownBy(() -> imports.commit(other, property.getId(), preview.importId(), selection)).isInstanceOf(com.moahome.server.auth.exception.AuthException.class);
+        jdbc.update("update resident_import_batches set created_at=now()-interval '2 days', expires_at=now()-interval '1 day' where id=?", preview.importId());
+        assertThatThrownBy(() -> imports.commit(actor, property.getId(), preview.importId(), selection))
+            .isInstanceOf(com.moahome.server.resident.exception.ResidentImportException.class);
+        imports.removeExpiredBatches();
+        assertThat(batches.findById(preview.importId())).isEmpty();
+        assertThat(service.list(actor, property.getId()).residents()).isEmpty();
+    }
+
+    private org.springframework.mock.web.MockMultipartFile excel(String[][] data) throws Exception {
+        try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(); var bytes = new java.io.ByteArrayOutputStream()) {
+            var sheet = workbook.createSheet();
+            var header = sheet.createRow(0);
+            String[] labels = {"동", "호수", "이름", "관계", "연락처"};
+            for (int index = 0; index < 5; index++) header.createCell(index).setCellValue(labels[index]);
+            for (int row = 0; row < data.length; row++) {
+                var target = sheet.createRow(row + 1);
+                for (int col = 0; col < 5; col++) target.createCell(col).setCellValue(data[row][col]);
+            }
+            workbook.write(bytes);
+            return new org.springframework.mock.web.MockMultipartFile("file", "residents.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes.toByteArray());
+        }
+    }
+
     private com.moahome.server.resident.dto.ResidentRegistrationRequest registration(UUID unitId, String name, String phone) {
         return new com.moahome.server.resident.dto.ResidentRegistrationRequest(UUID.randomUUID(), name, phone, unitId, "TENANT");
+    }
+
+    @Test
+    void detailMasksAndExplicitRevealRequiresCurrentAdminAndSameUndeletedPropertyResident() {
+        var property = property(false);
+        var actor = users.saveAndFlush(User.create("상세 관리자", null)).getId();
+        member(property.getId(), actor);
+        var unit = units.saveAndFlush(Unit.create(property, null, "501", null, null, UnitStatus.ACTIVE, AT));
+        var saved = registrations.register(actor, property.getId(), registration(unit.getId(), "상세 주민", "01012345678"));
+        var detail = management.detail(actor, property.getId(), saved.id());
+        assertThat(detail.phoneLast4()).isEqualTo("5678");
+        assertThat(detail.representative()).isTrue();
+        assertThat(management.revealPhone(actor, property.getId(), saved.id())).isEqualTo("+821012345678");
+        var other = property(false);
+        member(other.getId(), actor);
+        assertThatThrownBy(() -> management.revealPhone(actor, other.getId(), saved.id()))
+            .isInstanceOf(com.moahome.server.resident.exception.ResidentRegistrationException.class)
+            .hasMessage("RESIDENT_NOT_FOUND");
+        var outsider = users.saveAndFlush(User.create("상세 외부 계정", null)).getId();
+        assertThatThrownBy(() -> management.detail(outsider, property.getId(), saved.id()))
+            .isInstanceOf(com.moahome.server.auth.exception.AuthException.class);
+        jdbc.update("update residents set phone_encrypted='invalid-cipher' where id=?", saved.id());
+        assertThatThrownBy(() -> management.revealPhone(actor, property.getId(), saved.id())).hasMessage("PHONE_SECURITY_UNAVAILABLE");
+    }
+
+    @Test
+    void updatesContactAndConfirmedApplicationsTogetherButLeavesUnconfirmedPeopleUntouched() {
+        var property = property(false);
+        var actor = users.saveAndFlush(User.create("수정 관리자", null)).getId();
+        member(property.getId(), actor);
+        var unit = units.saveAndFlush(Unit.create(property, null, "502", null, null, UnitStatus.ACTIVE, AT));
+        var id = registrations.register(actor, property.getId(), registration(unit.getId(), "번호 수정", "01012345678")).id();
+        var applicant = users.saveAndFlush(User.create("확인 신청 계정", null)).getId();
+        var confirmed = request(property.getId(), unit.getId(), applicant, id, "MATCHED", "PENDING");
+        var possible = request(property.getId(), unit.getId(), users.saveAndFlush(User.create("미확인 신청 계정", null)).getId(), id, "POSSIBLE", "PENDING");
+        var detail = management.detail(actor, property.getId(), id);
+        assertThat(detail.hasLinkedRequests()).isTrue();
+        var input = new com.moahome.server.resident.dto.ResidentUpdateRequest("변경 주민", unit.getId(), "OWNER", "REPLACE", "01098765432", null, detail.updatedAt());
+        var updated = management.update(actor, property.getId(), id, input);
+        assertThat(updated.name()).isEqualTo("변경 주민");
+        assertThat(updated.phoneLast4()).isEqualTo("5432");
+        assertThat(updated.relationType()).isEqualTo("OWNER");
+        assertThat(updated.representative()).isTrue();
+        assertThat(phoneSecurity.decrypt(jdbc.queryForObject("select request_phone_encrypted from membership_requests where id=?", String.class, confirmed)))
+            .isEqualTo("+821098765432");
+        assertThat(jdbc.queryForObject("select request_phone_last4 from membership_requests where id=?", String.class, possible)).isEqualTo("1234");
+        assertThatThrownBy(() -> management.update(actor, property.getId(), id,
+            new com.moahome.server.resident.dto.ResidentUpdateRequest("변경 주민", unit.getId(), "OWNER", "REMOVE", null, null, updated.updatedAt())))
+            .hasMessage("CONTACT_REQUIRED_FOR_REQUEST");
+        assertThat(management.revealPhone(actor, property.getId(), id)).isEqualTo("+821098765432");
+        assertThatThrownBy(() -> management.update(actor, property.getId(), id, input)).hasMessage("RESIDENT_CHANGED");
+    }
+
+    @Test
+    void representativeMoveRequiresExplicitRemainingResidentAndPreservesOldAffiliationAndDestinationRepresentative() {
+        var property = property(false);
+        var actor = users.saveAndFlush(User.create("이동 관리자", null)).getId();
+        member(property.getId(), actor);
+        var source = units.saveAndFlush(Unit.create(property, null, "503", null, null, UnitStatus.ACTIVE, AT));
+        var destination = units.saveAndFlush(Unit.create(property, null, "504", null, null, UnitStatus.ACTIVE, AT));
+        var id = registrations.register(actor, property.getId(), registration(source.getId(), "이동 대표", null)).id();
+        var remaining = registrations.register(actor, property.getId(), registration(source.getId(), "남은 주민", null)).id();
+        var destinationRep = registrations.register(actor, property.getId(), registration(destination.getId(), "도착지 대표", null)).id();
+        var detail = management.detail(actor, property.getId(), id);
+        assertThat(detail.representativeCandidates()).extracting(item -> item.id()).containsExactly(remaining);
+        assertThatThrownBy(() -> management.update(actor, property.getId(), id,
+            new com.moahome.server.resident.dto.ResidentUpdateRequest("이동 대표", destination.getId(), "TENANT", "KEEP", null, null, detail.updatedAt())))
+            .hasMessage("REPRESENTATIVE_REQUIRED");
+        assertThatThrownBy(() -> management.update(actor, property.getId(), id,
+            new com.moahome.server.resident.dto.ResidentUpdateRequest("이동 대표", destination.getId(), "TENANT", "KEEP", null, destinationRep, detail.updatedAt())))
+            .hasMessage("INVALID_REPRESENTATIVE");
+        assertThat(management.detail(actor, property.getId(), id).unitId()).isEqualTo(source.getId());
+        var moved = management.update(actor, property.getId(), id,
+            new com.moahome.server.resident.dto.ResidentUpdateRequest("이동 대표", destination.getId(), "TENANT", "KEEP", null, remaining, detail.updatedAt()));
+        assertThat(moved.unitId()).isEqualTo(destination.getId());
+        assertThat(moved.representative()).isFalse();
+        assertThat(management.detail(actor, property.getId(), remaining).representative()).isTrue();
+        assertThat(management.detail(actor, property.getId(), destinationRep).representative()).isTrue();
+        assertThat(jdbc.queryForObject("select count(*) from unit_residents where resident_id=? and status='MOVED_OUT' and deleted_at is null", Integer.class, id)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from unit_residents where resident_id=? and status='ACTIVE' and deleted_at is null", Integer.class, id)).isEqualTo(1);
+    }
+
+    @Test
+    void deleteTransfersSelectedRepresentativeEndsOnlyThisPropertyResidentAccessAndCancelsConfirmedPending() {
+        var property = property(false);
+        var actor = users.saveAndFlush(User.create("삭제 관리자", null)).getId();
+        var user = users.saveAndFlush(User.create("삭제 주민 계정", null)).getId();
+        member(property.getId(), actor);
+        member(property.getId(), user);
+        jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", property.getId(), user);
+        var other = property(false);
+        member(other.getId(), user);
+        jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", other.getId(), user);
+        var unit = units.saveAndFlush(Unit.create(property, null, "505", null, null, UnitStatus.ACTIVE, AT));
+        var id = registrations.register(actor, property.getId(), registration(unit.getId(), "삭제 대표", "01012345678")).id();
+        var remaining = registrations.register(actor, property.getId(), registration(unit.getId(), "승계 주민", null)).id();
+        jdbc.update("update residents set user_id=? where id=?", user, id);
+        request(property.getId(), unit.getId(), user, id, "MANUAL", "APPROVED");
+        var pending = request(property.getId(), unit.getId(), user, id, "MATCHED", "PENDING");
+        var detail = management.detail(actor, property.getId(), id);
+        assertThatThrownBy(() -> management.delete(actor, property.getId(), id,
+            new com.moahome.server.resident.dto.ResidentDeleteRequest(null, detail.updatedAt()))).hasMessage("REPRESENTATIVE_REQUIRED");
+        assertThat(jdbc.queryForObject("select status from property_members where property_id=? and user_id=?", String.class, property.getId(), user)).isEqualTo("ACTIVE");
+        var input = new com.moahome.server.resident.dto.ResidentDeleteRequest(remaining, detail.updatedAt());
+        management.delete(actor, property.getId(), id, input);
+        management.delete(actor, property.getId(), id, input);
+        assertThatThrownBy(() -> management.detail(actor, property.getId(), id)).hasMessage("RESIDENT_NOT_FOUND");
+        assertThatThrownBy(() -> management.revealPhone(actor, property.getId(), id)).hasMessage("RESIDENT_NOT_FOUND");
+        assertThat(management.detail(actor, property.getId(), remaining).representative()).isTrue();
+        assertThat(jdbc.queryForObject("select status from property_members where property_id=? and user_id=?", String.class, property.getId(), user)).isEqualTo("INACTIVE");
+        assertThat(jdbc.queryForObject("select status from property_members where property_id=? and user_id=?", String.class, other.getId(), user)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("select status from membership_requests where id=?", String.class, pending)).isEqualTo("CANCELED");
+        assertThat(jdbc.queryForObject("select deleted_by from residents where id=?", UUID.class, id)).isEqualTo(actor);
+        assertThat(jdbc.queryForObject("select count(*) from unit_residents where resident_id=? and deleted_at is not null", Integer.class, id)).isEqualTo(1);
+        assertThat(service.list(actor, property.getId()).residents()).extracting(item -> item.id()).doesNotContain(id);
+    }
+
+    @Test
+    void detailRetainsExplicitSuccessorSelectionWhenTheOriginalUnitWasDeleted() {
+        var property = property(false);
+        var actor = users.saveAndFlush(User.create("삭제 세대 관리자", null)).getId();
+        member(property.getId(), actor);
+        var unit = units.saveAndFlush(Unit.create(property, null, "507", null, null, UnitStatus.ACTIVE, AT));
+        var id = registrations.register(actor, property.getId(), registration(unit.getId(), "남은 관계 대표", null)).id();
+        var remaining = registrations.register(actor, property.getId(), registration(unit.getId(), "남은 관계 주민", null)).id();
+        jdbc.update("update units set deleted_at=now() where id=?", unit.getId());
+        var detail = management.detail(actor, property.getId(), id);
+        assertThat(detail.unitId()).isNull();
+        assertThat(detail.representativeCandidates()).extracting(item -> item.id()).containsExactly(remaining);
+        management.delete(actor, property.getId(), id,
+            new com.moahome.server.resident.dto.ResidentDeleteRequest(remaining, detail.updatedAt()));
+        assertThat(jdbc.queryForObject("select is_household_rep from unit_residents where resident_id=? and status='ACTIVE'", Boolean.class, remaining)).isTrue();
+    }
+
+    @Test
+    void updateKeepsMaskedContactWithoutDecryptingAndRejectsDuplicateNameAndContactAtomically() {
+        var property = property(false);
+        var actor = users.saveAndFlush(User.create("중복 수정 관리자", null)).getId();
+        member(property.getId(), actor);
+        var unit = units.saveAndFlush(Unit.create(property, null, "506", null, null, UnitStatus.ACTIVE, AT));
+        var id = registrations.register(actor, property.getId(), registration(unit.getId(), "수정 전 주민", "01012345678")).id();
+        registrations.register(actor, property.getId(), registration(unit.getId(), "기존 주민", "01012345678"));
+        var detail = management.detail(actor, property.getId(), id);
+        assertThatThrownBy(() -> management.update(actor, property.getId(), id,
+            new com.moahome.server.resident.dto.ResidentUpdateRequest("기존 주민", unit.getId(), "OWNER", "KEEP", null, null, detail.updatedAt())))
+            .hasMessage("DUPLICATE_RESIDENT");
+        assertThat(management.detail(actor, property.getId(), id).name()).isEqualTo("수정 전 주민");
+        var updated = management.update(actor, property.getId(), id,
+            new com.moahome.server.resident.dto.ResidentUpdateRequest("수정 후 주민", unit.getId(), "OWNER", "KEEP", null, null, detail.updatedAt()));
+        assertThat(updated.phoneLast4()).isEqualTo("5678");
+        assertThat(management.revealPhone(actor, property.getId(), id)).isEqualTo("+821012345678");
+        assertThat(management.detail(actor, property.getId(), id).updatedAt()).isEqualTo(updated.updatedAt());
+        // 저장 응답의 시각을 그대로 사용한 다음 수정도 새로고침 없이 성공해야 합니다.
+        var again = management.update(actor, property.getId(), id,
+            new com.moahome.server.resident.dto.ResidentUpdateRequest("연속 수정 주민", unit.getId(), "OWNER", "KEEP", null, null, updated.updatedAt()));
+        assertThat(again.name()).isEqualTo("연속 수정 주민");
     }
 
 	private Property property(boolean hasBuildings) {
@@ -337,6 +618,7 @@ class ResidentDirectoryPersistenceTest {
 
 	@TestConfiguration
 	static class Beans {
+        @Bean tools.jackson.databind.ObjectMapper objectMapper() { return new tools.jackson.databind.ObjectMapper(); }
 		@Bean com.moahome.server.common.security.PhoneSecurity phoneSecurity() {
             var random = new java.security.SecureRandom();
             var encryption = new byte[32];

@@ -32,7 +32,7 @@ import static org.assertj.core.api.Assertions.*;
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({ManagementAccessService.class, UserService.class, com.moahome.server.property.service.UnitManagementService.class, ManagementAccessPersistenceTest.Beans.class})
+@Import({com.moahome.server.resident.service.ResidentListService.class, ManagementAccessService.class, UserService.class, com.moahome.server.property.service.UnitManagementService.class, ManagementAccessPersistenceTest.Beans.class})
 @ActiveProfiles("database-test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class ManagementAccessPersistenceTest {

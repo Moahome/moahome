@@ -26,6 +26,10 @@ export {
   getSortedUnits
 } from './model/unitSorting';
 export {
+  getUnitSignupLabel,
+  type UnitResidentSummary
+} from './model/unitResidents';
+export {
   BuildingUnitFormModal,
   type BuildingUnitFormTarget
 } from './ui/building-unit-form-modal/buildingUnitFormModal';

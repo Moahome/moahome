@@ -56,7 +56,7 @@ class UnitManagementControllerTest {
 	@Test
 	void returnsDatabaseIdsAndUsesAuthenticatedIdentityForListCreateAndUpdate() throws Exception {
 		var response = new UnitResponse(unitId, null, "001", null, (short) -1, UnitStatus.VACANT);
-		when(service.list(userId, propertyId)).thenReturn(new UnitListResponse(propertyId, false, List.of(), List.of(response)));
+		when(service.list(userId, propertyId)).thenReturn(new UnitListResponse(propertyId, false, List.of(), List.of(response), null));
 		when(service.create(eq(userId), eq(propertyId), any())).thenReturn(response);
 		when(service.update(eq(userId), eq(propertyId), eq(unitId), any())).thenReturn(response);
 		mvc.perform(get(url).with(identity())).andExpect(status().isOk())

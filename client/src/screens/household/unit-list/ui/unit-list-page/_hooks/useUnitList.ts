@@ -55,7 +55,8 @@ type BuildingCommand = {
 const EMPTY_LIST: UnitList = {
   hasBuildings: false,
   buildings: [],
-  units: []
+  units: [],
+  residentSummaries: null
 };
 
 /** 조회·저장과 모달 상태를 관리하고 상세에서 선택한 한 세대만 확인 후 삭제합니다. */

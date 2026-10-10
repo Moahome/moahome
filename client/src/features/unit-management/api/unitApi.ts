@@ -1,7 +1,8 @@
 import {
   isPropertyId,
   type BuildingDraft,
-  type UnitDraft
+  type UnitDraft,
+  type UnitResidentSummary
 } from '@/entities/property';
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
@@ -19,6 +20,27 @@ export interface UnitList {
   hasBuildings: boolean;
   buildings: BuildingDraft[];
   units: UnitDraft[];
+  residentSummaries: Record<string, UnitResidentSummary> | null;
+}
+
+/** 권한 없음(null)과 실제 0명을 구분하고 불완전한 집계 응답을 임의의 숫자로 표시하지 않습니다. */
+function readResidentSummaries(value: unknown, units: UnitDraft[]): Record<string, UnitResidentSummary> | null {
+  if (value === null) return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new ApiError(200, 'INVALID_RESPONSE', '세대 주민 정보를 확인할 수 없습니다.');
+  }
+  const summaries = value as Record<string, UnitResidentSummary>;
+  if (Object.keys(summaries).length !== units.length || units.some((unit) => {
+    const summary = summaries[unit.clientId];
+    return !summary || !(summary.representativeName === null || (typeof summary.representativeName === 'string' && Boolean(summary.representativeName.trim())))
+      || [summary.total, summary.approved, summary.pending, summary.notJoined].some((count) => !Number.isSafeInteger(count) || count < 0)
+      || summary.total !== summary.approved + summary.pending + summary.notJoined
+      || (summary.total === 0 && summary.representativeName !== null);
+  })) {
+    throw new ApiError(200, 'INVALID_RESPONSE', '세대 주민 정보를 확인할 수 없습니다.');
+  }
+
+  return summaries;
 }
 
 /** 응답의 세대 식별자와 입력 자료형을 확인하고 기존 편집기가 사용하는 형식으로 변환합니다. */
@@ -49,6 +71,7 @@ export async function getUnits(propertyId: string): Promise<UnitList> {
     hasBuildings: boolean;
     buildings: { id: string; name: string }[];
     units: UnitResponse[];
+    residentSummaries: unknown;
   }>({
     url: `/api/properties/${propertyId}/units`
   });
@@ -59,13 +82,16 @@ export async function getUnits(propertyId: string): Promise<UnitList> {
     throw new ApiError(200, 'INVALID_RESPONSE', '세대 목록을 확인할 수 없습니다.');
   }
 
+  const units = result.units.map(readUnit);
+
   return {
     hasBuildings: result.hasBuildings,
     buildings: result.buildings.map((building) => ({
       clientId: building.id,
       name: building.name
     })),
-    units: result.units.map(readUnit)
+    units,
+    residentSummaries: readResidentSummaries(result.residentSummaries, units)
   };
 }
 

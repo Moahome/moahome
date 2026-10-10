@@ -87,6 +87,7 @@ export function UnitListPage({
         />
         <UnitListTable
           units={view.visibleUnits}
+          residentSummaries={data.residentSummaries}
           buildings={data.buildings}
           hasBuildings={data.hasBuildings}
           hasFilters={view.hasFilters}

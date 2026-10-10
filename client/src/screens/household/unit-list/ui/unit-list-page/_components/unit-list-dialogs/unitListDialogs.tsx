@@ -24,6 +24,7 @@ export function UnitListDialogs({
       {detailUnit && (
         <UnitDetail
           unit={detailUnit}
+          residentSummary={data.residentSummaries?.[detailUnit.clientId]}
           hasBuildings={data.hasBuildings}
           buildingName={data.buildings.find((building) => building.clientId === detailUnit.buildingClientId)?.name}
           onEdit={() => controller.openEditor(detailUnit.clientId)}

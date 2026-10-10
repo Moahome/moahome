@@ -17,10 +17,24 @@ class UnitManagementServiceTest {
 	private final PropertyRepository properties = mock(PropertyRepository.class);
 	private final BuildingRepository buildings = mock(BuildingRepository.class);
 	private final UnitRepository units = mock(UnitRepository.class);
-	private final UnitManagementService service = new UnitManagementService(access, properties, buildings, units, Clock.systemUTC());
+	private final com.moahome.server.resident.service.ResidentListService residents = mock(com.moahome.server.resident.service.ResidentListService.class);
+	private final UnitManagementService service = new UnitManagementService(access, properties, buildings, units, Clock.systemUTC(), residents);
 	private final UUID userId = UUID.randomUUID();
 	private final Property property = Property.create("테스트", "주소", null, null, true, OffsetDateTime.now());
 	private final Building building = Building.create(property, "101동", 0, OffsetDateTime.now());
+
+    @Test
+    void managerCanReadUnitsWithoutReadingOrReceivingAdminOnlyResidents() {
+        when(access.getManagementContext(userId, property.getId())).thenReturn(new ManagementPropertyResponse(
+            property.getId(), property.getName(), com.moahome.server.membership.domain.PropertyMemberRole.MANAGER));
+        when(properties.findById(property.getId())).thenReturn(Optional.of(property));
+        var unit = Unit.create(property, building, "301", null, 3, UnitStatus.ACTIVE, OffsetDateTime.now());
+        when(units.findByPropertyIdAndDeletedAtIsNull(property.getId())).thenReturn(List.of(unit));
+        var response = service.list(userId, property.getId());
+        assertThat(response.units()).hasSize(1);
+        assertThat(response.residentSummaries()).isNull();
+        verifyNoInteractions(residents);
+    }
 
 	@Test
 	void everyOperationChecksCurrentAccessBeforeReadingOrWritingUnits() {

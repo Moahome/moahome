@@ -8,13 +8,19 @@ import {
 } from '../../model/unitForm';
 import { UNIT_STATUS_OPTIONS } from '../../constants/propertyOptions';
 import { Button } from '@/shared/ui/button';
+import { DetailActions } from '@/shared/ui/detail-actions';
 import { ClientModal } from '@/shared/ui/client-modal';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './unitDetail.module.css';
+import {
+  getUnitSignupLabel,
+  type UnitResidentSummary
+} from '../../model/unitResidents';
 
 /** 목록의 현재 세대 정보를 보여주고 수정 입력과 한 세대 삭제 확인으로 연결합니다. */
 export function UnitDetail({
   unit,
+  residentSummary,
   buildingName,
   hasBuildings,
   onEdit,
@@ -24,6 +30,7 @@ export function UnitDetail({
   presentation = 'modal',
 }: {
   unit: UnitDraft;
+  residentSummary?: UnitResidentSummary | null;
   buildingName?: string;
   hasBuildings: boolean;
   onEdit: () => void;
@@ -57,14 +64,18 @@ export function UnitDetail({
       label: '층',
       value: unit.floor === null ? '—' : getFloorLabel(unit.floor)
     },
-    // 주민 조회가 연결되기 전에는 미확인 정보를 0명이나 임의의 이름으로 표시하지 않습니다.
+    // 권한이 없는 경우는 실제 주민 0명과 구분해 표시합니다.
     {
       label: '등록 주민',
-      value: '—'
+      value: residentSummary ? `${residentSummary.total}명` : '—'
     },
     {
       label: '대표 주민',
-      value: '—'
+      value: residentSummary?.representativeName ?? '—'
+    },
+    {
+      label: '가입 현황',
+      value: getUnitSignupLabel(residentSummary)
     },
   ];
 
@@ -123,34 +134,14 @@ export function UnitDetail({
           </div>
         ))}
       </dl>
-      <footer
-        className={styles.actions}
-      >
-        <Button
-          variant={'outline'}
-          tone={'neutral'}
-          onClick={onClose}
-          disabled={busy}
-        >
-          {presentation === 'page' ? '목록으로' : '닫기'}
-        </Button>
-        <Button
-          variant={'outline'}
-          tone={'success'}
-          onClick={onEdit}
-          disabled={busy || unit.status === 'INACTIVE'}
-        >
-          수정
-        </Button>
-        <Button
-          variant={'outline'}
-          tone={'danger'}
-          onClick={onDelete}
-          disabled={busy}
-        >
-          삭제
-        </Button>
-      </footer>
+      <DetailActions
+        presentation={presentation}
+        onClose={onClose}
+        onEdit={onEdit}
+        onDelete={onDelete}
+        busy={busy}
+        editDisabled={unit.status === 'INACTIVE'}
+      />
     </>
   );
 

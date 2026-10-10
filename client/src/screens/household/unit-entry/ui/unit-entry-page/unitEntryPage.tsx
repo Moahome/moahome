@@ -152,6 +152,7 @@ export function UnitEntryPage({
       <UnitDetail
         presentation={'page'}
         unit={unit}
+        residentSummary={data.residentSummaries?.[unit.clientId]}
         buildingName={buildingName}
         hasBuildings={data.hasBuildings}
         onEdit={() => router.push(`${listPath}/${unit.clientId}/edit`)}

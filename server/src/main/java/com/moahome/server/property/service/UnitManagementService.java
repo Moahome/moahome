@@ -6,10 +6,16 @@ import java.util.UUID;
 import java.util.List;
 import java.util.HashSet;
 import java.util.HashMap;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import com.moahome.server.property.domain.*;
 import com.moahome.server.property.dto.*;
 import com.moahome.server.property.exception.UnitManagementException;
 import com.moahome.server.property.repo.*;
+import com.moahome.server.membership.domain.PropertyMemberRole;
+import com.moahome.server.resident.service.ResidentListService;
+import com.moahome.server.resident.domain.ResidentSignupStatus;
+import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import static com.moahome.server.property.exception.UnitManagementException.Code.*;
@@ -22,25 +28,47 @@ public class UnitManagementService {
 	private final BuildingRepository buildings;
 	private final UnitRepository units;
 	private final Clock clock;
+	private final ResidentListService residents;
 
 	public UnitManagementService(ManagementAccessService access, PropertyRepository properties,
-		BuildingRepository buildings, UnitRepository units, Clock clock) {
+		BuildingRepository buildings, UnitRepository units, Clock clock, ResidentListService residents) {
 		this.access = access;
 		this.properties = properties;
 		this.buildings = buildings;
 		this.units = units;
 		this.clock = clock;
+		this.residents = residents;
 	}
 
 	/** 매 요청의 현재 관리 권한을 확인한 뒤 저장된 세대와 동 구분을 읽습니다. 초안·등록 결과를 조회하지 않습니다. */
 	public UnitListResponse list(UUID userId, UUID propertyId) {
-		access.getManagementContext(userId, propertyId);
+		var context = access.getManagementContext(userId, propertyId);
 		var property = properties.findById(propertyId).orElseThrow(() -> new UnitManagementException(UNIT_NOT_FOUND));
 		var buildingItems = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId).stream()
 			.filter(building -> building.getStatus() == BuildingStatus.ACTIVE)
 			.map(building -> new UnitListResponse.BuildingItem(building.getId(), building.getName())).toList();
 		var items = units.findByPropertyIdAndDeletedAtIsNull(propertyId).stream().map(UnitResponse::from).toList();
-		return new UnitListResponse(propertyId, property.isHasBuildings(), buildingItems, items);
+		// 세대 조회를 허용받은 부담당자에게 관리소장 전용 주민 명부가 우회 노출되지 않도록 합니다.
+		var summaries = context.role() == PropertyMemberRole.ADMIN ? summarizeResidents(userId, propertyId, items) : null;
+		return new UnitListResponse(propertyId, property.isHasBuildings(), buildingItems, items, summaries);
+	}
+
+	/** 주민 목록의 현재 소속·삭제·가입 판정을 그대로 재사용하고 한 번의 명부 조회로 세대별 집계합니다. */
+	private Map<UUID, UnitListResponse.ResidentSummary> summarizeResidents(UUID userId, UUID propertyId, List<UnitResponse> items) {
+		var grouped = residents.list(userId, propertyId).residents().stream()
+			.filter(resident -> resident.unitId() != null)
+			.collect(Collectors.groupingBy(resident -> resident.unitId()));
+		var result = new LinkedHashMap<UUID, UnitListResponse.ResidentSummary>();
+		for (var unit : items) {
+			var current = grouped.getOrDefault(unit.id(), List.of());
+			var representativeName = current.stream().filter(resident -> resident.representative())
+				.map(resident -> resident.name()).findFirst().orElse(null);
+			int approved = (int) current.stream().filter(resident -> resident.signupStatus() == ResidentSignupStatus.APPROVED).count();
+			int pending = (int) current.stream().filter(resident -> resident.signupStatus() == ResidentSignupStatus.PENDING).count();
+			result.put(unit.id(), new UnitListResponse.ResidentSummary(representativeName, current.size(), approved, pending,
+				current.size() - approved - pending));
+		}
+		return result;
 	}
 
 	/** 관리대상 잠금 아래 중복 호수를 확인하고 기존 세대 스키마에 한 세대만 추가합니다. */

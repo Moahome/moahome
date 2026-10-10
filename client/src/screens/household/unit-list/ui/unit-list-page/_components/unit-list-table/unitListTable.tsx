@@ -1,8 +1,10 @@
 import {
   getUnitLabel,
+  getUnitSignupLabel,
   UNIT_STATUS_OPTIONS,
   type BuildingDraft,
-  type UnitDraft
+  type UnitDraft,
+  type UnitResidentSummary
 } from '@/entities/property';
 import {
   DataTable,
@@ -13,12 +15,14 @@ import styles from './unitListTable.module.css';
 /** 행과 호수 버튼으로 세대 상세를 열고 가입 현황은 대표 주민 바로 옆에 표시합니다. */
 export function UnitListTable({
   units,
+  residentSummaries,
   buildings,
   hasBuildings,
   hasFilters,
   onOpenDetail,
 }: {
   units: UnitDraft[];
+  residentSummaries: Record<string, UnitResidentSummary> | null;
   buildings: BuildingDraft[];
   hasBuildings: boolean;
   hasFilters: boolean;
@@ -76,27 +80,29 @@ export function UnitListTable({
     {
       key: 'representative',
       header: '대표 주민',
-      render: () => (
+      render: (unit) => (
         <span
-          className={styles.unavailable}
-          aria-label={'대표 주민 정보 준비 중'}
-          title={'주민 정보 준비 중'}
+          className={!residentSummaries ? styles.unavailable : undefined}
         >
-          —
+          {residentSummaries?.[unit.clientId]?.representativeName ?? '—'}
         </span>
       )
     },
     {
       key: 'membership',
       header: '가입 현황',
-      render: () => (
-        <span
-          className={styles.unavailable}
-          aria-label={'가입 현황 정보 준비 중'}
-        >
-          —
-        </span>
-      )
+      render: (unit) => {
+        const summary = residentSummaries?.[unit.clientId];
+        if (!summary) return (
+          <span
+            className={styles.unavailable}
+          >
+            —
+          </span>
+        );
+
+        return getUnitSignupLabel(summary);
+      }
     },
 
   );
