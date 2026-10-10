@@ -18,7 +18,7 @@
 
 ## 상세·수정·삭제
 
-공유 계약은 [주민 상세 API](../../docs/residentManagementApi.md#주민-상세연락처-공개수정삭제)를 따릅니다. `ResidentManagementService`의 기본 상세는 목록의 가입 상태 판정과 현재 세대 표시를 재사용하며 마스킹만 반환합니다. 전체 번호는 별도 공개 메서드에서만 복호화합니다.
+공유 계약은 [주민 상세 API](../../docs/residentManagementApi.md#주민-상세연락처-공개수정삭제)를 따릅니다. `ResidentManagementService`의 기본 상세는 목록의 가입 상태 판정과 현재 세대 표시를 재사용하며 마스킹만 반환합니다. 전체 번호는 별도 상세 공개 또는 아래 목록 내보내기 메서드에서만 복호화합니다.
 
 수정·삭제는 등록·세대 관리와 같은 관리대상 행 잠금을 획득한 뒤 처리합니다. 상세의 `expectedUpdatedAt`과 현재 수정 시각을 비교해 이전 화면의 덮어쓰기를 막습니다. 대표 승계 시 선택된 주민의 수정 시각도 갱신합니다. 같은 대상의 중복 이름·연락처 검사를 잠금 안에서 수행하며 실패 시 명부·신청·관계·대표 변경을 모두 롤백합니다.
 
@@ -47,3 +47,11 @@
 `ResidentRegistrationControllerTest`에서 인증·입력·개인정보 없는 응답·오류를 검증합니다. 기존 `ResidentDirectoryPersistenceTest`에 실제 PostgreSQL 등록·연락처 암호화·선택 입력·중복·요청 재시도·권한·소속·롤백·동시 대표 지정 검증을 추가했습니다. 엑셀 임시 테이블은 `V20261010055020__create_resident_import_batches.sql`로 추가합니다. `ResidentExcelReaderTest`는 실제 배포 양식·선행 0·수식·파일/행/압축 제한을, `ResidentImportControllerTest`는 multipart·인증·선택 검증·안전한 응답을 확인합니다. PostgreSQL 테스트에서 검증 단계의 무저장, 암호화·중복 제외·원본 순서·최초 대표·기존 대표 유지·행별 재검증·부분 성공·연락처 없는 재시도·작성자와 권한·만료 정리를 검증합니다.
 
 `ResidentManagementControllerTest`와 PostgreSQL 통합 테스트에서 상세 마스킹·명시적 번호 공개·다른 대상과 권한 거부·신청 번호 동시 변경·미확인 신청 유지·오래된 수정 거부·대표 선택 이동·삭제와 대상별 권한 종료·재시도·중복 실패의 롤백을 검증합니다.
+
+## 주민 목록 내보내기
+
+공유 계약은 [주민 목록 엑셀 다운로드 API](../../docs/residentManagementApi.md#주민-목록-엑셀-다운로드)를 따릅니다. `ResidentExportService`는 기존 목록 Service의 관리소장 권한 검증과 현재 소속 조회를 재사용합니다. 선택한 전체 ID가 현재 대상의 명부인지 확인한 뒤 대상·미삭제 조건의 한 번의 Repository 조회로 보호 연락처를 읽습니다. 다른 대상이나 삭제 주민을 일부 누락한 결과로 내보내지 않습니다.
+
+목록·보호 연락처는 read-only `REPEATABLE_READ` 트랜잭션으로 같은 스냅샷에서 읽고 요청 순서를 유지합니다. 전체 번호는 메서드 안에서만 복호화하며 번호 없는 주민은 보안 키를 요구하지 않습니다. 키·암호문 오류는 원문 없는 고정 오류로 변환하고 응답 DTO의 `toString`도 원문을 숨깁니다. 일반 목록 Repository projection에 암호문을 추가하지 않습니다.
+
+개별 등록 DTO는 생략·null·공백 주민 구분을 `OTHER`로 정규화하고 다른 Enum 입력을 검증합니다. 엑셀 행 검증도 빈 주민 구분은 `OTHER`, 잘못된 비어 있지 않은 값은 행 오류로 처리합니다. 기존 관계 값을 보정하는 Migration은 필요하지 않으며 수정 폼은 현재 값을 유지합니다.

@@ -480,7 +480,7 @@ WHERE building_id IS NULL
 
 ### 구현 상태
 
-`V20261010041826__create_resident_directory.sql`로 테이블과 목록 조회용 Entity를 구현했다. 조회 권한·연락처 끝 4자리·전체 명부 범위는 [주민 관리 API](residentManagementApi.md)를 따른다. 저장 상태를 목록 필터로 사용하지 않는다. 개별·엑셀 등록·상세·수정·삭제를 구현했으며 복구·계정 연결 API는 아직 구현하지 않았다. 기본 조회는 마스킹만 반환하고 명시적 공개 API에서만 전체 번호를 복호화한다. 연락처 수정 시 확인 연결된 가입 신청의 보호 연락처도 함께 변경하며 삭제 시 해당 대상의 주민 참여를 종료한다.
+`V20261010041826__create_resident_directory.sql`로 테이블과 목록 조회용 Entity를 구현했다. 조회 권한·연락처 끝 4자리·전체 명부 범위는 [주민 관리 API](residentManagementApi.md)를 따른다. 저장 상태를 목록 필터로 사용하지 않는다. 개별·엑셀 등록·상세·수정·삭제를 구현했으며 복구·계정 연결 API는 아직 구현하지 않았다. 기본 조회는 마스킹만 반환하고 명시적 상세 공개 또는 관리소장의 목록 내보내기 API에서만 전체 번호를 복호화한다. 연락처 수정 시 확인 연결된 가입 신청의 보호 연락처도 함께 변경하며 삭제 시 해당 대상의 주민 참여를 종료한다.
 
 ### 핵심 제약
 
@@ -514,7 +514,7 @@ Resident = 해당 Property에서의 실제 주민 기록
 | `property_id` | uuid | N | FK |
 | `unit_id` | uuid | N | FK → units.id |
 | `resident_id` | uuid | N | FK → residents.id |
-| `relation_type` | varchar(20) | N | `OWNER / TENANT / FAMILY / OTHER` |
+| `relation_type` | varchar(20) | N | `OWNER / TENANT / FAMILY / OTHER`. 개별·엑셀 등록의 미입력은 `OTHER`로 저장 |
 | `is_household_rep` | boolean | N | 세대 대표 |
 | `move_in_date` | date | Y | 입주일 |
 | `move_out_date` | date | Y | 퇴거일 |
