@@ -1,0 +1,90 @@
+.content {
+  display: grid;
+  gap: 20px;
+  h2 {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+  }
+  .card-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 22px;
+    p {
+      margin-top: 7px;
+      color: var(--sub-text);
+      font-size: 13px;
+    }
+    .badge {
+      flex-shrink: 0;
+      padding: 5px 10px;
+      border-radius: 20px;
+      background: var(--background);
+      color: var(--sub-text);
+      font-size: 12px;
+      font-weight: 600;
+      &[data-tone='primary'] {
+        background: color-mix(in srgb, var(--primary) 8%, var(--card));
+        color: var(--primary);
+      }
+    }
+  }
+  .current-total {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 16px;
+    margin-top: 18px;
+    span {
+      color: var(--sub-text);
+      font-size: 13px;
+    }
+    strong {
+      font-weight: 700;
+    }
+  }
+}
+
+.schedule {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  dt {
+    margin-bottom: 8px;
+    color: var(--sub-text);
+    font-size: 13px;
+  }
+  dd {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+}
+
+.reason {
+  margin-top: 16px;
+  color: var(--sub-text);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+  .content .card-heading {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .content .settings-heading {
+    flex-direction: column;
+    align-items: stretch;
+    > button {
+      width: 100%;
+    }
+  }
+  .content .current-total {
+    justify-content: space-between;
+  }
+  .schedule {
+    grid-template-columns: 1fr;
+  }
+}

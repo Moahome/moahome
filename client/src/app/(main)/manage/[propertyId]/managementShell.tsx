@@ -56,6 +56,21 @@ function getMobileBack(pathname: string, basePath: string) {
     label: '주민 목록으로 돌아가기',
     title: '주민 상세'
   };
+  if (pathname === `${basePath}/billing/monthly/settings`) return {
+    href: `${basePath}/billing/monthly?tab=items`,
+    label: '목록',
+    title: '관리비 설정'
+  };
+  if (pathname.startsWith(`${basePath}/billing/monthly/`)) {
+    const parts = pathname.slice(`${basePath}/billing/monthly/`.length).split('/');
+    const history = parts[0] === 'history';
+    const month = history ? parts[1] : parts[0];
+    return {
+      href: `${basePath}/billing/monthly?tab=${history ? 'history' : 'monthly'}&month=${month}`,
+      label: '목록',
+      title: history ? '부과 이력 상세' : '관리비 상세'
+    };
+  }
   if (!pathname.startsWith(`${basePath}/households/`)) return undefined;
   if (pathname === `${basePath}/households/buildings` || pathname === `${basePath}/households/automatic`) return {
     href: `${basePath}/households`,

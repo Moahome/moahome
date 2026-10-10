@@ -28,6 +28,8 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 세대 목록은 `/manage/[propertyId]/households` 또는 사이드바의 `세대 목록`에서 확인합니다. 화면의 기준 구조는 `screens/household/unit-list`, 진입 TSX/CSS는 `ui/`이며 표시 개수 드롭다운은 목록 위 오른쪽에 두고 편집 모드는 제거합니다. 일반 행은 상세 모달을 열고 상세의 수정 버튼은 기존 입력 모달로 연결합니다. 행 수정과 관리 열은 제거했으며 삭제는 상세의 삭제 버튼과 확인 창을 사용합니다. 세대·동 모달은 공통 `ClientModal`로 열고 성공 알림은 본문 대신 공통 토스트로 표시합니다. 화면·역할·구조 검증은 [Client 세대 목록 설계](docs/unitList.md), 요청·응답·오류는 [세대 관리 API](../docs/unitManagementApi.md)를 참조합니다.
 
+관리비 부과는 `/manage/[propertyId]/billing/monthly`에서 확인합니다. `월별 부과·관리비 설정·부과 이력` 탭을 실제 조회 / 저장 API와 연결했습니다. 검색·페이지네이션·공통 월 달력과 PC 상세 모달 / 모바일 상세 페이지를 제공하며, 관리비 설정은 조회 후 `설정하기`에서 별도로 편집합니다. 저장된 설정은 다음 달 자동 부과에 반영됩니다. [관리 레이아웃 설계](docs/managementLayout.md#관리비-부과-2026-10-10)와 [관리비 API](../docs/billingApi.md)를 참조합니다.
+
 ## 코드 배치
 
 FSD의 의존성 경계를 유지하며 상위 업무 메뉴와 하위 화면의 관계는 `screens/<업무 그룹>/<화면 슬라이스>/`로 표현합니다. 화면 전용 UI와 로직은 먼저 해당 화면에 둡니다. 공유 범위나 독립적인 책임이 분명해지면 `features`, `entities`, `widgets`로 분리합니다. 범용 UI는 `shared/ui`, 타입은 해당 화면 / 기능 / 도메인 / API 가까이에 둡니다. 작은 Props와 화면 상태는 컴포넌트 파일에 함께 둘 수 있으며 전역 `components/`, `types/`에 모으지 않습니다.

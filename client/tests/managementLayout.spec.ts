@@ -165,12 +165,16 @@ test('브라우저 등록 기록 없이 DB 목록으로 대시보드에 이동�
   await expect(navigation.getByRole('link', {
     name: '세대 목록'
   })).toHaveAttribute('href', `/manage/${PROPERTY_ID}/households`);
-  await navigation.getByRole('button', {
+  await expect(navigation.getByRole('link', {
     name: '관리비 부과',
+    exact: true
+  })).toHaveAttribute('href', `/manage/${PROPERTY_ID}/billing/monthly`);
+  await navigation.getByRole('button', {
+    name: '입금 관리',
     exact: true
   }).click();
   await expect(households).toHaveAttribute('aria-expanded', 'true');
-  await expect(navigation.getByText('월별 부과 내역', {
+  await expect(navigation.getByText('입금 확인·매칭', {
     exact: true
   })).toBeVisible();
   await page.screenshot({

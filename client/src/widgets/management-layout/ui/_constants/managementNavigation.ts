@@ -56,26 +56,8 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
     id: 'billing',
     label: '관리비 부과',
     icon: 'receipt',
-    children: [
-      {
-        id: 'monthly-billing',
-        label: '월별 부과 내역',
-        path: 'billing/monthly',
-        available: false
-      },
-      {
-        id: 'create-billing',
-        label: '관리비 부과하기',
-        path: 'billing/create',
-        available: false
-      },
-      {
-        id: 'billing-items',
-        label: '부과 항목 관리',
-        path: 'billing/items',
-        available: false
-      },
-    ]
+    path: 'billing/monthly',
+    available: true
   },
   {
     id: 'payments',

@@ -1,0 +1,33 @@
+.page {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  .tabs {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    .tab {
+      min-height: 48px;
+      margin-bottom: -1px;
+      padding: 12px 4px;
+      border: 0;
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      font-size: 15px;
+      &[aria-selected='true'] {
+        border-bottom-color: var(--primary);
+        color: var(--primary);
+      }
+    }
+  }
+}
+
+@media (max-width: 767px) {
+  .page .tabs {
+    gap: 22px;
+    .tab {
+      font-size: 14px;
+    }
+  }
+}

@@ -1,0 +1,107 @@
+.header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 24px;
+  h2 {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+  }
+  p {
+    margin-top: 7px;
+    color: var(--sub-text);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+}
+
+.amount {
+  font-variant-numeric: tabular-nums;
+}
+
+.badge {
+  display: inline-flex;
+  padding: 5px 10px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--success) 9%, var(--card));
+  color: var(--success-dark);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.note {
+  margin-top: 20px;
+  color: var(--sub-text);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 4px;
+}
+
+.detail-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--foreground);
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  text-align: left;
+  &:hover {
+    color: var(--primary);
+  }
+  &:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
+  }
+}
+
+.detail-state {
+  width: min(720px, calc(100% - 28px));
+  margin: auto;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--foreground);
+  &::backdrop {
+    background: color-mix(in srgb, var(--foreground) 42%, transparent);
+  }
+  .detail-state-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+    h2 {
+      font-size: 20px;
+      font-weight: 700;
+    }
+    > button {
+      flex-shrink: 0;
+    }
+  }
+}
+
+@media (max-width: 767px) {
+  .filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    > :first-child {
+      grid-column: 1 / -1;
+    }
+    > button {
+      grid-column: 2;
+      justify-self: end;
+    }
+  }
+}
