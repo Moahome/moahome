@@ -190,6 +190,7 @@ Next.js와 도구가 사용하는 `page.tsx`, `layout.tsx`, `not-found.tsx`,
 
 - 일반 클릭 버튼은 `shared/ui/button`의 Button, 입력과 선택은 `shared/ui/form-controls`의 Input / Dropdown / Radio를 우선 사용합니다. 화면에는 업무 처리와 배치만 두고 색상·포커스·비활성 표현을 중복 구현하지 않습니다.
 - Dropdown의 placeholder는 미선택 표시이며 실제 옵션에 추가하지 않습니다. 옵션은 고유한 값으로 관리하고 선택 해제는 별도 UI로 제공합니다.
+- 드롭다운(선택 목록·메뉴)과 아코디언은 반드시 열림·닫힘 애니메이션을 적용합니다. 펼침 화살표도 열 때 180도 회전하고 닫을 때 원래 방향으로 돌아오는 애니메이션을 적용하며 기본 전환 시간은 180ms로 맞춥니다. 닫기 애니메이션이 끝나기 전에 내용을 제거하거나 `display: none` / `hidden`으로 즉시 숨기지 않습니다. 닫힌 내용은 키보드 탐색·보조기술에서 제외하고, `prefers-reduced-motion: reduce`에서는 애니메이션을 생략해 상태를 즉시 전환합니다.
 
 ### 화면 동작의 기준
 
@@ -390,7 +391,7 @@ npm test
 
 - 구현 변경 후 위 ESLint, TypeScript 타입 검사, 프로덕션 빌드를 수행합니다.
 - Playwright로 구조 경계 / 공통 API / 세션 복원 / 업무 API 인증 테스트와 로그인 / 기본 정보 등록 화면 통합 테스트를 실행합니다. 최초 브라우저 준비는 `npx playwright install chromium`을 사용합니다.
-- `npm run test:api`는 브라우저 없이 구조 경계 / API / 세션 복원 / 업무 API 인증과 관리비 금액 계산 단위 테스트를 실행하고, `npm run test:e2e`는 로그인 / 초기 설정 화면 통합 테스트를 실행합니다. 설치된 Chrome을 사용하려면 `PLAYWRIGHT_CHANNEL=chrome npm test`로 실행합니다.
+- `npm run test:api`는 브라우저 없이 구조 경계 / API / 세션 복원 / 업무 API 인증과 관리비 금액·월말 계산 단위 테스트를 실행하고, `npm run test:e2e`는 로그인 / 초기 설정 / 관리 화면과 관리비 탭·조회 / 저장 API 연결 통합 테스트를 실행합니다. 설치된 Chrome을 사용하려면 `PLAYWRIGHT_CHANNEL=chrome npm test`로 실행합니다.
 - 통합 테스트 서버는 포트 `3100`과 `.next-test/`를 사용합니다. 테스트는 인증 / 등록 응답과 주소 검색 SDK를 모의 처리하며 실제 카카오, 개발 서버 DB나 Redis를 호출하지 않습니다.
 - ESLint, 타입 검사와 빌드 결과를 단위 테스트 통과로 보고하지 않습니다. 기본 빌드가 실행 환경 제한으로 실패해 대체 빌드를 검증한 경우 명령과 빌드 방식을 함께 기록합니다.
 - 업무 로직을 구현할 때 필요한 테스트 환경과 실행 스크립트를 함께 추가하고, 실제 명령을 이 문서에 갱신합니다.
