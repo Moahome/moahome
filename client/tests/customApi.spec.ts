@@ -211,3 +211,28 @@ test('입력 오류는 안전한 필드·reason만 유지하고 응답 메시지
     expect(apiError.message).not.toContain('private-');
   }
 });
+
+test('multipart 파일은 JSON 변환·Content-Type 지정 없이 Bearer와 함께 전달', async () => {
+  const data = new FormData();
+  data.append('file', new Blob(['xlsx-content']), 'residents.xlsx');
+  globalThis.fetch = async (_input, options) => {
+    const headers = new Headers(options?.headers);
+    expect(options?.body).toBe(data);
+    expect(headers.has('Content-Type')).toBe(false);
+    expect(headers.get('Authorization')).toBe('Bearer test-access');
+    expect(options?.signal).toBeInstanceOf(AbortSignal);
+    return Response.json({
+      ok: true
+    });
+  };
+  await customAPI({
+    url: '/api/example',
+    method: 'POST',
+    data,
+    timeoutMs: 60_000,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer test-access'
+    }
+  });
+});

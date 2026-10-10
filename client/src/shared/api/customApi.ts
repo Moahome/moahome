@@ -7,6 +7,7 @@ export interface CustomApiOptions {
   method?: HttpMethod;
   data?: unknown;
   headers?: HeadersInit;
+  timeoutMs?: number;
 }
 
 export class ApiError extends Error {
@@ -73,14 +74,19 @@ export async function customAPI<T = unknown>({
   method = 'GET',
   data,
   headers: customHeaders,
+  timeoutMs = 15_000,
 }: CustomApiOptions): Promise<T> {
   const url = getApiUrl(path);
   const headers = new Headers(customHeaders);
   headers.set('Accept', 'application/json');
-  let body: string | undefined;
+  let body: BodyInit | undefined;
 
   if (method === 'GET') {
     appendQuery(url, data);
+  } else if (data instanceof FormData) {
+    // 브라우저가 파일의 multipart 경계를 생성하도록 Content-Type을 직접 지정하지 않습니다.
+    body = data;
+    headers.delete('Content-Type');
   } else if (data !== undefined) {
     body = JSON.stringify(data);
     headers.set('Content-Type', 'application/json');
@@ -97,7 +103,7 @@ export async function customAPI<T = unknown>({
       credentials: 'include',
       cache: 'no-store',
       // 응답 대기가 무한정 계속되어 세션 복원 잠금이 유지되는 상황을 방지합니다.
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     responseText = await response.text();
   } catch {

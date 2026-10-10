@@ -442,3 +442,38 @@ test('Rotation 응답 유실 뒤에는 업무 요청을 재시도하거나 추�
   });
   expect(refreshRequests).toBe(1);
 });
+
+test('파일 업로드의 인증 만료 재시도는 같은 multipart 본문을 유지', async () => {
+  const data = new FormData();
+  data.append('file', new Blob(['xlsx-content']), 'residents.xlsx');
+  let posts = 0;
+  globalThis.fetch = async (input, options) => {
+    if (String(input).endsWith('/api/auth/web/csrf')) return Response.json({
+      csrfToken: 'test-csrf'
+    });
+    if (String(input).endsWith('/api/auth/web/refresh')) {
+      return Response.json({
+        accessToken: 'test-new-access',
+        tokenType: 'Bearer',
+        accessExpiresAt: new Date(Date.now() + 60_000).toISOString()
+      });
+    }
+    expect(options?.body).toBe(data);
+    const headers = new Headers(options?.headers);
+    expect(headers.has('Content-Type')).toBe(false);
+    posts++;
+    if (posts === 1) return expiredResponse();
+    expect(headers.get('Authorization')).toBe('Bearer test-new-access');
+    return Response.json({
+      ok: true
+    });
+  };
+  await expect(authenticatedAPI({
+    url: '/api/upload',
+    method: 'POST',
+    data
+  })).resolves.toEqual({
+    ok: true
+  });
+  expect(posts).toBe(2);
+});

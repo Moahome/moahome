@@ -94,7 +94,7 @@ public class ResidentRegistrationService {
 	}
 
 	/** 관리대상에 속한 미삭제 세대와 활성 동만 선택할 수 있으며 공실 표시는 등록만으로 변경하지 않습니다. */
-	private Unit requireUnit(Property property, UUID unitId) {
+	Unit requireUnit(Property property, UUID unitId) {
 		var unit = units.findByIdAndPropertyIdAndDeletedAtIsNull(unitId, property.getId())
 			.filter(item -> item.getStatus() != UnitStatus.INACTIVE)
 			.orElseThrow(() -> new ResidentRegistrationException(INVALID_UNIT));
@@ -107,24 +107,29 @@ public class ResidentRegistrationService {
 	}
 
 	/** 국내 번호는 한국 국가번호로 변환하고 국제번호는 공통 정규화기를 사용하며 원문은 저장하지 않습니다. */
-	private ProtectedPhone protectPhone(String input) {
+	ProtectedPhone protectPhone(String input) {
 		if (input == null || input.isBlank()) return null;
-		String phone = input.strip();
-		if (phone.length() > 64 || !phone.matches("\\+?[0-9 ()-]+")) throw new IllegalArgumentException("Invalid contact");
-		String digits = phone.replaceAll("[ ()-]", "");
-		if (digits.matches("0[1-9][0-9]{7,9}")) digits = "+82" + digits.substring(1);
-		if (!digits.matches("\\+[1-9][0-9]{3,14}")) throw new IllegalArgumentException("Invalid contact");
+		String digits = normalizePhone(input);
 		PhoneSecurity security;
 		try {
 			security = phoneSecurity.getObject();
 		} catch (BeansException exception) {
-			// 키 미설정·손상 시 평문으로 대체하지 않고 전체 등록을 중단합니다.
 			throw new ResidentRegistrationException(PHONE_SECURITY_UNAVAILABLE);
 		}
 		return new ProtectedPhone(security.encrypt(digits), security.hmac(digits), security.last4(digits));
 	}
 
-	private record ProtectedPhone(String encrypted, String hmac, String last4) {
+	/** 개별 등록과 엑셀 검증에서 동일한 국내·국제 연락처 형식을 사용합니다. */
+	static String normalizePhone(String input) {
+		String phone = input.strip();
+		if (phone.length() > 64 || !phone.matches("\\+?[0-9 ()-]+")) throw new IllegalArgumentException("Invalid contact");
+		String digits = phone.replaceAll("[ ()-]", "");
+		if (digits.matches("0[1-9][0-9]{7,9}")) digits = "+82" + digits.substring(1);
+		if (!digits.matches("\\+[1-9][0-9]{3,14}")) throw new IllegalArgumentException("Invalid contact");
+		return digits;
+	}
+
+	record ProtectedPhone(String encrypted, String hmac, String last4) {
 		@Override public String toString() { return "ProtectedPhone[REDACTED]"; }
 	}
 }
