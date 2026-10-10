@@ -43,3 +43,7 @@
     }
   }
 }
+
+.error {
+  color: var(--danger);
+}

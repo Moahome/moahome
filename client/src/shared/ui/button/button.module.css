@@ -54,6 +54,43 @@
     }
   }
 
+  &[data-tone="neutral"] {
+    --button-tone: var(--sub-text);
+  }
+
+  &[data-tone="success"] {
+    --button-tone: var(--success);
+  }
+
+  &[data-tone="danger"] {
+    --button-tone: var(--danger);
+  }
+
+  &[data-tone] {
+    &[data-variant="outline"] {
+      border-color: var(--button-tone);
+      background: var(--card);
+      color: var(--button-tone);
+    }
+
+    &[data-variant="ghost"],
+    &[data-variant="text"] {
+      color: var(--button-tone);
+    }
+
+    &[data-variant="primary"] {
+      background: var(--button-tone);
+    }
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--button-tone) 6%, var(--card));
+    }
+
+    &[data-variant="primary"]:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--button-tone) 90%, var(--foreground));
+    }
+  }
+
   &[data-size="sm"] {
     min-height: 40px;
     padding: 8px 12px;

@@ -1,4 +1,4 @@
-import type { LandingIconName } from '../_components/landingIcon';
+import type { LandingIconName } from '../_components/landing-icon/landingIcon';
 
 type PreviewMenuItem = {
   icon: LandingIconName;

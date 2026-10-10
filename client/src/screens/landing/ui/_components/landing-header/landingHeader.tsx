@@ -8,9 +8,9 @@ import {
 import Link from 'next/link';
 import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
-import { NAVIGATION_ITEMS } from '../_constants/landingContent';
-import { BrandLogo } from './brandLogo';
-import { LandingIcon } from './landingIcon';
+import { NAVIGATION_ITEMS } from '../../_constants/landingContent';
+import { BrandLogo } from '../brand-logo/brandLogo';
+import { LandingIcon } from '../landing-icon/landingIcon';
 import styles from './landingHeader.module.css';
 
 /** 복원 중에는 진입을 기다리고 본인 정보가 확인된 사용자는 로그인 없이 시작 화면으로 연결합니다. */

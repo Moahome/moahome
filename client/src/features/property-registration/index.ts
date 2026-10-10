@@ -1,9 +1,9 @@
 export {
   PropertyRegistrationFlow
-} from './ui/propertyRegistrationFlow';
+} from './ui/property-registration-flow/propertyRegistrationFlow';
 export {
   RegistrationDraftLifecycle
-} from './ui/registrationDraftLifecycle';
+} from './ui/registration-draft-lifecycle/registrationDraftLifecycle';
 export {
   hasPendingRegistration
 } from './model/registrationSubmission';

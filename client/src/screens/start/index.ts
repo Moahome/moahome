@@ -1,3 +1,3 @@
 export {
   StartPage
-} from './ui/startPage';
+} from './ui/start-page/startPage';

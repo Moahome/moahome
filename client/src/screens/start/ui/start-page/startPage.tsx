@@ -19,11 +19,11 @@ import { useManagementEntry } from '@/features/enter-service';
 import { ApiError } from '@/shared/api';
 import { NeighborhoodIllustration } from '@/shared/ui/neighborhood-illustration';
 import { ServiceHeader } from '@/widgets/service-header';
-import { StartIntro } from './_components/start-intro/startIntro';
+import { StartIntro } from '../_components/start-intro/startIntro';
 import { NoticeDialog } from '@/shared/ui/notice-dialog';
-import { StartSessionState } from './_components/start-session-state/startSessionState';
-import { PendingRequestCard } from './_components/pending-request-card/pendingRequestCard';
-import { StartCard } from './_components/start-card/startCard';
+import { StartSessionState } from '../_components/start-session-state/startSessionState';
+import { PendingRequestCard } from '../_components/pending-request-card/pendingRequestCard';
+import { StartCard } from '../_components/start-card/startCard';
 import styles from './startPage.module.css';
 import motion from './startMotion.module.css';
 

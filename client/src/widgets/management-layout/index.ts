@@ -1,3 +1,3 @@
 export {
   ManagementLayout
-} from './ui/managementLayout';
+} from './ui/management-layout/managementLayout';

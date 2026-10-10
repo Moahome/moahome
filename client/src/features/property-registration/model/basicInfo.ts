@@ -1,3 +1,9 @@
+import { getTextLength } from '@/shared/lib/format';
+
+export {
+  getTextLength
+} from '@/shared/lib/format';
+
 export interface BasicInfoDraft {
   name: string;
   address: string;
@@ -21,11 +27,6 @@ export const EMPTY_BASIC_INFO: BasicInfoDraft = {
   propertyType: '',
   hasBuildings: null,
 };
-
-/** Server 계약과 동일하게 앞뒤 공백을 제외한 Unicode 코드 포인트 수를 계산합니다. */
-export function getTextLength(value: string) {
-  return Array.from(value.trim()).length;
-}
 
 /** 필수 입력과 선택 입력의 길이를 검증하며 동 없음(false)도 명시적인 선택으로 인정합니다. */
 export function getBasicInfoErrors(draft: BasicInfoDraft): BasicInfoErrors {

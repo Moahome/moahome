@@ -1,13 +1,14 @@
 'use client';
 
 import {
-  useEffect,
   useRef,
   useState,
   type FormEvent
 } from 'react';
-import { UNIT_STATUS_OPTIONS } from '@/entities/property';
+import { UNIT_STATUS_OPTIONS } from '../../constants/propertyOptions';
+import { getSortedBuildings } from '../../model/unitSorting';
 import { Button } from '@/shared/ui/button';
+import { ClientModal } from '@/shared/ui/client-modal';
 import {
   Dropdown,
   Input
@@ -22,19 +23,18 @@ import {
   type UnitForm,
   type UnitFormErrors,
   type UnitStatus
-} from '../../../model/unitSetup';
-import { getSortedBuildings } from '../../_utils/setupSorting';
-import { RegistrationIcon } from '../registration-icon/registrationIcon';
-import styles from './setupEditor.module.css';
+} from '../../model/unitForm';
+import { ServiceIcon } from '@/shared/ui/service-icon';
+import styles from './buildingUnitFormModal.module.css';
 
-export interface EditorTarget {
+export interface BuildingUnitFormTarget {
   kind: 'building' | 'unit';
   clientId: string | null;
   buildingClientId?: string;
 }
 
-/** 동·세대 초안만 추가·수정하고 서버 저장이나 기존 업무 데이터의 상태 변경은 수행하지 않습니다. */
-export function SetupEditor({
+/** 초기 등록과 세대 관리에서 같은 입력·검증·포커스 처리를 사용하고 저장은 호출자에게 위임합니다. */
+export function BuildingUnitFormModal({
   target,
   hasBuildings,
   buildings,
@@ -43,17 +43,20 @@ export function SetupEditor({
   onSaveUnit,
   onDelete,
   onClose,
+  busy = false,
+  errorMessage = '',
 }: {
-  target: EditorTarget;
+  target: BuildingUnitFormTarget;
   hasBuildings: boolean;
   buildings: BuildingDraft[];
   units: UnitDraft[];
-  onSaveBuilding: (building: BuildingDraft) => void;
+  onSaveBuilding?: (building: BuildingDraft) => void;
   onSaveUnit: (unit: UnitDraft) => void;
-  onDelete: () => string | null;
+  onDelete?: () => string | null;
   onClose: () => void;
+  busy?: boolean;
+  errorMessage?: string;
 }) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const entryRef = useRef<HTMLInputElement>(null);
   const isBuilding = target.kind === 'building';
   const unit = units.find((entry) => entry.clientId === target.clientId);
@@ -71,34 +74,14 @@ export function SetupEditor({
   const [errors, setErrors] = useState<UnitFormErrors>({});
   const [message, setMessage] = useState('');
 
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    const previousOverflow = document.body.style.overflow;
-    const previousFocus = document.activeElement;
-    dialog?.showModal();
-    entryRef.current?.focus({
-      preventScroll: true
-    });
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      dialog?.close();
-      document.body.style.overflow = previousOverflow;
-      // 모달을 DOM에서 제거해도 키보드 탐색이 편집 버튼에서 이어지도록 포커스를 돌려줍니다.
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
-        previousFocus.focus({
-          preventScroll: true
-        });
-      }
-    };
-  }, []);
-
-  /** 오류는 필드에 연결하고 정리한 값만 전달하며 수정 시 같은 초안 ID를 유지합니다. */
+  /** 오류는 필드에 연결하고 정리한 값만 전달하며 수정 시 호출자가 전달한 기존 ID를 유지합니다. */
   function submitEntry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy) return;
     setMessage('');
 
     if (isBuilding) {
+      if (!onSaveBuilding) return;
       const name = normalizeBuildingName(buildingName);
       const failure = getBuildingNameError(name, buildings, target.clientId ?? undefined);
 
@@ -119,28 +102,26 @@ export function SetupEditor({
     onSaveUnit(normalizeUnitForm(form, hasBuildings, target.clientId ?? crypto.randomUUID()));
   }
 
-  /** 참조 중인 동은 삭제하지 않고 연결된 세대를 먼저 수정하도록 안내합니다. */
+  /** 삭제 기능을 전달받은 초기 설정에서만 호출하고 삭제 확인과 실제 반영은 호출자에게 위임합니다. */
   function deleteEntry() {
-    const failure = onDelete();
+    const failure = onDelete?.();
 
     if (failure) setMessage(failure);
   }
 
   return (
-    <dialog
-      ref={dialogRef}
+    <ClientModal
+      initialFocusRef={entryRef}
+      onClose={onClose}
+      busy={busy}
       className={styles.dialog}
-      aria-labelledby={'setup-editor-title'}
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
+      aria-labelledby={'building-unit-form-modal-title'}
     >
       <header
         className={styles.header}
       >
         <h2
-          id={'setup-editor-title'}
+          id={'building-unit-form-modal-title'}
         >
           {title}
         </h2>
@@ -150,8 +131,9 @@ export function SetupEditor({
           iconOnly
           aria-label={`${title} 닫기`}
           onClick={onClose}
+          disabled={busy}
           leadingIcon={(
-            <RegistrationIcon
+            <ServiceIcon
               name={'close'}
             />
           )}
@@ -161,8 +143,9 @@ export function SetupEditor({
         onSubmit={submitEntry}
         noValidate
       >
-        <div
+        <fieldset
           className={styles.fields}
+          disabled={busy}
         >
           {isBuilding ? (
             <Input
@@ -223,8 +206,8 @@ export function SetupEditor({
                 />
               </div>
               <Input
-                label={'표시 이름'}
-                placeholder={'호수 대신 표시할 이름 (선택사항)'}
+                label={'세대 별칭'}
+                placeholder={'예) 별채 (선택사항)'}
                 value={form.displayName}
                 onChange={(event) => setForm((previous) => ({
                   ...previous,
@@ -243,17 +226,17 @@ export function SetupEditor({
                 error={errors.status}
                 required
               />
-              {message && (
+              {(message || errorMessage) && (
                 <p
                   className={styles.error}
                   role={'alert'}
                 >
-                  {message}
+                  {message || errorMessage}
                 </p>
               )}
             </>
           )}
-          {target.clientId && (
+          {target.clientId && onDelete && (
             <Button
               variant={'outline'}
               onClick={deleteEntry}
@@ -263,23 +246,27 @@ export function SetupEditor({
               {isBuilding ? '동 삭제' : '세대 삭제'}
             </Button>
           )}
-        </div>
+        </fieldset>
         <footer
           className={styles.actions}
         >
           <Button
             variant={'outline'}
             onClick={onClose}
+            disabled={busy}
           >
             취소
           </Button>
           <Button
             type={'submit'}
+            variant={target.clientId ? 'outline' : 'primary'}
+            tone={target.clientId ? 'success' : undefined}
+            loading={busy}
           >
             {target.clientId ? '수정' : '추가'}
           </Button>
         </footer>
       </form>
-    </dialog>
+    </ClientModal>
   );
 }

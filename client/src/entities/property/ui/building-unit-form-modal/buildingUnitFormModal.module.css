@@ -32,6 +32,10 @@
 .fields {
   display: grid;
   gap: 20px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 
   .delete-button[data-variant] {
     display: none;

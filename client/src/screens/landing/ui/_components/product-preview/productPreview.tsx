@@ -4,9 +4,9 @@ import {
   PREVIEW_PHONE_ACTIONS,
   PREVIEW_PHONE_NAVIGATION,
   PREVIEW_SCHEDULES,
-} from '../_constants/previewData';
-import { BrandLogo } from './brandLogo';
-import { LandingIcon } from './landingIcon';
+} from '../../_constants/previewData';
+import { BrandLogo } from '../brand-logo/brandLogo';
+import { LandingIcon } from '../landing-icon/landingIcon';
 import styles from './productPreview.module.css';
 
 function DashboardPreview() {

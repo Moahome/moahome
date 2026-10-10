@@ -18,13 +18,13 @@ import {
   type BuildingDraft,
   type UnitDraft
 } from '../../../model/unitSetup';
+import {
+  BuildingUnitFormModal,
+  type BuildingUnitFormTarget
+} from '@/entities/property';
 import { AutomaticUnitEditor } from '../automatic-unit-editor/automaticUnitEditor';
 import { BuildingManager } from '../building-manager/buildingManager';
 import { RegistrationIcon } from '../registration-icon/registrationIcon';
-import {
-  SetupEditor,
-  type EditorTarget
-} from '../setup-editor/setupEditor';
 import { UnitDeleteConfirmation } from '../unit-delete-confirmation/unitDeleteConfirmation';
 import { SetupProgress } from '../setup-progress/setupProgress';
 import { UnitList } from '../unit-list/unitList';
@@ -53,7 +53,7 @@ export function UnitSetup({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const hasBuildings = basicInfo.hasBuildings === true;
   const [automaticTarget, setAutomaticTarget] = useState<{ buildingClientId?: string } | null>(null);
-  const [editing, setEditing] = useState<EditorTarget | null>(null);
+  const [editing, setEditing] = useState<BuildingUnitFormTarget | null>(null);
   const [isManagingBuildings, setIsManagingBuildings] = useState(false);
   const [pendingUnitId, setPendingUnitId] = useState<string | null>(null);
   const pendingUnit = units.find((unit) => unit.clientId === pendingUnitId);
@@ -370,7 +370,7 @@ export function UnitSetup({
         />
       )}
       {editing && (
-        <SetupEditor
+        <BuildingUnitFormModal
           key={`${editing.kind}-${editing.clientId ?? 'new'}`}
           target={editing}
           hasBuildings={hasBuildings}

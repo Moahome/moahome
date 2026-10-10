@@ -1,3 +1,3 @@
 export {
   ManagementDashboardPage
-} from './ui/managementDashboardPage';
+} from './ui/management-dashboard-page/managementDashboardPage';

@@ -16,15 +16,23 @@ import unusedImports from 'eslint-plugin-unused-imports';
 
 const SOURCE_DIRECTORY = fileURLToPath(new URL('./src/', import.meta.url));
 const LAYERS = ['app', 'screens', 'widgets', 'features', 'entities', 'shared'];
+const SCREEN_GROUPS = new Set(['household']);
 
 /** 경로를 정규화해 별칭이나 상대 경로로 FSD 경계를 우회하지 못하게 합니다. */
 function getModuleInfo(filename) {
   const parts = relative(SOURCE_DIRECTORY, filename).split(sep);
-  const [layer, slice] = parts;
+  const [layer, folder] = parts;
+  const grouped = layer === 'screens' && SCREEN_GROUPS.has(folder);
+  const sliceDepth = grouped ? 3 : 2;
+  const isGroup = grouped && (parts.length < sliceDepth || /^index(?:\.[cm]?[jt]sx?)?$/.test(parts[2]));
+  // 그룹명만 비교하면 같은 그룹의 형제 화면이 내부 코드를 공유할 수 있으므로 최종 화면까지 식별합니다.
+  const slice = isGroup ? undefined : parts.slice(1, sliceDepth).join('/');
 
   return {
     layer,
     slice,
+    sliceDepth,
+    isGroup,
     parts,
     rank: LAYERS.indexOf(layer)
   };
@@ -65,7 +73,7 @@ const importBoundaries = {
 
       // app과 shared는 슬라이스가 없고, 그 밖의 레이어는 자기 슬라이스 안에서만 자유롭게 참조합니다.
       if (source.layer === target.layer) {
-        if (['app', 'shared'].includes(source.layer) || source.slice === target.slice) return;
+        if (['app', 'shared'].includes(source.layer) || (source.slice && source.slice === target.slice)) return;
 
         context.report({
           node,
@@ -92,9 +100,9 @@ const importBoundaries = {
       // shared의 모듈 구조는 슬라이스와 다르므로 슬라이스 공개 API 검사는 중간 네 레이어에만 적용합니다.
       if (['app', 'shared'].includes(target.layer)) return;
 
-      const isPublicApi = target.parts.length === 2 || (
-        target.parts.length === 3 && /^index(?:\.[cm]?[jt]sx?)?$/.test(target.parts[2])
-      );
+      const isPublicApi = !target.isGroup && (target.parts.length === target.sliceDepth || (
+        target.parts.length === target.sliceDepth + 1 && /^index(?:\.[cm]?[jt]sx?)?$/.test(target.parts[target.sliceDepth])
+      ));
 
       if (!isPublicApi) {
         context.report({
@@ -118,6 +126,31 @@ const importBoundaries = {
   },
 };
 
+/** 진입 UI도 내부 컴포넌트와 같은 폴더 규칙으로 검사해 ui/ 바로 아래의 TSX 배치를 차단합니다. */
+const uiFolders = {
+  meta: {
+    type: 'problem',
+    schema: [],
+    messages: {
+      componentFolder: 'UI 컴포넌트는 ui/ 또는 _components/ 바로 아래가 아닌 컴포넌트별 폴더에 배치하세요.',
+    },
+  },
+  create(context) {
+    return {
+      Program(node) {
+        const parts = relative(SOURCE_DIRECTORY, context.filename).split(sep);
+        const parent = parts.at(-2);
+        if (!parts.includes('ui') || !/\.tsx$/.test(context.filename) || !['ui', '_components'].includes(parent)) return;
+
+        context.report({
+          node,
+          messageId: 'componentFolder'
+        });
+      }
+    };
+  }
+};
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -126,12 +159,14 @@ const eslintConfig = defineConfig([
     plugins: {
       architecture: {
         rules: {
-          'import-boundaries': importBoundaries
+          'import-boundaries': importBoundaries,
+          'ui-folders': uiFolders
         }
       },
     },
     rules: {
       'architecture/import-boundaries': 'error',
+      'architecture/ui-folders': 'error',
       'react/jsx-one-expression-per-line': ['error', {
         allow: 'none'
       }],

@@ -12,7 +12,7 @@ import { BrandMark } from '@/shared/ui/brand-mark';
 import { ApiError } from '@/shared/api';
 import { Button } from '@/shared/ui/button';
 import { NeighborhoodIllustration } from '@/shared/ui/neighborhood-illustration';
-import { LoginFooter } from './_components/loginFooter';
+import { LoginFooter } from '../_components/login-footer/loginFooter';
 import styles from './loginPage.module.css';
 
 /** 세션 확인이 끝난 비로그인 사용자에게만 로그인 수단을 표시하고 정상 사용자는 시작 화면으로 이동합니다. */

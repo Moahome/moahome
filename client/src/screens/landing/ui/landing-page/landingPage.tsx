@@ -5,12 +5,12 @@ import {
   FAQ_ITEMS,
   MANAGEMENT_STEPS,
   ROLES,
-} from './_constants/landingContent';
-import { BrandLogo } from './_components/brandLogo';
-import { LandingHeader } from './_components/landingHeader';
-import { LandingIcon } from './_components/landingIcon';
-import { LandingMotion } from './_components/landingMotion';
-import { ProductPreview } from './_components/productPreview';
+} from '../_constants/landingContent';
+import { BrandLogo } from '../_components/brand-logo/brandLogo';
+import { LandingHeader } from '../_components/landing-header/landingHeader';
+import { LandingIcon } from '../_components/landing-icon/landingIcon';
+import { LandingMotion } from '../_components/landing-motion/landingMotion';
+import { ProductPreview } from '../_components/product-preview/productPreview';
 import styles from './landingPage.module.css';
 
 export function LandingPage() {

@@ -1,4 +1,5 @@
 export {
   formatInteger,
-  formatWon
+  formatWon,
+  getTextLength
 } from './formatter';

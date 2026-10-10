@@ -4,7 +4,7 @@ import {
   useRef,
   useState
 } from 'react';
-import styles from '../loginPage.module.css';
+import styles from '../../login-page/loginPage.module.css';
 
 export function LoginFooter() {
   const dialogRef = useRef<HTMLDialogElement>(null);

@@ -41,10 +41,6 @@
   gap: 10px;
   list-style: none;
 
-  .edit-button[data-variant] {
-    color: var(--success);
-  }
-
   .delete-button[data-variant] {
     color: var(--danger);
   }
@@ -119,4 +115,11 @@
   .dialog {
     padding: 18px;
   }
+}
+
+.fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }

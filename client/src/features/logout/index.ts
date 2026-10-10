@@ -1,3 +1,3 @@
 export {
   LogoutButton
-} from './ui/logoutButton';
+} from './ui/logout-button/logoutButton';

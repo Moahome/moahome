@@ -1,7 +1,7 @@
 'use client';
 
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import motion from '../../startMotion.module.css';
+import motion from '../../start-page/startMotion.module.css';
 import styles from './pendingRequestCard.module.css';
 
 export function PendingRequestCard({

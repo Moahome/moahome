@@ -14,3 +14,8 @@ export function formatInteger(value: string | bigint | number): string {
 export function formatWon(value: string | bigint | number): string {
   return `${formatInteger(value)}원`;
 }
+
+/** Server 계약과 동일하게 앞뒤 공백을 제외한 Unicode 코드 포인트 수를 계산합니다. */
+export function getTextLength(value: string) {
+  return Array.from(value.trim()).length;
+}

@@ -7,6 +7,7 @@ import styles from './button.module.css';
 export interface ButtonProps extends ComponentPropsWithRef<'button'> {
   variant?: 'primary' | 'outline' | 'ghost' | 'text';
   size?: 'sm' | 'md' | 'lg';
+  tone?: 'neutral' | 'success' | 'danger';
   iconOnly?: boolean;
   leadingIcon?: ReactNode;
   trailingIcon?: ReactNode;
@@ -17,6 +18,7 @@ export interface ButtonProps extends ComponentPropsWithRef<'button'> {
 export function Button({
   variant = 'primary',
   size = 'md',
+  tone,
   iconOnly = false,
   leadingIcon,
   trailingIcon,
@@ -35,6 +37,7 @@ export function Button({
       className={[styles.button, className].filter(Boolean).join(' ')}
       data-variant={variant}
       data-size={size}
+      data-tone={tone}
       data-icon-only={iconOnly || undefined}
       disabled={disabled || loading}
       aria-busy={loading || ariaBusy}

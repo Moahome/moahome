@@ -20,16 +20,16 @@ import {
   Radio
 } from '@/shared/ui/form-controls';
 import { HomeIllustration } from '@/shared/ui/home-illustration';
-import { validateBasicInfo } from '../api/basicInfoApi';
+import { validateBasicInfo } from '../../api/basicInfoApi';
 import {
   getBasicInfoErrors,
   getTextLength,
   normalizeBasicInfo,
   type BasicInfo,
   type BasicInfoDraft
-} from '../model/basicInfo';
-import { AddressSearch } from './_components/address-search/addressSearch';
-import { RegistrationIcon } from './_components/registration-icon/registrationIcon';
+} from '../../model/basicInfo';
+import { AddressSearch } from '../_components/address-search/addressSearch';
+import { RegistrationIcon } from '../_components/registration-icon/registrationIcon';
 import styles from './propertyRegistrationDialog.module.css';
 
 /** 오류 코드를 안전한 화면 안내로 바꾸고 서버 응답 원문을 노출하지 않습니다. */

@@ -1,4 +1,4 @@
-import type { LandingIconName } from '../_components/landingIcon';
+import type { LandingIconName } from '../_components/landing-icon/landingIcon';
 
 export const ROLES: {
   icon: LandingIconName;
