@@ -10,12 +10,21 @@
   font-size: 13px;
   text-decoration: none;
 
+  > svg {
+    flex-shrink: 0;
+  }
+
   &[data-icon='true'] {
     min-height: 44px;
     padding: 10px 14px;
     font-size: 14px;
     font-weight: 700;
     color: var(--foreground);
+  }
+
+  &[data-collapsed='true'] {
+    justify-content: center;
+    padding-inline: 0;
   }
 
   &[aria-current='page'] {

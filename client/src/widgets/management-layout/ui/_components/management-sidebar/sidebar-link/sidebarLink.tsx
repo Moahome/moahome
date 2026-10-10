@@ -10,21 +10,25 @@ export function SidebarLink({
   pathname,
   icon,
   onNavigate,
+  collapsed = false,
 }: {
   item: ManagementMenuLink;
   propertyId: string;
   pathname: string;
   icon?: ReactNode;
   onNavigate?: () => void;
+  collapsed?: boolean;
 }) {
   const href = `/manage/${propertyId}/${item.path}`;
   const content = (
     <>
       {icon}
-      <span>
+      <span
+        hidden={collapsed}
+      >
         {item.label}
       </span>
-      {!item.available && <small>
+      {!item.available && !collapsed && <small>
         준비 중
       </small>}
     </>
@@ -36,6 +40,9 @@ export function SidebarLink({
         className={styles.link}
         data-icon={Boolean(icon)}
         aria-disabled={'true'}
+        data-collapsed={collapsed}
+        aria-label={collapsed ? `${item.label} (준비 중)` : undefined}
+        title={collapsed ? `${item.label} (준비 중)` : undefined}
       >
         {content}
       </span>
@@ -47,6 +54,9 @@ export function SidebarLink({
       href={href}
       className={styles.link}
       data-icon={Boolean(icon)}
+      data-collapsed={collapsed}
+      aria-label={collapsed ? item.label : undefined}
+      title={collapsed ? item.label : undefined}
       aria-current={pathname === href ? 'page' : undefined}
       onNavigate={onNavigate}
       replace={Boolean(onNavigate)}

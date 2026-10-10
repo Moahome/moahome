@@ -10,6 +10,15 @@
     font-weight: 700;
     text-align: left;
 
+    > svg {
+      flex-shrink: 0;
+    }
+
+    &[data-collapsed='true'] {
+      justify-content: center;
+      padding-inline: 0;
+    }
+
     &[aria-expanded='true'] {
       background: color-mix(in srgb, var(--border) 45%, var(--card));
       color: var(--foreground);
@@ -29,6 +38,10 @@
     margin-left: auto;
     color: var(--sub-text);
     transition: transform 160ms ease;
+
+    &[hidden] {
+      display: none;
+    }
 
     &[data-open='true'] {
       transform: rotate(180deg);

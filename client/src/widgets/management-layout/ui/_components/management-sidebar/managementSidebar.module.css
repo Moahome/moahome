@@ -5,6 +5,24 @@
   min-height: 0;
   background: var(--card);
 
+  .toggle-item {
+    display: flex;
+    flex-shrink: 0;
+    justify-content: flex-end;
+    padding: 10px;
+  }
+
+  .toggle-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+  }
+
+  &[data-collapsed='true'] {
+    .toggle-item {
+      justify-content: center;
+    }
+  }
+
   .navigation {
     flex: 1;
     min-height: 0;

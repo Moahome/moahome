@@ -3,6 +3,7 @@
 import {
   useEffect,
   useRef,
+  useState,
   type ReactNode
 } from 'react';
 import { useSession } from '@/entities/session';
@@ -123,6 +124,8 @@ function ManagementFrame({
   header: (slots: HeaderSlots) => ReactNode;
   children: ReactNode;
 }) {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
   return (
     <div
       className={styles.shell}
@@ -144,12 +147,16 @@ function ManagementFrame({
       </div>
       <div
         className={styles.layout}
+        data-sidebar-collapsed={sidebarCollapsed}
       >
         <aside
           className={styles.sidebar}
         >
           <ManagementSidebar
             propertyId={propertyId}
+            collapsed={sidebarCollapsed}
+            onToggle={() => setSidebarCollapsed((previous) => !previous)}
+            onExpand={() => setSidebarCollapsed(false)}
           />
         </aside>
         <div

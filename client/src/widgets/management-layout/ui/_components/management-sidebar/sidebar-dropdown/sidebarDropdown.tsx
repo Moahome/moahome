@@ -15,11 +15,15 @@ export function SidebarDropdown({
   icon,
   active,
   children,
+  collapsed = false,
+  onExpand,
 }: {
   label: string;
   icon: ReactNode;
   active: boolean;
   children: ReactNode;
+  collapsed?: boolean;
+  onExpand?: () => void;
 }) {
   const contentId = useId();
   const [expansion, setExpansion] = useState({
@@ -33,7 +37,23 @@ export function SidebarDropdown({
       open: active || expansion.open
     });
   }
-  const open = expansion.open;
+  const open = !collapsed && expansion.open;
+
+  /** 접힌 사이드바의 그룹을 누르면 전체 메뉴와 해당 하위 목록을 함께 펼칩니다. */
+  function toggleGroup() {
+    if (collapsed) {
+      onExpand?.();
+      setExpansion((previous) => ({
+        ...previous,
+        open: true
+      }));
+      return;
+    }
+    setExpansion((previous) => ({
+      ...previous,
+      open: !previous.open
+    }));
+  }
 
   return (
     <div
@@ -44,18 +64,21 @@ export function SidebarDropdown({
         className={styles.trigger}
         aria-expanded={open}
         aria-controls={contentId}
-        onClick={() => setExpansion((previous) => ({
-          ...previous,
-          open: !previous.open
-        }))}
+        aria-label={collapsed ? label : undefined}
+        title={collapsed ? label : undefined}
+        data-collapsed={collapsed}
+        onClick={toggleGroup}
       >
         {icon}
-        <span>
+        <span
+          hidden={collapsed}
+        >
           {label}
         </span>
         <span
           className={styles.chevron}
           data-open={open}
+          hidden={collapsed}
         >
           <ServiceIcon
             size={22}
