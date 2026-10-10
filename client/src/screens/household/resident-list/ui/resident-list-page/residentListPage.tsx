@@ -20,6 +20,7 @@ import { ResidentListTable } from './_components/resident-list-table/residentLis
 import { ListToolbar } from '@/shared/ui/list-toolbar';
 import { ListCard } from '@/shared/ui/list-card';
 import { ResidentRegistrationModal } from './_components/resident-registration-modal/residentRegistrationModal';
+import { downloadResidents } from './_utils/downloadResidents';
 import styles from './residentListPage.module.css';
 
 /** 주민 조회·필터와 웹 등록 모달을 조합하고 모바일 등록은 독립 페이지로 연결합니다. */
@@ -36,6 +37,8 @@ export function ResidentListPage({
   const queryClient = useQueryClient();
   const [registering, setRegistering] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState(0);
   const [message, setMessage] = useState(deleted ? '주민을 삭제했어요.' : registered ? '주민을 등록했어요.' : '');
   useEffect(() => {
     if (registered || deleted) window.history.replaceState(null, '', `/manage/${propertyId}/residents`);
@@ -70,6 +73,21 @@ export function ResidentListPage({
   }
   const { list, data, view } = controller;
 
+  /** 현재 페이지에 한정하지 않고 검색·필터·동호수 정렬이 적용된 주민 전체를 저장합니다. */
+  async function exportResidents() {
+    if (downloading || !view.filtered.length) return;
+    setDownloading(true);
+    setDownloadError(0);
+
+    try {
+      await downloadResidents(data, view.filtered);
+    } catch {
+      setDownloadError((count) => count + 1);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   return (
     <section
       className={styles.page}
@@ -85,6 +103,7 @@ export function ResidentListPage({
             className={styles.actions}
           >
             <Button
+              variant={'outline'}
               tone={'excel'}
               onClick={() => router.push(`/manage/${propertyId}/residents/import`)}
               leadingIcon={(
@@ -151,6 +170,23 @@ export function ResidentListPage({
               total={view.filtered.length}
               pageSize={controller.pageSize}
               onSizeChange={controller.changePageSize}
+              actions={(
+                <Button
+                  variant={'outline'}
+                  tone={'excel'}
+                  className={styles.download}
+                  disabled={!view.filtered.length}
+                  loading={downloading}
+                  onClick={() => void exportResidents()}
+                  leadingIcon={(
+                    <ServiceIcon
+                      name={'excel'}
+                    />
+                  )}
+                >
+                  엑셀 다운로드
+                </Button>
+              )}
             />
             <ResidentListTable
               residents={view.rows}
@@ -191,6 +227,14 @@ export function ResidentListPage({
         <Toast
           message={message}
           onClose={() => setMessage('')}
+        />
+      )}
+      {downloadError > 0 && (
+        <Toast
+          key={`download-${downloadError}`}
+          tone={'error'}
+          message={'엑셀 다운로드에 실패했어요. 다시 시도해주세요.'}
+          onClose={() => setDownloadError(0)}
         />
       )}
     </section>

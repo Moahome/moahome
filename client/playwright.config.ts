@@ -16,7 +16,7 @@ export default defineConfig({
   projects: [
     {
       name: 'api',
-      testMatch: ['architecture.spec.ts', 'customApi.spec.ts', 'sessionRestore.spec.ts', 'authenticatedApi.spec.ts', 'feeItems.spec.ts', 'formatter.spec.ts']
+      testMatch: ['architecture.spec.ts', 'customApi.spec.ts', 'sessionRestore.spec.ts', 'authenticatedApi.spec.ts', 'feeItems.spec.ts', 'formatter.spec.ts', 'residentExport.spec.ts']
     },
     {
       name: 'chromium',
