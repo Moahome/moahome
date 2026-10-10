@@ -36,7 +36,7 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
         id: 'residents',
         label: '주민 목록',
         path: 'residents',
-        available: false
+        available: true
       },
       {
         id: 'join-requests',

@@ -1,0 +1,86 @@
+import {
+  RESIDENT_RELATION_OPTIONS,
+  RESIDENT_SIGNUP_OPTIONS
+} from '@/entities/resident';
+import {
+  DataTable,
+  type DataTableColumn
+} from '@/shared/ui/data-table';
+import type {
+  ResidentList,
+  ResidentRow
+} from '../../../../api/residentApi';
+import { getResidentUnitLabel } from '../../../../model/residentList';
+import styles from './residentListTable.module.css';
+
+/** 한 세대의 여러 주민을 각각 표시하며 대표 여부를 가입 상태와 구분합니다. */
+export function ResidentListTable({
+  residents,
+  buildings,
+  hasBuildings,
+  hasFilters,
+}: {
+  residents: ResidentRow[];
+  buildings: ResidentList['buildings'];
+  hasBuildings: boolean;
+  hasFilters: boolean;
+}) {
+  const buildingNames = new Map(buildings.map((building) => [building.id, building.name]));
+  const columns: DataTableColumn<ResidentRow>[] = [
+    {
+      key: 'name',
+      header: '주민명',
+      rowHeader: true,
+      render: (row) => row.name
+    },
+    {
+      key: 'phone',
+      header: '연락처',
+      render: (row) => row.phoneLast4 ? `•••• ${row.phoneLast4}` : '—'
+    },
+    {
+      key: 'unit',
+      header: '소속 세대',
+      render: (row) => getResidentUnitLabel(row, buildingNames, hasBuildings)
+    },
+    {
+      key: 'relation',
+      header: '관계',
+      render: (row) => RESIDENT_RELATION_OPTIONS.find((option) => option.value === row.relationType)?.label ?? '—'
+    },
+    {
+      key: 'representative',
+      header: '대표 주민',
+      render: (row) => row.representative ? (
+        <span
+          className={styles.representative}
+        >
+          대표
+        </span>
+      ) : '—'
+    },
+    {
+      key: 'signupStatus',
+      header: '가입 상태',
+      render: (row) => (
+        <span
+          className={styles['signup-status']}
+          data-status={row.signupStatus}
+        >
+          {RESIDENT_SIGNUP_OPTIONS.find((option) => option.value === row.signupStatus)?.label}
+        </span>
+      )
+    }
+  ];
+
+  return (
+    <DataTable
+      label={'주민 목록'}
+      rows={residents}
+      columns={columns}
+      getRowKey={(row) => row.id}
+      minWidth={760}
+      emptyState={hasFilters ? '검색 결과가 없어요.' : '등록된 주민이 없어요.'}
+    />
+  );
+}

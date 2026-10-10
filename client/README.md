@@ -123,11 +123,11 @@ Radio는 기본 HTML radio로 그룹 선택과 키보드 이동을 유지하며 
 
 ### 공통 요약 카드와 페이지네이션
 
-`shared/ui/summary-card`의 `SummaryCard`는 `label`, `value`, `unit`, `icon`과 선택적인 `tone`(`primary` / `success` / `neutral`, 기본 `neutral`)을 받습니다. 집계와 카드 배치는 사용하는 화면에서 관리합니다. 세대 목록은 기존 세 가지 카드의 색상과 반응형 표시를 유지합니다.
+`shared/ui/summary-card`의 `SummaryCard`는 `label`, `value`, `unit`, `icon`과 선택적인 `tone`(`primary` / `success` / `neutral` / `warning`, 기본 `neutral`)을 받습니다. 집계와 카드 배치는 사용하는 화면에서 관리합니다. 세대 목록은 기존 세 가지 카드의 색상과 반응형 표시를 유지합니다.
 
 `shared/ui/pagination`의 `Pagination`은 `total`, `page`, `pageCount`, `pageSize`, `unit`, 접근성 이름인 `label`, `onPageChange`를 받습니다. 페이지는 1부터 시작하며 호출자는 `pageCount`를 최소 1로 계산하고 유효한 현재 페이지를 전달합니다. 표시 범위·최대 다섯 개 페이지 번호·이전·다음 버튼을 제공하며 필터, 데이터 조회와 페이지 크기 선택은 호출자가 관리합니다.
 
-주민 목록의 후속 화면·등록 흐름은 [주민 목록 설계안](docs/residentList.md)에 기록했습니다. 현재 주민 화면과 API는 구현하지 않았습니다.
+관리소장은 `세대 관리 → 주민 목록`(`/manage/[propertyId]/residents`)에서 주민 전체를 조회하고 검색·필터·페이지 이동을 사용할 수 있습니다. 전체 주민·가입 완료·미가입·승인 대기 카드를 제공하며 승인 대기는 명부에서 확인된 주민만 집계합니다. 연락처는 끝 4자리만 표시합니다. 조회 API와 연결했으며 등록·상세는 아직 제공하지 않습니다. 웹 모달·모바일 페이지 등록의 후속 계획은 [주민 목록](docs/residentList.md)에 기록했습니다.
 
 ## 공통 API 호출
 

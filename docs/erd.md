@@ -478,6 +478,10 @@ WHERE building_id IS NULL
 | `deleted_at` | timestamptz | Y | 소프트 삭제 |
 | `deleted_by` | uuid | Y | 삭제 처리자 |
 
+### 구현 상태
+
+`V20261010041826__create_resident_directory.sql`로 테이블과 목록 조회용 Entity를 구현했다. 조회 권한·연락처 끝 4자리·전체 명부 범위는 [주민 관리 API](residentManagementApi.md)를 따른다. 저장 상태를 목록 필터로 사용하지 않으며 등록·복구·계정 연결 API는 아직 구현하지 않았다. 전화번호 저장 컬럼의 존재가 이번 조회에서 전체 번호를 사용한다는 뜻은 아니다.
+
 ### 핵심 제약
 
 ```sql
@@ -526,9 +530,9 @@ Resident = 해당 Property에서의 실제 주민 기록
 
 같은 관리대상 안에서 한 주민의 현재 세대는 하나로 제한하고, 같은 세대의 여러 주민은 허용한다. 과거 관계는 유지한다. 신청자에게 세대 관계를 선택받지 않고 관리자 명부의 관계 정보를 승인 과정에서 확인한다.
 
-`is_household_rep`의 최초 지정과 변경 권한은 [확정된 세대 대표 지정과 변경](domainRules.md#확정된-세대-대표-지정과-변경)을 따른다. 이 정책은 설계 기준이며 실제 주민 스키마·API에 적용된 상태를 의미하지 않는다.
+`is_household_rep`의 최초 지정과 변경 권한은 [확정된 세대 대표 지정과 변경](domainRules.md#확정된-세대-대표-지정과-변경)을 따른다. 주민 관계 테이블과 조회 API는 구현했으며 저장된 대표 여부를 표시한다. 등록·변경 API가 없으므로 최초 자동 지정과 대표 변경 처리는 아직 구현하지 않았다.
 
-현재 관계 중복 방지 제약의 설계:
+현재 관계 중복 방지 제약은 위 Migration에 적용했다. 같은 관리대상의 주민·세대만 관계를 맺도록 복합 FK도 적용했다:
 
 ```sql
 CREATE UNIQUE INDEX unit_residents_active_resident_idx
@@ -711,6 +715,10 @@ QR/초대 원문 토큰은 저장하지 않고 `token_hash`만 저장.
 | `updated_at` | timestamptz | N | 수정 |
 | `deleted_at` | timestamptz | Y | 삭제 |
 | `deleted_by` | uuid | Y | 삭제 처리자 |
+
+### 구현 상태
+
+`V20261010043914__create_membership_request_read_model.sql`로 주민 목록의 가입 상태 조회에 필요한 저장 구조와 중복 대기·관리대상 무결성 제약을 구현했다. `invitation_id`와 초대 FK는 초대 기능 구현 시 추가하며, 신청·승인·자동 매칭 API는 아직 없다. 현재 주민 목록의 판정 기준은 [주민 관리 API](residentManagementApi.md#가입-상태-판정)를 따른다. 확인되지 않은 매칭 후보를 주민의 승인 대기로 취급하지 않는다.
 
 ### 승인 처리
 

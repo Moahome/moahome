@@ -7,8 +7,8 @@ const NAME_COLLATOR = new Intl.Collator('ko', {
   numeric: true
 });
 
-/** 초안의 배열과 식별자를 유지하고 화면에 표시할 동만 숫자를 인식하는 이름순으로 정렬합니다. */
-export function getSortedBuildings(buildings: BuildingDraft[]) {
+/** 원본 배열과 식별자를 유지하고 조회 목록과 초안의 동을 숫자를 인식하는 이름순으로 정렬합니다. */
+export function getSortedBuildings<T extends { name: string }>(buildings: readonly T[]): T[] {
   return [...buildings].sort((left, right) => NAME_COLLATOR.compare(left.name, right.name));
 }
 

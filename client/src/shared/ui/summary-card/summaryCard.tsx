@@ -13,7 +13,7 @@ export function SummaryCard({
   value: number | string;
   unit: string;
   icon: ReactNode;
-  tone?: 'primary' | 'success' | 'neutral';
+  tone?: 'primary' | 'success' | 'neutral' | 'warning';
 }) {
   return (
     <article

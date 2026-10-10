@@ -1,3 +1,5 @@
+import { ServiceIcon } from '@/shared/ui/service-icon';
+
 const ICON_PATHS = {
   alert: (
     <>
@@ -128,11 +130,6 @@ const ICON_PATHS = {
       d={'M12 5v14M5 12h14'}
     />
   ),
-  check: (
-    <path
-      d={'m5 12 4 4L19 6'}
-    />
-  ),
   building: (
     <>
       <rect
@@ -212,13 +209,21 @@ const ICON_PATHS = {
   ),
 };
 
-export type RegistrationIconName = keyof typeof ICON_PATHS;
+export type RegistrationIconName = keyof typeof ICON_PATHS | 'check';
 
 export function RegistrationIcon({
   name,
 }: {
   name: RegistrationIconName;
 }) {
+  if (name === 'check') {
+    return (
+      <ServiceIcon
+        name={'check'}
+      />
+    );
+  }
+
   return (
     <svg
       viewBox={'0 0 24 24'}

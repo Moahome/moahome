@@ -1,6 +1,11 @@
-type ServiceIconName = 'bell' | 'person' | 'chevron' | 'clock' | 'close' | 'plus' | 'search' | 'reset' | 'pen' | 'trash' | 'home';
+type ServiceIconName = 'bell' | 'person' | 'chevron' | 'clock' | 'close' | 'plus' | 'search' | 'reset' | 'pen' | 'trash' | 'home' | 'check';
 
 const ICON_PATHS = {
+  check: (
+    <path
+      d={'m5 12 4 4L19 6'}
+    />
+  ),
   pen: (
     <path
       d={'m16 3 5 5M4 15 16 3a3.5 3.5 0 0 1 5 5L9 20l-6 1 1-6Z'}
@@ -98,6 +103,7 @@ export function ServiceIcon({
       strokeLinecap={'round'}
       strokeLinejoin={'round'}
       aria-hidden={'true'}
+      focusable={'false'}
     >
       {ICON_PATHS[name]}
     </svg>

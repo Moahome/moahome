@@ -1,0 +1,30 @@
+.representative {
+  display: inline-flex;
+  padding: 3px 10px;
+  border: 1px solid var(--primary);
+  border-radius: 7px;
+  color: var(--primary);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.signup-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sub-text) 10%, var(--card));
+  color: var(--sub-text);
+  font-size: 13px;
+  white-space: nowrap;
+
+  &[data-status="APPROVED"] {
+    background: color-mix(in srgb, var(--success) 10%, var(--card));
+    color: var(--success);
+  }
+
+  &[data-status="PENDING"] {
+    background: color-mix(in srgb, var(--warning) 10%, var(--card));
+    color: var(--warning);
+  }
+}

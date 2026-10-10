@@ -1,0 +1,23 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 20px 0 12px;
+
+  p {
+    color: var(--sub-text);
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .size {
+    width: 160px;
+  }
+}
+
+@media (max-width: 767px) {
+  .toolbar .size {
+    width: 150px;
+  }
+}

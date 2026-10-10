@@ -1455,3 +1455,302 @@ test('동 삭제는 연결 세대를 확인하고 다른 동은 유지하며 삭
   })).toBeVisible();
   expect(writes).toBe(1);
 });
+
+
+const RESIDENTS = `/manage/${PROPERTY_ID}/residents`;
+const RESIDENTS_URL = `${API_ORIGIN}/api/properties/${PROPERTY_ID}/residents`;
+
+/** 한 호수의 여러 주민과 세 가지 가입 상태를 함께 반환해 행·집계·대표 표시를 검증합니다. */
+function residentDirectory(hasBuildings = true) {
+  return {
+    propertyId: PROPERTY_ID,
+    hasBuildings,
+    buildings: hasBuildings ? [{
+      id: BUILDING_ID,
+      name: '103동'
+    }] : [],
+    residents: Array.from({
+      length: 12
+    }, (_, index) => ({
+      id: `44444444-4444-4444-8444-${String(index + 1).padStart(12, '0')}`,
+      name: index === 0 ? '김민수' : `주민 ${String(index + 1).padStart(2, '0')}`,
+      phoneLast4: String(1234 + index),
+      unitId: '55555555-5555-4555-8555-000000000001',
+      buildingId: hasBuildings ? BUILDING_ID : null,
+      unitNumber: '301',
+      relationType: index === 0 ? 'TENANT' : 'FAMILY',
+      representative: index === 0,
+      signupStatus: (['APPROVED', 'NOT_JOINED', 'PENDING'] as const)[index % 3]
+    }))
+  };
+}
+
+test('주민 목록은 사람별 행·대표·마스킹·전체 집계를 표시하고 검색·필터·페이지 이동을 제공', async ({ page }) => {
+  await page.route(RESIDENTS_URL, (route) => fulfillJson(route, residentDirectory()));
+  await page.goto(RESIDENTS);
+  const main = page.getByRole('main');
+  await expect(main.getByRole('heading', {
+    name: '주민 목록',
+    exact: true
+  })).toBeVisible();
+  await expect(main.getByRole('article', {
+    name: '전체 주민 12명'
+  })).toBeVisible();
+  await expect(main.getByRole('article', {
+    name: '가입 완료 4명'
+  })).toBeVisible();
+  await expect(main.getByRole('article', {
+    name: '미가입 4명'
+  })).toBeVisible();
+  await expect(main.getByRole('article', {
+    name: '승인 대기 4명'
+  })).toBeVisible();
+  await expect(main.getByRole('columnheader', {
+    name: '가입 상태',
+    exact: true
+  })).toBeVisible();
+  await expect(main.getByText(/계정 연결|미연결/)).toHaveCount(0);
+  await expect(main.getByRole('row')).toHaveCount(11);
+  const first = main.getByRole('row').filter({
+    hasText: '김민수'
+  });
+  await expect(first).toContainText('103동 301호');
+  await expect(first).toContainText('•••• 1234');
+  await expect(first).toContainText('대표');
+  await expect(main.getByRole('button', {
+    name: /등록|수정|삭제/
+  })).toHaveCount(0);
+  await expect(main.getByRole('combobox', {
+    name: /비활성|주민 상태/
+  })).toHaveCount(0);
+  await main.getByRole('button', {
+    name: '다음 페이지',
+    exact: true
+  }).click();
+  await expect(main.getByRole('row')).toHaveCount(3);
+  await main.getByLabel('주민 검색', {
+    exact: true
+  }).fill('1234');
+  await expect(main.getByRole('row')).toHaveCount(2);
+  await expect(first).toBeVisible();
+  await expect(main.getByRole('article', {
+    name: '전체 주민 12명'
+  })).toBeVisible();
+  await main.getByRole('button', {
+    name: '초기화',
+    exact: true
+  }).click();
+  await main.getByRole('combobox', {
+    name: '관계 필터',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '임차인',
+    exact: true
+  }).click();
+  await expect(main.getByRole('row')).toHaveCount(2);
+  await main.getByRole('button', {
+    name: '초기화',
+    exact: true
+  }).click();
+  await main.getByRole('combobox', {
+    name: '가입 상태 필터',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '미가입',
+    exact: true
+  }).click();
+  await expect(main.getByRole('row')).toHaveCount(5);
+  await main.getByRole('combobox', {
+    name: '가입 상태 필터',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '승인 대기',
+    exact: true
+  }).click();
+  await expect(main.getByRole('row')).toHaveCount(5);
+  await expect(main.getByRole('row').nth(1)).toContainText('승인 대기');
+  await expect(main.getByRole('article', {
+    name: '가입 완료 4명'
+  })).toBeVisible();
+  await main.getByLabel('주민 검색', {
+    exact: true
+  }).fill('없는 이름');
+  await expect(main.getByText('검색 결과가 없어요.', {
+    exact: true
+  })).toBeVisible();
+  await main.getByRole('button', {
+    name: '초기화',
+    exact: true
+  }).click();
+  await main.getByRole('combobox', {
+    name: '페이지당 주민 수',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '20개씩 보기',
+    exact: true
+  }).click();
+  await expect(main.getByRole('row')).toHaveCount(13);
+  await expect(main.getByRole('navigation', {
+    name: '주민 목록 페이지'
+  }).getByRole('button', {
+    name: '다음 페이지'
+  })).toBeDisabled();
+});
+
+for (const width of [1440, 375, 320]) {
+  test(`주민 목록 ${width}px는 카드·필터·스크롤 표를 화면 안에 표시하고 동 없음·빈 연락처를 처리`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const data = residentDirectory(false);
+    await page.route(RESIDENTS_URL, (route) => fulfillJson(route, {
+      ...data,
+      residents: data.residents.map((row, index) => ({
+        ...row,
+        phoneLast4: index === 0 ? null : row.phoneLast4
+      }))
+    }));
+    await page.goto(RESIDENTS);
+    const main = page.getByRole('main');
+    await expect(main.getByRole('table', {
+      name: '주민 목록',
+      exact: true
+    })).toBeVisible();
+    await expect(main.getByRole('combobox', {
+      name: '동 필터',
+      exact: true
+    })).toHaveCount(0);
+    await expect(main.getByRole('row').filter({
+      hasText: '김민수'
+    })).toContainText('301호');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await page.screenshot({
+      path: test.info().outputPath(`residents${width}.png`),
+      fullPage: true
+    });
+  });
+}
+
+test('주민 목록 로딩·조회 실패·권한 거부·빈 명부를 구분하고 재시도로 복구', async ({ page }) => {
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  let calls = 0;
+  await page.route(RESIDENTS_URL, async (route) => {
+    calls += 1;
+    if (calls === 1) {
+      await pending;
+      return fulfillJson(route, {
+        code: 'RESIDENT_SERVICE_UNAVAILABLE'
+      }, 503);
+    }
+    return fulfillJson(route, {
+      ...residentDirectory(false),
+      residents: []
+    });
+  });
+  await page.goto(RESIDENTS);
+  const main = page.getByRole('main');
+  await expect(main.getByRole('status')).toHaveText('주민 목록을 불러오고 있어요.');
+  await expect(main.getByRole('article')).toHaveCount(0);
+  release();
+  await expect(main.getByRole('alert')).toContainText('주민 목록을 불러오지 못했어요.');
+  await main.getByRole('button', {
+    name: '다시 시도',
+    exact: true
+  }).click();
+  await expect(main.getByText('등록된 주민이 없어요.', {
+    exact: true
+  })).toBeVisible();
+  await expect(main.getByRole('article', {
+    name: '전체 주민 0명'
+  })).toBeVisible();
+  await page.route(RESIDENTS_URL, (route) => fulfillJson(route, {
+    code: 'ACCESS_DENIED'
+  }, 403));
+  await page.reload();
+  await expect(main.getByRole('alert')).toContainText('관리소장 권한이 없어요.');
+  await expect(main.getByRole('table')).toHaveCount(0);
+});
+
+test('주민 목록은 잘못된 끝 네 자리 응답을 표시하지 않고 기존 명부를 숨김', async ({ page }) => {
+  const data = residentDirectory();
+  await page.route(RESIDENTS_URL, (route) => fulfillJson(route, data));
+  await page.goto(RESIDENTS);
+  await expect(page.getByRole('main').getByText('김민수', {
+    exact: true
+  })).toBeVisible();
+  await page.route(RESIDENTS_URL, (route) => fulfillJson(route, {
+    ...data,
+    residents: [{
+      ...data.residents[0],
+      phoneLast4: '010-1234-5678'
+    }]
+  }));
+  await page.reload();
+  await expect(page.getByRole('main').getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('main').getByText('김민수', {
+    exact: true
+  })).toHaveCount(0);
+  await expect(page.getByText('010-1234-5678', {
+    exact: true
+  })).toHaveCount(0);
+});
+
+
+test('주민 목록은 알 수 없는 가입 상태를 임의의 미가입으로 표시하지 않음', async ({ page }) => {
+  const data = residentDirectory();
+  await page.route(RESIDENTS_URL, (route) => fulfillJson(route, {
+    ...data,
+    residents: [{
+      ...data.residents[0],
+      signupStatus: 'LINKED'
+    }]
+  }));
+  await page.goto(RESIDENTS);
+  await expect(page.getByRole('main').getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('main').getByRole('table')).toHaveCount(0);
+  await expect(page.getByRole('main').getByRole('article')).toHaveCount(0);
+});
+
+
+test('주민 동 필터는 서버 등록 순서와 관계없이 숫자를 인식하는 이름순으로 표시하고 선택한 동만 조회', async ({ page }) => {
+  const data = residentDirectory();
+  const buildings = ['103동', '102동', '101동', '10동', '2동', '나동', '가동'].map((name, index) => ({
+    id: index === 0 ? BUILDING_ID : `77777777-7777-4777-8777-${String(index).padStart(12, '0')}`,
+    name
+  }));
+  await page.route(RESIDENTS_URL, (route) => fulfillJson(route, {
+    ...data,
+    buildings,
+    residents: data.residents.map((row, index) => ({
+      ...row,
+      buildingId: index === 1 ? buildings[1].id : BUILDING_ID
+    }))
+  }));
+  await page.goto(RESIDENTS);
+  const main = page.getByRole('main');
+  const filter = main.getByRole('combobox', {
+    name: '동 필터',
+    exact: true
+  });
+  await filter.click();
+  await expect(page.getByRole('option')).toHaveText(['전체 동', '2동', '10동', '101동', '102동', '103동', '가동', '나동']);
+  await page.getByRole('option', {
+    name: '102동',
+    exact: true
+  }).click();
+  await expect(main.getByRole('row')).toHaveCount(2);
+  await expect(main.getByRole('row').nth(1)).toContainText('주민 02');
+  await expect(main.getByRole('row').nth(1)).toContainText('102동 301호');
+  await main.getByRole('button', {
+    name: '초기화',
+    exact: true
+  }).click();
+  await expect(filter).toHaveText('전체 동');
+  await expect(main.getByRole('row')).toHaveCount(11);
+});

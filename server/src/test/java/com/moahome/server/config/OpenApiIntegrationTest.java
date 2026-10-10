@@ -44,6 +44,7 @@ class OpenApiIntegrationTest {
 	@Autowired private ObjectMapper mapper;
 	@MockitoBean private com.moahome.server.property.service.ManagementAccessService management;
 	@MockitoBean private com.moahome.server.property.service.UnitManagementService unitManagement;
+	@MockitoBean private com.moahome.server.resident.service.ResidentListService residentList;
 	@MockitoBean private AuthService auth;
 	@MockitoBean private UserRepository users;
 	@MockitoBean private SocialAccountRepository socialAccounts;
@@ -116,8 +117,9 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(16);
-		for (String path : List.of("/api/users/me/managed-properties", "/api/properties/{propertyId}/management-context")) {
+		assertThat(document.path("paths").properties()).hasSize(17);
+		for (String path : List.of("/api/users/me/managed-properties", "/api/properties/{propertyId}/management-context",
+			"/api/properties/{propertyId}/residents")) {
 			assertThat(document.path("paths").path(path).at("/get/security/0/bearerAuth").isArray()).isTrue();
 		}
 		for (String method : List.of("get", "post")) {
