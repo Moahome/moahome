@@ -52,6 +52,11 @@ function getMobileBack(pathname: string, basePath: string) {
     title: '주민 상세'
   };
   if (!pathname.startsWith(`${basePath}/households/`)) return undefined;
+  if (pathname === `${basePath}/households/buildings` || pathname === `${basePath}/households/automatic`) return {
+    href: `${basePath}/households`,
+    label: '세대 목록으로 돌아가기',
+    title: pathname.endsWith('/buildings') ? '동 관리' : '세대 자동 입력'
+  };
   if (pathname.endsWith('/edit')) return {
     href: pathname.slice(0, -5),
     label: '세대 상세로 돌아가기',

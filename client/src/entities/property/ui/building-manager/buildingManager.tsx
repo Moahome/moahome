@@ -29,6 +29,7 @@ export function BuildingManager({
   onClose,
   busy = false,
   errorMessage = '',
+  presentation = 'modal',
 }: {
   buildings: BuildingDraft[];
   units: UnitDraft[];
@@ -37,6 +38,7 @@ export function BuildingManager({
   onClose: () => void;
   busy?: boolean;
   errorMessage?: string;
+  presentation?: 'modal' | 'page';
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const addButtonRef = useRef<HTMLButtonElement>(null);
@@ -86,35 +88,32 @@ export function BuildingManager({
     setMessage('');
   }
 
-  return (
-    <ClientModal
-      initialFocusRef={addButtonRef}
-      onClose={onClose}
-      busy={busy}
-      className={styles.dialog}
-      aria-labelledby={'building-manager-title'}
-    >
+  const Title = presentation === 'page' ? 'h1' : 'h2';
+  const content = (
+    <>
       <header
         className={styles.header}
       >
-        <h2
+        <Title
           id={'building-manager-title'}
         >
           동 관리
-        </h2>
-        <Button
-          variant={'ghost'}
-          size={'sm'}
-          iconOnly
-          aria-label={'동 관리 닫기'}
-          disabled={busy}
-          onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
-        />
+        </Title>
+        {presentation === 'modal' && (
+          <Button
+            variant={'ghost'}
+            size={'sm'}
+            iconOnly
+            aria-label={'동 관리 닫기'}
+            disabled={busy}
+            onClick={onClose}
+            leadingIcon={(
+              <ServiceIcon
+                name={'close'}
+              />
+            )}
+          />
+        )}
       </header>
       {editingId !== undefined ? (
         <form
@@ -189,9 +188,10 @@ export function BuildingManager({
                         </span>
                       </div>
                       <Button
-                        variant={'outline'}
+                        variant={'ghost'}
                         tone={'success'}
                         size={'sm'}
+                        iconOnly
                         aria-label={`${building.name} 수정`}
                         disabled={busy}
                         onClick={() => {
@@ -199,9 +199,12 @@ export function BuildingManager({
                           setName(building.name);
                           setMessage('');
                         }}
-                      >
-                        수정
-                      </Button>
+                        leadingIcon={(
+                          <ServiceIcon
+                            name={'pen'}
+                          />
+                        )}
+                      />
                       {onDelete && (
                         <Button
                           variant={'ghost'}
@@ -284,6 +287,27 @@ export function BuildingManager({
           </Button>
         </footer>
       )}
+    </>
+  );
+
+  if (presentation === 'page') return (
+    <section
+      className={styles.page}
+      aria-labelledby={'building-manager-title'}
+    >
+      {content}
+    </section>
+  );
+
+  return (
+    <ClientModal
+      initialFocusRef={addButtonRef}
+      onClose={onClose}
+      busy={busy}
+      className={styles.dialog}
+      aria-labelledby={'building-manager-title'}
+    >
+      {content}
     </ClientModal>
   );
 }

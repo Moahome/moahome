@@ -43,6 +43,13 @@ const RESULT = {
 };
 
 async function fulfillJson(route: Route, body: unknown, status = 200) {
+  // 기존 세대 시나리오는 주민 요약을 조회하지 않는 권한의 명시적 null 응답을 사용합니다.
+  if (body && typeof body === 'object' && 'units' in body && 'hasBuildings' in body && !('residentSummaries' in body)) {
+    body = {
+      ...body,
+      residentSummaries: null
+    };
+  }
   await route.fulfill({
     status,
     contentType: 'application/json',
@@ -922,9 +929,15 @@ test('기존 세대 모달로 추가·수정하고 저장 실패에는 입력을
     name: '알림 닫기',
     exact: true
   })).toHaveCount(0);
+  // CSS 애니메이션은 모의 타이머와 별개로 진행하므로 하단 배치 완료를 기다립니다.
+  await expect.poll(async () => {
+    const box = await toast.locator('..').boundingBox();
+
+    return Math.abs(page.viewportSize()!.height - box!.y - box!.height - 32);
+  }).toBeLessThan(2);
   const toastBox = await toast.boundingBox();
-  const viewportWidth = await page.evaluate(() => window.innerWidth);
-  expect(Math.abs(toastBox!.x + toastBox!.width / 2 - viewportWidth / 2)).toBeLessThan(2);
+  const viewport = page.viewportSize()!;
+  expect(Math.abs(toastBox!.x + toastBox!.width / 2 - viewport.width / 2)).toBeLessThan(2);
   // 마우스가 알림 위에 있어도 표시 시간이 지나면 자동으로 사라져야 합니다.
   await page.mouse.move(toastBox!.x + toastBox!.width / 2, toastBox!.y + toastBox!.height / 2);
   await page.clock.runFor(4300);
@@ -1543,7 +1556,7 @@ test('주민 목록은 사람별 행·대표·마스킹·전체 집계를 표시
     exact: true
   }).click();
   await main.getByRole('combobox', {
-    name: '관계 필터',
+    name: '주민 구분 필터',
     exact: true
   }).click();
   await page.getByRole('option', {
@@ -1793,7 +1806,7 @@ async function fillResidentRegistration(page: Page, hasBuildings = true) {
     }).click();
   }
   await page.getByRole('combobox', {
-    name: '소속 세대',
+    name: '동·호수',
     exact: true
   }).click();
   await page.getByRole('option', {
@@ -1801,7 +1814,7 @@ async function fillResidentRegistration(page: Page, hasBuildings = true) {
     exact: true
   }).click();
   await page.getByRole('combobox', {
-    name: '세대와의 관계',
+    name: '주민 구분',
     exact: true
   }).click();
   await page.getByRole('option', {
@@ -1905,6 +1918,23 @@ for (const width of [1440, 375, 320]) {
     await expect(row).toContainText('대표');
     await expect(row).toContainText('—');
     await expect(page.getByRole('status')).toContainText('주민을 등록했어요.');
+    const notice = page.getByRole('status').filter({
+      hasText: '주민을 등록했어요.'
+    }).locator('..');
+    await expect(notice).toHaveCSS('background-color', 'rgb(22, 101, 52)');
+    await expect(notice).toHaveCSS('color', 'rgb(255, 255, 255)');
+    await expect.poll(async () => (await notice.boundingBox())!.height).toBeLessThanOrEqual(50);
+    await expect.poll(async () => {
+      const box = (await notice.boundingBox())!;
+      return Math.abs(960 - box.y - box.height - (width < 768 ? 16 : 32));
+    }).toBeLessThan(2);
+    const noticeBox = (await notice.boundingBox())!;
+    expect(noticeBox.width).toBeGreaterThan(noticeBox.height * 2);
+    expect(Math.abs(noticeBox.x + noticeBox.width / 2 - width / 2)).toBeLessThan(2);
+    await page.screenshot({
+      path: test.info().outputPath(`residentSuccessToast${width}.png`),
+      animations: 'disabled'
+    });
     await expect(page).toHaveURL(RESIDENTS);
     expect(posts).toBe(1);
     expect(await page.evaluate(() => Object.values(localStorage).some((value) => value.includes('새 주민')))).toBe(false);
@@ -2229,6 +2259,1008 @@ for (const width of [320, 767]) {
     await banner.getByRole('link', {
       name: '세대 목록으로 돌아가기'
     }).click();
+    await expect(page).toHaveURL(HOUSEHOLDS);
+  });
+}
+
+const IMPORT_URL = `${API_ORIGIN}/api/properties/${PROPERTY_ID}/resident-imports`;
+const IMPORT_ID = '93cf5c70-31d0-4c5e-a57c-cbd998a7f094';
+const IMPORT_PATH = `${RESIDENTS}/import`;
+
+function importPreview() {
+  return {
+    importId: IMPORT_ID,
+    expiresAt: '2026-10-11T05:00:00Z',
+    rows: Array.from({
+      length: 12
+    }, (_, index) => ({
+      rowNumber: index + 2,
+      building: '102동',
+      unitNumber: '301',
+      name: `엑셀 주민 ${index + 1}`,
+      relationType: 'FAMILY',
+      phoneLast4: '1234',
+      representative: false,
+      status: index === 1 ? 'DUPLICATE' : index === 2 ? 'ERROR' : 'READY',
+      reason: index === 1 ? '이름·연락처가 같은 주민이 있어요.' : index === 2 ? '세대 오류' : '등록 가능'
+    }))
+  };
+}
+
+for (const width of [1440, 375, 320]) {
+  test(`엑셀 업로드 ${width}px는 파일 검증·정상 행 선택·페이지 이동·완료·마스킹 결과 다운로드`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 960
+    });
+    await page.route(RESIDENTS_URL, (route) => fulfillJson(route, residentDirectory()));
+    const preview = importPreview();
+    let uploads = 0;
+    let commits = 0;
+    await page.route(IMPORT_URL, async (route) => {
+      uploads++;
+      expect(route.request().headers()['content-type']).toContain('multipart/form-data; boundary=');
+      expect(route.request().postDataBuffer()?.toString()).toContain('residents.xlsx');
+      await fulfillJson(route, preview);
+    });
+    await page.route(`${IMPORT_URL}/${IMPORT_ID}/commit`, async (route) => {
+      commits++;
+      const selected = route.request().postDataJSON().rowNumbers as number[];
+      expect(selected).not.toContain(2);
+      expect(selected).not.toContain(3);
+      expect(selected).not.toContain(4);
+      expect(selected).toHaveLength(9);
+      await fulfillJson(route, {
+        ...preview,
+        rows: preview.rows.map((row) => ({
+          ...row,
+          status: row.status !== 'READY' ? row.status : selected.includes(row.rowNumber) ? 'SUCCESS' : 'NOT_SELECTED',
+          representative: row.rowNumber === 5
+        }))
+      });
+    });
+    await page.goto(RESIDENTS);
+    await page.getByRole('button', {
+      name: '엑셀 업로드',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(IMPORT_PATH);
+    if (width < 768) await expect(page.getByRole('banner').getByRole('link', {
+      name: '주민 목록으로 돌아가기'
+    })).toBeVisible();
+    const templateDownload = page.waitForEvent('download');
+    await page.getByRole('link', {
+      name: '엑셀 양식 다운로드'
+    }).click();
+    expect((await templateDownload).suggestedFilename()).toBe('주민 업로드 양식.xlsx');
+    await page.getByLabel('주민 엑셀 파일').setInputFiles({
+      name: 'residents.xls',
+      mimeType: 'application/vnd.ms-excel',
+      buffer: Buffer.from('invalid')
+    });
+    await expect(page.getByLabel('알림', {
+      exact: true
+    }).getByRole('alert')).toContainText('.xlsx');
+    expect(uploads).toBe(0);
+    await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0);
+    const listButton = page.getByRole('button', {
+      name: '주민 목록',
+      exact: true
+    });
+    await expect(listButton).toBeVisible();
+    await expect(page.getByRole('button', {
+      name: '주민 목록으로',
+      exact: true
+    })).toHaveCount(0);
+    const footer = listButton.locator('..');
+    const listBounds = await listButton.boundingBox();
+    const footerBounds = await footer.boundingBox();
+    expect(Math.abs(listBounds!.x + listBounds!.width - footerBounds!.x - footerBounds!.width)).toBeLessThan(2);
+    await page.getByLabel('주민 엑셀 파일').setInputFiles({
+      name: 'residents.xlsx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      buffer: Buffer.from('PK mock workbook')
+    });
+    await expect(page.getByRole('heading', {
+      name: '업로드 데이터 확인'
+    })).toBeVisible();
+    await expect(page.getByRole('columnheader', {
+      name: '엑셀 행',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByRole('columnheader', {
+      name: '주민 구분',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('article', {
+      name: '전체 12건'
+    })).toBeVisible();
+    await expect(page.getByRole('article', {
+      name: '등록 가능 10건'
+    })).toBeVisible();
+    await expect(page.getByLabel('3행 등록 선택')).toBeDisabled();
+    await expect(page.getByLabel('4행 등록 선택')).toBeDisabled();
+    await page.getByLabel('2행 등록 선택', {
+      exact: true
+    }).uncheck();
+    await page.getByRole('button', {
+      name: '2페이지',
+      exact: true
+    }).click();
+    await expect(page.getByRole('row').filter({
+      hasText: '엑셀 주민 12'
+    })).toBeVisible();
+    await page.getByRole('button', {
+      name: '1페이지',
+      exact: true
+    }).click();
+    await page.getByRole('textbox', {
+      name: '주민 검색'
+    }).fill('엑셀 주민 4');
+    await expect(page.getByRole('table').getByRole('row')).toHaveCount(2);
+    await page.getByRole('textbox', {
+      name: '주민 검색'
+    }).fill('');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({
+      path: test.info().outputPath(`residentImportPreview${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.getByRole('button', {
+      name: '선택한 주민 등록 (9명)',
+      exact: true
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '주민 등록 완료'
+    })).toBeVisible();
+    await expect(page.getByRole('article', {
+      name: '등록 성공 9건'
+    })).toBeVisible();
+    await expect(footer.getByRole('button').last()).toHaveText('주민 목록');
+    await expect(page.getByRole('row').filter({
+      hasText: '엑셀 주민 4'
+    })).toContainText('대표');
+    await expect(page.getByRole('main')).not.toContainText('01012341234');
+    const downloadEvent = page.waitForEvent('download');
+    await page.getByRole('button', {
+      name: '결과 CSV 다운로드'
+    }).click();
+    const download = await downloadEvent;
+    const stream = await download.createReadStream();
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
+    const csv = Buffer.concat(chunks).toString('utf8');
+    expect(csv).toContain('•••• 1234');
+    expect(csv).toContain('선택 안 함');
+    expect(csv).not.toContain('01012341234');
+    expect(uploads).toBe(1);
+    expect(commits).toBe(1);
+    expect(await page.evaluate(() => Object.values(localStorage).some((value) => value.includes('엑셀 주민')))).toBe(false);
+    await page.getByRole('button', {
+      name: '새로 등록하기'
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '주민 엑셀 업로드'
+    })).toBeVisible();
+    await listButton.click();
+    await expect(page).toHaveURL(RESIDENTS);
+  });
+}
+
+test('일괄 등록 통신 실패는 선택·검증 ID를 유지하고 같은 요청으로 재시도', async ({ page }) => {
+  const preview = importPreview();
+  let attempts = 0;
+  let first: unknown;
+  await page.route(IMPORT_URL, (route) => fulfillJson(route, preview));
+  await page.route(`${IMPORT_URL}/${IMPORT_ID}/commit`, async (route) => {
+    attempts++;
+    if (attempts === 1) {
+      first = route.request().postDataJSON();
+      return fulfillJson(route, {
+        code: 'RESIDENT_SERVICE_UNAVAILABLE',
+        message: 'private error'
+      }, 503);
+    }
+    expect(route.request().postDataJSON()).toEqual(first);
+    return fulfillJson(route, {
+      ...preview,
+      rows: preview.rows.map((row) => ({
+        ...row,
+        status: row.status === 'READY' ? 'SUCCESS' : row.status
+      }))
+    });
+  });
+  await page.goto(IMPORT_PATH);
+  await page.getByLabel('주민 엑셀 파일').setInputFiles({
+    name: 'residents.xlsx',
+    mimeType: 'application/octet-stream',
+    buffer: Buffer.from('mock')
+  });
+  await page.getByRole('button', {
+    name: '선택한 주민 등록 (10명)'
+  }).click();
+  await expect(page.getByLabel('알림', {
+    exact: true
+  }).getByRole('alert')).toContainText('같은 요청');
+  await expect(page.getByLabel('알림', {
+    exact: true
+  }).getByRole('alert')).not.toContainText('private error');
+  await expect(page.getByLabel('2행 등록 선택', {
+    exact: true
+  })).toBeDisabled();
+  await page.getByRole('button', {
+    name: '같은 요청으로 다시 시도'
+  }).click();
+  await expect(page.getByRole('heading', {
+    name: '주민 등록 완료'
+  })).toBeVisible();
+  expect(attempts).toBe(2);
+});
+
+test('일괄 등록은 잘못된 전체 연락처 응답을 거부하고 부담당자의 직접 접근을 차단', async ({ page }) => {
+  const preview = importPreview();
+  preview.rows[0].phoneLast4 = '01012341234';
+  await page.route(IMPORT_URL, (route) => fulfillJson(route, preview));
+  await page.goto(IMPORT_PATH);
+  await page.getByLabel('주민 엑셀 파일').setInputFiles({
+    name: 'residents.xlsx',
+    mimeType: 'application/octet-stream',
+    buffer: Buffer.from('mock')
+  });
+  await expect(page.getByLabel('알림', {
+    exact: true
+  }).getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('main')).not.toContainText('01012341234');
+  await expect(page.getByRole('table')).toHaveCount(0);
+  await page.route(CONTEXT_URL, (route) => fulfillJson(route, {
+    ...PROPERTY,
+    role: 'MANAGER'
+  }));
+  await page.reload();
+  await expect(page.getByRole('main').getByRole('alert')).toContainText('관리소장 권한');
+  await expect(page.getByLabel('주민 엑셀 파일')).toHaveCount(0);
+});
+
+
+test('엑셀 파일 드래그는 배경·테두리·안내를 강조하고 이탈·드롭에 해제하며 검증 중 중복 업로드를 막음', async ({ page }) => {
+  let uploads = 0;
+  let releaseUpload: () => void = () => {};
+  const pending = new Promise<void>((resolve) => { releaseUpload = resolve; });
+  await page.route(IMPORT_URL, async (route) => {
+    uploads++;
+    await pending;
+    await fulfillJson(route, {
+      code: 'PHONE_SECURITY_UNAVAILABLE'
+    }, 503);
+  });
+  await page.goto(IMPORT_PATH);
+  const zone = page.getByRole('region', {
+    name: '엑셀 파일 업로드 영역'
+  });
+  const select = zone.getByRole('button', {
+    name: '파일 선택'
+  });
+  await expect(zone).toBeVisible();
+  const initialBackground = await zone.evaluate((element) => getComputedStyle(element).backgroundColor);
+  const dataTransfer = await page.evaluateHandle(() => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(['mock'], 'residents.xlsx', {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    }));
+
+    return transfer;
+  });
+  await zone.dispatchEvent('dragenter', {
+    dataTransfer
+  });
+  await zone.dispatchEvent('dragover', {
+    dataTransfer
+  });
+  await expect(zone).toContainText('여기에 놓으면 파일 검증을 시작해요.');
+  await expect(zone).toHaveCSS('border-style', 'solid');
+  await expect(zone).not.toHaveCSS('background-color', initialBackground);
+  // 자식 버튼으로 이동할 때 발생하는 진입·이탈이 전체 영역의 강조를 꺼서는 안 됩니다.
+  await select.dispatchEvent('dragenter', {
+    dataTransfer
+  });
+  await zone.dispatchEvent('dragleave', {
+    dataTransfer
+  });
+  await expect(zone).toHaveCSS('border-style', 'solid');
+  await page.screenshot({
+    path: test.info().outputPath('residentImportDragging.png'),
+    fullPage: true,
+    animations: 'disabled'
+  });
+  await select.dispatchEvent('dragleave', {
+    dataTransfer
+  });
+  await expect(zone).toHaveCSS('border-style', 'dashed');
+  await expect(zone).toHaveCSS('background-color', initialBackground);
+  await zone.dispatchEvent('dragenter', {
+    dataTransfer
+  });
+  await zone.dispatchEvent('drop', {
+    dataTransfer
+  });
+  await expect(zone.getByRole('button', {
+    name: '검증 중…'
+  })).toBeDisabled();
+  await expect(zone).toHaveCSS('border-style', 'dashed');
+  await zone.dispatchEvent('dragenter', {
+    dataTransfer
+  });
+  await zone.dispatchEvent('drop', {
+    dataTransfer
+  });
+  await expect(zone).toHaveCSS('border-style', 'dashed');
+  releaseUpload();
+  await expect(page.getByLabel('알림', {
+    exact: true
+  }).getByRole('alert')).toContainText('연락처 저장 설정');
+  expect(uploads).toBe(1);
+  await expect(select).toBeEnabled();
+  await expect(zone).toHaveCSS('background-color', initialBackground);
+  await dataTransfer.dispose();
+});
+
+for (const width of [1440, 375, 320]) {
+  test(`엑셀 헤더 오류 ${width}px는 하단 중앙 토스트로 표시하고 같은 오류의 재시도는 표시 시간을 새로 시작`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const message = '양식의 첫 행을 동·호수·이름·주민 구분·연락처 순서로 맞춰주세요.';
+    await page.route(IMPORT_URL, (route) => fulfillJson(route, {
+      code: 'INVALID_EXCEL_HEADER'
+    }, 400));
+    await page.goto(IMPORT_PATH);
+    await expect(page.getByRole('heading', {
+      name: '주민 엑셀 업로드'
+    })).toBeVisible();
+    await page.clock.install();
+    const file = {
+      name: 'residents.xlsx',
+      mimeType: 'application/octet-stream',
+      buffer: Buffer.from('mock')
+    };
+    const toast = page.getByLabel('알림', {
+      exact: true
+    }).getByRole('alert');
+    await page.getByLabel('주민 엑셀 파일').setInputFiles(file);
+    await expect(toast).toHaveText(message);
+    await expect(page.getByRole('main')).not.toContainText(message);
+    await expect.poll(async () => {
+      const box = await toast.locator('..').boundingBox();
+
+      return Math.abs(900 - box!.y - box!.height - (width < 768 ? 16 : 32));
+    }).toBeLessThan(2);
+    const box = await toast.boundingBox();
+    const container = (await toast.locator('..').boundingBox())!;
+    expect(container.height).toBeLessThanOrEqual(100);
+    expect(container.width).toBeGreaterThan(container.height * 2);
+    expect(Math.abs(box!.x + box!.width / 2 - width / 2)).toBeLessThan(2);
+    await page.clock.fastForward(4000);
+    await page.getByLabel('주민 엑셀 파일').setInputFiles(file);
+    await expect(toast).toHaveText(message);
+    await page.clock.fastForward(4000);
+    await expect(toast).toBeVisible();
+    await page.clock.fastForward(2000);
+    await page.clock.fastForward(200);
+    await expect(toast).toHaveCount(0);
+    await expect(page.getByRole('heading', {
+      name: '주민 엑셀 업로드'
+    })).toBeVisible();
+  });
+}
+
+for (const width of [1440, 375, 320]) {
+  test(`주민 상세 ${width}px는 웹 모달·모바일 페이지에서 번호 공개·숨김·수정 재시도·대표 선택 삭제를 제공`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 960
+    });
+    await mockResidentRegistrationUnits(page);
+    const directory = residentDirectory();
+    const first = directory.residents[0];
+    const second = directory.residents[1];
+    let detail = {
+      ...first,
+      propertyId: PROPERTY_ID,
+      buildingName: '103동',
+      createdAt: '2026-10-10T04:00:00Z',
+      updatedAt: '2026-10-10T04:00:00Z',
+      hasLinkedRequests: true,
+      representativeCandidates: [{
+        id: second.id,
+        name: second.name
+      }]
+    };
+    let reveals = 0;
+    let edits = 0;
+    let deletes = 0;
+    const detailUrl = `${RESIDENTS_URL}/${first.id}`;
+    await page.route(RESIDENTS_URL, (route) => fulfillJson(route, directory));
+    await page.route(`${detailUrl}/phone-reveal`, (route) => {
+      expect(route.request().method()).toBe('POST');
+      expect(route.request().headers().authorization).toBe('Bearer test-access');
+      reveals++;
+      return fulfillJson(route, {
+        phone: '+82101231234'
+      });
+    });
+    await page.route(detailUrl, async (route) => {
+      const method = route.request().method();
+      if (method === 'GET') return fulfillJson(route, detail);
+      if (method === 'PUT') {
+        edits++;
+        const input = route.request().postDataJSON();
+        expect(input.phoneAction).toBe('REPLACE');
+        expect(input.phone).toBe('+821098765432');
+        expect(input.expectedUpdatedAt).toBe('2026-10-10T04:00:00Z');
+        if (edits === 1) return fulfillJson(route, {
+          code: 'DUPLICATE_RESIDENT'
+        }, 409);
+        detail = {
+          ...detail,
+          name: input.name,
+          phoneLast4: '5432',
+          updatedAt: '2026-10-10T04:00:01Z'
+        };
+        directory.residents[0] = {
+          ...first,
+          name: input.name,
+          phoneLast4: '5432'
+        };
+        return fulfillJson(route, detail);
+      }
+      expect(method).toBe('DELETE');
+      deletes++;
+      const input = route.request().postDataJSON();
+      expect(input.replacementResidentId).toBe(second.id);
+      expect(input.expectedUpdatedAt).toBe(detail.updatedAt);
+      if (deletes === 1) return fulfillJson(route, {
+        code: 'RESIDENT_SERVICE_UNAVAILABLE'
+      }, 503);
+      directory.residents.shift();
+      directory.residents[0].representative = true;
+      return route.fulfill({
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': 'http://localhost:3100',
+          'Access-Control-Allow-Credentials': 'true'
+        }
+      });
+    });
+    await page.goto(RESIDENTS);
+    const upload = page.getByRole('button', {
+      name: '엑셀 업로드',
+      exact: true
+    });
+    await expect(upload).toHaveCSS('background-color', 'rgb(22, 101, 52)');
+    await expect(upload.locator('svg')).toHaveCount(1);
+    await expect(page.getByRole('columnheader', {
+      name: '동·호수',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('columnheader', {
+      name: '주민 구분',
+      exact: true
+    })).toBeVisible();
+    await page.getByRole('row').filter({
+      hasText: first.name
+    }).getByRole('cell').first().click();
+    const view = width >= 768 ? page.getByRole('dialog') : page.getByRole('main');
+    await expect(view.getByRole('heading', {
+      name: '주민 상세',
+      exact: true
+    })).toBeVisible();
+    if (width < 768) {
+      await expect(page).toHaveURL(`${RESIDENTS}/${first.id}`);
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page.getByRole('banner').getByRole('link', {
+        name: '주민 목록으로 돌아가기'
+      })).toBeVisible();
+    } else await expect(page).toHaveURL(RESIDENTS);
+    expect(reveals).toBe(0);
+    await expect(view.getByRole('button', {
+      name: '수정',
+      exact: true
+    })).toHaveCSS('color', 'rgb(22, 163, 74)');
+    await expect(view.getByRole('button', {
+      name: '수정',
+      exact: true
+    })).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    await expect(view).toContainText('•••• 1234');
+    await expect(view).not.toContainText('010-123-1234');
+    await view.getByRole('button', {
+      name: '전체 번호 보기',
+      exact: true
+    }).click();
+    await expect(view).toContainText('010-123-1234');
+    expect(reveals).toBe(1);
+    await view.getByRole('button', {
+      name: '번호 숨기기',
+      exact: true
+    }).click();
+    await expect(view).not.toContainText('010-123-1234');
+    await view.getByRole('button', {
+      name: '전체 번호 보기',
+      exact: true
+    }).click();
+    await expect(view).toContainText('010-123-1234');
+    await view.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    await expect(view.getByRole('heading', {
+      name: '주민 수정',
+      exact: true
+    })).toBeVisible();
+    await expect(view).not.toContainText('010-123-1234');
+    await expect(view.getByRole('textbox', {
+      name: '연락처 (선택)',
+      exact: true
+    })).toHaveCount(0);
+    await view.getByRole('textbox', {
+      name: '주민 이름',
+      exact: true
+    }).fill('수정 주민');
+    await view.getByRole('combobox', {
+      name: '연락처 변경',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '새 연락처로 변경',
+      exact: true
+    }).click();
+    await view.getByRole('textbox', {
+      name: '새 연락처',
+      exact: true
+    }).fill('010-9876-5432');
+    await view.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    await expect(view.getByRole('alert')).toContainText('이름과 연락처가 같은 주민');
+    await expect(view.getByRole('textbox', {
+      name: '주민 이름',
+      exact: true
+    })).toHaveValue('수정 주민');
+    await expect(view.getByRole('textbox', {
+      name: '새 연락처',
+      exact: true
+    })).toHaveValue('010-9876-5432');
+    await view.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    await expect(view.getByRole('heading', {
+      name: '주민 상세',
+      exact: true
+    })).toBeVisible();
+    await expect(view).toContainText('수정 주민');
+    await expect(view).toContainText('•••• 5432');
+    await page.screenshot({
+      path: test.info().outputPath(`residentDetail${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    expect(await page.evaluate(() => [...Object.values(localStorage), ...Object.values(sessionStorage)].some((value) => value.includes('+82101231234') || value.includes('010-9876-5432')))).toBe(false);
+    await view.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await view.getByRole('button', {
+      name: '삭제 확인',
+      exact: true
+    }).click();
+    await expect(view.getByRole('alert')).toContainText('새 대표');
+    expect(deletes).toBe(0);
+    await view.getByRole('combobox', {
+      name: '새 대표 주민',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: second.name,
+      exact: true
+    }).click();
+    await view.getByRole('button', {
+      name: '삭제 확인',
+      exact: true
+    }).click();
+    await expect(view.getByRole('alert')).toContainText('다시 시도');
+    await expect(view.getByRole('combobox', {
+      name: '새 대표 주민',
+      exact: true
+    })).toHaveText(second.name);
+    await view.getByRole('button', {
+      name: '삭제 확인',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(RESIDENTS);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.getByRole('button', {
+      name: '수정 주민 상세 보기',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByRole('status').filter({
+      hasText: '주민을 삭제했어요.'
+    })).toBeVisible();
+    expect(edits).toBe(2);
+    expect(deletes).toBe(2);
+  });
+}
+
+test('주민 상세를 다시 열면 번호는 마스킹되고 전체 번호 조회 실패·잘못된 기본 응답은 원문을 노출하지 않음', async ({ page }) => {
+  const directory = residentDirectory();
+  const first = directory.residents[0];
+  const detail = {
+    ...first,
+    propertyId: PROPERTY_ID,
+    buildingName: '103동',
+    createdAt: '2026-10-10T04:00:00Z',
+    updatedAt: '2026-10-10T04:00:00Z',
+    hasLinkedRequests: false,
+    representativeCandidates: []
+  };
+  const url = `${RESIDENTS_URL}/${first.id}`;
+  await page.route(RESIDENTS_URL, (route) => fulfillJson(route, directory));
+  await page.route(url, (route) => fulfillJson(route, detail));
+  await page.route(`${url}/phone-reveal`, (route) => fulfillJson(route, {
+    phone: '+82101231234'
+  }));
+  await page.goto(RESIDENTS);
+  await page.getByRole('button', {
+    name: '김민수 상세 보기'
+  }).click();
+  let dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', {
+    name: '전체 번호 보기'
+  }).click();
+  await expect(dialog).toContainText('010-123-1234');
+  await dialog.getByRole('button', {
+    name: '주민 상세 닫기'
+  }).click();
+  await page.getByRole('button', {
+    name: '김민수 상세 보기'
+  }).focus();
+  await page.keyboard.press('Enter');
+  dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('•••• 1234');
+  await expect(dialog).not.toContainText('010-123-1234');
+  await page.route(`${url}/phone-reveal`, (route) => fulfillJson(route, {
+    code: 'ACCESS_DENIED',
+    message: 'private detail'
+  }, 403));
+  await dialog.getByRole('button', {
+    name: '전체 번호 보기'
+  }).click();
+  await expect(dialog.getByRole('alert')).toContainText('관리소장 권한');
+  await expect(dialog).not.toContainText('private detail');
+  await dialog.getByRole('button', {
+    name: '주민 상세 닫기'
+  }).click();
+  await page.route(url, (route) => fulfillJson(route, {
+    ...detail,
+    phoneLast4: '0101231234',
+    phone: '+82101231234'
+  }));
+  await page.getByRole('button', {
+    name: '김민수 상세 보기'
+  }).click();
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('처리 결과를 확인하지 못했어요');
+  await expect(page.getByRole('dialog')).not.toContainText('0101231234');
+  await expect(page.getByRole('dialog')).not.toContainText('+82101231234');
+});
+
+
+for (const width of [1440, 320]) {
+  test(`주민 목록 ${width}px는 동·호수의 숫자 순으로 페이지를 나누고 소유주 표시와 필터를 유지`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const data = residentDirectory();
+    const secondBuilding = '22222222-2222-4222-8222-000000000102';
+    const locations = [
+      [BUILDING_ID, '301'], [secondBuilding, '202'], [secondBuilding, '201'],
+      [BUILDING_ID, '2'], [secondBuilding, '10'], [secondBuilding, '2'],
+      [secondBuilding, '101'], [BUILDING_ID, '10'], [secondBuilding, '201'],
+      [secondBuilding, '201'], [BUILDING_ID, '301'], [null, null]
+    ];
+    await page.route(RESIDENTS_URL, (route) => fulfillJson(route, {
+      ...data,
+      buildings: [...data.buildings, {
+        id: secondBuilding,
+        name: '102동'
+      }],
+      residents: data.residents.map((row, index) => ({
+        ...row,
+        buildingId: locations[index][0],
+        unitId: locations[index][1] ? row.unitId : null,
+        unitNumber: locations[index][1],
+        relationType: locations[index][1] ? 'OWNER' : null,
+        representative: false
+      }))
+    }));
+    await page.goto(RESIDENTS);
+    const main = page.getByRole('main');
+    const names = () => main.getByRole('rowheader').allTextContents();
+    await expect.poll(names).toEqual(['주민 06', '주민 05', '주민 07', '주민 03', '주민 09', '주민 10', '주민 02', '주민 04', '주민 08', '김민수']);
+    await expect(main.getByRole('row').nth(1)).toContainText('102동 2호');
+    await expect(main.getByRole('row').nth(1)).toContainText('소유주');
+    await expect(main).not.toContainText('소유자');
+    await main.getByRole('button', {
+      name: '다음 페이지',
+      exact: true
+    }).click();
+    await expect.poll(names).toEqual(['주민 11', '주민 12']);
+    await main.getByRole('combobox', {
+      name: '동 필터',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '103동',
+      exact: true
+    }).click();
+    await expect.poll(names).toEqual(['주민 04', '주민 08', '김민수', '주민 11']);
+    await main.getByRole('combobox', {
+      name: '주민 구분 필터',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '소유주',
+      exact: true
+    }).click();
+    await expect.poll(names).toEqual(['주민 04', '주민 08', '김민수', '주민 11']);
+  });
+}
+
+for (const width of [1440, 375, 320]) {
+  test(`세대 주민 요약 ${width}px는 실제 대표·가입 인원과 빈 세대를 목록·상세에 표시`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 960
+    });
+    const occupiedId = '55555555-5555-4555-8555-000000000001';
+    const emptyId = '55555555-5555-4555-8555-000000000002';
+    await page.route(UNITS_URL, (route) => fulfillJson(route, {
+      propertyId: PROPERTY_ID,
+      hasBuildings: false,
+      buildings: [],
+      units: [occupiedId, emptyId].map((id, index) => ({
+        id,
+        buildingId: null,
+        unitNumber: String(301 + index),
+        displayName: null,
+        floor: 3,
+        status: 'ACTIVE'
+      })),
+      residentSummaries: {
+        [occupiedId]: {
+          representativeName: '대표 주민 예시',
+          total: 3,
+          approved: 1,
+          pending: 1,
+          notJoined: 1
+        },
+        [emptyId]: {
+          representativeName: null,
+          total: 0,
+          approved: 0,
+          pending: 0,
+          notJoined: 0
+        }
+      }
+    }));
+    await page.goto(HOUSEHOLDS);
+    const table = page.getByRole('table', {
+      name: '세대 목록'
+    });
+    const occupied = table.getByRole('row').filter({
+      hasText: '301호'
+    });
+    await expect(occupied).toContainText('대표 주민 예시');
+    await expect(occupied).toContainText('1/3 명');
+    await expect(table.getByRole('row').filter({
+      hasText: '302호'
+    })).toContainText('0/0 명');
+    await expect(page.getByRole('combobox', {
+      name: '페이지당 세대 수',
+      exact: true
+    })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`unitResidents${width}.png`),
+      fullPage: true
+    });
+    await occupied.getByRole('button', {
+      name: '301호 상세 보기',
+      exact: true
+    }).click();
+    const detail = width >= 768 ? page.getByRole('dialog') : page.getByRole('main');
+    await expect(detail.getByText('대표 주민 예시', {
+      exact: true
+    })).toBeVisible();
+    await expect(detail.getByText('1/3 명', {
+      exact: true
+    })).toBeVisible();
+    if (width < 768) {
+      await expect(page).toHaveURL(`${HOUSEHOLDS}/${occupiedId}`);
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    }
+  });
+}
+
+test('세대 주민 요약의 누락·잘못된 합계는 0명으로 표시하지 않고 오류로 처리', async ({ page }) => {
+  const unitId = '55555555-5555-4555-8555-000000000001';
+  let invalid: unknown = {};
+  await page.route(UNITS_URL, (route) => fulfillJson(route, {
+    propertyId: PROPERTY_ID,
+    hasBuildings: false,
+    buildings: [],
+    units: [{
+      id: unitId,
+      buildingId: null,
+      unitNumber: '301',
+      displayName: null,
+      floor: 3,
+      status: 'ACTIVE'
+    }],
+    residentSummaries: invalid
+  }));
+  await page.goto(HOUSEHOLDS);
+  await expect(page.getByRole('alert')).toContainText('세대 주민 정보를 확인할 수 없습니다.');
+  invalid = {
+    [unitId]: {
+      representativeName: '예시',
+      total: 1,
+      approved: 1,
+      pending: 1,
+      notJoined: 0
+    }
+  };
+  await page.getByRole('button', {
+    name: '다시 시도',
+    exact: true
+  }).click();
+  await expect(page.getByRole('alert')).toContainText('세대 주민 정보를 확인할 수 없습니다.');
+  invalid = null;
+  await page.getByRole('button', {
+    name: '다시 시도',
+    exact: true
+  }).click();
+  await expect(page.getByRole('table', {
+    name: '세대 목록'
+  })).toBeVisible();
+  await expect(page.getByText('0/0 명', {
+    exact: true
+  })).toHaveCount(0);
+});
+
+for (const width of [375, 320]) {
+  test(`모바일 동 관리·자동 입력 ${width}px는 페이지와 헤더 뒤로가기를 사용하고 수정·실패 재시도를 유지`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 960
+    });
+    const buildings = [{
+      id: BUILDING_ID,
+      name: '101동'
+    }];
+    const units: { id: string; buildingId: string; unitNumber: string; displayName: null; floor: number; status: string }[] = [];
+    let failBatch = true;
+    await page.route(UNITS_URL, (route) => fulfillJson(route, {
+      propertyId: PROPERTY_ID,
+      hasBuildings: true,
+      buildings,
+      units
+    }));
+    await page.route(`${API_ORIGIN}/api/properties/${PROPERTY_ID}/buildings/${BUILDING_ID}`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+      expect(route.request().method()).toBe('PUT');
+      buildings[0].name = route.request().postDataJSON().name;
+      return fulfillJson(route, buildings[0]);
+    });
+    await page.route(`${UNITS_URL}/batch`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+      if (failBatch) return fulfillJson(route, {
+        code: 'UNIT_SERVICE_UNAVAILABLE'
+      }, 503);
+      const payload = route.request().postDataJSON();
+      expect(payload.units).toHaveLength(1);
+      const entry = {
+        ...payload.units[0],
+        id: '55555555-5555-4555-8555-000000000001'
+      };
+      units.push(entry);
+      return fulfillJson(route, [entry], 201);
+    });
+    await page.goto(HOUSEHOLDS);
+    const main = page.getByRole('main');
+    const back = page.getByRole('banner').getByRole('link', {
+      name: '세대 목록으로 돌아가기'
+    });
+    await main.getByRole('button', {
+      name: '동 관리',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(`${HOUSEHOLDS}/buildings`);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(back).toBeVisible();
+    await page.reload();
+    await expect(main.getByRole('heading', {
+      name: '동 관리',
+      exact: true
+    })).toBeVisible();
+    const edit = main.getByRole('button', {
+      name: '101동 수정',
+      exact: true
+    });
+    await expect(edit).toHaveText('');
+    await expect(edit.locator('svg')).toHaveCount(1);
+    await edit.click();
+    await main.getByRole('textbox', {
+      name: '동 이름',
+      exact: true
+    }).fill('102');
+    await main.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    await expect(main.getByText('102동', {
+      exact: true
+    })).toBeVisible();
+    await back.click();
+    await expect(page).toHaveURL(HOUSEHOLDS);
+    await main.getByRole('button', {
+      name: '세대 자동 입력',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(`${HOUSEHOLDS}/automatic`);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(back).toBeVisible();
+    await page.reload();
+    await main.getByLabel('시작 층', {
+      exact: true
+    }).fill('2');
+    await main.getByLabel('마지막 층', {
+      exact: true
+    }).fill('2');
+    await main.getByLabel('층당 세대 수', {
+      exact: true
+    }).fill('1');
+    await expect(main.getByRole('table', {
+      name: '생성될 세대 미리보기'
+    })).toContainText('201호');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`unitAutomaticPage${width}.png`),
+      fullPage: true
+    });
+    await main.getByRole('button', {
+      name: '추가',
+      exact: true
+    }).click();
+    await expect(main.getByRole('alert')).toBeVisible();
+    await expect(main.getByLabel('시작 층', {
+      exact: true
+    })).toHaveValue('2');
+    failBatch = false;
+    await main.getByRole('button', {
+      name: '추가',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(HOUSEHOLDS);
+    await expect(main.getByRole('table', {
+      name: '세대 목록'
+    })).toContainText('201호');
+    await page.goto(`${HOUSEHOLDS}/automatic`);
+    await back.click();
     await expect(page).toHaveURL(HOUSEHOLDS);
   });
 }

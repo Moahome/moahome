@@ -265,12 +265,20 @@ export function useUnitList(propertyId: string, saved?: string) {
     },
     closeDeletion: () => setPendingDeletion(null),
     openBuildings: () => {
+      if (window.matchMedia('(max-width: 767px)').matches) {
+        router.push(`/manage/${propertyId}/households/buildings`);
+        return;
+      }
       buildingMutation.reset();
       setDialog({
         kind: 'buildings'
       });
     },
     openAutomatic: () => {
+      if (window.matchMedia('(max-width: 767px)').matches) {
+        router.push(`/manage/${propertyId}/households/automatic${filters.buildingId ? `?buildingId=${filters.buildingId}` : ''}`);
+        return;
+      }
       automaticMutation.reset();
       setDialog({
         kind: 'automatic'

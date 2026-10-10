@@ -23,6 +23,7 @@
   gap: 12px;
   margin-bottom: 18px;
 
+  h1,
   h2 {
     font-size: 24px;
     font-weight: 800;
@@ -111,8 +112,20 @@
   }
 }
 
+.page {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--foreground);
+}
+
 @media (max-width: 374px) {
-  .dialog {
+  .dialog,
+  .page {
     padding: 18px;
   }
 }

@@ -60,6 +60,7 @@ export function AutomaticUnitEditor({
   onClose,
   busy = false,
   errorMessage = '',
+  presentation = 'modal',
 }: {
   rule: AutomaticUnitRule;
   hasBuildings: boolean;
@@ -71,6 +72,7 @@ export function AutomaticUnitEditor({
   onClose: () => void;
   busy?: boolean;
   errorMessage?: string;
+  presentation?: 'modal' | 'page';
 }) {
   const startFloorRef = useRef<HTMLInputElement>(null);
   const [buildingClientId, setBuildingClientId] = useState(initialBuildingClientId ?? (buildings.length === 1 ? buildings[0].clientId : ''));
@@ -87,35 +89,32 @@ export function AutomaticUnitEditor({
     onAdd(selectedBuildingId);
   }
 
-  return (
-    <ClientModal
-      initialFocusRef={startFloorRef}
-      onClose={onClose}
-      busy={busy}
-      className={styles.dialog}
-      aria-labelledby={'automatic-unit-title'}
-    >
+  const Title = presentation === 'page' ? 'h1' : 'h2';
+  const content = (
+    <>
       <header
         className={styles.header}
       >
-        <h2
+        <Title
           id={'automatic-unit-title'}
         >
           세대 자동 입력
-        </h2>
-        <Button
-          variant={'ghost'}
-          size={'sm'}
-          iconOnly
-          aria-label={'세대 자동 입력 닫기'}
-          disabled={busy}
-          onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
-        />
+        </Title>
+        {presentation === 'modal' && (
+          <Button
+            variant={'ghost'}
+            size={'sm'}
+            iconOnly
+            aria-label={'세대 자동 입력 닫기'}
+            disabled={busy}
+            onClick={onClose}
+            leadingIcon={(
+              <ServiceIcon
+                name={'close'}
+              />
+            )}
+          />
+        )}
       </header>
       <p
         className={styles.description}
@@ -296,6 +295,27 @@ export function AutomaticUnitEditor({
           </footer>
         </fieldset>
       </form>
+    </>
+  );
+
+  if (presentation === 'page') return (
+    <section
+      className={styles.page}
+      aria-labelledby={'automatic-unit-title'}
+    >
+      {content}
+    </section>
+  );
+
+  return (
+    <ClientModal
+      initialFocusRef={startFloorRef}
+      onClose={onClose}
+      busy={busy}
+      className={styles.dialog}
+      aria-labelledby={'automatic-unit-title'}
+    >
+      {content}
     </ClientModal>
   );
 }
