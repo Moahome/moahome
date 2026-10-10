@@ -1,6 +1,6 @@
 # 주민 관리 API
 
-작성일: 2026-10-10. 현재 구현 범위는 주민 목록 조회와 개별 등록입니다. 업무 기준은 [도메인 규칙](domainRules.md#확정된-주민-목록-조회), 스키마는 [ERD](erd.md#54-residents), 화면은 [Client 주민 목록](../client/docs/residentList.md)을 따릅니다. 상세·수정·대표 변경·엑셀 등록 API는 아직 제공하지 않습니다.
+작성일: 2026-10-10. 현재 구현 범위는 주민 목록·등록·상세·연락처 공개·수정·삭제·엑셀 업로드입니다. 업무 기준은 [도메인 규칙](domainRules.md#확정된-주민-목록-조회), 스키마는 [ERD](erd.md#54-residents), 화면은 [Client 주민 목록](../client/docs/residentList.md)을 따릅니다. 삭제·세대 이동 시 대표 승계를 지원하며 별도의 임의 대표 변경·복구 API는 아직 제공하지 않습니다.
 
 ## 목록 조회
 
@@ -46,7 +46,7 @@ HTTP `200`. 명부가 비었으면 `residents: []`입니다.
 | `residents[].id`, `name` | 주민 명부 ID와 이름 |
 | `phoneLast4` | 숫자 4자리 또는 `null`. 전체 번호·암호문·HMAC은 조회하거나 반환하지 않음 |
 | `unitId`, `buildingId`, `unitNumber` | 현재 미삭제 세대. 동 없음은 `buildingId: null` |
-| `relationType` | `OWNER / TENANT / FAMILY / OTHER` 또는 현재 소속 없음의 `null` |
+| `relationType` | `OWNER / TENANT / FAMILY / OTHER` 또는 현재 소속 없음의 `null`. `OWNER` 표시명은 소유주 |
 | `representative` | 현재 세대 관계의 대표 여부 |
 | `signupStatus` | `APPROVED`(가입 완료), `NOT_JOINED`(미가입), `PENDING`(승인 대기) |
 
@@ -133,10 +133,154 @@ HTTP `201`, `Cache-Control: no-store`:
 
 인증·권한·저장소·예상하지 못한 오류는 목록의 공통 오류 계약과 같습니다. 오류 메시지에 입력 원문·SQL을 포함하지 않습니다.
 
+## 주민 상세·연락처 공개·수정·삭제
+
+모두 목록과 동일한 Bearer 인증·현재 관리소장 권한을 확인하며 관리대상·주민 ID는 UUID입니다. 다른 관리대상의 주민과 삭제된 명부는 `404 RESIDENT_NOT_FOUND`입니다. 성공·Controller 오류·삭제의 빈 응답에도 `Cache-Control: no-store`를 적용합니다.
+
+### 기본 상세
+
+`GET /api/properties/{propertyId}/residents/{residentId}` → HTTP `200`.
+
+목록 행의 필드에 `propertyId`, `buildingName`, `createdAt`, `updatedAt`, `hasLinkedRequests`, `representativeCandidates`를 추가합니다. 후보는 저장된 현재 관계가 대표인 주민의 같은 세대 미삭제 구성원 중 본인을 제외한 `{ id, name }` 배열입니다. 세대가 삭제되어 표시 동·호수가 `null`이어도 현재 관계가 남아 있으면 승계 후보를 반환해 직접 선택할 수 있게 합니다. 세대가 없으면 해당 필드는 목록처럼 `null`입니다. 기본 응답은 `phoneLast4`만 포함하며 전체 번호·암호문·HMAC·계정 ID를 포함하지 않습니다.
+
+### 전체 번호 공개
+
+`POST /api/properties/{propertyId}/residents/{residentId}/phone-reveal` → HTTP `200`, `{ "phone": "+821012345678" }` 또는 연락처 없음의 `{ "phone": null }`.
+
+상세의 공개 버튼에서만 호출합니다. 원문은 브라우저 컴포넌트의 일시 상태로 표시하며 기본 상세 캐시·저장소·URL에 보관하지 않습니다. 복호화 실패나 키 사용 불가에는 원문 없는 `503 PHONE_SECURITY_UNAVAILABLE`을 반환합니다.
+
+### 수정
+
+`PUT /api/properties/{propertyId}/residents/{residentId}` → HTTP `200`, 갱신된 기본 상세 응답.
+
+```json
+{
+  "name": "예시 주민",
+  "unitId": "44444444-4444-4444-8444-444444444444",
+  "relationType": "TENANT",
+  "phoneAction": "KEEP",
+  "phone": null,
+  "replacementResidentId": null,
+  "expectedUpdatedAt": "2026-10-10T06:00:00Z"
+}
+```
+
+이름·세대·주민 구분의 검증과 중복 기준은 개별 등록과 같으며 본인은 중복 검사에서 제외합니다. `expectedUpdatedAt`은 직전 상세의 수정 시각이며 다른 수정이나 대표 승계로 바뀌면 `409 RESIDENT_CHANGED`로 거부합니다.
+
+| `phoneAction` | 처리 |
+| --- | --- |
+| `KEEP` | 기존 보호 연락처 유지. `phone`은 `null` 또는 생략. 복호화 없이 수정 가능 |
+| `REPLACE` | 유효한 새 `phone` 필수. 명부와 같은 주민으로 확인 연결된 미삭제 가입 신청의 암호문·HMAC·끝 네 자리를 함께 변경 |
+| `REMOVE` | 연락처 3개 컬럼을 함께 비움. 연결된 신청이 있으면 신청 연락처 필수 제약 때문에 `409 CONTACT_REQUIRED_FOR_REQUEST` |
+
+연결된 신청은 같은 관리대상에서 `matched_resident_id`와 `MATCHED / MANUAL`로 확인된 요청, 또는 연결 계정의 `APPROVED` 요청입니다. `POSSIBLE`·미확인 신청을 연락처 일치만으로 수정하지 않습니다. 상태·신청 세대·계정 연결을 새로 변경하지 않습니다.
+
+대표가 다른 동·호수로 이동할 때 남은 주민이 있으면 `replacementResidentId`로 같은 세대의 후보 한 명을 직접 선택해야 합니다. 비대표·남은 주민 없음은 `null`입니다. 이동은 과거 관계를 종료하고 새 현재 관계를 만들며 기존 이력을 덮어쓰지 않습니다. 도착 세대의 기존 대표는 유지하고 전체 관계 이력이 없는 최초 세대이면 이동한 주민이 대표가 됩니다.
+
+### 삭제
+
+`DELETE /api/properties/{propertyId}/residents/{residentId}`:
+
+```json
+{
+  "expectedUpdatedAt": "2026-10-10T06:00:00Z",
+  "replacementResidentId": "55555555-5555-4555-8555-555555555555"
+}
+```
+
+대표 승계와 수정 시각 검증은 수정과 같습니다. HTTP `204`, 본문 없음. 명부와 현재 관계를 소프트 삭제하고 해당 관리대상의 연결된 `RESIDENT` 접근권한을 종료합니다. 다른 관리대상과 `ADMIN / MANAGER` 참여는 유지합니다. 확인 연결된 대기 신청은 `CANCELED`로 처리하며 승인 이력은 보존합니다. 이미 삭제된 같은 대상의 명부에 대한 재시도는 `204`입니다. 삭제·승계·권한 종료·대기 취소는 하나의 트랜잭션입니다.
+
+추가 오류는 아래와 같으며 등록의 중복·세대·입력·공통 권한 오류도 적용합니다.
+
+| HTTP | 코드 | 조건 |
+| --- | --- | --- |
+| 404 | `RESIDENT_NOT_FOUND` | 대상 주민 없음·다른 관리대상·삭제됨 |
+| 409 | `RESIDENT_CHANGED` | 조회 후 주민 정보나 대표 여부가 변경됨 |
+| 409 | `REPRESENTATIVE_REQUIRED` | 남은 주민이 있는 대표의 이동·삭제에서 새 대표 미선택 |
+| 400 | `INVALID_REPRESENTATIVE` | 본인·다른 세대·삭제 주민 또는 승계가 필요 없는 상황의 선택 |
+| 409 | `CONTACT_REQUIRED_FOR_REQUEST` | 연결된 신청이 있는 주민의 연락처 삭제 |
+| 503 | `PHONE_SECURITY_UNAVAILABLE` | 새 연락처 저장 또는 기존 번호 공개의 보안 설정·복호화 실패 |
+
+## 엑셀 검증과 일괄 등록
+
+두 API 모두 목록과 같은 Bearer 인증·현재 관리소장 권한을 검증하고 응답에 `Cache-Control: no-store`를 적용합니다. 다운로드 API는 없습니다. 양식은 Client 정적 파일이며 결과는 브라우저에서 마스킹한 CSV로 생성합니다.
+
+### 파일 검증
+
+`POST /api/properties/{propertyId}/resident-imports`
+
+`multipart/form-data`의 `file` 필드로 `.xlsx` 하나를 보냅니다. 파일은 최대 5MB이며 첫 시트의 첫 행은 정확히 `동 / 호수 / 이름 / 주민 구분 / 연락처`입니다. 기존 파일 호환을 위해 네 번째 헤더 `관계`도 허용합니다. 2~1,001행에 최대 1,000명의 데이터를 입력합니다. 빈 행은 집계하지 않으며 수식·오류·논리값 셀은 해당 행의 오류로 표시하고 실행하지 않습니다. 압축 해제 총량·항목 수도 제한합니다.
+
+- 이름·기존 세대·관계는 필수, 연락처는 선택이며 정규화는 개별 등록과 같습니다. 호수와 연락처는 텍스트 셀로 입력해 앞자리 0을 유지합니다.
+- 동 이름은 기존 동 정규화 기준으로 연결하며 `102`와 `102동`을 같은 동으로 찾습니다. 호수 끝의 `호`는 제거합니다. 동 없는 관리대상은 동 칸을 비워야 합니다. 활성 동·미삭제·비활성 아님 세대만 연결하며 자동 생성하지 않습니다.
+- 관계는 `소유주 / 임차인 / 가족 / 기타`를 권장합니다. 기존 자료의 `소유자 / 주인 / 세입자` 및 `OWNER / TENANT / FAMILY / OTHER`도 변환합니다.
+- 동일 관리대상의 기존 명부와 이름·정규화 연락처가 모두 같으면 중복입니다. 파일 안에서도 같은 두 값의 앞선 정상 행이 있으면 뒤 행을 중복으로 표시합니다. 연락처가 없으면 이름만으로 중복 판정하지 않습니다. 삭제 명부와 일치하면 자동 복구 없이 오류로 안내합니다.
+- 검증만으로 주민·세대 관계를 저장하지 않습니다. 검증 결과는 작성자·관리대상에 묶여 24시간 유효합니다. 원본 파일은 보관하지 않고 임시 데이터의 연락처는 암호화합니다.
+
+HTTP `200`:
+
+```json
+{
+  "importId": "77777777-7777-4777-8777-777777777777",
+  "expiresAt": "2026-10-11T06:00:00Z",
+  "rows": [
+    {
+      "rowNumber": 2,
+      "building": "102동",
+      "unitNumber": "301",
+      "name": "예시 주민",
+      "relationType": "FAMILY",
+      "phoneLast4": "1234",
+      "status": "READY",
+      "reason": "등록 가능",
+      "representative": false
+    }
+  ]
+}
+```
+
+`rowNumber`는 헤더를 포함한 원본 엑셀 행 번호이며 선택·저장 순서에 사용합니다. 화면과 다운로드의 표시 열에서는 제외합니다. `relationType`은 등록 API와 같으며 잘못된 관계는 `null`입니다. 연락처는 유효한 입력의 끝 네 자리 또는 `null`만 반환하며 원문·암호문·HMAC·내부 재시도 ID는 반환하지 않습니다. 검증 단계의 `representative`는 `false`이며 실제 저장 결과에서 확정합니다.
+
+### 선택한 행 등록
+
+`POST /api/properties/{propertyId}/resident-imports/{importId}/commit`
+
+```json
+{ "rowNumbers": [2, 4, 5] }
+```
+
+중복 없는 1~1,000개의 행 번호가 필요하며 같은 작성자가 같은 관리대상에 업로드한 유효한 검증의 `READY` 행만 선택할 수 있습니다. 행 번호의 요청 배열 순서와 관계없이 엑셀의 원래 순서로 저장합니다. 각 행의 저장 직전에 권한·세대·중복을 다시 검증합니다. 주민과 세대 관계는 행마다 함께 저장하며 오류·중복은 제외하고 나머지를 계속 등록합니다. 최초 대표 지정은 [도메인 정책](domainRules.md#확정된-주민-엑셀-일괄-등록)을 따릅니다.
+
+HTTP `200`의 구조는 검증 응답과 같으며 전체 행을 원본 순서로 반환합니다.
+
+| `status` | 의미 | 단계 |
+| --- | --- | --- |
+| `READY` | 등록 가능한 정상 행 | 검증 |
+| `DUPLICATE` | 기존 명부 또는 파일 내 중복으로 제외 | 검증·완료 |
+| `ERROR` | 입력·세대·명부 복구 필요 등의 오류로 제외 | 검증·완료 |
+| `SUCCESS` | 주민과 현재 세대 관계 저장 성공 | 완료 |
+| `NOT_SELECTED` | 정상 행이지만 선택하지 않아 저장하지 않음 | 완료 |
+
+저장소 장애·통신 실패에는 이미 성공한 행이 있을 수 있습니다. 같은 `importId`·선택을 그대로 재시도하면 행별 고정 주민 ID로 이전 결과를 복구하고 나머지를 처리합니다. 연락처 없는 주민도 같은 검증의 재시도에서 새로 생성하지 않습니다. 브라우저 이탈·새로고침 후 결과 복원 API는 제공하지 않으므로 저장 결과가 불확실하면 주민 목록을 먼저 확인합니다.
+
+| HTTP | 코드 | 조건 |
+| --- | --- | --- |
+| 400 | `INVALID_EXCEL_FILE` | 형식·확장자·크기·압축 구조 오류 |
+| 400 | `INVALID_EXCEL_HEADER` | 첫 시트 헤더가 양식과 다름 |
+| 400 | `EMPTY_EXCEL_FILE` | 입력된 주민 행 없음 |
+| 400 | `EXCEL_ROW_LIMIT` | 1,001행보다 아래에 데이터/행이 있음 |
+| 400 | `INVALID_REQUEST` | 잘못된 UUID·빈 선택·중복 번호·정상 행 외 선택 |
+| 404 | `IMPORT_EXPIRED` | 검증 없음·만료·다른 작성자/관리대상 |
+| 503 | `PHONE_SECURITY_UNAVAILABLE` | 연락처 보안 설정 사용 불가. 평문 저장 없이 재시도 안내 |
+
+인증·권한·저장소·예상하지 못한 오류는 목록의 공통 오류를 따릅니다. 행 오류의 `reason`은 고정 안내이며 입력 원문·예외 메시지·SQL을 넣지 않습니다.
+
 ## 저장 구조와 검증 범위
 
 `V20261010041826__create_resident_directory.sql`로 `residents`와 `unit_residents`를 생성합니다. 같은 관리대상의 주민·세대만 관계를 맺도록 복합 FK를 두고, 미삭제 현재 관계를 주민당 하나로 제한하는 부분 UNIQUE 인덱스를 적용합니다. 같은 세대에 여러 주민은 허용합니다.
 
 `V20261010043914__create_membership_request_read_model.sql`로 가입 상태 조회에 필요한 `membership_requests` 저장 구조를 추가합니다. 신청의 세대·확인 주민이 같은 관리대상인지 복합 FK로 보장하고 같은 계정·세대의 중복 대기를 제한합니다. 초대 연결 컬럼과 FK는 초대 기능 구현 시 추가합니다.
 
-개별 등록 API와 최초 대표 자동 지정을 구현했습니다. 대표 변경·주민 재등록 복구는 아직 제공하지 않습니다. 계정 연결·가입 요청·가입 승인 처리와 전체 전화번호 복호화도 이번 범위에 포함하지 않습니다. 조회는 저장된 신청·승인 기록을 읽습니다. PostgreSQL 통합 테스트에서 빈 DB 전체 Migration과 이전 스키마의 후속 Migration, 실제 조회·등록·무결성 제약과 동시 대표 지정·중복·롤백·동일 요청 재시도를 검증합니다.
+`V20261010055020__create_resident_import_batches.sql`로 작성자·관리대상·암호화된 검증 행과 만료시각을 저장하는 임시 테이블을 추가했습니다. 만료한 배치는 매시간 삭제합니다.
+
+개별·엑셀 등록과 최초 대표 자동 지정, 상세·번호 공개·수정·삭제와 삭제/이동 시 명시적 대표 승계를 구현했습니다. 별도 대표 변경·주민 재등록 복구·계정 연결·가입 요청 생성·가입 승인 API는 아직 제공하지 않습니다. 조회는 저장된 신청·승인 기록을 읽습니다. PostgreSQL 통합 테스트에서 빈 DB 전체 Migration과 이전 스키마의 후속 Migration, 실제 조회·등록·무결성 제약과 동시 대표 지정·중복·롤백·동일 요청 재시도를 검증합니다.

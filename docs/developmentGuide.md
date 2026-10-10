@@ -97,6 +97,8 @@ Next.js는 `client/`에서 실행하면 해당 프로젝트의 `.env`를 읽습�
 
 각 키는 독립적으로 생성하며 계좌·JWT·등록 요청 키를 재사용하지 않습니다. 모든 서버 인스턴스에서 같은 키를 사용합니다. 실제 값은 Git에 저장하지 않습니다. `residentSecurity.properties`는 환경변수 참조만 포함합니다. 키 교체 시 외부 `moahome.phone-security.encryption-keys`에 기존·신규 ID의 키를 함께 유지하고 `active-key-id`를 변경합니다. 기본 환경변수 연결은 `v1`에만 제공하므로 다른 활성 ID에는 해당 ID의 외부 설정도 필요합니다. 기존 암호화 키를 제거하면 이전 번호를 복호화할 수 없습니다. HMAC 키 변경은 중복 조회값의 별도 재생성 절차 없이는 수행하지 않습니다.
 
+전화번호 키는 각각 `openssl rand -base64 32 | tr -d '\n'`으로 생성합니다. 두 값 모두 현재 구현에서 디코딩 후 정확히 32바이트로 검증하며 JWT의 64바이트 키 생성 명령을 사용하지 않습니다. AES-256 암호화 키를 64바이트로 늘리면 사용할 수 없습니다. `.env`를 수정한 뒤에는 서버를 재시작합니다. 기존 연락처가 저장된 환경에서는 키 값을 단순 교체하지 않고 위의 교체 절차를 따릅니다.
+
 Refresh 쿠키는 기본적으로 `Secure=true`이고 `local` Profile에서만 HTTP 개발을 위해 `false`로 설정됩니다. `local` Profile은 기존 `WEB_ALLOWED_ORIGINS`를 유지하며 Swagger UI의 `http://localhost:4000`을 추가합니다. 운영 실행에는 `local` 이외의 Profile을 명시하고 HTTPS 및 실제 `WEB_ALLOWED_ORIGINS`를 설정합니다.
 
 Compose는 `server/`에서 실행할 때 기존 `.env`를 변수 치환에 사용합니다.
@@ -269,6 +271,7 @@ npm run start
 | DataSource 설정 오류 | Working Directory가 `server/`인지, `local` Profile에서 `.env`를 읽었는지, 다른 Profile에 필요한 변수를 주입했는지 |
 | DB 연결 / 인증 실패 | 컨테이너 Healthcheck, 포트와 기존 PostgreSQL Volume의 사용자 / DB 설정 |
 | Redis 연결 실패 | 호스트에서 접근 가능한 `REDIS_HOST`, `REDIS_PORT`인지 |
+| 주민 등록·엑셀 업로드의 `PHONE_SECURITY_UNAVAILABLE` | 연락처 키 두 개가 각각 Base64 디코딩 후 32바이트인지, 서로 다른지와 설정 변경 후 서버를 재시작했는지 |
 | Client가 이전 API 주소 사용 | 환경변수 변경 후 개발 서버를 재시작하거나 프로덕션 빌드를 다시 했는지 |
 | Google Fonts 다운로드 실패 | 현재 `next/font/google`의 Geist 폰트를 다운로드할 네트워크 연결이 가능한지 |
 | Turbopack의 포트 생성 권한 오류 | 실행 환경 권한을 확인하고 필요하면 `npm run build -- --webpack`으로 별도 빌드 검증 |
