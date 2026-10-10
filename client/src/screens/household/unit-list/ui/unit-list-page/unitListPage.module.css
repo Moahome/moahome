@@ -1,0 +1,33 @@
+.page {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.card {
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+
+.state {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  padding: 72px 20px;
+  color: var(--sub-text);
+  text-align: center;
+
+  h1 {
+    color: var(--foreground);
+    font-size: 20px;
+    font-weight: 700;
+  }
+}
+
+@media (max-width: 767px) {
+  .card {
+    padding: 14px;
+  }
+}

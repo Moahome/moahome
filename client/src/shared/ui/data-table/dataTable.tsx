@@ -1,0 +1,107 @@
+import type {
+  CSSProperties,
+  ReactNode
+} from 'react';
+import styles from './dataTable.module.css';
+
+export interface DataTableColumn<Row> {
+  key: string;
+  header: ReactNode;
+  render: (row: Row) => ReactNode;
+  align?: 'left' | 'center' | 'right';
+  width?: number;
+  rowHeader?: boolean;
+}
+
+/** 업무별 열·셀을 받아 표·스크롤·빈 목록을 제공하며 행 클릭을 전달한 표에만 클릭 표현을 적용합니다. */
+export function DataTable<Row>({
+  label,
+  rows,
+  columns,
+  getRowKey,
+  emptyState,
+  minWidth = 640,
+  onRowClick,
+}: {
+  label: string;
+  rows: readonly Row[];
+  columns: readonly DataTableColumn<Row>[];
+  getRowKey: (row: Row) => string;
+  emptyState: ReactNode;
+  minWidth?: number;
+  onRowClick?: (row: Row) => void;
+}) {
+  return (
+    <div
+      className={styles.scroll}
+      tabIndex={0}
+      role={'region'}
+      aria-label={`${label} 표 스크롤`}
+      style={{
+        '--table-min-width': `${minWidth}px`
+      } as CSSProperties}
+    >
+      <table
+        className={styles.table}
+        aria-label={label}
+        data-empty={!rows.length}
+      >
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th
+                key={column.key}
+                scope={'col'}
+                style={{
+                  width: column.width,
+                  textAlign: column.align
+                }}
+              >
+                {column.header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={getRowKey(row)}
+              data-clickable={Boolean(onRowClick)}
+              onClick={onRowClick ? (event) => {
+                // 셀 안의 버튼·입력 조작은 해당 컨트롤만 실행하고 행 클릭으로 중복 처리하지 않습니다.
+                if (event.target instanceof Element && event.target.closest('button, a, input, select, textarea, label')) return;
+                onRowClick(row);
+              } : undefined}
+            >
+              {columns.map((column) => {
+                const Cell = column.rowHeader ? 'th' : 'td';
+
+                return (
+                  <Cell
+                    key={column.key}
+                    scope={column.rowHeader ? 'row' : undefined}
+                    style={{
+                      textAlign: column.align
+                    }}
+                  >
+                    {column.render(row)}
+                  </Cell>
+                );
+              })}
+            </tr>
+          ))}
+          {!rows.length && (
+            <tr>
+              <td
+                colSpan={columns.length}
+                className={styles.empty}
+              >
+                {emptyState}
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}

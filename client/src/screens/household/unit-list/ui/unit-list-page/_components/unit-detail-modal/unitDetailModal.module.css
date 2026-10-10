@@ -1,0 +1,89 @@
+.dialog {
+  width: min(calc(100% - 32px), 500px);
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 24px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 20px 64px color-mix(in srgb, var(--foreground) 16%, transparent);
+
+  &::backdrop {
+    background: color-mix(in srgb, var(--foreground) 35%, transparent);
+  }
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+
+  p {
+    margin-bottom: 8px;
+    color: var(--sub-text);
+    font-size: 14px;
+  }
+
+  h2 {
+    font-size: 24px;
+    font-weight: 800;
+    overflow-wrap: anywhere;
+  }
+}
+
+.status {
+  display: inline-flex;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sub-text) 10%, var(--card));
+  color: var(--sub-text);
+  font-size: 13px;
+  font-weight: 600;
+
+  &[data-status="ACTIVE"] {
+    background: color-mix(in srgb, var(--success) 10%, var(--card));
+    color: var(--success);
+  }
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px 20px;
+  margin: 24px 0;
+
+  dt {
+    margin-bottom: 8px;
+    color: var(--sub-text);
+    font-size: 14px;
+  }
+
+  dd {
+    margin: 0;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 374px) {
+  .dialog {
+    padding: 18px;
+  }
+
+  .fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+}

@@ -1,0 +1,14 @@
+.targets {
+  max-height: 180px;
+  margin-top: 16px;
+  padding: 12px 12px 12px 32px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+
+  li {
+    overflow-wrap: anywhere;
+    line-height: 1.7;
+  }
+}

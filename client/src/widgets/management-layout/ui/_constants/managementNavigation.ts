@@ -30,7 +30,7 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
         id: 'household-list',
         label: '세대 목록',
         path: 'households',
-        available: false
+        available: true
       },
       {
         id: 'residents',

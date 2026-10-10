@@ -141,6 +141,13 @@
     cursor: not-allowed;
   }
 
+  > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   svg {
     flex-shrink: 0;
     width: 20px;

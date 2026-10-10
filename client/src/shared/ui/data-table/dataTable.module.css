@@ -1,0 +1,84 @@
+.scroll {
+  overflow-x: auto;
+  border-radius: 8px;
+
+  &:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+  }
+}
+
+.table {
+  width: 100%;
+  min-width: var(--table-min-width);
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+
+  thead {
+    background: var(--background);
+
+    th {
+      padding: 16px;
+      color: var(--sub-text);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+  }
+
+  tbody {
+    tr {
+      border-bottom: 1px solid var(--border);
+
+      &[data-clickable="true"] {
+        cursor: pointer;
+
+        &:hover {
+          background: color-mix(in srgb, var(--primary) 2%, var(--card));
+        }
+      }
+    }
+
+    td,
+    th {
+      padding: 15px 16px;
+      overflow-wrap: anywhere;
+    }
+
+    th {
+      font-weight: 600;
+    }
+  }
+
+  .empty {
+    padding: 64px 20px;
+    color: var(--sub-text);
+    text-align: center;
+
+    strong {
+      display: block;
+      color: var(--foreground);
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    p {
+      margin-top: 10px;
+      line-height: 1.6;
+    }
+  }
+}
+
+@media (max-width: 767px) {
+  .table[data-empty="true"] {
+    min-width: 0;
+
+    thead {
+      display: none;
+    }
+
+    .empty {
+      padding: 36px 12px;
+    }
+  }
+}

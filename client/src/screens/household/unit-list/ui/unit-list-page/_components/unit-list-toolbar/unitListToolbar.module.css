@@ -1,0 +1,16 @@
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+
+  p {
+    color: var(--sub-text);
+    font-size: 14px;
+  }
+
+  > :last-child {
+    width: 180px;
+  }
+}
