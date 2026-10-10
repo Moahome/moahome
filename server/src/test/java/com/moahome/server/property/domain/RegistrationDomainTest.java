@@ -14,6 +14,30 @@ class RegistrationDomainTest {
 	private final OffsetDateTime at = OffsetDateTime.parse("2026-10-05T15:00:00Z");
 
 	@Test
+	void softDeletionKeepsOriginalIdentityAndFirstActorAndTimestamp() {
+		var property = Property.create("삭제 검증", "주소", null, null, true, at);
+		var building = Building.create(property, "101동", 0, at);
+		var unit = Unit.create(property, building, "001", "별칭", 1, UnitStatus.ACTIVE, at);
+		var actor = java.util.UUID.randomUUID();
+		var unitId = unit.getId();
+		assertThatThrownBy(() -> unit.softDelete(actor, null)).isInstanceOf(NullPointerException.class);
+		assertThat(unit.getDeletedBy()).isNull();
+		unit.softDelete(actor, at);
+		building.softDelete(actor, at);
+		unit.softDelete(java.util.UUID.randomUUID(), at.plusDays(1));
+		building.softDelete(java.util.UUID.randomUUID(), at.plusDays(1));
+		assertThat(unit.getId()).isEqualTo(unitId);
+		assertThat(unit.getBuildingId()).isEqualTo(building.getId());
+		assertThat(unit.getUnitNumber()).isEqualTo("001");
+		assertThat(unit.getDeletedBy()).isEqualTo(actor);
+		assertThat(unit.getDeletedAt()).isEqualTo(at);
+		assertThat(building.getDeletedBy()).isEqualTo(actor);
+		assertThat(building.getDeletedAt()).isEqualTo(at);
+		assertThatThrownBy(() -> unit.updateDetails(property, building, "002", null, 1, UnitStatus.ACTIVE))
+			.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
 	void creatorIsAdminWithoutChangingPlatformRoleAndAllDatesUseRegistrationTime() {
 		User user = User.create("등록자", null);
 		Property property = Property.create("😀".repeat(50), " 주소 ", " ", null, false, at);
@@ -63,6 +87,29 @@ class RegistrationDomainTest {
 		}
 		assertThatThrownBy(() -> Unit.create(property, building, "101", null, null, UnitStatus.INACTIVE, at))
 			.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	void unitCorrectionPreservesIdentityAndRejectsInvalidChangesWithoutPartialMutation() {
+		var property = Property.create("세대 관리", "주소", null, null, true, at);
+		var other = Property.create("다른 대상", "주소", null, null, true, at);
+		var building = Building.create(property, "101동", 0, at);
+		var unit = Unit.create(property, building, "001", null, 1, UnitStatus.ACTIVE, at);
+		var id = unit.getId();
+		assertThatThrownBy(() -> unit.updateDetails(property, building, "201", "가".repeat(51), 2, UnitStatus.VACANT))
+			.isInstanceOf(IllegalArgumentException.class);
+		assertThat(unit.getUnitNumber()).isEqualTo("001");
+		assertThat(unit.getStatus()).isEqualTo(UnitStatus.ACTIVE);
+		assertThatThrownBy(() -> unit.updateDetails(other, Building.create(other, "102동", 0, at), "201", null, 2, UnitStatus.ACTIVE))
+			.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> unit.updateDetails(property, building, "201", null, 2, UnitStatus.INACTIVE))
+			.isInstanceOf(IllegalArgumentException.class);
+		unit.updateDetails(property, building, " B101 ", "지하 세대", -1, UnitStatus.VACANT);
+		assertThat(unit.getId()).isEqualTo(id);
+		assertThat(unit.getCreatedAt()).isEqualTo(at);
+		assertThat(unit.getUnitNumber()).isEqualTo("B101");
+		assertThat(unit.getFloor()).isEqualTo((short) -1);
+		assertThat(unit.getStatus()).isEqualTo(UnitStatus.VACANT);
 	}
 
 	@Test

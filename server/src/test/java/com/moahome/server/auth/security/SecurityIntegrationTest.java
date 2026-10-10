@@ -93,6 +93,7 @@ class SecurityIntegrationTest {
 	@Autowired private MutableClock clock;
 	@MockitoSpyBean private RedisAuthSessionRepository sessions;
 	@MockitoBean private com.moahome.server.property.service.ManagementAccessService management;
+	@MockitoBean private com.moahome.server.property.service.UnitManagementService unitManagement;
 	@MockitoBean private UserService users;
 	@MockitoBean private UserRepository userRepository;
 	@MockitoBean private SocialAccountRepository socialAccounts;

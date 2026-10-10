@@ -66,6 +66,23 @@ public class Building {
 		return building;
 	}
 
+	/** 동의 식별자와 연결된 세대는 유지하고 활성 동의 현재 이름만 변경합니다. */
+	public void rename(String name) {
+		if (deletedAt != null || status != BuildingStatus.ACTIVE) {
+			throw new IllegalArgumentException("Building is not editable");
+		}
+		this.name = TextValues.required(normalizeName(name), 50);
+	}
+
+	/** 목록에서 제외하되 기존 ID와 연결 기록을 보존하며 재요청에는 최초 삭제 정보를 유지합니다. */
+	public void softDelete(UUID actorId, OffsetDateTime at) {
+		if (deletedAt != null) return;
+		Objects.requireNonNull(actorId);
+		Objects.requireNonNull(at);
+		deletedBy = actorId;
+		deletedAt = at;
+	}
+
 	/** 신규 레코드 모두에 등록 시각을 적용해 초기 설정과 응답 시각을 일치시킵니다. */
 	private void initialize(OffsetDateTime at) {
 		id = UUID.randomUUID();
