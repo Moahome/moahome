@@ -8,7 +8,8 @@ import { useUnitList } from './_hooks/useUnitList';
 import { UnitListHeader } from './_components/unit-list-header/unitListHeader';
 import { UnitListSummary } from './_components/unit-list-summary/unitListSummary';
 import { UnitListFilters } from './_components/unit-list-filters/unitListFilters';
-import { UnitListToolbar } from './_components/unit-list-toolbar/unitListToolbar';
+import { ListToolbar } from '@/shared/ui/list-toolbar';
+import { ListCard } from '@/shared/ui/list-card';
 import { UnitListTable } from './_components/unit-list-table/unitListTable';
 import { UnitListDialogs } from './_components/unit-list-dialogs/unitListDialogs';
 import styles from './unitListPage.module.css';
@@ -68,9 +69,7 @@ export function UnitListPage({
       <UnitListSummary
         units={data.units}
       />
-      <div
-        className={styles.card}
-      >
+      <ListCard>
         <UnitListFilters
           hasBuildings={data.hasBuildings}
           buildings={data.buildings}
@@ -79,7 +78,9 @@ export function UnitListPage({
           hasFilters={view.hasFilters}
           onChange={controller.changeFilters}
         />
-        <UnitListToolbar
+        <ListToolbar
+          unit={'세대'}
+          sizeLabel={'페이지당 세대 수'}
           total={view.filtered.length}
           pageSize={controller.pageSize}
           onSizeChange={controller.changePageSize}
@@ -100,7 +101,7 @@ export function UnitListPage({
           pageSize={controller.pageSize}
           onPageChange={controller.changePage}
         />
-      </div>
+      </ListCard>
       <UnitListDialogs
         controller={controller}
       />

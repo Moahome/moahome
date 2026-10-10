@@ -22,9 +22,11 @@ html {
   --success: #16a34a;
   --warning: #f59e0b;
   --danger: #ef4444;
-  /* 성공 토스트는 사용자가 요청한 연두색 배경을 사용합니다. */
-  --toast-success-background: #e7f5cd;
-  --toast-success-foreground: #365314;
+  /* 사용자가 요청한 엑셀 버튼과 성공 토스트의 진한 초록색입니다. */
+  --success-dark: #166534;
+  --excel-background: var(--success-dark);
+  --toast-success-background: var(--success-dark);
+  --toast-success-foreground: var(--card);
   /* 등록 확인 화면의 항목 아이콘은 제공된 시안의 색상 구분을 사용합니다. */
   --registration-icon-building: #7c3aed;
   --registration-icon-units: var(--secondary-teal);

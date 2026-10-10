@@ -1,0 +1,3 @@
+export {
+  DetailActions
+} from './detailActions';

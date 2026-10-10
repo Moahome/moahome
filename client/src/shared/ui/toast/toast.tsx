@@ -8,15 +8,17 @@ import {
 import { createPortal } from 'react-dom';
 import styles from './toast.module.css';
 
-/** 성공 알림을 잠시 표시하며 모달 위에서도 읽을 수 있도록 현재 열린 모달 안에 배치합니다. */
+/** 처리 결과를 잠시 표시하며 모달 위에서도 읽을 수 있도록 현재 열린 모달 안에 배치합니다. */
 export function Toast({
   message,
   onClose,
   duration = 4000,
+  tone = 'success',
 }: {
   message: string;
   onClose: () => void;
   duration?: number;
+  tone?: 'success' | 'error';
 }) {
   const [target, setTarget] = useState<HTMLElement | null>(null);
   const [leaving, setLeaving] = useState(false);
@@ -63,9 +65,10 @@ export function Toast({
       className={styles.toast}
       aria-label={'알림'}
       data-leaving={leaving}
+      data-tone={tone}
     >
       <p
-        role={'status'}
+        role={tone === 'error' ? 'alert' : 'status'}
         aria-atomic={'true'}
       >
         {message}

@@ -66,6 +66,10 @@
     --button-tone: var(--danger);
   }
 
+  &[data-tone="excel"] {
+    --button-tone: var(--excel-background);
+  }
+
   &[data-tone] {
     &[data-variant="outline"] {
       border-color: var(--button-tone);

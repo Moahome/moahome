@@ -1,10 +1,16 @@
 .toast {
   position: fixed;
-  left: 50%;
-  bottom: 32px;
+  inset: auto auto 32px 50%;
   z-index: 100;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
   width: max-content;
   max-width: min(440px, calc(100vw - 32px));
+  height: fit-content;
+  min-height: 0;
+  margin: 0;
+  box-sizing: border-box;
   padding: 12px 20px;
   border-radius: 999px;
   background: var(--toast-success-background);
@@ -13,6 +19,11 @@
   transform: translateX(-50%);
   pointer-events: none;
   animation: toast-enter 200ms ease-out both;
+
+  &[data-tone="error"] {
+    background: color-mix(in srgb, var(--danger) 10%, var(--card));
+    color: var(--danger);
+  }
 
   &[data-leaving="true"] {
     animation: toast-leave 180ms ease-in both;

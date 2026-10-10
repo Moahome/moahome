@@ -86,7 +86,7 @@ export function UnitDeleteConfirmation({
         </Button>
         <Button
           variant={'outline'}
-          className={styles['delete-button']}
+          tone={'danger'}
           loading={busy}
           onClick={onConfirm}
         >

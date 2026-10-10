@@ -1,0 +1,20 @@
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 767px) {
+  .actions[data-presentation="page"] {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+    button {
+      min-width: 0;
+      padding-inline: 8px;
+      font-size: 14px;
+    }
+  }
+}
