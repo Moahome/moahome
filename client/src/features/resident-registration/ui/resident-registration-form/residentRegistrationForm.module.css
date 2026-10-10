@@ -1,0 +1,46 @@
+.form {
+  display: grid;
+  gap: 20px;
+}
+
+.fields {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+}
+
+.notice {
+  padding: 14px;
+  border-radius: 10px;
+  color: var(--sub-text);
+  background: var(--background);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.error {
+  color: var(--danger);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.state {
+  display: grid;
+  gap: 16px;
+  color: var(--sub-text);
+}
+
+@media (max-width: 767px) {
+  .actions > button {
+    flex: 1;
+  }
+}

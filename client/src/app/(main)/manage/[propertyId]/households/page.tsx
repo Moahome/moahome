@@ -9,13 +9,15 @@ export const metadata: Metadata = {
   }
 };
 
-export default async function Page({ params }: PageProps<'/manage/[propertyId]/households'>) {
+export default async function Page({ params, searchParams }: PageProps<'/manage/[propertyId]/households'>) {
   const { propertyId } = await params;
+  const query = await searchParams;
 
   return (
     <UnitListPage
       key={propertyId}
       propertyId={propertyId}
+      saved={typeof query.saved === 'string' ? query.saved : undefined}
     />
   );
 }

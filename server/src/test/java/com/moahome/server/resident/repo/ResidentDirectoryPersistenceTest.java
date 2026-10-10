@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.*;
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({ResidentListService.class, ManagementAccessService.class, UserService.class, ResidentDirectoryPersistenceTest.Beans.class})
+@Import({ResidentListService.class, ManagementAccessService.class, UserService.class, ResidentDirectoryPersistenceTest.Beans.class, com.moahome.server.resident.service.ResidentRegistrationService.class})
 @ActiveProfiles("database-test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -43,6 +43,8 @@ class ResidentDirectoryPersistenceTest {
 	@Autowired UnitRepository units;
 	@Autowired UserRepository users;
 	@Autowired ResidentListService service;
+	@Autowired com.moahome.server.resident.service.ResidentRegistrationService registrations;
+	@Autowired com.moahome.server.common.security.PhoneSecurity phoneSecurity;
 	@Autowired JdbcTemplate jdbc;
 	@Autowired Flyway flyway;
 
@@ -218,6 +220,106 @@ class ResidentDirectoryPersistenceTest {
         return id;
     }
 
+    @Test
+    void registersOptionalPhoneAndDoesNotGrantAccountOrMembership() {
+        var property = property(false);
+        var actor = users.saveAndFlush(User.create("등록 관리자", null)).getId();
+        member(property.getId(), actor);
+        var unit = units.saveAndFlush(Unit.create(property, null, "201", null, null, UnitStatus.VACANT, AT));
+        var first = registration(unit.getId(), "  첫 주민  ", "010-1234-5678");
+        var result = registrations.register(actor, property.getId(), first);
+        assertThat(result.representative()).isTrue();
+        assertThat(result.id()).isEqualTo(first.requestId());
+        var stored = jdbc.queryForMap("select * from residents where id=?", result.id());
+        assertThat(stored.get("name")).isEqualTo("첫 주민");
+        assertThat(stored.get("phone_encrypted")).isNotEqualTo("010-1234-5678");
+        assertThat(phoneSecurity.decrypt((String) stored.get("phone_encrypted"))).isEqualTo("+821012345678");
+        assertThat(stored.get("phone_hmac")).isEqualTo(phoneSecurity.hmac("+821012345678"));
+        assertThat(stored.get("phone_last4")).isEqualTo("5678");
+        assertThat(stored.get("user_id")).isNull();
+        var second = registrations.register(actor, property.getId(), registration(unit.getId(), "두 번째 주민", null));
+        assertThat(second.representative()).isFalse();
+        assertThat(jdbc.queryForObject("select phone_encrypted from residents where id=?", String.class, second.id())).isNull();
+        assertThat(jdbc.queryForObject("select count(*) from property_members where property_id=?", Integer.class, property.getId())).isEqualTo(1);
+        assertThat(service.list(actor, property.getId()).residents()).hasSize(2).allMatch(item -> item.signupStatus() == ResidentSignupStatus.NOT_JOINED);
+        assertThat(units.findById(unit.getId()).orElseThrow().getStatus()).isEqualTo(UnitStatus.VACANT);
+    }
+
+    @Test
+    void preventsDuplicateNamesWithNormalizedPhoneAndReplaysSameRequestWithoutNewRows() {
+        var property = property(false);
+        var actor = users.saveAndFlush(User.create("중복 검사 관리자", null)).getId();
+        member(property.getId(), actor);
+        var unit = units.saveAndFlush(Unit.create(property, null, "301", null, null, UnitStatus.ACTIVE, AT));
+        var input = registration(unit.getId(), "동일 주민", "010-2345-6789");
+        var first = registrations.register(actor, property.getId(), input);
+        assertThat(registrations.register(actor, property.getId(), input)).isEqualTo(first);
+        assertThatThrownBy(() -> registrations.register(actor, property.getId(), registration(unit.getId(), "동일 주민", "+82 10 2345 6789")))
+            .isInstanceOfSatisfying(com.moahome.server.resident.exception.ResidentRegistrationException.class,
+                error -> assertThat(error.code().name()).isEqualTo("DUPLICATE_RESIDENT"));
+        // 전화번호 공유와 연락처 없는 동명이인은 주민을 자동 병합하거나 배제할 근거가 아닙니다.
+        registrations.register(actor, property.getId(), registration(unit.getId(), "다른 가족", "01023456789"));
+        registrations.register(actor, property.getId(), registration(unit.getId(), "동명이인", null));
+        registrations.register(actor, property.getId(), registration(unit.getId(), "동명이인", null));
+        assertThat(service.list(actor, property.getId()).residents()).hasSize(4);
+        var changed = new com.moahome.server.resident.dto.ResidentRegistrationRequest(input.requestId(), "다른 이름", null, unit.getId(), "FAMILY");
+        assertThatThrownBy(() -> registrations.register(actor, property.getId(), changed))
+            .isInstanceOfSatisfying(com.moahome.server.resident.exception.ResidentRegistrationException.class,
+                error -> assertThat(error.code().name()).isEqualTo("REGISTRATION_CONFLICT"));
+        jdbc.update("update residents set deleted_at=now() where id=?", first.id());
+        assertThatThrownBy(() -> registrations.register(actor, property.getId(), registration(unit.getId(), "동일 주민", "01023456789")))
+            .isInstanceOfSatisfying(com.moahome.server.resident.exception.ResidentRegistrationException.class,
+                error -> assertThat(error.code().name()).isEqualTo("RESIDENT_RESTORE_REQUIRED"));
+    }
+
+    @Test
+    void rejectsForeignDeletedUnitsAndManagerAndRollsBackFailedAffiliation() {
+        var property = property(false);
+        var actor = users.saveAndFlush(User.create("검증 관리자", null)).getId();
+        member(property.getId(), actor);
+        var unit = units.saveAndFlush(Unit.create(property, null, "401", null, null, UnitStatus.ACTIVE, AT));
+        var other = property(false);
+        var foreignUnit = units.saveAndFlush(Unit.create(other, null, "401", null, null, UnitStatus.ACTIVE, AT));
+        assertThatThrownBy(() -> registrations.register(actor, property.getId(), registration(foreignUnit.getId(), "주민", null)))
+            .isInstanceOf(com.moahome.server.resident.exception.ResidentRegistrationException.class);
+        var invalid = new com.moahome.server.resident.dto.ResidentRegistrationRequest(UUID.randomUUID(), "주민", null, unit.getId(), "UNKNOWN");
+        assertThatThrownBy(() -> registrations.register(actor, property.getId(), invalid)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(jdbc.queryForObject("select count(*) from residents where id=?", Integer.class, invalid.requestId())).isZero();
+        var malformedPhone = registration(unit.getId(), "잘못된 연락처", "010-abcd-1234");
+        assertThatThrownBy(() -> registrations.register(actor, property.getId(), malformedPhone)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(service.list(actor, property.getId()).residents()).isEmpty();
+        jdbc.update("update units set deleted_at=now() where id=?", unit.getId());
+        assertThatThrownBy(() -> registrations.register(actor, property.getId(), registration(unit.getId(), "주민", null)))
+            .isInstanceOf(com.moahome.server.resident.exception.ResidentRegistrationException.class);
+        jdbc.update("update property_members set role='MANAGER' where property_id=? and user_id=?", property.getId(), actor);
+        assertThatThrownBy(() -> registrations.register(actor, property.getId(), registration(unit.getId(), "주민", null)))
+            .isInstanceOf(com.moahome.server.auth.exception.AuthException.class);
+    }
+
+    @Test
+    void concurrentRegistrationsChooseExactlyOneFirstRepresentative() throws Exception {
+        var property = property(false);
+        var actor = users.saveAndFlush(User.create("동시 등록 관리자", null)).getId();
+        member(property.getId(), actor);
+        var unit = units.saveAndFlush(Unit.create(property, null, "501", null, null, UnitStatus.ACTIVE, AT));
+        var gate = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var first = pool.submit(() -> { gate.await(); return registrations.register(actor, property.getId(), registration(unit.getId(), "첫 요청", null)); });
+            var second = pool.submit(() -> { gate.await(); return registrations.register(actor, property.getId(), registration(unit.getId(), "둘째 요청", null)); });
+            gate.countDown();
+            var results = List.of(first.get(10, java.util.concurrent.TimeUnit.SECONDS), second.get(10, java.util.concurrent.TimeUnit.SECONDS));
+            assertThat(results.stream().filter(item -> item.representative()).count()).isEqualTo(1);
+        }
+        assertThat(service.list(actor, property.getId()).residents()).hasSize(2);
+        // 기존 대표가 사라진 뒤 새 주민을 추가해도 대표 변경 절차를 대신해 자동 승계하지 않습니다.
+        jdbc.update("update unit_residents set status='MOVED_OUT' where property_id=?", property.getId());
+        assertThat(registrations.register(actor, property.getId(), registration(unit.getId(), "후속 주민", null)).representative()).isFalse();
+    }
+
+    private com.moahome.server.resident.dto.ResidentRegistrationRequest registration(UUID unitId, String name, String phone) {
+        return new com.moahome.server.resident.dto.ResidentRegistrationRequest(UUID.randomUUID(), name, phone, unitId, "TENANT");
+    }
+
 	private Property property(boolean hasBuildings) {
 		return properties.saveAndFlush(Property.create("주민 조회 대상", "주소", null, null, hasBuildings, AT));
 	}
@@ -235,6 +337,15 @@ class ResidentDirectoryPersistenceTest {
 
 	@TestConfiguration
 	static class Beans {
-		@Bean java.time.Clock clock() { return java.time.Clock.systemUTC(); }
+		@Bean com.moahome.server.common.security.PhoneSecurity phoneSecurity() {
+            var random = new java.security.SecureRandom();
+            var encryption = new byte[32];
+            var hmac = new byte[32];
+            random.nextBytes(encryption);
+            random.nextBytes(hmac);
+            return new com.moahome.server.common.security.PhoneSecurity(new com.moahome.server.config.PhoneSecurityProperties("v1",
+                Map.of("v1", Base64.getEncoder().encodeToString(encryption)), Base64.getEncoder().encodeToString(hmac)));
+        }
+        @Bean java.time.Clock clock() { return java.time.Clock.systemUTC(); }
 	}
 }

@@ -1,13 +1,13 @@
 import {
   BuildingUnitFormModal,
+  UnitDetail,
   BuildingManager,
   AutomaticUnitEditor,
   UnitDeleteConfirmation,
   getUnitLabel
 } from '@/entities/property';
-import { getUnitListError } from '../../../../model/unitList';
+import { getUnitManagementError } from '@/features/unit-management';
 import type { UnitListController } from '../../_hooks/useUnitList';
-import { UnitDetailModal } from '../unit-detail-modal/unitDetailModal';
 import styles from './unitListDialogs.module.css';
 
 /** 등록에서 사용한 모달을 그대로 조합하고 저장·삭제 오류와 대기 상태만 연결합니다. */
@@ -22,7 +22,7 @@ export function UnitListDialogs({
   return (
     <>
       {detailUnit && (
-        <UnitDetailModal
+        <UnitDetail
           unit={detailUnit}
           hasBuildings={data.hasBuildings}
           buildingName={data.buildings.find((building) => building.clientId === detailUnit.buildingClientId)?.name}
@@ -37,7 +37,7 @@ export function UnitListDialogs({
           buildings={data.buildings}
           units={data.units}
           busy={buildingMutation.isPending}
-          errorMessage={buildingMutation.isError ? getUnitListError(buildingMutation.error) : ''}
+          errorMessage={buildingMutation.isError ? getUnitManagementError(buildingMutation.error) : ''}
           onSave={(building) => controller.executeBuildingCommand({
             kind: 'save',
             building
@@ -58,7 +58,7 @@ export function UnitListDialogs({
           units={data.units}
           initialBuildingClientId={controller.filters.buildingId || undefined}
           busy={automaticMutation.isPending}
-          errorMessage={automaticMutation.isError ? getUnitListError(automaticMutation.error) : ''}
+          errorMessage={automaticMutation.isError ? getUnitManagementError(automaticMutation.error) : ''}
           onAdd={controller.addAutomatic}
           onClose={() => controller.setDialog(null)}
         />
@@ -70,7 +70,7 @@ export function UnitListDialogs({
           buildings={data.buildings}
           units={data.units}
           busy={unitMutation.isPending}
-          errorMessage={unitMutation.isError ? getUnitListError(unitMutation.error) : ''}
+          errorMessage={unitMutation.isError ? getUnitManagementError(unitMutation.error) : ''}
           onSaveUnit={(unit) => unitMutation.mutate({
             unit,
             editingId: dialog.target.clientId
@@ -83,7 +83,7 @@ export function UnitListDialogs({
           label={'1세대'}
           fallbackFocusRef={controller.listTitleRef}
           busy={deleteMutation.isPending}
-          errorMessage={deleteMutation.isError ? getUnitListError(deleteMutation.error) : ''}
+          errorMessage={deleteMutation.isError ? getUnitManagementError(deleteMutation.error) : ''}
           onConfirm={() => {
             if (controller.pendingUnit) deleteMutation.mutate(controller.pendingUnit.clientId);
           }}

@@ -7,11 +7,17 @@ import lombok.Getter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-/** 실제 주민 명부의 조회 매핑입니다. 등록·수정 메서드는 해당 기능 구현 시 추가합니다. */
+/** 로그인 계정과 구분한 주민 명부이며 연락처는 암호문·검색값·끝 네 자리만 보관합니다. */
 @Getter
 @Entity
 @Table(name = "residents")
-public class Resident {
+public class Resident implements org.springframework.data.domain.Persistable<UUID> {
+	@Transient private boolean newRecord;
+
+	@Override public boolean isNew() { return newRecord; }
+
+	@PostLoad @PostPersist
+	private void markPersisted() { newRecord = false; }
 	@Id
 	private UUID id;
 	@Column(name = "property_id", nullable = false, updatable = false)
@@ -40,5 +46,26 @@ public class Resident {
 	private UUID deletedBy;
 
 	protected Resident() {
+	}
+
+	/** 명부 등록만으로 계정·가입 권한을 연결하지 않고 연락처의 세 저장값은 함께 설정합니다. */
+	public static Resident register(UUID id, UUID propertyId, String name, String encryptedPhone,
+		String phoneHmac, String phoneLast4, OffsetDateTime at) {
+		var resident = new Resident();
+		// 요청 ID는 외부에서 지정하므로 신규 저장은 merge 대신 persist로 수행해 다른 대상의 ID 충돌에도 덮어쓰지 않습니다.
+		resident.newRecord = true;
+		resident.id = java.util.Objects.requireNonNull(id);
+		resident.propertyId = java.util.Objects.requireNonNull(propertyId);
+		resident.name = com.moahome.server.common.validation.TextValues.required(name, 50);
+		if ((encryptedPhone == null) != (phoneHmac == null) || (encryptedPhone == null) != (phoneLast4 == null)) {
+			throw new IllegalArgumentException("Incomplete protected contact");
+		}
+		resident.phoneEncrypted = encryptedPhone;
+		resident.phoneHmac = phoneHmac;
+		resident.phoneLast4 = phoneLast4;
+		resident.status = "ACTIVE";
+		resident.createdAt = java.util.Objects.requireNonNull(at);
+		resident.updatedAt = at;
+		return resident;
 	}
 }

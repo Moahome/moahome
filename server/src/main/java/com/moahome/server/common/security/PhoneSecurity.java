@@ -17,7 +17,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import com.moahome.server.config.PhoneSecurityProperties;
 
-/** Shared phone encryption and lookup helper; register a bean when contact storage is implemented. */
+/** 주민 연락처의 정규화·암호화·검색값·마스킹을 제공하는 공통 보안 코드입니다. */
 public class PhoneSecurity {
 	private static final int NONCE_LENGTH = 12;
 	private static final int TAG_LENGTH_BITS = 128;

@@ -45,3 +45,7 @@ export {
   createAutomaticUnits,
   type AutomaticUnitRule
 } from './model/automaticUnits';
+
+export {
+  UnitDetail
+} from './ui/unit-detail/unitDetail';

@@ -41,7 +41,7 @@ docker compose version
 | `server/build.gradle` | Java Toolchain, 서버 의존성과 테스트 / 빌드 구성 |
 
 별도 `application-local.yml` 없이 `application.yml`의 `local` Profile 문서에서 기존 `.env`를 읽습니다.
-`application.yml`과 두 `application*.properties`는 로컬 설정으로 Git에서 제외합니다. `jwtSecurity.properties`와 `propertyRegistration.properties`는 실제 비밀값 없이 환경변수 연결만 정의하는 공통 파일로 추적합니다.
+`application.yml`과 두 `application*.properties`는 로컬 설정으로 Git에서 제외합니다. `jwtSecurity.properties`, `propertyRegistration.properties`, `residentSecurity.properties`는 실제 비밀값 없이 환경변수 연결만 정의하는 공통 파일로 추적합니다.
 DataSource, Redis와 카카오 OAuth는 환경변수에 연결되어 있습니다.
 JWT 검증, 웹과 앱의 재발급 / 로그아웃 및 Redis 인증 상태 관리는 구현되어 있습니다. API와 전달 방식은 [JWT 인증 설계](securityDesign.md)를 따릅니다. 사용자 / 소셜 계정 저장, 웹 카카오 OAuth 시작 / 콜백과 검증된 프로필의 세션 연결은 구현되어 있습니다. Client 로그인 버튼, 콜백의 세션 복원과 Access Token 메모리 보관도 구현되어 있습니다. 최종 서비스 진입 분기와 네이티브 앱의 일회용 코드 교환은 후속 구현 범위입니다.
 
@@ -87,7 +87,15 @@ Next.js는 `client/`에서 실행하면 해당 프로젝트의 `.env`를 읽습�
 
 등록 기능의 세 보안 키도 각각 새로 생성해 `server/.env` 또는 실행 환경에 설정합니다. 추적되는 `server/src/main/resources/propertyRegistration.properties`가 환경변수를 Spring 설정으로 연결하며 실제 값은 포함하지 않습니다. 모든 서버 인스턴스에서 같은 키를 사용합니다. 키 교체 시 외부 설정의 `moahome.account-security.active-key-id / encryption-keys`와 `moahome.registration-security.active-key-version / fingerprint-keys`에 신규 키와 기존 키를 함께 유지합니다. 기존 키를 제거하면 이전 계좌 복호화 또는 이전 requestId의 본문 비교를 수행할 수 없습니다.
 
-현재 `users`에는 전화번호를 저장하지 않으므로 전화번호 암호화 / HMAC 환경변수를 사용하지 않습니다. 공통 `PhoneSecurity`와 키 설정 자료형은 유지하며, Bean 등록과 외부 키 설정은 주민 명부 / 가입 요청의 연락처 저장을 구현할 때 연결합니다. 현재 로그인 서버 실행에는 전화번호 키가 필요하지 않습니다.
+주민 등록에서 연락처를 입력하려면 아래 키를 외부 설정으로 준비합니다. 로그인·목록·연락처 없는 등록에는 필요하지 않습니다. 키가 없거나 잘못되면 연락처 포함 등록은 `503 PHONE_SECURITY_UNAVAILABLE`로 전체 실패합니다.
+
+| 변수 | 용도 |
+| --- | --- |
+| `PHONE_ACTIVE_KEY_ID` | 활성 전화번호 암호화 키 ID. 기본 `v1` |
+| `PHONE_ENCRYPTION_KEY_BASE64` | 전화번호 AES-256-GCM 암호화용 무작위 32바이트 Base64 키 |
+| `PHONE_HMAC_KEY_BASE64` | 전화번호 검색용 별도 무작위 32바이트 Base64 키 |
+
+각 키는 독립적으로 생성하며 계좌·JWT·등록 요청 키를 재사용하지 않습니다. 모든 서버 인스턴스에서 같은 키를 사용합니다. 실제 값은 Git에 저장하지 않습니다. `residentSecurity.properties`는 환경변수 참조만 포함합니다. 키 교체 시 외부 `moahome.phone-security.encryption-keys`에 기존·신규 ID의 키를 함께 유지하고 `active-key-id`를 변경합니다. 기본 환경변수 연결은 `v1`에만 제공하므로 다른 활성 ID에는 해당 ID의 외부 설정도 필요합니다. 기존 암호화 키를 제거하면 이전 번호를 복호화할 수 없습니다. HMAC 키 변경은 중복 조회값의 별도 재생성 절차 없이는 수행하지 않습니다.
 
 Refresh 쿠키는 기본적으로 `Secure=true`이고 `local` Profile에서만 HTTP 개발을 위해 `false`로 설정됩니다. `local` Profile은 기존 `WEB_ALLOWED_ORIGINS`를 유지하며 Swagger UI의 `http://localhost:4000`을 추가합니다. 운영 실행에는 `local` 이외의 Profile을 명시하고 HTTPS 및 실제 `WEB_ALLOWED_ORIGINS`를 설정합니다.
 

@@ -4,16 +4,16 @@ import { useRef } from 'react';
 import {
   getFloorLabel,
   getUnitLabel,
-  UNIT_STATUS_OPTIONS,
   type UnitDraft
-} from '@/entities/property';
+} from '../../model/unitForm';
+import { UNIT_STATUS_OPTIONS } from '../../constants/propertyOptions';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import styles from './unitDetailModal.module.css';
+import styles from './unitDetail.module.css';
 
 /** 목록의 현재 세대 정보를 보여주고 수정 입력과 한 세대 삭제 확인으로 연결합니다. */
-export function UnitDetailModal({
+export function UnitDetail({
   unit,
   buildingName,
   hasBuildings,
@@ -21,6 +21,7 @@ export function UnitDetailModal({
   onDelete,
   busy = false,
   onClose,
+  presentation = 'modal',
 }: {
   unit: UnitDraft;
   buildingName?: string;
@@ -29,6 +30,7 @@ export function UnitDetailModal({
   onDelete: () => void;
   busy?: boolean;
   onClose: () => void;
+  presentation?: 'modal' | 'page';
 }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const unitLabel = getUnitLabel({
@@ -66,14 +68,9 @@ export function UnitDetailModal({
     },
   ];
 
-  return (
-    <ClientModal
-      initialFocusRef={closeRef}
-      onClose={onClose}
-      busy={busy}
-      className={styles.dialog}
-      aria-labelledby={'unit-detail-title'}
-    >
+  const Title = presentation === 'page' ? 'h1' : 'h2';
+  const content = (
+    <>
       <header
         className={styles.header}
       >
@@ -81,26 +78,28 @@ export function UnitDetailModal({
           <p>
             세대 상세
           </p>
-          <h2
+          <Title
             id={'unit-detail-title'}
           >
             {identity}
-          </h2>
+          </Title>
         </div>
-        <Button
-          ref={closeRef}
-          variant={'ghost'}
-          size={'sm'}
-          iconOnly
-          aria-label={'세대 상세 닫기'}
-          disabled={busy}
-          onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
-        />
+        {presentation === 'modal' && (
+          <Button
+            ref={closeRef}
+            variant={'ghost'}
+            size={'sm'}
+            iconOnly
+            aria-label={'세대 상세 닫기'}
+            disabled={busy}
+            onClick={onClose}
+            leadingIcon={(
+              <ServiceIcon
+                name={'close'}
+              />
+            )}
+          />
+        )}
       </header>
       <span
         className={styles.status}
@@ -133,7 +132,7 @@ export function UnitDetailModal({
           onClick={onClose}
           disabled={busy}
         >
-          닫기
+          {presentation === 'page' ? '목록으로' : '닫기'}
         </Button>
         <Button
           variant={'outline'}
@@ -152,6 +151,27 @@ export function UnitDetailModal({
           삭제
         </Button>
       </footer>
+    </>
+  );
+
+  if (presentation === 'page') return (
+    <section
+      className={styles.page}
+      aria-labelledby={'unit-detail-title'}
+    >
+      {content}
+    </section>
+  );
+
+  return (
+    <ClientModal
+      initialFocusRef={closeRef}
+      onClose={onClose}
+      busy={busy}
+      className={styles.dialog}
+      aria-labelledby={'unit-detail-title'}
+    >
+      {content}
     </ClientModal>
   );
 }

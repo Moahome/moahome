@@ -21,12 +21,18 @@ export function ServiceHeader({
   homeHref = '/start',
   homeLabel = '시작 화면',
   mobileContent,
+  mobileBack,
 }: {
   user?: Pick<CurrentUser, 'displayName' | 'profileImageUrl'>;
   onNotify?: () => void;
   homeHref?: string;
   homeLabel?: string;
   mobileContent?: (onNavigate: () => void) => ReactNode;
+  mobileBack?: {
+    href: string;
+    label: string;
+    title: string;
+  };
 }) {
   // 관리 레이아웃은 권한 확인 후 이 위젯을 표시하며, 세션 조회 결과는 시작 화면과 공유합니다.
   const session = useSession();
@@ -39,7 +45,26 @@ export function ServiceHeader({
       <header
         className={styles.header}
         data-management={Boolean(mobileContent) || undefined}
+        data-subpage={Boolean(mobileBack) || undefined}
       >
+        {mobileBack && (
+          <div
+            className={styles['mobile-navigation']}
+          >
+            <Link
+              href={mobileBack.href}
+              aria-label={mobileBack.label}
+              className={styles['back-link']}
+            >
+              <ServiceIcon
+                name={'chevron'}
+              />
+            </Link>
+            <span>
+              {mobileBack.title}
+            </span>
+          </div>
+        )}
         <Link
           href={homeHref}
           className={styles.brand}

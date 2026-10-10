@@ -9,13 +9,15 @@ export const metadata: Metadata = {
   }
 };
 
-export default async function Page({ params }: PageProps<'/manage/[propertyId]/residents'>) {
+export default async function Page({ params, searchParams }: PageProps<'/manage/[propertyId]/residents'>) {
   const { propertyId } = await params;
+  const query = await searchParams;
 
   return (
     <ResidentListPage
       key={propertyId}
       propertyId={propertyId}
+      registered={query.registered === '1'}
     />
   );
 }

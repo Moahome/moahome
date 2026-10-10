@@ -33,7 +33,7 @@ export interface BuildingUnitFormTarget {
   buildingClientId?: string;
 }
 
-/** 초기 등록과 세대 관리에서 같은 입력·검증·포커스 처리를 사용하고 저장은 호출자에게 위임합니다. */
+/** 초기 등록과 세대 관리의 모달·페이지에서 입력·검증을 공유하고 저장과 페이지 이동은 호출자에게 위임합니다. */
 export function BuildingUnitFormModal({
   target,
   hasBuildings,
@@ -45,6 +45,7 @@ export function BuildingUnitFormModal({
   onClose,
   busy = false,
   errorMessage = '',
+  presentation = 'modal',
 }: {
   target: BuildingUnitFormTarget;
   hasBuildings: boolean;
@@ -56,6 +57,7 @@ export function BuildingUnitFormModal({
   onClose: () => void;
   busy?: boolean;
   errorMessage?: string;
+  presentation?: 'modal' | 'page';
 }) {
   const entryRef = useRef<HTMLInputElement>(null);
   const isBuilding = target.kind === 'building';
@@ -109,35 +111,32 @@ export function BuildingUnitFormModal({
     if (failure) setMessage(failure);
   }
 
-  return (
-    <ClientModal
-      initialFocusRef={entryRef}
-      onClose={onClose}
-      busy={busy}
-      className={styles.dialog}
-      aria-labelledby={'building-unit-form-modal-title'}
-    >
+  const Title = presentation === 'page' ? 'h1' : 'h2';
+  const content = (
+    <>
       <header
         className={styles.header}
       >
-        <h2
+        <Title
           id={'building-unit-form-modal-title'}
         >
           {title}
-        </h2>
-        <Button
-          variant={'ghost'}
-          size={'sm'}
-          iconOnly
-          aria-label={`${title} 닫기`}
-          onClick={onClose}
-          disabled={busy}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
-        />
+        </Title>
+        {presentation === 'modal' && (
+          <Button
+            variant={'ghost'}
+            size={'sm'}
+            iconOnly
+            aria-label={`${title} 닫기`}
+            onClick={onClose}
+            disabled={busy}
+            leadingIcon={(
+              <ServiceIcon
+                name={'close'}
+              />
+            )}
+          />
+        )}
       </header>
       <form
         onSubmit={submitEntry}
@@ -267,6 +266,27 @@ export function BuildingUnitFormModal({
           </Button>
         </footer>
       </form>
+    </>
+  );
+
+  if (presentation === 'page') return (
+    <section
+      className={styles.page}
+      aria-labelledby={'building-unit-form-modal-title'}
+    >
+      {content}
+    </section>
+  );
+
+  return (
+    <ClientModal
+      initialFocusRef={entryRef}
+      onClose={onClose}
+      busy={busy}
+      className={styles.dialog}
+      aria-labelledby={'building-unit-form-modal-title'}
+    >
+      {content}
     </ClientModal>
   );
 }

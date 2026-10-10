@@ -540,7 +540,7 @@ const HOUSEHOLDS = `/manage/${PROPERTY_ID}/households`;
 const UNITS_URL = `${API_ORIGIN}/api/properties/${PROPERTY_ID}/units`;
 const BUILDING_ID = '11111111-1111-4111-8111-111111111111';
 
-for (const width of [1440, 320]) {
+for (const width of [1440]) {
   test(`세대 상세 ${width}px는 행·키보드로 열고 닫기·수정·상세 삭제의 진입점을 구분`, async ({ page }, testInfo) => {
     await page.setViewportSize({
       width,
@@ -936,7 +936,7 @@ test('기존 세대 모달로 추가·수정하고 저장 실패에는 입력을
   expect(units[0].id).toBe(savedId);
 });
 
-test('세대 조회 장애는 빈 목록과 구분하고 모바일에서 표·모달이 화면 밖으로 페이지를 밀지 않음', async ({ page }) => {
+test('세대 조회 장애는 빈 목록과 구분하고 모바일에서 표·등록 페이지가 화면 밖으로 페이지를 밀지 않음', async ({ page }) => {
   let failed = true;
   await page.route(UNITS_URL, (route) => fulfillJson(route, failed ? {
     code: 'UNIT_SERVICE_UNAVAILABLE'
@@ -967,28 +967,30 @@ test('세대 조회 장애는 빈 목록과 구분하고 모바일에서 표·�
     exact: true
   });
   await add.click();
-  const dialog = page.getByRole('dialog', {
-    name: '세대 추가',
-    exact: true
-  });
-  await expect(dialog.getByRole('textbox', {
-    name: '호수',
-    exact: true
-  })).toBeFocused();
-  await dialog.getByRole('textbox', {
+  await expect(page).toHaveURL(`${HOUSEHOLDS}/new`);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await main.getByRole('textbox', {
     name: '호수',
     exact: true
   }).fill('취소할 입력');
   await page.screenshot({
     path: test.info().outputPath('householdEditorMobile.png'),
-    fullPage: true
+    fullPage: true,
+    animations: 'disabled'
   });
-  await page.keyboard.press('Escape');
-  await expect(dialog).not.toBeVisible();
-  await expect(add).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByRole('banner').getByRole('link', {
+    name: '세대 목록으로 돌아가기'
+  }).click();
+  await expect(page).toHaveURL(HOUSEHOLDS);
   await expect(main.getByText('아직 등록된 세대가 없어요.', {
     exact: true
   })).toBeVisible();
+  await add.click();
+  await expect(main.getByRole('textbox', {
+    name: '호수',
+    exact: true
+  })).toHaveValue('');
 });
 
 
@@ -1518,7 +1520,7 @@ test('주민 목록은 사람별 행·대표·마스킹·전체 집계를 표시
   await expect(first).toContainText('•••• 1234');
   await expect(first).toContainText('대표');
   await expect(main.getByRole('button', {
-    name: /등록|수정|삭제/
+    name: /수정|삭제/
   })).toHaveCount(0);
   await expect(main.getByRole('combobox', {
     name: /비활성|주민 상태/
@@ -1754,3 +1756,479 @@ test('주민 동 필터는 서버 등록 순서와 관계없이 숫자를 인식
   await expect(filter).toHaveText('전체 동');
   await expect(main.getByRole('row')).toHaveCount(11);
 });
+
+/** 주민 등록에 필요한 저장된 세대를 제공하며 실제 업무 API는 호출하지 않습니다. */
+async function mockResidentRegistrationUnits(page: Page, hasBuildings = true) {
+  await page.route(UNITS_URL, (route) => fulfillJson(route, {
+    propertyId: PROPERTY_ID,
+    hasBuildings,
+    buildings: hasBuildings ? [{
+      id: BUILDING_ID,
+      name: '103동'
+    }] : [],
+    units: [{
+      id: '55555555-5555-4555-8555-000000000001',
+      buildingId: hasBuildings ? BUILDING_ID : null,
+      unitNumber: '301',
+      displayName: null,
+      floor: 3,
+      status: 'ACTIVE'
+    }]
+  }));
+}
+
+async function fillResidentRegistration(page: Page, hasBuildings = true) {
+  await page.getByRole('textbox', {
+    name: '주민 이름',
+    exact: true
+  }).fill('새 주민');
+  if (hasBuildings) {
+    await page.getByRole('combobox', {
+      name: '동',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '103동',
+      exact: true
+    }).click();
+  }
+  await page.getByRole('combobox', {
+    name: '소속 세대',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '301호',
+    exact: true
+  }).click();
+  await page.getByRole('combobox', {
+    name: '세대와의 관계',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '임차인',
+    exact: true
+  }).click();
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+}
+
+for (const width of [1440, 375, 320]) {
+  test(`주민 등록 ${width}px는 웹 모달·모바일 페이지로 열고 선택 연락처 없이 저장한 뒤 목록·카드를 갱신`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 960
+    });
+    await mockResidentRegistrationUnits(page);
+    const data = residentDirectory();
+    data.residents = [];
+    let posts = 0;
+    await page.route(RESIDENTS_URL, async (route) => {
+      if (route.request().method() !== 'POST') return fulfillJson(route, data);
+      posts++;
+      const input = route.request().postDataJSON();
+      expect(input.phone).toBeNull();
+      expect(input.name).toBe('새 주민');
+      expect(input.unitId).toBe('55555555-5555-4555-8555-000000000001');
+      expect(input.relationType).toBe('TENANT');
+      expect(route.request().headers().authorization).toBe('Bearer test-access');
+      data.residents.push({
+        ...residentDirectory().residents[0],
+        id: input.requestId,
+        name: input.name,
+        phoneLast4: '',
+        signupStatus: 'NOT_JOINED'
+      });
+      await fulfillJson(route, {
+        id: input.requestId,
+        propertyId: PROPERTY_ID,
+        unitId: input.unitId,
+        representative: true
+      }, 201);
+    });
+    // 연락처 없음은 목록 계약의 null로 응답합니다.
+    await page.route(RESIDENTS_URL, async (route) => {
+      if (route.request().method() === 'POST') return route.fallback();
+      await fulfillJson(route, {
+        ...data,
+        residents: data.residents.map((row) => ({
+          ...row,
+          phoneLast4: null
+        }))
+      });
+    });
+    await page.goto(RESIDENTS);
+    await page.getByRole('button', {
+      name: '주민 등록',
+      exact: true
+    }).click();
+    if (width >= 768) {
+      await expect(page).toHaveURL(RESIDENTS);
+      await expect(page.getByRole('dialog', {
+        name: '주민 등록'
+      })).toBeVisible();
+    } else {
+      await expect(page).toHaveURL(`${RESIDENTS}/new`);
+      const back = page.getByRole('banner').getByRole('link', {
+        name: '주민 목록으로 돌아가기'
+      });
+      await expect(back).toBeVisible();
+      await back.click();
+      await expect(page).toHaveURL(RESIDENTS);
+      await page.goto(`${RESIDENTS}/new`);
+      await expect(back).toBeVisible();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page.getByRole('heading', {
+        name: '주민 등록',
+        exact: true
+      })).toBeVisible();
+    }
+    await fillResidentRegistration(page);
+    await page.screenshot({
+      path: test.info().outputPath(`residentRegistration${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.getByRole('button', {
+      name: '등록',
+      exact: true
+    }).click();
+    await expect(page.getByRole('article', {
+      name: '전체 주민 1명'
+    })).toBeVisible();
+    await expect(page.getByRole('article', {
+      name: '미가입 1명'
+    })).toBeVisible();
+    const row = page.getByRole('row').filter({
+      hasText: '새 주민'
+    });
+    await expect(row).toContainText('103동 301호');
+    await expect(row).toContainText('대표');
+    await expect(row).toContainText('—');
+    await expect(page.getByRole('status')).toContainText('주민을 등록했어요.');
+    await expect(page).toHaveURL(RESIDENTS);
+    expect(posts).toBe(1);
+    expect(await page.evaluate(() => Object.values(localStorage).some((value) => value.includes('새 주민')))).toBe(false);
+  });
+}
+
+test('주민 등록은 필수값·연락처를 검증하고 국내 번호를 변환하며 저장 중 닫기·중복 클릭을 막음', async ({ page }) => {
+  await page.setViewportSize({
+    width: 1440,
+    height: 960
+  });
+  await mockResidentRegistrationUnits(page, false);
+  await page.route(RESIDENTS_URL, (route) => fulfillJson(route, residentDirectory(false)));
+  let complete: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { complete = resolve; });
+  let posts = 0;
+  await page.route(RESIDENTS_URL, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    posts++;
+    const input = route.request().postDataJSON();
+    expect(input.phone).toBe('+821012345678');
+    await gate;
+    await fulfillJson(route, {
+      id: input.requestId,
+      propertyId: PROPERTY_ID,
+      unitId: input.unitId,
+      representative: false
+    }, 201);
+  });
+  await page.goto(RESIDENTS);
+  await page.getByRole('button', {
+    name: '주민 등록',
+    exact: true
+  }).click();
+  const dialog = page.getByRole('dialog', {
+    name: '주민 등록'
+  });
+  const save = dialog.getByRole('button', {
+    name: '등록',
+    exact: true
+  });
+  await save.click();
+  await expect(dialog.getByText('이름을 1~50자로 입력해주세요.')).toBeVisible();
+  expect(posts).toBe(0);
+  await fillResidentRegistration(page, false);
+  await expect(dialog.getByRole('combobox', {
+    name: '동',
+    exact: true
+  })).toHaveCount(0);
+  await dialog.getByRole('textbox', {
+    name: '연락처 (선택)',
+    exact: true
+  }).fill('abcd1234');
+  await save.click();
+  await expect(dialog.getByText('올바른 연락처를 입력해주세요.')).toBeVisible();
+  expect(posts).toBe(0);
+  await dialog.getByRole('textbox', {
+    name: '연락처 (선택)',
+    exact: true
+  }).fill('010-1234-5678');
+  await save.click();
+  await expect(dialog.getByRole('button', {
+    name: '등록 중…'
+  })).toBeDisabled();
+  await expect(dialog.getByRole('button', {
+    name: '주민 등록 닫기'
+  })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeVisible();
+  expect(posts).toBe(1);
+  complete();
+  await expect(dialog).toHaveCount(0);
+});
+
+test('주민 등록 중복·통신 실패에는 입력을 유지하고 같은 요청 ID로 재시도하며 취소 시 초안을 폐기', async ({ page }) => {
+  await page.setViewportSize({
+    width: 1440,
+    height: 960
+  });
+  await mockResidentRegistrationUnits(page);
+  await page.route(RESIDENTS_URL, (route) => fulfillJson(route, residentDirectory()));
+  const ids: string[] = [];
+  await page.route(RESIDENTS_URL, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    const input = route.request().postDataJSON();
+    ids.push(input.requestId);
+    if (ids.length === 1) return fulfillJson(route, {
+      code: 'DUPLICATE_RESIDENT',
+      message: 'private data'
+    }, 409);
+    return fulfillJson(route, {
+      code: 'UNAVAILABLE',
+      message: 'private SQL'
+    }, 503);
+  });
+  await page.goto(RESIDENTS);
+  const open = page.getByRole('button', {
+    name: '주민 등록',
+    exact: true
+  });
+  await open.click();
+  await fillResidentRegistration(page);
+  const dialog = page.getByRole('dialog', {
+    name: '주민 등록'
+  });
+  const save = dialog.getByRole('button', {
+    name: '등록',
+    exact: true
+  });
+  await save.click();
+  await expect(dialog.getByRole('alert')).toContainText('이름과 연락처가 같은 주민');
+  await expect(dialog.getByRole('textbox', {
+    name: '주민 이름',
+    exact: true
+  })).toHaveValue('새 주민');
+  await save.click();
+  await expect(dialog.getByRole('alert')).toContainText('등록 결과를 확인하지 못했어요.');
+  await expect(dialog).not.toContainText('private');
+  expect(ids).toHaveLength(2);
+  expect(ids[0]).toBe(ids[1]);
+  await page.keyboard.press('Escape');
+  await expect(open).toBeFocused();
+  await open.click();
+  await expect(dialog.getByRole('textbox', {
+    name: '주민 이름',
+    exact: true
+  })).toHaveValue('');
+});
+
+test('주민 등록 세대 조회 실패는 재시도하고 빈 세대는 등록을 안내하며 모바일 직접 접근은 관리소장만 허용', async ({ page }) => {
+  await page.route(RESIDENTS_URL, (route) => fulfillJson(route, residentDirectory()));
+  await page.route(UNITS_URL, (route) => fulfillJson(route, {
+    code: 'UNAVAILABLE'
+  }, 503));
+  await page.goto(`${RESIDENTS}/new`);
+  await expect(page.getByRole('main').getByRole('alert')).toContainText('세대 목록을 불러오지 못했어요.');
+  await page.route(UNITS_URL, (route) => fulfillJson(route, {
+    propertyId: PROPERTY_ID,
+    hasBuildings: false,
+    buildings: [],
+    units: []
+  }));
+  await page.getByRole('button', {
+    name: '다시 시도',
+    exact: true
+  }).click();
+  await expect(page.getByText('주민을 등록하려면 먼저 세대를 등록해주세요.')).toBeVisible();
+  await page.route(CONTEXT_URL, (route) => fulfillJson(route, {
+    ...PROPERTY,
+    role: 'MANAGER'
+  }));
+  await page.reload();
+  await expect(page.getByRole('main').getByRole('alert')).toContainText('주민을 등록할 관리소장 권한이 없어요.');
+  await expect(page.getByRole('textbox', {
+    name: '주민 이름',
+    exact: true
+  })).toHaveCount(0);
+});
+
+for (const width of [320, 767]) {
+  test(`모바일 세대 ${width}px 등록·상세·수정 페이지의 헤더 뒤로가기·직접 접근·저장·삭제`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const unitId = '33333333-3333-4333-8333-333333333333';
+    let units: { id: string; buildingId: string | null; unitNumber: string; displayName: string | null; floor: number | null; status: string }[] = [];
+    let failSave = true;
+    await page.route(`${UNITS_URL}**`, async (route) => {
+      const method = route.request().method();
+      if (method === 'OPTIONS') return fulfillJson(route, {});
+      if (method === 'GET') return fulfillJson(route, {
+        propertyId: PROPERTY_ID,
+        hasBuildings: true,
+        buildings: [{
+          id: BUILDING_ID,
+          name: '101동'
+        }],
+        units
+      });
+      expect(route.request().headers().authorization).toBe('Bearer test-access');
+      if (method === 'DELETE') {
+        expect(route.request().url()).toBe(`${UNITS_URL}/${unitId}`);
+        units = [];
+        return route.fulfill({
+          status: 204,
+          headers: {
+            'Access-Control-Allow-Origin': 'http://localhost:3100',
+            'Access-Control-Allow-Credentials': 'true'
+          }
+        });
+      }
+      if (failSave) return fulfillJson(route, {
+        code: 'UNIT_SERVICE_UNAVAILABLE'
+      }, 503);
+      const input = route.request().postDataJSON();
+      expect(input.buildingId).toBe(BUILDING_ID);
+      const saved = {
+        ...input,
+        id: unitId
+      };
+      units = [saved];
+      return fulfillJson(route, saved, method === 'POST' ? 201 : 200);
+    });
+    await page.goto(HOUSEHOLDS);
+    const main = page.getByRole('main');
+    const banner = page.getByRole('banner');
+    await main.getByRole('button', {
+      name: '세대 추가',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(`${HOUSEHOLDS}/new`);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(banner.getByRole('link', {
+      name: '세대 목록으로 돌아가기'
+    })).toBeVisible();
+    await main.getByRole('textbox', {
+      name: '호수',
+      exact: true
+    }).fill('201');
+    await main.getByLabel('층', {
+      exact: true
+    }).fill('-1');
+    await main.getByRole('button', {
+      name: '추가',
+      exact: true
+    }).click();
+    await expect(main.getByRole('alert')).toContainText('다시 시도');
+    await expect(main.getByRole('textbox', {
+      name: '호수',
+      exact: true
+    })).toHaveValue('201');
+    failSave = false;
+    await main.getByRole('button', {
+      name: '추가',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(HOUSEHOLDS);
+    await expect(page.getByRole('status')).toContainText('세대를 추가했어요.');
+    await main.getByRole('button', {
+      name: '101동 201호 상세 보기'
+    }).click();
+    await expect(page).toHaveURL(`${HOUSEHOLDS}/${unitId}`);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(main.getByRole('heading', {
+      name: '101동 201호',
+      exact: true
+    })).toBeVisible();
+    await expect(main.getByText('B1층', {
+      exact: true
+    })).toBeVisible();
+    await page.screenshot({
+      path: test.info().outputPath(`unitDetailMobile${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await banner.getByRole('link', {
+      name: '세대 목록으로 돌아가기'
+    }).click();
+    await expect(page).toHaveURL(HOUSEHOLDS);
+    await page.goto(`${HOUSEHOLDS}/${unitId}`);
+    await page.reload();
+    await expect(main.getByRole('heading', {
+      name: '101동 201호',
+      exact: true
+    })).toBeVisible();
+    await main.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(`${HOUSEHOLDS}/${unitId}/edit`);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(main.getByRole('textbox', {
+      name: '호수',
+      exact: true
+    })).toHaveValue('201');
+    await banner.getByRole('link', {
+      name: '세대 상세로 돌아가기'
+    }).click();
+    await expect(page).toHaveURL(`${HOUSEHOLDS}/${unitId}`);
+    await main.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    await main.getByLabel('세대 별칭', {
+      exact: true
+    }).fill('정문 세대');
+    await main.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(HOUSEHOLDS);
+    await expect(main.getByRole('row').last()).toContainText('정문 세대');
+    await main.getByRole('button', {
+      name: '101동 201호 상세 보기'
+    }).click();
+    await main.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    const confirmation = page.getByRole('alertdialog');
+    await confirmation.getByRole('button', {
+      name: '취소',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(`${HOUSEHOLDS}/${unitId}`);
+    await main.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await confirmation.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(HOUSEHOLDS);
+    await expect(main.getByText('아직 등록된 세대가 없어요.', {
+      exact: true
+    })).toBeVisible();
+    await page.goto(`${HOUSEHOLDS}/${unitId}`);
+    await expect(main.getByRole('alert')).toContainText('세대를 확인할 수 없거나 수정할 수 없어요.');
+    await banner.getByRole('link', {
+      name: '세대 목록으로 돌아가기'
+    }).click();
+    await expect(page).toHaveURL(HOUSEHOLDS);
+  });
+}

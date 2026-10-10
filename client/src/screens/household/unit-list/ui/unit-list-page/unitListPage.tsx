@@ -3,7 +3,7 @@
 import { Button } from '@/shared/ui/button';
 import { Pagination } from '@/shared/ui/pagination';
 import { Toast } from '@/shared/ui/toast';
-import { getUnitListError } from '../../model/unitList';
+import { getUnitManagementError } from '@/features/unit-management';
 import { useUnitList } from './_hooks/useUnitList';
 import { UnitListHeader } from './_components/unit-list-header/unitListHeader';
 import { UnitListSummary } from './_components/unit-list-summary/unitListSummary';
@@ -16,10 +16,12 @@ import styles from './unitListPage.module.css';
 /** 세대 목록의 조회 상태와 화면 블록만 조합하고 각 블록의 표시·스타일은 해당 컴포넌트가 담당합니다. */
 export function UnitListPage({
   propertyId,
+  saved,
 }: {
   propertyId: string;
+  saved?: string;
 }) {
-  const controller = useUnitList(propertyId);
+  const controller = useUnitList(propertyId, saved);
   const { list, data, view } = controller;
 
   if (list.isPending) return (
@@ -39,7 +41,7 @@ export function UnitListPage({
         세대 목록을 불러오지 못했어요.
       </h1>
       <p>
-        {getUnitListError(list.error)}
+        {getUnitManagementError(list.error)}
       </p>
       <Button
         variant={'outline'}

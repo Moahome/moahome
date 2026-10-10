@@ -1,0 +1,13 @@
+.state {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  padding: 48px 16px;
+  color: var(--sub-text);
+  text-align: center;
+
+  h1 {
+    color: var(--foreground);
+    font-size: 20px;
+  }
+}

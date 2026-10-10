@@ -3,17 +3,24 @@ package com.moahome.server.resident.exception;
 import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.auth.security.AuthErrorHandler.ErrorResponse;
 import com.moahome.server.resident.controller.ResidentListController;
+import com.moahome.server.resident.controller.ResidentRegistrationController;
 import com.moahome.server.user.exception.UserException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
-@RestControllerAdvice(assignableTypes = ResidentListController.class)
+@RestControllerAdvice(assignableTypes = {ResidentListController.class, ResidentRegistrationController.class})
 public class ResidentListExceptionHandler {
 	/** 입력값·SQL·명부·전화번호 원문 대신 원인별 고정 안내만 반환합니다. */
-	@ExceptionHandler(IllegalArgumentException.class)
-	public ResponseEntity<ErrorResponse> invalid(IllegalArgumentException exception) {
-		return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "조회 정보를 확인해주세요.");
+	@ExceptionHandler({IllegalArgumentException.class, org.springframework.web.bind.MethodArgumentNotValidException.class,
+		org.springframework.http.converter.HttpMessageNotReadableException.class})
+	public ResponseEntity<ErrorResponse> invalid(Exception exception) {
+		return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "주민 정보를 확인해주세요.");
+	}
+	@ExceptionHandler(ResidentRegistrationException.class)
+	public ResponseEntity<ErrorResponse> registration(ResidentRegistrationException exception) {
+		var code = exception.code();
+		return error(code.status, code.name(), code.message);
 	}
 	@ExceptionHandler(AuthException.class)
 	public ResponseEntity<ErrorResponse> auth(AuthException exception) {

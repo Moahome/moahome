@@ -1,0 +1,187 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  useMutation,
+  useQuery,
+  useQueryClient
+} from '@tanstack/react-query';
+import { useSession } from '@/entities/session';
+import {
+  BuildingUnitFormModal,
+  UnitDetail,
+  UnitDeleteConfirmation,
+  getUnitLabel,
+  type UnitDraft
+} from '@/entities/property';
+import {
+  getUnits,
+  saveUnit,
+  deleteUnits,
+  getUnitManagementError
+} from '@/features/unit-management';
+import { Button } from '@/shared/ui/button';
+import styles from './unitEntryPage.module.css';
+
+/** 모바일의 세대 등록·상세·수정을 독립 주소에서 제공하고 기존 입력 검증과 저장 API를 재사용합니다. */
+export function UnitEntryPage({
+  propertyId,
+  mode,
+  unitId,
+  buildingId
+}: {
+  propertyId: string;
+  mode: 'create' | 'detail' | 'edit';
+  unitId?: string;
+  buildingId?: string;
+}) {
+  const router = useRouter();
+  const session = useSession();
+  const queryClient = useQueryClient();
+  const queryKey = ['property-units', session.data?.id, propertyId];
+  const listPath = `/manage/${propertyId}/households`;
+  const [confirmingDeletion, setConfirmingDeletion] = useState(false);
+  const list = useQuery({
+    queryKey,
+    queryFn: () => getUnits(propertyId),
+    enabled: Boolean(session.data),
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false
+  });
+  const save = useMutation({
+    mutationFn: (unit: UnitDraft) => saveUnit(propertyId, unit, mode === 'edit' ? unitId ?? null : null),
+    retry: false,
+    onSuccess: () => finish(mode === 'edit' ? 'updated' : 'added')
+  });
+  const deletion = useMutation({
+    mutationFn: () => deleteUnits(propertyId, [unitId!]),
+    retry: false,
+    onSuccess: () => finish('deleted')
+  });
+
+  /** 완료 후 목록에서 다시 조회하도록 캐시를 무효화하고 입력 페이지를 목록으로 교체합니다. */
+  async function finish(result: string) {
+    await queryClient.invalidateQueries({
+      queryKey,
+      refetchType: 'none'
+    });
+    router.replace(`${listPath}?saved=${result}`);
+  }
+
+  /** 수정 취소는 상세로, 신규 입력 취소와 상세 닫기는 목록으로 이동합니다. */
+  function closePage() {
+    router.replace(mode === 'edit' ? `${listPath}/${unitId}` : listPath);
+  }
+
+  if (list.isPending) return (
+    <p
+      role={'status'}
+    >
+      세대 정보를 불러오고 있어요.
+    </p>
+  );
+  if (list.isError) return (
+    <section
+      className={styles.state}
+      role={'alert'}
+    >
+      <h1>
+        세대 정보를 불러오지 못했어요.
+      </h1>
+      <p>
+        {getUnitManagementError(list.error)}
+      </p>
+      <Button
+        variant={'outline'}
+        onClick={() => void list.refetch()}
+      >
+        다시 시도
+      </Button>
+    </section>
+  );
+
+  const data = list.data;
+  const unit = data.units.find((entry) => entry.clientId === unitId);
+  const cannotCreate = mode === 'create' && data.hasBuildings && !data.buildings.length;
+  if ((mode !== 'create' && !unit) || cannotCreate || (mode === 'edit' && unit?.status === 'INACTIVE')) return (
+    <section
+      className={styles.state}
+      role={'alert'}
+    >
+      <h1>
+        {cannotCreate ? '먼저 동을 등록해주세요.' : '세대를 확인할 수 없거나 수정할 수 없어요.'}
+      </h1>
+      <Button
+        variant={'outline'}
+        onClick={() => router.replace(listPath)}
+      >
+        세대 목록으로
+      </Button>
+    </section>
+  );
+
+  if (mode !== 'detail') return (
+    <BuildingUnitFormModal
+      presentation={'page'}
+      target={{
+        kind: 'unit',
+        clientId: mode === 'edit' ? unitId! : null,
+        buildingClientId: data.buildings.some((building) => building.clientId === buildingId) ? buildingId : undefined
+      }}
+      hasBuildings={data.hasBuildings}
+      buildings={data.buildings}
+      units={data.units}
+      onSaveUnit={(entry) => {
+        if (!save.isPending) save.mutate(entry);
+      }}
+      onClose={closePage}
+      busy={save.isPending}
+      errorMessage={save.isError ? getUnitManagementError(save.error) : ''}
+    />
+  );
+
+  if (!unit) return null;
+  const buildingName = data.buildings.find((building) => building.clientId === unit.buildingClientId)?.name;
+
+  return (
+    <>
+      <UnitDetail
+        presentation={'page'}
+        unit={unit}
+        buildingName={buildingName}
+        hasBuildings={data.hasBuildings}
+        onEdit={() => router.push(`${listPath}/${unit.clientId}/edit`)}
+        onDelete={() => {
+          deletion.reset();
+          setConfirmingDeletion(true);
+        }}
+        busy={deletion.isPending}
+        onClose={closePage}
+      />
+      {confirmingDeletion && (
+        <UnitDeleteConfirmation
+          label={'1세대'}
+          busy={deletion.isPending}
+          errorMessage={deletion.isError ? getUnitManagementError(deletion.error) : ''}
+          onConfirm={() => {
+            if (!deletion.isPending) deletion.mutate();
+          }}
+          onClose={() => setConfirmingDeletion(false)}
+        >
+          <p>
+            {buildingName}
+            {' '}
+            {getUnitLabel({
+              ...unit,
+              displayName: null
+            })}
+          </p>
+        </UnitDeleteConfirmation>
+      )}
+    </>
+  );
+}

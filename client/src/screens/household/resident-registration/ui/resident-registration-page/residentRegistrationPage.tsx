@@ -1,0 +1,65 @@
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useSession } from '@/entities/session';
+import { useManagementContext } from '@/features/enter-service';
+import { ResidentRegistrationForm } from '@/features/resident-registration';
+import styles from './residentRegistrationPage.module.css';
+
+/** 모바일의 독립 등록 주소를 제공하고 직접 접근에서도 현재 관리소장에게만 폼을 표시합니다. */
+export function ResidentRegistrationPage({
+  propertyId
+}: {
+  propertyId: string;
+}) {
+  const router = useRouter();
+  const session = useSession();
+  const context = useManagementContext(session.data?.id, propertyId, false);
+  const listPath = `/manage/${propertyId}/residents`;
+  if (!context.isSuccess) return (
+    <p
+      role={'status'}
+    >
+      등록 권한을 확인하고 있어요.
+    </p>
+  );
+  if (context.data.role !== 'ADMIN') return (
+    <p
+      role={'alert'}
+    >
+      주민을 등록할 관리소장 권한이 없어요.
+    </p>
+  );
+
+  return (
+    <section
+      className={styles.page}
+      aria-labelledby={'resident-registration-title'}
+    >
+      <header
+        className={styles.header}
+      >
+        <p>
+          주민 관리
+        </p>
+        <h1
+          id={'resident-registration-title'}
+        >
+          주민 등록
+        </h1>
+        <p>
+          주민 정보와 소속 세대를 입력해주세요.
+        </p>
+      </header>
+      <div
+        className={styles.card}
+      >
+        <ResidentRegistrationForm
+          propertyId={propertyId}
+          onCancel={() => router.replace(listPath)}
+          onRegistered={() => router.replace(`${listPath}?registered=1`)}
+        />
+      </div>
+    </section>
+  );
+}

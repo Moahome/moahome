@@ -28,6 +28,7 @@
     font-size: 14px;
   }
 
+  h1,
   h2 {
     font-size: 24px;
     font-weight: 800;
@@ -85,5 +86,35 @@
   .fields {
     grid-template-columns: minmax(0, 1fr);
     gap: 18px;
+  }
+}
+
+.page {
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  color: var(--foreground);
+}
+
+@media (max-width: 374px) {
+  .page {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 767px) {
+  .page .actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+
+    button {
+      min-width: 0;
+      padding-inline: 8px;
+      font-size: 14px;
+    }
   }
 }

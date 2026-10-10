@@ -1,5 +1,7 @@
+import { useRouter } from 'next/navigation';
 import {
   useCallback,
+  useEffect,
   useRef,
   useState
 } from 'react';
@@ -24,7 +26,7 @@ import {
   deleteUnits,
   deleteBuilding,
   type UnitList
-} from '../../../api/unitApi';
+} from '@/features/unit-management';
 import {
   EMPTY_UNIT_LIST_FILTERS,
   getUnitListView,
@@ -57,7 +59,8 @@ const EMPTY_LIST: UnitList = {
 };
 
 /** 조회·저장과 모달 상태를 관리하고 상세에서 선택한 한 세대만 확인 후 삭제합니다. */
-export function useUnitList(propertyId: string) {
+export function useUnitList(propertyId: string, saved?: string) {
+  const router = useRouter();
   const session = useSession();
   const queryClient = useQueryClient();
   const queryKey = ['property-units', session.data?.id, propertyId];
@@ -75,7 +78,19 @@ export function useUnitList(propertyId: string) {
   const [filters, setFilters] = useState(EMPTY_UNIT_LIST_FILTERS);
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
-  const [notice, setNotice] = useState<{ id: string; message: string } | null>(null);
+  const savedMessages: Record<string, string> = {
+    added: '세대를 추가했어요.',
+    updated: '세대 정보를 수정했어요.',
+    deleted: '세대를 삭제했어요.'
+  };
+  const savedMessage = saved && Object.hasOwn(savedMessages, saved) ? savedMessages[saved] : undefined;
+  const [notice, setNotice] = useState<{ id: string; message: string } | null>(() => savedMessage ? {
+    id: 'page-save',
+    message: savedMessage
+  } : null);
+  useEffect(() => {
+    if (savedMessage) window.history.replaceState(window.history.state, '', `/manage/${propertyId}/households`);
+  }, [propertyId, savedMessage]);
   const clearNotice = useCallback(() => setNotice(null), []);
   const [dialog, setDialog] = useState<UnitListDialog>(null);
   const [automaticRule, setAutomaticRule] = useState(EMPTY_AUTOMATIC_UNIT_RULE);
@@ -156,8 +171,13 @@ export function useUnitList(propertyId: string) {
     });
   }
 
-  /** 새 편집 창마다 이전 서버 오류를 지우고 현재 동을 신규 입력의 기본값으로 사용합니다. */
+  /** 모바일은 입력 페이지로 이동하고 데스크톱은 오류를 비운 모달에 현재 동을 기본값으로 전달합니다. */
   function openEditor(clientId: string | null) {
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      const path = clientId ? `${clientId}/edit` : 'new';
+      router.push(`/manage/${propertyId}/households/${path}${!clientId && filters.buildingId ? `?buildingId=${filters.buildingId}` : ''}`);
+      return;
+    }
     unitMutation.reset();
     clearNotice();
     setDialog({
@@ -223,10 +243,16 @@ export function useUnitList(propertyId: string) {
     automaticMutation,
     deleteMutation,
     openEditor,
-    openDetail: (unitId: string) => setDialog({
-      kind: 'detail',
-      unitId
-    }),
+    openDetail: (unitId: string) => {
+      if (window.matchMedia('(max-width: 767px)').matches) {
+        router.push(`/manage/${propertyId}/households/${unitId}`);
+        return;
+      }
+      setDialog({
+        kind: 'detail',
+        unitId
+      });
+    },
     changeFilters,
     changePage,
     requestDeletion,
