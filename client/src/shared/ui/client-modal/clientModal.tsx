@@ -10,6 +10,7 @@ import {
 interface ClientModalProps extends Omit<ComponentPropsWithoutRef<'dialog'>, 'open' | 'onCancel' | 'onClose'> {
   onClose: () => void;
   busy?: boolean;
+  closeOnOutsideClick?: boolean;
   initialFocusRef?: RefObject<HTMLElement | null>;
   fallbackFocusRef?: RefObject<HTMLElement | null>;
 }
@@ -18,12 +19,16 @@ interface ClientModalProps extends Omit<ComponentPropsWithoutRef<'dialog'>, 'ope
 export function ClientModal({
   onClose,
   busy = false,
+  closeOnOutsideClick = false,
   initialFocusRef,
   fallbackFocusRef,
   children,
+  onClick,
+  onPointerDown,
   ...dialogProps
 }: ClientModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const outsidePointerDown = useRef(false);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -55,6 +60,21 @@ export function ClientModal({
     <dialog
       {...dialogProps}
       ref={dialogRef}
+      onPointerDown={(event) => {
+        onPointerDown?.(event);
+        const bounds = event.currentTarget.getBoundingClientRect();
+        outsidePointerDown.current = event.target === event.currentTarget
+          && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom);
+      }}
+      onClick={(event) => {
+        onClick?.(event);
+        if (!closeOnOutsideClick || busy || event.defaultPrevented || !outsidePointerDown.current) return;
+        const bounds = event.currentTarget.getBoundingClientRect();
+        // 모달 안에서 시작한 드래그와 내부 여백 클릭은 닫기로 처리하지 않습니다.
+        const outside = event.target === event.currentTarget
+          && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom);
+        if (outside) onClose();
+      }}
       onCancel={(event) => {
         event.preventDefault();
         event.stopPropagation();
