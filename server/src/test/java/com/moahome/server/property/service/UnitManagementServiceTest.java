@@ -59,7 +59,7 @@ class UnitManagementServiceTest {
 		assertCode(() -> service.create(userId, property.getId(), request(building.getId(), "201")), "INVALID_REQUEST");
 		verifyNoInteractions(units);
 		when(buildings.findByIdAndPropertyIdAndDeletedAtIsNull(building.getId(), property.getId())).thenReturn(Optional.of(building));
-		when(units.existsByPropertyIdAndBuildingIdAndUnitNumberAndIdNot(eq(property.getId()), eq(building.getId()), eq("201"), any()))
+		when(units.existsByPropertyIdAndBuildingIdAndUnitNumberAndDeletedAtIsNullAndIdNot(eq(property.getId()), eq(building.getId()), eq("201"), any()))
 			.thenReturn(true);
 		assertCode(() -> service.create(userId, property.getId(), request(building.getId(), "201")), "DUPLICATE_UNIT");
 		verify(units, never()).saveAndFlush(any());
@@ -101,7 +101,7 @@ class UnitManagementServiceTest {
 		verify(units, never()).saveAllAndFlush(any());
 		verify(buildings, times(1)).findByIdAndPropertyIdAndDeletedAtIsNull(building.getId(), property.getId());
 		var stored = Unit.create(property, building, "202", null, 2, UnitStatus.ACTIVE, OffsetDateTime.now());
-		when(units.findByPropertyId(property.getId())).thenReturn(List.of(stored));
+		when(units.findByPropertyIdAndDeletedAtIsNull(property.getId())).thenReturn(List.of(stored));
 		assertCode(() -> service.createBatch(userId, property.getId(), new UnitBatchRequest(List.of(
 			request(building.getId(), "201"), request(building.getId(), "202")))), "DUPLICATE_UNIT");
 		verify(units, never()).saveAllAndFlush(any());

@@ -114,8 +114,8 @@ public class UnitManagementService {
 	public List<UnitResponse> createBatch(UUID userId, UUID propertyId, UnitBatchRequest batch) {
 		var property = requireWritableProperty(userId, propertyId);
 		var seen = new HashSet<List<String>>();
-		// 삭제된 호수도 현재 유일성 제약에 포함하며 일괄 추가 수만큼 중복 쿼리를 반복하지 않습니다.
-		units.findByPropertyId(propertyId).forEach(unit ->
+		// 미삭제 세대끼리만 호수 중복을 제한해 삭제 후 재입력을 허용하며 기존 이력의 ID는 보존합니다.
+		units.findByPropertyIdAndDeletedAtIsNull(propertyId).forEach(unit ->
 			seen.add(List.of(String.valueOf(unit.getBuildingId()), unit.getUnitNumber())));
 		var buildingCache = new HashMap<UUID, Building>();
 		var additions = batch.units().stream().map(request -> {
@@ -229,9 +229,9 @@ public class UnitManagementService {
 			.orElseThrow(() -> new UnitManagementException(INVALID_REQUEST));
 	}
 
-	/** 삭제된 번호 재사용 정책은 확정 전이므로 현재 DB의 유일성 제약과 같은 범위를 검사합니다. */
+	/** 현재 목록에 있는 세대만 중복 검사해 삭제한 호수의 재등록과 기존 세대 정정을 허용합니다. */
 	private void requireUniqueNumber(UUID propertyId, UnitRequest request, UUID unitId) {
-		if (units.existsByPropertyIdAndBuildingIdAndUnitNumberAndIdNot(propertyId, request.buildingId(), request.unitNumber(), unitId)) {
+		if (units.existsByPropertyIdAndBuildingIdAndUnitNumberAndDeletedAtIsNullAndIdNot(propertyId, request.buildingId(), request.unitNumber(), unitId)) {
 			throw new UnitManagementException(DUPLICATE_UNIT);
 		}
 	}

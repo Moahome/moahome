@@ -292,6 +292,133 @@ class BillingPersistenceTest {
     }
 
     @Test
+    void concurrentRecreationOfDeletedNumberAllowsOnlyOneCurrentUnitAndCharge() throws Exception {
+        var input = unitRequest(buildingId("201"), "701", "ACTIVE");
+        var deleted = unitManagement.create(userId, propertyId, input);
+        unitManagement.deleteUnits(userId, propertyId, List.of(deleted.id()));
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var tasks = java.util.stream.IntStream.range(0, 2).mapToObj(index -> executor.submit(() -> {
+                start.await();
+                try {
+                    unitManagement.create(userId, propertyId, input);
+                    return "CREATED";
+                } catch (com.moahome.server.property.exception.UnitManagementException exception) {
+                    return exception.code().name();
+                }
+            })).toList();
+            start.countDown();
+            var outcomes = new ArrayList<String>();
+            for (var task : tasks) outcomes.add(task.get(10, TimeUnit.SECONDS));
+            assertThat(outcomes).containsExactlyInAnyOrder("CREATED", "DUPLICATE_UNIT");
+        }
+        assertThat(unitManagement.list(userId, propertyId).units()).filteredOn(unit -> unit.unitNumber().equals("701")).hasSize(1);
+        assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 10)).charges()).filteredOn(row -> row.room().equals("701")).hasSize(1);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void deletedUnitNumberCanBeAddedAgainWithFreshBillingWithoutRevivingOldResidentsOrPastCharges(boolean hasBuildings) {
+        var target = registration.register(userId, RegistrationFixtures.request(UUID.randomUUID(), hasBuildings)).response().property().id();
+        var building = hasBuildings ? jdbc.queryForObject("select id from buildings where property_id=? and name='101동'", UUID.class, target) : null;
+        var input = unitRequest(building, "701", "ACTIVE");
+        var old = unitManagement.create(userId, target, input);
+        var past = billing.monthly(userId, target, YearMonth.of(2026, 10));
+        var previousResident = UUID.randomUUID();
+        jdbc.update("insert into residents(id,property_id,name,status,created_at,updated_at) values (?,?,'이전 주민','ACTIVE',now(),now())", previousResident, target);
+        jdbc.update("insert into unit_residents(id,property_id,resident_id,unit_id,relation_type,status,is_household_rep,created_at,updated_at) "
+            + "values (?,?,?,?,'TENANT','ACTIVE',true,now(),now())", UUID.randomUUID(), target, previousResident, old.id());
+        clock.set(Instant.parse("2026-11-10T00:00:00Z"));
+        generation.generate(target, YearMonth.of(2026, 11));
+        unitManagement.deleteUnits(userId, target, List.of(old.id()));
+        var deletedRow = jdbc.queryForList("select * from units where id=?", old.id());
+        var canceled = jdbc.queryForList("select * from charges where unit_id=? and status='CANCELED'", old.id());
+        var replacement = unitManagement.create(userId, target, input);
+        assertThat(replacement.id()).isNotEqualTo(old.id());
+        assertThat(residentLists.list(userId, target).residents()).isEmpty();
+        assertThat(jdbc.queryForObject("select count(*) from unit_residents where unit_id=?", Long.class, replacement.id())).isZero();
+        assertThat(unitManagement.list(userId, target).units()).filteredOn(unit -> unit.unitNumber().equals("701"))
+            .extracting(unit -> unit.id()).containsExactly(replacement.id());
+        var current = billing.monthly(userId, target, YearMonth.of(2026, 11));
+        assertThat(current.charges()).filteredOn(row -> row.room().equals("701")).singleElement().satisfies(row -> {
+            assertThat(row.unitId()).isEqualTo(replacement.id());
+            assertThat(row.representativeName()).isNull();
+            assertThat(row.items()).extracting(item -> item.amount()).containsExactly("15000", "8000", "25300", "1700");
+        });
+        // 예전 삭제 요청의 재시도도 같은 호수의 새 세대·청구에는 영향을 주지 않습니다.
+        unitManagement.deleteUnits(userId, target, List.of(old.id()));
+        generation.supplementCurrentMonth(target);
+        assertThat(billing.monthly(userId, target, YearMonth.of(2026, 11))).isEqualTo(current);
+        assertThat(billing.monthly(userId, target, YearMonth.of(2026, 10))).isEqualTo(past);
+        assertThat(jdbc.queryForList("select * from units where id=?", old.id())).isEqualTo(deletedRow);
+        assertThat(jdbc.queryForList("select * from charges where unit_id=? and status='CANCELED'", old.id())).isEqualTo(canceled);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void batchAndUpdateCanReuseDeletedNumbersButRejectExistingUnitsAndInRequestDuplicates(boolean hasBuildings) {
+        var target = registration.register(userId, RegistrationFixtures.request(UUID.randomUUID(), hasBuildings)).response().property().id();
+        var building = hasBuildings ? jdbc.queryForObject("select id from buildings where property_id=? and name='101동'", UUID.class, target) : null;
+        var inputs = List.of(unitRequest(building, "701", "ACTIVE"), unitRequest(building, "702", "VACANT"));
+        var original = unitManagement.createBatch(userId, target, new com.moahome.server.property.dto.UnitBatchRequest(inputs));
+        unitManagement.deleteUnits(userId, target, original.stream().map(unit -> unit.id()).toList());
+        var replacement = unitManagement.createBatch(userId, target, new com.moahome.server.property.dto.UnitBatchRequest(inputs));
+        assertThat(replacement).extracting(unit -> unit.id()).doesNotContainAnyElementsOf(original.stream().map(unit -> unit.id()).toList());
+        assertThat(billing.monthly(userId, target, YearMonth.of(2026, 10)).charges()).filteredOn(row -> row.room().equals("701")).hasSize(1);
+        assertThat(billing.monthly(userId, target, YearMonth.of(2026, 10)).charges()).noneMatch(row -> row.room().equals("702"));
+        var editing = unitManagement.create(userId, target, unitRequest(building, "703", "ACTIVE"));
+        assertThatThrownBy(() -> unitManagement.update(userId, target, editing.id(), inputs.getFirst()))
+            .isInstanceOf(com.moahome.server.property.exception.UnitManagementException.class);
+        var before = unitManagement.list(userId, target).units();
+        var conflicting = new com.moahome.server.property.dto.UnitBatchRequest(List.of(unitRequest(building, "704", "ACTIVE"), inputs.getFirst()));
+        assertThatThrownBy(() -> unitManagement.createBatch(userId, target, conflicting))
+            .isInstanceOf(com.moahome.server.property.exception.UnitManagementException.class);
+        var duplicate = unitRequest(building, "705", "ACTIVE");
+        assertThatThrownBy(() -> unitManagement.createBatch(userId, target, new com.moahome.server.property.dto.UnitBatchRequest(List.of(duplicate, duplicate))))
+            .isInstanceOf(com.moahome.server.property.exception.UnitManagementException.class);
+        assertThat(unitManagement.list(userId, target).units()).isEqualTo(before);
+        unitManagement.deleteUnits(userId, target, List.of(replacement.getFirst().id()));
+        var updated = unitManagement.update(userId, target, editing.id(), inputs.getFirst());
+        assertThat(updated.id()).isEqualTo(editing.id());
+        assertThat(updated.unitNumber()).isEqualTo("701");
+        assertThat(unitManagement.list(userId, target).units()).filteredOn(unit -> unit.unitNumber().equals("701")).hasSize(1);
+    }
+
+    @Test
+    void unitNumberReuseMigrationPreservesExistingRowsAndChargeLinksAndRestrictsOnlyUndeletedNumbers() {
+        var withoutBuildings = registration.register(userId, RegistrationFixtures.request(UUID.randomUUID(), false)).response().property().id();
+        String schema = "unit_reuse_upgrade_" + UUID.randomUUID().toString().replace("-", "");
+        var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+            .schemas(schema).defaultSchema(schema).target("20261012061303").load();
+        previous.migrate();
+        for (String table : List.of("users", "properties", "buildings", "units", "fee_templates", "fee_template_items", "billing_periods", "charges", "charge_items")) {
+            jdbc.execute("insert into " + schema + "." + table + " select * from public." + table);
+        }
+        jdbc.update("update " + schema + ".units set deleted_at=now(),deleted_by=? where unit_number='201'", userId);
+        var storedUnits = jdbc.queryForList("select * from " + schema + ".units order by id");
+        var storedCharges = jdbc.queryForList("select * from " + schema + ".charges order by id");
+        var storedItems = jdbc.queryForList("select * from " + schema + ".charge_items order by id");
+        var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+            .schemas(schema).defaultSchema(schema).load();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
+        upgraded.validate();
+        assertThat(jdbc.queryForList("select * from " + schema + ".units order by id")).isEqualTo(storedUnits);
+        assertThat(jdbc.queryForList("select * from " + schema + ".charges order by id")).isEqualTo(storedCharges);
+        assertThat(jdbc.queryForList("select * from " + schema + ".charge_items order by id")).isEqualTo(storedItems);
+        for (var target : List.of(propertyId, withoutBuildings)) {
+            UUID oldUnit = jdbc.queryForObject("select id from " + schema + ".units where property_id=? and unit_number='201'", UUID.class, target);
+            String insert = "insert into " + schema + ".units(id,property_id,building_id,unit_number,status,created_at,updated_at) "
+                + "select ?,property_id,building_id,unit_number,'ACTIVE',now(),now() from " + schema + ".units where id=?";
+            UUID replacement = UUID.randomUUID();
+            jdbc.update(insert, replacement, oldUnit);
+            assertThatThrownBy(() -> jdbc.update(insert, UUID.randomUUID(), oldUnit)).isInstanceOf(DataIntegrityViolationException.class);
+            jdbc.update("update " + schema + ".units set deleted_at=now(),deleted_by=? where id=?", userId, replacement);
+            jdbc.update(insert, UUID.randomUUID(), oldUnit);
+            assertThat(jdbc.queryForObject("select count(*) from " + schema + ".units where property_id=? and unit_number='201' and deleted_at is null", Long.class, target)).isEqualTo(1);
+        }
+    }
+
+    @Test
     void vacantUnitsAreExcludedAndStatusChangesSynchronizeCurrentChargesWithoutDuplicatesOrManualRevival() {
         var buildingId = buildingId("201");
         var vacant = unitManagement.create(userId, propertyId, unitRequest(buildingId, "801", "VACANT"));
@@ -386,7 +513,7 @@ class BillingPersistenceTest {
         var original = jdbc.queryForList("select " + originalColumns + " from public.charges order by id");
         var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(3);
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(4);
         upgraded.validate();
         assertThat(jdbc.queryForList("select " + originalColumns + " from " + schema + ".charges order by id")).isEqualTo(original);
         assertThat(jdbc.queryForObject("select count(*) from " + schema + ".charge_items", Long.class)).isEqualTo(count("charge_items"));

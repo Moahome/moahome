@@ -440,15 +440,20 @@ WHERE deleted_at IS NULL
 동 있음:
 
 ```sql
-UNIQUE(building_id, unit_number)
+CREATE UNIQUE INDEX units_building_number_idx
+ON units(building_id, unit_number)
+WHERE building_id IS NOT NULL AND deleted_at IS NULL;
 ```
 
 동 없음:
 
 ```sql
-UNIQUE(property_id, unit_number)
-WHERE building_id IS NULL
+CREATE UNIQUE INDEX units_without_building_number_idx
+ON units(property_id, unit_number)
+WHERE building_id IS NULL AND deleted_at IS NULL;
 ```
+
+`V20261012063902__allow_deleted_unit_number_reuse.sql`에서 미삭제 세대만 호수 중복을 제한하도록 변경합니다. 기존 ID·삭제 정보·관계·청구 FK는 유지하며 같은 호수의 재추가는 새 세대 ID로 저장합니다. 기존 `(property_id, id)` UNIQUE와 동 소속 복합 FK는 유지합니다.
 
 ---
 

@@ -12,5 +12,5 @@ public interface UnitRepository extends JpaRepository<Unit, UUID> {
 	List<Unit> findByPropertyIdAndBuildingIdAndDeletedAtIsNull(UUID propertyId, UUID buildingId);
 	List<Unit> findByPropertyIdAndDeletedAtIsNull(UUID propertyId);
 	Optional<Unit> findByIdAndPropertyIdAndDeletedAtIsNull(UUID id, UUID propertyId);
-	boolean existsByPropertyIdAndBuildingIdAndUnitNumberAndIdNot(UUID propertyId, UUID buildingId, String unitNumber, UUID id);
+	boolean existsByPropertyIdAndBuildingIdAndUnitNumberAndDeletedAtIsNullAndIdNot(UUID propertyId, UUID buildingId, String unitNumber, UUID id);
 }
