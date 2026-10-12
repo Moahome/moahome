@@ -2184,8 +2184,8 @@ test('동별 중복 범위와 이름 수정의 세대 연결을 유지하고 동
     exact: true
   });
   await expect(editBuilding).toHaveCSS('color', 'rgb(22, 163, 74)');
-  await expect(editBuilding.locator('svg')).toHaveCount(0);
-  await expect(editBuilding).toHaveText('수정');
+  await expect(editBuilding.locator('svg')).toHaveCount(1);
+  await expect(editBuilding).toHaveText('');
   await expect(deleteBuilding).toHaveCSS('color', 'rgb(239, 68, 68)');
   await deleteBuilding.click();
   await expect(page.getByRole('alertdialog', {
