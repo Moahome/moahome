@@ -134,15 +134,41 @@ public class ResidentManagementService {
         var current = affiliations.findByPropertyIdAndResidentIdAndStatusAndDeletedAtIsNull(propertyId, residentId, "ACTIVE").orElse(null);
         var successor = requireSuccessor(propertyId, residentId, current, input.replacementResidentId());
         var at = OffsetDateTime.now(clock).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
-        if (current != null) current.end(actor, at, true);
         designateSuccessor(successor, at);
-        resident.delete(actor, at);
+        deleteResident(actor, propertyId, resident, current, at);
+    }
+
+    /** 동·세대 삭제에서는 현재 소속 주민 전체를 함께 삭제하므로 같은 세대 안의 대표 승계는 하지 않습니다. */
+    @Transactional
+    public void deleteForUnits(UUID actor, UUID propertyId, Collection<UUID> unitIds, OffsetDateTime at) {
+        if (unitIds.isEmpty()) return;
+        // 세대 쓰기와 같은 잠금을 확보하고 삭제된 세대의 남은 현재 관계도 재요청에서 정리할 수 있게 합니다.
+        access.getManagementContext(actor, propertyId);
+        properties.findForUnitUpdate(propertyId).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+        var current = affiliations.findByPropertyIdAndUnitIdInAndStatusAndDeletedAtIsNull(propertyId, unitIds, "ACTIVE");
+        // 주민 명부 삭제는 기존 관리소장 권한을 유지하여 부담당자의 세대 삭제로 우회되지 않게 합니다.
+        if (!current.isEmpty()) requireAdmin(actor, propertyId);
+        for (var affiliation : current) {
+            var resident = residents.findByIdAndPropertyId(affiliation.getResidentId(), propertyId).orElseThrow(() -> failure(RESIDENT_NOT_FOUND));
+            deleteResident(actor, propertyId, resident, affiliation, at);
+        }
+        // 명부와 아직 연결되지 않은 대기도 삭제된 세대로 승인될 수 없도록 함께 취소합니다.
+        requests.findByPropertyIdAndUnitIdInAndStatusAndDeletedAtIsNull(propertyId, unitIds, "PENDING")
+            .forEach(request -> request.cancelPending(at));
+        affiliations.flush();
+        residents.flush();
+    }
+
+    /** 개별·세대 일괄 삭제에서 명부·현재 관계·해당 관리대상 주민 권한·연결 대기를 같은 방식으로 종료합니다. */
+    private void deleteResident(UUID actor, UUID propertyId, Resident resident, UnitResident current, OffsetDateTime at) {
+        if (current != null) current.end(actor, at, true);
+        if (resident.getDeletedAt() == null) resident.delete(actor, at);
         if (resident.getUserId() != null) {
             members.findByPropertyIdAndUserIdAndDeletedAtIsNull(propertyId, resident.getUserId()).stream()
                 .filter(member -> member.getRole() == PropertyMemberRole.RESIDENT && member.getEndedAt() == null)
                 .forEach(member -> member.endResidentAccess(actor, at));
         }
-        requests.findLinked(propertyId, residentId, resident.getUserId()).forEach(request -> request.cancelPending(at));
+        requests.findLinked(propertyId, resident.getId(), resident.getUserId()).forEach(request -> request.cancelPending(at));
     }
 
     /** 남은 주민이 있는 대표의 이탈은 관리소장의 명시적 선택을 요구하고 다른 세대·삭제 주민·본인을 거부합니다. */

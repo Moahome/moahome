@@ -1,6 +1,6 @@
 # 관리비 API
 
-상태: 설정 조회·예약 변경, 월별 청구·세대 상세·확정 이력 조회 구현. 업무 정책은 [도메인 규칙](domainRules.md#5-관리비-부과--청구), 저장 구조는 [ERD](erd.md#7-관리비-부과)를 참조합니다.
+상태: 설정 조회·예약 변경, 월별 청구·세대 상세·확정 이력 조회와 당월 청구 취소 구현. 업무 정책은 [도메인 규칙](domainRules.md#5-관리비-부과--청구), 저장 구조는 [ERD](erd.md#7-관리비-부과)를 참조합니다.
 
 모든 경로의 공통 prefix는 `/api/properties/{propertyId}/billing`입니다. Bearer 인증과 매 요청의 활성 계정·현재 ADMIN / MANAGER 참여·활성 관리대상 권한을 검증합니다. URL의 식별자는 UUID, 월은 `YYYY-MM`(1000~9999년)입니다. 응답은 `Cache-Control: no-store`를 사용합니다.
 
@@ -12,9 +12,10 @@
 | PUT | `/settings` | 다음 달 설정 저장 후 최신 Settings |
 | GET | `/monthly/{month}` | 해당 월 실제 청구 또는 적용 예정 내역 |
 | GET | `/monthly/{month}/units/{unitId}` | 같은 월·관리대상의 세대 상세 |
+| DELETE | `/monthly/{month}/charges/{chargeId}` | 당월 개별 청구 취소, 204 |
 | GET | `/history` | 확정된 월별 이력, 최신 월 순 |
 
-수동 생성·확정·취소·청구 수정·수납 상태 API는 이번 범위에 없습니다.
+수동 생성·확정·금액 수정·수납 상태 API는 이번 범위에 없습니다. 당월 개별 청구 취소를 제공합니다. 세대 추가 시 당월 전액 보충 부과와 동·세대 삭제 시 당월 청구 취소는 [세대 관리 API](unitManagementApi.md#세대동-삭제)의 변경 트랜잭션에서 수행합니다.
 
 ## 설정 조회 응답
 
@@ -48,6 +49,16 @@ Template은 `id`, `effectiveMonth`, `items`, `reason`(최초 설정은 null), `c
 
 기존 버전을 덮어쓰지 않고 새 버전을 저장합니다. 같은 적용월을 반복 저장하면 마지막 저장본을 적용하며 이전 버전·사유는 보존합니다. 당월과 이미 확정된 청구는 변경되지 않습니다.
 
+## 세대 변경 반영 (2026-10-12)
+
+사용 중 세대 추가는 당월 적용 설정으로 주민 명부 등록 여부와 관계없이 전액 청구를 즉시 생성·확정합니다. 공실은 제외합니다. 기존 기간이 있으면 신규 세대만 보충하고 기존 청구·항목은 유지합니다. 동·세대 삭제는 당월 청구를 `CANCELED`로 전환하고 `canceled_at / canceled_by / cancellation_reason=UNIT_DELETED`를 보존합니다. 월별·상세·이력 합계 조회는 `ISSUED` 청구만 포함하므로 취소 청구는 제외되며 이전 달 확정 청구는 유지됩니다. 현재·미래 예정값은 미삭제 사용 중 세대만 포함합니다. 당월 조회·이력 합계도 현재 공실과 삭제된 동·세대의 잔여 청구를 제외합니다. 과거 청구는 당시 저장 상태로 조회합니다.
+
+공실 전환 시 당월 기존 청구는 `EXCLUDED_VACANT`가 되어 합계에서 제외됩니다. 같은 월에 사용 중으로 복귀하면 기존 스냅샷을 재사용하고, 아직 청구가 없다면 당월 적용 설정으로 생성합니다. 수동 취소·세대 삭제 취소는 복구하지 않습니다. 세대 변경과 같은 트랜잭션입니다.
+
+## 당월 청구 삭제
+
+`DELETE /monthly/{month}/charges/{chargeId}`는 본문 없이 호출하며 현재 ADMIN / MANAGER만 사용할 수 있습니다. 서버 한국시간 당월의 확정 청구만 허용하고 관리대상·기간·청구 ID를 함께 검증합니다. `CANCELED`로 전환하고 `cancellation_reason=MANUAL_CANCELED` 및 최초 처리자·시각을 저장합니다. 동일 당월 취소의 재요청은 204이며 최초 근거를 유지합니다. 월별·상세·이력 건수와 합계에서 제외하고 세대·주민·다음 달 부과는 변경하지 않습니다. 과거·미래 월의 요청은 409입니다.
+
 ## 월별 응답
 
 Month는 `propertyId`, `hasBuildings`, `month`, `billingDate`, `dueDate`, `status`, `baseAmount`, `charges`를 반환합니다. `hasBuildings`는 관리대상의 동 구분 여부입니다.
@@ -77,6 +88,7 @@ ChargeRow는 `id`, `unitId`, `building`(동 없음은 빈 문자열), `room`, `d
 | 403 | `ACCESS_DENIED` / `ACCOUNT_UNAVAILABLE` | 현재 관리 권한 또는 계정 이용 불가 |
 | 404 | `BILLING_SETTINGS_NOT_FOUND` | 해당 월에 적용할 기본 설정 없음 |
 | 404 | `BILLING_CHARGE_NOT_FOUND` | 해당 월·세대의 상세 없음 |
+| 409 | `BILLING_CANCELLATION_NOT_ALLOWED` | 당월 확정 청구가 아닌 취소 요청 |
 | 409 | `BILLING_SETTINGS_CONFLICT` | 오래된 버전 또는 적용월 변경. 최신 설정 재조회 필요 |
 | 409 | `BILLING_CONFLICT` | DB 무결성 충돌 |
 | 503 | `BILLING_SERVICE_UNAVAILABLE` / `AUTH_SERVICE_UNAVAILABLE` | 업무 / 인증 저장소 장애 |

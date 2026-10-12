@@ -32,6 +32,13 @@ public class UnitManagementExceptionHandler {
 		return error(exception.code().status(), exception.code().name(), exception.code().message());
 	}
 
+    /** 당월 청구 생성에 필요한 설정 오류도 세대 추가 실패로 돌려주며 트랜잭션은 전체 롤백합니다. */
+    @ExceptionHandler(com.moahome.server.billing.exception.BillingException.class)
+    public ResponseEntity<ErrorResponse> billing(com.moahome.server.billing.exception.BillingException exception) {
+        var code = exception.code();
+        return error(code.status, code.name(), code.message);
+    }
+
 	@ExceptionHandler(UserException.class)
 	public ResponseEntity<ErrorResponse> account(UserException exception) {
 		return error(HttpStatus.FORBIDDEN, "ACCOUNT_UNAVAILABLE", "계정을 사용할 수 없습니다.");

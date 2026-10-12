@@ -29,7 +29,7 @@
 | 주민 / 가입 승인 | 확정 범위 있음 | 주민 연락처 관리, 사전 등록과 승인 시 신규 등록 모두 지원, 주민 명부 재등록 시 소프트 삭제 해제, 관리자 승인 |
 | 관리대상 / 동 / 세대 / 권한 | 확정 범위 있음 + 설계안 | Property 기준, 이름 최대 50자, 동 구분 저장, 초기 설정 전체 저장과 생성자 관리소장 자동 지정, 주민의 현재 세대 한 개 제한, 역할별 승인 / 변경 범위 |
 | 가입 요청 입력 / 중복 / 재신청 | 확정 | 신청 전화번호 필수, 실명 입력 / 세대 관계 선택 없음, 같은 계정의 같은 세대 중복 대기 요청 제한, 다른 주민 신청 허용, 거절 후 재신청 / 재입주 재승인 |
-| 관리비 부과 | 구현 | 월별 기간·세대 청구·항목 스냅샷, 설정 버전과 필수 사유, 자동 생성·확정. 수납·환급·회계·취소 연결은 후속 범위 |
+| 관리비 부과 | 구현 | 월별 기간·세대 청구·항목 스냅샷, 설정 버전과 필수 사유, 자동 생성·확정. 세대 삭제 시 당월 취소 구현. 수납·환급·회계·일반 취소 연결은 후속 범위 |
 | 수납 / 은행 / 지출 / 회계 / 마감 / 감사 | 기존 기준 + 설계안 | 각 영역의 도메인 규칙을 유지하고 해당 기능 구현 전에 상세 정책 / DDL 확정 |
 | 초기 관리계좌의 예금주 | 확정 | 예금주 이름 필수, 주민 명부 연결 선택, 주민 연결은 명부 등록 이후 가능 |
 | 초기 계좌 / 기본 관리비 | 확정 | 공용계좌, 기본 계좌 정확히 1개, 사용 시작일은 등록 완료일, 기본 금액은 0원·음수를 허용하는 정수 |
@@ -376,7 +376,7 @@ OAuth 세션/토큰 상태는 Redis 영역으로 분리한다.
 
 `has_buildings = false`이면 동을 생성하지 않고 모든 세대의 `building_id`를 NULL로 둔다. `true`이면 최소 1개의 동이 필요하며 각 세대의 동이 동일한 관리대상에 속해야 한다. 이름 / 동 구분의 저장 제약과 관계 검증은 실제 Migration / Service 구현 시 이 기준에 맞춘다.
 
-기본 정보 검증, 최종 저장과 중복 방지 / 결과 조회는 [관리대상 등록 API](propertyRegistrationApi.md)를 따른다. 관련 Entity와 등록 Migration은 구현했으며 저장 내부 흐름과 후속 FK 범위는 [Server 등록 설계](../server/docs/propertyRegistration.md)에서 관리한다. 관리 영역 접근 조회는 아래 `property_members`와 결합해 기존 `id`, `name`, 상태 / 삭제 정보를 읽으며 조회 전용 테이블을 추가하지 않는다. 저장된 동·세대의 삭제는 기존 `deleted_at` / `deleted_by`를 사용한다. 구현 범위와 연결 세대 처리는 [세대 관리 API](unitManagementApi.md#세대동-삭제)를 따른다. 동 구분 변경·비활성화와 후속 주민 / 청구 연계 정책은 확정하지 않는다.
+기본 정보 검증, 최종 저장과 중복 방지 / 결과 조회는 [관리대상 등록 API](propertyRegistrationApi.md)를 따른다. 관련 Entity와 등록 Migration은 구현했으며 저장 내부 흐름과 후속 FK 범위는 [Server 등록 설계](../server/docs/propertyRegistration.md)에서 관리한다. 관리 영역 접근 조회는 아래 `property_members`와 결합해 기존 `id`, `name`, 상태 / 삭제 정보를 읽으며 조회 전용 테이블을 추가하지 않는다. 저장된 동·세대의 삭제는 기존 `deleted_at` / `deleted_by`를 사용한다. 구현 범위와 연결 세대 처리는 [세대 관리 API](unitManagementApi.md#세대동-삭제)를 따른다. 동·세대 삭제 시 주민·당월 청구 정리와 세대 추가 즉시 부과는 [도메인 규칙](domainRules.md#세대-변경과-주민당월-청구-연결)을 따른다. 동 구분 변경·비활성화 정책은 후속 결정 대상이다.
 
 ---
 
@@ -481,7 +481,7 @@ WHERE building_id IS NULL
 
 ### 구현 상태
 
-`V20261010041826__create_resident_directory.sql`로 테이블과 목록 조회용 Entity를 구현했다. 조회 권한·연락처 끝 4자리·전체 명부 범위는 [주민 관리 API](residentManagementApi.md)를 따른다. 저장 상태를 목록 필터로 사용하지 않는다. 개별·엑셀 등록·상세·수정·삭제를 구현했으며 복구·계정 연결 API는 아직 구현하지 않았다. 기본 조회는 마스킹만 반환하고 명시적 상세 공개 또는 관리소장의 목록 내보내기 API에서만 전체 번호를 복호화한다. 연락처 수정 시 확인 연결된 가입 신청의 보호 연락처도 함께 변경하며 삭제 시 해당 대상의 주민 참여를 종료한다.
+`V20261010041826__create_resident_directory.sql`로 테이블과 목록 조회용 Entity를 구현했다. 조회 권한·연락처 끝 4자리·전체 명부 범위는 [주민 관리 API](residentManagementApi.md)를 따른다. 저장 상태를 목록 필터로 사용하지 않는다. 개별·엑셀 등록·상세·수정·삭제와 기존 등록 API의 재등록 복구를 구현했으며 계정 연결 API는 아직 구현하지 않았다. 기본 조회는 마스킹만 반환하고 명시적 상세 공개 또는 관리소장의 목록 내보내기 API에서만 전체 번호를 복호화한다. 연락처 수정 시 확인 연결된 가입 신청의 보호 연락처도 함께 변경하며 삭제 시 해당 대상의 주민 참여를 종료한다.
 
 ### 핵심 제약
 
@@ -544,6 +544,21 @@ CREATE UNIQUE INDEX unit_residents_active_resident_idx
 재입주 시 새 가입 요청과 승인을 거치며 과거 퇴거 관계를 덮어쓰거나 이전 접근권한을 자동 복구하지 않는다. 관리소장의 세대 이동은 기존 관계를 종료하고 새 현재 관계를 저장한다. 별도 재입주 흐름은 후속 범위이다.
 
 ---
+
+### 주민 등록 요청 결과 (`resident_registration_results`)
+
+재등록에서 새 요청 ID와 재사용한 주민 ID를 연결하며 응답 유실의 재시도에도 한 현재 관계만 저장합니다. `V20261012054221__support_resident_reregistration_results.sql`로 추가합니다.
+
+| 컬럼 | 타입 | NULL | 설명 |
+| --- | --- | --- | --- |
+| `request_id` | uuid | N | PK, 등록 요청 ID |
+| `property_id` | uuid | N | 관리대상 FK |
+| `resident_id` | uuid | N | 신규 또는 재사용한 주민 ID |
+| `unit_resident_id` | uuid | N | 이번 요청이 저장한 관계 ID |
+| `created_by` | uuid | N | 등록 관리자 users FK |
+| `created_at` | timestamptz | N | 저장 시각 |
+
+주민·관계는 관리대상·주민을 포함한 복합 FK로 참조합니다. 관계 원본에 `(property_id, resident_id, id)` UNIQUE를 추가하며 기존 행은 변경하지 않습니다. 별도 만료·삭제 정책은 추가하지 않습니다. 삭제 후 재입력은 명부 삭제 표시를 해제하고 새 관계를 생성하며 과거 관계·이용 권한을 재활성화하지 않습니다. 계약은 [주민 등록 API](residentManagementApi.md#주민-등록)를 따릅니다.
 
 ## 5.6 property_members
 
@@ -772,7 +787,7 @@ CREATE UNIQUE INDEX membership_requests_pending_user_unit_idx
 
 # 7. 관리비 부과
 
-[도메인 규칙](domainRules.md#5-관리비-부과--청구)과 [관리비 API](billingApi.md)를 따릅니다. `V20261010131153__create_monthly_billing.sql`에서 아래 기간·청구·항목과 기본 설정 버전을 구현했습니다. 취소·재발행·월 마감·수납·회계 연결 컬럼은 이번 Migration에 추가하지 않았습니다.
+[도메인 규칙](domainRules.md#5-관리비-부과--청구)과 [관리비 API](billingApi.md)를 따릅니다. `V20261010131153__create_monthly_billing.sql`에서 아래 기간·청구·항목과 기본 설정 버전을 구현했습니다. 해당 Migration에는 취소·재발행·월 마감·수납·회계 연결 컬럼을 추가하지 않았습니다. 세대 삭제의 당월 취소는 후속 `V20261012052031__support_unit_deletion_charge_cancellation.sql`로 CANCELED 상태와 취소 감사 컬럼을 추가합니다.
 
 ## 7.1 billing_periods
 
@@ -877,8 +892,11 @@ UNIQUE(property_id, billing_year, billing_month)
 | `unit_display_name_snapshot` | varchar(50) | Y | 부과 당시 별칭 |
 | `total_amount` | numeric(15,0) | N | 총 청구액 |
 | `due_date` | date | N | 납부기한 |
-| `status` | varchar(20) | N | `DRAFT / ISSUED` |
-| `issued_at` | timestamptz | Y | 발행 |
+| `status` | varchar(20) | N | `DRAFT / ISSUED / EXCLUDED_VACANT / CANCELED` |
+| `issued_at` | timestamptz | Y | 발행, 취소 후에도 유지 |
+| `canceled_at` | timestamptz | Y | 최초 취소 시각 |
+| `canceled_by` | uuid | Y | 취소 처리자 users FK |
+| `cancellation_reason` | varchar(30) | Y | 세대 삭제 `UNIT_DELETED`, 상세 삭제 `MANUAL_CANCELED` |
 | `created_at` | timestamptz | N | 생성 |
 | `updated_at` | timestamptz | N | 수정 |
 
@@ -889,6 +907,8 @@ UNIQUE(billing_period_id, unit_id)
 FOREIGN KEY(property_id, billing_period_id) REFERENCES billing_periods(property_id, id)
 FOREIGN KEY(property_id, unit_id) REFERENCES units(property_id, id)
 ```
+
+취소 상태에는 취소 시각·처리자·사유가 모두 필수이며 다른 상태에는 모두 NULL입니다. `EXCLUDED_VACANT`는 당월 공실 제외이며 발행 시각·항목을 유지하고 같은 월 사용 중 복귀에 재사용합니다. 후속 `V20261012061303__support_manual_charge_cancellation.sql`이 상세 취소 사유와 공실 제외 상태를 추가합니다. 당월 청구 취소·과거 보존과 신규 세대 당월 전액 부과는 [도메인 규칙](domainRules.md#세대-변경과-주민당월-청구-연결)을 따릅니다.
 
 ### 납부상태
 
@@ -918,7 +938,7 @@ FOREIGN KEY(property_id, unit_id) REFERENCES units(property_id, id)
 | `created_at` | timestamptz | N | 생성 |
 | `updated_at` | timestamptz | N | 수정 |
 
-`(property_id, charge_id)` 복합 FK와 `(charge_id, sort_order)` UNIQUE를 적용합니다. 기간·청구는 ISSUED일 때만 확정·발행 시각이 존재하도록 CHECK 합니다.
+`(property_id, charge_id)` 복합 FK와 `(charge_id, sort_order)` UNIQUE를 적용합니다. 기간은 ISSUED일 때 확정 시각이 존재하며 청구는 ISSUED·EXCLUDED_VACANT·CANCELED에서 발행 시각을 보존하도록 CHECK 합니다.
 
 ---
 

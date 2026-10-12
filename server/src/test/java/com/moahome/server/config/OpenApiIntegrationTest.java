@@ -124,7 +124,9 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(26);
+		assertThat(document.path("paths").properties()).hasSize(27);
+		assertThat(document.path("paths").path("/api/properties/{propertyId}/billing/monthly/{month}/charges/{chargeId}")
+			.at("/delete/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/residents/export").at("/post/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.at("/components/schemas/ResidentExportRow/properties").properties()).extracting(java.util.Map.Entry::getKey)
 			.containsExactlyInAnyOrder("name", "phone", "unitLabel");

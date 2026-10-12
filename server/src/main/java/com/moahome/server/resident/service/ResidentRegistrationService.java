@@ -29,11 +29,12 @@ public class ResidentRegistrationService {
 	private final BuildingRepository buildings;
 	private final ResidentRepository residents;
 	private final UnitResidentRepository affiliations;
+	private final ResidentRegistrationResultRepository results;
 	private final ObjectProvider<PhoneSecurity> phoneSecurity;
 	private final Clock clock;
 
 	public ResidentRegistrationService(ManagementAccessService access, PropertyRepository properties, UnitRepository units,
-		BuildingRepository buildings, ResidentRepository residents, UnitResidentRepository affiliations,
+		BuildingRepository buildings, ResidentRepository residents, UnitResidentRepository affiliations, ResidentRegistrationResultRepository results,
 		ObjectProvider<PhoneSecurity> phoneSecurity, Clock clock) {
 		this.access = access;
 		this.properties = properties;
@@ -41,6 +42,7 @@ public class ResidentRegistrationService {
 		this.buildings = buildings;
 		this.residents = residents;
 		this.affiliations = affiliations;
+		this.results = results;
 		this.phoneSecurity = phoneSecurity;
 		this.clock = clock;
 	}
@@ -56,38 +58,68 @@ public class ResidentRegistrationService {
 		var unit = requireUnit(property, request.unitId());
 		var name = TextValues.required(request.name(), 50);
 		var phone = protectPhone(request.phone());
+		var result = results.findById(request.requestId());
+		if (result.isPresent()) {
+			var saved = result.get();
+			if (!saved.getPropertyId().equals(propertyId)) throw new ResidentRegistrationException(REGISTRATION_CONFLICT);
+			var resident = residents.findById(saved.getResidentId()).orElseThrow();
+			return replay(resident, propertyId, request, name, phone, saved.getUnitResidentId());
+		}
+		// Migration 이전 요청은 주민 ID가 곧 요청 ID였으므로 기존 재시도 계약도 유지합니다.
 		var previous = residents.findById(request.requestId());
-		if (previous.isPresent()) return replay(previous.get(), propertyId, request, name, phone);
+		if (previous.isPresent()) return replay(previous.get(), propertyId, request, name, phone, null);
 
 		// 연락처 없는 동명이인과 전화번호를 공유하는 다른 이름의 가족은 이름만으로 합치지 않습니다.
+		Resident resident = null;
 		if (phone != null) {
 			var duplicates = residents.findByPropertyIdAndNameAndPhoneHmac(propertyId, name, phone.hmac());
-			if (!duplicates.isEmpty()) {
-				var code = duplicates.stream().anyMatch(person -> person.getDeletedAt() == null)
-					? DUPLICATE_RESIDENT : RESIDENT_RESTORE_REQUIRED;
-				throw new ResidentRegistrationException(code);
-			}
+			if (duplicates.stream().anyMatch(person -> person.getDeletedAt() == null)) throw new ResidentRegistrationException(DUPLICATE_RESIDENT);
+			if (duplicates.size() > 1) throw new ResidentRegistrationException(RESIDENT_RESTORE_REQUIRED);
+			if (!duplicates.isEmpty()) resident = duplicates.getFirst();
 		}
 		var at = OffsetDateTime.now(clock);
-		var resident = Resident.register(request.requestId(), propertyId, name, phone == null ? null : phone.encrypted(),
-			phone == null ? null : phone.hmac(), phone == null ? null : phone.last4(), at);
 		// 과거 관계도 최초 등록 이력에 포함해 대표가 없는 기존 세대를 임의로 재지정하지 않습니다.
 		boolean representative = !affiliations.existsByPropertyIdAndUnitId(propertyId, unit.getId());
+		if (resident == null) {
+			resident = Resident.register(request.requestId(), propertyId, name, phone == null ? null : phone.encrypted(),
+				phone == null ? null : phone.hmac(), phone == null ? null : phone.last4(), at);
+		} else {
+			representative = restoreResident(userId, propertyId, resident, unit, at) || representative;
+		}
 		residents.saveAndFlush(resident);
-		affiliations.saveAndFlush(UnitResident.register(resident, unit, request.relationType(), representative, at));
+		var relation = UnitResident.register(resident, unit, request.relationType(), representative, at);
+		affiliations.saveAndFlush(relation);
+		// 주민 복구·새 관계·요청 결과가 모두 성공해야 재등록을 완료하며 중간 실패 시 전체를 롤백합니다.
+		results.saveAndFlush(ResidentRegistrationResult.record(request.requestId(), resident, relation, userId, at));
 		return new ResidentRegistrationResponse(resident.getId(), propertyId, unit.getId(), representative);
+	}
+
+	/** 삭제 명부를 재사용하고 새 현재 관계를 만들되 과거 퇴거·삭제 기록과 종료된 이용 권한은 보존합니다. */
+	private boolean restoreResident(UUID actor, UUID propertyId, Resident resident, Unit unit, OffsetDateTime at) {
+		// 이전 구현이 명부만 삭제해 남긴 현재 관계도 새 관계 저장 전에 종료합니다.
+		affiliations.findByPropertyIdAndResidentIdAndStatusAndDeletedAtIsNull(propertyId, resident.getId(), "ACTIVE")
+			.ifPresent(current -> current.end(actor, at, true));
+		affiliations.flush();
+		var previous = affiliations.findFirstByPropertyIdAndResidentIdOrderByUpdatedAtDescIdDesc(propertyId, resident.getId());
+		boolean restoreRepresentative = previous.filter(relation -> relation.getDeletedAt() != null
+			&& relation.getUnitId().equals(unit.getId()) && relation.isHouseholdRep()).isPresent()
+			&& affiliations.findCurrentUnitResidents(propertyId, unit.getId()).stream().noneMatch(UnitResident::isHouseholdRep);
+		resident.restore(at);
+		return restoreRepresentative;
 	}
 
 	/** 같은 ID·내용의 재시도만 기존 결과로 응답하며 다른 대상·변경된 입력은 기존 명부를 덮어쓰지 않습니다. */
 	private ResidentRegistrationResponse replay(Resident resident, UUID propertyId, ResidentRegistrationRequest request,
-		String name, ProtectedPhone phone) {
+		String name, ProtectedPhone phone, UUID expectedRelationId) {
 		if (!resident.getPropertyId().equals(propertyId) || resident.getDeletedAt() != null || !resident.getName().equals(name)
 			|| !Objects.equals(resident.getPhoneHmac(), phone == null ? null : phone.hmac())) {
 			throw new ResidentRegistrationException(REGISTRATION_CONFLICT);
 		}
 		var relation = affiliations.findByPropertyIdAndResidentIdAndStatusAndDeletedAtIsNull(propertyId, resident.getId(), "ACTIVE")
 			.orElseThrow(() -> new ResidentRegistrationException(REGISTRATION_CONFLICT));
-		if (!relation.getUnitId().equals(request.unitId()) || !relation.getRelationType().equals(request.relationType())) {
+		// 삭제 후 새로 재등록한 관계를 과거 요청의 성공으로 오인하거나 다시 복구하지 않습니다.
+		if ((expectedRelationId != null && !relation.getId().equals(expectedRelationId))
+			|| !relation.getUnitId().equals(request.unitId()) || !relation.getRelationType().equals(request.relationType())) {
 			throw new ResidentRegistrationException(REGISTRATION_CONFLICT);
 		}
 		return new ResidentRegistrationResponse(resident.getId(), propertyId, relation.getUnitId(), relation.isHouseholdRep());

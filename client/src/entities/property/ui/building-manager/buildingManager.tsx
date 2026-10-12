@@ -30,6 +30,8 @@ export function BuildingManager({
   busy = false,
   errorMessage = '',
   presentation = 'modal',
+  minimumBuildingCount = 0,
+  deletionDescription = '동과 해당 동에 입력한 모든 세대가 함께 삭제됩니다.',
 }: {
   buildings: BuildingDraft[];
   units: UnitDraft[];
@@ -39,6 +41,8 @@ export function BuildingManager({
   busy?: boolean;
   errorMessage?: string;
   presentation?: 'modal' | 'page';
+  minimumBuildingCount?: number;
+  deletionDescription?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const addButtonRef = useRef<HTMLButtonElement>(null);
@@ -50,6 +54,8 @@ export function BuildingManager({
   const pendingBuilding = buildings.find((building) => building.clientId === pendingBuildingId);
   const pendingUnitCount = units.filter((unit) => unit.buildingClientId === pendingBuildingId).length;
   const sortedBuildings = getSortedBuildings(buildings);
+  // 저장된 관리대상은 마지막 동을 유지하고 등록 초안은 호출자가 정한 삭제 범위를 사용합니다.
+  const canDelete = Boolean(onDelete) && buildings.length > minimumBuildingCount;
 
   useEffect(() => {
     if (editingId !== undefined) {
@@ -80,7 +86,7 @@ export function BuildingManager({
 
   /** 확인한 동과 연결 세대를 함께 제거하며 취소 전에는 초안을 변경하지 않습니다. */
   async function confirmBuildingDeletion() {
-    if (!pendingBuilding || !onDelete || busy) return;
+    if (!pendingBuilding || !onDelete || !canDelete || busy) return;
 
     const deleted = await onDelete(pendingBuilding.clientId);
     if (deleted === false) return;
@@ -205,7 +211,7 @@ export function BuildingManager({
                           />
                         )}
                       />
-                      {onDelete && (
+                      {canDelete && (
                         <Button
                           variant={'ghost'}
                           size={'sm'}
@@ -268,7 +274,7 @@ export function BuildingManager({
         <UnitDeleteConfirmation
           title={'동 삭제 확인'}
           label={`${pendingBuilding.name}과 연결된 ${pendingUnitCount}세대`}
-          description={'동과 해당 동에 입력한 모든 세대가 함께 삭제됩니다.'}
+          description={deletionDescription}
           busy={busy}
           errorMessage={errorMessage}
           onConfirm={() => void confirmBuildingDeletion()}

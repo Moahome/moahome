@@ -18,7 +18,9 @@ class UnitManagementServiceTest {
 	private final BuildingRepository buildings = mock(BuildingRepository.class);
 	private final UnitRepository units = mock(UnitRepository.class);
 	private final com.moahome.server.resident.service.ResidentListService residents = mock(com.moahome.server.resident.service.ResidentListService.class);
-	private final UnitManagementService service = new UnitManagementService(access, properties, buildings, units, Clock.systemUTC(), residents);
+	private final com.moahome.server.resident.service.ResidentManagementService residentManagement = mock(com.moahome.server.resident.service.ResidentManagementService.class);
+    private final com.moahome.server.billing.service.BillingGenerationService billing = mock(com.moahome.server.billing.service.BillingGenerationService.class);
+    private final UnitManagementService service = new UnitManagementService(access, properties, buildings, units, Clock.systemUTC(), residents, residentManagement, billing);
 	private final UUID userId = UUID.randomUUID();
 	private final Property property = Property.create("테스트", "주소", null, null, true, OffsetDateTime.now());
 	private final Building building = Building.create(property, "101동", 0, OffsetDateTime.now());
@@ -145,14 +147,28 @@ class UnitManagementServiceTest {
 		assertCode(() -> service.deleteBuilding(userId, property.getId(), building.getId()), "UNIT_NOT_FOUND");
 		verifyNoInteractions(units);
 		when(buildings.findByIdAndPropertyId(building.getId(), property.getId())).thenReturn(Optional.of(building));
+		when(buildings.countByPropertyIdAndDeletedAtIsNull(property.getId())).thenReturn(2L);
 		var unit = Unit.create(property, building, "201", null, null, UnitStatus.VACANT, OffsetDateTime.now());
-		when(units.findByPropertyIdAndBuildingIdAndDeletedAtIsNull(property.getId(), building.getId())).thenReturn(List.of(unit));
+		when(units.findByPropertyId(property.getId())).thenReturn(List.of(unit));
 		service.deleteBuilding(userId, property.getId(), building.getId());
 		assertThat(building.getDeletedBy()).isEqualTo(userId);
 		assertThat(unit.getDeletedAt()).isEqualTo(building.getDeletedAt());
 		assertThat(unit.getDeletedBy()).isEqualTo(userId);
+		when(buildings.countByPropertyIdAndDeletedAtIsNull(property.getId())).thenReturn(1L);
 		service.deleteBuilding(userId, property.getId(), building.getId());
-		verify(units, times(1)).findByPropertyIdAndBuildingIdAndDeletedAtIsNull(property.getId(), building.getId());
+		verify(residentManagement, times(2)).deleteForUnits(eq(userId), eq(property.getId()), eq(List.of(unit.getId())), any());
+        verify(billing, times(2)).cancelCurrentMonthUnits(eq(userId), eq(property.getId()), eq(List.of(unit.getId())), any());
+	}
+
+	@Test
+	void lastBuildingDeletionIsRejectedBeforeTouchingConnectedUnits() {
+		when(properties.findForUnitUpdate(property.getId())).thenReturn(Optional.of(property));
+		when(buildings.findByIdAndPropertyId(building.getId(), property.getId())).thenReturn(Optional.of(building));
+		when(buildings.countByPropertyIdAndDeletedAtIsNull(property.getId())).thenReturn(1L);
+		assertCode(() -> service.deleteBuilding(userId, property.getId(), building.getId()), "LAST_BUILDING_NOT_DELETABLE");
+		assertThat(building.getDeletedAt()).isNull();
+		verifyNoInteractions(units);
+		verify(buildings, never()).flush();
 	}
 
 	private UnitRequest request(UUID buildingId, String number) {

@@ -4,6 +4,8 @@ import { ApiError } from '@/shared/api';
 export function getUnitManagementError(error: unknown) {
   if (!(error instanceof ApiError)) return '정보를 처리하지 못했어요. 다시 시도해주세요.';
   if (error.code === 'DUPLICATE_BUILDING') return '이미 등록된 동 이름이에요. 동 이름을 확인해주세요.';
+  if (error.code === 'LAST_BUILDING_NOT_DELETABLE') return '마지막 동은 삭제할 수 없어요.';
+  if (error.code === 'BILLING_SETTINGS_NOT_FOUND') return '관리비 설정을 확인할 수 없어 세대를 추가하지 못했어요. 설정을 확인해주세요.';
   if (error.code === 'DUPLICATE_UNIT') return '이미 등록된 호수가 포함되어 있어요. 목록을 다시 확인해주세요.';
   if (error.code === 'INVALID_REQUEST') return '동과 세대 정보를 확인해주세요.';
   if (error.code === 'UNIT_NOT_FOUND') return '대상을 찾을 수 없어요. 목록을 새로 확인해주세요.';

@@ -37,6 +37,9 @@ import static org.assertj.core.api.Assertions.*;
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class ResidentDirectoryPersistenceTest {
 	private static final PostgresTestServer POSTGRES = new PostgresTestServer();
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.moahome.server.billing.service.BillingGenerationService billing;
+
 	private static final OffsetDateTime AT = OffsetDateTime.parse("2026-10-10T04:00:00Z");
 	@Autowired PropertyRepository properties;
 	@Autowired BuildingRepository buildings;
@@ -126,7 +129,7 @@ class ResidentDirectoryPersistenceTest {
 		jdbc.update("insert into " + schema + ".units (id,property_id,unit_number,status,created_at,updated_at) values (?,?,'001','ACTIVE',now(),now())", unitId, propertyId);
 		Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			.schemas(schema).defaultSchema(schema).load();
-		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(4);
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(7);
 		upgraded.validate();
 		assertThat(jdbc.queryForObject("select unit_number from " + schema + ".units where id=?", String.class, unitId)).isEqualTo("001");
 		assertThat(jdbc.queryForObject("select count(*) from " + schema + ".residents", Integer.class)).isZero();
@@ -219,7 +222,7 @@ class ResidentDirectoryPersistenceTest {
         jdbc.update("insert into " + schema + ".residents(id,property_id,name,status,created_at,updated_at) values (?,?,'기존 주민','ACTIVE',now(),now())", residentId, propertyId);
         Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(3);
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(6);
         upgraded.validate();
         assertThat(jdbc.queryForObject("select name from " + schema + ".residents where id=?", String.class, residentId)).isEqualTo("기존 주민");
         assertThat(jdbc.queryForObject("select count(*) from " + schema + ".membership_requests", Integer.class)).isZero();
@@ -279,9 +282,154 @@ class ResidentDirectoryPersistenceTest {
             .isInstanceOfSatisfying(com.moahome.server.resident.exception.ResidentRegistrationException.class,
                 error -> assertThat(error.code().name()).isEqualTo("REGISTRATION_CONFLICT"));
         jdbc.update("update residents set deleted_at=now() where id=?", first.id());
-        assertThatThrownBy(() -> registrations.register(actor, property.getId(), registration(unit.getId(), "동일 주민", "01023456789")))
-            .isInstanceOfSatisfying(com.moahome.server.resident.exception.ResidentRegistrationException.class,
-                error -> assertThat(error.code().name()).isEqualTo("RESIDENT_RESTORE_REQUIRED"));
+        var restored = registrations.register(actor, property.getId(), registration(unit.getId(), "동일 주민", "01023456789"));
+        assertThat(restored.id()).isEqualTo(first.id());
+        assertThat(service.list(actor, property.getId()).residents()).hasSize(4);
+    }
+
+    @Test
+    void reregistrationReusesResidentIdKeepsHistoryAndEndedAccessAndReplaysOnlyTheNewRequest() {
+        var property = property(false);
+        var actor = users.saveAndFlush(User.create("재등록 관리자", null)).getId();
+        var account = users.saveAndFlush(User.create("재등록 주민 계정", null)).getId();
+        member(property.getId(), actor);
+        member(property.getId(), account);
+        jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", property.getId(), account);
+        var unit = units.saveAndFlush(Unit.create(property, null, "701", null, null, UnitStatus.ACTIVE, AT));
+        var original = registration(unit.getId(), "다시 등록할 주민", "01012345678");
+        var first = registrations.register(actor, property.getId(), original);
+        jdbc.update("update residents set user_id=? where id=?", account, first.id());
+        var createdAt = jdbc.queryForObject("select created_at from residents where id=?", OffsetDateTime.class, first.id());
+        management.delete(actor, property.getId(), first.id(), new com.moahome.server.resident.dto.ResidentDeleteRequest(
+            null, management.detail(actor, property.getId(), first.id()).updatedAt()));
+        var history = jdbc.queryForList("select * from unit_residents where resident_id=?", first.id());
+        assertThat(history).singleElement().satisfies(row -> {
+            assertThat(row.get("status")).isEqualTo("ACTIVE");
+            assertThat(row.get("move_out_date")).isNull();
+            assertThat(row.get("deleted_at")).isNotNull();
+        });
+        var retry = registration(unit.getId(), "다시 등록할 주민", "+82 10 1234 5678");
+        var restored = registrations.register(actor, property.getId(), retry);
+        assertThat(restored.id()).isEqualTo(first.id()).isNotEqualTo(retry.requestId());
+        assertThat(restored.representative()).isTrue();
+        assertThat(registrations.register(actor, property.getId(), retry)).isEqualTo(restored);
+        assertThatThrownBy(() -> registrations.register(actor, property.getId(), original)).hasMessage("REGISTRATION_CONFLICT");
+        assertThat(jdbc.queryForList("select * from unit_residents where resident_id=? and deleted_at is not null", first.id())).isEqualTo(history);
+        assertThat(jdbc.queryForObject("select created_at from residents where id=?", OffsetDateTime.class, first.id())).isEqualTo(createdAt);
+        assertThat(jdbc.queryForObject("select user_id from residents where id=?", UUID.class, first.id())).isEqualTo(account);
+        assertThat(jdbc.queryForObject("select deleted_by from residents where id=?", UUID.class, first.id())).isNull();
+        assertThat(jdbc.queryForObject("select status from property_members where property_id=? and user_id=?", String.class, property.getId(), account)).isEqualTo("INACTIVE");
+        assertThat(service.list(actor, property.getId()).residents()).singleElement()
+            .satisfies(row -> assertThat(row.signupStatus()).isEqualTo(ResidentSignupStatus.NOT_JOINED));
+        assertThat(jdbc.queryForObject("select count(*) from unit_residents where resident_id=? and deleted_at is null", Integer.class, first.id())).isEqualTo(1);
+    }
+
+    @Test
+    void deletingAllThenReimportingAllowsSelectionReusesIdsAndKeepsOriginalRepresentativeAndRetryResults() throws Exception {
+        var property = property(true);
+        var actor = users.saveAndFlush(User.create("명부 재입력 관리자", null)).getId();
+        member(property.getId(), actor);
+        var building = buildings.saveAndFlush(Building.create(property, "102동", 0, AT));
+        var unit = units.saveAndFlush(Unit.create(property, building, "201", null, null, UnitStatus.ACTIVE, AT));
+        var representative = registrations.register(actor, property.getId(), registration(unit.getId(), "기존 대표", "01012345678"));
+        var family = registrations.register(actor, property.getId(), registration(unit.getId(), "기존 가족", "01023456789"));
+        management.deleteForUnits(actor, property.getId(), List.of(unit.getId()), OffsetDateTime.now());
+        var preview = imports.preview(actor, property.getId(), excel(new String[][] {
+            {"102동", "201", "기존 가족", "가족", "01023456789"},
+            {"102동", "201", "기존 대표", "임차인", "01012345678"},
+            {"102동", "201", "기존 대표", "임차인", "+82 10 1234 5678"}
+        }));
+        assertThat(preview.rows()).extracting(row -> row.status()).containsExactly("READY", "READY", "DUPLICATE");
+        assertThat(preview.rows().getFirst().reason()).contains("재등록 가능");
+        assertThat(service.list(actor, property.getId()).residents()).isEmpty();
+        var selected = new com.moahome.server.resident.dto.ResidentImportCommitRequest(List.of(2, 3));
+        var saved = imports.commit(actor, property.getId(), preview.importId(), selected);
+        assertThat(saved.rows()).extracting(row -> row.status()).containsExactly("SUCCESS", "SUCCESS", "DUPLICATE");
+        assertThat(saved.rows()).extracting(row -> row.representative()).containsExactly(false, true, false);
+        assertThat(imports.commit(actor, property.getId(), preview.importId(), selected)).isEqualTo(saved);
+        assertThat(service.list(actor, property.getId()).residents()).extracting(row -> row.id()).containsExactlyInAnyOrder(representative.id(), family.id());
+        assertThat(jdbc.queryForObject("select count(*) from residents where property_id=?", Integer.class, property.getId())).isEqualTo(2);
+        assertThat(jdbc.queryForObject("select count(*) from unit_residents where property_id=? and deleted_at is null", Integer.class, property.getId())).isEqualTo(2);
+    }
+
+    @Test
+    void reregistrationFailureRollsBackRestorationAndConcurrentRetriesCreateOneCurrentAffiliation() throws Exception {
+        var property = property(false);
+        var actor = users.saveAndFlush(User.create("복구 롤백 관리자", null)).getId();
+        member(property.getId(), actor);
+        var unit = units.saveAndFlush(Unit.create(property, null, "702", null, null, UnitStatus.ACTIVE, AT));
+        var original = registrations.register(actor, property.getId(), registration(unit.getId(), "복구할 주민", "01012345678"));
+        management.deleteForUnits(actor, property.getId(), List.of(unit.getId()), OffsetDateTime.now());
+        var deletedAt = jdbc.queryForObject("select deleted_at from residents where id=?", OffsetDateTime.class, original.id());
+        var retry = registration(unit.getId(), "복구할 주민", "01012345678");
+        jdbc.execute("create function fail_restoration() returns trigger language plpgsql as $$ begin raise exception 'test'; end; $$");
+        jdbc.execute("create trigger fail_restoration before insert on resident_registration_results for each row execute function fail_restoration()");
+        try {
+            assertThatThrownBy(() -> registrations.register(actor, property.getId(), retry)).isInstanceOf(RuntimeException.class);
+            assertThat(jdbc.queryForObject("select deleted_at from residents where id=?", OffsetDateTime.class, original.id())).isEqualTo(deletedAt);
+            assertThat(jdbc.queryForObject("select count(*) from unit_residents where resident_id=?", Integer.class, original.id())).isEqualTo(1);
+        } finally { jdbc.execute("drop function fail_restoration() cascade"); }
+        var gate = new java.util.concurrent.CountDownLatch(1);
+        try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var first = pool.submit(() -> { gate.await(); return registrations.register(actor, property.getId(), retry); });
+            var second = pool.submit(() -> { gate.await(); return registrations.register(actor, property.getId(), retry); });
+            gate.countDown();
+            assertThat(first.get(10, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(second.get(10, java.util.concurrent.TimeUnit.SECONDS));
+        }
+        assertThat(service.list(actor, property.getId()).residents()).hasSize(1);
+        assertThat(jdbc.queryForObject("select count(*) from unit_residents where resident_id=? and deleted_at is null", Integer.class, original.id())).isEqualTo(1);
+    }
+
+    @Test
+    void reregistrationPreservesLegacyMoveOutHistoryAndDoesNotReplaceTheDestinationRepresentative() {
+        var property = property(false);
+        var actor = users.saveAndFlush(User.create("과거 기록 보존 관리자", null)).getId();
+        member(property.getId(), actor);
+        var source = units.saveAndFlush(Unit.create(property, null, "703", null, null, UnitStatus.ACTIVE, AT));
+        var destination = units.saveAndFlush(Unit.create(property, null, "704", null, null, UnitStatus.ACTIVE, AT));
+        var original = registrations.register(actor, property.getId(), registration(source.getId(), "기존 주민", "01012345678"));
+        var retained = registrations.register(actor, property.getId(), registration(destination.getId(), "현재 대표", null));
+        management.deleteForUnits(actor, property.getId(), List.of(source.getId()), OffsetDateTime.now());
+        // 이전 구현에서 삭제와 함께 남긴 퇴거 기록도 보정하거나 지우지 않고 보존합니다.
+        jdbc.update("update unit_residents set status='MOVED_OUT',move_out_date='2026-10-10' where resident_id=?", original.id());
+        var history = jdbc.queryForList("select * from unit_residents where resident_id=?", original.id());
+        var restored = registrations.register(actor, property.getId(), registration(destination.getId(), "기존 주민", "01012345678"));
+        assertThat(restored.id()).isEqualTo(original.id());
+        assertThat(restored.representative()).isFalse();
+        assertThat(management.detail(actor, property.getId(), retained.id()).representative()).isTrue();
+        assertThat(jdbc.queryForList("select * from unit_residents where resident_id=? and deleted_at is not null", original.id())).isEqualTo(history);
+    }
+
+    @Test
+    void registrationResultMigrationPreservesExistingDeletedRosterAndRelationshipsAndRejectsForeignResultLinks() {
+        String schema = "reregistration_upgrade_" + UUID.randomUUID().toString().replace("-", "");
+        var previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+            .schemas(schema).defaultSchema(schema).target("20261012052031").load();
+        previous.migrate();
+        var propertyId = UUID.randomUUID();
+        var residentId = UUID.randomUUID();
+        var unitId = UUID.randomUUID();
+        var relationId = UUID.randomUUID();
+        jdbc.update("insert into " + schema + ".properties(id,name,address,has_buildings,status,created_at,updated_at) values (?,'기존 대상','주소',false,'ACTIVE',now(),now())", propertyId);
+        jdbc.update("insert into " + schema + ".units(id,property_id,unit_number,status,created_at,updated_at) values (?,?,'001','ACTIVE',now(),now())", unitId, propertyId);
+        jdbc.update("insert into " + schema + ".residents(id,property_id,name,status,created_at,updated_at,deleted_at) values (?,?,'기존 주민','ACTIVE',now(),now(),now())", residentId, propertyId);
+        jdbc.update("insert into " + schema + ".unit_residents(id,property_id,resident_id,unit_id,relation_type,status,is_household_rep,created_at,updated_at,deleted_at) values (?,?,?,?,'FAMILY','MOVED_OUT',true,now(),now(),now())", relationId, propertyId, residentId, unitId);
+        var roster = jdbc.queryForList("select * from " + schema + ".residents");
+        var relations = jdbc.queryForList("select * from " + schema + ".unit_residents");
+        var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+            .schemas(schema).defaultSchema(schema).load();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(2);
+        upgraded.validate();
+        assertThat(jdbc.queryForList("select * from " + schema + ".residents")).isEqualTo(roster);
+        assertThat(jdbc.queryForList("select * from " + schema + ".unit_residents")).isEqualTo(relations);
+        var actor = UUID.randomUUID();
+        jdbc.update("insert into " + schema + ".users(id,display_name,status) values (?,'기존 관리자','ACTIVE')", actor);
+        jdbc.update("insert into " + schema + ".resident_registration_results(request_id,property_id,resident_id,unit_resident_id,created_by,created_at) values (?,?,?,?,?,now())",
+            UUID.randomUUID(), propertyId, residentId, relationId, actor);
+        var foreignResident = UUID.randomUUID();
+        jdbc.update("insert into " + schema + ".residents(id,property_id,name,status,created_at,updated_at) values (?,?,'다른 주민','ACTIVE',now(),now())", foreignResident, propertyId);
+        assertThatThrownBy(() -> jdbc.update("insert into " + schema + ".resident_registration_results(request_id,property_id,resident_id,unit_resident_id,created_by,created_at) values (?,?,?,?,?,now())",
+            UUID.randomUUID(), propertyId, foreignResident, relationId, actor)).isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test

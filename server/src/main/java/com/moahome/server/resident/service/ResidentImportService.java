@@ -118,7 +118,7 @@ public class ResidentImportService {
         }
     }
 
-    /** 업로드 행은 개별 등록과 같은 연락처 검증을 쓰며 불명확한 세대를 새로 만들거나 주민을 자동 복구하지 않습니다. */
+    /** 개별 등록과 같은 중복 기준을 적용하며 정확히 일치하는 삭제 명부는 선택 후 재등록할 수 있게 표시합니다. */
     private ResidentImportRow validate(ResidentExcelReader.InputRow input, Property property, Map<String, UUID> targets, Set<String> contacts) {
         String building = property.isHasBuildings() ? Building.normalizeName(input.building()) : "";
         String unitNumber = input.unitNumber().replaceFirst("호$", "").strip();
@@ -144,7 +144,8 @@ public class ResidentImportService {
             else {
                 var existing = residents.findByPropertyIdAndNameAndPhoneHmac(property.getId(), name, phone.hmac());
                 if (existing.stream().anyMatch(person -> person.getDeletedAt() == null)) { status = "DUPLICATE"; reason = "이름·연락처가 같은 주민이 이미 등록되어 있어요."; }
-                else if (!existing.isEmpty()) { status = "ERROR"; reason = "삭제된 명부에 같은 주민이 있어요. 기존 주민을 확인해주세요."; }
+                else if (existing.size() > 1) { status = "ERROR"; reason = "같은 이름·연락처의 삭제 기록이 여러 개예요. 기존 주민을 확인해주세요."; }
+                else if (!existing.isEmpty()) { reason = "재등록 가능 · 기존 주민 기록 재사용"; }
             }
         }
         return new ResidentImportRow(input.rowNumber(), UUID.randomUUID(), clip(building), clip(unitNumber), clip(name),

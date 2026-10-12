@@ -39,15 +39,16 @@ public class UnitResident {
 		updatedAt = at;
 	}
 
-	/** 세대 이동·명부 삭제에서 현재 관계를 종료하고 과거 소속과 대표 이력을 보존합니다. */
+	/** 명부 삭제는 삭제 표시로 제외하며 실제 세대 이동에서만 퇴거 상태·날짜를 기록합니다. */
 	public void end(UUID actor, OffsetDateTime at, boolean deleted) {
-		status = "MOVED_OUT";
-		moveOutDate = at.toLocalDate();
 		updatedAt = at;
 		if (deleted) {
 			deletedAt = at;
 			deletedBy = actor;
+			return;
 		}
+		status = "MOVED_OUT";
+		moveOutDate = at.toLocalDate();
 	}
 
 	/** 같은 관리대상의 신규 주민과 기존 세대만 연결하며 대표 여부는 잠금 아래 최초 등록 판정으로 전달받습니다. */

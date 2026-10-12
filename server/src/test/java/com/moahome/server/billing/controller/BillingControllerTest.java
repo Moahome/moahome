@@ -64,6 +64,23 @@ class BillingControllerTest {
         verifyNoInteractions(service);
     }
     @Test
+    void cancellationValidatesAuthenticationScopeAndReturnsNoContentForSameCharge() throws Exception {
+        var chargeId = UUID.randomUUID();
+        var path = url + "/monthly/2026-10/charges/" + chargeId;
+        mvc.perform(delete(path)).andExpect(status().isUnauthorized());
+        mvc.perform(delete(url + "/monthly/2026-13/charges/" + chargeId).with(identity())).andExpect(status().isBadRequest());
+        mvc.perform(delete(url + "/monthly/2026-10/charges/invalid").with(identity())).andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+        mvc.perform(delete(path).with(identity())).andExpect(status().isNoContent())
+            .andExpect(header().string("Cache-Control", "no-store"));
+        verify(service).cancelCharge(userId, propertyId, YearMonth.of(2026, 10), chargeId);
+        doThrow(new BillingException(BillingException.Code.BILLING_CANCELLATION_NOT_ALLOWED)).when(service)
+            .cancelCharge(userId, propertyId, YearMonth.of(2026, 10), chargeId);
+        mvc.perform(delete(path).with(identity())).andExpect(status().isConflict())
+            .andExpect(jsonPath("code").value("BILLING_CANCELLATION_NOT_ALLOWED"));
+    }
+
+    @Test
     void usesAuthenticatedIdentityForSignedSaveAndScopedMonthlyReads() throws Exception {
         when(service.monthly(userId, propertyId, YearMonth.of(2028, 2))).thenReturn(new BillingResponse.Month(propertyId, false,
             "2028-02", LocalDate.of(2028, 2, 1), LocalDate.of(2028, 2, 29), "ISSUED", "-1", List.of()));

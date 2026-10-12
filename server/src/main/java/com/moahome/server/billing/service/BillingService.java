@@ -107,7 +107,8 @@ public class BillingService {
         var names = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId).stream()
             .collect(Collectors.toMap(Building::getId, Building::getName));
         var representatives = representativeNames(userId, propertyId, context.role());
-        var rows = units.findByPropertyIdAndDeletedAtIsNull(propertyId).stream().filter(unit -> unit.getStatus()!=UnitStatus.INACTIVE)
+        var rows = units.findByPropertyIdAndDeletedAtIsNull(propertyId).stream().filter(unit -> unit.getStatus()==UnitStatus.ACTIVE)
+            .filter(unit -> unit.getBuildingId() == null || names.containsKey(unit.getBuildingId()))
             .map(unit -> new ChargeRow(unit.getId(), unit.getId(), names.getOrDefault(unit.getBuildingId(), ""),
                 unit.getUnitNumber(), unit.getDisplayName(), representatives.get(unit.getId()), items.stream().map(this::item).toList())).toList();
         return new Month(propertyId, property.isHasBuildings(), month.toString(), month.atDay(1), month.atEndOfMonth(), "SCHEDULED", total.toPlainString(), rows);
@@ -121,7 +122,9 @@ public class BillingService {
     }
     /** 청구 금액·세대명은 저장 스냅샷을 유지하고 대표 이름만 현재 명부에서 보완합니다. */
     private Month issuedMonth(BillingPeriod period, boolean hasBuildings, Map<UUID, String> representatives) {
-        var headers = charges.findByBillingPeriodId(period.getId()).stream().filter(charge -> "ISSUED".equals(charge.getStatus())).toList();
+        var currentUnits = undeletedUnitIds(period.getPropertyId());
+        var headers = charges.findByBillingPeriodId(period.getId()).stream()
+            .filter(charge -> visibleCharge(charge, period.month(), currentUnits)).toList();
         var snapshots = headers.isEmpty() ? Map.<UUID, List<ChargeItem>>of() : chargeItems.findByChargeIdInOrderBySortOrderAsc(
             headers.stream().map(Charge::getId).toList()).stream().collect(Collectors.groupingBy(ChargeItem::getChargeId));
         var rows = headers.stream().map(charge -> new ChargeRow(charge.getId(), charge.getUnitId(), charge.getBuildingName(),
@@ -137,17 +140,52 @@ public class BillingService {
             .orElseThrow(() -> new BillingException(BILLING_CHARGE_NOT_FOUND));
         return new Month(propertyId, result.hasBuildings(), month.toString(), result.billingDate(), result.dueDate(), result.status(), result.baseAmount(), List.of(row));
     }
+
+    /** 세대 변경·스케줄과 같은 잠금으로 당월 청구를 취소하고 과거 이력과 다음 달 자동 부과는 보존합니다. */
+    @Transactional
+    public void cancelCharge(UUID userId, UUID propertyId, YearMonth month, UUID chargeId) {
+        access.getManagementContext(userId, propertyId);
+        properties.findForUnitUpdate(propertyId).orElseThrow(() -> new BillingException(BILLING_CHARGE_NOT_FOUND));
+        var period = periods.findByPropertyIdAndBillingYearAndBillingMonth(propertyId, (short)month.getYear(), (short)month.getMonthValue())
+            .orElseThrow(() -> new BillingException(BILLING_CHARGE_NOT_FOUND));
+        var charge = charges.findById(chargeId).filter(value -> value.getPropertyId().equals(propertyId)
+            && value.getBillingPeriodId().equals(period.getId())).orElseThrow(() -> new BillingException(BILLING_CHARGE_NOT_FOUND));
+        if (!month.equals(BillingCalendar.currentMonth(clock)) || !"ISSUED".equals(period.getStatus())
+            || !("ISSUED".equals(charge.getStatus()) || "CANCELED".equals(charge.getStatus()))) {
+            throw new BillingException(BILLING_CANCELLATION_NOT_ALLOWED);
+        }
+        charge.cancelManually(userId, OffsetDateTime.now(clock));
+        charges.flush();
+    }
     /** 이력은 확정 기간만 조회하고 signed 합계는 BigDecimal로 계산해 여러 세대 합계의 정밀도를 보존합니다. */
     public History history(UUID userId, UUID propertyId) {
         access.getManagementContext(userId, propertyId);
+        var currentUnits = undeletedUnitIds(propertyId);
         var grouped = charges.findByPropertyId(propertyId).stream().filter(charge -> "ISSUED".equals(charge.getStatus()))
             .collect(Collectors.groupingBy(Charge::getBillingPeriodId));
         return new History(propertyId, periods.findByPropertyIdOrderByBillingYearDescBillingMonthDesc(propertyId).stream()
             .filter(period -> "ISSUED".equals(period.getStatus())).map(period -> {
-                var rows = grouped.getOrDefault(period.getId(), List.of());
+                var rows = grouped.getOrDefault(period.getId(), List.of()).stream()
+                    .filter(charge -> visibleCharge(charge, period.month(), currentUnits)).toList();
                 var total = rows.stream().map(Charge::getTotalAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
                 return new Period(period.month().toString(), period.getBillingDate(), period.getDefaultDueDate(), rows.size(),
                     total.toPlainString(), period.getConfirmedAt());
             }).toList());
+    }
+
+    /** 삭제 전 구현에서 남은 청구도 당월 집계에 섞이지 않게 동과 세대의 실제 삭제 상태를 함께 확인합니다. */
+    private Set<UUID> undeletedUnitIds(UUID propertyId) {
+        var buildingIds = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId).stream()
+            .map(Building::getId).collect(Collectors.toSet());
+        return units.findByPropertyIdAndDeletedAtIsNull(propertyId).stream()
+            .filter(unit -> unit.getStatus() == UnitStatus.ACTIVE)
+            .filter(unit -> unit.getBuildingId() == null || buildingIds.contains(unit.getBuildingId()))
+            .map(Unit::getId).collect(Collectors.toSet());
+    }
+
+    /** 당월 이후는 삭제된 대상의 잔여 청구를 제외하고 과거 월은 당시 확정 스냅샷을 보존합니다. */
+    private boolean visibleCharge(Charge charge, YearMonth month, Set<UUID> currentUnits) {
+        return "ISSUED".equals(charge.getStatus())
+            && (month.isBefore(BillingCalendar.currentMonth(clock)) || currentUnits.contains(charge.getUnitId()));
     }
 }

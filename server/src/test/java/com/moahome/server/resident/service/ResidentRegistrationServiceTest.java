@@ -24,8 +24,9 @@ class ResidentRegistrationServiceTest {
     private final BuildingRepository buildings = mock(BuildingRepository.class);
     private final ResidentRepository residents = mock(ResidentRepository.class);
     private final UnitResidentRepository affiliations = mock(UnitResidentRepository.class);
+    private final ResidentRegistrationResultRepository results = mock(ResidentRegistrationResultRepository.class);
     @SuppressWarnings("unchecked") private final ObjectProvider<PhoneSecurity> security = mock(ObjectProvider.class);
-    private final ResidentRegistrationService service = new ResidentRegistrationService(access, properties, units, buildings, residents, affiliations, security, Clock.systemUTC());
+    private final ResidentRegistrationService service = new ResidentRegistrationService(access, properties, units, buildings, residents, affiliations, results, security, Clock.systemUTC());
     private final UUID actor = UUID.randomUUID();
     private final Property property = Property.create("테스트 대상", "주소", null, null, false, OffsetDateTime.now());
     private final Unit unit = Unit.create(property, null, "101", null, null, UnitStatus.ACTIVE, OffsetDateTime.now());

@@ -7,6 +7,8 @@ import com.moahome.server.property.domain.Building;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface BuildingRepository extends JpaRepository<Building, UUID> {
+    List<Building> findByPropertyId(UUID propertyId);
+    long countByPropertyIdAndDeletedAtIsNull(UUID propertyId);
 	List<Building> findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(UUID propertyId);
 	Optional<Building> findByIdAndPropertyId(UUID id, UUID propertyId);
 	Optional<Building> findByIdAndPropertyIdAndDeletedAtIsNull(UUID id, UUID propertyId);

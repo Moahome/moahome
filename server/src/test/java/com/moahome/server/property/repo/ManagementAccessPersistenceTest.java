@@ -37,6 +37,11 @@ import static org.assertj.core.api.Assertions.*;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class ManagementAccessPersistenceTest {
 	private static final PostgresTestServer POSTGRES = new PostgresTestServer();
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.moahome.server.billing.service.BillingGenerationService billing;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.moahome.server.resident.service.ResidentManagementService residentManagement;
+
 	@Autowired UserRepository users;
 	@Autowired PropertyRepository properties;
 	@Autowired PropertyMemberRepository members;
@@ -182,6 +187,12 @@ class ManagementAccessPersistenceTest {
 		assertThat(unitManagement.list(userId, target.getId()).buildings()).extracting(item -> item.id()).containsExactly(second.id());
 		assertThat(unitManagement.list(userId, target.getId()).units()).extracting(item -> item.id()).containsExactly(retained.id());
 		assertThat(units.findByPropertyId(target.getId())).hasSize(3);
+		assertThatThrownBy(() -> unitManagement.deleteBuilding(userId, target.getId(), second.id()))
+			.isInstanceOfSatisfying(com.moahome.server.property.exception.UnitManagementException.class,
+				error -> assertThat(error.code().name()).isEqualTo("LAST_BUILDING_NOT_DELETABLE"));
+		entityManager.clear();
+		assertThat(buildings.findById(second.id()).orElseThrow().getDeletedAt()).isNull();
+		assertThat(units.findById(retained.id()).orElseThrow().getDeletedAt()).isNull();
 	}
 
 	private UUID property(String name, OffsetDateTime at) {

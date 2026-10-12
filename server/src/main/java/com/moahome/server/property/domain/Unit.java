@@ -78,7 +78,7 @@ public class Unit {
 			throw new IllegalArgumentException("Invalid unit configuration");
 		}
 		String normalizedNumber = TextValues.required(unitNumber, 30);
-		// 공실 변경은 이 엔티티의 상태만 바꾸며 주민 관계·권한·청구를 자동 변경하지 않습니다.
+		// 주민 관계·권한은 유지하며 당월 부과 대상 변경은 서비스가 같은 트랜잭션에서 조율합니다.
 		if (status == UnitStatus.INACTIVE) {
 			throw new IllegalArgumentException("Invalid initial unit configuration");
 		}

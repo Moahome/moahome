@@ -50,6 +50,15 @@ public class BillingController {
     public ResponseEntity<BillingResponse.History> history(@AuthenticationPrincipal AuthPrincipal principal, @PathVariable String propertyId) {
         return ok(service.history(UUID.fromString(principal.userId()), id(propertyId)));
     }
+    /** 상세에서 선택한 청구만 취소하며 같은 세대의 다른 월·관리대상 청구를 변경하지 않습니다. */
+    @DeleteMapping("/monthly/{month}/charges/{chargeId}")
+    @Operation(summary="당월 세대 청구 취소")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode="204", description="취소 완료 또는 이미 취소된 당월 청구")
+    public ResponseEntity<Void> cancel(@AuthenticationPrincipal AuthPrincipal principal, @PathVariable String propertyId,
+        @PathVariable String month, @PathVariable String chargeId) {
+        service.cancelCharge(UUID.fromString(principal.userId()), id(propertyId), BillingCalendar.parseMonth(month), id(chargeId));
+        return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
+    }
     private UUID id(String value) {
         if (!value.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) throw new IllegalArgumentException("Invalid identifier");
         return UUID.fromString(value);

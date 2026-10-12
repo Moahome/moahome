@@ -14,6 +14,8 @@ import com.moahome.server.property.exception.UnitManagementException;
 import com.moahome.server.property.repo.*;
 import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.resident.service.ResidentListService;
+import com.moahome.server.resident.service.ResidentManagementService;
+import com.moahome.server.billing.service.BillingGenerationService;
 import com.moahome.server.resident.domain.ResidentSignupStatus;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -29,15 +31,21 @@ public class UnitManagementService {
 	private final UnitRepository units;
 	private final Clock clock;
 	private final ResidentListService residents;
+	private final ResidentManagementService residentManagement;
+	private final BillingGenerationService billing;
 
 	public UnitManagementService(ManagementAccessService access, PropertyRepository properties,
-		BuildingRepository buildings, UnitRepository units, Clock clock, ResidentListService residents) {
+		BuildingRepository buildings, UnitRepository units, Clock clock, ResidentListService residents,
+		ResidentManagementService residentManagement,
+		BillingGenerationService billing) {
 		this.access = access;
 		this.properties = properties;
 		this.buildings = buildings;
 		this.units = units;
 		this.clock = clock;
 		this.residents = residents;
+		this.residentManagement = residentManagement;
+		this.billing = billing;
 	}
 
 	/** 매 요청의 현재 관리 권한을 확인한 뒤 저장된 세대와 동 구분을 읽습니다. 초안·등록 결과를 조회하지 않습니다. */
@@ -71,7 +79,7 @@ public class UnitManagementService {
 		return result;
 	}
 
-	/** 관리대상 잠금 아래 중복 호수를 확인하고 기존 세대 스키마에 한 세대만 추가합니다. */
+	/** 관리대상 잠금 아래 중복 호수를 확인하고 한 세대와 당월 전액 청구를 함께 추가합니다. */
 	@Transactional
 	public UnitResponse create(UUID userId, UUID propertyId, UnitRequest request) {
 		var property = requireWritableProperty(userId, propertyId);
@@ -79,7 +87,10 @@ public class UnitManagementService {
 		var unit = Unit.create(property, building, request.unitNumber(), request.displayName(), request.floor(),
 			UnitStatus.valueOf(request.status()), OffsetDateTime.now(clock));
 		requireUniqueNumber(propertyId, request, unit.getId());
-		return UnitResponse.from(units.saveAndFlush(unit));
+		units.saveAndFlush(unit);
+		// 당월 전액 청구까지 성공해야 세대 추가가 완료되며 청구 실패 시 세대도 롤백합니다.
+		billing.addCurrentMonthUnits(propertyId, List.of(unit.getId()));
+		return UnitResponse.from(unit);
 	}
 
 	/** URL의 관리대상과 세대 소속을 함께 검증하고 기존 ID를 유지해 기본 정보만 변경합니다. */
@@ -93,6 +104,8 @@ public class UnitManagementService {
 		requireUniqueNumber(propertyId, request, unitId);
 		unit.updateDetails(property, building, request.unitNumber(), request.displayName(), request.floor(), UnitStatus.valueOf(request.status()));
 		units.flush();
+		// 공실 전환·사용 중 복귀를 당월 부과에도 반영하며 세대 변경과 함께 롤백합니다.
+		billing.addCurrentMonthUnits(propertyId, List.of(unit.getId()));
 		return UnitResponse.from(unit);
 	}
 
@@ -114,7 +127,9 @@ public class UnitManagementService {
 			if (!seen.add(key)) throw new UnitManagementException(DUPLICATE_UNIT);
 			return unit;
 		}).toList();
-		return units.saveAllAndFlush(additions).stream().map(UnitResponse::from).toList();
+		units.saveAllAndFlush(additions);
+		billing.addCurrentMonthUnits(propertyId, additions.stream().map(Unit::getId).toList());
+		return additions.stream().map(UnitResponse::from).toList();
 	}
 
 	/** 동 구분을 바꾸지 않고 동 있음 대상에 새 동을 추가하며 대상 잠금으로 이름 중복을 직렬화합니다. */
@@ -150,24 +165,43 @@ public class UnitManagementService {
 		var targets = units.findByPropertyIdAndIdIn(propertyId, requested);
 		if (targets.size() != requested.size()) throw new UnitManagementException(UNIT_NOT_FOUND);
 		var at = OffsetDateTime.now(clock);
+		deleteUnitDependencies(userId, propertyId, targets.stream().map(Unit::getId).toList(), at);
 		targets.forEach(unit -> unit.softDelete(userId, at));
 		units.flush();
 	}
 
-	/** 확인 창의 범위대로 동과 연결 세대를 함께 제외하며 다른 동·계좌·등록 결과는 변경하지 않습니다. */
+	/** 확인 창의 범위대로 동·연결 세대·현재 주민을 함께 제외하고 당월 청구를 취소하며 과거 청구는 보존합니다. */
 	@Transactional
 	public void deleteBuilding(UUID userId, UUID propertyId, UUID buildingId) {
 		requireWritableProperty(userId, propertyId);
 		var building = buildings.findByIdAndPropertyId(buildingId, propertyId)
 			.orElseThrow(() -> new UnitManagementException(UNIT_NOT_FOUND));
-		if (building.getDeletedAt() != null) return;
+		if (building.getDeletedAt() != null) {
+			// 이전 구현에서 남은 주민 관계를 재요청으로 정리하되 과거 청구는 변경하지 않습니다.
+			var previous = units.findByPropertyId(propertyId).stream().filter(unit -> buildingId.equals(unit.getBuildingId()))
+				.map(Unit::getId).toList();
+			deleteUnitDependencies(userId, propertyId, previous, OffsetDateTime.now(clock));
+			return;
+		}
+		// 관리대상 잠금 안에서 미삭제 동을 세어 동시 삭제에도 최소 한 동과 연결 세대를 보존합니다.
+		if (buildings.countByPropertyIdAndDeletedAtIsNull(propertyId) <= 1) {
+			throw new UnitManagementException(LAST_BUILDING_NOT_DELETABLE);
+		}
 		var at = OffsetDateTime.now(clock);
-		units.findByPropertyIdAndBuildingIdAndDeletedAtIsNull(propertyId, buildingId)
-			.forEach(unit -> unit.softDelete(userId, at));
+		// 연결을 종료하기 전에 대상 ID를 고정해 주민·당월 청구·세대를 하나의 원자적 삭제 범위로 사용합니다.
+		var targets = units.findByPropertyId(propertyId).stream().filter(unit -> buildingId.equals(unit.getBuildingId())).toList();
+		deleteUnitDependencies(userId, propertyId, targets.stream().map(Unit::getId).toList(), at);
+		targets.forEach(unit -> unit.softDelete(userId, at));
 		building.softDelete(userId, at);
 		// 같은 관리대상 잠금을 추가·수정과 공유하므로 동 삭제와 새 세대 연결이 교차하지 않습니다.
 		units.flush();
 		buildings.flush();
+	}
+
+	/** 주민 정리나 청구 취소 실패에는 동·세대 삭제도 함께 롤백하며 다른 세대의 데이터는 건드리지 않습니다. */
+	private void deleteUnitDependencies(UUID actor, UUID propertyId, List<UUID> unitIds, OffsetDateTime at) {
+		residentManagement.deleteForUnits(actor, propertyId, unitIds, at);
+		billing.cancelCurrentMonthUnits(actor, propertyId, unitIds, at);
 	}
 
 	/** 기존 DB의 삭제되지 않은 동 이름 유일성 범위와 같은 조건을 사용합니다. */

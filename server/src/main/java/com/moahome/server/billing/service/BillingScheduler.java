@@ -23,7 +23,7 @@ public class BillingScheduler {
     public BillingScheduler(PropertyRepository properties, BillingGenerationService generation, Clock clock) {
         this.properties=properties; this.generation=generation; this.clock=clock;
     }
-    /** 1일 00시를 포함해 매시간 누락 월을 재시도하고 재시작 때도 중단된 실행을 복구합니다. */
+    /** 매시간·서버 시작 시 누락 월과 당월 누락 세대 청구를 복구하며 이미 확정된 원본은 재계산하지 않습니다. */
     @Scheduled(cron="0 0 * * * *", zone="Asia/Seoul")
     @EventListener(ApplicationReadyEvent.class)
     public void runDueBilling() {
@@ -31,7 +31,10 @@ public class BillingScheduler {
         for (var property : properties.findAll()) {
             if (property.getDeletedAt()!=null || property.getStatus()!=PropertyStatus.ACTIVE) continue;
             for (var month=BillingCalendar.firstMonth(property); !month.isAfter(current); month=month.plusMonths(1)) {
-                try { generation.generate(property.getId(), month); }
+                try {
+                    generation.generate(property.getId(), month);
+                    if (month.equals(current)) generation.supplementCurrentMonth(property.getId());
+                }
                 catch (RuntimeException exception) {
                     // 개인정보·SQL 원문을 남기지 않고 실패 대상을 식별합니다. 다른 대상은 계속하며 실패 대상은 다음 실행에 복구합니다.
                     LOG.error("Automatic billing failed for property {} month {} ({})", property.getId(), month, exception.getClass().getSimpleName());

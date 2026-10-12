@@ -41,7 +41,8 @@ export async function registerResident(propertyId: string, input: ResidentRegist
     method: 'POST',
     data: input
   });
-  if (!result || result.id !== input.requestId || result.propertyId !== propertyId || result.unitId !== input.unitId
+  // 재등록은 새 요청 ID와 다른 기존 주민 ID를 반환하므로 UUID 형식과 요청한 소속을 검증합니다.
+  if (!result || !isPropertyId(result.id) || result.propertyId !== propertyId || result.unitId !== input.unitId
     || typeof result.representative !== 'boolean') {
     throw new ApiError(200, 'INVALID_RESPONSE', '등록 결과를 확인할 수 없습니다.');
   }

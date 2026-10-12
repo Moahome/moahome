@@ -67,6 +67,14 @@ public class Resident implements org.springframework.data.domain.Persistable<UUI
 		updatedAt = at;
 	}
 
+	/** 같은 주민의 재등록은 원래 ID·계정 연결을 보존하고 명부 삭제 표시만 해제하며 권한은 복구하지 않습니다. */
+	public void restore(OffsetDateTime at) {
+		if (deletedAt == null) throw new IllegalStateException("Resident is not deleted");
+		deletedAt = null;
+		deletedBy = null;
+		updatedAt = java.util.Objects.requireNonNull(at);
+	}
+
 	/** 대표가 된 주민의 이전 상세로 수정·삭제하지 못하도록 대표 변경도 조회 버전에 반영합니다. */
 	public void touch(OffsetDateTime at) { updatedAt = java.util.Objects.requireNonNull(at); }
 

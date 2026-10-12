@@ -8,6 +8,7 @@ public class UnitManagementException extends RuntimeException {
 		UNIT_NOT_FOUND(HttpStatus.NOT_FOUND, "세대를 찾을 수 없습니다."),
 		DUPLICATE_UNIT(HttpStatus.CONFLICT, "이미 등록된 호수입니다."),
 		DUPLICATE_BUILDING(HttpStatus.CONFLICT, "이미 등록된 동 이름입니다."),
+		LAST_BUILDING_NOT_DELETABLE(HttpStatus.CONFLICT, "마지막 동은 삭제할 수 없습니다."),
 		UNIT_NOT_EDITABLE(HttpStatus.CONFLICT, "수정할 수 없는 세대입니다.");
 
 		public final HttpStatus status;

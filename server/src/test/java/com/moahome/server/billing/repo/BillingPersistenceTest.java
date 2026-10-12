@@ -41,6 +41,8 @@ import static org.assertj.core.api.Assertions.*;
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @Import({BillingService.class, BillingTemplates.class, BillingGenerationService.class,
     PropertyRegistrationService.class, PropertyRegistrationLock.class, ManagementAccessService.class,
+    UnitManagementService.class, com.moahome.server.resident.service.ResidentManagementService.class,
+    com.moahome.server.resident.service.ResidentRegistrationService.class,
     UserService.class, com.moahome.server.resident.service.ResidentListService.class, BillingPersistenceTest.TestBeans.class})
 @ActiveProfiles("database-test")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -49,6 +51,8 @@ class BillingPersistenceTest {
     private static final PostgresTestServer POSTGRES = new PostgresTestServer();
     @Autowired BillingService billing;
     @Autowired BillingGenerationService generation;
+    @Autowired UnitManagementService unitManagement;
+    @Autowired com.moahome.server.resident.service.ResidentListService residentLists;
     @Autowired PropertyRegistrationService registration;
     @Autowired PropertyRepository properties;
     @Autowired UserRepository users;
@@ -68,7 +72,7 @@ class BillingPersistenceTest {
         userId = users.saveAndFlush(User.create("관리자", null)).getId();
         var request = RegistrationFixtures.withUnits(RegistrationFixtures.request(UUID.randomUUID(), true), List.of(
             new UnitInput("a", "201", "기존 별칭", 2, "ACTIVE"),
-            new UnitInput("a", "202", null, 2, "VACANT"),
+            new UnitInput("a", "202", null, 2, "ACTIVE"),
             new UnitInput("b", "301", null, 3, "ACTIVE"),
             new UnitInput("b", "302", null, 3, "ACTIVE")));
         propertyId = registration.register(userId, request).response().property().id();
@@ -78,18 +82,19 @@ class BillingPersistenceTest {
     @AfterEach
     void cleanup() {
         jdbc.execute("drop function if exists fail_billing() cascade");
+        jdbc.execute("drop function if exists fail_cancellation() cascade");
         jdbc.execute("truncate charge_items, charges, billing_periods, property_registration_results, property_members, "
             + "fee_template_items, fee_templates, bank_accounts, units, buildings, properties, social_accounts, users cascade");
     }
     @AfterAll static void stopPostgres() { POSTGRES.close(); }
 
     @Test
-    void registrationIssuesCurrentMonthImmediatelyAndNextMonthIncludesActiveAndVacantOnly() {
+    void registrationIssuesCurrentMonthImmediatelyAndNextMonthIncludesActiveOnly() {
         var settings = billing.settings(userId, propertyId);
         assertThat(settings.firstBillingMonth()).isEqualTo("2026-10");
         var initial = billing.monthly(userId, propertyId, YearMonth.of(2026, 10));
         assertThat(initial.status()).isEqualTo("ISSUED");
-        assertThat(initial.charges()).hasSize(4);
+        assertThat(initial.charges()).hasSize(2);
         assertThat(initial.billingDate()).isEqualTo(LocalDate.of(2026, 10, 1));
         assertThat(initial.dueDate()).isEqualTo(LocalDate.of(2026, 10, 31));
         assertThat(billing.history(userId, propertyId).periods()).hasSize(1);
@@ -108,7 +113,7 @@ class BillingPersistenceTest {
         assertThat(billing.history(userId, propertyId).periods().getFirst().totalAmount()).isEqualTo("100000");
         assertThat(generation.generate(propertyId, YearMonth.of(2026, 11))).isFalse();
         assertThat(count("charges")).isEqualTo(6);
-        assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 10))).isEqualTo(initial);
+        assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 10)).charges()).containsAll(initial.charges()).hasSize(4);
     }
 
     @Test
@@ -148,6 +153,285 @@ class BillingPersistenceTest {
         var noBuildings = billing.monthly(userId, other, YearMonth.of(2026, 10));
         assertThat(noBuildings.hasBuildings()).isFalse();
         assertThat(noBuildings.charges()).allMatch(row -> row.building().isEmpty() && row.representativeName() == null);
+    }
+
+    @Test
+    void singleAndBatchAdditionsIssueCurrentMonthFullAmountWithoutResidentsAndKeepExistingSnapshots() {
+        var october = billing.monthly(userId, propertyId, YearMonth.of(2026, 10));
+        var settings = billing.settings(userId, propertyId);
+        billing.saveSettings(userId, propertyId, request(settings.revisionId(), "2026-11", "다음 달 변경", 999));
+        var buildingId = buildingId("201");
+        var first = unitManagement.create(userId, propertyId, unitRequest(buildingId, "701", "ACTIVE"));
+        var batch = unitManagement.createBatch(userId, propertyId, new com.moahome.server.property.dto.UnitBatchRequest(List.of(
+            unitRequest(buildingId, "702", "VACANT"), unitRequest(buildingId, "703", "ACTIVE"))));
+        generation.addCurrentMonthUnits(propertyId, List.of(first.id()));
+        var month = billing.monthly(userId, propertyId, YearMonth.of(2026, 10));
+        assertThat(month.charges()).hasSize(4).containsAll(october.charges());
+        assertThat(month.charges()).filteredOn(row -> List.of("701", "703").contains(row.room()))
+            .allSatisfy(row -> {
+                assertThat(row.representativeName()).isNull();
+                assertThat(row.items()).extracting(item -> item.amount()).containsExactly("15000", "8000", "25300", "1700");
+            });
+        assertThat(batch).hasSize(2);
+        assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 11)).charges())
+            .filteredOn(row -> row.unitId().equals(first.id())).singleElement()
+            .satisfies(row -> assertThat(row.items()).extracting(item -> item.amount()).containsExactly("999"));
+        assertThat(residentLists.list(userId, propertyId).residents()).isEmpty();
+    }
+
+    @Test
+    void schedulerSupplementsLegacyMissingCurrentMonthUnitsOnceWithoutChangingIssuedOrPastSnapshots() {
+        var october = billing.monthly(userId, propertyId, YearMonth.of(2026, 10));
+        var buildingId = buildingId("201");
+        var legacyUnit = UUID.randomUUID();
+        // 이전 구현처럼 세대만 저장되어 당월 청구가 빠진 상태를 재현합니다.
+        jdbc.update("insert into units(id,property_id,building_id,unit_number,status,created_at,updated_at) "
+            + "values (?,?,?,'701','ACTIVE',now(),now())", legacyUnit, propertyId, buildingId);
+        var settings = billing.settings(userId, propertyId);
+        billing.saveSettings(userId, propertyId, request(settings.revisionId(), "2026-11", "다음 달 변경", 999));
+        var scheduler = new BillingScheduler(properties, generation, clock);
+        scheduler.runDueBilling();
+        scheduler.runDueBilling();
+        var current = billing.monthly(userId, propertyId, YearMonth.of(2026, 10));
+        assertThat(current.charges()).hasSize(3).containsAll(october.charges());
+        assertThat(current.charges()).filteredOn(row -> row.unitId().equals(legacyUnit)).singleElement()
+            .satisfies(row -> assertThat(row.items()).extracting(item -> item.amount())
+                .containsExactly("15000", "8000", "25300", "1700"));
+        unitManagement.deleteUnits(userId, propertyId, List.of(legacyUnit));
+        scheduler.runDueBilling();
+        assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 10))).isEqualTo(october);
+        assertThat(count("charges")).isEqualTo(5);
+        assertThat(residentLists.list(userId, propertyId).residents()).isEmpty();
+    }
+
+    @Test
+    void buildingDeletionRemovesAllCurrentResidentsAccessAndPendingRequestsButKeepsOtherBuildingAndPastCharges() {
+        var firstUnit = unitId("201");
+        var secondUnit = unitId("202");
+        var buildingId = buildingId("201");
+        var representative = addResident(firstUnit, "삭제할 대표", true);
+        addResident(firstUnit, "삭제할 가족", false);
+        addResident(secondUnit, "삭제할 공실 주민", true);
+        var retained = addResident(unitId("301"), "다른 동 주민", true);
+        // 과거에 대상 동에 살았어도 현재 다른 동에 소속된 주민은 삭제하지 않습니다.
+        jdbc.update("insert into unit_residents(id,property_id,resident_id,unit_id,relation_type,status,is_household_rep,created_at,updated_at) "
+            + "values (?,?,?,?,'OTHER','MOVED_OUT',false,now(),now())", UUID.randomUUID(), propertyId, retained, firstUnit);
+        var residentUser = users.saveAndFlush(User.create("주민 로그인 계정", null)).getId();
+        jdbc.update("update residents set user_id=? where id=?", residentUser, representative);
+        addMember(propertyId, residentUser, "RESIDENT");
+        var other = registration.register(userId, RegistrationFixtures.request(UUID.randomUUID(), false)).response().property().id();
+        addMember(other, residentUser, "RESIDENT");
+        var approved = addRequest(firstUnit, residentUser, representative, "APPROVED");
+        var pending = addRequest(firstUnit, residentUser, representative, "PENDING");
+        var unmatched = addRequest(secondUnit, users.saveAndFlush(User.create("미확인 신청", null)).getId(), null, "PENDING");
+        var otherPending = addRequest(unitId("301"), users.saveAndFlush(User.create("다른 동 신청", null)).getId(), retained, "PENDING");
+        var retainedUnit = unitManagement.create(userId, propertyId, unitRequest(buildingId("301"), "303", "ACTIVE"));
+        var october = billing.monthly(userId, propertyId, YearMonth.of(2026, 10));
+        clock.set(Instant.parse("2026-11-10T00:00:00Z"));
+        generation.generate(propertyId, YearMonth.of(2026, 11));
+        unitManagement.deleteBuilding(userId, propertyId, buildingId);
+        var canceledAt = jdbc.queryForObject("select canceled_at from charges where unit_id=? and status='CANCELED'", OffsetDateTime.class, firstUnit);
+        unitManagement.deleteBuilding(userId, propertyId, buildingId);
+        assertThat(residentLists.list(userId, propertyId).residents()).extracting(row -> row.id()).containsExactly(retained);
+        assertThat(jdbc.queryForObject("select count(*) from unit_residents where property_id=? and unit_id in (?,?) and status='ACTIVE' and deleted_at is null", Long.class, propertyId, firstUnit, secondUnit)).isZero();
+        assertThat(jdbc.queryForObject("select status from property_members where property_id=? and user_id=?", String.class, propertyId, residentUser)).isEqualTo("INACTIVE");
+        assertThat(jdbc.queryForObject("select status from property_members where property_id=? and user_id=?", String.class, other, residentUser)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("select status from property_members where property_id=? and user_id=?", String.class, propertyId, userId)).isEqualTo("ACTIVE");
+        for (var id : List.of(pending, unmatched)) assertThat(jdbc.queryForObject("select status from membership_requests where id=?", String.class, id)).isEqualTo("CANCELED");
+        assertThat(jdbc.queryForObject("select status from membership_requests where id=?", String.class, approved)).isEqualTo("APPROVED");
+        assertThat(jdbc.queryForObject("select status from membership_requests where id=?", String.class, otherPending)).isEqualTo("PENDING");
+        assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 11)).charges()).extracting(row -> row.unitId()).containsExactly(retainedUnit.id());
+        assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 12)).charges()).extracting(row -> row.unitId()).containsExactly(retainedUnit.id());
+        assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 10)).charges()).extracting(row -> row.id(), row -> row.items())
+            .containsAll(october.charges().stream().map(row -> tuple(row.id(), row.items())).toList()).hasSize(october.charges().size() + 2);
+        assertThat(jdbc.queryForObject("select canceled_at from charges where unit_id=? and status='CANCELED'", OffsetDateTime.class, firstUnit)).isEqualTo(canceledAt);
+        assertThat(jdbc.queryForObject("select count(*) from charges where property_id=? and status='CANCELED' and canceled_by=? and cancellation_reason='UNIT_DELETED'", Long.class, propertyId, userId)).isEqualTo(2);
+    }
+
+    @Test
+    void unitBatchDeletionAndCancellationFailureAreAtomicAndRetryable() {
+        var selected = List.of(unitId("201"), unitId("202"));
+        var resident = addResident(selected.getFirst(), "롤백할 주민", true);
+        jdbc.execute("create function fail_cancellation() returns trigger language plpgsql as $$ begin raise exception 'test'; end; $$");
+        jdbc.execute("create trigger fail_cancellation before update on charges for each row when (new.status='CANCELED') execute function fail_cancellation()");
+        assertThatThrownBy(() -> unitManagement.deleteUnits(userId, propertyId, selected)).isInstanceOf(RuntimeException.class);
+        assertThat(jdbc.queryForObject("select deleted_at from residents where id=?", OffsetDateTime.class, resident)).isNull();
+        assertThat(jdbc.queryForObject("select status from unit_residents where resident_id=?", String.class, resident)).isEqualTo("ACTIVE");
+        assertThat(unitManagement.list(userId, propertyId).units()).extracting(row -> row.id()).containsAll(selected);
+        assertThat(count("charges")).isEqualTo(4);
+        jdbc.execute("drop function fail_cancellation() cascade");
+        unitManagement.deleteUnits(userId, propertyId, selected);
+        unitManagement.deleteUnits(userId, propertyId, selected);
+        assertThat(residentLists.list(userId, propertyId).residents()).isEmpty();
+        assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 10)).charges()).extracting(row -> row.unitId()).doesNotContainAnyElementsOf(selected);
+        assertThat(jdbc.queryForObject("select count(*) from charges where status='CANCELED'", Long.class)).isEqualTo(2);
+    }
+
+    @Test
+    void supplementFailureRollsBackSingleAndBatchUnitsAndConcurrentSchedulerDoesNotDuplicateCharges() throws Exception {
+        var buildingId = buildingId("201");
+        jdbc.execute("create function fail_billing() returns trigger language plpgsql as $$ begin raise exception 'test'; end; $$");
+        jdbc.execute("create trigger fail_billing before insert on charge_items for each row execute function fail_billing()");
+        assertThatThrownBy(() -> unitManagement.create(userId, propertyId, unitRequest(buildingId, "711", "ACTIVE"))).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(() -> unitManagement.createBatch(userId, propertyId, new com.moahome.server.property.dto.UnitBatchRequest(List.of(
+            unitRequest(buildingId, "712", "ACTIVE"), unitRequest(buildingId, "713", "VACANT"))))).isInstanceOf(RuntimeException.class);
+        assertThat(jdbc.queryForObject("select count(*) from units where property_id=? and unit_number in ('711','712','713')", Long.class, propertyId)).isZero();
+        assertThat(count("charges")).isEqualTo(4);
+        jdbc.execute("drop function fail_billing() cascade");
+        clock.set(Instant.parse("2026-10-31T15:00:00Z"));
+        var start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var create = executor.submit(() -> { start.await(); return unitManagement.create(userId, propertyId, unitRequest(buildingId, "711", "ACTIVE")); });
+            var scheduled = executor.submit(() -> { start.await(); return generation.generate(propertyId, YearMonth.of(2026, 11)); });
+            start.countDown();
+            var added = create.get(10, TimeUnit.SECONDS);
+            scheduled.get(10, TimeUnit.SECONDS);
+            assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 11)).charges()).extracting(row -> row.unitId())
+                .containsOnlyOnce(added.id()).hasSize(3);
+        }
+    }
+
+    @Test
+    void vacantUnitsAreExcludedAndStatusChangesSynchronizeCurrentChargesWithoutDuplicatesOrManualRevival() {
+        var buildingId = buildingId("201");
+        var vacant = unitManagement.create(userId, propertyId, unitRequest(buildingId, "801", "VACANT"));
+        assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 10)).charges()).noneMatch(row -> row.unitId().equals(vacant.id()));
+        assertThat(jdbc.queryForObject("select count(*) from charges where unit_id=?", Long.class, vacant.id())).isZero();
+        unitManagement.update(userId, propertyId, vacant.id(), unitRequest(buildingId, "801", "ACTIVE"));
+        var original = billing.detail(userId, propertyId, YearMonth.of(2026, 10), vacant.id()).charges().getFirst();
+        assertThat(original.items()).extracting(item -> item.amount()).containsExactly("15000", "8000", "25300", "1700");
+        unitManagement.update(userId, propertyId, vacant.id(), unitRequest(buildingId, "801", "VACANT"));
+        assertThat(jdbc.queryForObject("select status from charges where id=?", String.class, original.id())).isEqualTo("EXCLUDED_VACANT");
+        generation.supplementCurrentMonth(propertyId);
+        assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 11)).charges()).noneMatch(row -> row.unitId().equals(vacant.id()));
+        unitManagement.update(userId, propertyId, vacant.id(), unitRequest(buildingId, "801", "ACTIVE"));
+        assertThat(billing.detail(userId, propertyId, YearMonth.of(2026, 10), vacant.id()).charges()).containsExactly(original);
+        billing.cancelCharge(userId, propertyId, YearMonth.of(2026, 10), original.id());
+        unitManagement.update(userId, propertyId, vacant.id(), unitRequest(buildingId, "801", "VACANT"));
+        unitManagement.update(userId, propertyId, vacant.id(), unitRequest(buildingId, "801", "ACTIVE"));
+        generation.supplementCurrentMonth(propertyId);
+        assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 10)).charges()).noneMatch(row -> row.unitId().equals(vacant.id()));
+        assertThat(jdbc.queryForObject("select count(*) from charges where unit_id=?", Long.class, vacant.id())).isEqualTo(1);
+        assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 11)).charges()).anyMatch(row -> row.unitId().equals(vacant.id()));
+    }
+
+    @Test
+    void deletedBuildingRecreationCountsOnlyNewTargetsAndRepairsLegacyChargesWithoutTouchingPast() {
+        var request = RegistrationFixtures.withUnits(RegistrationFixtures.request(UUID.randomUUID(), true),
+            java.util.stream.IntStream.range(0, 31).mapToObj(index -> new UnitInput(index < 15 ? "a" : "b",
+                String.valueOf(101 + index), null, 1, "ACTIVE")).toList());
+        var target = registration.register(userId, request).response().property().id();
+        var oldBuilding = jdbc.queryForObject("select id from buildings where property_id=? and name='102동'", UUID.class, target);
+        var original = billing.monthly(userId, target, YearMonth.of(2026, 10));
+        clock.set(Instant.parse("2026-11-10T00:00:00Z"));
+        generation.generate(target, YearMonth.of(2026, 11));
+        // 이전 구현처럼 동·세대만 삭제되고 청구가 남은 상태를 재현합니다.
+        jdbc.update("update buildings set deleted_at=now(),deleted_by=? where id=?", userId, oldBuilding);
+        jdbc.update("update units set deleted_at=now(),deleted_by=? where building_id=?", userId, oldBuilding);
+        assertThat(billing.monthly(userId, target, YearMonth.of(2026, 11)).charges()).hasSize(15);
+        var replacement = unitManagement.createBuilding(userId, target, new com.moahome.server.property.dto.BuildingRequest("102동"));
+        unitManagement.createBatch(userId, target, new com.moahome.server.property.dto.UnitBatchRequest(
+            java.util.stream.IntStream.range(15, 31).mapToObj(index -> unitRequest(replacement.id(), String.valueOf(101 + index), "ACTIVE")).toList()));
+        generation.supplementCurrentMonth(target);
+        var current = billing.monthly(userId, target, YearMonth.of(2026, 11));
+        assertThat(current.charges()).hasSize(31);
+        assertThat(current.charges()).extracting(row -> row.building() + "/" + row.room()).doesNotHaveDuplicates();
+        assertThat(billing.history(userId, target).periods().getFirst().unitCount()).isEqualTo(31);
+        assertThat(jdbc.queryForObject("select count(*) from charges where property_id=? and status='CANCELED'", Long.class, target)).isEqualTo(16);
+        assertThat(billing.monthly(userId, target, YearMonth.of(2026, 10))).isEqualTo(original);
+    }
+
+    @Test
+    void manualCancellationIsScopedAtomicRetryableAndDoesNotDeleteUnitOrChangeNextMonth() {
+        var month = YearMonth.of(2026, 10);
+        var charge = billing.detail(userId, propertyId, month, unitId("201")).charges().getFirst();
+        var originalItems = jdbc.queryForList("select * from charge_items where charge_id=? order by id", charge.id());
+        var stranger = users.saveAndFlush(User.create("다른 계정", null)).getId();
+        assertThatThrownBy(() -> billing.cancelCharge(stranger, propertyId, month, charge.id())).isInstanceOf(AuthException.class);
+        var other = registration.register(userId, RegistrationFixtures.request(UUID.randomUUID(), false)).response().property().id();
+        assertThatThrownBy(() -> billing.cancelCharge(userId, other, month, charge.id())).isInstanceOf(BillingException.class);
+        jdbc.execute("create function fail_cancellation() returns trigger language plpgsql as $$ begin raise exception 'test'; end; $$");
+        jdbc.execute("create trigger fail_cancellation before update on charges for each row when (new.status='CANCELED') execute function fail_cancellation()");
+        assertThatThrownBy(() -> billing.cancelCharge(userId, propertyId, month, charge.id())).isInstanceOf(RuntimeException.class);
+        assertThat(billing.detail(userId, propertyId, month, charge.unitId()).charges()).containsExactly(charge);
+        jdbc.execute("drop function fail_cancellation() cascade");
+        billing.cancelCharge(userId, propertyId, month, charge.id());
+        var audit = jdbc.queryForList("select canceled_at,canceled_by,cancellation_reason from charges where id=?", charge.id());
+        billing.cancelCharge(userId, propertyId, month, charge.id());
+        generation.supplementCurrentMonth(propertyId);
+        assertThat(jdbc.queryForList("select canceled_at,canceled_by,cancellation_reason from charges where id=?", charge.id())).isEqualTo(audit);
+        assertThat(jdbc.queryForObject("select cancellation_reason from charges where id=?", String.class, charge.id())).isEqualTo("MANUAL_CANCELED");
+        assertThat(jdbc.queryForList("select * from charge_items where charge_id=? order by id", charge.id())).isEqualTo(originalItems);
+        assertThat(billing.monthly(userId, propertyId, month).charges()).noneMatch(row -> row.id().equals(charge.id()));
+        assertThat(billing.history(userId, propertyId).periods().getFirst().unitCount()).isEqualTo(1);
+        assertThat(unitManagement.list(userId, propertyId).units()).anyMatch(unit -> unit.id().equals(charge.unitId()));
+        assertThat(billing.monthly(userId, propertyId, month.plusMonths(1)).charges()).anyMatch(row -> row.unitId().equals(charge.unitId()));
+        clock.set(Instant.parse("2026-11-10T00:00:00Z"));
+        assertThatThrownBy(() -> billing.cancelCharge(userId, propertyId, month, charge.id())).isInstanceOf(BillingException.class)
+            .hasMessage(BillingException.Code.BILLING_CANCELLATION_NOT_ALLOWED.message);
+    }
+
+    @Test
+    void cancellationMigrationPreservesExistingIssuedHeadersAndItemsAndEnforcesCompleteAudit() {
+        String schema = "charge_upgrade_" + UUID.randomUUID().toString().replace("-", "");
+        var old = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+            .schemas(schema).defaultSchema(schema).target("20261010131153").load();
+        old.migrate();
+        for (String table : List.of("users", "properties", "buildings", "units", "fee_templates", "fee_template_items", "billing_periods")) {
+            jdbc.execute("insert into " + schema + "." + table + " select * from public." + table);
+        }
+        String originalColumns = "id,property_id,billing_period_id,unit_id,building_name_snapshot,unit_number_snapshot,unit_display_name_snapshot,total_amount,due_date,status,issued_at,created_at,updated_at";
+        jdbc.execute("insert into " + schema + ".charges select " + originalColumns + " from public.charges");
+        jdbc.execute("insert into " + schema + ".charge_items select * from public.charge_items");
+        var original = jdbc.queryForList("select " + originalColumns + " from public.charges order by id");
+        var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+            .schemas(schema).defaultSchema(schema).load();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(3);
+        upgraded.validate();
+        assertThat(jdbc.queryForList("select " + originalColumns + " from " + schema + ".charges order by id")).isEqualTo(original);
+        assertThat(jdbc.queryForObject("select count(*) from " + schema + ".charge_items", Long.class)).isEqualTo(count("charge_items"));
+        assertThatThrownBy(() -> jdbc.execute("update " + schema + ".charges set status='CANCELED'"))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("update " + schema + ".charges set status='CANCELED',canceled_at=now(),canceled_by=?", userId))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        jdbc.update("update " + schema + ".charges set status='CANCELED',canceled_at=now(),canceled_by=?,cancellation_reason='UNIT_DELETED'", userId);
+        assertThat(jdbc.queryForObject("select count(*) from " + schema + ".charges where status='CANCELED' and issued_at is not null", Long.class)).isEqualTo(4);
+    }
+
+    @Test
+    void managerCannotBypassAdminResidentDeletionThroughUnitsOrBuildings() {
+        var unitId = unitId("201");
+        var resident = addResident(unitId, "보호할 주민", true);
+        jdbc.update("update property_members set role='MANAGER' where property_id=? and user_id=?", propertyId, userId);
+        assertThatThrownBy(() -> unitManagement.deleteUnits(userId, propertyId, List.of(unitId))).isInstanceOf(AuthException.class);
+        assertThatThrownBy(() -> unitManagement.deleteBuilding(userId, propertyId, buildingId("201"))).isInstanceOf(AuthException.class);
+        assertThat(jdbc.queryForObject("select deleted_at from residents where id=?", OffsetDateTime.class, resident)).isNull();
+        assertThat(jdbc.queryForObject("select deleted_at from units where id=?", OffsetDateTime.class, unitId)).isNull();
+        assertThat(jdbc.queryForObject("select count(*) from charges where status='CANCELED'", Long.class)).isZero();
+    }
+
+    private UUID unitId(String number) {
+        return jdbc.queryForObject("select id from units where property_id=? and unit_number=?", UUID.class, propertyId, number);
+    }
+
+    private UUID buildingId(String number) {
+        return jdbc.queryForObject("select building_id from units where property_id=? and unit_number=?", UUID.class, propertyId, number);
+    }
+
+    private com.moahome.server.property.dto.UnitRequest unitRequest(UUID buildingId, String number, String status) {
+        return new com.moahome.server.property.dto.UnitRequest(buildingId, number, null, 7, status);
+    }
+
+    private void addMember(UUID property, UUID user, String role) {
+        jdbc.update("insert into property_members(id,property_id,user_id,role,status,joined_at,created_at,updated_at) values (?,?,?,?,'ACTIVE',now(),now(),now())",
+            UUID.randomUUID(), property, user, role);
+    }
+
+    private UUID addRequest(UUID unit, UUID user, UUID resident, String status) {
+        var id = UUID.randomUUID();
+        jdbc.update("insert into membership_requests(id,property_id,unit_id,user_id,matched_resident_id,match_status,status,request_phone_encrypted,request_phone_hmac,request_phone_last4,requested_at,created_at,updated_at) "
+            + "values (?,?,?,?,?,?,?,'test',?,'1234',now(),now(),now())", id, propertyId, unit, user, resident, resident == null ? "NOT_MATCHED" : "MATCHED", status, "a".repeat(64));
+        return id;
     }
 
     private UUID addResident(UUID unitId, String name, boolean representative) {

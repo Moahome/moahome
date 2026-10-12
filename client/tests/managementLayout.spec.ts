@@ -1076,7 +1076,7 @@ test('기존 동 관리·자동 입력 모달로 DB 추가·이름 수정·중�
   await expect(manager.getByRole('button', {
     name: '101동 삭제',
     exact: true
-  })).toBeVisible();
+  })).toHaveCount(0);
   await manager.getByRole('button', {
     name: '동 추가',
     exact: true
@@ -1101,6 +1101,14 @@ test('기존 동 관리·자동 입력 모달로 DB 추가·이름 수정·중�
     name: '추가',
     exact: true
   }).click();
+  await expect(manager.getByRole('button', {
+    name: '101동 삭제',
+    exact: true
+  })).toBeVisible();
+  await expect(manager.getByRole('button', {
+    name: '102동 삭제',
+    exact: true
+  })).toBeVisible();
   await manager.getByRole('button', {
     name: '102동 수정',
     exact: true
@@ -1444,7 +1452,7 @@ test('동 삭제는 연결 세대를 확인하고 다른 동은 유지하며 삭
     name: '동 삭제 확인',
     exact: true
   });
-  await expect(confirmation.getByText('동과 해당 동에 입력한 모든 세대가 함께 삭제됩니다.', {
+  await expect(confirmation.getByText('연결된 세대와 주민을 삭제하고 주민 이용 권한을 종료합니다. 당월 청구는 취소하며 과거 부과 이력은 유지합니다.', {
     exact: true
   })).toBeVisible();
   await confirmation.getByRole('button', {
@@ -1459,7 +1467,7 @@ test('동 삭제는 연결 세대를 확인하고 다른 동은 유지하며 삭
   await expect(manager.getByRole('button', {
     name: '102동 삭제',
     exact: true
-  })).toBeVisible();
+  })).toHaveCount(0);
   await manager.getByRole('button', {
     name: '완료',
     exact: true
@@ -2028,6 +2036,57 @@ for (const width of [1440, 375, 320]) {
     await expect(page).toHaveURL(RESIDENTS);
     expect(posts).toBe(1);
     expect(await page.evaluate(() => Object.values(localStorage).some((value) => value.includes('새 주민')))).toBe(false);
+  });
+}
+
+for (const width of [1440, 375]) {
+  test(`주민 재등록 ${width}px는 새 요청과 다른 기존 주민 ID를 받아 목록을 갱신`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 960
+    });
+    await mockResidentRegistrationUnits(page);
+    const data = residentDirectory();
+    const original = data.residents[0];
+    data.residents = [];
+    await page.route(RESIDENTS_URL, async (route) => {
+      if (route.request().method() !== 'POST') return fulfillJson(route, data);
+      const input = route.request().postDataJSON();
+      expect(input.requestId).not.toBe(original.id);
+      data.residents.push({
+        ...original,
+        name: input.name,
+        signupStatus: 'NOT_JOINED'
+      });
+      await fulfillJson(route, {
+        id: original.id,
+        propertyId: PROPERTY_ID,
+        unitId: input.unitId,
+        representative: true
+      }, 201);
+    });
+    await page.goto(RESIDENTS);
+    await page.getByRole('button', {
+      name: '주민 등록',
+      exact: true
+    }).click();
+    await fillResidentRegistration(page);
+    await page.getByRole('textbox', {
+      name: '연락처 (선택)',
+      exact: true
+    }).fill('01012345678');
+    await page.getByRole('button', {
+      name: '등록',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(RESIDENTS);
+    await expect(page.getByRole('article', {
+      name: '전체 주민 1명'
+    })).toBeVisible();
+    await expect(page.getByRole('row').filter({
+      hasText: '새 주민'
+    })).toBeVisible();
+    await expect(page.getByRole('status')).toContainText('주민을 등록했어요.');
   });
 }
 
@@ -3287,6 +3346,10 @@ for (const width of [375, 320]) {
       name: '동 관리',
       exact: true
     })).toBeVisible();
+    await expect(main.getByRole('button', {
+      name: '101동 삭제',
+      exact: true
+    })).toHaveCount(0);
     const edit = main.getByRole('button', {
       name: '101동 수정',
       exact: true
@@ -3315,13 +3378,16 @@ for (const width of [375, 320]) {
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(back).toBeVisible();
     await page.reload();
-    await main.getByLabel('시작 층', {
+    await main.getByRole('spinbutton', {
+      name: '시작 층',
       exact: true
     }).fill('2');
-    await main.getByLabel('마지막 층', {
+    await main.getByRole('spinbutton', {
+      name: '마지막 층',
       exact: true
     }).fill('2');
-    await main.getByLabel('층당 세대 수', {
+    await main.getByRole('spinbutton', {
+      name: '층당 세대 수',
       exact: true
     }).fill('1');
     await expect(main.getByRole('table', {
@@ -3337,7 +3403,8 @@ for (const width of [375, 320]) {
       exact: true
     }).click();
     await expect(main.getByRole('alert')).toBeVisible();
-    await expect(main.getByLabel('시작 층', {
+    await expect(main.getByRole('spinbutton', {
+      name: '시작 층',
       exact: true
     })).toHaveValue('2');
     failBatch = false;
