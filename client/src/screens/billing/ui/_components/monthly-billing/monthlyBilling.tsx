@@ -388,8 +388,6 @@ export function MonthlyBilling({ propertyId, settings, onOpenItems }: {
           </ListCard>
           {detail?.month === month && (
             <BillingDetail
-              propertyId={propertyId}
-              canCancel={!upcoming && list.data.status === 'ISSUED' && month === settings.currentMonth}
               month={month}
               hasBuildings={hasBuildings}
               charges={[detail.charge]}

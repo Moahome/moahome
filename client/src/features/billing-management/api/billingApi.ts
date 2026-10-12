@@ -81,19 +81,11 @@ export async function getBillingHistory(propertyId: string): Promise<BillingPeri
 
   return result.periods;
 }
-/** 표시된 청구 ID와 월을 함께 보내며 세대 자체나 다음 달 청구를 삭제하지 않습니다. */
-export async function cancelBillingCharge(propertyId: string, month: string, chargeId: string): Promise<void> {
-  await authenticatedAPI<void>({
-    url: `/api/properties/${propertyId}/billing/monthly/${month}/charges/${chargeId}`,
-    method: 'DELETE'
-  });
-}
 export function getBillingError(error: unknown): string {
   if (!(error instanceof ApiError)) return '관리비 정보를 처리하지 못했어요. 다시 시도해주세요.';
   if (error.code === 'BILLING_SETTINGS_CONFLICT') return '다른 변경이 반영되었거나 적용월이 바뀌었어요. 최신 설정을 다시 확인해주세요.';
   if (error.code === 'BILLING_SETTINGS_NOT_FOUND') return '등록된 관리비 설정을 찾을 수 없어요.';
   if (error.code === 'BILLING_CHARGE_NOT_FOUND') return '해당 월의 세대 청구 내역이 없어요.';
-  if (error.code === 'BILLING_CANCELLATION_NOT_ALLOWED') return '당월 확정 청구만 삭제할 수 있어요. 조회 월을 확인해주세요.';
   if (error.code === 'INVALID_REQUEST') return '항목·금액·수정 사유를 확인해주세요.';
   if (error.status === 401) return '로그인이 만료되었어요. 다시 로그인해주세요.';
   if (error.status === 403) return '관리비를 조회하거나 설정할 권한이 없어요.';

@@ -57,6 +57,8 @@ Template은 `id`, `effectiveMonth`, `items`, `reason`(최초 설정은 null), `c
 
 ## 당월 청구 삭제
 
+2026-10-12 후속 요청에 따라 Client 상세의 청구 삭제 버튼과 호출 코드는 제거했습니다. 아래 서버 API와 기존 취소 이력은 유지하며 화면에서 수동 취소를 제공하지 않습니다.
+
 `DELETE /monthly/{month}/charges/{chargeId}`는 본문 없이 호출하며 현재 ADMIN / MANAGER만 사용할 수 있습니다. 서버 한국시간 당월의 확정 청구만 허용하고 관리대상·기간·청구 ID를 함께 검증합니다. `CANCELED`로 전환하고 `cancellation_reason=MANUAL_CANCELED` 및 최초 처리자·시각을 저장합니다. 동일 당월 취소의 재요청은 204이며 최초 근거를 유지합니다. 월별·상세·이력 건수와 합계에서 제외하고 세대·주민·다음 달 부과는 변경하지 않습니다. 과거·미래 월의 요청은 409입니다.
 
 ## 월별 응답
