@@ -2929,7 +2929,8 @@ for (const width of [1440, 375, 320]) {
       name: '엑셀 업로드',
       exact: true
     });
-    await expect(upload).toHaveCSS('background-color', 'rgb(22, 101, 52)');
+    await expect(upload).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    await expect(upload).toHaveCSS('color', 'rgb(22, 101, 52)');
     await expect(upload.locator('svg')).toHaveCount(1);
     await expect(page.getByRole('columnheader', {
       name: '동·호수',
@@ -3045,7 +3046,7 @@ for (const width of [1440, 375, 320]) {
       exact: true
     }).click();
     await view.getByRole('button', {
-      name: '삭제 확인',
+      name: '삭제',
       exact: true
     }).click();
     await expect(view.getByRole('alert')).toContainText('새 대표');
@@ -3059,7 +3060,7 @@ for (const width of [1440, 375, 320]) {
       exact: true
     }).click();
     await view.getByRole('button', {
-      name: '삭제 확인',
+      name: '삭제',
       exact: true
     }).click();
     await expect(view.getByRole('alert')).toContainText('다시 시도');
@@ -3068,7 +3069,7 @@ for (const width of [1440, 375, 320]) {
       exact: true
     })).toHaveText(second.name);
     await view.getByRole('button', {
-      name: '삭제 확인',
+      name: '삭제',
       exact: true
     }).click();
     await expect(page).toHaveURL(RESIDENTS);

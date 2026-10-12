@@ -311,7 +311,7 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
               loading={busy}
               onClick={() => void confirmDelete()}
             >
-              삭제 확인
+              삭제
             </Button>
           </footer>
         </div>
