@@ -283,6 +283,7 @@ export function ResidentRegistrationForm({
         />
         <Dropdown
           label={'주민 구분'}
+          clearable={false}
           value={relationType}
           options={RESIDENT_RELATION_OPTIONS}
           onChange={setRelationType}
