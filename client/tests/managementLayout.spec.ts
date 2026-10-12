@@ -1487,6 +1487,47 @@ test('동 삭제는 연결 세대를 확인하고 다른 동은 유지하며 삭
 const RESIDENTS = `/manage/${PROPERTY_ID}/residents`;
 const RESIDENTS_URL = `${API_ORIGIN}/api/properties/${PROPERTY_ID}/residents`;
 
+for (const width of [1440, 375]) {
+  for (const hasBuildings of [false, true]) {
+    test(`등록된 동 0개 ${width}px 동 구분 ${hasBuildings}에서는 세대·주민 동 필터를 숨김`, async ({ page }) => {
+      await page.setViewportSize({
+        width,
+        height: 900
+      });
+      await page.route(UNITS_URL, (route) => fulfillJson(route, {
+        propertyId: PROPERTY_ID,
+        hasBuildings,
+        buildings: [],
+        units: []
+      }));
+      await page.route(RESIDENTS_URL, (route) => fulfillJson(route, {
+        propertyId: PROPERTY_ID,
+        hasBuildings,
+        buildings: [],
+        residents: []
+      }));
+      for (const path of [HOUSEHOLDS, RESIDENTS]) {
+        await page.goto(path);
+        const main = page.getByRole('main');
+        await expect(main.getByRole('table')).toBeVisible();
+        await expect(main.getByRole('combobox', {
+          name: '동 필터',
+          exact: true
+        })).toHaveCount(0);
+        await expect(main.getByRole('button', {
+          name: '초기화',
+          exact: true
+        })).toBeVisible();
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await page.screenshot({
+          path: test.info().outputPath(`${path === HOUSEHOLDS ? 'units' : 'residents'}NoBuildings.png`),
+          fullPage: true
+        });
+      }
+    });
+  }
+}
+
 for (const width of [1440, 375, 320]) {
   test(`주민 엑셀 다운로드 ${width}px는 연락처 마스킹 미리보기와 필터 전체 다운로드를 제공`, async ({ page }) => {
     await page.setViewportSize({

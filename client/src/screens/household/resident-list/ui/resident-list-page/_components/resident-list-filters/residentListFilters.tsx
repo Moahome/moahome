@@ -30,10 +30,12 @@ export function ResidentListFilters({
   hasFilters: boolean;
   onChange: (filters: ResidentFilters) => void;
 }) {
+  const showBuildingFilter = hasBuildings && buildings.length > 0;
+
   return (
     <div
       className={styles.filters}
-      data-has-buildings={hasBuildings}
+      data-has-buildings={showBuildingFilter}
     >
       <Input
         aria-label={'주민 검색'}
@@ -49,7 +51,7 @@ export function ResidentListFilters({
           />
         )}
       />
-      {hasBuildings && (
+      {showBuildingFilter && (
         <Dropdown
           aria-label={'동 필터'}
           clearable={false}

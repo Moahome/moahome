@@ -30,6 +30,7 @@ export function UnitListFilters({
   hasFilters: boolean;
   onChange: (filters: Filters) => void;
 }) {
+  const showBuildingFilter = hasBuildings && buildings.length > 0;
   const statusOptions = [
     {
       value: 'ALL',
@@ -44,7 +45,7 @@ export function UnitListFilters({
   return (
     <div
       className={styles.filters}
-      data-has-buildings={hasBuildings}
+      data-has-buildings={showBuildingFilter}
     >
       <Input
         aria-label={'세대 검색'}
@@ -60,7 +61,7 @@ export function UnitListFilters({
           />
         )}
       />
-      {hasBuildings && (
+      {showBuildingFilter && (
         <Dropdown
           aria-label={'동 필터'}
           clearable={false}
