@@ -1,4 +1,14 @@
+import { useState } from 'react';
+import {
+  useMutation,
+  useQueryClient
+} from '@tanstack/react-query';
 import type { BillingCharge } from '@/entities/billing';
+import { UnitDeleteConfirmation } from '@/entities/property';
+import {
+  cancelBillingCharge,
+  getBillingError
+} from '@/features/billing-management';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
@@ -12,8 +22,10 @@ import {
 } from '../../../model/billing';
 import styles from './billingDetail.module.css';
 
-/** 확정 이력과 부과 예정액은 읽기 전용으로 표시해 조회가 실제 청구 변경으로 이어지지 않게 합니다. */
+/** 저장된 상세를 표시하고 당월 개별 청구에만 확인 절차를 거쳐 취소를 허용합니다. */
 export function BillingDetail({
+  propertyId,
+  canCancel = false,
   month,
   charges,
   hasBuildings,
@@ -21,6 +33,8 @@ export function BillingDetail({
   presentation = 'modal',
   onClose,
 }: {
+  propertyId?: string;
+  canCancel?: boolean;
   month: string;
   charges: BillingCharge[];
   hasBuildings: boolean;
@@ -28,7 +42,23 @@ export function BillingDetail({
   presentation?: 'modal' | 'page';
   onClose: () => void;
 }) {
+  const queryClient = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
   const unit = charges.length === 1 ? charges[0] : null;
+  const cancellable = Boolean(propertyId && unit && canCancel && !upcoming);
+  const cancellation = useMutation({
+    mutationFn: async () => {
+      if (!propertyId || !unit || !cancellable) return;
+      await cancelBillingCharge(propertyId, month, unit.id);
+    },
+    onSuccess: async () => {
+      // 월별 목록과 이력의 건수·합계를 재조회해 취소된 청구가 화면에 남지 않게 합니다.
+      await queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] === 'billing' && query.queryKey[2] === propertyId
+      });
+      onClose();
+    }
+  });
   const dates = getBillingDates(month);
   const sortedCharges = getSortedBillingCharges(charges);
   const total = charges.reduce((sum, charge) => sum + sumBillingItems(charge.items), BigInt(0));
@@ -60,6 +90,7 @@ export function BillingDetail({
           iconOnly
           aria-label={'상세 닫기'}
           onClick={onClose}
+          disabled={cancellation.isPending}
           leadingIcon={(
             <ServiceIcon
               name={'close'}
@@ -154,20 +185,44 @@ export function BillingDetail({
       <p
         className={styles.note}
       >
-        {upcoming ? '부과 예정 금액으로, 해당 월 적용 설정을 기준으로 표시합니다.' : '확정된 부과 내역은 읽기 전용으로 확인할 수 있습니다.'}
+        {upcoming ? '부과 예정 금액으로, 해당 월 적용 설정을 기준으로 표시합니다.' : cancellable ? '당월 청구를 삭제하면 이번 달 부과에서 제외됩니다. 세대와 주민 정보는 유지됩니다.' : '과거 확정 내역은 보존됩니다.'}
       </p>
     </div>
-    {presentation === 'page' && (
+    {(presentation === 'page' || cancellable) && (
       <footer
         className={styles.footer}
       >
-        <Button
-          variant={'outline'}
-          onClick={onClose}
-        >
-          목록
-        </Button>
+        {cancellable && (
+          <Button
+            variant={'outline'}
+            tone={'danger'}
+            disabled={cancellation.isPending}
+            onClick={() => { cancellation.reset(); setConfirming(true); }}
+          >
+            청구 삭제
+          </Button>
+        )}
+        {presentation === 'page' && (
+          <Button
+            variant={'outline'}
+            disabled={cancellation.isPending}
+            onClick={onClose}
+          >
+            목록
+          </Button>
+        )}
       </footer>
+    )}
+    {confirming && unit && (
+      <UnitDeleteConfirmation
+        title={'청구 삭제 확인'}
+        label={`${formatBillingMonth(month)} ${unit.building} ${unit.room}호 청구`}
+        description={'이번 달 청구만 취소하고 처리 이력을 보존합니다. 세대·주민 정보와 과거 청구는 유지되며 다음 달에는 정상 부과됩니다.'}
+        busy={cancellation.isPending}
+        errorMessage={cancellation.isError ? getBillingError(cancellation.error) : ''}
+        onConfirm={() => { if (!cancellation.isPending) cancellation.mutate(); }}
+        onClose={() => setConfirming(false)}
+      />
     )}
   </>);
   if (presentation === 'page') return (
@@ -184,6 +239,7 @@ export function BillingDetail({
       className={styles.modal}
       aria-labelledby={'billing-detail-title'}
       onClose={onClose}
+      busy={cancellation.isPending}
       closeOnOutsideClick
     >
       {content}

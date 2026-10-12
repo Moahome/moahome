@@ -56,6 +56,9 @@ async function mockBilling(page: Page) {
     monthFailure: 0,
     wrongScope: false,
     hasBuildings: true,
+    cancellationFailure: 0,
+    cancellationWrites: [] as string[],
+    canceled: new Set<string>(),
     currentMonth: '2026-10'
   };
   await page.route(`${API}/**`, async route => {
@@ -128,12 +131,22 @@ async function mockBilling(page: Page) {
           month,
           billingDate:`${month}-01`,
           dueDate:`${month}-${last}`,
-          unitCount:25,
-          totalAmount:'375000',
+          unitCount:25 - (month === state.currentMonth ? state.canceled.size : 0),
+          totalAmount:String((25 - (month === state.currentMonth ? state.canceled.size : 0)) * 15000),
           confirmedAt:`${month}-01T00:00:00Z`
         };
       })
     });
+    const cancellation = path.match(/\/billing\/monthly\/(\d{4}-\d{2})\/charges\/([^/]+)$/);
+    if (cancellation && request.method() === 'DELETE') {
+      state.cancellationWrites.push(path);
+      if (state.cancellationFailure) return json(route, {
+        code: 'BILLING_SERVICE_UNAVAILABLE'
+      }, state.cancellationFailure);
+      expect(cancellation[1]).toBe(state.currentMonth);
+      state.canceled.add(cancellation[2]);
+      return json(route, undefined, 204);
+    }
     const match = path.match(/\/billing\/monthly\/(\d{4}-\d{2})(?:\/units\/([^/]+))?$/);
     if (match) {
       if (state.monthFailure) return json(route, {
@@ -151,6 +164,7 @@ async function mockBilling(page: Page) {
         representativeName:index===0?'김모아':null,
         items:selected
       })).reverse();
+      if (month === state.currentMonth) charges = charges.filter(charge => !state.canceled.has(charge.id));
       if (match[2]) charges = charges.filter(charge => charge.unitId === match[2]);
       return json(route, {
         propertyId: state.wrongScope ? id(99) : PROPERTY,
@@ -167,6 +181,79 @@ async function mockBilling(page: Page) {
   });
   return state;
 }
+for (const width of [1440, 390]) {
+  test(`관리비 청구 삭제 ${width}px 확인·실패 재시도와 대상 합계 갱신`, async ({ page }) => {
+    const state = await mockBilling(page);
+    await page.setViewportSize({
+      width,
+      height: 960
+    });
+    await page.goto(BASE);
+    await page.getByRole('table', {
+      name: '세대별 관리비',
+      exact: true
+    }).getByRole('button').first().click();
+    await page.getByRole('button', {
+      name: '청구 삭제',
+      exact: true
+    }).click();
+    const confirmation = page.getByRole('alertdialog', {
+      name: '청구 삭제 확인'
+    });
+    await expect(confirmation).toContainText('다음 달에는 정상 부과');
+    await confirmation.getByRole('button', {
+      name: '취소',
+      exact: true
+    }).click();
+    expect(state.cancellationWrites).toHaveLength(0);
+    await page.getByRole('button', {
+      name: '청구 삭제',
+      exact: true
+    }).click();
+    state.cancellationFailure = 503;
+    await confirmation.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(confirmation.getByRole('alert')).toBeVisible();
+    expect(state.canceled.size).toBe(0);
+    state.cancellationFailure = 0;
+    await confirmation.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '월별 부과 현황'
+    })).toBeVisible();
+    await expect(page.getByRole('main').getByText(/전체 세대 ·\s*24세대/)).toBeVisible();
+    expect(state.cancellationWrites).toEqual([
+      `/api/properties/${PROPERTY}/billing/monthly/2026-10/charges/${id(100)}`,
+      `/api/properties/${PROPERTY}/billing/monthly/2026-10/charges/${id(100)}`
+    ]);
+    await page.reload();
+    await expect(page.getByRole('main').getByText(/전체 세대 ·\s*24세대/)).toBeVisible();
+    await expect(page.getByRole('table', {
+      name: '세대별 관리비',
+      exact: true
+    }).getByRole('button').first()).toHaveText('102호');
+  });
+}
+
+test('관리비 과거·예정 상세에는 청구 삭제를 제공하지 않는다', async ({ page }) => {
+  await mockBilling(page);
+  for (const month of ['2026-09', '2026-11']) {
+    await page.goto(`${BASE}?month=${month}`);
+    await page.getByRole('table', {
+      name: '세대별 관리비',
+      exact: true
+    }).getByRole('button').first().click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await expect(page.getByRole('button', {
+      name: '청구 삭제',
+      exact: true
+    })).toHaveCount(0);
+  }
+});
 for (const width of [1440,390,320]) {
   test(`관리비 ${width}px 검색·페이지·달력·행 상세와 직접 재진입`, async ({page}) => {
     await mockBilling(page); await page.setViewportSize({

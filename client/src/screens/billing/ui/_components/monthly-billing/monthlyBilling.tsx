@@ -108,7 +108,7 @@ export function MonthlyBilling({ propertyId, settings, onOpenItems }: {
             매월 1일, 자동으로 부과·확정합니다
           </h2>
           <p>
-            한국시간 00시에 사용 중·공실 세대에 부과하며, 납부기한은 그달 말일입니다.
+            한국시간 00시에 사용 중 세대에 부과하며, 공실은 제외합니다. 납부기한은 그달 말일입니다.
           </p>
         </div>
         <div
@@ -388,6 +388,8 @@ export function MonthlyBilling({ propertyId, settings, onOpenItems }: {
           </ListCard>
           {detail?.month === month && (
             <BillingDetail
+              propertyId={propertyId}
+              canCancel={!upcoming && list.data.status === 'ISSUED' && month === settings.currentMonth}
               month={month}
               hasBuildings={hasBuildings}
               charges={[detail.charge]}
