@@ -146,6 +146,9 @@ export function ResidentImportPage({
             href={'/residentImportTemplate.xlsx'}
             download={'주민 업로드 양식.xlsx'}
           >
+            <ServiceIcon
+              name={'excel'}
+            />
             엑셀 양식 다운로드
           </a>
           <div
