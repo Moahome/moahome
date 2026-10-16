@@ -157,18 +157,6 @@ export function BillingDetail({
         {upcoming ? '부과 예정 금액으로, 해당 월 적용 설정을 기준으로 표시합니다.' : '과거 확정 내역은 보존됩니다.'}
       </p>
     </div>
-    {presentation === 'page' && (
-      <footer
-        className={styles.footer}
-      >
-        <Button
-          variant={'outline'}
-          onClick={onClose}
-        >
-          목록
-        </Button>
-      </footer>
-    )}
   </>);
   if (presentation === 'page') return (
     <section

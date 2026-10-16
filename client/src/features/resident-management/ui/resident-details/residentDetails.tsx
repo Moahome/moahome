@@ -156,12 +156,14 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
           >
             다시 조회
           </Button>
-          <Button
-            variant={'ghost'}
-            onClick={onClose}
-          >
-            주민 목록
-          </Button>
+          {presentation === 'modal' && (
+            <Button
+              variant={'ghost'}
+              onClick={onClose}
+            >
+              주민 목록
+            </Button>
+          )}
         </div>
       )}
       {resident && mode === 'detail' && (

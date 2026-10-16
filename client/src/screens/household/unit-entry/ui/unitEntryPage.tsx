@@ -161,12 +161,14 @@ export function UnitEntryPage({
       <h1>
         {cannotManageBuildings ? '동 구분이 없는 관리대상이에요.' : cannotCreate ? '먼저 동을 등록해주세요.' : '세대를 확인할 수 없거나 수정할 수 없어요.'}
       </h1>
-      <Button
-        variant={'outline'}
-        onClick={() => router.replace(listPath)}
-      >
-        세대 목록으로
-      </Button>
+      {mode !== 'detail' && (
+        <Button
+          variant={'outline'}
+          onClick={() => router.replace(listPath)}
+        >
+          세대 목록으로
+        </Button>
+      )}
     </section>
   );
 

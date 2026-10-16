@@ -2373,6 +2373,9 @@ for (const width of [320, 767]) {
       name: '101동 201호',
       exact: true
     })).toBeVisible();
+    await expect(main.getByRole('button', {
+      name: /목록/
+    })).toHaveCount(0);
     await expect(main.getByText('B1층', {
       exact: true
     })).toBeVisible();
@@ -2954,6 +2957,9 @@ for (const width of [1440, 375, 320]) {
       await expect(page.getByRole('banner').getByRole('link', {
         name: '주민 목록으로 돌아가기'
       })).toBeVisible();
+      await expect(view.getByRole('button', {
+        name: /목록/
+      })).toHaveCount(0);
     } else await expect(page).toHaveURL(RESIDENTS);
     expect(reveals).toBe(0);
     await expect(view.getByRole('button', {

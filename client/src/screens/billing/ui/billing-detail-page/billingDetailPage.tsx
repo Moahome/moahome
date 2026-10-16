@@ -1,7 +1,6 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Button } from '@/shared/ui/button';
 import { BillingDetail } from '../_components/billing-detail/billingDetail';
 import { BillingLoadState } from '../_components/billing-load-state/billingLoadState';
 import { useBillingMonth } from '../_hooks/useBillingData';
@@ -12,19 +11,11 @@ export function BillingDetailPage({ propertyId, month, unitId }: { propertyId: s
   const list = useBillingMonth(propertyId, month, unitId);
   const close = () => router.replace(`/manage/${propertyId}/billing/monthly?tab=${unitId ? 'monthly' : 'history'}&month=${month}`);
   if (list.isPending || list.isError) return (
-    <>
-      <BillingLoadState
-        pending={list.isPending}
-        error={list.error}
-        onRetry={() => list.refetch()}
-      />
-      <Button
-        variant={'outline'}
-        onClick={close}
-      >
-        목록
-      </Button>
-    </>
+    <BillingLoadState
+      pending={list.isPending}
+      error={list.error}
+      onRetry={() => list.refetch()}
+    />
   );
 
   return (

@@ -197,10 +197,20 @@ for (const width of [1440, 390]) {
         exact: true
       })).toHaveCount(0);
       await expect(detail).not.toContainText('당월 청구를 삭제하면');
-      await detail.getByRole('button', {
-        name: width >= 768 ? '상세 닫기' : '목록',
-        exact: true
-      }).click();
+      if (width >= 768) {
+        await detail.getByRole('button', {
+          name: '상세 닫기',
+          exact: true
+        }).click();
+      } else {
+        await expect(detail.getByRole('button', {
+          name: /목록/
+        })).toHaveCount(0);
+        await page.getByRole('banner').getByRole('link', {
+          name: '목록',
+          exact: true
+        }).click();
+      }
       await expect(page.getByRole('table', {
         name: '세대별 관리비',
         exact: true
@@ -380,7 +390,10 @@ for (const width of [1440,390,320]) {
       name: '확정 세대 내역',
       exact: true
     }).getByRole('rowheader')).toHaveText(expectedRooms);
-    await main.getByRole('button',{
+    await expect(main.getByRole('button', {
+      name: /목록/
+    })).toHaveCount(0);
+    await page.getByRole('banner').getByRole('link',{
       name:'목록',
       exact:true
     }).click(); }

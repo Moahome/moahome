@@ -9,7 +9,7 @@
 @media (max-width: 767px) {
   .actions[data-presentation="page"] {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 
     button {
       min-width: 0;

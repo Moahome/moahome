@@ -1,7 +1,7 @@
 import { Button } from '@/shared/ui/button';
 import styles from './detailActions.module.css';
 
-/** 상세의 닫기·수정·삭제 순서와 버튼 표현을 공유하고 업무별 처리·수정 가능 여부는 호출자가 정합니다. */
+/** 모바일 상세는 헤더 뒤로가기로 복귀하며 푸터에는 수정·삭제만 남깁니다. 모달은 닫기도 제공합니다. */
 export function DetailActions({
   onClose,
   onEdit,
@@ -22,14 +22,16 @@ export function DetailActions({
       className={styles.actions}
       data-presentation={presentation}
     >
-      <Button
-        variant={'outline'}
-        tone={'neutral'}
-        onClick={onClose}
-        disabled={busy}
-      >
-        {presentation === 'page' ? '목록으로' : '닫기'}
-      </Button>
+      {presentation === 'modal' && (
+        <Button
+          variant={'outline'}
+          tone={'neutral'}
+          onClick={onClose}
+          disabled={busy}
+        >
+          닫기
+        </Button>
+      )}
       <Button
         variant={'outline'}
         tone={'success'}
