@@ -64,7 +64,7 @@ export function PaymentEditor({ paymentId, onProcessed }: {
       id: paymentId,
       data: {
         category: category.trim(),
-        note: note.trim()
+        note: note.trim() || undefined
       }
     }, '기타 입금으로 확정했어요.');
     else if (action === 'confirm') failure = await update({

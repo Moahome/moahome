@@ -10,7 +10,7 @@ import {
 export type PaymentCommand =
   | { type: 'manual'; data: { id: string; unitId: string; date: string; amount: string } }
   | { type: 'confirm'; id: string; data: CumulativePaymentDraft }
-  | { type: 'other-income'; id: string; data: { category: string; note: string } }
+  | { type: 'other-income'; id: string; data: { category: string; note?: string } }
   | { type: 'hold' | 'cancel'; id: string; data: { reason: string } }
   | { type: 'confirm-matches' }
   | { type: 'delete'; id: string }

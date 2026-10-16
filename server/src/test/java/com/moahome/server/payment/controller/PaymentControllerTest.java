@@ -76,6 +76,13 @@ class PaymentControllerTest {
             .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"));
         verify(service).confirmOtherIncome(user,property,payment,new com.moahome.server.payment.dto.PaymentRequests.OtherIncome("예금이자","세후 입금"));
     }
+    @Test void otherIncomeAcceptsOmittedNullEmptyAndWhitespaceNotes() throws Exception {
+        for(String input:List.of("{\"category\":\"전기료\"}","{\"category\":\"전기료\",\"note\":null}",
+            "{\"category\":\"전기료\",\"note\":\"\"}","{\"category\":\"전기료\",\"note\":\"  \"}"))
+            mvc.perform(post(base()+"/"+payment+"/other-income").with(identity()).contentType(MediaType.APPLICATION_JSON)
+                .content(input)).andExpect(status().isOk());
+        verify(service,times(4)).confirmOtherIncome(user,property,payment,new com.moahome.server.payment.dto.PaymentRequests.OtherIncome("전기료",null));
+    }
     @TestConfiguration static class Security {
         @Bean SecurityFilterChain testSecurity(HttpSecurity http) throws Exception {
             return http.csrf(csrf->csrf.disable()).authorizeHttpRequests(auth->auth.anyRequest().authenticated())

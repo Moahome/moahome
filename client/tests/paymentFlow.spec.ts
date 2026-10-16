@@ -2266,3 +2266,42 @@ for (const width of [1440, 390, 320]) {
     })).toHaveAttribute('aria-label', initialTotal!);
   });
 }
+
+test('기타 입금 확정은 선택 메모를 비워도 서버에 빈 문자열을 보내지 않음', async ({ page }) => {
+  await page.goto(MATCHING);
+  await page.getByRole('row').filter({
+    hasText: '이홈'
+  }).click();
+  const editor = page.getByRole('region', {
+    name: '입금 처리 상세'
+  });
+  await editor.getByRole('combobox', {
+    name: '입금 분류'
+  }).click();
+  await editor.getByRole('option', {
+    name: '기타 입금',
+    exact: true
+  }).click();
+  await editor.getByRole('textbox', {
+    name: '입금 항목'
+  }).fill('전기료');
+  await editor.getByRole('button', {
+    name: '기타 입금 확정',
+    exact: true
+  }).click();
+  const request = page.waitForRequest((request) => request.url().endsWith('/other-income') && request.method() === 'POST');
+  await page.getByRole('dialog', {
+    name: '기타 입금으로 확정할까요?'
+  }).getByRole('button', {
+    name: '확인',
+    exact: true
+  }).click();
+  expect((await request).postDataJSON()).toEqual({
+    category: '전기료'
+  });
+  await expect(editor.getByRole('button', {
+    name: '확정 취소',
+    exact: true
+  })).toBeVisible();
+});
+
