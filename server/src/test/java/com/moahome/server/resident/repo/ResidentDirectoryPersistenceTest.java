@@ -129,7 +129,7 @@ class ResidentDirectoryPersistenceTest {
 		jdbc.update("insert into " + schema + ".units (id,property_id,unit_number,status,created_at,updated_at) values (?,?,'001','ACTIVE',now(),now())", unitId, propertyId);
 		Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			.schemas(schema).defaultSchema(schema).load();
-		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(8);
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(10);
 		upgraded.validate();
 		assertThat(jdbc.queryForObject("select unit_number from " + schema + ".units where id=?", String.class, unitId)).isEqualTo("001");
 		assertThat(jdbc.queryForObject("select count(*) from " + schema + ".residents", Integer.class)).isZero();
@@ -222,7 +222,7 @@ class ResidentDirectoryPersistenceTest {
         jdbc.update("insert into " + schema + ".residents(id,property_id,name,status,created_at,updated_at) values (?,?,'기존 주민','ACTIVE',now(),now())", residentId, propertyId);
         Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(7);
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(9);
         upgraded.validate();
         assertThat(jdbc.queryForObject("select name from " + schema + ".residents where id=?", String.class, residentId)).isEqualTo("기존 주민");
         assertThat(jdbc.queryForObject("select count(*) from " + schema + ".membership_requests", Integer.class)).isZero();
@@ -418,7 +418,7 @@ class ResidentDirectoryPersistenceTest {
         var relations = jdbc.queryForList("select * from " + schema + ".unit_residents");
         var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(3);
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(5);
         upgraded.validate();
         assertThat(jdbc.queryForList("select * from " + schema + ".residents")).isEqualTo(roster);
         assertThat(jdbc.queryForList("select * from " + schema + ".unit_residents")).isEqualTo(relations);

@@ -321,7 +321,7 @@ class PropertyRegistrationPersistenceTest {
 			.isInstanceOf(DataIntegrityViolationException.class);
 		Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			.schemas(schema).defaultSchema(schema).load();
-		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(9);
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(11);
 		upgraded.validate();
 		assertThat(jdbc.queryForObject("select default_amount from " + schema + ".fee_template_items where id=?",
 			Long.class, itemId)).isEqualTo(15000);
@@ -333,7 +333,7 @@ class PropertyRegistrationPersistenceTest {
 	@Test
 	void migratesEmptyAndExistingUserSchemaWithoutChangingIdentity() {
 		flyway.validate();
-		assertThat(flyway.info().applied()).hasSize(13);
+		assertThat(flyway.info().applied()).hasSize(15);
 		assertThat(flyway.migrate().migrationsExecuted).isZero();
 		String schema = "registration_" + UUID.randomUUID().toString().replace("-", "");
 		Flyway old = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
@@ -343,7 +343,7 @@ class PropertyRegistrationPersistenceTest {
 		jdbc.update("insert into " + schema + ".users (id, display_name, status) values (?, '기존 사용자', 'ACTIVE')", legacyId);
 		Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			.schemas(schema).defaultSchema(schema).load();
-		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(10);
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(12);
 		upgraded.validate();
 		assertThat(jdbc.queryForObject("select system_role from " + schema + ".users where id = ?", String.class, legacyId))
 			.isEqualTo("USER");

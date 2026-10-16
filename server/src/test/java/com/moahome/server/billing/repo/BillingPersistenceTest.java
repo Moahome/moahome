@@ -400,7 +400,7 @@ class BillingPersistenceTest {
         var storedItems = jdbc.queryForList("select * from " + schema + ".charge_items order by id");
         var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(3);
         upgraded.validate();
         assertThat(jdbc.queryForList("select * from " + schema + ".units order by id")).isEqualTo(storedUnits);
         assertThat(jdbc.queryForList("select * from " + schema + ".charges order by id")).isEqualTo(storedCharges);
@@ -513,7 +513,7 @@ class BillingPersistenceTest {
         var original = jdbc.queryForList("select " + originalColumns + " from public.charges order by id");
         var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(4);
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(6);
         upgraded.validate();
         assertThat(jdbc.queryForList("select " + originalColumns + " from " + schema + ".charges order by id")).isEqualTo(original);
         assertThat(jdbc.queryForObject("select count(*) from " + schema + ".charge_items", Long.class)).isEqualTo(count("charge_items"));
