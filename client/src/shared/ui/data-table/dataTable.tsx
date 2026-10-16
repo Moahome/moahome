@@ -67,6 +67,13 @@ export function DataTable<Row>({
             <tr
               key={getRowKey(row)}
               data-clickable={Boolean(onRowClick)}
+              tabIndex={onRowClick ? 0 : undefined}
+              onKeyDown={onRowClick ? (event) => {
+                // 상세 버튼 없이도 행에 초점을 맞춰 Enter·Space로 동일한 상세를 엽니다.
+                if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
+                event.preventDefault();
+                onRowClick(row);
+              } : undefined}
               onClick={onRowClick ? (event) => {
                 // 셀 안의 버튼·입력 조작은 해당 컨트롤만 실행하고 행 클릭으로 중복 처리하지 않습니다.
                 if (event.target instanceof Element && event.target.closest('button, a, input, select, textarea, label')) return;

@@ -13,6 +13,7 @@ export function ListHeader({
   titleRef,
   actions,
   actionsClassName,
+  className,
 }: {
   menu: string;
   title: string;
@@ -21,10 +22,11 @@ export function ListHeader({
   titleRef?: RefObject<HTMLHeadingElement | null>;
   actions?: ReactNode;
   actionsClassName?: string;
+  className?: string;
 }) {
   return (
     <header
-      className={styles.header}
+      className={[styles.header, className].filter(Boolean).join(' ')}
     >
       <div>
         <p
