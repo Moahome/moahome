@@ -1,0 +1,52 @@
+.dropzone {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  padding: 48px 20px;
+  border: 2px dashed color-mix(in srgb, var(--excel-background) 40%, var(--border));
+  border-radius: 12px;
+  background: var(--background);
+  text-align: center;
+  transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+
+  &[data-dragging='true'] {
+    border-style: solid;
+    border-color: var(--excel-background);
+    background: color-mix(in srgb, var(--excel-background) 10%, var(--card));
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--excel-background) 12%, transparent);
+
+    strong {
+      color: var(--excel-background);
+    }
+
+    > svg {
+      transform: translateY(-4px);
+    }
+  }
+
+  > svg {
+    width: 40px;
+    height: 40px;
+    color: var(--excel-background);
+    transition: transform 180ms ease;
+  }
+
+  p {
+    color: var(--sub-text);
+    font-size: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dropzone {
+    transition: none;
+
+    svg {
+      transition: none;
+    }
+  }
+}
+
+.file-input {
+  display: none;
+}

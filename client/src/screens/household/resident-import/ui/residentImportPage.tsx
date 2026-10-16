@@ -1,12 +1,10 @@
 'use client';
 
-import {
-  useRef,
-  useState
-} from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/entities/session';
 import { useManagementContext } from '@/features/enter-service';
+import { FileDropzone } from '@/shared/ui/file-dropzone';
 import { Button } from '@/shared/ui/button';
 import { SummaryCard } from '@/shared/ui/summary-card';
 import { Pagination } from '@/shared/ui/pagination';
@@ -35,9 +33,6 @@ export function ResidentImportPage({
   const context = useManagementContext(session.data?.id, propertyId, false);
   const controller = useResidentImport(propertyId);
   const { result, selected, busy, error, completed, attempted } = controller;
-  const input = useRef<HTMLInputElement>(null);
-  const dragDepth = useRef(0);
-  const [dragging, setDragging] = useState(false);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -84,11 +79,6 @@ export function ResidentImportPage({
     void controller.upload(file);
   }
 
-  /** 자식 요소 사이를 이동할 때 강조가 깜박이지 않도록 진입 횟수를 세고 영역 이탈·드롭에서 해제합니다. */
-  function resetDrag() {
-    dragDepth.current = 0;
-    setDragging(false);
-  }
 
   return (
     <section
@@ -143,67 +133,13 @@ export function ResidentImportPage({
           <h2>
             엑셀 파일 업로드
           </h2>
-          <div
-            className={styles.dropzone}
-            role={'region'}
-            aria-label={'엑셀 파일 업로드 영역'}
-            data-dragging={dragging && !busy}
-            onDragEnter={(event) => {
-              event.preventDefault();
-              if (busy || !event.dataTransfer.types.includes('Files')) return;
-              dragDepth.current += 1;
-              setDragging(true);
-            }}
-            onDragOver={(event) => {
-              event.preventDefault();
-              event.dataTransfer.dropEffect = busy ? 'none' : 'copy';
-            }}
-            onDragLeave={(event) => {
-              event.preventDefault();
-              dragDepth.current = Math.max(0, dragDepth.current - 1);
-              if (!dragDepth.current) setDragging(false);
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              resetDrag();
-              upload(event.dataTransfer.files[0]);
-            }}
-            aria-busy={busy === 'upload'}
-          >
-            <ServiceIcon
-              name={'excel'}
-            />
-            <strong>
-              {dragging && !busy ? '여기에 놓으면 파일 검증을 시작해요.' : '엑셀 파일을 여기에 놓거나 파일을 선택해주세요.'}
-            </strong>
-            <p>
-              .xlsx · 최대 5MB · 1,000명
-            </p>
-            <Button
-              variant={'outline'}
-              tone={'excel'}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'excel'}
-                />
-              )}
-              onClick={() => input.current?.click()}
-              loading={busy === 'upload'}
-            >
-              {busy === 'upload' ? '검증 중…' : '파일 선택'}
-            </Button>
-          </div>
-          <input
-            ref={input}
-            className={styles['file-input']}
-            type={'file'}
+          <FileDropzone
+            label={'엑셀 파일 업로드 영역'}
+            inputLabel={'주민 엑셀 파일'}
             accept={'.xlsx'}
-            aria-label={'주민 엑셀 파일'}
-            disabled={Boolean(busy)}
-            onChange={(event) => {
-              upload(event.target.files?.[0]);
-              event.target.value = '';
-            }}
+            description={'.xlsx · 최대 5MB · 1,000명'}
+            busy={Boolean(busy)}
+            onFile={upload}
           />
           <a
             className={styles['template-link']}
