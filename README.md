@@ -27,6 +27,7 @@ API 서버는 `8080`에서 OpenAPI 문서와 업무 API를 제공하고, Swagger
 - [프로젝트 개요](docs/projectOverview.md)
 - [도메인 규칙](docs/domainRules.md)
 - [ERD](docs/erd.md)
+- [공용 통장 거래 분류와 동별 수입·지출 설계](docs/bankingManagement.md): 하나의 통장으로 여러 동 관리, 고지서 수납 연결과 공동지출 배분 설계. 미구현 범위와 미정 정책 포함
 - [입금 관리 API](docs/paymentApi.md): 실제 대표 주민·발행 청구 연결, 수동·은행 파일 수납과 취소 계약
 - [관리대상 등록 API](docs/propertyRegistrationApi.md)
 - [세대 관리 API](docs/unitManagementApi.md): 저장된 세대 조회·추가·수정·삭제, 동 관리와 일괄 추가 계약
@@ -47,3 +48,5 @@ API 서버는 `8080`에서 OpenAPI 문서와 업무 API를 제공하고, Swagger
 - [Server 관리 영역 접근](server/docs/managementAccess.md): 현재 관리자 참여 조회와 접근 검증 구현
 
 - [Server 입금 관리](server/docs/payment.md): 실제 청구 연결, 트랜잭션·동시성·중복 방지
+- [Client 통장 거래 설계](client/docs/bankingManagement.md): 거래 상세의 분류 입력과 전체·동별 현황 화면 설계안
+- [Server 통장 거래 설계](server/docs/bankingManagement.md): 원본 입출금 확장, 기존 수납 재사용과 지출·동별 배분 저장 설계안

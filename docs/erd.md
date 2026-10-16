@@ -33,6 +33,7 @@
 | 수납 / 은행 / 지출 / 회계 / 마감 / 감사 | 기존 기준 + 설계안 | 각 영역의 도메인 규칙을 유지하고 해당 기능 구현 전에 상세 정책 / DDL 확정 |
 | 초기 관리계좌의 예금주 | 확정 | 예금주 이름 필수, 주민 명부 연결 선택, 주민 연결은 명부 등록 이후 가능 |
 | 초기 계좌 / 기본 관리비 | 확정 | 공용계좌, 기본 계좌 정확히 1개, 사용 시작일은 등록 완료일, 기본 금액은 0원·음수를 허용하는 정수 |
+| 공용 통장의 동별 분류 | 사용자 요구 확정 + 확장 설계안 | 하나의 통장으로 여러 동 관리, 세대 고지서 수납 연결과 공동지출의 동별 배분. 출금·배분·동별 조회는 미구현, 상세 구조는 9.4·10.5 참조 |
 | 최종 등록 API / 성공 결과 | Server 구현 | 전체 저장 계약과 중복 방지 / 응답 유실 결과 조회, property_registration_results의 원자적 저장. Client 기본 정보 화면 / 검증, 동·세대, 관리계좌와 관리비 항목 설정은 구현, 등록 정보 확인과 전체 제출은 후속 구현 |
 | 연락처 변경 / 알림 발송 / 후속 확장 | 일부 구현 / 후속 검토 | 관리소장 명부·확인된 신청 연락처 수정 구현. 주민 직접 변경·발송은 후속 |
 
@@ -800,7 +801,7 @@ CREATE UNIQUE INDEX membership_requests_pending_user_unit_idx
 
 관리비를 월 단위로 생성·확정하는 기간. 월 마감은 후속 범위입니다.
 
-부과일·납부기한은 필수이며 월 1일·실제 월말로 CHECK 합니다. 자동 확정 주체는 `confirmation_source='SCHEDULE'`로 기록합니다. `DRAFT` 생성과 `ISSUED` 확정은 하나의 트랜잭션 안에서 처리합니다.
+부과일·납부기한은 필수이며 월 1일·실제 월말로 CHECK 합니다. 자동 확정 주체는 `confirmation_source='SCHEDULE'`로 기록합니다. 후속 `V20261016130500__record_historical_billing_source.sql`은 과거 등록을 `HISTORY`로 구분하고 `recorded_by`를 필수로 보존합니다. 자동 부과의 `recorded_by`는 null입니다. `DRAFT` 생성과 `ISSUED` 확정은 하나의 트랜잭션 안에서 처리합니다.
 
 | 컬럼 | 타입 | Null | 설명 |
 |---|---|---:|---|
@@ -811,7 +812,8 @@ CREATE UNIQUE INDEX membership_requests_pending_user_unit_idx
 | `billing_date` | date | N | 부과일 |
 | `default_due_date` | date | N | 기본 납부기한 |
 | `status` | varchar(20) | N | `DRAFT / ISSUED` |
-| `confirmation_source` | varchar(20) | N | `SCHEDULE` |
+| `confirmation_source` | varchar(20) | N | `SCHEDULE / HISTORY` |
+| `recorded_by` | uuid | Y | users FK, HISTORY일 때 필수 |
 | `confirmed_at` | timestamptz | Y | 확정 |
 | `created_at` | timestamptz | N | 생성 |
 | `updated_at` | timestamptz | N | 수정 |
@@ -974,10 +976,11 @@ FOREIGN KEY(property_id, unit_id) REFERENCES units(property_id, id)
 | confirmed_by / confirmed_at | uuid / timestamptz | Y | 최초 확정자·시각 |
 | canceled_by / canceled_at | uuid / timestamptz | Y | 최초 취소자·시각 |
 | cancel_reason_encrypted | text | Y | 취소 사유 |
+| deleted_at / deleted_by | timestamptz / uuid | Y | 입금 삭제 시각·처리자, 두 값 함께 저장 |
 | created_by | uuid | N | 생성자 |
 | created_at / updated_at | timestamptz | N | 생성·변경 시각 |
 
-관리대상·계좌/은행 원본/세대/주민/연결 수납은 복합 FK로 같은 대상만 허용합니다. 활성 은행 원본의 유일 인덱스는 CANCELED·LINKED 이력을 제외합니다. LINKED는 금액 집계에서 제외합니다. 미사용 선입금은 확정 수납 전액에서 활성 배분 합계를 뺀 금액으로 계산하며 별도 중복 금액 컬럼을 저장하지 않습니다.
+관리대상·계좌/은행 원본/세대/주민/연결 수납은 복합 FK로 같은 대상만 허용합니다. 활성 은행 원본의 유일 인덱스는 CANCELED·LINKED 이력을 제외합니다. LINKED는 금액 집계에서 제외합니다. 미사용 선입금은 확정 수납 전액에서 활성 배분 합계를 뺀 금액으로 계산하며 별도 중복 금액 컬럼을 저장하지 않습니다. 다음 실제 양수 청구에 자동 충당합니다. 삭제는 후속 `V20261016120311__support_payment_deletion.sql`의 `deleted_at/deleted_by`로 표시하며 확정 상태인 채 삭제할 수 없습니다. 미확정 삭제 항목은 목록에서 제외하고 확정 납부는 취소 이력으로 보존합니다. 원본 참조는 유지하며 미확정 삭제의 활성 중복 키는 아래 은행 원본 정책에 따라 해제합니다.
 
 ## 8.2 payment_allocations
 
@@ -998,7 +1001,7 @@ FOREIGN KEY(property_id, unit_id) REFERENCES units(property_id, id)
 
 ## 8.3 payment_events
 
-2026-10-16 구현. 수동 생성·확정·보류·해제·원본 연결·전체 취소의 처리 이력입니다. 회계전표를 뜻하지 않습니다.
+2026-10-16 구현. 수동 생성·확정·명단 일치 자동 확정·누적 충당·보류·해제·원본 연결·전체 취소·삭제의 처리 이력입니다. 회계전표를 뜻하지 않습니다.
 
 | 컬럼 | 타입 | Null | 설명 |
 | --- | --- | --- | --- |
@@ -1052,6 +1055,8 @@ FOREIGN KEY(property_id, unit_id) REFERENCES units(property_id, id)
 확정일: 2026-10-05. 최종 등록의 계좌는 공용계좌이며 `building_id`를 NULL로 저장한다. 최소 1개를 받고 `is_primary = true`인 계좌를 정확히 1개 지정한다. `valid_from`은 등록 완료일로 자동 설정하고 Client에 시작일 입력을 요구하지 않는다. 날짜의 시간대는 [등록 API](propertyRegistrationApi.md), 상세 초기값은 [Server 등록 설계](../server/docs/propertyRegistration.md)를 따른다.
 
 계좌 변경 / 주민 연결의 상세 권한과 절차는 해당 기능 구현 시 결정한다. 초기 설정 이후의 사용기간 변경, 기본 계좌 변경과 공용 / 동별 계좌 안내 기준은 기존 설계안과 도메인 규칙의 미정 범위를 유지한다.
+
+2026-10-16 사용자 선택의 공용 통장 운영은 같은 관리대상의 여러 동이 `building_id = NULL`인 공용 계좌를 함께 사용하는 방식이다. 동별 수납·지출 귀속은 수납 및 지출 배분에서 표현하고 동마다 은행 계좌 레코드를 복제하지 않는다. 기존 계좌 수·초기 등록 계약과 동별 계좌의 후속 설계는 유지한다. 확장 범위는 아래 9.4를 따른다.
 
 ---
 
@@ -1107,8 +1112,37 @@ Soft Delete 없음.
 | deduplication_key | char(64) | N | 거래번호 또는 날짜·입금자·금액의 중복 키 |
 | imported_by | uuid | N | 가져온 관리자 |
 | imported_at | timestamptz | N | 최초 가져오기 시각 |
+| deleted_at / deleted_by | timestamptz / uuid | Y | 미확정 입금 삭제 시각·처리자 |
 
-`UNIQUE(bank_account_id,deduplication_key)`와 같은 대상의 계좌 복합 FK를 사용합니다. 원본 처리 상태는 연결된 payments의 상태로 조회하며 중복 상태 컬럼을 두지 않습니다.
+`V20261016122154__allow_reimport_of_deleted_bank_receipts.sql`에서 `deleted_at IS NULL` 원본만 `(bank_account_id,deduplication_key)`로 유일하게 제한합니다. 삭제 기록을 보존하면서 같은 파일의 재등록을 허용하고, 활성 재등록 거래는 다시 중복 방지합니다. 같은 대상의 계좌 복합 FK는 유지합니다. 원본 처리 상태는 연결된 payments의 상태로 조회하며 중복 상태 컬럼을 두지 않습니다.
+
+---
+
+## 9.4 공용 통장 거래 분류 확장 설계안
+
+2026-10-16 설계안이며 **아래 컬럼·관계는 아직 Migration에 적용하지 않았습니다.** 확정된 업무 범위는 [도메인 규칙](domainRules.md#공용-통장의-동별-거래-분류), 업무 연결은 [공용 통장 설계](bankingManagement.md)를 따릅니다.
+
+| 대상 | 확장 검토 | 현재와의 차이 |
+| --- | --- | --- |
+| bank_transactions | 입출금 방향과 출금 상대방 표현 | 현재는 양수 입금 원본만 저장. 기존 날짜·시간·잔액·금액·중복 키와 ID 유지 |
+| payments | 수납 당시 동 귀속 ID와 표시명 보존 | 현재 동 귀속 스냅샷 없음. 현재 세대의 동만 조인하면 세대 이동 뒤 과거 집계가 달라질 수 있음 |
+| expenses·expense_lines | 출금 원본 1건과 비용 과목별 지출 상세 | 기존 ERD 설계안, 아직 테이블·코드 미구현 |
+| expense_line_allocations | 지출 상세별 부담 동과 금액 | 신규 제안, 아래 10.5에서 관계·제약 검토 |
+
+원본 입출금은 같은 공용 계좌에 보존하고 동 귀속은 업무 결과에서 표현합니다. 수납과 지출의 상태를 복사하는 `transaction_classifications`나 거래의 중복 상태 컬럼은 이번 요구의 필수 저장 구조로 정하지 않습니다. 기타 거래·출금 보류의 저장 책임은 해당 정책과 함께 결정합니다.
+
+기존 입금의 방향 보정은 입금으로 하되 원본 ID·수납 연결·금액·기존 중복 키를 유지하는 안입니다. 동 귀속 스냅샷의 기준 시점·컬럼명·과거 데이터 보정은 미정입니다. 과거 동을 확인할 근거가 없는 수납을 현재 세대 소속으로 임의 확정하지 않습니다. 원 단위 `numeric(15,0)` 기준은 유지합니다.
+
+확장 관계의 제안은 다음과 같습니다. 기존 전체 관계도와 엔티티 목록에서 아직 구현되지 않은 이 확장 테이블의 적용을 가정하지 않습니다.
+
+```text
+공용 bank_accounts
+  └─ bank_transactions
+       ├─ 입금 → payments → payment_allocations → charges
+       │           └─ 수납 당시 동 귀속 보존 검토
+       └─ 출금 → expenses → expense_lines
+                                └─ expense_line_allocations → buildings
+```
 
 ---
 
@@ -1212,6 +1246,32 @@ Soft Delete 없음.
 | `updated_at` | timestamptz | N | 수정 |
 | `deleted_at` | timestamptz | Y | 삭제 |
 | `deleted_by` | uuid | Y | 삭제 처리자 |
+
+---
+
+## 10.5 expense_line_allocations 설계안
+
+2026-10-16 신규 제안이며 **미구현**입니다. 한 비용 과목의 지출 상세를 여러 동에 배분하는 구조입니다. 은행 출금이나 지출 총액을 동마다 복제하지 않습니다.
+
+| 컬럼 제안 | 타입 제안 | Null | 의미 |
+| --- | --- | --- | --- |
+| id | uuid | N | 배분 ID |
+| property_id | uuid | N | 관리대상 |
+| expense_line_id | uuid | N | 비용 과목별 지출 상세 |
+| building_id | uuid | N | 부담 동 |
+| building_name_snapshot | varchar(50) | N | 배분 당시 표시명 |
+| allocated_amount | numeric(15,0) | N | 해당 동의 양수 부담액 |
+| created_at | timestamptz | N | 배분 저장 시각 |
+
+### 관계와 제약 검토
+
+- 같은 관리대상의 지출 상세·동만 연결하도록 복합 FK를 둡니다. 동일한 지출 상세·동의 중복 배분을 제한합니다.
+- 각 지출 상세의 배분 합계는 상세 금액과, 전체 상세 합계는 지출 총액과, 연결된 원본 출금액과 일치해야 합니다.
+- 금액은 원 단위 정수로 저장하고 나머지 배분 정책을 정하기 전 임의 반올림하지 않습니다.
+- 확정된 지출·상세·배분은 하나의 업무 결과로 저장하고 일반 삭제·덮어쓰기 대신 정정 이력을 보존하는 구조를 검토합니다. 취소·재분류 상태와 버전·처리자·사유의 상세 저장은 정책 확정 후 보완합니다.
+- 동 삭제·이름 변경 후 과거 확정 배분의 ID와 당시 표시명을 보존하는 안입니다. 동 없는 관리대상·기타 공통 귀속의 표현은 미정이며 가상 동을 만들거나 nullable 의미를 임의로 확정하지 않습니다.
+
+위 타입·필수값·제약은 최종 DDL이 아닙니다. `expenses`·`expense_lines`의 기존 설계와 함께 해당 기능 구현 시 검토합니다. 별도 `expense_allocations`를 지출 총액에만 연결하면 비용 과목과 부담 동의 관계가 모호해지므로 항목 단위 배분을 우선 제안합니다.
 
 ---
 
