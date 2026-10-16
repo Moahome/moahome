@@ -398,6 +398,10 @@ public class PaymentService {
         try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8))); }
         catch (NoSuchAlgorithmException exception) { throw new IllegalStateException("Missing SHA-256"); }
     }
+    /** 파일 미리보기의 선택 ID는 저장 ID와 구분하며 중복 판정에 쓰는 거래 키로 재검증 가능합니다. */
+    private UUID previewId(String transactionKey) {
+        return UUID.nameUUIDFromBytes(transactionKey.getBytes(StandardCharsets.UTF_8));
+    }
     /** 미리보기는 같은 서버 파서를 사용하지만 은행 원본·수납을 저장하지 않습니다. */
     public PaymentResponse.ImportPreview preview(UUID user,UUID property,MultipartFile file) {
         requireAdmin(user,property);var account=primary(property);
@@ -409,7 +413,7 @@ public class PaymentService {
             if (row.date().isAfter(today())) throw new PaymentException("INVALID_PAYMENT_DATE");
             String key=key(row);if (!existing.add(key)) { duplicated++;continue; }
             UUID candidate=unitCandidate(row.payer(),unitRows,residentRows);
-            result.add(new PaymentResponse.Payment(UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8)),"BANK_IMPORT","PENDING",account.getId(),row.date(),
+            result.add(new PaymentResponse.Payment(previewId(key),"BANK_IMPORT","PENDING",account.getId(),row.date(),
                 row.payer(),row.amount().toPlainString(),candidate==null?"":candidate.toString(),candidate==null?"":candidateReason(row.payer(),unitRows),
                 List.of(),null,null,null,null,null,row.memo(),"HOUSEHOLD",null,null));
         }
@@ -418,11 +422,27 @@ public class PaymentService {
     /** 확정 버튼에서 파일을 다시 검증하고 잠금 아래 중복을 재검사해 원본·초안을 한 번만 함께 저장합니다. */
     @Transactional
     public PaymentResponse.Ledger importFile(UUID user,UUID property,MultipartFile file) {
+        return importFile(user,property,file,null);
+    }
+    /** 선택은 원본 파일의 거래 키로 검증하고 선택한 입금만 저장·자동 확정합니다. 재업로드에도 같은 중복 정책을 적용합니다. */
+    @Transactional
+    public PaymentResponse.Ledger importFile(UUID user,UUID property,MultipartFile file,PaymentRequests.BankImportSelection selection) {
         lock(user,property);var account=primary(property);var at=now();
+        var rows=reader.read(file);
+        if(rows.stream().anyMatch(row->row.date().isAfter(today()))) throw new PaymentException("INVALID_PAYMENT_DATE");
+        Set<UUID> selected=null;
+        if(selection!=null) {
+            var ids=selection.transactionIds();
+            if(ids==null||ids.isEmpty()||ids.size()>5000||ids.stream().anyMatch(Objects::isNull)) throw new PaymentException("INVALID_BANK_SELECTION");
+            selected=new HashSet<>(ids);
+            var allowed=rows.stream().map(row->previewId(key(row))).collect(Collectors.toSet());
+            if(!allowed.containsAll(selected)) throw new PaymentException("INVALID_BANK_SELECTION");
+        }
         var snapshot=ledger(user,property);var residentRows=residents.list(user,property).residents();
-        for (var row:reader.read(file)) {
-            if (row.date().isAfter(today())) throw new PaymentException("INVALID_PAYMENT_DATE");
-            var key=key(row);if (transactions.findByBankAccountIdAndDeduplicationKeyAndDeletedAtIsNull(account.getId(),key).isPresent()) continue;
+        for (var row:rows) {
+            var key=key(row);
+            if(selected!=null&&!selected.contains(previewId(key))) continue;
+            if (transactions.findByBankAccountIdAndDeduplicationKeyAndDeletedAtIsNull(account.getId(),key).isPresent()) continue;
             var name=security.protect(row.payer());String hmac=security.nameHash(row.payer());
             var t=transactions.saveAndFlush(BankTransaction.create(property,account.getId(),row.date(),row.amount(),name.encrypted(),hmac,
                 row.memo()==null?null:security.protect(row.memo()).encrypted(),row.reference(),key,user,at,row.time(),row.balance()));

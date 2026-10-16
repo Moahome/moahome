@@ -670,7 +670,7 @@ test('드래그한 은행 엑셀은 미리보기 후 가져오고 같은 파일�
     path: testInfo.outputPath('bank-upload.png')
   });
   await modal.getByRole('button', {
-    name: '입금 거래 가져오기',
+    name: /^(선택한 \d+건 가져오기|입금 거래 가져오기)$/,
     exact: true
   }).click();
   await expect(page.getByRole('row').filter({
@@ -688,7 +688,7 @@ test('드래그한 은행 엑셀은 미리보기 후 가져오고 같은 파일�
   await expect(modal).toContainText('가져오기 후보 0건');
   await expect(modal).toContainText('1건 중복 제외');
   await expect(modal.getByRole('button', {
-    name: '입금 거래 가져오기',
+    name: /^(선택한 \d+건 가져오기|입금 거래 가져오기)$/,
     exact: true
   })).toBeDisabled();
   await modal.getByRole('button', {
@@ -729,7 +729,7 @@ test('은행 XLS 원본을 변환 없이 서버 미리보기와 가져오기에 
   })).toContainText('드래그입금');
   const importRequest = page.waitForRequest((request) => request.url().endsWith('/payments/import') && request.method() === 'POST');
   await modal.getByRole('button', {
-    name: '입금 거래 가져오기',
+    name: /^(선택한 \d+건 가져오기|입금 거래 가져오기)$/,
     exact: true
   }).click();
   expect((await importRequest).postDataBuffer()?.includes(bytes)).toBe(true);
@@ -1866,7 +1866,7 @@ test('모두 자동 확정한 과거월 파일은 가져온 월의 처리 완료
     buffer: Buffer.from('입금일,입금자명,입금액\n2026-08-20,101호,50000')
   });
   await page.getByRole('button', {
-    name: '입금 거래 가져오기',
+    name: /^(선택한 \d+건 가져오기|입금 거래 가져오기)$/,
     exact: true
   }).click();
   await expect(page.getByRole('button', {
@@ -2267,6 +2267,168 @@ for (const width of [1440, 390, 320]) {
   });
 }
 
+for (const width of [1440, 390, 320]) {
+  test(`${width}px 은행 미리보기는 10건씩 표시하고 페이지별 제외·전체 해제·실패 재시도 선택을 유지`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    let saved = storedLedger();
+    let attempts = 0;
+    const rows: PreviewPayment[] = Array.from({
+      length: 25
+    }, (_, index) => ({
+      ...saved.payments[0],
+      id: id(`import-selection-${index}`),
+      payer: `선택입금${String(index + 1).padStart(2, '0')}`,
+      unitId: '',
+      status: 'PENDING',
+      allocations: []
+    }));
+    const fulfill = (route: import('@playwright/test').Route, body: unknown, status = 200) => route.fulfill({
+      status,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true'
+      },
+      body: JSON.stringify(body)
+    });
+    await page.route(`http://localhost:8080/api/properties/${PROPERTY_ID}/payments/**`, async (route) => {
+      const path = new URL(route.request().url()).pathname.split('/payments/')[1];
+      if (path === 'workspace') return fulfill(route, {
+        ...saved,
+        propertyId: PROPERTY_ID
+      });
+      if (path === 'import/preview') return fulfill(route, {
+        propertyId: PROPERTY_ID,
+        rows: rows.filter((row) => !saved.payments.some((payment) => payment.id === row.id)),
+        duplicateCount: saved.payments.filter((payment) => rows.some((row) => row.id === payment.id)).length
+      });
+      if (path === 'import') {
+        const selection = route.request().postDataBuffer()?.toString().match(/\{"transactionIds":\[[^\]]*\]\}/);
+        expect(selection).not.toBeNull();
+        const ids: string[] = JSON.parse(selection![0]).transactionIds;
+        expect(ids).toEqual(rows.filter((_, index) => index !== 0 && !(index >= 10 && index <= 20)).map((row) => row.id));
+        if (++attempts === 1) return fulfill(route, {
+          code: 'PAYMENT_SERVICE_UNAVAILABLE'
+        }, 503);
+        saved = {
+          ...saved,
+          payments: [...saved.payments, ...rows.filter((row) => ids.includes(row.id))]
+        };
+        return fulfill(route, {
+          ...saved,
+          propertyId: PROPERTY_ID
+        });
+      }
+      throw new Error(`Unexpected endpoint: ${path}`);
+    });
+    await page.goto(MATCHING);
+    await page.getByRole('button', {
+      name: '통장 내역 가져오기',
+      exact: true
+    }).click();
+    const modal = page.getByRole('dialog', {
+      name: '통장 내역 가져오기',
+      exact: true
+    });
+    await modal.getByLabel('거래내역 파일', {
+      exact: true
+    }).setInputFiles({
+      name: 'many.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from('입금일,입금자명,입금액')
+    });
+    const table = modal.getByRole('table', {
+      name: '은행 거래 미리보기'
+    });
+    const pages = modal.getByRole('navigation', {
+      name: '은행 미리보기 페이지'
+    });
+    await expect(table.getByRole('rowheader')).toHaveCount(10);
+    await modal.getByRole('button', {
+      name: '전체 해제',
+      exact: true
+    }).click();
+    await expect(modal.getByRole('button', {
+      name: '입금 거래 가져오기',
+      exact: true
+    })).toBeDisabled();
+    await modal.getByRole('button', {
+      name: '전체 선택',
+      exact: true
+    }).click();
+    await table.getByRole('checkbox', {
+      name: /선택입금01/
+    }).uncheck();
+    await pages.getByRole('button', {
+      name: '2페이지',
+      exact: true
+    }).click();
+    await table.getByRole('checkbox', {
+      name: '미리보기 현재 페이지 전체 선택'
+    }).uncheck();
+    await pages.getByRole('button', {
+      name: '3페이지',
+      exact: true
+    }).click();
+    await expect(table.getByRole('rowheader')).toHaveCount(5);
+    await table.getByRole('checkbox', {
+      name: /선택입금21/
+    }).uncheck();
+    await pages.getByRole('button', {
+      name: '1페이지',
+      exact: true
+    }).click();
+    await expect(table.getByRole('checkbox', {
+      name: /선택입금01/
+    })).not.toBeChecked();
+    await expect(modal).toContainText('선택 13건 · 제외 12건');
+    await modal.getByRole('button', {
+      name: '선택한 13건 가져오기',
+      exact: true
+    }).click();
+    await expect(page.getByRole('alert').filter({
+      hasText: '입금 정보를 처리하지 못했어요.'
+    })).toBeVisible();
+    await expect(table.getByRole('checkbox', {
+      name: /선택입금01/
+    })).not.toBeChecked();
+    await expect(modal.getByRole('button', {
+      name: '선택한 13건 가져오기',
+      exact: true
+    })).toBeEnabled();
+    await page.screenshot({
+      path: testInfo.outputPath(`bankSelection${width}.png`),
+      fullPage: true
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await modal.getByRole('button', {
+      name: '선택한 13건 가져오기',
+      exact: true
+    }).click();
+    await expect(modal).toHaveCount(0);
+    expect(saved.payments.filter((payment) => rows.some((row) => row.id === payment.id))).toHaveLength(13);
+    await page.getByRole('button', {
+      name: '통장 내역 가져오기',
+      exact: true
+    }).click();
+    await modal.getByLabel('거래내역 파일', {
+      exact: true
+    }).setInputFiles({
+      name: 'many.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from('입금일,입금자명,입금액')
+    });
+    await expect(modal).toContainText('가져오기 후보 12건 · 13건 중복 제외');
+    await expect(modal.getByRole('button', {
+      name: '선택한 12건 가져오기',
+      exact: true
+    })).toBeEnabled();
+  });
+}
+
 test('기타 입금 확정은 선택 메모를 비워도 서버에 빈 문자열을 보내지 않음', async ({ page }) => {
   await page.goto(MATCHING);
   await page.getByRole('row').filter({
@@ -2304,4 +2466,3 @@ test('기타 입금 확정은 선택 메모를 비워도 서버에 빈 문자열
     exact: true
   })).toBeVisible();
 });
-

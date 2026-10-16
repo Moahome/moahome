@@ -17,7 +17,7 @@ export type PaymentCommand =
   | { type: 'delete-many'; data: { paymentIds: string[] } }
   | { type: 'resume'; id: string }
   | { type: 'link'; id: string; data: { paymentId: string } }
-  | { type: 'import'; file: File };
+  | { type: 'import'; file: File; transactionIds: string[] };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const AMOUNT = /^-?[0-9]{1,15}$/;
@@ -58,6 +58,11 @@ export async function mutatePayment(propertyId: string, command: PaymentCommand)
   const path = `/api/properties/${propertyId}/payments`;
   if (command.type === 'import') {
     const data = new FormData(); data.append('file', command.file);
+    data.append('selection', new Blob([JSON.stringify({
+      transactionIds: command.transactionIds
+    })], {
+      type: 'application/json'
+    }));
     return readLedger(await authenticatedAPI({
       url: `${path}/import`,
       method: 'POST',
@@ -114,6 +119,7 @@ export function paymentError(error: unknown): string {
     INVALID_BANK_FILE: '.xls·.xlsx 또는 UTF-8 CSV 파일을 확인해주세요. 최대 5MB이며 수식은 지원하지 않아요.',
     INVALID_BANK_HEADER: '앞부분의 거래일·입금액·입금자명 열을 확인해주세요. 입출금 양식은 적요 열도 사용할 수 있어요.',
     INVALID_BANK_ROW: '거래내역의 날짜·입금자·금액 또는 수식 셀을 확인해주세요.',
+    INVALID_BANK_SELECTION: '선택한 거래와 파일이 일치하지 않아요. 파일을 다시 확인해주세요.',
     BANK_ROW_LIMIT: '거래내역은 최대 5,000행까지 지원해요.',
     EMPTY_BANK_FILE: '가져올 양수 입금 거래가 없어요.',
     INVALID_RESPONSE: '서버의 입금 응답을 확인할 수 없어요.',

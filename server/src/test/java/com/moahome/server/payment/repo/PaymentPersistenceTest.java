@@ -94,6 +94,38 @@ class PaymentPersistenceTest {
     MockMultipartFile bank(String payer,String amount) { return csv("입금일,입금자명,입금액\n2026-10-15,"+payer+","+amount); }
     long count(String table) { return jdbc.queryForObject("select count(*) from "+table,Long.class); }
 
+    /** 미리보기에서 선택한 실제 거래만 저장·자동 확정하고 제외 건은 다음 업로드에서 다시 가져올 수 있습니다. */
+    @Test void selectedBankImportSkipsExcludedRowsAndReusesSelectionOnRetry() {
+        var file=csv("입금일,입금자명,입금액\n2026-10-15,김대표,50000\n2026-10-14,미확인입금,12000\n2026-10-13,이대표,30000");
+        var preview=service.preview(user,property,file);
+        var chosen=preview.rows().stream().filter(p->!p.payer().equals("미확인입금")).map(PaymentResponse.Payment::id).toList();
+        var selection=new PaymentRequests.BankImportSelection(chosen);
+        var result=service.importFile(user,property,file,selection);
+        assertThat(result.payments()).hasSize(2).allMatch(p->p.status().equals("CONFIRMED"));
+        assertThat(result.payments()).extracting(PaymentResponse.Payment::payer).containsExactlyInAnyOrder("김대표","이대표");
+        assertThat(count("bank_transactions")).isEqualTo(2);assertThat(count("payment_allocations")).isEqualTo(2);
+        service.importFile(user,property,file,selection);
+        assertThat(count("payments")).isEqualTo(2);assertThat(count("bank_transactions")).isEqualTo(2);
+        var remaining=service.preview(user,property,file);
+        assertThat(remaining.duplicateCount()).isEqualTo(2);assertThat(remaining.rows()).hasSize(1);
+        assertThat(remaining.rows().getFirst().payer()).isEqualTo("미확인입금");
+        var all=service.importFile(user,property,file,new PaymentRequests.BankImportSelection(List.of(remaining.rows().getFirst().id())));
+        assertThat(all.payments()).hasSize(3);
+        assertThat(all.payments().stream().filter(p->p.payer().equals("미확인입금")).findFirst().orElseThrow().status()).isEqualTo("PENDING");
+    }
+
+    /** 빈 선택·파일에 없는 선택·미리보기 후 바뀐 금액은 전체 요청을 거부해 일부 저장이나 전체 가져오기 오작동을 막습니다. */
+    @Test void invalidBankSelectionsNeverCreateBankOrPaymentRecords() {
+        var file=bank("김대표","50000");
+        var valid=service.preview(user,property,file).rows().getFirst().id();
+        for(var ids:List.of(List.<UUID>of(),List.of(valid,UUID.randomUUID())))
+            assertThatThrownBy(()->service.importFile(user,property,file,new PaymentRequests.BankImportSelection(ids)))
+                .isInstanceOfSatisfying(PaymentException.class,e->assertThat(e.code()).isEqualTo("INVALID_BANK_SELECTION"));
+        assertThatThrownBy(()->service.importFile(user,property,bank("김대표","60000"),new PaymentRequests.BankImportSelection(List.of(valid))))
+            .isInstanceOf(PaymentException.class);
+        assertThat(count("bank_transactions")).isZero();assertThat(count("payments")).isZero();assertThat(count("payment_events")).isZero();
+    }
+
     /** 명부 밖 실제 입금을 확정해도 세대 청구·선입금에 영향을 주지 않고 원본과 암호화 분류를 보존합니다. */
     @Test void otherBankIncomeIsSeparateIdempotentAndNeverAllocatedToHouseholds() {
         var file=bank("외부입금자","93960");

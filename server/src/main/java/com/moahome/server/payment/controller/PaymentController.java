@@ -65,8 +65,9 @@ public class PaymentController {
         return ok(service.preview(id(user),propertyId,file));
     }
     @PostMapping(value="/import",consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<PaymentResponse.Ledger> upload(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@RequestPart MultipartFile file) {
-        return ok(service.importFile(id(user),propertyId,file));
+    public ResponseEntity<PaymentResponse.Ledger> upload(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@RequestPart MultipartFile file,
+        @Valid @RequestPart(required=false) PaymentRequests.BankImportSelection selection) {
+        return ok(service.importFile(id(user),propertyId,file,selection));
     }
     private UUID id(AuthPrincipal user) { return UUID.fromString(user.userId()); }
     private <T> ResponseEntity<T> ok(T body) { return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body); }

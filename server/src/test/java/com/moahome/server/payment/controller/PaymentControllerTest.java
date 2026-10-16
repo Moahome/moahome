@@ -83,6 +83,20 @@ class PaymentControllerTest {
                 .content(input)).andExpect(status().isOk());
         verify(service,times(4)).confirmOtherIncome(user,property,payment,new com.moahome.server.payment.dto.PaymentRequests.OtherIncome("전기료",null));
     }
+    @Test void bankImportBindsSelectedIdsAndRejectsInvalidSelections() throws Exception {
+        var file=new org.springframework.mock.web.MockMultipartFile("file","은행.csv","text/csv","입금일,입금자명,입금액".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        for(String input:List.of("{\"transactionIds\":[]}","{\"transactionIds\":[null]}","{\"transactionIds\":[\"bad-id\"]}")) {
+            var selection=new org.springframework.mock.web.MockMultipartFile("selection","selection.json","application/json",input.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            mvc.perform(multipart(base()+"/import").file(file).file(selection).with(identity())).andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(service);
+        var selection=new org.springframework.mock.web.MockMultipartFile("selection","selection.json","application/json",
+            ("{\"transactionIds\":[\""+payment+"\"]}").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        mvc.perform(multipart(base()+"/import").file(file).file(selection).with(identity())).andExpect(status().isOk());
+        verify(service).importFile(user,property,file,new com.moahome.server.payment.dto.PaymentRequests.BankImportSelection(List.of(payment)));
+        mvc.perform(multipart(base()+"/import").file(file).with(identity())).andExpect(status().isOk());
+        verify(service).importFile(user,property,file,null);
+    }
     @TestConfiguration static class Security {
         @Bean SecurityFilterChain testSecurity(HttpSecurity http) throws Exception {
             return http.csrf(csrf->csrf.disable()).authorizeHttpRequests(auth->auth.anyRequest().authenticated())

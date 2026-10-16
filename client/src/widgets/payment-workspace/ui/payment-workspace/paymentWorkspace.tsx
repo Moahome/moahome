@@ -52,6 +52,7 @@ const PAYMENT_STATUS_TONES = {
   CANCELED: 'neutral',
   LINKED: 'success'
 } as const;
+const IMPORT_PAGE_SIZE = 10;
 
 const PAYMENT_TABS = [
   {
@@ -99,6 +100,8 @@ export function PaymentWorkspace({ propertyId, view }: {
   const [manualOpen, setManualOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [prepared, setPrepared] = useState<PreviewPayment[]>([]);
+  const [importPage, setImportPage] = useState(1);
+  const [excludedImportIds, setExcludedImportIds] = useState<string[]>([]);
   const [reading, setReading] = useState(false);
   const readingRef = useRef(false);
   const [filename, setFilename] = useState('');
@@ -108,6 +111,12 @@ export function PaymentWorkspace({ propertyId, view }: {
   const [errorVersion, setErrorVersion] = useState(0);
   const [selection, setSelection] = useState<{ scope: string; ids: string[] } | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const excludedImports = new Set(excludedImportIds);
+  const selectedImport = prepared.filter((payment) => !excludedImports.has(payment.id));
+  const importPageCount = Math.max(1, Math.ceil(prepared.length / IMPORT_PAGE_SIZE));
+  const currentImportPage = Math.min(importPage, importPageCount);
+  const visibleImport = prepared.slice((currentImportPage - 1) * IMPORT_PAGE_SIZE, currentImportPage * IMPORT_PAGE_SIZE);
+  const selectedOnImportPage = visibleImport.filter((payment) => !excludedImports.has(payment.id));
   const selectableUnits = getPreviewSelectableUnits(ledger);
   const unitById = new Map(ledger.units.map((unit) => [unit.id, unit]));
   const filtered = ledger.payments.filter((payment) => {
@@ -148,6 +157,10 @@ export function PaymentWorkspace({ propertyId, view }: {
 
   function showError(message: string) {
     setError(message);setErrorVersion((version) => version + 1);
+  }
+  /** 페이지 밖의 선택을 유지하며 체크 해제한 입금은 이번 가져오기에서만 제외합니다. */
+  function toggleImport(payment: PreviewPayment) {
+    setExcludedImportIds((current) => current.includes(payment.id) ? current.filter((id) => id !== payment.id) : [...current, payment.id]);
   }
 
   /** 서버에서 선택 전체를 검증·삭제한 결과만 반영하고 실패하면 체크와 확인창을 유지합니다. */
@@ -191,6 +204,7 @@ export function PaymentWorkspace({ propertyId, view }: {
     if (!file || readingRef.current) return;
     readingRef.current = true;
     setPrepared([]);
+    setExcludedImportIds([]);setImportPage(1);setDuplicateCount(0);
     setFilename(file.name);
     setSelectedFile(file);
     setReading(true);
@@ -207,11 +221,12 @@ export function PaymentWorkspace({ propertyId, view }: {
   }
 
   async function commitImport() {
-    if (!selectedFile || !prepared.length) return;
+    if (!selectedFile || !selectedImport.length) return;
     const previousIds = new Set(ledger.payments.map((payment) => payment.id));
     const failure = await update({
       type: 'import',
-      file: selectedFile
+      file: selectedFile,
+      transactionIds: selectedImport.map((payment) => payment.id)
     }, '거래를 가져왔어요. 일치 입금은 처리 완료에서, 나머지는 확인 필요에서 확인해주세요.', (saved) => {
       const imported = saved.payments.filter((payment) => !previousIds.has(payment.id));
       const target = imported.find((payment) => payment.status === 'PENDING') ?? imported.find((payment) => payment.status === 'CONFIRMED');
@@ -262,7 +277,7 @@ export function PaymentWorkspace({ propertyId, view }: {
             </Button>
             <Button
               variant={'outline'}
-              onClick={() => { setPrepared([]); setFilename(''); setImportOpen(true); }}
+              onClick={() => { setPrepared([]); setExcludedImportIds([]);setImportPage(1);setDuplicateCount(0);setSelectedFile(null);setFilename(''); setImportOpen(true); }}
             >
               통장 내역 가져오기
             </Button>
@@ -643,14 +658,69 @@ export function PaymentWorkspace({ propertyId, view }: {
           <p>
             은행에서 내려받은 거래내역 파일을 그대로 올려주세요. 거래 머리글을 자동으로 찾고 입금 내역만 가져옵니다. 입금자명 열이 없는 입출금 양식은 적요를 사용합니다.
           </p>
-          {prepared.length > 0 && (
+          {prepared.length > 0 && <>
+            <div
+              className={styles['selection-bar']}
+            >
+              <span
+                role={'status'}
+              >
+                {`선택 ${selectedImport.length}건 · 제외 ${prepared.length - selectedImport.length}건`}
+              </span>
+              <div
+                className={styles.actions}
+              >
+                <Button
+                  variant={'text'}
+                  size={'sm'}
+                  disabled={reading || busy}
+                  onClick={() => setExcludedImportIds([])}
+                >
+                  전체 선택
+                </Button>
+                <Button
+                  variant={'text'}
+                  size={'sm'}
+                  disabled={reading || busy}
+                  onClick={() => setExcludedImportIds(prepared.map((payment) => payment.id))}
+                >
+                  전체 해제
+                </Button>
+              </div>
+            </div>
             <DataTable
               label={'은행 거래 미리보기'}
-              rows={prepared.slice(0, 20)}
-              getRowKey={(payment) => `${payment.id}-${prepared.indexOf(payment)}`}
-              minWidth={360}
+              rows={visibleImport}
+              getRowKey={(payment) => payment.id}
+              minWidth={420}
               emptyState={''}
               columns={[
+                {
+                  key: 'selection',
+                  width: 44,
+                  header: (
+                    <input
+                      type={'checkbox'}
+                      aria-label={'미리보기 현재 페이지 전체 선택'}
+                      checked={visibleImport.length > 0 && selectedOnImportPage.length === visibleImport.length}
+                      ref={(element) => { if (element) element.indeterminate = selectedOnImportPage.length > 0 && selectedOnImportPage.length < visibleImport.length; }}
+                      disabled={reading || busy}
+                      onChange={(event) => {
+                        const pageIds = new Set(visibleImport.map((payment) => payment.id));
+                        setExcludedImportIds((current) => event.target.checked ? current.filter((id) => !pageIds.has(id)) : [...new Set([...current, ...pageIds])]);
+                      }}
+                    />
+                  ),
+                  render: (payment) => (
+                    <input
+                      type={'checkbox'}
+                      aria-label={`${payment.date} ${payment.payer} ${formatWon(payment.amount)} 가져오기 선택`}
+                      checked={!excludedImports.has(payment.id)}
+                      disabled={reading || busy}
+                      onChange={() => toggleImport(payment)}
+                    />
+                  )
+                },
                 {
                   key: 'date',
                   header: '입금일',
@@ -659,6 +729,7 @@ export function PaymentWorkspace({ propertyId, view }: {
                 {
                   key: 'payer',
                   header: '입금자명',
+                  rowHeader: true,
                   render: (payment) => payment.payer
                 },
                 {
@@ -669,7 +740,21 @@ export function PaymentWorkspace({ propertyId, view }: {
                 }
               ]}
             />
-          )}
+            <Pagination
+              label={'은행 미리보기 페이지'}
+              unit={'건'}
+              total={prepared.length}
+              page={currentImportPage}
+              pageCount={importPageCount}
+              pageSize={IMPORT_PAGE_SIZE}
+              onPageChange={setImportPage}
+            />
+            <p
+              className={styles.notice}
+            >
+              10건씩 표시합니다. 체크를 해제한 입금은 이번 가져오기에서 제외하며, 다음 업로드 때 다시 선택할 수 있습니다.
+            </p>
+          </>}
           <p>
             {reading ? '파일을 확인하고 있습니다.' : `가져오기 후보 ${prepared.length}건 · ${duplicateCount}건 중복 제외 · 거래번호 또는 날짜·입금자·금액을 기준으로 검사합니다.`}
           </p>
@@ -685,10 +770,10 @@ export function PaymentWorkspace({ propertyId, view }: {
             </Button>
             <Button
               loading={busy}
-              disabled={reading || !prepared.length}
+              disabled={reading || !selectedImport.length}
               onClick={commitImport}
             >
-              입금 거래 가져오기
+              {selectedImport.length ? `선택한 ${selectedImport.length}건 가져오기` : '입금 거래 가져오기'}
             </Button>
           </div>
         </ClientModal>
