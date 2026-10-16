@@ -21,10 +21,12 @@ public class BillingGenerationService {
     private final ChargeRepository charges;
     private final ChargeItemRepository items;
     private final Clock clock;
+    private final com.moahome.server.payment.service.CumulativePaymentService cumulative;
     public BillingGenerationService(PropertyRepository properties, UnitRepository units, BuildingRepository buildings,
-        BillingTemplates configurations, BillingPeriodRepository periods, ChargeRepository charges, ChargeItemRepository items, Clock clock) {
+        BillingTemplates configurations, BillingPeriodRepository periods, ChargeRepository charges, ChargeItemRepository items, Clock clock,
+        com.moahome.server.payment.service.CumulativePaymentService cumulative) {
         this.properties=properties; this.units=units; this.buildings=buildings; this.configurations=configurations;
-        this.periods=periods; this.charges=charges; this.items=items; this.clock=clock;
+        this.periods=periods; this.charges=charges; this.items=items; this.clock=clock;this.cumulative=cumulative;
     }
     /** 월·관리대상별 독립 트랜잭션에서 생성과 확정을 완료하며 동시 스케줄·재시도에는 같은 기간을 다시 생성하지 않습니다. */
     @Transactional
@@ -43,6 +45,8 @@ public class BillingGenerationService {
         issueCharges(propertyId, period, units.findByPropertyIdAndDeletedAtIsNull(propertyId), at);
         period.confirm(at);
         periods.flush();
+        // 이전에 받은 선입금도 새 청구에 충당해 월이 바뀌어도 누적 부과·수납의 차이가 유지됩니다.
+        cumulative.settle(propertyId,null);
         // 어느 저장 단계라도 실패하면 기간·모든 청구·항목을 함께 롤백해 다음 실행에서 안전하게 재시도합니다.
         return true;
     }
@@ -61,8 +65,8 @@ public class BillingGenerationService {
         var charged = charges.findByBillingPeriodId(period.getId()).stream().map(Charge::getUnitId).collect(Collectors.toSet());
         var additions = units.findByPropertyIdAndIdIn(propertyId, unitIds).stream()
             .filter(unit -> unit.getDeletedAt() == null && !charged.contains(unit.getId())).toList();
-        if (additions.isEmpty()) return;
-        issueCharges(propertyId, period, additions, OffsetDateTime.now(clock));
+        if (!additions.isEmpty()) issueCharges(propertyId, period, additions, OffsetDateTime.now(clock));
+        cumulative.settle(propertyId,null);
     }
 
     /** 당월 누락 청구·공실 제외·기존 삭제 누락을 복구하며 과거 월과 수동 취소는 유지합니다. */

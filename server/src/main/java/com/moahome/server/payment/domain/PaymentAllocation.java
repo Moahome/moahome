@@ -26,4 +26,9 @@ public class PaymentAllocation {
         a.chargeId=charge; a.allocatedAmount=amount; a.status="ACTIVE"; a.allocatedBy=actor; a.allocatedAt=at; return a;
     }
     public void cancel(UUID actor, OffsetDateTime at) { if ("CANCELED".equals(status)) return; status="CANCELED"; canceledBy=actor; canceledAt=at; }
+    /** 기존 충당을 유지하면서 추가 선입금만 반영하며 변경 전·추가 금액은 서비스의 처리 이벤트에 보존합니다. */
+    public void increase(BigDecimal amount) {
+        if (!"ACTIVE".equals(status)||amount.signum()<=0||amount.scale()!=0) throw new IllegalArgumentException("Invalid allocation increase");
+        allocatedAmount=allocatedAmount.add(amount);
+    }
 }

@@ -17,6 +17,7 @@ import org.springframework.test.context.DynamicPropertySource;
 @ActiveProfiles("test")
 class ServerApplicationTests {
 	@MockitoBean private com.moahome.server.payment.service.PaymentService payments;
+	@MockitoBean private com.moahome.server.payment.service.CumulativePaymentService cumulativePayments;
 	@MockitoBean private com.moahome.server.billing.service.BillingService billing;
 	@MockitoBean private com.moahome.server.billing.service.BillingTemplates billingTemplates;
 	@MockitoBean private com.moahome.server.billing.service.BillingGenerationService billingGeneration;

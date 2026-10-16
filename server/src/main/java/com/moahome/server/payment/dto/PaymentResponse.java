@@ -4,7 +4,7 @@ import java.util.*;
 public final class PaymentResponse {
     private PaymentResponse() {}
     public record Account(UUID id,String label) {}
-    public record Unit(UUID id,String label,String status,boolean eligible,UUID representativeId,String representativeName) {}
+    public record Unit(UUID id,String label,String status,boolean eligible,UUID representativeId,String representativeName,List<String> residentNames,String buildingName) {}
     public record Charge(UUID id,UUID unitId,String month,String amount,String status,LocalDate dueDate) {}
     public record Allocation(UUID chargeId,String amount) {}
     public record Payment(UUID id,String source,String status,UUID accountId,LocalDate date,String payer,String amount,

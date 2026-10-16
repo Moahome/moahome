@@ -30,7 +30,7 @@ class PaymentControllerTest {
     }
     @Test void endpointsRequireAuthenticationAndBadInputDoesNotReachService() throws Exception {
         mvc.perform(get(base()+"/workspace")).andExpect(status().isUnauthorized());
-        for(String endpoint:List.of("/manual","/"+payment+"/confirm","/"+payment+"/hold","/"+payment+"/cancel","/"+payment+"/link")) {
+        for(String endpoint:List.of("/manual","/delete","/"+payment+"/confirm","/"+payment+"/hold","/"+payment+"/cancel","/"+payment+"/link")) {
             mvc.perform(post(base()+endpoint).contentType(MediaType.APPLICATION_JSON).content("{}" )).andExpect(status().isUnauthorized());
             mvc.perform(post(base()+endpoint).with(identity()).contentType(MediaType.APPLICATION_JSON).content("{}" )).andExpect(status().isBadRequest());
         }
@@ -42,6 +42,28 @@ class PaymentControllerTest {
     @Test void workspaceUsesAuthenticatedIdentityAndPreventsBrowserCaching() throws Exception {
         mvc.perform(get(base()+"/workspace").with(identity())).andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"));
         verify(service).workspace(user,property);
+    }
+    @Test void automaticConfirmationRequiresAuthenticationAndUsesAuthenticatedIdentity() throws Exception {
+        mvc.perform(post(base()+"/confirm-matches")).andExpect(status().isUnauthorized());
+        mvc.perform(post(base()+"/confirm-matches").with(identity())).andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"));
+        verify(service).confirmMatches(user,property);
+    }
+    @Test void deletionRequiresAuthenticationAndReturnsUpdatedLedger() throws Exception {
+        mvc.perform(delete(base()+"/"+payment)).andExpect(status().isUnauthorized());
+        mvc.perform(delete(base()+"/"+payment).with(identity())).andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"));
+        verify(service).delete(user,property,payment);
+    }
+    @Test void selectedDeletionUsesAuthenticatedIdentityAndRejectsInvalidLists() throws Exception {
+        mvc.perform(post(base()+"/delete").with(identity()).contentType(MediaType.APPLICATION_JSON).content("{\"paymentIds\":[]}")).andExpect(status().isBadRequest());
+        mvc.perform(post(base()+"/delete").with(identity()).contentType(MediaType.APPLICATION_JSON).content("{\"paymentIds\":[null]}")).andExpect(status().isBadRequest());
+        mvc.perform(post(base()+"/delete").with(identity()).contentType(MediaType.APPLICATION_JSON).content("{\"paymentIds\":[\""+payment+"\"]}")).andExpect(status().isOk());
+        verify(service).deleteMany(user,property,new com.moahome.server.payment.dto.PaymentRequests.DeleteMany(List.of(payment)));
+    }
+    @Test void unitOnlyConfirmationAcceptsOmittedAllocations() throws Exception {
+        UUID unit=UUID.randomUUID();
+        mvc.perform(post(base()+"/"+payment+"/confirm").with(identity()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"unitId\":\""+unit+"\"}")).andExpect(status().isOk());
+        verify(service).confirm(user,property,payment,new com.moahome.server.payment.dto.PaymentRequests.Confirm(unit,null,null));
     }
     @TestConfiguration static class Security {
         @Bean SecurityFilterChain testSecurity(HttpSecurity http) throws Exception {

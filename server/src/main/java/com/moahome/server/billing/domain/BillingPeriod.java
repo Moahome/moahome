@@ -18,6 +18,7 @@ public class BillingPeriod {
     @Column(nullable=false, length=20) private String status;
     @Column(name="confirmed_at", columnDefinition="timestamptz") private OffsetDateTime confirmedAt;
     @Column(name="confirmation_source", nullable=false, length=20) private String confirmationSource;
+    @Column(name="recorded_by") private UUID recordedBy;
     @Column(name="created_at", nullable=false, columnDefinition="timestamptz") private OffsetDateTime createdAt;
     @Column(name="updated_at", nullable=false, columnDefinition="timestamptz") private OffsetDateTime updatedAt;
     protected BillingPeriod() {}

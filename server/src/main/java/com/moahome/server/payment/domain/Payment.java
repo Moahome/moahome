@@ -39,6 +39,8 @@ public class Payment implements org.springframework.data.domain.Persistable<UUID
     @Column(name="created_by",nullable=false) private UUID createdBy;
     @Column(name="created_at",nullable=false,columnDefinition="timestamptz") private OffsetDateTime createdAt;
     @Column(name="updated_at",nullable=false,columnDefinition="timestamptz") private OffsetDateTime updatedAt;
+    @Column(name="deleted_at",columnDefinition="timestamptz") private OffsetDateTime deletedAt;
+    @Column(name="deleted_by") private UUID deletedBy;
     protected Payment() {}
 
     /** 수동·은행 경로 모두 초안으로 시작하고 원 금액·이름 스냅샷과 생성자를 보존합니다. */
@@ -86,7 +88,14 @@ public class Payment implements org.springframework.data.domain.Persistable<UUID
     }
     /** 연결한 수납 취소 후 같은 은행 원본을 다시 검토하고 기존 연결·취소는 이벤트에 보존합니다. */
     public void unlink(OffsetDateTime at) { require("LINKED"); linkedPaymentId=null; status="PENDING"; updatedAt=at; }
+    /** 삭제는 확정 수납의 충당 해제 후 표시하며 원본과 처리 이력의 참조를 보존합니다. */
+    public void softDelete(UUID actor,OffsetDateTime at) {
+        if(deletedAt!=null) return;
+        if("CONFIRMED".equals(status)) throw new PaymentException("PAYMENT_STATE_CONFLICT");
+        deletedBy=Objects.requireNonNull(actor);deletedAt=Objects.requireNonNull(at);updatedAt=at;
+    }
     private void require(String expected) {
+        if(deletedAt!=null) throw new PaymentException("PAYMENT_NOT_FOUND");
         if (!expected.equals(status)) throw new PaymentException("PAYMENT_STATE_CONFLICT");
     }
 }

@@ -24,6 +24,18 @@ public class PaymentController {
     public ResponseEntity<PaymentResponse.Ledger> manual(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@Valid @RequestBody PaymentRequests.Manual request) {
         return ok(service.manual(id(user),propertyId,request));
     }
+    @PostMapping("/delete")
+    public ResponseEntity<PaymentResponse.Ledger> deleteMany(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@Valid @RequestBody PaymentRequests.DeleteMany request) {
+        return ok(service.deleteMany(id(user),propertyId,request));
+    }
+    @DeleteMapping("/{paymentId}")
+    public ResponseEntity<PaymentResponse.Ledger> delete(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@PathVariable UUID paymentId) {
+        return ok(service.delete(id(user),propertyId,paymentId));
+    }
+    @PostMapping("/confirm-matches")
+    public ResponseEntity<PaymentResponse.Ledger> confirmMatches(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId) {
+        return ok(service.confirmMatches(id(user),propertyId));
+    }
     @PostMapping("/{paymentId}/confirm")
     public ResponseEntity<PaymentResponse.Ledger> confirm(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@PathVariable UUID paymentId,@Valid @RequestBody PaymentRequests.Confirm request) {
         return ok(service.confirm(id(user),propertyId,paymentId,request));

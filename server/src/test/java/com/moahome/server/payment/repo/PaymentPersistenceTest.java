@@ -43,7 +43,7 @@ import static org.assertj.core.api.Assertions.*;
 @DataJpaTest(showSql=false)
 @AutoConfigureTestDatabase(replace=AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({PaymentService.class,BankTransactionReader.class,BillingTemplates.class,BillingGenerationService.class,
+@Import({com.moahome.server.payment.service.CumulativePaymentService.class,PaymentService.class,BankTransactionReader.class,BillingTemplates.class,BillingGenerationService.class,
     PropertyRegistrationService.class,PropertyRegistrationLock.class,ManagementAccessService.class,UserService.class,
     ResidentListService.class,PaymentPersistenceTest.TestBeans.class})
 @ActiveProfiles("database-test")
@@ -97,6 +97,7 @@ class PaymentPersistenceTest {
     @Test void realRepresentativesAndIssuedChargesAreUsedAndManualRetriesDoNotDuplicate() {
         var ledger=service.workspace(user,property);
         assertThat(ledger.units()).extracting(PaymentResponse.Unit::representativeName).containsExactly("김대표","이대표");
+        assertThat(ledger.units().stream().filter(u->u.id().equals(unit)).findFirst().orElseThrow().residentNames()).containsExactlyInAnyOrder("김대표","김가족");
         assertThat(ledger.charges()).allMatch(c->c.amount().equals("50000")&&c.dueDate().equals(LocalDate.of(2026,10,31)));
         UUID id=manual("80000");
         var input=new PaymentRequests.Manual(id,unit,LocalDate.of(2026,10,15),"80000");
@@ -110,9 +111,9 @@ class PaymentPersistenceTest {
         assertThat(jdbc.queryForObject("select payer_name_encrypted from payments where id=?",String.class,id)).doesNotContain("김대표");
         assertThat(jdbc.queryForObject("select count(*) from payment_events where action='CONFIRMED'",Long.class)).isEqualTo(1);
     }
-    @Test void bankImportUsesRepresentativesExcludesFamilyAndDeduplicatesDateNameAmountAcrossFiles() {
+    @Test void bankImportMatchesRosterNamesAndDeduplicatesDateNameAmountAcrossFiles() {
         assertThat(service.preview(user,property,bank("김대표","50000")).rows().getFirst().unitId()).isEqualTo(unit.toString());
-        assertThat(service.preview(user,property,bank("김가족","50000")).rows().getFirst().unitId()).isEmpty();
+        assertThat(service.preview(user,property,bank("김가족","50000")).rows().getFirst().unitId()).isEqualTo(unit.toString());
         assertThat(count("payments")).isZero();assertThat(count("bank_transactions")).isZero();
         service.importFile(user,property,bank("김대표","50000"));
         var different=csv("입금일,입금자명,입금액,적요\n2026-10-15,김대표,50000,다른 파일의 적요");
@@ -120,6 +121,151 @@ class PaymentPersistenceTest {
         service.importFile(user,property,different);
         assertThat(count("payments")).isEqualTo(1);assertThat(count("bank_transactions")).isEqualTo(1);
         resident(otherUnit,"김대표",false);
+        assertThat(service.preview(user,property,bank("김대표","60000")).rows().getFirst().unitId()).isEmpty();
+    }
+    @Test void bankXlsPreviewImportConfirmationAndReuploadReuseOneReceipt() throws Exception {
+        try(var workbook=new org.apache.poi.hssf.usermodel.HSSFWorkbook();var bytes=new java.io.ByteArrayOutputStream()) {
+            var sheet=workbook.createSheet("거래내역조회");
+            sheet.createRow(0).createCell(0).setCellValue("거래내역조회");
+            var header=sheet.createRow(5);
+            var labels=List.of("거래일시","구분","적요","출금액","입금액","잔액","거래점");
+            for(int i=0;i<labels.size();i++) header.createCell(i).setCellValue(labels.get(i));
+            for(int i=0;i<2;i++) {
+                var row=sheet.createRow(6+i);
+                row.createCell(0).setCellValue("2026-10-15 09:12:34");
+                row.createCell(2).setCellValue(i==0?"김대표":"청소비");
+                row.createCell(3).setCellValue(i==0?0:20000);
+                row.createCell(4).setCellValue(i==0?50000:0);
+                row.createCell(5).setCellValue(i==0?150000:130000);
+            }
+            workbook.write(bytes);
+            var file=new MockMultipartFile("file","거래내역조회.xls","application/vnd.ms-excel",bytes.toByteArray());
+            var preview=service.preview(user,property,file);
+            assertThat(preview.rows()).hasSize(1);
+            assertThat(preview.rows().getFirst().unitId()).isEqualTo(unit.toString());
+            assertThat(count("bank_transactions")).isZero();assertThat(count("payments")).isZero();
+            var imported=service.importFile(user,property,file).payments().getFirst();
+            assertThat(imported.status()).isEqualTo("CONFIRMED");
+            assertThat(imported.memo()).isEqualTo("김대표");
+            assertThat(count("payment_allocations")).isEqualTo(1);
+            assertThat(jdbc.queryForObject("select transaction_time::text from bank_transactions",String.class)).isEqualTo("09:12:34");
+            assertThat(jdbc.queryForObject("select balance::text from bank_transactions",String.class)).isEqualTo("150000");
+            service.confirm(user,property,imported.id(),confirm("50000"));
+            assertThat(service.preview(user,property,file).duplicateCount()).isEqualTo(1);
+            service.importFile(user,property,file);
+            assertThat(count("bank_transactions")).isEqualTo(1);assertThat(count("payments")).isEqualTo(1);
+            assertThat(count("payment_allocations")).isEqualTo(1);
+        }
+    }
+    /** 동·호수 표기는 공백 차이나 마지막 호 생략에도 같은 실제 세대를 후보로 표시하며 은행 원문은 변경하지 않습니다. */
+    @Test void buildingAndUnitPayerSuggestsExistingUnitWithoutRenamingResident() {
+        UUID building=UUID.randomUUID();
+        jdbc.update("update properties set has_buildings=true where id=?",property);
+        jdbc.update("insert into buildings(id,property_id,name,sort_order,status,created_at,updated_at) values (?,?,'102동',0,'ACTIVE',now(),now())",building,property);
+        jdbc.update("update units set building_id=?,unit_number='401' where id=?",building,unit);
+        for(String payer:List.of("102동401호","102동 401호","102동  401호","102동401","102동 401")) {
+            var row=service.preview(user,property,bank(payer,"50000")).rows().getFirst();
+            assertThat(row.unitId()).isEqualTo(unit.toString());assertThat(row.reason()).isEqualTo("동·호수 일치");
+            assertThat(row.payer()).isEqualTo(payer);
+        }
+        assertThat(service.preview(user,property,bank("102동999호","50000")).rows().getFirst().unitId()).isEmpty();
+        assertThat(service.preview(user,property,bank("김대표","50000")).rows().getFirst().unitId()).isEqualTo(unit.toString());
+        var imported=service.importFile(user,property,bank("102동401호","50000")).payments().getFirst();
+        assertThat(imported.unitId()).isEqualTo(unit.toString());
+        assertThat(jdbc.queryForObject("select matched_unit_id from payments where id=?",UUID.class,imported.id())).isEqualTo(unit);
+        assertThat(service.workspace(user,property).units().stream().filter(u->u.id().equals(unit)).findFirst().orElseThrow().representativeName()).isEqualTo("김대표");
+    }
+    /** '호'가 없는 실제 은행 표기도 조회·재매칭·새 가져오기에서 동일한 세대에 연결합니다. */
+    @Test void missingHoMatchesExistingPendingAndAutoConfirmsNewDepositsWithoutPartialMatches() {
+        var original=bank("103동501","50000");
+        var pending=service.importFile(user,property,original).payments().getFirst();
+        assertThat(pending.unitId()).isEmpty();assertThat(pending.status()).isEqualTo("PENDING");
+        UUID building=UUID.randomUUID();
+        jdbc.update("update properties set has_buildings=true where id=?",property);
+        jdbc.update("insert into buildings(id,property_id,name,sort_order,status,created_at,updated_at) values (?,?,'103동',0,'ACTIVE',now(),now())",building,property);
+        jdbc.update("update units set building_id=?,unit_number='501' where id=?",building,unit);
+        var candidate=service.workspace(user,property).payments().getFirst();
+        assertThat(candidate.unitId()).isEqualTo(unit.toString());assertThat(candidate.reason()).isEqualTo("동·호수 일치");
+        for(String payer:List.of("103동50","103동501관리비","103동501호호","104동501"))
+            assertThat(service.preview(user,property,bank(payer,"50000")).rows().getFirst().unitId()).isEmpty();
+        var confirmed=service.confirmMatches(user,property).payments().getFirst();
+        assertThat(confirmed.unitId()).isEqualTo(unit.toString());assertThat(confirmed.status()).isEqualTo("CONFIRMED");
+        assertThat(confirmed.payer()).isEqualTo("103동501");
+        var next=csv("입금일,입금자명,입금액\n2026-10-14,103동 501,50000");
+        var imported=service.importFile(user,property,next);
+        assertThat(imported.payments()).hasSize(2).allMatch(p->p.status().equals("CONFIRMED")&&p.unitId().equals(unit.toString()));
+        assertThat(service.preview(user,property,original).duplicateCount()).isEqualTo(1);
+        assertThat(service.preview(user,property,next).duplicateCount()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select sum(amount)::text from payments where status='CONFIRMED'",String.class)).isEqualTo("100000");
+        assertThat(jdbc.queryForObject("select sum(allocated_amount)::text from payment_allocations where status='ACTIVE'",String.class)).isEqualTo("50000");
+    }
+    /** 같은 달 여러 실제 입금은 모두 수납하며 이미 완납한 세대의 추가 입금도 전액 선입금으로 유지합니다. */
+    @Test void repeatedDepositsAccumulateAndPrepaymentAutomaticallyPaysNextMonth() {
+        var file=csv("입금일,입금자명,입금액\n2026-10-06,같은입금자,50000\n2026-10-13,같은입금자,50000");
+        var imported=service.importFile(user,property,file);
+        assertThat(imported.payments()).hasSize(2);
+        var request=new PaymentRequests.Confirm(unit,null,null);
+        for(var payment:imported.payments()) service.confirm(user,property,payment.id(),request);
+        service.confirm(user,property,imported.payments().getFirst().id(),request);
+        assertThat(jdbc.queryForObject("select sum(amount)::text from payments where status='CONFIRMED'",String.class)).isEqualTo("100000");
+        assertThat(jdbc.queryForObject("select sum(allocated_amount)::text from payment_allocations where status='ACTIVE'",String.class)).isEqualTo("50000");
+        assertThat(service.workspace(user,property).payments()).allMatch(p->p.status().equals("CONFIRMED"));
+        assertThat(service.preview(user,property,file).duplicateCount()).isEqualTo(2);
+        service.importFile(user,property,file);assertThat(count("payments")).isEqualTo(2);
+        clock.set(Instant.parse("2026-11-01T00:00:00Z"));
+        assertThat(billing.generate(property,java.time.YearMonth.of(2026,11))).isTrue();
+        assertThat(jdbc.queryForObject("select sum(allocated_amount)::text from payment_allocations where status='ACTIVE'",String.class)).isEqualTo("100000");
+        var nextCharge=service.workspace(user,property).charges().stream().filter(c->c.unitId().equals(unit)&&c.month().equals("2026-11")).findFirst().orElseThrow();
+        assertThat(service.workspace(user,property).payments().stream().flatMap(p->p.allocations().stream()).filter(a->a.chargeId().equals(nextCharge.id()))).hasSize(1);
+    }
+    @Test void matchingNamesAutoConfirmRepeatedDepositsAndNextMonthUsesAdvanceWithoutManualAction() {
+        var file=csv("입금일,입금자명,입금액\n2026-10-06,김대표,50000\n2026-10-13,김가족,50000");
+        assertThat(service.preview(user,property,file).rows()).allMatch(p->p.status().equals("PENDING"));
+        assertThat(count("payments")).isZero();
+        var imported=service.importFile(user,property,file);
+        assertThat(imported.payments()).hasSize(2).allMatch(p->p.status().equals("CONFIRMED")&&p.unitId().equals(unit.toString()));
+        assertThat(jdbc.queryForObject("select sum(amount)::text from payments where status='CONFIRMED'",String.class)).isEqualTo("100000");
+        assertThat(jdbc.queryForObject("select sum(allocated_amount)::text from payment_allocations where status='ACTIVE'",String.class)).isEqualTo("50000");
+        assertThat(jdbc.queryForObject("select count(*) from payment_events where action='AUTO_CONFIRMED'",Long.class)).isEqualTo(2);
+        service.importFile(user,property,file);assertThat(count("payments")).isEqualTo(2);
+        clock.set(Instant.parse("2026-11-01T00:00:00Z"));billing.generate(property,java.time.YearMonth.of(2026,11));
+        assertThat(jdbc.queryForObject("select sum(allocated_amount)::text from payment_allocations where status='ACTIVE'",String.class)).isEqualTo("100000");
+    }
+    @Test void bulkConfirmsExistingUniqueMatchesButLeavesAmbiguousHeldAndDuplicateManualReceipts() {
+        var file=csv("입금일,입금자명,입금액\n2026-10-06,새이름,50000\n2026-10-07,동명이인,50000\n2026-10-08,보류할이름,50000");
+        var imported=service.importFile(user,property,file);
+        var held=imported.payments().stream().filter(p->p.payer().equals("보류할이름")).findFirst().orElseThrow();
+        service.hold(user,property,held.id(),"별도 확인 필요");
+        resident(unit,"새이름",false);resident(unit,"동명이인",false);resident(otherUnit,"동명이인",false);resident(unit,"보류할이름",false);
+        var result=service.confirmMatches(user,property);service.confirmMatches(user,property);
+        assertThat(result.payments().stream().filter(p->p.payer().equals("새이름")).findFirst().orElseThrow().status()).isEqualTo("CONFIRMED");
+        assertThat(result.payments().stream().filter(p->p.payer().equals("동명이인")).findFirst().orElseThrow().status()).isEqualTo("PENDING");
+        assertThat(result.payments().stream().filter(p->p.id().equals(held.id())).findFirst().orElseThrow().status()).isEqualTo("ON_HOLD");
+        UUID manual=manual("50000");service.confirm(user,property,manual,new PaymentRequests.Confirm(unit,null,null));
+        var duplicate=service.importFile(user,property,bank("김대표","50000")).payments().stream().filter(p->p.payer().equals("김대표")&&p.source().equals("BANK_IMPORT")).findFirst().orElseThrow();
+        assertThat(duplicate.status()).isEqualTo("PENDING");
+        assertThat(service.confirmMatches(user,property).payments().stream().filter(p->p.id().equals(duplicate.id())).findFirst().orElseThrow().status()).isEqualTo("PENDING");
+    }
+    @Test void cumulativeConcurrentReceiptsBothConfirmWithoutOverpayingCharge() throws Exception {
+        UUID first=manual("50000"),second=manual("50000");var start=new CountDownLatch(1);
+        try(var pool=Executors.newFixedThreadPool(2)) {
+            var results=List.of(first,second).stream().map(id->pool.submit(()->{start.await();service.confirm(user,property,id,new PaymentRequests.Confirm(unit,null,null));return true;})).toList();
+            start.countDown();for(var result:results) assertThat(result.get(10,TimeUnit.SECONDS)).isTrue();
+        }
+        assertThat(jdbc.queryForObject("select count(*) from payments where status='CONFIRMED'",Long.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("select sum(allocated_amount)::text from payment_allocations where status='ACTIVE'",String.class)).isEqualTo("50000");
+        service.cancel(user,property,first,"잘못 연결한 수납 취소");
+        assertThat(jdbc.queryForObject("select sum(allocated_amount)::text from payment_allocations where status='ACTIVE'",String.class)).isEqualTo("50000");
+        assertThat(jdbc.queryForObject("select sum(amount)::text from payments where status='CONFIRMED'",String.class)).isEqualTo("50000");
+    }
+    @Test void failureDuringCumulativeApplicationRollsBackReceiptAndAllAllocations() {
+        UUID id=manual("80000");
+        jdbc.execute("create function fail_payment_event() returns trigger language plpgsql as $$ begin if NEW.action='CUMULATIVE_APPLIED' then raise exception 'test failure';end if;return NEW;end $$");
+        jdbc.execute("create trigger payment_event_failure before insert on payment_events for each row execute function fail_payment_event()");
+        assertThatThrownBy(()->service.confirm(user,property,id,new PaymentRequests.Confirm(unit,null,null))).isInstanceOf(RuntimeException.class);
+        assertThat(count("payment_allocations")).isZero();
+        assertThat(jdbc.queryForObject("select status from payments where id=?",String.class,id)).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("select count(*) from payment_events where action='CONFIRMED'",Long.class)).isZero();
     }
     @Test void duplicateManualLinksWithoutIncreasingReceiptsAndCancellationRestoresBankReview() {
         UUID manual=manual("50000");service.confirm(user,property,manual,confirm("50000"));
@@ -135,7 +281,7 @@ class PaymentPersistenceTest {
         assertThat(service.workspace(user,property).payments().stream().filter(p->p.id().equals(manual)).findFirst().orElseThrow().cancelReason()).isEqualTo("세대 확인 정정");
     }
     @Test void holdResumeAndCancelBankKeepOriginalAndCreateOneReviewDraft() {
-        var p=service.importFile(user,property,bank("김대표","50000")).payments().getFirst();
+        var p=service.importFile(user,property,bank("확인할입금","50000")).payments().getFirst();
         service.hold(user,property,p.id(),"입금자 확인");service.resume(user,property,p.id());service.confirm(user,property,p.id(),confirm("50000"));
         var canceled=service.cancel(user,property,p.id(),"잘못된 확정");service.cancel(user,property,p.id(),"재요청");
         assertThat(canceled.payments().stream().filter(row->row.status().equals("PENDING"))).hasSize(1);
@@ -151,6 +297,92 @@ class PaymentPersistenceTest {
             assertThat(success).isEqualTo(1);
         }
         assertThat(jdbc.queryForObject("select sum(allocated_amount)::text from payment_allocations where status='ACTIVE'",String.class)).isEqualTo("50000");
+    }
+    @Test void confirmedReceiptUsesCancellationAndKeepsBankOriginalForReview() {
+        var file=bank("김대표","80000");var payment=service.importFile(user,property,file).payments().getFirst();
+        assertThatThrownBy(()->service.delete(user,property,payment.id())).isInstanceOf(PaymentException.class)
+            .extracting(e->((PaymentException)e).code()).isEqualTo("PAYMENT_DELETE_NOT_ALLOWED");
+        assertThat(service.workspace(user,property).payments()).hasSize(1).allMatch(p->p.status().equals("CONFIRMED"));
+        var canceled=service.cancel(user,property,payment.id(),"납부 세대 확인 정정");
+        assertThat(canceled.payments()).hasSize(2);
+        assertThat(canceled.payments().stream().filter(p->p.status().equals("PENDING"))).hasSize(1);
+        assertThat(jdbc.queryForObject("select count(*) from payment_allocations where status='ACTIVE'",Long.class)).isZero();
+        assertThat(service.preview(user,property,file).duplicateCount()).isEqualTo(1);
+        service.confirmMatches(user,property);
+        assertThat(service.workspace(user,property).payments()).noneMatch(p->p.status().equals("CONFIRMED"));
+    }
+    @Test void deleteUnpaidReceiptAllowsSameExcelRowToBeImportedAgainExactlyOnce() {
+        var file=bank("확인할이름","50000");var payment=service.importFile(user,property,file).payments().getFirst();
+        assertThat(service.delete(user,property,payment.id()).payments()).isEmpty();service.delete(user,property,payment.id());
+        assertThat(jdbc.queryForObject("select deleted_by from payments where id=?",UUID.class,payment.id())).isEqualTo(user);
+        assertThat(jdbc.queryForObject("select count(*) from payment_events where action='DELETED'",Long.class)).isEqualTo(1);
+        assertThat(service.preview(user,property,file).duplicateCount()).isZero();
+        assertThat(service.preview(user,property,file).rows()).hasSize(1);
+        var reimported=service.importFile(user,property,file);service.importFile(user,property,file);
+        assertThat(reimported.payments()).hasSize(1).allMatch(p->p.status().equals("PENDING")&&!p.id().equals(payment.id()));
+        assertThat(count("bank_transactions")).isEqualTo(2);
+        assertThat(jdbc.queryForObject("select count(*) from bank_transactions where deleted_at is null",Long.class)).isEqualTo(1);
+        assertThat(service.preview(user,property,file).duplicateCount()).isEqualTo(1);
+    }
+    @Test void deletePendingHeldAndManualDraftsAndEnforceScope() {
+        var pending=service.importFile(user,property,bank("미확인","10000")).payments().getFirst();
+        assertThatThrownBy(()->service.delete(user,UUID.randomUUID(),pending.id())).isInstanceOf(AuthException.class);
+        service.hold(user,property,pending.id(),"확인");service.delete(user,property,pending.id());
+        UUID draft=manual("50000");service.delete(user,property,draft);
+        assertThat(service.workspace(user,property).payments()).isEmpty();
+        var newPending=service.importFile(user,property,bank("또다른미확인","20000")).payments().getFirst();
+        service.delete(user,property,newPending.id());assertThat(service.workspace(user,property).payments()).isEmpty();
+    }
+    @Test void failedDeleteRollsBackDraftAndBankDeduplicationKeyTogether() {
+        var file=bank("미확인","50000");var payment=service.importFile(user,property,file).payments().getFirst();
+        jdbc.execute("create function fail_payment_event() returns trigger language plpgsql as $$ begin if NEW.action='DELETED' then raise exception 'test failure';end if;return NEW;end $$");
+        jdbc.execute("create trigger payment_event_failure before insert on payment_events for each row execute function fail_payment_event()");
+        assertThatThrownBy(()->service.delete(user,property,payment.id())).isInstanceOf(RuntimeException.class);
+        assertThat(service.workspace(user,property).payments()).hasSize(1).allMatch(p->p.status().equals("PENDING"));
+        assertThat(jdbc.queryForObject("select count(*) from bank_transactions where deleted_at is null",Long.class)).isEqualTo(1);
+        assertThat(service.preview(user,property,file).duplicateCount()).isEqualTo(1);
+    }
+    @Test void oldDepositCanBeManuallyConfirmedAgainstCurrentUnitWithoutReceiptMonthBill() {
+        var file=csv("입금일,입금자명,입금액\n2026-08-20,103-302(8),50000");
+        var payment=service.importFile(user,property,file).payments().getFirst();
+        assertThat(payment.unitId()).isEmpty();assertThat(payment.status()).isEqualTo("PENDING");
+        var confirmed=service.confirm(user,property,payment.id(),new PaymentRequests.Confirm(unit,null,null));
+        assertThat(confirmed.payments().getFirst().status()).isEqualTo("CONFIRMED");
+        assertThat(confirmed.payments().getFirst().payer()).isEqualTo("103-302(8)");
+        assertThat(confirmed.payments().getFirst().allocations()).hasSize(1);
+    }
+    @Test void selectedDeletionIsAtomicAndDeletedRowsCanBeReimported() {
+        var file=csv("입금일,입금자명,입금액\n2026-08-01,미확인하나,50000\n2026-08-02,미확인둘,50000");
+        var imported=service.importFile(user,property,file);
+        var ids=imported.payments().stream().map(PaymentResponse.Payment::id).toList();
+        UUID confirmed=manual("50000");service.confirm(user,property,confirmed,new PaymentRequests.Confirm(unit,null,null));
+        assertThatThrownBy(()->service.deleteMany(user,property,new PaymentRequests.DeleteMany(List.of(ids.getFirst(),confirmed)))).isInstanceOf(PaymentException.class);
+        assertThat(service.preview(user,property,file).duplicateCount()).isEqualTo(2);
+        assertThat(service.workspace(user,property).payments()).hasSize(3);
+        service.deleteMany(user,property,new PaymentRequests.DeleteMany(ids));
+        assertThat(service.preview(user,property,file).rows()).hasSize(2);
+        assertThat(service.importFile(user,property,file).payments()).hasSize(3);
+    }
+    @Test void migrationReleasesPreviouslyDeletedOrphanBankKeysAndKeepsActiveReceipts() {
+        var file=csv("입금일,입금자명,입금액\n2026-08-01,삭제할입금,50000\n2026-08-02,유지할입금,50000");
+        var imported=service.importFile(user,property,file);
+        var deleted=imported.payments().stream().filter(p->p.payer().equals("삭제할입금")).findFirst().orElseThrow();
+        service.delete(user,property,deleted.id());
+        String schema="bank_reimport_"+UUID.randomUUID().toString().replace("-","");
+        var previous=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"").schemas(schema).defaultSchema(schema).target("20261016120311").load();previous.migrate();
+        for(String table:List.of("users","properties","buildings","units","bank_accounts","residents","bank_transactions","payments")) {
+            String columns=jdbc.queryForObject("select string_agg(quote_ident(column_name),',' order by ordinal_position) from information_schema.columns where table_schema=? and table_name=?",String.class,schema,table);
+            jdbc.execute("insert into "+schema+"."+table+"("+columns+") select "+columns+" from public."+table);
+        }
+        var upgraded=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"").schemas(schema).defaultSchema(schema).load();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(2);upgraded.validate();
+        assertThat(jdbc.queryForObject("select count(*) from "+schema+".bank_transactions where deleted_at is not null",Long.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from "+schema+".bank_transactions where deleted_at is null",Long.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from "+schema+".payments where deleted_at is null",Long.class)).isEqualTo(1);
+        String columns="property_id,bank_account_id,transaction_date,amount,payer_name_encrypted,payer_name_hmac,memo_encrypted,bank_reference,deduplication_key,imported_by,imported_at";
+        jdbc.execute("insert into "+schema+".bank_transactions(id,"+columns+") select gen_random_uuid(),"+columns+" from "+schema+".bank_transactions where deleted_at is not null");
+        assertThatThrownBy(()->jdbc.execute("insert into "+schema+".bank_transactions(id,"+columns+") select gen_random_uuid(),"+columns+" from "+schema+".bank_transactions where deleted_at is not null")).isInstanceOf(org.springframework.dao.DataAccessException.class);
+        jdbc.execute("drop schema "+schema+" cascade");
     }
     @Test void databaseGuardRejectsOverAllocationAndChangingPaidCharge() {
         UUID id=manual("50000");
@@ -190,11 +422,11 @@ class PaymentPersistenceTest {
             .schemas(schema).defaultSchema(schema).target("20261012063902").load();previous.migrate();
         for(String table:List.of("users","properties","buildings","units","bank_accounts","residents","unit_residents",
             "fee_templates","fee_template_items","billing_periods","charges","charge_items"))
-            jdbc.execute("insert into "+schema+"."+table+" select * from public."+table);
+            copyPreviousTable(schema,table);
         var before=jdbc.queryForList("select * from "+schema+".charges order by id");
         var upgraded=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(2);upgraded.validate();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(5);upgraded.validate();
         assertThat(jdbc.queryForList("select * from "+schema+".charges order by id")).isEqualTo(before);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".residents",Long.class)).isEqualTo(3);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".payments",Long.class)).isZero();
@@ -214,20 +446,23 @@ class PaymentPersistenceTest {
             jdbc.execute("set local search_path to "+schema+",public");
             for(String table:List.of("users","properties","buildings","units","bank_accounts","residents","unit_residents",
                 "fee_templates","fee_template_items","billing_periods","charges","charge_items"))
-                jdbc.execute("insert into "+schema+"."+table+" select * from public."+table);
+                copyPreviousTable(schema,table);
             String columns="id,property_id,bank_account_id,transaction_date,amount,payer_name_encrypted,payer_name_hmac,"
                 +"memo_encrypted,bank_reference,deduplication_key,imported_by,imported_at";
             jdbc.execute("insert into "+schema+".bank_transactions("+columns+") select "+columns+" from public.bank_transactions");
-            for(String table:List.of("payments","payment_allocations","payment_events"))
-                jdbc.execute("insert into "+schema+"."+table+" select * from public."+table);
+            for(String table:List.of("payments","payment_allocations","payment_events")) {
+                String previousColumns=jdbc.queryForObject("select string_agg(quote_ident(column_name),',' order by ordinal_position) from information_schema.columns where table_schema=? and table_name=?",String.class,schema,table);
+                jdbc.execute("insert into "+schema+"."+table+"("+previousColumns+") select "+previousColumns+" from public."+table);
+            }
             return null;
         });
         var receipts=jdbc.queryForList("select * from "+schema+".payments order by id");
+        receipts.forEach(row->{row.put("deleted_at",null);row.put("deleted_by",null);});
         var applied=jdbc.queryForList("select * from "+schema+".payment_allocations order by id");
         var originals=jdbc.queryForList("select id,amount,payer_name_encrypted,deduplication_key from "+schema+".bank_transactions order by id");
         var upgraded=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);upgraded.validate();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(4);upgraded.validate();
         assertThat(jdbc.queryForList("select * from "+schema+".payments order by id")).isEqualTo(receipts);
         assertThat(jdbc.queryForList("select * from "+schema+".payment_allocations order by id")).isEqualTo(applied);
         assertThat(jdbc.queryForList("select id,amount,payer_name_encrypted,deduplication_key from "+schema+".bank_transactions order by id")).isEqualTo(originals);
@@ -247,4 +482,10 @@ class PaymentPersistenceTest {
         @Bean PaymentTextSecurity paymentSecurity() { return new PaymentTextSecurity(RegistrationTestKeys.accountProperties()); }
         @Bean RegistrationFingerprint fingerprints(ObjectMapper mapper) { return new RegistrationFingerprint(RegistrationTestKeys.fingerprintProperties(),mapper); }
     }
+    /** 적용 전 스키마의 컬럼만 복사해 후속 Migration으로 추가된 감사 컬럼을 미리 주입하지 않습니다. */
+    private void copyPreviousTable(String schema,String table) {
+        String columns=jdbc.queryForObject("select string_agg(quote_ident(column_name),',' order by ordinal_position) from information_schema.columns where table_schema=? and table_name=?",String.class,schema,table);
+        jdbc.execute("insert into "+schema+"."+table+"("+columns+") select "+columns+" from public."+table);
+    }
+
 }

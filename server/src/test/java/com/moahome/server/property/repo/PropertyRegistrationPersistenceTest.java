@@ -43,7 +43,7 @@ import static org.assertj.core.api.Assertions.*;
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({PropertyRegistrationService.class, PropertyRegistrationLock.class, UserService.class,
+@Import({com.moahome.server.payment.service.CumulativePaymentService.class,PropertyRegistrationService.class, PropertyRegistrationLock.class, UserService.class,
 	PropertyRegistrationPersistenceTest.TestBeans.class, com.moahome.server.billing.service.BillingGenerationService.class,
     com.moahome.server.billing.service.BillingTemplates.class})
 @ActiveProfiles("database-test")
@@ -321,7 +321,7 @@ class PropertyRegistrationPersistenceTest {
 			.isInstanceOf(DataIntegrityViolationException.class);
 		Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			.schemas(schema).defaultSchema(schema).load();
-		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(11);
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(14);
 		upgraded.validate();
 		assertThat(jdbc.queryForObject("select default_amount from " + schema + ".fee_template_items where id=?",
 			Long.class, itemId)).isEqualTo(15000);
@@ -333,7 +333,7 @@ class PropertyRegistrationPersistenceTest {
 	@Test
 	void migratesEmptyAndExistingUserSchemaWithoutChangingIdentity() {
 		flyway.validate();
-		assertThat(flyway.info().applied()).hasSize(15);
+		assertThat(flyway.info().applied()).hasSize(18);
 		assertThat(flyway.migrate().migrationsExecuted).isZero();
 		String schema = "registration_" + UUID.randomUUID().toString().replace("-", "");
 		Flyway old = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
@@ -343,7 +343,7 @@ class PropertyRegistrationPersistenceTest {
 		jdbc.update("insert into " + schema + ".users (id, display_name, status) values (?, '기존 사용자', 'ACTIVE')", legacyId);
 		Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			.schemas(schema).defaultSchema(schema).load();
-		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(12);
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(15);
 		upgraded.validate();
 		assertThat(jdbc.queryForObject("select system_role from " + schema + ".users where id = ?", String.class, legacyId))
 			.isEqualTo("USER");

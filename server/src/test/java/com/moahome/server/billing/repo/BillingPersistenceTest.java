@@ -39,7 +39,7 @@ import static org.assertj.core.api.Assertions.*;
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({BillingService.class, BillingTemplates.class, BillingGenerationService.class,
+@Import({com.moahome.server.payment.service.CumulativePaymentService.class,BillingService.class, BillingTemplates.class, BillingGenerationService.class,
     PropertyRegistrationService.class, PropertyRegistrationLock.class, ManagementAccessService.class,
     UnitManagementService.class, com.moahome.server.resident.service.ResidentManagementService.class,
     com.moahome.server.resident.service.ResidentRegistrationService.class,
@@ -87,6 +87,18 @@ class BillingPersistenceTest {
             + "fee_template_items, fee_templates, bank_accounts, units, buildings, properties, social_accounts, users cascade");
     }
     @AfterAll static void stopPostgres() { POSTGRES.close(); }
+
+    /** 과거 등록의 처리자를 필수로 보존하고 자동 부과에 수동 처리자를 섞지 않습니다. */
+    @Test
+    void historicalBillingRequiresActorAndLeavesScheduledPeriodsUntouched() {
+        String insert="insert into billing_periods(id,property_id,billing_year,billing_month,billing_date,default_due_date,status,confirmation_source,recorded_by,confirmed_at,created_at,updated_at) values(?,?,2026,8,date '2026-08-01',date '2026-08-31','ISSUED',?,?,now(),now(),now())";
+        assertThatThrownBy(()->jdbc.update(insert,UUID.randomUUID(),propertyId,"HISTORY",null)).isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(()->jdbc.update(insert,UUID.randomUUID(),propertyId,"SCHEDULE",userId)).isInstanceOf(DataIntegrityViolationException.class);
+        UUID period=UUID.randomUUID();
+        jdbc.update(insert,period,propertyId,"HISTORY",userId);
+        assertThat(jdbc.queryForObject("select recorded_by from billing_periods where id=?",UUID.class,period)).isEqualTo(userId);
+        assertThat(jdbc.queryForObject("select count(*) from billing_periods where property_id=? and confirmation_source='SCHEDULE' and recorded_by is null",Long.class,propertyId)).isEqualTo(1);
+    }
 
     @Test
     void registrationIssuesCurrentMonthImmediatelyAndNextMonthIncludesActiveOnly() {
@@ -392,7 +404,7 @@ class BillingPersistenceTest {
             .schemas(schema).defaultSchema(schema).target("20261012061303").load();
         previous.migrate();
         for (String table : List.of("users", "properties", "buildings", "units", "fee_templates", "fee_template_items", "billing_periods", "charges", "charge_items")) {
-            jdbc.execute("insert into " + schema + "." + table + " select * from public." + table);
+            copyPreviousTable(schema,table);
         }
         jdbc.update("update " + schema + ".units set deleted_at=now(),deleted_by=? where unit_number='201'", userId);
         var storedUnits = jdbc.queryForList("select * from " + schema + ".units order by id");
@@ -400,7 +412,7 @@ class BillingPersistenceTest {
         var storedItems = jdbc.queryForList("select * from " + schema + ".charge_items order by id");
         var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(3);
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(6);
         upgraded.validate();
         assertThat(jdbc.queryForList("select * from " + schema + ".units order by id")).isEqualTo(storedUnits);
         assertThat(jdbc.queryForList("select * from " + schema + ".charges order by id")).isEqualTo(storedCharges);
@@ -505,7 +517,7 @@ class BillingPersistenceTest {
             .schemas(schema).defaultSchema(schema).target("20261010131153").load();
         old.migrate();
         for (String table : List.of("users", "properties", "buildings", "units", "fee_templates", "fee_template_items", "billing_periods")) {
-            jdbc.execute("insert into " + schema + "." + table + " select * from public." + table);
+            copyPreviousTable(schema,table);
         }
         String originalColumns = "id,property_id,billing_period_id,unit_id,building_name_snapshot,unit_number_snapshot,unit_display_name_snapshot,total_amount,due_date,status,issued_at,created_at,updated_at";
         jdbc.execute("insert into " + schema + ".charges select " + originalColumns + " from public.charges");
@@ -513,7 +525,7 @@ class BillingPersistenceTest {
         var original = jdbc.queryForList("select " + originalColumns + " from public.charges order by id");
         var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(6);
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(9);
         upgraded.validate();
         assertThat(jdbc.queryForList("select " + originalColumns + " from " + schema + ".charges order by id")).isEqualTo(original);
         assertThat(jdbc.queryForObject("select count(*) from " + schema + ".charge_items", Long.class)).isEqualTo(count("charge_items"));
@@ -670,4 +682,10 @@ class BillingPersistenceTest {
             return new RegistrationFingerprint(RegistrationTestKeys.fingerprintProperties(), mapper);
         }
     }
+    /** 적용 전 스키마의 컬럼만 복사해 후속 Migration으로 추가된 감사 컬럼을 미리 주입하지 않습니다. */
+    private void copyPreviousTable(String schema,String table) {
+        String columns=jdbc.queryForObject("select string_agg(quote_ident(column_name),',' order by ordinal_position) from information_schema.columns where table_schema=? and table_name=?",String.class,schema,table);
+        jdbc.execute("insert into "+schema+"."+table+"("+columns+") select "+columns+" from public."+table);
+    }
+
 }
