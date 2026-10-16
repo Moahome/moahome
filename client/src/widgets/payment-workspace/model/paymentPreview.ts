@@ -161,6 +161,24 @@ export interface PreviewDraft {
 
 export type CumulativePaymentDraft = Pick<PreviewDraft, 'unitId' | 'separateReason'>;
 
+/** 선택월의 실제 확정 입금을 종류별로 합산하며 일부납부·선입금도 입금 전액을 포함합니다. 청구 충당액과 구분합니다. */
+export function getMonthlyPreviewIncome(ledger: PreviewLedger, month: string) {
+  getPreviewDueDate(month);
+  let household = BigInt(0), other = BigInt(0), otherCount = 0;
+  for (const payment of ledger.payments) {
+    if (payment.status !== 'CONFIRMED' || !payment.date.startsWith(month) || payment.date > ledger.asOf) continue;
+    if (payment.receiptType === 'OTHER') {
+      other += BigInt(payment.amount);otherCount++;
+    } else household += BigInt(payment.amount);
+  }
+  return {
+    household,
+    other,
+    total: household + other,
+    otherCount
+  };
+}
+
 /** 확정 수납 전액을 누적해 같은 달 추가 입금과 미배분 선입금도 세대 잔액에 포함합니다. */
 export function getCumulativePreviewBalance(ledger: PreviewLedger, unitId: string, extraAmount = '0') {
   const billed = ledger.charges.filter((charge) => charge.unitId === unitId && canPreviewAllocate(charge) && charge.month <= ledger.asOf.slice(0, 7))

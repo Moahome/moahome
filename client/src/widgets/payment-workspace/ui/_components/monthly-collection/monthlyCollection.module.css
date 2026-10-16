@@ -15,6 +15,21 @@
   min-width: 0;
 }
 
+.income-summary {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+
+  h2 { font-size: 16px; font-weight: 700; }
+  > p { color: var(--sub-text); font-size: 12px; line-height: 1.7; }
+}
+
+.income-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
 .panel {
   min-width: 0;
   border: 1px solid var(--border);
@@ -44,7 +59,8 @@
 }
 
 @container (max-width: 940px) {
-  .kpis {
+  .kpis,
+  .income-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -63,7 +79,8 @@
 }
 
 @container (max-width: 300px) {
-  .kpis {
+  .kpis,
+  .income-kpis {
     grid-template-columns: minmax(0, 1fr);
   }
 }

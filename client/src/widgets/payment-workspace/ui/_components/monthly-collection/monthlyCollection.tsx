@@ -25,6 +25,7 @@ import { SummaryCard } from '@/shared/ui/summary-card';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   getMonthlyPreviewRows,
+  getMonthlyPreviewIncome,
   getPreviewBuildingOptions
 } from '../../../model/paymentPreview';
 import { usePaymentWorkspace } from '../../payment-workspace-provider/paymentWorkspaceProvider';
@@ -96,7 +97,7 @@ export function MonthlyExportButton({ month }: { month: string }) {
   );
 }
 
-/** 입금 총액 대신 청구에 반영한 금액으로 월별 이월·발생·충당·미수를 연결합니다. */
+/** 월별 실제 입금 합계와 청구의 이월·충당·미수를 함께 표시하되 두 기준의 금액을 섞지 않습니다. */
 export function MonthlyCollection({ propertyId, month, onMonthChange }: { propertyId: string; month: string; onMonthChange: (month: string) => void }) {
   const router = useRouter();
   const { ledger } = usePaymentWorkspace();
@@ -107,6 +108,7 @@ export function MonthlyCollection({ propertyId, month, onMonthChange }: { proper
   const [pageSize, setPageSize] = useState(10);
   const [selected, setSelected] = useState<string | null>(null);
   const rows = getMonthlyPreviewRows(ledger, month);
+  const income = getMonthlyPreviewIncome(ledger, month);
   // 탭별 인원은 상태 필터를 적용하기 전의 검색·동 범위에서 세대마다 한 번만 셉니다.
   const matches = rows.filter((row) => (!building || row.buildingName === building)
     && `${row.unitLabel} ${row.representativeName} ${row.latestPayer}`.includes(query.trim()));
@@ -154,6 +156,56 @@ export function MonthlyCollection({ propertyId, month, onMonthChange }: { proper
           />
         ))}
       </div>
+      <section
+        className={styles['income-summary']}
+        aria-label={'월별 실제 입금 합계'}
+      >
+        <h2>
+          실제 입금 합계
+        </h2>
+        <p>
+          {month.replace('-', '년 ')}
+          월에 실제 받은 전체 동의 입금입니다. 일부납부·선입금을 포함하며, 아래 세대 검색·동 필터와 관계없이 표시합니다.
+        </p>
+        <div
+          className={styles['income-kpis']}
+        >
+          {[
+            {
+              label: '당월 세대 입금액',
+              value: income.household,
+              tone: 'success' as const
+            },
+            {
+              label: '당월 기타 입금액',
+              value: income.other,
+              tone: 'neutral' as const
+            },
+            {
+              label: '당월 전체 입금액',
+              value: income.total,
+              tone: 'primary' as const
+            }
+          ].map((item) => (
+            <SummaryCard
+              key={item.label}
+              density={'compact'}
+              label={item.label}
+              value={formatInteger(item.value)}
+              unit={'원'}
+              tone={item.tone}
+              icon={(
+                <ServiceIcon
+                  name={'coins'}
+                />
+              )}
+            />
+          ))}
+        </div>
+        <p>
+          {`기타 입금 ${income.otherCount}건 · 전체 입금액 = 세대 입금액 + 기타 입금액`}
+        </p>
+      </section>
       <div
         className={styles.workspace}
       >

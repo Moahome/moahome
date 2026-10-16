@@ -2466,3 +2466,142 @@ test('기타 입금 확정은 선택 메모를 비워도 서버에 빈 문자열
     exact: true
   })).toBeVisible();
 });
+
+for (const width of [1440, 390, 320]) {
+  test(`${width}px 월별 실제 입금 합계는 세대·기타·전체를 구분하고 세대 필터와 독립`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    const ledger = storedLedger();
+    const base = ledger.payments[0];
+    ledger.payments = [
+      {
+        ...base,
+        id: id('monthly-household-partial'),
+        status: 'CONFIRMED',
+        date: '2026-10-15',
+        amount: '10000',
+        allocations: []
+      },
+      {
+        ...base,
+        id: id('monthly-household-prepaid'),
+        status: 'CONFIRMED',
+        date: '2026-10-14',
+        amount: '80000',
+        unitId: ledger.units[1].id,
+        allocations: []
+      },
+      {
+        ...base,
+        id: id('monthly-other-electricity'),
+        status: 'CONFIRMED',
+        receiptType: 'OTHER',
+        unitId: '',
+        incomeCategory: '전기료',
+        date: '2026-10-13',
+        amount: '93960',
+        allocations: []
+      },
+      {
+        ...base,
+        id: id('monthly-other-interest'),
+        status: 'CONFIRMED',
+        receiptType: 'OTHER',
+        unitId: '',
+        incomeCategory: '예금이자',
+        date: '2026-10-12',
+        amount: '218',
+        allocations: []
+      },
+      {
+        ...base,
+        id: id('monthly-other-canceled'),
+        status: 'CANCELED',
+        receiptType: 'OTHER',
+        unitId: '',
+        incomeCategory: '기타',
+        amount: '999999',
+        allocations: []
+      },
+      {
+        ...base,
+        id: id('monthly-pending'),
+        status: 'PENDING',
+        amount: '999999',
+        allocations: []
+      },
+      {
+        ...base,
+        id: id('monthly-other-previous'),
+        status: 'CONFIRMED',
+        receiptType: 'OTHER',
+        unitId: '',
+        incomeCategory: '이자',
+        date: '2026-09-15',
+        amount: '500',
+        allocations: []
+      }
+    ];
+    await page.route(`http://localhost:8080/api/properties/${PROPERTY_ID}/payments/workspace`, (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true'
+      },
+      body: JSON.stringify({
+        ...ledger,
+        propertyId: PROPERTY_ID
+      })
+    }));
+    await page.goto(`/manage/${PROPERTY_ID}/payments/monthly`);
+    const summary = page.getByRole('region', {
+      name: '월별 실제 입금 합계'
+    });
+    await expect(summary.getByRole('article', {
+      name: '당월 세대 입금액 90,000원'
+    })).toBeVisible();
+    await expect(summary.getByRole('article', {
+      name: '당월 기타 입금액 94,178원'
+    })).toBeVisible();
+    await expect(summary.getByRole('article', {
+      name: '당월 전체 입금액 184,178원'
+    })).toBeVisible();
+    await expect(summary).toContainText('기타 입금 2건');
+    await page.getByRole('textbox', {
+      name: '수납 현황 세대 검색'
+    }).fill('없는세대');
+    await expect(summary.getByRole('article', {
+      name: '당월 전체 입금액 184,178원'
+    })).toBeVisible();
+    await page.getByRole('button', {
+      name: /^납부완료/
+    }).click();
+    await expect(summary.getByRole('article', {
+      name: '당월 전체 입금액 184,178원'
+    })).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath(`monthlyIncome${width}.png`),
+      fullPage: true
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.getByRole('button', {
+      name: '조회 월: 2026년 10월'
+    }).click();
+    await page.getByRole('button', {
+      name: '2026년 9월',
+      exact: true
+    }).click();
+    await expect(summary.getByRole('article', {
+      name: '당월 세대 입금액 0원'
+    })).toBeVisible();
+    await expect(summary.getByRole('article', {
+      name: '당월 기타 입금액 500원'
+    })).toBeVisible();
+    await expect(summary.getByRole('article', {
+      name: '당월 전체 입금액 500원'
+    })).toBeVisible();
+  });
+}

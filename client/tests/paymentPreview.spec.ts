@@ -11,6 +11,7 @@ import {
   getPreviewChargeLabel,
   getPreviewDueDate,
   getMonthlyPreviewRows,
+  getMonthlyPreviewIncome,
   getPreviewBilledUnits,
   getPreviewOutstanding,
   getPreviewReceivables,
@@ -448,4 +449,70 @@ test('기타 입금은 세대 누적 잔액·월별 수납·청구 배분 합계
   expect(getMonthlyPreviewRows(ledger, '2026-10')).toEqual(baseline);
   expect(getCumulativePreviewBalance(ledger, unitId)).toEqual(balance);
   expect(getPreviewOutstanding(ledger, ledger.charges[0])).toEqual(outstanding);
+});
+
+test('월별 실제 입금은 일부납부·선입금을 전액 포함하고 기타·세대 합계가 전체와 일치', () => {
+  const ledger = createPaymentSample();
+  const base = ledger.payments[0];
+  ledger.payments = [
+    {
+      ...base,
+      id: 'partial',
+      status: 'CONFIRMED',
+      date: '2026-10-01',
+      amount: '10000',
+      allocations: []
+    },
+    {
+      ...base,
+      id: 'prepaid',
+      status: 'CONFIRMED',
+      date: '2026-10-15',
+      amount: '80000',
+      allocations: []
+    },
+    {
+      ...base,
+      id: 'other',
+      status: 'CONFIRMED',
+      receiptType: 'OTHER',
+      unitId: '',
+      date: '2026-10-15',
+      amount: '94178',
+      allocations: []
+    },
+    ...(['PENDING', 'ON_HOLD', 'CANCELED', 'LINKED'] as const).map((status) => ({
+      ...base,
+      id: status,
+      status,
+      amount: '999999'
+    })),
+    {
+      ...base,
+      id: 'previous',
+      status: 'CONFIRMED',
+      date: '2026-09-30',
+      amount: '500'
+    },
+    {
+      ...base,
+      id: 'future',
+      status: 'CONFIRMED',
+      date: '2026-10-31',
+      amount: '999999'
+    }
+  ];
+  const actual = getMonthlyPreviewIncome(ledger, '2026-10');
+  expect(actual).toEqual({
+    household: BigInt(90000),
+    other: BigInt(94178),
+    total: BigInt(184178),
+    otherCount: 1
+  });
+  expect(actual.total).toEqual(actual.household + actual.other);
+  expect(getMonthlyPreviewIncome({
+    ...ledger,
+    charges: []
+  }, '2026-10')).toEqual(actual);
+  expect(getMonthlyPreviewIncome(ledger, '2026-11').total).toEqual(BigInt(0));
 });
