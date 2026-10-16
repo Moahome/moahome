@@ -24,7 +24,7 @@ UUID는 문자열, 날짜는 `YYYY-MM-DD`, 청구월은 `YYYY-MM`, 원 단위 �
 | POST | `/{paymentId}/cancel` | `{reason}` | 저장 후 실제 원장 |
 | POST | `/{paymentId}/link` | `{paymentId:기존수동수납ID}` | 저장 후 실제 원장 |
 | POST | `/import/preview` | multipart의 `file` | `{propertyId,rows,duplicateCount}` |
-| POST | `/import` | multipart의 `file` | 저장 후 실제 원장 |
+| POST | `/import` | multipart의 `file`·`selection` JSON | 선택 저장 후 실제 원장 |
 
 ### 실제 원장
 
@@ -55,6 +55,10 @@ Excel은 확장자와 실제 XLS(OLE2)·XLSX(OOXML) 형식의 일치를 확인�
 
 입금자명을 유니코드 정규화·공백 제거 후 현재 명단의 주민 이름 및 동·호수와 대조합니다. 동·호수의 마지막 `호`는 생략할 수 있어 `103동501`과 `103동 501호`를 같은 세대 표기로 찾습니다. 정확하게 한 세대에 일치하면 가져오기에서 자동 확정하고 전액 누적합니다. 여러 주민이 같은 이름이어도 한 세대에만 소속되면 해당 세대로 일치합니다. 여러 세대에 걸친 이름·동호수 충돌, 미일치, 기존 미연결 수동 수납 중복 의심은 PENDING으로 남깁니다. 미리보기는 후보만 반환하고 저장·자동 확정하지 않습니다.
 
+미리보기의 `rows[].id`는 원본 거래 키로 만든 안정적인 선택 ID이며 저장 후의 수납 ID와 다릅니다. 가져오기는 같은 원본 `file`과 JSON 파트 `selection={"transactionIds":[미리보기ID]}`를 받습니다. 선택은 1~5,000개의 UUID이며 빈 목록·NULL 항목·파일에 없는 ID는 400입니다. 선택한 거래만 저장·자동 확정하고 제외한 거래는 원본·수납·중복 키를 만들지 않으므로 다음 업로드에서 다시 선택할 수 있습니다. 기존 파일만 보내는 호출은 호환을 위해 전체 가져오기를 유지하지만 현재 화면은 항상 선택 목록을 보냅니다.
+
+서버는 파일 전체를 다시 검증하고 선택 ID가 원본의 거래 키에 포함되는지 먼저 확인합니다. 다른 금액의 파일로 바꾸거나 미리보기와 무관한 ID를 섞으면 전체 실패합니다. 선택한 거래가 이미 저장된 경우에는 기존 중복 정책으로 건너뛰어 같은 선택의 재시도·동시 업로드에 중복 입금을 만들지 않습니다.
+
 `POST /confirm-matches`는 이미 가져온 PENDING 은행 입금의 명단을 다시 검사해 유일한 일치 건만 같은 트랜잭션에서 확정합니다. 보류·수동 입력·삭제·취소 항목과 취소 원본의 검토 초안은 처리하지 않으며 반복 호출은 이미 확정한 금액을 늘리지 않습니다. 같은 계좌·날짜·금액·입금자명의 기존 미연결 수동 확정 수납이 있으면 기존 수납에 연결하거나 별도 사유를 입력해야 합니다.
 
 ### 기타 입금 확정·취소
@@ -78,7 +82,7 @@ Excel은 확장자와 실제 XLS(OLE2)·XLSX(OOXML) 형식의 일치를 확인�
 | HTTP | code | 의미 |
 | --- | --- | --- |
 | 400 | INVALID_REQUEST / INVALID_AMOUNT / INVALID_PAYMENT_DATE / INVALID_INCOME_CATEGORY | 요청 형식·금액·날짜 오류 |
-| 400 | INVALID_BANK_FILE / INVALID_BANK_HEADER / INVALID_BANK_ROW / BANK_ROW_LIMIT / EMPTY_BANK_FILE | 파일 검증 오류 |
+| 400 | INVALID_BANK_FILE / INVALID_BANK_HEADER / INVALID_BANK_ROW / INVALID_BANK_SELECTION / BANK_ROW_LIMIT / EMPTY_BANK_FILE | 파일 검증 오류 |
 | 403 | ACCESS_DENIED | 현재 관리소장 권한 없음 |
 | 404 | PAYMENT_NOT_FOUND | 해당 대상의 입금 없음 |
 | 409 | PAYMENT_ACCOUNT_UNAVAILABLE / PAYMENT_UNIT_UNAVAILABLE / PAYMENT_REPRESENTATIVE_REQUIRED | 실제 계좌·세대·대표 확인 필요 |
