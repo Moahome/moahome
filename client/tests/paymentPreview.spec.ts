@@ -6,6 +6,8 @@ import {
   addPreviewManual,
   cancelPreviewPayment,
   confirmPreviewPayment,
+  confirmCumulativePreviewPayment,
+  getCumulativePreviewBalance,
   getPreviewChargeLabel,
   getPreviewDueDate,
   getMonthlyPreviewRows,
@@ -202,7 +204,7 @@ test('수동 입력의 계좌·날짜·정수 범위를 검증하고 샘플 재�
   expect(next.payments.filter((payment) => payment.id === 'b6')).toHaveLength(1);
 });
 
-test('월별 미수는 이월·발생·충당으로 계산하고 미배분 제외·취소 후 다음 달 이월을 반영', () => {
+test('월별 미수는 확정 입금 전액을 누적하고 취소 후 다음 달 이월을 반영', () => {
   const ledger = createPaymentSample();
   ledger.charges.push({
     id: 'c10111',
@@ -222,8 +224,8 @@ test('월별 미수는 이월·발생·충당으로 계산하고 미배분 제�
   const october = getMonthlyPreviewRows(next, '2026-10').find((row) => row.unitId === '101')!;
   expect(october.carry).toBe(BigInt(30000));
   expect(october.billed).toBe(BigInt(50000));
-  expect(october.applied).toBe(BigInt(50000));
-  expect(october.balance).toBe(BigInt(30000));
+  expect(october.applied).toBe(BigInt(80000));
+  expect(october.balance).toBe(BigInt(0));
   expect(getMonthlyPreviewRows(next, '2026-11').find((row) => row.unitId === '101')?.carry).toBe(october.balance);
   const canceled = cancelPreviewPayment(next, 'b1', '확인 정정');
   expect(getMonthlyPreviewRows(canceled, '2026-11').find((row) => row.unitId === '101')?.carry).toBe(BigInt(80000));
@@ -262,7 +264,7 @@ test('초과 납부는 미수금을 음수로 만들지 않고 선입금 잔액�
     }]
   });
   const row=getMonthlyPreviewRows(receipt,'2026-10').find((item)=>item.unitId==='101')!;
-  expect(row.balance).toBe(BigInt(0));expect(row.prepaid).toBe(BigInt(30000));
+  expect(row.balance).toBe(BigInt(0));expect(row.prepaid).toBe(BigInt(50000));
   const adjusted={
     ...receipt,
     charges:[...receipt.charges,{
@@ -280,7 +282,7 @@ test('초과 납부는 미수금을 음수로 만들지 않고 선입금 잔액�
     }]
   };
   const pending=getMonthlyPreviewRows(adjusted,'2026-10').find((item)=>item.unitId==='101')!;
-  expect(pending.settlementAmount).toBe(-BigInt(1000));expect(pending.status).toBe('정산 확인 필요');expect(pending.prepaid).toBe(BigInt(30000));
+  expect(pending.settlementAmount).toBe(-BigInt(1000));expect(pending.status).toBe('정산 확인 필요');expect(pending.prepaid).toBe(BigInt(50000));
   expect(getMonthlyPreviewRows(adjusted,'2026-11').find((item)=>item.unitId==='101')!.settlementPending).toBe(true);
 });
 
@@ -317,4 +319,108 @@ test('세대 명부가 더 많아도 해당 월의 실제 부과 대상 20세대
   const rows = getMonthlyPreviewRows(ledger, '2026-10');
   expect(rows).toHaveLength(20);
   expect(rows.slice(0, 2).every((row) => row.status === '정산 확인 필요')).toBe(true);
+});
+
+
+test('같은 달 두 입금을 전액 누적하고 완납 이후 입금도 선입금으로 확정', () => {
+  const sample = createPaymentSample();
+  const base = sample.payments.find((payment) => payment.id === 'b1')!;
+  const ledger = {
+    ...sample,
+    charges: sample.charges.filter((charge) => charge.id === 'c10110'),
+    payments: [
+      {
+        ...base,
+        id: 'first',
+        date: '2026-10-06',
+        amount: '50000'
+      },
+      {
+        ...base,
+        id: 'second',
+        date: '2026-10-13',
+        amount: '50000'
+      }
+    ]
+  };
+  const first = confirmCumulativePreviewPayment(ledger, 'first', {
+    unitId: '101'
+  });
+  const both = confirmCumulativePreviewPayment(first, 'second', {
+    unitId: '101'
+  });
+  expect(both.payments.every((payment) => payment.status === 'CONFIRMED')).toBe(true);
+  expect(both.payments.find((payment) => payment.id === 'second')!.allocations).toEqual([]);
+  expect(getCumulativePreviewBalance(both, '101')).toEqual({
+    billed: BigInt(50000),
+    received: BigInt(100000),
+    balance: BigInt(0),
+    prepaid: BigInt(50000)
+  });
+  const nextMonth = {
+    ...both,
+    charges: [...both.charges, {
+      ...both.charges[0],
+      id: 'next',
+      month: '2026-11'
+    }]
+  };
+  expect(getMonthlyPreviewRows(nextMonth, '2026-10')[0].prepaid).toBe(BigInt(50000));
+  const next = getMonthlyPreviewRows(nextMonth, '2026-11')[0];
+  expect(next.applied).toBe(BigInt(50000));expect(next.balance).toBe(BigInt(0));expect(next.prepaid).toBe(BigInt(0));
+});
+
+test('8~10월 매달 5만 원을 납부하면 완납이며 누락된 수납과 부족분만 미수로 남음', () => {
+  const ledger = createPaymentSample();
+  const unitId = ledger.units[0].id;
+  ledger.units = [ledger.units[0]];
+  ledger.charges = ['08', '09', '10'].map((month) => ({
+    id: `bill-${month}`,
+    unitId,
+    month: `2026-${month}`,
+    amount: '50000',
+    status: 'ISSUED'
+  }));
+  ledger.payments = ['08', '09', '10'].map((month) => ({
+    id: `receipt-${month}`,
+    unitId,
+    date: `2026-${month}-15`,
+    amount: '50000',
+    payer: '검증입금',
+    status: 'CONFIRMED',
+    source: 'BANK_IMPORT',
+    accountId: ledger.accounts[0].id,
+    reason: '',
+    allocations: []
+  }));
+  const paid = getMonthlyPreviewRows(ledger, '2026-10')[0];
+  expect(paid).toMatchObject({
+    carry: BigInt(0),
+    applied: BigInt(50000),
+    balance: BigInt(0),
+    status: '납부완료'
+  });
+  const missingSeptember = getMonthlyPreviewRows({
+    ...ledger,
+    payments: ledger.payments.filter((payment) => payment.id !== 'receipt-09')
+  }, '2026-10')[0];
+  expect(missingSeptember).toMatchObject({
+    carry: BigInt(50000),
+    applied: BigInt(50000),
+    balance: BigInt(50000),
+    status: '일부납부'
+  });
+  const shortOctober = getMonthlyPreviewRows({
+    ...ledger,
+    payments: ledger.payments.map((payment) => payment.id === 'receipt-10' ? {
+      ...payment,
+      amount: '10000'
+    } : payment)
+  }, '2026-10')[0];
+  expect(shortOctober).toMatchObject({
+    carry: BigInt(0),
+    applied: BigInt(10000),
+    balance: BigInt(40000),
+    status: '일부납부'
+  });
 });

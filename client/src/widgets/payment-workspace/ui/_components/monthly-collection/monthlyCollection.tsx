@@ -4,27 +4,31 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MonthPicker } from '@/shared/ui/month-picker';
 import { MonthlyDetail } from '../monthly-detail/monthlyDetail';
-import { PaymentBadge } from '../payment-badge/paymentBadge';
+import {
+  MONTHLY_STATUS_TONES,
+  PaymentBadge
+} from '../payment-badge/paymentBadge';
 import {
   formatInteger,
   formatWon
 } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { DataTable } from '@/shared/ui/data-table';
-import { Input } from '@/shared/ui/form-controls';
+import { FilterTabs } from '@/shared/ui/filter-tabs';
+import {
+  Dropdown,
+  Input
+} from '@/shared/ui/form-controls';
+import { Pagination } from '@/shared/ui/pagination';
 import { Toast } from '@/shared/ui/toast';
 import { SummaryCard } from '@/shared/ui/summary-card';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import { getMonthlyPreviewRows } from '../../../model/paymentPreview';
+import {
+  getMonthlyPreviewRows,
+  getPreviewBuildingOptions
+} from '../../../model/paymentPreview';
 import { usePaymentWorkspace } from '../../payment-workspace-provider/paymentWorkspaceProvider';
 import styles from './monthlyCollection.module.css';
-
-const MONTHLY_STATUS_TONES = {
-  미납: 'danger',
-  일부납부: 'warning',
-  납부완료: 'success',
-  '정산 확인 필요': 'neutral'
-} as const;
 
 /** 다운로드 행동을 페이지 헤더에서 제공하고 원장·필터 UI의 배치를 바꾸지 않습니다. */
 export function MonthlyExportButton({ month }: { month: string }) {
@@ -40,16 +44,16 @@ export function MonthlyExportButton({ month }: { month: string }) {
     try {
       const { default: writeExcelFile } = await import('write-excel-file/universal');
       const values = [
-        ['세대', '전월 이월액', '당월 발생액', '당월 수납 반영액', '미수금 잔액', '선입금 잔액', '상태'],
-        ...rows.map((row) => [row.unitLabel, String(row.carry), String(row.billed + (row.settlementAmount ?? BigInt(0))), String(row.applied), !row.settlementPending ? String(row.balance) : '정산 확인 필요', String(row.prepaid), row.status]),
-        ['합계', String(sum('carry')), String(sum('billed')), String(sum('applied')), rows.some((row) => row.settlementPending) ? '정산 확인 필요' : String(sum('balance')), String(rows.reduce((sum, row) => sum + row.prepaid, BigInt(0))), '']
+        ['세대', '세대 대표', '최근 입금자', '전월 이월액', '당월 발생액', '당월 수납 반영액', '미수금 잔액', '선입금 잔액', '상태'],
+        ...rows.map((row) => [row.unitLabel, row.representativeName, row.latestPayer, String(row.carry), String(row.billed + (row.settlementAmount ?? BigInt(0))), String(row.applied), !row.settlementPending ? String(row.balance) : '정산 확인 필요', String(row.prepaid), row.status]),
+        ['합계', '', '', String(sum('carry')), String(sum('billed')), String(sum('applied')), rows.some((row) => row.settlementPending) ? '정산 확인 필요' : String(sum('balance')), String(rows.reduce((sum, row) => sum + row.prepaid, BigInt(0))), '']
       ];
       const blob = await writeExcelFile(values.map((row) => row.map((value) => ({
         value,
         type: String
       }))), {
         sheet: '월별 수납 현황',
-        columns: [18, 22, 22, 22, 22, 22, 16].map((width) => ({
+        columns: [18, 18, 18, 22, 22, 22, 22, 22, 16].map((width) => ({
           width
         }))
       }).toBlob();
@@ -69,8 +73,15 @@ export function MonthlyExportButton({ month }: { month: string }) {
   return (
     <>
       <Button
+        variant={'outline'}
+        tone={'excel'}
         loading={exporting}
         onClick={download}
+        leadingIcon={(
+          <ServiceIcon
+            name={'excel'}
+          />
+        )}
       >
         엑셀 다운로드
       </Button>
@@ -91,11 +102,19 @@ export function MonthlyCollection({ propertyId, month, onMonthChange }: { proper
   const { ledger } = usePaymentWorkspace();
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('전체');
-  const [onlyBalance, setOnlyBalance] = useState(false);
+  const [building, setBuilding] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [selected, setSelected] = useState<string | null>(null);
   const rows = getMonthlyPreviewRows(ledger, month);
-  const visible = rows.filter((row) => row.unitLabel.includes(query.trim()) && (status === '전체' || row.status === status)
-    && (!onlyBalance || row.balance > BigInt(0)));
+  // 탭별 인원은 상태 필터를 적용하기 전의 검색·동 범위에서 세대마다 한 번만 셉니다.
+  const matches = rows.filter((row) => (!building || row.buildingName === building)
+    && `${row.unitLabel} ${row.representativeName} ${row.latestPayer}`.includes(query.trim()));
+  const filtered = matches.filter((row) => status === '전체' || row.status === status);
+  // 필터·수납 결과로 세대 수가 줄어들면 빈 페이지 대신 마지막 유효 페이지를 표시합니다.
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const sum = (key: 'carry' | 'billed' | 'applied' | 'balance') => rows.reduce((total, row) => total + row[key] + (key === 'billed' ? row.settlementAmount ?? BigInt(0) : BigInt(0)), BigInt(0));
 
   /** PC에서는 중앙 모달로, 모바일에서는 독립된 세대별 수납 상세 주소로 이동합니다. */
@@ -142,44 +161,72 @@ export function MonthlyCollection({ propertyId, month, onMonthChange }: { proper
           className={styles.panel}
           aria-label={'세대별 미수금 내역'}
         >
+          <FilterTabs
+            label={'수납 상태'}
+            items={['전체', '미납', '일부납부', '납부완료'].map((value) => ({
+              value,
+              label: value,
+              count: value === '전체' ? matches.length : matches.filter((row) => row.status === value).length
+            }))}
+            value={status}
+            onChange={(value) => {
+              setStatus(value);
+              setPage(1);
+            }}
+          />
           <div
             className={styles.filters}
           >
             <MonthPicker
               label={'조회 월'}
               value={month}
-              onChange={(value) => { setSelected(null); onMonthChange(value); }}
+              onChange={(value) => {
+                setSelected(null);
+                onMonthChange(value);
+                setPage(1);
+              }}
             />
             <Input
               aria-label={'수납 현황 세대 검색'}
-              placeholder={'동·호수로 검색하세요'}
+              placeholder={'이름, 동·호수로 검색하세요'}
               leadingIcon={(
                 <ServiceIcon
                   name={'search'}
                 />
               )}
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(1);
+              }}
             />
-            {['전체', '미납', '일부납부', '납부완료'].map((item) => (
-              <Button
-                key={item}
-                variant={'outline'}
-                size={'sm'}
-                aria-pressed={status === item}
-                onClick={() => setStatus(item)}
-              >
-                {item}
-              </Button>
-            ))}
-            <label>
-              <input
-                type={'checkbox'}
-                checked={onlyBalance}
-                onChange={(event) => setOnlyBalance(event.target.checked)}
-              />
-              미수 있는 세대만
-            </label>
+            <Dropdown
+              aria-label={'수납 현황 동 필터'}
+              value={building}
+              options={[
+                {
+                  value: '',
+                  label: '전체 동'
+                },
+                ...getPreviewBuildingOptions(ledger)
+              ]}
+              onChange={(value) => {
+                setBuilding(value);setSelected(null);setPage(1);
+              }}
+            />
+            <Dropdown
+              aria-label={'수납 현황 표시 개수'}
+              required
+              value={String(pageSize)}
+              options={[10, 20, 50].map((size) => ({
+                value: String(size),
+                label: `${size}개씩 보기`
+              }))}
+              onChange={(value) => {
+                setPageSize(Number(value));
+                setPage(1);
+              }}
+            />
           </div>
           <DataTable
             label={'세대별 월별 수납 현황'}
@@ -194,6 +241,16 @@ export function MonthlyCollection({ propertyId, month, onMonthChange }: { proper
                 header: '세대',
                 rowHeader: true,
                 render: (row) => row.unitLabel
+              },
+              {
+                key: 'representative',
+                header: '세대 대표',
+                render: (row) => row.representativeName
+              },
+              {
+                key: 'payer',
+                header: '최근 입금자',
+                render: (row) => row.latestPayer
               },
               {
                 key: 'carry',
@@ -244,11 +301,23 @@ export function MonthlyCollection({ propertyId, month, onMonthChange }: { proper
 
             ]}
           />
+          <div
+            className={styles.pagination}
+          >
+            <Pagination
+              label={'월별 수납 현황 페이지'}
+              unit={'세대'}
+              total={filtered.length}
+              page={currentPage}
+              pageCount={pageCount}
+              pageSize={pageSize}
+              onPageChange={setPage}
+            />
+          </div>
           <p
             className={styles.footer}
           >
-            {visible.length}
-            세대 · 미수금은 양수 청구의 충당액으로 계산하며 선입금은 별도로 표시합니다. 0원·음수 부과는 정산 확인 대상입니다.
+            미수금은 양수 청구의 충당액으로 계산하며 선입금은 별도로 표시합니다. 0원·음수 부과는 정산 확인 대상입니다.
           </p>
         </section>
 

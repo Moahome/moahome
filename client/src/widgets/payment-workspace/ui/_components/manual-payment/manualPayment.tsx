@@ -7,17 +7,21 @@ import {
 import { Button } from '@/shared/ui/button';
 import { CalendarPicker } from '@/shared/ui/calendar-picker';
 import { ClientModal } from '@/shared/ui/client-modal';
+import { Toast } from '@/shared/ui/toast';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   AmountInput,
-  Dropdown,
+  SelectDropdown,
   Input
 } from '@/shared/ui/form-controls';
 import { usePaymentWorkspace } from '../../payment-workspace-provider/paymentWorkspaceProvider';
-import { getPreviewBilledUnits } from '../../../model/paymentPreview';
+import {
+  getPreviewSelectableUnits,
+  getPreviewUnitSearchOptions
+} from '../../../model/paymentPreview';
 import styles from './manualPayment.module.css';
 
-/** 수동 입력은 확인 필요 초안만 만들고 월별 배분은 상세에서 명시적으로 확정합니다. */
+/** 수동 입력은 현재 명단의 세대로 초안을 만들고 상세에서 전액 누적 수납을 확정합니다. */
 export function ManualPayment({ unitId = '', onClose, onCreated }: {
   unitId?: string; onClose: () => void; onCreated: (id: string, date: string) => void;
 }) {
@@ -25,16 +29,17 @@ export function ManualPayment({ unitId = '', onClose, onCreated }: {
   const [unit, setUnit] = useState(unitId);
   const [date, setDate] = useState(ledger.asOf);
   const [requestId] = useState(() => crypto.randomUUID());
-  const billedUnits = getPreviewBilledUnits(ledger, date.slice(0, 7)).filter((item) => item.eligible !== false);
-  const selectedUnit = billedUnits.find((item) => item.id === unit);
+  const selectableUnits = getPreviewSelectableUnits(ledger);
+  const selectedUnit = selectableUnits.find((item) => item.id === unit);
   const payer = selectedUnit?.representativeName ?? '';
   const [amount, setAmount] = useState('');
   const [error, setError] = useState('');
+  const [requestError, setRequestError] = useState<{ message: string; id: number } | null>(null);
 
   /** 대표 주민은 서버에서 다시 조회하고 요청 ID를 재사용해 응답 유실 재시도도 중복 수납으로 만들지 않습니다. */
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!selectedUnit || !payer) { setError('입금월에 부과된 세대와 대표 주민을 확인해주세요.'); return; }
+    if (!selectedUnit || !payer) { setError('세대와 대표 주민을 확인해주세요.'); return; }
     const failure = await update({
       type: 'manual',
       data: {
@@ -44,7 +49,10 @@ export function ManualPayment({ unitId = '', onClose, onCreated }: {
         amount
       }
     }, '수동 입금 초안을 등록했어요.');
-    if (failure) { setError(failure); return; }
+    if (failure) { setRequestError((current) => ({
+      message: failure,
+      id: (current?.id ?? 0) + 1
+    })); return; }
     onCreated(requestId, date);
   }
 
@@ -88,19 +96,16 @@ export function ManualPayment({ unitId = '', onClose, onCreated }: {
         <p
           className={styles.notice}
         >
-          선택한 세대의 현재 대표 주민을 입금자로 등록합니다. 청구월별 반영 금액을 확인한 뒤 수납을 확정해주세요.
+          선택한 세대의 현재 대표 주민을 입금자로 등록합니다. 상세에서 입금 전액을 누적 수납으로 확정합니다.
         </p>
-        <Dropdown
+        <SelectDropdown
           label={'세대'}
           value={selectedUnit?.id ?? ''}
           onChange={setUnit}
           required
-          placeholder={'세대를 선택해주세요'}
+          placeholder={'이름 또는 동·호수로 검색'}
           disabled={busy}
-          options={billedUnits.map((item) => ({
-            value: item.id,
-            label: item.label
-          }))}
+          options={getPreviewUnitSearchOptions(ledger)}
         />
         <CalendarPicker
           label={'입금일'}
@@ -146,10 +151,18 @@ export function ManualPayment({ unitId = '', onClose, onCreated }: {
             loading={busy}
             disabled={!selectedUnit || !payer || !amount}
           >
-            청구월 반영하기
+            수납 확인하기
           </Button>
         </div>
       </form>
+      {requestError && (
+        <Toast
+          key={requestError.id}
+          message={requestError.message}
+          tone={'error'}
+          onClose={() => setRequestError(null)}
+        />
+      )}
     </ClientModal>
   );
 }

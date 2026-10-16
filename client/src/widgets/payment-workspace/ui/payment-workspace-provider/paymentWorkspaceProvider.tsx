@@ -28,7 +28,7 @@ interface PaymentWorkspaceContextValue {
   month: string;
   setMonth: (month: string) => void;
   busy: boolean;
-  update: (command: PaymentCommand, message: string) => Promise<string | null>;
+  update: (command: PaymentCommand, message: string, onSaved?: (ledger: PreviewLedger) => void) => Promise<string | null>;
 }
 const PaymentWorkspaceContext = createContext<PaymentWorkspaceContextValue | null>(null);
 
@@ -53,7 +53,7 @@ export function PaymentWorkspaceProvider({ propertyId, children }: { propertyId:
   const [notice, setNotice] = useState<{ id: number; message: string } | null>(null);
 
   /** 중복 클릭을 동기적으로 차단하고 서버 응답으로만 교체하며 실패 시 입력과 기존 원장을 유지합니다. */
-  async function update(command: PaymentCommand, message: string): Promise<string | null> {
+  async function update(command: PaymentCommand, message: string, onSaved?: (ledger: PreviewLedger) => void): Promise<string | null> {
     if (busyRef.current) return '입금을 처리하고 있어요. 잠시 기다려주세요.';
     busyRef.current = true; setBusy(true);
     await cache.cancelQueries({
@@ -62,6 +62,7 @@ export function PaymentWorkspaceProvider({ propertyId, children }: { propertyId:
     try {
       const saved = await mutatePayment(propertyId, command);
       cache.setQueryData(key, saved);
+      onSaved?.(saved);
       void cache.invalidateQueries({
         queryKey: ['billing', session.data?.id, propertyId]
       });

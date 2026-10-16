@@ -1,0 +1,36 @@
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+
+  button[data-variant='ghost'] {
+    padding: 16px 2px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+
+    &:hover:not(:disabled) {
+      background: transparent;
+    }
+  }
+
+  button[aria-pressed='true'] {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+  }
+}
+
+@container (max-width: 540px) {
+  .tabs {
+    gap: 12px;
+    padding: 8px;
+
+    button[data-variant='ghost'] {
+      padding-inline: 10px;
+      font-size: 12px;
+    }
+  }
+}

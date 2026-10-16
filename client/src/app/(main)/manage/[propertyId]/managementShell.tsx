@@ -36,6 +36,16 @@ export function ManagementShell({
 
 /** 직접 접근에서도 같은 관리대상 안의 목록·상세로 돌아가는 모바일 헤더를 구성합니다. */
 function getMobileBack(pathname: string, basePath: string) {
+  if (pathname.startsWith(`${basePath}/payments/monthly/`)) return {
+    href: `${basePath}/payments/monthly`,
+    label: '월별 수납 현황으로 돌아가기',
+    title: '수납 상세'
+  };
+  if (pathname.startsWith(`${basePath}/payments/matching/`)) return {
+    href: `${basePath}/payments/matching`,
+    label: '입금 확인·매칭으로 돌아가기',
+    title: '입금 상세'
+  };
   if (pathname === `${basePath}/residents/export`) return {
     href: `${basePath}/residents`,
     label: '주민 목록으로 돌아가기',

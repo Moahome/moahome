@@ -1,7 +1,6 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Button } from '@/shared/ui/button';
 import { PaymentDetail } from '../_components/payment-detail/paymentDetail';
 import { usePaymentWorkspace } from '../payment-workspace-provider/paymentWorkspaceProvider';
 
@@ -19,12 +18,6 @@ export function PaymentDetailPage({ propertyId, paymentId }: { propertyId: strin
       <p>
         현재 관리대상의 입금 내역을 다시 확인해주세요.
       </p>
-      <Button
-        variant={'outline'}
-        onClick={() => router.replace(list)}
-      >
-        목록
-      </Button>
     </section>
   );
 

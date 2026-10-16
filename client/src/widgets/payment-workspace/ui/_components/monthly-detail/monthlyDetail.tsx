@@ -6,10 +6,35 @@ import { ClientModal } from '@/shared/ui/client-modal';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   getMonthlyPreviewRows,
-  getPreviewDueDate
+  getPreviewDueDate,
+  type MonthlyPreviewRow
 } from '../../../model/paymentPreview';
 import { usePaymentWorkspace } from '../../payment-workspace-provider/paymentWorkspaceProvider';
+import {
+  MONTHLY_STATUS_TONES,
+  PaymentBadge
+} from '../payment-badge/paymentBadge';
 import styles from './monthlyDetail.module.css';
+
+/** 미수·수납을 구분해 핵심 금액을 고르며 정산 미확정 부과를 납부완료나 선입금으로 표현하지 않습니다. */
+function getDetailSummary(row: MonthlyPreviewRow) {
+  if (row.settlementPending) return {
+    label: '당월 부과금액',
+    amount: row.billed + (row.settlementAmount ?? BigInt(0)),
+    description: '0원·음수 부과의 정산 처리 여부를 확인해주세요.'
+  };
+  if (row.status === '납부완료') return {
+    label: '당월 수납 반영액',
+    amount: row.applied,
+    description: '조회월 말 기준 남은 미납금액이 없습니다.'
+  };
+
+  return {
+    label: '남은 미납금액',
+    amount: row.balance,
+    description: '관리비에 확정 반영된 수납액을 기준으로 계산합니다.'
+  };
+}
 
 /** 월별 표의 원장 계산을 PC 모달과 모바일 상세 페이지에서 재사용합니다. */
 export function MonthlyDetail({ month, unitId, presentation = 'modal', onClose }: {
@@ -20,6 +45,10 @@ export function MonthlyDetail({ month, unitId, presentation = 'modal', onClose }
 }) {
   const { ledger } = usePaymentWorkspace();
   const row = getMonthlyPreviewRows(ledger, month).find((item) => item.unitId === unitId);
+  const receipts = ledger.payments.filter((payment) => payment.unitId === unitId && payment.status === 'CONFIRMED' && payment.date <= getPreviewDueDate(month))
+    .sort((left, right) => right.date.localeCompare(left.date));
+  const summary = row ? getDetailSummary(row) : null;
+  const billedAmount = row ? row.billed + (row.settlementAmount ?? BigInt(0)) : BigInt(0);
   const Title = presentation === 'page' ? 'h1' : 'h2';
   const content = (
     <>
@@ -53,90 +82,191 @@ export function MonthlyDetail({ month, unitId, presentation = 'modal', onClose }
           />
         )}
       </header>
-      {row && (
+      {row && summary && (
         <div
           className={styles.body}
         >
-          <div
-            className={styles.status}
+          <section
+            className={styles.summary}
+            data-tone={MONTHLY_STATUS_TONES[row.status]}
+            aria-label={'수납 요약'}
           >
-            <strong>
-              {row.status}
+            <div
+              className={styles['summary-heading']}
+            >
+              <p>
+                {summary.label}
+              </p>
+              <PaymentBadge
+                tone={MONTHLY_STATUS_TONES[row.status]}
+              >
+                {row.status}
+              </PaymentBadge>
+            </div>
+            <strong
+              className={styles['summary-amount']}
+            >
+              {formatWon(summary.amount)}
             </strong>
-            <span>
+            <p
+              className={styles['summary-description']}
+            >
+              {summary.description}
+            </p>
+            <p
+              className={styles['due-date']}
+            >
+              <ServiceIcon
+                name={'closing'}
+                size={16}
+              />
               납부기한
               {' '}
-              {getPreviewDueDate(month)}
-            </span>
-          </div>
-          <dl>
-            <div>
-              <dt>
-                전월 이월 미수금
-              </dt>
-              <dd>
-                {formatWon(row.carry)}
-              </dd>
-            </div>
-            <div>
-              <dt>
-                ＋ 당월 관리비 발생액
-              </dt>
-              <dd>
-                {formatWon(row.billed + (row.settlementAmount ?? BigInt(0)))}
-              </dd>
-            </div>
-            <div>
-              <dt>
-                − 당월 수납 반영액
-              </dt>
-              <dd>
-                {formatWon(row.applied)}
-              </dd>
-            </div>
-            <div
-              className={styles.total}
+              <time
+                dateTime={getPreviewDueDate(month)}
+              >
+                {getPreviewDueDate(month)}
+              </time>
+            </p>
+          </section>
+          <section
+            className={styles['detail-section']}
+            aria-labelledby={'monthly-calculation-title'}
+          >
+            <h3
+              id={'monthly-calculation-title'}
             >
-              <dt>
-                당월 말 미수금
-              </dt>
-              <dd>
-                {!row.settlementPending ? formatWon(row.balance) : '정산 확인 필요'}
-              </dd>
-            </div>
-          </dl>
-          <dl>
+              미납금액 계산 내역
+            </h3>
+            <dl>
+              <div>
+                <dt>
+                  전월 이월 미수금
+                </dt>
+                <dd>
+                  {formatWon(row.carry)}
+                </dd>
+              </div>
+              <div>
+                <dt>
+                  당월 관리비 발생액
+                </dt>
+                <dd>
+                  {billedAmount >= BigInt(0) && '＋ '}
+                  {formatWon(billedAmount)}
+                </dd>
+              </div>
+              <div>
+                <dt>
+                  당월 수납 반영액
+                </dt>
+                <dd
+                  className={styles['applied-amount']}
+                >
+                  −
+                  {' '}
+                  {formatWon(row.applied)}
+                </dd>
+              </div>
+              <div
+                className={styles.total}
+              >
+                <dt>
+                  남은 미납금액
+                </dt>
+                <dd>
+                  {!row.settlementPending ? formatWon(row.balance) : '정산 확인 필요'}
+                </dd>
+              </div>
+            </dl>
+          </section>
+          <section
+            className={styles['detail-section']}
+            aria-labelledby={'monthly-payment-info-title'}
+          >
             <div>
-              <dt>
-                선입금 잔액
-              </dt>
-              <dd>
-                {formatWon(row.prepaid)}
-              </dd>
+              <h3
+                id={'monthly-payment-info-title'}
+              >
+                수납 정보
+              </h3>
+              {row.latestDate === '—' && (
+                <PaymentBadge
+                  tone={'neutral'}
+                >
+                  확정 수납 없음
+                </PaymentBadge>
+              )}
             </div>
-          </dl>
-          <p>
-            최근 입금일
-            {row.latestDate}
-          </p>
+            <dl>
+              <div>
+                <dt>
+                  세대 대표
+                </dt>
+                <dd>
+                  {row.representativeName}
+                </dd>
+              </div>
+              <div>
+                <dt>
+                  최근 입금자
+                </dt>
+                <dd>
+                  {row.latestPayer}
+                </dd>
+              </div>
+              <div>
+                <dt>
+                  선입금 잔액
+                </dt>
+                <dd>
+                  {formatWon(row.prepaid)}
+                </dd>
+              </div>
+              <div>
+                <dt>
+                  최근 입금일
+                </dt>
+                <dd>
+                  {row.latestDate}
+                </dd>
+              </div>
+            </dl>
+          </section>
+          <section
+            className={styles['detail-section']}
+            aria-label={'누적 입금 내역'}
+          >
+            <h3>
+              누적 입금 내역
+            </h3>
+            <dl>
+              {receipts.map((payment) => (
+                <div
+                  key={payment.id}
+                >
+                  <dt>
+                    {`${payment.date} · ${payment.payer}`}
+                  </dt>
+                  <dd>
+                    {formatWon(payment.amount)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
           <p
             className={styles.note}
           >
-            은행 입금 총액이 아닌 관리비에 실제 반영된 수납액으로 계산합니다. 초과입금은 선입금 잔액으로 보존하며 미수금이 음수가 되도록 차감하지 않습니다.
+            <ServiceIcon
+              name={'info'}
+              size={16}
+            />
+            <span>
+              세대에 확정한 입금 전액을 누적해 관리비와 비교합니다. 이전 선입금도 반영하며 초과분은 선입금 잔액으로 보관합니다.
+            </span>
           </p>
         </div>
-      )}
-      {presentation === 'page' && (
-        <footer
-          className={styles.footer}
-        >
-          <Button
-            variant={'outline'}
-            onClick={onClose}
-          >
-            목록
-          </Button>
-        </footer>
       )}
     </>
   );

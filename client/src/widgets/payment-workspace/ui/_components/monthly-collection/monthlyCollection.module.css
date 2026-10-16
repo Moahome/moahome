@@ -23,43 +23,17 @@
 }
 
 .filters {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 170px minmax(180px, 1fr) 140px 160px;
   align-items: end;
   gap: 12px;
   padding: 18px;
   border-bottom: 1px solid var(--border);
+}
 
-  > div:first-child {
-    flex: 0 0 190px;
-  }
-
-  > div:nth-child(2) {
-    flex: 1 1 200px;
-    min-width: 0;
-  }
-
-  > button {
-    margin-bottom: 4px;
-  }
-
-  button[aria-pressed='true'] {
-    color: var(--primary);
-    border-color: var(--primary);
-    background: color-mix(in srgb, var(--primary) 5%, var(--card));
-  }
-
-  > label {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    margin-bottom: 12px;
-    font-size: 12px;
-  }
-
-  input[type='checkbox'] {
-    accent-color: var(--primary);
-  }
+.pagination {
+  padding: 0 18px;
+  border-top: 1px solid var(--border);
 }
 
 .footer {
@@ -75,10 +49,16 @@
   }
 }
 
+@container (min-width: 541px) and (max-width: 940px) {
+  .filters {
+    grid-template-columns: 190px minmax(0, 1fr);
+
+  }
+}
+
 @container (max-width: 540px) {
-  .filters > div:first-child,
-  .filters > div:nth-child(2) {
-    flex-basis: 100%;
+  .filters {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

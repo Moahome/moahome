@@ -4,13 +4,16 @@ import {
   isPreviewDate,
   type PreviewLedger,
   type PreviewPayment,
-  type PreviewDraft
+  type CumulativePaymentDraft
 } from '../model/paymentPreview';
 
 export type PaymentCommand =
   | { type: 'manual'; data: { id: string; unitId: string; date: string; amount: string } }
-  | { type: 'confirm'; id: string; data: PreviewDraft }
+  | { type: 'confirm'; id: string; data: CumulativePaymentDraft }
   | { type: 'hold' | 'cancel'; id: string; data: { reason: string } }
+  | { type: 'confirm-matches' }
+  | { type: 'delete'; id: string }
+  | { type: 'delete-many'; data: { paymentIds: string[] } }
   | { type: 'resume'; id: string }
   | { type: 'link'; id: string; data: { paymentId: string } }
   | { type: 'import'; file: File };
@@ -23,7 +26,9 @@ const STATES = ['PENDING', 'ON_HOLD', 'CONFIRMED', 'CANCELED', 'LINKED'];
 function readLedger(value: PreviewLedger & { propertyId: string }, propertyId: string): PreviewLedger {
   if (!value || value.propertyId !== propertyId || !isPreviewDate(value.asOf)
     || !Array.isArray(value.accounts) || !value.accounts.every((a) => UUID.test(a.id) && typeof a.label === 'string')
-    || !Array.isArray(value.units) || !value.units.every((u) => UUID.test(u.id) && typeof u.label === 'string' && ['ACTIVE', 'VACANT'].includes(u.status))
+    || !Array.isArray(value.units) || !value.units.every((u) => UUID.test(u.id) && typeof u.label === 'string' && ['ACTIVE', 'VACANT'].includes(u.status)
+      && (u.buildingName === undefined || typeof u.buildingName === 'string')
+      && (u.residentNames === undefined || (Array.isArray(u.residentNames) && u.residentNames.every((name) => typeof name === 'string'))))
     || !Array.isArray(value.charges) || !value.charges.every((c) => UUID.test(c.id) && UUID.test(c.unitId) && typeof c.amount === 'string' && AMOUNT.test(c.amount)
       && /^[0-9]{4}-(0[1-9]|1[0-2])$/.test(c.month) && ['ISSUED', 'CANCELED', 'EXCLUDED_VACANT'].includes(c.status))
     || !Array.isArray(value.payments) || !value.payments.every((p) => UUID.test(p.id) && UUID.test(p.accountId) && (p.unitId === '' || UUID.test(p.unitId))
@@ -55,11 +60,15 @@ export async function mutatePayment(propertyId: string, command: PaymentCommand)
       timeoutMs: 60_000
     }), propertyId);
   }
-  const url = command.type === 'manual' ? `${path}/manual` : `${path}/${command.id}/${command.type}`;
+  let url = path;
+  if (command.type === 'delete-many') url += '/delete';
+  else if (command.type === 'delete') url += `/${command.id}`;
+  else if (command.type === 'confirm-matches' || command.type === 'manual') url += `/${command.type}`;
+  else url += `/${command.id}/${command.type}`;
   const data = 'data' in command ? command.data : undefined;
   return readLedger(await authenticatedAPI({
     url,
-    method: 'POST',
+    method: command.type === 'delete' ? 'DELETE' : 'POST',
     data
   }), propertyId);
 }
@@ -92,11 +101,12 @@ export function paymentError(error: unknown): string {
     PAYMENT_REQUEST_CONFLICT: '이미 처리한 요청과 내용이 달라요. 최신 내역을 확인해주세요.',
     PAYMENT_STATE_CONFLICT: '입금 상태가 변경됐어요. 최신 내역을 확인해주세요.',
     PAYMENT_LINK_CONFLICT: '연결할 수 없어요. 계좌·입금일·금액·세대와 기존 연결 여부를 확인해주세요.',
+    PAYMENT_DELETE_NOT_ALLOWED: '납부 기록이 있는 입금은 삭제할 수 없어요. 납부 취소를 사용해주세요.',
     PAYMENT_NOT_FOUND: '입금 내역을 찾을 수 없어요.',
     INVALID_AMOUNT: '금액은 1~999,999,999,999,999원으로 입력해주세요.',
     INVALID_PAYMENT_DATE: '입금일은 오늘까지의 실제 날짜로 입력해주세요.',
-    INVALID_BANK_FILE: '.xlsx 또는 UTF-8 CSV 파일을 확인해주세요. 최대 5MB이며 수식은 지원하지 않아요.',
-    INVALID_BANK_HEADER: '입금일·입금자명·입금액 열을 확인해주세요.',
+    INVALID_BANK_FILE: '.xls·.xlsx 또는 UTF-8 CSV 파일을 확인해주세요. 최대 5MB이며 수식은 지원하지 않아요.',
+    INVALID_BANK_HEADER: '앞부분의 거래일·입금액·입금자명 열을 확인해주세요. 입출금 양식은 적요 열도 사용할 수 있어요.',
     INVALID_BANK_ROW: '거래내역의 날짜·입금자·금액 또는 수식 셀을 확인해주세요.',
     BANK_ROW_LIMIT: '거래내역은 최대 5,000행까지 지원해요.',
     EMPTY_BANK_FILE: '가져올 양수 입금 거래가 없어요.',

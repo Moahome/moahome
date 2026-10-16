@@ -34,6 +34,9 @@ export interface PreviewPayment {
 export interface MonthlyPreviewRow {
   unitId: string;
   unitLabel: string;
+  buildingName: string;
+  representativeName: string;
+  latestPayer: string;
   carry: bigint;
   billed: bigint;
   applied: bigint;
@@ -43,6 +46,45 @@ export interface MonthlyPreviewRow {
   prepaid: bigint;
   settlementAmount: bigint | null;
   settlementPending: boolean;
+}
+
+/** 과거 입금이나 선입금도 직접 연결할 수 있도록 청구월과 관계없이 현재 사용 중 명단의 세대를 선택합니다. */
+export function getPreviewSelectableUnits(ledger: PreviewLedger): PreviewLedger['units'] {
+  return ledger.units.filter((unit) => unit.status === 'ACTIVE' && unit.eligible !== false)
+    .sort((left, right) => left.label.localeCompare(right.label, 'ko', {
+      numeric: true
+    }));
+}
+
+/** 서버의 실제 동 이름을 우선 사용하고 이전 원장 응답은 동·호수 표시에서 동 이름을 찾습니다. */
+export function getPreviewBuildingName(unit: PreviewLedger['units'][number]): string {
+  return unit.buildingName ?? unit.label.match(/^(\S+동)\s*/)?.[1] ?? '';
+}
+
+/** 입금 매칭과 월별 수납은 같은 실제 명단의 동을 숫자 오름차순으로 선택합니다. */
+export function getPreviewBuildingOptions(ledger: PreviewLedger) {
+  return [...new Set(ledger.units.map(getPreviewBuildingName).filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right, 'ko', {
+      numeric: true
+    }))
+    .map((name) => ({
+      value: name,
+      label: name
+    }));
+}
+
+/** 이름과 동·호수 표기로 현재 세대를 찾으며 검색 결과는 실제 세대 식별자로만 선택합니다. */
+export function getPreviewUnitSearchOptions(ledger: PreviewLedger) {
+  return getPreviewSelectableUnits(ledger).map((unit) => ({
+    value: unit.id,
+    label: unit.label,
+    searchKeywords: [
+      ...(unit.residentNames ?? []),
+      unit.representativeName ?? '',
+      unit.label.replace(/[동호\s]/g, ''),
+      unit.label.replace(/동\s*/, '-').replace(/호$/, '')
+    ]
+  }));
 }
 
 /** 실제 발행된 해당 월 청구의 세대만 반환하며 취소·공실 제외와 명부만 있는 세대는 선택하지 않습니다. */
@@ -59,26 +101,22 @@ export function getMonthlyPreviewRows(ledger: PreviewLedger, month: string): Mon
   const start = `${month}-01`;
   const end = getPreviewDueDate(month);
   const validCharges = ledger.charges.filter(canPreviewAllocate);
-  const chargeMap = new Map(validCharges.map((charge) => [charge.id, charge]));
+
 
   return getPreviewBilledUnits(ledger, month).map((unit) => {
     const charges = validCharges.filter((charge) => charge.unitId === unit.id);
     const oldCharges = charges.filter((charge) => charge.month < month).reduce((sum, charge) => sum + BigInt(charge.amount), BigInt(0));
     const billed = charges.filter((charge) => charge.month === month).reduce((sum, charge) => sum + BigInt(charge.amount), BigInt(0));
     const payments = ledger.payments.filter((payment) => payment.status === 'CONFIRMED' && payment.unitId === unit.id && payment.date <= end);
-    const sumAllocations = (items: PreviewPayment[], beforeMonth: boolean) => items.flatMap((payment) => payment.allocations)
-      .filter((allocation) => {
-        const charge = chargeMap.get(allocation.chargeId);
-
-        return charge && charge.unitId === unit.id && (beforeMonth ? charge.month < month : charge.month <= month);
-      }).reduce((sum, allocation) => sum + BigInt(allocation.amount), BigInt(0));
-    const carry = oldCharges - sumAllocations(payments.filter((payment) => payment.date < start), true);
-    const applied = sumAllocations(payments.filter((payment) => payment.date >= start), false);
-    const balance = carry + billed - applied;
+    const previousReceived = payments.filter((payment) => payment.date < start).reduce((sum, payment) => sum + BigInt(payment.amount), BigInt(0));
+    const received = payments.reduce((sum, payment) => sum + BigInt(payment.amount), BigInt(0));
+    const carry = oldCharges > previousReceived ? oldCharges - previousReceived : BigInt(0);
+    const balance = oldCharges + billed > received ? oldCharges + billed - received : BigInt(0);
+    const applied = carry + billed - balance;
     const settlementCharges = ledger.charges.filter((charge) => charge.unitId === unit.id && charge.month === month && charge.status === 'ISSUED' && BigInt(charge.amount) <= BigInt(0));
     const settlementAmount = settlementCharges.length ? settlementCharges.reduce((sum, charge) => sum + BigInt(charge.amount), BigInt(0)) : null;
     const settlementPending = ledger.charges.some((charge) => charge.unitId === unit.id && charge.month <= month && charge.status === 'ISSUED' && BigInt(charge.amount) <= BigInt(0));
-    const prepaid = payments.reduce((sum, payment) => sum + BigInt(payment.amount) - payment.allocations.reduce((value, allocation) => value + BigInt(allocation.amount), BigInt(0)), BigInt(0));
+    const prepaid = received > oldCharges + billed ? received - oldCharges - billed : BigInt(0);
     let status: MonthlyPreviewRow['status'] = '미납';
     if (balance === BigInt(0)) status = '납부완료';
     else if (applied > BigInt(0)) status = '일부납부';
@@ -87,6 +125,9 @@ export function getMonthlyPreviewRows(ledger: PreviewLedger, month: string): Mon
     return {
       unitId: unit.id,
       unitLabel: unit.label,
+      buildingName: getPreviewBuildingName(unit),
+      representativeName: unit.representativeName ?? '—',
+      latestPayer: [...payments].sort((left, right) => right.date.localeCompare(left.date)).at(0)?.payer ?? '—',
       carry,
       billed,
       applied,
@@ -103,7 +144,7 @@ export function getMonthlyPreviewRows(ledger: PreviewLedger, month: string): Mon
 export interface PreviewLedger {
   asOf: string;
   accounts: { id: string; label: string }[];
-  units: { id: string; label: string; status: 'ACTIVE' | 'VACANT'; eligible?: boolean; representativeId?: string | null; representativeName?: string | null }[];
+  units: { id: string; label: string; status: 'ACTIVE' | 'VACANT'; eligible?: boolean; representativeId?: string | null; representativeName?: string | null; residentNames?: string[]; buildingName?: string }[];
   charges: PreviewCharge[];
   payments: PreviewPayment[];
   history: { paymentId: string; action: string; reason: string }[];
@@ -113,6 +154,33 @@ export interface PreviewDraft {
   unitId: string;
   allocations: PreviewAllocation[];
   separateReason?: string;
+}
+
+export type CumulativePaymentDraft = Pick<PreviewDraft, 'unitId' | 'separateReason'>;
+
+/** 확정 수납 전액을 누적해 같은 달 추가 입금과 미배분 선입금도 세대 잔액에 포함합니다. */
+export function getCumulativePreviewBalance(ledger: PreviewLedger, unitId: string, extraAmount = '0') {
+  const billed = ledger.charges.filter((charge) => charge.unitId === unitId && canPreviewAllocate(charge) && charge.month <= ledger.asOf.slice(0, 7))
+    .reduce((sum, charge) => sum + BigInt(charge.amount), BigInt(0));
+  const received = ledger.payments.filter((payment) => payment.unitId === unitId && payment.status === 'CONFIRMED' && payment.date <= ledger.asOf)
+    .reduce((sum, payment) => sum + BigInt(payment.amount), BigInt(0));
+  const after = received + BigInt(extraAmount);
+
+  return {
+    billed,
+    received,
+    balance: billed > after ? billed - after : BigInt(0),
+    prepaid: after > billed ? after - billed : BigInt(0)
+  };
+}
+
+/** 테스트 원장의 수납 확정도 세대 지정만으로 전액 누적하며 미납이 없어도 선입금을 저장합니다. */
+export function confirmCumulativePreviewPayment(ledger: PreviewLedger, id: string, draft: CumulativePaymentDraft): PreviewLedger {
+  const payment = requirePreviewPayment(ledger, id);
+  return confirmPreviewPayment(ledger, id, {
+    ...recommendPreviewAllocation(ledger, payment, draft.unitId),
+    separateReason: draft.separateReason
+  });
 }
 
 const MAX_PAYMENT_AMOUNT = BigInt('999999999999999');

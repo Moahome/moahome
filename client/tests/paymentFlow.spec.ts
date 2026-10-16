@@ -2,13 +2,15 @@ import { createHash } from 'node:crypto';
 import { createPaymentSample } from '../src/widgets/payment-workspace/model/paymentSample';
 import {
   addPreviewManual,
-  confirmPreviewPayment,
+  confirmCumulativePreviewPayment,
+  getPreviewDuplicateCandidates,
   cancelPreviewPayment,
   holdPreviewPayment,
   resumePreviewPayment,
   linkPreviewPayment,
   importPreviewPayments,
-  type PreviewLedger
+  type PreviewLedger,
+  type PreviewPayment
 } from '../src/widgets/payment-workspace/model/paymentPreview';
 import {
   expect,
@@ -42,7 +44,8 @@ function storedLedger(): PreviewLedger {
       id:id(u.id),
       eligible:u.status==='ACTIVE',
       representativeId:names[u.id]?id(`resident-${u.id}`):null,
-      representativeName:names[u.id]??null
+      representativeName:names[u.id]??null,
+      residentNames: u.id === '101' ? ['김모아', '김가족'] : names[u.id] ? [names[u.id]] : []
     })),
     charges: fixture.charges.map((c)=>({
       ...c,
@@ -60,6 +63,55 @@ function storedLedger(): PreviewLedger {
         chargeId:id(a.chargeId)
       }))
     }))
+  };
+}
+
+/** 여러 페이지의 실제 표시 범위와 전체 합계를 검증할 수 있도록 세대별 청구·입금 참조를 맞춥니다. */
+function paginationLedger(): PreviewLedger {
+  const ledger = storedLedger();
+  const units = Array.from({
+    length: 25
+  }, (_, index) => ({
+    id: id(`pagination-unit-${index}`),
+    label: `${101 + index}호`,
+    status: 'ACTIVE' as const
+  }));
+  const charges = units.map((unit) => ({
+    id: id(`pagination-charge-${unit.id}`),
+    unitId: unit.id,
+    month: '2026-10',
+    amount: '10000',
+    status: 'ISSUED' as const
+  }));
+  const payments: PreviewPayment[] = units.map((unit, index) => ({
+    id: id(`pagination-payment-${index}`),
+    unitId: unit.id,
+    accountId: ledger.accounts[0].id,
+    date: '2026-10-15',
+    payer: `검증입금${String(index + 1).padStart(2, '0')}`,
+    amount: '10000',
+    source: index % 2 === 0 ? 'BANK_IMPORT' : 'MANUAL',
+    status: 'PENDING',
+    reason: '',
+    allocations: []
+  }));
+  payments.push({
+    ...payments[0],
+    id: id('pagination-confirmed'),
+    source: 'MANUAL',
+    status: 'CONFIRMED',
+    amount: '5000',
+    allocations: [{
+      chargeId: charges[0].id,
+      amount: '5000'
+    }]
+  });
+
+  return {
+    ...ledger,
+    units,
+    charges,
+    payments
   };
 }
 
@@ -102,6 +154,27 @@ test.beforeEach(async ({ page }) => {
         ...ledger,
         propertyId:PROPERTY_ID
       };
+      else if (endpoint==='confirm-matches') {
+        for (const payment of ledger.payments.filter((payment) => payment.source === 'BANK_IMPORT' && payment.status === 'PENDING' && payment.unitId && !getPreviewDuplicateCandidates(ledger, payment).length)) {
+          ledger = confirmCumulativePreviewPayment(ledger, payment.id, {
+            unitId: payment.unitId
+          });
+        }
+        body = {
+          ...ledger,
+          propertyId: PROPERTY_ID
+        };
+      }
+      else if (endpoint === 'delete') {
+        ledger = {
+          ...ledger,
+          payments: ledger.payments.filter((payment) => !input.paymentIds.includes(payment.id))
+        };
+        body = {
+          ...ledger,
+          propertyId: PROPERTY_ID
+        };
+      }
       else if (endpoint==='manual') {
         const unit=ledger.units.find((u)=>u.id===input.unitId)!;
         ledger=addPreviewManual(ledger,{
@@ -139,7 +212,11 @@ test.beforeEach(async ({ page }) => {
         };}
       } else {
         const [paymentId,action]=endpoint.split('/');
-        if(action==='confirm') ledger=confirmPreviewPayment(ledger,paymentId,input);
+        if (route.request().method() === 'DELETE') ledger = {
+          ...ledger,
+          payments: ledger.payments.filter((payment) => payment.id !== paymentId)
+        };
+        else if(action==='confirm') ledger=confirmCumulativePreviewPayment(ledger,paymentId,input);
         else if(action==='cancel') ledger=cancelPreviewPayment(ledger,paymentId,input.reason);
         else if(action==='hold') ledger=holdPreviewPayment(ledger,paymentId,input.reason);
         else if(action==='resume') ledger=resumePreviewPayment(ledger,paymentId);
@@ -210,15 +287,12 @@ test('수납 확정 결과가 월별 수납표에 반영되고 아직 부과하�
   const editor = page.getByRole('region', {
     name: '입금 처리 상세'
   });
-  await editor.getByRole('button', {
+  await expect(editor).toContainText('세대 누적 수납');
+  await expect(editor.getByRole('button', {
     name: '오래된 미납부터 추천'
-  }).click();
-  await expect(editor.getByLabel('2026-09 반영액')).toHaveValue('30,000');
-  await expect(editor.getByLabel('2026-10 반영액')).toHaveValue('50,000');
-  await expect(editor).toContainText('납부기한 2026-09-30');
-  await expect(editor).toContainText('납부기한 2026-10-31');
+  })).toHaveCount(0);
   await editor.getByRole('button', {
-    name: '배분 확정'
+    name: '수납 확정'
   }).click();
   await page.getByRole('dialog', {
     name: '이 내용으로 반영할까요?'
@@ -264,7 +338,7 @@ test('기존 수납 연결은 금액을 늘리지 않고 일반 모달은 뷰포
     name: '입금 처리 상세'
   });
   await expect(editor.getByRole('button', {
-    name: '배분 확정'
+    name: '수납 확정'
   })).toBeDisabled();
   await editor.getByRole('button', {
     name: '이 수납에 연결'
@@ -284,7 +358,7 @@ test('기존 수납 연결은 금액을 늘리지 않고 일반 모달은 뷰포
   })).toBeVisible();
 });
 
-test('모바일 상세의 세대 선택은 입금월 실제 부과 대상만 표시하고 추천 이유는 숨김', async ({ page }) => {
+test('모바일 상세의 세대 선택은 청구월과 관계없이 현재 명단을 표시하고 추천 이유는 숨김', async ({ page }) => {
   await page.setViewportSize({
     width: 390,
     height: 844
@@ -305,9 +379,12 @@ test('모바일 상세의 세대 선택은 입금월 실제 부과 대상만 표
   await detail.getByRole('combobox', {
     name: '반영할 세대'
   }).click();
-  await expect(detail.getByRole('option')).toHaveText(['101호', '202호', '302호']);
+  await expect(detail.getByRole('option')).toHaveText(['101호', '202호', '302호', '501호']);
   await expect(detail).not.toContainText('401호');
-  await expect(detail).not.toContainText('501호');
+  await expect(detail.getByRole('option', {
+    name: '501호',
+    exact: true
+  })).toBeVisible();
   await expect(detail).not.toContainText('추천·확인 근거');
   await detail.getByRole('option', {
     name: '202호',
@@ -359,7 +436,7 @@ test('입금일도 공통 달력에서 날짜를 선택하고 모달은 X로 닫
     name: '입금일: 2026년 10월 20일'
   })).toBeFocused();
   const submit = await modal.getByRole('button', {
-    name: '청구월 반영하기'
+    name: '수납 확인하기'
   }).boundingBox();
   expect(bounds!.x + bounds!.width - (submit!.x + submit!.width)).toBeLessThan(30);
   await modal.getByRole('button', {
@@ -445,15 +522,17 @@ test('월별 수납 상세는 PC 중앙 모달이고 모바일 독립 페이지'
     name: '101호 수납 상세'
   })).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.getByRole('button', {
-    name: '목록',
-    exact: true
+  await expect(page.getByRole('main').getByRole('button', {
+    name: /^(목록|목록으로|주민 목록|세대 목록으로)$/
+  })).toHaveCount(0);
+  await page.getByRole('banner').getByRole('link', {
+    name: '월별 수납 현황으로 돌아가기'
   }).click();
   await expect(page).toHaveURL(monthly);
 });
 
-for (const width of [390, 1100, 1440]) {
-  test(`${width}px 열린 달력은 본문 안에 있고 검색·출처는 남는 공간을 사용`, async ({ page }, testInfo) => {
+for (const width of [320, 390, 1100, 1440]) {
+  test(`${width}px 열린 달력은 본문 안에 있고 검색 오른쪽 동 필터와 표시 개수·별도 상태 탭 배치`, async ({ page }, testInfo) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -465,15 +544,30 @@ for (const width of [390, 1100, 1440]) {
     const search = page.getByRole('textbox', {
       name: '입금 검색'
     });
-    const sources = page.getByRole('group', {
+    await expect(page.getByRole('group', {
       name: '입금 출처'
+    })).toHaveCount(0);
+    const tabs = page.getByRole('group', {
+      name: '입금 처리 상태'
     });
+    const size = page.getByRole('combobox', {
+      name: '입금 표시 개수'
+    });
+    await expect(size).toHaveText('10개씩 보기');
     const searchBox = await search.boundingBox();
-    const sourceBox = await sources.boundingBox();
+    const tabsBox = await tabs.boundingBox();
+    const sizeBox = await size.boundingBox();
+    expect(tabsBox!.y + tabsBox!.height).toBeLessThan(searchBox!.y);
     if (width === 1440) {
       expect(searchBox!.width).toBeGreaterThan(500);
-      expect(sourceBox!.x - (searchBox!.x + searchBox!.width)).toBeLessThan(32);
-      expect(Math.abs(searchBox!.y + searchBox!.height - sourceBox!.y - sourceBox!.height)).toBeLessThan(3);
+      const searchField = await search.locator('..').boundingBox();
+      const buildingField = await page.getByRole('combobox', {
+        name: '입금 세대 동 필터'
+      }).locator('..').boundingBox();
+      const sizeField = await size.locator('..').boundingBox();
+      expect(buildingField!.x - (searchField!.x + searchField!.width)).toBeLessThan(16);
+      expect(sizeField!.x - (buildingField!.x + buildingField!.width)).toBeLessThan(16);
+      expect(Math.abs(searchBox!.y + searchBox!.height - sizeBox!.y - sizeBox!.height)).toBeLessThan(3);
     }
     await expect(page.getByRole('table', {
       name: '입금 거래'
@@ -579,6 +673,44 @@ test('드래그한 은행 엑셀은 미리보기 후 가져오고 같은 파일�
 });
 
 
+test('은행 XLS 원본을 변환 없이 서버 미리보기와 가져오기에 전달', async ({ page }) => {
+  await page.goto(MATCHING);
+  await page.getByRole('button', {
+    name: '통장 내역 가져오기',
+    exact: true
+  }).click();
+  const modal = page.getByRole('dialog', {
+    name: '통장 내역 가져오기',
+    exact: true
+  });
+  const input = modal.getByLabel('거래내역 파일', {
+    exact: true
+  });
+  await expect(input).toHaveAttribute('accept', '.xls,.xlsx,.csv');
+  await expect(modal).toContainText('은행에서 내려받은 거래내역 파일을 그대로');
+  // 파싱은 서버 테스트에서 실제 XLS로 검증하고 브라우저는 원본 바이트 전달을 확인합니다.
+  const bytes = Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+  const previewRequest = page.waitForRequest((request) => request.url().endsWith('/payments/import/preview') && request.method() === 'POST');
+  await input.setInputFiles({
+    name: '은행거래.xls',
+    mimeType: 'application/vnd.ms-excel',
+    buffer: bytes
+  });
+  expect((await previewRequest).postDataBuffer()?.includes(bytes)).toBe(true);
+  await expect(modal.getByRole('table', {
+    name: '은행 거래 미리보기'
+  })).toContainText('드래그입금');
+  const importRequest = page.waitForRequest((request) => request.url().endsWith('/payments/import') && request.method() === 'POST');
+  await modal.getByRole('button', {
+    name: '입금 거래 가져오기',
+    exact: true
+  }).click();
+  expect((await importRequest).postDataBuffer()?.includes(bytes)).toBe(true);
+  await expect(page.getByRole('row').filter({
+    hasText: '드래그입금'
+  })).toHaveCount(1);
+});
+
 test('좁고 낮은 화면에서도 입금일 달력이 모달 경계를 지키고 Escape는 달력만 닫음', async ({ page }, testInfo) => {
   await page.setViewportSize({
     width: 390,
@@ -633,7 +765,7 @@ test('수동 입금자는 실제 대표 이름으로 채우고 API 저장 후 �
     name:'세대',
     exact:true
   }).click();
-  await expect(modal.getByRole('option')).toHaveText(['101호', '202호', '302호']);
+  await expect(modal.getByRole('option')).toHaveText(['101호', '202호', '302호', '501호']);
   await modal.getByRole('option',{
     name:'101호',
     exact:true
@@ -651,7 +783,7 @@ test('수동 입금자는 실제 대표 이름으로 채우고 API 저장 후 �
     exact:true
   }).fill('42000');
   await modal.getByRole('button',{
-    name:'청구월 반영하기'
+    name:'수납 확인하기'
   }).click();
   const detail=page.getByRole('dialog',{
     name:'입금 처리 상세',
@@ -659,10 +791,7 @@ test('수동 입금자는 실제 대표 이름으로 채우고 API 저장 후 �
   });
   await expect(detail).toContainText('42,000원');
   await detail.getByRole('button',{
-    name:'오래된 미납부터 추천'
-  }).click();
-  await detail.getByRole('button',{
-    name:'배분 확정'
+    name:'수납 확정'
   }).click();
   await page.getByRole('dialog',{
     name:'이 내용으로 반영할까요?'
@@ -771,7 +900,7 @@ test('수동 저장 실패는 입력을 보존하고 같은 요청 ID로 다시 
     name:'세대',
     exact:true
   }).click();
-  await expect(modal.getByRole('option')).toHaveText(['101호', '202호', '302호']);
+  await expect(modal.getByRole('option')).toHaveText(['101호', '202호', '302호', '501호']);
   await modal.getByRole('option',{
     name:'101호',
     exact:true
@@ -781,7 +910,7 @@ test('수동 저장 실패는 입력을 보존하고 같은 요청 ID로 다시 
     exact:true
   }).fill('42000');
   await modal.getByRole('button',{
-    name:'청구월 반영하기'
+    name:'수납 확인하기'
   }).click();
   await expect(modal.getByRole('alert')).toBeVisible();
   await expect(modal.getByRole('textbox',{
@@ -789,7 +918,7 @@ test('수동 저장 실패는 입력을 보존하고 같은 요청 ID로 다시 
     exact:true
   })).toHaveValue('42,000');
   await modal.getByRole('button',{
-    name:'청구월 반영하기'
+    name:'수납 확인하기'
   }).click();
   await expect(page.getByRole('dialog',{
     name:'입금 처리 상세',
@@ -799,7 +928,7 @@ test('수동 저장 실패는 입력을 보존하고 같은 요청 ID로 다시 
 });
 
 
-test('월별 수납 현황은 선택월 실제 부과 세대만 표시하고 세대에 주민 이름을 붙이지 않음', async ({ page }, testInfo) => {
+test('월별 수납 현황은 실제 부과 세대의 대표 이름과 실제 입금자를 별도로 표시', async ({ page }, testInfo) => {
   await page.setViewportSize({
     width: 1440,
     height: 1000
@@ -815,8 +944,8 @@ test('월별 수납 현황은 선택월 실제 부과 세대만 표시하고 세
   })).toBeVisible();
   await expect(table).not.toContainText('401호');
   await expect(table).not.toContainText('501호');
-  await expect(table).not.toContainText('김모아');
-  await expect(table).not.toContainText('박두리');
+  await expect(table).toContainText('김모아');
+  await expect(table).toContainText('박두리');
   await expect(page.getByText('부과 제외', {
     exact: true
   })).toHaveCount(0);
@@ -830,3 +959,1147 @@ test('월별 수납 현황은 선택월 실제 부과 세대만 표시하고 세
     name: '추천 이유'
   })).toHaveCount(0);
 });
+
+for (const view of ['matching', 'monthly'] as const) {
+  for (const width of [320, 1440]) {
+    test(`${width}px ${view} 목록의 페이지 이동·표시 개수·필터 초기화·빈 결과와 전체 합계`, async ({ page }, testInfo) => {
+      await page.setViewportSize({
+        width,
+        height: 1000
+      });
+      await page.route(`**/api/properties/${PROPERTY_ID}/payments/workspace`, async (route) => {
+        if (route.request().method() !== 'GET') {
+          await route.fallback();
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          headers: {
+            'Access-Control-Allow-Origin': 'http://localhost:3100',
+            'Access-Control-Allow-Credentials': 'true'
+          },
+          body: JSON.stringify({
+            ...paginationLedger(),
+            propertyId: PROPERTY_ID
+          })
+        });
+      });
+      await page.goto(`/manage/${PROPERTY_ID}/payments/${view}`);
+      const matching = view === 'matching';
+      const table = page.getByRole('table', {
+        name: matching ? '입금 거래' : '세대별 월별 수납 현황'
+      });
+      const pagination = page.getByRole('navigation', {
+        name: matching ? '입금 목록 페이지' : '월별 수납 현황 페이지'
+      });
+      const size = page.getByRole('combobox', {
+        name: matching ? '입금 표시 개수' : '수납 현황 표시 개수'
+      });
+      const search = page.getByRole('textbox', {
+        name: matching ? '입금 검색' : '수납 현황 세대 검색'
+      });
+      const summary = page.getByRole('article', {
+        name: matching ? '기간 내 수납 확정액 5,000원' : '당월 관리비 발생액 250,000원'
+      });
+      await expect(table.getByRole('row')).toHaveCount(11);
+      await expect(summary).toBeVisible();
+      await expect(page.getByRole('group', {
+        name: matching ? '입금 처리 상태' : '수납 상태'
+      })).toBeVisible();
+      if (!matching) {
+        const tabs = await page.getByRole('group', {
+          name: '수납 상태'
+        }).boundingBox();
+        const searchBox = await search.boundingBox();
+        expect(tabs!.y + tabs!.height).toBeLessThan(searchBox!.y);
+        const download = page.getByRole('button', {
+          name: '엑셀 다운로드',
+          exact: true
+        });
+        await expect(download).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+        await expect(download).toHaveCSS('color', 'rgb(22, 101, 52)');
+        await expect(download.locator('svg')).toHaveCount(1);
+        if (width < 768) {
+          const downloadBox = await download.boundingBox();
+          const mainBox = await page.getByRole('main').boundingBox();
+          expect(downloadBox!.width).toBeGreaterThan(mainBox!.width - 48);
+        }
+      }
+      await expect(page.getByRole('checkbox', {
+        name: '미수 있는 세대만'
+      })).toHaveCount(0);
+      await pagination.getByRole('button', {
+        name: '다음 페이지'
+      }).click();
+      await expect(pagination.getByRole('button', {
+        name: '2페이지',
+        exact: true
+      })).toHaveAttribute('aria-current', 'page');
+      await expect(table.getByRole('rowheader').first()).toContainText(matching ? '검증입금11' : '111호');
+      await pagination.getByRole('button', {
+        name: '3페이지',
+        exact: true
+      }).click();
+      await expect(table.getByRole('row')).toHaveCount(6);
+      await expect(pagination.getByRole('button', {
+        name: '다음 페이지'
+      })).toBeDisabled();
+      await expect(summary).toBeVisible();
+
+      await size.click();
+      await page.getByRole('option', {
+        name: '20개씩 보기',
+        exact: true
+      }).click();
+      await expect(table.getByRole('row')).toHaveCount(21);
+      await expect(pagination.getByRole('button', {
+        name: '1페이지',
+        exact: true
+      })).toHaveAttribute('aria-current', 'page');
+      await pagination.getByRole('button', {
+        name: '2페이지',
+        exact: true
+      }).click();
+      await expect(table.getByRole('row')).toHaveCount(6);
+      await size.click();
+      await page.getByRole('option', {
+        name: '50개씩 보기',
+        exact: true
+      }).click();
+      await expect(table.getByRole('row')).toHaveCount(26);
+      await expect(pagination.getByRole('button', {
+        name: '다음 페이지'
+      })).toBeDisabled();
+      await size.click();
+      await page.getByRole('option', {
+        name: '10개씩 보기',
+        exact: true
+      }).click();
+      await pagination.getByRole('button', {
+        name: '3페이지',
+        exact: true
+      }).click();
+      await search.fill(matching ? '검증입금25' : '125호');
+      await expect(table.getByRole('row')).toHaveCount(2);
+      await expect(pagination.getByRole('button', {
+        name: '1페이지',
+        exact: true
+      })).toHaveAttribute('aria-current', 'page');
+      await search.fill('없는 검색 결과');
+      await expect(table).toContainText(matching ? '조건에 맞는 입금 거래가 없습니다.' : '조건에 맞는 세대가 없습니다.');
+      await expect(pagination.getByRole('button', {
+        name: '이전 페이지'
+      })).toBeDisabled();
+      await expect(pagination.getByRole('button', {
+        name: '다음 페이지'
+      })).toBeDisabled();
+      await search.clear();
+      await pagination.getByRole('button', {
+        name: '3페이지',
+        exact: true
+      }).click();
+      if (matching) {
+        await expect(page.getByRole('group', {
+          name: '입금 출처'
+        })).toHaveCount(0);
+        await page.getByRole('group', {
+          name: '입금 처리 상태'
+        }).getByRole('button', {
+          name: /처리 완료/
+        }).click();
+        await expect(table.getByRole('row')).toHaveCount(2);
+      } else {
+        await page.getByRole('button', {
+          name: /^일부납부 \(\d+\)$/
+        }).click();
+        await expect(table.getByRole('row')).toHaveCount(2);
+        await expect(pagination.getByRole('button', {
+          name: '1페이지',
+          exact: true
+        })).toHaveAttribute('aria-current', 'page');
+        await page.getByRole('button', {
+          name: /^전체 \(\d+\)$/
+        }).click();
+      }
+      await expect(summary).toBeVisible();
+      await page.screenshot({
+        animations: 'disabled',
+        path: testInfo.outputPath(`${view}-pagination-${width}.png`),
+        fullPage: true
+      });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await page.getByRole('button', {
+        name: '조회 월: 2026년 10월'
+      }).click();
+      await page.getByRole('button', {
+        name: '2026년 11월',
+        exact: true
+      }).click();
+      await expect(table).toContainText(matching ? '조건에 맞는 입금 거래가 없습니다.' : '조건에 맞는 세대가 없습니다.');
+      await expect(pagination.getByRole('button', {
+        name: '다음 페이지'
+      })).toBeDisabled();
+    });
+  }
+}
+
+test('수납 상세의 최근 입금일은 날짜·빈 값 모두 금액과 같은 오른쪽 끝에 표시', async ({ page }, testInfo) => {
+  const ledger = storedLedger();
+  ledger.payments = ledger.payments.filter((payment) => payment.unitId !== id('202'));
+  await page.route(`**/api/properties/${PROPERTY_ID}/payments/workspace`, async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true'
+      },
+      body: JSON.stringify({
+        ...ledger,
+        propertyId: PROPERTY_ID
+      })
+    });
+  });
+  await page.setViewportSize({
+    width: 1440,
+    height: 1000
+  });
+  await page.goto(`/manage/${PROPERTY_ID}/payments/monthly`);
+  for (const [unit, date] of [['101호', '2026-09-20'], ['202호', '—']]) {
+    await page.getByRole('row').filter({
+      hasText: unit
+    }).click();
+    const modal = page.getByRole('dialog', {
+      name: `${unit} 수납 상세`
+    });
+    const latest = modal.locator('dl > div').filter({
+      hasText: '최근 입금일'
+    }).locator('dd');
+    const amount = modal.locator('dl > div').filter({
+      hasText: '선입금 잔액'
+    }).locator('dd');
+    await expect(latest).toHaveText(date);
+    const latestBox = await latest.boundingBox();
+    const amountBox = await amount.boundingBox();
+    expect(Math.abs(latestBox!.x + latestBox!.width - amountBox!.x - amountBox!.width)).toBeLessThan(2);
+    await page.screenshot({
+      animations: 'disabled',
+      path: testInfo.outputPath(`latest-payment-${unit}.png`)
+    });
+    await modal.getByRole('button', {
+      name: '수납 상세 닫기'
+    }).click();
+  }
+});
+
+for (const width of [390, 767]) {
+  for (const view of ['matching', 'monthly'] as const) {
+    test(`${width}px ${view} 모바일 상세는 직접 접근·새로고침·대상 없음에도 헤더 뒤로가기만 제공`, async ({ page }, testInfo) => {
+      await page.setViewportSize({
+        width,
+        height: 900
+      });
+      const monthly = view === 'monthly';
+      const list = `/manage/${PROPERTY_ID}/payments/${view}`;
+      const detail = monthly ? `${list}/2026-10/${id('101')}` : `${list}/${id('b1')}`;
+      const back = page.getByRole('banner').getByRole('link', {
+        name: monthly ? '월별 수납 현황으로 돌아가기' : '입금 확인·매칭으로 돌아가기'
+      });
+      await page.goto(detail);
+      await expect(back).toBeVisible();
+      await page.reload();
+      await expect(back).toBeVisible();
+      await expect(page.getByRole('main').getByRole('heading', {
+        name: monthly ? '101호 수납 상세' : '입금 처리 상세',
+        exact: true
+      })).toBeVisible();
+      await expect(page.getByRole('main').getByRole('button', {
+        name: /^(목록|목록으로|주민 목록|세대 목록으로)$/
+      })).toHaveCount(0);
+      await page.screenshot({
+        animations: 'disabled',
+        path: testInfo.outputPath(`${view}-mobile-detail-${width}.png`)
+      });
+      await back.click();
+      await expect(page).toHaveURL(list);
+      if (monthly) {
+        const download = await page.getByRole('button', {
+          name: '엑셀 다운로드',
+          exact: true
+        }).boundingBox();
+        const main = await page.getByRole('main').boundingBox();
+        expect(download!.width).toBeGreaterThan(main!.width - 48);
+      }
+      await page.goto(monthly ? `${list}/2026-10/${id('missing')}` : `${list}/${id('missing')}`);
+      await expect(back).toBeVisible();
+      await expect(page.getByRole('main').getByRole('button', {
+        name: /^(목록|목록으로|주민 목록|세대 목록으로)$/
+      })).toHaveCount(0);
+      await back.click();
+      await expect(page).toHaveURL(list);
+    });
+  }
+}
+
+for (const width of [1440, 390, 320]) {
+  test(`${width}px 수납 상세는 미납·일부납부·납부완료·정산 상태별 금액과 색상을 구분`, async ({ page }, testInfo) => {
+    const ledger = storedLedger();
+    ledger.payments.push({
+      id: id('detail-partial'),
+      source: 'MANUAL',
+      status: 'CONFIRMED',
+      accountId: ledger.accounts[0].id,
+      date: '2026-10-15',
+      payer: '김모아',
+      amount: '10000',
+      unitId: id('101'),
+      reason: '',
+      allocations: [{
+        chargeId: id('c10110'),
+        amount: '10000'
+      }]
+    });
+    const zeroCharge = ledger.charges.find((charge) => charge.id === id('c50110'))!;
+    zeroCharge.status = 'ISSUED';
+    zeroCharge.amount = '0';
+    ledger.units.push({
+      id: id('601'),
+      label: '601호',
+      status: 'ACTIVE'
+    });
+    ledger.charges.push({
+      id: id('c60110'),
+      unitId: id('601'),
+      month: '2026-10',
+      status: 'ISSUED',
+      amount: '-5000'
+    });
+    await page.route(`**/api/properties/${PROPERTY_ID}/payments/workspace`, async (route) => {
+      if (route.request().method() !== 'GET') {
+        await route.fallback();
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: {
+          'Access-Control-Allow-Origin': 'http://localhost:3100',
+          'Access-Control-Allow-Credentials': 'true'
+        },
+        body: JSON.stringify({
+          ...ledger,
+          propertyId: PROPERTY_ID
+        })
+      });
+    });
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const list = `/manage/${PROPERTY_ID}/payments/monthly`;
+    await page.goto(list);
+    const cases = [
+      {
+        unit: '202호',
+        status: '미납',
+        label: '남은 미납금액',
+        amount: '100,000원',
+        color: 'rgb(239, 68, 68)'
+      },
+      {
+        unit: '101호',
+        status: '일부납부',
+        label: '남은 미납금액',
+        amount: '70,000원',
+        color: null
+      },
+      {
+        unit: '302호',
+        status: '납부완료',
+        label: '당월 수납 반영액',
+        amount: '60,000원',
+        color: 'rgb(22, 101, 52)'
+      },
+      {
+        unit: '501호',
+        status: '정산 확인 필요',
+        label: '당월 부과금액',
+        amount: '0원',
+        color: 'rgb(100, 116, 139)'
+      },
+      {
+        unit: '601호',
+        status: '정산 확인 필요',
+        label: '당월 부과금액',
+        amount: '-5,000원',
+        color: 'rgb(100, 116, 139)'
+      }
+    ];
+    for (const item of cases) {
+      await page.getByRole('row').filter({
+        hasText: item.unit
+      }).click();
+      const detail = width >= 768 ? page.getByRole('dialog', {
+        name: `${item.unit} 수납 상세`
+      }) : page.getByRole('main');
+      const summary = detail.getByRole('region', {
+        name: '수납 요약'
+      });
+      await expect(summary.getByText(item.status, {
+        exact: true
+      })).toBeVisible();
+      await expect(summary.getByText(item.label, {
+        exact: true
+      })).toBeVisible();
+      await expect(summary.locator('strong')).toHaveText(item.amount);
+      if (item.color) await expect(summary.locator('strong')).toHaveCSS('color', item.color);
+      await expect(detail.getByRole('region', {
+        name: '미납금액 계산 내역'
+      })).toBeVisible();
+      const info = detail.getByRole('region', {
+        name: '수납 정보'
+      });
+      await expect(info).toBeVisible();
+      await expect(detail.getByRole('button', {
+        name: /목록|^닫기$/
+      })).toHaveCount(0);
+      if (item.unit === '601호') {
+        await expect(info).toContainText('확정 수납 없음');
+        await expect(detail.getByRole('region', {
+          name: '미납금액 계산 내역'
+        })).toContainText('-5,000원');
+      }
+      await page.screenshot({
+        animations: 'disabled',
+        path: testInfo.outputPath(`monthly-detail-${item.unit}-${width}.png`),
+        fullPage: width < 768
+      });
+      if (width >= 768) {
+        await detail.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+        const close = detail.getByRole('button', {
+          name: '수납 상세 닫기'
+        });
+        const bounds = await detail.boundingBox();
+        const closeBounds = await close.boundingBox();
+        expect(closeBounds!.y).toBeGreaterThanOrEqual(bounds!.y);
+        expect(closeBounds!.y + closeBounds!.height).toBeLessThan(bounds!.y + 120);
+        await close.click();
+      } else {
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await page.getByRole('banner').getByRole('link', {
+          name: '월별 수납 현황으로 돌아가기'
+        }).click();
+        await expect(page).toHaveURL(list);
+      }
+    }
+  });
+}
+
+
+test('같은 달 두 입금은 세대만 지정해 모두 확정하고 완납 이후 금액은 선입금으로 표시', async ({ page }, testInfo) => {
+  let ledger = storedLedger();
+  const unit = {
+    ...ledger.units[0],
+    label: '102동 401호'
+  };
+  const base = ledger.payments[0];
+  ledger = {
+    ...ledger,
+    units: [unit],
+    charges: [{
+      ...ledger.charges[0],
+      month: '2026-10',
+      amount: '50000',
+      unitId: unit.id
+    }],
+    payments: [
+      {
+        ...base,
+        id: id('cumulative-first'),
+        payer: '102동401호',
+        unitId: unit.id,
+        date: '2026-10-06',
+        amount: '50000',
+        allocations: []
+      },
+      {
+        ...base,
+        id: id('cumulative-second'),
+        payer: '별도입금자',
+        unitId: '',
+        date: '2026-10-13',
+        amount: '50000',
+        allocations: []
+      }
+    ]
+  };
+  await page.route(`http://localhost:8080/api/properties/${PROPERTY_ID}/payments/**`, async (route) => {
+    const endpoint = new URL(route.request().url()).pathname.split('/payments/')[1];
+    if (endpoint !== 'workspace') {
+      const [paymentId, action] = endpoint.split('/');
+      expect(action).toBe('confirm');
+      const input = route.request().postDataJSON();
+      expect(input.unitId).toBe(unit.id);
+      expect(input).not.toHaveProperty('allocations');
+      ledger = confirmCumulativePreviewPayment(ledger, paymentId, input);
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true'
+      },
+      body: JSON.stringify({
+        ...ledger,
+        propertyId: PROPERTY_ID
+      })
+    });
+  });
+  await page.setViewportSize({
+    width: 1440,
+    height: 1000
+  });
+  await page.goto(MATCHING);
+  const editor = page.getByRole('region', {
+    name: '입금 처리 상세'
+  });
+  for (const payer of ['102동401호', '별도입금자']) {
+    await page.getByRole('row').filter({
+      hasText: payer
+    }).click();
+    const select = editor.getByRole('combobox', {
+      name: '반영할 세대'
+    });
+    if (payer === '102동401호') await expect(select).toHaveValue('102동 401호');
+    else {
+      await select.click();
+      await editor.getByRole('option', {
+        name: '102동 401호',
+        exact: true
+      }).click();
+      await expect(editor.getByRole('region', {
+        name: '누적 수납 미리보기'
+      })).toContainText(/선입금 잔액\s*50,000원/);
+      await page.screenshot({
+        path: testInfo.outputPath('cumulative-prepayment-desktop.png'),
+        fullPage: true
+      });
+    }
+    await expect(editor.getByText('몇 월 관리비로 반영할까요?')).toHaveCount(0);
+    await editor.getByRole('button', {
+      name: '수납 확정',
+      exact: true
+    }).click();
+    await page.getByRole('dialog', {
+      name: '이 내용으로 반영할까요?'
+    }).getByRole('button', {
+      name: '확인',
+      exact: true
+    }).click();
+    await page.getByRole('button', {
+      name: '입금 상세 닫기'
+    }).click();
+    await page.getByRole('group', {
+      name: '입금 처리 상태'
+    }).getByRole('button', {
+      name: /확인 필요/
+    }).click();
+  }
+  expect(ledger.payments.every((payment) => payment.status === 'CONFIRMED')).toBe(true);
+  await page.goto(`/manage/${PROPERTY_ID}/payments/monthly`);
+  const row = page.getByRole('row').filter({
+    hasText: '102동 401호'
+  });
+  await expect(row).toContainText('납부완료');
+  await row.click();
+  await expect(page.getByRole('dialog')).toContainText(/선입금 잔액\s*50,000원/);
+});
+
+
+test('이미 가져온 명단 일치 입금은 개별 모달 없이 한 번에 누적 확정', async ({ page }) => {
+  await page.goto(MATCHING);
+  await page.getByRole('button', {
+    name: '일치 입금 자동 확정'
+  }).click();
+  await expect(page.getByRole('row').filter({
+    hasText: '김모아'
+  })).toContainText('확정');
+  await expect(page.getByRole('row').filter({
+    hasText: '202호관리비'
+  })).toContainText('확정');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
+
+for (const width of [1440, 390]) {
+  test(`${width}px 목록 편집에서 한 건씩 선택하고 선택 삭제 후 새로고침에도 제거`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    await page.goto(MATCHING);
+    await page.getByRole('button', {
+      name: '편집',
+      exact: true
+    }).click();
+    await page.getByRole('row').filter({
+      hasText: '김모아'
+    }).getByRole('checkbox').check();
+    const other = page.getByRole('row').filter({
+      hasText: '202호관리비'
+    }).getByRole('checkbox');
+    await other.scrollIntoViewIfNeeded();
+    await expect(other).not.toBeChecked();
+    await page.getByRole('button', {
+      name: '선택 삭제',
+      exact: true
+    }).click();
+    const dialog = page.getByRole('dialog', {
+      name: '선택한 입금을 삭제할까요?'
+    });
+    await dialog.getByRole('button', {
+      name: '취소',
+      exact: true
+    }).click();
+    await expect(page.getByRole('row').filter({
+      hasText: '김모아'
+    }).getByRole('checkbox')).toBeChecked();
+    await page.getByRole('button', {
+      name: '선택 삭제',
+      exact: true
+    }).click();
+    await page.screenshot({
+      path: testInfo.outputPath(`selected-payment-delete-${width}.png`),
+      animations: 'disabled',
+      fullPage: true
+    });
+    await dialog.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(page.getByRole('row').filter({
+      hasText: '김모아'
+    })).toHaveCount(0);
+    await expect(page.getByRole('row').filter({
+      hasText: '202호관리비'
+    })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('row').filter({
+      hasText: '김모아'
+    })).toHaveCount(0);
+  });
+}
+
+test('선택 삭제 실패는 오류 토스트로 표시하고 선택·확인창을 유지하며 재시도 시 표시 시간을 초기화', async ({ page }, testInfo) => {
+  await page.setViewportSize({
+    width: 1440,
+    height: 1000
+  });
+  await page.goto(MATCHING);await page.clock.install();
+  await page.getByRole('button', {
+    name: '편집',
+    exact: true
+  }).click();
+  await page.getByRole('row').filter({
+    hasText: '김모아'
+  }).getByRole('checkbox').check();
+  await page.getByRole('button', {
+    name: '선택 삭제',
+    exact: true
+  }).click();
+  const dialog = page.getByRole('dialog', {
+    name: '선택한 입금을 삭제할까요?'
+  });
+  await page.route(`http://localhost:8080/api/properties/${PROPERTY_ID}/payments/delete`, async (route) => {
+    expect(route.request().postDataJSON()).toEqual({
+      paymentIds: [id('b1')]
+    });
+    await route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true'
+      },
+      body: JSON.stringify({
+        code: 'PAYMENT_SERVICE_UNAVAILABLE',
+        message: '저장 실패'
+      })
+    });
+  });
+  await dialog.getByRole('button', {
+    name: '삭제',
+    exact: true
+  }).click();
+  const toast = dialog.locator('[data-tone="error"]');
+  await expect(toast.getByRole('alert')).toBeVisible();
+  expect(await toast.evaluate((element) => getComputedStyle(element).position)).toBe('fixed');
+  await expect(dialog.locator(':scope > p[role="alert"]')).toHaveCount(0);
+  await page.clock.runFor(3500);
+  await dialog.getByRole('button', {
+    name: '삭제',
+    exact: true
+  }).click();
+  await page.clock.runFor(1000);await expect(toast).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath('payment-delete-error-toast.png'),
+    animations: 'disabled',
+    fullPage: true
+  });
+  await page.clock.runFor(4000);await expect(toast).toHaveCount(0);await expect(dialog).toBeVisible();
+});
+
+test('입금월 청구가 없는 과거 거래도 현재 명단의 세대를 직접 선택해 누적 확정', async ({ page }) => {
+  const ledger = storedLedger();
+  const payment = {
+    ...ledger.payments[0],
+    date: '2026-08-20',
+    payer: '103-302(8)',
+    unitId: ''
+  };
+  await page.route(`http://localhost:8080/api/properties/${PROPERTY_ID}/payments/workspace`, (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    headers: {
+      'Access-Control-Allow-Origin': 'http://localhost:3100',
+      'Access-Control-Allow-Credentials': 'true'
+    },
+    body: JSON.stringify({
+      ...ledger,
+      payments: [payment],
+      propertyId: PROPERTY_ID
+    })
+  }));
+  await page.goto(`${MATCHING}/${payment.id}`);
+  const editor = page.getByRole('region', {
+    name: '입금 처리 상세'
+  });
+  await editor.getByRole('combobox', {
+    name: '반영할 세대'
+  }).click();
+  await expect(editor.getByRole('option')).toHaveText(['101호', '202호', '302호', '501호']);
+  await editor.getByRole('option', {
+    name: '101호',
+    exact: true
+  }).click();
+  await expect(editor.getByRole('button', {
+    name: '수납 확정',
+    exact: true
+  })).toBeEnabled();
+});
+
+test('확정한 입금에는 삭제 대신 납부 취소를 제공하고 취소 후 미납 합계를 복구', async ({ page }) => {
+  await page.goto(MATCHING);
+  await page.getByRole('row').filter({
+    hasText: '김모아'
+  }).click();
+  const editor = page.getByRole('region', {
+    name: '입금 처리 상세'
+  });
+  await editor.getByRole('button', {
+    name: '수납 확정',
+    exact: true
+  }).click();
+  await page.getByRole('dialog', {
+    name: '이 내용으로 반영할까요?'
+  }).getByRole('button', {
+    name: '확인',
+    exact: true
+  }).click();
+  await expect(editor.getByRole('button', {
+    name: '삭제',
+    exact: true
+  })).toHaveCount(0);
+  await editor.getByRole('button', {
+    name: '납부 취소',
+    exact: true
+  }).click();
+  const dialog = page.getByRole('dialog', {
+    name: '납부를 취소할까요?'
+  });
+  await dialog.getByLabel('취소 사유').fill('잘못된 납부 연결');
+  await dialog.getByRole('button', {
+    name: '납부 취소',
+    exact: true
+  }).click();
+  await page.getByRole('button', {
+    name: '입금 상세 닫기'
+  }).click();
+  await page.goto(`/manage/${PROPERTY_ID}/payments/monthly`);
+  await expect(page.getByRole('row').filter({
+    hasText: '101호'
+  })).toContainText('80,000원');
+});
+
+
+test('편집 선택은 필터 변경 때 초기화하고 여러 입금은 한 요청으로 삭제', async ({ page }) => {
+  await page.goto(MATCHING);
+  await page.getByRole('button', {
+    name: '편집',
+    exact: true
+  }).click();
+  await page.getByRole('row').filter({
+    hasText: '김모아'
+  }).getByRole('checkbox').check();
+  await page.getByRole('textbox', {
+    name: '입금 검색'
+  }).fill('202호');
+  await expect(page.getByRole('button', {
+    name: '편집',
+    exact: true
+  })).toBeVisible();
+  await page.getByRole('textbox', {
+    name: '입금 검색'
+  }).fill('');
+  await page.getByRole('button', {
+    name: '편집',
+    exact: true
+  }).click();
+  for (const name of ['김모아', '202호관리비']) await page.getByRole('row').filter({
+    hasText: name
+  }).getByRole('checkbox').check();
+  await page.getByRole('button', {
+    name: '선택 삭제',
+    exact: true
+  }).click();
+  await page.getByRole('dialog', {
+    name: '선택한 입금을 삭제할까요?'
+  }).getByRole('button', {
+    name: '삭제',
+    exact: true
+  }).click();
+  await expect(page.getByRole('row').filter({
+    hasText: '김모아'
+  })).toHaveCount(0);
+  await expect(page.getByRole('row').filter({
+    hasText: '202호관리비'
+  })).toHaveCount(0);
+  await expect(page.getByRole('row').filter({
+    hasText: '이홈'
+  })).toBeVisible();
+});
+
+test('모두 자동 확정한 과거월 파일은 가져온 월의 처리 완료 목록으로 이동', async ({ page }) => {
+  const ledger = storedLedger();
+  const payment = {
+    ...ledger.payments[0],
+    id: id('august-uploaded'),
+    date: '2026-08-20',
+    payer: '101호',
+    amount: '50000'
+  };
+  let saved = ledger;
+  await page.route(`http://localhost:8080/api/properties/${PROPERTY_ID}/payments/**`, async (route) => {
+    const endpoint = new URL(route.request().url()).pathname.split('/payments/')[1];
+    let body: unknown;
+    if (endpoint === 'workspace') body = {
+      ...saved,
+      propertyId: PROPERTY_ID
+    };
+    else if (endpoint === 'import/preview') body = {
+      propertyId: PROPERTY_ID,
+      rows: [payment],
+      duplicateCount: 0
+    };
+    else if (endpoint === 'import') { saved = {
+      ...saved,
+      payments: [{
+        ...payment,
+        status: 'CONFIRMED'
+      }, ...saved.payments]
+    };body = {
+      ...saved,
+      propertyId: PROPERTY_ID
+    }; }
+    else throw new Error(`Unexpected API: ${endpoint}`);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true'
+      },
+      body: JSON.stringify(body)
+    });
+  });
+  await page.goto(MATCHING);await page.getByRole('button', {
+    name: '통장 내역 가져오기',
+    exact: true
+  }).click();
+  await page.getByLabel('거래내역 파일', {
+    exact: true
+  }).setInputFiles({
+    name: 'august.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('입금일,입금자명,입금액\n2026-08-20,101호,50000')
+  });
+  await page.getByRole('button', {
+    name: '입금 거래 가져오기',
+    exact: true
+  }).click();
+  await expect(page.getByRole('button', {
+    name: '조회 월: 2026년 8월'
+  })).toBeVisible();
+  await expect(page.getByRole('row').filter({
+    hasText: '101호'
+  })).toContainText('확정');
+});
+
+
+for (const width of [1440, 390]) {
+  test(`${width}px 반영할 세대는 대표·가족 이름과 동호수로 검색하고 결과가 없으면 유지`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    const ledger = storedLedger();ledger.units[0].label = '102동 401호';
+    await page.route(`http://localhost:8080/api/properties/${PROPERTY_ID}/payments/workspace`, (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true'
+      },
+      body: JSON.stringify({
+        ...ledger,
+        propertyId: PROPERTY_ID
+      })
+    }));
+    await page.goto(MATCHING);await page.getByRole('row').filter({
+      hasText: '김모아'
+    }).click();
+    const editor = page.getByRole('region', {
+      name: '입금 처리 상세'
+    });
+    const search = editor.getByRole('combobox', {
+      name: '반영할 세대'
+    });
+    for (const query of ['김모아', '김가족', '102동401호', '102 401', '102-401']) {
+      await search.fill(query);
+      await expect(editor.getByRole('option')).toHaveText(['102동 401호']);
+    }
+    await search.fill('없는이름');await expect(editor.getByRole('option')).toHaveCount(0);
+    await search.fill('김가족');await editor.getByRole('option', {
+      name: '102동 401호',
+      exact: true
+    }).click();
+    await expect(search).toHaveValue('102동 401호');
+    await expect(editor.getByRole('button', {
+      name: '수납 확정',
+      exact: true
+    })).toBeEnabled();
+  });
+}
+
+
+for (const width of [1440, 390]) {
+  test(`${width}px 입금 동 필터는 검색 오른쪽에 있고 세대 후보는 기본 동호수 순서로 표시`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    const ledger = storedLedger();
+    const labels: Record<string,string> = {
+      '101': '103동 101호',
+      '202': '102동 402호',
+      '302': '102동 201호'
+    };
+    ledger.units = ledger.units.map((unit) => ({
+      ...unit,
+      label: Object.entries(labels).find(([key]) => unit.id === id(key))?.[1] ?? unit.label
+    }));
+    await page.route(`**/api/properties/${PROPERTY_ID}/payments/workspace`, (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true'
+      },
+      body: JSON.stringify({
+        ...ledger,
+        propertyId: PROPERTY_ID
+      })
+    }));
+    await page.goto(MATCHING);
+    const table = page.getByRole('table', {
+      name: '입금 거래'
+    });
+    await expect(table.getByRole('rowheader').locator('strong')).toHaveText(['박하나', '202호관리비', '김모아', '이홈']);
+    await expect(table.getByRole('columnheader', {
+      name: '세대 후보'
+    }).getByRole('button')).toHaveCount(0);
+    const search = page.getByRole('textbox', {
+      name: '입금 검색'
+    });
+    const filter = page.getByRole('combobox', {
+      name: '입금 세대 동 필터'
+    });
+    const searchBox = await search.boundingBox(), filterBox = await filter.boundingBox();
+    if (width > 767) expect(filterBox!.x).toBeGreaterThan(searchBox!.x + searchBox!.width);
+    else expect(filterBox!.y).toBeGreaterThan(searchBox!.y);
+    await filter.click();
+    await expect(page.getByRole('option')).toHaveText(['전체 동', '102동', '103동']);
+    await page.getByRole('option', {
+      name: '102동',
+      exact: true
+    }).click();
+    await expect(table.getByRole('rowheader').locator('strong')).toHaveText(['박하나', '202호관리비']);
+    await page.getByRole('button', {
+      name: '편집',
+      exact: true
+    }).click();
+    await table.getByRole('row').filter({
+      hasText: '박하나'
+    }).getByRole('checkbox').check();
+    await filter.click();await page.getByRole('option', {
+      name: '103동',
+      exact: true
+    }).click();
+    await expect(table.getByRole('rowheader').locator('strong')).toHaveText(['김모아']);
+    await expect(page.getByRole('button', {
+      name: '편집',
+      exact: true
+    })).toBeVisible();
+    await filter.click();await page.getByRole('option', {
+      name: '전체 동',
+      exact: true
+    }).click();
+    await expect(table.getByRole('rowheader')).toHaveCount(4);
+  });
+
+  test(`${width}px 월별 수납 상세는 현재 대표와 통장의 동호수 입금자명을 구분`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    const ledger = storedLedger();
+    ledger.payments = ledger.payments.map((payment) => payment.id === id('p1') ? {
+      ...payment,
+      payer: '102동401호'
+    } : payment);
+    await page.route(`**/api/properties/${PROPERTY_ID}/payments/workspace`, (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true'
+      },
+      body: JSON.stringify({
+        ...ledger,
+        propertyId: PROPERTY_ID
+      })
+    }));
+    await page.goto(`/manage/${PROPERTY_ID}/payments/monthly`);
+    const row = page.getByRole('table', {
+      name: '세대별 월별 수납 현황'
+    }).getByRole('row').filter({
+      hasText: '101호'
+    });
+    await expect(row).toContainText('김모아');await expect(row).toContainText('102동401호');await row.click();
+    const detail = width > 767 ? page.getByRole('dialog', {
+      name: '101호 수납 상세'
+    }) : page.getByRole('main');
+    await expect(detail.getByText('세대 대표', {
+      exact: true
+    })).toBeVisible();
+    await expect(detail.getByText('김모아', {
+      exact: true
+    })).toBeVisible();
+    await expect(detail.getByText('102동401호', {
+      exact: true
+    })).toBeVisible();
+    await expect(detail.getByRole('region', {
+      name: '누적 입금 내역'
+    })).toContainText('2026-09-20 · 102동401호');
+  });
+}
+
+for (const width of [1440, 390]) {
+  test(`${width}px 월별 수납은 검색 오른쪽 동 필터와 상태별 세대 수를 함께 적용`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    const ledger = storedLedger();
+    ledger.units = ledger.units.map((unit) => ({
+      ...unit,
+      buildingName: unit.id === id('302') ? '103동' : '102동',
+      label: `${unit.id === id('302') ? '103동' : '102동'} ${unit.label}`
+    }));
+    await page.route(`**/api/properties/${PROPERTY_ID}/payments/workspace`, (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true'
+      },
+      body: JSON.stringify({
+        ...ledger,
+        propertyId: PROPERTY_ID
+      })
+    }));
+    await page.goto(`/manage/${PROPERTY_ID}/payments/monthly`);
+    const tabs = page.getByRole('group', {
+      name: '수납 상태'
+    });
+    const filter = page.getByRole('combobox', {
+      name: '수납 현황 동 필터'
+    });
+    const search = page.getByRole('textbox', {
+      name: '수납 현황 세대 검색'
+    });
+    const table = page.getByRole('table', {
+      name: '세대별 월별 수납 현황'
+    });
+    await expect(tabs.getByRole('button')).toHaveText(['전체 (3)', '미납 (2)', '일부납부 (0)', '납부완료 (1)']);
+    const searchBox = await search.boundingBox(), filterBox = await filter.boundingBox();
+    if (width > 767) expect(filterBox!.x).toBeGreaterThan(searchBox!.x + searchBox!.width);
+    else expect(filterBox!.y).toBeGreaterThan(searchBox!.y);
+    await filter.click();await expect(page.getByRole('option')).toHaveText(['전체 동', '102동', '103동']);
+    await page.getByRole('option', {
+      name: '102동',
+      exact: true
+    }).click();
+    await expect(table.getByRole('rowheader')).toHaveText(['102동 101호', '102동 202호']);
+    await expect(tabs.getByRole('button')).toHaveText(['전체 (2)', '미납 (2)', '일부납부 (0)', '납부완료 (0)']);
+    await search.fill('김모아');await expect(table.getByRole('rowheader')).toHaveText(['102동 101호']);
+    await expect(tabs.getByRole('button')).toHaveText(['전체 (1)', '미납 (1)', '일부납부 (0)', '납부완료 (0)']);
+    await search.fill('없는 이름');await expect(tabs.getByRole('button')).toHaveText(['전체 (0)', '미납 (0)', '일부납부 (0)', '납부완료 (0)']);
+    await search.clear();await tabs.getByRole('button', {
+      name: '미납 (2)',
+      exact: true
+    }).click();
+    await filter.click();await page.getByRole('option', {
+      name: '103동',
+      exact: true
+    }).click();
+    await expect(table).toContainText('조건에 맞는 세대가 없습니다.');
+    await expect(tabs.getByRole('button')).toHaveText(['전체 (1)', '미납 (0)', '일부납부 (0)', '납부완료 (1)']);
+    await tabs.getByRole('button', {
+      name: '납부완료 (1)',
+      exact: true
+    }).click();
+    await expect(table.getByRole('rowheader')).toHaveText(['103동 302호']);
+    await filter.click();await page.getByRole('option', {
+      name: '전체 동',
+      exact: true
+    }).click();
+    await expect(tabs.getByRole('button')).toHaveText(['전체 (3)', '미납 (2)', '일부납부 (0)', '납부완료 (1)']);
+    await tabs.getByRole('button', {
+      name: '전체 (3)',
+      exact: true
+    }).click();
+    await expect(table.getByRole('rowheader')).toHaveCount(3);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await page.screenshot({
+      path: testInfo.outputPath(`monthly-building-counts-${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+  });
+}

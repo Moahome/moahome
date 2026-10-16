@@ -52,18 +52,6 @@ export function PaymentDetail({ paymentId, presentation = 'modal', onClose, onPr
         paymentId={paymentId}
         onProcessed={onProcessed}
       />
-      {presentation === 'page' && (
-        <footer
-          className={styles.footer}
-        >
-          <Button
-            variant={'outline'}
-            onClick={onClose}
-          >
-            목록
-          </Button>
-        </footer>
-      )}
     </>
   );
   if (presentation === 'page') return (

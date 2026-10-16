@@ -12,6 +12,13 @@
   &::backdrop {
     background: color-mix(in srgb, var(--foreground) 35%, transparent);
   }
+
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--card);
+  }
 }
 
 .page {
@@ -45,55 +52,198 @@
 
 .body {
   display: grid;
-  gap: 20px;
+  gap: 18px;
   padding: 24px;
+}
 
-  dl {
-    display: grid;
-    gap: 18px;
+.summary {
+  --summary-tone: var(--sub-text);
 
-    div {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      gap: 8px;
-      font-size: 14px;
-    }
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid color-mix(in srgb, var(--summary-tone) 22%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--summary-tone) 4%, var(--card));
 
-    dd {
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-    }
+  &[data-tone='danger'] {
+    --summary-tone: var(--danger);
   }
 
-  .total {
-    padding-top: 20px;
-    border-top: 1px solid var(--border);
-    font-size: 18px;
+  &[data-tone='warning'] {
+    --summary-tone: color-mix(in srgb, var(--warning) 70%, var(--foreground));
+  }
+
+  &[data-tone='success'] {
+    --summary-tone: var(--success-dark);
   }
 }
 
-.status {
+.summary-heading {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
-  font-size: 13px;
 
-  span {
+  p {
     color: var(--sub-text);
+    font-size: 13px;
+    font-weight: 600;
+  }
+}
+
+.summary-amount {
+  color: var(--summary-tone);
+  font-size: 36px;
+  font-weight: 750;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.summary-description {
+  color: var(--sub-text);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.due-date {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+  color: var(--sub-text);
+  font-size: 12px;
+
+  time {
+    color: var(--foreground);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.detail-section {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+
+  > div:first-child {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  h3 {
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  > h3 {
+    margin-bottom: 10px;
+  }
+
+  dl {
+    display: grid;
+
+    > div {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      line-height: 1.6;
+
+      &:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+      }
+    }
+
+    dt {
+      color: var(--sub-text);
+    }
+
+    dd {
+      margin-left: auto;
+      text-align: right;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+
+      &.applied-amount {
+        color: var(--success-dark);
+      }
+    }
+
+    .total {
+      margin-top: 10px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--background);
+      font-size: 16px;
+
+      &:last-child {
+        padding-bottom: 14px;
+      }
+
+      dt {
+        color: var(--foreground);
+        font-size: 13px;
+        font-weight: 700;
+      }
+    }
   }
 }
 
 .note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--background);
   color: var(--sub-text);
   font-size: 12px;
   line-height: 1.7;
+
+  > svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: var(--primary);
+  }
 }
 
-.footer {
-  display: flex;
-  justify-content: flex-end;
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
+@media (max-width: 767px) {
+  .header,
+  .body {
+    padding: 20px 16px;
+  }
+
+  .summary {
+    padding: 16px;
+  }
+
+  .summary-amount {
+    font-size: 30px;
+  }
+
+  .detail-section {
+    padding: 16px;
+
+    dl .total {
+      padding-inline: 10px;
+      font-size: 14px;
+    }
+  }
 }

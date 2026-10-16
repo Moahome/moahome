@@ -197,11 +197,6 @@
   gap: 16px;
 }
 
-.error {
-  color: var(--danger);
-  font-size: 13px;
-}
-
 .modal {
   margin: auto;
   width: min(460px, calc(100vw - 32px));
@@ -222,7 +217,7 @@
     font-weight: 700;
   }
 
-  p {
+  > p {
     margin: 12px 0;
     font-size: 13px;
     line-height: 1.7;
