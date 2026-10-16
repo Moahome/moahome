@@ -1,0 +1,31 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--sub-text) 9%, var(--card));
+  color: var(--sub-text);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+
+  &[data-tone='success'] {
+    color: var(--success-dark);
+    background: color-mix(in srgb, var(--success) 9%, var(--card));
+  }
+
+  &[data-tone='warning'] {
+    color: var(--foreground);
+    background: color-mix(in srgb, var(--warning) 16%, var(--card));
+  }
+
+  &[data-tone='danger'] {
+    color: var(--danger);
+    background: color-mix(in srgb, var(--danger) 9%, var(--card));
+  }
+
+  &[data-tone='teal'] {
+    color: var(--secondary-teal);
+    background: color-mix(in srgb, var(--secondary-teal) 9%, var(--card));
+  }
+}
