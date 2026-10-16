@@ -21,6 +21,7 @@ async function architectureMessages(filePath: string, code: string) {
 }
 
 test('그룹 안의 화면은 자기 공개 API로 연결하고 내부 참조는 같은 화면에 한정', async () => {
+  expect(await architectureMessages('src/app/example.ts', "export { PaymentMatchingPage } from '@/screens/payment/matching';")).toEqual([]);
   for (const target of ['@/screens/household/unit-list', '@/screens/household/unit-list/index']) {
     expect(await architectureMessages('src/app/example.ts', `export { UnitListPage } from '${target}';`)).toEqual([]);
   }
@@ -29,6 +30,8 @@ test('그룹 안의 화면은 자기 공개 API로 연결하고 내부 참조는
 });
 
 test('같은 업무 그룹의 형제 화면·그룹 통합 진입점·화면 내부 Import는 거부', async () => {
+  expect((await architectureMessages('src/screens/payment/monthly/ui/paymentMonthlyPage.tsx',
+    "export { PaymentMatchingPage } from '@/screens/payment/matching';")).map((message) => message.messageId)).toEqual(['sameLayer']);
   const sibling = await architectureMessages('src/screens/household/unit-detail/ui/unitDetailPage.tsx',
     "export { UnitListPage } from '@/screens/household/unit-list';");
   expect(sibling.map((message) => message.messageId)).toEqual(['sameLayer']);

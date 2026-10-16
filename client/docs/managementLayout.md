@@ -112,7 +112,7 @@ Widget 외부에는 `ManagementLayout`의 공개 API를 제공합니다. 페이�
 | 세대 관리 | 초대 관리 | `/invitations` |
 | 없음 | 관리비 부과 | `/billing/monthly` |
 | 입금 관리 | 입금 확인·매칭 | `/payments/matching` |
-| 입금 관리 | 미납 관리 | `/payments/arrears` |
+| 입금 관리 | 월별 수납 현황 | `/payments/monthly` |
 | 통장 거래 | 거래 내역 | `/banking/transactions` |
 | 통장 거래 | 엑셀 업로드 | `/banking/upload` |
 | 지출 관리 | 지출 내역 | `/expenses` |
@@ -230,3 +230,7 @@ PC와 모바일은 같은 `ManagementSidebar`, `SidebarDropdown`, `SidebarLink`�
 ### 부과 상세와 공실 제외 (2026-10-12)
 
 부과 기준은 [도메인 규칙](../../docs/domainRules.md#확정-정책-공실-제외와-상세-청구-삭제-2026-10-12)을 따릅니다. 2026-10-12 후속 요청에 따라 PC 상세 모달과 모바일 상세 페이지에서 `청구 삭제` 버튼과 확인창을 제거합니다. 당월·과거·예정 상세는 항목·합계 조회만 제공하며 모바일의 `목록`과 PC의 닫기 동작을 유지합니다. 동·세대 삭제와 공실 전환에 따른 부과 제외는 기존 자동 연동을 따릅니다.
+
+### 입금 관리 (2026-10-16)
+
+사용자가 제공한 HTML·화면 이미지를 기준으로 입금 확인·매칭과 월별 수납 현황을 기존 관리 화면에 연결했습니다. 실제 대표 주민·청구·수납은 인증된 입금 API에서 조회하며 상태 탭은 글씨 색과 밑줄만 강조합니다. 페이지 제목을 본문 맨 위 ListHeader에 두고 월·날짜 선택은 공통 CalendarPicker(MonthPicker 포함)로 통일합니다. PC 상세는 중앙 ClientModal의 우측 상단 X로 닫고 모바일 상세는 독립 경로를 사용합니다. 행동 버튼은 간격을 두고 오른쪽 정렬합니다. 상세 구현 범위와 서버 연결 범위와 후속 회계 처리는 [입금 관리 화면 시안](paymentManagement.md)을 참조합니다.

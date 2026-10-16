@@ -186,6 +186,8 @@ const result = await authenticatedAPI<{ count: number }>({
 
 ## 검증
 
+입금 관리의 `입금 확인·매칭`, `월별 수납 현황`은 실제 대표 주민·발행 청구·수납 API를 조회합니다. 수동 등록·엑셀 가져오기·확정·보류·취소·원본 연결의 화면·파일 지원 범위는 [입금 관리 화면과 서버 연결](docs/paymentManagement.md)을 참조합니다. [단독 HTML](docs/paymentPrototype.html)은 브라우저에서 열어 확인할 수 있습니다.
+
 ```bash
 npm run lint
 npx --no-install tsc --noEmit

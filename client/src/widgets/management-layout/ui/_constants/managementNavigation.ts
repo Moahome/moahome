@@ -68,13 +68,13 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
         id: 'matching',
         label: '입금 확인·매칭',
         path: 'payments/matching',
-        available: false
+        available: true
       },
       {
-        id: 'arrears',
-        label: '미납 관리',
-        path: 'payments/arrears',
-        available: false
+        id: 'monthly-payments',
+        label: '월별 수납 현황',
+        path: 'payments/monthly',
+        available: true
       },
     ]
   },
