@@ -35,7 +35,7 @@ export function getPaymentStatusLabel(payment: PreviewPayment): string {
 
 /** 입력값은 초안으로 유지하고 확정 순간의 최신 원장으로 다시 검증합니다. */
 export function PaymentEditor({ paymentId, onProcessed }: {
-  paymentId: string; onProcessed?: (id: string, status: PreviewPayment['status']) => void;
+  paymentId: string; onProcessed?: (id: string, status: PreviewPayment['status'], receiptType?: PreviewPayment['receiptType']) => void;
 }) {
   const { ledger, update, busy } = usePaymentWorkspace();
   const payment = ledger.payments.find((item) => item.id === paymentId)!;
@@ -46,6 +46,10 @@ export function PaymentEditor({ paymentId, onProcessed }: {
   const [error, setError] = useState<{ message: string; id: number } | null>(null);
   const [action, setAction] = useState<string | null>(null);
   const [reason, setReason] = useState('');
+  const [receiptType, setReceiptType] = useState<'HOUSEHOLD' | 'OTHER'>(payment.receiptType ?? 'HOUSEHOLD');
+  const [category, setCategory] = useState(payment.incomeCategory ?? '');
+  const [note, setNote] = useState(payment.incomeNote ?? '');
+  const otherIncome = receiptType === 'OTHER';
   const pending = payment.status === 'PENDING';
   const unitId = pending ? draft.unitId : payment.unitId;
   const totals = getCumulativePreviewBalance(ledger, unitId, pending && unitId ? payment.amount : '0');
@@ -55,7 +59,15 @@ export function PaymentEditor({ paymentId, onProcessed }: {
   /** 보류·삭제·원본 연결도 별도 확인창에서 검토하며 실패하면 현재 초안을 보존합니다. */
   async function performAction() {
     let failure: string | null = null;
-    if (action === 'confirm') failure = await update({
+    if (action === 'other-income') failure = await update({
+      type: 'other-income',
+      id: paymentId,
+      data: {
+        category: category.trim(),
+        note: note.trim()
+      }
+    }, '기타 입금으로 확정했어요.');
+    else if (action === 'confirm') failure = await update({
       type: 'confirm',
       id: paymentId,
       data: draft
@@ -66,7 +78,7 @@ export function PaymentEditor({ paymentId, onProcessed }: {
       data: {
         reason
       }
-    }, '납부를 취소했어요.');
+    }, otherIncome ? '기타 입금 확정을 취소했어요.' : '납부를 취소했어요.');
     else if (action === 'hold') failure = await update({
       type: 'hold',
       id: paymentId,
@@ -87,7 +99,7 @@ export function PaymentEditor({ paymentId, onProcessed }: {
     })); return; }
     setError(null);
     setAction(null);
-    if (action === 'confirm') onProcessed?.(paymentId, 'CONFIRMED');
+    if (action === 'confirm' || action === 'other-income') onProcessed?.(paymentId, 'CONFIRMED', receiptType);
     if (action === 'cancel') onProcessed?.(paymentId, 'CANCELED');
     if (action === 'hold') onProcessed?.(paymentId, 'ON_HOLD');
     if (action?.startsWith('link:')) onProcessed?.(action.slice(5), 'CONFIRMED');
@@ -161,6 +173,14 @@ export function PaymentEditor({ paymentId, onProcessed }: {
               {payment.bankTransactionId ? '연결됨' : '미연결'}
             </dd>
           </div>
+          {payment.memo && <div>
+            <dt>
+              은행 메모
+            </dt>
+            <dd>
+              {payment.memo}
+            </dd>
+          </div>}
         </dl>
         {linkedBank && (
           <p>
@@ -190,7 +210,74 @@ export function PaymentEditor({ paymentId, onProcessed }: {
           </p>
         )}
       </section>
-      {pending ? (
+      {pending && payment.source === 'BANK_IMPORT' && (
+        <SelectDropdown
+          label={'입금 분류'}
+          value={receiptType}
+          onChange={(value) => { setReceiptType(value as 'HOUSEHOLD' | 'OTHER'); setError(null); }}
+          options={[{
+            value: 'HOUSEHOLD',
+            label: '세대 납부'
+          }, {
+            value: 'OTHER',
+            label: '기타 입금'
+          }]}
+        />
+      )}
+      {otherIncome ? (
+        <section
+          className={styles['other-income']}
+          aria-label={'기타 입금 분류'}
+        >
+          <h3>
+            기타 입금
+          </h3>
+          {pending ? <>
+            <Input
+              label={'입금 항목'}
+              value={category}
+              maxLength={100}
+              required
+              placeholder={'예: 전기료, 예금이자'}
+              onChange={(event) => setCategory(event.target.value)}
+            />
+            <Input
+              label={'메모'}
+              value={note}
+              maxLength={500}
+              placeholder={'입금 목적이나 확인한 내용을 남겨주세요'}
+              onChange={(event) => setNote(event.target.value)}
+            />
+          </> : <>
+            <div
+              className={styles['income-row']}
+            >
+              <span>
+                입금 항목
+              </span>
+              <strong>
+                {payment.incomeCategory}
+              </strong>
+            </div>
+            <div
+              className={styles['income-row']}
+            >
+              <span>
+                메모
+              </span>
+              <span>
+                {payment.incomeNote || '—'}
+              </span>
+            </div>
+          </>}
+          <p>
+            세대 관리비 납부액·미납액·선입금에 포함하지 않고 별도로 관리합니다.
+          </p>
+          {pending && candidates.length > 0 && <p>
+            같은 수동 수납이 있습니다. 세대 납부에서 기존 수납 연결 여부를 먼저 확인해주세요.
+          </p>}
+        </section>
+      ) : pending ? (
         <SelectDropdown
           label={'반영할 세대'}
           placeholder={'이름 또는 동·호수로 검색'}
@@ -208,7 +295,7 @@ export function PaymentEditor({ paymentId, onProcessed }: {
             {ledger.units.find((unit) => unit.id === unitId)?.label ?? '세대 미지정'}
           </p>
         )}
-      {candidates.length > 0 && (
+      {!otherIncome && candidates.length > 0 && (
         <section
           className={styles.duplicate}
           aria-label={'기존 수동 수납 후보'}
@@ -260,72 +347,74 @@ export function PaymentEditor({ paymentId, onProcessed }: {
           />
         </section>
       )}
-      <section
-        className={styles.summary}
-        aria-label={'누적 수납 미리보기'}
-        aria-live={'polite'}
-      >
-        <h3>
-          세대 누적 수납
-        </h3>
-        <div>
-          <span>
-            누적 부과액
-          </span>
-          <strong>
-            {formatWon(totals.billed)}
-          </strong>
-        </div>
-        <div>
-          <span>
-            기존 누적 입금액
-          </span>
-          <strong>
-            {formatWon(totals.received)}
-          </strong>
-        </div>
-        {pending && <div>
-          <span>
-            이번 입금액
-          </span>
-          <strong>
-            {formatWon(payment.amount)}
-          </strong>
-        </div>}
-        <div>
-          <span>
-            {pending ? '반영 후 세대 미납' : '세대 미납'}
-          </span>
-          <strong>
-            {formatWon(totals.balance)}
-          </strong>
-        </div>
-        <div
-          className={styles.emphasis}
+      {!otherIncome && (
+        <section
+          className={styles.summary}
+          aria-label={'누적 수납 미리보기'}
+          aria-live={'polite'}
         >
-          <span>
-            선입금 잔액
-          </span>
-          <strong>
-            {formatWon(totals.prepaid)}
-          </strong>
-        </div>
-        <p>
-          입금 전액을 세대에 누적합니다. 미납이 없으면 선입금으로 보관하고 다음 관리비에 반영합니다.
-        </p>
-        {payment.status === 'CANCELED' && <p>
-          취소된 입금은 누적 수납액에 포함되지 않습니다.
-        </p>}
-      </section>
+          <h3>
+            세대 누적 수납
+          </h3>
+          <div>
+            <span>
+              누적 부과액
+            </span>
+            <strong>
+              {formatWon(totals.billed)}
+            </strong>
+          </div>
+          <div>
+            <span>
+              기존 누적 입금액
+            </span>
+            <strong>
+              {formatWon(totals.received)}
+            </strong>
+          </div>
+          {pending && <div>
+            <span>
+              이번 입금액
+            </span>
+            <strong>
+              {formatWon(payment.amount)}
+            </strong>
+          </div>}
+          <div>
+            <span>
+              {pending ? '반영 후 세대 미납' : '세대 미납'}
+            </span>
+            <strong>
+              {formatWon(totals.balance)}
+            </strong>
+          </div>
+          <div
+            className={styles.emphasis}
+          >
+            <span>
+              선입금 잔액
+            </span>
+            <strong>
+              {formatWon(totals.prepaid)}
+            </strong>
+          </div>
+          <p>
+            입금 전액을 세대에 누적합니다. 미납이 없으면 선입금으로 보관하고 다음 관리비에 반영합니다.
+          </p>
+          {payment.status === 'CANCELED' && <p>
+            취소된 입금은 누적 수납액에 포함되지 않습니다.
+          </p>}
+        </section>
+      )}
       <div
         className={styles.actions}
       >
         {pending && (
           <Button
-            disabled={busy || !unitId || (candidates.length > 0 && !draft.separateReason?.trim())}
-            onClick={() => openAction('confirm')}
+            disabled={busy || (otherIncome ? !category.trim() || candidates.length > 0 : !unitId || (candidates.length > 0 && !draft.separateReason?.trim()))}
+            onClick={() => openAction(otherIncome ? 'other-income' : 'confirm')}
           >
-            수납 확정
+            {otherIncome ? '기타 입금 확정' : '수납 확정'}
           </Button>
         )}
         {pending && payment.source === 'BANK_IMPORT' && (
@@ -356,7 +445,7 @@ export function PaymentEditor({ paymentId, onProcessed }: {
             disabled={busy}
             onClick={() => openAction('cancel')}
           >
-            납부 취소
+            {otherIncome ? '확정 취소' : '납부 취소'}
           </Button>
         )}
 
@@ -374,7 +463,7 @@ export function PaymentEditor({ paymentId, onProcessed }: {
             <h2
               id={'payment-action-title'}
             >
-              {action === 'confirm' ? '이 내용으로 반영할까요?' : action === 'cancel' ? '납부를 취소할까요?' : action === 'hold' ? '입금을 보류할까요?' : '기존 수납에 연결할까요?'}
+              {action === 'other-income' ? '기타 입금으로 확정할까요?' : action === 'confirm' ? '이 내용으로 반영할까요?' : action === 'cancel' ? (otherIncome ? '기타 입금 확정을 취소할까요?' : '납부를 취소할까요?') : action === 'hold' ? '입금을 보류할까요?' : '기존 수납에 연결할까요?'}
             </h2>
             <Button
               variant={'ghost'}
@@ -407,13 +496,18 @@ export function PaymentEditor({ paymentId, onProcessed }: {
               에 입금 전액을 누적 반영합니다. 남는 금액은 선입금으로 보관합니다.
             </p>
           )}
+          {action === 'other-income' && <p>
+            {category.trim()}
+            {' '}
+            항목으로 기록합니다. 세대 납부에는 반영하지 않습니다.
+          </p>}
           {action?.startsWith('link:') && (
             <p>
               은행 원본을 기존 수납에 연결합니다. 수납액과 월별 반영액은 늘어나지 않습니다.
             </p>
           )}
           {action === 'cancel' && <p>
-            확정한 납부를 취소합니다. 수납 금액은 누적 합계에서 빠지고 은행 입금은 확인 필요로 돌아갑니다.
+            {otherIncome ? '기타 입금 합계에서 제외하고 은행 입금은 확인 필요로 돌아갑니다. 기존 분류는 취소 이력에 남습니다.' : '확정한 납부를 취소합니다. 수납 금액은 누적 합계에서 빠지고 은행 입금은 확인 필요로 돌아갑니다.'}
           </p>}
           {(action === 'hold' || action === 'cancel') && (
             <Input
@@ -439,7 +533,7 @@ export function PaymentEditor({ paymentId, onProcessed }: {
               tone={action === 'cancel' ? 'danger' : undefined}
               onClick={performAction}
             >
-              {action === 'cancel' ? '납부 취소' : '확인'}
+              {action === 'cancel' ? (otherIncome ? '확정 취소' : '납부 취소') : '확인'}
             </Button>
           </div>
         </ClientModal>

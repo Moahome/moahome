@@ -10,6 +10,7 @@ import {
 export type PaymentCommand =
   | { type: 'manual'; data: { id: string; unitId: string; date: string; amount: string } }
   | { type: 'confirm'; id: string; data: CumulativePaymentDraft }
+  | { type: 'other-income'; id: string; data: { category: string; note: string } }
   | { type: 'hold' | 'cancel'; id: string; data: { reason: string } }
   | { type: 'confirm-matches' }
   | { type: 'delete'; id: string }
@@ -34,6 +35,10 @@ function readLedger(value: PreviewLedger & { propertyId: string }, propertyId: s
     || !Array.isArray(value.payments) || !value.payments.every((p) => UUID.test(p.id) && UUID.test(p.accountId) && (p.unitId === '' || UUID.test(p.unitId))
       && typeof p.payer === 'string' && typeof p.amount === 'string' && /^[0-9]{1,15}$/.test(p.amount) && BigInt(p.amount) > BigInt(0)
       && isPreviewDate(p.date) && ['MANUAL', 'BANK_IMPORT'].includes(p.source) && STATES.includes(p.status)
+      && (p.receiptType === undefined || ['HOUSEHOLD', 'OTHER'].includes(p.receiptType))
+      && (p.receiptType !== 'OTHER' || (p.source === 'BANK_IMPORT' && ['CONFIRMED', 'CANCELED'].includes(p.status)
+        && p.unitId === '' && p.allocations?.length === 0 && typeof p.incomeCategory === 'string' && Boolean(p.incomeCategory.trim())))
+      && (p.incomeNote === undefined || p.incomeNote === null || typeof p.incomeNote === 'string')
       && Array.isArray(p.allocations) && p.allocations.every((a) => UUID.test(a.chargeId) && /^[0-9]{1,15}$/.test(a.amount)))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '입금 응답을 확인할 수 없습니다.');
   }
@@ -104,6 +109,7 @@ export function paymentError(error: unknown): string {
     PAYMENT_DELETE_NOT_ALLOWED: '납부 기록이 있는 입금은 삭제할 수 없어요. 납부 취소를 사용해주세요.',
     PAYMENT_NOT_FOUND: '입금 내역을 찾을 수 없어요.',
     INVALID_AMOUNT: '금액은 1~999,999,999,999,999원으로 입력해주세요.',
+    INVALID_INCOME_CATEGORY: '입금 항목은 100자 이내, 메모는 500자 이내로 입력해주세요.',
     INVALID_PAYMENT_DATE: '입금일은 오늘까지의 실제 날짜로 입력해주세요.',
     INVALID_BANK_FILE: '.xls·.xlsx 또는 UTF-8 CSV 파일을 확인해주세요. 최대 5MB이며 수식은 지원하지 않아요.',
     INVALID_BANK_HEADER: '앞부분의 거래일·입금액·입금자명 열을 확인해주세요. 입출금 양식은 적요 열도 사용할 수 있어요.',

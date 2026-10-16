@@ -217,7 +217,34 @@ test.beforeEach(async ({ page }) => {
           payments: ledger.payments.filter((payment) => payment.id !== paymentId)
         };
         else if(action==='confirm') ledger=confirmCumulativePreviewPayment(ledger,paymentId,input);
-        else if(action==='cancel') ledger=cancelPreviewPayment(ledger,paymentId,input.reason);
+        else if(action==='other-income') ledger={
+          ...ledger,
+          payments: ledger.payments.map((payment)=>payment.id===paymentId ? {
+            ...payment,
+            status:'CONFIRMED',
+            receiptType:'OTHER',
+            unitId:'',
+            allocations:[],
+            incomeCategory:input.category,
+            incomeNote:input.note
+          } : payment)
+        };
+        else if(action==='cancel') {
+          const original=ledger.payments.find((payment)=>payment.id===paymentId)!;
+          ledger=cancelPreviewPayment(ledger,paymentId,input.reason);
+          if(original.receiptType==='OTHER') ledger={
+            ...ledger,
+            payments:[...ledger.payments,{
+              ...original,
+              id:id(`${original.id}-review`),
+              status:'PENDING',
+              receiptType:'HOUSEHOLD',
+              incomeCategory:null,
+              incomeNote:null,
+              allocations:[]
+            }]
+          };
+        }
         else if(action==='hold') ledger=holdPreviewPayment(ledger,paymentId,input.reason);
         else if(action==='resume') ledger=resumePreviewPayment(ledger,paymentId);
         else if(action==='link') ledger=linkPreviewPayment(ledger,paymentId,input.paymentId);
@@ -2101,5 +2128,141 @@ for (const width of [1440, 390]) {
       fullPage: true,
       animations: 'disabled'
     });
+  });
+}
+
+for (const width of [1440, 390, 320]) {
+  test(`${width}px 기타 입금은 항목·메모로 확정하고 별도 합계·검색·취소 이력을 제공`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    await page.goto(MATCHING);
+    const initialTotal = await page.getByRole('article', {
+      name: /기간 내 수납 확정액/
+    }).getAttribute('aria-label');
+    await page.getByRole('row').filter({
+      hasText: '이홈'
+    }).click();
+    const editor = page.getByRole('region', {
+      name: '입금 처리 상세'
+    });
+    await editor.getByRole('combobox', {
+      name: '입금 분류'
+    }).click();
+    await editor.getByRole('option', {
+      name: '기타 입금',
+      exact: true
+    }).click();
+    await expect(editor.getByRole('combobox', {
+      name: '반영할 세대'
+    })).toHaveCount(0);
+    await expect(editor.getByRole('region', {
+      name: '누적 수납 미리보기'
+    })).toHaveCount(0);
+    await expect(editor.getByRole('button', {
+      name: '기타 입금 확정',
+      exact: true
+    })).toBeDisabled();
+    await editor.getByRole('textbox', {
+      name: '입금 항목'
+    }).fill('전기료');
+    await editor.getByRole('textbox', {
+      name: '메모',
+      exact: true
+    }).fill('외부 사용분');
+    await editor.getByRole('button', {
+      name: '기타 입금 확정',
+      exact: true
+    }).click();
+    await page.getByRole('dialog', {
+      name: '기타 입금으로 확정할까요?'
+    }).getByRole('button', {
+      name: '확인',
+      exact: true
+    }).click();
+    await expect(editor).toContainText('외부 사용분');
+    await expect(editor.getByRole('button', {
+      name: '납부 취소',
+      exact: true
+    })).toHaveCount(0);
+    if (width >= 768) await page.getByRole('button', {
+      name: '입금 상세 닫기'
+    }).click();
+    else {
+      await expect(editor.getByRole('button', {
+        name: /목록/
+      })).toHaveCount(0);
+      await page.getByRole('banner').getByRole('link', {
+        name: '입금 확인·매칭으로 돌아가기'
+      }).click();
+    }
+    await page.getByRole('button', {
+      name: '기타 입금 (1)',
+      exact: true
+    }).click();
+    await expect(page.getByRole('article', {
+      name: '기간 내 기타 입금 확정액 70,000원'
+    })).toBeVisible();
+    await expect(page.getByRole('table', {
+      name: '입금 거래'
+    }).getByRole('rowheader')).toHaveText(['이홈엑셀']);
+    await expect(page.getByRole('table', {
+      name: '입금 거래'
+    })).toContainText('전기료');
+    await page.getByRole('textbox', {
+      name: '입금 검색'
+    }).fill('외부 사용분');
+    await expect(page.getByRole('table', {
+      name: '입금 거래'
+    })).toContainText('이홈');
+    await page.screenshot({
+      path: testInfo.outputPath(`otherIncome${width}.png`),
+      fullPage: true
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.getByRole('row').filter({
+      hasText: '이홈'
+    }).click();
+    await editor.getByRole('button', {
+      name: '확정 취소',
+      exact: true
+    }).click();
+    const cancel = page.getByRole('dialog', {
+      name: '기타 입금 확정을 취소할까요?'
+    });
+    await cancel.getByRole('textbox', {
+      name: '취소 사유'
+    }).fill('분류 정정');
+    await cancel.getByRole('button', {
+      name: '확정 취소',
+      exact: true
+    }).click();
+    await expect(editor).toContainText('분류 정정');
+    if (width >= 768) await page.getByRole('button', {
+      name: '입금 상세 닫기'
+    }).click();
+    else await page.getByRole('banner').getByRole('link', {
+      name: '입금 확인·매칭으로 돌아가기'
+    }).click();
+    await page.getByRole('textbox', {
+      name: '입금 검색'
+    }).fill('');
+    await page.getByRole('button', {
+      name: '기타 입금 (0)',
+      exact: true
+    }).click();
+    await expect(page.getByRole('article', {
+      name: '기간 내 기타 입금 확정액 0원'
+    })).toBeVisible();
+    await page.getByRole('button', {
+      name: /^확인 필요/
+    }).click();
+    await expect(page.getByRole('row').filter({
+      hasText: '이홈'
+    })).toHaveCount(1);
+    await expect(page.getByRole('article', {
+      name: /기간 내 수납 확정액/
+    })).toHaveAttribute('aria-label', initialTotal!);
   });
 }

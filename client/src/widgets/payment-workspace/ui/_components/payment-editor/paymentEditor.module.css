@@ -87,6 +87,26 @@
   font-weight: 700;
 }
 
+.other-income {
+  display: grid;
+  gap: 14px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+
+  .income-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  > p {
+    color: var(--sub-text);
+    font-size: 12px;
+    line-height: 1.7;
+  }
+}
+
 .duplicate {
   display: grid;
   gap: 12px;

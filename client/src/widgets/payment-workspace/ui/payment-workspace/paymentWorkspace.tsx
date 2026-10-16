@@ -67,10 +67,21 @@ const PAYMENT_TABS = [
     label: '처리 완료'
   },
   {
+    id: 'OTHER',
+    label: '기타 입금'
+  },
+  {
     id: 'CANCELED',
     label: '취소 이력'
   }
 ] as const;
+
+/** 기타 입금의 확정은 별도 탭에 표시하며 취소 이력은 두 종류 모두 보존합니다. */
+function matchesPaymentTab(payment: PreviewPayment, tab: string) {
+  if (tab === 'OTHER') return payment.status === 'CONFIRMED' && payment.receiptType === 'OTHER';
+  if (tab === 'CONFIRMED') return payment.status === 'CONFIRMED' && payment.receiptType !== 'OTHER';
+  return payment.status === tab;
+}
 
 /** 첨부 시안의 전체 너비 거래 표와 주요 행동을 기존 관리 화면의 공통 UI로 구성합니다. */
 export function PaymentWorkspace({ propertyId, view }: {
@@ -81,7 +92,7 @@ export function PaymentWorkspace({ propertyId, view }: {
   const { ledger, update, month, setMonth, busy } = usePaymentWorkspace();
   const [query, setQuery] = useState('');
   const [building, setBuilding] = useState('');
-  const [tab, setTab] = useState<PreviewPayment['status']>('PENDING');
+  const [tab, setTab] = useState<PreviewPayment['status'] | 'OTHER'>('PENDING');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -103,11 +114,11 @@ export function PaymentWorkspace({ propertyId, view }: {
     const unit = unitById.get(payment.unitId);
 
     return payment.status !== 'LINKED' && payment.date.startsWith(month)
-      && (!building || (unit && getPreviewBuildingName(unit) === building))
-      && `${payment.payer} ${unit?.label ?? ''} ${unit?.representativeName ?? ''} ${payment.amount} ${payment.memo ?? ''}`.includes(query.trim());
+      && (payment.receiptType === 'OTHER' || !building || (unit && getPreviewBuildingName(unit) === building))
+      && `${payment.payer} ${unit?.label ?? ''} ${unit?.representativeName ?? ''} ${payment.amount} ${payment.memo ?? ''} ${payment.incomeCategory ?? ''} ${payment.incomeNote ?? ''}`.includes(query.trim());
   });
   // 후보가 없는 거래는 끝에 두고 실제 동·호수를 숫자 순서로 정렬합니다.
-  const matches = filtered.filter((payment) => payment.status === tab).sort((left, right) => {
+  const matches = filtered.filter((payment) => matchesPaymentTab(payment, tab)).sort((left, right) => {
     const leftUnit = unitById.get(left.unitId);
     const rightUnit = unitById.get(right.unitId);
     if (!leftUnit || !rightUnit) return Number(Boolean(rightUnit)) - Number(Boolean(leftUnit)) || right.date.localeCompare(left.date);
@@ -153,8 +164,10 @@ export function PaymentWorkspace({ propertyId, view }: {
   }
 
   const detail = ledger.payments.find((payment) => payment.id === detailId);
-  const confirmed = filtered.filter((payment) => payment.status === 'CONFIRMED');
+  const confirmed = filtered.filter((payment) => payment.status === 'CONFIRMED' && payment.receiptType !== 'OTHER');
   const total = confirmed.reduce((sum, payment) => sum + BigInt(payment.amount), BigInt(0));
+  const otherReceipts = filtered.filter((payment) => matchesPaymentTab(payment, 'OTHER'));
+  const otherTotal = otherReceipts.reduce((sum, payment) => sum + BigInt(payment.amount), BigInt(0));
   const unallocated = confirmed.reduce((sum, payment) => sum + BigInt(payment.amount)
     - payment.allocations.reduce((allocated, allocation) => allocated + BigInt(allocation.amount), BigInt(0)), BigInt(0));
 
@@ -167,9 +180,9 @@ export function PaymentWorkspace({ propertyId, view }: {
     setDetailId(id);
   }
 
-  function processed(id: string, status: PreviewPayment['status']) {
+  function processed(id: string, status: PreviewPayment['status'], receiptType?: PreviewPayment['receiptType']) {
     setDetailId(id);
-    setTab(status);
+    setTab(status === 'CONFIRMED' && receiptType === 'OTHER' ? 'OTHER' : status);
     setPage(1);
   }
 
@@ -263,7 +276,7 @@ export function PaymentWorkspace({ propertyId, view }: {
       <p
         className={styles.notice}
       >
-        명단의 이름·동호수와 일치하는 입금은 자동 확정하며, 세대별 누적 입금액과 선입금을 관리합니다.
+        {tab === 'OTHER' ? '세대 외 입금을 항목별로 관리합니다. 세대 관리비 납부액과 선입금에는 포함되지 않습니다.' : '명단의 이름·동호수와 일치하는 입금은 자동 확정하며, 세대별 누적 입금액과 선입금을 관리합니다.'}
       </p>
       {view === 'monthly' ? (
         <MonthlyCollection
@@ -307,8 +320,8 @@ export function PaymentWorkspace({ propertyId, view }: {
               />
               <SummaryCard
                 density={'compact'}
-                label={'기간 내 수납 확정액'}
-                value={formatInteger(total)}
+                label={tab === 'OTHER' ? '기간 내 기타 입금 확정액' : '기간 내 수납 확정액'}
+                value={formatInteger(tab === 'OTHER' ? otherTotal : total)}
                 unit={'원'}
                 tone={'success'}
                 icon={(
@@ -319,9 +332,9 @@ export function PaymentWorkspace({ propertyId, view }: {
               />
               <SummaryCard
                 density={'compact'}
-                label={'선입금 잔액'}
-                value={formatInteger(unallocated)}
-                unit={'원'}
+                label={tab === 'OTHER' ? '기타 입금 건수' : '선입금 잔액'}
+                value={formatInteger(tab === 'OTHER' ? otherReceipts.length : unallocated)}
+                unit={tab === 'OTHER' ? '건' : '원'}
                 tone={'danger'}
                 icon={(
                   <ServiceIcon
@@ -339,7 +352,7 @@ export function PaymentWorkspace({ propertyId, view }: {
                 items={PAYMENT_TABS.map((item) => ({
                   value: item.id,
                   label: item.label,
-                  count: filtered.filter((payment) => payment.status === item.id).length
+                  count: filtered.filter((payment) => matchesPaymentTab(payment, item.id)).length
                 }))}
                 value={tab}
                 onChange={(value) => {
@@ -360,7 +373,7 @@ export function PaymentWorkspace({ propertyId, view }: {
                 />
                 <Input
                   aria-label={'입금 검색'}
-                  placeholder={'입금자명, 세대, 금액, 적요로 검색하세요'}
+                  placeholder={'입금자명, 세대, 금액, 항목, 메모로 검색하세요'}
                   leadingIcon={(
                     <ServiceIcon
                       name={'search'}
@@ -374,6 +387,7 @@ export function PaymentWorkspace({ propertyId, view }: {
                 />
                 <Dropdown
                   aria-label={'입금 세대 동 필터'}
+                  disabled={tab === 'OTHER'}
                   value={building}
                   options={[
                     {
@@ -505,8 +519,9 @@ export function PaymentWorkspace({ propertyId, view }: {
                   },
                   {
                     key: 'unit',
-                    header: '세대 후보',
+                    header: tab === 'OTHER' ? '입금 항목' : '세대 후보',
                     render: (payment) => {
+                      if (payment.receiptType === 'OTHER') return payment.incomeCategory;
                       const units = payment.status === 'PENDING' || payment.status === 'ON_HOLD' ? selectableUnits : ledger.units;
                       const unit = units.find((item) => item.id === payment.unitId);
 

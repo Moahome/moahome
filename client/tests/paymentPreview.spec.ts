@@ -424,3 +424,28 @@ test('8~10월 매달 5만 원을 납부하면 완납이며 누락된 수납과 �
     status: '일부납부'
   });
 });
+
+test('기타 입금은 세대 누적 잔액·월별 수납·청구 배분 합계에서 제외', () => {
+  const ledger = createPaymentSample();
+  const unitId = ledger.units[0].id;
+  const baseline = getMonthlyPreviewRows(ledger, '2026-10');
+  const balance = getCumulativePreviewBalance(ledger, unitId);
+  const outstanding = getPreviewOutstanding(ledger, ledger.charges[0]);
+  // 잘못된 참조가 섞인 테스트 입력에서도 OTHER를 세대 수납으로 합산하지 않습니다. 실제 API는 이 응답을 거부합니다.
+  ledger.payments.push({
+    ...ledger.payments[0],
+    id: 'other-income',
+    status: 'CONFIRMED',
+    receiptType: 'OTHER',
+    unitId,
+    amount: '999999',
+    incomeCategory: '예금이자',
+    allocations: [{
+      chargeId: ledger.charges[0].id,
+      amount: '1000'
+    }]
+  });
+  expect(getMonthlyPreviewRows(ledger, '2026-10')).toEqual(baseline);
+  expect(getCumulativePreviewBalance(ledger, unitId)).toEqual(balance);
+  expect(getPreviewOutstanding(ledger, ledger.charges[0])).toEqual(outstanding);
+});

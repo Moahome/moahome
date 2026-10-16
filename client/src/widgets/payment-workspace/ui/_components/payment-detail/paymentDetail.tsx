@@ -13,7 +13,7 @@ export function PaymentDetail({ paymentId, presentation = 'modal', onClose, onPr
   paymentId: string;
   presentation?: 'modal' | 'page';
   onClose: () => void;
-  onProcessed: (id: string, status: PreviewPayment['status']) => void;
+  onProcessed: (id: string, status: PreviewPayment['status'], receiptType?: PreviewPayment['receiptType']) => void;
 }) {
   const { busy } = usePaymentWorkspace();
   const Title = presentation === 'page' ? 'h1' : 'h2';
