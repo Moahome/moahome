@@ -119,3 +119,5 @@
 ## Client 설계 참조
 
 메뉴 계층과 화면 폴더, 표·카드·필터, 상세·수정·삭제의 진입점과 구조 검증은 [Client 세대 목록 설계](../client/docs/unitList.md)에서 관리합니다. 초기 등록의 초안 처리와 기존 모달 재사용 기준은 [Client 등록 설계](../client/docs/propertyRegistration.md)를 참조합니다. API가 제공하는 삭제 기능은 화면의 행 삭제 버튼을 요구하지 않습니다.
+
+수납이 반영된 당월 청구의 제외·삭제는 `BILLING_CHARGE_HAS_PAYMENTS`(409)로 보호합니다. 관련 수납 정리는 [입금 API](paymentApi.md)를 따릅니다.

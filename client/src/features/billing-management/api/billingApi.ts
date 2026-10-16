@@ -85,6 +85,7 @@ export function getBillingError(error: unknown): string {
   if (!(error instanceof ApiError)) return '관리비 정보를 처리하지 못했어요. 다시 시도해주세요.';
   if (error.code === 'BILLING_SETTINGS_CONFLICT') return '다른 변경이 반영되었거나 적용월이 바뀌었어요. 최신 설정을 다시 확인해주세요.';
   if (error.code === 'BILLING_SETTINGS_NOT_FOUND') return '등록된 관리비 설정을 찾을 수 없어요.';
+  if (error.code === 'BILLING_CHARGE_HAS_PAYMENTS') return '수납이 반영된 관리비가 있어요. 관련 수납을 먼저 취소해주세요.';
   if (error.code === 'BILLING_CHARGE_NOT_FOUND') return '해당 월의 세대 청구 내역이 없어요.';
   if (error.code === 'INVALID_REQUEST') return '항목·금액·수정 사유를 확인해주세요.';
   if (error.status === 401) return '로그인이 만료되었어요. 다시 로그인해주세요.';

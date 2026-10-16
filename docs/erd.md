@@ -917,7 +917,7 @@ FOREIGN KEY(property_id, unit_id) REFERENCES units(property_id, id)
 
 ### 납부상태
 
-납부 상태 API와 계산은 이번 범위에서 구현하지 않습니다. 향후 수납 배분으로 계산하며 0원·음수의 납부·환급 정책은 별도 결정합니다.
+관리비 API의 청구 금액 스냅샷은 유지합니다. 입금 관리에서는 실제 수납 배분으로 양수 청구의 납부·미수금을 계산합니다. 0원·음수 부과의 정산·환급 정책은 별도 결정하며 초과 납부의 선입금과 구분합니다.
 
 ---
 
@@ -951,70 +951,63 @@ FOREIGN KEY(property_id, unit_id) REFERENCES units(property_id, id)
 
 ## 8.1 payments
 
-### 목적
-
-관리비로 인정한 입금.
-
-은행거래 또는 수동 등록에서 생성.
-
-### 컬럼
+2026-10-16 구현. 실제 Migration은 `V20261015231910__create_payment_workspace.sql`이며 동작·상태·오류 계약은 [입금 API](paymentApi.md)를 따릅니다. 확인 필요 초안과 확정 수납을 구분하며 확정·취소는 원본을 삭제하지 않습니다.
 
 | 컬럼 | 타입 | Null | 설명 |
-|---|---|---:|---|
-| `id` | uuid | N | PK |
-| `property_id` | uuid | N | FK |
-| `bank_transaction_id` | uuid | Y | 연결 은행거래 |
-| `matched_unit_id` | uuid | Y | 대표 매칭 세대 |
-| `payer_resident_id` | uuid | Y | 납부자 주민 |
-| `payment_date` | date | N | 수납일 |
-| `amount` | numeric(15,0) | N | 수납금액 |
-| `source_type` | varchar(20) | N | `MANUAL / BANK_IMPORT` |
-| `payer_name_encrypted` | text | Y | 입금자명 암호화 |
-| `payer_name_hmac` | char(64) | Y | 입금자명 HMAC |
-| `memo` | varchar(500) | Y | 메모 |
-| `status` | varchar(20) | N | `PENDING / CONFIRMED / CANCELED` |
-| `confirmed_by` | uuid | Y | 확정자 |
-| `confirmed_at` | timestamptz | Y | 확정 |
-| `canceled_by` | uuid | Y | 취소자 |
-| `canceled_at` | timestamptz | Y | 취소 |
-| `cancel_reason` | varchar(255) | Y | 취소사유 |
-| `created_at` | timestamptz | N | 생성 |
-| `updated_at` | timestamptz | N | 수정 |
+| --- | --- | --- | --- |
+| id | uuid | N | PK, 수동 등록은 요청 UUID 재사용 |
+| property_id | uuid | N | 관리대상 |
+| bank_account_id | uuid | N | 수동·은행 수납의 실제 관리계좌 |
+| bank_transaction_id | uuid | Y | 은행 원본 |
+| matched_unit_id | uuid | Y | 확인한 세대, 확정·취소 시 필수 |
+| payer_resident_id | uuid | Y | 납부자 주민 참조 |
+| payment_date | date | N | 실제 입금일 |
+| amount | numeric(15,0) | N | 양수 입금 전액 |
+| source_type | varchar(20) | N | MANUAL / BANK_IMPORT |
+| payer_name_encrypted | text | N | 당시 입금자명 암호화 |
+| payer_name_hmac | char(64) | N | 정규화된 이름 검색값 |
+| memo_encrypted | text | Y | 원본 메모 암호화 |
+| status | varchar(20) | N | PENDING / ON_HOLD / CONFIRMED / CANCELED / LINKED |
+| linked_payment_id | uuid | Y | LINKED 원본이 연결된 기존 수납 |
+| hold_reason_encrypted | text | Y | 보류 사유 |
+| separate_reason_encrypted | text | Y | 중복 후보와 별도 입금으로 확정한 사유 |
+| confirmed_by / confirmed_at | uuid / timestamptz | Y | 최초 확정자·시각 |
+| canceled_by / canceled_at | uuid / timestamptz | Y | 최초 취소자·시각 |
+| cancel_reason_encrypted | text | Y | 취소 사유 |
+| created_by | uuid | N | 생성자 |
+| created_at / updated_at | timestamptz | N | 생성·변경 시각 |
 
-### 원칙
-
-Soft Delete 없음.
-
-잘못된 수납은 삭제 대신 `CANCELED`.
-
----
+관리대상·계좌/은행 원본/세대/주민/연결 수납은 복합 FK로 같은 대상만 허용합니다. 활성 은행 원본의 유일 인덱스는 CANCELED·LINKED 이력을 제외합니다. LINKED는 금액 집계에서 제외합니다. 미사용 선입금은 확정 수납 전액에서 활성 배분 합계를 뺀 금액으로 계산하며 별도 중복 금액 컬럼을 저장하지 않습니다.
 
 ## 8.2 payment_allocations
 
-### 목적
-
-하나의 Payment를 하나 이상의 Charge에 배분.
-
-### 컬럼
+2026-10-16 구현. 실제 양수 유효 청구에 반영한 금액이며 전체 취소 때 이력을 보존합니다.
 
 | 컬럼 | 타입 | Null | 설명 |
-|---|---|---:|---|
-| `id` | uuid | N | PK |
-| `property_id` | uuid | N | FK |
-| `payment_id` | uuid | N | FK |
-| `charge_id` | uuid | N | FK |
-| `allocated_amount` | numeric(15,0) | N | 배분금액 |
-| `status` | varchar(20) | N | `ACTIVE / CANCELED` |
-| `allocated_by` | uuid | N | 배분자 |
-| `allocated_at` | timestamptz | N | 배분시각 |
-| `canceled_by` | uuid | Y | 취소자 |
-| `canceled_at` | timestamptz | Y | 취소 |
-| `cancel_reason` | varchar(255) | Y | 취소사유 |
+| --- | --- | --- | --- |
+| id | uuid | N | PK |
+| property_id | uuid | N | 관리대상 |
+| payment_id | uuid | N | 수납 |
+| charge_id | uuid | N | 실제 발행 청구 |
+| allocated_amount | numeric(15,0) | N | 양수 배분액 |
+| status | varchar(20) | N | ACTIVE / CANCELED |
+| allocated_by / allocated_at | uuid / timestamptz | N | 배분자·시각 |
+| canceled_by / canceled_at | uuid / timestamptz | Y | 취소자·시각 |
 
-### 검증
+`UNIQUE(payment_id,charge_id)`와 같은 관리대상의 복합 FK를 둡니다. 활성 배분 합계는 수납액·청구액을 초과하지 못하고 서로 다른 세대에 배분하지 못합니다. Server 관리대상 잠금과 DB 지연 제약을 함께 사용합니다. 현재 전체 취소의 사유는 payments/payment_events에 보존하며 부분 취소는 미구현입니다. 활성 배분이 있는 청구의 금액·제외 상태 변경은 막습니다.
 
-- Payment 금액 초과 배분 방지
-- Charge 잔액 초과 배분 방지
+## 8.3 payment_events
+
+2026-10-16 구현. 수동 생성·확정·보류·해제·원본 연결·전체 취소의 처리 이력입니다. 회계전표를 뜻하지 않습니다.
+
+| 컬럼 | 타입 | Null | 설명 |
+| --- | --- | --- | --- |
+| id | uuid | N | PK |
+| property_id / payment_id | uuid | N | 같은 관리대상의 수납 참조 |
+| action | varchar(30) | N | 처리 종류 |
+| actor_id | uuid | N | 처리자 |
+| reason_encrypted | text | Y | 암호화한 사유 |
+| created_at | timestamptz | N | 처리 시각 |
 
 ---
 
@@ -1096,45 +1089,26 @@ Soft Delete 없음.
 
 ## 9.3 bank_transactions
 
-### 목적
-
-업로드된 실제 은행 입출금 거래 원본.
+2026-10-16 구현 범위는 은행 파일의 입금 원본입니다. 선택 시간·잔액은 후속 `V20261016002928__preserve_bank_transaction_details.sql`로 추가하며 기존 거래에는 NULL을 유지합니다. 원본 금액·입금일·시간·입금자·적요·잔액을 수납 확정이나 취소로 덮어쓰지 않습니다. 출금·범용 import_batches·지출 연결은 후속 설계입니다.
 
 | 컬럼 | 타입 | Null | 설명 |
-|---|---|---:|---|
-| `id` | uuid | N | PK |
-| `property_id` | uuid | N | FK |
-| `bank_account_id` | uuid | N | FK |
-| `import_batch_id` | uuid | Y | 업로드 배치 |
-| `transaction_at` | timestamptz | N | 거래일시 |
-| `direction` | varchar(20) | N | `DEPOSIT / WITHDRAWAL` |
-| `amount` | numeric(15,0) | N | 금액 |
-| `balance` | numeric(15,0) | Y | 거래 후 잔액 |
-| `counterparty_name_encrypted` | text | Y | 상대방/입금자명 |
-| `counterparty_name_hmac` | char(64) | Y | 상대방 HMAC |
-| `description_encrypted` | text | Y | 적요 암호화 |
-| `bank_reference` | varchar(255) | Y | 은행 고유참조 |
-| `source_row_number` | int | Y | 원본 행 |
-| `deduplication_key` | char(64) | N | 중복방지 키 |
-| `processing_status` | varchar(30) | N | 처리 상태 |
-| `created_at` | timestamptz | N | 생성 |
+| --- | --- | --- | --- |
+| id | uuid | N | PK |
+| property_id | uuid | N | 관리대상 |
+| bank_account_id | uuid | N | 같은 관리대상의 계좌 |
+| transaction_date | date | N | 원본 입금일 |
+| transaction_time | time | Y | 원본에 있는 거래시간 |
+| amount | numeric(15,0) | N | 양수 입금액 |
+| balance | numeric(15,0) | Y | 원본 거래 후 잔액 |
+| payer_name_encrypted | text | N | 입금자명 암호화 |
+| payer_name_hmac | char(64) | N | 정규화한 입금자명 HMAC |
+| memo_encrypted | text | Y | 적요 암호화 |
+| bank_reference | varchar(200) | Y | 은행 거래번호 |
+| deduplication_key | char(64) | N | 거래번호 또는 날짜·입금자·금액의 중복 키 |
+| imported_by | uuid | N | 가져온 관리자 |
+| imported_at | timestamptz | N | 최초 가져오기 시각 |
 
-### 처리 상태
-
-```text
-UNCLASSIFIED
-PAYMENT_LINKED
-EXPENSE_LINKED
-IGNORED
-```
-
-### 제약
-
-```sql
-UNIQUE(bank_account_id, deduplication_key)
-```
-
-원본 금액/일시/적요는 직접 수정하지 않는다.
+`UNIQUE(bank_account_id,deduplication_key)`와 같은 대상의 계좌 복합 FK를 사용합니다. 원본 처리 상태는 연결된 payments의 상태로 조회하며 중복 상태 컬럼을 두지 않습니다.
 
 ---
 

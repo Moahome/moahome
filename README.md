@@ -27,6 +27,7 @@ API 서버는 `8080`에서 OpenAPI 문서와 업무 API를 제공하고, Swagger
 - [프로젝트 개요](docs/projectOverview.md)
 - [도메인 규칙](docs/domainRules.md)
 - [ERD](docs/erd.md)
+- [입금 관리 API](docs/paymentApi.md): 실제 대표 주민·발행 청구 연결, 수동·은행 파일 수납과 취소 계약
 - [관리대상 등록 API](docs/propertyRegistrationApi.md)
 - [세대 관리 API](docs/unitManagementApi.md): 저장된 세대 조회·추가·수정·삭제, 동 관리와 일괄 추가 계약
 - [관리 영역 접근 API](docs/managementAccessApi.md): 본인 관리대상 목록과 현재 관리 권한 조회 계약, 구현
@@ -44,3 +45,5 @@ API 서버는 `8080`에서 OpenAPI 문서와 업무 API를 제공하고, Swagger
 - [Client 관리 레이아웃](client/docs/managementLayout.md): 공통 사이드바·드롭다운·링크와 임시 대시보드 구현, 세대 목록 연결, 그 외 업무 페이지는 후속
 - [Server 관리대상 등록](server/docs/propertyRegistration.md): 검증, 저장과 중복 방지
 - [Server 관리 영역 접근](server/docs/managementAccess.md): 현재 관리자 참여 조회와 접근 검증 구현
+
+- [Server 입금 관리](server/docs/payment.md): 실제 청구 연결, 트랜잭션·동시성·중복 방지

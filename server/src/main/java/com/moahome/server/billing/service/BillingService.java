@@ -154,6 +154,7 @@ public class BillingService {
             || !("ISSUED".equals(charge.getStatus()) || "CANCELED".equals(charge.getStatus()))) {
             throw new BillingException(BILLING_CANCELLATION_NOT_ALLOWED);
         }
+        if (charges.hasActiveAllocations(List.of(charge.getId()))) throw new BillingException(BILLING_CHARGE_HAS_PAYMENTS);
         charge.cancelManually(userId, OffsetDateTime.now(clock));
         charges.flush();
     }

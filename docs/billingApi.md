@@ -99,3 +99,5 @@ ChargeRow는 `id`, `unitId`, `building`(동 없음은 빈 문자열), `room`, `d
 ## 구현 설계
 
 [Client 화면·상태](../client/docs/managementLayout.md#관리비-부과-2026-10-10), [Server 트랜잭션·재시도](../server/docs/billing.md)를 참조합니다. 수납·환급·주민 공개 화면·회계 연결은 별도 구현입니다.
+
+활성 수납 배분이 있는 청구의 취소·제외는 `BILLING_CHARGE_HAS_PAYMENTS`(409)입니다. [입금 API](paymentApi.md)의 수납 정리를 먼저 수행하며 임의로 납부 기록을 제거하지 않습니다.

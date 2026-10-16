@@ -92,6 +92,7 @@ class SecurityIntegrationTest {
 	@Autowired private ObjectMapper mapper;
 	@Autowired private MutableClock clock;
 	@MockitoSpyBean private RedisAuthSessionRepository sessions;
+	@MockitoBean private com.moahome.server.payment.service.PaymentService payments;
 	@MockitoBean private com.moahome.server.billing.service.BillingService billing;
 	@MockitoBean private com.moahome.server.billing.service.BillingTemplates billingTemplates;
 	@MockitoBean private com.moahome.server.billing.service.BillingGenerationService billingGeneration;

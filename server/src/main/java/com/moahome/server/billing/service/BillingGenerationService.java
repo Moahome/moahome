@@ -89,7 +89,7 @@ public class BillingGenerationService {
         charges.findByBillingPeriodId(period.get().getId()).stream()
             .filter(charge -> unitIds.contains(charge.getUnitId())
                 && ("ISSUED".equals(charge.getStatus()) || "EXCLUDED_VACANT".equals(charge.getStatus())))
-            .forEach(charge -> charge.cancelForUnitDeletion(actor, at));
+            .forEach(charge -> { requireUnallocated(charge); charge.cancelForUnitDeletion(actor, at); });
         charges.flush();
     }
 
@@ -128,13 +128,21 @@ public class BillingGenerationService {
             if (actor == null && building != null && building.getDeletedAt() != null) actor = building.getDeletedBy();
             // 삭제자가 없는 과거 자료에 임의의 처리자를 기록하지 않습니다. 조회에서는 삭제된 대상이 제외됩니다.
             if (actor != null) {
+                requireUnallocated(charge);
                 charge.cancelForUnitDeletion(actor, at);
                 continue;
             }
             if (unit.getDeletedAt() == null && (building == null || building.getDeletedAt() == null)) {
+                if (unit.getStatus()==UnitStatus.VACANT && "ISSUED".equals(charge.getStatus())) requireUnallocated(charge);
                 charge.applyVacancy(unit.getStatus() == UnitStatus.VACANT, at);
             }
         }
         charges.flush();
     }
+    /** 수납 정정 정책을 임의로 적용하지 않고 먼저 명시적인 수납 취소로 청구 연결을 정리하게 합니다. */
+    private void requireUnallocated(Charge charge) {
+        if (charges.hasActiveAllocations(List.of(charge.getId()))) throw new com.moahome.server.billing.exception.BillingException(
+            com.moahome.server.billing.exception.BillingException.Code.BILLING_CHARGE_HAS_PAYMENTS);
+    }
+
 }
