@@ -136,7 +136,8 @@ public class PaymentService {
             applied.stream().filter(a->"CANCELED".equals(p.getStatus())||"ACTIVE".equals(a.getStatus()))
                 .map(a->new PaymentResponse.Allocation(a.getChargeId(),a.getAllocatedAmount().toPlainString())).toList(),
             p.getLinkedPaymentId(),p.getBankTransactionId(),security.decrypt(p.getHoldReasonEncrypted()),security.decrypt(p.getCancelReasonEncrypted()),
-            security.decrypt(p.getSeparateReasonEncrypted()),security.decrypt(p.getMemoEncrypted()));
+            security.decrypt(p.getSeparateReasonEncrypted()),security.decrypt(p.getMemoEncrypted()),p.getReceiptType(),
+            security.decrypt(p.getIncomeCategoryEncrypted()),security.decrypt(p.getIncomeNoteEncrypted()));
     }
     /** 이름 또는 동·호수가 현재 명단의 한 세대와 일치할 때만 연결하며 여러 세대에 걸친 동명이인은 남겨 둡니다. */
     private UUID unitCandidate(String payer,List<PaymentResponse.Unit> unitRows,List<ResidentItem> residentRows) {
@@ -282,6 +283,23 @@ public class PaymentService {
         return ledger(user,property);
     }
     private String separate(String reason) { return reason==null||reason.isBlank()?null:reason.strip(); }
+    /** 관리자가 분류한 은행 입금은 세대 수납·선입금·청구 충당과 분리하고 재시도 시 항목과 메모까지 일치해야 합니다. */
+    @Transactional
+    public PaymentResponse.Ledger confirmOtherIncome(UUID user,UUID property,UUID id,PaymentRequests.OtherIncome request) {
+        lock(user,property);
+        var payment=requirePayment(property,id);
+        String category=separate(request.category()),note=separate(request.note());
+        if(category==null||category.length()>100||(note!=null&&note.length()>500)) throw new PaymentException("INVALID_INCOME_CATEGORY");
+        if("CONFIRMED".equals(payment.getStatus())) {
+            if(!"OTHER".equals(payment.getReceiptType())||!Objects.equals(category,security.decrypt(payment.getIncomeCategoryEncrypted()))
+                ||!Objects.equals(note,security.decrypt(payment.getIncomeNoteEncrypted()))) throw new PaymentException("PAYMENT_REQUEST_CONFLICT");
+            return ledger(user,property);
+        }
+        if(!duplicates(property,payment).isEmpty()) throw new PaymentException("PAYMENT_DUPLICATE_REVIEW_REQUIRED");
+        payment.confirmOther(security.protect(category).encrypted(),note==null?null:security.protect(note).encrypted(),user,now());
+        payments.flush();audit(payment,"OTHER_INCOME_CONFIRMED",category,user);
+        return ledger(user,property);
+    }
     private BigDecimal amount(String value,boolean positive) {
         if (value==null||!value.matches("[0-9]{1,15}")) throw new PaymentException("INVALID_AMOUNT");
         var amount=new BigDecimal(value);
@@ -334,7 +352,9 @@ public class PaymentService {
                 payments.save(replacement);
             }
         }
-        payments.flush();audit(p,"CANCELED",reason,user);cumulative.settle(property,user);return ledger(user,property);
+        payments.flush();audit(p,"OTHER".equals(p.getReceiptType())?"OTHER_INCOME_CANCELED":"CANCELED",reason,user);
+        if("HOUSEHOLD".equals(p.getReceiptType())) cumulative.settle(property,user);
+        return ledger(user,property);
     }
     /** 납부 이력이 없는 초안만 삭제하고 은행 원본의 활성 중복 키를 해제합니다. 확정 수납에는 납부 취소를 사용합니다. */
     @Transactional
@@ -391,7 +411,7 @@ public class PaymentService {
             UUID candidate=unitCandidate(row.payer(),unitRows,residentRows);
             result.add(new PaymentResponse.Payment(UUID.nameUUIDFromBytes(key.getBytes(StandardCharsets.UTF_8)),"BANK_IMPORT","PENDING",account.getId(),row.date(),
                 row.payer(),row.amount().toPlainString(),candidate==null?"":candidate.toString(),candidate==null?"":candidateReason(row.payer(),unitRows),
-                List.of(),null,null,null,null,null,row.memo()));
+                List.of(),null,null,null,null,null,row.memo(),"HOUSEHOLD",null,null));
         }
         return new PaymentResponse.ImportPreview(property,result,duplicated);
     }

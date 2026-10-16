@@ -961,7 +961,7 @@ FOREIGN KEY(property_id, unit_id) REFERENCES units(property_id, id)
 | property_id | uuid | N | 관리대상 |
 | bank_account_id | uuid | N | 수동·은행 수납의 실제 관리계좌 |
 | bank_transaction_id | uuid | Y | 은행 원본 |
-| matched_unit_id | uuid | Y | 확인한 세대, 확정·취소 시 필수 |
+| matched_unit_id | uuid | Y | 세대 납부 확정·취소 시 필수, 기타 입금은 NULL |
 | payer_resident_id | uuid | Y | 납부자 주민 참조 |
 | payment_date | date | N | 실제 입금일 |
 | amount | numeric(15,0) | N | 양수 입금 전액 |
@@ -970,6 +970,9 @@ FOREIGN KEY(property_id, unit_id) REFERENCES units(property_id, id)
 | payer_name_hmac | char(64) | N | 정규화된 이름 검색값 |
 | memo_encrypted | text | Y | 원본 메모 암호화 |
 | status | varchar(20) | N | PENDING / ON_HOLD / CONFIRMED / CANCELED / LINKED |
+| receipt_type | varchar(20) | N | HOUSEHOLD 세대 납부 / OTHER 기타 입금, 기존 행은 HOUSEHOLD |
+| income_category_encrypted | text | Y | 기타 입금의 항목명 암호화, OTHER에서 필수 |
+| income_note_encrypted | text | Y | 기타 입금의 선택 메모 암호화 |
 | linked_payment_id | uuid | Y | LINKED 원본이 연결된 기존 수납 |
 | hold_reason_encrypted | text | Y | 보류 사유 |
 | separate_reason_encrypted | text | Y | 중복 후보와 별도 입금으로 확정한 사유 |
@@ -980,7 +983,9 @@ FOREIGN KEY(property_id, unit_id) REFERENCES units(property_id, id)
 | created_by | uuid | N | 생성자 |
 | created_at / updated_at | timestamptz | N | 생성·변경 시각 |
 
-관리대상·계좌/은행 원본/세대/주민/연결 수납은 복합 FK로 같은 대상만 허용합니다. 활성 은행 원본의 유일 인덱스는 CANCELED·LINKED 이력을 제외합니다. LINKED는 금액 집계에서 제외합니다. 미사용 선입금은 확정 수납 전액에서 활성 배분 합계를 뺀 금액으로 계산하며 별도 중복 금액 컬럼을 저장하지 않습니다. 다음 실제 양수 청구에 자동 충당합니다. 삭제는 후속 `V20261016120311__support_payment_deletion.sql`의 `deleted_at/deleted_by`로 표시하며 확정 상태인 채 삭제할 수 없습니다. 미확정 삭제 항목은 목록에서 제외하고 확정 납부는 취소 이력으로 보존합니다. 원본 참조는 유지하며 미확정 삭제의 활성 중복 키는 아래 은행 원본 정책에 따라 해제합니다.
+관리대상·계좌/은행 원본/세대/주민/연결 수납은 복합 FK로 같은 대상만 허용합니다. 활성 은행 원본의 유일 인덱스는 CANCELED·LINKED 이력을 제외합니다. LINKED는 금액 집계에서 제외합니다. 미사용 선입금은 HOUSEHOLD 확정 수납 전액에서 활성 배분 합계를 뺀 금액으로 계산하며 별도 중복 금액 컬럼을 저장하지 않습니다. 다음 실제 양수 청구에 자동 충당합니다. 삭제는 후속 `V20261016120311__support_payment_deletion.sql`의 `deleted_at/deleted_by`로 표시하며 확정 상태인 채 삭제할 수 없습니다. 미확정 삭제 항목은 목록에서 제외하고 확정 납부는 취소 이력으로 보존합니다. 원본 참조는 유지하며 미확정 삭제의 활성 중복 키는 아래 은행 원본 정책에 따라 해제합니다.
+
+후속 `V20261016141400__support_other_bank_income.sql`은 동일 입금 기록에 세대 납부·기타 입금 구분을 추가합니다. OTHER는 은행 원본이 있는 CONFIRMED·CANCELED만 허용하며 세대·주민 연결을 금지합니다. 기타 입금 항목·메모는 원본 메모와 분리해 암호화하고, DB 배분 함수와 변경 가드가 OTHER의 활성 청구 배분을 차단합니다. 취소 이력의 분류는 보존하고 재검토 초안은 HOUSEHOLD 기본값으로 생성합니다. 동 귀속이나 세전 이자·원천세는 추정하지 않습니다.
 
 ## 8.2 payment_allocations
 

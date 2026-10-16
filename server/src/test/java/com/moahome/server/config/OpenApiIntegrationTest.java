@@ -126,8 +126,8 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(39);
-        for(String suffix:java.util.List.of("manual","confirm-matches","delete","import","import/preview","{paymentId}/confirm","{paymentId}/hold","{paymentId}/resume","{paymentId}/cancel","{paymentId}/link")) {
+		assertThat(document.path("paths").properties()).hasSize(40);
+        for(String suffix:java.util.List.of("manual","confirm-matches","delete","import","import/preview","{paymentId}/confirm","{paymentId}/other-income","{paymentId}/hold","{paymentId}/resume","{paymentId}/cancel","{paymentId}/link")) {
             assertThat(document.path("paths").path("/api/properties/{propertyId}/payments/"+suffix).at("/post/security/0/bearerAuth").isArray()).isTrue();
         }
         assertThat(document.path("paths").path("/api/properties/{propertyId}/payments/workspace").at("/get/security/0/bearerAuth").isArray()).isTrue();

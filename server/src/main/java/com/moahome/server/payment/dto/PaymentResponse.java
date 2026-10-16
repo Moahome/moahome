@@ -9,7 +9,7 @@ public final class PaymentResponse {
     public record Allocation(UUID chargeId,String amount) {}
     public record Payment(UUID id,String source,String status,UUID accountId,LocalDate date,String payer,String amount,
         String unitId,String reason,List<Allocation> allocations,UUID linkedPaymentId,UUID bankTransactionId,
-        String holdReason,String cancelReason,String separateReason,String memo) {}
+        String holdReason,String cancelReason,String separateReason,String memo,String receiptType,String incomeCategory,String incomeNote) {}
     public record Ledger(UUID propertyId,LocalDate asOf,List<Account> accounts,List<Unit> units,List<Charge> charges,
         List<Payment> payments,List<Object> history) {}
     public record ImportPreview(UUID propertyId,List<Payment> rows,int duplicateCount) {}

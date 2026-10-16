@@ -35,7 +35,7 @@ public class CumulativePaymentService {
     @Transactional
     public void settle(UUID property,UUID actor) {
         var receipts=payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property).stream()
-            .filter(p->p.getDeletedAt()==null&&"CONFIRMED".equals(p.getStatus()))
+            .filter(p->p.getDeletedAt()==null&&"CONFIRMED".equals(p.getStatus())&&"HOUSEHOLD".equals(p.getReceiptType()))
             .sorted(Comparator.comparing(Payment::getPaymentDate).thenComparing(Payment::getCreatedAt).thenComparing(Payment::getId)).toList();
         if (receipts.isEmpty()) return;
         var issued=periods.findByPropertyIdOrderByBillingYearDescBillingMonthDesc(property).stream()

@@ -30,7 +30,7 @@ class PaymentControllerTest {
     }
     @Test void endpointsRequireAuthenticationAndBadInputDoesNotReachService() throws Exception {
         mvc.perform(get(base()+"/workspace")).andExpect(status().isUnauthorized());
-        for(String endpoint:List.of("/manual","/delete","/"+payment+"/confirm","/"+payment+"/hold","/"+payment+"/cancel","/"+payment+"/link")) {
+        for(String endpoint:List.of("/manual","/delete","/"+payment+"/confirm","/"+payment+"/other-income","/"+payment+"/hold","/"+payment+"/cancel","/"+payment+"/link")) {
             mvc.perform(post(base()+endpoint).contentType(MediaType.APPLICATION_JSON).content("{}" )).andExpect(status().isUnauthorized());
             mvc.perform(post(base()+endpoint).with(identity()).contentType(MediaType.APPLICATION_JSON).content("{}" )).andExpect(status().isBadRequest());
         }
@@ -64,6 +64,17 @@ class PaymentControllerTest {
         mvc.perform(post(base()+"/"+payment+"/confirm").with(identity()).contentType(MediaType.APPLICATION_JSON)
             .content("{\"unitId\":\""+unit+"\"}")).andExpect(status().isOk());
         verify(service).confirm(user,property,payment,new com.moahome.server.payment.dto.PaymentRequests.Confirm(unit,null,null));
+    }
+    @Test void otherIncomeValidatesCategoryAndNoteAndUsesAuthenticatedIdentityWithoutUnit() throws Exception {
+        for(String input:List.of("{\"category\":\" \"}","{\"category\":\""+"가".repeat(101)+"\"}",
+            "{\"category\":\"이자\",\"note\":\""+"가".repeat(501)+"\"}"))
+            mvc.perform(post(base()+"/"+payment+"/other-income").with(identity()).contentType(MediaType.APPLICATION_JSON)
+                .content(input)).andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+        mvc.perform(post(base()+"/"+payment+"/other-income").with(identity()).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"category\":\"예금이자\",\"note\":\"세후 입금\"}"))
+            .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"));
+        verify(service).confirmOtherIncome(user,property,payment,new com.moahome.server.payment.dto.PaymentRequests.OtherIncome("예금이자","세후 입금"));
     }
     @TestConfiguration static class Security {
         @Bean SecurityFilterChain testSecurity(HttpSecurity http) throws Exception {

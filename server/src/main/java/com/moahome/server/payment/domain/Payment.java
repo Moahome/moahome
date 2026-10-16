@@ -28,6 +28,9 @@ public class Payment implements org.springframework.data.domain.Persistable<UUID
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.CHAR) private String payerNameHmac;
     @Column(name="memo_encrypted",columnDefinition="text") private String memoEncrypted;
     @Column(nullable=false,length=20) private String status;
+    @Column(name="receipt_type",nullable=false,length=20) private String receiptType;
+    @Column(name="income_category_encrypted",columnDefinition="text") private String incomeCategoryEncrypted;
+    @Column(name="income_note_encrypted",columnDefinition="text") private String incomeNoteEncrypted;
     @Column(name="linked_payment_id") private UUID linkedPaymentId;
     @Column(name="hold_reason_encrypted",columnDefinition="text") private String holdReasonEncrypted;
     @Column(name="separate_reason_encrypted",columnDefinition="text") private String separateReasonEncrypted;
@@ -50,12 +53,20 @@ public class Payment implements org.springframework.data.domain.Persistable<UUID
         var p=new Payment(); p.newRecord=true; p.id=id; p.propertyId=property; p.bankAccountId=account;
         p.bankTransactionId=bank; p.matchedUnitId=unit; p.payerResidentId=resident; p.paymentDate=date;
         p.amount=amount; p.sourceType=source; p.payerNameEncrypted=encrypted; p.payerNameHmac=hmac;
-        p.memoEncrypted=memo; p.status="PENDING"; p.createdBy=actor; p.createdAt=at; p.updatedAt=at;
+        p.memoEncrypted=memo; p.status="PENDING"; p.receiptType="HOUSEHOLD"; p.createdBy=actor; p.createdAt=at; p.updatedAt=at;
         return p;
     }
     /** 동일 확정 재요청은 서비스에서 내용 일치를 확인한 뒤 반환하고 다른 상태 전이는 거부합니다. */
     public void confirm(UUID unit, UUID resident, String separateReason, UUID actor, OffsetDateTime at) {
         require("PENDING"); matchedUnitId=unit; payerResidentId=resident; separateReasonEncrypted=separateReason;
+        status="CONFIRMED"; confirmedBy=actor; confirmedAt=at; updatedAt=at;
+    }
+    /** 기타 입금은 은행 원본을 유지하며 세대·주민 연결 없이 별도 항목과 메모로 확정합니다. */
+    public void confirmOther(String category, String note, UUID actor, OffsetDateTime at) {
+        require("PENDING");
+        if (!"BANK_IMPORT".equals(sourceType)) throw new PaymentException("PAYMENT_STATE_CONFLICT");
+        receiptType="OTHER"; matchedUnitId=null; payerResidentId=null;
+        incomeCategoryEncrypted=Objects.requireNonNull(category); incomeNoteEncrypted=note;
         status="CONFIRMED"; confirmedBy=actor; confirmedAt=at; updatedAt=at;
     }
     public void hold(String encryptedReason, OffsetDateTime at) {

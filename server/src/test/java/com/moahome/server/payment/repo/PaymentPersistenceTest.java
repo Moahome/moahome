@@ -94,6 +94,82 @@ class PaymentPersistenceTest {
     MockMultipartFile bank(String payer,String amount) { return csv("입금일,입금자명,입금액\n2026-10-15,"+payer+","+amount); }
     long count(String table) { return jdbc.queryForObject("select count(*) from "+table,Long.class); }
 
+    /** 명부 밖 실제 입금을 확정해도 세대 청구·선입금에 영향을 주지 않고 원본과 암호화 분류를 보존합니다. */
+    @Test void otherBankIncomeIsSeparateIdempotentAndNeverAllocatedToHouseholds() {
+        var file=bank("외부입금자","93960");
+        var original=service.importFile(user,property,file).payments().getFirst();
+        var request=new PaymentRequests.OtherIncome("전기료","외부 사용분");
+        var result=service.confirmOtherIncome(user,property,original.id(),request);
+        var income=result.payments().getFirst();
+        assertThat(income.receiptType()).isEqualTo("OTHER");
+        assertThat(income.status()).isEqualTo("CONFIRMED");
+        assertThat(income.unitId()).isEmpty();assertThat(income.allocations()).isEmpty();
+        assertThat(income.incomeCategory()).isEqualTo("전기료");assertThat(income.incomeNote()).isEqualTo("외부 사용분");
+        assertThat(income.bankTransactionId()).isEqualTo(original.bankTransactionId());
+        assertThat(income.payer()).isEqualTo(original.payer());assertThat(income.amount()).isEqualTo("93960");
+        service.confirmOtherIncome(user,property,original.id(),request);
+        service.confirmMatches(user,property);
+        clock.set(Instant.parse("2026-11-01T00:00:00Z"));billing.generate(property,YearMonth.of(2026,11));
+        assertThat(count("payment_allocations")).isZero();assertThat(count("payments")).isEqualTo(1);
+        assertThat(service.preview(user,property,file).duplicateCount()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select income_category_encrypted from payments where id=?",String.class,income.id())).doesNotContain("전기료");
+        assertThat(jdbc.queryForObject("select income_note_encrypted from payments where id=?",String.class,income.id())).doesNotContain("외부 사용분");
+        assertThat(jdbc.queryForObject("select count(*) from payment_events where action='OTHER_INCOME_CONFIRMED'",Long.class)).isEqualTo(1);
+        assertThatThrownBy(()->service.confirmOtherIncome(user,property,original.id(),new PaymentRequests.OtherIncome("이자",null))).isInstanceOf(PaymentException.class);
+        assertThatThrownBy(()->service.confirm(user,property,original.id(),new PaymentRequests.Confirm(unit,null,null))).isInstanceOf(PaymentException.class);
+    }
+
+    /** 분류 취소는 최초 이력을 보존하고 같은 원본을 다시 검토하게 하며 재요청으로 초안을 늘리지 않습니다. */
+    @Test void cancelOtherIncomeRestoresReviewDraftAndAllowsHouseholdReclassification() {
+        var file=bank("외부입금자","50000");
+        var original=service.importFile(user,property,file).payments().getFirst();
+        service.confirmOtherIncome(user,property,original.id(),new PaymentRequests.OtherIncome("기타",null));
+        service.cancel(user,property,original.id(),"분류 정정");
+        var canceled=service.cancel(user,property,original.id(),"다른 사유");
+        assertThat(canceled.payments()).hasSize(2);
+        var history=canceled.payments().stream().filter(p->p.id().equals(original.id())).findFirst().orElseThrow();
+        assertThat(history.status()).isEqualTo("CANCELED");assertThat(history.receiptType()).isEqualTo("OTHER");
+        assertThat(history.incomeCategory()).isEqualTo("기타");assertThat(history.cancelReason()).isEqualTo("분류 정정");
+        var draft=canceled.payments().stream().filter(p->p.status().equals("PENDING")).findFirst().orElseThrow();
+        assertThat(draft.receiptType()).isEqualTo("HOUSEHOLD");assertThat(draft.incomeCategory()).isNull();
+        assertThat(draft.bankTransactionId()).isEqualTo(original.bankTransactionId());
+        assertThat(service.preview(user,property,file).duplicateCount()).isEqualTo(1);
+        assertThat(service.confirm(user,property,draft.id(),new PaymentRequests.Confirm(unit,null,null)).payments().stream()
+            .filter(p->p.id().equals(draft.id())).findFirst().orElseThrow().allocations()).hasSize(1);
+        assertThat(count("bank_transactions")).isEqualTo(1);
+    }
+
+    /** 기타 분류도 관리자 권한·상태·원본 중복 검사를 우회할 수 없으며 감사 저장 실패 시 원자적으로 롤백합니다. */
+    @Test void otherIncomeRejectsInvalidStatesAndRollsBackAuditFailure() {
+        var original=service.importFile(user,property,bank("외부입금자","50000")).payments().getFirst();
+        var request=new PaymentRequests.OtherIncome("기타",null);
+        UUID outsider=users.saveAndFlush(User.create("다른 관리자",null)).getId();
+        assertThatThrownBy(()->service.confirmOtherIncome(outsider,property,original.id(),request)).isInstanceOf(AuthException.class);
+        assertThatThrownBy(()->service.confirmOtherIncome(user,property,original.id(),new PaymentRequests.OtherIncome(" ",null))).isInstanceOf(PaymentException.class);
+        assertThatThrownBy(()->service.confirmOtherIncome(user,property,manual("50000"),request)).isInstanceOf(PaymentException.class);
+        service.hold(user,property,original.id(),"확인 중");
+        assertThatThrownBy(()->service.confirmOtherIncome(user,property,original.id(),request)).isInstanceOf(PaymentException.class);
+        service.resume(user,property,original.id());
+        jdbc.execute("create function fail_payment_event() returns trigger language plpgsql as $$ begin if NEW.action='OTHER_INCOME_CONFIRMED' then raise exception 'test failure';end if;return NEW;end $$");
+        jdbc.execute("create trigger payment_event_failure before insert on payment_events for each row execute function fail_payment_event()");
+        assertThatThrownBy(()->service.confirmOtherIncome(user,property,original.id(),request)).isInstanceOf(org.springframework.dao.DataAccessException.class);
+        var unchanged=service.workspace(user,property).payments().stream().filter(p->p.id().equals(original.id())).findFirst().orElseThrow();
+        assertThat(unchanged.status()).isEqualTo("PENDING");assertThat(unchanged.receiptType()).isEqualTo("HOUSEHOLD");
+        assertThat(unchanged.incomeCategory()).isNull();assertThat(count("payment_allocations")).isZero();
+    }
+
+    /** DB도 기타 입금에 세대 연결·청구 충당을 허용하지 않아 SQL 우회로 수납 합계가 변하지 않습니다. */
+    @Test void databaseRejectsHouseholdLinksAndAllocationsForOtherIncome() {
+        var original=service.importFile(user,property,bank("외부입금자","50000")).payments().getFirst();
+        service.confirmOtherIncome(user,property,original.id(),new PaymentRequests.OtherIncome("기타",null));
+        assertThatThrownBy(()->jdbc.update("update payments set matched_unit_id=? where id=?",unit,original.id())).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThatThrownBy(()->new TransactionTemplate(transactionManager).execute(status->{
+            jdbc.update("insert into payment_allocations(id,property_id,payment_id,charge_id,allocated_amount,status,allocated_by,allocated_at) values (?,?,?,?,100,'ACTIVE',?,now())",
+                UUID.randomUUID(),property,original.id(),charge,user);return null;
+        })).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThat(count("payment_allocations")).isZero();
+    }
+
     @Test void realRepresentativesAndIssuedChargesAreUsedAndManualRetriesDoNotDuplicate() {
         var ledger=service.workspace(user,property);
         assertThat(ledger.units()).extracting(PaymentResponse.Unit::representativeName).containsExactly("김대표","이대표");
@@ -375,7 +451,7 @@ class PaymentPersistenceTest {
             jdbc.execute("insert into "+schema+"."+table+"("+columns+") select "+columns+" from public."+table);
         }
         var upgraded=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"").schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(3);upgraded.validate();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(5);upgraded.validate();
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".bank_transactions where deleted_at is not null",Long.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".bank_transactions where deleted_at is null",Long.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".payments where deleted_at is null",Long.class)).isEqualTo(1);
@@ -426,7 +502,7 @@ class PaymentPersistenceTest {
         var before=jdbc.queryForList("select * from "+schema+".charges order by id");
         var upgraded=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(6);upgraded.validate();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(8);upgraded.validate();
         assertThat(jdbc.queryForList("select * from "+schema+".charges order by id")).isEqualTo(before);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".residents",Long.class)).isEqualTo(3);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".payments",Long.class)).isZero();
@@ -457,12 +533,13 @@ class PaymentPersistenceTest {
             return null;
         });
         var receipts=jdbc.queryForList("select * from "+schema+".payments order by id");
-        receipts.forEach(row->{row.put("deleted_at",null);row.put("deleted_by",null);});
+        receipts.forEach(row->{row.put("deleted_at",null);row.put("deleted_by",null);
+            row.put("receipt_type","HOUSEHOLD");row.put("income_category_encrypted",null);row.put("income_note_encrypted",null);});
         var applied=jdbc.queryForList("select * from "+schema+".payment_allocations order by id");
         var originals=jdbc.queryForList("select id,amount,payer_name_encrypted,deduplication_key from "+schema+".bank_transactions order by id");
         var upgraded=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(5);upgraded.validate();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(7);upgraded.validate();
         assertThat(jdbc.queryForList("select * from "+schema+".payments order by id")).isEqualTo(receipts);
         assertThat(jdbc.queryForList("select * from "+schema+".payment_allocations order by id")).isEqualTo(applied);
         assertThat(jdbc.queryForList("select id,amount,payer_name_encrypted,deduplication_key from "+schema+".bank_transactions order by id")).isEqualTo(originals);

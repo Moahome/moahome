@@ -12,6 +12,7 @@ public final class PaymentRequests {
     public record Confirm(@NotNull UUID unitId, @Size(max=1000) List<@NotNull @Valid Allocation> allocations,
         @TextInput(max=500,optional=true) String separateReason) {}
     public record DeleteMany(@NotEmpty @Size(max=1000) List<@NotNull UUID> paymentIds) {}
+    public record OtherIncome(@TextInput(max=100) String category, @TextInput(max=500,optional=true) String note) {}
     public record Reason(@TextInput(max=500) String reason) {}
     public record Link(@NotNull UUID paymentId) {}
 }

@@ -15,6 +15,7 @@ UUID는 문자열, 날짜는 `YYYY-MM-DD`, 청구월은 `YYYY-MM`, 원 단위 �
 | GET | `/workspace` | 없음 | 현재 실제 원장 |
 | POST | `/manual` | `{id,unitId,date,amount}` | 저장 후 실제 원장 |
 | POST | `/{paymentId}/confirm` | `{unitId,separateReason?}` | 저장 후 실제 원장 |
+| POST | `/{paymentId}/other-income` | `{category,note?}` | 기타 입금 확정 후 실제 원장 |
 | POST | `/confirm-matches` | 없음 | 명단 일치 입금 일괄 확정 후 실제 원장 |
 | DELETE | `/{paymentId}` | 없음 | 미확정 입금 단일 삭제 후 실제 원장 |
 | POST | `/delete` | `{paymentIds:[UUID]}` | 선택 삭제 후 실제 원장 |
@@ -32,7 +33,7 @@ UUID는 문자열, 날짜는 `YYYY-MM-DD`, 청구월은 `YYYY-MM`, 원 단위 �
 - `accounts`: `{id,label}`. 공용 기본 활성 계좌를 먼저 반환하며 번호는 뒤 네 자리만 표시합니다. 계좌 설정·선택 API를 이 기능에 추가하지 않습니다.
 - `units`: `{id,label,status,eligible,representativeId,representativeName,residentNames,buildingName}`. `status`는 ACTIVE/VACANT 표시값, `eligible`은 현재 사용 중 세대 여부입니다. 대표가 없으면 대표 ID·이름은 null입니다. `residentNames`는 현재 소속 주민 이름 목록으로 세대 검색에 사용하며, `buildingName`은 동 필터용 이름으로 동이 없으면 빈 문자열입니다. 과거 청구·입금과 연결된 삭제 세대도 이력 확인을 위해 포함합니다.
 - `charges`: `{id,unitId,month,amount,status,dueDate}`. 실제 확정 부과기간의 저장된 청구입니다. 미래 예정 설정에서 청구를 만들어 반환하지 않습니다. 0원·음수 금액을 보존합니다. 취소·공실 제외는 배분하지 않습니다.
-- `payments`: `{id,source,status,accountId,date,payer,amount,unitId,reason,allocations,linkedPaymentId,bankTransactionId,holdReason,cancelReason,separateReason,memo}`. 배분은 `{chargeId,amount}`입니다. 이름·동호수로 유일하게 일치하는 세대가 없으면 `unitId`는 빈 문자열입니다. PENDING의 `unitId`는 후보이며 확정 전 저장 세대와 구분합니다. 선택 문자열·연결 ID는 null일 수 있습니다. 상태는 PENDING/ON_HOLD/CONFIRMED/CANCELED/LINKED입니다. LINKED는 기존 수납에 연결한 원본 확인 항목으로 수납 합계에 포함하지 않습니다.
+- `payments`: `{id,source,status,accountId,date,payer,amount,unitId,reason,allocations,linkedPaymentId,bankTransactionId,holdReason,cancelReason,separateReason,memo,receiptType,incomeCategory,incomeNote}`. 배분은 `{chargeId,amount}`입니다. 이름·동호수로 유일하게 일치하는 세대가 없으면 `unitId`는 빈 문자열입니다. PENDING의 `unitId`는 후보이며 확정 전 저장 세대와 구분합니다. 선택 문자열·연결 ID는 null일 수 있습니다. 상태는 PENDING/ON_HOLD/CONFIRMED/CANCELED/LINKED입니다. LINKED는 기존 수납에 연결한 원본 확인 항목으로 수납 합계에 포함하지 않습니다.
 
 ### 수동 등록·확정·취소
 
@@ -56,6 +57,14 @@ Excel은 확장자와 실제 XLS(OLE2)·XLSX(OOXML) 형식의 일치를 확인�
 
 `POST /confirm-matches`는 이미 가져온 PENDING 은행 입금의 명단을 다시 검사해 유일한 일치 건만 같은 트랜잭션에서 확정합니다. 보류·수동 입력·삭제·취소 항목과 취소 원본의 검토 초안은 처리하지 않으며 반복 호출은 이미 확정한 금액을 늘리지 않습니다. 같은 계좌·날짜·금액·입금자명의 기존 미연결 수동 확정 수납이 있으면 기존 수납에 연결하거나 별도 사유를 입력해야 합니다.
 
+### 기타 입금 확정·취소
+
+`POST /{paymentId}/other-income`은 PENDING 은행 입금을 세대 없이 기타 입금으로 확정합니다. `category`는 필수 1~100자, `note`는 선택 최대 500자이며 앞뒤 공백은 제거합니다. 보류 건은 먼저 해제하고, 기존 미연결 수동 수납 중복 후보가 있으면 기존 수납 검토를 먼저 완료해야 합니다. 수동 세대 입금·이미 확정한 세대 납부의 직접 재분류는 허용하지 않습니다.
+
+응답의 `receiptType`은 HOUSEHOLD / OTHER이며 기존 수납은 HOUSEHOLD입니다. OTHER는 CONFIRMED / CANCELED 상태만 존재하며 `unitId`는 빈 문자열, `allocations`는 빈 배열입니다. `incomeCategory`·`incomeNote`는 기타 입금의 별도 항목·메모이고 `memo`는 은행 원본을 유지합니다. 기타 입금은 세대 수납·선입금·미납 계산과 다음 청구의 자동 충당에서 제외합니다.
+
+같은 항목·메모로 재요청하면 처리 이벤트를 중복 생성하지 않고 다른 내용은 409입니다. `POST /{paymentId}/cancel`과 필수 사유로 확정을 취소하며 원 분류·최초 사유·시각을 보존합니다. 같은 원본의 PENDING 초안을 복구해 세대 납부 또는 기타 입금으로 다시 검토할 수 있습니다. 파일 중복 제외는 유지하고 기존 확정 이력을 삭제하지 않습니다.
+
 ### 입금 삭제
 
 `POST /delete`는 `paymentIds`에 1~1,000개의 UUID를 받습니다. 모든 대상의 관리대상 소속·상태를 먼저 검증하고 PENDING·ON_HOLD만 한 트랜잭션으로 삭제합니다. 다른 대상·확정·취소 이력을 섞으면 전체 실패합니다. 같은 ID 반복과 이미 삭제한 ID 재요청은 멱등 처리합니다. 단일 삭제 API도 같은 기준입니다.
@@ -68,7 +77,7 @@ Excel은 확장자와 실제 XLS(OLE2)·XLSX(OOXML) 형식의 일치를 확인�
 
 | HTTP | code | 의미 |
 | --- | --- | --- |
-| 400 | INVALID_REQUEST / INVALID_AMOUNT / INVALID_PAYMENT_DATE | 요청 형식·금액·날짜 오류 |
+| 400 | INVALID_REQUEST / INVALID_AMOUNT / INVALID_PAYMENT_DATE / INVALID_INCOME_CATEGORY | 요청 형식·금액·날짜 오류 |
 | 400 | INVALID_BANK_FILE / INVALID_BANK_HEADER / INVALID_BANK_ROW / BANK_ROW_LIMIT / EMPTY_BANK_FILE | 파일 검증 오류 |
 | 403 | ACCESS_DENIED | 현재 관리소장 권한 없음 |
 | 404 | PAYMENT_NOT_FOUND | 해당 대상의 입금 없음 |

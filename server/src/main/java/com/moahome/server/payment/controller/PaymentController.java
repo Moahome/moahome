@@ -40,6 +40,10 @@ public class PaymentController {
     public ResponseEntity<PaymentResponse.Ledger> confirm(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@PathVariable UUID paymentId,@Valid @RequestBody PaymentRequests.Confirm request) {
         return ok(service.confirm(id(user),propertyId,paymentId,request));
     }
+    @PostMapping("/{paymentId}/other-income")
+    public ResponseEntity<PaymentResponse.Ledger> otherIncome(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@PathVariable UUID paymentId,@Valid @RequestBody PaymentRequests.OtherIncome request) {
+        return ok(service.confirmOtherIncome(id(user),propertyId,paymentId,request));
+    }
     @PostMapping("/{paymentId}/hold")
     public ResponseEntity<PaymentResponse.Ledger> hold(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@PathVariable UUID paymentId,@Valid @RequestBody PaymentRequests.Reason request) {
         return ok(service.hold(id(user),propertyId,paymentId,request.reason()));
