@@ -1,0 +1,109 @@
+.picker {
+  min-width: 0;
+
+  .label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .trigger {
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 50px;
+    gap: 8px;
+    padding-inline: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .value {
+    min-width: 0;
+    white-space: nowrap;
+  }
+
+  .chevron {
+    margin-left: auto;
+    transition: transform 180ms;
+  }
+
+  .trigger[aria-expanded='true'] .chevron {
+    transform: rotate(180deg);
+  }
+
+  .calendar {
+    position: fixed;
+    inset: auto;
+    margin: 0;
+    width: 280px;
+    padding: 12px;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card);
+    color: var(--foreground);
+    box-shadow: 0 12px 32px color-mix(in srgb, var(--foreground) 12%, transparent);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition: opacity 180ms, transform 180ms;
+
+    &[data-open='true'] {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
+    }
+  }
+
+  .year {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+
+    > button {
+      min-height: 32px;
+      padding: 4px 8px;
+      font-size: 14px;
+    }
+  }
+
+  .months {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+
+    > button {
+      min-height: 36px;
+      padding: 6px;
+      font-size: 14px;
+    }
+  }
+
+  .days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+
+    > span {
+      padding: 6px 0;
+      color: var(--sub-text);
+      text-align: center;
+      font-size: 12px;
+    }
+
+    > button {
+      min-width: 0;
+      min-height: 32px;
+      padding: 4px;
+      font-size: 12px;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .picker .calendar,
+  .picker .chevron {
+    transition: none;
+  }
+}

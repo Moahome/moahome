@@ -73,7 +73,7 @@ export function Dropdown({
   onBlur,
   required,
   disabled,
-  clearable = !required,
+  clearable = false,
   'aria-describedby': ariaDescribedBy,
   'aria-invalid': ariaInvalid,
   'aria-labelledby': ariaLabelledBy,

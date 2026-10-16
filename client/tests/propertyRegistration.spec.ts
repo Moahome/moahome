@@ -161,10 +161,10 @@ test('이름·주소·명시적인 동 구분을 모두 입력해야 계속 버�
     name: '빌라',
     exact: true
   }).click();
-  await page.getByRole('button', {
+  await expect(page.getByRole('button', {
     name: '건물 유형 선택 해제',
     exact: true
-  }).click();
+  })).toHaveCount(0);
   await expect(continueButton).toBeEnabled();
   await page.getByLabel('건물·단지 이름').fill('');
   await expect(continueButton).toBeDisabled();
@@ -203,7 +203,7 @@ test('Unicode 글자 수와 선택 입력 길이를 검증하고 정상 입력�
   await expect(continueButton).toBeEnabled();
 });
 
-test('건물 유형은 placeholder를 목록에 넣지 않고 고정 옵션·선택 표시·선택 해제를 제공', async ({ page }) => {
+test('건물 유형은 고정 옵션·선택 표시를 제공하고 선택 해제 X를 표시하지 않음', async ({ page }) => {
   await page.setViewportSize({
     width: 1536,
     height: 1024
@@ -253,11 +253,11 @@ test('건물 유형은 placeholder를 목록에 넣지 않고 고정 옵션·선
   await page.getByLabel('건물·단지 이름').click();
   await expect(listbox).toHaveCount(0);
   await expect(dropdown).toHaveText('아파트');
-  await page.getByRole('button', {
+  await expect(page.getByRole('button', {
     name: '건물 유형 선택 해제',
     exact: true
-  }).click();
-  await expect(dropdown).toHaveText('건물 유형을 선택해주세요');
+  })).toHaveCount(0);
+  await expect(dropdown).toHaveText('아파트');
 });
 
 test('드롭다운은 방향키·Enter로 선택하고 Escape는 목록만 닫으며 Tab으로 다음 입력에 이동', async ({ page }) => {
@@ -291,10 +291,11 @@ test('드롭다운은 방향키·Enter로 선택하고 Escape는 목록만 닫�
   await dropdown.press('ArrowDown');
   await dropdown.press('Tab');
   await expect(dropdown).toHaveAttribute('aria-expanded', 'false');
+  await expect(dropdown).not.toBeFocused();
   await expect(page.getByRole('button', {
     name: '건물 유형 선택 해제',
     exact: true
-  })).toBeFocused();
+  })).toHaveCount(0);
 });
 
 test('모바일 목록은 화면 안에 표시하고 공통 라디오는 키보드로 동 구분을 변경', async ({ page }) => {

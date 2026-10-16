@@ -95,7 +95,7 @@ export function SelectDropdown({
   layout = 'list',
   searchLayout = layout,
   iconPosition = 'start',
-  clearable = !required,
+  clearable = false,
   emptyMessage = '검색 결과가 없어요.',
   'aria-describedby': ariaDescribedBy,
   'aria-invalid': ariaInvalid,
