@@ -876,7 +876,7 @@ UNIQUE(property_id, billing_year, billing_month)
 
 초기 등록의 `default_amount`는 2026-10-08에 변경한 0원·음수 허용 정수 원 단위 정책을 따른다. 기존 양수 제약은 후속 Migration으로 제거하고 numeric(15,0)의 범위는 유지한다. 입력과 합계는 [등록 API](propertyRegistrationApi.md) 설계의 numeric(15,0) 범위로 검증한다. 템플릿 / 항목을 기본값으로 저장하고 최종 등록에서 등록월 청구를 함께 생성·확정한다. 회계 전표는 별도 구현이다.
 
-`item_code`는 기존 nullable varchar(30)을 유지하고 PostgreSQL ENUM이나 코드 CHECK 제약을 추가하지 않는다. 허용 코드와 직접 입력의 의미는 [등록 API](propertyRegistrationApi.md#기본-관리비-항목)를 따른다. 기존 NULL은 유지하며 항목명과 코드는 별도로 보존한다. enum 매핑과 저장 처리는 [Server 등록 설계](../server/docs/propertyRegistration.md#3-내부-초기값과-금액-처리)를 참조한다.
+`item_code`는 nullable varchar(30)을 유지합니다. 초기 구현에는 코드 CHECK가 없었으나, 후속 `V20261016135709__validate_fee_item_codes.sql`에서 확정된 추천 코드와 NULL만 허용하도록 검증합니다. JPA Enum에 없는 문자열이 저장돼 설정·부과 조회가 실패하는 문제를 방지합니다. 허용 코드와 직접 입력의 의미는 [등록 API](propertyRegistrationApi.md#기본-관리비-항목)를 따른다. 기존 NULL은 유지하며 항목명과 코드는 별도로 보존한다. enum 매핑과 저장 처리는 [Server 등록 설계](../server/docs/propertyRegistration.md#3-내부-초기값과-금액-처리)를 참조한다.
 
 ---
 
@@ -945,7 +945,7 @@ FOREIGN KEY(property_id, unit_id) REFERENCES units(property_id, id)
 | `created_at` | timestamptz | N | 생성 |
 | `updated_at` | timestamptz | N | 수정 |
 
-`(property_id, charge_id)` 복합 FK와 `(charge_id, sort_order)` UNIQUE를 적용합니다. 기간은 ISSUED일 때 확정 시각이 존재하며 청구는 ISSUED·EXCLUDED_VACANT·CANCELED에서 발행 시각을 보존하도록 CHECK 합니다.
+`(property_id, charge_id)` 복합 FK와 `(charge_id, sort_order)` UNIQUE를 적용합니다. `item_code`는 위 7.3과 같은 허용 코드·NULL CHECK를 적용합니다. 기간은 ISSUED일 때 확정 시각이 존재하며 청구는 ISSUED·EXCLUDED_VACANT·CANCELED에서 발행 시각을 보존하도록 CHECK 합니다.
 
 ---
 

@@ -88,6 +88,27 @@ class BillingPersistenceTest {
     }
     @AfterAll static void stopPostgres() { POSTGRES.close(); }
 
+    /** DB도 실제 Enum 코드만 허용하며 직접 입력의 null은 유지해 조회 가능성을 보장합니다. */
+    @Test
+    void persistedFeeCodesRejectUnsupportedValuesAndAllowEveryEnumAndCustomItems() {
+        UUID templateItem=jdbc.queryForObject("select i.id from fee_template_items i join fee_templates t on t.id=i.fee_template_id where t.property_id=? order by i.id limit 1",UUID.class,propertyId);
+        UUID chargeItem=jdbc.queryForObject("select i.id from charge_items i join charges c on c.id=i.charge_id join units u on u.id=c.unit_id where c.property_id=? and u.unit_number='201' order by i.id limit 1",UUID.class,propertyId);
+        assertThatThrownBy(()->jdbc.update("update fee_template_items set item_code='MANAGEMENT_FEE' where id=?",templateItem))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(()->jdbc.update("update charge_items set item_code='MANAGEMENT_FEE' where id=?",chargeItem))
+            .isInstanceOf(DataIntegrityViolationException.class);
+        for(var code:com.moahome.server.billing.domain.FeeItemCode.values()) {
+            jdbc.update("update fee_template_items set item_code=? where id=?",code.name(),templateItem);
+            jdbc.update("update charge_items set item_code=? where id=?",code.name(),chargeItem);
+            assertThat(billing.settings(userId,propertyId).current().items().stream().filter(item->item.id().equals(templateItem)).findFirst().orElseThrow().code()).isEqualTo(code);
+            assertThat(billing.monthly(userId,propertyId,YearMonth.of(2026,10)).charges().stream().flatMap(row->row.items().stream()).filter(item->item.id().equals(chargeItem)).findFirst().orElseThrow().code()).isEqualTo(code);
+        }
+        jdbc.update("update fee_template_items set item_code=null,item_name='직접 입력 항목' where id=?",templateItem);
+        jdbc.update("update charge_items set item_code=null,item_name='직접 입력 항목' where id=?",chargeItem);
+        assertThat(billing.settings(userId,propertyId).current().items().stream().filter(item->item.id().equals(templateItem)).findFirst().orElseThrow().code()).isNull();
+        assertThat(billing.monthly(userId,propertyId,YearMonth.of(2026,10)).charges().stream().flatMap(row->row.items().stream()).filter(item->item.id().equals(chargeItem)).findFirst().orElseThrow().code()).isNull();
+    }
+
     /** 과거 등록의 처리자를 필수로 보존하고 자동 부과에 수동 처리자를 섞지 않습니다. */
     @Test
     void historicalBillingRequiresActorAndLeavesScheduledPeriodsUntouched() {
@@ -412,7 +433,7 @@ class BillingPersistenceTest {
         var storedItems = jdbc.queryForList("select * from " + schema + ".charge_items order by id");
         var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(6);
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(7);
         upgraded.validate();
         assertThat(jdbc.queryForList("select * from " + schema + ".units order by id")).isEqualTo(storedUnits);
         assertThat(jdbc.queryForList("select * from " + schema + ".charges order by id")).isEqualTo(storedCharges);
@@ -525,7 +546,7 @@ class BillingPersistenceTest {
         var original = jdbc.queryForList("select " + originalColumns + " from public.charges order by id");
         var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(9);
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(10);
         upgraded.validate();
         assertThat(jdbc.queryForList("select " + originalColumns + " from " + schema + ".charges order by id")).isEqualTo(original);
         assertThat(jdbc.queryForObject("select count(*) from " + schema + ".charge_items", Long.class)).isEqualTo(count("charge_items"));

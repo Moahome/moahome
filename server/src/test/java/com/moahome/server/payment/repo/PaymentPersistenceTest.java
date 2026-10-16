@@ -375,7 +375,7 @@ class PaymentPersistenceTest {
             jdbc.execute("insert into "+schema+"."+table+"("+columns+") select "+columns+" from public."+table);
         }
         var upgraded=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"").schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(2);upgraded.validate();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(3);upgraded.validate();
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".bank_transactions where deleted_at is not null",Long.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".bank_transactions where deleted_at is null",Long.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".payments where deleted_at is null",Long.class)).isEqualTo(1);
@@ -426,7 +426,7 @@ class PaymentPersistenceTest {
         var before=jdbc.queryForList("select * from "+schema+".charges order by id");
         var upgraded=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(5);upgraded.validate();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(6);upgraded.validate();
         assertThat(jdbc.queryForList("select * from "+schema+".charges order by id")).isEqualTo(before);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".residents",Long.class)).isEqualTo(3);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".payments",Long.class)).isZero();
@@ -462,7 +462,7 @@ class PaymentPersistenceTest {
         var originals=jdbc.queryForList("select id,amount,payer_name_encrypted,deduplication_key from "+schema+".bank_transactions order by id");
         var upgraded=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(4);upgraded.validate();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(5);upgraded.validate();
         assertThat(jdbc.queryForList("select * from "+schema+".payments order by id")).isEqualTo(receipts);
         assertThat(jdbc.queryForList("select * from "+schema+".payment_allocations order by id")).isEqualTo(applied);
         assertThat(jdbc.queryForList("select id,amount,payer_name_encrypted,deduplication_key from "+schema+".bank_transactions order by id")).isEqualTo(originals);
