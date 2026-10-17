@@ -19,9 +19,9 @@
 
 ## 설정 조회 응답
 
-최초 등록 완료 시 등록월 청구가 생성·확정됩니다. 이후 설정 변경의 다음 달 적용 기준은 유지합니다. 기존 등록월 누락은 서버 시작·정기 실행에서 복구하며 GET은 저장하지 않습니다.
+신규 등록만으로 청구를 생성하지 않습니다. 기존 잔액 인계에서 관리 시작을 확정하고 지정한 첫 부과월부터 생성합니다. 기존 운영 대상의 청구와 첫 부과월은 보존하며 GET은 저장하지 않습니다.
 
-Settings는 `propertyId`, `currentMonth`, `firstBillingMonth`, `nextBillingDate`, `revisionId`, `current`, `scheduled`를 반환합니다. 날짜는 `YYYY-MM-DD`, 월은 `YYYY-MM`입니다. 서버 한국시간 기준월과 최신 버전 토큰을 변경 요청에 사용합니다. `scheduled`는 다음 달 적용 설정이 현재 설정과 같으면 null입니다.
+Settings는 `propertyId`, `currentMonth`, `firstBillingMonth`, `nextBillingDate`, `revisionId`, `current`, `scheduled`, `managementStarted`를 반환합니다. 운영 시작 전 `firstBillingMonth`·`nextBillingDate`는 등록월 기반 설정 표시값이며 확정 부과 일정을 의미하지 않습니다. 날짜는 `YYYY-MM-DD`, 월은 `YYYY-MM`입니다. 서버 한국시간 기준월과 최신 버전 토큰을 변경 요청에 사용합니다. `scheduled`는 다음 달 적용 설정이 현재 설정과 같으면 null입니다.
 
 Template은 `id`, `effectiveMonth`, `items`, `reason`(최초 설정은 null), `changedAt`(ISO offset timestamp)입니다. Item은 `id`, `code`(추천 코드 또는 null), `name`, `amount`입니다. 추천 코드는 [등록 API의 항목 계약](propertyRegistrationApi.md#기본-관리비-항목)을 공유합니다.
 
@@ -101,3 +101,25 @@ ChargeRow는 `id`, `unitId`, `building`(동 없음은 빈 문자열), `room`, `d
 [Client 화면·상태](../client/docs/managementLayout.md#관리비-부과-2026-10-10), [Server 트랜잭션·재시도](../server/docs/billing.md)를 참조합니다. 수납·환급·주민 공개 화면·회계 연결은 별도 구현입니다.
 
 활성 수납 배분이 있는 청구의 취소·제외는 `BILLING_CHARGE_HAS_PAYMENTS`(409)입니다. [입금 API](paymentApi.md)의 수납 정리를 먼저 수행하며 임의로 납부 기록을 제거하지 않습니다.
+
+## 기존 잔액 인계
+
+2026-10-17 구현. 기준 경로는 `/api/properties/{propertyId}/billing/opening-balances`이며 현재 ADMIN만 허용합니다. 일반 부과 조회·설정의 ADMIN / MANAGER 범위는 유지합니다.
+
+| Method | 경로 | 요청 | 결과 |
+| --- | --- | --- | --- |
+| GET | 기본 경로 | 없음 | 기준일·관리 시작 여부·초안/확정·세대·계좌·인계 이력 |
+| PUT | 기본 경로 | 아래 초안 | 저장한 최신 버전 |
+| POST | `/import/preview` | multipart `file` | 검증한 세대 입력 배열, 저장 없음 |
+| POST | `/{batchId}/confirm` | `{revision}` | 인계·관리 시작·첫 부과·선납 충당 확정 |
+| POST | `/{batchId}/cancel` | `{revision,reason}` | 사용 전 취소와 이력 보존 |
+
+초안은 `{batchId,revision,cutoffDate,firstBillingMonth,units,accounts}`입니다. 새 작업은 batchId·revision이 null입니다. units는 `{unitId,receivable,credit,originMonth?,responsibility?}`, accounts는 `{accountId,amount}`이며 전체 미삭제 세대·계좌를 중복 없이 제출합니다. 금액은 0~999,999,999,999,999원의 정수 문자열입니다. 기준일은 오늘까지, 첫 부과월의 1일은 기준일 이후이며 서버 현재월의 다음 달을 넘지 않습니다. 발생월은 기준월 이하의 선택값, 부담 주체 메모는 선택 500자입니다.
+
+응답은 `{propertyId,asOf,managementStarted,cutoffDate,firstBillingMonth,batch,units,accounts,history}`입니다. batch는 `{id,revision,status,cutoffDate,firstBillingMonth,confirmedAt,canceledAt,cancelReason}`입니다. 세대·계좌 행에는 표시용 label이 추가됩니다. 같은 기준일·월을 다시 저장해도 revision을 갱신합니다. 오래된 초안은 409입니다.
+
+엑셀은 내려받은 `.xlsx` 양식의 `세대 ID·세대·기존 미납·기존 선납·발생월·부담 주체 메모` 순서이며 5MB·10,000행까지 허용합니다. ID는 현재 대상의 실제 세대와 대조하고 수식·소수·음수·중복 ID·잘못된 발생월을 거부합니다. 미리보기는 저장하지 않으며 직접 입력과 합쳐 검토한 전체 초안을 별도로 저장·확정합니다.
+
+CONFIRMED의 재확정은 원 결과를 반환합니다. 취소는 확정 수납이 없을 때만 허용하며 기존 월별 청구·최초 기준일·첫 부과월은 보존합니다. 정정은 취소 후 새 인계 작업으로 기록합니다. 기존 운영 대상에 인계 작업이 없으면 소급 잔액 추가를 허용하지 않습니다.
+
+409: `OPENING_BALANCE_CONFLICT`, `OPENING_TARGETS_CHANGED`, `OPENING_ALREADY_HAS_RECEIPTS`. 400: `INVALID_OPENING_DATES`, `INVALID_OPENING_FILE`. 404: `OPENING_NOT_FOUND`. 저장소 충돌·장애는 기존 업무 오류 처리기의 `PAYMENT_CONFLICT` / `PAYMENT_SERVICE_UNAVAILABLE`을 재사용합니다. 자세한 업무 정책은 [도메인 규칙](domainRules.md#확정-정책-기존-잔액-인계와-관리-시작-2026-10-17)을 따릅니다.

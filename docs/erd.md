@@ -343,6 +343,8 @@ OAuth 세션/토큰 상태는 Redis 영역으로 분리한다.
 
 ## 5.1 properties
 
+2026-10-17 `management_started_at`, `balance_cutoff_date`, `first_billing_month`를 추가했습니다. 신규 등록은 모두 null이며 운영 시작 확정에서 채웁니다. 기존 행은 created_at과 등록한 한국시간 월로 운영 시작·첫 부과월을 보정하고 기준일은 null로 유지합니다. 기존 원장에 초기 잔액을 추가하는 의미는 아닙니다.
+
 ### 목적
 
 빌라/공동주택 등 하나의 관리 단위.
@@ -373,7 +375,7 @@ OAuth 세션/토큰 상태는 Redis 영역으로 분리한다.
 
 확정일: 2026-10-05. `name`의 최대 길이는 50자로 맞추고 `has_buildings`에 동 있음 / 없음 선택을 저장한다. 이름은 앞뒤 공백을 제거하고 공백만 있는 값을 허용하지 않는다. 동 구분은 건물 유형이나 현재 동 개수로 대신 판단하지 않는다.
 
-기본 정보 입력과 단계 이동에서는 업무 레코드를 저장하지 않는다. 마지막 `관리 시작하기`에서 관리대상, 필요한 동, 세대, 관리계좌, 관리비 템플릿 / 항목과 생성자 참여를 하나의 DB 트랜잭션으로 저장한다. 초기 등록에는 세대 / 관리계좌 / 관리비 항목 각각 최소 1개가 필요하다. 등록월 청구·항목과 자동 확정도 같은 트랜잭션으로 저장한다. 초안 전용 테이블이나 `DRAFT` 상태를 추가하지 않는다.
+기본 정보 입력과 단계 이동에서는 업무 레코드를 저장하지 않는다. 마지막 `관리 시작하기`에서 관리대상, 필요한 동, 세대, 관리계좌, 관리비 템플릿 / 항목과 생성자 참여를 하나의 DB 트랜잭션으로 저장한다. 초기 등록에는 세대 / 관리계좌 / 관리비 항목 각각 최소 1개가 필요하다. 신규 등록에서는 청구를 생성하지 않는다. 첫 부과는 기존 잔액 인계와 운영 시작 확정에서 별도 트랜잭션으로 저장한다. 초안 전용 테이블이나 `DRAFT` 상태를 추가하지 않는다.
 
 `has_buildings = false`이면 동을 생성하지 않고 모든 세대의 `building_id`를 NULL로 둔다. `true`이면 최소 1개의 동이 필요하며 각 세대의 동이 동일한 관리대상에 속해야 한다. 이름 / 동 구분의 저장 제약과 관계 검증은 실제 Migration / Service 구현 시 이 기준에 맞춘다.
 
@@ -487,7 +489,7 @@ WHERE building_id IS NULL AND deleted_at IS NULL;
 
 ### 구현 상태
 
-`V20261010041826__create_resident_directory.sql`로 테이블과 목록 조회용 Entity를 구현했다. 조회 권한·연락처 끝 4자리·전체 명부 범위는 [주민 관리 API](residentManagementApi.md)를 따른다. 저장 상태를 목록 필터로 사용하지 않는다. 개별·엑셀 등록·상세·수정·삭제와 기존 등록 API의 재등록 복구를 구현했으며 계정 연결 API는 아직 구현하지 않았다. 기본 조회는 마스킹만 반환하고 명시적 상세 공개 또는 관리소장의 목록 내보내기 API에서만 전체 번호를 복호화한다. 연락처 수정 시 확인 연결된 가입 신청의 보호 연락처도 함께 변경하며 삭제 시 해당 대상의 주민 참여를 종료한다.
+`V20261010041826__create_resident_directory.sql`로 테이블과 목록 조회용 Entity를 구현했다. 조회 권한·연락처 끝 4자리·전체 명부 범위는 [주민 관리 API](residentManagementApi.md)를 따른다. 저장 상태를 목록 필터로 사용하지 않는다. 개별·엑셀 등록·상세·수정·삭제와 기존 등록 API의 재등록 복구를 구현했으며 세대·연락처 기반 가입 신청과 관리자 승인에 따른 계정 연결을 구현했다. 기본 조회는 마스킹만 반환하고 명시적 상세 공개 또는 관리소장의 목록 내보내기 API에서만 전체 번호를 복호화한다. 연락처 수정 시 확인 연결된 가입 신청의 보호 연락처도 함께 변경하며 삭제 시 해당 대상의 주민 참여를 종료한다.
 
 ### 핵심 제약
 
@@ -537,7 +539,7 @@ Resident = 해당 Property에서의 실제 주민 기록
 
 같은 관리대상 안에서 한 주민의 현재 세대는 하나로 제한하고, 같은 세대의 여러 주민은 허용한다. 과거 관계는 유지한다. 신청자에게 세대 관계를 선택받지 않고 관리자 명부의 관계 정보를 승인 과정에서 확인한다.
 
-`is_household_rep`의 최초 지정과 변경 권한은 [확정된 세대 대표 지정과 변경](domainRules.md#확정된-세대-대표-지정과-변경)을 따른다. 주민 관계 테이블과 조회 API는 구현했으며 저장된 대표 여부를 표시한다. 개별·엑셀 등록에서 최초 주민을 대표로 자동 지정하며 이후 등록은 기존 대표를 유지한다. 엑셀의 최초 순서는 확정 도메인 정책을 따른다. 삭제·이동 시 관리소장이 남은 주민 중 대표를 직접 선택하는 승계를 구현했다. 별도의 임의 대표 변경 API는 아직 구현하지 않았다.
+`is_household_rep`의 최초 지정과 변경 권한은 [확정된 세대 대표 지정과 변경](domainRules.md#확정된-세대-대표-지정과-변경)을 따른다. 주민 관계 테이블과 조회 API는 구현했으며 저장된 대표 여부를 표시한다. 일반 개별·엑셀 등록에서 최초 주민을 대표로 자동 지정하며 이후 등록은 기존 대표를 유지한다. 관리소장 담당자 등록·본인 계정 연결의 별도 예외와 구현 상태는 [도메인 규칙](domainRules.md#확정된-관리대상-생성자-권한)을 따른다. 엑셀의 최초 순서는 확정 도메인 정책을 따른다. 삭제·이동 시 관리소장이 남은 주민 중 대표를 직접 선택하는 승계를 구현했다. 별도의 임의 대표 변경 API는 아직 구현하지 않았다.
 
 현재 관계 중복 방지 제약은 위 Migration에 적용했다. 같은 관리대상의 주민·세대만 관계를 맺도록 복합 FK도 적용했다:
 
@@ -567,6 +569,8 @@ CREATE UNIQUE INDEX unit_residents_active_resident_idx
 주민·관계는 관리대상·주민을 포함한 복합 FK로 참조합니다. 관계 원본에 `(property_id, resident_id, id)` UNIQUE를 추가하며 기존 행은 변경하지 않습니다. 별도 만료·삭제 정책은 추가하지 않습니다. 삭제 후 재입력은 명부 삭제 표시를 해제하고 새 관계를 생성하며 과거 관계·이용 권한을 재활성화하지 않습니다. 계약은 [주민 등록 API](residentManagementApi.md#주민-등록)를 따릅니다.
 
 ## 5.6 property_members
+
+2026-10-17 부분 유일 인덱스 `property_members_single_admin_idx`로 현재 활성 ADMIN을 관리대상당 1명으로 제한합니다. 역할 변경과 인계 이벤트는 `member_role_events`에 별도 보존합니다. 모든 일반 역할의 중복·우선순위 정책을 이 인덱스로 확정하지 않습니다.
 
 ### 목적
 
@@ -697,7 +701,7 @@ Property P002 → RESIDENT
 
 ### 목적
 
-공용 / 세대 / 주민 단위 가입 초대 토큰.
+공용 / 세대 / 주민 단위 가입 초대 토큰의 기존 설계안입니다. 현재 주민 가입은 초대코드 없이 참여 링크와 `membership_requests`를 사용합니다. 외부 부담당자 코드는 아래 `member_invitations` 구현을 따릅니다.
 
 ### 컬럼
 
@@ -757,7 +761,7 @@ QR/초대 원문 토큰은 저장하지 않고 `token_hash`만 저장.
 
 ### 구현 상태
 
-`V20261010043914__create_membership_request_read_model.sql`로 주민 목록의 가입 상태 조회에 필요한 저장 구조와 중복 대기·관리대상 무결성 제약을 구현했다. `invitation_id`와 초대 FK는 초대 기능 구현 시 추가하며, 신청·승인·자동 매칭 API는 아직 없다. 현재 주민 목록의 판정 기준은 [주민 관리 API](residentManagementApi.md#가입-상태-판정)를 따른다. 확인되지 않은 매칭 후보를 주민의 승인 대기로 취급하지 않는다.
+`V20261010043914__create_membership_request_read_model.sql`로 주민 목록의 가입 상태 조회에 필요한 저장 구조와 중복 대기·관리대상 무결성 제약을 구현했다. 주민 가입 신청·승인·거절 API를 구현했으며 자동 계정 연결은 하지 않는다. 주민 가입에 invitation_id를 추가하지 않는다. 현재 주민 목록의 판정 기준은 [주민 관리 API](residentManagementApi.md#가입-상태-판정)를 따른다. 확인되지 않은 매칭 후보를 주민의 승인 대기로 취급하지 않는다.
 
 관리소장이 주민 연락처를 수정하면 해당 주민으로 확인 연결된 신청의 `request_phone_*` 3개 값도 함께 변경한다. 변경 후 신청 번호를 최초 입력 시점의 불변 스냅샷으로 취급하지 않는다. 주민 삭제 시 확인 연결된 대기는 취소하며 승인 이력은 유지한다. 연결 범위와 트랜잭션은 [주민 API](residentManagementApi.md#주민-상세연락처-공개수정삭제)를 따른다.
 
@@ -874,13 +878,15 @@ UNIQUE(property_id, billing_year, billing_month)
 | `deleted_at` | timestamptz | Y | 삭제 |
 | `deleted_by` | uuid | Y | 삭제 처리자 |
 
-초기 등록의 `default_amount`는 2026-10-08에 변경한 0원·음수 허용 정수 원 단위 정책을 따른다. 기존 양수 제약은 후속 Migration으로 제거하고 numeric(15,0)의 범위는 유지한다. 입력과 합계는 [등록 API](propertyRegistrationApi.md) 설계의 numeric(15,0) 범위로 검증한다. 템플릿 / 항목을 기본값으로 저장하고 최종 등록에서 등록월 청구를 함께 생성·확정한다. 회계 전표는 별도 구현이다.
+초기 등록의 `default_amount`는 2026-10-08에 변경한 0원·음수 허용 정수 원 단위 정책을 따른다. 기존 양수 제약은 후속 Migration으로 제거하고 numeric(15,0)의 범위는 유지한다. 입력과 합계는 [등록 API](propertyRegistrationApi.md) 설계의 numeric(15,0) 범위로 검증한다. 템플릿 / 항목을 기본값으로 저장하고 관리 시작 확정에서 지정한 첫 월의 청구를 생성·확정한다. 회계 전표는 별도 구현이다.
 
 `item_code`는 nullable varchar(30)을 유지합니다. 초기 구현에는 코드 CHECK가 없었으나, 후속 `V20261016135709__validate_fee_item_codes.sql`에서 확정된 추천 코드와 NULL만 허용하도록 검증합니다. JPA Enum에 없는 문자열이 저장돼 설정·부과 조회가 실패하는 문제를 방지합니다. 허용 코드와 직접 입력의 의미는 [등록 API](propertyRegistrationApi.md#기본-관리비-항목)를 따른다. 기존 NULL은 유지하며 항목명과 코드는 별도로 보존한다. enum 매핑과 저장 처리는 [Server 등록 설계](../server/docs/propertyRegistration.md#3-내부-초기값과-금액-처리)를 참조한다.
 
 ---
 
 ## 7.4 charges
+
+2026-10-17 `charge_type`을 추가했습니다. MONTHLY는 기존 부과기간 FK를 유지하고 OPENING_RECEIVABLE은 기간 없이 기준일의 기존 미수만 보존합니다. 일반 월별 부과·이력 합계에는 초기 미수를 포함하지 않습니다.
 
 ### 목적
 
@@ -892,7 +898,7 @@ UNIQUE(property_id, billing_year, billing_month)
 |---|---|---:|---|
 | `id` | uuid | N | PK |
 | `property_id` | uuid | N | FK |
-| `billing_period_id` | uuid | N | FK |
+| `billing_period_id` | uuid | Y | MONTHLY는 필수, OPENING_RECEIVABLE은 null |
 | `unit_id` | uuid | N | 관리대상·세대 복합 FK |
 | `building_name_snapshot` | varchar(50) | N | 부과 당시 동명, 동 없음은 빈 문자열 |
 | `unit_number_snapshot` | varchar(30) | N | 부과 당시 호수 |
@@ -948,6 +954,21 @@ FOREIGN KEY(property_id, unit_id) REFERENCES units(property_id, id)
 `(property_id, charge_id)` 복합 FK와 `(charge_id, sort_order)` UNIQUE를 적용합니다. `item_code`는 위 7.3과 같은 허용 코드·NULL CHECK를 적용합니다. 기간은 ISSUED일 때 확정 시각이 존재하며 청구는 ISSUED·EXCLUDED_VACANT·CANCELED에서 발행 시각을 보존하도록 CHECK 합니다.
 
 ---
+
+## 7.6 기존 잔액 인계
+
+2026-10-17 구현. 업무 정책은 [도메인 규칙](domainRules.md#확정-정책-기존-잔액-인계와-관리-시작-2026-10-17), API는 [관리비 계약](billingApi.md#기존-잔액-인계)을 따릅니다.
+
+| 테이블 | 저장 정보와 제약 |
+| --- | --- |
+| opening_balance_batches | 관리대상·기준일·첫 부과월, DRAFT/CONFIRMED/CANCELED, revision·편집 토큰, 생성·확정·취소자/시각·사유. 대상별 미취소 작업 1개 |
+| opening_balance_items | batch·세대, receivable·credit(numeric(15,0), 0 이상), 초기 미수 charge_id, 선택 발생월·암호화 부담 주체 메모. batch·세대 UNIQUE |
+| bank_opening_balances | batch·관리계좌·기준일 실제 잔액(numeric(15,0), 0 이상). batch·계좌 UNIQUE |
+| credit_applications | 초기 선납 item·청구·양수 충당액, ACTIVE/CANCELED, 처리자·시각. item·청구 UNIQUE |
+
+모든 연결에 관리대상을 포함한 복합 FK를 둡니다. 초기 선납 사용가능액은 확정 item.credit에서 활성 credit_applications 합계를 빼 계산합니다. 이미 존재하는 초과수납은 payments의 미사용액을 재사용하며 중복 unit_credit_balances 컬럼·테이블을 만들지 않았습니다.
+
+DB 지연 제약은 실제 수납 배분과 기존 선납 충당의 합계가 청구액을 넘지 못하게 검증합니다. 양쪽 배분은 같은 관리대상 행을 잠급니다. 선납이 충당된 청구의 금액·제외 상태 변경도 차단합니다. 확정된 인계 금액은 직접 덮어쓰지 않고 사용 전 취소·새 작업으로 정정합니다.
 
 # 8. 수납 / 입금
 
@@ -1676,15 +1697,15 @@ property_members 확인
     ↓
 ADMIN/MANAGER → 관리자
 RESIDENT → 주민
-소속 없음 → 관리할 곳 만들기 / 초대코드 참여
+소속 없음 → 관리할 곳 만들기 / 주민으로 참여하기
 ```
 
 ## 15.2 주민 가입
 
 ```text
-초대코드
+관리대상 참여 링크 /join/[propertyId]
     ↓
-invitations 검증
+현재 관리대상·세대 확인
     ↓
 신청자가 전화번호 / 동·호수 입력 (실명 / 세대 관계 입력 없음)
     ↓
@@ -1957,4 +1978,26 @@ Property → Building(optional) → Unit 구조
 
 ---
 
+## 외부 관리자 초대·역할 변경 저장 (2026-10-17)
+
+`member_invitations`는 외부 부담당자 전용 구현입니다. property_id, token_hash, MANAGER 역할, ISSUED/REQUESTED/APPROVED/REVOKED 상태, revision, 발급자/시각·1일 만료, 신청자/시각·검토자/시각을 보존합니다. 신규 외부 관리자 초대는 주민·세대를 연결하지 않으며 token_hash는 UNIQUE입니다. 이미 적용한 초기 스키마의 resident_id/unit_id는 과거 승인·철회 이력을 보존하기 위해 유지합니다. 후속 Migration은 완료되지 않은 주민용 코드를 철회하고 신규 주민 초대를 차단합니다. 만료는 현재 시각과 expires_at에서 계산합니다.
+
+`member_role_events`는 property_id/member_id/actor_id, GRANTED/CHANGED/ENDED, previous_role/next_role, changed_at을 보존하며 개인정보·코드 원문을 담지 않습니다. 주민 가입은 기존 membership_requests를 사용합니다. [참여자·가입 API](memberManagementApi.md)를 참조합니다.
+
+---
+
+## 최초 거주 관리소장 자동 연결 (2026-10-17)
+
+신규 컬럼 없이 residents.user_id와 unit_residents의 현재 관계를 생성하고 등록한 본인의 ADMIN 참여를 유지합니다. 외부 관리소장은 주민 명부가 없는 ADMIN 참여입니다. 최초 자동 연결의 출처는 property_registration_results.response_snapshot의 administrator에 residenceType/residentId/unitId/unitResidentId로 보존합니다. 이름·연락처 원문을 스냅샷에 넣지 않으며 활성 참여와 현재 관계 ID의 일치로 가입 완료를 판정합니다. 자세한 계약은 [등록 API](propertyRegistrationApi.md#최초-관리소장-거주-선택-2026-10-17)를 참조합니다.
+
 ## END
+
+### 관리 담당자 UI 미리보기와 저장 설계의 차이 (2026-10-17)
+
+관리 담당자의 이름·연락처를 로그인 닉네임과 분리하고 거주자만 세대와 연결하는 화면 미리보기를 추가했다. 관리소장 등록은 최초 주민의 대표 자동 지정에서 제외하며 기존 명부 연결 시 대표 여부를 유지하는 정책이 확정되었다. 실제 초기 등록에서도 대표로 자동 지정하지 않으며 연락처 미입력은 주민의 연락처 보호 컬럼을 모두 NULL로 저장한다. 외부 담당자의 이름·연락처 저장 구조는 후속 구현이다. 기존 관리소장 계정 연결은 아래 출처 테이블과 저장 API로 구현했다. 기존 연락처 보호 규칙을 우회해 일반 문자열로 보관하지 않는다.
+
+## 기존 관리소장의 주민 계정 연결 출처 (2026-10-17)
+
+`resident_account_links`는 기존 관리소장이 본인 명부를 명시적으로 선택한 이력이다. id·property_id·resident_id·user_id·unit_resident_id·linked_by·linked_at을 저장하며 계정과 처리자는 동일하다. 같은 대상·주민·계정·관계의 중복을 UNIQUE로 막고 주민의 대상 소속은 복합 FK로 검증한다. 이름·전화번호 원문은 저장하지 않는다.
+
+unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재입주 뒤에도 이력을 유지하도록 FK로 과거 관계 삭제를 막지 않는다. 서비스에서 현재 관계를 검증하고 조회에서도 실제 현재 관계 ID·주민 계정·활성 참여·미삭제 세대의 일치를 확인한다. 역할이나 대표를 저장하는 테이블이 아니며 가입 신청·등록 성공 스냅샷을 대체·수정하지 않는다. 신규 Migration은 기존 데이터를 자동 연결하지 않는다.

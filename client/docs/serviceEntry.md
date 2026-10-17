@@ -35,7 +35,7 @@
 | 화면 | URL | Client 화면 슬라이스 |
 | --- | --- | --- |
 | 공통 진입 처리 — 후속 | `/entry` | `screens/service-entry/` |
-| 만들기 / 초대코드 참여 | `/start` — 기존 경로 | `screens/start/` — 기존 슬라이스 |
+| 만들기 / 주민으로 참여하기 | `/start` — 기존 경로 | `screens/start/` — 기존 슬라이스 |
 | 관리자 대시보드 — 임시 구현 | `/manage/[propertyId]/dashboard` | `screens/management-dashboard/` |
 | 세대 목록 — 연결됨 | `/manage/[propertyId]/households` | 기준: `screens/household/unit-list/`, [구조 검증](unitList.md#6-구조와-동작-검증) |
 | 주민 목록 | `/manage/[propertyId]/residents` | `screens/household/resident-list` |
@@ -121,4 +121,17 @@ API 호출은 기존 `entities/session`을 사용할 수 있는 Feature에 둡�
 4. 랜딩 / 로그인 / 콜백 / 일반 `/start`와 등록 완료 버튼을 연결하고 등록 복구·추가 등록 예외를 유지합니다.
 5. 사용자별 목록과 권한 확인, 직접 URL, 새로고침·뒤로가기·캐시 복원, 로그아웃·계정 변경, 최근 기록 해제, 조회 재시도와 이동 루프 부재를 검증합니다.
 
-목록 / 현재 관리 권한 연결의 검증은 `tests/managementLayout.spec.ts`와 기존 등록 테스트에 작성했습니다. `/entry` 분리와 주민 등록·상세·가입 승인 기능은 후속 범위입니다.
+목록 / 현재 관리 권한 연결의 검증은 `tests/managementLayout.spec.ts`와 기존 등록 테스트에 작성했습니다. `/entry` 분리와 주민 홈·전체 신청 상태 조회는 후속 범위입니다. 주민 명부 등록·상세와 별도 가입 요청의 승인·거절은 구현했으며 [역할·가입 화면](memberManagement.md)을 따릅니다.
+
+
+## 관리할 곳 추가·참여 진입 (2026-10-17)
+
+설정 본문의 `등록 및 참여` 버튼은 `/properties/add`로 연결합니다. 이 경로는 기존 `screens/start`의 StartPage를 additional 모드로 재사용하며 현재 관리대상이 있어도 대시보드로 자동 이동하지 않습니다. 정상 로그인 확인과 기존 등록·초대 API 권한 검증은 유지합니다. 일반 `/start`의 현재 관리대상 자동 진입 기준은 유지합니다.
+
+추가 화면은 기존 헤더·안내·카드·등록 단계를 재사용합니다. 안내는 `등록 및 참여`로 표시하고 만들기는 `/properties/add?registration=basic&preview=manager`의 화면 미리보기, 코드 참여는 기존 `/invitations`로 연결합니다. 일반 시작 화면의 주민 참여 링크는 기존 `/join`을 사용합니다.
+
+등록 단계 이동·입력 오류 복귀·취소·완료 조회 실패는 진입 경로를 유지합니다. 완료 URL도 `/properties/add?registration=complete&requestId={UUID}`를 사용합니다. 초안 수명 관리는 두 등록 경로를 동일하게 처리하고 새로고침에서만 복원하며 이탈·취소·로그아웃에서는 폐기합니다. 설정은 본문에 등록·참여 버튼 하나만 제공하며 관리자 관리·초대 신청을 넣지 않습니다.
+
+## 등록 및 참여 명칭 (2026-10-17)
+
+추가 진입 페이지와 설정 본문의 진입 버튼은 `등록 및 참여`로 표시한다. 설정 헤더에 버튼을 추가하지 않는다. 추가 등록의 새로운 관리 담당자 화면은 [등록 UI 미리보기](propertyRegistration.md#관리-담당자-별도-단계-ui-미리보기-2026-10-17)를 따른다.

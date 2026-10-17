@@ -21,8 +21,8 @@
 4. 동을 생성해 clientId → DB ID를 연결하고 세대의 `property_id`와 필요한 `building_id`를 지정합니다.
 5. 계좌번호를 보호해서 공용 관리계좌를 저장하고 공통 등록 시각에 따른 사용 시작일을 설정합니다.
 6. 기본 관리비 템플릿과 항목을 저장하고 Server가 항목 합계를 계산합니다.
-7. 인증된 사용자의 `ADMIN / ACTIVE` 참여를 생성하고 joined_at을 등록 시각으로 설정합니다. users.system_role과 주민 명부는 변경하지 않습니다.
-8. [관리비 부과 Service](billing.md)로 등록월 청구·항목을 생성하고 바로 확정합니다. 등록과 같은 트랜잭션에 참여하므로 첫 청구 저장 실패도 등록 전체를 롤백합니다.
+7. 인증된 사용자의 `ADMIN / ACTIVE` 참여를 생성하고 joined_at을 등록 시각으로 설정합니다. users.system_role은 변경하지 않습니다. 거주 선택 시 아래 최초 등록자 주민 연결을 같은 트랜잭션에서 처리합니다.
+8. 청구는 생성하지 않습니다. 기존 잔액 인계의 관리 시작 확정에서 첫 청구를 생성합니다. 인계 API는 [관리비 계약](../../docs/billingApi.md#기존-잔액-인계)을 따릅니다.
 9. 성공 응답 스냅샷과 본문 지문을 같은 트랜잭션으로 저장하고 커밋 성공 뒤 응답합니다.
 
 외부 은행 확인이나 알림 발송을 이 DB 트랜잭션의 성공 조건으로 추가하지 않습니다. 등록 요청 원문을 Redis 초안이나 DB 초안으로 보관하지 않으며, 성공 결과 레코드에는 민감한 요청 본문을 저장하지 않습니다. 현재 API에서 성공 결과에 자동 만료를 두지 않고, 삭제 / 탈퇴에 따른 보존·정리는 해당 정책을 정할 때 중복 방지 보장과 함께 검토합니다.
@@ -42,9 +42,9 @@
 | 관리비 템플릿 | 이름 기본 관리비, is_default=true, ACTIVE, effective_from은 등록 한국시간 월의 1일, effective_to는 NULL. 월별 적용·버전은 [관리비 설계](billing.md) 참조 |
 | 관리비 항목 | item_code는 요청의 enum 이름 또는 NULL, item_name은 요청의 표시 이름, revenue_account_id는 NULL, is_active=true |
 | 표시 순서 | 동과 항목 각각 요청 배열 순서대로 sort_order를 0부터 부여 |
-| 생성자 참여 | 인증된 사용자의 ADMIN / ACTIVE, joined_at은 공통 등록 시각, 플랫폼 역할 / 주민 명부 변경 없음 |
+| 생성자 참여 | 인증된 사용자의 ADMIN / ACTIVE, joined_at은 공통 등록 시각, 플랫폼 역할 변경 없음. 거주 선택 시 본인 명부·현재 세대 관계 생성 |
 
-금액은 정수 원 단위로 받고 0원과 음수를 허용합니다. BigInteger로 전체를 정확히 합산한 뒤 최종 양·음수 범위를 검사합니다. 중간 합계 초과를 뒤의 음수 항목이 상쇄할 수 있으므로 요청 순서에 따른 거부는 하지 않습니다. 개별 값과 합계는 공통 API의 범위를 검증해 numeric(15,0)과 charges.total_amount의 저장 범위에 맞춥니다. 합계는 부호를 유지한 세대당 월 기본값이며 최종 등록에서 이 설정으로 등록월 청구를 함께 생성·확정합니다. `V20261008132205__allow_signed_fee_template_amount.sql`은 기존 행을 보존하며 `default_amount`의 양수 CHECK만 제거합니다.
+금액은 정수 원 단위로 받고 0원과 음수를 허용합니다. BigInteger로 전체를 정확히 합산한 뒤 최종 양·음수 범위를 검사합니다. 중간 합계 초과를 뒤의 음수 항목이 상쇄할 수 있으므로 요청 순서에 따른 거부는 하지 않습니다. 개별 값과 합계는 공통 API의 범위를 검증해 numeric(15,0)과 charges.total_amount의 저장 범위에 맞춥니다. 합계는 부호를 유지한 세대당 월 기본값이며 최종 등록에서는 기본 설정만 저장하며 첫 청구는 관리 시작 확정에서 생성합니다. `V20261008132205__allow_signed_fee_template_amount.sql`은 기존 행을 보존하며 `default_amount`의 양수 CHECK만 제거합니다.
 
 `billing/domain/FeeItemCode`는 공통 등록 API의 추천 종류를 표현합니다. 요청 DTO와 `FeeTemplateItem.itemCode`에 같은 enum을 사용하고 `@Enumerated(EnumType.STRING)`으로 기존 `varchar(30)`에 저장합니다. 등록 JSON 변환기는 enum의 숫자 / 빈 문자열 변환을 거부하고 잘못된 코드의 필드 경로만 반환합니다. 생략 / null은 코드 없는 직접 입력이며 표시 이름은 기존 검증으로 별도 보존합니다. DB 자체에 코드 제한을 추가하거나 기존 항목을 자동 분류하지 않습니다. 기존 컬럼을 사용하므로 Migration은 추가하지 않습니다.
 
@@ -103,3 +103,14 @@
 검증 명령은 [Server AGENTS.md](../AGENTS.md)를 따릅니다. 자동 테스트는 `property/controller/PropertyRegistrationControllerTest`, `property/service/PropertyRegistrationServiceTest`, `property/domain/RegistrationDomainTest`, `property/repo/PropertyRegistrationPersistenceTest`와 `common/security/AccountNumberSecurityTest`에 있습니다. 기존 `SecurityIntegrationTest`에서도 등록 API의 Bearer 인증과 CSRF 없는 업무 POST를 검증합니다.
 
 PostgreSQL 테스트는 별도 임시 클러스터에서 빈 DB / 기존 사용자·관리비 항목이 있는 스키마의 Migration, 정상 저장, 저장 8단계별 강제 실패의 전체 롤백, 순차 / 동시 재시도, 3초 잠금 제한과 현재 권한 해제를 확인합니다. 위 상세 목록은 검증 기준이며 테스트 실행 결과는 실제 명령을 기준으로 보고합니다.
+
+
+## 최초 등록자 주민 연결 (2026-10-17)
+
+등록자의 명시적 거주 선택은 동일 트랜잭션에서 ADMIN·Resident·UnitResident를 저장합니다. 주민 구분 OTHER·대표 false이며 공실 표시는 주민 등록만으로 자동 변경하지 않습니다. 연락처는 선택이며 입력한 번호만 기존 주민 정규화와 PhoneSecurity로 보호합니다. 미입력은 보호 컬럼을 모두 NULL로 저장하며 보호 서비스가 없어도 저장할 수 있습니다. 외부자는 PropertyMember만 저장합니다.
+
+기존 성공 결과의 administrator에는 주민·세대·관계 ID만 저장하고 원문 개인정보는 넣지 않습니다. ResidentRepository는 등록 결과의 사용자와 최초 관계 ID·현재 활성 참여를 함께 확인해 가입 완료를 판정합니다. 가입 요청을 가짜로 생성하지 않으며 관계가 끝나거나 재입주로 ID가 바뀌면 과거 연결을 승인 근거로 사용하지 않습니다. 새 거주 선택은 HMAC에 포함하고 생략된 이전 요청의 지문은 유지합니다. 기존 스키마·Migration은 수정하지 않습니다.
+
+## 관리 담당자 후속 정책과 현재 구현의 차이 (2026-10-17)
+
+[생성자 권한](../../docs/domainRules.md#확정된-관리대상-생성자-권한)에 관리소장 담당자 등록의 대표 자동 지정 예외가 추가되었다. 대표 자동 지정 예외와 연락처 선택 정책은 Server에 적용했다. 외부 담당자 정보의 입력 제한은 아직 유지한다. 외부 담당자 이름·연락처의 저장 구조는 후속 구현이다. 기존 관리소장 계정의 본인 명부 연결은 [참여자 저장](memberManagement.md#기존-관리소장-본인-명부-연결)에서 구현했다. 기존 데이터를 이름·전화번호로 자동 연결하거나 소급 변경하지 않는다.
