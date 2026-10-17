@@ -29,6 +29,7 @@ import {
   getPreviewBuildingOptions
 } from '../../../model/paymentPreview';
 import { usePaymentWorkspace } from '../../payment-workspace-provider/paymentWorkspaceProvider';
+import { createMonthlyWorkbook } from '../../../model/monthlyExport';
 import styles from './monthlyCollection.module.css';
 
 /** 다운로드 행동을 페이지 헤더에서 제공하고 원장·필터 UI의 배치를 바꾸지 않습니다. */
@@ -36,28 +37,12 @@ export function MonthlyExportButton({ month }: { month: string }) {
   const { ledger } = usePaymentWorkspace();
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
-  const rows = getMonthlyPreviewRows(ledger, month);
-  const sum = (key: 'carry' | 'billed' | 'applied' | 'balance') => rows.reduce((total, row) => total + row[key] + (key === 'billed' ? row.settlementAmount ?? BigInt(0) : BigInt(0)), BigInt(0));
-  /** 현재 선택월 전체 세대를 문자열 셀로 내보내 큰 금액의 정밀도와 텍스트 안전성을 보존합니다. */
+  /** 현재 선택월 전체 세대를 공통 보고서 서식으로 저장하며 조회 계산을 그대로 사용합니다. */
   async function download() {
     setExporting(true);
     setError('');
     try {
-      const { default: writeExcelFile } = await import('write-excel-file/universal');
-      const values = [
-        ['세대', '세대 대표', '최근 입금자', '전월 이월액', '당월 발생액', '당월 수납 반영액', '미수금 잔액', '선입금 잔액', '상태'],
-        ...rows.map((row) => [row.unitLabel, row.representativeName, row.latestPayer, String(row.carry), String(row.billed + (row.settlementAmount ?? BigInt(0))), String(row.applied), !row.settlementPending ? String(row.balance) : '정산 확인 필요', String(row.prepaid), row.status]),
-        ['합계', '', '', String(sum('carry')), String(sum('billed')), String(sum('applied')), rows.some((row) => row.settlementPending) ? '정산 확인 필요' : String(sum('balance')), String(rows.reduce((sum, row) => sum + row.prepaid, BigInt(0))), '']
-      ];
-      const blob = await writeExcelFile(values.map((row) => row.map((value) => ({
-        value,
-        type: String
-      }))), {
-        sheet: '월별 수납 현황',
-        columns: [18, 18, 18, 22, 22, 22, 22, 22, 16].map((width) => ({
-          width
-        }))
-      }).toBlob();
+      const blob = await createMonthlyWorkbook(ledger, month);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
@@ -98,7 +83,7 @@ export function MonthlyExportButton({ month }: { month: string }) {
 }
 
 /** 월별 실제 입금 합계와 청구의 이월·충당·미수를 함께 표시하되 두 기준의 금액을 섞지 않습니다. */
-export function MonthlyCollection({ propertyId, month, onMonthChange }: { propertyId: string; month: string; onMonthChange: (month: string) => void }) {
+export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath }: { propertyId: string; month: string; onMonthChange: (month: string) => void; detailPath?: string }) {
   const router = useRouter();
   const { ledger } = usePaymentWorkspace();
   const [query, setQuery] = useState('');
@@ -122,7 +107,7 @@ export function MonthlyCollection({ propertyId, month, onMonthChange }: { proper
   /** PC에서는 중앙 모달로, 모바일에서는 독립된 세대별 수납 상세 주소로 이동합니다. */
   function openDetail(unitId: string) {
     if (window.matchMedia('(max-width: 767px)').matches) {
-      router.push(`/manage/${propertyId}/payments/monthly/${month}/${encodeURIComponent(unitId)}`);
+      router.push(`${detailPath ?? `/manage/${propertyId}/payments/monthly`}/${month}/${encodeURIComponent(unitId)}`);
       return;
     }
     setSelected(unitId);

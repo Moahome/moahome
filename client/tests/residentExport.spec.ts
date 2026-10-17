@@ -76,21 +76,21 @@ test('주민 XLSX는 현재 페이지와 관계없이 전체 결과의 세 열�
   expect(view.rows).toHaveLength(2);
   const { sheet, cells, strings, styles } = await readWorkbook(await createResidentWorkbook(exportRows(data, view.filtered)));
 
-  expect((sheet.match(/<row /g) ?? []).length).toBe(13);
-  expect(cells.A2).toBe('주민 02');
-  expect(cells.C2).toBe('102동 201호');
-  expect(cells.A13).toBe('주민 01');
-  expect(cells.C13).toBe('103동 301호');
-  expect(cells.B2).toBe('010-1234-0037');
-  expect([cells.A1, cells.B1, cells.C1]).toEqual(['주민명', '연락처', '동·호수']);
+  expect((sheet.match(/<row /g) ?? []).length).toBe(22);
+  expect(cells.A9).toBe('주민 02');
+  expect(cells.C9).toBe('102동 201호');
+  expect(cells.A20).toBe('주민 01');
+  expect(cells.C20).toBe('103동 301호');
+  expect(cells.B9).toBe('010-1234-0037');
+  expect([cells.A8, cells.B8, cells.C8]).toEqual(['주민명', '연락처', '동·호수']);
   expect(Object.keys(cells).some((cell) => /^[D-Z]/.test(cell))).toBe(false);
   for (const excluded of ['주민 구분', '대표 주민', '가입 상태', '소유주', '대표', '가입 완료']) {
     expect(strings).not.toContain(excluded);
   }
-  expect(sheet).toContain('ySplit="1"');
-  expect(sheet).toContain('ht="43"');
-  expect(sheet).toContain('ht="32"');
-  for (const color of ['EDEFF1', 'FFFFFF', 'F7F8F9', 'DFE3E8']) expect(styles).toContain(color);
+  expect(sheet).toContain('ySplit="8"');
+  expect(sheet).toContain('ht="56"');
+  expect(sheet).toContain('ht="42"');
+  for (const color of ['DBEAFE', 'FFFFFF', 'F8FAFC', 'EFF6FF']) expect(styles).toContain(color);
   expect(styles).toContain('맑은 고딕');
   expect(strings.join(' ')).not.toContain(data.propertyId);
   expect(strings.join(' ')).not.toContain(data.residents[0].id);
@@ -112,9 +112,9 @@ test('주민 XLSX는 필터로 제외한 주민을 내보내지 않고 수식 �
   }));
   const { sheet, cells, strings } = await readWorkbook(await createResidentWorkbook(rows));
 
-  expect((sheet.match(/<row /g) ?? []).length).toBe(2);
-  expect(cells.A2).toBe('=2+2');
-  expect(cells.B2).toBe('010-1234-0037');
+  expect((sheet.match(/<row /g) ?? []).length).toBe(11);
+  expect(cells.A9).toBe('=2+2');
+  expect(cells.B9).toBe('010-1234-0037');
   expect(sheet).not.toContain('<f');
   expect(strings).not.toContain('주민 02');
   expect(strings.join(' ')).not.toContain('OWNER');
@@ -134,8 +134,18 @@ test('연락처 없는 주민은 빈 연락처 셀을 저장하고 국제 번호
       unitLabel: '001호'
     }
   ]));
-  expect(cells.B2 ?? '').toBe('');
-  expect(cells.B3).toBe('+441234567890');
-  expect(cells.C3).toBe('001호');
+  expect(cells.B9 ?? '').toBe('');
+  expect(cells.B10).toBe('+441234567890');
+  expect(cells.C10).toBe('001호');
   expect(strings.join(' ')).not.toContain('••••');
+});
+
+test('주민 등록 양식은 새 문서 색상을 사용해도 재업로드할 첫 행과 빈 입력 위치를 유지', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const zip = unzipSync(await readFile('public/residentImportTemplate.xlsx'));
+  const first = strFromU8(zip['xl/worksheets/sheet1.xml']);
+  expect(first).toContain('r="A1"');expect(first).toContain('r="E1"');expect(first).toContain('ySplit="1"');
+  expect(strFromU8(zip['xl/styles.xml'])).toContain('FFDBEAFE');
+  for (const header of ['동', '호수', '이름', '주민 구분', '연락처']) expect(first).toContain(header);
+  expect(first).not.toContain('<f>');
 });

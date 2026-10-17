@@ -1,4 +1,4 @@
-import type { SheetData } from 'write-excel-file/universal';
+import { createReportWorkbook } from '@/shared/lib/excel-report';
 import { formatResidentPhone } from '@/entities/resident';
 import type { ResidentExportRow } from '../api/residentExportApi';
 
@@ -14,45 +14,28 @@ export function getResidentExportValues(row: ResidentExportRow) {
   return [row.name, row.phone ? formatResidentPhone(row.phone) : '', row.unitLabel];
 }
 
-/** 첨부 시트의 회색 헤더·교차 행·테두리·행 높이를 적용하고 세 항목만 문자열 셀로 저장합니다. */
+/** 공통 보고서 서식에 허용된 세 항목만 내보내고 이름·연락처의 문자열 형식을 유지합니다. */
 export async function createResidentWorkbook(rows: readonly ResidentExportRow[]): Promise<Blob> {
-  // 이 중립 색상은 사용자가 전달한 주민목록.xlsx의 문서 스타일이며 웹 UI 색상 토큰과 구분합니다.
-  const baseStyle = {
-    fontFamily: '맑은 고딕',
-    align: 'center' as const,
-    alignVertical: 'center' as const,
-    borderStyle: 'thin' as const,
-    borderColor: '#DFE3E8'
-  };
-  const sheet: SheetData = [RESIDENT_EXPORT_HEADERS.map((value) => ({
-    ...baseStyle,
-    value,
-    type: String,
-    fontSize: 13,
-    fontWeight: 'bold',
-    textColor: '#27313C',
-    backgroundColor: '#EDEFF1',
-    bottomBorderColor: '#9CA3AF',
-    height: 43
-  })), ...rows.map((row, index) => getResidentExportValues(row).map((value) => ({
-    ...baseStyle,
-    // 이름이 =, + 등으로 시작해도 수식으로 해석하지 않고 연락처의 앞자리 0도 보존합니다.
-    value,
-    type: String,
-    format: '@',
-    fontSize: 12,
-    textColor: '#334155',
-    backgroundColor: index % 2 === 0 ? '#FFFFFF' : '#F7F8F9',
-    height: 32
-  })))];
-  // 다운로드 시에만 라이브러리를 불러와 목록의 초기 로딩에 포함하지 않습니다.
-  const { default: writeExcelFile } = await import('write-excel-file/universal');
-
-  return writeExcelFile(sheet, {
+  return createReportWorkbook({
+    title: '모아홈 주민 목록',
+    description: '선택한 조회 결과의 주민 명부',
     sheet: '주민 목록',
-    stickyRowsCount: 1,
-    columns: [16, 20, 23].map((width) => ({
-      width
-    }))
-  }).toBlob();
+    columns: RESIDENT_EXPORT_HEADERS.map((label, index) => ({
+      label,
+      width: [24, 28, 32][index],
+      align: 'center'
+    })),
+    summary: [{
+      label: '전체 주민 수',
+      value: `${rows.length}명`
+    }, {
+      label: '연락처 등록',
+      value: `${rows.filter((row) => row.phone).length}명`
+    }, {
+      label: '조회 범위',
+      value: '선택한 조회 결과 전체'
+    }],
+    rows: rows.map(getResidentExportValues),
+    note: '※ 연락처는 전체 번호로 표시됩니다. 현재 조회 결과의 주민명·연락처·동·호수만 포함합니다.'
+  });
 }

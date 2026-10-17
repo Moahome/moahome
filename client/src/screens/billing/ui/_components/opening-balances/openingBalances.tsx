@@ -26,7 +26,7 @@ import {
   AmountInput,
   Input
 } from '@/shared/ui/form-controls';
-import type { SheetData } from 'write-excel-file/universal';
+import { createInputWorkbook } from '@/shared/lib/excel-report';
 import { DataTable } from '@/shared/ui/data-table';
 import { FileDropzone } from '@/shared/ui/file-dropzone';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -143,20 +143,19 @@ function OpeningForm({ data, onSaved }: { data: OpeningWorkspace; onSaved: (data
     } catch (error) { setNotice(openingBalanceError(error)); }
     finally { pending.current = false; setBusy(false); }
   }
+  /** 재업로드 헤더와 세대 식별자는 유지하고 공통 서식·작성 안내만 적용합니다. */
   async function download() {
-    const write = (await import('write-excel-file/universal')).default;
     const headers = ['세대 ID', '세대', '기존 미납', '기존 선납', '발생월', '부담 주체 메모'];
-    const sheet: SheetData = [headers.map((value) => ({
-      value,
-      type: String
-    })), ...units.map((u) =>
-      [u.unitId, u.label, u.receivable, u.credit, u.originMonth ?? '', u.responsibility ?? ''].map((value) => ({
-        value,
-        type: String
-      })))];
-    const blob = await write(sheet, {
-      sheet: '기존 잔액 인계'
-    }).toBlob();
+    const blob = await createInputWorkbook({
+      title: '모아홈 기존 잔액 인계',
+      sheet: '기존 잔액 인계',
+      columns: headers.map((label, index) => ({
+        label,
+        width: [40, 24, 24, 24, 18, 50][index]
+      })),
+      rows: units.map((u) => [u.unitId, u.label, u.receivable, u.credit, u.originMonth ?? '', u.responsibility ?? '']),
+      instructions: ['첫 시트의 열 제목·순서와 세대 ID를 변경하지 마세요.', '기존 미납·기존 선납은 원 단위 숫자로 입력합니다. 수식은 사용할 수 없습니다.', '발생월과 부담 주체 메모는 선택 항목입니다.', '이 양식의 세대 미납·선납은 동별 통장 보유금과 별개입니다.']
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');link.href = url;link.download = '기존_잔액_인계.xlsx';link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
