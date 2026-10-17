@@ -1,0 +1,75 @@
+.panel {
+  display: grid;
+  gap: 20px;
+  color: var(--foreground);
+
+  p {
+    color: var(--sub-text);
+    line-height: 1.7;
+  }
+
+  .form {
+    display: grid;
+    gap: 20px;
+    min-width: 0;
+    border: 0;
+    padding: 0;
+    margin: 0;
+  }
+
+  .dates {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+  }
+
+  .tools {
+    display: grid;
+    gap: 16px;
+  }
+
+  .totals {
+    color: var(--foreground);
+    font-weight: 700;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+  }
+
+  .correction {
+    display: grid;
+    gap: 16px;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card);
+  }
+}
+
+
+.existing-state {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+  padding: 40px 12px;
+  text-align: center;
+
+  h2 { color: var(--foreground); font-size: 20px; font-weight: 700; }
+  p { max-width: 560px; color: var(--sub-text); line-height: 1.7; }
+}
+.state-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary) 8%, var(--card));
+  color: var(--primary);
+  svg { width: 28px; height: 28px; }
+}
+.state-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }

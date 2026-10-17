@@ -32,6 +32,24 @@ public class Property {
 	@Column(name = "has_buildings", nullable = false)
 	private boolean hasBuildings;
 
+	@Column(name = "management_started_at", columnDefinition = "timestamptz")
+	private OffsetDateTime managementStartedAt;
+	@Column(name = "balance_cutoff_date")
+	private java.time.LocalDate balanceCutoffDate;
+	@Column(name = "first_billing_month")
+	private java.time.LocalDate firstBillingMonth;
+
+	/** 등록과 운영 개시를 분리하고 잔액 기준일 다음 거래부터 새 수납으로 처리합니다. */
+	public void startManagement(java.time.LocalDate cutoff, java.time.YearMonth firstMonth, OffsetDateTime at) {
+		if (managementStartedAt != null || !firstMonth.atDay(1).isAfter(cutoff)) {
+			throw new IllegalStateException("Management start conflict");
+		}
+		balanceCutoffDate = Objects.requireNonNull(cutoff);
+		firstBillingMonth = firstMonth.atDay(1);
+		managementStartedAt = Objects.requireNonNull(at);
+		updatedAt = at;
+	}
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private PropertyStatus status;

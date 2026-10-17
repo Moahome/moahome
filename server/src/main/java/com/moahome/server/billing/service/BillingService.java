@@ -57,7 +57,7 @@ public class BillingService {
         var first = BillingCalendar.firstMonth(property);
         var nextMonth = month.plusMonths(1).isBefore(first) ? first : month.plusMonths(1);
         return new Settings(property.getId(), month.toString(), first.toString(), nextMonth.atDay(1),
-            versions.getFirst().getId(), template(current), current.getId().equals(next.getId()) ? null : template(next));
+            versions.getFirst().getId(), template(current), current.getId().equals(next.getId()) ? null : template(next),property.getManagementStartedAt()!=null);
     }
     private Template template(FeeTemplate template) {
         return new Template(template.getId(), YearMonth.from(template.getEffectiveFrom()).toString(),
@@ -98,7 +98,7 @@ public class BillingService {
             return issuedMonth(period.get(), property.isHasBuildings(), representativeNames(userId, propertyId, context.role()));
         }
         var currentMonth = BillingCalendar.currentMonth(clock);
-        if (month.isBefore(currentMonth) || month.isBefore(BillingCalendar.firstMonth(property))) {
+        if (property.getManagementStartedAt() == null || month.isBefore(currentMonth) || month.isBefore(BillingCalendar.firstMonth(property))) {
             return new Month(propertyId, property.isHasBuildings(), month.toString(), month.atDay(1), month.atEndOfMonth(), "NOT_BILLED", "0", List.of());
         }
         var template = configurations.applicable(configurations.versions(propertyId), month);
@@ -149,7 +149,7 @@ public class BillingService {
         var period = periods.findByPropertyIdAndBillingYearAndBillingMonth(propertyId, (short)month.getYear(), (short)month.getMonthValue())
             .orElseThrow(() -> new BillingException(BILLING_CHARGE_NOT_FOUND));
         var charge = charges.findById(chargeId).filter(value -> value.getPropertyId().equals(propertyId)
-            && value.getBillingPeriodId().equals(period.getId())).orElseThrow(() -> new BillingException(BILLING_CHARGE_NOT_FOUND));
+            && period.getId().equals(value.getBillingPeriodId())).orElseThrow(() -> new BillingException(BILLING_CHARGE_NOT_FOUND));
         if (!month.equals(BillingCalendar.currentMonth(clock)) || !"ISSUED".equals(period.getStatus())
             || !("ISSUED".equals(charge.getStatus()) || "CANCELED".equals(charge.getStatus()))) {
             throw new BillingException(BILLING_CANCELLATION_NOT_ALLOWED);
@@ -162,7 +162,7 @@ public class BillingService {
     public History history(UUID userId, UUID propertyId) {
         access.getManagementContext(userId, propertyId);
         var currentUnits = undeletedUnitIds(propertyId);
-        var grouped = charges.findByPropertyId(propertyId).stream().filter(charge -> "ISSUED".equals(charge.getStatus()))
+        var grouped = charges.findByPropertyId(propertyId).stream().filter(charge -> "ISSUED".equals(charge.getStatus()) && charge.getBillingPeriodId()!=null)
             .collect(Collectors.groupingBy(Charge::getBillingPeriodId));
         return new History(propertyId, periods.findByPropertyIdOrderByBillingYearDescBillingMonthDesc(propertyId).stream()
             .filter(period -> "ISSUED".equals(period.getStatus())).map(period -> {

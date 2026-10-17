@@ -45,6 +45,7 @@ import static org.assertj.core.api.Assertions.*;
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @Import({com.moahome.server.payment.service.CumulativePaymentService.class,PaymentService.class,BankTransactionReader.class,BillingTemplates.class,BillingGenerationService.class,
     PropertyRegistrationService.class,PropertyRegistrationLock.class,ManagementAccessService.class,UserService.class,
+    OpeningBalanceService.class,
     ResidentListService.class,PaymentPersistenceTest.TestBeans.class})
 @ActiveProfiles("database-test")
 @Transactional(propagation=Propagation.NOT_SUPPORTED)
@@ -52,6 +53,7 @@ import static org.assertj.core.api.Assertions.*;
 class PaymentPersistenceTest {
     static final PostgresTestServer POSTGRES=new PostgresTestServer();
     @Autowired PaymentService service;
+    @Autowired OpeningBalanceService opening;
     @Autowired BillingGenerationService billing;
     @Autowired PropertyRegistrationService registration;
     @Autowired UserRepository users;
@@ -68,6 +70,9 @@ class PaymentPersistenceTest {
         var request=RegistrationFixtures.withUnits(RegistrationFixtures.request(UUID.randomUUID(),false),List.of(
             new UnitInput(null,"101",null,1,"ACTIVE"),new UnitInput(null,"202",null,2,"ACTIVE")));
         property=registration.register(user,request).response().property().id();
+        // 수납 회귀 테스트는 운영 개시 후를 준비합니다. 도입 절차는 별도 인계 시나리오에서 실제 서비스로 검증합니다.
+        jdbc.update("update properties set management_started_at=created_at,first_billing_month=date '2026-10-01' where id=?",property);
+        billing.generate(property,YearMonth.of(2026,10));
         unit=jdbc.queryForObject("select id from units where property_id=? and unit_number='101'",UUID.class,property);
         otherUnit=jdbc.queryForObject("select id from units where property_id=? and unit_number='202'",UUID.class,property);
         charge=jdbc.queryForObject("select id from charges where property_id=? and unit_id=?",UUID.class,property,unit);
@@ -75,6 +80,7 @@ class PaymentPersistenceTest {
     }
     @AfterEach void cleanup() {
         jdbc.execute("drop function if exists fail_payment_event() cascade");
+        jdbc.execute("drop function if exists fail_opening_application() cascade");
         jdbc.execute("truncate payment_events,payment_allocations,payments,bank_transactions,charge_items,charges,billing_periods,"
             +"property_registration_results,property_members,fee_template_items,fee_templates,bank_accounts,unit_residents,residents,"
             +"units,buildings,properties,social_accounts,users cascade");
@@ -94,6 +100,113 @@ class PaymentPersistenceTest {
     MockMultipartFile bank(String payer,String amount) { return csv("입금일,입금자명,입금액\n2026-10-15,"+payer+","+amount); }
     long count(String table) { return jdbc.queryForObject("select count(*) from "+table,Long.class); }
 
+
+    /** 신규 등록·세대 추가·스케줄은 관리 시작 확정 전에는 청구를 생성하지 않습니다. */
+    UUID newHandoverTarget() {
+        var request=RegistrationFixtures.withUnits(RegistrationFixtures.request(UUID.randomUUID(),false),List.of(
+            new UnitInput(null,"101",null,1,"ACTIVE"),new UnitInput(null,"102",null,1,"ACTIVE"),
+            new UnitInput(null,"103",null,1,"ACTIVE"),new UnitInput(null,"104",null,1,"ACTIVE")));
+        property=registration.register(user,request).response().property().id();
+        unit=jdbc.queryForObject("select id from units where property_id=? and unit_number='101'",UUID.class,property);
+        otherUnit=jdbc.queryForObject("select id from units where property_id=? and unit_number='102'",UUID.class,property);
+        resident(unit,"인계대표",true);resident(otherUnit,"선납대표",true);
+        assertThat(jdbc.queryForObject("select count(*) from charges where property_id=?",Long.class,property)).isZero();
+        assertThat(billing.generate(property,YearMonth.of(2026,10))).isFalse();
+        billing.supplementCurrentMonth(property);
+        assertThat(jdbc.queryForObject("select count(*) from charges where property_id=?",Long.class,property)).isZero();
+        return property;
+    }
+    com.moahome.server.billing.dto.OpeningBalanceResponse draftHandover(LocalDate cutoff,String first) {
+        var current=opening.workspace(user,property);
+        var input=new com.moahome.server.billing.dto.OpeningBalanceRequest(current.batch()==null?null:current.batch().id(),
+            current.batch()==null?null:current.batch().revision(),cutoff,first,current.units().stream().map(u->{
+                String number=jdbc.queryForObject("select unit_number from units where id=?",String.class,u.unitId());
+                return new com.moahome.server.billing.dto.OpeningBalanceRequest.UnitInput(u.unitId(),number.equals("101")?"100000":"0",
+                    number.equals("102")?"30000":number.equals("103")?"80000":"0",null,number.equals("101")?"이전 임차인 확인 필요":null);
+            }).toList(),current.accounts().stream().map(a->new com.moahome.server.billing.dto.OpeningBalanceRequest.AccountInput(a.accountId(),"2000000")).toList());
+        return opening.save(user,property,input);
+    }
+    void confirmHandover(com.moahome.server.billing.dto.OpeningBalanceResponse draft) {
+        opening.confirm(user,property,draft.batch().id(),draft.batch().revision());
+    }
+    java.math.BigDecimal due(UUID target) {
+        return jdbc.queryForObject("select coalesce(sum(c.total_amount"
+            +"-(select coalesce(sum(a.allocated_amount),0) from payment_allocations a where a.charge_id=c.id and a.status='ACTIVE')"
+            +"-(select coalesce(sum(a.amount),0) from credit_applications a where a.charge_id=c.id and a.status='ACTIVE')),0)"
+            +" from charges c where c.property_id=? and c.unit_id=? and c.status='ISSUED' and c.total_amount>0",java.math.BigDecimal.class,property,target);
+    }
+    @Test void openingExamplesKeepHistoricalDebtCreditAndBankBalanceSeparateFromNewIncome() {
+        newHandoverTarget();
+        var draft=draftHandover(LocalDate.of(2026,9,30),"2026-10");
+        assertThat(draft.managementStarted()).isFalse();
+        confirmHandover(draft);
+        assertThat(due(unit)).isEqualByComparingTo("150000");
+        assertThat(due(otherUnit)).isEqualByComparingTo("20000");
+        UUID third=jdbc.queryForObject("select id from units where property_id=? and unit_number='103'",UUID.class,property);
+        UUID fourth=jdbc.queryForObject("select id from units where property_id=? and unit_number='104'",UUID.class,property);
+        assertThat(due(third)).isEqualByComparingTo("0");assertThat(due(fourth)).isEqualByComparingTo("50000");
+        var ledger=service.workspace(user,property);
+        assertThat(ledger.payments()).isEmpty();assertThat(ledger.openingCredits()).hasSize(2);
+        assertThat(ledger.charges()).filteredOn(c->"MONTHLY".equals(c.chargeType())).hasSize(4);
+        assertThat(ledger.charges()).filteredOn(c->"OPENING_RECEIVABLE".equals(c.chargeType())).hasSize(1);
+        assertThat(jdbc.queryForObject("select sum(amount) from credit_applications where property_id=?",java.math.BigDecimal.class,property)).isEqualByComparingTo("80000");
+        assertThat(opening.workspace(user,property).accounts().getFirst().amount()).isEqualTo("2000000");
+        assertThat(jdbc.queryForObject("select responsibility_encrypted from opening_balance_items where property_id=? and unit_id=?",String.class,property,unit))
+            .doesNotContain("이전 임차인");
+        confirmHandover(draft);
+        assertThat(jdbc.queryForObject("select count(*) from charges where property_id=?",Long.class,property)).isEqualTo(5);
+    }
+    @Test void alreadyBilledCurrentMonthStartsNextMonthAndExcludesCutoffDeposits() {
+        newHandoverTarget();var draft=draftHandover(LocalDate.of(2026,10,14),"2026-11");confirmHandover(draft);
+        assertThat(jdbc.queryForObject("select count(*) from billing_periods where property_id=?",Long.class,property)).isZero();
+        assertThat(due(unit)).isEqualByComparingTo("100000");
+        var file=csv("입금일,입금자명,입금액\n2026-10-14,인계대표,50000\n2026-10-15,인계대표,25000");
+        var preview=service.preview(user,property,file);
+        assertThat(preview.duplicateCount()).isEqualTo(1);assertThat(preview.rows()).hasSize(1);
+        service.importFile(user,property,file);
+        assertThat(due(unit)).isEqualByComparingTo("75000");
+        assertThat(service.workspace(user,property).payments()).hasSize(1);
+        assertThatThrownBy(()->service.manual(user,property,new PaymentRequests.Manual(UUID.randomUUID(),unit,LocalDate.of(2026,10,14),"100")))
+            .isInstanceOfSatisfying(PaymentException.class,e->assertThat(e.code()).isEqualTo("PAYMENT_BEFORE_OPENING_CUTOFF"));
+        clock.set(Instant.parse("2026-10-31T15:00:00Z"));billing.generate(property,YearMonth.of(2026,11));
+        assertThat(due(unit)).isEqualByComparingTo("125000");assertThat(due(otherUnit)).isEqualByComparingTo("20000");
+    }
+    @Test void initialConfirmationRollsBackAllRecordsIfCreditApplicationFails() {
+        newHandoverTarget();var draft=draftHandover(LocalDate.of(2026,9,30),"2026-10");
+        jdbc.execute("create function fail_opening_application() returns trigger language plpgsql as $$ begin raise exception 'opening failure'; end $$");
+        jdbc.execute("create trigger fail_opening_application before insert on credit_applications for each row execute function fail_opening_application()");
+        assertThatThrownBy(()->confirmHandover(draft)).isInstanceOf(RuntimeException.class);
+        assertThat(opening.workspace(user,property).batch().status()).isEqualTo("DRAFT");
+        assertThat(opening.workspace(user,property).managementStarted()).isFalse();
+        assertThat(jdbc.queryForObject("select count(*) from charges where property_id=?",Long.class,property)).isZero();
+        jdbc.execute("drop function fail_opening_application() cascade");confirmHandover(draft);
+        assertThat(due(unit)).isEqualByComparingTo("150000");
+    }
+    @Test void openingCorrectionPreservesCanceledHistoryAndMonthlyBillsWithoutDuplicateCash() {
+        newHandoverTarget();var draft=draftHandover(LocalDate.of(2026,9,30),"2026-10");confirmHandover(draft);
+        var confirmed=opening.workspace(user,property);
+        opening.cancel(user,property,confirmed.batch().id(),new com.moahome.server.billing.dto.OpeningBalanceRequest.Cancel(confirmed.batch().revision(),"인계 금액 확인"));
+        assertThat(opening.workspace(user,property).batch()).isNull();
+        var next=draftHandover(LocalDate.of(2026,9,30),"2026-10");confirmHandover(next);
+        assertThat(due(unit)).isEqualByComparingTo("150000");assertThat(due(otherUnit)).isEqualByComparingTo("20000");
+        assertThat(opening.workspace(user,property).history()).hasSize(2);
+        assertThat(jdbc.queryForObject("select count(*) from charges where property_id=? and charge_type='MONTHLY'",Long.class,property)).isEqualTo(4);
+        var id=manual("1000");service.confirm(user,property,id,new PaymentRequests.Confirm(unit,null,null));
+        var latest=opening.workspace(user,property).batch();
+        assertThatThrownBy(()->opening.cancel(user,property,latest.id(),new com.moahome.server.billing.dto.OpeningBalanceRequest.Cancel(latest.revision(),"재정정")))
+            .isInstanceOfSatisfying(PaymentException.class,e->assertThat(e.code()).isEqualTo("OPENING_ALREADY_HAS_RECEIPTS"));
+    }
+    @Test void concurrentOpeningConfirmationGeneratesOneBatchOfCharges() throws Exception {
+        newHandoverTarget();var draft=draftHandover(LocalDate.of(2026,9,30),"2026-10");
+        var gate=new CountDownLatch(1);
+        try(var executor=Executors.newFixedThreadPool(2)) {
+            var one=executor.submit(()->{gate.await();confirmHandover(draft);return true;});
+            var two=executor.submit(()->{gate.await();confirmHandover(draft);return true;});
+            gate.countDown();assertThat(one.get()).isTrue();assertThat(two.get()).isTrue();
+        }
+        assertThat(jdbc.queryForObject("select count(*) from charges where property_id=?",Long.class,property)).isEqualTo(5);
+        assertThat(jdbc.queryForObject("select count(*) from credit_applications where property_id=?",Long.class,property)).isEqualTo(2);
+    }
     /** 미리보기에서 선택한 실제 거래만 저장·자동 확정하고 제외 건은 다음 업로드에서 다시 가져올 수 있습니다. */
     @Test void selectedBankImportSkipsExcludedRowsAndReusesSelectionOnRetry() {
         var file=csv("입금일,입금자명,입금액\n2026-10-15,김대표,50000\n2026-10-14,미확인입금,12000\n2026-10-13,이대표,30000");
@@ -483,7 +596,7 @@ class PaymentPersistenceTest {
             jdbc.execute("insert into "+schema+"."+table+"("+columns+") select "+columns+" from public."+table);
         }
         var upgraded=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"").schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(5);upgraded.validate();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(6);upgraded.validate();
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".bank_transactions where deleted_at is not null",Long.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".bank_transactions where deleted_at is null",Long.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".payments where deleted_at is null",Long.class)).isEqualTo(1);
@@ -532,9 +645,10 @@ class PaymentPersistenceTest {
             "fee_templates","fee_template_items","billing_periods","charges","charge_items"))
             copyPreviousTable(schema,table);
         var before=jdbc.queryForList("select * from "+schema+".charges order by id");
+        before.forEach(row->row.put("charge_type","MONTHLY"));
         var upgraded=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(8);upgraded.validate();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(9);upgraded.validate();
         assertThat(jdbc.queryForList("select * from "+schema+".charges order by id")).isEqualTo(before);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".residents",Long.class)).isEqualTo(3);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".payments",Long.class)).isZero();
@@ -571,7 +685,7 @@ class PaymentPersistenceTest {
         var originals=jdbc.queryForList("select id,amount,payer_name_encrypted,deduplication_key from "+schema+".bank_transactions order by id");
         var upgraded=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(7);upgraded.validate();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(8);upgraded.validate();
         assertThat(jdbc.queryForList("select * from "+schema+".payments order by id")).isEqualTo(receipts);
         assertThat(jdbc.queryForList("select * from "+schema+".payment_allocations order by id")).isEqualTo(applied);
         assertThat(jdbc.queryForList("select id,amount,payer_name_encrypted,deduplication_key from "+schema+".bank_transactions order by id")).isEqualTo(originals);
@@ -588,6 +702,10 @@ class PaymentPersistenceTest {
         @Bean ObjectMapper mapper() { return JsonMapper.builder().build(); }
         @Bean Validator validator() { return Validation.buildDefaultValidatorFactory().getValidator(); }
         @Bean AccountNumberSecurity accountSecurity() { return new AccountNumberSecurity(RegistrationTestKeys.accountProperties()); }
+        @Bean PhoneSecurity phoneSecurity() {
+            byte[] encryption=new byte[32], hmac=new byte[32];var random=new java.security.SecureRandom();random.nextBytes(encryption);random.nextBytes(hmac);
+            return new PhoneSecurity(new com.moahome.server.config.PhoneSecurityProperties("v1",Map.of("v1",Base64.getEncoder().encodeToString(encryption)),Base64.getEncoder().encodeToString(hmac)));
+        }
         @Bean PaymentTextSecurity paymentSecurity() { return new PaymentTextSecurity(RegistrationTestKeys.accountProperties()); }
         @Bean RegistrationFingerprint fingerprints(ObjectMapper mapper) { return new RegistrationFingerprint(RegistrationTestKeys.fingerprintProperties(),mapper); }
     }

@@ -24,8 +24,9 @@ import { BillingHistory } from '../_components/billing-history/billingHistory';
 import { useBillingSettings } from '../_hooks/useBillingData';
 import { BillingLoadState } from '../_components/billing-load-state/billingLoadState';
 import styles from './billingPage.module.css';
+import { OpeningBalances } from '../_components/opening-balances/openingBalances';
 
-/** 공통 관리 레이아웃 안에서 세 탭을 조합하고 URL 선택과 서버에서 조회한 현재·예정 설정을 표시합니다. */
+/** 공통 관리 레이아웃 안에서 부과·설정·이력·잔액 인계 탭을 조합하고 URL 선택과 서버에서 조회한 현재·예정 설정을 표시합니다. */
 export function BillingPage({
   propertyId,
 }: {
@@ -35,8 +36,8 @@ export function BillingPage({
   const pathname = usePathname();
   const query = useSearchParams();
   const requestedTab = query.get('tab');
-  const tab = BILLING_TABS.find((item) => item.id === requestedTab)?.id ?? 'monthly';
   const settings = useBillingSettings(propertyId);
+  const tab = BILLING_TABS.find((item) => item.id === requestedTab)?.id ?? (settings.data?.managementStarted === false ? 'opening' : 'monthly');
   const saved = query.get('saved') === '1';
   const [notice, setNotice] = useState<{
     id: number;
@@ -118,6 +119,17 @@ export function BillingPage({
           </Button>
         ))}
       </div>
+      {tab === 'opening' && (
+        <div
+          id={'billing-panel-opening'}
+          role={'tabpanel'}
+          aria-labelledby={'billing-tab-opening'}
+        >
+          <OpeningBalances
+            propertyId={propertyId}
+          />
+        </div>
+      )}
       <div
         id={'billing-panel-monthly'}
         role={'tabpanel'}

@@ -5,6 +5,7 @@ export interface PreviewCharge {
   month: string;
   amount: string;
   status: 'ISSUED' | 'CANCELED' | 'EXCLUDED_VACANT';
+  chargeType?: 'MONTHLY' | 'OPENING_RECEIVABLE';
 }
 
 export interface PreviewAllocation {
@@ -92,7 +93,9 @@ export function getPreviewUnitSearchOptions(ledger: PreviewLedger) {
 
 /** 실제 발행된 해당 월 청구의 세대만 반환하며 취소·공실 제외와 명부만 있는 세대는 선택하지 않습니다. */
 export function getPreviewBilledUnits(ledger: PreviewLedger, month: string): PreviewLedger['units'] {
-  const billedIds = new Set(ledger.charges.filter((charge) => charge.month === month && charge.status === 'ISSUED')
+  const billedIds = new Set(ledger.charges.filter((charge) => charge.status === 'ISSUED'
+    && ((charge.chargeType !== 'OPENING_RECEIVABLE' && charge.month === month)
+      || (charge.chargeType === 'OPENING_RECEIVABLE' && charge.month <= month)))
     .map((charge) => charge.unitId));
 
   return ledger.units.filter((unit) => billedIds.has(unit.id));
@@ -108,11 +111,15 @@ export function getMonthlyPreviewRows(ledger: PreviewLedger, month: string): Mon
 
   return getPreviewBilledUnits(ledger, month).map((unit) => {
     const charges = validCharges.filter((charge) => charge.unitId === unit.id);
-    const oldCharges = charges.filter((charge) => charge.month < month).reduce((sum, charge) => sum + BigInt(charge.amount), BigInt(0));
-    const billed = charges.filter((charge) => charge.month === month).reduce((sum, charge) => sum + BigInt(charge.amount), BigInt(0));
+    const oldCharges = charges.filter((charge) => charge.month < month || (charge.chargeType === 'OPENING_RECEIVABLE' && charge.month <= month))
+      .reduce((sum, charge) => sum + BigInt(charge.amount), BigInt(0));
+    const billed = charges.filter((charge) => charge.month === month && charge.chargeType !== 'OPENING_RECEIVABLE').reduce((sum, charge) => sum + BigInt(charge.amount), BigInt(0));
     const payments = ledger.payments.filter((payment) => payment.status === 'CONFIRMED' && payment.receiptType !== 'OTHER' && payment.unitId === unit.id && payment.date <= end);
-    const previousReceived = payments.filter((payment) => payment.date < start).reduce((sum, payment) => sum + BigInt(payment.amount), BigInt(0));
-    const received = payments.reduce((sum, payment) => sum + BigInt(payment.amount), BigInt(0));
+    // 인계 선납은 잔액 계산에만 포함하고 실제 입금 목록·월별 현금 합계에는 넣지 않습니다.
+    const openingCredit = (ledger.openingCredits ?? []).filter((credit) => credit.unitId === unit.id && credit.date <= end)
+      .reduce((sum, credit) => sum + BigInt(credit.amount), BigInt(0));
+    const previousReceived = payments.filter((payment) => payment.date < start).reduce((sum, payment) => sum + BigInt(payment.amount), openingCredit);
+    const received = payments.reduce((sum, payment) => sum + BigInt(payment.amount), openingCredit);
     const carry = oldCharges > previousReceived ? oldCharges - previousReceived : BigInt(0);
     const balance = oldCharges + billed > received ? oldCharges + billed - received : BigInt(0);
     const applied = carry + billed - balance;
@@ -151,6 +158,7 @@ export interface PreviewLedger {
   charges: PreviewCharge[];
   payments: PreviewPayment[];
   history: { paymentId: string; action: string; reason: string }[];
+  openingCredits?: { id: string; unitId: string; date: string; amount: string; allocations: PreviewAllocation[] }[];
 }
 
 export interface PreviewDraft {
@@ -185,11 +193,14 @@ export function getCumulativePreviewBalance(ledger: PreviewLedger, unitId: strin
     .reduce((sum, charge) => sum + BigInt(charge.amount), BigInt(0));
   const received = ledger.payments.filter((payment) => payment.unitId === unitId && payment.status === 'CONFIRMED' && payment.receiptType !== 'OTHER' && payment.date <= ledger.asOf)
     .reduce((sum, payment) => sum + BigInt(payment.amount), BigInt(0));
-  const after = received + BigInt(extraAmount);
+  const openingCredit = (ledger.openingCredits ?? []).filter((credit) => credit.unitId === unitId && credit.date <= ledger.asOf)
+    .reduce((sum, credit) => sum + BigInt(credit.amount), BigInt(0));
+  const after = received + openingCredit + BigInt(extraAmount);
 
   return {
     billed,
     received,
+    openingCredit,
     balance: billed > after ? billed - after : BigInt(0),
     prepaid: after > billed ? after - billed : BigInt(0)
   };
@@ -229,10 +240,13 @@ export function canPreviewAllocate(charge: PreviewCharge): boolean {
 
 /** 수납 취소 시 배분 이력은 보존하고 유효 합계에서만 제외합니다. */
 export function getPreviewPaid(ledger: PreviewLedger, chargeId: string): bigint {
+  const credits = (ledger.openingCredits ?? []).flatMap((credit) => credit.allocations)
+    .filter((allocation) => allocation.chargeId === chargeId).reduce((sum, allocation) => sum + BigInt(allocation.amount), BigInt(0));
+
   return ledger.payments.filter((payment) => payment.status === 'CONFIRMED' && payment.receiptType !== 'OTHER')
     .flatMap((payment) => payment.allocations)
     .filter((allocation) => allocation.chargeId === chargeId)
-    .reduce((sum, allocation) => sum + BigInt(allocation.amount), BigInt(0));
+    .reduce((sum, allocation) => sum + BigInt(allocation.amount), credits);
 }
 
 export function getPreviewOutstanding(ledger: PreviewLedger, charge: PreviewCharge): bigint {

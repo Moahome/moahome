@@ -75,7 +75,7 @@ public class PropertyRegistrationService {
 		return input;
 	}
 
-	/** 입력 전체와 현재 계정을 검증하고 초기 설정·권한·등록월 청구·성공 결과를 하나의 트랜잭션으로 저장합니다. */
+	/** 입력 전체와 현재 계정을 검증하고 초기 설정·권한·성공 결과를 하나의 트랜잭션으로 저장합니다. */
 	@Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
 	public RegistrationOutcome register(UUID userId, PropertyRegistrationRequest input) {
 		User user = requireActiveUser(userId);
@@ -124,8 +124,7 @@ public class PropertyRegistrationService {
 
 		PropertyMember member = PropertyMember.creator(property, user, at);
 		members.saveAndFlush(member);
-		// 첫 부과를 다음 달까지 미루지 않습니다. 청구 저장이 실패하면 등록 전체도 롤백합니다.
-		billing.generate(property.getId(), BillingCalendar.firstMonth(property));
+		// 신규 등록만으로 청구를 만들지 않습니다. 잔액 인계와 첫 부과월을 확인한 운영 시작에서 생성합니다.
 		PropertyRegistrationResponse response = new PropertyRegistrationResponse(input.requestId(),
 			new PropertySummary(property.getId(), property.getName(), property.isHasBuildings(), property.getStatus().name()),
 			new MembershipSummary(member.getId(), member.getRole().name(), member.getStatus().name()),

@@ -4,10 +4,13 @@
   margin: 0 auto;
   .tabs {
     display: flex;
-    gap: 24px;
+    flex-wrap: wrap;
+    column-gap: 24px;
+    row-gap: 0;
     margin-bottom: 20px;
     border-bottom: 1px solid var(--border);
     .tab {
+      flex: 0 0 auto;
       min-height: 48px;
       margin-bottom: -1px;
       padding: 12px 4px;
@@ -15,6 +18,7 @@
       border-bottom: 2px solid transparent;
       border-radius: 0;
       font-size: 15px;
+      white-space: nowrap;
       &[aria-selected='true'] {
         border-bottom-color: var(--primary);
         color: var(--primary);
@@ -25,7 +29,7 @@
 
 @media (max-width: 767px) {
   .page .tabs {
-    gap: 22px;
+    column-gap: 22px;
     .tab {
       font-size: 14px;
     }

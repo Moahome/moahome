@@ -12,7 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-@RestControllerAdvice(assignableTypes = PaymentController.class)
+@RestControllerAdvice(assignableTypes = {PaymentController.class, com.moahome.server.billing.controller.OpeningBalanceController.class})
 public class PaymentExceptionHandler {
 	@ExceptionHandler(PaymentException.class)
 	public ResponseEntity<ErrorResponse> billing(PaymentException exception) {

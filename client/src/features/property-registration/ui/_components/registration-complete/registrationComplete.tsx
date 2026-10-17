@@ -5,6 +5,7 @@ import {
   useRef
 } from 'react';
 import { Button } from '@/shared/ui/button';
+import { useRouter } from 'next/navigation';
 import { formatWon } from '@/shared/lib/format';
 import {
   ServiceIcon,
@@ -29,6 +30,7 @@ export function RegistrationComplete({
   onDashboard: () => void;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const router = useRouter();
   const hasDraft = showDetails && draft.basicInfoValidated && draft.units.length > 0;
   const information: { label: string; value: string; icon: ServiceIconName }[] = [
     {
@@ -179,12 +181,18 @@ export function RegistrationComplete({
             name={'info'}
           />
           <p>
-            등록된 정보는 저장되었습니다. 대시보드로 이동하지 않아도 등록은 유지됩니다.
+            기본 정보가 저장되었습니다. 기존 잔액 인계에서 기준일과 첫 부과월을 확인한 뒤 관리 시작을 확정해주세요.
           </p>
         </aside>
         <div
           className={styles.actions}
         >
+          <Button
+            size={'lg'}
+            onClick={() => router.push(`/manage/${result.property.id}/billing/monthly?tab=opening`)}
+          >
+            기존 잔액 인계 · 관리 시작 설정
+          </Button>
           <Button
             variant={'outline'}
             size={'lg'}

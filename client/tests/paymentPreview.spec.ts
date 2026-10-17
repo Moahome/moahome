@@ -29,6 +29,92 @@ import {
   readBankPreviewFile
 } from '../src/widgets/payment-workspace/model/bankImportPreview';
 
+
+test('도입 잔액 예시는 미납·기존 선납을 반영하고 신규 입금 합계를 늘리지 않음', () => {
+  const ledger = {
+    asOf: '2026-10-31',
+    accounts: [],
+    units: [101, 102, 103, 104].map((n) => ({
+      id: String(n),
+      label: `${n}호`,
+      status: 'ACTIVE' as const
+    })),
+    charges: [
+      {
+        id: 'opening101',
+        unitId: '101',
+        month: '2026-09',
+        amount: '100000',
+        status: 'ISSUED' as const,
+        chargeType: 'OPENING_RECEIVABLE' as const
+      },
+      ...[101, 102, 103, 104].map((n) => ({
+        id: `monthly${n}`,
+        unitId: String(n),
+        month: '2026-10',
+        amount: '50000',
+        status: 'ISSUED' as const
+      }))
+    ],
+    payments: [],
+    history: [],
+    openingCredits: [
+      {
+        id: 'credit102',
+        unitId: '102',
+        date: '2026-09-30',
+        amount: '30000',
+        allocations: [{
+          chargeId: 'monthly102',
+          amount: '30000'
+        }]
+      },
+      {
+        id: 'credit103',
+        unitId: '103',
+        date: '2026-09-30',
+        amount: '80000',
+        allocations: [{
+          chargeId: 'monthly103',
+          amount: '50000'
+        }]
+      }
+    ]
+  };
+  const rows = getMonthlyPreviewRows(ledger, '2026-10');
+  expect(rows.map((r) => r.balance)).toEqual([BigInt(150000), BigInt(20000), BigInt(0), BigInt(50000)]);
+  expect(rows.map((r) => r.billed)).toEqual([BigInt(50000), BigInt(50000), BigInt(50000), BigInt(50000)]);
+  expect(rows.find((r) => r.unitId === '103')!.prepaid).toBe(BigInt(30000));
+  expect(getMonthlyPreviewIncome(ledger, '2026-10').total).toBe(BigInt(0));
+  expect(getPreviewOutstanding(ledger, ledger.charges.find((c) => c.id === 'monthly103')!)).toBe(BigInt(0));
+  expect(getCumulativePreviewBalance(ledger, '102').received).toBe(BigInt(0));
+});
+
+test('당월 고지 인계는 초기 미수를 신규 관리비로 다시 부과하지 않음', () => {
+  const ledger = {
+    asOf: '2026-10-17',
+    accounts: [],
+    units: [{
+      id: '101',
+      label: '101호',
+      status: 'ACTIVE' as const
+    }],
+    charges: [{
+      id: 'opening',
+      unitId: '101',
+      month: '2026-10',
+      amount: '75000',
+      status: 'ISSUED' as const,
+      chargeType: 'OPENING_RECEIVABLE' as const
+    }],
+    payments: [],
+    history: []
+  };
+  const row = getMonthlyPreviewRows(ledger, '2026-10')[0];
+  expect(row.billed).toBe(BigInt(0));expect(row.carry).toBe(BigInt(75000));expect(row.balance).toBe(BigInt(75000));
+  expect(getMonthlyPreviewRows(ledger, '2026-09')).toEqual([]);
+});
+
 test('납부기한은 실제 월말이며 잘못된 날짜는 보정하지 않음', () => {
   for (const [month, date] of [['2026-10', '31'], ['2026-11', '30'], ['2026-02', '28'], ['2028-02', '29']]) {
     expect(getPreviewDueDate(month)).toBe(`${month}-${date}`);
@@ -355,6 +441,7 @@ test('같은 달 두 입금을 전액 누적하고 완납 이후 입금도 선�
   expect(getCumulativePreviewBalance(both, '101')).toEqual({
     billed: BigInt(50000),
     received: BigInt(100000),
+    openingCredit: BigInt(0),
     balance: BigInt(0),
     prepaid: BigInt(50000)
   });

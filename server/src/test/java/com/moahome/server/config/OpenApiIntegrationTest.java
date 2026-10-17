@@ -45,6 +45,7 @@ class OpenApiIntegrationTest {
 	@MockitoBean private com.moahome.server.payment.service.PaymentService payments;
 	@MockitoBean private com.moahome.server.payment.service.CumulativePaymentService cumulativePayments;
 	@MockitoBean private com.moahome.server.billing.service.BillingService billing;
+	@MockitoBean private com.moahome.server.billing.service.OpeningBalanceService openingBalances;
 	@MockitoBean private com.moahome.server.billing.service.BillingTemplates billingTemplates;
 	@MockitoBean private com.moahome.server.billing.service.BillingGenerationService billingGeneration;
 	@MockitoBean private com.moahome.server.property.service.ManagementAccessService management;
@@ -126,7 +127,7 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(40);
+		assertThat(document.path("paths").properties()).hasSize(44);
         for(String suffix:java.util.List.of("manual","confirm-matches","delete","import","import/preview","{paymentId}/confirm","{paymentId}/other-income","{paymentId}/hold","{paymentId}/resume","{paymentId}/cancel","{paymentId}/link")) {
             assertThat(document.path("paths").path("/api/properties/{propertyId}/payments/"+suffix).at("/post/security/0/bearerAuth").isArray()).isTrue();
         }

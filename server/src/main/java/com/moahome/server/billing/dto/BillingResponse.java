@@ -9,7 +9,11 @@ public final class BillingResponse {
     public record Item(UUID id, FeeItemCode code, String name, String amount) {}
     public record Template(UUID id, String effectiveMonth, List<Item> items, String reason, OffsetDateTime changedAt) {}
     public record Settings(UUID propertyId, String currentMonth, String firstBillingMonth, LocalDate nextBillingDate,
-        UUID revisionId, Template current, Template scheduled) {}
+        UUID revisionId, Template current, Template scheduled, boolean managementStarted) {
+        public Settings(UUID propertyId,String currentMonth,String firstBillingMonth,LocalDate nextBillingDate,UUID revisionId,Template current,Template scheduled) {
+            this(propertyId,currentMonth,firstBillingMonth,nextBillingDate,revisionId,current,scheduled,true);
+        }
+    }
     public record ChargeRow(UUID id, UUID unitId, String building, String room, String displayName, String representativeName, List<Item> items) {}
     public record Month(UUID propertyId, boolean hasBuildings, String month, LocalDate billingDate, LocalDate dueDate, String status,
         String baseAmount, List<ChargeRow> charges) {}

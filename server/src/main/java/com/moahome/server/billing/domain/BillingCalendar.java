@@ -8,9 +8,10 @@ public final class BillingCalendar {
     public static final ZoneId ZONE = ZoneId.of("Asia/Seoul");
     private BillingCalendar() {}
     public static YearMonth currentMonth(Clock clock) { return YearMonth.now(clock.withZone(ZONE)); }
-    /** 최초 설정을 마친 등록월에도 청구가 있어야 하므로 등록한 한국시간 월부터 부과합니다. */
+    /** 운영 시작 전에는 등록월을 설정 표시용으로만 사용하고 실제 부과는 별도 운영 시작 검증을 거칩니다. */
     public static YearMonth firstMonth(Property property) {
-        return YearMonth.from(property.getCreatedAt().atZoneSameInstant(ZONE));
+        return property.getFirstBillingMonth() == null
+            ? YearMonth.from(property.getCreatedAt().atZoneSameInstant(ZONE)) : YearMonth.from(property.getFirstBillingMonth());
     }
     public static YearMonth parseMonth(String value) {
         if (value == null || !value.matches("[1-9][0-9]{3}-(0[1-9]|1[0-2])")) throw new IllegalArgumentException("Invalid billing month");

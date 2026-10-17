@@ -23,6 +23,7 @@ export interface BillingSettings {
   revisionId: string;
   current: BillingTemplate;
   scheduled: BillingTemplate | null;
+  managementStarted?: boolean;
 }
 
 export interface BillingCharge {

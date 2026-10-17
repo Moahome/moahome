@@ -25,6 +25,10 @@ export const BILLING_TABS = [
     id: 'history',
     label: '부과 이력'
   },
+  {
+    id: 'opening',
+    label: '기존 잔액 인계'
+  }
 ] as const;
 
 export type BillingTab = typeof BILLING_TABS[number]['id'];

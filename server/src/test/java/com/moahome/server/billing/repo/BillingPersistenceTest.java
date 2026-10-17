@@ -75,9 +75,17 @@ class BillingPersistenceTest {
             new UnitInput("a", "202", null, 2, "ACTIVE"),
             new UnitInput("b", "301", null, 3, "ACTIVE"),
             new UnitInput("b", "302", null, 3, "ACTIVE")));
-        propertyId = registration.register(userId, request).response().property().id();
+        propertyId = registerForBilling(userId, request).response().property().id();
         jdbc.update("update units set status='INACTIVE' where property_id=? and unit_number='301'", propertyId);
         jdbc.update("update units set deleted_at=now() where property_id=? and unit_number='302'", propertyId);
+    }
+    /** 이 테스트군은 운영 개시 이후의 월별 부과를 검증하므로 개시된 대상과 첫 청구를 명시적으로 준비합니다. */
+    private PropertyRegistrationService.RegistrationOutcome registerForBilling(UUID actor, com.moahome.server.property.dto.PropertyRegistrationRequest request) {
+        var result=registration.register(actor,request);
+        var id=result.response().property().id();
+        jdbc.update("update properties set management_started_at=created_at,first_billing_month=date_trunc('month',created_at at time zone 'Asia/Seoul')::date where id=?",id);
+        generation.generate(id,YearMonth.from(result.response().createdAt().atZone(java.time.ZoneId.of("Asia/Seoul"))));
+        return result;
     }
     @AfterEach
     void cleanup() {
@@ -122,7 +130,7 @@ class BillingPersistenceTest {
     }
 
     @Test
-    void registrationIssuesCurrentMonthImmediatelyAndNextMonthIncludesActiveOnly() {
+    void startedManagementIssuesCurrentMonthAndNextMonthIncludesActiveOnly() {
         var settings = billing.settings(userId, propertyId);
         assertThat(settings.firstBillingMonth()).isEqualTo("2026-10");
         var initial = billing.monthly(userId, propertyId, YearMonth.of(2026, 10));
@@ -182,7 +190,7 @@ class BillingPersistenceTest {
         jdbc.update("update property_members set role='MANAGER' where property_id=? and user_id=?", propertyId, userId);
         assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 10)).charges()).allMatch(row -> row.representativeName() == null);
         assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 11)).charges()).allMatch(row -> row.representativeName() == null);
-        UUID other = registration.register(userId, RegistrationFixtures.request(UUID.randomUUID(), false)).response().property().id();
+        UUID other = registerForBilling(userId, RegistrationFixtures.request(UUID.randomUUID(), false)).response().property().id();
         var noBuildings = billing.monthly(userId, other, YearMonth.of(2026, 10));
         assertThat(noBuildings.hasBuildings()).isFalse();
         assertThat(noBuildings.charges()).allMatch(row -> row.building().isEmpty() && row.representativeName() == null);
@@ -252,7 +260,7 @@ class BillingPersistenceTest {
         var residentUser = users.saveAndFlush(User.create("주민 로그인 계정", null)).getId();
         jdbc.update("update residents set user_id=? where id=?", residentUser, representative);
         addMember(propertyId, residentUser, "RESIDENT");
-        var other = registration.register(userId, RegistrationFixtures.request(UUID.randomUUID(), false)).response().property().id();
+        var other = registerForBilling(userId, RegistrationFixtures.request(UUID.randomUUID(), false)).response().property().id();
         addMember(other, residentUser, "RESIDENT");
         var approved = addRequest(firstUnit, residentUser, representative, "APPROVED");
         var pending = addRequest(firstUnit, residentUser, representative, "PENDING");
@@ -352,7 +360,7 @@ class BillingPersistenceTest {
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
     void deletedUnitNumberCanBeAddedAgainWithFreshBillingWithoutRevivingOldResidentsOrPastCharges(boolean hasBuildings) {
-        var target = registration.register(userId, RegistrationFixtures.request(UUID.randomUUID(), hasBuildings)).response().property().id();
+        var target = registerForBilling(userId, RegistrationFixtures.request(UUID.randomUUID(), hasBuildings)).response().property().id();
         var building = hasBuildings ? jdbc.queryForObject("select id from buildings where property_id=? and name='101동'", UUID.class, target) : null;
         var input = unitRequest(building, "701", "ACTIVE");
         var old = unitManagement.create(userId, target, input);
@@ -390,7 +398,7 @@ class BillingPersistenceTest {
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
     void batchAndUpdateCanReuseDeletedNumbersButRejectExistingUnitsAndInRequestDuplicates(boolean hasBuildings) {
-        var target = registration.register(userId, RegistrationFixtures.request(UUID.randomUUID(), hasBuildings)).response().property().id();
+        var target = registerForBilling(userId, RegistrationFixtures.request(UUID.randomUUID(), hasBuildings)).response().property().id();
         var building = hasBuildings ? jdbc.queryForObject("select id from buildings where property_id=? and name='101동'", UUID.class, target) : null;
         var inputs = List.of(unitRequest(building, "701", "ACTIVE"), unitRequest(building, "702", "VACANT"));
         var original = unitManagement.createBatch(userId, target, new com.moahome.server.property.dto.UnitBatchRequest(inputs));
@@ -419,7 +427,7 @@ class BillingPersistenceTest {
 
     @Test
     void unitNumberReuseMigrationPreservesExistingRowsAndChargeLinksAndRestrictsOnlyUndeletedNumbers() {
-        var withoutBuildings = registration.register(userId, RegistrationFixtures.request(UUID.randomUUID(), false)).response().property().id();
+        var withoutBuildings = registerForBilling(userId, RegistrationFixtures.request(UUID.randomUUID(), false)).response().property().id();
         String schema = "unit_reuse_upgrade_" + UUID.randomUUID().toString().replace("-", "");
         var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
             .schemas(schema).defaultSchema(schema).target("20261012061303").load();
@@ -430,10 +438,11 @@ class BillingPersistenceTest {
         jdbc.update("update " + schema + ".units set deleted_at=now(),deleted_by=? where unit_number='201'", userId);
         var storedUnits = jdbc.queryForList("select * from " + schema + ".units order by id");
         var storedCharges = jdbc.queryForList("select * from " + schema + ".charges order by id");
+        storedCharges.forEach(row -> row.put("charge_type", "MONTHLY"));
         var storedItems = jdbc.queryForList("select * from " + schema + ".charge_items order by id");
         var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(9);
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(10);
         upgraded.validate();
         assertThat(jdbc.queryForList("select * from " + schema + ".units order by id")).isEqualTo(storedUnits);
         assertThat(jdbc.queryForList("select * from " + schema + ".charges order by id")).isEqualTo(storedCharges);
@@ -480,7 +489,7 @@ class BillingPersistenceTest {
         var request = RegistrationFixtures.withUnits(RegistrationFixtures.request(UUID.randomUUID(), true),
             java.util.stream.IntStream.range(0, 31).mapToObj(index -> new UnitInput(index < 15 ? "a" : "b",
                 String.valueOf(101 + index), null, 1, "ACTIVE")).toList());
-        var target = registration.register(userId, request).response().property().id();
+        var target = registerForBilling(userId, request).response().property().id();
         var oldBuilding = jdbc.queryForObject("select id from buildings where property_id=? and name='102동'", UUID.class, target);
         var original = billing.monthly(userId, target, YearMonth.of(2026, 10));
         clock.set(Instant.parse("2026-11-10T00:00:00Z"));
@@ -508,7 +517,7 @@ class BillingPersistenceTest {
         var originalItems = jdbc.queryForList("select * from charge_items where charge_id=? order by id", charge.id());
         var stranger = users.saveAndFlush(User.create("다른 계정", null)).getId();
         assertThatThrownBy(() -> billing.cancelCharge(stranger, propertyId, month, charge.id())).isInstanceOf(AuthException.class);
-        var other = registration.register(userId, RegistrationFixtures.request(UUID.randomUUID(), false)).response().property().id();
+        var other = registerForBilling(userId, RegistrationFixtures.request(UUID.randomUUID(), false)).response().property().id();
         assertThatThrownBy(() -> billing.cancelCharge(userId, other, month, charge.id())).isInstanceOf(BillingException.class);
         jdbc.execute("create function fail_cancellation() returns trigger language plpgsql as $$ begin raise exception 'test'; end; $$");
         jdbc.execute("create trigger fail_cancellation before update on charges for each row when (new.status='CANCELED') execute function fail_cancellation()");
@@ -546,7 +555,7 @@ class BillingPersistenceTest {
         var original = jdbc.queryForList("select " + originalColumns + " from public.charges order by id");
         var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(12);
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(13);
         upgraded.validate();
         assertThat(jdbc.queryForList("select " + originalColumns + " from " + schema + ".charges order by id")).isEqualTo(original);
         assertThat(jdbc.queryForObject("select count(*) from " + schema + ".charge_items", Long.class)).isEqualTo(count("charge_items"));
@@ -679,7 +688,7 @@ class BillingPersistenceTest {
         generation.generate(propertyId, YearMonth.of(2026, 11));
         assertThatThrownBy(() -> billing.detail(userId, propertyId, YearMonth.of(2026, 11), UUID.randomUUID()))
             .isInstanceOf(BillingException.class);
-        var other = registration.register(userId, RegistrationFixtures.request(UUID.randomUUID(), false)).response().property().id();
+        var other = registerForBilling(userId, RegistrationFixtures.request(UUID.randomUUID(), false)).response().property().id();
         UUID foreignUnit = jdbc.queryForObject("select id from units where property_id=? limit 1", UUID.class, other);
         assertThatThrownBy(() -> jdbc.update("update charges set unit_id=? where property_id=?", foreignUnit, propertyId))
             .isInstanceOf(DataIntegrityViolationException.class);

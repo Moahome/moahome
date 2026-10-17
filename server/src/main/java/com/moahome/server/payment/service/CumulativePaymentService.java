@@ -24,11 +24,18 @@ public class CumulativePaymentService {
     private final BillingPeriodRepository periods;
     private final PaymentTextSecurity security;
     private final Clock clock;
+    private final com.moahome.server.billing.repo.OpeningBalanceBatchRepository openingBatches;
+    private final com.moahome.server.billing.repo.OpeningBalanceItemRepository openingItems;
+    private final com.moahome.server.billing.repo.CreditApplicationRepository creditApplications;
 
     public CumulativePaymentService(PaymentRepository payments,PaymentAllocationRepository allocations,PaymentEventRepository events,
-        ChargeRepository charges,BillingPeriodRepository periods,@Lazy PaymentTextSecurity security,Clock clock) {
+        ChargeRepository charges,BillingPeriodRepository periods,@Lazy PaymentTextSecurity security,Clock clock,
+        com.moahome.server.billing.repo.OpeningBalanceBatchRepository openingBatches,
+        com.moahome.server.billing.repo.OpeningBalanceItemRepository openingItems,
+        com.moahome.server.billing.repo.CreditApplicationRepository creditApplications) {
         this.payments=payments;this.allocations=allocations;this.events=events;this.charges=charges;
         this.periods=periods;this.security=security;this.clock=clock;
+        this.openingBatches=openingBatches;this.openingItems=openingItems;this.creditApplications=creditApplications;
     }
 
     /** 호출자가 관리대상 잠금을 보유한 같은 트랜잭션에서 누적 입금을 미납 청구에 충당하고 남은 금액은 선입금으로 유지합니다. */
@@ -37,12 +44,13 @@ public class CumulativePaymentService {
         var receipts=payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property).stream()
             .filter(p->p.getDeletedAt()==null&&"CONFIRMED".equals(p.getStatus())&&"HOUSEHOLD".equals(p.getReceiptType()))
             .sorted(Comparator.comparing(Payment::getPaymentDate).thenComparing(Payment::getCreatedAt).thenComparing(Payment::getId)).toList();
-        if (receipts.isEmpty()) return;
         var issued=periods.findByPropertyIdOrderByBillingYearDescBillingMonthDesc(property).stream()
             .filter(p->"ISSUED".equals(p.getStatus())).collect(Collectors.toMap(p->p.getId(),p->p));
         var targets=charges.findByPropertyId(property).stream()
-            .filter(c->"ISSUED".equals(c.getStatus())&&c.getTotalAmount().signum()>0&&issued.containsKey(c.getBillingPeriodId()))
-            .sorted(Comparator.comparing((Charge c)->issued.get(c.getBillingPeriodId()).month()).thenComparing(Charge::getId))
+            .filter(c->"ISSUED".equals(c.getStatus())&&c.getTotalAmount().signum()>0
+                && ("OPENING_RECEIVABLE".equals(c.getChargeType()) || issued.containsKey(c.getBillingPeriodId())))
+            .sorted(Comparator.comparing((Charge c)-> "OPENING_RECEIVABLE".equals(c.getChargeType())?0:1)
+                .thenComparing(Charge::getDueDate).thenComparing(Charge::getId))
             .collect(Collectors.groupingBy(Charge::getUnitId));
         var saved=allocations.findByPropertyId(property).stream().filter(a->"ACTIVE".equals(a.getStatus())).toList();
         Map<UUID,BigDecimal> used=new HashMap<>(),paid=new HashMap<>();
@@ -53,6 +61,32 @@ public class CumulativePaymentService {
             pairs.put(allocation.getPaymentId()+":"+allocation.getChargeId(),allocation);
         }
         var at=OffsetDateTime.now(clock);
+        // 기존 선납은 은행 수납을 만들지 않고 별도 충당으로 먼저 반영하며 양쪽 충당 합계가 청구액을 넘지 않게 합니다.
+        var credits=creditApplications.findByPropertyId(property).stream().filter(a->"ACTIVE".equals(a.getStatus())).toList();
+        Map<UUID,BigDecimal> creditUsed=new HashMap<>();
+        for(var credit:credits) {
+            paid.merge(credit.getChargeId(),credit.getAmount(),BigDecimal::add);
+            creditUsed.merge(credit.getOpeningItemId(),credit.getAmount(),BigDecimal::add);
+        }
+        var confirmed=openingBatches.findByPropertyIdOrderByCreatedAtDesc(property).stream().filter(b->"CONFIRMED".equals(b.getStatus()))
+            .collect(Collectors.toMap(b->b.getId(),b->b));
+        for(var source:openingItems.findByPropertyId(property)) {
+            var batch=confirmed.get(source.getBatchId());
+            if(batch==null) continue;
+            var remaining=source.getCredit().subtract(creditUsed.getOrDefault(source.getId(),BigDecimal.ZERO));
+            for(var charge:targets.getOrDefault(source.getUnitId(),List.of())) {
+                if(remaining.signum()<=0) break;
+                var balance=charge.getTotalAmount().subtract(paid.getOrDefault(charge.getId(),BigDecimal.ZERO));
+                if(balance.signum()<=0) continue;
+                var amount=remaining.min(balance);
+                var existing=credits.stream().filter(a->a.getOpeningItemId().equals(source.getId())&&a.getChargeId().equals(charge.getId())).findFirst();
+                if(existing.isPresent()) existing.get().increase(amount);
+                else creditApplications.save(com.moahome.server.billing.domain.CreditApplication.apply(source,charge,amount,
+                    actor==null?batch.getConfirmedBy():actor,at));
+                paid.merge(charge.getId(),amount,BigDecimal::add);remaining=remaining.subtract(amount);
+            }
+        }
+        creditApplications.flush();
         for(var payment:receipts) {
             var left=payment.getAmount().subtract(used.getOrDefault(payment.getId(),BigDecimal.ZERO));
             if(left.signum()<=0) continue;

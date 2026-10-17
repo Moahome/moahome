@@ -29,7 +29,7 @@ public class BillingScheduler {
     public void runDueBilling() {
         var current = BillingCalendar.currentMonth(clock);
         for (var property : properties.findAll()) {
-            if (property.getDeletedAt()!=null || property.getStatus()!=PropertyStatus.ACTIVE) continue;
+            if (property.getDeletedAt()!=null || property.getStatus()!=PropertyStatus.ACTIVE || property.getManagementStartedAt()==null) continue;
             for (var month=BillingCalendar.firstMonth(property); !month.isAfter(current); month=month.plusMonths(1)) {
                 try {
                     generation.generate(property.getId(), month);

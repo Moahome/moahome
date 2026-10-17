@@ -33,7 +33,7 @@ public class BillingGenerationService {
     public boolean generate(UUID propertyId, YearMonth month) {
         // 세대 변경·기본 설정 저장과 같은 관리대상 잠금을 사용해 대상과 적용 설정을 일관되게 읽습니다.
         var property = properties.findForUnitUpdate(propertyId).orElse(null);
-        if (property == null || property.getStatus()!=PropertyStatus.ACTIVE
+        if (property == null || property.getManagementStartedAt() == null || property.getStatus()!=PropertyStatus.ACTIVE
             || month.isBefore(BillingCalendar.firstMonth(property)) || month.isAfter(BillingCalendar.currentMonth(clock))) return false;
         var existing = periods.findByPropertyIdAndBillingYearAndBillingMonth(propertyId, (short)month.getYear(), (short)month.getMonthValue());
         if (existing.isPresent()) {
@@ -55,8 +55,9 @@ public class BillingGenerationService {
     @Transactional
     public void addCurrentMonthUnits(UUID propertyId, Collection<UUID> unitIds) {
         if (unitIds.isEmpty()) return;
-        properties.findForUnitUpdate(propertyId).orElseThrow();
+        var property = properties.findForUnitUpdate(propertyId).orElseThrow();
         var month = BillingCalendar.currentMonth(clock);
+        if (property.getManagementStartedAt() == null || month.isBefore(BillingCalendar.firstMonth(property))) return;
         // 아직 당월 기간이 없다면 현재 전체 세대로 한 번 생성합니다. 실패하면 세대 추가도 함께 롤백됩니다.
         if (generate(propertyId, month)) return;
         var period = periods.findByPropertyIdAndBillingYearAndBillingMonth(propertyId, (short)month.getYear(), (short)month.getMonthValue())

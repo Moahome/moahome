@@ -19,6 +19,7 @@ class ServerApplicationTests {
 	@MockitoBean private com.moahome.server.payment.service.PaymentService payments;
 	@MockitoBean private com.moahome.server.payment.service.CumulativePaymentService cumulativePayments;
 	@MockitoBean private com.moahome.server.billing.service.BillingService billing;
+	@MockitoBean private com.moahome.server.billing.service.OpeningBalanceService openingBalances;
 	@MockitoBean private com.moahome.server.billing.service.BillingTemplates billingTemplates;
 	@MockitoBean private com.moahome.server.billing.service.BillingGenerationService billingGeneration;
 	@MockitoBean private com.moahome.server.property.service.ManagementAccessService management;

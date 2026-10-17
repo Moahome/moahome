@@ -47,14 +47,19 @@ public class PaymentService {
     private final BankTransactionReader reader;
     private final Clock clock;
     private final CumulativePaymentService cumulative;
+    private final OpeningBalanceBatchRepository openingBatches;
+    private final OpeningBalanceItemRepository openingItems;
+    private final CreditApplicationRepository creditApplications;
     public PaymentService(ManagementAccessService access,ResidentListService residents,PropertyRepository properties,
         UnitRepository units,BuildingRepository buildings,ChargeRepository charges,BillingPeriodRepository periods,
         BankAccountRepository accounts,BankTransactionRepository transactions,PaymentRepository payments,
         PaymentAllocationRepository allocations,PaymentEventRepository events,@Lazy PaymentTextSecurity security,
-        BankTransactionReader reader,Clock clock,CumulativePaymentService cumulative) {
+        BankTransactionReader reader,Clock clock,CumulativePaymentService cumulative,OpeningBalanceBatchRepository openingBatches,
+        OpeningBalanceItemRepository openingItems,CreditApplicationRepository creditApplications) {
         this.access=access;this.residents=residents;this.properties=properties;this.units=units;this.buildings=buildings;
         this.charges=charges;this.periods=periods;this.accounts=accounts;this.transactions=transactions;this.payments=payments;
         this.allocations=allocations;this.events=events;this.security=security;this.reader=reader;this.clock=clock;this.cumulative=cumulative;
+        this.openingBatches=openingBatches;this.openingItems=openingItems;this.creditApplications=creditApplications;
     }
     /** 현재 대표 명부를 포함하므로 부담당자가 아닌 관리소장 권한을 매 요청마다 검사합니다. */
     private void requireAdmin(UUID user,UUID property) {
@@ -63,7 +68,9 @@ public class PaymentService {
     /** 세대 변경·청구 생성과 같은 관리대상 잠금을 사용해 최신 잔액 검증과 저장을 직렬화합니다. */
     private void lock(UUID user,UUID property) {
         requireAdmin(user,property);
-        properties.findForUnitUpdate(property).orElseThrow(()->new AuthException(AuthErrorCode.ACCESS_DENIED));
+        var target=properties.findForUnitUpdate(property).orElseThrow(()->new AuthException(AuthErrorCode.ACCESS_DENIED));
+        requireAdmin(user,property);
+        if(target.getManagementStartedAt()==null) throw new PaymentException("OPENING_BALANCE_REQUIRED");
     }
     private OffsetDateTime now() { return OffsetDateTime.now(clock); }
     private LocalDate today() { return LocalDate.now(clock.withZone(BillingCalendar.ZONE)); }
@@ -98,11 +105,12 @@ public class PaymentService {
         var current=currentBuildings(property);
         var periodsById=periods.findByPropertyIdOrderByBillingYearDescBillingMonthDesc(property).stream()
             .filter(p->"ISSUED".equals(p.getStatus())).collect(Collectors.toMap(BillingPeriod::getId,p->p));
-        var headers=charges.findByPropertyId(property).stream().filter(c->periodsById.containsKey(c.getBillingPeriodId())).toList();
+        var headers=charges.findByPropertyId(property).stream().filter(c->"OPENING_RECEIVABLE".equals(c.getChargeType()) || periodsById.containsKey(c.getBillingPeriodId())).toList();
         var allPayments=payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property).stream().filter(p->p.getDeletedAt()==null).toList();
         var paymentUnits=allPayments.stream().map(Payment::getMatchedUnitId).filter(Objects::nonNull).collect(Collectors.toSet());
         var chargedUnits=headers.stream().map(Charge::getUnitId).collect(Collectors.toSet());
-        var allUnits=units.findByPropertyId(property).stream().filter(u->u.getDeletedAt()==null||chargedUnits.contains(u.getId())||paymentUnits.contains(u.getId())).toList();
+        var openingUnits=openingItems.findByPropertyId(property).stream().map(i->i.getUnitId()).collect(Collectors.toSet());
+        var allUnits=units.findByPropertyId(property).stream().filter(u->u.getDeletedAt()==null||chargedUnits.contains(u.getId())||paymentUnits.contains(u.getId())||openingUnits.contains(u.getId())).toList();
         var live=allUnits.stream().filter(u->eligible(u,current)).map(Unit::getId).collect(Collectors.toSet());
         var unitRows=allUnits.stream().map(u->{
             var rep=reps.get(u.getId());
@@ -112,16 +120,23 @@ public class PaymentService {
                 u.getStatus()==UnitStatus.ACTIVE?"ACTIVE":"VACANT",live.contains(u.getId()),rep==null?null:rep.id(),rep==null?null:rep.name(),residentRows.stream().filter(r->u.getId().equals(r.unitId())).map(ResidentItem::name).distinct().sorted().toList(),building);
         }).sorted(Comparator.comparing(PaymentResponse.Unit::label)).toList();
         var chargeRows=headers.stream().map(c->{
-            var month=periodsById.get(c.getBillingPeriodId()).month();
+            var month="OPENING_RECEIVABLE".equals(c.getChargeType())?YearMonth.from(c.getDueDate()):periodsById.get(c.getBillingPeriodId()).month();
             String state=c.getStatus();
-            if ("ISSUED".equals(state)&&!month.isBefore(YearMonth.from(today()))&&!live.contains(c.getUnitId())) state="EXCLUDED_VACANT";
-            return new PaymentResponse.Charge(c.getId(),c.getUnitId(),month.toString(),c.getTotalAmount().toPlainString(),state,c.getDueDate());
+            if ("MONTHLY".equals(c.getChargeType())&&"ISSUED".equals(state)&&!month.isBefore(YearMonth.from(today()))&&!live.contains(c.getUnitId())) state="EXCLUDED_VACANT";
+            return new PaymentResponse.Charge(c.getId(),c.getUnitId(),month.toString(),c.getTotalAmount().toPlainString(),state,c.getDueDate(),c.getChargeType());
         }).filter(c->!"DRAFT".equals(c.status())).toList();
         var applied=allocations.findByPropertyId(property).stream().collect(Collectors.groupingBy(PaymentAllocation::getPaymentId));
         var paymentRows=allPayments.stream()
             .map(p->response(p,applied.getOrDefault(p.getId(),List.of()),unitRows,residentRows)).toList();
         var accountRows=propertyAccounts(property).stream().sorted(Comparator.comparing((BankAccount a)->a.isPrimary()&&a.getStatus()==BankAccountStatus.ACTIVE).reversed()).map(a->new PaymentResponse.Account(a.getId(),a.getBankName()+" ····"+a.getAccountLast4())).toList();
-        return new PaymentResponse.Ledger(property,today(),accountRows,unitRows,chargeRows,paymentRows,List.of());
+        var confirmedOpening=openingBatches.findByPropertyIdOrderByCreatedAtDesc(property).stream().filter(b->"CONFIRMED".equals(b.getStatus()))
+            .collect(Collectors.toMap(b->b.getId(),b->b));
+        var credits=creditApplications.findByPropertyId(property).stream().filter(a->"ACTIVE".equals(a.getStatus()))
+            .collect(Collectors.groupingBy(a->a.getOpeningItemId()));
+        var openingRows=openingItems.findByPropertyId(property).stream().filter(i->confirmedOpening.containsKey(i.getBatchId())&&i.getCredit().signum()>0)
+            .map(i->new PaymentResponse.OpeningCredit(i.getId(),i.getUnitId(),confirmedOpening.get(i.getBatchId()).getCutoffDate(),i.getCredit().toPlainString(),
+                credits.getOrDefault(i.getId(),List.of()).stream().map(a->new PaymentResponse.Allocation(a.getChargeId(),a.getAmount().toPlainString())).toList())).toList();
+        return new PaymentResponse.Ledger(property,today(),accountRows,unitRows,chargeRows,paymentRows,List.of(),openingRows);
     }
     private PaymentResponse.Payment response(Payment p,List<PaymentAllocation> applied,List<PaymentResponse.Unit> unitRows,List<ResidentItem> residentRows) {
         String payer=security.decrypt(p.getPayerNameEncrypted());
@@ -161,6 +176,7 @@ public class PaymentService {
     /** 파일 가져오기 또는 일치 입금 일괄 처리에서만 자동 확정하며 수동 수납 중복 의심과 보류는 검토 대상으로 유지합니다. */
     private boolean confirmMatched(UUID user,UUID property,Payment payment,List<PaymentResponse.Unit> unitRows,List<ResidentItem> residentRows) {
         if(payment.getDeletedAt()!=null||!"BANK_IMPORT".equals(payment.getSourceType())||!"PENDING".equals(payment.getStatus())) return false;
+        if(!afterCutoff(property,payment.getPaymentDate())) return false;
         String payer=security.decrypt(payment.getPayerNameEncrypted());
         UUID candidate=unitCandidate(payer,unitRows,residentRows);
         if(candidate==null||!duplicates(property,payment).isEmpty()) return false;
@@ -196,6 +212,7 @@ public class PaymentService {
     @Transactional
     public PaymentResponse.Ledger manual(UUID user,UUID property,PaymentRequests.Manual request) {
         lock(user,property);
+        requireAfterCutoff(property,request.date());
         var amount=amount(request.amount(),true);
         if (request.date().isAfter(today())) throw new PaymentException("INVALID_PAYMENT_DATE");
         var existing=payments.findById(request.id());
@@ -218,6 +235,7 @@ public class PaymentService {
     public PaymentResponse.Ledger confirm(UUID user,UUID property,UUID id,PaymentRequests.Confirm request) {
         lock(user,property);
         var payment=requirePayment(property,id);
+        requireAfterCutoff(property,payment.getPaymentDate());
         if(request.allocations()==null) return confirmCumulative(user,property,payment,request);
         Map<UUID,BigDecimal> wanted=new LinkedHashMap<>();
         for (var item:request.allocations()) {
@@ -240,6 +258,8 @@ public class PaymentService {
         var rep=representatives(user,property).get(request.unitId());
         var active=saved.stream().filter(a->"ACTIVE".equals(a.getStatus())).collect(Collectors.groupingBy(PaymentAllocation::getChargeId,
             Collectors.reducing(BigDecimal.ZERO,PaymentAllocation::getAllocatedAmount,BigDecimal::add)));
+        creditApplications.findByPropertyId(property).stream().filter(a->"ACTIVE".equals(a.getStatus()))
+            .forEach(a->active.merge(a.getChargeId(),a.getAmount(),BigDecimal::add));
         var headers=charges.findByPropertyId(property).stream().collect(Collectors.toMap(Charge::getId,c->c));
         var periodMap=periods.findByPropertyIdOrderByBillingYearDescBillingMonthDesc(property).stream().collect(Collectors.toMap(BillingPeriod::getId,p->p));
         BigDecimal total=BigDecimal.ZERO;
@@ -288,6 +308,7 @@ public class PaymentService {
     public PaymentResponse.Ledger confirmOtherIncome(UUID user,UUID property,UUID id,PaymentRequests.OtherIncome request) {
         lock(user,property);
         var payment=requirePayment(property,id);
+        requireAfterCutoff(property,payment.getPaymentDate());
         String category=separate(request.category()),note=separate(request.note());
         if(category==null||category.length()>100||(note!=null&&note.length()>500)) throw new PaymentException("INVALID_INCOME_CATEGORY");
         if("CONFIRMED".equals(payment.getStatus())) {
@@ -410,6 +431,7 @@ public class PaymentService {
         var unitRows=ledger(user,property).units();var residentRows=residents.list(user,property).residents();
         var rows=reader.read(file);List<PaymentResponse.Payment> result=new ArrayList<>();int duplicated=0;
         for (var row:rows) {
+            if(!afterCutoff(property,row.date())) { duplicated++;continue; }
             if (row.date().isAfter(today())) throw new PaymentException("INVALID_PAYMENT_DATE");
             String key=key(row);if (!existing.add(key)) { duplicated++;continue; }
             UUID candidate=unitCandidate(row.payer(),unitRows,residentRows);
@@ -442,6 +464,7 @@ public class PaymentService {
         for (var row:rows) {
             var key=key(row);
             if(selected!=null&&!selected.contains(previewId(key))) continue;
+            if(!afterCutoff(property,row.date())) continue;
             if (transactions.findByBankAccountIdAndDeduplicationKeyAndDeletedAtIsNull(account.getId(),key).isPresent()) continue;
             var name=security.protect(row.payer());String hmac=security.nameHash(row.payer());
             var t=transactions.saveAndFlush(BankTransaction.create(property,account.getId(),row.date(),row.amount(),name.encrypted(),hmac,
@@ -453,5 +476,14 @@ public class PaymentService {
         }
         payments.flush();cumulative.settle(property,user);
         return ledger(user,property);
+    }
+
+    /** 인계일 이전 입금은 이미 기존 잔액에 포함되므로 수동 입력·재확정에서도 신규 수납으로 반영하지 않습니다. */
+    private boolean afterCutoff(UUID property, LocalDate date) {
+        var target=properties.findById(property).orElseThrow();
+        return target.getBalanceCutoffDate()==null || date.isAfter(target.getBalanceCutoffDate());
+    }
+    private void requireAfterCutoff(UUID property, LocalDate date) {
+        if(!afterCutoff(property,date)) throw new PaymentException("PAYMENT_BEFORE_OPENING_CUTOFF");
     }
 }

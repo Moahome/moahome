@@ -12,13 +12,15 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './calendarPicker.module.css';
 
 /** 월·날짜 선택을 같은 달력으로 제공하고 선택 후 호출 버튼으로 포커스를 돌려줍니다. */
-export function CalendarPicker({ label, value, onChange, mode = 'date', clearable = false, required = false }: {
+export function CalendarPicker({ label, value, onChange, mode = 'date', clearable = false, required = false, labelHidden = false, placeholder }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   mode?: 'month' | 'date';
   clearable?: boolean;
   required?: boolean;
+  labelHidden?: boolean;
+  placeholder?: string;
 }) {
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
@@ -31,7 +33,7 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
   const [month, setMonth] = useState(selectedMonth || new Date().getMonth() + 1);
   const [choosingMonth, setChoosingMonth] = useState(mode === 'month');
   const monthValue = `${year}-${String(month).padStart(2, '0')}`;
-  const displayValue = value ? `${value.slice(0, 4)}년 ${selectedMonth}월${mode === 'date' ? ` ${Number(value.slice(8, 10))}일` : ''}` : (mode === 'month' ? '전체 기간' : '날짜 선택');
+  const displayValue = value ? `${value.slice(0, 4)}년 ${selectedMonth}월${mode === 'date' ? ` ${Number(value.slice(8, 10))}일` : ''}` : (placeholder ?? (mode === 'month' ? '전체 기간' : '날짜 선택'));
   const offset = new Date(year, month - 1, 1).getDay();
   const days = new Date(year, month, 0).getDate();
 
@@ -132,6 +134,7 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
       <span
         id={`${id}-label`}
         className={styles.label}
+        data-hidden={labelHidden || undefined}
       >
         {label}
         {required && (

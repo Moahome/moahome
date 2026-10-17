@@ -13,7 +13,8 @@ import lombok.Getter;
 public class Charge {
     @Id private UUID id;
     @Column(name="property_id", nullable=false) private UUID propertyId;
-    @Column(name="billing_period_id", nullable=false) private UUID billingPeriodId;
+    @Column(name="billing_period_id") private UUID billingPeriodId;
+    @Column(name="charge_type", nullable=false, length=30) private String chargeType = "MONTHLY";
     @Column(name="unit_id", nullable=false) private UUID unitId;
     @Column(name="building_name_snapshot", nullable=false, length=50) private String buildingName;
     @Column(name="unit_number_snapshot", nullable=false, length=30) private String unitNumber;
@@ -28,6 +29,23 @@ public class Charge {
     @Column(name="created_at", nullable=false, columnDefinition="timestamptz") private OffsetDateTime createdAt;
     @Column(name="updated_at", nullable=false, columnDefinition="timestamptz") private OffsetDateTime updatedAt;
     protected Charge() {}
+
+    /** 이전 장부의 미수 잔액은 월별 신규 부과와 분리하고 현재 대표 주민에게 채무를 자동 귀속하지 않습니다. */
+    public static Charge opening(UUID property, Unit unit, String building, BigDecimal amount, LocalDate cutoff, OffsetDateTime at) {
+        if (!property.equals(unit.getPropertyId()) || amount.scale()!=0 || amount.signum()<=0
+            || amount.compareTo(BigDecimal.valueOf(999_999_999_999_999L))>0) throw new IllegalArgumentException("Invalid opening charge");
+        var charge = new Charge();
+        charge.id=UUID.randomUUID();charge.propertyId=property;charge.unitId=unit.getId();charge.chargeType="OPENING_RECEIVABLE";
+        charge.buildingName=building;charge.unitNumber=unit.getUnitNumber();charge.displayName=unit.getDisplayName();
+        charge.totalAmount=amount;charge.dueDate=cutoff;charge.status="ISSUED";charge.issuedAt=at;charge.createdAt=at;charge.updatedAt=at;
+        return charge;
+    }
+
+    /** 인계 정정은 기존 미수 원본만 취소하며 일반 월별 청구를 함께 삭제하지 않습니다. */
+    public void cancelOpening(UUID actor, OffsetDateTime at) {
+        if (!"OPENING_RECEIVABLE".equals(chargeType)) throw new IllegalStateException("Opening charge required");
+        status="CANCELED";canceledBy=actor;canceledAt=at;cancellationReason="OPENING_CANCELED";updatedAt=at;
+    }
 
     /** 세대 표시 정보와 부호 있는 합계를 생성 시 보존하고 이후 세대·설정 정정으로 소급 변경하지 않습니다. */
     public static Charge draft(BillingPeriod period, Unit unit, String buildingName, BigDecimal amount, OffsetDateTime at) {

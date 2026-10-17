@@ -31,6 +31,7 @@ function readLedger(value: PreviewLedger & { propertyId: string }, propertyId: s
       && (u.buildingName === undefined || typeof u.buildingName === 'string')
       && (u.residentNames === undefined || (Array.isArray(u.residentNames) && u.residentNames.every((name) => typeof name === 'string'))))
     || !Array.isArray(value.charges) || !value.charges.every((c) => UUID.test(c.id) && UUID.test(c.unitId) && typeof c.amount === 'string' && AMOUNT.test(c.amount)
+      && (c.chargeType === undefined || ['MONTHLY', 'OPENING_RECEIVABLE'].includes(c.chargeType))
       && /^[0-9]{4}-(0[1-9]|1[0-2])$/.test(c.month) && ['ISSUED', 'CANCELED', 'EXCLUDED_VACANT'].includes(c.status))
     || !Array.isArray(value.payments) || !value.payments.every((p) => UUID.test(p.id) && UUID.test(p.accountId) && (p.unitId === '' || UUID.test(p.unitId))
       && typeof p.payer === 'string' && typeof p.amount === 'string' && /^[0-9]{1,15}$/.test(p.amount) && BigInt(p.amount) > BigInt(0)
@@ -42,8 +43,14 @@ function readLedger(value: PreviewLedger & { propertyId: string }, propertyId: s
       && Array.isArray(p.allocations) && p.allocations.every((a) => UUID.test(a.chargeId) && /^[0-9]{1,15}$/.test(a.amount)))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '입금 응답을 확인할 수 없습니다.');
   }
+  if (value.openingCredits !== undefined && (!Array.isArray(value.openingCredits) || value.openingCredits.some((credit) => !UUID.test(credit.id)
+    || !UUID.test(credit.unitId) || !isPreviewDate(credit.date) || !/^[0-9]{1,15}$/.test(credit.amount)
+    || !Array.isArray(credit.allocations) || credit.allocations.some((a) => !UUID.test(a.chargeId) || !/^[0-9]{1,15}$/.test(a.amount))))) {
+    throw new ApiError(200, 'INVALID_RESPONSE', '기존 선납 응답을 확인할 수 없습니다.');
+  }
   const ids = new Set(value.units.map((u) => u.id));
-  if (value.charges.some((c) => !ids.has(c.unitId)) || value.payments.some((p) => p.unitId && !ids.has(p.unitId))) {
+  if (value.charges.some((c) => !ids.has(c.unitId)) || value.payments.some((p) => p.unitId && !ids.has(p.unitId))
+    || value.openingCredits?.some((c) => !ids.has(c.unitId))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '입금 응답을 확인할 수 없습니다.');
   }
   return value;
@@ -102,6 +109,8 @@ export async function previewBankFile(propertyId: string, file: File): Promise<{
 export function paymentError(error: unknown): string {
   if (!(error instanceof ApiError)) return '입금 정보를 처리하지 못했어요.';
   const messages: Record<string, string> = {
+    OPENING_BALANCE_REQUIRED: '관리비 부과의 기존 잔액 인계에서 관리 시작을 먼저 확정해주세요.',
+    PAYMENT_BEFORE_OPENING_CUTOFF: '기존 장부 기준일 이전 입금은 인계 잔액에 포함되어 신규 수납으로 반영할 수 없어요.',
     ACCESS_DENIED: '입금 관리는 현재 관리소장만 사용할 수 있어요.',
     PAYMENT_REPRESENTATIVE_REQUIRED: '선택한 세대에 현재 대표 주민을 먼저 등록해주세요.',
     PAYMENT_UNIT_UNAVAILABLE: '사용 중인 세대와 현재 대표 주민을 확인해주세요.',

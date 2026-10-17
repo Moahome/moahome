@@ -106,10 +106,10 @@ class PropertyRegistrationPersistenceTest {
 		assertThat(count("fee_template_items")).isEqualTo(4);
 		assertThat(count("property_members")).isEqualTo(1);
 		assertThat(count("property_registration_results")).isEqualTo(1);
-		assertThat(count("billing_periods")).isEqualTo(1);
-		assertThat(count("charges")).isEqualTo(1);
-		assertThat(count("charge_items")).isEqualTo(4);
-		assertThat(jdbc.queryForObject("select status from billing_periods", String.class)).isEqualTo("ISSUED");
+		assertThat(count("billing_periods")).isZero();
+		assertThat(count("charges")).isZero();
+		assertThat(count("charge_items")).isZero();
+		assertThat(jdbc.queryForObject("select management_started_at from properties", java.sql.Timestamp.class)).isNull();
 		var account = jdbc.queryForMap("select * from bank_accounts");
 		assertThat(account.get("building_id")).isNull();
 		assertThat(account.get("holder_resident_id")).isNull();
@@ -188,7 +188,7 @@ class PropertyRegistrationPersistenceTest {
 
 	@ParameterizedTest
 	@ValueSource(strings = {"properties", "buildings", "units", "bank_accounts", "fee_templates",
-		"fee_template_items", "property_members", "property_registration_results", "billing_periods", "charges", "charge_items"})
+		"fee_template_items", "property_members", "property_registration_results"})
 	void rollsBackEveryTableAndAllowsSameIdRetryWhenAnySaveFails(String table) {
 		jdbc.execute("create function fail_registration() returns trigger language plpgsql as $$ "
 			+ "begin raise exception 'test registration failure'; end; $$");
@@ -321,7 +321,7 @@ class PropertyRegistrationPersistenceTest {
 			.isInstanceOf(DataIntegrityViolationException.class);
 		Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			.schemas(schema).defaultSchema(schema).load();
-		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(17);
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(18);
 		upgraded.validate();
 		assertThat(jdbc.queryForObject("select default_amount from " + schema + ".fee_template_items where id=?",
 			Long.class, itemId)).isEqualTo(15000);
@@ -333,7 +333,7 @@ class PropertyRegistrationPersistenceTest {
 	@Test
 	void migratesEmptyAndExistingUserSchemaWithoutChangingIdentity() {
 		flyway.validate();
-		assertThat(flyway.info().applied()).hasSize(21);
+		assertThat(flyway.info().applied()).hasSize(22);
 		assertThat(flyway.migrate().migrationsExecuted).isZero();
 		String schema = "registration_" + UUID.randomUUID().toString().replace("-", "");
 		Flyway old = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
@@ -343,7 +343,7 @@ class PropertyRegistrationPersistenceTest {
 		jdbc.update("insert into " + schema + ".users (id, display_name, status) values (?, '기존 사용자', 'ACTIVE')", legacyId);
 		Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			.schemas(schema).defaultSchema(schema).load();
-		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(18);
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(19);
 		upgraded.validate();
 		assertThat(jdbc.queryForObject("select system_role from " + schema + ".users where id = ?", String.class, legacyId))
 			.isEqualTo("USER");
