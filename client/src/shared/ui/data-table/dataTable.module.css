@@ -87,3 +87,38 @@
     }
   }
 }
+
+.table tbody .expanded-row {
+  border-bottom: 0;
+
+  > td {
+    padding: 0;
+  }
+
+  &[data-open='true'] {
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+.expanded-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition: grid-template-rows 180ms ease, visibility 180ms;
+
+  > div {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  [data-open='true'] & {
+    grid-template-rows: 1fr;
+    visibility: visible;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expanded-content {
+    transition: none;
+  }
+}

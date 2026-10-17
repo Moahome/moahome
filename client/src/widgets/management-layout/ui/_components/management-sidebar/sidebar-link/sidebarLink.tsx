@@ -20,6 +20,7 @@ export function SidebarLink({
   collapsed?: boolean;
 }) {
   const href = `/manage/${propertyId}/${item.path}`;
+  const isCurrent = pathname === href || (item.path === 'banking/transactions' && pathname === `/manage/${propertyId}/banking/upload`);
   const content = (
     <>
       {icon}
@@ -57,7 +58,7 @@ export function SidebarLink({
       data-collapsed={collapsed}
       aria-label={collapsed ? item.label : undefined}
       title={collapsed ? item.label : undefined}
-      aria-current={pathname === href ? 'page' : undefined}
+      aria-current={isCurrent ? 'page' : undefined}
       onNavigate={onNavigate}
       replace={Boolean(onNavigate)}
     >

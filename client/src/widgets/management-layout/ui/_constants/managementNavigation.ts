@@ -60,59 +60,33 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
     available: true
   },
   {
-    id: 'payments',
-    label: '입금 관리',
-    icon: 'card',
+    id: 'banking',
+    label: '통장 관리',
+    icon: 'bank',
     children: [
       {
-        id: 'matching',
-        label: '입금 확인·매칭',
-        path: 'payments/matching',
+        id: 'transactions',
+        label: '통장 거래',
+        path: 'banking/transactions',
         available: true
       },
       {
         id: 'monthly-payments',
         label: '월별 수납 현황',
-        path: 'payments/monthly',
+        path: 'banking/monthly',
         available: true
       },
-    ]
-  },
-  {
-    id: 'banking',
-    label: '통장 거래',
-    icon: 'bank',
-    children: [
-      {
-        id: 'transactions',
-        label: '거래 내역',
-        path: 'banking/transactions',
-        available: false
-      },
-      {
-        id: 'upload',
-        label: '엑셀 업로드',
-        path: 'banking/upload',
-        available: false
-      },
-    ]
-  },
-  {
-    id: 'expenses',
-    label: '지출 관리',
-    icon: 'expense',
-    children: [
       {
         id: 'expense-list',
         label: '지출 내역',
-        path: 'expenses',
-        available: false
+        path: 'banking/expenses',
+        available: true
       },
       {
-        id: 'expense-categories',
-        label: '지출 분류 관리',
-        path: 'expenses/categories',
-        available: false
+        id: 'building-balances',
+        label: '동별 잔고·정산',
+        path: 'banking/balances',
+        available: true
       },
     ]
   },

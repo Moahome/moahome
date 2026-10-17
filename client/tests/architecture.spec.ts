@@ -29,6 +29,12 @@ test('그룹 안의 화면은 자기 공개 API로 연결하고 내부 참조는
     "export { value } from '../model/unitList';")).toEqual([]);
 });
 
+test('통장 화면 그룹도 공개 API를 사용하고 형제 화면 참조를 차단', async () => {
+  expect(await architectureMessages('src/app/example.ts', "export { BankingTransactionsPage } from '@/screens/banking/transactions';")).toEqual([]);
+  expect((await architectureMessages('src/screens/banking/expenses/ui/bankingExpensesPage.tsx',
+    "export { BankingTransactionsPage } from '@/screens/banking/transactions';")).map((message) => message.messageId)).toEqual(['sameLayer']);
+});
+
 test('같은 업무 그룹의 형제 화면·그룹 통합 진입점·화면 내부 Import는 거부', async () => {
   expect((await architectureMessages('src/screens/payment/monthly/ui/paymentMonthlyPage.tsx',
     "export { PaymentMatchingPage } from '@/screens/payment/matching';")).map((message) => message.messageId)).toEqual(['sameLayer']);

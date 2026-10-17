@@ -1,0 +1,126 @@
+.editor {
+  border: 0;
+  padding: 24px;
+  margin: 0;
+  background: var(--card);
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+
+  input[type='checkbox'] {
+    accent-color: var(--primary);
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+
+  label {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--card);
+    font-size: 14px;
+
+    &:has(input:checked) {
+      border-color: var(--primary);
+      background: color-mix(in srgb, var(--primary) 4%, var(--card));
+    }
+  }
+}
+
+.help {
+  color: var(--sub-text);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.share {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(100px, 1fr) 32px;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  font-size: 14px;
+
+  > * {
+    min-width: 0;
+  }
+
+  > strong:not(:first-child) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  [data-mode='RATIO'] & {
+    grid-template-columns: minmax(0, 1fr) 80px 14px minmax(92px, 1fr) 32px;
+  }
+}
+
+.total {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-weight: 700;
+
+  &[data-valid='true'] {
+    color: var(--success);
+  }
+}
+
+.warning {
+  color: var(--warning);
+  margin: 0;
+}
+
+.remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--sub-text);
+}
+
+@media (max-width: 767px) {
+  .editor {
+    padding: 16px;
+  }
+
+  .fields {
+    grid-template-columns: 1fr;
+  }
+
+  .share {
+    padding: 10px;
+
+    [data-mode='RATIO'] & {
+      grid-template-columns: minmax(0, 1fr) 60px 12px 88px 28px;
+      gap: 4px;
+    }
+  }
+}
+
+.fields[data-details='false'] {
+  grid-template-columns: minmax(0, 1fr);
+}

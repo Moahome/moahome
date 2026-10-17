@@ -2619,3 +2619,90 @@ for (const width of [1440, 390, 320]) {
     })).toBeVisible();
   });
 }
+
+
+test('통장 입금과 월별 수납은 PC에서 목록을 유지한 모달로 열고 모바일은 상세 주소로 이동', async ({ page }, testInfo) => {
+  const ledger = storedLedger();
+  const payment = ledger.payments.find((item) => item.payer === '김모아')!;
+  const transactions = `/manage/${PROPERTY_ID}/banking/transactions`;
+  const monthly = `/manage/${PROPERTY_ID}/banking/monthly`;
+  await page.route(`**/api/properties/${PROPERTY_ID}/banking/workspace`, (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({
+      propertyId: PROPERTY_ID,
+      asOf: ledger.asOf,
+      buildings: [],
+      units: ledger.units.map((unit) => ({
+        id: unit.id,
+        label: unit.label
+      })),
+      rules: [],
+      rows: [{
+        id: id('banking-receipt-original'),
+        accountId: payment.accountId,
+        date: payment.date,
+        time: '09:00:00',
+        payer: payment.payer,
+        memo: null,
+        amount: payment.amount,
+        balance: '1000000',
+        direction: 'INCOME',
+        ruleKey: id('banking-receipt-rule'),
+        paymentId: payment.id,
+        status: payment.status,
+        unitId: payment.unitId,
+        unitLabel: '101호',
+        expense: null
+      }]
+    })
+  }));
+  await page.setViewportSize({
+    width: 1440,
+    height: 1000
+  });
+  await page.goto(transactions);
+  await page.getByRole('table', {
+    name: '통장 거래',
+    exact: true
+  }).getByRole('row').filter({
+    hasText: '김모아'
+  }).click();
+  await expect(page.getByRole('dialog', {
+    name: '입금 처리 상세',
+    exact: true
+  })).toBeVisible();
+  await expect(page).toHaveURL(transactions);
+  await page.screenshot({
+    animations: 'disabled',
+    path: testInfo.outputPath('bankingReceiptDesktop.png')
+  });
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.goto(monthly);
+  await page.getByRole('row').filter({
+    hasText: '101호'
+  }).click();
+  await expect(page.getByRole('dialog', {
+    name: '101호 수납 상세',
+    exact: true
+  })).toBeVisible();
+  await expect(page).toHaveURL(monthly);
+  await page.getByRole('button', {
+    name: '수납 상세 닫기',
+    exact: true
+  }).click();
+  await page.setViewportSize({
+    width: 390,
+    height: 844
+  });
+  await page.getByRole('row').filter({
+    hasText: '101호'
+  }).click();
+  await expect(page).toHaveURL(`${monthly}/2026-10/${id('101')}`);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('banner').getByRole('link', {
+    name: '월별 수납 현황으로 돌아가기',
+    exact: true
+  })).toBeVisible();
+});

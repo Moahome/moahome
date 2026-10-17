@@ -30,6 +30,15 @@
     font-size: 13px;
   }
 
+  .description {
+    display: block;
+    margin-top: 6px;
+    color: var(--sub-text);
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
   .icon {
     display: grid;
     flex-shrink: 0;

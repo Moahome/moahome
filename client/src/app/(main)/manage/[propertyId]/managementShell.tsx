@@ -1,7 +1,10 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { usePathname } from 'next/navigation';
+import {
+  usePathname,
+  useSearchParams
+} from 'next/navigation';
 import { ManagementLayout } from '@/widgets/management-layout';
 import { ServiceHeader } from '@/widgets/service-header';
 
@@ -15,7 +18,18 @@ export function ManagementShell({
 }) {
   const pathname = usePathname();
   const basePath = `/manage/${propertyId}`;
-  const mobileBack = getMobileBack(pathname, basePath);
+  const searchParams = useSearchParams();
+  const ledgerBuilding = searchParams.get('buildingId');
+  const ledgerMonth = searchParams.get('month');
+  // 원장 진입 문맥만 허용해 다른 관리대상이나 임의 URL로 돌아가지 않게 합니다.
+  const fromBalance = searchParams.get('from') === 'balance'
+    && /^[0-9a-f-]{36}$/i.test(ledgerBuilding ?? '') && /^\d{4}-(0[1-9]|1[0-2])$/.test(ledgerMonth ?? '')
+    && (pathname.startsWith(`${basePath}/banking/receipts/`) || pathname.startsWith(`${basePath}/banking/transactions/`));
+  const mobileBack = fromBalance ? {
+    href: `${basePath}/banking/balances/${ledgerBuilding}?month=${ledgerMonth}`,
+    label: '동별 상세 원장으로 돌아가기',
+    title: '거래 상세'
+  } : getMobileBack(pathname, basePath);
 
   return (
     <ManagementLayout
@@ -36,6 +50,26 @@ export function ManagementShell({
 
 /** 직접 접근에서도 같은 관리대상 안의 목록·상세로 돌아가는 모바일 헤더를 구성합니다. */
 function getMobileBack(pathname: string, basePath: string) {
+  if (pathname.startsWith(`${basePath}/banking/balances/`)) return {
+    href: `${basePath}/banking/balances`,
+    label: '동별 잔고·정산으로 돌아가기',
+    title: '동별 상세 원장'
+  };
+  if (pathname === `${basePath}/banking/upload`) return {
+    href: `${basePath}/banking/transactions`,
+    label: '통장 거래로 돌아가기',
+    title: '거래내역 가져오기'
+  };
+  if (pathname.startsWith(`${basePath}/banking/monthly/`)) return {
+    href: `${basePath}/banking/monthly`,
+    label: '월별 수납 현황으로 돌아가기',
+    title: '수납 상세'
+  };
+  if (pathname.startsWith(`${basePath}/banking/receipts/`) || pathname.startsWith(`${basePath}/banking/transactions/`)) return {
+    href: `${basePath}/banking/transactions`,
+    label: '통장 거래로 돌아가기',
+    title: '거래 상세'
+  };
   if (pathname.startsWith(`${basePath}/join-requests/`)) return {
     href: `${basePath}/join-requests`,
     label: '가입 요청으로 돌아가기',

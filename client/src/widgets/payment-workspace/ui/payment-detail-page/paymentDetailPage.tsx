@@ -1,15 +1,16 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { PaymentDetail } from '../_components/payment-detail/paymentDetail';
 import { usePaymentWorkspace } from '../payment-workspace-provider/paymentWorkspaceProvider';
 
 /** 모바일 상세 주소 재진입을 지원하며 존재하지 않는 수납을 다른 항목으로 대체하지 않습니다. */
-export function PaymentDetailPage({ propertyId, paymentId }: { propertyId: string; paymentId: string }) {
+export function PaymentDetailPage({ propertyId, paymentId, listPath, detailPath, renderSupplement }: { propertyId: string; paymentId: string; listPath?: string; detailPath?: string; renderSupplement?: (onBusyChange: (busy: boolean) => void) => ReactNode }) {
   const router = useRouter();
   const { ledger } = usePaymentWorkspace();
   const payment = ledger.payments.find((item) => item.id === paymentId);
-  const list = `/manage/${propertyId}/payments/matching`;
+  const list = listPath ?? `/manage/${propertyId}/payments/matching`;
   if (!payment) return (
     <section>
       <h1>
@@ -26,9 +27,11 @@ export function PaymentDetailPage({ propertyId, paymentId }: { propertyId: strin
       key={`${payment.id}:${payment.status}`}
       paymentId={payment.id}
       presentation={'page'}
+      renderSupplement={renderSupplement}
+      menuLabel={listPath ? '통장 관리' : undefined}
       onClose={() => router.replace(list)}
       onProcessed={(id) => {
-        if (id !== paymentId) router.replace(`${list}/${encodeURIComponent(id)}`);
+        if (id !== paymentId) router.replace(`${detailPath ?? list}/${encodeURIComponent(id)}`);
       }}
     />
   );

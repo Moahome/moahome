@@ -85,9 +85,10 @@ function matchesPaymentTab(payment: PreviewPayment, tab: string) {
 }
 
 /** 첨부 시안의 전체 너비 거래 표와 주요 행동을 기존 관리 화면의 공통 UI로 구성합니다. */
-export function PaymentWorkspace({ propertyId, view }: {
+export function PaymentWorkspace({ propertyId, view, banking = false }: {
   propertyId: string;
   view: 'matching' | 'monthly';
+  banking?: boolean;
 }) {
   const router = useRouter();
   const { ledger, update, month, setMonth, busy } = usePaymentWorkspace();
@@ -249,7 +250,7 @@ export function PaymentWorkspace({ propertyId, view }: {
           styles['header-actions'],
           view === 'monthly' && styles['export-actions']
         ].filter(Boolean).join(' ')}
-        menu={'입금 관리'}
+        menu={banking ? '통장 관리' : '입금 관리'}
         title={view === 'matching' ? '입금 확인·매칭' : '월별 수납 현황'}
         titleId={'payment-title'}
         description={view === 'matching' ? '명단과 일치하는 입금은 자동 확정하고 세대별로 누적합니다.' : '전월 이월액, 당월 부과액, 당월 수납액, 미수금 잔액을 월별로 확인합니다.'}
@@ -298,6 +299,7 @@ export function PaymentWorkspace({ propertyId, view }: {
           propertyId={propertyId}
           month={month}
           onMonthChange={setMonth}
+          detailPath={banking ? `/manage/${propertyId}/banking/monthly` : undefined}
         />
       ) : (
         <div

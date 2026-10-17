@@ -16,7 +16,7 @@ import unusedImports from 'eslint-plugin-unused-imports';
 
 const SOURCE_DIRECTORY = fileURLToPath(new URL('./src/', import.meta.url));
 const LAYERS = ['app', 'screens', 'widgets', 'features', 'entities', 'shared'];
-const SCREEN_GROUPS = new Set(['household', 'payment']);
+const SCREEN_GROUPS = new Set(['household', 'payment', 'banking']);
 
 /** 경로를 정규화해 별칭이나 상대 경로로 FSD 경계를 우회하지 못하게 합니다. */
 function getModuleInfo(filename) {

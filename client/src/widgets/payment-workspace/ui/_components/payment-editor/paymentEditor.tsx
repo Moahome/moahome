@@ -34,10 +34,11 @@ export function getPaymentStatusLabel(payment: PreviewPayment): string {
 }
 
 /** 입력값은 초안으로 유지하고 확정 순간의 최신 원장으로 다시 검증합니다. */
-export function PaymentEditor({ paymentId, onProcessed }: {
-  paymentId: string; onProcessed?: (id: string, status: PreviewPayment['status'], receiptType?: PreviewPayment['receiptType']) => void;
+export function PaymentEditor({ paymentId, onProcessed, disabled = false }: {
+  disabled?: boolean; paymentId: string; onProcessed?: (id: string, status: PreviewPayment['status'], receiptType?: PreviewPayment['receiptType']) => void;
 }) {
-  const { ledger, update, busy } = usePaymentWorkspace();
+  const { ledger, update, busy: workspaceBusy } = usePaymentWorkspace();
+  const busy = workspaceBusy || disabled;
   const payment = ledger.payments.find((item) => item.id === paymentId)!;
   const selectableUnits = getPreviewSelectableUnits(ledger);
   const [draft, setDraft] = useState<CumulativePaymentDraft>({

@@ -66,6 +66,14 @@ export function PaymentWorkspaceProvider({ propertyId, children }: { propertyId:
       void cache.invalidateQueries({
         queryKey: ['billing', session.data?.id, propertyId]
       });
+      // 통장 상세 모달에서 수납을 변경하면 뒤의 거래 목록도 같은 확정 상태를 표시합니다.
+      void cache.invalidateQueries({
+        queryKey: ['banking-workspace', session.data?.id, propertyId]
+      });
+      // 상세 원장에서 입금을 취소·처리한 뒤 월별 잔고도 실제 확정 수납으로 다시 계산합니다.
+      void cache.invalidateQueries({
+        queryKey: ['banking-balances', session.data?.id, propertyId]
+      });
       setNotice({
         id: Date.now(),
         message

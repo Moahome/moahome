@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { MonthlyDetail } from '../_components/monthly-detail/monthlyDetail';
 
-export function MonthlyDetailPage({ propertyId, month, unitId }: { propertyId: string; month: string; unitId: string }) {
+export function MonthlyDetailPage({ propertyId, month, unitId, listPath }: { propertyId: string; month: string; unitId: string; listPath?: string }) {
   const router = useRouter();
 
   return (
@@ -11,7 +11,7 @@ export function MonthlyDetailPage({ propertyId, month, unitId }: { propertyId: s
       month={month}
       unitId={unitId}
       presentation={'page'}
-      onClose={() => router.replace(`/manage/${propertyId}/payments/monthly`)}
+      onClose={() => router.replace(listPath ?? `/manage/${propertyId}/payments/monthly`)}
     />
   );
 }

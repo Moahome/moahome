@@ -10,3 +10,6 @@ export {
 export {
   MonthlyDetailPage
 } from './ui/monthly-detail-page/monthlyDetailPage';
+export {
+  PaymentDetail
+} from './ui/_components/payment-detail/paymentDetail';

@@ -1,5 +1,9 @@
 'use client';
 
+import {
+  useState,
+  type ReactNode
+} from 'react';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -9,13 +13,17 @@ import { PaymentEditor } from '../payment-editor/paymentEditor';
 import styles from './paymentDetail.module.css';
 
 /** PC 모달과 모바일 페이지는 동일한 상세 내용을 조합하고 바깥 컨테이너만 구분합니다. */
-export function PaymentDetail({ paymentId, presentation = 'modal', onClose, onProcessed }: {
+export function PaymentDetail({ paymentId, presentation = 'modal', menuLabel = '입금 관리', onClose, onProcessed, renderSupplement }: {
+  renderSupplement?: (onBusyChange: (busy: boolean) => void) => ReactNode;
   paymentId: string;
   presentation?: 'modal' | 'page';
+  menuLabel?: string;
   onClose: () => void;
   onProcessed: (id: string, status: PreviewPayment['status'], receiptType?: PreviewPayment['receiptType']) => void;
 }) {
-  const { busy } = usePaymentWorkspace();
+  const { busy: workspaceBusy } = usePaymentWorkspace();
+  const [supplementBusy, setSupplementBusy] = useState(false);
+  const busy = workspaceBusy || supplementBusy;
   const Title = presentation === 'page' ? 'h1' : 'h2';
   const content = (
     <>
@@ -24,7 +32,7 @@ export function PaymentDetail({ paymentId, presentation = 'modal', onClose, onPr
       >
         <div>
           <p>
-            입금 관리
+            {menuLabel}
           </p>
           <Title
             id={'payment-detail-title'}
@@ -51,7 +59,9 @@ export function PaymentDetail({ paymentId, presentation = 'modal', onClose, onPr
       <PaymentEditor
         paymentId={paymentId}
         onProcessed={onProcessed}
+        disabled={supplementBusy}
       />
+      {renderSupplement?.(setSupplementBusy)}
     </>
   );
   if (presentation === 'page') return (

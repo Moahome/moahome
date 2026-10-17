@@ -170,11 +170,11 @@ test('브라우저 등록 기록 없이 DB 목록으로 대시보드에 이동�
     exact: true
   })).toHaveAttribute('href', `/manage/${PROPERTY_ID}/billing/monthly`);
   await navigation.getByRole('button', {
-    name: '입금 관리',
+    name: '통장 관리',
     exact: true
   }).click();
   await expect(households).toHaveAttribute('aria-expanded', 'true');
-  await expect(navigation.getByText('입금 확인·매칭', {
+  await expect(navigation.getByText('통장 거래', {
     exact: true
   })).toBeVisible();
   await page.screenshot({

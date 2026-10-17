@@ -9,6 +9,7 @@ export function SummaryCard({
   icon,
   tone = 'neutral',
   density = 'comfortable',
+  description,
 }: {
   label: string;
   value: number | string;
@@ -16,6 +17,7 @@ export function SummaryCard({
   icon: ReactNode;
   tone?: 'primary' | 'success' | 'neutral' | 'warning' | 'danger';
   density?: 'comfortable' | 'compact';
+  description?: string;
 }) {
   return (
     <article
@@ -48,6 +50,13 @@ export function SummaryCard({
             {unit}
           </span>
         </div>
+        {description && (
+          <small
+            className={styles.description}
+          >
+            {description}
+          </small>
+        )}
       </div>
     </article>
   );
