@@ -185,6 +185,7 @@ public class PaymentService {
             &&Objects.equals(p.getBankTransactionId(),payment.getBankTransactionId()))) return false;
         var rep=residentRows.stream().filter(r->candidate.equals(r.unitId())&&security.nameHash(r.name()).equals(payment.getPayerNameHmac())).findFirst();
         payment.confirm(candidate,rep.map(ResidentItem::id).orElse(null),null,user,now());
+        payment.assignCashBuilding(units.findById(candidate).orElseThrow(()->new PaymentException("PAYMENT_UNIT_UNAVAILABLE")).getBuildingId());
         audit(payment,"AUTO_CONFIRMED",candidateReason(payer,unitRows),user);
         return true;
     }
@@ -278,6 +279,7 @@ public class PaymentService {
         if (!duplicates(property,payment).isEmpty()&&separate(request.separateReason())==null) throw new PaymentException("PAYMENT_DUPLICATE_REVIEW_REQUIRED");
         String reason=separate(request.separateReason());
         var at=now(); payment.confirm(request.unitId(),"MANUAL".equals(payment.getSourceType())?payment.getPayerResidentId():rep==null?null:rep.id(),reason==null?null:security.protect(reason).encrypted(),user,at);
+        payment.assignCashBuilding(selectedUnit.getBuildingId());
         payments.flush();
         allocations.saveAllAndFlush(wanted.entrySet().stream().map(e->PaymentAllocation.allocate(payment,e.getKey(),e.getValue(),user,at)).toList());
         audit(payment,"CONFIRMED",reason,user);
@@ -298,6 +300,7 @@ public class PaymentService {
         if(!duplicates(property,payment).isEmpty()&&reason==null) throw new PaymentException("PAYMENT_DUPLICATE_REVIEW_REQUIRED");
         var rep=representatives(user,property).get(unit.getId());
         payment.confirm(unit.getId(),rep==null?null:rep.id(),reason==null?null:security.protect(reason).encrypted(),user,now());
+        payment.assignCashBuilding(unit.getBuildingId());
         payments.flush();audit(payment,"CONFIRMED",reason,user);
         cumulative.settle(property,user);
         return ledger(user,property);
@@ -397,6 +400,26 @@ public class PaymentService {
         transactions.flush();payments.flush();
         return ledger(user,property);
     }
+    /** 잘못 가져온 통장 거래를 제거할 때 연결 수납·충당을 함께 취소하고 삭제 이력을 보존합니다. */
+    @Transactional
+    public void removeBankReceipts(UUID user,UUID property,Set<UUID> transactionIds) {
+        lock(user,property);
+        var selected=payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property).stream()
+            .filter(p->p.getDeletedAt()==null&&transactionIds.contains(p.getBankTransactionId())).toList();
+        if(selected.isEmpty()) return;
+        var at=now();var reason=security.protect("통장 거래 선택 삭제").encrypted();
+        var ids=selected.stream().map(Payment::getId).collect(Collectors.toSet());
+        for(var p:selected) {
+            if("CONFIRMED".equals(p.getStatus())) {
+                p.cancel(reason,user,at);
+                audit(p,"OTHER".equals(p.getReceiptType())?"OTHER_INCOME_CANCELED":"CANCELED","통장 거래 선택 삭제",user);
+            }
+            p.softDelete(user,at);audit(p,"DELETED","통장 거래 선택 삭제",user);
+        }
+        // 한 거래라도 실패하면 전체 요청이 롤백됩니다. 취소된 충당은 누적 수납에서 다시 계산합니다.
+        allocations.findByPropertyId(property).stream().filter(a->ids.contains(a.getPaymentId())).forEach(a->a.cancel(user,at));
+        allocations.flush();payments.flush();cumulative.settle(property,user);
+    }
     private void requireDeletable(Payment payment) {
         if(payment.getDeletedAt()==null&&!Set.of("PENDING","ON_HOLD").contains(payment.getStatus())) throw new PaymentException("PAYMENT_DELETE_NOT_ALLOWED");
     }
@@ -415,9 +438,7 @@ public class PaymentService {
     }
     /** 거래번호가 있으면 계좌별 거래번호, 없으면 확정 정책인 날짜·입금자·금액으로 자동 중복 제외합니다. */
     private String key(BankTransactionReader.Row row) {
-        String canonical=row.reference()!=null?"reference:"+row.reference():"fallback:"+row.date()+":"+security.nameHash(row.payer())+":"+row.amount().toPlainString();
-        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(canonical.getBytes(StandardCharsets.UTF_8))); }
-        catch (NoSuchAlgorithmException exception) { throw new IllegalStateException("Missing SHA-256"); }
+        return com.moahome.server.banking.service.BankTransactionKeys.key(row,security);
     }
     /** 파일 미리보기의 선택 ID는 저장 ID와 구분하며 중복 판정에 쓰는 거래 키로 재검증 가능합니다. */
     private UUID previewId(String transactionKey) {
@@ -460,19 +481,30 @@ public class PaymentService {
             var allowed=rows.stream().map(row->previewId(key(row))).collect(Collectors.toSet());
             if(!allowed.containsAll(selected)) throw new PaymentException("INVALID_BANK_SELECTION");
         }
+        final Set<UUID> wanted=selected;
+        return importBankRows(user,property,rows.stream().filter(row->wanted==null||wanted.contains(previewId(key(row)))).toList(),Map.of());
+    }
+    public record BankReceiptChoice(UUID unitId,String category,String note) {}
+    /** 통장 수집도 기존 원본·초안·자동 수납 흐름을 사용합니다. 명시한 용도는 자동 확정보다 먼저 적용합니다. */
+    @Transactional
+    public PaymentResponse.Ledger importBankRows(UUID user,UUID property,List<BankTransactionReader.Row> rows,Map<UUID,BankReceiptChoice> choices) {
+        lock(user,property);var account=primary(property);var at=now();
         var snapshot=ledger(user,property);var residentRows=residents.list(user,property).residents();
-        for (var row:rows) {
+        for(var row:rows) {
+            if(!"INCOME".equals(row.direction())||row.date().isAfter(today())) throw new PaymentException("INVALID_BANK_ROW");
             var key=key(row);
-            if(selected!=null&&!selected.contains(previewId(key))) continue;
             if(!afterCutoff(property,row.date())) continue;
-            if (transactions.findByBankAccountIdAndDeduplicationKeyAndDeletedAtIsNull(account.getId(),key).isPresent()) continue;
+            if(transactions.findByBankAccountIdAndDeduplicationKeyAndDeletedAtIsNull(account.getId(),key).isPresent()) continue;
             var name=security.protect(row.payer());String hmac=security.nameHash(row.payer());
             var t=transactions.saveAndFlush(BankTransaction.create(property,account.getId(),row.date(),row.amount(),name.encrypted(),hmac,
                 row.memo()==null?null:security.protect(row.memo()).encrypted(),row.reference(),key,user,at,row.time(),row.balance()));
             var p=Payment.pending(UUID.randomUUID(),property,account.getId(),t.getId(),null,null,row.date(),row.amount(),"BANK_IMPORT",
                 t.getPayerNameEncrypted(),hmac,t.getMemoEncrypted(),user,at);
             payments.saveAndFlush(p);audit(p,"IMPORTED",null,user);
-            confirmMatched(user,property,p,snapshot.units(),residentRows);
+            var choice=choices.get(previewId(key));
+            if(choice!=null&&choice.category()!=null) confirmOtherIncome(user,property,p.getId(),new PaymentRequests.OtherIncome(choice.category(),choice.note()));
+            else if(choice!=null&&choice.unitId()!=null) confirmCumulative(user,property,p,new PaymentRequests.Confirm(choice.unitId(),null,null));
+            else confirmMatched(user,property,p,snapshot.units(),residentRows);
         }
         payments.flush();cumulative.settle(property,user);
         return ledger(user,property);

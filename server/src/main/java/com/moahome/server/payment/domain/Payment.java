@@ -19,6 +19,7 @@ public class Payment implements org.springframework.data.domain.Persistable<UUID
     @Column(name="bank_account_id",nullable=false) private UUID bankAccountId;
     @Column(name="bank_transaction_id") private UUID bankTransactionId;
     @Column(name="matched_unit_id") private UUID matchedUnitId;
+    @Column(name="cash_building_id") private UUID cashBuildingId;
     @Column(name="payer_resident_id") private UUID payerResidentId;
     @Column(name="payment_date",nullable=false) private LocalDate paymentDate;
     @Column(nullable=false,precision=15,scale=0) private BigDecimal amount;
@@ -68,6 +69,12 @@ public class Payment implements org.springframework.data.domain.Persistable<UUID
         receiptType="OTHER"; matchedUnitId=null; payerResidentId=null;
         incomeCategoryEncrypted=Objects.requireNonNull(category); incomeNoteEncrypted=note;
         status="CONFIRMED"; confirmedBy=actor; confirmedAt=at; updatedAt=at;
+    }
+    /** 확정 당시의 보유금 귀속 동을 보존해 이후 세대 이동으로 과거 동별 입금이 바뀌지 않게 합니다. */
+    public void assignCashBuilding(UUID building) {
+        if(!"CONFIRMED".equals(status)||!"HOUSEHOLD".equals(receiptType)||matchedUnitId==null
+            ||(cashBuildingId!=null&&!cashBuildingId.equals(building))) throw new PaymentException("CASH_ASSIGNMENT_CONFLICT");
+        cashBuildingId=building;
     }
     public void hold(String encryptedReason, OffsetDateTime at) {
         require("PENDING");

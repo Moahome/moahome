@@ -191,7 +191,8 @@ class ChiefAccountLinkPersistenceTest {
         jdbc.update("insert into " + schema + ".properties(id,name,address,has_buildings,status,created_at,updated_at) values (?,'기존 대상','주소',false,'ACTIVE',now(),now())", existing);
         var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
+        int pendingMigrations=upgraded.info().pending().length;
+        assertThat(pendingMigrations).isPositive();assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(pendingMigrations);
         upgraded.validate();
         assertThat(jdbc.queryForObject("select name from " + schema + ".properties where id=?", String.class, existing)).isEqualTo("기존 대상");
         assertThat(jdbc.queryForObject("select count(*) from " + schema + ".resident_account_links", Integer.class)).isZero();

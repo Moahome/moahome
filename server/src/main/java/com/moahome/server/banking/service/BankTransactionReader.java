@@ -23,11 +23,18 @@ public class BankTransactionReader {
     private static final List<String> AMOUNT_HEADERS = List.of("입금액","입금금액","입금","amount");
     private static final List<String> WITHDRAWAL_HEADERS = List.of("출금액","출금금액","출금");
     private record Columns(int header,int date,int payer,int amount,int withdrawal,int memo,int reference,int time,int balance,int direction,boolean sharedAmount) {}
-    public record Row(LocalDate date,String payer,BigDecimal amount,String memo,String reference,LocalTime time,BigDecimal balance) {
+    public record Row(LocalDate date,String payer,BigDecimal amount,String memo,String reference,LocalTime time,BigDecimal balance,String direction) {
+        public Row(LocalDate date,String payer,BigDecimal amount,String memo,String reference,LocalTime time,BigDecimal balance) { this(date,payer,amount,memo,reference,time,balance,"INCOME"); }
         @Override public String toString() { return "BankRow[REDACTED]"; }
     }
     /** 파일은 서버에서도 크기·확장·압축·수식·필수 열을 검사하며 검증 전 원장을 변경하지 않습니다. */
     public List<Row> read(MultipartFile file) {
+        var income=readAll(file).stream().filter(row->"INCOME".equals(row.direction())).toList();
+        if(income.isEmpty()) throw new PaymentException("EMPTY_BANK_FILE");
+        return income;
+    }
+    /** 입출금 방향을 명시적으로 읽고 원본 금액·시간·잔액을 함께 보존합니다. */
+    public List<Row> readAll(MultipartFile file) {
         if (file==null || file.isEmpty() || file.getSize()>5*1024*1024 || file.getOriginalFilename()==null)
             throw new PaymentException("INVALID_BANK_FILE");
         try {
@@ -44,20 +51,25 @@ public class BankTransactionReader {
             for (var row: transactions) {
                 if (isSummaryRow(row,columns)) continue;
                 String raw=cell(row,columns.amount()).replace(",","").replace("원","").strip();
-                if (raw.isEmpty() || raw.matches("0+")) continue; // 은행 파일의 출금 행은 입금 수납 후보에서 제외합니다.
-                // 카카오 양식은 공용 거래금액의 부호만 추측하지 않고 명시된 입금·출금 구분으로 처리합니다.
-                if (columns.sharedAmount()) {
-                    String direction=cell(row,columns.direction()).strip();
-                    if (!List.of("입금","출금").contains(direction)||!raw.matches("-?[0-9]{1,15}"))
-                        throw new PaymentException("INVALID_BANK_ROW");
-                    if ("출금".equals(direction)) continue;
-                }
-                if (!raw.matches("[0-9]{1,15}")) throw new PaymentException("INVALID_BANK_ROW");
-                BigDecimal value=new BigDecimal(raw);
-                if (value.signum()<=0) throw new PaymentException("INVALID_BANK_ROW");
-                // 입출금이 동시에 양수인 행은 거래 방향을 임의로 선택하지 않습니다.
                 String withdrawal=cell(row,columns.withdrawal()).replace(",","").replace("원","").strip();
-                if (!withdrawal.isEmpty() && !withdrawal.matches("0+")) throw new PaymentException("INVALID_BANK_ROW");
+                String direction="INCOME";
+                if(columns.sharedAmount()) {
+                    String label=cell(row,columns.direction()).strip();
+                    if(!List.of("입금","출금").contains(label)||!raw.matches("-?[0-9]{1,15}")) throw new PaymentException("INVALID_BANK_ROW");
+                    direction="출금".equals(label)?"EXPENSE":"INCOME";
+                    if("INCOME".equals(direction)&&raw.startsWith("-")) throw new PaymentException("INVALID_BANK_ROW");
+                    raw=new BigDecimal(raw).abs().toPlainString();
+                } else {
+                    if(!raw.isEmpty()&&!raw.matches("[0-9]{1,15}")) throw new PaymentException("INVALID_BANK_ROW");
+                    if(!withdrawal.isEmpty()&&!withdrawal.matches("[0-9]{1,15}")) throw new PaymentException("INVALID_BANK_ROW");
+                    boolean hasIncome=!raw.isEmpty()&&new BigDecimal(raw).signum()>0;
+                    boolean hasExpense=!withdrawal.isEmpty()&&new BigDecimal(withdrawal).signum()>0;
+                    if(hasIncome&&hasExpense) throw new PaymentException("INVALID_BANK_ROW");
+                    if(!hasIncome&&!hasExpense) continue;
+                    if(hasExpense) { direction="EXPENSE";raw=withdrawal; }
+                }
+                BigDecimal value=new BigDecimal(raw);
+                if(value.signum()<=0) throw new PaymentException("INVALID_BANK_ROW");
                 String depositor=cell(row,columns.payer()).strip();
                 String text=cell(row,columns.memo()).strip(), reference=cell(row,columns.reference()).strip();
                 if (depositor.isBlank() || depositor.length()>100 || text.length()>500 || reference.length()>200)
@@ -78,7 +90,7 @@ public class BankTransactionReader {
                 String rawBalance=cell(row,columns.balance()).replace(",","").replace("원","").strip();
                 if (!rawBalance.isEmpty()&&!rawBalance.matches("-?[0-9]{1,15}")) throw new PaymentException("INVALID_BANK_ROW");
                 BigDecimal balance=rawBalance.isEmpty()?null:new BigDecimal(rawBalance);
-                result.add(new Row(day,depositor,value,text.isEmpty()?null:text,reference.isEmpty()?null:reference,time,balance));
+                result.add(new Row(day,depositor,value,text.isEmpty()?null:text,reference.isEmpty()?null:reference,time,balance,direction));
             }
             if (result.isEmpty()) throw new PaymentException("EMPTY_BANK_FILE");
             return List.copyOf(result);

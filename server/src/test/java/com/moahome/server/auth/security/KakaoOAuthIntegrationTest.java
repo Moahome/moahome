@@ -109,6 +109,9 @@ class KakaoOAuthIntegrationTest {
 	@MockitoSpyBean private RedisOAuthStateRepository stateRepository;
 	@MockitoSpyBean private RedisAuthSessionRepository sessions;
 	@MockitoBean private com.moahome.server.payment.service.PaymentService payments;
+    @MockitoBean private com.moahome.server.banking.service.BankingService banking;
+    @MockitoBean private com.moahome.server.banking.service.BankingBalanceService bankingBalances;
+    @MockitoBean private com.moahome.server.expense.service.ExpenseService expenses;
 	@MockitoBean private com.moahome.server.payment.service.CumulativePaymentService cumulativePayments;
 	@MockitoBean private com.moahome.server.billing.service.BillingService billing;
 	@MockitoBean private com.moahome.server.billing.service.OpeningBalanceService openingBalances;
