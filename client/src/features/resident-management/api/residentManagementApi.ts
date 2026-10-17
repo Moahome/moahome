@@ -19,6 +19,7 @@ export interface ResidentDetail {
   relationType: string | null;
   representative: boolean;
   signupStatus: ResidentSignupStatus;
+  serviceRole?: 'ADMIN' | 'MANAGER' | 'RESIDENT' | 'CONFLICT' | null;
   createdAt: string;
   updatedAt: string;
   hasLinkedRequests: boolean;
@@ -33,6 +34,8 @@ export interface ResidentUpdateInput {
   phone: string | null;
   replacementResidentId: string | null;
   expectedUpdatedAt: string;
+  serviceRole?: 'MANAGER' | 'RESIDENT';
+  expectedServiceRole?: 'MANAGER' | 'RESIDENT';
 }
 
 /** 기본 상세·수정 응답은 마스킹만 허용하고 전체 연락처가 캐시·목록에 섞인 응답을 거부합니다. */
@@ -44,6 +47,7 @@ function readDetail(result: ResidentDetail | undefined, propertyId: string, resi
     || !(result.buildingName === null || typeof result.buildingName === 'string')
     || !(result.relationType === null || RESIDENT_RELATION_OPTIONS.some((item) => item.value === result.relationType))
     || !RESIDENT_SIGNUP_OPTIONS.some((item) => item.value === result.signupStatus)
+    || !(result.serviceRole === undefined || result.serviceRole === null || ['ADMIN', 'MANAGER', 'RESIDENT', 'CONFLICT'].includes(result.serviceRole))
     || typeof result.representative !== 'boolean' || typeof result.hasLinkedRequests !== 'boolean'
     || !Number.isFinite(Date.parse(result.createdAt)) || !Number.isFinite(Date.parse(result.updatedAt))
     || !Array.isArray(result.representativeCandidates)

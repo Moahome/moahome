@@ -12,6 +12,7 @@ import type {
 } from '../../../../api/residentApi';
 import { getResidentUnitLabel } from '../../../../model/residentList';
 import styles from './residentListTable.module.css';
+import { MEMBER_ROLE_LABELS } from '@/features/member-management';
 
 /** 한 세대의 여러 주민을 각각 표시하며 대표 여부를 가입 상태와 구분합니다. */
 export function ResidentListTable({
@@ -69,6 +70,11 @@ export function ResidentListTable({
           대표
         </span>
       ) : '—'
+    },
+    {
+      key: 'serviceRole',
+      header: '역할',
+      render: (row) => row.serviceRole && row.serviceRole !== 'CONFLICT' ? MEMBER_ROLE_LABELS[row.serviceRole] : row.serviceRole === 'CONFLICT' ? '권한 확인 필요' : '—'
     },
     {
       key: 'signupStatus',

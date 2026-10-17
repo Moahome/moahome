@@ -48,6 +48,12 @@ public class Resident implements org.springframework.data.domain.Persistable<UUI
 	protected Resident() {
 	}
 
+	/** 가입 승인·최초 거주 등록·기존 관리소장의 명시적 본인 확인에서 계정을 연결하며 기존 타인 계정은 덮어쓰지 않습니다. */
+	public void connectApprovedUser(UUID user, OffsetDateTime at) {
+		if (deletedAt!=null || (userId!=null&&!userId.equals(user))) throw new IllegalStateException("Resident account conflict");
+		userId=java.util.Objects.requireNonNull(user);updatedAt=at;
+	}
+
 	/** 수정에서도 연락처의 암호문·검색값·마스킹 값을 한 묶음으로 변경합니다. */
 	public void update(String name, String encryptedPhone, String phoneHmac, String phoneLast4, OffsetDateTime at) {
 		if ((encryptedPhone == null) != (phoneHmac == null) || (encryptedPhone == null) != (phoneLast4 == null)) {

@@ -69,10 +69,12 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -96,6 +98,8 @@ class SecurityIntegrationTest {
 	@MockitoBean private com.moahome.server.payment.service.CumulativePaymentService cumulativePayments;
 	@MockitoBean private com.moahome.server.billing.service.BillingService billing;
 	@MockitoBean private com.moahome.server.billing.service.OpeningBalanceService openingBalances;
+	@MockitoBean private com.moahome.server.membership.service.MemberManagementService memberManagement;
+	@MockitoBean private com.moahome.server.membership.service.MembershipRequestService membershipRequests;
 	@MockitoBean private com.moahome.server.billing.service.BillingTemplates billingTemplates;
 	@MockitoBean private com.moahome.server.billing.service.BillingGenerationService billingGeneration;
 	@MockitoBean private com.moahome.server.property.service.ManagementAccessService management;
@@ -139,6 +143,29 @@ class SecurityIntegrationTest {
 	@AfterAll
 	static void stopRedis() {
 		REDIS.close();
+	}
+
+	@Test
+	void chiefResidentLinkUsesAuthenticatedAccountAndRejectsMissingOrInjectedIdentity() throws Exception {
+		var actor = UUID.randomUUID();
+		var property = UUID.randomUUID();
+		var resident = UUID.randomUUID();
+		var unit = UUID.randomUUID();
+		String path = "/api/properties/" + property + "/members/me/resident";
+		var pair = auth.startSession(actor.toString(), ClientType.WEB);
+		String body = "{\"residentId\":\"" + resident + "\",\"expectedUnitId\":\"" + unit + "\"}";
+		mvc.perform(put(path).contentType(MediaType.APPLICATION_JSON).content(body))
+			.andExpect(status().isUnauthorized());
+		mvc.perform(put(path).header("Authorization", "Bearer " + pair.accessToken())
+			.contentType(MediaType.APPLICATION_JSON).content(body))
+			.andExpect(status().isNoContent()).andExpect(header().string("Cache-Control", "no-store"));
+		verify(memberManagement).linkOwnResident(actor, property, resident, unit);
+		for (String invalid : List.of("{}", "{\"residentId\":\"" + resident + "\"}", body.substring(0, body.length()-1) + ",\"userId\":\"" + UUID.randomUUID() + "\"}")) {
+			mvc.perform(put(path).header("Authorization", "Bearer " + pair.accessToken())
+				.contentType(MediaType.APPLICATION_JSON).content(invalid))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("code").value("INVALID_REQUEST"));
+		}
+		verifyNoMoreInteractions(memberManagement);
 	}
 
 	@Test

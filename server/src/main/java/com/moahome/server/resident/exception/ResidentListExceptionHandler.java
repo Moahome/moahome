@@ -11,6 +11,10 @@ import org.springframework.web.bind.annotation.*;
 
 @RestControllerAdvice(assignableTypes = {ResidentListController.class, ResidentRegistrationController.class, com.moahome.server.resident.controller.ResidentImportController.class, com.moahome.server.resident.controller.ResidentManagementController.class, com.moahome.server.resident.controller.ResidentExportController.class})
 public class ResidentListExceptionHandler {
+    @ExceptionHandler(com.moahome.server.payment.exception.PaymentException.class)
+    public ResponseEntity<ErrorResponse> role(com.moahome.server.payment.exception.PaymentException exception) {
+        return error(HttpStatus.CONFLICT,exception.code(),"현재 연결 계정과 역할을 확인해주세요.");
+    }
 	/** 입력값·SQL·명부·전화번호 원문 대신 원인별 고정 안내만 반환합니다. */
 	@ExceptionHandler({IllegalArgumentException.class, org.springframework.web.bind.MethodArgumentNotValidException.class,
 		org.springframework.http.converter.HttpMessageNotReadableException.class,

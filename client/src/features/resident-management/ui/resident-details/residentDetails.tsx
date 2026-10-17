@@ -228,6 +228,14 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
             </div>
             <div>
               <dt>
+                역할
+              </dt>
+              <dd>
+                {resident.serviceRole === 'ADMIN' ? '관리소장' : resident.serviceRole === 'MANAGER' ? '부담당자' : resident.serviceRole === 'RESIDENT' ? '주민' : resident.serviceRole === 'CONFLICT' ? '권한 확인 필요' : '—'}
+              </dd>
+            </div>
+            <div>
+              <dt>
                 가입 상태
               </dt>
               <dd>

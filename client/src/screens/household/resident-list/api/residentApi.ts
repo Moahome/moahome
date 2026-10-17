@@ -17,6 +17,7 @@ export interface ResidentRow {
   relationType: string | null;
   representative: boolean;
   signupStatus: ResidentSignupStatus;
+  serviceRole?: 'ADMIN' | 'MANAGER' | 'RESIDENT' | 'CONFLICT' | null;
 }
 
 export interface ResidentList {
@@ -45,6 +46,7 @@ export async function getResidents(propertyId: string): Promise<ResidentList> {
       || !(row.unitNumber === null || (typeof row.unitNumber === 'string' && Boolean(row.unitNumber.trim())))
       || !(row.relationType === null || RESIDENT_RELATION_OPTIONS.some((option) => option.value === row.relationType))
       || typeof row.representative !== 'boolean' || !RESIDENT_SIGNUP_OPTIONS.some((option) => option.value === row.signupStatus)) throw invalid();
+    if (!(row.serviceRole === undefined || row.serviceRole === null || ['ADMIN', 'MANAGER', 'RESIDENT', 'CONFLICT'].includes(row.serviceRole))) throw invalid();
     if (row.unitId === null && (row.buildingId !== null || row.unitNumber !== null || row.relationType !== null || row.representative)) throw invalid();
     if (row.unitId !== null && (row.unitNumber === null || row.relationType === null)) throw invalid();
     if (!result.hasBuildings && row.buildingId !== null) throw invalid();

@@ -7,7 +7,7 @@ import lombok.Getter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-/** 이미 저장된 가입 신청의 확인된 주민 연결·연락처·대기 취소만 관리합니다. 신청·승인 API를 추가하지 않습니다. */
+/** 가입 신청은 승인 전 권한을 만들지 않고 관리자가 확인한 명부와 계정을 승인 시 연결합니다. */
 @Getter
 @Entity
 @Table(name = "membership_requests")
@@ -26,8 +26,28 @@ public class MembershipRequest {
     @Column private String status;
     @Column(name = "updated_at", columnDefinition = "timestamptz") private OffsetDateTime updatedAt;
     @Column(name = "deleted_at", columnDefinition = "timestamptz") private OffsetDateTime deletedAt;
+    @Column(name="requested_at",columnDefinition="timestamptz") private OffsetDateTime requestedAt;
+    @Column(name="created_at",columnDefinition="timestamptz") private OffsetDateTime createdAt;
+    @Column(name="reviewed_by") private UUID reviewedBy;
+    @Column(name="reviewed_at",columnDefinition="timestamptz") private OffsetDateTime reviewedAt;
 
     protected MembershipRequest() { }
+
+    /** 입력한 세대·연락처로 신청만 기록하며 전화번호 일치만으로 주민을 자동 연결하지 않습니다. */
+    public static MembershipRequest request(UUID property,UUID unit,UUID user,String encrypted,String hmac,String last4,OffsetDateTime at) {
+        var request=new MembershipRequest();request.id=UUID.randomUUID();request.propertyId=property;request.unitId=unit;request.userId=user;
+        request.phoneEncrypted=encrypted;request.phoneHmac=hmac;request.phoneLast4=last4;request.status="PENDING";request.matchStatus="NOT_MATCHED";
+        request.requestedAt=at;request.createdAt=at;request.updatedAt=at;return request;
+    }
+    /** 명시적으로 선택한 주민만 승인 연결하고 최초 검토자·시각을 보존합니다. */
+    public void approve(UUID resident,UUID actor,OffsetDateTime at) {
+        if(!"PENDING".equals(status)) throw new IllegalStateException("Request is not pending");
+        matchedResidentId=resident;matchStatus="MANUAL";status="APPROVED";reviewedBy=actor;reviewedAt=at;updatedAt=at;
+    }
+    public void reject(UUID actor,OffsetDateTime at) {
+        if(!"PENDING".equals(status)) throw new IllegalStateException("Request is not pending");
+        status="REJECTED";reviewedBy=actor;reviewedAt=at;updatedAt=at;
+    }
 
     /** 관리소장이 변경한 현재 연락처를 확인된 신청에 함께 반영하며 미확인 사람의 신청을 전화번호로 추측하지 않습니다. */
     public void changePhone(String encrypted, String hmac, String last4, OffsetDateTime at) {

@@ -9,5 +9,9 @@ public record ResidentListResponse(UUID propertyId, boolean hasBuildings, List<R
 	List<ResidentItem> residents) {
 	public record ResidentBuildingItem(UUID id, String name) { }
 	public record ResidentItem(UUID id, String name, String phoneLast4, UUID unitId, UUID buildingId,
-		String unitNumber, String relationType, boolean representative, ResidentSignupStatus signupStatus) { }
+		String unitNumber, String relationType, boolean representative, ResidentSignupStatus signupStatus, String serviceRole) {
+        public ResidentItem(UUID id,String name,String phoneLast4,UUID unitId,UUID buildingId,String unitNumber,String relationType,boolean representative,ResidentSignupStatus signupStatus) {
+            this(id,name,phoneLast4,unitId,buildingId,unitNumber,relationType,representative,signupStatus,null);
+        }
+    }
 }

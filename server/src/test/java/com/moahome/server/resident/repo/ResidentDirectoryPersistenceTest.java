@@ -129,7 +129,7 @@ class ResidentDirectoryPersistenceTest {
 		jdbc.update("insert into " + schema + ".units (id,property_id,unit_number,status,created_at,updated_at) values (?,?,'001','ACTIVE',now(),now())", unitId, propertyId);
 		Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			.schemas(schema).defaultSchema(schema).load();
-		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(17);
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(20);
 		upgraded.validate();
 		assertThat(jdbc.queryForObject("select unit_number from " + schema + ".units where id=?", String.class, unitId)).isEqualTo("001");
 		assertThat(jdbc.queryForObject("select count(*) from " + schema + ".residents", Integer.class)).isZero();
@@ -144,7 +144,7 @@ class ResidentDirectoryPersistenceTest {
         var unit = units.saveAndFlush(Unit.create(property, null, "301", null, null, UnitStatus.ACTIVE, AT));
         var oldUnit = units.saveAndFlush(Unit.create(property, null, "302", null, null, UnitStatus.ACTIVE, AT));
         var approvedUser = users.saveAndFlush(User.create("가입 계정", null)).getId();
-        member(property.getId(), approvedUser);
+        member(property.getId(), approvedUser, "RESIDENT");
         var approved = resident(property.getId(), "가입 완료 주민", "ACTIVE", approvedUser);
         relation(property.getId(), approved, unit.getId(), "ACTIVE", false);
         request(property.getId(), unit.getId(), approvedUser, approved, "MANUAL", "APPROVED");
@@ -222,7 +222,7 @@ class ResidentDirectoryPersistenceTest {
         jdbc.update("insert into " + schema + ".residents(id,property_id,name,status,created_at,updated_at) values (?,?,'기존 주민','ACTIVE',now(),now())", residentId, propertyId);
         Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(16);
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(19);
         upgraded.validate();
         assertThat(jdbc.queryForObject("select name from " + schema + ".residents where id=?", String.class, residentId)).isEqualTo("기존 주민");
         assertThat(jdbc.queryForObject("select count(*) from " + schema + ".membership_requests", Integer.class)).isZero();
@@ -293,7 +293,7 @@ class ResidentDirectoryPersistenceTest {
         var actor = users.saveAndFlush(User.create("재등록 관리자", null)).getId();
         var account = users.saveAndFlush(User.create("재등록 주민 계정", null)).getId();
         member(property.getId(), actor);
-        member(property.getId(), account);
+        member(property.getId(), account, "RESIDENT");
         jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", property.getId(), account);
         var unit = units.saveAndFlush(Unit.create(property, null, "701", null, null, UnitStatus.ACTIVE, AT));
         var original = registration(unit.getId(), "다시 등록할 주민", "01012345678");
@@ -418,7 +418,7 @@ class ResidentDirectoryPersistenceTest {
         var relations = jdbc.queryForList("select * from " + schema + ".unit_residents");
         var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(12);
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(15);
         upgraded.validate();
         assertThat(jdbc.queryForList("select * from " + schema + ".residents")).isEqualTo(roster);
         assertThat(jdbc.queryForList("select * from " + schema + ".unit_residents")).isEqualTo(relations);
@@ -557,16 +557,20 @@ class ResidentDirectoryPersistenceTest {
         var actor = users.saveAndFlush(User.create("업로드 관리자", null)).getId();
         var other = users.saveAndFlush(User.create("다른 관리자", null)).getId();
         member(property.getId(), actor);
-        member(property.getId(), other);
+        member(property.getId(), other, "MANAGER");
         units.saveAndFlush(Unit.create(property, null, "301", null, null, UnitStatus.ACTIVE, AT));
         var file = excel(new String[][] {{"", "301", "주민", "가족", ""}});
         var preview = imports.preview(actor, property.getId(), file);
         var selection = new com.moahome.server.resident.dto.ResidentImportCommitRequest(List.of(2));
+        // 관리소장 인계 이후에도 이전 관리소장의 업로드 초안을 다른 작성자가 확정하지 못합니다.
+        jdbc.update("update property_members set role='MANAGER' where property_id=? and user_id=?", property.getId(), actor);
+        jdbc.update("update property_members set role='ADMIN' where property_id=? and user_id=?", property.getId(), other);
         assertThatThrownBy(() -> imports.commit(other, property.getId(), preview.importId(), selection))
             .isInstanceOf(com.moahome.server.resident.exception.ResidentImportException.class);
         jdbc.update("update property_members set role='MANAGER' where property_id=? and user_id=?", property.getId(), other);
         assertThatThrownBy(() -> imports.preview(other, property.getId(), file)).isInstanceOf(com.moahome.server.auth.exception.AuthException.class);
         assertThatThrownBy(() -> imports.commit(other, property.getId(), preview.importId(), selection)).isInstanceOf(com.moahome.server.auth.exception.AuthException.class);
+        jdbc.update("update property_members set role='ADMIN' where property_id=? and user_id=?", property.getId(), actor);
         jdbc.update("update resident_import_batches set created_at=now()-interval '2 days', expires_at=now()-interval '1 day' where id=?", preview.importId());
         assertThatThrownBy(() -> imports.commit(actor, property.getId(), preview.importId(), selection))
             .isInstanceOf(com.moahome.server.resident.exception.ResidentImportException.class);
@@ -680,10 +684,10 @@ class ResidentDirectoryPersistenceTest {
         var actor = users.saveAndFlush(User.create("삭제 관리자", null)).getId();
         var user = users.saveAndFlush(User.create("삭제 주민 계정", null)).getId();
         member(property.getId(), actor);
-        member(property.getId(), user);
+        member(property.getId(), user, "RESIDENT");
         jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", property.getId(), user);
         var other = property(false);
-        member(other.getId(), user);
+        member(other.getId(), user, "RESIDENT");
         jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", other.getId(), user);
         var unit = units.saveAndFlush(Unit.create(property, null, "505", null, null, UnitStatus.ACTIVE, AT));
         var id = registrations.register(actor, property.getId(), registration(unit.getId(), "삭제 대표", "01012345678")).id();
@@ -753,9 +757,10 @@ class ResidentDirectoryPersistenceTest {
 	private Property property(boolean hasBuildings) {
 		return properties.saveAndFlush(Property.create("주민 조회 대상", "주소", null, null, hasBuildings, AT));
 	}
-	private void member(UUID propertyId, UUID userId) {
-		jdbc.update("insert into property_members(id,property_id,user_id,role,status,joined_at,created_at,updated_at) values (?,?,?,'ADMIN','ACTIVE',now(),now(),now())", UUID.randomUUID(), propertyId, userId);
-	}
+	private void member(UUID propertyId, UUID userId) { member(propertyId,userId,"ADMIN"); }
+    private void member(UUID propertyId, UUID userId, String role) {
+        jdbc.update("insert into property_members(id,property_id,user_id,role,status,joined_at,created_at,updated_at) values (?,?,?,?,'ACTIVE',now(),now(),now())", UUID.randomUUID(), propertyId, userId,role);
+    }
 	private UUID resident(UUID propertyId, String name, String status, UUID userId) {
 		var id = UUID.randomUUID();
 		jdbc.update("insert into residents(id,property_id,name,status,user_id,phone_encrypted,phone_hmac,phone_last4,created_at,updated_at) values (?,?,?,?,?,'opaque-test-cipher',?,'1234',now(),now())", id, propertyId, name, status, userId, "a".repeat(64));

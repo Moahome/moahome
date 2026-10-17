@@ -8,6 +8,11 @@ import jakarta.validation.constraints.*;
 public record ResidentUpdateRequest(@NotBlank @Size(max = 100) String name,
     @NotNull UUID unitId, @NotBlank @Pattern(regexp = "OWNER|TENANT|FAMILY|OTHER") String relationType,
     @NotBlank @Pattern(regexp = "KEEP|REPLACE|REMOVE") String phoneAction, @Size(max = 64) String phone,
-    UUID replacementResidentId, @NotNull OffsetDateTime expectedUpdatedAt) {
+    UUID replacementResidentId, @NotNull OffsetDateTime expectedUpdatedAt,
+    com.moahome.server.membership.domain.PropertyMemberRole serviceRole,
+    com.moahome.server.membership.domain.PropertyMemberRole expectedServiceRole) {
+    public ResidentUpdateRequest(String name,UUID unitId,String relationType,String phoneAction,String phone,UUID replacementResidentId,OffsetDateTime expectedUpdatedAt) {
+        this(name,unitId,relationType,phoneAction,phone,replacementResidentId,expectedUpdatedAt,null,null);
+    }
     @Override public String toString() { return "ResidentUpdateRequest[REDACTED]"; }
 }

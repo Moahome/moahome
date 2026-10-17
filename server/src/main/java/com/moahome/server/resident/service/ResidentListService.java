@@ -42,7 +42,7 @@ public class ResidentListService {
 			.map(building -> new ResidentBuildingItem(building.getId(), building.getName())).toList();
 		var items = residents.findDirectory(propertyId).stream().map(row -> new ResidentItem(row.getId(), row.getName(),
 			row.getPhoneLast4(), row.getUnitId(), row.getBuildingId(), row.getUnitNumber(), row.getRelationType(),
-			row.getRepresentative(), ResidentSignupStatus.from(row.getApproved(), row.getPending()))).toList();
+			row.getRepresentative(), ResidentSignupStatus.from(row.getApproved(), row.getPending()), row.getServiceRole())).toList();
 		return new ResidentListResponse(propertyId, property.isHasBuildings(), buildingItems, items);
 	}
 }

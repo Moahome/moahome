@@ -62,6 +62,8 @@ export function ResidentRegistrationForm({
   const [buildingId, setBuildingId] = useState(resident?.buildingId ?? '');
   const [unitId, setUnitId] = useState(resident?.unitId ?? '');
   const [relationType, setRelationType] = useState(resident?.relationType ?? 'OTHER');
+  const [serviceRole, setServiceRole] = useState(resident?.serviceRole ?? '');
+  const canEditRole = resident?.signupStatus === 'APPROVED' && (resident.serviceRole === 'MANAGER' || resident.serviceRole === 'RESIDENT');
   const [phoneAction, setPhoneAction] = useState<'KEEP' | 'REPLACE' | 'REMOVE'>('KEEP');
   const [replacementResidentId, setReplacementResidentId] = useState('');
   const [attempted, setAttempted] = useState(false);
@@ -125,7 +127,11 @@ export function ResidentRegistrationForm({
           phoneAction,
           phone: phoneAction === 'REPLACE' ? normalizedPhone : null,
           replacementResidentId: needsRepresentative ? replacementResidentId : null,
-          expectedUpdatedAt: resident.updatedAt
+          expectedUpdatedAt: resident.updatedAt,
+          ...(canEditRole && serviceRole !== resident.serviceRole ? {
+            serviceRole: serviceRole as 'MANAGER' | 'RESIDENT',
+            expectedServiceRole: resident.serviceRole as 'MANAGER' | 'RESIDENT'
+          } : {})
         });
         if (activeRef.current) onSaved(saved);
         return;
@@ -302,6 +308,28 @@ export function ResidentRegistrationForm({
             onChange={setReplacementResidentId}
             placeholder={'남은 주민 중 선택해주세요'}
             error={attempted ? representativeError : undefined}
+          />
+        )}
+        {resident && (
+          <Dropdown
+            label={'역할'}
+            value={serviceRole}
+            disabled={!canEditRole}
+            options={resident.serviceRole === 'ADMIN' ? [{
+              value: 'ADMIN',
+              label: '관리소장'
+            }] : [
+              {
+                value: 'RESIDENT',
+                label: '주민'
+              },
+              {
+                value: 'MANAGER',
+                label: '부담당자'
+              }
+            ]}
+            placeholder={'가입 승인 후 변경 가능'}
+            onChange={setServiceRole}
           />
         )}
       </fieldset>

@@ -55,6 +55,10 @@ public class ResidentRegistrationService {
 		}
 		// 세대 추가·삭제와 같은 잠금을 사용하므로 등록 중 세대 삭제와 최초 대표 지정이 교차하지 않습니다.
 		var property = properties.findForUnitUpdate(propertyId).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+		// 인계와 교차한 요청은 잠금 뒤 현재 관리소장 권한으로 다시 검증합니다.
+		if (access.getManagementContext(userId, propertyId).role() != PropertyMemberRole.ADMIN) {
+			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
+		}
 		var unit = requireUnit(property, request.unitId());
 		var name = TextValues.required(request.name(), 50);
 		var phone = protectPhone(request.phone());
@@ -139,7 +143,7 @@ public class ResidentRegistrationService {
 	}
 
 	/** 국내 번호는 한국 국가번호로 변환하고 국제번호는 공통 정규화기를 사용하며 원문은 저장하지 않습니다. */
-	ProtectedPhone protectPhone(String input) {
+	public ProtectedPhone protectPhone(String input) {
 		if (input == null || input.isBlank()) return null;
 		String digits = normalizePhone(input);
 		PhoneSecurity security;
@@ -152,7 +156,7 @@ public class ResidentRegistrationService {
 	}
 
 	/** 개별 등록과 엑셀 검증에서 동일한 국내·국제 연락처 형식을 사용합니다. */
-	static String normalizePhone(String input) {
+	public static String normalizePhone(String input) {
 		String phone = input.strip();
 		if (phone.length() > 64 || !phone.matches("\\+?[0-9 ()-]+")) throw new IllegalArgumentException("Invalid contact");
 		String digits = phone.replaceAll("[ ()-]", "");
@@ -161,7 +165,7 @@ public class ResidentRegistrationService {
 		return digits;
 	}
 
-	record ProtectedPhone(String encrypted, String hmac, String last4) {
+	public record ProtectedPhone(String encrypted, String hmac, String last4) {
 		@Override public String toString() { return "ProtectedPhone[REDACTED]"; }
 	}
 }

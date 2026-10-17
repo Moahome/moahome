@@ -42,7 +42,7 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
         id: 'join-requests',
         label: '가입 요청',
         path: 'join-requests',
-        available: false
+        available: true
       },
       {
         id: 'invitations',

@@ -31,14 +31,17 @@ public class ResidentManagementService {
     private final MembershipRequestRepository requests;
     private final ObjectProvider<PhoneSecurity> phones;
     private final Clock clock;
+    private final ObjectProvider<com.moahome.server.membership.service.MemberManagementService> roleManagement;
 
     public ResidentManagementService(ManagementAccessService access, PropertyRepository properties,
         ResidentRepository residents, UnitResidentRepository affiliations, ResidentListService lists,
         ResidentRegistrationService registrations, PropertyMemberRepository members,
-        MembershipRequestRepository requests, ObjectProvider<PhoneSecurity> phones, Clock clock) {
+        MembershipRequestRepository requests, ObjectProvider<PhoneSecurity> phones, Clock clock,
+        ObjectProvider<com.moahome.server.membership.service.MemberManagementService> roleManagement) {
         this.access = access; this.properties = properties; this.residents = residents; this.affiliations = affiliations;
         this.lists = lists; this.registrations = registrations; this.members = members;
         this.requests = requests; this.phones = phones; this.clock = clock;
+        this.roleManagement=roleManagement;
     }
 
     /** 상세 조회에서도 매번 관리소장 권한·관리대상·미삭제 명부를 확인하고 마스킹된 정보만 반환합니다. */
@@ -61,7 +64,7 @@ public class ResidentManagementService {
         return new ResidentDetailResponse(residentId, propertyId, resident.getName(), resident.getPhoneLast4(),
             row.unitId(), row.buildingId(), building, row.unitNumber(), row.relationType(), row.representative(),
             row.signupStatus(), resident.getCreatedAt(), resident.getUpdatedAt(),
-            !requests.findLinked(propertyId, residentId, resident.getUserId()).isEmpty(), candidates);
+            !requests.findLinked(propertyId, residentId, resident.getUserId()).isEmpty(), candidates, row.serviceRole());
     }
 
     /** 전체 번호는 사용자 버튼 요청에만 복호화하며 키 장애·변조 암호문을 원문 없는 고정 오류로 변환합니다. */
@@ -79,8 +82,16 @@ public class ResidentManagementService {
     public ResidentDetailResponse update(UUID actor, UUID propertyId, UUID residentId, ResidentUpdateRequest input) {
         requireAdmin(actor, propertyId);
         var property = properties.findForUnitUpdate(propertyId).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+        // 잠금 대기 중 관리소장 인계가 끝날 수 있으므로 현재 권한을 다시 확인합니다.
+        requireAdmin(actor, propertyId);
         var resident = requireResident(propertyId, residentId);
         requireUnchanged(resident, input.expectedUpdatedAt());
+        // 역할 수정도 주민 정보와 같은 트랜잭션으로 묶습니다. 계정 미연결·권한 충돌이면 명부 수정도 롤백합니다.
+        if(input.serviceRole()!=null || input.expectedServiceRole()!=null) {
+            if(input.serviceRole()==null || input.expectedServiceRole()==null) throw new IllegalArgumentException("Incomplete role change");
+            roleManagement.getObject().changeResidentRole(actor,propertyId,residentId,
+                new com.moahome.server.membership.dto.MemberRequests.Role(input.serviceRole(),input.expectedServiceRole()));
+        }
         var unit = registrations.requireUnit(property, input.unitId());
         var current = affiliations.findByPropertyIdAndResidentIdAndStatusAndDeletedAtIsNull(propertyId, residentId, "ACTIVE").orElse(null);
         boolean moving = current == null || !current.getUnitId().equals(unit.getId());
@@ -128,6 +139,7 @@ public class ResidentManagementService {
     public void delete(UUID actor, UUID propertyId, UUID residentId, ResidentDeleteRequest input) {
         requireAdmin(actor, propertyId);
         properties.findForUnitUpdate(propertyId).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+        requireAdmin(actor, propertyId);
         var resident = residents.findByIdAndPropertyId(residentId, propertyId).orElseThrow(() -> failure(RESIDENT_NOT_FOUND));
         if (resident.getDeletedAt() != null) return;
         requireUnchanged(resident, input.expectedUpdatedAt());

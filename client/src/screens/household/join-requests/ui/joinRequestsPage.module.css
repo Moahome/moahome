@@ -1,0 +1,41 @@
+.page {
+  display: grid;
+  gap: 24px;
+
+  p {
+    color: var(--sub-text);
+    line-height: 1.7;
+  }
+}
+
+
+.empty-state {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+
+  > svg { width: 40px; height: 40px; color: var(--sub-text); }
+  p { max-width: 420px; margin: 0; }
+}
+
+.status {
+  display: inline-flex;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sub-text) 10%, var(--card));
+  color: var(--sub-text);
+  font-size: 13px;
+  white-space: nowrap;
+
+  &[data-status='PENDING'] { background: color-mix(in srgb, var(--warning) 10%, var(--card)); color: var(--warning); }
+  &[data-status='APPROVED'] { background: color-mix(in srgb, var(--success) 10%, var(--card)); color: var(--success); }
+}
+
+@media (max-width: 767px) {
+  .participation-link {
+    width: 100%;
+    min-height: 56px;
+    font-size: 16px;
+    justify-content: center;
+  }
+}

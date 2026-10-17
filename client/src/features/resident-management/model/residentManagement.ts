@@ -4,6 +4,8 @@ import { ApiError } from '@/shared/api';
 export function getResidentManagementError(error: unknown) {
   if (!(error instanceof ApiError)) return '처리하지 못했어요. 입력을 확인하고 다시 시도해주세요.';
   const messages: Record<string, string> = {
+    MEMBER_ACCOUNT_REQUIRED: '가입 승인이 완료된 주민만 역할을 변경할 수 있어요.',
+    MEMBER_ROLE_CONFLICT: '역할이 변경됐어요. 최신 주민 정보를 확인해주세요.',
     RESIDENT_NOT_FOUND: '주민 정보가 없거나 삭제되었어요. 주민 목록에서 다시 확인해주세요.',
     RESIDENT_CHANGED: '다른 작업으로 주민 정보가 변경되었어요. 취소 후 최신 정보를 다시 확인해주세요.',
     REPRESENTATIVE_REQUIRED: '남은 주민 중 새 대표를 선택해주세요.',

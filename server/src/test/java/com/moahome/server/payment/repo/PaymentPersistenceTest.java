@@ -45,7 +45,8 @@ import static org.assertj.core.api.Assertions.*;
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @Import({com.moahome.server.payment.service.CumulativePaymentService.class,PaymentService.class,BankTransactionReader.class,BillingTemplates.class,BillingGenerationService.class,
     PropertyRegistrationService.class,PropertyRegistrationLock.class,ManagementAccessService.class,UserService.class,
-    OpeningBalanceService.class,
+    OpeningBalanceService.class,com.moahome.server.membership.service.MemberManagementService.class,
+    com.moahome.server.membership.service.MembershipRequestService.class,ResidentRegistrationService.class,ResidentManagementService.class,
     ResidentListService.class,PaymentPersistenceTest.TestBeans.class})
 @ActiveProfiles("database-test")
 @Transactional(propagation=Propagation.NOT_SUPPORTED)
@@ -54,6 +55,9 @@ class PaymentPersistenceTest {
     static final PostgresTestServer POSTGRES=new PostgresTestServer();
     @Autowired PaymentService service;
     @Autowired OpeningBalanceService opening;
+    @Autowired com.moahome.server.membership.service.MemberManagementService memberManagement;
+    @Autowired com.moahome.server.membership.service.MembershipRequestService signupRequests;
+    @Autowired ResidentManagementService residentManagement;
     @Autowired BillingGenerationService billing;
     @Autowired PropertyRegistrationService registration;
     @Autowired UserRepository users;
@@ -207,6 +211,60 @@ class PaymentPersistenceTest {
         assertThat(jdbc.queryForObject("select count(*) from charges where property_id=?",Long.class,property)).isEqualTo(5);
         assertThat(jdbc.queryForObject("select count(*) from credit_applications where property_id=?",Long.class,property)).isEqualTo(2);
     }
+    @Test void residentSignupNeedsApprovalAndRoleChangesPreserveResidentAndRepresentative() {
+        UUID residentId=jdbc.queryForObject("select id from residents where property_id=? and name='김대표'",UUID.class,property);
+        UUID joining=users.saveAndFlush(User.create("가입계정",null)).getId();
+        var application=signupRequests.request(joining,property,new com.moahome.server.membership.dto.SignupRequests.Create(unit,"01012345678"));
+        assertThat(jdbc.queryForObject("select user_id from residents where id=?",UUID.class,residentId)).isNull();
+        assertThatThrownBy(()->memberManagement.workspace(joining,property)).isInstanceOf(AuthException.class);
+        var pending=signupRequests.workspace(user,property).requests().getFirst();
+        signupRequests.approve(user,property,application.id(),new com.moahome.server.membership.dto.SignupRequests.Approve(residentId,pending.updatedAt()));
+        memberManagement.changeResidentRole(user,property,residentId,new com.moahome.server.membership.dto.MemberRequests.Role(
+            com.moahome.server.membership.domain.PropertyMemberRole.MANAGER,com.moahome.server.membership.domain.PropertyMemberRole.RESIDENT));
+        var row=service.workspace(user,property).units().stream().filter(u->u.id().equals(unit)).findFirst().orElseThrow();
+        assertThat(row.representativeId()).isEqualTo(residentId);
+        assertThat(jdbc.queryForObject("select role from property_members where property_id=? and user_id=?",String.class,property,joining)).isEqualTo("MANAGER");
+        assertThatThrownBy(()->memberManagement.workspace(joining,property)).isInstanceOf(AuthException.class);
+        memberManagement.changeResidentRole(user,property,residentId,new com.moahome.server.membership.dto.MemberRequests.Role(
+            com.moahome.server.membership.domain.PropertyMemberRole.RESIDENT,com.moahome.server.membership.domain.PropertyMemberRole.MANAGER));
+        assertThat(jdbc.queryForObject("select count(*) from member_role_events where property_id=?",Long.class,property)).isEqualTo(3);
+    }
+
+    /** 역할 변경 뒤 일반 명부 수정이 실패하면 권한 변경과 이벤트도 같은 트랜잭션에서 되돌립니다. */
+    @Test void roleChangesInsideResidentEditRollBackTogetherWithInvalidResidentInformation() {
+        UUID residentId=jdbc.queryForObject("select id from residents where property_id=? and name='김대표'",UUID.class,property);
+        UUID joining=users.saveAndFlush(User.create("가입 계정",null)).getId();
+        var created=signupRequests.request(joining,property,new com.moahome.server.membership.dto.SignupRequests.Create(unit,"01012345678"));
+        var pending=signupRequests.workspace(user,property).requests().getFirst();
+        signupRequests.approve(user,property,created.id(),new com.moahome.server.membership.dto.SignupRequests.Approve(residentId,pending.updatedAt()));
+        var detail=residentManagement.detail(user,property,residentId);
+        var invalid=new com.moahome.server.resident.dto.ResidentUpdateRequest("이".repeat(51),unit,"OTHER","KEEP",null,null,detail.updatedAt(),
+            com.moahome.server.membership.domain.PropertyMemberRole.MANAGER,com.moahome.server.membership.domain.PropertyMemberRole.RESIDENT);
+        assertThatThrownBy(()->residentManagement.update(user,property,residentId,invalid)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(jdbc.queryForObject("select role from property_members where property_id=? and user_id=?",String.class,property,joining)).isEqualTo("RESIDENT");
+        var valid=new com.moahome.server.resident.dto.ResidentUpdateRequest("김대표",unit,"OTHER","KEEP",null,null,detail.updatedAt(),
+            com.moahome.server.membership.domain.PropertyMemberRole.MANAGER,com.moahome.server.membership.domain.PropertyMemberRole.RESIDENT);
+        assertThat(residentManagement.update(user,property,residentId,valid).serviceRole()).isEqualTo("MANAGER");
+        assertThat(jdbc.queryForObject("select count(*) from member_role_events where property_id=?",Long.class,property)).isEqualTo(2);
+    }
+
+    @Test void externalManagerInvitationExpiresAfterOneDayAndTransferKeepsOneChief() {
+        UUID joining=users.saveAndFlush(User.create("외부관리자",null)).getId();
+        var expired=memberManagement.issue(user,property,null);
+        clock.set(Instant.parse("2026-10-16T00:00:00Z"));
+        assertThatThrownBy(()->memberManagement.claim(joining,expired.code())).isInstanceOf(PaymentException.class);
+        var invite=memberManagement.issue(user,property,null);memberManagement.claim(joining,invite.code());
+        var pending=memberManagement.workspace(user,property).invitations().stream().filter(i->i.id().equals(invite.id())).findFirst().orElseThrow();
+        memberManagement.approve(user,property,pending.id(),pending.revision());
+        assertThat(jdbc.queryForObject("select count(*) from residents where property_id=? and user_id=?",Long.class,property,joining)).isZero();
+        UUID member=jdbc.queryForObject("select id from property_members where property_id=? and user_id=?",UUID.class,property,joining);
+        memberManagement.transfer(user,property,member,com.moahome.server.membership.domain.PropertyMemberRole.MANAGER);
+        assertThat(jdbc.queryForObject("select role from property_members where property_id=? and user_id=?",String.class,property,user)).isEqualTo("MANAGER");
+        assertThat(jdbc.queryForObject("select count(*) from property_members where property_id=? and role='ADMIN' and status='ACTIVE'",Long.class,property)).isEqualTo(1);
+        assertThatThrownBy(()->memberManagement.workspace(user,property)).isInstanceOf(AuthException.class);
+        assertThat(memberManagement.workspace(joining,property).members()).hasSize(2);
+    }
+
     /** 미리보기에서 선택한 실제 거래만 저장·자동 확정하고 제외 건은 다음 업로드에서 다시 가져올 수 있습니다. */
     @Test void selectedBankImportSkipsExcludedRowsAndReusesSelectionOnRetry() {
         var file=csv("입금일,입금자명,입금액\n2026-10-15,김대표,50000\n2026-10-14,미확인입금,12000\n2026-10-13,이대표,30000");
@@ -596,13 +654,39 @@ class PaymentPersistenceTest {
             jdbc.execute("insert into "+schema+"."+table+"("+columns+") select "+columns+" from public."+table);
         }
         var upgraded=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"").schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(6);upgraded.validate();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(9);upgraded.validate();
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".bank_transactions where deleted_at is not null",Long.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".bank_transactions where deleted_at is null",Long.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".payments where deleted_at is null",Long.class)).isEqualTo(1);
         String columns="property_id,bank_account_id,transaction_date,amount,payer_name_encrypted,payer_name_hmac,memo_encrypted,bank_reference,deduplication_key,imported_by,imported_at";
         jdbc.execute("insert into "+schema+".bank_transactions(id,"+columns+") select gen_random_uuid(),"+columns+" from "+schema+".bank_transactions where deleted_at is not null");
         assertThatThrownBy(()->jdbc.execute("insert into "+schema+".bank_transactions(id,"+columns+") select gen_random_uuid(),"+columns+" from "+schema+".bank_transactions where deleted_at is not null")).isInstanceOf(org.springframework.dao.DataAccessException.class);
+        jdbc.execute("drop schema "+schema+" cascade");
+    }
+    /** 이미 적용한 초기 파일은 보존하고 후속 Migration에서 미완료 주민 코드만 철회합니다. */
+    @Test void residentInvitationUpgradePreservesApprovedHistoryAndAppliedChecksums() {
+        String schema="resident_invitation_upgrade_"+UUID.randomUUID().toString().replace("-","");
+        var previous=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"")
+            .schemas(schema).defaultSchema(schema).target("20261017010845").load();previous.migrate();
+        for(String table:List.of("users","properties","buildings","units","residents")) copyPreviousTable(schema,table);
+        var resident=jdbc.queryForObject("select id from residents where property_id=? and deleted_at is null limit 1",UUID.class,property);
+        UUID pending=UUID.randomUUID(), approved=UUID.randomUUID();
+        for(var id:List.of(pending,approved)) {
+            boolean finished=id.equals(approved);
+            jdbc.update("insert into "+schema+".member_invitations(id,property_id,resident_id,unit_id,token_hash,role,status,created_by,created_at,expires_at,requested_by,requested_at,reviewed_by,reviewed_at) "
+                +"values (?,?,?,?,?,'RESIDENT',?,?,now(),now()+interval '1 day',?,now(),?,?)",
+                id,property,resident,unit,(finished?"a":"b").repeat(64),finished?"APPROVED":"REQUESTED",user,user,
+                finished?user:null,finished?OffsetDateTime.now(clock):null);
+        }
+        assertThat(jdbc.queryForObject("select checksum from "+schema+".flyway_schema_history where version='20261017005820'",Integer.class)).isEqualTo(2081659831);
+        assertThat(jdbc.queryForObject("select checksum from "+schema+".flyway_schema_history where version='20261017010845'",Integer.class)).isEqualTo(1109723267);
+        var upgraded=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"").schemas(schema).defaultSchema(schema).load();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(2);upgraded.validate();
+        assertThat(jdbc.queryForObject("select status from "+schema+".member_invitations where id=?",String.class,pending)).isEqualTo("REVOKED");
+        assertThat(jdbc.queryForObject("select status from "+schema+".member_invitations where id=?",String.class,approved)).isEqualTo("APPROVED");
+        assertThat(jdbc.queryForObject("select count(*) from "+schema+".member_invitations",Long.class)).isEqualTo(2);
+        assertThatThrownBy(()->jdbc.update("update "+schema+".member_invitations set status='REQUESTED',reviewed_by=null,reviewed_at=null where id=?",pending))
+            .isInstanceOf(org.springframework.dao.DataAccessException.class);
         jdbc.execute("drop schema "+schema+" cascade");
     }
     @Test void databaseGuardRejectsOverAllocationAndChangingPaidCharge() {
@@ -648,7 +732,7 @@ class PaymentPersistenceTest {
         before.forEach(row->row.put("charge_type","MONTHLY"));
         var upgraded=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(9);upgraded.validate();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(12);upgraded.validate();
         assertThat(jdbc.queryForList("select * from "+schema+".charges order by id")).isEqualTo(before);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".residents",Long.class)).isEqualTo(3);
         assertThat(jdbc.queryForObject("select count(*) from "+schema+".payments",Long.class)).isZero();
@@ -685,7 +769,7 @@ class PaymentPersistenceTest {
         var originals=jdbc.queryForList("select id,amount,payer_name_encrypted,deduplication_key from "+schema+".bank_transactions order by id");
         var upgraded=org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(),POSTGRES.username(),"")
             .schemas(schema).defaultSchema(schema).load();
-        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(8);upgraded.validate();
+        assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(11);upgraded.validate();
         assertThat(jdbc.queryForList("select * from "+schema+".payments order by id")).isEqualTo(receipts);
         assertThat(jdbc.queryForList("select * from "+schema+".payment_allocations order by id")).isEqualTo(applied);
         assertThat(jdbc.queryForList("select id,amount,payer_name_encrypted,deduplication_key from "+schema+".bank_transactions order by id")).isEqualTo(originals);

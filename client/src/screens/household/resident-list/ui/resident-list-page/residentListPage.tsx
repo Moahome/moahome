@@ -10,6 +10,8 @@ import { useSession } from '@/entities/session';
 import { ListHeader } from '@/shared/ui/list-header';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { Toast } from '@/shared/ui/toast';
+import { useManagementContext } from '@/features/enter-service';
+import { ChiefAccountLink } from '../_components/chief-account-link/chiefAccountLink';
 import { ResidentDetails } from '@/features/resident-management';
 import { Button } from '@/shared/ui/button';
 import { Pagination } from '@/shared/ui/pagination';
@@ -30,21 +32,25 @@ export function ResidentListPage({
   propertyId,
   registered = false,
   deleted = false,
+  accountLinked = false,
 }: {
   propertyId: string;
   registered?: boolean;
   deleted?: boolean;
+  accountLinked?: boolean;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const session = useSession();
+  const context = useManagementContext(session.data?.id, propertyId, false);
+  const [linkingChief, setLinkingChief] = useState(false);
   const [registering, setRegistering] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [exportIds, setExportIds] = useState<string[] | null>(null);
-  const [message, setMessage] = useState(deleted ? '주민을 삭제했어요.' : registered ? '주민을 등록했어요.' : '');
+  const [message, setMessage] = useState(accountLinked ? '관리소장 계정을 주민 명부에 연결했어요.' : deleted ? '주민을 삭제했어요.' : registered ? '주민을 등록했어요.' : '');
   useEffect(() => {
-    if (registered || deleted) window.history.replaceState(null, '', `/manage/${propertyId}/residents`);
-  }, [registered, deleted, propertyId]);
+    if (registered || deleted || accountLinked) window.history.replaceState(null, '', `/manage/${propertyId}/residents`);
+  }, [registered, deleted, accountLinked, propertyId]);
   const controller = useResidentList(propertyId);
 
   /** 실제 화면 폭에 따라 웹 모달과 모바일 등록 주소로 진입하며 입력 폼은 공유합니다. */
@@ -101,6 +107,21 @@ export function ResidentListPage({
           <div
             className={styles.actions}
           >
+            {context.data?.role === 'ADMIN' && !data.residents.some((resident) => resident.serviceRole === 'ADMIN' && resident.signupStatus === 'APPROVED') && (
+              <Button
+                variant={'outline'}
+                className={styles['account-link']}
+                onClick={() => {
+                  if (window.matchMedia('(max-width: 767px)').matches) {
+                    router.push(`/manage/${propertyId}/residents/account-link`);
+                    return;
+                  }
+                  setLinkingChief(true);
+                }}
+              >
+                내 계정 연결
+              </Button>
+            )}
             <Button
               variant={'outline'}
               tone={'excel'}
@@ -204,6 +225,14 @@ export function ResidentListPage({
             />
           </ListCard>
         </>
+      )}
+      {linkingChief && (
+        <ChiefAccountLink
+          propertyId={propertyId}
+          data={data}
+          onClose={() => setLinkingChief(false)}
+          onLinked={() => { setLinkingChief(false); setMessage('관리소장 계정을 주민 명부에 연결했어요.'); }}
+        />
       )}
       {registering && (
         <ResidentRegistrationModal

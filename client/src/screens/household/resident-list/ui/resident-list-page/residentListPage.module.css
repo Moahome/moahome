@@ -42,3 +42,9 @@
     font-size: 13px;
   }
 }
+
+@media (max-width: 767px) {
+  .account-link {
+    grid-column: 1 / -1;
+  }
+}

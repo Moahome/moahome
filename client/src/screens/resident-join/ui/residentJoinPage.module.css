@@ -1,0 +1,23 @@
+.page {
+  display: grid;
+  gap: 24px;
+  width: min(100% - 32px, 640px);
+  margin: 48px auto;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+
+  form, fieldset {
+    display: grid;
+    gap: 20px;
+    border: 0;
+    padding: 0;
+  }
+
+  p {
+    color: var(--sub-text);
+    line-height: 1.7;
+  }
+}
+

@@ -18,6 +18,7 @@ export default async function Page({ params, searchParams }: PageProps<'/manage/
       key={propertyId}
       propertyId={propertyId}
       registered={query.registered === '1'}
+      accountLinked={query.accountLinked === 'true'}
       deleted={query.deleted === '1'}
     />
   );

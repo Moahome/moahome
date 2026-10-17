@@ -53,6 +53,24 @@ public class PropertyMember {
 	protected PropertyMember() {
 	}
 
+	/** 현재 역할만 변경하고 주민 명부·세대 대표·플랫폼 권한은 함께 변경하지 않습니다. */
+	public void changeRole(PropertyMemberRole next, OffsetDateTime at) {
+		if (status!=PropertyMemberStatus.ACTIVE || endedAt!=null || deletedAt!=null) throw new IllegalStateException("Inactive member");
+		role=Objects.requireNonNull(next);updatedAt=Objects.requireNonNull(at);
+	}
+	public boolean isCurrent() { return status==PropertyMemberStatus.ACTIVE && endedAt==null && deletedAt==null; }
+	/** 외부 부담당자는 주민으로 가장하지 않고 관리자 참여를 종료합니다. */
+	public void endManagerAccess(OffsetDateTime at) {
+		if(role!=PropertyMemberRole.MANAGER || !isCurrent()) throw new IllegalStateException("Current manager required");
+		status=PropertyMemberStatus.INACTIVE;endedAt=at;updatedAt=at;
+	}
+
+	/** 관리소장이 확인한 초대 승인의 계정에만 대상 역할을 부여합니다. */
+	public static PropertyMember invited(UUID property, User user, PropertyMemberRole role, OffsetDateTime at) {
+		user.requireActive();var member=new PropertyMember();member.propertyId=property;member.userId=user.getId();
+		member.role=role;member.status=PropertyMemberStatus.ACTIVE;member.joinedAt=at;member.initialize(at);return member;
+	}
+
 	/** 명부 삭제는 해당 대상의 주민 참여만 종료하며 관리자 역할이나 다른 대상의 참여를 변경하지 않습니다. */
 	public void endResidentAccess(UUID actor, OffsetDateTime at) {
 		if (role != PropertyMemberRole.RESIDENT) throw new IllegalStateException("Resident participation required");

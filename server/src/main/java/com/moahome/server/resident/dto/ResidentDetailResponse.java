@@ -9,6 +9,10 @@ import com.moahome.server.resident.domain.ResidentSignupStatus;
 public record ResidentDetailResponse(UUID id, UUID propertyId, String name, String phoneLast4,
     UUID unitId, UUID buildingId, String buildingName, String unitNumber, String relationType,
     boolean representative, ResidentSignupStatus signupStatus, OffsetDateTime createdAt,
-    OffsetDateTime updatedAt, boolean hasLinkedRequests, List<Candidate> representativeCandidates) {
+    OffsetDateTime updatedAt, boolean hasLinkedRequests, List<Candidate> representativeCandidates, String serviceRole) {
+    public ResidentDetailResponse(UUID id,UUID propertyId,String name,String phoneLast4,UUID unitId,UUID buildingId,String buildingName,String unitNumber,String relationType,
+        boolean representative,ResidentSignupStatus signupStatus,OffsetDateTime createdAt,OffsetDateTime updatedAt,boolean hasLinkedRequests,List<Candidate> representativeCandidates) {
+        this(id,propertyId,name,phoneLast4,unitId,buildingId,buildingName,unitNumber,relationType,representative,signupStatus,createdAt,updatedAt,hasLinkedRequests,representativeCandidates,null);
+    }
     public record Candidate(UUID id, String name) { }
 }
