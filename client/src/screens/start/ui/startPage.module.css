@@ -7,7 +7,7 @@
   min-height: 100svh;
   overflow: clip;
   background: radial-gradient(ellipse at 50% 22%, var(--card), color-mix(in srgb, var(--primary) 4%, var(--background)) 76%);
-  font-family: var(--font-geist-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   word-break: keep-all;
 
   button,

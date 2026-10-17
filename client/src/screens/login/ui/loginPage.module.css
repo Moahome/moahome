@@ -9,7 +9,7 @@
     radial-gradient(ellipse at 16% 62%, var(--primary-soft), transparent 65%),
     var(--background);
   font-family:
-    var(--font-geist-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    var(--font-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   word-break: keep-all;
   overflow-wrap: break-word;
 

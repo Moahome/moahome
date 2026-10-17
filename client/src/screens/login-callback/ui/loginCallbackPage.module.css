@@ -4,7 +4,7 @@
   place-items: center;
   min-height: 100svh;
   padding: 40px 24px;
-  font-family: var(--font-geist-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   word-break: keep-all;
 
   a:focus-visible,

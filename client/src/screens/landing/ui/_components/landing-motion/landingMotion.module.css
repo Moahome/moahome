@@ -5,7 +5,7 @@
     color-mix(in srgb, var(--foreground) 7%, transparent);
   background: var(--card);
   font-family:
-    var(--font-geist-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    var(--font-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   word-break: keep-all;
   overflow-wrap: break-word;
 

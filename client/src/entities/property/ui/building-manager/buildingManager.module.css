@@ -9,7 +9,7 @@
   background: var(--card);
   color: var(--foreground);
   box-shadow: 0 20px 64px color-mix(in srgb, var(--foreground) 16%, transparent);
-  font-family: var(--font-geist-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  font-family: var(--font-sans), "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
 
   &::backdrop {
     background: color-mix(in srgb, var(--foreground) 35%, transparent);
