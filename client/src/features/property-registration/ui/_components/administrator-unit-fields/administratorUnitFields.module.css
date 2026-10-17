@@ -1,0 +1,17 @@
+.fields {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+
+  &[data-has-buildings='true'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .fields[data-has-buildings='true'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

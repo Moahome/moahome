@@ -48,7 +48,8 @@ class PropertyRegistrationServiceTest {
 	private final Clock clock = Clock.fixed(Instant.parse("2026-10-05T15:00:00Z"), ZoneOffset.UTC);
 	private final PropertyRegistrationService service = new PropertyRegistrationService(users, properties, buildings, units,
 		accounts, templates, items, members, results, lock, new AccountNumberSecurity(RegistrationTestKeys.accountProperties()),
-		new RegistrationFingerprint(RegistrationTestKeys.fingerprintProperties(), mapper), validation.getValidator(), mapper, clock, billing);
+		new RegistrationFingerprint(RegistrationTestKeys.fingerprintProperties(), mapper), validation.getValidator(), mapper, clock, billing, mock(org.springframework.beans.factory.ObjectProvider.class),
+		mock(com.moahome.server.resident.repo.ResidentRepository.class),mock(com.moahome.server.resident.repo.UnitResidentRepository.class));
 
 	@BeforeEach void prepare() { when(users.requireActive(user.getId())).thenReturn(user); }
 	@AfterEach void closeValidation() { validation.close(); }

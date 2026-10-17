@@ -1,7 +1,9 @@
+'use client';
+
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './setupProgress.module.css';
 
-const REGISTRATION_STEPS = ['기본 정보', '동·세대', '관리계좌', '관리비 항목', '등록 정보 확인'];
+const REGISTRATION_STEPS = ['기본 정보', '동·세대', '관리 담당자', '관리계좌', '관리비 항목', '등록 정보 확인'];
 
 function getStepState(step: number, currentStep: number) {
   if (step < currentStep) return 'complete';
@@ -20,30 +22,33 @@ export function SetupProgress({
   complete?: boolean;
   mobileCountInHeader?: boolean;
 }) {
+  const steps = REGISTRATION_STEPS;
+  const displayedStep = currentStep;
+
   return (
     <nav
       className={styles.progress}
       aria-label={'초기 설정 진행 단계'}
     >
       <ol>
-        {REGISTRATION_STEPS.map((label, index) => (
+        {steps.map((label, index) => (
           <li
             key={label}
-            data-step={complete ? 'complete' : getStepState(index + 1, currentStep)}
-            aria-current={index + 1 === currentStep ? 'step' : undefined}
+            data-step={complete ? 'complete' : getStepState(index + 1, displayedStep)}
+            aria-current={index + 1 === displayedStep ? 'step' : undefined}
           >
             <span
               className={styles['step-number']}
               aria-hidden={'true'}
             >
-              {complete || index + 1 < currentStep ? (
+              {complete || index + 1 < displayedStep ? (
                 <ServiceIcon
                   name={'check'}
                 />
               ) : index + 1}
             </span>
             <span>
-              {complete && index === 4 ? '완료' : label}
+              {complete && index === steps.length - 1 ? '완료' : label}
             </span>
           </li>
         ))}
@@ -51,13 +56,13 @@ export function SetupProgress({
       <div
         className={styles['mobile-progress']}
         data-count-in-header={mobileCountInHeader}
-        aria-label={`5단계 중 ${currentStep}단계: ${REGISTRATION_STEPS[currentStep - 1]}`}
+        aria-label={`${steps.length}단계 중 ${displayedStep}단계: ${steps[displayedStep - 1]}`}
       >
         <span>
           <strong>
-            {currentStep}
+            {displayedStep}
           </strong>
-          {' / 5'}
+          {` / ${steps.length}`}
         </span>
         <div
           className={styles['progress-track']}
@@ -65,7 +70,7 @@ export function SetupProgress({
         >
           <span
             style={{
-              width: `${currentStep * 20}%`
+              width: `${displayedStep / steps.length * 100}%`
             }}
           />
         </div>

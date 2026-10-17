@@ -40,7 +40,8 @@ export function useRegistrationSubmission(
   userId: string,
   onInputError: (step: RegistrationStep, message: string) => void,
   isCompletionPage: boolean,
-  requestedId: string | null
+  requestedId: string | null,
+  entryPath: '/start' | '/properties/add' = '/start'
 ) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -132,7 +133,7 @@ export function useRegistrationSubmission(
       if (checkingCompletion) {
         if (error instanceof ApiError && (error.status === 403 || error.status === 404 || error.status === 400)) {
           discardRegistrationReceipt();
-          router.replace('/start');
+          router.replace(entryPath);
           return;
         }
         setStatus('unknown');
@@ -152,7 +153,7 @@ export function useRegistrationSubmission(
       setMessage(notFound ? '저장된 등록 정보가 없어요. 다시 시도하거나 입력한 내용을 수정해주세요.' : '등록 결과를 확인하지 못했어요. 연결이 복구되면 다시 확인해주세요.');
       if (error instanceof ApiError && error.code === 'ACCESS_DENIED') setMessage('이곳에 접근할 권한이 없어요. 등록 결과를 표시할 수 없습니다.');
     }
-  }, [finish, router, onInputError]);
+  }, [finish, router, onInputError, entryPath]);
 
   const check = useCallback(async () => {
     const pending = pendingRef.current ?? (completedIdRef.current ? {
@@ -169,14 +170,14 @@ export function useRegistrationSubmission(
     checkedRef.current = true;
     if (initial.completionRequested && !initial.completionId) {
       discardRegistrationReceipt();
-      router.replace('/start');
+      router.replace(entryPath);
       return;
     }
     if (!initial.pending) return;
     // Strict Mode의 첫 정리 이후에도 같은 탭 제출 본문을 보존해 조회 중 새로고침을 복구합니다.
     if (initial.pending.request) savePendingRegistration(userId, initial.pending.request);
     void check();
-  }, [initial, check, userId, router]);
+  }, [initial, check, userId, router, entryPath]);
 
   useEffect(() => {
     if (!isCompletionPage || requestedId === null || requestedId === completedIdRef.current || runningRef.current) return;
@@ -186,7 +187,7 @@ export function useRegistrationSubmission(
     setResultHasDetails(false);
     if (!isRegistrationRequestId(requestedId)) {
       discardRegistrationReceipt();
-      router.replace('/start');
+      router.replace(entryPath);
       return;
     }
     completedIdRef.current = requestedId;
@@ -195,7 +196,7 @@ export function useRegistrationSubmission(
       request: null
     };
     void check();
-  }, [isCompletionPage, requestedId, status, check, router]);
+  }, [isCompletionPage, requestedId, status, check, router, entryPath]);
 
   useEffect(() => {
     /** 완료 후 뒤로가기는 새 문서에서 로그인과 결과 권한을 다시 확인해 이전 입력의 재제출을 막습니다. */

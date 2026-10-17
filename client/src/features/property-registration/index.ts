@@ -7,3 +7,7 @@ export {
 export {
   hasPendingRegistration
 } from './model/registrationSubmission';
+
+export {
+  PropertyRegistrationPreview, type PreviewStep
+} from './ui/property-registration-preview/propertyRegistrationPreview';

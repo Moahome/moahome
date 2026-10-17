@@ -43,12 +43,17 @@ public class PropertyRegistrationService {
 	private final ObjectMapper mapper;
 	private final Clock clock;
 	private final BillingGenerationService billing;
+	private final org.springframework.beans.factory.ObjectProvider<com.moahome.server.common.security.PhoneSecurity> phones;
+	private final com.moahome.server.resident.repo.ResidentRepository residents;
+	private final com.moahome.server.resident.repo.UnitResidentRepository affiliations;
 
 	public PropertyRegistrationService(UserService users, PropertyRepository properties, BuildingRepository buildings,
 		UnitRepository units, BankAccountRepository bankAccounts, FeeTemplateRepository templates,
 		FeeTemplateItemRepository items, PropertyMemberRepository members, PropertyRegistrationResultRepository results,
 		PropertyRegistrationLock lock, AccountNumberSecurity accountSecurity, RegistrationFingerprint fingerprints,
-		Validator validator, ObjectMapper mapper, Clock clock, BillingGenerationService billing) {
+		Validator validator, ObjectMapper mapper, Clock clock, BillingGenerationService billing,
+		org.springframework.beans.factory.ObjectProvider<com.moahome.server.common.security.PhoneSecurity> phones,
+		com.moahome.server.resident.repo.ResidentRepository residents, com.moahome.server.resident.repo.UnitResidentRepository affiliations) {
 		this.users = users;
 		this.properties = properties;
 		this.buildings = buildings;
@@ -64,7 +69,7 @@ public class PropertyRegistrationService {
 		this.validator = validator;
 		this.mapper = mapper;
 		this.clock = clock;
-		this.billing = billing;
+		this.billing = billing;this.phones=phones;this.residents=residents;this.affiliations=affiliations;
 	}
 
 	/** 기본 정보만 다시 검증하고 정리한 값을 반환하며 업무 레코드와 중복 방지 ID를 생성하지 않습니다. */
@@ -93,6 +98,7 @@ public class PropertyRegistrationService {
 		}
 
 		long monthlyAmount = validateRelationships(input);
+		int creatorUnitIndex = validateAdministrator(input);
 		OffsetDateTime at = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
 		BasicInfoRequest basic = input.basicInfo();
 		Property property = Property.create(basic.name(), basic.address(), basic.addressDetail(),
@@ -106,7 +112,7 @@ public class PropertyRegistrationService {
 			buildingMap.put(building.clientId(), Building.create(property, building.name(), index, at));
 		}
 		buildings.saveAllAndFlush(buildingMap.values());
-		units.saveAllAndFlush(input.units().stream().map(unit -> Unit.create(property,
+		var createdUnits = units.saveAllAndFlush(input.units().stream().map(unit -> Unit.create(property,
 			buildingMap.get(unit.buildingClientId()), unit.unitNumber(), unit.displayName(), unit.floor(),
 			UnitStatus.valueOf(unit.status()), at)).toList());
 
@@ -124,17 +130,63 @@ public class PropertyRegistrationService {
 
 		PropertyMember member = PropertyMember.creator(property, user, at);
 		members.saveAndFlush(member);
+		var creator = registerCreator(userId,property.getId(),input.administrator(),creatorUnitIndex<0?null:createdUnits.get(creatorUnitIndex),at);
 		// 신규 등록만으로 청구를 만들지 않습니다. 잔액 인계와 첫 부과월을 확인한 운영 시작에서 생성합니다.
 		PropertyRegistrationResponse response = new PropertyRegistrationResponse(input.requestId(),
 			new PropertySummary(property.getId(), property.getName(), property.isHasBuildings(), property.getStatus().name()),
 			new MembershipSummary(member.getId(), member.getRole().name(), member.getStatus().name()),
 			new RegistrationSummary(buildingMap.size(), input.units().size(), input.bankAccounts().size(),
-				feeItems.size(), monthlyAmount), at.toInstant());
+				feeItems.size(), monthlyAmount), at.toInstant(), creator);
 		String version = fingerprints.activeKeyVersion();
 		// 마지막 성공 결과 저장도 실패하면 앞의 모든 flush를 함께 롤백합니다. 응답은 프록시의 커밋 이후 전달됩니다.
 		results.saveAndFlush(PropertyRegistrationResult.success(userId, input.requestId(),
 			fingerprints.create(input, version), version, property.getId(), mapper.writeValueAsString(response), at));
 		return new RegistrationOutcome(response, true);
+	}
+
+	/** 본문은 본인의 거주 선택만 받고 로그인 계정과 역할은 서버에서 결정합니다. 선택한 세대는 같은 등록의 실제 세대여야 합니다. */
+	private int validateAdministrator(PropertyRegistrationRequest input) {
+		var profile=input.administrator();
+		if(profile==null) return -1; // 이전 버전 제출의 호환 경로는 명부를 만들지 않습니다.
+		if("EXTERNAL".equals(profile.residenceType())) {
+			if(profile.name()!=null||profile.phone()!=null||profile.buildingClientId()!=null||profile.unitNumber()!=null)
+				throw invalid("administrator","INVALID_COMBINATION","외부 관리소장은 거주 정보를 입력하지 않습니다.");
+			return -1;
+		}
+		if(profile.name()==null) throw invalid("administrator.name","REQUIRED","관리소장 이름을 입력해주세요.");
+		try { if (profile.phone() != null) com.moahome.server.resident.service.ResidentRegistrationService.normalizePhone(profile.phone()); }
+		catch(IllegalArgumentException failure) { throw invalid("administrator.phone","INVALID_FORMAT","연락처 형식을 확인해주세요."); }
+		for(int index=0;index<input.units().size();index++) {
+			var unit=input.units().get(index);
+			if(Objects.equals(unit.buildingClientId(),profile.buildingClientId())&&unit.unitNumber().equals(profile.unitNumber())) return index;
+		}
+		throw invalid("administrator.unitNumber","INVALID_REFERENCE","등록한 거주 세대를 선택해주세요.");
+	}
+
+	/** 거주 등록자는 본인 계정과 연결하되 대표로 자동 지정하지 않습니다. 선택 연락처는 있을 때만 보호해 저장합니다. */
+	private CreatorSummary registerCreator(UUID actor, UUID property, PropertyRegistrationRequest.AdministratorInput input, Unit unit, OffsetDateTime at) {
+		if (input == null) return null;
+		if ("EXTERNAL".equals(input.residenceType())) return new CreatorSummary("EXTERNAL", null, null, null);
+		String phone = input.phone() == null ? null : com.moahome.server.resident.service.ResidentRegistrationService.normalizePhone(input.phone());
+		String encrypted = null;
+		String hmac = null;
+		String last4 = null;
+		if (phone != null) {
+			// 번호를 입력했을 때에만 보호 서비스를 요구하며, 보호 설정 장애에서 평문 저장으로 대체하지 않습니다.
+			com.moahome.server.common.security.PhoneSecurity security;
+			try { security = phones.getObject(); }
+			catch (org.springframework.beans.BeansException failure) { throw new RegistrationException(RegistrationErrorCode.PHONE_SECURITY_UNAVAILABLE); }
+			encrypted = security.encrypt(phone);
+			hmac = security.hmac(phone);
+			last4 = security.last4(phone);
+		}
+		var resident = com.moahome.server.resident.domain.Resident.register(UUID.randomUUID(), property, input.name(), encrypted, hmac, last4, at);
+		resident.connectApprovedUser(actor, at);
+		residents.saveAndFlush(resident);
+		// 관리소장 등록은 일반 명부의 최초 대표 자동 지정에서 제외하고 세대 관계만 연결합니다.
+		var relation = com.moahome.server.resident.domain.UnitResident.register(resident, unit, "OTHER", false, at);
+		affiliations.saveAndFlush(relation);
+		return new CreatorSummary("RESIDENT", resident.getId(), unit.getId(), relation.getId());
 	}
 
 	/** 제출자의 커밋된 결과만 조회하고 현재 권한을 확인한 뒤 최초 응답 스냅샷을 반환합니다. */

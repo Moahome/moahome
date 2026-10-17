@@ -35,6 +35,7 @@ export type SubmissionStatus = 'idle' | 'submitting' | 'checking' | 'failed' | '
 /** 저장 전에는 초안 수정·제출을 제공하고 완료 페이지의 다시 보기에서는 읽기 전용 요약을 표시합니다. */
 export function RegistrationReview({
   draft,
+  previewOnly = false,
   status,
   result,
   message,
@@ -43,6 +44,7 @@ export function RegistrationReview({
   showResultDetails,
   dialogOpen,
   onEdit,
+  onEditAdministrator,
   onPrevious,
   onSubmit,
   onCheck,
@@ -52,6 +54,7 @@ export function RegistrationReview({
   onClose,
 }: {
   draft: RegistrationDraft;
+  previewOnly?: boolean;
   status: SubmissionStatus;
   result: RegistrationResult | null;
   message: string;
@@ -60,6 +63,7 @@ export function RegistrationReview({
   showResultDetails: boolean;
   dialogOpen: boolean;
   onEdit: (step: RegistrationStep) => void;
+  onEditAdministrator?: () => void;
   onPrevious: () => void;
   onSubmit: () => void;
   onCheck: () => void;
@@ -137,10 +141,12 @@ export function RegistrationReview({
           className={styles['mobile-step']}
         >
           <strong>
-            5
+            6
           </strong>
           {' '}
-          / 5
+          /
+          {' '}
+          6
         </span>
       </div>
       <header
@@ -156,7 +162,7 @@ export function RegistrationReview({
         </p>
       </header>
       <SetupProgress
-        currentStep={5}
+        currentStep={6}
         complete={complete}
         mobileCountInHeader
       />
@@ -195,6 +201,57 @@ export function RegistrationReview({
             <h3>
               등록 정보
             </h3>
+            <ReviewRow
+              label={'관리소장'}
+              regionLabel={'관리소장 정보 요약'}
+              icon={'users'}
+              locked={locked}
+              editLabel={'관리소장 정보 수정'}
+              onEdit={onEditAdministrator ?? (() => onEdit('units'))}
+              toggleName={'관리소장 정보 상세'}
+              detailsId={'review-administrator-details'}
+              summary={(<>
+                <strong>
+                  {previewOnly || draft.administrator.residenceType === 'RESIDENT' ? draft.administrator.name : '외부 관리소장'}
+                </strong>
+                <span
+                  className={styles['summary-line']}
+                >
+                  {draft.administrator.residenceType === 'RESIDENT' ? '거주 관리소장 · 주민 명부에 함께 등록' : '주민 명부에 등록하지 않음'}
+                </span>
+              </>)}
+            >
+              <dl
+                className={styles['info-list']}
+              >
+                <div>
+                  <dt>
+                    구분
+                  </dt>
+                  <dd>
+                    {draft.administrator.residenceType === 'RESIDENT' ? '거주 관리소장' : '외부 관리소장'}
+                  </dd>
+                </div>
+                {(previewOnly || draft.administrator.residenceType === 'RESIDENT') && (<>
+                  <div>
+                    <dt>
+                      연락처
+                    </dt>
+                    <dd>
+                      {draft.administrator.phone || '미입력'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>
+                      거주 세대
+                    </dt>
+                    <dd>
+                      {(() => { const unit = draft.units.find((row) => row.clientId === draft.administrator.unitClientId); return draft.administrator.residenceType === 'EXTERNAL' ? '해당 없음' : unit ? [draft.buildings.find((building) => building.clientId === unit.buildingClientId)?.name, getUnitLabel(unit)].filter(Boolean).join(' ') : '세대 선택 필요'; })()}
+                    </dd>
+                  </div>
+                </>)}
+              </dl>
+            </ReviewRow>
             <ReviewRow
               label={'건물·단지 정보'}
               regionLabel={'건물·단지 정보 요약'}
@@ -494,7 +551,7 @@ export function RegistrationReview({
               name={'info'}
             />
             <p>
-              관리 시작하기를 누르면 전체 정보가 저장됩니다. 저장 전까지 수정할 수 있어요.
+              {previewOnly ? '화면 미리보기입니다. 관리대상과 계정 연결은 저장하지 않아요.' : '관리 시작하기를 누르면 전체 정보가 저장됩니다. 저장 전까지 수정할 수 있어요.'}
             </p>
           </aside>
         )}
@@ -527,7 +584,7 @@ export function RegistrationReview({
               <Button
                 onClick={onSubmit}
               >
-                관리 시작하기
+                {previewOnly ? '등록 미리보기' : '관리 시작하기'}
               </Button>
             </>
           )}

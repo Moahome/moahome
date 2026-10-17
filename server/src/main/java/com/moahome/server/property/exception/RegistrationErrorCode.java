@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 
 public enum RegistrationErrorCode {
 	INVALID_REQUEST(HttpStatus.BAD_REQUEST, "등록 정보를 확인해주세요."),
+	PHONE_SECURITY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "연락처를 안전하게 저장할 수 없습니다. 잠시 후 다시 시도해주세요."),
 	REGISTRATION_NOT_FOUND(HttpStatus.NOT_FOUND, "등록 결과를 찾을 수 없습니다."),
 	REGISTRATION_REQUEST_CONFLICT(HttpStatus.CONFLICT, "이미 사용한 등록 요청입니다."),
 	REGISTRATION_IN_PROGRESS(HttpStatus.CONFLICT, "등록을 처리하고 있습니다."),

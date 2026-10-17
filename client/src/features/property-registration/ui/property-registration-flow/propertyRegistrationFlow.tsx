@@ -22,6 +22,7 @@ import {
   discardSubmissionBody
 } from '../../model/registrationSubmission';
 import { PropertyRegistrationDialog } from '../property-registration-dialog/propertyRegistrationDialog';
+import { AdministratorSetup } from '../_components/administrator-setup/administratorSetup';
 import { UnitSetup } from '../_components/unit-setup/unitSetup';
 import { BankAccountSetup } from '../_components/bank-account-setup/bankAccountSetup';
 import { getUnitSetupError } from '../../model/unitSetup';
@@ -33,17 +34,20 @@ import { RegistrationComplete } from '../_components/registration-complete/regis
 import { RegistrationResultState } from '../_components/registration-result-state/registrationResultState';
 import { SubmissionDialog } from '../_components/submission-dialog/submissionDialog';
 import { useRegistrationSubmission } from '../_hooks/useRegistrationSubmission';
+import { getAdministratorError } from '../../model/administrator';
 import styles from './propertyRegistrationFlow.module.css';
 
 /** 하나의 초안을 공유하고 마지막 확인 화면에서만 전체 저장과 결과 복구를 시작합니다. */
 export function PropertyRegistrationFlow({
   userId,
+  entryPath = '/start',
   step,
   completionRequestId,
   onClose,
   onDashboard,
 }: {
   userId: string;
+  entryPath?: '/start' | '/properties/add';
   step: RegistrationStep | 'complete';
   completionRequestId: string | null;
   onClose: () => void;
@@ -55,6 +59,7 @@ export function PropertyRegistrationFlow({
   const [showRegisteredDetails, setShowRegisteredDetails] = useState(false);
   const [submissionDialogOpen, setSubmissionDialogOpen] = useState(true);
   const errorRef = useRef<HTMLParagraphElement>(null);
+  const administratorValid = !getAdministratorError(draft.administrator, draft.units);
   const unitsValid = !getUnitSetupError(draft.basicInfo.hasBuildings === true, draft.buildings, draft.units);
   const accountValid = Object.keys(getBankAccountErrors(draft.bankAccount)).length === 0;
   const feesValid = !getFeeItemsError(draft.feeItems);
@@ -66,11 +71,11 @@ export function PropertyRegistrationFlow({
       ...previous,
       step: errorStep
     }));
-    router.replace(`/start?registration=${errorStep}`, {
+    router.replace(`${entryPath}?registration=${errorStep}`, {
       scroll: false
     });
-  }, [router]);
-  const submission = useRegistrationSubmission(userId, showInputError, step === 'complete', completionRequestId);
+  }, [router, entryPath]);
+  const submission = useRegistrationSubmission(userId, showInputError, step === 'complete', completionRequestId, entryPath);
   // URL의 다른 ID를 확인하기 전에는 직전 결과를 한 프레임도 표시하지 않습니다.
   const resultMismatch = step === 'complete' && completionRequestId !== null
     && submission.result?.requestId !== completionRequestId;
@@ -78,7 +83,8 @@ export function PropertyRegistrationFlow({
   const locked = submission.status !== 'idle';
   let currentStep: RegistrationStep | 'complete' = 'basic';
   if (step !== 'basic' && draft.basicInfoValidated) currentStep = 'units';
-  if (['account', 'fees', 'review'].includes(step) && draft.basicInfoValidated && unitsValid) currentStep = 'account';
+  if (['administrator', 'account', 'fees', 'review'].includes(step) && draft.basicInfoValidated && unitsValid) currentStep = 'administrator';
+  if (['account', 'fees', 'review'].includes(step) && currentStep === 'administrator' && administratorValid) currentStep = 'account';
   if (['fees', 'review'].includes(step) && currentStep === 'account' && accountValid) currentStep = 'fees';
   if (step === 'review' && currentStep === 'fees' && feesValid) currentStep = 'review';
   // 제출 이후에는 URL 뒤로가기도 수정으로 처리하지 않고 저장 결과부터 확인합니다.
@@ -111,10 +117,10 @@ export function PropertyRegistrationFlow({
       registration: currentStep
     });
     if (requestId) query.set('requestId', requestId);
-    router.replace(`/start?${query}`, {
+    router.replace(`${entryPath}?${query}`, {
       scroll: false
     });
-  }, [step, currentStep, completionRequestId, submission.result, confirmingResult, router]);
+  }, [step, currentStep, completionRequestId, submission.result, confirmingResult, router, entryPath]);
 
   useEffect(() => {
     if (inputMessage) errorRef.current?.focus();
@@ -146,7 +152,7 @@ export function PropertyRegistrationFlow({
       step: destination,
       basicInfoValidated: true
     }));
-    router.push(`/start?registration=${destination}`, {
+    router.push(`${entryPath}?registration=${destination}`, {
       scroll: false
     });
   }
@@ -159,7 +165,7 @@ export function PropertyRegistrationFlow({
       ...previous,
       step: nextStep
     }));
-    router.push(`/start?registration=${nextStep}`, {
+    router.push(`${entryPath}?registration=${nextStep}`, {
       scroll: false
     });
   }
@@ -209,6 +215,7 @@ export function PropertyRegistrationFlow({
         result={submission.result}
         message={submission.message}
         onEdit={navigateSetup}
+        onEditAdministrator={() => navigateSetup('administrator')}
         onPrevious={() => navigateSetup('fees')}
         onSubmit={submitRegistrationDraft}
         canRetry={submission.canRetry}
@@ -244,8 +251,21 @@ export function PropertyRegistrationFlow({
           ...previous,
           bankAccount
         }))}
-        onPrevious={() => navigateSetup('units')}
+        onPrevious={() => navigateSetup('administrator')}
         onNext={() => navigateSetup('fees')}
+      />
+    );
+  } else if (currentStep === 'administrator') {
+    content = (
+      <AdministratorSetup
+        previewOnly={false}
+        draft={draft}
+        onChange={(administrator) => setDraft((previous) => ({
+          ...previous,
+          administrator
+        }))}
+        onPrevious={() => navigateSetup('units')}
+        onNext={() => navigateSetup('account')}
       />
     );
   } else if (currentStep === 'units') {
@@ -266,7 +286,7 @@ export function PropertyRegistrationFlow({
           step: 'units'
         }))}
         onPrevious={() => navigateSetup('basic')}
-        onNext={() => navigateSetup('account')}
+        onNext={() => navigateSetup('administrator')}
       />
     );
   } else {

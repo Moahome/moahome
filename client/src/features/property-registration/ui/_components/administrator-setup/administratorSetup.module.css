@@ -1,0 +1,193 @@
+.page {
+  position: relative;
+  z-index: 1;
+  width: min(calc(100% - 48px), 848px);
+  margin-inline: auto;
+  padding: 50px 0 12px;
+}
+
+.mobile-navigation {
+  display: none;
+}
+
+.setup-heading {
+  text-align: center;
+
+  h1 {
+    font-size: 38px;
+    font-weight: 800;
+    line-height: 1.35;
+    letter-spacing: -1.5px;
+    overflow-wrap: anywhere;
+  }
+
+  p {
+    margin-top: 8px;
+    color: var(--sub-text);
+    font-size: 19px;
+    line-height: 1.6;
+  }
+}
+
+.card {
+  padding: 28px 32px 20px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--card);
+  box-shadow: 0 8px 32px color-mix(in srgb, var(--primary) 3%, transparent);
+}
+
+.intro {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-bottom: 24px;
+}
+
+.illustration {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 7%, var(--card));
+
+  svg {
+    width: 64px;
+    height: 64px;
+  }
+}
+
+.intro-copy {
+  min-width: 0;
+
+  h2 {
+    outline: none;
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1.4;
+    letter-spacing: -1px;
+  }
+
+  p {
+    margin-top: 10px;
+    color: var(--sub-text);
+    font-size: 16px;
+    line-height: 1.75;
+  }
+}
+
+.fields {
+  display: grid;
+  gap: 24px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.residence {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  min-width: 0;
+
+  legend {
+    margin-bottom: 12px;
+    font-size: 14px;
+    font-weight: 700;
+
+    span {
+      color: var(--danger);
+    }
+  }
+}
+
+.preview {
+  margin-bottom: 18px;
+  color: var(--sub-text);
+  font-size: 13px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+
+  > button {
+    min-width: 152px;
+  }
+}
+
+@media (max-width: 760px) and (min-width: 641px) {
+  .card {
+    padding-inline: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    width: 100%;
+    padding: 16px 20px 140px;
+  }
+
+  .mobile-navigation {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 28px -12px;
+    font-size: 23px;
+    font-weight: 800;
+  }
+
+  .setup-heading {
+    display: none;
+  }
+
+  .card {
+    padding: 22px 18px 20px;
+  }
+
+  .intro {
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .illustration {
+    width: 48px;
+    height: 48px;
+
+    svg {
+      width: 28px;
+      height: 28px;
+    }
+  }
+
+  .intro-copy {
+    h2 {
+      font-size: 25px;
+    }
+
+    p {
+      font-size: 14px;
+    }
+  }
+
+  .field-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .actions {
+    > button {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+}

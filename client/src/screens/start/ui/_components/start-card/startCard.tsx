@@ -15,12 +15,12 @@ const START_OPTIONS = {
     mobileAction: '관리할 곳 만들기',
   },
   join: {
-    title: '초대코드로 참여하기',
-    mobileTitle: '초대로 참여하기',
-    description: '관리자가 전달한 초대코드로',
+    title: '주민으로 참여하기',
+    mobileTitle: '주민으로 참여하기',
+    description: '관리자가 공유한 참여 링크로',
     continuation: '우리 집에 참여합니다.',
-    action: '초대코드 입력',
-    mobileAction: '초대코드 입력',
+    action: '참여 링크 입력',
+    mobileAction: '참여 링크 입력',
   },
 } as const;
 
@@ -28,11 +28,20 @@ const START_OPTIONS = {
 export function StartCard({
   kind,
   onSelect,
+  invitation = false,
 }: {
   kind: keyof typeof START_OPTIONS;
   onSelect: () => void;
+  invitation?: boolean;
 }) {
-  const option = START_OPTIONS[kind];
+  const option = kind === 'join' && invitation ? {
+    title: '초대코드로 참여하기',
+    mobileTitle: '초대코드로 참여하기',
+    description: '관리자가 전달한 초대코드로',
+    continuation: '관리대상에 참여를 신청합니다.',
+    action: '초대코드 입력',
+    mobileAction: '초대코드 입력',
+  } : START_OPTIONS[kind];
 
   return (
     <section

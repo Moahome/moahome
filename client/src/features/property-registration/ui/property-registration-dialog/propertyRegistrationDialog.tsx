@@ -49,12 +49,14 @@ export function PropertyRegistrationDialog({
   onValidated,
   onClose,
   serverMessage,
+  previewOnly = false,
 }: {
   draft: BasicInfoDraft;
   onChange: (changes: Partial<BasicInfoDraft>) => void;
   onValidated: (basicInfo: BasicInfo) => void;
   onClose: () => void;
   serverMessage?: string;
+  previewOnly?: boolean;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -204,7 +206,7 @@ export function PropertyRegistrationDialog({
         >
           빌라 또는 공동주택의 기본 정보를 입력해주세요.
           <br />
-          세대와 관리비 정보는 다음 단계에서 설정할 수 있어요.
+          {previewOnly ? '화면 미리보기이며 실제 등록은 저장하지 않아요.' : '세대와 관리비 정보는 다음 단계에서 설정할 수 있어요.'}
         </p>
       </header>
       <form

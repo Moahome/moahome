@@ -16,6 +16,11 @@ import type {
   RegistrationStep
 } from './registrationDraft';
 
+import {
+  EMPTY_ADMINISTRATOR,
+  getAdministratorError
+} from './administrator';
+
 const SUBMISSION_KEY = 'moahome.property-registration.submission';
 const RECEIPT_KEY = 'moahome.property-registration.receipt';
 const PENDING_PREFIX = 'moahome.property-registration.pending.';
@@ -49,7 +54,19 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
     }));
     if (!isFeeItemDraftList(feeItems)) return null;
 
-    return createRegistrationRequest({
+    const administrator = request.administrator;
+    if (administrator && !['RESIDENT', 'EXTERNAL'].includes(administrator.residenceType)) return null;
+    const selectedIndex = administrator?.residenceType === 'RESIDENT' ? request.units.findIndex((unit) => unit.unitNumber === administrator.unitNumber && unit.buildingClientId === administrator.buildingClientId) : -1;
+    const restored = createRegistrationRequest({
+      administrator: administrator ? {
+        residenceType: administrator.residenceType,
+        name: administrator.name ?? '',
+        phone: administrator.phone ?? '',
+        unitClientId: selectedIndex < 0 ? '' : String(selectedIndex)
+      } : {
+        ...EMPTY_ADMINISTRATOR,
+        residenceType: 'EXTERNAL'
+      },
       basicInfo: {
         ...request.basicInfo,
         addressDetail: request.basicInfo.addressDetail ?? '',
@@ -66,6 +83,9 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
       basicInfoValidated: true,
       step: 'review'
     }, request.requestId);
+    // 이전 버전 제출은 거주 필드를 덧붙이지 않아 서버에 저장된 원래 지문과 일치하게 합니다.
+    if (!administrator) delete restored.administrator;
+    return restored;
   } catch {
     return null;
   }
@@ -73,13 +93,26 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
 
 /** 화면용 세대 ID와 자동 입력 규칙은 제외하고 검증된 입력만 최종 계약으로 변환합니다. */
 export function createRegistrationRequest(draft: RegistrationDraft, requestId: string): RegistrationRequest {
-  if (getUnitSetupError(draft.basicInfo.hasBuildings === true, draft.buildings, draft.units)
+  if (getAdministratorError(draft.administrator, draft.units) || getUnitSetupError(draft.basicInfo.hasBuildings === true, draft.buildings, draft.units)
     || Object.keys(getBankAccountErrors(draft.bankAccount)).length || getFeeItemsError(draft.feeItems)) {
     throw new Error('등록 정보를 확인해주세요.');
   }
 
+  const selectedUnit = draft.units.find((unit) => unit.clientId === draft.administrator.unitClientId);
+
   return {
     requestId,
+    administrator: draft.administrator.residenceType === 'EXTERNAL' ? {
+      residenceType: 'EXTERNAL'
+    } : {
+      residenceType: 'RESIDENT',
+      name: draft.administrator.name.trim(),
+      ...(draft.administrator.phone.trim() ? {
+        phone: draft.administrator.phone.trim()
+      } : {}),
+      buildingClientId: selectedUnit!.buildingClientId,
+      unitNumber: selectedUnit!.unitNumber
+    },
     basicInfo: normalizeBasicInfo(draft.basicInfo),
     buildings: draft.buildings.map((building) => ({
       clientId: building.clientId,
@@ -203,6 +236,7 @@ export function getRegistrationInputError(error: ApiError): { step: Registration
   const reason = error.errors[0]?.reason;
   const steps: Record<string, RegistrationStep> = {
     basicInfo: 'basic',
+    administrator: 'administrator',
     buildings: 'units',
     units: 'units',
     bankAccounts: 'account',
@@ -213,6 +247,7 @@ export function getRegistrationInputError(error: ApiError): { step: Registration
   const labels: Record<string, string> = {
     basic: '기본 정보',
     units: '동·세대 정보',
+    administrator: '관리 담당자',
     account: '관리계좌',
     fees: '관리비 항목',
     review: '등록 정보'

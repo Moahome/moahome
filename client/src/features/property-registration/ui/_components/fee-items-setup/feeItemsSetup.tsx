@@ -123,7 +123,7 @@ export function FeeItemsSetup({
         </p>
       </header>
       <SetupProgress
-        currentStep={4}
+        currentStep={5}
       />
       <section
         className={styles.card}

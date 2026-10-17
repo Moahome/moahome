@@ -51,7 +51,7 @@ import static org.assertj.core.api.Assertions.*;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class PropertyRegistrationPersistenceTest {
 	private static final PostgresTestServer POSTGRES = new PostgresTestServer();
-	private static final List<String> TABLES = List.of("charge_items", "charges", "billing_periods", "property_registration_results", "property_members",
+	private static final List<String> TABLES = List.of("unit_residents", "residents", "charge_items", "charges", "billing_periods", "property_registration_results", "property_members",
 		"fee_template_items", "fee_templates", "bank_accounts", "units", "buildings", "properties");
 	@Autowired PropertyRegistrationService registrations;
 	@Autowired PropertyRegistrationLock lock;
@@ -60,6 +60,8 @@ class PropertyRegistrationPersistenceTest {
 	@Autowired JdbcTemplate jdbc;
 	@Autowired Flyway flyway;
 	@Autowired AccountNumberSecurity accountSecurity;
+	@Autowired com.moahome.server.common.security.PhoneSecurity phoneSecurity;
+	@Autowired com.moahome.server.resident.repo.ResidentRepository residents;
 	@Autowired ObjectMapper mapper;
 	@Autowired MutableClock clock;
 	@Autowired PlatformTransactionManager transactions;
@@ -88,6 +90,71 @@ class PropertyRegistrationPersistenceTest {
 
 	@AfterAll
 	static void stopPostgres() { POSTGRES.close(); }
+
+	/** 첫 등록자의 거주 선택은 추가 가입 요청 없이 본인 명부·계정 연결과 ADMIN을 저장하고 대표로 지정하지 않습니다. */
+	@ParameterizedTest @ValueSource(booleans={false,true})
+	void residentCreatorIsImmediatelyLinkedOnceWithProtectedPhone(boolean hasBuildings) {
+		var original=RegistrationFixtures.request(UUID.randomUUID(),hasBuildings);
+		var profile=new PropertyRegistrationRequest.AdministratorInput("RESIDENT","실제 관리소장","010-1234-5678",hasBuildings?"a":null,"201");
+		var request=withAdministrator(original,profile);
+		var result=registrations.register(userId,request);
+		var creator=result.response().administrator();
+		assertThat(creator.residenceType()).isEqualTo("RESIDENT");
+		var resident=jdbc.queryForMap("select * from residents where id=?",creator.residentId());
+		assertThat(resident.get("user_id")).isEqualTo(userId);
+		assertThat(resident.get("name")).isEqualTo("실제 관리소장");
+		assertThat(resident.get("phone_last4")).isEqualTo("5678");
+		assertThat(phoneSecurity.decrypt((String)resident.get("phone_encrypted"))).isEqualTo("+821012345678");
+		assertThat(jdbc.queryForObject("select is_household_rep from unit_residents where id=?",Boolean.class,creator.unitResidentId())).isFalse();
+		assertThat(residents.findDirectory(result.response().property().id())).singleElement().satisfies(row->{assertThat(row.getApproved()).isTrue();assertThat(row.getServiceRole()).isEqualTo("ADMIN");});
+		assertThat(count("membership_requests")).isZero();assertThat(count("property_members")).isEqualTo(1);
+		assertThat(registrations.register(userId,request).created()).isFalse();assertThat(count("residents")).isEqualTo(1);
+		assertThat(registrations.getResult(userId,request.requestId()).administrator()).isEqualTo(creator);
+		assertThat(jdbc.queryForObject("select response_snapshot::text from property_registration_results",String.class)).doesNotContain("010-1234","+821012345678","실제 관리소장");
+		var changed=withAdministrator(original,new PropertyRegistrationRequest.AdministratorInput("EXTERNAL",null,null,null,null));
+		assertCode(()->registrations.register(userId,changed),RegistrationErrorCode.REGISTRATION_REQUEST_CONFLICT);
+		// 과거 등록의 자동 연결은 원래 세대 관계에만 적용해 재입주 관계를 자동 승인하지 않습니다.
+		jdbc.update("update unit_residents set id=? where id=?",UUID.randomUUID(),creator.unitResidentId());
+		assertThat(residents.findDirectory(result.response().property().id()).getFirst().getApproved()).isFalse();
+	}
+	@Test void externalCreatorCreatesOnlyAdminMembership() {
+		var request=withAdministrator(RegistrationFixtures.request(UUID.randomUUID(),false),new PropertyRegistrationRequest.AdministratorInput("EXTERNAL",null,null,null,null));
+		var response=registrations.register(userId,request).response();
+		assertThat(response.administrator().residenceType()).isEqualTo("EXTERNAL");assertThat(response.administrator().residentId()).isNull();
+		assertThat(count("residents")).isZero();assertThat(count("unit_residents")).isZero();assertThat(count("property_members")).isEqualTo(1);
+	}
+	@Test void invalidCreatorResidenceOrPhoneDoesNotCreatePartialRegistration() {
+		var original=RegistrationFixtures.request(UUID.randomUUID(),false);
+		for(var profile:List.of(new PropertyRegistrationRequest.AdministratorInput("RESIDENT","관리소장","010-1234-5678",null,"없는호수"),
+			new PropertyRegistrationRequest.AdministratorInput("RESIDENT","관리소장","invalid",null,"201"),new PropertyRegistrationRequest.AdministratorInput("EXTERNAL","다른사람",null,null,null))) {
+			assertCode(()->registrations.register(userId,withAdministrator(original,profile)),RegistrationErrorCode.INVALID_REQUEST);
+			for(String table:TABLES) assertThat(count(table)).as(table).isZero();
+		}
+	}
+	@Test void residentCreatorWithoutContactStoresNullPhoneAndIsNotRepresentative() {
+		var request = withAdministrator(RegistrationFixtures.request(UUID.randomUUID(), false),
+			new PropertyRegistrationRequest.AdministratorInput("RESIDENT", "관리소장", null, null, "201"));
+		var result = registrations.register(userId, request).response();
+		var creator = result.administrator();
+		var resident = jdbc.queryForMap("select * from residents where id=?", creator.residentId());
+		assertThat(resident.get("phone_encrypted")).isNull();
+		assertThat(resident.get("phone_hmac")).isNull();
+		assertThat(resident.get("phone_last4")).isNull();
+		assertThat(resident.get("user_id")).isEqualTo(userId);
+		assertThat(jdbc.queryForObject("select is_household_rep from unit_residents where id=?", Boolean.class, creator.unitResidentId())).isFalse();
+		assertThat(jdbc.queryForObject("select role from property_members where property_id=? and user_id=?", String.class, result.property().id(), userId)).isEqualTo("ADMIN");
+	}
+
+	@Test void creatorDirectoryRollsBackWhenFinalRegistrationResultFails() {
+		jdbc.execute("create function fail_registration() returns trigger language plpgsql as $$ begin raise exception 'synthetic failure'; end $$");
+		jdbc.execute("create trigger fail_registration_result before insert on property_registration_results for each row execute function fail_registration()");
+		var request=withAdministrator(RegistrationFixtures.request(UUID.randomUUID(),false),new PropertyRegistrationRequest.AdministratorInput("RESIDENT","관리소장","010-1234-5678",null,"201"));
+		assertThatThrownBy(()->registrations.register(userId,request)).isInstanceOf(RuntimeException.class);
+		for(String table:TABLES) assertThat(count(table)).as(table).isZero();
+	}
+	private PropertyRegistrationRequest withAdministrator(PropertyRegistrationRequest request,PropertyRegistrationRequest.AdministratorInput profile) {
+		return new PropertyRegistrationRequest(request.requestId(),request.basicInfo(),request.buildings(),request.units(),request.bankAccounts(),request.feeItems(),profile);
+	}
 
 	@ParameterizedTest
 	@ValueSource(booleans = {false, true})
@@ -364,6 +431,7 @@ class PropertyRegistrationPersistenceTest {
 		@Bean MutableClock clock() { return new MutableClock(Instant.now()); }
 		@Bean ObjectMapper mapper() { return JsonMapper.builder().build(); }
 		@Bean Validator validator() { return Validation.buildDefaultValidatorFactory().getValidator(); }
+		@Bean com.moahome.server.common.security.PhoneSecurity phoneSecurity() { return new com.moahome.server.common.security.PhoneSecurity(new com.moahome.server.config.PhoneSecurityProperties("v1",java.util.Map.of("v1",RegistrationTestKeys.randomKey()),RegistrationTestKeys.randomKey())); }
 		@Bean AccountNumberSecurity accountSecurity() { return new AccountNumberSecurity(RegistrationTestKeys.accountProperties()); }
 		@Bean RegistrationFingerprint fingerprints(ObjectMapper mapper) {
 			return new RegistrationFingerprint(RegistrationTestKeys.fingerprintProperties(), mapper);

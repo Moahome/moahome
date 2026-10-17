@@ -24,8 +24,30 @@ public record PropertyRegistrationRequest(
 	@Schema(description = "최소 1개의 공용계좌. isPrimary=true는 정확히 1개. 계좌번호 중복 불가")
 	@NotEmpty(message = "REQUIRED") List<@NotNull(message = "REQUIRED") @Valid BankAccountInput> bankAccounts,
 	@Schema(description = "최소 1개. 금액과 합계는 -999999999999999원부터 999999999999999원까지의 정수")
-	@NotEmpty(message = "REQUIRED") List<@NotNull(message = "REQUIRED") @Valid FeeItemInput> feeItems
+	@NotEmpty(message = "REQUIRED") List<@NotNull(message = "REQUIRED") @Valid FeeItemInput> feeItems,
+	@Schema(description = "등록한 본인의 거주 여부. 이전 버전 재시도에서만 생략 가능", nullable = true)
+	@JsonInclude(JsonInclude.Include.NON_NULL) @Valid AdministratorInput administrator
 ) {
+	/** 이전 버전의 등록·응답 유실 재시도는 원래 본문과 지문을 유지합니다. */
+	public PropertyRegistrationRequest(UUID requestId, BasicInfoRequest basicInfo, List<BuildingInput> buildings,
+		List<UnitInput> units, List<BankAccountInput> bankAccounts, List<FeeItemInput> feeItems) {
+		this(requestId,basicInfo,buildings,units,bankAccounts,feeItems,null);
+	}
+
+	@Schema(additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+	public record AdministratorInput(
+		@NotNull(message = "REQUIRED") @Pattern(regexp = "RESIDENT|EXTERNAL", message = "INVALID_FORMAT") String residenceType,
+		@TextInput(max=50, optional=true) String name,
+		@Size(max=64, message="TOO_LONG") String phone,
+		@Pattern(regexp="[A-Za-z0-9_-]{1,50}",message="INVALID_FORMAT") String buildingClientId,
+		@TextInput(max=30, optional=true) String unitNumber
+	) {
+		public AdministratorInput {
+			name=TextValues.optional(name);phone=TextValues.optional(phone);unitNumber=TextValues.optional(unitNumber);
+		}
+		@Override public String toString() { return "AdministratorInput[REDACTED]"; }
+	}
+
 	public static final long MAX_AMOUNT = 999_999_999_999_999L;
 
 	@Schema(additionalProperties = Schema.AdditionalPropertiesValue.FALSE)

@@ -2,7 +2,10 @@
 
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { discardRegistrationDraft } from '../../model/registrationDraft';
+import {
+  discardRegistrationDraft,
+  MANAGER_PREVIEW_STORAGE_KEY
+} from '../../model/registrationDraft';
 import {
   discardRegistrationReceipt,
   discardSubmissionBody
@@ -14,8 +17,9 @@ export function RegistrationDraftLifecycle() {
 
   useEffect(() => {
     const step = new URLSearchParams(window.location.search).get('registration');
-    if (pathname === '/start' && step && ['basic', 'units', 'account', 'fees', 'review', 'complete'].includes(step)) return;
+    if (['/start', '/properties/add'].includes(pathname) && step && ['basic', 'units', 'administrator', 'account', 'fees', 'review', 'complete'].includes(step)) return;
     discardRegistrationDraft();
+    discardRegistrationDraft(MANAGER_PREVIEW_STORAGE_KEY);
     discardSubmissionBody();
     discardRegistrationReceipt();
   }, [pathname]);

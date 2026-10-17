@@ -10,6 +10,7 @@ import type {
 
 export interface RegistrationRequest {
   requestId: string;
+  administrator?: { residenceType: 'RESIDENT' | 'EXTERNAL'; name?: string; phone?: string; buildingClientId?: string | null; unitNumber?: string };
   basicInfo: BasicInfo;
   buildings: BuildingDraft[];
   units: Omit<UnitDraft, 'clientId'>[];

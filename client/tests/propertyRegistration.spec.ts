@@ -516,6 +516,21 @@ async function openUnitSetup(page: Page, hasBuildings = false) {
   })).toBeVisible();
 }
 
+
+/** 동·세대 다음의 독립 관리 담당자 단계를 거쳐 외부 관리소장으로 계속합니다. */
+async function completeExternalAdministrator(page: Page) {
+  await expect(page).toHaveURL(/registration=(administrator|account)/);
+  if (new URL(page.url()).searchParams.get('registration') !== 'administrator') return;
+  await page.getByRole('radio', {
+    name: /^외부 관리소장/
+  }).check();
+  await page.getByRole('button', {
+    name: '다음',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/registration=account/);
+}
+
 /** 사용자에게 보이는 편집 창에서 호수·선택 층·동을 입력해 세대를 추가합니다. */
 async function addUnit(page: Page, unitNumber: string, floor = '', buildingName?: string, vacant = false) {
   await page.getByRole('button', {
@@ -661,6 +676,7 @@ test('동 없음은 빈 목록에서 시작하고 추가·중복 검증·수정�
     name: '다음',
     exact: true
   }).click();
+  await completeExternalAdministrator(page);
   await expect(page.getByRole('heading', {
     name: '관리계좌 설정',
     exact: true
@@ -677,6 +693,7 @@ async function openBankAccountSetup(page: Page) {
     name: '다음',
     exact: true
   }).click();
+  await completeExternalAdministrator(page);
   await expect(page.getByRole('heading', {
     name: '관리계좌 설정',
     exact: true
@@ -1017,6 +1034,11 @@ test('계좌와 이전 단계 입력을 이력 이동·새로고침에 복원하
     name: '이전',
     exact: true
   }).click();
+  await expect(page).toHaveURL(/registration=administrator/);
+  await page.getByRole('button', {
+    name: '이전',
+    exact: true
+  }).click();
   await expect(page.getByRole('button', {
     name: '201호 수정',
     exact: true
@@ -1025,9 +1047,10 @@ test('계좌와 이전 단계 입력을 이력 이동·새로고침에 복원하
     name: '다음',
     exact: true
   }).click();
+  await completeExternalAdministrator(page);
   await expect(page.getByLabel('계좌번호')).toHaveValue('00012345678');
   await page.goBack();
-  await expect(page).toHaveURL(/registration=units/);
+  await expect(page).toHaveURL(/registration=administrator/);
   await page.goForward();
   await expect(page.getByLabel('예금주')).toHaveValue('예시 관리단');
   await page.reload();
@@ -1073,6 +1096,7 @@ test('손상된 계좌 초안은 이전 단계를 보존하고 다른 사용자�
     sessionStorage.setItem(key, JSON.stringify(draft));
   }, DRAFT_STORAGE_KEY);
   await page.reload();
+  await completeExternalAdministrator(page);
   await expect(page.getByRole('heading', {
     name: '관리계좌 설정',
     exact: true
@@ -1144,13 +1168,13 @@ for (const width of [1440, 390, 320]) {
       animations: 'disabled'
     });
     if (width <= 640) {
-      await expect(page.getByLabel('5단계 중 3단계: 관리계좌')).toBeVisible();
+      await expect(page.getByLabel('6단계 중 4단계: 관리계좌')).toBeVisible();
       await page.getByRole('button', {
-        name: '동·세대 설정으로 돌아가기',
+        name: '관리 담당자 설정으로 돌아가기',
         exact: true
       }).click();
       await expect(page.getByRole('heading', {
-        name: '동·세대 설정',
+        name: '관리 담당자 설정',
         exact: true
       })).toBeVisible();
     }
@@ -1805,7 +1829,7 @@ for (const width of [1440, 390, 320]) {
       fullPage: true,
       animations: 'disabled'
     });
-    if (width <= 640) await expect(page.getByLabel('5단계 중 4단계: 관리비 항목')).toBeVisible();
+    if (width <= 640) await expect(page.getByLabel('6단계 중 5단계: 관리비 항목')).toBeVisible();
     await addFeeItem(page, '긴 항목명'.repeat(16), '-999999999999999');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.getByRole('button', {
@@ -3358,9 +3382,9 @@ async function openRegistrationReview(page: Page) {
 }
 
 /** 상세 안에 있는 수정 동작을 사용하기 전에 같은 항목의 아코디언을 펼칩니다. */
-/** 수정 뒤 첫 이동부터 남은 단계를 순서대로 확인하여 5단계 직행을 허용하지 않습니다. */
+/** 수정 뒤 첫 이동부터 남은 단계를 순서대로 확인하여 6단계 직행을 허용하지 않습니다. */
 async function finishSequentialReview(page: Page, firstStep: string) {
-  const steps = ['units', 'account', 'fees', 'review'];
+  const steps = ['units', 'administrator', 'account', 'fees', 'review'];
   const start = steps.indexOf(firstStep);
   expect(start).toBeGreaterThanOrEqual(0);
   await expect(page).toHaveURL(new RegExp(`registration=${firstStep}`));
@@ -3981,7 +4005,7 @@ for (const width of [390, 320]) {
       }).click();
       const nextSteps: Record<string, string> = {
         basic: 'units',
-        units: 'account',
+        units: 'administrator',
         account: 'fees',
         fees: 'review'
       };
@@ -4016,7 +4040,7 @@ test('등록 확인은 많은 세대를 펼쳐 보고 동·세대 수정 뒤 남
     name: '다음',
     exact: true
   }).click();
-  await finishSequentialReview(page, 'account');
+  await finishSequentialReview(page, 'administrator');
   const units = page.locator('#review-unit-list');
   await expect(units).toBeHidden();
   await page.getByRole('button', {
@@ -4144,7 +4168,7 @@ for (const width of [1440, 320]) {
       name: '다음',
       exact: true
     }).click();
-    await finishSequentialReview(page, 'account');
+    await finishSequentialReview(page, 'administrator');
     await page.getByRole('button', {
       name: '세대 목록 펼치기',
       exact: true
@@ -4219,6 +4243,9 @@ test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전�
   await expect(page).toHaveURL(/registration=review/);
   await expect.poll(() => bodies.length).toBe(1);
   expect(bodies[0].units[0]).not.toHaveProperty('clientId');
+  expect(bodies[0].administrator).toEqual({
+    residenceType: 'EXTERNAL'
+  });
   expect(bodies[0].feeItems[0]).toEqual({
     itemCode: null,
     itemName: '일반관리비',
@@ -4941,4 +4968,474 @@ for (const width of [1440, 390, 320]) {
     });
     expect(posts).toBe(2);
   });
+}
+
+for (const hasBuildings of [false, true]) {
+  test(`거주 관리소장 ${hasBuildings ? '동·호수' : '호수'} 선택은 본인 명부 입력을 제출하고 새로고침에 복원`, async ({ page }) => {
+    await page.setViewportSize({
+      width: hasBuildings ? 390 : 1440,
+      height: 900
+    });
+    let saved: Record<string, unknown> | null = null;
+    await page.route(FINAL_URL, async (route) => {
+      if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+      saved = route.request().postDataJSON();
+      await fulfillJson(route, registrationResult(route.request().postDataJSON()), 201);
+    });
+    await openUnitSetup(page, hasBuildings);
+    if (hasBuildings) await addBuilding(page, 'A');
+    await addUnit(page, '101', '1', hasBuildings ? 'A동' : undefined);
+    await page.getByRole('button', {
+      name: '다음',
+      exact: true
+    }).click();
+    await page.getByRole('radio', {
+      name: /^거주 관리소장/
+    }).check();
+    await expect(page.getByRole('button', {
+      name: '다음',
+      exact: true
+    })).toBeDisabled();
+    await page.getByRole('textbox', {
+      name: '관리소장 이름',
+      exact: true
+    }).fill('김관리');
+    await page.getByRole('textbox', {
+      name: '관리소장 연락처',
+      exact: true
+    }).fill('010-1234-5678');
+    if (hasBuildings) {
+      await page.getByRole('combobox', {
+        name: '거주 동',
+        exact: true
+      }).fill('A');
+      await page.getByRole('option', {
+        name: 'A동',
+        exact: true
+      }).click();
+    }
+    await page.getByRole('combobox', {
+      name: '거주 호수',
+      exact: true
+    }).fill('101');
+    await page.getByRole('option', {
+      name: '101호',
+      exact: true
+    }).click();
+    await page.reload();
+    await expect(page.getByRole('textbox', {
+      name: '관리소장 이름',
+      exact: true
+    })).toHaveValue('김관리');
+    await expect(page.getByRole('radio', {
+      name: /^거주 관리소장/
+    })).toBeChecked();
+    await page.screenshot({
+      path: test.info().outputPath(`creatorProfile${hasBuildings ? 'Mobile' : 'Desktop'}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    await page.getByRole('button', {
+      name: '다음',
+      exact: true
+    }).click();
+    await fillBankAccount(page);
+    await page.getByRole('button', {
+      name: '다음',
+      exact: true
+    }).click();
+    await addFeeItem(page, '관리비', '50000');
+    await page.getByRole('button', {
+      name: '다음',
+      exact: true
+    }).click();
+    await expect(page.getByRole('region', {
+      name: '관리소장 정보 요약'
+    })).toContainText('김관리');
+    await page.getByRole('button', {
+      name: '관리 시작하기',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(/registration=complete/);
+    expect(saved).not.toBeNull();
+    const profile = saved!.administrator as Record<string, unknown>;
+    expect(profile).toMatchObject({
+      residenceType: 'RESIDENT',
+      name: '김관리',
+      phone: '010-1234-5678',
+      unitNumber: '101'
+    });
+    expect(profile.buildingClientId).toBe(hasBuildings ? (saved!.buildings as { clientId: string }[])[0].clientId : null);
+    expect(profile).not.toHaveProperty('userId');expect(profile).not.toHaveProperty('role');
+  });
+}
+
+for (const hasBuildings of [false, true]) {
+  test(`담당자 UI 미리보기: ${hasBuildings ? '동·호수 모바일' : '호수 PC'} 선택과 외부 정보 유지·대표 예외·저장 차단`, async ({ page }) => {
+    await page.setViewportSize({
+      width: hasBuildings ? 390 : 1440,
+      height: 1000
+    });
+    let posts = 0;
+    await page.route(FINAL_URL, async (route) => {
+      if (route.request().method() !== 'OPTIONS') posts += 1;
+      await fulfillJson(route, {});
+    });
+    await page.goto('/properties/add?registration=basic&preview=manager');
+    await fillRequiredFields(page);
+    if (hasBuildings) await page.getByRole('radio', {
+      name: /^동 있음/
+    }).check();
+    await page.getByRole('button', {
+      name: '등록하고 계속'
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '동·세대 설정',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('radio', {
+      name: /^외부 관리소장/
+    })).toHaveCount(0);
+    if (hasBuildings) await addBuilding(page, 'A');
+    await addUnit(page, '101', '1', hasBuildings ? 'A동' : undefined);
+    await page.getByRole('button', {
+      name: '다음',
+      exact: true
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '관리 담당자 설정',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('navigation', {
+      name: '초기 설정 진행 단계'
+    }).locator('li')).toHaveCount(6);
+    await page.getByRole('textbox', {
+      name: '담당자 이름',
+      exact: true
+    }).fill('김관리');
+    await page.getByRole('textbox', {
+      name: '담당자 연락처',
+      exact: true
+    }).fill('010-1234-5678');
+    await page.getByRole('radio', {
+      name: /^거주자/
+    }).check();
+    if (hasBuildings) {
+      await page.getByRole('combobox', {
+        name: '거주 동',
+        exact: true
+      }).click();
+      await page.getByRole('option', {
+        name: 'A동',
+        exact: true
+      }).click();
+    } else await expect(page.getByRole('combobox', {
+      name: '거주 동',
+      exact: true
+    })).toHaveCount(0);
+    await page.getByRole('combobox', {
+      name: '거주 호수',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '101호',
+      exact: true
+    }).click();
+    await expect(page.getByRole('complementary')).toHaveCount(0);
+    await page.screenshot({
+      path: test.info().outputPath(`managerPreview${hasBuildings ? 'Mobile' : 'Desktop'}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.reload();
+    await expect(page.getByRole('textbox', {
+      name: '담당자 이름',
+      exact: true
+    })).toHaveValue('김관리');
+    await page.getByRole('radio', {
+      name: /^외부 관리자/
+    }).check();
+    await expect(page.getByRole('textbox', {
+      name: '담당자 이름',
+      exact: true
+    })).toHaveValue('김관리');
+    await expect(page.getByRole('textbox', {
+      name: '담당자 연락처',
+      exact: true
+    })).toHaveValue('010-1234-5678');
+    await expect(page.getByRole('combobox', {
+      name: '거주 호수',
+      exact: true
+    })).toHaveCount(0);
+    await page.getByRole('button', {
+      name: '다음',
+      exact: true
+    }).click();
+    await fillBankAccount(page);
+    await page.getByRole('button', {
+      name: '다음',
+      exact: true
+    }).click();
+    await addFeeItem(page, '관리비', '50000');
+    await page.getByRole('button', {
+      name: '다음',
+      exact: true
+    }).click();
+    await expect(page.getByRole('region', {
+      name: '관리소장 정보 요약'
+    })).toContainText('김관리');
+    await page.getByRole('button', {
+      name: '관리소장 정보 수정',
+      exact: true
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '관리 담당자 설정',
+      exact: true
+    })).toBeVisible();
+    await page.goBack();
+    await page.getByRole('button', {
+      name: '등록 미리보기',
+      exact: true
+    }).click();
+    await expect(page.getByText('미리보기를 확인했어요. 실제 등록과 계정 연결은 저장하지 않았어요.')).toBeVisible();
+    expect(posts).toBe(0);
+  });
+}
+
+for (const width of [320, 390]) {
+  test(`기존 관리소장 입력 ${width}px: 흰 카드·동과 호수 개별 검색·동 변경 후 재선택`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    await openUnitSetup(page, true);
+    await addBuilding(page, 'A');
+    await addBuilding(page, 'B');
+    await addUnit(page, '101', '1', 'A동');
+    await addUnit(page, '102', '1', 'A동');
+    await addUnit(page, '201', '2', 'B동');
+    await page.getByRole('button', {
+      name: '다음',
+      exact: true
+    }).click();
+    await page.getByRole('radio', {
+      name: /^거주 관리소장/
+    }).check();
+    const card = page.getByRole('region', {
+      name: '관리소장 정보'
+    });
+    await expect(card).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    await expect(page.getByRole('combobox', {
+      name: '거주 호수',
+      exact: true
+    })).toBeDisabled();
+    await page.getByRole('textbox', {
+      name: '관리소장 이름',
+      exact: true
+    }).fill('김관리');
+    await page.getByRole('textbox', {
+      name: '관리소장 연락처',
+      exact: true
+    }).fill('01012345678');
+    await page.getByRole('combobox', {
+      name: '거주 동',
+      exact: true
+    }).fill('B');
+    await expect(page.getByRole('option', {
+      name: 'A동',
+      exact: true
+    })).toHaveCount(0);
+    await page.getByRole('option', {
+      name: 'B동',
+      exact: true
+    }).click();
+    await page.getByRole('combobox', {
+      name: '거주 호수',
+      exact: true
+    }).fill('201');
+    await expect(page.getByRole('option', {
+      name: '101호',
+      exact: true
+    })).toHaveCount(0);
+    await page.getByRole('option', {
+      name: '201호',
+      exact: true
+    }).click();
+    await page.getByRole('combobox', {
+      name: '거주 동',
+      exact: true
+    }).fill('A');
+    await page.getByRole('option', {
+      name: 'A동',
+      exact: true
+    }).click();
+    await expect(page.getByRole('button', {
+      name: '다음',
+      exact: true
+    })).toBeDisabled();
+    await page.getByRole('combobox', {
+      name: '거주 호수',
+      exact: true
+    }).fill('101');
+    await expect(page.getByRole('option', {
+      name: '102호',
+      exact: true
+    })).toHaveCount(0);
+    await page.getByRole('option', {
+      name: '101호',
+      exact: true
+    }).click();
+    await page.reload();
+    await expect(page.getByRole('combobox', {
+      name: '거주 동',
+      exact: true
+    })).toHaveValue('A동');
+    await expect(page.getByRole('combobox', {
+      name: '거주 호수',
+      exact: true
+    })).toHaveValue('101호');
+    await expect(page.getByRole('button', {
+      name: '다음',
+      exact: true
+    })).toBeEnabled();
+    await card.screenshot({
+      path: test.info().outputPath(`administratorCard${width}.png`),
+      animations: 'disabled'
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+}
+
+for (const width of [1440, 390]) {
+  for (const hasBuildings of [false, true]) {
+    test(`실제 6단계 ${width}px ${hasBuildings ? '동·호수 두 입력' : '호수 전체 너비'}: 연락처 없이 등록·필수 표시·기존 버튼 배치`, async ({ page }) => {
+      await page.setViewportSize({
+        width,
+        height: 1000
+      });
+      let saved: Record<string, unknown> | null = null;
+      await page.route(FINAL_URL, async (route) => {
+        if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+        saved = route.request().postDataJSON();
+        await fulfillJson(route, registrationResult(route.request().postDataJSON()), 201);
+      });
+      await openUnitSetup(page, hasBuildings);
+      if (hasBuildings) await addBuilding(page, 'A');
+      await addUnit(page, '101', '1', hasBuildings ? 'A동' : undefined);
+      await expect(page.getByRole('radio', {
+        name: /^거주 관리소장/
+      })).toHaveCount(0);
+      await page.getByRole('button', {
+        name: '다음',
+        exact: true
+      }).click();
+      await expect(page).toHaveURL(/registration=administrator/);
+      await expect(page.getByRole('heading', {
+        name: '관리 담당자 설정',
+        exact: true
+      })).toBeVisible();
+      await expect(page.getByRole('navigation', {
+        name: '초기 설정 진행 단계'
+      }).locator('li')).toHaveCount(6);
+      await expect(page.getByRole('complementary')).toHaveCount(0);
+      await expect(page.getByText('선택 입력입니다.')).toHaveCount(0);
+      await page.getByRole('radio', {
+        name: /^거주 관리소장/
+      }).check();
+      await page.getByRole('textbox', {
+        name: '관리소장 이름',
+        exact: true
+      }).fill('김관리');
+      const phone = page.getByRole('textbox', {
+        name: '관리소장 연락처',
+        exact: true
+      });
+      await expect(phone).not.toHaveAttribute('required');
+      const unit = page.getByRole('combobox', {
+        name: '거주 호수',
+        exact: true
+      });
+      await expect(unit).toHaveAttribute('aria-required', 'true');
+      if (hasBuildings) {
+        await page.getByRole('combobox', {
+          name: '거주 동',
+          exact: true
+        }).fill('A');
+        await page.getByRole('option', {
+          name: 'A동',
+          exact: true
+        }).click();
+      }
+      await unit.fill('101');
+      await page.getByRole('option', {
+        name: '101호',
+        exact: true
+      }).click();
+      const unitField = page.locator('label').filter({
+        hasText: '거주 호수'
+      }).locator('..');
+      const unitBounds = await unitField.boundingBox();
+      const fieldsBounds = await unitField.locator('..').boundingBox();
+      if (!hasBuildings || width < 641) expect(Math.abs(unitBounds!.width - fieldsBounds!.width)).toBeLessThanOrEqual(1);
+      else {
+        const buildingBounds = await page.locator('label').filter({
+          hasText: '거주 동'
+        }).locator('..').boundingBox();
+        expect(Math.abs(buildingBounds!.y - unitBounds!.y)).toBeLessThanOrEqual(1);
+        expect(Math.abs(buildingBounds!.width - unitBounds!.width)).toBeLessThanOrEqual(1);
+      }
+      const previous = await page.getByRole('button', {
+        name: '이전',
+        exact: true
+      }).boundingBox();
+      const next = await page.getByRole('button', {
+        name: '다음',
+        exact: true
+      }).boundingBox();
+      expect(Math.abs(previous!.width - next!.width)).toBeLessThanOrEqual(1);
+      if (width > 640) expect(previous!.width).toBeGreaterThanOrEqual(152);
+      await phone.fill('invalid');
+      await expect(page.getByRole('button', {
+        name: '다음',
+        exact: true
+      })).toBeDisabled();
+      await phone.clear();
+      await expect(page.getByRole('button', {
+        name: '다음',
+        exact: true
+      })).toBeEnabled();
+      await page.screenshot({
+        path: test.info().outputPath(`administratorStep${width}${hasBuildings ? 'WithBuildings' : 'NoBuilding'}.png`),
+        fullPage: true,
+        animations: 'disabled'
+      });
+      await page.getByRole('button', {
+        name: '다음',
+        exact: true
+      }).click();
+      await fillBankAccount(page);
+      await page.getByRole('button', {
+        name: '다음',
+        exact: true
+      }).click();
+      await addFeeItem(page, '관리비', '50000');
+      await page.getByRole('button', {
+        name: '다음',
+        exact: true
+      }).click();
+      await page.getByRole('button', {
+        name: '관리 시작하기',
+        exact: true
+      }).click();
+      await expect(page).toHaveURL(/registration=complete/);
+      expect(saved).not.toBeNull();
+      expect(saved!.administrator).toMatchObject({
+        residenceType: 'RESIDENT',
+        name: '김관리',
+        unitNumber: '101'
+      });
+      expect(saved!.administrator).not.toHaveProperty('phone');
+    });
+  }
 }

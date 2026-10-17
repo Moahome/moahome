@@ -50,8 +50,10 @@ public class RegistrationFingerprint {
 			mac.init(key);
 			mac.update("moahome:property-registration:v1:".getBytes(StandardCharsets.UTF_8));
 			// 고정된 필드 순서와 null 표현을 사용해 입력 JSON의 표현 차이를 제거합니다.
-			byte[] payload = mapper.writeValueAsBytes(List.of(request.basicInfo(), request.buildings(),
-				request.units(), request.bankAccounts(), request.feeItems()));
+			var fields = new ArrayList<Object>(List.of(request.basicInfo(), request.buildings(), request.units(), request.bankAccounts(), request.feeItems()));
+			// 생략된 이전 요청은 원래 지문을 유지하고 새 거주 선택과 명부 입력은 지문에 포함해 재시도로 바뀌지 않게 합니다.
+			if(request.administrator()!=null) fields.add(request.administrator());
+			byte[] payload = mapper.writeValueAsBytes(fields);
 			return HexFormat.of().formatHex(mac.doFinal(payload));
 		} catch (GeneralSecurityException exception) {
 			throw new IllegalStateException("Registration fingerprint failed");

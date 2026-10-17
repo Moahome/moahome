@@ -13,6 +13,8 @@ import { useSession } from '@/entities/session';
 import { getManagementDashboardPath } from '@/entities/property';
 import {
   PropertyRegistrationFlow,
+  PropertyRegistrationPreview,
+  type PreviewStep,
   hasPendingRegistration
 } from '@/features/property-registration';
 import { useManagementEntry } from '@/features/enter-service';
@@ -27,17 +29,21 @@ import { StartCard } from './_components/start-card/startCard';
 import styles from './startPage.module.css';
 import motion from './startMotion.module.css';
 
-/** 세션과 본인 정보가 확인된 사용자에게만 시작 화면을 표시합니다. */
-export function StartPage() {
+/** 세션을 확인하고 명시적 추가 진입에서는 기존 관리대상으로의 자동 이동을 생략합니다. */
+export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional' }) {
+  const additional = mode === 'additional';
+  const entryPath = additional ? '/properties/add' : '/start';
   const session = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
   const registration = searchParams.get('registration');
+  const preview = additional && searchParams.get('preview') === 'manager';
+  const previewStep: PreviewStep = registration === 'administrator' ? 'administrator' : registration === 'units' || registration === 'administrator' || registration === 'account' || registration === 'fees' || registration === 'review' ? registration : 'basic';
   const completionRequestId = searchParams.get('requestId');
-  const registrationStep = registration === 'basic' || registration === 'units' || registration === 'account' || registration === 'fees' || registration === 'review' || registration === 'complete' ? registration : null;
-  const isSetupStep = registrationStep !== null && registrationStep !== 'basic';
+  const registrationStep = registration === 'basic' || registration === 'units' || registration === 'administrator' || registration === 'account' || registration === 'fees' || registration === 'review' || registration === 'complete' ? registration : null;
+  const isSetupStep = preview ? previewStep !== 'basic' : registrationStep !== null && registrationStep !== 'basic';
   const hasPendingSubmission = Boolean(session.data && hasPendingRegistration(session.data.id));
-  const registeredProperty = useManagementEntry(session.data?.id, registrationStep === null && !hasPendingSubmission);
+  const registeredProperty = useManagementEntry(session.data?.id, !additional && registrationStep === null && !hasPendingSubmission);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
   const [notice, setNotice] = useState({
@@ -55,7 +61,7 @@ export function StartPage() {
   }, [router, session.isFetching, requiresLogin]);
 
   useEffect(() => {
-    if (registrationStep || hasPendingSubmission || registeredProperty.isFetching) return;
+    if (additional || registrationStep || hasPendingSubmission || registeredProperty.isFetching) return;
     const error = registeredProperty.error;
     if (error instanceof ApiError && (error.status === 401 || error.code === 'ACCOUNT_UNAVAILABLE')) {
       window.location.replace('/login');
@@ -64,7 +70,7 @@ export function StartPage() {
     if (registeredProperty.isSuccess && registeredProperty.data) {
       router.replace(getManagementDashboardPath(registeredProperty.data.propertyId));
     }
-  }, [registrationStep, hasPendingSubmission, registeredProperty.data, registeredProperty.error, registeredProperty.isFetching, registeredProperty.isSuccess, router]);
+  }, [additional, registrationStep, hasPendingSubmission, registeredProperty.data, registeredProperty.error, registeredProperty.isFetching, registeredProperty.isSuccess, router]);
 
   useEffect(() => {
     /** 브라우저가 문서를 보관하기 전에 개인정보를 가려 로그아웃 뒤 복원 프레임에도 노출하지 않습니다. */
@@ -113,7 +119,7 @@ export function StartPage() {
     );
   }
 
-  if (!registrationStep && !hasPendingSubmission && (!registeredProperty.isSuccess || registeredProperty.isFetching || registeredProperty.data)) {
+  if (!additional && !registrationStep && !hasPendingSubmission && (!registeredProperty.isSuccess || registeredProperty.isFetching || registeredProperty.data)) {
     return (
       <StartSessionState
         kind={'property'}
@@ -138,13 +144,21 @@ export function StartPage() {
           onNotify={() => showNotice('알림', '알림 기능을 준비하고 있어요.')}
         />
       </div>
-      {registrationStep && (
+      {preview && registration && (
+        <PropertyRegistrationPreview
+          userId={session.data.id}
+          step={previewStep}
+          onClose={() => router.replace(entryPath)}
+        />
+      )}
+      {!preview && registrationStep && (
         <PropertyRegistrationFlow
           key={session.data.id}
           userId={session.data.id}
+          entryPath={entryPath}
           step={registrationStep}
           completionRequestId={completionRequestId}
-          onClose={() => router.replace('/start', {
+          onClose={() => router.replace(entryPath, {
             scroll: false
           })}
           onDashboard={(propertyId) => router.push(getManagementDashboardPath(propertyId))}
@@ -154,19 +168,22 @@ export function StartPage() {
         <main
           className={styles.main}
         >
-          <StartIntro />
+          <StartIntro
+            additional={additional}
+          />
           <div
             className={styles['start-options']}
           >
             <StartCard
               kind={'create'}
-              onSelect={() => router.push('/start?registration=basic', {
+              onSelect={() => router.push(`${entryPath}?registration=basic${additional ? '&preview=manager' : ''}`, {
                 scroll: false
               })}
             />
             <StartCard
               kind={'join'}
-              onSelect={() => showNotice('초대코드로 참여하기', '초대코드 참여 기능을 준비하고 있어요.')}
+              invitation={additional}
+              onSelect={() => router.push(additional ? '/invitations' : '/join')}
             />
           </div>
           <PendingRequestCard

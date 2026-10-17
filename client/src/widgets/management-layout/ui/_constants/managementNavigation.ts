@@ -184,6 +184,6 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
     label: '설정',
     icon: 'settings',
     path: 'settings',
-    available: false
+    available: true
   },
 ];

@@ -966,7 +966,7 @@ test('시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
     name: '관리할 곳 만들기'
   })).toBeVisible();
   await expect(page.getByRole('heading', {
-    name: '초대코드로 참여하기'
+    name: '주민으로 참여하기'
   })).toBeVisible();
   await expect(page.getByLabel('모아 주민님 계정 정보')).toBeVisible();
   await page.screenshot({
@@ -995,13 +995,14 @@ test('시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
     exact: true
   }).click();
   await page.getByRole('button', {
-    name: '초대코드로 참여하기',
+    name: '주민으로 참여하기',
     exact: true
   }).click();
-  await expect(page.getByRole('dialog', {
-    name: '초대코드로 참여하기'
-  })).toContainText('초대코드 참여 기능을 준비하고 있어요.');
-  await page.keyboard.press('Escape');
+  await expect(page).toHaveURL(/\/join$/);
+  await expect(page.getByRole('textbox', {
+    name: '주민 참여 링크'
+  })).toBeVisible();
+  await page.goBack();
   await page.getByRole('button', {
     name: /^승인 대기 중인 요청/
   }).click();
@@ -1021,7 +1022,7 @@ test('시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
     name: '관리 시작하기'
   })).toBeVisible();
   await expect(page.getByRole('heading', {
-    name: '초대로 참여하기'
+    name: '주민으로 참여하기'
   })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({
