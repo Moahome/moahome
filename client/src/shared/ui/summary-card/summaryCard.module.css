@@ -14,6 +14,8 @@
     font-size: 14px;
   }
 
+  &[data-density='comfortable'] .value strong { white-space: nowrap; }
+
   strong {
     color: var(--foreground);
     font-size: 32px;

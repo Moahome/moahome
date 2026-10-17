@@ -1,4 +1,5 @@
 .content {
+  container-type: inline-size;
   display: grid;
   gap: 24px;
   h2 {
@@ -104,7 +105,7 @@
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 14px;
-    overflow-wrap: anywhere;
+
   }
   .dates {
     display: flex;
@@ -257,4 +258,12 @@
       }
     }
   }
+}
+
+/* 사이드바·확대 배율로 줄어든 실제 본문 폭을 기준으로 금액 카드의 열 수를 바꿉니다. */
+@container (max-width: 1200px) {
+  .content .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container (max-width: 340px) {
+  .content .summary { grid-template-columns: minmax(0, 1fr); }
 }

@@ -285,14 +285,21 @@ export function MonthlyCollection({ propertyId, month, onMonthChange }: { proper
             rows={visible}
             getRowKey={(row) => row.unitId}
             onRowClick={(row) => openDetail(row.unitId)}
-            minWidth={900}
+            minWidth={1100}
             emptyState={'조건에 맞는 세대가 없습니다.'}
             columns={[
               {
                 key: 'unit',
                 header: '세대',
+                width: 150,
                 rowHeader: true,
-                render: (row) => row.unitLabel
+                render: (row) => (
+                  <span
+                    className={styles['unit-label']}
+                  >
+                    {row.unitLabel}
+                  </span>
+                )
               },
               {
                 key: 'representative',

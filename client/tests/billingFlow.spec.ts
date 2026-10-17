@@ -56,7 +56,8 @@ async function mockBilling(page: Page) {
     monthFailure: 0,
     wrongScope: false,
     hasBuildings: true,
-    currentMonth: '2026-10'
+    currentMonth: '2026-10',
+    millionSummary: false
   };
   await page.route(`${API}/**`, async route => {
     const request = route.request(); const path = new URL(request.url()).pathname;
@@ -139,9 +140,12 @@ async function mockBilling(page: Page) {
       if (state.monthFailure) return json(route, {
         code:'ACCESS_DENIED'
       },state.monthFailure);
-      const month = match[1]; const selected = month >= '2026-11' ? settings.scheduled?.items ?? items : items;
+      const month = match[1]; const selected = state.millionSummary ? [{
+        ...items[0],
+        amount: '50000'
+      }] : month >= '2026-11' ? settings.scheduled?.items ?? items : items;
       let charges = Array.from({
-        length:25
+        length: state.millionSummary ? 20 : 25
       }, (_,index) => ({
         id:id(100+index),
         unitId:id(200+index),
@@ -667,3 +671,34 @@ test('업무 API 권한·장애·다른 대상 응답을 빈 청구로 숨기지
     exact:true
   })).toBeVisible();
 });
+
+
+for (const width of [1600, 1280, 390, 320]) {
+  test(`백만 원 부과 합계 ${width}px는 숫자를 한 줄에 유지하고 실제 본문 폭에 맞춰 배치`, async ({ page }) => {
+    const state = await mockBilling(page); state.millionSummary = true;
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    await page.goto(`${BASE}?month=2026-10`);
+    const amount = page.getByRole('article', {
+      name: '확정 청구 합계 1,000,000원',
+      exact: true
+    });
+    await expect(amount).toBeVisible();
+    const metrics = await amount.locator('strong').evaluate((element) => ({
+      height: element.getBoundingClientRect().height,
+      line: Number.parseFloat(getComputedStyle(element).lineHeight),
+      width: element.getBoundingClientRect().width,
+      card: element.closest('article')!.getBoundingClientRect().width
+    }));
+    expect(metrics.height).toBeLessThanOrEqual(metrics.line + 1);
+    expect(metrics.width).toBeLessThan(metrics.card);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`millionSummary${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+  });
+}

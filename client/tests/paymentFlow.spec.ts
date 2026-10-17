@@ -2093,6 +2093,10 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     await expect(table.getByRole('rowheader')).toHaveText(['102동 101호', '102동 202호']);
+    const unitCell = table.getByRole('rowheader').first();
+    const unitBounds = await unitCell.boundingBox();
+    expect(unitBounds!.width).toBeGreaterThanOrEqual(130);
+    await expect(unitCell.locator('span')).toHaveCSS('white-space', 'nowrap');
     await expect(tabs.getByRole('button')).toHaveText(['전체 (2)', '미납 (2)', '일부납부 (0)', '납부완료 (0)']);
     await search.fill('김모아');await expect(table.getByRole('rowheader')).toHaveText(['102동 101호']);
     await expect(tabs.getByRole('button')).toHaveText(['전체 (1)', '미납 (1)', '일부납부 (0)', '납부완료 (0)']);
@@ -2570,6 +2574,16 @@ for (const width of [1440, 390, 320]) {
       name: '당월 전체 입금액 184,178원'
     })).toBeVisible();
     await expect(summary).toContainText('기타 입금 2건');
+    if (width < 768) {
+      const cards = summary.getByRole('article');
+      const first = await cards.nth(0).boundingBox();
+      const second = await cards.nth(1).boundingBox();
+      const last = await cards.nth(2).boundingBox();
+      const region = await summary.boundingBox();
+      expect(Math.abs(first!.y - second!.y)).toBeLessThanOrEqual(1);
+      expect(last!.y).toBeGreaterThan(first!.y);
+      expect(Math.abs(last!.width - region!.width)).toBeLessThanOrEqual(1);
+    }
     await page.getByRole('textbox', {
       name: '수납 현황 세대 검색'
     }).fill('없는세대');
