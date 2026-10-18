@@ -7,3 +7,6 @@ export type {
 export {
   getApiUrl
 } from './apiUrl';
+export {
+  isServerConnectionError
+} from './isServerConnectionError';

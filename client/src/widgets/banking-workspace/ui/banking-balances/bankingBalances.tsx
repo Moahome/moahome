@@ -15,6 +15,8 @@ import {
 } from '@tanstack/react-query';
 import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
+import { isServerConnectionError } from '@/shared/api';
+import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import { CalendarPicker } from '@/shared/ui/calendar-picker';
 import { ClientModal } from '@/shared/ui/client-modal';
 import {
@@ -108,6 +110,13 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   });
   const data = query.data;
   const title = panel ? PANEL_TITLES[panel] : buildingId ? '동별 상세 원장' : '동별 잔고·정산';
+  if (!data && isServerConnectionError(query.error)) return (
+    <ServerConnectionError
+      onRetry={() => { void query.refetch({
+        cancelRefetch: false
+      }); }}
+    />
+  );
   if (!data)
     return (
       <section

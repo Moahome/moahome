@@ -345,7 +345,7 @@ test('재발급 서비스의 503은 자동 반복 없이 사용자가 재시도'
 
   await page.goto('/login/callback');
   await expect(page.getByRole('alert', {
-    name: '로그인을 확인해 주세요'
+    name: '서버에 연결하지 못했어요'
   })).toContainText('잠시 후 다시 시도해 주세요.');
   expect(refreshAttempts).toBe(1);
   await page.getByRole('button', {
@@ -725,7 +725,7 @@ test('로그인페이지의 일시 조회 장애는 재로그인 폼 대신 재�
   });
 
   await page.goto('/login');
-  await expect(page.getByRole('main').getByRole('alert')).toContainText('로그인 상태를 확인하지 못했어요.');
+  await expect(page.getByRole('main').getByRole('alert')).toContainText('서버에 연결하지 못했어요');
   await expect(page.getByRole('button', {
     name: '카카오로 시작하기'
   })).toHaveCount(0);
@@ -814,7 +814,7 @@ test('내 정보 조회 장애를 재시도하면 유효한 토큰을 재사용�
 
   await page.goto('/login/callback');
   await expect(page.getByRole('alert', {
-    name: '로그인을 확인해 주세요'
+    name: '서버에 연결하지 못했어요'
   })).toContainText('잠시 후 다시 시도해 주세요.');
   expect(userAttempts).toBe(1);
   await page.getByRole('button', {
@@ -924,7 +924,7 @@ test('시작 화면 조회 장애에는 시작 화면 없이 재시도 안내를
   await failedUserResponse;
   await expect(page).toHaveURL(/\/start$/);
   await expect(page.getByRole('alert', {
-    name: '로그인 정보를 확인하지 못했어요'
+    name: '서버에 연결하지 못했어요'
   })).toContainText('잠시 후 다시 시도해 주세요.');
   await expect(page.getByRole('heading', {
     name: '모아홈을 시작해 보세요!'

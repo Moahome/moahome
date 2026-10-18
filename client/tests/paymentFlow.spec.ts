@@ -880,8 +880,8 @@ test('입금 API 조회 장애를 예시 데이터로 대체하지 않고 재시
     });
   });
   await page.goto(MATCHING);
-  await expect(page.getByRole('region',{
-    name:'입금 조회 오류'
+  await expect(page.getByRole('alert',{
+    name:'서버에 연결하지 못했어요'
   })).toBeVisible();
   await expect(page.getByRole('table',{
     name:'입금 거래'

@@ -14,6 +14,8 @@ import { useManagementContext } from '@/features/enter-service';
 import { ChiefAccountLink } from '../_components/chief-account-link/chiefAccountLink';
 import { ResidentDetails } from '@/features/resident-management';
 import { Button } from '@/shared/ui/button';
+import { isServerConnectionError } from '@/shared/api';
+import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import { Pagination } from '@/shared/ui/pagination';
 import { getResidentListError } from '../../model/residentList';
 import { useResidentList } from './_hooks/useResidentList';
@@ -155,7 +157,14 @@ export function ResidentListPage({
           주민 목록을 불러오고 있어요.
         </div>
       )}
-      {list.isError && (
+      {list.isError && isServerConnectionError(list.error) && (
+        <ServerConnectionError
+          onRetry={() => { void list.refetch({
+            cancelRefetch: false
+          }); }}
+        />
+      )}
+      {list.isError && !isServerConnectionError(list.error) && (
         <div
           className={styles.state}
           role={'alert'}

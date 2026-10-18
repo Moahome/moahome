@@ -300,7 +300,7 @@ test('조회 장애에는 시작 화면으로 보내지 않고 재시도하며 �
   }, failed ? 500 : 200));
   await page.goto('/start');
   await expect(page.getByRole('heading', {
-    name: '관리할 곳을 확인하지 못했어요',
+    name: '서버에 연결하지 못했어요',
     exact: true
   })).toBeVisible();
   await expect(page.getByText('성내빌라', {
@@ -969,7 +969,7 @@ test('세대 조회 장애는 빈 목록과 구분하고 모바일에서 표·�
   });
   await page.goto(HOUSEHOLDS);
   const main = page.getByRole('main');
-  await expect(main.getByRole('alert')).toContainText('세대 목록을 불러오지 못했어요.');
+  await expect(main.getByRole('alert')).toContainText('서버에 연결하지 못했어요');
   failed = false;
   await main.getByRole('button', {
     name: '다시 시도',
@@ -1812,7 +1812,7 @@ test('주민 목록 로딩·조회 실패·권한 거부·빈 명부를 구분�
   await expect(main.getByRole('status')).toHaveText('주민 목록을 불러오고 있어요.');
   await expect(main.getByRole('article')).toHaveCount(0);
   release();
-  await expect(main.getByRole('alert')).toContainText('주민 목록을 불러오지 못했어요.');
+  await expect(main.getByRole('alert')).toContainText('서버에 연결하지 못했어요');
   await main.getByRole('button', {
     name: '다시 시도',
     exact: true

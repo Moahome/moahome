@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useSession } from '@/entities/session';
 import { BrandMark } from '@/shared/ui/brand-mark';
-import { ApiError } from '@/shared/api';
+import {
+  ApiError,
+  isServerConnectionError
+} from '@/shared/api';
+import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import styles from './loginCallbackPage.module.css';
 
 type CallbackState =
@@ -92,6 +96,16 @@ export function LoginCallbackPage() {
     title = '로그인을 확인해 주세요';
     description = state.message;
   }
+
+  if (state.status === 'error' && state.canRetry && isServerConnectionError(session.error)) return (
+    <main
+      className={styles.page}
+    >
+      <ServerConnectionError
+        onRetry={retryRestore}
+      />
+    </main>
+  );
 
   return (
     <main

@@ -13,6 +13,8 @@ import {
 } from '@tanstack/react-query';
 import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
+import { isServerConnectionError } from '@/shared/api';
+import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import { Toast } from '@/shared/ui/toast';
 import type { PreviewLedger } from '../../model/paymentPreview';
 import {
@@ -94,6 +96,13 @@ export function PaymentWorkspaceProvider({ propertyId, children }: { propertyId:
     >
       입금 정보를 불러오고 있어요.
     </p>
+  );
+  if (!query.data && isServerConnectionError(query.error)) return (
+    <ServerConnectionError
+      onRetry={() => { void query.refetch({
+        cancelRefetch: false
+      }); }}
+    />
   );
   if (!query.data) return (
     <section

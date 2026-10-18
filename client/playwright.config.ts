@@ -20,7 +20,7 @@ export default defineConfig({
     },
     {
       name: 'chromium',
-      testMatch: ['authFlow.spec.ts', 'propertyRegistration.spec.ts', 'managementLayout.spec.ts', 'billingFlow.spec.ts', 'paymentFlow.spec.ts', 'onboardingFlow.spec.ts', 'bankingFlow.spec.ts'],
+      testMatch: ['authFlow.spec.ts', 'propertyRegistration.spec.ts', 'managementLayout.spec.ts', 'billingFlow.spec.ts', 'paymentFlow.spec.ts', 'onboardingFlow.spec.ts', 'bankingFlow.spec.ts', 'serverConnectionError.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
         channel: process.env.PLAYWRIGHT_CHANNEL,

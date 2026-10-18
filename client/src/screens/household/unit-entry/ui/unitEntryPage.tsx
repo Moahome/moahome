@@ -30,6 +30,8 @@ import {
   getUnitManagementError
 } from '@/features/unit-management';
 import { Button } from '@/shared/ui/button';
+import { isServerConnectionError } from '@/shared/api';
+import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import { Toast } from '@/shared/ui/toast';
 import styles from './unitEntryPage.module.css';
 
@@ -128,6 +130,13 @@ export function UnitEntryPage({
     >
       세대 정보를 불러오고 있어요.
     </p>
+  );
+  if (list.isError && isServerConnectionError(list.error)) return (
+    <ServerConnectionError
+      onRetry={() => { void list.refetch({
+        cancelRefetch: false
+      }); }}
+    />
   );
   if (list.isError) return (
     <section

@@ -16,6 +16,8 @@ import {
 } from 'next/navigation';
 import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
+import { isServerConnectionError } from '@/shared/api';
+import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import { ClientModal } from '@/shared/ui/client-modal';
 import {
   DataTable,
@@ -150,6 +152,13 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     >
       통장 정보를 불러오고 있어요.
     </p>
+  );
+  if (!data && isServerConnectionError(workspace.error)) return (
+    <ServerConnectionError
+      onRetry={() => { void workspace.refetch({
+        cancelRefetch: false
+      }); }}
+    />
   );
   if (!data) return (
     <section>

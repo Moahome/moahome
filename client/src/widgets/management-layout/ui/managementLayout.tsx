@@ -82,6 +82,7 @@ export function ManagementLayout({
     content = (
       <ManagementAccessState
         title={'관리할 곳을 확인하지 못했어요.'}
+        error={error}
         onRetry={() => void (session.isSuccess ? property : session).refetch({
           cancelRefetch: false
         })}

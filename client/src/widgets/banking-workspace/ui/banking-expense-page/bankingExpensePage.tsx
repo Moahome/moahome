@@ -11,6 +11,8 @@ import {
 } from '@tanstack/react-query';
 import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
+import { isServerConnectionError } from '@/shared/api';
+import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import { ClientModal } from '@/shared/ui/client-modal';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { ListHeader } from '@/shared/ui/list-header';
@@ -119,6 +121,13 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
     >
       거래 정보를 불러오고 있어요.
     </p>
+  );
+  if (!workspace.data && isServerConnectionError(workspace.error)) return present(
+    <ServerConnectionError
+      onRetry={() => { void workspace.refetch({
+        cancelRefetch: false
+      }); }}
+    />
   );
   if (!workspace.data) return present(
     <section>

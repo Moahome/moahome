@@ -9,7 +9,11 @@ import {
   KakaoLoginButton
 } from '@/features/kakao-login';
 import { BrandMark } from '@/shared/ui/brand-mark';
-import { ApiError } from '@/shared/api';
+import {
+  ApiError,
+  isServerConnectionError
+} from '@/shared/api';
+import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import { Button } from '@/shared/ui/button';
 import { NeighborhoodIllustration } from '@/shared/ui/neighborhood-illustration';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -42,6 +46,15 @@ export function LoginPage({ errorCode }: { errorCode?: string }) {
   }
 
   if (isChecking || !canLogin) {
+    if (!isChecking && isServerConnectionError(session.error)) return (
+      <main
+        className={`${styles.page} ${styles['session-state']}`}
+      >
+        <ServerConnectionError
+          onRetry={retrySession}
+        />
+      </main>
+    );
     let description = '잠시만 기다려 주세요.';
 
     if (!isChecking) {

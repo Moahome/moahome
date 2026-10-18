@@ -547,7 +547,8 @@ test('오류 모달은 헤더 X·바깥 클릭으로 닫고 재시도하면 상�
     name: '상세 닫기',
     exact: true
   })).toBeVisible();
-  await modal.getByText('관리비 정보를 처리하지 못했어요. 다시 시도해주세요.', {
+  await modal.getByRole('heading', {
+    name: '서버에 연결하지 못했어요',
     exact: true
   }).click();
   await expect(modal).toBeVisible();

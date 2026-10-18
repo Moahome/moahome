@@ -1,16 +1,29 @@
 import Link from 'next/link';
 import { Button } from '@/shared/ui/button';
+import { isServerConnectionError } from '@/shared/api';
+import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import styles from './managementAccessState.module.css';
 
 export function ManagementAccessState({
   title,
   loading = false,
   onRetry,
+  error,
 }: {
   title: string;
   loading?: boolean;
   onRetry?: () => void;
+  error?: unknown;
 }) {
+  if (!loading && onRetry && isServerConnectionError(error)) return (
+    <main
+      className={styles.state}
+    >
+      <ServerConnectionError
+        onRetry={onRetry}
+      />
+    </main>
+  );
   return (
     <main
       className={styles.state}

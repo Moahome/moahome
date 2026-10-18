@@ -214,3 +214,12 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+## 서버 연결 오류 안내
+
+백엔드 연결 실패·타임아웃(`NETWORK_ERROR`)과 HTTP 5xx 조회 오류는 `shared/ui/server-connection-error`의 ServerConnectionError를 재사용합니다. 로그인·콜백·시작 화면, 관리 권한 확인, 세대·주민·가입 요청, 관리비·통장·입금 조회에 연결했습니다. 인증·권한·입력 오류는 기존 화면의 복구 흐름을 유지하며, 토큰 교체 결과가 미확인인 경우 재로그인 정책을 변경하지 않습니다.
+
+캐릭터는 사용자 제공 투명 PNG를 시각 변경 없이 변환한 `/images/errors/serverError.webp`이며 문구·버튼은 React로 표시합니다. 백엔드에 의존하지 않고 프론트엔드 정적 자산으로 제공합니다. 기본 안내는 입력 보존을 단정하지 않으며, 실제 폼을 유지하는 호출부만 `inputPreserved`를 지정할 수 있습니다.
+
+다시 시도는 해당 조회의 `refetch`를 호출합니다. 전체 페이지 새로고침·주기적인 연결 확인·저장 요청 자동 반복을 추가하지 않습니다. 저장 실패는 기존 폼·요청 ID와 원래의 오류 안내를 유지합니다. 프론트엔드 자체가 제공되지 않는 상황의 호스팅 오류 페이지는 별도 범위입니다.

@@ -18,6 +18,8 @@ import {
 import { memberManagementError } from '@/features/member-management';
 import { ListHeader } from '@/shared/ui/list-header';
 import { Button } from '@/shared/ui/button';
+import { isServerConnectionError } from '@/shared/api';
+import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import { DataTable } from '@/shared/ui/data-table';
 import { ListCard } from '@/shared/ui/list-card';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -97,7 +99,14 @@ export function JoinRequestsPage({ propertyId, requestId }: { propertyId: string
           가입 요청을 불러오고 있어요.
         </p>
       )}
-      {query.isError && (
+      {query.isError && isServerConnectionError(query.error) && (
+        <ServerConnectionError
+          onRetry={() => { void query.refetch({
+            cancelRefetch: false
+          }); }}
+        />
+      )}
+      {query.isError && !isServerConnectionError(query.error) && (
         <div>
           <p
             role={'alert'}

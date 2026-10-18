@@ -1,7 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { ApiError } from '@/shared/api';
+import {
+  ApiError,
+  isServerConnectionError
+} from '@/shared/api';
+import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import styles from './startSessionState.module.css';
 
 /** 복원 대기와 조회 실패를 구분하며 일시 장애에만 재시도 버튼을 제공합니다. */
@@ -31,6 +35,16 @@ export function StartSessionState({
 
   const canRetry = kind === 'property' || (error instanceof ApiError
     && (error.status === 503 || error.code === 'NETWORK_ERROR'));
+
+  if (canRetry && isServerConnectionError(error)) return (
+    <main
+      className={styles['session-state']}
+    >
+      <ServerConnectionError
+        onRetry={onRetry}
+      />
+    </main>
+  );
 
   return (
     <main

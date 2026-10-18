@@ -1,6 +1,8 @@
 'use client';
 
 import { Button } from '@/shared/ui/button';
+import { isServerConnectionError } from '@/shared/api';
+import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import { Pagination } from '@/shared/ui/pagination';
 import { Toast } from '@/shared/ui/toast';
 import { getUnitManagementError } from '@/features/unit-management';
@@ -32,6 +34,13 @@ export function UnitListPage({
     >
       세대 목록을 불러오고 있어요.
     </section>
+  );
+  if (list.isError && isServerConnectionError(list.error)) return (
+    <ServerConnectionError
+      onRetry={() => { void list.refetch({
+        cancelRefetch: false
+      }); }}
+    />
   );
   if (list.isError) return (
     <section
