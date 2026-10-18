@@ -61,11 +61,20 @@ type Action = {
     kind: 'opening' | 'settlement' | 'assignment' | 'difference';
     id?: string;
 };
+export type BalancePanel = Action['kind'] | 'chart';
+const PANEL_TITLES: Record<BalancePanel, string> = {
+  opening: '기준 잔고 확인',
+  chart: '동별 입금·지출 비교',
+  difference: '잔고 차이 내역',
+  settlement: '외부 부담금 정산',
+  assignment: '입금 귀속 동 확인'
+};
 const money = (value: string | bigint | null) => value === null ? '설정 필요' : formatWon(value);
 /** 조회 조건·선택 동을 유지하며 실제 서버 잔고와 외부 입금 연결을 표시합니다. */
-export function BankingBalances({ propertyId, buildingId, renderReceiptDetail }: {
+export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDetail }: {
     propertyId: string;
     buildingId?: string;
+    panel?: BalancePanel;
     renderReceiptDetail?: (paymentId: string, onClose: () => void) => ReactNode;
 }) {
   const session = useSession();
@@ -76,9 +85,9 @@ export function BankingBalances({ propertyId, buildingId, renderReceiptDetail }:
   const [month, setMonth] = useState(requested && /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Asia/Seoul'
   }).format(new Date()).slice(0, 7));
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(params.get('search') ?? '');
   const [sort, setSort] = useState('name');
-  const [filter, setFilter] = useState('ALL');
+  const [filter, setFilter] = useState(params.get('filter') ?? 'ALL');
   const [incomeBuilding, setIncomeBuilding] = useState('ALL');
   const [incomeSearch, setIncomeSearch] = useState('');
   const [externalFilter, setExternalFilter] = useState('ACTIVE');
@@ -98,7 +107,7 @@ export function BankingBalances({ propertyId, buildingId, renderReceiptDetail }:
     gcTime: 0
   });
   const data = query.data;
-  const title = buildingId ? '동별 상세 원장' : '동별 잔고·정산';
+  const title = panel ? PANEL_TITLES[panel] : buildingId ? '동별 상세 원장' : '동별 잔고·정산';
   if (!data)
     return (
       <section
@@ -144,6 +153,10 @@ export function BankingBalances({ propertyId, buildingId, renderReceiptDetail }:
       queryKey: ['banking-balances', session.data?.id, propertyId]
     });
     setAction(null);
+    if (panel) {
+      router.replace(`/manage/${propertyId}/banking/balances?month=${month}`);
+      return;
+    }
     setNotice({
       message,
       tone: 'success'
@@ -156,6 +169,29 @@ export function BankingBalances({ propertyId, buildingId, renderReceiptDetail }:
       return;
     }
     setDetail(b.id);
+  }
+  /** 모바일은 월·대상 ID를 가진 독립 페이지, PC는 현재 목록 위의 공통 모달을 사용합니다. */
+  function openPanel(kind: BalancePanel, id?: string) {
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      const queryParams = new URLSearchParams({
+        month
+      });
+      if (id) queryParams.set('target', id);
+      if (kind === 'chart') {
+        queryParams.set('search', search);
+        queryParams.set('filter', filter);
+      }
+      router.push(`/manage/${propertyId}/banking/balances/details/${kind}?${queryParams}`);
+      return;
+    }
+    if (kind === 'chart') {
+      setChartOpen(true);
+      return;
+    }
+    setAction({
+      kind,
+      id
+    });
   }
   async function download() {
     if (exportBusy.current || !exportRows.length)
@@ -181,6 +217,30 @@ export function BankingBalances({ propertyId, buildingId, renderReceiptDetail }:
       exportBusy.current = false;
       setExporting(false);
     }
+  }
+  if (panel) {
+    const closePage = () => router.replace(`/manage/${propertyId}/banking/balances?month=${month}`);
+    if (panel === 'chart') return (
+      <ChartDialog
+        buildings={filtered}
+        presentation={'page'}
+        onClose={closePage}
+      />
+    );
+    return (
+      <BalanceActionDialog
+        key={`${panel}-${params.get('target') ?? ''}`}
+        action={{
+          kind: panel,
+          id: params.get('target') ?? undefined
+        }}
+        data={data}
+        propertyId={propertyId}
+        presentation={'page'}
+        onClose={closePage}
+        onSaved={saved}
+      />
+    );
   }
   if (buildingId)
     return (
@@ -280,9 +340,7 @@ export function BankingBalances({ propertyId, buildingId, renderReceiptDetail }:
         actions={(
           <>
             <Button
-              onClick={() => setAction({
-                kind: 'opening'
-              })}
+              onClick={() => openPanel('opening')}
             >
               {missing.length > 0 ? '시작 잔고 설정' : '기준 잔고 확인'}
             </Button>
@@ -478,7 +536,7 @@ export function BankingBalances({ propertyId, buildingId, renderReceiptDetail }:
           <button
             className={styles['chart-trigger']}
             aria-label={'동별 입금 출금 그래프'}
-            onClick={() => setChartOpen(true)}
+            onClick={() => openPanel('chart')}
           >
             <BalanceChart
               rows={filtered}
@@ -541,9 +599,7 @@ export function BankingBalances({ propertyId, buildingId, renderReceiptDetail }:
           >
             <Button
               variant={'outline'}
-              onClick={() => setAction({
-                kind: 'difference'
-              })}
+              onClick={() => openPanel('difference')}
             >
               차이 내역 확인
             </Button>
@@ -589,10 +645,7 @@ export function BankingBalances({ propertyId, buildingId, renderReceiptDetail }:
               />
             </>
           )}
-          onRowClick={(row) => setAction({
-            kind: 'settlement',
-            id: row.id
-          })}
+          onRowClick={(row) => openPanel('settlement', row.id)}
           columns={[
             {
               key: 'date',
@@ -682,10 +735,7 @@ export function BankingBalances({ propertyId, buildingId, renderReceiptDetail }:
                 />
               </>
             )}
-            onRowClick={(i) => setAction({
-              kind: 'assignment',
-              id: i.id
-            })}
+            onRowClick={(i) => openPanel('assignment', i.id)}
             columns={[
               {
                 key: 'date',
@@ -815,13 +865,14 @@ function BalanceChart({ rows }: { rows: readonly BalanceBuilding[] }) {
 }
 
 /** 조회 동들의 입출금 비중과 동별 금액을 검색·선택해 확인합니다. */
-function ChartDialog({ buildings, onClose }: { buildings: readonly BalanceBuilding[]; onClose: () => void }) {
+function ChartDialog({ buildings, onClose, presentation = 'modal' }: { buildings: readonly BalanceBuilding[]; onClose: () => void; presentation?: 'modal' | 'page' }) {
   const [building, setBuilding] = useState('ALL');
   const [search, setSearch] = useState('');
   const rows = buildings.filter((row) => (building === 'ALL' || row.id === building) && row.label.includes(search.trim()));
   return (
     <DetailDialog
       title={'동별 입금·지출 비교'}
+      presentation={presentation}
       onClose={onClose}
     >
       <div
@@ -969,8 +1020,11 @@ function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
     {
       key: 'date',
       header: '거래일시',
+      width: 140,
       render: (e) => (
-        <span>
+        <span
+          className={styles['ledger-date']}
+        >
           {e.date}
           <small
             className={styles.muted}
@@ -1101,15 +1155,45 @@ function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
     </div>
   );
 }
-/** 공통 모달의 포커스·Escape·스크롤 잠금을 사용하며 저장 중에는 닫기를 차단합니다. */
-function DetailDialog({ title, children, onClose, busy = false, compact = false, footer }: {
+/** 같은 내용을 PC 모달과 모바일 독립 페이지에서 재사용하며 페이지의 복귀는 공통 헤더가 담당합니다. */
+function DetailDialog({ title, children, onClose, busy = false, compact = false, footer, presentation = 'modal' }: {
     title: string;
     children: ReactNode;
     onClose: () => void;
     busy?: boolean;
     compact?: boolean;
     footer?: ReactNode;
+    presentation?: 'modal' | 'page';
 }) {
+  if (presentation === 'page') return (
+    <section
+      className={styles.page}
+    >
+      <ListHeader
+        className={styles.header}
+        titleId={'balance-title'}
+        menu={'통장 관리'}
+        title={title}
+        description={''}
+      />
+      <div
+        className={styles['detail-surface']}
+      >
+        <div
+          className={styles['detail-body']}
+        >
+          {children}
+        </div>
+        {footer && (
+          <footer
+            className={styles['modal-footer']}
+          >
+            {footer}
+          </footer>
+        )}
+      </div>
+    </section>
+  );
   return (
     <ClientModal
       className={styles.modal}
@@ -1162,12 +1246,13 @@ function DetailDialog({ title, children, onClose, busy = false, compact = false,
   );
 }
 /** 동 선택을 바꿔도 시작 잔고 초안을 보존하고 누락 동을 안내합니다. 외부 회수는 명시적인 관리자 입력만 저장하며 실패·재시도에는 입력과 요청 ID를 유지합니다. */
-function BalanceActionDialog({ action, data, propertyId, onClose, onSaved }: {
+function BalanceActionDialog({ action, data, propertyId, onClose, onSaved, presentation = 'modal' }: {
     action: Action;
     data: BalanceWorkspace;
     propertyId: string;
     onClose: () => void;
     onSaved: (message: string) => Promise<void>;
+    presentation?: 'modal' | 'page';
 }) {
   const [cutoff, setCutoff] = useState(data.cutoffDate ?? '');
   const [amounts, setAmounts] = useState<Record<string, string>>(() => Object.fromEntries(data.buildings.filter((row) => row.openingBalance != null).map((row) => [row.id, row.openingBalance!])));
@@ -1285,9 +1370,21 @@ function BalanceActionDialog({ action, data, propertyId, onClose, onSaved }: {
       setDecisionBusy(false);
     }
   }
+  if ((action.kind === 'settlement' && !external) || (action.kind === 'assignment' && !income)) return (
+    <DetailDialog
+      title={title}
+      presentation={presentation}
+      onClose={onClose}
+    >
+      <p>
+        해당 내역을 찾을 수 없습니다.
+      </p>
+    </DetailDialog>
+  );
   return (
     <DetailDialog
       title={title}
+      presentation={presentation}
       onClose={onClose}
       busy={busy}
       compact={action.kind !== 'difference'}

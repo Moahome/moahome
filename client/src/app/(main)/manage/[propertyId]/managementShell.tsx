@@ -29,7 +29,7 @@ export function ManagementShell({
     href: `${basePath}/banking/balances/${ledgerBuilding}?month=${ledgerMonth}`,
     label: '동별 상세 원장으로 돌아가기',
     title: '거래 상세'
-  } : getMobileBack(pathname, basePath);
+  } : getMobileBack(pathname, basePath, ledgerMonth);
 
   return (
     <ManagementLayout
@@ -49,11 +49,11 @@ export function ManagementShell({
 }
 
 /** 직접 접근에서도 같은 관리대상 안의 목록·상세로 돌아가는 모바일 헤더를 구성합니다. */
-function getMobileBack(pathname: string, basePath: string) {
+function getMobileBack(pathname: string, basePath: string, month: string | null) {
   if (pathname.startsWith(`${basePath}/banking/balances/`)) return {
-    href: `${basePath}/banking/balances`,
+    href: `${basePath}/banking/balances${/^\d{4}-(0[1-9]|1[0-2])$/.test(month ?? '') ? `?month=${month}` : ''}`,
     label: '동별 잔고·정산으로 돌아가기',
-    title: '동별 상세 원장'
+    title: pathname.startsWith(`${basePath}/banking/balances/details/`) ? '동별 잔고·정산' : '동별 상세 원장'
   };
   if (pathname === `${basePath}/banking/upload`) return {
     href: `${basePath}/banking/transactions`,

@@ -625,6 +625,7 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
 });
 
 test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 모바일 상세를 연결', async ({ page }) => {
+  test.setTimeout(120_000);
   const buildings = Array.from({
     length: 8
   }, (_, index) => ({
@@ -1379,6 +1380,148 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     width: 390,
     height: 844
   });
+  // 모바일 진입은 모달을 열지 않고 새로고침·헤더 복귀가 가능한 페이지를 사용합니다.
+  const monthControl = page.getByRole('button', {
+    name: '조회 월: 2026년 10월',
+    exact: true
+  });
+  expect((await monthControl.boundingBox())!.width).toBeGreaterThan(320);
+  const backToBalances = page.getByRole('link', {
+    name: '동별 잔고·정산으로 돌아가기',
+    exact: true
+  });
+  await page.getByRole('button', {
+    name: '동별 입금 출금 그래프',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/\/balances\/details\/chart\?month=2026-10/);
+  await expect(page.getByRole('heading', {
+    name: '동별 입금·지출 비교',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('table', {
+    name: '동별 입금 출금 비교',
+    exact: true
+  })).toContainText('109동');
+  await page.screenshot({
+    path: test.info().outputPath('graphMobilePage.png'),
+    fullPage: true
+  });
+  await backToBalances.click();
+  await expect(page).toHaveURL(`${BASE}/balances?month=2026-10`);
+  await page.getByRole('button', {
+    name: '차이 내역 확인',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(`${BASE}/balances/details/difference?month=2026-10`);
+  await expect(page.getByRole('heading', {
+    name: '잔고 차이 내역',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await backToBalances.click();
+  await page.getByRole('button', {
+    name: '기준 잔고 확인',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(`${BASE}/balances/details/opening?month=2026-10`);
+  await expect(page.getByLabel('102동 기준 잔고', {
+    exact: true
+  })).toHaveValue('600,000');
+  await page.getByRole('button', {
+    name: '기준 잔고 수정',
+    exact: true
+  }).click();
+  await expect(page.getByLabel('102동 기준 잔고', {
+    exact: true
+  })).toHaveValue('600,000');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await backToBalances.click();
+  await page.getByRole('table', {
+    name: '입금 귀속 동 확인',
+    exact: true
+  }).getByRole('row').filter({
+    hasText: '문영일'
+  }).click();
+  await expect(page).toHaveURL(`${BASE}/balances/details/assignment?month=2026-10&target=${id(713)}`);
+  await expect(page.getByRole('heading', {
+    name: '입금 귀속 동 확인',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await backToBalances.click();
+  await page.getByRole('table', {
+    name: '외부 부담금',
+    exact: true
+  }).getByRole('row').filter({
+    hasText: '외부 101동'
+  }).click();
+  await expect(page).toHaveURL(`${BASE}/balances/details/settlement?month=2026-10&target=${externalId}`);
+  await expect(page.getByRole('heading', {
+    name: '외부 부담금 정산',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('combobox', {
+    name: '연결할 기타 입금',
+    exact: true
+  })).toBeVisible();
+  await page.screenshot({
+    path: test.info().outputPath('settlementMobilePage.png'),
+    fullPage: true
+  });
+  await page.getByRole('button', {
+    name: '정산에서 제외',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(`${BASE}/balances?month=2026-10`);
+  await expect(externalTable).not.toContainText('외부 101동');
+  await page.getByRole('combobox', {
+    name: '정산 대상',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '정산에서 제외',
+    exact: true
+  }).click();
+  await externalTable.getByRole('row').filter({
+    hasText: '외부 101동'
+  }).click();
+  await page.getByRole('button', {
+    name: '정산 대상으로 복원',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(`${BASE}/balances?month=2026-10`);
+  await expect(externalTable).toContainText('외부 101동');
+  // 잘못된 대상이나 조회 오류에서도 월을 유지한 헤더 복귀를 제공합니다.
+  await page.goto(`${BASE}/balances/details/settlement?month=2026-08&target=${id(999)}`);
+  await expect(page.getByText('해당 내역을 찾을 수 없습니다.', {
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('button', {
+    name: '입금 연결 확정',
+    exact: true
+  })).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await backToBalances.click();
+  await expect(page).toHaveURL(`${BASE}/balances?month=2026-08`);
+  await page.route('**/banking/balances?month=2026-08', (route) => route.fulfill({
+    status: 503,
+    json: {
+      code: 'PAYMENT_SERVICE_UNAVAILABLE'
+    }
+  }));
+  await page.goto(`${BASE}/balances/details/difference?month=2026-08`);
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(backToBalances).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.unroute('**/banking/balances?month=2026-08');
+  await backToBalances.click();
+  await expect(page).toHaveURL(`${BASE}/balances?month=2026-08`);
+  await page.goto(`${BASE}/balances?month=2026-10`);
   await table.getByRole('row').filter({
     hasText: '102동'
   }).click();
@@ -1392,6 +1535,18 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     name: '동별 상세 원장',
     exact: true
   })).toContainText('604,335원');
+  const mobileLedger = page.getByRole('table', {
+    name: '동별 상세 원장',
+    exact: true
+  });
+  await expect(mobileLedger.getByRole('cell').first().locator('span').first()).toHaveCSS('white-space', 'nowrap');
+  for (const width of [320, 390]) {
+    await page.setViewportSize({
+      width,
+      height: 844
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  }
   await page.screenshot({
     path: test.info().outputPath('balancesMobile.png'),
     fullPage: true,

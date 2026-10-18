@@ -168,6 +168,31 @@
 }
 .ledger {
   min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+.ledger-date {
+  white-space: nowrap;
+}
+.detail-surface {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  overflow: hidden;
+}
+.detail-body {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  padding: 24px;
+  overflow-wrap: anywhere;
+
+  > * {
+    min-width: 0;
+  }
 }
 .ledger-summary {
   display: grid;
@@ -182,6 +207,11 @@
     border: 1px solid var(--border);
     border-radius: 12px;
     background: var(--card);
+  }
+  > div:last-child {
+    border-color: color-mix(in srgb, var(--primary) 30%, var(--border));
+    background: color-mix(in srgb, var(--primary) 8%, var(--card));
+    color: var(--primary);
   }
   span {
     color: var(--sub-text);
@@ -325,6 +355,13 @@
   }
 }
 @media (max-width: 767px) {
+  .month-control {
+    width: 100%;
+    max-width: none;
+  }
+  .ledger, .detail-body {
+    padding: 16px;
+  }
   .card {
     padding: 16px;
   }
