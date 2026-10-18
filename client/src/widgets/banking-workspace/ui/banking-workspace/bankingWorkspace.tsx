@@ -247,6 +247,48 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     category: '',
     note: ''
   }; }
+  /** 처리 종류와 연결 대상을 구분하고, 공동 입금은 동 이름 대신 개수로 요약합니다. */
+  function processingContent(row: BankingTransaction): {
+    title: string;
+    detail?: string;
+  } {
+    if (row.direction === 'EXPENSE') {
+      const draft = preview ? expenseDraft(row) : row.expense;
+      // 기존 기준대로 외부로 지정한 동도 부담 동 개수에 포함합니다.
+      const count = new Set(draft?.allocations.filter((part) => part.label.trim()).map((part) => part.buildingId ?? `external:${part.label.trim()}`)).size;
+
+      return {
+        title: '지출',
+        detail: count ? `${count}동 부담` : '부담 동 확인 필요'
+      };
+    }
+
+    const draft = preview ? receiptDraft(row) : null;
+    const allocation = draft?.kind === 'SHARED' ? expenseDraft(row) : row.incomeAllocation;
+    if (allocation) return {
+      title: '기타 입금',
+      detail: allocation.allocations.length ? `${allocation.allocations.length}개 동 배분${preview ? ' 예정' : ''}` : '배분 동 확인 필요'
+    };
+    if (draft?.kind === 'OTHER' || row.receiptType === 'OTHER') return {
+      title: '기타 입금'
+    };
+
+    const unitId = draft?.kind === 'HOUSEHOLD' ? draft.unitId : row.unitId;
+    const unitLabel = data?.units.find((unit) => unit.id === unitId)?.label || (!preview && row.unitLabel);
+    if (!unitLabel) return {
+      title: '입금 분류 필요'
+    };
+    // 미리보기와 미확정 후보를 실제 수납이 완료된 세대로 표시하지 않습니다.
+    if (preview) return {
+      title: '세대 수납 예정',
+      detail: unitLabel
+    };
+
+    return {
+      title: ['CONFIRMED', 'LINKED'].includes(row.status) ? '세대 수납' : '세대 확인 필요',
+      detail: unitLabel
+    };
+  }
   /** 저장 전 거래 설정은 공통 모달에서 편집하고 닫아도 파일별 초안을 보존합니다. */
   function previewEditor(row: BankingTransaction) {
     if (!data) return null;
@@ -702,7 +744,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
             <p
               className={styles.help}
             >
-              행을 눌러 연결할 세대나 지출 동을 변경하세요. 필터·페이지를 바꿔도 선택과 입력은 유지됩니다.
+              행을 눌러 입금 분류·연결 세대·동별 배분을 설정하세요. 필터·페이지를 바꿔도 선택과 입력은 유지됩니다.
             </p>
           )}
           {view === 'transactions' && !preview && (
@@ -852,16 +894,24 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                 render: (row: BankingTransaction) => formatWon(getExpenseAmount(row, expenseBuildingIds).toString())
               } satisfies DataTableColumn<BankingTransaction>] : [{
                 key: 'connection',
-                header: direction === 'ALL' ? '세대·지출 동' : direction === 'INCOME' ? '세대' : '지출 동',
+                header: '처리 내용',
                 render: (row: BankingTransaction) => {
-                  if (row.direction === 'INCOME' && row.incomeAllocation) return sortExpenseLabels(row.incomeAllocation.allocations).map((part) => part.label).join(' · ');
-                  if (row.direction === 'INCOME' && preview && receiptDraft(row).kind === 'SHARED') return sortExpenseLabels(expenseDraft(row).allocations).map((part) => part.label).join(' · ');
-                  if (row.direction === 'INCOME') return data.units.find((u) => u.id === row.unitId)?.label || row.unitLabel || '세대·용도 확인';
-                  const draft = preview ? expenseDraft(row) : row.expense;
-                  if (!draft) return '지출 동 확인 필요';
-                  // 외부로 등록한 101동도 실제 지출에 참여하므로 지정한 모든 부담 동을 개수에 포함합니다.
-                  const buildingCount = new Set(draft.allocations.filter((part) => part.label.trim()).map((part) => part.buildingId ?? `external:${part.label.trim()}`)).size;
-                  return buildingCount ? `${buildingCount}동` : '지출 동 확인 필요';
+                  const content = processingContent(row);
+
+                  return (
+                    <div
+                      className={styles['processing-content']}
+                    >
+                      <span>
+                        {content.title}
+                      </span>
+                      {content.detail && (
+                        <small>
+                          {content.detail}
+                        </small>
+                      )}
+                    </div>
+                  );
                 }
               }, {
                 key: 'status',

@@ -135,6 +135,19 @@
   line-height: 1.6;
 }
 
+.processing-content {
+  display: grid;
+  gap: 6px;
+  max-width: 240px;
+  margin-inline: auto;
+  overflow-wrap: anywhere;
+
+  small {
+    color: var(--sub-text);
+    line-height: 1.6;
+  }
+}
+
 .badge {
   display: inline-block;
   border-radius: 6px;

@@ -216,7 +216,7 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
   await expect(page.getByRole('table', {
     name: '업로드 거래 미리보기',
     exact: true
-  }).getByRole('columnheader')).toHaveText(['', '거래일시', '입금자', '입금', '세대', '처리']);
+  }).getByRole('columnheader')).toHaveText(['', '거래일시', '입금자', '입금', '처리 내용', '처리']);
   await page.getByLabel('입금자0 거래 선택', {
     exact: true
   }).uncheck();
@@ -246,21 +246,21 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
   await expect(previewTable.getByRole('columnheader', {
     name: /적요|매칭|배분/
   })).toHaveCount(0);
-  await expect(previewTable.getByRole('columnheader')).toHaveText(['', '거래일시', '지출명', '출금', '지출 동', '처리']);
+  await expect(previewTable.getByRole('columnheader')).toHaveText(['', '거래일시', '지출명', '출금', '처리 내용', '처리']);
   expect(await previewTable.locator('th, td').evaluateAll((cells) => cells.every((cell) => getComputedStyle(cell).textAlign === 'center'))).toBe(true);
   await expect(previewTable.getByRole('cell', {
     name: '182,660원',
     exact: true
   })).toHaveCSS('text-align', 'center');
   await expect(previewTable.getByRole('cell', {
-    name: '2동',
+    name: '지출 2동 부담',
     exact: true
   })).toBeVisible();
   await page.getByRole('button', {
     name: '전체 (12)',
     exact: true
   }).click();
-  await expect(previewTable.getByRole('columnheader')).toHaveText(['', '거래일시', '입금자', '지출명', '입금', '출금', '세대·지출 동', '처리']);
+  await expect(previewTable.getByRole('columnheader')).toHaveText(['', '거래일시', '입금자', '지출명', '입금', '출금', '처리 내용', '처리']);
   await expect(previewTable.getByRole('row').filter({
     hasText: '입금자1'
   }).first().getByRole('cell').nth(2)).toContainText('입금자1');
@@ -391,7 +391,7 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
     name: '통장 거래',
     exact: true
   }).getByRole('cell', {
-    name: '3동',
+    name: '지출 3동 부담',
     exact: true
   })).toBeVisible();
 
@@ -1820,6 +1820,10 @@ test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭�
     name: '설정 완료',
     exact: true
   }).click();
+  await expect(page.getByRole('table', {
+    name: '업로드 거래 미리보기',
+    exact: true
+  })).toContainText('2개 동 배분 예정');
   await page.getByRole('button', {
     name: '선택 거래 처리 (1)',
     exact: true
@@ -1827,5 +1831,70 @@ test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭�
   await expect(page).toHaveURL(`${BASE}/transactions`);
   expect(uploaded).toContain('"incomeAllocation"');
   expect(uploaded).toContain('"amount":"500"');
-  await expect(table).toContainText('102동 · 103동');
+  await expect(table).toContainText('기타 입금');
+  await expect(table).toContainText('2개 동 배분');
+  await expect(table).not.toContainText('102동 · 103동');
+
+  // 외부 입금 항목과 세대 연결을 구분하고 동 수가 늘어도 목록에는 개수만 표시합니다.
+  rows = [{
+    ...rows[0],
+    incomeAllocation: {
+      ...rows[0].incomeAllocation!,
+      category: '(예금이자 248 소득세 30 지방소득세 0)',
+      allocations: Array.from({
+        length: 8
+      }, (_, index) => ({
+        buildingId: id(102 + index),
+        label: `${102 + index}동`,
+        amount: '125',
+        percentage: null
+      }))
+    }
+  }, {
+    ...row(930, 'INCOME', '전시현', '93960'),
+    paymentId: id(931),
+    status: 'CONFIRMED',
+    receiptType: 'OTHER',
+    unitLabel: '전기료'
+  }, {
+    ...row(940, 'INCOME', '103동202호', '50000'),
+    paymentId: id(941),
+    status: 'CONFIRMED',
+    receiptType: 'HOUSEHOLD',
+    unitId: id(942),
+    unitLabel: '103동 202호'
+  }];
+  await page.reload();
+  await expect(table.getByRole('columnheader', {
+    name: '처리 내용',
+    exact: true
+  })).toBeVisible();
+  await expect(table.getByRole('row').filter({
+    hasText: '전시현'
+  }).getByRole('cell', {
+    name: '기타 입금',
+    exact: true
+  })).toBeVisible();
+  await expect(table.getByRole('row').filter({
+    hasText: '103동202호'
+  })).toContainText('세대 수납');
+  await expect(table.getByRole('row').filter({
+    hasText: '예금이자'
+  })).toContainText('8개 동 배분');
+  await expect(table).not.toContainText('109동');
+  await expect(table).not.toContainText('회수 완료');
+  await expect(table).not.toContainText('기타 입금 ·');
+  await expect(table).not.toContainText('소득세');
+  for (const width of [320, 390, 1440]) {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  }
+  await page.screenshot({
+    path: test.info().outputPath('transactionProcessingContent.png'),
+    fullPage: true,
+    animations: 'disabled'
+  });
 });
