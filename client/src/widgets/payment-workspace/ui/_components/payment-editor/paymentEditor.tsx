@@ -312,8 +312,8 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false }: {
               key={candidate.id}
             >
               <strong>
-                {candidate.unitId}
-                호 ·
+                {ledger.units.find((unit) => unit.id === candidate.unitId)?.label ?? '세대 확인 필요'}
+                {' · '}
                 {' '}
                 {candidate.payer}
                 {' '}

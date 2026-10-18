@@ -24,6 +24,16 @@ public final class BankingRequests {
             this(id,unitId,incomeCategory,incomeNote,expense,null);
         }
     }
-    public record DeleteMany(@NotEmpty @Size(max=5000) List<@NotNull UUID> transactionIds) {}
+    public record DeleteMany(@Size(max=5000) List<@NotNull UUID> transactionIds,@Size(max=1000) List<@NotNull UUID> paymentIds) {
+        public DeleteMany {
+            transactionIds=transactionIds==null?List.of():transactionIds;
+            paymentIds=paymentIds==null?List.of():paymentIds;
+        }
+        public DeleteMany(List<UUID> transactionIds) { this(transactionIds,List.of()); }
+        @AssertTrue(message="INVALID_SELECTION") @com.fasterxml.jackson.annotation.JsonIgnore
+        public boolean isSelectionValid() {
+            return !transactionIds.isEmpty()||!paymentIds.isEmpty();
+        }
+    }
     public record Import(@NotEmpty @Size(max=5000) List<@NotNull @Valid Selection> rows) {}
 }

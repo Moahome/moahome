@@ -55,6 +55,11 @@ function getMobileBack(pathname: string, basePath: string, month: string | null)
     label: '동별 잔고·정산으로 돌아가기',
     title: pathname.startsWith(`${basePath}/banking/balances/details/`) ? '동별 잔고·정산' : '동별 상세 원장'
   };
+  if (pathname === `${basePath}/banking/manual`) return {
+    href: `${basePath}/banking/transactions`,
+    label: '통장 거래로 돌아가기',
+    title: '수동 입금 등록'
+  };
   if (pathname === `${basePath}/banking/upload`) return {
     href: `${basePath}/banking/transactions`,
     label: '통장 거래로 돌아가기',
@@ -66,7 +71,7 @@ function getMobileBack(pathname: string, basePath: string, month: string | null)
     title: '수납 상세'
   };
   if (pathname.startsWith(`${basePath}/banking/receipts/`) || pathname.startsWith(`${basePath}/banking/transactions/`)) return {
-    href: `${basePath}/banking/transactions`,
+    href: `${basePath}/banking/transactions${/^\d{4}-(0[1-9]|1[0-2])$/.test(month ?? '') ? `?month=${month}` : ''}`,
     label: '통장 거래로 돌아가기',
     title: '거래 상세'
   };

@@ -71,11 +71,11 @@ Excel은 확장자와 실제 XLS(OLE2)·XLSX(OOXML) 형식의 일치를 확인�
 
 ### 입금 삭제
 
-`POST /delete`는 `paymentIds`에 1~1,000개의 UUID를 받습니다. 모든 대상의 관리대상 소속·상태를 먼저 검증하고 PENDING·ON_HOLD만 한 트랜잭션으로 삭제합니다. 다른 대상·확정·취소 이력을 섞으면 전체 실패합니다. 같은 ID 반복과 이미 삭제한 ID 재요청은 멱등 처리합니다. 단일 삭제 API도 같은 기준입니다.
+`POST /delete`는 `paymentIds`에 1~1,000개의 UUID를 받습니다. 모든 대상의 관리대상 소속·상태를 먼저 검증하고 PENDING·ON_HOLD와 은행 미연결 MANUAL의 CANCELED를 한 트랜잭션으로 소프트 삭제합니다. 2026-10-18 사용자 요청으로 취소된 미연결 수동 입금의 목록 삭제를 허용하며 취소 상태·사유·충당·이벤트는 보존합니다. 다른 관리대상·확정 수납·은행 연결 취소 이력을 이 API에 섞으면 전체 실패합니다. 같은 ID 반복과 이미 삭제한 ID 재요청은 멱등 처리합니다. 단일 삭제 API도 같은 기준입니다.
 
 삭제는 수납과 은행 원본에 삭제자·시각을 남기고 활성 중복 키를 해제합니다. 같은 엑셀 행을 다시 가져오면 새 은행 원본과 새 수납 초안을 저장할 수 있습니다. 재등록한 활성 거래는 기존 날짜·입금자·금액 규칙으로 중복 방지합니다. 실패하면 삭제 표시와 키 해제를 함께 롤백합니다. 이전 구현에서 삭제 수납만 숨겨진 원본도 후속 Migration으로 보정합니다.
 
-확정 납부는 삭제할 수 없으며 `PAYMENT_DELETE_NOT_ALLOWED`입니다. `POST /{paymentId}/cancel`은 확정 수납·충당을 합계에서 제외하고 은행 원본을 PENDING 검토 초안으로 돌립니다. 원본 키와 취소 이력을 보존합니다. 취소로 만든 검토 초안은 일치 입금 일괄 확정에서 제외합니다.
+이 수납 직접 삭제 API는 확정 납부와 은행에 연결된 취소 수납을 거부하며 `PAYMENT_DELETE_NOT_ALLOWED`입니다. 통장 거래의 선택 삭제는 별도 [혼합 선택 삭제 계약](bankingManagement.md#통장-거래수동-수납-혼합-선택-삭제-2026-10-18)을 통해 확정된 미연결 수동 입금도 수납·충당 취소와 함께 소프트 삭제합니다. `POST /{paymentId}/cancel`은 확정 수납·충당을 합계에서 제외하고 은행 원본을 PENDING 검토 초안으로 돌립니다. 원본 키와 취소 이력을 보존합니다. 취소로 만든 검토 초안은 일치 입금 일괄 확정에서 제외합니다.
 
 ## 오류
 
@@ -86,7 +86,7 @@ Excel은 확장자와 실제 XLS(OLE2)·XLSX(OOXML) 형식의 일치를 확인�
 | 403 | ACCESS_DENIED | 현재 관리소장 권한 없음 |
 | 404 | PAYMENT_NOT_FOUND | 해당 대상의 입금 없음 |
 | 409 | PAYMENT_ACCOUNT_UNAVAILABLE / PAYMENT_UNIT_UNAVAILABLE / PAYMENT_REPRESENTATIVE_REQUIRED | 실제 계좌·세대·대표 확인 필요 |
-| 409 | PAYMENT_DELETE_NOT_ALLOWED | 확정·취소 이력은 삭제 대신 납부 취소를 사용 |
+| 409 | PAYMENT_DELETE_NOT_ALLOWED | 확정 수납은 먼저 취소하며 은행 연결 취소 이력은 보호 |
 | 409 | PAYMENT_ALLOCATION_INVALID | 최신 잔액·청구 상태·배분 한도 오류 |
 | 409 | PAYMENT_DUPLICATE_REVIEW_REQUIRED | 기존 수동 수납 연결·별도 사유 확인 필요 |
 | 409 | PAYMENT_REQUEST_CONFLICT / PAYMENT_STATE_CONFLICT / PAYMENT_LINK_CONFLICT / PAYMENT_CONFLICT | 처리 상태·재시도·동시 변경 충돌 |

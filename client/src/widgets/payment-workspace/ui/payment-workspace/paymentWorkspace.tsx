@@ -37,7 +37,7 @@ import {
 import { usePaymentWorkspace } from '../payment-workspace-provider/paymentWorkspaceProvider';
 import { PaymentDetail } from '../_components/payment-detail/paymentDetail';
 import { PaymentBadge } from '../_components/payment-badge/paymentBadge';
-import { ManualPayment } from '../_components/manual-payment/manualPayment';
+import { ManualPayment } from '../manual-payment/manualPayment';
 import { getPaymentStatusLabel } from '../_components/payment-editor/paymentEditor';
 import {
   MonthlyCollection,

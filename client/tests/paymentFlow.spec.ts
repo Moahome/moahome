@@ -2706,3 +2706,365 @@ test('통장 입금과 월별 수납은 PC에서 목록을 유지한 모달로 �
     exact: true
   })).toBeVisible();
 });
+
+for (const width of [1440, 390, 320]) {
+  test(`통장 수동 입금 복구 ${width}px는 등록·확정·새로고침과 수동 출처를 유지`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const transactions = `/manage/${PROPERTY_ID}/banking/transactions`;
+    await page.route(`**/api/properties/${PROPERTY_ID}/banking/workspace`, (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true'
+      },
+      body: JSON.stringify({
+        propertyId: PROPERTY_ID,
+        asOf: '2026-10-15',
+        buildings: [],
+        units: [],
+        rows: [],
+        rules: []
+      })
+    }));
+    const requests: { id: string; unitId: string; date: string; amount: string }[] = [];
+    await page.route(`**/api/properties/${PROPERTY_ID}/payments/manual`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      requests.push(route.request().postDataJSON());
+      if (width === 1440 && requests.length === 1) return route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        headers: {
+          'Access-Control-Allow-Origin': 'http://localhost:3100',
+          'Access-Control-Allow-Credentials': 'true'
+        },
+        body: JSON.stringify({
+          code: 'SERVICE_UNAVAILABLE'
+        })
+      });
+      await route.fallback();
+    });
+    await page.goto(`${transactions}?month=2026-09`);
+    await page.getByRole('button', {
+      name: '수동 입금 등록',
+      exact: true
+    }).click();
+    if (width < 768) {
+      await expect(page).toHaveURL(`/manage/${PROPERTY_ID}/banking/manual`);
+      await page.reload();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page.getByRole('link', {
+        name: '통장 거래로 돌아가기',
+        exact: true
+      })).toBeVisible();
+      await expect(page.getByRole('button', {
+        name: /^(취소|닫기|목록|목록으로)$/
+      })).toHaveCount(0);
+    }
+    const form = width < 768 ? page.getByRole('region', {
+      name: '수동 입금 등록',
+      exact: true
+    }) : page.getByRole('dialog', {
+      name: '수동 입금 등록',
+      exact: true
+    });
+    await form.getByRole('combobox', {
+      name: '세대',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '101호',
+      exact: true
+    }).click();
+    await expect(form.getByRole('textbox', {
+      name: '입금자명',
+      exact: true
+    })).toHaveValue('김모아');
+    await form.getByRole('textbox', {
+      name: '입금액',
+      exact: true
+    }).fill('42001');
+    await form.getByRole('button', {
+      name: '수납 확인하기',
+      exact: true
+    }).click();
+    if (width === 1440) {
+      await expect(form.getByRole('button', {
+        name: '수납 확인하기',
+        exact: true
+      })).toBeEnabled();
+      await expect(form.getByRole('textbox', {
+        name: '입금액',
+        exact: true
+      })).toHaveValue('42,001');
+      await form.getByRole('button', {
+        name: '수납 확인하기',
+        exact: true
+      }).click();
+      expect(requests[1]).toEqual(requests[0]);
+    }
+    await expect(page.getByRole('heading', {
+      name: '입금 처리 상세',
+      exact: true
+    })).toBeVisible();
+    if (width < 768) await page.getByRole('link', {
+      name: '통장 거래로 돌아가기',
+      exact: true
+    }).click();
+    else await page.getByRole('button', {
+      name: '입금 상세 닫기',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(`${transactions}?month=2026-10`);
+    await page.reload();
+    const table = page.getByRole('table', {
+      name: '통장 거래',
+      exact: true
+    });
+    const manual = table.getByRole('row').filter({
+      hasText: '42,001원'
+    });
+    await expect(manual).toHaveCount(1);
+    await expect(manual).toContainText('수동 입금');
+    await manual.click();
+    await page.getByRole('button', {
+      name: '수납 확정',
+      exact: true
+    }).click();
+    await page.getByRole('dialog', {
+      name: '이 내용으로 반영할까요?',
+      exact: true
+    }).getByRole('button', {
+      name: '확인',
+      exact: true
+    }).click();
+    await expect(page.getByRole('button', {
+      name: '납부 취소',
+      exact: true
+    })).toBeVisible();
+    if (width < 768) await page.getByRole('link', {
+      name: '통장 거래로 돌아가기',
+      exact: true
+    }).click();
+    else await page.getByRole('button', {
+      name: '입금 상세 닫기',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(`${transactions}?month=2026-10`);
+    await page.reload();
+    await expect(manual).toContainText('처리 완료');
+    await expect(manual).toContainText('수동 입금');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`bankingManual${width}.png`),
+      fullPage: true
+    });
+  });
+}
+
+for (const width of [1440, 390]) {
+  test(`통장 취소 내역 ${width}px는 취소 상태와 수동 초안·확정·취소 삭제를 지원`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    let ledger = {
+      ...storedLedger(),
+      payments: [] as PreviewPayment[],
+      history: [] as PreviewLedger['history']
+    };
+    const input = (key: string, amount: string) => ({
+      id: id(key),
+      accountId: ledger.accounts[0].id,
+      unitId: id('101'),
+      date: '2026-10-15',
+      payer: '김모아',
+      amount
+    });
+    ledger = addPreviewManual(ledger, input('cancel-delete', '5001'));
+    ledger = confirmCumulativePreviewPayment(ledger, id('cancel-delete'), {
+      unitId: id('101')
+    });
+    ledger = cancelPreviewPayment(ledger, id('cancel-delete'), '오입력 정정');
+    ledger = addPreviewManual(ledger, input('pending-delete', '5002'));
+    ledger = addPreviewManual(ledger, input('confirmed-delete', '5003'));
+    ledger = confirmCumulativePreviewPayment(ledger, id('confirmed-delete'), {
+      unitId: id('101')
+    });
+    const selections: unknown[] = [];
+    let fail = true;
+    const headers = {
+      'Access-Control-Allow-Origin': 'http://localhost:3100',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+    };
+    const banking = () => ({
+      propertyId: PROPERTY_ID,
+      asOf: '2026-10-15',
+      buildings: [],
+      units: [],
+      rows: [],
+      rules: []
+    });
+    await page.route(`**/api/properties/${PROPERTY_ID}/payments/workspace`, (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers,
+      body: JSON.stringify({
+        ...ledger,
+        propertyId: PROPERTY_ID
+      })
+    }));
+    await page.route(`**/api/properties/${PROPERTY_ID}/banking/workspace`, (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers,
+      body: JSON.stringify(banking())
+    }));
+    await page.route(`**/api/properties/${PROPERTY_ID}/banking/transactions/delete`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fulfill({
+        status: 200,
+        headers,
+        body: '{}'
+      });
+      const selected = route.request().postDataJSON(); selections.push(selected);
+      if (fail) { fail = false; return route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        headers,
+        body: JSON.stringify({
+          code: 'SERVICE_UNAVAILABLE'
+        })
+      }); }
+      ledger = {
+        ...ledger,
+        payments: ledger.payments.filter((payment) => !selected.paymentIds.includes(payment.id))
+      };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers,
+        body: JSON.stringify(banking())
+      });
+    });
+    await page.goto(`/manage/${PROPERTY_ID}/banking/transactions`);
+    const manualButton = page.getByRole('button', {
+      name: '수동 입금 등록',
+      exact: true
+    });
+    const excelButton = page.getByRole('button', {
+      name: '엑셀 업로드',
+      exact: true
+    });
+    const first = (await manualButton.boundingBox())!;
+    const second = (await excelButton.boundingBox())!;
+    expect(width > 767 ? second.x - first.x - first.width : second.y - first.y - first.height).toBeGreaterThanOrEqual(11);
+    const table = page.getByRole('table', {
+      name: '통장 거래',
+      exact: true
+    });
+    await expect(table).not.toContainText('5,001원');
+    await expect(table).toContainText('5,002원');
+    const tabs = page.getByRole('group', {
+      name: '입출금 필터',
+      exact: true
+    });
+    await tabs.getByRole('button', {
+      name: /^취소 내역/
+    }).click();
+    const canceled = table.getByRole('row').filter({
+      hasText: '5,001원'
+    });
+    await expect(canceled).toContainText('취소된 수납');
+    await expect(canceled).not.toContainText('확인 필요');
+    await canceled.click();
+    await expect(page.getByText(/취소 사유:.*오입력 정정/)).toBeVisible();
+    if (width < 768) await page.getByRole('link', {
+      name: '통장 거래로 돌아가기',
+      exact: true
+    }).click();
+    else await page.getByRole('button', {
+      name: '입금 상세 닫기',
+      exact: true
+    }).click();
+    if (width < 768) await tabs.getByRole('button', {
+      name: /^취소 내역/
+    }).click();
+    await page.getByRole('button', {
+      name: '편집',
+      exact: true
+    }).click();
+    await page.getByRole('checkbox', {
+      name: '김모아 거래 선택',
+      exact: true
+    }).check();
+    await page.getByRole('button', {
+      name: '선택 삭제',
+      exact: true
+    }).click();
+    const confirmation = page.getByRole('dialog', {
+      name: '거래를 삭제할까요?',
+      exact: true
+    });
+    await expect(confirmation.getByRole('list', {
+      name: '삭제할 거래'
+    })).toContainText('김모아 · 입금 5,001원');
+    await page.screenshot({
+      path: test.info().outputPath(`bankingDelete${width}.png`),
+      fullPage: true
+    });
+    await confirmation.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(confirmation.getByRole('alert')).toBeVisible();
+    await confirmation.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(confirmation).toHaveCount(0);
+    expect(selections).toEqual([{
+      transactionIds: [],
+      paymentIds: [id('cancel-delete')]
+    }, {
+      transactionIds: [],
+      paymentIds: [id('cancel-delete')]
+    }]);
+    await expect(table).not.toContainText('5,001원');
+    await tabs.getByRole('button', {
+      name: /^전체/
+    }).click();
+    await expect(table).toContainText('5,002원');
+    const confirmed = table.getByRole('row').filter({
+      hasText: '5,003원'
+    });
+    await expect(confirmed).toContainText('처리 완료');
+    await page.getByRole('button', {
+      name: '편집',
+      exact: true
+    }).click();
+    await expect(confirmed.getByRole('checkbox')).toBeEnabled();
+    await page.getByRole('checkbox', {
+      name: '현재 페이지 거래 전체 선택',
+      exact: true
+    }).check();
+    await page.getByRole('button', {
+      name: '선택 삭제',
+      exact: true
+    }).click();
+    await confirmation.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(confirmation).toHaveCount(0);
+    await page.reload();
+    await expect(table).not.toContainText('5,001원');
+    await expect(table).not.toContainText('5,002원');
+    await expect(table).not.toContainText('5,003원');
+    expect((selections.at(-1) as { paymentIds: string[] }).paymentIds).toEqual(expect.arrayContaining([id('pending-delete'), id('confirmed-delete')]));
+  });
+}

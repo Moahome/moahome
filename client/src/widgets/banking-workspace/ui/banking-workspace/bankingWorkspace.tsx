@@ -62,10 +62,12 @@ import styles from './bankingWorkspace.module.css';
 type ReceiptDraft = { kind: 'AUTO' | 'HOUSEHOLD' | 'OTHER' | 'SHARED'; unitId: string; category: string; note: string };
 
 /** 필터·페이지를 바꿔도 파일 전체의 선택·분류 초안을 유지하고 실제 저장은 서버 원본 재검증으로 처리합니다. */
-export function BankingWorkspace({ propertyId, view = 'transactions', renderReceiptDetail }: {
+export function BankingWorkspace({ propertyId, view = 'transactions', renderReceiptDetail, receiptRows = [], renderManualRegistration }: {
+  receiptRows?: (BankingTransaction & { source: 'MANUAL' | 'BANK_IMPORT'; deletable: boolean })[];
+  renderManualRegistration?: (onClose: () => void, onCreated: (id: string, date: string) => void) => ReactNode;
   propertyId: string;
   view?: 'transactions' | 'expenses' | 'upload';
-  renderReceiptDetail?: (paymentId: string, onClose: () => void) => ReactNode;
+  renderReceiptDetail?: (paymentId: string, onClose: () => void, onProcessed: (id: string, status: string) => void) => ReactNode;
 }) {
   const session = useSession();
   const cache = useQueryClient();
@@ -99,6 +101,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const [selection, setSelection] = useState<{ scope: string; ids: string[] } | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [manualOpen, setManualOpen] = useState(false);
   const [detail, setDetail] = useState<{ id: string; kind: 'receipt' | 'expense' } | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -168,24 +171,46 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   );
   const currentMonth = month ?? data.asOf.slice(0, 7);
   const buildings = sortExpenseLabels(data.buildings);
-  const source = preview?.rows ?? (view === 'upload' ? [] : data.rows);
+  const receiptById = new Map(receiptRows.map((row) => [row.id, row]));
+  const manualIds = new Set(receiptRows.filter((row) => row.source === 'MANUAL').map((row) => row.id));
+  const receiptIds = new Set(receiptById.keys());
+  /** 은행 원본과 미연결 수동 수납을 선택 삭제하며 확정 수납의 취소는 서버에서 함께 처리합니다. */
+  function canDelete(row: BankingTransaction) {
+    return receiptById.get(row.id)?.deletable ?? !receiptIds.has(row.id);
+  }
+  // 수동 수납은 은행 원본을 만들지 않으며 연결 전 항목만 함께 표시합니다. 연결되면 은행 행 하나로 남습니다.
+  const source = preview?.rows ?? (view === 'upload' ? [] : [...data.rows, ...(view === 'transactions' ? receiptRows : [])]
+    .sort((a, b) => `${b.date} ${b.time ?? ''}`.localeCompare(`${a.date} ${a.time ?? ''}`)));
   const baseRows = source.filter((row) => (preview || row.date.startsWith(currentMonth))
     && (view !== 'expenses' || row.expense?.allocations.some((part) => data.buildings.some((item) => item.id === part.buildingId)))
     && (status === 'ALL' || row.status === status)
     && (view !== 'expenses' || building === 'ALL' || row.expense?.allocations.some((a) => a.buildingId === building))
     && `${row.payer} ${row.memo ?? ''} ${row.unitLabel} ${row.expense?.category ?? ''} ${row.expense?.note ?? ''}`.includes(search.trim()));
-  const filtered = baseRows.filter((row) => direction === 'ALL' || row.direction === direction);
+  const activeRows = baseRows.filter((row) => row.status !== 'CANCELED');
+  const filtered = direction === 'CANCELED' ? baseRows.filter((row) => row.status === 'CANCELED') : activeRows.filter((row) => direction === 'ALL' || row.direction === direction);
   const currentPage = Math.min(page, Math.max(1, Math.ceil(filtered.length / pageSize)));
   const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const selectionScope = JSON.stringify([propertyId, currentMonth, direction, status, search, pageSize, currentPage]);
   const isSelecting = view === 'transactions' && !preview && selection?.scope === selectionScope;
-  const deletingRows = isSelecting ? visible.filter((row) => selection.ids.includes(row.id)) : [];
+  const selectableRows = visible.filter(canDelete);
+  const deletingRows = isSelecting ? selectableRows.filter((row) => selection.ids.includes(row.id)) : [];
   function toggleDeletion(id: string) {
-    if (busyRef.current) return;
+    if (busyRef.current || !visible.some((row) => row.id === id && canDelete(row))) return;
     setSelection({
       scope: selectionScope,
       ids: deletingRows.some((row) => row.id === id)
         ? deletingRows.filter((row) => row.id !== id).map((row) => row.id) : [...deletingRows.map((row) => row.id), id]
+    });
+  }
+  /** 조회 월을 주소에도 보존해 수동 등록 뒤 새로고침이 이전 월로 되돌아가지 않게 합니다. */
+  function changeMonth(value: string) {
+    setSelection(null); setMonth(value); setPage(1);
+    if(view !== 'transactions') return;
+    const query = new URLSearchParams(searchParams.toString());
+    query.set('month', value);
+    query.delete('imported');
+    router.replace(`/manage/${propertyId}/banking/transactions?${query}`, {
+      scroll: false
     });
   }
   /** 선택 전체가 저장된 뒤 목록·수납·잔고를 갱신하며 실패 시 선택과 확인창을 유지합니다. */
@@ -196,13 +221,11 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
       await cache.cancelQueries({
         queryKey
       });
-      const saved = await deleteBankingTransactions(propertyId, deletingRows.map((row) => row.id));
+      const saved = await deleteBankingTransactions(propertyId, deletingRows.filter((row) => !receiptIds.has(row.id)).map((row) => row.id), deletingRows.filter((row) => receiptIds.has(row.id)).map((row) => row.paymentId!));
       cache.setQueryData(queryKey, saved);
-      for (const key of ['payment-workspace', 'banking-balances', 'billing']) {
-        void cache.invalidateQueries({
-          queryKey: [key, session.data?.id, propertyId]
-        });
-      }
+      await Promise.all(['payment-workspace', 'banking-balances', 'billing'].map((key) => cache.invalidateQueries({
+        queryKey: [key, session.data?.id, propertyId]
+      })));
       setDeleteOpen(false); setSelection(null); setPage(1);
       notify('선택한 거래를 삭제했어요.', 'success');
     } catch (error) { setDeleteError(bankingError(error)); }
@@ -210,13 +233,13 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   }
   const selected = preview?.rows.filter((row) => !excluded.includes(row.id)) ?? [];
   const selectedIncome = selected.filter((row) => row.direction === 'INCOME').length;
-  const income = baseRows.filter((row) => row.direction === 'INCOME').reduce((sum, row) => sum + BigInt(row.amount), BigInt(0));
+  const income = baseRows.filter((row) => row.direction === 'INCOME' && !receiptIds.has(row.id)).reduce((sum, row) => sum + BigInt(row.amount), BigInt(0));
   const expense = baseRows.filter((row) => row.direction === 'EXPENSE').reduce((sum, row) => sum + BigInt(row.amount), BigInt(0));
   const expenseBuildings = buildings.filter((item) => building === 'ALL' || item.id === building);
   const expenseBuildingIds = expenseBuildings.map((item) => item.id);
   const buildingExpense = baseRows.reduce((sum, row) => sum + getExpenseAmount(row, expenseBuildingIds), BigInt(0));
   const showIncome = view !== 'expenses' && direction !== 'EXPENSE';
-  const showExpense = view !== 'expenses' && direction !== 'INCOME';
+  const showExpense = view !== 'expenses' && direction !== 'INCOME' && direction !== 'CANCELED';
   const searchPlaceholder = [showIncome && '입금자', (showExpense || view === 'expenses') && '지출명', showIncome && '세대'].filter(Boolean).join('·') + ' 검색';
 
   /** 현재 월·동·검색에 맞는 전체 결과를 다운로드하며 페이지·표시 개수로 파일 범위를 줄이지 않습니다. */
@@ -252,6 +275,10 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     title: string;
     detail?: string;
   } {
+    if (row.status === 'CANCELED') return {
+      title: '취소된 수납',
+      detail: row.unitLabel
+    };
     if (row.direction === 'EXPENSE') {
       const draft = preview ? expenseDraft(row) : row.expense;
       // 기존 기준대로 외부로 지정한 동도 부담 동 개수에 포함합니다.
@@ -513,6 +540,25 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               엑셀 다운로드
             </Button>
           )}
+          {view === 'transactions' && renderManualRegistration && (
+            <Button
+              disabled={busy}
+              onClick={() => {
+                if (window.matchMedia('(max-width: 767px)').matches) {
+                  router.push(`/manage/${propertyId}/banking/manual`);
+                  return;
+                }
+                setManualOpen(true);
+              }}
+              leadingIcon={(
+                <ServiceIcon
+                  name={'plus'}
+                />
+              )}
+            >
+              수동 입금 등록
+            </Button>
+          )}
           {view === 'transactions' && (
             <Button
               variant={'outline'}
@@ -596,7 +642,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
             <SummaryCard
               density={'compact'}
               label={`${preview ? '파일' : currentMonth} 입금`}
-              description={preview ? '업로드 파일 기준' : `${currentMonth} 기준`}
+              description={preview ? '업로드 파일 기준' : `${currentMonth} 은행 거래 기준`}
               value={formatInteger(income)}
               unit={'원'}
               tone={'success'}
@@ -659,21 +705,25 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
             <FilterTabs
               label={'입출금 필터'}
               value={direction}
-              onChange={(value) => { setSelection(null); setDirection(value); setPage(1); }}
+              onChange={(value) => { setSelection(null); setDirection(value); setStatus('ALL'); setPage(1); }}
               items={[
                 {
                   value: 'ALL',
                   label: '전체',
-                  count: baseRows.length
+                  count: activeRows.length
                 }, {
                   value: 'INCOME',
                   label: '입금',
-                  count: baseRows.filter((r) => r.direction === 'INCOME').length
+                  count: activeRows.filter((r) => r.direction === 'INCOME').length
                 }, {
                   value: 'EXPENSE',
                   label: '출금',
-                  count: baseRows.filter((r) => r.direction === 'EXPENSE').length
-                }
+                  count: activeRows.filter((r) => r.direction === 'EXPENSE').length
+                }, ...(view === 'transactions' && !preview ? [{
+                  value: 'CANCELED',
+                  label: '취소 내역',
+                  count: baseRows.filter((row) => row.status === 'CANCELED').length
+                }] : [])
               ]}
             />
           )}
@@ -684,7 +734,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
             {!preview && (
               <MonthPicker
                 value={currentMonth}
-                onChange={(value) => { setSelection(null); setMonth(value); setPage(1); }}
+                onChange={changeMonth}
                 label={'조회 월'}
               />
             )}
@@ -697,6 +747,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
             {view === 'transactions' && !preview && (
               <Dropdown
                 aria-label={'처리 상태'}
+                disabled={direction === 'CANCELED'}
                 value={status}
                 onChange={(value) => { setSelection(null); setStatus(value); setPage(1); }}
                 options={[{
@@ -772,7 +823,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                   variant={'text'}
                   size={'sm'}
                   aria-pressed={isSelecting}
-                  disabled={busy || (!filtered.length && !isSelecting)}
+                  disabled={busy || (!filtered.some(canDelete) && !isSelecting)}
                   onClick={() => setSelection(isSelecting ? null : {
                     scope: selectionScope,
                     ids: []
@@ -794,7 +845,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               if (isSelecting) { toggleDeletion(row.id); return; }
               if (preview) { setEditingId((current) => current === row.id ? null : row.id); return; }
               if (window.matchMedia('(max-width: 767px)').matches) {
-                router.push(row.paymentId ? `/manage/${propertyId}/banking/receipts/${row.paymentId}` : `/manage/${propertyId}/banking/transactions/${row.id}`);
+                router.push(`${row.paymentId ? `/manage/${propertyId}/banking/receipts/${row.paymentId}` : `/manage/${propertyId}/banking/transactions/${row.id}`}?month=${currentMonth}`);
                 return;
               }
               setDetail({
@@ -810,11 +861,11 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                   <input
                     type={'checkbox'}
                     aria-label={'현재 페이지 거래 전체 선택'}
-                    disabled={busy || !visible.length}
-                    checked={Boolean(visible.length) && deletingRows.length === visible.length}
+                    disabled={busy || !selectableRows.length}
+                    checked={Boolean(selectableRows.length) && deletingRows.length === selectableRows.length}
                     onChange={(event) => setSelection({
                       scope: selectionScope,
-                      ids: event.target.checked ? visible.map((row) => row.id) : []
+                      ids: event.target.checked ? selectableRows.map((row) => row.id) : []
                     })}
                   />
                 ),
@@ -822,7 +873,8 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                   <input
                     type={'checkbox'}
                     aria-label={`${row.payer} 거래 선택`}
-                    disabled={busy}
+                    disabled={busy || !canDelete(row)}
+                    title={!canDelete(row) ? '확정 수납은 먼저 취소해주세요. 은행 취소 이력은 원본에서 관리합니다.' : undefined}
                     checked={deletingRows.some((item) => item.id === row.id)}
                     onChange={() => toggleDeletion(row.id)}
                   />
@@ -848,6 +900,11 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                     onChange={() => setExcluded((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id])}
                   />
                 )
+              }] : []),
+              ...(view === 'transactions' && !preview ? [{
+                key: 'source',
+                header: '등록 방식',
+                render: (row: BankingTransaction) => manualIds.has(row.id) ? '수동 입금' : '엑셀'
               }] : []),
               {
                 key: 'date',
@@ -921,7 +978,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                     className={styles.badge}
                     data-state={row.status}
                   >
-                    {preview ? '미리보기' : row.status === 'CONFIRMED' ? '처리 완료' : row.status === 'ON_HOLD' ? '보류' : row.status === 'LINKED' ? '기존 수납 연결' : '확인 필요'}
+                    {preview ? '미리보기' : row.status === 'CONFIRMED' ? '처리 완료' : row.status === 'ON_HOLD' ? '보류' : row.status === 'CANCELED' ? '취소' : row.status === 'LINKED' ? '기존 수납 연결' : '확인 필요'}
                   </span>
                 )
               }])
@@ -1022,7 +1079,28 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
           onClose={() => setDetail(null)}
         />
       )}
-      {detail?.kind === 'receipt' && renderReceiptDetail?.(detail.id, () => setDetail(null))}
+      {detail?.kind === 'receipt' && renderReceiptDetail?.(detail.id, () => setDetail(null), (id, nextStatus) => {
+        setDetail({
+          id,
+          kind: 'receipt'
+        });
+        setStatus(['PENDING', 'CONFIRMED', 'ON_HOLD'].includes(nextStatus) ? nextStatus : 'ALL');
+        setSelection(null);
+        setPage(1);
+      })}
+      {manualOpen && renderManualRegistration?.(() => setManualOpen(false), (id, date) => {
+        setManualOpen(false);
+        setSelection(null);
+        changeMonth(date.slice(0, 7));
+        setDirection('INCOME');
+        setStatus('ALL');
+        setSearch('');
+        setPage(1);
+        setDetail({
+          id,
+          kind: 'receipt'
+        });
+      })}
       {preview && (
         <div
           className={styles.actions}
@@ -1043,21 +1121,23 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
       )}
       {deleteOpen && (
         <ClientModal
-          className={styles['editor-modal']}
+          className={`${styles['editor-modal']} ${styles['delete-modal']}`}
           aria-labelledby={'banking-delete-title'}
+          aria-describedby={'banking-delete-description'}
           busy={busy}
           onClose={() => setDeleteOpen(false)}
         >
           <header
-            className={styles['editor-header']}
+            className={styles['delete-header']}
           >
             <h2
               id={'banking-delete-title'}
             >
-              선택한 거래를 삭제할까요?
+              거래를 삭제할까요?
             </h2>
             <Button
               variant={'ghost'}
+              tone={'neutral'}
               size={'sm'}
               iconOnly
               aria-label={'선택 삭제 확인 닫기'}
@@ -1073,31 +1153,29 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
           <div
             className={styles['delete-body']}
           >
-            <p>
-              {`선택한 거래 ${deletingRows.length}건을 삭제합니다. 같은 엑셀 파일로 다시 가져올 수 있습니다.`}
-            </p>
-            <p>
-              연결된 수납과 청구 충당은 취소하고 동별 입출금·잔고에서 제외합니다. 기존 거래·배분·정산 연결은 이력으로 보관합니다.
-            </p>
-            <ul>
+            <ul
+              className={styles['delete-transactions']}
+              aria-label={'삭제할 거래'}
+            >
               {deletingRows.map((row) => (
                 <li
                   key={row.id}
                 >
-                  {row.date}
-                  {' '}
-                  ·
-                  {' '}
-                  {row.payer}
-                  {' '}
-                  ·
-                  {' '}
-                  {row.direction === 'INCOME' ? '입금' : '출금'}
-                  {' '}
-                  {formatWon(row.amount)}
+                  <strong>
+                    {`${row.payer || '거래'} · ${row.direction === 'INCOME' ? '입금' : '출금'} ${formatWon(row.amount)}`}
+                  </strong>
+                  <span>
+                    {`${row.date.replaceAll('-', '. ')}${row.time ? `  ${row.time.slice(0, 8)}` : ''}`}
+                  </span>
                 </li>
               ))}
             </ul>
+            <p
+              id={'banking-delete-description'}
+              className={styles['delete-description']}
+            >
+              연결된 수납은 취소되며, 처리 이력은 보관됩니다.
+            </p>
             {deleteError && (
               <p
                 role={'alert'}
@@ -1107,7 +1185,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
             )}
           </div>
           <footer
-            className={styles['editor-actions']}
+            className={styles['delete-actions']}
           >
             <Button
               variant={'outline'}
@@ -1118,7 +1196,6 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               취소
             </Button>
             <Button
-              variant={'outline'}
               tone={'danger'}
               loading={busy}
               onClick={() => { void removeSelected(); }}

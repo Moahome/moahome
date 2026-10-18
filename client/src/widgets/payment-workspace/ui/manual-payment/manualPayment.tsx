@@ -14,15 +14,16 @@ import {
   SelectDropdown,
   Input
 } from '@/shared/ui/form-controls';
-import { usePaymentWorkspace } from '../../payment-workspace-provider/paymentWorkspaceProvider';
+import { usePaymentWorkspace } from '../payment-workspace-provider/paymentWorkspaceProvider';
 import {
   getPreviewSelectableUnits,
   getPreviewUnitSearchOptions
-} from '../../../model/paymentPreview';
+} from '../../model/paymentPreview';
 import styles from './manualPayment.module.css';
 
 /** 수동 입력은 현재 명단의 세대로 초안을 만들고 상세에서 전액 누적 수납을 확정합니다. */
-export function ManualPayment({ unitId = '', onClose, onCreated }: {
+export function ManualPayment({ unitId = '', presentation = 'modal', onClose, onCreated }: {
+  presentation?: 'modal' | 'page';
   unitId?: string; onClose: () => void; onCreated: (id: string, date: string) => void;
 }) {
   const { ledger, update, busy } = usePaymentWorkspace();
@@ -56,13 +57,9 @@ export function ManualPayment({ unitId = '', onClose, onCreated }: {
     onCreated(requestId, date);
   }
 
-  return (
-    <ClientModal
-      className={styles.modal}
-      onClose={onClose}
-      busy={busy}
-      aria-labelledby={'manual-payment-title'}
-    >
+  const Title = presentation === 'page' ? 'h1' : 'h2';
+  const content = (
+    <>
       <form
         onSubmit={submit}
         noValidate
@@ -71,27 +68,29 @@ export function ManualPayment({ unitId = '', onClose, onCreated }: {
           className={styles.heading}
         >
           <div>
-            <h2
+            <Title
               id={'manual-payment-title'}
             >
               수동 입금 등록
-            </h2>
+            </Title>
             <p>
               은행 앱에서 확인한 입금 정보를 입력해주세요.
             </p>
           </div>
-          <Button
-            variant={'ghost'}
-            iconOnly
-            aria-label={'수동 입금 등록 닫기'}
-            disabled={busy}
-            onClick={onClose}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
-          />
+          {presentation === 'modal' && (
+            <Button
+              variant={'ghost'}
+              iconOnly
+              aria-label={'수동 입금 등록 닫기'}
+              disabled={busy}
+              onClick={onClose}
+              leadingIcon={(
+                <ServiceIcon
+                  name={'close'}
+                />
+              )}
+            />
+          )}
         </div>
         <p
           className={styles.notice}
@@ -126,6 +125,7 @@ export function ManualPayment({ unitId = '', onClose, onCreated }: {
           value={amount}
           onChange={setAmount}
           trailingContent={'원'}
+          disabled={busy}
           required
         />
         {error && (
@@ -139,13 +139,15 @@ export function ManualPayment({ unitId = '', onClose, onCreated }: {
         <div
           className={styles.actions}
         >
-          <Button
-            variant={'outline'}
-            disabled={busy}
-            onClick={onClose}
-          >
-            취소
-          </Button>
+          {presentation === 'modal' && (
+            <Button
+              variant={'outline'}
+              disabled={busy}
+              onClick={onClose}
+            >
+              취소
+            </Button>
+          )}
           <Button
             type={'submit'}
             loading={busy}
@@ -163,6 +165,26 @@ export function ManualPayment({ unitId = '', onClose, onCreated }: {
           onClose={() => setRequestError(null)}
         />
       )}
+    </>
+  );
+
+  if (presentation === 'page') return (
+    <section
+      className={styles.page}
+      aria-labelledby={'manual-payment-title'}
+    >
+      {content}
+    </section>
+  );
+
+  return (
+    <ClientModal
+      className={styles.modal}
+      onClose={onClose}
+      busy={busy}
+      aria-labelledby={'manual-payment-title'}
+    >
+      {content}
     </ClientModal>
   );
 }

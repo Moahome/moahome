@@ -120,7 +120,7 @@ export function paymentError(error: unknown): string {
     PAYMENT_REQUEST_CONFLICT: '이미 처리한 요청과 내용이 달라요. 최신 내역을 확인해주세요.',
     PAYMENT_STATE_CONFLICT: '입금 상태가 변경됐어요. 최신 내역을 확인해주세요.',
     PAYMENT_LINK_CONFLICT: '연결할 수 없어요. 계좌·입금일·금액·세대와 기존 연결 여부를 확인해주세요.',
-    PAYMENT_DELETE_NOT_ALLOWED: '납부 기록이 있는 입금은 삭제할 수 없어요. 납부 취소를 사용해주세요.',
+    PAYMENT_DELETE_NOT_ALLOWED: '확정 수납은 먼저 취소해주세요. 은행 미연결 수동 입금은 취소 후 삭제할 수 있어요.',
     PAYMENT_NOT_FOUND: '입금 내역을 찾을 수 없어요.',
     INVALID_AMOUNT: '금액은 1~999,999,999,999,999원으로 입력해주세요.',
     INVALID_INCOME_CATEGORY: '입금 항목은 100자 이내, 메모는 500자 이내로 입력해주세요.',

@@ -318,22 +318,130 @@
   }
 }
 
+.delete-modal {
+  width: min(560px, calc(100vw - 32px));
+  border: 0;
+}
+
+.delete-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 32px 32px 24px;
+  flex-shrink: 0;
+
+  h2 {
+    font-size: 26px;
+    line-height: 1.4;
+    font-weight: 750;
+  }
+}
+
 .delete-body {
-  padding: 24px;
+  padding: 0 32px;
   min-height: 0;
   overflow-y: auto;
-  line-height: 1.7;
   overflow-wrap: anywhere;
 
-  p + p, ul {
-    margin-top: 12px;
-  }
-
-  ul {
-    padding-left: 20px;
-  }
-
   [role='alert'] {
+    margin-top: 12px;
     color: var(--danger);
   }
+}
+
+.delete-transactions {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    gap: 8px;
+    padding: 24px;
+    border-radius: 12px;
+    background: var(--background);
+  }
+
+  strong {
+    font-size: 20px;
+    line-height: 1.5;
+  }
+
+  span {
+    color: var(--sub-text);
+    font-size: 16px;
+    white-space: pre-wrap;
+  }
+}
+
+.delete-description {
+  margin-top: 16px;
+  color: var(--sub-text);
+  line-height: 1.6;
+}
+
+.delete-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 24px 32px 32px;
+  flex-shrink: 0;
+
+  button {
+    min-width: 96px;
+    min-height: 48px;
+    font-size: 16px;
+    font-weight: 700;
+  }
+}
+
+@media (max-width: 767px) {
+  .delete-header {
+    padding: 24px 20px 20px;
+
+    h2 {
+      font-size: 22px;
+    }
+  }
+
+  .delete-body {
+    padding: 0 20px;
+  }
+
+  .delete-transactions {
+    li {
+      padding: 18px;
+    }
+
+    strong {
+      font-size: 18px;
+    }
+
+    span {
+      font-size: 14px;
+    }
+  }
+
+  .delete-actions {
+    padding: 24px 20px;
+
+    button {
+      min-width: 88px;
+    }
+  }
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.badge[data-state='CANCELED'] {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--card));
 }

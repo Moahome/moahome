@@ -1927,7 +1927,7 @@ test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭�
     exact: true
   }).click();
   const deletion = page.getByRole('dialog', {
-    name: '선택한 거래를 삭제할까요?',
+    name: '거래를 삭제할까요?',
     exact: true
   });
   await expect(deletion.getByRole('listitem')).toHaveCount(2);

@@ -196,6 +196,15 @@ public class BankingService {
         var selected=transactions.findAllById(ids);
         if(selected.size()!=ids.size()||selected.stream().anyMatch(t->!property.equals(t.getPropertyId())))
             throw new PaymentException("BANK_TRANSACTION_NOT_FOUND");
+        // 은행 원본과 수동 수납 선택은 구분하며 다른 대상·은행 연결 수납은 수동 삭제로 우회하지 못합니다.
+        var manualIds=new LinkedHashSet<>(request.paymentIds());
+        var manual=receiptRepository.findAllById(manualIds);
+        if(manual.size()!=manualIds.size()||manual.stream().anyMatch(p->!property.equals(p.getPropertyId())))
+            throw new PaymentException("PAYMENT_NOT_FOUND");
+        if(manual.stream().anyMatch(p->!"MANUAL".equals(p.getSourceType())||p.getBankTransactionId()!=null))
+            throw new PaymentException("PAYMENT_DELETE_NOT_ALLOWED");
+        // 한 선택이라도 삭제 불가이면 은행 원본 취소까지 모두 롤백합니다. 취소 사유와 수납 이벤트는 보존합니다.
+        if(!manualIds.isEmpty()) payments.removeManualReceipts(user,property,manualIds);
         // 확정 수납·충당은 기존 취소 흐름과 같은 이력을 남깁니다. 출금 분류·배분은 원본과 함께 보관합니다.
         payments.removeBankReceipts(user,property,ids);
         var at=OffsetDateTime.now(clock);

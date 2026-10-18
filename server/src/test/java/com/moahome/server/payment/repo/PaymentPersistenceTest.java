@@ -1293,4 +1293,50 @@ class PaymentPersistenceTest {
         jdbc.execute("insert into "+schema+"."+table+"("+columns+") select "+columns+" from public."+table);
     }
 
+    /** 취소된 수동 수납은 원래 취소 상태·사유·충당 이력을 보존하고 삭제 감사만 한 번 추가합니다. */
+    @Test void canceledUnlinkedManualReceiptCanBeDeletedWithBankTransactionsWithoutLosingHistory() {
+        UUID manual=manual("5000");
+        service.confirm(user,property,manual,new PaymentRequests.Confirm(unit,null,null));
+        service.cancel(user,property,manual,"오입력 정정");
+        String reason=jdbc.queryForObject("select cancel_reason_encrypted from payments where id=?",String.class,manual);
+        var imported=service.importFile(user,property,bank("미확인입금","6000")).payments().stream().filter(p->"BANK_IMPORT".equals(p.source())).findFirst().orElseThrow();
+        UUID original=imported.bankTransactionId();
+        var selected=new com.moahome.server.banking.dto.BankingRequests.DeleteMany(List.of(original),List.of(manual));
+        banking.deleteMany(user,property,selected);
+        banking.deleteMany(user,property,selected);
+        assertThat(service.workspace(user,property).payments()).noneMatch(p->p.id().equals(manual)||p.id().equals(imported.id()));
+        assertThat(jdbc.queryForObject("select status from payments where id=?",String.class,manual)).isEqualTo("CANCELED");
+        assertThat(jdbc.queryForObject("select cancel_reason_encrypted from payments where id=?",String.class,manual)).isEqualTo(reason);
+        assertThat(jdbc.queryForObject("select deleted_by from payments where id=?",UUID.class,manual)).isEqualTo(user);
+        assertThat(jdbc.queryForObject("select count(*) from payment_events where payment_id=? and action='DELETED'",Long.class,manual)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from payment_events where payment_id=? and action='CANCELED'",Long.class,manual)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from payment_allocations where payment_id=? and status='ACTIVE'",Long.class,manual)).isZero();
+        assertThat(jdbc.queryForObject("select deleted_at is not null from bank_transactions where id=?",Boolean.class,original)).isTrue();
+    }
+
+    /** 확정 수동 입금은 충당·선입금과 함께 제외하며 잘못 섞은 은행 수납 ID는 전체를 롤백합니다. */
+    @Test void mixedBankDeletionCancelsConfirmedManualAndRejectsBankReceiptIdsAtomically() {
+        UUID manual=manual("150000");
+        service.confirm(user,property,manual,new PaymentRequests.Confirm(unit,null,null));
+        assertThat(jdbc.queryForObject("select count(*) from payment_allocations where payment_id=? and status='ACTIVE'",Long.class,manual)).isPositive();
+        var imported=service.importFile(user,property,bank("미확인입금","6000")).payments().stream().filter(p->"BANK_IMPORT".equals(p.source())).findFirst().orElseThrow();
+        UUID original=imported.bankTransactionId();
+        assertThatThrownBy(()->banking.deleteMany(user,property,new com.moahome.server.banking.dto.BankingRequests.DeleteMany(List.of(original),List.of(manual,imported.id()))))
+            .isInstanceOf(PaymentException.class).extracting(e->((PaymentException)e).code()).isEqualTo("PAYMENT_DELETE_NOT_ALLOWED");
+        assertThat(jdbc.queryForObject("select deleted_at is null from bank_transactions where id=?",Boolean.class,original)).isTrue();
+        assertThat(jdbc.queryForObject("select deleted_at is null from payments where id=?",Boolean.class,manual)).isTrue();
+        assertThat(jdbc.queryForObject("select status from payments where id=?",String.class,manual)).isEqualTo("CONFIRMED");
+
+        var selected=new com.moahome.server.banking.dto.BankingRequests.DeleteMany(List.of(original),List.of(manual));
+        banking.deleteMany(user,property,selected);
+        banking.deleteMany(user,property,selected);
+        assertThat(service.workspace(user,property).payments()).noneMatch(p->p.id().equals(manual)||p.id().equals(imported.id()));
+        assertThat(jdbc.queryForObject("select status from payments where id=?",String.class,manual)).isEqualTo("CANCELED");
+        assertThat(jdbc.queryForObject("select count(*) from payment_allocations where payment_id=? and status='ACTIVE'",Long.class,manual)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from payment_events where payment_id=? and action='CANCELED'",Long.class,manual)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from payment_events where payment_id=? and action='DELETED'",Long.class,manual)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select deleted_by from payments where id=?",UUID.class,manual)).isEqualTo(user);
+        assertThat(jdbc.queryForObject("select deleted_at is not null from bank_transactions where id=?",Boolean.class,original)).isTrue();
+    }
+
 }

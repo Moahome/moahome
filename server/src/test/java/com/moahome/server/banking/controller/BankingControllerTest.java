@@ -63,6 +63,14 @@ class BankingControllerTest {
             .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"));
         verify(service).deleteMany(eq(user),eq(property),argThat(r->r.transactionIds().equals(List.of(transaction))));
     }
+    @Test void acceptsManualOnlyDeletionAndRejectsNullManualSelection() throws Exception {
+        var url=base()+"/transactions/delete";
+        mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON).content("{\"paymentIds\":[null]}"))
+            .andExpect(status().isBadRequest());
+        mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON).content("{\"paymentIds\":[\""+transaction+"\"]}"))
+            .andExpect(status().isOk());
+        verify(service).deleteMany(eq(user),eq(property),argThat(r->r.transactionIds().isEmpty()&&r.paymentIds().equals(List.of(transaction))));
+    }
     @Test void incomeAllocationRequiresAuthenticationAndValidNestedShares() throws Exception {
         var url=base()+"/transactions/"+transaction+"/income-allocation";
         mvc.perform(post(url).contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isUnauthorized());

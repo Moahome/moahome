@@ -88,13 +88,16 @@ export async function confirmBankingExpense(propertyId: string, id: string, data
     data
   }), propertyId);
 }
-/** 선택한 통장 원본 전체를 한 번에 삭제하고 서버가 재계산한 목록을 반환합니다. */
-export async function deleteBankingTransactions(propertyId: string, transactionIds: string[]) {
+/** 선택한 은행 원본·미연결 수동 입금을 함께 삭제하고 서버가 재계산한 목록을 반환합니다. */
+export async function deleteBankingTransactions(propertyId: string, transactionIds: string[], paymentIds: string[] = []) {
   return readWorkspace(await authenticatedAPI<BankingWorkspaceData>({
     url: `/api/properties/${propertyId}/banking/transactions/delete`,
     method: 'POST',
     data: {
-      transactionIds
+      transactionIds,
+      ...(paymentIds.length ? {
+        paymentIds
+      } : {})
     }
   }), propertyId);
 }
@@ -109,6 +112,7 @@ export async function allocateBankingIncome(propertyId: string, id: string, data
 export function bankingError(error: unknown): string {
   if (!(error instanceof ApiError)) return '통장 정보를 처리하지 못했어요. 다시 시도해주세요.';
   const messages: Record<string, string> = {
+    PAYMENT_DELETE_NOT_ALLOWED: '은행에 연결된 수납은 해당 은행 거래를 선택해 삭제해주세요.',
     OTHER_INCOME_REQUIRED: '이자 등 기타 입금으로 확정한 뒤 동별로 배분해주세요.',
     INCOME_ALREADY_SETTLED: '외부 정산에 연결한 입금은 동별로 중복 배분할 수 없어요.',
     OPENING_BALANCE_REQUIRED: '기존 잔액 인계에서 관리 시작을 먼저 확정해주세요.',

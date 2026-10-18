@@ -380,7 +380,7 @@ public class PaymentService {
         if("HOUSEHOLD".equals(p.getReceiptType())) cumulative.settle(property,user);
         return ledger(user,property);
     }
-    /** 납부 이력이 없는 초안만 삭제하고 은행 원본의 활성 중복 키를 해제합니다. 확정 수납에는 납부 취소를 사용합니다. */
+    /** 초안과 이미 취소한 미연결 수동 수납을 소프트 삭제하고 확정 수납·은행 취소 이력은 보호합니다. */
     @Transactional
     public PaymentResponse.Ledger delete(UUID user,UUID property,UUID id) {
         lock(user,property);
@@ -406,6 +406,21 @@ public class PaymentService {
         lock(user,property);
         var selected=payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property).stream()
             .filter(p->p.getDeletedAt()==null&&transactionIds.contains(p.getBankTransactionId())).toList();
+        removeReceipts(user,property,selected);
+    }
+    /** 수동 입금도 통장 거래에서 선택 삭제할 수 있으며 확정 수납·충당 취소와 삭제를 원자적으로 처리합니다. */
+    @Transactional
+    public void removeManualReceipts(UUID user,UUID property,Set<UUID> paymentIds) {
+        lock(user,property);
+        var selected=payments.findAllById(paymentIds);
+        if(selected.size()!=paymentIds.size()||selected.stream().anyMatch(p->!property.equals(p.getPropertyId())))
+            throw new PaymentException("PAYMENT_NOT_FOUND");
+        if(selected.stream().anyMatch(p->!"MANUAL".equals(p.getSourceType())||p.getBankTransactionId()!=null))
+            throw new PaymentException("PAYMENT_DELETE_NOT_ALLOWED");
+        removeReceipts(user,property,selected.stream().filter(p->p.getDeletedAt()==null).toList());
+    }
+    /** 원본과 감사는 보존하고 유효 수납·충당만 제외합니다. 재시도는 이미 삭제된 수납을 다시 취소하지 않습니다. */
+    private void removeReceipts(UUID user,UUID property,List<Payment> selected) {
         if(selected.isEmpty()) return;
         var at=now();var reason=security.protect("통장 거래 선택 삭제").encrypted();
         var ids=selected.stream().map(Payment::getId).collect(Collectors.toSet());
@@ -421,7 +436,10 @@ public class PaymentService {
         allocations.flush();payments.flush();cumulative.settle(property,user);
     }
     private void requireDeletable(Payment payment) {
-        if(payment.getDeletedAt()==null&&!Set.of("PENDING","ON_HOLD").contains(payment.getStatus())) throw new PaymentException("PAYMENT_DELETE_NOT_ALLOWED");
+        // 취소된 수동 수납은 이미 충당에서 제외됐으므로 취소 사유·감사를 그대로 보관하면서 목록에서 숨길 수 있습니다.
+        boolean canceledManual="CANCELED".equals(payment.getStatus())&&"MANUAL".equals(payment.getSourceType())&&payment.getBankTransactionId()==null;
+        if(payment.getDeletedAt()==null&&!Set.of("PENDING","ON_HOLD").contains(payment.getStatus())&&!canceledManual)
+            throw new PaymentException("PAYMENT_DELETE_NOT_ALLOWED");
     }
     /** 삭제 표시는 감사 이력을 유지하되 중복 검사에서 제외해 같은 파일의 재등록을 허용합니다. */
     private void deleteDraft(UUID user,UUID property,Payment payment) {
