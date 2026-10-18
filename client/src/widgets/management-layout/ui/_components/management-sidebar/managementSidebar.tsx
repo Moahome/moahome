@@ -56,7 +56,7 @@ export function ManagementSidebar({
                       name={item.icon}
                     />
                   )}
-                  active={item.children.some((child) => pathname === basePath + child.path)
+                  active={item.children.some((child) => pathname === basePath + child.path || pathname.startsWith(`${basePath}${child.path}/`))
                     || (item.id === 'banking' && (pathname.startsWith(`${basePath}banking/`)
                       || pathname.startsWith(`${basePath}payments/`)))}
                   collapsed={compact}

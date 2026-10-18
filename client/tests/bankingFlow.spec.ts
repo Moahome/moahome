@@ -914,6 +914,23 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   });
   await page.goto(`${BASE}/balances?month=2026-10`);
   await expect(page).toHaveTitle('동별 잔고·정산 | 모아홈');
+  const bankingGroup = page.getByRole('navigation', {
+    name: '관리 메뉴'
+  }).getByRole('button', {
+    name: '통장 관리',
+    exact: true
+  });
+  await bankingGroup.click();
+  await expect(bankingGroup).toHaveAttribute('aria-expanded', 'false');
+  await expect(bankingGroup).toHaveCSS('color', 'rgb(37, 99, 235)');
+  await expect(bankingGroup.locator('svg').first()).toHaveCSS('color', 'rgb(37, 99, 235)');
+  await page.screenshot({
+    path: test.info().outputPath('currentBankingGroupClosed.png'),
+    fullPage: true,
+    animations: 'disabled'
+  });
+  await bankingGroup.click();
+
   const table = page.getByRole('table', {
     name: '동별 잔고',
     exact: true

@@ -19,6 +19,19 @@
       padding-inline: 0;
     }
 
+    &[data-active='true'][aria-expanded='false'] {
+      background: color-mix(in srgb, var(--primary) 8%, var(--card));
+      color: var(--primary);
+
+      .chevron {
+        color: inherit;
+      }
+
+      &:hover:not(:disabled) {
+        background: color-mix(in srgb, var(--primary) 10%, var(--card));
+      }
+    }
+
     &[aria-expanded='true'] {
       background: color-mix(in srgb, var(--border) 45%, var(--card));
       color: var(--foreground);
