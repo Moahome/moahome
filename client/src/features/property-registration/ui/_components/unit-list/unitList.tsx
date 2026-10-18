@@ -383,23 +383,33 @@ export function UnitList({
                         className={styles['desktop-actions']}
                       >
                         <Button
-                          variant={'outline'}
+                          variant={'ghost'}
                           size={'sm'}
-                          className={styles['desktop-edit']}
+                          tone={'success'}
+                          iconOnly
                           aria-label={`${label} 수정`}
+                          title={'수정'}
                           onClick={() => onEdit(unit.clientId)}
-                        >
-                          수정
-                        </Button>
+                          leadingIcon={(
+                            <ServiceIcon
+                              name={'pen'}
+                            />
+                          )}
+                        />
                         <Button
-                          variant={'outline'}
+                          variant={'ghost'}
                           size={'sm'}
-                          className={styles['desktop-delete']}
+                          tone={'danger'}
+                          iconOnly
                           aria-label={`${label} 삭제`}
+                          title={'삭제'}
                           onClick={() => onDelete(unit.clientId)}
-                        >
-                          삭제
-                        </Button>
+                          leadingIcon={(
+                            <ServiceIcon
+                              name={'trash'}
+                            />
+                          )}
+                        />
                       </div>
                       <Button
                         variant={'text'}

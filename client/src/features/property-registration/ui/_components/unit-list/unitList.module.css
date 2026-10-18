@@ -197,24 +197,6 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-
-  .desktop-edit[data-variant] {
-    border-color: var(--success);
-    color: var(--success);
-
-    &:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--success) 6%, var(--card));
-    }
-  }
-
-  .desktop-delete[data-variant] {
-    border-color: var(--danger);
-    color: var(--danger);
-
-    &:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--danger) 6%, var(--card));
-    }
-  }
 }
 
 .empty {
