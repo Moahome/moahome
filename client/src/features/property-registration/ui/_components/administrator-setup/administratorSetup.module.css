@@ -79,40 +79,6 @@
   }
 }
 
-.fields {
-  display: grid;
-  gap: 24px;
-}
-
-.field-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.residence {
-  padding: 0;
-  margin: 0;
-  border: 0;
-  min-width: 0;
-
-  legend {
-    margin-bottom: 12px;
-    font-size: 14px;
-    font-weight: 700;
-
-    span {
-      color: var(--danger);
-    }
-  }
-}
-
-.preview {
-  margin-bottom: 18px;
-  color: var(--sub-text);
-  font-size: 13px;
-}
-
 .actions {
   display: flex;
   justify-content: flex-end;
@@ -178,10 +144,6 @@
     p {
       font-size: 14px;
     }
-  }
-
-  .field-row {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .actions {

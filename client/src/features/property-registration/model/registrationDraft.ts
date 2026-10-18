@@ -33,7 +33,7 @@ import {
   type AdministratorDraft
 } from './administrator';
 
-export const MANAGER_PREVIEW_STORAGE_KEY = 'moahome.property-registration.manager-preview';
+const LEGACY_PREVIEW_STORAGE_KEY = 'moahome.property-registration.manager-preview';
 
 const DRAFT_STORAGE_KEY = 'moahome.property-registration.basic-info';
 
@@ -89,13 +89,17 @@ function isUnitDraft(value: unknown): value is UnitDraft {
 }
 
 /** 같은 사용자·탭의 새로고침에서만 단계와 입력을 복원하며 다른 계정·깨진 초안은 폐기합니다. */
-export function restoreRegistrationDraft(userId: string, storageKey = DRAFT_STORAGE_KEY): RegistrationDraft {
+export function restoreRegistrationDraft(userId: string): RegistrationDraft {
   try {
     const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
-    const stored = sessionStorage.getItem(storageKey);
+    // 이전 미리보기에서 작성하던 입력도 같은 사용자·탭의 새로고침에서만 검증해 실제 등록으로 이어받습니다.
+    const legacyPreview = window.location.pathname === '/properties/add'
+      && new URLSearchParams(window.location.search).get('preview') === 'manager';
+    const stored = (legacyPreview ? sessionStorage.getItem(LEGACY_PREVIEW_STORAGE_KEY) : null)
+      ?? sessionStorage.getItem(DRAFT_STORAGE_KEY);
 
     if (navigation?.type !== 'reload' || !stored) {
-      discardRegistrationDraft(storageKey);
+      discardRegistrationDraft();
       return createEmptyDraft();
     }
 
@@ -124,7 +128,7 @@ export function restoreRegistrationDraft(userId: string, storageKey = DRAFT_STOR
       || !Array.isArray(units) || !units.every(isUnitDraft)
       || new Set(buildings.map((building) => building.clientId)).size !== buildings.length
       || new Set(units.map((unit) => unit.clientId)).size !== units.length) {
-      discardRegistrationDraft(storageKey);
+      discardRegistrationDraft();
       return createEmptyDraft();
     }
 
@@ -188,28 +192,31 @@ export function restoreRegistrationDraft(userId: string, storageKey = DRAFT_STOR
       basicInfoValidated,
     };
   } catch {
-    discardRegistrationDraft(storageKey);
+    discardRegistrationDraft();
     return createEmptyDraft();
   }
 }
 
 /** 같은 탭 새로고침 복원용 입력을 보관하고 저장소 차단 시에도 현재 화면의 메모리 입력은 유지합니다. */
-export function saveRegistrationDraft(userId: string, draft: RegistrationDraft, storageKey = DRAFT_STORAGE_KEY) {
+export function saveRegistrationDraft(userId: string, draft: RegistrationDraft) {
   try {
     // 진행 중 계좌 입력도 확정된 새로고침 복원 정책에 따라 탭 초안에 포함하고 이탈·로그아웃에 폐기합니다.
-    sessionStorage.setItem(storageKey, JSON.stringify({
+    sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({
       userId,
       ...draft
     }));
+    // 실제 초안 저장이 성공한 뒤 이전 미리보기 사본을 제거해 입력을 두 곳에 보관하지 않습니다.
+    sessionStorage.removeItem(LEGACY_PREVIEW_STORAGE_KEY);
   } catch {
     // 인증 토큰은 초안에 넣지 않으며 저장 차단은 등록 입력을 막지 않습니다.
   }
 }
 
 /** 단계 사이 이동에는 유지하고 등록 취소·흐름 밖 이탈·로그아웃에만 초안을 폐기합니다. */
-export function discardRegistrationDraft(storageKey = DRAFT_STORAGE_KEY) {
+export function discardRegistrationDraft() {
   try {
-    sessionStorage.removeItem(storageKey);
+    sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+    sessionStorage.removeItem(LEGACY_PREVIEW_STORAGE_KEY);
   } catch {
     // 저장소 접근이 차단되어도 등록 흐름 종료를 계속합니다.
   }

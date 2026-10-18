@@ -504,7 +504,7 @@ test('추가 화면은 모바일에서도 기존 초대 입력과 등록 폼을 
     name: '관리할 곳 만들기',
     exact: true
   }).click();
-  await expect(page).toHaveURL('/properties/add?registration=basic&preview=manager');
+  await expect(page).toHaveURL('/properties/add?registration=basic');
   await page.getByRole('textbox', {
     name: '건물·단지 이름',
     exact: true

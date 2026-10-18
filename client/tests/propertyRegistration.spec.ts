@@ -5071,17 +5071,35 @@ for (const hasBuildings of [false, true]) {
 }
 
 for (const hasBuildings of [false, true]) {
-  test(`담당자 UI 미리보기: ${hasBuildings ? '동·호수 모바일' : '호수 PC'} 선택과 외부 정보 유지·대표 예외·저장 차단`, async ({ page }) => {
+  test(`추가 등록 ${hasBuildings ? '기존 미리보기 주소·동 있는 모바일' : '등록 버튼·동 없는 PC'}에서 실제 저장과 완료 새로고침을 지원`, async ({ page }) => {
     await page.setViewportSize({
       width: hasBuildings ? 390 : 1440,
       height: 1000
     });
-    let posts = 0;
+    const submissions: RegistrationRequest[] = [];
     await page.route(FINAL_URL, async (route) => {
-      if (route.request().method() !== 'OPTIONS') posts += 1;
-      await fulfillJson(route, {});
+      if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+      expect(route.request().headers().authorization).toBe('Bearer test-access');
+      const body = route.request().postDataJSON() as RegistrationRequest;
+      submissions.push(body);
+      await fulfillJson(route, registrationResult(body), 201);
     });
-    await page.goto('/properties/add?registration=basic&preview=manager');
+    await page.route(`${FINAL_URL}/*`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+      expect(route.request().url()).toBe(`${FINAL_URL}/${submissions[0].requestId}`);
+      await fulfillJson(route, registrationResult(submissions[0]));
+    });
+    if (hasBuildings) {
+      await page.goto('/properties/add?registration=basic&preview=manager');
+    } else {
+      await page.goto('/properties/add');
+      await page.getByRole('button', {
+        name: '관리할 곳 만들기',
+        exact: true
+      }).click();
+      await expect(page).toHaveURL('/properties/add?registration=basic');
+    }
+    await expect(page.getByText('화면 미리보기이며 실제 등록은 저장하지 않아요.')).toHaveCount(0);
     await fillRequiredFields(page);
     if (hasBuildings) await page.getByRole('radio', {
       name: /^동 있음/
@@ -5089,85 +5107,66 @@ for (const hasBuildings of [false, true]) {
     await page.getByRole('button', {
       name: '등록하고 계속'
     }).click();
-    await expect(page.getByRole('heading', {
-      name: '동·세대 설정',
-      exact: true
-    })).toBeVisible();
-    await expect(page.getByRole('radio', {
-      name: /^외부 관리소장/
-    })).toHaveCount(0);
     if (hasBuildings) await addBuilding(page, 'A');
     await addUnit(page, '101', '1', hasBuildings ? 'A동' : undefined);
     await page.getByRole('button', {
       name: '다음',
       exact: true
     }).click();
-    await expect(page.getByRole('heading', {
-      name: '관리 담당자 설정',
-      exact: true
-    })).toBeVisible();
-    await expect(page.getByRole('navigation', {
-      name: '초기 설정 진행 단계'
-    }).locator('li')).toHaveCount(6);
+    await page.getByRole('radio', {
+      name: /^거주 관리소장/
+    }).check();
     await page.getByRole('textbox', {
-      name: '담당자 이름',
+      name: '관리소장 이름',
       exact: true
     }).fill('김관리');
     await page.getByRole('textbox', {
-      name: '담당자 연락처',
+      name: '관리소장 연락처',
       exact: true
     }).fill('010-1234-5678');
-    await page.getByRole('radio', {
-      name: /^거주자/
-    }).check();
     if (hasBuildings) {
       await page.getByRole('combobox', {
         name: '거주 동',
         exact: true
-      }).click();
+      }).fill('A');
       await page.getByRole('option', {
         name: 'A동',
         exact: true
       }).click();
-    } else await expect(page.getByRole('combobox', {
-      name: '거주 동',
-      exact: true
-    })).toHaveCount(0);
+    }
     await page.getByRole('combobox', {
       name: '거주 호수',
       exact: true
-    }).click();
+    }).fill('101');
     await page.getByRole('option', {
       name: '101호',
       exact: true
     }).click();
-    await expect(page.getByRole('complementary')).toHaveCount(0);
-    await page.screenshot({
-      path: test.info().outputPath(`managerPreview${hasBuildings ? 'Mobile' : 'Desktop'}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    if (hasBuildings) {
+      // 이전 버전 미리보기의 탭 초안으로 새로고침해도 입력을 검증한 뒤 실제 등록에 이어받습니다.
+      await page.evaluate(() => {
+        const draft = sessionStorage.getItem('moahome.property-registration.basic-info');
+        if (!draft) throw new Error('등록 초안이 없습니다.');
+        sessionStorage.setItem('moahome.property-registration.manager-preview', draft);
+        sessionStorage.removeItem('moahome.property-registration.basic-info');
+        history.replaceState(null, '', '/properties/add?registration=administrator&preview=manager');
+      });
+    }
     await page.reload();
     await expect(page.getByRole('textbox', {
-      name: '담당자 이름',
+      name: '관리소장 이름',
       exact: true
     })).toHaveValue('김관리');
-    await page.getByRole('radio', {
-      name: /^외부 관리자/
-    }).check();
-    await expect(page.getByRole('textbox', {
-      name: '담당자 이름',
-      exact: true
-    })).toHaveValue('김관리');
-    await expect(page.getByRole('textbox', {
-      name: '담당자 연락처',
-      exact: true
-    })).toHaveValue('010-1234-5678');
-    await expect(page.getByRole('combobox', {
-      name: '거주 호수',
-      exact: true
-    })).toHaveCount(0);
+    expect(await page.evaluate(() => sessionStorage.getItem('moahome.property-registration.manager-preview'))).toBeNull();
+    if (!hasBuildings) {
+      await page.getByRole('radio', {
+        name: /^외부 관리소장/
+      }).check();
+      await expect(page.getByRole('textbox', {
+        name: '관리소장 이름',
+        exact: true
+      })).toHaveCount(0);
+    }
     await page.getByRole('button', {
       name: '다음',
       exact: true
@@ -5182,24 +5181,30 @@ for (const hasBuildings of [false, true]) {
       name: '다음',
       exact: true
     }).click();
-    await expect(page.getByRole('region', {
-      name: '관리소장 정보 요약'
-    })).toContainText('김관리');
-    await page.getByRole('button', {
-      name: '관리소장 정보 수정',
-      exact: true
-    }).click();
-    await expect(page.getByRole('heading', {
-      name: '관리 담당자 설정',
-      exact: true
-    })).toBeVisible();
-    await page.goBack();
-    await page.getByRole('button', {
+    expect(submissions).toHaveLength(0);
+    await expect(page.getByRole('button', {
       name: '등록 미리보기',
       exact: true
+    })).toHaveCount(0);
+    await page.getByRole('button', {
+      name: '관리 시작하기',
+      exact: true
     }).click();
-    await expect(page.getByText('미리보기를 확인했어요. 실제 등록과 계정 연결은 저장하지 않았어요.')).toBeVisible();
-    expect(posts).toBe(0);
+    await expect(page).toHaveURL(/\/properties\/add\?registration=complete&requestId=/);
+    expect(submissions).toHaveLength(1);
+    expect(submissions[0].administrator).toMatchObject({
+      residenceType: hasBuildings ? 'RESIDENT' : 'EXTERNAL'
+    });
+    if (hasBuildings) expect(submissions[0].administrator).toMatchObject({
+      name: '김관리',
+      unitNumber: '101'
+    });
+    await page.reload();
+    await expect(page.getByRole('region', {
+      name: '등록된 정보',
+      exact: true
+    })).toBeVisible();
+    expect(submissions).toHaveLength(1);
   });
 }
 

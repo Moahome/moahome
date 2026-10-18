@@ -5,10 +5,6 @@ import {
   useRef
 } from 'react';
 import { Button } from '@/shared/ui/button';
-import {
-  Input,
-  Radio
-} from '@/shared/ui/form-controls';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import type { RegistrationDraft } from '../../../model/registrationDraft';
 import {
@@ -16,25 +12,18 @@ import {
   type AdministratorDraft
 } from '../../../model/administrator';
 import { AdministratorProfile } from '../administrator-profile/administratorProfile';
-import { AdministratorUnitFields } from '../administrator-unit-fields/administratorUnitFields';
 import { SetupProgress } from '../setup-progress/setupProgress';
 import styles from './administratorSetup.module.css';
 
 /** 다른 등록 단계와 같은 단일 카드에서 담당자 초안을 편집하고 다음 단계로 전달합니다. */
-export function AdministratorSetup({ draft, previewOnly = true, onChange, onPrevious, onNext }: {
+export function AdministratorSetup({ draft, onChange, onPrevious, onNext }: {
   draft: RegistrationDraft;
-  previewOnly?: boolean;
   onChange: (profile: AdministratorDraft) => void;
   onPrevious: () => void;
   onNext: () => void;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const profile = draft.administrator;
-  const hasBuildings = draft.basicInfo.hasBuildings === true;
-  const selectedUnit = draft.units.find((unit) => unit.clientId === profile.unitClientId);
-  const valid = previewOnly
-    ? Boolean(profile.name.trim() && profile.residenceType && (profile.residenceType === 'EXTERNAL' || selectedUnit))
-    : !getAdministratorError(profile, draft.units);
+  const valid = !getAdministratorError(draft.administrator, draft.units);
 
   useEffect(() => {
     headingRef.current?.focus({
@@ -113,112 +102,16 @@ export function AdministratorSetup({ draft, previewOnly = true, onChange, onPrev
             </p>
           </div>
         </header>
-        {previewOnly && (
-          <p
-            className={styles.preview}
-          >
-            화면 미리보기입니다. 실제 등록은 저장하지 않아요.
-          </p>
-        )}
         <form
           onSubmit={(event) => { event.preventDefault(); if (valid) onNext(); }}
         >
-          {!previewOnly && (
-            <AdministratorProfile
-              profile={profile}
-              units={draft.units}
-              buildings={draft.buildings}
-              hasBuildings={hasBuildings}
-              onChange={onChange}
-            />
-          )}
-          {previewOnly && (
-            <div
-              className={styles.fields}
-            >
-              <div
-                className={styles['field-row']}
-              >
-                <Input
-                  label={'담당자 이름'}
-                  value={profile.name}
-                  required
-                  maxLength={50}
-                  autoComplete={'name'}
-                  onChange={(event) => onChange({
-                    ...profile,
-                    name: event.target.value
-                  })}
-                />
-                <Input
-                  label={'담당자 연락처'}
-                  value={profile.phone}
-                  maxLength={64}
-                  type={'tel'}
-                  autoComplete={'tel'}
-                  onChange={(event) => onChange({
-                    ...profile,
-                    phone: event.target.value
-                  })}
-                />
-              </div>
-              <fieldset
-                className={styles.residence}
-              >
-                <legend>
-                  거주 구분
-                  <span
-                    aria-hidden={'true'}
-                  >
-                    *
-                  </span>
-                </legend>
-                <div
-                  className={styles['field-row']}
-                >
-                  <Radio
-                    name={'manager-residence-preview'}
-                    variant={'card'}
-                    label={'거주자'}
-                    description={'주민 목록에 본인을 함께 등록합니다.'}
-                    checked={profile.residenceType === 'RESIDENT'}
-                    onChange={() => onChange({
-                      ...profile,
-                      residenceType: 'RESIDENT'
-                    })}
-                  />
-                  <Radio
-                    name={'manager-residence-preview'}
-                    variant={'card'}
-                    label={'외부 관리자'}
-                    description={'주민 목록에 등록하지 않습니다.'}
-                    checked={profile.residenceType === 'EXTERNAL'}
-                    onChange={() => onChange({
-                      ...profile,
-                      residenceType: 'EXTERNAL',
-                      unitClientId: ''
-                    })}
-                  />
-                </div>
-              </fieldset>
-              {profile.residenceType === 'RESIDENT' && (
-                <div
-                  className={styles['field-row']}
-                >
-                  <AdministratorUnitFields
-                    units={draft.units}
-                    buildings={draft.buildings}
-                    hasBuildings={hasBuildings}
-                    unitClientId={profile.unitClientId}
-                    onChange={(unitClientId) => onChange({
-                      ...profile,
-                      unitClientId
-                    })}
-                  />
-                </div>
-              )}
-            </div>
-          )}
+          <AdministratorProfile
+            profile={draft.administrator}
+            units={draft.units}
+            buildings={draft.buildings}
+            hasBuildings={draft.basicInfo.hasBuildings === true}
+            onChange={onChange}
+          />
           <footer
             className={styles.actions}
           >

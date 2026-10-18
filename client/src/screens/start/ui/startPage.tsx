@@ -13,8 +13,6 @@ import { useSession } from '@/entities/session';
 import { getManagementDashboardPath } from '@/entities/property';
 import {
   PropertyRegistrationFlow,
-  PropertyRegistrationPreview,
-  type PreviewStep,
   hasPendingRegistration
 } from '@/features/property-registration';
 import { useManagementEntry } from '@/features/enter-service';
@@ -37,11 +35,9 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
   const router = useRouter();
   const searchParams = useSearchParams();
   const registration = searchParams.get('registration');
-  const preview = additional && searchParams.get('preview') === 'manager';
-  const previewStep: PreviewStep = registration === 'administrator' ? 'administrator' : registration === 'units' || registration === 'administrator' || registration === 'account' || registration === 'fees' || registration === 'review' ? registration : 'basic';
   const completionRequestId = searchParams.get('requestId');
   const registrationStep = registration === 'basic' || registration === 'units' || registration === 'administrator' || registration === 'account' || registration === 'fees' || registration === 'review' || registration === 'complete' ? registration : null;
-  const isSetupStep = preview ? previewStep !== 'basic' : registrationStep !== null && registrationStep !== 'basic';
+  const isSetupStep = registrationStep !== null && registrationStep !== 'basic';
   const hasPendingSubmission = Boolean(session.data && hasPendingRegistration(session.data.id));
   const registeredProperty = useManagementEntry(session.data?.id, !additional && registrationStep === null && !hasPendingSubmission);
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -144,14 +140,7 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
           onNotify={() => showNotice('알림', '알림 기능을 준비하고 있어요.')}
         />
       </div>
-      {preview && registration && (
-        <PropertyRegistrationPreview
-          userId={session.data.id}
-          step={previewStep}
-          onClose={() => router.replace(entryPath)}
-        />
-      )}
-      {!preview && registrationStep && (
+      {registrationStep && (
         <PropertyRegistrationFlow
           key={session.data.id}
           userId={session.data.id}
@@ -176,7 +165,7 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
           >
             <StartCard
               kind={'create'}
-              onSelect={() => router.push(`${entryPath}?registration=basic${additional ? '&preview=manager' : ''}`, {
+              onSelect={() => router.push(`${entryPath}?registration=basic`, {
                 scroll: false
               })}
             />

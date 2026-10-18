@@ -35,7 +35,6 @@ export type SubmissionStatus = 'idle' | 'submitting' | 'checking' | 'failed' | '
 /** 저장 전에는 초안 수정·제출을 제공하고 완료 페이지의 다시 보기에서는 읽기 전용 요약을 표시합니다. */
 export function RegistrationReview({
   draft,
-  previewOnly = false,
   status,
   result,
   message,
@@ -54,7 +53,6 @@ export function RegistrationReview({
   onClose,
 }: {
   draft: RegistrationDraft;
-  previewOnly?: boolean;
   status: SubmissionStatus;
   result: RegistrationResult | null;
   message: string;
@@ -212,7 +210,7 @@ export function RegistrationReview({
               detailsId={'review-administrator-details'}
               summary={(<>
                 <strong>
-                  {previewOnly || draft.administrator.residenceType === 'RESIDENT' ? draft.administrator.name : '외부 관리소장'}
+                  {draft.administrator.residenceType === 'RESIDENT' ? draft.administrator.name : '외부 관리소장'}
                 </strong>
                 <span
                   className={styles['summary-line']}
@@ -232,7 +230,7 @@ export function RegistrationReview({
                     {draft.administrator.residenceType === 'RESIDENT' ? '거주 관리소장' : '외부 관리소장'}
                   </dd>
                 </div>
-                {(previewOnly || draft.administrator.residenceType === 'RESIDENT') && (<>
+                {draft.administrator.residenceType === 'RESIDENT' && (<>
                   <div>
                     <dt>
                       연락처
@@ -246,7 +244,7 @@ export function RegistrationReview({
                       거주 세대
                     </dt>
                     <dd>
-                      {(() => { const unit = draft.units.find((row) => row.clientId === draft.administrator.unitClientId); return draft.administrator.residenceType === 'EXTERNAL' ? '해당 없음' : unit ? [draft.buildings.find((building) => building.clientId === unit.buildingClientId)?.name, getUnitLabel(unit)].filter(Boolean).join(' ') : '세대 선택 필요'; })()}
+                      {(() => { const unit = draft.units.find((row) => row.clientId === draft.administrator.unitClientId); return unit ? [draft.buildings.find((building) => building.clientId === unit.buildingClientId)?.name, getUnitLabel(unit)].filter(Boolean).join(' ') : '세대 선택 필요'; })()}
                     </dd>
                   </div>
                 </>)}
@@ -551,7 +549,7 @@ export function RegistrationReview({
               name={'info'}
             />
             <p>
-              {previewOnly ? '화면 미리보기입니다. 관리대상과 계정 연결은 저장하지 않아요.' : '관리 시작하기를 누르면 전체 정보가 저장됩니다. 저장 전까지 수정할 수 있어요.'}
+              관리 시작하기를 누르면 전체 정보가 저장됩니다. 저장 전까지 수정할 수 있어요.
             </p>
           </aside>
         )}
@@ -584,7 +582,7 @@ export function RegistrationReview({
               <Button
                 onClick={onSubmit}
               >
-                {previewOnly ? '등록 미리보기' : '관리 시작하기'}
+                관리 시작하기
               </Button>
             </>
           )}

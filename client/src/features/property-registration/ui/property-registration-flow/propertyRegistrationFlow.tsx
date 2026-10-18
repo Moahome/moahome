@@ -258,7 +258,6 @@ export function PropertyRegistrationFlow({
   } else if (currentStep === 'administrator') {
     content = (
       <AdministratorSetup
-        previewOnly={false}
         draft={draft}
         onChange={(administrator) => setDraft((previous) => ({
           ...previous,
