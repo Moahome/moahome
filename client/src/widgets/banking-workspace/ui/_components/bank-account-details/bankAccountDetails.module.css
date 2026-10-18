@@ -1,0 +1,110 @@
+.content {
+  display: grid;
+  min-width: 0;
+  gap: 24px;
+}
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  overflow-wrap: anywhere;
+
+  img {
+    width: 48px;
+    height: 48px;
+  }
+
+  div {
+    display: grid;
+    min-width: 0;
+    gap: 6px;
+  }
+
+  h3 {
+    font-size: 20px;
+  }
+
+  p,
+  small {
+    color: var(--sub-text);
+  }
+}
+
+.fields {
+  margin: 0;
+
+  > div {
+    display: grid;
+    grid-template-columns: 80px minmax(0, 1fr);
+    align-items: center;
+    gap: 16px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  dt {
+    color: var(--sub-text);
+  }
+
+  dd {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+.number {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-variant-numeric: tabular-nums;
+
+  span {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+}
+
+.balance {
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+  overflow-wrap: anywhere;
+
+  strong {
+    color: var(--primary);
+    font-size: 26px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  p,
+  small {
+    color: var(--sub-text);
+  }
+}
+
+.state {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  color: var(--sub-text);
+}
+
+@media (max-width: 767px) {
+  .fields {
+    > div {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+    }
+  }
+
+  .balance {
+    padding: 16px;
+  }
+}

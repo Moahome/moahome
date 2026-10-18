@@ -44,6 +44,16 @@ public final class BankAccountSettings {
     }
     public record Close(@NotNull OffsetDateTime updatedAt) {}
 
+    public record Detail(UUID propertyId, UUID accountId, OffsetDateTime updatedAt,
+        String bankCode, String bankName, String last4, String holderName,
+        String alias, boolean isPrimary, String status) {
+        @Override public String toString() { return "BankAccountDetail[REDACTED]"; }
+    }
+
+    public record RevealedNumber(UUID propertyId, UUID accountId, OffsetDateTime updatedAt, String accountNumber) {
+        @Override public String toString() { return "BankAccountNumber[REDACTED]"; }
+    }
+
     public record Response(UUID propertyId, UUID accountId, OffsetDateTime updatedAt,
         String bankCode, String bankName, String accountNumber, String holderName,
         String alias, boolean isPrimary, String status) {

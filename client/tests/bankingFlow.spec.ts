@@ -3668,3 +3668,300 @@ for (const width of [1440, 390]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 }
+
+for (const width of [1440, 390, 320]) {
+  test(`통장 상세 ${width}px는 선택 통장·번호 공개와 숨김·재진입 마스킹·모바일 복귀를 유지`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const second = id(11);
+    const unknown = id(12);
+    const updatedAt = '2026-10-18T00:00:00Z';
+    const number = '00012345678';
+    let reveals = 0;
+    let failDetail = false;
+    let malformedDetail = false;
+    let finishReveal: (() => void) | undefined;
+    const details: string[] = [];
+    const balances = [
+      {
+        id: ACCOUNT,
+        label: '하나은행 ····6546 · 운영비',
+        status: 'ACTIVE',
+        balance: '815204',
+        asOf: '2026-10-15 14:12:59'
+      },
+      {
+        id: second,
+        label: '카카오뱅크 ····5678 · 예비비',
+        status: 'CLOSED',
+        balance: null,
+        asOf: null,
+        calculatedBalance: '200000',
+        calculationBasisDate: '2026-09-30'
+      },
+      {
+        id: unknown,
+        label: '신한은행 ····4321',
+        status: 'ACTIVE',
+        balance: null,
+        asOf: null
+      }
+    ];
+    await page.route('http://localhost:8080/**', async (route) => {
+      const url = new URL(route.request().url());
+      const path = url.pathname;
+      const headers = {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-CSRF-TOKEN',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+      };
+      if (route.request().method() === 'OPTIONS') return route.fulfill({
+        status: 204,
+        headers
+      });
+      let body: unknown;
+      let status = 200;
+      if (path.endsWith('/csrf')) body = {
+        csrfToken: 'test-csrf'
+      };
+      else if (path.endsWith('/refresh')) body = {
+        accessToken: 'test-access',
+        tokenType: 'Bearer',
+        accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
+      };
+      else if (path === '/api/users/me') body = {
+        id: id(1),
+        displayName: '관리자',
+        profileImageUrl: null,
+        systemRole: 'USER',
+        status: 'ACTIVE'
+      };
+      else if (path.endsWith('/management-context')) body = {
+        propertyId: PROPERTY,
+        name: '모아빌라',
+        role: 'ADMIN'
+      };
+      else if (path.endsWith('/managed-properties')) body = {
+        properties: [{
+          propertyId: PROPERTY,
+          name: '모아빌라',
+          role: 'ADMIN'
+        }]
+      };
+      else if (path.endsWith('/payments/workspace')) body = {
+        propertyId: PROPERTY,
+        asOf: '2026-10-18',
+        accounts: [],
+        units: [],
+        charges: [],
+        payments: []
+      };
+      else if (path.endsWith('/banking/balances')) body = {
+        propertyId: PROPERTY,
+        month: url.searchParams.get('month'),
+        accountId: url.searchParams.get('accountId'),
+        cutoffDate: null,
+        bankBalance: null,
+        bankAsOf: null,
+        buildings: [],
+        entries: [],
+        externals: [],
+        incomes: [],
+        pending: [],
+        accounts: balances
+      };
+      else if (path.endsWith('/number-reveal')) {
+        expect(route.request().method()).toBe('POST');
+        expect(path).toBe(`/api/properties/${PROPERTY}/banking/account/${second}/number-reveal`);
+        reveals += 1;
+        if (reveals === 1) {
+          status = 503;
+          body = {
+            code: 'SERVICE_UNAVAILABLE'
+          };
+        } else {
+          if (reveals === 4) await new Promise<void>((resolve) => { finishReveal = resolve; });
+          body = {
+            propertyId: PROPERTY,
+            accountId: second,
+            updatedAt,
+            accountNumber: number
+          };
+        }
+      } else if (path.includes('/banking/account/')) {
+        expect(route.request().method()).toBe('GET');
+        const accountId = path.split('/').at(-1)!;
+        details.push(accountId);
+        if (failDetail) {
+          status = 403;
+          body = {
+            code: 'ACCESS_DENIED'
+          };
+        } else body = {
+          propertyId: PROPERTY,
+          accountId,
+          updatedAt,
+          bankCode: accountId === second ? '090' : '088',
+          bankName: accountId === second ? '카카오뱅크' : '신한은행',
+          last4: accountId === second ? '5678' : '4321',
+          holderName: '테스트 예금주',
+          alias: accountId === second ? '예비비' : null,
+          isPrimary: false,
+          status: accountId === second ? 'CLOSED' : 'ACTIVE',
+          ...(malformedDetail ? {
+            accountNumber: number
+          } : {})
+        };
+      } else throw new Error(`Unexpected API ${path}`);
+      await route.fulfill({
+        status,
+        headers: {
+          ...headers,
+          'Cache-Control': 'no-store'
+        },
+        contentType: 'application/json',
+        body: JSON.stringify(body)
+      });
+    });
+    const listHref = `${BASE}/balances?month=2026-10&account=${second}`;
+    const openRow = () => page.getByRole('button', {
+      name: '카카오뱅크 ····5678 · 예비비 통장 상세 보기',
+      exact: true
+    });
+    const back = () => page.getByRole('link', {
+      name: '동별 잔고·정산으로 돌아가기',
+      exact: true
+    });
+    const closeDetail = async () => {
+      if (width > 767) await page.getByRole('button', {
+        name: '통장 상세 닫기',
+        exact: true
+      }).click();
+      else await back().click();
+      await expect(openRow()).toBeVisible();
+    };
+    await page.goto(listHref);
+    await expect(openRow()).toBeVisible();
+    expect(details).toEqual([]);
+    await openRow().focus();
+    await openRow().press('Enter');
+    const detail = width > 767 ? page.getByRole('dialog', {
+      name: '통장 상세',
+      exact: true
+    }) : page.getByRole('region', {
+      name: '통장 상세',
+      exact: true
+    });
+    await expect(detail).toContainText('테스트 예금주');
+    await expect(detail).toContainText('카카오뱅크');
+    await expect(detail).toContainText('사용 종료');
+    await expect(detail).toContainText('계산 잔액');
+    await expect(detail).toContainText('200,000원');
+    await expect(detail).toContainText('2026-09-30 기준');
+    await expect(detail).toContainText('···· 5678');
+    expect(reveals).toBe(0);
+    expect(details).toEqual([second]);
+    if (width <= 767) {
+      await expect(page).toHaveURL(new RegExp(`/details/account\\?month=2026-10&account=${second}&target=${second}$`));
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await page.reload();
+      await expect(detail).toContainText('테스트 예금주');
+    }
+    await detail.getByRole('button', {
+      name: '전체 보기',
+      exact: true
+    }).click();
+    await expect(detail.getByRole('alert')).toContainText('계좌번호를 확인하지 못했어요.');
+    await expect(detail).not.toContainText(number);
+    await detail.getByRole('button', {
+      name: '전체 보기',
+      exact: true
+    }).click();
+    await expect(detail).toContainText(number);
+    await expect(detail.getByRole('button', {
+      name: '숨기기',
+      exact: true
+    })).toHaveAttribute('aria-pressed', 'true');
+    expect(await page.evaluate((raw) => [...Object.values(localStorage), ...Object.values(sessionStorage)].some((value) => value.includes(raw)), number)).toBe(false);
+    await page.screenshot({
+      path: testInfo.outputPath(`bankAccountDetail${width}.png`),
+      fullPage: true
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await detail.getByRole('button', {
+      name: '숨기기',
+      exact: true
+    }).click();
+    await expect(detail).not.toContainText(number);
+    await detail.getByRole('button', {
+      name: '전체 보기',
+      exact: true
+    }).click();
+    await expect(detail).toContainText(number);
+    await closeDetail();
+    if (width > 767) await expect(openRow()).toBeFocused();
+    else await expect(page).toHaveURL(listHref);
+    await openRow().click();
+    await expect(detail).toContainText('···· 5678');
+    await expect(detail).not.toContainText(number);
+    // 닫은 뒤 도착한 공개 응답도 다음 상세의 번호를 다시 노출하지 않습니다.
+    await detail.getByRole('button', {
+      name: '전체 보기',
+      exact: true
+    }).click();
+    await expect.poll(() => finishReveal !== undefined).toBe(true);
+    await closeDetail();
+    finishReveal!();
+    await openRow().click();
+    await expect(detail).toContainText('···· 5678');
+    await expect(detail).not.toContainText(number);
+    if (width > 767) {
+      await page.keyboard.press('Escape');
+      await expect(detail).toHaveCount(0);
+      await expect(openRow()).toBeFocused();
+    } else await closeDetail();
+    // 상세 권한 실패와 잘못된 원문 포함 응답은 모두 마스킹 상세로 재시도합니다.
+    failDetail = true;
+    await openRow().click();
+    await expect(detail.getByRole('alert')).toBeVisible();
+    failDetail = false;
+    malformedDetail = true;
+    await detail.getByRole('button', {
+      name: '다시 조회',
+      exact: true
+    }).click();
+    await expect(detail.getByRole('alert')).toBeVisible();
+    await expect(detail).not.toContainText(number);
+    malformedDetail = false;
+    await detail.getByRole('button', {
+      name: '다시 조회',
+      exact: true
+    }).click();
+    await expect(detail).toContainText('테스트 예금주');
+    await closeDetail();
+    // 직접 URL에서는 부모의 전체 통장 범위와 열어 볼 통장을 별도로 유지합니다.
+    await page.goto(`${BASE}/balances/details/account?month=2026-10&target=${unknown}`);
+    const direct = page.getByRole('region', {
+      name: '통장 상세',
+      exact: true
+    });
+    await expect(direct).toContainText('은행 확인 자료 없음');
+    await expect(direct).toContainText('잔액이 0원이라는 뜻은 아닙니다.');
+    await page.reload();
+    await expect(direct).toContainText('···· 4321');
+    if (width <= 767) {
+      await back().click();
+      await expect(page).toHaveURL(`${BASE}/balances?month=2026-10`);
+      await page.goto(`${BASE}/balances/details/account?month=2026-10&target=${id(99)}`);
+      await expect(page.getByRole('region', {
+        name: '통장 상세',
+        exact: true
+      }).getByRole('alert')).toContainText('해당 조회 월의 통장 정보를 찾을 수 없어요.');
+      await back().click();
+      await expect(page).toHaveURL(`${BASE}/balances?month=2026-10`);
+    }
+  });
+}

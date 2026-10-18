@@ -29,6 +29,18 @@ public class BankAccountController {
         return ok(service.correct(UUID.fromString(user.userId()), propertyId, request));
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<BankAccountSettings.Detail> detail(@AuthenticationPrincipal AuthPrincipal user, @PathVariable UUID propertyId,
+        @PathVariable UUID id) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.detail(UUID.fromString(user.userId()), propertyId, id));
+    }
+
+    @PostMapping("/{id}/number-reveal")
+    public ResponseEntity<BankAccountSettings.RevealedNumber> revealNumber(@AuthenticationPrincipal AuthPrincipal user, @PathVariable UUID propertyId,
+        @PathVariable UUID id) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.revealNumber(UUID.fromString(user.userId()), propertyId, id));
+    }
+
     @GetMapping("/list")
     public ResponseEntity<java.util.List<BankAccountSettings.Response>> list(@AuthenticationPrincipal AuthPrincipal user, @PathVariable UUID propertyId) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.list(UUID.fromString(user.userId()),propertyId));

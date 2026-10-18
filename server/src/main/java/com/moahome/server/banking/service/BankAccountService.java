@@ -38,6 +38,29 @@ public class BankAccountService {
         return response(primaryAccount(propertyId));
     }
 
+    /** 기본 상세는 복호화 없이 끝 네 자리만 반환해 전체 번호가 조회 캐시에 들어가지 않게 합니다. */
+    public BankAccountSettings.Detail detail(UUID userId, UUID propertyId, UUID accountId) {
+        var account = readableAccount(userId, propertyId, accountId);
+        return new BankAccountSettings.Detail(propertyId, account.getId(), account.getUpdatedAt(),
+            account.getBankCode(), account.getBankName(), account.getAccountLast4(), account.getHolderNameSnapshot(),
+            account.getAlias(), account.isPrimary(), account.getStatus().name());
+    }
+
+    /** 공개 버튼 요청마다 권한·소속을 다시 확인한 선택 통장 한 건만 복호화합니다. */
+    public BankAccountSettings.RevealedNumber revealNumber(UUID userId, UUID propertyId, UUID accountId) {
+        var account = readableAccount(userId, propertyId, accountId);
+        return new BankAccountSettings.RevealedNumber(propertyId, account.getId(), account.getUpdatedAt(),
+            security.decrypt(account.getAccountNumberEncrypted()));
+    }
+
+    /** 종료 통장의 과거 정보는 허용하되 다른 대상·삭제·비공용 계좌는 같은 권한 오류로 거부합니다. */
+    private BankAccount readableAccount(UUID userId, UUID propertyId, UUID accountId) {
+        requireAdmin(userId, propertyId);
+        return accounts.findById(accountId)
+            .filter(account -> propertyId.equals(account.getPropertyId()) && account.getDeletedAt() == null && account.getBuildingId() == null)
+            .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+    }
+
     /** 업로드·수납과 같은 관리대상 잠금 아래 계좌 정보만 정정하고 과거 거래·잔고는 다시 쓰지 않습니다. */
     @Transactional
     public BankAccountSettings.Response correct(UUID userId, UUID propertyId, BankAccountSettings.Request request) {

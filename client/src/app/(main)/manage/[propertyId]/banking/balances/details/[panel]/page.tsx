@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { BankingBalancePanelPage } from '@/screens/banking/balance-panel';
 
 const PANEL_TITLES = {
+  account: '통장 상세',
   opening: '기준 잔고 확인',
   chart: '동별 입금·지출 비교',
   difference: '잔고 차이 내역',

@@ -6,6 +6,7 @@ import {
 } from '@/entities/banking';
 import { formatWon } from '@/shared/lib/format';
 import { InfoTooltip } from '@/shared/ui/info-tooltip';
+import { Button } from '@/shared/ui/button';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import type { AccountBalance } from '../../../api/bankingBalanceApi';
 import { getAccountBalanceDisplay } from '../../../model/accountBalance';
@@ -21,7 +22,7 @@ function formatConfirmation(asOf: string) {
 }
 
 /** 은행 확인값과 기준 잔고에서 계산한 값을 구분하고 출처는 마우스·키보드·터치 도움말로 설명합니다. */
-export function AccountBalances({ accounts }: { accounts: AccountBalance[] }) {
+export function AccountBalances({ accounts, onOpen }: { accounts: AccountBalance[]; onOpen: (accountId: string) => void }) {
   return (
     <section
       className={styles.card}
@@ -55,53 +56,65 @@ export function AccountBalances({ accounts }: { accounts: AccountBalance[] }) {
               key={account.id}
               className={styles.row}
             >
-              <span
-                className={styles.logo}
-                aria-hidden={'true'}
+              <Button
+                variant={'ghost'}
+                className={styles.trigger}
+                aria-label={`${account.label} 통장 상세 보기`}
+                onClick={() => onOpen(account.id)}
               >
-                {bank ? (
-                  <BankIcon
-                    bankCode={bank.value}
-                  />
-                ) : (
-                  <ServiceIcon
-                    name={'bank'}
-                  />
-                )}
-              </span>
-              <div
-                className={styles.identity}
-              >
-                <strong>
-                  {account.label}
-                  {account.status === 'CLOSED' ? ' · 사용 종료' : ''}
-                </strong>
-                {display.calculated ? (
-                  <small>
-                    계산 잔액 ·
-                    {' '}
-                    {display.description}
-                  </small>
-                ) : account.asOf ? (
-                  <time
-                    dateTime={account.asOf.replace(' ', 'T')}
-                    title={account.asOf}
-                    aria-label={`${account.asOf} 확인`}
-                  >
-                    {formatConfirmation(account.asOf)}
-                  </time>
-                ) : (
-                  <small>
-                    잔액이 0원이라는 뜻은 아닙니다.
-                  </small>
-                )}
-              </div>
-              <span
-                className={styles.amount}
-                data-unknown={display.amount === null}
-              >
-                {display.amount === null ? '은행 확인 자료 없음' : formatWon(display.amount)}
-              </span>
+                <span
+                  className={styles.logo}
+                  aria-hidden={'true'}
+                >
+                  {bank ? (
+                    <BankIcon
+                      bankCode={bank.value}
+                    />
+                  ) : (
+                    <ServiceIcon
+                      name={'bank'}
+                    />
+                  )}
+                </span>
+                <span
+                  className={styles.identity}
+                >
+                  <strong>
+                    {account.label}
+                    {account.status === 'CLOSED' ? ' · 사용 종료' : ''}
+                  </strong>
+                  {display.calculated ? (
+                    <small>
+                      계산 잔액 ·
+                      {' '}
+                      {display.description}
+                    </small>
+                  ) : account.asOf ? (
+                    <time
+                      dateTime={account.asOf.replace(' ', 'T')}
+                      title={account.asOf}
+                      aria-label={`${account.asOf} 확인`}
+                    >
+                      {formatConfirmation(account.asOf)}
+                    </time>
+                  ) : (
+                    <small>
+                      잔액이 0원이라는 뜻은 아닙니다.
+                    </small>
+                  )}
+                </span>
+                <span
+                  className={styles.amount}
+                  data-unknown={display.amount === null}
+                >
+                  {display.amount === null ? '은행 확인 자료 없음' : formatWon(display.amount)}
+                </span>
+                <ServiceIcon
+                  name={'chevron'}
+                  direction={'right'}
+                  className={styles.chevron}
+                />
+              </Button>
             </li>
           );
         })}

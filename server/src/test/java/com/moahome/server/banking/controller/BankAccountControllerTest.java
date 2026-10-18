@@ -66,6 +66,27 @@ class BankAccountControllerTest {
             .andExpect(jsonPath("$.code").value("ACCESS_DENIED")).andExpect(jsonPath("$.accountNumber").doesNotExist());
     }
 
+    @Test void selectedDetailIsMaskedAndNumberRequiresSeparateAuthenticatedPost() throws Exception {
+        var at = OffsetDateTime.parse("2026-10-18T00:00:00Z");
+        when(service.detail(user, property, account)).thenReturn(new BankAccountSettings.Detail(
+            property, account, at, "004", "국민은행", "5678", "예시 예금주", "관리비", true, "ACTIVE"));
+        when(service.revealNumber(user, property, account)).thenReturn(new BankAccountSettings.RevealedNumber(
+            property, account, at, "00012345678"));
+        mvc.perform(get(base()+"/"+account)).andExpect(status().isUnauthorized());
+        mvc.perform(post(base()+"/"+account+"/number-reveal")).andExpect(status().isUnauthorized());
+        mvc.perform(get(base()+"/"+account).with(identity())).andExpect(status().isOk())
+            .andExpect(header().string("Cache-Control", "no-store"))
+            .andExpect(jsonPath("$.last4").value("5678"))
+            .andExpect(jsonPath("$.accountNumber").doesNotExist())
+            .andExpect(jsonPath("$.accountNumberEncrypted").doesNotExist());
+        mvc.perform(post(base()+"/"+account+"/number-reveal").with(identity())).andExpect(status().isOk())
+            .andExpect(header().string("Cache-Control", "no-store"))
+            .andExpect(jsonPath("$.accountId").value(account.toString()))
+            .andExpect(jsonPath("$.accountNumber").value("00012345678"));
+        assertThat(new BankAccountSettings.RevealedNumber(property, account, at, "00012345678").toString())
+            .doesNotContain("00012345678");
+    }
+
     String body(String number) {
         return "{\"accountId\":\""+account+"\",\"updatedAt\":\"2026-10-18T00:00:00Z\",\"bankCode\":\"004\",\"bankName\":\"국민은행\",\"accountNumber\":\""+number+"\",\"holderName\":\"예시 예금주\"}";
     }

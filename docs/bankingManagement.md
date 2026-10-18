@@ -152,3 +152,13 @@ Selection의 `transfer:true`는 세대·기타 입금·지출·공동 입금 배
 accounts의 각 항목에 `calculatedBalance: 원 단위 부호 있는 문자열|null`, `calculationBasisDate: YYYY-MM-DD|null`을 추가합니다. [기준 잔고 기반 계산 기준](domainRules.md#기준-잔고-기반-통장-계산-잔액-표시-2026-10-18-후속)을 적용하며 계산에 필요한 동별 기준값이 없으면 두 필드는 null입니다. 기존 balance·asOf와 Workspace.bankBalance·bankAsOf는 은행 파일·기존 실제 잔액 기록의 확인값 의미를 유지합니다. 계산값으로 이 필드를 채우거나 가상의 은행 원본을 저장하지 않습니다. 원본이 없어도 통장×동 기준값이 확인됐으면 계산값을 반환하며 이전 월은 해당 통장 기준일에서 역산합니다.
 
 `accounts`에는 조회 월 말까지 사용 근거가 있는 통장만 포함하며 같은 계좌 집합으로 동별 합계·입출금·정산을 계산합니다. 같은 관리대상에 속하지만 사용 전인 accountId를 요청하면 응답 accountId는 null이고 해당 월의 전체 통장 결과를 반환합니다. 다른 관리대상의 계좌는 기존대로 거부합니다. 사용 근거 판정은 위 공통 계산 기준을 따르며 해당 월에 사용한 통장이 없으면 accounts·buildings는 빈 목록, 은행 잔액과 기준일은 null입니다.
+
+
+### 선택 통장 상세와 계좌번호 공개
+
+2026-10-18 사용자 요청을 구현합니다. 기존 Bearer 인증·ADMIN 권한·`Cache-Control: no-store`를 적용하며 두 요청 모두 같은 관리대상·미삭제 공용 통장을 확인합니다. 종료 통장은 조회할 수 있습니다. 권한 부족·다른 대상·삭제·비공용·없는 통장은 `403 ACCESS_DENIED`로 구분 없이 거부합니다.
+
+- `GET /api/properties/{propertyId}/banking/account/{id}` → `{propertyId,accountId,updatedAt,bankCode,bankName,last4,holderName,alias,isPrimary,status}`. 번호 원문·암호문·HMAC 없이 끝 네 자리만 반환하며 복호화하지 않습니다.
+- `POST /api/properties/{propertyId}/banking/account/{id}/number-reveal` → `{propertyId,accountId,updatedAt,accountNumber}`. 본문 없이 선택 통장 한 건의 전체 번호를 반환합니다. 권한과 소속을 다시 확인하며 원문은 로그·오류에 포함하지 않습니다.
+
+기존 설정용 `/account`, `/account/list` 계약은 유지합니다. 잔액은 기존 조회 월·통장별 잔고 응답을 사용합니다. Client는 상세와 공개 응답의 관리대상·통장·수정 버전·끝 네 자리 일치를 검증하고 상세 정정 후 다른 버전 번호는 표시하지 않습니다. 브라우저 번호 수명은 [Client 설계](../client/docs/bankingManagement.md#통장별-확인-잔액의-통장-상세)를 따릅니다.

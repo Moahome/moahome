@@ -67,6 +67,7 @@ import {
 } from '../../api/bankingApi';
 import { sortExpenseLabels } from '../../model/expenseAllocation';
 import { BankingExpensePage } from '../banking-expense-page/bankingExpensePage';
+import { BankAccountDetails } from '../_components/bank-account-details/bankAccountDetails';
 import { AccountBalances } from '../_components/account-balances/accountBalances';
 import {
   getAccountBalanceDisplay,
@@ -77,8 +78,9 @@ type Action = {
     kind: 'opening' | 'settlement' | 'assignment' | 'difference';
     id?: string;
 };
-export type BalancePanel = Action['kind'] | 'chart';
+export type BalancePanel = Action['kind'] | 'chart' | 'account';
 const PANEL_TITLES: Record<BalancePanel, string> = {
+  account: '통장 상세',
   opening: '기준 잔고 확인',
   chart: '동별 입금·지출 비교',
   difference: '잔고 차이 내역',
@@ -217,6 +219,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   const [externalSearch, setExternalSearch] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
   const [detail, setDetail] = useState<string | null>(null);
+  const [accountDetailId, setAccountDetailId] = useState<string | null>(null);
   const [chartOpen, setChartOpen] = useState(false);
   const [action, setAction] = useState<Action | null>(null);
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
@@ -345,6 +348,10 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       router.push(`/manage/${propertyId}/banking/balances/details/${kind}?${queryParams}`);
       return;
     }
+    if (kind === 'account') {
+      setAccountDetailId(id ?? null);
+      return;
+    }
     if (kind === 'chart') {
       setChartOpen(true);
       return;
@@ -379,8 +386,36 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       setExporting(false);
     }
   }
+  /** 조회 월에 포함된 통장만 열고 전체 번호 상태는 사용자·통장·조회 범위가 바뀔 때 폐기합니다. */
+  function renderAccountDetail(id: string | null) {
+    const account = data?.accounts?.find((item) => item.id === id);
+    if (!account) return (
+      <p
+        role={'alert'}
+      >
+        해당 조회 월의 통장 정보를 찾을 수 없어요.
+      </p>
+    );
+    return (
+      <BankAccountDetails
+        key={`${session.data?.id}-${propertyId}-${month}-${accountId}-${account.id}`}
+        propertyId={propertyId}
+        account={account}
+        month={month}
+      />
+    );
+  }
   if (panel) {
     const closePage = () => router.replace(balanceListHref);
+    if (panel === 'account') return (
+      <DetailDialog
+        title={'통장 상세'}
+        presentation={'page'}
+        onClose={closePage}
+      >
+        {renderAccountDetail(params.get('target'))}
+      </DetailDialog>
+    );
     if (panel === 'chart') return (
       <ChartDialog
         buildings={filtered}
@@ -677,6 +712,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       {!!data.accounts?.length && (
         <AccountBalances
           accounts={visibleAccounts}
+          onOpen={(id) => openPanel('account', id)}
         />
       )}
       <section
@@ -997,6 +1033,15 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
             ]}
           />
         </section>
+      )}
+      {accountDetailId && (
+        <DetailDialog
+          title={'통장 상세'}
+          compact
+          onClose={() => setAccountDetailId(null)}
+        >
+          {renderAccountDetail(accountDetailId)}
+        </DetailDialog>
       )}
       {chartOpen && (
         <ChartDialog

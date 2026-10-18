@@ -55,11 +55,14 @@ function getMobileBack(pathname: string, basePath: string, month: string | null,
   const balanceQuery = new URLSearchParams();
   if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month ?? '')) balanceQuery.set('month', month!);
   if (/^[0-9a-f-]{36}$/i.test(account ?? '')) balanceQuery.set('account', account!);
-  if (pathname.startsWith(`${basePath}/banking/balances/`)) return {
-    href: `${basePath}/banking/balances${balanceQuery.size ? `?${balanceQuery}` : ''}`,
-    label: '동별 잔고·정산으로 돌아가기',
-    title: pathname.startsWith(`${basePath}/banking/balances/details/`) ? '동별 잔고·정산' : '동별 상세 원장'
-  };
+  if (pathname.startsWith(`${basePath}/banking/balances/`)) {
+    const panelTitle = pathname.endsWith('/banking/balances/details/account') ? '통장 상세' : '동별 잔고·정산';
+    return {
+      href: `${basePath}/banking/balances${balanceQuery.size ? `?${balanceQuery}` : ''}`,
+      label: '동별 잔고·정산으로 돌아가기',
+      title: pathname.startsWith(`${basePath}/banking/balances/details/`) ? panelTitle : '동별 상세 원장'
+    };
+  }
   if (pathname === `${basePath}/banking/manual`) return {
     href: `${basePath}/banking/transactions`,
     label: '통장 거래로 돌아가기',
