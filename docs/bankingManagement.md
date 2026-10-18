@@ -127,6 +127,8 @@ Workspace에 `accounts:[{id,bankName,last4,alias,isPrimary,status}]`를 추가�
 
 Selection의 `transfer:true`는 세대·기타 입금·지출·공동 입금 배분 설정과 함께 보낼 수 없습니다. 원본만 저장하며 거래에 `transferCandidate:true`, 상태 `TRANSFER_PENDING`을 반환합니다. 연결하면 `transferId`와 `TRANSFER` 상태를 반환하고 연결 해제하면 대기로 돌아갑니다. 양쪽 원본의 동일 대상·다른 통장·반대 방향·같은 양수 금액을 검사하며 중복 연결·이미 분류한 원본·잘못된 UUID 재사용은 `BANK_TRANSFER_CONFLICT`(409)입니다. 같은 요청 ID 재시도는 이후 취소된 연결을 다시 적용하지 않습니다. 연결 원본의 한쪽만 삭제하면 `BANK_TRANSFER_DELETE_PAIR_REQUIRED`(409)입니다.
 
+`Selection.transfer`는 선택 입력이며 생략·null은 `false`로 처리합니다. 일반 입출금과 이전 클라이언트의 multipart 요청을 허용하되 명시한 `true`는 유지하고, 잘못된 boolean 값이나 다른 요청 필드의 검증을 완화하지 않습니다.
+
 잔고 응답에 `accounts:[{id,label,status,balance,asOf}]`를 추가하고 bankBalance는 조회 범위에 속한 통장의 확인 잔액 합계입니다. 하나라도 미확인이면 null이며 계좌별 asOf를 표시합니다. 통장 내부 이체는 은행 입출금에는 남지만 동별 Entry·세대 수납·운영 지출에는 포함하지 않습니다. 연결 대기는 pending에 표시하고 연결 완료는 제외합니다. 외부 부담금과 연결 후보 입금에는 accountId를 추가해 기존 같은 통장 회수 제한에 맞는 후보만 선택합니다. 다른 계좌로 받은 외부 부담금 회수는 후속 정책입니다.
 
 수동 기타·동별 입금은 [수동 등록 계약](paymentApi.md#수동-등록확정취소)을 사용합니다. 동별 잔고 조회는 미연결 수동 기타 입금의 transactionId=null을 허용하며, 동별 배분 원장 행은 수동 입금 UUID와 paymentId를 반환합니다. 은행 원본 상세를 만들어 열지 않고 기존 수납 상세를 엽니다. 확정 수동 OTHER는 미배분 기타 입금·외부 회수 후보에, SHARED는 지정 동의 입금에 반영하며 나중에 원본 연결 후에도 한 번만 집계합니다.

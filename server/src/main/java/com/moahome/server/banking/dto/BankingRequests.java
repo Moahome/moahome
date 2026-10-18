@@ -19,7 +19,9 @@ public final class BankingRequests {
         public Expense { note=com.moahome.server.common.validation.TextValues.optional(note); }
     }
     public record Selection(@NotNull UUID id,UUID unitId,@TextInput(max=100,optional=true) String incomeCategory,
-        @TextInput(max=500,optional=true) String incomeNote,@Valid Expense expense,@Valid Expense incomeAllocation,boolean transfer) {
+        @TextInput(max=500,optional=true) String incomeNote,@Valid Expense expense,@Valid Expense incomeAllocation,
+        // 일반 거래와 이전 클라이언트는 이체 표시를 생략하므로 해당 필드만 false로 기본 처리합니다.
+        @com.fasterxml.jackson.annotation.JsonSetter(nulls=com.fasterxml.jackson.annotation.Nulls.AS_EMPTY) boolean transfer) {
         public Selection(UUID id,UUID unitId,String incomeCategory,String incomeNote,Expense expense,Expense incomeAllocation) { this(id,unitId,incomeCategory,incomeNote,expense,incomeAllocation,false); }
         public Selection(UUID id,UUID unitId,String incomeCategory,String incomeNote,Expense expense) {
             this(id,unitId,incomeCategory,incomeNote,expense,null,false);

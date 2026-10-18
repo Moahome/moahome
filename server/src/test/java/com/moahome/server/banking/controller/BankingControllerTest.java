@@ -46,11 +46,36 @@ class BankingControllerTest {
             .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"));
         verify(service).confirmExpense(eq(user),eq(property),eq(transaction),argThat(r->r.note()==null&&r.allocations().getFirst().percentage()==null));
     }
+    /** 일반 출금은 이체 표시를 생략하는 실제 프론트 요청 형식으로 multipart 변환까지 검증합니다. */
+    @Test void importsNormalExpenseWithoutOptionalTransferFlag() throws Exception {
+        var file=new org.springframework.mock.web.MockMultipartFile("file","은행.csv","text/csv","거래일,입금액,출금액,적요".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        var selection=new org.springframework.mock.web.MockMultipartFile("selection","selection.json","application/json",
+            ("{\"rows\":[{\"id\":\""+transaction+"\",\"expense\":{\"category\":\"전기료\",\"note\":\"\",\"mode\":\"AMOUNT\",\"saveAsRule\":false,\"allocations\":[{\"buildingId\":null,\"label\":\"외부\",\"amount\":\"182690\",\"percentage\":\"\"}]}}]}").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        mvc.perform(multipart(base()+"/import").file(file).file(selection).with(identity()))
+            .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"));
+        verify(service).upload(eq(user),eq(property),any(),argThat(r->!r.rows().getFirst().transfer()&&r.rows().getFirst().expense().allocations().getFirst().percentage()==null));
+    }
     @Test void rejectsMissingSelectionAndInvalidPreviewIdBeforeService() throws Exception {
         var file=new org.springframework.mock.web.MockMultipartFile("file","은행.csv","text/csv","거래일,입금액,출금액,적요".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         mvc.perform(multipart(base()+"/import").file(file).with(identity())).andExpect(status().isBadRequest());
         var selection=new org.springframework.mock.web.MockMultipartFile("selection","selection.json","application/json","{\"rows\":[{\"id\":\"invalid\"}]}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         mvc.perform(multipart(base()+"/import").file(file).file(selection).with(identity())).andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+    }
+    /** 생략 기본값을 허용해도 명시한 이체 여부를 바꾸거나 잘못된 문자열을 통과시키지 않습니다. */
+    @Test void preservesExplicitTransferFlagAndRejectsInvalidBooleanText() throws Exception {
+        var file=new org.springframework.mock.web.MockMultipartFile("file","은행.csv","text/csv","거래일,입금액,출금액,적요".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        for(String flag:List.of("true","false","null")) {
+            clearInvocations(service);
+            var selection=new org.springframework.mock.web.MockMultipartFile("selection","selection.json","application/json",
+                ("{\"rows\":[{\"id\":\""+transaction+"\",\"transfer\":"+flag+"}]}").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            mvc.perform(multipart(base()+"/import").file(file).file(selection).with(identity())).andExpect(status().isOk());
+            verify(service).upload(eq(user),eq(property),any(),argThat(r->r.rows().getFirst().transfer()==Boolean.parseBoolean(flag)));
+        }
+        clearInvocations(service);
+        var invalid=new org.springframework.mock.web.MockMultipartFile("selection","selection.json","application/json",
+            ("{\"rows\":[{\"id\":\""+transaction+"\",\"transfer\":\"not-a-boolean\"}]}").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        mvc.perform(multipart(base()+"/import").file(file).file(invalid).with(identity())).andExpect(status().isBadRequest());
         verifyNoInteractions(service);
     }
     @Test void validatesBankDeletionSelectionAndRequiresAuthentication() throws Exception {
