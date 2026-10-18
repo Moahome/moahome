@@ -62,7 +62,7 @@ test('단일 진입 UI는 ui 직하를 허용하고 내부 보조 컴포넌트�
     const messages = await architectureMessages(path, code);
     expect(messages.map((message) => message.messageId)).toEqual(['componentFolder']);
   }
-  for (const path of ['src/screens/login/ui/loginPage.tsx', 'src/widgets/service-header/ui/serviceHeader.tsx', 'src/features/kakao-login/ui/kakaoLoginButton.tsx', 'src/entities/banking/ui/bankIcon.tsx', 'src/features/property-registration/ui/property-registration-flow/propertyRegistrationFlow.tsx', 'src/screens/household/resident-list/ui/resident-list-page/residentListPage.tsx', 'src/screens/landing/ui/_components/brand-logo/brandLogo.tsx']) {
+  for (const path of ['src/screens/login/ui/loginPage.tsx', 'src/widgets/service-header/ui/serviceHeader.tsx', 'src/features/kakao-login/ui/kakaoLoginButton.tsx', 'src/entities/banking/ui/bank-icon/bankIcon.tsx', 'src/features/property-registration/ui/property-registration-flow/propertyRegistrationFlow.tsx', 'src/screens/household/resident-list/ui/resident-list-page/residentListPage.tsx', 'src/screens/landing/ui/_components/brand-logo/brandLogo.tsx']) {
     expect(await architectureMessages(path, code)).toEqual([]);
   }
 });

@@ -43,7 +43,7 @@ import static org.assertj.core.api.Assertions.*;
 @DataJpaTest(showSql=false)
 @AutoConfigureTestDatabase(replace=AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({com.moahome.server.banking.service.BankingBalanceService.class,com.moahome.server.banking.service.BankingService.class,com.moahome.server.expense.service.ExpenseService.class,com.moahome.server.payment.service.CumulativePaymentService.class,PaymentService.class,BankTransactionReader.class,BillingTemplates.class,BillingGenerationService.class,
+@Import({com.moahome.server.banking.service.BankAccountService.class,com.moahome.server.banking.service.BankingBalanceService.class,com.moahome.server.banking.service.BankingService.class,com.moahome.server.expense.service.ExpenseService.class,com.moahome.server.payment.service.CumulativePaymentService.class,PaymentService.class,BankTransactionReader.class,BillingTemplates.class,BillingGenerationService.class,
     PropertyRegistrationService.class,PropertyRegistrationLock.class,ManagementAccessService.class,UserService.class,
     OpeningBalanceService.class,com.moahome.server.membership.service.MemberManagementService.class,
     com.moahome.server.membership.service.MembershipRequestService.class,ResidentRegistrationService.class,ResidentManagementService.class,
@@ -54,6 +54,7 @@ import static org.assertj.core.api.Assertions.*;
 class PaymentPersistenceTest {
     static final PostgresTestServer POSTGRES=new PostgresTestServer();
     @Autowired PaymentService service;
+    @Autowired com.moahome.server.banking.service.BankAccountService bankAccountSettings;
     @Autowired com.moahome.server.banking.service.BankingService banking;
     @Autowired com.moahome.server.banking.service.BankingBalanceService cashBalances;
     @Autowired OpeningBalanceService opening;
@@ -106,6 +107,44 @@ class PaymentPersistenceTest {
     MockMultipartFile bank(String payer,String amount) { return csv("입금일,입금자명,입금액\n2026-10-15,"+payer+","+amount); }
     long count(String table) { return jdbc.queryForObject("select count(*) from "+table,Long.class); }
 
+
+    /** 계좌 정보 정정은 보호된 번호만 바꾸고 거래·수납·잔고 원본과 계좌 ID를 유지합니다. */
+    @Test void correctsAccountDetailsWithoutReassigningExistingCashAndRejectsStaleUpdates() {
+        service.importFile(user,property,bank("김대표","50000"));
+        var before=bankAccountSettings.read(user,property);
+        var transactionBefore=jdbc.queryForList("select * from bank_transactions where property_id=?",property);
+        var paymentsBefore=jdbc.queryForList("select * from payments where property_id=?",property);
+        var metadataBefore=jdbc.queryForMap("select valid_from,valid_to,is_primary,status from bank_accounts where id=?",before.accountId());
+        var numberBefore=jdbc.queryForObject("select account_number_encrypted from bank_accounts where id=?",String.class,before.accountId());
+        var request=new com.moahome.server.banking.dto.BankAccountSettings.Request(before.accountId(),before.updatedAt(),"004","국민은행","000-9876-5432","정정 예금주");
+        var saved=bankAccountSettings.correct(user,property,request);
+        assertThat(saved.accountId()).isEqualTo(before.accountId());
+        assertThat(saved.accountNumber()).isEqualTo("00098765432");
+        assertThat(saved.holderName()).isEqualTo("정정 예금주");
+        assertThat(saved.updatedAt()).isAfter(before.updatedAt());
+        assertThat(bankAccountSettings.read(user,property)).isEqualTo(saved);
+        assertThat(bankAccountSettings.correct(user,property,request)).isEqualTo(saved);
+        assertThat(jdbc.queryForList("select * from bank_transactions where property_id=?",property)).isEqualTo(transactionBefore);
+        assertThat(jdbc.queryForList("select * from payments where property_id=?",property)).isEqualTo(paymentsBefore);
+        assertThat(jdbc.queryForMap("select valid_from,valid_to,is_primary,status from bank_accounts where id=?",before.accountId())).isEqualTo(metadataBefore);
+        var numberAfter=jdbc.queryForObject("select account_number_encrypted from bank_accounts where id=?",String.class,before.accountId());
+        assertThat(numberAfter).isNotEqualTo(numberBefore).doesNotContain("00098765432");
+        var stale=new com.moahome.server.banking.dto.BankAccountSettings.Request(before.accountId(),before.updatedAt(),"004","국민은행","00011112222","다른 정정");
+        assertThatThrownBy(()->bankAccountSettings.correct(user,property,stale)).isInstanceOfSatisfying(PaymentException.class,e->assertThat(e.code()).isEqualTo("BANK_ACCOUNT_CONFLICT"));
+        var next=new com.moahome.server.banking.dto.BankAccountSettings.Request(saved.accountId(),saved.updatedAt(),"004","국민은행",saved.accountNumber(),"최종 예금주");
+        assertThat(bankAccountSettings.correct(user,property,next).holderName()).isEqualTo("최종 예금주");
+
+    }
+
+    /** 계좌 원문 조회와 정정은 세대·부담당자 권한으로 실행할 수 없습니다. */
+    @Test void rejectsAccountCorrectionByManagerBeforeReadingAccountDetails() {
+        var original=bankAccountSettings.read(user,property);
+        jdbc.update("update property_members set role='MANAGER' where property_id=? and user_id=?",property,user);
+        var request=new com.moahome.server.banking.dto.BankAccountSettings.Request(original.accountId(),original.updatedAt(),"004","국민은행","00099998888","정정 예금주");
+        assertThatThrownBy(()->bankAccountSettings.read(user,property)).isInstanceOf(AuthException.class);
+        assertThatThrownBy(()->bankAccountSettings.correct(user,property,request)).isInstanceOf(AuthException.class);
+        assertThat(jdbc.queryForObject("select bank_code from bank_accounts where id=?",String.class,original.accountId())).isEqualTo(original.bankCode());
+    }
 
     /** 신규 등록·세대 추가·스케줄은 관리 시작 확정 전에는 청구를 생성하지 않습니다. */
     UUID newHandoverTarget() {

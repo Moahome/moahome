@@ -1,8 +1,12 @@
 import { SettingsPage } from '@/screens/settings';
 
-export default function Page() {
+export default async function Page({ params }: { params: Promise<{ propertyId: string }> }) {
+  const { propertyId } = await params;
+
   return (
-    <SettingsPage />
+    <SettingsPage
+      propertyId={propertyId}
+    />
   );
 }
 

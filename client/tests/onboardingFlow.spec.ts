@@ -443,7 +443,7 @@ test('모바일 주민 상세는 헤더 뒤로가기와 기존 수정 폼의 역
 test('설정에서 관리대상이 있는 계정도 추가 화면에 진입하고 일반 시작의 기본 이동은 유지', async ({ page }) => {
   await mockWorkspace(page);
   await page.goto(`${BASE}/settings`);
-  await expect(page.getByRole('main').getByRole('button')).toHaveCount(1);
+  await expect(page.getByRole('main').getByRole('button')).toHaveCount(2);
   await expect(page.getByRole('main')).not.toContainText('초대 신청');
   await expect(page.getByRole('main')).not.toContainText('외부 부담당자');
   await page.screenshot({
@@ -861,4 +861,167 @@ test('본인 계정 연결은 현재 세대가 있는 미연결 주민이 없으
     exact: true
   })).toBeDisabled();
   expect(state.writes).toHaveLength(0);
+});
+
+for (const width of [1440, 390]) {
+  test(`설정의 계좌 변경 ${width}px는 현재 정보 조회·검증·실패 재시도·저장을 지원`, async ({ page }) => {
+    await mockWorkspace(page);
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    let account = {
+      propertyId: PROPERTY,
+      accountId: id(20),
+      updatedAt: '2026-10-18T00:00:00Z',
+      bankCode: '004',
+      bankName: '국민은행',
+      accountNumber: '00012345678',
+      holderName: '기존 예금주'
+    };
+    let reads = 0;
+    const writes: Record<string, unknown>[] = [];
+    await page.route(`${API}/api/properties/${PROPERTY}/banking/account`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return json(route, {});
+      expect(route.request().headers().authorization).toBe('Bearer synthetic-access');
+      if (route.request().method() === 'GET') {
+        reads += 1;
+        if (reads === 1) return json(route, {
+          code: 'PAYMENT_SERVICE_UNAVAILABLE'
+        }, 503);
+        return json(route, account);
+      }
+      const body = route.request().postDataJSON();
+      writes.push(body);
+      if (writes.length === 1) return json(route, {
+        code: 'PAYMENT_SERVICE_UNAVAILABLE'
+      }, 503);
+      account = {
+        ...account,
+        ...body,
+        updatedAt: '2026-10-18T00:01:00Z'
+      };
+      return json(route, account);
+    });
+    await page.goto(`${BASE}/settings`);
+    expect(reads).toBe(0);
+    await page.getByRole('button', {
+      name: '계좌 변경',
+      exact: true
+    }).click();
+    const dialog = page.getByRole('dialog', {
+      name: '계좌 변경',
+      exact: true
+    });
+    await expect(dialog.getByRole('alert')).toBeVisible();
+    await dialog.getByRole('button', {
+      name: '다시 시도',
+      exact: true
+    }).click();
+    await expect(dialog.getByRole('textbox', {
+      name: '계좌번호',
+      exact: true
+    })).toHaveValue('00012345678');
+    await dialog.getByRole('combobox', {
+      name: '은행',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '신한은행',
+      exact: true
+    }).click();
+    await dialog.getByRole('textbox', {
+      name: '예금주',
+      exact: true
+    }).fill('');
+    await expect(dialog.getByRole('button', {
+      name: '변경 저장',
+      exact: true
+    })).toBeDisabled();
+    await dialog.getByRole('textbox', {
+      name: '예금주',
+      exact: true
+    }).fill('정정 예금주');
+    await dialog.getByRole('textbox', {
+      name: '계좌번호',
+      exact: true
+    }).fill('00098765432');
+    await dialog.getByRole('button', {
+      name: '변경 저장',
+      exact: true
+    }).click();
+    await expect(dialog.getByRole('alert')).toBeVisible();
+    await expect(dialog.getByRole('textbox', {
+      name: '계좌번호',
+      exact: true
+    })).toHaveValue('00098765432');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`bankAccountCorrection${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    await dialog.getByRole('button', {
+      name: '변경 저장',
+      exact: true
+    }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText('계좌 정보를 변경했어요.', {
+      exact: true
+    })).toBeVisible();
+    expect(writes).toHaveLength(2);
+    expect(writes[0]).toEqual(writes[1]);
+    expect(writes[1]).toEqual({
+      accountId: id(20),
+      updatedAt: '2026-10-18T00:00:00Z',
+      bankCode: '088',
+      bankName: '신한은행',
+      accountNumber: '00098765432',
+      holderName: '정정 예금주'
+    });
+    await page.getByRole('button', {
+      name: '계좌 변경',
+      exact: true
+    }).click();
+    await expect(dialog.getByRole('textbox', {
+      name: '예금주',
+      exact: true
+    })).toHaveValue('정정 예금주');
+    await expect(dialog.getByRole('textbox', {
+      name: '계좌번호',
+      exact: true
+    })).toHaveValue('00098765432');
+    await dialog.getByRole('button', {
+      name: '계좌 변경 닫기',
+      exact: true
+    }).click();
+    const stored = await page.evaluate(() => JSON.stringify({
+      ...localStorage,
+      ...sessionStorage
+    }));
+    expect(stored).not.toContain('00098765432');
+    expect(stored).not.toContain('정정 예금주');
+  });
+}
+
+test('부담당자의 설정에는 계좌 변경을 제공하지 않음', async ({ page }) => {
+  await mockWorkspace(page);
+  await page.route(`${API}/api/properties/${PROPERTY}/management-context`, route => json(route, {
+    propertyId: PROPERTY,
+    name: '모아빌라',
+    role: 'MANAGER'
+  }));
+  await page.goto(`${BASE}/settings`);
+  await expect(page.getByRole('heading', {
+    name: '설정',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('button', {
+    name: '계좌 변경',
+    exact: true
+  })).toHaveCount(0);
+  await expect(page.getByRole('button', {
+    name: '등록 및 참여',
+    exact: true
+  })).toBeVisible();
 });

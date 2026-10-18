@@ -103,8 +103,25 @@ public class BankAccount {
 		updatedAt = at;
 	}
 
+	/** 동일 계좌의 오입력 정보만 정정하며 ID·사용기간·기본 지정과 기존 거래 연결은 유지합니다. */
+	public void correctDetails(String bankCode, String bankName, String holderName,
+		AccountNumberSecurity.ProtectedAccountNumber number) {
+		if (deletedAt != null || status != BankAccountStatus.ACTIVE || !primary || buildingId != null) {
+			throw new IllegalStateException("Account is not an active public primary account");
+		}
+		Objects.requireNonNull(number);
+		this.bankCode = TextValues.required(bankCode, 20);
+		this.bankName = TextValues.required(bankName, 50);
+		this.holderNameSnapshot = TextValues.required(holderName, 50);
+		this.accountNumberEncrypted = TextValues.required(number.encrypted(), 512);
+		this.accountNumberHmac = TextValues.required(number.hmac(), 64);
+		this.accountLast4 = TextValues.required(number.last4(), 4);
+	}
+
 	@PreUpdate
 	private void updateTimestamp() {
-		updatedAt = OffsetDateTime.now(ZoneOffset.UTC);
+		// PostgreSQL의 마이크로초 정밀도와 맞춰 응답 직후 재수정의 버전 비교가 어긋나지 않게 합니다.
+		var now = OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+		updatedAt = now.isAfter(updatedAt) ? now : updatedAt.plusNanos(1000);
 	}
 }

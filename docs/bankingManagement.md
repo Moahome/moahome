@@ -89,3 +89,12 @@ Workspace.rows는 원본 UUID·계좌·날짜·선택 시간·지출명·메모�
 - 업로드 Selection에 선택 필드 `incomeAllocation`을 추가합니다. 이 필드를 보내면 `incomeCategory`가 필요하며 `unitId`·`expense`와 함께 보낼 수 없습니다. 수납 확정·배분 저장은 한 트랜잭션이므로 배분 실패 시 입금 원본까지 롤백합니다.
 - Workspace 거래에 `receiptType`과 `incomeAllocation`을 추가합니다. `incomeAllocation`은 기존 Expense 응답과 같은 구조이며 ID는 수납 ID, `saveAsRule`은 false입니다. 세대 입금·미배분 기타 입금은 null입니다. 동별 잔고 Entry에는 배분된 동마다 해당 몫의 income을 표시하되 실제 은행 잔액과 기타 입금 전체 합계는 복제하지 않습니다.
 - `OTHER_INCOME_REQUIRED`: 확정 기타 입금이 아님. `INCOME_ALREADY_SETTLED`: 외부 회수에 이미 사용한 입금. 대상·금액·비율 검증은 기존 배분 오류를 재사용합니다. 동별 배분 입금은 외부 회수 후보·사용 가능 입금 목록에서 제외합니다. 삭제한 출금의 기존 회수 연결은 보관하되 활성 회수 집계에서 제외하여 연결 입금의 사용 가능액을 복원합니다.
+
+## 기존 관리계좌 정보 정정 API
+
+2026-10-18 구현. [기존 관리계좌 정정 정책](domainRules.md#기존-관리계좌-정보-정정-2026-10-18)을 따릅니다. ADMIN 전용이며 응답은 `Cache-Control: no-store`입니다.
+
+- `GET /api/properties/{propertyId}/banking/account`: 현재 활성 공용 기본 계좌를 `{propertyId,accountId,updatedAt,bankCode,bankName,accountNumber,holderName}`으로 반환합니다. 계좌번호 원문은 권한 확인 뒤 복호화하며 로그·오류에 포함하지 않습니다.
+- `PUT /api/properties/{propertyId}/banking/account`: `{accountId,updatedAt,bankCode,bankName,accountNumber,holderName}`을 보내고 같은 조회 응답 형식으로 정정 결과를 받습니다. 은행 코드 1~20자, 은행명·예금주 1~50자, 번호는 ASCII 공백·하이픈을 정리한 숫자 4~50자리이며 앞자리 0을 보존합니다.
+- 계좌 ID·수정 시각이 달라진 요청은 `BANK_ACCOUNT_CONFLICT`(409), 같은 관리대상의 다른 미삭제 계좌와 은행 코드·번호가 중복되면 `BANK_ACCOUNT_DUPLICATE`(409), 활성 공용 기본 계좌가 정확히 하나가 아니면 `PAYMENT_ACCOUNT_UNAVAILABLE`(409)입니다. 같은 값의 재시도는 저장된 결과를 반환합니다. 입력·인증·권한·저장소 오류는 기존 보호된 오류 계약을 재사용합니다.
+- ID·사용기간·기본 계좌 지정과 기존 거래·수납·지출·잔고를 변경하지 않습니다. 다른 계좌로의 전환·잔액 이체 기능은 포함하지 않습니다.
