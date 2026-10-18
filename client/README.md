@@ -218,6 +218,8 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 
 ## 서버 연결 오류 안내
 
+개발 서버(`npm run dev`)에서 API가 실패하면 브라우저 개발자 도구의 Console에 `[모아홈 API 오류]`가 표시됩니다. 요청 메서드·경로(쿼리 제외), HTTP 상태, 오류 코드, 안전한 검증 필드와 코드 위치를 기록합니다. 통장 관리의 응답 검증·화면 처리 오류도 같은 방식으로 기록하고 동일 오류의 중복 로그는 줄입니다. 인증 헤더·쿠키·요청/응답 본문·파일 내용·원본 예외 메시지는 기록하지 않습니다. 프로덕션에서는 이 진단 로그를 출력하지 않습니다.
+
 백엔드 연결 실패·타임아웃(`NETWORK_ERROR`)과 HTTP 5xx 조회 오류는 `shared/ui/server-connection-error`의 ServerConnectionError를 재사용합니다. 로그인·콜백·시작 화면, 관리 권한 확인, 세대·주민·가입 요청, 관리비·통장·입금 조회에 연결했습니다. 인증·권한·입력 오류는 기존 화면의 복구 흐름을 유지하며, 토큰 교체 결과가 미확인인 경우 재로그인 정책을 변경하지 않습니다.
 
 캐릭터는 사용자 제공 투명 PNG를 시각 변경 없이 변환한 `/images/errors/serverError.webp`이며 문구·버튼은 React로 표시합니다. 백엔드에 의존하지 않고 프론트엔드 정적 자산으로 제공합니다. 기본 안내는 입력 보존을 단정하지 않으며, 실제 폼을 유지하는 호출부만 `inputPreserved`를 지정할 수 있습니다.

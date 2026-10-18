@@ -1,5 +1,8 @@
 import { authenticatedAPI } from '@/entities/session';
-import { ApiError } from '@/shared/api';
+import {
+  ApiError,
+  reportApiError
+} from '@/shared/api';
 
 import type {
   BankingAllocation,
@@ -135,6 +138,10 @@ export async function cancelBankTransfer(propertyId: string, id: string) {
   }), propertyId);
 }
 export function bankingError(error: unknown): string {
+  // HTTP 성공 이후의 응답 검증 오류와 화면 처리 예외도 개발 콘솔에서 원인을 추적합니다.
+  reportApiError(error, {
+    source: '통장 관리'
+  });
   if (!(error instanceof ApiError)) return '통장 정보를 처리하지 못했어요. 다시 시도해주세요.';
   const messages: Record<string, string> = {
     BANK_TRANSFER_CONFLICT: '다른 통장의 같은 금액 입출금인지 확인해주세요. 이미 처리된 연결은 다시 열어주세요.',

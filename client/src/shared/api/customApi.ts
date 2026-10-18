@@ -27,6 +27,43 @@ export interface ApiFieldError {
   reason: string;
 }
 
+const reportedErrors = new WeakSet<object>();
+
+/** 개발 콘솔에는 실패 위치와 안전한 진단 정보만 남기며, 전송부·화면이 같은 오류를 중복 기록하지 않습니다. */
+export function reportApiError(error: unknown, context: Pick<CustomApiOptions, 'url' | 'method'> | { source: string }) {
+  if (process.env.NODE_ENV !== 'development') return;
+  if (error !== null && typeof error === 'object') {
+    if (reportedErrors.has(error)) return;
+    reportedErrors.add(error);
+  }
+  let path: string | undefined;
+  if ('url' in context) {
+    try {
+      // 검색어·토큰이 들어갈 수 있는 쿼리와 해시·인증정보는 기록하지 않습니다.
+      path = new URL(context.url, 'http://localhost').pathname;
+    } catch {
+      path = '(잘못된 요청 경로)';
+    }
+  }
+  const apiError = error instanceof ApiError ? error : null;
+  console.error('[모아홈 API 오류]', {
+    ...('source' in context ? {
+      source: context.source
+    } : {
+      method: context.method ?? 'GET',
+      path
+    }),
+    status: apiError?.status,
+    code: apiError && /^[A-Z][A-Z0-9_]{0,99}$/.test(apiError.code) ? apiError.code : 'UNKNOWN_ERROR',
+    type: error instanceof Error && /^[A-Za-z][A-Za-z0-9]*$/.test(error.name) ? error.name : 'Error',
+    fields: readFieldErrors({
+      errors: apiError?.errors
+    }),
+    // 원본 예외 메시지는 입력값을 포함할 수 있어 제외하고 코드 위치만 보존합니다.
+    stack: error instanceof Error ? error.stack?.split('\n').filter((line) => /^\s+at /.test(line)).join('\n') : undefined
+  });
+}
+
 /** 응답 원문·메시지 대신 형식이 확인된 필드 경로와 이유만 보존해 화면의 안내에 사용합니다. */
 function readFieldErrors(result: unknown): ApiFieldError[] {
   if (!result || typeof result !== 'object' || !('errors' in result) || !Array.isArray(result.errors)) return [];
@@ -68,8 +105,18 @@ function appendQuery(url: URL, data: unknown) {
   }
 }
 
+/** 호출자가 처리할 오류를 그대로 유지하면서 개발자가 실패 요청을 콘솔에서 찾을 수 있게 합니다. */
+export async function customAPI<T = unknown>(options: CustomApiOptions): Promise<T> {
+  try {
+    return await requestAPI<T>(options);
+  } catch (error) {
+    reportApiError(error, options);
+    throw error;
+  }
+}
+
 /** 공통 쿠키·캐시 설정으로 API를 호출하고 HTTP 오류와 JSON 응답을 일관되게 처리합니다. */
-export async function customAPI<T = unknown>({
+async function requestAPI<T = unknown>({
   url: path,
   method = 'GET',
   data,

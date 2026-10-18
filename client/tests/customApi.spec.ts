@@ -6,11 +6,14 @@ import {
   ApiError,
   customAPI,
   getApiUrl,
-  isServerConnectionError
+  isServerConnectionError,
+  reportApiError
 } from '../src/shared/api';
 
 const originalFetch = globalThis.fetch;
 const originalApiHost = process.env.NEXT_PUBLIC_API_HOST;
+const originalNodeEnv = process.env.NODE_ENV;
+const originalConsoleError = console.error;
 
 test('연결 오류 안내는 통신·서버 장애만 포함하고 인증·권한·입력 오류는 제외', () => {
   for (const error of [new ApiError(0, 'NETWORK_ERROR', ''), new ApiError(500, 'HTTP_ERROR', ''), new ApiError(503, 'SERVICE_UNAVAILABLE', ''), new ApiError(504, 'HTTP_ERROR', '')]) {
@@ -27,12 +30,112 @@ test.beforeEach(() => {
 
 test.afterEach(() => {
   globalThis.fetch = originalFetch;
+  console.error = originalConsoleError;
+  if (originalNodeEnv === undefined) Reflect.deleteProperty(process.env, 'NODE_ENV');
+  else Object.assign(process.env, {
+    NODE_ENV: originalNodeEnv
+  });
 
   if (originalApiHost === undefined) {
     delete process.env.NEXT_PUBLIC_API_HOST;
   } else {
     process.env.NEXT_PUBLIC_API_HOST = originalApiHost;
   }
+});
+
+test('개발 콘솔은 실패 요청의 경로·상태·검증 필드만 한 번 기록하고 입력·인증정보를 제외', async () => {
+  Object.assign(process.env, {
+    NODE_ENV: 'development'
+  });
+  const logs: unknown[][] = [];
+  console.error = (...args: unknown[]) => { logs.push(args); };
+  globalThis.fetch = async () => Response.json({
+    code: 'INVALID_REQUEST',
+    message: 'private-server-response',
+    errors: [{
+      field: 'bankAccounts[0].holderName',
+      reason: 'REQUIRED',
+      value: 'private-holder-name'
+    }]
+  }, {
+    status: 400
+  });
+  const error = await customAPI({
+    url: '/api/properties/example/banking/import?token=private-query-token',
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer private-access-token',
+      'X-CSRF-TOKEN': 'private-csrf-token'
+    },
+    data: {
+      payer: 'private-payer-name',
+      accountNumber: 'private-bank-number'
+    }
+  }).catch((failure: unknown) => failure);
+  reportApiError(error, {
+    source: '통장 관리'
+  });
+  expect(logs).toHaveLength(1);
+  expect(logs[0][0]).toBe('[모아홈 API 오류]');
+  expect(logs[0][1]).toMatchObject({
+    method: 'POST',
+    path: '/api/properties/example/banking/import',
+    status: 400,
+    code: 'INVALID_REQUEST',
+    fields: [{
+      field: 'bankAccounts[0].holderName',
+      reason: 'REQUIRED'
+    }]
+  });
+  expect((logs[0][1] as { stack: string }).stack).toContain('customApi');
+  expect(JSON.stringify(logs)).not.toContain('private-');
+  expect(error).toMatchObject({
+    status: 400,
+    code: 'INVALID_REQUEST'
+  });
+});
+
+test('개발 콘솔은 네트워크·응답 형식 오류를 구분하고 성공 요청과 프로덕션 오류를 기록하지 않음', async () => {
+  Object.assign(process.env, {
+    NODE_ENV: 'development'
+  });
+  const logs: unknown[][] = [];
+  console.error = (...args: unknown[]) => { logs.push(args); };
+  globalThis.fetch = async () => { throw new TypeError('private-network-detail'); };
+  await expect(customAPI({
+    url: '/api/example'
+  })).rejects.toMatchObject({
+    code: 'NETWORK_ERROR'
+  });
+  globalThis.fetch = async () => new Response('<html>private-response-body</html>');
+  await expect(customAPI({
+    url: '/api/example'
+  })).rejects.toMatchObject({
+    code: 'INVALID_RESPONSE'
+  });
+  expect(logs.map((entry) => (entry[1] as { code: string }).code)).toEqual(['NETWORK_ERROR', 'INVALID_RESPONSE']);
+  expect(JSON.stringify(logs)).not.toContain('private-');
+  globalThis.fetch = async () => Response.json({
+    ok: true
+  });
+  await customAPI({
+    url: '/api/example'
+  });
+  expect(logs).toHaveLength(2);
+  Object.assign(process.env, {
+    NODE_ENV: 'production'
+  });
+  globalThis.fetch = async () => Response.json({
+    code: 'SERVICE_UNAVAILABLE'
+  }, {
+    status: 503
+  });
+  await expect(customAPI({
+    url: '/api/example'
+  })).rejects.toMatchObject({
+    status: 503
+  });
+  expect(logs).toHaveLength(2);
 });
 
 test('GET 쿼리 인코딩과 공통 쿠키·캐시 설정', async () => {

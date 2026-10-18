@@ -1,5 +1,5 @@
 export {
-  customAPI, ApiError
+  customAPI, ApiError, reportApiError
 } from './customApi';
 export type {
   CustomApiOptions

@@ -39,6 +39,12 @@ function row(index: number, direction: 'INCOME' | 'EXPENSE', payer: string, amou
 }
 
 test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기료 특수 배분을 함께 전송', async ({ page }) => {
+  const diagnostics: Record<string, unknown>[] = [];
+  page.on('console', async (message) => {
+    if (message.type() === 'error' && message.text().startsWith('[모아홈 API 오류]')) {
+      diagnostics.push(await message.args()[1].jsonValue());
+    }
+  });
   const rows = [...Array.from({
     length: 11
   }, (_, index) => row(200 + index, 'INCOME', `입금자${index}`, '50000')), row(300, 'EXPENSE', '07전기요금', '182660')];
@@ -372,6 +378,16 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
     name: '선택 거래 처리 (11)'
   }).click();
   await expect(page.getByText('서버에 연결하지 못했어요. 선택과 입력을 유지하고 다시 시도해주세요.')).toBeVisible();
+  await expect.poll(() => diagnostics.length).toBe(1);
+  expect(diagnostics[0]).toMatchObject({
+    method: 'POST',
+    path: `/api/properties/${PROPERTY}/banking/import`,
+    status: 503,
+    code: 'NETWORK_ERROR'
+  });
+  expect(JSON.stringify(diagnostics)).not.toContain('은행 원본');
+  expect(JSON.stringify(diagnostics)).not.toContain('test-access');
+  expect(JSON.stringify(diagnostics)).not.toContain('test-csrf');
   await openExpense();
   await expect(editor.getByLabel('외부 101동 부담 비율', {
     exact: true
