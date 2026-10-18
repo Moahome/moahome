@@ -25,10 +25,11 @@ public class BankAccountService {
     private final PropertyRepository properties;
     private final BankAccountRepository accounts;
     private final AccountNumberSecurity security;
+    private final java.time.Clock clock;
 
     public BankAccountService(ManagementAccessService access, PropertyRepository properties,
-        BankAccountRepository accounts, @Lazy AccountNumberSecurity security) {
-        this.access=access; this.properties=properties; this.accounts=accounts; this.security=security;
+        BankAccountRepository accounts, @Lazy AccountNumberSecurity security,java.time.Clock clock) {
+        this.access=access; this.properties=properties; this.accounts=accounts; this.security=security;this.clock=clock;
     }
 
     /** 계좌번호 원문은 현재 관리소장 권한을 확인한 조회에서만 복호화합니다. */
@@ -75,8 +76,72 @@ public class BankAccountService {
         return current.getFirst();
     }
 
+    /** 종료 통장도 과거 내역 확인을 위해 목록에 유지하며 번호 원문은 이 권한 조회에서만 제공합니다. */
+    public java.util.List<BankAccountSettings.Response> list(UUID userId, UUID propertyId) {
+        requireAdmin(userId, propertyId);
+        return accounts.findByPropertyIdAndDeletedAtIsNull(propertyId).stream()
+            .map(this::response).toList();
+    }
+
+    /** 계좌 추가·정정과 기본 전환을 같은 잠금으로 직렬화하고 기존 거래의 계좌 ID는 유지합니다. */
+    @Transactional
+    public BankAccountSettings.Response save(UUID userId, UUID propertyId, BankAccountSettings.Save request) {
+        requireAdmin(userId,propertyId);
+        var property=properties.findForUnitUpdate(propertyId).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+        requireAdmin(userId,propertyId);
+        var primary=primaryAccount(propertyId);
+        var number=security.protect(request.accountNumber());
+        var existing=accounts.findById(request.accountId());
+        var account=existing.orElse(null);
+        if(account!=null && (!propertyId.equals(account.getPropertyId()) || account.getDeletedAt()!=null)) throw new PaymentException("BANK_ACCOUNT_CONFLICT");
+        boolean same=account!=null && account.getStatus()==BankAccountStatus.ACTIVE && account.getBankCode().equals(request.bankCode())
+            && account.getBankName().equals(request.bankName()) && account.getHolderNameSnapshot().equals(request.holderName())
+            && account.getAccountNumberHmac().equals(number.hmac()) && java.util.Objects.equals(account.getAlias(),request.alias())
+            && account.isPrimary()==request.isPrimary();
+        // 응답을 잃은 동일 요청은 저장된 결과를 반환하되 이후 다른 전환을 다시 적용하지 않습니다.
+        if(same) return response(account);
+        if(!primary.getId().equals(request.primaryAccountId()) || (account!=null && !account.getUpdatedAt().equals(request.updatedAt()))
+            || (account==null && request.updatedAt()!=null)) throw new PaymentException("BANK_ACCOUNT_CONFLICT");
+        if(account!=null && account.getStatus()!=BankAccountStatus.ACTIVE) throw new PaymentException("BANK_ACCOUNT_CLOSED");
+        if(account!=null && account.isPrimary() && !request.isPrimary()) throw new PaymentException("BANK_ACCOUNT_PRIMARY_REQUIRED");
+        var selectedId=request.accountId();
+        if(accounts.findByPropertyIdAndDeletedAtIsNull(propertyId).stream().anyMatch(other -> !other.getId().equals(selectedId)
+            && other.getBankCode().equals(request.bankCode()) && other.getAccountNumberHmac().equals(number.hmac()))) throw new PaymentException("BANK_ACCOUNT_DUPLICATE");
+        if(account==null) {
+            account=BankAccount.register(request.accountId(),property,request.bankCode(),request.bankName(),request.holderName(),number,request.alias(),accounts.nextRegistrationOrder(propertyId),java.time.OffsetDateTime.now(clock));
+            // 할당 ID를 사용하는 신규 계좌는 merge 결과를 계속 사용해야 같은 요청의 기본 지정도 저장됩니다.
+            account=accounts.save(account);
+        } else {
+            account.correctDetails(request.bankCode(),request.bankName(),request.holderName(),number);
+            account.rename(request.alias());
+        }
+        if(request.isPrimary() && !account.isPrimary()) {
+            primary.designatePrimary(false);
+            accounts.flush();
+            account.designatePrimary(true);
+        }
+        accounts.flush();
+        return response(account);
+    }
+
+    /** 기본 계좌 종료는 금지하고 통장 사용 종료만 기록해 수납·잔고·과거 거래를 보존합니다. */
+    @Transactional
+    public BankAccountSettings.Response close(UUID userId, UUID propertyId, UUID id, BankAccountSettings.Close request) {
+        requireAdmin(userId,propertyId);
+        properties.findForUnitUpdate(propertyId).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+        requireAdmin(userId,propertyId);
+        var account=accounts.findById(id).filter(a -> propertyId.equals(a.getPropertyId()) && a.getDeletedAt()==null)
+            .orElseThrow(() -> new PaymentException("BANK_ACCOUNT_CONFLICT"));
+        if(account.getStatus()==BankAccountStatus.CLOSED) return response(account);
+        if(!account.getUpdatedAt().equals(request.updatedAt())) throw new PaymentException("BANK_ACCOUNT_CONFLICT");
+        if(account.isPrimary()) throw new PaymentException("BANK_ACCOUNT_PRIMARY_REQUIRED");
+        account.close(java.time.LocalDate.now(clock.withZone(java.time.ZoneId.of("Asia/Seoul"))));
+        accounts.flush();
+        return response(account);
+    }
+
     private BankAccountSettings.Response response(BankAccount account) {
         return new BankAccountSettings.Response(account.getPropertyId(), account.getId(), account.getUpdatedAt(),
-            account.getBankCode(), account.getBankName(), security.decrypt(account.getAccountNumberEncrypted()), account.getHolderNameSnapshot());
+            account.getBankCode(), account.getBankName(), security.decrypt(account.getAccountNumberEncrypted()), account.getHolderNameSnapshot(),account.getAlias(),account.isPrimary(),account.getStatus().name());
     }
 }

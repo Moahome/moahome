@@ -57,13 +57,13 @@ export function SettingsPage({ propertyId }: { propertyId: string }) {
                 관리계좌
               </h2>
               <p>
-                등록한 계좌의 은행·계좌번호·예금주를 정정하세요.
+                통장을 추가하고 기본 납부계좌와 사용 상태를 관리하세요.
               </p>
             </div>
             <Button
               onClick={() => { setSaved(false); setAccountOpen(true); }}
             >
-              계좌 변경
+              계좌 관리
             </Button>
           </div>
         </ListCard>
@@ -72,7 +72,7 @@ export function SettingsPage({ propertyId }: { propertyId: string }) {
         <BankAccountEditor
           propertyId={propertyId}
           onClose={() => setAccountOpen(false)}
-          onSaved={() => { setAccountOpen(false); setSaved(true); }}
+          onSaved={() => { setSaved(true); }}
         />
       )}
       {saved && (

@@ -1,0 +1,138 @@
+.modal {
+  width: min(600px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--card);
+  color: var(--foreground);
+
+  &[open] {
+    display: flex;
+    flex-direction: column;
+
+    :is(input, button, [tabindex]) {
+      scroll-margin-top: 16px;
+    }
+  }
+
+  &::backdrop {
+    background: color-mix(in srgb, var(--foreground) 40%, transparent);
+  }
+}
+
+.header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 28px;
+  border-bottom: 1px solid var(--border);
+
+  h2 {
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.4;
+  }
+
+  p {
+    margin-top: 8px;
+    color: var(--sub-text);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.body {
+  min-height: 0;
+  padding: 24px 28px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.error {
+  margin-top: 16px;
+  color: var(--danger);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 28px 24px;
+  border-top: 1px solid var(--border);
+  background: var(--card);
+
+  > button {
+    min-width: 112px;
+  }
+}
+
+@media (max-width: 640px) {
+  .modal {
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+    border-radius: 16px;
+  }
+
+  .header {
+    padding: 20px;
+
+    h2 {
+      font-size: 23px;
+    }
+
+    p {
+      font-size: 14px;
+    }
+  }
+
+  .body {
+    padding: 20px;
+  }
+
+  .actions {
+    gap: 10px;
+    padding: 16px 20px 20px;
+
+    > button {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+}
+
+@media (max-height: 540px) {
+  .header {
+    align-items: center;
+    padding-block: 12px;
+
+    h2 {
+      font-size: 22px;
+    }
+
+    p {
+      display: none;
+    }
+  }
+
+  .body {
+    padding-block: 16px;
+  }
+
+  .actions {
+    padding-block: 12px;
+  }
+}

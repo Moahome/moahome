@@ -8,6 +8,7 @@ export function SummaryCard({
   unit,
   icon,
   tone = 'neutral',
+  valueTone = 'neutral',
   density = 'comfortable',
   description,
 }: {
@@ -16,6 +17,7 @@ export function SummaryCard({
   unit: string;
   icon: ReactNode;
   tone?: 'primary' | 'success' | 'neutral' | 'warning' | 'danger';
+  valueTone?: 'neutral' | 'danger';
   density?: 'comfortable' | 'compact';
   description?: string;
 }) {
@@ -23,6 +25,7 @@ export function SummaryCard({
     <article
       className={styles.card}
       data-tone={tone}
+      data-value-tone={valueTone}
       data-density={density}
       aria-label={`${label} ${value}${unit}`}
     >

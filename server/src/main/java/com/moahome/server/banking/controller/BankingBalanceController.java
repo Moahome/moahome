@@ -15,8 +15,12 @@ public class BankingBalanceController {
     private final BankingBalanceService service;
     public BankingBalanceController(BankingBalanceService service) { this.service=service; }
     @GetMapping
-    public ResponseEntity<BankingBalanceResponse.Workspace> workspace(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@RequestParam String month) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.workspace(UUID.fromString(user.userId()),propertyId,month));
+    public ResponseEntity<BankingBalanceResponse.Workspace> workspace(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@RequestParam String month,@RequestParam(required=false) UUID accountId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(service.workspace(UUID.fromString(user.userId()),propertyId,month,accountId));
+    }
+    @PostMapping("/account-openings")
+    public ResponseEntity<Map<String,Boolean>> accountOpening(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@Valid @RequestBody BankingBalanceRequests.AccountOpening request) {
+        service.saveAccountOpening(UUID.fromString(user.userId()),propertyId,request);return saved();
     }
     @PostMapping("/openings")
     public ResponseEntity<Map<String,Boolean>> openings(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@Valid @RequestBody BankingBalanceRequests.Opening request) {

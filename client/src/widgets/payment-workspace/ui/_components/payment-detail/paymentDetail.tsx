@@ -60,8 +60,10 @@ export function PaymentDetail({ paymentId, presentation = 'modal', menuLabel = '
         paymentId={paymentId}
         onProcessed={onProcessed}
         disabled={supplementBusy}
-      />
-      {renderSupplement?.(setSupplementBusy)}
+        onClose={onClose}
+      >
+        {renderSupplement?.(setSupplementBusy)}
+      </PaymentEditor>
     </>
   );
   if (presentation === 'page') return (

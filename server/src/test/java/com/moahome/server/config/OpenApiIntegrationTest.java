@@ -44,6 +44,7 @@ class OpenApiIntegrationTest {
 	@Autowired private ObjectMapper mapper;
 	@MockitoBean private com.moahome.server.payment.service.PaymentService payments;
     @MockitoBean private com.moahome.server.banking.service.BankingService banking;
+    @MockitoBean private com.moahome.server.banking.service.IncomeAllocationService incomeAllocations;
     @MockitoBean private com.moahome.server.banking.service.BankingBalanceService bankingBalances;
     @MockitoBean private com.moahome.server.banking.service.BankAccountService bankAccountSettings;
     @MockitoBean private com.moahome.server.expense.service.ExpenseService expenses;
@@ -133,10 +134,10 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
 			.andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(71);
+		assertThat(document.path("paths").properties()).hasSize(77);
         for(String method:List.of("get","put"))
             assertThat(document.path("paths").path("/api/properties/{propertyId}/banking/account").at("/"+method+"/security/0/bearerAuth").isArray()).isTrue();
-        for(String suffix:List.of("openings","openings/corrections","income-assignments","settlements","settlement-decisions"))
+        for(String suffix:List.of("openings","openings/corrections","account-openings","income-assignments","settlements","settlement-decisions"))
             assertThat(document.path("paths").path("/api/properties/{propertyId}/banking/balances/"+suffix).at("/post/security/0/bearerAuth").isArray()).isTrue();
         assertThat(document.path("paths").path("/api/properties/{propertyId}/banking/balances").at("/get/security/0/bearerAuth").isArray()).isTrue();
         for(String suffix:List.of("import","import/preview","transactions/{id}/expense","transactions/delete","transactions/{id}/income-allocation"))

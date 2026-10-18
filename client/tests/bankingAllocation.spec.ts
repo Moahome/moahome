@@ -319,3 +319,90 @@ test('동별 잔고는 시작 잔고 미설정을 0원으로 합산하지 않고
   expect(strFromU8(zip['xl/worksheets/sheet2.xml'])).toContain('<v>604335</v>');
   expect(strFromU8(zip['xl/sharedStrings.xml'])).not.toContain('<t>이전</t>');
 });
+
+
+test('통장 잔액 합계와 차액은 확인값·계산값을 같은 기준으로 사용하고 원본 확인값은 보존', async () => {
+  const { getAccountBalanceDisplay, getAccountBalanceTotal } = await import('../src/widgets/banking-workspace/model/accountBalance');
+  const { getBalanceSummary } = await import('../src/widgets/banking-workspace/model/balanceLedger');
+  const account = {
+    id: 'bank',
+    label: '카카오뱅크',
+    status: 'ACTIVE',
+    balance: null,
+    asOf: null,
+    calculatedBalance: '1522910',
+    calculationBasisDate: '2026-09-30'
+  };
+  expect(getAccountBalanceDisplay(account)).toMatchObject({
+    amount: '1522910',
+    calculated: true
+  });
+  expect(getAccountBalanceDisplay({
+    ...account,
+    balance: '1500000',
+    asOf: '2026-10-15'
+  })).toMatchObject({
+    amount: '1500000',
+    calculated: false
+  });
+  expect(getAccountBalanceDisplay({
+    ...account,
+    calculatedBalance: null
+  })).toMatchObject({
+    amount: null,
+    calculated: false
+  });
+  const data = {
+    buildings: [{
+      balance: '1522910'
+    }],
+    bankBalance: null,
+    accounts: [account],
+    externals: []
+  } as unknown as import('../src/widgets/banking-workspace/api/bankingBalanceApi').BalanceWorkspace;
+  expect(getBalanceSummary(data)).toMatchObject({
+    total: BigInt(1522910),
+    difference: BigInt(0)
+  });
+  const mixed = {
+    ...data,
+    accounts: [account, {
+      ...account,
+      id: 'shinhan',
+      balance: '815204',
+      asOf: '2026-10-15',
+      calculatedBalance: '999999'
+    }],
+    buildings: [{
+      ...data.buildings[0],
+      balance: '2404832'
+    }]
+  };
+  expect(getAccountBalanceTotal(mixed)).toEqual({
+    amount: '2338114',
+    calculated: true
+  });
+  expect(getBalanceSummary(mixed).difference).toBe(BigInt(-66718));
+  expect(mixed.bankBalance).toBeNull();
+  expect(getAccountBalanceTotal({
+    ...mixed,
+    accountId: 'bank'
+  }).amount).toBe('1522910');
+  const missing = {
+    ...mixed,
+    accounts: [account, {
+      ...account,
+      id: 'unknown',
+      calculatedBalance: null
+    }]
+  };
+  expect(getAccountBalanceTotal(missing).amount).toBeNull();
+  expect(getBalanceSummary(missing).difference).toBeNull();
+  expect(getBalanceSummary({
+    ...mixed,
+    buildings: [{
+      ...mixed.buildings[0],
+      balance: null
+    }]
+  }).difference).toBeNull();
+});

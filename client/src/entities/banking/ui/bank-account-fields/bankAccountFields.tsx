@@ -58,6 +58,16 @@ export function BankAccountFields({ account, onChange, fieldClassName }: {
 
   return (
     <>
+      <Input
+        label={'통장 별칭'}
+        value={account.alias ?? ''}
+        placeholder={'예: 운영비 통장, 공용 관리비 계좌'}
+        maxLength={100}
+        fieldClassName={fieldClassName}
+        onChange={(event) => updateAccount({
+          alias: event.target.value
+        })}
+      />
       <SelectDropdown
         label={'은행'}
         required

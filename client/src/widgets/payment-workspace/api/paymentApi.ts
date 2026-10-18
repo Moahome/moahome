@@ -1,3 +1,4 @@
+import type { ExpenseDraft } from '@/entities/banking';
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
 import {
@@ -8,7 +9,7 @@ import {
 } from '../model/paymentPreview';
 
 export type PaymentCommand =
-  | { type: 'manual'; data: { id: string; unitId: string; date: string; amount: string } }
+  | { type: 'manual'; data: { id: string; unitId?: string; date: string; amount: string; accountId?: string; purpose?: 'HOUSEHOLD' | 'OTHER' | 'SHARED'; payer?: string; category?: string; note?: string; incomeAllocation?: ExpenseDraft } }
   | { type: 'confirm'; id: string; data: CumulativePaymentDraft }
   | { type: 'other-income'; id: string; data: { category: string; note?: string } }
   | { type: 'hold' | 'cancel'; id: string; data: { reason: string } }
@@ -27,6 +28,7 @@ const STATES = ['PENDING', 'ON_HOLD', 'CONFIRMED', 'CANCELED', 'LINKED'];
 function readLedger(value: PreviewLedger & { propertyId: string }, propertyId: string): PreviewLedger {
   if (!value || value.propertyId !== propertyId || !isPreviewDate(value.asOf)
     || !Array.isArray(value.accounts) || !value.accounts.every((a) => UUID.test(a.id) && typeof a.label === 'string')
+    || (value.buildings !== undefined && (!Array.isArray(value.buildings) || !value.buildings.every((b) => UUID.test(b.id) && typeof b.label === 'string')))
     || !Array.isArray(value.units) || !value.units.every((u) => UUID.test(u.id) && typeof u.label === 'string' && ['ACTIVE', 'VACANT'].includes(u.status)
       && (u.buildingName === undefined || typeof u.buildingName === 'string')
       && (u.residentNames === undefined || (Array.isArray(u.residentNames) && u.residentNames.every((name) => typeof name === 'string'))))
@@ -37,8 +39,12 @@ function readLedger(value: PreviewLedger & { propertyId: string }, propertyId: s
       && typeof p.payer === 'string' && typeof p.amount === 'string' && /^[0-9]{1,15}$/.test(p.amount) && BigInt(p.amount) > BigInt(0)
       && isPreviewDate(p.date) && ['MANUAL', 'BANK_IMPORT'].includes(p.source) && STATES.includes(p.status)
       && (p.receiptType === undefined || ['HOUSEHOLD', 'OTHER'].includes(p.receiptType))
-      && (p.receiptType !== 'OTHER' || (p.source === 'BANK_IMPORT' && ['CONFIRMED', 'CANCELED'].includes(p.status)
+      && (p.receiptType !== 'OTHER' || (['CONFIRMED', 'CANCELED'].includes(p.status)
         && p.unitId === '' && p.allocations?.length === 0 && typeof p.incomeCategory === 'string' && Boolean(p.incomeCategory.trim())))
+      && (p.incomeAllocation == null || (p.receiptType === 'OTHER' && UUID.test(p.incomeAllocation.id)
+        && ['EQUAL', 'RATIO', 'AMOUNT'].includes(p.incomeAllocation.mode) && Array.isArray(p.incomeAllocation.allocations)
+        && p.incomeAllocation.allocations.length > 0 && p.incomeAllocation.allocations.every((a) => UUID.test(a.buildingId ?? '') && typeof a.label === 'string' && /^[0-9]{1,15}$/.test(a.amount) && BigInt(a.amount) > BigInt(0))
+        && p.incomeAllocation.allocations.reduce((sum, a) => sum + BigInt(a.amount), BigInt(0)) === BigInt(p.amount)))
       && (p.incomeNote === undefined || p.incomeNote === null || typeof p.incomeNote === 'string')
       && Array.isArray(p.allocations) && p.allocations.every((a) => UUID.test(a.chargeId) && /^[0-9]{1,15}$/.test(a.amount)))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '입금 응답을 확인할 수 없습니다.');
@@ -128,7 +134,12 @@ export function paymentError(error: unknown): string {
     INVALID_BANK_FILE: '.xls·.xlsx 또는 UTF-8 CSV 파일을 확인해주세요. 최대 5MB이며 수식은 지원하지 않아요.',
     INVALID_BANK_HEADER: '앞부분의 거래일·입금액·입금자명 열을 확인해주세요. 입출금 양식은 적요 열도 사용할 수 있어요.',
     INVALID_BANK_ROW: '거래내역의 날짜·입금자·금액 또는 수식 셀을 확인해주세요.',
-    INVALID_BANK_SELECTION: '선택한 거래와 파일이 일치하지 않아요. 파일을 다시 확인해주세요.',
+    INVALID_BANK_SELECTION: '입금 용도에 맞는 세대·입금자명·입금 항목과 배분 설정을 확인해주세요.',
+    INVALID_EXPENSE_TARGET: '현재 관리 중인 동을 선택해주세요.',
+    INVALID_EXPENSE_ALLOCATION: '배분할 동과 0원보다 큰 금액·비율을 확인해주세요.',
+    EXPENSE_ALLOCATION_MISMATCH: '배분액 합계와 입금액을 맞춰주세요.',
+    ALLOCATION_REMAINDER_REQUIRED: '원 미만 금액이 남습니다. 금액 직접 입력으로 조정해주세요.',
+    BANK_REQUEST_CONFLICT: '이미 저장한 배분과 내용이 달라요. 최신 내역을 확인해주세요.',
     BANK_ROW_LIMIT: '거래내역은 최대 5,000행까지 지원해요.',
     EMPTY_BANK_FILE: '가져올 양수 입금 거래가 없어요.',
     INVALID_RESPONSE: '서버의 입금 응답을 확인할 수 없어요.',

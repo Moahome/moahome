@@ -3,17 +3,19 @@
 import {
   useEffect,
   useRef,
+  useState,
   type FormEvent
 } from 'react';
-import { BankAccountFields } from '@/entities/banking';
-import { Button } from '@/shared/ui/button';
+import { BankIcon } from '@/entities/banking';
 import { ServiceIcon } from '@/shared/ui/service-icon';
+import { formatWon } from '@/shared/lib/format';
+import { Button } from '@/shared/ui/button';
 import {
-  getBankAccountErrors,
-  type BankAccountDraft
+  createRegistrationAccount,
+  getRegistrationAccountsError,
+  type RegistrationAccount
 } from '../../../model/bankAccount';
 import { SetupProgress } from '../setup-progress/setupProgress';
-import { BankIllustration } from './bankIllustration';
 import { OpeningBalanceFields } from '../opening-balance-fields/openingBalanceFields';
 import {
   getCashOpeningError,
@@ -23,16 +25,18 @@ import type {
   BuildingDraft,
   UnitDraft
 } from '../../../model/unitSetup';
+import { BankIllustration } from './bankIllustration';
+import { RegistrationAccountDialog } from './registrationAccountDialog';
 import styles from './bankAccountSetup.module.css';
 
-/** 공용 관리계좌 하나를 초안으로 입력하며 이전 이동과 새로고침에서 같은 폼을 복원합니다. */
+/** 공용 관리계좌 목록과 계좌별 잔액을 초안으로 입력하며 이전 이동과 새로고침에서 같은 폼을 복원합니다. */
 export function BankAccountSetup({
   propertyName,
   openingBalances,
   units,
   buildings,
   onOpeningChange,
-  account,
+  accounts,
   onChange,
   onPrevious,
   onNext,
@@ -42,15 +46,16 @@ export function BankAccountSetup({
   units: UnitDraft[];
   buildings: BuildingDraft[];
   onOpeningChange: (opening: OpeningBalancesDraft) => void;
-  account: BankAccountDraft;
-  onChange: (account: BankAccountDraft) => void;
+  accounts: RegistrationAccount[];
+  onChange: (accounts: RegistrationAccount[]) => void;
   onPrevious: () => void;
   onNext: () => void;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const errors = getBankAccountErrors(account);
-  const openingError = getCashOpeningError(openingBalances, buildings);
-  const isValid = Object.keys(errors).length === 0 && !openingError;
+  const [editing, setEditing] = useState<{ account: RegistrationAccount; isNew: boolean } | null>(null);
+  const accountError = getRegistrationAccountsError(accounts);
+  const openingError = getCashOpeningError(openingBalances, buildings, accounts);
+  const isValid = !accountError && !openingError;
 
   useEffect(() => {
     headingRef.current?.focus({
@@ -62,12 +67,34 @@ export function BankAccountSetup({
     });
   }, []);
 
-  /** 선택한 은행의 코드와 이름 또는 입력값을 같은 계좌 초안에 반영합니다. */
-  function updateAccount(changes: Partial<BankAccountDraft>) {
-    onChange({
-      ...account,
-      ...changes
+  /** 최초 빈 통장은 등록 모달에서 채우고 이후 추가는 저장할 때에만 목록에 반영합니다. */
+  function addAccount() {
+    const empty = accounts.find((account) => !account.bankCode && !account.accountNumber && !account.holderName && !account.openingAmount && !account.alias);
+    setEditing({
+      account: empty ?? createRegistrationAccount(crypto.randomUUID(), accounts.length === 0),
+      isNew: !empty
     });
+  }
+
+  /** 저장한 통장과 잔액을 함께 반영하며 기본 지정 전환도 한 번의 초안 변경으로 처리합니다. */
+  function saveAccount(value: RegistrationAccount) {
+    if (!editing) return;
+    const updated = editing.isNew ? [...accounts, value] : accounts.map((account) => account.clientId === value.clientId ? value : account);
+    onChange(updated.map((account) => ({
+      ...account,
+      isPrimary: value.isPrimary ? account.clientId === value.clientId : account.isPrimary
+    })));
+    setEditing(null);
+  }
+
+  /** 최소 한 통장을 유지하고 기본 통장을 제거하면 남은 첫 통장을 기본으로 지정합니다. */
+  function removeAccount(clientId: string) {
+    if (accounts.length <= 1) return;
+    const remaining = accounts.filter((account) => account.clientId !== clientId);
+    onChange(remaining.some((account) => account.isPrimary) ? remaining : remaining.map((account, index) => ({
+      ...account,
+      isPrimary: index === 0
+    })));
   }
 
   /** 유효한 계좌 입력을 유지하며 관리비 항목 설정으로 이동하고 업무 데이터는 저장하지 않습니다. */
@@ -125,6 +152,7 @@ export function BankAccountSetup({
         >
           <div
             className={styles.illustration}
+            aria-hidden={'true'}
           >
             <BankIllustration />
           </div>
@@ -140,10 +168,10 @@ export function BankAccountSetup({
             </h2>
             <p>
               <span>
-                주민이 관리비를 입금할 계좌를 등록해주세요.
+                관리에 사용할 통장과 실제 잔액을 등록해주세요.
               </span>
               <span>
-                등록한 계좌는 주민의 관리비 납부 화면에 표시됩니다.
+                기본 납부계좌는 주민의 관리비 납부 화면에 표시됩니다.
               </span>
             </p>
           </div>
@@ -155,69 +183,157 @@ export function BankAccountSetup({
           onSubmit={continueSetup}
         >
           <div
-            className={styles.fields}
+            className={styles['list-heading']}
           >
-            <BankAccountFields
-              account={account}
-              onChange={onChange}
-              fieldClassName={styles.field}
-            />
-            <div
-              className={styles['primary-field']}
-            >
-              <label
-                className={styles['primary-choice']}
-              >
-                <input
-                  type={'checkbox'}
-                  checked={account.isPrimary}
-                  aria-invalid={!account.isPrimary}
-                  aria-describedby={!account.isPrimary ? 'primary-account-error' : undefined}
-                  onChange={(event) => updateAccount({
-                    isPrimary: event.target.checked
-                  })}
+            <h3>
+              통장 관리
+            </h3>
+            <Button
+              onClick={addAccount}
+              leadingIcon={(
+                <ServiceIcon
+                  name={'plus'}
                 />
-                <span>
-                  이 계좌를 기본 관리계좌로 사용
-                </span>
-              </label>
-              {errors.isPrimary && (
-                <p
-                  id={'primary-account-error'}
-                  className={styles.error}
-                  role={'alert'}
-                >
-                  {errors.isPrimary}
-                </p>
               )}
-            </div>
-          </div>
-          <OpeningBalanceFields
-            kind={'account'}
-            opening={openingBalances}
-            units={units}
-            buildings={buildings}
-            onChange={onOpeningChange}
-          />
-          <aside
-            className={styles.notice}
-          >
-            <span
-              className={styles['notice-icon']}
             >
-              <ServiceIcon
-                name={'info'}
-              />
-            </span>
-            <p>
-              <span>
-                주민 화면에는 은행명, 계좌번호, 예금주가 표시됩니다.
-              </span>
-              <span>
-                계좌 정보는 나중에 설정에서 변경할 수 있습니다.
-              </span>
+              통장 추가
+            </Button>
+          </div>
+          <div
+            className={styles['account-list']}
+          >
+            {accounts.map((account, index) => (
+              <div
+                key={account.clientId}
+                className={styles['account-row']}
+                role={'group'}
+                aria-label={`통장 ${index + 1}`}
+                data-removable={accounts.length > 1}
+              >
+                <Button
+                  variant={'ghost'}
+                  className={styles['account-summary']}
+                  aria-label={`통장 ${index + 1} 수정`}
+                  onClick={() => setEditing({
+                    account,
+                    isNew: false
+                  })}
+                >
+                  <span
+                    className={styles['bank-icon']}
+                    aria-hidden={'true'}
+                  >
+                    {account.bankCode ? (
+                      <BankIcon
+                        bankCode={account.bankCode}
+                      />
+                    ) : (
+                      <ServiceIcon
+                        name={'bank'}
+                      />
+                    )}
+                  </span>
+                  <span
+                    className={styles['account-copy']}
+                  >
+                    <span
+                      className={styles['account-title']}
+                    >
+                      <strong>
+                        {account.bankName || `통장 ${index + 1}`}
+                      </strong>
+                      {account.isPrimary && (
+                        <span
+                          className={styles.badge}
+                        >
+                          기본 납부계좌
+                        </span>
+                      )}
+                    </span>
+                    <span
+                      className={styles['account-details']}
+                    >
+                      {account.alias && <span>
+                        {account.alias}
+                      </span>}
+                      {account.accountNumber && <span>
+                        {account.accountNumber}
+                      </span>}
+                      {account.holderName && <span>
+                        {`예금주 ${account.holderName}`}
+                      </span>}
+                      {!account.bankCode && <span>
+                        은행과 계좌 정보를 등록해주세요.
+                      </span>}
+                    </span>
+                    {account.openingAmount !== '' && (
+                      <span
+                        className={styles['account-balance']}
+                      >
+                        {`실제 잔액 ${formatWon(account.openingAmount)}`}
+                      </span>
+                    )}
+                  </span>
+                  <span
+                    className={styles['edit-icon']}
+                    aria-hidden={'true'}
+                    title={'수정'}
+                  >
+                    <ServiceIcon
+                      name={'pen'}
+                    />
+                  </span>
+                </Button>
+                {accounts.length > 1 && (
+                  <Button
+                    variant={'ghost'}
+                    tone={'danger'}
+                    iconOnly
+                    className={styles.remove}
+                    aria-label={`통장 ${index + 1} 삭제`}
+                    onClick={() => removeAccount(account.clientId)}
+                    leadingIcon={(
+                      <ServiceIcon
+                        name={'trash'}
+                      />
+                    )}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+          <p
+            className={styles.hint}
+          >
+            <ServiceIcon
+              name={'info'}
+            />
+            통장은 여러 개 등록할 수 있으며, 여러 동이 공동으로 사용할 수 있습니다.
+          </p>
+          {accountError && (
+            <p
+              role={'status'}
+              className={styles.error}
+            >
+              {accountError}
             </p>
-          </aside>
+          )}
+          {buildings.length > 0 && (
+            <OpeningBalanceFields
+              kind={'account'}
+              opening={{
+                ...openingBalances,
+                accountAmount: accounts.every((account) => /^[0-9]{1,15}$/.test(account.openingAmount)) ? accounts.reduce((sum, account) => sum + BigInt(account.openingAmount), BigInt(0)).toString() : ''
+              }}
+              units={units}
+              buildings={buildings}
+              hideAccountAmount
+              onChange={(value) => onOpeningChange({
+                ...value,
+                accountAmount: openingBalances.accountAmount
+              })}
+            />
+          )}
           {openingError && (
             <p
               className={styles['opening-hint']}
@@ -249,6 +365,15 @@ export function BankAccountSetup({
           </div>
         </form>
       </section>
+      {editing && (
+        <RegistrationAccountDialog
+          account={editing.account}
+          accounts={accounts}
+          cutoffDate={openingBalances.cutoffDate}
+          onSave={saveAccount}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </main>
   );
 }

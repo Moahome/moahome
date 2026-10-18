@@ -1,3 +1,5 @@
+import type { ExpenseDraft } from '@/entities/banking';
+
 /** 서버에서 읽은 수납 원장과 확정 전 배분 미리보기의 공통 자료형입니다. 저장은 서버 API에서 처리합니다. */
 export interface PreviewCharge {
   id: string;
@@ -33,6 +35,7 @@ export interface PreviewPayment {
   receiptType?: 'HOUSEHOLD' | 'OTHER';
   incomeCategory?: string | null;
   incomeNote?: string | null;
+  incomeAllocation?: (ExpenseDraft & { id: string }) | null;
 }
 
 export interface MonthlyPreviewRow {
@@ -153,7 +156,8 @@ export function getMonthlyPreviewRows(ledger: PreviewLedger, month: string): Mon
 
 export interface PreviewLedger {
   asOf: string;
-  accounts: { id: string; label: string }[];
+  buildings?: { id: string; label: string }[];
+  accounts: { id: string; label: string; isPrimary?: boolean; status?: string }[];
   units: { id: string; label: string; status: 'ACTIVE' | 'VACANT'; eligible?: boolean; representativeId?: string | null; representativeName?: string | null; residentNames?: string[]; buildingName?: string }[];
   charges: PreviewCharge[];
   payments: PreviewPayment[];

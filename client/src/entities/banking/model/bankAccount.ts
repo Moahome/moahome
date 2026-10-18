@@ -7,6 +7,7 @@ export interface BankAccountDraft {
   accountNumber: string;
   holderName: string;
   isPrimary: boolean;
+  alias?: string;
 }
 
 export type BankAccountErrors = Partial<Record<keyof BankAccountDraft, string>>;
@@ -24,7 +25,7 @@ export function normalizeAccountNumber(value: string) {
   return value.trim().replace(/[ -]/g, '');
 }
 
-/** 실제 계좌 조회 없이 등록 계약의 필수값·문자 형식과 단일 계좌의 기본 지정을 확인합니다. */
+/** 실제 계좌 조회 없이 등록 계약의 필수값·문자 형식과 선택 별칭을 확인합니다. 기본 지정 개수는 계좌 목록에서 검증합니다. */
 export function getBankAccountErrors(draft: BankAccountDraft): BankAccountErrors {
   const errors: BankAccountErrors = {};
   const number = draft.accountNumber;
@@ -38,8 +39,7 @@ export function getBankAccountErrors(draft: BankAccountDraft): BankAccountErrors
   }
   if (getTextLength(draft.holderName) === 0) errors.holderName = '예금주를 입력해주세요.';
   if (getTextLength(draft.holderName) > 50) errors.holderName = '예금주는 50자 이내로 입력해주세요.';
-  // 이 화면은 계좌 하나를 입력하므로 해당 계좌를 기본으로 지정해야 전체 기본 계좌 수가 하나가 됩니다.
-  if (!draft.isPrimary) errors.isPrimary = '주민 납부 안내에 사용할 기본 관리계좌를 지정해주세요.';
+  if (getTextLength(draft.alias ?? '') > 100) errors.alias = '통장 별칭은 100자 이내로 입력해주세요.';
 
   return errors;
 }
@@ -51,5 +51,5 @@ export function isBankAccountDraft(value: unknown): value is BankAccountDraft {
   const account = value as BankAccountDraft;
 
   return ['bankCode', 'bankName', 'accountNumber', 'holderName'].every((field) => typeof account[field as keyof BankAccountDraft] === 'string')
-    && typeof account.isPrimary === 'boolean';
+    && typeof account.isPrimary === 'boolean' && (account.alias === undefined || typeof account.alias === 'string');
 }

@@ -11,6 +11,7 @@ import com.moahome.server.payment.exception.PaymentException;
 public class BuildingCashOpening {
     @Id private UUID id;
     @Column(name="property_id",nullable=false) private UUID propertyId;
+    @Column(name="bank_account_id") private UUID bankAccountId;
     @Column(name="building_id",nullable=false) private UUID buildingId;
     @Column(name="cutoff_date",nullable=false) private LocalDate cutoffDate;
     @Column(nullable=false,precision=15,scale=0) private BigDecimal amount;
@@ -23,8 +24,12 @@ public class BuildingCashOpening {
     protected BuildingCashOpening() {}
     /** 기준일 마감 보유금을 최초 등록하며 음수도 보존해 부족한 동의 잔고를 숨기지 않습니다. */
     public static BuildingCashOpening create(UUID property,UUID building,LocalDate cutoff,String amount,UUID actor,OffsetDateTime at) {
+        return create(property,null,building,cutoff,amount,actor,at);
+    }
+    /** 선택한 통장 안에서 동의 보유금을 기록하고 다른 통장의 같은 동과 구분합니다. */
+    public static BuildingCashOpening create(UUID property,UUID account,UUID building,LocalDate cutoff,String amount,UUID actor,OffsetDateTime at) {
         if(amount==null||!amount.matches("-?[0-9]{1,15}")) throw new PaymentException("INVALID_CASH_OPENING");
-        var row=new BuildingCashOpening();row.id=UUID.randomUUID();row.propertyId=property;row.buildingId=building;
+        var row=new BuildingCashOpening();row.bankAccountId=account;row.id=UUID.randomUUID();row.propertyId=property;row.buildingId=building;
         row.cutoffDate=cutoff;row.amount=new BigDecimal(amount);row.createdBy=actor;row.createdAt=at;return row;
     }
     /** 사용자가 확인한 새 기준일·마감 잔고를 함께 반영하고 DB가 이전 값과 수정자를 이력에 보관하게 합니다. */

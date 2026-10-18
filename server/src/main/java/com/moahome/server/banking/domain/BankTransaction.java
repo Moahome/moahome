@@ -25,7 +25,10 @@ public class BankTransaction {
     @Column(name="imported_at",nullable=false,columnDefinition="timestamptz") private OffsetDateTime importedAt;
     @Column(name="deleted_at",columnDefinition="timestamptz") private OffsetDateTime deletedAt;
     @Column(name="deleted_by") private UUID deletedBy;
+    @Column(name="transfer_candidate",nullable=false) private boolean transferCandidate;
     protected BankTransaction() {}
+    /** 내부 이동 원본은 수납·지출 확정에서 제외하고 상대 통장 원본을 연결할 때까지 대기로 보존합니다. */
+    public void markTransferCandidate() { transferCandidate=true; }
     /** 출금 수집에서만 방향을 지정하며 기존 입금의 원본과 중복 키는 유지합니다. */
     public void markExpense() { direction="EXPENSE"; }
     /** 입출금 선택 삭제 시 원본 참조는 보존하되 활성 중복 키를 해제해 다시 가져오기를 허용합니다. */

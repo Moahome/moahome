@@ -23,15 +23,123 @@
   margin-bottom: 0;
 }
 
-.header-actions {
+.header-actions, .action-buttons {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
 }
 
+.opening-action {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--button-primary-border);
+  border-radius: 8px;
+  background: var(--button-primary-background);
+}
+
+.opening-action .opening-button[data-variant='primary'] {
+  flex: 1;
+  min-height: 48px;
+  padding-left: 8px;
+  border: 0;
+  background: transparent;
+
+  &:hover:not(:disabled) {
+    background: transparent;
+  }
+}
+
+.opening-action .opening-info[data-variant='ghost'] {
+  width: 34px;
+  min-height: 40px;
+  margin-left: 6px;
+  background: transparent;
+
+  &:hover:not(:disabled) {
+    background: transparent;
+  }
+}
+
+.opening-tooltip {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  width: min(var(--opening-tooltip-width, 400px), calc(100vw - 40px));
+  padding: 20px;
+  border: 1px solid var(--button-primary-border);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--foreground) 8%, transparent);
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+
+  &::before {
+    position: absolute;
+    top: -12px;
+    left: 0;
+    width: 100%;
+    height: 12px;
+    content: '';
+  }
+}
+
+.opening-tooltip-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  svg {
+    width: 44px;
+    height: 44px;
+  }
+
+  circle {
+    fill: var(--primary);
+    stroke: var(--primary);
+  }
+
+  path {
+    stroke: var(--card);
+  }
+}
+
+.opening-tooltip-content {
+  min-width: 0;
+  padding-left: 16px;
+  border-left: 1px solid var(--button-primary-border);
+
+  strong {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--foreground);
+    font-size: 17px;
+  }
+
+  p {
+    color: var(--sub-text);
+    font-size: 14px;
+  }
+
+  small {
+    display: block;
+    margin-top: 8px;
+    color: var(--primary);
+    font-size: 12px;
+  }
+}
+
 .month-control {
-  max-width: 240px;
+  width: 174px;
+  max-width: 100%;
 }
 .summary {
   display: grid;
@@ -125,13 +233,10 @@
   }
 }
 .difference-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 16px;
-
-  .actions {
-    margin-top: auto;
-  }
 
   h2,
   .overview {
@@ -146,6 +251,22 @@
   .overview > div:last-child {
     padding-bottom: 0;
     border-bottom: 0;
+  }
+}
+
+.difference-trigger {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: -3px;
   }
 }
 
@@ -366,10 +487,34 @@
     padding: 16px;
   }
   .summary {
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
   }
-  .header-actions > * {
+  .header-actions {
+    width: 100%;
+  }
+  .action-buttons {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+  .action-buttons > * {
     flex: 1;
+  }
+  .opening-action .opening-button[data-variant='primary'] {
+    padding-right: 12px;
+  }
+  .opening-tooltip {
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 12px;
+    padding: 16px;
+  }
+  .opening-tooltip-icon svg {
+    width: 36px;
+    height: 36px;
+  }
+  .opening-tooltip-content {
+    padding-left: 12px;
   }
   .filters[data-toolbar='true'] {
     display: grid;
@@ -537,10 +682,6 @@
   }
 }
 
-.actions[data-settlement='true'] {
-  justify-content: space-between;
-}
-
 .exclusion-note {
   padding: 14px 16px;
   border: 1px solid var(--border);
@@ -549,4 +690,33 @@
   color: var(--sub-text);
   font-size: 13px;
   line-height: 1.7;
+}
+
+.account-control {
+  min-height: 50px;
+}
+
+.query-controls {
+  label {
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+
+  > :nth-child(2) {
+    flex: 0 1 360px;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .query-controls > * {
+    flex: 1 1 100%;
+    max-width: none;
+  }
 }

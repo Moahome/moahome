@@ -19,8 +19,8 @@ public class BankingController {
         return ok(service.workspace(UUID.fromString(user.userId()),propertyId));
     }
     @PostMapping(value="/import/preview",consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<BankingResponse.Preview> preview(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@RequestPart MultipartFile file) {
-        return ok(service.preview(UUID.fromString(user.userId()),propertyId,file));
+    public ResponseEntity<BankingResponse.Preview> preview(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@RequestPart MultipartFile file,@RequestParam(required=false) UUID accountId) {
+        return ok(service.preview(UUID.fromString(user.userId()),propertyId,file,accountId));
     }
     @PostMapping(value="/import",consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<BankingResponse.Workspace> upload(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@RequestPart MultipartFile file,@Valid @RequestPart BankingRequests.Import selection) {
@@ -37,6 +37,14 @@ public class BankingController {
     @PostMapping("/transactions/delete")
     public ResponseEntity<BankingResponse.Workspace> delete(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@Valid @RequestBody BankingRequests.DeleteMany request) {
         return ok(service.deleteMany(UUID.fromString(user.userId()),propertyId,request));
+    }
+    @PostMapping("/transfers")
+    public ResponseEntity<BankingResponse.Workspace> transfer(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@Valid @RequestBody BankingRequests.Transfer request) {
+        return ok(service.connectTransfer(UUID.fromString(user.userId()),propertyId,request));
+    }
+    @PostMapping("/transfers/{id}/cancel")
+    public ResponseEntity<BankingResponse.Workspace> cancelTransfer(@AuthenticationPrincipal AuthPrincipal user,@PathVariable UUID propertyId,@PathVariable UUID id) {
+        return ok(service.cancelTransfer(UUID.fromString(user.userId()),propertyId,id));
     }
     private <T> ResponseEntity<T> ok(T body) { return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body); }
 }

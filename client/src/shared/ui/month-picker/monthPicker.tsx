@@ -8,6 +8,7 @@ export function MonthPicker(props: {
   value: string;
   onChange: (month: string) => void;
   clearable?: boolean;
+  labelHidden?: boolean;
 }) {
   return (
     <CalendarPicker

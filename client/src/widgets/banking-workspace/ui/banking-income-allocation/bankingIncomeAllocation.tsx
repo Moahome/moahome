@@ -11,7 +11,6 @@ import {
 import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
 import { Toast } from '@/shared/ui/toast';
-import { formatWon } from '@/shared/lib/format';
 import {
   allocateBankingIncome,
   bankingError,
@@ -21,9 +20,11 @@ import {
 import {
   createExpenseDraft,
   calculateExpenseAllocation,
-  sortExpenseLabels
 } from '../../model/expenseAllocation';
-import { ExpenseEditor } from '../_components/expense-editor/expenseEditor';
+import {
+  AllocationEditor,
+  IncomeAllocationSummary
+} from '@/entities/banking';
 import styles from './bankingIncomeAllocation.module.css';
 
 /** 확정 기타 입금만 배분하며 원본 한 건·입금 전액을 동별 몫으로 나누어 저장합니다. */
@@ -76,31 +77,20 @@ export function BankingIncomeAllocation({ propertyId, paymentId, onBusyChange }:
       className={styles.section}
       aria-label={'기타 입금 동별 배분'}
     >
-      <h3>
-        동별 입금 배분
-      </h3>
       {allocation ? (
-        <ul>
-          {sortExpenseLabels(allocation.allocations).map((part) => (
-            <li
-              key={part.buildingId}
-            >
-              <span>
-                {part.label}
-                {part.percentage ? ` · ${Number(part.percentage)}%` : ''}
-              </span>
-              <strong>
-                {formatWon(part.amount)}
-              </strong>
-            </li>
-          ))}
-        </ul>
+        <IncomeAllocationSummary
+          total={row.amount}
+          allocations={allocation.allocations}
+        />
       ) : (
         <>
+          <h3>
+            동별 입금 배분
+          </h3>
           <p>
             이자 등 공동 입금을 각 동에 나누어 잔고에 반영합니다. 외부 부담금 회수에는 동별 배분을 사용하지 않습니다.
           </p>
-          <ExpenseEditor
+          <AllocationEditor
             purpose={'income'}
             showDetails={false}
             total={row.amount}

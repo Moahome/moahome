@@ -18,6 +18,7 @@ import org.springframework.test.context.DynamicPropertySource;
 class ServerApplicationTests {
 	@MockitoBean private com.moahome.server.payment.service.PaymentService payments;
     @MockitoBean private com.moahome.server.banking.service.BankingService banking;
+    @MockitoBean private com.moahome.server.banking.service.IncomeAllocationService incomeAllocations;
     @MockitoBean private com.moahome.server.banking.service.BankingBalanceService bankingBalances;
     @MockitoBean private com.moahome.server.banking.service.BankAccountService bankAccountSettings;
     @MockitoBean private com.moahome.server.expense.service.ExpenseService expenses;

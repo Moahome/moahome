@@ -99,8 +99,12 @@ public record PropertyRegistrationRequest(
 		@Schema(description = "예금주 이름. 주민 명부 연결 없이 입력", example = "예시 관리단", minLength = 1, maxLength = 50, requiredMode = Schema.RequiredMode.REQUIRED)
 		@TextInput(max = 50) String holderName,
 		@Schema(description = "전체 계좌 중 정확히 1개를 기본 계좌로 지정", example = "true")
-		@NotNull(message = "REQUIRED") Boolean isPrimary
+		@NotNull(message = "REQUIRED") Boolean isPrimary,
+        @JsonInclude(JsonInclude.Include.NON_NULL) @TextInput(max = 100, optional = true) String alias
 	) {
+        public BankAccountInput(String bankCode,String bankName,String accountNumber,String holderName,Boolean isPrimary) {
+            this(bankCode,bankName,accountNumber,holderName,isPrimary,null);
+        }
 		/** 허용된 ASCII 공백과 하이픈만 제거하며 숫자 앞자리 0을 보존합니다. */
 		public BankAccountInput {
 			bankCode = TextValues.strip(bankCode);
@@ -110,6 +114,7 @@ public record PropertyRegistrationRequest(
 				accountNumber = accountNumber.replace(" ", "").replace("-", "");
 			}
 			holderName = TextValues.strip(holderName);
+            alias = TextValues.optional(alias);
 		}
 
 		@Override

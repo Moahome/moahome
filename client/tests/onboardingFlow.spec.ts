@@ -864,7 +864,7 @@ test('본인 계정 연결은 현재 세대가 있는 미연결 주민이 없으
 });
 
 for (const width of [1440, 390]) {
-  test(`설정의 계좌 변경 ${width}px는 현재 정보 조회·검증·실패 재시도·저장을 지원`, async ({ page }) => {
+  test(`설정의 통장 관리 ${width}px는 현재 정보 조회·검증·실패 재시도·저장을 지원`, async ({ page }) => {
     await mockWorkspace(page);
     await page.setViewportSize({
       width,
@@ -877,11 +877,14 @@ for (const width of [1440, 390]) {
       bankCode: '004',
       bankName: '국민은행',
       accountNumber: '00012345678',
-      holderName: '기존 예금주'
+      holderName: '기존 예금주',
+      alias: null as string | null,
+      isPrimary: true,
+      status: 'ACTIVE'
     };
     let reads = 0;
     const writes: Record<string, unknown>[] = [];
-    await page.route(`${API}/api/properties/${PROPERTY}/banking/account`, async (route) => {
+    await page.route(`${API}/api/properties/${PROPERTY}/banking/account**`, async (route) => {
       if (route.request().method() === 'OPTIONS') return json(route, {});
       expect(route.request().headers().authorization).toBe('Bearer synthetic-access');
       if (route.request().method() === 'GET') {
@@ -889,7 +892,7 @@ for (const width of [1440, 390]) {
         if (reads === 1) return json(route, {
           code: 'PAYMENT_SERVICE_UNAVAILABLE'
         }, 503);
-        return json(route, account);
+        return json(route, [account]);
       }
       const body = route.request().postDataJSON();
       writes.push(body);
@@ -906,17 +909,24 @@ for (const width of [1440, 390]) {
     await page.goto(`${BASE}/settings`);
     expect(reads).toBe(0);
     await page.getByRole('button', {
-      name: '계좌 변경',
+      name: '계좌 관리',
       exact: true
     }).click();
     const dialog = page.getByRole('dialog', {
-      name: '계좌 변경',
+      name: '관리계좌',
       exact: true
     });
     await expect(dialog.getByRole('alert')).toBeVisible();
     await dialog.getByRole('button', {
       name: '다시 시도',
       exact: true
+    }).click();
+    await dialog.getByRole('button', {
+      name: '정보 정정',
+      exact: true
+    }).click();
+    await dialog.getByRole('button', {
+      name: / 펼치기$/
     }).click();
     await expect(dialog.getByRole('textbox', {
       name: '계좌번호',
@@ -965,10 +975,23 @@ for (const width of [1440, 390]) {
       name: '변경 저장',
       exact: true
     }).click();
-    await expect(dialog).toHaveCount(0);
+    await expect(dialog.getByText('신한은행 00098765432 · 정정 예금주', {
+      exact: true
+    })).toBeVisible();
     await expect(page.getByText('계좌 정보를 변경했어요.', {
       exact: true
     })).toBeVisible();
+    const toast = page.getByLabel('알림', {
+      exact: true
+    }).filter({
+      hasText: '계좌 정보를 변경했어요.'
+    });
+    await expect(toast.getByRole('status')).toHaveCSS('color', 'rgb(255, 255, 255)');
+    await page.screenshot({
+      path: test.info().outputPath(`accountSuccessToast${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
     expect(writes).toHaveLength(2);
     expect(writes[0]).toEqual(writes[1]);
     expect(writes[1]).toEqual({
@@ -977,11 +1000,24 @@ for (const width of [1440, 390]) {
       bankCode: '088',
       bankName: '신한은행',
       accountNumber: '00098765432',
-      holderName: '정정 예금주'
+      holderName: '정정 예금주',
+      alias: null,
+      isPrimary: true,
+      primaryAccountId: id(20)
     });
+    await dialog.getByRole('button', {
+      name: '관리계좌 닫기'
+    }).click();
     await page.getByRole('button', {
-      name: '계좌 변경',
+      name: '계좌 관리',
       exact: true
+    }).click();
+    await dialog.getByRole('button', {
+      name: '정보 정정',
+      exact: true
+    }).click();
+    await dialog.getByRole('button', {
+      name: / 펼치기$/
     }).click();
     await expect(dialog.getByRole('textbox', {
       name: '예금주',
@@ -992,7 +1028,7 @@ for (const width of [1440, 390]) {
       exact: true
     })).toHaveValue('00098765432');
     await dialog.getByRole('button', {
-      name: '계좌 변경 닫기',
+      name: '관리계좌 닫기',
       exact: true
     }).click();
     const stored = await page.evaluate(() => JSON.stringify({
@@ -1004,7 +1040,7 @@ for (const width of [1440, 390]) {
   });
 }
 
-test('부담당자의 설정에는 계좌 변경을 제공하지 않음', async ({ page }) => {
+test('부담당자의 설정에는 통장 관리을 제공하지 않음', async ({ page }) => {
   await mockWorkspace(page);
   await page.route(`${API}/api/properties/${PROPERTY}/management-context`, route => json(route, {
     propertyId: PROPERTY,
@@ -1017,7 +1053,7 @@ test('부담당자의 설정에는 계좌 변경을 제공하지 않음', async 
     exact: true
   })).toBeVisible();
   await expect(page.getByRole('button', {
-    name: '계좌 변경',
+    name: '계좌 관리',
     exact: true
   })).toHaveCount(0);
   await expect(page.getByRole('button', {

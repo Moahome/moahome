@@ -50,16 +50,19 @@ public class PaymentService {
     private final OpeningBalanceBatchRepository openingBatches;
     private final OpeningBalanceItemRepository openingItems;
     private final CreditApplicationRepository creditApplications;
+    private final com.moahome.server.banking.service.IncomeAllocationService incomeAllocationService;
+    private final IncomeAllocationRepository incomeAllocations;
     public PaymentService(ManagementAccessService access,ResidentListService residents,PropertyRepository properties,
         UnitRepository units,BuildingRepository buildings,ChargeRepository charges,BillingPeriodRepository periods,
         BankAccountRepository accounts,BankTransactionRepository transactions,PaymentRepository payments,
         PaymentAllocationRepository allocations,PaymentEventRepository events,@Lazy PaymentTextSecurity security,
         BankTransactionReader reader,Clock clock,CumulativePaymentService cumulative,OpeningBalanceBatchRepository openingBatches,
-        OpeningBalanceItemRepository openingItems,CreditApplicationRepository creditApplications) {
+        OpeningBalanceItemRepository openingItems,CreditApplicationRepository creditApplications,
+        com.moahome.server.banking.service.IncomeAllocationService incomeAllocationService,IncomeAllocationRepository incomeAllocations) {
         this.access=access;this.residents=residents;this.properties=properties;this.units=units;this.buildings=buildings;
         this.charges=charges;this.periods=periods;this.accounts=accounts;this.transactions=transactions;this.payments=payments;
         this.allocations=allocations;this.events=events;this.security=security;this.reader=reader;this.clock=clock;this.cumulative=cumulative;
-        this.openingBatches=openingBatches;this.openingItems=openingItems;this.creditApplications=creditApplications;
+        this.openingBatches=openingBatches;this.openingItems=openingItems;this.creditApplications=creditApplications;this.incomeAllocationService=incomeAllocationService;this.incomeAllocations=incomeAllocations;
     }
     /** 현재 대표 명부를 포함하므로 부담당자가 아닌 관리소장 권한을 매 요청마다 검사합니다. */
     private void requireAdmin(UUID user,UUID property) {
@@ -86,6 +89,12 @@ public class PaymentService {
         var candidates=propertyAccounts(property).stream().filter(a->a.isPrimary()&&a.getBuildingId()==null&&a.getStatus()==BankAccountStatus.ACTIVE).toList();
         if (candidates.size()!=1) throw new PaymentException("PAYMENT_ACCOUNT_UNAVAILABLE");
         return candidates.getFirst();
+    }
+    /** 선택 통장은 같은 관리대상의 사용 중인 공용계좌만 허용하며 생략한 기존 API는 기본 계좌를 사용합니다. */
+    private BankAccount selectedAccount(UUID property,UUID id) {
+        if(id==null) return primary(property);
+        return propertyAccounts(property).stream().filter(a -> id.equals(a.getId()) && a.getBuildingId()==null && a.getStatus()==BankAccountStatus.ACTIVE)
+            .findFirst().orElseThrow(() -> new PaymentException("PAYMENT_ACCOUNT_UNAVAILABLE"));
     }
     private Map<UUID,Building> currentBuildings(UUID property) {
         return buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(property).stream()
@@ -126,9 +135,10 @@ public class PaymentService {
             return new PaymentResponse.Charge(c.getId(),c.getUnitId(),month.toString(),c.getTotalAmount().toPlainString(),state,c.getDueDate(),c.getChargeType());
         }).filter(c->!"DRAFT".equals(c.status())).toList();
         var applied=allocations.findByPropertyId(property).stream().collect(Collectors.groupingBy(PaymentAllocation::getPaymentId));
+        var distributed=incomeAllocations.findByPropertyIdOrderBySortOrderAsc(property).stream().collect(Collectors.groupingBy(IncomeAllocation::getPaymentId));
         var paymentRows=allPayments.stream()
-            .map(p->response(p,applied.getOrDefault(p.getId(),List.of()),unitRows,residentRows)).toList();
-        var accountRows=propertyAccounts(property).stream().sorted(Comparator.comparing((BankAccount a)->a.isPrimary()&&a.getStatus()==BankAccountStatus.ACTIVE).reversed()).map(a->new PaymentResponse.Account(a.getId(),a.getBankName()+" ····"+a.getAccountLast4())).toList();
+            .map(p->response(p,applied.getOrDefault(p.getId(),List.of()),unitRows,residentRows,distributed.getOrDefault(p.getId(),List.of()))).toList();
+        var accountRows=propertyAccounts(property).stream().map(a->new PaymentResponse.Account(a.getId(),a.getBankName()+" ····"+a.getAccountLast4()+(a.getAlias()==null?"":" · "+a.getAlias()),a.isPrimary(),a.getStatus().name())).toList();
         var confirmedOpening=openingBatches.findByPropertyIdOrderByCreatedAtDesc(property).stream().filter(b->"CONFIRMED".equals(b.getStatus()))
             .collect(Collectors.toMap(b->b.getId(),b->b));
         var credits=creditApplications.findByPropertyId(property).stream().filter(a->"ACTIVE".equals(a.getStatus()))
@@ -136,9 +146,9 @@ public class PaymentService {
         var openingRows=openingItems.findByPropertyId(property).stream().filter(i->confirmedOpening.containsKey(i.getBatchId())&&i.getCredit().signum()>0)
             .map(i->new PaymentResponse.OpeningCredit(i.getId(),i.getUnitId(),confirmedOpening.get(i.getBatchId()).getCutoffDate(),i.getCredit().toPlainString(),
                 credits.getOrDefault(i.getId(),List.of()).stream().map(a->new PaymentResponse.Allocation(a.getChargeId(),a.getAmount().toPlainString())).toList())).toList();
-        return new PaymentResponse.Ledger(property,today(),accountRows,unitRows,chargeRows,paymentRows,List.of(),openingRows);
+        return new PaymentResponse.Ledger(property,today(),accountRows,unitRows,chargeRows,paymentRows,List.of(),openingRows,current.values().stream().map(b->new PaymentResponse.Building(b.getId(),b.getName())).sorted(Comparator.comparing(PaymentResponse.Building::label)).toList());
     }
-    private PaymentResponse.Payment response(Payment p,List<PaymentAllocation> applied,List<PaymentResponse.Unit> unitRows,List<ResidentItem> residentRows) {
+    private PaymentResponse.Payment response(Payment p,List<PaymentAllocation> applied,List<PaymentResponse.Unit> unitRows,List<ResidentItem> residentRows,List<IncomeAllocation> shares) {
         String payer=security.decrypt(p.getPayerNameEncrypted());
         UUID unit=p.getMatchedUnitId();
         String reason="";
@@ -152,7 +162,7 @@ public class PaymentService {
                 .map(a->new PaymentResponse.Allocation(a.getChargeId(),a.getAllocatedAmount().toPlainString())).toList(),
             p.getLinkedPaymentId(),p.getBankTransactionId(),security.decrypt(p.getHoldReasonEncrypted()),security.decrypt(p.getCancelReasonEncrypted()),
             security.decrypt(p.getSeparateReasonEncrypted()),security.decrypt(p.getMemoEncrypted()),p.getReceiptType(),
-            security.decrypt(p.getIncomeCategoryEncrypted()),security.decrypt(p.getIncomeNoteEncrypted()));
+            security.decrypt(p.getIncomeCategoryEncrypted()),security.decrypt(p.getIncomeNoteEncrypted()),shares.isEmpty()?null:new com.moahome.server.banking.dto.BankingResponse.Expense(p.getId(),security.decrypt(p.getIncomeCategoryEncrypted()),security.decrypt(p.getIncomeNoteEncrypted()),shares.getFirst().getAllocationMode(),false,shares.stream().map(a->new com.moahome.server.banking.dto.BankingResponse.Allocation(a.getBuildingId(),security.decrypt(a.getBuildingLabelEncrypted()),a.getAmount().toPlainString(),a.getPercentage()==null?null:a.getPercentage().toPlainString())).toList()));
     }
     /** 이름 또는 동·호수가 현재 명단의 한 세대와 일치할 때만 연결하며 여러 세대에 걸친 동명이인은 남겨 둡니다. */
     private UUID unitCandidate(String payer,List<PaymentResponse.Unit> unitRows,List<ResidentItem> residentRows) {
@@ -209,26 +219,48 @@ public class PaymentService {
         if (rep==null) throw new PaymentException("PAYMENT_REPRESENTATIVE_REQUIRED");
         return rep;
     }
-    /** 수동 입력의 입금자명은 현재 선택 세대의 대표에서 가져오고 같은 요청 ID 재전송은 중복 등록하지 않습니다. */
+    /** 용도별 필수값을 분리하고 수동 기타 입금·배분은 한 트랜잭션에서 확정합니다. 같은 요청 ID는 재등록하지 않습니다. */
     @Transactional
     public PaymentResponse.Ledger manual(UUID user,UUID property,PaymentRequests.Manual request) {
         lock(user,property);
         requireAfterCutoff(property,request.date());
         var amount=amount(request.amount(),true);
         if (request.date().isAfter(today())) throw new PaymentException("INVALID_PAYMENT_DATE");
+        String purpose=request.purpose();
+        boolean household="HOUSEHOLD".equals(purpose),other=Set.of("OTHER","SHARED").contains(purpose);
+        if(!Set.of("HOUSEHOLD","OTHER","SHARED").contains(purpose)
+            ||(household&&request.unitId()==null)||(!household&&request.unitId()!=null)
+            ||(!household&&(request.payer()==null||request.payer().length()>100))
+            ||(other&&(request.category()==null||request.category().length()>100))
+            ||(!other&&(request.category()!=null||request.note()!=null))
+            ||("SHARED".equals(purpose)!=(request.incomeAllocation()!=null))) throw new PaymentException("INVALID_BANK_SELECTION");
+        if(request.incomeAllocation()!=null&&(request.incomeAllocation().category()==null||!Objects.equals(request.category(),request.incomeAllocation().category().strip())
+            ||!Objects.equals(request.note(),request.incomeAllocation().note()))) throw new PaymentException("INVALID_BANK_SELECTION");
         var existing=payments.findById(request.id());
         if (existing.isPresent()) {
             var p=existing.get();
+            // 확정 뒤 명단이 바뀌어도 최초 입력의 용도·이름·항목·배분을 기준으로 재시도를 판단합니다.
             if (!p.getPropertyId().equals(property)||!p.getCreatedBy().equals(user)||!"MANUAL".equals(p.getSourceType())
-                ||!Objects.equals(p.getMatchedUnitId(),request.unitId())||!p.getPaymentDate().equals(request.date())||p.getAmount().compareTo(amount)!=0)
+                ||!purpose.equals(p.getManualPurpose())||(request.accountId()!=null&&!p.getBankAccountId().equals(request.accountId()))
+                ||(household&&!Objects.equals(p.getMatchedUnitId(),request.unitId()))
+                ||(!household&&!p.getPayerNameHmac().equals(security.nameHash(request.payer())))
+                ||!Objects.equals(request.category(),security.decrypt(p.getIncomeCategoryEncrypted()))
+                ||!Objects.equals(request.note(),security.decrypt(p.getIncomeNoteEncrypted()))
+                ||!p.getPaymentDate().equals(request.date())||p.getAmount().compareTo(amount)!=0)
                 throw new PaymentException("PAYMENT_REQUEST_CONFLICT");
+            if(request.incomeAllocation()!=null) incomeAllocationService.allocate(p,request.incomeAllocation(),user);
             return ledger(user,property);
         }
-        var rep=representative(user,property,request.unitId());
-        var protectedName=security.protect(rep.name());
-        var p=Payment.pending(request.id(),property,primary(property).getId(),null,request.unitId(),rep.id(),request.date(),amount,"MANUAL",
-            protectedName.encrypted(),security.nameHash(rep.name()),null,user,now());
-        payments.saveAndFlush(p); audit(p,"CREATED",null,user);
+        var rep=household?representative(user,property,request.unitId()):null;
+        String payer=household?rep.name():request.payer();
+        var protectedName=security.protect(payer);
+        var p=Payment.pending(request.id(),property,selectedAccount(property,request.accountId()).getId(),null,request.unitId(),rep==null?null:rep.id(),request.date(),amount,"MANUAL",
+            protectedName.encrypted(),security.nameHash(payer),null,user,now());
+        p.selectManualPurpose(purpose);
+        if(other) p.confirmOther(security.protect(request.category()).encrypted(),request.note()==null?null:security.protect(request.note()).encrypted(),user,now());
+        payments.saveAndFlush(p);audit(p,"CREATED",null,user);
+        if(request.incomeAllocation()!=null) incomeAllocationService.allocate(p,request.incomeAllocation(),user);
+        if(other) audit(p,"OTHER_INCOME_CONFIRMED",null,user);
         return ledger(user,property);
     }
     /** 청구의 실제 상태·세대·최신 배분 잔액을 잠금 아래 다시 검사해 동시 과배분을 막습니다. */
@@ -464,7 +496,11 @@ public class PaymentService {
     }
     /** 미리보기는 같은 서버 파서를 사용하지만 은행 원본·수납을 저장하지 않습니다. */
     public PaymentResponse.ImportPreview preview(UUID user,UUID property,MultipartFile file) {
-        requireAdmin(user,property);var account=primary(property);
+        return preview(user,property,file,null);
+    }
+    /** 계좌별 중복을 분리해 다른 통장의 같은 일시·금액도 독립적인 거래로 미리보기합니다. */
+    public PaymentResponse.ImportPreview preview(UUID user,UUID property,MultipartFile file,UUID accountId) {
+        requireAdmin(user,property);var account=selectedAccount(property,accountId);
         var existing=transactions.findByPropertyId(property).stream().filter(t->t.getDeletedAt()==null&&t.getBankAccountId().equals(account.getId()))
             .map(BankTransaction::getDeduplicationKey).collect(Collectors.toSet());
         var unitRows=ledger(user,property).units();var residentRows=residents.list(user,property).residents();
@@ -506,7 +542,12 @@ public class PaymentService {
     /** 통장 수집도 기존 원본·초안·자동 수납 흐름을 사용합니다. 명시한 용도는 자동 확정보다 먼저 적용합니다. */
     @Transactional
     public PaymentResponse.Ledger importBankRows(UUID user,UUID property,List<BankTransactionReader.Row> rows,Map<UUID,BankReceiptChoice> choices) {
-        lock(user,property);var account=primary(property);var at=now();
+        return importBankRows(user,property,rows,choices,null);
+    }
+    /** 선택 계좌를 업로드 전 과정에 전달해 원본·수납·수동 중복 확인이 같은 통장을 사용하게 합니다. */
+    @Transactional
+    public PaymentResponse.Ledger importBankRows(UUID user,UUID property,List<BankTransactionReader.Row> rows,Map<UUID,BankReceiptChoice> choices,UUID accountId) {
+        lock(user,property);var account=selectedAccount(property,accountId);var at=now();
         var snapshot=ledger(user,property);var residentRows=residents.list(user,property).residents();
         for(var row:rows) {
             if(!"INCOME".equals(row.direction())||row.date().isAfter(today())) throw new PaymentException("INVALID_BANK_ROW");

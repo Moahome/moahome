@@ -1,6 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import {
+  useState,
+  type ReactNode
+} from 'react';
+import { IncomeAllocationSummary } from '@/entities/banking';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
@@ -34,7 +38,9 @@ export function getPaymentStatusLabel(payment: PreviewPayment): string {
 }
 
 /** 입력값은 초안으로 유지하고 확정 순간의 최신 원장으로 다시 검증합니다. */
-export function PaymentEditor({ paymentId, onProcessed, disabled = false }: {
+export function PaymentEditor({ paymentId, onProcessed, disabled = false, children, onClose }: {
+  children?: ReactNode;
+  onClose?: () => void;
   disabled?: boolean; paymentId: string; onProcessed?: (id: string, status: PreviewPayment['status'], receiptType?: PreviewPayment['receiptType']) => void;
 }) {
   const { ledger, update, busy: workspaceBusy } = usePaymentWorkspace();
@@ -51,6 +57,7 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false }: {
   const [category, setCategory] = useState(payment.incomeCategory ?? '');
   const [note, setNote] = useState(payment.incomeNote ?? '');
   const otherIncome = receiptType === 'OTHER';
+  const manualAllocation = payment.source === 'MANUAL' && !payment.bankTransactionId ? payment.incomeAllocation : null;
   const pending = payment.status === 'PENDING';
   const unitId = pending ? draft.unitId : payment.unitId;
   const totals = getCumulativePreviewBalance(ledger, unitId, pending && unitId ? payment.amount : '0');
@@ -231,7 +238,7 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false }: {
           aria-label={'기타 입금 분류'}
         >
           <h3>
-            기타 입금
+            {pending ? '기타 입금' : '입금 분류'}
           </h3>
           {pending ? <>
             <Input
@@ -249,31 +256,71 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false }: {
               placeholder={'입금 목적이나 확인한 내용을 남겨주세요'}
               onChange={(event) => setNote(event.target.value)}
             />
-          </> : <>
+          </> : (
             <div
-              className={styles['income-row']}
+              className={styles.classification}
             >
-              <span>
-                입금 항목
-              </span>
-              <strong>
-                {payment.incomeCategory}
-              </strong>
+              <div
+                className={styles['classification-item']}
+              >
+                <span
+                  className={styles['classification-icon']}
+                >
+                  <ServiceIcon
+                    name={'receipt'}
+                    size={22}
+                  />
+                </span>
+                <dl>
+                  <dt>
+                    입금 항목
+                  </dt>
+                  <dd
+                    className={styles.category}
+                  >
+                    <span>
+                      기타 입금
+                    </span>
+                    <ServiceIcon
+                      name={'chevron'}
+                      direction={'right'}
+                      size={16}
+                    />
+                    <strong>
+                      {payment.incomeCategory || '—'}
+                    </strong>
+                  </dd>
+                </dl>
+              </div>
+              <div
+                className={styles['classification-item']}
+              >
+                <span
+                  className={styles['classification-icon']}
+                >
+                  <ServiceIcon
+                    name={'document'}
+                    size={22}
+                  />
+                </span>
+                <dl>
+                  <dt>
+                    메모
+                  </dt>
+                  <dd>
+                    {payment.incomeNote || '등록된 메모가 없습니다.'}
+                  </dd>
+                </dl>
+              </div>
             </div>
-            <div
-              className={styles['income-row']}
-            >
-              <span>
-                메모
-              </span>
-              <span>
-                {payment.incomeNote || '—'}
-              </span>
-            </div>
-          </>}
-          <p>
-            세대 관리비 납부액·미납액·선입금에 포함하지 않고 별도로 관리합니다.
-          </p>
+          )}
+          {Boolean(manualAllocation?.allocations.length) && (
+            <IncomeAllocationSummary
+              total={payment.amount}
+              allocations={manualAllocation!.allocations}
+              active={payment.status === 'CONFIRMED'}
+            />
+          )}
           {pending && candidates.length > 0 && <p>
             같은 수동 수납이 있습니다. 세대 납부에서 기존 수납 연결 여부를 먼저 확인해주세요.
           </p>}
@@ -407,9 +454,30 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false }: {
           </p>}
         </section>
       )}
+      {children}
+      {otherIncome && (
+        <p
+          className={styles['income-notice']}
+        >
+          <ServiceIcon
+            name={'info'}
+            size={17}
+          />
+          세대 관리비 납부액·미납액·선입금에 포함하지 않고 별도로 관리합니다.
+        </p>
+      )}
       <div
-        className={styles.actions}
+        className={[styles.actions, otherIncome && styles.footer].filter(Boolean).join(' ')}
       >
+        {otherIncome && onClose && (
+          <Button
+            variant={'outline'}
+            disabled={busy}
+            onClick={onClose}
+          >
+            닫기
+          </Button>
+        )}
         {pending && (
           <Button
             disabled={busy || (otherIncome ? !category.trim() || candidates.length > 0 : !unitId || (candidates.length > 0 && !draft.separateReason?.trim()))}

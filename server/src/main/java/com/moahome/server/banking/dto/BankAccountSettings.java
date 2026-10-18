@@ -31,8 +31,25 @@ public final class BankAccountSettings {
         @Override public String toString() { return "BankAccountRequest[REDACTED]"; }
     }
 
+    public record Save(@NotNull UUID accountId, OffsetDateTime updatedAt,
+        @TextInput(max=20) String bankCode, @TextInput(max=50) String bankName,
+        @NotNull @Pattern(regexp="[0-9]{4,50}") String accountNumber, @TextInput(max=50) String holderName,
+        @TextInput(max=100,optional=true) String alias, boolean isPrimary, @NotNull UUID primaryAccountId) {
+        public Save {
+            var details=new Request(accountId,updatedAt,bankCode,bankName,accountNumber,holderName);
+            bankCode=details.bankCode();bankName=details.bankName();accountNumber=details.accountNumber();holderName=details.holderName();
+            alias=TextValues.optional(alias);
+        }
+        @Override public String toString() { return "BankAccountSave[REDACTED]"; }
+    }
+    public record Close(@NotNull OffsetDateTime updatedAt) {}
+
     public record Response(UUID propertyId, UUID accountId, OffsetDateTime updatedAt,
-        String bankCode, String bankName, String accountNumber, String holderName) {
+        String bankCode, String bankName, String accountNumber, String holderName,
+        String alias, boolean isPrimary, String status) {
+        public Response(UUID propertyId, UUID accountId, OffsetDateTime updatedAt, String bankCode, String bankName, String accountNumber, String holderName) {
+            this(propertyId,accountId,updatedAt,bankCode,bankName,accountNumber,holderName,null,true,"ACTIVE");
+        }
         @Override public String toString() { return "BankAccountResponse[REDACTED]"; }
     }
 }

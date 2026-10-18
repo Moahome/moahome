@@ -68,6 +68,7 @@ export function Toast({
       data-tone={tone}
     >
       <p
+        className={styles.message}
         role={tone === 'error' ? 'alert' : 'status'}
         aria-atomic={'true'}
       >

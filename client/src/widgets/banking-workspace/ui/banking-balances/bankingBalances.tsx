@@ -2,6 +2,9 @@
 import {
   type CSSProperties,
   useRef,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
   useState,
   type ReactNode
 } from 'react';
@@ -58,6 +61,11 @@ import {
 } from '../../model/balanceLedger';
 import { sortExpenseLabels } from '../../model/expenseAllocation';
 import { BankingExpensePage } from '../banking-expense-page/bankingExpensePage';
+import { AccountBalances } from '../_components/account-balances/accountBalances';
+import {
+  getAccountBalanceDisplay,
+  getAccountBalanceTotal
+} from '../../model/accountBalance';
 import styles from './bankingBalances.module.css';
 type Action = {
     kind: 'opening' | 'settlement' | 'assignment' | 'difference';
@@ -72,6 +80,112 @@ const PANEL_TITLES: Record<BalancePanel, string> = {
   assignment: '입금 귀속 동 확인'
 };
 const money = (value: string | bigint | null) => value === null ? '설정 필요' : formatWon(value);
+/** 조회 동작과 도움말 터치를 분리하고 마우스·키보드·터치에서 같은 설명을 제공합니다. */
+function OpeningBalanceAction({ missing, onOpen }: { missing: boolean; onOpen: () => void }) {
+  const root = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const label = missing ? '시작 잔고 설정' : '기준 잔고 확인';
+  const [tooltipWidth, setTooltipWidth] = useState(400);
+
+  // 버튼 왼쪽 정렬을 유지하고 화면 오른쪽에 남은 공간 안에서 설명 너비를 제한합니다.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const position = () => {
+      const bounds = root.current?.getBoundingClientRect();
+      if (!bounds) return;
+      setTooltipWidth(Math.min(400, window.innerWidth - 40, window.innerWidth - 21 - bounds.left));
+    };
+    position();
+    window.addEventListener('resize', position);
+    return () => window.removeEventListener('resize', position);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [open]);
+
+  return (
+    <div
+      ref={root}
+      className={styles['opening-action']}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => {
+        if (!root.current?.contains(document.activeElement)) setOpen(false);
+      }}
+      onFocus={() => setOpen(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+      }}
+    >
+      <Button
+        className={styles['opening-info']}
+        variant={'ghost'}
+        iconOnly
+        aria-label={'기준 잔고 도움말'}
+        aria-expanded={open}
+        aria-controls={'opening-balance-description'}
+        aria-describedby={open ? 'opening-balance-description' : undefined}
+        onClick={() => setOpen(true)}
+        leadingIcon={(
+          <ServiceIcon
+            name={'info'}
+          />
+        )}
+      />
+      <Button
+        className={styles['opening-button']}
+        aria-describedby={open ? 'opening-balance-description' : undefined}
+        onClick={() => { setOpen(false); onOpen(); }}
+      >
+        {label}
+      </Button>
+      {open && (
+        <div
+          id={'opening-balance-description'}
+          role={'tooltip'}
+          className={styles['opening-tooltip']}
+          style={{
+            '--opening-tooltip-width': `${tooltipWidth}px`
+          } as CSSProperties}
+        >
+          <span
+            className={styles['opening-tooltip-icon']}
+            aria-hidden={'true'}
+          >
+            <ServiceIcon
+              name={'info'}
+            />
+          </span>
+          <div
+            className={styles['opening-tooltip-content']}
+          >
+            <strong>
+              {label}
+            </strong>
+            <p>
+              {missing ? '기준일의 동별 보유금을 등록합니다.' : '등록한 동별 기준 잔고를 확인·수정합니다.'}
+            </p>
+            <small>
+              은행 실시간 잔액 조회는 아닙니다.
+            </small>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 /** 조회 조건·선택 동을 유지하며 실제 서버 잔고와 외부 입금 연결을 표시합니다. */
 export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDetail }: {
     propertyId: string;
@@ -84,9 +198,10 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   const router = useRouter();
   const params = useSearchParams();
   const requested = params.get('month');
-  const [month, setMonth] = useState(requested && /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : new Intl.DateTimeFormat('sv-SE', {
+  const month = requested && /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Asia/Seoul'
-  }).format(new Date()).slice(0, 7));
+  }).format(new Date()).slice(0, 7);
+  const accountId = params.get('account') ?? 'ALL';
   const [search, setSearch] = useState(params.get('search') ?? '');
   const [sort, setSort] = useState('name');
   const [filter, setFilter] = useState(params.get('filter') ?? 'ALL');
@@ -102,13 +217,22 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   const [exporting, setExporting] = useState(false);
   const exportBusy = useRef(false);
   const query = useQuery({
-    queryKey: ['banking-balances', session.data?.id, propertyId, month],
-    queryFn: () => getBankingBalances(propertyId, month),
+    queryKey: ['banking-balances', session.data?.id, propertyId, month, accountId],
+    queryFn: () => getBankingBalances(propertyId, month, accountId === 'ALL' ? undefined : accountId),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
   });
   const data = query.data;
+  // 사용 전 월의 오래된 선택 URL도 서버가 확정한 전체 범위로 맞춰 새로고침·상세 이동에서 되살아나지 않게 합니다.
+  useEffect(() => {
+    if (!data?.accounts || data.accountId !== null || accountId === 'ALL' || data.accounts.some((account) => account.id === accountId)) return;
+    const next = new URLSearchParams(params.toString());
+    next.set('account', 'ALL');
+    router.replace(`?${next}`, {
+      scroll: false
+    });
+  }, [data, accountId, params, router]);
   const title = panel ? PANEL_TITLES[panel] : buildingId ? '동별 상세 원장' : '동별 잔고·정산';
   if (!data && isServerConnectionError(query.error)) return (
     <ServerConnectionError
@@ -145,6 +269,18 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       </section>
     );
   const summary = getBalanceSummary(data);
+  const selectedAccount = data.accounts?.find((account) => account.id === accountId);
+  const visibleAccounts = selectedAccount ? [selectedAccount] : data.accounts ?? [];
+  const accountDisplays = visibleAccounts.map(getAccountBalanceDisplay);
+  const { amount: bankBalance, calculated } = getAccountBalanceTotal(data);
+  let bankAsOf = data.bankAsOf;
+  let bankLabel = selectedAccount ? '선택 통장 확인 잔액' : '은행 확인 잔고';
+  if (calculated) {
+    bankLabel = selectedAccount ? '선택 통장 계산 잔액' : '통장 잔액 합계';
+    bankAsOf = '계산 잔액을 포함한 통장별 잔액 합계';
+  }
+  if (accountDisplays.length === 1) bankAsOf = accountDisplays[0].description;
+  const differenceDescription = calculated ? '통장 잔액 − 동별 잔고 합계 · 계산 잔액 포함' : '통장 잔액 − 동별 잔고 합계';
   const missing = data.buildings.filter((b) => b.active && b.status === 'OPENING_REQUIRED');
   const filtered = sortExpenseLabels(data.buildings).filter((b) => b.label.includes(search.trim()) && (filter === 'ALL' || (filter === 'NEEDS_OPENING' && b.status === 'OPENING_REQUIRED') || (filter === 'NEGATIVE' && b.balance !== null && BigInt(b.balance) < BigInt(0))));
   if (sort !== 'name')
@@ -156,14 +292,19 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     });
   const exportRows = selected.length ? filtered.filter((b) => selected.includes(b.id)) : filtered;
   const detailBuilding = data.buildings.find((b) => b.id === (buildingId ?? detail));
+  const balanceQuery = new URLSearchParams({
+    month
+  });
+  if (selectedAccount) balanceQuery.set('account', selectedAccount.id);
+  const balanceListHref = `/manage/${propertyId}/banking/balances?${balanceQuery}`;
   /** 변경 성공 후 서버 조회를 갱신하고 실패한 폼은 닫지 않습니다. */
-  async function saved(message: string) {
+  async function saved(message: string, keepOpen = false) {
     await cache.invalidateQueries({
       queryKey: ['banking-balances', session.data?.id, propertyId]
     });
-    setAction(null);
-    if (panel) {
-      router.replace(`/manage/${propertyId}/banking/balances?month=${month}`);
+    if (!keepOpen) setAction(null);
+    if (panel && !keepOpen) {
+      router.replace(balanceListHref);
       return;
     }
     setNotice({
@@ -174,7 +315,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   /** PC 목록은 보존하고 모바일 직접 접근·새로고침이 가능한 상세 경로로 연결합니다. */
   function openDetail(b: BalanceBuilding) {
     if (window.matchMedia('(max-width: 767px)').matches) {
-      router.push(`/manage/${propertyId}/banking/balances/${b.id}?month=${month}`);
+      router.push(`/manage/${propertyId}/banking/balances/${b.id}?${balanceQuery}`);
       return;
     }
     setDetail(b.id);
@@ -185,6 +326,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       const queryParams = new URLSearchParams({
         month
       });
+      if (selectedAccount) queryParams.set('account', selectedAccount.id);
       if (id) queryParams.set('target', id);
       if (kind === 'chart') {
         queryParams.set('search', search);
@@ -228,7 +370,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     }
   }
   if (panel) {
-    const closePage = () => router.replace(`/manage/${propertyId}/banking/balances?month=${month}`);
+    const closePage = () => router.replace(balanceListHref);
     if (panel === 'chart') return (
       <ChartDialog
         buildings={filtered}
@@ -348,36 +490,70 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         description={'은행 거래를 기준으로 각 동의 보유금과 외부 부담금을 확인합니다.'}
         actions={(
           <>
-            <Button
-              onClick={() => openPanel('opening')}
+            <div
+              className={styles['action-buttons']}
             >
-              {missing.length > 0 ? '시작 잔고 설정' : '기준 잔고 확인'}
-            </Button>
-            <Button
-              variant={'outline'}
-              tone={'excel'}
-              loading={exporting}
-              disabled={!exportRows.length}
-              onClick={() => { void download(); }}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'excel'}
-                />
-              )}
-            >
-              엑셀 다운로드
-            </Button>
+              <OpeningBalanceAction
+                missing={missing.length > 0}
+                onOpen={() => openPanel('opening', selectedAccount?.id)}
+              />
+              <Button
+                variant={'outline'}
+                tone={'excel'}
+                loading={exporting}
+                disabled={!exportRows.length}
+                onClick={() => { void download(); }}
+                leadingIcon={(
+                  <ServiceIcon
+                    name={'excel'}
+                  />
+                )}
+              >
+                엑셀 다운로드
+              </Button>
+            </div>
           </>
         )}
       />
       <div
-        className={styles['month-control']}
+        className={styles['query-controls']}
       >
-        <MonthPicker
-          label={'조회 월'}
-          value={month}
-          onChange={(value) => { setMonth(value); setSelected([]); setDetail(null); }}
-        />
+        <div
+          className={styles['month-control']}
+        >
+          <MonthPicker
+            label={'조회 월'}
+            labelHidden
+            value={month}
+            onChange={(value) => {
+              setSelected([]); setDetail(null);
+              const next = new URLSearchParams(params.toString()); next.set('month', value);
+              router.replace(`?${next}`, {
+                scroll: false
+              });
+            }}
+          />
+        </div>
+        {!!data.accounts?.length && (
+          <Dropdown
+            aria-label={'조회 통장'}
+            className={styles['account-control']}
+            value={selectedAccount?.id ?? 'ALL'}
+            onChange={(value) => {
+              const next = new URLSearchParams(params.toString()); next.set('account', value); next.set('month', month);
+              router.replace(`?${next}`, {
+                scroll: false
+              });
+            }}
+            options={[{
+              value: 'ALL',
+              label: '전체 통장'
+            }, ...data.accounts.map((account) => ({
+              value: account.id,
+              label: account.label
+            }))]}
+          />
+        )}
       </div>
       {data.cutoffDate && (
         <p
@@ -399,10 +575,10 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       >
         <SummaryCard
           density={'compact'}
-          label={'은행 확인 잔고'}
-          value={data.bankBalance === null ? (data.bankAsOf ? '확인 필요' : '원본 없음') : formatInteger(data.bankBalance)}
-          unit={data.bankBalance === null ? '' : '원'}
-          description={data.bankAsOf ?? '잔고가 포함된 거래 파일을 확인해주세요.'}
+          label={bankLabel}
+          value={bankBalance === null ? '잔액 확인 필요' : formatInteger(bankBalance)}
+          unit={bankBalance === null ? '' : '원'}
+          description={bankAsOf ?? '기준 잔고와 입출금 내역을 확인해주세요.'}
           tone={'primary'}
           icon={(
             <ServiceIcon
@@ -413,9 +589,10 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         <SummaryCard
           density={'compact'}
           label={'동별 잔고 합계'}
+          tone={'warning'}
           value={summary.total === null ? '설정 필요' : formatInteger(summary.total)}
           unit={summary.total === null ? '' : '원'}
-          description={data.cutoffDate ? `${data.cutoffDate} 기준 잔고로 계산` : '동별 시작 잔고를 등록해주세요.'}
+          description={data.cutoffDate ? `${data.cutoffDate} 기준 잔고로 계산` : summary.total !== null ? '통장마다 등록한 기준일로 계산' : '통장을 선택해 동별 시작 잔고를 등록해주세요.'}
           icon={(
             <ServiceIcon
               name={'coins'}
@@ -425,10 +602,11 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         <SummaryCard
           density={'compact'}
           label={'잔고 비교 차이'}
-          value={summary.difference === null ? '확인 필요' : formatInteger(summary.difference)}
+          value={summary.difference === null ? '계산 자료 없음' : formatInteger(summary.difference)}
           unit={summary.difference === null ? '' : '원'}
-          description={'은행 확인 잔고 − 동별 잔고 합계'}
-          tone={summary.difference === BigInt(0) ? 'success' : 'warning'}
+          description={summary.difference === null ? '통장 잔액과 동별 기준 잔고가 있어야 계산할 수 있어요.' : differenceDescription}
+          tone={'success'}
+          valueTone={summary.difference !== null && summary.difference < BigInt(0) ? 'danger' : 'neutral'}
           icon={(
             <ServiceIcon
               name={'info'}
@@ -448,6 +626,11 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           )}
         />
       </div>
+      {!!data.accounts?.length && (
+        <AccountBalances
+          accounts={visibleAccounts}
+        />
+      )}
       <section
         className={styles.card}
       >
@@ -563,7 +746,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           >
             <div>
               <dt>
-                은행 − 동별 합계
+                통장 잔액 − 동별 합계
               </dt>
               <dd
                 data-negative={summary.difference !== null && summary.difference < BigInt(0)}
@@ -603,16 +786,12 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           >
             외부 대납금·기타 입금·미분류 거래·시작 잔고 차이를 확인해야 합니다. 차이를 특정 동에 자동 반영하지 않습니다.
           </p>
-          <div
-            className={styles.actions}
-          >
-            <Button
-              variant={'outline'}
-              onClick={() => openPanel('difference')}
-            >
-              차이 내역 확인
-            </Button>
-          </div>
+          <button
+            type={'button'}
+            className={styles['difference-trigger']}
+            aria-label={'잔고 차이 내역 확인'}
+            onClick={() => openPanel('difference')}
+          />
         </section>
       </div>
       <section
@@ -628,7 +807,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         </p>
         <PagedTable
           label={'외부 부담금'}
-          rows={data.externals.filter((row) => (externalFilter === 'ALL' || Boolean(row.excluded) === (externalFilter === 'EXCLUDED')) && `${row.label} ${row.expenseName}`.includes(externalSearch.trim()))}
+          rows={data.externals.filter((row) => (externalFilter === 'ALL' || Boolean(row.excluded) === (externalFilter === 'EXCLUDED')) && `${row.label} ${row.expenseName}`.includes(externalSearch.trim())).sort((a, b) => b.date.localeCompare(a.date))}
           toolbar={(
             <>
               <Input
@@ -1019,7 +1198,13 @@ function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
   function openTransaction(entry: BalanceEntry) {
     if (window.matchMedia('(max-width: 767px)').matches) {
       const path = entry.paymentId ? `receipts/${entry.paymentId}` : `transactions/${entry.id}`;
-      router.push(`/manage/${propertyId}/banking/${path}?from=balance&buildingId=${building.id}&month=${data.month}`);
+      const query = new URLSearchParams({
+        from: 'balance',
+        buildingId: building.id,
+        month: data.month
+      });
+      if (data.accountId) query.set('account', data.accountId);
+      router.push(`/manage/${propertyId}/banking/${path}?${query}`);
       return;
     }
     setTransactionDetail(entry);
@@ -1177,6 +1362,7 @@ function DetailDialog({ title, children, onClose, busy = false, compact = false,
   if (presentation === 'page') return (
     <section
       className={styles.page}
+      aria-label={title}
     >
       <ListHeader
         className={styles.header}
@@ -1255,18 +1441,94 @@ function DetailDialog({ title, children, onClose, busy = false, compact = false,
   );
 }
 /** 동 선택을 바꿔도 시작 잔고 초안을 보존하고 누락 동을 안내합니다. 외부 회수는 명시적인 관리자 입력만 저장하며 실패·재시도에는 입력과 요청 ID를 유지합니다. */
-function BalanceActionDialog({ action, data, propertyId, onClose, onSaved, presentation = 'modal' }: {
-    action: Action;
-    data: BalanceWorkspace;
-    propertyId: string;
-    onClose: () => void;
-    onSaved: (message: string) => Promise<void>;
-    presentation?: 'modal' | 'page';
-}) {
-  const [cutoff, setCutoff] = useState(data.cutoffDate ?? '');
-  const [amounts, setAmounts] = useState<Record<string, string>>(() => Object.fromEntries(data.buildings.filter((row) => row.openingBalance != null).map((row) => [row.id, row.openingBalance!])));
-  const [editingOpening, setEditingOpening] = useState(false);
-  const [openingRevisions] = useState(() => Object.fromEntries(data.buildings.map((row) => [row.id, row.openingRevision ?? 0])));
+type OpeningDraftState = {
+  cutoff: string; amounts: Record<string, string>; editing: boolean; revisions: Record<string, number>; requestId: string;
+};
+
+type BalanceActionDialogProps = {
+  action: Action;
+  data: BalanceWorkspace;
+  propertyId: string;
+  onClose: () => void;
+  onSaved: (message: string, keepOpen?: boolean) => Promise<void>;
+  presentation?: 'modal' | 'page';
+  openingSelector?: ReactNode;
+  openingAccountId?: string;
+  openingDraft?: OpeningDraftState;
+  onOpeningDraftChange?: (draft: OpeningDraftState) => void;
+};
+
+/** 기존 기준 잔고 화면 안에서 통장을 선택하고 해당 통장의 동별 입력을 불러옵니다. */
+function BalanceActionDialog(props: BalanceActionDialogProps) {
+  const session = useSession();
+  const accounts = props.data.accounts ?? [];
+  const [accountId, setAccountId] = useState(props.action.id ?? props.data.accountId ?? accounts[0]?.id ?? '');
+  const [openingDrafts, setOpeningDrafts] = useState<Record<string, OpeningDraftState>>({});
+  const rememberOpening = useCallback((draft: OpeningDraftState) => {
+    setOpeningDrafts((current) => ({
+      ...current,
+      [accountId]: draft
+    }));
+  }, [accountId]);
+  const scoped = props.action.kind === 'opening' && accounts.length > 0;
+  const query = useQuery({
+    queryKey: ['banking-balances', session.data?.id, props.propertyId, props.data.month, accountId],
+    queryFn: () => getBankingBalances(props.propertyId, props.data.month, accountId),
+    enabled: scoped && Boolean(accountId),
+    retry: false,
+    gcTime: 0
+  });
+  if (!scoped) return (
+    <BalanceOperationsDialog
+      {...props}
+    />
+  );
+  const selector = (
+    <SelectDropdown
+      label={'통장 선택'}
+      value={accountId}
+      onChange={setAccountId}
+      options={accounts.map((account) => ({
+        value: account.id,
+        label: account.label
+      }))}
+    />
+  );
+  if (!query.data) return (
+    <DetailDialog
+      title={'기준 잔고 확인'}
+      presentation={props.presentation}
+      onClose={props.onClose}
+    >
+      {selector}
+      <p
+        role={query.isPending ? 'status' : 'alert'}
+      >
+        {query.isPending ? '선택한 통장의 동별 기준 잔고를 불러오고 있어요.' : balanceError(query.error)}
+      </p>
+    </DetailDialog>
+  );
+  return (
+    <BalanceOperationsDialog
+      key={accountId}
+      {...props}
+      data={query.data}
+      openingAccountId={accountId}
+      openingSelector={selector}
+      openingDraft={openingDrafts[accountId]}
+      onOpeningDraftChange={rememberOpening}
+    />
+  );
+}
+
+function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, presentation = 'modal', openingSelector, openingAccountId, openingDraft: cachedOpening, onOpeningDraftChange }: BalanceActionDialogProps) {
+  const [cutoff, setCutoff] = useState(cachedOpening?.cutoff ?? data.cutoffDate ?? data.legacyOpening?.cutoffDate ?? '');
+  const [amounts, setAmounts] = useState<Record<string, string>>(() => cachedOpening?.amounts ?? {
+    ...Object.fromEntries(data.legacyOpening?.buildings.map((row) => [row.buildingId, row.amount]) ?? []),
+    ...Object.fromEntries(data.buildings.filter((row) => row.openingBalance != null).map((row) => [row.id, row.openingBalance!]))
+  });
+  const [editingOpening, setEditingOpening] = useState(cachedOpening?.editing ?? false);
+  const [openingRevisions] = useState(() => cachedOpening?.revisions ?? Object.fromEntries(data.buildings.map((row) => [row.id, row.openingRevision ?? 0])));
   const [payment, setPayment] = useState('');
   const [building, setBuilding] = useState('');
   const [amount, setAmount] = useState('');
@@ -1275,7 +1537,18 @@ function BalanceActionDialog({ action, data, propertyId, onClose, onSaved, prese
   const [decisionBusy, setDecisionBusy] = useState(false);
   const [decisionRequestId] = useState(() => crypto.randomUUID());
   const pending = useRef(false);
-  const [requestId] = useState(() => crypto.randomUUID());
+  const [requestId] = useState(() => cachedOpening?.requestId ?? crypto.randomUUID());
+  // 통장을 바꾸는 동안 입력과 요청 ID를 보존해 돌아왔을 때도 같은 초안을 이어갑니다.
+  useEffect(() => {
+    if (!openingAccountId || !onOpeningDraftChange) return;
+    onOpeningDraftChange({
+      cutoff,
+      amounts,
+      editing: editingOpening,
+      revisions: openingRevisions,
+      requestId
+    });
+  }, [openingAccountId, onOpeningDraftChange, cutoff, amounts, editingOpening, openingRevisions, requestId]);
   const missing = sortExpenseLabels(data.buildings.filter((b) => b.active && b.status === 'OPENING_REQUIRED'));
   const [openingBuilding, setOpeningBuilding] = useState(missing[0]?.id ?? '');
   const registeredOpenings = sortExpenseLabels(data.buildings.filter((row) => row.openingBalance != null));
@@ -1286,7 +1559,7 @@ function BalanceActionDialog({ action, data, propertyId, onClose, onSaved, prese
   const enteredCount = openingTargets.filter((b) => /^-?[0-9]{1,15}$/.test(amounts[b.id] ?? '')).length;
   const external = data.externals.find((e) => e.id === action.id);
   const income = data.incomes.find((i) => i.id === action.id);
-  const options = data.incomes.filter((i) => i.kind === 'OTHER' && BigInt(i.available) > BigInt(0));
+  const options = data.incomes.filter((i) => i.kind === 'OTHER' && BigInt(i.available) > BigInt(0) && (!external?.accountId || i.accountId === external.accountId));
   const title = {
     opening: editingOpening ? '기준 잔고 수정' : missing.length ? '동별 시작 잔고 설정' : '기준 잔고 확인',
     settlement: '외부 부담금 정산',
@@ -1317,6 +1590,7 @@ function BalanceActionDialog({ action, data, propertyId, onClose, onSaved, prese
       if (action.kind === 'opening' && editingOpening) {
         await correctCashOpenings(propertyId, {
           id: requestId,
+          accountId: openingAccountId,
           cutoffDate: cutoff,
           buildings: openingTargets.map((row) => ({
             buildingId: row.id,
@@ -1327,6 +1601,7 @@ function BalanceActionDialog({ action, data, propertyId, onClose, onSaved, prese
       }
       if (action.kind === 'opening' && !editingOpening) {
         await saveCashOpenings(propertyId, {
+          accountId: openingAccountId,
           cutoffDate: cutoff,
           buildings: missing.map((row) => ({
             buildingId: row.id,
@@ -1401,7 +1676,6 @@ function BalanceActionDialog({ action, data, propertyId, onClose, onSaved, prese
         action.kind !== 'difference' && (
           <div
             className={styles.actions}
-            data-settlement={action.kind === 'settlement'}
           >
             {action.kind === 'opening' && !inputOpening && (
               <Button
@@ -1454,8 +1728,16 @@ function BalanceActionDialog({ action, data, propertyId, onClose, onSaved, prese
           className={styles.form}
           disabled={busy}
         >
+          {openingSelector}
+          {data.legacyOpening && missing.length > 0 && (
+            <p
+              className={styles['exclusion-note']}
+            >
+              통장 구분 전에 저장한 기준일과 잔고를 표시했습니다. 선택한 통장의 동별 금액이 맞는지 확인한 뒤 확정해주세요.
+            </p>
+          )}
           <p>
-            잔고를 알고 있는 날짜와 그날 마감 잔고를 입력합니다. 이후 월은 입출금을 누적하고 이전 월은 확인된 입출금을 거꾸로 계산합니다.
+            선택한 통장의 동별 기준일과 그날 마감 잔고를 입력합니다. 이후 월은 해당 통장의 입출금을 누적하고 이전 월은 확인된 입출금을 거꾸로 계산합니다.
           </p>
           {data.cutoffDate && !editingOpening ? (
             <p>
@@ -1669,14 +1951,14 @@ function BalanceActionDialog({ action, data, propertyId, onClose, onSaved, prese
       {action.kind === 'difference' && (
         <>
           <p>
-            은행 확인 잔고에는 미분류 거래·외부 부담금·공통 자금도 포함될 수 있습니다. 차이를 자동 배분하거나 대사 완료로 처리하지 않습니다.
+            화면에 표시된 통장 잔액에서 동별 잔고 합계를 뺀 차이입니다. 통장 잔액에는 계산 잔액·미분류 거래·외부 부담금·공통 자금이 포함될 수 있으며 차이를 자동 배분하거나 대사 완료로 처리하지 않습니다.
           </p>
           <dl
             className={styles.overview}
           >
             <div>
               <dt>
-                은행 − 동별 합계
+                통장 잔액 − 동별 합계
               </dt>
               <dd
                 data-negative={getBalanceSummary(data).difference !== null && getBalanceSummary(data).difference! < BigInt(0)}

@@ -30,6 +30,7 @@ public class ExpenseService {
     /** 호출자는 관리대상 잠금·권한을 먼저 확보합니다. 비용과 동별 배분을 함께 저장해 부분 확정을 막습니다. */
     @Transactional
     public void confirm(BankTransaction original,BankingRequests.Expense request,UUID actor) {
+        if(original.isTransferCandidate()) throw new PaymentException("BANK_TRANSFER_CONFLICT");
         if(!"EXPENSE".equals(original.getDirection())||original.getDeletedAt()!=null) throw new PaymentException("INVALID_BANK_SELECTION");
         var shares=request.allocations().stream().map(a->{
             String label=a.buildingId()==null?TextValues.required(a.label(),100):buildings.findById(a.buildingId())

@@ -1,0 +1,65 @@
+.summary {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  color: var(--foreground);
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+
+    h3 { font-size: 18px; font-weight: 700; }
+  }
+
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--sub-text);
+    font-size: 12px;
+    line-height: 1.6;
+
+    &[data-complete='true'] { color: var(--success); }
+    svg { flex-shrink: 0; }
+  }
+
+  .table-wrapper {
+    min-width: 0;
+    overflow-x: auto;
+    background: var(--card);
+  }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 14px 10px; text-align: left; vertical-align: middle; }
+  thead { background: var(--background); color: var(--sub-text); font-size: 12px; }
+  tbody tr { border-top: 1px solid var(--border); }
+  tbody th { font-weight: 650; white-space: nowrap; }
+  tfoot { border-top: 1px solid var(--border); background: var(--background); font-weight: 700; }
+  .amount { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .note { color: var(--sub-text); text-align: center; }
+
+  .ratio {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 150px;
+    font-variant-numeric: tabular-nums;
+
+    span { min-width: 48px; text-align: right; }
+    progress { flex: 1; width: 80px; height: 8px; border: 0; border-radius: 10px; overflow: hidden; background: var(--border); appearance: none; }
+    progress::-webkit-progress-bar { background: var(--border); border-radius: 10px; }
+    progress::-webkit-progress-value { background: var(--primary); border-radius: 10px; }
+    progress::-moz-progress-bar { background: var(--primary); border-radius: 10px; }
+  }
+}
+
+@media (max-width: 767px) {
+  .summary {
+    th, td { padding: 12px 7px; font-size: 12px; }
+    .note { display: none; }
+    .ratio { min-width: 95px; gap: 6px; span { min-width: 40px; } progress { width: 45px; } }
+  }
+}

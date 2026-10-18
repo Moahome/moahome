@@ -120,9 +120,13 @@ public class PropertyRegistrationService {
 			buildingMap.get(unit.buildingClientId()), unit.unitNumber(), unit.displayName(), unit.floor(),
 			UnitStatus.valueOf(unit.status()), at)).toList());
 
-		var createdAccounts=bankAccounts.saveAllAndFlush(input.bankAccounts().stream().map(account -> BankAccount.createPublic(property,
-			account.bankCode(), account.bankName(), account.holderName(), accountSecurity.protect(account.accountNumber()),
-			account.isPrimary(), at)).toList());
+		// 같은 시각에 저장한 통장도 초기 설정에서 입력한 순서를 별도로 보존합니다.
+		var createdAccounts=bankAccounts.saveAllAndFlush(java.util.stream.IntStream.range(0,input.bankAccounts().size()).mapToObj(index -> {
+            var account=input.bankAccounts().get(index);
+            var created=BankAccount.createPublic(property,account.bankCode(),account.bankName(),account.holderName(),accountSecurity.protect(account.accountNumber()),account.isPrimary(),index,at);
+            created.rename(account.alias());
+            return created;
+        }).toList());
 		FeeTemplate template = FeeTemplate.createDefault(property.getId(), at);
 		templates.saveAndFlush(template);
 		List<FeeTemplateItem> feeItems = new ArrayList<>();

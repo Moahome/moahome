@@ -16,3 +16,17 @@ export {
 export {
   BankAccountFields
 } from './ui/bank-account-fields/bankAccountFields';
+
+export {
+  BankAccountCard
+} from './ui/bank-account-card/bankAccountCard';
+
+export {
+  AllocationEditor
+} from './ui/allocation-editor/allocationEditor';
+export {
+  IncomeAllocationSummary
+} from './ui/income-allocation-summary/incomeAllocationSummary';
+export {
+  calculateExpenseAllocation, sortExpenseLabels, type BankingAllocation, type ExpenseDraft
+} from './model/allocation';

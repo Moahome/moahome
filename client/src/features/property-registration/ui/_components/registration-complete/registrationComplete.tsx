@@ -32,6 +32,7 @@ export function RegistrationComplete({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const router = useRouter();
   const hasDraft = showDetails && draft.basicInfoValidated && draft.units.length > 0;
+  const primary = draft.bankAccounts.find((account) => account.isPrimary) ?? draft.bankAccounts[0];
   const information: { label: string; value: string; icon: ServiceIconName }[] = [
     {
       label: '관리할 곳',
@@ -50,12 +51,12 @@ export function RegistrationComplete({
     },
     {
       label: '관리계좌',
-      value: hasDraft ? `${draft.bankAccount.bankName} ${draft.bankAccount.accountNumber}` : `관리계좌 ${result.summary.bankAccountCount}개 등록 완료`,
+      value: hasDraft ? `${draft.bankAccounts.length}개 통장 · 기본 ${primary.bankName} ${primary.accountNumber}` : `관리계좌 ${result.summary.bankAccountCount}개 등록 완료`,
       icon: 'bank'
     },
     {
       label: '예금주',
-      value: hasDraft ? draft.bankAccount.holderName : '예금주 등록 완료',
+      value: hasDraft ? primary.holderName : '예금주 등록 완료',
       icon: 'person'
     },
     {

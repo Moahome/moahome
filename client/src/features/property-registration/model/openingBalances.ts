@@ -60,8 +60,8 @@ export function getUnitOpeningError(opening: OpeningBalancesDraft, units: UnitDr
   return '';
 }
 /** 실제 계좌 잔액과 전체 동의 보유금을 별도로 검증하며 합계 일치를 강제하지 않습니다. */
-export function getCashOpeningError(opening: OpeningBalancesDraft, buildings: BuildingDraft[]) {
-  if (!AMOUNT.test(opening.accountAmount)) return '통장 실제 잔액을 원 단위로 입력해주세요.';
+export function getCashOpeningError(opening: OpeningBalancesDraft, buildings: BuildingDraft[], accounts?: { openingAmount: string }[]) {
+  if (accounts ? !accounts.length || accounts.some((account) => !AMOUNT.test(account.openingAmount)) : !AMOUNT.test(opening.accountAmount)) return '각 통장의 실제 잔액을 원 단위로 입력해주세요.';
   if (!buildings.length) return '';
   if (!validDate(opening.cashCutoffDate) || opening.cashCutoffDate > getOpeningToday()) return '동별 잔고 기준일을 오늘 또는 이전 날짜로 선택해주세요.';
   if (buildings.some((building) => !CASH_AMOUNT.test(opening.buildings[building.clientId] ?? ''))) return '모든 동의 보유금을 입력해주세요. 모르는 금액을 0원으로 확정하지 마세요.';

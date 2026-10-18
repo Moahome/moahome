@@ -436,6 +436,14 @@ test('입금일도 공통 달력에서 날짜를 선택하고 모달은 X로 닫
     name: '수동 입금 등록',
     exact: true
   });
+  await modal.getByRole('combobox', {
+    name: '입금 용도',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '세대 관리비 직접 지정',
+    exact: true
+  }).click();
   const bounds = await modal.boundingBox();
   expect(Math.abs(bounds!.x + bounds!.width / 2 - 720)).toBeLessThan(3);
   expect(Math.abs(bounds!.y + bounds!.height / 2 - 500)).toBeLessThan(3);
@@ -751,6 +759,14 @@ test('좁고 낮은 화면에서도 입금일 달력이 모달 경계를 지키�
     name: '수동 입금 등록',
     exact: true
   });
+  await modal.getByRole('combobox', {
+    name: '입금 용도',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '세대 관리비 직접 지정',
+    exact: true
+  }).click();
   const trigger = modal.getByRole('button', {
     name: '입금일: 2026년 10월 15일'
   });
@@ -788,6 +804,14 @@ test('수동 입금자는 실제 대표 이름으로 채우고 API 저장 후 �
     name:'수동 입금 등록',
     exact:true
   });
+  await modal.getByRole('combobox', {
+    name: '입금 용도',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '세대 관리비 직접 지정',
+    exact: true
+  }).click();
   await modal.getByRole('combobox',{
     name:'세대',
     exact:true
@@ -923,6 +947,14 @@ test('수동 저장 실패는 입력을 보존하고 같은 요청 ID로 다시 
     name:'수동 입금 등록',
     exact:true
   });
+  await modal.getByRole('combobox', {
+    name: '입금 용도',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '세대 관리비 직접 지정',
+    exact: true
+  }).click();
   await modal.getByRole('combobox',{
     name:'세대',
     exact:true
@@ -2564,6 +2596,13 @@ for (const width of [1440, 390, 320]) {
     const summary = page.getByRole('region', {
       name: '월별 실제 입금 합계'
     });
+    await expect(page.getByRole('combobox', {
+      name: '조회 통장',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByText('조회 월', {
+      exact: true
+    })).not.toBeVisible();
     await expect(summary.getByRole('article', {
       name: '당월 세대 입금액 90,000원'
     })).toBeVisible();
@@ -2771,6 +2810,14 @@ for (const width of [1440, 390, 320]) {
       name: '수동 입금 등록',
       exact: true
     });
+    await form.getByRole('combobox', {
+      name: '입금 용도',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '세대 관리비 직접 지정',
+      exact: true
+    }).click();
     await form.getByRole('combobox', {
       name: '세대',
       exact: true
@@ -3066,5 +3113,458 @@ for (const width of [1440, 390]) {
     await expect(table).not.toContainText('5,002원');
     await expect(table).not.toContainText('5,003원');
     expect((selections.at(-1) as { paymentIds: string[] }).paymentIds).toEqual(expect.arrayContaining([id('pending-delete'), id('confirmed-delete')]));
+  });
+}
+
+for (const width of [1440, 390]) {
+  test(`수동 입금 용도 ${width}px는 세대·기타·동별 배분 입력을 분리하고 저장·재시도·새로고침을 유지`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const base = `/manage/${PROPERTY_ID}/banking`;
+    let ledger: PreviewLedger = {
+      ...storedLedger(),
+      payments: [],
+      buildings: [{
+        id: id('building-102'),
+        label: '2동'
+      }, {
+        id: id('building-103'),
+        label: '3동'
+      }]
+    };
+    const headers = {
+      'Access-Control-Allow-Origin': 'http://localhost:3100',
+      'Access-Control-Allow-Credentials': 'true'
+    };
+    await page.route(`**/api/properties/${PROPERTY_ID}/banking/workspace`, (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers,
+      body: JSON.stringify({
+        propertyId: PROPERTY_ID,
+        asOf: ledger.asOf,
+        buildings: ledger.buildings,
+        units: [],
+        rows: [],
+        rules: []
+      })
+    }));
+    const requests: { id: string; purpose: string; unitId?: string; payer: string; accountId: string; date: string; amount: string; category?: string; note?: string; incomeAllocation?: import('../src/entities/banking').ExpenseDraft }[] = [];
+    let rejectedShared = false;
+    await page.route(`**/api/properties/${PROPERTY_ID}/payments/**`, async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      if (path.endsWith('/manual')) {
+        const input = route.request().postDataJSON() as typeof requests[number];
+        requests.push(input);
+        if (input.purpose === 'SHARED' && !rejectedShared) {
+          rejectedShared = true;
+          return route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            headers,
+            body: JSON.stringify({
+              code: 'SERVICE_UNAVAILABLE'
+            })
+          });
+        }
+        ledger = {
+          ...ledger,
+          payments: [...ledger.payments, {
+            id: input.id,
+            source: 'MANUAL',
+            status: 'CONFIRMED',
+            receiptType: 'OTHER',
+            accountId: input.accountId,
+            date: input.date,
+            payer: input.payer,
+            amount: input.amount,
+            unitId: '',
+            reason: '',
+            allocations: [],
+            incomeCategory: input.category,
+            incomeNote: input.note ?? null,
+            incomeAllocation: input.incomeAllocation ? {
+              ...input.incomeAllocation,
+              id: input.id
+            } : null
+          }]
+        };
+      } else if (!path.endsWith('/workspace')) return route.fallback();
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers,
+        body: JSON.stringify({
+          ...ledger,
+          propertyId: PROPERTY_ID
+        })
+      });
+    });
+    async function open() {
+      await page.goto(`${base}/transactions`);
+      await page.getByRole('button', {
+        name: '수동 입금 등록',
+        exact: true
+      }).click();
+      const form = width < 768 ? page.getByRole('region', {
+        name: '수동 입금 등록',
+        exact: true
+      }) : page.getByRole('dialog', {
+        name: '수동 입금 등록',
+        exact: true
+      });
+      await expect(form.getByRole('combobox', {
+        name: '세대',
+        exact: true
+      })).toHaveCount(0);
+      await form.getByRole('combobox', {
+        name: '입금 용도',
+        exact: true
+      }).click();
+      await expect(page.getByRole('option')).toHaveText(['세대 관리비 직접 지정', '외부 분담금·수리비 등 기타 입금', '동별 입금 · 직접 배분']);
+      return form;
+    }
+    let form = await open();
+    await page.getByRole('option', {
+      name: '세대 관리비 직접 지정',
+      exact: true
+    }).click();
+    await expect(form.getByRole('combobox', {
+      name: '세대',
+      exact: true
+    })).toBeVisible();
+    await expect(form.getByRole('textbox', {
+      name: '입금자명',
+      exact: true
+    })).toHaveAttribute('readonly', '');
+    await form.getByRole('combobox', {
+      name: '입금 용도',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '외부 분담금·수리비 등 기타 입금',
+      exact: true
+    }).click();
+    await expect(form.getByRole('combobox', {
+      name: '세대',
+      exact: true
+    })).toHaveCount(0);
+    await expect(form.getByRole('textbox', {
+      name: '입금자명',
+      exact: true
+    })).toBeEditable();
+    await form.getByRole('textbox', {
+      name: '입금자명',
+      exact: true
+    }).fill('외부 관리단');
+    await form.getByRole('textbox', {
+      name: '입금액',
+      exact: true
+    }).fill('12000');
+    await form.getByRole('textbox', {
+      name: '입금 항목',
+      exact: true
+    }).fill('수리비');
+    await form.getByRole('button', {
+      name: '등록하기',
+      exact: true
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '입금 처리 상세',
+      exact: true
+    })).toBeVisible();
+    expect(requests[0]).toMatchObject({
+      purpose: 'OTHER',
+      payer: '외부 관리단',
+      category: '수리비',
+      amount: '12000'
+    });
+    expect(requests[0].unitId).toBeUndefined();expect(requests[0].incomeAllocation).toBeUndefined();
+    await expect(page.getByRole('textbox', {
+      name: '반영할 세대',
+      exact: true
+    })).toHaveCount(0);
+    form = await open();
+    await page.getByRole('option', {
+      name: '동별 입금 · 직접 배분',
+      exact: true
+    }).click();
+    await expect(form.getByRole('combobox', {
+      name: '세대',
+      exact: true
+    })).toHaveCount(0);
+    await form.getByRole('textbox', {
+      name: '입금자명',
+      exact: true
+    }).fill('은행');
+    await form.getByRole('textbox', {
+      name: '입금액',
+      exact: true
+    }).fill('1001');
+    await form.getByRole('textbox', {
+      name: '입금 항목',
+      exact: true
+    }).fill('예금이자');
+    await expect(form.getByText('원 미만 금액이 남습니다. 금액 직접 입력으로 조정해주세요.', {
+      exact: true
+    })).toBeVisible();
+    await expect(form.getByRole('button', {
+      name: '등록하기',
+      exact: true
+    })).toBeDisabled();
+    await form.getByRole('checkbox', {
+      name: '3동',
+      exact: true
+    }).uncheck();
+    await expect(form.getByRole('button', {
+      name: '등록하기',
+      exact: true
+    })).toBeEnabled();
+    await form.getByRole('checkbox', {
+      name: '3동',
+      exact: true
+    }).check();
+    await form.getByRole('combobox', {
+      name: '나누는 방법',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '비율 지정',
+      exact: true
+    }).click();
+    await form.getByRole('textbox', {
+      name: '2동 배분 비율',
+      exact: true
+    }).fill('25');
+    await form.getByRole('textbox', {
+      name: '3동 배분 비율',
+      exact: true
+    }).fill('75');
+    await expect(form.getByRole('button', {
+      name: '등록하기',
+      exact: true
+    })).toBeDisabled();
+    await form.getByRole('combobox', {
+      name: '나누는 방법',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '금액 직접 입력',
+      exact: true
+    }).click();
+    await form.getByRole('textbox', {
+      name: '2동 배분액',
+      exact: true
+    }).fill('1000000');
+    await form.getByRole('textbox', {
+      name: '3동 배분액',
+      exact: true
+    }).fill('500000');
+    await form.getByRole('textbox', {
+      name: '입금액',
+      exact: true
+    }).fill('1500000');
+    await expect(form.getByText('남은 금액 0원', {
+      exact: true
+    })).toBeVisible();
+    if (width >= 768) {
+      await expect(form.getByRole('heading', {
+        name: '수동 입금 등록',
+        exact: true
+      })).toBeInViewport();
+      await expect(form.getByRole('button', {
+        name: '등록하기',
+        exact: true
+      })).toBeInViewport();
+      await form.screenshot({
+        path: testInfo.outputPath(`manualSharedIncome${width}.png`),
+        animations: 'disabled'
+      });
+    } else {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({
+        path: testInfo.outputPath(`manualSharedIncome${width}.png`),
+        fullPage: true,
+        animations: 'disabled'
+      });
+    }
+    await form.getByRole('button', {
+      name: '등록하기',
+      exact: true
+    }).click();
+    await expect(page.getByLabel('알림', {
+      exact: true
+    }).filter({
+      hasText: '입금 정보를 처리하지 못했어요.'
+    })).toBeVisible();
+    await expect(form.getByRole('textbox', {
+      name: '3동 배분액',
+      exact: true
+    })).toHaveValue('500000');
+    await form.getByRole('button', {
+      name: '등록하기',
+      exact: true
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '입금 처리 상세',
+      exact: true
+    })).toBeVisible();
+    expect(requests[2]).toEqual(requests[1]);
+    expect(requests[2].purpose).toBe('SHARED');expect(requests[2].unitId).toBeUndefined();
+    expect(requests[2].incomeAllocation?.mode).toBe('AMOUNT');
+    expect(requests[2].incomeAllocation?.allocations.map((part) => part.amount)).toEqual(['1000000', '500000']);
+    const saved = page.getByLabel('저장된 동별 배분', {
+      exact: true
+    });
+    await expect(saved).toContainText('2동');await expect(saved).toContainText('1,000,000원');await expect(saved).toContainText('500,000원');
+    await page.goto(`${base}/transactions`);
+    await page.reload();
+    const table = page.getByRole('table', {
+      name: '통장 거래',
+      exact: true
+    });
+    await expect(table).toContainText('수리비');await expect(table).toContainText('동별 입금');
+    await expect(table).toContainText('2개 동 배분');
+    await expect(table.getByRole('row').filter({
+      hasText: '은행'
+    })).toContainText('처리 완료');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}
+
+for (const width of [1440, 390]) {
+  test(`기타 입금 상세 개선 ${width}px는 분류·비율 막대·배분 합계 다음에 닫기와 확정 취소를 표시`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 1100
+    });
+    const ledger = storedLedger();
+    ledger.asOf = '2026-10-18';
+    ledger.accounts = [{
+      ...ledger.accounts[0],
+      label: '카카오뱅크 ····1020 · 예비비'
+    }];
+    const payment: PreviewPayment = {
+      ...ledger.payments[0],
+      id: id('other-income-design'),
+      source: 'MANUAL',
+      status: 'CONFIRMED',
+      accountId: ledger.accounts[0].id,
+      date: '2026-10-18',
+      payer: '드림하이츠수선충당금',
+      amount: '22910',
+      unitId: '',
+      receiptType: 'OTHER',
+      bankTransactionId: null,
+      allocations: [],
+      incomeCategory: '이자',
+      incomeNote: '공동 통장 이자',
+      incomeAllocation: {
+        id: id('other-income-design-allocation'),
+        category: '이자',
+        note: '',
+        mode: 'AMOUNT',
+        saveAsRule: false,
+        allocations: [{
+          buildingId: id('income-103'),
+          label: '103동',
+          amount: '11455',
+          percentage: null
+        }, {
+          buildingId: id('income-102'),
+          label: '102동',
+          amount: '11455',
+          percentage: null
+        }]
+      }
+    };
+    ledger.payments = [payment];
+    const headers = {
+      'Access-Control-Allow-Origin': 'http://localhost:3100',
+      'Access-Control-Allow-Credentials': 'true'
+    };
+    await page.route(`**/api/properties/${PROPERTY_ID}/payments/workspace`, (route) => route.fulfill({
+      status: 200,
+      headers,
+      json: {
+        ...ledger,
+        propertyId: PROPERTY_ID
+      }
+    }));
+    await page.route(`**/api/properties/${PROPERTY_ID}/banking/workspace`, (route) => route.fulfill({
+      status: 200,
+      headers,
+      json: {
+        propertyId: PROPERTY_ID,
+        asOf: ledger.asOf,
+        accounts: [],
+        buildings: [],
+        units: [],
+        rows: [],
+        rules: []
+      }
+    }));
+    const base = `/manage/${PROPERTY_ID}/banking`;
+    await page.goto(`${base}/transactions`);
+    await page.getByRole('row').filter({
+      hasText: payment.payer
+    }).click();
+    const detail = width > 767 ? page.getByRole('dialog', {
+      name: '입금 처리 상세',
+      exact: true
+    }) : page.getByRole('region', {
+      name: '입금 상세 페이지',
+      exact: true
+    });
+    await expect(detail.getByRole('heading', {
+      name: '입금 분류',
+      exact: true
+    })).toBeVisible();
+    await expect(detail).toContainText('공동 통장 이자');
+    const table = detail.getByRole('table', {
+      name: '동별 입금 배분표',
+      exact: true
+    });
+    await expect(table).toHaveCount(1);
+    await expect(table.getByRole('row').nth(1)).toContainText('102동');
+    await expect(table.getByRole('row').nth(1)).toContainText('11,455원');
+    await expect(table.getByRole('progressbar', {
+      name: '102동 배분 비율 50%',
+      exact: true
+    })).toHaveAttribute('value', '5000');
+    await expect(table.getByRole('progressbar', {
+      name: '총 배분 비율 100%',
+      exact: true
+    })).toHaveAttribute('value', '10000');
+    await expect(table.getByRole('row').last()).toContainText('22,910원');
+    await expect(detail).toContainText('총 금액이 모두 배분되었습니다.');
+    const close = detail.getByRole('button', {
+      name: '닫기',
+      exact: true
+    });
+    expect((await close.boundingBox())!.y).toBeGreaterThan((await table.boundingBox())!.y);
+    await expect(detail.getByRole('button', {
+      name: '확정 취소',
+      exact: true
+    })).toBeEnabled();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await detail.screenshot({
+      path: testInfo.outputPath(`otherIncomeDetail${width}.png`),
+      animations: 'disabled'
+    });
+    await close.click();
+    if (width > 767) await expect(detail).toHaveCount(0);
+    else await expect(page).toHaveURL(`${base}/transactions`);
+    payment.status = 'CANCELED';
+    await page.goto(`${base}/receipts/${payment.id}`);
+    await expect(page.getByText('취소된 배분 내역입니다.', {
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByText('총 금액이 모두 배분되었습니다.', {
+      exact: true
+    })).toHaveCount(0);
   });
 }

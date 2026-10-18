@@ -29,8 +29,9 @@
     animation: toast-leave 180ms ease-in both;
   }
 
-  p {
+  .message {
     margin: 0;
+    color: inherit;
     overflow-wrap: anywhere;
     font-size: 14px;
     font-weight: 500;

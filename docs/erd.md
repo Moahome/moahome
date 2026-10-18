@@ -963,7 +963,7 @@ FOREIGN KEY(property_id, unit_id) REFERENCES units(property_id, id)
 | --- | --- |
 | opening_balance_batches | 관리대상·기준일·첫 부과월, DRAFT/CONFIRMED/CANCELED, revision·편집 토큰, 생성·확정·취소자/시각·사유. 대상별 미취소 작업 1개 |
 | opening_balance_items | batch·세대, receivable·credit(numeric(15,0), 0 이상), 초기 미수 charge_id, 선택 발생월·암호화 부담 주체 메모. batch·세대 UNIQUE |
-| bank_opening_balances | batch·관리계좌·기준일 실제 잔액(numeric(15,0), 0 이상). batch·계좌 UNIQUE |
+| bank_opening_balances | 관리계좌·cutoff_date·실제 잔액(numeric(15,0), 0 이상), 선택 batch_id, revision·recorded_by·recorded_at. 인계 행은 batch·계좌 UNIQUE이며 batch 없는 독립 이력은 계좌·revision 부분 UNIQUE. 기존 인계 금액을 보존하고 동별 보유금과 별개로 조회 |
 | credit_applications | 초기 선납 item·청구·양수 충당액, ACTIVE/CANCELED, 처리자·시각. item·청구 UNIQUE |
 
 모든 연결에 관리대상을 포함한 복합 FK를 둡니다. 초기 선납 사용가능액은 확정 item.credit에서 활성 credit_applications 합계를 빼 계산합니다. 이미 존재하는 초과수납은 payments의 미사용액을 재사용하며 중복 unit_credit_balances 컬럼·테이블을 만들지 않았습니다.
@@ -992,6 +992,7 @@ DB 지연 제약은 실제 수납 배분과 기존 선납 충당의 합계가 �
 | payer_name_hmac | char(64) | N | 정규화된 이름 검색값 |
 | memo_encrypted | text | Y | 원본 메모 암호화 |
 | status | varchar(20) | N | PENDING / ON_HOLD / CONFIRMED / CANCELED / LINKED |
+| manual_purpose | varchar(20) | Y | MANUAL은 HOUSEHOLD / OTHER / SHARED, BANK_IMPORT는 NULL; 기존 수동 행은 HOUSEHOLD |
 | receipt_type | varchar(20) | N | HOUSEHOLD 세대 납부 / OTHER 기타 입금, 기존 행은 HOUSEHOLD |
 | income_category_encrypted | text | Y | 기타 입금의 항목명 암호화, OTHER에서 필수 |
 | income_note_encrypted | text | Y | 기타 입금의 선택 메모 암호화 |
@@ -1007,7 +1008,7 @@ DB 지연 제약은 실제 수납 배분과 기존 선납 충당의 합계가 �
 
 관리대상·계좌/은행 원본/세대/주민/연결 수납은 복합 FK로 같은 대상만 허용합니다. 활성 은행 원본의 유일 인덱스는 CANCELED·LINKED 이력을 제외합니다. LINKED는 금액 집계에서 제외합니다. 미사용 선입금은 HOUSEHOLD 확정 수납 전액에서 활성 배분 합계를 뺀 금액으로 계산하며 별도 중복 금액 컬럼을 저장하지 않습니다. 다음 실제 양수 청구에 자동 충당합니다. 삭제는 후속 `V20261016120311__support_payment_deletion.sql`의 `deleted_at/deleted_by`로 표시하며 확정 상태인 채 삭제할 수 없습니다. 미확정 삭제 항목은 목록에서 제외하고 확정 납부는 취소 이력으로 보존합니다. 2026-10-18 사용자 요청으로 통장 거래 선택 삭제에서는 은행 미연결 수동 입금도 확정 여부와 관계없이 삭제할 수 있습니다. 확정 건은 먼저 수납·충당을 취소하고 같은 트랜잭션에서 deleted_at/deleted_by를 기록하며 취소 상태·사유·충당·이벤트는 보존합니다. 기존 제약이 취소 상태의 소프트 삭제를 허용하므로 새 컬럼·Migration은 추가하지 않습니다. 원본 참조는 유지하며 미확정 삭제의 활성 중복 키는 아래 은행 원본 정책에 따라 해제합니다.
 
-후속 `V20261016141400__support_other_bank_income.sql`은 동일 입금 기록에 세대 납부·기타 입금 구분을 추가합니다. OTHER는 은행 원본이 있는 CONFIRMED·CANCELED만 허용하며 세대·주민 연결을 금지합니다. 기타 입금 항목·메모는 원본 메모와 분리해 암호화하고, DB 배분 함수와 변경 가드가 OTHER의 활성 청구 배분을 차단합니다. 취소 이력의 분류는 보존하고 재검토 초안은 HOUSEHOLD 기본값으로 생성합니다. 동 귀속이나 세전 이자·원천세는 추정하지 않습니다.
+후속 `V20261016141400__support_other_bank_income.sql`은 동일 입금 기록에 세대 납부·기타 입금 구분을 추가합니다. 최초 OTHER는 은행 원본이 있는 CONFIRMED·CANCELED만 허용했으며, 후속 `V20261018050254__support_manual_income_purposes.sql`에서 명시한 MANUAL·OTHER/SHARED도 허용합니다. 세대·주민 연결 금지는 유지합니다. 기타 입금 항목·메모는 원본 메모와 분리해 암호화하고, DB 배분 함수와 변경 가드가 OTHER의 활성 청구 배분을 차단합니다. 취소 이력의 분류는 보존하고 재검토 초안은 HOUSEHOLD 기본값으로 생성합니다. 동 귀속이나 세전 이자·원천세는 추정하지 않습니다.
 
 ## 8.2 payment_allocations
 
@@ -1063,6 +1064,7 @@ DB 지연 제약은 실제 수납 배분과 기존 선납 충당의 합계가 �
 | `account_last4` | varchar(4) | N | 뒤 4자리 |
 | `gl_account_id` | uuid | Y | 회계 보통예금 계정 |
 | `is_primary` | boolean | N | 주계좌 |
+| `registration_order` | integer | N | 관리대상 안의 최초 등록 순서. 0 이상, 관리대상과 함께 UNIQUE |
 | `valid_from` | date | N | 사용 시작 |
 | `valid_to` | date | Y | 사용 종료 |
 | `status` | varchar(20) | N | `ACTIVE / INACTIVE / CLOSED` |
@@ -1081,7 +1083,7 @@ DB 지연 제약은 실제 수납 배분과 기존 선납 충당의 합계가 �
 
 확정일: 2026-10-05. 최종 등록의 계좌는 공용계좌이며 `building_id`를 NULL로 저장한다. 최소 1개를 받고 `is_primary = true`인 계좌를 정확히 1개 지정한다. `valid_from`은 등록 완료일로 자동 설정하고 Client에 시작일 입력을 요구하지 않는다. 날짜의 시간대는 [등록 API](propertyRegistrationApi.md), 상세 초기값은 [Server 등록 설계](../server/docs/propertyRegistration.md)를 따른다.
 
-2026-10-18 기존 계좌의 은행·번호·예금주 정정을 구현했다. ADMIN이 같은 bank_accounts 행의 정보와 updated_at만 갱신하며 ID·사용기간·기본 지정과 거래·수납·잔고 FK는 유지한다. 계좌번호는 기존 보호 컬럼을 갱신하고 새 컬럼·Migration은 추가하지 않는다. updated_at은 PostgreSQL과 같은 마이크로초 정밀도로 갱신해 정정 버전 비교에 사용한다. 다른 계좌로의 전환 / 주민 연결의 상세 절차, 사용기간 변경, 기본 계좌 변경과 공용 / 동별 계좌 안내 기준은 기존 설계안과 도메인 규칙의 미정 범위를 유지한다.
+2026-10-18 기존 계좌의 은행·번호·예금주 정정을 구현했다. ADMIN이 같은 bank_accounts 행의 정보와 updated_at만 갱신하며 ID·사용기간·기본 지정과 거래·수납·잔고 FK는 유지한다. 계좌번호는 기존 보호 컬럼을 갱신하고 새 컬럼·Migration은 추가하지 않는다. updated_at은 PostgreSQL과 같은 마이크로초 정밀도로 갱신해 정정 버전 비교에 사용한다. 통장 추가·기본 계좌 전환·사용 종료는 아래 다중 관리계좌 확장을 따른다. 주민 연결·동별 계좌 안내 기준은 기존 미정 범위를 유지한다.
 
 2026-10-16 사용자 선택의 공용 통장 운영은 같은 관리대상의 여러 동이 `building_id = NULL`인 공용 계좌를 함께 사용하는 방식이다. 동별 수납·지출 귀속은 수납 및 지출 배분에서 표현하고 동마다 은행 계좌 레코드를 복제하지 않는다. 기존 계좌 수·초기 등록 계약과 동별 계좌의 후속 설계는 유지한다. 확장 범위는 아래 9.4를 따른다.
 
@@ -1164,7 +1166,7 @@ Soft Delete 없음.
 
 ## 9.5 building_cash_openings
 
-2026-10-17 구현. `id` PK, `property_id`, `building_id` 복합 FK, `cutoff_date`, 원 단위 부호 있는 `amount numeric(15,0)`, `created_by`, `created_at`을 저장합니다. `(property_id,building_id)`는 UNIQUE이며 DELETE를 차단합니다. 기준일·금액 정정은 `revision`, `correction_request_id`, `updated_by`, `updated_at`을 함께 갱신하며 DB가 변경 전·후 값을 아래 이력에 저장합니다. 모든 동은 같은 기준일을 유지합니다. 세대별 미납·선납 인계와 분리합니다.
+2026-10-17 구현. `id` PK, `property_id`, `bank_account_id`, `building_id` 복합 FK, `cutoff_date`, 원 단위 부호 있는 `amount numeric(15,0)`, `created_by`, `created_at`을 저장합니다. `(property_id,bank_account_id,building_id)`는 계좌가 있는 행의 UNIQUE이며 통장 미분류 호환 행은 `(property_id,building_id)` 부분 UNIQUE로 보존합니다. DELETE를 차단합니다. 기준일·금액 정정은 `revision`, `correction_request_id`, `updated_by`, `updated_at`을 함께 갱신하며 DB가 변경 전·후 값을 아래 이력에 저장합니다. 같은 통장의 동들은 같은 기준일을 유지하며 통장마다 기준일은 다를 수 있습니다. 세대별 미납·선납 인계와 분리합니다.
 
 수납 `payments.cash_building_id`는 같은 관리대상의 buildings 복합 FK인 선택 UUID입니다. 신규 HOUSEHOLD 확정 당시 동을 보존하고 기존 null인 확정 은행 입금은 연결 세대의 동으로 채웁니다. 세대 연결·동 정보가 없으면 null을 유지합니다. 값이 있는 스냅샷의 변경은 DB에서도 차단하며 이미 저장된 동은 현재 세대 위치로 재계산하지 않습니다.
 
@@ -1180,7 +1182,7 @@ Soft Delete 없음.
 
 ## 9.8 building_cash_opening_changes
 
-기준일·동별 마감 잔고 정정 이력입니다. UUID `id` PK, `opening_id`, `property_id`, `building_id`, `request_id`, `previous_revision`, `previous_cutoff_date`, `previous_amount`, `new_cutoff_date`, `new_amount`, `changed_by`, `changed_at`을 보관합니다. `(opening_id,previous_revision)`는 UNIQUE이며 UPDATE·DELETE를 차단합니다. 같은 요청의 재시도는 이력을 대조하고 이미 저장한 결과를 반복 적용하지 않습니다.
+기준일·동별 마감 잔고 정정 이력입니다. UUID `id` PK, `opening_id`, `property_id`, `bank_account_id`, `building_id`, `request_id`, `previous_revision`, `previous_cutoff_date`, `previous_amount`, `new_cutoff_date`, `new_amount`, `changed_by`, `changed_at`을 보관합니다. `(opening_id,previous_revision)`는 UNIQUE이며 UPDATE·DELETE를 차단합니다. 같은 요청의 재시도는 이력을 대조하고 이미 저장한 결과를 반복 적용하지 않습니다.
 
 # 10. 지출
 
@@ -2024,7 +2026,7 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 
 ### income_allocations (2026-10-17 구현)
 
-기타 입금의 동별 보유금 귀속입니다. UUID `id` PK, `property_id`, `payment_id`, `building_id`, 암호화한 `building_label_encrypted`, 원 단위 `amount numeric(15,0)`, 비율 `percentage numeric(5,2)`, `allocation_mode`, `sort_order`, `created_by`, `created_at`을 저장합니다. 수납·동은 같은 관리대상의 복합 FK로 연결하고 `(payment_id,building_id)`, `(payment_id,sort_order)`는 UNIQUE입니다. 지연 제약으로 실제 확정 OTHER 입금·전액 합계·비율·균등 금액과 외부 회수 중복을 검증하며 UPDATE·DELETE를 금지합니다. 취소·삭제 후에도 배분 이력을 보존하고 활성 수납·은행 원본만 계산에 사용합니다.
+기타 입금의 동별 보유금 귀속입니다. UUID `id` PK, `property_id`, `payment_id`, `building_id`, 암호화한 `building_label_encrypted`, 원 단위 `amount numeric(15,0)`, 비율 `percentage numeric(5,2)`, `allocation_mode`, `sort_order`, `created_by`, `created_at`을 저장합니다. 수납·동은 같은 관리대상의 복합 FK로 연결하고 `(payment_id,building_id)`, `(payment_id,sort_order)`는 UNIQUE입니다. 지연 제약으로 실제 확정 OTHER 입금·전액 합계·비율·균등 금액과 외부 회수 중복을 검증하며 UPDATE·DELETE를 금지합니다. 취소·삭제 후에도 배분 이력을 보존합니다. 후속 `V20261018050254__support_manual_income_purposes.sql`에서 은행 원본 없는 MANUAL·SHARED의 확정 전액 배분을 허용하며 유효한 수동 동별 입금도 잔고에 반영합니다. 은행에 연결한 뒤에는 활성 원본을 함께 검사해 이중 집계하지 않습니다. 원본·확인 잔액은 생성하지 않습니다.
 
 통장 선택 삭제는 기존 `bank_transactions.deleted_at/deleted_by`와 수납 취소·삭제 이벤트를 사용합니다. 확정 지출·배분의 불변성은 유지하며 연결 수납을 취소한 뒤 삭제자·시각이 있는 원본의 소프트 삭제를 허용합니다. 삭제 표시는 되돌려 덮어쓰지 않고 재가져오기는 새 ID를 생성합니다.
 
@@ -2032,3 +2034,15 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 ### 다섯 페이지 초기 설정의 저장 연결 (2026-10-18)
 
 새 최종 등록은 기존 `opening_balance_batches/items`, `bank_opening_balances`, `building_cash_openings`, 관리 시작 필드와 기존 부과·선납 충당 구조를 재사용합니다. 임시 동 식별자·호수·계좌 배열 위치를 같은 요청에서 생성한 실제 ID로 연결하며 새 테이블·컬럼·Migration은 추가하지 않습니다. 성공 스냅샷의 선택 `managementStart`에는 장부 기준일·첫 부과월·동별 잔고 기준일만 보관합니다. 원문 계좌번호나 세대별 인계 금액을 성공 스냅샷에 추가하지 않습니다.
+
+
+## 다중 관리계좌·내부 이체 확장 (2026-10-18)
+
+`V20261018025257__support_multiple_management_accounts.sql`이 기존 계좌·은행 원본·수납·잔액을 보존하면서 다음 구조를 추가합니다. 업무·API는 [다중 통장 계약](bankingManagement.md#다중-통장내부-이체-api-2026-10-18)을 따릅니다.
+
+- bank_accounts.account_alias: 선택 varchar(100). 용도 Enum이나 필수 동 연결을 추가하지 않습니다. 미삭제 `(property_id,bank_code,account_number_hmac)` 유일 인덱스와 활성 기본 통장 유일 인덱스를 적용합니다. 지연 제약으로 커밋 시 공용 활성 기본 계좌 정확히 1개를 검증합니다. 기본 전환·종료는 과거 FK를 바꾸지 않습니다.
+- bank_transactions.transfer_candidate: NOT NULL boolean, 기존 원본은 false로 보정합니다. 원본 금액·방향은 유지하고 내부 이동의 업무 분류 여부만 나타냅니다.
+- bank_transfers: UUID id PK, property_id, outgoing_id, incoming_id, created_by/created_at, 선택 canceled_by/canceled_at. 같은 대상의 원본 복합 FK와 활성 입금·출금별 유일 인덱스를 사용합니다. 방향·통장 차이·금액 일치·유효 원본을 DB에서도 검사합니다. 연결은 삭제·덮어쓰기하지 않고 취소 감사만 한 번 기록합니다.
+- DB는 이체 원본의 수납·지출 생성과 금액·계좌·분류 변형을 막고 연결 중인 원본 삭제는 지연 제약으로 양쪽 동시 삭제를 검증합니다. 취소한 연결은 보존하며 새 UUID로 다시 연결합니다.
+
+후속 사용자 요청에 따라 building_cash_openings와 building_cash_opening_changes는 bank_account_id 복합 FK와 통장×동 유일성을 사용합니다. 기존 단일 통장 등록값은 원래 통장으로 이관하고 여러 통장 중 소속을 정할 수 없는 값은 null로 보관해 명시적 확인에 사용합니다. 금액·기준일·버전·정정 이력은 보존합니다. bank_opening_balances는 동별 보유금과 별개인 은행 실제 잔액 인계값이며 별도 화면 버튼을 추가하지 않습니다. 미확인 잔액을 0원으로 생성하지 않습니다. 정식 회계전표는 추가하지 않습니다.

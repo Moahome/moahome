@@ -1,23 +1,29 @@
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
 
-export type BankingAllocation = { buildingId: string | null; label: string; amount: string; percentage: string | null };
-export type ExpenseDraft = {
-  category: string; note: string; mode: 'EQUAL' | 'RATIO' | 'AMOUNT'; saveAsRule: boolean; allocations: BankingAllocation[];
-};
+import type {
+  BankingAllocation,
+  ExpenseDraft
+} from '@/entities/banking';
+export type {
+  BankingAllocation, ExpenseDraft
+} from '@/entities/banking';
 export type BankingExpense = ExpenseDraft & { id: string };
 export type BankingTransaction = {
   id: string; accountId: string; date: string; time: string | null; payer: string; memo: string | null;
   amount: string; balance: string | null; direction: 'INCOME' | 'EXPENSE'; ruleKey: string;
+  transferCandidate?: boolean; transferId?: string | null;
   paymentId: string | null; status: string; unitId: string; unitLabel: string; expense: BankingExpense | null; incomeAllocation?: BankingExpense | null; receiptType?: 'HOUSEHOLD' | 'OTHER' | null;
 };
+export type BankingAccount = { id: string; bankName: string; last4: string; alias: string | null; isPrimary: boolean; status: string };
 export type BankingWorkspaceData = {
+  accounts?: BankingAccount[];
   propertyId: string; asOf: string; buildings: { id: string; label: string }[]; units: { id: string; label: string }[];
   rows: BankingTransaction[];
   rules: { key: string; accountId: string; category: string; mode: ExpenseDraft['mode']; allocations: BankingAllocation[] }[];
 };
 export type BankingPreview = { propertyId: string; rows: BankingTransaction[]; duplicateCount: number; beforeCutoffCount: number };
-export type BankingSelection = { id: string; unitId?: string; incomeCategory?: string; incomeNote?: string; expense?: ExpenseDraft; incomeAllocation?: ExpenseDraft };
+export type BankingSelection = { id: string; unitId?: string; incomeCategory?: string; incomeNote?: string; expense?: ExpenseDraft; incomeAllocation?: ExpenseDraft; transfer?: boolean };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const AMOUNT = /^[0-9]{1,15}$/;
 
@@ -28,7 +34,7 @@ function validRows(rows: BankingTransaction[]): boolean {
     && AMOUNT.test(row.amount) && BigInt(row.amount) > BigInt(0) && ['INCOME', 'EXPENSE'].includes(row.direction)
     && (row.balance === null || (typeof row.balance === 'string' && /^-?[0-9]{1,15}$/.test(row.balance)))
     && (row.paymentId === null || UUID.test(row.paymentId)) && typeof row.unitId === 'string'
-    && ['PENDING', 'ON_HOLD', 'CONFIRMED', 'CANCELED', 'LINKED'].includes(row.status)
+    && ['PENDING', 'ON_HOLD', 'CONFIRMED', 'CANCELED', 'LINKED', 'TRANSFER_PENDING', 'TRANSFER'].includes(row.status)
     && (row.receiptType == null || ['HOUSEHOLD', 'OTHER'].includes(row.receiptType))
     && (row.incomeAllocation == null || (row.direction === 'INCOME' && row.receiptType === 'OTHER'
       && UUID.test(row.incomeAllocation.id) && typeof row.incomeAllocation.category === 'string'
@@ -40,6 +46,9 @@ function validRows(rows: BankingTransaction[]): boolean {
       && row.expense.allocations.every((a) => (a.buildingId === null || UUID.test(a.buildingId)) && typeof a.label === 'string' && AMOUNT.test(a.amount)))));
 }
 function readWorkspace(result: BankingWorkspaceData, propertyId: string): BankingWorkspaceData {
+  if (result?.accounts && (!Array.isArray(result.accounts) || !result.accounts.every((a) => UUID.test(a.id) && typeof a.bankName === 'string'
+    && typeof a.last4 === 'string' && typeof a.isPrimary === 'boolean' && ['ACTIVE', 'CLOSED', 'INACTIVE'].includes(a.status)
+    && (a.alias === null || typeof a.alias === 'string')))) throw new ApiError(200, 'INVALID_RESPONSE', '통장 목록을 확인할 수 없습니다.');
   if (!result || result.propertyId !== propertyId || !validRows(result.rows) || !Array.isArray(result.buildings)
     || !result.buildings.every((b) => UUID.test(b.id) && typeof b.label === 'string') || !Array.isArray(result.units)
     || !result.units.every((u) => UUID.test(u.id) && typeof u.label === 'string') || !Array.isArray(result.rules)) {
@@ -52,8 +61,9 @@ export async function getBankingWorkspace(propertyId: string) {
     url: `/api/properties/${propertyId}/banking/workspace`
   }), propertyId);
 }
-export async function previewBankingFile(propertyId: string, file: File) {
+export async function previewBankingFile(propertyId: string, file: File, accountId?: string) {
   const data = new FormData(); data.append('file', file);
+  if (accountId) data.append('accountId', accountId);
   const result = await authenticatedAPI<BankingPreview>({
     url: `/api/properties/${propertyId}/banking/import/preview`,
     method: 'POST',
@@ -67,10 +77,11 @@ export async function previewBankingFile(propertyId: string, file: File) {
   return result;
 }
 /** 선택 ID와 분류만 전송하고 원본 일시·금액은 서버가 파일을 다시 읽어 검증합니다. */
-export async function importBankingFile(propertyId: string, file: File, rows: BankingSelection[]) {
+export async function importBankingFile(propertyId: string, file: File, rows: BankingSelection[], accountId?: string) {
   const data = new FormData(); data.append('file', file);
   data.append('selection', new Blob([JSON.stringify({
-    rows
+    rows,
+    accountId
   })], {
     type: 'application/json'
   }));
@@ -109,9 +120,25 @@ export async function allocateBankingIncome(propertyId: string, id: string, data
     data
   }), propertyId);
 }
+/** 같은 금액의 반대 방향 원본을 명시적으로 선택하고 서버가 같은 대상·다른 통장을 다시 검증합니다. */
+export async function connectBankTransfer(propertyId: string, data: { id: string; outgoingId: string; incomingId: string }) {
+  return readWorkspace(await authenticatedAPI<BankingWorkspaceData>({
+    url: `/api/properties/${propertyId}/banking/transfers`,
+    method: 'POST',
+    data
+  }), propertyId);
+}
+export async function cancelBankTransfer(propertyId: string, id: string) {
+  return readWorkspace(await authenticatedAPI<BankingWorkspaceData>({
+    url: `/api/properties/${propertyId}/banking/transfers/${id}/cancel`,
+    method: 'POST'
+  }), propertyId);
+}
 export function bankingError(error: unknown): string {
   if (!(error instanceof ApiError)) return '통장 정보를 처리하지 못했어요. 다시 시도해주세요.';
   const messages: Record<string, string> = {
+    BANK_TRANSFER_CONFLICT: '다른 통장의 같은 금액 입출금인지 확인해주세요. 이미 처리된 연결은 다시 열어주세요.',
+    BANK_TRANSFER_DELETE_PAIR_REQUIRED: '연결된 이체는 연결을 해제한 뒤 삭제하거나 양쪽 거래를 함께 선택해주세요.',
     PAYMENT_DELETE_NOT_ALLOWED: '은행에 연결된 수납은 해당 은행 거래를 선택해 삭제해주세요.',
     OTHER_INCOME_REQUIRED: '이자 등 기타 입금으로 확정한 뒤 동별로 배분해주세요.',
     INCOME_ALREADY_SETTLED: '외부 정산에 연결한 입금은 동별로 중복 배분할 수 없어요.',

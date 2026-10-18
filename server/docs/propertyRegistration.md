@@ -119,3 +119,8 @@ PostgreSQL 테스트는 별도 임시 클러스터에서 빈 DB / 기존 사용�
 ## 초기 설정의 인계·운영 시작 조합 (2026-10-18)
 
 RegistrationOpeningService는 최종 요청의 전체 세대·동·계좌 참조와 날짜를 검증하고 PropertyRegistrationService의 기존 READ_COMMITTED 트랜잭션에 반드시 참여합니다. 임시 동 식별자·호수·배열 위치를 실제 생성 ID로 매핑한 뒤 OpeningBalanceService의 save, BankingBalanceService의 saveOpenings, OpeningBalanceService의 confirm을 순서대로 재사용합니다. 권한·잠금·첫 부과·선납 충당은 기존 서비스를 따르고 실패 시 등록 결과까지 함께 롤백합니다. 새 입력이 없는 이전 등록은 조합 서비스를 호출하지 않아 저장·지문을 유지합니다. API 계약은 [공통 등록 문서](../../docs/propertyRegistrationApi.md#초기-설정의-잔액-인계와-관리-시작)를 참조합니다.
+
+
+## 다중 통장 등록 (2026-10-18)
+
+기존 계좌 배열·기본 지정 수 검증과 계좌별 인계값 저장을 그대로 사용합니다. 선택 alias만 계좌의 account_alias에 저장하고, null은 요청 지문 직렬화에서 생략해 이전 등록 요청 재시도를 보존합니다. 운영 중 추가·기본 전환·종료는 [통장 저장 설계](bankingManagement.md#다중-통장-저장과-내부-이체-2026-10-18)를 따릅니다.

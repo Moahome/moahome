@@ -1,15 +1,17 @@
 import { createReportWorkbook } from '@/shared/lib/excel-report';
+import { getAccountBalanceTotal } from './accountBalance';
 import type {
   BalanceBuilding,
   BalanceEntry,
   BalanceWorkspace
 } from '../api/bankingBalanceApi';
 
-/** 시작 잔고가 없는 동이 있으면 합계를 확정하지 않으며 은행과의 차액을 특정 동에 넣지 않습니다. */
+/** 화면에 표시한 통장 잔액과 동별 합계의 차이를 계산하며 미설정 값을 0원으로 채우거나 차액을 자동 배분하지 않습니다. */
 export function getBalanceSummary(data: BalanceWorkspace) {
   const complete = data.buildings.length > 0 && data.buildings.every((b) => b.balance !== null);
   const total = complete ? data.buildings.reduce((sum, b) => sum + BigInt(b.balance!), BigInt(0)) : null;
-  const difference = data.bankBalance !== null && total !== null ? BigInt(data.bankBalance) - total : null;
+  const accountTotal = getAccountBalanceTotal(data).amount;
+  const difference = accountTotal !== null && total !== null ? BigInt(accountTotal) - total : null;
   const external = data.externals.filter((row) => !row.excluded).reduce((sum, row) => sum + BigInt(row.remaining), BigInt(0));
 
   return {

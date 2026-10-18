@@ -21,7 +21,8 @@ import {
 import styles from './openingBalanceFields.module.css';
 
 /** 기존 입력 페이지 안에서 인계 금액과 기준일을 확인하며 최종 제출 전에는 서버에 저장하지 않습니다. */
-export function OpeningBalanceFields({ kind, opening, units, buildings, onChange }: {
+export function OpeningBalanceFields({ kind, opening, units, buildings, onChange, hideAccountAmount = false }: {
+  hideAccountAmount?: boolean;
   kind: 'units' | 'account' | 'fees';
   opening: OpeningBalancesDraft;
   units: UnitDraft[];
@@ -152,16 +153,18 @@ export function OpeningBalanceFields({ kind, opening, units, buildings, onChange
         </strong>
         의 마감 금액입니다.
       </p>
-      <AmountInput
-        label={'통장 실제 잔액'}
-        aria-label={'통장 실제 잔액'}
-        value={opening.accountAmount}
-        onChange={(accountAmount) => onChange({
-          ...opening,
-          accountAmount
-        })}
-        required
-      />
+      {!hideAccountAmount && (
+        <AmountInput
+          label={'통장 실제 잔액'}
+          aria-label={'통장 실제 잔액'}
+          value={opening.accountAmount}
+          onChange={(accountAmount) => onChange({
+            ...opening,
+            accountAmount
+          })}
+          required
+        />
+      )}
       {building && <>
         <h4>
           동별 보유금
@@ -225,7 +228,7 @@ export function OpeningBalanceFields({ kind, opening, units, buildings, onChange
         >
           {`입력 완료 ${entered.length} / ${buildings.length}개 동 · 보유금 합계 ${formatWon(total)}`}
         </p>
-        {entered.length === buildings.length && /^[0-9]{1,15}$/.test(opening.accountAmount) && opening.cashCutoffDate === opening.cutoffDate && (
+        {entered.length === buildings.length && /^[0-9]+$/.test(opening.accountAmount) && opening.cashCutoffDate === opening.cutoffDate && (
           <p>
             {'통장 잔액과 동별 합계의 차이: '}
             <strong>

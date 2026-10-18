@@ -1,6 +1,13 @@
 import type { CSSProperties } from 'react';
 
 const ICON_PATHS = {
+  star: (
+    <path
+      d={'m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.2-6.2 3.2 1.2-6.8-5-4.9 6.9-1Z'}
+      fill={'currentColor'}
+      stroke={'none'}
+    />
+  ),
   excel: (
     <>
       <path

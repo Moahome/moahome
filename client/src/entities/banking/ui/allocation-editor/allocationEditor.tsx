@@ -1,3 +1,5 @@
+'use client';
+
 import { Button } from '@/shared/ui/button';
 import {
   Dropdown,
@@ -5,19 +7,16 @@ import {
 } from '@/shared/ui/form-controls';
 import { formatWon } from '@/shared/lib/format';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import type {
-  BankingWorkspaceData,
-  ExpenseDraft
-} from '../../../api/bankingApi';
 import {
   calculateExpenseAllocation,
-  sortExpenseLabels
-} from '../../../model/expenseAllocation';
-import styles from './expenseEditor.module.css';
+  sortExpenseLabels,
+  type ExpenseDraft
+} from '../../model/allocation';
+import styles from './allocationEditor.module.css';
 
 /** 부담 동과 외부 부담처를 명시적으로 정하고 합계·원 미만 잔여액을 확인하게 합니다. */
-export function ExpenseEditor({ total, draft, buildings, onChange, disabled = false, purpose = 'expense', showDetails = true }: {
-  total: string; draft: ExpenseDraft; buildings: BankingWorkspaceData['buildings']; onChange: (draft: ExpenseDraft) => void; disabled?: boolean; purpose?: 'expense' | 'income'; showDetails?: boolean;
+export function AllocationEditor({ total, draft, buildings, onChange, disabled = false, purpose = 'expense', showDetails = true, compact = false }: {
+  total: string; draft: ExpenseDraft; buildings: { id: string; label: string }[]; onChange: (draft: ExpenseDraft) => void; disabled?: boolean; purpose?: 'expense' | 'income'; showDetails?: boolean; compact?: boolean;
 }) {
   const income = purpose === 'income';
   const result = calculateExpenseAllocation(total, draft, purpose);
@@ -42,6 +41,7 @@ export function ExpenseEditor({ total, draft, buildings, onChange, disabled = fa
       className={styles.editor}
       aria-label={income ? '입금 배분 설정' : '지출 설정'}
       data-mode={draft.mode}
+      data-compact={compact}
       disabled={disabled}
     >
       <div
@@ -128,7 +128,7 @@ export function ExpenseEditor({ total, draft, buildings, onChange, disabled = fa
       <p
         className={styles.help}
       >
-        {income ? '이자 등 공동 입금을 선택한 동에 나눕니다. 원 미만 금액은 금액 직접 입력으로 조정해주세요.' : '전기료처럼 두 동이 각각 1/4을 부담하면 25%씩 입력하고, 나머지 50%의 부담처도 지정해주세요.'}
+        {income ? '입금액을 선택한 동에 배분합니다. 한 동에 전액 지정할 수도 있습니다. 원 미만 금액은 금액 직접 입력으로 조정해주세요.' : '전기료처럼 두 동이 각각 1/4을 부담하면 25%씩 입력하고, 나머지 50%의 부담처도 지정해주세요.'}
       </p>
       {draft.allocations.map((share, index) => (
         <div

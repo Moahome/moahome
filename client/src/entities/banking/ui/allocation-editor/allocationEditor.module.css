@@ -124,3 +124,7 @@
 .fields[data-details='false'] {
   grid-template-columns: minmax(0, 1fr);
 }
+
+.editor[data-compact='true'] {
+  padding: 0;
+}

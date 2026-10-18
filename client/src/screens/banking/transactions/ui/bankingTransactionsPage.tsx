@@ -28,9 +28,10 @@ export function BankingTransactionsPage({ propertyId }: { propertyId: string }) 
     paymentId: payment.id,
     status: payment.status,
     unitId: payment.unitId,
-    unitLabel: ledger.units.find((unit) => unit.id === payment.unitId)?.label ?? '',
+    unitLabel: payment.receiptType === 'OTHER' ? payment.incomeCategory ?? '' : ledger.units.find((unit) => unit.id === payment.unitId)?.label ?? '',
     expense: null,
-    receiptType: 'HOUSEHOLD' as const
+    incomeAllocation: payment.incomeAllocation,
+    receiptType: payment.receiptType ?? 'HOUSEHOLD'
   }));
 
   return (

@@ -432,7 +432,7 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
     height: 844
   });
   await openExpense();
-  await expect(page).toHaveURL(`${BASE}/transactions/${id(300)}`);
+  await expect(page).toHaveURL(`${BASE}/transactions/${id(300)}?month=2026-10`);
   await expect(page).toHaveTitle('지출 상세 | 모아홈');
   await expect(page.getByRole('link', {
     name: '통장 거래로 돌아가기',
@@ -950,11 +950,35 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     name: '엑셀 다운로드',
     exact: true
   });
-  const startBounds = (await startButton.boundingBox())!;
+  const startBounds = (await startButton.locator('..').boundingBox())!;
   const exportBounds = (await exportButton.boundingBox())!;
   expect(Math.abs(startBounds.y - exportBounds.y)).toBeLessThanOrEqual(1);
   expect(startBounds.height).toBe(exportBounds.height);
   expect(exportBounds.x - startBounds.x - startBounds.width).toBeGreaterThanOrEqual(12);
+  const help = page.getByRole('button', {
+    name: '기준 잔고 도움말',
+    exact: true
+  });
+  const tooltip = page.getByRole('tooltip');
+  await expect(tooltip).toHaveCount(0);
+  await startButton.hover();
+  await expect(tooltip).toContainText('기준일의 동별 보유금을 등록합니다.');
+  await tooltip.hover();
+  await expect(tooltip).toBeVisible();
+  await page.screenshot({
+    path: test.info().outputPath('openingHelpDesktop.png'),
+    fullPage: false
+  });
+  await page.mouse.move(0, 0);
+  await expect(tooltip).toHaveCount(0);
+  await help.focus();
+  await expect(tooltip).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(tooltip).toHaveCount(0);
+  await page.getByRole('heading', {
+    name: '동별 잔고·정산',
+    exact: true
+  }).click();
   const externalSize = page.getByRole('combobox', {
     name: '외부 부담금 표시 개수',
     exact: true
@@ -1135,6 +1159,17 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   }).locator('..');
   expect((await comparisonCard.boundingBox())!.height).toBe((await differenceCard.boundingBox())!.height);
   await expect(differenceCard.locator('dd').first()).toHaveCSS('color', 'rgb(239, 68, 68)');
+  const differenceTrigger = differenceCard.getByRole('button', {
+    name: '잔고 차이 내역 확인',
+    exact: true
+  });
+  await differenceTrigger.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('dialog', {
+    name: '잔고 차이 내역',
+    exact: true
+  })).toBeVisible();
+  await page.keyboard.press('Escape');
   await page.getByRole('button', {
     name: '동별 입금 출금 그래프',
     exact: true
@@ -1381,6 +1416,22 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     height: 844
   });
   // 모바일 진입은 모달을 열지 않고 새로고침·헤더 복귀가 가능한 페이지를 사용합니다.
+  await help.dispatchEvent('click');
+  await expect(tooltip).toContainText('등록한 동별 기준 잔고를 확인·수정합니다.');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect(await tooltip.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return rect.left >= 0 && rect.right <= innerWidth;
+  })).toBe(true);
+  await page.screenshot({
+    path: test.info().outputPath('openingHelpMobile.png'),
+    fullPage: false
+  });
+  await page.getByRole('heading', {
+    name: '동별 잔고·정산',
+    exact: true
+  }).click();
+  await expect(tooltip).toHaveCount(0);
   const monthControl = page.getByRole('button', {
     name: '조회 월: 2026년 10월',
     exact: true
@@ -1412,7 +1463,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   await backToBalances.click();
   await expect(page).toHaveURL(`${BASE}/balances?month=2026-10`);
   await page.getByRole('button', {
-    name: '차이 내역 확인',
+    name: '잔고 차이 내역 확인',
     exact: true
   }).click();
   await expect(page).toHaveURL(`${BASE}/balances/details/difference?month=2026-10`);
@@ -1871,8 +1922,12 @@ test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭�
     name: '입금 배분 확정',
     exact: true
   }).click();
-  await expect(split.getByRole('list')).toContainText('250원');
-  await expect(split.getByRole('list')).toContainText('750원');
+  await expect(split.getByRole('table', {
+    name: '동별 입금 배분표'
+  })).toContainText('250원');
+  await expect(split.getByRole('table', {
+    name: '동별 입금 배분표'
+  })).toContainText('750원');
   await detail.getByRole('button', {
     name: '입금 상세 닫기',
     exact: true
@@ -1980,7 +2035,7 @@ test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭�
     exact: true
   }).click();
   await page.getByRole('option', {
-    name: '이자 등 기타 입금 · 동별 배분',
+    name: '동별 입금 · 직접 배분',
     exact: true
   }).click();
   await expect(upload).toContainText('배분액 합계 1,000원');
@@ -2003,7 +2058,7 @@ test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭�
   await expect(page).toHaveURL(`${BASE}/transactions`);
   expect(uploaded).toContain('"incomeAllocation"');
   expect(uploaded).toContain('"amount":"500"');
-  await expect(table).toContainText('기타 입금');
+  await expect(table).toContainText('동별 입금');
   await expect(table).toContainText('2개 동 배분');
   await expect(table).not.toContainText('102동 · 103동');
 
@@ -2070,3 +2125,1187 @@ test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭�
     animations: 'disabled'
   });
 });
+
+for (const width of [1440, 390]) {
+  test(`다중 통장 ${width}px에서 통장별 조회·이체 연결·선택 통장 업로드 처리`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const second = id(11);
+    const accounts = [
+      {
+        id: ACCOUNT,
+        bankName: '하나은행',
+        last4: '1234',
+        alias: '관리비',
+        isPrimary: true,
+        status: 'ACTIVE'
+      },
+      {
+        id: second,
+        bankName: '카카오뱅크',
+        last4: '5678',
+        alias: '자유 보관',
+        isPrimary: false,
+        status: 'ACTIVE'
+      }
+    ];
+    let saved: BankingWorkspaceData = {
+      propertyId: PROPERTY,
+      asOf: '2026-10-17',
+      accounts,
+      buildings: [],
+      units: [],
+      rules: [],
+      rows: [
+        {
+          ...row(901, 'EXPENSE', '옮긴 돈', '10000'),
+          balance: '90000',
+          transferCandidate: true,
+          transferId: null,
+          status: 'TRANSFER_PENDING'
+        },
+        {
+          ...row(902, 'INCOME', '받은 돈', '10000'),
+          accountId: second,
+          balance: '110000',
+          transferCandidate: true,
+          transferId: null,
+          status: 'TRANSFER_PENDING'
+        }
+      ]
+    };
+    let transferBody: Record<string, string> | null = null;
+    let uploadBody = '';
+    let previewBody = '';
+    await page.route('http://localhost:8080/**', async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      let body: unknown = {};
+      if (path.endsWith('/csrf')) body = {
+        csrfToken: 'test-csrf'
+      };
+      else if (path.endsWith('/refresh')) body = {
+        accessToken: 'test-access',
+        tokenType: 'Bearer',
+        accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
+      };
+      else if (path === '/api/users/me') body = {
+        id: id(1),
+        displayName: '관리자',
+        profileImageUrl: null,
+        systemRole: 'USER',
+        status: 'ACTIVE'
+      };
+      else if (path.endsWith('/management-context')) body = {
+        propertyId: PROPERTY,
+        name: '모아빌라',
+        role: 'ADMIN'
+      };
+      else if (path.endsWith('/managed-properties')) body = {
+        properties: [{
+          propertyId: PROPERTY,
+          name: '모아빌라',
+          role: 'ADMIN'
+        }]
+      };
+      else if (path.endsWith('/payments/workspace')) body = {
+        propertyId: PROPERTY,
+        asOf: saved.asOf,
+        accounts: accounts.map((account) => ({
+          ...account,
+          label: account.bankName
+        })),
+        units: [],
+        charges: [],
+        payments: [],
+        history: []
+      };
+      else if (path.endsWith('/banking/workspace')) body = saved;
+      else if (path.endsWith('/banking/transfers')) {
+        transferBody = route.request().postDataJSON();
+        saved = {
+          ...saved,
+          rows: saved.rows.map((row) => ({
+            ...row,
+            transferId: transferBody!.id,
+            status: 'TRANSFER'
+          }))
+        };
+        body = saved;
+      } else if (path.endsWith('/banking/import/preview')) {
+        previewBody = route.request().postDataBuffer()!.toString('utf8');
+        body = {
+          propertyId: PROPERTY,
+          rows: [{
+            ...row(903, 'INCOME', '다음 이체', '20000'),
+            accountId: second
+          }],
+          duplicateCount: 0,
+          beforeCutoffCount: 0
+        };
+      } else if (path.endsWith('/banking/import')) {
+        uploadBody = route.request().postDataBuffer()!.toString('utf8');body = saved;
+      }
+      await route.fulfill({
+        status: route.request().method() === 'OPTIONS' ? 204 : 200,
+        contentType: 'application/json',
+        headers: {
+          'Access-Control-Allow-Origin': 'http://localhost:3100',
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-CSRF-TOKEN',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS'
+        },
+        body: route.request().method() === 'OPTIONS' ? '' : JSON.stringify(body)
+      });
+    });
+    await page.goto(`${BASE}/transactions`);
+    const accountFilter = page.getByRole('combobox', {
+      name: '조회 통장',
+      exact: true
+    });
+    const transactionSearch = page.getByRole('textbox', {
+      name: '거래 검색',
+      exact: true
+    });
+    await expect(accountFilter).toBeVisible();
+    await expect(page.getByText('조회 월', {
+      exact: true
+    })).toHaveCSS('clip-path', 'inset(50%)');
+    await expect(page.getByText('조회 통장', {
+      exact: true
+    })).toHaveCount(0);
+    const searchBox = (await transactionSearch.boundingBox())!;
+    const accountBox = (await accountFilter.boundingBox())!;
+    if (width > 767) {
+      expect(accountBox.x).toBeGreaterThan(searchBox.x + searchBox.width);
+      expect(Math.abs(accountBox.y - searchBox.y)).toBeLessThanOrEqual(1);
+    } else expect(accountBox.y).toBeGreaterThanOrEqual(searchBox.y + searchBox.height);
+    await accountFilter.click();
+    await expect(page.getByRole('option')).toHaveText(['전체 통장', '하나은행 ····1234 · 관리비', '카카오뱅크 ····5678 · 자유 보관']);
+    await page.keyboard.press('Escape');
+    await page.getByRole('row').filter({
+      hasText: '옮긴 돈'
+    }).click();
+    const dialog = width < 768 ? page : page.getByRole('dialog', {
+      name: '계좌 간 이체',
+      exact: true
+    });
+    await dialog.getByRole('combobox', {
+      name: '상대 통장 거래',
+      exact: true
+    }).click();
+    await page.getByRole('option').filter({
+      hasText: '받은 돈'
+    }).click();
+    await dialog.getByRole('button', {
+      name: '이체 연결',
+      exact: true
+    }).click();
+    if (width < 768) { await expect(page.getByRole('button', {
+      name: '이체 연결 해제',
+      exact: true
+    })).toBeVisible();await page.goBack(); }
+    else await expect(page.getByRole('dialog', {
+      name: '계좌 간 이체',
+      exact: true
+    })).toHaveCount(0);
+    expect(transferBody).toMatchObject({
+      outgoingId: id(901),
+      incomingId: id(902)
+    });
+    await page.getByRole('combobox', {
+      name: '조회 통장',
+      exact: true
+    }).click();
+    await page.getByRole('option').filter({
+      hasText: '카카오뱅크'
+    }).click();
+    await expect(page.getByRole('row').filter({
+      hasText: '옮긴 돈'
+    })).toHaveCount(0);
+    await expect(page.getByRole('row').filter({
+      hasText: '받은 돈'
+    })).toBeVisible();
+    await expect(page.getByText('110,000', {
+      exact: true
+    })).toBeVisible();
+    await page.screenshot({
+      path: test.info().outputPath(`multipleBanking${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    await page.getByRole('button', {
+      name: '엑셀 업로드',
+      exact: true
+    }).click();
+    await page.getByRole('combobox', {
+      name: '가져올 통장',
+      exact: true
+    }).click();
+    await page.getByRole('option').filter({
+      hasText: '카카오뱅크'
+    }).click();
+    await page.locator('input[type=file]').setInputFiles({
+      name: '통장.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from('거래일,입금자,입금액\n2026-10-15,이체,20000')
+    });
+    await page.getByRole('row').filter({
+      hasText: '다음 이체'
+    }).click();
+    expect(previewBody).toContain(second);
+    const editor = page.getByRole('dialog', {
+      name: '다음 이체',
+      exact: true
+    });
+    await editor.screenshot({
+      path: testInfo.outputPath(`transactionSettings${width}.png`),
+      animations: 'disabled'
+    });
+    await page.getByRole('checkbox', {
+      name: '내 계좌 간 이체로 가져오기',
+      exact: true
+    }).check();
+    await editor.screenshot({
+      path: testInfo.outputPath(`transferSettings${width}.png`),
+      animations: 'disabled'
+    });
+    const description = editor.getByText('수납·지출 집계에서 제외됩니다.', {
+      exact: false
+    });
+    const bounds = (await editor.boundingBox())!;
+    const text = (await description.boundingBox())!;
+    const contentIndent = await description.evaluate((node) => parseFloat(getComputedStyle(node).paddingLeft));
+    expect(text.x - bounds.x + contentIndent).toBeGreaterThanOrEqual(40);
+    expect(text.x + text.width).toBeLessThan(bounds.x + bounds.width - 12);
+    await page.getByRole('button', {
+      name: '설정 완료',
+      exact: true
+    }).click();
+    await page.getByRole('button', {
+      name: /선택.*가져오기|선택.*저장|선택.*처리/
+    }).click();
+    await expect(page).toHaveURL(/banking\/transactions/);
+    expect(uploadBody).toContain(`"accountId":"${second}"`);
+    expect(uploadBody).toContain('"transfer":true');
+    expect(uploadBody).not.toContain('"incomeCategory"');
+    await page.goto(`${BASE}/expenses`);
+    await expect(accountFilter).toBeVisible();
+    await expect(page.getByText('조회 월', {
+      exact: true
+    })).toHaveCSS('clip-path', 'inset(50%)');
+    await expect(page.getByText('조회 통장', {
+      exact: true
+    })).toHaveCount(0);
+    const expenseSearchBox = (await transactionSearch.boundingBox())!;
+    const expenseAccountBox = (await accountFilter.boundingBox())!;
+    if (width > 767) {
+      expect(expenseAccountBox.x).toBeGreaterThan(expenseSearchBox.x + expenseSearchBox.width);
+      expect(Math.abs(expenseAccountBox.y - expenseSearchBox.y)).toBeLessThanOrEqual(1);
+    } else expect(expenseAccountBox.y).toBeGreaterThanOrEqual(expenseSearchBox.y + expenseSearchBox.height);
+    await page.screenshot({
+      path: testInfo.outputPath(`expenseAccountFilter${width}.png`),
+      fullPage: true
+    });
+  });
+}
+
+for (const width of [1440, 390, 320]) {
+  test(`통장별 확인 잔액 ${width}px는 은행 로고·확인 시각과 터치·키보드 도움말을 표시`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    await page.route('http://localhost:8080/**', async (route) => {
+      const url = new URL(route.request().url());
+      const path = url.pathname;
+      let body: unknown = {};
+      if (path.endsWith('/csrf')) body = {
+        csrfToken: 'test-csrf'
+      };
+      else if (path.endsWith('/refresh')) body = {
+        accessToken: 'test-access',
+        tokenType: 'Bearer',
+        accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
+      };
+      else if (path === '/api/users/me') body = {
+        id: id(1),
+        displayName: '관리자',
+        profileImageUrl: null,
+        systemRole: 'USER',
+        status: 'ACTIVE'
+      };
+      else if (path.endsWith('/management-context')) body = {
+        propertyId: PROPERTY,
+        name: '모아빌라',
+        role: 'ADMIN'
+      };
+      else if (path.endsWith('/managed-properties')) body = {
+        properties: [{
+          propertyId: PROPERTY,
+          name: '모아빌라',
+          role: 'ADMIN'
+        }]
+      };
+      else if (path.endsWith('/payments/workspace')) body = {
+        propertyId: PROPERTY,
+        asOf: '2026-10-17',
+        accounts: [],
+        units: [],
+        charges: [],
+        payments: [],
+        history: []
+      };
+      else if (path.endsWith('/banking/workspace')) body = {
+        propertyId: PROPERTY,
+        asOf: '2026-10-17',
+        accounts: [],
+        buildings: [],
+        units: [],
+        rules: [],
+        rows: []
+      };
+      else if (path.endsWith('/banking/balances')) body = {
+        propertyId: PROPERTY,
+        month: url.searchParams.get('month'),
+        cutoffDate: null,
+        bankBalance: null,
+        bankAsOf: null,
+        buildings: [],
+        entries: [],
+        externals: [],
+        incomes: [],
+        pending: [],
+        accounts: [
+          {
+            id: ACCOUNT,
+            label: '신한은행 ····6546',
+            status: 'ACTIVE',
+            balance: '815204',
+            asOf: '2026-10-15 14:12:59'
+          },
+          {
+            id: id(11),
+            label: '카카오뱅크 ····5678 · 공용 통장',
+            status: 'ACTIVE',
+            balance: null,
+            asOf: null
+          },
+          {
+            id: id(12),
+            label: '하나은행 ····4321',
+            status: 'CLOSED',
+            balance: '0',
+            asOf: '2026-09-30'
+          }
+        ]
+      };
+      await route.fulfill({
+        status: route.request().method() === 'OPTIONS' ? 204 : 200,
+        contentType: 'application/json',
+        headers: {
+          'Access-Control-Allow-Origin': 'http://localhost:3100',
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-CSRF-TOKEN',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS'
+        },
+        body: route.request().method() === 'OPTIONS' ? '' : JSON.stringify(body)
+      });
+    });
+    await page.goto(`${BASE}/balances?month=2026-10`);
+    const card = page.getByRole('region', {
+      name: '통장별 확인 잔액',
+      exact: true
+    });
+    await expect(card).toBeVisible();
+    const rows = card.getByRole('listitem');
+    await expect(rows).toHaveCount(3);
+    await expect(rows.nth(0)).toContainText('815,204원');
+    await expect(rows.nth(0)).toContainText('10.15 14:12 확인');
+    await expect(rows.nth(0).locator('img')).toHaveAttribute('src', '/banks/bank088.png');
+    await expect(rows.nth(0).locator('time')).toHaveAttribute('datetime', '2026-10-15T14:12:59');
+    await expect(rows.nth(1)).toContainText('확인 필요');
+    await expect(rows.nth(1)).toContainText('기준 잔고와 입출금 내역을 확인해주세요.');
+    await expect(rows.nth(2)).toContainText('사용 종료');
+    await expect(rows.nth(2)).toContainText('09.30 확인');
+    await expect(rows.nth(2)).not.toContainText('00:00');
+    await expect(card.getByRole('tooltip')).toHaveCount(0);
+    await card.scrollIntoViewIfNeeded();
+    await card.screenshot({
+      path: test.info().outputPath(`accountBalances${width}.png`)
+    });
+    const info = card.getByRole('button', {
+      name: '통장별 확인 잔액 도움말',
+      exact: true
+    });
+    if (width > 767) await info.hover();
+    else await info.click();
+    const tooltip = card.getByRole('tooltip');
+    await expect(tooltip).toContainText('확인값 또는 계산 잔액입니다.');
+    await expect(tooltip).toContainText('실시간 조회가 아닙니다.');
+    expect((await tooltip.boundingBox())!.y).toBeGreaterThanOrEqual((await info.boundingBox())!.y + (await info.boundingBox())!.height);
+    const bounds = await tooltip.boundingBox();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    await page.screenshot({
+      path: test.info().outputPath(`accountBalanceHelp${width}.png`),
+      fullPage: true
+    });
+    await card.getByRole('heading').click();
+    await expect(tooltip).toHaveCount(0);
+    await info.focus();
+    await expect(tooltip).toBeVisible();
+    await info.press('Escape');
+    await expect(tooltip).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  });
+}
+
+for (const { width, unassigned } of [{
+  width: 1440,
+  unassigned: false
+}, {
+  width: 390,
+  unassigned: false
+}, {
+  width: 1440,
+  unassigned: true
+}, {
+  width: 390,
+  unassigned: true
+}]) {
+  test(`통장 선택과 동별 기준 잔고 ${width}px는 입력·조회 범위와 공통 필터 디자인을 유지${unassigned ? ' · 기존 잔고 확인' : ''}`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const second = id(11);
+    const labels = ['하나은행 ····1234 · 운영비', '카카오뱅크 ····1020 · 예비비'];
+    const openings: Record<string, { cutoffDate: string; amount: string; revision: number }> = {
+      [ACCOUNT]: {
+        cutoffDate: '2026-07-01',
+        amount: '688582',
+        revision: 1
+      },
+      [second]: {
+        cutoffDate: '2026-09-30',
+        amount: '200000',
+        revision: 0
+      }
+    };
+    const data: import('../src/widgets/banking-workspace/api/bankingBalanceApi').BalanceWorkspace = {
+      propertyId: PROPERTY,
+      month: '2026-10',
+      cutoffDate: null,
+      bankBalance: '1000000',
+      bankAsOf: '2026-10-18',
+      buildings: [],
+      entries: [],
+      externals: [],
+      incomes: [],
+      pending: [],
+      accounts: [
+        {
+          id: ACCOUNT,
+          label: labels[0],
+          status: 'ACTIVE',
+          balance: '700000',
+          asOf: '2026-10-18'
+        },
+        {
+          id: second,
+          label: labels[1],
+          status: 'ACTIVE',
+          balance: '300000',
+          asOf: '2026-10-18'
+        }
+      ]
+    };
+    let needsConfirmation = unassigned;
+    function workspace(accountId: string | null) {
+      const opening = accountId ? openings[accountId] : null;
+      const amount = opening?.amount ?? Object.values(openings).reduce((sum, item) => sum + BigInt(item.amount), BigInt(0)).toString();
+      if (accountId && needsConfirmation) return {
+        ...data,
+        accountId,
+        cutoffDate: null,
+        legacyOpening: {
+          cutoffDate: '2026-07-01',
+          buildings: [{
+            buildingId: BUILDING_A,
+            amount: '688582'
+          }]
+        },
+        buildings: [{
+          id: BUILDING_A,
+          label: '102동',
+          active: true,
+          startBalance: null,
+          income: '0',
+          expense: '0',
+          balance: null,
+          status: 'OPENING_REQUIRED',
+          openingBalance: null,
+          openingRevision: 0
+        }]
+      };
+      return {
+        ...data,
+        accountId,
+        cutoffDate: opening?.cutoffDate ?? null,
+        bankBalance: accountId ? data.accounts!.find((a) => a.id === accountId)!.balance : data.bankBalance,
+        buildings: [{
+          id: BUILDING_A,
+          label: '102동',
+          active: true,
+          startBalance: amount,
+          income: '0',
+          expense: '0',
+          balance: amount,
+          status: 'READY',
+          openingBalance: opening?.amount ?? null,
+          openingRevision: opening?.revision ?? 0
+        }]
+      };
+    }
+    type Correction = { id: string; accountId: string; cutoffDate: string; buildings: { buildingId: string; amount: string; revision: number }[] };
+    const requests: Correction[] = [];
+    let failFirst = true;
+    await page.route('http://localhost:8080/**', async (route) => {
+      const url = new URL(route.request().url());
+      const path = url.pathname;
+      const headers = {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-CSRF-TOKEN',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+      };
+      if (route.request().method() === 'OPTIONS') return route.fulfill({
+        status: 200,
+        headers
+      });
+      let body: unknown = {};
+      if (path.endsWith('/csrf')) body = {
+        csrfToken: 'test-csrf'
+      };
+      else if (path.endsWith('/refresh')) body = {
+        accessToken: 'test-access',
+        tokenType: 'Bearer',
+        accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
+      };
+      else if (path === '/api/users/me') body = {
+        id: id(1),
+        displayName: '관리자',
+        profileImageUrl: null,
+        systemRole: 'USER',
+        status: 'ACTIVE'
+      };
+      else if (path.endsWith('/management-context')) body = {
+        propertyId: PROPERTY,
+        name: '모아빌라',
+        role: 'ADMIN'
+      };
+      else if (path.endsWith('/managed-properties')) body = {
+        properties: [{
+          propertyId: PROPERTY,
+          name: '모아빌라',
+          role: 'ADMIN'
+        }]
+      };
+      else if (path.endsWith('/payments/workspace')) body = {
+        propertyId: PROPERTY,
+        asOf: '2026-10-18',
+        accounts: data.accounts,
+        buildings: [],
+        units: [],
+        charges: [],
+        payments: [],
+        history: []
+      };
+      else if (path.endsWith('/banking/workspace')) body = {
+        propertyId: PROPERTY,
+        asOf: '2026-10-18',
+        buildings: [],
+        units: [],
+        rows: [],
+        rules: [],
+        accounts: [{
+          id: ACCOUNT,
+          bankName: '하나은행',
+          last4: '1234',
+          alias: '운영비',
+          isPrimary: true,
+          status: 'ACTIVE'
+        }, {
+          id: second,
+          bankName: '카카오뱅크',
+          last4: '1020',
+          alias: '예비비',
+          isPrimary: false,
+          status: 'ACTIVE'
+        }]
+      };
+
+      else if (path.endsWith('/balances/openings')) {
+        const input = route.request().postDataJSON() as Correction;
+        requests.push(input);
+        openings[input.accountId] = {
+          cutoffDate: input.cutoffDate,
+          amount: input.buildings[0].amount,
+          revision: 0
+        };
+        needsConfirmation = false;
+        body = {
+          saved: true
+        };
+      }
+      else if (path.endsWith('/balances/openings/corrections')) {
+        const input = route.request().postDataJSON() as Correction;
+        requests.push(input);
+        if (failFirst) {
+          failFirst = false;
+          return route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            headers,
+            body: JSON.stringify({
+              code: 'PAYMENT_SERVICE_UNAVAILABLE'
+            })
+          });
+        }
+        openings[input.accountId] = {
+          cutoffDate: input.cutoffDate,
+          amount: input.buildings[0].amount,
+          revision: input.buildings[0].revision + 1
+        };
+        body = {
+          saved: true
+        };
+      } else if (path.endsWith('/banking/balances')) body = workspace(url.searchParams.get('accountId'));
+      else throw new Error(`Unexpected API ${path}`);
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers,
+        body: JSON.stringify(body)
+      });
+    });
+    await page.goto(`${BASE}/balances?month=2026-10`);
+    await expect(page.getByRole('button', {
+      name: '선택 통장 거래 보기',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByRole('button', {
+      name: '기초 잔액 등록',
+      exact: true
+    })).toHaveCount(0);
+    const selector = page.getByRole('combobox', {
+      name: '조회 통장',
+      exact: true
+    });
+    await expect(selector).toBeVisible();
+    const monthControl = page.getByRole('button', {
+      name: '조회 월: 2026년 10월',
+      exact: true
+    });
+    expect((await selector.boundingBox())!.height).toBe((await monthControl.boundingBox())!.height);
+    await expect(page.getByText('조회 월', {
+      exact: true
+    })).toHaveCSS('clip-path', 'inset(50%)');
+    await expect(page.getByText('조회 통장', {
+      exact: true
+    })).toHaveCount(0);
+    await page.getByRole('button', {
+      name: '기준 잔고 확인',
+      exact: true
+    }).click();
+    if (width < 768) await expect(page).toHaveURL(/details\/opening/);
+    const bank = page.getByRole('combobox', {
+      name: '통장 선택',
+      exact: true
+    });
+    const amount = page.getByRole('textbox', {
+      name: '102동 기준 잔고',
+      exact: true
+    });
+    async function choose(label: string) {
+      await bank.click(); await page.getByRole('option', {
+        name: label,
+        exact: true
+      }).click();
+    }
+    if (unassigned) {
+      const existingAmount = page.getByRole('textbox', {
+        name: '102동 시작 잔고',
+        exact: true
+      });
+      await expect(existingAmount).toHaveValue('688,582');
+      await expect(page.getByText('통장 구분 전에 저장한 기준일과 잔고를 표시했습니다.', {
+        exact: false
+      })).toBeVisible();
+      await page.screenshot({
+        path: testInfo.outputPath(`legacyCashConfirmation${width}.png`),
+        fullPage: true,
+        animations: 'disabled'
+      });
+      await page.getByRole('button', {
+        name: '확정',
+        exact: true
+      }).click();
+      await expect(page.getByRole('heading', {
+        name: '동별 잔고·정산',
+        exact: true
+      })).toBeVisible();
+      expect(requests[0]).toMatchObject({
+        accountId: ACCOUNT,
+        cutoffDate: '2026-07-01',
+        buildings: [{
+          buildingId: BUILDING_A,
+          amount: '688582'
+        }]
+      });
+      await page.getByRole('button', {
+        name: '기준 잔고 확인',
+        exact: true
+      }).click();
+      await expect(amount).toHaveValue('688,582');
+      await expect(page.getByRole('button', {
+        name: '기준 잔고 수정',
+        exact: true
+      })).toBeVisible();
+      return;
+    }
+    await expect(amount).toHaveValue('688,582');
+    await expect(page.getByText('잔고 기준일: 2026-07-01', {
+      exact: true
+    })).toBeVisible();
+    await choose(labels[1]);
+    await expect(amount).toHaveValue('200,000');
+    await expect(page.getByText('잔고 기준일: 2026-09-30', {
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('button', {
+      name: '통장별 기초 잔액',
+      exact: true
+    })).toHaveCount(0);
+    await page.getByRole('button', {
+      name: '기준 잔고 수정',
+      exact: true
+    }).click();
+    await amount.fill('500000');
+    await choose(labels[0]); await expect(amount).toHaveValue('688,582');
+    await choose(labels[1]); await expect(amount).toHaveValue('500,000');
+    await page.screenshot({
+      path: testInfo.outputPath(`buildingAccountOpening${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    await page.getByRole('button', {
+      name: '변경 저장',
+      exact: true
+    }).click();
+    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(amount).toHaveValue('500,000');
+    await page.getByRole('button', {
+      name: '변경 저장',
+      exact: true
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '동별 잔고·정산',
+      exact: true
+    })).toBeVisible();
+    expect(requests[1]).toEqual(requests[0]);
+    expect(requests[1]).toMatchObject({
+      accountId: second,
+      cutoffDate: '2026-09-30',
+      buildings: [{
+        buildingId: BUILDING_A,
+        amount: '500000',
+        revision: 0
+      }]
+    });
+    expect(openings[ACCOUNT].amount).toBe('688582');
+    await selector.click(); await page.getByRole('option', {
+      name: labels[1],
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(new RegExp(`account=${second}`));
+    await page.reload(); await expect(selector).toContainText('카카오뱅크');
+    await expect(page.getByText('500,000', {
+      exact: true
+    }).first()).toBeVisible();
+    await page.getByRole('button', {
+      name: '기준 잔고 확인',
+      exact: true
+    }).click();
+    await expect(bank).toHaveValue(labels[1]);
+    await expect(amount).toHaveValue('500,000');
+    if (width < 768) {
+      await page.getByRole('link', {
+        name: '동별 잔고·정산으로 돌아가기',
+        exact: true
+      }).click();
+      await expect(selector).toContainText('카카오뱅크');
+      await expect(page).toHaveURL(new RegExp(`account=${second}`));
+    } else await page.getByRole('button', {
+      name: '기준 잔고 확인 닫기',
+      exact: true
+    }).click();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`accountBalanceFilter${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+  });
+}
+
+
+for (const width of [1440, 390]) {
+  test(`기준 잔고와 입금이 있는 통장 ${width}px는 계산 잔액을 표시하고 혼합 합계와 차액도 같은 기준으로 비교`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const account = {
+      id: ACCOUNT,
+      label: '카카오뱅크 ····1020 · 예비비',
+      status: 'ACTIVE',
+      balance: null,
+      asOf: null,
+      calculatedBalance: '1522910',
+      calculationBasisDate: '2026-09-30'
+    };
+    let mixed = false;
+    await page.route('http://localhost:8080/**', async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const headers = {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-CSRF-TOKEN',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+      };
+      if (route.request().method() === 'OPTIONS') return route.fulfill({
+        status: 200,
+        headers
+      });
+      let body: unknown;
+      if (path.endsWith('/csrf')) body = {
+        csrfToken: 'test-csrf'
+      };
+      else if (path.endsWith('/refresh')) body = {
+        accessToken: 'test-access',
+        tokenType: 'Bearer',
+        accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
+      };
+      else if (path === '/api/users/me') body = {
+        id: id(1),
+        displayName: '관리자',
+        profileImageUrl: null,
+        systemRole: 'USER',
+        status: 'ACTIVE'
+      };
+      else if (path.endsWith('/management-context')) body = {
+        propertyId: PROPERTY,
+        name: '모아빌라',
+        role: 'ADMIN'
+      };
+      else if (path.endsWith('/payments/workspace')) body = {
+        propertyId: PROPERTY,
+        asOf: '2026-10-18',
+        accounts: [account],
+        units: [],
+        charges: [],
+        payments: [],
+        history: []
+      };
+      else if (path.endsWith('/banking/balances')) body = {
+        propertyId: PROPERTY,
+        month: '2026-10',
+        accountId: mixed ? null : ACCOUNT,
+        cutoffDate: mixed ? null : '2026-09-30',
+        bankBalance: null,
+        bankAsOf: null,
+        accounts: mixed ? [account, {
+          id: id(11),
+          label: '신한은행 ····6546 · 공용 계좌',
+          status: 'ACTIVE',
+          balance: '815204',
+          asOf: '2026-10-15 14:12:00'
+        }] : [account],
+        buildings: [{
+          id: BUILDING_A,
+          label: '102동',
+          active: true,
+          startBalance: mixed ? '2381922' : '1500000',
+          income: '22910',
+          expense: '0',
+          balance: mixed ? '2404832' : '1522910',
+          status: 'READY',
+          openingBalance: '1500000',
+          openingRevision: 0
+        }],
+        entries: [],
+        incomes: [],
+        externals: [],
+        pending: []
+      };
+      else throw new Error(`Unexpected API ${path}`);
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers,
+        body: JSON.stringify(body)
+      });
+    });
+    await page.goto(`${BASE}/balances?month=2026-10&account=${ACCOUNT}`);
+    const summary = page.getByRole('article', {
+      name: '선택 통장 계산 잔액 1,522,910원',
+      exact: true
+    });
+    await expect(summary).toBeVisible();
+    await expect(summary).toContainText('2026-09-30 기준');
+    const buildingTotal = page.getByRole('article', {
+      name: '동별 잔고 합계 1,522,910원',
+      exact: true
+    });
+    await expect(buildingTotal.locator('svg')).toHaveCSS('color', 'rgb(245, 158, 11)');
+    if (width < 768) {
+      const firstCard = await summary.boundingBox();
+      const nextCard = await buildingTotal.boundingBox();
+      expect(nextCard!.x).toBe(firstCard!.x);
+      expect(nextCard!.y).toBeGreaterThanOrEqual(firstCard!.y + firstCard!.height);
+      const opening = await page.getByRole('button', {
+        name: '기준 잔고 확인',
+        exact: true
+      }).boundingBox();
+      const download = await page.getByRole('button', {
+        name: '엑셀 다운로드',
+        exact: true
+      }).boundingBox();
+      expect(download!.y).toBeGreaterThanOrEqual(opening!.y + opening!.height);
+    }
+    await expect(page.getByText('원본 없음', {
+      exact: true
+    })).toHaveCount(0);
+    const accounts = page.getByRole('region', {
+      name: '통장별 확인 잔액',
+      exact: true
+    });
+    await expect(accounts).toContainText('1,522,910원');
+    await expect(accounts).toContainText('계산 잔액');
+    await expect(page.getByRole('article', {
+      name: '잔고 비교 차이 0원',
+      exact: true
+    })).toContainText('계산 잔액 포함');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`calculatedAccountBalance${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    await page.reload();
+    await expect(summary).toBeVisible();
+    mixed = true;
+    await page.goto(`${BASE}/balances?month=2026-10`);
+    await expect(page.getByRole('article', {
+      name: '통장 잔액 합계 2,338,114원',
+      exact: true
+    })).toBeVisible();
+    const difference = page.getByRole('article', {
+      name: '잔고 비교 차이 -66,718원',
+      exact: true
+    });
+    await expect(difference).toContainText('계산 잔액 포함');
+    await expect(difference.locator('strong')).toHaveCSS('color', 'rgb(239, 68, 68)');
+    await expect(difference.locator('svg')).toHaveCSS('color', 'rgb(22, 163, 74)');
+    await expect(page.getByRole('heading', {
+      name: '잔고 차이 확인',
+      exact: true
+    }).locator('..').locator('dd').first()).toHaveText('-66,718원');
+    await page.screenshot({
+      path: testInfo.outputPath(`mixedBalanceDifference${width}.png`),
+      fullPage: true
+    });
+    await page.getByRole('button', {
+      name: '잔고 차이 내역 확인',
+      exact: true
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '잔고 차이 내역',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByText('-66,718원', {
+      exact: true
+    }).last()).toBeVisible();
+  });
+}
+
+for (const width of [1440, 390]) {
+  test(`사용 전 월의 통장 ${width}px는 선택 목록과 합계에서 빠지고 오래된 URL도 전체 통장으로 복원`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const second = id(11);
+    const accounts = [{
+      id: ACCOUNT,
+      label: '신한은행 ····6546 · 공용 계좌',
+      status: 'ACTIVE',
+      balance: '300000',
+      asOf: '2026-08-31'
+    },
+    {
+      id: second,
+      label: '카카오뱅크 ····1020 · 예비비',
+      status: 'ACTIVE',
+      balance: null,
+      asOf: null,
+      calculatedBalance: '1500000',
+      calculationBasisDate: '2026-09-30'
+    }];
+    await page.route('http://localhost:8080/**', async (route) => {
+      const url = new URL(route.request().url());
+      const path = url.pathname;
+      const headers = {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-CSRF-TOKEN',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+      };
+      if (route.request().method() === 'OPTIONS') return route.fulfill({
+        status: 200,
+        headers
+      });
+      let body: unknown;
+      if (path.endsWith('/csrf')) body = {
+        csrfToken: 'test-csrf'
+      };
+      else if (path.endsWith('/refresh')) body = {
+        accessToken: 'test-access',
+        tokenType: 'Bearer',
+        accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
+      };
+      else if (path === '/api/users/me') body = {
+        id: id(1),
+        displayName: '관리자',
+        profileImageUrl: null,
+        systemRole: 'USER',
+        status: 'ACTIVE'
+      };
+      else if (path.endsWith('/management-context')) body = {
+        propertyId: PROPERTY,
+        name: '모아빌라',
+        role: 'ADMIN'
+      };
+      else if (path.endsWith('/payments/workspace')) body = {
+        propertyId: PROPERTY,
+        asOf: '2026-10-18',
+        accounts,
+        units: [],
+        charges: [],
+        payments: [],
+        history: []
+      };
+      else if (path.endsWith('/banking/balances')) {
+        const month = url.searchParams.get('month')!;
+        const available = month < '2026-09' ? accounts.slice(0, 1) : accounts;
+        const selected = available.find((account) => account.id === url.searchParams.get('accountId'));
+        let amount = '1800000';
+        if (month < '2026-09' || selected) amount = '300000';
+        if (selected?.id === second) amount = '1500000';
+        body = {
+          propertyId: PROPERTY,
+          month,
+          accountId: selected?.id ?? null,
+          cutoffDate: selected?.id === second ? '2026-09-30' : '2026-07-01',
+          bankBalance: selected?.id === second ? null : '300000',
+          bankAsOf: '2026-08-31',
+          accounts: available,
+          buildings: [{
+            id: BUILDING_A,
+            label: '102동',
+            active: true,
+            startBalance: amount,
+            income: '0',
+            expense: '0',
+            balance: amount,
+            status: 'READY',
+            openingBalance: amount,
+            openingRevision: 0
+          }],
+          entries: [],
+          externals: [],
+          incomes: [],
+          pending: []
+        };
+      } else throw new Error(`Unexpected API ${path}`);
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers,
+        body: JSON.stringify(body)
+      });
+    });
+    await page.goto(`${BASE}/balances?month=2026-08&account=${second}`);
+    const selector = page.getByRole('combobox', {
+      name: '조회 통장',
+      exact: true
+    });
+    await expect(page).toHaveURL(/month=2026-08&account=ALL/);
+    await expect(selector).toContainText('전체 통장');
+    await expect(page.getByRole('article', {
+      name: '동별 잔고 합계 300,000원',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('region', {
+      name: '통장별 확인 잔액',
+      exact: true
+    })).not.toContainText('카카오뱅크');
+    await selector.click();
+    await expect(page.getByRole('option', {
+      name: /카카오뱅크/
+    })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.screenshot({
+      path: testInfo.outputPath(`accountBeforeUse${width}.png`),
+      fullPage: true
+    });
+    await page.reload();
+    await expect(selector).toContainText('전체 통장');
+    await page.getByRole('button', {
+      name: '조회 월: 2026년 8월',
+      exact: true
+    }).click();
+    await page.getByRole('button', {
+      name: '2026년 9월',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(/month=2026-09/);
+    await selector.click();
+    await page.getByRole('option', {
+      name: accounts[1].label,
+      exact: true
+    }).click();
+    await expect(page.getByRole('article', {
+      name: '선택 통장 계산 잔액 1,500,000원',
+      exact: true
+    })).toBeVisible();
+    await page.getByRole('button', {
+      name: '조회 월: 2026년 9월',
+      exact: true
+    }).click();
+    await page.getByRole('button', {
+      name: '2026년 8월',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(/month=2026-08&account=ALL/);
+    await expect(selector).toContainText('전체 통장');
+    await expect(page.getByRole('article', {
+      name: '동별 잔고 합계 300,000원',
+      exact: true
+    })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}

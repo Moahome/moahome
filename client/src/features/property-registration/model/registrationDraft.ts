@@ -14,11 +14,11 @@ import {
   type UnitDraft
 } from './unitSetup';
 import {
-  EMPTY_BANK_ACCOUNT,
+  createRegistrationAccount,
+  getRegistrationAccountsError,
+  type RegistrationAccount,
   isBankAccountDraft,
-  getBankAccountErrors,
   normalizeAccountNumber,
-  type BankAccountDraft
 } from './bankAccount';
 import {
   isFeeItemDraftList,
@@ -54,7 +54,7 @@ export interface RegistrationDraft {
   buildings: BuildingDraft[];
   units: UnitDraft[];
   automaticUnitRule: AutomaticUnitRule;
-  bankAccount: BankAccountDraft;
+  bankAccounts: RegistrationAccount[];
   feeItems: FeeItemDraft[];
   openingBalances: OpeningBalancesDraft;
   step: RegistrationStep;
@@ -75,9 +75,7 @@ function createEmptyDraft(): RegistrationDraft {
     automaticUnitRule: {
       ...EMPTY_AUTOMATIC_UNIT_RULE
     },
-    bankAccount: {
-      ...EMPTY_BANK_ACCOUNT
-    },
+    bankAccounts: [createRegistrationAccount('account-0', true)],
     feeItems: [],
     openingBalances: {
       ...EMPTY_OPENING_BALANCES,
@@ -154,18 +152,25 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
     if (basicInfoValidated && ['units', 'administrator', 'account', 'fees', 'review'].includes(data.step)) step = 'units';
     if (['account', 'fees', 'review'].includes(data.step) && unitsValid && !getUnitOpeningError(openingBalances, units)) step = 'account';
 
-    // 이전 초안의 구분 기호를 정리하고 숫자가 아닌 문자가 남으면 번호를 다시 입력받습니다.
-    const accountNumber = isBankAccountDraft(data.bankAccount) ? normalizeAccountNumber(data.bankAccount.accountNumber) : '';
-    const bankAccount = isBankAccountDraft(data.bankAccount) ? {
-      bankCode: data.bankAccount.bankCode,
-      bankName: data.bankAccount.bankName,
-      accountNumber: /^[0-9]*$/.test(accountNumber) ? accountNumber : '',
-      holderName: data.bankAccount.holderName,
-      isPrimary: data.bankAccount.isPrimary,
-    } : {
-      ...EMPTY_BANK_ACCOUNT
-    };
-    if (['fees', 'review'].includes(data.step) && unitsValid && step === 'account' && !Object.keys(getBankAccountErrors(bankAccount)).length && !getCashOpeningError(openingBalances, buildings)) step = 'fees';
+    // 이전 단일 통장 초안도 첫 계좌와 확인된 잔액으로 보존하며 새 통장 잔액은 추측하지 않습니다.
+    const sourceAccounts: unknown[] = Array.isArray(data.bankAccounts) ? data.bankAccounts : [data.bankAccount];
+    const bankAccounts = sourceAccounts.map((value, index): RegistrationAccount => {
+      if (!isBankAccountDraft(value)) return createRegistrationAccount(`account-${index}`, index === 0);
+      const legacy = value as RegistrationAccount;
+      const number = normalizeAccountNumber(value.accountNumber);
+      return {
+        bankCode: value.bankCode,
+        bankName: value.bankName,
+        holderName: value.holderName,
+        accountNumber: /^[0-9]*$/.test(number) ? number : '',
+        isPrimary: value.isPrimary,
+        alias: value.alias ?? '',
+        clientId: typeof legacy.clientId === 'string' ? legacy.clientId : `account-${index}`,
+        openingAmount: typeof legacy.openingAmount === 'string' ? legacy.openingAmount : index === 0 ? openingBalances.accountAmount : ''
+      };
+    });
+    if (!bankAccounts.length || new Set(bankAccounts.map((account) => account.clientId)).size !== bankAccounts.length) return createEmptyDraft();
+    if (['fees', 'review'].includes(data.step) && unitsValid && step === 'account' && !getRegistrationAccountsError(bankAccounts) && !getCashOpeningError(openingBalances, buildings, bankAccounts)) step = 'fees';
 
     // 코드 필드가 없던 기존 초안은 직접 입력으로 복원하고 이름으로 종류를 추측하지 않습니다.
     const feeItems = Array.isArray(data.feeItems) ? data.feeItems.map((item: unknown) => {
@@ -201,7 +206,7 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
         status: unit.status,
       })),
       automaticUnitRule: restoredRule,
-      bankAccount,
+      bankAccounts,
       feeItems: isFeeItemDraftList(feeItems) ? feeItems : [],
       step,
       basicInfoValidated,

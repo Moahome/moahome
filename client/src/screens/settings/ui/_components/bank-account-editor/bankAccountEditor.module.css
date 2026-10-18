@@ -1,5 +1,5 @@
 .modal {
-  width: min(560px, calc(100vw - 32px));
+  width: min(960px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   margin: auto;
   padding: 0;
@@ -73,4 +73,22 @@
   padding: 16px 24px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.account-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+
+  h3 { font-size: 16px; margin-bottom: 8px; }
+  p { color: var(--sub-text); overflow-wrap: anywhere; line-height: 1.6; }
+}
+
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
 }

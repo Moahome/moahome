@@ -30,11 +30,11 @@
 }
 
 .card {
-  padding: 24px 48px 20px;
-  border: 1px solid color-mix(in srgb, var(--primary) 9%, var(--card));
+  min-width: 0;
+  padding: 24px 30px 20px;
+  border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--card);
-  box-shadow: 0 8px 30px color-mix(in srgb, var(--primary) 4%, transparent);
 }
 
 .intro {
@@ -60,6 +60,7 @@
 
   h2 {
     outline: none;
+    color: var(--foreground);
     font-size: 29px;
     font-weight: 800;
     letter-spacing: -1px;
@@ -78,93 +79,187 @@
   }
 }
 
-.fields {
-  display: grid;
-  gap: 18px;
+.form {
+  min-width: 0;
 }
 
-.field {
-  display: grid;
-  grid-template-columns: 166px minmax(0, 1fr);
-  align-items: center;
-  column-gap: 24px;
-
-  > p {
-    grid-column: 2;
-  }
-}
-
-.primary-field {
-  margin-left: 190px;
-}
-
-.primary-choice {
+.list-heading {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 16px;
-  line-height: 1.6;
-  cursor: pointer;
-
-  input {
-    flex-shrink: 0;
-    width: 24px;
-    height: 24px;
-    accent-color: var(--primary);
-    cursor: pointer;
-
-    &:focus-visible {
-      outline: 3px solid var(--primary);
-      outline-offset: 4px;
-    }
-  }
-}
-
-.notice {
-  display: flex;
-  align-items: center;
+  justify-content: space-between;
   gap: 16px;
-  margin-top: 26px;
-  padding: 18px;
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--primary) 6%, var(--card));
+  margin-bottom: 16px;
 
-  p {
-    color: var(--sub-text);
-    font-size: 14px;
-    line-height: 1.7;
-
-    span {
-      display: block;
-    }
+  h3 {
+    font-size: 20px;
+    font-weight: 800;
   }
 }
 
-.notice-icon {
+.account-list {
+  display: grid;
+  gap: 12px;
+}
+
+.account-row {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+
+  &[data-removable='true'] .account-summary {
+    padding-right: 60px;
+  }
+}
+
+.account-summary[data-variant] {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 18px;
+  width: 100%;
+  min-height: 112px;
+  padding: 20px;
+  border-radius: 11px;
+  color: var(--foreground);
+  text-align: left;
+  white-space: normal;
+}
+
+.bank-icon {
   display: grid;
   flex-shrink: 0;
-  width: 40px;
-  height: 40px;
+  width: 52px;
+  height: 52px;
   place-items: center;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--primary) 12%, var(--card));
-  color: var(--primary);
+
+  img {
+    width: 52px;
+    height: 52px;
+  }
 
   svg {
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
+    color: var(--primary);
+  }
+}
+
+.account-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 7px;
+}
+
+.account-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+
+  strong {
+    font-size: 21px;
+    font-weight: 800;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+}
+
+.badge {
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--primary) 8%, var(--card));
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.account-details {
+  display: flex;
+  flex-wrap: wrap;
+  color: var(--sub-text);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+
+  > span + span::before {
+    margin-inline: 8px;
+    color: var(--border);
+    content: '|';
+  }
+}
+
+.account-balance {
+  color: var(--sub-text);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.edit-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: var(--success);
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+.remove[data-variant] {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  width: 36px;
+  min-height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--danger);
+
+  &:hover:not(:disabled) {
+    background: transparent;
+  }
+}
+
+.hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 14px 0 0;
+  color: var(--sub-text);
+  font-size: 14px;
+  line-height: 1.65;
+
+  svg {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
   }
 }
 
 .error {
-  margin-top: 8px;
+  margin-top: 12px;
+  color: var(--danger);
   font-size: 14px;
   line-height: 1.7;
-  overflow-wrap: anywhere;
 }
 
-.error {
-  color: var(--danger);
+.opening-hint {
+  margin-block: 12px;
+  color: var(--sub-text);
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 .actions {
@@ -172,6 +267,8 @@
   justify-content: flex-end;
   gap: 12px;
   margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
 
   > button {
     min-width: 126px;
@@ -191,14 +288,24 @@
 @media (max-width: 640px) {
   .page {
     width: 100%;
-    padding: 16px 20px 24px;
+    padding: calc(96px + env(safe-area-inset-top)) 20px 24px;
+
+    :is(input, button, [tabindex]) {
+      scroll-margin-top: calc(88px + env(safe-area-inset-top));
+    }
   }
 
   .mobile-navigation {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 10;
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 0 0 28px -12px;
+    min-height: calc(72px + env(safe-area-inset-top));
+    padding: calc(12px + env(safe-area-inset-top)) 20px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
     font-size: 23px;
     font-weight: 800;
   }
@@ -212,7 +319,6 @@
     border: 0;
     border-radius: 0;
     background: transparent;
-    box-shadow: none;
   }
 
   .intro {
@@ -241,62 +347,81 @@
 
   .illustration {
     position: absolute;
-    right: -22px;
+    right: -16px;
     bottom: -5px;
-    width: 178px;
+    width: 166px;
     opacity: 0.35;
     pointer-events: none;
+  }
+
+  .list-heading {
+    gap: 10px;
+
+    h3 {
+      font-size: 18px;
+    }
+  }
+
+  .account-summary[data-variant] {
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 12px;
+  }
+
+  .account-row[data-removable='true'] .account-summary {
+    padding-right: 48px;
+  }
+
+  .bank-icon {
+    width: 36px;
+    height: 36px;
+
+    img {
+      width: 36px;
+      height: 36px;
+    }
+  }
+
+  .account-title {
+    gap: 6px;
+
+    strong {
+      font-size: 18px;
+    }
+  }
+
+  .account-details {
+    display: grid;
+    font-size: 13px;
+
+    > span + span::before {
+      display: none;
+    }
+  }
+
+  .edit-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .remove[data-variant] {
+    right: 8px;
+    width: 32px;
+    min-height: 32px;
   }
 
   .form {
     padding: 24px 20px;
     border-radius: 18px;
     background: var(--card);
-    box-shadow: 0 8px 24px color-mix(in srgb, var(--primary) 4%, transparent);
   }
 
-  .fields {
-    gap: 24px;
-  }
-
-  .field {
-    display: flex;
-    align-items: stretch;
-    gap: 10px;
-  }
-
-  .primary-field {
-    margin-left: 0;
-  }
-
-  .primary-choice {
-    font-size: 15px;
-  }
-
-  .notice {
-    align-items: flex-start;
-    gap: 12px;
-    margin-top: 24px;
-    padding: 16px 12px;
-
-    p {
-      font-size: 13px;
-    }
-  }
-
-  .notice-icon {
-    width: 28px;
-    height: 28px;
-
-    svg {
-      width: 22px;
-      height: 22px;
-    }
+  .hint {
+    font-size: 13px;
   }
 
   .actions {
     gap: 10px;
-    margin-top: 24px;
 
     > button {
       flex: 1;
@@ -306,11 +431,8 @@
 }
 
 @media (max-width: 374px) {
-  .page {
-    padding-inline: 16px;
-  }
-
-  .form {
+  .page,
+  .mobile-navigation {
     padding-inline: 16px;
   }
 
@@ -321,33 +443,9 @@
   .illustration {
     right: -12px;
     width: 145px;
-    opacity: 0.2;
-  }
-}
-.opening-hint { margin-block: 16px; color: var(--sub-text); font-size: 14px; line-height: 1.7; }
-
-@media (max-width: 640px) {
-  .page {
-    padding-top: calc(96px + env(safe-area-inset-top));
-
-    :is(input, button, [tabindex]) {
-      scroll-margin-top: calc(88px + env(safe-area-inset-top));
-    }
   }
 
-  .mobile-navigation {
-    position: fixed;
-    inset: 0 0 auto;
-    z-index: 10;
-    min-height: calc(72px + env(safe-area-inset-top));
-    margin: 0;
-    padding: calc(12px + env(safe-area-inset-top)) 20px 12px;
-    border-bottom: 1px solid var(--border);
-    background: var(--card);
-  }
-}
-@media (max-width: 374px) {
-  .mobile-navigation {
+  .form {
     padding-inline: 16px;
   }
 }

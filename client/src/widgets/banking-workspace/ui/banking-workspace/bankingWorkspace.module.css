@@ -37,7 +37,7 @@
 
 .filters {
   display: grid;
-  grid-template-columns: 170px minmax(180px, 1fr) 140px 160px;
+  grid-template-columns: 170px minmax(180px, 1fr) minmax(200px, 260px) 140px 140px;
   align-items: end;
   gap: 12px;
   padding: 16px;
@@ -212,7 +212,6 @@
   justify-content: space-between;
   gap: 16px;
   padding: 22px 24px;
-  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 
   > div {
@@ -245,9 +244,38 @@
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
-  padding: 20px 24px;
+  align-items: center;
+  margin: 0 24px;
+  padding: 20px;
   font-size: 14px;
-  border-bottom: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 5%, var(--card));
+
+  > div {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  p {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin: 0;
+  }
+
+  b {
+    padding-right: 12px;
+    border-right: 1px solid var(--border);
+    font-weight: 600;
+  }
+
+  > strong {
+    color: var(--primary);
+    font-size: 24px;
+    font-weight: 750;
+  }
 
   span {
     color: var(--sub-text);
@@ -444,4 +472,114 @@
 .badge[data-state='CANCELED'] {
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 10%, var(--card));
+}
+
+.account-filter {
+  display: flex;
+  margin: 20px 0;
+  min-width: 0;
+}
+
+.transfer-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 0;
+  min-height: 24px;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--foreground);
+
+  > span {
+    display: grid;
+    gap: 4px;
+  }
+
+  small {
+    color: var(--sub-text);
+    font-size: 14px;
+    font-weight: 400;
+  }
+
+  input[type='checkbox'] {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+.transfer-settings {
+  display: grid;
+  gap: 16px;
+  margin: 20px 24px 0;
+  padding: 20px 0 24px;
+  border-top: 1px solid var(--border);
+
+  input {
+    margin: 0;
+    margin-top: 3px;
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+}
+
+.transfer-description {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+  margin-left: 38px;
+  padding: 18px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 5%, var(--card));
+  color: var(--sub-text);
+  font-size: 14px;
+  line-height: 1.7;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+
+  > svg {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    color: var(--primary);
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 28px;
+    border-left: 1px solid var(--border);
+    list-style: disc;
+  }
+
+  li + li {
+    margin-top: 4px;
+  }
+}
+
+@media (max-width: 767px) {
+  .transfer-settings {
+    margin-right: 16px;
+    margin-left: 16px;
+  }
+
+  .original-info {
+    margin-right: 16px;
+    margin-left: 16px;
+  }
+
+  .transfer-description {
+    margin-left: 0;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .editor-header,
+  .original-info,
+  .receipt-editor,
+  .editor-actions {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
 }

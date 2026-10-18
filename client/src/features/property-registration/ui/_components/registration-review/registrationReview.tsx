@@ -404,59 +404,58 @@ export function RegistrationReview({
               onEdit={() => onEdit('account')}
               toggleName={'관리계좌 상세'}
               detailsId={'review-account-details'}
-              summary={(
-                <>
-                  <strong>
-                    {draft.bankAccount.bankName}
-                    {' '}
-                    {draft.bankAccount.accountNumber}
-                  </strong>
-                  <span
-                    className={styles['summary-line']}
-                  >
-                    예금주
-                    {' '}
-                    {draft.bankAccount.holderName}
-                  </span>
-                </>
-              )}
+              summary={<strong>
+                {`통장 ${draft.bankAccounts.length}개 · 기본 ${draft.bankAccounts.find((account) => account.isPrimary)?.bankName ?? '미선택'}`}
+              </strong>}
             >
-              <dl
-                className={styles['info-list']}
-              >
-                <div>
-                  <dt>
-                    은행
-                  </dt>
-                  <dd>
-                    {draft.bankAccount.bankName}
-                  </dd>
-                </div>
-                <div>
-                  <dt>
-                    계좌번호
-                  </dt>
-                  <dd>
-                    {draft.bankAccount.accountNumber}
-                  </dd>
-                </div>
-                <div>
-                  <dt>
-                    예금주
-                  </dt>
-                  <dd>
-                    {draft.bankAccount.holderName}
-                  </dd>
-                </div>
-                <div>
-                  <dt>
-                    계좌 구분
-                  </dt>
-                  <dd>
-                    공용 관리계좌 · 기본 계좌
-                  </dd>
-                </div>
-              </dl>
+              {draft.bankAccounts.map((account) => (
+                <dl
+                  key={account.clientId}
+                  className={styles['info-list']}
+                >
+                  <div>
+                    <dt>
+                      통장
+                    </dt>
+                    <dd>
+                      {account.alias || account.bankName}
+                      {account.isPrimary ? ' · 기본 납부계좌' : ''}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>
+                      은행
+                    </dt>
+                    <dd>
+                      {account.bankName}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>
+                      계좌번호
+                    </dt>
+                    <dd>
+                      {account.accountNumber}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>
+                      예금주
+                    </dt>
+                    <dd>
+                      {account.holderName}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>
+                      기준일 잔액
+                    </dt>
+                    <dd>
+                      {formatWon(account.openingAmount)}
+                    </dd>
+                  </div>
+                </dl>
+              ))}
             </ReviewRow>
             <ReviewRow
               label={'세대당 월 기본 관리비'}
@@ -584,7 +583,7 @@ export function RegistrationReview({
                     통장 실제 잔액
                   </dt>
                   <dd>
-                    {formatWon(draft.openingBalances.accountAmount)}
+                    {formatWon(draft.bankAccounts.reduce((sum, account) => sum + BigInt(account.openingAmount || '0'), BigInt(0)))}
                   </dd>
                 </div>
                 {draft.buildings.map((building) => (

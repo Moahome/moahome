@@ -585,10 +585,6 @@ async function completeExternalAdministrator(page: Page) {
   await expect(page).toHaveURL(/registration=account/);
 }
 async function prepareCashOpening(page: Page) {
-  const input = page.getByLabel('통장 실제 잔액', {
-    exact: true
-  });
-  if (!(await input.inputValue())) await input.fill('0');
   const data = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
   if (!data.buildings.length) return;
   if (!data.openingBalances.cashCutoffDate) await page.getByRole('button', {
@@ -790,10 +786,31 @@ async function openBankAccountSetup(page: Page) {
     exact: true
   })).toBeVisible();
   await prepareCashOpening(page);
+  await openAccountEditor(page);
+}
+
+/** 통장 행 전체에서 모달을 열고 저장 경계를 명시적으로 확인합니다. */
+async function openAccountEditor(page: Page, number = 1) {
+  if (await page.getByRole('dialog', {
+    name: /^통장 (추가|수정)$/
+  }).isVisible()) return;
+  await page.getByRole('button', {
+    name: `통장 ${number} 수정`,
+    exact: true
+  }).click();
+}
+async function saveAccountEditor(page: Page) {
+  await page.getByRole('dialog', {
+    name: /^통장 (추가|수정)$/
+  }).getByRole('button', {
+    name: /^(등록|저장)$/,
+    exact: true
+  }).click();
 }
 
 /** 은행은 실제 드롭다운으로 선택하고 가상 계좌를 사용해 앞자리 0의 보존을 검증합니다. */
-async function fillBankAccount(page: Page) {
+async function fillBankAccount(page: Page, save = true) {
+  await openAccountEditor(page);
   await page.getByRole('combobox', {
     name: '은행',
     exact: true
@@ -804,25 +821,31 @@ async function fillBankAccount(page: Page) {
   }).click();
   await page.getByLabel('계좌번호').fill('00012345678');
   await page.getByLabel('예금주').fill('예시 관리단');
+  const amount = page.getByLabel('통장 실제 잔액', {
+    exact: true
+  });
+  if (!(await amount.inputValue())) await amount.fill('0');
+  if (!save) return;
+  await saveAccountEditor(page);
   await prepareCashOpening(page);
 }
 
 test('관리계좌는 빈 폼으로 시작하고 필수·번호 형식·예금주 길이·기본 계좌 조건을 모두 확인', async ({ page }) => {
   await openBankAccountSetup(page);
   const next = page.getByRole('button', {
-    name: '다음',
+    name: '등록',
     exact: true
   });
   const number = page.getByLabel('계좌번호');
   const holder = page.getByLabel('예금주');
-  const primary = page.getByRole('checkbox', {
-    name: '이 계좌를 기본 관리계좌로 사용'
+  const primary = page.getByRole('switch', {
+    name: '기본 납부계좌로 사용'
   });
   await expect(number).toHaveValue('');
   await expect(holder).toHaveValue('');
   await expect(primary).toBeChecked();
   await expect(next).toBeDisabled();
-  await fillBankAccount(page);
+  await fillBankAccount(page, false);
   await expect(next).toBeEnabled();
   for (const invalid of ['000-1234', '000 1234', '000/1234', '１２３４', '000a1234']) {
     await number.fill(invalid);
@@ -863,8 +886,8 @@ test('관리계좌는 빈 폼으로 시작하고 필수·번호 형식·예금�
     }));
   });
   await expect(number).toHaveValue('00012345678');
-  const storedNumber = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).bankAccount.accountNumber, DRAFT_STORAGE_KEY);
-  expect(storedNumber).toBe('00012345678');
+  const storedNumber = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).bankAccounts[0].accountNumber, DRAFT_STORAGE_KEY);
+  expect(storedNumber).toBe('');
   await holder.fill('   ');
   await expect(next).toBeDisabled();
   await holder.fill('😀'.repeat(50));
@@ -872,13 +895,11 @@ test('관리계좌는 빈 폼으로 시작하고 필수·번호 형식·예금�
   await holder.fill('😀'.repeat(51));
   await expect(next).toBeDisabled();
   await holder.fill('예시 관리단');
-  await primary.uncheck();
-  await expect(page.getByRole('alert').filter({
-    hasText: '기본 관리계좌를 지정'
-  })).toBeVisible();
-  await expect(next).toBeDisabled();
   await primary.check();
+  await expect(primary).toBeChecked();
   await expect(next).toBeEnabled();
+  await saveAccountEditor(page);
+  expect(await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).bankAccounts[0].accountNumber, DRAFT_STORAGE_KEY)).toBe('00012345678');
 });
 
 test('은행 SelectDropdown은 코드와 이름을 함께 유지하고 키보드·Escape를 지원', async ({ page }) => {
@@ -899,9 +920,9 @@ test('은행 SelectDropdown은 코드와 이름을 함께 유지하고 키보드
   await bank.press('ArrowDown');
   await bank.press('Enter');
   await expect(bank).toHaveValue('국민은행');
-  const account = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).bankAccount, DRAFT_STORAGE_KEY);
-  expect(account.bankCode).toBe('004');
-  expect(account.bankName).toBe('국민은행');
+  const account = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).bankAccounts[0], DRAFT_STORAGE_KEY);
+  expect(account.bankCode).toBe('');
+  expect(account.bankName).toBe('');
 });
 
 test('은행 선택은 24개 로컬 아이콘 그리드로 열리고 이름·별칭 검색 후 선택한 아이콘과 이름을 표시', async ({ page }) => {
@@ -949,26 +970,28 @@ test('은행 선택은 24개 로컬 아이콘 그리드로 열리고 이름·별
   })).toBeVisible();
   await bank.press('Enter');
   await expect(bank).toHaveValue('아이엠뱅크');
-  const account = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).bankAccount, DRAFT_STORAGE_KEY);
-  expect(account.bankCode).toBe('031');
-  expect(account.bankName).toBe('아이엠뱅크');
+  const account = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).bankAccounts[0], DRAFT_STORAGE_KEY);
+  expect(account.bankCode).toBe('');
+  expect(account.bankName).toBe('');
 });
 
 test('은행 검색의 빈 결과·Escape·Tab·외부 클릭은 확정한 계좌와 이전 단계 입력을 바꾸지 않음', async ({ page }) => {
   await openBankAccountSetup(page);
-  await fillBankAccount(page);
+  await fillBankAccount(page, false);
   const bank = page.getByRole('combobox', {
     name: '은행',
     exact: true
   });
   const next = page.getByRole('button', {
-    name: '다음',
+    name: '등록',
     exact: true
   });
   await bank.click();
   await bank.fill('004');
   await expect(page.getByRole('option')).toHaveCount(0);
-  await expect(page.getByRole('status')).toContainText('검색 결과가 없어요.');
+  await expect(page.getByRole('dialog', {
+    name: /^통장 (추가|수정)$/
+  }).getByRole('status')).toContainText('검색 결과가 없어요.');
   await expect(bank).not.toHaveAttribute('aria-activedescendant');
   await bank.press('Enter');
   await expect(bank).toHaveAttribute('aria-expanded', 'true');
@@ -1014,7 +1037,7 @@ test('은행 검색은 한글 조합 중 Enter를 선택으로 처리하지 않�
   await bank.fill('신한');
   await bank.press('Enter');
   await expect(bank).toHaveAttribute('aria-expanded', 'true');
-  const account = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).bankAccount, DRAFT_STORAGE_KEY);
+  const account = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).bankAccounts[0], DRAFT_STORAGE_KEY);
   expect(account.bankCode).toBe('');
   await bank.dispatchEvent('compositionend', {
     data: '신한'
@@ -1081,6 +1104,10 @@ test('은행 선택은 짧은 모바일 화면과 화면 축소 후에도 입력
       width: 390,
       height
     });
+    await page.screenshot({
+      path: test.info().outputPath(`shortModal${height}.png`),
+      fullPage: true
+    });
     await expect.poll(async () => {
       const inputBounds = await bank.boundingBox();
       const menuBounds = await list.boundingBox();
@@ -1106,11 +1133,14 @@ test('계좌와 이전 단계 입력을 이력 이동·새로고침에 복원하
   // 이전 버전 초안의 공백·하이픈을 새로고침에서 정리하고 앞자리 0은 그대로 복원합니다.
   await page.evaluate((key) => {
     const draft = JSON.parse(sessionStorage.getItem(key)!);
-    draft.bankAccount.accountNumber = ' 000 -1234- 5678 ';
+    draft.bankAccounts[0].accountNumber = ' 000 -1234- 5678 ';
     sessionStorage.setItem(key, JSON.stringify(draft));
   }, DRAFT_STORAGE_KEY);
   await page.reload();
-  await expect(page.getByLabel('계좌번호')).toHaveValue('00012345678');
+  await expect(page.getByRole('button', {
+    name: '통장 1 수정',
+    exact: true
+  })).toContainText('00012345678');
   await page.getByRole('button', {
     name: '다음',
     exact: true
@@ -1133,18 +1163,31 @@ test('계좌와 이전 단계 입력을 이력 이동·새로고침에 복원하
     exact: true
   })).toBeVisible();
   await continueUnitSetup(page);
-  await expect(page.getByLabel('계좌번호')).toHaveValue('00012345678');
+  await expect(page.getByRole('button', {
+    name: '통장 1 수정',
+    exact: true
+  })).toContainText('00012345678');
   await page.goBack();
   await expect(page).toHaveURL(/registration=units/);
   await page.goForward();
-  await expect(page.getByLabel('예금주')).toHaveValue('예시 관리단');
-  await page.reload();
-  await expect(page.getByRole('combobox', {
-    name: '은행',
+  await expect(page.getByRole('button', {
+    name: '통장 1 수정',
     exact: true
-  })).toHaveValue('하나은행');
-  await expect(page.getByLabel('계좌번호')).toHaveValue('00012345678');
-  await expect(page.getByLabel('예금주')).toHaveValue('예시 관리단');
+  })).toContainText('예시 관리단');
+  await page.reload();
+  await expect(page.getByRole('button', {
+    name: '통장 1 수정',
+    exact: true
+  })).toContainText('하나은행');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('button', {
+    name: '통장 1 수정',
+    exact: true
+  })).toContainText('00012345678');
+  await expect(page.getByRole('button', {
+    name: '통장 1 수정',
+    exact: true
+  })).toContainText('예시 관리단');
   expect(finalRequests).toHaveLength(0);
   await page.goto('/start');
   await openBankAccountSetup(page);
@@ -1177,7 +1220,7 @@ test('손상된 계좌 초안은 이전 단계를 보존하고 다른 사용자�
   await fillBankAccount(page);
   await page.evaluate((key) => {
     const draft = JSON.parse(sessionStorage.getItem(key)!);
-    draft.bankAccount.accountNumber = 1234;
+    draft.bankAccounts[0].accountNumber = 1234;
     sessionStorage.setItem(key, JSON.stringify(draft));
   }, DRAFT_STORAGE_KEY);
   await page.reload();
@@ -1186,6 +1229,7 @@ test('손상된 계좌 초안은 이전 단계를 보존하고 다른 사용자�
     name: '관리계좌 및 잔고',
     exact: true
   })).toBeVisible();
+  await openAccountEditor(page);
   await expect(page.getByLabel('계좌번호')).toHaveValue('');
   await fillBankAccount(page);
   await page.route(`${API_ORIGIN}/api/users/me`, (route) => fulfillJson(route, {
@@ -1196,8 +1240,8 @@ test('손상된 계좌 초안은 이전 단계를 보존하고 다른 사용자�
   await expect(page).toHaveURL(/registration=basic/);
   await expect(page.getByLabel('건물·단지 이름')).toHaveValue('');
   const stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
-  expect(stored.bankAccount.accountNumber).toBe('');
-  expect(stored.bankAccount.holderName).toBe('');
+  expect(stored.bankAccounts[0].accountNumber).toBe('');
+  expect(stored.bankAccounts[0].holderName).toBe('');
 });
 
 for (const width of [1440, 390, 320]) {
@@ -1209,9 +1253,14 @@ for (const width of [1440, 390, 320]) {
     await openBankAccountSetup(page);
     await fillBankAccount(page);
     await expect(page.getByRole('button', {
+      name: '통장 1 삭제',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByRole('button', {
       name: '다음',
       exact: true
     })).toBeEnabled();
+    await openAccountEditor(page);
     await page.getByRole('combobox', {
       name: '은행',
       exact: true
@@ -1243,6 +1292,10 @@ for (const width of [1440, 390, 320]) {
     });
     await page.keyboard.press('Escape');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.getByRole('button', {
+      name: '통장 편집 닫기',
+      exact: true
+    }).click();
     await page.getByRole('heading', {
       name: '관리계좌 및 잔고',
       exact: true
@@ -1501,7 +1554,10 @@ for (const width of [1440, 320]) {
       name: '이전',
       exact: true
     }).click();
-    await expect(page.getByLabel('예금주')).toHaveValue('예시 관리단');
+    await expect(page.getByRole('button', {
+      name: '통장 1 수정',
+      exact: true
+    })).toContainText('예시 관리단');
   });
 }
 
@@ -1844,7 +1900,10 @@ test('관리비 항목·순서와 이전 입력은 이동·새로고침에 복�
     name: '이전',
     exact: true
   }).click();
-  await expect(page.getByLabel('계좌번호')).toHaveValue('00012345678');
+  await expect(page.getByRole('button', {
+    name: '통장 1 수정',
+    exact: true
+  })).toContainText('00012345678');
   await page.getByRole('button', {
     name: '다음',
     exact: true
@@ -1858,12 +1917,14 @@ test('관리비 항목·순서와 이전 입력은 이동·새로고침에 복�
   await expect(page).toHaveURL(/registration=fees/);
   await page.evaluate((key) => {
     const draft = JSON.parse(sessionStorage.getItem(key)!);
-    draft.bankAccount.accountNumber = '';
+    draft.bankAccounts[0].accountNumber = '';
     sessionStorage.setItem(key, JSON.stringify(draft));
   }, DRAFT_STORAGE_KEY);
   await page.reload();
   await expect(page).toHaveURL(/registration=account/);
+  await openAccountEditor(page);
   await page.getByLabel('계좌번호').fill('00012345678');
+  await saveAccountEditor(page);
   await page.getByRole('button', {
     name: '다음',
     exact: true
@@ -1882,7 +1943,10 @@ test('관리비 항목·순서와 이전 입력은 이동·새로고침에 복�
     name: '이전',
     exact: true
   }).click();
-  await expect(page.getByLabel('예금주')).toHaveValue('예시 관리단');
+  await expect(page.getByRole('button', {
+    name: '통장 1 수정',
+    exact: true
+  })).toContainText('예시 관리단');
   await page.goto('/start');
   await page.goto('/start?registration=fees');
   await expect(page).toHaveURL(/registration=basic/);
@@ -3064,7 +3128,7 @@ test('동·세대는 숫자를 인식하는 이름순으로 표시하고 PC 삭�
   await expect(firstChip.locator('svg')).toBeHidden();
   await firstChip.click();
   await page.mouse.move(0, 0);
-  await expect(firstChip).toHaveCSS('background-color', 'rgb(37, 99, 235)');
+  await expect(firstChip).toHaveCSS('background-color', 'rgb(239, 246, 255)');
   await expect(page.getByRole('button', {
     name: '101호 삭제',
     exact: true
@@ -3953,7 +4017,9 @@ for (const width of [1440, 390, 320]) {
       name: '관리계좌 수정',
       exact: true
     }).click();
+    await openAccountEditor(page);
     await page.getByLabel('예금주').fill('변경 관리단');
+    await saveAccountEditor(page);
     await page.getByRole('button', {
       name: '다음',
       exact: true
@@ -4654,8 +4720,13 @@ test('명확한 등록 입력 오류는 해당 단계로 돌아가 값을 유지
   await expect(page.getByRole('alert').filter({
     hasText: '관리계좌:'
   })).not.toContainText('private-error-original');
-  await expect(page.getByLabel('예금주')).toHaveValue('예시 관리단');
+  await expect(page.getByRole('button', {
+    name: '통장 1 수정',
+    exact: true
+  })).toContainText('예시 관리단');
+  await openAccountEditor(page);
   await page.getByLabel('예금주').fill('수정 관리단');
+  await saveAccountEditor(page);
   await page.getByRole('button', {
     name: '다음',
     exact: true
@@ -5717,14 +5788,17 @@ for (const width of [1440, 390, 320]) {
       exact: true
     }).click();
     await expect(page).toHaveURL(/registration=account/);
+    await openAccountEditor(page);
     await expect(page.getByLabel('통장 실제 잔액', {
       exact: true
     })).toHaveValue('');
     await fillBankAccount(page);
     if (width < 641) await expectFixedSetupHeader(page);
+    await openAccountEditor(page);
     await page.getByLabel('통장 실제 잔액', {
       exact: true
     }).fill('350000');
+    await saveAccountEditor(page);
     for (const [name, value] of [['102동', '100000'], ['103동', '200000']]) {
       const selection = page.getByRole('combobox', {
         name: '보유금 입력 동',
@@ -5803,5 +5877,186 @@ for (const width of [1440, 390, 320]) {
       exact: true
     })).toBeVisible();
     expect(requests).toHaveLength(2);
+  });
+}
+
+for (const width of [1440, 390]) {
+  test(`다중 통장 ${width}px에서 목록·모달 저장·취소·중복·제거와 새로고침을 지원`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    await openBankAccountSetup(page);
+    await fillBankAccount(page);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.getByRole('button', {
+      name: '통장 1 삭제',
+      exact: true
+    })).toHaveCount(0);
+    const first = page.getByRole('group', {
+      name: '통장 1',
+      exact: true
+    });
+    await expect(first).toContainText('하나은행');
+    await expect(first.locator('img')).toHaveAttribute('src', '/banks/bank081.png');
+    await page.getByRole('button', {
+      name: '통장 추가',
+      exact: true
+    }).click();
+    const modal = page.getByRole('dialog', {
+      name: /^통장 (추가|수정)$/
+    });
+    await modal.getByLabel('통장 별칭', {
+      exact: true
+    }).fill('취소할 통장');
+    await modal.getByRole('button', {
+      name: '취소',
+      exact: true
+    }).click();
+    await expect(page.getByRole('group', {
+      name: '통장 2',
+      exact: true
+    })).toHaveCount(0);
+    await page.getByRole('button', {
+      name: '통장 추가',
+      exact: true
+    }).click();
+    await expect(modal.getByLabel('통장 별칭', {
+      exact: true
+    })).toHaveValue('');
+    await modal.getByRole('combobox', {
+      name: '은행',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '카카오뱅크',
+      exact: true
+    }).click();
+    await modal.getByRole('textbox', {
+      name: '계좌번호',
+      exact: true
+    }).fill('00099998888');
+    await modal.getByRole('textbox', {
+      name: '예금주',
+      exact: true
+    }).fill('공동관리단');
+    await modal.getByLabel('통장 별칭', {
+      exact: true
+    }).fill('용도 미정 보관');
+    await expect(modal.getByRole('button', {
+      name: '등록',
+      exact: true
+    })).toBeDisabled();
+    await modal.getByLabel('통장 실제 잔액', {
+      exact: true
+    }).fill('750000');
+    await modal.getByRole('switch', {
+      name: '기본 납부계좌로 사용'
+    }).check();
+    await page.screenshot({
+      path: test.info().outputPath(`accountModal${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    await saveAccountEditor(page);
+    const second = page.getByRole('group', {
+      name: '통장 2',
+      exact: true
+    });
+    await expect(second).toContainText('카카오뱅크');
+    await expect(second).toContainText('기본 납부계좌');
+    await expect(first).not.toContainText('기본 납부계좌');
+    await expect(second).toContainText('750,000원');
+    await page.getByRole('button', {
+      name: '통장 추가',
+      exact: true
+    }).click();
+    await modal.getByRole('combobox', {
+      name: '은행',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '하나은행',
+      exact: true
+    }).click();
+    await modal.getByRole('textbox', {
+      name: '계좌번호',
+      exact: true
+    }).fill('00012345678');
+    await modal.getByRole('textbox', {
+      name: '예금주',
+      exact: true
+    }).fill('중복 관리단');
+    await modal.getByLabel('통장 실제 잔액', {
+      exact: true
+    }).fill('0');
+    await expect(modal.getByRole('status')).toContainText('이미 등록');
+    await expect(modal.getByRole('button', {
+      name: '등록',
+      exact: true
+    })).toBeDisabled();
+    await modal.getByRole('textbox', {
+      name: '계좌번호',
+      exact: true
+    }).fill('00077776666');
+    await saveAccountEditor(page);
+    await page.getByRole('button', {
+      name: '통장 3 삭제',
+      exact: true
+    }).click();
+    await expect(modal).toHaveCount(0);
+    await page.reload();
+    await expect(modal).toHaveCount(0);
+    await expect(second).toContainText('용도 미정 보관');
+    await expect(second).toContainText('00099998888');
+    await expect(second).toContainText('공동관리단');
+    await expect(second).toContainText('750,000원');
+    const edit = second.getByRole('button', {
+      name: '통장 2 수정',
+      exact: true
+    });
+    const bounds = await edit.boundingBox();
+    await edit.click({
+      position: {
+        x: bounds!.width * 0.65,
+        y: bounds!.height / 2
+      }
+    });
+    await expect(modal.getByLabel('통장 실제 잔액', {
+      exact: true
+    })).toHaveValue('750,000');
+    await modal.getByLabel('통장 별칭', {
+      exact: true
+    }).fill('저장하지 않은 변경');
+    await modal.getByRole('button', {
+      name: '통장 편집 닫기',
+      exact: true
+    }).click();
+    await expect(second).toContainText('용도 미정 보관');
+    await expect(second).not.toContainText('저장하지 않은 변경');
+    await edit.click();
+    await modal.press('Escape');
+    await expect(modal).toHaveCount(0);
+    const next = page.getByRole('button', {
+      name: '다음',
+      exact: true
+    });
+    await expect(next).toBeEnabled();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    const actionBackground = await next.evaluate((button) => {
+      let parent = button.parentElement;
+      while (parent) {
+        const color = getComputedStyle(parent).backgroundColor;
+        if (color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent') return color;
+        parent = parent.parentElement;
+      }
+      return null;
+    });
+    expect(actionBackground).toBe('rgb(255, 255, 255)');
+    await page.screenshot({
+      path: test.info().outputPath(`accountList${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
   });
 }

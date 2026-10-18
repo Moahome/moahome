@@ -75,6 +75,13 @@
     color: var(--danger);
   }
 
+  &[data-value-tone='danger'] {
+    .value strong,
+    .unit {
+      color: var(--danger);
+    }
+  }
+
   /* 첨부 시안처럼 아이콘 왼쪽·집계 오른쪽 구성을 유지하고 좁은 카드에서만 크기를 줄입니다. */
   &[data-density='compact'] {
     display: flex;

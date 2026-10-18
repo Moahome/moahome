@@ -11,6 +11,7 @@ import lombok.Getter;
 public class BuildingCashOpeningChange {
     @Id private UUID id;
     @Column(name="property_id",nullable=false) private UUID propertyId;
+    @Column(name="bank_account_id") private UUID bankAccountId;
     @Column(name="building_id",nullable=false) private UUID buildingId;
     @Column(name="request_id",nullable=false) private UUID requestId;
     @Column(name="previous_revision",nullable=false) private long previousRevision;

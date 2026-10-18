@@ -25,7 +25,7 @@ import { PropertyRegistrationDialog } from '../property-registration-dialog/prop
 import { UnitSetup } from '../_components/unit-setup/unitSetup';
 import { BankAccountSetup } from '../_components/bank-account-setup/bankAccountSetup';
 import { getUnitSetupError } from '../../model/unitSetup';
-import { getBankAccountErrors } from '../../model/bankAccount';
+import { getRegistrationAccountsError } from '../../model/bankAccount';
 import { getFeeItemsError } from '../../model/feeItems';
 import { FeeItemsSetup } from '../_components/fee-items-setup/feeItemsSetup';
 import { RegistrationReview } from '../_components/registration-review/registrationReview';
@@ -67,7 +67,7 @@ export function PropertyRegistrationFlow({
   const errorRef = useRef<HTMLParagraphElement>(null);
   const administratorValid = !getAdministratorError(draft.administrator, draft.units);
   const unitsValid = !getUnitSetupError(draft.basicInfo.hasBuildings === true, draft.buildings, draft.units) && administratorValid && !getUnitOpeningError(draft.openingBalances, draft.units);
-  const accountValid = Object.keys(getBankAccountErrors(draft.bankAccount)).length === 0 && !getCashOpeningError(draft.openingBalances, draft.buildings);
+  const accountValid = !getRegistrationAccountsError(draft.bankAccounts) && !getCashOpeningError(draft.openingBalances, draft.buildings, draft.bankAccounts);
   const feesValid = !getFeeItemsError(draft.feeItems) && !getFirstBillingError(draft.openingBalances);
 
   /** 서버의 입력 오류는 초안을 보존하고 해당 입력 단계부터 순서대로 다시 확인하게 합니다. */
@@ -267,10 +267,10 @@ export function PropertyRegistrationFlow({
         openingBalances={draft.openingBalances}
         onOpeningChange={updateOpening}
         propertyName={draft.basicInfo.name}
-        account={draft.bankAccount}
-        onChange={(bankAccount) => setDraft((previous) => ({
+        accounts={draft.bankAccounts}
+        onChange={(bankAccounts) => setDraft((previous) => ({
           ...previous,
-          bankAccount
+          bankAccounts
         }))}
         onPrevious={() => navigateSetup('units')}
         onNext={() => navigateSetup('fees')}

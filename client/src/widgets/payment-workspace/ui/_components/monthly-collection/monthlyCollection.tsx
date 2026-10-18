@@ -216,6 +216,7 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
           >
             <MonthPicker
               label={'조회 월'}
+              labelHidden
               value={month}
               onChange={(value) => {
                 setSelected(null);

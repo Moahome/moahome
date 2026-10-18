@@ -57,7 +57,8 @@ import {
   sortExpenseLabels
 } from '../../model/expenseAllocation';
 import { createExpenseWorkbook } from '../../model/expenseExport';
-import { ExpenseEditor } from '../_components/expense-editor/expenseEditor';
+import { TransferDetail } from '../_components/transfer-detail/transferDetail';
+import { AllocationEditor } from '@/entities/banking';
 import { BankingExpensePage } from '../banking-expense-page/bankingExpensePage';
 import styles from './bankingWorkspace.module.css';
 
@@ -87,6 +88,9 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     const requested = searchParams.get('month');
     return requested && /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : null;
   });
+  const [accountId, setAccountId] = useState(() => searchParams.get('account') ?? 'ALL');
+  const [transferRows, setTransferRows] = useState<string[]>([]);
+  const [transferDetail, setTransferDetail] = useState<BankingTransaction | null>(null);
   const [direction, setDirection] = useState('ALL');
   const [status, setStatus] = useState('ALL');
   const [building, setBuilding] = useState('ALL');
@@ -138,7 +142,10 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     if (busyRef.current) return;
     busyRef.current = true; setBusy(true);
     try {
-      const result = await previewBankingFile(propertyId, next);
+      const selectedAccount = accountId === 'ALL' ? workspace.data?.accounts?.find((a) => a.isPrimary && a.status === 'ACTIVE')?.id : accountId;
+      const result = await previewBankingFile(propertyId, next, selectedAccount);
+      if (selectedAccount && result.rows.some((row) => row.accountId !== selectedAccount)) throw new Error('계좌가 일치하지 않습니다.');
+      setTransferRows([]);
       setFile(next); setPreview(result); setExcluded([]); setExpenses({}); setReceipts({}); setEditingId(null);
       setReplacingFile(false);
       setDirection('ALL'); setStatus('ALL'); setSearch(''); setPage(1);
@@ -178,6 +185,12 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
       </Button>
     </section>
   );
+  const accounts = data.accounts ?? [];
+  const activeAccountId = accountId === 'ALL' ? accounts.find((account) => account.isPrimary && account.status === 'ACTIVE')?.id : accountId;
+  function accountLabel(id: string) {
+    const account = accounts.find((row) => row.id === id);
+    return account ? `${account.bankName} ····${account.last4}${account.alias ? ` · ${account.alias}` : ''}${account.status === 'ACTIVE' ? '' : ' · 사용 종료'}` : '관리계좌';
+  }
   const currentMonth = month ?? data.asOf.slice(0, 7);
   const buildings = sortExpenseLabels(data.buildings);
   const receiptById = new Map(receiptRows.map((row) => [row.id, row]));
@@ -191,6 +204,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const source = preview?.rows ?? (view === 'upload' ? [] : [...data.rows, ...(view === 'transactions' ? receiptRows : [])]
     .sort((a, b) => `${b.date} ${b.time ?? ''}`.localeCompare(`${a.date} ${a.time ?? ''}`)));
   const baseRows = source.filter((row) => (preview || row.date.startsWith(currentMonth))
+    && (preview || accountId === 'ALL' || row.accountId === accountId)
     && (view !== 'expenses' || row.expense?.allocations.some((part) => data.buildings.some((item) => item.id === part.buildingId)))
     && (status === 'ALL' || row.status === status)
     && (view !== 'expenses' || building === 'ALL' || row.expense?.allocations.some((a) => a.buildingId === building))
@@ -199,7 +213,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const filtered = direction === 'CANCELED' ? baseRows.filter((row) => row.status === 'CANCELED') : activeRows.filter((row) => direction === 'ALL' || row.direction === direction);
   const currentPage = Math.min(page, Math.max(1, Math.ceil(filtered.length / pageSize)));
   const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const selectionScope = JSON.stringify([propertyId, currentMonth, direction, status, search, pageSize, currentPage]);
+  const selectionScope = JSON.stringify([propertyId, accountId, currentMonth, direction, status, search, pageSize, currentPage]);
   const isSelecting = view === 'transactions' && !preview && selection?.scope === selectionScope;
   const selectableRows = visible.filter(canDelete);
   const deletingRows = isSelecting ? selectableRows.filter((row) => selection.ids.includes(row.id)) : [];
@@ -270,7 +284,13 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     } catch { notify('엑셀 파일을 만들지 못했어요. 다시 시도해주세요.'); }
     finally { exportBusyRef.current = false; setExporting(false); }
   }
-  const latest = [...data.rows].filter((row) => row.balance !== null).sort((a, b) => `${b.date} ${b.time ?? ''}`.localeCompare(`${a.date} ${a.time ?? ''}`))[0];
+  const latestRows = [...data.rows].filter((row) => row.accountId === accountId && row.date.slice(0, 7) <= currentMonth)
+    .sort((a, b) => `${b.date} ${b.time ?? ''}`.localeCompare(`${a.date} ${a.time ?? ''}`));
+  const lastRaw = latestRows[0];
+  const lastDay = latestRows.filter((row) => row.date === lastRaw?.date);
+  const ambiguous = lastDay.length > 1 && (lastDay.some((row) => row.time === null)
+    || new Set(lastDay.filter((row) => row.time === lastRaw.time).map((row) => row.balance)).size > 1);
+  const latest = !ambiguous && lastRaw?.balance !== null ? lastRaw : undefined;
 
   function expenseDraft(row: BankingTransaction) { return expenses[row.id] ?? createExpenseDraft(row, data!); }
   function receiptDraft(row: BankingTransaction): ReceiptDraft { return receipts[row.id] ?? {
@@ -284,6 +304,10 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     title: string;
     detail?: string;
   } {
+    if (row.transferCandidate || (preview && transferRows.includes(row.id))) return {
+      title: '계좌 간 이체',
+      detail: row.transferId ? '연결 완료' : '상대 통장 연결 대기'
+    };
     if (row.status === 'CANCELED') return {
       title: '취소된 수납',
       detail: row.unitLabel
@@ -302,11 +326,12 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     const draft = preview ? receiptDraft(row) : null;
     const allocation = draft?.kind === 'SHARED' ? expenseDraft(row) : row.incomeAllocation;
     if (allocation) return {
-      title: '기타 입금',
+      title: '동별 입금',
       detail: allocation.allocations.length ? `${allocation.allocations.length}개 동 배분${preview ? ' 예정' : ''}` : '배분 동 확인 필요'
     };
     if (draft?.kind === 'OTHER' || row.receiptType === 'OTHER') return {
-      title: '기타 입금'
+      title: '기타 입금',
+      detail: !preview && 'source' in row && row.source === 'MANUAL' ? row.unitLabel : undefined
     };
 
     const unitId = draft?.kind === 'HOUSEHOLD' ? draft.unitId : row.unitId;
@@ -329,7 +354,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   function previewEditor(row: BankingTransaction) {
     if (!data) return null;
     return row.direction === 'EXPENSE' ? (
-      <ExpenseEditor
+      <AllocationEditor
         total={row.amount}
         draft={expenseDraft(row)}
         buildings={buildings}
@@ -377,7 +402,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               label: '외부 분담금·수리비 등 기타 입금'
             }, {
               value: 'SHARED',
-              label: '이자 등 기타 입금 · 동별 배분'
+              label: '동별 입금 · 직접 배분'
             }]}
           />
           {draft.kind === 'AUTO' && (
@@ -400,7 +425,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
             />
           )}
           {draft.kind === 'SHARED' && (
-            <ExpenseEditor
+            <AllocationEditor
               purpose={'income'}
               total={row.amount}
               draft={expenseDraft(row)}
@@ -438,13 +463,17 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   }
   function resetUpload() {
     setReplacingFile(false);
-    setPreview(null); setFile(null); setExcluded([]); setExpenses({}); setReceipts({}); setEditingId(null); setPage(1); setDirection('ALL');
+    setTransferRows([]);setPreview(null); setFile(null); setExcluded([]); setExpenses({}); setReceipts({}); setEditingId(null); setPage(1); setDirection('ALL');
   }
   /** 서로 다른 필터에서 고른 입출금도 하나의 요청으로 보내고 실패 시 초안 전체를 보존합니다. */
   async function commit() {
     if (!file || !preview || !selected.length || busyRef.current) return;
     const rows: BankingSelection[] = [];
     for (const row of selected) {
+      if (transferRows.includes(row.id)) { rows.push({
+        id: row.id,
+        transfer: true
+      });continue; }
       if (row.direction === 'EXPENSE') {
         const draft = expenseDraft(row);
         const result = calculateExpenseAllocation(row.amount, draft);
@@ -495,7 +524,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
       await cache.cancelQueries({
         queryKey
       });
-      const saved = await importBankingFile(propertyId, file, rows);
+      const saved = await importBankingFile(propertyId, file, rows, preview.rows[0]?.accountId ?? activeAccountId);
       cache.setQueryData(queryKey, saved);
       void cache.invalidateQueries({
         queryKey: ['payment-workspace', session.data?.id, propertyId]
@@ -594,6 +623,23 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
           )}
         </>)}
       />
+      {view === 'upload' && (
+        <div
+          className={styles['account-filter']}
+        >
+          <Dropdown
+            label={'가져올 통장'}
+            aria-label={'가져올 통장'}
+            value={activeAccountId ?? ''}
+            disabled={busy}
+            options={accounts.filter((a) => a.status === 'ACTIVE').map((a) => ({
+              value: a.id,
+              label: accountLabel(a.id)
+            }))}
+            onChange={(value) => { setAccountId(value);setSelection(null);setPage(1);resetUpload(); }}
+          />
+        </div>
+      )}
       {view === 'upload' && (!preview || replacingFile) && (
         <FileDropzone
           label={'통장 거래 파일 업로드'}
@@ -696,8 +742,8 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
             <SummaryCard
               density={'compact'}
               label={'최근 은행 확인 잔액'}
-              description={latest ? `${latest.date} ${latest.time ?? ''} 거래 후` : '거래 후 잔액이 있는 원본 기준'}
-              value={latest ? formatInteger(latest.balance!) : '확인 필요'}
+              description={accountId === 'ALL' ? '통장을 선택하면 해당 통장의 잔액을 표시합니다.' : latest ? `${latest.date} ${latest.time ?? ''} 거래 후` : '마지막 원본의 잔액·거래 순서를 확인해주세요.'}
+              value={accountId === 'ALL' ? '통장별 확인' : latest ? formatInteger(latest.balance!) : '확인 필요'}
               unit={latest ? '원' : ''}
               icon={(
                 <ServiceIcon
@@ -745,6 +791,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                 value={currentMonth}
                 onChange={changeMonth}
                 label={'조회 월'}
+                labelHidden
               />
             )}
             <Input
@@ -753,6 +800,27 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               value={search}
               onChange={(event) => { setSelection(null); setSearch(event.target.value); setPage(1); }}
             />
+            {!preview && view !== 'upload' && (
+              <Dropdown
+                aria-label={'조회 통장'}
+                value={accountId}
+                disabled={busy}
+                options={[{
+                  value: 'ALL',
+                  label: '전체 통장'
+                }, ...accounts.map((account) => ({
+                  value: account.id,
+                  label: accountLabel(account.id)
+                }))]}
+                onChange={(value) => {
+                  setAccountId(value); setSelection(null); setPage(1);
+                  const next = new URLSearchParams(searchParams.toString()); next.set('account', value); next.set('month', currentMonth);
+                  router.replace(`?${next}`, {
+                    scroll: false
+                  });
+                }}
+              />
+            )}
             {view === 'transactions' && !preview && (
               <Dropdown
                 aria-label={'처리 상태'}
@@ -852,6 +920,10 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
 
             onRowClick={(row) => {
               if (isSelecting) { toggleDeletion(row.id); return; }
+              if (!preview && row.transferCandidate) {
+                if (window.matchMedia('(max-width: 767px)').matches) { router.push(`/manage/${propertyId}/banking/transactions/${row.id}?month=${currentMonth}`);return; }
+                setTransferDetail(row);return;
+              }
               if (preview) { setEditingId((current) => current === row.id ? null : row.id); return; }
               if (window.matchMedia('(max-width: 767px)').matches) {
                 router.push(`${row.paymentId ? `/manage/${propertyId}/banking/receipts/${row.paymentId}` : `/manage/${propertyId}/banking/transactions/${row.id}`}?month=${currentMonth}`);
@@ -909,6 +981,11 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                     onChange={() => setExcluded((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id])}
                   />
                 )
+              }] : []),
+              ...(!preview && accounts.length > 1 ? [{
+                key: 'account',
+                header: '통장',
+                render: (row: BankingTransaction) => accountLabel(row.accountId)
               }] : []),
               ...(view === 'transactions' && !preview ? [{
                 key: 'source',
@@ -987,7 +1064,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                     className={styles.badge}
                     data-state={row.status}
                   >
-                    {preview ? '미리보기' : row.status === 'CONFIRMED' ? '처리 완료' : row.status === 'ON_HOLD' ? '보류' : row.status === 'CANCELED' ? '취소' : row.status === 'LINKED' ? '기존 수납 연결' : '확인 필요'}
+                    {preview ? '미리보기' : row.status === 'CONFIRMED' ? '처리 완료' : row.status === 'ON_HOLD' ? '보류' : row.status === 'CANCELED' ? '취소' : row.status === 'LINKED' ? '기존 수납 연결' : row.status === 'TRANSFER' ? '이체 연결 완료' : row.status === 'TRANSFER_PENDING' ? '이체 연결 대기' : '확인 필요'}
                   </span>
                 )
               }])
@@ -1014,7 +1091,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
       {preview && editingId && (() => {
         const row = preview.rows.find((item) => item.id === editingId);
         if (!row) return null;
-        const invalid = row.direction === 'EXPENSE' && Boolean(calculateExpenseAllocation(row.amount, expenseDraft(row)).error);
+        const invalid = !transferRows.includes(row.id) && row.direction === 'EXPENSE' && Boolean(calculateExpenseAllocation(row.amount, expenseDraft(row)).error);
         return (
           <ClientModal
             className={styles['editor-modal']}
@@ -1056,16 +1133,73 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               <div
                 className={styles['original-info']}
               >
-                <span>
-                  {row.date}
-                  {' '}
-                  {row.time}
-                </span>
+                <div>
+                  <span>
+                    {row.date}
+                    {' '}
+                    {row.time}
+                  </span>
+                  <p>
+                    <b>
+                      {row.direction === 'INCOME' ? '입금' : '출금'}
+                    </b>
+                    <span>
+                      {data.accounts?.find((account) => account.id === row.accountId)?.bankName}
+                      {' '}
+                      ····
+                      {data.accounts?.find((account) => account.id === row.accountId)?.last4}
+                    </span>
+                  </p>
+                </div>
                 <strong>
                   {formatWon(row.amount)}
                 </strong>
               </div>
-              {previewEditor(row)}
+              <div
+                className={styles['transfer-settings']}
+                data-active={transferRows.includes(row.id)}
+              >
+                <label
+                  className={styles['transfer-choice']}
+                >
+                  <input
+                    type={'checkbox'}
+                    checked={transferRows.includes(row.id)}
+                    aria-label={'내 계좌 간 이체로 가져오기'}
+                    aria-describedby={'transfer-setting-help'}
+                    disabled={busy}
+                    onChange={(event) => setTransferRows((current) => event.target.checked ? [...current, row.id] : current.filter((id) => id !== row.id))}
+                  />
+                  <span>
+                    <strong>
+                      내 계좌 간 이체로 가져오기
+                    </strong>
+                    <small>
+                      다른 등록된 통장으로 옮긴 돈일 때 선택하세요.
+                    </small>
+                  </span>
+                </label>
+                <div
+                  className={styles['transfer-description']}
+                  id={'transfer-setting-help'}
+                >
+                  <ServiceIcon
+                    name={'info'}
+                  />
+                  <ul>
+                    <li>
+                      수납·지출 집계에서 제외됩니다.
+                    </li>
+                    <li>
+                      두 통장의 거래를 가져온 후 상대 거래를 연결하세요.
+                    </li>
+                    <li>
+                      수수료는 별도 지출로 분류하세요.
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              {!transferRows.includes(row.id) && previewEditor(row)}
             </div>
             <footer
               className={styles['editor-actions']}
@@ -1080,6 +1214,14 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
           </ClientModal>
         );
       })()}
+      {transferDetail && data.rows.find((row) => row.id === transferDetail.id) && (
+        <TransferDetail
+          propertyId={propertyId}
+          row={data.rows.find((row) => row.id === transferDetail.id)!}
+          data={data}
+          onClose={() => setTransferDetail(null)}
+        />
+      )}
       {detail?.kind === 'expense' && (
         <BankingExpensePage
           propertyId={propertyId}

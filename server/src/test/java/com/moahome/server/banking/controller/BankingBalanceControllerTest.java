@@ -31,7 +31,11 @@ class BankingBalanceControllerTest {
     @Test void authenticatesAndDoesNotCacheBalanceResponses() throws Exception {
         mvc.perform(get(base()).param("month","2026-10")).andExpect(status().isUnauthorized());
         mvc.perform(get(base()).param("month","2026-10").with(identity())).andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"));
-        verify(service).workspace(user,property,"2026-10");
+        verify(service).workspace(user,property,"2026-10",null);
+        UUID account=UUID.randomUUID();
+        mvc.perform(get(base()).param("month","2026-10").param("accountId",account.toString()).with(identity()))
+            .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"));
+        verify(service).workspace(user,property,"2026-10",account);
     }
     @Test void rejectsMissingBuildingAmountsAndNonpositiveSettlementInputsBeforeService() throws Exception {
         mvc.perform(post(base()+"/openings").with(identity()).contentType(MediaType.APPLICATION_JSON)

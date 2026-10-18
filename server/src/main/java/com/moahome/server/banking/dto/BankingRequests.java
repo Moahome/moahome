@@ -19,9 +19,10 @@ public final class BankingRequests {
         public Expense { note=com.moahome.server.common.validation.TextValues.optional(note); }
     }
     public record Selection(@NotNull UUID id,UUID unitId,@TextInput(max=100,optional=true) String incomeCategory,
-        @TextInput(max=500,optional=true) String incomeNote,@Valid Expense expense,@Valid Expense incomeAllocation) {
+        @TextInput(max=500,optional=true) String incomeNote,@Valid Expense expense,@Valid Expense incomeAllocation,boolean transfer) {
+        public Selection(UUID id,UUID unitId,String incomeCategory,String incomeNote,Expense expense,Expense incomeAllocation) { this(id,unitId,incomeCategory,incomeNote,expense,incomeAllocation,false); }
         public Selection(UUID id,UUID unitId,String incomeCategory,String incomeNote,Expense expense) {
-            this(id,unitId,incomeCategory,incomeNote,expense,null);
+            this(id,unitId,incomeCategory,incomeNote,expense,null,false);
         }
     }
     public record DeleteMany(@Size(max=5000) List<@NotNull UUID> transactionIds,@Size(max=1000) List<@NotNull UUID> paymentIds) {
@@ -35,5 +36,8 @@ public final class BankingRequests {
             return !transactionIds.isEmpty()||!paymentIds.isEmpty();
         }
     }
-    public record Import(@NotEmpty @Size(max=5000) List<@NotNull @Valid Selection> rows) {}
+    public record Import(@NotEmpty @Size(max=5000) List<@NotNull @Valid Selection> rows,UUID accountId) {
+        public Import(List<Selection> rows) { this(rows,null); }
+    }
+    public record Transfer(@NotNull UUID id,@NotNull UUID outgoingId,@NotNull UUID incomingId) {}
 }

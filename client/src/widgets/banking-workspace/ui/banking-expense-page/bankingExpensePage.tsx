@@ -29,7 +29,8 @@ import {
   calculateExpenseAllocation,
   sortExpenseLabels
 } from '../../model/expenseAllocation';
-import { ExpenseEditor } from '../_components/expense-editor/expenseEditor';
+import { TransferDetail } from '../_components/transfer-detail/transferDetail';
+import { AllocationEditor } from '@/entities/banking';
 import styles from './bankingExpensePage.module.css';
 
 /** PC 모달과 모바일 상세에서 같은 원본·확정 지출을 조회하고 저장 중에는 닫기를 막습니다. */
@@ -146,6 +147,16 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
         다시 시도
       </Button>
     </section>
+  );
+  const transfer = workspace.data.rows.find((item) => item.id === transactionId && item.transferCandidate);
+  if (transfer) return (
+    <TransferDetail
+      propertyId={propertyId}
+      row={transfer}
+      data={workspace.data}
+      presentation={presentation}
+      onClose={onClose}
+    />
   );
   const row = workspace.data.rows.find((item) => item.id === transactionId && item.direction === 'EXPENSE');
   if (!row) return present(
@@ -322,7 +333,7 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
       )
         : (
           <>
-            <ExpenseEditor
+            <AllocationEditor
               total={row.amount}
               draft={draft}
               buildings={workspace.data.buildings}

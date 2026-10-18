@@ -3,7 +3,7 @@ import { type RegistrationRequest } from '../api/registrationApi';
 import { normalizeBasicInfo } from './basicInfo';
 import { getUnitSetupError } from './unitSetup';
 import {
-  getBankAccountErrors,
+  getRegistrationAccountsError,
   isBankAccountDraft
 } from './bankAccount';
 import {
@@ -48,15 +48,16 @@ function restoreSubmittedOpening(request: RegistrationRequest): OpeningBalancesD
     || !(value.cashCutoffDate === null || typeof value.cashCutoffDate === 'string')
     || !Array.isArray(value.units) || value.units.length !== request.units.length
     || !Array.isArray(value.buildings) || value.buildings.length !== request.buildings.length
-    || !Array.isArray(value.accounts) || value.accounts.length !== 1 || value.accounts[0]?.accountIndex !== 0
-    || typeof value.accounts[0]?.amount !== 'string') return null;
+    || !Array.isArray(value.accounts) || value.accounts.length !== request.bankAccounts.length
+    || value.accounts.some((row) => !Number.isInteger(row.accountIndex) || row.accountIndex < 0 || row.accountIndex >= request.bankAccounts.length || typeof row.amount !== 'string' || !/^[0-9]{1,15}$/.test(row.amount))
+    || new Set(value.accounts.map((row) => row.accountIndex)).size !== request.bankAccounts.length) return null;
   const opening: OpeningBalancesDraft = {
     cutoffDate: value.cutoffDate,
     firstBillingMonth: value.firstBillingMonth,
     unitMode: 'ENTER',
     units: {},
     buildings: {},
-    accountAmount: value.accounts[0].amount,
+    accountAmount: value.accounts.find((row) => row.accountIndex === 0)!.amount,
     cashCutoffDate: value.cashCutoffDate ?? ''
   };
   const units = request.units.map((unit, index) => ({
@@ -86,7 +87,7 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
     const request = value as RegistrationRequest;
     if (!request || !UUID_PATTERN.test(request.requestId) || typeof request.basicInfo?.hasBuildings !== 'boolean'
       || !Array.isArray(request.buildings) || !Array.isArray(request.units) || !Array.isArray(request.feeItems)
-      || !Array.isArray(request.bankAccounts) || request.bankAccounts.length !== 1 || !isBankAccountDraft(request.bankAccounts[0])
+      || !Array.isArray(request.bankAccounts) || !request.bankAccounts.length || !request.bankAccounts.every(isBankAccountDraft)
       || request.buildings.some((building) => !building || typeof building.name !== 'string' || typeof building.clientId !== 'string' || !/^[A-Za-z0-9_-]{1,50}$/.test(building.clientId))
       || new Set(request.buildings.map((building) => building.clientId)).size !== request.buildings.length
       || request.units.some((unit) => !unit || typeof unit.unitNumber !== 'string'
@@ -128,7 +129,11 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
         ...unit,
         clientId: String(index)
       })),
-      bankAccount: request.bankAccounts[0],
+      bankAccounts: request.bankAccounts.map((account, index) => ({
+        ...account,
+        clientId: `account-${index}`,
+        openingAmount: request.openingBalances?.accounts.find((row) => row.accountIndex === index)?.amount ?? ''
+      })),
       feeItems,
       automaticUnitRule: EMPTY_AUTOMATIC_UNIT_RULE,
       basicInfoValidated: true,
@@ -148,8 +153,8 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
 /** 화면용 세대 ID와 자동 입력 규칙은 제외하고 검증된 입력만 최종 계약으로 변환합니다. */
 export function createRegistrationRequest(draft: RegistrationDraft, requestId: string, includeOpening = true): RegistrationRequest {
   if (getAdministratorError(draft.administrator, draft.units) || getUnitSetupError(draft.basicInfo.hasBuildings === true, draft.buildings, draft.units)
-    || Object.keys(getBankAccountErrors(draft.bankAccount)).length || getFeeItemsError(draft.feeItems)
-    || (includeOpening && (getUnitOpeningError(draft.openingBalances, draft.units) || getCashOpeningError(draft.openingBalances, draft.buildings) || getFirstBillingError(draft.openingBalances)))) {
+    || getRegistrationAccountsError(draft.bankAccounts) || getFeeItemsError(draft.feeItems)
+    || (includeOpening && (getUnitOpeningError(draft.openingBalances, draft.units) || getCashOpeningError(draft.openingBalances, draft.buildings, draft.bankAccounts) || getFirstBillingError(draft.openingBalances)))) {
     throw new Error('등록 정보를 확인해주세요.');
   }
 
@@ -166,10 +171,10 @@ export function createRegistrationRequest(draft: RegistrationDraft, requestId: s
           unitNumber: unit.unitNumber,
           ...getUnitOpening(draft.openingBalances, unit.clientId)
         })),
-        accounts: [{
-          accountIndex: 0,
-          amount: draft.openingBalances.accountAmount
-        }],
+        accounts: draft.bankAccounts.map((account, accountIndex) => ({
+          accountIndex,
+          amount: account.openingAmount
+        })),
         cashCutoffDate: draft.buildings.length ? draft.openingBalances.cashCutoffDate : null,
         buildings: draft.buildings.map((building) => ({
           buildingClientId: building.clientId,
@@ -200,9 +205,16 @@ export function createRegistrationRequest(draft: RegistrationDraft, requestId: s
       floor: unit.floor,
       status: unit.status
     })),
-    bankAccounts: [{
-      ...draft.bankAccount
-    }],
+    bankAccounts: draft.bankAccounts.map((account) => ({
+      bankCode: account.bankCode,
+      bankName: account.bankName,
+      accountNumber: account.accountNumber,
+      holderName: account.holderName,
+      isPrimary: account.isPrimary,
+      ...(account.alias?.trim() ? {
+        alias: account.alias.trim()
+      } : {})
+    })),
     feeItems: draft.feeItems.map((item) => ({
       itemCode: item.itemCode,
       itemName: item.itemName,
