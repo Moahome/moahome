@@ -18,16 +18,17 @@
   transition: background 0.15s, opacity 0.15s;
 
   &[data-variant="primary"] {
-    background: var(--primary);
-    color: var(--card);
+    border-color: var(--button-primary-border);
+    background: var(--button-primary-background);
+    color: var(--primary);
 
     &:hover:not(:disabled) {
-      background: var(--primary-dark);
+      background: var(--button-primary-hover-background);
     }
   }
 
   &[data-variant="outline"] {
-    border-color: var(--primary);
+    border-color: var(--button-primary-border);
     background: var(--card);
     color: var(--primary);
 
@@ -83,7 +84,9 @@
     }
 
     &[data-variant="primary"] {
-      background: var(--button-tone);
+      border-color: color-mix(in srgb, var(--button-tone) 25%, var(--card));
+      background: color-mix(in srgb, var(--button-tone) 8%, var(--card));
+      color: var(--button-tone);
     }
 
     &:hover:not(:disabled) {
@@ -91,7 +94,7 @@
     }
 
     &[data-variant="primary"]:hover:not(:disabled) {
-      background: color-mix(in srgb, var(--button-tone) 90%, var(--foreground));
+      background: color-mix(in srgb, var(--button-tone) 12%, var(--card));
     }
   }
 

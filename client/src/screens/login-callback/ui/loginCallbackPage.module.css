@@ -110,11 +110,12 @@
 }
 
 .action {
-  background: var(--primary);
-  color: var(--card);
+  border: 1px solid var(--button-primary-border);
+  background: var(--button-primary-background);
+  color: var(--primary);
 
   &:hover {
-    background: var(--primary-dark);
+    background: var(--button-primary-hover-background);
   }
 }
 

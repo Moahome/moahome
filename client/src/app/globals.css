@@ -13,6 +13,10 @@ html {
 :root {
   --primary: #2563eb;
   --primary-dark: #1d4ed8;
+  /* 2026-10-18 사용자 지정: 진한 채움 대신 연한 배경의 기본 버튼을 사용합니다. */
+  --button-primary-background: #eff6ff;
+  --button-primary-border: #bfdbfe;
+  --button-primary-hover-background: color-mix(in srgb, var(--primary) 12%, var(--card));
   --secondary-teal: #0d9488;
   --background: #f8fafc;
   --card: #ffffff;

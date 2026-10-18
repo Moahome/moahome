@@ -368,8 +368,9 @@
     width: 100%;
     min-height: 44px;
     border-radius: 8px;
-    background: var(--primary);
-    color: var(--card);
+    border: 1px solid var(--button-primary-border);
+    background: var(--button-primary-background);
+    color: var(--primary);
     font-weight: 600;
     cursor: pointer;
   }

@@ -30,8 +30,9 @@
     min-height: 48px;
     margin-top: 24px;
     border-radius: 10px;
-    background: var(--primary);
-    color: var(--card);
+    border: 1px solid var(--button-primary-border);
+    background: var(--button-primary-background);
+    color: var(--primary);
     font-weight: 700;
   }
 }
