@@ -1,19 +1,11 @@
 'use client';
 
 import {
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties
-} from 'react';
-import {
   BANK_OPTIONS,
   BankIcon
 } from '@/entities/banking';
 import { formatWon } from '@/shared/lib/format';
-import { Button } from '@/shared/ui/button';
+import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import type { AccountBalance } from '../../../api/bankingBalanceApi';
 import { getAccountBalanceDisplay } from '../../../model/accountBalance';
@@ -30,52 +22,6 @@ function formatConfirmation(asOf: string) {
 
 /** 은행 확인값과 기준 잔고에서 계산한 값을 구분하고 출처는 마우스·키보드·터치 도움말로 설명합니다. */
 export function AccountBalances({ accounts }: { accounts: AccountBalance[] }) {
-  const helpRef = useRef<HTMLDivElement>(null);
-  const tooltipId = useId();
-  const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState({
-    left: 0,
-    width: 360
-  });
-
-  // 정보 버튼을 기준으로 열되 좁은 화면에서도 설명이 화면 밖으로 넘치지 않게 합니다.
-  useLayoutEffect(() => {
-    if (!open) return;
-    const updatePosition = () => {
-      const bounds = helpRef.current?.getBoundingClientRect();
-      if (!bounds) return;
-      const width = Math.min(360, window.innerWidth - 40);
-      const left = Math.max(20, Math.min(bounds.left, window.innerWidth - width - 20));
-      setPosition({
-        left: left - bounds.left,
-        width
-      });
-    };
-    updatePosition();
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
-    return () => {
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const outside = (event: PointerEvent) => {
-      if (!helpRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('pointerdown', outside);
-    document.addEventListener('keydown', escape);
-    return () => {
-      document.removeEventListener('pointerdown', outside);
-      document.removeEventListener('keydown', escape);
-    };
-  }, [open]);
-
   return (
     <section
       className={styles.card}
@@ -87,67 +33,14 @@ export function AccountBalances({ accounts }: { accounts: AccountBalance[] }) {
         <h2>
           통장별 확인 잔액
         </h2>
-        <div
-          ref={helpRef}
-          className={styles.help}
-          onMouseEnter={() => setOpen(true)}
-          onMouseLeave={() => {
-            if (!helpRef.current?.contains(document.activeElement)) setOpen(false);
-          }}
-          onFocus={() => setOpen(true)}
-          onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
-          }}
+        <InfoTooltip
+          size={'sm'}
+          label={'통장별 확인 잔액 도움말'}
+          title={'통장 잔액 안내'}
+          note={'실시간 조회가 아닙니다.'}
         >
-          <Button
-            className={styles.info}
-            variant={'ghost'}
-            iconOnly
-            aria-label={'통장별 확인 잔액 도움말'}
-            aria-expanded={open}
-            aria-controls={tooltipId}
-            aria-describedby={open ? tooltipId : undefined}
-            onClick={() => setOpen(true)}
-            leadingIcon={(
-              <ServiceIcon
-                name={'info'}
-              />
-            )}
-          />
-          {open && (
-            <div
-              id={tooltipId}
-              role={'tooltip'}
-              className={styles.tooltip}
-              style={{
-                '--tooltip-left': `${position.left}px`,
-                '--tooltip-width': `${position.width}px`
-              } as CSSProperties}
-            >
-              <span
-                className={styles['tooltip-icon']}
-                aria-hidden={'true'}
-              >
-                <ServiceIcon
-                  name={'info'}
-                />
-              </span>
-              <div
-                className={styles['tooltip-content']}
-              >
-                <strong>
-                  통장 잔액 안내
-                </strong>
-                <p>
-                  확인값 또는 계산 잔액입니다.
-                </p>
-                <small>
-                  실시간 조회가 아닙니다.
-                </small>
-              </div>
-            </div>
-          )}
-        </div>
+          확인값 또는 계산 잔액입니다.
+        </InfoTooltip>
       </header>
       <ul
         className={styles.list}
@@ -199,7 +92,7 @@ export function AccountBalances({ accounts }: { accounts: AccountBalance[] }) {
                   </time>
                 ) : (
                   <small>
-                    기준 잔고와 입출금 내역을 확인해주세요.
+                    잔액이 0원이라는 뜻은 아닙니다.
                   </small>
                 )}
               </div>
@@ -207,7 +100,7 @@ export function AccountBalances({ accounts }: { accounts: AccountBalance[] }) {
                 className={styles.amount}
                 data-unknown={display.amount === null}
               >
-                {display.amount === null ? '확인 필요' : formatWon(display.amount)}
+                {display.amount === null ? '은행 확인 자료 없음' : formatWon(display.amount)}
               </span>
             </li>
           );

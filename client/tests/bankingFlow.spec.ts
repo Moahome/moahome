@@ -2534,6 +2534,35 @@ for (const width of [1440, 390]) {
       exact: true
     });
     await expect(accountFilter).toBeVisible();
+    const recentBalanceHelp = page.getByRole('button', {
+      name: '최근 은행 확인 잔액 도움말',
+      exact: true
+    });
+    if (width > 767) await recentBalanceHelp.hover();
+    else await recentBalanceHelp.click();
+    const recentBalanceTooltip = page.getByRole('tooltip');
+    // 카드가 스크롤 경계에서 잘려도 도움말 본문은 화면 위에서 온전히 보여야 합니다.
+    const recentCard = page.getByRole('article').filter({
+      has: recentBalanceHelp
+    });
+    await recentCard.evaluate((element) => { element.style.overflow = 'hidden'; });
+    await expect(recentBalanceTooltip).toContainText('통장을 선택하면 은행 거래 파일의 마지막 잔액을 표시합니다.');
+    const recentHelpBox = await recentBalanceHelp.boundingBox();
+    const recentTipBox = await recentBalanceTooltip.boundingBox();
+    expect(recentTipBox!.y).toBeGreaterThanOrEqual(recentHelpBox!.y + recentHelpBox!.height);
+    expect(recentTipBox!.x).toBeGreaterThanOrEqual(0);
+    expect(recentTipBox!.x + recentTipBox!.width).toBeLessThanOrEqual(width);
+    expect(await recentBalanceTooltip.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      return [bounds.left + 8, bounds.right - 8].every((x) => element.contains(document.elementFromPoint(x, bounds.top + 8)));
+    })).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`transactionBankHelp${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    await recentBalanceHelp.press('Escape');
+    await expect(recentBalanceTooltip).toHaveCount(0);
     await expect(page.getByText('조회 월', {
       exact: true
     })).toHaveCSS('clip-path', 'inset(50%)');
@@ -2595,6 +2624,15 @@ for (const width of [1440, 390]) {
     await expect(page.getByText('110,000', {
       exact: true
     })).toBeVisible();
+    await recentBalanceHelp.focus();
+    await expect(recentBalanceTooltip).toContainText('은행 거래 파일에 기록된 마지막 거래 후 잔액입니다.');
+    await expect(recentBalanceTooltip).toContainText('수동 입금은 반영되지 않습니다.');
+    await page.screenshot({
+      path: testInfo.outputPath(`transactionSelectedBankHelp${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    await recentBalanceHelp.press('Escape');
     await page.screenshot({
       path: test.info().outputPath(`multipleBanking${width}.png`),
       fullPage: true,
@@ -2790,8 +2828,8 @@ for (const width of [1440, 390, 320]) {
     await expect(rows.nth(0)).toContainText('10.15 14:12 확인');
     await expect(rows.nth(0).locator('img')).toHaveAttribute('src', '/banks/bank088.png');
     await expect(rows.nth(0).locator('time')).toHaveAttribute('datetime', '2026-10-15T14:12:59');
-    await expect(rows.nth(1)).toContainText('확인 필요');
-    await expect(rows.nth(1)).toContainText('기준 잔고와 입출금 내역을 확인해주세요.');
+    await expect(rows.nth(1)).toContainText('은행 확인 자료 없음');
+    await expect(rows.nth(1)).toContainText('잔액이 0원이라는 뜻은 아닙니다.');
     await expect(rows.nth(2)).toContainText('사용 종료');
     await expect(rows.nth(2)).toContainText('09.30 확인');
     await expect(rows.nth(2)).not.toContainText('00:00');
@@ -2806,7 +2844,7 @@ for (const width of [1440, 390, 320]) {
     });
     if (width > 767) await info.hover();
     else await info.click();
-    const tooltip = card.getByRole('tooltip');
+    const tooltip = page.getByRole('tooltip');
     await expect(tooltip).toContainText('확인값 또는 계산 잔액입니다.');
     await expect(tooltip).toContainText('실시간 조회가 아닙니다.');
     expect((await tooltip.boundingBox())!.y).toBeGreaterThanOrEqual((await info.boundingBox())!.y + (await info.boundingBox())!.height);
@@ -2823,6 +2861,48 @@ for (const width of [1440, 390, 320]) {
     await expect(tooltip).toBeVisible();
     await info.press('Escape');
     await expect(tooltip).toHaveCount(0);
+    await expect(page.getByRole('article', {
+      name: '은행 확인 잔고 은행 확인 자료 없음',
+      exact: true
+    })).toBeVisible();
+    for (const [label, copy] of [
+      ['은행 확인 잔고', '은행 거래 파일 또는 잔액 인계에 기록된 마지막 잔액입니다.'],
+      ['동별 잔고 합계', '조회 중인 모든 통장의 동별 잔고를 합한 금액입니다.'],
+      ['잔고 비교 차이', '화면의 통장 잔액에서 동별 잔고 합계를 뺀 금액입니다.']
+    ]) {
+      const help = page.getByRole('button', {
+        name: `${label} 도움말`,
+        exact: true
+      });
+      if (width > 767) await help.hover();
+      else await help.click();
+      const explanation = page.getByRole('tooltip');
+      await expect(explanation).toContainText(copy);
+      await expect(explanation.locator('strong')).toHaveCSS('font-size', '17px');
+      const helpBounds = await help.boundingBox();
+      const tipBounds = await explanation.boundingBox();
+      expect(tipBounds!.y).toBeGreaterThanOrEqual(helpBounds!.y + helpBounds!.height);
+      expect(tipBounds!.x).toBeGreaterThanOrEqual(0);
+      expect(tipBounds!.x + tipBounds!.width).toBeLessThanOrEqual(width);
+      await page.screenshot({
+        path: test.info().outputPath(`summaryHelp${label}${width}.png`),
+        fullPage: true,
+        animations: 'disabled'
+      });
+      await help.press('Escape');
+      await expect(explanation).toHaveCount(0);
+      await page.getByRole('heading', {
+        name: '동별 잔고·정산',
+        exact: true
+      }).click();
+      await help.focus();
+      await expect(explanation).toBeVisible();
+      await page.getByRole('heading', {
+        name: '동별 잔고·정산',
+        exact: true
+      }).click();
+      await expect(explanation).toHaveCount(0);
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   });
 }
@@ -3335,7 +3415,21 @@ for (const width of [1440, 390]) {
       name: '동별 잔고 합계 1,522,910원',
       exact: true
     });
-    await expect(buildingTotal.locator('svg')).toHaveCSS('color', 'rgb(245, 158, 11)');
+    await expect(buildingTotal.locator('svg').first()).toHaveCSS('color', 'rgb(245, 158, 11)');
+    const calculatedHelp = summary.getByRole('button', {
+      name: '선택 통장 계산 잔액 도움말',
+      exact: true
+    });
+    await calculatedHelp.focus();
+    await expect(page.getByRole('tooltip')).toContainText('시작 잔고에 등록된 통장 입출금을 반영한 금액입니다.');
+    await calculatedHelp.press('Escape');
+    const buildingHelp = buildingTotal.getByRole('button', {
+      name: '동별 잔고 합계 도움말',
+      exact: true
+    });
+    await buildingHelp.focus();
+    await expect(page.getByRole('tooltip')).toContainText('선택한 통장 안에서 각 동에 귀속된 잔고를 합한 금액입니다.');
+    await buildingHelp.press('Escape');
     if (width < 768) {
       const firstCard = await summary.boundingBox();
       const nextCard = await buildingTotal.boundingBox();
@@ -3384,7 +3478,7 @@ for (const width of [1440, 390]) {
     });
     await expect(difference).toContainText('계산 잔액 포함');
     await expect(difference.locator('strong')).toHaveCSS('color', 'rgb(239, 68, 68)');
-    await expect(difference.locator('svg')).toHaveCSS('color', 'rgb(22, 163, 74)');
+    await expect(difference.locator('svg').first()).toHaveCSS('color', 'rgb(22, 163, 74)');
     await expect(page.getByRole('heading', {
       name: '잔고 차이 확인',
       exact: true

@@ -138,7 +138,7 @@
 }
 
 .month-control {
-  width: 174px;
+  width: 100%;
   max-width: 100%;
 }
 .summary {
@@ -703,20 +703,38 @@
     line-height: 1.5;
   }
 
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   align-items: flex-end;
   gap: 12px;
 
-  > :nth-child(2) {
-    flex: 0 1 360px;
+  > * {
     min-width: 0;
   }
 }
 
-@media (max-width: 640px) {
-  .query-controls > * {
-    flex: 1 1 100%;
-    max-width: none;
+.query-card {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+
+  h2 {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+}
+
+@media (max-width: 767px) {
+  .query-card {
+    padding: 16px;
+  }
+
+  .query-controls {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

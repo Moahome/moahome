@@ -8,7 +8,10 @@
   border-radius: 14px;
   background: var(--card);
 
-  p {
+  .label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     margin-bottom: 4px;
     color: var(--sub-text);
     font-size: 14px;
@@ -16,7 +19,7 @@
 
   &[data-density='comfortable'] .value strong { white-space: nowrap; }
 
-  strong {
+  .value strong {
     color: var(--foreground);
     font-size: 32px;
     font-weight: 750;
@@ -104,7 +107,7 @@
       }
     }
 
-    p {
+    .label {
       margin-bottom: 6px;
       word-break: keep-all;
       overflow-wrap: break-word;
@@ -144,7 +147,7 @@
       height: 28px;
     }
 
-    p {
+    .label {
       font-size: 11px;
     }
 
@@ -178,11 +181,11 @@
       }
     }
 
-    p {
+    .label {
       font-size: 12px;
     }
 
-    strong {
+    .value strong {
       font-size: 26px;
     }
 

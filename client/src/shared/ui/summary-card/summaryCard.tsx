@@ -11,6 +11,7 @@ export function SummaryCard({
   valueTone = 'neutral',
   density = 'comfortable',
   description,
+  help,
 }: {
   label: string;
   value: number | string;
@@ -20,6 +21,7 @@ export function SummaryCard({
   valueTone?: 'neutral' | 'danger';
   density?: 'comfortable' | 'compact';
   description?: string;
+  help?: ReactNode;
 }) {
   return (
     <article
@@ -38,9 +40,14 @@ export function SummaryCard({
       <div
         className={styles.content}
       >
-        <p>
-          {label}
-        </p>
+        <div
+          className={styles.label}
+        >
+          <span>
+            {label}
+          </span>
+          {help}
+        </div>
         <div
           className={styles.value}
         >

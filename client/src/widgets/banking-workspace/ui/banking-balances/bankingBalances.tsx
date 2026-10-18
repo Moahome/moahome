@@ -38,6 +38,7 @@ import { MonthPicker } from '@/shared/ui/month-picker';
 import { Pagination } from '@/shared/ui/pagination';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { SummaryCard } from '@/shared/ui/summary-card';
+import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { Toast } from '@/shared/ui/toast';
 import {
   formatInteger,
@@ -285,6 +286,10 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     bankAsOf = '계산 잔액을 포함한 통장별 잔액 합계';
   }
   if (accountDisplays.length === 1) bankAsOf = accountDisplays[0].description;
+  let bankHelp = '은행 거래 파일 또는 잔액 인계에 기록된 마지막 잔액입니다.';
+  if (calculated) bankHelp = accountDisplays.length > 1
+    ? '통장별 은행 확인값 또는 계산 잔액을 합한 금액입니다.'
+    : '시작 잔고에 등록된 통장 입출금을 반영한 금액입니다.';
   const differenceDescription = calculated ? '통장 잔액 − 동별 잔고 합계 · 계산 잔액 포함' : '통장 잔액 − 동별 잔고 합계';
   const missing = data.buildings.filter((b) => b.active && b.status === 'OPENING_REQUIRED');
   const filtered = sortExpenseLabels(data.buildings).filter((b) => b.label.includes(search.trim()) && (filter === 'ALL' || (filter === 'NEEDS_OPENING' && b.status === 'OPENING_REQUIRED') || (filter === 'NEGATIVE' && b.balance !== null && BigInt(b.balance) < BigInt(0))));
@@ -520,46 +525,54 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           </>
         )}
       />
-      <div
-        className={styles['query-controls']}
+      <section
+        className={styles['query-card']}
+        aria-label={'조회 조건'}
       >
+        <h2>
+          조회 조건
+        </h2>
         <div
-          className={styles['month-control']}
+          className={styles['query-controls']}
         >
-          <MonthPicker
-            label={'조회 월'}
-            labelHidden
-            value={month}
-            onChange={(value) => {
-              setSelected([]); setDetail(null);
-              const next = new URLSearchParams(params.toString()); next.set('month', value);
-              router.replace(`?${next}`, {
-                scroll: false
-              });
-            }}
-          />
+          <div
+            className={styles['month-control']}
+          >
+            <MonthPicker
+              label={'조회 월'}
+              labelHidden
+              value={month}
+              onChange={(value) => {
+                setSelected([]); setDetail(null);
+                const next = new URLSearchParams(params.toString()); next.set('month', value);
+                router.replace(`?${next}`, {
+                  scroll: false
+                });
+              }}
+            />
+          </div>
+          {!!data.accounts?.length && (
+            <Dropdown
+              aria-label={'조회 통장'}
+              className={styles['account-control']}
+              value={selectedAccount?.id ?? 'ALL'}
+              onChange={(value) => {
+                const next = new URLSearchParams(params.toString()); next.set('account', value); next.set('month', month);
+                router.replace(`?${next}`, {
+                  scroll: false
+                });
+              }}
+              options={[{
+                value: 'ALL',
+                label: '전체 통장'
+              }, ...data.accounts.map((account) => ({
+                value: account.id,
+                label: account.label
+              }))]}
+            />
+          )}
         </div>
-        {!!data.accounts?.length && (
-          <Dropdown
-            aria-label={'조회 통장'}
-            className={styles['account-control']}
-            value={selectedAccount?.id ?? 'ALL'}
-            onChange={(value) => {
-              const next = new URLSearchParams(params.toString()); next.set('account', value); next.set('month', month);
-              router.replace(`?${next}`, {
-                scroll: false
-              });
-            }}
-            options={[{
-              value: 'ALL',
-              label: '전체 통장'
-            }, ...data.accounts.map((account) => ({
-              value: account.id,
-              label: account.label
-            }))]}
-          />
-        )}
-      </div>
+      </section>
       {data.cutoffDate && (
         <p
           className={styles['calculation-note']}
@@ -581,9 +594,19 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         <SummaryCard
           density={'compact'}
           label={bankLabel}
-          value={bankBalance === null ? '잔액 확인 필요' : formatInteger(bankBalance)}
+          value={bankBalance === null ? '은행 확인 자료 없음' : formatInteger(bankBalance)}
           unit={bankBalance === null ? '' : '원'}
-          description={bankAsOf ?? '기준 잔고와 입출금 내역을 확인해주세요.'}
+          description={bankAsOf ?? '잔액이 0원이라는 뜻은 아닙니다.'}
+          help={(
+            <InfoTooltip
+              size={'sm'}
+              label={`${bankLabel} 도움말`}
+              title={bankLabel}
+              note={'표시된 시점 기준이며 실시간 잔액이 아닙니다.'}
+            >
+              {bankHelp}
+            </InfoTooltip>
+          )}
           tone={'primary'}
           icon={(
             <ServiceIcon
@@ -594,6 +617,16 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         <SummaryCard
           density={'compact'}
           label={'동별 잔고 합계'}
+          help={(
+            <InfoTooltip
+              size={'sm'}
+              label={'동별 잔고 합계 도움말'}
+              title={'동별 잔고 합계'}
+              note={'동에 배분하지 않은 입금은 포함하지 않습니다.'}
+            >
+              {selectedAccount ? '선택한 통장 안에서 각 동에 귀속된 잔고를 합한 금액입니다.' : '조회 중인 모든 통장의 동별 잔고를 합한 금액입니다.'}
+            </InfoTooltip>
+          )}
           tone={'warning'}
           value={summary.total === null ? '설정 필요' : formatInteger(summary.total)}
           unit={summary.total === null ? '' : '원'}
@@ -607,6 +640,16 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         <SummaryCard
           density={'compact'}
           label={'잔고 비교 차이'}
+          help={(
+            <InfoTooltip
+              size={'sm'}
+              label={'잔고 비교 차이 도움말'}
+              title={'잔고 비교 차이'}
+              note={'확인 시점과 미배분 거래에 따라 차이가 날 수 있습니다.'}
+            >
+              화면의 통장 잔액에서 동별 잔고 합계를 뺀 금액입니다.
+            </InfoTooltip>
+          )}
           value={summary.difference === null ? '계산 자료 없음' : formatInteger(summary.difference)}
           unit={summary.difference === null ? '' : '원'}
           description={summary.difference === null ? '통장 잔액과 동별 기준 잔고가 있어야 계산할 수 있어요.' : differenceDescription}

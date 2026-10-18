@@ -35,6 +35,7 @@ import { Pagination } from '@/shared/ui/pagination';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { Toast } from '@/shared/ui/toast';
 import { SummaryCard } from '@/shared/ui/summary-card';
+import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import {
   formatInteger,
   formatWon
@@ -291,6 +292,16 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const ambiguous = lastDay.length > 1 && (lastDay.some((row) => row.time === null)
     || new Set(lastDay.filter((row) => row.time === lastRaw.time).map((row) => row.balance)).size > 1);
   const latest = !ambiguous && lastRaw?.balance !== null ? lastRaw : undefined;
+  let latestValue = '은행 확인 자료 없음';
+  let latestDescription: string | undefined;
+  if (accountId === 'ALL') {
+    latestValue = '통장별 확인';
+  } else if (latest) {
+    latestValue = formatInteger(latest.balance!);
+    latestDescription = `${latest.date} ${latest.time ?? ''} 거래 후`;
+  } else if (ambiguous) {
+    latestValue = '거래 순서 미확인';
+  }
 
   function expenseDraft(row: BankingTransaction) { return expenses[row.id] ?? createExpenseDraft(row, data!); }
   function receiptDraft(row: BankingTransaction): ReceiptDraft { return receipts[row.id] ?? {
@@ -742,8 +753,20 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
             <SummaryCard
               density={'compact'}
               label={'최근 은행 확인 잔액'}
-              description={accountId === 'ALL' ? '통장을 선택하면 해당 통장의 잔액을 표시합니다.' : latest ? `${latest.date} ${latest.time ?? ''} 거래 후` : '마지막 원본의 잔액·거래 순서를 확인해주세요.'}
-              value={accountId === 'ALL' ? '통장별 확인' : latest ? formatInteger(latest.balance!) : '확인 필요'}
+              help={(
+                <InfoTooltip
+                  size={'sm'}
+                  label={'최근 은행 확인 잔액 도움말'}
+                  title={'최근 은행 확인 잔액'}
+                  note={'실시간 잔액이 아니며 수동 입금은 반영되지 않습니다.'}
+                >
+                  {accountId === 'ALL'
+                    ? '통장을 선택하면 은행 거래 파일의 마지막 잔액을 표시합니다.'
+                    : '은행 거래 파일에 기록된 마지막 거래 후 잔액입니다.'}
+                </InfoTooltip>
+              )}
+              description={latestDescription}
+              value={latestValue}
               unit={latest ? '원' : ''}
               icon={(
                 <ServiceIcon
