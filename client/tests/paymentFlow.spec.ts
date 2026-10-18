@@ -1,4 +1,9 @@
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import {
+  strFromU8,
+  unzipSync
+} from 'fflate';
 import { createPaymentSample } from '../src/widgets/payment-workspace/model/paymentSample';
 import {
   addPreviewManual,
@@ -3566,5 +3571,109 @@ for (const width of [1440, 390]) {
     await expect(page.getByText('총 금액이 모두 배분되었습니다.', {
       exact: true
     })).toHaveCount(0);
+  });
+}
+
+for (const width of [1440, 390]) {
+  test(`${width}px 월별 수납 엑셀은 선택 탭·검색·동을 반영하고 페이지 전체를 내보냄`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    const ledger = paginationLedger();
+    ledger.units = ledger.units.map((unit, index) => ({
+      ...unit,
+      label: `${index === 1 ? '103' : '102'}동 ${101 + index}호`
+    }));
+    ledger.payments.push({
+      ...ledger.payments[ledger.payments.length - 1],
+      id: id('export-paid'),
+      unitId: ledger.units[1].id,
+      amount: '10000',
+      allocations: [{
+        chargeId: ledger.charges[1].id,
+        amount: '10000'
+      }]
+    });
+    await page.route(`**/api/properties/${PROPERTY_ID}/payments/workspace`, (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true'
+      },
+      body: JSON.stringify({
+        ...ledger,
+        propertyId: PROPERTY_ID
+      })
+    }));
+    await page.goto(`/manage/${PROPERTY_ID}/payments/monthly`);
+    const table = page.getByRole('table', {
+      name: '세대별 월별 수납 현황'
+    });
+    await expect(table.getByRole('rowheader')).toHaveCount(10);
+
+    /** 실제 다운로드 XLSX의 첫 열을 읽어 표 밖의 세대가 섞이거나 페이지 뒤의 세대가 누락되는지 확인합니다. */
+    async function downloadRows(status: string, suffix: string) {
+      const event = page.waitForEvent('download');
+      await page.getByRole('button', {
+        name: '엑셀 다운로드',
+        exact: true
+      }).click();
+      const download = await event;
+      expect(download.suggestedFilename()).toBe(`모아홈_수납현황_2026-10_${status}.xlsx`);
+      const path = testInfo.outputPath(`monthly-${suffix}.xlsx`);
+      await download.saveAs(path);
+      const zip = unzipSync(await readFile(path));
+      const strings = [...strFromU8(zip['xl/sharedStrings.xml']).matchAll(/<si>([\s\S]*?)<\/si>/g)]
+        .map((match) => [...match[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((text) => text[1]).join(''));
+      const xml = strFromU8(zip['xl/worksheets/sheet1.xml']);
+      const labels = [...xml.matchAll(/<c\b[^>]*\br="A\d+"[^>]*>([\s\S]*?)<\/c>/g)]
+        .map((match) => strings[Number(match[1].match(/<v>(\d+)<\/v>/)?.[1])])
+        .filter((value) => /^\d+동 \d+호$/.test(value ?? ''));
+      return {
+        labels,
+        xml
+      };
+    }
+
+    const all = await downloadRows('전체', 'all');
+    expect(all.labels).toHaveLength(25);
+    expect(all.labels).toContain('102동 125호');
+    expect(all.xml).toContain('<v>15000</v>');
+    for (const [status, expected] of [
+      ['미납', Array.from({
+        length: 23
+      }, (_, index) => `102동 ${103 + index}호`)],
+      ['일부납부', ['102동 101호']],
+      ['납부완료', ['103동 102호']]
+    ] as const) {
+      await page.getByRole('button', {
+        name: new RegExp(`^${status}\\s*\\(`)
+      }).click();
+      expect((await downloadRows(status, status)).labels).toEqual(expected);
+    }
+    await page.getByRole('button', {
+      name: /^전체\s*\(/
+    }).click();
+    await page.getByRole('textbox', {
+      name: '수납 현황 세대 검색'
+    }).fill('125');
+    expect((await downloadRows('전체', 'search')).labels).toEqual(['102동 125호']);
+    await page.getByRole('textbox', {
+      name: '수납 현황 세대 검색'
+    }).fill('');
+    await page.getByRole('combobox', {
+      name: '수납 현황 동 필터'
+    }).click();
+    await page.getByRole('option', {
+      name: '103동',
+      exact: true
+    }).click();
+    expect((await downloadRows('전체', 'building')).labels).toEqual(['103동 102호']);
+    await page.getByRole('button', {
+      name: /^미납\s*\(/
+    }).click();
+    expect((await downloadRows('미납', 'empty')).labels).toEqual([]);
   });
 }

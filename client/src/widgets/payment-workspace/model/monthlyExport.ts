@@ -1,18 +1,24 @@
 import { createReportWorkbook } from '@/shared/lib/excel-report';
 import {
   getMonthlyPreviewRows,
+  filterMonthlyPreviewRows,
+  type MonthlyCollectionFilters,
   type PreviewLedger
 } from './paymentPreview';
 
-/** 전체 세대의 이월·수납·미수 계산을 유지하고 미확정 정산은 금액으로 확정하지 않습니다. */
-export async function createMonthlyWorkbook(ledger: PreviewLedger, month: string): Promise<Blob> {
-  const rows = getMonthlyPreviewRows(ledger, month);
+/** 현재 조회 조건의 전체 세대와 합계만 내보내고 미확정 정산은 금액으로 확정하지 않습니다. */
+export async function createMonthlyWorkbook(ledger: PreviewLedger, month: string, filters: MonthlyCollectionFilters = {
+  query: '',
+  building: '',
+  status: '전체'
+}): Promise<Blob> {
+  const rows = filterMonthlyPreviewRows(getMonthlyPreviewRows(ledger, month), filters);
   const sum = (key: 'carry' | 'billed' | 'applied' | 'balance' | 'prepaid') => rows.reduce((total, row) => total + row[key] + (key === 'billed' ? row.settlementAmount ?? BigInt(0) : BigInt(0)), BigInt(0));
   const balance = rows.some((row) => row.settlementPending) ? '정산 확인 필요' : sum('balance');
 
   return createReportWorkbook({
     title: '모아홈 월별 수납 현황',
-    description: '세대별 청구·수납 및 미수금 보고서',
+    description: `세대별 청구·수납 및 미수금 보고서 · ${filters.status}${filters.building ? ` · ${filters.building}` : ''}${filters.query.trim() ? ` · 검색: ${filters.query.trim()}` : ''}`,
     sheet: '월별 수납 현황',
     columns: ['세대', '세대 대표', '최근 입금자', '전월 이월액', '당월 발생액', '당월 수납 반영액', '미수금 잔액', '선입금 잔액', '상태'].map((label, index) => ({
       label,

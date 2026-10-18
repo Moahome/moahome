@@ -55,6 +55,20 @@ export interface MonthlyPreviewRow {
   settlementPending: boolean;
 }
 
+export interface MonthlyCollectionFilters {
+  query: string;
+  building: string;
+  status: string;
+}
+
+/** 월별 표와 엑셀에서 같은 검색·동·납부 상태를 적용하고 페이지 구분은 호출 화면에 맡깁니다. */
+export function filterMonthlyPreviewRows(rows: MonthlyPreviewRow[], filters: MonthlyCollectionFilters): MonthlyPreviewRow[] {
+  const query = filters.query.trim();
+  return rows.filter((row) => (!filters.building || row.buildingName === filters.building)
+    && `${row.unitLabel} ${row.representativeName} ${row.latestPayer}`.includes(query)
+    && (filters.status === '전체' || row.status === filters.status));
+}
+
 /** 과거 입금이나 선입금도 직접 연결할 수 있도록 청구월과 관계없이 현재 사용 중 명단의 세대를 선택합니다. */
 export function getPreviewSelectableUnits(ledger: PreviewLedger): PreviewLedger['units'] {
   return ledger.units.filter((unit) => unit.status === 'ACTIVE' && unit.eligible !== false)

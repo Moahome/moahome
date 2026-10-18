@@ -28,7 +28,8 @@ import {
   getPreviewSelectableUnits,
   getPreviewBuildingName,
   getPreviewBuildingOptions,
-  type PreviewPayment
+  type PreviewPayment,
+  type MonthlyCollectionFilters
 } from '../../model/paymentPreview';
 import {
   previewBankFile,
@@ -93,6 +94,11 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
   const router = useRouter();
   const { ledger, update, month, setMonth, busy } = usePaymentWorkspace();
   const [query, setQuery] = useState('');
+  const [monthlyFilters, setMonthlyFilters] = useState<MonthlyCollectionFilters>({
+    query: '',
+    building: '',
+    status: '전체'
+  });
   const [building, setBuilding] = useState('');
   const [tab, setTab] = useState<PreviewPayment['status'] | 'OTHER'>('PENDING');
   const [page, setPage] = useState(1);
@@ -286,6 +292,7 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
         ) : (
           <MonthlyExportButton
             month={month}
+            filters={monthlyFilters}
           />
         )}
       />
@@ -296,6 +303,8 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
       </p>
       {view === 'monthly' ? (
         <MonthlyCollection
+          filters={monthlyFilters}
+          onFiltersChange={setMonthlyFilters}
           propertyId={propertyId}
           month={month}
           onMonthChange={setMonth}

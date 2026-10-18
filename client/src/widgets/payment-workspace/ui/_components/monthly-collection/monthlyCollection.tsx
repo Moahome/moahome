@@ -26,27 +26,29 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   getMonthlyPreviewRows,
   getMonthlyPreviewIncome,
-  getPreviewBuildingOptions
+  getPreviewBuildingOptions,
+  filterMonthlyPreviewRows,
+  type MonthlyCollectionFilters
 } from '../../../model/paymentPreview';
 import { usePaymentWorkspace } from '../../payment-workspace-provider/paymentWorkspaceProvider';
 import { createMonthlyWorkbook } from '../../../model/monthlyExport';
 import styles from './monthlyCollection.module.css';
 
 /** 다운로드 행동을 페이지 헤더에서 제공하고 원장·필터 UI의 배치를 바꾸지 않습니다. */
-export function MonthlyExportButton({ month }: { month: string }) {
+export function MonthlyExportButton({ month, filters }: { month: string; filters: MonthlyCollectionFilters }) {
   const { ledger } = usePaymentWorkspace();
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
-  /** 현재 선택월 전체 세대를 공통 보고서 서식으로 저장하며 조회 계산을 그대로 사용합니다. */
+  /** 페이지에 관계없이 현재 조회월·상태·검색·동 조건의 전체 결과를 공통 보고서 서식으로 저장합니다. */
   async function download() {
     setExporting(true);
     setError('');
     try {
-      const blob = await createMonthlyWorkbook(ledger, month);
+      const blob = await createMonthlyWorkbook(ledger, month, filters);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `모아홈_수납현황_${month}.xlsx`;
+      anchor.download = `모아홈_수납현황_${month}_${filters.status}.xlsx`;
       anchor.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
@@ -83,21 +85,28 @@ export function MonthlyExportButton({ month }: { month: string }) {
 }
 
 /** 월별 실제 입금 합계와 청구의 이월·충당·미수를 함께 표시하되 두 기준의 금액을 섞지 않습니다. */
-export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath }: { propertyId: string; month: string; onMonthChange: (month: string) => void; detailPath?: string }) {
+export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath, filters, onFiltersChange }: {
+  propertyId: string;
+  month: string;
+  onMonthChange: (month: string) => void;
+  detailPath?: string;
+  filters: MonthlyCollectionFilters;
+  onFiltersChange: (filters: MonthlyCollectionFilters) => void;
+}) {
   const router = useRouter();
   const { ledger } = usePaymentWorkspace();
-  const [query, setQuery] = useState('');
-  const [status, setStatus] = useState('전체');
-  const [building, setBuilding] = useState('');
+  const { query, status, building } = filters;
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selected, setSelected] = useState<string | null>(null);
   const rows = getMonthlyPreviewRows(ledger, month);
   const income = getMonthlyPreviewIncome(ledger, month);
   // 탭별 인원은 상태 필터를 적용하기 전의 검색·동 범위에서 세대마다 한 번만 셉니다.
-  const matches = rows.filter((row) => (!building || row.buildingName === building)
-    && `${row.unitLabel} ${row.representativeName} ${row.latestPayer}`.includes(query.trim()));
-  const filtered = matches.filter((row) => status === '전체' || row.status === status);
+  const matches = filterMonthlyPreviewRows(rows, {
+    ...filters,
+    status: '전체'
+  });
+  const filtered = filterMonthlyPreviewRows(matches, filters);
   // 필터·수납 결과로 세대 수가 줄어들면 빈 페이지 대신 마지막 유효 페이지를 표시합니다.
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pageCount);
@@ -207,7 +216,10 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
             }))}
             value={status}
             onChange={(value) => {
-              setStatus(value);
+              onFiltersChange({
+                ...filters,
+                status: value
+              });
               setPage(1);
             }}
           />
@@ -234,7 +246,10 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
               )}
               value={query}
               onChange={(event) => {
-                setQuery(event.target.value);
+                onFiltersChange({
+                  ...filters,
+                  query: event.target.value
+                });
                 setPage(1);
               }}
             />
@@ -249,7 +264,10 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
                 ...getPreviewBuildingOptions(ledger)
               ]}
               onChange={(value) => {
-                setBuilding(value);setSelected(null);setPage(1);
+                onFiltersChange({
+                  ...filters,
+                  building: value
+                });setSelected(null);setPage(1);
               }}
             />
             <Dropdown
