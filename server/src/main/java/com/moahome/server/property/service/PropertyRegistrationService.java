@@ -46,6 +46,7 @@ public class PropertyRegistrationService {
 	private final org.springframework.beans.factory.ObjectProvider<com.moahome.server.common.security.PhoneSecurity> phones;
 	private final com.moahome.server.resident.repo.ResidentRepository residents;
 	private final com.moahome.server.resident.repo.UnitResidentRepository affiliations;
+	private final org.springframework.beans.factory.ObjectProvider<RegistrationOpeningService> opening;
 
 	public PropertyRegistrationService(UserService users, PropertyRepository properties, BuildingRepository buildings,
 		UnitRepository units, BankAccountRepository bankAccounts, FeeTemplateRepository templates,
@@ -53,7 +54,8 @@ public class PropertyRegistrationService {
 		PropertyRegistrationLock lock, AccountNumberSecurity accountSecurity, RegistrationFingerprint fingerprints,
 		Validator validator, ObjectMapper mapper, Clock clock, BillingGenerationService billing,
 		org.springframework.beans.factory.ObjectProvider<com.moahome.server.common.security.PhoneSecurity> phones,
-		com.moahome.server.resident.repo.ResidentRepository residents, com.moahome.server.resident.repo.UnitResidentRepository affiliations) {
+		com.moahome.server.resident.repo.ResidentRepository residents, com.moahome.server.resident.repo.UnitResidentRepository affiliations,
+		org.springframework.beans.factory.ObjectProvider<RegistrationOpeningService> opening) {
 		this.users = users;
 		this.properties = properties;
 		this.buildings = buildings;
@@ -70,6 +72,7 @@ public class PropertyRegistrationService {
 		this.mapper = mapper;
 		this.clock = clock;
 		this.billing = billing;this.phones=phones;this.residents=residents;this.affiliations=affiliations;
+		this.opening=opening;
 	}
 
 	/** 기본 정보만 다시 검증하고 정리한 값을 반환하며 업무 레코드와 중복 방지 ID를 생성하지 않습니다. */
@@ -99,6 +102,7 @@ public class PropertyRegistrationService {
 
 		long monthlyAmount = validateRelationships(input);
 		int creatorUnitIndex = validateAdministrator(input);
+		if(input.openingBalances()!=null) opening.getObject().validate(input);
 		OffsetDateTime at = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
 		BasicInfoRequest basic = input.basicInfo();
 		Property property = Property.create(basic.name(), basic.address(), basic.addressDetail(),
@@ -116,7 +120,7 @@ public class PropertyRegistrationService {
 			buildingMap.get(unit.buildingClientId()), unit.unitNumber(), unit.displayName(), unit.floor(),
 			UnitStatus.valueOf(unit.status()), at)).toList());
 
-		bankAccounts.saveAllAndFlush(input.bankAccounts().stream().map(account -> BankAccount.createPublic(property,
+		var createdAccounts=bankAccounts.saveAllAndFlush(input.bankAccounts().stream().map(account -> BankAccount.createPublic(property,
 			account.bankCode(), account.bankName(), account.holderName(), accountSecurity.protect(account.accountNumber()),
 			account.isPrimary(), at)).toList());
 		FeeTemplate template = FeeTemplate.createDefault(property.getId(), at);
@@ -131,12 +135,13 @@ public class PropertyRegistrationService {
 		PropertyMember member = PropertyMember.creator(property, user, at);
 		members.saveAndFlush(member);
 		var creator = registerCreator(userId,property.getId(),input.administrator(),creatorUnitIndex<0?null:createdUnits.get(creatorUnitIndex),at);
-		// 신규 등록만으로 청구를 만들지 않습니다. 잔액 인계와 첫 부과월을 확인한 운영 시작에서 생성합니다.
+		// 이전 등록은 기본 정보만 저장하고 새 최종 확인 요청은 기존 운영 시작 서비스를 같은 트랜잭션에서 실행합니다.
+		var managementStart=input.openingBalances()==null?null:opening.getObject().initialize(userId,property,input,buildingMap,createdUnits,createdAccounts);
 		PropertyRegistrationResponse response = new PropertyRegistrationResponse(input.requestId(),
 			new PropertySummary(property.getId(), property.getName(), property.isHasBuildings(), property.getStatus().name()),
 			new MembershipSummary(member.getId(), member.getRole().name(), member.getStatus().name()),
 			new RegistrationSummary(buildingMap.size(), input.units().size(), input.bankAccounts().size(),
-				feeItems.size(), monthlyAmount), at.toInstant(), creator);
+				feeItems.size(), monthlyAmount), at.toInstant(), creator,managementStart);
 		String version = fingerprints.activeKeyVersion();
 		// 마지막 성공 결과 저장도 실패하면 앞의 모든 flush를 함께 롤백합니다. 응답은 프록시의 커밋 이후 전달됩니다.
 		results.saveAndFlush(PropertyRegistrationResult.success(userId, input.requestId(),

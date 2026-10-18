@@ -21,6 +21,15 @@ import {
   getAdministratorError
 } from './administrator';
 
+import {
+  EMPTY_OPENING_BALANCES,
+  getUnitOpening,
+  getUnitOpeningError,
+  getCashOpeningError,
+  getFirstBillingError,
+  type OpeningBalancesDraft
+} from './openingBalances';
+
 const SUBMISSION_KEY = 'moahome.property-registration.submission';
 const RECEIPT_KEY = 'moahome.property-registration.receipt';
 const PENDING_PREFIX = 'moahome.property-registration.pending.';
@@ -29,6 +38,46 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 export interface PendingRegistration {
   requestId: string;
   request: RegistrationRequest | null;
+}
+
+/** 고정된 제출 본문을 실제 등록의 세대 참조와 대조해 복원하며 옛 요청에는 새 인계를 덧붙이지 않습니다. */
+function restoreSubmittedOpening(request: RegistrationRequest): OpeningBalancesDraft | null {
+  const value = request.openingBalances;
+  if (!value) return null;
+  if (typeof value.cutoffDate !== 'string' || typeof value.firstBillingMonth !== 'string'
+    || !(value.cashCutoffDate === null || typeof value.cashCutoffDate === 'string')
+    || !Array.isArray(value.units) || value.units.length !== request.units.length
+    || !Array.isArray(value.buildings) || value.buildings.length !== request.buildings.length
+    || !Array.isArray(value.accounts) || value.accounts.length !== 1 || value.accounts[0]?.accountIndex !== 0
+    || typeof value.accounts[0]?.amount !== 'string') return null;
+  const opening: OpeningBalancesDraft = {
+    cutoffDate: value.cutoffDate,
+    firstBillingMonth: value.firstBillingMonth,
+    unitMode: 'ENTER',
+    units: {},
+    buildings: {},
+    accountAmount: value.accounts[0].amount,
+    cashCutoffDate: value.cashCutoffDate ?? ''
+  };
+  const units = request.units.map((unit, index) => ({
+    ...unit,
+    clientId: String(index)
+  }));
+  for (const unit of units) {
+    const rows = value.units.filter((row) => row?.buildingClientId === unit.buildingClientId && row.unitNumber === unit.unitNumber);
+    if (rows.length !== 1 || typeof rows[0].receivable !== 'string' || typeof rows[0].credit !== 'string') return null;
+    opening.units[unit.clientId] = {
+      receivable: rows[0].receivable,
+      credit: rows[0].credit
+    };
+  }
+  for (const building of request.buildings) {
+    const rows = value.buildings.filter((row) => row?.buildingClientId === building.clientId);
+    if (rows.length !== 1 || typeof rows[0].amount !== 'string') return null;
+    opening.buildings[building.clientId] = rows[0].amount;
+  }
+  if (getUnitOpeningError(opening, units) || getCashOpeningError(opening, request.buildings) || getFirstBillingError(opening)) return null;
+  return opening;
 }
 
 /** 저장소 본문에도 자료형·업무 검증을 적용하고 허용한 필드만 재구성해 손상된 요청을 재전송하지 않습니다. */
@@ -57,6 +106,8 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
     const administrator = request.administrator;
     if (administrator && !['RESIDENT', 'EXTERNAL'].includes(administrator.residenceType)) return null;
     const selectedIndex = administrator?.residenceType === 'RESIDENT' ? request.units.findIndex((unit) => unit.unitNumber === administrator.unitNumber && unit.buildingClientId === administrator.buildingClientId) : -1;
+    const openingBalances = restoreSubmittedOpening(request);
+    if (request.openingBalances && !openingBalances) return null;
     const restored = createRegistrationRequest({
       administrator: administrator ? {
         residenceType: administrator.residenceType,
@@ -81,8 +132,11 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
       feeItems,
       automaticUnitRule: EMPTY_AUTOMATIC_UNIT_RULE,
       basicInfoValidated: true,
-      step: 'review'
-    }, request.requestId);
+      step: 'review',
+      openingBalances: openingBalances ?? {
+        ...EMPTY_OPENING_BALANCES
+      }
+    }, request.requestId, Boolean(request.openingBalances));
     // 이전 버전 제출은 거주 필드를 덧붙이지 않아 서버에 저장된 원래 지문과 일치하게 합니다.
     if (!administrator) delete restored.administrator;
     return restored;
@@ -92,9 +146,10 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
 }
 
 /** 화면용 세대 ID와 자동 입력 규칙은 제외하고 검증된 입력만 최종 계약으로 변환합니다. */
-export function createRegistrationRequest(draft: RegistrationDraft, requestId: string): RegistrationRequest {
+export function createRegistrationRequest(draft: RegistrationDraft, requestId: string, includeOpening = true): RegistrationRequest {
   if (getAdministratorError(draft.administrator, draft.units) || getUnitSetupError(draft.basicInfo.hasBuildings === true, draft.buildings, draft.units)
-    || Object.keys(getBankAccountErrors(draft.bankAccount)).length || getFeeItemsError(draft.feeItems)) {
+    || Object.keys(getBankAccountErrors(draft.bankAccount)).length || getFeeItemsError(draft.feeItems)
+    || (includeOpening && (getUnitOpeningError(draft.openingBalances, draft.units) || getCashOpeningError(draft.openingBalances, draft.buildings) || getFirstBillingError(draft.openingBalances)))) {
     throw new Error('등록 정보를 확인해주세요.');
   }
 
@@ -102,6 +157,26 @@ export function createRegistrationRequest(draft: RegistrationDraft, requestId: s
 
   return {
     requestId,
+    ...(includeOpening ? {
+      openingBalances: {
+        cutoffDate: draft.openingBalances.cutoffDate,
+        firstBillingMonth: draft.openingBalances.firstBillingMonth,
+        units: draft.units.map((unit) => ({
+          buildingClientId: unit.buildingClientId,
+          unitNumber: unit.unitNumber,
+          ...getUnitOpening(draft.openingBalances, unit.clientId)
+        })),
+        accounts: [{
+          accountIndex: 0,
+          amount: draft.openingBalances.accountAmount
+        }],
+        cashCutoffDate: draft.buildings.length ? draft.openingBalances.cashCutoffDate : null,
+        buildings: draft.buildings.map((building) => ({
+          buildingClientId: building.clientId,
+          amount: draft.openingBalances.buildings[building.clientId]
+        }))
+      }
+    } : {}),
     administrator: draft.administrator.residenceType === 'EXTERNAL' ? {
       residenceType: 'EXTERNAL'
     } : {
@@ -236,14 +311,19 @@ export function getRegistrationInputError(error: ApiError): { step: Registration
   const reason = error.errors[0]?.reason;
   const steps: Record<string, RegistrationStep> = {
     basicInfo: 'basic',
-    administrator: 'administrator',
+    administrator: 'units',
     buildings: 'units',
     units: 'units',
     bankAccounts: 'account',
     feeItems: 'fees'
   };
   const rootField = field.split(/[.[]/)[0];
-  const step = Object.hasOwn(steps, rootField) ? steps[rootField] : 'review';
+  let step = Object.hasOwn(steps, rootField) ? steps[rootField] : 'review';
+  if (rootField === 'openingBalances') {
+    step = 'units';
+    if (/openingBalances\.(accounts|cashCutoffDate|buildings)/.test(field)) step = 'account';
+    if (field.startsWith('openingBalances.firstBillingMonth')) step = 'fees';
+  }
   const labels: Record<string, string> = {
     basic: '기본 정보',
     units: '동·세대 정보',

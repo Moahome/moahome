@@ -181,7 +181,7 @@ export function RegistrationComplete({
             name={'info'}
           />
           <p>
-            기본 정보가 저장되었습니다. 기존 잔액 인계에서 기준일과 첫 부과월을 확인한 뒤 관리 시작을 확정해주세요.
+            {result.managementStart ? `잔액 인계와 관리 시작이 완료되었습니다. 첫 관리비 부과월은 ${result.managementStart.firstBillingMonth}입니다.` : '기본 정보가 저장되었습니다. 기존 잔액 인계에서 기준일과 첫 부과월을 확인한 뒤 관리 시작을 확정해주세요.'}
           </p>
         </aside>
         <div
@@ -189,9 +189,9 @@ export function RegistrationComplete({
         >
           <Button
             size={'lg'}
-            onClick={() => router.push(`/manage/${result.property.id}/billing/monthly?tab=opening`)}
+            onClick={() => router.push(`/manage/${result.property.id}/billing/monthly?tab=${result.managementStart ? 'monthly' : 'opening'}`)}
           >
-            기존 잔액 인계 · 관리 시작 설정
+            {result.managementStart ? '관리비 부과 보기' : '기존 잔액 인계 · 관리 시작 설정'}
           </Button>
           <Button
             variant={'outline'}

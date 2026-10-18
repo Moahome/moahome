@@ -22,6 +22,15 @@ import {
 import { FeeItemEditor } from '../fee-item-editor/feeItemEditor';
 import { SetupProgress } from '../setup-progress/setupProgress';
 import { UnitDeleteConfirmation } from '../unit-delete-confirmation/unitDeleteConfirmation';
+import { OpeningBalanceFields } from '../opening-balance-fields/openingBalanceFields';
+import {
+  getFirstBillingError,
+  type OpeningBalancesDraft
+} from '../../../model/openingBalances';
+import type {
+  BuildingDraft,
+  UnitDraft
+} from '../../../model/unitSetup';
 import styles from './feeItemsSetup.module.css';
 
 const FEE_ITEM_ICONS = {
@@ -37,12 +46,20 @@ const FEE_ITEM_ICONS = {
 /** 세대당 월 기본 항목만 편집하며 실제 청구와 저장은 마지막 등록 단계의 책임으로 유지합니다. */
 export function FeeItemsSetup({
   propertyName,
+  openingBalances,
+  units,
+  buildings,
+  onOpeningChange,
   items,
   onChange,
   onPrevious,
   onNext,
 }: {
   propertyName: string;
+  openingBalances: OpeningBalancesDraft;
+  units: UnitDraft[];
+  buildings: BuildingDraft[];
+  onOpeningChange: (opening: OpeningBalancesDraft) => void;
   items: FeeItemDraft[];
   onChange: (items: FeeItemDraft[]) => void;
   onPrevious: () => void;
@@ -52,7 +69,7 @@ export function FeeItemsSetup({
   const addRef = useRef<HTMLButtonElement>(null);
   const [editing, setEditing] = useState<{ item: FeeItemDraft | null } | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const error = getFeeItemsError(items);
+  const error = getFeeItemsError(items) || getFirstBillingError(openingBalances);
   const pendingItem = items.find((item) => item.clientId === pendingDeleteId);
 
   useEffect(() => {
@@ -123,7 +140,7 @@ export function FeeItemsSetup({
         </p>
       </header>
       <SetupProgress
-        currentStep={5}
+        currentStep={4}
       />
       <section
         className={styles.card}
@@ -152,7 +169,7 @@ export function FeeItemsSetup({
               ref={headingRef}
               tabIndex={-1}
             >
-              관리비 항목 설정
+              관리비 설정
             </h2>
             <p>
               <span>
@@ -338,6 +355,13 @@ export function FeeItemsSetup({
               {error}
             </p>
           )}
+          <OpeningBalanceFields
+            kind={'fees'}
+            opening={openingBalances}
+            units={units}
+            buildings={buildings}
+            onChange={onOpeningChange}
+          />
           <footer
             className={styles.actions}
           >

@@ -26,12 +26,18 @@ public record PropertyRegistrationRequest(
 	@Schema(description = "최소 1개. 금액과 합계는 -999999999999999원부터 999999999999999원까지의 정수")
 	@NotEmpty(message = "REQUIRED") List<@NotNull(message = "REQUIRED") @Valid FeeItemInput> feeItems,
 	@Schema(description = "등록한 본인의 거주 여부. 이전 버전 재시도에서만 생략 가능", nullable = true)
-	@JsonInclude(JsonInclude.Include.NON_NULL) @Valid AdministratorInput administrator
+	@JsonInclude(JsonInclude.Include.NON_NULL) @Valid AdministratorInput administrator,
+	@Schema(description = "새 초기 설정의 잔액 인계·관리 시작. 생략한 이전 요청은 등록만 저장", nullable = true)
+	@JsonInclude(JsonInclude.Include.NON_NULL) @Valid RegistrationOpeningInput openingBalances
 ) {
+	public PropertyRegistrationRequest(UUID requestId, BasicInfoRequest basicInfo, List<BuildingInput> buildings,
+		List<UnitInput> units, List<BankAccountInput> bankAccounts, List<FeeItemInput> feeItems, AdministratorInput administrator) {
+		this(requestId,basicInfo,buildings,units,bankAccounts,feeItems,administrator,null);
+	}
 	/** 이전 버전의 등록·응답 유실 재시도는 원래 본문과 지문을 유지합니다. */
 	public PropertyRegistrationRequest(UUID requestId, BasicInfoRequest basicInfo, List<BuildingInput> buildings,
 		List<UnitInput> units, List<BankAccountInput> bankAccounts, List<FeeItemInput> feeItems) {
-		this(requestId,basicInfo,buildings,units,bankAccounts,feeItems,null);
+		this(requestId,basicInfo,buildings,units,bankAccounts,feeItems,null,null);
 	}
 
 	@Schema(additionalProperties = Schema.AdditionalPropertiesValue.FALSE)

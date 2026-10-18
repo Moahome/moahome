@@ -40,11 +40,15 @@ public class BankingBalanceService {
     private final PaymentTextSecurity security;
     private final Clock clock;
     private final IncomeAllocationRepository incomeAllocations;
+    private final com.moahome.server.billing.repo.OpeningBalanceBatchRepository openingBatches;
+    private final com.moahome.server.billing.repo.BankOpeningBalanceRepository bankOpenings;
     public BankingBalanceService(ManagementAccessService access,PropertyRepository properties,BuildingRepository buildings,UnitRepository units,
         BankTransactionRepository transactions,BankAccountRepository accounts,PaymentRepository payments,ExpenseRepository expenses,ExpenseAllocationRepository allocations,
-        BuildingCashOpeningRepository openings,BuildingCashOpeningChangeRepository openingChanges,ExternalSettlementLinkRepository links,ExternalSettlementDecisionRepository decisions,@Lazy PaymentTextSecurity security,Clock clock,IncomeAllocationRepository incomeAllocations) {
+        BuildingCashOpeningRepository openings,BuildingCashOpeningChangeRepository openingChanges,ExternalSettlementLinkRepository links,ExternalSettlementDecisionRepository decisions,@Lazy PaymentTextSecurity security,Clock clock,IncomeAllocationRepository incomeAllocations,
+        com.moahome.server.billing.repo.OpeningBalanceBatchRepository openingBatches,com.moahome.server.billing.repo.BankOpeningBalanceRepository bankOpenings) {
         this.access=access;this.properties=properties;this.buildings=buildings;this.units=units;this.transactions=transactions;this.accounts=accounts;this.payments=payments;
         this.expenses=expenses;this.allocations=allocations;this.openings=openings;this.openingChanges=openingChanges;this.links=links;this.decisions=decisions;this.security=security;this.clock=clock;this.incomeAllocations=incomeAllocations;
+        this.openingBatches=openingBatches;this.bankOpenings=bankOpenings;
     }
     private LocalDate today() { return LocalDate.now(clock.withZone(BillingCalendar.ZONE)); }
     /** 모든 조회·변경은 기존 통장 관리와 동일한 관리대상의 ADMIN 권한을 사용합니다. */
@@ -145,7 +149,20 @@ public class BankingBalanceService {
         var lastDay=lastSource.map(t->bankAsOfMonth.stream().filter(b->b.getTransactionDate().equals(t.getTransactionDate())).toList()).orElse(List.of());
         boolean ambiguous=lastDay.size()>1&&(lastDay.stream().anyMatch(t->t.getTransactionTime()==null)
             ||lastSource.map(t->lastDay.stream().filter(b->Objects.equals(t.getTransactionTime(),b.getTransactionTime())).map(BankTransaction::getBalance).distinct().count()>1).orElse(false));
-        return new BankingBalanceResponse.Workspace(property,rawMonth,cutoff,ambiguous?null:latest.map(t->amount(t.getBalance())).orElse(null),lastSource.map(t->t.getTransactionDate()+(ambiguous?" 거래 순서 확인 필요":t.getBalance()==null?" 잔고 미제공":t.getTransactionTime()==null?"":" "+t.getTransactionTime())).orElse(null),result,
+        String confirmedBalance=ambiguous?null:latest.map(t->amount(t.getBalance())).orElse(null);
+        String confirmedAsOf=lastSource.map(t->t.getTransactionDate()+(ambiguous?" 거래 순서 확인 필요":t.getBalance()==null?" 잔고 미제공":t.getTransactionTime()==null?"":" "+t.getTransactionTime())).orElse(null);
+        // 새 은행 거래가 아직 없으면 명시적으로 인계·확정한 같은 계좌의 기준일 잔액을 보여줍니다.
+        // 기준일 이후 잔액 미제공·순서 미확인 거래는 예전 잔액으로 숨기지 않습니다.
+        var openingBatch=openingBatches.findByPropertyIdOrderByCreatedAtDesc(property).stream()
+            .filter(batch->"CONFIRMED".equals(batch.getStatus())&&!batch.getCutoffDate().isAfter(end)).findFirst();
+        if(openingBatch.isPresent()&&lastSource.map(t->!t.getTransactionDate().isAfter(openingBatch.get().getCutoffDate())).orElse(true)) {
+            var baseline=bankOpenings.findByBatchId(openingBatch.get().getId()).stream().filter(row->row.getBankAccountId().equals(common.getFirst().getId())).findFirst();
+            if(baseline.isPresent()) {
+                confirmedBalance=amount(baseline.get().getAmount());
+                confirmedAsOf=openingBatch.get().getCutoffDate()+" 마감 잔액 인계";
+            }
+        }
+        return new BankingBalanceResponse.Workspace(property,rawMonth,cutoff,confirmedBalance,confirmedAsOf,result,
             entries.stream().filter(e->YearMonth.from(e.date()).equals(month)).toList(),external,income,pending);
     }
 

@@ -14,17 +14,34 @@ import {
 } from '../../../model/bankAccount';
 import { SetupProgress } from '../setup-progress/setupProgress';
 import { BankIllustration } from './bankIllustration';
+import { OpeningBalanceFields } from '../opening-balance-fields/openingBalanceFields';
+import {
+  getCashOpeningError,
+  type OpeningBalancesDraft
+} from '../../../model/openingBalances';
+import type {
+  BuildingDraft,
+  UnitDraft
+} from '../../../model/unitSetup';
 import styles from './bankAccountSetup.module.css';
 
 /** 공용 관리계좌 하나를 초안으로 입력하며 이전 이동과 새로고침에서 같은 폼을 복원합니다. */
 export function BankAccountSetup({
   propertyName,
+  openingBalances,
+  units,
+  buildings,
+  onOpeningChange,
   account,
   onChange,
   onPrevious,
   onNext,
 }: {
   propertyName: string;
+  openingBalances: OpeningBalancesDraft;
+  units: UnitDraft[];
+  buildings: BuildingDraft[];
+  onOpeningChange: (opening: OpeningBalancesDraft) => void;
   account: BankAccountDraft;
   onChange: (account: BankAccountDraft) => void;
   onPrevious: () => void;
@@ -32,7 +49,8 @@ export function BankAccountSetup({
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const errors = getBankAccountErrors(account);
-  const isValid = Object.keys(errors).length === 0;
+  const openingError = getCashOpeningError(openingBalances, buildings);
+  const isValid = Object.keys(errors).length === 0 && !openingError;
 
   useEffect(() => {
     headingRef.current?.focus({
@@ -70,7 +88,7 @@ export function BankAccountSetup({
         <Button
           variant={'ghost'}
           iconOnly
-          aria-label={'관리 담당자 설정으로 돌아가기'}
+          aria-label={'동·세대 및 담당자로 돌아가기'}
           onClick={onPrevious}
           leadingIcon={(
             <ServiceIcon
@@ -96,7 +114,7 @@ export function BankAccountSetup({
         </p>
       </header>
       <SetupProgress
-        currentStep={4}
+        currentStep={3}
       />
       <section
         className={styles.card}
@@ -118,7 +136,7 @@ export function BankAccountSetup({
               ref={headingRef}
               tabIndex={-1}
             >
-              관리계좌 설정
+              관리계좌 및 잔고
             </h2>
             <p>
               <span>
@@ -174,6 +192,13 @@ export function BankAccountSetup({
               )}
             </div>
           </div>
+          <OpeningBalanceFields
+            kind={'account'}
+            opening={openingBalances}
+            units={units}
+            buildings={buildings}
+            onChange={onOpeningChange}
+          />
           <aside
             className={styles.notice}
           >
@@ -193,6 +218,13 @@ export function BankAccountSetup({
               </span>
             </p>
           </aside>
+          {openingError && (
+            <p
+              className={styles['opening-hint']}
+            >
+              {openingError}
+            </p>
+          )}
           <div
             className={styles.actions}
           >

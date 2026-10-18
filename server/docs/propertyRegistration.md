@@ -114,3 +114,8 @@ PostgreSQL 테스트는 별도 임시 클러스터에서 빈 DB / 기존 사용�
 ## 관리 담당자 후속 정책과 현재 구현의 차이 (2026-10-17)
 
 [생성자 권한](../../docs/domainRules.md#확정된-관리대상-생성자-권한)에 관리소장 담당자 등록의 대표 자동 지정 예외가 추가되었다. 대표 자동 지정 예외와 연락처 선택 정책은 Server에 적용했다. 외부 담당자 정보의 입력 제한은 아직 유지한다. 외부 담당자 이름·연락처의 저장 구조는 후속 구현이다. 기존 관리소장 계정의 본인 명부 연결은 [참여자 저장](memberManagement.md#기존-관리소장-본인-명부-연결)에서 구현했다. 기존 데이터를 이름·전화번호로 자동 연결하거나 소급 변경하지 않는다.
+
+
+## 초기 설정의 인계·운영 시작 조합 (2026-10-18)
+
+RegistrationOpeningService는 최종 요청의 전체 세대·동·계좌 참조와 날짜를 검증하고 PropertyRegistrationService의 기존 READ_COMMITTED 트랜잭션에 반드시 참여합니다. 임시 동 식별자·호수·배열 위치를 실제 생성 ID로 매핑한 뒤 OpeningBalanceService의 save, BankingBalanceService의 saveOpenings, OpeningBalanceService의 confirm을 순서대로 재사용합니다. 권한·잠금·첫 부과·선납 충당은 기존 서비스를 따르고 실패 시 등록 결과까지 함께 롤백합니다. 새 입력이 없는 이전 등록은 조합 서비스를 호출하지 않아 저장·지문을 유지합니다. API 계약은 [공통 등록 문서](../../docs/propertyRegistrationApi.md#초기-설정의-잔액-인계와-관리-시작)를 참조합니다.

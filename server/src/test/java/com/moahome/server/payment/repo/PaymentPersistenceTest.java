@@ -44,7 +44,7 @@ import static org.assertj.core.api.Assertions.*;
 @AutoConfigureTestDatabase(replace=AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @Import({com.moahome.server.banking.service.BankAccountService.class,com.moahome.server.banking.service.BankingBalanceService.class,com.moahome.server.banking.service.BankingService.class,com.moahome.server.expense.service.ExpenseService.class,com.moahome.server.payment.service.CumulativePaymentService.class,PaymentService.class,BankTransactionReader.class,BillingTemplates.class,BillingGenerationService.class,
-    PropertyRegistrationService.class,PropertyRegistrationLock.class,ManagementAccessService.class,UserService.class,
+    PropertyRegistrationService.class,RegistrationOpeningService.class,PropertyRegistrationLock.class,ManagementAccessService.class,UserService.class,
     OpeningBalanceService.class,com.moahome.server.membership.service.MemberManagementService.class,
     com.moahome.server.membership.service.MembershipRequestService.class,ResidentRegistrationService.class,ResidentManagementService.class,
     ResidentListService.class,PaymentPersistenceTest.TestBeans.class})
@@ -106,6 +106,72 @@ class PaymentPersistenceTest {
     MockMultipartFile csv(String body) { return new MockMultipartFile("file","은행.csv","text/csv",body.getBytes(java.nio.charset.StandardCharsets.UTF_8)); }
     MockMultipartFile bank(String payer,String amount) { return csv("입금일,입금자명,입금액\n2026-10-15,"+payer+","+amount); }
     long count(String table) { return jdbc.queryForObject("select count(*) from "+table,Long.class); }
+
+    /** 새 초기 설정은 임시 참조를 실제 ID로 연결하고 등록·잔액·첫 부과를 한 번만 저장합니다. */
+    @Test void registersOpeningBalancesAndManagementStartAtomicallyAndReplaysTheSameSnapshot() {
+        var request=registrationOpeningRequest(true,"2026-10");
+        var result=registration.register(user,request).response();
+        var target=result.property().id();
+        assertThat(result.managementStart().cutoffDate()).isEqualTo(LocalDate.of(2026,9,30));
+        assertThat(opening.workspace(user,target).managementStarted()).isTrue();
+        assertThat(opening.workspace(user,target).units()).extracting(com.moahome.server.billing.dto.OpeningBalanceResponse.Unit::receivable).containsExactlyInAnyOrder("10000","0");
+        assertThat(jdbc.queryForObject("select count(*) from charges where property_id=? and charge_type='OPENING_RECEIVABLE'",Long.class,target)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from charges where property_id=? and charge_type<>'OPENING_RECEIVABLE'",Long.class,target)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from credit_applications where property_id=?",Long.class,target)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("select count(*) from payments where property_id=?",Long.class,target)).isZero();
+        var cash=cashBalances.workspace(user,target,"2026-10");
+        assertThat(cash.bankBalance()).isEqualTo("350000");
+        assertThat(cash.bankAsOf()).contains("2026-09-30");
+        assertThat(cash.buildings()).extracting(com.moahome.server.banking.dto.BankingBalanceResponse.Building::openingBalance).containsExactlyInAnyOrder("100000","200000");
+        assertThat(registration.register(user,request).created()).isFalse();
+        assertThat(registration.getResult(user,request.requestId())).isEqualTo(result);
+        assertThat(jdbc.queryForObject("select count(*) from opening_balance_batches where property_id=?",Long.class,target)).isEqualTo(1);
+        var changed=request.openingBalances();
+        var other=new com.moahome.server.property.dto.RegistrationOpeningInput(changed.cutoffDate(),changed.firstBillingMonth(),changed.units(),
+            List.of(new com.moahome.server.property.dto.RegistrationOpeningInput.AccountOpening(0,"350001")),changed.cashCutoffDate(),changed.buildings());
+        var conflict=new com.moahome.server.property.dto.PropertyRegistrationRequest(request.requestId(),request.basicInfo(),request.buildings(),request.units(),request.bankAccounts(),request.feeItems(),request.administrator(),other);
+        assertThatThrownBy(()->registration.register(user,conflict)).isInstanceOf(com.moahome.server.property.exception.RegistrationException.class);
+    }
+
+    /** 동 없는 등록과 미래 첫 부과월도 저장하되 현재 월 청구나 가상 동은 만들지 않습니다. */
+    @Test void registersWithoutBuildingsAndDefersFutureFirstBillingMonth() {
+        var request=registrationOpeningRequest(false,"2026-11");
+        var target=registration.register(user,request).response().property().id();
+        assertThat(opening.workspace(user,target).managementStarted()).isTrue();
+        assertThat(jdbc.queryForObject("select count(*) from building_cash_openings where property_id=?",Long.class,target)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from buildings where property_id=?",Long.class,target)).isZero();
+        assertThat(jdbc.queryForObject("select count(*) from billing_periods where property_id=?",Long.class,target)).isZero();
+        assertThat(cashBalances.workspace(user,target,"2026-10").bankBalance()).isEqualTo("350000");
+    }
+
+    /** 선납 충당 중 실패하면 등록·보유금·인계·성공 결과 모두 롤백하고 같은 본문으로 재시도할 수 있습니다. */
+    @Test void rollsBackRegistrationWhenOpeningConfirmationFailsAndAllowsSameRequestRetry() {
+        var request=registrationOpeningRequest(true,"2026-10");
+        long propertyCount=count("properties"),cashCount=count("building_cash_openings"),batchCount=count("opening_balance_batches");
+        jdbc.execute("create function fail_opening_application() returns trigger language plpgsql as $$ begin raise exception 'opening failure'; end $$");
+        jdbc.execute("create trigger fail_opening_application before insert on credit_applications for each row execute function fail_opening_application()");
+        assertThatThrownBy(()->registration.register(user,request)).isInstanceOf(org.springframework.dao.DataAccessException.class);
+        assertThat(count("properties")).isEqualTo(propertyCount);
+        assertThat(count("building_cash_openings")).isEqualTo(cashCount);
+        assertThat(count("opening_balance_batches")).isEqualTo(batchCount);
+        assertThatThrownBy(()->registration.getResult(user,request.requestId())).isInstanceOf(com.moahome.server.property.exception.RegistrationException.class);
+        jdbc.execute("drop function fail_opening_application() cascade");
+        assertThat(registration.register(user,request).response().managementStart()).isNotNull();
+    }
+
+    /** 기존 등록 계약을 유지하며 새 초기 설정에만 명시적인 인계 정보를 덧붙입니다. */
+    private com.moahome.server.property.dto.PropertyRegistrationRequest registrationOpeningRequest(boolean hasBuildings,String firstMonth) {
+        var base=RegistrationFixtures.request(UUID.randomUUID(),hasBuildings);
+        var opening=new com.moahome.server.property.dto.RegistrationOpeningInput(LocalDate.of(2026,9,30),firstMonth,
+            List.of(new com.moahome.server.property.dto.RegistrationOpeningInput.UnitOpening(hasBuildings?"a":null,"201","10000","7000"),
+                new com.moahome.server.property.dto.RegistrationOpeningInput.UnitOpening(hasBuildings?"b":null,"202","0","0")),
+            List.of(new com.moahome.server.property.dto.RegistrationOpeningInput.AccountOpening(0,"350000")),
+            hasBuildings?LocalDate.of(2026,9,30):null,
+            hasBuildings?List.of(new com.moahome.server.property.dto.RegistrationOpeningInput.BuildingOpening("a","100000"),
+                new com.moahome.server.property.dto.RegistrationOpeningInput.BuildingOpening("b","200000")):List.of());
+        return new com.moahome.server.property.dto.PropertyRegistrationRequest(base.requestId(),base.basicInfo(),base.buildings(),base.units(),base.bankAccounts(),base.feeItems(),
+            new com.moahome.server.property.dto.PropertyRegistrationRequest.AdministratorInput("EXTERNAL",null,null,null,null),opening);
+    }
 
 
     /** 계좌 정보 정정은 보호된 번호만 바꾸고 거래·수납·잔고 원본과 계좌 ID를 유지합니다. */

@@ -6,7 +6,11 @@ import {
 } from 'react';
 import { UNIT_STATUS_OPTIONS } from '@/entities/property';
 import { Button } from '@/shared/ui/button';
-import { Input } from '@/shared/ui/form-controls';
+import {
+  AmountInput,
+  Input
+} from '@/shared/ui/form-controls';
+import { Pagination } from '@/shared/ui/pagination';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   getFloorLabel,
@@ -19,9 +23,14 @@ import {
   getSortedUnits
 } from '../../_utils/setupSorting';
 import { UnitDeleteConfirmation } from '../unit-delete-confirmation/unitDeleteConfirmation';
+import {
+  getUnitOpening,
+  type OpeningBalancesDraft
+} from '../../../model/openingBalances';
+import { formatWon } from '@/shared/lib/format';
 import styles from './unitList.module.css';
 
-/** 한 목록을 PC 표와 모바일 카드로 표시하며 호수·표시 이름 검색과 동별 필터를 적용합니다. */
+/** 한 목록을 PC·모바일 표로 표시하며 호수·표시 이름 검색과 동별 필터를 적용합니다. */
 export function UnitList({
   hasBuildings,
   buildings,
@@ -32,7 +41,9 @@ export function UnitList({
   onDeleteSelected,
   onAdd,
   onAutomaticAdd,
+  balances,
 }: {
+  balances?: { opening: OpeningBalancesDraft; onChange: (opening: OpeningBalancesDraft) => void };
   hasBuildings: boolean;
   buildings: BuildingDraft[];
   units: UnitDraft[];
@@ -43,6 +54,10 @@ export function UnitList({
   onAdd: (buildingClientId?: string) => void;
   onAutomaticAdd: (buildingClientId?: string) => void;
 }) {
+  const [pageState, setPageState] = useState({
+    scope: '',
+    page: 1
+  });
   const [query, setQuery] = useState('');
   const [buildingFilter, setBuildingFilter] = useState('');
   const editButtonRef = useRef<HTMLButtonElement>(null);
@@ -56,10 +71,14 @@ export function UnitList({
   const filteredUnits = getSortedUnits(units, buildings, hasBuildings).filter((unit) => (!activeBuildingFilter || unit.buildingClientId === activeBuildingFilter)
     && `${unit.unitNumber} ${getUnitLabel(unit)}`.toLocaleLowerCase().includes(normalizedQuery));
   // 화면 밖으로 숨겨진 항목이나 이미 삭제된 ID는 선택과 확인 대상에 포함하지 않습니다.
-  const scope = JSON.stringify([hasBuildings, activeBuildingFilter, query]);
-  const isSelecting = selection?.scope === scope;
-  const selectedUnits = isSelecting ? filteredUnits.filter((unit) => selection.ids.includes(unit.clientId)) : [];
-  const pendingUnits = pendingIds ? filteredUnits.filter((unit) => pendingIds.includes(unit.clientId)) : [];
+  const pageScope = JSON.stringify([hasBuildings, activeBuildingFilter, query, Boolean(balances)]);
+  const pageCount = Math.max(1, Math.ceil(filteredUnits.length / 10));
+  const page = pageState.scope === pageScope ? Math.min(pageState.page, pageCount) : 1;
+  const pageUnits = filteredUnits.slice((page - 1) * 10, page * 10);
+  const scope = JSON.stringify([pageScope, page]);
+  const isSelecting = !balances && selection?.scope === scope;
+  const selectedUnits = isSelecting ? pageUnits.filter((unit) => selection.ids.includes(unit.clientId)) : [];
+  const pendingUnits = pendingIds ? pageUnits.filter((unit) => pendingIds.includes(unit.clientId)) : [];
 
   /** 동 또는 검색 변경 시 선택 모드는 유지하되 이전 범위의 선택을 모두 비웁니다. */
   function changeFilter(nextBuildingFilter: string, nextQuery: string) {
@@ -68,10 +87,14 @@ export function UnitList({
     setBuildingFilter(nextBuildingFilter);
     setQuery(nextQuery);
     setSelection((previous) => previous ? {
-      scope: JSON.stringify([hasBuildings, nextBuildingFilter, nextQuery]),
+      scope: JSON.stringify([JSON.stringify([hasBuildings, nextBuildingFilter, nextQuery, Boolean(balances)]), 1]),
       ids: []
     } : null);
     setPendingIds(null);
+    setPageState({
+      scope: JSON.stringify([hasBuildings, nextBuildingFilter, nextQuery, Boolean(balances)]),
+      page: 1
+    });
   }
 
   /** 현재 목록의 초안 ID로 개별 선택을 토글하므로 같은 호수가 다른 동에 있어도 구분합니다. */
@@ -153,6 +176,7 @@ export function UnitList({
       )}
       <div
         className={styles['unit-list']}
+        data-balances={Boolean(balances)}
       >
         <div
           className={styles.toolbar}
@@ -171,7 +195,7 @@ export function UnitList({
           />
           <Button
             variant={'outline'}
-            className={styles['desktop-automatic']}
+            className={styles['automatic-action']}
             onClick={() => onAutomaticAdd(activeBuildingFilter || undefined)}
             disabled={hasBuildings && !buildings.length}
           >
@@ -179,7 +203,7 @@ export function UnitList({
           </Button>
           <Button
             variant={'outline'}
-            className={styles['desktop-add']}
+            className={styles['add-action']}
             onClick={() => onAdd(activeBuildingFilter || undefined)}
             disabled={hasBuildings && !buildings.length}
             leadingIcon={(
@@ -229,14 +253,14 @@ export function UnitList({
               <input
                 type={'checkbox'}
                 aria-label={'현재 목록 전체 선택'}
-                checked={filteredUnits.length > 0 && selectedUnits.length === filteredUnits.length}
+                checked={filteredUnits.length > 0 && selectedUnits.length === pageUnits.length}
                 ref={(element) => {
-                  if (element) element.indeterminate = selectedUnits.length > 0 && selectedUnits.length < filteredUnits.length;
+                  if (element) element.indeterminate = selectedUnits.length > 0 && selectedUnits.length < pageUnits.length;
                 }}
                 disabled={!filteredUnits.length}
                 onChange={(event) => setSelection({
                   scope,
-                  ids: event.target.checked ? filteredUnits.map((unit) => unit.clientId) : []
+                  ids: event.target.checked ? pageUnits.map((unit) => unit.clientId) : []
                 })}
               />
               전체 선택
@@ -261,12 +285,26 @@ export function UnitList({
             </Button>
           </div>
         )}
+        {balances && (
+          <p
+            className={styles['balance-total']}
+            role={'status'}
+          >
+            현재 목록 미납
+            {' '}
+            {formatWon(filteredUnits.reduce((sum, unit) => { const amount = getUnitOpening(balances.opening, unit.clientId).receivable; return sum + (/^[0-9]{1,15}$/.test(amount) ? BigInt(amount) : BigInt(0)); }, BigInt(0)))}
+            {' · 선납 '}
+            {formatWon(filteredUnits.reduce((sum, unit) => { const amount = getUnitOpening(balances.opening, unit.clientId).credit; return sum + (/^[0-9]{1,15}$/.test(amount) ? BigInt(amount) : BigInt(0)); }, BigInt(0)))}
+            {' · 미입력 금액은 확정 전 확인이 필요합니다.'}
+          </p>
+        )}
         {filteredUnits.length ? (
           <table
             className={styles.table}
             aria-label={'등록할 세대 목록'}
             role={'table'}
             data-selecting={isSelecting}
+            data-balances={Boolean(balances)}
           >
             <thead
               role={'rowgroup'}
@@ -277,16 +315,18 @@ export function UnitList({
                 <th
                   scope={'col'}
                 >
-                  호수
+                  {balances ? '세대' : '호수'}
                 </th>
                 {hasBuildings && (
                   <th
+                    className={styles['desktop-detail']}
                     scope={'col'}
                   >
                     동
                   </th>
                 )}
                 <th
+                  className={styles['desktop-detail']}
                   scope={'col'}
                 >
                   층
@@ -301,12 +341,24 @@ export function UnitList({
                 >
                   관리
                 </th>
+                {balances && <>
+                  <th
+                    scope={'col'}
+                  >
+                    기존 미납
+                  </th>
+                  <th
+                    scope={'col'}
+                  >
+                    기존 선납
+                  </th>
+                </>}
               </tr>
             </thead>
             <tbody
               role={'rowgroup'}
             >
-              {filteredUnits.map((unit) => {
+              {pageUnits.map((unit) => {
                 const label = getUnitLabel(unit);
                 const buildingName = buildings.find((entry) => entry.clientId === unit.buildingClientId)?.name;
                 const statusLabel = UNIT_STATUS_OPTIONS.find((option) => option.value === unit.status)?.label ?? '상태 재선택';
@@ -345,8 +397,8 @@ export function UnitList({
                         <span
                           className={styles['mobile-details']}
                         >
-                          {hasBuildings && !activeBuildingFilter ? `${buildingName ?? '동 미지정'} · ` : ''}
-                          {unit.floor === null ? '층 미입력' : getFloorLabel(unit.floor)}
+                          {hasBuildings && !activeBuildingFilter ? `${buildingName ?? '동 미지정'}${balances ? '' : ' · '}` : ''}
+                          {!balances && (unit.floor === null ? '층 미입력' : getFloorLabel(unit.floor))}
                         </span>
                       </span>
                     </td>
@@ -414,19 +466,41 @@ export function UnitList({
                       <Button
                         variant={'text'}
                         size={'sm'}
+                        tone={'success'}
+                        iconOnly
                         className={styles['mobile-edit']}
                         aria-label={`${label} 수정`}
                         onClick={() => onEdit(unit.clientId)}
-                        trailingIcon={(
+                        leadingIcon={(
                           <ServiceIcon
-                            name={'chevron'}
-                            direction={'right'}
+                            name={'pen'}
                           />
                         )}
-                      >
-                        수정
-                      </Button>
+                      />
                     </td>
+                    {balances && (['receivable', 'credit'] as const).map((field) => (
+                      <td
+                        key={field}
+                        className={styles['balance-cell']}
+                        role={'cell'}
+                      >
+                        <AmountInput
+                          aria-label={`${hasBuildings ? `${buildingName ?? ''} ` : ''}${label} ${field === 'receivable' ? '기존 미납' : '기존 선납'}`}
+                          value={getUnitOpening(balances.opening, unit.clientId)[field]}
+                          readOnly={balances.opening.unitMode !== 'ENTER'}
+                          onChange={(amount) => balances.onChange({
+                            ...balances.opening,
+                            units: {
+                              ...balances.opening.units,
+                              [unit.clientId]: {
+                                ...getUnitOpening(balances.opening, unit.clientId),
+                                [field]: amount
+                              }
+                            }
+                          })}
+                        />
+                      </td>
+                    ))}
                   </tr>
                 );
               })}
@@ -447,16 +521,33 @@ export function UnitList({
             </p>
           </div>
         )}
+        {filteredUnits.length > 0 && (
+          <div
+            className={styles.pagination}
+          >
+            <Pagination
+              label={'등록 세대 페이지'}
+              unit={'세대'}
+              total={filteredUnits.length}
+              page={page}
+              pageCount={pageCount}
+              pageSize={10}
+              onPageChange={(nextPage) => {
+                setPageState({
+                  scope: pageScope,
+                  page: nextPage
+                });
+                setSelection((previous) => previous ? {
+                  scope: JSON.stringify([pageScope, nextPage]),
+                  ids: []
+                } : null);
+                setPendingIds(null);
+              }}
+            />
+          </div>
+        )}
       </div>
-      <Button
-        variant={'outline'}
-        size={'lg'}
-        className={styles['mobile-automatic']}
-        onClick={() => onAutomaticAdd(activeBuildingFilter || undefined)}
-        disabled={hasBuildings && !buildings.length}
-      >
-        세대 자동 입력
-      </Button>
+
       {pendingIds && pendingUnits.length > 0 && (
         <UnitDeleteConfirmation
           title={'선택한 세대 삭제 확인'}
@@ -480,20 +571,7 @@ export function UnitList({
           </ul>
         </UnitDeleteConfirmation>
       )}
-      <Button
-        variant={'outline'}
-        size={'lg'}
-        className={styles['mobile-add']}
-        onClick={() => onAdd(activeBuildingFilter || undefined)}
-        disabled={hasBuildings && !buildings.length}
-        leadingIcon={(
-          <ServiceIcon
-            name={'plus'}
-          />
-        )}
-      >
-        세대 추가
-      </Button>
+
     </>
   );
 }

@@ -700,3 +700,44 @@
     transition: none;
   }
 }
+
+@media (max-width: 767px) {
+  .page {
+    padding-top: calc(96px + env(safe-area-inset-top));
+
+    :is(input, button, [tabindex]) {
+      scroll-margin-top: calc(88px + env(safe-area-inset-top));
+    }
+  }
+
+  .mobile-navigation {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 10;
+    min-height: calc(72px + env(safe-area-inset-top));
+    margin: 0;
+    padding: calc(12px + env(safe-area-inset-top)) 20px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+  }
+}
+
+.opening-summary {
+  margin-top: 24px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  h3 {
+    margin-bottom: 16px;
+    font-size: 18px;
+    font-weight: 750;
+  }
+
+  p {
+    margin-top: 12px;
+    color: var(--sub-text);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+}

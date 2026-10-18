@@ -390,7 +390,7 @@ test('기본 정보만 정규화해서 검증하고 대기 중 중복 제출과 
   releaseResponse();
   await expect(page).toHaveURL(/registration=units$/);
   await expect(page.getByRole('heading', {
-    name: '동·세대 설정',
+    name: '동·세대 및 담당자',
     exact: true
   })).toBeVisible();
   await page.getByRole('button', {
@@ -458,7 +458,7 @@ for (const failure of [
       name: '등록하고 계속'
     }).click();
     await expect(page.getByRole('heading', {
-      name: '동·세대 설정',
+      name: '동·세대 및 담당자',
       exact: true
     })).toBeVisible();
     expect(attempts).toBe(2);
@@ -495,13 +495,13 @@ test('동 있음·지번 주소·선택 입력은 선택한 값 그대로 검증
     hasBuildings: true,
   });
   await expect(page.getByRole('heading', {
-    name: '동·세대 설정',
+    name: '동·세대 및 담당자',
     exact: true
   })).toBeVisible();
 });
 
 /** 기본 정보의 실제 검증 성공을 거쳐 동·세대 단계로 이동합니다. */
-async function openUnitSetup(page: Page, hasBuildings = false) {
+async function openUnitSetup(page: Page, hasBuildings = false, prepareOpening = true) {
   await openRegistration(page);
   await fillRequiredFields(page);
   if (hasBuildings) await page.getByRole('radio', {
@@ -511,24 +511,123 @@ async function openUnitSetup(page: Page, hasBuildings = false) {
     name: '등록하고 계속'
   }).click();
   await expect(page.getByRole('heading', {
-    name: '동·세대 설정',
+    name: '동·세대 및 담당자',
     exact: true
   })).toBeVisible();
+  if (prepareOpening) await prepareUnitOpening(page);
 }
 
+/** 긴 본문을 스크롤해도 모바일 초기 설정 헤더가 뷰포트 상단에 남는지 확인합니다. */
+async function expectFixedSetupHeader(page: Page) {
+  const header = page.getByText('초기 설정', {
+    exact: true
+  }).locator('..');
+  await expect(header).toHaveCSS('position', 'fixed');
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+  const bounds = await header.boundingBox();
+  expect(Math.abs(bounds!.y)).toBeLessThanOrEqual(1);
+  expect(bounds!.width).toBe(page.viewportSize()!.width);
+  await page.evaluate(() => window.scrollTo(0, 0));
+}
 
-/** 동·세대 다음의 독립 관리 담당자 단계를 거쳐 외부 관리소장으로 계속합니다. */
-async function completeExternalAdministrator(page: Page) {
-  await expect(page).toHaveURL(/registration=(administrator|account)/);
-  if (new URL(page.url()).searchParams.get('registration') !== 'administrator') return;
-  await page.getByRole('radio', {
+/** 같은 두 번째 페이지에서 담당자·기존 장부 기준일과 없음 선택을 확인합니다. */
+async function prepareUnitOpening(page: Page) {
+  const selected = page.getByRole('radio', {
+    name: /^거주 관리소장/
+  });
+  if (!(await selected.isChecked())) await page.getByRole('radio', {
     name: /^외부 관리소장/
   }).check();
+  await page.getByRole('button', {
+    name: '기존 미납·선납',
+    exact: true
+  }).click();
+  const data = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+  if (!data.openingBalances?.cutoffDate) {
+    const target = await page.evaluate(() => {
+      const today = new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Asia/Seoul'
+      }).format(new Date());
+      const date = new Date(`${today.slice(0, 7)}-01T00:00:00Z`);date.setUTCDate(0);
+      return `${date.getUTCFullYear()}년 ${date.getUTCMonth()+1}월 ${date.getUTCDate()}일`;
+    });
+    await page.getByRole('button', {
+      name: /^기존 장부 기준일:/
+    }).click();
+    await page.getByRole('button', {
+      name: '이전 달',
+      exact: true
+    }).click();
+    await page.getByRole('button', {
+      name: target,
+      exact: true
+    }).click();
+  }
+  if (!data.openingBalances?.unitMode) await page.getByRole('radio', {
+    name: '기존 미납·선납 없음',
+    exact: true
+  }).check();
+  await page.getByRole('button', {
+    name: '세대 정보',
+    exact: true
+  }).click();
+}
+async function continueUnitSetup(page: Page) {
+  await prepareUnitOpening(page);
   await page.getByRole('button', {
     name: '다음',
     exact: true
   }).click();
   await expect(page).toHaveURL(/registration=account/);
+}
+async function completeExternalAdministrator(page: Page) {
+  if (new URL(page.url()).searchParams.get('registration') === 'units') await continueUnitSetup(page);
+  await expect(page).toHaveURL(/registration=account/);
+}
+async function prepareCashOpening(page: Page) {
+  const input = page.getByLabel('통장 실제 잔액', {
+    exact: true
+  });
+  if (!(await input.inputValue())) await input.fill('0');
+  const data = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+  if (!data.buildings.length) return;
+  if (!data.openingBalances.cashCutoffDate) await page.getByRole('button', {
+    name: '장부 기준일과 같은 날짜 사용',
+    exact: true
+  }).click();
+  for (const building of data.buildings) {
+    const selection = page.getByRole('combobox', {
+      name: '보유금 입력 동',
+      exact: true
+    });
+    await selection.click();
+    await selection.fill(building.name);
+    await page.getByRole('option', {
+      name: building.name,
+      exact: true
+    }).click();
+    const amount = page.getByLabel(`${building.name} 시작 잔고`, {
+      exact: true
+    });
+    if (!(await amount.inputValue())) await amount.fill('0');
+  }
+}
+async function prepareFirstBillingMonth(page: Page) {
+  const data = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+  if (data.openingBalances?.firstBillingMonth) return;
+  const label = await page.evaluate(() => {
+    const month = new Intl.DateTimeFormat('sv-SE', {
+      timeZone: 'Asia/Seoul'
+    }).format(new Date()).slice(0, 7);
+    return `${Number(month.slice(0,4))}년 ${Number(month.slice(5))}월`;
+  });
+  await page.getByRole('button', {
+    name: /^첫 신규 관리비 부과월:/
+  }).click();
+  await page.getByRole('button', {
+    name: label,
+    exact: true
+  }).click();
 }
 
 /** 사용자에게 보이는 편집 창에서 호수·선택 층·동을 입력해 세대를 추가합니다. */
@@ -672,13 +771,9 @@ test('동 없음은 빈 목록에서 시작하고 추가·중복 검증·수정�
     name: '등록하고 계속'
   }).click();
   await expect(row).toContainText('공실');
-  await page.getByRole('button', {
-    name: '다음',
-    exact: true
-  }).click();
-  await completeExternalAdministrator(page);
+  await continueUnitSetup(page);
   await expect(page.getByRole('heading', {
-    name: '관리계좌 설정',
+    name: '관리계좌 및 잔고',
     exact: true
   })).toBeVisible();
   await expect(page).toHaveURL(/registration=account/);
@@ -689,15 +784,12 @@ test('동 없음은 빈 목록에서 시작하고 추가·중복 검증·수정�
 async function openBankAccountSetup(page: Page) {
   await openUnitSetup(page);
   await addUnit(page, '201', '2');
-  await page.getByRole('button', {
-    name: '다음',
-    exact: true
-  }).click();
-  await completeExternalAdministrator(page);
+  await continueUnitSetup(page);
   await expect(page.getByRole('heading', {
-    name: '관리계좌 설정',
+    name: '관리계좌 및 잔고',
     exact: true
   })).toBeVisible();
+  await prepareCashOpening(page);
 }
 
 /** 은행은 실제 드롭다운으로 선택하고 가상 계좌를 사용해 앞자리 0의 보존을 검증합니다. */
@@ -712,6 +804,7 @@ async function fillBankAccount(page: Page) {
   }).click();
   await page.getByLabel('계좌번호').fill('00012345678');
   await page.getByLabel('예금주').fill('예시 관리단');
+  await prepareCashOpening(page);
 }
 
 test('관리계좌는 빈 폼으로 시작하고 필수·번호 형식·예금주 길이·기본 계좌 조건을 모두 확인', async ({ page }) => {
@@ -1023,7 +1116,7 @@ test('계좌와 이전 단계 입력을 이력 이동·새로고침에 복원하
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
-    name: '관리비 항목 설정',
+    name: '관리비 설정',
     exact: true
   })).toBeVisible();
   await page.getByRole('button', {
@@ -1034,23 +1127,15 @@ test('계좌와 이전 단계 입력을 이력 이동·새로고침에 복원하
     name: '이전',
     exact: true
   }).click();
-  await expect(page).toHaveURL(/registration=administrator/);
-  await page.getByRole('button', {
-    name: '이전',
-    exact: true
-  }).click();
+  await expect(page).toHaveURL(/registration=units/);
   await expect(page.getByRole('button', {
     name: '201호 수정',
     exact: true
   })).toBeVisible();
-  await page.getByRole('button', {
-    name: '다음',
-    exact: true
-  }).click();
-  await completeExternalAdministrator(page);
+  await continueUnitSetup(page);
   await expect(page.getByLabel('계좌번호')).toHaveValue('00012345678');
   await page.goBack();
-  await expect(page).toHaveURL(/registration=administrator/);
+  await expect(page).toHaveURL(/registration=units/);
   await page.goForward();
   await expect(page.getByLabel('예금주')).toHaveValue('예시 관리단');
   await page.reload();
@@ -1075,7 +1160,7 @@ test('관리계좌 직접 진입과 새로고침의 유효하지 않은 세대�
     name: '등록하고 계속'
   }).click();
   await expect(page.getByRole('heading', {
-    name: '동·세대 설정',
+    name: '동·세대 및 담당자',
     exact: true
   })).toBeVisible();
   await page.evaluate(() => history.pushState(null, '', '/start?registration=account'));
@@ -1098,7 +1183,7 @@ test('손상된 계좌 초안은 이전 단계를 보존하고 다른 사용자�
   await page.reload();
   await completeExternalAdministrator(page);
   await expect(page.getByRole('heading', {
-    name: '관리계좌 설정',
+    name: '관리계좌 및 잔고',
     exact: true
   })).toBeVisible();
   await expect(page.getByLabel('계좌번호')).toHaveValue('');
@@ -1159,7 +1244,7 @@ for (const width of [1440, 390, 320]) {
     await page.keyboard.press('Escape');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.getByRole('heading', {
-      name: '관리계좌 설정',
+      name: '관리계좌 및 잔고',
       exact: true
     }).click();
     await page.screenshot({
@@ -1168,13 +1253,13 @@ for (const width of [1440, 390, 320]) {
       animations: 'disabled'
     });
     if (width <= 640) {
-      await expect(page.getByLabel('6단계 중 4단계: 관리계좌')).toBeVisible();
+      await expect(page.getByLabel('5단계 중 3단계: 관리계좌 및 잔고')).toBeVisible();
       await page.getByRole('button', {
-        name: '관리 담당자 설정으로 돌아가기',
+        name: '동·세대 및 담당자로 돌아가기',
         exact: true
       }).click();
       await expect(page.getByRole('heading', {
-        name: '관리 담당자 설정',
+        name: '동·세대 및 담당자',
         exact: true
       })).toBeVisible();
     }
@@ -1190,13 +1275,14 @@ async function openFeeItemsSetup(page: Page) {
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
-    name: '관리비 항목 설정',
+    name: '관리비 설정',
     exact: true
   })).toBeVisible();
 }
 
 /** 가상 관리비 항목을 실제 추가창으로 입력해 표시·합계·초안을 검증합니다. */
 async function addFeeItem(page: Page, itemName: string, amount: string) {
+  await prepareFirstBillingMonth(page);
   await page.getByRole('button', {
     name: '관리비 항목 추가',
     exact: true
@@ -1821,7 +1907,7 @@ for (const width of [1440, 390, 320]) {
       exact: true
     })).toContainText('50,000원');
     await page.getByRole('heading', {
-      name: '관리비 항목 설정',
+      name: '관리비 설정',
       exact: true
     }).click();
     await page.screenshot({
@@ -1829,7 +1915,7 @@ for (const width of [1440, 390, 320]) {
       fullPage: true,
       animations: 'disabled'
     });
-    if (width <= 640) await expect(page.getByLabel('6단계 중 5단계: 관리비 항목')).toBeVisible();
+    if (width <= 640) await expect(page.getByLabel('5단계 중 4단계: 관리비 설정')).toBeVisible();
     await addFeeItem(page, '긴 항목명'.repeat(16), '-999999999999999');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.getByRole('button', {
@@ -1837,7 +1923,7 @@ for (const width of [1440, 390, 320]) {
       exact: true
     }).click();
     await expect(page.getByRole('heading', {
-      name: '관리계좌 설정',
+      name: '관리계좌 및 잔고',
       exact: true
     })).toBeVisible();
   });
@@ -2549,6 +2635,14 @@ for (const viewport of [{
       name: '전체',
       exact: true
     }).click();
+    await expect(room('102동 201호 선택')).toHaveCount(0);
+    await page.getByRole('navigation', {
+      name: '등록 세대 페이지',
+      exact: true
+    }).getByRole('button', {
+      name: '다음 페이지',
+      exact: true
+    }).click();
     await expect(room('102동 201호 선택')).not.toBeChecked();
     await choices.getByRole('button', {
       name: '101동',
@@ -3079,7 +3173,7 @@ test('층 범위·선택 입력을 검증하고 세대 삭제 후 최소 한 세
   })).toBeDisabled();
 });
 
-test('동·세대 화면은 PC 표·모바일 카드와 하단 버튼을 표시하고 320px에서도 넘치지 않음', async ({ page }) => {
+test('동·세대 화면은 PC·모바일 표와 고정 하단 버튼을 표시하고 320px에서도 넘치지 않음', async ({ page }) => {
   await page.setViewportSize({
     width: 1448,
     height: 1086
@@ -3324,6 +3418,14 @@ test('PC 모달·모바일 전체 화면에서 가로 넘침 없이 표시하고
   }).click();
   await expect(dialog).toBeVisible();
   await expect(dialog).toHaveCSS('width', '390px');
+  const fixedHeader = dialog.getByRole('button', {
+    name: '등록 취소하고 돌아가기',
+    exact: true
+  }).locator('..');
+  await expect(fixedHeader).toHaveCSS('position', 'fixed');
+  await dialog.evaluate((element) => { element.scrollTop = element.scrollHeight; });
+  expect(Math.abs((await fixedHeader.boundingBox())!.y)).toBeLessThanOrEqual(1);
+  await dialog.evaluate((element) => { element.scrollTop = 0; });
   expect(await dialog.boundingBox()).toEqual({
     x: 0,
     y: 0,
@@ -3382,9 +3484,10 @@ async function openRegistrationReview(page: Page) {
 }
 
 /** 상세 안에 있는 수정 동작을 사용하기 전에 같은 항목의 아코디언을 펼칩니다. */
-/** 수정 뒤 첫 이동부터 남은 단계를 순서대로 확인하여 6단계 직행을 허용하지 않습니다. */
+/** 수정 뒤 첫 이동부터 남은 단계를 순서대로 확인하여 최종 확인 직행을 허용하지 않습니다. */
 async function finishSequentialReview(page: Page, firstStep: string) {
-  const steps = ['units', 'administrator', 'account', 'fees', 'review'];
+  const steps = ['units', 'account', 'fees', 'review'];
+  if (firstStep === 'administrator') firstStep = 'account';
   const start = steps.indexOf(firstStep);
   expect(start).toBeGreaterThanOrEqual(0);
   await expect(page).toHaveURL(new RegExp(`registration=${firstStep}`));
@@ -3398,7 +3501,7 @@ async function finishSequentialReview(page: Page, firstStep: string) {
 }
 
 /** 등록 당시 API 계약의 최소 성공 스냅샷을 모의 응답으로 사용합니다. */
-function registrationResult(body: { requestId: string; basicInfo: { name: string; hasBuildings: boolean }; buildings: unknown[]; units: unknown[]; feeItems: { defaultAmount: number }[] }) {
+function registrationResult(body: { openingBalances?: RegistrationRequest['openingBalances']; requestId: string; basicInfo: { name: string; hasBuildings: boolean }; buildings: unknown[]; units: unknown[]; feeItems: { defaultAmount: number }[] }) {
   return {
     requestId: body.requestId,
     property: {
@@ -3419,7 +3522,14 @@ function registrationResult(body: { requestId: string; basicInfo: { name: string
       feeItemCount: body.feeItems.length,
       monthlyDefaultAmount: body.feeItems.reduce((sum, item) => sum + item.defaultAmount, 0)
     },
-    createdAt: '2026-10-09T01:00:00Z'
+    createdAt: '2026-10-09T01:00:00Z',
+    ...(body.openingBalances ? {
+      managementStart: {
+        cutoffDate: body.openingBalances.cutoffDate,
+        firstBillingMonth: body.openingBalances.firstBillingMonth,
+        cashCutoffDate: body.openingBalances.cashCutoffDate
+      }
+    } : {})
   };
 }
 
@@ -3590,7 +3700,7 @@ test('완료 조회의 일시 장애에는 이전 정보를 숨기고 재제출 
   })).toBeVisible();
   await expect(page.getByText('서버 확인 빌라')).toHaveCount(0);
   await expect(page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   })).toHaveCount(0);
   available = true;
@@ -3622,7 +3732,7 @@ test('완료 뒤 뒤로가기는 서버 권한을 다시 확인하고 권한 해
   });
   await openRegistrationReview(page);
   await page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   }).click();
   await expect(page).toHaveURL(/registration=complete&requestId=/);
@@ -3677,7 +3787,7 @@ test('완료 화면에서 실제 로그아웃 뒤 뒤로가도 이전 입력과 
   });
   await openRegistrationReview(page);
   await page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   }).click();
   await expect(page).toHaveURL(/registration=complete&requestId=/);
@@ -3782,7 +3892,7 @@ test('캐시 복원 이벤트는 이전 화면을 가리고 로그아웃된 세�
   });
   await openRegistrationReview(page);
   await page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
@@ -3877,6 +3987,7 @@ for (const width of [1440, 390, 320]) {
 
 for (const width of [390, 320]) {
   test(`모바일 확인 ${width}px는 요약 전체를 펼치고 오른쪽 수정 글씨에서 단계 순서를 유지`, async ({ page }) => {
+    test.setTimeout(60_000);
     await page.setViewportSize({
       width,
       height: 900
@@ -4005,7 +4116,7 @@ for (const width of [390, 320]) {
       }).click();
       const nextSteps: Record<string, string> = {
         basic: 'units',
-        units: 'administrator',
+        units: 'account',
         account: 'fees',
         fees: 'review'
       };
@@ -4226,7 +4337,7 @@ test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전�
   });
   await openRegistrationReview(page);
   await page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   }).evaluate((button: HTMLButtonElement) => { button.click(); button.click(); });
   await expect(page.getByRole('dialog', {
@@ -4273,7 +4384,7 @@ test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전�
     name: '관리계좌 요약'
   })).toContainText('00012345678');
   await expect(page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   })).toHaveCount(0);
   await page.getByRole('button', {
@@ -4320,7 +4431,7 @@ test('최종 등록 응답 유실은 기존 ID의 결과 조회로 성공을 확
   });
   await openRegistrationReview(page);
   await page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
@@ -4345,7 +4456,7 @@ test('등록 결과 404와 새로고침 뒤에도 기존 ID·본문을 유지해
   }, 404));
   await openRegistrationReview(page);
   await page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   }).click();
   await expect(page.getByRole('button', {
@@ -4398,7 +4509,7 @@ for (const originalCompletes of [false, true]) {
     });
     await openRegistrationReview(page);
     await page.getByRole('button', {
-      name: '관리 시작하기',
+      name: '등록하고 관리 시작',
       exact: true
     }).click();
     const dialog = page.getByRole('dialog', {
@@ -4423,7 +4534,7 @@ for (const originalCompletes of [false, true]) {
     }).click();
     await finishSequentialReview(page, 'units');
     await page.getByRole('button', {
-      name: '관리 시작하기',
+      name: '등록하고 관리 시작',
       exact: true
     }).click();
     await expect(page).toHaveURL(/registration=complete/);
@@ -4467,7 +4578,7 @@ test('등록 설정을 나간 뒤 등록 내역이 없으면 새 입력 화면�
   }, route.request().method() === 'OPTIONS' ? 200 : 404));
   await openRegistrationReview(page);
   await page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   }).click();
   await page.getByRole('button', {
@@ -4496,7 +4607,7 @@ test('등록 설정을 나간 뒤 등록 내역이 없으면 새 입력 화면�
   // 기존 입력을 폐기한 새 진입도 같은 ID를 사용해 아직 끝나지 않은 첫 요청과 중복 생성되지 않습니다.
   await openRegistrationReview(page);
   await page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   }).click();
   await expect(page).toHaveURL(/registration=complete/);
@@ -4522,7 +4633,7 @@ test('명확한 등록 입력 오류는 해당 단계로 돌아가 값을 유지
   });
   await openRegistrationReview(page);
   await page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   }).click();
   const failureDialog = page.getByRole('dialog', {
@@ -4551,7 +4662,7 @@ test('명확한 등록 입력 오류는 해당 단계로 돌아가 값을 유지
   }).click();
   await finishSequentialReview(page, 'fees');
   await page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
@@ -4582,7 +4693,7 @@ test('등록 결과 조회 자체가 실패하면 새 요청·수정을 막고 �
   });
   await openRegistrationReview(page);
   await page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   }).click();
   await expect(page.getByRole('button', {
@@ -4629,7 +4740,7 @@ for (const closeMethod of ['닫기 버튼', 'Escape', '배경 클릭']) {
     });
     await openRegistrationReview(page);
     await page.getByRole('button', {
-      name: '관리 시작하기',
+      name: '등록하고 관리 시작',
       exact: true
     }).click();
     const dialog = page.getByRole('dialog', {
@@ -4705,7 +4816,7 @@ test('결과 미확인 안내를 닫고 등록 설정을 나가도 재진입에�
   });
   await openRegistrationReview(page);
   await page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   }).click();
   await page.getByRole('button', {
@@ -4746,7 +4857,7 @@ test('제출 중 새로고침은 기존 요청의 성공 결과를 조회하고 
   });
   await openRegistrationReview(page);
   await page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   }).click();
   await expect.poll(() => posts).toBe(1);
@@ -4777,7 +4888,7 @@ test('이탈·재진입은 제출 본문을 폐기하고 본인 요청 ID만으�
   });
   await openRegistrationReview(page);
   await page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   }).click();
   await expect(page.getByRole('button', {
@@ -4832,7 +4943,7 @@ test('손상된 제출 본문은 재전송하지 않고 결과가 없으면 기�
   }, route.request().method() === 'OPTIONS' ? 200 : 404));
   await openRegistrationReview(page);
   await page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   }).click();
   await expect(page.getByRole('button', {
@@ -4878,7 +4989,7 @@ test('잘못된 성공 응답은 완료로 믿지 않고 기존 요청 ID의 유
   });
   await openRegistrationReview(page);
   await page.getByRole('button', {
-    name: '관리 시작하기',
+    name: '등록하고 관리 시작',
     exact: true
   }).click();
   await expect(page.getByRole('heading', {
@@ -4915,7 +5026,7 @@ for (const width of [1440, 390, 320]) {
     });
     await openRegistrationReview(page);
     await page.getByRole('button', {
-      name: '관리 시작하기',
+      name: '등록하고 관리 시작',
       exact: true
     }).click();
     const loading = page.getByRole('dialog', {
@@ -4947,7 +5058,7 @@ for (const width of [1440, 390, 320]) {
       name: '관리계좌 요약'
     })).toContainText('00012345678');
     await page.getByRole('button', {
-      name: '관리 시작하기',
+      name: '등록하고 관리 시작',
       exact: true
     }).click();
     await expect(page.getByRole('heading', {
@@ -4985,10 +5096,7 @@ for (const hasBuildings of [false, true]) {
     await openUnitSetup(page, hasBuildings);
     if (hasBuildings) await addBuilding(page, 'A');
     await addUnit(page, '101', '1', hasBuildings ? 'A동' : undefined);
-    await page.getByRole('button', {
-      name: '다음',
-      exact: true
-    }).click();
+    await prepareUnitOpening(page);
     await page.getByRole('radio', {
       name: /^거주 관리소장/
     }).check();
@@ -5053,7 +5161,7 @@ for (const hasBuildings of [false, true]) {
       name: '관리소장 정보 요약'
     })).toContainText('김관리');
     await page.getByRole('button', {
-      name: '관리 시작하기',
+      name: '등록하고 관리 시작',
       exact: true
     }).click();
     await expect(page).toHaveURL(/registration=complete/);
@@ -5109,10 +5217,7 @@ for (const hasBuildings of [false, true]) {
     }).click();
     if (hasBuildings) await addBuilding(page, 'A');
     await addUnit(page, '101', '1', hasBuildings ? 'A동' : undefined);
-    await page.getByRole('button', {
-      name: '다음',
-      exact: true
-    }).click();
+    await prepareUnitOpening(page);
     await page.getByRole('radio', {
       name: /^거주 관리소장/
     }).check();
@@ -5187,7 +5292,7 @@ for (const hasBuildings of [false, true]) {
       exact: true
     })).toHaveCount(0);
     await page.getByRole('button', {
-      name: '관리 시작하기',
+      name: '등록하고 관리 시작',
       exact: true
     }).click();
     await expect(page).toHaveURL(/\/properties\/add\?registration=complete&requestId=/);
@@ -5220,10 +5325,7 @@ for (const width of [320, 390]) {
     await addUnit(page, '101', '1', 'A동');
     await addUnit(page, '102', '1', 'A동');
     await addUnit(page, '201', '2', 'B동');
-    await page.getByRole('button', {
-      name: '다음',
-      exact: true
-    }).click();
+    await prepareUnitOpening(page);
     await page.getByRole('radio', {
       name: /^거주 관리소장/
     }).check();
@@ -5304,7 +5406,17 @@ for (const width of [320, 390]) {
       name: '다음',
       exact: true
     })).toBeEnabled();
-    await card.screenshot({
+    const panel = page.getByRole('region', {
+      name: '관리 담당자 설정',
+      exact: true
+    });
+    await expect(panel).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    await expect(panel).toHaveCSS('padding-left', '16px');
+    const panelBounds = await panel.boundingBox();
+    const fieldsBounds = await card.boundingBox();
+    expect(fieldsBounds!.x - panelBounds!.x).toBeGreaterThanOrEqual(16);
+    await expectFixedSetupHeader(page);
+    await panel.screenshot({
       path: test.info().outputPath(`administratorCard${width}.png`),
       animations: 'disabled'
     });
@@ -5314,7 +5426,7 @@ for (const width of [320, 390]) {
 
 for (const width of [1440, 390]) {
   for (const hasBuildings of [false, true]) {
-    test(`실제 6단계 ${width}px ${hasBuildings ? '동·호수 두 입력' : '호수 전체 너비'}: 연락처 없이 등록·필수 표시·기존 버튼 배치`, async ({ page }) => {
+    test(`통합 5단계 ${width}px ${hasBuildings ? '동·호수 두 입력' : '호수 전체 너비'}: 연락처 없이 등록·필수 표시·기존 버튼 배치`, async ({ page }) => {
       await page.setViewportSize({
         width,
         height: 1000
@@ -5330,20 +5442,18 @@ for (const width of [1440, 390]) {
       await addUnit(page, '101', '1', hasBuildings ? 'A동' : undefined);
       await expect(page.getByRole('radio', {
         name: /^거주 관리소장/
-      })).toHaveCount(0);
-      await page.getByRole('button', {
-        name: '다음',
-        exact: true
-      }).click();
-      await expect(page).toHaveURL(/registration=administrator/);
+      })).toHaveCount(1);
+      await expect(page).toHaveURL(/registration=units/);
       await expect(page.getByRole('heading', {
-        name: '관리 담당자 설정',
+        name: '동·세대 및 담당자',
         exact: true
       })).toBeVisible();
       await expect(page.getByRole('navigation', {
         name: '초기 설정 진행 단계'
-      }).locator('li')).toHaveCount(6);
-      await expect(page.getByRole('complementary')).toHaveCount(0);
+      }).locator('li')).toHaveCount(5);
+      await expect(page.getByRole('region', {
+        name: '관리소장 정보'
+      }).getByRole('complementary')).toHaveCount(0);
       await expect(page.getByText('선택 입력입니다.')).toHaveCount(0);
       await page.getByRole('radio', {
         name: /^거주 관리소장/
@@ -5430,7 +5540,7 @@ for (const width of [1440, 390]) {
         exact: true
       }).click();
       await page.getByRole('button', {
-        name: '관리 시작하기',
+        name: '등록하고 관리 시작',
         exact: true
       }).click();
       await expect(page).toHaveURL(/registration=complete/);
@@ -5443,4 +5553,255 @@ for (const width of [1440, 390]) {
       expect(saved!.administrator).not.toHaveProperty('phone');
     });
   }
+}
+
+for (const width of [1440, 390, 320]) {
+  test(`통합 초기 설정 5단계 ${width}px는 인계·동별 잔고와 10개 페이지 입력을 저장`, async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    const requests: RegistrationRequest[] = [];
+    await page.route(FINAL_URL, async (route) => {
+      if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+      const body = route.request().postDataJSON() as RegistrationRequest;
+      requests.push(body);
+      if (requests.length === 1) return fulfillJson(route, {
+        code: 'REGISTRATION_SERVICE_UNAVAILABLE'
+      }, 503);
+      await fulfillJson(route, registrationResult(body), 201);
+    });
+    await page.route(`${FINAL_URL}/*`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+      if (requests.length < 2) return fulfillJson(route, {
+        code: 'REGISTRATION_NOT_FOUND'
+      }, 404);
+      await fulfillJson(route, registrationResult(requests[0]));
+    });
+    await openUnitSetup(page, true, false);
+    await addBuilding(page, '102');
+    await addBuilding(page, '103');
+    await page.getByRole('button', {
+      name: '세대 자동 입력',
+      exact: true
+    }).click();
+    const automatic = page.getByRole('dialog', {
+      name: '세대 자동 입력',
+      exact: true
+    });
+    await automatic.getByRole('combobox', {
+      name: '추가할 동',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '102동',
+      exact: true
+    }).click();
+    await automatic.getByLabel('시작 층').fill('2');
+    await automatic.getByLabel('마지막 층').fill('7');
+    await automatic.getByLabel('층당 세대 수').fill('2');
+    await automatic.getByRole('button', {
+      name: '추가',
+      exact: true
+    }).click();
+    const table = page.getByRole('table', {
+      name: '등록할 세대 목록',
+      exact: true
+    });
+    await expect(table.locator('tbody tr')).toHaveCount(10);
+    const nav = page.getByRole('navigation', {
+      name: '등록 세대 페이지',
+      exact: true
+    });
+    const panelBounds = await table.locator('..').boundingBox();
+    const navBounds = await nav.boundingBox();
+    const tableBounds = await table.boundingBox();
+    expect(panelBounds!.y + panelBounds!.height - navBounds!.y - navBounds!.height).toBeGreaterThanOrEqual(19);
+    expect(navBounds!.y - tableBounds!.y - tableBounds!.height).toBeGreaterThanOrEqual(23);
+    if (width < 641) {
+      await expect(table).toHaveCSS('display', 'table');
+      await expect(table.locator('tbody tr').first()).toHaveCSS('display', 'table-row');
+      const automaticButton = page.getByRole('button', {
+        name: '세대 자동 입력',
+        exact: true
+      });
+      const addButton = page.getByRole('button', {
+        name: '세대 추가',
+        exact: true
+      });
+      const automaticBounds = await automaticButton.boundingBox();
+      const addBounds = await addButton.boundingBox();
+      expect(Math.abs(automaticBounds!.y - addBounds!.y)).toBeLessThanOrEqual(1);
+      expect(automaticBounds!.y + automaticBounds!.height).toBeLessThan(tableBounds!.y);
+      const panel = table.locator('..');
+      await expect(panel).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+      await expect(panel).toHaveCSS('border-top-width', '1px');
+    }
+    await page.getByRole('navigation', {
+      name: '등록 세대 페이지',
+      exact: true
+    }).getByRole('button', {
+      name: '다음 페이지',
+      exact: true
+    }).click();
+    await expect(table.locator('tbody tr')).toHaveCount(2);
+    await expect(table).toContainText('701호');
+    await prepareUnitOpening(page);
+    await page.getByRole('button', {
+      name: '기존 미납·선납',
+      exact: true
+    }).click();
+    await page.getByRole('radio', {
+      name: '세대별 금액 입력',
+      exact: true
+    }).check();
+    await expect(table.locator('tbody tr')).toHaveCount(10);
+    await expect(table.locator('tbody label')).toHaveCount(0);
+    await expect(table.getByRole('columnheader', {
+      name: '기존 미납',
+      exact: true
+    })).toBeVisible();
+    const receivable = page.getByRole('textbox', {
+      name: '102동 201호 기존 미납',
+      exact: true
+    });
+    await receivable.fill('15000');
+    await page.getByRole('textbox', {
+      name: '102동 202호 기존 선납',
+      exact: true
+    }).fill('10000');
+    await page.getByRole('button', {
+      name: '빈 금액 0원으로 확인',
+      exact: true
+    }).click();
+    const pager = page.getByRole('navigation', {
+      name: '등록 세대 페이지',
+      exact: true
+    });
+    await pager.getByRole('button', {
+      name: '다음 페이지',
+      exact: true
+    }).click();
+    await page.getByRole('textbox', {
+      name: '102동 701호 기존 미납',
+      exact: true
+    }).fill('20000');
+    await pager.getByRole('button', {
+      name: '이전 페이지',
+      exact: true
+    }).click();
+    await expect(receivable).toHaveValue('15,000');
+    if (width < 641) {
+      await expect(table.getByRole('columnheader')).toHaveText(['세대', '기존 미납', '기존 선납']);
+      await expect(table.locator('tbody tr').first().getByRole('cell')).toHaveCount(3);
+      await expect(table.locator('tbody tr').first()).toHaveCSS('display', 'table-row');
+      await expectFixedSetupHeader(page);
+      await expect(page.getByText('초기 설정', {
+        exact: true
+      }).locator('..')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`openingUnits${width}.png`),
+      fullPage: true
+    });
+    await page.reload();
+    await page.getByRole('button', {
+      name: '기존 미납·선납',
+      exact: true
+    }).click();
+    await expect(receivable).toHaveValue('15,000');
+    await page.getByRole('button', {
+      name: '다음',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(/registration=account/);
+    await expect(page.getByLabel('통장 실제 잔액', {
+      exact: true
+    })).toHaveValue('');
+    await fillBankAccount(page);
+    if (width < 641) await expectFixedSetupHeader(page);
+    await page.getByLabel('통장 실제 잔액', {
+      exact: true
+    }).fill('350000');
+    for (const [name, value] of [['102동', '100000'], ['103동', '200000']]) {
+      const selection = page.getByRole('combobox', {
+        name: '보유금 입력 동',
+        exact: true
+      });
+      await selection.click();
+      await selection.fill(name);
+      await page.getByRole('option', {
+        name,
+        exact: true
+      }).click();
+      await page.getByLabel(`${name} 시작 잔고`, {
+        exact: true
+      }).fill(value);
+    }
+    const cashPanel = page.getByRole('region', {
+      name: '통장·동별 시작 잔고',
+      exact: true
+    });
+    await expect(cashPanel.getByRole('status')).toHaveText('입력 완료 2 / 2개 동 · 보유금 합계 300,000원');
+    await expect(cashPanel).toContainText('통장 잔액과 동별 합계의 차이: 50,000원');
+    await page.screenshot({
+      path: test.info().outputPath(`openingAccount${width}.png`),
+      fullPage: true
+    });
+    await page.getByRole('button', {
+      name: '다음',
+      exact: true
+    }).click();
+    await addFeeItem(page, '관리비', '50000');
+    if (width < 641) await expectFixedSetupHeader(page);
+    await page.getByRole('button', {
+      name: '다음',
+      exact: true
+    }).click();
+    await expect(page.getByRole('navigation', {
+      name: '초기 설정 진행 단계',
+      exact: true
+    }).locator('li')).toHaveCount(5);
+    if (width < 641) await expectFixedSetupHeader(page);
+    const summary = page.getByRole('region', {
+      name: '잔액 인계 및 관리 시작 요약',
+      exact: true
+    });
+    await expect(summary).toContainText('35,000원');
+    await expect(summary).toContainText('10,000원');
+    await expect(summary).toContainText('350,000원');
+    expect(requests).toHaveLength(0);
+    await page.getByRole('button', {
+      name: '등록하고 관리 시작',
+      exact: true
+    }).click();
+    await page.getByRole('button', {
+      name: '같은 정보로 다시 시도',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(/registration=complete/);
+    expect(requests).toHaveLength(2);
+    expect(requests[1]).toEqual(requests[0]);
+    expect(requests[0].openingBalances?.units).toHaveLength(12);
+    expect(requests[0].openingBalances?.accounts).toEqual([{
+      accountIndex: 0,
+      amount: '350000'
+    }]);
+    expect(requests[0].openingBalances?.buildings.map((row) => row.amount)).toEqual(['100000', '200000']);
+    await expect(page.getByText('잔액 인계와 관리 시작이 완료되었습니다.', {
+      exact: false
+    })).toBeVisible();
+    await expect(page.getByRole('button', {
+      name: '관리비 부과 보기',
+      exact: true
+    })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole('button', {
+      name: '관리비 부과 보기',
+      exact: true
+    })).toBeVisible();
+    expect(requests).toHaveLength(2);
+  });
 }

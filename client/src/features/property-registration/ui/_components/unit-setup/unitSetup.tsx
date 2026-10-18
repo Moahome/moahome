@@ -5,6 +5,7 @@ import {
   useRef,
   useState
 } from 'react';
+import { FilterTabs } from '@/shared/ui/filter-tabs';
 import { Button } from '@/shared/ui/button';
 import { HomeIllustration } from '@/shared/ui/home-illustration';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -28,19 +29,37 @@ import { BuildingManager } from '../building-manager/buildingManager';
 import { UnitDeleteConfirmation } from '../unit-delete-confirmation/unitDeleteConfirmation';
 import { SetupProgress } from '../setup-progress/setupProgress';
 import { UnitList } from '../unit-list/unitList';
+import { AdministratorProfile } from '../administrator-profile/administratorProfile';
+import {
+  getAdministratorError,
+  type AdministratorDraft
+} from '../../../model/administrator';
+import {
+  getUnitOpeningError,
+  type OpeningBalancesDraft
+} from '../../../model/openingBalances';
+import { OpeningBalanceFields } from '../opening-balance-fields/openingBalanceFields';
 import styles from './unitSetup.module.css';
 
-/** 같은 동·세대 초안을 PC 표와 모바일 카드로 표시하고 검색·편집·이전 이동을 연결합니다. */
+/** 같은 동·세대 초안을 PC·모바일 표로 표시하고 검색·편집·이전 이동을 연결합니다. */
 export function UnitSetup({
   basicInfo,
   buildings,
   units,
   automaticUnitRule,
+  administrator,
+  openingBalances,
+  onAdministratorChange,
+  onOpeningChange,
   onAutomaticRuleChange,
   onChange,
   onPrevious,
   onNext,
 }: {
+  administrator: AdministratorDraft;
+  openingBalances: OpeningBalancesDraft;
+  onAdministratorChange: (profile: AdministratorDraft) => void;
+  onOpeningChange: (opening: OpeningBalancesDraft) => void;
   basicInfo: BasicInfoDraft;
   buildings: BuildingDraft[];
   units: UnitDraft[];
@@ -50,6 +69,7 @@ export function UnitSetup({
   onPrevious: () => void;
   onNext: () => void;
 }) {
+  const [view, setView] = useState<'units' | 'balances'>('units');
   const headingRef = useRef<HTMLHeadingElement>(null);
   const hasBuildings = basicInfo.hasBuildings === true;
   const [automaticTarget, setAutomaticTarget] = useState<{ buildingClientId?: string } | null>(null);
@@ -59,6 +79,9 @@ export function UnitSetup({
   const pendingUnit = units.find((unit) => unit.clientId === pendingUnitId);
   const pendingBuilding = buildings.find((building) => building.clientId === pendingUnit?.buildingClientId);
   const setupError = getUnitSetupError(hasBuildings, buildings, units);
+  const administratorError = getAdministratorError(administrator, units);
+  const openingError = getUnitOpeningError(openingBalances, units);
+  const canContinue = !setupError && !administratorError && !openingError;
   const hasOldBuildings = !hasBuildings && (buildings.length > 0 || units.some((unit) => unit.buildingClientId !== null));
 
   useEffect(() => {
@@ -158,7 +181,7 @@ export function UnitSetup({
 
   /** 동·세대 초안이 유효할 때만 관리계좌 설정으로 이동하며 업무 데이터를 저장하지 않습니다. */
   function continueSetup() {
-    if (setupError) return;
+    if (!canContinue) return;
 
     onNext();
   }
@@ -229,7 +252,7 @@ export function UnitSetup({
               ref={headingRef}
               tabIndex={-1}
             >
-              동·세대 설정
+              동·세대 및 담당자
             </h2>
             <p>
               관리할 세대를 등록해주세요.
@@ -271,7 +294,36 @@ export function UnitSetup({
             </Button>
           </aside>
         )}
+        <div
+          className={styles['unit-tabs']}
+        >
+          <FilterTabs
+            label={'세대 입력 화면'}
+            value={view}
+            onChange={setView}
+            items={[{
+              value: 'units',
+              label: '세대 정보'
+            }, {
+              value: 'balances',
+              label: '기존 미납·선납'
+            }]}
+          />
+        </div>
+        {view === 'balances' && (
+          <OpeningBalanceFields
+            kind={'units'}
+            opening={openingBalances}
+            units={units}
+            buildings={buildings}
+            onChange={onOpeningChange}
+          />
+        )}
         <UnitList
+          balances={view === 'balances' ? {
+            opening: openingBalances,
+            onChange: onOpeningChange
+          } : undefined}
           hasBuildings={hasBuildings}
           buildings={buildings}
           units={units}
@@ -291,6 +343,28 @@ export function UnitSetup({
             buildingClientId
           })}
         />
+        <section
+          className={styles['administrator-section']}
+          aria-label={'관리 담당자 설정'}
+        >
+          <h3>
+            관리 담당자
+          </h3>
+          <AdministratorProfile
+            profile={administrator}
+            units={units}
+            buildings={buildings}
+            hasBuildings={hasBuildings}
+            onChange={onAdministratorChange}
+          />
+        </section>
+        {!setupError && (administratorError || openingError) && (
+          <p
+            className={styles['setup-hint']}
+          >
+            {administratorError || openingError}
+          </p>
+        )}
         <aside
           className={styles.notice}
         >
@@ -330,7 +404,7 @@ export function UnitSetup({
           </Button>
           <Button
             size={'lg'}
-            disabled={Boolean(setupError)}
+            disabled={!canContinue}
             onClick={continueSetup}
             trailingIcon={(
               <ServiceIcon

@@ -3,7 +3,7 @@
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './setupProgress.module.css';
 
-const REGISTRATION_STEPS = ['기본 정보', '동·세대', '관리 담당자', '관리계좌', '관리비 항목', '등록 정보 확인'];
+const REGISTRATION_STEPS = ['기본 정보', '동·세대 및 담당자', '관리계좌 및 잔고', '관리비 설정', '최종 확인'];
 
 function getStepState(step: number, currentStep: number) {
   if (step < currentStep) return 'complete';

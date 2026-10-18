@@ -16,6 +16,14 @@ export interface RegistrationRequest {
   units: Omit<UnitDraft, 'clientId'>[];
   bankAccounts: BankAccountDraft[];
   feeItems: { itemCode: FeeItemCode | null; itemName: string; defaultAmount: number }[];
+  openingBalances?: {
+    cutoffDate: string;
+    firstBillingMonth: string;
+    units: { buildingClientId: string | null; unitNumber: string; receivable: string; credit: string }[];
+    accounts: { accountIndex: number; amount: string }[];
+    cashCutoffDate: string | null;
+    buildings: { buildingClientId: string; amount: string }[];
+  };
 }
 
 export interface RegistrationResult {
@@ -24,6 +32,7 @@ export interface RegistrationResult {
   membership: { id: string; role: 'ADMIN'; status: 'ACTIVE' };
   summary: { buildingCount: number; unitCount: number; bankAccountCount: number; feeItemCount: number; monthlyDefaultAmount: number };
   createdAt: string;
+  managementStart?: { cutoffDate: string; firstBillingMonth: string; cashCutoffDate: string | null };
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -44,6 +53,13 @@ export function readRegistrationResult(value: unknown, requestId: string): Regis
     || !Number.isSafeInteger(summary.monthlyDefaultAmount) || Math.abs(summary.monthlyDefaultAmount) > 999999999999999
     || typeof result.createdAt !== 'string' || !Number.isFinite(Date.parse(result.createdAt))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '등록 결과를 확인할 수 없습니다.');
+  }
+  const start = result.managementStart;
+  if (start !== undefined && (!start || typeof start.cutoffDate !== 'string'
+    || !/^[1-9][0-9]{3}-[0-9]{2}-[0-9]{2}$/.test(start.cutoffDate)
+    || typeof start.firstBillingMonth !== 'string' || !/^[1-9][0-9]{3}-(0[1-9]|1[0-2])$/.test(start.firstBillingMonth)
+    || !(start.cashCutoffDate === null || (typeof start.cashCutoffDate === 'string' && /^[1-9][0-9]{3}-[0-9]{2}-[0-9]{2}$/.test(start.cashCutoffDate))))) {
+    throw new ApiError(200, 'INVALID_RESPONSE', '관리 시작 결과를 확인할 수 없습니다.');
   }
 
   return {
@@ -66,7 +82,14 @@ export function readRegistrationResult(value: unknown, requestId: string): Regis
       feeItemCount: summary.feeItemCount,
       monthlyDefaultAmount: summary.monthlyDefaultAmount
     },
-    createdAt: result.createdAt
+    createdAt: result.createdAt,
+    ...(result.managementStart ? {
+      managementStart: {
+        cutoffDate: result.managementStart.cutoffDate,
+        firstBillingMonth: result.managementStart.firstBillingMonth,
+        cashCutoffDate: result.managementStart.cashCutoffDate
+      }
+    } : {})
   };
 }
 
@@ -78,7 +101,14 @@ export async function submitRegistration(request: RegistrationRequest) {
     data: request
   });
 
-  return readRegistrationResult(result, request.requestId);
+  const parsed = readRegistrationResult(result, request.requestId);
+  if (request.openingBalances && (!parsed.managementStart
+    || parsed.managementStart.cutoffDate !== request.openingBalances.cutoffDate
+    || parsed.managementStart.firstBillingMonth !== request.openingBalances.firstBillingMonth
+    || parsed.managementStart.cashCutoffDate !== request.openingBalances.cashCutoffDate)) {
+    throw new ApiError(200, 'INVALID_RESPONSE', '관리 시작 결과를 확인할 수 없습니다.');
+  }
+  return parsed;
 }
 
 /** 통신 실패·새로고침·재로그인에서는 기존 요청의 성공 결과부터 확인합니다. */

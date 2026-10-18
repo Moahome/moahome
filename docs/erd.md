@@ -343,7 +343,7 @@ OAuth 세션/토큰 상태는 Redis 영역으로 분리한다.
 
 ## 5.1 properties
 
-2026-10-17 `management_started_at`, `balance_cutoff_date`, `first_billing_month`를 추가했습니다. 신규 등록은 모두 null이며 운영 시작 확정에서 채웁니다. 기존 행은 created_at과 등록한 한국시간 월로 운영 시작·첫 부과월을 보정하고 기준일은 null로 유지합니다. 기존 원장에 초기 잔액을 추가하는 의미는 아닙니다.
+2026-10-17 `management_started_at`, `balance_cutoff_date`, `first_billing_month`를 추가했습니다. 기본 정보만 등록한 이전 계약에서는 모두 null이며 운영 시작 확정에서 채웁니다. 2026-10-18 새 초기 설정의 최종 요청은 같은 트랜잭션에서 인계·관리 시작까지 확정하므로 이 값도 함께 채웁니다. 기존 행은 created_at과 등록한 한국시간 월로 운영 시작·첫 부과월을 보정하고 기준일은 null로 유지합니다. 기존 원장에 초기 잔액을 추가하는 의미는 아닙니다.
 
 ### 목적
 
@@ -2027,3 +2027,8 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 기타 입금의 동별 보유금 귀속입니다. UUID `id` PK, `property_id`, `payment_id`, `building_id`, 암호화한 `building_label_encrypted`, 원 단위 `amount numeric(15,0)`, 비율 `percentage numeric(5,2)`, `allocation_mode`, `sort_order`, `created_by`, `created_at`을 저장합니다. 수납·동은 같은 관리대상의 복합 FK로 연결하고 `(payment_id,building_id)`, `(payment_id,sort_order)`는 UNIQUE입니다. 지연 제약으로 실제 확정 OTHER 입금·전액 합계·비율·균등 금액과 외부 회수 중복을 검증하며 UPDATE·DELETE를 금지합니다. 취소·삭제 후에도 배분 이력을 보존하고 활성 수납·은행 원본만 계산에 사용합니다.
 
 통장 선택 삭제는 기존 `bank_transactions.deleted_at/deleted_by`와 수납 취소·삭제 이벤트를 사용합니다. 확정 지출·배분의 불변성은 유지하며 연결 수납을 취소한 뒤 삭제자·시각이 있는 원본의 소프트 삭제를 허용합니다. 삭제 표시는 되돌려 덮어쓰지 않고 재가져오기는 새 ID를 생성합니다.
+
+
+### 다섯 페이지 초기 설정의 저장 연결 (2026-10-18)
+
+새 최종 등록은 기존 `opening_balance_batches/items`, `bank_opening_balances`, `building_cash_openings`, 관리 시작 필드와 기존 부과·선납 충당 구조를 재사용합니다. 임시 동 식별자·호수·계좌 배열 위치를 같은 요청에서 생성한 실제 ID로 연결하며 새 테이블·컬럼·Migration은 추가하지 않습니다. 성공 스냅샷의 선택 `managementStart`에는 장부 기준일·첫 부과월·동별 잔고 기준일만 보관합니다. 원문 계좌번호나 세대별 인계 금액을 성공 스냅샷에 추가하지 않습니다.

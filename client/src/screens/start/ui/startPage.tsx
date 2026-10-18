@@ -34,9 +34,10 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
   const session = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const registration = searchParams.get('registration');
+  const requestedRegistration = searchParams.get('registration');
+  const registration = requestedRegistration === 'administrator' ? 'units' : requestedRegistration;
   const completionRequestId = searchParams.get('requestId');
-  const registrationStep = registration === 'basic' || registration === 'units' || registration === 'administrator' || registration === 'account' || registration === 'fees' || registration === 'review' || registration === 'complete' ? registration : null;
+  const registrationStep = registration === 'basic' || registration === 'units' || registration === 'account' || registration === 'fees' || registration === 'review' || registration === 'complete' ? registration : null;
   const isSetupStep = registrationStep !== null && registrationStep !== 'basic';
   const hasPendingSubmission = Boolean(session.data && hasPendingRegistration(session.data.id));
   const registeredProperty = useManagementEntry(session.data?.id, !additional && registrationStep === null && !hasPendingSubmission);

@@ -28,6 +28,7 @@ import {
   getSortedUnits
 } from '../../_utils/setupSorting';
 import { SetupProgress } from '../setup-progress/setupProgress';
+import { getUnitOpening } from '../../../model/openingBalances';
 import styles from './registrationReview.module.css';
 
 export type SubmissionStatus = 'idle' | 'submitting' | 'checking' | 'failed' | 'unknown' | 'complete';
@@ -91,6 +92,7 @@ export function RegistrationReview({
   const firstUnit = units[0];
   const firstUnitLabel = firstUnit ? `${draft.buildings.find((building) => building.clientId === firstUnit.buildingClientId)?.name ?? ''} ${getUnitLabel(firstUnit)}`.trim() : '';
   const hasDraft = (!complete || showResultDetails) && draft.units.length > 0 && draft.feeItems.length > 0;
+  const hasOpeningDraft = hasDraft && Boolean(draft.openingBalances.cutoffDate);
   const title = complete ? '등록된 정보를 확인해주세요' : '등록 정보를 확인해주세요';
   const propertyName = result?.property.name ?? draft.basicInfo.name;
 
@@ -122,7 +124,7 @@ export function RegistrationReview({
           <Button
             variant={'ghost'}
             iconOnly
-            aria-label={'관리비 항목 설정으로 돌아가기'}
+            aria-label={'관리비 설정으로 돌아가기'}
             onClick={onPrevious}
             leadingIcon={(
               <ServiceIcon
@@ -139,12 +141,12 @@ export function RegistrationReview({
           className={styles['mobile-step']}
         >
           <strong>
-            6
+            5
           </strong>
           {' '}
           /
           {' '}
-          6
+          5
         </span>
       </div>
       <header
@@ -160,7 +162,7 @@ export function RegistrationReview({
         </p>
       </header>
       <SetupProgress
-        currentStep={6}
+        currentStep={5}
         complete={complete}
         mobileCountInHeader
       />
@@ -189,7 +191,7 @@ export function RegistrationReview({
             {title}
           </h2>
           <p>
-            {complete ? `${propertyName}의 건물·단지 정보와 초기 설정을 저장했어요.` : '입력한 정보를 확인한 뒤 관리 시작하기를 눌러주세요.'}
+            {complete ? `${propertyName}의 건물·단지 정보와 초기 설정을 저장했어요.` : '입력한 정보를 확인한 뒤 등록하고 관리 시작을 눌러주세요.'}
           </p>
         </header>
         {hasDraft && (
@@ -541,6 +543,103 @@ export function RegistrationReview({
             </p>
           </div>
         )}
+        {(hasOpeningDraft || result?.managementStart) && (
+          <section
+            className={styles['opening-summary']}
+            aria-label={'잔액 인계 및 관리 시작 요약'}
+          >
+            <h3>
+              잔액 인계 및 관리 시작
+            </h3>
+            <dl
+              className={styles['info-list']}
+            >
+              <div>
+                <dt>
+                  기존 장부 기준일
+                </dt>
+                <dd>
+                  {result?.managementStart?.cutoffDate ?? draft.openingBalances.cutoffDate}
+                </dd>
+              </div>
+              <div>
+                <dt>
+                  첫 신규 관리비 부과월
+                </dt>
+                <dd>
+                  {result?.managementStart?.firstBillingMonth ?? draft.openingBalances.firstBillingMonth}
+                </dd>
+              </div>
+              {(result?.managementStart?.cashCutoffDate || (hasOpeningDraft && draft.buildings.length > 0)) && <div>
+                <dt>
+                  동별 잔고 기준일
+                </dt>
+                <dd>
+                  {result?.managementStart?.cashCutoffDate ?? draft.openingBalances.cashCutoffDate}
+                </dd>
+              </div>}
+              {hasOpeningDraft && <>
+                <div>
+                  <dt>
+                    통장 실제 잔액
+                  </dt>
+                  <dd>
+                    {formatWon(draft.openingBalances.accountAmount)}
+                  </dd>
+                </div>
+                {draft.buildings.map((building) => (
+                  <div
+                    key={building.clientId}
+                  >
+                    <dt>
+                      {building.name}
+                      {' '}
+                      보유금
+                    </dt>
+                    <dd>
+                      {formatWon(draft.openingBalances.buildings[building.clientId])}
+                    </dd>
+                  </div>
+                ))}
+                <div>
+                  <dt>
+                    기존 미납 합계
+                  </dt>
+                  <dd>
+                    {formatWon(units.reduce((sum, unit) => sum + BigInt(getUnitOpening(draft.openingBalances, unit.clientId).receivable), BigInt(0)))}
+                  </dd>
+                </div>
+                <div>
+                  <dt>
+                    기존 선납 합계
+                  </dt>
+                  <dd>
+                    {formatWon(units.reduce((sum, unit) => sum + BigInt(getUnitOpening(draft.openingBalances, unit.clientId).credit), BigInt(0)))}
+                  </dd>
+                </div>
+              </>}
+            </dl>
+            <p>
+              미납·선납과 실제 통장 잔액·동별 보유금은 별도로 저장합니다. 현재 세대 대표에게 과거 미납의 부담 주체를 자동 지정하지 않습니다.
+            </p>
+            {!locked && (
+              <Button
+                variant={'text'}
+                onClick={() => onEdit('units')}
+              >
+                미납·선납 수정
+              </Button>
+            )}
+            {!locked && (
+              <Button
+                variant={'text'}
+                onClick={() => onEdit('account')}
+              >
+                시작 잔고 수정
+              </Button>
+            )}
+          </section>
+        )}
         {status === 'idle' && (
           <aside
             className={styles.notice}
@@ -549,7 +648,7 @@ export function RegistrationReview({
               name={'info'}
             />
             <p>
-              관리 시작하기를 누르면 전체 정보가 저장됩니다. 저장 전까지 수정할 수 있어요.
+              등록하고 관리 시작을 누르면 기본 정보와 잔액 인계를 함께 저장하고 지정한 첫 부과월부터 관리합니다.
             </p>
           </aside>
         )}
@@ -582,7 +681,7 @@ export function RegistrationReview({
               <Button
                 onClick={onSubmit}
               >
-                관리 시작하기
+                등록하고 관리 시작
               </Button>
             </>
           )}
@@ -590,7 +689,7 @@ export function RegistrationReview({
             <Button
               disabled
             >
-              관리 시작하기
+              등록하고 관리 시작
             </Button>
           )}
           {status === 'unknown' && !dialogOpen && (

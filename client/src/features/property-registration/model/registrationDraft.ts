@@ -33,11 +33,20 @@ import {
   type AdministratorDraft
 } from './administrator';
 
+import {
+  EMPTY_OPENING_BALANCES,
+  restoreOpeningBalances,
+  getUnitOpeningError,
+  getCashOpeningError,
+  getFirstBillingError,
+  type OpeningBalancesDraft
+} from './openingBalances';
+
 const LEGACY_PREVIEW_STORAGE_KEY = 'moahome.property-registration.manager-preview';
 
 const DRAFT_STORAGE_KEY = 'moahome.property-registration.basic-info';
 
-export type RegistrationStep = 'basic' | 'units' | 'administrator' | 'account' | 'fees' | 'review';
+export type RegistrationStep = 'basic' | 'units' | 'account' | 'fees' | 'review';
 
 export interface RegistrationDraft {
   basicInfo: BasicInfoDraft;
@@ -47,6 +56,7 @@ export interface RegistrationDraft {
   automaticUnitRule: AutomaticUnitRule;
   bankAccount: BankAccountDraft;
   feeItems: FeeItemDraft[];
+  openingBalances: OpeningBalancesDraft;
   step: RegistrationStep;
   basicInfoValidated: boolean;
 }
@@ -69,6 +79,11 @@ function createEmptyDraft(): RegistrationDraft {
       ...EMPTY_BANK_ACCOUNT
     },
     feeItems: [],
+    openingBalances: {
+      ...EMPTY_OPENING_BALANCES,
+      units: {},
+      buildings: {}
+    },
     step: 'basic',
     basicInfoValidated: false,
   };
@@ -134,10 +149,10 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
 
     const basicInfoValidated = data.basicInfoValidated === true && Object.keys(getBasicInfoErrors(basicInfo)).length === 0;
     const unitsValid = basicInfoValidated && !getUnitSetupError(basicInfo.hasBuildings === true, buildings, units);
+    const openingBalances = restoreOpeningBalances(data.openingBalances, units, buildings);
     let step: RegistrationStep = 'basic';
     if (basicInfoValidated && ['units', 'administrator', 'account', 'fees', 'review'].includes(data.step)) step = 'units';
-    if (['administrator', 'account', 'fees', 'review'].includes(data.step) && unitsValid) step = 'administrator';
-    if (['account', 'fees', 'review'].includes(data.step) && step === 'administrator') step = 'account';
+    if (['account', 'fees', 'review'].includes(data.step) && unitsValid && !getUnitOpeningError(openingBalances, units)) step = 'account';
 
     // 이전 초안의 구분 기호를 정리하고 숫자가 아닌 문자가 남으면 번호를 다시 입력받습니다.
     const accountNumber = isBankAccountDraft(data.bankAccount) ? normalizeAccountNumber(data.bankAccount.accountNumber) : '';
@@ -150,7 +165,7 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
     } : {
       ...EMPTY_BANK_ACCOUNT
     };
-    if (['fees', 'review'].includes(data.step) && unitsValid && !Object.keys(getBankAccountErrors(bankAccount)).length) step = 'fees';
+    if (['fees', 'review'].includes(data.step) && unitsValid && step === 'account' && !Object.keys(getBankAccountErrors(bankAccount)).length && !getCashOpeningError(openingBalances, buildings)) step = 'fees';
 
     // 코드 필드가 없던 기존 초안은 직접 입력으로 복원하고 이름으로 종류를 추측하지 않습니다.
     const feeItems = Array.isArray(data.feeItems) ? data.feeItems.map((item: unknown) => {
@@ -162,7 +177,7 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
       };
     }) : data.feeItems;
 
-    if (data.step === 'review' && step === 'fees' && isFeeItemDraftList(feeItems) && !getFeeItemsError(feeItems)) step = 'review';
+    if (data.step === 'review' && step === 'fees' && isFeeItemDraftList(feeItems) && !getFeeItemsError(feeItems) && !getFirstBillingError(openingBalances)) step = 'review';
 
     return {
       administrator: restoreAdministrator(data.administrator),
@@ -190,6 +205,7 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
       feeItems: isFeeItemDraftList(feeItems) ? feeItems : [],
       step,
       basicInfoValidated,
+      openingBalances,
     };
   } catch {
     discardRegistrationDraft();

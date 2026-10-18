@@ -22,7 +22,6 @@ import {
   discardSubmissionBody
 } from '../../model/registrationSubmission';
 import { PropertyRegistrationDialog } from '../property-registration-dialog/propertyRegistrationDialog';
-import { AdministratorSetup } from '../_components/administrator-setup/administratorSetup';
 import { UnitSetup } from '../_components/unit-setup/unitSetup';
 import { BankAccountSetup } from '../_components/bank-account-setup/bankAccountSetup';
 import { getUnitSetupError } from '../../model/unitSetup';
@@ -35,6 +34,13 @@ import { RegistrationResultState } from '../_components/registration-result-stat
 import { SubmissionDialog } from '../_components/submission-dialog/submissionDialog';
 import { useRegistrationSubmission } from '../_hooks/useRegistrationSubmission';
 import { getAdministratorError } from '../../model/administrator';
+import {
+  getUnitOpeningError,
+  getCashOpeningError,
+  getFirstBillingError,
+  restoreOpeningBalances,
+  type OpeningBalancesDraft
+} from '../../model/openingBalances';
 import styles from './propertyRegistrationFlow.module.css';
 
 /** 하나의 초안을 공유하고 마지막 확인 화면에서만 전체 저장과 결과 복구를 시작합니다. */
@@ -60,9 +66,9 @@ export function PropertyRegistrationFlow({
   const [submissionDialogOpen, setSubmissionDialogOpen] = useState(true);
   const errorRef = useRef<HTMLParagraphElement>(null);
   const administratorValid = !getAdministratorError(draft.administrator, draft.units);
-  const unitsValid = !getUnitSetupError(draft.basicInfo.hasBuildings === true, draft.buildings, draft.units);
-  const accountValid = Object.keys(getBankAccountErrors(draft.bankAccount)).length === 0;
-  const feesValid = !getFeeItemsError(draft.feeItems);
+  const unitsValid = !getUnitSetupError(draft.basicInfo.hasBuildings === true, draft.buildings, draft.units) && administratorValid && !getUnitOpeningError(draft.openingBalances, draft.units);
+  const accountValid = Object.keys(getBankAccountErrors(draft.bankAccount)).length === 0 && !getCashOpeningError(draft.openingBalances, draft.buildings);
+  const feesValid = !getFeeItemsError(draft.feeItems) && !getFirstBillingError(draft.openingBalances);
 
   /** 서버의 입력 오류는 초안을 보존하고 해당 입력 단계부터 순서대로 다시 확인하게 합니다. */
   const showInputError = useCallback((errorStep: RegistrationStep, message: string) => {
@@ -83,8 +89,7 @@ export function PropertyRegistrationFlow({
   const locked = submission.status !== 'idle';
   let currentStep: RegistrationStep | 'complete' = 'basic';
   if (step !== 'basic' && draft.basicInfoValidated) currentStep = 'units';
-  if (['administrator', 'account', 'fees', 'review'].includes(step) && draft.basicInfoValidated && unitsValid) currentStep = 'administrator';
-  if (['account', 'fees', 'review'].includes(step) && currentStep === 'administrator' && administratorValid) currentStep = 'account';
+  if (['account', 'fees', 'review'].includes(step) && draft.basicInfoValidated && unitsValid) currentStep = 'account';
   if (['fees', 'review'].includes(step) && currentStep === 'account' && accountValid) currentStep = 'fees';
   if (step === 'review' && currentStep === 'fees' && feesValid) currentStep = 'review';
   // 제출 이후에는 URL 뒤로가기도 수정으로 처리하지 않고 저장 결과부터 확인합니다.
@@ -188,6 +193,14 @@ export function PropertyRegistrationFlow({
     submission.submit(draft);
   }
 
+  /** 각 페이지는 같은 잔액 초안을 갱신하며 저장은 최종 확인에서만 실행합니다. */
+  function updateOpening(openingBalances: OpeningBalancesDraft) {
+    setDraft((previous) => ({
+      ...previous,
+      openingBalances
+    }));
+  }
+
   let content;
   if (confirmingResult) {
     content = (
@@ -215,7 +228,7 @@ export function PropertyRegistrationFlow({
         result={submission.result}
         message={submission.message}
         onEdit={navigateSetup}
-        onEditAdministrator={() => navigateSetup('administrator')}
+        onEditAdministrator={() => navigateSetup('units')}
         onPrevious={() => navigateSetup('fees')}
         onSubmit={submitRegistrationDraft}
         canRetry={submission.canRetry}
@@ -232,6 +245,10 @@ export function PropertyRegistrationFlow({
   } else if (currentStep === 'fees') {
     content = (
       <FeeItemsSetup
+        units={draft.units}
+        buildings={draft.buildings}
+        openingBalances={draft.openingBalances}
+        onOpeningChange={updateOpening}
         propertyName={draft.basicInfo.name}
         items={draft.feeItems}
         onChange={(feeItems) => setDraft((previous) => ({
@@ -245,31 +262,30 @@ export function PropertyRegistrationFlow({
   } else if (currentStep === 'account') {
     content = (
       <BankAccountSetup
+        units={draft.units}
+        buildings={draft.buildings}
+        openingBalances={draft.openingBalances}
+        onOpeningChange={updateOpening}
         propertyName={draft.basicInfo.name}
         account={draft.bankAccount}
         onChange={(bankAccount) => setDraft((previous) => ({
           ...previous,
           bankAccount
         }))}
-        onPrevious={() => navigateSetup('administrator')}
-        onNext={() => navigateSetup('fees')}
-      />
-    );
-  } else if (currentStep === 'administrator') {
-    content = (
-      <AdministratorSetup
-        draft={draft}
-        onChange={(administrator) => setDraft((previous) => ({
-          ...previous,
-          administrator
-        }))}
         onPrevious={() => navigateSetup('units')}
-        onNext={() => navigateSetup('account')}
+        onNext={() => navigateSetup('fees')}
       />
     );
   } else if (currentStep === 'units') {
     content = (
       <UnitSetup
+        administrator={draft.administrator}
+        onAdministratorChange={(administrator) => setDraft((previous) => ({
+          ...previous,
+          administrator
+        }))}
+        openingBalances={draft.openingBalances}
+        onOpeningChange={updateOpening}
         basicInfo={draft.basicInfo}
         buildings={draft.buildings}
         units={draft.units}
@@ -282,10 +298,11 @@ export function PropertyRegistrationFlow({
           ...previous,
           buildings,
           units,
+          openingBalances: restoreOpeningBalances(previous.openingBalances, units, buildings),
           step: 'units'
         }))}
         onPrevious={() => navigateSetup('basic')}
-        onNext={() => navigateSetup('administrator')}
+        onNext={() => navigateSetup('account')}
       />
     );
   } else {

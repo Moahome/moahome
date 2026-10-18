@@ -323,3 +323,27 @@
     }
   }
 }
+
+@media (max-width: 640px) {
+  .dialog {
+    padding-top: calc(72px + env(safe-area-inset-top));
+    scroll-padding-top: calc(88px + env(safe-area-inset-top));
+  }
+
+  .mobile-navigation {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 10;
+    min-height: calc(72px + env(safe-area-inset-top));
+    margin: 0;
+    padding: env(safe-area-inset-top) 20px 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--card);
+  }
+}
+
+@media (max-width: 360px) {
+  .mobile-navigation {
+    padding-inline: 16px;
+  }
+}
