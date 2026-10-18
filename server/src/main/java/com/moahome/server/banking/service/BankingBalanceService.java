@@ -169,7 +169,8 @@ public class BankingBalanceService {
             }).toList();
             var recovered=recoveries.stream().map(r->new BigDecimal(r.amount())).reduce(BigDecimal.ZERO,BigDecimal::add);
             var decision=decisionByAllocation.get(part.getId());
-            external.add(new BankingBalanceResponse.External(part.getId(),security.decrypt(part.getTargetLabelEncrypted()),security.decrypt(expense.getCategoryEncrypted()),original.getTransactionDate(),amount(part.getAllocatedAmount()),amount(recovered),amount(part.getAllocatedAmount().subtract(recovered)),recoveries,decision!=null&&decision.isExcluded(),decision==null?0:decision.getRevision(),original.getBankAccountId()));
+            // 잘못 가져온 출금은 기존 거래 삭제로 제거합니다. 부담액과 원본 전액을 함께 반환해 삭제 범위를 확인하게 합니다.
+            external.add(new BankingBalanceResponse.External(part.getId(),security.decrypt(part.getTargetLabelEncrypted()),security.decrypt(expense.getCategoryEncrypted()),original.getTransactionDate(),amount(part.getAllocatedAmount()),amount(recovered),amount(part.getAllocatedAmount().subtract(recovered)),recoveries,decision!=null&&decision.isExcluded(),decision==null?0:decision.getRevision(),original.getBankAccountId(),original.getId(),amount(original.getAmount())));
         }
         var unitById=units.findByPropertyId(property).stream().collect(Collectors.toMap(u->u.getId(),u->u));
         var buildingById=buildings.findByPropertyId(property).stream().collect(Collectors.toMap(b->b.getId(),b->b));

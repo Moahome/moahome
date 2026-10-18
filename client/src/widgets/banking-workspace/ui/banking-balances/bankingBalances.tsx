@@ -14,7 +14,8 @@ import {
 } from 'next/navigation';
 import {
   useQuery,
-  useQueryClient
+  useQueryClient,
+  type QueryFilters
 } from '@tanstack/react-query';
 import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
@@ -59,6 +60,10 @@ import {
   getBalanceSummary,
   getBuildingLedger
 } from '../../model/balanceLedger';
+import {
+  bankingError,
+  deleteBankingTransactions
+} from '../../api/bankingApi';
 import { sortExpenseLabels } from '../../model/expenseAllocation';
 import { BankingExpensePage } from '../banking-expense-page/bankingExpensePage';
 import { AccountBalances } from '../_components/account-balances/accountBalances';
@@ -1522,6 +1527,7 @@ function BalanceActionDialog(props: BalanceActionDialogProps) {
 }
 
 function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, presentation = 'modal', openingSelector, openingAccountId, openingDraft: cachedOpening, onOpeningDraftChange }: BalanceActionDialogProps) {
+  const cache = useQueryClient();
   const [cutoff, setCutoff] = useState(cachedOpening?.cutoff ?? data.cutoffDate ?? data.legacyOpening?.cutoffDate ?? '');
   const [amounts, setAmounts] = useState<Record<string, string>>(() => cachedOpening?.amounts ?? {
     ...Object.fromEntries(data.legacyOpening?.buildings.map((row) => [row.buildingId, row.amount]) ?? []),
@@ -1535,6 +1541,7 @@ function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, p
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [decisionBusy, setDecisionBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [decisionRequestId] = useState(() => crypto.randomUUID());
   const pending = useRef(false);
   const [requestId] = useState(() => cachedOpening?.requestId ?? crypto.randomUUID());
@@ -1654,6 +1661,29 @@ function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, p
       setDecisionBusy(false);
     }
   }
+  /** 외부 부담액만 지우지 않고 잘못 등록된 출금 전체를 기존 소프트 삭제로 제거해 동별 지출도 함께 재계산합니다. */
+  async function deleteExternalTransaction() {
+    if (pending.current || !external?.transactionId) return;
+    pending.current = true;
+    setBusy(true);
+    setError('');
+    const relatedQueries: QueryFilters = {
+      predicate: (query) => query.queryKey.includes(propertyId)
+        && ['banking-workspace', 'payment-workspace', 'billing'].includes(String(query.queryKey[0]))
+    };
+    try {
+      // 진행 중인 이전 조회가 삭제 후 캐시를 덮어쓰지 않게 하고, 성공 후 관련 화면을 다시 읽습니다.
+      await cache.cancelQueries(relatedQueries);
+      await deleteBankingTransactions(propertyId, [external.transactionId]);
+      await cache.invalidateQueries(relatedQueries);
+      await onSaved('잘못 등록된 거래를 삭제했어요.');
+    } catch (failure) {
+      setError(bankingError(failure));
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
+  }
   if ((action.kind === 'settlement' && !external) || (action.kind === 'assignment' && !income)) return (
     <DetailDialog
       title={title}
@@ -1663,6 +1693,71 @@ function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, p
       <p>
         해당 내역을 찾을 수 없습니다.
       </p>
+    </DetailDialog>
+  );
+  if (action.kind === 'settlement' && deleting && external) return (
+    <DetailDialog
+      title={'거래를 삭제할까요?'}
+      presentation={presentation}
+      onClose={onClose}
+      busy={busy}
+      compact
+      footer={(
+        <div
+          className={styles.actions}
+        >
+          <Button
+            variant={'outline'}
+            tone={'neutral'}
+            disabled={busy}
+            onClick={() => { setDeleting(false); setError(''); }}
+          >
+            취소
+          </Button>
+          <Button
+            tone={'danger'}
+            loading={busy}
+            disabled={busy}
+            onClick={() => { void deleteExternalTransaction(); }}
+          >
+            삭제
+          </Button>
+        </div>
+      )}
+    >
+      <div
+        className={styles.form}
+      >
+        <h3>
+          {external.expenseName}
+        </h3>
+        <p>
+          {external.date}
+          {' · 출금 '}
+          {money(external.transactionAmount ?? null)}
+        </p>
+        <p>
+          외부 부담금
+          {' '}
+          {money(external.amount)}
+          과 이 출금에 연결된 모든 동별 지출을 계산에서 제거합니다. 처리 이력은 보관됩니다.
+        </p>
+        {BigInt(external.received) > BigInt(0) && (
+          <p
+            className={styles.muted}
+          >
+            연결한 회수 입금은 삭제하지 않고 다른 정산에 사용할 수 있도록 되돌립니다.
+          </p>
+        )}
+        {error && (
+          <p
+            role={'alert'}
+            className={styles.error}
+          >
+            {error}
+          </p>
+        )}
+      </div>
     </DetailDialog>
   );
   return (
@@ -1708,6 +1803,21 @@ function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, p
                 onClick={() => { void changeSettlementTarget(); }}
               >
                 {external.excluded ? '정산 대상으로 복원' : '정산에서 제외'}
+              </Button>
+            )}
+            {action.kind === 'settlement' && external?.transactionId && (
+              <Button
+                variant={'outline'}
+                tone={'danger'}
+                disabled={busy}
+                onClick={() => { setDeleting(true); setError(''); }}
+                leadingIcon={(
+                  <ServiceIcon
+                    name={'trash'}
+                  />
+                )}
+              >
+                거래 삭제
               </Button>
             )}
             {(action.kind !== 'opening' || inputOpening) && (action.kind !== 'settlement' || (external && !external.excluded && BigInt(external.remaining) > BigInt(0))) && (

@@ -7,8 +7,8 @@ public final class BankingBalanceResponse {
     public record Entry(UUID id,UUID buildingId,LocalDate date,LocalTime time,String label,String income,String expense,UUID paymentId,UUID accountId) {
         public Entry(UUID id,UUID buildingId,LocalDate date,LocalTime time,String label,String income,String expense,UUID paymentId) { this(id,buildingId,date,time,label,income,expense,paymentId,null); }
     }
-    public record External(UUID id,String label,String expenseName,LocalDate date,String amount,String received,String remaining,List<Recovery> recoveries,boolean excluded,long decisionRevision,UUID accountId) {
-        public External(UUID id,String label,String expenseName,LocalDate date,String amount,String received,String remaining,List<Recovery> recoveries,boolean excluded,long decisionRevision) { this(id,label,expenseName,date,amount,received,remaining,recoveries,excluded,decisionRevision,null); }
+    public record External(UUID id,String label,String expenseName,LocalDate date,String amount,String received,String remaining,List<Recovery> recoveries,boolean excluded,long decisionRevision,UUID accountId,UUID transactionId,String transactionAmount) {
+        public External(UUID id,String label,String expenseName,LocalDate date,String amount,String received,String remaining,List<Recovery> recoveries,boolean excluded,long decisionRevision) { this(id,label,expenseName,date,amount,received,remaining,recoveries,excluded,decisionRevision,null,null,null); }
     }
     public record Recovery(UUID id,UUID paymentId,LocalDate date,String payer,String amount) {}
     public record Income(UUID id,UUID transactionId,LocalDate date,String payer,String amount,String available,String kind,UUID linkedBuildingId,String linkedUnitLabel,UUID accountId) {

@@ -38,6 +38,255 @@ function row(index: number, direction: 'INCOME' | 'EXPENSE', payer: string, amou
   };
 }
 
+for (const width of [1440, 390]) {
+  test(`외부 부담금 거래 삭제 ${width}px는 출금 전체 범위 확인·취소·실패 재시도 후 동별 잔고를 갱신`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const transactionId = id(900), externalId = id(901);
+    let removed = false;
+    const requests: unknown[] = [];
+    let finishDelete: () => void = () => {};
+    const deleteGate = new Promise<void>((resolve) => { finishDelete = resolve; });
+    await page.route('http://localhost:8080/**', async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const headers = {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-CSRF-TOKEN',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+      };
+      if (route.request().method() === 'OPTIONS') return route.fulfill({
+        status: 200,
+        headers
+      });
+      let body: unknown;
+      if (path.endsWith('/csrf')) body = {
+        csrfToken: 'test-csrf'
+      };
+      else if (path.endsWith('/refresh')) body = {
+        accessToken: 'test-access',
+        tokenType: 'Bearer',
+        accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
+      };
+      else if (path === '/api/users/me') body = {
+        id: id(1),
+        displayName: '관리자',
+        profileImageUrl: null,
+        systemRole: 'USER',
+        status: 'ACTIVE'
+      };
+      else if (path.endsWith('/management-context')) body = {
+        propertyId: PROPERTY,
+        name: '모아빌라',
+        role: 'ADMIN'
+      };
+      else if (path.endsWith('/managed-properties')) body = {
+        properties: [{
+          propertyId: PROPERTY,
+          name: '모아빌라',
+          role: 'ADMIN'
+        }]
+      };
+      else if (path.endsWith('/payments/workspace')) body = {
+        propertyId: PROPERTY,
+        asOf: '2026-10-18',
+        accounts: [{
+          id: ACCOUNT,
+          label: '하나은행 ····6546'
+        }],
+        units: [],
+        charges: [],
+        payments: []
+      };
+      else if (path.endsWith('/transactions/delete')) {
+        expect(route.request().method()).toBe('POST');
+        requests.push(route.request().postDataJSON());
+        if (requests.length === 1) return route.fulfill({
+          status: 503,
+          headers,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: 'SERVICE_UNAVAILABLE'
+          })
+        });
+        await deleteGate;
+        removed = true;
+        body = {
+          propertyId: PROPERTY,
+          asOf: '2026-10-18',
+          rows: [],
+          buildings: [],
+          units: [],
+          rules: []
+        };
+      }
+      else if (path.endsWith('/banking/balances')) body = {
+        propertyId: PROPERTY,
+        month: '2026-10',
+        cutoffDate: '2026-07-01',
+        accountId: ACCOUNT,
+        bankBalance: null,
+        bankAsOf: null,
+        accounts: [{
+          id: ACCOUNT,
+          label: '하나은행 ····6546',
+          status: 'ACTIVE',
+          balance: null,
+          asOf: null,
+          calculatedBalance: removed ? '1000000' : '817310',
+          calculationBasisDate: '2026-07-01'
+        }],
+        buildings: [BUILDING_A, BUILDING_B].map((buildingId, index) => ({
+          id: buildingId,
+          label: `${102 + index}동`,
+          active: true,
+          startBalance: '500000',
+          income: '0',
+          expense: removed ? '0' : index === 0 ? '45672' : '45673',
+          balance: removed ? '500000' : index === 0 ? '454328' : '454327',
+          status: 'READY',
+          openingBalance: '500000',
+          openingRevision: 0
+        })),
+        entries: [],
+        incomes: [],
+        pending: [],
+        externals: [
+          ...(!removed ? [{
+            id: externalId,
+            accountId: ACCOUNT,
+            transactionId,
+            transactionAmount: '182690',
+            date: '2026-10-12',
+            expenseName: '09전기요금',
+            label: '101동',
+            amount: '91345',
+            received: '0',
+            remaining: '91345',
+            recoveries: [],
+            excluded: false,
+            decisionRevision: 0
+          }] : []),
+          {
+            id: id(902),
+            accountId: ACCOUNT,
+            transactionId: id(903),
+            transactionAmount: '187920',
+            date: '2026-09-10',
+            expenseName: '09전기요금',
+            label: '101동',
+            amount: '93960',
+            received: '93960',
+            remaining: '0',
+            recoveries: [],
+            excluded: false,
+            decisionRevision: 0
+          }
+        ]
+      };
+      else throw new Error(`Unexpected API ${path}`);
+      await route.fulfill({
+        status: 200,
+        headers,
+        contentType: 'application/json',
+        body: JSON.stringify(body)
+      });
+    });
+    const listUrl = `${BASE}/balances?month=2026-10&account=${ACCOUNT}`;
+    await page.goto(listUrl);
+    await page.getByRole('table', {
+      name: '외부 부담금',
+      exact: true
+    }).getByRole('row').filter({
+      hasText: '2026-10-12'
+    }).click();
+    if (width < 768) await expect(page).toHaveURL(new RegExp(`/details/settlement\\?month=2026-10&account=${ACCOUNT}&target=${externalId}`));
+    await page.getByRole('button', {
+      name: '거래 삭제',
+      exact: true
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '거래를 삭제할까요?',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByText('2026-10-12 · 출금 182,690원', {
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByText('외부 부담금 91,345원과 이 출금에 연결된 모든 동별 지출을 계산에서 제거합니다. 처리 이력은 보관됩니다.', {
+      exact: true
+    })).toBeVisible();
+    expect(requests).toHaveLength(0);
+    await page.getByRole('button', {
+      name: '취소',
+      exact: true
+    }).click();
+    await expect(page.getByRole('button', {
+      name: '거래 삭제',
+      exact: true
+    })).toBeVisible();
+    expect(requests).toHaveLength(0);
+    await page.getByRole('button', {
+      name: '거래 삭제',
+      exact: true
+    }).click();
+    await page.screenshot({
+      path: testInfo.outputPath(`externalDelete${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    await page.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(page.getByRole('heading', {
+      name: '거래를 삭제할까요?',
+      exact: true
+    })).toBeVisible();
+    expect(requests).toEqual([{
+      transactionIds: [transactionId]
+    }]);
+    await page.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(page.getByRole('button', {
+      name: '삭제',
+      exact: true
+    })).toBeDisabled();
+    await expect(page.getByRole('button', {
+      name: '취소',
+      exact: true
+    })).toBeDisabled();
+    await expect.poll(() => requests.length).toBe(2);
+    finishDelete();
+    await expect(page.getByRole('article', {
+      name: '동별 잔고 합계 1,000,000원',
+      exact: true
+    })).toBeVisible();
+    await expect(page).toHaveURL(listUrl);
+    const table = page.getByRole('table', {
+      name: '외부 부담금',
+      exact: true
+    });
+    await expect(table.getByText('2026-10-12')).toHaveCount(0);
+    await expect(table.getByText('2026-09-10')).toBeVisible();
+    expect(requests).toEqual([{
+      transactionIds: [transactionId]
+    }, {
+      transactionIds: [transactionId]
+    }]);
+    await page.reload();
+    await expect(page.getByRole('article', {
+      name: '동별 잔고 합계 1,000,000원',
+      exact: true
+    })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}
+
 test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기료 특수 배분을 함께 전송', async ({ page }) => {
   const diagnostics: Record<string, unknown>[] = [];
   page.on('console', async (message) => {

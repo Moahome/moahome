@@ -90,6 +90,8 @@ Workspace.rows는 원본 UUID·계좌·날짜·선택 시간·지출명·메모�
 - Workspace 거래에 `receiptType`과 `incomeAllocation`을 추가합니다. `incomeAllocation`은 기존 Expense 응답과 같은 구조이며 ID는 수납 ID, `saveAsRule`은 false입니다. 세대 입금·미배분 기타 입금은 null입니다. 동별 잔고 Entry에는 배분된 동마다 해당 몫의 income을 표시하되 실제 은행 잔액과 기타 입금 전체 합계는 복제하지 않습니다.
 - `OTHER_INCOME_REQUIRED`: 확정 기타 입금이 아님. `INCOME_ALREADY_SETTLED`: 외부 회수에 이미 사용한 입금. 대상·금액·비율 검증은 기존 배분 오류를 재사용합니다. 동별 배분 입금은 외부 회수 후보·사용 가능 입금 목록에서 제외합니다. 삭제한 출금의 기존 회수 연결은 보관하되 활성 회수 집계에서 제외하여 연결 입금의 사용 가능액을 복원합니다.
 
+2026-10-18 후속 요청으로 잔고 응답의 각 `externals`에 원본 출금 `transactionId`와 전체 출금액 `transactionAmount`를 제공합니다. 외부 부담금 상세의 잘못 등록된 거래 삭제는 위 `/banking/transactions/delete`에 해당 원본 ID를 보내며 별도 삭제 API나 DB 구조를 추가하지 않습니다. 외부 부담액만 제거하거나 확정 배분 금액을 변경하지 않고, 원본 삭제에 따라 해당 출금의 동별 지출·외부 정산을 모두 유효 계산에서 제외합니다. 권한·원자성·재시도·이력 보존은 기존 선택 삭제 계약을 따릅니다.
+
 ## 기존 관리계좌 정보 정정 API
 
 2026-10-18 구현. [기존 관리계좌 정정 정책](domainRules.md#기존-관리계좌-정보-정정-2026-10-18)을 따릅니다. ADMIN 전용이며 응답은 `Cache-Control: no-store`입니다.

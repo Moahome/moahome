@@ -554,6 +554,40 @@ class PaymentPersistenceTest {
         assertThat(count("income_allocations")).isEqualTo(4);
     }
 
+    /** 외부 정산에서 원본을 삭제할 때 다른 동의 지출도 함께 빠지고 확정 배분 이력은 보존되는지 검증합니다. */
+    @Test void deletingExternalSourceRemovesAllBuildingCostsAndPreservesExpenseHistory() {
+        UUID first=UUID.randomUUID(),second=UUID.randomUUID();
+        for(var pair:List.of(Map.entry(first,"102동"),Map.entry(second,"103동")))
+            jdbc.update("insert into buildings(id,property_id,name,sort_order,status,created_at,updated_at) values (?,?,?,0,'ACTIVE',now(),now())",pair.getKey(),property,pair.getValue());
+        cashBalances.saveOpenings(user,property,new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(LocalDate.of(2026,9,30),List.of(
+            new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(first,"500000"),new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(second,"500000"))));
+        var file=csv("거래일시,적요,출금액,입금액\n2026-10-12 10:00:00,전기료,182690,0");
+        var preview=banking.preview(user,property,file);
+        var expense=new com.moahome.server.banking.dto.BankingRequests.Expense("전기료",null,"AMOUNT",false,List.of(
+            new com.moahome.server.banking.dto.BankingRequests.Allocation(first,null,"45672",null),
+            new com.moahome.server.banking.dto.BankingRequests.Allocation(second,null,"45673",null),
+            new com.moahome.server.banking.dto.BankingRequests.Allocation(null,"외부 101동","91345",null)));
+        var saved=banking.upload(user,property,file,new com.moahome.server.banking.dto.BankingRequests.Import(List.of(
+            new com.moahome.server.banking.dto.BankingRequests.Selection(preview.rows().getFirst().id(),null,null,null,expense))));
+        var before=cashBalances.workspace(user,property,"2026-10");
+        var external=before.externals().getFirst();
+        assertThat(external.transactionId()).isEqualTo(saved.rows().getFirst().id());
+        assertThat(external.transactionAmount()).isEqualTo("182690");
+        assertThat(external.amount()).isEqualTo("91345");
+        assertThat(before.buildings()).extracting(b->b.expense()).containsExactlyInAnyOrder("45672","45673");
+        var request=new com.moahome.server.banking.dto.BankingRequests.DeleteMany(List.of(external.transactionId()));
+        banking.deleteMany(user,property,request);
+        banking.deleteMany(user,property,request);
+        var after=cashBalances.workspace(user,property,"2026-10");
+        assertThat(after.externals()).isEmpty();
+        assertThat(after.entries()).isEmpty();
+        assertThat(after.buildings()).extracting(b->b.expense()).containsOnly("0");
+        assertThat(after.buildings()).extracting(b->b.balance()).containsOnly("500000");
+        assertThat(banking.workspace(user,property).rows()).isEmpty();
+        assertThat(count("expenses")).isEqualTo(1);
+        assertThat(count("expense_allocations")).isEqualTo(3);
+    }
+
     @Test void interestAllocationAndExternalRecoveryCannotUseTheSameReceiptAndDeletedExpenseReleasesRecovery() {
         UUID first=UUID.randomUUID(),second=UUID.randomUUID();
         for(var pair:List.of(Map.entry(first,"102동"),Map.entry(second,"103동")))

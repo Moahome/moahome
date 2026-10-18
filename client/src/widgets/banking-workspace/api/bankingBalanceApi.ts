@@ -3,7 +3,7 @@ import { ApiError } from '@/shared/api';
 
 export type BalanceBuilding = { id: string; label: string; active: boolean; startBalance: string | null; income: string; expense: string; balance: string | null; status: 'READY' | 'OPENING_REQUIRED'; openingBalance?: string | null; openingRevision?: number };
 export type BalanceEntry = { id: string; buildingId: string; date: string; time: string | null; label: string; income: string; expense: string; paymentId?: string | null; accountId?: string | null };
-export type ExternalExpense = { accountId?: string; id: string; label: string; expenseName: string; date: string; amount: string; received: string; remaining: string; excluded?: boolean; decisionRevision?: number; recoveries: { id: string; paymentId: string; date: string; payer: string; amount: string }[] };
+export type ExternalExpense = { accountId?: string; transactionId?: string; transactionAmount?: string; id: string; label: string; expenseName: string; date: string; amount: string; received: string; remaining: string; excluded?: boolean; decisionRevision?: number; recoveries: { id: string; paymentId: string; date: string; payer: string; amount: string }[] };
 export type BalanceIncome = { accountId?: string; id: string; transactionId: string | null; date: string; payer: string; amount: string; available: string; kind: 'HOUSEHOLD' | 'OTHER'; linkedBuildingId?: string | null; linkedUnitLabel?: string | null };
 export type AccountBalance = { id: string; label: string; status: string; balance: string | null; asOf: string | null; openingDate?: string | null; openingBalance?: string | null; openingRevision?: number; calculatedBalance?: string | null; calculationBasisDate?: string | null };
 export type BalanceWorkspace = {
@@ -14,6 +14,7 @@ export type BalanceWorkspace = {
   pending: { id: string; date: string; label: string; direction: string; amount: string }[];
 };
 const INTEGER = /^-?[0-9]+$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const validAmount = (value: unknown): value is string => typeof value === 'string' && INTEGER.test(value);
 const validNonnegative = (value: unknown): value is string => validAmount(value) && BigInt(value) >= BigInt(0);
 
@@ -37,7 +38,7 @@ export async function getBankingBalances(propertyId: string, month: string, acco
     || (data.accounts !== undefined && (!Array.isArray(data.accounts) || data.accounts.some((a) => typeof a.id !== 'string' || typeof a.label !== 'string' || (a.calculatedBalance != null && (!validAmount(a.calculatedBalance) || !/^\d{4}-\d{2}-\d{2}$/.test(a.calculationBasisDate ?? ''))) || (a.calculationBasisDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(a.calculationBasisDate)) || (a.openingDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(a.openingDate)) || (a.openingBalance != null && !validNonnegative(a.openingBalance)) || (a.openingRevision !== undefined && (!Number.isSafeInteger(a.openingRevision) || a.openingRevision < 0)) || (a.balance !== null && !validAmount(a.balance)))))
     || data.buildings.some((b) => (b.openingRevision !== undefined && (!Number.isSafeInteger(b.openingRevision) || b.openingRevision < 0)) || (b.openingBalance != null && !validAmount(b.openingBalance)) || ![b.income, b.expense].every(validNonnegative) || (b.balance !== null && !validAmount(b.balance)) || (b.startBalance !== null && !validAmount(b.startBalance)) || !['READY', 'OPENING_REQUIRED'].includes(b.status))
     || data.entries.some((e) => ![e.income, e.expense].every(validNonnegative))
-    || data.externals.some((e) => (e.excluded !== undefined && typeof e.excluded !== 'boolean') || (e.decisionRevision !== undefined && (!Number.isSafeInteger(e.decisionRevision) || e.decisionRevision < 0)) || ![e.amount, e.received, e.remaining].every(validNonnegative) || BigInt(e.received) + BigInt(e.remaining) !== BigInt(e.amount) || !Array.isArray(e.recoveries) || e.recoveries.some((r) => !validNonnegative(r.amount)))
+    || data.externals.some((e) => (e.excluded !== undefined && typeof e.excluded !== 'boolean') || (e.decisionRevision !== undefined && (!Number.isSafeInteger(e.decisionRevision) || e.decisionRevision < 0)) || ![e.amount, e.received, e.remaining].every(validNonnegative) || BigInt(e.received) + BigInt(e.remaining) !== BigInt(e.amount) || ((e.transactionId !== undefined || e.transactionAmount !== undefined) && (typeof e.transactionId !== 'string' || !UUID.test(e.transactionId) || !validNonnegative(e.transactionAmount) || BigInt(e.transactionAmount) < BigInt(e.amount))) || !Array.isArray(e.recoveries) || e.recoveries.some((r) => !validNonnegative(r.amount)))
     || data.incomes.some((i) => ![i.amount, i.available].every(validNonnegative) || !['HOUSEHOLD', 'OTHER'].includes(i.kind))
     || data.pending.some((p) => !validNonnegative(p.amount))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '동별 잔고 응답을 확인할 수 없습니다.');
