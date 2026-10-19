@@ -9,8 +9,11 @@ import com.moahome.server.config.AccountSecurityProperties;
 
 public class PaymentTextSecurity {
 	private final String activeKeyId;
+
 	private final Map<String, SecretKey> encryptionKeys;
+
 	private final SecretKey hmacKey;
+
 	private final SecureRandom random = new SecureRandom();
 
 	public PaymentTextSecurity(AccountSecurityProperties properties) {
@@ -44,7 +47,7 @@ public class PaymentTextSecurity {
 			cipher.updateAAD(aad(activeKeyId));
 			Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
 			String encrypted = "v1:" + activeKeyId + ":" + encoder.encodeToString(nonce) + ":"
-				+ encoder.encodeToString(cipher.doFinal(number.getBytes(StandardCharsets.UTF_8)));
+			    + encoder.encodeToString(cipher.doFinal(number.getBytes(StandardCharsets.UTF_8)));
 			Mac mac = Mac.getInstance("HmacSHA256");
 			mac.init(hmacKey);
 			mac.update("moahome:payment-text:v1:".getBytes(StandardCharsets.UTF_8));
@@ -57,7 +60,8 @@ public class PaymentTextSecurity {
 
 	/** 키 ID와 인증 태그를 검증해 변조된 암호문과 다른 용도의 암호문을 거부합니다. */
 	public String decrypt(String encrypted) {
-        if (encrypted == null) return null;
+		if (encrypted == null)
+			return null;
 		if (encrypted.length() > 8192) {
 			throw new IllegalArgumentException("Invalid encrypted account");
 		}
@@ -81,19 +85,23 @@ public class PaymentTextSecurity {
 		}
 	}
 
-    /** 입금자명 매칭은 유니코드 정규화·공백 제거 후 HMAC으로 비교하며 원문은 로그에 남기지 않습니다. */
-    public String nameHash(String value) {
-        String normalized=java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFC).replaceAll("(?U)\\s+", "");
-        requireNumber(normalized);
-        try {
-            Mac mac=Mac.getInstance("HmacSHA256");mac.init(hmacKey);
-            mac.update("moahome:payment-text:v1:".getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(mac.doFinal(normalized.getBytes(StandardCharsets.UTF_8)));
-        } catch (GeneralSecurityException exception) { throw new IllegalStateException("Payment name hash failed"); }
-    }
+	/** 입금자명 매칭은 유니코드 정규화·공백 제거 후 HMAC으로 비교하며 원문은 로그에 남기지 않습니다. */
+	public String nameHash(String value) {
+		String normalized = java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFC).replaceAll("(?U)\\s+",
+		    "");
+		requireNumber(normalized);
+		try {
+			Mac mac = Mac.getInstance("HmacSHA256");
+			mac.init(hmacKey);
+			mac.update("moahome:payment-text:v1:".getBytes(StandardCharsets.UTF_8));
+			return HexFormat.of().formatHex(mac.doFinal(normalized.getBytes(StandardCharsets.UTF_8)));
+		} catch (GeneralSecurityException exception) {
+			throw new IllegalStateException("Payment name hash failed");
+		}
+	}
 
 	private void requireNumber(String number) {
-		if (number == null || number.isBlank() || number.length()>1000) {
+		if (number == null || number.isBlank() || number.length() > 1000) {
 			throw new IllegalArgumentException("Invalid payment text");
 		}
 	}
@@ -105,7 +113,9 @@ public class PaymentTextSecurity {
 	private byte[] decodeKey(String encoded) {
 		try {
 			byte[] key = Base64.getDecoder().decode(encoded);
-			if (key.length == 32) { return key; }
+			if (key.length == 32) {
+				return key;
+			}
 		} catch (IllegalArgumentException exception) {
 			// 키 원문과 설정값을 예외에 포함하지 않습니다.
 		}
@@ -114,6 +124,8 @@ public class PaymentTextSecurity {
 
 	public record ProtectedText(String encrypted, String hmac) {
 		@Override
-		public String toString() { return "ProtectedText[REDACTED]"; }
+		public String toString() {
+			return "ProtectedText[REDACTED]";
+		}
 	}
 }

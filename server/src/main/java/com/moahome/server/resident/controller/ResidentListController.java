@@ -18,17 +18,20 @@ import org.springframework.web.bind.annotation.*;
 @SecurityRequirement(name = "bearerAuth")
 public class ResidentListController {
 	private final ResidentListService service;
-	public ResidentListController(ResidentListService service) { this.service = service; }
+
+	public ResidentListController(ResidentListService service) {
+		this.service = service;
+	}
 
 	/** 인증 계정과 엄격히 검증한 관리대상 ID로 조회하고 브라우저·중간 캐시에 명부를 남기지 않습니다. */
 	@GetMapping
 	@Operation(summary = "주민 목록 조회", description = "삭제되지 않은 전체 명부와 연락처 끝 네 자리만 반환합니다.")
 	public ResponseEntity<ResidentListResponse> list(@AuthenticationPrincipal AuthPrincipal principal,
-		@PathVariable String propertyId) {
+	    @PathVariable String propertyId) {
 		if (!propertyId.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {
 			throw new IllegalArgumentException("Invalid property ID");
 		}
 		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-			.body(service.list(UUID.fromString(principal.userId()), UUID.fromString(propertyId)));
+		    .body(service.list(UUID.fromString(principal.userId()), UUID.fromString(propertyId)));
 	}
 }

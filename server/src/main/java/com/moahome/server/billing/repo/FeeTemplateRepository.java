@@ -5,5 +5,6 @@ import com.moahome.server.billing.domain.FeeTemplate;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface FeeTemplateRepository extends JpaRepository<FeeTemplate, UUID> {
-	java.util.List<FeeTemplate> findByPropertyIdAndDefaultTemplateTrueAndDeletedAtIsNullOrderByRevisionDesc(UUID propertyId);
+	java.util.List<FeeTemplate> findByPropertyIdAndDefaultTemplateTrueAndDeletedAtIsNullOrderByRevisionDesc(
+	    UUID propertyId);
 }

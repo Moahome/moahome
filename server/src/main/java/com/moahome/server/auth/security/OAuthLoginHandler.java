@@ -23,12 +23,15 @@ import org.springframework.stereotype.Component;
 @Component
 public class OAuthLoginHandler implements AuthenticationSuccessHandler, AuthenticationFailureHandler {
 	private final SocialLoginService logins;
+
 	private final WebAuthSupport web;
+
 	private final KakaoOAuthProperties properties;
+
 	private final OAuthAuthorizationRequestRepository requests;
 
 	public OAuthLoginHandler(SocialLoginService logins, WebAuthSupport web, KakaoOAuthProperties properties,
-		OAuthAuthorizationRequestRepository requests) {
+	    OAuthAuthorizationRequestRepository requests) {
 		this.logins = logins;
 		this.web = web;
 		this.properties = properties;
@@ -36,8 +39,8 @@ public class OAuthLoginHandler implements AuthenticationSuccessHandler, Authenti
 	}
 
 	@Override
-	public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication)
-		throws IOException {
+	public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
+	    Authentication authentication) throws IOException {
 		try {
 			if (!(authentication.getPrincipal() instanceof KakaoUser user)) {
 				redirectFailure(response, "OAUTH_LOGIN_FAILED");
@@ -58,8 +61,8 @@ public class OAuthLoginHandler implements AuthenticationSuccessHandler, Authenti
 	}
 
 	@Override
-	public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception)
-		throws IOException {
+	public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
+	    AuthenticationException exception) throws IOException {
 		String code = failureCode(exception);
 		try {
 			requests.removeAuthorizationRequest(request, response);
@@ -76,11 +79,12 @@ public class OAuthLoginHandler implements AuthenticationSuccessHandler, Authenti
 				continue;
 			}
 			return switch (oauth.getError().getErrorCode()) {
-				case "access_denied" -> "LOGIN_CANCELLED";
-				case "authorization_request_not_found", "invalid_state_parameter", "invalid_request" -> "OAUTH_STATE_INVALID";
-				case "AUTH_SERVICE_UNAVAILABLE" -> "AUTH_SERVICE_UNAVAILABLE";
-				case "OAUTH_PROFILE_INVALID" -> "OAUTH_PROFILE_INVALID";
-				default -> "OAUTH_PROVIDER_UNAVAILABLE";
+			case "access_denied" -> "LOGIN_CANCELLED";
+			case "authorization_request_not_found", "invalid_state_parameter", "invalid_request" ->
+			    "OAUTH_STATE_INVALID";
+			case "AUTH_SERVICE_UNAVAILABLE" -> "AUTH_SERVICE_UNAVAILABLE";
+			case "OAUTH_PROFILE_INVALID" -> "OAUTH_PROFILE_INVALID";
+			default -> "OAUTH_PROVIDER_UNAVAILABLE";
 			};
 		}
 		return "OAUTH_LOGIN_FAILED";

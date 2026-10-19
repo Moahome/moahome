@@ -48,7 +48,8 @@ public class Building {
 	/** 접미사가 없는 숫자·문자 동 이름도 같은 저장 이름으로 정리해 요청의 중복 검증과 공유합니다. */
 	public static String normalizeName(String name) {
 		String normalized = TextValues.strip(name);
-		if (normalized == null || normalized.isEmpty() || normalized.endsWith("동")) return normalized;
+		if (normalized == null || normalized.isEmpty() || normalized.endsWith("동"))
+			return normalized;
 		return normalized + "동";
 	}
 
@@ -76,7 +77,8 @@ public class Building {
 
 	/** 목록에서 제외하되 기존 ID와 연결 기록을 보존하며 재요청에는 최초 삭제 정보를 유지합니다. */
 	public void softDelete(UUID actorId, OffsetDateTime at) {
-		if (deletedAt != null) return;
+		if (deletedAt != null)
+			return;
 		Objects.requireNonNull(actorId);
 		Objects.requireNonNull(at);
 		deletedBy = actorId;

@@ -12,6 +12,7 @@ import lombok.Getter;
 public class PropertyRegistrationId implements Serializable {
 	@Column(name = "user_id", nullable = false, updatable = false)
 	private UUID userId;
+
 	@Column(name = "request_id", nullable = false, updatable = false)
 	private UUID requestId;
 

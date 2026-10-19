@@ -34,7 +34,7 @@ class RegistrationDomainTest {
 		assertThat(building.getDeletedBy()).isEqualTo(actor);
 		assertThat(building.getDeletedAt()).isEqualTo(at);
 		assertThatThrownBy(() -> unit.updateDetails(property, building, "002", null, 1, UnitStatus.ACTIVE))
-			.isInstanceOf(IllegalArgumentException.class);
+		    .isInstanceOf(IllegalArgumentException.class);
 	}
 
 	@Test
@@ -50,7 +50,7 @@ class RegistrationDomainTest {
 		assertThat(property.getAddressDetail()).isNull();
 		assertThat(property.getCreatedAt()).isEqualTo(at);
 		assertThatThrownBy(() -> Property.create("😀".repeat(51), "주소", null, null, false, at))
-			.isInstanceOf(IllegalArgumentException.class);
+		    .isInstanceOf(IllegalArgumentException.class);
 		user.suspend();
 		assertThatThrownBy(() -> PropertyMember.creator(property, user, at)).isInstanceOf(RuntimeException.class);
 	}
@@ -61,15 +61,15 @@ class RegistrationDomainTest {
 		Property other = Property.create("다른 대상", "주소", null, null, true, at);
 		Building building = Building.create(property, "101동", 0, at);
 		assertThat(Unit.create(property, building, "101", null, -32768, UnitStatus.ACTIVE, at).getFloor())
-			.isEqualTo((short)-32768);
+		    .isEqualTo((short) -32768);
 		assertThat(Unit.create(property, building, "102", null, 32767, UnitStatus.VACANT, at).getFloor())
-			.isEqualTo((short)32767);
+		    .isEqualTo((short) 32767);
 		assertThatThrownBy(() -> Unit.create(other, building, "101", null, 1, UnitStatus.ACTIVE, at))
-			.isInstanceOf(IllegalArgumentException.class);
+		    .isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> Unit.create(property, null, "101", null, null, UnitStatus.ACTIVE, at))
-			.isInstanceOf(IllegalArgumentException.class);
+		    .isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> Unit.create(property, building, "101", null, 32768, UnitStatus.ACTIVE, at))
-			.isInstanceOf(IllegalArgumentException.class);
+		    .isInstanceOf(IllegalArgumentException.class);
 	}
 
 	@Test
@@ -80,13 +80,13 @@ class RegistrationDomainTest {
 		assertThat(Building.create(property, "A", 1, at).getName()).isEqualTo("A동");
 		assertThat(Building.create(property, "101동", 2, at).getName()).isEqualTo("101동");
 		assertThat(Unit.create(property, building, "001", null, null, UnitStatus.ACTIVE, at).getUnitNumber())
-			.isEqualTo("001");
-		for (String number : new String[] {"A101", "101호", "B01", "관리실", "001"}) {
+		    .isEqualTo("001");
+		for (String number : new String[] { "A101", "101호", "B01", "관리실", "001" }) {
 			assertThat(Unit.create(property, building, number, null, null, UnitStatus.ACTIVE, at).getUnitNumber())
-				.isEqualTo(number);
+			    .isEqualTo(number);
 		}
 		assertThatThrownBy(() -> Unit.create(property, building, "101", null, null, UnitStatus.INACTIVE, at))
-			.isInstanceOf(IllegalArgumentException.class);
+		    .isInstanceOf(IllegalArgumentException.class);
 	}
 
 	@Test
@@ -97,13 +97,14 @@ class RegistrationDomainTest {
 		var unit = Unit.create(property, building, "001", null, 1, UnitStatus.ACTIVE, at);
 		var id = unit.getId();
 		assertThatThrownBy(() -> unit.updateDetails(property, building, "201", "가".repeat(51), 2, UnitStatus.VACANT))
-			.isInstanceOf(IllegalArgumentException.class);
+		    .isInstanceOf(IllegalArgumentException.class);
 		assertThat(unit.getUnitNumber()).isEqualTo("001");
 		assertThat(unit.getStatus()).isEqualTo(UnitStatus.ACTIVE);
-		assertThatThrownBy(() -> unit.updateDetails(other, Building.create(other, "102동", 0, at), "201", null, 2, UnitStatus.ACTIVE))
-			.isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(
+		    () -> unit.updateDetails(other, Building.create(other, "102동", 0, at), "201", null, 2, UnitStatus.ACTIVE))
+		    .isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> unit.updateDetails(property, building, "201", null, 2, UnitStatus.INACTIVE))
-			.isInstanceOf(IllegalArgumentException.class);
+		    .isInstanceOf(IllegalArgumentException.class);
 		unit.updateDetails(property, building, " B101 ", "지하 세대", -1, UnitStatus.VACANT);
 		assertThat(unit.getId()).isEqualTo(id);
 		assertThat(unit.getCreatedAt()).isEqualTo(at);
@@ -116,8 +117,8 @@ class RegistrationDomainTest {
 	void initialAccountAndTemplatePreserveDefaultsAndExactMoney() {
 		Property property = Property.create("동 없음", "주소", null, null, false, at);
 		var security = new AccountNumberSecurity(RegistrationTestKeys.accountProperties());
-		BankAccount account = BankAccount.createPublic(property, "BANK", "은행", "예금주",
-			security.protect("00012345678"), true, at);
+		BankAccount account = BankAccount.createPublic(property, "BANK", "은행", "예금주", security.protect("00012345678"),
+		    true, at);
 		assertThat(account.getValidFrom()).isEqualTo(LocalDate.of(2026, 10, 6));
 		assertThat(account.getBuildingId()).isNull();
 		assertThat(account.getHolderResidentId()).isNull();
@@ -128,11 +129,12 @@ class RegistrationDomainTest {
 		assertThat(template.getEffectiveFrom()).isEqualTo(LocalDate.of(2026, 10, 1));
 		assertThat(FeeTemplateItem.create(template, null, "0원 항목", 0, 0, at).getDefaultAmount()).isZero();
 		assertThat(FeeTemplateItem.create(template, null, "상한", 999_999_999_999_999L, 1, at).getDefaultAmount())
-			.isEqualByComparingTo("999999999999999");
-		assertThat(FeeTemplateItem.create(template, null, "음수", -1, 0, at).getDefaultAmount()).isEqualByComparingTo("-1");
+		    .isEqualByComparingTo("999999999999999");
+		assertThat(FeeTemplateItem.create(template, null, "음수", -1, 0, at).getDefaultAmount())
+		    .isEqualByComparingTo("-1");
 		assertThat(FeeTemplateItem.create(template, null, "하한", -999_999_999_999_999L, 0, at).getDefaultAmount())
-			.isEqualByComparingTo("-999999999999999");
+		    .isEqualByComparingTo("-999999999999999");
 		assertThatThrownBy(() -> FeeTemplateItem.create(template, null, "하한 초과", -1_000_000_000_000_000L, 0, at))
-			.isInstanceOf(IllegalArgumentException.class);
+		    .isInstanceOf(IllegalArgumentException.class);
 	}
 }

@@ -24,38 +24,59 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
+import jakarta.validation.ConstraintViolation;
 
 @Service
 public class PropertyRegistrationService {
 	private final UserService users;
+
 	private final PropertyRepository properties;
+
 	private final BuildingRepository buildings;
+
 	private final UnitRepository units;
+
 	private final BankAccountRepository bankAccounts;
+
 	private final FeeTemplateRepository templates;
+
 	private final FeeTemplateItemRepository items;
+
 	private final PropertyMemberRepository members;
+
 	private final PropertyRegistrationResultRepository results;
+
 	private final PropertyRegistrationLock lock;
+
 	private final AccountNumberSecurity accountSecurity;
+
 	private final RegistrationFingerprint fingerprints;
+
 	private final Validator validator;
+
 	private final ObjectMapper mapper;
+
 	private final Clock clock;
+
 	private final BillingGenerationService billing;
+
 	private final org.springframework.beans.factory.ObjectProvider<com.moahome.server.common.security.PhoneSecurity> phones;
+
 	private final com.moahome.server.resident.repo.ResidentRepository residents;
+
 	private final com.moahome.server.resident.repo.UnitResidentRepository affiliations;
+
 	private final org.springframework.beans.factory.ObjectProvider<RegistrationOpeningService> opening;
 
 	public PropertyRegistrationService(UserService users, PropertyRepository properties, BuildingRepository buildings,
-		UnitRepository units, BankAccountRepository bankAccounts, FeeTemplateRepository templates,
-		FeeTemplateItemRepository items, PropertyMemberRepository members, PropertyRegistrationResultRepository results,
-		PropertyRegistrationLock lock, AccountNumberSecurity accountSecurity, RegistrationFingerprint fingerprints,
-		Validator validator, ObjectMapper mapper, Clock clock, BillingGenerationService billing,
-		org.springframework.beans.factory.ObjectProvider<com.moahome.server.common.security.PhoneSecurity> phones,
-		com.moahome.server.resident.repo.ResidentRepository residents, com.moahome.server.resident.repo.UnitResidentRepository affiliations,
-		org.springframework.beans.factory.ObjectProvider<RegistrationOpeningService> opening) {
+	    UnitRepository units, BankAccountRepository bankAccounts, FeeTemplateRepository templates,
+	    FeeTemplateItemRepository items, PropertyMemberRepository members, PropertyRegistrationResultRepository results,
+	    PropertyRegistrationLock lock, AccountNumberSecurity accountSecurity, RegistrationFingerprint fingerprints,
+	    Validator validator, ObjectMapper mapper, Clock clock, BillingGenerationService billing,
+	    org.springframework.beans.factory.ObjectProvider<com.moahome.server.common.security.PhoneSecurity> phones,
+	    com.moahome.server.resident.repo.ResidentRepository residents,
+	    com.moahome.server.resident.repo.UnitResidentRepository affiliations,
+	    org.springframework.beans.factory.ObjectProvider<RegistrationOpeningService> opening) {
 		this.users = users;
 		this.properties = properties;
 		this.buildings = buildings;
@@ -71,8 +92,11 @@ public class PropertyRegistrationService {
 		this.validator = validator;
 		this.mapper = mapper;
 		this.clock = clock;
-		this.billing = billing;this.phones=phones;this.residents=residents;this.affiliations=affiliations;
-		this.opening=opening;
+		this.billing = billing;
+		this.phones = phones;
+		this.residents = residents;
+		this.affiliations = affiliations;
+		this.opening = opening;
 	}
 
 	/** 기본 정보만 다시 검증하고 정리한 값을 반환하며 업무 레코드와 중복 방지 ID를 생성하지 않습니다. */
@@ -102,11 +126,12 @@ public class PropertyRegistrationService {
 
 		long monthlyAmount = validateRelationships(input);
 		int creatorUnitIndex = validateAdministrator(input);
-		if(input.openingBalances()!=null) opening.getObject().validate(input);
+		if (input.openingBalances() != null)
+			opening.getObject().validate(input);
 		OffsetDateTime at = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
 		BasicInfoRequest basic = input.basicInfo();
-		Property property = Property.create(basic.name(), basic.address(), basic.addressDetail(),
-			basic.propertyType(), basic.hasBuildings(), at);
+		Property property = Property.create(basic.name(), basic.address(), basic.addressDetail(), basic.propertyType(),
+		    basic.hasBuildings(), at);
 		properties.saveAndFlush(property);
 
 		// 요청 내부 동 식별자는 저장하지 않고 생성한 동 객체로 세대 관계를 연결합니다.
@@ -116,80 +141,107 @@ public class PropertyRegistrationService {
 			buildingMap.put(building.clientId(), Building.create(property, building.name(), index, at));
 		}
 		buildings.saveAllAndFlush(buildingMap.values());
-		var createdUnits = units.saveAllAndFlush(input.units().stream().map(unit -> Unit.create(property,
-			buildingMap.get(unit.buildingClientId()), unit.unitNumber(), unit.displayName(), unit.floor(),
-			UnitStatus.valueOf(unit.status()), at)).toList());
+		List<Unit> createdUnits = units
+		    .saveAllAndFlush(input
+		        .units().stream().map(unit -> Unit.create(property, buildingMap.get(unit.buildingClientId()),
+		            unit.unitNumber(), unit.displayName(), unit.floor(), UnitStatus.valueOf(unit.status()), at))
+		        .toList());
 
 		// 같은 시각에 저장한 통장도 초기 설정에서 입력한 순서를 별도로 보존합니다.
-		var createdAccounts=bankAccounts.saveAllAndFlush(java.util.stream.IntStream.range(0,input.bankAccounts().size()).mapToObj(index -> {
-            var account=input.bankAccounts().get(index);
-            var created=BankAccount.createPublic(property,account.bankCode(),account.bankName(),account.holderName(),accountSecurity.protect(account.accountNumber()),account.isPrimary(),index,at);
-            created.rename(account.alias());
-            return created;
-        }).toList());
+		List<BankAccount> createdAccounts = bankAccounts
+		    .saveAllAndFlush(java.util.stream.IntStream.range(0, input.bankAccounts().size()).mapToObj(index -> {
+			    var account = input.bankAccounts().get(index);
+			    var created = BankAccount.createPublic(property, account.bankCode(), account.bankName(),
+			        account.holderName(), accountSecurity.protect(account.accountNumber()), account.isPrimary(), index,
+			        at);
+			    created.rename(account.alias());
+			    return created;
+		    }).toList());
 		FeeTemplate template = FeeTemplate.createDefault(property.getId(), at);
 		templates.saveAndFlush(template);
 		List<FeeTemplateItem> feeItems = new ArrayList<>();
 		for (int index = 0; index < input.feeItems().size(); index++) {
 			var item = input.feeItems().get(index);
-			feeItems.add(FeeTemplateItem.create(template, item.itemCode(), item.itemName(), item.defaultAmount(), index, at));
+			feeItems.add(
+			    FeeTemplateItem.create(template, item.itemCode(), item.itemName(), item.defaultAmount(), index, at));
 		}
 		items.saveAllAndFlush(feeItems);
 
 		PropertyMember member = PropertyMember.creator(property, user, at);
 		members.saveAndFlush(member);
-		var creator = registerCreator(userId,property.getId(),input.administrator(),creatorUnitIndex<0?null:createdUnits.get(creatorUnitIndex),at);
+		var creator = registerCreator(userId, property.getId(), input.administrator(),
+		    creatorUnitIndex < 0 ? null : createdUnits.get(creatorUnitIndex), at);
 		// 이전 등록은 기본 정보만 저장하고 새 최종 확인 요청은 기존 운영 시작 서비스를 같은 트랜잭션에서 실행합니다.
-		var managementStart=input.openingBalances()==null?null:opening.getObject().initialize(userId,property,input,buildingMap,createdUnits,createdAccounts);
+		var managementStart = input.openingBalances() == null ? null
+		    : opening.getObject().initialize(userId, property, input, buildingMap, createdUnits, createdAccounts);
 		PropertyRegistrationResponse response = new PropertyRegistrationResponse(input.requestId(),
-			new PropertySummary(property.getId(), property.getName(), property.isHasBuildings(), property.getStatus().name()),
-			new MembershipSummary(member.getId(), member.getRole().name(), member.getStatus().name()),
-			new RegistrationSummary(buildingMap.size(), input.units().size(), input.bankAccounts().size(),
-				feeItems.size(), monthlyAmount), at.toInstant(), creator,managementStart);
+		    new PropertySummary(property.getId(), property.getName(), property.isHasBuildings(),
+		        property.getStatus().name()),
+		    new MembershipSummary(member.getId(), member.getRole().name(), member.getStatus().name()),
+		    new RegistrationSummary(buildingMap.size(), input.units().size(), input.bankAccounts().size(),
+		        feeItems.size(), monthlyAmount),
+		    at.toInstant(), creator, managementStart);
 		String version = fingerprints.activeKeyVersion();
 		// 마지막 성공 결과 저장도 실패하면 앞의 모든 flush를 함께 롤백합니다. 응답은 프록시의 커밋 이후 전달됩니다.
 		results.saveAndFlush(PropertyRegistrationResult.success(userId, input.requestId(),
-			fingerprints.create(input, version), version, property.getId(), mapper.writeValueAsString(response), at));
+		    fingerprints.create(input, version), version, property.getId(), mapper.writeValueAsString(response), at));
 		return new RegistrationOutcome(response, true);
 	}
 
 	/** 본문은 본인의 거주 선택만 받고 로그인 계정과 역할은 서버에서 결정합니다. 선택한 세대는 같은 등록의 실제 세대여야 합니다. */
 	private int validateAdministrator(PropertyRegistrationRequest input) {
-		var profile=input.administrator();
-		if(profile==null) return -1; // 이전 버전 제출의 호환 경로는 명부를 만들지 않습니다.
-		if("EXTERNAL".equals(profile.residenceType())) {
-			if(profile.name()!=null||profile.phone()!=null||profile.buildingClientId()!=null||profile.unitNumber()!=null)
-				throw invalid("administrator","INVALID_COMBINATION","외부 관리소장은 거주 정보를 입력하지 않습니다.");
+		var profile = input.administrator();
+		if (profile == null)
+			return -1; // 이전 버전 제출의 호환 경로는 명부를 만들지 않습니다.
+		if ("EXTERNAL".equals(profile.residenceType())) {
+			if (profile.name() != null || profile.phone() != null || profile.buildingClientId() != null
+			    || profile.unitNumber() != null)
+				throw invalid("administrator", "INVALID_COMBINATION", "외부 관리소장은 거주 정보를 입력하지 않습니다.");
 			return -1;
 		}
-		if(profile.name()==null) throw invalid("administrator.name","REQUIRED","관리소장 이름을 입력해주세요.");
-		try { if (profile.phone() != null) com.moahome.server.resident.service.ResidentRegistrationService.normalizePhone(profile.phone()); }
-		catch(IllegalArgumentException failure) { throw invalid("administrator.phone","INVALID_FORMAT","연락처 형식을 확인해주세요."); }
-		for(int index=0;index<input.units().size();index++) {
-			var unit=input.units().get(index);
-			if(Objects.equals(unit.buildingClientId(),profile.buildingClientId())&&unit.unitNumber().equals(profile.unitNumber())) return index;
+		if (profile.name() == null)
+			throw invalid("administrator.name", "REQUIRED", "관리소장 이름을 입력해주세요.");
+		try {
+			if (profile.phone() != null)
+				com.moahome.server.resident.service.ResidentRegistrationService.normalizePhone(profile.phone());
+		} catch (IllegalArgumentException failure) {
+			throw invalid("administrator.phone", "INVALID_FORMAT", "연락처 형식을 확인해주세요.");
 		}
-		throw invalid("administrator.unitNumber","INVALID_REFERENCE","등록한 거주 세대를 선택해주세요.");
+		for (int index = 0; index < input.units().size(); index++) {
+			var unit = input.units().get(index);
+			if (Objects.equals(unit.buildingClientId(), profile.buildingClientId())
+			    && unit.unitNumber().equals(profile.unitNumber()))
+				return index;
+		}
+		throw invalid("administrator.unitNumber", "INVALID_REFERENCE", "등록한 거주 세대를 선택해주세요.");
 	}
 
 	/** 거주 등록자는 본인 계정과 연결하되 대표로 자동 지정하지 않습니다. 선택 연락처는 있을 때만 보호해 저장합니다. */
-	private CreatorSummary registerCreator(UUID actor, UUID property, PropertyRegistrationRequest.AdministratorInput input, Unit unit, OffsetDateTime at) {
-		if (input == null) return null;
-		if ("EXTERNAL".equals(input.residenceType())) return new CreatorSummary("EXTERNAL", null, null, null);
-		String phone = input.phone() == null ? null : com.moahome.server.resident.service.ResidentRegistrationService.normalizePhone(input.phone());
+	private CreatorSummary registerCreator(UUID actor, UUID property,
+	    PropertyRegistrationRequest.AdministratorInput input, Unit unit, OffsetDateTime at) {
+		if (input == null)
+			return null;
+		if ("EXTERNAL".equals(input.residenceType()))
+			return new CreatorSummary("EXTERNAL", null, null, null);
+		String phone = input.phone() == null ? null
+		    : com.moahome.server.resident.service.ResidentRegistrationService.normalizePhone(input.phone());
 		String encrypted = null;
 		String hmac = null;
 		String last4 = null;
 		if (phone != null) {
 			// 번호를 입력했을 때에만 보호 서비스를 요구하며, 보호 설정 장애에서 평문 저장으로 대체하지 않습니다.
 			com.moahome.server.common.security.PhoneSecurity security;
-			try { security = phones.getObject(); }
-			catch (org.springframework.beans.BeansException failure) { throw new RegistrationException(RegistrationErrorCode.PHONE_SECURITY_UNAVAILABLE); }
+			try {
+				security = phones.getObject();
+			} catch (org.springframework.beans.BeansException failure) {
+				throw new RegistrationException(RegistrationErrorCode.PHONE_SECURITY_UNAVAILABLE);
+			}
 			encrypted = security.encrypt(phone);
 			hmac = security.hmac(phone);
 			last4 = security.last4(phone);
 		}
-		var resident = com.moahome.server.resident.domain.Resident.register(UUID.randomUUID(), property, input.name(), encrypted, hmac, last4, at);
+		var resident = com.moahome.server.resident.domain.Resident.register(UUID.randomUUID(), property, input.name(),
+		    encrypted, hmac, last4, at);
 		resident.connectApprovedUser(actor, at);
 		residents.saveAndFlush(resident);
 		// 관리소장 등록은 일반 명부의 최초 대표 자동 지정에서 제외하고 세대 관계만 연결합니다.
@@ -203,7 +255,7 @@ public class PropertyRegistrationService {
 	public PropertyRegistrationResponse getResult(UUID userId, UUID requestId) {
 		requireActiveUser(userId);
 		PropertyRegistrationResult result = results.findById(new PropertyRegistrationId(userId, requestId))
-			.orElseThrow(() -> new RegistrationException(RegistrationErrorCode.REGISTRATION_NOT_FOUND));
+		    .orElseThrow(() -> new RegistrationException(RegistrationErrorCode.REGISTRATION_NOT_FOUND));
 		requireCurrentAccess(userId, result.getPropertyId());
 		return snapshot(result);
 	}
@@ -232,13 +284,15 @@ public class PropertyRegistrationService {
 		if (input == null) {
 			throw new RegistrationException(RegistrationErrorCode.INVALID_REQUEST);
 		}
-		var violations = validator.validate(input);
+		Set<ConstraintViolation<Object>> violations = validator.validate(input);
 		if (!violations.isEmpty()) {
-			var errors = violations.stream().map(violation -> new RegistrationException.FieldError(
-				violation.getPropertyPath().toString().replace(".<list element>", ""),
-				violation.getMessage(), "입력 정보를 확인해주세요."))
-				.sorted(Comparator.comparing(RegistrationException.FieldError::field)
-					.thenComparing(RegistrationException.FieldError::reason)).toList();
+			List<RegistrationException.FieldError> errors = violations.stream()
+			    .map(violation -> new RegistrationException.FieldError(
+			        violation.getPropertyPath().toString().replace(".<list element>", ""), violation.getMessage(),
+			        "입력 정보를 확인해주세요."))
+			    .sorted(Comparator.comparing(RegistrationException.FieldError::field)
+			        .thenComparing(RegistrationException.FieldError::reason))
+			    .toList();
 			throw new RegistrationException(RegistrationErrorCode.INVALID_REQUEST, errors);
 		}
 	}

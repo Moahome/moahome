@@ -18,6 +18,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class RedisAuthSessionRepository {
 	private static final String KEY_PREFIX = "auth:session:";
+
 	private static final DefaultRedisScript<Long> CREATE = new DefaultRedisScript<>("""
 		if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
 		redis.call('HSET', KEYS[1], 'userId', ARGV[1], 'clientType', ARGV[2],
@@ -25,6 +26,7 @@ public class RedisAuthSessionRepository {
 		redis.call('EXPIREAT', KEYS[1], ARGV[6])
 		return 1
 		""", Long.class);
+
 	private static final String VALIDATE_REFRESH = """
 		if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
 		if redis.call('HGET', KEYS[1], 'userId') ~= ARGV[1]
@@ -34,12 +36,15 @@ public class RedisAuthSessionRepository {
 		    return -1
 		end
 		""";
+
 	private static final DefaultRedisScript<Long> CHECK_REFRESH = new DefaultRedisScript<>(
-		VALIDATE_REFRESH + "return 1", Long.class);
+	    VALIDATE_REFRESH + "return 1", Long.class);
+
 	private static final DefaultRedisScript<Long> ROTATE = new DefaultRedisScript<>(
-		VALIDATE_REFRESH + "redis.call('HSET', KEYS[1], 'refreshHash', ARGV[4])\nreturn 1", Long.class);
+	    VALIDATE_REFRESH + "redis.call('HSET', KEYS[1], 'refreshHash', ARGV[4])\nreturn 1", Long.class);
+
 	private static final DefaultRedisScript<Long> LOGOUT = new DefaultRedisScript<>(
-		VALIDATE_REFRESH + "redis.call('DEL', KEYS[1])\nreturn 1", Long.class);
+	    VALIDATE_REFRESH + "redis.call('DEL', KEYS[1])\nreturn 1", Long.class);
 
 	private final StringRedisTemplate redis;
 
@@ -50,8 +55,8 @@ public class RedisAuthSessionRepository {
 	public void create(AuthSession session) {
 		try {
 			Long result = redis.execute(CREATE, List.of(key(session.sessionId())), session.userId(),
-				session.clientType().name(), session.refreshHash(), session.csrfToken(),
-				Long.toString(session.loginAt().getEpochSecond()), Long.toString(session.expiresAt().getEpochSecond()));
+			    session.clientType().name(), session.refreshHash(), session.csrfToken(),
+			    Long.toString(session.loginAt().getEpochSecond()), Long.toString(session.expiresAt().getEpochSecond()));
 			if (!Long.valueOf(1).equals(result)) {
 				throw new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE);
 			}
@@ -67,9 +72,9 @@ public class RedisAuthSessionRepository {
 				return Optional.empty();
 			}
 			return Optional.of(new AuthSession(sessionId, (String) fields.get("userId"),
-				ClientType.valueOf((String) fields.get("clientType")), (String) fields.get("refreshHash"),
-				(String) fields.get("csrfToken"), Instant.ofEpochSecond(Long.parseLong((String) fields.get("loginAt"))),
-				Instant.ofEpochSecond(Long.parseLong((String) fields.get("expiresAt")))));
+			    ClientType.valueOf((String) fields.get("clientType")), (String) fields.get("refreshHash"),
+			    (String) fields.get("csrfToken"), Instant.ofEpochSecond(Long.parseLong((String) fields.get("loginAt"))),
+			    Instant.ofEpochSecond(Long.parseLong((String) fields.get("expiresAt")))));
 		} catch (DataAccessException | IllegalArgumentException | NullPointerException exception) {
 			throw unavailable();
 		}

@@ -35,13 +35,13 @@ public class KakaoOAuthUserService implements OAuth2UserService<OAuth2UserReques
 		}
 		Map<?, ?> response;
 		try {
-			response = kakaoRestClient.get().uri(URI.create(request.getClientRegistration().getProviderDetails().getUserInfoEndpoint().getUri()))
-				.headers(headers -> {
-					headers.setBearerAuth(request.getAccessToken().getTokenValue());
-					headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-					headers.setAccept(List.of(MediaType.APPLICATION_JSON));
-				})
-				.retrieve().body(Map.class);
+			response = kakaoRestClient.get()
+			    .uri(URI.create(request.getClientRegistration().getProviderDetails().getUserInfoEndpoint().getUri()))
+			    .headers(headers -> {
+				    headers.setBearerAuth(request.getAccessToken().getTokenValue());
+				    headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+				    headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+			    }).retrieve().body(Map.class);
 		} catch (RestClientException exception) {
 			throw failure("OAUTH_PROVIDER_UNAVAILABLE");
 		}
@@ -49,8 +49,8 @@ public class KakaoOAuthUserService implements OAuth2UserService<OAuth2UserReques
 	}
 
 	private VerifiedSocialProfile profile(Map<?, ?> response) {
-		if (response == null || !(response.get("id") instanceof Number id)
-			|| id.longValue() <= 0 || !(id instanceof Long || id instanceof Integer)) {
+		if (response == null || !(response.get("id") instanceof Number id) || id.longValue() <= 0
+		    || !(id instanceof Long || id instanceof Integer)) {
 			throw failure("OAUTH_PROFILE_INVALID");
 		}
 		Map<?, ?> account = map(response.get("kakao_account"));
@@ -59,8 +59,8 @@ public class KakaoOAuthUserService implements OAuth2UserService<OAuth2UserReques
 		String image = string(profile.get("profile_image_url"));
 		String email = string(account.get("email"));
 		if (nickname == null || nickname.isBlank() || nickname.codePointCount(0, nickname.length()) > 50
-			|| (image != null && (image.isBlank() || image.length() > 500))
-			|| (email != null && (email.isBlank() || email.length() > 255))) {
+		    || (image != null && (image.isBlank() || image.length() > 500))
+		    || (email != null && (email.isBlank() || email.length() > 255))) {
 			throw failure("OAUTH_PROFILE_INVALID");
 		}
 		return new VerifiedSocialProfile(SocialProvider.KAKAO, Long.toString(id.longValue()), email, nickname, image);

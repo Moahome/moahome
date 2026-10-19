@@ -80,45 +80,110 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties="moahome.billing.scheduler-enabled=false")
+@SpringBootTest(properties = "moahome.billing.scheduler-enabled=false")
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import({SecurityIntegrationTest.TestBeans.class, SecurityIntegrationTest.ProbeController.class})
+@Import({ SecurityIntegrationTest.TestBeans.class, SecurityIntegrationTest.ProbeController.class })
 class SecurityIntegrationTest {
 	private static final String ORIGIN = "http://localhost:3000";
+
 	private static final RedisTestServer REDIS = new RedisTestServer();
-	@Autowired private MockMvc mvc;
-	@Autowired private AuthService auth;
-	@Autowired private TokenService tokens;
-	@Autowired private StringRedisTemplate redis;
-	@Autowired private ObjectMapper mapper;
-	@Autowired private MutableClock clock;
-	@MockitoSpyBean private RedisAuthSessionRepository sessions;
-	@MockitoBean private com.moahome.server.payment.service.PaymentService payments;
-    @MockitoBean private com.moahome.server.banking.service.BankingService banking;
-    @MockitoBean private com.moahome.server.banking.service.IncomeAllocationService incomeAllocations;
-    @MockitoBean private com.moahome.server.banking.service.BankingBalanceService bankingBalances;
-    @MockitoBean private com.moahome.server.banking.service.BankAccountService bankAccountSettings;
-    @MockitoBean private com.moahome.server.expense.service.ExpenseService expenses;
-	@MockitoBean private com.moahome.server.payment.service.CumulativePaymentService cumulativePayments;
-	@MockitoBean private com.moahome.server.billing.service.BillingService billing;
-	@MockitoBean private com.moahome.server.billing.service.OpeningBalanceService openingBalances;
-	@MockitoBean private com.moahome.server.membership.service.MemberManagementService memberManagement;
-	@MockitoBean private com.moahome.server.membership.service.MembershipRequestService membershipRequests;
-	@MockitoBean private com.moahome.server.billing.service.BillingTemplates billingTemplates;
-	@MockitoBean private com.moahome.server.billing.service.BillingGenerationService billingGeneration;
-	@MockitoBean private com.moahome.server.property.service.ManagementAccessService management;
-	@MockitoBean private com.moahome.server.property.service.UnitManagementService unitManagement;
-	@MockitoBean private com.moahome.server.resident.service.ResidentListService residentList;
-	@MockitoBean private com.moahome.server.resident.service.ResidentRegistrationService residentRegistration;
-	@MockitoBean private com.moahome.server.resident.service.ResidentImportService residentImport;
-	@MockitoBean private com.moahome.server.resident.service.ResidentManagementService residentManagement;
-	@MockitoBean private com.moahome.server.resident.service.ResidentExportService residentExport;
-	@MockitoBean private UserService users;
-	@MockitoBean private UserRepository userRepository;
-	@MockitoBean private SocialAccountRepository socialAccounts;
-	@MockitoBean private com.moahome.server.property.service.PropertyRegistrationService registrations;
-	@MockitoBean private com.moahome.server.property.repo.PropertyRegistrationLock registrationLock;
+
+	@Autowired
+	private MockMvc mvc;
+
+	@Autowired
+	private AuthService auth;
+
+	@Autowired
+	private TokenService tokens;
+
+	@Autowired
+	private StringRedisTemplate redis;
+
+	@Autowired
+	private ObjectMapper mapper;
+
+	@Autowired
+	private MutableClock clock;
+
+	@MockitoSpyBean
+	private RedisAuthSessionRepository sessions;
+
+	@MockitoBean
+	private com.moahome.server.payment.service.PaymentService payments;
+
+	@MockitoBean
+	private com.moahome.server.banking.service.BankingService banking;
+
+	@MockitoBean
+	private com.moahome.server.banking.service.IncomeAllocationService incomeAllocations;
+
+	@MockitoBean
+	private com.moahome.server.banking.service.BankingBalanceService bankingBalances;
+
+	@MockitoBean
+	private com.moahome.server.banking.service.BankAccountService bankAccountSettings;
+
+	@MockitoBean
+	private com.moahome.server.expense.service.ExpenseService expenses;
+
+	@MockitoBean
+	private com.moahome.server.payment.service.CumulativePaymentService cumulativePayments;
+
+	@MockitoBean
+	private com.moahome.server.billing.service.BillingService billing;
+
+	@MockitoBean
+	private com.moahome.server.billing.service.OpeningBalanceService openingBalances;
+
+	@MockitoBean
+	private com.moahome.server.membership.service.MemberManagementService memberManagement;
+
+	@MockitoBean
+	private com.moahome.server.membership.service.MembershipRequestService membershipRequests;
+
+	@MockitoBean
+	private com.moahome.server.billing.service.BillingTemplates billingTemplates;
+
+	@MockitoBean
+	private com.moahome.server.billing.service.BillingGenerationService billingGeneration;
+
+	@MockitoBean
+	private com.moahome.server.property.service.ManagementAccessService management;
+
+	@MockitoBean
+	private com.moahome.server.property.service.UnitManagementService unitManagement;
+
+	@MockitoBean
+	private com.moahome.server.resident.service.ResidentListService residentList;
+
+	@MockitoBean
+	private com.moahome.server.resident.service.ResidentRegistrationService residentRegistration;
+
+	@MockitoBean
+	private com.moahome.server.resident.service.ResidentImportService residentImport;
+
+	@MockitoBean
+	private com.moahome.server.resident.service.ResidentManagementService residentManagement;
+
+	@MockitoBean
+	private com.moahome.server.resident.service.ResidentExportService residentExport;
+
+	@MockitoBean
+	private UserService users;
+
+	@MockitoBean
+	private UserRepository userRepository;
+
+	@MockitoBean
+	private SocialAccountRepository socialAccounts;
+
+	@MockitoBean
+	private com.moahome.server.property.service.PropertyRegistrationService registrations;
+
+	@MockitoBean
+	private com.moahome.server.property.repo.PropertyRegistrationLock registrationLock;
 
 	@DynamicPropertySource
 	static void infrastructure(DynamicPropertyRegistry registry) {
@@ -160,15 +225,16 @@ class SecurityIntegrationTest {
 		var pair = auth.startSession(actor.toString(), ClientType.WEB);
 		String body = "{\"residentId\":\"" + resident + "\",\"expectedUnitId\":\"" + unit + "\"}";
 		mvc.perform(put(path).contentType(MediaType.APPLICATION_JSON).content(body))
-			.andExpect(status().isUnauthorized());
+		    .andExpect(status().isUnauthorized());
 		mvc.perform(put(path).header("Authorization", "Bearer " + pair.accessToken())
-			.contentType(MediaType.APPLICATION_JSON).content(body))
-			.andExpect(status().isNoContent()).andExpect(header().string("Cache-Control", "no-store"));
+		    .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isNoContent())
+		    .andExpect(header().string("Cache-Control", "no-store"));
 		verify(memberManagement).linkOwnResident(actor, property, resident, unit);
-		for (String invalid : List.of("{}", "{\"residentId\":\"" + resident + "\"}", body.substring(0, body.length()-1) + ",\"userId\":\"" + UUID.randomUUID() + "\"}")) {
+		for (String invalid : List.of("{}", "{\"residentId\":\"" + resident + "\"}",
+		    body.substring(0, body.length() - 1) + ",\"userId\":\"" + UUID.randomUUID() + "\"}")) {
 			mvc.perform(put(path).header("Authorization", "Bearer " + pair.accessToken())
-				.contentType(MediaType.APPLICATION_JSON).content(invalid))
-				.andExpect(status().isBadRequest()).andExpect(jsonPath("code").value("INVALID_REQUEST"));
+			    .contentType(MediaType.APPLICATION_JSON).content(invalid)).andExpect(status().isBadRequest())
+			    .andExpect(jsonPath("code").value("INVALID_REQUEST"));
 		}
 		verifyNoMoreInteractions(memberManagement);
 	}
@@ -176,18 +242,18 @@ class SecurityIntegrationTest {
 	@Test
 	void doesNotExposeDocumentationWhenDisabledOutsideLocalProfile() throws Exception {
 		mvc.perform(options("/api/users/me").header("Origin", "http://localhost:4000")
-			.header("Access-Control-Request-Method", "GET"))
-			.andExpect(status().isForbidden()).andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
+		    .header("Access-Control-Request-Method", "GET")).andExpect(status().isForbidden())
+		    .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
 		for (String path : List.of("/swagger-ui.html", "/swagger-ui/index.html", "/v3/api-docs",
-			"/v3/api-docs/swagger-config", "/v3/api-docs.yaml")) {
+		    "/v3/api-docs/swagger-config", "/v3/api-docs.yaml")) {
 			mvc.perform(get(path)).andExpect(status().isUnauthorized())
-				.andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
+			    .andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
 		}
 		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.WEB);
 		for (String path : List.of("/swagger-ui.html", "/swagger-ui/index.html", "/v3/api-docs",
-			"/v3/api-docs/swagger-config", "/v3/api-docs.yaml")) {
+		    "/v3/api-docs/swagger-config", "/v3/api-docs.yaml")) {
 			mvc.perform(get(path).header("Authorization", "Bearer " + pair.accessToken()))
-				.andExpect(status().isNotFound());
+			    .andExpect(status().isNotFound());
 		}
 	}
 
@@ -195,13 +261,13 @@ class SecurityIntegrationTest {
 	void requiresBearerForBusinessEndpointsAndDoesNotOpenUnknownAuthPaths() throws Exception {
 		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.WEB);
 		mvc.perform(get("/api/test/identity")).andExpect(status().isUnauthorized())
-			.andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
+		    .andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
 		mvc.perform(get("/api/test/identity").cookie(refreshCookie(pair))).andExpect(status().isUnauthorized());
 		mvc.perform(get("/api/auth/unknown")).andExpect(status().isUnauthorized());
 		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + pair.accessToken()))
-			.andExpect(status().isOk()).andExpect(jsonPath("userId").value("00000000-0000-0000-0000-000000000001"));
+		    .andExpect(status().isOk()).andExpect(jsonPath("userId").value("00000000-0000-0000-0000-000000000001"));
 		mvc.perform(post("/api/test/action").header("Authorization", "Bearer " + pair.accessToken()))
-			.andExpect(status().isOk());
+		    .andExpect(status().isOk());
 	}
 
 	@Test
@@ -211,46 +277,44 @@ class SecurityIntegrationTest {
 		var pair = auth.startSession(userId.toString(), ClientType.WEB);
 		for (String path : List.of("/api/property-registrations/basic-info/validate", "/api/property-registrations")) {
 			mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content("{}"))
-				.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"))
-				.andExpect(header().string("Cache-Control", "no-store"));
+			    .andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"))
+			    .andExpect(header().string("Cache-Control", "no-store"));
 			mvc.perform(post(path).cookie(refreshCookie(pair)).contentType(MediaType.APPLICATION_JSON).content("{}"))
-				.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
+			    .andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
 		}
 		mvc.perform(get("/api/property-registrations/" + requestId).cookie(refreshCookie(pair)))
-			.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
+		    .andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
 		var basic = new com.moahome.server.property.dto.BasicInfoRequest("모아빌라", "주소", null, null, false);
 		when(registrations.validateBasicInfo(userId, basic)).thenReturn(basic);
 		mvc.perform(post("/api/property-registrations/basic-info/validate")
-			.header("Authorization", "Bearer " + pair.accessToken()).contentType(MediaType.APPLICATION_JSON)
-			.content(mapper.writeValueAsString(basic)))
-			.andExpect(status().isOk()).andExpect(jsonPath("hasBuildings").value(false))
-			.andExpect(header().string("Cache-Control", "no-store"));
+		    .header("Authorization", "Bearer " + pair.accessToken()).contentType(MediaType.APPLICATION_JSON)
+		    .content(mapper.writeValueAsString(basic))).andExpect(status().isOk())
+		    .andExpect(jsonPath("hasBuildings").value(false)).andExpect(header().string("Cache-Control", "no-store"));
 		verify(registrations).validateBasicInfo(userId, basic);
-		org.mockito.Mockito.doThrow(new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE)).when(sessions).find(anyString());
+		org.mockito.Mockito.doThrow(new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE)).when(sessions)
+		    .find(anyString());
 		mvc.perform(post("/api/property-registrations/basic-info/validate")
-			.header("Authorization", "Bearer " + pair.accessToken()).contentType(MediaType.APPLICATION_JSON)
-			.content(mapper.writeValueAsString(basic)))
-			.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("code").value("AUTH_SERVICE_UNAVAILABLE"));
+		    .header("Authorization", "Bearer " + pair.accessToken()).contentType(MediaType.APPLICATION_JSON)
+		    .content(mapper.writeValueAsString(basic))).andExpect(status().isServiceUnavailable())
+		    .andExpect(jsonPath("code").value("AUTH_SERVICE_UNAVAILABLE"));
 	}
 
 	@Test
 	void currentUserRequiresBearerAndUsesAuthenticatedIdentityInsteadOfRequestInput() throws Exception {
 		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000001");
 		var pair = auth.startSession(userId.toString(), ClientType.WEB);
-		when(users.getCurrentUser(userId)).thenReturn(new CurrentUserResponse(userId, "모아 주민", null,
-			SystemRole.USER, UserStatus.ACTIVE));
+		when(users.getCurrentUser(userId))
+		    .thenReturn(new CurrentUserResponse(userId, "모아 주민", null, SystemRole.USER, UserStatus.ACTIVE));
 
 		mvc.perform(get("/api/users/me")).andExpect(status().isUnauthorized());
 		mvc.perform(get("/api/users/me").cookie(refreshCookie(pair))).andExpect(status().isUnauthorized());
-		mvc.perform(get("/api/users/me").param("userId", UUID.randomUUID().toString())
-			.header("Authorization", "Bearer " + pair.accessToken()))
-			.andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
-			.andExpect(jsonPath("id").value(userId.toString()))
-			.andExpect(jsonPath("displayName").value("모아 주민"))
-			.andExpect(jsonPath("profileImageUrl").value(org.hamcrest.Matchers.nullValue()))
-			.andExpect(jsonPath("systemRole").value("USER"))
-			.andExpect(jsonPath("status").value("ACTIVE"))
-			.andExpect(jsonPath("$.length()").value(5));
+		mvc.perform(get("/api/users/me").param("userId", UUID.randomUUID().toString()).header("Authorization",
+		    "Bearer " + pair.accessToken())).andExpect(status().isOk())
+		    .andExpect(header().string("Cache-Control", "no-store")).andExpect(jsonPath("id").value(userId.toString()))
+		    .andExpect(jsonPath("displayName").value("모아 주민"))
+		    .andExpect(jsonPath("profileImageUrl").value(org.hamcrest.Matchers.nullValue()))
+		    .andExpect(jsonPath("systemRole").value("USER")).andExpect(jsonPath("status").value("ACTIVE"))
+		    .andExpect(jsonPath("$.length()").value(5));
 		verify(users).getCurrentUser(userId);
 	}
 
@@ -262,14 +326,17 @@ class SecurityIntegrationTest {
 		String list = "/api/users/me/managed-properties";
 		String context = "/api/properties/" + propertyId + "/management-context";
 		var property = new com.moahome.server.property.dto.ManagementPropertyResponse(propertyId, "대상",
-			com.moahome.server.membership.domain.PropertyMemberRole.MANAGER);
-		when(management.getManagedProperties(userId)).thenReturn(new com.moahome.server.property.dto.ManagedPropertiesResponse(List.of(property)));
+		    com.moahome.server.membership.domain.PropertyMemberRole.MANAGER);
+		when(management.getManagedProperties(userId))
+		    .thenReturn(new com.moahome.server.property.dto.ManagedPropertiesResponse(List.of(property)));
 		when(management.getManagementContext(userId, propertyId)).thenReturn(property);
 		for (String path : List.of(list, context)) {
-			mvc.perform(get(path)).andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
+			mvc.perform(get(path)).andExpect(status().isUnauthorized())
+			    .andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
 			mvc.perform(get(path).cookie(refreshCookie(pair))).andExpect(status().isUnauthorized());
-			mvc.perform(get(path).header("Authorization", "Bearer " + pair.accessToken()).param("userId", UUID.randomUUID().toString()))
-				.andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"));
+			mvc.perform(get(path).header("Authorization", "Bearer " + pair.accessToken()).param("userId",
+			    UUID.randomUUID().toString())).andExpect(status().isOk())
+			    .andExpect(header().string("Cache-Control", "no-store"));
 		}
 		verify(management).getManagedProperties(userId);
 		verify(management).getManagementContext(userId, propertyId);
@@ -282,9 +349,8 @@ class SecurityIntegrationTest {
 		when(users.getCurrentUser(userId)).thenThrow(new UserException(UserErrorCode.ACCOUNT_UNAVAILABLE));
 
 		mvc.perform(get("/api/users/me").header("Authorization", "Bearer " + pair.accessToken()))
-			.andExpect(status().isForbidden()).andExpect(header().string("Cache-Control", "no-store"))
-			.andExpect(jsonPath("code").value("ACCOUNT_UNAVAILABLE"))
-			.andExpect(jsonPath("displayName").doesNotExist());
+		    .andExpect(status().isForbidden()).andExpect(header().string("Cache-Control", "no-store"))
+		    .andExpect(jsonPath("code").value("ACCOUNT_UNAVAILABLE")).andExpect(jsonPath("displayName").doesNotExist());
 	}
 
 	@Test
@@ -294,27 +360,27 @@ class SecurityIntegrationTest {
 		when(users.getCurrentUser(userId)).thenThrow(new DataAccessResourceFailureException("private-database-detail"));
 
 		mvc.perform(get("/api/users/me").header("Authorization", "Bearer " + pair.accessToken()))
-			.andExpect(status().isServiceUnavailable()).andExpect(header().string("Cache-Control", "no-store"))
-			.andExpect(jsonPath("code").value("AUTH_SERVICE_UNAVAILABLE"))
-			.andExpect(jsonPath("message").value(not(containsString("private-database-detail"))));
+		    .andExpect(status().isServiceUnavailable()).andExpect(header().string("Cache-Control", "no-store"))
+		    .andExpect(jsonPath("code").value("AUTH_SERVICE_UNAVAILABLE"))
+		    .andExpect(jsonPath("message").value(not(containsString("private-database-detail"))));
 	}
 
 	@Test
 	void rejectsMalformedTamperedAndRefreshBearerTokens() throws Exception {
 		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer invalid"))
-			.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("INVALID_TOKEN"));
+		    .andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("INVALID_TOKEN"));
 		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + pair.refreshToken()))
-			.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("INVALID_TOKEN"));
+		    .andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("INVALID_TOKEN"));
 		mvc.perform(get("/api/test/identity").param("access_token", pair.accessToken()))
-			.andExpect(status().isUnauthorized());
+		    .andExpect(status().isUnauthorized());
 	}
 
 	@Test
 	void returnsJson403ForDeniedMethod() throws Exception {
 		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		mvc.perform(get("/api/test/denied").header("Authorization", "Bearer " + pair.accessToken()))
-			.andExpect(status().isForbidden()).andExpect(jsonPath("code").value("ACCESS_DENIED"));
+		    .andExpect(status().isForbidden()).andExpect(jsonPath("code").value("ACCESS_DENIED"));
 	}
 
 	@Test
@@ -322,45 +388,45 @@ class SecurityIntegrationTest {
 		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		clock.advance(Duration.ofHours(1));
 		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + pair.accessToken()))
-			.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("ACCESS_TOKEN_EXPIRED"));
-		mvc.perform(appRequest(AppAuthController.REFRESH_PATH, pair.refreshToken())
-			.header("Authorization", "Bearer " + pair.accessToken()))
-			.andExpect(status().isOk()).andExpect(jsonPath("refreshExpiresAt").value(pair.refreshExpiresAt().toString()));
+		    .andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("ACCESS_TOKEN_EXPIRED"));
+		mvc.perform(appRequest(AppAuthController.REFRESH_PATH, pair.refreshToken()).header("Authorization",
+		    "Bearer " + pair.accessToken())).andExpect(status().isOk())
+		    .andExpect(jsonPath("refreshExpiresAt").value(pair.refreshExpiresAt().toString()));
 		clock.set(pair.refreshExpiresAt());
 		mvc.perform(appRequest(AppAuthController.REFRESH_PATH, pair.refreshToken()))
-			.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("REFRESH_TOKEN_EXPIRED"));
+		    .andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("REFRESH_TOKEN_EXPIRED"));
 	}
 
 	@Test
 	void webRefreshRequiresOriginAndCsrfHeaderAndKeepsRefreshOutOfJson() throws Exception {
 		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.WEB);
 		String csrf = csrfToken(pair);
-		mvc.perform(post(WebAuthSupport.REFRESH_PATH).cookie(refreshCookie(pair)))
-			.andExpect(status().isForbidden()).andExpect(jsonPath("code").value("CSRF_INVALID"));
+		mvc.perform(post(WebAuthSupport.REFRESH_PATH).cookie(refreshCookie(pair))).andExpect(status().isForbidden())
+		    .andExpect(jsonPath("code").value("CSRF_INVALID"));
 		mvc.perform(post(WebAuthSupport.REFRESH_PATH).cookie(refreshCookie(pair)).header("Origin", ORIGIN))
-			.andExpect(status().isForbidden()).andExpect(jsonPath("code").value("CSRF_INVALID"));
-		mvc.perform(post(WebAuthSupport.REFRESH_PATH).cookie(refreshCookie(pair)).header("Origin", ORIGIN).param("_csrf", csrf))
-			.andExpect(status().isForbidden());
+		    .andExpect(status().isForbidden()).andExpect(jsonPath("code").value("CSRF_INVALID"));
+		mvc.perform(
+		    post(WebAuthSupport.REFRESH_PATH).cookie(refreshCookie(pair)).header("Origin", ORIGIN).param("_csrf", csrf))
+		    .andExpect(status().isForbidden());
 		mvc.perform(post(WebAuthSupport.REFRESH_PATH).cookie(refreshCookie(pair)).header("Origin", ORIGIN)
-			.header("X-CSRF-TOKEN", csrf))
-			.andExpect(status().isOk()).andExpect(jsonPath("accessToken").isNotEmpty())
-			.andExpect(jsonPath("refreshToken").doesNotExist()).andExpect(header().string("Cache-Control", "no-store"))
-			.andExpect(cookie().httpOnly(WebAuthSupport.COOKIE_NAME, true))
-			.andExpect(cookie().secure(WebAuthSupport.COOKIE_NAME, true))
-			.andExpect(cookie().path(WebAuthSupport.COOKIE_NAME, WebAuthSupport.COOKIE_PATH))
-			.andExpect(header().string("Set-Cookie", containsString("SameSite=Lax")))
-			.andExpect(header().string("Set-Cookie", not(containsString("Domain="))));
+		    .header("X-CSRF-TOKEN", csrf)).andExpect(status().isOk()).andExpect(jsonPath("accessToken").isNotEmpty())
+		    .andExpect(jsonPath("refreshToken").doesNotExist()).andExpect(header().string("Cache-Control", "no-store"))
+		    .andExpect(cookie().httpOnly(WebAuthSupport.COOKIE_NAME, true))
+		    .andExpect(cookie().secure(WebAuthSupport.COOKIE_NAME, true))
+		    .andExpect(cookie().path(WebAuthSupport.COOKIE_NAME, WebAuthSupport.COOKIE_PATH))
+		    .andExpect(header().string("Set-Cookie", containsString("SameSite=Lax")))
+		    .andExpect(header().string("Set-Cookie", not(containsString("Domain="))));
 	}
 
 	@Test
 	void allowsOnlyConfiguredCorsOriginAndProcessesPreflightWithoutLogin() throws Exception {
-		mvc.perform(options("/api/test/action").header("Origin", ORIGIN)
-			.header("Access-Control-Request-Method", "POST").header("Access-Control-Request-Headers", "Authorization"))
-			.andExpect(status().isOk()).andExpect(header().string("Access-Control-Allow-Origin", ORIGIN))
-			.andExpect(header().string("Access-Control-Allow-Credentials", "true"));
+		mvc.perform(options("/api/test/action").header("Origin", ORIGIN).header("Access-Control-Request-Method", "POST")
+		    .header("Access-Control-Request-Headers", "Authorization")).andExpect(status().isOk())
+		    .andExpect(header().string("Access-Control-Allow-Origin", ORIGIN))
+		    .andExpect(header().string("Access-Control-Allow-Credentials", "true"));
 		mvc.perform(options("/api/test/action").header("Origin", "https://untrusted.example")
-			.header("Access-Control-Request-Method", "POST"))
-			.andExpect(status().isForbidden()).andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
+		    .header("Access-Control-Request-Method", "POST")).andExpect(status().isForbidden())
+		    .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
 	}
 
 	@Test
@@ -368,12 +434,12 @@ class SecurityIntegrationTest {
 		var webPair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.WEB);
 		var appPair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		mvc.perform(post(WebAuthSupport.LOGOUT_PATH).cookie(refreshCookie(webPair)).header("Origin", ORIGIN)
-			.header("X-CSRF-TOKEN", csrfToken(webPair)))
-			.andExpect(status().isNoContent()).andExpect(cookie().maxAge(WebAuthSupport.COOKIE_NAME, 0));
+		    .header("X-CSRF-TOKEN", csrfToken(webPair))).andExpect(status().isNoContent())
+		    .andExpect(cookie().maxAge(WebAuthSupport.COOKIE_NAME, 0));
 		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + webPair.accessToken()))
-			.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("SESSION_EXPIRED"));
+		    .andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("SESSION_EXPIRED"));
 		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + appPair.accessToken()))
-			.andExpect(status().isOk());
+		    .andExpect(status().isOk());
 		assertThat(auth.refresh(appPair.refreshToken(), ClientType.APP).refreshToken()).isNotBlank();
 	}
 
@@ -381,11 +447,10 @@ class SecurityIntegrationTest {
 	void appLogoutAcceptsRefreshAfterAccessExpiresAndDoesNotUseCookie() throws Exception {
 		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		clock.advance(Duration.ofHours(1));
-		mvc.perform(post(AppAuthController.LOGOUT_PATH).cookie(refreshCookie(pair)).contentType(MediaType.APPLICATION_JSON)
-			.content("{}"))
-			.andExpect(status().isBadRequest()).andExpect(jsonPath("code").value("INVALID_REQUEST"));
-		mvc.perform(appRequest(AppAuthController.LOGOUT_PATH, pair.refreshToken()))
-			.andExpect(status().isNoContent());
+		mvc.perform(post(AppAuthController.LOGOUT_PATH).cookie(refreshCookie(pair))
+		    .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isBadRequest())
+		    .andExpect(jsonPath("code").value("INVALID_REQUEST"));
+		mvc.perform(appRequest(AppAuthController.LOGOUT_PATH, pair.refreshToken())).andExpect(status().isNoContent());
 		assertCode(() -> auth.refresh(pair.refreshToken(), ClientType.APP), AuthErrorCode.SESSION_EXPIRED);
 	}
 
@@ -394,11 +459,13 @@ class SecurityIntegrationTest {
 		var webPair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.WEB);
 		var appPair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		mvc.perform(appRequest(AppAuthController.REFRESH_PATH, webPair.refreshToken()))
-			.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("INVALID_TOKEN"));
+		    .andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("INVALID_TOKEN"));
 		mvc.perform(get(WebAuthSupport.CSRF_PATH).cookie(refreshCookie(appPair)).header("Origin", ORIGIN))
-			.andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("INVALID_TOKEN"));
-		assertThat(auth.authenticateAccess(webPair.accessToken()).userId()).isEqualTo("00000000-0000-0000-0000-000000000001");
-		assertThat(auth.authenticateAccess(appPair.accessToken()).userId()).isEqualTo("00000000-0000-0000-0000-000000000001");
+		    .andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("INVALID_TOKEN"));
+		assertThat(auth.authenticateAccess(webPair.accessToken()).userId())
+		    .isEqualTo("00000000-0000-0000-0000-000000000001");
+		assertThat(auth.authenticateAccess(appPair.accessToken()).userId())
+		    .isEqualTo("00000000-0000-0000-0000-000000000001");
 	}
 
 	@Test
@@ -409,7 +476,8 @@ class SecurityIntegrationTest {
 		assertCode(() -> auth.refresh(pair.refreshToken(), ClientType.APP), AuthErrorCode.REFRESH_TOKEN_REUSED);
 		assertCode(() -> auth.authenticateAccess(refreshed.accessToken()), AuthErrorCode.SESSION_EXPIRED);
 		assertCode(() -> auth.refresh(refreshed.refreshToken(), ClientType.APP), AuthErrorCode.SESSION_EXPIRED);
-		assertThat(auth.authenticateAccess(other.accessToken()).userId()).isEqualTo("00000000-0000-0000-0000-000000000001");
+		assertThat(auth.authenticateAccess(other.accessToken()).userId())
+		    .isEqualTo("00000000-0000-0000-0000-000000000001");
 	}
 
 	@Test
@@ -448,8 +516,8 @@ class SecurityIntegrationTest {
 			var second = executor.submit(task);
 			assertThat(ready.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
 			start.countDown();
-			assertThat(List.of(first.get(5, java.util.concurrent.TimeUnit.SECONDS), second.get(5, java.util.concurrent.TimeUnit.SECONDS)))
-				.containsExactlyInAnyOrder(true, false);
+			assertThat(List.of(first.get(5, java.util.concurrent.TimeUnit.SECONDS),
+			    second.get(5, java.util.concurrent.TimeUnit.SECONDS))).containsExactlyInAnyOrder(true, false);
 		}
 		assertCode(() -> auth.authenticateAccess(pair.accessToken()), AuthErrorCode.SESSION_EXPIRED);
 	}
@@ -468,9 +536,9 @@ class SecurityIntegrationTest {
 		var pair = auth.startSession("00000000-0000-0000-0000-000000000001", ClientType.APP);
 		doThrow(new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE)).when(sessions).find(anyString());
 		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + pair.accessToken()))
-			.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("code").value("AUTH_SERVICE_UNAVAILABLE"));
+		    .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("code").value("AUTH_SERVICE_UNAVAILABLE"));
 		mvc.perform(appRequest(AppAuthController.REFRESH_PATH, pair.refreshToken()))
-			.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("code").value("AUTH_SERVICE_UNAVAILABLE"));
+		    .andExpect(status().isServiceUnavailable()).andExpect(jsonPath("code").value("AUTH_SERVICE_UNAVAILABLE"));
 	}
 
 	@Test
@@ -478,18 +546,18 @@ class SecurityIntegrationTest {
 		String id = "00000000-0000-0000-0000-000000000001";
 		var pair = auth.startSession(id, ClientType.APP);
 		org.mockito.Mockito.when(users.requireActive(java.util.UUID.fromString(id)))
-			.thenThrow(new UserException(UserErrorCode.ACCOUNT_UNAVAILABLE));
+		    .thenThrow(new UserException(UserErrorCode.ACCOUNT_UNAVAILABLE));
 		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + pair.accessToken()))
-			.andExpect(status().isForbidden()).andExpect(jsonPath("code").value("ACCOUNT_UNAVAILABLE"));
-		mvc.perform(appRequest(AppAuthController.REFRESH_PATH, pair.refreshToken()))
-			.andExpect(status().isForbidden()).andExpect(jsonPath("code").value("ACCOUNT_UNAVAILABLE"));
+		    .andExpect(status().isForbidden()).andExpect(jsonPath("code").value("ACCOUNT_UNAVAILABLE"));
+		mvc.perform(appRequest(AppAuthController.REFRESH_PATH, pair.refreshToken())).andExpect(status().isForbidden())
+		    .andExpect(jsonPath("code").value("ACCOUNT_UNAVAILABLE"));
 		mvc.perform(appRequest(AppAuthController.LOGOUT_PATH, pair.refreshToken())).andExpect(status().isNoContent());
 	}
 
 	private String csrfToken(TokenService.TokenPair pair) throws Exception {
 		String body = mvc.perform(get(WebAuthSupport.CSRF_PATH).cookie(refreshCookie(pair)).header("Origin", ORIGIN))
-			.andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
-			.andReturn().getResponse().getContentAsString();
+		    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store")).andReturn()
+		    .getResponse().getContentAsString();
 		return mapper.readTree(body).get("csrfToken").asString();
 	}
 
@@ -499,12 +567,12 @@ class SecurityIntegrationTest {
 
 	private MockHttpServletRequestBuilder appRequest(String path, String refreshToken) throws Exception {
 		return post(path).contentType(MediaType.APPLICATION_JSON)
-			.content(mapper.writeValueAsString(Map.of("refreshToken", refreshToken)));
+		    .content(mapper.writeValueAsString(Map.of("refreshToken", refreshToken)));
 	}
 
 	private void assertCode(Runnable action, AuthErrorCode code) {
 		assertThatThrownBy(action::run).isInstanceOfSatisfying(AuthException.class,
-			exception -> assertThat(exception.code()).isEqualTo(code));
+		    exception -> assertThat(exception.code()).isEqualTo(code));
 	}
 
 	@TestConfiguration

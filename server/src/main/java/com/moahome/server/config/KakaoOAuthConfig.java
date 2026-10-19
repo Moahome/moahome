@@ -34,22 +34,22 @@ import org.springframework.web.client.RestClient;
 @EnableConfigurationProperties(KakaoOAuthProperties.class)
 public class KakaoOAuthConfig {
 	public static final String START_PATH = "/oauth2/authorization/kakao";
+
 	public static final String CALLBACK_PATH = "/login/oauth2/code/kakao";
 
 	@Bean
 	ClientRegistrationRepository kakaoClientRegistrations(KakaoOAuthProperties kakao, SecurityProperties security) {
 		kakao.validate(security);
 		return new InMemoryClientRegistrationRepository(ClientRegistration.withRegistrationId("kakao")
-			.clientId(kakao.clientId()).clientSecret(kakao.clientSecret())
-			.clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
-			.authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-			.clientSettings(ClientRegistration.ClientSettings.builder().requireProofKey(true).build())
-			.redirectUri(kakao.redirectUri().toString()).scope("profile_nickname")
-			.authorizationUri("https://kauth.kakao.com/oauth/authorize")
-			.tokenUri("https://kauth.kakao.com/oauth/token")
-			.userInfoUri("https://kapi.kakao.com/v2/user/me?secure_resource=true&property_keys="
-				+ URLEncoder.encode("[\"kakao_account.profile\",\"kakao_account.email\"]", StandardCharsets.UTF_8))
-			.userNameAttributeName("id").clientName("Kakao").build());
+		    .clientId(kakao.clientId()).clientSecret(kakao.clientSecret())
+		    .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
+		    .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+		    .clientSettings(ClientRegistration.ClientSettings.builder().requireProofKey(true).build())
+		    .redirectUri(kakao.redirectUri().toString()).scope("profile_nickname")
+		    .authorizationUri("https://kauth.kakao.com/oauth/authorize").tokenUri("https://kauth.kakao.com/oauth/token")
+		    .userInfoUri("https://kapi.kakao.com/v2/user/me?secure_resource=true&property_keys="
+		        + URLEncoder.encode("[\"kakao_account.profile\",\"kakao_account.email\"]", StandardCharsets.UTF_8))
+		    .userNameAttributeName("id").clientName("Kakao").build());
 	}
 
 	@Bean
@@ -76,25 +76,26 @@ public class KakaoOAuthConfig {
 
 			/** 계정 변경 요청에만 재인증 옵션을 적용하고 기존 state와 PKCE 검증 정보를 유지합니다. */
 			private OAuth2AuthorizationRequest withLoginPrompt(HttpServletRequest request,
-				OAuth2AuthorizationRequest authorization) {
+			    OAuth2AuthorizationRequest authorization) {
 				if (authorization == null || !"login".equals(request.getParameter("prompt"))) {
 					return authorization;
 				}
 				// 공유 resolver를 변경하지 않고 요청별로 복사하며, 임의의 카카오 옵션은 전달하지 않습니다.
 				return OAuth2AuthorizationRequest.from(authorization)
-					.additionalParameters(parameters -> parameters.put("prompt", "login")).build();
+				    .additionalParameters(parameters -> parameters.put("prompt", "login")).build();
 			}
 
 			private boolean isStart(HttpServletRequest request) {
 				return "GET".equals(request.getMethod())
-					&& START_PATH.equals(request.getRequestURI().substring(request.getContextPath().length()));
+				    && START_PATH.equals(request.getRequestURI().substring(request.getContextPath().length()));
 			}
 		};
 	}
 
 	@Bean
 	RestClient kakaoRestClient() {
-		var factory = new JdkClientHttpRequestFactory(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build());
+		var factory = new JdkClientHttpRequestFactory(
+		    HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build());
 		factory.setReadTimeout(Duration.ofSeconds(5));
 		return RestClient.builder().requestFactory(factory).build();
 	}
@@ -114,19 +115,19 @@ public class KakaoOAuthConfig {
 	OAuth2AuthorizedClientRepository kakaoAuthorizedClients() {
 		return new OAuth2AuthorizedClientRepository() {
 			@Override
-			public <T extends OAuth2AuthorizedClient> T loadAuthorizedClient(String registrationId, Authentication principal,
-				HttpServletRequest request) {
+			public <T extends OAuth2AuthorizedClient> T loadAuthorizedClient(String registrationId,
+			    Authentication principal, HttpServletRequest request) {
 				return null;
 			}
 
 			@Override
 			public void saveAuthorizedClient(OAuth2AuthorizedClient client, Authentication principal,
-				HttpServletRequest request, HttpServletResponse response) {
+			    HttpServletRequest request, HttpServletResponse response) {
 			}
 
 			@Override
 			public void removeAuthorizedClient(String registrationId, Authentication principal,
-				HttpServletRequest request, HttpServletResponse response) {
+			    HttpServletRequest request, HttpServletResponse response) {
 			}
 		};
 	}

@@ -21,8 +21,8 @@ public class UnitManagementExceptionHandler {
 	}
 
 	/** 입력 원문과 검증기의 내부 문구 대신 고정된 오류만 반환합니다. */
-	@ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
-		MethodArgumentTypeMismatchException.class, IllegalArgumentException.class})
+	@ExceptionHandler({ MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
+	        MethodArgumentTypeMismatchException.class, IllegalArgumentException.class })
 	public ResponseEntity<ErrorResponse> invalid(Exception exception) {
 		return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "세대 정보를 확인해주세요.");
 	}
@@ -32,12 +32,12 @@ public class UnitManagementExceptionHandler {
 		return error(exception.code().status(), exception.code().name(), exception.code().message());
 	}
 
-    /** 당월 청구 생성에 필요한 설정 오류도 세대 추가 실패로 돌려주며 트랜잭션은 전체 롤백합니다. */
-    @ExceptionHandler(com.moahome.server.billing.exception.BillingException.class)
-    public ResponseEntity<ErrorResponse> billing(com.moahome.server.billing.exception.BillingException exception) {
-        var code = exception.code();
-        return error(code.status, code.name(), code.message);
-    }
+	/** 당월 청구 생성에 필요한 설정 오류도 세대 추가 실패로 돌려주며 트랜잭션은 전체 롤백합니다. */
+	@ExceptionHandler(com.moahome.server.billing.exception.BillingException.class)
+	public ResponseEntity<ErrorResponse> billing(com.moahome.server.billing.exception.BillingException exception) {
+		var code = exception.code();
+		return error(code.status, code.name(), code.message);
+	}
 
 	@ExceptionHandler(UserException.class)
 	public ResponseEntity<ErrorResponse> account(UserException exception) {
@@ -61,6 +61,7 @@ public class UnitManagementExceptionHandler {
 	}
 
 	private ResponseEntity<ErrorResponse> error(HttpStatus status, String code, String message) {
-		return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(new ErrorResponse(code, message));
+		return ResponseEntity.status(status).cacheControl(CacheControl.noStore())
+		    .body(new ErrorResponse(code, message));
 	}
 }

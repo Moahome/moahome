@@ -73,9 +73,10 @@ public class FeeTemplate {
 	}
 
 	/** 기존 내용을 덮어쓰지 않고 다음 달부터 사용할 새 버전과 필수 수정 사유를 보존합니다. */
-	public static FeeTemplate schedule(UUID propertyId, long revision, java.time.YearMonth month,
-		String reason, UUID actorId, OffsetDateTime at) {
-		if (revision <= 0) throw new IllegalArgumentException("Invalid template revision");
+	public static FeeTemplate schedule(UUID propertyId, long revision, java.time.YearMonth month, String reason,
+	    UUID actorId, OffsetDateTime at) {
+		if (revision <= 0)
+			throw new IllegalArgumentException("Invalid template revision");
 		var template = createDefault(propertyId, at);
 		template.revision = revision;
 		template.effectiveFrom = month.atDay(1);

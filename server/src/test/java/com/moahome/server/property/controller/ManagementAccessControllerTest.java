@@ -33,15 +33,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(ManagementAccessControllerTest.Security.class)
 class ManagementAccessControllerTest {
 	private static final UUID USER_ID = UUID.randomUUID();
+
 	private static final UUID PROPERTY_ID = UUID.randomUUID();
+
 	private static final String LIST = "/api/users/me/managed-properties";
+
 	private static final String CONTEXT = "/api/properties/" + PROPERTY_ID + "/management-context";
-	@Autowired MockMvc mvc;
-	@MockitoBean ManagementAccessService management;
+
+	@Autowired
+	MockMvc mvc;
+
+	@MockitoBean
+	ManagementAccessService management;
 
 	private org.springframework.test.web.servlet.request.RequestPostProcessor identity() {
-		return authentication(UsernamePasswordAuthenticationToken.authenticated(
-			new AuthPrincipal(USER_ID.toString(), UUID.randomUUID().toString()), null, List.of()));
+		return authentication(UsernamePasswordAuthenticationToken
+		    .authenticated(new AuthPrincipal(USER_ID.toString(), UUID.randomUUID().toString()), null, List.of()));
 	}
 
 	@Test
@@ -50,12 +57,12 @@ class ManagementAccessControllerTest {
 		when(management.getManagedProperties(USER_ID)).thenReturn(new ManagedPropertiesResponse(List.of(property)));
 		when(management.getManagementContext(USER_ID, PROPERTY_ID)).thenReturn(property);
 		mvc.perform(get(LIST).with(identity()).param("userId", UUID.randomUUID().toString()).param("role", "ADMIN"))
-			.andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
-			.andExpect(jsonPath("properties[0].propertyId").value(PROPERTY_ID.toString()))
-			.andExpect(jsonPath("properties[0].role").value("MANAGER"))
-			.andExpect(jsonPath("properties[0].length()").value(3));
+		    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+		    .andExpect(jsonPath("properties[0].propertyId").value(PROPERTY_ID.toString()))
+		    .andExpect(jsonPath("properties[0].role").value("MANAGER"))
+		    .andExpect(jsonPath("properties[0].length()").value(3));
 		mvc.perform(get(CONTEXT).with(identity())).andExpect(status().isOk())
-			.andExpect(header().string("Cache-Control", "no-store")).andExpect(jsonPath("$.length()").value(3));
+		    .andExpect(header().string("Cache-Control", "no-store")).andExpect(jsonPath("$.length()").value(3));
 		verify(management).getManagedProperties(USER_ID);
 		verify(management).getManagementContext(USER_ID, PROPERTY_ID);
 	}
@@ -66,26 +73,28 @@ class ManagementAccessControllerTest {
 		mvc.perform(get(CONTEXT)).andExpect(status().isUnauthorized());
 		for (String id : List.of("invalid", "1-1-1-1-1")) {
 			mvc.perform(get("/api/properties/" + id + "/management-context").with(identity()))
-				.andExpect(status().isBadRequest()).andExpect(jsonPath("code").value("INVALID_REQUEST"));
+			    .andExpect(status().isBadRequest()).andExpect(jsonPath("code").value("INVALID_REQUEST"));
 		}
 		verifyNoInteractions(management);
 	}
 
 	@Test
 	void mapsCurrentAccessAccountAndStorageErrorsWithoutLeakingInternalDetails() throws Exception {
-		doThrow(new AuthException(AuthErrorCode.ACCESS_DENIED)).when(management).getManagementContext(USER_ID, PROPERTY_ID);
+		doThrow(new AuthException(AuthErrorCode.ACCESS_DENIED)).when(management).getManagementContext(USER_ID,
+		    PROPERTY_ID);
 		mvc.perform(get(CONTEXT).with(identity())).andExpect(status().isForbidden())
-			.andExpect(jsonPath("code").value("ACCESS_DENIED"));
+		    .andExpect(jsonPath("code").value("ACCESS_DENIED"));
 		doThrow(new UserException(UserErrorCode.USER_NOT_FOUND)).when(management).getManagedProperties(USER_ID);
 		mvc.perform(get(LIST).with(identity())).andExpect(status().isForbidden())
-			.andExpect(jsonPath("code").value("ACCOUNT_UNAVAILABLE"));
-		doThrow(new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE)).when(management).getManagedProperties(USER_ID);
+		    .andExpect(jsonPath("code").value("ACCOUNT_UNAVAILABLE"));
+		doThrow(new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE)).when(management)
+		    .getManagedProperties(USER_ID);
 		mvc.perform(get(LIST).with(identity())).andExpect(status().isServiceUnavailable());
 		doThrow(new IllegalStateException("private SQL account")).when(management).getManagedProperties(USER_ID);
 		mvc.perform(get(LIST).with(identity())).andExpect(status().isInternalServerError())
-			.andExpect(header().string("Cache-Control", "no-store"))
-			.andExpect(jsonPath("code").value("INTERNAL_SERVER_ERROR"))
-			.andExpect(jsonPath("message").value("요청을 처리하지 못했습니다."));
+		    .andExpect(header().string("Cache-Control", "no-store"))
+		    .andExpect(jsonPath("code").value("INTERNAL_SERVER_ERROR"))
+		    .andExpect(jsonPath("message").value("요청을 처리하지 못했습니다."));
 	}
 
 	@TestConfiguration
@@ -93,8 +102,9 @@ class ManagementAccessControllerTest {
 		@Bean
 		SecurityFilterChain testSecurity(HttpSecurity http) throws Exception {
 			return http.csrf(csrf -> csrf.disable()).authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
-				.exceptionHandling(errors -> errors.authenticationEntryPoint((request, response, exception) -> response.setStatus(401)))
-				.build();
+			    .exceptionHandling(errors -> errors
+			        .authenticationEntryPoint((request, response, exception) -> response.setStatus(401)))
+			    .build();
 		}
 	}
 }

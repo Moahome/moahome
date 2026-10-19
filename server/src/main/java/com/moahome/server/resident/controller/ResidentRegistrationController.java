@@ -18,17 +18,20 @@ import org.springframework.web.bind.annotation.*;
 @SecurityRequirement(name = "bearerAuth")
 public class ResidentRegistrationController {
 	private final ResidentRegistrationService service;
-	public ResidentRegistrationController(ResidentRegistrationService service) { this.service = service; }
+
+	public ResidentRegistrationController(ResidentRegistrationService service) {
+		this.service = service;
+	}
 
 	/** 관리자가 입력한 명부와 현재 세대만 저장하며 주민 계정 연결·가입 승인은 수행하지 않습니다. */
 	@PostMapping
 	@Operation(summary = "주민 등록", description = "연락처는 선택이며 해당 세대의 최초 등록 주민을 대표로 지정합니다.")
 	public ResponseEntity<ResidentRegistrationResponse> register(@AuthenticationPrincipal AuthPrincipal principal,
-		@PathVariable String propertyId, @Valid @RequestBody ResidentRegistrationRequest request) {
+	    @PathVariable String propertyId, @Valid @RequestBody ResidentRegistrationRequest request) {
 		if (!propertyId.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {
 			throw new IllegalArgumentException("Invalid property ID");
 		}
 		return ResponseEntity.status(HttpStatus.CREATED).cacheControl(CacheControl.noStore())
-			.body(service.register(UUID.fromString(principal.userId()), UUID.fromString(propertyId), request));
+		    .body(service.register(UUID.fromString(principal.userId()), UUID.fromString(propertyId), request));
 	}
 }

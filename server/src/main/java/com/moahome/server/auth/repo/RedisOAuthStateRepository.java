@@ -20,6 +20,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class RedisOAuthStateRepository {
 	private static final String KEY_PREFIX = "auth:oauth:";
+
 	private static final DefaultRedisScript<Long> CREATE = new DefaultRedisScript<>("""
 		if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
 		redis.call('HSET', KEYS[1], 'provider', 'KAKAO', 'clientType', 'WEB',
@@ -28,6 +29,7 @@ public class RedisOAuthStateRepository {
 		redis.call('PEXPIREAT', KEYS[1], ARGV[3])
 		return 1
 		""", Long.class);
+
 	private static final String VALIDATE = """
 		if redis.call('EXISTS', KEYS[1]) == 0 then return {} end
 		if redis.call('HGET', KEYS[1], 'provider') ~= 'KAKAO'
@@ -39,10 +41,15 @@ public class RedisOAuthStateRepository {
 		end
 		local fields = redis.call('HGETALL', KEYS[1])
 		""";
-	private static final DefaultRedisScript<List> LOAD = new DefaultRedisScript<>(VALIDATE + "return fields", List.class);
+
+	private static final DefaultRedisScript<List> LOAD = new DefaultRedisScript<>(VALIDATE + "return fields",
+	    List.class);
+
 	private static final DefaultRedisScript<List> CONSUME = new DefaultRedisScript<>(
-		VALIDATE + "redis.call('DEL', KEYS[1])\nreturn fields", List.class);
+	    VALIDATE + "redis.call('DEL', KEYS[1])\nreturn fields", List.class);
+
 	private final StringRedisTemplate redis;
+
 	private final Clock clock;
 
 	public RedisOAuthStateRepository(StringRedisTemplate redis, Clock clock) {
@@ -53,8 +60,8 @@ public class RedisOAuthStateRepository {
 	public void create(OAuthLoginAttempt attempt) {
 		try {
 			Long result = redis.execute(CREATE, List.of(KEY_PREFIX + attempt.state()), attempt.browserHash(),
-				attempt.codeVerifier(), Long.toString(attempt.expiresAt().toEpochMilli()), attempt.clientId(),
-				attempt.redirectUri(), attempt.authorizationUri(), String.join(" ", attempt.scopes()));
+			    attempt.codeVerifier(), Long.toString(attempt.expiresAt().toEpochMilli()), attempt.clientId(),
+			    attempt.redirectUri(), attempt.authorizationUri(), String.join(" ", attempt.scopes()));
 			if (!Long.valueOf(1).equals(result)) {
 				throw unavailable();
 			}
@@ -65,8 +72,8 @@ public class RedisOAuthStateRepository {
 
 	public Optional<OAuthLoginAttempt> load(String state, String browserHash, boolean consume) {
 		try {
-			List<?> fields = redis.execute(consume ? CONSUME : LOAD, List.of(KEY_PREFIX + state),
-				browserHash, Long.toString(clock.instant().toEpochMilli()));
+			List<?> fields = redis.execute(consume ? CONSUME : LOAD, List.of(KEY_PREFIX + state), browserHash,
+			    Long.toString(clock.instant().toEpochMilli()));
 			if (fields == null) {
 				throw unavailable();
 			}
@@ -78,8 +85,8 @@ public class RedisOAuthStateRepository {
 				values.put((String) fields.get(i), (String) fields.get(i + 1));
 			}
 			return Optional.of(new OAuthLoginAttempt(state, values.get("browserHash"), values.get("verifier"),
-				Instant.ofEpochMilli(Long.parseLong(values.get("expiresAt"))), values.get("clientId"),
-				values.get("redirectUri"), values.get("authorizationUri"), Set.of(values.get("scopes").split(" "))));
+			    Instant.ofEpochMilli(Long.parseLong(values.get("expiresAt"))), values.get("clientId"),
+			    values.get("redirectUri"), values.get("authorizationUri"), Set.of(values.get("scopes").split(" "))));
 		} catch (DataAccessException | IllegalArgumentException | NullPointerException | ClassCastException exception) {
 			throw unavailable();
 		}

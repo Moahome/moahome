@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ManagementAccessService {
 	private final UserService users;
+
 	private final PropertyMemberRepository members;
 
 	public ManagementAccessService(UserService users, PropertyMemberRepository members) {
@@ -34,8 +35,10 @@ public class ManagementAccessService {
 	/** 존재하지 않거나 권한이 없는 대상은 같은 오류로 거부해 다른 대상의 정보를 노출하지 않습니다. */
 	public ManagementPropertyResponse getManagementContext(UUID userId, UUID propertyId) {
 		requireActiveAccount(userId);
-		var properties = uniqueProperties(members.findManagementContext(userId, propertyId));
-		if (properties.isEmpty()) throw new AuthException(AuthErrorCode.ACCESS_DENIED);
+		List<ManagementPropertyResponse> properties = uniqueProperties(
+		    members.findManagementContext(userId, propertyId));
+		if (properties.isEmpty())
+			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
 		return properties.getFirst();
 	}
 
@@ -50,7 +53,7 @@ public class ManagementAccessService {
 
 	/** 동일 역할의 중복은 한 대상으로 표시하고 역할 충돌은 임의의 우선순위를 선택하지 않고 실패시킵니다. */
 	private List<ManagementPropertyResponse> uniqueProperties(List<ManagementProperty> rows) {
-		var properties = new LinkedHashMap<UUID, ManagementPropertyResponse>();
+		LinkedHashMap<UUID, ManagementPropertyResponse> properties = new LinkedHashMap<UUID, ManagementPropertyResponse>();
 		for (var row : rows) {
 			var current = new ManagementPropertyResponse(row.getPropertyId(), row.getName(), row.getRole());
 			var previous = properties.putIfAbsent(current.propertyId(), current);

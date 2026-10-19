@@ -7,11 +7,10 @@ import org.springframework.validation.annotation.Validated;
 
 @Validated
 @ConfigurationProperties("moahome.account-security")
-public record AccountSecurityProperties(
-	@NotBlank String activeKeyId,
-	@NotEmpty Map<@NotBlank String, @NotBlank String> encryptionKeys,
-	@NotBlank String hmacKeyBase64
-) {
+public record AccountSecurityProperties(@NotBlank String activeKeyId,
+    @NotEmpty Map<@NotBlank String, @NotBlank String> encryptionKeys, @NotBlank String hmacKeyBase64) {
 	@Override
-	public String toString() { return "AccountSecurityProperties[REDACTED]"; }
+	public String toString() {
+		return "AccountSecurityProperties[REDACTED]";
+	}
 }

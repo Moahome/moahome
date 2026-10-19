@@ -14,17 +14,21 @@ import com.moahome.server.resident.dto.ResidentListResponse.*;
 import com.moahome.server.resident.repo.ResidentRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
 
 @Service
 @Transactional(readOnly = true)
 public class ResidentListService {
 	private final ManagementAccessService access;
+
 	private final PropertyRepository properties;
+
 	private final BuildingRepository buildings;
+
 	private final ResidentRepository residents;
 
 	public ResidentListService(ManagementAccessService access, PropertyRepository properties,
-		BuildingRepository buildings, ResidentRepository residents) {
+	    BuildingRepository buildings, ResidentRepository residents) {
 		this.access = access;
 		this.properties = properties;
 		this.buildings = buildings;
@@ -35,14 +39,19 @@ public class ResidentListService {
 	public ResidentListResponse list(UUID userId, UUID propertyId) {
 		var context = access.getManagementContext(userId, propertyId);
 		// 공통 관리자 틀은 부담당자도 사용하므로 주민 명부의 관리소장 전용 권한을 별도로 검증합니다.
-		if (context.role() != PropertyMemberRole.ADMIN) throw new AuthException(AuthErrorCode.ACCESS_DENIED);
-		var property = properties.findById(propertyId).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		var buildingItems = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId).stream()
-			.filter(building -> building.getStatus() == BuildingStatus.ACTIVE)
-			.map(building -> new ResidentBuildingItem(building.getId(), building.getName())).toList();
-		var items = residents.findDirectory(propertyId).stream().map(row -> new ResidentItem(row.getId(), row.getName(),
-			row.getPhoneLast4(), row.getUnitId(), row.getBuildingId(), row.getUnitNumber(), row.getRelationType(),
-			row.getRepresentative(), ResidentSignupStatus.from(row.getApproved(), row.getPending()), row.getServiceRole())).toList();
+		if (context.role() != PropertyMemberRole.ADMIN)
+			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
+		var property = properties.findById(propertyId)
+		    .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+		List<ResidentListResponse.ResidentBuildingItem> buildingItems = buildings
+		    .findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId).stream()
+		    .filter(building -> building.getStatus() == BuildingStatus.ACTIVE)
+		    .map(building -> new ResidentBuildingItem(building.getId(), building.getName())).toList();
+		List<ResidentListResponse.ResidentItem> items = residents.findDirectory(propertyId).stream()
+		    .map(row -> new ResidentItem(row.getId(), row.getName(), row.getPhoneLast4(), row.getUnitId(),
+		        row.getBuildingId(), row.getUnitNumber(), row.getRelationType(), row.getRepresentative(),
+		        ResidentSignupStatus.from(row.getApproved(), row.getPending()), row.getServiceRole()))
+		    .toList();
 		return new ResidentListResponse(propertyId, property.isHasBuildings(), buildingItems, items);
 	}
 }

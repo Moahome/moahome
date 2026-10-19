@@ -31,70 +31,90 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @Import(BankAccountControllerTest.Security.class)
 class BankAccountControllerTest {
-    @Autowired MockMvc mvc;
-    @MockitoBean BankAccountService service;
-    UUID user=UUID.randomUUID(), property=UUID.randomUUID(), account=UUID.randomUUID();
-    String base() { return "/api/properties/"+property+"/banking/account"; }
-    org.springframework.test.web.servlet.request.RequestPostProcessor identity() {
-        return authentication(UsernamePasswordAuthenticationToken.authenticated(new AuthPrincipal(user.toString(),UUID.randomUUID().toString()),null,List.of()));
-    }
+	@Autowired
+	MockMvc mvc;
 
-    @Test void authenticatesAndPreventsCachingOfAccountDetails() throws Exception {
-        mvc.perform(get(base())).andExpect(status().isUnauthorized());
-        var response=new BankAccountSettings.Response(property,account,OffsetDateTime.parse("2026-10-18T00:00:00Z"),"004","국민은행","00012345678","예시 예금주");
-        when(service.read(user,property)).thenReturn(response);
-        mvc.perform(get(base()).with(identity())).andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"))
-            .andExpect(jsonPath("$.accountNumber").value("00012345678"));
-        assertThat(response.toString()).doesNotContain("00012345678","예시 예금주");
-    }
+	@MockitoBean
+	BankAccountService service;
 
-    @Test void validatesVersionAndNumberBeforeCallingService() throws Exception {
-        mvc.perform(put(base()).with(identity()).contentType(MediaType.APPLICATION_JSON).content("{}"))
-            .andExpect(status().isBadRequest());
-        mvc.perform(put(base()).with(identity()).contentType(MediaType.APPLICATION_JSON).content(body("잘못된 번호")))
-            .andExpect(status().isBadRequest());
-        verifyNoInteractions(service);
-        mvc.perform(put(base()).with(identity()).contentType(MediaType.APPLICATION_JSON).content(body("000-1234-5678")))
-            .andExpect(status().isOk()).andExpect(header().string("Cache-Control","no-store"));
-        verify(service).correct(eq(user),eq(property),argThat(request->request.accountNumber().equals("00012345678")
-            && !request.toString().contains("00012345678")));
-    }
+	UUID user = UUID.randomUUID(), property = UUID.randomUUID(), account = UUID.randomUUID();
 
-    @Test void returnsAccessFailureWithoutAccountDetails() throws Exception {
-        when(service.read(user,property)).thenThrow(new AuthException(AuthErrorCode.ACCESS_DENIED));
-        mvc.perform(get(base()).with(identity())).andExpect(status().isForbidden())
-            .andExpect(jsonPath("$.code").value("ACCESS_DENIED")).andExpect(jsonPath("$.accountNumber").doesNotExist());
-    }
+	String base() {
+		return "/api/properties/" + property + "/banking/account";
+	}
 
-    @Test void selectedDetailIsMaskedAndNumberRequiresSeparateAuthenticatedPost() throws Exception {
-        var at = OffsetDateTime.parse("2026-10-18T00:00:00Z");
-        when(service.detail(user, property, account)).thenReturn(new BankAccountSettings.Detail(
-            property, account, at, "004", "국민은행", "5678", "예시 예금주", "관리비", true, "ACTIVE"));
-        when(service.revealNumber(user, property, account)).thenReturn(new BankAccountSettings.RevealedNumber(
-            property, account, at, "00012345678"));
-        mvc.perform(get(base()+"/"+account)).andExpect(status().isUnauthorized());
-        mvc.perform(post(base()+"/"+account+"/number-reveal")).andExpect(status().isUnauthorized());
-        mvc.perform(get(base()+"/"+account).with(identity())).andExpect(status().isOk())
-            .andExpect(header().string("Cache-Control", "no-store"))
-            .andExpect(jsonPath("$.last4").value("5678"))
-            .andExpect(jsonPath("$.accountNumber").doesNotExist())
-            .andExpect(jsonPath("$.accountNumberEncrypted").doesNotExist());
-        mvc.perform(post(base()+"/"+account+"/number-reveal").with(identity())).andExpect(status().isOk())
-            .andExpect(header().string("Cache-Control", "no-store"))
-            .andExpect(jsonPath("$.accountId").value(account.toString()))
-            .andExpect(jsonPath("$.accountNumber").value("00012345678"));
-        assertThat(new BankAccountSettings.RevealedNumber(property, account, at, "00012345678").toString())
-            .doesNotContain("00012345678");
-    }
+	org.springframework.test.web.servlet.request.RequestPostProcessor identity() {
+		return authentication(UsernamePasswordAuthenticationToken
+		    .authenticated(new AuthPrincipal(user.toString(), UUID.randomUUID().toString()), null, List.of()));
+	}
 
-    String body(String number) {
-        return "{\"accountId\":\""+account+"\",\"updatedAt\":\"2026-10-18T00:00:00Z\",\"bankCode\":\"004\",\"bankName\":\"국민은행\",\"accountNumber\":\""+number+"\",\"holderName\":\"예시 예금주\"}";
-    }
+	@Test
+	void authenticatesAndPreventsCachingOfAccountDetails() throws Exception {
+		mvc.perform(get(base())).andExpect(status().isUnauthorized());
+		var response = new BankAccountSettings.Response(property, account, OffsetDateTime.parse("2026-10-18T00:00:00Z"),
+		    "004", "국민은행", "00012345678", "예시 예금주");
+		when(service.read(user, property)).thenReturn(response);
+		mvc.perform(get(base()).with(identity())).andExpect(status().isOk())
+		    .andExpect(header().string("Cache-Control", "no-store"))
+		    .andExpect(jsonPath("$.accountNumber").value("00012345678"));
+		assertThat(response.toString()).doesNotContain("00012345678", "예시 예금주");
+	}
 
-    @TestConfiguration static class Security {
-        @Bean SecurityFilterChain testSecurity(HttpSecurity http) throws Exception {
-            return http.csrf(c->c.disable()).authorizeHttpRequests(a->a.anyRequest().authenticated())
-                .exceptionHandling(e->e.authenticationEntryPoint((request,response,error)->response.setStatus(401))).build();
-        }
-    }
+	@Test
+	void validatesVersionAndNumberBeforeCallingService() throws Exception {
+		mvc.perform(put(base()).with(identity()).contentType(MediaType.APPLICATION_JSON).content("{}"))
+		    .andExpect(status().isBadRequest());
+		mvc.perform(put(base()).with(identity()).contentType(MediaType.APPLICATION_JSON).content(body("잘못된 번호")))
+		    .andExpect(status().isBadRequest());
+		verifyNoInteractions(service);
+		mvc.perform(put(base()).with(identity()).contentType(MediaType.APPLICATION_JSON).content(body("000-1234-5678")))
+		    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"));
+		verify(service).correct(eq(user), eq(property), argThat(
+		    request -> request.accountNumber().equals("00012345678") && !request.toString().contains("00012345678")));
+	}
+
+	@Test
+	void returnsAccessFailureWithoutAccountDetails() throws Exception {
+		when(service.read(user, property)).thenThrow(new AuthException(AuthErrorCode.ACCESS_DENIED));
+		mvc.perform(get(base()).with(identity())).andExpect(status().isForbidden())
+		    .andExpect(jsonPath("$.code").value("ACCESS_DENIED")).andExpect(jsonPath("$.accountNumber").doesNotExist());
+	}
+
+	@Test
+	void selectedDetailIsMaskedAndNumberRequiresSeparateAuthenticatedPost() throws Exception {
+		var at = OffsetDateTime.parse("2026-10-18T00:00:00Z");
+		when(service.detail(user, property, account)).thenReturn(new BankAccountSettings.Detail(property, account, at,
+		    "004", "국민은행", "5678", "예시 예금주", "관리비", true, "ACTIVE"));
+		when(service.revealNumber(user, property, account))
+		    .thenReturn(new BankAccountSettings.RevealedNumber(property, account, at, "00012345678"));
+		mvc.perform(get(base() + "/" + account)).andExpect(status().isUnauthorized());
+		mvc.perform(post(base() + "/" + account + "/number-reveal")).andExpect(status().isUnauthorized());
+		mvc.perform(get(base() + "/" + account).with(identity())).andExpect(status().isOk())
+		    .andExpect(header().string("Cache-Control", "no-store")).andExpect(jsonPath("$.last4").value("5678"))
+		    .andExpect(jsonPath("$.accountNumber").doesNotExist())
+		    .andExpect(jsonPath("$.accountNumberEncrypted").doesNotExist());
+		mvc.perform(post(base() + "/" + account + "/number-reveal").with(identity())).andExpect(status().isOk())
+		    .andExpect(header().string("Cache-Control", "no-store"))
+		    .andExpect(jsonPath("$.accountId").value(account.toString()))
+		    .andExpect(jsonPath("$.accountNumber").value("00012345678"));
+		assertThat(new BankAccountSettings.RevealedNumber(property, account, at, "00012345678").toString())
+		    .doesNotContain("00012345678");
+	}
+
+	String body(String number) {
+		return "{\"accountId\":\"" + account
+		    + "\",\"updatedAt\":\"2026-10-18T00:00:00Z\",\"bankCode\":\"004\",\"bankName\":\"국민은행\",\"accountNumber\":\""
+		    + number + "\",\"holderName\":\"예시 예금주\"}";
+	}
+
+	@TestConfiguration
+	static class Security {
+		@Bean
+		SecurityFilterChain testSecurity(HttpSecurity http) throws Exception {
+			return http.csrf(c -> c.disable()).authorizeHttpRequests(a -> a.anyRequest().authenticated())
+			    .exceptionHandling(
+			        e -> e.authenticationEntryPoint((request, response, error) -> response.setStatus(401)))
+			    .build();
+		}
+	}
 }

@@ -29,19 +29,25 @@ import org.springframework.stereotype.Service;
 @Service
 public class TokenService {
 	public static final Duration ACCESS_LIFETIME = Duration.ofHours(1);
+
 	public static final Duration REFRESH_LIFETIME = Duration.ofDays(14);
 
 	private final JwtEncoder accessEncoder;
+
 	private final JwtEncoder refreshEncoder;
+
 	private final JwtDecoder accessDecoder;
+
 	private final JwtDecoder refreshDecoder;
+
 	private final SecurityProperties properties;
+
 	private final Clock clock;
 
 	public TokenService(@Qualifier("jwtAccessEncoder") JwtEncoder accessEncoder,
-		@Qualifier("jwtRefreshEncoder") JwtEncoder refreshEncoder,
-		@Qualifier("jwtAccessDecoder") JwtDecoder accessDecoder,
-		@Qualifier("jwtRefreshDecoder") JwtDecoder refreshDecoder, SecurityProperties properties, Clock clock) {
+	    @Qualifier("jwtRefreshEncoder") JwtEncoder refreshEncoder,
+	    @Qualifier("jwtAccessDecoder") JwtDecoder accessDecoder,
+	    @Qualifier("jwtRefreshDecoder") JwtDecoder refreshDecoder, SecurityProperties properties, Clock clock) {
 		this.accessEncoder = accessEncoder;
 		this.refreshEncoder = refreshEncoder;
 		this.accessDecoder = accessDecoder;
@@ -57,11 +63,9 @@ public class TokenService {
 		if (accessExpiresAt.isAfter(sessionExpiresAt)) {
 			accessExpiresAt = sessionExpiresAt;
 		}
-		return new TokenPair(
-			encode(accessEncoder, userId, sessionId, "access", now, accessExpiresAt),
-			encode(refreshEncoder, userId, sessionId, "refresh", now, sessionExpiresAt),
-			accessExpiresAt, sessionExpiresAt
-		);
+		return new TokenPair(encode(accessEncoder, userId, sessionId, "access", now, accessExpiresAt),
+		    encode(refreshEncoder, userId, sessionId, "refresh", now, sessionExpiresAt), accessExpiresAt,
+		    sessionExpiresAt);
 	}
 
 	/** 업무 API는 Access 키와 종류를 모두 검증해 Refresh 토큰의 사용을 거부합니다. */
@@ -76,19 +80,19 @@ public class TokenService {
 
 	public static String hash(String token) {
 		try {
-			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-				.digest(token.getBytes(StandardCharsets.UTF_8)));
+			return HexFormat.of()
+			    .formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));
 		} catch (NoSuchAlgorithmException exception) {
 			throw new IllegalStateException("SHA-256 is unavailable", exception);
 		}
 	}
 
 	/** 선택한 종류별 서명기로 발급자, 대상, 사용자와 세션 식별자를 포함한 JWT를 생성합니다. */
-	private String encode(JwtEncoder encoder, String userId, String sessionId, String type, Instant now, Instant expiresAt) {
-		JwtClaimsSet claims = JwtClaimsSet.builder()
-			.issuer(properties.issuer()).audience(List.of(properties.audience()))
-			.subject(userId).id(UUID.randomUUID().toString()).issuedAt(now).notBefore(now)
-			.expiresAt(expiresAt).claim("sid", sessionId).claim("token_type", type).build();
+	private String encode(JwtEncoder encoder, String userId, String sessionId, String type, Instant now,
+	    Instant expiresAt) {
+		JwtClaimsSet claims = JwtClaimsSet.builder().issuer(properties.issuer())
+		    .audience(List.of(properties.audience())).subject(userId).id(UUID.randomUUID().toString()).issuedAt(now)
+		    .notBefore(now).expiresAt(expiresAt).claim("sid", sessionId).claim("token_type", type).build();
 		JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).type("JWT").build();
 		return encoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
 	}
@@ -98,14 +102,12 @@ public class TokenService {
 		try {
 			Jwt jwt = decoder.decode(token);
 			Instant now = clock.instant();
-			if (!properties.issuer().equals(jwt.getClaimAsString("iss"))
-				|| jwt.getAudience() == null || !jwt.getAudience().contains(properties.audience())
-				|| !type.equals(jwt.getClaimAsString("token_type"))
-				|| !hasText(jwt.getSubject()) || !hasText(jwt.getId())
-				|| !hasText(jwt.getClaimAsString("sid"))
-				|| jwt.getIssuedAt() == null || jwt.getNotBefore() == null || jwt.getExpiresAt() == null
-				|| jwt.getIssuedAt().isAfter(now) || jwt.getNotBefore().isAfter(now)
-				|| !jwt.getExpiresAt().isAfter(jwt.getIssuedAt())) {
+			if (!properties.issuer().equals(jwt.getClaimAsString("iss")) || jwt.getAudience() == null
+			    || !jwt.getAudience().contains(properties.audience())
+			    || !type.equals(jwt.getClaimAsString("token_type")) || !hasText(jwt.getSubject())
+			    || !hasText(jwt.getId()) || !hasText(jwt.getClaimAsString("sid")) || jwt.getIssuedAt() == null
+			    || jwt.getNotBefore() == null || jwt.getExpiresAt() == null || jwt.getIssuedAt().isAfter(now)
+			    || jwt.getNotBefore().isAfter(now) || !jwt.getExpiresAt().isAfter(jwt.getIssuedAt())) {
 				throw new AuthException(AuthErrorCode.INVALID_TOKEN);
 			}
 			if (!jwt.getExpiresAt().isAfter(now)) {
@@ -121,7 +123,8 @@ public class TokenService {
 		return value != null && !value.isBlank();
 	}
 
-	public record TokenPair(String accessToken, String refreshToken, Instant accessExpiresAt, Instant refreshExpiresAt) {
+	public record TokenPair(String accessToken, String refreshToken, Instant accessExpiresAt,
+	    Instant refreshExpiresAt) {
 		@Override
 		public String toString() {
 			return "TokenPair[REDACTED]";

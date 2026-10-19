@@ -9,12 +9,8 @@ import org.springframework.validation.annotation.Validated;
 
 @Validated
 @ConfigurationProperties("moahome.kakao")
-public record KakaoOAuthProperties(
-	@NotBlank String clientId,
-	@NotBlank String clientSecret,
-	@NotNull URI redirectUri,
-	@NotNull URI webLoginSuccessUri
-) {
+public record KakaoOAuthProperties(@NotBlank String clientId, @NotBlank String clientSecret, @NotNull URI redirectUri,
+    @NotNull URI webLoginSuccessUri) {
 	public void validate(SecurityProperties security) {
 		validateUri(redirectUri, security.cookieSecure());
 		validateUri(webLoginSuccessUri, security.cookieSecure());
@@ -28,11 +24,11 @@ public record KakaoOAuthProperties(
 	}
 
 	private void validateUri(URI uri, boolean secure) {
-		if (uri == null || uri.getHost() == null || uri.getRawUserInfo() != null
-			|| uri.getRawQuery() != null || uri.getRawFragment() != null
-			|| !("https".equals(uri.getScheme()) || (!secure && "http".equals(uri.getScheme())
-				&& "localhost".equals(uri.getHost())))) {
-			throw new IllegalArgumentException("OAuth redirect addresses must be explicit HTTPS URLs; local HTTP uses localhost");
+		if (uri == null || uri.getHost() == null || uri.getRawUserInfo() != null || uri.getRawQuery() != null
+		    || uri.getRawFragment() != null || !("https".equals(uri.getScheme())
+		        || (!secure && "http".equals(uri.getScheme()) && "localhost".equals(uri.getHost())))) {
+			throw new IllegalArgumentException(
+			    "OAuth redirect addresses must be explicit HTTPS URLs; local HTTP uses localhost");
 		}
 	}
 

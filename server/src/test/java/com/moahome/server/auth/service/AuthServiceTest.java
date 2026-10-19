@@ -29,9 +29,13 @@ import static org.mockito.Mockito.when;
 
 class AuthServiceTest {
 	private final Instant now = Instant.parse("2026-10-03T00:00:00Z");
+
 	private TokenService tokens;
+
 	private RedisAuthSessionRepository sessions;
+
 	private AuthService auth;
+
 	private UserService users;
 
 	@BeforeEach
@@ -72,26 +76,26 @@ class AuthServiceTest {
 		when(tokens.readAccess("access")).thenReturn(jwt(id));
 		when(tokens.readRefresh("refresh")).thenReturn(jwt(id));
 		when(sessions.find("session-1")).thenReturn(Optional.of(session(ClientType.APP)));
-		when(sessions.checkRefresh(session(ClientType.APP), TokenService.hash("refresh")))
-			.thenReturn(1L);
+		when(sessions.checkRefresh(session(ClientType.APP), TokenService.hash("refresh"))).thenReturn(1L);
 		assertCode(() -> auth.authenticateAccess("access"), AuthErrorCode.ACCOUNT_UNAVAILABLE);
 		assertCode(() -> auth.refresh("refresh", ClientType.APP), AuthErrorCode.ACCOUNT_UNAVAILABLE);
 		assertCode(() -> auth.startSession(id, ClientType.APP), AuthErrorCode.ACCOUNT_UNAVAILABLE);
-		verify(tokens, never()).issue(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+		verify(tokens, never()).issue(org.mockito.ArgumentMatchers.anyString(),
+		    org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
 	}
 
 	private Jwt jwt(String userId) {
-		return Jwt.withTokenValue("verified-token").header("alg", "HS256")
-			.subject(userId).claim("sid", "session-1").build();
+		return Jwt.withTokenValue("verified-token").header("alg", "HS256").subject(userId).claim("sid", "session-1")
+		    .build();
 	}
 
 	private AuthSession session(ClientType clientType) {
-		return new AuthSession("session-1", "00000000-0000-0000-0000-000000000001", clientType, TokenService.hash("refresh"), "csrf",
-			now, now.plusSeconds(60));
+		return new AuthSession("session-1", "00000000-0000-0000-0000-000000000001", clientType,
+		    TokenService.hash("refresh"), "csrf", now, now.plusSeconds(60));
 	}
 
 	private void assertCode(Runnable action, AuthErrorCode code) {
 		assertThatThrownBy(action::run).isInstanceOfSatisfying(AuthException.class,
-			exception -> assertThat(exception.code()).isEqualTo(code));
+		    exception -> assertThat(exception.code()).isEqualTo(code));
 	}
 }

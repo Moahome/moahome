@@ -6,8 +6,10 @@ public enum ResidentSignupStatus {
 
 	/** 실제 승인과 현재 참여가 있으면 가입 완료, 확인된 대기 신청만 있으면 승인 대기로 분류합니다. */
 	public static ResidentSignupStatus from(boolean approved, boolean pending) {
-		if (approved) return APPROVED;
-		if (pending) return PENDING;
+		if (approved)
+			return APPROVED;
+		if (pending)
+			return PENDING;
 		return NOT_JOINED;
 	}
 }

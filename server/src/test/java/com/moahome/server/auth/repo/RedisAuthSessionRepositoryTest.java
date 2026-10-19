@@ -23,13 +23,13 @@ class RedisAuthSessionRepositoryTest {
 			port = server.port();
 		}
 		var factory = new LettuceConnectionFactory(new RedisStandaloneConfiguration("127.0.0.1", port),
-			LettuceClientConfiguration.builder().commandTimeout(Duration.ofMillis(200))
-				.shutdownTimeout(Duration.ZERO).build());
+		    LettuceClientConfiguration.builder().commandTimeout(Duration.ofMillis(200)).shutdownTimeout(Duration.ZERO)
+		        .build());
 		factory.afterPropertiesSet();
 		try {
 			var repository = new RedisAuthSessionRepository(new StringRedisTemplate(factory));
 			assertThatThrownBy(() -> repository.find("session-1")).isInstanceOfSatisfying(AuthException.class,
-				exception -> assertThat(exception.code()).isEqualTo(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE));
+			    exception -> assertThat(exception.code()).isEqualTo(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE));
 		} finally {
 			factory.destroy();
 		}

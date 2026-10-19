@@ -55,8 +55,8 @@ public class FeeTemplateItem {
 	}
 
 	/** 선택한 종류와 표시 이름을 별도로 보존하고 정수 원 단위·저장 범위·항목 순서를 검증합니다. */
-	public static FeeTemplateItem create(FeeTemplate template, FeeItemCode itemCode, String itemName, long amount, int sortOrder,
-		OffsetDateTime at) {
+	public static FeeTemplateItem create(FeeTemplate template, FeeItemCode itemCode, String itemName, long amount,
+	    int sortOrder, OffsetDateTime at) {
 		if (amount < -999_999_999_999_999L || amount > 999_999_999_999_999L || sortOrder < 0) {
 			throw new IllegalArgumentException("Invalid fee item configuration");
 		}

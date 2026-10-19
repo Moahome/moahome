@@ -8,9 +8,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface UnitRepository extends JpaRepository<Unit, UUID> {
 	List<Unit> findByPropertyId(UUID propertyId);
+
 	List<Unit> findByPropertyIdAndIdIn(UUID propertyId, java.util.Collection<UUID> ids);
+
 	List<Unit> findByPropertyIdAndBuildingIdAndDeletedAtIsNull(UUID propertyId, UUID buildingId);
+
 	List<Unit> findByPropertyIdAndDeletedAtIsNull(UUID propertyId);
+
 	Optional<Unit> findByIdAndPropertyIdAndDeletedAtIsNull(UUID id, UUID propertyId);
-	boolean existsByPropertyIdAndBuildingIdAndUnitNumberAndDeletedAtIsNullAndIdNot(UUID propertyId, UUID buildingId, String unitNumber, UUID id);
+
+	boolean existsByPropertyIdAndBuildingIdAndUnitNumberAndDeletedAtIsNullAndIdNot(UUID propertyId, UUID buildingId,
+	    String unitNumber, UUID id);
 }

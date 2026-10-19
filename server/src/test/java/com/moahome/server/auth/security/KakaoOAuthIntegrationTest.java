@@ -83,57 +83,136 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.springframework.util.MultiValueMap;
 
-@SpringBootTest(properties="moahome.billing.scheduler-enabled=false")
+@SpringBootTest(properties = "moahome.billing.scheduler-enabled=false")
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import(KakaoOAuthIntegrationTest.TestBeans.class)
 class KakaoOAuthIntegrationTest {
 	private static final RedisTestServer REDIS = new RedisTestServer();
+
 	private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+
 	private static final String TOKEN_URI = "https://kauth.kakao.com/oauth/token";
+
 	private static final String USER_URI = "https://kapi.kakao.com/v2/user/me?secure_resource=true"
-		+ "&property_keys=%5B%22kakao_account.profile%22%2C%22kakao_account.email%22%5D";
+	    + "&property_keys=%5B%22kakao_account.profile%22%2C%22kakao_account.email%22%5D";
+
 	private static final String USER_RESPONSE = """
 		{"id":1234567890123,"kakao_account":{"profile":{"nickname":"카카오 사용자"}}}
 		""";
-	@Autowired private MockMvc mvc;
-	@Autowired private StringRedisTemplate redis;
-	@Autowired private RedisOAuthStateRepository states;
-	@Autowired private MutableClock clock;
-	@Autowired private MockRestServiceServer kakao;
-	@Autowired private KakaoOAuthProperties properties;
-	@Autowired private AuthService auth;
-	@Autowired private TokenService tokens;
-	@Autowired private ObjectMapper mapper;
-	@MockitoSpyBean private RedisOAuthStateRepository stateRepository;
-	@MockitoSpyBean private RedisAuthSessionRepository sessions;
-	@MockitoBean private com.moahome.server.payment.service.PaymentService payments;
-    @MockitoBean private com.moahome.server.banking.service.BankingService banking;
-    @MockitoBean private com.moahome.server.banking.service.IncomeAllocationService incomeAllocations;
-    @MockitoBean private com.moahome.server.banking.service.BankingBalanceService bankingBalances;
-    @MockitoBean private com.moahome.server.banking.service.BankAccountService bankAccountSettings;
-    @MockitoBean private com.moahome.server.expense.service.ExpenseService expenses;
-	@MockitoBean private com.moahome.server.payment.service.CumulativePaymentService cumulativePayments;
-	@MockitoBean private com.moahome.server.billing.service.BillingService billing;
-	@MockitoBean private com.moahome.server.billing.service.OpeningBalanceService openingBalances;
-	@MockitoBean private com.moahome.server.membership.service.MemberManagementService memberManagement;
-	@MockitoBean private com.moahome.server.membership.service.MembershipRequestService membershipRequests;
-	@MockitoBean private com.moahome.server.billing.service.BillingTemplates billingTemplates;
-	@MockitoBean private com.moahome.server.billing.service.BillingGenerationService billingGeneration;
-	@MockitoBean private com.moahome.server.property.service.ManagementAccessService management;
-	@MockitoBean private com.moahome.server.property.service.UnitManagementService unitManagement;
-	@MockitoBean private com.moahome.server.resident.service.ResidentListService residentList;
-	@MockitoBean private com.moahome.server.resident.service.ResidentRegistrationService residentRegistration;
-	@MockitoBean private com.moahome.server.resident.service.ResidentImportService residentImport;
-	@MockitoBean private com.moahome.server.resident.service.ResidentManagementService residentManagement;
-	@MockitoBean private com.moahome.server.resident.service.ResidentExportService residentExport;
-	@MockitoBean private SocialAccountService identities;
-	@MockitoBean private UserService users;
-	@MockitoBean private UserRepository userRepository;
-	@MockitoBean private SocialAccountRepository socialAccounts;
-	@MockitoBean private com.moahome.server.property.service.PropertyRegistrationService registrations;
-	@MockitoBean private com.moahome.server.property.repo.PropertyRegistrationLock registrationLock;
+
+	@Autowired
+	private MockMvc mvc;
+
+	@Autowired
+	private StringRedisTemplate redis;
+
+	@Autowired
+	private RedisOAuthStateRepository states;
+
+	@Autowired
+	private MutableClock clock;
+
+	@Autowired
+	private MockRestServiceServer kakao;
+
+	@Autowired
+	private KakaoOAuthProperties properties;
+
+	@Autowired
+	private AuthService auth;
+
+	@Autowired
+	private TokenService tokens;
+
+	@Autowired
+	private ObjectMapper mapper;
+
+	@MockitoSpyBean
+	private RedisOAuthStateRepository stateRepository;
+
+	@MockitoSpyBean
+	private RedisAuthSessionRepository sessions;
+
+	@MockitoBean
+	private com.moahome.server.payment.service.PaymentService payments;
+
+	@MockitoBean
+	private com.moahome.server.banking.service.BankingService banking;
+
+	@MockitoBean
+	private com.moahome.server.banking.service.IncomeAllocationService incomeAllocations;
+
+	@MockitoBean
+	private com.moahome.server.banking.service.BankingBalanceService bankingBalances;
+
+	@MockitoBean
+	private com.moahome.server.banking.service.BankAccountService bankAccountSettings;
+
+	@MockitoBean
+	private com.moahome.server.expense.service.ExpenseService expenses;
+
+	@MockitoBean
+	private com.moahome.server.payment.service.CumulativePaymentService cumulativePayments;
+
+	@MockitoBean
+	private com.moahome.server.billing.service.BillingService billing;
+
+	@MockitoBean
+	private com.moahome.server.billing.service.OpeningBalanceService openingBalances;
+
+	@MockitoBean
+	private com.moahome.server.membership.service.MemberManagementService memberManagement;
+
+	@MockitoBean
+	private com.moahome.server.membership.service.MembershipRequestService membershipRequests;
+
+	@MockitoBean
+	private com.moahome.server.billing.service.BillingTemplates billingTemplates;
+
+	@MockitoBean
+	private com.moahome.server.billing.service.BillingGenerationService billingGeneration;
+
+	@MockitoBean
+	private com.moahome.server.property.service.ManagementAccessService management;
+
+	@MockitoBean
+	private com.moahome.server.property.service.UnitManagementService unitManagement;
+
+	@MockitoBean
+	private com.moahome.server.resident.service.ResidentListService residentList;
+
+	@MockitoBean
+	private com.moahome.server.resident.service.ResidentRegistrationService residentRegistration;
+
+	@MockitoBean
+	private com.moahome.server.resident.service.ResidentImportService residentImport;
+
+	@MockitoBean
+	private com.moahome.server.resident.service.ResidentManagementService residentManagement;
+
+	@MockitoBean
+	private com.moahome.server.resident.service.ResidentExportService residentExport;
+
+	@MockitoBean
+	private SocialAccountService identities;
+
+	@MockitoBean
+	private UserService users;
+
+	@MockitoBean
+	private UserRepository userRepository;
+
+	@MockitoBean
+	private SocialAccountRepository socialAccounts;
+
+	@MockitoBean
+	private com.moahome.server.property.service.PropertyRegistrationService registrations;
+
+	@MockitoBean
+	private com.moahome.server.property.repo.PropertyRegistrationLock registrationLock;
 
 	@DynamicPropertySource
 	static void infrastructure(DynamicPropertyRegistry registry) {
@@ -179,40 +258,45 @@ class KakaoOAuthIntegrationTest {
 		assertThat(first.cookie().getSecure()).isTrue();
 		assertThat(first.cookie().getPath()).isEqualTo("/");
 		assertThat(first.cookie().getMaxAge()).isEqualTo(300);
-		assertThat(first.result().getResponse().getHeaders("Set-Cookie").getFirst()).contains("SameSite=Lax").doesNotContain("Domain=");
+		assertThat(first.result().getResponse().getHeaders("Set-Cookie").getFirst()).contains("SameSite=Lax")
+		    .doesNotContain("Domain=");
 		assertThat(first.result().getRequest().getSession(false)).isNull();
 		Map<Object, Object> stored = redis.opsForHash().entries("auth:oauth:" + first.state());
 		assertThat(stored.get("browserHash")).isEqualTo(TokenService.hash(first.cookie().getValue()));
 		assertThat(stored.values()).doesNotContain(first.cookie().getValue(), properties.clientSecret());
 		assertThat(redis.getExpire("auth:oauth:" + first.state())).isBetween(295L, 300L);
 		assertThat(challenge((String) stored.get("verifier"))).isEqualTo(first.challenge());
-		assertThat(first.result().getResponse().getRedirectedUrl()).doesNotContain("code_verifier", properties.clientSecret());
-		assertThat(UriComponentsBuilder.fromUriString(first.result().getResponse().getRedirectedUrl())
-			.build().getQueryParams()).doesNotContainKey("prompt");
+		assertThat(first.result().getResponse().getRedirectedUrl()).doesNotContain("code_verifier",
+		    properties.clientSecret());
+		assertThat(UriComponentsBuilder.fromUriString(first.result().getResponse().getRedirectedUrl()).build()
+		    .getQueryParams()).doesNotContainKey("prompt");
 	}
 
 	@Test
 	void requestsLoginPromptForAccountSwitchAndCompletesPkceCallback() throws Exception {
 		var attempt = start("login");
-		var query = UriComponentsBuilder.fromUriString(attempt.result().getResponse().getRedirectedUrl()).build().getQueryParams();
+		MultiValueMap<String, String> query = UriComponentsBuilder
+		    .fromUriString(attempt.result().getResponse().getRedirectedUrl()).build().getQueryParams();
 		assertThat(query.get("prompt")).containsExactly("login");
-		assertThat(URLDecoder.decode(query.getFirst("redirect_uri"), StandardCharsets.UTF_8)).isEqualTo(properties.redirectUri().toString());
+		assertThat(URLDecoder.decode(query.getFirst("redirect_uri"), StandardCharsets.UTF_8))
+		    .isEqualTo(properties.redirectUri().toString());
 		assertThat(attempt.cookie().isHttpOnly()).isTrue();
 		assertThat(attempt.cookie().getSecure()).isTrue();
 		expectLogin(attempt, USER_RESPONSE);
 		callback(attempt).andExpect(status().isFound())
-			.andExpect(header().string("Location", properties.webLoginSuccessUri().toString()))
-			.andExpect(cookie().httpOnly(WebAuthSupport.COOKIE_NAME, true))
-			.andExpect(cookie().maxAge(attempt.cookie().getName(), 0));
+		    .andExpect(header().string("Location", properties.webLoginSuccessUri().toString()))
+		    .andExpect(cookie().httpOnly(WebAuthSupport.COOKIE_NAME, true))
+		    .andExpect(cookie().maxAge(attempt.cookie().getName(), 0));
 		assertThat(redis.hasKey("auth:oauth:" + attempt.state())).isFalse();
 	}
 
 	@Test
 	void doesNotForwardUnsupportedPromptOrOtherProviderOptions() throws Exception {
 		var result = mvc.perform(get(KakaoOAuthConfig.START_PATH).param("prompt", "consent")
-			.param("login_hint", "untrusted-hint").param("scope", "talk_message"))
-			.andExpect(status().isFound()).andReturn();
-		var query = UriComponentsBuilder.fromUriString(result.getResponse().getRedirectedUrl()).build().getQueryParams();
+		    .param("login_hint", "untrusted-hint").param("scope", "talk_message")).andExpect(status().isFound())
+		    .andReturn();
+		MultiValueMap<String, String> query = UriComponentsBuilder
+		    .fromUriString(result.getResponse().getRedirectedUrl()).build().getQueryParams();
 		assertThat(query).doesNotContainKeys("prompt", "login_hint");
 		assertThat(query.getFirst("scope")).isEqualTo("profile_nickname");
 	}
@@ -222,10 +306,10 @@ class KakaoOAuthIntegrationTest {
 		var attempt = start();
 		expectLogin(attempt, USER_RESPONSE);
 		var result = callback(attempt).andExpect(status().isFound())
-			.andExpect(cookie().httpOnly(WebAuthSupport.COOKIE_NAME, true))
-			.andExpect(cookie().secure(WebAuthSupport.COOKIE_NAME, true))
-			.andExpect(cookie().path(WebAuthSupport.COOKIE_NAME, WebAuthSupport.COOKIE_PATH))
-			.andExpect(cookie().maxAge(attempt.cookie().getName(), 0)).andReturn();
+		    .andExpect(cookie().httpOnly(WebAuthSupport.COOKIE_NAME, true))
+		    .andExpect(cookie().secure(WebAuthSupport.COOKIE_NAME, true))
+		    .andExpect(cookie().path(WebAuthSupport.COOKIE_NAME, WebAuthSupport.COOKIE_PATH))
+		    .andExpect(cookie().maxAge(attempt.cookie().getName(), 0)).andReturn();
 		assertThat(result.getResponse().getRedirectedUrl()).isEqualTo(properties.webLoginSuccessUri().toString());
 		assertThat(result.getResponse().getContentAsString()).isEmpty();
 		assertThat(result.getResponse().getHeader("Cache-Control")).isEqualTo("no-store");
@@ -241,26 +325,25 @@ class KakaoOAuthIntegrationTest {
 		var csrf = mvc.perform(get(WebAuthSupport.CSRF_PATH).cookie(refresh)).andExpect(status().isOk()).andReturn();
 		String csrfToken = mapper.readTree(csrf.getResponse().getContentAsString()).get("csrfToken").asString();
 		mvc.perform(post(WebAuthSupport.REFRESH_PATH).cookie(refresh).header("Origin", "https://app.example.test")
-			.header("X-CSRF-TOKEN", csrfToken)).andExpect(status().isOk()).andExpect(jsonPath("accessToken").isNotEmpty())
-			.andExpect(jsonPath("refreshToken").doesNotExist());
+		    .header("X-CSRF-TOKEN", csrfToken)).andExpect(status().isOk())
+		    .andExpect(jsonPath("accessToken").isNotEmpty()).andExpect(jsonPath("refreshToken").doesNotExist());
 		callback(attempt).andExpect(status().isFound())
-			.andExpect(header().string("Location", failure("OAUTH_STATE_INVALID")));
+		    .andExpect(header().string("Location", failure("OAUTH_STATE_INVALID")));
 	}
 
 	@Test
 	void refusesMissingExpiredWrongBrowserAndDuplicatedStateWithoutCallingKakao() throws Exception {
 		var attempt = start();
 		mvc.perform(get(KakaoOAuthConfig.CALLBACK_PATH).param("code", "code").param("state", attempt.state()))
-			.andExpect(status().isFound()).andExpect(header()
-				.string("Location", failure("OAUTH_STATE_INVALID")));
+		    .andExpect(status().isFound()).andExpect(header().string("Location", failure("OAUTH_STATE_INVALID")));
 		mvc.perform(get(KakaoOAuthConfig.CALLBACK_PATH).param("code", "code").cookie(attempt.cookie()))
-			.andExpect(status().isFound());
-		mvc.perform(get(KakaoOAuthConfig.CALLBACK_PATH).param("code", "code").param("state", attempt.state(), attempt.state())
-			.cookie(attempt.cookie())).andExpect(status().isFound());
+		    .andExpect(status().isFound());
+		mvc.perform(get(KakaoOAuthConfig.CALLBACK_PATH).param("code", "code")
+		    .param("state", attempt.state(), attempt.state()).cookie(attempt.cookie())).andExpect(status().isFound());
 		mvc.perform(get(KakaoOAuthConfig.CALLBACK_PATH).param("code", "code").param("state", attempt.state())
-			.cookie(new Cookie(attempt.cookie().getName(), "x".repeat(43)))).andExpect(status().isFound());
+		    .cookie(new Cookie(attempt.cookie().getName(), "x".repeat(43)))).andExpect(status().isFound());
 		mvc.perform(get(KakaoOAuthConfig.CALLBACK_PATH).param("code", "code").param("state", attempt.state())
-			.cookie(attempt.cookie(), attempt.cookie())).andExpect(status().isFound());
+		    .cookie(attempt.cookie(), attempt.cookie())).andExpect(status().isFound());
 		assertThat(redis.hasKey("auth:oauth:" + attempt.state())).isTrue();
 		clock.advance(Duration.ofMinutes(5));
 		callback(attempt).andExpect(status().isFound());
@@ -273,12 +356,12 @@ class KakaoOAuthIntegrationTest {
 		var attempt = start();
 		var other = start();
 		mvc.perform(get(KakaoOAuthConfig.CALLBACK_PATH).param("error", "access_denied").param("state", attempt.state())
-			.param("error_description", "private-provider-message").cookie(attempt.cookie())).andExpect(status().isFound())
-			.andExpect(header().string("Location", failure("LOGIN_CANCELLED")));
+		    .param("error_description", "private-provider-message").cookie(attempt.cookie()))
+		    .andExpect(status().isFound()).andExpect(header().string("Location", failure("LOGIN_CANCELLED")));
 		assertThat(redis.hasKey("auth:oauth:" + attempt.state())).isFalse();
 		assertThat(redis.hasKey("auth:oauth:" + other.state())).isTrue();
 		mvc.perform(get(KakaoOAuthConfig.CALLBACK_PATH).param("state", other.state()).cookie(other.cookie()))
-			.andExpect(status().isFound());
+		    .andExpect(status().isFound());
 		assertThat(redis.hasKey("auth:oauth:" + other.state())).isFalse();
 		verifyNoInteractions(identities);
 	}
@@ -286,15 +369,16 @@ class KakaoOAuthIntegrationTest {
 	@Test
 	void tokenFailureAndInvalidProfileNeverCreateServiceSession() throws Exception {
 		var attempt = start();
-		kakao.expect(requestTo(TOKEN_URI)).andRespond(withBadRequest().body("{\"error\":\"invalid_grant\",\"error_description\":\"private\"}")
-			.contentType(MediaType.APPLICATION_JSON));
+		kakao.expect(requestTo(TOKEN_URI))
+		    .andRespond(withBadRequest().body("{\"error\":\"invalid_grant\",\"error_description\":\"private\"}")
+		        .contentType(MediaType.APPLICATION_JSON));
 		callback(attempt).andExpect(status().isFound()).andExpect(cookie().doesNotExist(WebAuthSupport.COOKIE_NAME));
 		kakao.verify();
 		kakao.reset();
 		var invalid = start();
 		expectLogin(invalid, "{\"id\":42,\"kakao_account\":{}}");
 		callback(invalid).andExpect(status().isFound()).andExpect(cookie().doesNotExist(WebAuthSupport.COOKIE_NAME))
-			.andExpect(header().string("Location", failure("OAUTH_PROFILE_INVALID")));
+		    .andExpect(header().string("Location", failure("OAUTH_PROFILE_INVALID")));
 		verifyNoInteractions(identities);
 		assertThat(redis.keys("auth:session:*")).isEmpty();
 	}
@@ -302,13 +386,15 @@ class KakaoOAuthIntegrationTest {
 	@Test
 	void userLookupFailureDoesNotCreateSessionAndCannotReuseConsumedState() throws Exception {
 		var attempt = start();
-		kakao.expect(requestTo(TOKEN_URI)).andRespond(withSuccess(
-			"{\"access_token\":\"test-kakao-token\",\"token_type\":\"bearer\",\"expires_in\":3600}", MediaType.APPLICATION_JSON));
+		kakao.expect(requestTo(TOKEN_URI)).andRespond(
+		    withSuccess("{\"access_token\":\"test-kakao-token\",\"token_type\":\"bearer\",\"expires_in\":3600}",
+		        MediaType.APPLICATION_JSON));
 		kakao.expect(requestTo(USER_URI)).andRespond(withBadRequest().body("private-provider-response"));
 		callback(attempt).andExpect(status().isFound()).andExpect(cookie().doesNotExist(WebAuthSupport.COOKIE_NAME))
-			.andExpect(header().string("Location", failure("OAUTH_PROVIDER_UNAVAILABLE")));
+		    .andExpect(header().string("Location", failure("OAUTH_PROVIDER_UNAVAILABLE")));
 		assertThat(redis.hasKey("auth:oauth:" + attempt.state())).isFalse();
-		callback(attempt).andExpect(status().isFound()).andExpect(header().string("Location", failure("OAUTH_STATE_INVALID")));
+		callback(attempt).andExpect(status().isFound())
+		    .andExpect(header().string("Location", failure("OAUTH_STATE_INVALID")));
 		verifyNoInteractions(identities);
 	}
 
@@ -318,7 +404,7 @@ class KakaoOAuthIntegrationTest {
 		expectLogin(attempt, USER_RESPONSE);
 		when(identities.resolveVerifiedUser(any())).thenThrow(new UserException(UserErrorCode.ACCOUNT_UNAVAILABLE));
 		callback(attempt).andExpect(status().isFound()).andExpect(cookie().doesNotExist(WebAuthSupport.COOKIE_NAME))
-			.andExpect(header().string("Location", failure("ACCOUNT_UNAVAILABLE")));
+		    .andExpect(header().string("Location", failure("ACCOUNT_UNAVAILABLE")));
 		kakao.verify();
 		kakao.reset();
 		reset(identities);
@@ -327,7 +413,7 @@ class KakaoOAuthIntegrationTest {
 		expectLogin(retry, USER_RESPONSE);
 		doThrow(new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE)).when(sessions).create(any());
 		callback(retry).andExpect(status().isFound()).andExpect(cookie().doesNotExist(WebAuthSupport.COOKIE_NAME))
-			.andExpect(header().string("Location", failure("AUTH_SERVICE_UNAVAILABLE")));
+		    .andExpect(header().string("Location", failure("AUTH_SERVICE_UNAVAILABLE")));
 		assertThat(redis.hasKey("auth:oauth:" + retry.state())).isFalse();
 	}
 
@@ -335,12 +421,13 @@ class KakaoOAuthIntegrationTest {
 	void redisFailuresAtStartOrCallbackDoNotFallBackToUnverifiedLogin() throws Exception {
 		doThrow(new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE)).when(stateRepository).create(any());
 		mvc.perform(get(KakaoOAuthConfig.START_PATH)).andExpect(status().isFound())
-			.andExpect(header().string("Location", failure("AUTH_SERVICE_UNAVAILABLE")));
+		    .andExpect(header().string("Location", failure("AUTH_SERVICE_UNAVAILABLE")));
 		reset(stateRepository);
 		var attempt = start();
-		doThrow(new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE)).when(stateRepository).load(anyString(), anyString(), anyBoolean());
+		doThrow(new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE)).when(stateRepository).load(anyString(),
+		    anyString(), anyBoolean());
 		callback(attempt).andExpect(status().isFound()).andExpect(cookie().doesNotExist(WebAuthSupport.COOKIE_NAME))
-			.andExpect(header().string("Location", failure("AUTH_SERVICE_UNAVAILABLE")));
+		    .andExpect(header().string("Location", failure("AUTH_SERVICE_UNAVAILABLE")));
 		verifyNoInteractions(identities);
 	}
 
@@ -359,22 +446,26 @@ class KakaoOAuthIntegrationTest {
 			var second = executor.submit(consume);
 			assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
 			begin.countDown();
-			assertThat(List.of(first.get(5, TimeUnit.SECONDS), second.get(5, TimeUnit.SECONDS))).containsExactlyInAnyOrder(true, false);
+			assertThat(List.of(first.get(5, TimeUnit.SECONDS), second.get(5, TimeUnit.SECONDS)))
+			    .containsExactlyInAnyOrder(true, false);
 		}
 	}
 
 	@Test
 	void exposesOnlyExactGetLoginRoutesAndUsesFixedConfiguredRedirects() throws Exception {
-		for (String path : List.of("/api/auth/unknown", "/oauth2/authorization/other", "/login/oauth2/code/other", "/login")) {
+		for (String path : List.of("/api/auth/unknown", "/oauth2/authorization/other", "/login/oauth2/code/other",
+		    "/login")) {
 			mvc.perform(get(path)).andExpect(status().isUnauthorized());
 		}
 		mvc.perform(post(KakaoOAuthConfig.START_PATH)).andExpect(status().isUnauthorized());
 		mvc.perform(post(KakaoOAuthConfig.CALLBACK_PATH)).andExpect(status().isUnauthorized());
 		var result = mvc.perform(get(KakaoOAuthConfig.START_PATH).param("redirect_uri", "https://evil.example")
-			.param("next", "https://evil.example").param("prompt", "login").header("Host", "evil.example")
-			.header("Authorization", "Bearer expired-or-invalid")).andExpect(status().isFound()).andReturn();
-		var query = UriComponentsBuilder.fromUriString(result.getResponse().getRedirectedUrl()).build().getQueryParams();
-		assertThat(URLDecoder.decode(query.getFirst("redirect_uri"), StandardCharsets.UTF_8)).isEqualTo(properties.redirectUri().toString());
+		    .param("next", "https://evil.example").param("prompt", "login").header("Host", "evil.example")
+		    .header("Authorization", "Bearer expired-or-invalid")).andExpect(status().isFound()).andReturn();
+		MultiValueMap<String, String> query = UriComponentsBuilder
+		    .fromUriString(result.getResponse().getRedirectedUrl()).build().getQueryParams();
+		assertThat(URLDecoder.decode(query.getFirst("redirect_uri"), StandardCharsets.UTF_8))
+		    .isEqualTo(properties.redirectUri().toString());
 	}
 
 	private Attempt start() throws Exception {
@@ -387,11 +478,13 @@ class KakaoOAuthIntegrationTest {
 			request.param("prompt", prompt);
 		}
 		var result = mvc.perform(request).andExpect(status().isFound()).andReturn();
-		var query = UriComponentsBuilder.fromUriString(result.getResponse().getRedirectedUrl()).build().getQueryParams();
+		MultiValueMap<String, String> query = UriComponentsBuilder
+		    .fromUriString(result.getResponse().getRedirectedUrl()).build().getQueryParams();
 		String state = query.getFirst("state");
 		assertThat(query.getFirst("code_challenge_method")).isEqualTo("S256");
 		assertThat(state).matches("[A-Za-z0-9_-]{43}");
-		return new Attempt(state, query.getFirst("code_challenge"), result.getResponse().getCookie(OAuthAuthorizationRequestRepository.COOKIE_PREFIX + state), result);
+		return new Attempt(state, query.getFirst("code_challenge"),
+		    result.getResponse().getCookie(OAuthAuthorizationRequestRepository.COOKIE_PREFIX + state), result);
 	}
 
 	private org.springframework.test.web.servlet.ResultActions callback(Attempt attempt) throws Exception {
@@ -400,29 +493,32 @@ class KakaoOAuthIntegrationTest {
 			request.setServerName("api.example.test");
 			request.setServerPort(443);
 			return request;
-		})
-			.param("code", "test-authorization-code").param("state", attempt.state()).cookie(attempt.cookie()));
+		}).param("code", "test-authorization-code").param("state", attempt.state()).cookie(attempt.cookie()));
 	}
 
 	private void expectLogin(Attempt attempt, String userResponse) {
 		kakao.expect(requestTo(TOKEN_URI)).andExpect(method(HttpMethod.POST)).andExpect(request -> {
 			String body = ((MockClientHttpRequest) request).getBodyAsString();
 			Map<String, String> form = java.util.Arrays.stream(body.split("&")).map(pair -> pair.split("=", 2))
-				.collect(Collectors.toMap(pair -> pair[0], pair -> URLDecoder.decode(pair[1], StandardCharsets.UTF_8)));
-			assertThat(form).containsEntry("client_id", properties.clientId()).containsEntry("client_secret", properties.clientSecret())
-				.containsEntry("grant_type", "authorization_code").containsEntry("code", "test-authorization-code")
-				.containsEntry("redirect_uri", properties.redirectUri().toString());
+			    .collect(Collectors.toMap(pair -> pair[0], pair -> URLDecoder.decode(pair[1], StandardCharsets.UTF_8)));
+			assertThat(form).containsEntry("client_id", properties.clientId())
+			    .containsEntry("client_secret", properties.clientSecret())
+			    .containsEntry("grant_type", "authorization_code").containsEntry("code", "test-authorization-code")
+			    .containsEntry("redirect_uri", properties.redirectUri().toString());
 			assertThat(challenge(form.get("code_verifier"))).isEqualTo(attempt.challenge());
-		}).andRespond(withSuccess("{\"access_token\":\"test-kakao-token\",\"token_type\":\"bearer\",\"expires_in\":3600}", MediaType.APPLICATION_JSON));
+		}).andRespond(
+		    withSuccess("{\"access_token\":\"test-kakao-token\",\"token_type\":\"bearer\",\"expires_in\":3600}",
+		        MediaType.APPLICATION_JSON));
 		kakao.expect(requestTo(USER_URI)).andExpect(method(HttpMethod.GET))
-			.andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.header("Authorization", "Bearer test-kakao-token"))
-			.andRespond(withSuccess(userResponse, MediaType.APPLICATION_JSON));
+		    .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.header("Authorization",
+		        "Bearer test-kakao-token"))
+		    .andRespond(withSuccess(userResponse, MediaType.APPLICATION_JSON));
 	}
 
 	private String challenge(String verifier) {
 		try {
-			return Base64.getUrlEncoder().withoutPadding().encodeToString(MessageDigest.getInstance("SHA-256")
-				.digest(verifier.getBytes(StandardCharsets.US_ASCII)));
+			return Base64.getUrlEncoder().withoutPadding().encodeToString(
+			    MessageDigest.getInstance("SHA-256").digest(verifier.getBytes(StandardCharsets.US_ASCII)));
 		} catch (java.security.NoSuchAlgorithmException exception) {
 			throw new AssertionError(exception);
 		}
@@ -438,6 +534,7 @@ class KakaoOAuthIntegrationTest {
 	@TestConfiguration
 	static class TestBeans {
 		private final RestClient.Builder builder = RestClient.builder();
+
 		private final MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 
 		@Bean

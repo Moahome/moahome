@@ -21,8 +21,8 @@ public class BillingExceptionHandler {
 	}
 
 	/** 입력 원문과 검증기의 내부 문구 대신 고정된 오류만 반환합니다. */
-	@ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
-		MethodArgumentTypeMismatchException.class, IllegalArgumentException.class})
+	@ExceptionHandler({ MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
+	        MethodArgumentTypeMismatchException.class, IllegalArgumentException.class })
 	public ResponseEntity<ErrorResponse> invalid(Exception exception) {
 		return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "관리비 정보를 확인해주세요.");
 	}
@@ -54,6 +54,7 @@ public class BillingExceptionHandler {
 	}
 
 	private ResponseEntity<ErrorResponse> error(HttpStatus status, String code, String message) {
-		return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(new ErrorResponse(code, message));
+		return ResponseEntity.status(status).cacheControl(CacheControl.noStore())
+		    .body(new ErrorResponse(code, message));
 	}
 }

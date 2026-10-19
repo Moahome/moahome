@@ -7,4 +7,5 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @Configuration
 @EnableScheduling
 @PropertySource("classpath:residentImport.properties")
-public class ResidentImportConfig {}
+public class ResidentImportConfig {
+}

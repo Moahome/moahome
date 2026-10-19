@@ -23,9 +23,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class AuthService {
 	private final TokenService tokens;
+
 	private final RedisAuthSessionRepository sessions;
+
 	private final Clock clock;
+
 	private final UserService users;
+
 	private final SecureRandom random = new SecureRandom();
 
 	public AuthService(TokenService tokens, RedisAuthSessionRepository sessions, Clock clock, UserService users) {
@@ -48,7 +52,7 @@ public class AuthService {
 		byte[] csrfBytes = new byte[32];
 		random.nextBytes(csrfBytes);
 		sessions.create(new AuthSession(sessionId, verifiedUserId, clientType, TokenService.hash(pair.refreshToken()),
-			Base64.getUrlEncoder().withoutPadding().encodeToString(csrfBytes), now, expiresAt));
+		    Base64.getUrlEncoder().withoutPadding().encodeToString(csrfBytes), now, expiresAt));
 		return pair;
 	}
 
@@ -73,7 +77,8 @@ public class AuthService {
 		AuthSession session = authenticateRefresh(refreshToken, clientType);
 		requireActiveAccount(session.userId());
 		TokenService.TokenPair pair = tokens.issue(session.userId(), session.sessionId(), session.expiresAt());
-		requireSuccess(sessions.rotate(session, TokenService.hash(refreshToken), TokenService.hash(pair.refreshToken())));
+		requireSuccess(
+		    sessions.rotate(session, TokenService.hash(refreshToken), TokenService.hash(pair.refreshToken())));
 		return pair;
 	}
 
@@ -84,7 +89,7 @@ public class AuthService {
 
 	private AuthSession requireSession(Jwt jwt) {
 		AuthSession session = sessions.find(jwt.getClaimAsString("sid"))
-			.orElseThrow(() -> new AuthException(AuthErrorCode.SESSION_EXPIRED));
+		    .orElseThrow(() -> new AuthException(AuthErrorCode.SESSION_EXPIRED));
 		if (!session.userId().equals(jwt.getSubject())) {
 			throw new AuthException(AuthErrorCode.INVALID_TOKEN);
 		}

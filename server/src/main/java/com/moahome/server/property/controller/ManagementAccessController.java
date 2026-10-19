@@ -34,21 +34,22 @@ public class ManagementAccessController {
 	/** 클라이언트 입력 사용자 ID 대신 검증된 Bearer 계정의 관리대상을 조회합니다. */
 	@GetMapping("/api/users/me/managed-properties")
 	@Operation(summary = "내 관리대상 목록", description = "현재 ADMIN·MANAGER 참여와 활성 관리대상만 반환합니다.")
-	public ResponseEntity<ManagedPropertiesResponse> list(@Parameter(hidden = true) @AuthenticationPrincipal AuthPrincipal principal) {
+	public ResponseEntity<ManagedPropertiesResponse> list(
+	    @Parameter(hidden = true) @AuthenticationPrincipal AuthPrincipal principal) {
 		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-			.body(management.getManagedProperties(UUID.fromString(principal.userId())));
+		    .body(management.getManagedProperties(UUID.fromString(principal.userId())));
 	}
 
 	/** URL 식별자를 검증한 뒤 서버의 현재 권한으로 직접 진입을 확인합니다. */
 	@GetMapping("/api/properties/{propertyId}/management-context")
 	@Operation(summary = "관리대상의 현재 관리 권한 확인")
-	public ResponseEntity<ManagementPropertyResponse> context(@Parameter(hidden = true) @AuthenticationPrincipal AuthPrincipal principal,
-		@PathVariable String propertyId) {
+	public ResponseEntity<ManagementPropertyResponse> context(
+	    @Parameter(hidden = true) @AuthenticationPrincipal AuthPrincipal principal, @PathVariable String propertyId) {
 		if (!propertyId.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {
 			throw new AuthException(AuthErrorCode.INVALID_REQUEST);
 		}
 		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-			.body(management.getManagementContext(UUID.fromString(principal.userId()), UUID.fromString(propertyId)));
+		    .body(management.getManagementContext(UUID.fromString(principal.userId()), UUID.fromString(propertyId)));
 	}
 
 	@ExceptionHandler(AuthException.class)
@@ -69,6 +70,7 @@ public class ManagementAccessController {
 	}
 
 	private ResponseEntity<ErrorResponse> error(int status, String code, String message) {
-		return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(new ErrorResponse(code, message));
+		return ResponseEntity.status(status).cacheControl(CacheControl.noStore())
+		    .body(new ErrorResponse(code, message));
 	}
 }

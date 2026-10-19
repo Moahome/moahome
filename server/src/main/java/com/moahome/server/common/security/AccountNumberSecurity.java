@@ -9,8 +9,11 @@ import com.moahome.server.config.AccountSecurityProperties;
 
 public class AccountNumberSecurity {
 	private final String activeKeyId;
+
 	private final Map<String, SecretKey> encryptionKeys;
+
 	private final SecretKey hmacKey;
+
 	private final SecureRandom random = new SecureRandom();
 
 	public AccountNumberSecurity(AccountSecurityProperties properties) {
@@ -44,7 +47,7 @@ public class AccountNumberSecurity {
 			cipher.updateAAD(aad(activeKeyId));
 			Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
 			String encrypted = "v1:" + activeKeyId + ":" + encoder.encodeToString(nonce) + ":"
-				+ encoder.encodeToString(cipher.doFinal(number.getBytes(StandardCharsets.UTF_8)));
+			    + encoder.encodeToString(cipher.doFinal(number.getBytes(StandardCharsets.UTF_8)));
 			Mac mac = Mac.getInstance("HmacSHA256");
 			mac.init(hmacKey);
 			mac.update("moahome:bank-account:v1:".getBytes(StandardCharsets.UTF_8));
@@ -93,7 +96,9 @@ public class AccountNumberSecurity {
 	private byte[] decodeKey(String encoded) {
 		try {
 			byte[] key = Base64.getDecoder().decode(encoded);
-			if (key.length == 32) { return key; }
+			if (key.length == 32) {
+				return key;
+			}
 		} catch (IllegalArgumentException exception) {
 			// 키 원문과 설정값을 예외에 포함하지 않습니다.
 		}
@@ -102,6 +107,8 @@ public class AccountNumberSecurity {
 
 	public record ProtectedAccountNumber(String encrypted, String hmac, String last4) {
 		@Override
-		public String toString() { return "ProtectedAccountNumber[REDACTED]"; }
+		public String toString() {
+			return "ProtectedAccountNumber[REDACTED]";
+		}
 	}
 }

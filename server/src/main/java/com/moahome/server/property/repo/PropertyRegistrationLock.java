@@ -23,10 +23,11 @@ public class PropertyRegistrationLock {
 		String previous = jdbc.queryForObject("select current_setting('lock_timeout')", String.class);
 		jdbc.queryForObject("select set_config('lock_timeout', '3s', true)", String.class);
 		try {
-			jdbc.query("select pg_advisory_xact_lock(?)", rs -> { }, key(userId, requestId));
+			jdbc.query("select pg_advisory_xact_lock(?)", rs -> {
+			}, key(userId, requestId));
 		} catch (DataAccessException exception) {
 			if (!(exception.getMostSpecificCause() instanceof java.sql.SQLException sql)
-				|| !"55P03".equals(sql.getSQLState())) {
+			    || !"55P03".equals(sql.getSQLState())) {
 				throw exception;
 			}
 			// 잠금 제한 시간 초과는 트랜잭션을 중단하며 처리 중 레코드나 초안을 남기지 않습니다.
@@ -37,8 +38,8 @@ public class PropertyRegistrationLock {
 
 	static long key(UUID userId, UUID requestId) {
 		try {
-			byte[] digest = MessageDigest.getInstance("SHA-256").digest(
-				("moahome:property-registration:" + userId + ":" + requestId).getBytes(StandardCharsets.UTF_8));
+			byte[] digest = MessageDigest.getInstance("SHA-256")
+			    .digest(("moahome:property-registration:" + userId + ":" + requestId).getBytes(StandardCharsets.UTF_8));
 			return ByteBuffer.wrap(digest).getLong();
 		} catch (NoSuchAlgorithmException exception) {
 			throw new IllegalStateException("Registration lock key failed");

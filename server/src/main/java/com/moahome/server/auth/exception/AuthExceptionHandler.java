@@ -11,14 +11,14 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice(assignableTypes = {WebAuthController.class, AppAuthController.class})
+@RestControllerAdvice(assignableTypes = { WebAuthController.class, AppAuthController.class })
 public class AuthExceptionHandler {
 	@ExceptionHandler(AuthException.class)
 	public ResponseEntity<AuthErrorHandler.ErrorResponse> handleAuth(AuthException exception) {
 		return response(exception.code());
 	}
 
-	@ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class})
+	@ExceptionHandler({ MethodArgumentNotValidException.class, HttpMessageNotReadableException.class })
 	public ResponseEntity<AuthErrorHandler.ErrorResponse> handleInvalidRequest(Exception exception) {
 		return response(AuthErrorCode.INVALID_REQUEST);
 	}

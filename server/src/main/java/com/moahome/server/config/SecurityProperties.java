@@ -9,17 +9,12 @@ import org.springframework.validation.annotation.Validated;
 
 @Validated
 @ConfigurationProperties("moahome.security")
-public record SecurityProperties(
-	@NotBlank String jwtAccessSecretBase64,
-	@NotBlank String jwtRefreshSecretBase64,
-	@NotBlank String issuer,
-	@NotBlank String audience,
-	@NotEmpty List<@NotBlank String> allowedOrigins,
-	boolean cookieSecure
-) {
+public record SecurityProperties(@NotBlank String jwtAccessSecretBase64, @NotBlank String jwtRefreshSecretBase64,
+    @NotBlank String issuer, @NotBlank String audience, @NotEmpty List<@NotBlank String> allowedOrigins,
+    boolean cookieSecure) {
 	@Override
 	public String toString() {
-		return "SecurityProperties[jwtAccessSecretBase64=REDACTED, jwtRefreshSecretBase64=REDACTED, issuer="
-			+ issuer + ", audience=" + audience + "]";
+		return "SecurityProperties[jwtAccessSecretBase64=REDACTED, jwtRefreshSecretBase64=REDACTED, issuer=" + issuer
+		    + ", audience=" + audience + "]";
 	}
 }

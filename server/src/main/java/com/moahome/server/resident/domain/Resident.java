@@ -12,36 +12,55 @@ import org.hibernate.type.SqlTypes;
 @Entity
 @Table(name = "residents")
 public class Resident implements org.springframework.data.domain.Persistable<UUID> {
-	@Transient private boolean newRecord;
+	@Transient
+	private boolean newRecord;
 
-	@Override public boolean isNew() { return newRecord; }
+	@Override
+	public boolean isNew() {
+		return newRecord;
+	}
 
-	@PostLoad @PostPersist
-	private void markPersisted() { newRecord = false; }
+	@PostLoad
+	@PostPersist
+	private void markPersisted() {
+		newRecord = false;
+	}
+
 	@Id
 	private UUID id;
+
 	@Column(name = "property_id", nullable = false, updatable = false)
 	private UUID propertyId;
+
 	@Column(nullable = false, length = 50)
 	private String name;
+
 	@Column(name = "phone_encrypted", columnDefinition = "text")
 	private String phoneEncrypted;
+
 	@JdbcTypeCode(SqlTypes.CHAR)
 	@Column(name = "phone_hmac", length = 64, columnDefinition = "char(64)")
 	private String phoneHmac;
+
 	@JdbcTypeCode(SqlTypes.CHAR)
 	@Column(name = "phone_last4", length = 4, columnDefinition = "char(4)")
 	private String phoneLast4;
+
 	@Column(name = "user_id")
 	private UUID userId;
+
 	@Column(nullable = false, length = 20)
 	private String status;
+
 	@Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "timestamptz")
 	private OffsetDateTime createdAt;
+
 	@Column(name = "updated_at", nullable = false, columnDefinition = "timestamptz")
 	private OffsetDateTime updatedAt;
+
 	@Column(name = "deleted_at", columnDefinition = "timestamptz")
 	private OffsetDateTime deletedAt;
+
 	@Column(name = "deleted_by")
 	private UUID deletedBy;
 
@@ -50,8 +69,10 @@ public class Resident implements org.springframework.data.domain.Persistable<UUI
 
 	/** 가입 승인·최초 거주 등록·기존 관리소장의 명시적 본인 확인에서 계정을 연결하며 기존 타인 계정은 덮어쓰지 않습니다. */
 	public void connectApprovedUser(UUID user, OffsetDateTime at) {
-		if (deletedAt!=null || (userId!=null&&!userId.equals(user))) throw new IllegalStateException("Resident account conflict");
-		userId=java.util.Objects.requireNonNull(user);updatedAt=at;
+		if (deletedAt != null || (userId != null && !userId.equals(user)))
+			throw new IllegalStateException("Resident account conflict");
+		userId = java.util.Objects.requireNonNull(user);
+		updatedAt = at;
 	}
 
 	/** 수정에서도 연락처의 암호문·검색값·마스킹 값을 한 묶음으로 변경합니다. */
@@ -75,18 +96,21 @@ public class Resident implements org.springframework.data.domain.Persistable<UUI
 
 	/** 같은 주민의 재등록은 원래 ID·계정 연결을 보존하고 명부 삭제 표시만 해제하며 권한은 복구하지 않습니다. */
 	public void restore(OffsetDateTime at) {
-		if (deletedAt == null) throw new IllegalStateException("Resident is not deleted");
+		if (deletedAt == null)
+			throw new IllegalStateException("Resident is not deleted");
 		deletedAt = null;
 		deletedBy = null;
 		updatedAt = java.util.Objects.requireNonNull(at);
 	}
 
 	/** 대표가 된 주민의 이전 상세로 수정·삭제하지 못하도록 대표 변경도 조회 버전에 반영합니다. */
-	public void touch(OffsetDateTime at) { updatedAt = java.util.Objects.requireNonNull(at); }
+	public void touch(OffsetDateTime at) {
+		updatedAt = java.util.Objects.requireNonNull(at);
+	}
 
 	/** 명부 등록만으로 계정·가입 권한을 연결하지 않고 연락처의 세 저장값은 함께 설정합니다. */
-	public static Resident register(UUID id, UUID propertyId, String name, String encryptedPhone,
-		String phoneHmac, String phoneLast4, OffsetDateTime at) {
+	public static Resident register(UUID id, UUID propertyId, String name, String encryptedPhone, String phoneHmac,
+	    String phoneLast4, OffsetDateTime at) {
 		var resident = new Resident();
 		// 요청 ID는 외부에서 지정하므로 신규 저장은 merge 대신 persist로 수행해 다른 대상의 ID 충돌에도 덮어쓰지 않습니다.
 		resident.newRecord = true;

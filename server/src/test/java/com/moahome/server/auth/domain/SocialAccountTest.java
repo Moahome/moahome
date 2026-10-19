@@ -21,20 +21,21 @@ class SocialAccountTest {
 		account.updateProviderEmail("user@example.test");
 		account.delete(user.getId(), OffsetDateTime.now());
 		assertThatThrownBy(() -> account.updateProviderEmail(null)).isInstanceOf(IllegalStateException.class);
-		assertThatThrownBy(() -> account.delete(user.getId(), OffsetDateTime.now())).isInstanceOf(IllegalStateException.class);
+		assertThatThrownBy(() -> account.delete(user.getId(), OffsetDateTime.now()))
+		    .isInstanceOf(IllegalStateException.class);
 		assertThat(profile.toString()).doesNotContain("12345", "사용자");
 	}
 
 	@Test
 	void refusesInvalidIdentityAndCannotLinkSuspendedUser() {
 		assertThatThrownBy(() -> new VerifiedSocialProfile(SocialProvider.KAKAO, " ", null, "사용자", null))
-			.isInstanceOf(IllegalArgumentException.class);
+		    .isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> new VerifiedSocialProfile(SocialProvider.KAKAO, "123", " ", "사용자", null))
-			.isInstanceOf(IllegalArgumentException.class);
+		    .isInstanceOf(IllegalArgumentException.class);
 		User user = User.create("사용자", null);
 		user.suspend();
-		assertThatThrownBy(() -> SocialAccount.link(user,
-			new VerifiedSocialProfile(SocialProvider.KAKAO, "123", null, "사용자", null)))
-			.isInstanceOf(com.moahome.server.user.exception.UserException.class);
+		assertThatThrownBy(
+		    () -> SocialAccount.link(user, new VerifiedSocialProfile(SocialProvider.KAKAO, "123", null, "사용자", null)))
+		    .isInstanceOf(com.moahome.server.user.exception.UserException.class);
 	}
 }

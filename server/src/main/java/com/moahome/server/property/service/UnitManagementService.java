@@ -21,23 +21,30 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import static com.moahome.server.property.exception.UnitManagementException.Code.*;
+import com.moahome.server.resident.dto.ResidentListResponse;
 
 @Service
 @Transactional(readOnly = true)
 public class UnitManagementService {
 	private final ManagementAccessService access;
+
 	private final PropertyRepository properties;
+
 	private final BuildingRepository buildings;
+
 	private final UnitRepository units;
+
 	private final Clock clock;
+
 	private final ResidentListService residents;
+
 	private final ResidentManagementService residentManagement;
+
 	private final BillingGenerationService billing;
 
 	public UnitManagementService(ManagementAccessService access, PropertyRepository properties,
-		BuildingRepository buildings, UnitRepository units, Clock clock, ResidentListService residents,
-		ResidentManagementService residentManagement,
-		BillingGenerationService billing) {
+	    BuildingRepository buildings, UnitRepository units, Clock clock, ResidentListService residents,
+	    ResidentManagementService residentManagement, BillingGenerationService billing) {
 		this.access = access;
 		this.properties = properties;
 		this.buildings = buildings;
@@ -52,29 +59,36 @@ public class UnitManagementService {
 	public UnitListResponse list(UUID userId, UUID propertyId) {
 		var context = access.getManagementContext(userId, propertyId);
 		var property = properties.findById(propertyId).orElseThrow(() -> new UnitManagementException(UNIT_NOT_FOUND));
-		var buildingItems = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId).stream()
-			.filter(building -> building.getStatus() == BuildingStatus.ACTIVE)
-			.map(building -> new UnitListResponse.BuildingItem(building.getId(), building.getName())).toList();
-		var items = units.findByPropertyIdAndDeletedAtIsNull(propertyId).stream().map(UnitResponse::from).toList();
+		List<UnitListResponse.BuildingItem> buildingItems = buildings
+		    .findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId).stream()
+		    .filter(building -> building.getStatus() == BuildingStatus.ACTIVE)
+		    .map(building -> new UnitListResponse.BuildingItem(building.getId(), building.getName())).toList();
+		List<UnitResponse> items = units.findByPropertyIdAndDeletedAtIsNull(propertyId).stream().map(UnitResponse::from)
+		    .toList();
 		// 세대 조회를 허용받은 부담당자에게 관리소장 전용 주민 명부가 우회 노출되지 않도록 합니다.
-		var summaries = context.role() == PropertyMemberRole.ADMIN ? summarizeResidents(userId, propertyId, items) : null;
+		Map<UUID, UnitListResponse.ResidentSummary> summaries = context.role() == PropertyMemberRole.ADMIN
+		    ? summarizeResidents(userId, propertyId, items)
+		    : null;
 		return new UnitListResponse(propertyId, property.isHasBuildings(), buildingItems, items, summaries);
 	}
 
 	/** 주민 목록의 현재 소속·삭제·가입 판정을 그대로 재사용하고 한 번의 명부 조회로 세대별 집계합니다. */
-	private Map<UUID, UnitListResponse.ResidentSummary> summarizeResidents(UUID userId, UUID propertyId, List<UnitResponse> items) {
-		var grouped = residents.list(userId, propertyId).residents().stream()
-			.filter(resident -> resident.unitId() != null)
-			.collect(Collectors.groupingBy(resident -> resident.unitId()));
-		var result = new LinkedHashMap<UUID, UnitListResponse.ResidentSummary>();
+	private Map<UUID, UnitListResponse.ResidentSummary> summarizeResidents(UUID userId, UUID propertyId,
+	    List<UnitResponse> items) {
+		Map<UUID, List<ResidentListResponse.ResidentItem>> grouped = residents.list(userId, propertyId).residents()
+		    .stream().filter(resident -> resident.unitId() != null)
+		    .collect(Collectors.groupingBy(resident -> resident.unitId()));
+		LinkedHashMap<UUID, UnitListResponse.ResidentSummary> result = new LinkedHashMap<UUID, UnitListResponse.ResidentSummary>();
 		for (var unit : items) {
-			var current = grouped.getOrDefault(unit.id(), List.of());
+			List<ResidentListResponse.ResidentItem> current = grouped.getOrDefault(unit.id(), List.of());
 			var representativeName = current.stream().filter(resident -> resident.representative())
-				.map(resident -> resident.name()).findFirst().orElse(null);
-			int approved = (int) current.stream().filter(resident -> resident.signupStatus() == ResidentSignupStatus.APPROVED).count();
-			int pending = (int) current.stream().filter(resident -> resident.signupStatus() == ResidentSignupStatus.PENDING).count();
-			result.put(unit.id(), new UnitListResponse.ResidentSummary(representativeName, current.size(), approved, pending,
-				current.size() - approved - pending));
+			    .map(resident -> resident.name()).findFirst().orElse(null);
+			int approved = (int) current.stream()
+			    .filter(resident -> resident.signupStatus() == ResidentSignupStatus.APPROVED).count();
+			int pending = (int) current.stream()
+			    .filter(resident -> resident.signupStatus() == ResidentSignupStatus.PENDING).count();
+			result.put(unit.id(), new UnitListResponse.ResidentSummary(representativeName, current.size(), approved,
+			    pending, current.size() - approved - pending));
 		}
 		return result;
 	}
@@ -85,7 +99,7 @@ public class UnitManagementService {
 		var property = requireWritableProperty(userId, propertyId);
 		var building = requireBuilding(property, request.buildingId());
 		var unit = Unit.create(property, building, request.unitNumber(), request.displayName(), request.floor(),
-			UnitStatus.valueOf(request.status()), OffsetDateTime.now(clock));
+		    UnitStatus.valueOf(request.status()), OffsetDateTime.now(clock));
 		requireUniqueNumber(propertyId, request, unit.getId());
 		units.saveAndFlush(unit);
 		// 당월 전액 청구까지 성공해야 세대 추가가 완료되며 청구 실패 시 세대도 롤백합니다.
@@ -98,11 +112,13 @@ public class UnitManagementService {
 	public UnitResponse update(UUID userId, UUID propertyId, UUID unitId, UnitRequest request) {
 		var property = requireWritableProperty(userId, propertyId);
 		var unit = units.findByIdAndPropertyIdAndDeletedAtIsNull(unitId, propertyId)
-			.orElseThrow(() -> new UnitManagementException(UNIT_NOT_FOUND));
-		if (unit.getStatus() == UnitStatus.INACTIVE) throw new UnitManagementException(UNIT_NOT_EDITABLE);
+		    .orElseThrow(() -> new UnitManagementException(UNIT_NOT_FOUND));
+		if (unit.getStatus() == UnitStatus.INACTIVE)
+			throw new UnitManagementException(UNIT_NOT_EDITABLE);
 		var building = requireBuilding(property, request.buildingId());
 		requireUniqueNumber(propertyId, request, unitId);
-		unit.updateDetails(property, building, request.unitNumber(), request.displayName(), request.floor(), UnitStatus.valueOf(request.status()));
+		unit.updateDetails(property, building, request.unitNumber(), request.displayName(), request.floor(),
+		    UnitStatus.valueOf(request.status()));
 		units.flush();
 		// 공실 전환·사용 중 복귀를 당월 부과에도 반영하며 세대 변경과 함께 롤백합니다.
 		billing.addCurrentMonthUnits(propertyId, List.of(unit.getId()));
@@ -113,18 +129,19 @@ public class UnitManagementService {
 	@Transactional
 	public List<UnitResponse> createBatch(UUID userId, UUID propertyId, UnitBatchRequest batch) {
 		var property = requireWritableProperty(userId, propertyId);
-		var seen = new HashSet<List<String>>();
+		HashSet<List<String>> seen = new HashSet<List<String>>();
 		// 미삭제 세대끼리만 호수 중복을 제한해 삭제 후 재입력을 허용하며 기존 이력의 ID는 보존합니다.
-		units.findByPropertyIdAndDeletedAtIsNull(propertyId).forEach(unit ->
-			seen.add(List.of(String.valueOf(unit.getBuildingId()), unit.getUnitNumber())));
-		var buildingCache = new HashMap<UUID, Building>();
-		var additions = batch.units().stream().map(request -> {
+		units.findByPropertyIdAndDeletedAtIsNull(propertyId)
+		    .forEach(unit -> seen.add(List.of(String.valueOf(unit.getBuildingId()), unit.getUnitNumber())));
+		HashMap<UUID, Building> buildingCache = new HashMap<UUID, Building>();
+		List<Unit> additions = batch.units().stream().map(request -> {
 			var building = request.buildingId() == null ? requireBuilding(property, null)
-				: buildingCache.computeIfAbsent(request.buildingId(), id -> requireBuilding(property, id));
+			    : buildingCache.computeIfAbsent(request.buildingId(), id -> requireBuilding(property, id));
 			var unit = Unit.create(property, building, request.unitNumber(), request.displayName(), request.floor(),
-				UnitStatus.valueOf(request.status()), OffsetDateTime.now(clock));
-			var key = List.of(String.valueOf(request.buildingId()), request.unitNumber());
-			if (!seen.add(key)) throw new UnitManagementException(DUPLICATE_UNIT);
+			    UnitStatus.valueOf(request.status()), OffsetDateTime.now(clock));
+			List<String> key = List.of(String.valueOf(request.buildingId()), request.unitNumber());
+			if (!seen.add(key))
+				throw new UnitManagementException(DUPLICATE_UNIT);
 			return unit;
 		}).toList();
 		units.saveAllAndFlush(additions);
@@ -136,8 +153,9 @@ public class UnitManagementService {
 	@Transactional
 	public UnitListResponse.BuildingItem createBuilding(UUID userId, UUID propertyId, BuildingRequest request) {
 		var property = requireWritableProperty(userId, propertyId);
-		if (!property.isHasBuildings()) throw new UnitManagementException(INVALID_REQUEST);
-		var current = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId);
+		if (!property.isHasBuildings())
+			throw new UnitManagementException(INVALID_REQUEST);
+		List<Building> current = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId);
 		int order = current.stream().mapToInt(Building::getSortOrder).max().orElse(-1) + 1;
 		var building = Building.create(property, request.name(), order, OffsetDateTime.now(clock));
 		requireUniqueBuildingName(propertyId, building.getName(), building.getId());
@@ -147,10 +165,12 @@ public class UnitManagementService {
 
 	/** 기존 동의 소속·활성 상태를 검사하고 현재 이름만 수정합니다. 연결 세대의 ID는 변경하지 않습니다. */
 	@Transactional
-	public UnitListResponse.BuildingItem updateBuilding(UUID userId, UUID propertyId, UUID buildingId, BuildingRequest request) {
+	public UnitListResponse.BuildingItem updateBuilding(UUID userId, UUID propertyId, UUID buildingId,
+	    BuildingRequest request) {
 		var property = requireWritableProperty(userId, propertyId);
 		var building = requireBuilding(property, buildingId);
-		if (building == null) throw new UnitManagementException(INVALID_REQUEST);
+		if (building == null)
+			throw new UnitManagementException(INVALID_REQUEST);
 		requireUniqueBuildingName(propertyId, request.name(), buildingId);
 		building.rename(request.name());
 		buildings.flush();
@@ -161,9 +181,10 @@ public class UnitManagementService {
 	@Transactional
 	public void deleteUnits(UUID userId, UUID propertyId, List<UUID> unitIds) {
 		requireWritableProperty(userId, propertyId);
-		var requested = new HashSet<>(unitIds);
-		var targets = units.findByPropertyIdAndIdIn(propertyId, requested);
-		if (targets.size() != requested.size()) throw new UnitManagementException(UNIT_NOT_FOUND);
+		HashSet<UUID> requested = new HashSet<>(unitIds);
+		List<Unit> targets = units.findByPropertyIdAndIdIn(propertyId, requested);
+		if (targets.size() != requested.size())
+			throw new UnitManagementException(UNIT_NOT_FOUND);
 		var at = OffsetDateTime.now(clock);
 		deleteUnitDependencies(userId, propertyId, targets.stream().map(Unit::getId).toList(), at);
 		targets.forEach(unit -> unit.softDelete(userId, at));
@@ -175,11 +196,11 @@ public class UnitManagementService {
 	public void deleteBuilding(UUID userId, UUID propertyId, UUID buildingId) {
 		requireWritableProperty(userId, propertyId);
 		var building = buildings.findByIdAndPropertyId(buildingId, propertyId)
-			.orElseThrow(() -> new UnitManagementException(UNIT_NOT_FOUND));
+		    .orElseThrow(() -> new UnitManagementException(UNIT_NOT_FOUND));
 		if (building.getDeletedAt() != null) {
 			// 이전 구현에서 남은 주민 관계를 재요청으로 정리하되 과거 청구는 변경하지 않습니다.
-			var previous = units.findByPropertyId(propertyId).stream().filter(unit -> buildingId.equals(unit.getBuildingId()))
-				.map(Unit::getId).toList();
+			List<UUID> previous = units.findByPropertyId(propertyId).stream()
+			    .filter(unit -> buildingId.equals(unit.getBuildingId())).map(Unit::getId).toList();
 			deleteUnitDependencies(userId, propertyId, previous, OffsetDateTime.now(clock));
 			return;
 		}
@@ -189,7 +210,8 @@ public class UnitManagementService {
 		}
 		var at = OffsetDateTime.now(clock);
 		// 연결을 종료하기 전에 대상 ID를 고정해 주민·당월 청구·세대를 하나의 원자적 삭제 범위로 사용합니다.
-		var targets = units.findByPropertyId(propertyId).stream().filter(unit -> buildingId.equals(unit.getBuildingId())).toList();
+		List<Unit> targets = units.findByPropertyId(propertyId).stream()
+		    .filter(unit -> buildingId.equals(unit.getBuildingId())).toList();
 		deleteUnitDependencies(userId, propertyId, targets.stream().map(Unit::getId).toList(), at);
 		targets.forEach(unit -> unit.softDelete(userId, at));
 		building.softDelete(userId, at);
@@ -220,18 +242,21 @@ public class UnitManagementService {
 	/** 동 없음에는 연결을 금지하고 동 있음에는 같은 관리대상의 활성 동만 연결합니다. */
 	private Building requireBuilding(Property property, UUID buildingId) {
 		if (!property.isHasBuildings()) {
-			if (buildingId != null) throw new UnitManagementException(INVALID_REQUEST);
+			if (buildingId != null)
+				throw new UnitManagementException(INVALID_REQUEST);
 			return null;
 		}
-		if (buildingId == null) throw new UnitManagementException(INVALID_REQUEST);
+		if (buildingId == null)
+			throw new UnitManagementException(INVALID_REQUEST);
 		return buildings.findByIdAndPropertyIdAndDeletedAtIsNull(buildingId, property.getId())
-			.filter(building -> building.getStatus() == BuildingStatus.ACTIVE)
-			.orElseThrow(() -> new UnitManagementException(INVALID_REQUEST));
+		    .filter(building -> building.getStatus() == BuildingStatus.ACTIVE)
+		    .orElseThrow(() -> new UnitManagementException(INVALID_REQUEST));
 	}
 
 	/** 현재 목록에 있는 세대만 중복 검사해 삭제한 호수의 재등록과 기존 세대 정정을 허용합니다. */
 	private void requireUniqueNumber(UUID propertyId, UnitRequest request, UUID unitId) {
-		if (units.existsByPropertyIdAndBuildingIdAndUnitNumberAndDeletedAtIsNullAndIdNot(propertyId, request.buildingId(), request.unitNumber(), unitId)) {
+		if (units.existsByPropertyIdAndBuildingIdAndUnitNumberAndDeletedAtIsNullAndIdNot(propertyId,
+		    request.buildingId(), request.unitNumber(), unitId)) {
 			throw new UnitManagementException(DUPLICATE_UNIT);
 		}
 	}

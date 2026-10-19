@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class UserService {
 	private final UserRepository users;
+
 	private final Clock clock;
 
 	public UserService(UserRepository users, Clock clock) {
@@ -31,7 +32,7 @@ public class UserService {
 	@Transactional(readOnly = true)
 	public User requireActive(UUID userId) {
 		User user = users.findByIdAndDeletedAtIsNull(userId)
-			.orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND));
+		    .orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND));
 		user.requireActive();
 		return user;
 	}
@@ -41,7 +42,7 @@ public class UserService {
 	public CurrentUserResponse getCurrentUser(UUID userId) {
 		User user = requireActive(userId);
 		return new CurrentUserResponse(user.getId(), user.getDisplayName(), user.getProfileImageUrl(),
-			user.getSystemRole(), user.getStatus());
+		    user.getSystemRole(), user.getStatus());
 	}
 
 	@Transactional

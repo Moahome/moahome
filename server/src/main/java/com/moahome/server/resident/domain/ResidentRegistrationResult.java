@@ -11,20 +11,47 @@ import lombok.Getter;
 @Entity
 @Table(name = "resident_registration_results")
 public class ResidentRegistrationResult implements org.springframework.data.domain.Persistable<UUID> {
-	@Id @Column(name = "request_id") private UUID id;
-	@Column(name = "property_id", nullable = false, updatable = false) private UUID propertyId;
-	@Column(name = "resident_id", nullable = false, updatable = false) private UUID residentId;
-	@Column(name = "unit_resident_id", nullable = false, updatable = false) private UUID unitResidentId;
-	@Column(name = "created_by", nullable = false, updatable = false) private UUID createdBy;
-	@Column(name = "created_at", nullable = false, updatable = false) private OffsetDateTime createdAt;
-	@Transient private boolean newRecord;
-	protected ResidentRegistrationResult() { }
-	@Override public boolean isNew() { return newRecord; }
-	@PostLoad @PostPersist private void markPersisted() { newRecord = false; }
+	@Id
+	@Column(name = "request_id")
+	private UUID id;
+
+	@Column(name = "property_id", nullable = false, updatable = false)
+	private UUID propertyId;
+
+	@Column(name = "resident_id", nullable = false, updatable = false)
+	private UUID residentId;
+
+	@Column(name = "unit_resident_id", nullable = false, updatable = false)
+	private UUID unitResidentId;
+
+	@Column(name = "created_by", nullable = false, updatable = false)
+	private UUID createdBy;
+
+	@Column(name = "created_at", nullable = false, updatable = false)
+	private OffsetDateTime createdAt;
+
+	@Transient
+	private boolean newRecord;
+
+	protected ResidentRegistrationResult() {
+	}
+
+	@Override
+	public boolean isNew() {
+		return newRecord;
+	}
+
+	@PostLoad
+	@PostPersist
+	private void markPersisted() {
+		newRecord = false;
+	}
 
 	/** 원래 요청과 실제 저장 결과를 함께 고정하며 다른 주민·대상의 관계를 결과로 저장하지 않습니다. */
-	public static ResidentRegistrationResult record(UUID requestId, Resident resident, UnitResident relation, UUID actor, OffsetDateTime at) {
-		if (!resident.getPropertyId().equals(relation.getPropertyId()) || !resident.getId().equals(relation.getResidentId())) {
+	public static ResidentRegistrationResult record(UUID requestId, Resident resident, UnitResident relation,
+	    UUID actor, OffsetDateTime at) {
+		if (!resident.getPropertyId().equals(relation.getPropertyId())
+		    || !resident.getId().equals(relation.getResidentId())) {
 			throw new IllegalArgumentException("Invalid registration result");
 		}
 		var result = new ResidentRegistrationResult();

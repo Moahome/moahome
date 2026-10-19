@@ -18,7 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SocialAccountService {
 	private final SocialAccountRepository socialAccounts;
+
 	private final UserService users;
+
 	private final Clock clock;
 
 	public SocialAccountService(SocialAccountRepository socialAccounts, UserService users, Clock clock) {
@@ -31,10 +33,10 @@ public class SocialAccountService {
 	public UUID resolveVerifiedUser(VerifiedSocialProfile profile) {
 		socialAccounts.lockIdentity(identity(profile.provider(), profile.providerUserId()));
 		SocialAccount account = socialAccounts.findActiveIdentity(profile.provider(), profile.providerUserId())
-			.orElseGet(() -> {
-				User user = users.create(profile.displayName(), profile.profileImageUrl());
-				return socialAccounts.save(SocialAccount.link(user, profile));
-			});
+		    .orElseGet(() -> {
+			    User user = users.create(profile.displayName(), profile.profileImageUrl());
+			    return socialAccounts.save(SocialAccount.link(user, profile));
+		    });
 		users.recordLogin(account.getUser().getId());
 		account.updateProviderEmail(profile.providerEmail());
 		return account.getUser().getId();
@@ -44,7 +46,7 @@ public class SocialAccountService {
 	@Transactional
 	public void withdrawUser(UUID userId, UUID actorId) {
 		List<SocialAccount> accounts = socialAccounts
-			.findAllByUserIdAndDeletedAtIsNullOrderByProviderAscProviderUserIdAsc(userId);
+		    .findAllByUserIdAndDeletedAtIsNullOrderByProviderAscProviderUserIdAsc(userId);
 		for (SocialAccount account : accounts) {
 			socialAccounts.lockIdentity(identity(account.getProvider(), account.getProviderUserId()));
 		}

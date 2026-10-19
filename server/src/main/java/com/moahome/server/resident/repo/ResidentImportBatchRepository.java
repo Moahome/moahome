@@ -9,8 +9,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface ResidentImportBatchRepository extends JpaRepository<ResidentImportBatch, UUID> {
-    Optional<ResidentImportBatch> findByIdAndPropertyIdAndCreatedBy(UUID id, UUID propertyId, UUID createdBy);
-    @Modifying
-    @Query("delete from ResidentImportBatch batch where batch.expiresAt <= :at")
-    int deleteExpired(OffsetDateTime at);
+	Optional<ResidentImportBatch> findByIdAndPropertyIdAndCreatedBy(UUID id, UUID propertyId, UUID createdBy);
+
+	@Modifying
+	@Query("delete from ResidentImportBatch batch where batch.expiresAt <= :at")
+	int deleteExpired(OffsetDateTime at);
 }

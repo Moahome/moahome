@@ -24,62 +24,81 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @Import(ResidentListControllerTest.Security.class)
 class ResidentRegistrationControllerTest {
-    @Autowired MockMvc mvc;
-    @MockitoBean ResidentRegistrationService service;
-    private final UUID actor = UUID.randomUUID();
-    private final UUID propertyId = UUID.randomUUID();
-    private final UUID unitId = UUID.randomUUID();
-    private final UUID requestId = UUID.randomUUID();
-    private final String url = "/api/properties/" + propertyId + "/residents";
+	@Autowired
+	MockMvc mvc;
 
-    private org.springframework.test.web.servlet.request.RequestPostProcessor identity() {
-        return authentication(UsernamePasswordAuthenticationToken.authenticated(new AuthPrincipal(actor.toString(), UUID.randomUUID().toString()), null, List.of()));
-    }
-    private String input(String name, String phone, String relation) {
-        return """
+	@MockitoBean
+	ResidentRegistrationService service;
+
+	private final UUID actor = UUID.randomUUID();
+
+	private final UUID propertyId = UUID.randomUUID();
+
+	private final UUID unitId = UUID.randomUUID();
+
+	private final UUID requestId = UUID.randomUUID();
+
+	private final String url = "/api/properties/" + propertyId + "/residents";
+
+	private org.springframework.test.web.servlet.request.RequestPostProcessor identity() {
+		return authentication(UsernamePasswordAuthenticationToken
+		    .authenticated(new AuthPrincipal(actor.toString(), UUID.randomUUID().toString()), null, List.of()));
+	}
+
+	private String input(String name, String phone, String relation) {
+		return """
             {"requestId":"%s","name":"%s","phone":%s,"unitId":"%s","relationType":"%s"}
             """.formatted(requestId, name, phone, unitId, relation);
-    }
+	}
 
-    @Test
-    void registersWithoutPhoneAndReturnsSafeNoStoreResult() throws Exception {
-        when(service.register(eq(actor), eq(propertyId), any())).thenReturn(new ResidentRegistrationResponse(requestId, propertyId, unitId, true));
-        mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON).content(input("주민", "null", "TENANT")))
-            .andExpect(status().isCreated()).andExpect(header().string("Cache-Control", "no-store"))
-            .andExpect(jsonPath("id").value(requestId.toString())).andExpect(jsonPath("representative").value(true))
-            .andExpect(jsonPath("phone").doesNotExist()).andExpect(jsonPath("phoneEncrypted").doesNotExist());
-        verify(service).register(eq(actor), eq(propertyId), argThat(request -> request.phone() == null && request.name().equals("주민")));
-    }
+	@Test
+	void registersWithoutPhoneAndReturnsSafeNoStoreResult() throws Exception {
+		when(service.register(eq(actor), eq(propertyId), any()))
+		    .thenReturn(new ResidentRegistrationResponse(requestId, propertyId, unitId, true));
+		mvc.perform(
+		    post(url).with(identity()).contentType(MediaType.APPLICATION_JSON).content(input("주민", "null", "TENANT")))
+		    .andExpect(status().isCreated()).andExpect(header().string("Cache-Control", "no-store"))
+		    .andExpect(jsonPath("id").value(requestId.toString())).andExpect(jsonPath("representative").value(true))
+		    .andExpect(jsonPath("phone").doesNotExist()).andExpect(jsonPath("phoneEncrypted").doesNotExist());
+		verify(service).register(eq(actor), eq(propertyId),
+		    argThat(request -> request.phone() == null && request.name().equals("주민")));
+	}
 
-    @Test
-    void defaultsOmittedNullOrBlankRelationToOther() throws Exception {
-        when(service.register(eq(actor), eq(propertyId), any())).thenReturn(new ResidentRegistrationResponse(requestId, propertyId, unitId, true));
-        for (String relation : List.of("", ",\"relationType\":null", ",\"relationType\":\"  \"")) {
-            String body = "{\"requestId\":\"%s\",\"name\":\"주민\",\"unitId\":\"%s\"%s}".formatted(requestId, unitId, relation);
-            mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isCreated());
-        }
-        verify(service, times(3)).register(eq(actor), eq(propertyId), argThat(request -> request.relationType().equals("OTHER")));
-    }
+	@Test
+	void defaultsOmittedNullOrBlankRelationToOther() throws Exception {
+		when(service.register(eq(actor), eq(propertyId), any()))
+		    .thenReturn(new ResidentRegistrationResponse(requestId, propertyId, unitId, true));
+		for (String relation : List.of("", ",\"relationType\":null", ",\"relationType\":\"  \"")) {
+			String body = "{\"requestId\":\"%s\",\"name\":\"주민\",\"unitId\":\"%s\"%s}".formatted(requestId, unitId,
+			    relation);
+			mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON).content(body))
+			    .andExpect(status().isCreated());
+		}
+		verify(service, times(3)).register(eq(actor), eq(propertyId),
+		    argThat(request -> request.relationType().equals("OTHER")));
+	}
 
-    @Test
-    void requiresAuthenticationAndValidatesBodyWithoutLeakingInput() throws Exception {
-        mvc.perform(post(url).contentType(MediaType.APPLICATION_JSON).content(input("주민", "null", "TENANT"))).andExpect(status().isUnauthorized());
-        for (String body : List.of("{}", input("  ", "null", "TENANT"), input("주민", "null", "ADMIN"), "{broken")) {
-            mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON).content(body))
-                .andExpect(status().isBadRequest()).andExpect(jsonPath("code").value("INVALID_REQUEST"));
-        }
-        mvc.perform(post("/api/properties/1-1-1-1-1/residents").with(identity()).contentType(MediaType.APPLICATION_JSON).content(input("주민", "null", "TENANT")))
-            .andExpect(status().isBadRequest());
-        verifyNoInteractions(service);
-    }
+	@Test
+	void requiresAuthenticationAndValidatesBodyWithoutLeakingInput() throws Exception {
+		mvc.perform(post(url).contentType(MediaType.APPLICATION_JSON).content(input("주민", "null", "TENANT")))
+		    .andExpect(status().isUnauthorized());
+		for (String body : List.of("{}", input("  ", "null", "TENANT"), input("주민", "null", "ADMIN"), "{broken")) {
+			mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON).content(body))
+			    .andExpect(status().isBadRequest()).andExpect(jsonPath("code").value("INVALID_REQUEST"));
+		}
+		mvc.perform(post("/api/properties/1-1-1-1-1/residents").with(identity()).contentType(MediaType.APPLICATION_JSON)
+		    .content(input("주민", "null", "TENANT"))).andExpect(status().isBadRequest());
+		verifyNoInteractions(service);
+	}
 
-    @Test
-    void returnsDistinctDuplicateAndUnavailableErrors() throws Exception {
-        for (var code : List.of(ResidentRegistrationException.Code.DUPLICATE_RESIDENT, ResidentRegistrationException.Code.PHONE_SECURITY_UNAVAILABLE)) {
-            when(service.register(eq(actor), eq(propertyId), any())).thenThrow(new ResidentRegistrationException(code));
-            mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON).content(input("주민", "null", "FAMILY")))
-                .andExpect(status().is(code.status.value())).andExpect(jsonPath("code").value(code.name()))
-                .andExpect(header().string("Cache-Control", "no-store"));
-        }
-    }
+	@Test
+	void returnsDistinctDuplicateAndUnavailableErrors() throws Exception {
+		for (var code : List.of(ResidentRegistrationException.Code.DUPLICATE_RESIDENT,
+		    ResidentRegistrationException.Code.PHONE_SECURITY_UNAVAILABLE)) {
+			when(service.register(eq(actor), eq(propertyId), any())).thenThrow(new ResidentRegistrationException(code));
+			mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON)
+			    .content(input("주민", "null", "FAMILY"))).andExpect(status().is(code.status.value()))
+			    .andExpect(jsonPath("code").value(code.name())).andExpect(header().string("Cache-Control", "no-store"));
+		}
+	}
 }

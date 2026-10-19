@@ -85,14 +85,16 @@ public class BankAccount {
 
 	/** 원문 대신 보호된 계좌번호를 저장하고 등록 시각의 서울 날짜를 사용 시작일로 지정합니다. */
 	public static BankAccount createPublic(Property property, String bankCode, String bankName, String holderName,
-		AccountNumberSecurity.ProtectedAccountNumber number, boolean primary, OffsetDateTime at) {
+	    AccountNumberSecurity.ProtectedAccountNumber number, boolean primary, OffsetDateTime at) {
 		return createPublic(property, bankCode, bankName, holderName, number, primary, 0, at);
 	}
 
 	/** 초기 설정의 입력 순서를 보존하고 기본 지정·은행명 변경으로 목록 순서가 바뀌지 않게 합니다. */
 	public static BankAccount createPublic(Property property, String bankCode, String bankName, String holderName,
-		AccountNumberSecurity.ProtectedAccountNumber number, boolean primary, int registrationOrder, OffsetDateTime at) {
-		if (registrationOrder < 0) throw new IllegalArgumentException("Invalid registration order");
+	    AccountNumberSecurity.ProtectedAccountNumber number, boolean primary, int registrationOrder,
+	    OffsetDateTime at) {
+		if (registrationOrder < 0)
+			throw new IllegalArgumentException("Invalid registration order");
 		Objects.requireNonNull(number);
 		BankAccount account = new BankAccount();
 		account.propertyId = property.getId();
@@ -119,7 +121,7 @@ public class BankAccount {
 
 	/** 동일 계좌의 오입력 정보만 정정하며 ID·사용기간·기본 지정과 기존 거래 연결은 유지합니다. */
 	public void correctDetails(String bankCode, String bankName, String holderName,
-		AccountNumberSecurity.ProtectedAccountNumber number) {
+	    AccountNumberSecurity.ProtectedAccountNumber number) {
 		if (deletedAt != null || status != BankAccountStatus.ACTIVE || buildingId != null) {
 			throw new IllegalStateException("Account is not an active public account");
 		}
@@ -134,7 +136,7 @@ public class BankAccount {
 
 	/** 추가 요청 ID를 계좌 ID로 사용해 응답 유실 재시도에도 같은 통장을 중복 생성하지 않습니다. */
 	public static BankAccount register(UUID id, Property property, String bankCode, String bankName, String holderName,
-		AccountNumberSecurity.ProtectedAccountNumber number, String alias, int registrationOrder, OffsetDateTime at) {
+	    AccountNumberSecurity.ProtectedAccountNumber number, String alias, int registrationOrder, OffsetDateTime at) {
 		var account = createPublic(property, bankCode, bankName, holderName, number, false, registrationOrder, at);
 		account.id = Objects.requireNonNull(id);
 		account.rename(alias);
@@ -142,18 +144,23 @@ public class BankAccount {
 	}
 
 	/** 용도를 고정하지 않고 관리자가 정한 선택 별칭을 저장합니다. */
-	public void rename(String alias) { this.alias = TextValues.optional(alias, 100); }
+	public void rename(String alias) {
+		this.alias = TextValues.optional(alias, 100);
+	}
 
 	/** 기본 지정은 서비스의 관리대상 잠금 안에서 이전 계좌와 함께 전환합니다. */
 	public void designatePrimary(boolean primary) {
-		if (primary && (status != BankAccountStatus.ACTIVE || deletedAt != null)) throw new IllegalStateException("Inactive account");
+		if (primary && (status != BankAccountStatus.ACTIVE || deletedAt != null))
+			throw new IllegalStateException("Inactive account");
 		this.primary = primary;
 	}
 
 	/** 기본 계좌는 먼저 전환해야 종료할 수 있으며 과거 거래와 FK는 보존합니다. */
 	public void close(java.time.LocalDate date) {
-		if (primary) throw new IllegalStateException("Primary account cannot close");
-		if (status == BankAccountStatus.CLOSED) return;
+		if (primary)
+			throw new IllegalStateException("Primary account cannot close");
+		if (status == BankAccountStatus.CLOSED)
+			return;
 		status = BankAccountStatus.CLOSED;
 		validTo = date.isBefore(validFrom) ? validFrom : date;
 	}

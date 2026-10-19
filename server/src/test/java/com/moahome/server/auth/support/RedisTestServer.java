@@ -10,6 +10,7 @@ import java.time.Duration;
 
 public final class RedisTestServer implements AutoCloseable {
 	private final Process process;
+
 	private final int port;
 
 	public RedisTestServer() {
@@ -19,9 +20,9 @@ public final class RedisTestServer implements AutoCloseable {
 			}
 			Path directory = Files.createTempDirectory("moahome-security-redis-");
 			String executable = System.getenv().getOrDefault("REDIS_SERVER_EXECUTABLE", "redis-server");
-			process = new ProcessBuilder(executable, "--bind", "127.0.0.1", "--port", Integer.toString(port),
-				"--save", "", "--appendonly", "no", "--dir", directory.toString())
-				.redirectErrorStream(true).redirectOutput(directory.resolve("redis.log").toFile()).start();
+			process = new ProcessBuilder(executable, "--bind", "127.0.0.1", "--port", Integer.toString(port), "--save",
+			    "", "--appendonly", "no", "--dir", directory.toString()).redirectErrorStream(true)
+			    .redirectOutput(directory.resolve("redis.log").toFile()).start();
 			Runtime.getRuntime().addShutdownHook(new Thread(this::close));
 			long deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos();
 			while (System.nanoTime() < deadline && process.isAlive()) {
@@ -33,7 +34,8 @@ public final class RedisTestServer implements AutoCloseable {
 				}
 			}
 			close();
-			throw new IllegalStateException("Isolated test Redis did not start; check " + directory.resolve("redis.log"));
+			throw new IllegalStateException(
+			    "Isolated test Redis did not start; check " + directory.resolve("redis.log"));
 		} catch (IOException | InterruptedException exception) {
 			if (exception instanceof InterruptedException) {
 				Thread.currentThread().interrupt();

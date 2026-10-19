@@ -19,9 +19,13 @@ import static org.mockito.Mockito.when;
 
 class SocialLoginServiceTest {
 	private final SocialAccountService accounts = mock(SocialAccountService.class);
+
 	private final AuthService auth = mock(AuthService.class);
+
 	private final SocialLoginService login = new SocialLoginService(accounts, auth);
-	private final VerifiedSocialProfile profile = new VerifiedSocialProfile(SocialProvider.KAKAO, "123", null, "사용자", null);
+
+	private final VerifiedSocialProfile profile = new VerifiedSocialProfile(SocialProvider.KAKAO, "123", null, "사용자",
+	    null);
 
 	@Test
 	void resolvesPersistedUserBeforeStartingSession() {
@@ -36,7 +40,8 @@ class SocialLoginServiceTest {
 	@Test
 	void persistenceFailureDoesNotCreateSession() {
 		when(accounts.resolveVerifiedUser(profile)).thenThrow(new IllegalStateException("DB unavailable"));
-		assertThatThrownBy(() -> login.loginVerified(profile, ClientType.APP)).isInstanceOf(IllegalStateException.class);
+		assertThatThrownBy(() -> login.loginVerified(profile, ClientType.APP))
+		    .isInstanceOf(IllegalStateException.class);
 		verify(auth, never()).startSession(anyString(), any());
 	}
 }

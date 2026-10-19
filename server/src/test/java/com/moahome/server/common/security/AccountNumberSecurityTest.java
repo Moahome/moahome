@@ -26,24 +26,26 @@ class AccountNumberSecurityTest {
 		String hmac = RegistrationTestKeys.randomKey();
 		var old = new AccountNumberSecurity(new AccountSecurityProperties("v1", Map.of("v1", firstKey), hmac));
 		String encrypted = old.protect("00012345678").encrypted();
-		var rotated = new AccountNumberSecurity(new AccountSecurityProperties("v2",
-			Map.of("v1", firstKey, "v2", secondKey), hmac));
+		var rotated = new AccountNumberSecurity(
+		    new AccountSecurityProperties("v2", Map.of("v1", firstKey, "v2", secondKey), hmac));
 		assertThat(rotated.decrypt(encrypted)).isEqualTo("00012345678");
-		assertThatThrownBy(() -> rotated.decrypt(encrypted.replace("v1:", "v2:"))).isInstanceOf(IllegalArgumentException.class);
-		var phone = new PhoneSecurity(new com.moahome.server.config.PhoneSecurityProperties("v1",
-			Map.of("v1", firstKey), hmac));
-		assertThatThrownBy(() -> old.decrypt(phone.encrypt("+821012345678"))).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> rotated.decrypt(encrypted.replace("v1:", "v2:")))
+		    .isInstanceOf(IllegalArgumentException.class);
+		var phone = new PhoneSecurity(
+		    new com.moahome.server.config.PhoneSecurityProperties("v1", Map.of("v1", firstKey), hmac));
+		assertThatThrownBy(() -> old.decrypt(phone.encrypt("+821012345678")))
+		    .isInstanceOf(IllegalArgumentException.class);
 	}
 
 	@Test
 	void rejectsBadKeysAndUnnormalizedNumbers() {
 		String key = RegistrationTestKeys.randomKey();
 		assertThatThrownBy(() -> new AccountNumberSecurity(new AccountSecurityProperties("v1", Map.of("v1", key), key)))
-			.isInstanceOf(IllegalArgumentException.class);
+		    .isInstanceOf(IllegalArgumentException.class);
 		assertThatThrownBy(() -> new AccountNumberSecurity(new AccountSecurityProperties("v2", Map.of("v1", key), key)))
-			.isInstanceOf(IllegalArgumentException.class);
+		    .isInstanceOf(IllegalArgumentException.class);
 		var security = new AccountNumberSecurity(RegistrationTestKeys.accountProperties());
-		for (String number : new String[]{"123", "1234-5678", "１２３４", "1".repeat(51)}) {
+		for (String number : new String[] { "123", "1234-5678", "１２３４", "1".repeat(51) }) {
 			assertThatThrownBy(() -> security.protect(number)).isInstanceOf(IllegalArgumentException.class);
 		}
 	}

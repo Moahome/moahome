@@ -5,5 +5,6 @@ import com.moahome.server.resident.domain.ResidentAccountLink;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ResidentAccountLinkRepository extends JpaRepository<ResidentAccountLink, UUID> {
-    boolean existsByPropertyIdAndResidentIdAndUserIdAndUnitResidentId(UUID propertyId, UUID residentId, UUID userId, UUID unitResidentId);
+	boolean existsByPropertyIdAndResidentIdAndUserIdAndUnitResidentId(UUID propertyId, UUID residentId, UUID userId,
+	    UUID unitResidentId);
 }

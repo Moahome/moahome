@@ -9,7 +9,9 @@ import org.springframework.data.jpa.repository.Query;
 
 public interface PropertyMemberRepository extends JpaRepository<PropertyMember, UUID> {
 	List<PropertyMember> findByPropertyIdAndDeletedAtIsNull(UUID propertyId);
+
 	java.util.List<PropertyMember> findByPropertyIdAndUserIdAndDeletedAtIsNull(UUID propertyId, UUID userId);
+
 	String MANAGEMENT_QUERY = """
 		select p.id as propertyId, p.name as name, m.role as role
 		from PropertyMember m, Property p
@@ -31,7 +33,9 @@ public interface PropertyMemberRepository extends JpaRepository<PropertyMember, 
 
 	interface ManagementProperty {
 		UUID getPropertyId();
+
 		String getName();
+
 		PropertyMemberRole getRole();
 	}
 

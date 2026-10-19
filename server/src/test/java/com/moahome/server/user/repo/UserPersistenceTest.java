@@ -45,18 +45,30 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({UserService.class, SocialAccountService.class, UserPersistenceTest.TestBeans.class})
+@Import({ UserService.class, SocialAccountService.class, UserPersistenceTest.TestBeans.class })
 @ActiveProfiles("database-test")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class UserPersistenceTest {
 	private static final PostgresTestServer POSTGRES = new PostgresTestServer();
-	@Autowired private UserRepository users;
-	@Autowired private SocialAccountRepository accounts;
-	@Autowired private UserService userService;
-	@Autowired private SocialAccountService socialAccounts;
-	@Autowired private JdbcTemplate jdbc;
-	@Autowired private Flyway flyway;
+
+	@Autowired
+	private UserRepository users;
+
+	@Autowired
+	private SocialAccountRepository accounts;
+
+	@Autowired
+	private UserService userService;
+
+	@Autowired
+	private SocialAccountService socialAccounts;
+
+	@Autowired
+	private JdbcTemplate jdbc;
+
+	@Autowired
+	private Flyway flyway;
 
 	@DynamicPropertySource
 	static void infrastructure(DynamicPropertyRegistry registry) {
@@ -81,7 +93,7 @@ class UserPersistenceTest {
 		UUID id = socialAccounts.resolveVerifiedUser(profile("123", null));
 		flyway.validate();
 		assertThat(flyway.info().applied()).hasSize(flyway.info().all().length);
-        assertThat(flyway.info().pending()).isEmpty();
+		assertThat(flyway.info().pending()).isEmpty();
 		assertThat(flyway.migrate().migrationsExecuted).isZero();
 		assertThat(users.findById(id)).isPresent();
 		User persisted = users.findById(id).orElseThrow();
@@ -95,69 +107,74 @@ class UserPersistenceTest {
 	@Test
 	void upgradesExistingSchemaAndPreservesUserAndSocialIdentity() {
 		String schema = "migration_" + UUID.randomUUID().toString().replace("-", "");
-		Flyway original = Flyway.configure()
-			.dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
-			.schemas(schema).defaultSchema(schema).target("20261003080747").load();
+		Flyway original = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "").schemas(schema)
+		    .defaultSchema(schema).target("20261003080747").load();
 		original.migrate();
 		assertThat(phoneColumns(schema)).isEqualTo(4);
 		UUID userId = UUID.randomUUID();
 		UUID socialId = UUID.randomUUID();
-		jdbc.update("insert into " + schema + ".users "
-			+ "(id, display_name, status, phone_encrypted, phone_hmac, phone_last4, phone_verified_at) "
-			+ "values (?, ?, 'ACTIVE', ?, ?, ?, CURRENT_TIMESTAMP)",
-			userId, "기존 사용자", "legacy-encrypted", "a".repeat(64), "5678");
+		jdbc.update(
+		    "insert into " + schema + ".users "
+		        + "(id, display_name, status, phone_encrypted, phone_hmac, phone_last4, phone_verified_at) "
+		        + "values (?, ?, 'ACTIVE', ?, ?, ?, CURRENT_TIMESTAMP)",
+		    userId, "기존 사용자", "legacy-encrypted", "a".repeat(64), "5678");
 		jdbc.update("insert into " + schema + ".social_accounts (id, user_id, provider, provider_user_id) "
-			+ "values (?, ?, 'KAKAO', ?)", socialId, userId, "legacy-identity");
-		Flyway upgraded = Flyway.configure()
-			.dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
-			.schemas(schema).defaultSchema(schema).load();
-		int pendingMigrations=upgraded.info().pending().length;
-        assertThat(pendingMigrations).isPositive();assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(pendingMigrations);
+		    + "values (?, ?, 'KAKAO', ?)", socialId, userId, "legacy-identity");
+		Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "").schemas(schema)
+		    .defaultSchema(schema).load();
+		int pendingMigrations = upgraded.info().pending().length;
+		assertThat(pendingMigrations).isPositive();
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(pendingMigrations);
 		upgraded.validate();
 		assertThat(phoneColumns(schema)).isZero();
-		assertThat(jdbc.queryForObject("select display_name from " + schema + ".users where id = ?",
-			String.class, userId)).isEqualTo("기존 사용자");
-		assertThat(jdbc.queryForObject("select status from " + schema + ".users where id = ?",
-			String.class, userId)).isEqualTo("ACTIVE");
-		assertThat(jdbc.queryForObject("select system_role from " + schema + ".users where id = ?",
-			String.class, userId)).isEqualTo("USER");
-		assertThat(jdbc.queryForObject("select user_id from " + schema + ".social_accounts "
-			+ "where provider = 'KAKAO' and provider_user_id = ?", UUID.class, "legacy-identity"))
-			.isEqualTo(userId);
+		assertThat(
+		    jdbc.queryForObject("select display_name from " + schema + ".users where id = ?", String.class, userId))
+		    .isEqualTo("기존 사용자");
+		assertThat(jdbc.queryForObject("select status from " + schema + ".users where id = ?", String.class, userId))
+		    .isEqualTo("ACTIVE");
+		assertThat(
+		    jdbc.queryForObject("select system_role from " + schema + ".users where id = ?", String.class, userId))
+		    .isEqualTo("USER");
+		assertThat(jdbc.queryForObject(
+		    "select user_id from " + schema + ".social_accounts " + "where provider = 'KAKAO' and provider_user_id = ?",
+		    UUID.class, "legacy-identity")).isEqualTo(userId);
 	}
 
 	@Test
 	void addsDefaultSystemRoleToExistingAccountsWithoutChangingTheirStatus() {
 		String schema = "migration_" + UUID.randomUUID().toString().replace("-", "");
-		Flyway previous = Flyway.configure()
-			.dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
-			.schemas(schema).defaultSchema(schema).target("20261003103819").load();
+		Flyway previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "").schemas(schema)
+		    .defaultSchema(schema).target("20261003103819").load();
 		previous.migrate();
 		UUID activeId = UUID.randomUUID();
 		UUID suspendedId = UUID.randomUUID();
 		UUID withdrawnId = UUID.randomUUID();
-		jdbc.update("insert into " + schema + ".users (id, display_name, status) values (?, ?, 'ACTIVE')",
-			activeId, "정상 사용자");
+		jdbc.update("insert into " + schema + ".users (id, display_name, status) values (?, ?, 'ACTIVE')", activeId,
+		    "정상 사용자");
 		jdbc.update("insert into " + schema + ".users (id, display_name, status) values (?, ?, 'SUSPENDED')",
-			suspendedId, "정지 사용자");
+		    suspendedId, "정지 사용자");
 		jdbc.update("insert into " + schema + ".users (id, display_name, status, deleted_at, deleted_by) "
-			+ "values (?, ?, 'WITHDRAWN', CURRENT_TIMESTAMP, ?)", withdrawnId, "탈퇴 사용자", activeId);
-		Flyway upgraded = Flyway.configure()
-			.dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
-			.schemas(schema).defaultSchema(schema).load();
-		int pendingMigrations=upgraded.info().pending().length;
-        assertThat(pendingMigrations).isPositive();assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(pendingMigrations);
+		    + "values (?, ?, 'WITHDRAWN', CURRENT_TIMESTAMP, ?)", withdrawnId, "탈퇴 사용자", activeId);
+		Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "").schemas(schema)
+		    .defaultSchema(schema).load();
+		int pendingMigrations = upgraded.info().pending().length;
+		assertThat(pendingMigrations).isPositive();
+		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(pendingMigrations);
 		upgraded.validate();
-		for (UUID id : new UUID[]{activeId, suspendedId, withdrawnId}) {
-			assertThat(jdbc.queryForObject("select system_role from " + schema + ".users where id = ?",
-				String.class, id)).isEqualTo("USER");
+		for (UUID id : new UUID[] { activeId, suspendedId, withdrawnId }) {
+			assertThat(
+			    jdbc.queryForObject("select system_role from " + schema + ".users where id = ?", String.class, id))
+			    .isEqualTo("USER");
 		}
-		assertThat(jdbc.queryForObject("select status from " + schema + ".users where id = ?",
-			String.class, suspendedId)).isEqualTo("SUSPENDED");
-		assertThat(jdbc.queryForObject("select deleted_by from " + schema + ".users where id = ?",
-			UUID.class, withdrawnId)).isEqualTo(activeId);
-		assertThat(jdbc.queryForObject("select status from " + schema + ".users where id = ?",
-			String.class, withdrawnId)).isEqualTo("WITHDRAWN");
+		assertThat(
+		    jdbc.queryForObject("select status from " + schema + ".users where id = ?", String.class, suspendedId))
+		    .isEqualTo("SUSPENDED");
+		assertThat(
+		    jdbc.queryForObject("select deleted_by from " + schema + ".users where id = ?", UUID.class, withdrawnId))
+		    .isEqualTo(activeId);
+		assertThat(
+		    jdbc.queryForObject("select status from " + schema + ".users where id = ?", String.class, withdrawnId))
+		    .isEqualTo("WITHDRAWN");
 	}
 
 	@Test
@@ -169,9 +186,9 @@ class UserPersistenceTest {
 		assertThat(socialAccounts.resolveVerifiedUser(profile("platform-admin", null))).isEqualTo(id);
 		assertThat(users.findById(id).orElseThrow().getSystemRole()).isEqualTo(SystemRole.ADMIN);
 		assertThatThrownBy(() -> jdbc.update("update users set system_role = 'MANAGER' where id = ?", id))
-			.isInstanceOf(DataIntegrityViolationException.class);
+		    .isInstanceOf(DataIntegrityViolationException.class);
 		assertThatThrownBy(() -> jdbc.update("update users set system_role = null where id = ?", id))
-			.isInstanceOf(DataIntegrityViolationException.class);
+		    .isInstanceOf(DataIntegrityViolationException.class);
 	}
 
 	@Test
@@ -179,9 +196,9 @@ class UserPersistenceTest {
 		UUID id = socialAccounts.resolveVerifiedUser(profile("123", null));
 		User other = users.saveAndFlush(User.create("다른 사용자", null));
 		assertThatThrownBy(() -> accounts.saveAndFlush(SocialAccount.link(other, profile("123", null))))
-			.isInstanceOf(DataIntegrityViolationException.class);
+		    .isInstanceOf(DataIntegrityViolationException.class);
 		assertThatThrownBy(() -> jdbc.update("update users set status = 'WITHDRAWN' where id = ?", id))
-			.isInstanceOf(DataIntegrityViolationException.class);
+		    .isInstanceOf(DataIntegrityViolationException.class);
 	}
 
 	@Test
@@ -206,7 +223,8 @@ class UserPersistenceTest {
 		UUID newId = socialAccounts.resolveVerifiedUser(profile("123", null));
 		assertThat(newId).isNotEqualTo(oldId);
 		assertThat(accounts.findById(oldSocialId).orElseThrow().getDeletedBy()).isEqualTo(oldId);
-		assertThat(accounts.findActiveIdentity(SocialProvider.KAKAO, "123").orElseThrow().getUser().getId()).isEqualTo(newId);
+		assertThat(accounts.findActiveIdentity(SocialProvider.KAKAO, "123").orElseThrow().getUser().getId())
+		    .isEqualTo(newId);
 		assertThat(users.count()).isEqualTo(2);
 		assertThat(users.findById(newId).orElseThrow().getSystemRole()).isEqualTo(SystemRole.USER);
 	}
@@ -216,11 +234,11 @@ class UserPersistenceTest {
 		UUID id = socialAccounts.resolveVerifiedUser(profile("123", null));
 		userService.suspend(id);
 		assertThatThrownBy(() -> socialAccounts.resolveVerifiedUser(profile("123", "new@example.test")))
-			.isInstanceOf(UserException.class);
+		    .isInstanceOf(UserException.class);
 		assertThat(accounts.findActiveIdentity(SocialProvider.KAKAO, "123").orElseThrow().getProviderEmail()).isNull();
 		userService.resume(id);
 		assertThatThrownBy(() -> socialAccounts.withdrawUser(id, UUID.randomUUID()))
-			.isInstanceOf(DataIntegrityViolationException.class);
+		    .isInstanceOf(DataIntegrityViolationException.class);
 		assertThat(userService.requireActive(id).getStatus()).isEqualTo(UserStatus.ACTIVE);
 		assertThat(accounts.findActiveIdentity(SocialProvider.KAKAO, "123")).isPresent();
 	}
@@ -252,9 +270,10 @@ class UserPersistenceTest {
 	}
 
 	private int phoneColumns(String schema) {
-		return jdbc.queryForObject("select count(*) from information_schema.columns "
-			+ "where table_schema = ? and table_name = 'users' and column_name like 'phone_%'",
-			Integer.class, schema);
+		return jdbc.queryForObject(
+		    "select count(*) from information_schema.columns "
+		        + "where table_schema = ? and table_name = 'users' and column_name like 'phone_%'",
+		    Integer.class, schema);
 	}
 
 	@TestConfiguration

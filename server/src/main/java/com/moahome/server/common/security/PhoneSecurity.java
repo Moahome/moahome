@@ -20,12 +20,19 @@ import com.moahome.server.config.PhoneSecurityProperties;
 /** 주민 연락처의 정규화·암호화·검색값·마스킹을 제공하는 공통 보안 코드입니다. */
 public class PhoneSecurity {
 	private static final int NONCE_LENGTH = 12;
+
 	private static final int TAG_LENGTH_BITS = 128;
+
 	private static final String FORMAT_VERSION = "v1";
+
 	private static final byte[] HMAC_CONTEXT = "moahome:phone:v1:".getBytes(StandardCharsets.UTF_8);
+
 	private final String activeKeyId;
+
 	private final Map<String, SecretKey> encryptionKeys;
+
 	private final SecretKey hmacKey;
+
 	private final SecureRandom random = new SecureRandom();
 
 	public PhoneSecurity(PhoneSecurityProperties properties) {
@@ -68,12 +75,13 @@ public class PhoneSecurity {
 		random.nextBytes(nonce);
 		try {
 			Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-			cipher.init(Cipher.ENCRYPT_MODE, encryptionKeys.get(activeKeyId), new GCMParameterSpec(TAG_LENGTH_BITS, nonce));
+			cipher.init(Cipher.ENCRYPT_MODE, encryptionKeys.get(activeKeyId),
+			    new GCMParameterSpec(TAG_LENGTH_BITS, nonce));
 			cipher.updateAAD(aad(activeKeyId));
 			byte[] encrypted = cipher.doFinal(normalized.getBytes(StandardCharsets.UTF_8));
 			Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
 			return FORMAT_VERSION + ":" + activeKeyId + ":" + encoder.encodeToString(nonce) + ":"
-				+ encoder.encodeToString(encrypted);
+			    + encoder.encodeToString(encrypted);
 		} catch (GeneralSecurityException exception) {
 			throw new IllegalStateException("Phone encryption failed");
 		}
@@ -94,7 +102,8 @@ public class PhoneSecurity {
 				throw new IllegalArgumentException("Invalid encrypted phone value");
 			}
 			Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-			cipher.init(Cipher.DECRYPT_MODE, encryptionKeys.get(parts[1]), new GCMParameterSpec(TAG_LENGTH_BITS, nonce));
+			cipher.init(Cipher.DECRYPT_MODE, encryptionKeys.get(parts[1]),
+			    new GCMParameterSpec(TAG_LENGTH_BITS, nonce));
 			cipher.updateAAD(aad(parts[1]));
 			return normalize(new String(cipher.doFinal(ciphertext), StandardCharsets.UTF_8));
 		} catch (GeneralSecurityException | IllegalArgumentException exception) {

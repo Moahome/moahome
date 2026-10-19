@@ -117,7 +117,7 @@ public class User {
 
 	private void validateProfile(String name, String imageUrl) {
 		if (name == null || name.isBlank() || name.codePointCount(0, name.length()) > 50
-			|| (imageUrl != null && (imageUrl.isBlank() || imageUrl.length() > 500))) {
+		    || (imageUrl != null && (imageUrl.isBlank() || imageUrl.length() > 500))) {
 			throw new IllegalArgumentException("Invalid user profile");
 		}
 	}

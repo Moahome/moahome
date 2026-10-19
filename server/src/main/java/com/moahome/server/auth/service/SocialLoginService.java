@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class SocialLoginService {
 	private final SocialAccountService socialAccounts;
+
 	private final AuthService auth;
 
 	public SocialLoginService(SocialAccountService socialAccounts, AuthService auth) {

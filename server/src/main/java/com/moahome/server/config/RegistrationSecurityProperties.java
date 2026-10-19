@@ -7,10 +7,10 @@ import org.springframework.validation.annotation.Validated;
 
 @Validated
 @ConfigurationProperties("moahome.registration-security")
-public record RegistrationSecurityProperties(
-	@NotBlank String activeKeyVersion,
-	@NotEmpty Map<@NotBlank String, @NotBlank String> fingerprintKeys
-) {
+public record RegistrationSecurityProperties(@NotBlank String activeKeyVersion,
+    @NotEmpty Map<@NotBlank String, @NotBlank String> fingerprintKeys) {
 	@Override
-	public String toString() { return "RegistrationSecurityProperties[REDACTED]"; }
+	public String toString() {
+		return "RegistrationSecurityProperties[REDACTED]";
+	}
 }

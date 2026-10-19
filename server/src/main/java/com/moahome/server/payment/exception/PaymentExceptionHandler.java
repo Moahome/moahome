@@ -12,24 +12,31 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-@RestControllerAdvice(assignableTypes = {PaymentController.class, com.moahome.server.banking.controller.BankingController.class, com.moahome.server.banking.controller.BankingBalanceController.class, com.moahome.server.banking.controller.BankAccountController.class, com.moahome.server.billing.controller.OpeningBalanceController.class,
-    com.moahome.server.membership.controller.MemberManagementController.class, com.moahome.server.membership.controller.InvitationClaimController.class,
-    com.moahome.server.membership.controller.MembershipRequestController.class})
+@RestControllerAdvice(assignableTypes = { PaymentController.class,
+        com.moahome.server.banking.controller.BankingController.class,
+        com.moahome.server.banking.controller.BankingBalanceController.class,
+        com.moahome.server.banking.controller.BankAccountController.class,
+        com.moahome.server.billing.controller.OpeningBalanceController.class,
+        com.moahome.server.membership.controller.MemberManagementController.class,
+        com.moahome.server.membership.controller.InvitationClaimController.class,
+        com.moahome.server.membership.controller.MembershipRequestController.class })
 public class PaymentExceptionHandler {
 	@ExceptionHandler(PaymentException.class)
 	public ResponseEntity<ErrorResponse> billing(PaymentException exception) {
 		var code = exception.code();
-		HttpStatus status=HttpStatus.CONFLICT;
-        if (code.startsWith("INVALID_")||code.equals("BANK_ROW_LIMIT")||code.equals("EMPTY_BANK_FILE")) status=HttpStatus.BAD_REQUEST;
-        if (code.endsWith("NOT_FOUND")) status=HttpStatus.NOT_FOUND;
-        return error(status,code,"입금 정보를 확인해주세요.");
+		HttpStatus status = HttpStatus.CONFLICT;
+		if (code.startsWith("INVALID_") || code.equals("BANK_ROW_LIMIT") || code.equals("EMPTY_BANK_FILE"))
+			status = HttpStatus.BAD_REQUEST;
+		if (code.endsWith("NOT_FOUND"))
+			status = HttpStatus.NOT_FOUND;
+		return error(status, code, "입금 정보를 확인해주세요.");
 	}
 
 	/** 입력 원문과 검증기의 내부 문구 대신 고정된 오류만 반환합니다. */
-	@ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
-		MethodArgumentTypeMismatchException.class, IllegalArgumentException.class,
-        org.springframework.web.multipart.support.MissingServletRequestPartException.class,
-        org.springframework.web.multipart.MaxUploadSizeExceededException.class})
+	@ExceptionHandler({ MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
+	        MethodArgumentTypeMismatchException.class, IllegalArgumentException.class,
+	        org.springframework.web.multipart.support.MissingServletRequestPartException.class,
+	        org.springframework.web.multipart.MaxUploadSizeExceededException.class })
 	public ResponseEntity<ErrorResponse> invalid(Exception exception) {
 		return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "입금 정보를 확인해주세요.");
 	}
@@ -61,6 +68,7 @@ public class PaymentExceptionHandler {
 	}
 
 	private ResponseEntity<ErrorResponse> error(HttpStatus status, String code, String message) {
-		return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(new ErrorResponse(code, message));
+		return ResponseEntity.status(status).cacheControl(CacheControl.noStore())
+		    .body(new ErrorResponse(code, message));
 	}
 }

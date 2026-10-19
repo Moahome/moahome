@@ -8,7 +8,7 @@ import tools.jackson.databind.ObjectMapper;
 
 @Configuration
 @PropertySource("classpath:propertyRegistration.properties")
-@EnableConfigurationProperties({AccountSecurityProperties.class, RegistrationSecurityProperties.class})
+@EnableConfigurationProperties({ AccountSecurityProperties.class, RegistrationSecurityProperties.class })
 public class PropertyRegistrationConfig {
 	@Bean
 	AccountNumberSecurity accountNumberSecurity(AccountSecurityProperties properties) {

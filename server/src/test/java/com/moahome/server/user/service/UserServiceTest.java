@@ -20,6 +20,7 @@ import static org.mockito.Mockito.when;
 
 class UserServiceTest {
 	private final UserRepository users = mock(UserRepository.class);
+
 	private final UserService service = new UserService(users, Clock.systemUTC());
 
 	@Test
@@ -52,8 +53,8 @@ class UserServiceTest {
 		when(users.findByIdAndDeletedAtIsNull(user.getId())).thenReturn(Optional.of(user));
 
 		assertThatThrownBy(() -> service.getCurrentUser(user.getId())).isInstanceOfSatisfying(UserException.class,
-			exception -> assertThat(exception.code()).isEqualTo(UserErrorCode.ACCOUNT_UNAVAILABLE));
+		    exception -> assertThat(exception.code()).isEqualTo(UserErrorCode.ACCOUNT_UNAVAILABLE));
 		assertThatThrownBy(() -> service.getCurrentUser(UUID.randomUUID())).isInstanceOfSatisfying(UserException.class,
-			exception -> assertThat(exception.code()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
+		    exception -> assertThat(exception.code()).isEqualTo(UserErrorCode.USER_NOT_FOUND));
 	}
 }

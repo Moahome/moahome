@@ -25,13 +25,13 @@ public class AuthErrorHandler implements AuthenticationEntryPoint, AccessDeniedH
 
 	@Override
 	public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception)
-		throws IOException {
+	    throws IOException {
 		write(response, AuthErrorCode.AUTHENTICATION_REQUIRED);
 	}
 
 	@Override
 	public void handle(HttpServletRequest request, HttpServletResponse response,
-		org.springframework.security.access.AccessDeniedException exception) throws IOException {
+	    org.springframework.security.access.AccessDeniedException exception) throws IOException {
 		write(response, exception instanceof CsrfException ? AuthErrorCode.CSRF_INVALID : AuthErrorCode.ACCESS_DENIED);
 	}
 
@@ -47,8 +47,7 @@ public class AuthErrorHandler implements AuthenticationEntryPoint, AccessDeniedH
 	}
 
 	@Schema(name = "AuthErrorResponse", description = "인증 / 계정 오류. 입력 원문과 토큰은 포함하지 않습니다.")
-	public record ErrorResponse(
-		@Schema(example = "AUTHENTICATION_REQUIRED") String code,
-		@Schema(example = "인증이 필요합니다.") String message) {
+	public record ErrorResponse(@Schema(example = "AUTHENTICATION_REQUIRED") String code,
+	    @Schema(example = "인증이 필요합니다.") String message) {
 	}
 }

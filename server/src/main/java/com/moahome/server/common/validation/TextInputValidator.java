@@ -5,6 +5,7 @@ import jakarta.validation.ConstraintValidatorContext;
 
 public class TextInputValidator implements ConstraintValidator<TextInput, String> {
 	private int max;
+
 	private boolean optional;
 
 	@Override

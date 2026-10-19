@@ -25,8 +25,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	private final DefaultBearerTokenResolver bearerTokens = new DefaultBearerTokenResolver();
+
 	private final AuthService auth;
+
 	private final WebAuthSupport web;
+
 	private final AuthErrorHandler errors;
 
 	public JwtAuthenticationFilter(AuthService auth, WebAuthSupport web, AuthErrorHandler errors) {
@@ -39,17 +42,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	protected boolean shouldNotFilter(HttpServletRequest request) {
 		String path = request.getRequestURI().substring(request.getContextPath().length());
 		return "GET".equals(request.getMethod())
-			&& (KakaoOAuthConfig.START_PATH.equals(path) || KakaoOAuthConfig.CALLBACK_PATH.equals(path));
+		    && (KakaoOAuthConfig.START_PATH.equals(path) || KakaoOAuthConfig.CALLBACK_PATH.equals(path));
 	}
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
-		throws ServletException, IOException {
+	    throws ServletException, IOException {
 		try {
 			AuthPrincipal principal = resolvePrincipal(request);
 			if (principal != null) {
 				SecurityContext context = SecurityContextHolder.createEmptyContext();
-				context.setAuthentication(UsernamePasswordAuthenticationToken.authenticated(principal, null, List.of()));
+				context
+				    .setAuthentication(UsernamePasswordAuthenticationToken.authenticated(principal, null, List.of()));
 				SecurityContextHolder.setContext(context);
 			}
 		} catch (AuthException exception) {
@@ -72,7 +76,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		}
 		String path = request.getRequestURI().substring(request.getContextPath().length());
 		if ("POST".equals(request.getMethod())
-			&& (AppAuthController.REFRESH_PATH.equals(path) || AppAuthController.LOGOUT_PATH.equals(path))) {
+		    && (AppAuthController.REFRESH_PATH.equals(path) || AppAuthController.LOGOUT_PATH.equals(path))) {
 			return null;
 		}
 		String token = bearerTokens.resolve(request);

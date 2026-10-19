@@ -16,20 +16,21 @@ class SecurityConfigTest {
 	void refusesMissingShortOrInvalidSigningKeys() {
 		for (String secret : List.of("", Base64.getEncoder().encodeToString(new byte[16]), "invalid-base64!")) {
 			assertThatThrownBy(() -> config.jwtAccessSigningKey(properties(secret, "http://localhost:3000")))
-				.isInstanceOf(IllegalArgumentException.class);
+			    .isInstanceOf(IllegalArgumentException.class);
 			var properties = new SecurityProperties(randomSecret(64), secret, "moahome-server", "moahome-api",
-				List.of("http://localhost:3000"), true);
+			    List.of("http://localhost:3000"), true);
 			assertThatThrownBy(() -> config.jwtRefreshSigningKey(properties, config.jwtAccessSigningKey(properties)))
-				.isInstanceOf(IllegalArgumentException.class);
+			    .isInstanceOf(IllegalArgumentException.class);
 		}
 	}
 
 	@Test
 	void allowsExplicitOriginsAndRejectsWildcardsAndNonOrigins() {
 		config.corsConfigurationSource(properties("unused", "http://localhost:3000"));
-		for (String origin : List.of("*", "https://*.example.com", "null", "https://example.com/path", "file:///tmp/test")) {
+		for (String origin : List.of("*", "https://*.example.com", "null", "https://example.com/path",
+		    "file:///tmp/test")) {
 			assertThatThrownBy(() -> config.corsConfigurationSource(properties("unused", origin)))
-				.isInstanceOf(IllegalArgumentException.class);
+			    .isInstanceOf(IllegalArgumentException.class);
 		}
 	}
 
@@ -49,9 +50,9 @@ class SecurityConfigTest {
 	void rejectsTheSameDecodedKeyEvenWithDifferentBase64Padding() {
 		String secret = randomSecret(64);
 		var properties = new SecurityProperties(secret, secret.replace("=", ""), "moahome-server", "moahome-api",
-			List.of("https://app.example.com"), true);
+		    List.of("https://app.example.com"), true);
 		assertThatThrownBy(() -> config.jwtRefreshSigningKey(properties, config.jwtAccessSigningKey(properties)))
-			.isInstanceOf(IllegalArgumentException.class).hasMessageContaining("must be different");
+		    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("must be different");
 	}
 
 	private SecurityProperties properties(String secret, String origin) {

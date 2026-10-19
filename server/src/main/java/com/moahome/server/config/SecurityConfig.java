@@ -69,7 +69,7 @@ public class SecurityConfig {
 	/** 두 토큰이 서명 단계부터 구분되도록 Refresh 키의 재사용 설정을 거부합니다. */
 	@Bean
 	SecretKey jwtRefreshSigningKey(SecurityProperties properties,
-		@Qualifier("jwtAccessSigningKey") SecretKey accessKey) {
+	    @Qualifier("jwtAccessSigningKey") SecretKey accessKey) {
 		SecretKey refreshKey = signingKey(properties.jwtRefreshSecretBase64(), "JWT_REFRESH_SECRET_BASE64");
 		if (MessageDigest.isEqual(accessKey.getEncoded(), refreshKey.getEncoded())) {
 			throw new IllegalArgumentException("JWT Access and Refresh signing keys must be different");
@@ -124,9 +124,9 @@ public class SecurityConfig {
 		for (String origin : properties.allowedOrigins()) {
 			URI uri = URI.create(origin);
 			if (origin.contains("*") || uri.getHost() == null
-				|| !("http".equals(uri.getScheme()) || "https".equals(uri.getScheme()))
-				|| uri.getRawUserInfo() != null || uri.getRawQuery() != null || uri.getRawFragment() != null
-				|| (uri.getRawPath() != null && !uri.getRawPath().isEmpty())) {
+			    || !("http".equals(uri.getScheme()) || "https".equals(uri.getScheme())) || uri.getRawUserInfo() != null
+			    || uri.getRawQuery() != null || uri.getRawFragment() != null
+			    || (uri.getRawPath() != null && !uri.getRawPath().isEmpty())) {
 				throw new IllegalArgumentException("CORS origins must be explicit web origins");
 			}
 		}
@@ -142,59 +142,55 @@ public class SecurityConfig {
 
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http, AuthService auth, WebAuthSupport web,
-		AuthErrorHandler errors, UrlBasedCorsConfigurationSource corsConfigurationSource,
-		OAuthAuthorizationRequestRepository oauthRequests, OAuthLoginHandler oauthHandler,
-		OAuth2AuthorizationRequestResolver kakaoAuthorizationResolver, KakaoOAuthUserService kakaoUsers,
-		RestClientAuthorizationCodeTokenResponseClient kakaoTokenClient,
-		OAuth2AuthorizedClientRepository kakaoAuthorizedClients) throws Exception {
-		http
-			.cors(cors -> cors.configurationSource(corsConfigurationSource))
-			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-			.requestCache(AbstractHttpConfigurer::disable)
-			.formLogin(AbstractHttpConfigurer::disable)
-			.httpBasic(AbstractHttpConfigurer::disable)
-			.logout(AbstractHttpConfigurer::disable)
-			.oauth2Login(oauth -> oauth
-				.loginPage("/login")
-				.securityContextRepository(new NullSecurityContextRepository())
-				.authorizedClientRepository(kakaoAuthorizedClients)
-				.authorizationEndpoint(endpoint -> endpoint
-					.authorizationRequestResolver(kakaoAuthorizationResolver).authorizationRequestRepository(oauthRequests))
-				.tokenEndpoint(endpoint -> endpoint.accessTokenResponseClient(kakaoTokenClient))
-				.userInfoEndpoint(endpoint -> endpoint.userService(kakaoUsers))
-				.successHandler(oauthHandler).failureHandler(oauthHandler)
-				.withObjectPostProcessor(new ObjectPostProcessor<OAuth2AuthorizationRequestRedirectFilter>() {
-					@Override
-					public <O extends OAuth2AuthorizationRequestRedirectFilter> O postProcess(O filter) {
-						filter.setAuthenticationFailureHandler(oauthHandler);
-						return filter;
-					}
-				})
-				.withObjectPostProcessor(new ObjectPostProcessor<OAuth2LoginAuthenticationFilter>() {
-					@Override
-					public <O extends OAuth2LoginAuthenticationFilter> O postProcess(O filter) {
-						filter.setRequiresAuthenticationRequestMatcher(PathPatternRequestMatcher.withDefaults()
-							.matcher(HttpMethod.GET, KakaoOAuthConfig.CALLBACK_PATH));
-						return filter;
-					}
-				}))
-			.csrf(csrf -> csrf
-				.requireCsrfProtectionMatcher(request -> WebAuthSupport.isWebAuthRequest(request)
-					&& "POST".equals(request.getMethod()))
-				.csrfTokenRepository(new SessionCsrfTokenRepository())
-				.csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler() {
-					@Override
-					public String resolveCsrfTokenValue(jakarta.servlet.http.HttpServletRequest request, CsrfToken token) {
-						return request.getHeader(token.getHeaderName());
-					}
-				}))
-			.exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(errors).accessDeniedHandler(errors))
-			.authorizeHttpRequests(requests -> requests
-				.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-				.requestMatchers(HttpMethod.GET, KakaoOAuthConfig.START_PATH, KakaoOAuthConfig.CALLBACK_PATH).permitAll()
-				.requestMatchers(HttpMethod.POST, AppAuthController.REFRESH_PATH, AppAuthController.LOGOUT_PATH).permitAll()
-				.anyRequest().authenticated())
-			.addFilterBefore(new JwtAuthenticationFilter(auth, web, errors), CsrfFilter.class);
+	    AuthErrorHandler errors, UrlBasedCorsConfigurationSource corsConfigurationSource,
+	    OAuthAuthorizationRequestRepository oauthRequests, OAuthLoginHandler oauthHandler,
+	    OAuth2AuthorizationRequestResolver kakaoAuthorizationResolver, KakaoOAuthUserService kakaoUsers,
+	    RestClientAuthorizationCodeTokenResponseClient kakaoTokenClient,
+	    OAuth2AuthorizedClientRepository kakaoAuthorizedClients) throws Exception {
+		http.cors(cors -> cors.configurationSource(corsConfigurationSource))
+		    .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+		    .requestCache(AbstractHttpConfigurer::disable).formLogin(AbstractHttpConfigurer::disable)
+		    .httpBasic(AbstractHttpConfigurer::disable).logout(AbstractHttpConfigurer::disable)
+		    .oauth2Login(
+		        oauth -> oauth.loginPage("/login").securityContextRepository(new NullSecurityContextRepository())
+		            .authorizedClientRepository(kakaoAuthorizedClients)
+		            .authorizationEndpoint(endpoint -> endpoint.authorizationRequestResolver(kakaoAuthorizationResolver)
+		                .authorizationRequestRepository(oauthRequests))
+		            .tokenEndpoint(endpoint -> endpoint.accessTokenResponseClient(kakaoTokenClient))
+		            .userInfoEndpoint(endpoint -> endpoint.userService(kakaoUsers)).successHandler(oauthHandler)
+		            .failureHandler(oauthHandler)
+		            .withObjectPostProcessor(new ObjectPostProcessor<OAuth2AuthorizationRequestRedirectFilter>() {
+			            @Override
+			            public <O extends OAuth2AuthorizationRequestRedirectFilter> O postProcess(O filter) {
+				            filter.setAuthenticationFailureHandler(oauthHandler);
+				            return filter;
+			            }
+		            }).withObjectPostProcessor(new ObjectPostProcessor<OAuth2LoginAuthenticationFilter>() {
+			            @Override
+			            public <O extends OAuth2LoginAuthenticationFilter> O postProcess(O filter) {
+				            filter.setRequiresAuthenticationRequestMatcher(PathPatternRequestMatcher.withDefaults()
+				                .matcher(HttpMethod.GET, KakaoOAuthConfig.CALLBACK_PATH));
+				            return filter;
+			            }
+		            }))
+		    .csrf(csrf -> csrf
+		        .requireCsrfProtectionMatcher(
+		            request -> WebAuthSupport.isWebAuthRequest(request) && "POST".equals(request.getMethod()))
+		        .csrfTokenRepository(new SessionCsrfTokenRepository())
+		        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler() {
+			        @Override
+			        public String resolveCsrfTokenValue(jakarta.servlet.http.HttpServletRequest request,
+			            CsrfToken token) {
+				        return request.getHeader(token.getHeaderName());
+			        }
+		        }))
+		    .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(errors).accessDeniedHandler(errors))
+		    .authorizeHttpRequests(requests -> requests.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+		        .requestMatchers(HttpMethod.GET, KakaoOAuthConfig.START_PATH, KakaoOAuthConfig.CALLBACK_PATH)
+		        .permitAll()
+		        .requestMatchers(HttpMethod.POST, AppAuthController.REFRESH_PATH, AppAuthController.LOGOUT_PATH)
+		        .permitAll().anyRequest().authenticated())
+		    .addFilterBefore(new JwtAuthenticationFilter(auth, web, errors), CsrfFilter.class);
 		return http.build();
 	}
 }

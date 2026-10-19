@@ -53,7 +53,7 @@ public class Unit {
 
 	/** 동 구분과 관리대상 소속을 함께 검증해 다른 관리대상의 동 연결을 차단합니다. */
 	public static Unit create(Property property, Building building, String unitNumber, String displayName,
-		Integer floor, UnitStatus status, OffsetDateTime at) {
+	    Integer floor, UnitStatus status, OffsetDateTime at) {
 		Unit unit = new Unit();
 		unit.applyDetails(property, building, unitNumber, displayName, floor, status);
 		unit.initialize(at);
@@ -62,7 +62,7 @@ public class Unit {
 
 	/** 동일 세대의 기본 정보만 정정하며 ID와 다른 업무 레코드의 세대 연결은 유지합니다. */
 	public void updateDetails(Property property, Building building, String unitNumber, String displayName,
-		Integer floor, UnitStatus status) {
+	    Integer floor, UnitStatus status) {
 		if (!propertyId.equals(property.getId()) || deletedAt != null || this.status == UnitStatus.INACTIVE) {
 			throw new IllegalArgumentException("Invalid unit update");
 		}
@@ -71,10 +71,10 @@ public class Unit {
 
 	/** 생성·수정 모두 같은 동 소속·문자열·층 범위를 검증하며 비활성화는 별도 정책 확정 전까지 제외합니다. */
 	private void applyDetails(Property property, Building building, String unitNumber, String displayName,
-		Integer floor, UnitStatus status) {
+	    Integer floor, UnitStatus status) {
 		if (property.isHasBuildings() != (building != null)
-			|| (building != null && !property.getId().equals(building.getPropertyId()))
-			|| (floor != null && (floor < Short.MIN_VALUE || floor > Short.MAX_VALUE))) {
+		    || (building != null && !property.getId().equals(building.getPropertyId()))
+		    || (floor != null && (floor < Short.MIN_VALUE || floor > Short.MAX_VALUE))) {
 			throw new IllegalArgumentException("Invalid unit configuration");
 		}
 		String normalizedNumber = TextValues.required(unitNumber, 30);
@@ -95,7 +95,8 @@ public class Unit {
 
 	/** 목록에서 제외하되 기존 ID와 연결 기록을 보존하며 재요청에는 최초 삭제 정보를 유지합니다. */
 	public void softDelete(UUID actorId, OffsetDateTime at) {
-		if (deletedAt != null) return;
+		if (deletedAt != null)
+			return;
 		Objects.requireNonNull(actorId);
 		Objects.requireNonNull(at);
 		deletedBy = actorId;

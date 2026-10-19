@@ -34,8 +34,10 @@ public class Property {
 
 	@Column(name = "management_started_at", columnDefinition = "timestamptz")
 	private OffsetDateTime managementStartedAt;
+
 	@Column(name = "balance_cutoff_date")
 	private java.time.LocalDate balanceCutoffDate;
+
 	@Column(name = "first_billing_month")
 	private java.time.LocalDate firstBillingMonth;
 
@@ -71,7 +73,7 @@ public class Property {
 
 	/** 등록 기본 정보를 검증하고 활성 관리대상을 생성합니다. */
 	public static Property create(String name, String address, String addressDetail, String propertyType,
-		boolean hasBuildings, OffsetDateTime at) {
+	    boolean hasBuildings, OffsetDateTime at) {
 		Property property = new Property();
 		property.name = TextValues.required(name, 50);
 		property.address = TextValues.required(address, 255);

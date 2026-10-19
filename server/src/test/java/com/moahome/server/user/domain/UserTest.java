@@ -44,6 +44,6 @@ class UserTest {
 
 	private void assertUnavailable(User user) {
 		assertThatThrownBy(() -> user.recordLogin(now)).isInstanceOfSatisfying(UserException.class,
-			exception -> assertThat(exception.code()).isEqualTo(UserErrorCode.ACCOUNT_UNAVAILABLE));
+		    exception -> assertThat(exception.code()).isEqualTo(UserErrorCode.ACCOUNT_UNAVAILABLE));
 	}
 }

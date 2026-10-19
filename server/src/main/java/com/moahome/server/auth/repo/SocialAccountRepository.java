@@ -13,9 +13,9 @@ import org.springframework.data.repository.query.Param;
 
 public interface SocialAccountRepository extends JpaRepository<SocialAccount, UUID> {
 	@Query("select s from SocialAccount s where s.provider = :provider "
-		+ "and s.providerUserId = :providerUserId and s.deletedAt is null")
+	    + "and s.providerUserId = :providerUserId and s.deletedAt is null")
 	Optional<SocialAccount> findActiveIdentity(@Param("provider") SocialProvider provider,
-		@Param("providerUserId") String providerUserId);
+	    @Param("providerUserId") String providerUserId);
 
 	List<SocialAccount> findAllByUserIdAndDeletedAtIsNullOrderByProviderAscProviderUserIdAsc(UUID userId);
 

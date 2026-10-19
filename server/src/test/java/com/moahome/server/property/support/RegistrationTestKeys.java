@@ -31,6 +31,7 @@ public final class RegistrationTestKeys {
 		registry.add("moahome.account-security.encryption-keys.v1", () -> account.encryptionKeys().get("v1"));
 		registry.add("moahome.account-security.hmac-key-base64", account::hmacKeyBase64);
 		registry.add("moahome.registration-security.active-key-version", fingerprint::activeKeyVersion);
-		registry.add("moahome.registration-security.fingerprint-keys.v1", () -> fingerprint.fingerprintKeys().get("v1"));
+		registry.add("moahome.registration-security.fingerprint-keys.v1",
+		    () -> fingerprint.fingerprintKeys().get("v1"));
 	}
 }
