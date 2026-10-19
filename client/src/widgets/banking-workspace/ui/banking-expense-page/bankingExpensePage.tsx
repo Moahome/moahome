@@ -1,36 +1,36 @@
 'use client';
 
+import { AllocationEditor } from '@/entities/banking';
+import { useSession } from '@/entities/session';
+import { isServerConnectionError } from '@/shared/api';
+import { formatWon } from '@/shared/lib/format';
+import { Button } from '@/shared/ui/button';
+import { ClientModal } from '@/shared/ui/client-modal';
+import { ListHeader } from '@/shared/ui/list-header';
+import { ServerConnectionError } from '@/shared/ui/server-connection-error';
+import { ServiceIcon } from '@/shared/ui/service-icon';
+import { Toast } from '@/shared/ui/toast';
+import {
+  useQuery,
+  useQueryClient
+} from '@tanstack/react-query';
 import {
   useRef,
   useState,
   type ReactNode
 } from 'react';
 import {
-  useQuery,
-  useQueryClient
-} from '@tanstack/react-query';
-import { useSession } from '@/entities/session';
-import { Button } from '@/shared/ui/button';
-import { isServerConnectionError } from '@/shared/api';
-import { ServerConnectionError } from '@/shared/ui/server-connection-error';
-import { ClientModal } from '@/shared/ui/client-modal';
-import { ServiceIcon } from '@/shared/ui/service-icon';
-import { ListHeader } from '@/shared/ui/list-header';
-import { Toast } from '@/shared/ui/toast';
-import { formatWon } from '@/shared/lib/format';
-import {
   bankingError,
-  getBankingWorkspace,
   confirmBankingExpense,
-  type ExpenseDraft
+  getBankingWorkspace
 } from '../../api/bankingApi';
+import type { ExpenseDraft } from '../../api/bankingApiTypes';
 import {
-  createExpenseDraft,
   calculateExpenseAllocation,
+  createExpenseDraft,
   sortExpenseLabels
 } from '../../model/expenseAllocation';
 import { TransferDetail } from '../_components/transfer-detail/transferDetail';
-import { AllocationEditor } from '@/entities/banking';
 import styles from './bankingExpensePage.module.css';
 
 /** PC 모달과 모바일 상세에서 같은 원본·확정 지출을 조회하고 저장 중에는 닫기를 막습니다. */

@@ -1,10 +1,7 @@
 'use client';
 
-import {
-  useRef,
-  useState
-} from 'react';
 import { UNIT_STATUS_OPTIONS } from '@/entities/property';
+import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import {
   AmountInput,
@@ -13,21 +10,24 @@ import {
 import { Pagination } from '@/shared/ui/pagination';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
+  useRef,
+  useState
+} from 'react';
+import { getUnitOpening } from '../../../model/openingBalances';
+import type { OpeningBalancesDraft } from '../../../model/openingBalancesTypes';
+import {
   getFloorLabel,
-  getUnitLabel,
-  type BuildingDraft,
-  type UnitDraft
+  getUnitLabel
 } from '../../../model/unitSetup';
+import type {
+  BuildingDraft,
+  UnitDraft
+} from '../../../model/unitSetupTypes';
 import {
   getSortedBuildings,
   getSortedUnits
 } from '../../_utils/setupSorting';
 import { UnitDeleteConfirmation } from '../unit-delete-confirmation/unitDeleteConfirmation';
-import {
-  getUnitOpening,
-  type OpeningBalancesDraft
-} from '../../../model/openingBalances';
-import { formatWon } from '@/shared/lib/format';
 import styles from './unitList.module.css';
 
 /** 한 목록을 PC·모바일 표로 표시하며 호수·표시 이름 검색과 동별 필터를 적용합니다. */

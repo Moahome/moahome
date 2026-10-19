@@ -1,26 +1,11 @@
 'use client';
-import {
-  type CSSProperties,
-  useRef,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useState,
-  type ReactNode
-} from 'react';
-import {
-  useRouter,
-  useSearchParams
-} from 'next/navigation';
-import {
-  useQuery,
-  useQueryClient,
-  type QueryFilters
-} from '@tanstack/react-query';
 import { useSession } from '@/entities/session';
-import { Button } from '@/shared/ui/button';
 import { isServerConnectionError } from '@/shared/api';
-import { ServerConnectionError } from '@/shared/ui/server-connection-error';
+import {
+  formatInteger,
+  formatWon
+} from '@/shared/lib/format';
+import { Button } from '@/shared/ui/button';
 import { CalendarPicker } from '@/shared/ui/calendar-picker';
 import { ClientModal } from '@/shared/ui/client-modal';
 import {
@@ -33,46 +18,63 @@ import {
   Input,
   SelectDropdown
 } from '@/shared/ui/form-controls';
+import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { ListHeader } from '@/shared/ui/list-header';
 import { MonthPicker } from '@/shared/ui/month-picker';
 import { Pagination } from '@/shared/ui/pagination';
+import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { SummaryCard } from '@/shared/ui/summary-card';
-import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { Toast } from '@/shared/ui/toast';
 import {
-  formatInteger,
-  formatWon
-} from '@/shared/lib/format';
+  useQuery,
+  useQueryClient,
+  type QueryFilters
+} from '@tanstack/react-query';
 import {
+  useRouter,
+  useSearchParams
+} from 'next/navigation';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode
+} from 'react';
+import {
+  bankingError,
+  deleteBankingTransactions
+} from '../../api/bankingApi';
+import {
+  assignCashIncome,
+  balanceError,
+  correctCashOpenings,
+  decideExternalSettlement,
   getBankingBalances,
   saveCashOpenings,
-  correctCashOpenings,
-  assignCashIncome,
-  settleExternalExpense,
-  decideExternalSettlement,
-  balanceError,
-  type BalanceBuilding,
-  type BalanceEntry,
-  type BalanceWorkspace
+  settleExternalExpense
 } from '../../api/bankingBalanceApi';
+import type {
+  BalanceBuilding,
+  BalanceEntry,
+  BalanceWorkspace
+} from '../../api/bankingBalanceApiTypes';
+import {
+  getAccountBalanceDisplay,
+  getAccountBalanceTotal
+} from '../../model/accountBalance';
 import {
   createBalanceWorkbook,
   getBalanceSummary,
   getBuildingLedger
 } from '../../model/balanceLedger';
-import {
-  bankingError,
-  deleteBankingTransactions
-} from '../../api/bankingApi';
 import { sortExpenseLabels } from '../../model/expenseAllocation';
-import { BankingExpensePage } from '../banking-expense-page/bankingExpensePage';
-import { BankAccountDetails } from '../_components/bank-account-details/bankAccountDetails';
 import { AccountBalances } from '../_components/account-balances/accountBalances';
-import {
-  getAccountBalanceDisplay,
-  getAccountBalanceTotal
-} from '../../model/accountBalance';
+import { BankAccountDetails } from '../_components/bank-account-details/bankAccountDetails';
+import { BankingExpensePage } from '../banking-expense-page/bankingExpensePage';
 import styles from './bankingBalances.module.css';
 type Action = {
     kind: 'opening' | 'settlement' | 'assignment' | 'difference';

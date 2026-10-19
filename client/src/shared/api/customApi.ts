@@ -1,14 +1,9 @@
 import { getApiUrl } from './apiUrl';
-
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-
-export interface CustomApiOptions {
-  url: string;
-  method?: HttpMethod;
-  data?: unknown;
-  headers?: HeadersInit;
-  timeoutMs?: number;
-}
+import type {
+  ApiErrorSource,
+  ApiFieldError,
+  CustomApiOptions
+} from './customApiTypes';
 
 export class ApiError extends Error {
   constructor(
@@ -22,15 +17,10 @@ export class ApiError extends Error {
   }
 }
 
-export interface ApiFieldError {
-  field: string;
-  reason: string;
-}
-
 const reportedErrors = new WeakSet<object>();
 
 /** 개발 콘솔에는 실패 위치와 안전한 진단 정보만 남기며, 전송부·화면이 같은 오류를 중복 기록하지 않습니다. */
-export function reportApiError(error: unknown, context: Pick<CustomApiOptions, 'url' | 'method'> | { source: string }) {
+export function reportApiError(error: unknown, context: Pick<CustomApiOptions, 'url' | 'method'> | ApiErrorSource) {
   if (process.env.NODE_ENV !== 'development') return;
   if (error !== null && typeof error === 'object') {
     if (reportedErrors.has(error)) return;

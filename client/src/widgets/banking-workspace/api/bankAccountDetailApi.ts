@@ -1,18 +1,9 @@
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
-
-export interface BankAccountDetail {
-  propertyId: string;
-  accountId: string;
-  updatedAt: string;
-  bankCode: string;
-  bankName: string;
-  last4: string;
-  holderName: string;
-  alias: string | null;
-  isPrimary: boolean;
-  status: 'ACTIVE' | 'INACTIVE' | 'CLOSED';
-}
+import type {
+  BankAccountDetail,
+  BankAccountNumberResponse
+} from './bankAccountDetailApiTypes';
 
 /** 마스킹 상세에 원문이 섞이거나 다른 통장의 응답이 도착하면 조회 캐시에 넣지 않습니다. */
 export async function getBankAccountDetail(propertyId: string, accountId: string): Promise<BankAccountDetail> {
@@ -34,7 +25,7 @@ export async function getBankAccountDetail(propertyId: string, accountId: string
 
 /** 공개 시에만 선택 통장 원문을 읽으며 상세 정정 이후의 다른 버전 번호는 함께 표시하지 않습니다. */
 export async function revealBankAccountNumber(account: BankAccountDetail): Promise<string> {
-  const result = await authenticatedAPI<{ propertyId: string; accountId: string; updatedAt: string; accountNumber: string }>({
+  const result = await authenticatedAPI<BankAccountNumberResponse>({
     url: `/api/properties/${account.propertyId}/banking/account/${account.accountId}/number-reveal`,
     method: 'POST'
   });

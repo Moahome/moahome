@@ -1,21 +1,11 @@
 import { isPropertyId } from '@/entities/property';
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
-
-export interface RegistrationOptions {
-  propertyId: string;
-  hasBuildings: boolean;
-  buildings: { id: string; name: string }[];
-  units: { id: string; buildingId: string | null; unitNumber: string; status: string }[];
-}
-
-export interface ResidentRegistrationInput {
-  requestId: string;
-  name: string;
-  phone: string | null;
-  unitId: string;
-  relationType: string;
-}
+import type {
+  RegistrationOptions,
+  ResidentRegistrationInput,
+  ResidentRegistrationResponse
+} from './residentRegistrationApiTypes';
 
 /** 기존 세대 조회 API를 사용하고 등록에 필요한 식별자·동·호수만 선택지로 사용합니다. */
 export async function getRegistrationOptions(propertyId: string): Promise<RegistrationOptions> {
@@ -36,7 +26,7 @@ export async function getRegistrationOptions(propertyId: string): Promise<Regist
 
 /** 같은 폼의 재시도에는 같은 요청 ID를 보내고 등록 응답에 개인정보가 없어도 결과 소속을 검증합니다. */
 export async function registerResident(propertyId: string, input: ResidentRegistrationInput): Promise<void> {
-  const result = await authenticatedAPI<{ id: string; propertyId: string; unitId: string; representative: boolean }>({
+  const result = await authenticatedAPI<ResidentRegistrationResponse>({
     url: `/api/properties/${propertyId}/residents`,
     method: 'POST',
     data: input

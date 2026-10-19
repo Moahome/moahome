@@ -1,18 +1,14 @@
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
+import type {
+  BalanceWorkspace,
+  CashIncomeInput,
+  CashOpeningCorrectionInput,
+  CashOpeningInput,
+  ExternalSettlementDecisionInput,
+  ExternalSettlementInput
+} from './bankingBalanceApiTypes';
 
-export type BalanceBuilding = { id: string; label: string; active: boolean; startBalance: string | null; income: string; expense: string; balance: string | null; status: 'READY' | 'OPENING_REQUIRED'; openingBalance?: string | null; openingRevision?: number };
-export type BalanceEntry = { id: string; buildingId: string; date: string; time: string | null; label: string; income: string; expense: string; paymentId?: string | null; accountId?: string | null };
-export type ExternalExpense = { accountId?: string; transactionId?: string; transactionAmount?: string; id: string; label: string; expenseName: string; date: string; amount: string; received: string; remaining: string; excluded?: boolean; decisionRevision?: number; recoveries: { id: string; paymentId: string; date: string; payer: string; amount: string }[] };
-export type BalanceIncome = { accountId?: string; id: string; transactionId: string | null; date: string; payer: string; amount: string; available: string; kind: 'HOUSEHOLD' | 'OTHER'; linkedBuildingId?: string | null; linkedUnitLabel?: string | null };
-export type AccountBalance = { id: string; label: string; status: string; balance: string | null; asOf: string | null; openingDate?: string | null; openingBalance?: string | null; openingRevision?: number; calculatedBalance?: string | null; calculationBasisDate?: string | null };
-export type BalanceWorkspace = {
-  accounts?: AccountBalance[];
-  legacyOpening?: { cutoffDate: string; buildings: { buildingId: string; amount: string }[] } | null;
-  accountId?: string | null; propertyId: string; month: string; cutoffDate: string | null; bankBalance: string | null; bankAsOf: string | null;
-  buildings: BalanceBuilding[]; entries: BalanceEntry[]; externals: ExternalExpense[]; incomes: BalanceIncome[];
-  pending: { id: string; date: string; label: string; direction: string; amount: string }[];
-};
 const INTEGER = /^-?[0-9]+$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const validAmount = (value: unknown): value is string => typeof value === 'string' && INTEGER.test(value);
@@ -46,7 +42,7 @@ export async function getBankingBalances(propertyId: string, month: string, acco
   return data;
 }
 
-export async function saveCashOpenings(propertyId: string, data: { accountId?: string; cutoffDate: string; buildings: { buildingId: string; amount: string }[] }) {
+export async function saveCashOpenings(propertyId: string, data: CashOpeningInput) {
   await authenticatedAPI({
     url: `/api/properties/${propertyId}/banking/balances/openings`,
     method: 'POST',
@@ -54,21 +50,21 @@ export async function saveCashOpenings(propertyId: string, data: { accountId?: s
   });
 }
 /** 등록된 동 전체의 기준일·마감 잔고를 원자적으로 정정하고 이전 값은 서버 이력에 보존합니다. */
-export async function correctCashOpenings(propertyId: string, data: { id: string; accountId?: string; cutoffDate: string; buildings: { buildingId: string; amount: string; revision: number }[] }) {
+export async function correctCashOpenings(propertyId: string, data: CashOpeningCorrectionInput) {
   await authenticatedAPI({
     url: `/api/properties/${propertyId}/banking/balances/openings/corrections`,
     method: 'POST',
     data
   });
 }
-export async function assignCashIncome(propertyId: string, data: { paymentId: string; buildingId: string }) {
+export async function assignCashIncome(propertyId: string, data: CashIncomeInput) {
   await authenticatedAPI({
     url: `/api/properties/${propertyId}/banking/balances/income-assignments`,
     method: 'POST',
     data
   });
 }
-export async function settleExternalExpense(propertyId: string, data: { id: string; allocationId: string; paymentId: string; amount: string }) {
+export async function settleExternalExpense(propertyId: string, data: ExternalSettlementInput) {
   await authenticatedAPI({
     url: `/api/properties/${propertyId}/banking/balances/settlements`,
     method: 'POST',
@@ -76,7 +72,7 @@ export async function settleExternalExpense(propertyId: string, data: { id: stri
   });
 }
 /** 정산 대상 여부만 바꾸며 거래·입금·배분 금액을 삭제하지 않습니다. */
-export async function decideExternalSettlement(propertyId: string, data: { id: string; allocationId: string; excluded: boolean; revision: number }) {
+export async function decideExternalSettlement(propertyId: string, data: ExternalSettlementDecisionInput) {
   await authenticatedAPI({
     url: `/api/properties/${propertyId}/banking/balances/settlement-decisions`,
     method: 'POST',

@@ -1,20 +1,25 @@
 'use client';
 
+import { getManagedPropertiesQueryKey } from '@/entities/property';
+import { ApiError } from '@/shared/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import {
   useCallback,
   useEffect,
   useRef,
   useState
 } from 'react';
-import { useRouter } from 'next/navigation';
-import { useQueryClient } from '@tanstack/react-query';
-import { getManagedPropertiesQueryKey } from '@/entities/property';
-import { ApiError } from '@/shared/api';
 import {
   getRegistrationResult,
-  submitRegistration,
-  type RegistrationResult
+  submitRegistration
 } from '../../api/registrationApi';
+import type { RegistrationResult } from '../../api/registrationApiTypes';
+import { discardRegistrationDraft } from '../../model/registrationDraft';
+import type {
+  RegistrationDraft,
+  RegistrationStep
+} from '../../model/registrationDraftTypes';
 import {
   clearPendingRegistration,
   createRegistrationRequest,
@@ -25,14 +30,9 @@ import {
   restorePendingRegistration,
   restoreRegistrationReceipt,
   savePendingRegistration,
-  saveRegistrationReceipt,
-  type PendingRegistration
+  saveRegistrationReceipt
 } from '../../model/registrationSubmission';
-import {
-  discardRegistrationDraft,
-  type RegistrationDraft,
-  type RegistrationStep
-} from '../../model/registrationDraft';
+import type { PendingRegistration } from '../../model/registrationSubmissionTypes';
 import type { SubmissionStatus } from '../_components/registration-review/registrationReview';
 
 /** 통신 장애에는 기존 ID로 결과를 확인하고 등록 내역이 없으면 같은 ID로 입력 수정·재등록을 허용합니다. */

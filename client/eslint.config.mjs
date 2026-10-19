@@ -151,6 +151,65 @@ const uiFolders = {
   }
 };
 
+/** 업무 타입과 실행 코드를 분리하고 API 계약이 호출 함수 안에 다시 섞이지 않게 합니다. */
+const typeFiles = {
+  meta: {
+    type: 'problem',
+    schema: [],
+    messages: {
+      declarationFile: '업무 타입 / 인터페이스는 같은 책임의 *Types.ts 파일에 선언하세요.',
+      typeOnlyFile: '*Types.ts에는 타입 선언과 import type / export type만 작성하세요.',
+      apiContract: 'API의 객체 자료형은 *ApiTypes.ts에 이름을 정의하고 가져오세요.',
+    },
+  },
+  create(context) {
+    const { parts } = getModuleInfo(context.filename);
+    const isTypeFile = context.filename.endsWith('Types.ts');
+    const isUi = parts.includes('ui') || (parts[0] === 'app' && context.filename.endsWith('.tsx'));
+    const isApi = parts.includes('api');
+
+    /** UI의 작은 표시 타입은 허용하며 업무 타입은 전용 파일에서만 선언합니다. */
+    function checkDeclaration(node) {
+      if (!isTypeFile && !isUi) {
+        context.report({
+          node,
+          messageId: 'declarationFile'
+        });
+      }
+    }
+
+    return {
+      Program(node) {
+        if (!isTypeFile) return;
+        for (const statement of node.body) {
+          const declaration = statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement;
+          const isDeclaration = ['TSTypeAliasDeclaration', 'TSInterfaceDeclaration'].includes(declaration?.type);
+          const isImport = statement.type === 'ImportDeclaration' && statement.importKind === 'type';
+          const isExport = ['ExportNamedDeclaration', 'ExportAllDeclaration'].includes(statement.type)
+            && !statement.declaration && (statement.exportKind === 'type'
+              || (statement.specifiers?.length > 0 && statement.specifiers.every((specifier) => specifier.exportKind === 'type')));
+          if (isDeclaration || isImport || isExport) continue;
+
+          context.report({
+            node: statement,
+            messageId: 'typeOnlyFile'
+          });
+        }
+      },
+      TSTypeAliasDeclaration: checkDeclaration,
+      TSInterfaceDeclaration: checkDeclaration,
+      TSTypeLiteral(node) {
+        if (!isApi || isTypeFile || isUi) return;
+
+        context.report({
+          node,
+          messageId: 'apiContract'
+        });
+      },
+    };
+  },
+};
+
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -160,13 +219,15 @@ const eslintConfig = defineConfig([
       architecture: {
         rules: {
           'import-boundaries': importBoundaries,
-          'ui-folders': uiFolders
+          'ui-folders': uiFolders,
+          'type-files': typeFiles
         }
       },
     },
     rules: {
       'architecture/import-boundaries': 'error',
       'architecture/ui-folders': 'error',
+      'architecture/type-files': 'error',
       'react/jsx-one-expression-per-line': ['error', {
         allow: 'none'
       }],

@@ -8,11 +8,13 @@ export {
 export {
   EMPTY_BANK_ACCOUNT,
   getBankAccountErrors,
-  normalizeAccountNumber,
   isBankAccountDraft,
-  type BankAccountDraft,
-  type BankAccountErrors
+  normalizeAccountNumber
 } from './model/bankAccount';
+export type {
+  BankAccountDraft,
+  BankAccountErrors
+} from './model/bankAccountTypes';
 export {
   BankAccountFields
 } from './ui/bank-account-fields/bankAccountFields';
@@ -22,11 +24,16 @@ export {
 } from './ui/bank-account-card/bankAccountCard';
 
 export {
+  calculateExpenseAllocation,
+  sortExpenseLabels
+} from './model/allocation';
+export type {
+  BankingAllocation,
+  ExpenseDraft
+} from './model/allocationTypes';
+export {
   AllocationEditor
 } from './ui/allocation-editor/allocationEditor';
 export {
   IncomeAllocationSummary
 } from './ui/income-allocation-summary/incomeAllocationSummary';
-export {
-  calculateExpenseAllocation, sortExpenseLabels, type BankingAllocation, type ExpenseDraft
-} from './model/allocation';

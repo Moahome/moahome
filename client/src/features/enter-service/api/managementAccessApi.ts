@@ -1,14 +1,11 @@
 'use client';
 
-import { authenticatedAPI } from '@/entities/session';
-import { isPropertyId } from '@/entities/property';
-import { ApiError } from '@/shared/api';
+import type { ManagedPropertiesResponse } from './managementAccessApiTypes';
 
-export interface ManagementProperty {
-  propertyId: string;
-  name: string;
-  role: 'ADMIN' | 'MANAGER';
-}
+import { isPropertyId } from '@/entities/property';
+import { authenticatedAPI } from '@/entities/session';
+import { ApiError } from '@/shared/api';
+import type { ManagementProperty } from './managementAccessApiTypes';
 
 /** 잘못된 자료형·주민 역할을 관리 권한으로 해석하지 않습니다. */
 function isManagementProperty(value: unknown): value is ManagementProperty {
@@ -20,7 +17,7 @@ function isManagementProperty(value: unknown): value is ManagementProperty {
 
 /** 브라우저 등록 기록 없이 서버의 현재 관리대상 전체를 조회합니다. */
 export async function getManagedProperties(): Promise<ManagementProperty[]> {
-  const response = await authenticatedAPI<{ properties: unknown }>({
+  const response = await authenticatedAPI<ManagedPropertiesResponse>({
     url: '/api/users/me/managed-properties'
   });
   if (!response || !Array.isArray(response.properties) || !response.properties.every(isManagementProperty)) {

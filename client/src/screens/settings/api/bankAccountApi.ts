@@ -1,12 +1,10 @@
-import { authenticatedAPI } from '@/entities/session';
 import type { BankAccountDraft } from '@/entities/banking';
+import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
-
-export type BankAccountSettings = Omit<BankAccountDraft, 'isPrimary'> & {
-  propertyId: string;
-  accountId: string;
-  updatedAt: string;
-};
+import type {
+  BankAccountSettings,
+  ManagedBankAccount
+} from './bankAccountApiTypes';
 
 /** 다른 관리대상의 응답이나 번호·버전이 손상된 응답은 편집 화면에 반영하지 않습니다. */
 function readAccount<T extends Omit<BankAccountSettings, 'alias'>>(value: T, propertyId: string) {
@@ -55,12 +53,6 @@ export function bankAccountError(error: unknown) {
 
   return error instanceof ApiError ? messages[error.code] ?? '계좌 정보를 처리하지 못했어요. 다시 시도해주세요.' : '계좌 정보를 처리하지 못했어요. 다시 시도해주세요.';
 }
-
-export type ManagedBankAccount = Omit<BankAccountSettings, 'alias'> & {
-  alias: string | null;
-  isPrimary: boolean;
-  status: 'ACTIVE' | 'INACTIVE' | 'CLOSED';
-};
 
 /** 통장 목록 원문은 설정을 열었을 때만 조회하며 종료 통장도 과거 내역 확인을 위해 유지합니다. */
 export async function getBankAccounts(propertyId: string) {

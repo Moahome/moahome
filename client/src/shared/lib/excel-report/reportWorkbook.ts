@@ -2,10 +2,11 @@ import type {
   CellObject,
   SheetData
 } from 'write-excel-file/universal';
-
-export type ReportColumn = { label: string; width: number; align?: 'left' | 'center' | 'right' };
-type ReportValue = string | bigint;
-type ReportSummary = { label: string; value: ReportValue };
+import type {
+  ReportColumn,
+  ReportDefinition,
+  ReportValue
+} from './reportWorkbookTypes';
 
 // 사용자가 제공한 지출 내역서의 문서 팔레트입니다. 브라우저 UI 색상과 별도로 XLSX에 기록합니다.
 const COLORS = {
@@ -68,18 +69,6 @@ function table(columns: readonly ReportColumn[], rows: readonly (readonly Report
     })))
   ];
 }
-
-/** 첨부 지출 내역서의 제목·요약·표·합계 배치를 모든 조회 보고서에 동일하게 적용합니다. */
-type ReportDefinition = {
-  title: string;
-  description: string;
-  sheet: string;
-  columns: readonly ReportColumn[];
-  rows: readonly (readonly ReportValue[])[];
-  summary: readonly ReportSummary[];
-  total?: readonly ReportValue[];
-  note: string;
-};
 
 /** 한 보고서 시트의 내용·표시 옵션을 구성해 원장별 추가 시트도 같은 문서 서식을 사용합니다. */
 function reportSheet({ title, description, sheet, columns, rows, summary, total, note }: ReportDefinition) {

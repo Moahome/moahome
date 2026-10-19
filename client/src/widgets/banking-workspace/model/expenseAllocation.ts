@@ -2,11 +2,12 @@ import type {
   BankingTransaction,
   BankingWorkspaceData,
   ExpenseDraft
-} from '../api/bankingApi';
+} from '../api/bankingApiTypes';
 
 import { sortExpenseLabels } from '@/entities/banking';
 export {
-  calculateExpenseAllocation, sortExpenseLabels
+  calculateExpenseAllocation,
+  sortExpenseLabels
 } from '@/entities/banking';
 
 /** 선택한 동의 실제 부담액만 합산해 외부 부담액·은행 출금 원액과 구분합니다. */

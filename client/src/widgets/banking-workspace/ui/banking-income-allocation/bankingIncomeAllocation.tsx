@@ -1,30 +1,30 @@
 'use client';
 
 import {
-  useRef,
-  useState
-} from 'react';
-import {
-  useQuery,
-  useQueryClient
-} from '@tanstack/react-query';
+  AllocationEditor,
+  IncomeAllocationSummary
+} from '@/entities/banking';
 import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
 import { Toast } from '@/shared/ui/toast';
 import {
+  useQuery,
+  useQueryClient
+} from '@tanstack/react-query';
+import {
+  useRef,
+  useState
+} from 'react';
+import {
   allocateBankingIncome,
   bankingError,
-  getBankingWorkspace,
-  type ExpenseDraft
+  getBankingWorkspace
 } from '../../api/bankingApi';
+import type { ExpenseDraft } from '../../api/bankingApiTypes';
 import {
-  createExpenseDraft,
   calculateExpenseAllocation,
+  createExpenseDraft
 } from '../../model/expenseAllocation';
-import {
-  AllocationEditor,
-  IncomeAllocationSummary
-} from '@/entities/banking';
 import styles from './bankingIncomeAllocation.module.css';
 
 /** 확정 기타 입금만 배분하며 원본 한 건·입금 전액을 동별 몫으로 나누어 저장합니다. */

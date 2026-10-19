@@ -38,5 +38,3 @@ export const FEE_ITEM_OPTIONS = [
     description: '공용 생활 쓰레기 수거·처리 비용'
   },
 ] as const satisfies readonly Option[];
-
-export type FeeItemCode = typeof FEE_ITEM_OPTIONS[number]['value'];

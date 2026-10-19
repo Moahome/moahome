@@ -1,31 +1,11 @@
 import { isPropertyId } from '@/entities/property';
 import {
   RESIDENT_RELATION_OPTIONS,
-  RESIDENT_SIGNUP_OPTIONS,
-  type ResidentSignupStatus
+  RESIDENT_SIGNUP_OPTIONS
 } from '@/entities/resident';
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
-
-export interface ResidentRow {
-  id: string;
-  name: string;
-  phoneLast4: string | null;
-  unitId: string | null;
-  buildingId: string | null;
-  unitNumber: string | null;
-  relationType: string | null;
-  representative: boolean;
-  signupStatus: ResidentSignupStatus;
-  serviceRole?: 'ADMIN' | 'MANAGER' | 'RESIDENT' | 'CONFLICT' | null;
-}
-
-export interface ResidentList {
-  propertyId: string;
-  hasBuildings: boolean;
-  buildings: { id: string; name: string }[];
-  residents: ResidentRow[];
-}
+import type { ResidentList } from './residentApiTypes';
 
 /** 전체 연락처 대신 끝 네 자리와 같은 관리대상의 현재 소속만 받아 명부의 자료형을 검증합니다. */
 export async function getResidents(propertyId: string): Promise<ResidentList> {

@@ -1,15 +1,3 @@
-import { useRouter } from 'next/navigation';
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState
-} from 'react';
-import {
-  useMutation,
-  useQuery,
-  useQueryClient
-} from '@tanstack/react-query';
 import {
   EMPTY_AUTOMATIC_UNIT_RULE,
   createAutomaticUnits,
@@ -19,19 +7,31 @@ import {
 } from '@/entities/property';
 import { useSession } from '@/entities/session';
 import {
-  getUnits,
-  saveUnit,
-  saveBuilding,
-  saveUnits,
-  deleteUnits,
   deleteBuilding,
+  deleteUnits,
+  getUnits,
+  saveBuilding,
+  saveUnit,
+  saveUnits,
   type UnitList
 } from '@/features/unit-management';
 import {
+  useMutation,
+  useQuery,
+  useQueryClient
+} from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState
+} from 'react';
+import {
   EMPTY_UNIT_LIST_FILTERS,
-  getUnitListView,
-  type UnitListFilters
+  getUnitListView
 } from '../../model/unitList';
+import type { UnitListFilters } from '../../model/unitListTypes';
 
 type UnitListDialog = {
   kind: 'unit';

@@ -4,11 +4,11 @@ import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
 import { DataTable } from '@/shared/ui/data-table';
 import { ServiceIcon } from '@/shared/ui/service-icon';
+import { formatBillingMonth } from '../../../lib/billingLabel';
 import {
-  formatBillingMonth,
   getBillingDates,
   getSortedBillingCharges,
-  sumBillingItems,
+  sumBillingItems
 } from '../../../model/billing';
 import styles from './billingDetail.module.css';
 

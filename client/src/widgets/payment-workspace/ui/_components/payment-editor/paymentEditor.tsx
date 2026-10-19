@@ -1,27 +1,29 @@
 'use client';
 
-import {
-  useState,
-  type ReactNode
-} from 'react';
 import { IncomeAllocationSummary } from '@/entities/banking';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
-import { Toast } from '@/shared/ui/toast';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
-  SelectDropdown,
-  Input
+  Input,
+  SelectDropdown
 } from '@/shared/ui/form-controls';
+import { ServiceIcon } from '@/shared/ui/service-icon';
+import { Toast } from '@/shared/ui/toast';
 import {
+  useState,
+  type ReactNode
+} from 'react';
+import {
+  getCumulativePreviewBalance,
   getPreviewDuplicateCandidates,
   getPreviewSelectableUnits,
-  getPreviewUnitSearchOptions,
-  getCumulativePreviewBalance,
-  type CumulativePaymentDraft,
-  type PreviewPayment
+  getPreviewUnitSearchOptions
 } from '../../../model/paymentPreview';
+import type {
+  CumulativePaymentDraft,
+  PreviewPayment
+} from '../../../model/paymentPreviewTypes';
 import { usePaymentWorkspace } from '../../payment-workspace-provider/paymentWorkspaceProvider';
 import styles from './paymentEditor.module.css';
 

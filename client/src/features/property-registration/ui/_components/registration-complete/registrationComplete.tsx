@@ -1,18 +1,18 @@
 'use client';
 
-import {
-  useEffect,
-  useRef
-} from 'react';
-import { Button } from '@/shared/ui/button';
-import { useRouter } from 'next/navigation';
 import { formatWon } from '@/shared/lib/format';
+import { Button } from '@/shared/ui/button';
 import {
   ServiceIcon,
   type ServiceIconName
 } from '@/shared/ui/service-icon';
-import type { RegistrationResult } from '../../../api/registrationApi';
-import type { RegistrationDraft } from '../../../model/registrationDraft';
+import { useRouter } from 'next/navigation';
+import {
+  useEffect,
+  useRef
+} from 'react';
+import type { RegistrationResult } from '../../../api/registrationApiTypes';
+import type { RegistrationDraft } from '../../../model/registrationDraftTypes';
 import styles from './registrationComplete.module.css';
 
 /** 성공한 결과로만 완료를 표시하고 계좌·예금주 원문은 현재 메모리에서만 읽습니다. */

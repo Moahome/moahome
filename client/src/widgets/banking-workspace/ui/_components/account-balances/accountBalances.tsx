@@ -5,10 +5,10 @@ import {
   BankIcon
 } from '@/entities/banking';
 import { formatWon } from '@/shared/lib/format';
-import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { Button } from '@/shared/ui/button';
+import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import type { AccountBalance } from '../../../api/bankingBalanceApi';
+import type { AccountBalance } from '../../../api/bankingBalanceApiTypes';
 import { getAccountBalanceDisplay } from '../../../model/accountBalance';
 import styles from './accountBalances.module.css';
 

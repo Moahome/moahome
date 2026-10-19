@@ -1,65 +1,50 @@
-import {
-  EMPTY_AUTOMATIC_UNIT_RULE,
-  type AutomaticUnitRule
-} from './automaticUnits';
-import {
-  EMPTY_BASIC_INFO,
-  getBasicInfoErrors,
-  type BasicInfoDraft
-} from './basicInfo';
-import {
-  normalizeBuildingName,
-  getUnitSetupError,
-  type BuildingDraft,
-  type UnitDraft
-} from './unitSetup';
+import { UNIT_STATUS_OPTIONS } from '@/entities/property';
+import { EMPTY_AUTOMATIC_UNIT_RULE } from './automaticUnits';
+import type { AutomaticUnitRule } from './automaticUnitsTypes';
 import {
   createRegistrationAccount,
   getRegistrationAccountsError,
-  type RegistrationAccount,
   isBankAccountDraft,
-  normalizeAccountNumber,
+  normalizeAccountNumber
 } from './bankAccount';
+import type { RegistrationAccount } from './bankAccountTypes';
 import {
-  isFeeItemDraftList,
+  EMPTY_BASIC_INFO,
+  getBasicInfoErrors
+} from './basicInfo';
+import {
   getFeeItemsError,
-  type FeeItemDraft
+  isFeeItemDraftList
 } from './feeItems';
-import { UNIT_STATUS_OPTIONS } from '@/entities/property';
+import {
+  getUnitSetupError,
+  normalizeBuildingName
+} from './unitSetup';
+import type {
+  BuildingDraft,
+  UnitDraft
+} from './unitSetupTypes';
 
 import {
   EMPTY_ADMINISTRATOR,
-  restoreAdministrator,
-  type AdministratorDraft
+  restoreAdministrator
 } from './administrator';
 
 import {
   EMPTY_OPENING_BALANCES,
-  restoreOpeningBalances,
-  getUnitOpeningError,
   getCashOpeningError,
   getFirstBillingError,
-  type OpeningBalancesDraft
+  getUnitOpeningError,
+  restoreOpeningBalances
 } from './openingBalances';
+import type {
+  RegistrationDraft,
+  RegistrationStep
+} from './registrationDraftTypes';
 
 const LEGACY_PREVIEW_STORAGE_KEY = 'moahome.property-registration.manager-preview';
 
 const DRAFT_STORAGE_KEY = 'moahome.property-registration.basic-info';
-
-export type RegistrationStep = 'basic' | 'units' | 'account' | 'fees' | 'review';
-
-export interface RegistrationDraft {
-  basicInfo: BasicInfoDraft;
-  administrator: AdministratorDraft;
-  buildings: BuildingDraft[];
-  units: UnitDraft[];
-  automaticUnitRule: AutomaticUnitRule;
-  bankAccounts: RegistrationAccount[];
-  feeItems: FeeItemDraft[];
-  openingBalances: OpeningBalancesDraft;
-  step: RegistrationStep;
-  basicInfoValidated: boolean;
-}
 
 /** 새 등록에는 예시 세대를 넣지 않고 기본 입력과 빈 동·세대 목록을 만듭니다. */
 function createEmptyDraft(): RegistrationDraft {

@@ -1,11 +1,32 @@
 'use client';
 
+import { AllocationEditor } from '@/entities/banking';
+import { useSession } from '@/entities/session';
+import { isServerConnectionError } from '@/shared/api';
 import {
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode
-} from 'react';
+  formatInteger,
+  formatWon
+} from '@/shared/lib/format';
+import { Button } from '@/shared/ui/button';
+import { ClientModal } from '@/shared/ui/client-modal';
+import {
+  DataTable,
+  type DataTableColumn
+} from '@/shared/ui/data-table';
+import { FileDropzone } from '@/shared/ui/file-dropzone';
+import { FilterTabs } from '@/shared/ui/filter-tabs';
+import {
+  Dropdown,
+  Input
+} from '@/shared/ui/form-controls';
+import { InfoTooltip } from '@/shared/ui/info-tooltip';
+import { ListHeader } from '@/shared/ui/list-header';
+import { MonthPicker } from '@/shared/ui/month-picker';
+import { Pagination } from '@/shared/ui/pagination';
+import { ServerConnectionError } from '@/shared/ui/server-connection-error';
+import { ServiceIcon } from '@/shared/ui/service-icon';
+import { SummaryCard } from '@/shared/ui/summary-card';
+import { Toast } from '@/shared/ui/toast';
 import {
   useQuery,
   useQueryClient
@@ -14,52 +35,33 @@ import {
   useRouter,
   useSearchParams
 } from 'next/navigation';
-import { useSession } from '@/entities/session';
-import { Button } from '@/shared/ui/button';
-import { isServerConnectionError } from '@/shared/api';
-import { ServerConnectionError } from '@/shared/ui/server-connection-error';
-import { ClientModal } from '@/shared/ui/client-modal';
 import {
-  DataTable,
-  type DataTableColumn
-} from '@/shared/ui/data-table';
-import { FilterTabs } from '@/shared/ui/filter-tabs';
-import {
-  Dropdown,
-  Input
-} from '@/shared/ui/form-controls';
-import { FileDropzone } from '@/shared/ui/file-dropzone';
-import { ListHeader } from '@/shared/ui/list-header';
-import { MonthPicker } from '@/shared/ui/month-picker';
-import { Pagination } from '@/shared/ui/pagination';
-import { ServiceIcon } from '@/shared/ui/service-icon';
-import { Toast } from '@/shared/ui/toast';
-import { SummaryCard } from '@/shared/ui/summary-card';
-import { InfoTooltip } from '@/shared/ui/info-tooltip';
-import {
-  formatInteger,
-  formatWon
-} from '@/shared/lib/format';
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react';
 import {
   bankingError,
   deleteBankingTransactions,
   getBankingWorkspace,
-  previewBankingFile,
   importBankingFile,
-  type BankingPreview,
-  type BankingSelection,
-  type BankingTransaction,
-  type ExpenseDraft
+  previewBankingFile
 } from '../../api/bankingApi';
+import type {
+  BankingPreview,
+  BankingSelection,
+  BankingTransaction,
+  ExpenseDraft
+} from '../../api/bankingApiTypes';
 import {
-  createExpenseDraft,
   calculateExpenseAllocation,
+  createExpenseDraft,
   getExpenseAmount,
   sortExpenseLabels
 } from '../../model/expenseAllocation';
 import { createExpenseWorkbook } from '../../model/expenseExport';
 import { TransferDetail } from '../_components/transfer-detail/transferDetail';
-import { AllocationEditor } from '@/entities/banking';
 import { BankingExpensePage } from '../banking-expense-page/bankingExpensePage';
 import styles from './bankingWorkspace.module.css';
 

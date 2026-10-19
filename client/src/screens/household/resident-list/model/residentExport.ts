@@ -1,6 +1,6 @@
-import { createReportWorkbook } from '@/shared/lib/excel-report';
 import { formatResidentPhone } from '@/entities/resident';
-import type { ResidentExportRow } from '../api/residentExportApi';
+import { createReportWorkbook } from '@/shared/lib/excel-report';
+import type { ResidentExportRow } from '../api/residentExportApiTypes';
 
 export const RESIDENT_EXPORT_HEADERS = ['주민명', '연락처', '동·호수'] as const;
 

@@ -1,7 +1,7 @@
 import type {
   PreviewLedger,
   PreviewPayment
-} from './paymentPreview';
+} from './paymentPreviewTypes';
 
 /** 은행 연동·실제 거래를 가장하지 않는 고정 예시입니다. 실제 업무 데이터와 섞어 사용하지 않습니다. */
 export function createPaymentSample(): PreviewLedger {

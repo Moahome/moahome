@@ -1,8 +1,10 @@
 export {
+  getSignupOptions,
   getSignupRequests,
   reviewSignupRequest,
-  getSignupOptions,
-  submitSignupRequest,
-  type SignupRequest
+  submitSignupRequest
 } from './api/membershipRequestApi';
+export type {
+  SignupRequest
+} from './api/membershipRequestApiTypes';
 

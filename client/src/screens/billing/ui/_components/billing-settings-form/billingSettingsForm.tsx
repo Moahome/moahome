@@ -1,10 +1,4 @@
 import {
-  useId,
-  useRef,
-  useState,
-  type FormEvent
-} from 'react';
-import {
   FEE_ITEM_OPTIONS,
   type BillingItem
 } from '@/entities/billing';
@@ -18,11 +12,17 @@ import {
 import { ListCard } from '@/shared/ui/list-card';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
-  formatBillingMonth,
+  useId,
+  useRef,
+  useState,
+  type FormEvent
+} from 'react';
+import { formatBillingMonth } from '../../../lib/billingLabel';
+import {
   getSettingsError,
-  sumBillingItems,
-  type ScheduledSettings
+  sumBillingItems
 } from '../../../model/billing';
+import type { ScheduledSettings } from '../../../model/billingTypes';
 import styles from './billingSettingsForm.module.css';
 
 const ITEM_OPTIONS = [...FEE_ITEM_OPTIONS, {

@@ -1,20 +1,20 @@
 import { ApiError } from '@/shared/api';
-import { type RegistrationRequest } from '../api/registrationApi';
-import { normalizeBasicInfo } from './basicInfo';
-import { getUnitSetupError } from './unitSetup';
+import type { RegistrationRequest } from '../api/registrationApiTypes';
+import { EMPTY_AUTOMATIC_UNIT_RULE } from './automaticUnits';
 import {
   getRegistrationAccountsError,
   isBankAccountDraft
 } from './bankAccount';
+import { normalizeBasicInfo } from './basicInfo';
 import {
   getFeeItemsError,
   isFeeItemDraftList
 } from './feeItems';
-import { EMPTY_AUTOMATIC_UNIT_RULE } from './automaticUnits';
 import type {
   RegistrationDraft,
   RegistrationStep
-} from './registrationDraft';
+} from './registrationDraftTypes';
+import { getUnitSetupError } from './unitSetup';
 
 import {
   EMPTY_ADMINISTRATOR,
@@ -23,22 +23,18 @@ import {
 
 import {
   EMPTY_OPENING_BALANCES,
-  getUnitOpening,
-  getUnitOpeningError,
   getCashOpeningError,
   getFirstBillingError,
-  type OpeningBalancesDraft
+  getUnitOpening,
+  getUnitOpeningError
 } from './openingBalances';
+import type { OpeningBalancesDraft } from './openingBalancesTypes';
+import type { PendingRegistration } from './registrationSubmissionTypes';
 
 const SUBMISSION_KEY = 'moahome.property-registration.submission';
 const RECEIPT_KEY = 'moahome.property-registration.receipt';
 const PENDING_PREFIX = 'moahome.property-registration.pending.';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export interface PendingRegistration {
-  requestId: string;
-  request: RegistrationRequest | null;
-}
 
 /** 고정된 제출 본문을 실제 등록의 세대 참조와 대조해 복원하며 옛 요청에는 새 인계를 덧붙이지 않습니다. */
 function restoreSubmittedOpening(request: RegistrationRequest): OpeningBalancesDraft | null {

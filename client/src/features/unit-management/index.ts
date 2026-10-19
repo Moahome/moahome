@@ -1,12 +1,14 @@
 export {
-  getUnits,
-  saveUnit,
-  saveBuilding,
-  saveUnits,
-  deleteUnits,
   deleteBuilding,
-  type UnitList
+  deleteUnits,
+  getUnits,
+  saveBuilding,
+  saveUnit,
+  saveUnits
 } from './api/unitApi';
+export type {
+  UnitList
+} from './api/unitApiTypes';
 export {
   getUnitManagementError
 } from './api/unitError';

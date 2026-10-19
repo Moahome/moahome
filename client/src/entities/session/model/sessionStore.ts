@@ -1,11 +1,6 @@
 'use client';
 
-export interface WebSession {
-  accessToken: string;
-  tokenType: 'Bearer';
-  accessExpiresAt: string;
-  csrfToken: string;
-}
+import type { WebSession } from './sessionStoreTypes';
 
 // 토큰은 브라우저 메모리에만 보관합니다. 서버 렌더링이나 영속 저장소에서 공유하지 않습니다.
 let session: WebSession | null = null;

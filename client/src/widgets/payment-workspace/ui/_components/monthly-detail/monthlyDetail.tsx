@@ -6,9 +6,9 @@ import { ClientModal } from '@/shared/ui/client-modal';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   getMonthlyPreviewRows,
-  getPreviewDueDate,
-  type MonthlyPreviewRow
+  getPreviewDueDate
 } from '../../../model/paymentPreview';
+import type { MonthlyPreviewRow } from '../../../model/paymentPreviewTypes';
 import { usePaymentWorkspace } from '../../payment-workspace-provider/paymentWorkspaceProvider';
 import {
   MONTHLY_STATUS_TONES,

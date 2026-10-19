@@ -1,12 +1,14 @@
 export {
-  customAPI, ApiError, reportApiError
+  getApiUrl
+} from './apiUrl';
+export {
+  ApiError,
+  customAPI,
+  reportApiError
 } from './customApi';
 export type {
   CustomApiOptions
-} from './customApi';
-export {
-  getApiUrl
-} from './apiUrl';
+} from './customApiTypes';
 export {
   isServerConnectionError
 } from './isServerConnectionError';

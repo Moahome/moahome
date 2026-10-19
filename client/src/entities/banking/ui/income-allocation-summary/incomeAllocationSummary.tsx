@@ -1,9 +1,7 @@
 import { formatWon } from '@/shared/lib/format';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import {
-  sortExpenseLabels,
-  type BankingAllocation
-} from '../../model/allocation';
+import { sortExpenseLabels } from '../../model/allocation';
+import type { BankingAllocation } from '../../model/allocationTypes';
 import styles from './incomeAllocationSummary.module.css';
 
 /** 저장된 금액의 표시 비율만 소수 둘째 자리로 반올림하며 실제 배분 금액은 바꾸지 않습니다. */

@@ -3,30 +3,16 @@ import {
   ApiError,
   reportApiError
 } from '@/shared/api';
+import type { BankTransferInput } from './bankingApiTypes';
 
+import type { ExpenseDraft } from '@/entities/banking';
 import type {
-  BankingAllocation,
-  ExpenseDraft
-} from '@/entities/banking';
-export type {
-  BankingAllocation, ExpenseDraft
-} from '@/entities/banking';
-export type BankingExpense = ExpenseDraft & { id: string };
-export type BankingTransaction = {
-  id: string; accountId: string; date: string; time: string | null; payer: string; memo: string | null;
-  amount: string; balance: string | null; direction: 'INCOME' | 'EXPENSE'; ruleKey: string;
-  transferCandidate?: boolean; transferId?: string | null;
-  paymentId: string | null; status: string; unitId: string; unitLabel: string; expense: BankingExpense | null; incomeAllocation?: BankingExpense | null; receiptType?: 'HOUSEHOLD' | 'OTHER' | null;
-};
-export type BankingAccount = { id: string; bankName: string; last4: string; alias: string | null; isPrimary: boolean; status: string };
-export type BankingWorkspaceData = {
-  accounts?: BankingAccount[];
-  propertyId: string; asOf: string; buildings: { id: string; label: string }[]; units: { id: string; label: string }[];
-  rows: BankingTransaction[];
-  rules: { key: string; accountId: string; category: string; mode: ExpenseDraft['mode']; allocations: BankingAllocation[] }[];
-};
-export type BankingPreview = { propertyId: string; rows: BankingTransaction[]; duplicateCount: number; beforeCutoffCount: number };
-export type BankingSelection = { id: string; unitId?: string; incomeCategory?: string; incomeNote?: string; expense?: ExpenseDraft; incomeAllocation?: ExpenseDraft; transfer?: boolean };
+  BankingPreview,
+  BankingSelection,
+  BankingTransaction,
+  BankingWorkspaceData
+} from './bankingApiTypes';
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const AMOUNT = /^[0-9]{1,15}$/;
 
@@ -124,7 +110,7 @@ export async function allocateBankingIncome(propertyId: string, id: string, data
   }), propertyId);
 }
 /** 같은 금액의 반대 방향 원본을 명시적으로 선택하고 서버가 같은 대상·다른 통장을 다시 검증합니다. */
-export async function connectBankTransfer(propertyId: string, data: { id: string; outgoingId: string; incomingId: string }) {
+export async function connectBankTransfer(propertyId: string, data: BankTransferInput) {
   return readWorkspace(await authenticatedAPI<BankingWorkspaceData>({
     url: `/api/properties/${propertyId}/banking/transfers`,
     method: 'POST',

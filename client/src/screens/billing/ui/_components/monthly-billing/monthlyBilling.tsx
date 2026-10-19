@@ -1,11 +1,6 @@
-import { useState } from 'react';
-import {
-  useRouter,
-  useSearchParams
-} from 'next/navigation';
 import type {
-  BillingSettings,
-  BillingCharge
+  BillingCharge,
+  BillingSettings
 } from '@/entities/billing';
 import {
   formatInteger,
@@ -24,14 +19,19 @@ import { Pagination } from '@/shared/ui/pagination';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { SummaryCard } from '@/shared/ui/summary-card';
 import {
-  formatBillingMonth,
+  useRouter,
+  useSearchParams
+} from 'next/navigation';
+import { useState } from 'react';
+import { formatBillingMonth } from '../../../lib/billingLabel';
+import {
   getSortedBillingCharges,
   isBillingMonth,
   sumBillingItems
 } from '../../../model/billing';
 import { useBillingMonth } from '../../_hooks/useBillingData';
-import { BillingLoadState } from '../billing-load-state/billingLoadState';
 import { BillingDetail } from '../billing-detail/billingDetail';
+import { BillingLoadState } from '../billing-load-state/billingLoadState';
 import styles from './monthlyBilling.module.css';
 
 /** 저장된 월별 청구와 예정액을 조회하고 검색·표시 개수·페이지를 세대 목록과 같은 방식으로 조합합니다. */

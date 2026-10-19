@@ -1,13 +1,11 @@
 import type {
+  AutomaticUnitErrors,
+  AutomaticUnitRule
+} from './automaticUnitsTypes';
+import type {
   BuildingDraft,
   UnitDraft
-} from './unitForm';
-
-export interface AutomaticUnitRule {
-  startFloor: string;
-  endFloor: string;
-  unitsPerFloor: string;
-}
+} from './unitFormTypes';
 
 export const EMPTY_AUTOMATIC_UNIT_RULE: AutomaticUnitRule = {
   startFloor: '',
@@ -16,8 +14,6 @@ export const EMPTY_AUTOMATIC_UNIT_RULE: AutomaticUnitRule = {
 };
 
 const MAX_AUTOMATIC_UNITS = 1000;
-
-type AutomaticUnitErrors = Partial<Record<keyof AutomaticUnitRule | 'buildingClientId', string>>;
 
 /** 층은 저장 가능한 정수 범위, 두 자리 순번은 1~99로 제한하고 한 번의 미리보기 크기를 제한합니다. */
 function getRuleErrors(rule: AutomaticUnitRule): AutomaticUnitErrors {

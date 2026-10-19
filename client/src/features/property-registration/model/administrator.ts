@@ -1,12 +1,6 @@
 import { getTextLength } from '@/shared/lib/format';
-import type { UnitDraft } from './unitSetup';
-
-export interface AdministratorDraft {
-  residenceType: '' | 'RESIDENT' | 'EXTERNAL';
-  name: string;
-  phone: string;
-  unitClientId: string;
-}
+import type { AdministratorDraft } from './administratorTypes';
+import type { UnitDraft } from './unitSetupTypes';
 
 export const EMPTY_ADMINISTRATOR: AdministratorDraft = {
   residenceType: '',

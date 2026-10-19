@@ -1,16 +1,8 @@
-import { ApiError } from '@/shared/api';
 import { getSortedUnits } from '@/entities/property';
-import type {
-  ResidentList,
-  ResidentRow
-} from '../api/residentApi';
-
-export interface ResidentFilters {
-  query: string;
-  buildingId: string;
-  relationType: string;
-  signupStatus: string;
-}
+import { ApiError } from '@/shared/api';
+import type { ResidentList } from '../api/residentApiTypes';
+import { getResidentUnitLabel } from '../lib/residentLabel';
+import type { ResidentFilters } from './residentListTypes';
 
 export const EMPTY_RESIDENT_FILTERS: ResidentFilters = {
   query: '',
@@ -22,15 +14,6 @@ export const EMPTY_RESIDENT_FILTERS: ResidentFilters = {
 const NAME_COLLATOR = new Intl.Collator('ko', {
   numeric: true
 });
-
-/** 소속이 없는 명부는 대시로 표시하고 같은 세대 문구를 표와 검색에서 함께 사용합니다. */
-export function getResidentUnitLabel(row: ResidentRow, buildings: ReadonlyMap<string, string>, hasBuildings: boolean) {
-  if (!row.unitNumber) return '—';
-  const number = /호$/.test(row.unitNumber) ? row.unitNumber : `${row.unitNumber}호`;
-  if (!hasBuildings) return number;
-
-  return `${buildings.get(row.buildingId ?? '') ?? '—'} ${number}`;
-}
 
 /** 동·호수를 숫자 순으로 정렬한 뒤 페이지를 나누며 같은 세대는 이름·ID 순, 소속 없는 주민은 마지막에 표시합니다. */
 export function getResidentListView(data: ResidentList, filters: ResidentFilters, page: number, pageSize: number) {

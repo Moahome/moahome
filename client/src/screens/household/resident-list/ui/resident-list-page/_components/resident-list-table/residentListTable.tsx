@@ -2,6 +2,7 @@ import {
   RESIDENT_RELATION_OPTIONS,
   RESIDENT_SIGNUP_OPTIONS
 } from '@/entities/resident';
+import { MEMBER_ROLE_LABELS } from '@/features/member-management';
 import {
   DataTable,
   type DataTableColumn
@@ -9,10 +10,9 @@ import {
 import type {
   ResidentList,
   ResidentRow
-} from '../../../../api/residentApi';
-import { getResidentUnitLabel } from '../../../../model/residentList';
+} from '../../../../api/residentApiTypes';
+import { getResidentUnitLabel } from '../../../../lib/residentLabel';
 import styles from './residentListTable.module.css';
-import { MEMBER_ROLE_LABELS } from '@/features/member-management';
 
 /** 한 세대의 여러 주민을 각각 표시하며 대표 여부를 가입 상태와 구분합니다. */
 export function ResidentListTable({

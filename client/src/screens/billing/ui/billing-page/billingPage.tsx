@@ -1,30 +1,28 @@
 'use client';
 
+import { Button } from '@/shared/ui/button';
+import { ListHeader } from '@/shared/ui/list-header';
+import { Toast } from '@/shared/ui/toast';
+import {
+  usePathname,
+  useRouter,
+  useSearchParams
+} from 'next/navigation';
 import {
   useEffect,
   useRef,
   useState,
   type KeyboardEvent
 } from 'react';
-import {
-  usePathname,
-  useRouter,
-  useSearchParams
-} from 'next/navigation';
-import { Button } from '@/shared/ui/button';
-import { ListHeader } from '@/shared/ui/list-header';
-import { Toast } from '@/shared/ui/toast';
-import {
-  BILLING_TABS,
-  type BillingTab
-} from '../../model/billing';
-import { MonthlyBilling } from '../_components/monthly-billing/monthlyBilling';
-import { BillingItems } from '../_components/billing-items/billingItems';
+import { BILLING_TABS } from '../../model/billing';
+import type { BillingTab } from '../../model/billingTypes';
 import { BillingHistory } from '../_components/billing-history/billingHistory';
-import { useBillingSettings } from '../_hooks/useBillingData';
+import { BillingItems } from '../_components/billing-items/billingItems';
 import { BillingLoadState } from '../_components/billing-load-state/billingLoadState';
-import styles from './billingPage.module.css';
+import { MonthlyBilling } from '../_components/monthly-billing/monthlyBilling';
 import { OpeningBalances } from '../_components/opening-balances/openingBalances';
+import { useBillingSettings } from '../_hooks/useBillingData';
+import styles from './billingPage.module.css';
 
 /** 공통 관리 레이아웃 안에서 부과·설정·이력·잔액 인계 탭을 조합하고 URL 선택과 서버에서 조회한 현재·예정 설정을 표시합니다. */
 export function BillingPage({

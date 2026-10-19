@@ -1,31 +1,20 @@
-import type { ExpenseDraft } from '@/entities/banking';
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
-import {
-  isPreviewDate,
-  type PreviewLedger,
-  type PreviewPayment,
-  type CumulativePaymentDraft
-} from '../model/paymentPreview';
-
-export type PaymentCommand =
-  | { type: 'manual'; data: { id: string; unitId?: string; date: string; amount: string; accountId?: string; purpose?: 'HOUSEHOLD' | 'OTHER' | 'SHARED'; payer?: string; category?: string; note?: string; incomeAllocation?: ExpenseDraft } }
-  | { type: 'confirm'; id: string; data: CumulativePaymentDraft }
-  | { type: 'other-income'; id: string; data: { category: string; note?: string } }
-  | { type: 'hold' | 'cancel'; id: string; data: { reason: string } }
-  | { type: 'confirm-matches' }
-  | { type: 'delete'; id: string }
-  | { type: 'delete-many'; data: { paymentIds: string[] } }
-  | { type: 'resume'; id: string }
-  | { type: 'link'; id: string; data: { paymentId: string } }
-  | { type: 'import'; file: File; transactionIds: string[] };
+import { isPreviewDate } from '../model/paymentPreview';
+import type { PreviewLedger } from '../model/paymentPreviewTypes';
+import type {
+  BankFilePreview,
+  BankFilePreviewResponse,
+  PaymentCommand,
+  PaymentLedgerIdentity
+} from './paymentApiTypes';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const AMOUNT = /^-?[0-9]{1,15}$/;
 const STATES = ['PENDING', 'ON_HOLD', 'CONFIRMED', 'CANCELED', 'LINKED'];
 
 /** 다른 관리대상의 응답·숫자 정밀도 손실·잘못된 참조를 화면 원장으로 받아들이지 않습니다. */
-function readLedger(value: PreviewLedger & { propertyId: string }, propertyId: string): PreviewLedger {
+function readLedger(value: PreviewLedger & PaymentLedgerIdentity, propertyId: string): PreviewLedger {
   if (!value || value.propertyId !== propertyId || !isPreviewDate(value.asOf)
     || !Array.isArray(value.accounts) || !value.accounts.every((a) => UUID.test(a.id) && typeof a.label === 'string')
     || (value.buildings !== undefined && (!Array.isArray(value.buildings) || !value.buildings.every((b) => UUID.test(b.id) && typeof b.label === 'string')))
@@ -96,9 +85,9 @@ export async function mutatePayment(propertyId: string, command: PaymentCommand)
   }), propertyId);
 }
 /** 미리보기와 실제 가져오기 모두 서버에서 원본 파일을 검증해 조작된 행 데이터로 저장하지 않습니다. */
-export async function previewBankFile(propertyId: string, file: File): Promise<{ rows: PreviewPayment[]; duplicateCount: number }> {
+export async function previewBankFile(propertyId: string, file: File): Promise<BankFilePreview> {
   const data = new FormData(); data.append('file', file);
-  const result = await authenticatedAPI<{ propertyId: string; rows: PreviewPayment[]; duplicateCount: number }>({
+  const result = await authenticatedAPI<BankFilePreviewResponse>({
     url: `/api/properties/${propertyId}/payments/import/preview`,
     method: 'POST',
     data,

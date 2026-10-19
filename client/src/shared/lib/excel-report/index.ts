@@ -1,7 +1,7 @@
 export {
-  createReportWorkbook,
-  createInputWorkbook
+  createInputWorkbook,
+  createReportWorkbook
 } from './reportWorkbook';
 export type {
   ReportColumn
-} from './reportWorkbook';
+} from './reportWorkbookTypes';

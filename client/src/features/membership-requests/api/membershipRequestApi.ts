@@ -1,27 +1,13 @@
+import { isPropertyId } from '@/entities/property';
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
-import { isPropertyId } from '@/entities/property';
+import type {
+  SignupOptions,
+  SignupRequest,
+  SignupRequestResponse,
+  SignupWorkspace
+} from './membershipRequestApiTypes';
 
-export interface SignupRequest {
-  id: string;
-  unitId: string;
-  unitLabel: string;
-  requesterName: string;
-  phoneLast4: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELED';
-  requestedAt: string;
-  updatedAt: string;
-  candidates: { residentId: string; name: string }[];
-}
-export interface SignupWorkspace {
-  propertyId: string;
-  requests: SignupRequest[];
-}
-export interface SignupOptions {
-  propertyId: string;
-  propertyName: string;
-  units: { unitId: string; label: string }[];
-}
 function read(value: SignupWorkspace, property: string) {
   if (!value || value.propertyId !== property || !Array.isArray(value.requests)
     || value.requests.some((r) => !isPropertyId(r.id) || !isPropertyId(r.unitId) || typeof r.requesterName !== 'string'
@@ -61,7 +47,7 @@ export async function getSignupOptions(property: string) {
   return value;
 }
 export async function submitSignupRequest(property: string, unitId: string, phone: string) {
-  const value = await authenticatedAPI<{ id: string; status: string }>({
+  const value = await authenticatedAPI<SignupRequestResponse>({
     url: `/api/properties/${property}/membership-requests`,
     method: 'POST',
     data: {

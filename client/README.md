@@ -32,7 +32,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## 코드 배치
 
-FSD의 의존성 경계를 유지하며 상위 업무 메뉴와 하위 화면의 관계는 `screens/<업무 그룹>/<화면 슬라이스>/`로 표현합니다. 화면 전용 UI와 로직은 먼저 해당 화면에 둡니다. 공유 범위나 독립적인 책임이 분명해지면 `features`, `entities`, `widgets`로 분리합니다. 범용 UI는 `shared/ui`, 타입은 해당 화면 / 기능 / 도메인 / API 가까이에 둡니다. 작은 Props와 화면 상태는 컴포넌트 파일에 함께 둘 수 있으며 전역 `components/`, `types/`에 모으지 않습니다.
+FSD의 의존성 경계를 유지하며 상위 업무 메뉴와 하위 화면의 관계는 `screens/<업무 그룹>/<화면 슬라이스>/`로 표현합니다. 화면 전용 UI와 로직은 먼저 해당 화면에 둡니다. 공유 범위나 독립적인 책임이 분명해지면 `features`, `entities`, `widgets`로 분리합니다. 범용 UI는 `shared/ui`에 두며 전역 `components/`, `types/`에 모으지 않습니다. 타입 선언과 실행 코드의 분리, 업무 검증과 표시용 보조 함수의 배치는 [Client 타입 배치 규칙](AGENTS.md#타입-배치)을 따릅니다. UI에 한정된 작은 Props와 표시 상태는 컴포넌트 파일에 함께 둘 수 있습니다.
 
 다른 슬라이스는 `index.ts` 공개 API로 사용하고, 같은 레이어의 다른 슬라이스는 직접 참조하지 않습니다. 진입 UI가 하나면 TSX와 CSS Modules를 `ui/`에 바로 두고, 둘 이상이면 각각의 폴더로 구분합니다. 내부 보조 UI는 `_components/<컴포넌트>/`에 둡니다. `npm run lint`는 업무 그룹 아래 최종 슬라이스의 경계·공개 API와 내부 보조 UI 배치를 검사하며, `tests/architecture.spec.ts`는 단일·복수 진입 UI와 스타일의 실제 위치도 검증합니다. 상세 기준은 [Client 규칙](AGENTS.md)을 따릅니다.
 

@@ -1,12 +1,12 @@
 'use client';
 
-import { useState } from 'react';
 import { SelectDropdown } from '@/shared/ui/form-controls';
-import {
-  getUnitLabel,
-  type BuildingDraft,
-  type UnitDraft
-} from '../../../model/unitSetup';
+import { useState } from 'react';
+import { getUnitLabel } from '../../../model/unitSetup';
+import type {
+  BuildingDraft,
+  UnitDraft
+} from '../../../model/unitSetupTypes';
 import styles from './administratorUnitFields.module.css';
 
 /** 동 변경 시 호수를 다시 선택하게 하며 두 입력 모두 공통 검색 드롭다운을 재사용합니다. */

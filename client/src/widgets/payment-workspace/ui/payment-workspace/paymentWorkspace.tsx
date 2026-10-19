@@ -1,18 +1,13 @@
 'use client';
 
 import {
-  useRef,
-  useState
-} from 'react';
-import { FileDropzone } from '@/shared/ui/file-dropzone';
-import { useRouter } from 'next/navigation';
-import {
   formatInteger,
   formatWon
 } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
 import { DataTable } from '@/shared/ui/data-table';
+import { FileDropzone } from '@/shared/ui/file-dropzone';
 import { FilterTabs } from '@/shared/ui/filter-tabs';
 import {
   Dropdown,
@@ -21,29 +16,36 @@ import {
 import { ListHeader } from '@/shared/ui/list-header';
 import { MonthPicker } from '@/shared/ui/month-picker';
 import { Pagination } from '@/shared/ui/pagination';
-import { SummaryCard } from '@/shared/ui/summary-card';
 import { ServiceIcon } from '@/shared/ui/service-icon';
+import { SummaryCard } from '@/shared/ui/summary-card';
 import { Toast } from '@/shared/ui/toast';
+import { useRouter } from 'next/navigation';
 import {
-  getPreviewSelectableUnits,
+  useRef,
+  useState
+} from 'react';
+import {
+  paymentError,
+  previewBankFile
+} from '../../api/paymentApi';
+import {
   getPreviewBuildingName,
   getPreviewBuildingOptions,
-  type PreviewPayment,
-  type MonthlyCollectionFilters
+  getPreviewSelectableUnits
 } from '../../model/paymentPreview';
-import {
-  previewBankFile,
-  paymentError
-} from '../../api/paymentApi';
-import { usePaymentWorkspace } from '../payment-workspace-provider/paymentWorkspaceProvider';
-import { PaymentDetail } from '../_components/payment-detail/paymentDetail';
-import { PaymentBadge } from '../_components/payment-badge/paymentBadge';
-import { ManualPayment } from '../manual-payment/manualPayment';
-import { getPaymentStatusLabel } from '../_components/payment-editor/paymentEditor';
+import type {
+  MonthlyCollectionFilters,
+  PreviewPayment
+} from '../../model/paymentPreviewTypes';
 import {
   MonthlyCollection,
   MonthlyExportButton
 } from '../_components/monthly-collection/monthlyCollection';
+import { PaymentBadge } from '../_components/payment-badge/paymentBadge';
+import { PaymentDetail } from '../_components/payment-detail/paymentDetail';
+import { getPaymentStatusLabel } from '../_components/payment-editor/paymentEditor';
+import { ManualPayment } from '../manual-payment/manualPayment';
+import { usePaymentWorkspace } from '../payment-workspace-provider/paymentWorkspaceProvider';
 import styles from './paymentWorkspace.module.css';
 
 const PAYMENT_STATUS_TONES = {

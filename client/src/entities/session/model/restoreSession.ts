@@ -7,9 +7,9 @@ import {
 import {
   clearSession,
   getSession,
-  setSession,
-  type WebSession
+  setSession
 } from './sessionStore';
+import type { WebSession } from './sessionStoreTypes';
 
 // 복원과 로그아웃이 같은 쿠키를 사용하므로 모든 탭에서 같은 잠금으로 순서를 보장합니다.
 export const SESSION_LOCK_NAME = 'moahome-web-session';

@@ -1,21 +1,11 @@
 import type {
+  OpeningBalancesDraft,
+  UnitOpeningDraft
+} from './openingBalancesTypes';
+import type {
   BuildingDraft,
   UnitDraft
-} from './unitSetup';
-
-export interface UnitOpeningDraft {
-  receivable: string;
-  credit: string;
-}
-export interface OpeningBalancesDraft {
-  cutoffDate: string;
-  firstBillingMonth: string;
-  unitMode: '' | 'NONE' | 'ENTER';
-  units: Record<string, UnitOpeningDraft>;
-  accountAmount: string;
-  cashCutoffDate: string;
-  buildings: Record<string, string>;
-}
+} from './unitSetupTypes';
 
 export const EMPTY_OPENING_BALANCES: OpeningBalancesDraft = {
   cutoffDate: '',

@@ -1,19 +1,11 @@
-import {
-  FEE_ITEM_OPTIONS,
-  type FeeItemCode
-} from '@/entities/billing';
+import { FEE_ITEM_OPTIONS } from '@/entities/billing';
 import { getTextLength } from './basicInfo';
+import type {
+  FeeItemDraft,
+  FeeItemErrors
+} from './feeItemsTypes';
 
 export const MAX_FEE_AMOUNT = BigInt('999999999999999');
-
-export interface FeeItemDraft {
-  clientId: string;
-  itemCode: FeeItemCode | null;
-  itemName: string;
-  defaultAmount: string;
-}
-
-export type FeeItemErrors = Partial<Record<'itemCode' | 'itemName' | 'defaultAmount', string>>;
 
 /** 추천 코드·이름과 원 단위 정수를 검증하며 직접 입력의 null 코드와 0원·음수를 허용합니다. */
 export function getFeeItemErrors(item: Pick<FeeItemDraft, 'itemCode' | 'itemName' | 'defaultAmount'>): FeeItemErrors {

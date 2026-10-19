@@ -1,8 +1,15 @@
 export {
-  FEE_ITEM_OPTIONS,
-  type FeeItemCode
+  FEE_ITEM_OPTIONS
 } from './constants/feeItemOptions';
+export type {
+  FeeItemCode
+} from './constants/feeItemOptionsTypes';
 
 export type {
-  BillingItem, BillingTemplate, BillingSettings, BillingCharge, BillingMonth, BillingPeriod
-} from './model/billing';
+  BillingCharge,
+  BillingItem,
+  BillingMonth,
+  BillingPeriod,
+  BillingSettings,
+  BillingTemplate
+} from './model/billingTypes';

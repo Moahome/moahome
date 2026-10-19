@@ -7,40 +7,40 @@ import {
   useRef,
   useState
 } from 'react';
+import { getAdministratorError } from '../../model/administrator';
+import { getRegistrationAccountsError } from '../../model/bankAccount';
 import type {
   BasicInfo,
   BasicInfoDraft
-} from '../../model/basicInfo';
+} from '../../model/basicInfoTypes';
+import { getFeeItemsError } from '../../model/feeItems';
+import {
+  getCashOpeningError,
+  getFirstBillingError,
+  getUnitOpeningError,
+  restoreOpeningBalances
+} from '../../model/openingBalances';
+import type { OpeningBalancesDraft } from '../../model/openingBalancesTypes';
 import {
   discardRegistrationDraft,
   restoreRegistrationDraft,
-  saveRegistrationDraft,
-  type RegistrationStep
+  saveRegistrationDraft
 } from '../../model/registrationDraft';
+import type { RegistrationStep } from '../../model/registrationDraftTypes';
 import {
   discardRegistrationReceipt,
   discardSubmissionBody
 } from '../../model/registrationSubmission';
-import { PropertyRegistrationDialog } from '../property-registration-dialog/propertyRegistrationDialog';
-import { UnitSetup } from '../_components/unit-setup/unitSetup';
-import { BankAccountSetup } from '../_components/bank-account-setup/bankAccountSetup';
 import { getUnitSetupError } from '../../model/unitSetup';
-import { getRegistrationAccountsError } from '../../model/bankAccount';
-import { getFeeItemsError } from '../../model/feeItems';
+import { BankAccountSetup } from '../_components/bank-account-setup/bankAccountSetup';
 import { FeeItemsSetup } from '../_components/fee-items-setup/feeItemsSetup';
-import { RegistrationReview } from '../_components/registration-review/registrationReview';
 import { RegistrationComplete } from '../_components/registration-complete/registrationComplete';
 import { RegistrationResultState } from '../_components/registration-result-state/registrationResultState';
+import { RegistrationReview } from '../_components/registration-review/registrationReview';
 import { SubmissionDialog } from '../_components/submission-dialog/submissionDialog';
+import { UnitSetup } from '../_components/unit-setup/unitSetup';
 import { useRegistrationSubmission } from '../_hooks/useRegistrationSubmission';
-import { getAdministratorError } from '../../model/administrator';
-import {
-  getUnitOpeningError,
-  getCashOpeningError,
-  getFirstBillingError,
-  restoreOpeningBalances,
-  type OpeningBalancesDraft
-} from '../../model/openingBalances';
+import { PropertyRegistrationDialog } from '../property-registration-dialog/propertyRegistrationDialog';
 import styles from './propertyRegistrationFlow.module.css';
 
 /** 하나의 초안을 공유하고 마지막 확인 화면에서만 전체 저장과 결과 복구를 시작합니다. */

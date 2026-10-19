@@ -1,3 +1,3 @@
 export type {
   Option
-} from './option';
+} from './optionTypes';

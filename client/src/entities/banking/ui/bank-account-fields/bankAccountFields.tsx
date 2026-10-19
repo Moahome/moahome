@@ -1,20 +1,20 @@
 'use client';
 
 import {
+  Input,
+  SelectDropdown
+} from '@/shared/ui/form-controls';
+import {
   useState,
   type ClipboardEvent
 } from 'react';
-import {
-  SelectDropdown,
-  Input
-} from '@/shared/ui/form-controls';
 import { BANK_OPTIONS } from '../../constants/bankOptions';
-import { BankIcon } from '../bank-icon/bankIcon';
 import {
   getBankAccountErrors,
-  normalizeAccountNumber,
-  type BankAccountDraft
+  normalizeAccountNumber
 } from '../../model/bankAccount';
+import type { BankAccountDraft } from '../../model/bankAccountTypes';
+import { BankIcon } from '../bank-icon/bankIcon';
 
 const BANK_SELECT_OPTIONS = BANK_OPTIONS.map((option) => ({
   ...option,

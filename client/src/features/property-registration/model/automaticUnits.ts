@@ -1,6 +1,5 @@
 export {
   EMPTY_AUTOMATIC_UNIT_RULE,
-  getAutomaticUnitPreview,
   createAutomaticUnits,
-  type AutomaticUnitRule
+  getAutomaticUnitPreview
 } from '@/entities/property';

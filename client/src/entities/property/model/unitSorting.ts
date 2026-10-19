@@ -1,7 +1,7 @@
 import type {
   BuildingDraft,
   UnitDraft
-} from './unitForm';
+} from './unitFormTypes';
 
 const NAME_COLLATOR = new Intl.Collator('ko', {
   numeric: true

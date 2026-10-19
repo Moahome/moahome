@@ -1,11 +1,6 @@
 'use client';
 
 import {
-  useId,
-  useState,
-  type FormEvent
-} from 'react';
-import {
   BankAccountCard,
   getBankAccountErrors
 } from '@/entities/banking';
@@ -13,7 +8,12 @@ import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
 import { AmountInput } from '@/shared/ui/form-controls';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import type { RegistrationAccount } from '../../../model/bankAccount';
+import {
+  useId,
+  useState,
+  type FormEvent
+} from 'react';
+import type { RegistrationAccount } from '../../../model/bankAccountTypes';
 import styles from './registrationAccountDialog.module.css';
 
 /** 모달의 편집본은 저장할 때만 목록에 반영해 취소·닫기·새로고침으로 미확정 통장이 추가되지 않게 합니다. */

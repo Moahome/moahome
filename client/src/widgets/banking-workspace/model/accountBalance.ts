@@ -1,7 +1,7 @@
 import type {
   AccountBalance,
   BalanceWorkspace
-} from '../api/bankingBalanceApi';
+} from '../api/bankingBalanceApiTypes';
 
 /** 실제 확인값이 없을 때만 계산값을 표시하며, 미확인 금액을 0원으로 대체하지 않습니다. */
 export function getAccountBalanceDisplay(account: AccountBalance) {

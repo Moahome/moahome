@@ -1,13 +1,6 @@
 'use client';
 
 import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent
-} from 'react';
-import { useQuery } from '@tanstack/react-query';
-import {
   getSortedBuildings,
   getSortedUnits
 } from '@/entities/property';
@@ -18,20 +11,25 @@ import {
   Dropdown,
   Input
 } from '@/shared/ui/form-controls';
+import { useQuery } from '@tanstack/react-query';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent
+} from 'react';
+import { updateResident } from '../../api/residentManagementApi';
+import type { ResidentDetail } from '../../api/residentManagementApiTypes';
 import {
   getRegistrationOptions,
   registerResident
 } from '../../api/residentRegistrationApi';
+import { getResidentManagementError } from '../../model/residentManagement';
 import {
   getResidentRegistrationError,
   normalizeResidentPhone
 } from '../../model/residentRegistration';
 import styles from './residentRegistrationForm.module.css';
-import {
-  updateResident,
-  type ResidentDetail
-} from '../../api/residentManagementApi';
-import { getResidentManagementError } from '../../model/residentManagement';
 
 /** 웹 모달과 모바일 페이지가 같은 입력·세대 선택·저장 검증을 사용하며 초안을 저장소에 남기지 않습니다. */
 export function ResidentRegistrationForm({

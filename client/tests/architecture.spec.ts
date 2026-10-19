@@ -67,6 +67,38 @@ test('단일 진입 UI는 ui 직하를 허용하고 내부 보조 컴포넌트�
   }
 });
 
+test('업무 타입은 전용 파일에 선언하고 UI의 작은 표시 타입은 허용', async () => {
+  for (const code of ['export interface UnitDraft { id: string }', "export type Status = 'ACTIVE' | 'VACANT';"]) {
+    expect((await architectureMessages('src/entities/property/model/unitForm.ts', code))
+      .map((message) => message.messageId)).toEqual(['declarationFile']);
+    expect(await architectureMessages('src/entities/property/model/unitFormTypes.ts', code)).toEqual([]);
+  }
+  expect(await architectureMessages('src/screens/login/ui/loginPage.tsx', "type DisplayState = 'idle' | 'loading';")).toEqual([]);
+  expect(await architectureMessages('src/app/example/page.tsx', 'type Props = { params: Promise<{ id: string }> };')).toEqual([]);
+});
+
+test('타입 전용 파일은 타입 import와 재노출만 허용하고 실행 코드를 차단', async () => {
+  const filename = 'src/entities/property/model/unitFormTypes.ts';
+  expect(await architectureMessages(filename, [
+    "import type { UNIT_STATUS_OPTIONS } from '../constants/propertyOptions';",
+    "export type UnitStatus = typeof UNIT_STATUS_OPTIONS[number]['value'];",
+    "export type { BuildingDraft } from './buildingTypes';"
+  ].join('\n'))).toEqual([]);
+  for (const code of ["import { VALUE } from './value';", 'export const VALUE = 1;', 'export function validate() {}']) {
+    expect((await architectureMessages(filename, code)).map((message) => message.messageId)).toEqual(['typeOnlyFile']);
+  }
+  expect(await architectureMessages('src/entities/property/index.ts', "export type { UnitDraft } from './model/unitFormTypes';")).toEqual([]);
+});
+
+test('API 요청 매개변수와 응답의 객체 타입은 호출 함수에서 분리', async () => {
+  const filename = 'src/features/unit-management/api/unitApi.ts';
+  for (const code of ['export function save(input: { id: string }) {}', 'export async function get(): Promise<{ id: string }> { return { id: "one" }; }']) {
+    expect((await architectureMessages(filename, code)).map((message) => message.messageId)).toEqual(['apiContract']);
+  }
+  expect(await architectureMessages(filename, "import type { UnitResponse } from './unitApiTypes';\nexport function save(input: UnitResponse) {}"))
+    .toEqual([]);
+});
+
 /** 실제 소스 구조를 탐색해 진입 UI 수에 따른 배치와 스타일의 위치를 확인합니다. */
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory, {

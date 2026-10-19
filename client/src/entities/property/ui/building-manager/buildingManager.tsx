@@ -1,22 +1,24 @@
 'use client';
 
+import { Button } from '@/shared/ui/button';
+import { ClientModal } from '@/shared/ui/client-modal';
+import { Input } from '@/shared/ui/form-controls';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   useEffect,
   useRef,
   useState,
   type FormEvent
 } from 'react';
-import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
-import { Input } from '@/shared/ui/form-controls';
 import {
   getBuildingNameError,
-  normalizeBuildingName,
-  type BuildingDraft,
-  type UnitDraft
+  normalizeBuildingName
 } from '../../model/unitForm';
+import type {
+  BuildingDraft,
+  UnitDraft
+} from '../../model/unitFormTypes';
 import { getSortedBuildings } from '../../model/unitSorting';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import { UnitDeleteConfirmation } from '../unit-delete-confirmation/unitDeleteConfirmation';
 import styles from './buildingManager.module.css';
 

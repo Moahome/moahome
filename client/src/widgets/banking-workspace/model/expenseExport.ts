@@ -1,5 +1,5 @@
 import { createReportWorkbook } from '@/shared/lib/excel-report';
-import type { BankingTransaction } from '../api/bankingApi';
+import type { BankingTransaction } from '../api/bankingApiTypes';
 import { getExpenseAmount } from './expenseAllocation';
 
 /** 조회 조건 전체와 관리 동 부담액을 첨부 내역서 서식에 표시하며 외부 금액은 합산하지 않습니다. */

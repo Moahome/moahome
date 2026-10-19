@@ -1,4 +1,5 @@
 import type { Option } from '@/shared/lib/options';
+import type { ResidentSignupStatus } from './residentOptionsTypes';
 
 export const RESIDENT_RELATION_OPTIONS: readonly Option[] = [
   {
@@ -18,8 +19,6 @@ export const RESIDENT_RELATION_OPTIONS: readonly Option[] = [
     label: '기타'
   }
 ];
-
-export type ResidentSignupStatus = 'APPROVED' | 'NOT_JOINED' | 'PENDING';
 
 export const RESIDENT_SIGNUP_OPTIONS: readonly Option<ResidentSignupStatus>[] = [
   {

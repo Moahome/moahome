@@ -1,24 +1,18 @@
-import { authenticatedAPI } from '@/entities/session';
 import { isPropertyId } from '@/entities/property';
+import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
+import type {
+  InvitationRequestResponse,
+  IssuedInvitation,
+  MemberRole,
+  MemberWorkspace
+} from './memberApiTypes';
 
-export type MemberRole = 'ADMIN' | 'MANAGER' | 'RESIDENT';
 export const MEMBER_ROLE_LABELS: Record<MemberRole, string> = {
   ADMIN: '관리소장',
   MANAGER: '부담당자',
   RESIDENT: '주민'
 };
-export interface MemberWorkspace {
-  propertyId: string;
-  members: { memberId: string; name: string; residentId: string | null; role: MemberRole }[];
-  invitations: { id: string; revision: number; status: string; role: MemberRole; residentId: string | null;
-    residentName: string | null; requesterName: string | null; expiresAt: string }[];
-}
-export interface IssuedInvitation {
-  id: string;
-  code: string;
-  expiresAt: string;
-}
 function read(value: MemberWorkspace, property: string) {
   if (!value || value.propertyId !== property || !Array.isArray(value.members) || !Array.isArray(value.invitations)
     || value.members.some((m) => !isPropertyId(m.memberId) || typeof m.name !== 'string' || !Object.hasOwn(MEMBER_ROLE_LABELS, m.role))
@@ -106,7 +100,7 @@ export async function reviewMemberInvitation(property: string, id: string, revis
   }), property);
 }
 export async function requestMemberInvitation(code: string) {
-  const result = await authenticatedAPI<{ propertyName: string; status: string }>({
+  const result = await authenticatedAPI<InvitationRequestResponse>({
     url: '/api/member-invitations/request',
     method: 'POST',
     data: {

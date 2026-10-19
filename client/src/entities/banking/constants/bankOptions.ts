@@ -1,9 +1,4 @@
-import type { Option } from '@/shared/lib/options';
-
-interface BankOption extends Option {
-  iconSrc: string;
-  searchKeywords: readonly string[];
-}
+import type { BankOption } from './bankOptionsTypes';
 
 // 금융결제원 대표코드를 문자열로 유지하며 화면에는 은행명만 표시합니다.
 // 출처: https://e-giro.giro.or.kr/service/jadongbatch/guideJadongInfo.do

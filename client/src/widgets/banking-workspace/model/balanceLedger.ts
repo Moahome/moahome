@@ -1,10 +1,10 @@
 import { createReportWorkbook } from '@/shared/lib/excel-report';
-import { getAccountBalanceTotal } from './accountBalance';
 import type {
   BalanceBuilding,
   BalanceEntry,
   BalanceWorkspace
-} from '../api/bankingBalanceApi';
+} from '../api/bankingBalanceApiTypes';
+import { getAccountBalanceTotal } from './accountBalance';
 
 /** 화면에 표시한 통장 잔액과 동별 합계의 차이를 계산하며 미설정 값을 0원으로 채우거나 차액을 자동 배분하지 않습니다. */
 export function getBalanceSummary(data: BalanceWorkspace) {

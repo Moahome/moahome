@@ -1,19 +1,19 @@
 'use client';
 
-import {
-  useRef,
-  useState
-} from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { ApiError } from '@/shared/api';
-import { linkOwnChiefResident } from '@/features/member-management';
 import { useSession } from '@/entities/session';
 import { useManagementContext } from '@/features/enter-service';
+import { linkOwnChiefResident } from '@/features/member-management';
+import { ApiError } from '@/shared/api';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
 import { Dropdown } from '@/shared/ui/form-controls';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import type { ResidentList } from '../../../api/residentApi';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  useRef,
+  useState
+} from 'react';
+import type { ResidentList } from '../../../api/residentApiTypes';
 import styles from './chiefAccountLink.module.css';
 
 /** 현재 로그인한 관리소장 본인을 명부와 연결하고 저장 성공 뒤 최신 명부로 역할·가입 상태를 갱신합니다. */

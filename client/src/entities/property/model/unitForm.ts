@@ -1,32 +1,11 @@
-import { UNIT_STATUS_OPTIONS } from '../constants/propertyOptions';
 import { getTextLength } from '@/shared/lib/format';
-
-export interface BuildingDraft {
-  clientId: string;
-  name: string;
-}
-
-// 이전 초안의 비활성 값을 버리지 않고 복원하되 새 등록 검증에는 허용하지 않습니다.
-export type UnitStatus = typeof UNIT_STATUS_OPTIONS[number]['value'] | 'INACTIVE';
-
-export interface UnitDraft {
-  clientId: string;
-  buildingClientId: string | null;
-  unitNumber: string;
-  displayName: string | null;
-  floor: number | null;
-  status: UnitStatus;
-}
-
-export interface UnitForm {
-  buildingClientId: string;
-  unitNumber: string;
-  displayName: string;
-  floor: string;
-  status: UnitStatus;
-}
-
-export type UnitFormErrors = Partial<Record<keyof UnitForm, string>>;
+import { UNIT_STATUS_OPTIONS } from '../constants/propertyOptions';
+import type {
+  BuildingDraft,
+  UnitDraft,
+  UnitForm,
+  UnitFormErrors
+} from './unitFormTypes';
 
 /** 동 접미사를 한 번만 붙여 숫자·문자 이름 모두 같은 저장값과 중복 기준으로 사용합니다. */
 export function normalizeBuildingName(name: string) {
@@ -83,16 +62,4 @@ export function normalizeUnitForm(form: UnitForm, hasBuildings: boolean, clientI
     floor: form.floor.trim() ? Number(form.floor) : null,
     status: form.status,
   };
-}
-
-/** 호수 원문과 표시 이름을 유지하고 숫자 호수와 B 접두사 지하 호수에 화면용 호 접미사를 붙입니다. */
-export function getUnitLabel(unit: UnitDraft) {
-  return unit.displayName || (/^(?:[0-9]+|B[1-9][0-9]{2,})$/.test(unit.unitNumber) ? `${unit.unitNumber}호` : unit.unitNumber);
-}
-
-/** 저장된 음수 층은 B 표기로 바꾸고 지상 층은 숫자로 표시합니다. */
-export function getFloorLabel(floor: number) {
-  const floorNumber = floor < 0 ? `B${Math.abs(floor)}` : String(floor);
-
-  return `${floorNumber}층`;
 }

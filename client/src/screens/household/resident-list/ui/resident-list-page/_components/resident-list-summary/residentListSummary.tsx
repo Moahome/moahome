@@ -1,6 +1,6 @@
-import { SummaryCard } from '@/shared/ui/summary-card';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import type { ResidentRow } from '../../../../api/residentApi';
+import { SummaryCard } from '@/shared/ui/summary-card';
+import type { ResidentRow } from '../../../../api/residentApiTypes';
 import styles from './residentListSummary.module.css';
 
 /** 카드 집계는 검색 결과나 현재 페이지가 아닌 조회한 명부 전체를 기준으로 계산합니다. */

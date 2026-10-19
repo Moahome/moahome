@@ -1,27 +1,25 @@
 'use client';
 
-import {
-  useRef,
-  useState,
-  type FormEvent
-} from 'react';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
 import {
   Dropdown,
   Input
 } from '@/shared/ui/form-controls';
-import {
-  getAutomaticUnitPreview,
-  type AutomaticUnitRule
-} from '../../model/automaticUnits';
-import {
-  getFloorLabel,
-  type BuildingDraft,
-  type UnitDraft
-} from '../../model/unitForm';
-import { getSortedBuildings } from '../../model/unitSorting';
 import { ServiceIcon } from '@/shared/ui/service-icon';
+import {
+  useRef,
+  useState,
+  type FormEvent
+} from 'react';
+import { getFloorLabel } from '../../lib/unitLabel';
+import { getAutomaticUnitPreview } from '../../model/automaticUnits';
+import type { AutomaticUnitRule } from '../../model/automaticUnitsTypes';
+import type {
+  BuildingDraft,
+  UnitDraft
+} from '../../model/unitFormTypes';
+import { getSortedBuildings } from '../../model/unitSorting';
 import styles from './automaticUnitEditor.module.css';
 
 const RULE_FIELDS = [

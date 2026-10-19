@@ -1,10 +1,5 @@
 'use client';
 
-import {
-  useEffect,
-  useRef,
-  useState
-} from 'react';
 import { ApiError } from '@/shared/api';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
@@ -12,9 +7,12 @@ import { DataTable } from '@/shared/ui/data-table';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { Toast } from '@/shared/ui/toast';
 import {
-  getResidentExport,
-  type ResidentExportRow
-} from '../../../api/residentExportApi';
+  useEffect,
+  useRef,
+  useState
+} from 'react';
+import { getResidentExport } from '../../../api/residentExportApi';
+import type { ResidentExportRow } from '../../../api/residentExportApiTypes';
 import { downloadResidents } from './_utils/downloadResidents';
 import styles from './residentExportPreview.module.css';
 

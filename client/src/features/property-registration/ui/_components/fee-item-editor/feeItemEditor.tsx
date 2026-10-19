@@ -1,11 +1,5 @@
 'use client';
 
-import {
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent
-} from 'react';
 import { FEE_ITEM_OPTIONS } from '@/entities/billing';
 import { Button } from '@/shared/ui/button';
 import {
@@ -15,10 +9,16 @@ import {
 } from '@/shared/ui/form-controls';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
-  getFeeItemErrors,
-  type FeeItemErrors,
-  type FeeItemDraft
-} from '../../../model/feeItems';
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent
+} from 'react';
+import { getFeeItemErrors } from '../../../model/feeItems';
+import type {
+  FeeItemDraft,
+  FeeItemErrors
+} from '../../../model/feeItemsTypes';
 import styles from './feeItemEditor.module.css';
 
 const DIRECT_INPUT = 'direct-input';

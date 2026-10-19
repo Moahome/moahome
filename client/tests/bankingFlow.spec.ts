@@ -1,16 +1,16 @@
-import { readFile } from 'node:fs/promises';
-import {
-  strFromU8,
-  unzipSync
-} from 'fflate';
 import {
   expect,
   test
 } from '@playwright/test';
+import {
+  strFromU8,
+  unzipSync
+} from 'fflate';
+import { readFile } from 'node:fs/promises';
 import type {
   BankingTransaction,
   BankingWorkspaceData
-} from '../src/widgets/banking-workspace/api/bankingApi';
+} from '../src/widgets/banking-workspace/api/bankingApiTypes';
 
 const PROPERTY = 'f5405dd1-42ea-4279-9302-812ffcc2d21b';
 const ACCOUNT = '00000000-0000-4000-8000-000000000010';
@@ -2939,7 +2939,7 @@ for (const { width, unassigned } of [{
         revision: 0
       }
     };
-    const data: import('../src/widgets/banking-workspace/api/bankingBalanceApi').BalanceWorkspace = {
+    const data: import('../src/widgets/banking-workspace/api/bankingBalanceApiTypes').BalanceWorkspace = {
       propertyId: PROPERTY,
       month: '2026-10',
       cutoffDate: null,
@@ -3305,7 +3305,6 @@ for (const { width, unassigned } of [{
     });
   });
 }
-
 
 for (const width of [1440, 390]) {
   test(`기준 잔고와 입금이 있는 통장 ${width}px는 계산 잔액을 표시하고 혼합 합계와 차액도 같은 기준으로 비교`, async ({ page }, testInfo) => {

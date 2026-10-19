@@ -1,26 +1,28 @@
-import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-import {
-  strFromU8,
-  unzipSync
-} from 'fflate';
-import { createPaymentSample } from '../src/widgets/payment-workspace/model/paymentSample';
-import {
-  addPreviewManual,
-  confirmCumulativePreviewPayment,
-  getPreviewDuplicateCandidates,
-  cancelPreviewPayment,
-  holdPreviewPayment,
-  resumePreviewPayment,
-  linkPreviewPayment,
-  importPreviewPayments,
-  type PreviewLedger,
-  type PreviewPayment
-} from '../src/widgets/payment-workspace/model/paymentPreview';
 import {
   expect,
   test
 } from '@playwright/test';
+import {
+  strFromU8,
+  unzipSync
+} from 'fflate';
+import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import {
+  addPreviewManual,
+  cancelPreviewPayment,
+  confirmCumulativePreviewPayment,
+  getPreviewDuplicateCandidates,
+  holdPreviewPayment,
+  importPreviewPayments,
+  linkPreviewPayment,
+  resumePreviewPayment
+} from '../src/widgets/payment-workspace/model/paymentPreview';
+import type {
+  PreviewLedger,
+  PreviewPayment
+} from '../src/widgets/payment-workspace/model/paymentPreviewTypes';
+import { createPaymentSample } from '../src/widgets/payment-workspace/model/paymentSample';
 
 const PROPERTY_ID = 'f5405dd1-42ea-4279-9302-812ffcc2d21b';
 const MATCHING = `/manage/${PROPERTY_ID}/payments/matching`;
@@ -427,7 +429,6 @@ test('모바일 상세의 세대 선택은 청구월과 관계없이 현재 명�
   })).toHaveCount(0);
 });
 
-
 test('입금일도 공통 달력에서 날짜를 선택하고 모달은 X로 닫으며 푸터는 오른쪽 정렬', async ({ page }, testInfo) => {
   await page.setViewportSize({
     width: 1440,
@@ -712,7 +713,6 @@ test('드래그한 은행 엑셀은 미리보기 후 가져오고 같은 파일�
   })).toHaveCount(1);
 });
 
-
 test('은행 XLS 원본을 변환 없이 서버 미리보기와 가져오기에 전달', async ({ page }) => {
   await page.goto(MATCHING);
   await page.getByRole('button', {
@@ -794,7 +794,6 @@ test('좁고 낮은 화면에서도 입금일 달력이 모달 경계를 지키�
   await expect(trigger).toBeFocused();
   await expect(modal).toBeVisible();
 });
-
 
 test('수동 입금자는 실제 대표 이름으로 채우고 API 저장 후 새로고침에도 수납 내역이 남음', async ({ page }) => {
   await page.setViewportSize({
@@ -889,7 +888,6 @@ test('처리 상태 탭은 선택 글씨와 밑줄만 강조하고 호버에도 
   await expect(hold).toHaveCSS('background-color','rgba(0, 0, 0, 0)');
   await expect(hold).toHaveCSS('border-bottom-color','rgb(37, 99, 235)');
 });
-
 
 test('입금 API 조회 장애를 예시 데이터로 대체하지 않고 재시도로 실제 원장을 조회', async ({page})=>{
   let fail=true;
@@ -990,7 +988,6 @@ test('수동 저장 실패는 입력을 보존하고 같은 요청 ID로 다시 
   })).toBeVisible();
   expect(requests).toHaveLength(2);expect(requests[1]).toBe(requests[0]);
 });
-
 
 test('월별 수납 현황은 실제 부과 세대의 대표 이름과 실제 입금자를 별도로 표시', async ({ page }, testInfo) => {
   await page.setViewportSize({
@@ -1464,7 +1461,6 @@ for (const width of [1440, 390, 320]) {
   });
 }
 
-
 test('같은 달 두 입금은 세대만 지정해 모두 확정하고 완납 이후 금액은 선입금으로 표시', async ({ page }, testInfo) => {
   let ledger = storedLedger();
   const unit = {
@@ -1584,7 +1580,6 @@ test('같은 달 두 입금은 세대만 지정해 모두 확정하고 완납 �
   await row.click();
   await expect(page.getByRole('dialog')).toContainText(/선입금 잔액\s*50,000원/);
 });
-
 
 test('이미 가져온 명단 일치 입금은 개별 모달 없이 한 번에 누적 확정', async ({ page }) => {
   await page.goto(MATCHING);
@@ -1800,7 +1795,6 @@ test('확정한 입금에는 삭제 대신 납부 취소를 제공하고 취소 
   })).toContainText('80,000원');
 });
 
-
 test('편집 선택은 필터 변경 때 초기화하고 여러 입금은 한 요청으로 삭제', async ({ page }) => {
   await page.goto(MATCHING);
   await page.getByRole('button', {
@@ -1914,7 +1908,6 @@ test('모두 자동 확정한 과거월 파일은 가져온 월의 처리 완료
   })).toContainText('확정');
 });
 
-
 for (const width of [1440, 390]) {
   test(`${width}px 반영할 세대는 대표·가족 이름과 동호수로 검색하고 결과가 없으면 유지`, async ({ page }) => {
     await page.setViewportSize({
@@ -1959,7 +1952,6 @@ for (const width of [1440, 390]) {
     })).toBeEnabled();
   });
 }
-
 
 for (const width of [1440, 390]) {
   test(`${width}px 입금 동 필터는 검색 오른쪽에 있고 세대 후보는 기본 동호수 순서로 표시`, async ({ page }) => {
@@ -2663,7 +2655,6 @@ for (const width of [1440, 390, 320]) {
     })).toBeVisible();
   });
 }
-
 
 test('통장 입금과 월별 수납은 PC에서 목록을 유지한 모달로 열고 모바일은 상세 주소로 이동', async ({ page }, testInfo) => {
   const ledger = storedLedger();

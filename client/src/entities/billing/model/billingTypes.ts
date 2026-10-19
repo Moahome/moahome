@@ -1,4 +1,4 @@
-import type { FeeItemCode } from '../constants/feeItemOptions';
+import type { FeeItemCode } from '../constants/feeItemOptionsTypes';
 
 export interface BillingItem {
   id: string;

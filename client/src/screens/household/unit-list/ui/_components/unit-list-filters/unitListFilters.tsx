@@ -9,10 +9,8 @@ import {
   Input
 } from '@/shared/ui/form-controls';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import {
-  EMPTY_UNIT_LIST_FILTERS,
-  type UnitListFilters as Filters
-} from '../../../model/unitList';
+import { EMPTY_UNIT_LIST_FILTERS } from '../../../model/unitList';
+import type { UnitListFilters as Filters } from '../../../model/unitListTypes';
 import styles from './unitListFilters.module.css';
 
 export function UnitListFilters({

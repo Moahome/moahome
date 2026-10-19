@@ -6,12 +6,6 @@ import type {
   BillingItem
 } from '@/entities/billing';
 
-export interface ScheduledSettings {
-  month: string;
-  items: BillingItem[];
-  reason: string;
-}
-
 export const BILLING_TABS = [
   {
     id: 'monthly',
@@ -30,8 +24,6 @@ export const BILLING_TABS = [
     label: '기존 잔액 인계'
   }
 ] as const;
-
-export type BillingTab = typeof BILLING_TABS[number]['id'];
 
 const MAX_AMOUNT = BigInt('999999999999999');
 const UNIT_COLLATOR = new Intl.Collator('ko', {
@@ -55,12 +47,6 @@ export function shiftBillingMonth(month: string, offset: number): string {
   const index = year * 12 + number - 1 + offset;
 
   return `${Math.floor(index / 12)}-${String(index % 12 + 1).padStart(2, '0')}`;
-}
-
-export function formatBillingMonth(month: string): string {
-  const [year, number] = month.split('-');
-
-  return `${year}년 ${Number(number)}월`;
 }
 
 /** 실제 월말을 계산해 2월·윤년·30일인 달에도 납부기한을 31일로 고정하지 않습니다. */

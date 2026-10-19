@@ -9,11 +9,9 @@ import {
   Input
 } from '@/shared/ui/form-controls';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import type { ResidentList } from '../../../../api/residentApi';
-import {
-  EMPTY_RESIDENT_FILTERS,
-  type ResidentFilters
-} from '../../../../model/residentList';
+import type { ResidentList } from '../../../../api/residentApiTypes';
+import { EMPTY_RESIDENT_FILTERS } from '../../../../model/residentList';
+import type { ResidentFilters } from '../../../../model/residentListTypes';
 import styles from './residentListFilters.module.css';
 
 /** 전체 주민 명부를 검색하며 동 없는 대상에서는 동 필터를 숨깁니다. 연락처는 노출된 끝 네 자리로만 검색합니다. */

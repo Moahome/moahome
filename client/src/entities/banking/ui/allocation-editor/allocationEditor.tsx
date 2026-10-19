@@ -1,17 +1,17 @@
 'use client';
 
+import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import {
   Dropdown,
   Input
 } from '@/shared/ui/form-controls';
-import { formatWon } from '@/shared/lib/format';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   calculateExpenseAllocation,
-  sortExpenseLabels,
-  type ExpenseDraft
+  sortExpenseLabels
 } from '../../model/allocation';
+import type { ExpenseDraft } from '../../model/allocationTypes';
 import styles from './allocationEditor.module.css';
 
 /** 부담 동과 외부 부담처를 명시적으로 정하고 합계·원 미만 잔여액을 확인하게 합니다. */

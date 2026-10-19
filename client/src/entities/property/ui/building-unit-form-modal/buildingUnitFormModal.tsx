@@ -1,30 +1,32 @@
 'use client';
 
-import {
-  useRef,
-  useState,
-  type FormEvent
-} from 'react';
-import { UNIT_STATUS_OPTIONS } from '../../constants/propertyOptions';
-import { getSortedBuildings } from '../../model/unitSorting';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
 import {
   Dropdown,
   Input
 } from '@/shared/ui/form-controls';
+import { ServiceIcon } from '@/shared/ui/service-icon';
+import {
+  useRef,
+  useState,
+  type FormEvent
+} from 'react';
+import { UNIT_STATUS_OPTIONS } from '../../constants/propertyOptions';
 import {
   getBuildingNameError,
-  normalizeBuildingName,
   getUnitFormErrors,
-  normalizeUnitForm,
-  type BuildingDraft,
-  type UnitDraft,
-  type UnitForm,
-  type UnitFormErrors,
-  type UnitStatus
+  normalizeBuildingName,
+  normalizeUnitForm
 } from '../../model/unitForm';
-import { ServiceIcon } from '@/shared/ui/service-icon';
+import type {
+  BuildingDraft,
+  UnitDraft,
+  UnitForm,
+  UnitFormErrors,
+  UnitStatus
+} from '../../model/unitFormTypes';
+import { getSortedBuildings } from '../../model/unitSorting';
 import styles from './buildingUnitFormModal.module.css';
 
 export interface BuildingUnitFormTarget {

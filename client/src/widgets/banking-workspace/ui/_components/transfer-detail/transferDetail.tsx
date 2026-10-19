@@ -1,24 +1,26 @@
 'use client';
 
+import { useSession } from '@/entities/session';
+import { formatWon } from '@/shared/lib/format';
+import { Button } from '@/shared/ui/button';
+import { ClientModal } from '@/shared/ui/client-modal';
+import { Dropdown } from '@/shared/ui/form-controls';
+import { ListHeader } from '@/shared/ui/list-header';
+import { ServiceIcon } from '@/shared/ui/service-icon';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   useRef,
   useState
 } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { useSession } from '@/entities/session';
-import { Button } from '@/shared/ui/button';
-import { Dropdown } from '@/shared/ui/form-controls';
-import { ClientModal } from '@/shared/ui/client-modal';
-import { ListHeader } from '@/shared/ui/list-header';
-import { ServiceIcon } from '@/shared/ui/service-icon';
-import { formatWon } from '@/shared/lib/format';
 import {
   bankingError,
-  connectBankTransfer,
   cancelBankTransfer,
-  type BankingTransaction,
-  type BankingWorkspaceData
+  connectBankTransfer
 } from '../../../api/bankingApi';
+import type {
+  BankingTransaction,
+  BankingWorkspaceData
+} from '../../../api/bankingApiTypes';
 import styles from './transferDetail.module.css';
 
 /** PC 모달과 모바일 독립 상세에서 같은 이체 연결·해제·실패 재시도 흐름을 사용합니다. */

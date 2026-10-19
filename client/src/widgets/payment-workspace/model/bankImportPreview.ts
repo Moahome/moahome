@@ -1,12 +1,12 @@
 import {
-  unzipSync,
-  strFromU8
+  strFromU8,
+  unzipSync
 } from 'fflate';
-import {
-  isPreviewDate,
-  type PreviewLedger,
-  type PreviewPayment
-} from './paymentPreview';
+import { isPreviewDate } from './paymentPreview';
+import type {
+  PreviewLedger,
+  PreviewPayment
+} from './paymentPreviewTypes';
 
 /** 따옴표·쉼표·줄바꿈을 보존하는 CSV 파서입니다. 업로드 값은 코드나 수식으로 실행하지 않습니다. */
 export function parseBankPreviewCsv(text: string): string[][] {

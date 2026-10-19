@@ -1,15 +1,13 @@
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
-
-export interface ResidentExportRow {
-  name: string;
-  phone: string | null;
-  unitLabel: string;
-}
+import type {
+  ResidentExportResponse,
+  ResidentExportRow
+} from './residentExportApiTypes';
 
 /** 명시적인 다운로드 진입에서만 전체 번호를 받고 조회 캐시나 브라우저 저장소에는 보관하지 않습니다. */
 export async function getResidentExport(propertyId: string, residentIds: readonly string[]): Promise<ResidentExportRow[]> {
-  const result = await authenticatedAPI<{ residents: ResidentExportRow[] }>({
+  const result = await authenticatedAPI<ResidentExportResponse>({
     url: `/api/properties/${propertyId}/residents/export`,
     method: 'POST',
     data: {

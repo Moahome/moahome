@@ -1,13 +1,14 @@
 import type {
   BillingItem,
-  BillingTemplate,
-  BillingSettings,
   BillingMonth,
-  BillingPeriod
+  BillingPeriod,
+  BillingSettings,
+  BillingTemplate
 } from '@/entities/billing';
 import { FEE_ITEM_OPTIONS } from '@/entities/billing';
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
+import type { BillingHistoryResponse } from './billingApiTypes';
 
 const MONTH = /^[1-9][0-9]{3}-(0[1-9]|1[0-2])$/;
 const AMOUNT = /^-?[0-9]+$/;
@@ -72,7 +73,7 @@ export async function getBillingMonth(propertyId: string, month: string, unitId?
   return result;
 }
 export async function getBillingHistory(propertyId: string): Promise<BillingPeriod[]> {
-  const result = await authenticatedAPI<{ propertyId: string; periods: BillingPeriod[] }>({
+  const result = await authenticatedAPI<BillingHistoryResponse>({
     url: `/api/properties/${propertyId}/billing/history`
   });
   if (!result || result.propertyId !== propertyId || !Array.isArray(result.periods) || result.periods.some((period) => !period

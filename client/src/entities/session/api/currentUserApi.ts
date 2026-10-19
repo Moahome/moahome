@@ -2,14 +2,7 @@
 
 import { ApiError } from '@/shared/api';
 import { authenticatedAPI } from './authenticatedApi';
-
-export interface CurrentUser {
-  id: string;
-  displayName: string;
-  profileImageUrl: string | null;
-  systemRole: 'USER' | 'ADMIN';
-  status: 'ACTIVE';
-}
+import type { CurrentUser } from './currentUserApiTypes';
 
 /** 인증된 본인 정보를 조회하고 잘못된 응답을 로그인 성공으로 표시하지 않습니다. */
 export async function getCurrentUser(): Promise<CurrentUser> {

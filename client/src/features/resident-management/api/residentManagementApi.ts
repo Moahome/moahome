@@ -1,42 +1,15 @@
 import { isPropertyId } from '@/entities/property';
 import {
   RESIDENT_RELATION_OPTIONS,
-  RESIDENT_SIGNUP_OPTIONS,
-  type ResidentSignupStatus
+  RESIDENT_SIGNUP_OPTIONS
 } from '@/entities/resident';
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
-
-export interface ResidentDetail {
-  id: string;
-  propertyId: string;
-  name: string;
-  phoneLast4: string | null;
-  unitId: string | null;
-  buildingId: string | null;
-  buildingName: string | null;
-  unitNumber: string | null;
-  relationType: string | null;
-  representative: boolean;
-  signupStatus: ResidentSignupStatus;
-  serviceRole?: 'ADMIN' | 'MANAGER' | 'RESIDENT' | 'CONFLICT' | null;
-  createdAt: string;
-  updatedAt: string;
-  hasLinkedRequests: boolean;
-  representativeCandidates: { id: string; name: string }[];
-}
-
-export interface ResidentUpdateInput {
-  name: string;
-  unitId: string;
-  relationType: string;
-  phoneAction: 'KEEP' | 'REPLACE' | 'REMOVE';
-  phone: string | null;
-  replacementResidentId: string | null;
-  expectedUpdatedAt: string;
-  serviceRole?: 'MANAGER' | 'RESIDENT';
-  expectedServiceRole?: 'MANAGER' | 'RESIDENT';
-}
+import type {
+  ResidentDetail,
+  ResidentPhoneResponse,
+  ResidentUpdateInput
+} from './residentManagementApiTypes';
 
 /** 기본 상세·수정 응답은 마스킹만 허용하고 전체 연락처가 캐시·목록에 섞인 응답을 거부합니다. */
 function readDetail(result: ResidentDetail | undefined, propertyId: string, residentId: string): ResidentDetail {
@@ -67,7 +40,7 @@ export async function getResidentDetail(propertyId: string, residentId: string) 
 
 /** 공개 버튼에만 호출하며 전체 번호는 조회 캐시나 저장소에 넣지 않고 호출자의 일시 상태로 돌려줍니다. */
 export async function revealResidentPhone(propertyId: string, residentId: string) {
-  const result = await authenticatedAPI<{ phone: string | null }>({
+  const result = await authenticatedAPI<ResidentPhoneResponse>({
     url: `/api/properties/${propertyId}/residents/${residentId}/phone-reveal`,
     method: 'POST'
   });

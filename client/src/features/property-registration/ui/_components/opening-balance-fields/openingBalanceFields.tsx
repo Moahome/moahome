@@ -1,23 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { formatWon } from '@/shared/lib/format';
+import { Button } from '@/shared/ui/button';
 import { CalendarPicker } from '@/shared/ui/calendar-picker';
 import {
   AmountInput,
   Radio,
   SelectDropdown
 } from '@/shared/ui/form-controls';
-import { Button } from '@/shared/ui/button';
-import { formatWon } from '@/shared/lib/format';
+import { useState } from 'react';
+import { getOpeningToday } from '../../../model/openingBalances';
+import type { OpeningBalancesDraft } from '../../../model/openingBalancesTypes';
 import type {
   BuildingDraft,
   UnitDraft
-} from '../../../model/unitSetup';
+} from '../../../model/unitSetupTypes';
 import { getSortedBuildings } from '../../_utils/setupSorting';
-import {
-  getOpeningToday,
-  type OpeningBalancesDraft
-} from '../../../model/openingBalances';
 import styles from './openingBalanceFields.module.css';
 
 /** 기존 입력 페이지 안에서 인계 금액과 기준일을 확인하며 최종 제출 전에는 서버에 저장하지 않습니다. */

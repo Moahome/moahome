@@ -1,10 +1,12 @@
 import { createReportWorkbook } from '@/shared/lib/excel-report';
 import {
-  getMonthlyPreviewRows,
   filterMonthlyPreviewRows,
-  type MonthlyCollectionFilters,
-  type PreviewLedger
+  getMonthlyPreviewRows
 } from './paymentPreview';
+import type {
+  MonthlyCollectionFilters,
+  PreviewLedger
+} from './paymentPreviewTypes';
 
 /** 현재 조회 조건의 전체 세대와 합계만 내보내고 미확정 정산은 금액으로 확정하지 않습니다. */
 export async function createMonthlyWorkbook(ledger: PreviewLedger, month: string, filters: MonthlyCollectionFilters = {

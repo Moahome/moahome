@@ -1,13 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent
-} from 'react';
 import {
   BUILDING_PRESENCE_OPTIONS,
   PROPERTY_TYPE_OPTIONS
@@ -21,14 +13,24 @@ import {
 } from '@/shared/ui/form-controls';
 import { HomeIllustration } from '@/shared/ui/home-illustration';
 import { ServiceIcon } from '@/shared/ui/service-icon';
+import { useRouter } from 'next/navigation';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent
+} from 'react';
 import { validateBasicInfo } from '../../api/basicInfoApi';
 import {
   getBasicInfoErrors,
   getTextLength,
-  normalizeBasicInfo,
-  type BasicInfo,
-  type BasicInfoDraft
+  normalizeBasicInfo
 } from '../../model/basicInfo';
+import type {
+  BasicInfo,
+  BasicInfoDraft
+} from '../../model/basicInfoTypes';
 import { AddressSearch } from '../_components/address-search/addressSearch';
 import styles from './propertyRegistrationDialog.module.css';
 

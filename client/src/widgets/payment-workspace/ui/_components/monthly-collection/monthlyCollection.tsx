@@ -1,13 +1,5 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { MonthPicker } from '@/shared/ui/month-picker';
-import { MonthlyDetail } from '../monthly-detail/monthlyDetail';
-import {
-  MONTHLY_STATUS_TONES,
-  PaymentBadge
-} from '../payment-badge/paymentBadge';
 import {
   formatInteger,
   formatWon
@@ -19,19 +11,27 @@ import {
   Dropdown,
   Input
 } from '@/shared/ui/form-controls';
+import { MonthPicker } from '@/shared/ui/month-picker';
 import { Pagination } from '@/shared/ui/pagination';
-import { Toast } from '@/shared/ui/toast';
-import { SummaryCard } from '@/shared/ui/summary-card';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import {
-  getMonthlyPreviewRows,
-  getMonthlyPreviewIncome,
-  getPreviewBuildingOptions,
-  filterMonthlyPreviewRows,
-  type MonthlyCollectionFilters
-} from '../../../model/paymentPreview';
-import { usePaymentWorkspace } from '../../payment-workspace-provider/paymentWorkspaceProvider';
+import { SummaryCard } from '@/shared/ui/summary-card';
+import { Toast } from '@/shared/ui/toast';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { createMonthlyWorkbook } from '../../../model/monthlyExport';
+import {
+  filterMonthlyPreviewRows,
+  getMonthlyPreviewIncome,
+  getMonthlyPreviewRows,
+  getPreviewBuildingOptions
+} from '../../../model/paymentPreview';
+import type { MonthlyCollectionFilters } from '../../../model/paymentPreviewTypes';
+import { usePaymentWorkspace } from '../../payment-workspace-provider/paymentWorkspaceProvider';
+import { MonthlyDetail } from '../monthly-detail/monthlyDetail';
+import {
+  MONTHLY_STATUS_TONES,
+  PaymentBadge
+} from '../payment-badge/paymentBadge';
 import styles from './monthlyCollection.module.css';
 
 /** 다운로드 행동을 페이지 헤더에서 제공하고 원장·필터 UI의 배치를 바꾸지 않습니다. */

@@ -1,36 +1,34 @@
 'use client';
 
-import {
-  useEffect,
-  useRef,
-  useState
-} from 'react';
 import type { FeeItemCode } from '@/entities/billing';
+import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { HomeIllustration } from '@/shared/ui/home-illustration';
 import { IconButton } from '@/shared/ui/icon-button';
-import { formatWon } from '@/shared/lib/format';
 import {
   ServiceIcon,
   type ServiceIconName
 } from '@/shared/ui/service-icon';
 import {
-  getFeeItemsError,
-  getFeeItemsTotal,
-  type FeeItemDraft
-} from '../../../model/feeItems';
-import { FeeItemEditor } from '../fee-item-editor/feeItemEditor';
-import { SetupProgress } from '../setup-progress/setupProgress';
-import { UnitDeleteConfirmation } from '../unit-delete-confirmation/unitDeleteConfirmation';
-import { OpeningBalanceFields } from '../opening-balance-fields/openingBalanceFields';
+  useEffect,
+  useRef,
+  useState
+} from 'react';
 import {
-  getFirstBillingError,
-  type OpeningBalancesDraft
-} from '../../../model/openingBalances';
+  getFeeItemsError,
+  getFeeItemsTotal
+} from '../../../model/feeItems';
+import type { FeeItemDraft } from '../../../model/feeItemsTypes';
+import { getFirstBillingError } from '../../../model/openingBalances';
+import type { OpeningBalancesDraft } from '../../../model/openingBalancesTypes';
 import type {
   BuildingDraft,
   UnitDraft
-} from '../../../model/unitSetup';
+} from '../../../model/unitSetupTypes';
+import { FeeItemEditor } from '../fee-item-editor/feeItemEditor';
+import { OpeningBalanceFields } from '../opening-balance-fields/openingBalanceFields';
+import { SetupProgress } from '../setup-progress/setupProgress';
+import { UnitDeleteConfirmation } from '../unit-delete-confirmation/unitDeleteConfirmation';
 import styles from './feeItemsSetup.module.css';
 
 const FEE_ITEM_ICONS = {

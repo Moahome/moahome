@@ -1,24 +1,10 @@
-import { authenticatedAPI } from '@/entities/session';
 import { isPropertyId } from '@/entities/property';
+import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
-
-export type ImportStatus = 'READY' | 'DUPLICATE' | 'ERROR' | 'SUCCESS' | 'NOT_SELECTED';
-export interface ImportRow {
-  rowNumber: number;
-  building: string;
-  unitNumber: string;
-  name: string;
-  relationType: string | null;
-  phoneLast4: string | null;
-  status: ImportStatus;
-  reason: string;
-  representative: boolean;
-}
-export interface ImportResult {
-  importId: string;
-  expiresAt: string;
-  rows: ImportRow[];
-}
+import type {
+  ImportResult,
+  ImportRow
+} from './residentImportApiTypes';
 
 /** 서버가 검증한 행만 사용하고 전체 연락처·중복 행 번호·예상하지 못한 상태는 표시하지 않습니다. */
 function readResult(result: ImportResult): ImportResult {

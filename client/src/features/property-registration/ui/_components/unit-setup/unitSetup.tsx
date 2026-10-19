@@ -1,44 +1,40 @@
 'use client';
 
 import {
+  BuildingUnitFormModal,
+  type BuildingUnitFormTarget
+} from '@/entities/property';
+import { Button } from '@/shared/ui/button';
+import { FilterTabs } from '@/shared/ui/filter-tabs';
+import { HomeIllustration } from '@/shared/ui/home-illustration';
+import { ServiceIcon } from '@/shared/ui/service-icon';
+import {
   useEffect,
   useRef,
   useState
 } from 'react';
-import { FilterTabs } from '@/shared/ui/filter-tabs';
-import { Button } from '@/shared/ui/button';
-import { HomeIllustration } from '@/shared/ui/home-illustration';
-import { ServiceIcon } from '@/shared/ui/service-icon';
+import { getAdministratorError } from '../../../model/administrator';
+import type { AdministratorDraft } from '../../../model/administratorTypes';
+import { createAutomaticUnits } from '../../../model/automaticUnits';
+import type { AutomaticUnitRule } from '../../../model/automaticUnitsTypes';
+import type { BasicInfoDraft } from '../../../model/basicInfoTypes';
+import { getUnitOpeningError } from '../../../model/openingBalances';
+import type { OpeningBalancesDraft } from '../../../model/openingBalancesTypes';
 import {
-  createAutomaticUnits,
-  type AutomaticUnitRule
-} from '../../../model/automaticUnits';
-import type { BasicInfoDraft } from '../../../model/basicInfo';
-import {
-  getUnitSetupError,
   getUnitLabel,
-  type BuildingDraft,
-  type UnitDraft
+  getUnitSetupError
 } from '../../../model/unitSetup';
-import {
-  BuildingUnitFormModal,
-  type BuildingUnitFormTarget
-} from '@/entities/property';
+import type {
+  BuildingDraft,
+  UnitDraft
+} from '../../../model/unitSetupTypes';
+import { AdministratorProfile } from '../administrator-profile/administratorProfile';
 import { AutomaticUnitEditor } from '../automatic-unit-editor/automaticUnitEditor';
 import { BuildingManager } from '../building-manager/buildingManager';
-import { UnitDeleteConfirmation } from '../unit-delete-confirmation/unitDeleteConfirmation';
-import { SetupProgress } from '../setup-progress/setupProgress';
-import { UnitList } from '../unit-list/unitList';
-import { AdministratorProfile } from '../administrator-profile/administratorProfile';
-import {
-  getAdministratorError,
-  type AdministratorDraft
-} from '../../../model/administrator';
-import {
-  getUnitOpeningError,
-  type OpeningBalancesDraft
-} from '../../../model/openingBalances';
 import { OpeningBalanceFields } from '../opening-balance-fields/openingBalanceFields';
+import { SetupProgress } from '../setup-progress/setupProgress';
+import { UnitDeleteConfirmation } from '../unit-delete-confirmation/unitDeleteConfirmation';
+import { UnitList } from '../unit-list/unitList';
 import styles from './unitSetup.module.css';
 
 /** 같은 동·세대 초안을 PC·모바일 표로 표시하고 검색·편집·이전 이동을 연결합니다. */

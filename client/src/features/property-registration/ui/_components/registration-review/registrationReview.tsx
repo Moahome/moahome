@@ -1,34 +1,34 @@
 'use client';
 
+import { formatWon } from '@/shared/lib/format';
+import { Button } from '@/shared/ui/button';
+import {
+  ServiceIcon,
+  type ServiceIconName
+} from '@/shared/ui/service-icon';
 import {
   useEffect,
   useRef,
   useState,
   type ReactNode
 } from 'react';
-import { Button } from '@/shared/ui/button';
-import { formatWon } from '@/shared/lib/format';
-import {
-  ServiceIcon,
-  type ServiceIconName
-} from '@/shared/ui/service-icon';
+import type { RegistrationResult } from '../../../api/registrationApiTypes';
+import { getFeeItemsTotal } from '../../../model/feeItems';
+import { getUnitOpening } from '../../../model/openingBalances';
 import type {
   RegistrationDraft,
   RegistrationStep
-} from '../../../model/registrationDraft';
-import type { RegistrationResult } from '../../../api/registrationApi';
-import { getFeeItemsTotal } from '../../../model/feeItems';
+} from '../../../model/registrationDraftTypes';
 import {
   getFloorLabel,
-  getUnitLabel,
-  type UnitDraft
+  getUnitLabel
 } from '../../../model/unitSetup';
+import type { UnitDraft } from '../../../model/unitSetupTypes';
 import {
   getSortedBuildings,
   getSortedUnits
 } from '../../_utils/setupSorting';
 import { SetupProgress } from '../setup-progress/setupProgress';
-import { getUnitOpening } from '../../../model/openingBalances';
 import styles from './registrationReview.module.css';
 
 export type SubmissionStatus = 'idle' | 'submitting' | 'checking' | 'failed' | 'unknown' | 'complete';

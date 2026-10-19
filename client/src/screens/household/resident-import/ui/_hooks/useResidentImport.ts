@@ -1,15 +1,15 @@
+import { useQueryClient } from '@tanstack/react-query';
 import {
   useEffect,
   useRef,
   useState
 } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
-  previewResidents,
   commitResidents,
   getImportError,
-  type ImportResult
+  previewResidents
 } from '../../api/residentImportApi';
+import type { ImportResult } from '../../api/residentImportApiTypes';
 
 /** 파일과 명부를 브라우저 저장소에 남기지 않고 업로드·선택·저장 결과의 수명과 중복 클릭을 관리합니다. */
 export function useResidentImport(propertyId: string) {

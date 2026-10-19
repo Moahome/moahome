@@ -6,22 +6,12 @@ import {
 } from '@/entities/property';
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
-
-interface UnitResponse {
-  id: string;
-  buildingId: string | null;
-  unitNumber: string;
-  displayName: string | null;
-  floor: number | null;
-  status: UnitDraft['status'];
-}
-
-export interface UnitList {
-  hasBuildings: boolean;
-  buildings: BuildingDraft[];
-  units: UnitDraft[];
-  residentSummaries: Record<string, UnitResidentSummary> | null;
-}
+import type {
+  BuildingResponse,
+  UnitList,
+  UnitListResponse,
+  UnitResponse
+} from './unitApiTypes';
 
 /** 권한 없음(null)과 실제 0명을 구분하고 불완전한 집계 응답을 임의의 숫자로 표시하지 않습니다. */
 function readResidentSummaries(value: unknown, units: UnitDraft[]): Record<string, UnitResidentSummary> | null {
@@ -66,13 +56,7 @@ function readUnit(unit: UnitResponse): UnitDraft {
 
 /** 현재 관리대상의 저장된 목록을 조회하고 다른 대상의 응답은 표시하지 않습니다. */
 export async function getUnits(propertyId: string): Promise<UnitList> {
-  const result = await authenticatedAPI<{
-    propertyId: string;
-    hasBuildings: boolean;
-    buildings: { id: string; name: string }[];
-    units: UnitResponse[];
-    residentSummaries: unknown;
-  }>({
+  const result = await authenticatedAPI<UnitListResponse>({
     url: `/api/properties/${propertyId}/units`
   });
 
@@ -114,7 +98,7 @@ export async function saveUnit(propertyId: string, unit: UnitDraft, editingId: s
 
 /** 동 이름은 서버에서 다시 검증하며 기존 동 수정에는 DB ID를 URL로 전달합니다. */
 export async function saveBuilding(propertyId: string, building: BuildingDraft, editingId: string | null): Promise<void> {
-  const result = await authenticatedAPI<{ id: string; name: string }>({
+  const result = await authenticatedAPI<BuildingResponse>({
     url: `/api/properties/${propertyId}/buildings${editingId ? `/${editingId}` : ''}`,
     method: editingId ? 'PUT' : 'POST',
     data: {

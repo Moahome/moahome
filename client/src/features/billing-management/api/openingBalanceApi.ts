@@ -1,44 +1,13 @@
+import { isPropertyId } from '@/entities/property';
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
-import { isPropertyId } from '@/entities/property';
+import type {
+  OpeningBatch,
+  OpeningInput,
+  OpeningUnit,
+  OpeningWorkspace
+} from './openingBalanceApiTypes';
 
-export interface OpeningUnit {
-  unitId: string;
-  label: string;
-  receivable: string;
-  credit: string;
-  originMonth: string | null;
-  responsibility: string | null;
-}
-export interface OpeningWorkspace {
-  propertyId: string;
-  asOf: string;
-  managementStarted: boolean;
-  cutoffDate: string | null;
-  firstBillingMonth: string | null;
-  batch: OpeningBatch | null;
-  units: OpeningUnit[];
-  accounts: { accountId: string; label: string; amount: string }[];
-  history: OpeningBatch[];
-}
-interface OpeningBatch {
-  id: string;
-  revision: number;
-  status: 'DRAFT' | 'CONFIRMED' | 'CANCELED';
-  cutoffDate: string;
-  firstBillingMonth: string;
-  confirmedAt: string | null;
-  canceledAt: string | null;
-  cancelReason: string | null;
-}
-export interface OpeningInput {
-  batchId: string | null;
-  revision: number | null;
-  cutoffDate: string;
-  firstBillingMonth: string;
-  units: Omit<OpeningUnit, 'label'>[];
-  accounts: { accountId: string; amount: string }[];
-}
 const AMOUNT = /^[0-9]{1,15}$/;
 function read(value: OpeningWorkspace, property: string) {
   if (!value || value.propertyId !== property || !Array.isArray(value.units) || !Array.isArray(value.accounts)

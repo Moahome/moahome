@@ -4,12 +4,7 @@ import {
   type BuildingDraft,
   type UnitDraft
 } from '@/entities/property';
-
-export interface UnitListFilters {
-  query: string;
-  buildingId: string;
-  status: string;
-}
+import type { UnitListFilters } from './unitListTypes';
 
 export const EMPTY_UNIT_LIST_FILTERS: UnitListFilters = {
   query: '',

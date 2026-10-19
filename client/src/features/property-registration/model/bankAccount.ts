@@ -1,22 +1,15 @@
 export {
   EMPTY_BANK_ACCOUNT,
   getBankAccountErrors,
-  normalizeAccountNumber,
   isBankAccountDraft,
-  type BankAccountDraft,
-  type BankAccountErrors
+  normalizeAccountNumber
 } from '@/entities/banking';
 
 import {
   EMPTY_BANK_ACCOUNT,
-  getBankAccountErrors,
-  type BankAccountDraft
+  getBankAccountErrors
 } from '@/entities/banking';
-
-export interface RegistrationAccount extends BankAccountDraft {
-  clientId: string;
-  openingAmount: string;
-}
+import type { RegistrationAccount } from './bankAccountTypes';
 
 /** 통장은 용도·개수 제한 없이 추가하되 기준일 잔액을 임의로 0원 확정하지 않습니다. */
 export function createRegistrationAccount(clientId: string, isPrimary = false): RegistrationAccount {

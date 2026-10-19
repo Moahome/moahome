@@ -1,31 +1,31 @@
 'use client';
 
 import {
-  useRef,
-  useState,
-  type FormEvent
-} from 'react';
-import {
-  useQuery,
-  useQueryClient
-} from '@tanstack/react-query';
-import { useSession } from '@/entities/session';
-import {
   BankAccountCard,
   EMPTY_BANK_ACCOUNT,
   getBankAccountErrors,
   type BankAccountDraft
 } from '@/entities/banking';
+import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
+  useQuery,
+  useQueryClient
+} from '@tanstack/react-query';
+import {
+  useRef,
+  useState,
+  type FormEvent
+} from 'react';
+import {
   bankAccountError,
-  getBankAccounts,
-  saveBankAccount,
   closeBankAccount,
-  type ManagedBankAccount
+  getBankAccounts,
+  saveBankAccount
 } from '../../../api/bankAccountApi';
+import type { ManagedBankAccount } from '../../../api/bankAccountApiTypes';
 import styles from './bankAccountEditor.module.css';
 
 /** 통장 원문은 이 설정 안에서만 조회하고 목록·추가·정정·사용 종료 후 관련 업무 캐시를 갱신합니다. */

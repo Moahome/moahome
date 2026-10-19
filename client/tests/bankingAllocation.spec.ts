@@ -1,21 +1,21 @@
 import {
-  strFromU8,
-  unzipSync
-} from 'fflate';
-import { createExpenseWorkbook } from '../src/widgets/banking-workspace/model/expenseExport';
-import {
   expect,
   test
 } from '@playwright/test';
 import {
-  calculateExpenseAllocation,
-  createExpenseDraft
-} from '../src/widgets/banking-workspace/model/expenseAllocation';
+  strFromU8,
+  unzipSync
+} from 'fflate';
 import type {
   BankingTransaction,
   BankingWorkspaceData,
   ExpenseDraft
-} from '../src/widgets/banking-workspace/api/bankingApi';
+} from '../src/widgets/banking-workspace/api/bankingApiTypes';
+import {
+  calculateExpenseAllocation,
+  createExpenseDraft
+} from '../src/widgets/banking-workspace/model/expenseAllocation';
+import { createExpenseWorkbook } from '../src/widgets/banking-workspace/model/expenseExport';
 
 test('관리실 거래는 내용으로 지출명을 채우고 별도 항목 입력 없이 지출을 준비', () => {
   const row = {
@@ -114,7 +114,6 @@ test('큰 원 단위 금액·소수 비율의 정밀도와 중복 부담처 검�
     amount: '50'
   }])).error).toContain('중복');
 });
-
 
 test('지출 XLSX는 두 동을 통합하고 선택 동·외부 제외·수식 이름과 큰 합계의 정밀도를 보존', async () => {
   const row = {
@@ -254,7 +253,7 @@ test('동별 잔고는 시작 잔고 미설정을 0원으로 합산하지 않고
     externals: [{
       remaining: '91330'
     }]
-  } as unknown as import('../src/widgets/banking-workspace/api/bankingBalanceApi').BalanceWorkspace;
+  } as unknown as import('../src/widgets/banking-workspace/api/bankingBalanceApiTypes').BalanceWorkspace;
   expect(getBalanceSummary(data)).toEqual({
     total: BigInt(604335),
     difference: BigInt(-91330),
@@ -320,7 +319,6 @@ test('동별 잔고는 시작 잔고 미설정을 0원으로 합산하지 않고
   expect(strFromU8(zip['xl/sharedStrings.xml'])).not.toContain('<t>이전</t>');
 });
 
-
 test('통장 잔액 합계와 차액은 확인값·계산값을 같은 기준으로 사용하고 원본 확인값은 보존', async () => {
   const { getAccountBalanceDisplay, getAccountBalanceTotal } = await import('../src/widgets/banking-workspace/model/accountBalance');
   const { getBalanceSummary } = await import('../src/widgets/banking-workspace/model/balanceLedger');
@@ -359,7 +357,7 @@ test('통장 잔액 합계와 차액은 확인값·계산값을 같은 기준으
     bankBalance: null,
     accounts: [account],
     externals: []
-  } as unknown as import('../src/widgets/banking-workspace/api/bankingBalanceApi').BalanceWorkspace;
+  } as unknown as import('../src/widgets/banking-workspace/api/bankingBalanceApiTypes').BalanceWorkspace;
   expect(getBalanceSummary(data)).toMatchObject({
     total: BigInt(1522910),
     difference: BigInt(0)

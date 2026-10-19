@@ -1,5 +1,5 @@
 import { RESIDENT_RELATION_OPTIONS } from '@/entities/resident';
-import type { ImportRow } from '../../api/residentImportApi';
+import type { ImportRow } from '../../api/residentImportApiTypes';
 
 /** CSV 수식 실행을 막고 마스킹한 화면 결과만 Excel에서 열 수 있는 UTF-8 파일로 만듭니다. */
 export function downloadResult(rows: ImportRow[]) {

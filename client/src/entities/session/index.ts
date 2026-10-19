@@ -1,21 +1,23 @@
 export {
-  getSession, setSession, clearSession
-} from './model/sessionStore';
+  authenticatedAPI
+} from './api/authenticatedApi';
 export type {
-  WebSession
-} from './model/sessionStore';
-export {
-  restoreSession
-} from './model/restoreSession';
+  CurrentUser
+} from './api/currentUserApiTypes';
 export {
   logoutSession
 } from './model/logoutSession';
 export {
-  authenticatedAPI
-} from './api/authenticatedApi';
+  restoreSession
+} from './model/restoreSession';
+export {
+  clearSession,
+  getSession,
+  setSession
+} from './model/sessionStore';
+export type {
+  WebSession
+} from './model/sessionStoreTypes';
 export {
   useSession
 } from './model/useSession';
-export type {
-  CurrentUser
-} from './api/currentUserApi';

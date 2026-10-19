@@ -4,11 +4,11 @@ import {
   Input,
   Radio
 } from '@/shared/ui/form-controls';
-import type { AdministratorDraft } from '../../../model/administrator';
-import {
-  type BuildingDraft,
-  type UnitDraft
-} from '../../../model/unitSetup';
+import type { AdministratorDraft } from '../../../model/administratorTypes';
+import type {
+  BuildingDraft,
+  UnitDraft
+} from '../../../model/unitSetupTypes';
 import { AdministratorUnitFields } from '../administrator-unit-fields/administratorUnitFields';
 import styles from './administratorProfile.module.css';
 

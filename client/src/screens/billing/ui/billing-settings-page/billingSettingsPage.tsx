@@ -1,24 +1,22 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import {
-  useMutation,
-  useQueryClient
-} from '@tanstack/react-query';
 import { useSession } from '@/entities/session';
 import {
-  saveBillingSettings,
-  getBillingError
+  getBillingError,
+  saveBillingSettings
 } from '@/features/billing-management';
 import { Button } from '@/shared/ui/button';
 import { ListHeader } from '@/shared/ui/list-header';
 import {
-  shiftBillingMonth,
-  type ScheduledSettings
-} from '../../model/billing';
-import { useBillingSettings } from '../_hooks/useBillingData';
-import { BillingSettingsForm } from '../_components/billing-settings-form/billingSettingsForm';
+  useMutation,
+  useQueryClient
+} from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import { shiftBillingMonth } from '../../model/billing';
+import type { ScheduledSettings } from '../../model/billingTypes';
 import { BillingLoadState } from '../_components/billing-load-state/billingLoadState';
+import { BillingSettingsForm } from '../_components/billing-settings-form/billingSettingsForm';
+import { useBillingSettings } from '../_hooks/useBillingData';
 import styles from './billingSettingsPage.module.css';
 
 /** 조회한 최신 버전으로 편집하고 저장 성공 뒤 서버 설정을 재조회해 읽기 화면으로 돌아갑니다. */

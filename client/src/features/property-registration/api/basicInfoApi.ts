@@ -1,9 +1,7 @@
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
-import {
-  getBasicInfoErrors,
-  type BasicInfo
-} from '../model/basicInfo';
+import { getBasicInfoErrors } from '../model/basicInfo';
+import type { BasicInfo } from '../model/basicInfoTypes';
 
 /** 기본 정보만 검증하며 관리대상 생성이나 최종 등록 API는 호출하지 않습니다. */
 export async function validateBasicInfo(basicInfo: BasicInfo): Promise<BasicInfo> {

@@ -4,7 +4,7 @@ import {
   type Page,
   type Route
 } from '@playwright/test';
-import type { RegistrationRequest } from '../src/features/property-registration/api/registrationApi';
+import type { RegistrationRequest } from '../src/features/property-registration/api/registrationApiTypes';
 
 const API_ORIGIN = 'http://localhost:8080';
 const VALIDATE_URL = `${API_ORIGIN}/api/property-registrations/basic-info/validate`;

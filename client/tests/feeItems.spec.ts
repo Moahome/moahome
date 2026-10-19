@@ -4,12 +4,12 @@ import {
 } from '@playwright/test';
 import {
   getFeeItemErrors,
-  isFeeItemDraftList,
   getFeeItemsError,
   getFeeItemsTotal,
-  MAX_FEE_AMOUNT,
-  type FeeItemDraft
+  isFeeItemDraftList,
+  MAX_FEE_AMOUNT
 } from '../src/features/property-registration/model/feeItems';
+import type { FeeItemDraft } from '../src/features/property-registration/model/feeItemsTypes';
 
 /** 실제 화면과 같은 항목 배열로 금액 계산의 경계와 상쇄를 검증합니다. */
 function feeItems(amounts: string[]): FeeItemDraft[] {

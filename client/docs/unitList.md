@@ -27,7 +27,8 @@
 src/screens/household/unit-list/
 ├── index.ts
 ├── model/
-│   └── unitList.ts
+│   ├── unitList.ts
+│   └── unitListTypes.ts
 └── ui/
     ├── unitListPage.tsx
     ├── unitListPage.module.css
@@ -43,6 +44,7 @@ src/screens/household/unit-list/
 
 - 진입 UI는 화면 블록을 조합합니다. 조회·변경 상태와 이벤트 처리 전체를 진입 TSX에 넣지 않습니다.
 - `features/unit-management/api/`는 목록과 독립 페이지가 공유하는 요청·응답 검증과 오류 안내를 소유합니다. 목록의 `model/`은 검색·정렬·페이지 계산, UI의 `_hooks/`는 조회·변경과 모달·페이지 진입 상태를 관리합니다.
+- 필터 타입은 `model/unitListTypes.ts`, API 계약은 `features/unit-management/api/unitApiTypes.ts`에 분리합니다. 세대 입력 타입·검증·표시 함수의 배치는 [Client 타입 배치 규칙](../AGENTS.md#타입-배치)을 따릅니다.
 - 상세 푸터는 `shared/ui/detail-actions`로 주민 상세와 공유합니다. 웹의 `닫기 → 수정 → 삭제` 순서·색상·오른쪽 정렬·구분선·여백과 모바일 페이지의 `수정 → 삭제` 동일 너비 배치를 한곳에서 관리합니다. 모바일 복귀는 [모바일 상세페이지 절대 규칙](../AGENTS.md#모바일-상세페이지-절대-규칙)에 따라 헤더의 `<`만 사용하고 목록 버튼을 두지 않습니다.
 - 독립 페이지는 `screens/household/unit-entry/`가 조합합니다. 세대 상세 표시는 `entities/property`의 `UnitDetail`, 입력·검증은 기존 `BuildingUnitFormModal`의 `presentation`으로 공유하며 페이지에서는 모달을 열거나 스크롤을 잠그지 않습니다.
 - 내부 컴포넌트도 자기 폴더 안에 TSX와 CSS Modules를 함께 둡니다. 반응형 규칙도 그 컴포넌트의 CSS에서 관리합니다. 진입 UI의 CSS는 화면 전체 배치만 담당합니다.

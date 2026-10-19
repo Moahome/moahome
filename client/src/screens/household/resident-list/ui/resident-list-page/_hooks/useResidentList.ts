@@ -1,15 +1,13 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useSession } from '@/entities/session';
-import {
-  getResidents,
-  type ResidentList
-} from '../../../api/residentApi';
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { getResidents } from '../../../api/residentApi';
+import type { ResidentList } from '../../../api/residentApiTypes';
 import {
   EMPTY_RESIDENT_FILTERS,
-  getResidentListView,
-  type ResidentFilters
+  getResidentListView
 } from '../../../model/residentList';
+import type { ResidentFilters } from '../../../model/residentListTypes';
 
 /** 계정·관리대상별 명부를 조회하고 화면 이탈 시 캐시를 제거하며 필터 변경 시 첫 페이지로 돌아갑니다. */
 export function useResidentList(propertyId: string) {

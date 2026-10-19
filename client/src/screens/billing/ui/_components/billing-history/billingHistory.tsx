@@ -1,5 +1,3 @@
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import type { BillingPeriod } from '@/entities/billing';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
@@ -11,13 +9,15 @@ import { ListToolbar } from '@/shared/ui/list-toolbar';
 import { MonthPicker } from '@/shared/ui/month-picker';
 import { Pagination } from '@/shared/ui/pagination';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import { formatBillingMonth } from '../../../model/billing';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { formatBillingMonth } from '../../../lib/billingLabel';
 import {
   useBillingHistory,
   useBillingMonth
 } from '../../_hooks/useBillingData';
-import { BillingLoadState } from '../billing-load-state/billingLoadState';
 import { BillingDetail } from '../billing-detail/billingDetail';
+import { BillingLoadState } from '../billing-load-state/billingLoadState';
 import styles from './billingHistory.module.css';
 
 /** 실제 확정된 이력만 검색·페이지로 나누며 행 클릭은 웹 모달·모바일 페이지로 연결합니다. */

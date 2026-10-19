@@ -1,21 +1,4 @@
-interface PostcodeResult {
-  address: string;
-  roadAddress: string;
-  jibunAddress: string;
-  userSelectedType: 'R' | 'J';
-}
-
-interface PostcodeOptions {
-  oncomplete: (data: PostcodeResult) => void;
-  width: string;
-  height: string;
-}
-
-interface PostcodeService {
-  Postcode: new (options: PostcodeOptions) => {
-    embed: (element: HTMLElement) => void;
-  };
-}
+import type { PostcodeService } from './postcodeServiceTypes';
 
 const POSTCODE_SCRIPT_URL = 'https://t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
 let loadingService: Promise<PostcodeService> | null = null;

@@ -1,21 +1,19 @@
 'use client';
 
+import { Button } from '@/shared/ui/button';
+import { ClientModal } from '@/shared/ui/client-modal';
+import { DetailActions } from '@/shared/ui/detail-actions';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import { useRef } from 'react';
+import { UNIT_STATUS_OPTIONS } from '../../constants/propertyOptions';
 import {
   getFloorLabel,
-  getUnitLabel,
-  type UnitDraft
-} from '../../model/unitForm';
-import { UNIT_STATUS_OPTIONS } from '../../constants/propertyOptions';
-import { Button } from '@/shared/ui/button';
-import { DetailActions } from '@/shared/ui/detail-actions';
-import { ClientModal } from '@/shared/ui/client-modal';
-import { ServiceIcon } from '@/shared/ui/service-icon';
+  getUnitLabel
+} from '../../lib/unitLabel';
+import { getUnitSignupLabel } from '../../lib/unitSignupLabel';
+import type { UnitDraft } from '../../model/unitFormTypes';
+import type { UnitResidentSummary } from '../../model/unitResidentsTypes';
 import styles from './unitDetail.module.css';
-import {
-  getUnitSignupLabel,
-  type UnitResidentSummary
-} from '../../model/unitResidents';
 
 /** 목록의 현재 세대 정보를 보여주고 수정 입력과 한 세대 삭제 확인으로 연결합니다. */
 export function UnitDetail({

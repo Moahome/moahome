@@ -1,33 +1,31 @@
 'use client';
 
+import { BankIcon } from '@/entities/banking';
+import { formatWon } from '@/shared/lib/format';
+import { Button } from '@/shared/ui/button';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   useEffect,
   useRef,
   useState,
   type FormEvent
 } from 'react';
-import { BankIcon } from '@/entities/banking';
-import { ServiceIcon } from '@/shared/ui/service-icon';
-import { formatWon } from '@/shared/lib/format';
-import { Button } from '@/shared/ui/button';
 import {
   createRegistrationAccount,
-  getRegistrationAccountsError,
-  type RegistrationAccount
+  getRegistrationAccountsError
 } from '../../../model/bankAccount';
-import { SetupProgress } from '../setup-progress/setupProgress';
-import { OpeningBalanceFields } from '../opening-balance-fields/openingBalanceFields';
-import {
-  getCashOpeningError,
-  type OpeningBalancesDraft
-} from '../../../model/openingBalances';
+import type { RegistrationAccount } from '../../../model/bankAccountTypes';
+import { getCashOpeningError } from '../../../model/openingBalances';
+import type { OpeningBalancesDraft } from '../../../model/openingBalancesTypes';
 import type {
   BuildingDraft,
   UnitDraft
-} from '../../../model/unitSetup';
+} from '../../../model/unitSetupTypes';
+import { OpeningBalanceFields } from '../opening-balance-fields/openingBalanceFields';
+import { SetupProgress } from '../setup-progress/setupProgress';
+import styles from './bankAccountSetup.module.css';
 import { BankIllustration } from './bankIllustration';
 import { RegistrationAccountDialog } from './registrationAccountDialog';
-import styles from './bankAccountSetup.module.css';
 
 /** 공용 관리계좌 목록과 계좌별 잔액을 초안으로 입력하며 이전 이동과 새로고침에서 같은 폼을 복원합니다. */
 export function BankAccountSetup({

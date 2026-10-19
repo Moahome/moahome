@@ -6,13 +6,13 @@ import {
   strFromU8,
   unzipSync
 } from 'fflate';
-import type { ResidentList } from '../src/screens/household/resident-list/api/residentApi';
-import type { ResidentExportRow } from '../src/screens/household/resident-list/api/residentExportApi';
+import type { ResidentList } from '../src/screens/household/resident-list/api/residentApiTypes';
+import type { ResidentExportRow } from '../src/screens/household/resident-list/api/residentExportApiTypes';
+import { getResidentUnitLabel } from '../src/screens/household/resident-list/lib/residentLabel';
 import { createResidentWorkbook } from '../src/screens/household/resident-list/model/residentExport';
 import {
   EMPTY_RESIDENT_FILTERS,
-  getResidentListView,
-  getResidentUnitLabel
+  getResidentListView
 } from '../src/screens/household/resident-list/model/residentList';
 
 /** 현재 페이지보다 큰 명부와 숫자 순서가 다른 동을 구성해 실제 내려받는 범위를 확인합니다. */

@@ -64,6 +64,7 @@
 | 후속 `app/(main)/entry/page.tsx` | 별도 진입 화면으로 분리할 때 추가 |
 | `screens/start/ui/startPage.tsx` | 세션 / 관리대상 조회 조합, 확인 중 / 오류 표시와 최종 라우터 이동 |
 | `features/enter-service/api/managementAccessApi.ts` | 기존 authenticatedAPI로 관리 영역 접근 API 호출, 응답 자료형·내용 검증 |
+| `features/enter-service/api/managementAccessApiTypes.ts` | 관리 영역 조회 자료형. 호출 함수와 분리한 타입 전용 파일 |
 | `features/enter-service/model/` | 공통 목적지 결정, 사용자별 최근 선택 기록과 공유 조회 상태 |
 | `entities/session/` | 기존 세션 복원 / 본인 정보 조회 재사용 |
 | `widgets/management-layout/` | 현재 대상의 권한 확인과 공통 사이드바 / 본문 조합, 내부 사이드바·드롭다운·링크 분리 |
@@ -73,7 +74,7 @@
 
 `app`의 메뉴별 `page.tsx`는 URL 연결을, `screens`는 해당 페이지의 본문을 담당합니다. 메뉴 링크는 URL로 이동하고 Widget은 상위 레이어의 화면 컴포넌트를 직접 가져오지 않습니다. 사이드바 내부 파일과 책임 분리는 [관리 레이아웃 설계](managementLayout.md#2-컴포넌트-분리와-메뉴-링크)를 따릅니다.
 
-API 호출은 기존 `entities/session`을 사용할 수 있는 Feature에 둡니다. 같은 레이어의 `entities/property`가 `entities/session` 내부를 직접 참조하는 구조를 만들지 않습니다. 요청 / 응답 타입은 호출 코드 가까이에 두며 독립적인 공유 범위가 생기기 전에는 별도의 타입 슬라이스를 추가하지 않습니다.
+API 호출은 기존 `entities/session`을 사용할 수 있는 Feature에 둡니다. 같은 레이어의 `entities/property`가 `entities/session` 내부를 직접 참조하는 구조를 만들지 않습니다. 요청 / 응답 타입은 [Client 타입 배치 규칙](../AGENTS.md#타입-배치)에 따라 호출 코드 옆의 타입 전용 파일에 두며 별도의 타입 슬라이스를 추가하지 않습니다.
 
 각 슬라이스는 필요한 함수 / Hook / 컴포넌트만 `index.ts`로 공개합니다. `useManagementEntry`는 서버 목록과 최근 ID로 대상을 결정하고 화면이나 Widget을 참조하지 않습니다. 라우터 이동과 표시 상태는 상위 화면에서 조합합니다. Query 키에는 현재 사용자 ID를 포함하고 단건은 관리대상 ID도 포함해 계정이나 대상이 바뀌어도 이전 조회 결과가 섞이지 않도록 합니다.
 

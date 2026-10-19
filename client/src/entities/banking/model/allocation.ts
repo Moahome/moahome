@@ -1,7 +1,4 @@
-export type BankingAllocation = { buildingId: string | null; label: string; amount: string; percentage: string | null };
-export type ExpenseDraft = {
-  category: string; note: string; mode: 'EQUAL' | 'RATIO' | 'AMOUNT'; saveAsRule: boolean; allocations: BankingAllocation[];
-};
+import type { ExpenseDraft } from './allocationTypes';
 
 /** API 반환 순서와 관계없이 동 이름의 숫자를 기준으로 표시하며 저장된 배열은 변경하지 않습니다. */
 export function sortExpenseLabels<T extends { label: string }>(items: readonly T[]): T[] {

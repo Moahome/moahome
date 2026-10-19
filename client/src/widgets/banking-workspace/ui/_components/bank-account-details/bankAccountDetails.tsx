@@ -1,20 +1,20 @@
 'use client';
 
+import { BankIcon } from '@/entities/banking';
+import { useSession } from '@/entities/session';
+import { formatWon } from '@/shared/lib/format';
+import { Button } from '@/shared/ui/button';
+import { useQuery } from '@tanstack/react-query';
 import {
   useEffect,
   useRef,
   useState
 } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useSession } from '@/entities/session';
-import { BankIcon } from '@/entities/banking';
-import { Button } from '@/shared/ui/button';
-import { formatWon } from '@/shared/lib/format';
 import {
   getBankAccountDetail,
   revealBankAccountNumber
 } from '../../../api/bankAccountDetailApi';
-import type { AccountBalance } from '../../../api/bankingBalanceApi';
+import type { AccountBalance } from '../../../api/bankingBalanceApiTypes';
 import { getAccountBalanceDisplay } from '../../../model/accountBalance';
 import styles from './bankAccountDetails.module.css';
 

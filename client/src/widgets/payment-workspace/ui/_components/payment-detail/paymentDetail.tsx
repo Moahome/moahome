@@ -1,13 +1,13 @@
 'use client';
 
+import { Button } from '@/shared/ui/button';
+import { ClientModal } from '@/shared/ui/client-modal';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   useState,
   type ReactNode
 } from 'react';
-import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
-import { ServiceIcon } from '@/shared/ui/service-icon';
-import type { PreviewPayment } from '../../../model/paymentPreview';
+import type { PreviewPayment } from '../../../model/paymentPreviewTypes';
 import { usePaymentWorkspace } from '../../payment-workspace-provider/paymentWorkspaceProvider';
 import { PaymentEditor } from '../payment-editor/paymentEditor';
 import styles from './paymentDetail.module.css';

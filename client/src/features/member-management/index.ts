@@ -1,17 +1,19 @@
 export {
   MEMBER_ROLE_LABELS,
-  getMembers,
-  linkOwnChiefResident,
-  changeResidentRole,
   changeMemberRole,
-  transferManagement,
+  changeResidentRole,
   endManagerAccess,
+  getMembers,
   issueMemberInvitation,
-  reviewMemberInvitation,
-  requestMemberInvitation,
+  linkOwnChiefResident,
   memberManagementError,
-  type MemberRole,
-  type MemberWorkspace,
-  type IssuedInvitation
+  requestMemberInvitation,
+  reviewMemberInvitation,
+  transferManagement
 } from './api/memberApi';
+export type {
+  IssuedInvitation,
+  MemberRole,
+  MemberWorkspace
+} from './api/memberApiTypes';
 
