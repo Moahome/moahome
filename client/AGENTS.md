@@ -190,6 +190,8 @@ Next.js와 도구가 사용하는 `page.tsx`, `layout.tsx`, `not-found.tsx`,
 
 기존 공통 UI 컴포넌트가 있으면 우선 재사용합니다.
 
+- 요약 카드의 설명용 도움말 아이콘(ⓘ)은 제목 글씨 바로 왼쪽에 둡니다(`ⓘ 입금 합계`). 제목 뒤에 배치하지 않습니다. 도움말 아이콘의 위치 변경을 큰 장식 아이콘 이동으로 해석하지 않으며, 큰 장식 아이콘은 기존 왼쪽 배치를 유지합니다. `shared/ui/summary-card`의 공통 표현을 사용합니다.
+
 - 일반 클릭 버튼은 `shared/ui/button`의 Button, 입력과 선택은 `shared/ui/form-controls`의 Input / Dropdown / Radio를 우선 사용합니다. 화면에는 업무 처리와 배치만 두고 색상·포커스·비활성 표현을 중복 구현하지 않습니다.
 - Dropdown의 placeholder는 미선택 표시이며 실제 옵션에 추가하지 않습니다. 옵션은 고유한 값으로 관리합니다.
 - Dropdown / SelectDropdown에 선택 해제용 X 버튼을 표시하지 않습니다. 공통 컴포넌트의 `clearable` 기본값은 `false`로 유지하고 화면에서 `true`로 켜지 않습니다. 필터 해제는 `전체` 옵션 또는 사용자가 요청한 별도 초기화 버튼으로 처리합니다.

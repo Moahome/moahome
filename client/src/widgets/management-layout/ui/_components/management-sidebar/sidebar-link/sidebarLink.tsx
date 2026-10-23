@@ -20,7 +20,7 @@ export function SidebarLink({
   collapsed?: boolean;
 }) {
   const href = `/manage/${propertyId}/${item.path}`;
-  const isCurrent = pathname === href || (item.path === 'banking/transactions' && ['upload', 'manual'].some((path) => pathname === `/manage/${propertyId}/banking/${path}`));
+  const isCurrent = pathname === href || (item.path === 'banking/transactions' && ['upload', 'manual', 'manual-expense'].some((path) => pathname === `/manage/${propertyId}/banking/${path}`));
   const content = (
     <>
       {icon}

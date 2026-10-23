@@ -43,10 +43,10 @@ export function SummaryCard({
         <div
           className={styles.label}
         >
+          {help}
           <span>
             {label}
           </span>
-          {help}
         </div>
         <div
           className={styles.value}
