@@ -61,6 +61,11 @@ export function ManagementShell({
 
 /** 직접 접근에서도 같은 관리대상 안의 목록·상세로 돌아가는 모바일 헤더를 구성합니다. */
 function getMobileBack(pathname: string, basePath: string, month: string | null, account: string | null) {
+  if (pathname === `${basePath}/settings/accounts`) return {
+    href: `${basePath}/settings`,
+    label: '설정으로 돌아가기',
+    title: '계좌 관리'
+  };
   const balanceQuery = new URLSearchParams();
   if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month ?? '')) balanceQuery.set('month', month!);
   if (/^[0-9a-f-]{36}$/i.test(account ?? '')) balanceQuery.set('account', account!);

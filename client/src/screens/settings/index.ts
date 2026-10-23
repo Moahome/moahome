@@ -1,3 +1,6 @@
 export {
   SettingsPage
-} from './ui/settingsPage';
+} from './ui/settings-page/settingsPage';
+export {
+  BankAccountPage
+} from './ui/bank-account-page/bankAccountPage';

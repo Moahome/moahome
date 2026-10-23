@@ -2,13 +2,17 @@
 
 import {
   BankAccountCard,
+  BankIcon,
   EMPTY_BANK_ACCOUNT,
   getBankAccountErrors,
   type BankAccountDraft
 } from '@/entities/banking';
+import { UnitDeleteConfirmation } from '@/entities/property';
 import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
+import { ListCard } from '@/shared/ui/list-card';
+import { ListHeader } from '@/shared/ui/list-header';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   useQuery,
@@ -29,8 +33,9 @@ import type { ManagedBankAccount } from '../../../api/bankAccountApiTypes';
 import styles from './bankAccountEditor.module.css';
 
 /** 통장 원문은 이 설정 안에서만 조회하고 목록·추가·정정·사용 종료 후 관련 업무 캐시를 갱신합니다. */
-export function BankAccountEditor({ propertyId, onClose, onSaved }: {
+export function BankAccountEditor({ propertyId, onClose, onSaved, presentation = 'modal' }: {
   propertyId: string; onClose: () => void; onSaved: () => void;
+  presentation?: 'modal' | 'page';
 }) {
   const session = useSession();
   const cache = useQueryClient();
@@ -47,7 +52,8 @@ export function BankAccountEditor({ propertyId, onClose, onSaved }: {
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const [message, setMessage] = useState('');
-  const rows = accounts.data ?? [];
+  // 삭제한 통장은 설정 목록에서 숨기되 서버 원본과 과거 거래 연결은 유지합니다.
+  const rows = (accounts.data ?? []).filter((account) => account.status !== 'CLOSED');
   const primary = rows.find((row) => row.isPrimary && row.status === 'ACTIVE');
 
   /** 설정 저장은 과거 거래를 이동하지 않으며 열린 업무 화면이 최신 통장 목록을 다시 읽게 합니다. */
@@ -59,6 +65,7 @@ export function BankAccountEditor({ propertyId, onClose, onSaved }: {
     });
     setEditing(null);setClosing(null);onSaved();
   }
+  /** 삭제 확인한 통장의 사용을 종료하고 과거 거래는 보존한 채 목록과 업무 캐시를 갱신합니다. */
   async function endUse() {
     if (!closing || pending.current) return;
     pending.current = true;setBusy(true);setMessage('');
@@ -67,34 +74,39 @@ export function BankAccountEditor({ propertyId, onClose, onSaved }: {
     finally { pending.current = false;setBusy(false); }
   }
 
-  const title = editing ? (editing.original ? '통장 정보 정정' : '통장 추가') : '공동 납부계좌 관리';
+  const title = editing ? (editing.original ? '통장 수정' : '통장 추가') : '공동 납부계좌 관리';
 
-  return (
-    <ClientModal
-      className={styles.modal}
-      aria-label={'관리계좌'}
-      onClose={onClose}
-      busy={busy}
+  const header = presentation === 'page' ? (
+    <ListHeader
+      menu={'설정'}
+      title={title}
+      titleId={'bank-account-title'}
+      description={'통장을 추가하고 기본 납부계좌와 사용 상태를 관리하세요.'}
+    />
+  ) : (
+    <header
+      className={styles.header}
     >
-      <header
-        className={styles.header}
-      >
-        <h2>
-          {title}
-        </h2>
-        <Button
-          variant={'ghost'}
-          iconOnly
-          aria-label={'관리계좌 닫기'}
-          disabled={busy}
-          onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
-        />
-      </header>
+      <h2>
+        {title}
+      </h2>
+      <Button
+        variant={'ghost'}
+        iconOnly
+        aria-label={'관리계좌 닫기'}
+        disabled={busy}
+        onClick={onClose}
+        leadingIcon={(
+          <ServiceIcon
+            name={'close'}
+          />
+        )}
+      />
+    </header>
+  );
+
+  const content = (
+    <>
       {editing && primary ? (
         <AccountForm
           key={editing.id}
@@ -135,88 +147,82 @@ export function BankAccountEditor({ propertyId, onClose, onSaved }: {
               </Button>
             </>
           )}
-          {rows.map((account) => (
-            <section
-              key={account.accountId}
-              className={styles['account-card']}
-            >
-              <h3>
-                {account.alias || account.bankName}
-                {account.isPrimary ? ' · 기본 납부계좌' : ''}
-              </h3>
-              <p>
-                {`${account.bankName} ${account.accountNumber} · ${account.holderName}`}
-              </p>
-              <p>
-                {account.status === 'ACTIVE' ? '사용 중' : '사용 종료 · 과거 내역 보존'}
-              </p>
-              {account.status === 'ACTIVE' && (
-                <div
-                  className={styles['account-actions']}
+          <div
+            className={styles['account-list']}
+          >
+            {rows.map((account) => (
+              <section
+                key={account.accountId}
+                className={styles['account-card']}
+              >
+                <span
+                  className={styles['bank-icon']}
+                  aria-hidden
                 >
-                  <Button
-                    variant={'outline'}
-                    disabled={busy}
-                    onClick={() => { setMessage('');setEditing({
-                      id: account.accountId,
-                      original: account
-                    }); }}
-                  >
-                    정보 정정
-                  </Button>
-                  {!account.isPrimary && (
-                    <Button
-                      variant={'text'}
-                      disabled={busy}
-                      onClick={() => { setMessage('');setClosing(account); }}
+                  <BankIcon
+                    bankCode={account.bankCode}
+                  />
+                </span>
+                <div
+                  className={styles['account-identity']}
+                >
+                  <h3>
+                    {account.alias || account.bankName}
+                    {account.isPrimary ? ' · 기본 납부계좌' : ''}
+                  </h3>
+                  <p>
+                    {`${account.bankName} ${account.accountNumber} · ${account.holderName}`}
+                  </p>
+                </div>
+                <div
+                  className={styles['account-footer']}
+                >
+                  {account.status === 'ACTIVE' && (
+                    <div
+                      className={styles['account-actions']}
                     >
-                      사용 종료
-                    </Button>
+                      <Button
+                        size={'sm'}
+                        variant={'text'}
+                        tone={'success'}
+                        disabled={busy}
+                        onClick={() => { setMessage('');setClosing(null);setEditing({
+                          id: account.accountId,
+                          original: account
+                        }); }}
+                      >
+                        수정
+                      </Button>
+                      {!account.isPrimary && (
+                        <Button
+                          size={'sm'}
+                          variant={'text'}
+                          tone={'danger'}
+                          disabled={busy}
+                          onClick={() => { setMessage('');setClosing(account); }}
+                        >
+                          삭제
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
-            </section>
-          ))}
+              </section>
+            ))}
+          </div>
           {primary && (
             <Button
               variant={'outline'}
               disabled={busy}
-              onClick={() => setEditing({
+              onClick={() => { setMessage('');setClosing(null);setEditing({
                 id: crypto.randomUUID(),
                 original: null
-              })}
+              }); }}
             >
               통장 추가
             </Button>
           )}
-          {closing && (
-            <section
-              className={styles['account-card']}
-            >
-              <p>
-                {`${closing.alias || closing.bankName} 통장의 사용을 종료할까요? 새 거래 등록은 중단하고 과거 내역은 보존합니다.`}
-              </p>
-              <div
-                className={styles['account-actions']}
-              >
-                <Button
-                  variant={'outline'}
-                  disabled={busy}
-                  onClick={() => setClosing(null)}
-                >
-                  취소
-                </Button>
-                <Button
-                  disabled={busy}
-                  loading={busy}
-                  onClick={() => void endUse()}
-                >
-                  사용 종료 확인
-                </Button>
-              </div>
-            </section>
-          )}
-          {message && (
+          {message && !closing && (
             <p
               role={'alert'}
             >
@@ -225,6 +231,41 @@ export function BankAccountEditor({ propertyId, onClose, onSaved }: {
           )}
         </div>
       )}
+      {closing && (
+        <UnitDeleteConfirmation
+          label={closing.alias || closing.bankName}
+          title={'통장 삭제 확인'}
+          description={'삭제한 통장은 목록에서 숨기고 과거 거래 내역은 보존합니다.'}
+          busy={busy}
+          errorMessage={message}
+          onClose={() => { setMessage('');setClosing(null); }}
+          onConfirm={() => void endUse()}
+        />
+      )}
+    </>
+  );
+
+  if (presentation === 'page') return (
+    <section
+      className={styles.page}
+      aria-label={'관리계좌'}
+    >
+      {header}
+      <ListCard>
+        {content}
+      </ListCard>
+    </section>
+  );
+
+  return (
+    <ClientModal
+      className={styles.modal}
+      aria-label={'관리계좌'}
+      onClose={onClose}
+      busy={busy}
+    >
+      {header}
+      {content}
     </ClientModal>
   );
 }

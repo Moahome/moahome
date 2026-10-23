@@ -908,11 +908,32 @@ for (const width of [1440, 390]) {
     });
     await page.goto(`${BASE}/settings`);
     expect(reads).toBe(0);
+    await expect(page.getByRole('heading', {
+      name: '설정',
+      exact: true,
+      level: 1
+    })).toBeVisible();
+    await expect(page.getByRole('button', {
+      name: '계좌 관리',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('heading', {
+      name: '관리 설정',
+      exact: true
+    })).toHaveCount(0);
+    if (width <= 767) await expect(page.getByRole('link', {
+      name: '대시보드로 돌아가기',
+      exact: true
+    })).toHaveCount(0);
+    await page.screenshot({
+      path: test.info().outputPath(`settingsOverview${width}.png`),
+      fullPage: true
+    });
     await page.getByRole('button', {
       name: '계좌 관리',
       exact: true
     }).click();
-    const dialog = page.getByRole('dialog', {
+    const dialog = page.getByRole(width <= 767 ? 'region' : 'dialog', {
       name: '관리계좌',
       exact: true
     });
@@ -921,8 +942,20 @@ for (const width of [1440, 390]) {
       name: '다시 시도',
       exact: true
     }).click();
+    await expect(dialog.getByRole('button', {
+      name: '수정',
+      exact: true
+    })).toBeVisible();
+    await expect(dialog.getByText('사용 중', {
+      exact: true
+    })).toHaveCount(0);
+    await expect.poll(() => dialog.locator('img[src="/banks/bank004.png"]').evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`bankAccountList${width}.png`),
+      fullPage: true
+    });
     await dialog.getByRole('button', {
-      name: '정보 정정',
+      name: '수정',
       exact: true
     }).click();
     await dialog.getByRole('button', {
@@ -1005,7 +1038,11 @@ for (const width of [1440, 390]) {
       isPrimary: true,
       primaryAccountId: id(20)
     });
-    await dialog.getByRole('button', {
+    if (width <= 767) await page.getByRole('link', {
+      name: '설정으로 돌아가기',
+      exact: true
+    }).click();
+    else await dialog.getByRole('button', {
       name: '관리계좌 닫기'
     }).click();
     await page.getByRole('button', {
@@ -1013,7 +1050,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     await dialog.getByRole('button', {
-      name: '정보 정정',
+      name: '수정',
       exact: true
     }).click();
     await dialog.getByRole('button', {
@@ -1027,7 +1064,11 @@ for (const width of [1440, 390]) {
       name: '계좌번호',
       exact: true
     })).toHaveValue('00098765432');
-    await dialog.getByRole('button', {
+    if (width <= 767) await page.getByRole('link', {
+      name: '설정으로 돌아가기',
+      exact: true
+    }).click();
+    else await dialog.getByRole('button', {
       name: '관리계좌 닫기',
       exact: true
     }).click();
@@ -1060,4 +1101,251 @@ test('부담당자의 설정에는 통장 관리을 제공하지 않음', async 
     name: '등록 및 참여',
     exact: true
   })).toBeVisible();
+});
+
+for (const width of [1440, 390]) {
+  test(`통장 삭제 ${width}px는 공통 모달로 확인·취소·실패 재시도하고 삭제 후 목록에서 숨김`, async ({ page }) => {
+    await mockWorkspace(page);
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const originalVersion = '2026-10-18T00:00:00Z';
+    const accounts = Array.from({
+      length: 8
+    }, (_, index) => ({
+      propertyId: PROPERTY,
+      accountId: id(20 + index),
+      updatedAt: originalVersion,
+      bankCode: '004',
+      bankName: '국민은행',
+      accountNumber: `0001234567${index}`,
+      holderName: '검증 예금주',
+      alias: `통장 ${index + 1}`,
+      isPrimary: index === 0,
+      status: 'ACTIVE'
+    }));
+    let writes = 0;
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    await page.route(`${API}/api/properties/${PROPERTY}/banking/account**`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return json(route, {});
+      if (route.request().method() === 'GET') return json(route, accounts);
+      expect(new URL(route.request().url()).pathname).toBe(`/api/properties/${PROPERTY}/banking/account/${id(21)}/close`);
+      expect(route.request().method()).toBe('POST');
+      expect(route.request().postDataJSON()).toEqual({
+        updatedAt: originalVersion
+      });
+      writes++;
+      if (writes === 1) return json(route, {
+        code: 'PAYMENT_SERVICE_UNAVAILABLE'
+      }, 503);
+      await gate;
+      accounts[1] = {
+        ...accounts[1],
+        status: 'CLOSED',
+        updatedAt: '2026-10-23T12:00:00Z'
+      };
+      return json(route, accounts[1]);
+    });
+    await page.goto(`${BASE}/settings`);
+    await page.getByRole('button', {
+      name: '계좌 관리',
+      exact: true
+    }).click();
+    const dialog = page.getByRole(width <= 767 ? 'region' : 'dialog', {
+      name: '관리계좌',
+      exact: true
+    });
+    const card = dialog.locator('section').filter({
+      has: page.getByRole('heading', {
+        name: '통장 2',
+        exact: true
+      })
+    });
+    const primaryCard = dialog.locator('section').filter({
+      has: page.getByRole('heading', {
+        name: '통장 1 · 기본 납부계좌',
+        exact: true
+      })
+    });
+    await expect(primaryCard.getByRole('button', {
+      name: '삭제',
+      exact: true
+    })).toHaveCount(0);
+    await expect(card.getByRole('button', {
+      name: '수정',
+      exact: true
+    })).toHaveCSS('color', 'rgb(22, 163, 74)');
+    await expect(card.getByRole('button', {
+      name: '삭제',
+      exact: true
+    })).toHaveCSS('color', 'rgb(239, 68, 68)');
+    for (const name of ['수정', '삭제']) {
+      const button = card.getByRole('button', {
+        name,
+        exact: true
+      });
+      await expect(button).toHaveAttribute('data-variant', 'text');
+      await expect(button).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+      await expect(button).toHaveCSS('border-top-color', 'rgba(0, 0, 0, 0)');
+    }
+    await card.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    const confirmation = page.getByRole('alertdialog', {
+      name: '통장 삭제 확인',
+      exact: true
+    });
+    await expect(confirmation).toBeInViewport();
+    await expect(confirmation).toContainText('과거 거래 내역은 보존합니다.');
+    await expect(card).not.toContainText('삭제할까요?');
+    await page.screenshot({
+      path: test.info().outputPath(`bankAccountDeleteConfirmation${width}.png`),
+      fullPage: true
+    });
+    await expect(confirmation.getByRole('button', {
+      name: '취소',
+      exact: true
+    })).toBeFocused();
+    await confirmation.getByRole('button', {
+      name: '취소',
+      exact: true
+    }).click();
+    expect(writes).toBe(0);
+    await expect(confirmation).toHaveCount(0);
+    await card.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await confirmation.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(confirmation.getByRole('alert')).toBeVisible();
+    await confirmation.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).evaluate((button: HTMLButtonElement) => { button.click(); button.click(); });
+    await expect.poll(() => writes).toBe(2);
+    await expect(confirmation.getByRole('button', {
+      name: '삭제',
+      exact: true
+    })).toBeDisabled();
+    await expect(confirmation.getByRole('button', {
+      name: '취소',
+      exact: true
+    })).toBeDisabled();
+    if (width > 767) await expect(dialog.getByRole('button', {
+      name: '관리계좌 닫기',
+      exact: true
+    })).toBeDisabled();
+    release();
+    await expect(confirmation).toHaveCount(0);
+    await expect(card).toHaveCount(0);
+    await expect(dialog.getByRole('heading', {
+      level: 3
+    })).toHaveCount(7);
+    expect(writes).toBe(2);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`bankAccountDeleted${width}.png`),
+      fullPage: true
+    });
+    if (width <= 767) await page.getByRole('link', {
+      name: '설정으로 돌아가기',
+      exact: true
+    }).click();
+    else await dialog.getByRole('button', {
+      name: '관리계좌 닫기',
+      exact: true
+    }).click();
+    await page.getByRole('button', {
+      name: '계좌 관리',
+      exact: true
+    }).click();
+    await expect(dialog.getByRole('heading', {
+      level: 3
+    })).toHaveCount(7);
+    await expect(card).toHaveCount(0);
+  });
+}
+
+test('모바일 계좌 관리 직접 접근·새로고침·로딩·오류에서도 페이지와 공통 헤더 뒤로가기를 유지', async ({ page }) => {
+  await mockWorkspace(page);
+  await page.setViewportSize({
+    width: 390,
+    height: 900
+  });
+  let fail = true;
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route(`${API}/api/properties/${PROPERTY}/banking/account/list`, async (route) => {
+    if (route.request().method() === 'OPTIONS') return json(route, {});
+    if (fail) {
+      await gate;
+      return json(route, {
+        code: 'PAYMENT_SERVICE_UNAVAILABLE'
+      }, 503);
+    }
+    return json(route, [{
+      propertyId: PROPERTY,
+      accountId: id(20),
+      updatedAt: '2026-10-18T00:00:00Z',
+      bankCode: '004',
+      bankName: '국민은행',
+      accountNumber: '00012345678',
+      holderName: '검증 예금주',
+      alias: '관리비 통장',
+      isPrimary: true,
+      status: 'ACTIVE'
+    }]);
+  });
+  await page.goto(`${BASE}/settings/accounts`);
+  const back = page.getByRole('link', {
+    name: '설정으로 돌아가기',
+    exact: true
+  });
+  const content = page.getByRole('region', {
+    name: '관리계좌',
+    exact: true
+  });
+  await expect(back).toBeVisible();
+  await expect(back).toHaveAttribute('href', `${BASE}/settings`);
+  await expect(content.getByRole('status')).toContainText('관리계좌를 불러오는 중');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  release();
+  await expect(content.getByRole('alert')).toBeVisible();
+  await expect(back).toBeVisible();
+  fail = false;
+  await page.reload();
+  await expect(content).toContainText('관리비 통장');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(back).toBeVisible();
+  await expect(content.getByRole('button', {
+    name: /닫기|목록|돌아가기/
+  })).toHaveCount(0);
+  await content.getByRole('button', {
+    name: '통장 추가',
+    exact: true
+  }).click();
+  await expect(content.getByRole('heading', {
+    name: '통장 추가',
+    exact: true,
+    level: 1
+  })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await content.getByRole('button', {
+    name: '취소',
+    exact: true
+  }).click();
+  await expect(content).toContainText('관리비 통장');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({
+    path: test.info().outputPath('mobileBankAccountsPage.png'),
+    fullPage: true
+  });
+  await back.click();
+  await expect(page).toHaveURL(`${BASE}/settings`);
 });
