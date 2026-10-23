@@ -27,7 +27,16 @@ export function ManagementShell({
   const fromBalance = searchParams.get('from') === 'balance'
     && /^[0-9a-f-]{36}$/i.test(ledgerBuilding ?? '') && /^\d{4}-(0[1-9]|1[0-2])$/.test(ledgerMonth ?? '')
     && (pathname.startsWith(`${basePath}/banking/receipts/`) || pathname.startsWith(`${basePath}/banking/transactions/`));
-  const mobileBack = fromBalance ? {
+  const fromExpenses = searchParams.get('from') === 'expenses'
+    && pathname.startsWith(`${basePath}/banking/transactions/`);
+  const expenseQuery = new URLSearchParams();
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(ledgerMonth ?? '')) expenseQuery.set('month', ledgerMonth!);
+  if (/^[0-9a-f-]{36}$/i.test(ledgerAccount ?? '')) expenseQuery.set('account', ledgerAccount!);
+  const mobileBack = fromExpenses ? {
+    href: `${basePath}/banking/expenses${expenseQuery.size ? `?${expenseQuery}` : ''}`,
+    label: '지출 내역으로 돌아가기',
+    title: '지출 상세'
+  } : fromBalance ? {
     href: `${basePath}/banking/balances/${ledgerBuilding}?month=${ledgerMonth}${accountQuery}`,
     label: '동별 상세 원장으로 돌아가기',
     title: '거래 상세'
@@ -67,6 +76,11 @@ function getMobileBack(pathname: string, basePath: string, month: string | null,
     href: `${basePath}/banking/transactions`,
     label: '통장 거래로 돌아가기',
     title: '수동 입금 등록'
+  };
+  if (pathname === `${basePath}/banking/manual-expense`) return {
+    href: `${basePath}/banking/transactions${balanceQuery.size ? `?${balanceQuery}` : ''}`,
+    label: '통장 거래로 돌아가기',
+    title: '수동 지출 등록'
   };
   if (pathname === `${basePath}/banking/upload`) return {
     href: `${basePath}/banking/transactions`,

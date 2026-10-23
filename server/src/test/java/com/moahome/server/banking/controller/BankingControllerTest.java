@@ -162,6 +162,27 @@ class BankingControllerTest {
 		verify(service).confirmIncomeAllocation(eq(user), eq(property), eq(transaction), any());
 	}
 
+	/** 수동 출금도 인증·필수 입력·중첩 배분 검증을 통과한 요청만 실제 사용자 ID로 전달합니다. */
+	@Test
+	void manualExpenseRequiresAuthenticationAndValidatesInputBeforeService() throws Exception {
+		var url = base() + "/expenses/manual";
+		mvc.perform(post(url).contentType(MediaType.APPLICATION_JSON).content("{}"))
+		    .andExpect(status().isUnauthorized());
+		for (String input : List.of("{}", "{\"allocations\":[null]}",
+		    "{\"id\":\"invalid\",\"amount\":\"-1\"}"))
+			mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON).content(input))
+			    .andExpect(status().isBadRequest());
+		verifyNoInteractions(service);
+		String body = """
+		    {"id":"%s","accountId":"%s","date":"2026-10-15","amount":"10000",
+		    "category":"청소비","note":"","mode":"EQUAL","allocations":[{"label":"공통"}]}
+		    """.formatted(transaction, UUID.randomUUID());
+		mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON).content(body))
+		    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"));
+		verify(service).manualExpense(eq(user), eq(property), argThat(r -> r.id().equals(transaction)
+		    && r.note() == null && r.amount().equals("10000") && !r.expense().saveAsRule()));
+	}
+
 	@TestConfiguration
 	static class Security {
 		@Bean

@@ -12,3 +12,7 @@ export {
 export {
   BankingIncomeAllocation
 } from './ui/banking-income-allocation/bankingIncomeAllocation';
+
+export {
+  ManualExpense
+} from './ui/manual-expense/manualExpense';

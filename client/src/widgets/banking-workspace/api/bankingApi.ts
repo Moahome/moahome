@@ -12,6 +12,7 @@ import type {
   BankingTransaction,
   BankingWorkspaceData
 } from './bankingApiTypes';
+import type { ManualExpenseInput } from './bankingApiTypes';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const AMOUNT = /^[0-9]{1,15}$/;
@@ -19,6 +20,9 @@ const AMOUNT = /^[0-9]{1,15}$/;
 /** 서버가 확정한 범위·방향·원 단위 금액을 확인한 뒤 화면에 반영합니다. */
 function validRows(rows: BankingTransaction[]): boolean {
   return Array.isArray(rows) && rows.length <= 100_000 && rows.every((row) => row && UUID.test(row.id) && UUID.test(row.accountId)
+    && (row.sourceType === undefined || ['BANK_IMPORT', 'MANUAL'].includes(row.sourceType))
+    && (row.sourceType !== 'MANUAL' || (row.direction === 'EXPENSE' && row.status === 'CONFIRMED'
+      && row.expense?.id === row.id && row.balance === null && row.paymentId === null))
     && /^\d{4}-\d{2}-\d{2}$/.test(row.date) && typeof row.payer === 'string' && typeof row.amount === 'string'
     && AMOUNT.test(row.amount) && BigInt(row.amount) > BigInt(0) && ['INCOME', 'EXPENSE'].includes(row.direction)
     && (row.balance === null || (typeof row.balance === 'string' && /^-?[0-9]{1,15}$/.test(row.balance)))
@@ -37,7 +41,10 @@ function validRows(rows: BankingTransaction[]): boolean {
 function readWorkspace(result: BankingWorkspaceData, propertyId: string): BankingWorkspaceData {
   if (result?.accounts && (!Array.isArray(result.accounts) || !result.accounts.every((a) => UUID.test(a.id) && typeof a.bankName === 'string'
     && typeof a.last4 === 'string' && typeof a.isPrimary === 'boolean' && ['ACTIVE', 'CLOSED', 'INACTIVE'].includes(a.status)
-    && (a.alias === null || typeof a.alias === 'string')))) throw new ApiError(200, 'INVALID_RESPONSE', '통장 목록을 확인할 수 없습니다.');
+    && (a.alias === null || typeof a.alias === 'string')
+    && (a.availableFrom == null || /^\d{4}-\d{2}-\d{2}$/.test(a.availableFrom))
+    && (a.closedOn == null || /^\d{4}-\d{2}-\d{2}$/.test(a.closedOn))
+    && (a.hasHistory === undefined || typeof a.hasHistory === 'boolean')))) throw new ApiError(200, 'INVALID_RESPONSE', '통장 목록을 확인할 수 없습니다.');
   if (!result || result.propertyId !== propertyId || !validRows(result.rows) || !Array.isArray(result.buildings)
     || !result.buildings.every((b) => UUID.test(b.id) && typeof b.label === 'string') || !Array.isArray(result.units)
     || !result.units.every((u) => UUID.test(u.id) && typeof u.label === 'string') || !Array.isArray(result.rules)) {
@@ -88,6 +95,15 @@ export async function confirmBankingExpense(propertyId: string, id: string, data
     data
   }), propertyId);
 }
+
+/** 요청 UUID는 재시도에도 유지하며 확정된 지출과 최신 목록을 함께 검증합니다. */
+export async function createManualExpense(propertyId: string, data: ManualExpenseInput) {
+  return readWorkspace(await authenticatedAPI<BankingWorkspaceData>({
+    url: `/api/properties/${propertyId}/banking/expenses/manual`,
+    method: 'POST',
+    data
+  }), propertyId);
+}
 /** 선택한 은행 원본·미연결 수동 입금을 함께 삭제하고 서버가 재계산한 목록을 반환합니다. */
 export async function deleteBankingTransactions(propertyId: string, transactionIds: string[], paymentIds: string[] = []) {
   return readWorkspace(await authenticatedAPI<BankingWorkspaceData>({
@@ -130,6 +146,8 @@ export function bankingError(error: unknown): string {
   });
   if (!(error instanceof ApiError)) return '통장 정보를 처리하지 못했어요. 다시 시도해주세요.';
   const messages: Record<string, string> = {
+    INVALID_MANUAL_EXPENSE: '지출명과 0원보다 큰 출금액을 입력해주세요.',
+    INVALID_MANUAL_EXPENSE_DATE: '오늘 또는 이전 출금일을 선택해주세요.',
     BANK_TRANSFER_CONFLICT: '다른 통장의 같은 금액 입출금인지 확인해주세요. 이미 처리된 연결은 다시 열어주세요.',
     BANK_TRANSFER_DELETE_PAIR_REQUIRED: '연결된 이체는 연결을 해제한 뒤 삭제하거나 양쪽 거래를 함께 선택해주세요.',
     PAYMENT_DELETE_NOT_ALLOWED: '은행에 연결된 수납은 해당 은행 거래를 선택해 삭제해주세요.',

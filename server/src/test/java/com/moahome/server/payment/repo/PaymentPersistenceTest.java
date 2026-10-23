@@ -2084,6 +2084,264 @@ class PaymentPersistenceTest {
 		jdbc.execute("drop schema " + schema + " cascade");
 	}
 
+
+	/** 은행 원본 없는 등록은 요청 UUID로 멱등 처리하고 지출·배분·작성자를 확정 이력으로 보존합니다. */
+	@Test
+	void manualExpenseStoresWithoutBankSourceAndRejectsChangedReplay() {
+		List<UUID> targets = manualIncomeBuildings();
+		var account = bankAccountSettings.read(user, property).accountId();
+		var request = manualExpenseRequest(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15), "10000", targets);
+		var row = banking.manualExpense(user, property, request).rows().getFirst();
+		assertThat(row.id()).isEqualTo(request.id());
+		assertThat(row.sourceType()).isEqualTo("MANUAL");
+		assertThat(row.date()).isEqualTo(request.date());
+		assertThat(row.expense().category()).isEqualTo("공용 청소비");
+		assertThat(row.expense().note()).isEqualTo("직접 등록");
+		assertThat(row.expense().allocations()).extracting(a -> a.amount()).containsOnly("5000");
+		assertThat(row.balance()).isNull();
+		assertThat(count("bank_transactions")).isZero();
+		assertThat(count("payments")).isZero();
+		assertThat(banking.manualExpense(user, property, request).rows()).hasSize(1);
+		assertThat(count("expenses")).isEqualTo(1);
+		assertThat(count("expense_allocations")).isEqualTo(2);
+		assertThatThrownBy(() -> banking.manualExpense(user, property,
+		    new BankingRequests.ManualExpense(request.id(), account, request.date(), "12000", request.category(),
+		        request.note(), request.mode(), request.allocations())))
+		    .isInstanceOf(PaymentException.class).hasMessage("BANK_REQUEST_CONFLICT");
+		jdbc.update("update buildings set name='이름 변경',status='INACTIVE' where id=?", targets.getFirst());
+		assertThat(banking.manualExpense(user, property, request).rows().getFirst().expense().allocations())
+		    .extracting(a -> a.label()).contains("102동");
+		assertThatThrownBy(() -> jdbc.update("update expenses set total_amount=1 where id=?", request.id()))
+		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		assertThatThrownBy(() -> jdbc.update("delete from expense_allocations where expense_id=?", request.id()))
+		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+	}
+
+	/** 과거 수동 출금은 기준일 이전도 등록하고 해당 월에 표시하며 기준 잔고 앞의 잔액은 역산합니다. */
+	@Test
+	void manualExpenseBalancesUseActualDateAndKeepBankConfirmationSeparate() {
+		List<UUID> targets = manualIncomeBuildings();
+		var account = bankAccountSettings.read(user, property).accountId();
+		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
+		    targets.stream().map(id -> new BankingBalanceRequests.OpeningPart(id, "100000")).toList(), account));
+		// 통장 등록일보다 이른 수동 거래도 실제 과거 사용 근거로 조회할 수 있어야 합니다.
+		jdbc.update("update bank_accounts set valid_from=date '2026-10-01' where id=?", account);
+		jdbc.update("update properties set balance_cutoff_date=date '2026-09-30' where id=?", property);
+		banking.manualExpense(user, property,
+		    manualExpenseRequest(UUID.randomUUID(), account, LocalDate.of(2026, 9, 15), "2000", targets));
+		banking.manualExpense(user, property,
+		    manualExpenseRequest(UUID.randomUUID(), account, LocalDate.of(2026, 9, 30), "1000", targets));
+		var october = manualExpenseRequest(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15), "10000", targets);
+		banking.manualExpense(user, property, october);
+		var view = cashBalances.workspace(user, property, "2026-10", account);
+		assertThat(view.entries()).hasSize(2).allMatch(e -> e.id().equals(october.id()));
+		assertThat(view.buildings()).extracting(b -> b.expense()).containsOnly("5000");
+		assertThat(view.buildings()).extracting(b -> b.balance()).containsOnly("95000");
+		assertThat(view.accounts().getFirst().calculatedBalance()).isEqualTo("190000");
+		assertThat(view.bankBalance()).isNull();
+		assertThat(view.accounts().getFirst().balance()).isNull();
+		var september = cashBalances.workspace(user, property, "2026-09", account);
+		assertThat(september.accountId()).isEqualTo(account);
+		assertThat(september.entries()).hasSize(4);
+		assertThat(september.buildings()).extracting(b -> b.expense()).containsOnly("1500");
+		assertThat(september.buildings()).extracting(b -> b.startBalance()).containsOnly("101500");
+		assertThat(september.buildings()).extracting(b -> b.balance()).containsOnly("100000");
+	}
+
+	@Test
+	void manualExpenseRejectsUnauthorizedFutureClosedForeignAccountAndInvalidAllocationAtomically() {
+		List<UUID> targets = manualIncomeBuildings();
+		var account = bankAccountSettings.read(user, property).accountId();
+		var stranger = users.saveAndFlush(User.create("다른 관리자", null)).getId();
+		var request = manualExpenseRequest(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15), "10000", targets);
+		assertThatThrownBy(() -> banking.manualExpense(stranger, property, request)).isInstanceOf(AuthException.class);
+		var second = addAccount("090", "카카오뱅크", "3333012345678", "예비비");
+		bankAccountSettings.close(user, property, second.accountId(), new BankAccountSettings.Close(second.updatedAt()));
+		for (var invalid : List.of(
+		    manualExpenseRequest(UUID.randomUUID(), UUID.randomUUID(), request.date(), "10000", targets),
+		    manualExpenseRequest(UUID.randomUUID(), second.accountId(), request.date(), "10000", targets),
+		    manualExpenseRequest(UUID.randomUUID(), account, LocalDate.of(2026, 10, 16), "10000", targets),
+		    manualExpenseRequest(UUID.randomUUID(), account, request.date(), "0", targets),
+		    manualExpenseRequest(UUID.randomUUID(), account, request.date(), "10001", targets),
+		    manualExpenseRequest(UUID.randomUUID(), account, request.date(), "10000", List.of(UUID.randomUUID()))))
+			assertThatThrownBy(() -> banking.manualExpense(user, property, invalid)).isInstanceOf(PaymentException.class);
+		assertThat(count("expenses")).isZero();
+		assertThat(count("expense_allocations")).isZero();
+		assertThat(count("bank_transactions")).isZero();
+		// 배분 저장 중 DB 오류가 발생해도 지출 머리글만 남기지 않습니다.
+		jdbc.execute("create function fail_manual_expense_part() returns trigger language plpgsql as $$ begin raise exception 'test'; end $$");
+		jdbc.execute("create trigger fail_manual_part before insert on expense_allocations for each row execute function fail_manual_expense_part()");
+		try {
+			assertThatThrownBy(() -> banking.manualExpense(user, property, request))
+			    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+			assertThat(count("expenses")).isZero();
+		} finally {
+			jdbc.execute("drop function fail_manual_expense_part() cascade");
+		}
+	}
+
+	/** 동 부담은 동별로, 외부 부담은 정산으로 귀속하고 통장에서는 출금 전액만 한 번 차감합니다. */
+	@Test
+	void manualExpenseExternalRecoveryUsesSameAccountAndPreservesSourceAbsence() {
+		List<UUID> targets = manualIncomeBuildings();
+		var account = bankAccountSettings.read(user, property).accountId();
+		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
+		    targets.stream().map(id -> new BankingBalanceRequests.OpeningPart(id, "100000")).toList(), account));
+		var request = new BankingRequests.ManualExpense(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15),
+		    "3000", "전기료", null, "AMOUNT", List.of(new BankingRequests.Allocation(targets.getFirst(), null, "1000", null),
+		        new BankingRequests.Allocation(targets.getLast(), null, "1000", null),
+		        new BankingRequests.Allocation(null, "외부 관리단", "1000", null)));
+		banking.manualExpense(user, property, request);
+		var view = cashBalances.workspace(user, property, "2026-10", account);
+		assertThat(view.accounts().getFirst().calculatedBalance()).isEqualTo("197000");
+		assertThat(view.buildings()).extracting(b -> b.balance()).containsOnly("99000");
+		var external = view.externals().getFirst();
+		assertThat(external.transactionId()).isNull();
+		assertThat(external.remaining()).isEqualTo("1000");
+		UUID payment = UUID.randomUUID();
+		service.manual(user, property, new PaymentRequests.Manual(payment, null, request.date(), "1000", account,
+		    "OTHER", "외부 관리단", "분담금", null, null));
+		cashBalances.settle(user, property,
+		    new BankingBalanceRequests.Settlement(UUID.randomUUID(), external.id(), payment, "1000"));
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).externals().getFirst().remaining())
+		    .isEqualTo("0");
+		assertThat(count("bank_transactions")).isZero();
+	}
+
+	/** 이전 스키마의 활성·삭제 원본과 확정 배분을 복사해 새 컬럼 보정·불변성 유지를 검증합니다. */
+	@Test
+	void manualExpenseMigrationPreservesImportedExpenseAndAllocationHistory() {
+		List<UUID> targets = manualIncomeBuildings();
+		var file = csv("거래일,적요,출금액,입금액\n2026-10-15,청소비,6000,0");
+		var preview = banking.preview(user, property, file);
+		banking.upload(user, property, file, new BankingRequests.Import(List.of(new BankingRequests.Selection(
+		    preview.rows().getFirst().id(), null, null, null, new BankingRequests.Expense("청소비", null, "EQUAL", false,
+		        targets.stream().map(id -> new BankingRequests.Allocation(id, null, null, null)).toList())))));
+		String schema = "manual_expense_" + UUID.randomUUID().toString().replace("-", "");
+		var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		    .schemas(schema).defaultSchema(schema).target("20261018062533").load();
+		previous.migrate();
+		try {
+			new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+				for (String table : List.of("users", "properties", "buildings", "units", "bank_accounts", "bank_transactions",
+				    "expenses", "expense_allocations"))
+					copyPreviousTable(schema, table);
+			});
+			jdbc.update("update " + schema + ".bank_transactions set deleted_at=now(),deleted_by=?", user);
+			var beforeExpenses = jdbc.queryForList("select id,property_id,bank_transaction_id,category_encrypted,total_amount from "
+			    + schema + ".expenses order by id");
+			var beforeParts = jdbc.queryForList("select * from " + schema + ".expense_allocations order by id");
+			var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+			    .schemas(schema).defaultSchema(schema).load();
+			upgraded.migrate();
+			upgraded.validate();
+			assertThat(jdbc.queryForList("select id,property_id,bank_transaction_id,category_encrypted,total_amount from "
+			    + schema + ".expenses order by id")).isEqualTo(beforeExpenses);
+			assertThat(jdbc.queryForList("select * from " + schema + ".expense_allocations order by id")).isEqualTo(beforeParts);
+			assertThat(jdbc.queryForObject("select count(*) from " + schema + ".expenses e join " + schema
+			    + ".bank_transactions b on b.id=e.bank_transaction_id where e.bank_account_id=b.bank_account_id"
+			    + " and e.expense_date=b.transaction_date and e.source_type='BANK_IMPORT'", Long.class)).isEqualTo(1);
+		} finally {
+			jdbc.execute("drop schema " + schema + " cascade");
+		}
+	}
+
+	private BankingRequests.ManualExpense manualExpenseRequest(UUID id, UUID account, LocalDate date, String amount,
+	    List<UUID> targets) {
+		return new BankingRequests.ManualExpense(id, account, date, amount, "공용 청소비", "직접 등록", "EQUAL",
+		    targets.stream().map(target -> new BankingRequests.Allocation(target, null, null, null)).toList());
+	}
+
+
+	/** 빈 종료 통장은 숨기고 사용 이력·종료일로 조회 범위를 판정합니다. */
+	@Test
+	void closedUnusedAccountIsHiddenEvenInClosingMonthAndStaleSelectionReturnsAll() {
+		var unused = addAccount("004", "국민은행", "000111222333", "테스트");
+		bankAccountSettings.close(user, property, unused.accountId(), new BankAccountSettings.Close(unused.updatedAt()));
+		var metadata = banking.workspace(user, property).accounts().stream()
+		    .filter(a -> unused.accountId().equals(a.id())).findFirst().orElseThrow();
+		assertThat(metadata.hasHistory()).isFalse();
+		assertThat(metadata.closedOn()).isEqualTo(LocalDate.of(2026, 10, 15));
+		var view = cashBalances.workspace(user, property, "2026-10", unused.accountId());
+		assertThat(view.accountId()).isNull();
+		assertThat(view.accounts()).noneMatch(a -> a.id().equals(unused.accountId()));
+		assertThat(bankAccountSettings.detail(user, property, unused.accountId()).status()).isEqualTo("CLOSED");
+	}
+
+	/** 0원도 명시적으로 확인한 이력이므로 종료 월까지 보존하고 이후 월의 필터·합계에서는 제외합니다. */
+	@Test
+	void closedSettledAccountDisappearsAfterClosingMonthWithoutDeletingHistory() {
+		List<UUID> targets = manualIncomeBuildings();
+		var saved = addAccount("004", "국민은행", "000111222333", "정리된 통장");
+		var account = saved.accountId();
+		closedAccountOpenings(account, targets, "0", "0");
+		cashBalances.saveAccountOpening(user, property, new BankingBalanceRequests.AccountOpening(UUID.randomUUID(),
+		    account, LocalDate.of(2026, 9, 30), "0", 0L));
+		bankAccountSettings.close(user, property, account, new BankAccountSettings.Close(saved.updatedAt()));
+		assertThat(cashBalances.workspace(user, property, "2026-10").accounts()).anyMatch(a -> account.equals(a.id()));
+		assertThat(cashBalances.workspace(user, property, "2026-11").accounts()).noneMatch(a -> account.equals(a.id()));
+		assertThat(cashBalances.workspace(user, property, "2026-09", account).accountId()).isEqualTo(account);
+		assertThat(cashBalances.workspace(user, property, "2026-08", account).accountId()).isNull();
+		var meta = banking.workspace(user, property).accounts().stream().filter(a -> account.equals(a.id())).findFirst().orElseThrow();
+		assertThat(meta.availableFrom()).isEqualTo(LocalDate.of(2026, 9, 30));
+		assertThat(meta.hasHistory()).isTrue();
+		assertThat(jdbc.queryForObject("select count(*) from building_cash_openings where bank_account_id=?", Long.class, account))
+		    .isEqualTo(2);
+	}
+
+	/** 통장 전액·동별 상계·확인 불가 잔액을 종료 처리만으로 숨겨 돈이 사라진 것처럼 보이지 않게 합니다. */
+	@Test
+	void closedAccountKeepsRemainingBuildingFundsAndUnknownBankBalance() {
+		List<UUID> targets = manualIncomeBuildings();
+		var remaining = addAccount("004", "국민은행", "000111222333", "잔액 있음");
+		closedAccountOpenings(remaining.accountId(), targets, "50000", "0");
+		bankAccountSettings.close(user, property, remaining.accountId(), new BankAccountSettings.Close(remaining.updatedAt()));
+		var offset = addAccount("088", "신한은행", "000111222444", "동별 상계");
+		closedAccountOpenings(offset.accountId(), targets, "100", "-100");
+		cashBalances.saveAccountOpening(user, property, new BankingBalanceRequests.AccountOpening(UUID.randomUUID(),
+		    offset.accountId(), LocalDate.of(2026, 9, 30), "0", 0L));
+		bankAccountSettings.close(user, property, offset.accountId(), new BankAccountSettings.Close(offset.updatedAt()));
+		var unknown = addAccount("020", "우리은행", "000111222555", "확인 필요");
+		service.manual(user, property, new PaymentRequests.Manual(UUID.randomUUID(), null, LocalDate.of(2026, 10, 15),
+		    "1000", unknown.accountId(), "OTHER", "관리단", "기타 입금", null, null));
+		bankAccountSettings.close(user, property, unknown.accountId(), new BankAccountSettings.Close(unknown.updatedAt()));
+		assertThat(cashBalances.workspace(user, property, "2026-11").accounts()).extracting(a -> a.id())
+		    .contains(remaining.accountId(), offset.accountId(), unknown.accountId());
+	}
+
+	/** 잔액 0원이라도 외부 미회수금이 있으면 남기고 회수가 완료된 다음 조회부터 숨깁니다. */
+	@Test
+	void closedZeroBalanceAccountRemainsUntilExternalRecoveryFinishes() {
+		List<UUID> targets = manualIncomeBuildings();
+		var saved = addAccount("004", "국민은행", "000111222333", "외부 정산");
+		var account = saved.accountId();
+		closedAccountOpenings(account, targets, "0", "0");
+		cashBalances.saveAccountOpening(user, property, new BankingBalanceRequests.AccountOpening(UUID.randomUUID(),
+		    account, LocalDate.of(2026, 9, 30), "0", 0L));
+		banking.manualExpense(user, property, new BankingRequests.ManualExpense(UUID.randomUUID(), account,
+		    LocalDate.of(2026, 10, 15), "1000", "외부 비용", null, "AMOUNT",
+		    List.of(new BankingRequests.Allocation(null, "외부 관리단", "1000", null))));
+		UUID income = UUID.randomUUID();
+		service.manual(user, property, new PaymentRequests.Manual(income, null, LocalDate.of(2026, 10, 15), "1000",
+		    account, "OTHER", "외부 관리단", "분담금", null, null));
+		bankAccountSettings.close(user, property, account, new BankAccountSettings.Close(saved.updatedAt()));
+		var before = cashBalances.workspace(user, property, "2026-11", account);
+		assertThat(before.accountId()).isEqualTo(account);
+		assertThat(before.accounts().stream().filter(a -> account.equals(a.id())).findFirst().orElseThrow().calculatedBalance())
+		    .isEqualTo("0");
+		var external = before.externals().getFirst();
+		cashBalances.settle(user, property, new BankingBalanceRequests.Settlement(UUID.randomUUID(), external.id(), income, "1000"));
+		var after = cashBalances.workspace(user, property, "2026-11", account);
+		assertThat(after.accountId()).isNull();
+		assertThat(after.accounts()).noneMatch(a -> account.equals(a.id()));
+	}
+
+	private void closedAccountOpenings(UUID account, List<UUID> targets, String first, String second) {
+		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30), List.of(
+		    new BankingBalanceRequests.OpeningPart(targets.getFirst(), first),
+		    new BankingBalanceRequests.OpeningPart(targets.getLast(), second)), account));
+	}
+
 	@TestConfiguration
 	static class TestBeans {
 		@Bean

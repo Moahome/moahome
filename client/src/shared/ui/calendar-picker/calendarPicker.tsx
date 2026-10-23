@@ -12,7 +12,7 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './calendarPicker.module.css';
 
 /** 월·날짜 선택을 같은 달력으로 제공하고 선택 후 호출 버튼으로 포커스를 돌려줍니다. */
-export function CalendarPicker({ label, value, onChange, mode = 'date', clearable = false, required = false, labelHidden = false, placeholder }: {
+export function CalendarPicker({ label, value, onChange, mode = 'date', clearable = false, required = false, labelHidden = false, placeholder, variant = 'default' }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -21,6 +21,7 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
   required?: boolean;
   labelHidden?: boolean;
   placeholder?: string;
+  variant?: 'default' | 'input';
 }) {
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
@@ -119,6 +120,7 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
   return (
     <div
       className={styles.picker}
+      data-variant={variant}
       ref={root}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);

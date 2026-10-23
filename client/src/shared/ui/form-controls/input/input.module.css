@@ -13,7 +13,7 @@
   line-height: 1.5;
 
   &::placeholder {
-    color: var(--sub-text);
+    color: var(--form-control-placeholder, var(--sub-text));
     opacity: 1;
   }
 

@@ -61,8 +61,10 @@ import {
   sortExpenseLabels
 } from '../../model/expenseAllocation';
 import { createExpenseWorkbook } from '../../model/expenseExport';
+import { getAccountsForMonth } from '../../model/bankAccountVisibility';
 import { TransferDetail } from '../_components/transfer-detail/transferDetail';
 import { BankingExpensePage } from '../banking-expense-page/bankingExpensePage';
+import { ManualExpense } from '../manual-expense/manualExpense';
 import styles from './bankingWorkspace.module.css';
 
 type ReceiptDraft = { kind: 'AUTO' | 'HOUSEHOLD' | 'OTHER' | 'SHARED'; unitId: string; category: string; note: string };
@@ -91,7 +93,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     const requested = searchParams.get('month');
     return requested && /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : null;
   });
-  const [accountId, setAccountId] = useState(() => searchParams.get('account') ?? 'ALL');
+  const [requestedAccountId, setAccountId] = useState(() => searchParams.get('account') ?? 'ALL');
   const [transferRows, setTransferRows] = useState<string[]>([]);
   const [transferDetail, setTransferDetail] = useState<BankingTransaction | null>(null);
   const [direction, setDirection] = useState('ALL');
@@ -111,28 +113,44 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [manualOpen, setManualOpen] = useState(false);
+  const [manualExpenseOpen, setManualExpenseOpen] = useState(false);
   const [detail, setDetail] = useState<{ id: string; kind: 'receipt' | 'expense' } | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const exportBusyRef = useRef(false);
   const [exporting, setExporting] = useState(false);
   const [notice, setNotice] = useState<{ id: number; message: string; tone: 'success' | 'error' } | null>(() => (
-    view === 'transactions' && searchParams.get('imported') === '1' ? {
+    (view === 'transactions' && searchParams.get('imported') === '1') || (view === 'transactions' && searchParams.get('registered') === '1') ? {
       id: 0,
-      message: '선택한 거래를 저장했어요.',
+      message: searchParams.get('registered') === '1' ? '지출을 등록했어요.' : '선택한 거래를 저장했어요.',
       tone: 'success'
     } : null
   ));
   // 업로드 뒤 목록에서 성공 알림을 한 번 표시하고 새로고침 시 다시 뜨지 않게 이동 표식을 지웁니다.
   useEffect(() => {
-    if (view !== 'transactions' || searchParams.get('imported') !== '1') return;
+    if (!['transactions', 'expenses'].includes(view) || (searchParams.get('imported') !== '1' && searchParams.get('registered') !== '1')) return;
     const query = new URLSearchParams(searchParams.toString());
     query.delete('imported');
-    router.replace(`/manage/${propertyId}/banking/transactions${query.size ? `?${query}` : ''}`, {
+    query.delete('registered');
+    router.replace(`/manage/${propertyId}/banking/${view}${query.size ? `?${query}` : ''}`, {
       scroll: false
     });
   }, [propertyId, router, searchParams, view]);
   const data = workspace.data;
+  const requestedMonth = month ?? data?.asOf.slice(0, 7) ?? '';
+  const monthAccounts = view === 'upload' ? data?.accounts ?? [] : getAccountsForMonth(data?.accounts ?? [], requestedMonth);
+  const accountId = data && view !== 'upload' && !monthAccounts.some((account) => account.id === requestedAccountId)
+    ? 'ALL' : requestedAccountId;
+  // 월을 바꿔 숨겨진 종료 통장이 선택돼 있으면 해당 월 전체 통장으로 복귀하고 URL도 함께 정리합니다.
+  useEffect(() => {
+    if (!data || view === 'upload' || accountId === requestedAccountId) return;
+    const query = new URLSearchParams(searchParams.toString());
+    query.set('month', requestedMonth);
+    query.delete('account');
+    router.replace(`/manage/${propertyId}/banking/${view}?${query}`, {
+      scroll: false
+    });
+  }, [accountId, requestedAccountId, data, requestedMonth, propertyId, router, searchParams, view]);
   /** 같은 오류가 연속 발생해도 새 알림으로 표시하도록 현재 알림 번호를 증가시킵니다. */
   function notify(message: string, tone: 'success' | 'error' = 'error') { setNotice((current) => ({
     id: (current?.id ?? 0) + 1,
@@ -188,25 +206,27 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
       </Button>
     </section>
   );
-  const accounts = data.accounts ?? [];
+  const currentMonth = month ?? data.asOf.slice(0, 7);
+  const accounts = monthAccounts;
+  const visibleAccountIds = new Set(accounts.map((account) => account.id));
   const activeAccountId = accountId === 'ALL' ? accounts.find((account) => account.isPrimary && account.status === 'ACTIVE')?.id : accountId;
   function accountLabel(id: string) {
     const account = accounts.find((row) => row.id === id);
     return account ? `${account.bankName} ····${account.last4}${account.alias ? ` · ${account.alias}` : ''}${account.status === 'ACTIVE' ? '' : ' · 사용 종료'}` : '관리계좌';
   }
-  const currentMonth = month ?? data.asOf.slice(0, 7);
   const buildings = sortExpenseLabels(data.buildings);
   const receiptById = new Map(receiptRows.map((row) => [row.id, row]));
   const manualIds = new Set(receiptRows.filter((row) => row.source === 'MANUAL').map((row) => row.id));
   const receiptIds = new Set(receiptById.keys());
   /** 은행 원본과 미연결 수동 수납을 선택 삭제하며 확정 수납의 취소는 서버에서 함께 처리합니다. */
   function canDelete(row: BankingTransaction) {
-    return receiptById.get(row.id)?.deletable ?? !receiptIds.has(row.id);
+    return row.sourceType !== 'MANUAL' && (receiptById.get(row.id)?.deletable ?? !receiptIds.has(row.id));
   }
   // 수동 수납은 은행 원본을 만들지 않으며 연결 전 항목만 함께 표시합니다. 연결되면 은행 행 하나로 남습니다.
   const source = preview?.rows ?? (view === 'upload' ? [] : [...data.rows, ...(view === 'transactions' ? receiptRows : [])]
     .sort((a, b) => `${b.date} ${b.time ?? ''}`.localeCompare(`${a.date} ${a.time ?? ''}`)));
   const baseRows = source.filter((row) => (preview || row.date.startsWith(currentMonth))
+    && (preview || !data.accounts?.length || visibleAccountIds.has(row.accountId))
     && (preview || accountId === 'ALL' || row.accountId === accountId)
     && (view !== 'expenses' || row.expense?.allocations.some((part) => data.buildings.some((item) => item.id === part.buildingId)))
     && (status === 'ALL' || row.status === status)
@@ -231,11 +251,15 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   /** 조회 월을 주소에도 보존해 수동 등록 뒤 새로고침이 이전 월로 되돌아가지 않게 합니다. */
   function changeMonth(value: string) {
     setSelection(null); setMonth(value); setPage(1);
-    if(view !== 'transactions') return;
+    if (!['transactions', 'expenses'].includes(view)) return;
     const query = new URLSearchParams(searchParams.toString());
     query.set('month', value);
+    const nextAccount = getAccountsForMonth(data?.accounts ?? [], value).some((account) => account.id === accountId) ? accountId : 'ALL';
+    setAccountId(nextAccount);
+    if (nextAccount === 'ALL') query.delete('account');
+    else query.set('account', nextAccount);
     query.delete('imported');
-    router.replace(`/manage/${propertyId}/banking/transactions?${query}`, {
+    router.replace(`/manage/${propertyId}/banking/${view}?${query}`, {
       scroll: false
     });
   }
@@ -259,8 +283,15 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   }
   const selected = preview?.rows.filter((row) => !excluded.includes(row.id)) ?? [];
   const selectedIncome = selected.filter((row) => row.direction === 'INCOME').length;
-  const income = baseRows.filter((row) => row.direction === 'INCOME' && !receiptIds.has(row.id)).reduce((sum, row) => sum + BigInt(row.amount), BigInt(0));
-  const expense = baseRows.filter((row) => row.direction === 'EXPENSE').reduce((sum, row) => sum + BigInt(row.amount), BigInt(0));
+  // 미리보기 합계는 검색·페이지·저장 선택과 무관하게 가져올 수 있는 거래 전체를 기준으로 계산합니다.
+  // 수동 입금도 합산하되 취소 이력 행은 제외합니다. 은행에 연결된 수동 입금은 원본 행만 남아 한 번 집계됩니다.
+  const summaryRows = preview?.rows ?? baseRows;
+  const income = summaryRows.filter((row) => row.direction === 'INCOME'
+    && (preview || !receiptIds.has(row.id) || (manualIds.has(row.id) && row.status !== 'CANCELED')))
+    .reduce((sum, row) => sum + BigInt(row.amount), BigInt(0));
+  const expense = summaryRows.filter((row) => row.direction === 'EXPENSE').reduce((sum, row) => sum + BigInt(row.amount), BigInt(0));
+  const netAmount = income - expense;
+  const summaryDescription = preview ? '중복·인계 이전 제외 후 전체 거래 기준' : `${currentMonth} 은행 거래·취소되지 않은 수동 입출금 기준`;
   const expenseBuildings = buildings.filter((item) => building === 'ALL' || item.id === building);
   const expenseBuildingIds = expenseBuildings.map((item) => item.id);
   const buildingExpense = baseRows.reduce((sum, row) => sum + getExpenseAmount(row, expenseBuildingIds), BigInt(0));
@@ -287,7 +318,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     } catch { notify('엑셀 파일을 만들지 못했어요. 다시 시도해주세요.'); }
     finally { exportBusyRef.current = false; setExporting(false); }
   }
-  const latestRows = [...data.rows].filter((row) => row.accountId === accountId && row.date.slice(0, 7) <= currentMonth)
+  const latestRows = [...data.rows].filter((row) => row.sourceType !== 'MANUAL' && row.accountId === accountId && row.date.slice(0, 7) <= currentMonth)
     .sort((a, b) => `${b.date} ${b.time ?? ''}`.localeCompare(`${a.date} ${a.time ?? ''}`));
   const lastRaw = latestRows[0];
   const lastDay = latestRows.filter((row) => row.date === lastRaw?.date);
@@ -612,6 +643,29 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
           )}
           {view === 'transactions' && (
             <Button
+              disabled={busy}
+              onClick={() => {
+                if (window.matchMedia('(max-width: 767px)').matches) {
+                  const query = new URLSearchParams({
+                    month: currentMonth
+                  });
+                  if (accountId !== 'ALL') query.set('account', accountId);
+                  router.push(`/manage/${propertyId}/banking/manual-expense?${query}`);
+                  return;
+                }
+                setManualExpenseOpen(true);
+              }}
+              leadingIcon={(
+                <ServiceIcon
+                  name={'plus'}
+                />
+              )}
+            >
+              수동 지출 등록
+            </Button>
+          )}
+          {view === 'transactions' && (
+            <Button
               variant={'outline'}
               tone={'excel'}
               leadingIcon={(
@@ -706,11 +760,19 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
           className={styles.summary}
           data-view={view}
         >
-          {showIncome && (
+          {(preview || showIncome) && (
             <SummaryCard
               density={'compact'}
-              label={`${preview ? '파일' : currentMonth} 입금`}
-              description={preview ? '업로드 파일 기준' : `${currentMonth} 은행 거래 기준`}
+              label={'입금 합계'}
+              help={(
+                <InfoTooltip
+                  size={'sm'}
+                  label={'입금 합계 도움말'}
+                  title={'입금 합계'}
+                >
+                  {summaryDescription}
+                </InfoTooltip>
+              )}
               value={formatInteger(income)}
               unit={'원'}
               tone={'success'}
@@ -721,12 +783,20 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               )}
             />
           )}
-          {(showExpense || view === 'expenses') && (
+          {(preview || showExpense || view === 'expenses') && (
             <SummaryCard
               density={'compact'}
               label={view === 'expenses' ? '지출 합계' : '출금 합계'}
               tone={view === 'expenses' ? 'warning' : 'neutral'}
-              description={preview ? '업로드 파일 기준' : `${currentMonth} 기준`}
+              help={(
+                <InfoTooltip
+                  size={'sm'}
+                  label={view === 'expenses' ? '지출 합계 도움말' : '출금 합계 도움말'}
+                  title={view === 'expenses' ? '지출 합계' : '출금 합계'}
+                >
+                  {view === 'expenses' ? `${currentMonth} 기준` : summaryDescription}
+                </InfoTooltip>
+              )}
               value={formatInteger(view === 'expenses' ? buildingExpense : expense)}
               unit={'원'}
               icon={(
@@ -739,8 +809,39 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
           {view !== 'expenses' && (
             <SummaryCard
               density={'compact'}
+              label={'입출금 차액'}
+              help={(
+                <InfoTooltip
+                  size={'sm'}
+                  label={'입출금 차액 도움말'}
+                  title={'입출금 차액'}
+                >
+                  입금 합계 − 출금 합계
+                </InfoTooltip>
+              )}
+              value={formatInteger(netAmount)}
+              unit={'원'}
+              valueTone={netAmount < BigInt(0) ? 'danger' : 'neutral'}
+              icon={(
+                <ServiceIcon
+                  name={'coins'}
+                />
+              )}
+            />
+          )}
+          {view !== 'expenses' && (
+            <SummaryCard
+              density={'compact'}
               label={'확인 필요'}
-              description={`조회 거래 ${baseRows.length}건 중`}
+              help={(
+                <InfoTooltip
+                  size={'sm'}
+                  label={'확인 필요 도움말'}
+                  title={'확인 필요'}
+                >
+                  {`조회 거래 ${baseRows.length}건 중 처리를 확인해야 하는 거래 건수입니다.`}
+                </InfoTooltip>
+              )}
               value={baseRows.filter((row) => row.status === 'PENDING').length}
               unit={'건'}
               tone={'warning'}
@@ -760,14 +861,13 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                   size={'sm'}
                   label={'최근 은행 확인 잔액 도움말'}
                   title={'최근 은행 확인 잔액'}
-                  note={'실시간 잔액이 아니며 수동 입금은 반영되지 않습니다.'}
+                  note={[latestDescription, '실시간 잔액이 아니며 수동 입출금은 반영되지 않습니다.'].filter(Boolean).join(' · ')}
                 >
                   {accountId === 'ALL'
                     ? '통장을 선택하면 은행 거래 파일의 마지막 잔액을 표시합니다.'
                     : '은행 거래 파일에 기록된 마지막 거래 후 잔액입니다.'}
                 </InfoTooltip>
               )}
-              description={latestDescription}
               value={latestValue}
               unit={latest ? '원' : ''}
               icon={(
@@ -951,7 +1051,12 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               }
               if (preview) { setEditingId((current) => current === row.id ? null : row.id); return; }
               if (window.matchMedia('(max-width: 767px)').matches) {
-                router.push(`${row.paymentId ? `/manage/${propertyId}/banking/receipts/${row.paymentId}` : `/manage/${propertyId}/banking/transactions/${row.id}`}?month=${currentMonth}`);
+                const query = new URLSearchParams({
+                  month: currentMonth
+                });
+                if (view === 'expenses') query.set('from', 'expenses');
+                if (accountId !== 'ALL') query.set('account', accountId);
+                router.push(`${row.paymentId ? `/manage/${propertyId}/banking/receipts/${row.paymentId}` : `/manage/${propertyId}/banking/transactions/${row.id}`}?${query}`);
                 return;
               }
               setDetail({
@@ -980,7 +1085,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                     type={'checkbox'}
                     aria-label={`${row.payer} 거래 선택`}
                     disabled={busy || !canDelete(row)}
-                    title={!canDelete(row) ? '확정 수납은 먼저 취소해주세요. 은행 취소 이력은 원본에서 관리합니다.' : undefined}
+                    title={!canDelete(row) ? row.sourceType === 'MANUAL' ? '수동 지출의 확정 이력은 직접 삭제할 수 없습니다.' : '확정 수납은 먼저 취소해주세요. 은행 취소 이력은 원본에서 관리합니다.' : undefined}
                     checked={deletingRows.some((item) => item.id === row.id)}
                     onChange={() => toggleDeletion(row.id)}
                   />
@@ -1015,7 +1120,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               ...(view === 'transactions' && !preview ? [{
                 key: 'source',
                 header: '등록 방식',
-                render: (row: BankingTransaction) => manualIds.has(row.id) ? '수동 입금' : '엑셀'
+                render: (row: BankingTransaction) => row.sourceType === 'MANUAL' ? '수동 지출' : manualIds.has(row.id) ? '수동 입금' : '엑셀'
               }] : []),
               {
                 key: 'date',
@@ -1043,7 +1148,20 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                 header: '지출명',
                 render: (row: BankingTransaction) => {
                   if (row.direction !== 'EXPENSE') return '—';
-                  return (preview ? expenseDraft(row).category : row.expense?.category) || row.payer;
+                  const name = (preview ? expenseDraft(row).category : row.expense?.category) || row.payer;
+
+                  return (
+                    <span>
+                      {name}
+                      {row.sourceType === 'MANUAL' && (
+                        <small
+                          className={styles.muted}
+                        >
+                          {' · 수동 등록'}
+                        </small>
+                      )}
+                    </span>
+                  );
                 }
               }] : []),
               ...(showIncome ? [{
@@ -1264,6 +1382,31 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
         setSelection(null);
         setPage(1);
       })}
+      {manualExpenseOpen && (
+        <ManualExpense
+          propertyId={propertyId}
+          initialAccountId={activeAccountId}
+          onClose={() => setManualExpenseOpen(false)}
+          onCreated={(_id, date, savedAccountId) => {
+            setManualExpenseOpen(false);
+            setMonth(date.slice(0, 7));
+            setAccountId(savedAccountId);
+            setBuilding('ALL');
+            setDirection('EXPENSE');
+            setStatus('ALL');
+            setSearch('');
+            setPage(1);
+            const query = new URLSearchParams({
+              month: date.slice(0, 7),
+              account: savedAccountId
+            });
+            router.replace(`/manage/${propertyId}/banking/transactions?${query}`, {
+              scroll: false
+            });
+            notify('지출을 등록했어요.', 'success');
+          }}
+        />
+      )}
       {manualOpen && renderManualRegistration?.(() => setManualOpen(false), (id, date) => {
         setManualOpen(false);
         setSelection(null);

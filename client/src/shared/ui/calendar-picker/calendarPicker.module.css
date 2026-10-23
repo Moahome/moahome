@@ -1,6 +1,31 @@
 .picker {
   min-width: 0;
 
+  &[data-variant='input'] {
+    .label {
+      color: var(--foreground);
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.5;
+
+      > span {
+        color: var(--danger);
+      }
+    }
+
+    .trigger {
+      border-color: var(--border);
+      background: var(--card);
+      color: var(--form-control-foreground, var(--foreground));
+      font-weight: 400;
+
+      &:hover:not(:disabled) {
+        border-color: color-mix(in srgb, var(--primary) 40%, var(--border));
+        background: var(--card);
+      }
+    }
+  }
+
   .label {
     display: block;
     margin-bottom: 8px;

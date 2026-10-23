@@ -298,7 +298,7 @@ export function ManualPayment({ unitId = '', presentation = 'modal', onClose, on
             loading={busy}
             disabled={!purpose || !accountId || !payer.trim() || !amount || (household && !selectedUnit) || (other && !allocation.category.trim()) || (purpose === 'SHARED' && Boolean(split.error))}
           >
-            {household ? '수납 확인하기' : '등록하기'}
+            등록
           </Button>
         </div>
       </form>

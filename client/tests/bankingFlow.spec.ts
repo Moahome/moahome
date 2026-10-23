@@ -17,6 +17,20 @@ const ACCOUNT = '00000000-0000-4000-8000-000000000010';
 const BUILDING_A = '00000000-0000-4000-8000-000000000102';
 const BUILDING_B = '00000000-0000-4000-8000-000000000103';
 const BASE = `/manage/${PROPERTY}/banking`;
+const IMPORT_ACCOUNT = {
+  id: ACCOUNT,
+  bankName: '하나은행',
+  bankCode: '081',
+  importSupport: {
+    enabled: true,
+    extensions: ['.xls', '.xlsx', '.csv'],
+    message: '지원 형식: .xls · .xlsx · .csv'
+  },
+  last4: '1234',
+  alias: null,
+  isPrimary: true,
+  status: 'ACTIVE'
+};
 function id(index: number) { return `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`; }
 function row(index: number, direction: 'INCOME' | 'EXPENSE', payer: string, amount: string): BankingTransaction {
   return {
@@ -2626,7 +2640,7 @@ for (const width of [1440, 390]) {
     })).toBeVisible();
     await recentBalanceHelp.focus();
     await expect(recentBalanceTooltip).toContainText('은행 거래 파일에 기록된 마지막 거래 후 잔액입니다.');
-    await expect(recentBalanceTooltip).toContainText('수동 입금은 반영되지 않습니다.');
+    await expect(recentBalanceTooltip).toContainText('수동 입출금은 반영되지 않습니다.');
     await page.screenshot({
       path: testInfo.outputPath(`transactionSelectedBankHelp${width}.png`),
       fullPage: true,
@@ -3962,5 +3976,621 @@ for (const width of [1440, 390, 320]) {
       await back().click();
       await expect(page).toHaveURL(`${BASE}/balances?month=2026-10`);
     }
+  });
+}
+
+for (const width of [1440, 390]) {
+  test(`수동 지출 등록 ${width}px는 통장 거래 진입·입력 정렬·배분·과거 날짜·실패 재시도·목록 복귀를 처리`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const saved: BankingWorkspaceData = {
+      propertyId: PROPERTY,
+      asOf: '2026-10-23',
+      accounts: [IMPORT_ACCOUNT, {
+        ...IMPORT_ACCOUNT,
+        id: id(9801),
+        alias: '정산 완료 통장',
+        isPrimary: false,
+        status: 'CLOSED',
+        availableFrom: '2026-09-15',
+        closedOn: '2026-09-30',
+        hasHistory: true
+      }, {
+        ...IMPORT_ACCOUNT,
+        id: id(9802),
+        alias: '미사용 테스트 통장',
+        isPrimary: false,
+        status: 'CLOSED',
+        availableFrom: '2026-10-01',
+        closedOn: '2026-10-23',
+        hasHistory: false
+      }],
+      buildings: [{
+        id: BUILDING_B,
+        label: '103동'
+      }, {
+        id: BUILDING_A,
+        label: '102동'
+      }],
+      units: [],
+      rows: [],
+      rules: []
+    };
+    let incomeLinked = false;
+    const requests: Record<string, unknown>[] = [];
+    let completeSave: () => void = () => {};
+    const saveGate = new Promise<void>((resolve) => { completeSave = resolve; });
+    await page.route('http://localhost:8080/**', async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      let body: unknown = {};
+      if (path.endsWith('/csrf')) body = {
+        csrfToken: 'test-csrf'
+      };
+      else if (path.endsWith('/refresh')) body = {
+        accessToken: 'test-access',
+        tokenType: 'Bearer',
+        accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
+      };
+      else if (path === '/api/users/me') body = {
+        id: id(1),
+        displayName: '관리자',
+        profileImageUrl: null,
+        systemRole: 'USER',
+        status: 'ACTIVE'
+      };
+      else if (path.endsWith('/management-context')) body = {
+        propertyId: PROPERTY,
+        name: '모아빌라',
+        role: 'ADMIN'
+      };
+      else if (path.endsWith('/managed-properties')) body = {
+        properties: [{
+          propertyId: PROPERTY,
+          name: '모아빌라',
+          role: 'ADMIN'
+        }]
+      };
+      else if (path.endsWith('/payments/workspace')) body = {
+        propertyId: PROPERTY,
+        asOf: saved.asOf,
+        accounts: [],
+        units: [],
+        charges: [],
+        payments: [{
+          id: id(9700),
+          accountId: ACCOUNT,
+          date: '2026-10-18',
+          payer: '드림하이수선충당금',
+          amount: '22910',
+          source: 'MANUAL',
+          status: 'CONFIRMED',
+          receiptType: 'OTHER',
+          incomeCategory: '수선충당금',
+          unitId: '',
+          bankTransactionId: incomeLinked ? id(9701) : null,
+          allocations: [],
+          incomeAllocation: {
+            id: id(9700),
+            category: '수선충당금',
+            note: '',
+            mode: 'EQUAL',
+            saveAsRule: false,
+            allocations: [{
+              buildingId: BUILDING_A,
+              label: '102동',
+              amount: '11455',
+              percentage: null
+            },
+            {
+              buildingId: BUILDING_B,
+              label: '103동',
+              amount: '11455',
+              percentage: null
+            }]
+          }
+        }, {
+          id: id(9702),
+          accountId: ACCOUNT,
+          date: '2026-10-18',
+          payer: '취소 입금',
+          amount: '90000',
+          source: 'MANUAL',
+          status: 'CANCELED',
+          receiptType: 'OTHER',
+          incomeCategory: '취소 입금',
+          unitId: '',
+          bankTransactionId: null,
+          allocations: []
+        }],
+        history: []
+      };
+      else if (path.endsWith('/banking/workspace')) body = saved;
+      else if (path.endsWith('/expenses/manual')) {
+        requests.push(route.request().postDataJSON());
+        if (requests.length === 1) return route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: 'SERVICE_UNAVAILABLE'
+          })
+        });
+        await saveGate;
+        const input = route.request().postDataJSON();
+        saved.rows = [...saved.rows, {
+          ...row(9500, 'EXPENSE', input.category, input.amount),
+          id: input.id,
+          sourceType: 'MANUAL',
+          date: input.date,
+          time: null,
+          balance: null,
+          status: 'CONFIRMED',
+          memo: input.note,
+          expense: {
+            id: input.id,
+            category: input.category,
+            note: input.note,
+            mode: input.mode,
+            saveAsRule: false,
+            allocations: input.allocations
+          }
+        }];
+        body = saved;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(body)
+      });
+    });
+    await page.goto(`${BASE}/expenses?month=2026-10&account=${ACCOUNT}`);
+    await expect(page.getByRole('heading', {
+      name: '지출 내역',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('button', {
+      name: '수동 지출 등록',
+      exact: true
+    })).toHaveCount(0);
+    // 숨겨진 종료 통장을 직접 선택한 URL도 전체로 복귀하고, 종료 월에는 과거 통장을 조회할 수 있습니다.
+    await page.goto(`${BASE}/transactions?month=2026-10&account=${id(9801)}`);
+    await expect(page).toHaveURL(`${BASE}/transactions?month=2026-10`);
+    const accountFilter = page.getByRole('combobox', {
+      name: '조회 통장',
+      exact: true
+    });
+    await accountFilter.click();
+    await expect(page.getByRole('option', {
+      name: /정산 완료 통장|미사용 테스트 통장/
+    })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.goto(`${BASE}/transactions?month=2026-09&account=${id(9801)}`);
+    await expect(accountFilter).toHaveText(/정산 완료 통장/);
+    await accountFilter.click();
+    await expect(page.getByRole('option', {
+      name: /정산 완료 통장/
+    })).toBeVisible();
+    await expect(page.getByRole('option', {
+      name: /미사용 테스트 통장/
+    })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.goto(`${BASE}/transactions?month=2026-10&account=${ACCOUNT}`);
+    const register = page.getByRole('button', {
+      name: '수동 지출 등록',
+      exact: true
+    });
+    await expect(register).toBeVisible();
+    await expect(page.getByRole('article', {
+      name: '입금 합계 22,910원',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('article', {
+      name: '입출금 차액 22,910원',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('article', {
+      name: '최근 은행 확인 잔액 은행 확인 자료 없음',
+      exact: true
+    })).toBeVisible();
+    // 나중에 은행 원본과 연결되면 수동 행은 빠지고 원본 금액만 한 번 합산해야 합니다.
+    incomeLinked = true;
+    saved.rows.push({
+      ...row(9701, 'INCOME', '드림하이수선충당금', '22910'),
+      date: '2026-10-18',
+      paymentId: id(9700),
+      receiptType: 'OTHER',
+      status: 'CONFIRMED',
+      balance: '500000'
+    });
+    await page.reload();
+    await expect(page.getByRole('article', {
+      name: '입금 합계 22,910원',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('article', {
+      name: '입출금 차액 22,910원',
+      exact: true
+    })).toBeVisible();
+
+    await expect(page.getByRole('button', {
+      name: '수동 입금 등록',
+      exact: true
+    })).toBeVisible();
+    await register.click();
+    if (width === 390) {
+      await expect(page).toHaveURL(`${BASE}/manual-expense?month=2026-10&account=${ACCOUNT}`);
+      await expect(page.getByRole('link', {
+        name: '통장 거래로 돌아가기'
+      })).toBeVisible();
+      await page.reload();
+      await expect(page.getByRole('heading', {
+        name: '수동 지출 등록',
+        exact: true
+      })).toBeVisible();
+      await expect(page.getByRole('dialog', {
+        name: '수동 지출 등록',
+        exact: true
+      })).toHaveCount(0);
+      await expect(page.getByRole('button', {
+        name: '취소',
+        exact: true
+      })).toHaveCount(0);
+    } else {
+      await expect(page.getByRole('dialog', {
+        name: '수동 지출 등록',
+        exact: true
+      })).toBeVisible();
+      await page.getByRole('button', {
+        name: '수동 지출 등록 닫기'
+      }).click();
+      await register.click();
+    }
+    for (const title of ['기본 정보', '배분 설정', '배분 금액', '메모']) {
+      await expect(page.getByRole('heading', {
+        name: new RegExp(title)
+      })).toBeVisible();
+    }
+    const nameControl = page.getByRole('textbox', {
+      name: '지출명',
+      exact: true
+    }).locator('..');
+    await expect(nameControl).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    await expect(page.getByRole('combobox', {
+      name: '출금 통장',
+      exact: true
+    }).locator('..')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    await expect(page.getByRole('button', {
+      name: /^출금일:/
+    })).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    await expect(page.getByRole('button', {
+      name: '등록',
+      exact: true
+    })).toHaveCSS('background-color', 'rgb(239, 246, 255)');
+    await expect(page.getByRole('button', {
+      name: '등록',
+      exact: true
+    })).toBeDisabled();
+    await expect(page.getByRole('button', {
+      name: '등록',
+      exact: true
+    })).toHaveCSS('color', 'rgb(37, 99, 235)');
+
+    const targets = page.getByRole('group', {
+      name: '부담 동',
+      exact: true
+    });
+    const chips = targets.locator('label');
+    const addTarget = targets.getByRole('button', {
+      name: '외부·공통 부담처 추가'
+    });
+    await expect(chips).toHaveCount(2);
+    const addSize = (await addTarget.boundingBox())!;
+    for (const chip of await chips.all()) {
+      expect((await chip.boundingBox())!.height).toBe(addSize.height);
+      await expect(chip).toHaveCSS('font-size', '16px');
+      await expect(chip).toHaveCSS('padding', '10px 18px');
+    }
+    await expect(addTarget).toHaveCSS('font-size', '16px');
+    await expect(addTarget).toHaveCSS('padding', '10px 18px');
+    if (width === 390) {
+      const targetSize = (await targets.boundingBox())!;
+      expect(addSize.width).toBe(targetSize.width);
+      expect(addSize.x).toBe(targetSize.x);
+      const lastChip = (await chips.last().boundingBox())!;
+      expect(addSize.y).toBeGreaterThanOrEqual(lastChip.y + lastChip.height);
+    }
+
+    await page.screenshot({
+      path: testInfo.outputPath(`manual-expense-design-${width}.png`),
+      fullPage: true
+    });
+    if (width === 1440) {
+      await page.setViewportSize({
+        width,
+        height: 600
+      });
+      const close = page.getByRole('button', {
+        name: '수동 지출 등록 닫기'
+      });
+      const top = (await close.boundingBox())!.y;
+      await page.getByLabel('메모', {
+        exact: true
+      }).scrollIntoViewIfNeeded();
+      expect((await close.boundingBox())!.y).toBe(top);
+      await expect(page.getByRole('button', {
+        name: '등록',
+        exact: true
+      })).toBeInViewport();
+      await page.getByRole('textbox', {
+        name: '지출명',
+        exact: true
+      }).scrollIntoViewIfNeeded();
+      await page.setViewportSize({
+        width,
+        height: 900
+      });
+      const accountBox = (await page.getByRole('combobox', {
+        name: '출금 통장',
+        exact: true
+      }).locator('..').boundingBox())!;
+      const dateBox = (await page.getByRole('button', {
+        name: /^출금일:/
+      }).boundingBox())!;
+      expect(Math.abs(accountBox.y - dateBox.y)).toBeLessThan(1);
+      expect(Math.abs(accountBox.height - dateBox.height)).toBeLessThan(1);
+      for (const name of ['지출명', '출금액']) {
+        const inputSize = (await page.getByRole('textbox', {
+          name,
+          exact: true
+        }).locator('..').boundingBox())!;
+        expect(inputSize.height).toBe(dateBox.height);
+        expect(inputSize.width).toBe(accountBox.width);
+      }
+
+    }
+    await expect(page.getByRole('group', {
+      name: '지출 설정',
+      exact: true
+    })
+      .locator('strong').filter({
+        hasText: /^[0-9]+동$/
+      })).toHaveText(['102동', '103동']);
+    await page.getByRole('textbox', {
+      name: '지출명',
+      exact: true
+    }).fill('공용 청소비');
+    await page.getByRole('textbox', {
+      name: '출금액',
+      exact: true
+    }).fill('10001');
+    await expect(page.getByRole('status').filter({
+      hasText: '원 미만'
+    })).toBeVisible();
+    await page.getByRole('combobox', {
+      name: '나누는 방법'
+    }).click();
+    await page.getByRole('option', {
+      name: '금액 직접 입력',
+      exact: true
+    }).click();
+    await addTarget.click();
+    await page.getByRole('textbox', {
+      name: '외부 부담처 3',
+      exact: true
+    }).fill('외부 부담처');
+    const amountSize = (await page.getByLabel('102동 부담액', {
+      exact: true
+    }).locator('..').boundingBox())!;
+    for (const label of ['103동', '외부 부담처']) {
+      const size = (await page.getByLabel(`${label} 부담액`, {
+        exact: true
+      }).locator('..').boundingBox())!;
+      expect(size.x).toBe(amountSize.x);
+      expect(size.width).toBe(amountSize.width);
+      expect(size.height).toBe(amountSize.height);
+    }
+    await expect(page.locator('[popover]:popover-open')).toHaveCount(0);
+    await page.screenshot({
+      path: testInfo.outputPath(`manual-expense-amount-${width}.png`),
+      fullPage: true
+    });
+    await page.getByRole('combobox', {
+      name: '나누는 방법'
+    }).click();
+    await page.getByRole('option', {
+      name: '비율 지정',
+      exact: true
+    }).click();
+    const ratioSize = (await page.getByLabel('102동 부담 비율', {
+      exact: true
+    }).locator('..').boundingBox())!;
+    expect(ratioSize.width).toBe(amountSize.width);
+    for (const label of ['103동', '외부 부담처']) {
+      const size = (await page.getByLabel(`${label} 부담 비율`, {
+        exact: true
+      }).locator('..').boundingBox())!;
+      expect(size.x).toBe(ratioSize.x);
+      expect(size.width).toBe(ratioSize.width);
+      expect(size.height).toBe(ratioSize.height);
+    }
+    await expect(page.locator('[popover]:popover-open')).toHaveCount(0);
+    await page.screenshot({
+      path: testInfo.outputPath(`manual-expense-ratio-${width}.png`),
+      fullPage: true
+    });
+    await page.getByRole('combobox', {
+      name: '나누는 방법'
+    }).click();
+    await page.getByRole('option', {
+      name: '금액 직접 입력',
+      exact: true
+    }).click();
+    await page.getByRole('button', {
+      name: '외부 부담처 제거',
+      exact: true
+    }).click();
+    await page.getByLabel('102동 부담액', {
+      exact: true
+    }).fill('5000');
+    await page.getByLabel('103동 부담액', {
+      exact: true
+    }).fill('5001');
+    const registration = page.getByRole('button', {
+      name: '등록',
+      exact: true
+    });
+    const totals = page.getByText('부담액 합계 10,001원', {
+      exact: true
+    }).locator('..');
+    await expect(registration).toBeEnabled();
+    await expect(totals).toHaveCSS('color', 'rgb(22, 163, 74)');
+    await page.getByLabel('103동 부담액', {
+      exact: true
+    }).fill('6001');
+    await expect(registration).toBeDisabled();
+    await expect(page.getByText('초과 금액 1,000원', {
+      exact: true
+    }).locator('..')).toHaveCSS('color', 'rgb(239, 68, 68)');
+    await expect(page.getByText('남은 금액 -1,000원', {
+      exact: true
+    })).toHaveCount(0);
+    // 비활성 버튼의 우회 제출도 기존 제출 검증에서 차단해 초과 배분 요청을 전송하지 않습니다.
+    await registration.evaluate((button) => (button as HTMLButtonElement).form!.requestSubmit());
+    expect(requests).toHaveLength(0);
+    await page.getByLabel('103동 부담액', {
+      exact: true
+    }).fill('4000');
+    await expect(registration).toBeDisabled();
+    await expect(page.getByText('남은 금액 1,001원', {
+      exact: true
+    }).locator('..')).toHaveCSS('color', 'rgb(245, 158, 11)');
+    await page.getByLabel('103동 부담액', {
+      exact: true
+    }).fill('5001');
+    await expect(registration).toBeEnabled();
+    await expect(totals).toHaveCSS('color', 'rgb(22, 163, 74)');
+    await page.getByRole('textbox', {
+      name: '지출명',
+      exact: true
+    }).fill('');
+    await expect(registration).toBeDisabled();
+    await page.getByRole('textbox', {
+      name: '지출명',
+      exact: true
+    }).fill('공용 청소비');
+    await expect(registration).toBeEnabled();
+
+    await page.getByLabel('메모', {
+      exact: true
+    }).fill('직접 등록');
+    await expect(page.getByLabel('같은 내용의 거래에 이 설정 사용')).toHaveCount(0);
+    await page.getByRole('button', {
+      name: /^출금일:/
+    }).click();
+    const calendar = page.getByRole('dialog', {
+      name: '출금일',
+      exact: true
+    });
+    await expect(calendar).toBeVisible();
+    const bounds = (await calendar.boundingBox())!;
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+    await calendar.getByRole('button', {
+      name: '이전 달',
+      exact: true
+    }).click();
+    await calendar.getByRole('button', {
+      name: '2026년 9월 15일',
+      exact: true
+    }).click();
+    await expect(page.locator('[popover]:popover-open')).toHaveCount(0);
+    await page.screenshot({
+      path: testInfo.outputPath(`manual-expense-${width}.png`),
+      fullPage: true
+    });
+    const submit = page.getByRole('button', {
+      name: '등록',
+      exact: true
+    });
+    await submit.click();
+    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(page.getByRole('textbox', {
+      name: '지출명',
+      exact: true
+    })).toHaveValue('공용 청소비');
+    await expect(page.getByRole('textbox', {
+      name: '출금액',
+      exact: true
+    })).toHaveValue('10,001');
+    await submit.click();
+    await expect.poll(() => requests.length).toBe(2);
+    await expect(submit).toBeDisabled();
+    if (width === 1440) {
+      await expect(page.getByRole('button', {
+        name: '수동 지출 등록 닫기'
+      })).toBeDisabled();
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog', {
+        name: '수동 지출 등록',
+        exact: true
+      })).toBeVisible();
+    }
+    completeSave();
+    await expect(page).toHaveURL(`${BASE}/transactions?month=2026-09&account=${ACCOUNT}`);
+    expect(requests[1]).toEqual(requests[0]);
+    expect(requests[0]).toMatchObject({
+      date: '2026-09-15',
+      amount: '10001',
+      mode: 'AMOUNT'
+    });
+    await expect(page.getByRole('table', {
+      name: '통장 거래'
+    }).getByRole('row').filter({
+      hasText: '공용 청소비'
+    })).toContainText('10,001원');
+    await expect(page.getByText('지출을 등록했어요.', {
+      exact: true
+    })).toBeVisible();
+    await page.reload();
+    const resultRow = page.getByRole('table', {
+      name: '통장 거래'
+    }).getByRole('row').filter({
+      hasText: '공용 청소비'
+    });
+    await expect(resultRow).toContainText('수동 등록');
+    await page.goto(`${BASE}/expenses?month=2026-09&account=${ACCOUNT}`);
+    const expenseRow = page.getByRole('table', {
+      name: '지출 내역'
+    }).getByRole('row').filter({
+      hasText: '공용 청소비'
+    });
+    await expect(expenseRow).toContainText('10,001원');
+    const downloaded = page.waitForEvent('download');
+    await page.getByRole('button', {
+      name: '엑셀 다운로드',
+      exact: true
+    }).click();
+    const workbook = unzipSync(await readFile((await (await downloaded).path())!));
+    const xml = Object.values(workbook).map((bytes) => strFromU8(bytes)).join('\n');
+    expect(xml).toContain('공용 청소비');
+    expect(xml).toContain('10001');
+    await expenseRow.click();
+    await expect(page.getByText('등록 방식', {
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByText('수동 등록', {
+      exact: true
+    }).last()).toBeVisible();
+    await expect(page.getByText('원본에 없음', {
+      exact: true
+    })).toHaveCount(0);
+    if (width === 390) {
+      await page.getByRole('link', {
+        name: '지출 내역으로 돌아가기'
+      }).click();
+      await expect(page).toHaveURL(`${BASE}/expenses?month=2026-09&account=${ACCOUNT}`);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 }

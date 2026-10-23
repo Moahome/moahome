@@ -1234,24 +1234,27 @@ Soft Delete 없음.
 
 ## 10.3 expenses
 
-2026-10-17 **구현**. 은행 출금 한 건의 지출명과 확정 당시 배분 방식입니다. 후속 사용자 요청에 따라 지출명은 은행 내용으로 기본 입력하며 별도 비용 항목 입력을 받지 않습니다. 기존 API·컬럼명은 호환용으로 유지합니다. vendors·expense_categories·expense_lines는 후속 설계이며 현재 지출명은 암호화한 문자열로 저장합니다.
+2026-10-17 **구현**, 2026-10-23 수동 지출 등록 확장. 은행 출금 또는 직접 입력한 지출의 지출명과 확정 당시 배분 방식입니다. 후속 사용자 요청에 따라 지출명은 은행 내용으로 기본 입력하며 별도 비용 항목 입력을 받지 않습니다. 기존 API·컬럼명은 호환용으로 유지합니다. vendors·expense_categories·expense_lines는 후속 설계이며 현재 지출명은 암호화한 문자열로 저장합니다.
 
 | 컬럼 | 타입 | Null | 역할 |
 | --- | --- | --- | --- |
 | id | uuid | N | PK |
 | property_id | uuid | N | 관리대상 |
-| bank_transaction_id | uuid | N | 같은 관리대상의 출금 원본, UNIQUE |
+| bank_transaction_id | uuid | Y | 은행 출금 원본, UNIQUE. BANK_IMPORT는 필수, MANUAL은 null |
+| source_type | varchar(20) | N | BANK_IMPORT / MANUAL |
+| bank_account_id | uuid | N | 같은 관리대상의 실제 출금 통장 |
+| expense_date | date | N | 실제 출금일 |
 | category_encrypted | text | N | 지출명 (기존 컬럼명 유지) |
 | memo_encrypted | text | Y | 선택 메모 |
 | total_amount | numeric(15,0) | N | 원본과 같은 양수 출금액 |
 | allocation_mode | varchar(20) | N | EQUAL / RATIO / AMOUNT |
 | save_as_rule | boolean | N | 다음 거래의 규칙 제안에 사용 |
-| rule_key | char(64) | N | 월 접두어를 정리한 원본 적요 HMAC |
+| rule_key | char(64) | Y | BANK_IMPORT는 원본 적요 HMAC, MANUAL은 null |
 | confirmed_by / confirmed_at | uuid / timestamptz | N | 확정자·시각 |
 
-거래일은 연결된 원본 거래일을 사용합니다. 확정 지출·배분은 후속 `V20261017083529__protect_confirmed_expense_history.sql`의 수정·삭제 트리거로 보호하며 취소 정책을 임의로 추가하지 않습니다.
+은행 지출의 날짜·통장은 연결된 원본과 같아야 하며 수동 지출은 직접 입력합니다. 확정 지출·배분은 후속 `V20261017083529__protect_confirmed_expense_history.sql`의 수정·삭제 트리거로 보호하며 취소 정책을 임의로 추가하지 않습니다.
 
-2026-10-23 수동 출금 추가 요청은 아래 [저장 설계안](#은행별-업로드와-수동-지출-저장-설계안-2026-10-23)을 참조합니다. 위 표는 현재 구현이며 은행 원본 필수 제약 완화·새 필드·취소 이력은 아직 적용하지 않았습니다.
+수동 출금의 실제 제약·Migration은 아래 [저장 구현](#수동-지출-등록-저장-구현-2026-10-23)을 참조합니다. 취소·은행 연결 이력은 후속 정책입니다.
 
 ---
 
@@ -1321,7 +1324,7 @@ Soft Delete 없음.
 | percentage | numeric(5,2) | Y | RATIO일 때만 적용 비율 |
 | sort_order | integer | N | 입력 순서, 지출 내 UNIQUE |
 
-같은 동은 지출 내 중복 배분하지 않습니다. 지연 제약 트리거가 커밋 시 합계=지출액=원본 출금액과 비율 합계 100%, 비율별 부담액을 검사합니다. 확정 배분의 직접 수정·삭제와 확정 출금의 금액·방향 변경은 금지합니다. 외부 부담처 표시는 지출 귀속이며 별도 주민·실제 통장·외부 정산채권을 생성하지 않습니다.
+같은 동은 지출 내 중복 배분하지 않습니다. 지연 제약 트리거가 커밋 시 배분 합계=지출액과 비율 합계 100%, 비율·균등 부담액을 검사합니다. 은행 지출이면 원본 출금액도 일치해야 하며 수동 지출은 은행 원본을 요구하지 않습니다. 확정 배분의 직접 수정·삭제와 확정 출금의 금액·방향 변경은 금지합니다. 외부 부담처 표시는 지출 귀속이며 별도 주민·실제 통장·외부 정산채권을 생성하지 않습니다.
 
 ---
 
@@ -2070,3 +2073,15 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 원본 순서 저장 여부와 동일 시각 거래의 잔액 판정은 후속 검토입니다. 파일 내부 순번이 다른 기간 재다운로드에서도 같다고 가정하지 않으며 순서를 입증할 자료가 없으면 기존 미확인 표현을 유지합니다. 농협 음수 출금은 현재 양수 금액·방향 제약과 다르므로 정책 없이 절댓값 이관하지 않습니다.
 
 Migration은 정책 확정 후 별도 파일로 작성합니다. 기존 적용 파일·원본·확정 배분·감사 이력을 변경하거나 삭제하지 않고 원문 은행 파일 대신 구조를 재현한 익명 테스트 자료를 사용합니다.
+
+
+## 수동 지출 등록 저장 구현 (2026-10-23)
+
+[업무 기준](domainRules.md#수동-지출-등록-2026-10-23-후속-확정)과 [API](bankingManagement.md#수동-지출-등록-api-2026-10-23)에 따라 `V20261023133125__add_manual_expenses.sql`을 추가했습니다. 앞의 저장 설계안 중 등록만 구현하며 취소·은행 연결 이력은 추가하지 않았습니다.
+
+`expenses`에 `source_type varchar(20) NOT NULL`, `bank_account_id uuid NOT NULL`, `expense_date date NOT NULL`을 추가합니다. 기존 은행 지출의 통장·날짜는 원본에서 보정하고 ID·금액·암호문·배분을 유지합니다. 기존 삭제된 원본의 지출도 보정하며 소프트 삭제 상태를 되돌리지 않습니다. 같은 관리대상의 통장 복합 FK와 통장·날짜 조회 인덱스를 추가합니다.
+
+`bank_transaction_id`와 `rule_key`는 nullable로 바꾸되 CHECK로 출처별 구조를 제한합니다. BANK_IMPORT는 기존 은행 원본·규칙 키가 필수이고 MANUAL은 둘 다 null, save_as_rule=false입니다. 수동 지출 ID는 요청 UUID입니다. 기존 `expense_allocations`를 재사용해 합계·비율·균등 금액을 커밋 시 검증합니다. 지출·배분의 UPDATE·DELETE 금지, 기존 은행 원본 방향·금액·통장·날짜 보호와 선택 삭제 감사를 유지합니다. 수동 출금은 은행 원본이나 확인 잔액을 만들지 않습니다.
+
+
+2026-10-23 사용 종료 통장 표시 구현은 기존 `bank_accounts.status`, `valid_from`, `valid_to`와 거래·수납·지출·기준값·확정 인계 이력으로 판정하며 컬럼과 Migration을 추가하지 않습니다. 기간·미사용 제외와 잔액·미정산 예외는 [도메인 규칙](domainRules.md#사용-종료-통장-표시-2026-10-23-후속-확정), 응답 메타데이터는 [통장 API 계약](bankingManagement.md#사용-종료-통장-조회-계약-2026-10-23-후속)을 따릅니다.

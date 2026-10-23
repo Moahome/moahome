@@ -47,6 +47,12 @@ public class BankingController {
 		return ok(service.confirmExpense(UUID.fromString(user.userId()), propertyId, id, request));
 	}
 
+	@PostMapping("/expenses/manual")
+	public ResponseEntity<BankingResponse.Workspace> manualExpense(@AuthenticationPrincipal AuthPrincipal user,
+	    @PathVariable UUID propertyId, @Valid @RequestBody BankingRequests.ManualExpense request) {
+		return ok(service.manualExpense(UUID.fromString(user.userId()), propertyId, request));
+	}
+
 	@PostMapping("/transactions/{id}/income-allocation")
 	public ResponseEntity<BankingResponse.Workspace> allocateIncome(@AuthenticationPrincipal AuthPrincipal user,
 	    @PathVariable UUID propertyId, @PathVariable UUID id, @Valid @RequestBody BankingRequests.Expense request) {

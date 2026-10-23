@@ -23,7 +23,15 @@ public final class BankingResponse {
 	public record Transaction(UUID id, UUID accountId, LocalDate date, LocalTime time, String payer, String memo,
 	    String amount, String balance, String direction, String ruleKey, UUID paymentId, String status, String unitId,
 	    String unitLabel, Expense expense, Expense incomeAllocation, String receiptType, boolean transferCandidate,
-	    UUID transferId) {
+	    UUID transferId, String sourceType) {
+		public Transaction(UUID id, UUID accountId, LocalDate date, LocalTime time, String payer, String memo,
+		    String amount, String balance, String direction, String ruleKey, UUID paymentId, String status,
+		    String unitId, String unitLabel, Expense expense, Expense incomeAllocation, String receiptType,
+		    boolean transferCandidate, UUID transferId) {
+			this(id, accountId, date, time, payer, memo, amount, balance, direction, ruleKey, paymentId, status, unitId,
+			    unitLabel, expense, incomeAllocation, receiptType, transferCandidate, transferId, "BANK_IMPORT");
+		}
+
 		public Transaction(UUID id, UUID accountId, LocalDate date, LocalTime time, String payer, String memo,
 		    String amount, String balance, String direction, String ruleKey, UUID paymentId, String status,
 		    String unitId, String unitLabel, Expense expense, Expense incomeAllocation, String receiptType) {
@@ -43,7 +51,11 @@ public final class BankingResponse {
 		}
 	}
 
-	public record Account(UUID id, String bankName, String last4, String alias, boolean isPrimary, String status) {
+	public record Account(UUID id, String bankName, String last4, String alias, boolean isPrimary, String status,
+	    LocalDate availableFrom, LocalDate closedOn, boolean hasHistory) {
+		public Account(UUID id, String bankName, String last4, String alias, boolean isPrimary, String status) {
+			this(id, bankName, last4, alias, isPrimary, status, null, null, true);
+		}
 	}
 
 	public record Preview(UUID propertyId, List<Transaction> rows, int duplicateCount, int beforeCutoffCount) {

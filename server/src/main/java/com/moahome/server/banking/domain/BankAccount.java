@@ -165,6 +165,23 @@ public class BankAccount {
 		validTo = date.isBefore(validFrom) ? validFrom : date;
 	}
 
+	/** 실제 과거 사용 근거가 있으면 앱 등록일보다 앞선 월도 조회하되 사용 전 월은 만들지 않습니다. */
+	public java.time.LocalDate availableFrom(java.time.LocalDate firstUse) {
+		return firstUse != null && firstUse.isBefore(validFrom) ? firstUse : validFrom;
+	}
+
+	/** 사용하지 않은 종료 통장은 숨기고 사용한 통장은 종료 월까지 과거 목록·필터에 유지합니다. */
+	public boolean visibleIn(java.time.YearMonth month, java.time.LocalDate firstUse) {
+		if (availableFrom(firstUse).isAfter(month.atEndOfMonth()))
+			return false;
+		if (status != BankAccountStatus.CLOSED)
+			return true;
+		if (firstUse == null)
+			return false;
+		// 이전 자료에 종료일이 없으면 기간을 임의로 잘라 과거 내역을 숨기지 않습니다.
+		return validTo == null || !month.atDay(1).isAfter(validTo);
+	}
+
 	@PreUpdate
 	private void updateTimestamp() {
 		// PostgreSQL의 마이크로초 정밀도와 맞춰 응답 직후 재수정의 버전 비교가 어긋나지 않게 합니다.

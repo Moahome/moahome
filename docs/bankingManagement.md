@@ -125,7 +125,7 @@ Workspace.rows는 원본 UUID·계좌·날짜·선택 시간·지출명·메모�
 
 추가의 accountId는 클라이언트 UUID이며 같은 내용 재시도는 중복 생성하지 않습니다. 기존 계좌 정정에는 updatedAt이 필요하고 primaryAccountId는 조회 당시 기본 계좌 ID입니다. 기본 전환·정정 충돌은 `BANK_ACCOUNT_CONFLICT`, 번호 중복은 `BANK_ACCOUNT_DUPLICATE`, 기본 계좌 종료·해제는 `BANK_ACCOUNT_PRIMARY_REQUIRED`, 종료 계좌 정정은 `BANK_ACCOUNT_CLOSED`(모두 409)입니다. 별칭은 선택 100자이며 공백은 null로 정리합니다.
 
-Workspace에 `accounts:[{id,bankName,last4,alias,isPrimary,status}]`를 추가합니다. 원문 번호·예금주 없이 통장 선택에 사용하며 종료 계좌도 포함합니다. 거래의 `accountId`는 실제 통장입니다. 미리보기 multipart의 선택 accountId와 Import.selection의 선택 accountId로 사용 중인 같은 대상 통장을 지정합니다. 생략한 기존 호출은 기본 계좌를 사용합니다. 미리보기 선택 ID는 파일 키에서 파생하므로 통장 전환 시 미리보기를 폐기하고 다시 검증합니다. 원본 중복은 기존 `(bank_account_id,deduplication_key)` 기준을 유지합니다.
+Workspace에 `accounts:[{id,bankName,last4,alias,isPrimary,status}]`를 추가합니다. 원문 번호·예금주 없이 통장 선택에 사용합니다. 종료 계좌의 표시 기간은 아래 사용 종료 통장 조회 계약을 따릅니다. 거래의 `accountId`는 실제 통장입니다. 미리보기 multipart의 선택 accountId와 Import.selection의 선택 accountId로 사용 중인 같은 대상 통장을 지정합니다. 생략한 기존 호출은 기본 계좌를 사용합니다. 미리보기 선택 ID는 파일 키에서 파생하므로 통장 전환 시 미리보기를 폐기하고 다시 검증합니다. 원본 중복은 기존 `(bank_account_id,deduplication_key)` 기준을 유지합니다.
 
 `POST /payments/manual` 요청에 선택 accountId를 추가합니다. 명시한 통장이 종료·다른 대상이면 거부하고, 같은 UUID 재시도에서도 통장 일치를 검사합니다. 기존 생략 호출은 기본 계좌를 사용합니다. 수납 Workspace.accounts에 isPrimary·status를 추가합니다.
 
@@ -249,3 +249,25 @@ ADMIN·같은 관리대상의 사용 중 공용 통장·관리 시작 상태·�
 - 업무 결정: 농협 음수 출금의 취소·환입 처리, 농협·수협 기관 코드별 지원 범위, 불완전한 식별의 관리자 확인, 수동 출금의 기준일 경계·취소·은행 연결 수명주기·외부 정산 범위입니다.
 - 초기 실제 잔액·기준일은 기존 등록 흐름과 계좌 잔액 기록을 재사용합니다. 운영 중 추가 통장의 잔액 입력 UI는 이번 네 가지 요청에 포함해 확정한 기능이 아닙니다.
 - 완료 기준: 지원 은행만 업로드 가능, 신한 상대 정상 매핑, 별도 입금 보존과 재업로드 중복 방지, 수동 출금의 등록·배분·취소·은행 연결 후 일회 집계, 기존 원본·수납·지출 보존입니다. 농협 미정 행을 숨기고 파일 전체가 지원된다고 표시하지 않습니다.
+
+
+## 수동 지출 등록 API (2026-10-23)
+
+상태: **등록·배분·조회 구현**. 업무 기준은 [도메인 규칙](domainRules.md#수동-지출-등록-2026-10-23-후속-확정)을 따릅니다. 앞의 수동 출금 계약 제안 중 다음 경로만 구현했습니다.
+
+`POST /api/properties/{propertyId}/banking/expenses/manual`
+
+요청은 `{ id, accountId, date, amount, category, note?, mode, allocations }`입니다. `id`는 클라이언트 요청 UUID이자 저장된 수동 지출 ID이고 `accountId`는 필수입니다. 금액은 양수 원 단위 1~15자리 숫자 문자열, date는 실제 출금일입니다. 지출명·메모·배분 대상과 한도는 기존 Expense 계약을 재사용하며 규칙 저장은 받지 않습니다. ADMIN·같은 관리대상의 사용 중 공용 통장·관리 시작·오늘 또는 이전 날짜를 검증합니다. 기준 잔고 날짜와 무관하게 과거 등록을 허용합니다.
+
+응답은 최신 Workspace입니다. 수동 지출의 `rows[].id`는 지출 ID이며 `expense.id`와 같습니다. `sourceType=MANUAL`, `direction=EXPENSE`, `status=CONFIRMED`, `paymentId/time/balance=null`, `ruleKey=''`로 반환합니다. 은행 원본 행은 `sourceType=BANK_IMPORT`이며 기존 ID 의미를 유지합니다. 수동 ID를 은행 원본 선택 삭제 API에 보내지 않습니다.
+
+등록과 전체 배분은 같은 관리대상 잠금·트랜잭션에서 저장합니다. 같은 사용자·대상·요청 ID와 같은 내용의 재시도는 중복 반영하지 않고 다른 내용은 `BANK_REQUEST_CONFLICT`입니다. 날짜 오류는 `INVALID_MANUAL_EXPENSE_DATE`, 금액 오류는 `INVALID_MANUAL_EXPENSE`이며 기존 통장·권한·배분 오류를 함께 사용합니다.
+
+수동 지출은 거래·지출 목록·월별 지출 합계·엑셀·동별 원장과 통장 계산 잔액에 반영됩니다. 외부 부담분은 관리 동 지출 합계에서 제외하며 기존 정산으로 회수합니다. 은행 확인 잔액·확인 시각은 변경하지 않습니다. 기준일 이전 출금은 기존 누적·역산 계산을 따릅니다. 취소·은행 연결·연결 해제·업로드 출금과의 중복 대사는 후속 범위이며, 같은 거래를 다시 은행 지출로 확정하면 별도 지출로 집계됩니다.
+
+
+## 사용 종료 통장 조회 계약 (2026-10-23 후속)
+
+[사용 종료 통장 표시 정책](domainRules.md#사용-종료-통장-표시-2026-10-23-후속-확정)을 적용합니다. 거래 Workspace.accounts에 `availableFrom: YYYY-MM-DD`, `closedOn: YYYY-MM-DD|null`, `hasHistory: boolean`을 추가합니다. availableFrom은 등록 사용 시작일과 실제 사용 근거 중 이른 날짜입니다. Client는 조회 월 말보다 시작이 늦은 통장과 미사용 종료 통장을 제외하고 사용한 종료 통장은 종료 월까지만 거래·지출 필터에 표시합니다. Workspace의 원본 이력은 유지합니다.
+
+잔고 API는 서버에서 월별 노출 범위와 잔액·동별 자금·미회수 외부 부담금 예외를 판정하여 accounts와 계산 범위를 함께 반환합니다. 숨겨진 같은 관리대상 accountId는 accountId=null의 전체 통장 결과로 복원합니다. 설정의 통장 상세·과거 기록은 표시 제외로 삭제하지 않습니다. 기존 bank_accounts의 status·valid_from·valid_to와 사용 자료를 활용하므로 새 컬럼·Migration은 추가하지 않습니다.

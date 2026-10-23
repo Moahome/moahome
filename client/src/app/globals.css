@@ -22,6 +22,10 @@ html {
   --card: #ffffff;
   --foreground: #0f172a;
   --sub-text: #64748b;
+  /* 2026-10-23 사용자 지정: 수동 지출 입력·선택칩의 색상입니다. */
+  --input-foreground: #1e293b;
+  --input-placeholder: #94a3b8;
+  --selection-border: #93c5fd;
   --border: #e2e8f0;
   --success: #16a34a;
   --warning: #f59e0b;

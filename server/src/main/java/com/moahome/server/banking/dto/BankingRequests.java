@@ -27,6 +27,20 @@ public final class BankingRequests {
 		}
 	}
 
+	public record ManualExpense(@NotNull UUID id, @NotNull UUID accountId,
+	    @NotNull java.time.LocalDate date, @NotNull @Pattern(regexp = "[0-9]{1,15}") String amount,
+	    @TextInput(max = 100) String category, @TextInput(max = 500, optional = true) String note,
+	    @NotNull @Pattern(regexp = "EQUAL|RATIO|AMOUNT") String mode,
+	    @NotEmpty @Size(max = 100) List<@NotNull @Valid Allocation> allocations) {
+		public ManualExpense {
+			note = com.moahome.server.common.validation.TextValues.optional(note);
+		}
+
+		public Expense expense() {
+			return new Expense(category, note, mode, false, allocations);
+		}
+	}
+
 	public record Selection(@NotNull UUID id, UUID unitId, @TextInput(max = 100, optional = true) String incomeCategory,
 	    @TextInput(max = 500, optional = true) String incomeNote, @Valid Expense expense,
 	    @Valid Expense incomeAllocation,

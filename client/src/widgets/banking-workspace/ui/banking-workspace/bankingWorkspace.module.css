@@ -23,7 +23,7 @@
 
 .summary {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
 
   &[data-view='expenses'] {
@@ -31,7 +31,7 @@
   }
 
   &[data-view='upload'] {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -467,6 +467,17 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
+
+  @media (max-width: 767px) {
+    > button {
+      width: auto;
+      flex: 1 1 auto;
+    }
+
+    > button:last-child {
+      flex-basis: 100%;
+    }
+  }
 }
 
 .badge[data-state='CANCELED'] {

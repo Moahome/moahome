@@ -9,6 +9,7 @@ export type BankingExpense = ExpenseDraft & {
 
 export type BankingTransaction = {
   id: string;
+  sourceType?: 'BANK_IMPORT' | 'MANUAL';
   accountId: string;
   date: string;
   time: string | null;
@@ -29,6 +30,13 @@ export type BankingTransaction = {
   receiptType?: 'HOUSEHOLD' | 'OTHER' | null;
 };
 
+export type ManualExpenseInput = Omit<ExpenseDraft, 'saveAsRule'> & {
+  id: string;
+  accountId: string;
+  date: string;
+  amount: string;
+};
+
 export type BankingAccount = {
   id: string;
   bankName: string;
@@ -36,6 +44,9 @@ export type BankingAccount = {
   alias: string | null;
   isPrimary: boolean;
   status: string;
+  availableFrom?: string | null;
+  closedOn?: string | null;
+  hasHistory?: boolean;
 };
 
 export type BankingWorkspaceData = {

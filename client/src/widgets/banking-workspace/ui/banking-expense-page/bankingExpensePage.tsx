@@ -200,9 +200,9 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
       kind: 'amount'
     },
     {
-      label: '거래 후 잔액',
+      label: row.sourceType === 'MANUAL' ? '등록 방식' : '거래 후 잔액',
       icon: 'bank',
-      value: row.balance === null ? '원본에 없음' : formatWon(row.balance),
+      value: row.sourceType === 'MANUAL' ? '수동 등록' : row.balance === null ? '원본에 없음' : formatWon(row.balance),
       kind: 'balance'
     },
     {

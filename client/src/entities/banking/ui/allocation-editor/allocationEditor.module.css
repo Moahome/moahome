@@ -85,8 +85,16 @@
   border-top: 1px solid var(--border);
   font-weight: 700;
 
+  &[data-valid='false'] {
+    color: var(--warning);
+  }
+
   &[data-valid='true'] {
     color: var(--success);
+  }
+
+  &[data-overallocated='true'] {
+    color: var(--danger);
   }
 }
 
@@ -127,4 +135,136 @@
 
 .editor[data-compact='true'] {
   padding: 0;
+}
+
+
+.settings,
+.amounts {
+  display: contents;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--foreground);
+
+  > span {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--button-primary-background);
+    color: var(--primary-dark);
+    font-size: 14px;
+  }
+}
+
+.editor[data-sectioned='true'] {
+  --allocation-value-width: 120px;
+  --allocation-action-width: 40px;
+  padding: 0;
+  gap: 0;
+  color: var(--input-foreground);
+
+  .settings,
+  .amounts {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+    padding: 18px 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .targets {
+    gap: 12px;
+
+    label {
+      min-height: 50px;
+      padding: 10px 18px;
+      font-size: 16px;
+
+      &:has(input:checked) {
+        border-color: var(--selection-border);
+        background: var(--button-primary-background);
+      }
+    }
+
+    input[type='checkbox'] {
+      width: 20px;
+      height: 20px;
+    }
+  }
+
+  .help {
+    font-size: 14px;
+  }
+
+  .target-add {
+    min-height: 50px;
+    padding: 10px 18px;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 400;
+  }
+
+  .share {
+    min-height: 46px;
+    padding: 10px 18px;
+    /* 삭제 버튼 유무와 관계없이 같은 열을 확보해 동·외부 부담처의 입력 위치를 맞춥니다. */
+    grid-template-columns: minmax(0, 1fr) var(--allocation-value-width) var(--allocation-action-width);
+  }
+
+  &[data-mode='RATIO'] .share {
+    grid-template-columns: minmax(0, 1fr) var(--allocation-value-width) 12px var(--allocation-value-width) var(--allocation-action-width);
+  }
+
+  .total {
+    padding: 12px 18px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--background);
+    font-size: 14px;
+
+    > span + span {
+      border-left: 1px solid var(--border);
+      padding-left: 24px;
+    }
+  }
+}
+
+@media (max-width: 767px) {
+  .editor[data-sectioned='true'] {
+    --allocation-value-width: 72px;
+
+    .target-add {
+      width: 100%;
+      flex-basis: 100%;
+    }
+
+    .share {
+      gap: 6px;
+      padding: 8px;
+    }
+
+    .total {
+      gap: 8px;
+      padding: 12px;
+
+      > span + span {
+        padding-left: 12px;
+      }
+    }
+  }
+}
+
+
+.share-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }

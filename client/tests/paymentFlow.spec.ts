@@ -477,7 +477,7 @@ test('입금일도 공통 달력에서 날짜를 선택하고 모달은 X로 닫
     name: '입금일: 2026년 10월 20일'
   })).toBeFocused();
   const submit = await modal.getByRole('button', {
-    name: '수납 확인하기'
+    name: '등록'
   }).boundingBox();
   expect(bounds!.x + bounds!.width - (submit!.x + submit!.width)).toBeLessThan(30);
   await modal.getByRole('button', {
@@ -838,7 +838,7 @@ test('수동 입금자는 실제 대표 이름으로 채우고 API 저장 후 �
     exact:true
   }).fill('42000');
   await modal.getByRole('button',{
-    name:'수납 확인하기'
+    name:'등록'
   }).click();
   const detail=page.getByRole('dialog',{
     name:'입금 처리 상세',
@@ -972,7 +972,7 @@ test('수동 저장 실패는 입력을 보존하고 같은 요청 ID로 다시 
     exact:true
   }).fill('42000');
   await modal.getByRole('button',{
-    name:'수납 확인하기'
+    name:'등록'
   }).click();
   await expect(modal.getByRole('alert')).toBeVisible();
   await expect(modal.getByRole('textbox',{
@@ -980,7 +980,7 @@ test('수동 저장 실패는 입력을 보존하고 같은 요청 ID로 다시 
     exact:true
   })).toHaveValue('42,000');
   await modal.getByRole('button',{
-    name:'수납 확인하기'
+    name:'등록'
   }).click();
   await expect(page.getByRole('dialog',{
     name:'입금 처리 상세',
@@ -2831,12 +2831,12 @@ for (const width of [1440, 390, 320]) {
       exact: true
     }).fill('42001');
     await form.getByRole('button', {
-      name: '수납 확인하기',
+      name: '등록',
       exact: true
     }).click();
     if (width === 1440) {
       await expect(form.getByRole('button', {
-        name: '수납 확인하기',
+        name: '등록',
         exact: true
       })).toBeEnabled();
       await expect(form.getByRole('textbox', {
@@ -2844,7 +2844,7 @@ for (const width of [1440, 390, 320]) {
         exact: true
       })).toHaveValue('42,001');
       await form.getByRole('button', {
-        name: '수납 확인하기',
+        name: '등록',
         exact: true
       }).click();
       expect(requests[1]).toEqual(requests[0]);
@@ -3265,7 +3265,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).fill('수리비');
     await form.getByRole('button', {
-      name: '등록하기',
+      name: '등록',
       exact: true
     }).click();
     await expect(page.getByRole('heading', {
@@ -3308,7 +3308,7 @@ for (const width of [1440, 390]) {
       exact: true
     })).toBeVisible();
     await expect(form.getByRole('button', {
-      name: '등록하기',
+      name: '등록',
       exact: true
     })).toBeDisabled();
     await form.getByRole('checkbox', {
@@ -3316,7 +3316,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).uncheck();
     await expect(form.getByRole('button', {
-      name: '등록하기',
+      name: '등록',
       exact: true
     })).toBeEnabled();
     await form.getByRole('checkbox', {
@@ -3340,7 +3340,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).fill('75');
     await expect(form.getByRole('button', {
-      name: '등록하기',
+      name: '등록',
       exact: true
     })).toBeDisabled();
     await form.getByRole('combobox', {
@@ -3372,7 +3372,7 @@ for (const width of [1440, 390]) {
         exact: true
       })).toBeInViewport();
       await expect(form.getByRole('button', {
-        name: '등록하기',
+        name: '등록',
         exact: true
       })).toBeInViewport();
       await form.screenshot({
@@ -3388,7 +3388,7 @@ for (const width of [1440, 390]) {
       });
     }
     await form.getByRole('button', {
-      name: '등록하기',
+      name: '등록',
       exact: true
     }).click();
     await expect(page.getByLabel('알림', {
@@ -3401,7 +3401,7 @@ for (const width of [1440, 390]) {
       exact: true
     })).toHaveValue('500000');
     await form.getByRole('button', {
-      name: '등록하기',
+      name: '등록',
       exact: true
     }).click();
     await expect(page.getByRole('heading', {

@@ -15,6 +15,7 @@ import {
   calculateExpenseAllocation,
   createExpenseDraft
 } from '../src/widgets/banking-workspace/model/expenseAllocation';
+import { getAccountsForMonth } from '../src/widgets/banking-workspace/model/bankAccountVisibility';
 import { createExpenseWorkbook } from '../src/widgets/banking-workspace/model/expenseExport';
 
 test('관리실 거래는 내용으로 지출명을 채우고 별도 항목 입력 없이 지출을 준비', () => {
@@ -403,4 +404,45 @@ test('통장 잔액 합계와 차액은 확인값·계산값을 같은 기준으
       balance: null
     }]
   }).difference).toBeNull();
+});
+
+
+test('사용 종료 통장은 사용 이력·조회 월로 필터링하고 사용 전 통장과 미사용 종료 통장을 제외', () => {
+  const accounts = [
+    {
+      id: 'active',
+      status: 'ACTIVE',
+      availableFrom: '2026-09-30',
+      hasHistory: false
+    },
+    {
+      id: 'used',
+      status: 'CLOSED',
+      availableFrom: '2026-08-15',
+      closedOn: '2026-10-23',
+      hasHistory: true
+    },
+    {
+      id: 'unused',
+      status: 'CLOSED',
+      availableFrom: '2026-10-01',
+      closedOn: '2026-10-23',
+      hasHistory: false
+    },
+    {
+      id: 'legacy',
+      status: 'CLOSED'
+    }
+  ].map((account) => ({
+    ...account,
+    bankName: '테스트은행',
+    last4: '1234',
+    alias: null,
+    isPrimary: account.id === 'active'
+  }));
+  expect(getAccountsForMonth(accounts, '2026-07').map((account) => account.id)).toEqual(['legacy']);
+  expect(getAccountsForMonth(accounts, '2026-08').map((account) => account.id)).toEqual(['used', 'legacy']);
+  expect(getAccountsForMonth(accounts, '2026-10').map((account) => account.id)).toEqual(['active', 'used', 'legacy']);
+  expect(getAccountsForMonth(accounts, '2026-11').map((account) => account.id)).toEqual(['active', 'legacy']);
+  expect(accounts.map((account) => account.id)).toEqual(['active', 'used', 'unused', 'legacy']);
 });

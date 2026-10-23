@@ -131,6 +131,7 @@ public class BankingService {
 		Map<UUID, List<ExpenseAllocation>> parts = allocations.findByPropertyIdOrderBySortOrderAsc(property).stream()
 		    .collect(Collectors.groupingBy(a -> a.getExpenseId()));
 		HashMap<UUID, BankingResponse.Expense> expenseByTransaction = new HashMap<UUID, BankingResponse.Expense>();
+		ArrayList<BankingResponse.Transaction> manualRows = new ArrayList<>();
 		LinkedHashMap<String, BankingResponse.Rule> rules = new LinkedHashMap<String, BankingResponse.Rule>();
 		List<BankTransaction> originals = transactions.findByPropertyId(property).stream()
 		    .filter(t -> t.getDeletedAt() == null).toList();
@@ -148,6 +149,12 @@ public class BankingService {
 			    .toList();
 			var result = new BankingResponse.Expense(e.getId(), security.decrypt(e.getCategoryEncrypted()),
 			    security.decrypt(e.getMemoEncrypted()), e.getAllocationMode(), e.isSaveAsRule(), shares);
+			if ("MANUAL".equals(e.getSourceType())) {
+				manualRows.add(new BankingResponse.Transaction(e.getId(), e.getBankAccountId(), e.getExpenseDate(),
+				    null, result.category(), result.note(), e.getTotalAmount().toPlainString(), null, "EXPENSE", "",
+				    null, "CONFIRMED", "", "", result, null, null, false, null, "MANUAL"));
+				continue;
+			}
 			expenseByTransaction.put(e.getBankTransactionId(), result);
 			var original = byId.get(e.getBankTransactionId());
 			if (e.isSaveAsRule() && original != null)
@@ -190,17 +197,26 @@ public class BankingService {
 			                        .toList()),
 			        payment == null ? null : payment.receiptType(), t.isTransferCandidate(),
 			        transferBySource.get(t.getId()));
-		    }).toList();
+		    }).collect(Collectors.toCollection(ArrayList::new));
+		rows.addAll(manualRows);
 		List<BankingResponse.Building> targets = buildings
 		    .findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(property).stream()
 		    .filter(b -> b.getStatus() == BuildingStatus.ACTIVE)
 		    .map(b -> new BankingResponse.Building(b.getId(), b.getName())).toList();
+		Map<UUID, BankAccountRepository.Usage> usage = accounts.findUsageByPropertyId(property).stream()
+		    .collect(Collectors.toMap(BankAccountRepository.Usage::getAccountId, item -> item));
 		return new BankingResponse.Workspace(property, today(), targets, ledger.units().stream()
 		    .filter(PaymentResponse.Unit::eligible).map(u -> new BankingResponse.Unit(u.id(), u.label())).toList(),
 		    rows, List.copyOf(rules.values()),
 		    accounts.findByPropertyIdAndDeletedAtIsNull(property).stream()
-		        .map(a -> new BankingResponse.Account(a.getId(), a.getBankName(), a.getAccountLast4(), a.getAlias(),
-		            a.isPrimary(), a.getStatus().name()))
+		        .filter(a -> a.getBuildingId() == null)
+		        .map(a -> {
+			        var saved = usage.get(a.getId());
+			        LocalDate firstUse = saved == null ? null : saved.getFirstUse();
+			        return new BankingResponse.Account(a.getId(), a.getBankName(), a.getAccountLast4(), a.getAlias(),
+			            a.isPrimary(), a.getStatus().name(),
+			            a.availableFrom(firstUse), a.getValidTo(), firstUse != null);
+		        })
 		        .toList());
 	}
 
@@ -335,6 +351,22 @@ public class BankingService {
 			original.markExpense();
 		original.markTransferCandidate();
 		transactions.saveAndFlush(original);
+	}
+
+	/** 수동 입금처럼 과거 출금일을 허용하고 은행 확인값을 만들지 않은 채 지출·배분만 저장합니다. */
+	@Transactional(isolation = Isolation.READ_COMMITTED)
+	public BankingResponse.Workspace manualExpense(UUID user, UUID property, BankingRequests.ManualExpense request) {
+		requireAdmin(user, property);
+		var target = properties.findForUnitUpdate(property)
+		    .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+		requireAdmin(user, property);
+		if (target.getManagementStartedAt() == null)
+			throw new PaymentException("OPENING_BALANCE_REQUIRED");
+		account(property, request.accountId());
+		if (request.date() == null || request.date().isAfter(today()))
+			throw new PaymentException("INVALID_MANUAL_EXPENSE_DATE");
+		expenseService.manual(property, request, user);
+		return workspace(user, property);
 	}
 
 	/** 저장된 미분류 출금도 같은 검증과 잠금으로 확정합니다. 이미 확정된 배분은 덮어쓰지 않습니다. */
