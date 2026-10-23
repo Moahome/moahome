@@ -17,6 +17,8 @@ html {
   --button-primary-background: #eff6ff;
   --button-primary-border: #bfdbfe;
   --button-primary-hover-background: color-mix(in srgb, var(--primary) 12%, var(--card));
+  /* 2026-10-23 사용자 지정: 선택 거래 작업바 배경은 흰색을 사용합니다. */
+  --bank-import-actions-background: var(--card);
   --secondary-teal: #0d9488;
   --background: #f8fafc;
   --card: #ffffff;

@@ -214,7 +214,7 @@ public class BankingService {
 			        var saved = usage.get(a.getId());
 			        LocalDate firstUse = saved == null ? null : saved.getFirstUse();
 			        return new BankingResponse.Account(a.getId(), a.getBankName(), a.getAccountLast4(), a.getAlias(),
-			            a.isPrimary(), a.getStatus().name(),
+			            a.isPrimary(), a.getStatus().name(), a.getBankCode(), BankImportFormat.support(a.getBankCode()),
 			            a.availableFrom(firstUse), a.getValidTo(), firstUse != null);
 		        })
 		        .toList());
@@ -229,15 +229,15 @@ public class BankingService {
 		requireAdmin(user, property);
 		var account = account(property, accountId);
 		var target = properties.findById(property).orElseThrow();
-		List<BankTransactionReader.Row> incoming = reader.readAll(file);
+		List<BankTransactionReader.Row> incoming = reader.readAll(file, account.getBankCode());
 		List<PaymentResponse.Payment> receiptCandidates = incoming.stream().anyMatch(
 		    r -> "INCOME".equals(r.direction())) ? payments.preview(user, property, file, account.getId()).rows()
 		        : List.<PaymentResponse.Payment>of();
 		Map<UUID, PaymentResponse.Payment> candidates = receiptCandidates.stream()
 		    .collect(Collectors.toMap(PaymentResponse.Payment::id, r -> r));
-		Set<String> existing = transactions.findByPropertyId(property).stream()
-		    .filter(t -> t.getDeletedAt() == null && t.getBankAccountId().equals(account.getId()))
-		    .map(BankTransaction::getDeduplicationKey).collect(Collectors.toSet());
+		BankTransactionDuplicates existing = new BankTransactionDuplicates(transactions.findByPropertyId(property),
+		    account.getId(), security);
+		Set<String> seen = new HashSet<>();
 		int duplicates = 0, before = 0;
 		ArrayList<BankingResponse.Transaction> rows = new ArrayList<BankingResponse.Transaction>();
 		for (var row : incoming) {
@@ -249,7 +249,7 @@ public class BankingService {
 			}
 			String key = BankTransactionKeys.key(row, security);
 			UUID id = BankTransactionKeys.previewId(key);
-			if (!existing.add(key)) {
+			if (existing.find(row).isPresent() || !seen.add(key)) {
 				duplicates++;
 				continue;
 			}
@@ -259,7 +259,9 @@ public class BankingService {
 			    row.direction(), BankTransactionKeys.ruleKey(row.payer(), security), null, "PENDING",
 			    candidate == null ? "" : candidate.unitId(), "", null, null, null));
 		}
-		return new BankingResponse.Preview(property, rows, duplicates, before);
+		return new BankingResponse.Preview(property, rows, duplicates, before, new BankingResponse.Period(
+		    incoming.stream().map(BankTransactionReader.Row::date).min(LocalDate::compareTo).orElseThrow(),
+		    incoming.stream().map(BankTransactionReader.Row::date).max(LocalDate::compareTo).orElseThrow()));
 	}
 
 	/** 선택 전체를 원본 파일로 재검증하고 같은 관리대상 잠금 안에서 수납·지출을 원자적으로 저장합니다. */
@@ -273,12 +275,19 @@ public class BankingService {
 		if (target.getManagementStartedAt() == null)
 			throw new PaymentException("OPENING_BALANCE_REQUIRED");
 		var account = account(property, selection.accountId());
-		List<BankTransactionReader.Row> source = reader.readAll(file);
+		List<BankTransactionReader.Row> source = reader.readAll(file, account.getBankCode());
 		LinkedHashMap<UUID, BankTransactionReader.Row> available = new LinkedHashMap<UUID, BankTransactionReader.Row>();
 		for (var row : source) {
 			if (row.date().isAfter(today()))
 				throw new PaymentException("INVALID_PAYMENT_DATE");
 			available.putIfAbsent(BankTransactionKeys.previewId(BankTransactionKeys.key(row, security)), row);
+		}
+		BankTransactionDuplicates duplicates = new BankTransactionDuplicates(transactions.findByPropertyId(property),
+		    account.getId(), security);
+		for (var item : selection.rows()) {
+			var row = available.get(item.id());
+			if (row != null)
+				duplicates.find(row);
 		}
 		LinkedHashMap<UUID, PaymentService.BankReceiptChoice> choices = new LinkedHashMap<UUID, PaymentService.BankReceiptChoice>();
 		ArrayList<BankTransactionReader.Row> income = new ArrayList<BankTransactionReader.Row>();
@@ -307,7 +316,7 @@ public class BankingService {
 			    || item.incomeAllocation() != null)
 				throw new PaymentException("INVALID_BANK_SELECTION");
 			String key = BankTransactionKeys.key(row, security);
-			var previous = transactions.findByBankAccountIdAndDeduplicationKeyAndDeletedAtIsNull(account.getId(), key);
+			var previous = duplicates.find(row);
 			BankTransaction original;
 			if (previous.isPresent())
 				original = previous.get();
@@ -327,8 +336,8 @@ public class BankingService {
 		for (var item : selection.rows()) {
 			if (item.incomeAllocation() == null)
 				continue;
-			var original = transactions.findByBankAccountIdAndDeduplicationKeyAndDeletedAtIsNull(account.getId(),
-			    BankTransactionKeys.key(available.get(item.id()), security)).orElseThrow();
+			var original = new BankTransactionDuplicates(transactions.findByPropertyId(property), account.getId(), security)
+			    .find(available.get(item.id())).orElseThrow();
 			allocateIncome(original, item.incomeAllocation(), user);
 		}
 		return workspace(user, property);
@@ -337,7 +346,7 @@ public class BankingService {
 	/** 내부 이체 선택은 자동 수납·지출 분류를 거치지 않고 은행 원본만 계좌별로 저장합니다. */
 	private void saveTransferSource(UUID property, UUID account, BankTransactionReader.Row row, UUID user) {
 		var key = BankTransactionKeys.key(row, security);
-		var previous = transactions.findByBankAccountIdAndDeduplicationKeyAndDeletedAtIsNull(account, key);
+		var previous = new BankTransactionDuplicates(transactions.findByPropertyId(property), account, security).find(row);
 		if (previous.isPresent()) {
 			if (!previous.get().isTransferCandidate())
 				throw new PaymentException("BANK_TRANSFER_CONFLICT");

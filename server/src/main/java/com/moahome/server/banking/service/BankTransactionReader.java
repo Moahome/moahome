@@ -29,11 +29,16 @@ public class BankTransactionReader {
 	private static final List<String> WITHDRAWAL_HEADERS = List.of("출금액", "출금금액", "출금");
 
 	private record Columns(int header, int date, int payer, int amount, int withdrawal, int memo, int reference,
-	    int time, int balance, int direction, boolean sharedAmount) {
+	    int time, int balance, int direction, boolean sharedAmount, List<Integer> memos, int fallbackPayer) {
 	}
 
 	public record Row(LocalDate date, String payer, BigDecimal amount, String memo, String reference, LocalTime time,
-	    BigDecimal balance, String direction) {
+	    BigDecimal balance, String direction, boolean autoMatchEligible) {
+		public Row(LocalDate date, String payer, BigDecimal amount, String memo, String reference, LocalTime time,
+		    BigDecimal balance, String direction) {
+			this(date, payer, amount, memo, reference, time, balance, direction, true);
+		}
+
 		public Row(LocalDate date, String payer, BigDecimal amount, String memo, String reference, LocalTime time,
 		    BigDecimal balance) {
 			this(date, payer, amount, memo, reference, time, balance, "INCOME");
@@ -47,7 +52,16 @@ public class BankTransactionReader {
 
 	/** 파일은 서버에서도 크기·확장·압축·수식·필수 열을 검사하며 검증 전 원장을 변경하지 않습니다. */
 	public List<Row> read(MultipartFile file) {
-		List<BankTransactionReader.Row> income = readAll(file).stream().filter(row -> "INCOME".equals(row.direction()))
+		return readIncome(readAll(file));
+	}
+
+	/** 서비스 진입점은 저장된 은행코드로 양식을 지정하며 범용 인식으로 우회하지 않습니다. */
+	public List<Row> read(MultipartFile file, String bankCode) {
+		return readIncome(readAll(file, bankCode));
+	}
+
+	private List<Row> readIncome(List<Row> rows) {
+		List<BankTransactionReader.Row> income = rows.stream().filter(row -> "INCOME".equals(row.direction()))
 		    .toList();
 		if (income.isEmpty())
 			throw new PaymentException("EMPTY_BANK_FILE");
@@ -56,8 +70,18 @@ public class BankTransactionReader {
 
 	/** 입출금 방향을 명시적으로 읽고 원본 금액·시간·잔액을 함께 보존합니다. */
 	public List<Row> readAll(MultipartFile file) {
+		return readAll(file, (BankImportFormat) null);
+	}
+
+	public List<Row> readAll(MultipartFile file, String bankCode) {
+		return readAll(file, BankImportFormat.require(bankCode));
+	}
+
+	private List<Row> readAll(MultipartFile file, BankImportFormat format) {
 		if (file == null || file.isEmpty() || file.getSize() > 5 * 1024 * 1024 || file.getOriginalFilename() == null)
 			throw new PaymentException("INVALID_BANK_FILE");
+		if (format != null)
+			format.validateFilename(file.getOriginalFilename());
 		try {
 			byte[] bytes = file.getBytes();
 			String name = file.getOriginalFilename().toLowerCase(Locale.ROOT);
@@ -70,7 +94,7 @@ public class BankTransactionReader {
 				        .decode(java.nio.ByteBuffer.wrap(bytes)).toString());
 			else
 				throw new PaymentException("INVALID_BANK_FILE");
-			var columns = findColumns(rows);
+			var columns = format == null ? findColumns(rows) : findColumns(rows, format);
 			List<List<String>> transactions = rows.subList(columns.header() + 1, rows.size());
 			if (transactions.size() > MAX_TRANSACTION_ROWS)
 				throw new PaymentException("BANK_ROW_LIMIT");
@@ -81,6 +105,16 @@ public class BankTransactionReader {
 				String raw = cell(row, columns.amount()).replace(",", "").replace("원", "").strip();
 				String withdrawal = cell(row, columns.withdrawal()).replace(",", "").replace("원", "").strip();
 				String direction = "INCOME";
+				boolean reversal = format == BankImportFormat.NH && withdrawal.matches("-[0-9]{1,15}")
+				    && new BigDecimal(withdrawal).signum() < 0;
+				String originalWithdrawal = withdrawal;
+				if (reversal) {
+					// 음수 출금은 실제 잔액 증가입니다. 원문은 메모에 보존하고 자동 세대 수납에서는 제외합니다.
+					if (!raw.isEmpty() && (!raw.matches("[0-9]{1,15}") || new BigDecimal(raw).signum() != 0))
+						throw new PaymentException("INVALID_BANK_ROW");
+					raw = new BigDecimal(withdrawal).abs().toPlainString();
+					withdrawal = "";
+				}
 				if (columns.sharedAmount()) {
 					String label = cell(row, columns.direction()).strip();
 					if (!List.of("입금", "출금").contains(label) || !raw.matches("-?[0-9]{1,15}"))
@@ -109,10 +143,16 @@ public class BankTransactionReader {
 				if (value.signum() <= 0)
 					throw new PaymentException("INVALID_BANK_ROW");
 				String depositor = cell(row, columns.payer()).strip();
-				String text = cell(row, columns.memo()).strip(), reference = cell(row, columns.reference()).strip();
+				boolean autoMatchEligible = !reversal && !depositor.isBlank();
+				if (depositor.isBlank() && columns.fallbackPayer() >= 0)
+					depositor = cell(row, columns.fallbackPayer()).strip();
+				String text = memo(row, columns);
+				if (reversal)
+					text = (text.isBlank() ? "" : text + "\n") + "은행 원문 출금금액(원): " + originalWithdrawal;
+				String reference = cell(row, columns.reference()).strip();
 				if (depositor.isBlank() || depositor.length() > 100 || text.length() > 500 || reference.length() > 200)
 					throw new PaymentException("INVALID_BANK_ROW");
-				String rawDate = cell(row, columns.date()).strip().replace('.', '-').replace('/', '-');
+				String rawDate = cell(row, columns.date()).strip().replaceAll("\\s+", " ").replace('.', '-').replace('/', '-');
 				LocalDate day;
 				if (rawDate.matches("[0-9]{8}"))
 					day = LocalDate.parse(rawDate, java.time.format.DateTimeFormatter.BASIC_ISO_DATE);
@@ -137,7 +177,7 @@ public class BankTransactionReader {
 					throw new PaymentException("INVALID_BANK_ROW");
 				BigDecimal balance = rawBalance.isEmpty() ? null : new BigDecimal(rawBalance);
 				result.add(new Row(day, depositor, value, text.isEmpty() ? null : text,
-				    reference.isEmpty() ? null : reference, time, balance, direction));
+				    reference.isEmpty() ? null : reference, time, balance, direction, autoMatchEligible));
 			}
 			if (result.isEmpty())
 				throw new PaymentException("EMPTY_BANK_FILE");
@@ -151,12 +191,11 @@ public class BankTransactionReader {
 
 	/** 은행 하단의 명시적인 합계 행만 제외하고 날짜가 빠진 실제 거래를 임의로 건너뛰지 않습니다. */
 	private boolean isSummaryRow(List<String> row, Columns columns) {
-		if (columns.withdrawal() < 0)
-			return false;
 		String date = cell(row, columns.date()).strip().replaceAll("\\s+", "");
 		String memo = cell(row, columns.memo()).strip().replaceAll("\\s+", "");
 		List<String> labels = List.of("합계", "총합계");
-		return labels.contains(date) || (date.isEmpty() && labels.contains(memo));
+		return labels.contains(date) || date.matches("총[0-9,]+건")
+		    || (date.isEmpty() && labels.contains(memo));
 	}
 
 	/** 은행 제목·계좌 안내를 건너뛰고 필수 열이 함께 있는 거래 머리글을 찾습니다. */
@@ -184,9 +223,59 @@ public class BankTransactionReader {
 			return new Columns(index, date, payer, amount, withdrawal, memo,
 			    column(header, List.of("거래번호", "거래고유번호", "reference")),
 			    column(header, List.of("거래시간", "입금시간", "시간", "time")),
-			    column(header, List.of("잔액", "거래후잔액", "balance")), direction, sharedAmount);
+			    column(header, List.of("잔액", "거래후잔액", "balance")), direction, sharedAmount, List.of(), -1);
 		}
 		throw new PaymentException("INVALID_BANK_HEADER");
+	}
+
+	/** 선택 은행의 필수 헤더를 한 행에서 확인하고 거래 종류와 상대 이름을 혼동하지 않습니다. */
+	private Columns findColumns(List<List<String>> rows, BankImportFormat format) {
+		// 하나은행의 기존 입금 전용 CSV 계약은 이 은행 안에서만 호환합니다.
+		if (format == BankImportFormat.HANA) {
+			Columns columns = findColumns(rows);
+			List<String> header = normalizedHeader(rows.get(columns.header()));
+			if (column(header, List.of("거래금액", "기재내용", "보낸분/받는분", "내용", "거래기록사항")) >= 0)
+				throw new PaymentException("INVALID_BANK_HEADER");
+			return columns;
+		}
+		for (int index = 0; index < Math.min(rows.size(), MAX_HEADER_ROWS); index++) {
+			List<String> header = normalizedHeader(rows.get(index));
+			int date = header.indexOf(format.date), payer = header.indexOf(format.payer);
+			int income = header.indexOf(format.income), balance = header.indexOf(format.balance);
+			int expense = format.expense == null ? -1 : header.indexOf(format.expense);
+			int direction = header.indexOf("구분"), time = header.indexOf("거래시간");
+			if (date < 0 || payer < 0 || income < 0 || balance < 0
+			    || (format.expense != null && expense < 0)
+			    || (format == BankImportFormat.KAKAO && direction < 0)
+			    || (format == BankImportFormat.NH && time < 0))
+				continue;
+			List<Integer> memos = new ArrayList<>();
+			for (int column = 0; column < header.size(); column++)
+				if (format.memos.contains(header.get(column)))
+					memos.add(column);
+			int fallback = format == BankImportFormat.IBK ? header.indexOf("거래내용") : -1;
+			return new Columns(index, date, payer, income, expense, -1,
+			    column(header, List.of("거래번호", "거래고유번호")), time, balance, direction,
+			    format == BankImportFormat.KAKAO, memos, fallback);
+		}
+		throw new PaymentException("INVALID_BANK_HEADER");
+	}
+
+	private List<String> normalizedHeader(List<String> header) {
+		return header.stream().map(value -> value.strip().replace("\uFEFF", "").replaceAll("\\s+", "")).toList();
+	}
+
+	/** 여러 원문 메모와 거래 종류를 열 위치·순서로 보존해 같은 이름의 메모 열도 잃지 않습니다. */
+	private String memo(List<String> row, Columns columns) {
+		if (columns.memos().isEmpty())
+			return cell(row, columns.memo()).strip();
+		List<String> values = new ArrayList<>();
+		for (int index : columns.memos()) {
+			String value = cell(row, index).strip();
+			if (!value.isEmpty())
+				values.add("열 " + (index + 1) + ": " + value);
+		}
+		return String.join("\n", values);
 	}
 
 	private int column(List<String> headers, List<String> aliases) {

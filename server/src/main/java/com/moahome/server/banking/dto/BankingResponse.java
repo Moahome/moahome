@@ -52,12 +52,23 @@ public final class BankingResponse {
 	}
 
 	public record Account(UUID id, String bankName, String last4, String alias, boolean isPrimary, String status,
-	    LocalDate availableFrom, LocalDate closedOn, boolean hasHistory) {
-		public Account(UUID id, String bankName, String last4, String alias, boolean isPrimary, String status) {
-			this(id, bankName, last4, alias, isPrimary, status, null, null, true);
+	    String bankCode, ImportSupport importSupport, LocalDate availableFrom, LocalDate closedOn, boolean hasHistory) {
+		public Account(UUID id, String bankName, String last4, String alias, boolean isPrimary, String status,
+		    String bankCode, ImportSupport importSupport) {
+			this(id, bankName, last4, alias, isPrimary, status, bankCode, importSupport, null, null, true);
 		}
 	}
 
-	public record Preview(UUID propertyId, List<Transaction> rows, int duplicateCount, int beforeCutoffCount) {
+	public record ImportSupport(boolean enabled, List<String> extensions, String message) {
+	}
+
+	public record Period(LocalDate from, LocalDate to) {
+	}
+
+	public record Preview(UUID propertyId, List<Transaction> rows, int duplicateCount, int beforeCutoffCount,
+	    Period period) {
+		public Preview(UUID propertyId, List<Transaction> rows, int duplicateCount, int beforeCutoffCount) {
+			this(propertyId, rows, duplicateCount, beforeCutoffCount, null);
+		}
 	}
 }

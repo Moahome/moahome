@@ -37,9 +37,17 @@ export type ManualExpenseInput = Omit<ExpenseDraft, 'saveAsRule'> & {
   amount: string;
 };
 
+export type BankImportSupport = {
+  enabled: boolean;
+  extensions: string[];
+  message: string;
+};
+
 export type BankingAccount = {
   id: string;
   bankName: string;
+  bankCode?: string;
+  importSupport?: BankImportSupport;
   last4: string;
   alias: string | null;
   isPrimary: boolean;
@@ -76,6 +84,10 @@ export type BankingPreview = {
   rows: BankingTransaction[];
   duplicateCount: number;
   beforeCutoffCount: number;
+  period?: {
+    from: string;
+    to: string;
+  } | null;
 };
 
 export type BankingSelection = {

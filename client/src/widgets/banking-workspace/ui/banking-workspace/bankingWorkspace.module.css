@@ -59,7 +59,7 @@
   overflow: hidden;
 }
 
-.upload-info, .actions {
+.upload-info {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
@@ -117,15 +117,6 @@
   border-radius: 10px;
   color: var(--excel-background);
   background: color-mix(in srgb, var(--excel-background) 8%, var(--card));
-}
-
-.actions {
-  position: sticky;
-  bottom: 16px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--card);
 }
 
 .muted {
@@ -306,13 +297,16 @@
 }
 
 @container (max-width: 540px) {
-  .filters, .filters[data-preview='true'] {
+  /* 좁은 화면에서는 금액을 한 줄로 읽을 수 있도록 카드에 본문 전체 폭을 제공합니다. */
+  .summary, .summary[data-view='upload'] {
     grid-template-columns: minmax(0, 1fr);
   }
-}
 
-@container (max-width: 300px) {
-  .summary, .summary[data-view='upload'] {
+  .file-info {
+    flex-basis: 100%;
+  }
+
+  .filters, .filters[data-preview='true'] {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -521,7 +515,6 @@
 
 .transfer-settings {
   display: grid;
-  gap: 16px;
   margin: 20px 24px 0;
   padding: 20px 0 24px;
   border-top: 1px solid var(--border);
@@ -535,40 +528,6 @@
   }
 }
 
-.transfer-description {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin: 0;
-  margin-left: 38px;
-  padding: 18px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--primary) 5%, var(--card));
-  color: var(--sub-text);
-  font-size: 14px;
-  line-height: 1.7;
-  word-break: keep-all;
-  overflow-wrap: anywhere;
-
-  > svg {
-    width: 24px;
-    height: 24px;
-    flex-shrink: 0;
-    color: var(--primary);
-  }
-
-  ul {
-    margin: 0;
-    padding-left: 28px;
-    border-left: 1px solid var(--border);
-    list-style: disc;
-  }
-
-  li + li {
-    margin-top: 4px;
-  }
-}
-
 @media (max-width: 767px) {
   .transfer-settings {
     margin-right: 16px;
@@ -578,12 +537,6 @@
   .original-info {
     margin-right: 16px;
     margin-left: 16px;
-  }
-
-  .transfer-description {
-    margin-left: 0;
-    gap: 12px;
-    padding: 14px;
   }
 
   .editor-header,

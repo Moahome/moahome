@@ -62,6 +62,7 @@ import {
 } from '../../model/expenseAllocation';
 import { createExpenseWorkbook } from '../../model/expenseExport';
 import { getAccountsForMonth } from '../../model/bankAccountVisibility';
+import { BankImportActions } from '../_components/bank-import-actions/bankImportActions';
 import { TransferDetail } from '../_components/transfer-detail/transferDetail';
 import { BankingExpensePage } from '../banking-expense-page/bankingExpensePage';
 import { ManualExpense } from '../manual-expense/manualExpense';
@@ -161,11 +162,21 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   /** 새 파일 검증이 성공한 경우에만 기존 선택·초안을 교체하고 실패하면 재시도 상태를 보존합니다. */
   async function readFile(next: File) {
     if (busyRef.current) return;
+    const selectedAccount = accountId === 'ALL'
+      ? workspace.data?.accounts?.find((account) => account.isPrimary && account.status === 'ACTIVE')
+      : workspace.data?.accounts?.find((account) => account.id === accountId);
+    if (selectedAccount?.status !== 'ACTIVE' || !selectedAccount.importSupport?.enabled) {
+      notify('선택한 통장의 업로드 지원 정보를 확인해주세요.');
+      return;
+    }
+    if (!selectedAccount.importSupport.extensions.some((extension) => next.name.toLowerCase().endsWith(extension))) {
+      notify(selectedAccount.importSupport.message);
+      return;
+    }
     busyRef.current = true; setBusy(true);
     try {
-      const selectedAccount = accountId === 'ALL' ? workspace.data?.accounts?.find((a) => a.isPrimary && a.status === 'ACTIVE')?.id : accountId;
-      const result = await previewBankingFile(propertyId, next, selectedAccount);
-      if (selectedAccount && result.rows.some((row) => row.accountId !== selectedAccount)) throw new Error('계좌가 일치하지 않습니다.');
+      const result = await previewBankingFile(propertyId, next, selectedAccount.id);
+      if (result.rows.some((row) => row.accountId !== selectedAccount.id)) throw new Error('계좌가 일치하지 않습니다.');
       setTransferRows([]);
       setFile(next); setPreview(result); setExcluded([]); setExpenses({}); setReceipts({}); setEditingId(null);
       setReplacingFile(false);
@@ -210,6 +221,10 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const accounts = monthAccounts;
   const visibleAccountIds = new Set(accounts.map((account) => account.id));
   const activeAccountId = accountId === 'ALL' ? accounts.find((account) => account.isPrimary && account.status === 'ACTIVE')?.id : accountId;
+  const importAccount = accounts.find((account) => account.id === activeAccountId);
+  const importSupport = importAccount?.importSupport;
+  const canImport = importAccount?.status === 'ACTIVE' && importSupport?.enabled === true;
+  const importMessage = importSupport?.message ?? '통장 업로드 지원 정보를 확인할 수 없습니다. 새로고침해주세요.';
   function accountLabel(id: string) {
     const account = accounts.find((row) => row.id === id);
     return account ? `${account.bankName} ····${account.last4}${account.alias ? ` · ${account.alias}` : ''}${account.status === 'ACTIVE' ? '' : ' · 사용 종료'}` : '관리계좌';
@@ -511,7 +526,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   }
   /** 서로 다른 필터에서 고른 입출금도 하나의 요청으로 보내고 실패 시 초안 전체를 보존합니다. */
   async function commit() {
-    if (!file || !preview || !selected.length || busyRef.current) return;
+    if (!file || !preview || !selected.length || busyRef.current || !canImport) return;
     const rows: BankingSelection[] = [];
     for (const row of selected) {
       if (transferRows.includes(row.id)) { rows.push({
@@ -673,8 +688,8 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                   name={'excel'}
                 />
               )}
-              disabled={busy}
-              onClick={() => router.push(`/manage/${propertyId}/banking/upload`)}
+              disabled={busy || (accountId !== 'ALL' && !canImport)}
+              onClick={() => router.push(`/manage/${propertyId}/banking/upload${accountId === 'ALL' ? '' : `?account=${encodeURIComponent(accountId)}`}`)}
             >
               엑셀 업로드
             </Button>
@@ -690,6 +705,13 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
           )}
         </>)}
       />
+      {view === 'transactions' && accountId !== 'ALL' && !canImport && (
+        <p
+          role={'status'}
+        >
+          {`${importAccount?.bankName ?? '선택 통장'}: ${importMessage}`}
+        </p>
+      )}
       {view === 'upload' && (
         <div
           className={styles['account-filter']}
@@ -711,9 +733,10 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
         <FileDropzone
           label={'통장 거래 파일 업로드'}
           inputLabel={'통장 거래 파일 선택'}
-          accept={'.xls,.xlsx,.csv'}
-          description={'은행 거래내역만 업로드해주세요. XLS·XLSX·UTF-8 CSV, 최대 5MB·5,000행'}
+          accept={importSupport?.extensions.join(',') ?? ''}
+          description={canImport ? `${importAccount.bankName} 거래내역만 업로드해주세요. ${importMessage} · 최대 5MB·5,000행` : `${importAccount?.bankName ?? '선택 통장'}: ${importMessage}`}
           busy={busy}
+          disabled={!canImport}
           onFile={(next) => { void readFile(next); }}
         />
       )}
@@ -735,6 +758,11 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               <strong>
                 {file?.name}
               </strong>
+              {preview.period && (
+                <p>
+                  {`거래 기간 ${preview.period.from} ~ ${preview.period.to}`}
+                </p>
+              )}
               <p>
                 {`미리보기 ${preview.rows.length}건 · 중복 제외 ${preview.duplicateCount}건 · 인계 이전 제외 ${preview.beforeCutoffCount}건`}
               </p>
@@ -1298,50 +1326,36 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                   {formatWon(row.amount)}
                 </strong>
               </div>
-              <div
-                className={styles['transfer-settings']}
-                data-active={transferRows.includes(row.id)}
-              >
-                <label
-                  className={styles['transfer-choice']}
-                >
-                  <input
-                    type={'checkbox'}
-                    checked={transferRows.includes(row.id)}
-                    aria-label={'내 계좌 간 이체로 가져오기'}
-                    aria-describedby={'transfer-setting-help'}
-                    disabled={busy}
-                    onChange={(event) => setTransferRows((current) => event.target.checked ? [...current, row.id] : current.filter((id) => id !== row.id))}
-                  />
-                  <span>
-                    <strong>
-                      내 계좌 간 이체로 가져오기
-                    </strong>
-                    <small>
-                      다른 등록된 통장으로 옮긴 돈일 때 선택하세요.
-                    </small>
-                  </span>
-                </label>
+              {/* 다른 등록 통장이 있을 때만 내부 이체 분류를 선택할 수 있게 합니다. */}
+              {accounts.length > 1 && (
                 <div
-                  className={styles['transfer-description']}
-                  id={'transfer-setting-help'}
+                  className={styles['transfer-settings']}
+                  data-active={transferRows.includes(row.id)}
                 >
-                  <ServiceIcon
-                    name={'info'}
-                  />
-                  <ul>
-                    <li>
-                      수납·지출 집계에서 제외됩니다.
-                    </li>
-                    <li>
-                      두 통장의 거래를 가져온 후 상대 거래를 연결하세요.
-                    </li>
-                    <li>
-                      수수료는 별도 지출로 분류하세요.
-                    </li>
-                  </ul>
+                  <label
+                    className={styles['transfer-choice']}
+                  >
+                    <input
+                      type={'checkbox'}
+                      checked={transferRows.includes(row.id)}
+                      aria-label={'관리 통장 간 이체'}
+                      aria-describedby={'transfer-setting-help'}
+                      disabled={busy}
+                      onChange={(event) => setTransferRows((current) => event.target.checked ? [...current, row.id] : current.filter((id) => id !== row.id))}
+                    />
+                    <span>
+                      <strong>
+                        관리 통장 간 이체
+                      </strong>
+                      <small
+                        id={'transfer-setting-help'}
+                      >
+                        등록한 다른 통장으로 옮긴 돈이에요.
+                      </small>
+                    </span>
+                  </label>
                 </div>
-              </div>
+              )}
               {!transferRows.includes(row.id) && previewEditor(row)}
             </div>
             <footer
@@ -1421,22 +1435,12 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
         });
       })}
       {preview && (
-        <div
-          className={styles.actions}
-        >
-          <span>
-            {`선택 입금 ${selectedIncome}건 · 출금 ${selected.length - selectedIncome}건`}
-          </span>
-          <Button
-            disabled={!selected.length || busy}
-            loading={busy}
-            onClick={() => { void commit(); }}
-          >
-            선택 거래 처리 (
-            {selected.length}
-            )
-          </Button>
-        </div>
+        <BankImportActions
+          selectedCount={selected.length}
+          incomeCount={selectedIncome}
+          busy={busy}
+          onSave={() => { void commit(); }}
+        />
       )}
       {deleteOpen && (
         <ClientModal

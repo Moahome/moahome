@@ -25,7 +25,8 @@ public class PaymentExceptionHandler {
 	public ResponseEntity<ErrorResponse> billing(PaymentException exception) {
 		var code = exception.code();
 		HttpStatus status = HttpStatus.CONFLICT;
-		if (code.startsWith("INVALID_") || code.equals("BANK_ROW_LIMIT") || code.equals("EMPTY_BANK_FILE"))
+		if (code.startsWith("INVALID_") || code.equals("BANK_ROW_LIMIT") || code.equals("EMPTY_BANK_FILE")
+		    || code.equals("BANK_IMPORT_UNSUPPORTED"))
 			status = HttpStatus.BAD_REQUEST;
 		if (code.endsWith("NOT_FOUND"))
 			status = HttpStatus.NOT_FOUND;

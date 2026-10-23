@@ -9,12 +9,13 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './fileDropzone.module.css';
 
 /** 기존 주민 업로드의 파일 선택·드래그 표시를 공유하고 파일 검증은 호출 화면에 맡깁니다. */
-export function FileDropzone({ label, inputLabel, accept, description, busy = false, onFile }: {
+export function FileDropzone({ label, inputLabel, accept, description, busy = false, disabled = false, onFile }: {
   label: string;
   inputLabel: string;
   accept: string;
   description: string;
   busy?: boolean;
+  disabled?: boolean;
   onFile: (file: File) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -28,7 +29,7 @@ export function FileDropzone({ label, inputLabel, accept, description, busy = fa
   }
 
   function upload(file?: File) {
-    if (!file || busy) return;
+    if (!file || busy || disabled) return;
     onFile(file);
   }
 
@@ -39,16 +40,17 @@ export function FileDropzone({ label, inputLabel, accept, description, busy = fa
         role={'region'}
         aria-label={label}
         aria-busy={busy}
-        data-dragging={dragging && !busy}
+        data-disabled={disabled}
+        data-dragging={dragging && !busy && !disabled}
         onDragEnter={(event) => {
           event.preventDefault();
-          if (busy || !event.dataTransfer.types.includes('Files')) return;
+          if (busy || disabled || !event.dataTransfer.types.includes('Files')) return;
           dragDepth.current += 1;
           setDragging(true);
         }}
         onDragOver={(event) => {
           event.preventDefault();
-          event.dataTransfer.dropEffect = busy ? 'none' : 'copy';
+          event.dataTransfer.dropEffect = busy || disabled ? 'none' : 'copy';
         }}
         onDragLeave={(event) => {
           event.preventDefault();
@@ -65,7 +67,7 @@ export function FileDropzone({ label, inputLabel, accept, description, busy = fa
           name={'excel'}
         />
         <strong>
-          {dragging && !busy ? '여기에 놓으면 파일 검증을 시작해요.' : '엑셀 파일을 여기에 놓거나 파일을 선택해주세요.'}
+          {dragging && !busy && !disabled ? '여기에 놓으면 파일 검증을 시작해요.' : '엑셀 파일을 여기에 놓거나 파일을 선택해주세요.'}
         </strong>
         <p>
           {description}
@@ -80,6 +82,7 @@ export function FileDropzone({ label, inputLabel, accept, description, busy = fa
           )}
           onClick={() => input.current?.click()}
           loading={busy}
+          disabled={disabled}
         >
           {busy ? '검증 중…' : '파일 선택'}
         </Button>
@@ -90,7 +93,7 @@ export function FileDropzone({ label, inputLabel, accept, description, busy = fa
         type={'file'}
         accept={accept}
         aria-label={inputLabel}
-        disabled={busy}
+        disabled={busy || disabled}
         onChange={(event) => {
           upload(event.target.files?.[0]);
           event.target.value = '';

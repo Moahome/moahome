@@ -10,6 +10,7 @@ import com.moahome.server.auth.exception.*;
 import com.moahome.server.banking.domain.*;
 import com.moahome.server.banking.repo.*;
 import com.moahome.server.banking.service.BankTransactionReader;
+import com.moahome.server.banking.service.BankTransactionDuplicates;
 import com.moahome.server.billing.domain.*;
 import com.moahome.server.billing.repo.*;
 import com.moahome.server.common.security.PaymentTextSecurity;
@@ -256,7 +257,7 @@ public class PaymentService {
 		String payer = security.decrypt(p.getPayerNameEncrypted());
 		UUID unit = p.getMatchedUnitId();
 		String reason = "";
-		if (unit == null && "PENDING".equals(p.getStatus())) {
+		if (unit == null && "PENDING".equals(p.getStatus()) && p.isAutoMatchEligible()) {
 			unit = unitCandidate(payer, unitRows, residentRows);
 			if (unit != null)
 				reason = candidateReason(payer, unitRows);
@@ -312,7 +313,7 @@ public class PaymentService {
 	private boolean confirmMatched(UUID user, UUID property, Payment payment, List<PaymentResponse.Unit> unitRows,
 	    List<ResidentItem> residentRows) {
 		if (payment.getDeletedAt() != null || !"BANK_IMPORT".equals(payment.getSourceType())
-		    || !"PENDING".equals(payment.getStatus()))
+		    || !"PENDING".equals(payment.getStatus()) || !payment.isAutoMatchEligible())
 			return false;
 		if (!afterCutoff(property, payment.getPaymentDate()))
 			return false;
@@ -748,7 +749,7 @@ public class PaymentService {
 		    separate(reason) == null ? null : security.protect(reason.strip()).encrypted(), user, now()));
 	}
 
-	/** 거래번호가 있으면 계좌별 거래번호, 없으면 확정 정책인 날짜·입금자·금액으로 자동 중복 제외합니다. */
+	/** 제공된 시간·잔액을 포함한 식별을 공유하고 과거 원본 키는 호환 대조에서 보존합니다. */
 	private String key(BankTransactionReader.Row row) {
 		return com.moahome.server.banking.service.BankTransactionKeys.key(row, security);
 	}
@@ -767,12 +768,12 @@ public class PaymentService {
 	public PaymentResponse.ImportPreview preview(UUID user, UUID property, MultipartFile file, UUID accountId) {
 		requireAdmin(user, property);
 		var account = selectedAccount(property, accountId);
-		Set<String> existing = transactions.findByPropertyId(property).stream()
-		    .filter(t -> t.getDeletedAt() == null && t.getBankAccountId().equals(account.getId()))
-		    .map(BankTransaction::getDeduplicationKey).collect(Collectors.toSet());
+		BankTransactionDuplicates existing = new BankTransactionDuplicates(transactions.findByPropertyId(property),
+		    account.getId(), security);
+		Set<String> seen = new HashSet<>();
 		List<PaymentResponse.Unit> unitRows = ledger(user, property).units();
 		List<ResidentItem> residentRows = residents.list(user, property).residents();
-		List<BankTransactionReader.Row> rows = reader.read(file);
+		List<BankTransactionReader.Row> rows = reader.read(file, account.getBankCode());
 		List<PaymentResponse.Payment> result = new ArrayList<>();
 		int duplicated = 0;
 		for (var row : rows) {
@@ -783,11 +784,11 @@ public class PaymentService {
 			if (row.date().isAfter(today()))
 				throw new PaymentException("INVALID_PAYMENT_DATE");
 			String key = key(row);
-			if (!existing.add(key)) {
+			if (existing.find(row).isPresent() || !seen.add(key)) {
 				duplicated++;
 				continue;
 			}
-			UUID candidate = unitCandidate(row.payer(), unitRows, residentRows);
+			UUID candidate = row.autoMatchEligible() ? unitCandidate(row.payer(), unitRows, residentRows) : null;
 			result.add(new PaymentResponse.Payment(previewId(key), "BANK_IMPORT", "PENDING", account.getId(),
 			    row.date(), row.payer(), row.amount().toPlainString(), candidate == null ? "" : candidate.toString(),
 			    candidate == null ? "" : candidateReason(row.payer(), unitRows), List.of(), null, null, null, null,
@@ -809,7 +810,7 @@ public class PaymentService {
 		lock(user, property);
 		var account = primary(property);
 		var at = now();
-		List<BankTransactionReader.Row> rows = reader.read(file);
+		List<BankTransactionReader.Row> rows = reader.read(file, account.getBankCode());
 		if (rows.stream().anyMatch(row -> row.date().isAfter(today())))
 			throw new PaymentException("INVALID_PAYMENT_DATE");
 		Set<UUID> selected = null;
@@ -846,13 +847,15 @@ public class PaymentService {
 		var at = now();
 		var snapshot = ledger(user, property);
 		List<ResidentItem> residentRows = residents.list(user, property).residents();
+		BankTransactionDuplicates duplicates = new BankTransactionDuplicates(transactions.findByPropertyId(property),
+		    account.getId(), security);
 		for (var row : rows) {
 			if (!"INCOME".equals(row.direction()) || row.date().isAfter(today()))
 				throw new PaymentException("INVALID_BANK_ROW");
 			var key = key(row);
 			if (!afterCutoff(property, row.date()))
 				continue;
-			if (transactions.findByBankAccountIdAndDeduplicationKeyAndDeletedAtIsNull(account.getId(), key).isPresent())
+			if (duplicates.find(row).isPresent())
 				continue;
 			var name = security.protect(row.payer());
 			String hmac = security.nameHash(row.payer());
@@ -860,8 +863,11 @@ public class PaymentService {
 			    .saveAndFlush(BankTransaction.create(property, account.getId(), row.date(), row.amount(),
 			        name.encrypted(), hmac, row.memo() == null ? null : security.protect(row.memo()).encrypted(),
 			        row.reference(), key, user, at, row.time(), row.balance()));
+			duplicates.remember(t);
 			var p = Payment.pending(UUID.randomUUID(), property, account.getId(), t.getId(), null, null, row.date(),
 			    row.amount(), "BANK_IMPORT", t.getPayerNameEncrypted(), hmac, t.getMemoEncrypted(), user, at);
+			if (!row.autoMatchEligible())
+				p.excludeAutomaticMatching();
 			payments.saveAndFlush(p);
 			audit(p, "IMPORTED", null, user);
 			var choice = choices.get(previewId(key));
@@ -870,7 +876,7 @@ public class PaymentService {
 				    new PaymentRequests.OtherIncome(choice.category(), choice.note()));
 			else if (choice != null && choice.unitId() != null)
 				confirmCumulative(user, property, p, new PaymentRequests.Confirm(choice.unitId(), null, null));
-			else
+			else if (row.autoMatchEligible())
 				confirmMatched(user, property, p, snapshot.units(), residentRows);
 		}
 		payments.flush();

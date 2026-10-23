@@ -44,7 +44,13 @@ function readWorkspace(result: BankingWorkspaceData, propertyId: string): Bankin
     && (a.alias === null || typeof a.alias === 'string')
     && (a.availableFrom == null || /^\d{4}-\d{2}-\d{2}$/.test(a.availableFrom))
     && (a.closedOn == null || /^\d{4}-\d{2}-\d{2}$/.test(a.closedOn))
-    && (a.hasHistory === undefined || typeof a.hasHistory === 'boolean')))) throw new ApiError(200, 'INVALID_RESPONSE', '통장 목록을 확인할 수 없습니다.');
+    && (a.hasHistory === undefined || typeof a.hasHistory === 'boolean')
+    && (a.bankCode === undefined || typeof a.bankCode === 'string')
+    && (a.importSupport === undefined || (a.importSupport !== null
+      && typeof a.bankCode === 'string' && typeof a.importSupport.enabled === 'boolean'
+      && typeof a.importSupport.message === 'string' && Array.isArray(a.importSupport.extensions)
+      && a.importSupport.extensions.every((extension) => ['.xls', '.xlsx', '.csv'].includes(extension))
+      && (a.importSupport.enabled ? a.importSupport.extensions.length > 0 : a.importSupport.extensions.length === 0)))))) throw new ApiError(200, 'INVALID_RESPONSE', '통장 목록을 확인할 수 없습니다.');
   if (!result || result.propertyId !== propertyId || !validRows(result.rows) || !Array.isArray(result.buildings)
     || !result.buildings.every((b) => UUID.test(b.id) && typeof b.label === 'string') || !Array.isArray(result.units)
     || !result.units.every((u) => UUID.test(u.id) && typeof u.label === 'string') || !Array.isArray(result.rules)) {
@@ -67,6 +73,8 @@ export async function previewBankingFile(propertyId: string, file: File, account
     timeoutMs: 60_000
   });
   if (!result || result.propertyId !== propertyId || !validRows(result.rows) || result.rows.length > 5000
+    || (result.period != null && (!/^\d{4}-\d{2}-\d{2}$/.test(result.period.from)
+      || !/^\d{4}-\d{2}-\d{2}$/.test(result.period.to) || result.period.from > result.period.to))
     || !Number.isInteger(result.duplicateCount) || result.duplicateCount < 0 || !Number.isInteger(result.beforeCutoffCount) || result.beforeCutoffCount < 0) {
     throw new ApiError(200, 'INVALID_RESPONSE', '미리보기 응답을 확인할 수 없습니다.');
   }
@@ -156,8 +164,10 @@ export function bankingError(error: unknown): string {
     OPENING_BALANCE_REQUIRED: '기존 잔액 인계에서 관리 시작을 먼저 확정해주세요.',
     ACCESS_DENIED: '통장 관리는 관리소장만 사용할 수 있어요.',
     PAYMENT_ACCOUNT_UNAVAILABLE: '등록된 공용 기본 관리계좌를 확인해주세요.',
-    INVALID_BANK_FILE: '.xls·.xlsx 또는 UTF-8 CSV 파일을 확인해주세요. 최대 5MB이며 수식은 지원하지 않아요.',
-    INVALID_BANK_HEADER: '거래일·입금액·출금액·입금자 또는 내용 열을 확인해주세요.',
+    BANK_IMPORT_UNSUPPORTED: '선택한 은행의 거래내역 업로드는 아직 지원하지 않습니다.',
+    BANK_DUPLICATE_REVIEW_REQUIRED: '기존 거래와 중복 여부를 확인할 수 없어요. 기존 원본과 파일의 거래일시·잔액·내용을 확인해주세요.',
+    INVALID_BANK_FILE: '선택한 은행의 지원 파일 형식을 확인해주세요. 최대 5MB이며 수식은 지원하지 않아요.',
+    INVALID_BANK_HEADER: '선택한 통장의 은행과 파일 양식이 일치하는지 확인해주세요.',
     INVALID_BANK_ROW: '거래의 날짜·내용·입출금 금액을 확인해주세요.',
     EMPTY_BANK_FILE: '가져올 입출금 거래가 없어요.',
     BANK_ROW_LIMIT: '거래내역은 최대 5,000행까지 지원해요.',

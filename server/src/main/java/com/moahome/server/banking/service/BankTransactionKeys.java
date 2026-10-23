@@ -9,12 +9,29 @@ public final class BankTransactionKeys {
 	private BankTransactionKeys() {
 	}
 
-	/** 입금의 기존 키를 그대로 유지하고 출금은 방향·선택 시간·잔액까지 포함해 환불 입금과 충돌을 막습니다. */
+	/** 입금은 제공된 시간·잔액까지 식별에 포함하고, 정보 없는 기존 양식과 출금 키는 호환합니다. */
 	public static String key(BankTransactionReader.Row row, PaymentTextSecurity security) {
+		String value = identity(row, security);
+		if ("INCOME".equals(row.direction()) && row.reference() == null
+		    && (row.time() != null || row.balance() != null))
+			value = "income:v2:" + value + ":" + row.time() + ":" + row.balance();
+		return digest(value);
+	}
+
+	/** 기존 키는 변경하지 않고 저장된 원본 정보와 대조할 때만 사용합니다. */
+	public static String legacyKey(BankTransactionReader.Row row, PaymentTextSecurity security) {
+		return digest(identity(row, security));
+	}
+
+	private static String identity(BankTransactionReader.Row row, PaymentTextSecurity security) {
 		String value = row.reference() != null ? "reference:" + row.reference()
 		    : "fallback:" + row.date() + ":" + security.nameHash(row.payer()) + ":" + row.amount().toPlainString();
 		if ("EXPENSE".equals(row.direction()))
 			value = "expense:" + value + ":" + row.time() + ":" + row.balance();
+		return value;
+	}
+
+	private static String digest(String value) {
 		try {
 			return HexFormat.of()
 			    .formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));

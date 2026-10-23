@@ -122,6 +122,7 @@ class PaymentPersistenceTest {
 		var request = RegistrationFixtures.withUnits(RegistrationFixtures.request(UUID.randomUUID(), false),
 		    List.of(new UnitInput(null, "101", null, 1, "ACTIVE"), new UnitInput(null, "202", null, 2, "ACTIVE")));
 		property = registration.register(user, request).response().property().id();
+		jdbc.update("update bank_accounts set bank_code='081' where property_id=?", property);
 		// 수납 회귀 테스트는 운영 개시 후를 준비합니다. 도입 절차는 별도 인계 시나리오에서 실제 서비스로 검증합니다.
 		jdbc.update(
 		    "update properties set management_started_at=created_at,first_billing_month=date '2026-10-01' where id=?",
@@ -177,6 +178,27 @@ class PaymentPersistenceTest {
 	MockMultipartFile csv(String body) {
 		return new MockMultipartFile("file", "은행.csv", "text/csv",
 		    body.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+	}
+
+	/** 기존 업무 시나리오의 금액·상대를 유지하면서 카카오 계좌에는 검증된 구분·거래금액 양식을 전달합니다. */
+	private MockMultipartFile kakaoFile(MockMultipartFile source) {
+		String body;
+		try {
+			body = new String(source.getBytes(), java.nio.charset.StandardCharsets.UTF_8);
+		} catch (java.io.IOException exception) {
+			throw new java.io.UncheckedIOException(exception);
+		}
+		StringBuilder converted = new StringBuilder("거래일시,구분,거래금액,거래 후 잔액,거래구분,내용,메모\n");
+		for (String line : body.lines().skip(1).toList()) {
+			String[] cells = line.split(",", -1);
+			if (cells[0].equals("거래일시"))
+				continue;
+			boolean expense = new java.math.BigDecimal(cells[2]).signum() > 0;
+			converted.append(cells[0]).append(',').append(expense ? "출금" : "입금").append(',')
+			    .append(expense ? cells[2] : cells[3]).append(',').append(cells.length > 4 ? cells[4] : "0")
+			    .append(",이체,").append(cells[1]).append(",\n");
+		}
+		return csv(converted.toString());
 	}
 
 	MockMultipartFile bank(String payer, String amount) {
@@ -760,6 +782,7 @@ class PaymentPersistenceTest {
 		assertThat(jdbc.queryForList("select * from " + schema + ".bank_transactions order by id"))
 		    .isEqualTo(originals);
 		receipts.forEach(row -> {
+			row.put("auto_match_eligible", true);
 			row.put("cash_building_id", null);
 			row.put("manual_purpose", "MANUAL".equals(row.get("source_type")) ? "HOUSEHOLD" : null);
 		});
@@ -1086,6 +1109,7 @@ class PaymentPersistenceTest {
 	@Test
 	void alreadyBilledCurrentMonthStartsNextMonthAndExcludesCutoffDeposits() {
 		newHandoverTarget();
+		jdbc.update("update bank_accounts set bank_code='081' where property_id=?", property);
 		var draft = draftHandover(LocalDate.of(2026, 10, 14), "2026-11");
 		confirmHandover(draft);
 		assertThat(
@@ -2063,6 +2087,7 @@ class PaymentPersistenceTest {
 		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(pendingMigrations);
 		upgraded.validate();
 		receipts.forEach(row -> {
+			row.put("auto_match_eligible", true);
 			row.put("cash_building_id", null);
 			row.put("manual_purpose", "MANUAL".equals(row.get("source_type")) ? "HOUSEHOLD" : null);
 		});
@@ -2604,8 +2629,9 @@ class PaymentPersistenceTest {
 		        List.of(new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(building, "0"))));
 		var first = bankAccountSettings.read(user, property);
 		var second = addAccount("090", "카카오뱅크", "000123456789", "자유 통장");
-		var file = csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 08:00:00,김대표,0,30000,100000");
+		var source = csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 08:00:00,김대표,0,30000,100000");
 		for (UUID account : List.of(first.accountId(), second.accountId())) {
+			var file = account.equals(second.accountId()) ? kakaoFile(source) : source;
 			var preview = banking.preview(user, property, file, account);
 			assertThat(preview.rows()).hasSize(1).allMatch(row -> row.accountId().equals(account));
 			banking.upload(user, property, file,
@@ -2710,8 +2736,8 @@ class PaymentPersistenceTest {
 			    new com.moahome.server.banking.dto.BankingRequests.Transfer(UUID.randomUUID(), outgoing, incoming)))
 			    .isInstanceOf(PaymentException.class);
 		long sources = count("bank_transactions");
-		var file = csv(
-		    "거래일시,적요,출금액,입금액,잔액\n2026-10-15 10:00:00,김대표,0,5000,25000\n2026-10-15 11:00:00,청소,10000,0,15000");
+		var file = kakaoFile(csv(
+		    "거래일시,적요,출금액,입금액,잔액\n2026-10-15 10:00:00,김대표,0,5000,25000\n2026-10-15 11:00:00,청소,10000,0,15000"));
 		var preview = banking.preview(user, property, file, second.accountId());
 		var invalid = new com.moahome.server.banking.dto.BankingRequests.Expense("청소", null, "AMOUNT", false,
 		    List.of(new com.moahome.server.banking.dto.BankingRequests.Allocation(null, "외부", "9999", null)));
@@ -2735,6 +2761,8 @@ class PaymentPersistenceTest {
 	private UUID transferFile(UUID account, String direction, String amount, String balance) {
 		var file = csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 09:00:00,김대표,"
 		    + (direction.equals("EXPENSE") ? amount + ",0" : "0," + amount) + "," + balance);
+		if (bankAccountSettings.list(user, property).stream().anyMatch(a -> a.accountId().equals(account) && a.bankCode().equals("090")))
+			file = kakaoFile(file);
 		var preview = banking.preview(user, property, file, account);
 		var saved = banking.upload(user, property, file,
 		    new com.moahome.server.banking.dto.BankingRequests.Import(
@@ -3363,7 +3391,7 @@ class PaymentPersistenceTest {
 		    .satisfies(a -> assertThat(a.calculatedBalance()).isEqualTo("1500000"));
 		assertThat(september.buildings()).extracting(b -> b.balance()).containsExactlyInAnyOrder("1000000", "500000");
 		// 실제 과거 원본을 나중에 가져온 경우에는 그 사용 근거가 있는 월부터 정상 조회합니다.
-		var file = csv("거래일시,적요,출금액,입금액,잔액\n2026-08-15 09:00:00,과거 입금,0,1000,1499000");
+		var file = kakaoFile(csv("거래일시,적요,출금액,입금액,잔액\n2026-08-15 09:00:00,과거 입금,0,1000,1499000"));
 		var preview = banking.preview(user, property, file, second);
 		banking.upload(user, property, file,
 		    new com.moahome.server.banking.dto.BankingRequests.Import(
@@ -3415,6 +3443,89 @@ class PaymentPersistenceTest {
 		    Long.class)).isZero();
 		assertThatThrownBy(() -> cashBalances.workspace(user, property, "2026-10", UUID.randomUUID()))
 		    .isInstanceOf(PaymentException.class);
+	}
+
+	/** 지원 여부는 은행명이나 Client 버튼이 아니라 저장된 코드로 검사하며 호환 업로드도 우회하지 않습니다. */
+	@Test
+	void rejectsUnsupportedBankInPreviewImportAndLegacyEndpoints() {
+		jdbc.update("update bank_accounts set bank_code='032',bank_name='하나은행' where property_id=?", property);
+		var account = bankAccountSettings.read(user, property).accountId();
+		var file = bank("김대표", "50000");
+		assertThat(banking.workspace(user, property).accounts()).singleElement().satisfies(a -> {
+			assertThat(a.bankCode()).isEqualTo("032");
+			assertThat(a.importSupport().enabled()).isFalse();
+		});
+		assertThatThrownBy(() -> banking.preview(user, property, file, account))
+		    .isInstanceOf(PaymentException.class).hasMessage("BANK_IMPORT_UNSUPPORTED");
+		assertThatThrownBy(() -> banking.upload(user, property, file,
+		    new com.moahome.server.banking.dto.BankingRequests.Import(List.of(
+		        new com.moahome.server.banking.dto.BankingRequests.Selection(UUID.randomUUID(), null, null, null, null)), account)))
+		    .isInstanceOf(PaymentException.class).hasMessage("BANK_IMPORT_UNSUPPORTED");
+		assertThatThrownBy(() -> service.preview(user, property, file))
+		    .isInstanceOf(PaymentException.class).hasMessage("BANK_IMPORT_UNSUPPORTED");
+		assertThatThrownBy(() -> service.importFile(user, property, file))
+		    .isInstanceOf(PaymentException.class).hasMessage("BANK_IMPORT_UNSUPPORTED");
+		assertThat(count("bank_transactions")).isZero();
+		assertThat(count("payments")).isZero();
+	}
+
+	/** 같은 날·상대·금액도 다른 일시와 잔액이면 각각 수납하고 다시 가져올 때만 제외합니다. */
+	@Test
+	void retainsSeparateDepositsAndDeduplicatesTheirReimport() {
+		var file = csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 09:00:00,김대표,0,30000,100000\n2026-10-15 10:00:00,김대표,0,30000,130000");
+		var preview = banking.preview(user, property, file);
+		assertThat(preview.rows()).hasSize(2);
+		assertThat(preview.rows().getFirst().id()).isNotEqualTo(preview.rows().getLast().id());
+		service.importFile(user, property, file);
+		assertThat(count("bank_transactions")).isEqualTo(2);
+		assertThat(service.workspace(user, property).payments()).hasSize(2).allMatch(p -> p.status().equals("CONFIRMED"));
+		assertThat(banking.preview(user, property, file).duplicateCount()).isEqualTo(2);
+		service.importFile(user, property, file);
+		assertThat(count("bank_transactions")).isEqualTo(2);
+	}
+
+	/** 농협 음수 출금은 은행 잔액 증가로 저장하되 같은 주민 이름이어도 자동 세대 수납하지 않습니다. */
+	@Test
+	void importsNegativeNhWithdrawalAsPendingIncreaseWithOriginalSign() throws Exception {
+		jdbc.update("update bank_accounts set bank_code='011' where property_id=?", property);
+		try (var workbook = new org.apache.poi.hssf.usermodel.HSSFWorkbook();
+		    var bytes = new java.io.ByteArrayOutputStream()) {
+			var sheet = workbook.createSheet("거래");
+			List<String> headers = List.of("구분", "거래일자", "출금금액(원)", "입금금액(원)", "거래 후 잔액(원)",
+			    "거래내용", "거래기록사항", "거래점", "거래시간", "이체메모", "거래메모");
+			var header = sheet.createRow(0);
+			for (int index = 0; index < headers.size(); index++)
+				header.createCell(index).setCellValue(headers.get(index));
+			for (int index = 0; index < 2; index++) {
+				var row = sheet.createRow(index + 1);
+				List<String> cells = List.of("" + (index + 1), "2026/10/15", index == 0 ? "0" : "-5000",
+				    index == 0 ? "50000" : "0", index == 0 ? "150000" : "155000", "거래 종류", "김대표", "검증점",
+				    index == 0 ? "09:00:00" : "10:00:00", "", "");
+				for (int column = 0; column < cells.size(); column++)
+					row.createCell(column).setCellValue(cells.get(column));
+			}
+			workbook.write(bytes);
+			var file = new MockMultipartFile("file", "농협.xls", "application/vnd.ms-excel", bytes.toByteArray());
+			var preview = banking.preview(user, property, file);
+			assertThat(preview.rows()).hasSize(2);
+			assertThat(preview.rows()).filteredOn(r -> r.amount().equals("5000")).singleElement()
+			    .satisfies(r -> assertThat(r.unitId()).isEmpty());
+			var saved = service.importFile(user, property, file);
+			assertThat(saved.payments()).filteredOn(p -> p.amount().equals("5000")).singleElement().satisfies(p -> {
+				assertThat(p.status()).isEqualTo("PENDING");
+				assertThat(p.memo()).contains("은행 원문 출금금액(원): -5000");
+			});
+			assertThat(saved.payments()).filteredOn(p -> p.amount().equals("50000")).singleElement()
+			    .satisfies(p -> assertThat(p.status()).isEqualTo("CONFIRMED"));
+			assertThat(cashBalances.workspace(user, property, "2026-10").bankBalance()).isEqualTo("155000");
+			assertThat(count("expenses")).isZero();
+			var afterBatch = service.confirmMatches(user, property);
+			assertThat(afterBatch.payments()).filteredOn(p -> p.amount().equals("5000")).singleElement().satisfies(p -> {
+				assertThat(p.status()).isEqualTo("PENDING");
+				assertThat(p.unitId()).isEmpty();
+			});
+			assertThat(banking.preview(user, property, file).duplicateCount()).isEqualTo(2);
+		}
 	}
 
 }

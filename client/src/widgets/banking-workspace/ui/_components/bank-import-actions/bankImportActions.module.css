@@ -1,0 +1,74 @@
+.bar {
+  position: fixed;
+  bottom: 24px;
+  left: var(--bar-left);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: var(--bar-width);
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bank-import-actions-background);
+  color: var(--foreground);
+}
+
+.bar .save-button[data-variant='primary'] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--card);
+
+  &:hover:not(:disabled) {
+    background: var(--primary-dark);
+  }
+
+  &:disabled {
+    opacity: 1;
+    background: var(--button-primary-background);
+    border-color: var(--button-primary-border);
+    color: var(--sub-text);
+  }
+}
+
+.selection {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+
+  strong {
+    color: var(--foreground);
+    font-size: 15px;
+    font-weight: 700;
+    word-break: keep-all;
+  }
+
+  span {
+    color: var(--foreground);
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 767px) {
+  .bar {
+    bottom: max(16px, env(safe-area-inset-bottom));
+    right: max(16px, env(safe-area-inset-right));
+    left: max(16px, env(safe-area-inset-left));
+    width: auto;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .selection {
+    strong {
+      font-size: 14px;
+    }
+
+    span {
+      font-size: 12px;
+    }
+  }
+}

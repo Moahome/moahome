@@ -68,6 +68,9 @@ public class Payment implements org.springframework.data.domain.Persistable<UUID
 	@Column(nullable = false, length = 20)
 	private String status;
 
+	@Column(name = "auto_match_eligible", nullable = false)
+	private boolean autoMatchEligible = true;
+
 	@Column(name = "receipt_type", nullable = false, length = 20)
 	private String receiptType;
 
@@ -118,6 +121,11 @@ public class Payment implements org.springframework.data.domain.Persistable<UUID
 
 	@Column(name = "deleted_by")
 	private UUID deletedBy;
+
+	/** 상대 미확인·음수 출금 환입은 최초 가져오기 이후의 일괄 처리에서도 세대 수납으로 추정하지 않습니다. */
+	public void excludeAutomaticMatching() {
+		autoMatchEligible = false;
+	}
 
 	protected Payment() {
 	}

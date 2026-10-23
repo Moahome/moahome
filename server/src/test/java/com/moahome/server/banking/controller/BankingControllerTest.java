@@ -162,6 +162,20 @@ class BankingControllerTest {
 		verify(service).confirmIncomeAllocation(eq(user), eq(property), eq(transaction), any());
 	}
 
+	@Test
+	void unsupportedBankIsBadRequestAndAmbiguousDuplicateIsConflict() throws Exception {
+		var file = new org.springframework.mock.web.MockMultipartFile("file", "은행.xls", "application/vnd.ms-excel", new byte[] { 1 });
+		when(service.preview(eq(user), eq(property), any(), any()))
+		    .thenThrow(new com.moahome.server.payment.exception.PaymentException("BANK_IMPORT_UNSUPPORTED"));
+		mvc.perform(multipart(base() + "/import/preview").file(file).with(identity()))
+		    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("BANK_IMPORT_UNSUPPORTED"))
+		    .andExpect(header().string("Cache-Control", "no-store"));
+		when(service.preview(eq(user), eq(property), any(), any()))
+		    .thenThrow(new com.moahome.server.payment.exception.PaymentException("BANK_DUPLICATE_REVIEW_REQUIRED"));
+		mvc.perform(multipart(base() + "/import/preview").file(file).with(identity()))
+		    .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("BANK_DUPLICATE_REVIEW_REQUIRED"));
+	}
+
 	/** 수동 출금도 인증·필수 입력·중첩 배분 검증을 통과한 요청만 실제 사용자 ID로 전달합니다. */
 	@Test
 	void manualExpenseRequiresAuthenticationAndValidatesInputBeforeService() throws Exception {
