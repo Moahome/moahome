@@ -19,7 +19,7 @@
 
 ## 설정 조회 응답
 
-신규 등록만으로 청구를 생성하지 않습니다. 기존 잔액 인계에서 관리 시작을 확정하고 지정한 첫 부과월부터 생성합니다. 기존 운영 대상의 청구와 첫 부과월은 보존하며 GET은 저장하지 않습니다.
+인계 정보를 생략한 이전 등록은 청구를 생성하지 않습니다. 현재 신규 등록은 인계·관리 시작을 함께 확정하고 지정한 첫 부과월이 도래했으면 같은 트랜잭션에서 생성합니다. 미래 첫 월은 스케줄에서 처리합니다. 기존 운영 대상의 청구와 첫 부과월은 보존하며 GET은 저장하지 않습니다.
 
 Settings는 `propertyId`, `currentMonth`, `firstBillingMonth`, `nextBillingDate`, `revisionId`, `current`, `scheduled`, `managementStarted`를 반환합니다. 운영 시작 전 `firstBillingMonth`·`nextBillingDate`는 등록월 기반 설정 표시값이며 확정 부과 일정을 의미하지 않습니다. 날짜는 `YYYY-MM-DD`, 월은 `YYYY-MM`입니다. 서버 한국시간 기준월과 최신 버전 토큰을 변경 요청에 사용합니다. `scheduled`는 다음 달 적용 설정이 현재 설정과 같으면 null입니다.
 

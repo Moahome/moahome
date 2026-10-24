@@ -1,7 +1,7 @@
 # moahome
 
 모아홈은 소규모 빌라·공동주택의 주민 관리, 관리비 운영과 회계를 연결하는 관리비 통합 플랫폼입니다.
-현재 프로젝트는 초기 구성 단계입니다.
+현재 구현 상태와 검토 후보는 [프로젝트 개요](docs/projectOverview.md#4-현재-개발-상태)에서 관리합니다.
 
 ## 로컬 API 문서
 
@@ -24,31 +24,14 @@ API 서버는 `8080`에서 OpenAPI 문서와 업무 API를 제공하고, Swagger
 
 ## 문서
 
-- [프로젝트 개요](docs/projectOverview.md)
-- [도메인 규칙](docs/domainRules.md)
-- [ERD](docs/erd.md)
-- [공용 통장 거래 분류와 동별 수입·지출 설계](docs/bankingManagement.md): 하나의 통장으로 여러 동 관리, 고지서 수납 연결과 공동지출 배분 설계. 미구현 범위와 미정 정책 포함
-- [입금 관리 API](docs/paymentApi.md): 실제 대표 주민·발행 청구 연결, 수동·은행 파일 수납과 취소 계약
-- [월별 정산 API](docs/monthlySettlementApi.md): 기존 거래·수납·잔고를 묶은 ADMIN 조회와 Excel·PDF·이미지(PNG)의 기준 자료, 구현
-- [관리대상 등록 API](docs/propertyRegistrationApi.md)
-- [세대 관리 API](docs/unitManagementApi.md): 저장된 세대 조회·추가·수정·삭제, 동 관리와 일괄 추가 계약
-- [관리 영역 접근 API](docs/managementAccessApi.md): 본인 관리대상 목록과 현재 관리 권한 조회 계약, 구현
-- [개발 환경 가이드](docs/developmentGuide.md)
-- [JWT 인증 설계](docs/securityDesign.md)
-- [공통 개발 규칙](AGENTS.md)
-- [프론트엔드 개발 규칙](client/AGENTS.md)
-- [백엔드 개발 규칙](server/AGENTS.md)
+| 기준 | 문서 |
+| --- | --- |
+| 현재 현황·계획·검토 후보 | [프로젝트 개요](docs/projectOverview.md) |
+| 업무 정책·저장 구조 | [도메인 규칙](docs/domainRules.md), [ERD](docs/erd.md) |
+| 실행·인증 | [개발 환경](docs/developmentGuide.md), [JWT 인증](docs/securityDesign.md) |
+| 등록·접근 | [관리대상 등록](docs/propertyRegistrationApi.md), [관리 영역 접근](docs/managementAccessApi.md) |
+| 세대·주민·역할 | [세대 관리](docs/unitManagementApi.md), [주민 관리](docs/residentManagementApi.md), [참여자·가입](docs/memberManagementApi.md) |
+| 부과·수납·통장·정산 | [관리비](docs/billingApi.md), [입금](docs/paymentApi.md), [통장](docs/bankingManagement.md), [월별 정산](docs/monthlySettlementApi.md) |
+| 개발 규칙 | [공통](AGENTS.md), [Client](client/AGENTS.md), [Server](server/AGENTS.md) |
 
-## 영역별 구현 설계
-
-- [Client 관리대상 등록](client/docs/propertyRegistration.md): 화면, 단계 이동과 브라우저 초안 관리
-- [Client 세대 목록](client/docs/unitList.md): 세대 관리 아래 화면 구조, 상세·수정·삭제의 역할과 구조 검증
-- [Client 서비스 진입](client/docs/serviceEntry.md): 서버 목록 기반 기본 진입과 현재 관리 권한 확인 구현
-- [Client 관리 레이아웃](client/docs/managementLayout.md): 공통 사이드바·드롭다운·링크와 임시 대시보드 구현, 세대 목록 연결, 그 외 업무 페이지는 후속
-- [Server 관리대상 등록](server/docs/propertyRegistration.md): 검증, 저장과 중복 방지
-- [Server 관리 영역 접근](server/docs/managementAccess.md): 현재 관리자 참여 조회와 접근 검증 구현
-
-- [Server 입금 관리](server/docs/payment.md): 실제 청구 연결, 트랜잭션·동시성·중복 방지
-- [Client 통장 거래 설계](client/docs/bankingManagement.md): 거래 상세의 분류 입력과 전체·동별 현황 화면 설계안
-- [Client 월별 정산](client/docs/monthlySettlement.md): 드롭다운 없는 정산 / 마감 메뉴와 월 요약·점검·Excel·PDF·이미지(PNG) 미리보기·다운로드 구현. 회계·마감 잠금은 후속
-- [Server 통장 거래 설계](server/docs/bankingManagement.md): 원본 입출금 확장, 기존 수납 재사용과 지출·동별 배분 저장 설계안
+화면·브라우저 처리는 `client/docs/`, 저장·트랜잭션·동시성은 `server/docs/`에서 관리하며 기능별 API 문서에서 연결합니다. Client 실행·사용법은 [Client README](client/README.md)를 참조합니다.

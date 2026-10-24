@@ -94,7 +94,7 @@
 
 본인 정보 조회는 요청의 사용자 ID가 아닌 인증된 계정으로 조회하며 `Cache-Control: no-store`로 응답합니다. 프로필 이미지는 선택 정보로 `null`일 수 있고 정상 계정의 `status`는 `ACTIVE`입니다. `systemRole`은 플랫폼 역할(`USER` / `ADMIN`)이며 관리대상별 역할을 대신하지 않습니다. 소셜 식별자, 이메일, 전화번호와 내부 생성 / 삭제 이력은 응답하지 않습니다. 인증 후 계정이 이용 불가 상태로 바뀌면 `403 / ACCOUNT_UNAVAILABLE`, 조회 저장소 장애는 `503 / AUTH_SERVICE_UNAVAILABLE`로 처리합니다.
 
-카카오 로그인 콜백은 서버가 검증한 프로필로 `SocialLoginService.loginVerified()`를 호출합니다. 내부 `SocialAccountService`가 제공자와 제공자 사용자 ID로 사용자를 조회 / 생성하고 DB 트랜잭션을 커밋한 뒤, 검증된 사용자 ID로 `AuthService.startSession()`을 호출합니다. 사용자 ID를 직접 받아 토큰을 발급하는 공개 API는 제공하지 않습니다. 웹 OAuth 시작 / 콜백, Refresh 쿠키 설정 후 Client 이동과 Client의 CSRF 조회 / 재발급은 구현되어 있으며 경로는 8절을 따릅니다. 앱 교환 코드와 최종 서비스 진입 분기는 후속 구현 범위입니다. 관리대상별 권한은 토큰에 전역 역할을 넣는 방식으로 대신하지 않고 해당 업무 Service에서 검사합니다.
+카카오 로그인 콜백은 서버가 검증한 프로필로 `SocialLoginService.loginVerified()`를 호출합니다. 내부 `SocialAccountService`가 제공자와 제공자 사용자 ID로 사용자를 조회 / 생성하고 DB 트랜잭션을 커밋한 뒤, 검증된 사용자 ID로 `AuthService.startSession()`을 호출합니다. 사용자 ID를 직접 받아 토큰을 발급하는 공개 API는 제공하지 않습니다. 웹 OAuth 시작 / 콜백, Refresh 쿠키 설정 후 Client 이동과 Client의 CSRF 조회 / 재발급은 구현되어 있으며 경로는 8절을 따릅니다. 앱 교환 코드와 주민 최종 진입은 후속 범위이며 관리자 진입은 현재 목록·권한 조회를 사용합니다. 관리대상별 권한은 토큰에 전역 역할을 넣는 방식으로 대신하지 않고 해당 업무 Service에서 검사합니다.
 
 서명은 HS256을 사용합니다. 2026-10-05 사용자 요청에 따라 Access / Refresh 서명 키를 분리하고 각각 독립적으로 생성한 무작위 64바이트의 Base64 값을 사용합니다. 환경변수는 `JWT_ACCESS_SECRET_BASE64`, `JWT_REFRESH_SECRET_BASE64`이며, 누락·잘못된 인코딩·디코딩 후 32바이트 미만 또는 두 키가 같은 설정은 서버 시작 시 거부합니다. 키를 분리해 종류가 맞는 토큰도 다른 종류의 키로 서명되면 검증에 실패하도록 하며, 기존 `token_type` 검증도 유지합니다.
 
@@ -102,7 +102,7 @@
 
 ## 8. 카카오 로그인 설계와 구현 범위
 
-아래 Server 로그인 시작 / 콜백과 로그인 결과 처리, Client 버튼 / 콜백의 세션 복원은 구현되어 있습니다. 최종 서비스 진입 분기와 네이티브 앱의 일회용 코드 교환은 후속 구현 범위입니다. 실제 카카오 로그인에는 카카오디벨로퍼스 설정과 Server / Client 실행 환경의 연결 확인이 필요합니다.
+아래 Server 로그인 시작 / 콜백과 로그인 결과 처리, Client 버튼 / 콜백의 세션 복원은 구현되어 있습니다. 관리자 진입은 [Client 서비스 진입](../client/docs/serviceEntry.md)을 따르며 주민 진입·네이티브 앱 일회용 코드 교환은 후속 범위입니다. 실제 카카오 로그인에는 카카오디벨로퍼스 설정과 Server / Client 실행 환경의 연결 확인이 필요합니다.
 
 ### 처리 책임과 웹 로그인 흐름
 
@@ -122,7 +122,7 @@ Client는 로그인 버튼에서 Server의 로그인 시작 주소로 브라우�
 5. Server가 카카오 Access Token으로 사용자 정보를 조회하고 검증한 결과를 `VerifiedSocialProfile`로 전달합니다. 로그인 식별자는 `KAKAO`와 카카오 사용자 ID이며, 이메일 일치로 다른 계정을 연결하지 않습니다. 닉네임은 기존 User 생성 규칙에 따라 필요하고 이메일 / 프로필 이미지는 선택 정보입니다. 전화번호를 로그인 정보로 수집 / 저장하지 않습니다.
 6. `SocialLoginService.loginVerified(profile, ClientType.WEB)`로 사용자 / 소셜 계정 저장을 커밋한 뒤 Redis 로그인 세션과 모아홈 JWT를 생성합니다.
 7. Server가 기존 규칙의 Refresh 쿠키를 설정하고 `WEB_LOGIN_SUCCESS_URI`로 이동시킵니다. 카카오 토큰과 모아홈 Access / Refresh Token을 이동 URL에 넣지 않습니다.
-8. Client의 전역 Provider가 `credentials: include`로 `GET /api/auth/web/csrf`를 호출한 뒤, 받은 CSRF 토큰으로 `POST /api/auth/web/refresh`를 호출합니다. 응답의 Access Token을 메모리에 보관하고 Bearer로 `GET /api/users/me`를 조회합니다. 콜백 화면은 같은 조회 결과를 공유하며 사용자 조회까지 성공하면 `router.replace('/start')`으로 시작 화면에 이동합니다. 기존 도메인 규칙에 따른 관리대상 수 / 역할별 최종 진입 분기는 해당 조회 API와 화면 구현 시 연결합니다.
+8. Client의 전역 Provider가 `credentials: include`로 `GET /api/auth/web/csrf`를 호출한 뒤, 받은 CSRF 토큰으로 `POST /api/auth/web/refresh`를 호출합니다. 응답의 Access Token을 메모리에 보관하고 Bearer로 `GET /api/users/me`를 조회합니다. 콜백 화면은 같은 조회 결과를 공유하며 사용자 조회까지 성공하면 `router.replace('/start')`으로 시작 화면에 이동합니다. `/start`의 현재 관리자 목록 분기는 Client 서비스 진입 설계를 따르며 주민 홈·전체 신청 상태 분기는 후속입니다.
 
 1~7단계는 Server에, 8단계의 전역 세션 복원 / 본인 정보 조회와 시작 화면 이동은 Client에 구현되어 있습니다. 카카오 인가 요청의 scope는 `profile_nickname`만 명시합니다. 사용자 조회의 `property_keys`는 `kakao_account.profile`과 `kakao_account.email`로 제한하고 `secure_resource=true`로 HTTPS 이미지 주소를 요청합니다. 응답에 이메일 / 프로필 이미지가 제공되면 선택 정보로 전달하며, 닉네임 누락이나 기존 자료형의 길이 제한에 맞지 않는 응답은 `OAUTH_PROFILE_INVALID`로 거부합니다.
 
@@ -150,7 +150,9 @@ Client는 로그인 버튼에서 Server의 로그인 시작 주소로 브라우�
 
 ## 9. 후속 구현과 검증
 
-Client 루트 Layout의 `AppProviders`는 앱 시작 / 새로고침 시 세션 복원과 본인 정보 조회를 실행합니다. 랜딩 본문은 복원 완료를 기다리지 않으며, 헤더의 진입 링크는 확인 중 비활성 상태, 비로그인 시 `로그인`(`/login`), 본인 정보 조회 성공 시 `시작하기`(`/start`)를 표시합니다. `/login`은 세션 / 본인 정보 확인 중 로그인 폼을 숨기고 정상 로그인 사용자를 `router.replace('/start')`로 이동시킵니다. 인증 거부나 재로그인이 필요한 결과에는 로그인 폼을 표시하고, 일시 장애에는 폼 대신 명시적 재시도 안내를 표시합니다. `/login/callback`도 사용자 조회까지 성공해야 `/start`로 이동합니다. `/start`는 세션 복원과 본인 정보 조회가 성공한 정상 계정에만 시작 화면과 닉네임 / 프로필을 표시합니다. 조회 중에는 확인 상태를 표시하고, 인증 거부(401)나 이용 불가 계정은 `/login`으로 이동합니다. 일시 장애는 비로그인으로 간주하지 않고 시작 화면 대신 재시도 안내를 표시합니다. 현재 진입 제어는 Client 화면에서 처리하며 업무 API 인증과 권한 검증은 Server에서 수행합니다. 현재 로그인 성공의 공통 목적지는 `/start`이며, 현재 관리자 참여 목록에 따른 기본 진입은 아래 기준을 따릅니다. 시작 화면은 방문 횟수와 무관하게 접근 가능한 관리대상이 없고 승인 대기 요청도 없는 경우의 화면입니다. 본인 정보와 별도로 현재 관리자 참여 목록을 조회합니다. 실제 빈 목록만 시작 화면을 허용하며 주민 참여와 승인 대기 요청까지 없다고 판단하지 않습니다. 공통 `customAPI`는 쿠키 / 캐시 설정과 JSON 처리를 담당하며, `entities/session`의 `restoreSession()`은 같은 탭의 중복 호출을 공유하고 Web Locks로 여러 탭의 CSRF 조회 / Rotation을 직렬화합니다. 기존 `features/restore-session` 진입점도 같은 함수를 공개합니다. Web Locks가 없는 환경에서는 재발급을 중단하고 브라우저 업데이트를 안내합니다.
+Client 루트 `AppProviders`는 앱 시작·새로고침 시 세션 복원과 본인 조회를 실행합니다. 확인 중에는 보호 화면을 표시하지 않고 401·이용 불가 계정과 일시 장애를 구분합니다. 로그인·콜백·`/start`와 관리 화면의 목적지·표시 상태는 [Client 서비스 진입](../client/docs/serviceEntry.md), 관리 레이아웃의 권한 확인은 [관리 레이아웃 설계](../client/docs/managementLayout.md#5-현재-권한-확인과-화면-상태)를 따릅니다.
+
+공통 `customAPI`는 쿠키·캐시·JSON 처리를 담당하고 `entities/session.restoreSession()`은 같은 탭의 중복 요청을 공유합니다. Web Locks로 여러 탭의 CSRF 조회·Rotation을 직렬화하며 미지원 환경에서는 재발급을 중단하고 브라우저 업데이트를 안내합니다. 기존 `features/restore-session` 공개 진입점도 같은 함수를 사용합니다.
 
 전역 초기화와 각 화면은 `entities/session`의 `useSession()`으로 같은 React Query 조회와 메모리 캐시를 공유합니다. Query 캐시는 사용자 정보만 보관하고 Access / CSRF 토큰은 기존 메모리 세션에 둡니다. 서버 렌더링에서는 세션 복원 / 본인 정보 요청을 실행하지 않으며 QueryClient를 렌더링 요청 간 공유하지 않습니다. `staleTime: Infinity`, `retry: false`, `retryOnMount: false`와 포커스 / 재연결 재조회 비활성화로 화면 이동과 일반 재렌더가 복원 요청을 반복하지 않게 합니다. 새로고침은 캐시와 메모리를 초기화하므로 CSRF → 재발급 → 본인 정보 조회를 다시 수행합니다. 일시 장애는 사용자가 명시적으로 재시도하며, 사용자 조회만 실패했고 Access Token이 유효하면 재시도 시 토큰을 재사용합니다. 프로필 변경 등 후속 기능에서는 필요한 시점에 조회를 무효화하거나 `refetch()`로 갱신합니다.
 

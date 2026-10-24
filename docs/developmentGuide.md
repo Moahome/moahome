@@ -43,7 +43,7 @@ docker compose version
 별도 `application-local.yml` 없이 `application.yml`의 `local` Profile 문서에서 기존 `.env`를 읽습니다.
 `application.yml`과 두 `application*.properties`는 로컬 설정으로 Git에서 제외합니다. `jwtSecurity.properties`, `propertyRegistration.properties`, `residentSecurity.properties`는 실제 비밀값 없이 환경변수 연결만 정의하는 공통 파일로 추적합니다.
 DataSource, Redis와 카카오 OAuth는 환경변수에 연결되어 있습니다.
-JWT 검증, 웹과 앱의 재발급 / 로그아웃 및 Redis 인증 상태 관리는 구현되어 있습니다. API와 전달 방식은 [JWT 인증 설계](securityDesign.md)를 따릅니다. 사용자 / 소셜 계정 저장, 웹 카카오 OAuth 시작 / 콜백과 검증된 프로필의 세션 연결은 구현되어 있습니다. Client 로그인 버튼, 콜백의 세션 복원과 Access Token 메모리 보관도 구현되어 있습니다. 최종 서비스 진입 분기와 네이티브 앱의 일회용 코드 교환은 후속 구현 범위입니다.
+인증 설정과 토큰 전달은 [JWT 인증 설계](securityDesign.md)를 따릅니다. 기능별 구현 상태는 [프로젝트 현황](projectOverview.md#4-현재-개발-상태)에서 관리합니다.
 
 ### Client 환경변수
 
@@ -58,7 +58,7 @@ Next.js는 `client/`에서 실행하면 해당 프로젝트의 `.env`를 읽습�
 프로덕션 빌드에서 사용하는 공개 변수는 빌드 시점에 반영되므로 변경 후 다시 빌드합니다.
 자세한 로딩 방식은 [Next.js 환경변수 문서](https://nextjs.org/docs/app/guides/environment-variables)를 따릅니다.
 
-현재 초기 화면에는 API / 소켓 요청이 없습니다. 변수 준비만으로 해당 기능이 구현되는 것은 아닙니다.
+공개 화면도 전역 세션 복원에서 API를 호출합니다. 소켓 기능은 구현하지 않았으며 변수 준비만으로 활성화되지 않습니다.
 
 ### Server 환경변수
 
@@ -107,7 +107,7 @@ Spring은 별도로 `local` Profile의 `.env` Import를 통해 같은 파일을 
 
 ### 카카오 로그인 설정
 
-카카오 로그인은 Server가 Authorization Code 교환과 사용자 검증을 처리하고 PKCE S256을 함께 적용합니다. 상세 흐름과 검증 책임은 [JWT 인증 설계](securityDesign.md)의 카카오 로그인 절을 따릅니다. `application.yml`의 OAuth 설정, Server 로그인 시작 / 콜백과 Client 로그인 버튼 / 콜백 화면은 구현되어 있습니다. Client 콜백은 현재 로그인 완료까지 표시하며 관리대상별 진입 분기는 후속 연결 범위입니다.
+카카오 로그인은 Server가 Authorization Code 교환과 사용자 검증을 처리하고 PKCE S256을 함께 적용합니다. 상세 흐름과 검증 책임은 [JWT 인증 설계](securityDesign.md)의 카카오 로그인 절을 따릅니다. `application.yml`의 OAuth 설정, Server 로그인 시작 / 콜백과 Client 로그인 버튼 / 콜백 화면은 구현되어 있습니다. Client의 관리자 진입 분기는 [서비스 진입 설계](../client/docs/serviceEntry.md)를 따릅니다. 주민 진입과 네이티브 앱 로그인 코드 교환은 후속 범위입니다.
 
 공개 주소의 로컬 예시는 다음과 같습니다. 실제 키 / Secret은 기존 환경 설정으로 주입하고 문서에 기록하지 않습니다.
 
@@ -171,7 +171,7 @@ cd server
 - 기본 HTTP 주소는 `http://localhost:8080`입니다.
 - `local` Profile의 API 문서 주소와 인증 호출 방법은 [README의 로컬 API 문서](../README.md#로컬-api-문서)를 따릅니다. Swagger UI는 `docker compose up -d swagger-ui`로 별도 실행하며 `http://localhost:4000`에서 `8080`의 OpenAPI를 읽습니다. `tools` Profile의 서비스이므로 전체 기본 Compose 실행에는 포함하지 않고 명시적으로 실행합니다. 다른 Spring Profile에서는 OpenAPI를 기본 비활성화합니다.
 - IDE에서도 Working Directory를 `server/`로 지정합니다. 다른 디렉터리에서는 상대 경로 `.env`를 찾지 못합니다.
-- 웹 카카오 로그인 시작은 `GET /oauth2/authorization/kakao`, 콜백은 `GET /login/oauth2/code/kakao`입니다. Server 설정과 카카오디벨로퍼스 등록 주소를 일치시킵니다. Client는 `/login/callback`에서 세션을 복원합니다. [관리대상 등록 API](propertyRegistrationApi.md)의 기본 정보 검증 / 최종 저장 / 결과 조회를 구현했으며 등록 화면 연결은 후속 범위입니다.
+- 웹 카카오 로그인 시작은 `GET /oauth2/authorization/kakao`, 콜백은 `GET /login/oauth2/code/kakao`입니다. Server 설정과 카카오디벨로퍼스 등록 주소를 일치시킵니다. Client는 `/login/callback`에서 세션을 복원합니다. [관리대상 등록 API](propertyRegistrationApi.md)의 인증·설정 조건도 적용하며 화면 연결은 [Client 등록 설계](../client/docs/propertyRegistration.md)를 참조합니다.
 
 서버 프로세스는 `Ctrl+C`로 종료합니다.
 
@@ -190,32 +190,7 @@ npm run dev
 - Client 환경변수를 변경하면 개발 서버를 다시 실행합니다.
 - 서버 프로세스는 `Ctrl+C`로 종료합니다.
 
-### 화면 구조와 내부 / 공유 코드
-
-화면 레이어의 이름은 `screens/`로 정합니다. Next.js 라우팅은 `src/app/`, 실제 화면 구성은 `src/screens/`에서 담당합니다.
-
-코드는 역할과 사용 범위로 구분합니다. 화면 전용 UI와 로직은 먼저 해당 화면 슬라이스에 둡니다. 타입 선언과 실행 코드의 분리, 업무 모델·API·보조 함수의 상세 배치는 [Client Internal Code Rules](../client/AGENTS.md#7-internal-code-rules)를 따릅니다. UI에 한정된 작은 Props, 표시 상태 타입과 보조 함수는 컴포넌트 파일에 함께 둘 수 있습니다. 복잡도나 실제 공유 범위로 분리가 필요해지면 UI 내부의 `_components/`, `_types/`, `_utils/`, `_hooks/`, `_constants/` 중 필요한 폴더만 만듭니다. `_`는 UI 내부 보조 폴더에만 붙이며 역할별 폴더와 파일명, 함수 / 타입 이름에는 붙이지 않습니다.
-
-공유하거나 독립적으로 관리할 책임이 분명해진 코드는 `features/`, `entities/`, `shared/`, `widgets/` 중 적절한 레이어로 분리하고 공개 API를 통해 사용합니다. 모든 컴포넌트와 타입을 전역 폴더에 모으거나 아직 구현하지 않은 도메인의 폴더를 미리 만들지 않습니다. 같은 레이어의 다른 슬라이스 참조와 상위 레이어 참조, 슬라이스 공개 API 우회는 ESLint로 검사합니다. 구체적인 기준은 [Client 규칙](../client/AGENTS.md)을 따릅니다.
-
-현재 랜딩, 로그인, 로그인 콜백 화면은 각각 `src/screens/<화면>/ui/`에 배치합니다. 랜딩의 헤더, 로고, 제품 미리보기와 등장 효과는 컴포넌트 옆의 CSS Modules를 사용하며 화면 CSS는 화면 배치와 섹션 스타일을 담당합니다. 로그인 콜백의 표시 상태 타입과 오류 안내 함수는 `loginCallbackPage.tsx`에서 함께 관리합니다.
-
-진입 UI 수에 따른 파일·폴더 배치와 내부 보조 UI의 위치, 구조 검증 기준은 [Client UI 폴더 규칙](../client/AGENTS.md#컴포넌트-폴더-구조)을 따릅니다.
-
-### Server / Client Component 선택
-
-컴포넌트 작성 시 처리 책임을 보고 실행 환경을 판단합니다. 화면 조합 / 서버 데이터 조회는 Server Component를 기본으로 하고, 상태 / Effect / 이벤트 핸들러 / 브라우저 API가 필요한 부분에는 `"use client"`를 선언합니다. `page.tsx`의 라우팅 연결과 `metadata` 처리는 가능한 Server Component로 유지합니다. 자세한 작성 기준은 [Client Component 규칙](../client/AGENTS.md#5-component-rules)을 따릅니다.
-
-현재 로그인 화면의 역할은 다음과 같습니다.
-
-| 컴포넌트 | 구분 | 처리 책임 |
-| --- | --- | --- |
-| `login/page.tsx` | Server | URL의 오류 코드 조회, metadata와 화면 연결 |
-| `LoginPage` | Server | 로그인 화면 구성 |
-| `KakaoLoginButton` | Client | 클릭 이벤트와 브라우저 이동 |
-| `LoginCallbackPage` | Client | 세션 복원과 로딩 / 오류 / 완료 상태 |
-
-화면에 상태나 이벤트 처리가 추가되면 해당 컴포넌트의 Client 전환 또는 하위 컴포넌트 분리를 판단합니다. 하위 컴포넌트가 Client라는 이유로 상위 페이지 전체를 Client로 전환하지 않습니다.
+화면 구조·공통 UI·Server/Client Component 선택은 [Client 규칙](../client/AGENTS.md)과 영역별 `client/docs/`를 따릅니다.
 
 ## 6. 테스트 / 빌드
 
@@ -275,7 +250,7 @@ npm run start
 | Redis 연결 실패 | 호스트에서 접근 가능한 `REDIS_HOST`, `REDIS_PORT`인지 |
 | 주민 등록·엑셀 업로드의 `PHONE_SECURITY_UNAVAILABLE` | 연락처 키 두 개가 각각 Base64 디코딩 후 32바이트인지, 서로 다른지와 설정 변경 후 서버를 재시작했는지 |
 | Client가 이전 API 주소 사용 | 환경변수 변경 후 개발 서버를 재시작하거나 프로덕션 빌드를 다시 했는지 |
-| Google Fonts 다운로드 실패 | 현재 `next/font/google`의 Geist 폰트를 다운로드할 네트워크 연결이 가능한지 |
+| Google Fonts 다운로드 실패 | 현재 `next/font/google`의 Geist Mono 폰트를 다운로드할 네트워크 연결이 가능한지 |
 | Turbopack의 포트 생성 권한 오류 | 실행 환경 권한을 확인하고 필요하면 `npm run build -- --webpack`으로 별도 빌드 검증 |
 
 webpack으로 검증한 경우 기본 Turbopack 빌드 결과와 구분해 기록합니다.

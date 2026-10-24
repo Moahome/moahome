@@ -1,6 +1,6 @@
 # 모아홈 ERD v0.2 — Current Working Version
 
-> 기준일: 2026-10-05
+> 기준일: 2026-10-24
 >
 > 기준 문서: 기존 `빌라 관리비 관리 시스템 물리 ERD v0.1` + [도메인 규칙](domainRules.md)의 확정된 사용자 / 주민 설계와 관리대상 등록 정책
 >
@@ -16,27 +16,14 @@
 
 ### 0.0 문서 상태와 적용 범위
 
-이 문서는 전체 35개 엔티티의 현재 설계를 보관한다. 문서에 테이블 / 컬럼 / Enum / 제약이 있다는 이유만으로 전체 DDL이나 업무 정책이 확정되었거나 구현된 것으로 판단하지 않는다.
+이 문서는 구현된 저장 구조와 후속 데이터 설계를 구분해 보관한다. 문서에 테이블 / 컬럼 / Enum / 제약이 있다는 이유만으로 전체 DDL이나 업무 정책이 확정되었거나 구현된 것으로 판단하지 않는다.
 
 - **확정**: 도메인 규칙에서 사용자 결정으로 기록한 범위. 변경 시 정책과 ERD를 함께 갱신한다.
 - **설계안**: 현재 제안된 구조. 구현 전 관련 정책과 실제 코드 / Migration을 대조한다.
 - **미정**: 현재 기능 구현 전에 결정이 필요한 항목. 임의로 확정하지 않는다.
 - **후속 검토**: 해당 기능을 구현할 때 검토할 항목. 현재 기능에 선행 요구사항으로 추가하지 않는다.
 
-| 영역 | 상태 | 현재 적용 범위 |
-| --- | --- | --- |
-| 사용자 / 소셜 계정 | 확정 범위 있음 | 로그인 계정과 소셜 식별자 분리, 닉네임 필수, 계정에 전화번호 미저장. `system_role` Entity / Migration 구현, 기본값 USER |
-| 주민 / 가입 승인 | 확정 범위 있음 | 주민 연락처 관리, 사전 등록과 승인 시 신규 등록 모두 지원, 주민 명부 재등록 시 소프트 삭제 해제, 관리자 승인 |
-| 관리대상 / 동 / 세대 / 권한 | 확정 범위 있음 + 설계안 | Property 기준, 이름 최대 50자, 동 구분 저장, 초기 설정 전체 저장과 생성자 관리소장 자동 지정, 주민의 현재 세대 한 개 제한, 역할별 승인 / 변경 범위 |
-| 가입 요청 입력 / 중복 / 재신청 | 확정 | 신청 전화번호 필수, 실명 입력 / 세대 관계 선택 없음, 같은 계정의 같은 세대 중복 대기 요청 제한, 다른 주민 신청 허용, 거절 후 재신청 / 재입주 재승인 |
-| 관리비 부과 | 구현 | 월별 기간·세대 청구·항목 스냅샷, 설정 버전과 필수 사유, 자동 생성·확정. 세대 삭제 시 당월 취소 구현. 수납·환급·회계·일반 취소 연결은 후속 범위 |
-| 수납 / 은행 / 지출 / 회계 / 마감 / 감사 | 기존 기준 + 설계안 | 각 영역의 도메인 규칙을 유지하고 해당 기능 구현 전에 상세 정책 / DDL 확정 |
-| 월별 정산 | 조회 구현 | 기존 업무 데이터의 월별 요약·점검·Excel·PDF. 전용 읽기 API로 원천을 조합하며 새 테이블·Migration 없이 아래 11·12절의 후속 설계를 유지 |
-| 초기 관리계좌의 예금주 | 확정 | 예금주 이름 필수, 주민 명부 연결 선택, 주민 연결은 명부 등록 이후 가능 |
-| 초기 계좌 / 기본 관리비 | 확정 | 공용계좌, 기본 계좌 정확히 1개, 사용 시작일은 등록 완료일, 기본 금액은 0원·음수를 허용하는 정수 |
-| 공용 통장의 동별 분류 | 입출금·단일 비용 항목 배분 구현 | 수납 연결, 균등·비율·직접 금액과 외부 부담 배분, 동별 지출 조회. 상세 구조는 9.4·10.3·10.6, 여러 비용 항목은 후속 설계 |
-| 최종 등록 API / 성공 결과 | Server 구현 | 전체 저장 계약과 중복 방지 / 응답 유실 결과 조회, property_registration_results의 원자적 저장. Client 기본 정보 화면 / 검증, 동·세대, 관리계좌와 관리비 항목 설정은 구현, 등록 정보 확인과 전체 제출은 후속 구현 |
-| 연락처 변경 / 알림 발송 / 후속 확장 | 일부 구현 / 후속 검토 | 관리소장 명부·확인된 신청 연락처 수정 구현. 주민 직접 변경·발송은 후속 |
+기능별 진행 상태는 [프로젝트 현황](projectOverview.md#4-현재-개발-상태)에서 관리합니다. 이 문서의 구현 표시는 해당 저장 구조의 적용 여부이며 화면·업무 전체의 완료를 의미하지 않습니다.
 
 업무 규칙은 [domainRules.md](domainRules.md), 보안 코드와 인증 구현 기준은 [securityDesign.md](securityDesign.md), 작업 절차는 [AGENTS.md](../AGENTS.md)를 따른다. 차이가 발견되면 미정 정책을 추측해 코드나 ERD를 맞추지 않고 먼저 확인한다.
 
@@ -64,25 +51,8 @@
 
 `Resident`는 가입 전에도 존재할 수 있다.
 
-```text
-관리자가 주민명단 사전 등록 (선택)
-    ↓
-residents.user_id = NULL
-    ↓
-사용자 카카오 로그인
-    ↓
-users 생성 + social_accounts 생성
-    ↓
-가입 요청 / 관리자 승인
-    ↓
-기존 주민 확인 / 삭제된 명부 복구 / 필요한 주민 신규 등록
-    ↓
-residents.user_id = users.id 연결
-    ↓
-unit_residents 확인 / 필요한 관계 생성
-    ↓
-property_members 생성
-```
+현재 계정 연결은 `residents.user_id`에 저장하며 주민의 현재 세대는 `unit_residents`, 관리대상 권한은 `property_members`로 분리합니다. 가입 승인은 기존 명부·현재 관계를 검증한 뒤 계정 연결·권한·신청 상태를 함께 저장합니다. 승인 중 신규 명부 작성은 후속이며 먼저 기존 명부 등록 API를 사용합니다. 상세 정책과 원자성은 [참여자 API](memberManagementApi.md), [Server 역할·가입 설계](../server/docs/memberManagement.md)를 참조합니다.
+
 
 동일 Property 안에서는 한 User가 여러 Resident로 중복 연결되지 않도록 한다.
 
@@ -203,9 +173,9 @@ deleted_by
 
 를 둔다.
 
-반면 원본/회계/감사성 데이터는 삭제하지 않고 상태/취소/역분개로 이력을 보존한다.
+원본·회계·감사 데이터는 물리 삭제하지 않는다. 은행 원본·수납의 허용된 소프트 삭제는 감사 정보와 FK를 보존하며 활성 집계·중복 검사에서만 제외한다. 회계의 취소·역분개는 후속 설계이다.
 
-삭제하지 않는 대표 엔티티:
+물리 삭제하지 않는 구현·설계 엔티티:
 
 - `payments`
 - `payment_allocations`
@@ -376,7 +346,7 @@ OAuth 세션/토큰 상태는 Redis 영역으로 분리한다.
 
 확정일: 2026-10-05. `name`의 최대 길이는 50자로 맞추고 `has_buildings`에 동 있음 / 없음 선택을 저장한다. 이름은 앞뒤 공백을 제거하고 공백만 있는 값을 허용하지 않는다. 동 구분은 건물 유형이나 현재 동 개수로 대신 판단하지 않는다.
 
-기본 정보 입력과 단계 이동에서는 업무 레코드를 저장하지 않는다. 마지막 `관리 시작하기`에서 관리대상, 필요한 동, 세대, 관리계좌, 관리비 템플릿 / 항목과 생성자 참여를 하나의 DB 트랜잭션으로 저장한다. 초기 등록에는 세대 / 관리계좌 / 관리비 항목 각각 최소 1개가 필요하다. 신규 등록에서는 청구를 생성하지 않는다. 첫 부과는 기존 잔액 인계와 운영 시작 확정에서 별도 트랜잭션으로 저장한다. 초안 전용 테이블이나 `DRAFT` 상태를 추가하지 않는다.
+기본 정보 입력과 단계 이동에서는 업무 레코드를 저장하지 않는다. 마지막 `등록하고 관리 시작`에서 관리대상, 필요한 동, 세대, 관리계좌, 관리비 템플릿 / 항목과 생성자 참여를 하나의 DB 트랜잭션으로 저장한다. 초기 등록에는 세대 / 관리계좌 / 관리비 항목 각각 최소 1개가 필요하다. 인계 정보가 없는 이전 등록 계약은 청구를 생성하지 않는다. 현재 신규 요청은 등록·인계·운영 시작·도래한 첫 월 청구를 같은 트랜잭션으로 저장한다. 초안 전용 테이블이나 `DRAFT` 상태를 추가하지 않는다.
 
 `has_buildings = false`이면 동을 생성하지 않고 모든 세대의 `building_id`를 NULL로 둔다. `true`이면 최소 1개의 동이 필요하며 각 세대의 동이 동일한 관리대상에 속해야 한다. 이름 / 동 구분의 저장 제약과 관계 검증은 실제 Migration / Service 구현 시 이 기준에 맞춘다.
 
@@ -467,7 +437,7 @@ WHERE building_id IS NULL AND deleted_at IS NULL;
 
 특정 Property에 등록된 실제 주민 명단.
 
-관리자가 가입 전에 사전 등록할 수 있으며, 명부에 없는 신청자는 가입 승인 과정에서 신규 등록할 수도 있다.
+관리자가 가입 전에 사전 등록할 수 있다. 현재 가입 승인은 기존 명부를 직접 선택하며 승인 중 신규 명부 작성은 후속 범위이다.
 
 같은 주민의 소프트 삭제된 명부 기록을 재등록할 때는 기존 ID를 유지하고 `deleted_at` / `deleted_by`를 함께 해제한다. 사용자 탈퇴 계정 복구나 과거 세대 관계 / 권한 자동 복구를 의미하지 않는다. 업무 기준은 [도메인 규칙](domainRules.md)의 확정된 사용자 / 주민 설계 결정을 따른다.
 
@@ -625,6 +595,8 @@ Property P002 → RESIDENT
 
 ## 5.7 representative_assignments
 
+상태: 후속 설계, 미구현. 아래 컬럼은 현재 적용된 Migration을 의미하지 않습니다.
+
 ### 목적
 
 빌라 전체 또는 특정 동 대표 주민 이력.
@@ -696,6 +668,22 @@ Property P002 → RESIDENT
 
 ---
 
+## 최초 거주 관리소장 자동 연결 (2026-10-17)
+
+신규 컬럼 없이 residents.user_id와 unit_residents의 현재 관계를 생성하고 등록한 본인의 ADMIN 참여를 유지합니다. 외부 관리소장은 주민 명부가 없는 ADMIN 참여입니다. 최초 자동 연결의 출처는 property_registration_results.response_snapshot의 administrator에 residenceType/residentId/unitId/unitResidentId로 보존합니다. 이름·연락처 원문을 스냅샷에 넣지 않으며 활성 참여와 현재 관계 ID의 일치로 가입 완료를 판정합니다. 자세한 계약은 [등록 API](propertyRegistrationApi.md#최초-관리소장-거주-선택-2026-10-17)를 참조합니다.
+
+외부 담당자의 이름·연락처 저장 구조는 후속입니다. 거주 관리소장은 기존 주민·세대 관계와 아래 연결 출처를 사용하며 실제 입력 계약은 [등록 API](propertyRegistrationApi.md#최초-관리소장-거주-선택-2026-10-17)를 따릅니다.
+
+## 기존 관리소장의 주민 계정 연결 출처 (2026-10-17)
+
+`resident_account_links`는 기존 관리소장이 본인 명부를 명시적으로 선택한 이력이다. id·property_id·resident_id·user_id·unit_resident_id·linked_by·linked_at을 저장하며 계정과 처리자는 동일하다. 같은 대상·주민·계정·관계의 중복을 UNIQUE로 막고 주민의 대상 소속은 복합 FK로 검증한다. 이름·전화번호 원문은 저장하지 않는다.
+
+unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재입주 뒤에도 이력을 유지하도록 FK로 과거 관계 삭제를 막지 않는다. 서비스에서 현재 관계를 검증하고 조회에서도 실제 현재 관계 ID·주민 계정·활성 참여·미삭제 세대의 일치를 확인한다. 역할이나 대표를 저장하는 테이블이 아니며 가입 신청·등록 성공 스냅샷을 대체·수정하지 않는다. 신규 Migration은 기존 데이터를 자동 연결하지 않는다.
+
+### 다섯 페이지 초기 설정의 저장 연결 (2026-10-18)
+
+새 최종 등록은 기존 `opening_balance_batches/items`, `bank_opening_balances`, `building_cash_openings`, 관리 시작 필드와 기존 부과·선납 충당 구조를 재사용합니다. 임시 동 식별자·호수·계좌 배열 위치를 같은 요청에서 생성한 실제 ID로 연결하며 새 테이블·컬럼·Migration은 추가하지 않습니다. 성공 스냅샷의 선택 `managementStart`에는 장부 기준일·첫 부과월·동별 잔고 기준일만 보관합니다. 원문 계좌번호나 세대별 인계 금액을 성공 스냅샷에 추가하지 않습니다.
+
 # 6. 가입 / 초대
 
 ## 6.1 invitations
@@ -744,7 +732,6 @@ QR/초대 원문 토큰은 저장하지 않고 `token_hash`만 저장.
 | `property_id` | uuid | N | FK |
 | `unit_id` | uuid | N | FK |
 | `user_id` | uuid | N | FK |
-| `invitation_id` | uuid | Y | 사용한 초대 |
 | `matched_resident_id` | uuid | Y | 매칭 주민 후보 |
 | `request_phone_encrypted` | text | N | 신청자가 필수 입력한 전화번호의 암호문 |
 | `request_phone_hmac` | char(64) | N | 대조용 HMAC |
@@ -768,31 +755,15 @@ QR/초대 원문 토큰은 저장하지 않고 `token_hash`만 저장.
 
 ### 승인 처리
 
-신청자는 전화번호와 동 / 호수를 입력하며, 실명 입력과 세대 관계 선택은 요구하지 않는다. `request_name`과 `request_relation_type` 컬럼을 두지 않는다. 관리자 명부의 `residents.name`과 `unit_residents.relation_type`은 유지한다. 휴대폰 소유 인증을 필수로 요구하지 않는다.
+동일 계정·세대의 미삭제 PENDING 요청은 `membership_requests_pending_user_unit_idx`의 부분 UNIQUE로 제한합니다. 승인에서는 기존 주민·현재 세대 관계를 검증하고 `residents.user_id`, `property_members`, `member_role_events`, 신청의 상태·검토자·시각을 같은 트랜잭션에 저장합니다. 실패하면 전체를 롤백합니다.
 
-같은 계정이 같은 관리대상 / 세대에 승인 대기 요청을 가지고 있으면 기존 대기 상태를 표시하고 새 요청을 만들지 않는다. 다른 주민의 계정은 같은 세대에 각각 신청할 수 있다. 거절된 요청은 유지하고 재신청은 새 요청으로 생성한다. 재입주 시에도 새 요청과 승인이 필요하다.
+현재 주민 가입에는 `invitation_id`, 신청 실명·세대 관계 입력 컬럼이 없습니다. 외부 부담당자 초대는 아래 별도 저장 구조를 사용합니다. 승인 입력·충돌 처리와 후속 신규 명부 작성은 [참여자 API](memberManagementApi.md#주민-가입-요청), [도메인 정책](domainRules.md#가입-승인-시-함께-저장하는-범위)을 따릅니다.
 
-중복 대기 요청 방지 제약의 설계:
+## 외부 관리자 초대·역할 변경 저장 (2026-10-17)
 
-```sql
-CREATE UNIQUE INDEX membership_requests_pending_user_unit_idx
-    ON membership_requests(property_id, unit_id, user_id)
-    WHERE status = 'PENDING' AND deleted_at IS NULL;
-```
+`member_invitations`는 외부 부담당자 전용 구현입니다. property_id, token_hash, MANAGER 역할, ISSUED/REQUESTED/APPROVED/REVOKED 상태, revision, 발급자/시각·1일 만료, 신청자/시각·검토자/시각을 보존합니다. 신규 외부 관리자 초대는 주민·세대를 연결하지 않으며 token_hash는 UNIQUE입니다. 이미 적용한 초기 스키마의 resident_id/unit_id는 과거 승인·철회 이력을 보존하기 위해 유지합니다. 후속 Migration은 완료되지 않은 주민용 코드를 철회하고 신규 주민 초대를 차단합니다. 만료는 현재 시각과 expires_at에서 계산합니다.
 
-관리자가 동 / 호수와 주민 정보를 확인하고 승인하면 다음 변경을 하나의 DB 트랜잭션에서 수행한다. 업무 기준은 [도메인 규칙](domainRules.md)의 가입 승인 시 함께 저장하는 범위를 따른다.
-
-```text
-1. 기존 Resident 확인 / 필요한 Resident 신규 등록
-2. residents.user_id = membership_requests.user_id 연결
-3. 관리자 명부의 세대 관계와 신청 Unit 확인 / 필요한 현재 세대 관계 생성
-   다른 세대의 현재 소속과 중복되지 않는지 검증
-4. property_members의 기본 RESIDENT 참여 권한 반영
-5. membership_requests.status: PENDING → APPROVED
-   reviewed_by / reviewed_at 기록
-```
-
-중간에 실패하면 전체 변경을 롤백한다. 동 / 호수는 Unit 식별과 확인에 사용하며, 같은 세대의 실제 주민 선택은 관리자 검토로 처리한다.
+`member_role_events`는 property_id/member_id/actor_id, GRANTED/CHANGED/ENDED, previous_role/next_role, changed_at을 보존하며 개인정보·코드 원문을 담지 않습니다. 주민 가입은 기존 membership_requests를 사용합니다. [참여자·가입 API](memberManagementApi.md)를 참조합니다.
 
 ---
 
@@ -1043,6 +1014,12 @@ DB 지연 제약은 실제 수납 배분과 기존 선납 충당의 합계가 �
 
 ---
 
+### income_allocations (2026-10-17 구현)
+
+기타 입금의 동별 보유금 귀속입니다. UUID `id` PK, `property_id`, `payment_id`, `building_id`, 암호화한 `building_label_encrypted`, 원 단위 `amount numeric(15,0)`, 비율 `percentage numeric(5,2)`, `allocation_mode`, `sort_order`, `created_by`, `created_at`을 저장합니다. 수납·동은 같은 관리대상의 복합 FK로 연결하고 `(payment_id,building_id)`, `(payment_id,sort_order)`는 UNIQUE입니다. 지연 제약으로 실제 확정 OTHER 입금·전액 합계·비율·균등 금액과 외부 회수 중복을 검증하며 UPDATE·DELETE를 금지합니다. 취소·삭제 후에도 배분 이력을 보존합니다. 후속 `V20261018050254__support_manual_income_purposes.sql`에서 은행 원본 없는 MANUAL·SHARED의 확정 전액 배분을 허용하며 유효한 수동 동별 입금도 잔고에 반영합니다. 은행에 연결한 뒤에는 활성 원본을 함께 검사해 이중 집계하지 않습니다. 원본·확인 잔액은 생성하지 않습니다.
+
+통장 선택 삭제는 기존 `bank_transactions.deleted_at/deleted_by`와 수납 취소·삭제 이벤트를 사용합니다. 확정 지출·배분의 불변성은 유지하며 연결 수납을 취소한 뒤 삭제자·시각이 있는 원본의 소프트 삭제를 허용합니다. 삭제 표시는 되돌려 덮어쓰지 않고 재가져오기는 새 ID를 생성합니다.
+
 # 9. 은행 거래
 
 ## 9.1 bank_accounts
@@ -1091,6 +1068,8 @@ DB 지연 제약은 실제 수납 배분과 기존 선납 충당의 합계가 �
 ---
 
 ## 9.2 import_batches
+
+상태: 후속 설계, 미구현. 아래 컬럼은 현재 적용된 Migration을 의미하지 않습니다.
 
 ### 목적
 
@@ -1149,7 +1128,7 @@ Soft Delete 없음.
 
 ---
 
-## 9.4 공용 통장 거래 분류 확장 설계안
+## 9.4 공용 통장 거래 분류
 
 2026-10-17 입출금 원본과 지출명 하나·동별/외부 부담 배분을 구현했습니다. 업무·API는 [통장 관리](bankingManagement.md)를 참조합니다.
 
@@ -1173,7 +1152,7 @@ Soft Delete 없음.
 
 ## 9.6 external_settlement_links
 
-2026-10-17 구현. `id` 요청 UUID PK, `property_id`, `allocation_id`, `payment_id`, 양수 `amount numeric(15,0)`, `created_by`, `created_at`을 저장합니다. 지출 배분·수납은 같은 관리대상 복합 FK로 연결합니다. 확정된 외부 부담처와 같은 계좌의 은행 원본이 있는 확정 OTHER 수납만 연결합니다. DB 지연 트리거가 입금·부담액 한도를 검사하며 연결 이력의 UPDATE·DELETE는 차단합니다. 취소 수납의 연결은 삭제하지 않고 유효 회수 합계에서 제외합니다.
+2026-10-17 구현. `id` 요청 UUID PK, `property_id`, `allocation_id`, `payment_id`, 양수 `amount numeric(15,0)`, `created_by`, `created_at`을 저장합니다. 지출 배분·수납은 같은 관리대상 복합 FK로 연결합니다. 확정된 외부 부담처와 같은 통장의 유효한 확정 OTHER 수납을 연결합니다. 은행 수납과 허용된 수동 OTHER를 포함하며 동별 배분에 사용한 입금은 제외합니다. DB 지연 트리거가 입금·부담액 한도를 검사하며 연결 이력의 UPDATE·DELETE는 차단합니다. 취소 수납의 연결은 삭제하지 않고 유효 회수 합계에서 제외합니다.
 
 ---
 
@@ -1185,9 +1164,52 @@ Soft Delete 없음.
 
 기준일·동별 마감 잔고 정정 이력입니다. UUID `id` PK, `opening_id`, `property_id`, `bank_account_id`, `building_id`, `request_id`, `previous_revision`, `previous_cutoff_date`, `previous_amount`, `new_cutoff_date`, `new_amount`, `changed_by`, `changed_at`을 보관합니다. `(opening_id,previous_revision)`는 UNIQUE이며 UPDATE·DELETE를 차단합니다. 같은 요청의 재시도는 이력을 대조하고 이미 저장한 결과를 반복 적용하지 않습니다.
 
+## 다중 관리계좌·내부 이체 확장 (2026-10-18)
+
+`V20261018025257__support_multiple_management_accounts.sql`이 기존 계좌·은행 원본·수납·잔액을 보존하면서 다음 구조를 추가합니다. 업무·API는 [다중 통장 계약](bankingManagement.md#다중-통장내부-이체-api-2026-10-18)을 따릅니다.
+
+- bank_accounts.account_alias: 선택 varchar(100). 용도 Enum이나 필수 동 연결을 추가하지 않습니다. 미삭제 `(property_id,bank_code,account_number_hmac)` 유일 인덱스와 활성 기본 통장 유일 인덱스를 적용합니다. 지연 제약으로 커밋 시 공용 활성 기본 계좌 정확히 1개를 검증합니다. 기본 전환·종료는 과거 FK를 바꾸지 않습니다.
+- bank_transactions.transfer_candidate: NOT NULL boolean, 기존 원본은 false로 보정합니다. 원본 금액·방향은 유지하고 내부 이동의 업무 분류 여부만 나타냅니다.
+- bank_transfers: UUID id PK, property_id, outgoing_id, incoming_id, created_by/created_at, 선택 canceled_by/canceled_at. 같은 대상의 원본 복합 FK와 활성 입금·출금별 유일 인덱스를 사용합니다. 방향·통장 차이·금액 일치·유효 원본을 DB에서도 검사합니다. 연결은 삭제·덮어쓰기하지 않고 취소 감사만 한 번 기록합니다.
+- DB는 이체 원본의 수납·지출 생성과 금액·계좌·분류 변형을 막고 연결 중인 원본 삭제는 지연 제약으로 양쪽 동시 삭제를 검증합니다. 취소한 연결은 보존하며 새 UUID로 다시 연결합니다.
+
+후속 사용자 요청에 따라 building_cash_openings와 building_cash_opening_changes는 bank_account_id 복합 FK와 통장×동 유일성을 사용합니다. 기존 단일 통장 등록값은 원래 통장으로 이관하고 여러 통장 중 소속을 정할 수 없는 값은 null로 보관해 명시적 확인에 사용합니다. 금액·기준일·버전·정정 이력은 보존합니다. bank_opening_balances는 동별 보유금과 별개인 은행 실제 잔액 인계값이며 별도 기초 잔액 화면 버튼을 추가하지 않습니다. 운영 중 직접 확인 기록은 아래 2026-10-24 저장 구현을 따릅니다. 미확인 잔액을 0원으로 생성하지 않습니다. 정식 회계전표는 추가하지 않습니다.
+
+### 은행 업로드 식별·메모 구현 (2026-10-23)
+
+[실제 업로드 계약](bankingManagement.md#은행-코드별-업로드-구현-상태-2026-10-23)에 맞춰 새 입금의 시간·잔액 포함 키를 기존 `deduplication_key`에 저장합니다. 과거 키·원본 ID·FK는 갱신하지 않고 저장된 원본 정보로 호환 여부를 대조합니다. 은행별 지원 정의는 코드에만 둡니다. 후속 Migration으로 payments.auto_match_eligible(boolean NOT NULL DEFAULT true)을 추가해 신규 상대 미확인·농협 음수 거래의 자동 매칭 제외를 저장합니다. 기존 수납의 상태·금액·충당은 변경하지 않고 true로 보존합니다. 새 테이블이나 수동 지출 구조는 추가하지 않았습니다.
+
+여러 메모·거래 종류와 농협 음수 출금 원문 표기는 기존 암호화 `memo_encrypted`에 열 위치·부호를 보존합니다. 농협의 실제 증가 이동은 기존 `INCOME`·양수 `amount`로 표현하며 원지출 취소 연결은 생성하지 않습니다. 이 구현은 위 수동 지출·연결·취소 저장 설계가 적용된 의미가 아닙니다.
+
+## 은행 잔액 직접 확인 저장 (2026-10-24)
+
+상태: **구현**. [업무 기준](domainRules.md#운영-중-은행-잔액-직접-확인-2026-10-24)에 따라 `V20261024003113__add_bank_balance_checks.sql`로 `bank_balance_checks`를 추가했습니다. 기존 `bank_opening_balances`의 초기 인계·독립 등록/정정과 `bank_transactions.balance`는 각자의 원천을 유지하며 새 확인 기록으로 복제하거나 변경하지 않습니다.
+
+| 컬럼 | 자료형 | 용도 / 제약 |
+| --- | --- | --- |
+| `id` | uuid | PK, 등록 요청 UUID |
+| `property_id` | uuid | 관리대상 FK |
+| `bank_account_id` | uuid | 같은 관리대상의 통장 복합 FK |
+| `balance_amount` | numeric(15,0) | 실제 확인 잔액, 0 이상 |
+| `checked_at` | timestamptz | 실제 확인시점, created_at 이하 |
+| `source_type` | varchar(30) | BANK_APP / INTERNET_BANKING / OTHER CHECK |
+| `checked_by` | uuid | 기록한 관리자, users FK |
+| `memo_encrypted` | text, nullable | 선택 메모 암호문 |
+| `created_at` | timestamptz | 시스템 기록시점 |
+| `canceled_at` | timestamptz, nullable | 취소시점, created_at 이상 |
+| `canceled_by` | uuid, nullable | 취소 관리자, users FK |
+| `cancel_request_id` | uuid, nullable | 취소 요청 UUID, UNIQUE |
+| `cancel_reason_encrypted` | text, nullable | 취소 사유 암호문 |
+
+취소 감사 네 컬럼은 함께 비어 있거나 모두 존재해야 합니다. 관리대상·통장·실제 확인시점/기록시점 내림차순 인덱스를 사용합니다. 트리거는 원문 금액·확인시점·통장·출처·기록자·메모의 변경과 물리 삭제를 막고 최초 취소 감사만 허용합니다. 기존 동별 기준값·은행 원본·인계·거래 합계에는 반영하지 않습니다. 날짜만 있는 기존 원천을 임의의 확인일시로 이관하지 않습니다. [API](bankingManagement.md#은행-잔액-직접-확인-api-2026-10-24)를 참조합니다.
+
+초기 등록의 통장×동 보유금은 기존 `building_cash_openings`를 사용하며 새 컬럼을 추가하지 않습니다. 선택 통장별 등록이 같은 최종 등록 트랜잭션에서 저장됩니다. 임시 참조·이전 요청 호환은 [등록 API](propertyRegistrationApi.md#초기-통장별-동-보유금-확장-2026-10-24)를 참조합니다.
+
 # 10. 지출
 
 ## 10.1 vendors
+
+상태: 후속 설계, 미구현. 아래 컬럼은 현재 적용된 Migration을 의미하지 않습니다.
 
 ### 목적
 
@@ -1211,6 +1233,8 @@ Soft Delete 없음.
 ---
 
 ## 10.2 expense_categories
+
+상태: 후속 설계, 미구현. 아래 컬럼은 현재 적용된 Migration을 의미하지 않습니다.
 
 ### 목적
 
@@ -1328,6 +1352,21 @@ Soft Delete 없음.
 같은 동은 지출 내 중복 배분하지 않습니다. 지연 제약 트리거가 커밋 시 배분 합계=지출액과 비율 합계 100%, 비율·균등 부담액을 검사합니다. 은행 지출이면 원본 출금액도 일치해야 하며 수동 지출은 은행 원본을 요구하지 않습니다. 확정 배분의 직접 수정·삭제와 확정 출금의 금액·방향 변경은 금지합니다. 외부 부담처 표시는 지출 귀속이며 별도 주민·실제 통장·외부 정산채권을 생성하지 않습니다.
 
 ---
+
+## 수동 지출 등록 저장 구현 (2026-10-23)
+
+[업무 기준](domainRules.md#수동-지출-등록-2026-10-23-후속-확정)과 [API](bankingManagement.md#수동-지출-등록-api-2026-10-23)에 따라 `V20261023133125__add_manual_expenses.sql`을 추가했습니다. 등록·배분 저장을 구현했으며 취소·은행 연결 이력은 후속입니다.
+
+`expenses`에 `source_type varchar(20) NOT NULL`, `bank_account_id uuid NOT NULL`, `expense_date date NOT NULL`을 추가합니다. 기존 은행 지출의 통장·날짜는 원본에서 보정하고 ID·금액·암호문·배분을 유지합니다. 기존 삭제된 원본의 지출도 보정하며 소프트 삭제 상태를 되돌리지 않습니다. 같은 관리대상의 통장 복합 FK와 통장·날짜 조회 인덱스를 추가합니다.
+
+`bank_transaction_id`와 `rule_key`는 nullable로 바꾸되 CHECK로 출처별 구조를 제한합니다. BANK_IMPORT는 기존 은행 원본·규칙 키가 필수이고 MANUAL은 둘 다 null, save_as_rule=false입니다. 수동 지출 ID는 요청 UUID입니다. 기존 `expense_allocations`를 재사용해 합계·비율·균등 금액을 커밋 시 검증합니다. 지출·배분의 UPDATE·DELETE 금지, 기존 은행 원본 방향·금액·통장·날짜 보호와 선택 삭제 감사를 유지합니다. 수동 출금은 은행 원본이나 확인 잔액을 만들지 않습니다.
+
+
+## 후속 저장 설계: 지출 취소·은행 연결
+
+수동 지출의 취소·은행 원본 연결·연결 해제는 미구현입니다. 요청 UUID·행위자·시각·사유와 연결 수명주기를 확정 지출·배분 본문과 분리해 보존하는 설계를 검토합니다. 같은 관리대상·통장·출금 방향·금액과 원본별 활성 연결의 유일성이 필요하지만, 연결 해제·원본 삭제·외부 회수 후 취소의 정책과 상세 DDL은 미정입니다. 기존 불변 트리거와 적용된 Migration을 임의로 바꾸지 않습니다.
+
+은행 원본 순서의 영속 저장·같은 시각 거래의 대사는 후속 검토입니다. 파일 순번을 은행의 고유 식별자로 사용하거나 부족한 시각을 생성하지 않습니다.
 
 # 11. 회계
 
@@ -1596,6 +1635,8 @@ POSTED 후 직접 수정 금지.
 
 ## 13.1 audit_logs
 
+상태: 후속 설계, 미구현. 아래 컬럼은 현재 적용된 Migration을 의미하지 않습니다.
+
 ### 목적
 
 보안/업무/회계/마감 주요 변경을 append-only로 기록.
@@ -1712,164 +1753,13 @@ erDiagram
 
 ---
 
-# 15. 핵심 업무 흐름
+# 15. 업무 흐름 기준
 
-## 15.1 로그인
-
-```text
-카카오 로그인
-    ↓
-social_accounts(provider=KAKAO, provider_user_id) 조회
-    ↓
-users 확인/생성
-    ↓
-App Entry
-    ↓
-property_members 확인
-    ↓
-ADMIN/MANAGER → 관리자
-RESIDENT → 주민
-소속 없음 → 관리할 곳 만들기 / 주민으로 참여하기
-```
-
-## 15.2 주민 가입
-
-```text
-관리대상 참여 링크 /join/[propertyId]
-    ↓
-현재 관리대상·세대 확인
-    ↓
-신청자가 전화번호 / 동·호수 입력 (실명 / 세대 관계 입력 없음)
-    ↓
-입력한 동 / 호수로 신청 Unit 확인
-    ↓
-같은 계정 / 세대의 기존 대기 요청 확인
-있으면 대기 표시, 없으면 membership_requests(PENDING) 생성
-    ↓
-기존 residents 후보 확인
-    ↓
-관리소장 또는 부담당자 검토 / 승인
-    ↓
-기존 Resident 확인 / 필요한 Resident 신규 등록
-    ↓
-residents.user_id 연결
-    ↓
-unit_residents 확인 / 필요한 관계 생성
-    ↓
-property_members 권한 반영
-    ↓
-membership_requests: APPROVED / 검토자 / 검토시각 저장
-```
-
-## 15.3 관리비 부과
-
-```text
-billing_periods
-    ↓
-fee_templates / fee_template_items
-    ↓
-charges / charge_items 생성
-    ↓
-발행
-    ↓
-accounting_events
-    ↓
-journal_entries / journal_entry_lines
-```
-
-월별 스케줄은 위 청구 생성과 발행 / 부과 확정까지 자동으로 수행합니다. 주민 공개와 회계 연결은 부과 확정을 기준으로 처리합니다.
-
-대표 자동분개 (양수 청구의 예시이며 음수 청구의 회계 반영 방식은 미정):
-
-```text
-차변 미수금
-대변 관리비수익
-```
-
-## 15.4 수납
-
-```text
-은행 Excel
-    ↓
-import_batches
-    ↓
-bank_transactions
-    ↓
-입금 후보
-    ↓
-payments
-    ↓
-payment_allocations
-    ↓
-청구 잔액 감소
-    ↓
-accounting_events
-    ↓
-전표
-```
-
-대표 자동분개:
-
-```text
-차변 보통예금
-대변 미수금
-```
-
-## 15.5 지출
-
-```text
-bank_transactions(WITHDRAWAL)
-    ↓
-expenses
-    ↓
-expense_lines
-    ↓
-expense_categories / vendors
-    ↓
-accounting_events
-    ↓
-전표
-```
-
-대표 자동분개:
-
-```text
-차변 비용
-대변 보통예금
-```
-
-## 15.6 월마감
-
-```text
-fiscal_periods
-    ↓
-bank_reconciliations
-    ↓
-period_closings
-    ↓
-closing_check_results
-    ↓
-BLOCKING FAIL 없음
-    ↓
-CLOSED
-```
-
----
+업무 정책과 흐름은 [도메인 규칙](domainRules.md), Client·Server 공통 형식은 기능별 API를 참조합니다. 위 관계도는 후속 설계도 포함하므로 모든 연결이 현재 구현된 것은 아닙니다.
 
 # 16. 현재 ERD에서 후속 검토가 필요한 부분
 
-### 현재 영역 구현 전 확인할 미정 항목
-
-- 같은 세대의 여러 주민 중 실제 신청자를 구분하는 관리자 확인 절차
-- 기존 주민 / 권한이 이미 다른 계정과 연결되어 있을 때의 충돌 처리
-- 신청 계정에 기존 관리자 역할이 있을 때의 주민 참여 권한 처리
-- 사전 명부에 없는 신청자의 주민 이름 / 세대 관계를 관리자가 확인하고 등록하는 상세 절차
-- 플랫폼 관리자 기능의 상세 범위와 권한 부여 / 회수 절차
-- 가입 승인 / 역할 변경 외 관리대상 업무의 상세 권한과 `property_members`의 중복 방지 제약
-- 다른 세대 / 관리대상에 대기 요청이 여러 개 있는 경우의 표시와 처리 방식
-- 현재 구현할 기능에 사용되는 테이블의 상세 FK / CHECK / 유일성 제약과 실제 Migration의 일치 여부
-
-이 목록은 미정이며 새로운 업무 정책을 확정하지 않는다. 현재 기능에 영향을 주는 항목부터 결정한다.
+현재 가입의 관리자 직접 명부 선택·계정/역할 충돌 거부는 [참여자 API](memberManagementApi.md)를 따릅니다. 향후 병합·복구·승인 중 명부 작성 정책까지 확정한 것은 아닙니다. 업무 미정 목록은 [도메인 규칙](domainRules.md)에서 관리하고 상세 DDL은 해당 기능 구현 시 검토합니다.
 
 ### 후속 기능에서 검토할 항목
 
@@ -1878,7 +1768,7 @@ CLOSED
 1. `Resident` 전화번호를 알림톡 수신번호로 사용할 때 수신 동의/발송 정책을 어디에 저장할지
 2. 향후 `user_contacts` 엔티티가 필요한지
 3. [세대 대표 지정과 변경](domainRules.md#확정된-세대-대표-지정과-변경)의 미정 예외 처리. 최초 지정·변경 권한과 삭제·이동 시 명시적 승계는 확정되었으며 별도 퇴거·재입주 흐름은 후속 결정. 엑셀 최초 순서와 오류·중복 제외는 확정 정책 적용. 개별 등록의 동시 대표 지정은 [Server 주민 등록](../server/docs/residentRegistration.md)의 잠금으로 직렬화
-4. 초과입금의 선수금 자동 이월 여부
+4. 선입금 자동 충당은 구현했으며 환불·부분 취소·음수 청구 정산은 후속 정책
 5. 연체료 도입 여부 및 계산 규칙
 6. 관리대상별 계정과목 커스터마이징 수준
 7. 동별 계좌와 Property 공용계좌 동시 사용 정책
@@ -1887,238 +1777,3 @@ CLOSED
 10. Notification / Template / Delivery 엔티티 도입 시점
 
 ---
-
-# 17. 현재 기준 엔티티 목록
-
-업무 엔티티 35개와 최종 등록 성공 결과 설계 1개, 총 36개. 구현된 테이블 수를 의미하지 않는다.
-
-```text
-01 users
-02 social_accounts
-03 properties
-04 buildings
-05 units
-06 residents
-07 unit_residents
-08 property_members
-09 representative_assignments
-10 invitations
-11 membership_requests
-12 bank_accounts
-13 billing_periods
-14 fee_templates
-15 fee_template_items
-16 charges
-17 charge_items
-18 payments
-19 payment_allocations
-20 import_batches
-21 bank_transactions
-22 vendors
-23 expense_categories
-24 expenses
-25 expense_lines
-26 accounts
-27 property_account_mappings
-28 accounting_events
-29 fiscal_periods
-30 journal_entries
-31 journal_entry_lines
-32 bank_reconciliations
-33 period_closings
-34 closing_check_results
-35 audit_logs
-36 property_registration_results
-```
-
----
-
-# 18. 현재 버전 변경점 요약
-
-기존 물리 ERD v0.1 대비 현재 논의에서 의미가 명확해진 부분:
-
-```text
-[확정]
-User = 로그인 계정
-Resident = Property 단위 실제 주민
-PropertyMember = 시스템 권한
-SocialAccount = 카카오 계정 연결
-
-[확정]
-User에는 현재 전화번호를 두지 않음
-Resident 전화번호를 주민 연락/알림의 기준으로 사용
-
-[확정]
-SocialAccount에는 provider_user_id와 provider_email만 두고
-전화번호와 OAuth access/refresh token은 저장하지 않음
-
-[확정]
-Resident는 User 없이 먼저 생성될 수 있음
-가입 승인 후 Resident.user_id를 연결
-
-[확정]
-User.display_name은 닉네임이며 NULL / 공백만 있는 값 허용 안 함
-주민 사전 등록과 승인 과정의 신규 등록을 모두 지원
-같은 주민의 명부 재등록은 소프트 삭제 해제로 기존 기록 재사용
-
-[확정]
-신청 전화번호 필수 입력 / 실명 입력과 세대 관계 선택 없음
-관리자 명부의 주민 이름 / 세대 관계 정보 유지
-같은 계정의 같은 세대 중복 대기 요청은 기존 대기 상태 표시
-같은 세대의 다른 주민들은 각각 신청 가능
-거절 후 재신청 가능 / 재입주 시 재승인 필요
-한 주민의 같은 Property 내 현재 세대는 하나
-
-[확정]
-플랫폼 관리자와 관리대상별 역할을 분리
-ADMIN(관리소장) / MANAGER(부담당자)는 주민 가입 승인 가능
-관리대상 역할 변경은 ADMIN(관리소장)만 가능
-
-[확정 2026-10-05]
-관리대상 이름 최대 50자 / has_buildings로 동 구분 저장
-이전 단계 입력과 새로고침 복원 / 취소와 탭 닫기 시 초안 폐기
-초기 설정 마지막에 전체 정보를 하나의 DB 트랜잭션으로 저장
-세대 / 관리계좌 / 관리비 항목 각각 최소 1개 필요
-인증된 생성자의 PropertyMember는 ADMIN / ACTIVE
-관리계좌 예금주 이름 필수 / holder_resident_id는 NULL 허용
-주민 명부 등록 이후 예금주 주민 연결 가능
-초기 계좌는 공용계좌 / 기본 계좌 정확히 1개 / 사용 시작일은 등록 완료일
-초기 기본 관리비 항목의 금액은 0원·음수를 허용하는 정수
-
-[Server 구현]
-최종 등록 요청 / 응답 / 오류와 requestId를 이용한 중복 방지 / 결과 조회
-property_registration_results는 성공한 전체 등록과 같은 트랜잭션에서 저장
-
-[구현 기준]
-관리자 승인 결과의 주민 / 계정 연결, 세대 관계, 권한, 요청 상태는
-하나의 DB 트랜잭션으로 저장
-전화번호 보안 처리는 공통 PhoneSecurity 재사용
-
-[유지]
-Property → Building(optional) → Unit 구조
-동 없는 빌라 지원
-
-[유지]
-납부상태는 boolean 저장이 아니라 PaymentAllocation 합계로 계산
-
-[유지]
-은행 원본 거래는 삭제/수정하지 않고 이력 보존
-
-[유지]
-관리비 부과/수납/지출 → AccountingEvent → JournalEntry 자동회계 구조
-```
-
----
-
-## 외부 관리자 초대·역할 변경 저장 (2026-10-17)
-
-`member_invitations`는 외부 부담당자 전용 구현입니다. property_id, token_hash, MANAGER 역할, ISSUED/REQUESTED/APPROVED/REVOKED 상태, revision, 발급자/시각·1일 만료, 신청자/시각·검토자/시각을 보존합니다. 신규 외부 관리자 초대는 주민·세대를 연결하지 않으며 token_hash는 UNIQUE입니다. 이미 적용한 초기 스키마의 resident_id/unit_id는 과거 승인·철회 이력을 보존하기 위해 유지합니다. 후속 Migration은 완료되지 않은 주민용 코드를 철회하고 신규 주민 초대를 차단합니다. 만료는 현재 시각과 expires_at에서 계산합니다.
-
-`member_role_events`는 property_id/member_id/actor_id, GRANTED/CHANGED/ENDED, previous_role/next_role, changed_at을 보존하며 개인정보·코드 원문을 담지 않습니다. 주민 가입은 기존 membership_requests를 사용합니다. [참여자·가입 API](memberManagementApi.md)를 참조합니다.
-
----
-
-## 최초 거주 관리소장 자동 연결 (2026-10-17)
-
-신규 컬럼 없이 residents.user_id와 unit_residents의 현재 관계를 생성하고 등록한 본인의 ADMIN 참여를 유지합니다. 외부 관리소장은 주민 명부가 없는 ADMIN 참여입니다. 최초 자동 연결의 출처는 property_registration_results.response_snapshot의 administrator에 residenceType/residentId/unitId/unitResidentId로 보존합니다. 이름·연락처 원문을 스냅샷에 넣지 않으며 활성 참여와 현재 관계 ID의 일치로 가입 완료를 판정합니다. 자세한 계약은 [등록 API](propertyRegistrationApi.md#최초-관리소장-거주-선택-2026-10-17)를 참조합니다.
-
-## END
-
-### 관리 담당자 UI 미리보기와 저장 설계의 차이 (2026-10-17)
-
-관리 담당자의 이름·연락처를 로그인 닉네임과 분리하고 거주자만 세대와 연결하는 화면 미리보기를 추가했다. 2026-10-18 사용자 요청으로 별도 미리보기를 제거하고 추가 등록도 기존 실제 등록 API에 연결했으며 이 연결 변경은 새 테이블·컬럼을 추가하지 않는다. 관리소장 등록은 최초 주민의 대표 자동 지정에서 제외하며 기존 명부 연결 시 대표 여부를 유지하는 정책이 확정되었다. 실제 초기 등록에서도 대표로 자동 지정하지 않으며 연락처 미입력은 주민의 연락처 보호 컬럼을 모두 NULL로 저장한다. 외부 담당자의 이름·연락처 저장 구조는 후속 구현이다. 기존 관리소장 계정 연결은 아래 출처 테이블과 저장 API로 구현했다. 기존 연락처 보호 규칙을 우회해 일반 문자열로 보관하지 않는다.
-
-## 기존 관리소장의 주민 계정 연결 출처 (2026-10-17)
-
-`resident_account_links`는 기존 관리소장이 본인 명부를 명시적으로 선택한 이력이다. id·property_id·resident_id·user_id·unit_resident_id·linked_by·linked_at을 저장하며 계정과 처리자는 동일하다. 같은 대상·주민·계정·관계의 중복을 UNIQUE로 막고 주민의 대상 소속은 복합 FK로 검증한다. 이름·전화번호 원문은 저장하지 않는다.
-
-unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재입주 뒤에도 이력을 유지하도록 FK로 과거 관계 삭제를 막지 않는다. 서비스에서 현재 관계를 검증하고 조회에서도 실제 현재 관계 ID·주민 계정·활성 참여·미삭제 세대의 일치를 확인한다. 역할이나 대표를 저장하는 테이블이 아니며 가입 신청·등록 성공 스냅샷을 대체·수정하지 않는다. 신규 Migration은 기존 데이터를 자동 연결하지 않는다.
-
-### income_allocations (2026-10-17 구현)
-
-기타 입금의 동별 보유금 귀속입니다. UUID `id` PK, `property_id`, `payment_id`, `building_id`, 암호화한 `building_label_encrypted`, 원 단위 `amount numeric(15,0)`, 비율 `percentage numeric(5,2)`, `allocation_mode`, `sort_order`, `created_by`, `created_at`을 저장합니다. 수납·동은 같은 관리대상의 복합 FK로 연결하고 `(payment_id,building_id)`, `(payment_id,sort_order)`는 UNIQUE입니다. 지연 제약으로 실제 확정 OTHER 입금·전액 합계·비율·균등 금액과 외부 회수 중복을 검증하며 UPDATE·DELETE를 금지합니다. 취소·삭제 후에도 배분 이력을 보존합니다. 후속 `V20261018050254__support_manual_income_purposes.sql`에서 은행 원본 없는 MANUAL·SHARED의 확정 전액 배분을 허용하며 유효한 수동 동별 입금도 잔고에 반영합니다. 은행에 연결한 뒤에는 활성 원본을 함께 검사해 이중 집계하지 않습니다. 원본·확인 잔액은 생성하지 않습니다.
-
-통장 선택 삭제는 기존 `bank_transactions.deleted_at/deleted_by`와 수납 취소·삭제 이벤트를 사용합니다. 확정 지출·배분의 불변성은 유지하며 연결 수납을 취소한 뒤 삭제자·시각이 있는 원본의 소프트 삭제를 허용합니다. 삭제 표시는 되돌려 덮어쓰지 않고 재가져오기는 새 ID를 생성합니다.
-
-
-### 다섯 페이지 초기 설정의 저장 연결 (2026-10-18)
-
-새 최종 등록은 기존 `opening_balance_batches/items`, `bank_opening_balances`, `building_cash_openings`, 관리 시작 필드와 기존 부과·선납 충당 구조를 재사용합니다. 임시 동 식별자·호수·계좌 배열 위치를 같은 요청에서 생성한 실제 ID로 연결하며 새 테이블·컬럼·Migration은 추가하지 않습니다. 성공 스냅샷의 선택 `managementStart`에는 장부 기준일·첫 부과월·동별 잔고 기준일만 보관합니다. 원문 계좌번호나 세대별 인계 금액을 성공 스냅샷에 추가하지 않습니다.
-
-
-## 다중 관리계좌·내부 이체 확장 (2026-10-18)
-
-`V20261018025257__support_multiple_management_accounts.sql`이 기존 계좌·은행 원본·수납·잔액을 보존하면서 다음 구조를 추가합니다. 업무·API는 [다중 통장 계약](bankingManagement.md#다중-통장내부-이체-api-2026-10-18)을 따릅니다.
-
-- bank_accounts.account_alias: 선택 varchar(100). 용도 Enum이나 필수 동 연결을 추가하지 않습니다. 미삭제 `(property_id,bank_code,account_number_hmac)` 유일 인덱스와 활성 기본 통장 유일 인덱스를 적용합니다. 지연 제약으로 커밋 시 공용 활성 기본 계좌 정확히 1개를 검증합니다. 기본 전환·종료는 과거 FK를 바꾸지 않습니다.
-- bank_transactions.transfer_candidate: NOT NULL boolean, 기존 원본은 false로 보정합니다. 원본 금액·방향은 유지하고 내부 이동의 업무 분류 여부만 나타냅니다.
-- bank_transfers: UUID id PK, property_id, outgoing_id, incoming_id, created_by/created_at, 선택 canceled_by/canceled_at. 같은 대상의 원본 복합 FK와 활성 입금·출금별 유일 인덱스를 사용합니다. 방향·통장 차이·금액 일치·유효 원본을 DB에서도 검사합니다. 연결은 삭제·덮어쓰기하지 않고 취소 감사만 한 번 기록합니다.
-- DB는 이체 원본의 수납·지출 생성과 금액·계좌·분류 변형을 막고 연결 중인 원본 삭제는 지연 제약으로 양쪽 동시 삭제를 검증합니다. 취소한 연결은 보존하며 새 UUID로 다시 연결합니다.
-
-후속 사용자 요청에 따라 building_cash_openings와 building_cash_opening_changes는 bank_account_id 복합 FK와 통장×동 유일성을 사용합니다. 기존 단일 통장 등록값은 원래 통장으로 이관하고 여러 통장 중 소속을 정할 수 없는 값은 null로 보관해 명시적 확인에 사용합니다. 금액·기준일·버전·정정 이력은 보존합니다. bank_opening_balances는 동별 보유금과 별개인 은행 실제 잔액 인계값이며 별도 기초 잔액 화면 버튼을 추가하지 않습니다. 운영 중 직접 확인 기록은 아래 2026-10-24 저장 구현을 따릅니다. 미확인 잔액을 0원으로 생성하지 않습니다. 정식 회계전표는 추가하지 않습니다.
-
-## 은행별 업로드와 수동 지출 저장 설계안 (2026-10-23)
-
-상태: **초기 설계안**. 등록 저장은 아래 후속 구현 절을 따르며 취소·은행 연결은 후속 범위입니다. 업무상 미정 항목은 [도메인 규칙](domainRules.md#은행별-업로드와-수동-출금-2026-10-23), 필드의 API 표현은 [통장 관리 계약안](bankingManagement.md#은행별-업로드와-수동-출금-설계안-2026-10-23)을 따릅니다. 아래는 필요한 저장 책임이며 최종 DDL·Migration 파일명은 아닙니다.
-
-| 영역 | 제안 저장 책임 |
-| --- | --- |
-| 은행별 지원 규칙 | Server 코드 정의로 관리하고 계좌별 지원 여부를 중복 저장하지 않음 |
-| 원문 필드 | 거래 상대·거래 종류·여러 메모·원문 부호를 구분해 보존할 표현 검토. 개인정보 문자열은 기존 암호화 기준 적용 |
-| 입금 식별 | 새 식별 버전과 시간·잔액을 반영할 키, 기존 키와 호환 대조할 식별 정보 |
-| 수동 지출 | 같은 관리대상의 통장 ID·실제 출금일·출처·요청 UUID·확정 금액·지출명·선택 메모. 은행 원본 미연결 허용 |
-| 은행 연결·취소 | 요청 UUID·행위자·시각·사유와 연결 대상·수명주기 이력. 확정 지출·배분 본문을 수정·삭제하지 않고 상태 판단 |
-
-기존 `expenses`를 확장하는 안을 우선 검토합니다. `bank_transaction_id`만 nullable로 바꾸면 거래일·통장·취소·중복 연결을 표현할 수 없습니다. 기존 업로드 지출은 원본에서 통장·날짜·출처를 확인해 보존하고 새 수동 지출만 은행 미연결을 허용하는 제약이 필요합니다. `rule_key`의 은행 적요 의존과 수동 등록의 규칙 저장 제외도 함께 정리합니다.
-
-지출 사실과 은행 연결·취소 이력을 분리해 기존 불변 트리거의 역할을 유지하는 안입니다. `expense_allocations`의 동·외부 부담처 스냅샷·합계 검증은 재사용합니다. 은행 연결 후에는 같은 대상·통장·출금 방향·금액 일치와 활성 원본당 지출 하나를 DB에서도 보장해야 합니다. 기존 일대일 FK 유지와 별도 연결 이력 도입의 상세는 연결 해제·원본 삭제 정책과 함께 결정합니다.
-
-기존 원본 ID·중복 키·수납 연결을 보존하며 새 입금 식별을 추가합니다. 서로 다른 버전의 키로 같은 거래가 중복 저장되지 않게 관리대상 잠금·통장별 활성 식별 유일성을 설계합니다. 오래된 키 충돌만으로 별도 입금을 합치지 않고 파일 `No`를 영구 식별자로 사용하거나 개인정보 원문을 중복 키로 노출하지 않습니다.
-
-원본 순서 저장 여부와 동일 시각 거래의 잔액 판정은 후속 검토입니다. 파일 내부 순번이 다른 기간 재다운로드에서도 같다고 가정하지 않으며 순서를 입증할 자료가 없으면 기존 미확인 표현을 유지합니다. 농협 음수 출금은 현재 양수 금액·방향 제약과 다르므로 정책 없이 절댓값 이관하지 않습니다.
-
-Migration은 정책 확정 후 별도 파일로 작성합니다. 기존 적용 파일·원본·확정 배분·감사 이력을 변경하거나 삭제하지 않고 원문 은행 파일 대신 구조를 재현한 익명 테스트 자료를 사용합니다.
-
-
-### 은행 업로드 식별·메모 구현 (2026-10-23)
-
-[실제 업로드 계약](bankingManagement.md#은행-코드별-업로드-구현-상태-2026-10-23)에 맞춰 새 입금의 시간·잔액 포함 키를 기존 `deduplication_key`에 저장합니다. 과거 키·원본 ID·FK는 갱신하지 않고 저장된 원본 정보로 호환 여부를 대조합니다. 은행별 지원 정의는 코드에만 둡니다. 후속 Migration으로 payments.auto_match_eligible(boolean NOT NULL DEFAULT true)을 추가해 신규 상대 미확인·농협 음수 거래의 자동 매칭 제외를 저장합니다. 기존 수납의 상태·금액·충당은 변경하지 않고 true로 보존합니다. 새 테이블이나 수동 지출 구조는 추가하지 않았습니다.
-
-여러 메모·거래 종류와 농협 음수 출금 원문 표기는 기존 암호화 `memo_encrypted`에 열 위치·부호를 보존합니다. 농협의 실제 증가 이동은 기존 `INCOME`·양수 `amount`로 표현하며 원지출 취소 연결은 생성하지 않습니다. 이 구현은 위 수동 지출·연결·취소 저장 설계가 적용된 의미가 아닙니다.
-
-
-## 수동 지출 등록 저장 구현 (2026-10-23)
-
-[업무 기준](domainRules.md#수동-지출-등록-2026-10-23-후속-확정)과 [API](bankingManagement.md#수동-지출-등록-api-2026-10-23)에 따라 `V20261023133125__add_manual_expenses.sql`을 추가했습니다. 앞의 저장 설계안 중 등록만 구현하며 취소·은행 연결 이력은 추가하지 않았습니다.
-
-`expenses`에 `source_type varchar(20) NOT NULL`, `bank_account_id uuid NOT NULL`, `expense_date date NOT NULL`을 추가합니다. 기존 은행 지출의 통장·날짜는 원본에서 보정하고 ID·금액·암호문·배분을 유지합니다. 기존 삭제된 원본의 지출도 보정하며 소프트 삭제 상태를 되돌리지 않습니다. 같은 관리대상의 통장 복합 FK와 통장·날짜 조회 인덱스를 추가합니다.
-
-`bank_transaction_id`와 `rule_key`는 nullable로 바꾸되 CHECK로 출처별 구조를 제한합니다. BANK_IMPORT는 기존 은행 원본·규칙 키가 필수이고 MANUAL은 둘 다 null, save_as_rule=false입니다. 수동 지출 ID는 요청 UUID입니다. 기존 `expense_allocations`를 재사용해 합계·비율·균등 금액을 커밋 시 검증합니다. 지출·배분의 UPDATE·DELETE 금지, 기존 은행 원본 방향·금액·통장·날짜 보호와 선택 삭제 감사를 유지합니다. 수동 출금은 은행 원본이나 확인 잔액을 만들지 않습니다.
-
-
-2026-10-23 사용 종료 통장 표시 구현은 기존 `bank_accounts.status`, `valid_from`, `valid_to`와 거래·수납·지출·기준값·확정 인계 이력으로 판정하며 컬럼과 Migration을 추가하지 않습니다. 기간·미사용 제외와 잔액·미정산 예외는 [도메인 규칙](domainRules.md#사용-종료-통장-표시-2026-10-23-후속-확정), 응답 메타데이터는 [통장 API 계약](bankingManagement.md#사용-종료-통장-조회-계약-2026-10-23-후속)을 따릅니다.
-
-
-## 은행 잔액 직접 확인 저장 설계안 (2026-10-24)
-
-상태: **구현**. [업무 기준](domainRules.md#운영-중-은행-잔액-직접-확인-2026-10-24)에 따라 `V20261024003113__add_bank_balance_checks.sql`로 `bank_balance_checks`를 추가했습니다. 기존 `bank_opening_balances`의 초기 인계·독립 등록/정정과 `bank_transactions.balance`는 각자의 원천을 유지하며 새 확인 기록으로 복제하거나 변경하지 않습니다.
-
-| 컬럼 | 자료형 | 용도 / 제약 |
-| --- | --- | --- |
-| `id` | uuid | PK, 등록 요청 UUID |
-| `property_id` | uuid | 관리대상 FK |
-| `bank_account_id` | uuid | 같은 관리대상의 통장 복합 FK |
-| `balance_amount` | numeric(15,0) | 실제 확인 잔액, 0 이상 |
-| `checked_at` | timestamptz | 실제 확인시점, created_at 이하 |
-| `source_type` | varchar(30) | BANK_APP / INTERNET_BANKING / OTHER CHECK |
-| `checked_by` | uuid | 기록한 관리자, users FK |
-| `memo_encrypted` | text, nullable | 선택 메모 암호문 |
-| `created_at` | timestamptz | 시스템 기록시점 |
-| `canceled_at` | timestamptz, nullable | 취소시점, created_at 이상 |
-| `canceled_by` | uuid, nullable | 취소 관리자, users FK |
-| `cancel_request_id` | uuid, nullable | 취소 요청 UUID, UNIQUE |
-| `cancel_reason_encrypted` | text, nullable | 취소 사유 암호문 |
-
-취소 감사 네 컬럼은 함께 비어 있거나 모두 존재해야 합니다. 관리대상·통장·실제 확인시점/기록시점 내림차순 인덱스를 사용합니다. 트리거는 원문 금액·확인시점·통장·출처·기록자·메모의 변경과 물리 삭제를 막고 최초 취소 감사만 허용합니다. 기존 동별 기준값·은행 원본·인계·거래 합계에는 반영하지 않습니다. 날짜만 있는 기존 원천을 임의의 확인일시로 이관하지 않습니다. [API](bankingManagement.md#은행-잔액-직접-확인-api-설계안-2026-10-24)를 참조합니다.
-
-초기 등록의 통장×동 보유금은 기존 `building_cash_openings`를 사용하며 새 컬럼을 추가하지 않습니다. 선택 통장별 등록이 같은 최종 등록 트랜잭션에서 저장됩니다. 임시 참조·이전 요청 호환은 [등록 API](propertyRegistrationApi.md#초기-통장별-동-보유금-확장-2026-10-24)를 참조합니다.

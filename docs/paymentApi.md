@@ -30,7 +30,7 @@ UUID는 문자열, 날짜는 `YYYY-MM-DD`, 청구월은 `YYYY-MM`, 원 단위 �
 
 `{propertyId,asOf,accounts,units,charges,payments,history}`입니다. `asOf`는 한국시간 서버 날짜이며 `history`는 현재 빈 배열입니다. 취소 이력은 `payments`의 CANCELED 항목과 취소 사유로 표시하고 처리 이벤트는 DB에 보존합니다.
 
-- `accounts`: `{id,label}`. 공용 기본 활성 계좌를 먼저 반환하며 번호는 뒤 네 자리만 표시합니다. 계좌 설정·선택 API를 이 기능에 추가하지 않습니다.
+- `accounts`: `{id,label}`. 최초 등록 순서로 반환하며 번호는 뒤 네 자리만 표시합니다. 계좌 설정 API는 [다중 통장 계약](bankingManagement.md#다중-통장내부-이체-api-2026-10-18)을 사용하며 월별 세대 수납은 전체 통장을 합산합니다.
 - `units`: `{id,label,status,eligible,representativeId,representativeName,residentNames,buildingName}`. `status`는 ACTIVE/VACANT 표시값, `eligible`은 현재 사용 중 세대 여부입니다. 대표가 없으면 대표 ID·이름은 null입니다. `residentNames`는 현재 소속 주민 이름 목록으로 세대 검색에 사용하며, `buildingName`은 동 필터용 이름으로 동이 없으면 빈 문자열입니다. 과거 청구·입금과 연결된 삭제 세대도 이력 확인을 위해 포함합니다.
 - `charges`: `{id,unitId,month,amount,status,dueDate}`. 실제 확정 부과기간의 저장된 청구입니다. 미래 예정 설정에서 청구를 만들어 반환하지 않습니다. 0원·음수 금액을 보존합니다. 취소·공실 제외는 배분하지 않습니다.
 - `payments`: `{id,source,status,accountId,date,payer,amount,unitId,reason,allocations,linkedPaymentId,bankTransactionId,holdReason,cancelReason,separateReason,memo,receiptType,incomeCategory,incomeNote}`. 배분은 `{chargeId,amount}`입니다. 이름·동호수로 유일하게 일치하는 세대가 없으면 `unitId`는 빈 문자열입니다. PENDING의 `unitId`는 후보이며 확정 전 저장 세대와 구분합니다. 선택 문자열·연결 ID는 null일 수 있습니다. 상태는 PENDING/ON_HOLD/CONFIRMED/CANCELED/LINKED입니다. LINKED는 기존 수납에 연결한 원본 확인 항목으로 수납 합계에 포함하지 않습니다.
@@ -59,7 +59,7 @@ UUID는 문자열, 날짜는 `YYYY-MM-DD`, 청구월은 `YYYY-MM`, 원 단위 �
 
 Excel은 확장자와 실제 XLS(OLE2)·XLSX(OOXML) 형식의 일치를 확인합니다. 수식·오류 셀, 잘못된 날짜·금액·크기·헤더는 거부하고 수식이나 매크로를 실행하지 않습니다. 원본의 거래일시에서 날짜·시간을, 잔액 열에서 거래 후 잔액을 보존합니다. 입출금 양식에서 거래일 칸에 합계·총합계가 있거나 거래일이 비어 있고 적요가 합계·총합계인 행은 공백을 정리한 뒤 은행 합계 행으로 제외합니다. 그 외 날짜가 없는 입금 행은 오류입니다. 입금액이 비었거나 0인 출금 행은 수납 후보로 만들지 않으며 이 API로 출금 원본을 저장하지 않습니다. 입금액과 출금액이 동시에 양수인 실제 거래 행은 잘못된 행으로 거부합니다.
 
-미리보기는 저장하지 않습니다. 가져오기 때 같은 파일을 서버에서 다시 읽고 원본과 확인 필요 항목을 함께 저장합니다. 거래번호가 있으면 같은 계좌의 거래번호로, 없으면 같은 계좌의 날짜·정규화한 입금자명·금액으로 자동 제외합니다. 이 규칙은 동일 파일 내 중복과 서로 다른 파일 재업로드에 동일하게 적용하며 원래 거래를 덮어쓰지 않습니다. 원본의 거래시간·잔액은 중복 키 사용 여부와 관계없이 보존합니다.
+미리보기는 저장하지 않습니다. 가져오기 때 같은 파일을 서버에서 다시 읽고 원본과 확인 필요 항목을 함께 저장합니다. 거래번호가 있으면 같은 계좌의 거래번호로 식별합니다. 거래번호가 없고 시간 또는 잔액이 제공되면 방향·날짜·정규화한 입금자·금액·시간·잔액의 `income:v2` 키를 사용하고, 둘 다 없는 기존 양식은 날짜·입금자·금액 키를 유지합니다. 과거 키는 변경하지 않고 저장된 원본 정보로 호환 중복을 대조합니다. 판정할 수 없으면 `BANK_DUPLICATE_REVIEW_REQUIRED`로 전체 요청을 거부합니다. 은행별 지원·자동 매칭 제외·교차 업로드는 [통장 계약](bankingManagement.md#은행-코드별-업로드-구현-상태-2026-10-23)을 공통 기준으로 사용합니다.
 
 입금자명을 유니코드 정규화·공백 제거 후 현재 명단의 주민 이름 및 동·호수와 대조합니다. 동·호수의 마지막 `호`는 생략할 수 있어 `103동501`과 `103동 501호`를 같은 세대 표기로 찾습니다. 정확하게 한 세대에 일치하면 가져오기에서 자동 확정하고 전액 누적합니다. 여러 주민이 같은 이름이어도 한 세대에만 소속되면 해당 세대로 일치합니다. 여러 세대에 걸친 이름·동호수 충돌, 미일치, 기존 미연결 수동 수납 중복 의심은 PENDING으로 남깁니다. 미리보기는 후보만 반환하고 저장·자동 확정하지 않습니다.
 
@@ -81,7 +81,7 @@ Excel은 확장자와 실제 XLS(OLE2)·XLSX(OOXML) 형식의 일치를 확인�
 
 `POST /delete`는 `paymentIds`에 1~1,000개의 UUID를 받습니다. 모든 대상의 관리대상 소속·상태를 먼저 검증하고 PENDING·ON_HOLD와 은행 미연결 MANUAL의 CANCELED를 한 트랜잭션으로 소프트 삭제합니다. 2026-10-18 사용자 요청으로 취소된 미연결 수동 입금의 목록 삭제를 허용하며 취소 상태·사유·충당·이벤트는 보존합니다. 다른 관리대상·확정 수납·은행 연결 취소 이력을 이 API에 섞으면 전체 실패합니다. 같은 ID 반복과 이미 삭제한 ID 재요청은 멱등 처리합니다. 단일 삭제 API도 같은 기준입니다.
 
-삭제는 수납과 은행 원본에 삭제자·시각을 남기고 활성 중복 키를 해제합니다. 같은 엑셀 행을 다시 가져오면 새 은행 원본과 새 수납 초안을 저장할 수 있습니다. 재등록한 활성 거래는 기존 날짜·입금자·금액 규칙으로 중복 방지합니다. 실패하면 삭제 표시와 키 해제를 함께 롤백합니다. 이전 구현에서 삭제 수납만 숨겨진 원본도 후속 Migration으로 보정합니다.
+삭제는 수납과 은행 원본에 삭제자·시각을 남기고 활성 중복 키를 해제합니다. 같은 엑셀 행을 다시 가져오면 새 은행 원본과 새 수납 초안을 저장할 수 있습니다. 재등록한 활성 거래는 위 원본 식별 규칙으로 중복 방지합니다. 실패하면 삭제 표시와 키 해제를 함께 롤백합니다. 이전 구현에서 삭제 수납만 숨겨진 원본도 후속 Migration으로 보정합니다.
 
 이 수납 직접 삭제 API는 확정 납부와 은행에 연결된 취소 수납을 거부하며 `PAYMENT_DELETE_NOT_ALLOWED`입니다. 통장 거래의 선택 삭제는 별도 [혼합 선택 삭제 계약](bankingManagement.md#통장-거래수동-수납-혼합-선택-삭제-2026-10-18)을 통해 확정된 미연결 수동 입금도 수납·충당 취소와 함께 소프트 삭제합니다. `POST /{paymentId}/cancel`은 확정 수납·충당을 합계에서 제외하고 은행 원본을 PENDING 검토 초안으로 돌립니다. 원본 키와 취소 이력을 보존합니다. 취소로 만든 검토 초안은 일치 입금 일괄 확정에서 제외합니다.
 
@@ -90,14 +90,14 @@ Excel은 확장자와 실제 XLS(OLE2)·XLSX(OOXML) 형식의 일치를 확인�
 | HTTP | code | 의미 |
 | --- | --- | --- |
 | 400 | INVALID_REQUEST / INVALID_AMOUNT / INVALID_PAYMENT_DATE / INVALID_INCOME_CATEGORY | 요청 형식·금액·날짜 오류 |
-| 400 | INVALID_BANK_FILE / INVALID_BANK_HEADER / INVALID_BANK_ROW / INVALID_BANK_SELECTION / BANK_ROW_LIMIT / EMPTY_BANK_FILE | 파일 검증 오류 |
+| 400 | INVALID_BANK_FILE / INVALID_BANK_HEADER / INVALID_BANK_ROW / INVALID_BANK_SELECTION / BANK_ROW_LIMIT / EMPTY_BANK_FILE / BANK_IMPORT_UNSUPPORTED | 파일 검증 오류 |
 | 403 | ACCESS_DENIED | 현재 관리소장 권한 없음 |
 | 404 | PAYMENT_NOT_FOUND | 해당 대상의 입금 없음 |
 | 409 | PAYMENT_ACCOUNT_UNAVAILABLE / PAYMENT_UNIT_UNAVAILABLE / PAYMENT_REPRESENTATIVE_REQUIRED | 실제 계좌·세대·대표 확인 필요 |
 | 409 | PAYMENT_DELETE_NOT_ALLOWED | 확정 수납은 먼저 취소하며 은행 연결 취소 이력은 보호 |
 | 409 | PAYMENT_ALLOCATION_INVALID | 최신 잔액·청구 상태·배분 한도 오류 |
 | 409 | PAYMENT_DUPLICATE_REVIEW_REQUIRED | 기존 수동 수납 연결·별도 사유 확인 필요 |
-| 409 | PAYMENT_REQUEST_CONFLICT / PAYMENT_STATE_CONFLICT / PAYMENT_LINK_CONFLICT / PAYMENT_CONFLICT | 처리 상태·재시도·동시 변경 충돌 |
+| 409 | PAYMENT_REQUEST_CONFLICT / PAYMENT_STATE_CONFLICT / PAYMENT_LINK_CONFLICT / PAYMENT_CONFLICT / BANK_DUPLICATE_REVIEW_REQUIRED | 처리 상태·재시도·동시 변경 충돌 |
 | 503 | PAYMENT_SERVICE_UNAVAILABLE | 저장소 장애 |
 
 수납이 반영된 당월 청구의 공실 제외·삭제·금액 변경은 관련 수납을 먼저 취소할 때까지 `BILLING_CHARGE_HAS_PAYMENTS`(409)로 보호합니다. 부분 취소·회계 정정 정책을 임의로 적용하지 않습니다.

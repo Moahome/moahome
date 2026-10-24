@@ -10,7 +10,7 @@ BillingTemplates는 적용월 이하의 ACTIVE 기본 템플릿 중 최신 revis
 
 ## 실행과 원자성
 
-PropertyRegistrationService는 청구를 생성하지 않습니다. OpeningBalanceService.confirm에서 관리 시작·기존 미납·선납을 확정하고 지정한 첫 월에만 BillingGenerationService를 호출합니다. 인계·첫 부과·선납 충당은 같은 트랜잭션이며 실패하면 전체를 롤백합니다. 미래 첫 부과는 기존 스케줄에서 처리합니다.
+인계 정보를 생략한 이전 등록은 청구를 생성하지 않습니다. 현재 PropertyRegistrationService는 인계 정보가 있으면 RegistrationOpeningService로 같은 트랜잭션의 인계·관리 시작을 조합합니다. OpeningBalanceService.confirm에서 관리 시작·기존 미납·선납을 확정하고 도래한 첫 월에 BillingGenerationService를 호출합니다. 인계·첫 부과·선납 충당은 같은 트랜잭션이며 실패하면 전체를 롤백합니다. 미래 첫 부과는 기존 스케줄에서 처리합니다.
 
 BillingScheduler는 Asia/Seoul의 매시 정각(매월 1일 00시 포함)과 ApplicationReadyEvent에서 실행합니다. 활성 관리대상의 첫 부과월부터 현재 월까지 누락을 확인하므로 일시 장애·서버 중단 후 복구합니다. 운영 시작 전 대상은 제외합니다. 이미 운영 중인 기존 대상은 등록월 기준을 유지하고 확정된 청구를 보존합니다. 당월 기간이 이미 있어도 현재 사용 중 세대의 누락 청구를 보충하므로 이전 구현에서 월중 추가 후 빠진 세대도 복구합니다. 과거 월에 이미 있는 기간의 누락 세대 청구는 소급 추가하지 않습니다. `moahome.billing.scheduler-enabled=false`로 자동 실행을 끌 수 있습니다. 이 값은 테스트용 속성으로도 사용합니다.
 
@@ -62,8 +62,6 @@ Charge는 동명·호수·별칭·총액·기한을, ChargeItem은 원본 항목
 ## 항목 코드와 조회 무결성
 
 `V20261016135709__validate_fee_item_codes.sql`은 `fee_template_items`와 `charge_items`에 실제 `FeeItemCode` 허용값·NULL CHECK를 추가합니다. 추천 항목의 기존 코드와 직접 입력 항목의 NULL을 그대로 사용하며 항목명으로 종류를 추정하지 않습니다. Enum을 확장할 때 DB 제약도 함께 변경해야 하며 PostgreSQL 테스트는 전체 Enum 값과 NULL 조회, 미지원 코드 거부를 확인합니다. 기존에 잘못된 코드가 있으면 적용 전에 근거를 확인해 정정해야 하며 Migration이 이름·금액을 보고 임의 분류하지 않습니다.
-
-로컬 개발자료의 과거 부과 등록 과정에서 미지원 `MANAGEMENT_FEE`가 저장돼 조회에 실패한 건은 원래 항목인 `GENERAL_MANAGEMENT / 일반관리비`로 복원했습니다. 템플릿 정정 사유를 남기고 부과 금액·청구 헤더·은행 원본·수납·배분의 보존을 트랜잭션 안에서 검증했습니다. 실제 서버 서비스로 설정·7~10월 목록·세대 상세·부과 이력을 조회해 정상 응답을 확인했습니다.
 
 ## 기존 잔액 인계 저장 (2026-10-17)
 
