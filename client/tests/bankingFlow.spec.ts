@@ -1408,7 +1408,8 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     name: '103동',
     exact: true
   }).click();
-  await expect(incomeTable).toContainText('조회할 내역이 없습니다.');
+  await expect(incomeTable).toContainText('조건에 맞는 검색 결과가 없어요.');
+  await expect(incomeTable.locator('img')).toHaveAttribute('src', /noResults/);
   await incomeFilter.fill('전체');
   await page.getByRole('option', {
     name: '전체 동',
@@ -2317,7 +2318,8 @@ test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭�
     exact: true
   }).click();
   await expect(deletion).toHaveCount(0);
-  await expect(table).toContainText('조회할 거래가 없습니다.');
+  await expect(table).toContainText('아직 등록된 거래가 없어요.');
+  await expect(table.locator('img')).toHaveAttribute('src', /emptyData/);
   await page.getByRole('button', {
     name: '엑셀 업로드',
     exact: true

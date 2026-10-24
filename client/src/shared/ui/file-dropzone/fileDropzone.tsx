@@ -6,6 +6,10 @@ import {
 } from 'react';
 import { Button } from '@/shared/ui/button';
 import { ServiceIcon } from '@/shared/ui/service-icon';
+import {
+  LoadingState,
+  StateIllustration
+} from '@/shared/ui/state-message';
 import styles from './fileDropzone.module.css';
 
 /** 기존 주민 업로드의 파일 선택·드래그 표시를 공유하고 파일 검증은 호출 화면에 맡깁니다. */
@@ -63,9 +67,16 @@ export function FileDropzone({ label, inputLabel, accept, description, busy = fa
           upload(event.dataTransfer.files[0]);
         }}
       >
-        <ServiceIcon
-          name={'excel'}
-        />
+        {busy ? (
+          <LoadingState
+            title={'파일을 확인하고 있어요.'}
+          />
+        ) : (
+          <StateIllustration
+            variant={'file-upload'}
+            layout={'inline'}
+          />
+        )}
         <strong>
           {dragging && !busy && !disabled ? '여기에 놓으면 파일 검증을 시작해요.' : '엑셀 파일을 여기에 놓거나 파일을 선택해주세요.'}
         </strong>

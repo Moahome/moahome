@@ -2,6 +2,7 @@
 
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
+import { StateIllustration } from '@/shared/ui/state-message';
 import {
   ServiceIcon,
   type ServiceIconName
@@ -87,14 +88,10 @@ export function RegistrationComplete({
         <header
           className={styles.intro}
         >
-          <span
-            className={styles['success-icon']}
-            aria-hidden={'true'}
-          >
-            <ServiceIcon
-              name={'check'}
-            />
-          </span>
+          <StateIllustration
+            variant={'success'}
+            layout={'inline'}
+          />
           <h1
             ref={headingRef}
             id={'registration-complete-title'}

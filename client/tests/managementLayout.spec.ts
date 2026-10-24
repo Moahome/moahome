@@ -119,7 +119,7 @@ test('브라우저 등록 기록 없이 DB 목록으로 대시보드에 이동�
   });
   await page.goto('/start');
   await expect(page).toHaveURL(DASHBOARD);
-  await expect(page.getByRole('main')).toHaveText('임시 페이지');
+  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
   const header = page.getByRole('banner');
   await expect(header.getByRole('link', {
     name: '모아홈 대시보드',
@@ -199,7 +199,7 @@ test('서버 목록이 실제로 비었을 때만 시작 화면을 표시하고 
   })).toBeVisible();
   await page.goto('/manage/00000000-0000-0000-0000-000000000099/dashboard');
   await expect(page.getByText('접근 권한을 확인해주세요')).toBeVisible();
-  await expect(page.getByText('임시 페이지', {
+  await expect(page.getByText('새로운 기능을 준비하고 있어요!', {
     exact: true
   })).toHaveCount(0);
 });
@@ -223,7 +223,7 @@ test('오래된 등록 기록에 의존하지 않고 DB 목록의 관리대상�
   });
   await page.goto('/start');
   await expect(page).toHaveURL(DASHBOARD);
-  await expect(page.getByRole('main')).toHaveText('임시 페이지');
+  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
   await expect(page.getByText('성내빌라', {
     exact: true
   })).toHaveCount(0);
@@ -253,9 +253,9 @@ test('완료 화면 버튼은 해당 대상에 연결되고 새로고침에도 �
     exact: true
   }).click();
   await expect(page).toHaveURL(DASHBOARD);
-  await expect(page.getByRole('main')).toHaveText('임시 페이지');
+  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
   await page.reload();
-  await expect(page.getByRole('main')).toHaveText('임시 페이지');
+  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
   expect(await page.evaluate((key) => localStorage.getItem(key), REFERENCE_KEY)).toBe(PROPERTY_ID);
 });
 
@@ -319,7 +319,7 @@ test('조회 장애에는 시작 화면으로 보내지 않고 재시도하며 �
     exact: true
   }).click();
   await expect(page).toHaveURL(DASHBOARD);
-  await expect(page.getByRole('main')).toHaveText('임시 페이지');
+  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
 });
 
 test('다른 계정은 이전 사용자의 최근 선택과 이름을 표시하지 않음', async ({ page }) => {
@@ -351,7 +351,7 @@ for (const width of [320, 390, 767]) {
       height: 844
     });
     await page.goto(DASHBOARD);
-    await expect(page.getByRole('main')).toHaveText('임시 페이지');
+    await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
     const opener = page.getByRole('button', {
       name: '임준현님 메뉴 열기',
       exact: true
@@ -410,7 +410,7 @@ test('프로필은 오른쪽 관리 드로어 하나를 열고 뒤로가기는 �
     height: 844
   });
   await page.goto(DASHBOARD);
-  await expect(page.getByRole('main')).toHaveText('임시 페이지');
+  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
   const startingLeft = await page.getByRole('button', {
     name: '임준현님 메뉴 열기',
     exact: true
@@ -477,14 +477,14 @@ test('브라우저 문서 캐시 복원은 이전 내용을 숨기고 현재 관
   let lookups = 0;
   await page.route(CONTEXT_URL, (route) => { lookups++; return fulfillJson(route, PROPERTY); });
   await page.goto(DASHBOARD);
-  await expect(page.getByRole('main')).toHaveText('임시 페이지');
+  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
   await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
   await expect(page.getByRole('main')).not.toBeVisible();
   await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', {
     persisted: true
   })));
   await expect.poll(() => lookups).toBe(2);
-  await expect(page.getByRole('main')).toHaveText('임시 페이지');
+  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
 });
 
 test('여러 관리대상은 현재 목록에 있는 최근 선택을 우선하며 기록이 없어도 진입', async ({ page }) => {
@@ -501,14 +501,14 @@ test('여러 관리대상은 현재 목록에 있는 최근 선택을 우선하�
   await page.route(`${API_ORIGIN}/api/properties/${secondId}/management-context`, (route) => fulfillJson(route, second));
   await page.goto('/start');
   await expect(page).toHaveURL(`/manage/${secondId}/dashboard`);
-  await expect(page.getByRole('main')).toHaveText('임시 페이지');
+  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
 });
 
 test('권한이 없는 최근 선택은 폐기하고 서버 목록의 첫 관리대상으로 이동', async ({ page }) => {
   await seedRecentProperty(page, '00000000-0000-0000-0000-000000000099');
   await page.goto('/start');
   await expect(page).toHaveURL(DASHBOARD);
-  await expect(page.getByRole('main')).toHaveText('임시 페이지');
+  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
   expect(await page.evaluate((key) => localStorage.getItem(key), REFERENCE_KEY)).toBe(PROPERTY_ID);
 });
 
@@ -544,7 +544,7 @@ test('권한 조회 응답의 대상이 다르면 이전 대상 이름과 본문
   await expect(page.getByText('성내빌라', {
     exact: true
   })).toHaveCount(0);
-  await expect(page.getByText('임시 페이지', {
+  await expect(page.getByText('새로운 기능을 준비하고 있어요!', {
     exact: true
   })).toHaveCount(0);
 });

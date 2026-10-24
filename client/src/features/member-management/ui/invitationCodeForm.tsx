@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { StateMessage } from '@/shared/ui/state-message';
 import { HomeIllustration } from '@/shared/ui/home-illustration';
 import {
   useEffect,
@@ -130,7 +131,10 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
   const [phone, setPhone] = useState('');
   const [phoneAction, setPhoneAction] = useState('KEEP');
   const [correction, setCorrection] = useState(false);
-  const [result, setResult] = useState('');
+  const [result, setResult] = useState<{
+    status: 'PENDING' | 'APPROVED' | 'CHANGE_REQUESTED' | 'REQUESTED';
+    message: string;
+  } | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
@@ -166,8 +170,14 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
           const value = await previewResidentInvitation(code);
           setPreview(value);
           setName(value.name);
-          if (value.status === 'APPROVED') setResult('주민 가입이 완료되었어요.');
-          if (value.status === 'CHANGE_REQUESTED') setResult('정보 정정을 요청했어요. 관리자 확인 후 가입이 완료됩니다.');
+          if (value.status === 'APPROVED') setResult({
+            status: 'APPROVED',
+            message: '주민 가입이 완료되었어요.'
+          });
+          if (value.status === 'CHANGE_REQUESTED') setResult({
+            status: 'CHANGE_REQUESTED',
+            message: '정보 정정을 요청했어요. 관리자 확인 후 가입이 완료됩니다.'
+          });
         }
       } catch (failure) { setError(memberManagementError(failure)); setLinkError(true); }
       finally { setBusy(false); onBusyChange?.(false); }
@@ -190,7 +200,10 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
           unitId: unit,
           phone: phone.trim() || null
         });
-        setResult('가입을 신청했어요. 관리자의 승인을 기다려주세요.');
+        setResult({
+          status: 'PENDING',
+          message: '가입을 신청했어요. 관리자의 승인을 기다려주세요.'
+        });
       } else if (preview) {
         const response = await acceptResidentInvitation({
           token: code,
@@ -203,7 +216,13 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
             } : {})
           } : {})
         });
-        setResult(response.status === 'APPROVED' ? '주민 가입이 완료되었어요.' : '정보 정정을 요청했어요. 관리자 확인 후 가입이 완료됩니다.');
+        setResult(response.status === 'APPROVED' ? {
+          status: 'APPROVED',
+          message: '주민 가입이 완료되었어요.'
+        } : {
+          status: 'CHANGE_REQUESTED',
+          message: '정보 정정을 요청했어요. 관리자 확인 후 가입이 완료됩니다.'
+        });
       } else if (/^B[A-HJ-NP-Z2-9]{12}$/i.test(code.trim().replaceAll('-', ''))) {
         const value = await getResidentJoinOptions(code);
         if (propertyId && value.propertyId !== propertyId) throw new Error('다른 관리대상의 초대코드입니다.');
@@ -212,11 +231,20 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
         const value = await previewResidentInvitation(code);
         setPreview(value);
         setName(value.name);
-        if (value.status === 'APPROVED') setResult('주민 가입이 완료되었어요.');
-        if (value.status === 'CHANGE_REQUESTED') setResult('정보 정정을 요청했어요. 관리자 확인 후 가입이 완료됩니다.');
+        if (value.status === 'APPROVED') setResult({
+          status: 'APPROVED',
+          message: '주민 가입이 완료되었어요.'
+        });
+        if (value.status === 'CHANGE_REQUESTED') setResult({
+          status: 'CHANGE_REQUESTED',
+          message: '정보 정정을 요청했어요. 관리자 확인 후 가입이 완료됩니다.'
+        });
       } else {
         const response = await requestMemberInvitation(code);
-        setResult(`${response.propertyName}에 참여를 신청했어요. 관리소장의 승인을 기다려주세요.`);
+        setResult({
+          status: 'REQUESTED',
+          message: `${response.propertyName}에 참여를 신청했어요. 관리소장의 승인을 기다려주세요.`
+        });
       }
       if (options || preview || !/^[RB]-/i.test(code.trim())) {
         setCode('');
@@ -232,28 +260,33 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
     }
   }
 
-  if (result) return (
-    <div
-      className={styles.form}
-      role={'status'}
-    >
-      <p>
-        {result}
-      </p>
-      {(onComplete || result === '주민 가입이 완료되었어요.') && (
-        <div
-          className={styles.actions}
-        >
+  if (result) {
+    // 서버가 확인한 일반 PENDING 신청만 주민 승인 대기 그림을 사용합니다.
+    // 개인 정보 정정과 외부 관리자 신청은 각자의 상태를 유지하며 승인 완료로 표시하지 않습니다.
+    const variants = {
+      PENDING: 'approval-pending',
+      APPROVED: 'success',
+      CHANGE_REQUESTED: undefined,
+      REQUESTED: undefined,
+    } as const;
+    const approved = result.status === 'APPROVED';
+
+    return (
+      <StateMessage
+        variant={variants[result.status]}
+        layout={'inline'}
+        title={result.message}
+        actions={(onComplete || approved) && (
           <Button
             variant={'outline'}
-            onClick={result === '주민 가입이 완료되었어요.' ? () => router.push('/resident') : onComplete}
+            onClick={approved ? () => router.push('/resident') : onComplete}
           >
-            {result === '주민 가입이 완료되었어요.' ? '주민 홈으로' : '확인'}
+            {approved ? '주민 홈으로' : '확인'}
           </Button>
-        </div>
-      )}
-    </div>
-  );
+        )}
+      />
+    );
+  }
 
   if (!session.data && (session.isPending || session.isFetching)) return (
     <p
@@ -265,6 +298,7 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
 
   if (!session.data && session.isError && isServerConnectionError(session.error)) return (
     <ServerConnectionError
+      error={session.error}
       onRetry={() => void session.refetch({
         cancelRefetch: false
       })}
@@ -272,27 +306,29 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
   );
 
   if (!session.data) return (
-    <div
-      className={styles.form}
-    >
-      <p>
-        카카오 로그인이 필요해요. 로그인한 뒤 이 화면에서 가입을 계속할 수 있어요.
-      </p>
-      <Link
-        href={'/login'}
-        target={'_blank'}
-        rel={'noopener noreferrer'}
-        onClick={() => { loginStarted.current = true; }}
-      >
-        카카오 로그인
-      </Link>
-      <Button
-        variant={'outline'}
-        onClick={() => window.location.reload()}
-      >
-        로그인 확인
-      </Button>
-    </div>
+    <StateMessage
+      variant={'login-required'}
+      layout={'inline'}
+      description={'카카오 로그인이 필요해요. 로그인한 뒤 이 화면에서 가입을 계속할 수 있어요.'}
+      actions={(
+        <>
+          <Link
+            href={'/login'}
+            target={'_blank'}
+            rel={'noopener noreferrer'}
+            onClick={() => { loginStarted.current = true; }}
+          >
+            카카오 로그인
+          </Link>
+          <Button
+            variant={'outline'}
+            onClick={() => window.location.reload()}
+          >
+            로그인 확인
+          </Button>
+        </>
+      )}
+    />
   );
 
   if (openingLink) return (

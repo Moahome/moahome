@@ -3827,6 +3827,7 @@ test('완료 뒤 뒤로가기는 서버 권한을 다시 확인하고 권한 해
     }, 403);
   });
   await openRegistrationReview(page);
+  await expect(page.locator('img[data-state="success"]')).toHaveCount(0);
   await page.getByRole('button', {
     name: '등록하고 관리 시작',
     exact: true
@@ -4442,6 +4443,7 @@ test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전�
     name: '관리 환경을 준비하고 있습니다'
   })).toBeVisible();
   await page.keyboard.press('Escape');
+  await expect(page.locator('img[data-state="success"]')).toHaveCount(0);
   await expect(page.getByRole('dialog', {
     name: '관리 환경을 준비하고 있습니다'
   })).toBeVisible();
@@ -4466,6 +4468,7 @@ test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전�
     name: '관리할 곳이 등록되었습니다!',
     exact: true
   })).toBeVisible();
+  await expect(page.locator('img[data-state="success"]')).toBeVisible();
   expect(await page.evaluate((keys) => keys.map((key) => sessionStorage.getItem(key)), [DRAFT_STORAGE_KEY, SUBMISSION_KEY])).toEqual([null, null]);
   expect(await page.evaluate((key) => localStorage.getItem(key), PENDING_KEY)).toBeNull();
   const receipt = await page.evaluate((key) => sessionStorage.getItem(key), RECEIPT_KEY);
@@ -4494,7 +4497,7 @@ test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전�
     exact: true
   }).click();
   await expect(page).toHaveURL(/\/manage\/[0-9a-f-]+\/dashboard$/);
-  await expect(page.getByRole('main')).toHaveText('임시 페이지');
+  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
   expect(lookups).toBe(0);
   await page.goBack();
   await expect(page).toHaveURL(/registration=complete/);

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { RequestError } from '@/shared/ui/server-connection-error';
+import { LoadingState } from '@/shared/ui/state-message';
 import styles from './managementAccessState.module.css';
 
 export function ManagementAccessState({
@@ -18,11 +19,9 @@ export function ManagementAccessState({
       className={styles.state}
     >
       {loading ? (
-        <p
-          role={'status'}
-        >
-          {title}
-        </p>
+        <LoadingState
+          title={title}
+        />
       ) : (
         <>
           <RequestError

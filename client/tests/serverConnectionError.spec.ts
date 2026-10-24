@@ -54,7 +54,7 @@ for (const width of [1440, 390, 320]) {
       });
       await expect(error).toBeVisible();
       const illustration = error.locator('img');
-      await expect(illustration).toHaveAttribute('src', /serverError/);
+      await expect(illustration).toHaveAttribute('src', failure === 'network' ? /networkError/ : /serverError/);
       await expect.poll(() => illustration.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)).toBe(true);
       await expect(error).not.toContainText('입력하신 내용');
       await expect(error).not.toContainText('internal details');
@@ -137,7 +137,7 @@ test('관리 권한 조회 장애는 재시도로 같은 대상을 열고 토큰
     name: '다시 시도',
     exact: true
   }).click();
-  await expect(page.getByRole('main')).toHaveText('임시 페이지');
+  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
   expect(contextReads).toBe(2);
   expect(refreshes).toBe(1);
   expect(users).toBe(1);
@@ -145,8 +145,8 @@ test('관리 권한 조회 장애는 재시도로 같은 대상을 열고 토큰
 });
 
 for (const endpoint of ['banking/workspace', 'payments/workspace', 'residents']) {
-  for (const status of [403, 503]) {
-    test(`${endpoint} ${status} 조회 실패는 같은 이미지 오류 화면과 현재 조회만 재시도한다`, async ({ page }) => {
+  for (const status of [403, 404, 503] as const) {
+    test(`${endpoint} ${status} 조회 실패는 권한·서버 안내를 구분하고 현재 조회만 재시도한다`, async ({ page }) => {
       let failed = true;
       let reads = 0;
       const ledger = {
@@ -205,7 +205,11 @@ for (const endpoint of ['banking/workspace', 'payments/workspace', 'residents'])
         if (path.endsWith(`/${endpoint}`)) {
           reads++;
           if (failed) return json(route, {
-            code: status === 403 ? 'ACCESS_DENIED' : 'SERVICE_UNAVAILABLE',
+            code: ({
+              403: 'ACCESS_DENIED',
+              404: 'NOT_FOUND',
+              503: 'SERVICE_UNAVAILABLE'
+            })[status],
             message: 'private internal details'
           }, status);
         }
@@ -217,10 +221,19 @@ for (const endpoint of ['banking/workspace', 'payments/workspace', 'residents'])
       const path = endpoint === 'residents' ? 'residents' : endpoint.startsWith('banking') ? 'banking/transactions' : 'payments/matching';
       await page.goto(`/manage/${PROPERTY}/${path}`);
       const error = page.getByRole('alert', {
-        name: status === 403 ? '접근 권한을 확인해주세요' : '서버에 연결하지 못했어요'
+        name: ({
+          403: '접근 권한을 확인해주세요',
+          404: '요청한 정보를 찾을 수 없어요',
+          503: '서버에 연결하지 못했어요'
+        })[status]
       });
       await expect(error).toBeVisible();
-      await expect(error.locator('img')).toHaveAttribute('src', /serverError/);
+      const expectedImage = ({
+        403: /forbidden/,
+        404: /notFound/,
+        503: /serverError/
+      })[status];
+      await expect(error.locator('img')).toHaveAttribute('src', expectedImage);
       await expect(error).not.toContainText('private internal details');
       await expect(error).not.toContainText('관리소장만');
       expect(reads).toBe(1);

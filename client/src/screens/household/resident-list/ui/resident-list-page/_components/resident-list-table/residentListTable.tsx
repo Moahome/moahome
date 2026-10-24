@@ -1,3 +1,4 @@
+import { StateMessage } from '@/shared/ui/state-message';
 import {
   RESIDENT_RELATION_OPTIONS,
   RESIDENT_SIGNUP_OPTIONS
@@ -98,7 +99,13 @@ export function ResidentListTable({
       getRowKey={(row) => row.id}
       minWidth={760}
       onRowClick={onOpen}
-      emptyState={hasFilters ? '검색 결과가 없어요.' : '등록된 주민이 없어요.'}
+      emptyState={(
+        <StateMessage
+          variant={hasFilters ? 'no-results' : 'empty-data'}
+          layout={'inline'}
+          title={hasFilters ? '검색 결과가 없어요.' : '등록된 주민이 없어요.'}
+        />
+      )}
     />
   );
 }

@@ -49,10 +49,6 @@
     }
   }
 
-  &[aria-disabled='true'] {
-    color: var(--sub-text);
-  }
-
   small {
     margin-left: auto;
     white-space: nowrap;

@@ -8,23 +8,6 @@
   }
 }
 
-.empty-state {
-  display: grid;
-  justify-items: center;
-  gap: 12px;
-
-  > svg {
-    width: 40px;
-    height: 40px;
-    color: var(--sub-text);
-  }
-
-  p {
-    max-width: 420px;
-    margin: 0;
-  }
-}
-
 .status {
   display: inline-flex;
   padding: 4px 12px;

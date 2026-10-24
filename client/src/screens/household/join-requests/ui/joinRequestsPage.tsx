@@ -1,5 +1,6 @@
 'use client';
 
+import { StateMessage } from '@/shared/ui/state-message';
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import {
@@ -273,19 +274,12 @@ export function JoinRequestsPage({
             getRowKey={(row) => row.residentId}
             minWidth={800}
             emptyState={(
-              <div
-                className={styles['empty-state']}
-              >
-                <ServiceIcon
-                  name={'users'}
-                />
-                <strong>
-                  {hasFilters ? '검색 조건에 맞는 주민이 없어요' : '미연결 주민이 없어요'}
-                </strong>
-                <p>
-                  {hasFilters ? '검색어나 필터를 변경해주세요.' : '등록된 주민 중 계정이 연결되지 않은 주민이 여기에 표시됩니다.'}
-                </p>
-              </div>
+              <StateMessage
+                variant={hasFilters ? 'no-results' : 'empty-data'}
+                layout={'inline'}
+                title={hasFilters ? '검색 조건에 맞는 주민이 없어요' : '미연결 주민이 없어요'}
+                description={hasFilters ? '검색어나 필터를 변경해주세요.' : '등록된 주민 중 계정이 연결되지 않은 주민이 여기에 표시됩니다.'}
+              />
             )}
             columns={[
               {

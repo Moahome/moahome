@@ -1,5 +1,6 @@
 'use client';
 
+import { StateMessage } from '@/shared/ui/state-message';
 import {
   formatInteger,
   formatWon
@@ -490,7 +491,13 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
                 getRowKey={(payment) => payment.id}
                 onRowClick={(payment) => isSelecting ? toggleSelection(payment) : openPayment(payment.id)}
                 minWidth={650}
-                emptyState={'조건에 맞는 입금 거래가 없습니다.'}
+                emptyState={(
+                  <StateMessage
+                    variant={Boolean(query.trim() || building || tab !== 'PENDING' || month !== ledger.asOf.slice(0, 7)) ? 'no-results' : 'empty-data'}
+                    layout={'inline'}
+                    title={'조건에 맞는 입금 거래가 없습니다.'}
+                  />
+                )}
                 columns={[
                   ...(isSelecting ? [{
                     key: 'selection',

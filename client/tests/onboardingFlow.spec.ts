@@ -1576,10 +1576,10 @@ test('가입 요청은 미연결 주민 전원을 공용 표에서 검색·페�
   }).click();
   await expect(navigation.getByText('차량 내역', {
     exact: true
-  }).locator('..')).toHaveAttribute('aria-disabled', 'true');
+  }).locator('..')).toHaveAttribute('href', `${BASE}/vehicles`);
   await expect(navigation.getByText('차량 승인', {
     exact: true
-  }).locator('..')).toHaveAttribute('aria-disabled', 'true');
+  }).locator('..')).toHaveAttribute('href', `${BASE}/vehicles/approvals`);
   await navigation.getByRole('link', {
     name: '승인 관리'
   }).click();
@@ -1869,6 +1869,8 @@ test('공통 가입 링크는 코드 입력 없이 이름 필수·연락처 선�
   await expect(page.getByRole('status').filter({
     hasText: '가입을 신청했어요'
   })).toBeVisible();
+  await expect(page.locator('img[data-state="approval-pending"]')).toBeVisible();
+  await expect(page.locator('img[data-state="success"]')).toHaveCount(0);
   expect(state.writes.find((r) => r.path.endsWith('/membership-requests'))?.body).toEqual({
     code: 'B-ABCD-EFGH-JKLM',
     name: '신청한 실명',
@@ -1897,9 +1899,38 @@ test('개인 링크는 코드 입력 없이 지정 주민 정보 확인 후 바�
   await expect(page.getByRole('status').filter({
     hasText: '주민 가입이 완료'
   })).toBeVisible();
+  await expect(page.locator('img[data-state="success"]')).toBeVisible();
+  await expect(page.locator('img[data-state="approval-pending"]')).toHaveCount(0);
   expect(state.writes.find((r) => r.path.endsWith('/accept'))?.body).toEqual({
     token: 'R-ABCD-EFGH-JKLM',
     correction: false
+  });
+});
+
+test('개인 정보 정정 제출은 주민 PENDING이나 가입 성공 그림으로 표시하지 않음', async ({ page }) => {
+  const state = await mockWorkspace(page);
+  await page.goto('/invitations#R-ABCD-EFGH-JKLM');
+  await page.getByRole('button', {
+    name: '수정',
+    exact: true
+  }).click();
+  await page.getByRole('textbox', {
+    name: '이름',
+    exact: true
+  }).fill('정정 이름');
+  await page.getByRole('button', {
+    name: '수정',
+    exact: true
+  }).click();
+  await expect(page.getByRole('status')).toContainText('정보 정정을 요청했어요. 관리자 확인 후 가입이 완료됩니다.');
+  await expect(page.locator('img[data-state="approval-pending"]')).toHaveCount(0);
+  await expect(page.locator('img[data-state="success"]')).toHaveCount(0);
+  expect(state.residentJoined).toBe(false);
+  expect(state.writes.find((row) => row.path.endsWith('/accept'))?.body).toEqual({
+    token: 'R-ABCD-EFGH-JKLM',
+    correction: true,
+    name: '정정 이름',
+    phoneAction: 'KEEP'
   });
 });
 

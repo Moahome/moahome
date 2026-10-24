@@ -1,5 +1,6 @@
 'use client';
 
+import { StateMessage } from '@/shared/ui/state-message';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/entities/session';
@@ -86,16 +87,11 @@ export function ResidentHomePage() {
                 </li>
               ))}
             </ul>
-            <section
-              className={styles.placeholder}
-            >
-              <h2>
-                주민 서비스를 준비하고 있어요
-              </h2>
-              <p>
-                현재는 가입한 곳을 확인할 수 있는 임시 주민 홈입니다.
-              </p>
-            </section>
+            <StateMessage
+              variant={'coming-soon'}
+              title={'주민 서비스를 준비하고 있어요'}
+              description={'현재는 가입한 곳을 확인할 수 있는 임시 주민 홈입니다.'}
+            />
           </>
         ) : (
           <section

@@ -102,6 +102,7 @@ export function LoginCallbackPage() {
       className={styles.page}
     >
       <ServerConnectionError
+        error={session.error}
         onRetry={retryRestore}
       />
     </main>

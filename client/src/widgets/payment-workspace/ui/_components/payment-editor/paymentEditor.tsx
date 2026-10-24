@@ -10,6 +10,7 @@ import {
 } from '@/shared/ui/form-controls';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { Toast } from '@/shared/ui/toast';
+import { StateIllustration } from '@/shared/ui/state-message';
 import {
   useState,
   type ReactNode
@@ -350,6 +351,10 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false, childr
           className={styles.duplicate}
           aria-label={'기존 수동 수납 후보'}
         >
+          <StateIllustration
+            variant={'review-required'}
+            layout={'inline'}
+          />
           <h3>
             이미 처리한 수납인지 확인해주세요
           </h3>

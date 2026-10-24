@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import type { ManagementMenuLink } from '../../../_constants/managementNavigation';
 import styles from './sidebarLink.module.css';
 
-/** 활성 메뉴만 실제 링크로 연결하며 미구현 목적지는 이동 없이 준비 상태를 표시합니다. */
+/** 미구현 메뉴는 준비 배지를 유지하며 같은 관리대상의 준비 안내 화면으로 연결합니다. */
 export function SidebarLink({
   item,
   propertyId,
@@ -35,29 +35,14 @@ export function SidebarLink({
     </>
   );
 
-  if (!item.available) {
-    return (
-      <span
-        className={styles.link}
-        data-icon={Boolean(icon)}
-        aria-disabled={'true'}
-        data-collapsed={collapsed}
-        aria-label={collapsed ? `${item.label} (준비 중)` : undefined}
-        title={collapsed ? `${item.label} (준비 중)` : undefined}
-      >
-        {content}
-      </span>
-    );
-  }
-
   return (
     <Link
       href={href}
       className={styles.link}
       data-icon={Boolean(icon)}
       data-collapsed={collapsed}
-      aria-label={collapsed ? item.label : undefined}
-      title={collapsed ? item.label : undefined}
+      aria-label={collapsed ? `${item.label}${item.available ? '' : ' (준비 중)'}` : undefined}
+      title={collapsed ? `${item.label}${item.available ? '' : ' (준비 중)'}` : undefined}
       aria-current={isCurrent ? 'page' : undefined}
       onNavigate={onNavigate}
       replace={Boolean(onNavigate)}

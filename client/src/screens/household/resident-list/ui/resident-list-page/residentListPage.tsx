@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import {
@@ -151,9 +153,10 @@ export function ResidentListPage({
       {list.isPending && (
         <div
           className={styles.state}
-          role={'status'}
         >
-          주민 목록을 불러오고 있어요.
+          <LoadingState
+            title={'주민 목록을 불러오고 있어요.'}
+          />
         </div>
       )}
       {list.isError && (

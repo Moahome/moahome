@@ -1,5 +1,9 @@
 'use client';
 
+import {
+  LoadingState,
+  StateMessage
+} from '@/shared/ui/state-message';
 import { AllocationEditor } from '@/entities/banking';
 import { useSession } from '@/entities/session';
 import {
@@ -185,11 +189,9 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   }
 
   if (workspace.isPending) return (
-    <p
-      role={'status'}
-    >
-      통장 정보를 불러오고 있어요.
-    </p>
+    <LoadingState
+      title={'통장 정보를 불러오고 있어요.'}
+    />
   );
   if (!data) return (
     <RequestError
@@ -229,6 +231,11 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     && (status === 'ALL' || row.status === status)
     && (view !== 'expenses' || building === 'ALL' || row.expense?.allocations.some((a) => a.buildingId === building))
     && `${row.payer} ${row.memo ?? ''} ${row.unitLabel} ${row.expense?.category ?? ''} ${row.expense?.note ?? ''}`.includes(search.trim()));
+  // 조회 월·통장·검색·상태 조건이 적용된 빈 결과는 등록 자료 자체가 없는 상태와 구분합니다.
+  const hasFilters = Boolean(search.trim() || accountId !== 'ALL' || direction !== 'ALL' || status !== 'ALL'
+    || (view === 'expenses' && building !== 'ALL') || currentMonth !== data.asOf.slice(0, 7));
+  // 과거 월·다른 목록 범위에 원본이 있으면 미등록으로 안내하지 않고 현재 조건의 빈 결과로 표시합니다.
+  const showNoResults = hasFilters || source.length > 0;
   const activeRows = baseRows.filter((row) => row.status !== 'CANCELED');
   const filtered = direction === 'CANCELED' ? baseRows.filter((row) => row.status === 'CANCELED') : activeRows.filter((row) => direction === 'ALL' || row.direction === direction);
   const currentPage = Math.min(page, Math.max(1, Math.ceil(filtered.length / pageSize)));
@@ -1052,7 +1059,14 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               label={preview ? '업로드 거래 미리보기' : view === 'expenses' ? '지출 내역' : '통장 거래'}
               rows={visible}
               getRowKey={(row) => row.id}
-              emptyState={'조회할 거래가 없습니다.'}
+              emptyState={(
+                <StateMessage
+                  variant={showNoResults ? 'no-results' : 'empty-data'}
+                  layout={'inline'}
+                  title={showNoResults ? '조건에 맞는 검색 결과가 없어요.' : '아직 등록된 거래가 없어요.'}
+                  description={showNoResults ? '조회 월이나 검색·필터 조건을 변경해주세요.' : '거래를 등록하면 이곳에서 확인할 수 있어요.'}
+                />
+              )}
               minWidth={view === 'expenses' ? 340 : 800}
 
               onRowClick={(row) => {

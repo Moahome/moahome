@@ -1,5 +1,6 @@
 'use client';
 
+import { StateMessage } from '@/shared/ui/state-message';
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import {
@@ -221,19 +222,12 @@ export function ApprovalManagementPage({
             onRowClick={open}
             minWidth={650}
             emptyState={(
-              <div
-                className={styles['empty-state']}
-              >
-                <ServiceIcon
-                  name={'users'}
-                />
-                <strong>
-                  {search || status !== 'ALL' ? '검색 조건에 맞는 가입 요청이 없어요' : '아직 가입 요청이 없어요'}
-                </strong>
-                <p>
-                  주민 참여 링크를 공유하면 신청한 주민을 여기에서 확인할 수 있어요.
-                </p>
-              </div>
+              <StateMessage
+                variant={search.trim() || status !== 'ALL' ? 'no-results' : 'empty-data'}
+                layout={'inline'}
+                title={search.trim() || status !== 'ALL' ? '검색 조건에 맞는 가입 요청이 없어요' : '아직 가입 요청이 없어요'}
+                description={search.trim() || status !== 'ALL' ? '검색어나 필터를 변경해주세요.' : '주민 참여 링크를 공유하면 신청한 주민을 여기에서 확인할 수 있어요.'}
+              />
             )}
             columns={[
               {

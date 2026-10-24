@@ -1,5 +1,6 @@
 'use client';
 
+import { StateMessage } from '@/shared/ui/state-message';
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import {
@@ -95,9 +96,11 @@ export function InvitationCorrections({ propertyId, search, status }: { property
         getRowKey={(row) => row.id}
         minWidth={850}
         emptyState={(
-          <p>
-            개인 초대 가입·정정 내역이 없어요.
-          </p>
+          <StateMessage
+            variant={search.trim() || status !== 'ALL' ? 'no-results' : 'empty-data'}
+            layout={'inline'}
+            title={'개인 초대 가입·정정 내역이 없어요.'}
+          />
         )}
         columns={[
           {

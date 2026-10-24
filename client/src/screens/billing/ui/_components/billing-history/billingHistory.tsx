@@ -1,3 +1,4 @@
+import { StateMessage } from '@/shared/ui/state-message';
 import type { BillingPeriod } from '@/entities/billing';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
@@ -110,14 +111,12 @@ export function BillingHistory({ propertyId }: { propertyId: string }) {
         minWidth={560}
         onRowClick={openDetail}
         emptyState={(
-          <>
-            <strong>
-              {query || filter ? '검색 결과가 없어요.' : '확정된 부과 이력이 없어요.'}
-            </strong>
-            <p>
-              검색 조건을 변경하거나 자동 부과 이후 내역을 확인해주세요.
-            </p>
-          </>
+          <StateMessage
+            variant={query.trim() || filter ? 'no-results' : 'empty-data'}
+            layout={'inline'}
+            title={query.trim() || filter ? '검색 결과가 없어요.' : '확정된 부과 이력이 없어요.'}
+            description={'검색 조건을 변경하거나 자동 부과 이후 내역을 확인해주세요.'}
+          />
         )}
         columns={[
           {

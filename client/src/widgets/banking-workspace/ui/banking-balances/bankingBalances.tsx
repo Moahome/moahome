@@ -1,4 +1,5 @@
 'use client';
+import { StateMessage } from '@/shared/ui/state-message';
 import { useSession } from '@/entities/session';
 import {
   formatInteger,
@@ -767,6 +768,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         </p>
         <PagedTable
           label={'동별 잔고'}
+          hasFilters={Boolean(search.trim() || filter !== 'ALL')}
           rows={filtered}
           columns={buildingColumns}
           onRowClick={openDetail}
@@ -930,6 +932,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         </p>
         <PagedTable
           label={'외부 부담금'}
+          hasFilters={Boolean(externalSearch.trim() || externalFilter !== 'ALL')}
           rows={data.externals.filter((row) => (externalFilter === 'ALL' || Boolean(row.excluded) === (externalFilter === 'EXCLUDED')) && `${row.label} ${row.expenseName}`.includes(externalSearch.trim())).sort((a, b) => b.date.localeCompare(a.date))}
           toolbar={(
             <>
@@ -1014,6 +1017,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           </p>
           <PagedTable
             label={'입금 귀속 동 확인'}
+            hasFilters={Boolean(incomeSearch.trim() || incomeBuilding !== 'ALL')}
             rows={data.incomes.filter((i) => i.kind === 'HOUSEHOLD'
               && (incomeBuilding === 'ALL' || (incomeBuilding === 'UNKNOWN' ? !i.linkedBuildingId : i.linkedBuildingId === incomeBuilding))
               && `${i.payer} ${i.linkedUnitLabel ?? ''}`.replace(/\s/g, '').includes(incomeSearch.trim().replace(/\s/g, '')))}
@@ -1234,15 +1238,16 @@ function ChartDialog({ buildings, onClose, presentation = 'modal' }: { buildings
             rows={rows}
           />
         ) : (
-          <p
-            className={styles.muted}
-          >
-            조건에 맞는 동이 없습니다.
-          </p>
+          <StateMessage
+            variant={search.trim() || building !== 'ALL' ? 'no-results' : 'empty-data'}
+            layout={'inline'}
+            title={'조건에 맞는 동이 없습니다.'}
+          />
         )}
       </div>
       <PagedTable
         label={'동별 입금 출금 비교'}
+        hasFilters={Boolean(search.trim() || building !== 'ALL')}
         rows={rows}
         columns={[
           {
@@ -1269,8 +1274,9 @@ function ChartDialog({ buildings, onClose, presentation = 'modal' }: { buildings
 /** 표마다 동일한 표시 개수·페이지 간격을 사용하고 다운로드 범위는 호출자가 전체 결과로 유지합니다. */
 function PagedTable<Row extends {
     id: string;
-}>({ label, rows, columns, toolbar, onRowClick }: {
+}>({ label, rows, columns, toolbar, onRowClick, hasFilters = false }: {
     label: string;
+    hasFilters?: boolean;
     rows: readonly Row[];
     columns: DataTableColumn<Row>[];
     toolbar?: ReactNode;
@@ -1308,7 +1314,13 @@ function PagedTable<Row extends {
         }))}
         getRowKey={(row) => row.id}
         onRowClick={onRowClick}
-        emptyState={'조회할 내역이 없습니다.'}
+        emptyState={(
+          <StateMessage
+            variant={hasFilters ? 'no-results' : 'empty-data'}
+            layout={'inline'}
+            title={hasFilters ? '조건에 맞는 검색 결과가 없어요.' : '조회할 내역이 없습니다.'}
+          />
+        )}
         minWidth={columns.length > 5 ? 880 : 620}
       />
       {rows.length > 0 && (
@@ -1450,6 +1462,7 @@ function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
       </p>
       <PagedTable
         label={'동별 상세 원장'}
+        hasFilters={Boolean(search.trim() || direction !== 'ALL')}
         rows={entries.filter((entry) => (direction === 'ALL' || BigInt(direction === 'INCOME' ? entry.income : entry.expense) > BigInt(0)) && entry.label.includes(search.trim()))}
         onRowClick={openTransaction}
         toolbar={(

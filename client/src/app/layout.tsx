@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist_Mono } from 'next/font/google';
 import localFont from 'next/font/local';
+import { ServiceMaintenancePage } from '@/screens/service-maintenance';
 import { AppProviders } from './providers/appProviders';
 import './globals.css';
 
@@ -42,9 +43,14 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
       <body
         className={'min-h-full flex flex-col'}
       >
-        <AppProviders>
-          {children}
-        </AppProviders>
+        {/* 일반 장애와 구분해 운영자가 빌드·실행 환경에서 점검을 명시한 경우만 전환합니다. */}
+        {process.env.MOAHOME_MAINTENANCE_MODE === 'true' ? (
+          <ServiceMaintenancePage />
+        ) : (
+          <AppProviders>
+            {children}
+          </AppProviders>
+        )}
       </body>
     </html>
   );

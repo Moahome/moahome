@@ -371,6 +371,7 @@ test('기존 수납 연결은 금액을 늘리지 않고 일반 모달은 뷰포
   const editor = page.getByRole('region', {
     name: '입금 처리 상세'
   });
+  await expect(editor.locator('img[data-state="review-required"]')).toBeVisible();
   await expect(editor.getByRole('button', {
     name: '수납 확정'
   })).toBeDisabled();

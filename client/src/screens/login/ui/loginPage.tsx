@@ -51,6 +51,7 @@ export function LoginPage({ errorCode }: { errorCode?: string }) {
         className={`${styles.page} ${styles['session-state']}`}
       >
         <ServerConnectionError
+          error={session.error}
           onRetry={retrySession}
         />
       </main>

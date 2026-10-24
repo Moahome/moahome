@@ -1,3 +1,4 @@
+import { StateMessage } from '@/shared/ui/state-message';
 import {
   useRef,
   useState,
@@ -70,6 +71,10 @@ export function SettlementDetails({ report, month, propertyId }: {
   const [buildingStatus, setBuildingStatus] = useState('전체');
   const [externalQuery, setExternalQuery] = useState('');
   const [externalStatus, setExternalStatus] = useState('전체');
+  const hasAccountFilters = Boolean(accountQuery.trim() || accountStatus !== '전체');
+  const hasBuildingFilters = Boolean(buildingQuery.trim() || buildingStatus !== '전체');
+  const hasCollectionFilters = Boolean(query.trim() || building || status !== '전체');
+  const hasExternalFilters = Boolean(externalQuery.trim() || externalStatus !== '전체');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const collections = filterMonthlyPreviewRows(report.collections, {
@@ -229,7 +234,13 @@ export function SettlementDetails({ report, month, propertyId }: {
           label={'통장별 잔액'}
           rows={pageRows(accounts)}
           getRowKey={(row) => row.id}
-          emptyState={report.accounts.length ? '조회 조건에 맞는 내역이 없습니다.' : '조회할 통장 잔액 자료가 없습니다.'}
+          emptyState={(
+            <StateMessage
+              variant={hasAccountFilters ? 'no-results' : 'empty-data'}
+              layout={'inline'}
+              title={hasAccountFilters ? '조회 조건에 맞는 내역이 없습니다.' : '조회할 통장 잔액 자료가 없습니다.'}
+            />
+          )}
           minWidth={1050}
           columns={[
             {
@@ -332,7 +343,13 @@ export function SettlementDetails({ report, month, propertyId }: {
           label={'동별 자금'}
           rows={pageRows(buildings)}
           getRowKey={(row) => row.id}
-          emptyState={report.buildings.length ? '조회 조건에 맞는 내역이 없습니다.' : '조회할 동별 자금 자료가 없습니다.'}
+          emptyState={(
+            <StateMessage
+              variant={hasBuildingFilters ? 'no-results' : 'empty-data'}
+              layout={'inline'}
+              title={hasBuildingFilters ? '조회 조건에 맞는 내역이 없습니다.' : '조회할 동별 자금 자료가 없습니다.'}
+            />
+          )}
           columns={[
             {
               key: 'name',
@@ -444,7 +461,13 @@ export function SettlementDetails({ report, month, propertyId }: {
           label={'수납과 미납'}
           rows={pageRows(collections)}
           getRowKey={(row) => row.unitId}
-          emptyState={report.collections.length ? '조회 조건에 맞는 세대가 없습니다.' : '조회 월의 수납 대상 세대가 없습니다.'}
+          emptyState={(
+            <StateMessage
+              variant={hasCollectionFilters ? 'no-results' : 'empty-data'}
+              layout={'inline'}
+              title={hasCollectionFilters ? '조회 조건에 맞는 세대가 없습니다.' : '조회 월의 수납 대상 세대가 없습니다.'}
+            />
+          )}
           minWidth={1000}
           columns={[
             {
@@ -564,7 +587,13 @@ export function SettlementDetails({ report, month, propertyId }: {
           label={'외부 부담금'}
           rows={pageRows(external)}
           getRowKey={(row) => row.id}
-          emptyState={report.external.length ? '조회 조건에 맞는 내역이 없습니다.' : '조회할 외부 부담금이 없습니다.'}
+          emptyState={(
+            <StateMessage
+              variant={hasExternalFilters ? 'no-results' : 'empty-data'}
+              layout={'inline'}
+              title={hasExternalFilters ? '조회 조건에 맞는 내역이 없습니다.' : '조회할 외부 부담금이 없습니다.'}
+            />
+          )}
           columns={[
             {
               key: 'date',

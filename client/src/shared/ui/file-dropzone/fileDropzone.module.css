@@ -5,7 +5,7 @@
   padding: 48px 20px;
   border: 2px dashed color-mix(in srgb, var(--excel-background) 40%, var(--border));
   border-radius: 12px;
-  background: var(--background);
+  background: var(--card);
   text-align: center;
   transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 
@@ -19,15 +19,12 @@
       color: var(--excel-background);
     }
 
-    > svg {
+    > img {
       transform: translateY(-4px);
     }
   }
 
-  > svg {
-    width: 40px;
-    height: 40px;
-    color: var(--excel-background);
+  > img {
     transition: transform 180ms ease;
   }
 
@@ -41,7 +38,7 @@
   .dropzone {
     transition: none;
 
-    svg {
+    img {
       transition: none;
     }
   }

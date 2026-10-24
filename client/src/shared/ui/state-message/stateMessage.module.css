@@ -1,0 +1,131 @@
+.message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: min(100%, 880px);
+  min-width: 0;
+  margin-inline: auto;
+  padding: clamp(24px, 5vw, 48px);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--card);
+  color: var(--foreground);
+  text-align: center;
+
+  h2 {
+    margin: 0;
+    font-size: clamp(22px, 3vw, 32px);
+    font-weight: 750;
+    line-height: 1.4;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+  .description {
+    color: var(--sub-text);
+    font-size: 16px;
+    line-height: 1.8;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+    max-width: 100%;
+
+    > a {
+      color: var(--primary);
+      font-weight: 600;
+      text-decoration: underline;
+      text-underline-offset: 4px;
+
+      &:hover {
+        color: var(--primary-dark);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 4px;
+        border-radius: 4px;
+      }
+    }
+  }
+
+  &[data-layout='inline'] {
+    gap: 12px;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+
+    h2 {
+      font-size: 18px;
+      font-weight: 650;
+    }
+
+    .description {
+      font-size: 14px;
+    }
+  }
+}
+
+.illustration {
+  display: block;
+  width: min(100%, 320px);
+  height: auto;
+  margin-inline: auto;
+
+  &[data-state='server-error'] {
+    width: min(100%, 420px);
+  }
+
+  &[data-layout='inline'] {
+    width: min(100%, 200px);
+  }
+
+  &[data-state='loading'] {
+    animation: loading-float 1800ms ease-in-out infinite;
+  }
+}
+
+@keyframes loading-float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .illustration[data-state='loading'] {
+    animation: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .message {
+    gap: 16px;
+    padding: 24px 20px;
+    border-radius: 16px;
+
+    .description {
+      font-size: 14px;
+    }
+
+    .actions {
+      width: 100%;
+
+      > * {
+        width: 100%;
+        min-width: 0;
+      }
+    }
+  }
+}

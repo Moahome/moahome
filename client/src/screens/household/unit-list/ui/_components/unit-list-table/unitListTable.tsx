@@ -1,3 +1,4 @@
+import { StateMessage } from '@/shared/ui/state-message';
 import {
   getUnitLabel,
   getUnitSignupLabel,
@@ -116,14 +117,12 @@ export function UnitListTable({
       minWidth={640}
       onRowClick={(unit) => onOpenDetail(unit.clientId)}
       emptyState={(
-        <>
-          <strong>
-            {hasFilters ? '검색 결과가 없어요.' : '아직 등록된 세대가 없어요.'}
-          </strong>
-          <p>
-            {hasFilters ? '검색어나 선택한 조건을 변경해주세요.' : '세대 추가를 눌러 관리할 세대를 등록해주세요.'}
-          </p>
-        </>
+        <StateMessage
+          variant={hasFilters ? 'no-results' : 'empty-data'}
+          layout={'inline'}
+          title={hasFilters ? '검색 결과가 없어요.' : '아직 등록된 세대가 없어요.'}
+          description={hasFilters ? '검색어나 선택한 조건을 변경해주세요.' : '세대 추가를 눌러 관리할 세대를 등록해주세요.'}
+        />
       )}
     />
   );

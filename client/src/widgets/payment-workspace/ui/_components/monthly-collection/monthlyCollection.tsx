@@ -1,5 +1,6 @@
 'use client';
 
+import { StateMessage } from '@/shared/ui/state-message';
 import {
   formatInteger,
   formatWon
@@ -290,7 +291,13 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
             getRowKey={(row) => row.unitId}
             onRowClick={(row) => openDetail(row.unitId)}
             minWidth={1100}
-            emptyState={'조건에 맞는 세대가 없습니다.'}
+            emptyState={(
+              <StateMessage
+                variant={Boolean(query.trim() || building || status !== '전체' || month !== ledger.asOf.slice(0, 7)) ? 'no-results' : 'empty-data'}
+                layout={'inline'}
+                title={'조건에 맞는 세대가 없습니다.'}
+              />
+            )}
             columns={[
               {
                 key: 'unit',

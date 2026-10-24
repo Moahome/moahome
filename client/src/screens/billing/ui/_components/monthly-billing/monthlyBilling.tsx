@@ -1,3 +1,4 @@
+import { StateMessage } from '@/shared/ui/state-message';
 import type {
   BillingCharge,
   BillingSettings
@@ -296,14 +297,12 @@ export function MonthlyBilling({ propertyId, settings, onOpenItems }: {
               minWidth={600}
               onRowClick={openDetail}
               emptyState={(
-                <>
-                  <strong>
-                    {hasFilters ? '검색 결과가 없어요.' : '선택한 월의 부과 내역이 없어요.'}
-                  </strong>
-                  <p>
-                    {hasFilters ? '검색어나 동 필터를 변경해주세요.' : `첫 부과는 ${formatBillingMonth(settings.firstBillingMonth)}부터 시작합니다.`}
-                  </p>
-                </>
+                <StateMessage
+                  variant={hasFilters ? 'no-results' : 'empty-data'}
+                  layout={'inline'}
+                  title={hasFilters ? '검색 결과가 없어요.' : '선택한 월의 부과 내역이 없어요.'}
+                  description={hasFilters ? '검색어나 동 필터를 변경해주세요.' : `첫 부과는 ${formatBillingMonth(settings.firstBillingMonth)}부터 시작합니다.`}
+                />
               )}
               columns={[
                 ...(hasBuildings ? [{

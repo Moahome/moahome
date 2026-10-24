@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import { Pagination } from '@/shared/ui/pagination';
@@ -28,9 +30,10 @@ export function UnitListPage({
   if (list.isPending) return (
     <section
       className={styles.state}
-      role={'status'}
     >
-      세대 목록을 불러오고 있어요.
+      <LoadingState
+        title={'세대 목록을 불러오고 있어요.'}
+      />
     </section>
   );
 
