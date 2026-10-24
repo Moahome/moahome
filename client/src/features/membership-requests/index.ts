@@ -1,10 +1,10 @@
 export {
-  getSignupOptions,
   getSignupRequests,
-  reviewSignupRequest,
-  submitSignupRequest
+  getUnlinkedResidents,
+  reviewSignupRequest
 } from './api/membershipRequestApi';
 export type {
-  SignupRequest
+  SignupRequest,
+  UnlinkedResident
 } from './api/membershipRequestApiTypes';
 

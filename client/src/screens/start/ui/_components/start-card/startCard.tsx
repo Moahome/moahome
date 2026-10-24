@@ -17,10 +17,10 @@ const START_OPTIONS = {
   join: {
     title: '주민으로 참여하기',
     mobileTitle: '주민으로 참여하기',
-    description: '관리자가 공유한 참여 링크로',
+    description: '관리자가 전달한 초대코드로',
     continuation: '우리 집에 참여합니다.',
-    action: '참여 링크 입력',
-    mobileAction: '참여 링크 입력',
+    action: '초대코드 입력',
+    mobileAction: '초대코드 입력',
   },
 } as const;
 

@@ -100,6 +100,9 @@ async function fillRequiredFields(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
+  await page.route(`${API_ORIGIN}/api/users/me/resident-properties`, (route) => fulfillJson(route, {
+    properties: []
+  }));
   await page.route(`${API_ORIGIN}/api/users/me/managed-properties`, (route) => fulfillJson(route, {
     properties: []
   }));

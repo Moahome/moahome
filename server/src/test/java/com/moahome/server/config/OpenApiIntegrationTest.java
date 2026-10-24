@@ -47,6 +47,12 @@ class OpenApiIntegrationTest {
 	private ObjectMapper mapper;
 
 	@MockitoBean
+	private com.moahome.server.membership.service.ResidentInvitationService residentInvitations;
+
+	@MockitoBean
+	private com.moahome.server.membership.service.ResidentJoinCodeService residentJoinCodes;
+
+	@MockitoBean
 	private com.moahome.server.payment.service.PaymentService payments;
 
 	@MockitoBean
@@ -190,9 +196,11 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(
 		    mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(83);
+		assertThat(document.path("paths").properties()).hasSize(96);
+		assertThat(document.path("paths").path("/api/properties/{propertyId}/membership-requests/unlinked-residents")
+		    .at("/get/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/closing/monthly")
-			.at("/get/security/0/bearerAuth").isArray()).isTrue();
+		    .at("/get/security/0/bearerAuth").isArray()).isTrue();
 		for (String method : java.util.List.of("get", "post"))
 			assertThat(document.path("paths").path("/api/properties/{propertyId}/banking/balances/checks")
 			    .at("/" + method + "/security/0/bearerAuth").isArray()).isTrue();

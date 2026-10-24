@@ -15,7 +15,14 @@ import {
   PropertyRegistrationFlow,
   hasPendingRegistration
 } from '@/features/property-registration';
-import { useManagementEntry } from '@/features/enter-service';
+import {
+  useManagementEntry,
+  useResidentProperties
+} from '@/features/enter-service';
+import { InvitationCodeForm } from '@/features/member-management';
+import { ClientModal } from '@/shared/ui/client-modal';
+import { Button } from '@/shared/ui/button';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import { ApiError } from '@/shared/api';
 import { NeighborhoodIllustration } from '@/shared/ui/neighborhood-illustration';
 import { ServiceHeader } from '@/widgets/service-header';
@@ -29,6 +36,9 @@ import motion from './startMotion.module.css';
 
 /** 세션을 확인하고 명시적 추가 진입에서는 기존 관리대상으로의 자동 이동을 생략합니다. */
 export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional' }) {
+  const [invitationOpen, setInvitationOpen] = useState(false);
+  const [invitationBusy, setInvitationBusy] = useState(false);
+  const invitationTitleRef = useRef<HTMLHeadingElement>(null);
   const additional = mode === 'additional';
   const entryPath = additional ? '/properties/add' : '/start';
   const session = useSession();
@@ -41,6 +51,7 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
   const isSetupStep = registrationStep !== null && registrationStep !== 'basic';
   const hasPendingSubmission = Boolean(session.data && hasPendingRegistration(session.data.id));
   const registeredProperty = useManagementEntry(session.data?.id, !additional && registrationStep === null && !hasPendingSubmission);
+  const residentProperties = useResidentProperties(session.data?.id, !additional && !registrationStep && !hasPendingSubmission && registeredProperty.isSuccess && !registeredProperty.data);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
   const [notice, setNotice] = useState({
@@ -59,7 +70,7 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
 
   useEffect(() => {
     if (additional || registrationStep || hasPendingSubmission || registeredProperty.isFetching) return;
-    const error = registeredProperty.error;
+    const error = registeredProperty.error ?? residentProperties.error;
     if (error instanceof ApiError && (error.status === 401 || error.code === 'ACCOUNT_UNAVAILABLE')) {
       window.location.replace('/login');
       return;
@@ -67,7 +78,12 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
     if (registeredProperty.isSuccess && registeredProperty.data) {
       router.replace(getManagementDashboardPath(registeredProperty.data.propertyId));
     }
-  }, [additional, registrationStep, hasPendingSubmission, registeredProperty.data, registeredProperty.error, registeredProperty.isFetching, registeredProperty.isSuccess, router]);
+  }, [additional, registrationStep, hasPendingSubmission, registeredProperty.data, registeredProperty.error, registeredProperty.isFetching, registeredProperty.isSuccess, residentProperties.error, router]);
+
+  useEffect(() => {
+    if (additional || registrationStep || hasPendingSubmission || registeredProperty.data || registeredProperty.isFetching || !residentProperties.data?.length) return;
+    router.replace('/resident');
+  }, [additional, registrationStep, hasPendingSubmission, registeredProperty.data, registeredProperty.isFetching, residentProperties.data, router]);
 
   useEffect(() => {
     /** 브라우저가 문서를 보관하기 전에 개인정보를 가려 로그아웃 뒤 복원 프레임에도 노출하지 않습니다. */
@@ -128,6 +144,18 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
     );
   }
 
+  if (!additional && !registrationStep && !hasPendingSubmission && (!residentProperties.isSuccess || residentProperties.isFetching || residentProperties.data.length > 0)) {
+    return (
+      <StartSessionState
+        kind={'property'}
+        error={residentProperties.isFetching ? null : residentProperties.error}
+        onRetry={() => void residentProperties.refetch({
+          cancelRefetch: false
+        })}
+      />
+    );
+  }
+
   return (
     <div
       ref={pageRef}
@@ -173,7 +201,14 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
             <StartCard
               kind={'join'}
               invitation={additional}
-              onSelect={() => router.push(additional ? '/invitations' : '/join')}
+              onSelect={() => {
+                // 최초 시작과 추가 참여 모두 PC에서는 현재 화면의 공통 모달을 엽니다.
+                if (!window.matchMedia('(max-width: 767px)').matches) {
+                  setInvitationOpen(true);
+                  return;
+                }
+                router.push(additional ? '/invitations' : '/join');
+              }}
             />
           </div>
           <PendingRequestCard
@@ -196,6 +231,41 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
       >
         우리의 공간이 더 특별해지는, 모아홈
       </footer>
+      {invitationOpen && (
+        <ClientModal
+          className={styles['invitation-modal']}
+          aria-labelledby={'invitation-modal-title'}
+          initialFocusRef={invitationTitleRef}
+          busy={invitationBusy}
+          onClose={() => setInvitationOpen(false)}
+        >
+          <header>
+            <h2
+              id={'invitation-modal-title'}
+              ref={invitationTitleRef}
+              tabIndex={-1}
+            >
+              초대코드로 참여하기
+            </h2>
+            <Button
+              variant={'ghost'}
+              iconOnly
+              aria-label={'초대코드 입력 닫기'}
+              disabled={invitationBusy}
+              onClick={() => setInvitationOpen(false)}
+              leadingIcon={(
+                <ServiceIcon
+                  name={'close'}
+                />
+              )}
+            />
+          </header>
+          <InvitationCodeForm
+            onBusyChange={setInvitationBusy}
+            onComplete={() => setInvitationOpen(false)}
+          />
+        </ClientModal>
+      )}
       <NoticeDialog
         dialogRef={dialogRef}
         title={notice.title}

@@ -5,7 +5,11 @@ import type { ManagedPropertiesResponse } from './managementAccessApiTypes';
 import { isPropertyId } from '@/entities/property';
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
-import type { ManagementProperty } from './managementAccessApiTypes';
+import type {
+  ManagementProperty,
+  ResidentProperty,
+  ResidentPropertiesResponse
+} from './managementAccessApiTypes';
 
 /** 잘못된 자료형·주민 역할을 관리 권한으로 해석하지 않습니다. */
 function isManagementProperty(value: unknown): value is ManagementProperty {
@@ -38,4 +42,16 @@ export async function getManagementContext(propertyId: string): Promise<Manageme
     throw new ApiError(200, 'INVALID_RESPONSE', '관리 권한을 확인할 수 없습니다.');
   }
   return response;
+}
+
+/** 주민 참여 목록은 관리 권한 검사와 별도로 읽고 관리자 역할을 주민으로 해석하지 않습니다. */
+export async function getResidentProperties(): Promise<ResidentProperty[]> {
+  const response = await authenticatedAPI<ResidentPropertiesResponse>({
+    url: '/api/users/me/resident-properties'
+  });
+  if (!response || !Array.isArray(response.properties) || response.properties.some((row) => !row || !isPropertyId(row.propertyId) || typeof row.name !== 'string' || !row.name.trim() || row.role !== 'RESIDENT')
+    || new Set(response.properties.map((row) => row.propertyId)).size !== response.properties.length) {
+    throw new ApiError(200, 'INVALID_RESPONSE', '주민 참여 정보를 확인할 수 없습니다.');
+  }
+  return response.properties;
 }

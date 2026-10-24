@@ -1,0 +1,84 @@
+.page {
+  width: min(100% - 32px, 840px);
+  margin: 48px auto;
+  display: grid;
+  gap: 24px;
+}
+
+.welcome {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 28px;
+  border: 1px solid var(--button-primary-border);
+  border-radius: 16px;
+  background: var(--button-primary-background);
+
+  > svg {
+    width: 40px;
+    height: 40px;
+    color: var(--primary);
+    flex-shrink: 0;
+  }
+}
+
+.page h2 {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.page p {
+  margin-top: 8px;
+  color: var(--sub-text);
+  line-height: 1.7;
+}
+
+.properties {
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 24px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card);
+  }
+
+  svg {
+    width: 24px;
+    height: 24px;
+    color: var(--primary);
+  }
+
+  span {
+    margin-left: auto;
+    color: var(--sub-text);
+    font-size: 14px;
+  }
+}
+
+.placeholder {
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+
+  button {
+    margin-top: 20px;
+  }
+}
+
+@media (max-width: 767px) {
+  .page {
+    margin: 24px auto;
+  }
+
+  .welcome, .placeholder {
+    padding: 20px;
+  }
+}

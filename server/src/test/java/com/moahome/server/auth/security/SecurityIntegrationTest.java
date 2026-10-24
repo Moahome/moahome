@@ -111,6 +111,12 @@ class SecurityIntegrationTest {
 	private RedisAuthSessionRepository sessions;
 
 	@MockitoBean
+	private com.moahome.server.membership.service.ResidentInvitationService residentInvitations;
+
+	@MockitoBean
+	private com.moahome.server.membership.service.ResidentJoinCodeService residentJoinCodes;
+
+	@MockitoBean
 	private com.moahome.server.payment.service.PaymentService payments;
 
 	@MockitoBean
@@ -216,6 +222,38 @@ class SecurityIntegrationTest {
 	@AfterAll
 	static void stopRedis() {
 		REDIS.close();
+	}
+
+	/** 링크·코드를 알아도 Bearer 인증 전에는 초대 확인·신청·수락 서비스에 도달하지 않습니다. */
+	@Test
+	void residentInvitationEndpointsRejectAnonymousEvenWithCode() throws Exception {
+		for (String path : List.of("/api/resident-invitations/preview", "/api/resident-invitations/shared-options",
+		    "/api/resident-invitations/accept")) {
+			mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
+			    .content("{\"token\":\"R-ABCD-EFGH-JKLM\",\"correction\":false}")).andExpect(status().isUnauthorized())
+			    .andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
+		}
+		org.mockito.Mockito.verifyNoInteractions(residentInvitations, residentJoinCodes);
+	}
+
+	@Test
+	void unlinkedResidentsUsesAuthenticatedAccountAndReturnsNoStoreWithoutPrivatePhoneData() throws Exception {
+		var actor = UUID.randomUUID();
+		var property = UUID.randomUUID();
+		var resident = UUID.randomUUID();
+		String path = "/api/properties/" + property + "/membership-requests/unlinked-residents";
+		var pair = auth.startSession(actor.toString(), ClientType.WEB);
+		when(membershipRequests.unlinkedResidents(actor, property))
+		    .thenReturn(new com.moahome.server.membership.dto.SignupRequests.UnlinkedResidents(property,
+		        List.of(new com.moahome.server.membership.dto.SignupRequests.UnlinkedResident(resident, "미연결 주민",
+		            "1234", null, "101", "TENANT"))));
+		mvc.perform(get(path)).andExpect(status().isUnauthorized());
+		mvc.perform(get(path).header("Authorization", "Bearer " + pair.accessToken())).andExpect(status().isOk())
+		    .andExpect(header().string("Cache-Control", "no-store"))
+		    .andExpect(jsonPath("residents[0].phoneLast4").value("1234"))
+		    .andExpect(jsonPath("residents[0].userId").doesNotExist())
+		    .andExpect(jsonPath("residents[0].phoneEncrypted").doesNotExist());
+		verify(membershipRequests).unlinkedResidents(actor, property);
 	}
 
 	@Test

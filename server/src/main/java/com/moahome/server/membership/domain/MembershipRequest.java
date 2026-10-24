@@ -24,6 +24,12 @@ public class MembershipRequest {
 	@Column(name = "user_id")
 	private UUID userId;
 
+	@Column(name = "applicant_name")
+	private String applicantName;
+
+	@Column(name = "join_code_id")
+	private UUID joinCodeId;
+
 	@Column(name = "matched_resident_id")
 	private UUID matchedResidentId;
 
@@ -82,6 +88,12 @@ public class MembershipRequest {
 		request.createdAt = at;
 		request.updatedAt = at;
 		return request;
+	}
+
+	/** 신규 공통 신청의 이름과 검증한 초대 출처를 보존하며 이름으로 명부를 수정하지 않습니다. */
+	public void describeApplicant(String name, UUID code) {
+		applicantName = com.moahome.server.common.validation.TextValues.required(name, 50);
+		joinCodeId = java.util.Objects.requireNonNull(code);
 	}
 
 	/** 명시적으로 선택한 주민만 승인 연결하고 최초 검토자·시각을 보존합니다. */

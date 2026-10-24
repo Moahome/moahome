@@ -17,6 +17,12 @@ import org.springframework.test.context.DynamicPropertySource;
 @ActiveProfiles("test")
 class ServerApplicationTests {
 	@MockitoBean
+	private com.moahome.server.membership.service.ResidentInvitationService residentInvitations;
+
+	@MockitoBean
+	private com.moahome.server.membership.service.ResidentJoinCodeService residentJoinCodes;
+
+	@MockitoBean
 	private com.moahome.server.payment.service.PaymentService payments;
 
 	@MockitoBean

@@ -102,9 +102,9 @@ function getMobileBack(pathname: string, basePath: string, month: string | null,
     label: '통장 거래로 돌아가기',
     title: '거래 상세'
   };
-  if (pathname.startsWith(`${basePath}/join-requests/`)) return {
-    href: `${basePath}/join-requests`,
-    label: '가입 요청으로 돌아가기',
+  if (pathname.startsWith(`${basePath}/join-requests/`) || pathname.startsWith(`${basePath}/invitations/`)) return {
+    href: `${basePath}/invitations`,
+    label: '승인 관리로 돌아가기',
     title: '가입 요청 확인'
   };
   if (pathname.startsWith(`${basePath}/payments/monthly/`)) return {

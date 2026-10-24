@@ -47,11 +47,14 @@ public class MembershipRequestService {
 
 	private final Clock clock;
 
+	private final ResidentJoinCodeService joinCodes;
+
 	public MembershipRequestService(ManagementAccessService access, PropertyRepository properties, UnitRepository units,
 	    BuildingRepository buildings, MembershipRequestRepository requests, PropertyMemberRepository members,
 	    MemberRoleEventRepository events, ResidentRepository residents, UnitResidentRepository affiliations,
 	    UserService users, com.moahome.server.user.repo.UserRepository userRecords,
-	    com.moahome.server.resident.service.ResidentRegistrationService registrations, Clock clock) {
+	    com.moahome.server.resident.service.ResidentRegistrationService registrations, Clock clock,
+	    ResidentJoinCodeService joinCodes) {
 		this.access = access;
 		this.properties = properties;
 		this.units = units;
@@ -65,6 +68,7 @@ public class MembershipRequestService {
 		this.userRecords = userRecords;
 		this.registrations = registrations;
 		this.clock = clock;
+		this.joinCodes = joinCodes;
 	}
 
 	private OffsetDateTime now() {
@@ -90,8 +94,9 @@ public class MembershipRequestService {
 	}
 
 	/** 공유한 참여 주소로 로그인한 신청자에게 세대 표시만 제공하고 주민·연락처는 공개하지 않습니다. */
-	public SignupRequests.Options options(UUID actor, UUID property) {
+	public SignupRequests.Options options(UUID actor, UUID property, String code) {
 		users.requireActive(actor);
+		joinCodes.require(property, code);
 		var target = target(property);
 		return new SignupRequests.Options(property, target.getName(),
 		    unitLabels(property).entrySet().stream().map(e -> new SignupRequests.UnitOption(e.getKey(), e.getValue()))
@@ -104,6 +109,8 @@ public class MembershipRequestService {
 		users.requireActive(actor);
 		properties.findForUnitUpdate(property).orElseThrow(() -> new PaymentException("MEMBER_NOT_FOUND"));
 		target(property);
+		var code = joinCodes.require(property, input.code());
+		String name = com.moahome.server.common.validation.TextValues.required(input.name(), 50);
 		if (!unitLabels(property).containsKey(input.unitId()))
 			throw new IllegalArgumentException("Invalid unit");
 		List<MembershipRequest> existing = requests
@@ -114,12 +121,26 @@ public class MembershipRequestService {
 		    .anyMatch(PropertyMember::isCurrent))
 			throw new PaymentException("MEMBER_ROLE_CONFLICT");
 		var protectedPhone = registrations.protectPhone(input.phone());
-		var created = requests.saveAndFlush(MembershipRequest.request(property, input.unitId(), actor,
-		    protectedPhone.encrypted(), protectedPhone.hmac(), protectedPhone.last4(), now()));
+		var created = MembershipRequest.request(property, input.unitId(), actor,
+		    protectedPhone == null ? null : protectedPhone.encrypted(),
+		    protectedPhone == null ? null : protectedPhone.hmac(),
+		    protectedPhone == null ? null : protectedPhone.last4(), now());
+		created.describeApplicant(name, code.getId());
+		requests.saveAndFlush(created);
 		return new SignupRequests.Result(created.getId(), "PENDING");
 	}
 
-	/** 가입 업무에 필요한 신청자·해당 세대 명부 후보만 제공하며 전체 주민 명부 권한을 대신하지 않습니다. */
+	/** 가입 업무용 미연결 주민만 조회하며 관리자 소속 확인 후 끝 네 자리·현재 소속만 반환합니다. */
+	public SignupRequests.UnlinkedResidents unlinkedResidents(UUID actor, UUID property) {
+		access.getManagementContext(actor, property);
+		List<SignupRequests.UnlinkedResident> rows = residents.findUnlinkedResidents(property).stream()
+		    .map(row -> new SignupRequests.UnlinkedResident(row.getResidentId(), row.getName(), row.getPhoneLast4(),
+		        row.getBuildingName(), row.getUnitNumber(), row.getRelationType()))
+		    .toList();
+		return new SignupRequests.UnlinkedResidents(property, rows);
+	}
+
+	/** 승인 관리에 실제 신청자·해당 세대 명부 후보만 제공하며 신청이 없는 주민을 대기로 만들지 않습니다. */
 	public SignupRequests.Workspace workspace(UUID actor, UUID property) {
 		access.getManagementContext(actor, property);
 		Map<UUID, String> labels = unitLabels(property);
@@ -134,7 +155,8 @@ public class MembershipRequestService {
 			    return new SignupRequests.Item(r.getId(), r.getUnitId(), labels.getOrDefault(r.getUnitId(), "삭제된 세대"),
 			        userRecords.findByIdAndDeletedAtIsNull(r.getUserId())
 			            .map(com.moahome.server.user.domain.User::getDisplayName).orElse("탈퇴한 사용자"),
-			        r.getPhoneLast4(), r.getStatus(), r.getRequestedAt(), r.getUpdatedAt(), candidates);
+			        r.getPhoneLast4(), r.getStatus(), r.getRequestedAt(), r.getUpdatedAt(), candidates,
+			        r.getApplicantName());
 		    }).toList();
 		return new SignupRequests.Workspace(property, rows);
 	}

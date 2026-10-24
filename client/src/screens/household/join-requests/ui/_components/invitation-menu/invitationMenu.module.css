@@ -1,0 +1,13 @@
+.root .trigger { min-width: 124px; min-height: 42px; }
+.chevron { display: inline-flex; transform: rotate(90deg); transition: transform 180ms; &[data-open="true"] { transform: rotate(270deg); } }
+.menu {
+  position: fixed; inset: auto; width: 152px; margin: 0; padding: 4px 0; border: 1px solid var(--border); border-radius: 12px; color: var(--foreground); background: var(--card);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--foreground) 12%, transparent);
+  opacity: 0; transform: translateY(-6px); transition: opacity 180ms, transform 180ms, display 180ms allow-discrete, overlay 180ms allow-discrete;
+  &:popover-open { opacity: 1; transform: translateY(0); }
+  > button[data-variant="ghost"] { width: 100%; justify-content: flex-start; gap: 10px; min-height: 44px; padding: 8px 14px; border-radius: 0; color: var(--sub-text); font-size: 14px; }
+  > button:focus-visible { outline: 1px solid var(--border); outline-offset: -3px; background: var(--background); }
+  > button + button { border-top: 1px solid var(--border); }
+}
+@starting-style { .menu:popover-open { opacity: 0; transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { .menu, .chevron { transition: none; } }

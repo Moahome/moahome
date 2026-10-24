@@ -8,6 +8,7 @@ import {
 import { ApiError } from '@/shared/api';
 import {
   getManagedProperties,
+  getResidentProperties,
   getManagementContext
 } from '../api/managementAccessApi';
 import {
@@ -61,5 +62,16 @@ export function useManagementContext(userId: string | undefined, propertyId: str
         throw error;
       }
     }
+  });
+}
+
+/** 최초 진입과 임시 주민 홈에서 실제 승인된 본인 참여만 공유합니다. */
+export function useResidentProperties(userId: string | undefined, enabled = true) {
+  return useQuery({
+    ...FRESH_ACCESS_QUERY_OPTIONS,
+    queryKey: ['resident-properties', userId],
+    enabled: Boolean(userId) && enabled,
+    queryFn: getResidentProperties,
+    gcTime: 0
   });
 }

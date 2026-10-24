@@ -20,10 +20,11 @@ public class MembershipRequestController {
 		this.service = service;
 	}
 
-	@GetMapping("/options")
+	@PostMapping("/options")
 	public ResponseEntity<SignupRequests.Options> options(@AuthenticationPrincipal AuthPrincipal actor,
-	    @PathVariable UUID propertyId) {
-		return safe(service.options(UUID.fromString(actor.userId()), propertyId));
+	    @PathVariable UUID propertyId,
+	    @Valid @RequestBody com.moahome.server.membership.dto.ResidentInvitations.Token input) {
+		return safe(service.options(UUID.fromString(actor.userId()), propertyId, input.token()));
 	}
 
 	@PostMapping
@@ -36,6 +37,13 @@ public class MembershipRequestController {
 	public ResponseEntity<SignupRequests.Workspace> workspace(@AuthenticationPrincipal AuthPrincipal actor,
 	    @PathVariable UUID propertyId) {
 		return safe(service.workspace(UUID.fromString(actor.userId()), propertyId));
+	}
+
+	/** 관리자 가입 요청 화면의 미연결 주민 조회이며 기존 주민 전체 명부 API와 분리합니다. */
+	@GetMapping("/unlinked-residents")
+	public ResponseEntity<SignupRequests.UnlinkedResidents> unlinkedResidents(
+	    @AuthenticationPrincipal AuthPrincipal actor, @PathVariable UUID propertyId) {
+		return safe(service.unlinkedResidents(UUID.fromString(actor.userId()), propertyId));
 	}
 
 	@PostMapping("/{requestId}/approve")

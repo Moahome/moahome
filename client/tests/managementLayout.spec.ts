@@ -97,6 +97,9 @@ test.beforeEach(async ({ page }) => {
       status: 'ACTIVE'
     });
     expect(route.request().headers().authorization).toBe('Bearer test-access');
+    if (path === '/api/users/me/resident-properties') return fulfillJson(route, {
+      properties: []
+    });
     if (route.request().url() === LIST_URL) return fulfillJson(route, {
       properties: [PROPERTY]
     });

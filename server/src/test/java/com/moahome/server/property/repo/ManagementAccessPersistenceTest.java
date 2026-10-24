@@ -34,9 +34,9 @@ import java.util.List;
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({ com.moahome.server.resident.service.ResidentListService.class, ManagementAccessService.class,
+@Import({com.moahome.server.resident.service.ResidentListService.class, ManagementAccessService.class,
         UserService.class, com.moahome.server.property.service.UnitManagementService.class,
-        ManagementAccessPersistenceTest.Beans.class })
+        ManagementAccessPersistenceTest.Beans.class})
 @ActiveProfiles("database-test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class ManagementAccessPersistenceTest {
@@ -137,6 +137,31 @@ class ManagementAccessPersistenceTest {
 		assertDenied(resident);
 		assertDenied(other);
 		assertDenied(UUID.randomUUID());
+	}
+
+	@Test
+	void residentHomeListsOnlyOwnActiveResidentMembershipAndNeverGrantsManagementContext() {
+		UUID resident = property("내 주민 참여", AT);
+		member(resident, userId, "RESIDENT");
+		UUID admin = property("관리 권한", AT);
+		member(admin, userId, "ADMIN");
+		UUID other = property("다른 주민", AT);
+		member(other, users.saveAndFlush(User.create("다른 주민", null)).getId(), "RESIDENT");
+		for (String condition : List.of("status='INACTIVE'", "ended_at=now()", "deleted_at=now()")) {
+			UUID target = property("종료 주민 참여", AT);
+			UUID membership = member(target, userId, "RESIDENT");
+			jdbc.update("update property_members set " + condition + " where id=?", membership);
+		}
+		for (String condition : List.of("status='INACTIVE'", "deleted_at=now()")) {
+			UUID target = property("종료 대상", AT);
+			member(target, userId, "RESIDENT");
+			jdbc.update("update properties set " + condition + " where id=?", target);
+		}
+		assertThat(management.getResidentProperties(userId).properties()).extracting(p -> p.propertyId())
+		    .containsExactly(resident);
+		assertThat(management.getManagedProperties(userId).properties()).extracting(p -> p.propertyId())
+		    .containsExactly(admin);
+		assertDenied(resident);
 	}
 
 	@Test

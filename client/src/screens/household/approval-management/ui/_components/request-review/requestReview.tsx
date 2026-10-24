@@ -55,6 +55,14 @@ export function RequestReview({ request, presentation, busy, onClose, onApprove,
       >
         <div>
           <dt>
+            신청 이름
+          </dt>
+          <dd>
+            {request.applicantName ?? '이전 신청 (이름 미입력)'}
+          </dd>
+        </div>
+        <div>
+          <dt>
             신청 계정
           </dt>
           <dd>
@@ -74,8 +82,7 @@ export function RequestReview({ request, presentation, busy, onClose, onApprove,
             연락처
           </dt>
           <dd>
-            ••••
-            {request.phoneLast4}
+            {request.phoneLast4 ? `•••• ${request.phoneLast4}` : '미등록'}
           </dd>
         </div>
         <div>
@@ -117,6 +124,7 @@ export function RequestReview({ request, presentation, busy, onClose, onApprove,
               거절
             </Button>
             <Button
+              variant={'outline'}
               disabled={busy || !resident}
               loading={busy}
               onClick={() => onApprove(resident)}

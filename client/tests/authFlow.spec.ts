@@ -57,6 +57,9 @@ function currentUserResponse() {
 }
 
 test.beforeEach(async ({ context }) => {
+  await context.route(`${API_ORIGIN}/api/users/me/resident-properties`, (route) => fulfillJson(route, {
+    properties: []
+  }));
   await context.route(`${API_ORIGIN}/api/users/me/managed-properties`, (route) => fulfillJson(route, {
     properties: []
   }));

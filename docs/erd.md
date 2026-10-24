@@ -575,7 +575,7 @@ Property P001 → ADMIN
 Property P002 → RESIDENT
 ```
 
-주민 가입 승인은 관리소장과 부담당자 모두 가능하고, 관리대상 역할 변경은 관리소장만 가능하다. 부담당자가 주민 가입을 승인하며 기본 `RESIDENT` 참여 권한을 반영하는 것은 관리자 역할을 부여 / 변경하는 기능과 구분한다. 플랫폼 관리자 권한과 역할별 상세 업무 범위는 [도메인 규칙](domainRules.md)을 따른다.
+주민 가입 승인은 관리소장과 부담당자 모두 가능하고, 주민의 관리자 역할 승격은 관리소장만 가능하다. 관리소장과 부담당자는 같은 업무 권한을 사용하며 부담당자의 관리소장 명부 수정은 금지한다. 부담당자가 주민 가입을 승인하며 기본 `RESIDENT` 참여 권한을 반영하는 것은 관리자 역할을 부여 / 변경하는 기능과 구분한다. 플랫폼 관리자 권한과 역할별 상세 업무 범위는 [도메인 규칙](domainRules.md)을 따른다.
 
 ### 확정된 생성자 권한
 
@@ -690,21 +690,21 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 
 ## 6.1 invitations
 
-### 신규 주민 초대의 저장 설계 범위
+### 주민 초대 저장 구조
 
-상태: 미구현. 2026-10-24 [주민 초대 정책](domainRules.md#주민-참여-흐름)에 따라 전체 공유 코드와 개인 지정 링크의 저장 책임을 구분합니다. `invitations`는 기존 개념도에서 쓰는 가칭이며 단일 테이블 채택이나 컬럼·Enum을 확정한 이름이 아닙니다. 기존 PROPERTY / UNIT / RESIDENT 공용 토큰 표는 아래 요구로 대체합니다.
+`V20261024071301__create_resident_invitations.sql`로 다음 저장 구조를 추가했습니다. 업무 기준은 [주민 초대 정책](domainRules.md#주민-참여-흐름), 요청 계약은 [참여자 API](memberManagementApi.md#주민-초대-발급과-전달)를 따릅니다.
 
-| 저장 책임 | 필요한 관계·제약 |
+| 저장소 | 역할·제약 |
 | --- | --- |
-| 전체 공유 코드 | 관리대상·발급자·유효 버전·폐기 상태. 여러 신청자가 같은 유효 코드를 사용할 수 있으며 단일 수락용 링크와 구분 |
-| 개인 지정 링크 | 관리대상·지정 주민·발급 당시 세대 관계·발급자·토큰 해시·만료·철회·일회성 사용 결과 |
-| 가입 요청 | 전체 공유 신청 이름과 선택 연락처, 신청 당시 실제 세대·사용한 코드의 출처. 개인 초대 수락의 APPROVED 이력과 출처 구분 |
-| 자동 승인 출처 | 발급 관리자·수락 계정·대상 주민·수락 및 승인 시각·방식. 발급자와 실제 수락자를 분리 |
-| 무결성 | 같은 관리대상의 현재 주민·세대만 연결하고 다른 계정 연결·역할 충돌·동시 토큰 사용으로 중복 권한을 만들지 않음 |
+| resident_join_codes | 관리대상·코드 해시·ISSUED/REVOKED·revision·발급자·발급/만료 시각. 관리대상별 미철회 코드 하나 |
+| resident_invitations | 대상 주민·발급 당시 세대/관계/명부 버전·코드 해시·재전달용 token_encrypted·상태·revision·발급/수락/검토 주체와 시각·24시간 만료 |
+| 개인 정정 보호값 | requested_name·phone_action·phone_encrypted/hmac/last4. 정정 승인 전 현행 residents와 분리 |
+| membership_requests 확장 | applicant_name·join_code_id. 기존 신청은 유지하고 연락처 세 필드를 nullable로 변경하되 모두 있음/없음 묶음 제약 유지 |
+| 무결성 | 개인 진행 초대는 관리대상·주민별 하나, 주민/세대와 공통 코드의 복합 FK로 다른 관리대상 혼입 차단 |
 
-개인 토큰 원문은 저장하지 않으며 발급 후 복사·재발급 방식은 해시 저장 원칙에 맞춰 설계합니다. 기존 외부 부담당자 전용 `member_invitations`와 제약은 유지합니다. 새 주민 초대의 테이블 분리·요청 연결 FK·코드 보관 방식·만료기간은 상세 설계 후 후속 Migration으로 반영합니다.
+`V20261024081150__retain_encrypted_resident_invitation_code.sql`은 개인 초대 재전달용 nullable `token_encrypted`를 추가합니다. 기존 해시만 있는 행은 유지하고, 암호문은 ISSUED 상태에만 허용합니다. 수락·정정 제출·철회에서 제거하며 만료 여부는 기존 expires_at으로 검증합니다. 암호화 방식은 [Server 구현](../server/docs/memberManagement.md)을 따릅니다.
 
-개인 초대의 이름·전화번호 정정 요청을 승인 전 명부와 분리하고 검토 후 가입하는 방안은 [추가 설계안](domainRules.md#개인-초대-정보-확인과-정정의-설계안)입니다. 채택 시 요청 원문·검토 결과·초대 사용 상태·명부 수정·계정 연결의 관계를 추가 설계해야 하며 현재 컬럼·상태로 구현된 것으로 표시하지 않습니다.
+개인 상태는 ISSUED / CHANGE_REQUESTED / APPROVED / REVOKED / REJECTED이며 미사용 만료는 시각에서 계산합니다. 개인 자동 승인은 주민·현재 관계·수락 계정·활성 참여가 일치하는 APPROVED 출처로 조회합니다. 정정 승인 대기도 지정한 현재 관계가 일치할 때만 해당 주민의 승인 대기로 읽습니다. 원문 코드와 전화번호를 감사 출처에 넣지 않습니다. 기존 member_invitations는 외부 부담당자 전용으로 유지합니다.
 
 ---
 
@@ -723,9 +723,11 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 | `unit_id` | uuid | N | FK |
 | `user_id` | uuid | N | FK |
 | `matched_resident_id` | uuid | Y | 매칭 주민 후보 |
-| `request_phone_encrypted` | text | N | 신청자가 필수 입력한 전화번호의 암호문 |
-| `request_phone_hmac` | char(64) | N | 대조용 HMAC |
-| `request_phone_last4` | char(4) | N | 마스킹 |
+| `applicant_name` | varchar(50) | Y | 신규 공통 신청 이름 필수, 과거 이름 없는 신청은 null |
+| `join_code_id` | uuid | Y | 신규 신청의 공통 코드 출처, 과거 신청은 null |
+| `request_phone_encrypted` | text | Y | 선택 입력 연락처 암호문 |
+| `request_phone_hmac` | char(64) | Y | 대조용 HMAC |
+| `request_phone_last4` | char(4) | Y | 마스킹 |
 | `match_status` | varchar(20) | N | `MATCHED / POSSIBLE / NOT_MATCHED / MANUAL` |
 | `status` | varchar(20) | N | `PENDING / APPROVED / REJECTED / CANCELED` |
 | `requested_at` | timestamptz | N | 요청 |
@@ -739,7 +741,7 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 
 ### 구현 상태
 
-`V20261010043914__create_membership_request_read_model.sql`로 주민 목록의 가입 상태 조회에 필요한 저장 구조와 중복 대기·관리대상 무결성 제약을 구현했다. 현재 주민 가입 신청·관리자 승인·거절 API를 구현했으며 개인 지정 링크 자동 승인은 없다. 현행 스키마에는 invitation_id가 없고 신규 초대의 요청 연결 구조는 위 미구현 설계 범위다. 현재 주민 목록의 판정 기준은 [주민 관리 API](residentManagementApi.md#가입-상태-판정)를 따른다. 확인되지 않은 매칭 후보를 주민의 승인 대기로 취급하지 않는다.
+`V20261010043914__create_membership_request_read_model.sql`로 주민 목록의 가입 상태 조회에 필요한 저장 구조와 중복 대기·관리대상 무결성 제약을 구현했다. 현재 주민 가입 신청·관리자 승인·거절과 별도 resident_invitations의 개인 초대 자동 승인을 구현했습니다. 일반 신청의 공통 초대 출처는 join_code_id로 저장하고 개인 수락 출처는 resident_invitations에 보관합니다. 현재 주민 목록의 판정 기준은 [주민 관리 API](residentManagementApi.md#가입-상태-판정)를 따른다. 확인되지 않은 매칭 후보를 주민의 승인 대기로 취급하지 않는다.
 
 관리소장이 주민 연락처를 수정하면 해당 주민으로 확인 연결된 신청의 `request_phone_*` 3개 값도 함께 변경한다. 변경 후 신청 번호를 최초 입력 시점의 불변 스냅샷으로 취급하지 않는다. 주민 삭제 시 확인 연결된 대기는 취소하며 승인 이력은 유지한다. 연결 범위와 트랜잭션은 [주민 API](residentManagementApi.md#주민-상세연락처-공개수정삭제)를 따른다.
 
@@ -747,7 +749,7 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 
 동일 계정·세대의 미삭제 PENDING 요청은 `membership_requests_pending_user_unit_idx`의 부분 UNIQUE로 제한합니다. 승인에서는 기존 주민·현재 세대 관계를 검증하고 `residents.user_id`, `property_members`, `member_role_events`, 신청의 상태·검토자·시각을 같은 트랜잭션에 저장합니다. 실패하면 전체를 롤백합니다.
 
-현재 주민 가입에는 `invitation_id`, 신청 이름·세대 관계 입력 컬럼이 없습니다. `request_phone_*` 3개 컬럼은 모두 NOT NULL입니다. 신규 전체 공유 신청의 이름 저장·선택 연락처와 개인 초대 자동 승인 출처는 후속 스키마 변경이 필요하며 현행 표에 적용된 것으로 표시하지 않습니다. 외부 부담당자 초대는 아래 별도 저장 구조를 사용합니다. 승인 입력·충돌 처리와 후속 신규 명부 작성은 [참여자 API](memberManagementApi.md#주민-가입-요청), [도메인 정책](domainRules.md#가입-승인-시-함께-저장하는-범위)을 따릅니다.
+주민 가입의 신청 이름은 applicant_name, 공통 코드 출처는 join_code_id로 저장합니다. request_phone_* 3개 컬럼은 모두 nullable이며 묶음 무결성을 유지합니다. 개인 자동 승인 출처는 별도 resident_invitations를 사용하고 세대 관계 유형은 신청 입력에 추가하지 않습니다. 외부 부담당자 초대는 아래 별도 저장 구조를 사용합니다. 승인 입력·충돌 처리와 후속 신규 명부 작성은 [참여자 API](memberManagementApi.md#주민-가입-요청), [도메인 정책](domainRules.md#가입-승인-시-함께-저장하는-범위)을 따릅니다.
 
 ## 외부 관리자 초대·역할 변경 저장 (2026-10-17)
 

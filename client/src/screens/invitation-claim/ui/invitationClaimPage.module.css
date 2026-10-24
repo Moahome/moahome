@@ -1,9 +1,9 @@
 .page {
   display: grid;
   gap: 24px;
-  width: min(100% - 32px, 640px);
+  width: min(100% - 32px, 720px);
   margin: 48px auto;
-  padding: 24px;
+  padding: 32px;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: var(--card);
@@ -19,3 +19,10 @@
   }
 }
 
+
+@media (max-width: 767px) {
+  .page {
+    padding: 24px;
+    margin: 24px auto;
+  }
+}

@@ -9,6 +9,36 @@ import org.springframework.data.jpa.repository.Query;
 public interface ResidentRepository extends JpaRepository<Resident, UUID> {
 	List<Resident> findByPropertyIdAndUserIdAndDeletedAtIsNull(UUID propertyId, UUID userId);
 
+	/** 가입 요청 목록은 승인 상태를 추측하지 않고 실제 계정 미연결 주민 전원을 최소 정보로 조회합니다. */
+	@Query(value = """
+		select r.id as "residentId", r.name as name, r.phone_last4 as "phoneLast4",
+		    b.name as "buildingName", u.unit_number as "unitNumber",
+		    case when u.id is not null then ur.relation_type end as "relationType"
+		from residents r
+		left join unit_residents ur on ur.property_id=r.property_id and ur.resident_id=r.id
+		    and ur.status='ACTIVE' and ur.deleted_at is null
+		left join units u on u.property_id=r.property_id and u.id=ur.unit_id and u.deleted_at is null
+		left join buildings b on b.property_id=r.property_id and b.id=u.building_id and b.deleted_at is null
+		where r.property_id=:propertyId and r.deleted_at is null and r.user_id is null
+		order by r.name, r.id
+		""", nativeQuery = true)
+	List<UnlinkedResidentRow> findUnlinkedResidents(UUID propertyId);
+
+	/** 가입 업무에 필요한 마스킹 연락처·현재 소속만 제공하고 계정 ID와 보호 원문은 조회하지 않습니다. */
+	interface UnlinkedResidentRow {
+		UUID getResidentId();
+
+		String getName();
+
+		String getPhoneLast4();
+
+		String getBuildingName();
+
+		String getUnitNumber();
+
+		String getRelationType();
+	}
+
 	java.util.List<Resident> findByPropertyIdAndNameAndPhoneHmac(UUID propertyId, String name, String phoneHmac);
 
 	java.util.Optional<Resident> findByIdAndPropertyId(UUID id, UUID propertyId);
@@ -56,6 +86,15 @@ public interface ResidentRepository extends JpaRepository<Resident, UUID> {
 		        where link.property_id=r.property_id and link.resident_id=r.id
 		            and link.user_id=r.user_id and link.unit_resident_id=ur.id and u.id is not null
 		    ) or exists (
+                -- 개인 초대의 현재 관계·수락 계정과 활성 참여가 일치하는 승인만 인정합니다.
+                select 1 from resident_invitations invitation
+                join property_members member on member.property_id=invitation.property_id
+                    and member.user_id=invitation.requested_by and member.status='ACTIVE'
+                    and member.ended_at is null and member.deleted_at is null
+                where invitation.property_id=r.property_id and invitation.resident_id=r.id
+                    and invitation.requested_by=r.user_id and invitation.unit_resident_id=ur.id
+                    and invitation.unit_id=u.id and invitation.status='APPROVED'
+            ) or exists (
 		        -- 이전 버전에서 이미 승인한 연결은 유지하며 신규 주민 가입에는 초대를 사용하지 않습니다.
 		        select 1 from member_invitations legacy
 		        join property_members member on member.property_id=legacy.property_id
@@ -70,7 +109,12 @@ public interface ResidentRepository extends JpaRepository<Resident, UUID> {
 		        where pending.property_id = r.property_id and pending.matched_resident_id = r.id
 		            and pending.unit_id = u.id and pending.status = 'PENDING'
 		            and pending.match_status in ('MATCHED', 'MANUAL') and pending.deleted_at is null
-		    )) as pending
+		    ) or exists (
+                select 1 from resident_invitations invitation
+                where invitation.property_id=r.property_id and invitation.resident_id=r.id
+                    and invitation.unit_resident_id=ur.id and invitation.unit_id=u.id
+                    and invitation.status='CHANGE_REQUESTED'
+            )) as pending
 		from residents r
 		left join unit_residents ur on ur.property_id = r.property_id and ur.resident_id = r.id
 		    and ur.status = 'ACTIVE' and ur.deleted_at is null

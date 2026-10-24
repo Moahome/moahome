@@ -1,3 +1,5 @@
+import type { ResidentInvitation } from '../src/features/member-management';
+import type { UnlinkedResident } from '../src/features/membership-requests';
 import {
   expect,
   test,
@@ -26,9 +28,16 @@ async function mockWorkspace(page: Page, joined = false) {
   const state = {
     writes: [] as { path: string; body: Record<string, unknown> }[],
     failSave: false,
+    loggedIn: true,
+    hasManagedProperties: true,
     managementRole: 'ADMIN' as 'ADMIN' | 'MANAGER',
+    residentJoined: false,
+    legacyShare: false,
     legacyOpening: false,
     emptyRequests: false,
+    invitationRows: [] as ResidentInvitation[],
+    unlinkedCount: 1,
+    unlinkedRows: null as UnlinkedResident[] | null,
     chiefLinked: false,
     failChiefLink: false,
     delayChiefLink: null as null | (() => Promise<void>)
@@ -94,6 +103,9 @@ async function mockWorkspace(page: Page, joined = false) {
     if (path.endsWith('/csrf')) return json(route, {
       csrfToken: 'synthetic-csrf'
     });
+    if (path.endsWith('/refresh') && !state.loggedIn) return json(route, {
+      code: 'AUTHENTICATION_REQUIRED'
+    }, 401);
     if (path.endsWith('/refresh')) return json(route, {
       accessToken: 'synthetic-access',
       tokenType: 'Bearer',
@@ -107,12 +119,19 @@ async function mockWorkspace(page: Page, joined = false) {
       status: 'ACTIVE'
     });
     expect(request.headers().authorization).toBe('Bearer synthetic-access');
+    if (path.endsWith('/resident-properties')) return json(route, {
+      properties: state.residentJoined ? [{
+        propertyId: PROPERTY,
+        name: '모아빌라',
+        role: 'RESIDENT'
+      }] : []
+    });
     if (path.endsWith('/managed-properties')) return json(route, {
-      properties: [{
+      properties: state.hasManagedProperties ? [{
         propertyId: PROPERTY,
         name: '모아빌라',
         role: state.managementRole
-      }]
+      }] : []
     });
     if (path.endsWith('/management-context')) return json(route, {
       propertyId: PROPERTY,
@@ -123,6 +142,91 @@ async function mockWorkspace(page: Page, joined = false) {
       path,
       body: request.postDataJSON() ?? {}
     });
+    if (path.endsWith('/resident-invitations') && request.method() === 'GET') return json(route, {
+      propertyId: PROPERTY,
+      invitations: state.invitationRows
+    });
+    if (path.endsWith('/resident-invitations/shared-code')) {
+      if (request.method() === 'DELETE') return json(route, null, 204);
+      return json(route, {
+        id: id(3000),
+        token: 'B-ABCD-EFGH-JKLM',
+        expiresAt: new Date(Date.now() + 86400000).toISOString()
+      });
+    }
+    if (path.includes('/resident-invitations/residents/')) {
+      const residentId = path.split('/').at(-1)!;
+      const row = state.unlinkedRows?.find((r) => r.residentId === residentId);
+      state.invitationRows = [{
+        id: id(3001),
+        residentId,
+        name: row?.name ?? '김주민',
+        unitLabel: '101호',
+        phoneLast4: '1234',
+        status: 'ISSUED',
+        revision: 0,
+        expiresAt: new Date(Date.now() + 86400000).toISOString(),
+        requestedName: null,
+        requestedPhoneLast4: null,
+        phoneAction: null
+      }];
+      return json(route, {
+        id: id(3001),
+        token: 'R-ABCD-EFGH-JKLM',
+        expiresAt: state.invitationRows[0].expiresAt
+      });
+    }
+    if (/\/resident-invitations\/[^/]+\/restore$/.test(path)) {
+      if (request.postDataJSON().token !== 'R-ABCD-EFGH-JKLM') return json(route, {
+        code: 'INVALID_INVITATION'
+      }, 400);
+      state.legacyShare = false;
+      state.invitationRows[0].revision++;
+      return json(route, {
+        id: state.invitationRows[0].id,
+        token: 'R-ABCD-EFGH-JKLM',
+        expiresAt: state.invitationRows[0].expiresAt
+      });
+    }
+    if (/\/resident-invitations\/[^/]+\/share$/.test(path)) return json(route, {
+      id: state.invitationRows[0].id,
+      token: state.legacyShare ? null : 'R-ABCD-EFGH-JKLM',
+      expiresAt: state.invitationRows[0].expiresAt
+    });
+    if (path.endsWith('/api/resident-invitations/shared-options')) return json(route, {
+      propertyId: PROPERTY,
+      propertyName: '모아빌라',
+      units: [{
+        unitId: id(101),
+        label: '102동 201호'
+      }]
+    });
+    if (path.endsWith('/api/resident-invitations/preview')) return json(route, {
+      propertyName: '모아빌라',
+      name: '김주민',
+      unitLabel: '102동 201호',
+      phoneLast4: null,
+      status: 'ISSUED',
+      expiresAt: new Date(Date.now() + 86400000).toISOString(),
+      revision: 0
+    });
+    if (path.endsWith('/api/resident-invitations/accept')) {
+      state.residentJoined = !request.postDataJSON().correction;
+      return json(route, {
+        status: state.residentJoined ? 'APPROVED' : 'CHANGE_REQUESTED'
+      });
+    }
+    if (path.includes('/resident-invitations/') && /\/(approve|reject|revoke)$/.test(path)) {
+      state.invitationRows = state.invitationRows.map((r) => ({
+        ...r,
+        status: path.endsWith('/approve') ? 'APPROVED' : path.endsWith('/reject') ? 'REJECTED' : 'REVOKED',
+        revision: r.revision + 1
+      }));
+      return json(route, {
+        propertyId: PROPERTY,
+        invitations: state.invitationRows
+      });
+    }
     if (path.endsWith('/members/me/resident')) {
       await state.delayChiefLink?.();
       if (state.failChiefLink) return json(route, {
@@ -234,6 +338,23 @@ async function mockWorkspace(page: Page, joined = false) {
       if (request.method() === 'PUT') role = request.postDataJSON().serviceRole ?? role;
       return json(route, detail());
     }
+    if (path.endsWith('/membership-requests/unlinked-residents')) return json(route, {
+      propertyId: PROPERTY,
+      residents: joined || state.chiefLinked ? [] : state.unlinkedRows ?? Array.from({
+        length: state.unlinkedCount
+      }, (_, index) => ({
+        residentId: id(1000 + index),
+        name: index === 0 ? '김주민' : `미연결주민${String(index + 1).padStart(2, '0')}`,
+        phoneLast4: index === 0 ? '1234' : null,
+        buildingName: null,
+        unitNumber: String(101 + index),
+        relationType: index % 2 === 0 ? 'TENANT' : 'OWNER'
+      }))
+    });
+    if (path.endsWith('/membership-requests') && request.method() === 'POST') return json(route, {
+      id: id(31),
+      status: 'PENDING'
+    });
     if (path.endsWith('/membership-requests')) return json(route, {
       propertyId: PROPERTY,
       requests: state.emptyRequests ? [] : requests
@@ -338,9 +459,9 @@ test('역할 변경은 기존 주민 수정 모달에서 일반 정보와 한 �
   expect(state.writes.some((r) => r.path.includes('invitations'))).toBe(false);
 });
 
-test('가입 승인과 주민 선택은 별도 가입 요청 메뉴에서 처리', async ({ page }) => {
+test('가입 승인과 주민 선택은 승인 관리 메뉴에서 처리', async ({ page }) => {
   const state = await mockWorkspace(page);
-  await page.goto(`${BASE}/join-requests`);
+  await page.goto(`${BASE}/invitations`);
   await page.getByRole('rowheader', {
     name: '신청계정'
   }).click();
@@ -472,6 +593,28 @@ test('설정에서 관리대상이 있는 계정도 추가 화면에 진입하�
   await expect(page.getByRole('heading', {
     name: '등록 및 참여'
   })).toBeVisible();
+  await page.getByRole('button', {
+    name: '초대코드로 참여하기',
+    exact: true
+  }).click();
+  const invitation = page.getByRole('dialog', {
+    name: '초대코드로 참여하기'
+  });
+  await expect(page).toHaveURL('/properties/add');
+  await expect(invitation).toBeVisible();
+  await expect(invitation).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(invitation.getByRole('heading')).toHaveCSS('font-size', '24px');
+  await expect(invitation.getByRole('button', {
+    name: '초대코드 입력 닫기'
+  }).locator('svg')).toBeVisible();
+  await page.screenshot({
+    path: test.info().outputPath('invitationCodeModal.png'),
+    animations: 'disabled'
+  });
+  await invitation.getByRole('button', {
+    name: '초대코드 입력 닫기'
+  }).click();
+  await expect(invitation).toHaveCount(0);
   await page.goto('/start');
   await expect(page).toHaveURL(`${BASE}/dashboard`);
 });
@@ -486,6 +629,10 @@ test('추가 화면은 모바일에서도 기존 초대 입력과 등록 폼을 
   await expect(page.getByRole('heading', {
     name: '등록 및 참여'
   })).toBeVisible();
+  await expect(page.getByRole('banner')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(page.getByRole('button', {
+    name: /승인 대기 중인 요청/
+  })).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await page.screenshot({
     path: test.info().outputPath('additionalEntryMobile.png'),
     fullPage: true,
@@ -496,10 +643,24 @@ test('추가 화면은 모바일에서도 기존 초대 입력과 등록 폼을 
     exact: true
   }).click();
   await expect(page).toHaveURL('/invitations');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('banner')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await expect(page.getByRole('textbox', {
     name: '초대코드',
     exact: true
   })).toBeVisible();
+  const invitationForm = await page.getByRole('main').locator('form').boundingBox();
+  const invitationSubmit = await page.getByRole('button', {
+    name: '참여 신청',
+    exact: true
+  }).boundingBox();
+  expect(invitationSubmit!.width).toBe(invitationForm!.width);
+  expect(invitationSubmit!.height).toBeGreaterThanOrEqual(56);
+  await page.screenshot({
+    path: test.info().outputPath('invitationCodeMobile.png'),
+    fullPage: true,
+    animations: 'disabled'
+  });
   await page.goBack();
   await page.getByRole('button', {
     name: '관리할 곳 만들기',
@@ -603,7 +764,7 @@ test('기존 잔액 탭은 스크롤바 없는 탭과 상태 카드·다음 조�
 
 test('빈 가입 요청은 흰 목록 카드 안에서 표 헤더·빈 상태를 구분', async ({ page }) => {
   const state = await mockWorkspace(page); state.emptyRequests = true;
-  await page.goto(`${BASE}/join-requests`);
+  await page.goto(`${BASE}/invitations`);
   await expect(page.getByRole('table', {
     name: '가입 요청 목록'
   })).toContainText('아직 가입 요청이 없어요');
@@ -720,7 +881,7 @@ for (const width of [320, 390, 767]) {
     });
     await page.goto(`${BASE}/join-requests`);
     const button = page.getByRole('button', {
-      name: '주민 참여 링크 복사',
+      name: '전체 초대코드 발급',
       exact: true
     });
     await expect(button).toBeVisible();
@@ -1349,6 +1510,705 @@ test('모바일 계좌 관리 직접 접근·새로고침·로딩·오류에서�
   });
   await back.click();
   await expect(page).toHaveURL(`${BASE}/settings`);
+});
+
+test('가입 요청은 미연결 주민 전원을 공용 표에서 검색·페이지 이동하고 승인 관리와 구분', async ({ page }) => {
+  const state = await mockWorkspace(page);
+  state.unlinkedCount = 23;
+  await page.goto(`${BASE}/join-requests`);
+  const table = page.getByRole('table', {
+    name: '미연결 주민 목록'
+  });
+  await expect(table.locator('tbody tr')).toHaveCount(10);
+  await expect(table).toContainText('김주민');
+  await expect(table).not.toContainText('신청계정');
+  await expect(page.getByRole('combobox', {
+    name: '동 필터',
+    exact: true
+  })).toHaveCount(0);
+  await page.screenshot({
+    path: test.info().outputPath('unlinkedResidentsDesktop.png'),
+    fullPage: true,
+    animations: 'disabled'
+  });
+  await page.getByRole('navigation', {
+    name: '미연결 주민 페이지'
+  }).getByRole('button', {
+    name: '2페이지',
+    exact: true
+  }).click();
+  await expect(table).toContainText('미연결주민11');
+  await expect(table).not.toContainText('김주민');
+  await page.getByRole('textbox', {
+    name: '미연결 주민 검색'
+  }).fill('1234');
+  await expect(table.locator('tbody tr')).toHaveCount(1);
+  await expect(table).toContainText('김주민');
+  await expect(page.getByRole('button', {
+    name: '1페이지',
+    exact: true
+  })).toHaveAttribute('aria-current', 'page');
+  await page.getByRole('textbox', {
+    name: '미연결 주민 검색'
+  }).fill('없는주민');
+  await expect(table).toContainText('검색 조건에 맞는 주민이 없어요');
+  await page.getByRole('button', {
+    name: '초기화',
+    exact: true
+  }).click();
+  await page.getByRole('combobox', {
+    name: '페이지당 미연결 주민 수'
+  }).click();
+  await page.getByRole('option', {
+    name: '20개씩 보기'
+  }).click();
+  await expect(table.locator('tbody tr')).toHaveCount(20);
+  const navigation = page.getByRole('navigation', {
+    name: '관리 메뉴',
+    exact: true
+  });
+  await expect(navigation.getByRole('link', {
+    name: '승인 관리'
+  })).toHaveAttribute('href', `${BASE}/invitations`);
+  await navigation.getByRole('button', {
+    name: '차량 관리',
+    exact: true
+  }).click();
+  await expect(navigation.getByText('차량 내역', {
+    exact: true
+  }).locator('..')).toHaveAttribute('aria-disabled', 'true');
+  await expect(navigation.getByText('차량 승인', {
+    exact: true
+  }).locator('..')).toHaveAttribute('aria-disabled', 'true');
+  await navigation.getByRole('link', {
+    name: '승인 관리'
+  }).click();
+  await expect(page.getByRole('heading', {
+    name: '승인 관리',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('table', {
+    name: '가입 요청 목록'
+  })).toContainText('신청계정');
+});
+
+test('모바일 승인 상세는 직접 접근·새로고침에서도 공통 헤더로 승인 관리에 복귀', async ({ page }) => {
+  await mockWorkspace(page);
+  await page.setViewportSize({
+    width: 390,
+    height: 844
+  });
+  await page.goto(`${BASE}/invitations/${id(30)}`);
+  await expect(page.getByRole('heading', {
+    name: '가입 요청 확인'
+  })).toBeVisible();
+  await page.reload();
+  await page.getByRole('link', {
+    name: '승인 관리로 돌아가기'
+  }).click();
+  await expect(page).toHaveURL(`${BASE}/invitations`);
+  await expect(page.getByRole('table', {
+    name: '가입 요청 목록'
+  })).toBeVisible();
+  await page.goto(`${BASE}/join-requests/${id(30)}`);
+  await expect(page.getByRole('heading', {
+    name: '가입 요청 확인'
+  })).toBeVisible();
+  await expect(page.getByRole('link', {
+    name: '승인 관리로 돌아가기'
+  })).toHaveAttribute('href', `${BASE}/invitations`);
+});
+
+
+test('가입 요청은 이름·응답 순서와 관계없이 102동부터 호수 숫자순 정렬 후 페이지를 나눔', async ({ page }) => {
+  const state = await mockWorkspace(page);
+  const row = (n: number, buildingName: string | null, unitNumber: string | null, name: string): UnlinkedResident => ({
+    residentId: id(2000 + n),
+    name,
+    buildingName,
+    unitNumber,
+    phoneLast4: null,
+    relationType: 'TENANT'
+  });
+  state.unlinkedRows = [
+    row(0, '104동', '101', '가장 앞 이름'),
+    row(1, '102동', '1001', '가나다'),
+    row(2, '102동', '101', '나나다'),
+    row(3, '102동', '2', '마지막 이름'),
+    ...Array.from({
+      length: 10
+    }, (_, i) => row(10 + i, '103동', String(110 - i), `주민${i}`)),
+    row(30, null, null, '소속 없는 주민')
+  ];
+  await page.goto(`${BASE}/join-requests`);
+  const rows = page.getByRole('table', {
+    name: '미연결 주민 목록'
+  }).locator('tbody tr');
+  await expect(rows.nth(0)).toContainText('102동 2호');
+  await expect(rows.nth(1)).toContainText('102동 101호');
+  await expect(rows.nth(2)).toContainText('102동 1001호');
+  await expect(rows.nth(3)).toContainText('103동 101호');
+  await page.getByRole('button', {
+    name: '2페이지',
+    exact: true
+  }).click();
+  await expect(rows.last()).toContainText('소속 없음');
+  await page.getByRole('textbox', {
+    name: '미연결 주민 검색'
+  }).fill('102동');
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0)).toContainText('102동 2호');
+  await expect(rows.nth(2)).toContainText('102동 1001호');
+  await page.getByRole('textbox', {
+    name: '미연결 주민 검색'
+  }).clear();
+  await page.getByRole('combobox', {
+    name: '동 필터',
+    exact: true
+  }).click();
+  await expect(page.getByRole('option')).toHaveText(['전체 동', '102동', '103동', '104동']);
+  await page.getByRole('option', {
+    name: '103동',
+    exact: true
+  }).click();
+  await expect(rows).toHaveCount(10);
+  await expect(rows.first()).toContainText('103동 101호');
+  await expect(rows.last()).toContainText('103동 110호');
+  await page.getByRole('textbox', {
+    name: '미연결 주민 검색'
+  }).fill('110호');
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first()).toContainText('103동 110호');
+  await page.getByRole('button', {
+    name: '초기화',
+    exact: true
+  }).click();
+  await expect(rows).toHaveCount(10);
+  await expect(rows.first()).toContainText('102동 2호');
+  await expect(page.getByRole('combobox', {
+    name: '동 필터',
+    exact: true
+  })).toContainText('전체 동');
+});
+
+
+test('주민별 개인 초대를 발급하고 코드·바로 가입 링크 전달을 선택', async ({ page }) => {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  const state = await mockWorkspace(page);
+  await page.goto(`${BASE}/join-requests`);
+  await expect(page).toHaveTitle('가입 요청 | 모아홈');
+  await expect(page.getByRole('button', {
+    name: '공통 코드 폐기',
+    exact: true
+  })).toHaveCount(0);
+  await expect(page.getByRole('button', {
+    name: '김주민 개인 초대',
+    exact: true
+  })).toHaveCSS('color', 'rgb(37, 99, 235)');
+
+  await page.getByRole('button', {
+    name: '김주민 개인 초대',
+    exact: true
+  }).click();
+  const modal = page.getByRole('dialog', {
+    name: '김주민 개인 초대'
+  });
+  await expect(modal.getByRole('textbox', {
+    name: '초대코드'
+  })).toHaveValue('R-ABCD-EFGH-JKLM');
+  await expect(modal.getByRole('button', {
+    name: '코드 복사',
+    exact: true
+  })).toBeVisible();
+  await expect(modal.getByRole('button', {
+    name: '가입 링크 복사',
+    exact: true
+  })).toBeVisible();
+  await modal.getByRole('button', {
+    name: '가입 링크 복사',
+    exact: true
+  }).click();
+  await expect(modal.getByRole('status')).toContainText('가입 링크를 복사했어요.');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('http://localhost:3100/invitations#R-ABCD-EFGH-JKLM');
+  await expect(modal.getByRole('button', {
+    name: '메시지로 공유'
+  })).toBeVisible();
+  for (const name of ['코드 복사', '가입 링크 복사', '메시지로 공유']) {
+    await expect(modal.getByRole('button', {
+      name,
+      exact: true
+    })).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    await expect(modal.getByRole('button', {
+      name,
+      exact: true
+    })).toHaveCSS('color', 'rgb(37, 99, 235)');
+  }
+
+  await page.screenshot({
+    path: test.info().outputPath('personalInvitationDesktop.png'),
+    animations: 'disabled'
+  });
+
+  expect(state.writes.some((r) => r.path.endsWith('/resident-invitations/residents/' + id(1000)))).toBe(true);
+  await modal.getByRole('button', {
+    name: '초대 전달 닫기'
+  }).click();
+  const expiresAt = state.invitationRows[0].expiresAt;
+  await page.getByRole('button', {
+    name: '김주민 개인 초대 메뉴',
+    exact: true
+  }).click();
+  await page.getByRole('menuitem', {
+    name: '개인 초대',
+    exact: true
+  }).click();
+  await expect(modal.getByRole('textbox', {
+    name: '초대코드'
+  })).toHaveValue('R-ABCD-EFGH-JKLM');
+  await modal.getByRole('button', {
+    name: '초대 전달 닫기'
+  }).click();
+  await page.reload();
+  await page.getByRole('button', {
+    name: '김주민 개인 초대 메뉴',
+    exact: true
+  }).click();
+  await page.getByRole('menuitem', {
+    name: '개인 초대',
+    exact: true
+  }).click();
+  await expect(modal.getByRole('textbox', {
+    name: '초대코드'
+  })).toHaveValue('R-ABCD-EFGH-JKLM');
+  expect(state.invitationRows[0].expiresAt).toBe(expiresAt);
+  expect(state.writes.filter((r) => r.path.includes('/resident-invitations/residents/'))).toHaveLength(1);
+  await modal.getByRole('button', {
+    name: '초대 전달 닫기'
+  }).click();
+  const invitationMenu = page.getByRole('button', {
+    name: '김주민 개인 초대 메뉴'
+  });
+  await expect(invitationMenu).toBeVisible();
+  await invitationMenu.click();
+  await expect(page.getByRole('menu', {
+    name: '김주민 개인 초대 작업'
+  })).toBeVisible();
+  await expect(page.getByRole('menuitem')).toHaveText(['개인 초대', '재발급', '철회']);
+  const triggerBox = await invitationMenu.boundingBox();
+  const menuBox = await page.getByRole('menu', {
+    name: '김주민 개인 초대 작업'
+  }).boundingBox();
+  expect(menuBox!.y).toBeGreaterThanOrEqual(triggerBox!.y + triggerBox!.height);
+  expect(Math.abs(menuBox!.x + menuBox!.width - triggerBox!.x - triggerBox!.width)).toBeLessThan(2);
+  await expect(page.getByRole('row').filter({
+    hasText: '김주민'
+  }).getByRole('button')).toHaveCount(1);
+
+  await page.getByRole('menuitem', {
+    name: '재발급',
+    exact: true
+  }).click();
+  await expect(modal).toBeVisible();
+  expect(state.writes.filter((r) => r.path.includes('/resident-invitations/residents/'))).toHaveLength(2);
+  await modal.getByRole('button', {
+    name: '초대 전달 닫기'
+  }).click();
+  await invitationMenu.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('menuitem', {
+    name: '개인 초대',
+    exact: true
+  })).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(invitationMenu).toBeFocused();
+  await invitationMenu.click();
+  await page.getByRole('menuitem', {
+    name: '철회',
+    exact: true
+  }).click();
+  await expect(page.getByRole('button', {
+    name: '김주민 개인 초대',
+    exact: true
+  })).toBeVisible();
+});
+
+test('공통 가입 링크는 코드 입력 없이 이름 필수·연락처 선택 폼으로 바로 연결', async ({ page }) => {
+  const state = await mockWorkspace(page);
+  await page.goto(`/join/${PROPERTY}#B-ABCD-EFGH-JKLM`);
+  await expect(page.getByRole('textbox', {
+    name: '이름',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('textbox', {
+    name: '초대코드',
+    exact: true
+  })).toHaveCount(0);
+  await expect(page.getByRole('textbox', {
+    name: '이름',
+    exact: true
+  })).toHaveAttribute('required', '');
+  await expect(page.getByRole('textbox', {
+    name: '연락처 (선택)'
+  })).not.toHaveAttribute('required');
+  await page.getByRole('textbox', {
+    name: '이름',
+    exact: true
+  }).fill('신청한 실명');
+  await page.getByRole('combobox', {
+    name: '동·호수'
+  }).click();
+  await page.getByRole('option', {
+    name: '102동 201호'
+  }).click();
+  await expect(page.getByRole('button', {
+    name: '가입 신청'
+  })).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await page.getByRole('button', {
+    name: '가입 신청'
+  }).click();
+  await expect(page.getByRole('status').filter({
+    hasText: '가입을 신청했어요'
+  })).toBeVisible();
+  expect(state.writes.find((r) => r.path.endsWith('/membership-requests'))?.body).toEqual({
+    code: 'B-ABCD-EFGH-JKLM',
+    name: '신청한 실명',
+    unitId: id(101),
+    phone: null
+  });
+});
+
+test('개인 링크는 코드 입력 없이 지정 주민 정보 확인 후 바로 가입', async ({ page }) => {
+  const state = await mockWorkspace(page);
+  await page.goto('/invitations#R-ABCD-EFGH-JKLM');
+  await expect(page.getByText('모아빌라 · 102동 201호', {
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('textbox', {
+    name: '초대코드',
+    exact: true
+  })).toHaveCount(0);
+  await expect(page.getByText('미등록', {
+    exact: true
+  })).toBeVisible();
+  await page.getByRole('button', {
+    name: '참여하기',
+    exact: true
+  }).click();
+  await expect(page.getByRole('status').filter({
+    hasText: '주민 가입이 완료'
+  })).toBeVisible();
+  expect(state.writes.find((r) => r.path.endsWith('/accept'))?.body).toEqual({
+    token: 'R-ABCD-EFGH-JKLM',
+    correction: false
+  });
+});
+
+test('개인 초대 정정 요청은 승인 관리에서 이름·선택 연락처를 검토 후 가입 승인', async ({ page }) => {
+  const state = await mockWorkspace(page);
+  state.invitationRows = [{
+    id: id(3001),
+    residentId: id(1000),
+    name: '김주민',
+    unitLabel: '102동 201호',
+    phoneLast4: null,
+    status: 'CHANGE_REQUESTED',
+    revision: 1,
+    expiresAt: new Date(Date.now() + 86400000).toISOString(),
+    requestedName: '정정한 이름',
+    requestedPhoneLast4: null,
+    phoneAction: 'KEEP'
+  }];
+  await page.goto(`${BASE}/invitations`);
+  await expect(page).toHaveTitle('승인 관리 | 모아홈');
+  const table = page.getByRole('table', {
+    name: '개인 초대 승인 목록'
+  });
+  await expect(table).toContainText('정정한 이름');
+  await expect(table).toContainText('미등록');
+  await table.getByRole('button', {
+    name: '정정 후 가입 승인'
+  }).click();
+  await expect(table).toContainText('가입 완료');
+  expect(state.writes.find((r) => r.path.endsWith('/resident-invitations/' + id(3001) + '/approve'))?.body).toEqual({
+    revision: 1
+  });
+});
+
+
+test('개인 초대 모달은 모바일에서 전달 버튼 3개가 전체 너비와 56px 높이로 표시', async ({ page }) => {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await mockWorkspace(page);
+  await page.setViewportSize({
+    width: 390,
+    height: 844
+  });
+  await page.goto(`${BASE}/join-requests`);
+  await page.getByRole('button', {
+    name: '김주민 개인 초대',
+    exact: true
+  }).click();
+  const modal = page.getByRole('dialog', {
+    name: '김주민 개인 초대'
+  });
+  await modal.getByRole('button', {
+    name: '가입 링크 복사',
+    exact: true
+  }).click();
+  await expect(modal.getByRole('status')).toContainText('가입 링크를 복사했어요.');
+  for (const name of ['코드 복사', '가입 링크 복사', '메시지로 공유']) {
+    const button = modal.getByRole('button', {
+      name,
+      exact: true
+    });
+    const box = await button.boundingBox();
+    expect(box!.width).toBeGreaterThan(290);
+    expect(box!.height).toBeGreaterThanOrEqual(56);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({
+    path: test.info().outputPath('personalInvitationMobile.png'),
+    animations: 'disabled'
+  });
+});
+
+
+for (const code of ['B-ABCD-EFGH-JKLM', 'R-ABCD-EFGH-JKLM']) {
+  test(`비로그인 ${code[0]} 초대 링크는 정보를 노출하지 않고 로그인 후 원래 가입으로 복귀`, async ({ page }) => {
+    const state = await mockWorkspace(page);
+    state.loggedIn = false;
+    const link = code.startsWith('B') ? `/join/${PROPERTY}#${code}` : `/invitations#${code}`;
+    await page.goto(link);
+    await expect(page.getByRole('link', {
+      name: '카카오 로그인',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByText('김주민', {
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByRole('textbox', {
+      name: '이름',
+      exact: true
+    })).toHaveCount(0);
+    expect(state.writes.some((row) => /\/(preview|shared-options|accept)$/.test(row.path))).toBe(false);
+    state.loggedIn = true;
+    await page.getByRole('button', {
+      name: '로그인 확인',
+      exact: true
+    }).click();
+    if (code.startsWith('B')) await expect(page.getByRole('textbox', {
+      name: '이름',
+      exact: true
+    })).toBeVisible();
+    else await expect(page.getByRole('button', {
+      name: '참여하기',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('textbox', {
+      name: '초대코드',
+      exact: true
+    })).toHaveCount(0);
+  });
+}
+
+for (const width of [1440, 375]) {
+  test(`최초 시작의 주민 참여 ${width}px는 PC 모달·모바일 페이지로 열린다`, async ({ page }) => {
+    const state = await mockWorkspace(page); state.hasManagedProperties = false;
+    await page.setViewportSize({
+      width,
+      height: 960
+    });
+    await page.goto('/start');
+    await page.getByRole('button', {
+      name: '주민으로 참여하기',
+      exact: true
+    }).click();
+    if (width >= 768) {
+      await expect(page).toHaveURL('/start');
+      const modal = page.getByRole('dialog', {
+        name: '초대코드로 참여하기'
+      });
+      await expect(modal.getByRole('textbox', {
+        name: '초대코드'
+      })).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(modal).toHaveCount(0);
+      await expect(page.getByRole('button', {
+        name: '주민으로 참여하기',
+        exact: true
+      })).toBeFocused();
+    } else {
+      await expect(page).toHaveURL('/join');
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page.getByRole('textbox', {
+        name: '초대코드'
+      })).toBeVisible();
+    }
+  });
+}
+for (const path of ['/join', '/invitations']) {
+  test(`직접 ${path} 코드 입력도 PC 공통 모달로 열린다`, async ({ page }) => {
+    await mockWorkspace(page);
+    await page.goto(path);
+    await expect(page.getByRole('dialog', {
+      name: '초대코드로 참여하기'
+    }).getByRole('textbox', {
+      name: '초대코드'
+    })).toBeVisible();
+  });
+}
+for (const width of [1440, 375]) {
+  test(`주민 ${width}px는 시작·가입 완료에서 임시 주민 홈으로 이동하고 관리자 메뉴를 표시하지 않는다`, async ({ page }) => {
+    const state = await mockWorkspace(page); state.hasManagedProperties = false;
+    await page.setViewportSize({
+      width,
+      height: 960
+    });
+    await page.goto('/invitations#R-ABCD-EFGH-JKLM');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.getByRole('region', {
+      name: '초대된 주민 정보'
+    })).toBeVisible();
+    await expect(page.getByRole('button', {
+      name: '수정',
+      exact: true
+    })).toBeVisible();
+    await page.screenshot({
+      path: test.info().outputPath('residentParticipation.png'),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    const primary = page.getByRole('button', {
+      name: '참여하기',
+      exact: true
+    });
+    const secondary = page.getByRole('button', {
+      name: '수정',
+      exact: true
+    });
+    const first = await secondary.boundingBox(); const second = await primary.boundingBox();
+    expect(second!.y).toBeGreaterThan(first!.y);
+    expect(Math.abs(first!.width - second!.width)).toBeLessThan(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await primary.click();
+    await expect(page.getByRole('status')).toContainText('주민 가입이 완료되었어요.');
+    await page.getByRole('button', {
+      name: '주민 홈으로'
+    }).click();
+    await expect(page).toHaveURL('/resident');
+    await expect(page.getByRole('heading', {
+      name: '주민 홈',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByText('모아빌라', {
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('navigation', {
+      name: /관리/
+    })).toHaveCount(0);
+    expect(state.writes.some((row) => row.path.endsWith('/accept'))).toBe(true);
+    await page.goto('/start');
+    await expect(page).toHaveURL('/resident');
+    await page.reload();
+    await expect(page.getByRole('heading', {
+      name: '주민 홈',
+      exact: true
+    })).toBeVisible();
+  });
+}
+
+test('기존 해시 전용 초대는 보관한 링크로 복원해 같은 코드·링크·만료를 다시 열고 재발급하지 않는다', async ({ page }) => {
+  const state = await mockWorkspace(page);
+  await page.goto(`${BASE}/join-requests`);
+  await page.getByRole('button', {
+    name: '김주민 개인 초대',
+    exact: true
+  }).click();
+  const modal = page.getByRole('dialog', {
+    name: '김주민 개인 초대'
+  });
+  await modal.getByRole('button', {
+    name: '초대 전달 닫기'
+  }).click();
+  const expiresAt = state.invitationRows[0].expiresAt;
+  state.legacyShare = true;
+  await page.getByRole('button', {
+    name: '김주민 개인 초대 메뉴'
+  }).click();
+  await page.getByRole('menuitem', {
+    name: '개인 초대',
+    exact: true
+  }).click();
+  await expect(modal.getByRole('button', {
+    name: '재발급',
+    exact: true
+  })).toHaveCount(0);
+  await expect(modal.getByRole('button', {
+    name: '가입 링크 복사',
+    exact: true
+  })).toHaveCount(0);
+  const input = modal.getByRole('textbox', {
+    name: '기존 초대코드 또는 가입 링크'
+  });
+  await input.fill('R-AAAA-AAAA-AAAA');
+  await modal.getByRole('button', {
+    name: '확인',
+    exact: true
+  }).click();
+  await expect(modal.getByRole('alert')).toBeVisible();
+  await expect(input).toHaveValue('R-AAAA-AAAA-AAAA');
+  await input.fill('http://localhost:3100/invitations#R-ABCD-EFGH-JKLM');
+  await modal.getByRole('button', {
+    name: '확인',
+    exact: true
+  }).click();
+  await expect(modal.getByRole('textbox', {
+    name: '초대코드',
+    exact: true
+  })).toHaveValue('R-ABCD-EFGH-JKLM');
+  await expect(modal.getByRole('button', {
+    name: '가입 링크 복사',
+    exact: true
+  })).toBeVisible();
+  expect(state.invitationRows[0].expiresAt).toBe(expiresAt);
+  await modal.getByRole('button', {
+    name: '초대 전달 닫기'
+  }).click();
+  await page.reload();
+  await page.getByRole('button', {
+    name: '김주민 개인 초대 메뉴'
+  }).click();
+  await page.getByRole('menuitem', {
+    name: '개인 초대',
+    exact: true
+  }).click();
+  await expect(modal.getByRole('textbox', {
+    name: '초대코드',
+    exact: true
+  })).toHaveValue('R-ABCD-EFGH-JKLM');
+  await expect(modal.getByRole('textbox', {
+    name: '기존 초대코드 또는 가입 링크'
+  })).toHaveCount(0);
+  expect(state.writes.filter((row) => row.path.includes('/resident-invitations/residents/'))).toHaveLength(1);
+});
+test('부담당자는 재로그인 시 관리자 대시보드에 진입하고 주민 홈으로 보내지 않는다', async ({ page }) => {
+  const state = await mockWorkspace(page); state.managementRole = 'MANAGER'; state.residentJoined = true;
+  await page.goto('/start');
+  await expect(page).toHaveURL(`${BASE}/dashboard`);
+  await expect(page.getByRole('navigation', {
+    name: '관리 메뉴'
+  })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('navigation', {
+    name: '관리 메뉴'
+  })).toBeVisible();
+  await page.goto(`${BASE}/join-requests`);
+  await expect(page.getByRole('heading', {
+    name: '가입 요청',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('button', {
+    name: '전체 초대코드 발급'
+  })).toBeVisible();
 });
 
 for (const width of [1440, 390]) {

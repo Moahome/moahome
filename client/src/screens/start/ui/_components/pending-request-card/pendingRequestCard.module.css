@@ -65,8 +65,8 @@
     width: 100%;
     margin-top: 16px;
     padding: 20px 18px;
-    border-color: transparent;
-    background: color-mix(in srgb, var(--sub-text) 5%, var(--background));
+    border-color: var(--border);
+    background: var(--card);
 
     > svg {
       width: 19px;

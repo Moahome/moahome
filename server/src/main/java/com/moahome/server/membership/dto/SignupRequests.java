@@ -8,7 +8,8 @@ public final class SignupRequests {
 	private SignupRequests() {
 	}
 
-	public record Create(@NotNull UUID unitId, @NotBlank @Size(max = 64) String phone) {
+	public record Create(@NotNull UUID unitId, @NotBlank @Size(max = 50) String name, @Size(max = 64) String phone,
+	    @NotBlank @Size(max = 32) String code) {
 		@Override
 		public String toString() {
 			return "Create[REDACTED]";
@@ -25,10 +26,17 @@ public final class SignupRequests {
 	}
 
 	public record Item(UUID id, UUID unitId, String unitLabel, String requesterName, String phoneLast4, String status,
-	    OffsetDateTime requestedAt, OffsetDateTime updatedAt, List<Candidate> candidates) {
+	    OffsetDateTime requestedAt, OffsetDateTime updatedAt, List<Candidate> candidates, String applicantName) {
 	}
 
 	public record Workspace(UUID propertyId, List<Item> requests) {
+	}
+
+	public record UnlinkedResident(UUID residentId, String name, String phoneLast4, String buildingName,
+	    String unitNumber, String relationType) {
+	}
+
+	public record UnlinkedResidents(UUID propertyId, List<UnlinkedResident> residents) {
 	}
 
 	public record UnitOption(UUID unitId, String label) {

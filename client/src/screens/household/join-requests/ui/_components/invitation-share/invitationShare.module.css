@@ -1,0 +1,79 @@
+.modal {
+  width: min(720px, calc(100% - 32px));
+  max-height: calc(100dvh - 48px);
+  margin: auto;
+  padding: 30px;
+  overflow-y: auto;
+  color: var(--foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  &::backdrop { background: color-mix(in srgb, var(--foreground) 45%, transparent); backdrop-filter: blur(3px); }
+}
+.header { display: flex; align-items: flex-start; gap: 18px; margin-bottom: 28px; }
+.header-copy {
+  flex: 1;
+  min-width: 0;
+  h2 { margin: 0; font-size: 26px; font-weight: 750; outline: none; line-height: 1.4; }
+  p { margin-top: 6px; font-size: 15px; line-height: 1.6; }
+}
+.title-icon {
+  display: grid; flex-shrink: 0; place-items: center; width: 48px; height: 48px; border-radius: 14px;
+  color: var(--success-dark); background: color-mix(in srgb, var(--success) 8%, var(--card));
+  svg { width: 26px; height: 26px; }
+}
+.close { margin-top: -12px; margin-right: -12px; }
+.content { display: grid; gap: 14px; }
+.code-field input { min-height: 62px; font-size: 24px; font-weight: 600; letter-spacing: 0.3px; }
+.expiry {
+  display: inline-flex; align-items: center; justify-self: start; gap: 10px; padding: 6px 14px; border-radius: 999px;
+  background: var(--background); color: var(--sub-text); font-size: 13px; line-height: 1.6;
+  svg { flex-shrink: 0; width: 18px; height: 18px; }
+}
+.guidance { display: grid; gap: 18px; margin-top: 8px; padding-top: 22px; border-top: 1px solid var(--border); }
+.modal .guidance-row {
+  display: flex; align-items: center; gap: 16px;
+  p { color: var(--foreground); font-size: 15px; font-weight: 600; line-height: 1.6; }
+  p.sub-copy { margin-top: 4px; color: var(--sub-text); font-size: 14px; font-weight: 400; }
+}
+.guidance-icon {
+  display: grid; flex-shrink: 0; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--background);
+  svg { width: 23px; height: 23px; }
+}
+.notice {
+  display: flex; align-items: center; gap: 16px; margin-top: 8px; padding: 16px; border: 1px solid color-mix(in srgb, var(--success) 20%, var(--card)); border-radius: 10px;
+  color: var(--success-dark); background: color-mix(in srgb, var(--success) 5%, var(--card));
+  strong { font-size: 15px; }
+  p { margin-top: 3px; color: var(--sub-text); font-size: 13px; line-height: 1.6; }
+  &[data-error="true"] { color: var(--danger); border-color: var(--border); background: var(--card); }
+}
+.notice-icon {
+  display: grid; flex-shrink: 0; place-items: center; width: 36px; height: 36px; border-radius: 50%; color: var(--card); background: var(--success-dark);
+  svg { width: 23px; height: 23px; }
+}
+.actions {
+  display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 12px; margin-top: 24px;
+  > button { min-width: 0; min-height: 52px; padding-inline: 12px; }
+}
+@media (max-width: 767px) {
+  .modal { padding: 22px; }
+  .header { gap: 12px; margin-bottom: 24px; }
+  .header-copy h2 { font-size: 21px; }
+  .title-icon { width: 40px; height: 40px; border-radius: 12px; }
+  .code-field input { font-size: 18px; }
+  .expiry { border-radius: 12px; }
+  .modal .guidance-row { align-items: flex-start; gap: 12px; }
+  .guidance-icon { width: 36px; height: 36px; }
+  .guidance-row p { font-size: 14px; }
+  .actions { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .actions > button { width: 100%; min-height: 56px; }
+}
+
+.recovery {
+  display: grid;
+  gap: 16px;
+
+  > button {
+    justify-self: end;
+  }
+}

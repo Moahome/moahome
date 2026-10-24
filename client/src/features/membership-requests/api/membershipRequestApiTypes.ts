@@ -3,7 +3,8 @@ export interface SignupRequest {
   unitId: string;
   unitLabel: string;
   requesterName: string;
-  phoneLast4: string;
+  applicantName?: string | null;
+  phoneLast4: string | null;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELED';
   requestedAt: string;
   updatedAt: string;
@@ -18,16 +19,16 @@ export interface SignupWorkspace {
   requests: SignupRequest[];
 }
 
-export interface SignupOptions {
-  propertyId: string;
-  propertyName: string;
-  units: {
-    unitId: string;
-    label: string;
-  }[];
+export interface UnlinkedResident {
+  residentId: string;
+  name: string;
+  phoneLast4: string | null;
+  buildingName: string | null;
+  unitNumber: string | null;
+  relationType: 'OWNER' | 'TENANT' | 'FAMILY' | 'OTHER' | null;
 }
 
-export interface SignupRequestResponse {
-  id: string;
-  status: string;
+export interface UnlinkedResidents {
+  propertyId: string;
+  residents: UnlinkedResident[];
 }

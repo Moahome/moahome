@@ -32,6 +32,12 @@ public class ManagementAccessService {
 		return new ManagedPropertiesResponse(uniqueProperties(members.findManagedProperties(userId)));
 	}
 
+	/** 승인으로 부여된 현재 주민 참여만 반환하며 명부 등록·신청 대기를 가입으로 간주하지 않습니다. */
+	public ManagedPropertiesResponse getResidentProperties(UUID userId) {
+		requireActiveAccount(userId);
+		return new ManagedPropertiesResponse(uniqueProperties(members.findResidentProperties(userId)));
+	}
+
 	/** 존재하지 않거나 권한이 없는 대상은 같은 오류로 거부해 다른 대상의 정보를 노출하지 않습니다. */
 	public ManagementPropertyResponse getManagementContext(UUID userId, UUID propertyId) {
 		requireActiveAccount(userId);

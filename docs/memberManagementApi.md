@@ -1,6 +1,6 @@
 # 참여자 역할·초대 관리 API
 
-기준일: 2026-10-24. 아래 경로·본문·응답은 현재 구현된 계약입니다. 신규 [전체 공유·개인 지정 주민 초대 정책](domainRules.md#주민-참여-흐름)은 아직 구현하지 않았으며 변경할 계약은 마지막 절에서 구분합니다. 외부 부담당자 초대와 역할·인계의 기존 동작은 유지합니다. 저장 구조는 [ERD](erd.md#56-property_members), 화면은 [Client 설계](../client/docs/memberManagement.md), 트랜잭션은 [Server 설계](../server/docs/memberManagement.md)를 기준으로 합니다.
+기준일: 2026-10-24. 아래 경로·본문·응답은 현재 구현된 계약입니다. [전체 공유·개인 지정 주민 초대 정책](domainRules.md#주민-참여-흐름)을 코드·링크 전달과 이름 필수·연락처 선택 가입에 반영했습니다. 외부 부담당자 초대와 역할·인계의 기존 동작은 유지합니다. 저장 구조는 [ERD](erd.md#56-property_members), 화면은 [Client 설계](../client/docs/memberManagement.md), 트랜잭션은 [Server 설계](../server/docs/memberManagement.md)를 기준으로 합니다.
 
 ## 공통 계약
 
@@ -36,7 +36,7 @@
 
 인계는 대상 잠금 아래 기존 관리소장을 MANAGER로 먼저 flush한 뒤 대상 참여자를 ADMIN으로 변경합니다. 둘 중 하나라도 실패하면 전체를 롤백합니다. 인계 후 기존 관리소장은 MANAGER로 일반 관리 업무를 계속 사용하며, 관리자 승격·외부 관리자 초대 승인·다시 인계하는 요청은 403으로 거부합니다.
 
-외부 부담당자 초대 승인·철회는 revision으로 오래된 상태를 거부합니다. 승인된 초대의 같은 승인 재요청과 철회된 초대의 같은 철회 재요청은 중복 변경하지 않습니다. 현재 주민 가입 구현은 초대코드 없는 별도 가입 요청입니다. 신규 주민 초대는 아래 개편 범위이며 이 외부 초대 API에 주민 ID를 보내 사용할 수 없습니다. 다른 주민과 이미 연결된 계정, 다른 계정과 연결된 주민, 활성 역할 충돌은 덮어쓰지 않습니다.
+외부 부담당자 초대 승인·철회는 revision으로 오래된 상태를 거부합니다. 승인된 초대의 같은 승인 재요청과 철회된 초대의 같은 철회 재요청은 중복 변경하지 않습니다. 주민 초대는 아래 별도 API를 사용하며 외부 초대 API에 주민 ID를 보내 사용할 수 없습니다. 다른 주민과 이미 연결된 계정, 다른 계정과 연결된 주민, 활성 역할 충돌은 덮어쓰지 않습니다.
 
 ## 오류
 
@@ -58,49 +58,72 @@
 
 ## 주민 가입 요청
 
-현재 `/api/properties/{propertyId}/membership-requests`에서 코드 없이 주민 가입을 처리합니다. 아래 `{unitId,phone}`의 `phone`은 현행 필수 필드이고 신청 이름·주민용 코드·개인 초대 수락 API는 아직 없습니다.
+현재 `/api/properties/{propertyId}/membership-requests`에서 유효한 공통 초대코드·필수 이름·실제 세대·선택 연락처로 신청합니다. 연락처 생략·null·빈 입력은 연락처 없음으로 처리합니다.
 
 | Method | 경로 | 권한·요청 | 결과 |
 | --- | --- | --- | --- |
-| GET | `/options` | 정상 로그인 계정 | propertyId/propertyName과 세대 ID·표시명만 반환, 주민 정보 없음 |
-| POST | 기본 경로 | 정상 로그인 계정, `{unitId,phone}` | `{id,status:PENDING}`, 접근권한 생성 없음 |
+| POST | `/options` | 정상 로그인 계정, `{token:공통코드}` | propertyId/propertyName과 세대 ID·표시명만 반환, 주민 정보 없음 |
+| GET | `/unlinked-residents` | 현재 ADMIN / MANAGER | 계정 미연결 주민 전원의 가입 업무용 최소 목록 |
+| POST | 기본 경로 | 정상 로그인 계정, `{unitId,name,phone,code}` | `{id,status:PENDING}`, 접근권한 생성 없음 |
 | GET | 기본 경로 | 현재 ADMIN / MANAGER | 신청·해당 세대 명부 후보 목록 |
 | POST | `/{requestId}/approve` | ADMIN / MANAGER, `{residentId,expectedUpdatedAt}` | 명부 연결·RESIDENT 참여·승인 이력·역할 이벤트 저장 후 목록 |
 | POST | `/{requestId}/reject` | ADMIN / MANAGER, `{expectedUpdatedAt}` | 거절 이력 보존 후 목록 |
 
-신청에는 실명·세대 관계를 입력받지 않고 관리자가 명부의 현재 세대 주민을 선택합니다. 동일 계정·세대의 대기 재신청은 기존 요청을 반환합니다. 다른 계정과 연결된 명부·다른 주민에 연결된 계정·기존 관리자 역할과의 충돌은 자동 병합하지 않습니다. 신청 목록에는 계정 표시명·세대·연락처 끝 4자리·신청 시각·상태와 해당 세대 주민 후보만 제공합니다. 부담당자의 승인 권한은 전체 주민 명부 조회권한을 의미하지 않습니다.
+신청 이름은 필수이고 세대 관계 유형은 입력받지 않습니다. 관리자가 명부의 현재 세대 주민을 선택합니다. 동일 계정·세대의 대기 재신청은 기존 요청을 반환합니다. 다른 계정과 연결된 명부·다른 주민에 연결된 계정·기존 관리자 역할과의 충돌은 자동 병합하지 않습니다. 신청 목록에는 계정 표시명 `requesterName`과 신청 이름 `applicantName`을 구분하고 세대·선택 연락처 끝 네 자리·시각·상태·주민 후보를 제공합니다. 과거 이름 없는 신청과 연락처 미등록은 null입니다. 관리소장과 부담당자는 같은 주민 명부 업무 권한을 사용합니다.
 
 주민 수정 API의 선택 필드 `serviceRole`·`expectedServiceRole`을 함께 보내면 일반 주민 정보와 역할을 같은 트랜잭션에서 변경합니다. 둘 다 생략하면 기존 수정과 같습니다. ADMIN 변경은 전용 인계만 허용합니다.
+
+### 가입 요청 대상 미연결 주민 조회
+
+`GET /api/properties/{propertyId}/membership-requests/unlinked-residents`는 Bearer 인증·현재 정상 계정·활성 관리대상·ADMIN 또는 MANAGER 참여를 확인하고 `Cache-Control: no-store`로 응답합니다.
+
+응답은 `{propertyId,residents}`이며 각 행은 `{residentId,name,phoneLast4,buildingName,unitNumber,relationType}`입니다. 전화번호는 끝 네 자리 또는 null, 동·현재 세대·주민 구분이 없으면 해당 값은 null입니다. 원문·암호문·HMAC·계정 ID는 조회·반환하지 않습니다.
+
+조회는 같은 관리대상의 미삭제 주민 중 실제 `user_id IS NULL`인 전원을 이름·ID 순으로 반환합니다. 현재 세대가 없거나 삭제됐어도 행을 제외하지 않습니다. `NOT_JOINED`는 미연결과 다르며 이름·전화번호가 같은 신청자를 추측해 연결하지 않습니다. 서버 검색·페이지 파라미터는 없고 Client에서 공용 동·호수 숫자순 정렬을 적용하고 검색·필터링한 뒤 페이지로 나눕니다. 같은 세대는 이름·ID 순이고 소속 없는 주민은 마지막입니다.
+
+이 API는 가입 요청 화면용 조회입니다. 부관리자도 일반 명부·연락처 조회·수정 API를 사용할 수 있습니다. 실제 신청과 승인·거절은 기존 기본 경로의 계약을 유지하고 승인 관리 화면에서 사용합니다.
 
 ## 기존 관리소장 본인 계정 연결
 
 `PUT /api/properties/{propertyId}/members/me/resident`는 현재 정상 로그인 관리자(ADMIN / MANAGER) 본인만 연결한다. 본문의 주민 ID와 화면에서 선택한 현재 세대 ID는 필수 UUID이며 계정 ID·역할 등 계약 밖 필드는 400으로 거부한다. 주민·세대는 같은 대상의 미삭제 현재 관계여야 한다. 다른 계정에 연결된 주민, 다른 주민에 연결된 계정, 확인 후 바뀐 세대와 활성 역할 충돌은 409로 거부한다.
 
-성공은 204·Cache-Control: no-store이다. 기존 ADMIN 참여와 대표 여부·주민 구분·이름·연락처는 변경하지 않는다. 가입 신청·새 참여·역할 변경 이력도 생성하지 않는다. 계정 연결과 resident_account_links의 출처 기록은 단일 트랜잭션이며 후반 기록 실패 시 연결도 롤백한다. 같은 본인·주민·현재 세대 관계의 재요청은 같은 성공을 반환하며 이력을 중복 생성하지 않는다. 새 현재 관계는 별도 명시적 연결이 필요하다.
+성공은 204·Cache-Control: no-store이다. 기존 ADMIN / MANAGER 참여와 대표 여부·주민 구분·이름·연락처는 변경하지 않는다. 가입 신청·새 참여·역할 변경 이력도 생성하지 않는다. 계정 연결과 resident_account_links의 출처 기록은 단일 트랜잭션이며 후반 기록 실패 시 연결도 롤백한다. 같은 본인·주민·현재 세대 관계의 재요청은 같은 성공을 반환하며 이력을 중복 생성하지 않는다. 새 현재 관계는 별도 명시적 연결이 필요하다.
 
-저장 후 목록을 다시 조회하면 현재 참여와 연결 출처가 일치하는 주민에 serviceRole=현재 ADMIN 또는 MANAGER, signupStatus=APPROVED가 표시된다. 기존 대상 전체를 이름·전화번호로 자동 연결하거나 기존 주민을 소급 생성하지 않는다. 주민이 아직 없다면 기존 주민 등록으로 명부를 준비한 뒤 본인을 명시적으로 선택한다.
+저장 후 목록을 다시 조회하면 현재 참여와 연결 출처가 일치하는 주민에 `serviceRole`은 현재 `ADMIN` 또는 `MANAGER`, `signupStatus`는 `APPROVED`가 표시된다. 기존 대상 전체를 이름·전화번호로 자동 연결하거나 기존 주민을 소급 생성하지 않는다. 주민이 아직 없다면 기존 주민 등록으로 명부를 준비한 뒤 본인을 명시적으로 선택한다.
 
-## 주민 초대 개편의 계약 설계 범위
+## 주민 초대 발급과 전달
 
-상태: 미구현. 업무 입력·승인 기준은 [도메인 규칙](domainRules.md#주민-참여-흐름)에서 관리합니다. 아래는 추가·변경이 필요한 계약 책임이며 경로·필드명·오류 코드를 확정한 표가 아닙니다.
+모두 Bearer 인증과 `Cache-Control: no-store`를 사용합니다. 관리 경로의 기본 주소는 `/api/properties/{propertyId}/resident-invitations`입니다.
 
-| 계약 책임 | 필요한 변경 |
-| --- | --- |
-| 전체 공유 코드 관리 | ADMIN의 발급·변경·폐기, 같은 관리대상 안의 다수 신청자 사용 지원 |
-| 공통 링크 코드 검증 | 해당 관리대상 코드의 유효성 확인. 검증 성공만으로 주민 권한을 부여하지 않음 |
-| 전체 공유 신청 | 이름 필수·전화번호 선택·실제 세대와 유효 코드 검증, 현재 로그인 계정으로 PENDING 저장 |
-| 관리자 요청 조회·승인 | 계정 표시명과 신청 이름 구분, 연락처 없음 표현, 명부 주민 선택 승인·거절 유지 |
-| 개인 지정 링크 관리 | ADMIN의 발급·재발급·철회와 같은 관리대상의 현재 미연결 주민 검증 |
-| 개인 초대 확인·수락 | 로그인 계정·유효 토큰·대상 주민·현재 세대·기존 연결 검증 후 계정 연결·RESIDENT·APPROVED 이력·일회성 사용 처리 |
-| 개인 초대 정정 요청 | 추가 검토 설계안. 입력한 이름·전화번호 정정을 명부와 분리해 접수하고 관리자 확인 후 반영·가입할지 결정 필요 |
-| 수락 재시도·충돌 | 다른 계정 재사용 거부, 동일 성공 요청의 재시도 식별과 기존 대기 요청 중첩 처리 설계 |
+| Method | 경로 | 요청·권한 | 결과 |
+| --- | --- | --- | --- |
+| GET | 기본 경로 | ADMIN / MANAGER | `{propertyId,invitations}` |
+| POST | `/shared-code` | ADMIN / MANAGER | 공통 코드 발급·재발급 |
+| DELETE | `/shared-code` | ADMIN / MANAGER | 현재 공통 코드 폐기 |
+| POST | `/residents/{residentId}` | ADMIN / MANAGER·현재 미연결 주민·유효 세대 | 개인 코드 발급·재발급 |
+| POST | `/{id}/share` | ADMIN / MANAGER·미사용·유효 초대 | 같은 개인 코드·링크 다시 전달 |
+| POST | `/{id}/restore` | ADMIN / MANAGER·`{token}`·현재 초대와 일치 | 과거 개인 초대 원문 보호 저장 |
+| POST | `/{id}/revoke` | ADMIN / MANAGER·`{revision}` | 미완료 개인 초대 철회 |
+| POST | `/{id}/approve` | ADMIN / MANAGER·`{revision}` | 정정 내용 반영·가입 승인 |
+| POST | `/{id}/reject` | ADMIN / MANAGER·`{revision}` | 정정 거절 |
 
-현재 코드 없이 조회하는 `/options`와 신청 API를 그대로 남겨 신규 코드 검증을 우회할 수 없도록 전환 계약을 함께 설계해야 합니다. 기존 대기·승인 이력은 지우지 않으며 과거 신청을 새 코드로 다시 검증할지는 소급 적용하지 않는 방향으로 처리합니다.
+발급 응답은 `{id,token,expiresAt}`입니다. token은 표시용 코드이며 공통 `B-XXXX-XXXX-XXXX`, 개인 `R-XXXX-XXXX-XXXX` 형식입니다. 혼동하는 문자를 제외한 60비트 난수를 사용하고 서버는 대소문자와 구분자를 정규화해 SHA-256 해시로 검증합니다. 공통 코드는 해시만 저장하고, 개인 코드는 재전달용 암호문을 함께 보호 저장합니다. 목록에는 원문·암호문을 반환하지 않습니다. 재발급은 미사용 이전 코드를 철회하고 새 24시간 코드를 발급합니다. 정정 검토 중에는 재발급으로 요청을 지우지 않고 충돌을 반환합니다.
 
-외부 부담당자 코드의 원문 URL 금지와 최초 응답만 제공하는 계약은 그대로 유지합니다. 개인 주민 초대는 링크 토큰을 사용하는 별도 계약이며 URL·분석 로그·응답 캐시에 토큰이 남지 않도록 전달·폐기 처리를 설계합니다. 실제 Access·Refresh Token을 초대 URL에 넣지 않습니다.
+`POST /{id}/share`는 요청 본문 없이 같은 `{id,token,expiresAt}`을 반환합니다. 현재 관리자 권한·명부 버전·관계·미사용 상태·만료를 다시 확인하고, 코드·최초 만료 시각·revision을 변경하지 않습니다. 암호문을 보관하지 않았던 기존 초대는 `token:null`로 반환하며 기존 링크를 자동 폐기하지 않습니다. 사용자가 보관한 원문을 `POST /{id}/restore`에 `{token}`으로 보내면 기존 해시와 대조해 암호문을 복원합니다. 다른 코드·다른 대상·만료·사용된 초대는 거부합니다. 초대 ID·코드·발급/만료 시각은 유지하며 재발급이나 권한 부여를 하지 않습니다. 원문이 없는 경우에는 자동 재발급하지 않습니다. 수락·정정 제출·철회 이후에는 다시 전달할 수 없습니다.
 
-코드·링크 만료기간, 추가 본인 확인, 연락처 없는 주민 수락, 모바일 구성과 전체 공유 대기 요청 중첩 처리는 미정입니다. API·DB 변경 없이 본문만 바꾸어 신규 정책이 적용됐다고 표시하지 않습니다.
+목록 행은 `{id,residentId,name,unitLabel,phoneLast4,status,revision,expiresAt,requestedName,requestedPhoneLast4,phoneAction}`입니다. 상태는 ISSUED / EXPIRED / CHANGE_REQUESTED / APPROVED / REVOKED / REJECTED입니다. 연락처 원문을 응답하지 않습니다. 승인된 초대의 철회로 이미 부여한 권한을 제거하지 않습니다.
 
-개인 초대의 `[정보가 맞아요 · 참여하기]`와 `[정보 수정 요청]` 분기는 [추가 논의 중인 설계안](domainRules.md#개인-초대-정보-확인과-정정의-설계안)입니다. 정정 요청·검토 계약은 아직 없으며 현행 명부 수정 API나 일반 수락에 정정 값을 보내는 방식으로 대신 적용하지 않습니다.
+### 주민 코드 확인과 가입
+
+| Method | 경로 | 요청 | 결과 |
+| --- | --- | --- | --- |
+| POST | `/api/resident-invitations/shared-options` | `{token:공통코드}` | `{propertyId,propertyName,units}` |
+| POST | `/api/resident-invitations/preview` | `{token:개인코드}` | `{propertyName,name,unitLabel,phoneLast4,status,expiresAt,revision}` |
+| POST | `/api/resident-invitations/accept` | `{token,correction:false}` | `{status:APPROVED}` |
+| POST | 같은 accept 경로 | `{token,correction:true,name,phoneAction,phone?}` | `{status:CHANGE_REQUESTED}` |
+
+phoneAction은 KEEP / SET / REMOVE입니다. SET일 때만 phone을 필수로 받고 보호 저장합니다. 일반 확인 수락에는 정정 입력을 보내지 않습니다. 개인 코드 사용은 한 계정만 가능하며 같은 계정의 완료 재시도는 기존 결과를 반환합니다. 다른 계정 재사용·연결 충돌·발급 뒤 명부 변경·24시간 만료를 거부합니다. 만료 전 접수한 정정 요청은 만료 후에도 검토할 수 있습니다.
+
+가입 링크는 같은 코드의 fragment를 사용합니다. HTTP 요청 URL·쿼리·Referrer에 원문을 보내지 않으며 Client가 코드를 자동 검증해 공통 가입 폼 또는 개인 정보 확인으로 바로 연결합니다. 코드를 직접 전달받았을 때만 코드 입력 화면을 사용합니다. 메시지 공유는 기기 공유·문장 복사이며 문자·알림톡 자동 발송 API는 이번 범위에 없습니다.
 
 주민 역할 변경은 ADMIN / MANAGER가 요청할 수 있으나 RESIDENT → MANAGER 승격은 ADMIN만 가능합니다. MANAGER의 동일 요청은 403이며 명부·참여·이벤트를 변경하지 않습니다.

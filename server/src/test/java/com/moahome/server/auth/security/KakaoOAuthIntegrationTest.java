@@ -137,6 +137,12 @@ class KakaoOAuthIntegrationTest {
 	private RedisAuthSessionRepository sessions;
 
 	@MockitoBean
+	private com.moahome.server.membership.service.ResidentInvitationService residentInvitations;
+
+	@MockitoBean
+	private com.moahome.server.membership.service.ResidentJoinCodeService residentJoinCodes;
+
+	@MockitoBean
 	private com.moahome.server.payment.service.PaymentService payments;
 
 	@MockitoBean

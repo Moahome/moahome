@@ -64,6 +64,9 @@ class ResidentDirectoryPersistenceTest {
 	UserRepository users;
 
 	@Autowired
+	ResidentRepository residentRecords;
+
+	@Autowired
 	ResidentListService service;
 
 	@Autowired
@@ -951,6 +954,31 @@ class ResidentDirectoryPersistenceTest {
 		    new com.moahome.server.resident.dto.ResidentUpdateRequest("연속 수정 주민", unit.getId(), "OWNER", "KEEP", null,
 		        null, updated.updatedAt()));
 		assertThat(again.name()).isEqualTo("연속 수정 주민");
+	}
+
+	@Test
+	void listsEveryUnlinkedResidentWithoutGuessingFromSignupStatusOrOtherProperties() {
+		var property = property(false);
+		var other = property(false);
+		var unit = units.saveAndFlush(Unit.create(property, null, "909", null, null, UnitStatus.ACTIVE, AT));
+		var unlinked = resident(property.getId(), "미연결 주민", "ACTIVE", null);
+		relation(property.getId(), unlinked, unit.getId(), "ACTIVE", false);
+		var noUnit = resident(property.getId(), "소속 없는 주민", "ACTIVE", null);
+		var linkedUser = users.saveAndFlush(User.create("승인 근거 없는 계정", null));
+		var linked = resident(property.getId(), "계정만 연결된 주민", "ACTIVE", linkedUser.getId());
+		relation(property.getId(), linked, unit.getId(), "ACTIVE", false);
+		var deleted = resident(property.getId(), "삭제 주민", "ACTIVE", null);
+		jdbc.update("update residents set deleted_at=now() where id=?", deleted);
+		resident(other.getId(), "다른 관리대상 주민", "ACTIVE", null);
+		var rows = residentRecords.findUnlinkedResidents(property.getId());
+		assertThat(rows).extracting(ResidentRepository.UnlinkedResidentRow::getResidentId)
+		    .containsExactlyInAnyOrder(unlinked, noUnit);
+		assertThat(rows).filteredOn(row -> row.getResidentId().equals(unlinked)).singleElement().satisfies(row -> {
+			assertThat(row.getUnitNumber()).isEqualTo("909");
+			assertThat(row.getPhoneLast4()).isEqualTo("1234");
+		});
+		assertThat(rows).filteredOn(row -> row.getResidentId().equals(noUnit)).singleElement()
+		    .satisfies(row -> assertThat(row.getUnitNumber()).isNull());
 	}
 
 	private Property property(boolean hasBuildings) {

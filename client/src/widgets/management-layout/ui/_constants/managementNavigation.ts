@@ -46,9 +46,9 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
       },
       {
         id: 'invitations',
-        label: '초대 관리',
+        label: '승인 관리',
         path: 'invitations',
-        available: false
+        available: true
       },
     ]
   },

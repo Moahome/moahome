@@ -8,14 +8,21 @@
   }
 }
 
-
 .empty-state {
   display: grid;
   justify-items: center;
   gap: 12px;
 
-  > svg { width: 40px; height: 40px; color: var(--sub-text); }
-  p { max-width: 420px; margin: 0; }
+  > svg {
+    width: 40px;
+    height: 40px;
+    color: var(--sub-text);
+  }
+
+  p {
+    max-width: 420px;
+    margin: 0;
+  }
 }
 
 .status {
@@ -27,8 +34,7 @@
   font-size: 13px;
   white-space: nowrap;
 
-  &[data-status='PENDING'] { background: color-mix(in srgb, var(--warning) 10%, var(--card)); color: var(--warning); }
-  &[data-status='APPROVED'] { background: color-mix(in srgb, var(--success) 10%, var(--card)); color: var(--success); }
+
 }
 
 @media (max-width: 767px) {
@@ -38,4 +44,38 @@
     font-size: 16px;
     justify-content: center;
   }
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px auto;
+  align-items: start;
+  gap: 12px;
+
+  &[data-has-buildings="true"] {
+    grid-template-columns: minmax(180px, 1fr) 170px 180px auto;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1100px) {
+  .filters[data-has-buildings="true"] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+
+    > :first-child {
+      grid-column: 1 / -1;
+    }
+  }
+}
+
+@media (max-width: 767px) {
+  .filters,
+  .filters[data-has-buildings="true"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.header-actions, .row-actions { display: flex; align-items: center; gap: 10px; }
+@media (max-width: 767px) {
+  .header-actions { width: 100%; flex-direction: column; }
+  .header-actions > button { width: 100%; min-height: 56px; }
 }

@@ -40,6 +40,15 @@ public class ManagementAccessController {
 		    .body(management.getManagedProperties(UUID.fromString(principal.userId())));
 	}
 
+	/** 본인의 주민 참여만 조회하며 관리자 전용 API와 별도 경로로 제공합니다. */
+	@GetMapping("/api/users/me/resident-properties")
+	@Operation(summary = "내 주민 참여 목록", description = "현재 활성 RESIDENT 참여와 활성 관리대상만 반환합니다.")
+	public ResponseEntity<ManagedPropertiesResponse> residentProperties(
+	    @Parameter(hidden = true) @AuthenticationPrincipal AuthPrincipal principal) {
+		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+		    .body(management.getResidentProperties(UUID.fromString(principal.userId())));
+	}
+
 	/** URL 식별자를 검증한 뒤 서버의 현재 권한으로 직접 진입을 확인합니다. */
 	@GetMapping("/api/properties/{propertyId}/management-context")
 	@Operation(summary = "관리대상의 현재 관리 권한 확인")
