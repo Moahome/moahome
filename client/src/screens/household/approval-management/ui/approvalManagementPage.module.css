@@ -8,6 +8,39 @@
   }
 }
 
+.tabs {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--border);
+
+  .tab {
+    min-height: 48px;
+    margin-bottom: -1px;
+    padding: 12px 4px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    font-size: 15px;
+    white-space: nowrap;
+    transition: color 180ms ease, border-color 180ms ease;
+
+    &[aria-selected='true'] {
+      border-bottom-color: var(--primary);
+      color: var(--primary);
+    }
+  }
+}
+
+.panel {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
 .status {
   display: inline-flex;
   padding: 4px 12px;

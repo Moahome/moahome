@@ -1936,6 +1936,13 @@ test('개인 정보 정정 제출은 주민 PENDING이나 가입 성공 그림�
 
 test('개인 초대 정정 요청은 승인 관리에서 이름·선택 연락처를 검토 후 가입 승인', async ({ page }) => {
   const state = await mockWorkspace(page);
+  let finish!: () => void;
+  const reviewReady = new Promise<void>((resolve) => { finish = resolve; });
+  await page.route(`${API}/api/properties/${PROPERTY}/resident-invitations/${id(3001)}/approve`, async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    await reviewReady;
+    await route.fallback();
+  });
   state.invitationRows = [{
     id: id(3001),
     residentId: id(1000),
@@ -1951,19 +1958,172 @@ test('개인 초대 정정 요청은 승인 관리에서 이름·선택 연락�
   }];
   await page.goto(`${BASE}/invitations`);
   await expect(page).toHaveTitle('승인 관리 | 모아홈');
+  await page.getByRole('tab', {
+    name: '초대 가입',
+    exact: true
+  }).click();
   const table = page.getByRole('table', {
-    name: '개인 초대 승인 목록'
+    name: '초대 가입 목록'
   });
   await expect(table).toContainText('정정한 이름');
   await expect(table).toContainText('미등록');
   await table.getByRole('button', {
     name: '정정 후 가입 승인'
   }).click();
+  await expect(page.getByRole('tab', {
+    name: '가입 요청',
+    exact: true
+  })).toBeDisabled();
+  await expect(page.getByRole('tab', {
+    name: '초대 가입',
+    exact: true
+  })).toBeDisabled();
+  finish();
   await expect(table).toContainText('가입 완료');
+  await expect(page.getByRole('tab', {
+    name: '가입 요청',
+    exact: true
+  })).toBeEnabled();
   expect(state.writes.find((r) => r.path.endsWith('/resident-invitations/' + id(3001) + '/approve'))?.body).toEqual({
     revision: 1
   });
 });
+
+for (const width of [1440, 390, 320]) {
+  test(`승인 관리 탭 ${width}px는 두 출처와 필터를 분리하고 초대 가입 표·페이지·선택 탭을 유지`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    const state = await mockWorkspace(page);
+    state.invitationRows = Array.from({
+      length: 26
+    }, (_, index) => ({
+      id: id(3100 + index),
+      residentId: id(4100 + index),
+      name: `초대주민${String(index + 1).padStart(2, '0')}`,
+      unitLabel: `103동 ${501 + index}호`,
+      phoneLast4: index === 0 ? null : '1234',
+      status: (['APPROVED', 'CHANGE_REQUESTED', 'REJECTED'] as const)[index % 3],
+      revision: 1,
+      expiresAt: '2026-10-25T00:00:00Z',
+      requestedName: index === 1 ? '정정한 이름' : null,
+      requestedPhoneLast4: index === 1 ? '5678' : null,
+      phoneAction: index === 1 ? 'SET' : index === 2 ? 'REMOVE' : 'KEEP',
+    }));
+    for (const [index, status] of (['ISSUED', 'EXPIRED', 'REVOKED'] as const).entries()) state.invitationRows[23 + index].status = status;
+    let membershipReads = 0;
+    let invitationReads = 0;
+    page.on('request', (request) => {
+      if (request.method() !== 'GET') return;
+      const path = new URL(request.url()).pathname;
+      if (path === `/api/properties/${PROPERTY}/membership-requests`) membershipReads++;
+      if (path === `/api/properties/${PROPERTY}/resident-invitations`) invitationReads++;
+    });
+    await page.goto(`${BASE}/invitations`);
+    const tabs = page.getByRole('tablist', {
+      name: '승인 관리 탭'
+    });
+    const requestsTab = tabs.getByRole('tab', {
+      name: '가입 요청',
+      exact: true
+    });
+    const invitedTab = tabs.getByRole('tab', {
+      name: '초대 가입',
+      exact: true
+    });
+    await expect(tabs.getByRole('tab')).toHaveCount(2);
+    await expect(requestsTab).toHaveAttribute('aria-selected', 'true');
+    const search = page.getByRole('textbox', {
+      name: '가입 신청 검색'
+    });
+    await search.fill('없는 일반 신청');
+    await page.getByRole('combobox', {
+      name: '신청 상태 필터'
+    }).click();
+    await page.getByRole('option', {
+      name: '거절',
+      exact: true
+    }).click();
+    await expect(page.getByRole('table', {
+      name: '가입 요청 목록'
+    })).toContainText('검색 조건에 맞는 가입 요청이 없어요');
+    expect(invitationReads).toBe(0);
+    await invitedTab.click();
+    await expect(invitedTab).toHaveAttribute('aria-selected', 'true');
+    await expect(page).toHaveURL(`${BASE}/invitations?tab=invited`);
+    const panel = page.getByRole('tabpanel', {
+      name: '초대 가입',
+      exact: true
+    });
+    const table = panel.getByRole('table', {
+      name: '초대 가입 목록'
+    });
+    await expect(table.locator('tbody tr')).toHaveCount(10);
+    await expect(table.getByRole('columnheader')).toHaveText(['명부 이름', '동·호수', '정정 요청 이름', '연락처', '정정 요청 연락처', '상태', '처리']);
+    await expect(panel.getByText('총 23건', {
+      exact: true
+    })).toBeVisible();
+    await expect(search).toHaveCount(0);
+    await expect(page.getByRole('table', {
+      name: '가입 요청 목록'
+    })).toHaveCount(0);
+    const approved = table.getByRole('row').filter({
+      hasText: '초대주민01'
+    });
+    await expect(approved).toContainText('미등록');
+    await expect(approved).toContainText('유지');
+    await expect(approved).toContainText('가입 완료');
+    await expect(approved.getByRole('button')).toHaveCount(0);
+    await expect(table.getByRole('row').filter({
+      hasText: '초대주민02'
+    })).toContainText('•••• 5678');
+    await expect(table.getByRole('row').filter({
+      hasText: '초대주민03'
+    })).toContainText('연락처 없음');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`invitationTab-${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    await panel.getByRole('combobox', {
+      name: '페이지당 초대 가입 내역 수'
+    }).click();
+    await page.getByRole('option', {
+      name: '20개씩 보기'
+    }).click();
+    await expect(table.locator('tbody tr')).toHaveCount(20);
+    await panel.getByRole('navigation', {
+      name: '초대 가입 페이지'
+    }).getByRole('button', {
+      name: '2페이지',
+      exact: true
+    }).click();
+    await expect(table.locator('tbody tr')).toHaveCount(3);
+    await expect(table).toContainText('초대주민23');
+    await invitedTab.focus();
+    await page.keyboard.press('ArrowLeft');
+    await expect(requestsTab).toBeFocused();
+    await expect(requestsTab).toHaveAttribute('aria-selected', 'true');
+    await expect(search).toHaveValue('없는 일반 신청');
+    await expect(page.getByRole('table', {
+      name: '가입 요청 목록'
+    })).toContainText('검색 조건에 맞는 가입 요청이 없어요');
+    await page.keyboard.press('End');
+    await expect(invitedTab).toBeFocused();
+    await expect(table).toBeVisible();
+    const previousMembershipReads = membershipReads;
+    await page.reload();
+    await expect(page.getByRole('tab', {
+      name: '초대 가입',
+      exact: true
+    })).toHaveAttribute('aria-selected', 'true');
+    await expect(table).toBeVisible();
+    expect(membershipReads).toBe(previousMembershipReads);
+    expect(state.writes).toEqual([]);
+  });
+}
 
 
 test('개인 초대 모달은 모바일에서 전달 버튼 3개가 전체 너비와 56px 높이로 표시', async ({ page }) => {

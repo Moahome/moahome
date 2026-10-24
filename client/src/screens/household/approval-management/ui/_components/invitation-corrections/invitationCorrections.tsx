@@ -30,7 +30,7 @@ import { Pagination } from '@/shared/ui/pagination';
 import styles from './invitationCorrections.module.css';
 
 /** 개인 초대의 정정 대기는 기존 일반 신청과 출처를 구분하고 명부 수정 권한이 있는 관리자만 검토합니다. */
-export function InvitationCorrections({ propertyId, search, status }: { propertyId: string; search: string; status: string }) {
+export function InvitationCorrections({ propertyId, onBusyChange }: { propertyId: string; onBusyChange: (busy: boolean) => void }) {
   const session = useSession();
   const client = useQueryClient();
   const context = useManagementContext(session.data?.id, propertyId, false);
@@ -47,14 +47,15 @@ export function InvitationCorrections({ propertyId, search, status }: { property
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const pending = useRef(false);
-  const rows = (query.data?.invitations ?? []).filter((row) => ['CHANGE_REQUESTED', 'APPROVED', 'REJECTED'].includes(row.status)
-    && (status === 'ALL' || (status === 'PENDING' ? row.status === 'CHANGE_REQUESTED' : row.status === status))
-    && `${row.name} ${row.requestedName ?? ''} ${row.unitLabel} ${row.phoneLast4 ?? ''} ${row.requestedPhoneLast4 ?? ''}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
+  // 발급·만료·철회는 초대 전달 목록의 상태이며, 이 탭에는 실제 가입·정정 제출 내역만 표시합니다.
+  const rows = (query.data?.invitations ?? []).filter((row) => ['CHANGE_REQUESTED', 'APPROVED', 'REJECTED'].includes(row.status));
   const pages = Math.max(1, Math.ceil(rows.length / size));
   const current = Math.min(page, pages);
+  /** 정정 검토 응답 전에는 탭 이동과 중복 처리를 막고 서버 결과로만 목록을 갱신합니다. */
   async function review(row: ResidentInvitation, action: 'approve' | 'reject') {
     if (pending.current) return;
     pending.current = true; setBusy(true); setNotice('');
+    onBusyChange(true);
     try {
       client.setQueryData(key, await reviewResidentInvitation(propertyId, row.id, row.revision, action));
       void client.invalidateQueries({
@@ -62,7 +63,7 @@ export function InvitationCorrections({ propertyId, search, status }: { property
       });
       setNotice(action === 'approve' ? '명부를 정정하고 주민 가입을 승인했어요.' : '정정 요청을 거절했어요. 명부는 변경하지 않았습니다.');
     } catch (failure) { setNotice(memberManagementError(failure)); }
-    finally { pending.current = false; setBusy(false); }
+    finally { pending.current = false; setBusy(false); onBusyChange(false); }
   }
   if (query.isPending) return (
     <LoadingState
@@ -79,28 +80,23 @@ export function InvitationCorrections({ propertyId, search, status }: { property
   );
   return (
     <ListCard>
-      <h2
-        className={styles.title}
-      >
-        개인 초대 가입·정정
-      </h2>
       <ListToolbar
         total={rows.length}
         unit={'건'}
-        sizeLabel={'페이지당 개인 초대 요청 수'}
+        sizeLabel={'페이지당 초대 가입 내역 수'}
         pageSize={size}
         onSizeChange={(value) => { setSize(value); setPage(1); }}
       />
       <DataTable
-        label={'개인 초대 승인 목록'}
+        label={'초대 가입 목록'}
         rows={rows.slice((current - 1) * size, current * size)}
         getRowKey={(row) => row.id}
         minWidth={850}
         emptyState={(
           <StateMessage
-            variant={search.trim() || status !== 'ALL' ? 'no-results' : 'empty-data'}
+            variant={'empty-data'}
             layout={'inline'}
-            title={'개인 초대 가입·정정 내역이 없어요.'}
+            title={'아직 초대 가입 내역이 없어요.'}
           />
         )}
         columns={[
@@ -133,14 +129,21 @@ export function InvitationCorrections({ propertyId, search, status }: { property
           {
             key: 'status',
             header: '상태',
-            render: (row) => ({
-              CHANGE_REQUESTED: '정정 승인 대기',
-              APPROVED: '가입 완료',
-              REJECTED: '거절',
-              ISSUED: '발급',
-              EXPIRED: '만료',
-              REVOKED: '철회'
-            })[row.status]
+            render: (row) => (
+              <span
+                className={styles.status}
+                data-status={row.status}
+              >
+                {({
+                  CHANGE_REQUESTED: '정정 승인 대기',
+                  APPROVED: '가입 완료',
+                  REJECTED: '거절',
+                  ISSUED: '발급',
+                  EXPIRED: '만료',
+                  REVOKED: '철회'
+                })[row.status]}
+              </span>
+            )
           },
           {
             key: 'actions',
@@ -176,7 +179,7 @@ export function InvitationCorrections({ propertyId, search, status }: { property
         ]}
       />
       <Pagination
-        label={'개인 초대 승인 페이지'}
+        label={'초대 가입 페이지'}
         unit={'건'}
         total={rows.length}
         page={current}
