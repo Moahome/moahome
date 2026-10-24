@@ -1,6 +1,9 @@
 'use client';
 
-import { StateMessage } from '@/shared/ui/state-message';
+import {
+  LoadingState,
+  StateMessage
+} from '@/shared/ui/state-message';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/entities/session';
@@ -38,11 +41,9 @@ export function ResidentHomePage() {
           description={'우리 집 소식을 만나는 공간입니다.'}
         />
         {waiting ? (
-          <p
-            role={'status'}
-          >
-            주민 참여 정보를 확인하고 있어요.
-          </p>
+          <LoadingState
+            title={'주민 참여 정보를 확인하고 있어요.'}
+          />
         ) : failure ? (
           <RequestError
             error={failure}

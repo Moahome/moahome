@@ -1,3 +1,4 @@
+import { LoadingState } from '@/shared/ui/state-message';
 import {
   useEffect,
   useRef,
@@ -171,11 +172,9 @@ export function ReportDownload({ title, description, filename, sourceKey, docume
         className={styles.body}
       >
         {pending ? (
-          <p
-            role={'status'}
-          >
-            보고서 자료를 확인하고 있어요.
-          </p>
+          <LoadingState
+            title={'보고서 자료를 확인하고 있어요.'}
+          />
         ) : error ? (
           <div
             className={styles.error}

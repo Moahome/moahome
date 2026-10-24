@@ -1,6 +1,9 @@
 'use client';
 
-import { StateMessage } from '@/shared/ui/state-message';
+import {
+  LoadingState,
+  StateMessage
+} from '@/shared/ui/state-message';
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import {
@@ -176,11 +179,9 @@ export function JoinRequestsPage({
         )}
       />
       {query.isPending && (
-        <p
-          role={'status'}
-        >
-          미연결 주민을 불러오고 있어요.
-        </p>
+        <LoadingState
+          title={'미연결 주민을 불러오고 있어요.'}
+        />
       )}
       {query.isError && (
         <RequestError

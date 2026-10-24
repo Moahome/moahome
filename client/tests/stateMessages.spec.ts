@@ -206,6 +206,9 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
     await expect(zone.getByRole('button')).toBeDisabled();
     await expect(zone.locator('img[data-state="loading"]')).toBeVisible();
     await expect(zone.locator('img[data-state="file-upload"]')).toHaveCount(0);
+    await expect(zone).toHaveCSS('border-style', 'solid');
+    await expect(zone).toHaveCSS('border-color', 'rgba(0, 0, 0, 0)');
+    await expect(zone.getByText('엑셀 파일을 여기에 놓거나 파일을 선택해주세요.')).toHaveCount(0);
     await zone.evaluate((element) => {
       const data = new DataTransfer();
       data.items.add(new File(['test'], 'duplicate.csv', {
@@ -232,6 +235,61 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
   });
 
   for (const width of [1440, 390, 320]) {
+    test(`메뉴 로딩 통일 ${width}px는 조회 중 큰 캐릭터·흰 배경을 표시하고 추가 테두리 없이 실패 상태로 전환`, async ({ page }, testInfo) => {
+      await page.setViewportSize({
+        width,
+        height: 1000
+      });
+      let finish = () => {};
+      let responseReady = Promise.resolve();
+      let paymentPending = false;
+      await page.route(`${API}/api/properties/${PROPERTY}/**`, async (route) => {
+        const path = new URL(route.request().url()).pathname;
+        if (route.request().method() !== 'GET' || path.endsWith('/management-context')) return route.fallback();
+        if (!paymentPending && path.endsWith('/payments/workspace')) return route.fallback();
+        await responseReady;
+        await route.abort('failed');
+      });
+      for (const [path, title] of [
+        ['households', '세대 목록을 불러오고 있어요.'],
+        ['residents', '주민 목록을 불러오고 있어요.'],
+        ['join-requests', '미연결 주민을 불러오고 있어요.'],
+        ['invitations', '가입 요청을 불러오고 있어요.'],
+        ['billing/monthly', '관리비 정보를 불러오고 있어요.'],
+        ['payments/matching', '입금 정보를 불러오고 있어요.'],
+        ['payments/monthly', '입금 정보를 불러오고 있어요.'],
+        ['banking/transactions', '통장 정보를 불러오고 있어요.'],
+        ['banking/expenses', '통장 정보를 불러오고 있어요.'],
+        ['banking/balances', '잔고를 불러오고 있어요.'],
+        ['closing/monthly', '월별 정산 자료를 불러오고 있어요.'],
+      ]) {
+        paymentPending = path.startsWith('payments/');
+        responseReady = new Promise<void>((resolve) => { finish = resolve; });
+        await page.goto(`${BASE}/${path}`);
+        const loading = page.getByRole('status', {
+          name: title,
+          exact: true
+        }).first();
+        const image = loading.locator('img[data-state="loading"]');
+        await expect(image).toBeVisible();
+        await expect.poll(() => image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)).toBe(true);
+        await expect(loading).toHaveCSS('border-width', '0px');
+        const surface = loading.locator('..');
+        await expect(surface).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+        await expect(surface).toHaveCSS('border-width', '0px');
+        const bounds = await image.boundingBox();
+        expect(bounds?.width).toBeGreaterThan(width >= 1000 ? 390 : 150);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+        await page.screenshot({
+          path: testInfo.outputPath(`loading-${path.replaceAll('/', '-')}-${width}.png`),
+          fullPage: true
+        });
+        finish();
+        await expect(page.getByRole('main').getByRole('alert').first()).toBeVisible();
+        await expect(page.locator('img[data-state="loading"]')).toHaveCount(0);
+      }
+    });
+
     test(`로딩 안내 ${width}px는 짧은 회전 표시 뒤 캐릭터를 보여주고 조회 완료 시 빈 목록으로 전환`, async ({ page }, testInfo) => {
       await page.setViewportSize({
         width,

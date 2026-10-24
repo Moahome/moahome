@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { AllocationEditor } from '@/entities/banking';
 import { useSession } from '@/entities/session';
 import { formatWon } from '@/shared/lib/format';
@@ -116,11 +118,9 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
     );
   }
   if (workspace.isPending) return present(
-    <p
-      role={'status'}
-    >
-      거래 정보를 불러오고 있어요.
-    </p>
+    <LoadingState
+      title={'거래 정보를 불러오고 있어요.'}
+    />
   );
   if (!workspace.data) return present(
     <RequestError

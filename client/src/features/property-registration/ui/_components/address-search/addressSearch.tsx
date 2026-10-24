@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import {
   useEffect,
   useRef,
@@ -108,12 +110,10 @@ export function AddressSearch({
         />
       </header>
       {isLoading && (
-        <p
-          className={styles.message}
-          role={'status'}
-        >
-          주소 검색을 불러오고 있어요.
-        </p>
+        <LoadingState
+          title={'주소 검색을 불러오고 있어요.'}
+          layout={'inline'}
+        />
       )}
       {hasError && (
         <div

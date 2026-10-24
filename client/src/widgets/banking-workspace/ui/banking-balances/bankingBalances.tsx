@@ -1,5 +1,8 @@
 'use client';
-import { StateMessage } from '@/shared/ui/state-message';
+import {
+  LoadingState,
+  StateMessage
+} from '@/shared/ui/state-message';
 import { useSession } from '@/entities/session';
 import {
   formatInteger,
@@ -273,11 +276,9 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           title={title}
           description={'은행 거래를 기준으로 동별 보유금과 외부 부담금을 확인합니다.'}
         />
-        <p
-          role={'status'}
-        >
-          잔고를 불러오고 있어요.
-        </p>
+        <LoadingState
+          title={'잔고를 불러오고 있어요.'}
+        />
       </section>
     );
   const summary = getBalanceSummary(data);
@@ -1655,11 +1656,18 @@ function BalanceActionDialog(props: BalanceActionDialogProps) {
       onClose={props.onClose}
     >
       {selector}
-      <p
-        role={query.isPending ? 'status' : 'alert'}
-      >
-        {query.isPending ? '선택한 통장의 동별 기준 잔고를 불러오고 있어요.' : balanceError(query.error)}
-      </p>
+      {query.isPending ? (
+        <LoadingState
+          title={'선택한 통장의 동별 기준 잔고를 불러오고 있어요.'}
+          layout={'inline'}
+        />
+      ) : (
+        <p
+          role={'alert'}
+        >
+          {balanceError(query.error)}
+        </p>
+      )}
     </DetailDialog>
   );
   return (

@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import { useRouter } from 'next/navigation';
@@ -11,11 +13,9 @@ export function ChiefAccountLinkPage({ propertyId }: { propertyId: string }) {
   const router = useRouter();
   const { list, data } = useResidentList(propertyId);
   if (list.isPending) return (
-    <p
-      role={'status'}
-    >
-      주민 명부를 불러오고 있어요.
-    </p>
+    <LoadingState
+      title={'주민 명부를 불러오고 있어요.'}
+    />
   );
   if (list.isError) return (
     <RequestError

@@ -89,6 +89,7 @@
   }
 
   &[data-state='loading'] {
+    width: min(100%, 400px);
     animation: loading-float 1800ms ease-in-out infinite;
   }
 }

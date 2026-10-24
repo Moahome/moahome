@@ -76,6 +76,8 @@ export function StateIllustration({ variant, layout = 'page' }: {
   layout?: 'page' | 'inline';
 }) {
   const landscape = variant === 'server-error' || variant === 'loading';
+  let sizes = layout === 'inline' ? '200px' : '(max-width: 600px) 80vw, 420px';
+  if (variant === 'loading') sizes = '(max-width: 600px) 100vw, 400px';
 
   return (
     <Image
@@ -86,7 +88,7 @@ export function StateIllustration({ variant, layout = 'page' }: {
       alt={''}
       width={landscape ? 1536 : 768}
       height={landscape ? 1024 : 768}
-      sizes={layout === 'inline' ? '200px' : '(max-width: 600px) 80vw, 420px'}
+      sizes={sizes}
       loading={'eager'}
     />
   );

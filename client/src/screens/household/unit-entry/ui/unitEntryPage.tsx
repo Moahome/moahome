@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import { useState } from 'react';
@@ -125,11 +127,9 @@ export function UnitEntryPage({
   }
 
   if (list.isPending) return (
-    <p
-      role={'status'}
-    >
-      세대 정보를 불러오고 있어요.
-    </p>
+    <LoadingState
+      title={'세대 정보를 불러오고 있어요.'}
+    />
   );
 
   if (list.isError) return (

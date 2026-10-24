@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import {
@@ -251,11 +253,9 @@ export function BalanceCheckPanel({
         {history ? (
           <>
             {query.isPending && (
-              <p
-                role={'status'}
-              >
-                확인 이력을 불러오고 있어요.
-              </p>
+              <LoadingState
+                title={'확인 이력을 불러오고 있어요.'}
+              />
             )}
             {query.isError && (
               <RequestError

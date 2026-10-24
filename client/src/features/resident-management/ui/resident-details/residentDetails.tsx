@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import {
@@ -140,11 +142,9 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
         )}
       </header>
       {query.isPending && (
-        <p
-          role={'status'}
-        >
-          주민 정보를 불러오고 있어요.
-        </p>
+        <LoadingState
+          title={'주민 정보를 불러오고 있어요.'}
+        />
       )}
       {query.isError && (
         <RequestError

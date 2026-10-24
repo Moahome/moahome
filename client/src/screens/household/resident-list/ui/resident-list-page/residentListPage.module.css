@@ -4,15 +4,6 @@
   margin: 0 auto;
 }
 
-.state {
-  display: grid;
-  justify-items: center;
-  gap: 16px;
-  padding: 72px 20px;
-  color: var(--sub-text);
-  text-align: center;
-}
-
 .actions {
   display: flex;
   flex-wrap: wrap;

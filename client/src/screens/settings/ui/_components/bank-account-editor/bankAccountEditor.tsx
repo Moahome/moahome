@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import {
@@ -128,11 +130,9 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
             통장은 필요한 만큼 추가하고 용도는 별칭으로 자유롭게 구분하세요. 기본 납부계좌는 하나만 지정합니다.
           </p>
           {accounts.isPending && (
-            <p
-              role={'status'}
-            >
-              관리계좌를 불러오는 중이에요.
-            </p>
+            <LoadingState
+              title={'관리계좌를 불러오는 중이에요.'}
+            />
           )}
           {accounts.isError && (
             <RequestError

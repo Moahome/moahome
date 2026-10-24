@@ -151,13 +151,9 @@ export function ResidentListPage({
         )}
       />
       {list.isPending && (
-        <div
-          className={styles.state}
-        >
-          <LoadingState
-            title={'주민 목록을 불러오고 있어요.'}
-          />
-        </div>
+        <LoadingState
+          title={'주민 목록을 불러오고 있어요.'}
+        />
       )}
       {list.isError && (
         <RequestError

@@ -2,7 +2,10 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { StateMessage } from '@/shared/ui/state-message';
+import {
+  LoadingState,
+  StateMessage
+} from '@/shared/ui/state-message';
 import { HomeIllustration } from '@/shared/ui/home-illustration';
 import {
   useEffect,
@@ -289,11 +292,9 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
   }
 
   if (!session.data && (session.isPending || session.isFetching)) return (
-    <p
-      role={'status'}
-    >
-      로그인 정보를 확인하고 있어요.
-    </p>
+    <LoadingState
+      title={'로그인 정보를 확인하고 있어요.'}
+    />
   );
 
   if (!session.data && session.isError && isServerConnectionError(session.error)) return (
@@ -332,11 +333,9 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
   );
 
   if (openingLink) return (
-    <p
-      role={'status'}
-    >
-      초대를 확인하고 있어요.
-    </p>
+    <LoadingState
+      title={'초대를 확인하고 있어요.'}
+    />
   );
 
   return (

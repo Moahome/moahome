@@ -3,18 +3,3 @@
   max-width: 1440px;
   margin: 0 auto;
 }
-
-.state {
-  display: grid;
-  justify-items: center;
-  gap: 16px;
-  padding: 72px 20px;
-  color: var(--sub-text);
-  text-align: center;
-
-  h1 {
-    color: var(--foreground);
-    font-size: 20px;
-    font-weight: 700;
-  }
-}

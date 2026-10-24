@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import { useState } from 'react';
@@ -175,11 +177,9 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
         </p>
       )}
       {validMonth && query.isPending && (
-        <p
-          role={'status'}
-        >
-          월별 정산 자료를 불러오고 있어요.
-        </p>
+        <LoadingState
+          title={'월별 정산 자료를 불러오고 있어요.'}
+        />
       )}
       {validMonth && query.isFetching && !query.isPending && (
         <p

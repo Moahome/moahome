@@ -70,6 +70,7 @@ export function FileDropzone({ label, inputLabel, accept, description, busy = fa
         {busy ? (
           <LoadingState
             title={'파일을 확인하고 있어요.'}
+            layout={'inline'}
           />
         ) : (
           <StateIllustration
@@ -77,9 +78,11 @@ export function FileDropzone({ label, inputLabel, accept, description, busy = fa
             layout={'inline'}
           />
         )}
-        <strong>
-          {dragging && !busy && !disabled ? '여기에 놓으면 파일 검증을 시작해요.' : '엑셀 파일을 여기에 놓거나 파일을 선택해주세요.'}
-        </strong>
+        {!busy && (
+          <strong>
+            {dragging && !disabled ? '여기에 놓으면 파일 검증을 시작해요.' : '엑셀 파일을 여기에 놓거나 파일을 선택해주세요.'}
+          </strong>
+        )}
         <p>
           {description}
         </p>

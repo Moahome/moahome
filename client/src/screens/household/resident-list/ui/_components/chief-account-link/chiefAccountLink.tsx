@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { useSession } from '@/entities/session';
 import { useManagementContext } from '@/features/enter-service';
 import { linkOwnChiefResident } from '@/features/member-management';
@@ -129,11 +131,9 @@ export function ChiefAccountLink({ propertyId, data, presentation = 'modal', onC
         </span>
       </div>
       {!administrator && (
-        <p
-          role={'status'}
-        >
-          관리소장 계정을 확인하고 있어요.
-        </p>
+        <LoadingState
+          title={'관리소장 계정을 확인하고 있어요.'}
+        />
       )}
       {administrator && chief && (
         <p>

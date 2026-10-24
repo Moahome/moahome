@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/entities/session';
@@ -19,11 +21,9 @@ export function ResidentRegistrationPage({
   const context = useManagementContext(session.data?.id, propertyId, false);
   const listPath = `/manage/${propertyId}/residents`;
   if (!context.isSuccess) return (
-    <p
-      role={'status'}
-    >
-      등록 권한을 확인하고 있어요.
-    </p>
+    <LoadingState
+      title={'등록 권한을 확인하고 있어요.'}
+    />
   );
 
   return (

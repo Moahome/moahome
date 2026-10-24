@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/entities/session';
@@ -53,11 +55,9 @@ export function ResidentImportPage({
 
   if (!context.isSuccess) {
     return (
-      <p
-        role={'status'}
-      >
-        등록 권한을 확인하고 있어요.
-      </p>
+      <LoadingState
+        title={'등록 권한을 확인하고 있어요.'}
+      />
     );
   }
 

@@ -1,6 +1,9 @@
 'use client';
 
-import { StateMessage } from '@/shared/ui/state-message';
+import {
+  LoadingState,
+  StateMessage
+} from '@/shared/ui/state-message';
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import {
@@ -62,11 +65,9 @@ export function InvitationCorrections({ propertyId, search, status }: { property
     finally { pending.current = false; setBusy(false); }
   }
   if (query.isPending) return (
-    <p
-      role={'status'}
-    >
-      개인 초대 요청을 불러오고 있어요.
-    </p>
+    <LoadingState
+      title={'개인 초대 요청을 불러오고 있어요.'}
+    />
   );
   if (query.isError) return (
     <RequestError

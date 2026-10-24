@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import { AllocationEditor } from '@/entities/banking';
@@ -177,11 +179,9 @@ export function ManualExpense({
         </header>
       )}
       {workspace.isPending ? (
-        <p
-          role={'status'}
-        >
-          지출 등록 정보를 불러오고 있어요.
-        </p>
+        <LoadingState
+          title={'지출 등록 정보를 불러오고 있어요.'}
+        />
       ) : !data ? (
         <RequestError
           error={workspace.error}

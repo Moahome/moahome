@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import {
   useEffect,
   useState
@@ -19,11 +21,9 @@ export function ResidentExportPage({
 }) {
   const session = useSession();
   if (!session.data) return (
-    <p
-      role={'status'}
-    >
-      다운로드 권한을 확인하고 있어요.
-    </p>
+    <LoadingState
+      title={'다운로드 권한을 확인하고 있어요.'}
+    />
   );
 
   return (

@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import {
@@ -49,11 +51,9 @@ export function OpeningBalances({ propertyId }: { propertyId: string }) {
     gcTime: 0
   });
   if (query.isPending) return (
-    <p
-      role={'status'}
-    >
-      기존 잔액을 불러오고 있어요.
-    </p>
+    <LoadingState
+      title={'기존 잔액을 불러오고 있어요.'}
+    />
   );
   if (query.isError) return (
     <RequestError

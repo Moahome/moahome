@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
@@ -112,12 +114,9 @@ export function ResidentExportPreview({
         )}
       </header>
       {!rows && !failed && (
-        <p
-          className={styles.state}
-          role={'status'}
-        >
-          다운로드할 주민 정보를 불러오고 있어요.
-        </p>
+        <LoadingState
+          title={'다운로드할 주민 정보를 불러오고 있어요.'}
+        />
       )}
       {failed && (
         <RequestError

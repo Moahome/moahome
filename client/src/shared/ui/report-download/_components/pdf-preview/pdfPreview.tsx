@@ -1,3 +1,4 @@
+import { LoadingState } from '@/shared/ui/state-message';
 import {
   useEffect,
   useRef,
@@ -42,11 +43,9 @@ export function PdfPreview({ blob }: { blob: Blob }) {
     </p>
   );
   if (!document) return (
-    <p
-      role={'status'}
-    >
-      PDF 미리보기를 불러오고 있어요.
-    </p>
+    <LoadingState
+      title={'PDF 미리보기를 불러오고 있어요.'}
+    />
   );
 
   return (

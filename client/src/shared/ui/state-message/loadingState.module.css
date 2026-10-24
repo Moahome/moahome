@@ -1,3 +1,16 @@
+.surface {
+  width: 100%;
+  min-width: 0;
+  padding: clamp(24px, 4vw, 48px);
+  border-radius: 14px;
+  background: var(--card);
+
+  &[data-layout='inline'] {
+    padding: 0;
+    border-radius: 0;
+  }
+}
+
 .compact {
   display: flex;
   align-items: center;

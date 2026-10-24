@@ -28,13 +28,9 @@ export function UnitListPage({
   const { list, data, view } = controller;
 
   if (list.isPending) return (
-    <section
-      className={styles.state}
-    >
-      <LoadingState
-        title={'세대 목록을 불러오고 있어요.'}
-      />
-    </section>
+    <LoadingState
+      title={'세대 목록을 불러오고 있어요.'}
+    />
   );
 
   if (list.isError) return (

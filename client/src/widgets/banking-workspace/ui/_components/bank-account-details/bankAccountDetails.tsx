@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { BankIcon } from '@/entities/banking';
 import { useSession } from '@/entities/session';
 import { formatWon } from '@/shared/lib/format';
@@ -71,11 +73,9 @@ export function BankAccountDetails({ propertyId, account, month }: {
   }
 
   if (query.isPending) return (
-    <p
-      role={'status'}
-    >
-      통장 정보를 불러오고 있어요.
-    </p>
+    <LoadingState
+      title={'통장 정보를 불러오고 있어요.'}
+    />
   );
   if (!query.data || query.isError) return (
     <div

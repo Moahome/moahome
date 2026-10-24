@@ -9,6 +9,11 @@
   text-align: center;
   transition: background-color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 
+  &[aria-busy='true'] {
+    border-style: solid;
+    border-color: transparent;
+  }
+
   &[data-dragging='true'] {
     border-style: solid;
     border-color: var(--excel-background);

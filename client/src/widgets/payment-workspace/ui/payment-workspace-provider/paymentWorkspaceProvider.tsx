@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { useSession } from '@/entities/session';
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { Toast } from '@/shared/ui/toast';
@@ -89,11 +91,9 @@ export function PaymentWorkspaceProvider({ propertyId, children }: { propertyId:
   }
 
   if (!session.data || query.isPending) return (
-    <p
-      role={'status'}
-    >
-      입금 정보를 불러오고 있어요.
-    </p>
+    <LoadingState
+      title={'입금 정보를 불러오고 있어요.'}
+    />
   );
   if (!query.data) return (
     <RequestError

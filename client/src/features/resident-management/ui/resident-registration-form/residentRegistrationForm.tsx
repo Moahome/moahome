@@ -1,5 +1,7 @@
 'use client';
 
+import { LoadingState } from '@/shared/ui/state-message';
+
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import {
@@ -159,11 +161,9 @@ export function ResidentRegistrationForm({
   }
 
   if (options.isPending) return (
-    <p
-      role={'status'}
-    >
-      등록할 세대를 불러오고 있어요.
-    </p>
+    <LoadingState
+      title={'등록할 세대를 불러오고 있어요.'}
+    />
   );
   if (options.isError) return (
     <RequestError
