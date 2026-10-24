@@ -17,6 +17,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
         com.moahome.server.banking.controller.BankingBalanceController.class,
         com.moahome.server.banking.controller.BankBalanceCheckController.class,
         com.moahome.server.banking.controller.BankAccountController.class,
+        com.moahome.server.closing.controller.MonthlySettlementController.class,
         com.moahome.server.billing.controller.OpeningBalanceController.class,
         com.moahome.server.membership.controller.MemberManagementController.class,
         com.moahome.server.membership.controller.InvitationClaimController.class,

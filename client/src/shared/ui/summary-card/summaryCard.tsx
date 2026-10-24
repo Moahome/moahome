@@ -17,7 +17,7 @@ export function SummaryCard({
   value: number | string;
   unit: string;
   icon: ReactNode;
-  tone?: 'primary' | 'success' | 'neutral' | 'warning' | 'danger';
+  tone?: 'primary' | 'teal' | 'success' | 'neutral' | 'warning' | 'danger';
   valueTone?: 'neutral' | 'danger';
   density?: 'comfortable' | 'compact';
   description?: string;

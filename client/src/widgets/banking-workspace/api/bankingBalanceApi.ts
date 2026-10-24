@@ -25,6 +25,11 @@ export async function getBankingBalances(propertyId: string, month: string, acco
       } : {})
     }
   });
+  return readBankingBalances(data, propertyId, month, accountId);
+}
+
+/** 단독 조회와 월별 정산의 일괄 조회에 같은 금액·관리대상·조회월 검증을 적용합니다. */
+export function readBankingBalances(data: BalanceWorkspace, propertyId: string, month: string, accountId?: string): BalanceWorkspace {
   // 사용 전 월로 이동하면 서버가 해당 월의 전체 통장 범위로 돌려줍니다. 목록에 남은 통장의 선택 불일치는 허용하지 않습니다.
   const resetToAll = accountId !== undefined && data?.accountId === null && Array.isArray(data.accounts) && !data.accounts.some((account) => account.id === accountId);
   if (data?.propertyId !== propertyId || data.month !== month || (data.accountId !== undefined && data.accountId !== (accountId ?? null) && !resetToAll) || !Array.isArray(data.buildings) || !Array.isArray(data.entries)
@@ -32,7 +37,7 @@ export async function getBankingBalances(propertyId: string, month: string, acco
     || !Array.isArray(data.externals) || !Array.isArray(data.incomes) || !Array.isArray(data.pending)
     || (data.bankBalance !== null && !validAmount(data.bankBalance))
     || (data.accounts !== undefined && (!Array.isArray(data.accounts) || data.accounts.some((a) => typeof a.id !== 'string' || typeof a.label !== 'string' || (a.calculatedBalance != null && (!validAmount(a.calculatedBalance) || !/^\d{4}-\d{2}-\d{2}$/.test(a.calculationBasisDate ?? ''))) || (a.calculationBasisDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(a.calculationBasisDate)) || (a.openingDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(a.openingDate)) || (a.openingBalance != null && !validNonnegative(a.openingBalance)) || (a.openingRevision !== undefined && (!Number.isSafeInteger(a.openingRevision) || a.openingRevision < 0)) || (a.balance !== null && !validAmount(a.balance)))))
-    || data.buildings.some((b) => (b.openingRevision !== undefined && (!Number.isSafeInteger(b.openingRevision) || b.openingRevision < 0)) || (b.openingBalance != null && !validAmount(b.openingBalance)) || ![b.income, b.expense].every(validNonnegative) || (b.balance !== null && !validAmount(b.balance)) || (b.startBalance !== null && !validAmount(b.startBalance)) || !['READY', 'OPENING_REQUIRED'].includes(b.status))
+    || data.buildings.some((b) => (b.accountBalances !== undefined && (!Array.isArray(b.accountBalances) || b.accountBalances.some((account) => !UUID.test(account.accountId) || (account.startBalance !== null && !validAmount(account.startBalance)) || (account.balance !== null && !validAmount(account.balance))))) || (b.openingRevision !== undefined && (!Number.isSafeInteger(b.openingRevision) || b.openingRevision < 0)) || (b.openingBalance != null && !validAmount(b.openingBalance)) || ![b.income, b.expense].every(validNonnegative) || (b.balance !== null && !validAmount(b.balance)) || (b.startBalance !== null && !validAmount(b.startBalance)) || !['READY', 'OPENING_REQUIRED'].includes(b.status))
     || data.entries.some((e) => ![e.income, e.expense].every(validNonnegative))
     || data.externals.some((e) => (e.excluded !== undefined && typeof e.excluded !== 'boolean') || (e.decisionRevision !== undefined && (!Number.isSafeInteger(e.decisionRevision) || e.decisionRevision < 0)) || ![e.amount, e.received, e.remaining].every(validNonnegative) || BigInt(e.received) + BigInt(e.remaining) !== BigInt(e.amount) || ((e.transactionId !== undefined || e.transactionAmount !== undefined) && (typeof e.transactionId !== 'string' || !UUID.test(e.transactionId) || !validNonnegative(e.transactionAmount) || BigInt(e.transactionAmount) < BigInt(e.amount))) || !Array.isArray(e.recoveries) || e.recoveries.some((r) => !validNonnegative(r.amount)))
     || data.incomes.some((i) => ![i.amount, i.available].every(validNonnegative) || !['HOUSEHOLD', 'OTHER'].includes(i.kind))

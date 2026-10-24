@@ -14,7 +14,7 @@ const AMOUNT = /^-?[0-9]{1,15}$/;
 const STATES = ['PENDING', 'ON_HOLD', 'CONFIRMED', 'CANCELED', 'LINKED'];
 
 /** 다른 관리대상의 응답·숫자 정밀도 손실·잘못된 참조를 화면 원장으로 받아들이지 않습니다. */
-function readLedger(value: PreviewLedger & PaymentLedgerIdentity, propertyId: string): PreviewLedger {
+export function readLedger(value: PreviewLedger & PaymentLedgerIdentity, propertyId: string): PreviewLedger {
   if (!value || value.propertyId !== propertyId || !isPreviewDate(value.asOf)
     || !Array.isArray(value.accounts) || !value.accounts.every((a) => UUID.test(a.id) && typeof a.label === 'string')
     || (value.buildings !== undefined && (!Array.isArray(value.buildings) || !value.buildings.every((b) => UUID.test(b.id) && typeof b.label === 'string')))

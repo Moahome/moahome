@@ -53,6 +53,10 @@ function cell(value: ReportValue, style: CellObject = {}): CellObject {
   };
 }
 
+export {
+  cell as createReportCell
+};
+
 /** 입력 데이터와 열 정의만 받아 공통 헤더·교차 행을 적용하며 이름·전화번호는 수식으로 변환하지 않습니다. */
 function table(columns: readonly ReportColumn[], rows: readonly (readonly ReportValue[])[]): SheetData {
   return [

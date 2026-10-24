@@ -19,7 +19,7 @@ public interface BankAccountRepository extends JpaRepository<BankAccount, UUID> 
 		java.time.LocalDate getFirstUse();
 	}
 
-	/** 입출금·수납·수동 지출·확정 잔고를 함께 확인합니다. 취소·삭제 감사도 실제 사용 이력으로 보존합니다. */
+	/** 실제 입출금·수납·지출만 사용 이력으로 확인합니다. 초기 잔고·잔액 확인으로 생성 전 월이나 빈 종료 계좌를 되살리지 않습니다. */
 	@org.springframework.data.jpa.repository.Query(value = """
 	    WITH common_accounts AS (
 	      SELECT id FROM bank_accounts WHERE property_id=:propertyId AND deleted_at IS NULL AND building_id IS NULL
@@ -27,13 +27,7 @@ public interface BankAccountRepository extends JpaRepository<BankAccount, UUID> 
 	      SELECT bank_account_id AS account_id, transaction_date AS used_on FROM bank_transactions WHERE property_id=:propertyId
 	      UNION ALL SELECT bank_account_id, payment_date FROM payments WHERE property_id=:propertyId
 	      UNION ALL SELECT bank_account_id, expense_date FROM expenses WHERE property_id=:propertyId
-	      UNION ALL SELECT COALESCE(bank_account_id,
-	        (SELECT id FROM common_accounts WHERE (SELECT count(*) FROM common_accounts)=1)), cutoff_date
-	        FROM building_cash_openings WHERE property_id=:propertyId
-	      UNION ALL SELECT c.bank_account_id,(c.checked_at AT TIME ZONE 'Asia/Seoul')::date FROM bank_balance_checks c WHERE c.property_id=:propertyId
-	      UNION ALL SELECT o.bank_account_id,o.cutoff_date FROM bank_opening_balances o
-	        LEFT JOIN opening_balance_batches b ON b.id=o.batch_id AND b.property_id=o.property_id
-	        WHERE o.property_id=:propertyId AND (o.batch_id IS NULL OR b.status='CONFIRMED')
+
 	    )
 	    SELECT a.id AS "accountId",min(u.used_on) AS "firstUse" FROM common_accounts a
 	      LEFT JOIN usage_dates u ON u.account_id=a.id GROUP BY a.id

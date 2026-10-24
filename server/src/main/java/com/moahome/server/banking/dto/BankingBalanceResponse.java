@@ -8,7 +8,16 @@ public final class BankingBalanceResponse {
 	}
 
 	public record Building(UUID id, String label, boolean active, String startBalance, String income, String expense,
-	    String balance, String status, String openingBalance, long openingRevision) {
+	    String balance, String status, String openingBalance, long openingRevision,
+	    List<BuildingAccountBalance> accountBalances) {
+		public Building(UUID id, String label, boolean active, String startBalance, String income, String expense,
+		    String balance, String status, String openingBalance, long openingRevision) {
+			this(id, label, active, startBalance, income, expense, balance, status, openingBalance, openingRevision,
+			    List.of());
+		}
+	}
+
+	public record BuildingAccountBalance(UUID accountId, String startBalance, String balance) {
 	}
 
 	public record Entry(UUID id, UUID buildingId, LocalDate date, LocalTime time, String label, String income,

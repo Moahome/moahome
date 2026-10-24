@@ -1,0 +1,171 @@
+.modal {
+  display: flex;
+  flex-direction: column;
+  width: min(1120px, calc(100% - 40px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--foreground);
+
+  .header {
+    display: flex;
+    flex-shrink: 0;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 24px 24px 18px;
+
+    h2 { font-size: 22px; font-weight: 750; }
+    p { margin-top: 6px; color: var(--sub-text); font-size: 13px; }
+  }
+
+  .formats {
+    display: grid;
+    flex-shrink: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 0 24px 20px;
+    padding: 0;
+    border: 0;
+
+    legend { margin-bottom: 8px; font-size: 13px; font-weight: 650; }
+  }
+
+  .filters {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 12px;
+    flex-shrink: 0;
+    margin: 0 24px 20px;
+
+    > div { min-width: 0; }
+  }
+
+  .body {
+    min-height: 220px;
+    min-width: 0;
+    padding: 24px;
+    overflow: auto;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background: var(--background);
+  }
+
+  .excel-preview {
+    min-width: 0;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--card);
+
+    h3 {
+      margin: -20px -20px 16px;
+      padding: 18px 20px;
+      background: var(--foreground);
+      color: var(--card);
+      font-size: 20px;
+      font-weight: 750;
+    }
+    > p { margin-bottom: 16px; font-size: 13px; line-height: 1.6; color: var(--sub-text); }
+    .metadata { font-size: 12px; }
+  }
+
+  .balance-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+
+    > div {
+      display: grid;
+      gap: 8px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      background: var(--background);
+    }
+
+    span { color: var(--sub-text); font-size: 12px; }
+    strong { font-size: 17px; }
+    > div:nth-child(2) strong { color: var(--primary); }
+    > div:nth-child(3) strong { color: var(--danger); }
+  }
+
+  .image-description {
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: var(--sub-text);
+  }
+
+  .report-image {
+    display: block;
+    width: 100%;
+    height: auto;
+    border: 1px solid var(--border);
+    background: var(--card);
+  }
+
+  .pdf-preview { min-width: 0; }
+
+  .pdf-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: var(--sub-text);
+
+    > div { display: flex; gap: 8px; }
+  }
+
+  .pdf-page {
+    min-height: 160px;
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      border: 1px solid var(--border);
+      background: var(--card);
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--foreground) 6%, transparent);
+
+      &[hidden] { display: none; }
+    }
+  }
+
+  .error { display: grid; justify-items: start; gap: 12px; color: var(--danger); }
+
+  .footer {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 18px 24px;
+
+    > p { font-size: 12px; color: var(--sub-text); }
+    > p[role='alert'] { color: var(--danger); }
+    > div { display: flex; justify-content: flex-end; gap: 10px; margin-left: auto; }
+  }
+
+  @media (width <= 767px) {
+    width: calc(100% - 24px);
+    max-height: calc(100dvh - 24px);
+
+    .header { padding: 18px 16px; }
+    .header h2 { font-size: 18px; }
+    .formats { margin: 0 16px 16px; gap: 8px; }
+    .filters { grid-template-columns: minmax(0, 1fr); gap: 10px; margin: 0 16px 16px; }
+    .body { padding: 16px; }
+    .excel-preview { padding: 14px; }
+    .excel-preview h3 { margin: -14px -14px 14px; padding: 16px 14px; }
+    .balance-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .footer { padding: 14px 16px; }
+    .footer > div { width: 100%; }
+    .footer button { min-height: 44px; padding: 8px 12px; font-size: 14px; }
+  }
+}

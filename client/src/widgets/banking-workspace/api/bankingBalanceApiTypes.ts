@@ -9,6 +9,11 @@ export type BalanceBuilding = {
   status: 'READY' | 'OPENING_REQUIRED';
   openingBalance?: string | null;
   openingRevision?: number;
+  accountBalances?: {
+    accountId: string;
+    startBalance: string | null;
+    balance: string | null;
+  }[];
 };
 
 export type BalanceEntry = {

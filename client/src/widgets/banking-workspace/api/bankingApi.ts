@@ -38,7 +38,7 @@ function validRows(rows: BankingTransaction[]): boolean {
       && ['EQUAL', 'RATIO', 'AMOUNT'].includes(row.expense.mode) && Array.isArray(row.expense.allocations)
       && row.expense.allocations.every((a) => (a.buildingId === null || UUID.test(a.buildingId)) && typeof a.label === 'string' && AMOUNT.test(a.amount)))));
 }
-function readWorkspace(result: BankingWorkspaceData, propertyId: string): BankingWorkspaceData {
+export function readWorkspace(result: BankingWorkspaceData, propertyId: string): BankingWorkspaceData {
   if (result?.accounts && (!Array.isArray(result.accounts) || !result.accounts.every((a) => UUID.test(a.id) && typeof a.bankName === 'string'
     && typeof a.last4 === 'string' && typeof a.isPrimary === 'boolean' && ['ACTIVE', 'CLOSED', 'INACTIVE'].includes(a.status)
     && (a.alias === null || typeof a.alias === 'string')

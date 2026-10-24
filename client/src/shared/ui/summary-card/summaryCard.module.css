@@ -63,6 +63,11 @@
     color: var(--primary);
   }
 
+  &[data-tone="teal"] .icon {
+    background: color-mix(in srgb, var(--secondary-teal) 10%, var(--card));
+    color: var(--secondary-teal);
+  }
+
   &[data-tone="success"] .icon {
     background: color-mix(in srgb, var(--success) 10%, var(--card));
     color: var(--success);

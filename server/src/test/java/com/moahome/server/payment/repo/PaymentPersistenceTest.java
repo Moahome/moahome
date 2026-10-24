@@ -759,8 +759,8 @@ class PaymentPersistenceTest {
 			    assertThat(b.openingRevision()).isEqualTo(1);
 			    assertThat(b.balance()).isEqualTo("530000");
 		    });
-		assertThat(cashBalances.workspace(user, property, "2026-09").buildings().stream()
-		    .filter(b -> b.id().equals(first)).findFirst().orElseThrow().balance()).isEqualTo("500000");
+		// 기준일 정정은 등록일·실제 입출금보다 앞선 월에 통장을 노출하는 사용 이력이 아닙니다.
+		assertThat(cashBalances.workspace(user, property, "2026-09").buildings()).isEmpty();
 		assertThat(jdbc.queryForList("select * from bank_transactions order by id")).isEqualTo(originalBank);
 		assertThat(jdbc.queryForList("select * from payments order by id")).isEqualTo(originalPayments);
 		assertThatThrownBy(
@@ -2387,9 +2387,9 @@ class PaymentPersistenceTest {
 		assertThat(bankAccountSettings.detail(user, property, unused.accountId()).status()).isEqualTo("CLOSED");
 	}
 
-	/** 0원도 명시적으로 확인한 이력이므로 종료 월까지 보존하고 이후 월의 필터·합계에서는 제외합니다. */
+	/** 초기 잔고만 등록한 계좌는 입출금 사용 이력이 아니므로 생성 전 월과 빈 종료 월 모두 숨깁니다. */
 	@Test
-	void closedSettledAccountDisappearsAfterClosingMonthWithoutDeletingHistory() {
+	void openingOnlyClosedAccountDoesNotBecomeVisibleBeforeCreationOrInClosingMonth() {
 		List<UUID> targets = manualIncomeBuildings();
 		var saved = addAccount("004", "국민은행", "000111222333", "정리된 통장");
 		var account = saved.accountId();
@@ -2397,20 +2397,20 @@ class PaymentPersistenceTest {
 		cashBalances.saveAccountOpening(user, property, new BankingBalanceRequests.AccountOpening(UUID.randomUUID(),
 		    account, LocalDate.of(2026, 9, 30), "0", 0L));
 		bankAccountSettings.close(user, property, account, new BankAccountSettings.Close(saved.updatedAt()));
-		assertThat(cashBalances.workspace(user, property, "2026-10").accounts()).anyMatch(a -> account.equals(a.id()));
+		assertThat(cashBalances.workspace(user, property, "2026-10").accounts()).noneMatch(a -> account.equals(a.id()));
 		assertThat(cashBalances.workspace(user, property, "2026-11").accounts()).noneMatch(a -> account.equals(a.id()));
-		assertThat(cashBalances.workspace(user, property, "2026-09", account).accountId()).isEqualTo(account);
+		assertThat(cashBalances.workspace(user, property, "2026-09", account).accountId()).isNull();
 		assertThat(cashBalances.workspace(user, property, "2026-08", account).accountId()).isNull();
 		var meta = banking.workspace(user, property).accounts().stream().filter(a -> account.equals(a.id())).findFirst().orElseThrow();
-		assertThat(meta.availableFrom()).isEqualTo(LocalDate.of(2026, 9, 30));
-		assertThat(meta.hasHistory()).isTrue();
+		assertThat(meta.availableFrom()).isEqualTo(LocalDate.of(2026, 10, 15));
+		assertThat(meta.hasHistory()).isFalse();
 		assertThat(jdbc.queryForObject("select count(*) from building_cash_openings where bank_account_id=?", Long.class, account))
 		    .isEqualTo(2);
 	}
 
-	/** 통장 전액·동별 상계·확인 불가 잔액을 종료 처리만으로 숨겨 돈이 사라진 것처럼 보이지 않게 합니다. */
+	/** 초기 금액만 있는 빈 종료 계좌는 숨기고 실제 입출금 이후 확인 불가 잔액은 보존합니다. */
 	@Test
-	void closedAccountKeepsRemainingBuildingFundsAndUnknownBankBalance() {
+	void openingOnlyClosedAccountsAreHiddenButUsedAccountWithUnknownBalanceRemains() {
 		List<UUID> targets = manualIncomeBuildings();
 		var remaining = addAccount("004", "국민은행", "000111222333", "잔액 있음");
 		closedAccountOpenings(remaining.accountId(), targets, "50000", "0");
@@ -2425,7 +2425,7 @@ class PaymentPersistenceTest {
 		    "1000", unknown.accountId(), "OTHER", "관리단", "기타 입금", null, null));
 		bankAccountSettings.close(user, property, unknown.accountId(), new BankAccountSettings.Close(unknown.updatedAt()));
 		assertThat(cashBalances.workspace(user, property, "2026-11").accounts()).extracting(a -> a.id())
-		    .contains(remaining.accountId(), offset.accountId(), unknown.accountId());
+		    .contains(unknown.accountId()).doesNotContain(remaining.accountId(), offset.accountId());
 	}
 
 	/** 잔액 0원이라도 외부 미회수금이 있으면 남기고 회수가 완료된 다음 조회부터 숨깁니다. */
@@ -3458,6 +3458,7 @@ class PaymentPersistenceTest {
 	void excludesNewAccountBeforeFirstUseFromOptionsAndBuildingTotals() {
 		List<UUID> targets = manualIncomeBuildings();
 		var first = bankAccountSettings.read(user, property).accountId();
+		jdbc.update("update bank_accounts set valid_from=date '2026-07-01' where id=?", first);
 		var second = addAccount("090", "카카오뱅크", "3333012345678", "예비비").accountId();
 		cashBalances.saveOpenings(user, property, new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(
 		    LocalDate.of(2026, 7, 1),
@@ -3479,11 +3480,13 @@ class PaymentPersistenceTest {
 		assertThat(staleSelection.accountId()).isNull();
 		assertThat(staleSelection.buildings()).isEqualTo(august.buildings());
 		assertThat(staleSelection.accounts()).isEqualTo(august.accounts());
-		var september = cashBalances.workspace(user, property, "2026-09", second);
-		assertThat(september.accountId()).isEqualTo(second);
-		assertThat(september.accounts()).filteredOn(a -> second.equals(a.id())).singleElement()
+		// 전월 말 기준 잔고만 입력해도 10월 등록 계좌가 9월 선택 목록에 생기지 않습니다.
+		assertThat(cashBalances.workspace(user, property, "2026-09", second).accountId()).isNull();
+		var october = cashBalances.workspace(user, property, "2026-10", second);
+		assertThat(october.accountId()).isEqualTo(second);
+		assertThat(october.accounts()).filteredOn(a -> second.equals(a.id())).singleElement()
 		    .satisfies(a -> assertThat(a.calculatedBalance()).isEqualTo("1500000"));
-		assertThat(september.buildings()).extracting(b -> b.balance()).containsExactlyInAnyOrder("1000000", "500000");
+		assertThat(october.buildings()).extracting(b -> b.balance()).containsExactlyInAnyOrder("1000000", "500000");
 		// 실제 과거 원본을 나중에 가져온 경우에는 그 사용 근거가 있는 월부터 정상 조회합니다.
 		var file = kakaoFile(csv("거래일시,적요,출금액,입금액,잔액\n2026-08-15 09:00:00,과거 입금,0,1000,1499000"));
 		var preview = banking.preview(user, property, file, second);

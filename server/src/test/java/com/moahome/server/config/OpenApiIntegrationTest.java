@@ -190,7 +190,9 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(
 		    mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(82);
+		assertThat(document.path("paths").properties()).hasSize(83);
+		assertThat(document.path("paths").path("/api/properties/{propertyId}/closing/monthly")
+			.at("/get/security/0/bearerAuth").isArray()).isTrue();
 		for (String method : java.util.List.of("get", "post"))
 			assertThat(document.path("paths").path("/api/properties/{propertyId}/banking/balances/checks")
 			    .at("/" + method + "/security/0/bearerAuth").isArray()).isTrue();

@@ -290,7 +290,7 @@ public class BankingBalanceService {
 		    .collect(Collectors.toMap(BankingBalanceResponse.AccountBalance::id, item -> item));
 		Set<UUID> unsettled = unsettledAccounts(end, allExpenseById, allParts, allLinks, allReceipts,
 		    decisionByAllocation);
-		// 앱 등록 전 거래·기준값은 실제 과거 사용 근거입니다. 그 근거보다도 이른 월에 새 통장의 잔고를 만들어 넣지 않습니다.
+		// 앱 등록 전 실제 입출금은 과거 사용 근거입니다. 초기 잔고 날짜만으로 새 통장을 생성 전 월에 표시하지 않습니다.
 		List<BankAccount> availableAccounts = common.stream().filter(a -> {
 			var history = usage.get(a.getId());
 			LocalDate firstUse = history == null ? null : history.getFirstUse();
@@ -365,6 +365,7 @@ public class BankingBalanceService {
 			BigDecimal startBalance = BigDecimal.ZERO, incomeTotal = BigDecimal.ZERO, expenseTotal = BigDecimal.ZERO,
 			    endBalance = BigDecimal.ZERO;
 			boolean complete = true;
+			List<BankingBalanceResponse.BuildingAccountBalance> accountBalances = new ArrayList<>();
 			if (legacy) {
 				var opening = buildingOpenings.isEmpty() ? null : buildingOpenings.getFirst();
 				List<BuildingCashCalculation.Movement> movements = buildingEntries.stream()
@@ -395,6 +396,10 @@ public class BankingBalanceService {
 					var totals = BuildingCashCalculation.calculate(
 					    opening == null ? BigDecimal.ZERO : opening.getAmount(),
 					    opening == null ? end : opening.getCutoffDate(), month, movements);
+					// 같은 계산 결과를 계좌 필터에도 제공해 전체 동 잔액을 개별 계좌 잔액으로 잘못 출력하지 않습니다.
+					accountBalances.add(new BankingBalanceResponse.BuildingAccountBalance(account.getId(),
+					    opening == null ? null : amount(totals.start()),
+					    opening == null ? null : amount(totals.balance())));
 					complete &= opening != null;
 					startBalance = startBalance.add(totals.start());
 					incomeTotal = incomeTotal.add(totals.income());
@@ -406,7 +411,8 @@ public class BankingBalanceService {
 			result.add(new BankingBalanceResponse.Building(b.getId(), b.getName(), current,
 			    complete ? amount(startBalance) : null, amount(incomeTotal), amount(expenseTotal),
 			    complete ? amount(endBalance) : null, complete ? "READY" : "OPENING_REQUIRED",
-			    direct == null ? null : amount(direct.getAmount()), direct == null ? 0 : direct.getRevision()));
+			    direct == null ? null : amount(direct.getAmount()), direct == null ? 0 : direct.getRevision(),
+			    accountBalances));
 		}
 		ArrayList<BankingBalanceResponse.External> external = new ArrayList<BankingBalanceResponse.External>();
 		for (var part : parts) {

@@ -33,6 +33,11 @@ const ICON_PATHS = {
       stroke={'none'}
     />
   ),
+  download: (
+    <path
+      d={'M12 3v12m-5-5 5 5 5-5M4 15v6h16v-6'}
+    />
+  ),
   excel: (
     <>
       <path

@@ -156,6 +156,8 @@ accounts의 각 항목에 `calculatedBalance: 원 단위 부호 있는 문자열
 `accounts`에는 조회 월 말까지 사용 근거가 있는 통장만 포함하며 같은 계좌 집합으로 동별 합계·입출금·정산을 계산합니다. 같은 관리대상에 속하지만 사용 전인 accountId를 요청하면 응답 accountId는 null이고 해당 월의 전체 통장 결과를 반환합니다. 다른 관리대상의 계좌는 기존대로 거부합니다. 사용 근거 판정은 위 공통 계산 기준을 따르며 해당 월에 사용한 통장이 없으면 accounts·buildings는 빈 목록, 은행 잔액과 기준일은 null입니다.
 
 
+동별 buildings에 선택 계좌 보고서용 `accountBalances:[{accountId,startBalance,balance}]`를 추가합니다. 기존 통장별 기준값 계산의 결과를 재사용하며 미설정은 null입니다. 통장 미구분 기존 기준값은 특정 계좌로 임의 귀속하지 않고 빈 목록을 유지합니다.
+
 ### 선택 통장 상세와 계좌번호 공개
 
 2026-10-18 사용자 요청을 구현합니다. 기존 Bearer 인증·ADMIN 권한·`Cache-Control: no-store`를 적용하며 두 요청 모두 같은 관리대상·미삭제 공용 통장을 확인합니다. 종료 통장은 조회할 수 있습니다. 권한 부족·다른 대상·삭제·비공용·없는 통장은 `403 ACCESS_DENIED`로 구분 없이 거부합니다.
@@ -291,7 +293,7 @@ ADMIN·같은 관리대상의 사용 중 공용 통장·관리 시작 상태·�
 
 ## 사용 종료 통장 조회 계약 (2026-10-23 후속)
 
-[사용 종료 통장 표시 정책](domainRules.md#사용-종료-통장-표시-2026-10-23-후속-확정)을 적용합니다. 거래 Workspace.accounts에 `availableFrom: YYYY-MM-DD`, `closedOn: YYYY-MM-DD|null`, `hasHistory: boolean`을 추가합니다. availableFrom은 등록 사용 시작일과 실제 사용 근거 중 이른 날짜입니다. Client는 조회 월 말보다 시작이 늦은 통장과 미사용 종료 통장을 제외하고 사용한 종료 통장은 종료 월까지만 거래·지출 필터에 표시합니다. Workspace의 원본 이력은 유지합니다.
+[사용 종료 통장 표시 정책](domainRules.md#사용-종료-통장-표시-2026-10-23-후속-확정)을 적용합니다. 거래 Workspace.accounts에 `availableFrom: YYYY-MM-DD`, `closedOn: YYYY-MM-DD|null`, `hasHistory: boolean`을 추가합니다. availableFrom은 등록 사용 시작일과 실제 은행 거래·수납·지출 중 이른 날짜입니다. 동별 기준값·최초 잔고·직접 잔액 확인은 사용 시작을 앞당기거나 hasHistory를 true로 만드는 근거가 아닙니다. Client는 조회 월 말보다 시작이 늦은 통장과 미사용 종료 통장을 제외하고 사용한 종료 통장은 종료 월까지만 거래·지출 필터에 표시합니다. Workspace의 원본 이력은 유지합니다.
 
 잔고 API는 서버에서 월별 노출 범위와 잔액·동별 자금·미회수 외부 부담금 예외를 판정하여 accounts와 계산 범위를 함께 반환합니다. 숨겨진 같은 관리대상 accountId는 accountId=null의 전체 통장 결과로 복원합니다. 설정의 통장 상세·과거 기록은 표시 제외로 삭제하지 않습니다. 기존 bank_accounts의 status·valid_from·valid_to와 사용 자료를 활용하므로 새 컬럼·Migration은 추가하지 않습니다.
 

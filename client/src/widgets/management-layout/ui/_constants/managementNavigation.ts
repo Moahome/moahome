@@ -91,60 +91,11 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
     ]
   },
   {
-    id: 'accounting',
-    label: '회계',
-    icon: 'chart',
-    children: [
-      {
-        id: 'journals',
-        label: '전표 조회',
-        path: 'accounting/journals',
-        available: false
-      },
-      {
-        id: 'ledger',
-        label: '계정별 원장',
-        path: 'accounting/ledger',
-        available: false
-      },
-      {
-        id: 'receivables',
-        label: '세대별 미수 원장',
-        path: 'accounting/receivables',
-        available: false
-      },
-      {
-        id: 'profit-loss',
-        label: '손익 현황',
-        path: 'accounting/profit-loss',
-        available: false
-      },
-    ]
-  },
-  {
     id: 'closing',
     label: '정산 / 마감',
     icon: 'closing',
-    children: [
-      {
-        id: 'monthly-closing',
-        label: '월 마감',
-        path: 'closing/monthly',
-        available: false
-      },
-      {
-        id: 'reconciliation',
-        label: '통장 대사',
-        path: 'closing/reconciliation',
-        available: false
-      },
-      {
-        id: 'reports',
-        label: '보고서',
-        path: 'closing/reports',
-        available: false
-      },
-    ]
+    path: 'closing/monthly',
+    available: true
   },
   {
     id: 'notices',
