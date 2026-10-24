@@ -9,6 +9,7 @@ import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
 import {
   Dropdown,
+  SelectDropdown,
   Input
 } from '@/shared/ui/form-controls';
 import { useQuery } from '@tanstack/react-query';
@@ -99,7 +100,7 @@ export function ResidentRegistrationForm({
     phoneError = '올바른 연락처를 입력해주세요.';
   }
   const nameError = !name.trim() || [...name.trim()].length > 50 ? '이름을 1~50자로 입력해주세요.' : '';
-  const unitError = !selectable.some((unit) => unit.clientId === unitId) ? '동·호수를 선택해주세요.' : '';
+  const unitError = !selectable.some((unit) => unit.clientId === unitId) ? '호수를 선택해주세요.' : '';
   const relationError = !RESIDENT_RELATION_OPTIONS.some((item) => item.value === relationType) ? '주민 구분을 선택해주세요.' : '';
   const needsRepresentative = Boolean(resident && resident.unitId !== unitId && resident.representativeCandidates.length);
   const representativeError = needsRepresentative && !replacementResidentId ? '남은 주민 중 새 대표를 선택해주세요.' : '';
@@ -256,7 +257,7 @@ export function ResidentRegistrationForm({
           />
         )}
         {data?.hasBuildings && (
-          <Dropdown
+          <SelectDropdown
             label={'동'}
             required
             value={buildingId}
@@ -268,12 +269,12 @@ export function ResidentRegistrationForm({
               setBuildingId(value);
               setUnitId('');
             }}
-            placeholder={'동을 선택해주세요'}
+            placeholder={'동 선택 또는 검색'}
             error={attempted && !buildingId ? '동을 선택해주세요.' : undefined}
           />
         )}
-        <Dropdown
-          label={'동·호수'}
+        <SelectDropdown
+          label={'호수'}
           required
           value={unitId}
           options={selectable.map((unit) => ({
@@ -282,7 +283,7 @@ export function ResidentRegistrationForm({
           }))}
           disabled={Boolean(data?.hasBuildings && !buildingId)}
           onChange={setUnitId}
-          placeholder={'호수를 선택해주세요'}
+          placeholder={'호수 선택 또는 검색'}
           error={attempted ? unitError : undefined}
         />
         <Dropdown

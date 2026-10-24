@@ -1938,16 +1938,16 @@ async function fillResidentRegistration(page: Page, hasBuildings = true) {
     await page.getByRole('combobox', {
       name: '동',
       exact: true
-    }).click();
+    }).fill('103');
     await page.getByRole('option', {
       name: '103동',
       exact: true
     }).click();
   }
   await page.getByRole('combobox', {
-    name: '동·호수',
+    name: '호수',
     exact: true
-  }).click();
+  }).fill('301');
   await page.getByRole('option', {
     name: '301호',
     exact: true
@@ -2936,7 +2936,7 @@ for (const width of [1440, 375, 320]) {
     await expect(upload).toHaveCSS('color', 'rgb(22, 101, 52)');
     await expect(upload.locator('svg')).toHaveCount(1);
     await expect(page.getByRole('columnheader', {
-      name: '동·호수',
+      name: '호수',
       exact: true
     })).toBeVisible();
     await expect(page.getByRole('columnheader', {
