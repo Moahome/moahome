@@ -1,0 +1,67 @@
+.root {
+  position: relative;
+  justify-self: center;
+}
+
+.trigger[data-variant='ghost'][aria-haspopup='menu'] {
+  width: 40px;
+  min-height: 40px;
+  padding: 8px;
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--sub-text);
+
+  &:hover:not(:disabled) {
+    background: var(--card);
+  }
+}
+
+.menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 50;
+  display: grid;
+  width: min(248px, calc(100vw - 40px));
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--foreground) 12%, transparent);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition:
+    opacity 180ms,
+    transform 180ms,
+    visibility 0s 180ms;
+
+  &[data-open='true'] {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+    transition-delay: 0s;
+  }
+
+  &[data-above='true'] {
+    top: auto;
+    bottom: calc(100% + 8px);
+  }
+
+  button {
+    justify-content: start;
+    width: 100%;
+    padding: 10px 12px;
+    color: var(--foreground);
+    font-size: 15px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu {
+    transition: none;
+    transform: none;
+  }
+}

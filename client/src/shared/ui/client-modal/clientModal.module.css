@@ -1,0 +1,9 @@
+.dialog:modal {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+}
+
+.dialog::backdrop {
+  background: color-mix(in srgb, var(--foreground) 35%, transparent);
+}

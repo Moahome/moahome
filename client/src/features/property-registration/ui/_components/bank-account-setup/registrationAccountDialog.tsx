@@ -6,8 +6,8 @@ import {
 } from '@/entities/banking';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
-import { AmountInput } from '@/shared/ui/form-controls';
 import { ServiceIcon } from '@/shared/ui/service-icon';
+import { Toast } from '@/shared/ui/toast';
 import {
   useId,
   useState,
@@ -17,27 +17,28 @@ import type { RegistrationAccount } from '../../../model/bankAccountTypes';
 import styles from './registrationAccountDialog.module.css';
 
 /** 모달의 편집본은 저장할 때만 목록에 반영해 취소·닫기·새로고침으로 미확정 통장이 추가되지 않게 합니다. */
-export function RegistrationAccountDialog({ account, accounts, cutoffDate, onSave, onClose }: {
+export function RegistrationAccountDialog({ account, accounts, onSave, onClose }: {
   account: RegistrationAccount;
   accounts: RegistrationAccount[];
-  cutoffDate: string;
   onSave: (account: RegistrationAccount) => void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState(account);
+  const [duplicateNotice, setDuplicateNotice] = useState(0);
   const titleId = useId();
   const descriptionId = useId();
   const title = account.accountNumber ? '통장 수정' : '통장 추가';
   const others = accounts.filter((row) => row.clientId !== draft.clientId);
-  const duplicate = others.some((row) => row.bankCode === draft.bankCode && row.accountNumber === draft.accountNumber);
+  const duplicate = Boolean(draft.bankCode && draft.accountNumber) && others.some((row) => row.bankCode === draft.bankCode && row.accountNumber === draft.accountNumber);
   const hasPrimary = draft.isPrimary || others.some((row) => row.isPrimary);
   const valid = Object.keys(getBankAccountErrors(draft)).length === 0
-    && /^[0-9]{1,15}$/.test(draft.openingAmount) && !duplicate && hasPrimary;
+    && hasPrimary;
 
-  /** 필수 계좌 정보·명시적 잔액·중복과 기본 계좌 유지를 확인한 뒤 초안 한 건을 저장합니다. */
+  /** 필수 계좌 정보·중복과 기본 계좌 유지를 확인한 뒤 초안 한 건을 저장합니다. */
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!valid) return;
+    if (duplicate) { setDuplicateNotice((value) => value + 1); return; }
     onSave(draft);
   }
 
@@ -97,30 +98,8 @@ export function RegistrationAccountDialog({ account, accounts, cutoffDate, onSav
               isPrimary
             }))}
           >
-            <AmountInput
-              label={'통장 실제 잔액'}
-              aria-label={'통장 실제 잔액'}
-              value={draft.openingAmount}
-              placeholder={'0'}
-              trailingContent={'원'}
-              required
-              onChange={(openingAmount) => setDraft((previous) => ({
-                ...previous,
-                openingAmount
-              }))}
-            />
-            <p>
-              {`기존 장부 기준일 ${cutoffDate}의 마감 잔액입니다.`}
-            </p>
+
           </BankAccountCard>
-          {duplicate && (
-            <p
-              className={styles.error}
-              role={'status'}
-            >
-              같은 은행과 계좌번호가 이미 등록되어 있어요.
-            </p>
-          )}
           {!hasPrimary && (
             <p
               className={styles.error}
@@ -147,6 +126,14 @@ export function RegistrationAccountDialog({ account, accounts, cutoffDate, onSav
           </Button>
         </footer>
       </form>
+      {duplicateNotice > 0 && (
+        <Toast
+          key={duplicateNotice}
+          message={'같은 은행과 계좌번호가 이미 등록되어 있어요.'}
+          tone={'error'}
+          onClose={() => setDuplicateNotice(0)}
+        />
+      )}
     </ClientModal>
   );
 }

@@ -520,6 +520,9 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .filters[data-toolbar='true'] > :last-child {
+    grid-column: 1 / -1;
+  }
   .filters[data-toolbar='true'] > :first-child {
     grid-column: 1 / -1;
   }

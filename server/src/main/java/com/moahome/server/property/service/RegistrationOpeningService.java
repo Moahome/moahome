@@ -58,13 +58,17 @@ public class RegistrationOpeningService {
 			throw invalid("accounts", "계좌 잔액을 모두 입력해주세요.");
 		Set<String> expectedBuildings = request.buildings().stream()
 		    .map(PropertyRegistrationRequest.BuildingInput::clientId).collect(Collectors.toSet());
-		HashSet<String> seenBuildings = new HashSet<String>();
-		for (var row : input.buildings())
-			if (!seenBuildings.add(row.buildingClientId())) {
-				throw invalid("buildings", "동별 보유금이 중복되었습니다.");
-			}
-		if (!seenBuildings.equals(expectedBuildings))
-			throw invalid("buildings", "등록한 모든 동의 보유금을 확인해주세요.");
+		boolean accountScoped = input.buildings().stream().anyMatch(row -> row.accountIndex() != null);
+		HashSet<String> seenBuildings = new HashSet<>();
+		for (var row : input.buildings()) {
+			if (!expectedBuildings.contains(row.buildingClientId())
+			    || (accountScoped
+			        && (row.accountIndex() == null || row.accountIndex() >= request.bankAccounts().size()))
+			    || !seenBuildings.add((accountScoped ? row.accountIndex() + ":" : "") + row.buildingClientId()))
+				throw invalid("buildings", "통장별 보유금의 동과 계좌를 확인해주세요.");
+		}
+		if (seenBuildings.size() != expectedBuildings.size() * (accountScoped ? request.bankAccounts().size() : 1))
+			throw invalid("buildings", "등록한 모든 통장과 동의 보유금을 확인해주세요.");
 		if (expectedBuildings.isEmpty()) {
 			if (input.cashCutoffDate() != null)
 				throw invalid("cashCutoffDate", "동 구분이 없으면 통장 실제 잔액만 입력합니다.");
@@ -97,12 +101,27 @@ public class RegistrationOpeningService {
 		        row -> new OpeningBalanceRequest.AccountInput(accounts.get(row.accountIndex()).getId(), row.amount()))
 		        .toList()))
 		    .batch();
-		if (!buildings.isEmpty())
-			cash.saveOpenings(actor, property.getId(),
-			    new BankingBalanceRequests.Opening(input.cashCutoffDate(), input.buildings().stream()
-			        .map(row -> new BankingBalanceRequests.OpeningPart(buildings.get(row.buildingClientId()).getId(),
-			            row.amount()))
-			        .toList()));
+		if (!buildings.isEmpty()) {
+			boolean scoped = input.buildings().stream().anyMatch(row -> row.accountIndex() != null);
+			if (scoped) {
+				for (int index = 0; index < accounts.size(); index++) {
+					int accountIndex = index;
+					cash.saveOpenings(actor, property.getId(),
+					    new BankingBalanceRequests.Opening(input.cashCutoffDate(),
+					        input.buildings().stream().filter(row -> row.accountIndex() == accountIndex)
+					            .map(row -> new BankingBalanceRequests.OpeningPart(
+					                buildings.get(row.buildingClientId()).getId(), row.amount()))
+					            .toList(),
+					        accounts.get(index).getId()));
+				}
+			} else {
+				cash.saveOpenings(actor, property.getId(),
+				    new BankingBalanceRequests.Opening(input.cashCutoffDate(), input.buildings().stream().map(
+				        row -> new BankingBalanceRequests.OpeningPart(buildings.get(row.buildingClientId()).getId(),
+				            row.amount()))
+				        .toList()));
+			}
+		}
 		// 첫 부과·선납 충당은 날짜와 요약을 확인한 최종 제출에서만 확정합니다.
 		balances.confirm(actor, property.getId(), batch.id(), batch.revision());
 		return new PropertyRegistrationResponse.ManagementStart(input.cutoffDate(), input.firstBillingMonth(),

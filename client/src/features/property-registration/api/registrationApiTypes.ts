@@ -39,6 +39,7 @@ export interface RegistrationRequest {
     }[];
     cashCutoffDate: string | null;
     buildings: {
+      accountIndex?: number;
       buildingClientId: string;
       amount: string;
     }[];

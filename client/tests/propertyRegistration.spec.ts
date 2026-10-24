@@ -586,26 +586,59 @@ async function completeExternalAdministrator(page: Page) {
 }
 async function prepareCashOpening(page: Page) {
   const data = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
-  if (!data.buildings.length) return;
-  if (!data.openingBalances.cashCutoffDate) await page.getByRole('button', {
-    name: '장부 기준일과 같은 날짜 사용',
-    exact: true
+  await page.getByRole('tab', {
+    name: /^통장별 시작 잔액/
   }).click();
-  for (const building of data.buildings) {
-    const selection = page.getByRole('combobox', {
-      name: '보유금 입력 동',
-      exact: true
-    });
-    await selection.click();
-    await selection.fill(building.name);
-    await page.getByRole('option', {
-      name: building.name,
+  for (let index = 0; index < data.bankAccounts.length; index++) {
+    const account = data.bankAccounts[index];
+    const label = `${account.bankName || `통장 ${index + 1}`}${account.alias ? ` · ${account.alias}` : ''}${account.accountNumber ? ` (${account.accountNumber.slice(-4)})` : ''}`;
+    await page.getByRole('combobox', {
+      name: '입력할 통장',
       exact: true
     }).click();
-    const amount = page.getByLabel(`${building.name} 시작 잔고`, {
+    await page.getByRole('option', {
+      name: label,
+      exact: true
+    }).click();
+    const amount = page.getByLabel('실제 시작 잔액', {
       exact: true
     });
     if (!(await amount.inputValue())) await amount.fill('0');
+  }
+  if (!data.buildings.length) return;
+  await page.getByRole('tab', {
+    name: /^동별 시작 보유금/
+  }).click();
+  if (!data.openingBalances.cashCutoffDate) await page.getByRole('button', {
+    name: '통장 기준일과 같은 날짜 사용',
+    exact: true
+  }).click();
+  for (let index = 0; index < data.bankAccounts.length; index++) {
+    const account = data.bankAccounts[index];
+    const label = `${account.bankName || `통장 ${index + 1}`}${account.alias ? ` · ${account.alias}` : ''}${account.accountNumber ? ` (${account.accountNumber.slice(-4)})` : ''}`;
+    await page.getByRole('combobox', {
+      name: '입력할 통장',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: label,
+      exact: true
+    }).click();
+    for (const building of data.buildings) {
+      const selection = page.getByRole('combobox', {
+        name: '보유금 입력 동',
+        exact: true
+      });
+      await selection.click(); await selection.fill(building.name);
+      await page.getByRole('option', {
+        name: building.name,
+        exact: true
+      }).click();
+      const amount = page.getByLabel(`${building.name} 시작 보유금`, {
+        exact: true
+      });
+      if (!(await amount.inputValue())) await amount.fill('0');
+    }
   }
 }
 async function prepareFirstBillingMonth(page: Page) {
@@ -821,10 +854,6 @@ async function fillBankAccount(page: Page, save = true) {
   }).click();
   await page.getByLabel('계좌번호').fill('00012345678');
   await page.getByLabel('예금주').fill('예시 관리단');
-  const amount = page.getByLabel('통장 실제 잔액', {
-    exact: true
-  });
-  if (!(await amount.inputValue())) await amount.fill('0');
   if (!save) return;
   await saveAccountEditor(page);
   await prepareCashOpening(page);
@@ -5788,17 +5817,20 @@ for (const width of [1440, 390, 320]) {
       exact: true
     }).click();
     await expect(page).toHaveURL(/registration=account/);
-    await openAccountEditor(page);
-    await expect(page.getByLabel('통장 실제 잔액', {
+    await expect(page.getByLabel('실제 시작 잔액', {
       exact: true
     })).toHaveValue('');
     await fillBankAccount(page);
     if (width < 641) await expectFixedSetupHeader(page);
-    await openAccountEditor(page);
-    await page.getByLabel('통장 실제 잔액', {
+    await page.getByRole('tab', {
+      name: /^통장별 시작 잔액/
+    }).click();
+    await page.getByLabel('실제 시작 잔액', {
       exact: true
     }).fill('350000');
-    await saveAccountEditor(page);
+    await page.getByRole('tab', {
+      name: /^동별 시작 보유금/
+    }).click();
     for (const [name, value] of [['102동', '100000'], ['103동', '200000']]) {
       const selection = page.getByRole('combobox', {
         name: '보유금 입력 동',
@@ -5810,7 +5842,7 @@ for (const width of [1440, 390, 320]) {
         name,
         exact: true
       }).click();
-      await page.getByLabel(`${name} 시작 잔고`, {
+      await page.getByLabel(`${name} 시작 보유금`, {
         exact: true
       }).fill(value);
     }
@@ -5818,8 +5850,25 @@ for (const width of [1440, 390, 320]) {
       name: '통장·동별 시작 잔고',
       exact: true
     });
-    await expect(cashPanel.getByRole('status')).toHaveText('입력 완료 2 / 2개 동 · 보유금 합계 300,000원');
-    await expect(cashPanel).toContainText('통장 잔액과 동별 합계의 차이: 50,000원');
+    await expect(page.getByRole('tab', {
+      name: /^동별 시작 보유금/
+    })).toContainText('2/2');
+    await expect(cashPanel.getByLabel('차이 +50,000원', {
+      exact: true
+    })).toBeVisible();
+    const dateControl = cashPanel.getByRole('button', {
+      name: /^동별 잔고 기준일:/
+    });
+    const accountControl = cashPanel.getByRole('combobox', {
+      name: '입력할 통장',
+      exact: true
+    });
+    if (width > 640) {
+      const accountTop = await accountControl.evaluate((element) => element.parentElement!.getBoundingClientRect().top);
+      expect(Math.abs((await dateControl.boundingBox())!.y - accountTop)).toBeLessThanOrEqual(1);
+    }
+    await expect(dateControl.locator('..').locator('span[aria-hidden=true]').first()).toHaveCSS('color', 'rgb(239, 68, 68)');
+
     await page.screenshot({
       path: test.info().outputPath(`openingAccount${width}.png`),
       fullPage: true
@@ -5946,10 +5995,7 @@ for (const width of [1440, 390]) {
     await expect(modal.getByRole('button', {
       name: '등록',
       exact: true
-    })).toBeDisabled();
-    await modal.getByLabel('통장 실제 잔액', {
-      exact: true
-    }).fill('750000');
+    })).toBeEnabled();
     await modal.getByRole('switch', {
       name: '기본 납부계좌로 사용'
     }).check();
@@ -5966,6 +6012,20 @@ for (const width of [1440, 390]) {
     await expect(second).toContainText('카카오뱅크');
     await expect(second).toContainText('기본 납부계좌');
     await expect(first).not.toContainText('기본 납부계좌');
+    await page.getByRole('tab', {
+      name: /^통장별 시작 잔액/
+    }).click();
+    await page.getByRole('combobox', {
+      name: '입력할 통장',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '카카오뱅크 · 용도 미정 보관 (8888)',
+      exact: true
+    }).click();
+    await page.getByLabel('실제 시작 잔액', {
+      exact: true
+    }).fill('750000');
     await expect(second).toContainText('750,000원');
     await page.getByRole('button', {
       name: '통장 추가',
@@ -5987,14 +6047,18 @@ for (const width of [1440, 390]) {
       name: '예금주',
       exact: true
     }).fill('중복 관리단');
-    await modal.getByLabel('통장 실제 잔액', {
-      exact: true
-    }).fill('0');
-    await expect(modal.getByRole('status')).toContainText('이미 등록');
+
     await expect(modal.getByRole('button', {
       name: '등록',
       exact: true
-    })).toBeDisabled();
+    })).toBeEnabled();
+    await modal.getByRole('button', {
+      name: '등록',
+      exact: true
+    }).click();
+    await expect(page.getByText('같은 은행과 계좌번호가 이미 등록되어 있어요.', {
+      exact: true
+    })).toBeVisible();
     await modal.getByRole('textbox', {
       name: '계좌번호',
       exact: true
@@ -6024,7 +6088,7 @@ for (const width of [1440, 390]) {
     });
     await expect(modal.getByLabel('통장 실제 잔액', {
       exact: true
-    })).toHaveValue('750,000');
+    })).toHaveCount(0);
     await modal.getByLabel('통장 별칭', {
       exact: true
     }).fill('저장하지 않은 변경');
@@ -6041,6 +6105,7 @@ for (const width of [1440, 390]) {
       name: '다음',
       exact: true
     });
+    await prepareCashOpening(page);
     await expect(next).toBeEnabled();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     const actionBackground = await next.evaluate((button) => {

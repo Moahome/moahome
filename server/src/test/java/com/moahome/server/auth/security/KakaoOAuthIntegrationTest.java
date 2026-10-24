@@ -149,6 +149,9 @@ class KakaoOAuthIntegrationTest {
 	private com.moahome.server.banking.service.BankingBalanceService bankingBalances;
 
 	@MockitoBean
+	private com.moahome.server.banking.service.BankBalanceCheckService bankBalanceChecks;
+
+	@MockitoBean
 	private com.moahome.server.banking.service.BankAccountService bankAccountSettings;
 
 	@MockitoBean

@@ -11,7 +11,7 @@ public record RegistrationOpeningInput(@NotNull(message = "REQUIRED") LocalDate 
     @NotNull(message = "REQUIRED") @Size(max = 10000) List<@NotNull @Valid UnitOpening> units,
     @NotNull(message = "REQUIRED") @Size(max = 100) List<@NotNull @Valid AccountOpening> accounts,
     LocalDate cashCutoffDate,
-    @NotNull(message = "REQUIRED") @Size(max = 1000) List<@NotNull @Valid BuildingOpening> buildings) {
+    @NotNull(message = "REQUIRED") @Size(max = 100000) List<@NotNull @Valid BuildingOpening> buildings) {
 	public record UnitOpening(
 	    @Pattern(regexp = "[A-Za-z0-9_-]{1,50}", message = "INVALID_FORMAT") String buildingClientId,
 	    @NotBlank(message = "REQUIRED") String unitNumber,
@@ -26,8 +26,13 @@ public record RegistrationOpeningInput(@NotNull(message = "REQUIRED") LocalDate 
 	    @NotNull(message = "REQUIRED") @Pattern(regexp = "[0-9]{1,15}", message = "INVALID_FORMAT") String amount) {
 	}
 
-	public record BuildingOpening(@NotBlank(message = "REQUIRED") String buildingClientId,
+	public record BuildingOpening(
+	    @Min(0) @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) Integer accountIndex,
+	    @NotBlank(message = "REQUIRED") String buildingClientId,
 	    @NotNull(message = "REQUIRED") @Pattern(regexp = "-?[0-9]{1,15}", message = "INVALID_FORMAT") String amount) {
+		public BuildingOpening(String buildingClientId, String amount) {
+			this(null, buildingClientId, amount);
+		}
 	}
 
 	@Override

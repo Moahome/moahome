@@ -21,7 +21,7 @@ import type {
   BuildingDraft,
   UnitDraft
 } from '../../../model/unitSetupTypes';
-import { OpeningBalanceFields } from '../opening-balance-fields/openingBalanceFields';
+import { RegistrationCashSetup } from '../registration-cash-setup/registrationCashSetup';
 import { SetupProgress } from '../setup-progress/setupProgress';
 import styles from './bankAccountSetup.module.css';
 import { BankIllustration } from './bankIllustration';
@@ -31,7 +31,7 @@ import { RegistrationAccountDialog } from './registrationAccountDialog';
 export function BankAccountSetup({
   propertyName,
   openingBalances,
-  units,
+  units: _units,
   buildings,
   onOpeningChange,
   accounts,
@@ -308,30 +308,13 @@ export function BankAccountSetup({
             />
             통장은 여러 개 등록할 수 있으며, 여러 동이 공동으로 사용할 수 있습니다.
           </p>
-          {accountError && (
-            <p
-              role={'status'}
-              className={styles.error}
-            >
-              {accountError}
-            </p>
-          )}
-          {buildings.length > 0 && (
-            <OpeningBalanceFields
-              kind={'account'}
-              opening={{
-                ...openingBalances,
-                accountAmount: accounts.every((account) => /^[0-9]{1,15}$/.test(account.openingAmount)) ? accounts.reduce((sum, account) => sum + BigInt(account.openingAmount), BigInt(0)).toString() : ''
-              }}
-              units={units}
-              buildings={buildings}
-              hideAccountAmount
-              onChange={(value) => onOpeningChange({
-                ...value,
-                accountAmount: openingBalances.accountAmount
-              })}
-            />
-          )}
+          <RegistrationCashSetup
+            accounts={accounts}
+            opening={openingBalances}
+            buildings={buildings}
+            onAccountsChange={onChange}
+            onOpeningChange={onOpeningChange}
+          />
           {openingError && (
             <p
               className={styles['opening-hint']}
@@ -367,7 +350,6 @@ export function BankAccountSetup({
         <RegistrationAccountDialog
           account={editing.account}
           accounts={accounts}
-          cutoffDate={openingBalances.cutoffDate}
           onSave={saveAccount}
           onClose={() => setEditing(null)}
         />

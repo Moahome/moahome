@@ -11,4 +11,5 @@ export interface OpeningBalancesDraft {
   accountAmount: string;
   cashCutoffDate: string;
   buildings: Record<string, string>;
+  accountBuildings?: Record<string, Record<string, string>>;
 }

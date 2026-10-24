@@ -425,3 +425,12 @@ EXTERNAL은 거주 필드를 보내지 않습니다. RESIDENT는 세대 대표�
 ### 다중 통장 별칭 (2026-10-18)
 
 기존 bankAccounts의 최소 1개·기본 계좌 정확히 1개 계약을 초기 설정 화면에도 적용합니다. bankAccounts[].alias는 선택 100자 문자열이며 공백은 생략/null로 정리합니다. 용도 Enum이나 필수 동 연결은 없습니다. 같은 은행·번호를 중복 등록할 수 없고 openingBalances.accounts는 모든 통장의 accountIndex와 확인된 실제 잔액을 빠짐없이 대응합니다. 별칭은 요청 지문에 포함하되 미입력 별칭은 직렬화에서 생략해 기존 요청 지문을 유지합니다.
+
+
+## 초기 통장별 동 보유금 확장 (2026-10-24)
+
+새 초기 등록 요청의 `openingBalances.buildings`는 `{accountIndex,buildingClientId,amount}`를 받습니다. accountIndex는 bankAccounts 배열의 0부터 시작하는 위치이며 모든 통장×등록 동의 조합을 정확히 한 번 포함합니다. amount는 기존 음수 허용 원 단위 15자리 문자열입니다. cashCutoffDate는 기존처럼 동별 보유금의 공통 기준일이며 동 없음은 null·빈 buildings입니다. 통장 실제 잔액의 기준일은 기존 cutoffDate를 공유합니다.
+
+신규 Client는 통장 정보와 실제 잔액 입력을 분리한 탭에서 이 계약으로 제출합니다. 서버는 배열 위치·동 참조·중복·전체 조합을 확인하고 실제 생성된 계좌·동 ID로 연결해 같은 등록 트랜잭션에서 통장별 기준값을 저장합니다. 단계 이동은 저장하지 않으며 최종 요청의 요청 UUID·지문·응답 유실 복구·전체 롤백 계약을 유지합니다.
+
+이전 요청이 accountIndex를 전부 생략하면 기존 전체 동별 보유금 계약과 저장 동작을 유지합니다. 일부만 생략하거나 범위 밖·중복·누락한 조합은 거부합니다. 이전 요청의 직렬화에서는 null accountIndex를 제외해 기존 재시도 지문을 보존합니다. 별도 테이블·Migration은 추가하지 않고 기존 building_cash_openings의 통장×동 구조를 사용합니다. [도메인 기준](domainRules.md#초기-통장동별-시작-잔고-입력-개편-2026-10-24)과 [Client](../client/docs/propertyRegistration.md#초기-통장동별-시작-잔고-입력-개편-2026-10-24)를 참조합니다.

@@ -46,7 +46,8 @@ import com.moahome.server.banking.dto.BankingRequests;
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({ com.moahome.server.banking.service.IncomeAllocationService.class,
+@Import({ com.moahome.server.banking.service.BankBalanceCheckService.class,
+        com.moahome.server.banking.service.IncomeAllocationService.class,
         com.moahome.server.banking.service.BankAccountService.class,
         com.moahome.server.banking.service.BankingBalanceService.class,
         com.moahome.server.banking.service.BankingService.class,
@@ -75,6 +76,9 @@ class PaymentPersistenceTest {
 
 	@Autowired
 	com.moahome.server.banking.service.BankingBalanceService cashBalances;
+
+	@Autowired
+	com.moahome.server.banking.service.BankBalanceCheckService balanceChecks;
 
 	@Autowired
 	OpeningBalanceService opening;
@@ -147,6 +151,65 @@ class PaymentPersistenceTest {
 		    "truncate payment_events,payment_allocations,payments,bank_transactions,charge_items,charges,billing_periods,"
 		        + "property_registration_results,property_members,fee_template_items,fee_templates,bank_accounts,unit_residents,residents,"
 		        + "units,buildings,properties,social_accounts,users cascade");
+	}
+
+	/** 직접 확인은 실제 잔액 출처만 바꾸며 취소·재시도 후에도 원장과 최초 잔액은 그대로입니다. */
+	@Test
+	void bankBalanceChecksPreserveLedgerAndCancelWithoutDeletingHistory() {
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		var before = cashBalances.workspace(user, property, "2026-10");
+		var input = new com.moahome.server.banking.dto.BankBalanceCheckRequests.Create(UUID.randomUUID(), account,
+		    "2338114", OffsetDateTime.parse("2026-10-14T09:20:00+09:00"), "BANK_APP", "직접 확인");
+		balanceChecks.create(user, property, input);
+		balanceChecks.create(user, property, input);
+		var after = cashBalances.workspace(user, property, "2026-10");
+		assertThat(after.accounts()).singleElement().satisfies(row -> {
+			assertThat(row.balance()).isEqualTo("2338114");
+			assertThat(row.confirmation().source()).isEqualTo("DIRECT_CHECK");
+			assertThat(row.comparisonTimeDifferent()).isTrue();
+		});
+		assertThat(after.buildings()).isEqualTo(before.buildings());
+		assertThat(after.entries()).isEqualTo(before.entries());
+		assertThat(count("bank_transactions")).isZero();
+		assertThat(count("bank_opening_balances")).isZero();
+		assertThat(count("payments")).isZero();
+		assertThat(balanceChecks.history(user, property, account).checks()).hasSize(1);
+		assertThat(cashBalances.workspace(user, property, "2026-09").bankBalance()).isNull();
+		assertThatThrownBy(() -> jdbc.update("update bank_balance_checks set balance_amount=1 where id=?", input.id()))
+		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		var cancellation = new com.moahome.server.banking.dto.BankBalanceCheckRequests.Cancel(UUID.randomUUID(),
+		    "금액 오입력");
+		balanceChecks.cancel(user, property, input.id(), cancellation);
+		balanceChecks.cancel(user, property, input.id(), cancellation);
+		balanceChecks.create(user, property, input);
+		assertThat(balanceChecks.history(user, property, account).checks()).singleElement().satisfies(row -> {
+			assertThat(row.canceledAt()).isNotNull();
+			assertThat(row.amount()).isEqualTo("2338114");
+			assertThat(row.cancelReason()).isEqualTo("금액 오입력");
+		});
+		assertThat(cashBalances.workspace(user, property, "2026-10").bankBalance()).isNull();
+		assertThatThrownBy(() -> jdbc.update("delete from bank_balance_checks where id=?", input.id()))
+		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+	}
+
+	@Test
+	void bankBalanceChecksRejectFutureForeignAccountAndChangedRetry() {
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		var input = new com.moahome.server.banking.dto.BankBalanceCheckRequests.Create(UUID.randomUUID(), account,
+		    "100", OffsetDateTime.parse("2026-10-14T09:20:00+09:00"), "OTHER", null);
+		balanceChecks.create(user, property, input);
+		assertThatThrownBy(() -> balanceChecks.create(user, property,
+		    new com.moahome.server.banking.dto.BankBalanceCheckRequests.Create(input.id(), account, "101",
+		        input.checkedAt(), "OTHER", null)))
+		    .isInstanceOfSatisfying(PaymentException.class, e -> assertThat(e.code()).isEqualTo("BANK_CHECK_CONFLICT"));
+		assertThatThrownBy(() -> balanceChecks.create(user, property,
+		    new com.moahome.server.banking.dto.BankBalanceCheckRequests.Create(UUID.randomUUID(), account, "100",
+		        OffsetDateTime.now(clock).plusSeconds(1), "OTHER", null)))
+		    .isInstanceOfSatisfying(PaymentException.class,
+		        e -> assertThat(e.code()).isEqualTo("INVALID_BANK_CHECK_TIME"));
+		assertThatThrownBy(() -> balanceChecks.history(user, property, UUID.randomUUID()))
+		    .isInstanceOf(AuthException.class);
+		assertThat(count("bank_balance_checks")).isEqualTo(1);
 	}
 
 	@AfterAll
@@ -269,6 +332,37 @@ class PaymentPersistenceTest {
 		assertThat(jdbc.queryForObject("select count(*) from billing_periods where property_id=?", Long.class, target))
 		    .isZero();
 		assertThat(cashBalances.workspace(user, target, "2026-10").bankBalance()).isEqualTo("350000");
+	}
+
+	/** 초기 다중 통장의 각 동 보유금은 통장별로 독립 저장하며 같은 최종 등록 재시도는 중복하지 않습니다. */
+	@Test
+	void registrationStartsEveryAccountBuildingBalanceWithoutCombiningOwnership() {
+		var base = registrationOpeningRequest(true, "2026-10");
+		var old = base.openingBalances();
+		var accountInputs = new ArrayList<>(base.bankAccounts());
+		accountInputs.add(new com.moahome.server.property.dto.PropertyRegistrationRequest.BankAccountInput("090",
+		    "카카오뱅크", "3333012345678", "관리단", false, "예비비"));
+		var amounts = new com.moahome.server.property.dto.RegistrationOpeningInput(old.cutoffDate(),
+		    old.firstBillingMonth(), old.units(),
+		    List.of(new com.moahome.server.property.dto.RegistrationOpeningInput.AccountOpening(0, "350000"),
+		        new com.moahome.server.property.dto.RegistrationOpeningInput.AccountOpening(1, "400000")),
+		    old.cashCutoffDate(),
+		    List.of(new com.moahome.server.property.dto.RegistrationOpeningInput.BuildingOpening(0, "a", "100000"),
+		        new com.moahome.server.property.dto.RegistrationOpeningInput.BuildingOpening(0, "b", "200000"),
+		        new com.moahome.server.property.dto.RegistrationOpeningInput.BuildingOpening(1, "a", "250000"),
+		        new com.moahome.server.property.dto.RegistrationOpeningInput.BuildingOpening(1, "b", "150000")));
+		var input = new com.moahome.server.property.dto.PropertyRegistrationRequest(base.requestId(), base.basicInfo(),
+		    base.buildings(), base.units(), accountInputs, base.feeItems(), base.administrator(), amounts);
+		UUID target = registration.register(user, input).response().property().id();
+		registration.register(user, input);
+		assertThat(jdbc.queryForObject(
+		    "select count(*) from building_cash_openings where property_id=? and bank_account_id is not null",
+		    Long.class, target)).isEqualTo(4);
+		var balance = cashBalances.workspace(user, target, "2026-10");
+		assertThat(balance.accounts()).hasSize(2);
+		assertThat(balance.buildings()).extracting(row -> row.balance()).containsExactlyInAnyOrder("350000",
+		    "350000");
+		assertThat(balance.bankBalance()).isEqualTo("750000");
 	}
 
 	/** 선납 충당 중 실패하면 등록·보유금·인계·성공 결과 모두 롤백하고 같은 본문으로 재시도할 수 있습니다. */

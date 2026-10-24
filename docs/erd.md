@@ -2050,7 +2050,7 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 - bank_transfers: UUID id PK, property_id, outgoing_id, incoming_id, created_by/created_at, 선택 canceled_by/canceled_at. 같은 대상의 원본 복합 FK와 활성 입금·출금별 유일 인덱스를 사용합니다. 방향·통장 차이·금액 일치·유효 원본을 DB에서도 검사합니다. 연결은 삭제·덮어쓰기하지 않고 취소 감사만 한 번 기록합니다.
 - DB는 이체 원본의 수납·지출 생성과 금액·계좌·분류 변형을 막고 연결 중인 원본 삭제는 지연 제약으로 양쪽 동시 삭제를 검증합니다. 취소한 연결은 보존하며 새 UUID로 다시 연결합니다.
 
-후속 사용자 요청에 따라 building_cash_openings와 building_cash_opening_changes는 bank_account_id 복합 FK와 통장×동 유일성을 사용합니다. 기존 단일 통장 등록값은 원래 통장으로 이관하고 여러 통장 중 소속을 정할 수 없는 값은 null로 보관해 명시적 확인에 사용합니다. 금액·기준일·버전·정정 이력은 보존합니다. bank_opening_balances는 동별 보유금과 별개인 은행 실제 잔액 인계값이며 별도 화면 버튼을 추가하지 않습니다. 미확인 잔액을 0원으로 생성하지 않습니다. 정식 회계전표는 추가하지 않습니다.
+후속 사용자 요청에 따라 building_cash_openings와 building_cash_opening_changes는 bank_account_id 복합 FK와 통장×동 유일성을 사용합니다. 기존 단일 통장 등록값은 원래 통장으로 이관하고 여러 통장 중 소속을 정할 수 없는 값은 null로 보관해 명시적 확인에 사용합니다. 금액·기준일·버전·정정 이력은 보존합니다. bank_opening_balances는 동별 보유금과 별개인 은행 실제 잔액 인계값이며 별도 기초 잔액 화면 버튼을 추가하지 않습니다. 운영 중 직접 확인 기록은 아래 2026-10-24 저장 구현을 따릅니다. 미확인 잔액을 0원으로 생성하지 않습니다. 정식 회계전표는 추가하지 않습니다.
 
 ## 은행별 업로드와 수동 지출 저장 설계안 (2026-10-23)
 
@@ -2092,3 +2092,28 @@ Migration은 정책 확정 후 별도 파일로 작성합니다. 기존 적용 �
 
 
 2026-10-23 사용 종료 통장 표시 구현은 기존 `bank_accounts.status`, `valid_from`, `valid_to`와 거래·수납·지출·기준값·확정 인계 이력으로 판정하며 컬럼과 Migration을 추가하지 않습니다. 기간·미사용 제외와 잔액·미정산 예외는 [도메인 규칙](domainRules.md#사용-종료-통장-표시-2026-10-23-후속-확정), 응답 메타데이터는 [통장 API 계약](bankingManagement.md#사용-종료-통장-조회-계약-2026-10-23-후속)을 따릅니다.
+
+
+## 은행 잔액 직접 확인 저장 설계안 (2026-10-24)
+
+상태: **구현**. [업무 기준](domainRules.md#운영-중-은행-잔액-직접-확인-2026-10-24)에 따라 `V20261024003113__add_bank_balance_checks.sql`로 `bank_balance_checks`를 추가했습니다. 기존 `bank_opening_balances`의 초기 인계·독립 등록/정정과 `bank_transactions.balance`는 각자의 원천을 유지하며 새 확인 기록으로 복제하거나 변경하지 않습니다.
+
+| 컬럼 | 자료형 | 용도 / 제약 |
+| --- | --- | --- |
+| `id` | uuid | PK, 등록 요청 UUID |
+| `property_id` | uuid | 관리대상 FK |
+| `bank_account_id` | uuid | 같은 관리대상의 통장 복합 FK |
+| `balance_amount` | numeric(15,0) | 실제 확인 잔액, 0 이상 |
+| `checked_at` | timestamptz | 실제 확인시점, created_at 이하 |
+| `source_type` | varchar(30) | BANK_APP / INTERNET_BANKING / OTHER CHECK |
+| `checked_by` | uuid | 기록한 관리자, users FK |
+| `memo_encrypted` | text, nullable | 선택 메모 암호문 |
+| `created_at` | timestamptz | 시스템 기록시점 |
+| `canceled_at` | timestamptz, nullable | 취소시점, created_at 이상 |
+| `canceled_by` | uuid, nullable | 취소 관리자, users FK |
+| `cancel_request_id` | uuid, nullable | 취소 요청 UUID, UNIQUE |
+| `cancel_reason_encrypted` | text, nullable | 취소 사유 암호문 |
+
+취소 감사 네 컬럼은 함께 비어 있거나 모두 존재해야 합니다. 관리대상·통장·실제 확인시점/기록시점 내림차순 인덱스를 사용합니다. 트리거는 원문 금액·확인시점·통장·출처·기록자·메모의 변경과 물리 삭제를 막고 최초 취소 감사만 허용합니다. 기존 동별 기준값·은행 원본·인계·거래 합계에는 반영하지 않습니다. 날짜만 있는 기존 원천을 임의의 확인일시로 이관하지 않습니다. [API](bankingManagement.md#은행-잔액-직접-확인-api-설계안-2026-10-24)를 참조합니다.
+
+초기 등록의 통장×동 보유금은 기존 `building_cash_openings`를 사용하며 새 컬럼을 추가하지 않습니다. 선택 통장별 등록이 같은 최종 등록 트랜잭션에서 저장됩니다. 임시 참조·이전 요청 호환은 [등록 API](propertyRegistrationApi.md#초기-통장별-동-보유금-확장-2026-10-24)를 참조합니다.

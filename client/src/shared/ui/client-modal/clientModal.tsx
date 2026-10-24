@@ -6,6 +6,7 @@ import {
   type ComponentPropsWithoutRef,
   type RefObject
 } from 'react';
+import styles from './clientModal.module.css';
 
 interface ClientModalProps extends Omit<ComponentPropsWithoutRef<'dialog'>, 'open' | 'onCancel' | 'onClose'> {
   onClose: () => void;
@@ -25,6 +26,7 @@ export function ClientModal({
   children,
   onClick,
   onPointerDown,
+  className,
   ...dialogProps
 }: ClientModalProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -59,6 +61,7 @@ export function ClientModal({
   return (
     <dialog
       {...dialogProps}
+      className={[styles.dialog, className].filter(Boolean).join(' ')}
       ref={dialogRef}
       onPointerDown={(event) => {
         onPointerDown?.(event);

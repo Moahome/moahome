@@ -50,11 +50,12 @@ export function getUnitOpeningError(opening: OpeningBalancesDraft, units: UnitDr
   return '';
 }
 /** 실제 계좌 잔액과 전체 동의 보유금을 별도로 검증하며 합계 일치를 강제하지 않습니다. */
-export function getCashOpeningError(opening: OpeningBalancesDraft, buildings: BuildingDraft[], accounts?: { openingAmount: string }[]) {
+export function getCashOpeningError(opening: OpeningBalancesDraft, buildings: BuildingDraft[], accounts?: { openingAmount: string; clientId?: string }[]) {
+  if (!validDate(opening.cutoffDate) || opening.cutoffDate > getOpeningToday()) return '통장 기준일을 오늘 또는 이전 날짜로 선택해주세요.';
   if (accounts ? !accounts.length || accounts.some((account) => !AMOUNT.test(account.openingAmount)) : !AMOUNT.test(opening.accountAmount)) return '각 통장의 실제 잔액을 원 단위로 입력해주세요.';
   if (!buildings.length) return '';
   if (!validDate(opening.cashCutoffDate) || opening.cashCutoffDate > getOpeningToday()) return '동별 잔고 기준일을 오늘 또는 이전 날짜로 선택해주세요.';
-  if (buildings.some((building) => !CASH_AMOUNT.test(opening.buildings[building.clientId] ?? ''))) return '모든 동의 보유금을 입력해주세요. 모르는 금액을 0원으로 확정하지 마세요.';
+  if (accounts ? accounts.some((account) => buildings.some((building) => !CASH_AMOUNT.test(getAccountBuildingAmount(opening, account.clientId ?? '', building.clientId, accounts.length)))) : buildings.some((building) => !CASH_AMOUNT.test(opening.buildings[building.clientId] ?? ''))) return '모든 동의 보유금을 입력해주세요. 모르는 금액을 0원으로 확정하지 마세요.';
   return '';
 }
 /** 장부 기준일 이후의 이번 달 또는 다음 달만 첫 부과월로 지정할 수 있습니다. */
@@ -93,5 +94,17 @@ export function restoreOpeningBalances(value: unknown, units: UnitDraft[], build
     const amount = data.buildings?.[building.clientId];
     if (typeof amount === 'string') result.buildings[building.clientId] = amount;
   }
+  if (data.accountBuildings && typeof data.accountBuildings === 'object') {
+    result.accountBuildings = {};
+    for (const [accountId, rows] of Object.entries(data.accountBuildings)) {
+      if (!rows || typeof rows !== 'object' || ['__proto__', 'constructor', 'prototype'].includes(accountId)) continue;
+      result.accountBuildings[accountId] = Object.fromEntries(buildings.flatMap((building) => typeof rows[building.clientId] === 'string' ? [[building.clientId, rows[building.clientId]]] : []));
+    }
+  }
   return result;
+}
+
+/** 이전 단일 통장 초안만 같은 통장으로 이어받고 다중 통장의 미귀속 금액은 자동 배분하지 않습니다. */
+export function getAccountBuildingAmount(opening: OpeningBalancesDraft, accountId: string, buildingId: string, accountCount: number) {
+  return opening.accountBuildings?.[accountId]?.[buildingId] ?? (accountCount === 1 ? opening.buildings[buildingId] ?? '' : '');
 }

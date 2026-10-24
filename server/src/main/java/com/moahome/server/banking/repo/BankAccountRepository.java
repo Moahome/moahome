@@ -15,6 +15,7 @@ public interface BankAccountRepository extends JpaRepository<BankAccount, UUID> 
 
 	interface Usage {
 		UUID getAccountId();
+
 		java.time.LocalDate getFirstUse();
 	}
 
@@ -29,6 +30,7 @@ public interface BankAccountRepository extends JpaRepository<BankAccount, UUID> 
 	      UNION ALL SELECT COALESCE(bank_account_id,
 	        (SELECT id FROM common_accounts WHERE (SELECT count(*) FROM common_accounts)=1)), cutoff_date
 	        FROM building_cash_openings WHERE property_id=:propertyId
+	      UNION ALL SELECT c.bank_account_id,(c.checked_at AT TIME ZONE 'Asia/Seoul')::date FROM bank_balance_checks c WHERE c.property_id=:propertyId
 	      UNION ALL SELECT o.bank_account_id,o.cutoff_date FROM bank_opening_balances o
 	        LEFT JOIN opening_balance_batches b ON b.id=o.batch_id AND b.property_id=o.property_id
 	        WHERE o.property_id=:propertyId AND (o.batch_id IS NULL OR b.status='CONFIRMED')

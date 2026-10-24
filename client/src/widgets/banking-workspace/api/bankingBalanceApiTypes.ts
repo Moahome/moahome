@@ -67,6 +67,8 @@ export type AccountBalance = {
   openingDate?: string | null;
   openingBalance?: string | null;
   openingRevision?: number;
+  confirmation?: { source: string; method?: string | null; sourceId: string | null; date: string; time: string | null; precision: 'DATE' | 'TIME' | 'DAY_END'; status: 'READY' | 'ORDER_UNCLEAR' | 'BALANCE_MISSING' } | null;
+  comparisonTimeDifferent?: boolean;
   calculatedBalance?: string | null;
   calculationBasisDate?: string | null;
 };
@@ -137,3 +139,21 @@ export interface ExternalSettlementDecisionInput {
   excluded: boolean;
   revision: number;
 }
+
+export type BankBalanceCheck = {
+  id: string;
+  amount: string;
+  checkedAt: string;
+  sourceType: 'BANK_APP' | 'INTERNET_BANKING' | 'OTHER';
+  checkedBy: string;
+  checkedByName?: string;
+  memo: string | null;
+  createdAt: string;
+  canceledAt: string | null;
+  canceledBy: string | null;
+  canceledByName?: string | null;
+  cancelReason: string | null;
+};
+export type BankBalanceCheckInput = { id: string; accountId: string; amount: string; checkedAt: string; sourceType: BankBalanceCheck['sourceType']; memo?: string };
+
+export type BankBalanceCheckHistory = { propertyId: string; accountId: string; checks: BankBalanceCheck[] };

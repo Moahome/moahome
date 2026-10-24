@@ -1723,7 +1723,12 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     name: '조회 월: 2026년 10월',
     exact: true
   });
-  expect((await monthControl.boundingBox())!.width).toBeGreaterThan(320);
+  const availableMonthWidth = await monthControl.evaluate((button) => {
+    const card = button.closest('section')!;
+    const style = getComputedStyle(card);
+    return card.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  });
+  expect(Math.abs((await monthControl.boundingBox())!.width - availableMonthWidth)).toBeLessThanOrEqual(1);
   const backToBalances = page.getByRole('link', {
     name: '동별 잔고·정산으로 돌아가기',
     exact: true
@@ -2917,7 +2922,7 @@ for (const width of [1440, 390, 320]) {
       exact: true
     })).toBeVisible();
     for (const [label, copy] of [
-      ['은행 확인 잔고', '은행 거래 파일 또는 잔액 인계에 기록된 마지막 잔액입니다.'],
+      ['은행 확인 잔고', '은행 거래 파일·잔액 인계·직접 확인 기록의 기준시점을 비교한 확인 잔액입니다.'],
       ['동별 잔고 합계', '조회 중인 모든 통장의 동별 잔고를 합한 금액입니다.'],
       ['잔고 비교 차이', '화면의 통장 잔액에서 동별 잔고 합계를 뺀 금액입니다.']
     ]) {
@@ -4931,5 +4936,303 @@ for (const width of [1440, 390]) {
       await expect(page).toHaveURL(`${BASE}/expenses?month=2026-09&account=${ACCOUNT}`);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}
+
+
+for (const width of [1440, 425, 390]) {
+  test(`은행 잔액 직접 확인과 이력 ${width}px는 중앙 모달·모바일 페이지와 실패 재시도·취소를 유지`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    const creates: Record<string, unknown>[] = [];
+    const cancels: Record<string, unknown>[] = [];
+    let saved = false;
+    let canceled = false;
+    await page.route('http://localhost:8080/**', async (route) => {
+      const url = new URL(route.request().url());
+      const path = url.pathname;
+      const method = route.request().method();
+      let status = method === 'OPTIONS' ? 204 : 200;
+      let body: unknown = {};
+      if (path.endsWith('/csrf')) body = {
+        csrfToken: 'csrf'
+      };
+      else if (path.endsWith('/refresh')) body = {
+        accessToken: 'access',
+        tokenType: 'Bearer',
+        accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
+      };
+      else if (path === '/api/users/me') body = {
+        id: id(1),
+        displayName: '관리자',
+        profileImageUrl: null,
+        systemRole: 'USER',
+        status: 'ACTIVE'
+      };
+      else if (path.endsWith('/payments/workspace')) body = {
+        propertyId: PROPERTY,
+        asOf: '2026-10-24',
+        accounts: [],
+        units: [],
+        charges: [],
+        payments: [],
+        history: []
+      };
+      else if (path.endsWith('/management-context')) body = {
+        propertyId: PROPERTY,
+        name: '모아빌라',
+        role: 'ADMIN'
+      };
+      else if (path.endsWith('/managed-properties')) body = {
+        properties: [{
+          propertyId: PROPERTY,
+          name: '모아빌라',
+          role: 'ADMIN'
+        }]
+      };
+      else if (path.endsWith('/banking/balances/checks') && method === 'POST') {
+        creates.push(route.request().postDataJSON());
+        if (creates.length === 1) { status = 503; body = {
+          code: 'TEMPORARY_ERROR'
+        }; }
+        else { saved = true; body = {
+          saved: true
+        }; }
+      } else if (path.endsWith('/cancel')) {
+        cancels.push(route.request().postDataJSON());
+        if (cancels.length === 1) { status = 503; body = {
+          code: 'TEMPORARY_ERROR'
+        }; }
+        else { canceled = true; body = {
+          saved: true
+        }; }
+      } else if (path.endsWith('/banking/balances/checks')) body = {
+        propertyId: PROPERTY,
+        accountId: ACCOUNT,
+        checks: saved ? Array.from({
+          length: 12
+        }, (_, index) => ({
+          id: id(700 + index),
+          amount: '2338114',
+          checkedAt: `2026-10-${String(14 - index).padStart(2, '0')}T09:20:00+09:00`,
+          sourceType: 'BANK_APP',
+          checkedBy: id(1),
+          checkedByName: '관리자',
+          memo: '은행 앱 확인',
+          createdAt: '2026-10-24T09:30:00+09:00',
+          canceledAt: canceled && index === 0 ? '2026-10-24T09:31:00+09:00' : null,
+          canceledBy: canceled && index === 0 ? id(1) : null,
+          cancelReason: canceled && index === 0 ? '금액 오입력' : null
+        })) : []
+      };
+      else if (path.endsWith('/banking/balances')) body = {
+        propertyId: PROPERTY,
+        month: '2026-10',
+        cutoffDate: null,
+        bankBalance: saved && !canceled ? '2338114' : null,
+        bankAsOf: null,
+        buildings: [],
+        entries: [],
+        externals: [],
+        incomes: [],
+        pending: [],
+        accounts: [{
+          id: ACCOUNT,
+          label: '하나은행 ····1234 · 관리비',
+          status: 'ACTIVE',
+          balance: saved && !canceled ? '2338114' : null,
+          asOf: saved && !canceled ? '2026-10-14 09:20:00' : null
+        }, {
+          id: id(11),
+          label: '카카오뱅크 ····1020 · 예비비',
+          status: 'ACTIVE',
+          balance: null,
+          asOf: null,
+          calculatedBalance: '1522910',
+          calculationBasisDate: '2026-09-30'
+        }]
+      };
+      await route.fulfill({
+        status,
+        contentType: 'application/json',
+        headers: {
+          'Access-Control-Allow-Origin': 'http://localhost:3100',
+          'Access-Control-Allow-Credentials': 'true',
+          'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-CSRF-TOKEN',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+        },
+        body: status === 204 ? '' : JSON.stringify(body)
+      });
+    });
+    await page.goto(`${BASE}/balances?month=2026-10`);
+    if (width === 425) {
+      const sizes = page.getByRole('combobox', {
+        name: '동별 잔고 표시 개수',
+        exact: true
+      });
+      const state = page.getByRole('combobox', {
+        name: '잔고 상태',
+        exact: true
+      });
+      await expect(sizes).toBeVisible();
+      expect((await sizes.boundingBox())!.width).toBeGreaterThan((await state.boundingBox())!.width * 1.8);
+    }
+
+    await page.getByRole('button', {
+      name: '하나은행 ····1234 · 관리비 잔액 메뉴',
+      exact: true
+    }).click();
+    await expect(page.getByRole('button', {
+      name: '하나은행 ····1234 · 관리비 잔액 메뉴',
+      exact: true
+    })).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+    const item = page.getByRole('menuitem', {
+      name: '확인 이력 보기',
+      exact: true
+    });
+    await expect(item).toBeVisible();
+    await expect(page.getByRole('menu', {
+      name: '하나은행 ····1234 · 관리비 잔액 메뉴 작업',
+      exact: true
+    })).toHaveCSS('opacity', '1');
+    expect(await item.evaluate((element) => { const b = element.getBoundingClientRect(); return element.contains(document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2)); })).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`accountBalanceMenu${width}.png`),
+      fullPage: true
+    });
+    await page.getByRole('menuitem', {
+      name: '은행 잔액 직접 확인',
+      exact: true
+    }).click();
+    if (width > 767) {
+      const modal = page.getByRole('dialog', {
+        name: '은행 잔액 직접 확인',
+        exact: true
+      });
+      await expect(modal).toBeVisible();
+      const bounds = await modal.boundingBox();
+      expect(Math.abs(bounds!.x + bounds!.width / 2 - width / 2)).toBeLessThan(2);
+      expect(Math.abs(bounds!.y + bounds!.height / 2 - 500)).toBeLessThan(2);
+    } else {
+      await expect(page).toHaveURL(/details\/check\?/);
+      await expect(page.getByRole('link', {
+        name: '동별 잔고·정산으로 돌아가기'
+      })).toBeVisible();
+    }
+    await page.getByLabel('은행에서 확인한 잔액', {
+      exact: true
+    }).fill('2338114');
+    await page.getByLabel('확인 시각 (한국시간)', {
+      exact: true
+    }).fill('09:20:00');
+    await page.getByLabel('메모 (선택)', {
+      exact: true
+    }).fill('은행 앱 확인');
+    await page.screenshot({
+      path: testInfo.outputPath(`balanceCheck${width}.png`),
+      fullPage: true
+    });
+    await page.getByRole('button', {
+      name: '기록',
+      exact: true
+    }).click();
+    await expect(page.getByLabel('은행에서 확인한 잔액', {
+      exact: true
+    })).toHaveValue('2,338,114');
+    await page.getByRole('button', {
+      name: '기록',
+      exact: true
+    }).click();
+    await expect(page.getByRole('button', {
+      name: '하나은행 ····1234 · 관리비 잔액 메뉴',
+      exact: true
+    })).toBeVisible();
+    expect(creates).toHaveLength(2);
+    expect(creates[0]).toEqual(creates[1]);
+    await page.getByRole('button', {
+      name: '하나은행 ····1234 · 관리비 잔액 메뉴',
+      exact: true
+    }).click();
+    await page.getByRole('menuitem', {
+      name: '확인 이력 보기',
+      exact: true
+    }).click();
+    if (width > 767) {
+      const modal = page.getByRole('dialog', {
+        name: '은행 잔액 확인 이력',
+        exact: true
+      });
+      const bounds = await modal.boundingBox();
+      expect(Math.abs(bounds!.x + bounds!.width / 2 - width / 2)).toBeLessThan(2);
+      expect(Math.abs(bounds!.y + bounds!.height / 2 - 500)).toBeLessThan(2);
+    } else await expect(page).toHaveURL(/details\/checks\?/);
+
+    const records = page.locator('li').filter({
+      has: page.getByText('확인 기준일시', {
+        exact: true
+      })
+    });
+    await expect(records).toHaveCount(5);
+    const sizePicker = page.getByRole('combobox', {
+      name: '확인 이력 표시 개수',
+      exact: true
+    });
+    expect((await sizePicker.boundingBox())!.y).toBeLessThan((await records.first().boundingBox())!.y);
+    await page.screenshot({
+      path: testInfo.outputPath(`balanceCheckHistoryDefault${width}.png`),
+      fullPage: width <= 767
+    });
+    await sizePicker.click();
+    await page.getByRole('option', {
+      name: '10개씩 보기',
+      exact: true
+    }).click();
+    await expect(records).toHaveCount(10);
+    const pagination = page.getByRole('navigation', {
+      name: '확인 이력 페이지',
+      exact: true
+    });
+    await pagination.getByRole('button', {
+      name: '다음 페이지',
+      exact: true
+    }).click();
+    await expect(records).toHaveCount(2);
+    await pagination.getByRole('button', {
+      name: '이전 페이지',
+      exact: true
+    }).click();
+    await expect(records).toHaveCount(10);
+    await page.getByRole('button', {
+      name: /확인 기록 메뉴$/
+    }).first().click();
+    await page.getByRole('menuitem', {
+      name: '확인 기록 취소',
+      exact: true
+    }).click();
+    await page.getByLabel('취소 사유', {
+      exact: true
+    }).fill('금액 오입력');
+    await page.getByRole('button', {
+      name: '취소 기록',
+      exact: true
+    }).click();
+    await expect(page.getByLabel('취소 사유', {
+      exact: true
+    })).toHaveValue('금액 오입력');
+    await page.getByRole('button', {
+      name: '취소 기록',
+      exact: true
+    }).click();
+    await expect(records.getByText('취소됨', {
+      exact: true
+    })).toBeVisible();
+    expect(cancels).toHaveLength(2);
+    expect(cancels[0]).toEqual(cancels[1]);
+    await page.screenshot({
+      path: testInfo.outputPath(`balanceCheckHistory${width}.png`),
+      fullPage: true
+    });
   });
 }

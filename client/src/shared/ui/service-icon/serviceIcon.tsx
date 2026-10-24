@@ -1,6 +1,31 @@
 import type { CSSProperties } from 'react';
 
 const ICON_PATHS = {
+  more: (
+    <>
+      <circle
+        cx={12}
+        cy={5}
+        r={1.5}
+        fill={'currentColor'}
+        stroke={'none'}
+      />
+      <circle
+        cx={12}
+        cy={12}
+        r={1.5}
+        fill={'currentColor'}
+        stroke={'none'}
+      />
+      <circle
+        cx={12}
+        cy={19}
+        r={1.5}
+        fill={'currentColor'}
+        stroke={'none'}
+      />
+    </>
+  ),
   star: (
     <path
       d={'m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.2-6.2 3.2 1.2-6.8-5-4.9 6.9-1Z'}

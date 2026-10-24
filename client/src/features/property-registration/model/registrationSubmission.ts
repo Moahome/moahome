@@ -24,6 +24,7 @@ import {
 import {
   EMPTY_OPENING_BALANCES,
   getCashOpeningError,
+  getAccountBuildingAmount,
   getFirstBillingError,
   getUnitOpening,
   getUnitOpeningError
@@ -43,7 +44,7 @@ function restoreSubmittedOpening(request: RegistrationRequest): OpeningBalancesD
   if (typeof value.cutoffDate !== 'string' || typeof value.firstBillingMonth !== 'string'
     || !(value.cashCutoffDate === null || typeof value.cashCutoffDate === 'string')
     || !Array.isArray(value.units) || value.units.length !== request.units.length
-    || !Array.isArray(value.buildings) || value.buildings.length !== request.buildings.length
+    || !Array.isArray(value.buildings) || value.buildings.length !== request.buildings.length * (value.buildings.some((row) => row.accountIndex !== undefined) ? request.bankAccounts.length : 1)
     || !Array.isArray(value.accounts) || value.accounts.length !== request.bankAccounts.length
     || value.accounts.some((row) => !Number.isInteger(row.accountIndex) || row.accountIndex < 0 || row.accountIndex >= request.bankAccounts.length || typeof row.amount !== 'string' || !/^[0-9]{1,15}$/.test(row.amount))
     || new Set(value.accounts.map((row) => row.accountIndex)).size !== request.bankAccounts.length) return null;
@@ -68,12 +69,30 @@ function restoreSubmittedOpening(request: RegistrationRequest): OpeningBalancesD
       credit: rows[0].credit
     };
   }
-  for (const building of request.buildings) {
-    const rows = value.buildings.filter((row) => row?.buildingClientId === building.clientId);
-    if (rows.length !== 1 || typeof rows[0].amount !== 'string') return null;
-    opening.buildings[building.clientId] = rows[0].amount;
+  const scoped = value.buildings.some((row) => row.accountIndex !== undefined);
+  if (scoped) {
+    opening.accountBuildings = {};
+    for (let index = 0; index < request.bankAccounts.length; index++) {
+      const rows: Record<string, string> = {};
+      for (const building of request.buildings) {
+        const matches = value.buildings.filter((row) => row?.buildingClientId === building.clientId && row.accountIndex === index);
+        if (matches.length !== 1 || !/^-?[0-9]{1,15}$/.test(matches[0].amount)) return null;
+        rows[building.clientId] = matches[0].amount;
+      }
+      opening.accountBuildings[`account-${index}`] = rows;
+    }
+  } else {
+    for (const building of request.buildings) {
+      const rows = value.buildings.filter((row) => row?.buildingClientId === building.clientId);
+      if (rows.length !== 1 || typeof rows[0].amount !== 'string') return null;
+      opening.buildings[building.clientId] = rows[0].amount;
+    }
   }
-  if (getUnitOpeningError(opening, units) || getCashOpeningError(opening, request.buildings) || getFirstBillingError(opening)) return null;
+  const accounts = request.bankAccounts.map((_, index) => ({
+    clientId: `account-${index}`,
+    openingAmount: value.accounts.find((row) => row.accountIndex === index)!.amount
+  }));
+  if (getUnitOpeningError(opening, units) || (scoped ? getCashOpeningError(opening, request.buildings, accounts) : getCashOpeningError(opening, request.buildings)) || getFirstBillingError(opening)) return null;
   return opening;
 }
 
@@ -137,9 +156,32 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
       openingBalances: openingBalances ?? {
         ...EMPTY_OPENING_BALANCES
       }
-    }, request.requestId, Boolean(request.openingBalances));
+    }, request.requestId, Boolean(request.openingBalances && request.openingBalances.buildings.some((row) => row.accountIndex !== undefined)));
     // 이전 버전 제출은 거주 필드를 덧붙이지 않아 서버에 저장된 원래 지문과 일치하게 합니다.
     if (!administrator) delete restored.administrator;
+    // 기존 제출 본문은 새 통장별 필드를 덧붙이지 않고 원래 지문과 금액을 유지합니다.
+    if (request.openingBalances && !request.openingBalances.buildings.some((row) => row.accountIndex !== undefined)) {
+      const old = request.openingBalances;
+      restored.openingBalances = {
+        cutoffDate: old.cutoffDate,
+        firstBillingMonth: old.firstBillingMonth,
+        units: old.units.map((row) => ({
+          buildingClientId: row.buildingClientId,
+          unitNumber: row.unitNumber,
+          receivable: row.receivable,
+          credit: row.credit
+        })),
+        accounts: old.accounts.map((row) => ({
+          accountIndex: row.accountIndex,
+          amount: row.amount
+        })),
+        cashCutoffDate: old.cashCutoffDate,
+        buildings: old.buildings.map((row) => ({
+          buildingClientId: row.buildingClientId,
+          amount: row.amount
+        }))
+      };
+    }
     return restored;
   } catch {
     return null;
@@ -172,10 +214,11 @@ export function createRegistrationRequest(draft: RegistrationDraft, requestId: s
           amount: account.openingAmount
         })),
         cashCutoffDate: draft.buildings.length ? draft.openingBalances.cashCutoffDate : null,
-        buildings: draft.buildings.map((building) => ({
+        buildings: draft.bankAccounts.flatMap((account, accountIndex) => draft.buildings.map((building) => ({
+          accountIndex,
           buildingClientId: building.clientId,
-          amount: draft.openingBalances.buildings[building.clientId]
-        }))
+          amount: getAccountBuildingAmount(draft.openingBalances, account.clientId, building.clientId, draft.bankAccounts.length)
+        })))
       }
     } : {}),
     administrator: draft.administrator.residenceType === 'EXTERNAL' ? {

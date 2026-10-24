@@ -83,7 +83,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = "moahome.billing.scheduler-enabled=false")
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
-@Import({ SecurityIntegrationTest.TestBeans.class, SecurityIntegrationTest.ProbeController.class })
+@Import({SecurityIntegrationTest.TestBeans.class, SecurityIntegrationTest.ProbeController.class})
 class SecurityIntegrationTest {
 	private static final String ORIGIN = "http://localhost:3000";
 
@@ -121,6 +121,9 @@ class SecurityIntegrationTest {
 
 	@MockitoBean
 	private com.moahome.server.banking.service.BankingBalanceService bankingBalances;
+
+	@MockitoBean
+	private com.moahome.server.banking.service.BankBalanceCheckService bankBalanceChecks;
 
 	@MockitoBean
 	private com.moahome.server.banking.service.BankAccountService bankAccountSettings;

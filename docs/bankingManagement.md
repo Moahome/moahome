@@ -142,9 +142,9 @@ Selection의 `transfer:true`는 세대·기타 입금·지출·공동 입금 배
 
 `accountId`는 같은 관리대상의 공용 통장만 허용하며 선택 통장은 동별 기준값·원장·입출금·외부 부담금·정산 후보까지 같은 범위로 제한합니다. 전체는 각 통장의 독립 기준일에서 계산한 동별 금액을 합산합니다. 미확정 통장의 금액은 0원으로 보완하지 않습니다. 기존 호출의 accountId 생략 저장은 통장 미분류 호환 자료로 남기며 새 화면은 선택 통장을 항상 보냅니다. 통장별 금액과 은행 실제 확인 잔액은 서로 다른 정보입니다.
 
-기존 자료를 등록할 당시 공용 통장이 하나였다는 사실이 확인되면 금액·날짜·버전·이력을 유지해 원래 통장에 연결합니다. 소속이 불명확하면 legacyOpening의 기존 금액을 보여주고 `/openings`로 명시적인 통장별 확정을 받습니다. 이미 확정된 통장×동 값은 그대로 조회하며 정정은 기존 `/openings/corrections`를 사용합니다. 별도 통장 기초 잔액 등록 버튼·통장별/동별 탭은 제공하지 않습니다.
+기존 자료를 등록할 당시 공용 통장이 하나였다는 사실이 확인되면 금액·날짜·버전·이력을 유지해 원래 통장에 연결합니다. 소속이 불명확하면 legacyOpening의 기존 금액을 보여주고 `/openings`로 명시적인 통장별 확정을 받습니다. 이미 확정된 통장×동 값은 그대로 조회하며 정정은 기존 `/openings/corrections`를 사용합니다. 별도 통장 기초 잔액 등록 버튼·통장별/동별 탭은 제공하지 않습니다. 운영 중 잔액 직접 확인은 아래 2026-10-24 후속 구현과 구분합니다.
 
-기존 독립 은행 실제 잔액 기록 호환 API `POST /balances/account-openings`는 `{id,accountId,cutoffDate,amount,revision}`을 받습니다. amount는 0 이상, 기준일은 오늘 또는 이전 날짜이며 요청 UUID·기대 버전으로 중복·정정 충돌을 검증합니다. 이 기록은 은행 확인 잔액 참고값이며 동별 기준 잔고를 생성하거나 변경하지 않습니다. 현재 기준 잔고 화면은 이 별도 API의 진입 버튼을 제공하지 않습니다.
+기존 독립 은행 실제 잔액 기록 호환 API `POST /balances/account-openings`는 `{id,accountId,cutoffDate,amount,revision}`을 받습니다. amount는 0 이상, 기준일은 오늘 또는 이전 날짜이며 요청 UUID·기대 버전으로 중복·정정 충돌을 검증합니다. 이 기록은 은행 확인 잔액 참고값이며 동별 기준 잔고를 생성하거나 변경하지 않습니다. 현재 기준 잔고 화면은 이 별도 API의 진입 버튼을 제공하지 않습니다. 이 호환 API를 아래 운영 중 확인 이력의 구현으로 간주하지 않습니다.
 
 
 ### 계산 잔액 응답
@@ -294,3 +294,24 @@ ADMIN·같은 관리대상의 사용 중 공용 통장·관리 시작 상태·�
 [사용 종료 통장 표시 정책](domainRules.md#사용-종료-통장-표시-2026-10-23-후속-확정)을 적용합니다. 거래 Workspace.accounts에 `availableFrom: YYYY-MM-DD`, `closedOn: YYYY-MM-DD|null`, `hasHistory: boolean`을 추가합니다. availableFrom은 등록 사용 시작일과 실제 사용 근거 중 이른 날짜입니다. Client는 조회 월 말보다 시작이 늦은 통장과 미사용 종료 통장을 제외하고 사용한 종료 통장은 종료 월까지만 거래·지출 필터에 표시합니다. Workspace의 원본 이력은 유지합니다.
 
 잔고 API는 서버에서 월별 노출 범위와 잔액·동별 자금·미회수 외부 부담금 예외를 판정하여 accounts와 계산 범위를 함께 반환합니다. 숨겨진 같은 관리대상 accountId는 accountId=null의 전체 통장 결과로 복원합니다. 설정의 통장 상세·과거 기록은 표시 제외로 삭제하지 않습니다. 기존 bank_accounts의 status·valid_from·valid_to와 사용 자료를 활용하므로 새 컬럼·Migration은 추가하지 않습니다.
+
+
+## 은행 잔액 직접 확인 API 설계안 (2026-10-24)
+
+상태: **등록·이력 조회·취소 및 잔고 조회 연동 구현**. 최초 제안에서 확정한 실제 계약이며 업무 기준은 [도메인 규칙](domainRules.md#운영-중-은행-잔액-직접-확인-2026-10-24), 저장 구조는 [ERD](erd.md#은행-잔액-직접-확인-저장-설계안-2026-10-24)을 따릅니다.
+
+| 메서드 | `/api/properties/{propertyId}/banking/balances` 아래 경로 | 요청 / 응답 |
+| --- | --- | --- |
+| POST | `/checks` | `{id,accountId,amount,checkedAt,sourceType,memo?}` → `{saved:true}` |
+| GET | `/checks?accountId=UUID` | `{propertyId,accountId,checks}` |
+| POST | `/checks/{id}/cancel` | `{id: 취소 요청 UUID,reason}` → `{saved:true}` |
+
+amount는 0 이상 원 단위 1~15자리 숫자 문자열, checkedAt은 오프셋이 포함된 실제 확인일시이며 미래시점은 거부합니다. sourceType은 `BANK_APP / INTERNET_BANKING / OTHER`, memo는 선택 500자, 취소 reason은 필수 500자 이내입니다. checkedBy·createdAt·취소 처리자와 시각은 인증 정보·서버 시계로 기록합니다. ADMIN·통장 소속·사용 상태와 이력 처리 범위는 업무 기준을 따릅니다. 모든 응답은 `Cache-Control: no-store`입니다.
+
+checks는 실제 확인시점·기록시점 내림차순의 전체 이력이며 각 행은 `{id,amount,checkedAt,sourceType,checkedBy,checkedByName,memo,createdAt,canceledAt,canceledBy,canceledByName,cancelReason}`입니다. 메모·사유가 없으면 null이고 취소 원문도 유지합니다. checkedByName은 기록한 계정의 표시명이며 주민 실명으로 추정하지 않습니다. 화면 페이지는 Client에서 나눕니다.
+
+등록은 같은 UUID·사용자·통장·본문이면 재시도 성공이며 다른 내용은 `409 BANK_CHECK_CONFLICT`입니다. 취소는 같은 요청 UUID·처리자·사유만 재시도 성공이고 이후 등록 재시도로 취소를 복원하지 않습니다. 미래 확인시점은 `400 INVALID_BANK_CHECK_TIME`, DTO 형식 오류는 `400 INVALID_REQUEST`이며 권한·통장 오류는 기존 계약을 재사용합니다.
+
+잔고 응답의 통장별 accounts에 `confirmation: {source,sourceId,date,time,precision,status,method}|null`, `comparisonTimeDifferent: boolean`을 추가합니다. 기존 balance/asOf는 선택된 실제 확인값, calculatedBalance는 별도 계산값입니다. source는 `BANK_IMPORT / HANDOVER / ACCOUNT_OPENING / DIRECT_CHECK / MULTIPLE`, precision은 `DATE / TIME / DAY_END`, status는 `READY / ORDER_UNCLEAR / BALANCE_MISSING`입니다. 직접 확인일 때 method에 확인 방법을 반환하고 나머지는 null입니다. 복수 출처·순서 불명확일 때 sourceId는 null일 수 있으며 DATE·DAY_END에는 가상 시각을 만들지 않습니다.
+
+순서 불명확은 확인 금액을 null로 반환하고 Client도 계산값으로 이를 가리지 않습니다. 최신 거래의 잔액 미제공은 기존 계산값 대체 표시를 유지하되 확인 자료 상태를 보존합니다. 실제 확인값과 월말 동별 계산시점의 차이는 comparisonTimeDifferent로 전달합니다. 원천·과거 월·합계 해석은 업무 기준을 따르며 가상 거래·새 계산 시작값을 생성하는 API는 없습니다. 날짜·시각 충돌의 강제 대사는 후속 범위입니다.

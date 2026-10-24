@@ -10,6 +10,11 @@ export function getAccountBalanceDisplay(account: AccountBalance) {
     calculated: false,
     description: account.asOf
   };
+  if (account.confirmation?.status === 'ORDER_UNCLEAR') return {
+    amount: null,
+    calculated: false,
+    description: '확인 자료의 순서를 확인해주세요.'
+  };
   if (account.calculatedBalance != null && account.calculationBasisDate) return {
     amount: account.calculatedBalance,
     calculated: true,

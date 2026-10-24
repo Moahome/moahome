@@ -35,8 +35,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties = { "moahome.billing.scheduler-enabled=false", "springdoc.api-docs.enabled=true",
-        "moahome.security.allowed-origins=http://localhost:3000,http://localhost:4000,https://app.example.test" })
+@SpringBootTest(properties = {"moahome.billing.scheduler-enabled=false", "springdoc.api-docs.enabled=true",
+        "moahome.security.allowed-origins=http://localhost:3000,http://localhost:4000,https://app.example.test"})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class OpenApiIntegrationTest {
@@ -57,6 +57,9 @@ class OpenApiIntegrationTest {
 
 	@MockitoBean
 	private com.moahome.server.banking.service.BankingBalanceService bankingBalances;
+
+	@MockitoBean
+	private com.moahome.server.banking.service.BankBalanceCheckService bankBalanceChecks;
 
 	@MockitoBean
 	private com.moahome.server.banking.service.BankAccountService bankAccountSettings;
@@ -187,7 +190,12 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(
 		    mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(80);
+		assertThat(document.path("paths").properties()).hasSize(82);
+		for (String method : java.util.List.of("get", "post"))
+			assertThat(document.path("paths").path("/api/properties/{propertyId}/banking/balances/checks")
+			    .at("/" + method + "/security/0/bearerAuth").isArray()).isTrue();
+		assertThat(document.path("paths").path("/api/properties/{propertyId}/banking/balances/checks/{id}/cancel")
+		    .at("/post/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/banking/expenses/manual")
 		    .at("/post/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/banking/account/{id}")

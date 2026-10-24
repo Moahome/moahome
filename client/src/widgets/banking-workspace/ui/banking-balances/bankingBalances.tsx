@@ -72,6 +72,7 @@ import {
   getBuildingLedger
 } from '../../model/balanceLedger';
 import { sortExpenseLabels } from '../../model/expenseAllocation';
+import { BalanceCheckPanel } from '../_components/balance-check-panel/balanceCheckPanel';
 import { AccountBalances } from '../_components/account-balances/accountBalances';
 import { BankAccountDetails } from '../_components/bank-account-details/bankAccountDetails';
 import { BankingExpensePage } from '../banking-expense-page/bankingExpensePage';
@@ -80,9 +81,11 @@ type Action = {
     kind: 'opening' | 'settlement' | 'assignment' | 'difference';
     id?: string;
 };
-export type BalancePanel = Action['kind'] | 'chart' | 'account';
+export type BalancePanel = Action['kind'] | 'chart' | 'account' | 'check' | 'checks';
 const PANEL_TITLES: Record<BalancePanel, string> = {
   account: '통장 상세',
+  check: '은행 잔액 직접 확인',
+  checks: '은행 잔액 확인 이력',
   opening: '기준 잔고 확인',
   chart: '동별 입금·지출 비교',
   difference: '잔고 차이 내역',
@@ -222,6 +225,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   const [selected, setSelected] = useState<string[]>([]);
   const [detail, setDetail] = useState<string | null>(null);
   const [accountDetailId, setAccountDetailId] = useState<string | null>(null);
+  const [checkPanel, setCheckPanel] = useState<{ id: string; history: boolean } | null>(null);
   const [chartOpen, setChartOpen] = useState(false);
   const [action, setAction] = useState<Action | null>(null);
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
@@ -287,15 +291,16 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   let bankAsOf = data.bankAsOf;
   let bankLabel = selectedAccount ? '선택 통장 확인 잔액' : '은행 확인 잔고';
   if (calculated) {
-    bankLabel = selectedAccount ? '선택 통장 계산 잔액' : '통장 잔액 합계';
+    bankLabel = selectedAccount ? '선택 통장 계산 잔액' : accountDisplays.every((display) => display.calculated) ? '통장 계산 잔액 합계' : '통장 잔액 합계';
     bankAsOf = '계산 잔액을 포함한 통장별 잔액 합계';
   }
   if (accountDisplays.length === 1) bankAsOf = accountDisplays[0].description;
-  let bankHelp = '은행 거래 파일 또는 잔액 인계에 기록된 마지막 잔액입니다.';
+  let bankHelp = '은행 거래 파일·잔액 인계·직접 확인 기록의 기준시점을 비교한 확인 잔액입니다.';
   if (calculated) bankHelp = accountDisplays.length > 1
     ? '통장별 은행 확인값 또는 계산 잔액을 합한 금액입니다.'
     : '시작 잔고에 등록된 통장 입출금을 반영한 금액입니다.';
-  const differenceDescription = calculated ? '통장 잔액 − 동별 잔고 합계 · 계산 잔액 포함' : '통장 잔액 − 동별 잔고 합계';
+  const timeDifferent = visibleAccounts.some((row) => row.balance !== null && row.comparisonTimeDifferent);
+  const differenceDescription = `통장 잔액 − 동별 잔고 합계${calculated ? ' · 계산 잔액 포함' : ''}${timeDifferent ? ' · 비교 시점 다름' : ''}`;
   const missing = data.buildings.filter((b) => b.active && b.status === 'OPENING_REQUIRED');
   const filtered = sortExpenseLabels(data.buildings).filter((b) => b.label.includes(search.trim()) && (filter === 'ALL' || (filter === 'NEEDS_OPENING' && b.status === 'OPENING_REQUIRED') || (filter === 'NEGATIVE' && b.balance !== null && BigInt(b.balance) < BigInt(0))));
   if (sort !== 'name')
@@ -350,6 +355,10 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       router.push(`/manage/${propertyId}/banking/balances/details/${kind}?${queryParams}`);
       return;
     }
+    if (kind === 'check' || kind === 'checks') { setCheckPanel({
+      id: id ?? '',
+      history: kind === 'checks'
+    }); return; }
     if (kind === 'account') {
       setAccountDetailId(id ?? null);
       return;
@@ -409,6 +418,23 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   }
   if (panel) {
     const closePage = () => router.replace(balanceListHref);
+    if (panel === 'check' || panel === 'checks') {
+      const target = data.accounts?.find((row) => row.id === params.get('target'));
+      return target ? (
+        <BalanceCheckPanel
+          key={`${panel}-${target.id}`}
+          propertyId={propertyId}
+          account={target}
+          history={panel === 'checks'}
+          presentation={'page'}
+          onClose={closePage}
+        />
+      ) : (
+        <p>
+          해당 통장을 찾을 수 없습니다.
+        </p>
+      );
+    }
     if (panel === 'account') return (
       <DetailDialog
         title={'통장 상세'}
@@ -715,6 +741,8 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         <AccountBalances
           accounts={visibleAccounts}
           onOpen={(id) => openPanel('account', id)}
+          onCheck={(id) => openPanel('check', id)}
+          onHistory={(id) => openPanel('checks', id)}
         />
       )}
       <section
@@ -1035,6 +1063,15 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
             ]}
           />
         </section>
+      )}
+      {checkPanel && data.accounts?.find((row) => row.id === checkPanel.id) && (
+        <BalanceCheckPanel
+          key={`${checkPanel.id}-${checkPanel.history}`}
+          propertyId={propertyId}
+          account={data.accounts.find((row) => row.id === checkPanel.id)!}
+          history={checkPanel.history}
+          onClose={() => setCheckPanel(null)}
+        />
       )}
       {accountDetailId && (
         <DetailDialog

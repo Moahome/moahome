@@ -60,9 +60,19 @@ public final class BankingBalanceResponse {
 		}
 	}
 
+	public record Confirmation(String source, UUID sourceId, LocalDate date, LocalTime time, String precision,
+	    String status, String method) {
+	}
+
 	public record AccountBalance(UUID id, String label, String status, String balance, String asOf,
 	    LocalDate openingDate, String openingBalance, long openingRevision, String calculatedBalance,
-	    LocalDate calculationBasisDate) {
+	    LocalDate calculationBasisDate, Confirmation confirmation, boolean comparisonTimeDifferent) {
+		public AccountBalance(UUID id, String label, String status, String balance, String asOf, LocalDate openingDate,
+		    String openingBalance, long openingRevision, String calculatedBalance, LocalDate calculationBasisDate) {
+			this(id, label, status, balance, asOf, openingDate, openingBalance, openingRevision, calculatedBalance,
+			    calculationBasisDate, null, false);
+		}
+
 		public AccountBalance(UUID id, String label, String status, String balance, String asOf, LocalDate openingDate,
 		    String openingBalance, long openingRevision) {
 			this(id, label, status, balance, asOf, openingDate, openingBalance, openingRevision, null, null);

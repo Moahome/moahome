@@ -14,7 +14,10 @@ import {
 } from 'react';
 import type { RegistrationResult } from '../../../api/registrationApiTypes';
 import { getFeeItemsTotal } from '../../../model/feeItems';
-import { getUnitOpening } from '../../../model/openingBalances';
+import {
+  getAccountBuildingAmount,
+  getUnitOpening
+} from '../../../model/openingBalances';
 import type {
   RegistrationDraft,
   RegistrationStep
@@ -596,7 +599,7 @@ export function RegistrationReview({
                       보유금
                     </dt>
                     <dd>
-                      {formatWon(draft.openingBalances.buildings[building.clientId])}
+                      {formatWon(draft.bankAccounts.reduce((sum, account) => sum + BigInt(getAccountBuildingAmount(draft.openingBalances, account.clientId, building.clientId, draft.bankAccounts.length) || '0'), BigInt(0)))}
                     </dd>
                   </div>
                 ))}
