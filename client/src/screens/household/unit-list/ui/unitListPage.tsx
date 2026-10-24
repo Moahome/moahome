@@ -1,11 +1,9 @@
 'use client';
 
-import { Button } from '@/shared/ui/button';
-import { isServerConnectionError } from '@/shared/api';
-import { ServerConnectionError } from '@/shared/ui/server-connection-error';
+import { RequestError } from '@/shared/ui/server-connection-error';
+
 import { Pagination } from '@/shared/ui/pagination';
 import { Toast } from '@/shared/ui/toast';
-import { getUnitManagementError } from '@/features/unit-management';
 import { useUnitList } from './_hooks/useUnitList';
 import { UnitListHeader } from './_components/unit-list-header/unitListHeader';
 import { UnitListSummary } from './_components/unit-list-summary/unitListSummary';
@@ -35,31 +33,14 @@ export function UnitListPage({
       세대 목록을 불러오고 있어요.
     </section>
   );
-  if (list.isError && isServerConnectionError(list.error)) return (
-    <ServerConnectionError
-      onRetry={() => { void list.refetch({
-        cancelRefetch: false
-      }); }}
-    />
-  );
+
   if (list.isError) return (
-    <section
-      className={styles.state}
-      role={'alert'}
-    >
-      <h1>
-        세대 목록을 불러오지 못했어요.
-      </h1>
-      <p>
-        {getUnitManagementError(list.error)}
-      </p>
-      <Button
-        variant={'outline'}
-        onClick={() => void list.refetch()}
-      >
-        다시 시도
-      </Button>
-    </section>
+    <RequestError
+      error={list.error}
+      onRetry={() => void list.refetch({
+        cancelRefetch: false
+      })}
+    />
   );
 
   return (

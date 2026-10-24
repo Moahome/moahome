@@ -324,7 +324,7 @@ test('조회 실패와 다른 관리대상 응답을 빈 월·0원으로 표시�
     name: '다시 시도',
     exact: true
   }).click();
-  await expect(page.getByText('월별 정산 자료를 불러오지 못했어요.', {
+  await expect(page.getByText('정보를 불러오지 못했어요', {
     exact: true
   })).toBeVisible();
   await expect(page.getByRole('button', {

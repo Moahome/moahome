@@ -11,10 +11,14 @@ export function ServerConnectionError({
   onRetry,
   retrying = false,
   inputPreserved = false,
+  title = '서버에 연결하지 못했어요',
+  description,
 }: {
-  onRetry: () => void;
+  onRetry?: () => void;
   retrying?: boolean;
   inputPreserved?: boolean;
+  title?: string;
+  description?: string;
 }) {
   const titleId = useId();
 
@@ -37,35 +41,41 @@ export function ServerConnectionError({
       <h2
         id={titleId}
       >
-        서버에 연결하지 못했어요
+        {title}
       </h2>
       <div
         className={styles.description}
       >
         <p>
-          일시적인 오류로 서버와 연결할 수 없습니다.
+          {description ?? '일시적인 오류로 서버와 연결할 수 없습니다.'}
         </p>
-        <p>
-          {inputPreserved && <>
-            입력하신 내용은 그대로 유지되어 있으니
-            <br />
-          </>}
-          잠시 후 다시 시도해 주세요.
-        </p>
-      </div>
-      <Button
-        className={styles.retry}
-        size={'lg'}
-        loading={retrying}
-        onClick={onRetry}
-        leadingIcon={(
-          <ServiceIcon
-            name={'reset'}
-          />
+        {!description && (
+          <p>
+            {inputPreserved && (
+              <>
+                입력하신 내용은 그대로 유지되어 있으니
+                <br />
+              </>
+            )}
+            잠시 후 다시 시도해 주세요.
+          </p>
         )}
-      >
-        {retrying ? '다시 연결하고 있어요' : '다시 시도'}
-      </Button>
+      </div>
+      {onRetry && (
+        <Button
+          className={styles.retry}
+          size={'lg'}
+          loading={retrying}
+          onClick={onRetry}
+          leadingIcon={(
+            <ServiceIcon
+              name={'reset'}
+            />
+          )}
+        >
+          {retrying ? '다시 연결하고 있어요' : '다시 시도'}
+        </Button>
+      )}
     </section>
   );
 }

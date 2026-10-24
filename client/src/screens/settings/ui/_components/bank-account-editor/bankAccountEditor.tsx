@@ -1,5 +1,7 @@
 'use client';
 
+import { RequestError } from '@/shared/ui/server-connection-error';
+
 import {
   BankAccountCard,
   BankIcon,
@@ -133,19 +135,12 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
             </p>
           )}
           {accounts.isError && (
-            <>
-              <p
-                role={'alert'}
-              >
-                {bankAccountError(accounts.error)}
-              </p>
-              <Button
-                variant={'outline'}
-                onClick={() => void accounts.refetch()}
-              >
-                다시 시도
-              </Button>
-            </>
+            <RequestError
+              error={accounts.error}
+              onRetry={() => void accounts.refetch({
+                cancelRefetch: false
+              })}
+            />
           )}
           <div
             className={styles['account-list']}

@@ -1,5 +1,7 @@
 'use client';
 
+import { RequestError } from '@/shared/ui/server-connection-error';
+
 import {
   useRef,
   useState
@@ -256,21 +258,12 @@ export function BalanceCheckPanel({
               </p>
             )}
             {query.isError && (
-              <>
-                <p
-                  role={'alert'}
-                >
-                  {balanceError(query.error)}
-                </p>
-                <Button
-                  variant={'outline'}
-                  onClick={() => {
-                    void query.refetch();
-                  }}
-                >
-                  다시 시도
-                </Button>
-              </>
+              <RequestError
+                error={query.error}
+                onRetry={() => void query.refetch({
+                  cancelRefetch: false
+                })}
+              />
             )}
             {query.data && (
               <>

@@ -195,7 +195,7 @@ test('서버 목록이 실제로 비었을 때만 시작 화면을 표시하고 
     exact: true
   })).toBeVisible();
   await page.goto('/manage/00000000-0000-0000-0000-000000000099/dashboard');
-  await expect(page.getByText('이곳에 접근할 수 없어요.')).toBeVisible();
+  await expect(page.getByText('접근 권한을 확인해주세요')).toBeVisible();
   await expect(page.getByText('임시 페이지', {
     exact: true
   })).toHaveCount(0);
@@ -258,7 +258,7 @@ test('완료 화면 버튼은 해당 대상에 연결되고 새로고침에도 �
 
 test('다른 관리대상 주소에는 등록 결과의 이름과 사이드바를 표시하지 않음', async ({ page }) => {
   await page.goto('/manage/00000000-0000-0000-0000-000000000099/dashboard');
-  await expect(page.getByText('이곳에 접근할 수 없어요.')).toBeVisible();
+  await expect(page.getByText('접근 권한을 확인해주세요')).toBeVisible();
   await expect(page.getByText('성내빌라', {
     exact: true
   })).toHaveCount(0);
@@ -273,7 +273,7 @@ test('현재 관리 권한 거부는 이전 이름을 숨기고 최근 선택을
     code: 'ACCESS_DENIED'
   }, 403));
   await page.goto(DASHBOARD);
-  await expect(page.getByText('이곳에 접근할 수 없어요.')).toBeVisible();
+  await expect(page.getByText('접근 권한을 확인해주세요')).toBeVisible();
   await expect(page.getByText('성내빌라', {
     exact: true
   })).toHaveCount(0);
@@ -537,7 +537,7 @@ test('권한 조회 응답의 대상이 다르면 이전 대상 이름과 본문
     propertyId: '00000000-0000-0000-0000-000000000099'
   }));
   await page.goto(DASHBOARD);
-  await expect(page.getByText('관리할 곳을 확인하지 못했어요.')).toBeVisible();
+  await expect(page.getByText('정보를 불러오지 못했어요')).toBeVisible();
   await expect(page.getByText('성내빌라', {
     exact: true
   })).toHaveCount(0);
@@ -1827,7 +1827,7 @@ test('주민 목록 로딩·조회 실패·권한 거부·빈 명부를 구분�
     code: 'ACCESS_DENIED'
   }, 403));
   await page.reload();
-  await expect(main.getByRole('alert')).toContainText('관리소장 권한이 없어요.');
+  await expect(main.getByRole('alert')).toContainText('접근 권한을 확인해주세요');
   await expect(main.getByRole('table')).toHaveCount(0);
 });
 
@@ -2260,7 +2260,7 @@ test('주민 등록 세대 조회 실패는 재시도하고 빈 세대는 등록
     code: 'UNAVAILABLE'
   }, 503));
   await page.goto(`${RESIDENTS}/new`);
-  await expect(page.getByRole('main').getByRole('alert')).toContainText('세대 목록을 불러오지 못했어요.');
+  await expect(page.getByRole('main').getByRole('alert')).toContainText('서버에 연결하지 못했어요');
   await page.route(UNITS_URL, (route) => fulfillJson(route, {
     propertyId: PROPERTY_ID,
     hasBuildings: false,

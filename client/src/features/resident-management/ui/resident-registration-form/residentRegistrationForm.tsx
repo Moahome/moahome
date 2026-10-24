@@ -1,5 +1,7 @@
 'use client';
 
+import { RequestError } from '@/shared/ui/server-connection-error';
+
 import {
   getSortedBuildings,
   getSortedUnits
@@ -162,26 +164,12 @@ export function ResidentRegistrationForm({
     </p>
   );
   if (options.isError) return (
-    <div
-      className={styles.state}
-      role={'alert'}
-    >
-      <p>
-        세대 목록을 불러오지 못했어요.
-      </p>
-      <Button
-        variant={'outline'}
-        onClick={() => void options.refetch()}
-      >
-        다시 시도
-      </Button>
-      <Button
-        variant={'ghost'}
-        onClick={onCancel}
-      >
-        취소
-      </Button>
-    </div>
+    <RequestError
+      error={options.error}
+      onRetry={() => void options.refetch({
+        cancelRefetch: false
+      })}
+    />
   );
   if (!units.length) return (
     <div

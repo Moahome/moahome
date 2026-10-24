@@ -1,13 +1,13 @@
 import { Button } from '@/shared/ui/button';
-import { isServerConnectionError } from '@/shared/api';
-import { ServerConnectionError } from '@/shared/ui/server-connection-error';
+import { RequestError } from '@/shared/ui/server-connection-error';
 import { getBillingError } from '@/features/billing-management';
 import styles from './billingLoadState.module.css';
 
 /** 로딩·권한·저장소 오류를 실제 빈 목록과 구분해 재시도할 수 있게 합니다. */
 export function BillingLoadState({ pending, error, onRetry }: { pending: boolean; error: unknown; onRetry: () => void }) {
-  if (!pending && isServerConnectionError(error)) return (
-    <ServerConnectionError
+  if (!pending) return (
+    <RequestError
+      error={error}
       onRetry={onRetry}
     />
   );

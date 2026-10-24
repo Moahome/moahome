@@ -1,5 +1,7 @@
 'use client';
 
+import { RequestError } from '@/shared/ui/server-connection-error';
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -30,8 +32,6 @@ import {
   getUnitManagementError
 } from '@/features/unit-management';
 import { Button } from '@/shared/ui/button';
-import { isServerConnectionError } from '@/shared/api';
-import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import { Toast } from '@/shared/ui/toast';
 import styles from './unitEntryPage.module.css';
 
@@ -131,31 +131,14 @@ export function UnitEntryPage({
       세대 정보를 불러오고 있어요.
     </p>
   );
-  if (list.isError && isServerConnectionError(list.error)) return (
-    <ServerConnectionError
-      onRetry={() => { void list.refetch({
-        cancelRefetch: false
-      }); }}
-    />
-  );
+
   if (list.isError) return (
-    <section
-      className={styles.state}
-      role={'alert'}
-    >
-      <h1>
-        세대 정보를 불러오지 못했어요.
-      </h1>
-      <p>
-        {getUnitManagementError(list.error)}
-      </p>
-      <Button
-        variant={'outline'}
-        onClick={() => void list.refetch()}
-      >
-        다시 시도
-      </Button>
-    </section>
+    <RequestError
+      error={list.error}
+      onRetry={() => void list.refetch({
+        cancelRefetch: false
+      })}
+    />
   );
 
   const data = list.data;

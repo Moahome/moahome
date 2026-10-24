@@ -1,9 +1,7 @@
 'use client';
 
 import { useSession } from '@/entities/session';
-import { isServerConnectionError } from '@/shared/api';
-import { Button } from '@/shared/ui/button';
-import { ServerConnectionError } from '@/shared/ui/server-connection-error';
+import { RequestError } from '@/shared/ui/server-connection-error';
 import { Toast } from '@/shared/ui/toast';
 import {
   useQuery,
@@ -97,32 +95,13 @@ export function PaymentWorkspaceProvider({ propertyId, children }: { propertyId:
       입금 정보를 불러오고 있어요.
     </p>
   );
-  if (!query.data && isServerConnectionError(query.error)) return (
-    <ServerConnectionError
-      onRetry={() => { void query.refetch({
-        cancelRefetch: false
-      }); }}
-    />
-  );
   if (!query.data) return (
-    <section
-      aria-label={'입금 조회 오류'}
-    >
-      <h1>
-        입금 관리
-      </h1>
-      <p
-        role={'alert'}
-      >
-        {paymentError(query.error)}
-      </p>
-      <Button
-        variant={'outline'}
-        onClick={() => { void query.refetch(); }}
-      >
-        다시 시도
-      </Button>
-    </section>
+    <RequestError
+      error={query.error}
+      onRetry={() => void query.refetch({
+        cancelRefetch: false
+      })}
+    />
   );
   return (
     <PaymentWorkspaceContext.Provider

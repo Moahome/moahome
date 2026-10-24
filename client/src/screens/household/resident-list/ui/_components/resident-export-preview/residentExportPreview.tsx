@@ -1,6 +1,6 @@
 'use client';
 
-import { ApiError } from '@/shared/api';
+import { RequestError } from '@/shared/ui/server-connection-error';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
 import { DataTable } from '@/shared/ui/data-table';
@@ -37,6 +37,7 @@ export function ResidentExportPreview({
 }) {
   const [rows, setRows] = useState<ResidentExportRow[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<unknown>(null);
   const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
@@ -53,7 +54,7 @@ export function ResidentExportPreview({
     }).catch((error: unknown) => {
       if (!active) return;
       setFailed(true);
-      setNotice(getExportError(error));
+      setFailure(error);
     });
 
     return () => {
@@ -119,23 +120,10 @@ export function ResidentExportPreview({
         </p>
       )}
       {failed && (
-        <div
-          className={styles.state}
-        >
-          <p>
-            미리보기를 불러오지 못했어요.
-          </p>
-          <Button
-            variant={'outline'}
-            onClick={() => {
-              setFailed(false);
-              setNotice('');
-              setRetry((value) => value + 1);
-            }}
-          >
-            다시 시도
-          </Button>
-        </div>
+        <RequestError
+          error={failure}
+          onRetry={() => { setFailed(false); setFailure(null); setNotice(''); setRetry((value) => value + 1); }}
+        />
       )}
       {rows && (
         <>
@@ -247,15 +235,4 @@ export function ResidentExportPreview({
       {content}
     </ClientModal>
   );
-}
-
-/** 내보내기의 실패는 고정 안내만 사용하고 권한·삭제·연락처 보안 설정 오류를 구분합니다. */
-function getExportError(error: unknown) {
-  if (error instanceof ApiError) {
-    if (error.status === 401) return '로그인이 만료되었어요. 다시 로그인해주세요.';
-    if (error.status === 403) return '엑셀을 다운로드할 관리소장 권한이 없어요.';
-    if (error.code === 'RESIDENT_NOT_FOUND') return '주민 정보가 변경되었어요. 주민 목록에서 다시 확인해주세요.';
-    if (error.code === 'PHONE_SECURITY_UNAVAILABLE') return '연락처를 처리할 수 없어요. 서버의 연락처 설정을 확인해주세요.';
-  }
-  return '미리보기를 불러오지 못했어요. 다시 시도해주세요.';
 }

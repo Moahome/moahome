@@ -1,8 +1,9 @@
 'use client';
 
+import { RequestError } from '@/shared/ui/server-connection-error';
+
 import { AllocationEditor } from '@/entities/banking';
 import { useSession } from '@/entities/session';
-import { isServerConnectionError } from '@/shared/api';
 import { Button } from '@/shared/ui/button';
 import { CalendarPicker } from '@/shared/ui/calendar-picker';
 import { ClientModal } from '@/shared/ui/client-modal';
@@ -12,7 +13,6 @@ import {
   Input
 } from '@/shared/ui/form-controls';
 import { ListHeader } from '@/shared/ui/list-header';
-import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   useQuery,
@@ -183,25 +183,12 @@ export function ManualExpense({
           지출 등록 정보를 불러오고 있어요.
         </p>
       ) : !data ? (
-        isServerConnectionError(workspace.error) ? (
-          <ServerConnectionError
-            onRetry={() => { void workspace.refetch(); }}
-          />
-        ) : (
-          <div>
-            <p
-              role={'alert'}
-            >
-              {bankingError(workspace.error)}
-            </p>
-            <Button
-              variant={'outline'}
-              onClick={() => { void workspace.refetch(); }}
-            >
-              다시 시도
-            </Button>
-          </div>
-        )
+        <RequestError
+          error={workspace.error}
+          onRetry={() => void workspace.refetch({
+            cancelRefetch: false
+          })}
+        />
       ) : (
         <form
           onSubmit={submit}

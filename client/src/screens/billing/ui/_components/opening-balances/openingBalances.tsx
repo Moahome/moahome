@@ -1,5 +1,7 @@
 'use client';
 
+import { RequestError } from '@/shared/ui/server-connection-error';
+
 import {
   useRef,
   useState
@@ -54,18 +56,12 @@ export function OpeningBalances({ propertyId }: { propertyId: string }) {
     </p>
   );
   if (query.isError) return (
-    <div>
-      <p
-        role={'alert'}
-      >
-        {openingBalanceError(query.error)}
-      </p>
-      <Button
-        onClick={() => void query.refetch()}
-      >
-        다시 시도
-      </Button>
-    </div>
+    <RequestError
+      error={query.error}
+      onRetry={() => void query.refetch({
+        cancelRefetch: false
+      })}
+    />
   );
 
   return (

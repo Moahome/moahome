@@ -76,6 +76,7 @@ export function ManagementLayout({
     content = (
       <ManagementAccessState
         title={'이곳에 접근할 수 없어요.'}
+        error={property.error}
       />
     );
   } else if (error) {
@@ -92,6 +93,7 @@ export function ManagementLayout({
     content = (
       <ManagementAccessState
         title={'이곳에 접근할 수 없어요.'}
+        error={property.error}
       />
     );
   } else {

@@ -1,6 +1,5 @@
 'use client';
 import { useSession } from '@/entities/session';
-import { isServerConnectionError } from '@/shared/api';
 import {
   formatInteger,
   formatWon
@@ -22,7 +21,7 @@ import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { ListHeader } from '@/shared/ui/list-header';
 import { MonthPicker } from '@/shared/ui/month-picker';
 import { Pagination } from '@/shared/ui/pagination';
-import { ServerConnectionError } from '@/shared/ui/server-connection-error';
+import { RequestError } from '@/shared/ui/server-connection-error';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { SummaryCard } from '@/shared/ui/summary-card';
 import { Toast } from '@/shared/ui/toast';
@@ -253,8 +252,9 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     });
   }, [data, accountId, params, router]);
   const title = panel ? PANEL_TITLES[panel] : buildingId ? '동별 상세 원장' : '동별 잔고·정산';
-  if (!data && isServerConnectionError(query.error)) return (
-    <ServerConnectionError
+  if (!data && !query.isPending) return (
+    <RequestError
+      error={query.error}
       onRetry={() => { void query.refetch({
         cancelRefetch: false
       }); }}
@@ -273,18 +273,10 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           description={'은행 거래를 기준으로 동별 보유금과 외부 부담금을 확인합니다.'}
         />
         <p
-          role={query.isPending ? 'status' : 'alert'}
+          role={'status'}
         >
-          {query.isPending ? '잔고를 불러오고 있어요.' : balanceError(query.error)}
+          잔고를 불러오고 있어요.
         </p>
-        {!query.isPending && (
-          <Button
-            variant={'outline'}
-            onClick={() => { void query.refetch(); }}
-          >
-            다시 시도
-          </Button>
-        )}
       </section>
     );
   const summary = getBalanceSummary(data);

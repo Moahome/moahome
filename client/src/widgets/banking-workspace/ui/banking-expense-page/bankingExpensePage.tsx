@@ -2,12 +2,11 @@
 
 import { AllocationEditor } from '@/entities/banking';
 import { useSession } from '@/entities/session';
-import { isServerConnectionError } from '@/shared/api';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
 import { ListHeader } from '@/shared/ui/list-header';
-import { ServerConnectionError } from '@/shared/ui/server-connection-error';
+import { RequestError } from '@/shared/ui/server-connection-error';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { Toast } from '@/shared/ui/toast';
 import {
@@ -123,30 +122,13 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
       거래 정보를 불러오고 있어요.
     </p>
   );
-  if (!workspace.data && isServerConnectionError(workspace.error)) return present(
-    <ServerConnectionError
-      onRetry={() => { void workspace.refetch({
-        cancelRefetch: false
-      }); }}
-    />
-  );
   if (!workspace.data) return present(
-    <section>
-      <h3>
-        거래 조회 오류
-      </h3>
-      <p
-        role={'alert'}
-      >
-        {bankingError(workspace.error)}
-      </p>
-      <Button
-        variant={'outline'}
-        onClick={() => { void workspace.refetch(); }}
-      >
-        다시 시도
-      </Button>
-    </section>
+    <RequestError
+      error={workspace.error}
+      onRetry={() => void workspace.refetch({
+        cancelRefetch: false
+      })}
+    />
   );
   const transfer = workspace.data.rows.find((item) => item.id === transactionId && item.transferCandidate);
   if (transfer) return (
@@ -310,9 +292,11 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
                   <strong>
                     {part.label}
                   </strong>
-                  {part.percentage && <small>
-                    {`${Number(part.percentage)}%`}
-                  </small>}
+                  {part.percentage && (
+                    <small>
+                      {`${Number(part.percentage)}%`}
+                    </small>
+                  )}
                 </div>
                 <strong
                   className={styles.amount}

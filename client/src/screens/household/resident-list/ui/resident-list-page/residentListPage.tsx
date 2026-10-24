@@ -1,5 +1,7 @@
 'use client';
 
+import { RequestError } from '@/shared/ui/server-connection-error';
+
 import {
   useEffect,
   useState
@@ -14,10 +16,7 @@ import { useManagementContext } from '@/features/enter-service';
 import { ChiefAccountLink } from '../_components/chief-account-link/chiefAccountLink';
 import { ResidentDetails } from '@/features/resident-management';
 import { Button } from '@/shared/ui/button';
-import { isServerConnectionError } from '@/shared/api';
-import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import { Pagination } from '@/shared/ui/pagination';
-import { getResidentListError } from '../../model/residentList';
 import { useResidentList } from './_hooks/useResidentList';
 import { ResidentListSummary } from './_components/resident-list-summary/residentListSummary';
 import { ResidentListFilters } from './_components/resident-list-filters/residentListFilters';
@@ -157,29 +156,15 @@ export function ResidentListPage({
           주민 목록을 불러오고 있어요.
         </div>
       )}
-      {list.isError && isServerConnectionError(list.error) && (
-        <ServerConnectionError
-          onRetry={() => { void list.refetch({
+      {list.isError && (
+        <RequestError
+          error={list.error}
+          onRetry={() => void list.refetch({
             cancelRefetch: false
-          }); }}
+          })}
         />
       )}
-      {list.isError && !isServerConnectionError(list.error) && (
-        <div
-          className={styles.state}
-          role={'alert'}
-        >
-          <p>
-            {getResidentListError(list.error)}
-          </p>
-          <Button
-            variant={'outline'}
-            onClick={() => void list.refetch()}
-          >
-            다시 시도
-          </Button>
-        </div>
-      )}
+
       {list.isSuccess && (
         <>
           <ResidentListSummary

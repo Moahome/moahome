@@ -143,3 +143,94 @@ test('관리 권한 조회 장애는 재시도로 같은 대상을 열고 토큰
   expect(users).toBe(1);
   expect(navigation).toBe(1);
 });
+
+for (const endpoint of ['banking/workspace', 'payments/workspace', 'residents']) {
+  for (const status of [403, 503]) {
+    test(`${endpoint} ${status} 조회 실패는 같은 이미지 오류 화면과 현재 조회만 재시도한다`, async ({ page }) => {
+      let failed = true;
+      let reads = 0;
+      const ledger = {
+        propertyId: PROPERTY,
+        asOf: '2026-10-24',
+        accounts: [],
+        units: [],
+        charges: [],
+        payments: []
+      };
+      const bank = {
+        propertyId: PROPERTY,
+        asOf: '2026-10-24',
+        accounts: [],
+        buildings: [],
+        units: [],
+        rows: [],
+        rules: []
+      };
+      const residents = {
+        propertyId: PROPERTY,
+        hasBuildings: false,
+        buildings: [],
+        residents: []
+      };
+      await page.route(`${API}/**`, async (route) => {
+        const path = new URL(route.request().url()).pathname;
+        if (route.request().method() === 'OPTIONS') return json(route, {});
+        if (path.endsWith('/csrf')) return json(route, {
+          csrfToken: 'test-csrf'
+        });
+        if (path.endsWith('/refresh')) return json(route, {
+          accessToken: 'test-access',
+          tokenType: 'Bearer',
+          accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
+        });
+        if (path === '/api/users/me') return json(route, {
+          id: '00000000-0000-4000-8000-000000000001',
+          displayName: '부담당자',
+          profileImageUrl: null,
+          systemRole: 'USER',
+          status: 'ACTIVE'
+        });
+        if (path.endsWith('/management-context')) return json(route, {
+          propertyId: PROPERTY,
+          name: '모아빌라',
+          role: 'MANAGER'
+        });
+        if (path.endsWith('/managed-properties')) return json(route, {
+          properties: [{
+            propertyId: PROPERTY,
+            name: '모아빌라',
+            role: 'MANAGER'
+          }]
+        });
+        if (path.endsWith(`/${endpoint}`)) {
+          reads++;
+          if (failed) return json(route, {
+            code: status === 403 ? 'ACCESS_DENIED' : 'SERVICE_UNAVAILABLE',
+            message: 'private internal details'
+          }, status);
+        }
+        if (path.endsWith('/payments/workspace')) return json(route, ledger);
+        if (path.endsWith('/banking/workspace')) return json(route, bank);
+        if (path.endsWith('/residents')) return json(route, residents);
+        throw new Error(`Unexpected API ${path}`);
+      });
+      const path = endpoint === 'residents' ? 'residents' : endpoint.startsWith('banking') ? 'banking/transactions' : 'payments/matching';
+      await page.goto(`/manage/${PROPERTY}/${path}`);
+      const error = page.getByRole('alert', {
+        name: status === 403 ? '접근 권한을 확인해주세요' : '서버에 연결하지 못했어요'
+      });
+      await expect(error).toBeVisible();
+      await expect(error.locator('img')).toHaveAttribute('src', /serverError/);
+      await expect(error).not.toContainText('private internal details');
+      await expect(error).not.toContainText('관리소장만');
+      expect(reads).toBe(1);
+      failed = false;
+      await error.getByRole('button', {
+        name: '다시 시도',
+        exact: true
+      }).click();
+      await expect(error).toHaveCount(0);
+      expect(reads).toBe(2);
+    });
+  }
+}

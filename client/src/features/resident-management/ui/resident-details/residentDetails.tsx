@@ -1,5 +1,7 @@
 'use client';
 
+import { RequestError } from '@/shared/ui/server-connection-error';
+
 import {
   useEffect,
   useRef,
@@ -143,28 +145,12 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
         </p>
       )}
       {query.isError && (
-        <div
-          className={styles.state}
-          role={'alert'}
-        >
-          <p>
-            {getResidentManagementError(query.error)}
-          </p>
-          <Button
-            variant={'outline'}
-            onClick={() => { setPhone(null); void query.refetch(); }}
-          >
-            다시 조회
-          </Button>
-          {presentation === 'modal' && (
-            <Button
-              variant={'ghost'}
-              onClick={onClose}
-            >
-              주민 목록
-            </Button>
-          )}
-        </div>
+        <RequestError
+          error={query.error}
+          onRetry={() => void query.refetch({
+            cancelRefetch: false
+          })}
+        />
       )}
       {resident && mode === 'detail' && (
         <>

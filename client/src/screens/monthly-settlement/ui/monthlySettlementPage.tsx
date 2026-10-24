@@ -1,5 +1,7 @@
 'use client';
 
+import { RequestError } from '@/shared/ui/server-connection-error';
+
 import { useState } from 'react';
 import Link from 'next/link';
 import {
@@ -8,16 +10,11 @@ import {
 } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { useSession } from '@/entities/session';
-import {
-  ApiError,
-  isServerConnectionError
-} from '@/shared/api';
 import { formatInteger } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { ListHeader } from '@/shared/ui/list-header';
 import { MonthPicker } from '@/shared/ui/month-picker';
-import { ServerConnectionError } from '@/shared/ui/server-connection-error';
 import {
   ServiceIcon,
   type ServiceIconName
@@ -60,13 +57,6 @@ function getCheckLabel(id: string, count: number): string {
   if (count === 0) return '확인 항목 없음';
   if (id === 'external') return '미회수';
   return '확인 필요';
-}
-
-/** 원천 업무의 권한·관리 시작 오류를 구분하고 내부 오류 원문은 화면에 노출하지 않습니다. */
-function getSettlementError(error: unknown): string {
-  if (error instanceof ApiError && error.code === 'ACCESS_DENIED') return '월별 정산은 관리소장만 확인할 수 있어요.';
-  if (error instanceof ApiError && error.code === 'OPENING_BALANCE_REQUIRED') return '관리비 부과에서 기존 잔액 인계와 관리 시작을 먼저 확인해주세요.';
-  return '월별 정산 자료를 불러오지 못했어요.';
 }
 
 /** 월별 정산의 조회·점검·다운로드를 연결하고 원천 업무와 마감 상태는 변경하지 않습니다. */
@@ -198,26 +188,14 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
           최신 정산 자료를 확인하고 있어요.
         </p>
       )}
-      {query.isError && (isServerConnectionError(query.error) ? (
-        <ServerConnectionError
-          onRetry={() => void query.refetch()}
+      {query.isError && (
+        <RequestError
+          error={query.error}
+          onRetry={() => void query.refetch({
+            cancelRefetch: false
+          })}
         />
-      ) : (
-        <div
-          className={styles.state}
-          role={'alert'}
-        >
-          <p>
-            {getSettlementError(query.error)}
-          </p>
-          <Button
-            variant={'outline'}
-            onClick={() => void query.refetch()}
-          >
-            다시 시도
-          </Button>
-        </div>
-      ))}
+      )}
       {report && data && (
         <>
           <div

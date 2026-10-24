@@ -2,7 +2,6 @@
 
 import { AllocationEditor } from '@/entities/banking';
 import { useSession } from '@/entities/session';
-import { isServerConnectionError } from '@/shared/api';
 import {
   formatInteger,
   formatWon
@@ -23,7 +22,7 @@ import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { ListHeader } from '@/shared/ui/list-header';
 import { MonthPicker } from '@/shared/ui/month-picker';
 import { Pagination } from '@/shared/ui/pagination';
-import { ServerConnectionError } from '@/shared/ui/server-connection-error';
+import { RequestError } from '@/shared/ui/server-connection-error';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { SummaryCard } from '@/shared/ui/summary-card';
 import { Toast } from '@/shared/ui/toast';
@@ -192,30 +191,13 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
       통장 정보를 불러오고 있어요.
     </p>
   );
-  if (!data && isServerConnectionError(workspace.error)) return (
-    <ServerConnectionError
-      onRetry={() => { void workspace.refetch({
-        cancelRefetch: false
-      }); }}
-    />
-  );
   if (!data) return (
-    <section>
-      <h1>
-        통장 관리
-      </h1>
-      <p
-        role={'alert'}
-      >
-        {bankingError(workspace.error)}
-      </p>
-      <Button
-        variant={'outline'}
-        onClick={() => { void workspace.refetch(); }}
-      >
-        다시 시도
-      </Button>
-    </section>
+    <RequestError
+      error={workspace.error}
+      onRetry={() => void workspace.refetch({
+        cancelRefetch: false
+      })}
+    />
   );
   const currentMonth = month ?? data.asOf.slice(0, 7);
   const accounts = monthAccounts;
@@ -703,7 +685,8 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               거래내역으로 돌아가기
             </Button>
           )}
-        </>)}
+        </>
+        )}
       />
       {view === 'transactions' && accountId !== 'ALL' && !canImport && (
         <p
@@ -783,482 +766,484 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
           </Button>
         </div>
       )}
-      {(view !== 'upload' || preview) && <>
-        <div
-          className={styles.summary}
-          data-view={view}
-        >
-          {(preview || showIncome) && (
-            <SummaryCard
-              density={'compact'}
-              label={'입금 합계'}
-              help={(
-                <InfoTooltip
-                  size={'sm'}
-                  label={'입금 합계 도움말'}
-                  title={'입금 합계'}
-                >
-                  {summaryDescription}
-                </InfoTooltip>
-              )}
-              value={formatInteger(income)}
-              unit={'원'}
-              tone={'success'}
-              icon={(
-                <ServiceIcon
-                  name={'coins'}
-                />
-              )}
-            />
-          )}
-          {(preview || showExpense || view === 'expenses') && (
-            <SummaryCard
-              density={'compact'}
-              label={view === 'expenses' ? '지출 합계' : '출금 합계'}
-              tone={view === 'expenses' ? 'warning' : 'neutral'}
-              help={(
-                <InfoTooltip
-                  size={'sm'}
-                  label={view === 'expenses' ? '지출 합계 도움말' : '출금 합계 도움말'}
-                  title={view === 'expenses' ? '지출 합계' : '출금 합계'}
-                >
-                  {view === 'expenses' ? `${currentMonth} 기준` : summaryDescription}
-                </InfoTooltip>
-              )}
-              value={formatInteger(view === 'expenses' ? buildingExpense : expense)}
-              unit={'원'}
-              icon={(
-                <ServiceIcon
-                  name={'receipt'}
-                />
-              )}
-            />
-          )}
-          {view !== 'expenses' && (
-            <SummaryCard
-              density={'compact'}
-              label={'입출금 차액'}
-              help={(
-                <InfoTooltip
-                  size={'sm'}
-                  label={'입출금 차액 도움말'}
-                  title={'입출금 차액'}
-                >
-                  입금 합계 − 출금 합계
-                </InfoTooltip>
-              )}
-              value={formatInteger(netAmount)}
-              unit={'원'}
-              valueTone={netAmount < BigInt(0) ? 'danger' : 'neutral'}
-              icon={(
-                <ServiceIcon
-                  name={'coins'}
-                />
-              )}
-            />
-          )}
-          {view !== 'expenses' && (
-            <SummaryCard
-              density={'compact'}
-              label={'확인 필요'}
-              help={(
-                <InfoTooltip
-                  size={'sm'}
-                  label={'확인 필요 도움말'}
-                  title={'확인 필요'}
-                >
-                  {`조회 거래 ${baseRows.length}건 중 처리를 확인해야 하는 거래 건수입니다.`}
-                </InfoTooltip>
-              )}
-              value={baseRows.filter((row) => row.status === 'PENDING').length}
-              unit={'건'}
-              tone={'warning'}
-              icon={(
-                <ServiceIcon
-                  name={'info'}
-                />
-              )}
-            />
-          )}
-          {view === 'transactions' && (
-            <SummaryCard
-              density={'compact'}
-              label={'최근 은행 확인 잔액'}
-              help={(
-                <InfoTooltip
-                  size={'sm'}
-                  label={'최근 은행 확인 잔액 도움말'}
-                  title={'최근 은행 확인 잔액'}
-                  note={[latestDescription, '실시간 잔액이 아니며 수동 입출금은 반영되지 않습니다.'].filter(Boolean).join(' · ')}
-                >
-                  {accountId === 'ALL'
-                    ? '통장을 선택하면 은행 거래 파일의 마지막 잔액을 표시합니다.'
-                    : '은행 거래 파일에 기록된 마지막 거래 후 잔액입니다.'}
-                </InfoTooltip>
-              )}
-              value={latestValue}
-              unit={latest ? '원' : ''}
-              icon={(
-                <ServiceIcon
-                  name={'bank'}
-                />
-              )}
-            />
-          )}
-        </div>
-        <div
-          className={styles.card}
-        >
-          {view !== 'expenses' && (
-            <FilterTabs
-              label={'입출금 필터'}
-              value={direction}
-              onChange={(value) => { setSelection(null); setDirection(value); setStatus('ALL'); setPage(1); }}
-              items={[
-                {
-                  value: 'ALL',
-                  label: '전체',
-                  count: activeRows.length
-                }, {
-                  value: 'INCOME',
-                  label: '입금',
-                  count: activeRows.filter((r) => r.direction === 'INCOME').length
-                }, {
-                  value: 'EXPENSE',
-                  label: '출금',
-                  count: activeRows.filter((r) => r.direction === 'EXPENSE').length
-                }, ...(view === 'transactions' && !preview ? [{
-                  value: 'CANCELED',
-                  label: '취소 내역',
-                  count: baseRows.filter((row) => row.status === 'CANCELED').length
-                }] : [])
-              ]}
-            />
-          )}
+      {(view !== 'upload' || preview) && (
+        <>
           <div
-            className={styles.filters}
-            data-preview={Boolean(preview)}
+            className={styles.summary}
+            data-view={view}
           >
-            {!preview && (
-              <MonthPicker
-                value={currentMonth}
-                onChange={changeMonth}
-                label={'조회 월'}
-                labelHidden
+            {(preview || showIncome) && (
+              <SummaryCard
+                density={'compact'}
+                label={'입금 합계'}
+                help={(
+                  <InfoTooltip
+                    size={'sm'}
+                    label={'입금 합계 도움말'}
+                    title={'입금 합계'}
+                  >
+                    {summaryDescription}
+                  </InfoTooltip>
+                )}
+                value={formatInteger(income)}
+                unit={'원'}
+                tone={'success'}
+                icon={(
+                  <ServiceIcon
+                    name={'coins'}
+                  />
+                )}
               />
             )}
-            <Input
-              aria-label={'거래 검색'}
-              placeholder={searchPlaceholder}
-              value={search}
-              onChange={(event) => { setSelection(null); setSearch(event.target.value); setPage(1); }}
-            />
-            {!preview && view !== 'upload' && (
-              <Dropdown
-                aria-label={'조회 통장'}
-                value={accountId}
-                disabled={busy}
-                options={[{
-                  value: 'ALL',
-                  label: '전체 통장'
-                }, ...accounts.map((account) => ({
-                  value: account.id,
-                  label: accountLabel(account.id)
-                }))]}
-                onChange={(value) => {
-                  setAccountId(value); setSelection(null); setPage(1);
-                  const next = new URLSearchParams(searchParams.toString()); next.set('account', value); next.set('month', currentMonth);
-                  router.replace(`?${next}`, {
-                    scroll: false
-                  });
-                }}
+            {(preview || showExpense || view === 'expenses') && (
+              <SummaryCard
+                density={'compact'}
+                label={view === 'expenses' ? '지출 합계' : '출금 합계'}
+                tone={view === 'expenses' ? 'warning' : 'neutral'}
+                help={(
+                  <InfoTooltip
+                    size={'sm'}
+                    label={view === 'expenses' ? '지출 합계 도움말' : '출금 합계 도움말'}
+                    title={view === 'expenses' ? '지출 합계' : '출금 합계'}
+                  >
+                    {view === 'expenses' ? `${currentMonth} 기준` : summaryDescription}
+                  </InfoTooltip>
+                )}
+                value={formatInteger(view === 'expenses' ? buildingExpense : expense)}
+                unit={'원'}
+                icon={(
+                  <ServiceIcon
+                    name={'receipt'}
+                  />
+                )}
               />
+            )}
+            {view !== 'expenses' && (
+              <SummaryCard
+                density={'compact'}
+                label={'입출금 차액'}
+                help={(
+                  <InfoTooltip
+                    size={'sm'}
+                    label={'입출금 차액 도움말'}
+                    title={'입출금 차액'}
+                  >
+                    입금 합계 − 출금 합계
+                  </InfoTooltip>
+                )}
+                value={formatInteger(netAmount)}
+                unit={'원'}
+                valueTone={netAmount < BigInt(0) ? 'danger' : 'neutral'}
+                icon={(
+                  <ServiceIcon
+                    name={'coins'}
+                  />
+                )}
+              />
+            )}
+            {view !== 'expenses' && (
+              <SummaryCard
+                density={'compact'}
+                label={'확인 필요'}
+                help={(
+                  <InfoTooltip
+                    size={'sm'}
+                    label={'확인 필요 도움말'}
+                    title={'확인 필요'}
+                  >
+                    {`조회 거래 ${baseRows.length}건 중 처리를 확인해야 하는 거래 건수입니다.`}
+                  </InfoTooltip>
+                )}
+                value={baseRows.filter((row) => row.status === 'PENDING').length}
+                unit={'건'}
+                tone={'warning'}
+                icon={(
+                  <ServiceIcon
+                    name={'info'}
+                  />
+                )}
+              />
+            )}
+            {view === 'transactions' && (
+              <SummaryCard
+                density={'compact'}
+                label={'최근 은행 확인 잔액'}
+                help={(
+                  <InfoTooltip
+                    size={'sm'}
+                    label={'최근 은행 확인 잔액 도움말'}
+                    title={'최근 은행 확인 잔액'}
+                    note={[latestDescription, '실시간 잔액이 아니며 수동 입출금은 반영되지 않습니다.'].filter(Boolean).join(' · ')}
+                  >
+                    {accountId === 'ALL'
+                      ? '통장을 선택하면 은행 거래 파일의 마지막 잔액을 표시합니다.'
+                      : '은행 거래 파일에 기록된 마지막 거래 후 잔액입니다.'}
+                  </InfoTooltip>
+                )}
+                value={latestValue}
+                unit={latest ? '원' : ''}
+                icon={(
+                  <ServiceIcon
+                    name={'bank'}
+                  />
+                )}
+              />
+            )}
+          </div>
+          <div
+            className={styles.card}
+          >
+            {view !== 'expenses' && (
+              <FilterTabs
+                label={'입출금 필터'}
+                value={direction}
+                onChange={(value) => { setSelection(null); setDirection(value); setStatus('ALL'); setPage(1); }}
+                items={[
+                  {
+                    value: 'ALL',
+                    label: '전체',
+                    count: activeRows.length
+                  }, {
+                    value: 'INCOME',
+                    label: '입금',
+                    count: activeRows.filter((r) => r.direction === 'INCOME').length
+                  }, {
+                    value: 'EXPENSE',
+                    label: '출금',
+                    count: activeRows.filter((r) => r.direction === 'EXPENSE').length
+                  }, ...(view === 'transactions' && !preview ? [{
+                    value: 'CANCELED',
+                    label: '취소 내역',
+                    count: baseRows.filter((row) => row.status === 'CANCELED').length
+                  }] : [])
+                ]}
+              />
+            )}
+            <div
+              className={styles.filters}
+              data-preview={Boolean(preview)}
+            >
+              {!preview && (
+                <MonthPicker
+                  value={currentMonth}
+                  onChange={changeMonth}
+                  label={'조회 월'}
+                  labelHidden
+                />
+              )}
+              <Input
+                aria-label={'거래 검색'}
+                placeholder={searchPlaceholder}
+                value={search}
+                onChange={(event) => { setSelection(null); setSearch(event.target.value); setPage(1); }}
+              />
+              {!preview && view !== 'upload' && (
+                <Dropdown
+                  aria-label={'조회 통장'}
+                  value={accountId}
+                  disabled={busy}
+                  options={[{
+                    value: 'ALL',
+                    label: '전체 통장'
+                  }, ...accounts.map((account) => ({
+                    value: account.id,
+                    label: accountLabel(account.id)
+                  }))]}
+                  onChange={(value) => {
+                    setAccountId(value); setSelection(null); setPage(1);
+                    const next = new URLSearchParams(searchParams.toString()); next.set('account', value); next.set('month', currentMonth);
+                    router.replace(`?${next}`, {
+                      scroll: false
+                    });
+                  }}
+                />
+              )}
+              {view === 'transactions' && !preview && (
+                <Dropdown
+                  aria-label={'처리 상태'}
+                  disabled={direction === 'CANCELED'}
+                  value={status}
+                  onChange={(value) => { setSelection(null); setStatus(value); setPage(1); }}
+                  options={[{
+                    value: 'ALL',
+                    label: '모든 상태'
+                  }, {
+                    value: 'PENDING',
+                    label: '확인 필요'
+                  }, {
+                    value: 'CONFIRMED',
+                    label: '처리 완료'
+                  }, {
+                    value: 'ON_HOLD',
+                    label: '보류'
+                  }]}
+                />
+              )}
+              {view === 'expenses' && (
+                <Dropdown
+                  aria-label={'부담 동'}
+                  value={building}
+                  onChange={(value) => { setSelection(null); setBuilding(value); setPage(1); }}
+                  options={[{
+                    value: 'ALL',
+                    label: '전체 동'
+                  }, ...buildings.map((b) => ({
+                    value: b.id,
+                    label: b.label
+                  }))]}
+                />
+              )}
+
+              <Dropdown
+                aria-label={'표시 개수'}
+                value={String(pageSize)}
+                options={[10, 20, 50].map((size) => ({
+                  value: String(size),
+                  label: `${size}개씩 보기`
+                }))}
+                onChange={(value) => { setSelection(null); setPageSize(Number(value)); setPage(1); }}
+              />
+
+            </div>
+            {preview && (
+              <p
+                className={styles.help}
+              >
+                행을 눌러 입금 분류·연결 세대·동별 배분을 설정하세요. 필터·페이지를 바꿔도 선택과 입력은 유지됩니다.
+              </p>
             )}
             {view === 'transactions' && !preview && (
-              <Dropdown
-                aria-label={'처리 상태'}
-                disabled={direction === 'CANCELED'}
-                value={status}
-                onChange={(value) => { setSelection(null); setStatus(value); setPage(1); }}
-                options={[{
-                  value: 'ALL',
-                  label: '모든 상태'
-                }, {
-                  value: 'PENDING',
-                  label: '확인 필요'
-                }, {
-                  value: 'CONFIRMED',
-                  label: '처리 완료'
-                }, {
-                  value: 'ON_HOLD',
-                  label: '보류'
-                }]}
-              />
-            )}
-            {view === 'expenses' && (
-              <Dropdown
-                aria-label={'부담 동'}
-                value={building}
-                onChange={(value) => { setSelection(null); setBuilding(value); setPage(1); }}
-                options={[{
-                  value: 'ALL',
-                  label: '전체 동'
-                }, ...buildings.map((b) => ({
-                  value: b.id,
-                  label: b.label
-                }))]}
-              />
-            )}
-
-            <Dropdown
-              aria-label={'표시 개수'}
-              value={String(pageSize)}
-              options={[10, 20, 50].map((size) => ({
-                value: String(size),
-                label: `${size}개씩 보기`
-              }))}
-              onChange={(value) => { setSelection(null); setPageSize(Number(value)); setPage(1); }}
-            />
-
-          </div>
-          {preview && (
-            <p
-              className={styles.help}
-            >
-              행을 눌러 입금 분류·연결 세대·동별 배분을 설정하세요. 필터·페이지를 바꿔도 선택과 입력은 유지됩니다.
-            </p>
-          )}
-          {view === 'transactions' && !preview && (
-            <div
-              className={styles['selection-bar']}
-            >
-              <span
-                role={'status'}
+              <div
+                className={styles['selection-bar']}
               >
-                {isSelecting ? `${deletingRows.length}건 선택` : `총 ${filtered.length}건`}
-              </span>
-              <div>
-                {isSelecting && (
-                  <Button
-                    variant={'outline'}
-                    tone={'danger'}
-                    size={'sm'}
-                    disabled={busy || !deletingRows.length}
-                    onClick={() => { setDeleteError(''); setDeleteOpen(true); }}
-                  >
-                    선택 삭제
-                  </Button>
-                )}
-                <Button
-                  variant={'text'}
-                  size={'sm'}
-                  aria-pressed={isSelecting}
-                  disabled={busy || (!filtered.some(canDelete) && !isSelecting)}
-                  onClick={() => setSelection(isSelecting ? null : {
-                    scope: selectionScope,
-                    ids: []
-                  })}
+                <span
+                  role={'status'}
                 >
-                  {isSelecting ? '완료' : '편집'}
-                </Button>
-              </div>
-            </div>
-          )}
-          <DataTable
-            label={preview ? '업로드 거래 미리보기' : view === 'expenses' ? '지출 내역' : '통장 거래'}
-            rows={visible}
-            getRowKey={(row) => row.id}
-            emptyState={'조회할 거래가 없습니다.'}
-            minWidth={view === 'expenses' ? 340 : 800}
-
-            onRowClick={(row) => {
-              if (isSelecting) { toggleDeletion(row.id); return; }
-              if (!preview && row.transferCandidate) {
-                if (window.matchMedia('(max-width: 767px)').matches) { router.push(`/manage/${propertyId}/banking/transactions/${row.id}?month=${currentMonth}`);return; }
-                setTransferDetail(row);return;
-              }
-              if (preview) { setEditingId((current) => current === row.id ? null : row.id); return; }
-              if (window.matchMedia('(max-width: 767px)').matches) {
-                const query = new URLSearchParams({
-                  month: currentMonth
-                });
-                if (view === 'expenses') query.set('from', 'expenses');
-                if (accountId !== 'ALL') query.set('account', accountId);
-                router.push(`${row.paymentId ? `/manage/${propertyId}/banking/receipts/${row.paymentId}` : `/manage/${propertyId}/banking/transactions/${row.id}`}?${query}`);
-                return;
-              }
-              setDetail({
-                id: row.paymentId ?? row.id,
-                kind: row.paymentId ? 'receipt' : 'expense'
-              });
-            }}
-            columns={([
-              ...(isSelecting ? [{
-                key: 'delete-select',
-                width: 56,
-                header: (
-                  <input
-                    type={'checkbox'}
-                    aria-label={'현재 페이지 거래 전체 선택'}
-                    disabled={busy || !selectableRows.length}
-                    checked={Boolean(selectableRows.length) && deletingRows.length === selectableRows.length}
-                    onChange={(event) => setSelection({
+                  {isSelecting ? `${deletingRows.length}건 선택` : `총 ${filtered.length}건`}
+                </span>
+                <div>
+                  {isSelecting && (
+                    <Button
+                      variant={'outline'}
+                      tone={'danger'}
+                      size={'sm'}
+                      disabled={busy || !deletingRows.length}
+                      onClick={() => { setDeleteError(''); setDeleteOpen(true); }}
+                    >
+                      선택 삭제
+                    </Button>
+                  )}
+                  <Button
+                    variant={'text'}
+                    size={'sm'}
+                    aria-pressed={isSelecting}
+                    disabled={busy || (!filtered.some(canDelete) && !isSelecting)}
+                    onClick={() => setSelection(isSelecting ? null : {
                       scope: selectionScope,
-                      ids: event.target.checked ? selectableRows.map((row) => row.id) : []
+                      ids: []
                     })}
-                  />
-                ),
-                render: (row: BankingTransaction) => (
-                  <input
-                    type={'checkbox'}
-                    aria-label={`${row.payer} 거래 선택`}
-                    disabled={busy || !canDelete(row)}
-                    title={!canDelete(row) ? row.sourceType === 'MANUAL' ? '수동 지출의 확정 이력은 직접 삭제할 수 없습니다.' : '확정 수납은 먼저 취소해주세요. 은행 취소 이력은 원본에서 관리합니다.' : undefined}
-                    checked={deletingRows.some((item) => item.id === row.id)}
-                    onChange={() => toggleDeletion(row.id)}
-                  />
-                )
-              }] : []),
-              ...(preview ? [{
-                key: 'select',
-                header: (
-                  <input
-                    type={'checkbox'}
-                    aria-label={'현재 페이지 거래 전체 선택'}
-                    disabled={busy || !visible.length}
-                    checked={Boolean(visible.length) && visible.every((r) => !excluded.includes(r.id))}
-                    onChange={(event) => setExcluded((current) => event.target.checked ? current.filter((id) => !visible.some((r) => r.id === id)) : [...new Set([...current, ...visible.map((r) => r.id)])])}
-                  />
-                ),
-                render: (row: BankingTransaction) => (
-                  <input
-                    type={'checkbox'}
-                    aria-label={`${row.payer} 거래 선택`}
-                    disabled={busy}
-                    checked={!excluded.includes(row.id)}
-                    onChange={() => setExcluded((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id])}
-                  />
-                )
-              }] : []),
-              ...(!preview && accounts.length > 1 ? [{
-                key: 'account',
-                header: '통장',
-                render: (row: BankingTransaction) => accountLabel(row.accountId)
-              }] : []),
-              ...(view === 'transactions' && !preview ? [{
-                key: 'source',
-                header: '등록 방식',
-                render: (row: BankingTransaction) => row.sourceType === 'MANUAL' ? '수동 지출' : manualIds.has(row.id) ? '수동 입금' : '엑셀'
-              }] : []),
-              {
-                key: 'date',
-                header: '거래일시',
-                render: (row) => (
-                  <>
-                    <span>
-                      {row.date}
-                    </span>
-                    <small
-                      className={styles.muted}
-                    >
-                      {row.time}
-                    </small>
-                  </>
-                )
-              },
-              ...(showIncome ? [{
-                key: 'payer',
-                header: '입금자',
-                render: (row: BankingTransaction) => row.direction === 'INCOME' ? row.payer : '—'
-              }] : []),
-              ...((showExpense || view === 'expenses') ? [{
-                key: 'counterparty',
-                header: '지출명',
-                render: (row: BankingTransaction) => {
-                  if (row.direction !== 'EXPENSE') return '—';
-                  const name = (preview ? expenseDraft(row).category : row.expense?.category) || row.payer;
-
-                  return (
-                    <span>
-                      {name}
-                      {row.sourceType === 'MANUAL' && (
-                        <small
-                          className={styles.muted}
-                        >
-                          {' · 수동 등록'}
-                        </small>
-                      )}
-                    </span>
-                  );
-                }
-              }] : []),
-              ...(showIncome ? [{
-                key: 'income',
-                header: '입금',
-                render: (row: BankingTransaction) => row.direction === 'INCOME' ? formatWon(row.amount) : '—'
-              } satisfies DataTableColumn<BankingTransaction>] : []),
-              ...(showExpense ? [{
-                key: 'expense',
-                header: '출금',
-                render: (row: BankingTransaction) => row.direction === 'EXPENSE' ? formatWon(row.amount) : '—'
-              } satisfies DataTableColumn<BankingTransaction>] : []),
-              ...(view === 'expenses' ? [{
-                key: 'expense-amount',
-                header: '지출액',
-                render: (row: BankingTransaction) => formatWon(getExpenseAmount(row, expenseBuildingIds).toString())
-              } satisfies DataTableColumn<BankingTransaction>] : [{
-                key: 'connection',
-                header: '처리 내용',
-                render: (row: BankingTransaction) => {
-                  const content = processingContent(row);
-
-                  return (
-                    <div
-                      className={styles['processing-content']}
-                    >
-                      <span>
-                        {content.title}
-                      </span>
-                      {content.detail && (
-                        <small>
-                          {content.detail}
-                        </small>
-                      )}
-                    </div>
-                  );
-                }
-              }, {
-                key: 'status',
-                header: '처리',
-                render: (row: BankingTransaction) => (
-                  <span
-                    className={styles.badge}
-                    data-state={row.status}
                   >
-                    {preview ? '미리보기' : row.status === 'CONFIRMED' ? '처리 완료' : row.status === 'ON_HOLD' ? '보류' : row.status === 'CANCELED' ? '취소' : row.status === 'LINKED' ? '기존 수납 연결' : row.status === 'TRANSFER' ? '이체 연결 완료' : row.status === 'TRANSFER_PENDING' ? '이체 연결 대기' : '확인 필요'}
-                  </span>
-                )
-              }])
-            ] satisfies DataTableColumn<BankingTransaction>[]).map((column) => ({
-              ...column,
-              align: 'center' as const
-            }))}
-          />
-          <div
-            className={styles.pagination}
-          >
-            <Pagination
-              page={currentPage}
-              pageSize={pageSize}
-              total={filtered.length}
-              pageCount={Math.max(1, Math.ceil(filtered.length / pageSize))}
-              label={'거래 페이지'}
-              unit={'건'}
-              onPageChange={(next) => { setSelection(null); setPage(next); }}
+                    {isSelecting ? '완료' : '편집'}
+                  </Button>
+                </div>
+              </div>
+            )}
+            <DataTable
+              label={preview ? '업로드 거래 미리보기' : view === 'expenses' ? '지출 내역' : '통장 거래'}
+              rows={visible}
+              getRowKey={(row) => row.id}
+              emptyState={'조회할 거래가 없습니다.'}
+              minWidth={view === 'expenses' ? 340 : 800}
+
+              onRowClick={(row) => {
+                if (isSelecting) { toggleDeletion(row.id); return; }
+                if (!preview && row.transferCandidate) {
+                  if (window.matchMedia('(max-width: 767px)').matches) { router.push(`/manage/${propertyId}/banking/transactions/${row.id}?month=${currentMonth}`);return; }
+                  setTransferDetail(row);return;
+                }
+                if (preview) { setEditingId((current) => current === row.id ? null : row.id); return; }
+                if (window.matchMedia('(max-width: 767px)').matches) {
+                  const query = new URLSearchParams({
+                    month: currentMonth
+                  });
+                  if (view === 'expenses') query.set('from', 'expenses');
+                  if (accountId !== 'ALL') query.set('account', accountId);
+                  router.push(`${row.paymentId ? `/manage/${propertyId}/banking/receipts/${row.paymentId}` : `/manage/${propertyId}/banking/transactions/${row.id}`}?${query}`);
+                  return;
+                }
+                setDetail({
+                  id: row.paymentId ?? row.id,
+                  kind: row.paymentId ? 'receipt' : 'expense'
+                });
+              }}
+              columns={([
+                ...(isSelecting ? [{
+                  key: 'delete-select',
+                  width: 56,
+                  header: (
+                    <input
+                      type={'checkbox'}
+                      aria-label={'현재 페이지 거래 전체 선택'}
+                      disabled={busy || !selectableRows.length}
+                      checked={Boolean(selectableRows.length) && deletingRows.length === selectableRows.length}
+                      onChange={(event) => setSelection({
+                        scope: selectionScope,
+                        ids: event.target.checked ? selectableRows.map((row) => row.id) : []
+                      })}
+                    />
+                  ),
+                  render: (row: BankingTransaction) => (
+                    <input
+                      type={'checkbox'}
+                      aria-label={`${row.payer} 거래 선택`}
+                      disabled={busy || !canDelete(row)}
+                      title={!canDelete(row) ? row.sourceType === 'MANUAL' ? '수동 지출의 확정 이력은 직접 삭제할 수 없습니다.' : '확정 수납은 먼저 취소해주세요. 은행 취소 이력은 원본에서 관리합니다.' : undefined}
+                      checked={deletingRows.some((item) => item.id === row.id)}
+                      onChange={() => toggleDeletion(row.id)}
+                    />
+                  )
+                }] : []),
+                ...(preview ? [{
+                  key: 'select',
+                  header: (
+                    <input
+                      type={'checkbox'}
+                      aria-label={'현재 페이지 거래 전체 선택'}
+                      disabled={busy || !visible.length}
+                      checked={Boolean(visible.length) && visible.every((r) => !excluded.includes(r.id))}
+                      onChange={(event) => setExcluded((current) => event.target.checked ? current.filter((id) => !visible.some((r) => r.id === id)) : [...new Set([...current, ...visible.map((r) => r.id)])])}
+                    />
+                  ),
+                  render: (row: BankingTransaction) => (
+                    <input
+                      type={'checkbox'}
+                      aria-label={`${row.payer} 거래 선택`}
+                      disabled={busy}
+                      checked={!excluded.includes(row.id)}
+                      onChange={() => setExcluded((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id])}
+                    />
+                  )
+                }] : []),
+                ...(!preview && accounts.length > 1 ? [{
+                  key: 'account',
+                  header: '통장',
+                  render: (row: BankingTransaction) => accountLabel(row.accountId)
+                }] : []),
+                ...(view === 'transactions' && !preview ? [{
+                  key: 'source',
+                  header: '등록 방식',
+                  render: (row: BankingTransaction) => row.sourceType === 'MANUAL' ? '수동 지출' : manualIds.has(row.id) ? '수동 입금' : '엑셀'
+                }] : []),
+                {
+                  key: 'date',
+                  header: '거래일시',
+                  render: (row) => (
+                    <>
+                      <span>
+                        {row.date}
+                      </span>
+                      <small
+                        className={styles.muted}
+                      >
+                        {row.time}
+                      </small>
+                    </>
+                  )
+                },
+                ...(showIncome ? [{
+                  key: 'payer',
+                  header: '입금자',
+                  render: (row: BankingTransaction) => row.direction === 'INCOME' ? row.payer : '—'
+                }] : []),
+                ...((showExpense || view === 'expenses') ? [{
+                  key: 'counterparty',
+                  header: '지출명',
+                  render: (row: BankingTransaction) => {
+                    if (row.direction !== 'EXPENSE') return '—';
+                    const name = (preview ? expenseDraft(row).category : row.expense?.category) || row.payer;
+
+                    return (
+                      <span>
+                        {name}
+                        {row.sourceType === 'MANUAL' && (
+                          <small
+                            className={styles.muted}
+                          >
+                            {' · 수동 등록'}
+                          </small>
+                        )}
+                      </span>
+                    );
+                  }
+                }] : []),
+                ...(showIncome ? [{
+                  key: 'income',
+                  header: '입금',
+                  render: (row: BankingTransaction) => row.direction === 'INCOME' ? formatWon(row.amount) : '—'
+                } satisfies DataTableColumn<BankingTransaction>] : []),
+                ...(showExpense ? [{
+                  key: 'expense',
+                  header: '출금',
+                  render: (row: BankingTransaction) => row.direction === 'EXPENSE' ? formatWon(row.amount) : '—'
+                } satisfies DataTableColumn<BankingTransaction>] : []),
+                ...(view === 'expenses' ? [{
+                  key: 'expense-amount',
+                  header: '지출액',
+                  render: (row: BankingTransaction) => formatWon(getExpenseAmount(row, expenseBuildingIds).toString())
+                } satisfies DataTableColumn<BankingTransaction>] : [{
+                  key: 'connection',
+                  header: '처리 내용',
+                  render: (row: BankingTransaction) => {
+                    const content = processingContent(row);
+
+                    return (
+                      <div
+                        className={styles['processing-content']}
+                      >
+                        <span>
+                          {content.title}
+                        </span>
+                        {content.detail && (
+                          <small>
+                            {content.detail}
+                          </small>
+                        )}
+                      </div>
+                    );
+                  }
+                }, {
+                  key: 'status',
+                  header: '처리',
+                  render: (row: BankingTransaction) => (
+                    <span
+                      className={styles.badge}
+                      data-state={row.status}
+                    >
+                      {preview ? '미리보기' : row.status === 'CONFIRMED' ? '처리 완료' : row.status === 'ON_HOLD' ? '보류' : row.status === 'CANCELED' ? '취소' : row.status === 'LINKED' ? '기존 수납 연결' : row.status === 'TRANSFER' ? '이체 연결 완료' : row.status === 'TRANSFER_PENDING' ? '이체 연결 대기' : '확인 필요'}
+                    </span>
+                  )
+                }])
+              ] satisfies DataTableColumn<BankingTransaction>[]).map((column) => ({
+                ...column,
+                align: 'center' as const
+              }))}
             />
+            <div
+              className={styles.pagination}
+            >
+              <Pagination
+                page={currentPage}
+                pageSize={pageSize}
+                total={filtered.length}
+                pageCount={Math.max(1, Math.ceil(filtered.length / pageSize))}
+                label={'거래 페이지'}
+                unit={'건'}
+                onPageChange={(next) => { setSelection(null); setPage(next); }}
+              />
+            </div>
           </div>
-        </div>
-      </>}
+        </>
+      )}
       {preview && editingId && (() => {
         const row = preview.rows.find((item) => item.id === editingId);
         if (!row) return null;
