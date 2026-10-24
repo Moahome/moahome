@@ -1,6 +1,13 @@
 import type { CSSProperties } from 'react';
 
 const ICON_PATHS = {
+  car: (
+    <>
+      <path
+        d={'m5 9 2-5h10l2 5M3 17V9h18v8H3Zm2 0v3m14-3v3M3 9l-1-2m19 2 1-2M6 13h2m8 0h2'}
+      />
+    </>
+  ),
   more: (
     <>
       <circle

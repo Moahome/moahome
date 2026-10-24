@@ -98,6 +98,25 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
     available: true
   },
   {
+    id: 'vehicles',
+    label: '차량 관리',
+    icon: 'car',
+    children: [
+      {
+        id: 'vehicle-list',
+        label: '차량 내역',
+        path: 'vehicles',
+        available: false
+      },
+      {
+        id: 'vehicle-approvals',
+        label: '차량 승인',
+        path: 'vehicles/approvals',
+        available: false
+      }
+    ]
+  },
+  {
     id: 'notices',
     label: '공지사항',
     icon: 'notice',
