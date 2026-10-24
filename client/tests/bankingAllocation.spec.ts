@@ -307,17 +307,6 @@ test('동별 잔고는 시작 잔고 미설정을 0원으로 합산하지 않고
   }];
   expect(getBuildingLedger(building, entries, '2026-10').map((e) => e.balance)).toEqual([BigInt(650000), BigInt(604335)]);
   expect(entries[0].id).toBe('out');
-  const { createBalanceWorkbook } = await import('../src/widgets/banking-workspace/model/balanceLedger');
-  const exported = await createBalanceWorkbook({
-    ...data,
-    month: '2026-10',
-    cutoffDate: '2026-09-30',
-    entries
-  }, [building]);
-  const zip = unzipSync(new Uint8Array(await exported.arrayBuffer()));
-  expect(strFromU8(zip['xl/workbook.xml'])).toContain('원장 1');
-  expect(strFromU8(zip['xl/worksheets/sheet2.xml'])).toContain('<v>604335</v>');
-  expect(strFromU8(zip['xl/sharedStrings.xml'])).not.toContain('<t>이전</t>');
 });
 
 test('통장 잔액 합계와 차액은 확인값·계산값을 같은 기준으로 사용하고 원본 확인값은 보존', async () => {

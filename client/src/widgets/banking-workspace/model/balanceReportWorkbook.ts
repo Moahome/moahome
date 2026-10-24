@@ -4,12 +4,12 @@ import type {
 } from 'write-excel-file/universal';
 import { createReportCell } from '@/shared/lib/excel-report';
 import type { ReportDefinition } from '@/shared/lib/excel-report';
-import { getSettlementSections } from './settlementExport';
+import { getBalanceReportSections } from './balanceReport';
 
 /** 첨부 엑셀의 제목 띠·가로 요약 카드·동별 명세를 한 시트에 구성하고 공통 숫자 정밀도 처리를 재사용합니다. */
-export async function createSettlementStyledWorkbook(document: ReportDefinition): Promise<Blob> {
+export async function createBalanceStyledWorkbook(document: ReportDefinition): Promise<Blob> {
   const { default: writeExcelFile } = await import('write-excel-file/universal');
-  const sections = getSettlementSections(document);
+  const sections = getBalanceReportSections(document);
   const colors = {
     text: '#0F172A',
     muted: '#64748B',

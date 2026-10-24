@@ -1,9 +1,13 @@
-import { getAccountsForMonth } from '@/widgets/banking-workspace';
+import { getAccountsForMonth } from './bankAccountVisibility';
+import {
+  formatReportTimestamp,
+  getReportPeriodLabel
+} from '@/shared/lib/pdf-report';
 import type { ReportDefinition } from '@/shared/lib/excel-report';
-import type { MonthlySettlementSnapshot } from '../api/monthlySettlementApiTypes';
+import type { BalanceReportSnapshot } from './balanceReportTypes';
 
 /** 조회 가능한 동과 기존 귀속 원장의 동을 함께 제공해 선택하지 못한 내역이 조용히 빠지지 않게 합니다. */
-export function getSettlementBuildingOptions(data: MonthlySettlementSnapshot) {
+export function getBalanceReportBuildingOptions(data: BalanceReportSnapshot) {
   const groups = [...data.balances.buildings].sort((a, b) => a.label.localeCompare(b.label, 'ko', {
     numeric: true
   }) || a.id.localeCompare(b.id))
@@ -22,7 +26,7 @@ export function getSettlementBuildingOptions(data: MonthlySettlementSnapshot) {
 }
 
 /** 기존 통장 거래와 같은 시작·종료 월·입출금 이력 규칙으로 필터를 구성하며 과거 수납 목록으로 계좌를 복원하지 않습니다. */
-export function getSettlementAccountOptions(data: MonthlySettlementSnapshot) {
+export function getBalanceReportAccountOptions(data: BalanceReportSnapshot) {
   return getAccountsForMonth(data.banking.accounts ?? [], data.month).map((account) => ({
     id: account.id,
     label: data.balances.accounts?.find((row) => row.id === account.id)?.label
@@ -32,37 +36,16 @@ export function getSettlementAccountOptions(data: MonthlySettlementSnapshot) {
   }) || a.id.localeCompare(b.id));
 }
 
-/** 조회시각의 한국시간 월과 비교해 지난 월은 월 마감, 현재 월은 집계 중으로 표시합니다. */
-export function getSettlementPeriodLabel(data: MonthlySettlementSnapshot): string {
-  const currentMonth = new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit'
-  }).format(new Date(data.generatedAt));
-  if (data.month < currentMonth) return `${Number(data.month.slice(5))}월 마감`;
-  return data.month === currentMonth ? '집계 중' : '집계 예정';
-}
-
 /** 동·계좌 선택을 거래·소계·전체 합계에 먼저 적용하고 한 문서의 실제 입금·부담 지출만 구성합니다. */
-export function getSettlementDocument(data: MonthlySettlementSnapshot, buildingId = '', accountId = ''): ReportDefinition {
-  const groups = getSettlementBuildingOptions(data);
+export function getBalanceReportDocument(data: BalanceReportSnapshot, buildingId = '', accountId = ''): ReportDefinition {
+  const groups = getBalanceReportBuildingOptions(data);
   const selected = groups.find((group) => group.id === buildingId);
   // 잘못된 선택을 전체 동으로 넓혀 다른 동의 내역을 파일에 넣지 않습니다.
   if (buildingId && !selected) throw new Error('INVALID_SETTLEMENT_BUILDING');
-  const selectedAccount = getSettlementAccountOptions(data).find((account) => account.id === accountId);
+  const selectedAccount = getBalanceReportAccountOptions(data).find((account) => account.id === accountId);
   if (accountId && !selectedAccount) throw new Error('INVALID_SETTLEMENT_ACCOUNT');
   const scope = selected?.label ?? '전체 동';
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23'
-  }).formatToParts(new Date(data.generatedAt)).map((part) => [part.type, part.value]));
-  const generatedAt = `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second} (한국시간)`;
+  const generatedAt = formatReportTimestamp(data.generatedAt);
   const entries = data.balances.entries.filter((row) => row.date.startsWith(data.month)
     && (!buildingId || row.buildingId === buildingId)
     && (!accountId || row.accountId === accountId)
@@ -92,8 +75,7 @@ export function getSettlementDocument(data: MonthlySettlementSnapshot, buildingI
       expense += paid;
       // 월초 보유금에서 날짜순으로 누적하며 기준 잔액이 미설정이면 가짜 0원 잔액을 만들지 않습니다.
       if (running !== null) running += received - paid;
-      const account = data.balances.accounts?.find((item) => item.id === entry.accountId)
-        ?? data.payments.accounts.find((item) => item.id === entry.accountId);
+      const account = data.balances.accounts?.find((item) => item.id === entry.accountId);
       let direction = '지출';
       if (received !== BigInt(0)) direction = paid !== BigInt(0) ? '입금·지출' : '입금';
       rows.push([group.label, `${entry.date}${entry.time ? ` ${entry.time}` : ''}`, account?.label ?? '통장 미확인',
@@ -156,7 +138,7 @@ export function getSettlementDocument(data: MonthlySettlementSnapshot, buildingI
       value: generatedAt
     }, {
       label: '기간 상태',
-      value: getSettlementPeriodLabel(data)
+      value: getReportPeriodLabel(data)
     }, {
       label: '기초 잔액',
       value: totalStart ?? '설정 필요'
@@ -172,7 +154,7 @@ export function getSettlementDocument(data: MonthlySettlementSnapshot, buildingI
 }
 
 /** Excel과 PDF에서 같은 동별 소계·기초/월말 잔액·거래 행을 재사용합니다. */
-export function getSettlementSections(document: ReportDefinition) {
+export function getBalanceReportSections(document: ReportDefinition) {
   return [...new Set(document.rows.map((row) => String(row[0])))].map((label) => {
     const own = document.rows.filter((row) => row[0] === label);
     const subtotal = own.find((row) => row[3] === '동별 합계');
@@ -188,7 +170,7 @@ export function getSettlementSections(document: ReportDefinition) {
 }
 
 /** 선택한 동·계좌의 월 전체 입출금을 미리보기와 같은 한 시트로 저장합니다. */
-export async function createSettlementWorkbook(data: MonthlySettlementSnapshot, buildingId = '', accountId = ''): Promise<Blob> {
-  const { createSettlementStyledWorkbook } = await import('./settlementWorkbook');
-  return createSettlementStyledWorkbook(getSettlementDocument(data, buildingId, accountId));
+export async function createBalanceReportWorkbook(data: BalanceReportSnapshot, buildingId = '', accountId = ''): Promise<Blob> {
+  const { createBalanceStyledWorkbook } = await import('./balanceReportWorkbook');
+  return createBalanceStyledWorkbook(getBalanceReportDocument(data, buildingId, accountId));
 }

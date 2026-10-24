@@ -1234,7 +1234,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     exact: true
   });
   const exportButton = page.getByRole('button', {
-    name: '엑셀 다운로드',
+    name: '다운로드',
     exact: true
   });
   const startBounds = (await startButton.locator('..').boundingBox())!;
@@ -1672,14 +1672,30 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   }).check();
   const exported = page.waitForEvent('download');
   await page.getByRole('button', {
-    name: '엑셀 다운로드',
+    name: '다운로드',
+    exact: true
+  }).click();
+  const downloadModal = page.getByRole('dialog', {
+    name: '2026년 10월 동별 입출금 내역',
+    exact: true
+  });
+  await expect(downloadModal.getByRole('combobox', {
+    name: '조회 동',
+    exact: true
+  })).toHaveText('102동');
+  await downloadModal.getByRole('button', {
+    name: 'Excel 다운로드',
     exact: true
   }).click();
   const report = await exported;
   const reportPath = test.info().outputPath('buildingBalances.xlsx');
   await report.saveAs(reportPath);
   const reportZip = unzipSync(await readFile(reportPath));
-  expect(strFromU8(reportZip['xl/workbook.xml']).match(/<sheet /g)).toHaveLength(2);
+  expect(strFromU8(reportZip['xl/workbook.xml']).match(/<sheet /g)).toHaveLength(1);
+  await downloadModal.getByRole('button', {
+    name: '다운로드 미리보기 닫기',
+    exact: true
+  }).click();
   expect(strFromU8(reportZip['xl/sharedStrings.xml'])).not.toContain('103동');
   await page.getByRole('button', {
     name: '선택 해제',
@@ -3495,7 +3511,7 @@ for (const width of [1440, 390]) {
         exact: true
       }).boundingBox();
       const download = await page.getByRole('button', {
-        name: '엑셀 다운로드',
+        name: '다운로드',
         exact: true
       }).boundingBox();
       expect(download!.y).toBeGreaterThanOrEqual(opening!.y + opening!.height);

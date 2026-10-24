@@ -520,7 +520,7 @@ export function SettlementDetails({ report, month, propertyId }: {
           </Link>
         </div>
         <p>
-          조회 월말까지 누적 내역입니다. 정산 제외분은 합계에서 빼고 내역은 보존합니다.
+          선택한 월에 지출한 외부 부담금입니다. 정산 제외분은 합계에서 빼고 내역은 보존합니다.
         </p>
         <div
           className={styles.filters}

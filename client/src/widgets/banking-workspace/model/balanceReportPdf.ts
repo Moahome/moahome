@@ -1,30 +1,20 @@
-import { formatInteger } from '@/shared/lib/format';
-import type { MonthlySettlementSnapshot } from '../api/monthlySettlementApiTypes';
 import {
-  getSettlementDocument,
-  getSettlementSections,
-  getSettlementPeriodLabel
-} from './settlementExport';
-
-/** 한글 TTF를 같은 서비스에서 읽으며 PDF 자료를 외부 서버로 전송하지 않습니다. */
-async function loadFont(path: string): Promise<string> {
-  const response = await fetch(path);
-  if (!response.ok) throw new Error('PDF_FONT_UNAVAILABLE');
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  let binary = '';
-  for (let offset = 0; offset < bytes.length; offset += 32768) binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
-  return btoa(binary);
-}
+  createReportPdfDocument,
+  getReportPeriodLabel
+} from '@/shared/lib/pdf-report';
+import { formatInteger } from '@/shared/lib/format';
+import type { BalanceReportSnapshot } from './balanceReportTypes';
+import {
+  getBalanceReportDocument,
+  getBalanceReportSections
+} from './balanceReport';
 
 /** 첨부 A4 세로 시안처럼 동별 페이지·기초/입금/지출/월말 잔액 요약·거래 명세를 같은 선택 범위로 출력합니다. */
-export async function createSettlementPdf(data: MonthlySettlementSnapshot, buildingId = '', accountId = ''): Promise<Blob> {
-  const [{ jsPDF }, { autoTable }, regular, bold] = await Promise.all([
-    import('jspdf'), import('jspdf-autotable'),
-    loadFont('/fonts/pretendard/pretendardRegular.ttf'), loadFont('/fonts/pretendard/pretendardBold.ttf')
-  ]);
-  const document = getSettlementDocument(data, buildingId, accountId);
+export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildingId = '', accountId = ''): Promise<Blob> {
+  const [{ autoTable }, pdf] = await Promise.all([import('jspdf-autotable'), createReportPdfDocument()]);
+  const document = getBalanceReportDocument(data, buildingId, accountId);
   // 소계·전체 합계는 Excel과 같은 문서 정의에서 읽고 빈 동 안내는 거래 건수에 포함하지 않습니다.
-  const sections = getSettlementSections(document);
+  const sections = getBalanceReportSections(document);
   if (!sections.length) sections.push({
     label: '전체 동',
     start: null,
@@ -33,17 +23,6 @@ export async function createSettlementPdf(data: MonthlySettlementSnapshot, build
     income: BigInt(0),
     expense: BigInt(0)
   });
-  const pdf = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4',
-    putOnlyUsedFonts: true,
-    compress: true
-  });
-  pdf.addFileToVFS('pretendardRegular.ttf', regular);
-  pdf.addFont('pretendardRegular.ttf', 'Pretendard', 'normal');
-  pdf.addFileToVFS('pretendardBold.ttf', bold);
-  pdf.addFont('pretendardBold.ttf', 'Pretendard', 'bold');
   pdf.setProperties({
     title: `모아홈 동별 입출금 ${data.month}`,
     subject: '동별 입금·지출 내역',
@@ -210,7 +189,7 @@ export async function createSettlementPdf(data: MonthlySettlementSnapshot, build
         pdf.setFont('Pretendard', 'normal'); pdf.setTextColor(colors.muted); pdf.setFontSize(8);
         pdf.text(`조회 시각: ${generatedAt}`, 12, 59);
         pdf.setFillColor(colors.amber); pdf.roundedRect(165, 54.5, 33, 6, 3, 3, 'F');
-        pdf.setTextColor('#A16207'); pdf.setFont('Pretendard', 'bold'); pdf.text(getSettlementPeriodLabel(data), 194, 58.5, {
+        pdf.setTextColor('#A16207'); pdf.setFont('Pretendard', 'bold'); pdf.text(getReportPeriodLabel(data), 194, 58.5, {
           align: 'right'
         });
         const cards = [{

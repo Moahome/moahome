@@ -46,6 +46,7 @@ import {
 } from 'react';
 import {
   bankingError,
+  getBankingWorkspace,
   deleteBankingTransactions
 } from '../../api/bankingApi';
 import {
@@ -67,7 +68,6 @@ import {
   getAccountBalanceTotal
 } from '../../model/accountBalance';
 import {
-  createBalanceWorkbook,
   getBalanceSummary,
   getBuildingLedger
 } from '../../model/balanceLedger';
@@ -76,6 +76,8 @@ import { BalanceCheckPanel } from '../_components/balance-check-panel/balanceChe
 import { AccountBalances } from '../_components/account-balances/accountBalances';
 import { BankAccountDetails } from '../_components/bank-account-details/bankAccountDetails';
 import { BankingExpensePage } from '../banking-expense-page/bankingExpensePage';
+import { BalanceDownload } from '../_components/balance-download/balanceDownload';
+import type { BalanceReportSnapshot } from '../../model/balanceReportTypes';
 import styles from './bankingBalances.module.css';
 type Action = {
     kind: 'opening' | 'settlement' | 'assignment' | 'difference';
@@ -229,8 +231,10 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   const [chartOpen, setChartOpen] = useState(false);
   const [action, setAction] = useState<Action | null>(null);
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+  const [downloadData, setDownloadData] = useState<BalanceReportSnapshot | null>(null);
   const [exporting, setExporting] = useState(false);
   const exportBusy = useRef(false);
+  const downloadButton = useRef<HTMLButtonElement>(null);
   const query = useQuery({
     queryKey: ['banking-balances', session.data?.id, propertyId, month, accountId],
     queryFn: () => getBankingBalances(propertyId, month, accountId === 'ALL' ? undefined : accountId),
@@ -372,27 +376,29 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       id
     });
   }
+  /** 입출금 명세의 선택 범위를 모달에서 바꿀 수 있도록 전체 잔고와 통장 메타데이터를 확인합니다. */
   async function download() {
-    if (exportBusy.current || !exportRows.length)
-      return;
+    if (exportBusy.current || !data || query.isFetching || query.isError) return;
     exportBusy.current = true;
     setExporting(true);
     try {
-      const blob = await createBalanceWorkbook(data!, exportRows);
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `모아홈_동별잔고_${month}.xlsx`;
-      anchor.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }
-    catch {
+      const [banking, balances] = await Promise.all([
+        getBankingWorkspace(propertyId),
+        data.accountId ? getBankingBalances(propertyId, month) : Promise.resolve(data)
+      ]);
+      setDownloadData({
+        propertyId,
+        month,
+        generatedAt: new Date().toISOString(),
+        banking,
+        balances
+      });
+    } catch {
       setNotice({
-        message: '엑셀 파일을 만들지 못했어요. 다시 시도해주세요.',
+        message: '다운로드 자료를 불러오지 못했어요. 다시 시도해주세요.',
         tone: 'error'
       });
-    }
-    finally {
+    } finally {
       exportBusy.current = false;
       setExporting(false);
     }
@@ -554,6 +560,17 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     <section
       className={styles.page}
     >
+      {downloadData && downloadData.propertyId === propertyId && downloadData.month === month && (
+        <BalanceDownload
+          data={downloadData}
+          initialAccountId={selectedAccount?.id ?? ''}
+          initialBuildingId={selected.length === 1 ? selected[0] : ''}
+          onClose={() => {
+            setDownloadData(null);
+            requestAnimationFrame(() => downloadButton.current?.focus());
+          }}
+        />
+      )}
       <ListHeader
         className={styles.header}
         actionsClassName={styles['header-actions']}
@@ -572,17 +589,17 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
               />
               <Button
                 variant={'outline'}
-                tone={'excel'}
+                ref={downloadButton}
                 loading={exporting}
-                disabled={!exportRows.length}
+                disabled={query.isFetching || query.isError}
                 onClick={() => { void download(); }}
                 leadingIcon={(
                   <ServiceIcon
-                    name={'excel'}
+                    name={'download'}
                   />
                 )}
               >
-                엑셀 다운로드
+                다운로드
               </Button>
             </div>
           </>

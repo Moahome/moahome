@@ -5,7 +5,7 @@ import {
 } from 'react';
 import { Button } from '@/shared/ui/button';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import styles from './settlementDownload.module.css';
+import styles from './imagePreview.module.css';
 
 /** 실제 내려받는 PNG를 페이지별로 보여주고 이미지가 바뀌거나 창을 닫으면 Object URL을 해제합니다. */
 export function ImagePreview({ images }: { images: readonly Blob[] }) {
@@ -18,9 +18,24 @@ export function ImagePreview({ images }: { images: readonly Blob[] }) {
   }, [images, page]);
 
   return (
-    <div>
+    <div
+      className={styles.preview}
+    >
+
+      <p
+        className={styles.description}
+      >
+        {images.length === 1 ? 'PNG 이미지 1장으로 저장합니다.' : `총 ${images.length}장의 PNG 이미지를 ZIP 파일로 저장합니다.`}
+      </p>
+      {/* eslint-disable-next-line @next/next/no-img-element -- 브라우저에서 만든 실제 PNG Blob을 그대로 미리봅니다. */}
+      <img
+        key={page}
+        ref={image}
+        className={styles.image}
+        alt={`이미지 ${page + 1}페이지 미리보기`}
+      />
       <div
-        className={styles['pdf-toolbar']}
+        className={styles.toolbar}
       >
         <span>
           PNG ·
@@ -58,18 +73,6 @@ export function ImagePreview({ images }: { images: readonly Blob[] }) {
           </Button>
         </div>
       </div>
-      <p
-        className={styles['image-description']}
-      >
-        {images.length === 1 ? 'PNG 이미지 1장으로 저장합니다.' : `총 ${images.length}장의 PNG 이미지를 ZIP 파일로 저장합니다.`}
-      </p>
-      {/* eslint-disable-next-line @next/next/no-img-element -- 브라우저에서 만든 실제 PNG Blob을 그대로 미리봅니다. */}
-      <img
-        key={page}
-        ref={image}
-        className={styles['report-image']}
-        alt={`이미지 ${page + 1}페이지 미리보기`}
-      />
     </div>
   );
 }

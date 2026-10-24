@@ -1,3 +1,7 @@
+import {
+  expect,
+  type Page
+} from '@playwright/test';
 import type { MonthlySettlementSnapshot } from '../../src/screens/monthly-settlement/api/monthlySettlementApiTypes';
 import type { BankingTransaction } from '../../src/widgets/banking-workspace/api/bankingApiTypes';
 
@@ -175,7 +179,7 @@ export function settlementFixture(): MonthlySettlementSnapshot {
           id: id(51),
           label: '외부 B',
           expenseName: '통과 자금',
-          date: '2026-09-15',
+          date: '2026-10-14',
           amount: '5000',
           received: '0',
           remaining: '5000',
@@ -355,4 +359,117 @@ export function settlementDetailFixture(): MonthlySettlementSnapshot {
     }
   );
   return data;
+}
+
+export async function mockSettlement(page: Page, state = {
+  failure: false,
+  wrongProperty: false
+}, extraUnits = 0, createFixture = settlementFixture) {
+  const requestedMonths: string[] = [];
+  await page.route('http://localhost:8080/**', async (route) => {
+    const url = new URL(route.request().url());
+    const path = url.pathname;
+    const headers = {
+      'Access-Control-Allow-Origin': 'http://localhost:3100',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-CSRF-TOKEN',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+    };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({
+      status: 200,
+      headers
+    });
+    let body: unknown;
+    let status = 200;
+    if (path.endsWith('/csrf')) body = {
+      csrfToken: 'test-csrf'
+    };
+    else if (path.endsWith('/refresh')) body = {
+      accessToken: 'test-access',
+      tokenType: 'Bearer',
+      accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
+    };
+    else if (path === '/api/users/me') body = {
+      id: settlementId(100),
+      displayName: '관리소장',
+      profileImageUrl: null,
+      systemRole: 'USER',
+      status: 'ACTIVE'
+    };
+    else if (path.endsWith('/management-context')) body = {
+      propertyId: SETTLEMENT_PROPERTY,
+      name: '모아빌라',
+      role: 'ADMIN'
+    };
+    else if (path.endsWith('/managed-properties')) body = {
+      properties: [{
+        propertyId: SETTLEMENT_PROPERTY,
+        name: '모아빌라',
+        role: 'ADMIN'
+      }]
+    };
+    else if (path.endsWith('/payments/workspace')) body = createFixture().payments;
+    else if (path.endsWith('/banking/workspace')) {
+      const data = createFixture();
+      requestedMonths.push(data.month);
+      body = data.banking;
+    }
+    else if (path.endsWith('/banking/balances')) {
+      const data = createFixture();
+      const month = url.searchParams.get('month') ?? data.month;
+      const accountId = url.searchParams.get('accountId');
+      const balances = data.balances;
+      balances.month = month;
+      if (accountId) {
+        balances.accountId = accountId;
+        balances.entries = balances.entries.filter((row) => row.accountId === accountId);
+        balances.buildings = balances.buildings.map((building) => {
+          const own = building.accountBalances?.find((row) => row.accountId === accountId);
+          return own ? {
+            ...building,
+            startBalance: own.startBalance,
+            balance: own.balance
+          } : building;
+        });
+      }
+      body = balances;
+    }
+    else if (path.endsWith('/closing/monthly')) {
+      expect(route.request().method()).toBe('GET');
+      const month = url.searchParams.get('month') ?? '2026-10';
+      requestedMonths.push(month);
+      const data = createFixture();
+      for (let index = 0; index < extraUnits; index++) {
+        const unitId = settlementId(300 + index);
+        data.payments.units.push({
+          id: unitId,
+          label: `103동 ${201 + index}호`,
+          status: 'ACTIVE',
+          buildingName: '103동',
+          representativeName: `주민 ${index + 1}`
+        });
+        data.payments.charges.push({
+          id: settlementId(400 + index),
+          unitId,
+          month: '2026-10',
+          amount: '50000',
+          status: 'ISSUED'
+        });
+      }
+      data.month = month;
+      data.balances.month = month;
+      if (state.wrongProperty) data.propertyId = settlementId(999);
+      status = state.failure ? 503 : 200;
+      body = state.failure ? {
+        code: 'PAYMENT_SERVICE_UNAVAILABLE'
+      } : data;
+    } else body = {};
+    return route.fulfill({
+      status,
+      headers,
+      contentType: 'application/json',
+      body: JSON.stringify(body)
+    });
+  });
+  return requestedMonths;
 }

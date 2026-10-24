@@ -286,7 +286,7 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 icon: 'alert',
                 tone: 'warning',
                 description: '',
-                help: '조회 월말까지 누적된 외부 미회수 부담액입니다. 정산 제외분은 합산하지 않습니다.'
+                help: '선택한 월에 지출한 외부 부담금 중 미회수액입니다. 정산 제외분은 합산하지 않습니다.'
               }
             ] as const).map((item) => (
               <SummaryCard

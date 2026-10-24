@@ -1,5 +1,5 @@
 /** 같은 PDF의 각 페이지를 흰 배경 PNG로 변환하며 페이지별로 캔버스를 해제해 긴 보고서의 메모리 사용을 줄입니다. */
-export async function createSettlementImages(blob: Blob, signal: AbortSignal): Promise<Blob[]> {
+export async function createReportImages(blob: Blob, signal: AbortSignal): Promise<Blob[]> {
   const pdfjs = await import('pdfjs-dist');
   signal.throwIfAborted();
   pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
@@ -47,7 +47,7 @@ export async function createSettlementImages(blob: Blob, signal: AbortSignal): P
 }
 
 /** 한 페이지는 PNG로 저장하고 여러 페이지는 하나의 ZIP에 모두 담아 브라우저의 연속 다운로드 차단을 피합니다. */
-export async function createSettlementImageDownload(images: readonly Blob[], filename: string): Promise<{ blob: Blob; extension: string }> {
+export async function createReportImageDownload(images: readonly Blob[], filename: string): Promise<{ blob: Blob; extension: string }> {
   if (!images.length) throw new Error('PNG_UNAVAILABLE');
   if (images.length === 1) return {
     blob: images[0],

@@ -1,0 +1,30 @@
+.preview {
+  min-width: 0;
+
+  .toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    font-size: 13px;
+    color: var(--sub-text);
+
+    > div { display: flex; gap: 8px; }
+  }
+
+  .page {
+    min-height: 160px;
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      border: 1px solid var(--border);
+      background: var(--card);
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--foreground) 6%, transparent);
+
+      &[hidden] { display: none; }
+    }
+  }
+}

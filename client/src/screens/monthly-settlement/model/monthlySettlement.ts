@@ -60,8 +60,8 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
   }) || a.id.localeCompare(b.id));
   const buildingBalance = buildings.length && buildings.every((row) => row.balance !== null)
     ? buildings.reduce((sum, row) => sum + BigInt(row.balance!), BigInt(0)) : null;
-  // 원천 응답을 변경하지 않고 지출일 최신순을 화면·Excel에 함께 적용합니다.
-  const externalRows: SettlementExternal[] = data.balances.externals.map((row) => ({
+  // 잔고·정산의 누적 응답은 유지하고 월별 정산에서는 선택 월에 지출한 부담금만 집계합니다.
+  const externalRows: SettlementExternal[] = data.balances.externals.filter((row) => row.date.startsWith(`${month}-`)).map((row) => ({
     ...row,
     recoveryStatus: getExternalRecoveryStatus(row)
   })).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
@@ -135,7 +135,7 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
     {
       id: 'external',
       title: '외부 부담금 미회수 내역',
-      description: '정산 제외분을 뺀 조회 월말까지의 미회수 내역입니다. 오류나 마감 차단을 뜻하지 않습니다.',
+      description: '선택 월 지출 중 정산 제외분을 뺀 미회수 내역입니다. 오류나 마감 차단을 뜻하지 않습니다.',
       count: external.filter((row) => BigInt(row.remaining) > BigInt(0)).length,
       path: 'banking/balances'
     }

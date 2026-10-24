@@ -61,6 +61,9 @@
     border-radius: 10px;
     background: var(--card);
 
+    > section { margin-bottom: 24px; }
+    > section > p { margin-bottom: 16px; font-size: 13px; line-height: 1.6; color: var(--sub-text); }
+
     h3 {
       margin: -20px -20px 16px;
       padding: 18px 20px;
@@ -68,6 +71,14 @@
       color: var(--card);
       font-size: 20px;
       font-weight: 750;
+    }
+    > section:not(:first-child) h3 {
+      margin-top: 0;
+      padding-top: 12px;
+      padding-bottom: 12px;
+      background: var(--button-primary-background);
+      color: var(--primary);
+      font-size: 16px;
     }
     > p { margin-bottom: 16px; font-size: 13px; line-height: 1.6; color: var(--sub-text); }
     .metadata { font-size: 12px; }
@@ -91,49 +102,6 @@
     strong { font-size: 17px; }
     > div:nth-child(2) strong { color: var(--primary); }
     > div:nth-child(3) strong { color: var(--danger); }
-  }
-
-  .image-description {
-    margin-bottom: 12px;
-    font-size: 13px;
-    color: var(--sub-text);
-  }
-
-  .report-image {
-    display: block;
-    width: 100%;
-    height: auto;
-    border: 1px solid var(--border);
-    background: var(--card);
-  }
-
-  .pdf-preview { min-width: 0; }
-
-  .pdf-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 16px;
-    font-size: 13px;
-    color: var(--sub-text);
-
-    > div { display: flex; gap: 8px; }
-  }
-
-  .pdf-page {
-    min-height: 160px;
-
-    canvas {
-      display: block;
-      width: 100%;
-      height: auto;
-      border: 1px solid var(--border);
-      background: var(--card);
-      box-shadow: 0 4px 12px color-mix(in srgb, var(--foreground) 6%, transparent);
-
-      &[hidden] { display: none; }
-    }
   }
 
   .error { display: grid; justify-items: start; gap: 12px; color: var(--danger); }

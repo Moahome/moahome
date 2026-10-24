@@ -6,7 +6,7 @@ import {
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { Button } from '@/shared/ui/button';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import styles from './settlementDownload.module.css';
+import styles from './pdfPreview.module.css';
 
 /** 다운로드할 PDF 자체를 읽어 모바일에서도 브라우저 내장 뷰어에 의존하지 않고 출력 페이지를 보여줍니다. */
 export function PdfPreview({ blob }: { blob: Blob }) {
@@ -51,10 +51,16 @@ export function PdfPreview({ blob }: { blob: Blob }) {
 
   return (
     <div
-      className={styles['pdf-preview']}
+      className={styles.preview}
     >
+
+      <PdfPage
+        key={page}
+        document={document}
+        page={page}
+      />
       <div
-        className={styles['pdf-toolbar']}
+        className={styles.toolbar}
       >
         <span>
           A4 세로 ·
@@ -92,11 +98,6 @@ export function PdfPreview({ blob }: { blob: Blob }) {
           </Button>
         </div>
       </div>
-      <PdfPage
-        key={page}
-        document={document}
-        page={page}
-      />
     </div>
   );
 }
@@ -128,7 +129,7 @@ function PdfPage({ document, page }: { document: PDFDocumentProxy; page: number 
 
   return (
     <div
-      className={styles['pdf-page']}
+      className={styles.page}
     >
       {!ready && !failed && (
         <p

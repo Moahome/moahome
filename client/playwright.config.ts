@@ -16,11 +16,11 @@ export default defineConfig({
   projects: [
     {
       name: 'api',
-      testMatch: ['architecture.spec.ts', 'customApi.spec.ts', 'sessionRestore.spec.ts', 'authenticatedApi.spec.ts', 'feeItems.spec.ts', 'formatter.spec.ts', 'residentExport.spec.ts', 'billingModel.spec.ts', 'paymentPreview.spec.ts', 'bankingAllocation.spec.ts', 'monthlySettlement.spec.ts']
+      testMatch: ['architecture.spec.ts', 'customApi.spec.ts', 'sessionRestore.spec.ts', 'authenticatedApi.spec.ts', 'feeItems.spec.ts', 'formatter.spec.ts', 'residentExport.spec.ts', 'billingModel.spec.ts', 'paymentPreview.spec.ts', 'bankingAllocation.spec.ts', 'monthlySettlement.spec.ts', 'balanceReport.spec.ts']
     },
     {
       name: 'chromium',
-      testMatch: ['authFlow.spec.ts', 'propertyRegistration.spec.ts', 'managementLayout.spec.ts', 'billingFlow.spec.ts', 'paymentFlow.spec.ts', 'onboardingFlow.spec.ts', 'bankingFlow.spec.ts', 'serverConnectionError.spec.ts', 'monthlySettlementFlow.spec.ts'],
+      testMatch: ['authFlow.spec.ts', 'propertyRegistration.spec.ts', 'managementLayout.spec.ts', 'billingFlow.spec.ts', 'paymentFlow.spec.ts', 'onboardingFlow.spec.ts', 'bankingFlow.spec.ts', 'serverConnectionError.spec.ts', 'monthlySettlementFlow.spec.ts', 'balanceReportFlow.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
         channel: process.env.PLAYWRIGHT_CHANNEL,
