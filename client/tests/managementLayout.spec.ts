@@ -2254,7 +2254,7 @@ test('주민 등록 중복·통신 실패에는 입력을 유지하고 같은 �
   })).toHaveValue('');
 });
 
-test('주민 등록 세대 조회 실패는 재시도하고 빈 세대는 등록을 안내하며 모바일 직접 접근은 관리소장만 허용', async ({ page }) => {
+test('주민 등록 세대 조회 실패는 공통 오류로 재시도하고 부담당자도 직접 접근', async ({ page }) => {
   await page.route(RESIDENTS_URL, (route) => fulfillJson(route, residentDirectory()));
   await page.route(UNITS_URL, (route) => fulfillJson(route, {
     code: 'UNAVAILABLE'
@@ -2276,12 +2276,16 @@ test('주민 등록 세대 조회 실패는 재시도하고 빈 세대는 등록
     ...PROPERTY,
     role: 'MANAGER'
   }));
+  await mockResidentRegistrationUnits(page, false);
   await page.reload();
-  await expect(page.getByRole('main').getByRole('alert')).toContainText('주민을 등록할 관리소장 권한이 없어요.');
+  await expect(page.getByRole('heading', {
+    name: '주민 등록',
+    exact: true
+  })).toBeVisible();
   await expect(page.getByRole('textbox', {
     name: '주민 이름',
     exact: true
-  })).toHaveCount(0);
+  })).toBeVisible();
 });
 
 for (const width of [320, 767]) {
@@ -2692,7 +2696,7 @@ test('일괄 등록 통신 실패는 선택·검증 ID를 유지하고 같은 �
   expect(attempts).toBe(2);
 });
 
-test('일괄 등록은 잘못된 전체 연락처 응답을 거부하고 부담당자의 직접 접근을 차단', async ({ page }) => {
+test('일괄 등록은 잘못된 전체 연락처 응답을 거부하고 부담당자도 업로드를 제공', async ({ page }) => {
   const preview = importPreview();
   preview.rows[0].phoneLast4 = '01012341234';
   await page.route(IMPORT_URL, (route) => fulfillJson(route, preview));
@@ -2712,8 +2716,11 @@ test('일괄 등록은 잘못된 전체 연락처 응답을 거부하고 부담�
     role: 'MANAGER'
   }));
   await page.reload();
-  await expect(page.getByRole('main').getByRole('alert')).toContainText('관리소장 권한');
-  await expect(page.getByLabel('주민 엑셀 파일')).toHaveCount(0);
+  await expect(page.getByRole('heading', {
+    name: '주민 엑셀 업로드',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByLabel('주민 엑셀 파일')).toHaveCount(1);
 });
 
 
@@ -3136,7 +3143,7 @@ test('주민 상세를 다시 열면 번호는 마스킹되고 전체 번호 조
   await dialog.getByRole('button', {
     name: '전체 번호 보기'
   }).click();
-  await expect(dialog.getByRole('alert')).toContainText('관리소장 권한');
+  await expect(dialog.getByRole('alert')).toContainText('이 주민 정보를 변경할 권한이 없어요.');
   await expect(dialog).not.toContainText('private detail');
   await dialog.getByRole('button', {
     name: '주민 상세 닫기'

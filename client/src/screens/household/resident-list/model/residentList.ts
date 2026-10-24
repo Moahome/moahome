@@ -50,7 +50,7 @@ export function getResidentListView(data: ResidentList, filters: ResidentFilters
 /** 실패 원문에 개인정보나 내부 SQL이 섞이지 않도록 상태별 고정 안내를 사용합니다. */
 export function getResidentListError(error: unknown) {
   if (error instanceof ApiError && error.status === 401) return '로그인이 만료되었어요. 다시 로그인해주세요.';
-  if (error instanceof ApiError && error.status === 403) return '주민 목록을 조회할 관리소장 권한이 없어요.';
+  if (error instanceof ApiError && error.status === 403) return '이 관리대상의 주민 목록 조회 권한이 없어요.';
 
   return '주민 목록을 불러오지 못했어요. 다시 시도해주세요.';
 }

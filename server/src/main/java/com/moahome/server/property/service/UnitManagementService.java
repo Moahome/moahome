@@ -12,7 +12,6 @@ import com.moahome.server.property.domain.*;
 import com.moahome.server.property.dto.*;
 import com.moahome.server.property.exception.UnitManagementException;
 import com.moahome.server.property.repo.*;
-import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.resident.service.ResidentListService;
 import com.moahome.server.resident.service.ResidentManagementService;
 import com.moahome.server.billing.service.BillingGenerationService;
@@ -57,7 +56,7 @@ public class UnitManagementService {
 
 	/** 매 요청의 현재 관리 권한을 확인한 뒤 저장된 세대와 동 구분을 읽습니다. 초안·등록 결과를 조회하지 않습니다. */
 	public UnitListResponse list(UUID userId, UUID propertyId) {
-		var context = access.getManagementContext(userId, propertyId);
+		access.getManagementContext(userId, propertyId);
 		var property = properties.findById(propertyId).orElseThrow(() -> new UnitManagementException(UNIT_NOT_FOUND));
 		List<UnitListResponse.BuildingItem> buildingItems = buildings
 		    .findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId).stream()
@@ -65,10 +64,8 @@ public class UnitManagementService {
 		    .map(building -> new UnitListResponse.BuildingItem(building.getId(), building.getName())).toList();
 		List<UnitResponse> items = units.findByPropertyIdAndDeletedAtIsNull(propertyId).stream().map(UnitResponse::from)
 		    .toList();
-		// 세대 조회를 허용받은 부담당자에게 관리소장 전용 주민 명부가 우회 노출되지 않도록 합니다.
-		Map<UUID, UnitListResponse.ResidentSummary> summaries = context.role() == PropertyMemberRole.ADMIN
-		    ? summarizeResidents(userId, propertyId, items)
-		    : null;
+		// 관리소장과 부담당자 모두 같은 현재 명부의 요약을 조회합니다.
+		Map<UUID, UnitListResponse.ResidentSummary> summaries = summarizeResidents(userId, propertyId, items);
 		return new UnitListResponse(propertyId, property.isHasBuildings(), buildingItems, items, summaries);
 	}
 
@@ -135,7 +132,8 @@ public class UnitManagementService {
 		    .forEach(unit -> seen.add(List.of(String.valueOf(unit.getBuildingId()), unit.getUnitNumber())));
 		HashMap<UUID, Building> buildingCache = new HashMap<UUID, Building>();
 		List<Unit> additions = batch.units().stream().map(request -> {
-			var building = request.buildingId() == null ? requireBuilding(property, null)
+			var building = request.buildingId() == null
+			    ? requireBuilding(property, null)
 			    : buildingCache.computeIfAbsent(request.buildingId(), id -> requireBuilding(property, id));
 			var unit = Unit.create(property, building, request.unitNumber(), request.displayName(), request.floor(),
 			    UnitStatus.valueOf(request.status()), OffsetDateTime.now(clock));

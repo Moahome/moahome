@@ -38,8 +38,8 @@ import static org.assertj.core.api.Assertions.*;
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({ MemberManagementService.class, ManagementAccessService.class, UserService.class,
-        ChiefAccountLinkPersistenceTest.Beans.class })
+@Import({MemberManagementService.class, ManagementAccessService.class, UserService.class,
+        ChiefAccountLinkPersistenceTest.Beans.class})
 @ActiveProfiles("database-test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -127,7 +127,7 @@ class ChiefAccountLinkPersistenceTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(booleans = { false, true })
+	@ValueSource(booleans = {false, true})
 	void linksCurrentChiefAndKeepsRoleRepresentativeAndExistingInformation(boolean representative) {
 		var resident = person("본인 실명", representative);
 		connect(resident);
@@ -188,8 +188,8 @@ class ChiefAccountLinkPersistenceTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = { "MANAGER", "RESIDENT" })
-	void rejectsAccountsWhoAreNotCurrentChief(String role) {
+	@ValueSource(strings = {"RESIDENT"})
+	void rejectsAccountsWhoAreNotCurrentManagers(String role) {
 		var resident = person("본인", false);
 		jdbc.update("update property_members set role=? where property_id=?", role, property.getId());
 		assertThatThrownBy(() -> connect(resident)).isInstanceOf(AuthException.class);

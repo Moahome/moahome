@@ -42,6 +42,18 @@ public class ManagementAccessService {
 		return properties.getFirst();
 	}
 
+	/** 부담당자는 현재 관리소장의 명부를 고칠 수 없으며 대상 계정의 현재 참여로 판단합니다. */
+	public void requireResidentWrite(UUID actor, UUID propertyId, UUID residentUserId) {
+		var context = getManagementContext(actor, propertyId);
+		if (context.role() != com.moahome.server.membership.domain.PropertyMemberRole.MANAGER || residentUserId == null)
+			return;
+		boolean chief = members.findByPropertyIdAndUserIdAndDeletedAtIsNull(propertyId, residentUserId).stream()
+		    .anyMatch(member -> member.isCurrent()
+		        && member.getRole() == com.moahome.server.membership.domain.PropertyMemberRole.ADMIN);
+		if (chief)
+			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
+	}
+
 	/** 계정 확인 저장소 장애는 업무 목록 조회 장애와 구분해 기존 인증 오류로 전달합니다. */
 	private void requireActiveAccount(UUID userId) {
 		try {

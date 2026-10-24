@@ -4,7 +4,6 @@ import java.time.*;
 import java.util.*;
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.common.security.PhoneSecurity;
-import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.property.domain.*;
 import com.moahome.server.property.repo.*;
 import com.moahome.server.property.service.ManagementAccessService;
@@ -62,10 +61,10 @@ public class ResidentImportService {
 		this.clock = clock;
 	}
 
-	/** 현재 관리소장에게만 업로드를 허용하고 정규화·세대 연결·중복 검증 결과를 암호화 연락처와 함께 임시 보관합니다. */
+	/** 현재 관리자에게 업로드를 허용하고 정규화·세대 연결·중복 검증 결과를 암호화 연락처와 함께 임시 보관합니다. */
 	@Transactional
 	public ResidentImportResponse preview(UUID actor, UUID propertyId, MultipartFile file) {
-		requireAdmin(actor, propertyId);
+		requireManagementAccess(actor, propertyId);
 		var property = properties.findById(propertyId)
 		    .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
 		List<ResidentExcelReader.InputRow> source = reader.read(file);
@@ -76,7 +75,8 @@ public class ResidentImportService {
 		Map<String, UUID> targets = new HashMap<>();
 		units.findByPropertyIdAndDeletedAtIsNull(propertyId).stream()
 		    .filter(unit -> unit.getStatus() != UnitStatus.INACTIVE)
-		    .filter(unit -> property.isHasBuildings() ? buildingNames.containsKey(unit.getBuildingId())
+		    .filter(unit -> property.isHasBuildings()
+		        ? buildingNames.containsKey(unit.getBuildingId())
 		        : unit.getBuildingId() == null)
 		    .forEach(unit -> targets
 		        .put(key(buildingNames.getOrDefault(unit.getBuildingId(), ""), unit.getUnitNumber()), unit.getId()));
@@ -90,7 +90,7 @@ public class ResidentImportService {
 	/** 선택된 정상 행을 원본 순서로 각각 저장합니다. 입력·중복 오류는 제외하고 통신 재시도는 같은 주민 ID로 복구합니다. */
 	public ResidentImportResponse commit(UUID actor, UUID propertyId, UUID importId,
 	    ResidentImportCommitRequest request) {
-		requireAdmin(actor, propertyId);
+		requireManagementAccess(actor, propertyId);
 		var batch = batches.findByIdAndPropertyIdAndCreatedBy(importId, propertyId, actor)
 		    .filter(value -> value.getExpiresAt().isAfter(OffsetDateTime.now(clock)))
 		    .orElseThrow(() -> new ResidentImportException("IMPORT_EXPIRED"));
@@ -121,7 +121,8 @@ public class ResidentImportService {
 			} catch (ResidentRegistrationException exception) {
 				if (exception.code().status.is5xxServerError())
 					throw exception;
-				String status = exception.code() == ResidentRegistrationException.Code.DUPLICATE_RESIDENT ? "DUPLICATE"
+				String status = exception.code() == ResidentRegistrationException.Code.DUPLICATE_RESIDENT
+				    ? "DUPLICATE"
 				    : "ERROR";
 				result.add(display(row, status, exception.code().message, false));
 			} catch (IllegalArgumentException exception) {
@@ -202,9 +203,8 @@ public class ResidentImportService {
 		    reason);
 	}
 
-	private void requireAdmin(UUID actor, UUID propertyId) {
-		if (access.getManagementContext(actor, propertyId).role() != PropertyMemberRole.ADMIN)
-			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
+	private void requireManagementAccess(UUID actor, UUID propertyId) {
+		access.getManagementContext(actor, propertyId);
 	}
 
 	private ResidentImportResponse response(ResidentImportBatch batch, List<ResidentImportResponse.Row> rows) {
@@ -230,11 +230,11 @@ public class ResidentImportService {
 		if (input == null || input.isBlank())
 			return "OTHER";
 		return switch (input) {
-		case "소유주", "소유자", "주인", "OWNER" -> "OWNER";
-		case "임차인", "세입자", "TENANT" -> "TENANT";
-		case "가족", "FAMILY" -> "FAMILY";
-		case "기타", "OTHER" -> "OTHER";
-		default -> null;
+			case "소유주", "소유자", "주인", "OWNER" -> "OWNER";
+			case "임차인", "세입자", "TENANT" -> "TENANT";
+			case "가족", "FAMILY" -> "FAMILY";
+			case "기타", "OTHER" -> "OTHER";
+			default -> null;
 		};
 	}
 }

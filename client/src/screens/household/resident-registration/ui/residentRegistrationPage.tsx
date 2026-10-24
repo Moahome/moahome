@@ -25,13 +25,6 @@ export function ResidentRegistrationPage({
       등록 권한을 확인하고 있어요.
     </p>
   );
-  if (context.data.role !== 'ADMIN') return (
-    <p
-      role={'alert'}
-    >
-      주민을 등록할 관리소장 권한이 없어요.
-    </p>
-  );
 
   return (
     <section

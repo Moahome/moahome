@@ -4,7 +4,7 @@
 
 ## 공통 계약
 
-기준 경로: `/api/properties/{propertyId}/payments`. 기존 Bearer 인증을 사용하며 모든 요청에서 현재 관리소장(`ADMIN`) 권한을 확인합니다. 다른 관리대상·부담당자는 403입니다. 성공·오류 응답은 `Cache-Control: no-store`입니다.
+기준 경로: `/api/properties/{propertyId}/payments`. 기존 Bearer 인증을 사용하며 모든 요청에서 현재 관리자(`ADMIN` / `MANAGER`) 권한을 확인합니다. 다른 관리대상 관리자·주민은 403입니다. 성공·오류 응답은 `Cache-Control: no-store`입니다.
 
 UUID는 문자열, 날짜는 `YYYY-MM-DD`, 청구월은 `YYYY-MM`, 원 단위 금액은 정수 문자열입니다. 입금은 1~999,999,999,999,999원입니다. 사유는 1~500자이며 선택 사유는 생략/null/공백을 미입력으로 취급합니다. 오류는 기존 `{code,message}` 형식을 사용하며 개인정보·SQL 원문을 포함하지 않습니다.
 
@@ -91,7 +91,7 @@ Excel은 확장자와 실제 XLS(OLE2)·XLSX(OOXML) 형식의 일치를 확인�
 | --- | --- | --- |
 | 400 | INVALID_REQUEST / INVALID_AMOUNT / INVALID_PAYMENT_DATE / INVALID_INCOME_CATEGORY | 요청 형식·금액·날짜 오류 |
 | 400 | INVALID_BANK_FILE / INVALID_BANK_HEADER / INVALID_BANK_ROW / INVALID_BANK_SELECTION / BANK_ROW_LIMIT / EMPTY_BANK_FILE / BANK_IMPORT_UNSUPPORTED | 파일 검증 오류 |
-| 403 | ACCESS_DENIED | 현재 관리소장 권한 없음 |
+| 403 | ACCESS_DENIED | 현재 관리자 권한 없음 |
 | 404 | PAYMENT_NOT_FOUND | 해당 대상의 입금 없음 |
 | 409 | PAYMENT_ACCOUNT_UNAVAILABLE / PAYMENT_UNIT_UNAVAILABLE / PAYMENT_REPRESENTATIVE_REQUIRED | 실제 계좌·세대·대표 확인 필요 |
 | 409 | PAYMENT_DELETE_NOT_ALLOWED | 확정 수납은 먼저 취소하며 은행 연결 취소 이력은 보호 |

@@ -46,8 +46,9 @@ class BankAccountServiceTest {
 	}
 
 	@Test
-	void nonAdminCannotReadDetailsOrDecryptNumbers() {
-		authorize(PropertyMemberRole.MANAGER);
+	void nonManagerCannotReadDetailsOrDecryptNumbers() {
+		when(access.getManagementContext(user, property))
+		    .thenThrow(new AuthException(com.moahome.server.auth.exception.AuthErrorCode.ACCESS_DENIED));
 		assertThatThrownBy(() -> service.detail(user, property, id)).isInstanceOf(AuthException.class);
 		assertThatThrownBy(() -> service.revealNumber(user, property, id)).isInstanceOf(AuthException.class);
 		verifyNoInteractions(accounts, security);

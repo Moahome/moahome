@@ -40,13 +40,15 @@ export function ResidentRegistrationForm({
   onSaved,
   onCancel,
   onBusyChange,
-  resident
+  resident,
+  canPromote = false
 }: {
   propertyId: string;
   onSaved: (resident?: ResidentDetail) => void;
   onCancel: () => void;
   onBusyChange?: (busy: boolean) => void;
   resident?: ResidentDetail;
+  canPromote?: boolean;
 }) {
   const session = useSession();
   const options = useQuery({
@@ -301,7 +303,7 @@ export function ResidentRegistrationForm({
           <Dropdown
             label={'역할'}
             value={serviceRole}
-            disabled={!canEditRole}
+            disabled={!canEditRole || (!canPromote && resident.serviceRole === 'RESIDENT')}
             options={resident.serviceRole === 'ADMIN' ? [{
               value: 'ADMIN',
               label: '관리소장'

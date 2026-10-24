@@ -26,6 +26,7 @@ async function mockWorkspace(page: Page, joined = false) {
   const state = {
     writes: [] as { path: string; body: Record<string, unknown> }[],
     failSave: false,
+    managementRole: 'ADMIN' as 'ADMIN' | 'MANAGER',
     legacyOpening: false,
     emptyRequests: false,
     chiefLinked: false,
@@ -110,13 +111,13 @@ async function mockWorkspace(page: Page, joined = false) {
       properties: [{
         propertyId: PROPERTY,
         name: '모아빌라',
-        role: 'ADMIN'
+        role: state.managementRole
       }]
     });
     if (path.endsWith('/management-context')) return json(route, {
       propertyId: PROPERTY,
       name: '모아빌라',
-      role: 'ADMIN'
+      role: state.managementRole
     });
     if (['POST', 'PUT', 'DELETE'].includes(request.method())) state.writes.push({
       path,
@@ -1081,7 +1082,7 @@ for (const width of [1440, 390]) {
   });
 }
 
-test('부담당자의 설정에는 통장 관리을 제공하지 않음', async ({ page }) => {
+test('부담당자의 설정에도 계좌 관리를 제공', async ({ page }) => {
   await mockWorkspace(page);
   await page.route(`${API}/api/properties/${PROPERTY}/management-context`, route => json(route, {
     propertyId: PROPERTY,
@@ -1096,7 +1097,7 @@ test('부담당자의 설정에는 통장 관리을 제공하지 않음', async 
   await expect(page.getByRole('button', {
     name: '계좌 관리',
     exact: true
-  })).toHaveCount(0);
+  })).toBeVisible();
   await expect(page.getByRole('button', {
     name: '등록 및 참여',
     exact: true
@@ -1348,4 +1349,112 @@ test('모바일 계좌 관리 직접 접근·새로고침·로딩·오류에서�
   });
   await back.click();
   await expect(page).toHaveURL(`${BASE}/settings`);
+});
+
+for (const width of [1440, 390]) {
+  test(`부담당자 ${width}px는 통장 거래·주민 조회·일반 수정을 쓰고 주민 승격만 선택할 수 없다`, async ({ page }) => {
+    const state = await mockWorkspace(page, true); state.managementRole = 'MANAGER';
+    await page.setViewportSize({
+      width,
+      height: 960
+    });
+    await page.route(`${API}/api/properties/${PROPERTY}/banking/workspace`, (route) => json(route, {
+      propertyId: PROPERTY,
+      asOf: '2026-10-24',
+      accounts: [],
+      buildings: [],
+      units: [],
+      rows: [],
+      rules: []
+    }));
+    await page.route(`${API}/api/properties/${PROPERTY}/payments/workspace`, (route) => json(route, {
+      propertyId: PROPERTY,
+      asOf: '2026-10-24',
+      accounts: [],
+      units: [],
+      charges: [],
+      payments: []
+    }));
+    await page.goto(`${BASE}/banking/transactions`);
+    await expect(page.getByRole('heading', {
+      name: '통장 거래',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0);
+    await page.goto(`${BASE}/residents`);
+    await expect(page.getByRole('table', {
+      name: '주민 목록'
+    })).toBeVisible();
+    await expect(page.getByRole('button', {
+      name: '주민 등록',
+      exact: true
+    })).toBeVisible();
+    await page.getByRole('button', {
+      name: '김주민 상세 보기'
+    }).click();
+    const detail = width < 768 ? page.getByRole('main') : page.getByRole('dialog', {
+      name: '주민 상세'
+    });
+    await detail.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    const form = width < 768 ? page.getByRole('main') : page.getByRole('dialog', {
+      name: '주민 수정'
+    });
+    const role = form.getByRole('combobox', {
+      name: '역할',
+      exact: true
+    });
+    await expect(role).toBeDisabled();
+    await expect(role).toContainText('주민');
+    await expect(form.getByRole('textbox', {
+      name: '주민 이름',
+      exact: true
+    })).toBeEnabled();
+    await form.getByRole('textbox', {
+      name: '주민 이름',
+      exact: true
+    }).fill('변경 주민');
+    await form.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    expect(state.writes.find((row) => row.path.endsWith(`/residents/${id(10)}`))?.body.name).toBe('변경 주민');
+  });
+}
+
+test('부담당자에게 관리소장 상세는 조회만 제공하고 수정·삭제 버튼을 노출하지 않는다', async ({ page }) => {
+  const state = await mockWorkspace(page, true); state.managementRole = 'MANAGER';
+  await page.route(`${API}/api/properties/${PROPERTY}/residents/${id(10)}`, (route) => json(route, {
+    id: id(10),
+    propertyId: PROPERTY,
+    name: '김소장',
+    phoneLast4: '1234',
+    unitId: id(101),
+    buildingId: null,
+    buildingName: null,
+    unitNumber: '101',
+    relationType: 'OWNER',
+    representative: false,
+    signupStatus: 'APPROVED',
+    serviceRole: 'ADMIN',
+    createdAt: '2026-10-01T00:00:00Z',
+    updatedAt: '2026-10-17T00:00:00Z',
+    hasLinkedRequests: true,
+    representativeCandidates: []
+  }));
+  await page.goto(`${BASE}/residents/${id(10)}`);
+  const main = page.getByRole('main');
+  await expect(main.getByText('김소장', {
+    exact: true
+  })).toBeVisible();
+  await expect(main.getByRole('button', {
+    name: '수정',
+    exact: true
+  })).toHaveCount(0);
+  await expect(main.getByRole('button', {
+    name: '삭제',
+    exact: true
+  })).toHaveCount(0);
 });

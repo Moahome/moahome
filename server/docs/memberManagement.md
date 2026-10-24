@@ -4,7 +4,7 @@
 
 ## 트랜잭션과 권한
 
-MemberManagementService는 역할 변경·인계·외부 관리자 초대와 본인 명부 연결을 처리한다. 변경 요청은 Property 행 잠금 뒤 현재 정상 계정과 ADMIN 권한을 확인한다. 잠금 대기 중 인계가 끝난 이전 관리소장은 변경할 수 없다. 명부 변경·가입 승인과 같은 잠금을 사용해 서로 다른 계정 연결이나 역할 변경을 직렬화한다.
+MemberManagementService는 역할 변경·인계·외부 관리자 초대와 본인 명부 연결을 처리한다. 변경 요청은 Property 행 잠금 뒤 현재 정상 계정과 ADMIN / MANAGER 권한을 확인한다. 관리자 승격·외부 관리자 초대 발급/승인·인계는 별도로 ADMIN을 확인한다. 명부 변경·가입 승인과 같은 잠금을 사용해 서로 다른 계정 연결이나 역할 변경을 직렬화한다.
 
 일반 역할 변경은 예상 역할과 현재 역할의 일치를 검증하고 ADMIN 지정·해제와 자신의 역할 변경을 거부한다. 주민 역할 변경은 현재 승인된 주민 연결을 요구한다. ResidentManagementService의 일반 명부 수정과 역할 변경은 같은 트랜잭션이며 후속 명부 검증 실패 시 역할·이벤트도 롤백한다. 미거주 부담당자의 참여 종료는 주민 명부 삭제와 구분한다.
 
@@ -26,7 +26,7 @@ MembershipRequestService는 로그인한 신청자의 세대·보호 연락처�
 
 ## 기존 관리소장 본인 명부 연결
 
-MemberManagementService.linkOwnResident는 같은 Property 잠금 뒤 현재 ADMIN·정상 계정·현재 명부/세대와 expectedUnitId를 검증한다. 타인 계정·다른 명부 연결은 덮어쓰지 않으며 resident.user_id와 resident_account_links를 같은 트랜잭션에 저장한다. 후반 기록 실패는 주민 연결도 롤백한다. 같은 연결 재요청은 이력을 중복 생성하지 않는다.
+MemberManagementService.linkOwnResident는 같은 Property 잠금 뒤 현재 ADMIN / MANAGER·정상 계정·현재 명부/세대와 expectedUnitId를 검증한다. 타인 계정·다른 명부 연결은 덮어쓰지 않으며 resident.user_id와 resident_account_links를 같은 트랜잭션에 저장한다. 후반 기록 실패는 주민 연결도 롤백한다. 같은 연결 재요청은 이력을 중복 생성하지 않는다.
 
 ADMIN 참여·대표·연락처·이름·주민 구분은 변경하지 않으며 가짜 가입 요청이나 역할 변경 이벤트를 만들지 않는다. 새 관계 ID는 과거 본인 연결의 승인 근거를 재사용하지 않는다. 조회 기준은 [주민 API](../../docs/residentManagementApi.md#가입-상태-판정)를 따른다. Migration `V20261017044108__create_resident_account_links.sql`은 출처 테이블만 추가하고 기존 계정을 일괄 연결하지 않는다. 적용된 기존 Migration은 변경하지 않는다.
 
@@ -49,3 +49,5 @@ PaymentPersistenceTest에서 기존 잔액과 함께 가입 승인·역할 변�
 개인 초대 수락의 추가 본인 확인과 세대 변경·연락처 없는 주민의 처리, 만료기간은 정책 결정 전 임의 구현하지 않는다. 외부 알림 발송은 DB 트랜잭션으로 함께 롤백되지 않으므로 초대 수락 성공과 메시지 전송 성공을 별도로 다룬다.
 
 개인 초대의 이름·전화번호 정정 후 가입은 [추가 논의 중인 설계안](../../docs/domainRules.md#개인-초대-정보-확인과-정정의-설계안)이다. 채택 시 정정 신청값을 현행 명부와 분리하고 권한 있는 관리자의 검토 후 명부 반영·계정 연결·초대 사용을 일관되게 처리해야 한다. 토큰을 정정 제출 때 사용할지 승인 때 사용할지, 대기 중 같은 초대의 일반 수락을 막을지는 아직 미정이다.
+
+부담당자의 관리소장 명부 수정·삭제·대표 변경·재등록 복구는 ManagementAccessService.requireResidentWrite로 거부합니다. 현재 ADMIN 참여를 대상 로그인 계정과 대조하고 세대 일괄 삭제에서도 같은 검사를 사용합니다. 검사는 대상 잠금 아래 저장 전에 수행합니다.

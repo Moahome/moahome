@@ -41,12 +41,12 @@ import com.moahome.server.property.dto.UnitResponse;
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({ com.moahome.server.payment.service.CumulativePaymentService.class, BillingService.class,
+@Import({com.moahome.server.payment.service.CumulativePaymentService.class, BillingService.class,
         BillingTemplates.class, BillingGenerationService.class, PropertyRegistrationService.class,
         PropertyRegistrationLock.class, ManagementAccessService.class, UnitManagementService.class,
         com.moahome.server.resident.service.ResidentManagementService.class,
         com.moahome.server.resident.service.ResidentRegistrationService.class, UserService.class,
-        com.moahome.server.resident.service.ResidentListService.class, BillingPersistenceTest.TestBeans.class })
+        com.moahome.server.resident.service.ResidentListService.class, BillingPersistenceTest.TestBeans.class})
 @ActiveProfiles("database-test")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -240,7 +240,7 @@ class BillingPersistenceTest {
 	}
 
 	@Test
-	void managerCannotReadRepresentativeNamesAndNoBuildingPropertyRemainsIdentifiable() {
+	void managerReadsSameRepresentativeNamesAndNoBuildingPropertyRemainsIdentifiable() {
 		UUID unitId = jdbc.queryForObject("select id from units where property_id=? and unit_number='201'", UUID.class,
 		    propertyId);
 		addResident(unitId, "관리소장 전용 대표 정보", true);
@@ -248,9 +248,9 @@ class BillingPersistenceTest {
 		    .representativeName()).isEqualTo("관리소장 전용 대표 정보");
 		jdbc.update("update property_members set role='MANAGER' where property_id=? and user_id=?", propertyId, userId);
 		assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 10)).charges())
-		    .allMatch(row -> row.representativeName() == null);
+		    .anyMatch(row -> "관리소장 전용 대표 정보".equals(row.representativeName()));
 		assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 11)).charges())
-		    .allMatch(row -> row.representativeName() == null);
+		    .anyMatch(row -> "관리소장 전용 대표 정보".equals(row.representativeName()));
 		UUID other = registerForBilling(userId, RegistrationFixtures.request(UUID.randomUUID(), false)).response()
 		    .property().id();
 		var noBuildings = billing.monthly(userId, other, YearMonth.of(2026, 10));
@@ -468,7 +468,7 @@ class BillingPersistenceTest {
 	}
 
 	@org.junit.jupiter.params.ParameterizedTest
-	@org.junit.jupiter.params.provider.ValueSource(booleans = { false, true })
+	@org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
 	void deletedUnitNumberCanBeAddedAgainWithFreshBillingWithoutRevivingOldResidentsOrPastCharges(
 	    boolean hasBuildings) {
 		var target = registerForBilling(userId, RegistrationFixtures.request(UUID.randomUUID(), hasBuildings))
@@ -518,7 +518,7 @@ class BillingPersistenceTest {
 	}
 
 	@org.junit.jupiter.params.ParameterizedTest
-	@org.junit.jupiter.params.provider.ValueSource(booleans = { false, true })
+	@org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
 	void batchAndUpdateCanReuseDeletedNumbersButRejectExistingUnitsAndInRequestDuplicates(boolean hasBuildings) {
 		var target = registerForBilling(userId, RegistrationFixtures.request(UUID.randomUUID(), hasBuildings))
 		    .response().property().id();
@@ -757,10 +757,11 @@ class BillingPersistenceTest {
 	}
 
 	@Test
-	void managerCannotBypassAdminResidentDeletionThroughUnitsOrBuildings() {
+	void residentCannotBypassManagementPermissionsThroughUnitsOrBuildings() {
 		var unitId = unitId("201");
 		var resident = addResident(unitId, "보호할 주민", true);
-		jdbc.update("update property_members set role='MANAGER' where property_id=? and user_id=?", propertyId, userId);
+		jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", propertyId,
+		    userId);
 		assertThatThrownBy(() -> unitManagement.deleteUnits(userId, propertyId, List.of(unitId)))
 		    .isInstanceOf(AuthException.class);
 		assertThatThrownBy(() -> unitManagement.deleteBuilding(userId, propertyId, buildingId("201")))

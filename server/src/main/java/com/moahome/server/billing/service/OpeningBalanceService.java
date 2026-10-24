@@ -10,7 +10,6 @@ import com.moahome.server.billing.domain.*;
 import com.moahome.server.billing.dto.*;
 import com.moahome.server.billing.repo.*;
 import com.moahome.server.common.security.PaymentTextSecurity;
-import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.payment.exception.PaymentException;
 import com.moahome.server.payment.repo.PaymentRepository;
 import com.moahome.server.property.domain.*;
@@ -76,21 +75,20 @@ public class OpeningBalanceService {
 		this.clock = clock;
 	}
 
-	private void requireAdmin(UUID actor, UUID property) {
-		if (access.getManagementContext(actor, property).role() != PropertyMemberRole.ADMIN)
-			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
+	private void requireManagementAccess(UUID actor, UUID property) {
+		access.getManagementContext(actor, property);
 	}
 
 	/** 스케줄·세대 변경·수납 확정과 같은 잠금으로 인계 확정과 정정을 직렬화하고 잠금 뒤 권한을 다시 검사합니다. */
 	private Property lock(UUID actor, UUID property) {
 		var result = properties.findForUnitUpdate(property)
 		    .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		requireAdmin(actor, property);
+		requireManagementAccess(actor, property);
 		return result;
 	}
 
 	public OpeningBalanceResponse workspace(UUID actor, UUID property) {
-		requireAdmin(actor, property);
+		requireManagementAccess(actor, property);
 		return response(property);
 	}
 
@@ -98,10 +96,12 @@ public class OpeningBalanceService {
 		var property = properties.findById(propertyId).orElseThrow();
 		List<OpeningBalanceBatch> history = batches.findByPropertyIdOrderByCreatedAtDesc(propertyId);
 		var latest = history.stream().filter(b -> !"CANCELED".equals(b.getStatus())).findFirst().orElse(null);
-		Map<UUID, OpeningBalanceItem> entries = latest == null ? Map.<UUID, OpeningBalanceItem>of()
+		Map<UUID, OpeningBalanceItem> entries = latest == null
+		    ? Map.<UUID, OpeningBalanceItem>of()
 		    : items.findByBatchId(latest.getId()).stream()
 		        .collect(Collectors.toMap(OpeningBalanceItem::getUnitId, i -> i));
-		Map<UUID, BankOpeningBalance> banks = latest == null ? Map.<UUID, BankOpeningBalance>of()
+		Map<UUID, BankOpeningBalance> banks = latest == null
+		    ? Map.<UUID, BankOpeningBalance>of()
 		    : bankBalances.findByBatchId(latest.getId()).stream()
 		        .collect(Collectors.toMap(BankOpeningBalance::getBankAccountId, b -> b));
 		Map<UUID, String> names = buildings.findByPropertyId(propertyId).stream()

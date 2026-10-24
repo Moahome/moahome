@@ -240,6 +240,7 @@ export function ResidentListPage({
           key={detailId}
           propertyId={propertyId}
           residentId={detailId}
+          canPromote={context.data?.role === 'ADMIN'}
           onClose={() => setDetailId(null)}
           onDeleted={() => { setDetailId(null); setMessage('주민을 삭제했어요.'); }}
         />

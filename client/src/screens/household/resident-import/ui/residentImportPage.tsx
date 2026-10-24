@@ -60,15 +60,6 @@ export function ResidentImportPage({
       </p>
     );
   }
-  if (context.data.role !== 'ADMIN') {
-    return (
-      <p
-        role={'alert'}
-      >
-        주민을 등록할 관리소장 권한이 없어요.
-      </p>
-    );
-  }
 
   /** 새 파일의 결과에 이전 검색·페이지 조건이 적용되지 않도록 표시 상태를 초기화합니다. */
   function upload(file?: File) {

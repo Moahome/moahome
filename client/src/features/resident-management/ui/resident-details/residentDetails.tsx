@@ -33,12 +33,13 @@ import { ResidentRegistrationForm } from '../resident-registration-form/resident
 import styles from './residentDetails.module.css';
 
 /** 웹 모달·모바일 페이지에서 같은 상세·수정·삭제를 사용하고 공개 번호는 이 컴포넌트의 일시 상태에만 둡니다. */
-export function ResidentDetails({ propertyId, residentId, presentation = 'modal', onClose, onDeleted }: {
+export function ResidentDetails({ propertyId, residentId, presentation = 'modal', onClose, onDeleted, canPromote = false }: {
   propertyId: string;
   residentId: string;
   presentation?: 'modal' | 'page';
   onClose: () => void;
   onDeleted: () => void;
+  canPromote?: boolean;
 }) {
   const session = useSession();
   const client = useQueryClient();
@@ -63,6 +64,7 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
   const titleRef = useRef<HTMLHeadingElement>(null);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   const resident = query.data;
+  const canModify = Boolean(resident && (resident.serviceRole !== 'ADMIN' || canPromote));
   const Title = presentation === 'page' ? 'h1' : 'h2';
   const title = mode === 'edit' ? '주민 수정' : mode === 'delete' ? '주민 삭제' : '주민 상세';
 
@@ -237,17 +239,20 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
               </dd>
             </div>
           </dl>
-          <DetailActions
-            presentation={presentation}
-            onClose={onClose}
-            onEdit={() => changeMode('edit')}
-            onDelete={() => changeMode('delete')}
-            busy={busy}
-          />
+          {canModify && (
+            <DetailActions
+              presentation={presentation}
+              onClose={onClose}
+              onEdit={() => changeMode('edit')}
+              onDelete={() => changeMode('delete')}
+              busy={busy}
+            />
+          )}
         </>
       )}
-      {resident && mode === 'edit' && (
+      {resident && canModify && mode === 'edit' && (
         <ResidentRegistrationForm
+          canPromote={canPromote}
           key={resident.updatedAt}
           propertyId={propertyId}
           resident={resident}
@@ -263,7 +268,7 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
           }}
         />
       )}
-      {resident && mode === 'delete' && (
+      {resident && canModify && mode === 'delete' && (
         <div
           className={styles.state}
         >

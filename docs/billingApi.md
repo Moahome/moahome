@@ -104,7 +104,7 @@ ChargeRow는 `id`, `unitId`, `building`(동 없음은 빈 문자열), `room`, `d
 
 ## 기존 잔액 인계
 
-2026-10-17 구현. 기준 경로는 `/api/properties/{propertyId}/billing/opening-balances`이며 현재 ADMIN만 허용합니다. 일반 부과 조회·설정의 ADMIN / MANAGER 범위는 유지합니다.
+2026-10-17 구현. 기준 경로는 `/api/properties/{propertyId}/billing/opening-balances`이며 현재 ADMIN / MANAGER를 허용합니다. 일반 부과 조회·설정의 ADMIN / MANAGER 범위는 유지합니다.
 
 | Method | 경로 | 요청 | 결과 |
 | --- | --- | --- | --- |

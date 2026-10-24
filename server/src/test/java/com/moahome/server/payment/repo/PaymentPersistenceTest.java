@@ -452,9 +452,9 @@ class PaymentPersistenceTest {
 
 	/** 계좌 원문 조회와 정정은 세대·부담당자 권한으로 실행할 수 없습니다. */
 	@Test
-	void rejectsAccountCorrectionByManagerBeforeReadingAccountDetails() {
+	void rejectsAccountCorrectionByResidentBeforeReadingAccountDetails() {
 		var original = bankAccountSettings.read(user, property);
-		jdbc.update("update property_members set role='MANAGER' where property_id=? and user_id=?", property, user);
+		jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", property, user);
 		var request = new com.moahome.server.banking.dto.BankAccountSettings.Request(original.accountId(),
 		    original.updatedAt(), "004", "국민은행", "00099998888", "정정 예금주");
 		assertThatThrownBy(() -> bankAccountSettings.read(user, property)).isInstanceOf(AuthException.class);
@@ -1318,7 +1318,7 @@ class PaymentPersistenceTest {
 		assertThat(row.representativeId()).isEqualTo(residentId);
 		assertThat(jdbc.queryForObject("select role from property_members where property_id=? and user_id=?",
 		    String.class, property, joining)).isEqualTo("MANAGER");
-		assertThatThrownBy(() -> memberManagement.workspace(joining, property)).isInstanceOf(AuthException.class);
+		assertThat(memberManagement.workspace(joining, property).propertyId()).isEqualTo(property);
 		memberManagement.changeResidentRole(user, property, residentId,
 		    new com.moahome.server.membership.dto.MemberRequests.Role(
 		        com.moahome.server.membership.domain.PropertyMemberRole.RESIDENT,
@@ -1378,7 +1378,7 @@ class PaymentPersistenceTest {
 		assertThat(jdbc.queryForObject(
 		    "select count(*) from property_members where property_id=? and role='ADMIN' and status='ACTIVE'",
 		    Long.class, property)).isEqualTo(1);
-		assertThatThrownBy(() -> memberManagement.workspace(user, property)).isInstanceOf(AuthException.class);
+		assertThat(memberManagement.workspace(user, property).propertyId()).isEqualTo(property);
 		assertThat(memberManagement.workspace(joining, property).members()).hasSize(2);
 	}
 
@@ -2104,7 +2104,7 @@ class PaymentPersistenceTest {
 		    .isInstanceOf(PaymentException.class);
 		jdbc.update("update unit_residents set is_household_rep=false where unit_id=?", unit);
 		assertThatThrownBy(() -> manual("50000")).isInstanceOf(PaymentException.class);
-		jdbc.update("update property_members set role='MANAGER' where property_id=? and user_id=?", property, user);
+		jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", property, user);
 		assertThatThrownBy(() -> service.workspace(user, property)).isInstanceOf(AuthException.class);
 	}
 
@@ -3623,6 +3623,33 @@ class PaymentPersistenceTest {
 			});
 			assertThat(banking.preview(user, property, file).duplicateCount()).isEqualTo(2);
 		}
+	}
+
+	@Test
+	void managerCannotModifyOrDeleteChiefDirectlyOrThroughUnitDeletion() {
+		UUID person = jdbc.queryForObject("select id from residents where property_id=? and name='김대표'", UUID.class,
+		    property);
+		jdbc.update("update residents set user_id=? where id=?", user, person);
+		UUID deputy = users.saveAndFlush(User.create("부담당자", null)).getId();
+		jdbc.update(
+		    "insert into property_members(id,property_id,user_id,role,status,joined_at,created_at,updated_at) values (?,?,?,'MANAGER','ACTIVE',now(),now(),now())",
+		    UUID.randomUUID(), property, deputy);
+		var chief = residentManagement.detail(deputy, property, person);
+		assertThat(chief.name()).isEqualTo("김대표");
+		assertThatThrownBy(() -> residentManagement.update(deputy, property, person,
+		    new com.moahome.server.resident.dto.ResidentUpdateRequest("수정 시도", unit, "OWNER", "KEEP", null, null,
+		        chief.updatedAt())))
+		    .isInstanceOf(AuthException.class);
+		assertThatThrownBy(() -> residentManagement.delete(deputy, property, person,
+		    new com.moahome.server.resident.dto.ResidentDeleteRequest(null, chief.updatedAt())))
+		    .isInstanceOf(AuthException.class);
+		assertThatThrownBy(
+		    () -> residentManagement.deleteForUnits(deputy, property, List.of(unit), java.time.OffsetDateTime.now()))
+		    .isInstanceOf(AuthException.class);
+		assertThat(jdbc.queryForObject("select name from residents where id=?", String.class, person)).isEqualTo("김대표");
+		assertThat(
+		    jdbc.queryForObject("select deleted_at from residents where id=?", java.time.OffsetDateTime.class, person))
+		    .isNull();
 	}
 
 }

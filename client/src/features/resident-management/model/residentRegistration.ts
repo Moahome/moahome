@@ -15,7 +15,7 @@ export function normalizeResidentPhone(input: string): string | null {
 export function getResidentRegistrationError(error: unknown) {
   if (error instanceof ApiError) {
     if (error.status === 401) return '로그인이 만료되었어요. 다시 로그인해주세요.';
-    if (error.status === 403) return '주민을 등록할 관리소장 권한이 없어요.';
+    if (error.status === 403) return '주민을 등록할 권한이 없어요.';
     if (error.code === 'DUPLICATE_RESIDENT') return '이름과 연락처가 같은 주민이 이미 있어요. 기존 주민을 확인해주세요.';
     if (error.code === 'RESIDENT_RESTORE_REQUIRED') return '삭제된 명부에 이름과 연락처가 같은 주민이 있어요. 기존 주민을 확인해주세요.';
     if (error.code === 'REGISTRATION_CONFLICT') return '이미 사용된 등록 요청이에요. 주민 목록에서 등록 결과를 확인해주세요.';

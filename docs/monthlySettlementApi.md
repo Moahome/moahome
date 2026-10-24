@@ -6,7 +6,7 @@
 
 `GET /api/properties/{propertyId}/closing/monthly?month=2026-10`
 
-Bearer 인증과 해당 관리대상의 현재 `ADMIN` 권한을 요구합니다. `MANAGER`에게 기존 통장 API보다 넓은 권한을 제공하지 않습니다. 응답은 `Cache-Control: no-store`입니다.
+Bearer 인증과 해당 관리대상의 현재 `ADMIN` / `MANAGER` 권한을 요구합니다. 두 관리자 역할의 업무 권한은 동일하며 주민의 관리자 승격은 별도 계약으로 제한합니다. 응답은 `Cache-Control: no-store`입니다.
 
 | 입력 | 설명 |
 | --- | --- |

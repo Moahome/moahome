@@ -162,7 +162,7 @@ export function bankingError(error: unknown): string {
     OTHER_INCOME_REQUIRED: '이자 등 기타 입금으로 확정한 뒤 동별로 배분해주세요.',
     INCOME_ALREADY_SETTLED: '외부 정산에 연결한 입금은 동별로 중복 배분할 수 없어요.',
     OPENING_BALANCE_REQUIRED: '기존 잔액 인계에서 관리 시작을 먼저 확정해주세요.',
-    ACCESS_DENIED: '통장 관리는 관리소장만 사용할 수 있어요.',
+    ACCESS_DENIED: '이 관리대상의 통장 관리 권한이 없어요.',
     PAYMENT_ACCOUNT_UNAVAILABLE: '등록된 공용 기본 관리계좌를 확인해주세요.',
     BANK_IMPORT_UNSUPPORTED: '선택한 은행의 거래내역 업로드는 아직 지원하지 않습니다.',
     BANK_DUPLICATE_REVIEW_REQUIRED: '기존 거래와 중복 여부를 확인할 수 없어요. 기존 원본과 파일의 거래일시·잔액·내용을 확인해주세요.',

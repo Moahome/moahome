@@ -34,12 +34,12 @@ import com.moahome.server.resident.dto.ResidentRegistrationResponse;
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({ com.moahome.server.property.service.UnitManagementService.class, ResidentListService.class,
+@Import({com.moahome.server.property.service.UnitManagementService.class, ResidentListService.class,
         ManagementAccessService.class, UserService.class, ResidentDirectoryPersistenceTest.Beans.class,
         com.moahome.server.resident.service.ResidentRegistrationService.class,
         com.moahome.server.resident.service.ResidentImportService.class,
         com.moahome.server.resident.service.ResidentExcelReader.class,
-        com.moahome.server.resident.service.ResidentManagementService.class })
+        com.moahome.server.resident.service.ResidentManagementService.class})
 @ActiveProfiles("database-test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -426,9 +426,9 @@ class ResidentDirectoryPersistenceTest {
 		    registration(unit.getId(), "기존 가족", "01023456789"));
 		management.deleteForUnits(actor, property.getId(), List.of(unit.getId()), OffsetDateTime.now());
 		var preview = imports.preview(actor, property.getId(),
-		    excel(new String[][] { { "102동", "201", "기존 가족", "가족", "01023456789" },
-		            { "102동", "201", "기존 대표", "임차인", "01012345678" },
-		            { "102동", "201", "기존 대표", "임차인", "+82 10 1234 5678" } }));
+		    excel(new String[][]{{"102동", "201", "기존 가족", "가족", "01023456789"},
+		            {"102동", "201", "기존 대표", "임차인", "01012345678"},
+		            {"102동", "201", "기존 대표", "임차인", "+82 10 1234 5678"}}));
 		assertThat(preview.rows()).extracting(row -> row.status()).containsExactly("READY", "READY", "DUPLICATE");
 		assertThat(preview.rows().getFirst().reason()).contains("재등록 가능");
 		assertThat(service.list(actor, property.getId()).residents()).isEmpty();
@@ -566,7 +566,7 @@ class ResidentDirectoryPersistenceTest {
 	}
 
 	@Test
-	void rejectsForeignDeletedUnitsAndManagerAndRollsBackFailedAffiliation() {
+	void rejectsForeignDeletedUnitsAndNonManagerAndRollsBackFailedAffiliation() {
 		var property = property(false);
 		var actor = users.saveAndFlush(User.create("검증 관리자", null)).getId();
 		member(property.getId(), actor);
@@ -590,7 +590,7 @@ class ResidentDirectoryPersistenceTest {
 		assertThatThrownBy(
 		    () -> registrations.register(actor, property.getId(), registration(unit.getId(), "주민", null)))
 		    .isInstanceOf(com.moahome.server.resident.exception.ResidentRegistrationException.class);
-		jdbc.update("update property_members set role='MANAGER' where property_id=? and user_id=?", property.getId(),
+		jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", property.getId(),
 		    actor);
 		assertThatThrownBy(
 		    () -> registrations.register(actor, property.getId(), registration(unit.getId(), "주민", null)))
@@ -635,10 +635,10 @@ class ResidentDirectoryPersistenceTest {
 		var unit = units.saveAndFlush(Unit.create(property, building, "301", null, null, UnitStatus.ACTIVE, AT));
 		registrations.register(actor, property.getId(), registration(unit.getId(), "기존 주민", "010-1234-5678"));
 		var preview = imports.preview(actor, property.getId(),
-		    excel(new String[][] { { "102", "301호", "신규 주민", "소유주", "010-2345-6789" },
-		            { "102동", "301", "신규 주민", "가족", "+82 10 2345 6789" },
-		            { "102동", "301", "기존 주민", "소유자", "01012345678" }, { "102동", "999", "세대 오류", "가족", "" },
-		            { "102동", "301", "번호 오류", "가족", "1012345678" }, { "102동", "301", "연락처 없음", "가족", "" } }));
+		    excel(new String[][]{{"102", "301호", "신규 주민", "소유주", "010-2345-6789"},
+		            {"102동", "301", "신규 주민", "가족", "+82 10 2345 6789"}, {"102동", "301", "기존 주민", "소유자", "01012345678"},
+		            {"102동", "999", "세대 오류", "가족", ""}, {"102동", "301", "번호 오류", "가족", "1012345678"},
+		            {"102동", "301", "연락처 없음", "가족", ""}}));
 		assertThat(preview.rows()).extracting(row -> row.status()).containsExactly("READY", "DUPLICATE", "DUPLICATE",
 		    "ERROR", "ERROR", "READY");
 		assertThat(preview.rows().get(2).relationType()).isEqualTo("OWNER");
@@ -664,9 +664,8 @@ class ResidentDirectoryPersistenceTest {
 		var existing = registrations.register(actor, property.getId(),
 		    registration(existingUnit.getId(), "기존 대표", null));
 		var preview = imports.preview(actor, property.getId(),
-		    excel(new String[][] { { "", "301", "선택 안 함", "소유주", "" }, { "", "301", "첫 선택", "", "" },
-		            { "", "301", "두 번째", "가족", "" }, { "", "302", "기존 세대 추가", "가족", "" },
-		            { "", "999", "오류 제외", "가족", "" } }));
+		    excel(new String[][]{{"", "301", "선택 안 함", "소유주", ""}, {"", "301", "첫 선택", "", ""},
+		            {"", "301", "두 번째", "가족", ""}, {"", "302", "기존 세대 추가", "가족", ""}, {"", "999", "오류 제외", "가족", ""}}));
 		var selection = new com.moahome.server.resident.dto.ResidentImportCommitRequest(List.of(5, 4, 3));
 		var result = imports.commit(actor, property.getId(), preview.importId(), selection);
 		assertThat(result.rows()).extracting(row -> row.status()).containsExactly("NOT_SELECTED", "SUCCESS", "SUCCESS",
@@ -693,8 +692,8 @@ class ResidentDirectoryPersistenceTest {
 		var unit = units.saveAndFlush(Unit.create(property, null, "301", null, null, UnitStatus.ACTIVE, AT));
 		var removedUnit = units.saveAndFlush(Unit.create(property, null, "302", null, null, UnitStatus.ACTIVE, AT));
 		var preview = imports.preview(actor, property.getId(),
-		    excel(new String[][] { { "", "301", "경합 주민", "가족", "010-1234-5678" }, { "", "302", "세대 삭제", "가족", "" },
-		            { "", "301", "정상 주민", "가족", "" } }));
+		    excel(new String[][]{{"", "301", "경합 주민", "가족", "010-1234-5678"}, {"", "302", "세대 삭제", "가족", ""},
+		            {"", "301", "정상 주민", "가족", ""}}));
 		registrations.register(actor, property.getId(), registration(unit.getId(), "경합 주민", "01012345678"));
 		jdbc.update("update units set deleted_at=now() where id=?", removedUnit.getId());
 		var result = imports.commit(actor, property.getId(), preview.importId(),
@@ -711,7 +710,7 @@ class ResidentDirectoryPersistenceTest {
 		member(property.getId(), actor);
 		member(property.getId(), other, "MANAGER");
 		units.saveAndFlush(Unit.create(property, null, "301", null, null, UnitStatus.ACTIVE, AT));
-		var file = excel(new String[][] { { "", "301", "주민", "가족", "" } });
+		var file = excel(new String[][]{{"", "301", "주민", "가족", ""}});
 		var preview = imports.preview(actor, property.getId(), file);
 		var selection = new com.moahome.server.resident.dto.ResidentImportCommitRequest(List.of(2));
 		// 관리소장 인계 이후에도 이전 관리소장의 업로드 초안을 다른 작성자가 확정하지 못합니다.
@@ -721,7 +720,7 @@ class ResidentDirectoryPersistenceTest {
 		    other);
 		assertThatThrownBy(() -> imports.commit(other, property.getId(), preview.importId(), selection))
 		    .isInstanceOf(com.moahome.server.resident.exception.ResidentImportException.class);
-		jdbc.update("update property_members set role='MANAGER' where property_id=? and user_id=?", property.getId(),
+		jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", property.getId(),
 		    other);
 		assertThatThrownBy(() -> imports.preview(other, property.getId(), file))
 		    .isInstanceOf(com.moahome.server.auth.exception.AuthException.class);
@@ -744,7 +743,7 @@ class ResidentDirectoryPersistenceTest {
 		    var bytes = new java.io.ByteArrayOutputStream()) {
 			var sheet = workbook.createSheet();
 			var header = sheet.createRow(0);
-			String[] labels = { "동", "호수", "이름", "관계", "연락처" };
+			String[] labels = {"동", "호수", "이름", "관계", "연락처"};
 			for (int index = 0; index < 5; index++)
 				header.createCell(index).setCellValue(labels[index]);
 			for (int row = 0; row < data.length; row++) {

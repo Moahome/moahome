@@ -11,7 +11,6 @@ import com.moahome.server.billing.domain.BillingCalendar;
 import com.moahome.server.common.security.PaymentTextSecurity;
 import com.moahome.server.expense.repo.*;
 import com.moahome.server.expense.service.ExpenseService;
-import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.payment.dto.PaymentResponse;
 import com.moahome.server.payment.exception.PaymentException;
 import com.moahome.server.payment.service.PaymentService;
@@ -88,10 +87,9 @@ public class BankingService {
 		this.incomeAllocationService = incomeAllocationService;
 	}
 
-	/** 기존 수납과 같은 ADMIN 범위를 사용하며 조회·미리보기·저장 모두 서버에서 확인합니다. */
-	private void requireAdmin(UUID user, UUID property) {
-		if (access.getManagementContext(user, property).role() != PropertyMemberRole.ADMIN)
-			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
+	/** 기존 수납과 같은 관리자 범위를 사용하며 조회·미리보기·저장 모두 서버에서 확인합니다. */
+	private void requireManagementAccess(UUID user, UUID property) {
+		access.getManagementContext(user, property);
 	}
 
 	private BankAccount account(UUID property) {
@@ -123,7 +121,7 @@ public class BankingService {
 
 	/** 연결 결과로 상태를 구성하며 원본 입출금과 업무 금액을 중복 합산하지 않습니다. */
 	public BankingResponse.Workspace workspace(UUID user, UUID property) {
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		var ledger = payments.workspace(user, property);
 		Map<UUID, PaymentResponse.Payment> receipts = ledger.payments().stream()
 		    .filter(p -> p.bankTransactionId() != null).collect(Collectors.toMap(
@@ -205,19 +203,17 @@ public class BankingService {
 		    .map(b -> new BankingResponse.Building(b.getId(), b.getName())).toList();
 		Map<UUID, BankAccountRepository.Usage> usage = accounts.findUsageByPropertyId(property).stream()
 		    .collect(Collectors.toMap(BankAccountRepository.Usage::getAccountId, item -> item));
-		return new BankingResponse.Workspace(property, today(), targets, ledger.units().stream()
-		    .filter(PaymentResponse.Unit::eligible).map(u -> new BankingResponse.Unit(u.id(), u.label())).toList(),
-		    rows, List.copyOf(rules.values()),
-		    accounts.findByPropertyIdAndDeletedAtIsNull(property).stream()
-		        .filter(a -> a.getBuildingId() == null)
-		        .map(a -> {
+		return new BankingResponse.Workspace(property, today(), targets,
+		    ledger.units().stream().filter(PaymentResponse.Unit::eligible)
+		        .map(u -> new BankingResponse.Unit(u.id(), u.label())).toList(),
+		    rows, List.copyOf(rules.values()), accounts.findByPropertyIdAndDeletedAtIsNull(property).stream()
+		        .filter(a -> a.getBuildingId() == null).map(a -> {
 			        var saved = usage.get(a.getId());
 			        LocalDate firstUse = saved == null ? null : saved.getFirstUse();
 			        return new BankingResponse.Account(a.getId(), a.getBankName(), a.getAccountLast4(), a.getAlias(),
 			            a.isPrimary(), a.getStatus().name(), a.getBankCode(), BankImportFormat.support(a.getBankCode()),
 			            a.availableFrom(firstUse), a.getValidTo(), firstUse != null);
-		        })
-		        .toList());
+		        }).toList());
 	}
 
 	/** 미리보기는 저장하지 않고 기존 입금 후보와 출금을 한 목록으로 반환합니다. 인계 이전 거래는 따로 셉니다. */
@@ -226,12 +222,13 @@ public class BankingService {
 	}
 
 	public BankingResponse.Preview preview(UUID user, UUID property, MultipartFile file, UUID accountId) {
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		var account = account(property, accountId);
 		var target = properties.findById(property).orElseThrow();
 		List<BankTransactionReader.Row> incoming = reader.readAll(file, account.getBankCode());
-		List<PaymentResponse.Payment> receiptCandidates = incoming.stream().anyMatch(
-		    r -> "INCOME".equals(r.direction())) ? payments.preview(user, property, file, account.getId()).rows()
+		List<PaymentResponse.Payment> receiptCandidates = incoming.stream()
+		    .anyMatch(r -> "INCOME".equals(r.direction()))
+		        ? payments.preview(user, property, file, account.getId()).rows()
 		        : List.<PaymentResponse.Payment>of();
 		Map<UUID, PaymentResponse.Payment> candidates = receiptCandidates.stream()
 		    .collect(Collectors.toMap(PaymentResponse.Payment::id, r -> r));
@@ -259,19 +256,20 @@ public class BankingService {
 			    row.direction(), BankTransactionKeys.ruleKey(row.payer(), security), null, "PENDING",
 			    candidate == null ? "" : candidate.unitId(), "", null, null, null));
 		}
-		return new BankingResponse.Preview(property, rows, duplicates, before, new BankingResponse.Period(
-		    incoming.stream().map(BankTransactionReader.Row::date).min(LocalDate::compareTo).orElseThrow(),
-		    incoming.stream().map(BankTransactionReader.Row::date).max(LocalDate::compareTo).orElseThrow()));
+		return new BankingResponse.Preview(property, rows, duplicates, before,
+		    new BankingResponse.Period(
+		        incoming.stream().map(BankTransactionReader.Row::date).min(LocalDate::compareTo).orElseThrow(),
+		        incoming.stream().map(BankTransactionReader.Row::date).max(LocalDate::compareTo).orElseThrow()));
 	}
 
 	/** 선택 전체를 원본 파일로 재검증하고 같은 관리대상 잠금 안에서 수납·지출을 원자적으로 저장합니다. */
 	@Transactional
 	public BankingResponse.Workspace upload(UUID user, UUID property, MultipartFile file,
 	    BankingRequests.Import selection) {
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		var target = properties.findForUnitUpdate(property)
 		    .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		if (target.getManagementStartedAt() == null)
 			throw new PaymentException("OPENING_BALANCE_REQUIRED");
 		var account = account(property, selection.accountId());
@@ -336,8 +334,8 @@ public class BankingService {
 		for (var item : selection.rows()) {
 			if (item.incomeAllocation() == null)
 				continue;
-			var original = new BankTransactionDuplicates(transactions.findByPropertyId(property), account.getId(), security)
-			    .find(available.get(item.id())).orElseThrow();
+			var original = new BankTransactionDuplicates(transactions.findByPropertyId(property), account.getId(),
+			    security).find(available.get(item.id())).orElseThrow();
 			allocateIncome(original, item.incomeAllocation(), user);
 		}
 		return workspace(user, property);
@@ -346,7 +344,8 @@ public class BankingService {
 	/** 내부 이체 선택은 자동 수납·지출 분류를 거치지 않고 은행 원본만 계좌별로 저장합니다. */
 	private void saveTransferSource(UUID property, UUID account, BankTransactionReader.Row row, UUID user) {
 		var key = BankTransactionKeys.key(row, security);
-		var previous = new BankTransactionDuplicates(transactions.findByPropertyId(property), account, security).find(row);
+		var previous = new BankTransactionDuplicates(transactions.findByPropertyId(property), account, security)
+		    .find(row);
 		if (previous.isPresent()) {
 			if (!previous.get().isTransferCandidate())
 				throw new PaymentException("BANK_TRANSFER_CONFLICT");
@@ -365,10 +364,10 @@ public class BankingService {
 	/** 수동 입금처럼 과거 출금일을 허용하고 은행 확인값을 만들지 않은 채 지출·배분만 저장합니다. */
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public BankingResponse.Workspace manualExpense(UUID user, UUID property, BankingRequests.ManualExpense request) {
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		var target = properties.findForUnitUpdate(property)
 		    .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		if (target.getManagementStartedAt() == null)
 			throw new PaymentException("OPENING_BALANCE_REQUIRED");
 		account(property, request.accountId());
@@ -382,9 +381,9 @@ public class BankingService {
 	@Transactional
 	public BankingResponse.Workspace confirmExpense(UUID user, UUID property, UUID id,
 	    BankingRequests.Expense request) {
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		properties.findForUnitUpdate(property).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		var original = transactions.findById(id)
 		    .filter(t -> property.equals(t.getPropertyId()) && t.getDeletedAt() == null)
 		    .orElseThrow(() -> new PaymentException("BANK_TRANSACTION_NOT_FOUND"));
@@ -396,9 +395,9 @@ public class BankingService {
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public BankingResponse.Workspace confirmIncomeAllocation(UUID user, UUID property, UUID transactionId,
 	    BankingRequests.Expense request) {
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		properties.findForUnitUpdate(property).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		var original = transactions.findById(transactionId)
 		    .filter(t -> property.equals(t.getPropertyId()) && t.getDeletedAt() == null)
 		    .orElseThrow(() -> new PaymentException("BANK_TRANSACTION_NOT_FOUND"));
@@ -423,9 +422,9 @@ public class BankingService {
 	/** 같은 대상의 서로 다른 통장·동일 금액·반대 방향의 대기 원본만 연결합니다. */
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public BankingResponse.Workspace connectTransfer(UUID user, UUID property, BankingRequests.Transfer request) {
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		properties.findForUnitUpdate(property).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		var previous = transfers.findById(request.id());
 		if (previous.isPresent()) {
 			var saved = previous.get();
@@ -459,9 +458,9 @@ public class BankingService {
 	/** 잘못 연결한 이체만 취소하고 원본과 연결 이력을 보존합니다. 재시도는 무효과입니다. */
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public BankingResponse.Workspace cancelTransfer(UUID user, UUID property, UUID id) {
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		properties.findForUnitUpdate(property).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		var transfer = transfers.findById(id).filter(t -> property.equals(t.getPropertyId()))
 		    .orElseThrow(() -> new PaymentException("BANK_TRANSFER_CONFLICT"));
 		transfer.cancel(user, OffsetDateTime.now(clock));
@@ -472,9 +471,9 @@ public class BankingService {
 	/** 선택 전체의 소속을 먼저 검증하고 연결 수납을 취소한 뒤 원본을 소프트 삭제해 재업로드를 허용합니다. */
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public BankingResponse.Workspace deleteMany(UUID user, UUID property, BankingRequests.DeleteMany request) {
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		properties.findForUnitUpdate(property).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		LinkedHashSet<UUID> ids = new LinkedHashSet<>(request.transactionIds());
 		List<BankTransaction> selected = transactions.findAllById(ids);
 		if (selected.size() != ids.size() || selected.stream().anyMatch(t -> !property.equals(t.getPropertyId())))

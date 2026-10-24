@@ -7,7 +7,6 @@ import java.util.UUID;
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.common.security.PhoneSecurity;
 import com.moahome.server.common.validation.TextValues;
-import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.property.domain.*;
 import com.moahome.server.property.repo.*;
 import com.moahome.server.property.service.ManagementAccessService;
@@ -57,19 +56,15 @@ public class ResidentRegistrationService {
 		this.clock = clock;
 	}
 
-	/** 관리소장 확인 후 대상 잠금 안에서 명부와 현재 소속을 함께 저장하여 중복 검사·대표 지정을 직렬화합니다. */
+	/** 관리자 확인 후 대상 잠금 안에서 명부와 현재 소속을 함께 저장하여 중복 검사·대표 지정을 직렬화합니다. */
 	@Transactional
 	public ResidentRegistrationResponse register(UUID userId, UUID propertyId, ResidentRegistrationRequest request) {
-		if (access.getManagementContext(userId, propertyId).role() != PropertyMemberRole.ADMIN) {
-			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
-		}
+		access.getManagementContext(userId, propertyId);
 		// 세대 추가·삭제와 같은 잠금을 사용하므로 등록 중 세대 삭제와 최초 대표 지정이 교차하지 않습니다.
 		var property = properties.findForUnitUpdate(propertyId)
 		    .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		// 인계와 교차한 요청은 잠금 뒤 현재 관리소장 권한으로 다시 검증합니다.
-		if (access.getManagementContext(userId, propertyId).role() != PropertyMemberRole.ADMIN) {
-			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
-		}
+		// 인계와 교차한 요청은 잠금 뒤 현재 관리자 권한으로 다시 검증합니다.
+		access.getManagementContext(userId, propertyId);
 		var unit = requireUnit(property, request.unitId());
 		var name = TextValues.required(request.name(), 50);
 		var phone = protectPhone(request.phone());
@@ -105,6 +100,7 @@ public class ResidentRegistrationService {
 			    phone == null ? null : phone.encrypted(), phone == null ? null : phone.hmac(),
 			    phone == null ? null : phone.last4(), at);
 		} else {
+			access.requireResidentWrite(userId, propertyId, resident.getUserId());
 			representative = restoreResident(userId, propertyId, resident, unit, at) || representative;
 		}
 		residents.saveAndFlush(resident);

@@ -8,7 +8,7 @@
 
 BankTransactionReader.readAll은 입출금 원본을 읽고 기존 read는 입금만 반환합니다. 입출금이 동시에 양수인 행·잘못된 날짜·수식 등은 거부합니다. 같은 가맹점 출금과 환불 입금은 방향을 나누어 보존합니다.
 
-BankingService는 매 요청 ADMIN 권한·관리대상·선택한 사용 중 공용 계좌를 확인합니다. 계좌를 생략한 호환 호출만 기본 계좌를 사용합니다. 미리보기는 중복·인계 이전을 제외하고 기존 PaymentService의 후보를 재사용하며 저장하지 않습니다. upload는 관리대상 잠금을 획득한 뒤 권한을 재확인하고 관리 시작 상태와 모든 선택을 원본 파일에서 재검증합니다. 선택 출금 원본·확정 배분과 입금 원본·수납을 한 트랜잭션으로 처리하므로 이후 검증·저장에 실패하면 모두 롤백됩니다.
+BankingService는 매 요청 ADMIN / MANAGER 권한·관리대상·선택한 사용 중 공용 계좌를 확인합니다. 계좌를 생략한 호환 호출만 기본 계좌를 사용합니다. 미리보기는 중복·인계 이전을 제외하고 기존 PaymentService의 후보를 재사용하며 저장하지 않습니다. upload는 관리대상 잠금을 획득한 뒤 권한을 재확인하고 관리 시작 상태와 모든 선택을 원본 파일에서 재검증합니다. 선택 출금 원본·확정 배분과 입금 원본·수납을 한 트랜잭션으로 처리하므로 이후 검증·저장에 실패하면 모두 롤백됩니다.
 
 선택 거래의 `transfer`는 해당 필드의 JsonSetter에서 생략·null만 false로 기본 처리합니다. Jackson의 전역 primitive null 검증은 유지합니다. 일반 거래에서 이체 표시가 빠진 실제 multipart 요청, 명시한 true·false·null 및 잘못된 boolean 문자열을 Controller 테스트에서 검증합니다.
 
@@ -54,7 +54,7 @@ BankingService의 선택 삭제는 관리대상 행 잠금 뒤 선택 전체의 
 
 ## 기존 계좌 정보 정정
 
-BankAccountService는 현재 ADMIN 권한을 확인하고 조회 시에만 계좌번호를 복호화합니다. 정정은 업로드·수납과 같은 관리대상 행 잠금으로 직렬화하고 호환 정정에서는 현재 공용 기본 계좌 ID·updated_at과 중복 은행·번호를 확인합니다. 다중 계좌 설정은 아래 후속 저장을 따릅니다. 같은 정정 재시도는 변경하지 않고 현재 결과를 반환합니다. BankAccount.correctDetails는 은행·예금주와 보호된 번호 컬럼만 변경하며 ID·사용기간·기본 지정·거래 FK를 유지합니다. flush 후 PostgreSQL 마이크로초 정밀도의 수정 시각을 응답해 연속 수정에서도 충돌 판단이 일치하게 합니다. DTO 문자열 표현은 원문을 숨깁니다. API는 [공통 계약](../../docs/bankingManagement.md#기존-관리계좌-정보-정정-api)을 참조합니다.
+BankAccountService는 현재 ADMIN / MANAGER 권한을 확인하고 조회 시에만 계좌번호를 복호화합니다. 정정은 업로드·수납과 같은 관리대상 행 잠금으로 직렬화하고 호환 정정에서는 현재 공용 기본 계좌 ID·updated_at과 중복 은행·번호를 확인합니다. 다중 계좌 설정은 아래 후속 저장을 따릅니다. 같은 정정 재시도는 변경하지 않고 현재 결과를 반환합니다. BankAccount.correctDetails는 은행·예금주와 보호된 번호 컬럼만 변경하며 ID·사용기간·기본 지정·거래 FK를 유지합니다. flush 후 PostgreSQL 마이크로초 정밀도의 수정 시각을 응답해 연속 수정에서도 충돌 판단이 일치하게 합니다. DTO 문자열 표현은 원문을 숨깁니다. API는 [공통 계약](../../docs/bankingManagement.md#기존-관리계좌-정보-정정-api)을 참조합니다.
 
 
 수동 선택 삭제는 요청의 paymentIds를 은행 원본 ID와 분리해 검증합니다. 같은 관리대상의 MANUAL·은행 미연결만 PaymentService.removeManualReceipts로 전달하며 초안·보류·확정·취소 수납 모두 삭제 표시와 감사를 남깁니다. 확정 수납은 은행 거래 삭제와 공유하는 취소·충당 재계산 흐름에서 취소 후 삭제합니다. 이미 취소된 수납의 최초 사유·충당 이력은 바꾸지 않습니다. 은행 원본 선택과 같은 트랜잭션에서 처리해 혼합 요청도 일부만 반영하지 않습니다. 기존 DB 삭제 제약·상태 불변식을 재사용합니다.
@@ -93,7 +93,7 @@ BankingBalanceService는 모든 공용 통장의 실제 확인값과 별도로 �
 
 ### 선택 통장 상세와 번호 공개
 
-[공통 계약](../../docs/bankingManagement.md#선택-통장-상세와-계좌번호-공개)에 따라 BankAccountService의 공통 소속 검증으로 ADMIN·같은 대상·미삭제 공용 계좌를 확인합니다. 기본 상세는 저장된 끝 네 자리와 예금주 등만 사용하여 보안 키·복호화를 요구하지 않습니다. 별도 공개 요청에서만 기존 AccountNumberSecurity를 사용해 선택 계좌 한 건을 복호화합니다. 종료 통장은 허용하고 다른 대상·삭제·비공용·대상 없음은 동일 권한 오류로 거부합니다. 응답 DTO의 toString은 원문을 출력하지 않습니다. 기존 저장 구조를 재사용하며 Migration은 추가하지 않습니다. BankAccountServiceTest와 BankAccountControllerTest에서 권한·소속·기본 상세 복호화 없음·선택 공개·응답 마스킹과 no-store를 검증합니다.
+[공통 계약](../../docs/bankingManagement.md#선택-통장-상세와-계좌번호-공개)에 따라 BankAccountService의 공통 소속 검증으로 ADMIN / MANAGER·같은 대상·미삭제 공용 계좌를 확인합니다. 기본 상세는 저장된 끝 네 자리와 예금주 등만 사용하여 보안 키·복호화를 요구하지 않습니다. 별도 공개 요청에서만 기존 AccountNumberSecurity를 사용해 선택 계좌 한 건을 복호화합니다. 종료 통장은 허용하고 다른 대상·삭제·비공용·대상 없음은 동일 권한 오류로 거부합니다. 응답 DTO의 toString은 원문을 출력하지 않습니다. 기존 저장 구조를 재사용하며 Migration은 추가하지 않습니다. BankAccountServiceTest와 BankAccountControllerTest에서 권한·소속·기본 상세 복호화 없음·선택 공개·응답 마스킹과 no-store를 검증합니다.
 
 ### 은행 코드별 업로드 처리 구현 (2026-10-23)
 

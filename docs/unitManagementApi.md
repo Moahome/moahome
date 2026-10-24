@@ -6,7 +6,7 @@
 
 ## 인증과 범위
 
-모든 요청은 Bearer 인증과 정상 계정 확인 후 `ManagementAccessService`로 현재 `ADMIN` / `MANAGER` 참여를 검사합니다. 이번 구현은 기존 관리 영역 접근 검증을 재사용하며 다른 업무의 권한 범위를 확정하지 않습니다. 현재 권한 조건과 인증 오류는 [관리 영역 접근 API](managementAccessApi.md#2-공통-인증과-조회-기준)를 따릅니다. 응답은 `Cache-Control: no-store`입니다. 주민 명부는 기존 관리소장 전용 권한을 유지하므로 세대별 주민 요약은 `ADMIN`에게만 반환하고 `MANAGER`에게는 `residentSummaries: null`을 반환합니다.
+모든 요청은 Bearer 인증과 정상 계정 확인 후 `ManagementAccessService`로 현재 `ADMIN` / `MANAGER` 참여를 검사합니다. 이번 구현은 기존 관리 영역 접근 검증을 재사용하며 다른 업무의 권한 범위를 확정하지 않습니다. 현재 권한 조건과 인증 오류는 [관리 영역 접근 API](managementAccessApi.md#2-공통-인증과-조회-기준)를 따릅니다. 응답은 `Cache-Control: no-store`입니다. 세대별 주민 요약도 `ADMIN` / `MANAGER`에게 동일하게 반환합니다.
 
 | 요청 | 성공 | 용도 |
 | --- | --- | --- |

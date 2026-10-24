@@ -64,7 +64,7 @@ export function SettingsPage({ propertyId }: { propertyId: string }) {
             </Button>
           </div>
         </ListCard>
-        {context.data?.role === 'ADMIN' && (
+        {Boolean(context.data) && (
           <ListCard>
             <div
               className={styles.item}

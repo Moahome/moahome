@@ -42,7 +42,7 @@ export async function correctBankAccount(propertyId: string, original: BankAccou
 
 export function bankAccountError(error: unknown) {
   const messages: Record<string, string> = {
-    ACCESS_DENIED: '관리소장만 계좌 정보를 변경할 수 있어요.',
+    ACCESS_DENIED: '계좌 정보를 변경할 권한이 없어요.',
     BANK_ACCOUNT_CONFLICT: '다른 곳에서 계좌 정보가 변경됐어요. 닫았다가 다시 열어 최신 정보를 확인해주세요.',
     BANK_ACCOUNT_PRIMARY_REQUIRED: '다른 통장을 기본 납부계좌로 지정한 뒤 사용을 종료해주세요.',
     BANK_ACCOUNT_CLOSED: '사용 종료한 통장은 수정할 수 없어요.',

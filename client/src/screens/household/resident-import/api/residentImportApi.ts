@@ -56,7 +56,7 @@ export function getImportError(error: unknown) {
     EMPTY_EXCEL_FILE: '입력된 주민이 없어요.',
     IMPORT_EXPIRED: '검증 정보가 만료되었어요. 파일을 다시 올려주세요.',
     PHONE_SECURITY_UNAVAILABLE: '연락처 저장 설정을 확인한 후 같은 요청으로 다시 시도해주세요.',
-    ACCESS_DENIED: '주민을 등록할 관리소장 권한이 없어요.',
+    ACCESS_DENIED: '주민을 등록할 권한이 없어요.',
     INVALID_REQUEST: '선택한 주민 정보를 확인해주세요.'
   };
   if (Object.hasOwn(messages, error.code)) return messages[error.code];

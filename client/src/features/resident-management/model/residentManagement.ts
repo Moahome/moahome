@@ -16,7 +16,7 @@ export function getResidentManagementError(error: unknown) {
     INVALID_UNIT: '등록된 동·호수를 다시 선택해주세요.',
     INVALID_REQUEST: '입력한 주민 정보를 확인해주세요.',
     PHONE_SECURITY_UNAVAILABLE: '연락처를 처리할 수 없어요. 서버의 연락처 설정을 확인해주세요.',
-    ACCESS_DENIED: '주민 정보를 관리할 관리소장 권한이 없어요.'
+    ACCESS_DENIED: '이 주민 정보를 변경할 권한이 없어요.'
   };
   if (Object.hasOwn(messages, error.code)) return messages[error.code];
   if (error.status === 401) return '로그인이 만료되었어요. 다시 로그인해주세요.';

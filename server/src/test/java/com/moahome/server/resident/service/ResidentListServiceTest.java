@@ -29,20 +29,17 @@ class ResidentListServiceTest {
 	private final UUID propertyId = UUID.randomUUID();
 
 	@Test
-	void rejectsMissingAccessAndManagerBeforeReadingAnyDirectoryData() {
+	void rejectsMissingManagementAccessBeforeReadingAnyDirectoryData() {
 		doThrow(new AuthException(AuthErrorCode.ACCESS_DENIED)).when(access).getManagementContext(userId, propertyId);
 		assertThatThrownBy(() -> service.list(userId, propertyId)).isInstanceOf(AuthException.class);
-		doReturn(new ManagementPropertyResponse(propertyId, "대상", PropertyMemberRole.MANAGER)).when(access)
-		    .getManagementContext(userId, propertyId);
-		assertThatThrownBy(() -> service.list(userId, propertyId)).isInstanceOfSatisfying(AuthException.class,
-		    error -> assertThat(error.code()).isEqualTo(AuthErrorCode.ACCESS_DENIED));
 		verifyNoInteractions(properties, buildings, residents);
 	}
 
-	@Test
-	void readsOnlyRequestedPropertyAndKeepsEmptyDirectoryAsSuccess() {
+	@org.junit.jupiter.params.ParameterizedTest
+	@org.junit.jupiter.params.provider.EnumSource(value = PropertyMemberRole.class, names = {"ADMIN", "MANAGER"})
+	void readsOnlyRequestedPropertyAndKeepsEmptyDirectoryAsSuccess(PropertyMemberRole role) {
 		when(access.getManagementContext(userId, propertyId))
-		    .thenReturn(new ManagementPropertyResponse(propertyId, "대상", PropertyMemberRole.ADMIN));
+		    .thenReturn(new ManagementPropertyResponse(propertyId, "대상", role));
 		when(properties.findById(propertyId))
 		    .thenReturn(Optional.of(Property.create("대상", "주소", null, null, false, OffsetDateTime.now())));
 		when(buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId)).thenReturn(List.of());

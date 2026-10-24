@@ -40,16 +40,18 @@ class UnitManagementServiceTest {
 	private final Building building = Building.create(property, "101동", 0, OffsetDateTime.now());
 
 	@Test
-	void managerCanReadUnitsWithoutReadingOrReceivingAdminOnlyResidents() {
+	void managerReadsUnitsWithTheSameResidentSummary() {
 		when(access.getManagementContext(userId, property.getId())).thenReturn(new ManagementPropertyResponse(
 		    property.getId(), property.getName(), com.moahome.server.membership.domain.PropertyMemberRole.MANAGER));
 		when(properties.findById(property.getId())).thenReturn(Optional.of(property));
 		var unit = Unit.create(property, building, "301", null, 3, UnitStatus.ACTIVE, OffsetDateTime.now());
 		when(units.findByPropertyIdAndDeletedAtIsNull(property.getId())).thenReturn(List.of(unit));
+		when(residents.list(userId, property.getId())).thenReturn(
+		    new com.moahome.server.resident.dto.ResidentListResponse(property.getId(), true, List.of(), List.of()));
 		var response = service.list(userId, property.getId());
 		assertThat(response.units()).hasSize(1);
-		assertThat(response.residentSummaries()).isNull();
-		verifyNoInteractions(residents);
+		assertThat(response.residentSummaries()).containsKey(unit.getId());
+		verify(residents).list(userId, property.getId());
 	}
 
 	@Test

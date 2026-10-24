@@ -65,7 +65,7 @@ public class ResidentManagementService {
 	/** 상세 조회에서도 매번 관리소장 권한·관리대상·미삭제 명부를 확인하고 마스킹된 정보만 반환합니다. */
 	@Transactional(readOnly = true)
 	public ResidentDetailResponse detail(UUID actor, UUID propertyId, UUID residentId) {
-		requireAdmin(actor, propertyId);
+		requireManagementAccess(actor, propertyId);
 		var resident = requireResident(propertyId, residentId);
 		var directory = lists.list(actor, propertyId);
 		var row = directory.residents().stream().filter(item -> item.id().equals(residentId)).findFirst()
@@ -93,7 +93,7 @@ public class ResidentManagementService {
 	/** 전체 번호는 사용자 버튼 요청에만 복호화하며 키 장애·변조 암호문을 원문 없는 고정 오류로 변환합니다. */
 	@Transactional(readOnly = true)
 	public String revealPhone(UUID actor, UUID propertyId, UUID residentId) {
-		requireAdmin(actor, propertyId);
+		requireManagementAccess(actor, propertyId);
 		var resident = requireResident(propertyId, residentId);
 		if (resident.getPhoneEncrypted() == null)
 			return null;
@@ -107,12 +107,13 @@ public class ResidentManagementService {
 	/** 등록과 같은 대상 잠금 아래 명부·연락처·확인된 신청·현재 세대·직접 선택한 대표를 원자적으로 수정합니다. */
 	@Transactional
 	public ResidentDetailResponse update(UUID actor, UUID propertyId, UUID residentId, ResidentUpdateRequest input) {
-		requireAdmin(actor, propertyId);
+		requireManagementAccess(actor, propertyId);
 		var property = properties.findForUnitUpdate(propertyId)
 		    .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
 		// 잠금 대기 중 관리소장 인계가 끝날 수 있으므로 현재 권한을 다시 확인합니다.
-		requireAdmin(actor, propertyId);
+		requireManagementAccess(actor, propertyId);
 		var resident = requireResident(propertyId, residentId);
+		access.requireResidentWrite(actor, propertyId, resident.getUserId());
 		requireUnchanged(resident, input.expectedUpdatedAt());
 		// 역할 수정도 주민 정보와 같은 트랜잭션으로 묶습니다. 계정 미연결·권한 충돌이면 명부 수정도 롤백합니다.
 		if (input.serviceRole() != null || input.expectedServiceRole() != null) {
@@ -133,32 +134,33 @@ public class ResidentManagementService {
 		String encrypted = resident.getPhoneEncrypted(), hmac = resident.getPhoneHmac(),
 		    last4 = resident.getPhoneLast4();
 		switch (input.phoneAction()) {
-		case "KEEP" -> {
-			if (input.phone() != null)
-				throw new IllegalArgumentException("Unexpected contact");
-		}
-		case "REMOVE" -> {
-			if (!linked.isEmpty())
-				throw failure(CONTACT_REQUIRED_FOR_REQUEST);
-			encrypted = null;
-			hmac = null;
-			last4 = null;
-		}
-		case "REPLACE" -> {
-			var protectedPhone = registrations.protectPhone(input.phone());
-			if (protectedPhone == null)
-				throw new IllegalArgumentException("Contact required");
-			encrypted = protectedPhone.encrypted();
-			hmac = protectedPhone.hmac();
-			last4 = protectedPhone.last4();
-		}
-		default -> throw new IllegalArgumentException("Invalid contact action");
+			case "KEEP" -> {
+				if (input.phone() != null)
+					throw new IllegalArgumentException("Unexpected contact");
+			}
+			case "REMOVE" -> {
+				if (!linked.isEmpty())
+					throw failure(CONTACT_REQUIRED_FOR_REQUEST);
+				encrypted = null;
+				hmac = null;
+				last4 = null;
+			}
+			case "REPLACE" -> {
+				var protectedPhone = registrations.protectPhone(input.phone());
+				if (protectedPhone == null)
+					throw new IllegalArgumentException("Contact required");
+				encrypted = protectedPhone.encrypted();
+				hmac = protectedPhone.hmac();
+				last4 = protectedPhone.last4();
+			}
+			default -> throw new IllegalArgumentException("Invalid contact action");
 		}
 		if (hmac != null) {
 			List<Resident> duplicates = residents.findByPropertyIdAndNameAndPhoneHmac(propertyId, name, hmac).stream()
 			    .filter(item -> !item.getId().equals(residentId)).toList();
 			if (!duplicates.isEmpty())
-				throw failure(duplicates.stream().anyMatch(item -> item.getDeletedAt() == null) ? DUPLICATE_RESIDENT
+				throw failure(duplicates.stream().anyMatch(item -> item.getDeletedAt() == null)
+				    ? DUPLICATE_RESIDENT
 				    : RESIDENT_RESTORE_REQUIRED);
 		}
 		// PostgreSQL timestamptz의 마이크로초 정밀도와 맞춰 응답의 수정 시각을 다음 요청에서도 비교할 수 있게 합니다.
@@ -171,7 +173,7 @@ public class ResidentManagementService {
 		if (moving) {
 			if (current != null)
 				current.end(actor, at, false);
-			designateSuccessor(successor, at);
+			designateSuccessor(actor, successor, at);
 			// 현재 세대 유일 인덱스에 걸리지 않도록 이전 관계의 종료를 먼저 반영하고 새 관계를 추가합니다.
 			affiliations.flush();
 			boolean first = !affiliations.existsByPropertyIdAndUnitId(propertyId, unit.getId());
@@ -185,11 +187,12 @@ public class ResidentManagementService {
 	/** 명부·현재 관계를 소프트 삭제하고 선택한 대표 승계·해당 대상의 주민 권한 종료·확인된 대기 취소를 함께 저장합니다. */
 	@Transactional
 	public void delete(UUID actor, UUID propertyId, UUID residentId, ResidentDeleteRequest input) {
-		requireAdmin(actor, propertyId);
+		requireManagementAccess(actor, propertyId);
 		properties.findForUnitUpdate(propertyId).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		requireAdmin(actor, propertyId);
+		requireManagementAccess(actor, propertyId);
 		var resident = residents.findByIdAndPropertyId(residentId, propertyId)
 		    .orElseThrow(() -> failure(RESIDENT_NOT_FOUND));
+		access.requireResidentWrite(actor, propertyId, resident.getUserId());
 		if (resident.getDeletedAt() != null)
 			return;
 		requireUnchanged(resident, input.expectedUpdatedAt());
@@ -197,7 +200,7 @@ public class ResidentManagementService {
 		    .findByPropertyIdAndResidentIdAndStatusAndDeletedAtIsNull(propertyId, residentId, "ACTIVE").orElse(null);
 		var successor = requireSuccessor(propertyId, residentId, current, input.replacementResidentId());
 		var at = OffsetDateTime.now(clock).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
-		designateSuccessor(successor, at);
+		designateSuccessor(actor, successor, at);
 		deleteResident(actor, propertyId, resident, current, at);
 	}
 
@@ -211,9 +214,9 @@ public class ResidentManagementService {
 		properties.findForUnitUpdate(propertyId).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
 		List<UnitResident> current = affiliations.findByPropertyIdAndUnitIdInAndStatusAndDeletedAtIsNull(propertyId,
 		    unitIds, "ACTIVE");
-		// 주민 명부 삭제는 기존 관리소장 권한을 유지하여 부담당자의 세대 삭제로 우회되지 않게 합니다.
+		// 현재 관리자 권한을 재확인하고 각 명부의 관리소장 보호도 아래 삭제에서 검사합니다.
 		if (!current.isEmpty())
-			requireAdmin(actor, propertyId);
+			requireManagementAccess(actor, propertyId);
 		for (var affiliation : current) {
 			var resident = residents.findByIdAndPropertyId(affiliation.getResidentId(), propertyId)
 			    .orElseThrow(() -> failure(RESIDENT_NOT_FOUND));
@@ -229,6 +232,8 @@ public class ResidentManagementService {
 	/** 개별·세대 일괄 삭제에서 명부·현재 관계·해당 관리대상 주민 권한·연결 대기를 같은 방식으로 종료합니다. */
 	private void deleteResident(UUID actor, UUID propertyId, Resident resident, UnitResident current,
 	    OffsetDateTime at) {
+		// 일괄 세대 삭제도 관리소장 명부 수정 금지를 우회하지 못하게 같은 검사를 적용합니다.
+		access.requireResidentWrite(actor, propertyId, resident.getUserId());
 		if (current != null)
 			current.end(actor, at, true);
 		if (resident.getDeletedAt() == null)
@@ -265,9 +270,11 @@ public class ResidentManagementService {
 	}
 
 	/** 대표 선택도 해당 주민의 수정 시각을 갱신해 이전 화면에서 새 대표 여부를 놓친 변경을 거부합니다. */
-	private void designateSuccessor(UnitResident successor, OffsetDateTime at) {
+	private void designateSuccessor(UUID actor, UnitResident successor, OffsetDateTime at) {
 		if (successor == null)
 			return;
+		access.requireResidentWrite(actor, successor.getPropertyId(),
+		    requireResident(successor.getPropertyId(), successor.getResidentId()).getUserId());
 		successor.designateRepresentative(at);
 		requireResident(successor.getPropertyId(), successor.getResidentId()).touch(at);
 	}
@@ -278,9 +285,8 @@ public class ResidentManagementService {
 			throw failure(RESIDENT_CHANGED);
 	}
 
-	private void requireAdmin(UUID actor, UUID propertyId) {
-		if (access.getManagementContext(actor, propertyId).role() != PropertyMemberRole.ADMIN)
-			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
+	private void requireManagementAccess(UUID actor, UUID propertyId) {
+		access.getManagementContext(actor, propertyId);
 	}
 
 	private ResidentRegistrationException failure(ResidentRegistrationException.Code code) {

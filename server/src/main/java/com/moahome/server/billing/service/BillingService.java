@@ -157,10 +157,8 @@ public class BillingService {
 		    "SCHEDULED", total.toPlainString(), rows);
 	}
 
-	/** 세대 목록과 같은 현재 대표 판정을 재사용하며 부담당자에게 관리소장 전용 주민 정보를 노출하지 않습니다. */
+	/** 세대 목록과 같은 현재 대표 판정을 재사용하며 관리소장과 부담당자에게 같은 현재 대표 이름을 제공합니다. */
 	private Map<UUID, String> representativeNames(UUID userId, UUID propertyId, PropertyMemberRole role) {
-		if (role != PropertyMemberRole.ADMIN)
-			return Map.of();
 		return residents.list(userId, propertyId).residents().stream()
 		    .filter(resident -> resident.unitId() != null && resident.representative())
 		    .collect(Collectors.toMap(resident -> resident.unitId(), resident -> resident.name()));
@@ -171,7 +169,8 @@ public class BillingService {
 		Set<UUID> currentUnits = undeletedUnitIds(period.getPropertyId());
 		List<Charge> headers = charges.findByBillingPeriodId(period.getId()).stream()
 		    .filter(charge -> visibleCharge(charge, period.month(), currentUnits)).toList();
-		Map<UUID, List<ChargeItem>> snapshots = headers.isEmpty() ? Map.<UUID, List<ChargeItem>>of()
+		Map<UUID, List<ChargeItem>> snapshots = headers.isEmpty()
+		    ? Map.<UUID, List<ChargeItem>>of()
 		    : chargeItems.findByChargeIdInOrderBySortOrderAsc(headers.stream().map(Charge::getId).toList()).stream()
 		        .collect(Collectors.groupingBy(ChargeItem::getChargeId));
 		List<BillingResponse.ChargeRow> rows = headers.stream()

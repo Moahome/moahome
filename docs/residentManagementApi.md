@@ -7,7 +7,7 @@
 `GET /api/properties/{propertyId}/residents`
 
 - `Authorization: Bearer <accessToken>`이 필요합니다.
-- 정상 계정과 현재 활성 관리대상·참여를 확인한 뒤 해당 관리대상의 관리소장(`ADMIN`)에게만 허용합니다. 부담당자·주민·다른 관리대상 관리자·플랫폼 관리자라는 이유만으로는 접근할 수 없습니다.
+- 정상 계정과 현재 활성 관리대상·참여를 확인한 뒤 해당 관리대상의 관리소장(`ADMIN`)과 부담당자(`MANAGER`)에게 허용합니다. 주민·다른 관리대상 관리자·플랫폼 관리자라는 이유만으로는 접근할 수 없습니다.
 - `propertyId`는 UUID입니다. 조회 조건과 서버 페이지네이션 파라미터는 없습니다. 삭제되지 않은 주민 전체를 이름·ID 순서로 반환하고 Client에서 필터와 페이지를 처리합니다.
 - 주민의 저장 상태로 행을 제외하지 않습니다. 현재 세대 관계(`ACTIVE`, 미삭제)만 결합하고 과거 관계로 주민 행을 중복하지 않습니다.
 - 성공과 Controller 오류 응답에 `Cache-Control: no-store`를 적용합니다.
@@ -78,7 +78,7 @@ HTTP `200`. 명부가 비었으면 `residents: []`입니다.
 | --- | --- | --- |
 | 400 | `INVALID_REQUEST` | 잘못된 관리대상 UUID |
 | 401 | 공통 인증 오류 코드 | 인증정보 없음·만료·무효 |
-| 403 | `ACCESS_DENIED` | 현재 관리소장 권한 없음, 대상 접근 불가 |
+| 403 | `ACCESS_DENIED` | 현재 관리자 권한 없음, 대상 접근 불가 |
 | 403 | `ACCOUNT_UNAVAILABLE` | 정상 사용 가능한 계정 아님 |
 | 503 | `RESIDENT_SERVICE_UNAVAILABLE` | 저장소 조회 실패 |
 | 500 | `INTERNAL_SERVER_ERROR` | 그 외 예상하지 못한 오류 |
@@ -89,7 +89,7 @@ HTTP `200`. 명부가 비었으면 `residents: []`입니다.
 
 `POST /api/properties/{propertyId}/residents`
 
-현재 관리소장(`ADMIN`)만 허용하며 Bearer 인증과 현재 계정·관리대상·참여 검증은 목록과 같습니다. 동·세대는 기존 `GET /api/properties/{propertyId}/units`로 조회하고 선택합니다. 새로운 동이나 세대를 자동 생성하지 않습니다.
+현재 관리소장(`ADMIN`)과 부담당자(`MANAGER`)를 허용하며 Bearer 인증과 현재 계정·관리대상·참여 검증은 목록과 같습니다. 동·세대는 기존 `GET /api/properties/{propertyId}/units`로 조회하고 선택합니다. 새로운 동이나 세대를 자동 생성하지 않습니다.
 
 ```json
 {
@@ -141,7 +141,7 @@ HTTP `201`, `Cache-Control: no-store`:
 
 ## 주민 상세·연락처 공개·수정·삭제
 
-모두 목록과 동일한 Bearer 인증·현재 관리소장 권한을 확인하며 관리대상·주민 ID는 UUID입니다. 다른 관리대상의 주민과 삭제된 명부는 `404 RESIDENT_NOT_FOUND`입니다. 성공·Controller 오류·삭제의 빈 응답에도 `Cache-Control: no-store`를 적용합니다.
+모두 목록과 동일한 Bearer 인증·현재 관리자 권한을 확인하며 관리대상·주민 ID는 UUID입니다. 다른 관리대상의 주민과 삭제된 명부는 `404 RESIDENT_NOT_FOUND`입니다. 성공·Controller 오류·삭제의 빈 응답에도 `Cache-Control: no-store`를 적용합니다.
 
 ### 기본 상세
 
@@ -213,7 +213,7 @@ HTTP `201`, `Cache-Control: no-store`:
 
 `POST /api/properties/{propertyId}/residents/export`
 
-- Bearer 인증과 해당 관리대상의 현재 `ADMIN` 권한을 검증합니다. 일반 목록 조회는 전체 번호를 반환하지 않습니다.
+- Bearer 인증과 해당 관리대상의 현재 `ADMIN` / `MANAGER` 권한을 검증합니다. 일반 목록 조회는 전체 번호를 반환하지 않습니다.
 - 요청은 `{ "residentIds": ["33333333-3333-4333-8333-333333333333"] }`입니다. Client가 현재 검색·필터 결과 전체의 ID를 동·호수 순서로 전달하며 현재 페이지로 제한하지 않습니다.
 - `residentIds`는 비어 있지 않은 UUID 배열이며 중복·`null`을 허용하지 않습니다. 전체 ID가 해당 관리대상의 미삭제 주민인지 검증하며 다른 관리대상·삭제·누락 ID가 하나라도 있으면 부분 파일 대신 `404 RESIDENT_NOT_FOUND`를 반환합니다.
 - 응답은 HTTP `200`, `{ "residents": [{ "name": "예시 주민", "phone": "+821012345678", "unitLabel": "102동 301호" }] }`입니다. 요청 ID 순서를 유지하고 주민명·전체 연락처·동호수만 반환합니다. 주민 구분·대표 여부·가입 상태·내부 ID·암호문·HMAC은 포함하지 않습니다. 연락처 없음은 `null`, 현재 세대 없음은 `unitLabel: "—"`입니다.
@@ -222,7 +222,7 @@ HTTP `201`, `Cache-Control: no-store`:
 
 ## 엑셀 검증과 일괄 등록
 
-두 API 모두 목록과 같은 Bearer 인증·현재 관리소장 권한을 검증하고 응답에 `Cache-Control: no-store`를 적용합니다. 업로드 양식은 Client 정적 파일이며 업로드 결과는 브라우저에서 마스킹한 CSV로 생성합니다. 전체 번호를 담는 주민 목록 다운로드는 [별도 내보내기 API](#주민-목록-엑셀-다운로드)를 사용합니다.
+두 API 모두 목록과 같은 Bearer 인증·현재 관리자 권한을 검증하고 응답에 `Cache-Control: no-store`를 적용합니다. 업로드 양식은 Client 정적 파일이며 업로드 결과는 브라우저에서 마스킹한 CSV로 생성합니다. 전체 번호를 담는 주민 목록 다운로드는 [별도 내보내기 API](#주민-목록-엑셀-다운로드)를 사용합니다.
 
 ### 파일 검증
 
@@ -308,3 +308,5 @@ HTTP `200`의 구조는 검증 응답과 같으며 전체 행을 원본 순서�
 ### 2026-10-17 역할 수정 연결
 
 주민 목록·상세는 `serviceRole`에 현재 연결 계정의 역할을 반환하며 화면 라벨은 `역할`입니다. 기존 주민 수정 요청에 `serviceRole`과 `expectedServiceRole`을 함께 보내면 주민 정보와 역할을 한 트랜잭션으로 저장합니다. 둘 다 생략하면 기존 수정과 같습니다. 가입 전 주민은 역할을 지정할 수 없으며 ADMIN 지정·해제는 전용 관리소장 인계에서 처리합니다. 자세한 검증·오류는 [참여자·가입 API](memberManagementApi.md#역할-변경인계)를 따릅니다.
+
+부담당자는 현재 ADMIN 계정에 연결된 관리소장 명부를 조회할 수 있지만 수정·삭제·재등록 복구는 403 ACCESS_DENIED입니다. 세대 일괄 삭제에도 같은 검사를 적용합니다. 수정·삭제 전 대상 잠금 아래 현재 역할을 확인하며 실패 시 전체를 롤백합니다.

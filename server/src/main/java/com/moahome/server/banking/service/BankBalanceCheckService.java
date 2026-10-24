@@ -8,7 +8,6 @@ import com.moahome.server.banking.domain.*;
 import com.moahome.server.banking.dto.*;
 import com.moahome.server.banking.repo.*;
 import com.moahome.server.common.security.PaymentTextSecurity;
-import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.payment.exception.PaymentException;
 import com.moahome.server.property.repo.PropertyRepository;
 import com.moahome.server.property.service.ManagementAccessService;
@@ -50,8 +49,7 @@ public class BankBalanceCheckService {
 
 	/** 이력은 종료 통장도 조회하되 같은 관리대상의 ADMIN과 공용 통장 소속을 매번 확인합니다. */
 	private BankAccount account(UUID actor, UUID property, UUID account) {
-		if (access.getManagementContext(actor, property).role() != PropertyMemberRole.ADMIN)
-			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
+		access.getManagementContext(actor, property);
 		return accounts.findById(account)
 		    .filter(a -> property.equals(a.getPropertyId()) && a.getBuildingId() == null && a.getDeletedAt() == null)
 		    .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));

@@ -89,7 +89,7 @@ export function balanceError(error: unknown): string {
   const messages: Record<string, string> = {
     INVALID_BANK_CHECK_TIME: '은행에서 확인한 날짜와 시각을 현재 또는 이전으로 입력해주세요.',
     BANK_CHECK_CONFLICT: '같은 요청이 다른 내용으로 처리됐어요. 최신 확인 이력을 다시 열어주세요.',
-    ACCESS_DENIED: '동별 잔고는 관리소장만 확인할 수 있어요.',
+    ACCESS_DENIED: '동별 잔고를 조회할 권한이 없어요.',
     INVALID_BANK_OPENING: '통장의 기초 잔액을 0원 이상의 원 단위로 입력해주세요.',
     INVALID_BANK_OPENING_DATE: '통장별 기준일은 오늘 또는 이전 날짜로 선택해주세요.',
     BANK_OPENING_CONFLICT: '통장 기초 잔액이 변경됐어요. 창을 다시 열어 최신 값을 확인해주세요.',

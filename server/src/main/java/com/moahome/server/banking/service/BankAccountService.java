@@ -8,7 +8,6 @@ import com.moahome.server.banking.domain.BankAccountStatus;
 import com.moahome.server.banking.dto.BankAccountSettings;
 import com.moahome.server.banking.repo.BankAccountRepository;
 import com.moahome.server.common.security.AccountNumberSecurity;
-import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.payment.exception.PaymentException;
 import com.moahome.server.property.repo.PropertyRepository;
 import com.moahome.server.property.service.ManagementAccessService;
@@ -41,9 +40,9 @@ public class BankAccountService {
 		this.clock = clock;
 	}
 
-	/** 계좌번호 원문은 현재 관리소장 권한을 확인한 조회에서만 복호화합니다. */
+	/** 계좌번호 원문은 현재 관리자 권한을 확인한 조회에서만 복호화합니다. */
 	public BankAccountSettings.Response read(UUID userId, UUID propertyId) {
-		requireAdmin(userId, propertyId);
+		requireManagementAccess(userId, propertyId);
 		return response(primaryAccount(propertyId));
 	}
 
@@ -64,7 +63,7 @@ public class BankAccountService {
 
 	/** 종료 통장의 과거 정보는 허용하되 다른 대상·삭제·비공용 계좌는 같은 권한 오류로 거부합니다. */
 	private BankAccount readableAccount(UUID userId, UUID propertyId, UUID accountId) {
-		requireAdmin(userId, propertyId);
+		requireManagementAccess(userId, propertyId);
 		return accounts
 		    .findById(accountId).filter(account -> propertyId.equals(account.getPropertyId())
 		        && account.getDeletedAt() == null && account.getBuildingId() == null)
@@ -74,7 +73,7 @@ public class BankAccountService {
 	/** 업로드·수납과 같은 관리대상 잠금 아래 계좌 정보만 정정하고 과거 거래·잔고는 다시 쓰지 않습니다. */
 	@Transactional
 	public BankAccountSettings.Response correct(UUID userId, UUID propertyId, BankAccountSettings.Request request) {
-		requireAdmin(userId, propertyId);
+		requireManagementAccess(userId, propertyId);
 		properties.findForUnitUpdate(propertyId).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
 		var account = primaryAccount(propertyId);
 		if (!account.getId().equals(request.accountId()))
@@ -99,11 +98,9 @@ public class BankAccountService {
 		return response(account);
 	}
 
-	/** 변경 권한과 계좌 원문 조회 권한은 기존 통장 관리의 관리소장 범위로 제한합니다. */
-	private void requireAdmin(UUID userId, UUID propertyId) {
-		if (access.getManagementContext(userId, propertyId).role() != PropertyMemberRole.ADMIN) {
-			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
-		}
+	/** 변경 권한과 계좌 원문 조회 권한은 기존 통장 관리의 관리자 범위로 제한합니다. */
+	private void requireManagementAccess(UUID userId, UUID propertyId) {
+		access.getManagementContext(userId, propertyId);
 	}
 
 	/** 여러 기본 계좌나 동별 계좌를 임의로 선택해 정정하지 않도록 대상을 한 건으로 제한합니다. */
@@ -119,17 +116,17 @@ public class BankAccountService {
 
 	/** 종료 통장도 과거 내역 확인을 위해 목록에 유지하며 번호 원문은 이 권한 조회에서만 제공합니다. */
 	public java.util.List<BankAccountSettings.Response> list(UUID userId, UUID propertyId) {
-		requireAdmin(userId, propertyId);
+		requireManagementAccess(userId, propertyId);
 		return accounts.findByPropertyIdAndDeletedAtIsNull(propertyId).stream().map(this::response).toList();
 	}
 
 	/** 계좌 추가·정정과 기본 전환을 같은 잠금으로 직렬화하고 기존 거래의 계좌 ID는 유지합니다. */
 	@Transactional
 	public BankAccountSettings.Response save(UUID userId, UUID propertyId, BankAccountSettings.Save request) {
-		requireAdmin(userId, propertyId);
+		requireManagementAccess(userId, propertyId);
 		var property = properties.findForUnitUpdate(propertyId)
 		    .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		requireAdmin(userId, propertyId);
+		requireManagementAccess(userId, propertyId);
 		var primary = primaryAccount(propertyId);
 		var number = security.protect(request.accountNumber());
 		var existing = accounts.findById(request.accountId());
@@ -181,9 +178,9 @@ public class BankAccountService {
 	@Transactional
 	public BankAccountSettings.Response close(UUID userId, UUID propertyId, UUID id,
 	    BankAccountSettings.Close request) {
-		requireAdmin(userId, propertyId);
+		requireManagementAccess(userId, propertyId);
 		properties.findForUnitUpdate(propertyId).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		requireAdmin(userId, propertyId);
+		requireManagementAccess(userId, propertyId);
 		var account = accounts.findById(id)
 		    .filter(a -> propertyId.equals(a.getPropertyId()) && a.getDeletedAt() == null)
 		    .orElseThrow(() -> new PaymentException("BANK_ACCOUNT_CONFLICT"));

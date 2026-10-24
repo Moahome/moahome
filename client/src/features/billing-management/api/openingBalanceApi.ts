@@ -67,7 +67,7 @@ export function openingBalanceError(error: unknown) {
     OPENING_ALREADY_HAS_RECEIPTS: '확정 수납이 있어 인계 잔액을 변경할 수 없어요. 관련 수납부터 정리해주세요.',
     INVALID_OPENING_DATES: '기준일은 오늘까지, 첫 부과월은 기준일 이후부터 다음 달까지 선택해주세요.',
     INVALID_OPENING_FILE: '내려받은 .xlsx 양식과 금액을 확인해주세요. 수식은 사용할 수 없어요.',
-    ACCESS_DENIED: '기존 잔액 인계는 관리소장만 할 수 있어요.',
+    ACCESS_DENIED: '기존 잔액 인계를 처리할 권한이 없어요.',
     INVALID_REQUEST: '기준일, 첫 부과월과 세대·계좌 금액을 확인해주세요.'
   };
 

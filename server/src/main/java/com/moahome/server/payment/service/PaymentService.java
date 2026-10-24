@@ -14,7 +14,6 @@ import com.moahome.server.banking.service.BankTransactionDuplicates;
 import com.moahome.server.billing.domain.*;
 import com.moahome.server.billing.repo.*;
 import com.moahome.server.common.security.PaymentTextSecurity;
-import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.payment.domain.*;
 import com.moahome.server.payment.dto.*;
 import com.moahome.server.payment.exception.PaymentException;
@@ -107,17 +106,16 @@ public class PaymentService {
 	}
 
 	/** 현재 대표 명부를 포함하므로 부담당자가 아닌 관리소장 권한을 매 요청마다 검사합니다. */
-	private void requireAdmin(UUID user, UUID property) {
-		if (access.getManagementContext(user, property).role() != PropertyMemberRole.ADMIN)
-			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
+	private void requireManagementAccess(UUID user, UUID property) {
+		access.getManagementContext(user, property);
 	}
 
 	/** 세대 변경·청구 생성과 같은 관리대상 잠금을 사용해 최신 잔액 검증과 저장을 직렬화합니다. */
 	private void lock(UUID user, UUID property) {
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		var target = properties.findForUnitUpdate(property)
 		    .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		if (target.getManagementStartedAt() == null)
 			throw new PaymentException("OPENING_BALANCE_REQUIRED");
 	}
@@ -170,7 +168,7 @@ public class PaymentService {
 
 	/** 읽기는 실제 명부·발행 청구·수납만 반환하고 미발행 예정액이나 예시 세대를 생성하지 않습니다. */
 	public PaymentResponse.Ledger workspace(UUID user, UUID property) {
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		return ledger(user, property);
 	}
 
@@ -200,8 +198,10 @@ public class PaymentService {
 		    .collect(Collectors.toSet());
 		List<PaymentResponse.Unit> unitRows = allUnits.stream().map(u -> {
 			var rep = reps.get(u.getId());
-			String building = u.getBuildingId() == null ? ""
-			    : current.containsKey(u.getBuildingId()) ? current.get(u.getBuildingId()).getName()
+			String building = u.getBuildingId() == null
+			    ? ""
+			    : current.containsKey(u.getBuildingId())
+			        ? current.get(u.getBuildingId()).getName()
 			        : headers.stream().filter(c -> c.getUnitId().equals(u.getId())).map(Charge::getBuildingName)
 			            .findFirst().orElse("");
 			return new PaymentResponse.Unit(u.getId(),
@@ -212,7 +212,8 @@ public class PaymentService {
 			    building);
 		}).sorted(Comparator.comparing(PaymentResponse.Unit::label)).toList();
 		List<PaymentResponse.Charge> chargeRows = headers.stream().map(c -> {
-			var month = "OPENING_RECEIVABLE".equals(c.getChargeType()) ? YearMonth.from(c.getDueDate())
+			var month = "OPENING_RECEIVABLE".equals(c.getChargeType())
+			    ? YearMonth.from(c.getDueDate())
 			    : periodsById.get(c.getBillingPeriodId()).month();
 			String state = c.getStatus();
 			if ("MONTHLY".equals(c.getChargeType()) && "ISSUED".equals(state)
@@ -271,7 +272,8 @@ public class PaymentService {
 		    security.decrypt(p.getCancelReasonEncrypted()), security.decrypt(p.getSeparateReasonEncrypted()),
 		    security.decrypt(p.getMemoEncrypted()), p.getReceiptType(),
 		    security.decrypt(p.getIncomeCategoryEncrypted()), security.decrypt(p.getIncomeNoteEncrypted()),
-		    shares.isEmpty() ? null
+		    shares.isEmpty()
+		        ? null
 		        : new com.moahome.server.banking.dto.BankingResponse.Expense(p.getId(),
 		            security.decrypt(p.getIncomeCategoryEncrypted()), security.decrypt(p.getIncomeNoteEncrypted()),
 		            shares.getFirst().getAllocationMode(), false,
@@ -766,7 +768,7 @@ public class PaymentService {
 
 	/** 계좌별 중복을 분리해 다른 통장의 같은 일시·금액도 독립적인 거래로 미리보기합니다. */
 	public PaymentResponse.ImportPreview preview(UUID user, UUID property, MultipartFile file, UUID accountId) {
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		var account = selectedAccount(property, accountId);
 		BankTransactionDuplicates existing = new BankTransactionDuplicates(transactions.findByPropertyId(property),
 		    account.getId(), security);

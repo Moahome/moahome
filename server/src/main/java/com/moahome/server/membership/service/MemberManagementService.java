@@ -74,20 +74,21 @@ public class MemberManagementService {
 			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
 	}
 
-	/** 역할 변경과 업무 저장은 같은 대상 잠금을 사용하고 대기 중 인계가 끝난 기존 관리소장의 요청도 다시 거부합니다. */
+	/** 역할 변경과 업무 저장은 같은 대상 잠금을 사용하고 잠금 뒤 현재 관리자 권한을 다시 검사합니다. */
 	private void lock(UUID actor, UUID property) {
 		properties.findForUnitUpdate(property).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		requireAdmin(actor, property);
+		access.getManagementContext(actor, property);
 	}
 
 	public MemberResponse.Workspace workspace(UUID actor, UUID property) {
-		requireAdmin(actor, property);
+		access.getManagementContext(actor, property);
 		List<MemberResponse.Member> memberRows = members.findByPropertyIdAndDeletedAtIsNull(property).stream()
 		    .filter(PropertyMember::isCurrent).map(m -> {
 			    List<Resident> linked = residents.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, m.getUserId());
 			    var resident = linked.size() == 1 ? linked.getFirst() : null;
 			    return new MemberResponse.Member(m.getId(),
-			        resident == null ? users.findById(m.getUserId()).orElseThrow().getDisplayName()
+			        resident == null
+			            ? users.findById(m.getUserId()).orElseThrow().getDisplayName()
 			            : resident.getName(),
 			        resident == null ? null : resident.getId(), m.getRole());
 		    }).toList();
@@ -96,7 +97,8 @@ public class MemberManagementService {
 			    String status = Set.of("ISSUED", "REQUESTED").contains(i.getStatus())
 			        && !now().isBefore(i.getExpiresAt()) ? "EXPIRED" : i.getStatus();
 			    return new MemberResponse.Invitation(i.getId(), i.getRevision(), status, i.getRole(), null, null,
-			        i.getRequestedBy() == null ? null
+			        i.getRequestedBy() == null
+			            ? null
 			            : users.findById(i.getRequestedBy()).orElseThrow().getDisplayName(),
 			        i.getExpiresAt());
 		    }).toList();
@@ -124,13 +126,13 @@ public class MemberManagementService {
 		events.save(MemberRoleEvent.record(member, before, actor, now()));
 	}
 
-	/** 현재 관리소장 본인의 계정만 명부에 연결하며 권한·대표·연락처는 변경하지 않습니다. */
+	/** 현재 관리자 본인의 계정만 명부에 연결하며 권한·대표·연락처는 변경하지 않습니다. */
 	@Transactional
 	public void linkOwnResident(UUID actor, UUID property, UUID residentId, UUID expectedUnitId) {
 		// 가입 승인·명부 수정·인계와 같은 대상 잠금을 사용해 연결 충돌과 인계 이후의 요청을 직렬화합니다.
 		lock(actor, property);
 		var member = uniqueMember(property, actor);
-		if (member.getRole() != PropertyMemberRole.ADMIN)
+		if (member.getRole() != PropertyMemberRole.ADMIN && member.getRole() != PropertyMemberRole.MANAGER)
 			throw failure("MEMBER_ROLE_CONFLICT");
 		accounts.requireActive(actor);
 		var resident = requiredResident(property, residentId);
@@ -181,6 +183,9 @@ public class MemberManagementService {
 	}
 
 	private void changeRole(UUID actor, UUID property, PropertyMember member, MemberRequests.Role input) {
+		// 주민을 관리자 역할로 올리는 권한만 관리소장에게 남깁니다. 일반 업무·주민으로 내리기는 관리자에게 허용합니다.
+		if (input.role() == PropertyMemberRole.MANAGER && member.getRole() != PropertyMemberRole.MANAGER)
+			requireAdmin(actor, property);
 		accounts.requireActive(member.getUserId());
 		uniqueMember(property, member.getUserId());
 		if (member.getRole() != input.expectedRole() || member.getRole() == PropertyMemberRole.ADMIN
@@ -198,6 +203,7 @@ public class MemberManagementService {
 	@Transactional
 	public void transfer(UUID actor, UUID property, UUID memberId, PropertyMemberRole expected) {
 		lock(actor, property);
+		requireAdmin(actor, property);
 		var target = requiredMember(property, memberId);
 		if (target.getUserId().equals(actor) || target.getRole() != expected)
 			throw failure("MEMBER_ROLE_CONFLICT");
@@ -233,6 +239,7 @@ public class MemberManagementService {
 	@Transactional
 	public MemberResponse.Issued issue(UUID actor, UUID property, UUID residentId) {
 		lock(actor, property);
+		requireAdmin(actor, property);
 		if (residentId != null)
 			throw new IllegalArgumentException("Resident access is reviewed in membership requests");
 		byte[] bytes = new byte[24];
@@ -268,6 +275,7 @@ public class MemberManagementService {
 	@Transactional
 	public MemberResponse.Workspace approve(UUID actor, UUID property, UUID id, long revision) {
 		lock(actor, property);
+		requireAdmin(actor, property);
 		var invitation = requiredInvitation(property, id);
 		if (invitation.getRole() != PropertyMemberRole.MANAGER)
 			throw failure("INVALID_INVITATION");

@@ -70,9 +70,10 @@ class ResidentRegistrationServiceTest {
 	}
 
 	@Test
-	void managerCannotReadOrWriteRegistrationData() {
+	void nonManagerCannotReadOrWriteRegistrationData() {
 		when(access.getManagementContext(actor, property.getId()))
-		    .thenReturn(new ManagementPropertyResponse(property.getId(), "대상", PropertyMemberRole.MANAGER));
+		    .thenThrow(new com.moahome.server.auth.exception.AuthException(
+		        com.moahome.server.auth.exception.AuthErrorCode.ACCESS_DENIED));
 		assertThatThrownBy(() -> service.register(actor, property.getId(),
 		    new ResidentRegistrationRequest(UUID.randomUUID(), "주민", null, unit.getId(), "FAMILY")))
 		    .isInstanceOf(com.moahome.server.auth.exception.AuthException.class);

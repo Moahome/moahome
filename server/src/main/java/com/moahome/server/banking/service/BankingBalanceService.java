@@ -11,7 +11,6 @@ import com.moahome.server.banking.repo.*;
 import com.moahome.server.billing.domain.BillingCalendar;
 import com.moahome.server.common.security.PaymentTextSecurity;
 import com.moahome.server.expense.repo.*;
-import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.payment.domain.Payment;
 import com.moahome.server.payment.exception.PaymentException;
 import com.moahome.server.payment.repo.PaymentRepository;
@@ -107,17 +106,16 @@ public class BankingBalanceService {
 		return LocalDate.now(clock.withZone(BillingCalendar.ZONE));
 	}
 
-	/** 모든 조회·변경은 기존 통장 관리와 동일한 관리대상의 ADMIN 권한을 사용합니다. */
-	private void requireAdmin(UUID user, UUID property) {
-		if (access.getManagementContext(user, property).role() != PropertyMemberRole.ADMIN)
-			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
+	/** 모든 조회·변경은 기존 통장 관리와 동일한 관리대상의 ADMIN / MANAGER 권한을 사용합니다. */
+	private void requireManagementAccess(UUID user, UUID property) {
+		access.getManagementContext(user, property);
 	}
 
 	/** 수납 변경·업로드와 같은 관리대상 잠금으로 시작 잔고·회수액의 동시 초과 처리를 막습니다. */
 	private void lock(UUID user, UUID property) {
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		properties.findForUnitUpdate(property).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 	}
 
 	private boolean active(Payment p) {
@@ -135,7 +133,7 @@ public class BankingBalanceService {
 
 	/** 선택 통장은 동별 기준값·입출금·정산까지 같은 범위로 조회하고 전체는 통장별 계산 결과를 합산합니다. */
 	public BankingBalanceResponse.Workspace workspace(UUID user, UUID property, String rawMonth, UUID accountId) {
-		requireAdmin(user, property);
+		requireManagementAccess(user, property);
 		YearMonth month = BillingCalendar.parseMonth(rawMonth);
 		LocalDate end = month.atEndOfMonth();
 		List<BankAccount> common = accounts.findByPropertyIdAndDeletedAtIsNull(property).stream()

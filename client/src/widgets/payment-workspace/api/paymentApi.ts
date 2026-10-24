@@ -106,7 +106,7 @@ export function paymentError(error: unknown): string {
   const messages: Record<string, string> = {
     OPENING_BALANCE_REQUIRED: '관리비 부과의 기존 잔액 인계에서 관리 시작을 먼저 확정해주세요.',
     PAYMENT_BEFORE_OPENING_CUTOFF: '기존 장부 기준일 이전 입금은 인계 잔액에 포함되어 신규 수납으로 반영할 수 없어요.',
-    ACCESS_DENIED: '입금 관리는 현재 관리소장만 사용할 수 있어요.',
+    ACCESS_DENIED: '이 관리대상의 입금 관리 권한이 없어요.',
     PAYMENT_REPRESENTATIVE_REQUIRED: '선택한 세대에 현재 대표 주민을 먼저 등록해주세요.',
     PAYMENT_UNIT_UNAVAILABLE: '사용 중인 세대와 현재 대표 주민을 확인해주세요.',
     PAYMENT_ACCOUNT_UNAVAILABLE: '등록된 공용 기본 관리계좌를 확인해주세요.',

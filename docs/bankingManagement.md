@@ -30,7 +30,7 @@
 
 ## API 계약
 
-모든 경로는 `/api/properties/{propertyId}/banking` 아래이며 Bearer 인증·ADMIN 권한을 확인하고 `Cache-Control: no-store`를 반환합니다. 요청 원문은 오류에 포함하지 않습니다.
+모든 경로는 `/api/properties/{propertyId}/banking` 아래이며 Bearer 인증·ADMIN / MANAGER 권한을 확인하고 `Cache-Control: no-store`를 반환합니다. 요청 원문은 오류에 포함하지 않습니다.
 
 | 메서드·경로 | 요청 | 응답 |
 | --- | --- | --- |
@@ -57,7 +57,7 @@ Expense는 `{ category, note?, mode, saveAsRule, allocations }`, mode는 `EQUAL 
 
 ## 동별 잔고·외부 회수 API
 
-2026-10-17 구현. 업무 기준은 [동별 잔고 확정 정책](domainRules.md#동별-잔고외부-부담금-정산-2026-10-17-후속-확정), 테이블은 [ERD](erd.md#95-building_cash_openings)를 참조합니다. 기존 ADMIN 권한·관리대상 잠금과 전체 공용 관리계좌를 사용하며 응답은 `Cache-Control: no-store`입니다.
+2026-10-17 구현. 업무 기준은 [동별 잔고 확정 정책](domainRules.md#동별-잔고외부-부담금-정산-2026-10-17-후속-확정), 테이블은 [ERD](erd.md#95-building_cash_openings)를 참조합니다. 기존 ADMIN / MANAGER 권한·관리대상 잠금과 전체 공용 관리계좌를 사용하며 응답은 `Cache-Control: no-store`입니다.
 
 | 메서드 | `/api/properties/{propertyId}/banking/balances` 아래 경로 | 요청 |
 | --- | --- | --- |
@@ -80,13 +80,13 @@ Expense는 `{ category, note?, mode, saveAsRule, allocations }`, mode는 `EQUAL 
 
 추가 업무 오류: `INVALID_CASH_OPENING`, `INVALID_CASH_OPENING_DATE`, `CASH_OPENING_CONFLICT`, `CASH_ASSIGNMENT_CONFLICT`, `INVALID_EXTERNAL_SETTLEMENT`, `EXTERNAL_SETTLEMENT_EXCEEDED`, `EXTERNAL_SETTLEMENT_CONFLICT`. 입력 오류는 400, 상태·한도 충돌은 409이며 권한은 기존 오류를 사용합니다.
 
-정산 제외·복원은 같은 ADMIN 권한·관리대상 잠금을 사용합니다. 원본 거래·지출·회수액은 변경하지 않고 새 결정 이력을 남깁니다. 요청 UUID 재시도는 같은 결과를 반환하며 다른 내용 재사용·이전 revision 변경은 `EXTERNAL_SETTLEMENT_DECISION_CONFLICT`(409)입니다. 제외 상태의 신규 회수 연결은 `EXTERNAL_SETTLEMENT_EXCLUDED`(409)입니다. 복원 이후에도 과거 요청 재시도는 현재 상태를 되돌리지 않습니다.
+정산 제외·복원은 같은 ADMIN / MANAGER 권한·관리대상 잠금을 사용합니다. 원본 거래·지출·회수액은 변경하지 않고 새 결정 이력을 남깁니다. 요청 UUID 재시도는 같은 결과를 반환하며 다른 내용 재사용·이전 revision 변경은 `EXTERNAL_SETTLEMENT_DECISION_CONFLICT`(409)입니다. 제외 상태의 신규 회수 연결은 `EXTERNAL_SETTLEMENT_EXCLUDED`(409)입니다. 복원 이후에도 과거 요청 재시도는 현재 상태를 되돌리지 않습니다.
 
 기준일·마감 잔고 정정은 선택 통장에 등록된 모든 동(보관 동 포함)의 값과 기대 revision을 함께 받습니다. 다른 통장의 동별 값은 변경하지 않습니다. 기준일은 오늘 이전도 허용하고 세대 미납·선납 인계 기준일과 분리합니다. 변경 전후 값·수정자를 보존하며 통장·수납·지출 원본은 바꾸지 않습니다. 오래된 버전·다른 내용의 UUID 재사용은 `CASH_OPENING_CONFLICT`(409), 동 누락·중복은 `INVALID_CASH_OPENING`(400)입니다. 같은 UUID 재시도는 이후 다른 정정이 있어도 과거 값을 다시 적용하지 않습니다.
 
 ## 통장 거래 선택 삭제·기타 입금 배분 API
 
-- `POST /api/properties/{propertyId}/banking/transactions/delete`: `{transactionIds: UUID[]}`. 1~5,000개, ADMIN 전용이며 전체 소속 검증 후 원자적으로 처리합니다. 연결 수납·충당을 취소하고 원본은 소프트 삭제합니다. 응답은 최신 Workspace이며 `Cache-Control: no-store`입니다. 이미 삭제한 ID 재요청은 무효과이며 재등록한 새 ID에 영향을 주지 않습니다. 다른 관리대상·없는 ID는 `BANK_TRANSACTION_NOT_FOUND`로 전체 거부합니다.
+- `POST /api/properties/{propertyId}/banking/transactions/delete`: `{transactionIds: UUID[]}`. 1~5,000개, ADMIN / MANAGER 업무이며 전체 소속 검증 후 원자적으로 처리합니다. 연결 수납·충당을 취소하고 원본은 소프트 삭제합니다. 응답은 최신 Workspace이며 `Cache-Control: no-store`입니다. 이미 삭제한 ID 재요청은 무효과이며 재등록한 새 ID에 영향을 주지 않습니다. 다른 관리대상·없는 ID는 `BANK_TRANSACTION_NOT_FOUND`로 전체 거부합니다.
 - `POST /api/properties/{propertyId}/banking/transactions/{id}/income-allocation`: 지출 배분과 같은 `{category, note?, mode, saveAsRule:false, allocations:[{buildingId,amount?,percentage?}]}` 구조입니다. 실제 항목명·메모는 확정 기타 입금의 값을 유지하고 이 API는 배분만 저장합니다. `EQUAL`, `RATIO`, `AMOUNT`를 지원하며 관리 동을 명시하고 전액 합계를 검증합니다. 같은 확정 배분 재시도는 한 번만 반영하고 다른 값은 `BANK_REQUEST_CONFLICT`로 거부합니다.
 - 업로드 Selection에 선택 필드 `incomeAllocation`을 추가합니다. 이 필드를 보내면 `incomeCategory`가 필요하며 `unitId`·`expense`와 함께 보낼 수 없습니다. 수납 확정·배분 저장은 한 트랜잭션이므로 배분 실패 시 입금 원본까지 롤백합니다.
 - Workspace 거래에 `receiptType`과 `incomeAllocation`을 추가합니다. `incomeAllocation`은 기존 Expense 응답과 같은 구조이며 ID는 수납 ID, `saveAsRule`은 false입니다. 세대 입금·미배분 기타 입금은 null입니다. 동별 잔고 Entry에는 배분된 동마다 해당 몫의 income을 표시하되 실제 은행 잔액과 기타 입금 전체 합계는 복제하지 않습니다.
@@ -96,7 +96,7 @@ Expense는 `{ category, note?, mode, saveAsRule, allocations }`, mode는 `EQUAL 
 
 ## 기존 관리계좌 정보 정정 API
 
-2026-10-18 구현. [기존 관리계좌 정정 정책](domainRules.md#기존-관리계좌-정보-정정-2026-10-18)을 따릅니다. ADMIN 전용이며 응답은 `Cache-Control: no-store`입니다.
+2026-10-18 구현. [기존 관리계좌 정정 정책](domainRules.md#기존-관리계좌-정보-정정-2026-10-18)을 따릅니다. ADMIN / MANAGER 업무이며 응답은 `Cache-Control: no-store`입니다.
 
 - `GET /api/properties/{propertyId}/banking/account`: 현재 활성 공용 기본 계좌를 `{propertyId,accountId,updatedAt,bankCode,bankName,accountNumber,holderName}`으로 반환합니다. 계좌번호 원문은 권한 확인 뒤 복호화하며 로그·오류에 포함하지 않습니다.
 - `PUT /api/properties/{propertyId}/banking/account`: `{accountId,updatedAt,bankCode,bankName,accountNumber,holderName}`을 보내고 같은 조회 응답 형식으로 정정 결과를 받습니다. 은행 코드 1~20자, 은행명·예금주 1~50자, 번호는 ASCII 공백·하이픈을 정리한 숫자 4~50자리이며 앞자리 0을 보존합니다.
@@ -113,7 +113,7 @@ Expense는 `{ category, note?, mode, saveAsRule, allocations }`, mode는 `EQUAL 
 
 ## 다중 통장·내부 이체 API (2026-10-18)
 
-[다중 통장 정책](domainRules.md#다중-통장-운영-2026-10-18)을 구현합니다. 모든 변경은 ADMIN·같은 관리대상 잠금을 사용하며 응답은 `Cache-Control: no-store`입니다.
+[다중 통장 정책](domainRules.md#다중-통장-운영-2026-10-18)을 구현합니다. 모든 변경은 ADMIN / MANAGER·같은 관리대상 잠금을 사용하며 응답은 `Cache-Control: no-store`입니다.
 
 | 경로 | 요청·응답 |
 | --- | --- |
@@ -160,7 +160,7 @@ accounts의 각 항목에 `calculatedBalance: 원 단위 부호 있는 문자열
 
 ### 선택 통장 상세와 계좌번호 공개
 
-2026-10-18 사용자 요청을 구현합니다. 기존 Bearer 인증·ADMIN 권한·`Cache-Control: no-store`를 적용하며 두 요청 모두 같은 관리대상·미삭제 공용 통장을 확인합니다. 종료 통장은 조회할 수 있습니다. 권한 부족·다른 대상·삭제·비공용·없는 통장은 `403 ACCESS_DENIED`로 구분 없이 거부합니다.
+2026-10-18 사용자 요청을 구현합니다. 기존 Bearer 인증·ADMIN / MANAGER 권한·`Cache-Control: no-store`를 적용하며 두 요청 모두 같은 관리대상·미삭제 공용 통장을 확인합니다. 종료 통장은 조회할 수 있습니다. 권한 부족·다른 대상·삭제·비공용·없는 통장은 `403 ACCESS_DENIED`로 구분 없이 거부합니다.
 
 - `GET /api/properties/{propertyId}/banking/account/{id}` → `{propertyId,accountId,updatedAt,bankCode,bankName,last4,holderName,alias,isPrimary,status}`. 번호 원문·암호문·HMAC 없이 끝 네 자리만 반환하며 복호화하지 않습니다.
 - `POST /api/properties/{propertyId}/banking/account/{id}/number-reveal` → `{propertyId,accountId,updatedAt,accountNumber}`. 본문 없이 선택 통장 한 건의 전체 번호를 반환합니다. 권한과 소속을 다시 확인하며 원문은 로그·오류에 포함하지 않습니다.
@@ -213,7 +213,7 @@ accounts의 각 항목에 `calculatedBalance: 원 단위 부호 있는 문자열
 
 `POST /api/properties/{propertyId}/banking/expenses/manual`
 
-요청은 `{ id, accountId, date, amount, category, note?, mode, allocations }`입니다. `id`는 클라이언트 요청 UUID이자 저장된 수동 지출 ID이고 `accountId`는 필수입니다. 금액은 양수 원 단위 1~15자리 숫자 문자열, date는 실제 출금일입니다. 지출명·메모·배분 대상과 한도는 기존 Expense 계약을 재사용하며 규칙 저장은 받지 않습니다. ADMIN·같은 관리대상의 사용 중 공용 통장·관리 시작·오늘 또는 이전 날짜를 검증합니다. 기준 잔고 날짜와 무관하게 과거 등록을 허용합니다.
+요청은 `{ id, accountId, date, amount, category, note?, mode, allocations }`입니다. `id`는 클라이언트 요청 UUID이자 저장된 수동 지출 ID이고 `accountId`는 필수입니다. 금액은 양수 원 단위 1~15자리 숫자 문자열, date는 실제 출금일입니다. 지출명·메모·배분 대상과 한도는 기존 Expense 계약을 재사용하며 규칙 저장은 받지 않습니다. ADMIN / MANAGER·같은 관리대상의 사용 중 공용 통장·관리 시작·오늘 또는 이전 날짜를 검증합니다. 기준 잔고 날짜와 무관하게 과거 등록을 허용합니다.
 
 응답은 최신 Workspace입니다. 수동 지출의 `rows[].id`는 지출 ID이며 `expense.id`와 같습니다. `sourceType=MANUAL`, `direction=EXPENSE`, `status=CONFIRMED`, `paymentId/time/balance=null`, `ruleKey=''`로 반환합니다. 은행 원본 행은 `sourceType=BANK_IMPORT`이며 기존 ID 의미를 유지합니다. 수동 ID를 은행 원본 선택 삭제 API에 보내지 않습니다.
 

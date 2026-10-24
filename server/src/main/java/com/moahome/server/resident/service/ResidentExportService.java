@@ -33,7 +33,7 @@ public class ResidentExportService {
 	/** 관리소장 권한과 전체 대상 ID를 검증한 뒤 같은 조회 스냅샷의 연락처를 복호화해 요청 순서로 반환합니다. */
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public ResidentExportResponse export(UUID actor, UUID propertyId, ResidentExportRequest input) {
-		// 기존 목록 조회가 현재 관리소장·정상 관리대상 권한을 검증하며 일반 조회 응답은 마스킹을 유지합니다.
+		// 기존 목록 조회가 현재 관리자·정상 관리대상 권한을 검증하며 일반 조회 응답은 마스킹을 유지합니다.
 		var directory = lists.list(actor, propertyId);
 		List<UUID> ids = input.residentIds();
 		if (ids == null || ids.isEmpty() || ids.stream().anyMatch(Objects::isNull)
