@@ -47,6 +47,8 @@
 - 주민 대상 알림톡/SMS는 우선 `residents`의 전화번호를 사용
 - 향후 계정 자체 휴대폰 인증/복구/공통 연락처 기능이 필요하면 `user_contacts` 같은 별도 엔티티 검토
 
+[건물별 공지·명부 발송·채널톡 문의 기획](residentCommunication.md)에 따른 공지·수신 대상·발송 결과·상담 연결·차량 자료의 저장 구조는 아직 설계하지 않았습니다. 기존 `residents`와 `Property`를 참조하는 방향이며, 채널톡 식별정보를 로그인 계정이나 `property_members` 접근 권한으로 대신 사용하지 않습니다. 수신자별 접근 링크도 미확정 설계안으로, 이 ERD에 확정 테이블·컬럼이나 Migration을 추가하지 않습니다.
+
 ### 0.3 User와 Resident 관계
 
 `Resident`는 가입 전에도 존재할 수 있다.
@@ -688,33 +690,21 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 
 ## 6.1 invitations
 
-### 목적
+### 신규 주민 초대의 저장 설계 범위
 
-공용 / 세대 / 주민 단위 가입 초대 토큰의 기존 설계안입니다. 현재 주민 가입은 초대코드 없이 참여 링크와 `membership_requests`를 사용합니다. 외부 부담당자 코드는 아래 `member_invitations` 구현을 따릅니다.
+상태: 미구현. 2026-10-24 [주민 초대 정책](domainRules.md#주민-참여-흐름)에 따라 전체 공유 코드와 개인 지정 링크의 저장 책임을 구분합니다. `invitations`는 기존 개념도에서 쓰는 가칭이며 단일 테이블 채택이나 컬럼·Enum을 확정한 이름이 아닙니다. 기존 PROPERTY / UNIT / RESIDENT 공용 토큰 표는 아래 요구로 대체합니다.
 
-### 컬럼
+| 저장 책임 | 필요한 관계·제약 |
+| --- | --- |
+| 전체 공유 코드 | 관리대상·발급자·유효 버전·폐기 상태. 여러 신청자가 같은 유효 코드를 사용할 수 있으며 단일 수락용 링크와 구분 |
+| 개인 지정 링크 | 관리대상·지정 주민·발급 당시 세대 관계·발급자·토큰 해시·만료·철회·일회성 사용 결과 |
+| 가입 요청 | 전체 공유 신청 이름과 선택 연락처, 신청 당시 실제 세대·사용한 코드의 출처. 개인 초대 수락의 APPROVED 이력과 출처 구분 |
+| 자동 승인 출처 | 발급 관리자·수락 계정·대상 주민·수락 및 승인 시각·방식. 발급자와 실제 수락자를 분리 |
+| 무결성 | 같은 관리대상의 현재 주민·세대만 연결하고 다른 계정 연결·역할 충돌·동시 토큰 사용으로 중복 권한을 만들지 않음 |
 
-| 컬럼 | 타입 | Null | 설명 |
-|---|---|---:|---|
-| `id` | uuid | N | PK |
-| `property_id` | uuid | N | FK |
-| `unit_id` | uuid | Y | 세대 초대 |
-| `resident_id` | uuid | Y | 주민 지정 초대 |
-| `invite_type` | varchar(20) | N | `PROPERTY / UNIT / RESIDENT` |
-| `token_hash` | char(64) | N | 초대 토큰 해시 |
-| `expires_at` | timestamptz | N | 만료 |
-| `max_uses` | int | N | 최대 사용 횟수 |
-| `used_count` | int | N | 사용 횟수 |
-| `status` | varchar(20) | N | `ACTIVE / REVOKED / EXPIRED` |
-| `created_by` | uuid | N | FK → users.id |
-| `created_at` | timestamptz | N | 생성 |
-| `updated_at` | timestamptz | N | 수정 |
-| `deleted_at` | timestamptz | Y | 삭제 |
-| `deleted_by` | uuid | Y | 삭제 처리자 |
+개인 토큰 원문은 저장하지 않으며 발급 후 복사·재발급 방식은 해시 저장 원칙에 맞춰 설계합니다. 기존 외부 부담당자 전용 `member_invitations`와 제약은 유지합니다. 새 주민 초대의 테이블 분리·요청 연결 FK·코드 보관 방식·만료기간은 상세 설계 후 후속 Migration으로 반영합니다.
 
-### 원칙
-
-QR/초대 원문 토큰은 저장하지 않고 `token_hash`만 저장.
+개인 초대의 이름·전화번호 정정 요청을 승인 전 명부와 분리하고 검토 후 가입하는 방안은 [추가 설계안](domainRules.md#개인-초대-정보-확인과-정정의-설계안)입니다. 채택 시 요청 원문·검토 결과·초대 사용 상태·명부 수정·계정 연결의 관계를 추가 설계해야 하며 현재 컬럼·상태로 구현된 것으로 표시하지 않습니다.
 
 ---
 
@@ -749,7 +739,7 @@ QR/초대 원문 토큰은 저장하지 않고 `token_hash`만 저장.
 
 ### 구현 상태
 
-`V20261010043914__create_membership_request_read_model.sql`로 주민 목록의 가입 상태 조회에 필요한 저장 구조와 중복 대기·관리대상 무결성 제약을 구현했다. 주민 가입 신청·승인·거절 API를 구현했으며 자동 계정 연결은 하지 않는다. 주민 가입에 invitation_id를 추가하지 않는다. 현재 주민 목록의 판정 기준은 [주민 관리 API](residentManagementApi.md#가입-상태-판정)를 따른다. 확인되지 않은 매칭 후보를 주민의 승인 대기로 취급하지 않는다.
+`V20261010043914__create_membership_request_read_model.sql`로 주민 목록의 가입 상태 조회에 필요한 저장 구조와 중복 대기·관리대상 무결성 제약을 구현했다. 현재 주민 가입 신청·관리자 승인·거절 API를 구현했으며 개인 지정 링크 자동 승인은 없다. 현행 스키마에는 invitation_id가 없고 신규 초대의 요청 연결 구조는 위 미구현 설계 범위다. 현재 주민 목록의 판정 기준은 [주민 관리 API](residentManagementApi.md#가입-상태-판정)를 따른다. 확인되지 않은 매칭 후보를 주민의 승인 대기로 취급하지 않는다.
 
 관리소장이 주민 연락처를 수정하면 해당 주민으로 확인 연결된 신청의 `request_phone_*` 3개 값도 함께 변경한다. 변경 후 신청 번호를 최초 입력 시점의 불변 스냅샷으로 취급하지 않는다. 주민 삭제 시 확인 연결된 대기는 취소하며 승인 이력은 유지한다. 연결 범위와 트랜잭션은 [주민 API](residentManagementApi.md#주민-상세연락처-공개수정삭제)를 따른다.
 
@@ -757,11 +747,11 @@ QR/초대 원문 토큰은 저장하지 않고 `token_hash`만 저장.
 
 동일 계정·세대의 미삭제 PENDING 요청은 `membership_requests_pending_user_unit_idx`의 부분 UNIQUE로 제한합니다. 승인에서는 기존 주민·현재 세대 관계를 검증하고 `residents.user_id`, `property_members`, `member_role_events`, 신청의 상태·검토자·시각을 같은 트랜잭션에 저장합니다. 실패하면 전체를 롤백합니다.
 
-현재 주민 가입에는 `invitation_id`, 신청 실명·세대 관계 입력 컬럼이 없습니다. 외부 부담당자 초대는 아래 별도 저장 구조를 사용합니다. 승인 입력·충돌 처리와 후속 신규 명부 작성은 [참여자 API](memberManagementApi.md#주민-가입-요청), [도메인 정책](domainRules.md#가입-승인-시-함께-저장하는-범위)을 따릅니다.
+현재 주민 가입에는 `invitation_id`, 신청 이름·세대 관계 입력 컬럼이 없습니다. `request_phone_*` 3개 컬럼은 모두 NOT NULL입니다. 신규 전체 공유 신청의 이름 저장·선택 연락처와 개인 초대 자동 승인 출처는 후속 스키마 변경이 필요하며 현행 표에 적용된 것으로 표시하지 않습니다. 외부 부담당자 초대는 아래 별도 저장 구조를 사용합니다. 승인 입력·충돌 처리와 후속 신규 명부 작성은 [참여자 API](memberManagementApi.md#주민-가입-요청), [도메인 정책](domainRules.md#가입-승인-시-함께-저장하는-범위)을 따릅니다.
 
 ## 외부 관리자 초대·역할 변경 저장 (2026-10-17)
 
-`member_invitations`는 외부 부담당자 전용 구현입니다. property_id, token_hash, MANAGER 역할, ISSUED/REQUESTED/APPROVED/REVOKED 상태, revision, 발급자/시각·1일 만료, 신청자/시각·검토자/시각을 보존합니다. 신규 외부 관리자 초대는 주민·세대를 연결하지 않으며 token_hash는 UNIQUE입니다. 이미 적용한 초기 스키마의 resident_id/unit_id는 과거 승인·철회 이력을 보존하기 위해 유지합니다. 후속 Migration은 완료되지 않은 주민용 코드를 철회하고 신규 주민 초대를 차단합니다. 만료는 현재 시각과 expires_at에서 계산합니다.
+`member_invitations`는 외부 부담당자 전용 구현입니다. property_id, token_hash, MANAGER 역할, ISSUED/REQUESTED/APPROVED/REVOKED 상태, revision, 발급자/시각·1일 만료, 신청자/시각·검토자/시각을 보존합니다. 신규 외부 관리자 초대는 주민·세대를 연결하지 않으며 token_hash는 UNIQUE입니다. 이미 적용한 초기 스키마의 resident_id/unit_id는 과거 승인·철회 이력을 보존하기 위해 유지합니다. 적용된 후속 Migration은 완료되지 않은 과거 주민용 코드를 철회하고 이 테이블의 신규 주민 초대를 차단합니다. 새 개인 초대를 위해 과거 코드를 복원하거나 이 제약을 임의로 제거하지 않습니다. 만료는 현재 시각과 expires_at에서 계산합니다.
 
 `member_role_events`는 property_id/member_id/actor_id, GRANTED/CHANGED/ENDED, previous_role/next_role, changed_at을 보존하며 개인정보·코드 원문을 담지 않습니다. 주민 가입은 기존 membership_requests를 사용합니다. [참여자·가입 API](memberManagementApi.md)를 참조합니다.
 
@@ -1765,7 +1755,7 @@ erDiagram
 
 아래 항목은 관련 기능을 구현할 때 검토한다. 해당 기능을 현재 구현하지 않는다면 선행 조건으로 추가하지 않는다.
 
-1. `Resident` 전화번호를 알림톡 수신번호로 사용할 때 수신 동의/발송 정책을 어디에 저장할지
+1. [주민 안내 서비스](residentCommunication.md)의 공지 대상·주민 명부 수신 대상·발송 결과·보존 정책을 저장할 구조. 명부 연락처 사용 방향과 발송 권한은 [도메인 규칙](domainRules.md#건물-안내와-주민-메시지의-확정-방향)을 따름
 2. 향후 `user_contacts` 엔티티가 필요한지
 3. [세대 대표 지정과 변경](domainRules.md#확정된-세대-대표-지정과-변경)의 미정 예외 처리. 최초 지정·변경 권한과 삭제·이동 시 명시적 승계는 확정되었으며 별도 퇴거·재입주 흐름은 후속 결정. 엑셀 최초 순서와 오류·중복 제외는 확정 정책 적용. 개별 등록의 동시 대표 지정은 [Server 주민 등록](../server/docs/residentRegistration.md)의 잠금으로 직렬화
 4. 선입금 자동 충당은 구현했으며 환불·부분 취소·음수 청구 정산은 후속 정책
@@ -1774,6 +1764,6 @@ erDiagram
 7. 동별 계좌와 Property 공용계좌 동시 사용 정책
 8. 마감 후 오류 수정 방식: 재오픈 vs 역분개
 9. 주민 공개 지출 범위와 증빙 공개 수준
-10. Notification / Template / Delivery 엔티티 도입 시점
+10. 모아홈 내부 발송에 필요한 Notification / Template / Delivery의 역할과 외부 서비스 참조값, 상담·명부 주민 및 차량 자료 연결 구조. 엔티티명과 컬럼은 아직 미확정
 
 ---
