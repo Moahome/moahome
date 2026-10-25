@@ -27,6 +27,8 @@
 
 업무 규칙은 [domainRules.md](domainRules.md), 보안 코드와 인증 구현 기준은 [securityDesign.md](securityDesign.md), 작업 절차는 [AGENTS.md](../AGENTS.md)를 따른다. 차이가 발견되면 미정 정책을 추측해 코드나 ERD를 맞추지 않고 먼저 확인한다.
 
+2026-10-25 PostgreSQL·Redis 전수 점검과 중복 제약 정리 결과는 [DB 점검 기록](../server/docs/databaseAudit.md)을 참조합니다. 세대의 `(property_id, id)` UNIQUE와 부과 항목의 관리대상·템플릿 복합 FK를 유지하며, 동일 검사를 반복하는 제약만 후속 Migration으로 제거합니다.
+
 ### 0.1 User / SocialAccount / Resident / PropertyMember 역할 분리
 
 | 엔티티 | 의미 |

@@ -235,6 +235,67 @@ class PaymentPersistenceTest {
 		}
 	}
 
+	/** 중복 제약만 제거하며 기존 업무 데이터·체크섬·세대 참조와 관리대상 경계를 보존합니다. */
+	@Test
+	void redundantConstraintCleanupPreservesDataAndCompositeForeignKeys() {
+		var receipt = service.importFile(user, property, bank("가상제약검증", "50000")).payments().getFirst();
+		service.confirm(user, property, receipt.id(), new PaymentRequests.Confirm(unit, null, null));
+		UUID secondProperty = registration.register(user, RegistrationFixtures.request(UUID.randomUUID(), false))
+		    .response().property().id();
+		String schema = "constraint_cleanup_" + UUID.randomUUID().toString().replace("-", "");
+		var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		    .schemas(schema).defaultSchema(schema).target("20261025075117").load();
+		previous.migrate();
+		try {
+			List<String> tables = List.of("users", "properties", "buildings", "units", "bank_accounts", "residents",
+			    "unit_residents", "fee_templates", "fee_template_items", "billing_periods", "charges", "charge_items",
+			    "bank_transactions", "payments", "payment_allocations", "payment_events");
+			new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+				for (String table : tables)
+					copyPreviousTable(schema, table);
+			});
+			Map<String, List<Map<String, Object>>> snapshots = new LinkedHashMap<>();
+			for (String table : tables)
+				snapshots.put(table, jdbc.queryForList("select * from " + schema + "." + table + " order by id"));
+			String history = "select version,checksum from " + schema + ".flyway_schema_history order by installed_rank";
+			List<Map<String, Object>> applied = jdbc.queryForList(history);
+			String constraintQuery = "select c.conname,pg_get_constraintdef(c.oid) as definition "
+			    + "from pg_constraint c join pg_namespace n on n.oid=c.connamespace where n.nspname=? "
+			    + "and c.conname not in ('units_property_id_id_unique','fee_template_items_fee_template_id_fkey') "
+			    + "order by c.conname,c.conrelid";
+			List<Map<String, Object>> keptConstraints = jdbc.queryForList(constraintQuery, schema);
+			String removedQuery = "select count(*) from pg_constraint c join pg_namespace n on n.oid=c.connamespace "
+			    + "where n.nspname=? and c.conname in ('units_property_id_id_unique','fee_template_items_fee_template_id_fkey')";
+			assertThat(jdbc.queryForObject(removedQuery, Integer.class, schema)).isEqualTo(2);
+			var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+			    .schemas(schema).defaultSchema(schema).load();
+			assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
+			upgraded.validate();
+			assertThat(jdbc.queryForList(history)).containsAll(applied).hasSize(applied.size() + 1);
+			assertThat(jdbc.queryForObject(removedQuery, Integer.class, schema)).isZero();
+			assertThat(jdbc.queryForList(constraintQuery, schema)).isEqualTo(keptConstraints);
+			assertThat(jdbc.queryForObject("select to_regclass(?)::text", String.class,
+			    schema + ".units_property_id_id_unique")).isNull();
+			assertThat(jdbc.queryForObject("select to_regclass(?)::text", String.class,
+			    schema + ".units_property_id_unique")).isNotNull();
+			for (var snapshot : snapshots.entrySet())
+				assertThat(jdbc.queryForList("select * from " + schema + "." + snapshot.getKey() + " order by id"))
+				    .as(snapshot.getKey()).isEqualTo(snapshot.getValue());
+			// 존재하는 템플릿도 다른 관리대상의 항목으로 저장할 수 없어야 합니다.
+			UUID template = jdbc.queryForObject("select id from " + schema + ".fee_templates where property_id=?",
+			    UUID.class, property);
+			String insert = "insert into " + schema + ".fee_template_items "
+			    + "(id,fee_template_id,property_id,item_name,default_amount,sort_order,is_active,created_at,updated_at) "
+			    + "values (?,?,?,'제약 검증',1,999,true,now(),now())";
+			assertThatThrownBy(() -> jdbc.update(insert, UUID.randomUUID(), template, secondProperty))
+			    .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class)
+			    .hasStackTraceContaining("fee_template_items_property_template_fk");
+			assertThat(jdbc.update(insert, UUID.randomUUID(), template, property)).isEqualTo(1);
+		} finally {
+			jdbc.execute("drop schema " + schema + " cascade");
+		}
+	}
+
 	/** 명단에 없는 입금자명도 별도 등록 없이 최신 확정 이력의 세대로 업로드 즉시 확정합니다. */
 	@Test
 	void uploadAutomaticallyUsesLatestConfirmedPayerWithoutRegistration() {
