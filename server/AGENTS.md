@@ -246,6 +246,8 @@ Repository는 DB 접근을 캡슐화하고,
 - 예: `V20261003010000__create_payment.sql`. Flyway 파일명은 루트의 `camelCase` 파일명 규칙의 예외입니다.
 - 새 파일을 추가하기 전에 기존 버전과 충돌하지 않는지 확인합니다. 병렬 작업으로 버전이 겹치면 아직 공유 / 적용되지 않은 새 파일의 버전을 조정합니다.
 - 공유되거나 적용된 Migration은 수정 / 삭제 / 이름 변경하지 않고 후속 Migration으로 변경합니다.
+- 로컬 개발 서버도 작업 중 새 Migration을 자동 적용할 수 있습니다. 파일을 보완하기 전에 적용 이력과 체크섬을 확인하며, 이미 적용됐다면 최초 파일을 유지하고 후속 파일로 보완합니다.
+- 서버 기동과 삭제된 클래스의 실행 파일 검증은 [서버 기동과 실행 파일 확인](#서버-기동과-실행-파일-확인)을 따릅니다.
 - 테이블뿐 아니라 FK, UNIQUE, CHECK, 인덱스와 업무 데이터 보정도 필요한 경우 Migration에 포함합니다.
 - Hibernate `ddl-auto`는 `validate` 또는 `none`을 사용하고 공유 / 운영 DB에 `create`, `create-drop`, `update`를 사용하지 않습니다.
 - 개발 / 운영 스키마 변경은 Flyway를 통해 적용합니다. 테스트용 일회성 DB에서 JPA 매핑만 검증하는 경우는 별도로 구분합니다.
@@ -446,3 +448,13 @@ BankTransactionRepository.java
 - 현재 테스트는 Context, JWT / 설정 / Entity / Service / 전화번호·계좌번호 보안 단위 테스트, 등록 Controller 입력 / 응답 검증, Security / Redis 통합 테스트와 사용자 / 소셜 계정 / 관리대상 등록 PostgreSQL 통합 테스트입니다. `test` Profile은 DB / JPA / Flyway 자동 구성을 제외하고 영속 저장소 또는 Service를 Mock으로 격리합니다. Security 통합 테스트는 일회성 `redis-server` 프로세스를 사용하며, 실행 파일이 PATH에 없으면 `REDIS_SERVER_EXECUTABLE`에 경로를 지정합니다. `database-test` Profile은 `initdb` / `postgres`로 별도의 임시 PostgreSQL 클러스터를 실행하여 Flyway와 JPA를 검증합니다. 실행 파일이 PATH에 없으면 `POSTGRES_INITDB_EXECUTABLE` / `POSTGRES_SERVER_EXECUTABLE`에 같은 PostgreSQL 17 이상 설치의 경로를 지정합니다. 테스트 DB 종료에는 같은 설치의 `pg_ctl`을 사용하며 열린 연결이 있어도 fast 종료로 공유 메모리를 정리합니다. 테스트 비밀 키는 실행 시 무작위로 생성하며 개발 DB / Redis와 `.env`를 재사용하지 않습니다.
 - 아직 구현하지 않은 도메인이나 Migration의 테스트를 미리 만들지 않습니다.
 - 문서만 변경한 경우 루트 Verification 규칙을 따릅니다.
+
+### 서버 기동과 실행 파일 확인
+
+- Entity / Repository / DTO를 삭제하거나 이름을 바꾸면 소스뿐 아니라 실제 실행 classpath의 출력 폴더와 JAR에 이전 `.class`와 내부 클래스가 남아 있는지 확인합니다. 삭제된 Entity의 클래스가 남으면 Hibernate가 제거한 테이블을 계속 요구할 수 있습니다.
+- 별도 빌드 디렉터리의 테스트 통과를 실제 실행 폴더의 정리 완료로 보고하지 않습니다. 실제 실행 폴더에 잔여 클래스가 있으면 사용 중인 서버와 충돌하지 않는 상태에서 `./gradlew clean build`로 재생성하고 출력 클래스와 JAR을 다시 확인합니다. 실행 중인 사용자 서버의 출력 폴더를 임의로 정리하거나 덮어쓰지 않습니다.
+- 서버 실행 전 `lsof -nP -iTCP:8080 -sTCP:LISTEN` 등으로 대상 포트와 점유 PID를 확인합니다. 기존 서버는 요청 범위에 포함되지 않으면 중지 / 재시작하지 않으며, 포트가 사용 중이면 같은 포트에 서버를 추가 실행하지 않습니다.
+- 확인용 서버는 가능한 임시 포트를 사용하고 실행 세션 / PID를 기록합니다. 검증 성공 / 실패 모두 자신이 시작한 프로세스를 종료하고 해당 포트가 해제됐는지 확인합니다. 사용자가 계속 실행해 두라고 요청한 경우에만 유지합니다. 모든 Java 프로세스를 종료하는 명령으로 포트 충돌을 해결하지 않습니다.
+- 회귀 테스트는 별도 빌드 디렉터리와 격리된 테스트 DB에서 수행합니다. 서버 기동 확인에 사용한 Profile, 빌드 산출물과 DB를 구분해 기록하며 테스트용 Profile의 성공을 개발 서버 기동 성공으로 보고하지 않습니다.
+- Gradle의 `BUILD SUCCESSFUL`만으로 정상 기동을 판단하지 않습니다. Flyway 검증·적용 결과, JPA 초기화, 애플리케이션의 `Started` 로그와 실제 HTTP 응답을 모두 확인합니다. 로그의 최종 실패 원인을 확인해 Migration 검증 오류, 누락 테이블, 포트 충돌을 구분하고 각각의 원인을 해결합니다.
+- 기동을 검증하지 못했으면 실행한 명령과 실패 원인을 명시합니다. 정상 기동을 보고할 때는 확인용 프로세스의 종료 여부도 함께 밝히며, 종료한 서버를 실행 중이라고 보고하지 않습니다. 반복 장애의 원인과 조치는 [DB 점검 기록](docs/databaseAudit.md#반복된-기동-장애와-조치)에 남깁니다.
