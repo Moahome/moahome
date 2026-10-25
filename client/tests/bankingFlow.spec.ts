@@ -2603,31 +2603,8 @@ for (const width of [1440, 390]) {
       name: '최근 은행 확인 잔액 도움말',
       exact: true
     });
-    if (width > 767) await recentBalanceHelp.hover();
-    else await recentBalanceHelp.click();
     const recentBalanceTooltip = page.getByRole('tooltip');
-    // 카드가 스크롤 경계에서 잘려도 도움말 본문은 화면 위에서 온전히 보여야 합니다.
-    const recentCard = page.getByRole('article').filter({
-      has: recentBalanceHelp
-    });
-    await recentCard.evaluate((element) => { element.style.overflow = 'hidden'; });
-    await expect(recentBalanceTooltip).toContainText('통장을 선택하면 은행 거래 파일의 마지막 잔액을 표시합니다.');
-    const recentHelpBox = await recentBalanceHelp.boundingBox();
-    const recentTipBox = await recentBalanceTooltip.boundingBox();
-    expect(recentTipBox!.y).toBeGreaterThanOrEqual(recentHelpBox!.y + recentHelpBox!.height);
-    expect(recentTipBox!.x).toBeGreaterThanOrEqual(0);
-    expect(recentTipBox!.x + recentTipBox!.width).toBeLessThanOrEqual(width);
-    expect(await recentBalanceTooltip.evaluate((element) => {
-      const bounds = element.getBoundingClientRect();
-      return [bounds.left + 8, bounds.right - 8].every((x) => element.contains(document.elementFromPoint(x, bounds.top + 8)));
-    })).toBe(true);
-    await page.screenshot({
-      path: testInfo.outputPath(`transactionBankHelp${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
-    await recentBalanceHelp.press('Escape');
-    await expect(recentBalanceTooltip).toHaveCount(0);
+    await expect(recentBalanceHelp).toHaveCount(0);
     await expect(page.getByText('조회 월', {
       exact: true
     })).toHaveCSS('clip-path', 'inset(50%)');
@@ -5289,5 +5266,125 @@ for (const width of [1440, 425, 390]) {
       path: testInfo.outputPath(`balanceCheckHistory${width}.png`),
       fullPage: true
     });
+  });
+}
+
+for (const width of [1920, 390, 320]) {
+  test(`전체 통장은 잔액을 숨기고 통장 선택과 필터에 맞춰 요약 카드가 전체 너비를 채운다 (${width}px)`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    await page.route('http://localhost:8080/**', async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      let body: unknown = {};
+      if (path.endsWith('/csrf')) body = {
+        csrfToken: 'test-csrf'
+      };
+      else if (path.endsWith('/refresh')) body = {
+        accessToken: 'test-access',
+        tokenType: 'Bearer',
+        accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
+      };
+      else if (path === '/api/users/me') body = {
+        id: id(1),
+        displayName: '관리자',
+        profileImageUrl: null,
+        systemRole: 'USER',
+        status: 'ACTIVE'
+      };
+      else if (path.endsWith('/access-context')) body = {
+        residentEligible: false,
+        propertyId: PROPERTY,
+        name: '모아빌라',
+        role: 'ADMIN'
+      };
+      else if (path.endsWith('/managed-properties')) body = {
+        properties: [{
+          propertyId: PROPERTY,
+          name: '모아빌라',
+          role: 'ADMIN'
+        }]
+      };
+      else if (path.endsWith('/payments/workspace')) body = {
+        propertyId: PROPERTY,
+        asOf: '2026-10-15',
+        accounts: [{
+          id: ACCOUNT,
+          label: '가상 통장'
+        }],
+        units: [],
+        charges: [],
+        payments: [],
+        history: []
+      };
+      else if (path.endsWith('/banking/workspace')) body = {
+        propertyId: PROPERTY,
+        asOf: '2026-10-15',
+        accounts: [IMPORT_ACCOUNT],
+        buildings: [],
+        units: [],
+        rows: [row(700, 'INCOME', '가상입금', '50000'), row(701, 'EXPENSE', '가상지출', '20000')],
+        rules: []
+      };
+      await route.fulfill({
+        json: body
+      });
+    });
+    await page.goto(`${BASE}/transactions`);
+    const summary = page.locator('[data-view="transactions"]');
+    const filters = page.getByRole('group', {
+      name: '입출금 필터'
+    });
+    const balance = summary.getByRole('article').filter({
+      hasText: '최근 은행 확인 잔액'
+    });
+    const accountFilter = page.getByRole('combobox', {
+      name: '조회 통장',
+      exact: true
+    });
+    for (const specific of [false, true]) {
+      if (specific) {
+        await accountFilter.click();
+        await page.getByRole('option', {
+          name: /하나은행/
+        }).click();
+      }
+      for (const direction of ['전체', '입금', '출금']) {
+        await filters.getByRole('button', {
+          name: new RegExp(`^${direction}`)
+        }).click();
+        const expected = (direction === '전체' ? 4 : 3) + Number(specific);
+        await expect(summary.getByRole('article')).toHaveCount(expected);
+        await expect(balance).toHaveCount(Number(specific));
+        const parent = (await summary.boundingBox())!;
+        const cards = await summary.getByRole('article').evaluateAll((elements) => elements.map((element) => {
+          const bounds = element.getBoundingClientRect();
+          return {
+            left: bounds.left,
+            right: bounds.right,
+            width: bounds.width,
+            top: bounds.top
+          };
+        }));
+        expect(Math.abs(cards[0].left - parent.x)).toBeLessThan(1);
+        expect(Math.abs(cards.at(-1)!.right - (parent.x + parent.width))).toBeLessThan(1);
+        expect(Math.max(...cards.map((c) => c.width)) - Math.min(...cards.map((c) => c.width))).toBeLessThan(1);
+        if (width === 1920) {
+          expect(cards.every((card) => Math.abs(card.top - cards[0].top) < 1)).toBe(true);
+          await summary.screenshot({
+            path: `/private/tmp/moahome-summary-${specific ? 'account' : 'all'}-${direction}-${width}.png`
+          });
+        }
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      }
+    }
+    await accountFilter.click();
+    await page.getByRole('option', {
+      name: '전체 통장',
+      exact: true
+    }).click();
+    await expect(balance).toHaveCount(0);
+    await expect(summary.getByRole('article')).toHaveCount(3);
   });
 }

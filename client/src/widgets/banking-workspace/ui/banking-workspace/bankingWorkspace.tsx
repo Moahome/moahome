@@ -47,7 +47,8 @@ import {
   useEffect,
   useRef,
   useState,
-  type ReactNode
+  type ReactNode,
+  type CSSProperties
 } from 'react';
 import {
   bankingError,
@@ -307,6 +308,11 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const buildingExpense = baseRows.reduce((sum, row) => sum + getExpenseAmount(row, expenseBuildingIds), BigInt(0));
   const showIncome = view !== 'expenses' && direction !== 'EXPENSE';
   const showExpense = view !== 'expenses' && direction !== 'INCOME' && direction !== 'CANCELED';
+  const showBankBalance = view === 'transactions' && accountId !== 'ALL';
+  // 필터와 조회 통장에 따라 실제로 보이는 카드 수로 열을 맞춰 빈 칸을 남기지 않습니다.
+  const summaryColumns = Number(Boolean(preview) || showIncome)
+    + Number(Boolean(preview) || showExpense || view === 'expenses')
+    + (view === 'expenses' ? 0 : 2) + Number(showBankBalance);
   const searchPlaceholder = [showIncome && '입금자', (showExpense || view === 'expenses') && '지출명', showIncome && '세대'].filter(Boolean).join('·') + ' 검색';
 
   /** 현재 월·동·검색에 맞는 전체 결과를 다운로드하며 페이지·표시 개수로 파일 범위를 줄이지 않습니다. */
@@ -337,9 +343,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const latest = !ambiguous && lastRaw?.balance !== null ? lastRaw : undefined;
   let latestValue = '은행 확인 자료 없음';
   let latestDescription: string | undefined;
-  if (accountId === 'ALL') {
-    latestValue = '통장별 확인';
-  } else if (latest) {
+  if (latest) {
     latestValue = formatInteger(latest.balance!);
     latestDescription = `${latest.date} ${latest.time ?? ''} 거래 후`;
   } else if (ambiguous) {
@@ -784,6 +788,9 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
           <div
             className={styles.summary}
             data-view={view}
+            style={{
+              '--summary-columns': summaryColumns
+            } as CSSProperties}
           >
             {(preview || showIncome) && (
               <SummaryCard
@@ -877,7 +884,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                 )}
               />
             )}
-            {view === 'transactions' && (
+            {showBankBalance && (
               <SummaryCard
                 density={'compact'}
                 label={'최근 은행 확인 잔액'}
@@ -888,9 +895,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                     title={'최근 은행 확인 잔액'}
                     note={[latestDescription, '실시간 잔액이 아니며 수동 입출금은 반영되지 않습니다.'].filter(Boolean).join(' · ')}
                   >
-                    {accountId === 'ALL'
-                      ? '통장을 선택하면 은행 거래 파일의 마지막 잔액을 표시합니다.'
-                      : '은행 거래 파일에 기록된 마지막 거래 후 잔액입니다.'}
+                    은행 거래 파일에 기록된 마지막 거래 후 잔액입니다.
                   </InfoTooltip>
                 )}
                 value={latestValue}
