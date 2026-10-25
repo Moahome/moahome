@@ -21,7 +21,7 @@ const ITEM_OPTIONS = [...FEE_ITEM_OPTIONS, {
   label: '기타'
 }];
 
-/** 전체·동별 편집에 동일한 종류·직접 입력·금액 규칙을 적용합니다. */
+/** 전체·동별 편집의 기본 항목을 최소 하나 유지하며 종류·직접 입력·금액 규칙을 공유합니다. */
 export function BillingItemEditor({ items, onChange, onAdd, title }: {
   items: BillingItem[];
   onChange: (items: BillingItem[]) => void;
@@ -61,6 +61,7 @@ export function BillingItemEditor({ items, onChange, onAdd, title }: {
           <div
             key={item.id}
             className={styles['item-row']}
+            data-single={items.length === 1}
             role={'group'}
             aria-label={`항목 ${index + 1}`}
           >
@@ -91,19 +92,21 @@ export function BillingItemEditor({ items, onChange, onAdd, title }: {
                 amount
               } : current))}
             />
-            <Button
-              className={styles['item-delete']}
-              variant={'ghost'}
-              size={'sm'}
-              iconOnly
-              aria-label={`항목 ${index + 1} 삭제`}
-              onClick={() => onChange(items.filter((current) => current.id !== item.id))}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'close'}
-                />
-              )}
-            />
+            {items.length > 1 && (
+              <Button
+                className={styles['item-delete']}
+                variant={'ghost'}
+                size={'sm'}
+                iconOnly
+                aria-label={`항목 ${index + 1} 삭제`}
+                onClick={() => onChange(items.filter((current) => current.id !== item.id))}
+                leadingIcon={(
+                  <ServiceIcon
+                    name={'close'}
+                  />
+                )}
+              />
+            )}
           </div>
         ))}
         {!items.length && (

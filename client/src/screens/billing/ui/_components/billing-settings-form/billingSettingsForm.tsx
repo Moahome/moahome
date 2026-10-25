@@ -33,7 +33,6 @@ import {
 } from '../../../model/billing';
 import type { ScheduledSettings } from '../../../model/billingTypes';
 import { BillingAccordion } from '../billing-accordion/billingAccordion';
-import { AmountCalculator } from '@/shared/ui/amount-calculator';
 import { BillingTemplateSummary } from '../billing-template-summary/billingTemplateSummary';
 import {
   BillingItemEditor,
@@ -70,7 +69,6 @@ export function BillingSettingsForm({ settings, nextMonth, onApply, busy, errorM
   const [submitted, setSubmitted] = useState(false);
   const [reasonTouched, setReasonTouched] = useState(false);
   const [buildingSearch, setBuildingSearch] = useState('');
-  const [calculatorOpen, setCalculatorOpen] = useState(false);
   const counter = useRef(0);
   const plan: BillingPlan = {
     ...draft,
@@ -344,34 +342,23 @@ export function BillingSettingsForm({ settings, nextMonth, onApply, busy, errorM
                   이번 달 항목은 즉시 추가 부과하고, 다음 달 항목은 예약합니다.
                 </p>
               </div>
-              <div
-                className={styles['header-actions']}
+              <Button
+                variant={'outline'}
+                size={'sm'}
+                onClick={() => changeTemporaryItems([...plan.temporaryItems, {
+                  ...newItem(),
+                  buildingId: null,
+                  note: '',
+                  month: nextMonth
+                }])}
+                leadingIcon={(
+                  <ServiceIcon
+                    name={'plus'}
+                  />
+                )}
               >
-                <Button
-                  variant={'outline'}
-                  size={'sm'}
-                  onClick={() => setCalculatorOpen(true)}
-                >
-                  금액 계산기
-                </Button>
-                <Button
-                  variant={'outline'}
-                  size={'sm'}
-                  onClick={() => changeTemporaryItems([...plan.temporaryItems, {
-                    ...newItem(),
-                    buildingId: null,
-                    note: '',
-                    month: nextMonth
-                  }])}
-                  leadingIcon={(
-                    <ServiceIcon
-                      name={'plus'}
-                    />
-                  )}
-                >
-                  임시 부과 추가
-                </Button>
-              </div>
+                임시 부과 추가
+              </Button>
             </div>
             <fieldset
               className={styles['mode-options']}
@@ -650,15 +637,6 @@ export function BillingSettingsForm({ settings, nextMonth, onApply, busy, errorM
           </ListCard>
         </fieldset>
       </form>
-      <AmountCalculator
-        title={'부과 금액 계산기'}
-        description={'참고용 · 부과 금액에 자동 반영되지 않습니다.'}
-        countLabel={'나눌 세대 수'}
-        countUnit={'세대'}
-        resultLabel={'세대당 금액'}
-        open={calculatorOpen}
-        onClose={() => setCalculatorOpen(false)}
-      />
     </div>
   );
 }

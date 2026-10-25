@@ -1171,12 +1171,12 @@ for (const width of [1440, 390, 320]) {
     });
     await temporaryAmount.fill('10000');
     const trigger = page.getByRole('button', {
-      name: '금액 계산기',
+      name: '계산기 열기',
       exact: true
     });
     await trigger.click();
     const dialog = page.getByRole('dialog', {
-      name: '부과 금액 계산기',
+      name: '금액 계산기',
       exact: true
     });
     const amount = dialog.getByRole('textbox', {
@@ -1184,20 +1184,29 @@ for (const width of [1440, 390, 320]) {
       exact: true
     });
     const count = dialog.getByRole('textbox', {
-      name: '나눌 세대 수',
+      name: '나눌 수',
       exact: true
     });
+    await expect(dialog.getByRole('textbox', {
+      name: '계산식',
+      exact: true
+    })).toBeFocused();
+    await dialog.getByRole('tab', {
+      name: '분담 계산',
+      exact: true
+    }).click();
+    await page.keyboard.press('Tab');
     await expect(amount).toBeFocused();
-    await expect(dialog).toContainText('참고용 · 부과 금액에 자동 반영되지 않습니다.');
+    await expect(dialog).toContainText('참고용 · 계산 결과는 자동으로 적용되지 않습니다.');
     await amount.fill('1500000');
     await count.fill('0');
-    await expect(dialog).toContainText('나눌 세대 수는 1 이상으로 입력해주세요.');
+    await expect(dialog).toContainText('나눌 수는 1 이상으로 입력해주세요.');
     await expect(dialog.getByRole('region', {
       name: '분담 금액 계산 결과'
     })).toHaveCount(0);
     await count.fill('20');
     const exact = dialog.getByRole('article', {
-      name: '세대당 금액',
+      name: '분담 금액',
       exact: true
     });
     await expect(exact).toContainText('75,000원');
@@ -1242,6 +1251,10 @@ for (const width of [1440, 390, 320]) {
     await expect(temporaryAmount).toHaveValue('10,000');
     expect(state.writes).toHaveLength(0);
     await trigger.click();
+    await dialog.getByRole('tab', {
+      name: '분담 계산',
+      exact: true
+    }).click();
     await expect(count).toHaveValue('17');
     // 복사 권한이 없는 환경에서도 계산 결과와 입력을 잃지 않습니다.
     await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {
@@ -1261,6 +1274,205 @@ for (const width of [1440, 390, 320]) {
       exact: true
     }).click();
     await expect(dialog).not.toBeVisible();
+    expect(state.writes).toHaveLength(0);
+  });
+}
+
+for (const width of [1440, 390, 320]) {
+  test(`기본 항목은 전체·동별 모두 마지막 한 개를 삭제할 수 없다 ${width}px`, async ({ page }) => {
+    const state = await mockBilling(page);
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    await page.goto(`${BASE}/settings`);
+    await expect(page.getByRole('button', {
+      name: '금액 계산기',
+      exact: true
+    })).toHaveCount(0);
+    await page.getByRole('button', {
+      name: '항목 2 삭제',
+      exact: true
+    }).click();
+    await expect(page.getByRole('button', {
+      name: '항목 1 삭제',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByRole('textbox', {
+      name: '항목 1 기본 금액',
+      exact: true
+    })).toHaveValue('15,000');
+    await page.getByRole('button', {
+      name: '항목 추가',
+      exact: true
+    }).click();
+    await expect(page.getByRole('button', {
+      name: '항목 1 삭제',
+      exact: true
+    })).toBeVisible();
+    await page.getByRole('button', {
+      name: '항목 2 삭제',
+      exact: true
+    }).click();
+    await expect(page.getByRole('button', {
+      name: '항목 1 삭제',
+      exact: true
+    })).toHaveCount(0);
+    await page.getByRole('group', {
+      name: '기본 부과 방식',
+      exact: true
+    }).getByRole('radio', {
+      name: /^동별 부과/
+    }).check();
+    await page.getByRole('button', {
+      name: /^101동/
+    }).click();
+    const building = page.getByRole('region', {
+      name: '101동',
+      exact: true
+    });
+    await expect(building.getByRole('button', {
+      name: /항목 [0-9]+ 삭제/
+    })).toHaveCount(0);
+    await building.getByRole('button', {
+      name: '항목 추가',
+      exact: true
+    }).click();
+    await expect(building.getByRole('button', {
+      name: '항목 1 삭제',
+      exact: true
+    })).toBeVisible();
+    await building.getByRole('button', {
+      name: '항목 2 삭제',
+      exact: true
+    }).click();
+    await expect(building.getByRole('button', {
+      name: /항목 [0-9]+ 삭제/
+    })).toHaveCount(0);
+    await page.getByRole('button', {
+      name: '임시 부과 추가',
+      exact: true
+    }).click();
+    await expect(page.getByRole('button', {
+      name: '임시 부과 1 삭제',
+      exact: true
+    })).toBeVisible();
+    expect(state.writes).toHaveLength(0);
+    await page.screenshot({
+      path: test.info().outputPath(`singleBaseItem${width}.png`),
+      fullPage: true
+    });
+  });
+
+  test(`고정 계산기는 일반·분담 탭과 키패드·복사를 제공하고 메뉴 이동 시 닫힌다 ${width}px`, async ({ page }) => {
+    const state = await mockBilling(page);
+    await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async (value: string) => { document.documentElement.dataset.copiedAmount = value; }
+      }
+    }));
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    await page.goto(`${BASE}/settings`);
+    const trigger = page.getByRole('button', {
+      name: '계산기 열기',
+      exact: true
+    });
+    await expect(trigger).toBeVisible();
+    const initial = await trigger.boundingBox();
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    const scrolled = await trigger.boundingBox();
+    expect(scrolled!.y).toBe(initial!.y);
+    const save = await page.getByRole('button', {
+      name: '다음 달 예약 저장',
+      exact: true
+    }).boundingBox();
+    expect(save!.y + save!.height).toBeLessThan(scrolled!.y);
+    await page.screenshot({
+      path: test.info().outputPath(`floatingCalculator${width}.png`),
+      fullPage: false
+    });
+    await trigger.click();
+    const dialog = page.getByRole('dialog', {
+      name: '금액 계산기',
+      exact: true
+    });
+    await expect(trigger).not.toBeVisible();
+    await expect(dialog.getByRole('tab', {
+      name: '일반 계산'
+    })).toHaveAttribute('aria-selected', 'true');
+    const expression = dialog.getByRole('textbox', {
+      name: '계산식',
+      exact: true
+    });
+    await expect(expression).toBeFocused();
+    await expression.fill('0.1 + 0.2');
+    await expression.press('Enter');
+    await expect(dialog.getByLabel('계산 결과', {
+      exact: true
+    })).toHaveText('0.3');
+    await dialog.getByRole('button', {
+      name: '결과 복사',
+      exact: true
+    }).click();
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.copiedAmount)).toBe('0.3');
+    await dialog.getByRole('button', {
+      name: '전체 지우기',
+      exact: true
+    }).click();
+    for (const name of ['7', '곱하기', '8', '계산하기']) await dialog.getByRole('button', {
+      name,
+      exact: true
+    }).click();
+    await expect(dialog.getByLabel('계산 결과', {
+      exact: true
+    })).toHaveText('56');
+    await expression.fill('1/0');
+    await expression.press('Enter');
+    await expect(dialog).toContainText('0으로 나눌 수 없습니다.');
+    await expect(dialog.getByRole('button', {
+      name: '결과 복사',
+      exact: true
+    })).toBeDisabled();
+    await expression.fill('1500000 ÷ 17');
+    await expression.press('Enter');
+    await expect(dialog.getByLabel('계산 결과', {
+      exact: true
+    })).toHaveText('88,235.294117647059');
+    await expect(dialog).toContainText('소수점 12자리까지 반올림한 값입니다.');
+    const tab = dialog.getByRole('tab', {
+      name: '일반 계산',
+      exact: true
+    });
+    await tab.focus();
+    await tab.press('ArrowRight');
+    await expect(dialog.getByRole('tab', {
+      name: '분담 계산',
+      exact: true
+    })).toBeFocused();
+    await dialog.getByRole('tab', {
+      name: '분담 계산',
+      exact: true
+    }).press('ArrowLeft');
+    await expect(expression).toHaveValue('1500000 ÷ 17');
+    const bounds = await dialog.boundingBox();
+    expect(Math.abs(bounds!.x + bounds!.width / 2 - width / 2)).toBeLessThanOrEqual(1);
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`generalCalculator${width}.png`),
+      fullPage: true
+    });
+    await page.keyboard.press('Escape');
+    await expect(trigger).toBeFocused();
+    await trigger.click();
+    await expect(expression).toHaveValue('1500000 ÷ 17');
+    // App Router 내 이동은 새 문서를 만들지 않으며 열린 계산창만 초기화합니다.
+    await page.evaluate((url) => window.history.pushState(null, '', url), `${BASE}?tab=items`);
+    await expect(dialog).not.toBeVisible();
+    await expect(trigger).toBeVisible();
     expect(state.writes).toHaveLength(0);
   });
 }

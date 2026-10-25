@@ -18,9 +18,14 @@ import {
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { Toast } from '@/shared/ui/toast';
 import { calculateEqualSplit } from '@/shared/lib/equal-split';
+import {
+  evaluateExpression,
+  type CalculatorResult
+} from '@/shared/lib/calculator';
+import { BasicCalculator } from './_components/basic-calculator/basicCalculator';
 import styles from './amountCalculator.module.css';
 
-/** 화면의 업무 상태와 분리된 참고용 분담 계산창이며 문구·수량 단위만 호출 화면에서 지정합니다. */
+/** 화면의 업무 상태와 분리된 참고용 일반·분담 계산창이며 문구·수량 단위만 호출 화면에서 지정합니다. */
 export function AmountCalculator({
   open,
   onClose,
@@ -39,7 +44,11 @@ export function AmountCalculator({
   resultLabel?: string;
 }) {
   const titleId = useId();
-  const amountInput = useRef<HTMLInputElement>(null);
+  const calculationInput = useRef<HTMLInputElement>(null);
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const [tab, setTab] = useState<'general' | 'split'>('general');
+  const [expression, setExpression] = useState('');
+  const [calculation, setCalculation] = useState<CalculatorResult | null>(null);
   const [amount, setAmount] = useState('');
   const [count, setCount] = useState('');
   const [notice, setNotice] = useState<{ id: number; message: string; tone: 'success' | 'error' } | null>(null);
@@ -64,15 +73,22 @@ export function AmountCalculator({
     }] : [])
   ] : [];
 
+  /** 계산값은 보존하되 다시 열 때는 일반 계산부터 시작하고 이전 복사 알림을 비웁니다. */
+  function close() {
+    setTab('general');
+    setNotice(null);
+    onClose();
+  }
+
   /** 금액만 복사하며 실패해도 계산 결과와 입력값은 유지합니다. */
-  async function copyAmount(value: bigint) {
+  async function copyAmount(value: bigint | string) {
     noticeCounter.current += 1;
     const id = noticeCounter.current;
     try {
       await navigator.clipboard.writeText(value.toString());
       setNotice({
         id,
-        message: `${formatWon(value)}을 복사했어요.`,
+        message: typeof value === 'bigint' ? `${formatWon(value)}을 복사했어요.` : '계산 결과를 복사했어요.',
         tone: 'success'
       });
     } catch {
@@ -90,8 +106,9 @@ export function AmountCalculator({
     <ClientModal
       className={styles.modal}
       aria-labelledby={titleId}
-      onClose={onClose}
-      initialFocusRef={amountInput}
+      onClose={close}
+      initialFocusRef={calculationInput}
+      data-tab={tab}
       closeOnOutsideClick
     >
       <header
@@ -113,7 +130,7 @@ export function AmountCalculator({
           size={'sm'}
           iconOnly
           aria-label={'계산기 닫기'}
-          onClick={onClose}
+          onClick={close}
           leadingIcon={(
             <ServiceIcon
               name={'close'}
@@ -125,103 +142,160 @@ export function AmountCalculator({
         className={styles.body}
       >
         <div
-          className={styles.inputs}
+          className={styles.tabs}
+          role={'tablist'}
+          aria-label={'계산 방식'}
         >
-          <AmountInput
-            ref={amountInput}
-            label={'필요한 총금액'}
-            value={amount}
-            maxLength={19}
-            placeholder={'예: 1,500,000'}
-            trailingContent={'원'}
-            error={invalidAmount ? '총금액은 0원 이상, 최대 15자리 정수로 입력해주세요.' : undefined}
-            onChange={setAmount}
-          />
-          <Input
-            label={countLabel}
-            value={count}
-            digitsOnly
-            maxLength={9}
-            placeholder={'예: 20'}
-            trailingContent={countUnit}
-            error={invalidCount ? `${countLabel}는 1 이상으로 입력해주세요.` : undefined}
-            onChange={(event) => setCount(event.target.value)}
+          {([{
+            id: 'general',
+            label: '일반 계산'
+          }, {
+            id: 'split',
+            label: '분담 계산'
+          }] as const).map((item, index) => (
+            <Button
+              key={item.id}
+              ref={(element) => { tabRefs.current[index] = element; }}
+              variant={'ghost'}
+              role={'tab'}
+              id={`${titleId}-${item.id}-tab`}
+              aria-controls={`${titleId}-${item.id}-panel`}
+              aria-selected={tab === item.id}
+              tabIndex={tab === item.id ? 0 : -1}
+              onClick={() => setTab(item.id)}
+              onKeyDown={(event) => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                let target = 1 - index;
+                if (event.key === 'Home') target = 0;
+                if (event.key === 'End') target = 1;
+                setTab(target === 0 ? 'general' : 'split');
+                tabRefs.current[target]?.focus();
+              }}
+            >
+              {item.label}
+            </Button>
+          ))}
+        </div>
+        <div
+          role={'tabpanel'}
+          id={`${titleId}-general-panel`}
+          aria-labelledby={`${titleId}-general-tab`}
+          hidden={tab !== 'general'}
+        >
+          <BasicCalculator
+            expression={expression}
+            result={calculation}
+            inputRef={calculationInput}
+            onChange={(next) => { setExpression(next); setCalculation(null); }}
+            onCalculate={() => setCalculation(evaluateExpression(expression))}
+            onCopy={copyAmount}
           />
         </div>
-        {result ? (
-          <section
-            className={styles.results}
-            aria-label={'분담 금액 계산 결과'}
-            aria-live={'polite'}
+        <div
+          role={'tabpanel'}
+          id={`${titleId}-split-panel`}
+          aria-labelledby={`${titleId}-split-tab`}
+          hidden={tab !== 'split'}
+        >
+          <div
+            className={styles.inputs}
           >
+            <AmountInput
+              label={'필요한 총금액'}
+              value={amount}
+              maxLength={19}
+              placeholder={'예: 1,500,000'}
+              trailingContent={'원'}
+              error={invalidAmount ? '총금액은 0원 이상, 최대 15자리 정수로 입력해주세요.' : undefined}
+              onChange={setAmount}
+            />
+            <Input
+              label={countLabel}
+              value={count}
+              digitsOnly
+              maxLength={9}
+              placeholder={'예: 20'}
+              trailingContent={countUnit}
+              error={invalidCount ? `${countLabel}는 1 이상으로 입력해주세요.` : undefined}
+              onChange={(event) => setCount(event.target.value)}
+            />
+          </div>
+          {result ? (
+            <section
+              className={styles.results}
+              aria-label={'분담 금액 계산 결과'}
+              aria-live={'polite'}
+            >
+              <p
+                className={styles.formula}
+              >
+                {formatWon(result.total)}
+                {' '}
+                ÷
+                {' '}
+                {`${formatInteger(result.units)}${countUnit ?? ''}`}
+              </p>
+              <div
+                className={styles.options}
+              >
+                {options.map((option) => (
+                  <article
+                    key={option.id}
+                    className={styles.option}
+                    aria-label={option.title}
+                  >
+                    <h3>
+                      {option.title}
+                    </h3>
+                    <strong
+                      className={styles.amount}
+                    >
+                      {formatWon(option.amount)}
+                    </strong>
+                    <dl>
+                      <div>
+                        <dt>
+                          전체 합계
+                        </dt>
+                        <dd>
+                          {formatWon(option.total)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>
+                          목표 금액과 차이
+                        </dt>
+                        <dd>
+                          {option.difference}
+                        </dd>
+                      </div>
+                    </dl>
+                    <Button
+                      variant={'outline'}
+                      size={'sm'}
+                      aria-label={`${option.title} 복사`}
+                      onClick={() => copyAmount(option.amount)}
+                      leadingIcon={(
+                        <ServiceIcon
+                          name={'copy'}
+                        />
+                      )}
+                    >
+                      금액 복사
+                    </Button>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : (
             <p
-              className={styles.formula}
+              className={styles.empty}
             >
-              {formatWon(result.total)}
-              {' '}
-              ÷
-              {' '}
-              {`${formatInteger(result.units)}${countUnit ?? ''}`}
+              {`총금액과 ${countLabel}를 입력하면 분담 금액을 확인할 수 있습니다.`}
             </p>
-            <div
-              className={styles.options}
-            >
-              {options.map((option) => (
-                <article
-                  key={option.id}
-                  className={styles.option}
-                  aria-label={option.title}
-                >
-                  <h3>
-                    {option.title}
-                  </h3>
-                  <strong
-                    className={styles.amount}
-                  >
-                    {formatWon(option.amount)}
-                  </strong>
-                  <dl>
-                    <div>
-                      <dt>
-                        전체 합계
-                      </dt>
-                      <dd>
-                        {formatWon(option.total)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>
-                        목표 금액과 차이
-                      </dt>
-                      <dd>
-                        {option.difference}
-                      </dd>
-                    </div>
-                  </dl>
-                  <Button
-                    variant={'outline'}
-                    size={'sm'}
-                    aria-label={`${option.title} 복사`}
-                    onClick={() => copyAmount(option.amount)}
-                    leadingIcon={(
-                      <ServiceIcon
-                        name={'copy'}
-                      />
-                    )}
-                  >
-                    금액 복사
-                  </Button>
-                </article>
-              ))}
-            </div>
-          </section>
-        ) : (
-          <p
-            className={styles.empty}
-          >
-            {`총금액과 ${countLabel}를 입력하면 분담 금액을 확인할 수 있습니다.`}
-          </p>
-        )}
+          )}
+        </div>
       </div>
       {notice && (
         <Toast

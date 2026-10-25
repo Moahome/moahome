@@ -86,4 +86,6 @@ HTTP 5xx는 기존 `/images/errors/serverError.webp`, 네트워크 실패·타�
 
 ## 참고용 금액 계산기
 
-`shared/ui/amount-calculator`의 `AmountCalculator`는 `open`과 `onClose`로 여닫습니다. `title`, `description`, `countLabel`, `countUnit`, `resultLabel`로 화면에 맞는 문구를 지정합니다. 계산·복사만 제공하며 호출 화면의 입력이나 저장 API를 변경하지 않습니다. 계산만 필요하면 `shared/lib/equal-split`의 `calculateEqualSplit(총금액문자열, 수량문자열)`을 사용합니다. 잘못된 입력은 null, 정상 결과는 BigInt 금액·전체 합계·부족액·초과액으로 반환합니다.
+`shared/ui/amount-calculator`의 `AmountCalculator`는 일반 계산·분담 계산 탭을 제공하며 `open`과 `onClose`로 여닫습니다. `title`, `description`, `countLabel`, `countUnit`, `resultLabel`로 화면에 맞는 문구를 지정합니다. 고정 이미지 버튼까지 필요하면 같은 모듈의 `FloatingCalculator`를 사용합니다. 계산·복사만 제공하며 호출 화면의 입력이나 저장 API를 변경하지 않습니다.
+
+계산만 필요하면 `shared/lib/calculator`의 `evaluateExpression(계산식)` 또는 `shared/lib/equal-split`의 `calculateEqualSplit(총금액문자열, 수량문자열)`을 사용합니다. 일반 계산은 정확한 분수 연산 후 소수점 12자리까지 반올림하고 근삿값 여부를 반환합니다. 분담 계산은 잘못된 입력에 null, 정상 입력에 BigInt 분담 금액·전체 합계·부족액·초과액을 반환합니다. 자세한 동작은 [공용 계산기](docs/managementLayout.md#공용-계산기-2026-10-25)를 참조합니다.

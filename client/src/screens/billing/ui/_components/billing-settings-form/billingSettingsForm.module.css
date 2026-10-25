@@ -36,12 +36,6 @@
     font-size: 12px;
   }
 
-  .header-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
   .form,
   .fields {
     display: grid;
@@ -109,6 +103,10 @@
     gap: 16px;
     padding-bottom: 16px;
     border-bottom: 1px solid var(--border);
+
+    &[data-single='true'] {
+      grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr);
+    }
   }
 
   .item-kind {
@@ -283,6 +281,10 @@
       padding: 16px;
       border: 1px solid var(--border);
       border-radius: 10px;
+
+      &[data-single='true'] {
+        grid-template-columns: minmax(0, 1fr);
+      }
     }
 
     .item-title {
@@ -324,14 +326,6 @@
 
     .card-heading > button {
       width: 100%;
-    }
-
-    .header-actions {
-      width: 100%;
-
-      > button {
-        flex: 1;
-      }
     }
 
     .temporary-row {

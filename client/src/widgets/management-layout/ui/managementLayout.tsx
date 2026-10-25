@@ -16,6 +16,7 @@ import {
 import { usePathname } from 'next/navigation';
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { usePreservedWorkspace } from '@/shared/lib/preserved-workspace';
+import { FloatingCalculator } from '@/shared/ui/amount-calculator';
 import { ManagementAccessState } from './_components/management-access-state/managementAccessState';
 import { ManagementSidebar } from './_components/management-sidebar/managementSidebar';
 import styles from './managementLayout.module.css';
@@ -180,6 +181,7 @@ function ManagementFrame({
   children: ReactNode;
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const pathname = usePathname();
 
   return (
     <div
@@ -224,6 +226,9 @@ function ManagementFrame({
           </main>
         </div>
       </div>
+      <FloatingCalculator
+        key={pathname}
+      />
     </div>
   );
 }

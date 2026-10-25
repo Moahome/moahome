@@ -16,7 +16,7 @@ export default defineConfig({
   projects: [
     {
       name: 'api',
-      testMatch: ['architecture.spec.ts', 'customApi.spec.ts', 'sessionRestore.spec.ts', 'authenticatedApi.spec.ts', 'feeItems.spec.ts', 'formatter.spec.ts', 'equalSplit.spec.ts', 'residentExport.spec.ts', 'billingModel.spec.ts', 'paymentPreview.spec.ts', 'bankingAllocation.spec.ts', 'monthlySettlement.spec.ts', 'balanceReport.spec.ts']
+      testMatch: ['architecture.spec.ts', 'customApi.spec.ts', 'sessionRestore.spec.ts', 'authenticatedApi.spec.ts', 'feeItems.spec.ts', 'formatter.spec.ts', 'equalSplit.spec.ts', 'calculator.spec.ts', 'residentExport.spec.ts', 'billingModel.spec.ts', 'paymentPreview.spec.ts', 'bankingAllocation.spec.ts', 'monthlySettlement.spec.ts', 'balanceReport.spec.ts']
     },
     {
       name: 'chromium',
