@@ -73,6 +73,8 @@ public class PaymentService {
 
 	private final IncomeAllocationRepository incomeAllocations;
 
+	private final PayerMatchService payerMatches;
+
 	public PaymentService(ManagementAccessService access, ResidentListService residents, PropertyRepository properties,
 	    UnitRepository units, BuildingRepository buildings, ChargeRepository charges, BillingPeriodRepository periods,
 	    BankAccountRepository accounts, BankTransactionRepository transactions, PaymentRepository payments,
@@ -81,7 +83,7 @@ public class PaymentService {
 	    OpeningBalanceBatchRepository openingBatches, OpeningBalanceItemRepository openingItems,
 	    CreditApplicationRepository creditApplications,
 	    com.moahome.server.banking.service.IncomeAllocationService incomeAllocationService,
-	    IncomeAllocationRepository incomeAllocations) {
+	    IncomeAllocationRepository incomeAllocations, PayerMatchService payerMatches) {
 		this.access = access;
 		this.residents = residents;
 		this.properties = properties;
@@ -103,6 +105,7 @@ public class PaymentService {
 		this.creditApplications = creditApplications;
 		this.incomeAllocationService = incomeAllocationService;
 		this.incomeAllocations = incomeAllocations;
+		this.payerMatches = payerMatches;
 	}
 
 	/** 현재 대표 명부를 포함하므로 부담당자가 아닌 관리소장 권한을 매 요청마다 검사합니다. */
@@ -226,9 +229,10 @@ public class PaymentService {
 		    .collect(Collectors.groupingBy(PaymentAllocation::getPaymentId));
 		Map<UUID, List<IncomeAllocation>> distributed = incomeAllocations.findByPropertyIdOrderBySortOrderAsc(property)
 		    .stream().collect(Collectors.groupingBy(IncomeAllocation::getPaymentId));
+		PayerMatchService.Context matchContext = payerMatches.context(property);
 		List<PaymentResponse.Payment> paymentRows = allPayments.stream()
 		    .map(p -> response(p, applied.getOrDefault(p.getId(), List.of()), unitRows, residentRows,
-		        distributed.getOrDefault(p.getId(), List.of())))
+		        distributed.getOrDefault(p.getId(), List.of()), matchContext))
 		    .toList();
 		List<PaymentResponse.Account> accountRows = propertyAccounts(property).stream()
 		    .map(
@@ -254,14 +258,15 @@ public class PaymentService {
 	}
 
 	private PaymentResponse.Payment response(Payment p, List<PaymentAllocation> applied,
-	    List<PaymentResponse.Unit> unitRows, List<ResidentItem> residentRows, List<IncomeAllocation> shares) {
+	    List<PaymentResponse.Unit> unitRows, List<ResidentItem> residentRows, List<IncomeAllocation> shares,
+	    PayerMatchService.Context matchContext) {
 		String payer = security.decrypt(p.getPayerNameEncrypted());
 		UUID unit = p.getMatchedUnitId();
 		String reason = "";
 		if (unit == null && "PENDING".equals(p.getStatus()) && p.isAutoMatchEligible()) {
-			unit = unitCandidate(payer, unitRows, residentRows);
-			if (unit != null)
-				reason = candidateReason(payer, unitRows);
+			var match = payerMatches.resolve(matchContext, payer, p.getPaymentDate(), unitRows, residentRows);
+			unit = match.unitId();
+			reason = match.reason();
 		}
 		return new PaymentResponse.Payment(p.getId(), p.getSourceType(), p.getStatus(), p.getBankAccountId(),
 		    p.getPaymentDate(), payer, p.getAmount().toPlainString(), unit == null ? "" : unit.toString(), reason,
@@ -284,44 +289,18 @@ public class PaymentService {
 		                .toList()));
 	}
 
-	/** 이름 또는 동·호수가 현재 명단의 한 세대와 일치할 때만 연결하며 여러 세대에 걸친 동명이인은 남겨 둡니다. */
-	private UUID unitCandidate(String payer, List<PaymentResponse.Unit> unitRows, List<ResidentItem> residentRows) {
-		String hash = security.nameHash(payer);
-		Set<UUID> eligible = unitRows.stream().filter(PaymentResponse.Unit::eligible).map(PaymentResponse.Unit::id)
-		    .collect(Collectors.toSet());
-		Set<UUID> matches = unitRows.stream()
-		    .filter(u -> eligible.contains(u.id()) && matchesUnitLabel(hash, u.label())).map(PaymentResponse.Unit::id)
-		    .collect(Collectors.toSet());
-		residentRows.stream()
-		    .filter(
-		        r -> r.unitId() != null && eligible.contains(r.unitId()) && security.nameHash(r.name()).equals(hash))
-		    .map(ResidentItem::unitId).forEach(matches::add);
-		return matches.size() == 1 ? matches.iterator().next() : null;
-	}
-
-	/** 세대 표기의 마지막 '호'만 생략할 수 있게 하며 이름 비교와 은행 중복 키의 원문 기준은 유지합니다. */
-	private boolean matchesUnitLabel(String payerHash, String label) {
-		if (security.nameHash(label).equals(payerHash))
-			return true;
-		return label.endsWith("호") && security.nameHash(label.substring(0, label.length() - 1)).equals(payerHash);
-	}
-
-	private String candidateReason(String payer, List<PaymentResponse.Unit> unitRows) {
-		String hash = security.nameHash(payer);
-		return unitRows.stream().anyMatch(u -> matchesUnitLabel(hash, u.label())) ? "동·호수 일치" : "명단 이름 일치";
-	}
-
 	/** 파일 가져오기 또는 일치 입금 일괄 처리에서만 자동 확정하며 수동 수납 중복 의심과 보류는 검토 대상으로 유지합니다. */
 	private boolean confirmMatched(UUID user, UUID property, Payment payment, List<PaymentResponse.Unit> unitRows,
-	    List<ResidentItem> residentRows) {
+	    List<ResidentItem> residentRows, PayerMatchService.Context matchContext) {
 		if (payment.getDeletedAt() != null || !"BANK_IMPORT".equals(payment.getSourceType())
 		    || !"PENDING".equals(payment.getStatus()) || !payment.isAutoMatchEligible())
 			return false;
 		if (!afterCutoff(property, payment.getPaymentDate()))
 			return false;
 		String payer = security.decrypt(payment.getPayerNameEncrypted());
-		UUID candidate = unitCandidate(payer, unitRows, residentRows);
-		if (candidate == null || !duplicates(property, payment).isEmpty())
+		var match = payerMatches.resolve(matchContext, payer, payment.getPaymentDate(), unitRows, residentRows);
+		UUID candidate = match.unitId();
+		if (!match.automatic() || candidate == null || !duplicates(property, payment).isEmpty())
 			return false;
 		// 관리자가 취소한 원본 검토 초안은 명단이 일치해도 다시 자동 납부 처리하지 않습니다.
 		if (payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property).stream()
@@ -334,18 +313,19 @@ public class PaymentService {
 		payment.confirm(candidate, rep.map(ResidentItem::id).orElse(null), null, user, now());
 		payment.assignCashBuilding(units.findById(candidate)
 		    .orElseThrow(() -> new PaymentException("PAYMENT_UNIT_UNAVAILABLE")).getBuildingId());
-		audit(payment, "AUTO_CONFIRMED", candidateReason(payer, unitRows), user);
+		audit(payment, "AUTO_CONFIRMED", match.reason(), user);
 		return true;
 	}
 
-	/** 이미 업로드한 확인 필요 입금도 명단의 유일한 일치 세대를 다시 검사해 한 번에 확정합니다. */
+	/** 이미 업로드한 확인 필요 입금도 명단·최신 이력·동-호수 패턴 순서로 다시 대조해 일치 건을 확정합니다. */
 	@Transactional
 	public PaymentResponse.Ledger confirmMatches(UUID user, UUID property) {
 		lock(user, property);
 		var snapshot = ledger(user, property);
 		List<ResidentItem> residentRows = residents.list(user, property).residents();
-		for (var payment : payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property))
-			confirmMatched(user, property, payment, snapshot.units(), residentRows);
+		PayerMatchService.Context matchContext = payerMatches.context(property);
+		for (var payment : matchContext.payments())
+			confirmMatched(user, property, payment, snapshot.units(), residentRows, matchContext);
 		payments.flush();
 		cumulative.settle(property, user);
 		return ledger(user, property);
@@ -775,6 +755,7 @@ public class PaymentService {
 		Set<String> seen = new HashSet<>();
 		List<PaymentResponse.Unit> unitRows = ledger(user, property).units();
 		List<ResidentItem> residentRows = residents.list(user, property).residents();
+		PayerMatchService.Context matchContext = payerMatches.context(property);
 		List<BankTransactionReader.Row> rows = reader.read(file, account.getBankCode());
 		List<PaymentResponse.Payment> result = new ArrayList<>();
 		int duplicated = 0;
@@ -786,17 +767,32 @@ public class PaymentService {
 			if (row.date().isAfter(today()))
 				throw new PaymentException("INVALID_PAYMENT_DATE");
 			String key = key(row);
-			if (existing.find(row).isPresent() || !seen.add(key)) {
+			var match = row.autoMatchEligible()
+			    ? payerMatches.resolve(matchContext, row.payer(), row.date(), unitRows, residentRows)
+			    : new PayerMatchService.Match(null, "자동 매칭 제외", false);
+			var previous = existing.find(row);
+			if ((previous.isPresent() && (!match.automatic()
+			    || !retryableBankReceipt(property, previous.get().getId(), matchContext))) || !seen.add(key)) {
 				duplicated++;
 				continue;
 			}
-			UUID candidate = row.autoMatchEligible() ? unitCandidate(row.payer(), unitRows, residentRows) : null;
+			UUID candidate = match.automatic() ? match.unitId() : null;
 			result.add(new PaymentResponse.Payment(previewId(key), "BANK_IMPORT", "PENDING", account.getId(),
 			    row.date(), row.payer(), row.amount().toPlainString(), candidate == null ? "" : candidate.toString(),
-			    candidate == null ? "" : candidateReason(row.payer(), unitRows), List.of(), null, null, null, null,
+			    match.reason(), List.of(), null, null, null, null,
 			    null, row.memo(), "HOUSEHOLD", null, null));
 		}
 		return new PaymentResponse.ImportPreview(property, result, duplicated);
+	}
+
+	/** 이전 업로드의 확인 필요 건은 재대조할 수 있지만 보류·취소·수동 중복 확인을 건너뛰지 않습니다. */
+	private boolean retryableBankReceipt(UUID property, UUID transactionId, PayerMatchService.Context context) {
+		if (context.payments().stream().anyMatch(p -> transactionId.equals(p.getBankTransactionId())
+		    && "CANCELED".equals(p.getStatus())))
+			return false;
+		return context.payments().stream().anyMatch(p -> transactionId.equals(p.getBankTransactionId())
+		    && p.getDeletedAt() == null && "BANK_IMPORT".equals(p.getSourceType())
+		    && "PENDING".equals(p.getStatus()) && p.isAutoMatchEligible() && duplicates(property, p).isEmpty());
 	}
 
 	/** 확정 버튼에서 파일을 다시 검증하고 잠금 아래 중복을 재검사해 원본·초안을 한 번만 함께 저장합니다. */
@@ -849,6 +845,7 @@ public class PaymentService {
 		var at = now();
 		var snapshot = ledger(user, property);
 		List<ResidentItem> residentRows = residents.list(user, property).residents();
+		PayerMatchService.Context matchContext = payerMatches.context(property);
 		BankTransactionDuplicates duplicates = new BankTransactionDuplicates(transactions.findByPropertyId(property),
 		    account.getId(), security);
 		for (var row : rows) {
@@ -857,8 +854,14 @@ public class PaymentService {
 			var key = key(row);
 			if (!afterCutoff(property, row.date()))
 				continue;
-			if (duplicates.find(row).isPresent())
+			var previous = duplicates.find(row);
+			if (previous.isPresent()) {
+				UUID originalId = previous.get().getId();
+				for (Payment existing : matchContext.payments())
+					if (originalId.equals(existing.getBankTransactionId()))
+						confirmMatched(user, property, existing, snapshot.units(), residentRows, matchContext);
 				continue;
+			}
 			var name = security.protect(row.payer());
 			String hmac = security.nameHash(row.payer());
 			var t = transactions
@@ -879,7 +882,9 @@ public class PaymentService {
 			else if (choice != null && choice.unitId() != null)
 				confirmCumulative(user, property, p, new PaymentRequests.Confirm(choice.unitId(), null, null));
 			else if (row.autoMatchEligible())
-				confirmMatched(user, property, p, snapshot.units(), residentRows);
+				confirmMatched(user, property, p, snapshot.units(), residentRows, matchContext);
+			if (choice != null)
+				matchContext = payerMatches.context(property);
 		}
 		payments.flush();
 		cumulative.settle(property, user);

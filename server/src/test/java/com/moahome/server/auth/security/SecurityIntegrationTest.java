@@ -120,6 +120,9 @@ class SecurityIntegrationTest {
 	private com.moahome.server.payment.service.PaymentService payments;
 
 	@MockitoBean
+	private com.moahome.server.payment.service.PayerMatchService payerMatches;
+
+	@MockitoBean
 	private com.moahome.server.banking.service.BankingService banking;
 
 	@MockitoBean

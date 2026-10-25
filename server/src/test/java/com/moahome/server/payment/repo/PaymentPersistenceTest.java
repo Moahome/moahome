@@ -54,6 +54,7 @@ import com.moahome.server.banking.dto.BankingRequests;
         com.moahome.server.banking.service.BankingService.class,
         com.moahome.server.expense.service.ExpenseService.class,
         com.moahome.server.payment.service.CumulativePaymentService.class, PaymentService.class,
+        com.moahome.server.payment.service.PayerMatchService.class,
         BankTransactionReader.class, BillingTemplates.class, BillingGenerationService.class, BillingService.class,
         PropertyRegistrationService.class, RegistrationOpeningService.class, PropertyRegistrationLock.class,
         ManagementAccessService.class, UserService.class, OpeningBalanceService.class,
@@ -171,6 +172,175 @@ class PaymentPersistenceTest {
 		    "truncate payment_events,payment_allocations,payments,bank_transactions,charge_items,charges,billing_periods,"
 		        + "property_registration_results,property_members,fee_template_items,fee_templates,bank_accounts,unit_residents,residents,"
 		        + "units,buildings,properties,social_accounts,users cascade");
+	}
+
+	/** 기적용 연결·참조가 남은 DB에서 폐기 구조만 제거하고 실제 수납·충당·원본·감사는 보존합니다. */
+	@Test
+	void cleanupPayerRulesPreservesPaymentsAllocationsAndAppliedChecksums() {
+		var source = service.importFile(user, property, bank("가상정리입금", "50000")).payments().getFirst();
+		service.confirm(user, property, source.id(), new PaymentRequests.Confirm(unit, null, null));
+		String schema = "payer_cleanup_" + UUID.randomUUID().toString().replace("-", "");
+		var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		    .schemas(schema).defaultSchema(schema).target("20261025065248").load();
+		previous.migrate();
+		try {
+			new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+				for (String table : List.of("users", "properties", "buildings", "units", "bank_accounts", "residents",
+				    "unit_residents", "fee_templates", "fee_template_items", "billing_periods", "charges", "charge_items",
+				    "bank_transactions", "payments", "payment_allocations", "payment_events"))
+					copyPreviousTable(schema, table);
+			});
+			UUID stopped = UUID.randomUUID(), active = UUID.randomUUID();
+			String insert = "insert into " + schema + ".payer_match_rules "
+			    + "(id,property_id,payer_name_encrypted,payer_name_hmac,unit_id,source_payment_id,valid_from,registered_by,registered_at) "
+			    + "select ?,property_id,payer_name_encrypted,payer_name_hmac,matched_unit_id,id,payment_date,confirmed_by,confirmed_at "
+			    + "from " + schema + ".payments where id=?";
+			jdbc.update(insert, stopped, source.id());
+			jdbc.update("update " + schema + ".payer_match_rules set active=false,stopped_by=registered_by,"
+			    + "stopped_at=registered_at,stop_reason='MANUAL' where id=?", stopped);
+			jdbc.update(insert, active, source.id());
+			jdbc.update("update " + schema + ".payments set payer_match_rule_id=? where id=?", stopped, source.id());
+			Map<String, List<Map<String, Object>>> snapshots = new LinkedHashMap<>();
+			for (String table : List.of("payments", "payment_allocations", "payment_events", "bank_transactions", "units", "unit_residents"))
+				snapshots.put(table, jdbc.queryForList("select * from " + schema + "." + table + " order by id"));
+			snapshots.get("payments").forEach(row -> row.remove("payer_match_rule_id"));
+			String historyQuery = "select version,checksum from " + schema + ".flyway_schema_history "
+			    + "where version in ('20261025060837','20261025065248') order by version";
+			var applied = jdbc.queryForList(historyQuery);
+			assertThat(applied).hasSize(2);
+			assertThat(jdbc.queryForObject("select checksum from " + schema
+			    + ".flyway_schema_history where version='20261025060837'", Integer.class)).isEqualTo(2135699727);
+			var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+			    .schemas(schema).defaultSchema(schema).target("20261025075117").load();
+			assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
+			upgraded.validate();
+			assertThat(jdbc.queryForList(historyQuery)).isEqualTo(applied);
+			assertThat(jdbc.queryForObject("select to_regclass(?)::text", String.class, schema + ".payer_match_rules")).isNull();
+			assertThat(jdbc.queryForObject("select count(*) from information_schema.columns where table_schema=? "
+			    + "and table_name='payments' and column_name='payer_match_rule_id'", Integer.class, schema)).isZero();
+			assertThat(jdbc.queryForObject("select count(*) from pg_trigger t join pg_class c on c.oid=t.tgrelid "
+			    + "join pg_namespace n on n.oid=c.relnamespace where n.nspname=? and t.tgname in "
+			    + "('payments_stop_payer_rules','units_stop_payer_rules','unit_residents_stop_payer_rules','payer_match_rules_protect')",
+			    Integer.class, schema)).isZero();
+			assertThat(jdbc.queryForObject("select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace "
+			    + "where n.nspname=? and p.proname in "
+			    + "('stop_payer_rules_for_payment','stop_payer_rules_for_occupancy','protect_payer_match_rule')",
+			    Integer.class, schema)).isZero();
+			jdbc.update("update " + schema + ".payments set updated_at=updated_at where id=?", source.id());
+			for (var snapshot : snapshots.entrySet())
+				assertThat(jdbc.queryForList("select * from " + schema + "." + snapshot.getKey() + " order by id"))
+				    .as(snapshot.getKey()).isEqualTo(snapshot.getValue());
+		} finally {
+			jdbc.execute("drop schema " + schema + " cascade");
+		}
+	}
+
+	/** 명단에 없는 입금자명도 별도 등록 없이 최신 확정 이력의 세대로 업로드 즉시 확정합니다. */
+	@Test
+	void uploadAutomaticallyUsesLatestConfirmedPayerWithoutRegistration() {
+		var source = service.importFile(user, property, bank("가상대납자", "10000")).payments().getFirst();
+		service.confirm(user, property, source.id(), new PaymentRequests.Confirm(unit, null, null));
+		var file = csv("입금일,입금자명,입금액\n2026-09-28,가상 대납자,50000");
+		long originalPayments = count("payments");
+		var preview = service.preview(user, property, file).rows().getFirst();
+		assertThat(preview.unitId()).isEqualTo(unit.toString());
+		assertThat(preview.reason()).isEqualTo("최근 입금자명 일치");
+		assertThat(count("payments")).isEqualTo(originalPayments);
+		var imported = service.importFile(user, property, file).payments().stream()
+		    .filter(r -> r.amount().equals("50000")).findFirst().orElseThrow();
+		assertThat(imported.status()).isEqualTo("CONFIRMED");
+		assertThat(imported.unitId()).isEqualTo(unit.toString());
+		assertThat(imported.payer()).isEqualTo("가상 대납자");
+		assertThat(jdbc.queryForObject("select to_regclass('payer_match_rules')::text", String.class)).isNull();
+		service.importFile(user, property, file);
+		assertThat(count("payments")).isEqualTo(originalPayments + 1);
+	}
+
+	/** 명단·과거 이력에 없는 월별 동-호수 표기도 실제 통장 업로드에서 같은 세대로 자동 확정합니다. */
+	@Test
+	void monthlyUnitPatternMatchesOnBankUploadAndPreservesOriginalPayer() {
+		UUID building = UUID.randomUUID();
+		jdbc.update("update properties set has_buildings=true where id=?", property);
+		jdbc.update("insert into buildings(id,property_id,name,sort_order,status,created_at,updated_at) "
+		    + "values (?,?,'103동',0,'ACTIVE',now(),now())", building, property);
+		jdbc.update("update units set building_id=?,unit_number='302' where id=?", building, unit);
+		for (String payer : List.of("103-302", "103-302(9", "103-302(10")) {
+			var file = bank(payer, "10000");
+			var preview = banking.preview(user, property, file);
+			assertThat(preview.rows()).singleElement().satisfies(row -> assertThat(row.unitId()).isEqualTo(unit.toString()));
+			assertThat(count("payments")).isEqualTo(count("bank_transactions"));
+			banking.upload(user, property, file, new BankingRequests.Import(List.of(
+			    new BankingRequests.Selection(preview.rows().getFirst().id(), null, null, null, null))));
+			var stored = service.workspace(user, property).payments().stream().filter(row -> payer.equals(row.payer()))
+			    .findFirst().orElseThrow();
+			assertThat(stored.unitId()).isEqualTo(unit.toString());
+			assertThat(stored.status()).isEqualTo("CONFIRMED");
+			assertThat(stored.payer()).isEqualTo(payer);
+			assertThat(stored.allocations()).singleElement().satisfies(part -> assertThat(part.chargeId()).isEqualTo(charge));
+			assertThat(banking.preview(user, property, file).duplicateCount()).isEqualTo(1);
+		}
+		assertThat(count("payments")).isEqualTo(3);
+		assertThat(jdbc.queryForObject("select to_regclass('payer_match_rules')::text", String.class)).isNull();
+		var invalid = service.importFile(user, property, bank("103-302(13", "11000")).payments().stream()
+		    .filter(row -> row.payer().equals("103-302(13")).findFirst().orElseThrow();
+		assertThat(invalid.status()).isEqualTo("PENDING");
+		assertThat(invalid.unitId()).isEmpty();
+	}
+
+	@Test
+	void latestPayerHistoryWinsOverOlderDifferentHousehold() {
+		var olderFile = csv("입금일,입금자명,입금액\n2026-09-01,가상최신입금,10000");
+		var older = service.importFile(user, property, olderFile).payments().getFirst();
+		service.confirm(user, property, older.id(), new PaymentRequests.Confirm(unit, null, null));
+		var newerFile = csv("입금일,입금자명,입금액\n2026-10-01,가상최신입금,20000");
+		var preview = service.preview(user, property, newerFile).rows().getFirst();
+		service.importBankRows(user, property, new BankTransactionReader().read(newerFile),
+		    Map.of(preview.id(), new PaymentService.BankReceiptChoice(otherUnit, null, null)));
+		var result = service.importFile(user, property, bank("가상최신입금", "30000")).payments().stream()
+		    .filter(r -> r.amount().equals("30000")).findFirst().orElseThrow();
+		assertThat(result.status()).isEqualTo("CONFIRMED");
+		assertThat(result.unitId()).isEqualTo(otherUnit.toString());
+	}
+
+	@Test
+	void latestPayerHistoryIncludesConfirmedManualReceipts() {
+		UUID source = manual("10000");
+		service.confirm(user, property, source, new PaymentRequests.Confirm(unit, null, null));
+		jdbc.update("update residents set name='현재대표' where property_id=? and name='김대표'", property);
+		var result = service.importFile(user, property, bank("김대표", "23000")).payments().stream()
+		    .filter(r -> r.amount().equals("23000")).findFirst().orElseThrow();
+		assertThat(result.status()).isEqualTo("CONFIRMED");
+		assertThat(result.unitId()).isEqualTo(unit.toString());
+	}
+
+	@Test
+	void unknownPayerRemainsPendingAndCanceledHistoryDoesNotCreateAMatch() {
+		var source = service.importFile(user, property, bank("가상취소입금", "10000")).payments().getFirst();
+		service.confirm(user, property, source.id(), new PaymentRequests.Confirm(unit, null, null));
+		service.cancel(user, property, source.id(), "수납 취소");
+		var result = service.importFile(user, property, bank("가상취소입금", "20000")).payments().stream()
+		    .filter(r -> r.amount().equals("20000")).findFirst().orElseThrow();
+		assertThat(result.status()).isEqualTo("PENDING");
+		assertThat(result.unitId()).isEmpty();
+	}
+
+	@Test
+	void importedPendingReceiptMatchesLatestHistoryOnReimportWithoutDuplication() {
+		var firstFile = bank("가상재검사입금", "10000");
+		var pending = service.importFile(user, property, firstFile).payments().getFirst();
+		var source = service.importFile(user, property, bank("가상재검사입금", "20000")).payments().stream()
+		    .filter(r -> r.amount().equals("20000")).findFirst().orElseThrow();
+		service.confirm(user, property, source.id(), new PaymentRequests.Confirm(unit, null, null));
+		var retry = banking.preview(user, property, firstFile);
+		assertThat(retry.rows()).singleElement().satisfies(r -> assertThat(r.unitId()).isEqualTo(unit.toString()));
+		banking.upload(user, property, firstFile, new BankingRequests.Import(List.of(
+		    new BankingRequests.Selection(retry.rows().getFirst().id(), null, null, null, null))));
+		var result = service.workspace(user, property).payments().stream()
+		    .filter(r -> r.id().equals(pending.id())).findFirst().orElseThrow();
+		assertThat(result.status()).isEqualTo("CONFIRMED");
+		assertThat(result.unitId()).isEqualTo(unit.toString());
+		assertThat(count("payments")).isEqualTo(2);
+		assertThat(count("bank_transactions")).isEqualTo(2);
 	}
 
 	/** 직접 확인은 실제 잔액 출처만 바꾸며 취소·재시도 후에도 원장과 최초 잔액은 그대로입니다. */
@@ -2586,11 +2756,16 @@ class PaymentPersistenceTest {
 		}
 	}
 
-	/** 적용 전 스키마의 컬럼만 복사해 후속 Migration으로 추가된 감사 컬럼을 미리 주입하지 않습니다. */
+	/** 두 버전에 공통인 컬럼만 복사해 새 컬럼은 주입하지 않고 제거된 옛 선택 컬럼은 기본값을 사용합니다. */
 	private void copyPreviousTable(String schema, String table) {
-		String columns = jdbc.queryForObject(
-		    "select string_agg(quote_ident(column_name),',' order by ordinal_position) from information_schema.columns where table_schema=? and table_name=?",
-		    String.class, schema, table);
+		String columns = jdbc.queryForObject("""
+		    select string_agg(quote_ident(old.column_name),',' order by old.ordinal_position)
+		    from information_schema.columns old
+		    where old.table_schema=? and old.table_name=?
+		      and exists (select 1 from information_schema.columns current
+		                  where current.table_schema='public' and current.table_name=old.table_name
+		                    and current.column_name=old.column_name)
+		    """, String.class, schema, table);
 		jdbc.execute(
 		    "insert into " + schema + "." + table + "(" + columns + ") select " + columns + " from public." + table);
 	}

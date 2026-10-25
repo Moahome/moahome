@@ -246,7 +246,7 @@ public class BankingService {
 			}
 			String key = BankTransactionKeys.key(row, security);
 			UUID id = BankTransactionKeys.previewId(key);
-			if (existing.find(row).isPresent() || !seen.add(key)) {
+			if ((existing.find(row).isPresent() && !candidates.containsKey(id)) || !seen.add(key)) {
 				duplicates++;
 				continue;
 			}
