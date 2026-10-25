@@ -103,13 +103,13 @@ public class OpeningBalanceService {
 		Map<UUID, OpeningBalanceItem> entries = latest == null
 		    ? Map.<UUID, OpeningBalanceItem>of()
 		    : items.findByBatchId(latest.getId()).stream()
-		        .collect(Collectors.toMap(OpeningBalanceItem::getUnitId, i -> i));
+		        .collect(Collectors.toMap(openingBalanceItem -> openingBalanceItem.getUnitId(), i -> i));
 		Map<UUID, BankOpeningBalance> banks = latest == null
 		    ? Map.<UUID, BankOpeningBalance>of()
 		    : bankBalances.findByBatchId(latest.getId()).stream()
-		        .collect(Collectors.toMap(BankOpeningBalance::getBankAccountId, b -> b));
+		        .collect(Collectors.toMap(bankOpeningBalance -> bankOpeningBalance.getBankAccountId(), b -> b));
 		Map<UUID, String> names = buildings.findByPropertyId(propertyId).stream()
-		    .collect(Collectors.toMap(Building::getId, Building::getName));
+		    .collect(Collectors.toMap(building -> building.getId(), building -> building.getName()));
 		List<OpeningBalanceResponse.Unit> unitRows = units.findByPropertyId(propertyId).stream()
 		    .filter(u -> u.getDeletedAt() == null || entries.containsKey(u.getId())).map(u -> {
 			    var entry = entries.get(u.getId());
@@ -119,7 +119,7 @@ public class OpeningBalanceService {
 			        entry == null ? "0" : entry.getCredit().toPlainString(),
 			        entry == null ? null : entry.getOriginMonth(),
 			        entry == null ? null : security.decrypt(entry.getResponsibilityEncrypted()));
-		    }).sorted(Comparator.comparing(OpeningBalanceResponse.Unit::label)).toList();
+		    }).sorted(Comparator.comparing(element -> element.label())).toList();
 		List<OpeningBalanceResponse.Account> accountRows = accounts.findByPropertyIdAndDeletedAtIsNull(propertyId)
 		    .stream()
 		    .map(a -> new OpeningBalanceResponse.Account(a.getId(), a.getBankName() + " ····" + a.getAccountLast4(),
@@ -163,15 +163,15 @@ public class OpeningBalanceService {
 			batch = batches.saveAndFlush(
 			    OpeningBalanceBatch.draft(propertyId, input.cutoffDate(), first, actor, OffsetDateTime.now(clock)));
 		}
-		Set<UUID> currentUnits = units.findByPropertyIdAndDeletedAtIsNull(propertyId).stream().map(Unit::getId)
+		Set<UUID> currentUnits = units.findByPropertyIdAndDeletedAtIsNull(propertyId).stream().map(element -> element.getId())
 		    .collect(Collectors.toSet());
 		if (input.units().size() != currentUnits.size() || !input.units().stream()
-		    .map(OpeningBalanceRequest.UnitInput::unitId).collect(Collectors.toSet()).equals(currentUnits))
+		    .map(unitInput -> unitInput.unitId()).collect(Collectors.toSet()).equals(currentUnits))
 			throw new PaymentException("OPENING_TARGETS_CHANGED");
 		Set<UUID> currentAccounts = accounts.findByPropertyIdAndDeletedAtIsNull(propertyId).stream().map(a -> a.getId())
 		    .collect(Collectors.toSet());
 		if (input.accounts().size() != currentAccounts.size() || !input.accounts().stream()
-		    .map(OpeningBalanceRequest.AccountInput::accountId).collect(Collectors.toSet()).equals(currentAccounts))
+		    .map(accountInput -> accountInput.accountId()).collect(Collectors.toSet()).equals(currentAccounts))
 			throw new PaymentException("OPENING_TARGETS_CHANGED");
 		for (var entry : input.units()) {
 			if (entry.originMonth() != null && !entry.originMonth().isBlank()
@@ -221,16 +221,16 @@ public class OpeningBalanceService {
 		validateDates(property, batch.getCutoffDate(), first);
 		List<OpeningBalanceItem> entryRows = items.findByBatchId(batchId);
 		Map<UUID, Unit> live = units.findByPropertyIdAndDeletedAtIsNull(propertyId).stream()
-		    .collect(Collectors.toMap(Unit::getId, u -> u));
-		if (!entryRows.stream().map(OpeningBalanceItem::getUnitId).collect(Collectors.toSet()).equals(live.keySet()))
+		    .collect(Collectors.toMap(element -> element.getId(), u -> u));
+		if (!entryRows.stream().map(openingBalanceItem -> openingBalanceItem.getUnitId()).collect(Collectors.toSet()).equals(live.keySet()))
 			throw new PaymentException("OPENING_TARGETS_CHANGED");
 		Set<UUID> liveAccounts = accounts.findByPropertyIdAndDeletedAtIsNull(propertyId).stream().map(a -> a.getId())
 		    .collect(Collectors.toSet());
-		if (!bankBalances.findByBatchId(batchId).stream().map(BankOpeningBalance::getBankAccountId)
+		if (!bankBalances.findByBatchId(batchId).stream().map(bankOpeningBalance -> bankOpeningBalance.getBankAccountId())
 		    .collect(Collectors.toSet()).equals(liveAccounts))
 			throw new PaymentException("OPENING_TARGETS_CHANGED");
 		Map<UUID, String> names = buildings.findByPropertyId(propertyId).stream()
-		    .collect(Collectors.toMap(Building::getId, Building::getName));
+		    .collect(Collectors.toMap(building -> building.getId(), building -> building.getName()));
 		var at = OffsetDateTime.now(clock);
 		batch.confirm(actor, at);
 		for (var entry : entryRows) {
@@ -266,13 +266,13 @@ public class OpeningBalanceService {
 		if (payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(propertyId).stream()
 		    .anyMatch(p -> "CONFIRMED".equals(p.getStatus())))
 			throw new PaymentException("OPENING_ALREADY_HAS_RECEIPTS");
-		Set<UUID> rowIds = items.findByBatchId(batchId).stream().map(OpeningBalanceItem::getId)
+		Set<UUID> rowIds = items.findByBatchId(batchId).stream().map(openingBalanceItem -> openingBalanceItem.getId())
 		    .collect(Collectors.toSet());
 		applications.findByPropertyId(propertyId).stream().filter(a -> rowIds.contains(a.getOpeningItemId()))
-		    .forEach(CreditApplication::cancel);
+		    .forEach(creditApplication -> creditApplication.cancel());
 		applications.flush();
 		var at = OffsetDateTime.now(clock);
-		items.findByBatchId(batchId).stream().map(OpeningBalanceItem::getChargeId).filter(Objects::nonNull)
+		items.findByBatchId(batchId).stream().map(openingBalanceItem -> openingBalanceItem.getChargeId()).filter(Objects::nonNull)
 		    .forEach(id -> charges.findById(id).orElseThrow().cancelOpening(actor, at));
 		charges.flush();
 		batch.cancel(actor, input.reason(), at);

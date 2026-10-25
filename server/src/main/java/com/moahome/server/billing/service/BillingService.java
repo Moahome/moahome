@@ -106,7 +106,7 @@ public class BillingService {
 		List<FeeTemplateItem> sources = configurations.items(template);
 		Map<UUID, List<FeeTemplateItem>> groups = sources.stream()
 		    .filter(item -> !item.isTemporary() && item.getBuildingId() != null)
-		    .collect(Collectors.groupingBy(FeeTemplateItem::getBuildingId, LinkedHashMap::new, Collectors.toList()));
+		    .collect(Collectors.groupingBy(feeTemplateItem -> feeTemplateItem.getBuildingId(), LinkedHashMap::new, Collectors.toList()));
 		return new Template(template.getId(), YearMonth.from(template.getEffectiveFrom()).toString(),
 		    sources.stream().filter(item -> !item.isTemporary() && item.getBuildingId() == null).map(this::item).toList(),
 		    template.getChangeReason(), template.getCreatedAt(), template.getBillingMode(),
@@ -162,7 +162,7 @@ public class BillingService {
 		var next = configurations.applicable(versions, nextMonth);
 		List<FeeTemplateItem> preserved = immediate && request.temporaryItems().stream().allMatch(item -> item.month() == null)
 		    && next.getEffectiveFrom().equals(nextMonth.atDay(1))
-		    ? configurations.items(next).stream().filter(FeeTemplateItem::isTemporary).toList() : List.of();
+		    ? configurations.items(next).stream().filter(feeTemplateItem -> feeTemplateItem.isTemporary()).toList() : List.of();
 		if (immediate)
 			createAddition(userId, propertyId, request, currentItems, currentMonth, ++revision, fingerprint);
 		var version = FeeTemplate.schedule(propertyId, revision + 1,
@@ -190,10 +190,10 @@ public class BillingService {
 		templateItems.saveAllAndFlush(saved);
 		if (immediate) {
 			List<UUID> targetBuildings = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId)
-			    .stream().map(Building::getId).toList();
+			    .stream().map(entry -> entry.getId()).toList();
 			for (UUID target : targetBuildings.isEmpty() ? Collections.<UUID>singletonList(null) : targetBuildings)
 				requireAmountRange(configurations.applicableItems(version, saved, nextMonth, target).stream()
-				    .map(FeeTemplateItem::getDefaultAmount).reduce(BigDecimal.ZERO, BigDecimal::add));
+				    .map(feeTemplateItem -> feeTemplateItem.getDefaultAmount()).reduce(BigDecimal.ZERO, (bigDecimal, other) -> bigDecimal.add(other)));
 		}
 		return readSettings(property);
 	}
@@ -228,12 +228,12 @@ public class BillingService {
 	/** 모든 현재 동의 설정·동 소속과 기본+임시의 세대당 최종 합계를 저장 전에 검증합니다. */
 	private void validateSettings(Property property, BillingSettingsRequest request, boolean immediate) {
 		List<UUID> buildingIds = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(property.getId())
-		    .stream().map(Building::getId).toList();
+		    .stream().map(entry -> entry.getId()).toList();
 		if (request.mode() == BillingMode.ALL) {
 			if (request.items().isEmpty() || !request.buildingItems().isEmpty())
 				throw new IllegalArgumentException("Invalid all-building configuration");
 		} else {
-			List<UUID> configured = request.buildingItems().stream().map(BillingSettingsRequest.BuildingItems::buildingId).toList();
+			List<UUID> configured = request.buildingItems().stream().map(entry -> entry.buildingId()).toList();
 			if (!property.isHasBuildings() || !request.items().isEmpty() || configured.size() != buildingIds.size()
 			    || !new HashSet<>(configured).equals(new HashSet<>(buildingIds)))
 				throw new IllegalArgumentException("Invalid building configuration");
@@ -250,12 +250,12 @@ public class BillingService {
 			    : request.buildingItems().stream().filter(group -> group.buildingId().equals(buildingId))
 			        .findFirst().orElseThrow().items();
 			BigDecimal total = base.stream().map(item -> BigDecimal.valueOf(item.defaultAmount()))
-			    .reduce(BigDecimal.ZERO, BigDecimal::add);
+			    .reduce(BigDecimal.ZERO, (bigDecimal, other) -> bigDecimal.add(other));
 			requireAmountRange(total);
 			BigDecimal extra = request.temporaryItems().stream()
 			    .filter(item -> item.month() == null ? !immediate : item.month().equals(request.effectiveMonth()))
 			    .filter(item -> request.temporaryMode() == BillingMode.ALL || Objects.equals(item.buildingId(), buildingId))
-			    .map(item -> BigDecimal.valueOf(item.defaultAmount())).reduce(BigDecimal.ZERO, BigDecimal::add);
+			    .map(item -> BigDecimal.valueOf(item.defaultAmount())).reduce(BigDecimal.ZERO, (bigDecimal, other) -> bigDecimal.add(other));
 			requireAmountRange(total.add(extra));
 		}
 	}
@@ -285,7 +285,7 @@ public class BillingService {
 		var template = configurations.applicable(configurations.versions(propertyId), month);
 		List<FeeTemplateItem> items = configurations.items(template);
 		Map<UUID, String> names = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId)
-		    .stream().collect(Collectors.toMap(Building::getId, Building::getName));
+		    .stream().collect(Collectors.toMap(entry -> entry.getId(), entry -> entry.getName()));
 		Map<UUID, String> representatives = representativeNames(userId, propertyId, context.role());
 		List<BillingResponse.ChargeRow> rows = units.findByPropertyIdAndDeletedAtIsNull(propertyId).stream()
 		    .filter(unit -> unit.getStatus() == UnitStatus.ACTIVE)
@@ -296,7 +296,7 @@ public class BillingService {
 		    .toList();
 		return new Month(propertyId, property.isHasBuildings(), month.toString(), month.atDay(1), month.atEndOfMonth(),
 		    "SCHEDULED", rows.isEmpty() ? "0" : rows.getFirst().items().stream()
-		        .map(item -> new BigDecimal(item.amount())).reduce(BigDecimal.ZERO, BigDecimal::add).toPlainString(), rows);
+		        .map(item -> new BigDecimal(item.amount())).reduce(BigDecimal.ZERO, (bigDecimal, other) -> bigDecimal.add(other)).toPlainString(), rows);
 	}
 
 	/** 세대 목록과 같은 현재 대표 판정을 재사용하며 관리소장과 부담당자에게 같은 현재 대표 이름을 제공합니다. */
@@ -313,19 +313,19 @@ public class BillingService {
 		    .filter(charge -> visibleCharge(charge, period.month(), currentUnits)).toList();
 		Map<UUID, List<ChargeItem>> snapshots = headers.isEmpty()
 		    ? Map.<UUID, List<ChargeItem>>of()
-		    : chargeItems.findByChargeIdInOrderBySortOrderAsc(headers.stream().map(Charge::getId).toList()).stream()
-		        .collect(Collectors.groupingBy(ChargeItem::getChargeId));
-		Map<UUID, List<Charge>> byUnit = headers.stream().collect(Collectors.groupingBy(Charge::getUnitId));
+		    : chargeItems.findByChargeIdInOrderBySortOrderAsc(headers.stream().map(entry -> entry.getId()).toList()).stream()
+		        .collect(Collectors.groupingBy(chargeItem -> chargeItem.getChargeId()));
+		Map<UUID, List<Charge>> byUnit = headers.stream().collect(Collectors.groupingBy(entry -> entry.getUnitId()));
 		List<BillingResponse.ChargeRow> rows = byUnit.values().stream().map(group -> {
 			var primary = group.stream().filter(charge -> charge.getBillingAdditionId() == null).findFirst().orElse(group.getFirst());
-			List<Item> combined = group.stream().sorted(Comparator.comparing(Charge::getIssuedAt).thenComparing(Charge::getId))
+			List<Item> combined = group.stream().sorted(Comparator.comparing((Charge entry) -> entry.getIssuedAt()).thenComparing(entry -> entry.getId()))
 			    .flatMap(charge -> snapshots.getOrDefault(charge.getId(), List.of()).stream())
 			    .map(item -> new Item(item.getId(), item.getItemCode(), item.getItemName(), item.getAmount().toPlainString())).toList();
 			return new ChargeRow(primary.getId(), primary.getUnitId(), primary.getBuildingName(), primary.getUnitNumber(),
 			    primary.getDisplayName(), representatives.get(primary.getUnitId()), combined);
 		}).toList();
 		String base = rows.isEmpty() ? "0" : rows.getFirst().items().stream().map(item -> new BigDecimal(item.amount()))
-		    .reduce(BigDecimal.ZERO, BigDecimal::add).toPlainString();
+		    .reduce(BigDecimal.ZERO, (bigDecimal, other) -> bigDecimal.add(other)).toPlainString();
 		return new Month(period.getPropertyId(), hasBuildings, period.month().toString(), period.getBillingDate(),
 		    period.getDefaultDueDate(), "ISSUED", base, rows);
 	}
@@ -366,24 +366,24 @@ public class BillingService {
 		Set<UUID> currentUnits = undeletedUnitIds(propertyId);
 		Map<UUID, List<Charge>> grouped = charges.findByPropertyId(propertyId).stream()
 		    .filter(charge -> "ISSUED".equals(charge.getStatus()) && charge.getBillingPeriodId() != null)
-		    .collect(Collectors.groupingBy(Charge::getBillingPeriodId));
+		    .collect(Collectors.groupingBy(entry -> entry.getBillingPeriodId()));
 		return new History(propertyId, periods.findByPropertyIdOrderByBillingYearDescBillingMonthDesc(propertyId)
 		    .stream().filter(period -> "ISSUED".equals(period.getStatus())).map(period -> {
 			    List<Charge> rows = grouped.getOrDefault(period.getId(), List.of()).stream()
 			        .filter(charge -> visibleCharge(charge, period.month(), currentUnits)).toList();
-			    var total = rows.stream().map(Charge::getTotalAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+			    var total = rows.stream().map(entry -> entry.getTotalAmount()).reduce(BigDecimal.ZERO, (bigDecimal, other) -> bigDecimal.add(other));
 			    return new Period(period.month().toString(), period.getBillingDate(), period.getDefaultDueDate(),
-			        (int) rows.stream().map(Charge::getUnitId).distinct().count(), total.toPlainString(), period.getConfirmedAt());
+			        (int) rows.stream().map(entry -> entry.getUnitId()).distinct().count(), total.toPlainString(), period.getConfirmedAt());
 		    }).toList());
 	}
 
 	/** 삭제 전 구현에서 남은 청구도 당월 집계에 섞이지 않게 동과 세대의 실제 삭제 상태를 함께 확인합니다. */
 	private Set<UUID> undeletedUnitIds(UUID propertyId) {
 		Set<UUID> buildingIds = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId)
-		    .stream().map(Building::getId).collect(Collectors.toSet());
+		    .stream().map(entry -> entry.getId()).collect(Collectors.toSet());
 		return units.findByPropertyIdAndDeletedAtIsNull(propertyId).stream()
 		    .filter(unit -> unit.getStatus() == UnitStatus.ACTIVE)
-		    .filter(unit -> unit.getBuildingId() == null || buildingIds.contains(unit.getBuildingId())).map(Unit::getId)
+		    .filter(unit -> unit.getBuildingId() == null || buildingIds.contains(unit.getBuildingId())).map(entry -> entry.getId())
 		    .collect(Collectors.toSet());
 	}
 

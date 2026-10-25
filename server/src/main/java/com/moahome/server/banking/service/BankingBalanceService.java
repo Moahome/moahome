@@ -150,7 +150,7 @@ public class BankingBalanceService {
 		List<BankTransaction> allBank = transactions.findByPropertyId(property).stream()
 		    .filter(t -> t.getDeletedAt() == null).toList();
 		Map<UUID, BankTransaction> allBankById = allBank.stream()
-		    .collect(Collectors.toMap(BankTransaction::getId, t -> t));
+		    .collect(Collectors.toMap(bankTransaction -> bankTransaction.getId(), t -> t));
 		List<Payment> allReceipts = payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property).stream()
 		    .filter(this::active)
 		    .filter(p -> p.getBankTransactionId() == null
@@ -164,15 +164,15 @@ public class BankingBalanceService {
 		    .findByPropertyIdAndBatchIdIsNullOrderByRevisionDesc(property);
 		Map<UUID, Expense> allExpenseById = allExpenses.stream()
 		    .filter(e -> "MANUAL".equals(e.getSourceType()) || allBankById.containsKey(e.getBankTransactionId()))
-		    .collect(Collectors.toMap(Expense::getId, e -> e));
+		    .collect(Collectors.toMap(entry -> entry.getId(), e -> e));
 		List<ExpenseAllocation> allParts = allocations.findByPropertyIdOrderBySortOrderAsc(property).stream()
 		    .filter(a -> allExpenseById.containsKey(a.getExpenseId())).toList();
 		List<ExternalSettlementLink> allLinks = links.findByPropertyId(property);
 		Map<UUID, ExternalSettlementDecision> decisionByAllocation = decisions
 		    .findByPropertyIdOrderByRevisionAsc(property).stream()
-		    .collect(Collectors.toMap(ExternalSettlementDecision::getAllocationId, d -> d, (previous, next) -> next));
+		    .collect(Collectors.toMap(externalSettlementDecision -> externalSettlementDecision.getAllocationId(), d -> d, (previous, next) -> next));
 		Map<UUID, List<IncomeAllocation>> distributed = incomeAllocations.findByPropertyIdOrderBySortOrderAsc(property)
-		    .stream().collect(Collectors.groupingBy(IncomeAllocation::getPaymentId));
+		    .stream().collect(Collectors.groupingBy(incomeAllocation -> incomeAllocation.getPaymentId()));
 		ArrayList<BankingBalanceResponse.Entry> allEntries = new ArrayList<BankingBalanceResponse.Entry>();
 		for (var p : allReceipts) {
 			if ("OTHER".equals(p.getReceiptType()) && distributed.containsKey(p.getId())) {
@@ -218,7 +218,7 @@ public class BankingBalanceService {
 			List<BankTransaction> accountRows = allBank.stream()
 			    .filter(t -> t.getBankAccountId().equals(account.getId()) && !t.getTransactionDate().isAfter(end))
 			    .toList();
-			var last = accountRows.stream().max(Comparator.comparing(BankTransaction::getTransactionDate)
+			var last = accountRows.stream().max(Comparator.comparing((BankTransaction bankTransaction) -> bankTransaction.getTransactionDate())
 			    .thenComparing(t -> t.getTransactionTime() == null ? LocalTime.MIN : t.getTransactionTime()));
 			List<BankTransaction> lastDay = last.map(
 			    t -> accountRows.stream().filter(b -> b.getTransactionDate().equals(t.getTransactionDate())).toList())
@@ -226,7 +226,7 @@ public class BankingBalanceService {
 			boolean ambiguous = lastDay.size() > 1
 			    && (lastDay.stream().anyMatch(t -> t.getTransactionTime() == null) || last.map(
 			        t -> lastDay.stream().filter(b -> Objects.equals(t.getTransactionTime(), b.getTransactionTime()))
-			            .map(BankTransaction::getBalance).distinct().count() > 1)
+			            .map(bankTransaction -> bankTransaction.getBalance()).distinct().count() > 1)
 			        .orElse(false));
 			var registered = independent.get(account.getId());
 			var handover = baselines.stream().filter(row -> row.getBankAccountId().equals(account.getId())).findFirst()
@@ -283,13 +283,13 @@ public class BankingBalanceService {
 			        : new BankingBalanceResponse.Confirmation(selected.source(), selected.id(), selected.date(),
 			            selected.time(), selected.precision(), selected.status(),
 			            directChecks.stream().filter(check -> check.getId().equals(selected.id()))
-			                .map(BankBalanceCheck::getSourceType).findFirst().orElse(null)),
+			                .map(bankBalanceCheck -> bankBalanceCheck.getSourceType()).findFirst().orElse(null)),
 			    selected != null && (!selected.date().equals(end) || !selected.precision().equals("DAY_END"))));
 		}
 		Map<UUID, BankAccountRepository.Usage> usage = accounts.findUsageByPropertyId(property).stream()
-		    .collect(Collectors.toMap(BankAccountRepository.Usage::getAccountId, item -> item));
+		    .collect(Collectors.toMap(entry -> entry.getAccountId(), item -> item));
 		Map<UUID, BankingBalanceResponse.AccountBalance> balancesById = allAccountBalances.stream()
-		    .collect(Collectors.toMap(BankingBalanceResponse.AccountBalance::id, item -> item));
+		    .collect(Collectors.toMap(accountBalance -> accountBalance.id(), item -> item));
 		Set<UUID> unsettled = unsettledAccounts(end, allExpenseById, allParts, allLinks, allReceipts,
 		    decisionByAllocation);
 		// 앱 등록 전 실제 입출금은 과거 사용 근거입니다. 초기 잔고 날짜만으로 새 통장을 생성 전 월에 표시하지 않습니다.
@@ -309,7 +309,7 @@ public class BankingBalanceService {
 		    && availableAccounts.stream().anyMatch(a -> a.getId().equals(accountId)) ? accountId : null;
 		List<BankAccount> scopedAccounts = availableAccounts.stream()
 		    .filter(a -> selectedAccountId == null || selectedAccountId.equals(a.getId())).toList();
-		Set<UUID> accountIds = scopedAccounts.stream().map(BankAccount::getId).collect(Collectors.toSet());
+		Set<UUID> accountIds = scopedAccounts.stream().map(bankAccount -> bankAccount.getId()).collect(Collectors.toSet());
 		boolean legacy = !scopedAccounts.isEmpty() && selectedAccountId == null
 		    && allOpenings.stream().noneMatch(o -> o.getBankAccountId() != null);
 		List<BuildingCashOpening> savedOpenings = allOpenings.stream()
@@ -317,12 +317,12 @@ public class BankingBalanceService {
 		        ? o.getBankAccountId() == null
 		        : o.getBankAccountId() != null && accountIds.contains(o.getBankAccountId()))
 		    .toList();
-		List<LocalDate> dates = savedOpenings.stream().map(BuildingCashOpening::getCutoffDate).distinct().toList();
+		List<LocalDate> dates = savedOpenings.stream().map(buildingCashOpening -> buildingCashOpening.getCutoffDate()).distinct().toList();
 		LocalDate cutoff = dates.size() == 1 ? dates.getFirst() : null;
-		LocalDate latestCutoff = dates.stream().max(LocalDate::compareTo).orElse(end);
-		LocalDate firstCutoff = dates.stream().min(LocalDate::compareTo).orElse(null);
+		LocalDate latestCutoff = dates.stream().max((localDate, other) -> localDate.compareTo(other)).orElse(end);
+		LocalDate firstCutoff = dates.stream().min((localDate, other) -> localDate.compareTo(other)).orElse(null);
 		Map<UUID, List<BuildingCashOpening>> openingByBuilding = savedOpenings.stream()
-		    .collect(Collectors.groupingBy(BuildingCashOpening::getBuildingId));
+		    .collect(Collectors.groupingBy(buildingCashOpening -> buildingCashOpening.getBuildingId()));
 		// 각 통장의 기준일이 달라도 모든 계산에 필요한 원본을 읽고 통장별 기준일로 각각 누적·역산합니다.
 		LocalDate readEnd = latestCutoff.isAfter(end) ? latestCutoff : end;
 		LocalDate reviewStart = firstCutoff == null || month.atDay(1).isBefore(firstCutoff)
@@ -331,12 +331,12 @@ public class BankingBalanceService {
 		List<BankTransaction> bank = allBank.stream()
 		    .filter(t -> accountIds.contains(t.getBankAccountId()) && !t.getTransactionDate().isAfter(readEnd))
 		    .toList();
-		Map<UUID, BankTransaction> bankById = bank.stream().collect(Collectors.toMap(BankTransaction::getId, t -> t));
+		Map<UUID, BankTransaction> bankById = bank.stream().collect(Collectors.toMap(bankTransaction -> bankTransaction.getId(), t -> t));
 		// 수동 기타 입금은 관리자가 확인한 금액으로 반영하고 은행 확인 잔액은 파일 원본에서만 조회합니다.
 		List<Payment> receipts = allReceipts.stream()
 		    .filter(p -> accountIds.contains(p.getBankAccountId()) && !p.getPaymentDate().isAfter(readEnd)).toList();
 		Map<UUID, Payment> receiptById = receipts.stream().filter(p -> !p.getPaymentDate().isAfter(end))
-		    .collect(Collectors.toMap(Payment::getId, p -> p));
+		    .collect(Collectors.toMap(entry -> entry.getId(), p -> p));
 		Map<UUID, Expense> expenseById = allExpenses.stream()
 		    .filter(e -> "MANUAL".equals(e.getSourceType())
 		        ? accountIds.contains(e.getBankAccountId()) && !e.getExpenseDate().isAfter(readEnd)
@@ -349,8 +349,8 @@ public class BankingBalanceService {
 		List<ExternalSettlementLink> savedLinks = allLinks.stream()
 		    .filter(l -> receiptById.containsKey(l.getPaymentId()) && liveParts.contains(l.getAllocationId())).toList();
 		Map<UUID, BigDecimal> spent = savedLinks.stream()
-		    .collect(Collectors.groupingBy(ExternalSettlementLink::getPaymentId,
-		        Collectors.reducing(BigDecimal.ZERO, ExternalSettlementLink::getAmount, BigDecimal::add)));
+		    .collect(Collectors.groupingBy(externalSettlementLink -> externalSettlementLink.getPaymentId(),
+		        Collectors.reducing(BigDecimal.ZERO, externalSettlementLink -> externalSettlementLink.getAmount(), (bigDecimal, other) -> bigDecimal.add(other))));
 		List<BankingBalanceResponse.Entry> entries = allEntries.stream()
 		    .filter(e -> accountIds.contains(e.accountId()) && !e.date().isAfter(readEnd)).toList();
 		ArrayList<BankingBalanceResponse.Building> result = new ArrayList<BankingBalanceResponse.Building>();
@@ -425,7 +425,7 @@ public class BankingBalanceService {
 			var expenseCutoff = legacy
 			    ? cutoff
 			    : savedOpenings.stream().filter(o -> expense.getBankAccountId().equals(o.getBankAccountId()))
-			        .map(BuildingCashOpening::getCutoffDate).findFirst().orElse(null);
+			        .map(buildingCashOpening -> buildingCashOpening.getCutoffDate()).findFirst().orElse(null);
 			if (expenseCutoff == null || !expense.getExpenseDate().isAfter(expenseCutoff)
 			    || expense.getExpenseDate().isAfter(end))
 				continue;
@@ -436,7 +436,7 @@ public class BankingBalanceService {
 				        security.decrypt(p.getPayerNameEncrypted()), amount(l.getAmount()));
 			    }).toList();
 			var recovered = recoveries.stream().map(r -> new BigDecimal(r.amount())).reduce(BigDecimal.ZERO,
-			    BigDecimal::add);
+			    (bigDecimal, other) -> bigDecimal.add(other));
 			var decision = decisionByAllocation.get(part.getId());
 			// 잘못 가져온 출금은 기존 거래 삭제로 제거합니다. 부담액과 원본 전액을 함께 반환해 삭제 범위를 확인하게 합니다.
 			external.add(new BankingBalanceResponse.External(part.getId(),
@@ -469,7 +469,7 @@ public class BankingBalanceService {
 			    amount(p.getAmount().subtract(spent.getOrDefault(p.getId(), BigDecimal.ZERO))), p.getReceiptType(),
 			    linkedBuilding == null ? null : linkedBuilding.getId(), linkedUnitLabel, p.getBankAccountId()));
 		}
-		Set<UUID> confirmedTransactions = receipts.stream().map(Payment::getBankTransactionId)
+		Set<UUID> confirmedTransactions = receipts.stream().map(entry -> entry.getBankTransactionId())
 		    .collect(Collectors.toSet());
 		confirmedTransactions.addAll(expenseById.values().stream().map(e -> e.getBankTransactionId()).toList());
 		transfers.findByPropertyId(property).stream().filter(t -> t.getCanceledAt() == null).forEach(t -> {
@@ -482,7 +482,7 @@ public class BankingBalanceService {
 		        (t.isTransferCandidate() ? "이체 연결 대기 · " : "") + security.decrypt(t.getPayerNameEncrypted()),
 		        t.getDirection(), amount(t.getAmount())))
 		    .toList();
-		Set<UUID> visibleIds = availableAccounts.stream().map(BankAccount::getId).collect(Collectors.toSet());
+		Set<UUID> visibleIds = availableAccounts.stream().map(bankAccount -> bankAccount.getId()).collect(Collectors.toSet());
 		List<BankingBalanceResponse.AccountBalance> accountBalances = allAccountBalances.stream()
 		    .filter(a -> visibleIds.contains(a.id())).toList();
 		List<BankingBalanceResponse.AccountBalance> checkedAccounts = accountBalances.stream()
@@ -491,7 +491,7 @@ public class BankingBalanceService {
 		    || checkedAccounts.stream().anyMatch(a -> a.balance() == null)
 		        ? null
 		        : checkedAccounts.stream().map(a -> new BigDecimal(a.balance()))
-		            .reduce(BigDecimal.ZERO, BigDecimal::add).toPlainString();
+		            .reduce(BigDecimal.ZERO, (bigDecimal, other) -> bigDecimal.add(other)).toPlainString();
 		String confirmedAsOf = checkedAccounts.size() == 1 ? checkedAccounts.getFirst().asOf() : "계좌별 확인 시점 기준 합계";
 		// 통장 구분 전의 확정값은 버리지 않습니다. 소속을 입증할 수 없는 값은 참고 초안으로만 반환해 사용자가 확인합니다.
 		List<BuildingCashOpening> unassigned = allOpenings.stream().filter(o -> o.getBankAccountId() == null).toList();
@@ -537,11 +537,11 @@ public class BankingBalanceService {
 	/** 조회 월까지의 유효 회수만 차감하고 정산 제외·삭제된 지출은 미회수 대상으로 되살리지 않습니다. */
 	private Set<UUID> unsettledAccounts(LocalDate end, Map<UUID, Expense> expenses, List<ExpenseAllocation> parts,
 	    List<ExternalSettlementLink> links, List<Payment> receipts, Map<UUID, ExternalSettlementDecision> decisions) {
-		Set<UUID> validReceipts = receipts.stream().filter(p -> !p.getPaymentDate().isAfter(end)).map(Payment::getId)
+		Set<UUID> validReceipts = receipts.stream().filter(p -> !p.getPaymentDate().isAfter(end)).map(entry -> entry.getId())
 		    .collect(Collectors.toSet());
 		Map<UUID, BigDecimal> recovered = links.stream().filter(l -> validReceipts.contains(l.getPaymentId()))
-		    .collect(Collectors.groupingBy(ExternalSettlementLink::getAllocationId,
-		        Collectors.reducing(BigDecimal.ZERO, ExternalSettlementLink::getAmount, BigDecimal::add)));
+		    .collect(Collectors.groupingBy(externalSettlementLink -> externalSettlementLink.getAllocationId(),
+		        Collectors.reducing(BigDecimal.ZERO, externalSettlementLink -> externalSettlementLink.getAmount(), (bigDecimal, other) -> bigDecimal.add(other))));
 		return parts.stream().filter(p -> p.getBuildingId() == null).filter(p -> {
 			var expense = expenses.get(p.getExpenseId());
 			var decision = decisions.get(p.getId());
@@ -563,7 +563,7 @@ public class BankingBalanceService {
 		LocalDate cutoff = own.getFirst().getCutoffDate();
 		if (own.stream().anyMatch(o -> !cutoff.equals(o.getCutoffDate())))
 			return null;
-		BigDecimal opening = own.stream().map(BuildingCashOpening::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+		BigDecimal opening = own.stream().map(buildingCashOpening -> buildingCashOpening.getAmount()).reduce(BigDecimal.ZERO, (bigDecimal, other) -> bigDecimal.add(other));
 		ArrayList<BuildingCashCalculation.Movement> movements = new ArrayList<BuildingCashCalculation.Movement>();
 		// 통장의 실제 이동은 동별 배분 여부와 무관하므로 미분류 원본·외부 지출·내부 이체도 전액 반영합니다.
 		for (var row : bank) {
@@ -646,7 +646,7 @@ public class BankingBalanceService {
 		if (saved.stream().anyMatch(o -> !o.getCutoffDate().equals(cutoff)))
 			throw new PaymentException("CASH_OPENING_CONFLICT");
 		Map<UUID, BuildingCashOpening> byId = saved.stream()
-		    .collect(Collectors.toMap(BuildingCashOpening::getBuildingId, o -> o));
+		    .collect(Collectors.toMap(buildingCashOpening -> buildingCashOpening.getBuildingId(), o -> o));
 		Set<UUID> current = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(property).stream()
 		    .filter(b -> b.getStatus() == BuildingStatus.ACTIVE).map(b -> b.getId()).collect(Collectors.toSet());
 		HashSet<UUID> seen = new HashSet<UUID>();
@@ -676,8 +676,8 @@ public class BankingBalanceService {
 		List<BuildingCashOpeningChange> repeated = openingChanges.findByRequestId(request.id());
 		if (!repeated.isEmpty()) {
 			Map<UUID, BuildingCashOpeningChange> repeatedByBuilding = repeated.stream()
-			    .collect(Collectors.toMap(BuildingCashOpeningChange::getBuildingId, c -> c));
-			Set<UUID> ids = request.buildings().stream().map(BankingBalanceRequests.OpeningCorrectionPart::buildingId)
+			    .collect(Collectors.toMap(buildingCashOpeningChange -> buildingCashOpeningChange.getBuildingId(), c -> c));
+			Set<UUID> ids = request.buildings().stream().map(openingCorrectionPart -> openingCorrectionPart.buildingId())
 			    .collect(Collectors.toSet());
 			if (repeated.size() != request.buildings().size() || ids.size() != request.buildings().size())
 				throw new PaymentException("CASH_OPENING_CONFLICT");
@@ -697,7 +697,7 @@ public class BankingBalanceService {
 		List<BuildingCashOpening> saved = openings.findByPropertyId(property).stream()
 		    .filter(o -> Objects.equals(request.accountId(), o.getBankAccountId())).toList();
 		Map<UUID, BuildingCashOpening> byId = saved.stream()
-		    .collect(Collectors.toMap(BuildingCashOpening::getBuildingId, o -> o));
+		    .collect(Collectors.toMap(buildingCashOpening -> buildingCashOpening.getBuildingId(), o -> o));
 		if (saved.isEmpty() || request.buildings().size() != saved.size())
 			throw new PaymentException("INVALID_CASH_OPENING");
 		HashSet<UUID> seen = new HashSet<UUID>();
@@ -774,7 +774,7 @@ public class BankingBalanceService {
 		    .orElseThrow(() -> new PaymentException("INVALID_EXTERNAL_SETTLEMENT"));
 		var latest = decisions.findFirstByPropertyIdAndAllocationIdOrderByRevisionDesc(property,
 		    request.allocationId());
-		long revision = latest.map(ExternalSettlementDecision::getRevision).orElse(0L);
+		long revision = latest.map(externalSettlementDecision -> externalSettlementDecision.getRevision()).orElse(0L);
 		if (revision != request.revision())
 			throw new PaymentException("EXTERNAL_SETTLEMENT_DECISION_CONFLICT");
 		decisions.saveAndFlush(ExternalSettlementDecision.create(request.id(), property, request.allocationId(),

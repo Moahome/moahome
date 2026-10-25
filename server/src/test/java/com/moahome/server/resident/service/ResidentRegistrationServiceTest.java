@@ -4,6 +4,7 @@ import java.time.*;
 import java.util.*;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.ObjectProvider;
 
@@ -66,7 +67,7 @@ class ResidentRegistrationServiceTest {
 		    ResidentRegistrationException.class,
 		    error -> assertThat(error.code()).isEqualTo(ResidentRegistrationException.Code.PHONE_SECURITY_UNAVAILABLE));
 		verifyNoInteractions(residents, affiliations);
-		clearInvocations(security);
+		Mockito.<Object>clearInvocations(security);
 		var optional = new ResidentRegistrationRequest(UUID.randomUUID(), "주민", null, unit.getId(), "OWNER");
 		assertThat(service.register(actor, property.getId(), optional).representative()).isTrue();
 		verifyNoInteractions(security);

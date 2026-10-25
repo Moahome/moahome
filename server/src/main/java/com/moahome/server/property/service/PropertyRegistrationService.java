@@ -20,7 +20,6 @@ import com.moahome.server.banking.domain.BankAccount;
 import com.moahome.server.banking.repo.BankAccountRepository;
 import com.moahome.server.billing.domain.*;
 import com.moahome.server.billing.repo.*;
-import com.moahome.server.billing.service.BillingGenerationService;
 import com.moahome.server.common.security.AccountNumberSecurity;
 import com.moahome.server.common.security.PhoneSecurity;
 import com.moahome.server.membership.domain.PropertyMember;
@@ -70,8 +69,6 @@ public class PropertyRegistrationService {
 
 	private final Clock clock;
 
-	private final BillingGenerationService billing;
-
 	private final ObjectProvider<PhoneSecurity> phones;
 
 	private final ResidentRepository residents;
@@ -84,7 +81,7 @@ public class PropertyRegistrationService {
 	    UnitRepository units, BankAccountRepository bankAccounts, FeeTemplateRepository templates,
 	    FeeTemplateItemRepository items, PropertyMemberRepository members, PropertyRegistrationResultRepository results,
 	    PropertyRegistrationLock lock, AccountNumberSecurity accountSecurity, RegistrationFingerprint fingerprints,
-	    Validator validator, ObjectMapper mapper, Clock clock, BillingGenerationService billing,
+	    Validator validator, ObjectMapper mapper, Clock clock,
 	    ObjectProvider<PhoneSecurity> phones,
 	    ResidentRepository residents,
 	    UnitResidentRepository affiliations,
@@ -104,7 +101,6 @@ public class PropertyRegistrationService {
 		this.validator = validator;
 		this.mapper = mapper;
 		this.clock = clock;
-		this.billing = billing;
 		this.phones = phones;
 		this.residents = residents;
 		this.affiliations = affiliations;
@@ -302,8 +298,8 @@ public class PropertyRegistrationService {
 			    .map(violation -> new RegistrationException.FieldError(
 			        violation.getPropertyPath().toString().replace(".<list element>", ""), violation.getMessage(),
 			        "입력 정보를 확인해주세요."))
-			    .sorted(Comparator.comparing(RegistrationException.FieldError::field)
-			        .thenComparing(RegistrationException.FieldError::reason))
+			    .sorted(Comparator.comparing((RegistrationException.FieldError fieldError) -> fieldError.field())
+			        .thenComparing(fieldError -> fieldError.reason()))
 			    .toList();
 			throw new RegistrationException(RegistrationErrorCode.INVALID_REQUEST, errors);
 		}

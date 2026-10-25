@@ -19,7 +19,6 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.client.endpoint.RestClientAuthorizationCodeTokenResponseClient;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
@@ -150,8 +149,8 @@ public class SecurityConfig {
 	    OAuth2AuthorizedClientRepository kakaoAuthorizedClients) throws Exception {
 		http.cors(cors -> cors.configurationSource(corsConfigurationSource))
 		    .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-		    .requestCache(AbstractHttpConfigurer::disable).formLogin(AbstractHttpConfigurer::disable)
-		    .httpBasic(AbstractHttpConfigurer::disable).logout(AbstractHttpConfigurer::disable)
+		    .requestCache(abstractHttpConfigurer -> abstractHttpConfigurer.disable()).formLogin(abstractHttpConfigurer -> abstractHttpConfigurer.disable())
+		    .httpBasic(abstractHttpConfigurer -> abstractHttpConfigurer.disable()).logout(abstractHttpConfigurer -> abstractHttpConfigurer.disable())
 		    .oauth2Login(
 		        oauth -> oauth.loginPage("/login").securityContextRepository(new NullSecurityContextRepository())
 		            .authorizedClientRepository(kakaoAuthorizedClients)

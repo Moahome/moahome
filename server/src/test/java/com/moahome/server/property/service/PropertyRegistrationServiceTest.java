@@ -12,7 +12,7 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
 import org.mockito.ArgumentCaptor;
-import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.dao.DataAccessResourceFailureException;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
@@ -21,8 +21,8 @@ import com.moahome.server.auth.exception.*;
 import com.moahome.server.banking.repo.BankAccountRepository;
 import com.moahome.server.billing.domain.FeeItemCode;
 import com.moahome.server.billing.repo.*;
-import com.moahome.server.billing.service.BillingGenerationService;
 import com.moahome.server.common.security.AccountNumberSecurity;
+import com.moahome.server.common.security.PhoneSecurity;
 import com.moahome.server.config.RegistrationSecurityProperties;
 import com.moahome.server.membership.domain.*;
 import com.moahome.server.membership.repo.PropertyMemberRepository;
@@ -61,8 +61,7 @@ class PropertyRegistrationServiceTest {
 
 	private final PropertyRegistrationLock lock = mock(PropertyRegistrationLock.class);
 
-	private final BillingGenerationService billing = mock(
-	    BillingGenerationService.class);
+	private final StaticListableBeanFactory optionalBeans = new StaticListableBeanFactory();
 
 	private final ObjectMapper mapper = JsonMapper.builder().build();
 
@@ -76,10 +75,10 @@ class PropertyRegistrationServiceTest {
 	    units, accounts, templates, items, members, results, lock,
 	    new AccountNumberSecurity(RegistrationTestKeys.accountProperties()),
 	    new RegistrationFingerprint(RegistrationTestKeys.fingerprintProperties(), mapper), validation.getValidator(),
-	    mapper, clock, billing, mock(ObjectProvider.class),
+	    mapper, clock, optionalBeans.getBeanProvider(PhoneSecurity.class),
 	    mock(ResidentRepository.class),
 	    mock(UnitResidentRepository.class),
-	    mock(ObjectProvider.class));
+	    optionalBeans.getBeanProvider(RegistrationOpeningService.class));
 
 	@BeforeEach
 	void prepare() {
@@ -199,7 +198,7 @@ class PropertyRegistrationServiceTest {
 		    List.of(new FeeItemInput(null, "양수", maximum), new FeeItemInput(null, "양수2", maximum),
 		        new FeeItemInput(null, "상쇄", -maximum)))) {
 			var request = change(r, r.basicInfo(), r.buildings(), r.units(), r.bankAccounts(), fees);
-			long expected = fees.stream().mapToLong(FeeItemInput::defaultAmount).sum();
+			long expected = fees.stream().mapToLong(feeItemInput -> feeItemInput.defaultAmount()).sum();
 			assertThat(service.register(user.getId(), request).response().summary().monthlyDefaultAmount())
 			    .isEqualTo(expected);
 		}

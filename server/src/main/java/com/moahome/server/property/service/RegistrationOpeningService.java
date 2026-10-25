@@ -57,7 +57,7 @@ public class RegistrationOpeningService {
 		if (seenAccounts.size() != request.bankAccounts().size())
 			throw invalid("accounts", "계좌 잔액을 모두 입력해주세요.");
 		Set<String> expectedBuildings = request.buildings().stream()
-		    .map(PropertyRegistrationRequest.BuildingInput::clientId).collect(Collectors.toSet());
+		    .map(buildingInput -> buildingInput.clientId()).collect(Collectors.toSet());
 		boolean accountScoped = input.buildings().stream().anyMatch(row -> row.accountIndex() != null);
 		HashSet<String> seenBuildings = new HashSet<>();
 		for (var row : input.buildings()) {

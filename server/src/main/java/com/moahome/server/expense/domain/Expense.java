@@ -102,7 +102,7 @@ public class Expense {
 			result.add(amount);
 		}
 		if (("RATIO".equals(mode) && ratio.compareTo(new BigDecimal("100")) != 0)
-		    || result.stream().reduce(BigDecimal.ZERO, BigDecimal::add).compareTo(total) != 0)
+		    || result.stream().reduce(BigDecimal.ZERO, (bigDecimal, next) -> bigDecimal.add(next)).compareTo(total) != 0)
 			throw new PaymentException("EXPENSE_ALLOCATION_MISMATCH");
 		return List.copyOf(result);
 	}

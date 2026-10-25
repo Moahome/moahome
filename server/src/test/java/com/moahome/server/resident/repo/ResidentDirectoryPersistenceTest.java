@@ -709,7 +709,7 @@ class ResidentDirectoryPersistenceTest {
 		var property = property(false);
 		var actor = users.saveAndFlush(User.create("업로드 관리자", null)).getId();
 		member(property.getId(), actor);
-		var unit = units.saveAndFlush(Unit.create(property, null, "301", null, null, UnitStatus.ACTIVE, AT));
+		units.saveAndFlush(Unit.create(property, null, "301", null, null, UnitStatus.ACTIVE, AT));
 		var existingUnit = units.saveAndFlush(Unit.create(property, null, "302", null, null, UnitStatus.ACTIVE, AT));
 		var existing = registrations.register(actor, property.getId(),
 		    registration(existingUnit.getId(), "기존 대표", null));
@@ -1018,7 +1018,7 @@ class ResidentDirectoryPersistenceTest {
 		jdbc.update("update residents set deleted_at=now() where id=?", deleted);
 		resident(other.getId(), "다른 관리대상 주민", "ACTIVE", null);
 		var rows = residentRecords.findUnlinkedResidents(property.getId());
-		assertThat(rows).extracting(ResidentRepository.UnlinkedResidentRow::getResidentId)
+		assertThat(rows).extracting(unlinkedResidentRow -> unlinkedResidentRow.getResidentId())
 		    .containsExactlyInAnyOrder(unlinked, noUnit);
 		assertThat(rows).filteredOn(row -> row.getResidentId().equals(unlinked)).singleElement().satisfies(row -> {
 			assertThat(row.getUnitNumber()).isEqualTo("909");

@@ -38,7 +38,7 @@ public class OpeningBalanceController {
 	    @RequestPart("file") MultipartFile file) {
 		var current = service.workspace(UUID.fromString(actor.userId()), propertyId);
 		List<OpeningBalanceRequest.UnitInput> rows = excel.read(file);
-		Set<UUID> allowed = current.units().stream().map(OpeningBalanceResponse.Unit::unitId)
+		Set<UUID> allowed = current.units().stream().map(unit -> unit.unitId())
 		    .collect(Collectors.toSet());
 		if (rows.stream().anyMatch(row -> !allowed.contains(row.unitId())))
 			throw new IllegalArgumentException("Invalid opening target");

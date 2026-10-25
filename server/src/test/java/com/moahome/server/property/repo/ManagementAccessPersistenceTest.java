@@ -123,7 +123,7 @@ class ManagementAccessPersistenceTest {
 		member(first, userId, "ADMIN");
 		member(sameTime, userId, "ADMIN");
 		List<UUID> expectedTies = Stream.of(first, sameTime)
-		    .sorted(Comparator.comparing(UUID::toString)).toList();
+		    .sorted(Comparator.comparing(uUID -> uUID.toString())).toList();
 		assertThat(management.getManagedProperties(userId).properties()).extracting(p -> p.propertyId())
 		    .containsExactly(expectedTies.get(0), expectedTies.get(1), later);
 		assertThat(management.getManagementContext(userId, later).role().name()).isEqualTo("MANAGER");

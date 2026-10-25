@@ -103,7 +103,7 @@ public class ResidentInvitationService {
 		return units.findById(invitation.getUnitId()).map(u -> {
 			String building = u.getBuildingId() == null
 			    ? ""
-			    : buildings.findById(u.getBuildingId()).map(Building::getName).orElse("");
+			    : buildings.findById(u.getBuildingId()).map(entry -> entry.getName()).orElse("");
 			return (building + " " + u.getUnitNumber() + "호").strip();
 		}).orElse("삭제된 세대");
 	}
@@ -239,7 +239,7 @@ public class ResidentInvitationService {
 		    .anyMatch(r -> !r.getId().equals(invitation.getResidentId())))
 			throw failure("MEMBER_ROLE_CONFLICT");
 		List<PropertyMember> current = members.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, actor).stream()
-		    .filter(PropertyMember::isCurrent).toList();
+		    .filter(propertyMember -> propertyMember.isCurrent()).toList();
 		if (current.size() > 1 || current.stream().anyMatch(m -> m.getRole() != PropertyMemberRole.RESIDENT))
 			throw failure("MEMBER_ROLE_CONFLICT");
 		if (requests.findByPropertyIdOrderByRequestedAtDesc(property).stream()
@@ -254,7 +254,7 @@ public class ResidentInvitationService {
 		var at = now();
 		resident.connectApprovedUser(actor, at);
 		boolean exists = members.findByPropertyIdAndUserIdAndDeletedAtIsNull(invitation.getPropertyId(), actor).stream()
-		    .anyMatch(PropertyMember::isCurrent);
+		    .anyMatch(propertyMember -> propertyMember.isCurrent());
 		if (!exists) {
 			var member = members.saveAndFlush(PropertyMember.invited(invitation.getPropertyId(),
 			    users.requireActive(actor), PropertyMemberRole.RESIDENT, at));

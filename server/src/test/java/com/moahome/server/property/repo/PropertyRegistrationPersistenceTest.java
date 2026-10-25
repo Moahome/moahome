@@ -290,7 +290,7 @@ class PropertyRegistrationPersistenceTest {
 		inputs.add(new PropertyRegistrationRequest.FeeItemInput(null, "공용 인터넷 이용료", 500L));
 		var request = RegistrationFixtures.withFees(RegistrationFixtures.request(UUID.randomUUID(), false), inputs);
 		var first = registrations.register(userId, request);
-		List<String> expectedCodes = new ArrayList<>(Arrays.stream(FeeItemCode.values()).map(Enum::name).toList());
+		List<String> expectedCodes = new ArrayList<>(Arrays.stream(FeeItemCode.values()).map(itemCode -> itemCode.name()).toList());
 		expectedCodes.add(null);
 		assertThat(jdbc.queryForList("select item_code from fee_template_items order by sort_order", String.class))
 		    .containsExactlyElementsOf(expectedCodes);
@@ -298,11 +298,11 @@ class PropertyRegistrationPersistenceTest {
 		    + "and table_name = 'fee_template_items' and column_name = 'item_code'", String.class))
 		    .isEqualTo("character varying");
 		List<FeeTemplateItem> reloaded = feeItems.findAll().stream()
-		    .sorted(Comparator.comparingInt(FeeTemplateItem::getSortOrder)).toList();
-		assertThat(reloaded).extracting(FeeTemplateItem::getItemCode).containsExactlyElementsOf(
-		    inputs.stream().map(PropertyRegistrationRequest.FeeItemInput::itemCode).toList());
-		assertThat(reloaded).extracting(FeeTemplateItem::getItemName).containsExactlyElementsOf(
-		    inputs.stream().map(PropertyRegistrationRequest.FeeItemInput::itemName).toList());
+		    .sorted(Comparator.comparingInt(feeTemplateItem -> feeTemplateItem.getSortOrder())).toList();
+		assertThat(reloaded).extracting(feeTemplateItem -> feeTemplateItem.getItemCode()).containsExactlyElementsOf(
+		    inputs.stream().map(feeItemInput -> feeItemInput.itemCode()).toList());
+		assertThat(reloaded).extracting(feeTemplateItem -> feeTemplateItem.getItemName()).containsExactlyElementsOf(
+		    inputs.stream().map(feeItemInput -> feeItemInput.itemName()).toList());
 		assertThat(registrations.register(userId, request).created()).isFalse();
 		assertThat(registrations.getResult(userId, request.requestId())).isEqualTo(first.response());
 		List<PropertyRegistrationRequest.FeeItemInput> changed = new ArrayList<>(inputs);

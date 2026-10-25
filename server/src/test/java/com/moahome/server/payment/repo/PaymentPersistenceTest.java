@@ -43,9 +43,7 @@ import com.moahome.server.auth.support.RedisTestServer;
 import com.moahome.server.banking.dto.BankAccountSettings;
 import com.moahome.server.banking.dto.BankBalanceCheckRequests;
 import com.moahome.server.banking.dto.BankingBalanceRequests;
-import com.moahome.server.banking.dto.BankingBalanceResponse;
 import com.moahome.server.banking.dto.BankingRequests;
-import com.moahome.server.banking.dto.BankingResponse;
 import com.moahome.server.banking.service.BankAccountService;
 import com.moahome.server.banking.service.BankBalanceCheckService;
 import com.moahome.server.banking.service.BankTransactionReader;
@@ -583,7 +581,7 @@ class PaymentPersistenceTest {
 		assertThat(result.managementStart().cutoffDate()).isEqualTo(LocalDate.of(2026, 9, 30));
 		assertThat(opening.workspace(user, target).managementStarted()).isTrue();
 		assertThat(opening.workspace(user, target).units())
-		    .extracting(OpeningBalanceResponse.Unit::receivable)
+		    .extracting(element -> element.receivable())
 		    .containsExactlyInAnyOrder("10000", "0");
 		assertThat(
 		    jdbc.queryForObject("select count(*) from charges where property_id=? and charge_type='OPENING_RECEIVABLE'",
@@ -601,7 +599,7 @@ class PaymentPersistenceTest {
 		assertThat(cash.bankBalance()).isEqualTo("350000");
 		assertThat(cash.bankAsOf()).contains("2026-09-30");
 		assertThat(cash.buildings())
-		    .extracting(BankingBalanceResponse.Building::openingBalance)
+		    .extracting(element -> element.openingBalance())
 		    .containsExactlyInAnyOrder("100000", "200000");
 		assertThat(registration.register(user, request).created()).isFalse();
 		assertThat(registration.getResult(user, request.requestId())).isEqualTo(result);
@@ -848,7 +846,7 @@ class PaymentPersistenceTest {
 		assertThat(count("expenses")).isEqualTo(1);
 		assertThat(
 		    saved.rows().stream().filter(r -> r.expense() != null).findFirst().orElseThrow().expense().allocations())
-		    .extracting(BankingResponse.Allocation::amount)
+		    .extracting(allocation -> allocation.amount())
 		    .containsExactly("45665", "45665", "91330");
 		assertThat(saved.rules()).hasSize(1);
 		assertThat(saved.rules().getFirst().category()).isEqualTo("전기료");
@@ -1696,11 +1694,11 @@ class PaymentPersistenceTest {
 		var file = csv("입금일,입금자명,입금액\n2026-10-15,김대표,50000\n2026-10-14,미확인입금,12000\n2026-10-13,이대표,30000");
 		var preview = service.preview(user, property, file);
 		List<UUID> chosen = preview.rows().stream().filter(p -> !p.payer().equals("미확인입금"))
-		    .map(PaymentResponse.Payment::id).toList();
+		    .map(element -> element.id()).toList();
 		var selection = new PaymentRequests.BankImportSelection(chosen);
 		var result = service.importFile(user, property, file, selection);
 		assertThat(result.payments()).hasSize(2).allMatch(p -> p.status().equals("CONFIRMED"));
-		assertThat(result.payments()).extracting(PaymentResponse.Payment::payer).containsExactlyInAnyOrder("김대표",
+		assertThat(result.payments()).extracting(element -> element.payer()).containsExactlyInAnyOrder("김대표",
 		    "이대표");
 		assertThat(count("bank_transactions")).isEqualTo(2);
 		assertThat(count("payment_allocations")).isEqualTo(2);
@@ -1861,7 +1859,7 @@ class PaymentPersistenceTest {
 		assertThat(jdbc.queryForList("select * from payment_allocations order by id")).isEqualTo(allocated);
 		var ledger = service.workspace(user, property);
 		assertThat(ledger.charges().stream().filter(row -> row.unitId().equals(unit)).map(row -> new BigDecimal(row.amount()))
-		    .reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo("150000");
+		    .reduce(BigDecimal.ZERO, (bigDecimal, argument) -> bigDecimal.add(argument))).isEqualByComparingTo("150000");
 		assertThat(jdbc.queryForObject("select coalesce(sum(allocated_amount),0)::text from payment_allocations where status='ACTIVE'", String.class)).isEqualTo("50000");
 		billingSettings.saveSettings(user, property, request);
 		assertThat(jdbc.queryForObject("select count(*) from billing_additions", Long.class)).isEqualTo(1L);
@@ -1870,7 +1868,7 @@ class PaymentPersistenceTest {
 	@Test
 	void realRepresentativesAndIssuedChargesAreUsedAndManualRetriesDoNotDuplicate() {
 		var ledger = service.workspace(user, property);
-		assertThat(ledger.units()).extracting(PaymentResponse.Unit::representativeName).containsExactly("김대표", "이대표");
+		assertThat(ledger.units()).extracting(element -> element.representativeName()).containsExactly("김대표", "이대표");
 		assertThat(ledger.units().stream().filter(u -> u.id().equals(unit)).findFirst().orElseThrow().residentNames())
 		    .containsExactlyInAnyOrder("김대표", "김가족");
 		assertThat(ledger.charges())
@@ -2286,7 +2284,7 @@ class PaymentPersistenceTest {
 	void selectedDeletionIsAtomicAndDeletedRowsCanBeReimported() {
 		var file = csv("입금일,입금자명,입금액\n2026-08-01,미확인하나,50000\n2026-08-02,미확인둘,50000");
 		var imported = service.importFile(user, property, file);
-		List<UUID> ids = imported.payments().stream().map(PaymentResponse.Payment::id).toList();
+		List<UUID> ids = imported.payments().stream().map(element -> element.id()).toList();
 		UUID confirmed = manual("50000");
 		service.confirm(user, property, confirmed, new PaymentRequests.Confirm(unit, null, null));
 		assertThatThrownBy(() -> service.deleteMany(user, property,

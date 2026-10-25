@@ -100,7 +100,7 @@ public class BillingGenerationService {
 		    (short) month.getMonthValue()).orElseThrow();
 		synchronizeCurrentMonthTargets(propertyId, period);
 		Set<UUID> charged = charges.findByBillingPeriodId(period.getId()).stream()
-		    .filter(charge -> charge.getBillingAdditionId() == null).map(Charge::getUnitId)
+		    .filter(charge -> charge.getBillingAdditionId() == null).map(charge -> charge.getUnitId())
 		    .collect(Collectors.toSet());
 		List<Unit> additions = units.findByPropertyIdAndIdIn(propertyId, unitIds).stream()
 		    .filter(unit -> unit.getDeletedAt() == null && !charged.contains(unit.getId())).toList();
@@ -120,7 +120,7 @@ public class BillingGenerationService {
 		periods.findByPropertyIdAndBillingYearAndBillingMonth(propertyId, (short) month.getYear(),
 		    (short) month.getMonthValue()).ifPresent(period -> synchronizeCurrentMonthTargets(propertyId, period));
 		List<UUID> currentUnits = units.findByPropertyIdAndDeletedAtIsNull(propertyId).stream()
-		    .filter(unit -> unit.getStatus() == UnitStatus.ACTIVE).map(Unit::getId).toList();
+		    .filter(unit -> unit.getStatus() == UnitStatus.ACTIVE).map(unit -> unit.getId()).toList();
 		addCurrentMonthUnits(propertyId, currentUnits);
 	}
 
@@ -150,15 +150,17 @@ public class BillingGenerationService {
 		var template = configurations.applicable(configurations.versions(propertyId), period.month());
 		List<FeeTemplateItem> sources = configurations.items(template);
 		Map<UUID, String> names = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId)
-		    .stream().collect(Collectors.toMap(Building::getId, Building::getName));
+		    .stream().collect(Collectors.toMap(building -> building.getId(), building -> building.getName()));
 		List<Charge> headers = new ArrayList<>();
 		List<ChargeItem> snapshots = new ArrayList<>();
 		for (var unit : targets) {
 			if (unit.getStatus() != UnitStatus.ACTIVE || unit.getDeletedAt() != null
 			    || (unit.getBuildingId() != null && !names.containsKey(unit.getBuildingId())))
 				continue;
-			List<FeeTemplateItem> applicable = configurations.applicableItems(template, sources, period.month(), unit.getBuildingId());
-			var total = applicable.stream().map(FeeTemplateItem::getDefaultAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+			List<FeeTemplateItem> applicable = configurations.applicableItems(template, sources, period.month(),
+			    unit.getBuildingId());
+			var total = applicable.stream().map(item -> item.getDefaultAmount())
+			    .reduce(BigDecimal.ZERO, (sum, next) -> sum.add(next));
 			var charge = Charge.draft(period, unit, names.getOrDefault(unit.getBuildingId(), ""), total, at);
 			charge.issue(at);
 			headers.add(charge);
@@ -173,12 +175,12 @@ public class BillingGenerationService {
 		List<Charge> existing = charges.findByBillingPeriodId(period.getId());
 		List<Unit> targets = units.findByPropertyIdAndDeletedAtIsNull(propertyId);
 		Map<UUID, String> names = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId)
-		    .stream().collect(Collectors.toMap(Building::getId, Building::getName));
+		    .stream().collect(Collectors.toMap(building -> building.getId(), building -> building.getName()));
 		for (var addition : additions.findByBillingPeriodIdOrderByCreatedAtAscIdAsc(period.getId())) {
 			var template = templates.findById(addition.getTemplateId()).orElseThrow();
 			List<FeeTemplateItem> sources = configurations.items(template);
 			Set<UUID> issued = existing.stream().filter(charge -> addition.getId().equals(charge.getBillingAdditionId()))
-			    .map(Charge::getUnitId).collect(Collectors.toSet());
+			    .map(charge -> charge.getUnitId()).collect(Collectors.toSet());
 			for (var unit : targets) {
 				if (unit.getStatus() != UnitStatus.ACTIVE || issued.contains(unit.getId())
 				    || (unit.getBuildingId() != null && !names.containsKey(unit.getBuildingId())))
@@ -188,15 +190,19 @@ public class BillingGenerationService {
 				        || Objects.equals(item.getBuildingId(), unit.getBuildingId())).toList();
 				if (applicable.isEmpty())
 					continue;
-				BigDecimal amount = applicable.stream().map(FeeTemplateItem::getDefaultAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+				BigDecimal amount = applicable.stream().map(item -> item.getDefaultAmount())
+				    .reduce(BigDecimal.ZERO, (sum, next) -> sum.add(next));
 				BigDecimal combined = existing.stream().filter(charge -> unit.getId().equals(charge.getUnitId())
-				    && "ISSUED".equals(charge.getStatus())).map(Charge::getTotalAmount).reduce(amount, BigDecimal::add);
+				    && "ISSUED".equals(charge.getStatus())).map(charge -> charge.getTotalAmount())
+				    .reduce(amount, (sum, next) -> sum.add(next));
 				if (combined.abs().compareTo(BigDecimal.valueOf(999_999_999_999_999L)) > 0)
 					throw new IllegalArgumentException("Invalid additional billing total");
 				var at = OffsetDateTime.now(clock);
 				var charge = charges.saveAndFlush(Charge.additional(period, addition, unit,
 				    names.getOrDefault(unit.getBuildingId(), ""), amount, at));
-				items.saveAllAndFlush(applicable.stream().map(source -> ChargeItem.snapshot(charge, source, at)).toList());
+				List<ChargeItem> snapshots = new ArrayList<>();
+				applicable.forEach(source -> snapshots.add(ChargeItem.snapshot(charge, source, at)));
+				items.saveAllAndFlush(snapshots);
 				existing.add(charge);
 			}
 		}
@@ -205,9 +211,9 @@ public class BillingGenerationService {
 	/** 당월 공실 상태를 동기화하고 이전 삭제의 누락 청구는 실제 삭제자 근거로만 취소합니다. */
 	private void synchronizeCurrentMonthTargets(UUID propertyId, BillingPeriod period) {
 		Map<UUID, Unit> allUnits = units.findByPropertyId(propertyId).stream()
-		    .collect(Collectors.toMap(Unit::getId, unit -> unit));
+		    .collect(Collectors.toMap(unit -> unit.getId(), unit -> unit));
 		Map<UUID, Building> allBuildings = buildings.findByPropertyId(propertyId).stream()
-		    .collect(Collectors.toMap(Building::getId, building -> building));
+		    .collect(Collectors.toMap(building -> building.getId(), building -> building));
 		var at = OffsetDateTime.now(clock);
 		for (var charge : charges.findByBillingPeriodId(period.getId())) {
 			if (!("ISSUED".equals(charge.getStatus()) || "EXCLUDED_VACANT".equals(charge.getStatus())))
@@ -237,8 +243,7 @@ public class BillingGenerationService {
 	/** 수납 정정 정책을 임의로 적용하지 않고 먼저 명시적인 수납 취소로 청구 연결을 정리하게 합니다. */
 	private void requireUnallocated(Charge charge) {
 		if (charges.hasActiveAllocations(List.of(charge.getId())))
-			throw new BillingException(
-			    BillingException.Code.BILLING_CHARGE_HAS_PAYMENTS);
+			throw new BillingException(BillingException.Code.BILLING_CHARGE_HAS_PAYMENTS);
 	}
 
 }

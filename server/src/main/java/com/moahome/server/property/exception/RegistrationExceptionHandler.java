@@ -36,8 +36,8 @@ public class RegistrationExceptionHandler {
 		List<RegistrationException.FieldError> errors = exception.getBindingResult().getFieldErrors().stream()
 		    .map(field -> new RegistrationException.FieldError(field.getField().replace(".<list element>", ""),
 		        field.getDefaultMessage(), "입력 정보를 확인해주세요."))
-		    .sorted(Comparator.comparing(RegistrationException.FieldError::field)
-		        .thenComparing(RegistrationException.FieldError::reason))
+		    .sorted(Comparator.comparing((RegistrationException.FieldError fieldError) -> fieldError.field())
+		        .thenComparing(fieldError -> fieldError.reason()))
 		    .distinct().toList();
 		return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", message(RegistrationErrorCode.INVALID_REQUEST, request),
 		    isBasic(request) ? null : errors);

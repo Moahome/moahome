@@ -143,7 +143,7 @@ public class UnitManagementService {
 			return unit;
 		}).toList();
 		units.saveAllAndFlush(additions);
-		billing.addCurrentMonthUnits(propertyId, additions.stream().map(Unit::getId).toList());
+		billing.addCurrentMonthUnits(propertyId, additions.stream().map(entry -> entry.getId()).toList());
 		return additions.stream().map(UnitResponse::from).toList();
 	}
 
@@ -154,7 +154,7 @@ public class UnitManagementService {
 		if (!property.isHasBuildings())
 			throw new UnitManagementException(INVALID_REQUEST);
 		List<Building> current = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId);
-		int order = current.stream().mapToInt(Building::getSortOrder).max().orElse(-1) + 1;
+		int order = current.stream().mapToInt(entry -> entry.getSortOrder()).max().orElse(-1) + 1;
 		var building = Building.create(property, request.name(), order, OffsetDateTime.now(clock));
 		requireUniqueBuildingName(propertyId, building.getName(), building.getId());
 		building = buildings.saveAndFlush(building);
@@ -184,7 +184,7 @@ public class UnitManagementService {
 		if (targets.size() != requested.size())
 			throw new UnitManagementException(UNIT_NOT_FOUND);
 		var at = OffsetDateTime.now(clock);
-		deleteUnitDependencies(userId, propertyId, targets.stream().map(Unit::getId).toList(), at);
+		deleteUnitDependencies(userId, propertyId, targets.stream().map(entry -> entry.getId()).toList(), at);
 		targets.forEach(unit -> unit.softDelete(userId, at));
 		units.flush();
 	}
@@ -198,7 +198,7 @@ public class UnitManagementService {
 		if (building.getDeletedAt() != null) {
 			// 이전 구현에서 남은 주민 관계를 재요청으로 정리하되 과거 청구는 변경하지 않습니다.
 			List<UUID> previous = units.findByPropertyId(propertyId).stream()
-			    .filter(unit -> buildingId.equals(unit.getBuildingId())).map(Unit::getId).toList();
+			    .filter(unit -> buildingId.equals(unit.getBuildingId())).map(entry -> entry.getId()).toList();
 			deleteUnitDependencies(userId, propertyId, previous, OffsetDateTime.now(clock));
 			return;
 		}
@@ -210,7 +210,7 @@ public class UnitManagementService {
 		// 연결을 종료하기 전에 대상 ID를 고정해 주민·당월 청구·세대를 하나의 원자적 삭제 범위로 사용합니다.
 		List<Unit> targets = units.findByPropertyId(propertyId).stream()
 		    .filter(unit -> buildingId.equals(unit.getBuildingId())).toList();
-		deleteUnitDependencies(userId, propertyId, targets.stream().map(Unit::getId).toList(), at);
+		deleteUnitDependencies(userId, propertyId, targets.stream().map(entry -> entry.getId()).toList(), at);
 		targets.forEach(unit -> unit.softDelete(userId, at));
 		building.softDelete(userId, at);
 		// 같은 관리대상 잠금을 추가·수정과 공유하므로 동 삭제와 새 세대 연결이 교차하지 않습니다.

@@ -41,16 +41,16 @@ public class ResidentExportService {
 			throw new IllegalArgumentException("Invalid resident selection");
 		}
 		Map<UUID, ResidentListResponse.ResidentItem> rows = directory.residents().stream()
-		    .collect(Collectors.toMap(ResidentListResponse.ResidentItem::id, Function.identity()));
+		    .collect(Collectors.toMap(residentItem -> residentItem.id(), Function.identity()));
 		// 삭제·다른 대상·존재하지 않는 ID를 일부 누락한 파일로 만들지 않고 명부 재확인을 요청합니다.
 		if (!rows.keySet().containsAll(ids))
 			throw new ResidentRegistrationException(RESIDENT_NOT_FOUND);
 		Map<UUID, Resident> records = residents.findByPropertyIdAndIdInAndDeletedAtIsNull(propertyId, ids).stream()
-		    .collect(Collectors.toMap(Resident::getId, Function.identity()));
+		    .collect(Collectors.toMap(entry -> entry.getId(), Function.identity()));
 		if (records.size() != ids.size())
 			throw new ResidentRegistrationException(RESIDENT_NOT_FOUND);
 		Map<UUID, String> buildings = directory.buildings().stream().collect(Collectors
-		    .toMap(ResidentListResponse.ResidentBuildingItem::id, ResidentListResponse.ResidentBuildingItem::name));
+		    .toMap(residentBuildingItem -> residentBuildingItem.id(), residentBuildingItem -> residentBuildingItem.name()));
 		ArrayList<ResidentExportResponse.Row> result = new ArrayList<ResidentExportResponse.Row>();
 		for (var id : ids) {
 			var row = rows.get(id);

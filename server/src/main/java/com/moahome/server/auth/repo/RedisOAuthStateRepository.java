@@ -42,10 +42,11 @@ public class RedisOAuthStateRepository {
 		local fields = redis.call('HGETALL', KEYS[1])
 		""";
 
-	private static final DefaultRedisScript<List> LOAD = new DefaultRedisScript<>(VALIDATE + "return fields",
+	// Redis 결과형의 Class 토큰에는 List.class를 사용하고 원소 타입은 읽기 경계에서 검사합니다.
+	private static final DefaultRedisScript<?> LOAD = new DefaultRedisScript<>(VALIDATE + "return fields",
 	    List.class);
 
-	private static final DefaultRedisScript<List> CONSUME = new DefaultRedisScript<>(
+	private static final DefaultRedisScript<?> CONSUME = new DefaultRedisScript<>(
 	    VALIDATE + "redis.call('DEL', KEYS[1])\nreturn fields", List.class);
 
 	private final StringRedisTemplate redis;
@@ -72,9 +73,10 @@ public class RedisOAuthStateRepository {
 
 	public Optional<OAuthLoginAttempt> load(String state, String browserHash, boolean consume) {
 		try {
-			List<?> fields = redis.execute(consume ? CONSUME : LOAD, List.of(KEY_PREFIX + state), browserHash,
+			DefaultRedisScript<?> script = consume ? CONSUME : LOAD;
+			Object result = redis.execute(script, List.of(KEY_PREFIX + state), browserHash,
 			    Long.toString(clock.instant().toEpochMilli()));
-			if (fields == null) {
+			if (!(result instanceof List<?> fields)) {
 				throw unavailable();
 			}
 			if (fields.isEmpty()) {

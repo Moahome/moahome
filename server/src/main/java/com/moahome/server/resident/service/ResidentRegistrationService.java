@@ -124,7 +124,7 @@ public class ResidentRegistrationService {
 		        && relation.isHouseholdRep())
 		    .isPresent()
 		    && affiliations.findCurrentUnitResidents(propertyId, unit.getId()).stream()
-		        .noneMatch(UnitResident::isHouseholdRep);
+		        .noneMatch(unitResident -> unitResident.isHouseholdRep());
 		resident.restore(at);
 		return restoreRepresentative;
 	}

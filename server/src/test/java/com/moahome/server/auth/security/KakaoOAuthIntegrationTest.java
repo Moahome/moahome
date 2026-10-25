@@ -156,9 +156,6 @@ class KakaoOAuthIntegrationTest {
 	private AuthService auth;
 
 	@Autowired
-	private TokenService tokens;
-
-	@Autowired
 	private ObjectMapper mapper;
 
 	@MockitoSpyBean

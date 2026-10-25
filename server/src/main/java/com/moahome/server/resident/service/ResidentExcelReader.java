@@ -62,7 +62,7 @@ public class ResidentExcelReader {
 						invalid |= unsupported;
 						values[column] = unsupported ? "" : formatter.formatCellValue(cell).strip();
 					}
-					if (!invalid && Arrays.stream(values).allMatch(String::isEmpty))
+					if (!invalid && Arrays.stream(values).allMatch(string -> string.isEmpty()))
 						continue;
 					result.add(new InputRow(index + 1, values[0], values[1], values[2], values[3], values[4], invalid));
 				}

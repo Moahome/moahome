@@ -83,7 +83,7 @@ public class ResidentManagementService {
 		// 세대 삭제로 표시 동·호수가 없어도 남아 있는 관계의 대표 승계는 직접 선택할 수 있어야 합니다.
 		List<UUID> candidateIds = current != null && current.isHouseholdRep()
 		    ? affiliations.findCurrentUnitResidents(propertyId, current.getUnitId()).stream()
-		        .map(UnitResident::getResidentId).filter(id -> !id.equals(residentId)).toList()
+		        .map(unitResident -> unitResident.getResidentId()).filter(id -> !id.equals(residentId)).toList()
 		    : List.<UUID>of();
 		List<ResidentDetailResponse.Candidate> candidates = !candidateIds.isEmpty()
 		    ? directory.residents().stream().filter(item -> candidateIds.contains(item.id()))
@@ -184,8 +184,10 @@ public class ResidentManagementService {
 			affiliations.flush();
 			boolean first = !affiliations.existsByPropertyIdAndUnitId(propertyId, unit.getId());
 			affiliations.saveAndFlush(UnitResident.register(resident, unit, input.relationType(), first, at));
-		} else
-			current.changeRelation(input.relationType(), at);
+		} else {
+			// 이동하지 않는 분기는 현재 소속이 존재한다는 앞선 판정의 불변식을 확인합니다.
+			Objects.requireNonNull(current).changeRelation(input.relationType(), at);
+		}
 		residents.flush();
 		return detail(actor, propertyId, residentId);
 	}

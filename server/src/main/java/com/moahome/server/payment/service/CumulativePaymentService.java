@@ -69,8 +69,8 @@ public class CumulativePaymentService {
 		List<Payment> receipts = payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property).stream()
 		    .filter(p -> p.getDeletedAt() == null && "CONFIRMED".equals(p.getStatus())
 		        && "HOUSEHOLD".equals(p.getReceiptType()))
-		    .sorted(Comparator.comparing(Payment::getPaymentDate).thenComparing(Payment::getCreatedAt)
-		        .thenComparing(Payment::getId))
+		    .sorted(Comparator.comparing((Payment entry) -> entry.getPaymentDate()).thenComparing(entry -> entry.getCreatedAt())
+		        .thenComparing(entry -> entry.getId()))
 		    .toList();
 		Map<UUID, BillingPeriod> issued = periods.findByPropertyIdOrderByBillingYearDescBillingMonthDesc(property)
 		    .stream().filter(p -> "ISSUED".equals(p.getStatus())).collect(Collectors.toMap(p -> p.getId(), p -> p));
@@ -78,15 +78,15 @@ public class CumulativePaymentService {
 		    .filter(c -> "ISSUED".equals(c.getStatus()) && c.getTotalAmount().signum() > 0
 		        && ("OPENING_RECEIVABLE".equals(c.getChargeType()) || issued.containsKey(c.getBillingPeriodId())))
 		    .sorted(Comparator.comparing((Charge c) -> "OPENING_RECEIVABLE".equals(c.getChargeType()) ? 0 : 1)
-		        .thenComparing(Charge::getDueDate).thenComparing(Charge::getId))
-		    .collect(Collectors.groupingBy(Charge::getUnitId));
+		        .thenComparing(entry -> entry.getDueDate()).thenComparing(entry -> entry.getId()))
+		    .collect(Collectors.groupingBy(entry -> entry.getUnitId()));
 		List<PaymentAllocation> saved = allocations.findByPropertyId(property).stream()
 		    .filter(a -> "ACTIVE".equals(a.getStatus())).toList();
 		Map<UUID, BigDecimal> used = new HashMap<>(), paid = new HashMap<>();
 		Map<String, PaymentAllocation> pairs = new HashMap<>();
 		for (var allocation : saved) {
-			used.merge(allocation.getPaymentId(), allocation.getAllocatedAmount(), BigDecimal::add);
-			paid.merge(allocation.getChargeId(), allocation.getAllocatedAmount(), BigDecimal::add);
+			used.merge(allocation.getPaymentId(), allocation.getAllocatedAmount(), (bigDecimal, next) -> bigDecimal.add(next));
+			paid.merge(allocation.getChargeId(), allocation.getAllocatedAmount(), (bigDecimal, next) -> bigDecimal.add(next));
 			pairs.put(allocation.getPaymentId() + ":" + allocation.getChargeId(), allocation);
 		}
 		var at = OffsetDateTime.now(clock);
@@ -95,8 +95,8 @@ public class CumulativePaymentService {
 		    .filter(a -> "ACTIVE".equals(a.getStatus())).toList();
 		Map<UUID, BigDecimal> creditUsed = new HashMap<>();
 		for (var credit : credits) {
-			paid.merge(credit.getChargeId(), credit.getAmount(), BigDecimal::add);
-			creditUsed.merge(credit.getOpeningItemId(), credit.getAmount(), BigDecimal::add);
+			paid.merge(credit.getChargeId(), credit.getAmount(), (bigDecimal, next) -> bigDecimal.add(next));
+			creditUsed.merge(credit.getOpeningItemId(), credit.getAmount(), (bigDecimal, next) -> bigDecimal.add(next));
 		}
 		Map<UUID, OpeningBalanceBatch> confirmed = openingBatches.findByPropertyIdOrderByCreatedAtDesc(property)
 		    .stream().filter(b -> "CONFIRMED".equals(b.getStatus())).collect(Collectors.toMap(b -> b.getId(), b -> b));
@@ -120,7 +120,7 @@ public class CumulativePaymentService {
 				else
 					creditApplications.save(CreditApplication.apply(source, charge,
 					    amount, actor == null ? batch.getConfirmedBy() : actor, at));
-				paid.merge(charge.getId(), amount, BigDecimal::add);
+				paid.merge(charge.getId(), amount, (bigDecimal, next) -> bigDecimal.add(next));
 				remaining = remaining.subtract(amount);
 			}
 		}
@@ -152,7 +152,7 @@ public class CumulativePaymentService {
 				    + amount.toPlainString();
 				events.save(PaymentEvent.record(payment, "CUMULATIVE_APPLIED", security.protect(detail).encrypted(),
 				    responsible, at));
-				paid.merge(charge.getId(), amount, BigDecimal::add);
+				paid.merge(charge.getId(), amount, (bigDecimal, next) -> bigDecimal.add(next));
 				left = left.subtract(amount);
 			}
 		}

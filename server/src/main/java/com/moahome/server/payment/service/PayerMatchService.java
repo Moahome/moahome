@@ -36,7 +36,7 @@ public class PayerMatchService {
 	public Context context(UUID property) {
 		return new Context(payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property),
 		    payments.findLatestConfirmedPayers(property).stream()
-		        .collect(Collectors.toMap(Payment::getPayerNameHmac, p -> p)));
+		        .collect(Collectors.toMap(entry -> entry.getPayerNameHmac(), p -> p)));
 	}
 
 	/** 마지막 호 생략은 동·호수에만 허용하고 입금자명은 기존 NFC·공백 정규화의 완전 일치를 사용합니다. */
@@ -50,12 +50,12 @@ public class PayerMatchService {
 	public Match resolve(Context context, String payer, LocalDate date, List<PaymentResponse.Unit> units,
 	    List<ResidentItem> residents) {
 		String hash = security.nameHash(payer);
-		Set<UUID> eligible = units.stream().filter(PaymentResponse.Unit::eligible).map(PaymentResponse.Unit::id)
+		Set<UUID> eligible = units.stream().filter(entry -> entry.eligible()).map(entry -> entry.id())
 		    .collect(Collectors.toSet());
 		Set<UUID> named = units.stream().filter(u -> eligible.contains(u.id()) && matchesUnitLabel(hash, u.label()))
-		    .map(PaymentResponse.Unit::id).collect(Collectors.toSet());
+		    .map(entry -> entry.id()).collect(Collectors.toSet());
 		residents.stream().filter(r -> eligible.contains(r.unitId()) && security.nameHash(r.name()).equals(hash))
-		    .map(ResidentItem::unitId).forEach(named::add);
+		    .map(residentItem -> residentItem.unitId()).forEach(named::add);
 		if (named.size() == 1)
 			return new Match(named.iterator().next(),
 			    units.stream().anyMatch(u -> matchesUnitLabel(hash, u.label())) ? "동·호수 일치" : "명단 이름 일치", true);
@@ -78,8 +78,8 @@ public class PayerMatchService {
 			return new Match(null, "", false);
 		String building = pattern.group(1);
 		String unitNumber = pattern.group(2);
-		List<UUID> candidates = units.stream().filter(PaymentResponse.Unit::eligible)
-		    .filter(unit -> matchesPatternUnit(unit, building, unitNumber)).map(PaymentResponse.Unit::id).toList();
+		List<UUID> candidates = units.stream().filter(entry -> entry.eligible())
+		    .filter(unit -> matchesPatternUnit(unit, building, unitNumber)).map(entry -> entry.id()).toList();
 		if (candidates.size() != 1)
 			return new Match(null, candidates.isEmpty() ? "" : "동·호수 패턴 충돌", false);
 		// 괄호의 월은 세대 식별에서만 제외하며 원본 입금자명과 실제 청구 충당 순서는 바꾸지 않습니다.

@@ -52,9 +52,9 @@ class ResidentImportServiceTest {
 		var service = new ResidentImportService(access, properties, buildings, units, residents, batches, registrations,
 		    reader, mock(), new ObjectMapper(), Clock.systemUTC());
 		var preview = service.preview(actor, propertyId, null);
-		assertThat(preview.rows()).extracting(ResidentImportResponse.Row::status).containsExactly("READY", "READY",
+		assertThat(preview.rows()).extracting(row -> row.status()).containsExactly("READY", "READY",
 		    "ERROR");
-		assertThat(preview.rows().subList(0, 2)).extracting(ResidentImportResponse.Row::relationType)
+		assertThat(preview.rows().subList(0, 2)).extracting(row -> row.relationType())
 		    .containsOnly("OTHER");
 		var capture = ArgumentCaptor.forClass(ResidentImportBatch.class);
 		verify(batches).saveAndFlush(capture.capture());
@@ -66,7 +66,7 @@ class ResidentImportServiceTest {
 		});
 		var result = service.commit(actor, propertyId, preview.importId(),
 		    new ResidentImportCommitRequest(List.of(2, 3)));
-		assertThat(result.rows()).extracting(ResidentImportResponse.Row::status).containsExactly("SUCCESS", "SUCCESS",
+		assertThat(result.rows()).extracting(row -> row.status()).containsExactly("SUCCESS", "SUCCESS",
 		    "ERROR");
 		verify(registrations, times(2)).register(eq(actor), eq(propertyId),
 		    argThat(input -> input.relationType().equals("OTHER")));

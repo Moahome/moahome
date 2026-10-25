@@ -82,7 +82,7 @@ class BankTransactionReaderTest {
 			footer.createCell(4).setCellValue(250000);
 			List<BankTransactionReader.Row> rows = reader.read(excel(workbook, "거래내역조회.xls"));
 			assertThat(rows).hasSize(5);
-			assertThat(rows).extracting(BankTransactionReader.Row::payer).containsExactly("검증입금0", "검증입금2", "검증입금4",
+			assertThat(rows).extracting(entry -> entry.payer()).containsExactly("검증입금0", "검증입금2", "검증입금4",
 			    "검증입금6", "검증입금8");
 			assertThat(rows).allSatisfy(row -> {
 				assertThat(row.date()).isEqualTo(LocalDate.of(2026, 10, 15));

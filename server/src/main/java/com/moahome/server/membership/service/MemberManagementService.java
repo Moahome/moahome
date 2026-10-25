@@ -85,7 +85,7 @@ public class MemberManagementService {
 		// 주민도 사용할 수 있으므로 관리자 전용 검증 대신 현재 본인 참여와 정상 계정을 확인합니다.
 		access.getPropertyAccessContext(actor, property);
 		List<PropertyMember> current = members.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, actor).stream()
-		    .filter(PropertyMember::isCurrent).toList();
+		    .filter(propertyMember -> propertyMember.isCurrent()).toList();
 		if (current.size() != 1)
 			throw failure("MEMBER_ROLE_CONFLICT");
 		PropertyMember member = current.getFirst();
@@ -131,7 +131,7 @@ public class MemberManagementService {
 	public MemberResponse.Workspace workspace(UUID actor, UUID property) {
 		access.getManagementContext(actor, property);
 		List<MemberResponse.Member> memberRows = members.findByPropertyIdAndDeletedAtIsNull(property).stream()
-		    .filter(PropertyMember::isCurrent).map(m -> {
+		    .filter(propertyMember -> propertyMember.isCurrent()).map(m -> {
 			    List<Resident> linked = residents.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, m.getUserId());
 			    var resident = linked.size() == 1 ? linked.getFirst() : null;
 			    return new MemberResponse.Member(m.getId(),
@@ -160,7 +160,7 @@ public class MemberManagementService {
 
 	private PropertyMember uniqueMember(UUID property, UUID user) {
 		List<PropertyMember> current = members.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, user).stream()
-		    .filter(PropertyMember::isCurrent).toList();
+		    .filter(propertyMember -> propertyMember.isCurrent()).toList();
 		if (current.size() != 1)
 			throw failure("MEMBER_ROLE_CONFLICT");
 		return current.getFirst();
@@ -344,7 +344,7 @@ public class MemberManagementService {
 			throw failure("MEMBER_ROLE_CONFLICT");
 		var user = accounts.requireActive(invitation.getRequestedBy());
 		List<PropertyMember> existing = members.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, user.getId())
-		    .stream().filter(PropertyMember::isCurrent).toList();
+		    .stream().filter(propertyMember -> propertyMember.isCurrent()).toList();
 		if (existing.size() > 1 || (!existing.isEmpty() && existing.getFirst().getRole() == PropertyMemberRole.ADMIN))
 			throw failure("MEMBER_ROLE_CONFLICT");
 

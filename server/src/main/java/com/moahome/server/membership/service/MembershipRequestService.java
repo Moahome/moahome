@@ -19,7 +19,6 @@ import com.moahome.server.property.repo.*;
 import com.moahome.server.property.service.ManagementAccessService;
 import com.moahome.server.resident.repo.*;
 import com.moahome.server.resident.service.ResidentRegistrationService;
-import com.moahome.server.user.domain.User;
 import com.moahome.server.user.repo.UserRepository;
 import com.moahome.server.user.service.UserService;
 
@@ -93,8 +92,8 @@ public class MembershipRequestService {
 
 	private Map<UUID, String> unitLabels(UUID property) {
 		Map<UUID, String> names = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(property)
-		    .stream().collect(Collectors.toMap(Building::getId, Building::getName));
-		return units.findByPropertyIdAndDeletedAtIsNull(property).stream().collect(Collectors.toMap(Unit::getId,
+		    .stream().collect(Collectors.toMap(building -> building.getId(), building -> building.getName()));
+		return units.findByPropertyIdAndDeletedAtIsNull(property).stream().collect(Collectors.toMap(entry -> entry.getId(),
 		    u -> names.getOrDefault(u.getBuildingId(), "") + " " + u.getUnitNumber() + "호"));
 	}
 
@@ -105,7 +104,7 @@ public class MembershipRequestService {
 		var target = target(property);
 		return new SignupRequests.Options(property, target.getName(),
 		    unitLabels(property).entrySet().stream().map(e -> new SignupRequests.UnitOption(e.getKey(), e.getValue()))
-		        .sorted(Comparator.comparing(SignupRequests.UnitOption::label)).toList());
+		        .sorted(Comparator.comparing(unitOption -> unitOption.label())).toList());
 	}
 
 	/** 세대·연락처를 검증해 대기 신청을 한 번 저장하며 계정·권한·명부는 승인 전 변경하지 않습니다. */
@@ -123,7 +122,7 @@ public class MembershipRequestService {
 		if (!existing.isEmpty())
 			return new SignupRequests.Result(existing.getFirst().getId(), "PENDING");
 		if (members.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, actor).stream()
-		    .anyMatch(PropertyMember::isCurrent))
+		    .anyMatch(propertyMember -> propertyMember.isCurrent()))
 			throw new PaymentException("MEMBER_ROLE_CONFLICT");
 		var protectedPhone = registrations.protectPhone(input.phone());
 		var created = MembershipRequest.request(property, input.unitId(), actor,
@@ -159,7 +158,7 @@ public class MembershipRequestService {
 			        .map(person -> new SignupRequests.Candidate(person.getId(), person.getName())).toList();
 			    return new SignupRequests.Item(r.getId(), r.getUnitId(), labels.getOrDefault(r.getUnitId(), "삭제된 세대"),
 			        userRecords.findByIdAndDeletedAtIsNull(r.getUserId())
-			            .map(User::getDisplayName).orElse("탈퇴한 사용자"),
+			            .map(entry -> entry.getDisplayName()).orElse("탈퇴한 사용자"),
 			        r.getPhoneLast4(), r.getStatus(), r.getRequestedAt(), r.getUpdatedAt(), candidates,
 			        r.getApplicantName());
 		    }).toList();
@@ -194,7 +193,7 @@ public class MembershipRequestService {
 			throw new PaymentException("MEMBER_ROLE_CONFLICT");
 		var user = users.requireActive(request.getUserId());
 		List<PropertyMember> current = members.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, user.getId())
-		    .stream().filter(PropertyMember::isCurrent).toList();
+		    .stream().filter(propertyMember -> propertyMember.isCurrent()).toList();
 		if (current.size() > 1 || (!current.isEmpty() && current.getFirst().getRole() != PropertyMemberRole.RESIDENT))
 			throw new PaymentException("MEMBER_ROLE_CONFLICT");
 		var at = now();

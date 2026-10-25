@@ -62,15 +62,13 @@ public class BankingService {
 
 	private final PaymentRepository receiptRepository;
 
-	private final ExternalSettlementLinkRepository settlementLinks;
-
 	public BankingService(ManagementAccessService access, PropertyRepository properties, BuildingRepository buildings,
 	    BankAccountRepository accounts, BankTransactionRepository transactions, ExpenseRepository expenses,
 	    ExpenseAllocationRepository allocations, ExpenseService expenseService, PaymentService payments,
 	    BankTransactionReader reader, @Lazy PaymentTextSecurity security, Clock clock,
 	    IncomeAllocationRepository incomeAllocations,
 	    PaymentRepository receiptRepository,
-	    ExternalSettlementLinkRepository settlementLinks, BankTransferRepository transfers,
+	    BankTransferRepository transfers,
 	    IncomeAllocationService incomeAllocationService) {
 		this.access = access;
 		this.properties = properties;
@@ -86,7 +84,6 @@ public class BankingService {
 		this.clock = clock;
 		this.incomeAllocations = incomeAllocations;
 		this.receiptRepository = receiptRepository;
-		this.settlementLinks = settlementLinks;
 		this.transfers = transfers;
 		this.incomeAllocationService = incomeAllocationService;
 	}
@@ -129,7 +126,7 @@ public class BankingService {
 		var ledger = payments.workspace(user, property);
 		Map<UUID, PaymentResponse.Payment> receipts = ledger.payments().stream()
 		    .filter(p -> p.bankTransactionId() != null).collect(Collectors.toMap(
-		        PaymentResponse.Payment::bankTransactionId, p -> p, (a, b) -> "CANCELED".equals(a.status()) ? b : a));
+		        entry -> entry.bankTransactionId(), p -> p, (a, b) -> "CANCELED".equals(a.status()) ? b : a));
 		Map<UUID, List<ExpenseAllocation>> parts = allocations.findByPropertyIdOrderBySortOrderAsc(property).stream()
 		    .collect(Collectors.groupingBy(a -> a.getExpenseId()));
 		HashMap<UUID, BankingResponse.Expense> expenseByTransaction = new HashMap<UUID, BankingResponse.Expense>();
@@ -142,7 +139,7 @@ public class BankingService {
 			transferBySource.put(t.getOutgoingId(), t.getId());
 			transferBySource.put(t.getIncomingId(), t.getId());
 		});
-		Map<UUID, BankTransaction> byId = originals.stream().collect(Collectors.toMap(BankTransaction::getId, t -> t));
+		Map<UUID, BankTransaction> byId = originals.stream().collect(Collectors.toMap(bankTransaction -> bankTransaction.getId(), t -> t));
 		for (var e : expenses.findByPropertyIdOrderByConfirmedAtDesc(property)) {
 			List<BankingResponse.Allocation> shares = parts.getOrDefault(e.getId(), List.of()).stream()
 			    .map(a -> new BankingResponse.Allocation(a.getBuildingId(),
@@ -165,16 +162,16 @@ public class BankingService {
 		}
 		Map<UUID, List<IncomeAllocation>> allocatedIncome = incomeAllocations
 		    .findByPropertyIdOrderBySortOrderAsc(property).stream()
-		    .collect(Collectors.groupingBy(IncomeAllocation::getPaymentId));
+		    .collect(Collectors.groupingBy(entry -> entry.getPaymentId()));
 		List<BankingResponse.Transaction> rows = originals.stream()
-		    .sorted(Comparator.comparing(BankTransaction::getTransactionDate)
+		    .sorted(Comparator.comparing((BankTransaction bankTransaction) -> bankTransaction.getTransactionDate())
 		        .thenComparing(t -> t.getTransactionTime() == null ? LocalTime.MIN : t.getTransactionTime()).reversed())
 		    .map(t -> {
 			    var payment = receipts.get(t.getId());
 			    var expense = expenseByTransaction.get(t.getId());
 			    String unitId = payment == null ? "" : payment.unitId();
 			    String label = ledger.units().stream().filter(u -> u.id().toString().equals(unitId))
-			        .map(PaymentResponse.Unit::label).findFirst().orElse("");
+			        .map(unit -> unit.label()).findFirst().orElse("");
 			    if (payment != null && "OTHER".equals(payment.receiptType()))
 				    label = payment.incomeCategory();
 			    return new BankingResponse.Transaction(t.getId(), t.getBankAccountId(), t.getTransactionDate(),
@@ -206,9 +203,9 @@ public class BankingService {
 		    .filter(b -> b.getStatus() == BuildingStatus.ACTIVE)
 		    .map(b -> new BankingResponse.Building(b.getId(), b.getName())).toList();
 		Map<UUID, BankAccountRepository.Usage> usage = accounts.findUsageByPropertyId(property).stream()
-		    .collect(Collectors.toMap(BankAccountRepository.Usage::getAccountId, item -> item));
+		    .collect(Collectors.toMap(entry -> entry.getAccountId(), item -> item));
 		return new BankingResponse.Workspace(property, today(), targets,
-		    ledger.units().stream().filter(PaymentResponse.Unit::eligible)
+		    ledger.units().stream().filter(unit -> unit.eligible())
 		        .map(u -> new BankingResponse.Unit(u.id(), u.label())).toList(),
 		    rows, List.copyOf(rules.values()), accounts.findByPropertyIdAndDeletedAtIsNull(property).stream()
 		        .filter(a -> a.getBuildingId() == null).map(a -> {
@@ -235,7 +232,7 @@ public class BankingService {
 		        ? payments.preview(user, property, file, account.getId()).rows()
 		        : List.<PaymentResponse.Payment>of();
 		Map<UUID, PaymentResponse.Payment> candidates = receiptCandidates.stream()
-		    .collect(Collectors.toMap(PaymentResponse.Payment::id, r -> r));
+		    .collect(Collectors.toMap(entry -> entry.id(), r -> r));
 		BankTransactionDuplicates existing = new BankTransactionDuplicates(transactions.findByPropertyId(property),
 		    account.getId(), security);
 		Set<String> seen = new HashSet<>();
@@ -262,8 +259,8 @@ public class BankingService {
 		}
 		return new BankingResponse.Preview(property, rows, duplicates, before,
 		    new BankingResponse.Period(
-		        incoming.stream().map(BankTransactionReader.Row::date).min(LocalDate::compareTo).orElseThrow(),
-		        incoming.stream().map(BankTransactionReader.Row::date).max(LocalDate::compareTo).orElseThrow()));
+		        incoming.stream().map(entry -> entry.date()).min((localDate, next) -> localDate.compareTo(next)).orElseThrow(),
+		        incoming.stream().map(entry -> entry.date()).max((localDate, next) -> localDate.compareTo(next)).orElseThrow()));
 	}
 
 	/** 선택 전체를 원본 파일로 재검증하고 같은 관리대상 잠금 안에서 수납·지출을 원자적으로 저장합니다. */

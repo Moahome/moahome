@@ -3,7 +3,6 @@ package com.moahome.server.config;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.List;
-import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +15,6 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import com.moahome.server.auth.repo.SocialAccountRepository;
@@ -262,7 +260,7 @@ class OpenApiIntegrationTest {
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/members/me/resident")
 		    .at("/put/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.at("/components/schemas/OwnResident/required"))
-		    .extracting(JsonNode::asText)
+		    .extracting(jsonNode -> jsonNode.asString())
 		    .containsExactlyInAnyOrder("residentId", "expectedUnitId");
 		for (String suffix : List.of("manual", "confirm-matches", "delete", "import", "import/preview",
 		    "{paymentId}/confirm", "{paymentId}/other-income", "{paymentId}/hold", "{paymentId}/resume",
@@ -279,7 +277,7 @@ class OpenApiIntegrationTest {
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/residents/export")
 		    .at("/post/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.at("/components/schemas/ResidentExportRow/properties").properties())
-		    .extracting(Map.Entry::getKey).containsExactlyInAnyOrder("name", "phone", "unitLabel");
+		    .extracting(entry -> entry.getKey()).containsExactlyInAnyOrder("name", "phone", "unitLabel");
 		for (String method : List.of("get", "put", "delete")) {
 			assertThat(document.path("paths").path("/api/properties/{propertyId}/residents/{residentId}").path(method)
 			    .at("/security/0/bearerAuth").isArray()).isTrue();
@@ -298,27 +296,27 @@ class OpenApiIntegrationTest {
 		}
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/units/{unitId}").path("put")
 		    .at("/security/0/bearerAuth").isArray()).isTrue();
-		assertThat(document.at("/components/securitySchemes/bearerAuth/type").asText()).isEqualTo("http");
-		assertThat(document.at("/components/securitySchemes/webRefreshCookie/in").asText()).isEqualTo("cookie");
+		assertThat(document.at("/components/securitySchemes/bearerAuth/type").asString()).isEqualTo("http");
+		assertThat(document.at("/components/securitySchemes/webRefreshCookie/in").asString()).isEqualTo("cookie");
 		assertThat(document.at("/paths/~1api~1users~1me/get/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.at("/paths/~1api~1users~1me/get/parameters").isMissingNode()).isTrue();
 		var register = document.at("/paths/~1api~1property-registrations/post");
 		assertThat(register.at("/security/0/bearerAuth").isArray()).isTrue();
-		assertThat(register.at("/responses/200/content/application~1json/schema/$ref").asText())
+		assertThat(register.at("/responses/200/content/application~1json/schema/$ref").asString())
 		    .isEqualTo("#/components/schemas/PropertyRegistrationResponse");
-		assertThat(register.at("/responses/201/content/application~1json/schema/$ref").asText())
+		assertThat(register.at("/responses/201/content/application~1json/schema/$ref").asString())
 		    .isEqualTo("#/components/schemas/PropertyRegistrationResponse");
 		assertThat(register.at("/responses/409").isMissingNode()).isFalse();
-		assertThat(register.at("/responses/400/content/application~1json/schema/$ref").asText())
+		assertThat(register.at("/responses/400/content/application~1json/schema/$ref").asString())
 		    .isEqualTo("#/components/schemas/RegistrationErrorResponse");
-		assertThat(register.at("/responses/401/content/application~1json/schema/$ref").asText())
+		assertThat(register.at("/responses/401/content/application~1json/schema/$ref").asString())
 		    .isEqualTo("#/components/schemas/AuthErrorResponse");
-		assertThat(register.at("/requestBody/content/application~1json/schema/$ref").asText())
+		assertThat(register.at("/requestBody/content/application~1json/schema/$ref").asString())
 		    .isEqualTo("#/components/schemas/PropertyRegistrationRequest");
 		var webRefresh = document.at("/paths/~1api~1auth~1web~1refresh/post");
 		assertThat(webRefresh.at("/security/0/webRefreshCookie").isArray()).isTrue();
-		assertThat(webRefresh.at("/parameters/0/name").asText()).isEqualTo("X-CSRF-TOKEN");
-		assertThat(webRefresh.at("/parameters/0/in").asText()).isEqualTo("header");
+		assertThat(webRefresh.at("/parameters/0/name").asString()).isEqualTo("X-CSRF-TOKEN");
+		assertThat(webRefresh.at("/parameters/0/in").asString()).isEqualTo("header");
 		assertThat(webRefresh.at("/parameters/0/required").asBoolean()).isTrue();
 		assertThat(document.at("/paths/~1api~1auth~1app~1refresh/post/security").isMissingNode()).isTrue();
 		for (String client : List.of("web", "app")) {

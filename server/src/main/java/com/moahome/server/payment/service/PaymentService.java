@@ -137,7 +137,7 @@ public class PaymentService {
 
 	private Map<UUID, ResidentItem> representatives(UUID user, UUID property) {
 		return residents.list(user, property).residents().stream().filter(r -> r.representative() && r.unitId() != null)
-		    .collect(Collectors.toMap(ResidentItem::unitId, r -> r));
+		    .collect(Collectors.toMap(residentItem -> residentItem.unitId(), r -> r));
 	}
 
 	private List<BankAccount> propertyAccounts(UUID property) {
@@ -165,7 +165,7 @@ public class PaymentService {
 
 	private Map<UUID, Building> currentBuildings(UUID property) {
 		return buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(property).stream()
-		    .filter(b -> b.getStatus() == BuildingStatus.ACTIVE).collect(Collectors.toMap(Building::getId, b -> b));
+		    .filter(b -> b.getStatus() == BuildingStatus.ACTIVE).collect(Collectors.toMap(element -> element.getId(), b -> b));
 	}
 
 	private boolean eligible(Unit unit, Map<UUID, Building> current) {
@@ -182,26 +182,26 @@ public class PaymentService {
 	private PaymentResponse.Ledger ledger(UUID user, UUID property) {
 		List<ResidentItem> residentRows = residents.list(user, property).residents();
 		Map<UUID, ResidentItem> reps = residentRows.stream().filter(r -> r.representative() && r.unitId() != null)
-		    .collect(Collectors.toMap(ResidentItem::unitId, r -> r));
+		    .collect(Collectors.toMap(residentItem -> residentItem.unitId(), r -> r));
 		Map<UUID, Building> current = currentBuildings(property);
 		Map<UUID, BillingPeriod> periodsById = periods.findByPropertyIdOrderByBillingYearDescBillingMonthDesc(property)
 		    .stream().filter(p -> "ISSUED".equals(p.getStatus()))
-		    .collect(Collectors.toMap(BillingPeriod::getId, p -> p));
+		    .collect(Collectors.toMap(billingPeriod -> billingPeriod.getId(), p -> p));
 		List<Charge> headers = charges.findByPropertyId(property).stream()
 		    .filter(
 		        c -> "OPENING_RECEIVABLE".equals(c.getChargeType()) || periodsById.containsKey(c.getBillingPeriodId()))
 		    .toList();
 		List<Payment> allPayments = payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property).stream()
 		    .filter(p -> p.getDeletedAt() == null).toList();
-		Set<UUID> paymentUnits = allPayments.stream().map(Payment::getMatchedUnitId).filter(Objects::nonNull)
+		Set<UUID> paymentUnits = allPayments.stream().map(element -> element.getMatchedUnitId()).filter(Objects::nonNull)
 		    .collect(Collectors.toSet());
-		Set<UUID> chargedUnits = headers.stream().map(Charge::getUnitId).collect(Collectors.toSet());
+		Set<UUID> chargedUnits = headers.stream().map(element -> element.getUnitId()).collect(Collectors.toSet());
 		Set<UUID> openingUnits = openingItems.findByPropertyId(property).stream().map(i -> i.getUnitId())
 		    .collect(Collectors.toSet());
 		List<Unit> allUnits = units.findByPropertyId(property).stream().filter(u -> u.getDeletedAt() == null
 		    || chargedUnits.contains(u.getId()) || paymentUnits.contains(u.getId()) || openingUnits.contains(u.getId()))
 		    .toList();
-		Set<UUID> live = allUnits.stream().filter(u -> eligible(u, current)).map(Unit::getId)
+		Set<UUID> live = allUnits.stream().filter(u -> eligible(u, current)).map(element -> element.getId())
 		    .collect(Collectors.toSet());
 		List<PaymentResponse.Unit> unitRows = allUnits.stream().map(u -> {
 			var rep = reps.get(u.getId());
@@ -209,15 +209,15 @@ public class PaymentService {
 			    ? ""
 			    : current.containsKey(u.getBuildingId())
 			        ? current.get(u.getBuildingId()).getName()
-			        : headers.stream().filter(c -> c.getUnitId().equals(u.getId())).map(Charge::getBuildingName)
+			        : headers.stream().filter(c -> c.getUnitId().equals(u.getId())).map(element -> element.getBuildingName())
 			            .findFirst().orElse("");
 			return new PaymentResponse.Unit(u.getId(),
 			    (building.isEmpty() ? "" : building + " ") + u.getUnitNumber() + "호",
 			    u.getStatus() == UnitStatus.ACTIVE ? "ACTIVE" : "VACANT", live.contains(u.getId()),
 			    rep == null ? null : rep.id(), rep == null ? null : rep.name(), residentRows.stream()
-			        .filter(r -> u.getId().equals(r.unitId())).map(ResidentItem::name).distinct().sorted().toList(),
+			        .filter(r -> u.getId().equals(r.unitId())).map(residentItem -> residentItem.name()).distinct().sorted().toList(),
 			    building);
-		}).sorted(Comparator.comparing(PaymentResponse.Unit::label)).toList();
+		}).sorted(Comparator.comparing(element -> element.label())).toList();
 		List<PaymentResponse.Charge> chargeRows = headers.stream().map(c -> {
 			var month = "OPENING_RECEIVABLE".equals(c.getChargeType())
 			    ? YearMonth.from(c.getDueDate())
@@ -230,9 +230,9 @@ public class PaymentService {
 			    c.getTotalAmount().toPlainString(), state, c.getDueDate(), c.getChargeType());
 		}).filter(c -> !"DRAFT".equals(c.status())).toList();
 		Map<UUID, List<PaymentAllocation>> applied = allocations.findByPropertyId(property).stream()
-		    .collect(Collectors.groupingBy(PaymentAllocation::getPaymentId));
+		    .collect(Collectors.groupingBy(paymentAllocation -> paymentAllocation.getPaymentId()));
 		Map<UUID, List<IncomeAllocation>> distributed = incomeAllocations.findByPropertyIdOrderBySortOrderAsc(property)
-		    .stream().collect(Collectors.groupingBy(IncomeAllocation::getPaymentId));
+		    .stream().collect(Collectors.groupingBy(element -> element.getPaymentId()));
 		PayerMatchService.Context matchContext = payerMatches.context(property);
 		List<PaymentResponse.Payment> paymentRows = allPayments.stream()
 		    .map(p -> response(p, applied.getOrDefault(p.getId(), List.of()), unitRows, residentRows,
@@ -258,7 +258,7 @@ public class PaymentService {
 		    .toList();
 		return new PaymentResponse.Ledger(property, today(), accountRows, unitRows, chargeRows, paymentRows, List.of(),
 		    openingRows, current.values().stream().map(b -> new PaymentResponse.Building(b.getId(), b.getName()))
-		        .sorted(Comparator.comparing(PaymentResponse.Building::label)).toList());
+		        .sorted(Comparator.comparing(element -> element.label())).toList());
 	}
 
 	private PaymentResponse.Payment response(Payment p, List<PaymentAllocation> applied,
@@ -314,7 +314,7 @@ public class PaymentService {
 		var rep = residentRows.stream()
 		    .filter(r -> candidate.equals(r.unitId()) && security.nameHash(r.name()).equals(payment.getPayerNameHmac()))
 		    .findFirst();
-		payment.confirm(candidate, rep.map(ResidentItem::id).orElse(null), null, user, now());
+		payment.confirm(candidate, rep.map(residentItem -> residentItem.id()).orElse(null), null, user, now());
 		payment.assignCashBuilding(units.findById(candidate)
 		    .orElseThrow(() -> new PaymentException("PAYMENT_UNIT_UNAVAILABLE")).getBuildingId());
 		audit(payment, "AUTO_CONFIRMED", match.reason(), user);
@@ -390,7 +390,7 @@ public class PaymentService {
 			return ledger(user, property);
 		}
 		var rep = household ? representative(user, property, request.unitId()) : null;
-		String payer = household ? rep.name() : request.payer();
+		String payer = rep == null ? request.payer() : rep.name();
 		var protectedName = security.protect(payer);
 		var p = Payment.pending(request.id(), property, selectedAccount(property, request.accountId()).getId(), null,
 		    request.unitId(), rep == null ? null : rep.id(), request.date(), amount, "MANUAL",
@@ -427,7 +427,7 @@ public class PaymentService {
 		if ("CONFIRMED".equals(payment.getStatus())) {
 			Map<UUID, BigDecimal> same = saved.stream()
 			    .filter(a -> a.getPaymentId().equals(id) && "ACTIVE".equals(a.getStatus()))
-			    .collect(Collectors.toMap(PaymentAllocation::getChargeId, PaymentAllocation::getAllocatedAmount));
+			    .collect(Collectors.toMap(paymentAllocation -> paymentAllocation.getChargeId(), paymentAllocation -> paymentAllocation.getAllocatedAmount()));
 			if (!Objects.equals(payment.getMatchedUnitId(), request.unitId()) || !same.equals(wanted) || !Objects
 			    .equals(separate(request.separateReason()), security.decrypt(payment.getSeparateReasonEncrypted())))
 				throw new PaymentException("PAYMENT_REQUEST_CONFLICT");
@@ -439,14 +439,14 @@ public class PaymentService {
 		    .orElseThrow(() -> new PaymentException("PAYMENT_UNIT_UNAVAILABLE"));
 		var rep = representatives(user, property).get(request.unitId());
 		Map<UUID, BigDecimal> active = saved.stream().filter(a -> "ACTIVE".equals(a.getStatus()))
-		    .collect(Collectors.groupingBy(PaymentAllocation::getChargeId,
-		        Collectors.reducing(BigDecimal.ZERO, PaymentAllocation::getAllocatedAmount, BigDecimal::add)));
+		    .collect(Collectors.groupingBy(paymentAllocation -> paymentAllocation.getChargeId(),
+		        Collectors.reducing(BigDecimal.ZERO, paymentAllocation -> paymentAllocation.getAllocatedAmount(), (bigDecimal, next) -> bigDecimal.add(next))));
 		creditApplications.findByPropertyId(property).stream().filter(a -> "ACTIVE".equals(a.getStatus()))
-		    .forEach(a -> active.merge(a.getChargeId(), a.getAmount(), BigDecimal::add));
+		    .forEach(a -> active.merge(a.getChargeId(), a.getAmount(), (bigDecimal, next) -> bigDecimal.add(next)));
 		Map<UUID, Charge> headers = charges.findByPropertyId(property).stream()
-		    .collect(Collectors.toMap(Charge::getId, c -> c));
+		    .collect(Collectors.toMap(element -> element.getId(), c -> c));
 		Map<UUID, BillingPeriod> periodMap = periods.findByPropertyIdOrderByBillingYearDescBillingMonthDesc(property)
-		    .stream().collect(Collectors.toMap(BillingPeriod::getId, p -> p));
+		    .stream().collect(Collectors.toMap(billingPeriod -> billingPeriod.getId(), p -> p));
 		BigDecimal total = BigDecimal.ZERO;
 		for (var entry : wanted.entrySet()) {
 			var charge = headers.get(entry.getKey());
@@ -688,7 +688,7 @@ public class PaymentService {
 			return;
 		var at = now();
 		var reason = security.protect("통장 거래 선택 삭제").encrypted();
-		Set<UUID> ids = selected.stream().map(Payment::getId).collect(Collectors.toSet());
+		Set<UUID> ids = selected.stream().map(element -> element.getId()).collect(Collectors.toSet());
 		for (var p : selected) {
 			if ("CONFIRMED".equals(p.getStatus())) {
 				p.cancel(reason, user, at);
@@ -811,7 +811,6 @@ public class PaymentService {
 	    PaymentRequests.BankImportSelection selection) {
 		lock(user, property);
 		var account = primary(property);
-		var at = now();
 		List<BankTransactionReader.Row> rows = reader.read(file, account.getBankCode());
 		if (rows.stream().anyMatch(row -> row.date().isAfter(today())))
 			throw new PaymentException("INVALID_PAYMENT_DATE");
