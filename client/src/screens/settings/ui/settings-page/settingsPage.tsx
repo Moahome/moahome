@@ -2,8 +2,14 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from '@/entities/session';
-import { useManagementContext } from '@/features/enter-service';
+import {
+  clearPropertyQueries,
+  forgetRecentProperty,
+  useManagementContext
+} from '@/features/enter-service';
+import { LeavePropertyButton } from '@/features/leave-property';
 import { Button } from '@/shared/ui/button';
 import { ListCard } from '@/shared/ui/list-card';
 import { ListHeader } from '@/shared/ui/list-header';
@@ -12,9 +18,10 @@ import { Toast } from '@/shared/ui/toast';
 import { BankAccountEditor } from '../_components/bank-account-editor/bankAccountEditor';
 import styles from './settingsPage.module.css';
 
-/** 등록·참여 진입과 관리소장의 기존 관리계좌 정보 정정을 제공합니다. */
+/** 현재 역할에 맞는 설정과 본인의 나가기 흐름을 조합합니다. */
 export function SettingsPage({ propertyId }: { propertyId: string }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const session = useSession();
   const context = useManagementContext(session.data?.id, propertyId, false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -29,7 +36,7 @@ export function SettingsPage({ propertyId }: { propertyId: string }) {
         menu={''}
         title={'설정'}
         titleId={'settings-title'}
-        description={'관리대상과 계좌 등 기본 설정을 관리합니다.'}
+        description={context.data ? `${context.data.name}의 이용 설정을 관리합니다.` : '이용 설정을 관리합니다.'}
       />
       <section
         className={styles.group}
@@ -51,10 +58,10 @@ export function SettingsPage({ propertyId }: { propertyId: string }) {
               className={styles.copy}
             >
               <h3>
-                관리대상 등록 및 참여
+                빌라·공동주택 등록 및 참여
               </h3>
               <p>
-                새로운 관리대상을 등록하거나 주민으로 참여하세요.
+                새로운 빌라·공동주택을 등록하거나 주민으로 참여하세요.
               </p>
             </div>
             <Button
@@ -64,7 +71,7 @@ export function SettingsPage({ propertyId }: { propertyId: string }) {
             </Button>
           </div>
         </ListCard>
-        {Boolean(context.data) && (
+        {context.data && context.data.role !== 'RESIDENT' && (
           <ListCard>
             <div
               className={styles.item}
@@ -98,6 +105,48 @@ export function SettingsPage({ propertyId }: { propertyId: string }) {
               >
                 계좌 관리
               </Button>
+            </div>
+          </ListCard>
+        )}
+        {context.data && session.data && (
+          <ListCard>
+            <div
+              className={styles.item}
+            >
+              <span
+                className={styles.icon}
+                aria-hidden
+              >
+                <ServiceIcon
+                  name={'home'}
+                />
+              </span>
+              <div
+                className={styles.copy}
+              >
+                <h3>
+                  {context.data.name}
+                  {' '}
+                  나가기
+                </h3>
+                <p>
+                  서비스 이용만 종료할지, 실제 퇴거로 나갈지 선택하세요.
+                </p>
+              </div>
+              <LeavePropertyButton
+                propertyId={propertyId}
+                propertyName={context.data.name}
+                role={context.data.role}
+                residentEligible={context.data.residentEligible}
+                onLeft={async () => {
+                  forgetRecentProperty(session.data.id, propertyId);
+                  try {
+                    await clearPropertyQueries(queryClient, session.data.id, propertyId);
+                  } finally {
+                    router.replace('/start');
+                  }
+                }}
+              />
             </div>
           </ListCard>
         )}

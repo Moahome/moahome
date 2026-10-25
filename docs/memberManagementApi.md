@@ -6,7 +6,7 @@
 
 ## 공통 계약
 
-대상별 경로는 `/api/properties/{propertyId}/members`입니다. Bearer 인증과 현재 정상 계정·활성 관리대상의 관리자 권한을 매 요청 확인합니다. 관리자 승격·외부 관리자 초대 승인·관리소장 인계는 별도로 ADMIN을 요구합니다. 금지된 대상은 403이며 UUID 오류는 400입니다. 모든 응답은 `Cache-Control: no-store`입니다. 역할은 ADMIN / MANAGER / RESIDENT입니다.
+대상별 경로는 `/api/properties/{propertyId}/members`입니다. Bearer 인증과 현재 정상 계정·활성 관리대상의 관리자 권한을 매 요청 확인합니다. 단, [본인 나가기](#본인-나가기-2026-10-25)는 관리자 권한 대신 본인의 현재 참여를 확인하며 주민도 사용할 수 있습니다. 관리자 승격·외부 관리자 초대 승인·관리소장 인계는 별도로 ADMIN을 요구합니다. 금지된 대상은 403이며 UUID 오류는 400입니다. 모든 응답은 `Cache-Control: no-store`입니다. 역할은 ADMIN / MANAGER / RESIDENT입니다.
 
 | Method | 경로 | 요청 | 결과 |
 | --- | --- | --- | --- |
@@ -154,3 +154,20 @@ phoneAction은 KEEP / SET / REMOVE입니다. SET일 때만 phone을 필수로 �
 | 기존 상태 | 기존 계정·연결 충돌·명부 변경 오류 | 기존 업무 계약 유지 |
 
 이전 오류 표의 INVALID_INVITATION 409는 실제 `PaymentExceptionHandler`의 `INVALID_` 접두사 처리인 400과 달랐으므로 실제 계약과 맞춥니다. 503 처리를 구현했습니다. 모든 응답은 no-store이며 토큰·암호문·SQL·개인정보를 오류에 포함하지 않습니다. DB 커밋 후 Redis 삭제 실패를 가입 실패 503으로 바꾸지 않습니다. 실패 유형과 영구 상태를 구분한 재시도는 [Server 정합성 설계](../server/docs/memberManagement.md#db와-redis의-확정-순서)를 따릅니다.
+
+## 본인 나가기 (2026-10-25)
+
+`POST /api/properties/{propertyId}/members/me/leave`는 기존 관리자 전용 참여자 변경과 달리 현재 본인 `MANAGER` / `RESIDENT`가 호출한다. 정상 Bearer 계정·활성 Property·현재 참여를 서버에서 확인하며, 본인 ID는 인증 정보로 결정한다. `ADMIN`은 인계 전 종료할 수 없다.
+
+요청은 `{reason:"SERVICE_ONLY"}` 또는 `{reason:"MOVE_OUT"}`이며 필수 Enum·계약 밖 필드·UUID를 검증한다. 사용자·주민·세대 ID는 입력받지 않는다. 성공은 204, `Cache-Control: no-store`이다. 선택별 업무 범위는 [도메인 규칙](domainRules.md#본인-나가기-선택-2026-10-25)을 참조한다.
+
+| 상태 | 코드 | 의미 |
+| --- | --- | --- |
+| 400 | INVALID_REQUEST | reason 누락·알 수 없는 값·계약 밖 필드·잘못된 UUID |
+| 401 / 403 | 기존 인증 / 계정 / ACCESS_DENIED | 미인증·정상 계정 아님·현재 참여 없음·접근 종료 |
+| 409 | MEMBER_TRANSFER_REQUIRED | 관리소장 인계 필요 |
+| 409 | MEMBER_REPRESENTATIVE_REQUIRED | 다른 주민이 남은 세대 대표의 퇴거에 관리소장 지정 필요 |
+| 409 | MEMBER_RESIDENT_REQUIRED | 실제 퇴거할 본인 현재 주민 관계 없음 |
+| 409 | MEMBER_ROLE_CONFLICT | 현재 참여 중복·역할 충돌 |
+
+이미 종료한 참여의 재요청은 현재 권한 조회에서 403으로 거부하며 이력을 중복 생성하거나 서비스 종료를 뒤늦게 퇴거로 바꾸지 않는다. 새 참여를 만든 뒤에는 새 현재 참여를 기준으로 처리한다.

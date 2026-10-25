@@ -65,6 +65,15 @@ public class PropertyMember {
 		return status == PropertyMemberStatus.ACTIVE && endedAt == null && deletedAt == null;
 	}
 
+	/** 본인 나가기는 현재 참여만 종료하며 관리소장은 인계 전 스스로 종료할 수 없습니다. */
+	public void leave(OffsetDateTime at) {
+		if (!isCurrent() || role == PropertyMemberRole.ADMIN)
+			throw new IllegalStateException("Current non-admin member required");
+		status = PropertyMemberStatus.INACTIVE;
+		endedAt = Objects.requireNonNull(at);
+		updatedAt = at;
+	}
+
 	/** 외부 부담당자는 주민으로 가장하지 않고 관리자 참여를 종료합니다. */
 	public void endManagerAccess(OffsetDateTime at) {
 		if (role != PropertyMemberRole.MANAGER || !isCurrent())

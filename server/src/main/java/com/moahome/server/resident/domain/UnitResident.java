@@ -64,7 +64,7 @@ public class UnitResident {
 		updatedAt = at;
 	}
 
-	/** 명부 삭제는 삭제 표시로 제외하며 실제 세대 이동에서만 퇴거 상태·날짜를 기록합니다. */
+	/** 명부 삭제는 삭제 표시로 제외하며 실제 세대 이동·본인 퇴거에서 퇴거 상태·날짜를 기록합니다. */
 	public void end(UUID actor, OffsetDateTime at, boolean deleted) {
 		updatedAt = at;
 		if (deleted) {

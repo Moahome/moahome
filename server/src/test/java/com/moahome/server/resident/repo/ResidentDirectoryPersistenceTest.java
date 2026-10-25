@@ -39,7 +39,8 @@ import com.moahome.server.resident.dto.ResidentRegistrationResponse;
         com.moahome.server.resident.service.ResidentRegistrationService.class,
         com.moahome.server.resident.service.ResidentImportService.class,
         com.moahome.server.resident.service.ResidentExcelReader.class,
-        com.moahome.server.resident.service.ResidentManagementService.class})
+        com.moahome.server.resident.service.ResidentManagementService.class,
+        com.moahome.server.membership.service.MemberManagementService.class})
 @ActiveProfiles("database-test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -48,6 +49,15 @@ class ResidentDirectoryPersistenceTest {
 
 	@org.springframework.test.context.bean.override.mockito.MockitoBean
 	com.moahome.server.billing.service.BillingGenerationService billing;
+
+	@org.springframework.test.context.bean.override.mockito.MockitoBean
+	com.moahome.server.membership.repo.RedisInvitationCodeRepository temporaryCodes;
+
+	@Autowired
+	com.moahome.server.membership.service.MemberManagementService memberManagement;
+
+	@org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+	com.moahome.server.membership.repo.MemberRoleEventRepository roleEvents;
 
 	private static final OffsetDateTime AT = OffsetDateTime.parse("2026-10-10T04:00:00Z");
 
@@ -979,6 +989,94 @@ class ResidentDirectoryPersistenceTest {
 		});
 		assertThat(rows).filteredOn(row -> row.getResidentId().equals(noUnit)).singleElement()
 		    .satisfies(row -> assertThat(row.getUnitNumber()).isNull());
+	}
+
+	@Test
+	void serviceOnlyLeavePreservesResidenceAccountAndOtherParticipation() {
+		var property = property(false);
+		var other = property(false);
+		var user = users.saveAndFlush(User.create("서비스 종료 주민", null)).getId();
+		member(property.getId(), user, "RESIDENT");
+		member(other.getId(), user, "MANAGER");
+		var unit = units.saveAndFlush(Unit.create(property, null, "901", null, null, UnitStatus.ACTIVE, AT));
+		var person = resident(property.getId(), "서비스 종료 주민", "ACTIVE", user);
+		relation(property.getId(), person, unit.getId(), "ACTIVE", true);
+		memberManagement.leave(user, property.getId(), new com.moahome.server.membership.dto.MemberRequests.Leave(
+		    com.moahome.server.membership.dto.MemberRequests.LeaveReason.SERVICE_ONLY));
+		assertThat(jdbc.queryForObject("select status from property_members where property_id=? and user_id=?",
+		    String.class, property.getId(), user)).isEqualTo("INACTIVE");
+		assertThat(jdbc.queryForObject("select status from property_members where property_id=? and user_id=?",
+		    String.class, other.getId(), user)).isEqualTo("ACTIVE");
+		assertThat(jdbc.queryForObject("select status from unit_residents where resident_id=?", String.class, person))
+		    .isEqualTo("ACTIVE");
+		assertThat(jdbc.queryForObject("select user_id from residents where id=?", UUID.class, person)).isEqualTo(user);
+		assertThat(jdbc.queryForObject("select action from member_role_events where property_id=?", String.class,
+		    property.getId())).isEqualTo("ENDED");
+		assertThatThrownBy(() -> memberManagement.leave(user, property.getId(),
+		    new com.moahome.server.membership.dto.MemberRequests.Leave(
+		        com.moahome.server.membership.dto.MemberRequests.LeaveReason.MOVE_OUT)))
+		    .isInstanceOf(com.moahome.server.auth.exception.AuthException.class);
+		assertThat(jdbc.queryForObject("select status from unit_residents where resident_id=?", String.class, person))
+		    .isEqualTo("ACTIVE");
+	}
+
+	@Test
+	void moveOutEndsOnlyOwnRelationAndRollsBackWhenAuditSaveFails() {
+		var property = property(false);
+		var user = users.saveAndFlush(User.create("퇴거 주민", null)).getId();
+		member(property.getId(), user, "RESIDENT");
+		var unit = units.saveAndFlush(Unit.create(property, null, "902", null, null, UnitStatus.ACTIVE, AT));
+		var person = resident(property.getId(), "퇴거 주민", "ACTIVE", user);
+		var remaining = resident(property.getId(), "남은 주민", "ACTIVE", null);
+		relation(property.getId(), person, unit.getId(), "ACTIVE", false);
+		relation(property.getId(), remaining, unit.getId(), "ACTIVE", true);
+		var input = new com.moahome.server.membership.dto.MemberRequests.Leave(
+		    com.moahome.server.membership.dto.MemberRequests.LeaveReason.MOVE_OUT);
+		org.mockito.Mockito.doThrow(new IllegalStateException("audit failure")).when(roleEvents).flush();
+		try {
+			assertThatThrownBy(() -> memberManagement.leave(user, property.getId(), input)).hasMessage("audit failure");
+		} finally {
+			org.mockito.Mockito.reset(roleEvents);
+		}
+		assertThat(jdbc.queryForObject("select status from property_members where property_id=? and user_id=?",
+		    String.class, property.getId(), user)).isEqualTo("ACTIVE");
+		assertThat(jdbc.queryForObject("select status from unit_residents where resident_id=?", String.class, person))
+		    .isEqualTo("ACTIVE");
+		assertThat(jdbc.queryForObject("select count(*) from member_role_events where property_id=?", Integer.class,
+		    property.getId())).isZero();
+		memberManagement.leave(user, property.getId(), input);
+		assertThat(jdbc.queryForObject("select status from unit_residents where resident_id=?", String.class, person))
+		    .isEqualTo("MOVED_OUT");
+		assertThat(jdbc.queryForObject("select move_out_date from unit_residents where resident_id=?",
+		    java.time.LocalDate.class, person)).isEqualTo(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")));
+		assertThat(jdbc.queryForObject("select status from unit_residents where resident_id=?", String.class, remaining))
+		    .isEqualTo("ACTIVE");
+		assertThat(jdbc.queryForObject("select deleted_at from residents where id=?", OffsetDateTime.class, person))
+		    .isNull();
+	}
+
+	@Test
+	void leaveRejectsChiefAndRepresentativeMoveOutWithoutPartialWrites() {
+		var property = property(false);
+		var chief = users.saveAndFlush(User.create("나가기 관리소장", null)).getId();
+		var user = users.saveAndFlush(User.create("퇴거 대표", null)).getId();
+		member(property.getId(), chief);
+		member(property.getId(), user, "MANAGER");
+		var unit = units.saveAndFlush(Unit.create(property, null, "903", null, null, UnitStatus.ACTIVE, AT));
+		var person = resident(property.getId(), "퇴거 대표", "ACTIVE", user);
+		var remaining = resident(property.getId(), "가족", "ACTIVE", null);
+		relation(property.getId(), person, unit.getId(), "ACTIVE", true);
+		relation(property.getId(), remaining, unit.getId(), "ACTIVE", false);
+		var input = new com.moahome.server.membership.dto.MemberRequests.Leave(
+		    com.moahome.server.membership.dto.MemberRequests.LeaveReason.MOVE_OUT);
+		assertThatThrownBy(() -> memberManagement.leave(chief, property.getId(), input))
+		    .hasMessage("MEMBER_TRANSFER_REQUIRED");
+		assertThatThrownBy(() -> memberManagement.leave(user, property.getId(), input))
+		    .hasMessage("MEMBER_REPRESENTATIVE_REQUIRED");
+		assertThat(jdbc.queryForObject("select count(*) from property_members where property_id=? and status='ACTIVE'",
+		    Integer.class, property.getId())).isEqualTo(2);
+		assertThat(jdbc.queryForObject("select count(*) from unit_residents where unit_id=? and status='ACTIVE'",
+		    Integer.class, unit.getId())).isEqualTo(2);
 	}
 
 	private Property property(boolean hasBuildings) {

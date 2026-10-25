@@ -73,6 +73,45 @@ public class MemberManagementService {
 		return OffsetDateTime.now(clock);
 	}
 
+	/** 본인 참여 종료와 선택한 실제 퇴거를 같은 잠금·트랜잭션으로 처리해 권한과 거주 상태의 부분 저장을 막습니다. */
+	@Transactional
+	public void leave(UUID actor, UUID property, MemberRequests.Leave input) {
+		properties.findForUnitUpdate(property).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+		// 주민도 사용할 수 있으므로 관리자 전용 검증 대신 현재 본인 참여와 정상 계정을 확인합니다.
+		access.getPropertyAccessContext(actor, property);
+		List<PropertyMember> current = members.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, actor).stream()
+		    .filter(PropertyMember::isCurrent).toList();
+		if (current.size() != 1)
+			throw failure("MEMBER_ROLE_CONFLICT");
+		PropertyMember member = current.getFirst();
+		if (member.getRole() == PropertyMemberRole.ADMIN)
+			throw failure("MEMBER_TRANSFER_REQUIRED");
+		OffsetDateTime at = now().atZoneSameInstant(ZoneId.of("Asia/Seoul")).toOffsetDateTime();
+		if (input.reason() == MemberRequests.LeaveReason.MOVE_OUT)
+			moveOut(actor, property, at);
+		member.leave(at);
+		events.save(MemberRoleEvent.record(member, member.getRole(), actor, at));
+		// 뒤 단계의 기록 저장 실패도 퇴거·참여 종료와 함께 롤백합니다. 다른 참여·명부·장부는 변경하지 않습니다.
+		affiliations.flush();
+		members.flush();
+		events.flush();
+	}
+
+	/** 본인의 현재 관계만 퇴거로 남기며 대표 자동 승계와 명부 삭제·계정 연결 해제를 수행하지 않습니다. */
+	private void moveOut(UUID actor, UUID property, OffsetDateTime at) {
+		List<Resident> linked = residents.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, actor);
+		if (linked.size() != 1)
+			throw failure("MEMBER_RESIDENT_REQUIRED");
+		var current = affiliations.findByPropertyIdAndResidentIdAndStatusAndDeletedAtIsNull(property,
+		    linked.getFirst().getId(), "ACTIVE").orElseThrow(() -> failure("MEMBER_RESIDENT_REQUIRED"));
+		// 후임 대표는 기존 정책대로 관리소장이 지정해야 하므로 본인 나가기로 자동 지정하지 않습니다.
+		if (current.isHouseholdRep() && affiliations.findCurrentUnitResidents(property, current.getUnitId()).stream()
+		    .anyMatch(item -> !item.getResidentId().equals(current.getResidentId())))
+			throw failure("MEMBER_REPRESENTATIVE_REQUIRED");
+		current.end(actor, at, false);
+		linked.getFirst().touch(at);
+	}
+
 	private void requireAdmin(UUID actor, UUID property) {
 		if (access.getManagementContext(actor, property).role() != PropertyMemberRole.ADMIN)
 			throw new AuthException(AuthErrorCode.ACCESS_DENIED);

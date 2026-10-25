@@ -6,7 +6,7 @@ import {
   type RefObject
 } from 'react';
 
-/** 오류 안내로 화면을 가릴 때 DOM·입력은 유지하고 네이티브 최상위 창과 복귀 위치만 잠시 보관합니다. */
+/** 오류 안내로 화면을 가릴 때 DOM·입력은 유지하고 네이티브 최상위 창과 복귀 위치를 보관합니다. */
 export function usePreservedWorkspace(suspended: boolean, workspaceRef: RefObject<HTMLDivElement | null>, errorRef: RefObject<HTMLElement | null>) {
   const scrollPosition = useRef({
     x: 0,

@@ -181,6 +181,13 @@ export function ResidentHomePage() {
                     <span>
                       참여 중
                     </span>
+                    <Button
+                      variant={'outline'}
+                      aria-label={`${property.name} 설정`}
+                      onClick={() => router.push(`/resident/settings?propertyId=${property.propertyId}`)}
+                    >
+                      설정
+                    </Button>
                   </li>
                 ))}
               </ul>

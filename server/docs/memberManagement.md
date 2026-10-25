@@ -264,3 +264,11 @@ PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/managementLayout.spec.ts tes
 - 이 복구에서 실제 개발 DB의 스키마·업무 데이터·Flyway 이력을 수정하거나 신규 Migration을 적용하지 않았습니다. 공유·운영 DB 변경, 배포·커밋·푸시도 하지 않았습니다.
 
 이후 사용자 실행 로그(12:11:35)의 실패 원인은 `Port 8080 was already in use`였습니다. 앞서 에이전트가 검증용으로 실행해 둔 프로세스(PID 30583)가 포트를 점유한 상태에서 사용자가 다시 실행해 충돌했습니다. 에이전트 소유 실행 세션을 종료하고 8080 리스너가 없음을 확인했습니다. 사용자의 터미널 실행을 막지 않도록 검증 서버를 다시 시작하지 않았습니다. 해당 사용자 로그에서 Flyway 45개 검증과 스키마 최신 상태 확인은 이미 통과했으며, Redis Repository 식별 INFO는 종료 원인이 아닙니다.
+
+## 본인 나가기 처리 (2026-10-25)
+
+[공유 API](../../docs/memberManagementApi.md#본인-나가기-2026-10-25)와 [저장 구조](../../docs/erd.md#본인-나가기-저장-2026-10-25)를 사용한다. 기존 MemberManagementController / Service에 본인 나가기를 추가했다. 이 요청은 관리자 전용 lock helper를 사용하지 않고 Property 행 잠금 뒤 `getPropertyAccessContext`로 정상 계정·현재 본인 참여를 확인한다. 여러 현재 참여나 ADMIN 종료를 거부한다.
+
+MOVE_OUT일 때에만 본인의 미삭제 주민·ACTIVE 세대 관계를 읽고 남은 주민이 있는 대표의 퇴거를 거부한다. 관계의 기존 end(false)로 한국시간의 처리일을 퇴거일로 기록한다. SERVICE_ONLY는 거주 정보를 변경하지 않는다. 참여 종료와 ENDED 역할 이력을 같은 트랜잭션에서 저장하고 flush 실패도 모두 롤백한다. Redis·세션 종료·청구 재계산은 호출하지 않는다.
+
+PostgreSQL 통합 테스트로 서비스 종료의 거주 유지·다른 참여 유지, 본인만 퇴거, 후반 이력 저장 실패의 전체 롤백과 인계·대표 제한을 검증한다. Controller 테스트는 두 선택의 204·no-store, 정상 인증 본인 사용, 누락·미등록 Enum·사용자 ID 주입 거부와 업무 오류를 확인한다.

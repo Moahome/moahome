@@ -26,6 +26,10 @@ public class PaymentExceptionHandler {
 	@ExceptionHandler(PaymentException.class)
 	public ResponseEntity<ErrorResponse> billing(PaymentException exception) {
 		var code = exception.code();
+		if (code.equals("MEMBER_TRANSFER_REQUIRED"))
+			return error(HttpStatus.CONFLICT, code, "다른 사람에게 관리소장 역할을 인계한 뒤 나갈 수 있어요.");
+		if (code.equals("MEMBER_REPRESENTATIVE_REQUIRED"))
+			return error(HttpStatus.CONFLICT, code, "관리소장에게 세대 대표 변경을 요청한 뒤 퇴거해주세요.");
 		if (code.equals("INVITATION_SERVICE_UNAVAILABLE"))
 			return error(HttpStatus.SERVICE_UNAVAILABLE, code, "초대코드를 처리하지 못했습니다. 잠시 후 다시 시도해주세요.");
 		HttpStatus status = HttpStatus.CONFLICT;

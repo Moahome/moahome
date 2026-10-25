@@ -15,7 +15,7 @@ import {
 } from '@/shared/api';
 import { usePathname } from 'next/navigation';
 import { RequestError } from '@/shared/ui/server-connection-error';
-import { usePreservedWorkspace } from './_hooks/usePreservedWorkspace';
+import { usePreservedWorkspace } from '@/shared/lib/preserved-workspace';
 import { ManagementAccessState } from './_components/management-access-state/managementAccessState';
 import { ManagementSidebar } from './_components/management-sidebar/managementSidebar';
 import styles from './managementLayout.module.css';

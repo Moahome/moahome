@@ -4,3 +4,6 @@ export {
 export {
   BankAccountPage
 } from './ui/bank-account-page/bankAccountPage';
+export {
+  ResidentSettingsPage
+} from './ui/resident-settings-page/residentSettingsPage';

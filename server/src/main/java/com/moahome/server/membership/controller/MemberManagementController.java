@@ -25,6 +25,16 @@ public class MemberManagementController {
 		return safe(service.workspace(UUID.fromString(actor.userId()), propertyId));
 	}
 
+	/** 계정 ID를 입력받지 않고 인증된 본인의 참여만 종료합니다. */
+	@io.swagger.v3.oas.annotations.Operation(summary = "본인 나가기", description = "서비스 참여 종료 또는 본인 퇴거를 선택합니다. 관리소장은 인계가 필요합니다.")
+	@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "참여 종료 성공")
+	@PostMapping("/me/leave")
+	public ResponseEntity<Void> leave(@AuthenticationPrincipal AuthPrincipal actor, @PathVariable UUID propertyId,
+	    @Valid @RequestBody MemberRequests.Leave input) {
+		service.leave(UUID.fromString(actor.userId()), propertyId, input);
+		return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
+	}
+
 	/** 인증된 현재 관리소장 본인 계정으로만 연결합니다. */
 	@PutMapping("/me/resident")
 	public ResponseEntity<Void> ownResident(@AuthenticationPrincipal AuthPrincipal actor, @PathVariable UUID propertyId,

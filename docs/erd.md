@@ -1787,3 +1787,12 @@ erDiagram
 10. 모아홈 내부 발송에 필요한 Notification / Template / Delivery의 역할과 외부 서비스 참조값, 상담·명부 주민 및 차량 자료 연결 구조. 엔티티명과 컬럼은 아직 미확정
 
 ---
+
+## 본인 나가기 저장 (2026-10-25)
+
+[도메인 규칙](domainRules.md#본인-나가기-선택-2026-10-25)의 두 선택을 기존 컬럼으로 구현한다. 새 테이블·컬럼·Migration은 추가하지 않는다.
+
+- `property_members.status=INACTIVE`, `ended_at`·`updated_at`에 종료 시각을 기록하며 `member_role_events.action=ENDED`로 처리자와 시각을 보존한다.
+- 실제 퇴거를 선택한 경우에만 본인의 현재 `unit_residents.status=MOVED_OUT`, `move_out_date`와 `updated_at`을 갱신하고 주민의 조회 버전도 갱신한다. 과거 관계의 대표 여부와 계정 연결·명부 원본은 보존한다.
+- 서비스 이용만 종료하면 현재 거주 관계를 변경하지 않는다. 활성 참여를 요구하는 기존 접근 조회에서 종료 참여는 제외된다.
+- 같은 Property 잠금과 하나의 트랜잭션으로 퇴거·참여 종료·이력 저장을 묶는다. 후반 저장 실패 시 전체를 롤백한다.

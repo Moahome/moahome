@@ -3923,3 +3923,248 @@ for (const width of [1440, 390]) {
     await expect(name).toHaveAttribute('data-preserved', 'yes');
   });
 }
+
+for (const width of [1440, 390]) {
+  for (const reason of ['SERVICE_ONLY', 'MOVE_OUT'] as const) {
+    test(`나가기 ${width}px ${reason} 선택 후 본인 참여를 종료하고 시작 화면으로 이동`, async ({ page }, testInfo) => {
+      await page.setViewportSize({
+        width,
+        height: 900
+      });
+      let left = false;
+      let submitted: unknown;
+      await page.route(CONTEXT_URL, (route) => fulfillJson(route, {
+        ...PROPERTY,
+        role: 'RESIDENT',
+        residentEligible: true
+      }));
+      await page.route(`${API_ORIGIN}/api/users/me/resident-properties`, (route) => fulfillJson(route, {
+        properties: left ? [] : [{
+          ...PROPERTY,
+          role: 'RESIDENT'
+        }]
+      }));
+      await page.route(LIST_URL, (route) => fulfillJson(route, {
+        properties: []
+      }));
+      await page.route(`${API_ORIGIN}/api/properties/${PROPERTY_ID}/members/me/leave`, async (route) => {
+        if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+        expect(route.request().method()).toBe('POST');
+        expect(route.request().headers().authorization).toBe('Bearer test-access');
+        submitted = route.request().postDataJSON();
+        left = true;
+        await route.fulfill({
+          status: 204,
+          headers: {
+            'Access-Control-Allow-Origin': 'http://localhost:3100',
+            'Access-Control-Allow-Credentials': 'true'
+          }
+        });
+      });
+      await page.goto(`/resident?propertyId=${PROPERTY_ID}`);
+      await page.getByRole('button', {
+        name: '성내빌라 설정'
+      }).click();
+      await expect(page).toHaveURL(`/resident/settings?propertyId=${PROPERTY_ID}`);
+      await expect(page.getByRole('button', {
+        name: '계좌 관리'
+      })).toHaveCount(0);
+      await page.getByRole('button', {
+        name: '나가기',
+        exact: true
+      }).click();
+      const dialog = page.getByRole('dialog', {
+        name: '성내빌라에서 나가시겠어요?'
+      });
+      await expect(dialog.getByRole('button', {
+        name: '나가기',
+        exact: true
+      })).toBeDisabled();
+      await expect(dialog.getByRole('radio', {
+        name: '서비스 이용만 종료',
+        exact: true
+      })).not.toBeChecked();
+      await expect(dialog.getByRole('radio', {
+        name: '실제 퇴거로 나가기',
+        exact: true
+      })).not.toBeChecked();
+      await dialog.getByRole('radio', {
+        name: reason === 'SERVICE_ONLY' ? '서비스 이용만 종료' : '실제 퇴거로 나가기',
+        exact: true
+      }).check();
+      if (width === 390 && reason === 'MOVE_OUT') {
+        const bounds = await dialog.boundingBox();
+        expect(bounds!.x).toBeGreaterThanOrEqual(0);
+        expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+        await page.screenshot({
+          path: testInfo.outputPath('leave-mobile.png'),
+          fullPage: true
+        });
+      }
+      await dialog.getByRole('button', {
+        name: '나가기',
+        exact: true
+      }).click();
+      await expect(page).toHaveURL('/start');
+      expect(submitted).toEqual({
+        reason
+      });
+      await page.goBack();
+      await expect(page.getByRole('heading', {
+        name: '성내빌라 나가기'
+      })).toHaveCount(0);
+    });
+  }
+
+  test(`나가기 ${width}px 관리소장은 인계 안내를 받고 취소하면 요청하지 않음`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    await page.goto(`/manage/${PROPERTY_ID}/settings`);
+    await page.getByRole('button', {
+      name: '나가기',
+      exact: true
+    }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText('관리소장은 다른 사람에게 역할을 인계한 뒤 나갈 수 있어요.');
+    await dialog.getByRole('radio', {
+      name: '서비스 이용만 종료',
+      exact: true
+    }).check();
+    await expect(dialog.getByRole('button', {
+      name: '나가기',
+      exact: true
+    })).toBeDisabled();
+    await dialog.getByRole('button', {
+      name: '취소',
+      exact: true
+    }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page).toHaveURL(`/manage/${PROPERTY_ID}/settings`);
+  });
+}
+
+test('나가기 실패 시 선택을 유지하고 대표 변경 안내를 표시하며 중복 제출을 막음', async ({ page }) => {
+  let attempts = 0;
+  let release: (() => void) | undefined;
+  await page.route(CONTEXT_URL, (route) => fulfillJson(route, {
+    ...PROPERTY,
+    role: 'MANAGER',
+    residentEligible: true
+  }));
+  await page.route(`${API_ORIGIN}/api/properties/${PROPERTY_ID}/members/me/leave`, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    attempts += 1;
+    await new Promise<void>((resolve) => { release = resolve; });
+    await fulfillJson(route, {
+      code: 'MEMBER_REPRESENTATIVE_REQUIRED'
+    }, 409);
+  });
+  await page.goto(`/manage/${PROPERTY_ID}/settings`);
+  await page.getByRole('button', {
+    name: '나가기',
+    exact: true
+  }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('radio', {
+    name: '실제 퇴거로 나가기',
+    exact: true
+  }).check();
+  await dialog.getByRole('button', {
+    name: '나가기',
+    exact: true
+  }).click();
+  await expect(dialog.getByRole('button', {
+    name: '처리 중…'
+  })).toBeDisabled();
+  await expect(dialog.getByRole('button', {
+    name: '나가기 창 닫기'
+  })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeVisible();
+  await expect.poll(() => attempts).toBe(1);
+  release!();
+  await expect(dialog.getByRole('alert')).toContainText('세대 대표 변경');
+  await expect(dialog.getByRole('radio', {
+    name: '실제 퇴거로 나가기',
+    exact: true
+  })).toBeChecked();
+  await expect(page).toHaveURL(`/manage/${PROPERTY_ID}/settings`);
+});
+
+test('나가기 미거주 부담당자는 서비스 종료만 선택 가능하며 닫기 후 선택을 초기화', async ({ page }) => {
+  await page.route(CONTEXT_URL, (route) => fulfillJson(route, {
+    ...PROPERTY,
+    role: 'MANAGER',
+    residentEligible: false
+  }));
+  await page.goto(`/manage/${PROPERTY_ID}/settings`);
+  await page.getByRole('button', {
+    name: '나가기',
+    exact: true
+  }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('radio', {
+    name: '실제 퇴거로 나가기',
+    exact: true
+  })).toBeDisabled();
+  await dialog.getByRole('radio', {
+    name: '서비스 이용만 종료',
+    exact: true
+  }).check();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await page.getByRole('button', {
+    name: '나가기',
+    exact: true
+  }).click();
+  await expect(page.getByRole('dialog').getByRole('button', {
+    name: '나가기',
+    exact: true
+  })).toBeDisabled();
+});
+
+test('나가기 주민 설정의 권한 조회 장애는 모달을 숨기고 재시도 후 선택을 복원', async ({ page }) => {
+  let unavailable = false;
+  await page.route(CONTEXT_URL, (route) => unavailable
+    ? fulfillJson(route, {
+      code: 'AUTH_SERVICE_UNAVAILABLE'
+    }, 503)
+    : fulfillJson(route, {
+      ...PROPERTY,
+      role: 'RESIDENT',
+      residentEligible: true
+    }));
+  await page.route(`${API_ORIGIN}/api/properties/${PROPERTY_ID}/members/me/leave`, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    unavailable = true;
+    await fulfillJson(route, {
+      code: 'ACCESS_DENIED'
+    }, 403);
+  });
+  await page.goto(`/resident/settings?propertyId=${PROPERTY_ID}`);
+  await page.getByRole('button', {
+    name: '나가기',
+    exact: true
+  }).click();
+  const choice = page.getByRole('radio', {
+    name: '실제 퇴거로 나가기',
+    exact: true
+  });
+  await choice.check();
+  await page.getByRole('dialog').getByRole('button', {
+    name: '나가기',
+    exact: true
+  }).click();
+  await expect(page.getByText('서버에 연결하지 못했어요')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('banner')).toHaveCount(0);
+  unavailable = false;
+  await page.getByRole('button', {
+    name: '다시 시도',
+    exact: true
+  }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(choice).toBeChecked();
+});
