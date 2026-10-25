@@ -1,14 +1,22 @@
 package com.moahome.server.banking.domain;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.Objects;
 import java.util.UUID;
-import com.moahome.server.common.validation.TextValues;
-import com.moahome.server.property.domain.Property;
-import com.moahome.server.common.security.AccountNumberSecurity;
+
 import jakarta.persistence.*;
 import lombok.Getter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import com.moahome.server.common.security.AccountNumberSecurity;
+import com.moahome.server.common.validation.TextValues;
+import com.moahome.server.property.domain.Property;
 
 @Getter
 @Entity
@@ -42,7 +50,7 @@ public class BankAccount {
 	@Column(name = "account_number_encrypted", nullable = false, columnDefinition = "text")
 	private String accountNumberEncrypted;
 
-	@org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.CHAR)
+	@JdbcTypeCode(SqlTypes.CHAR)
 	@Column(name = "account_number_hmac", nullable = false, columnDefinition = "char(64)")
 	private String accountNumberHmac;
 
@@ -59,10 +67,10 @@ public class BankAccount {
 	private int registrationOrder;
 
 	@Column(name = "valid_from", nullable = false)
-	private java.time.LocalDate validFrom;
+	private LocalDate validFrom;
 
 	@Column(name = "valid_to")
-	private java.time.LocalDate validTo;
+	private LocalDate validTo;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
@@ -106,7 +114,7 @@ public class BankAccount {
 		account.accountLast4 = TextValues.required(number.last4(), 4);
 		account.primary = primary;
 		account.registrationOrder = registrationOrder;
-		account.validFrom = at.atZoneSameInstant(java.time.ZoneId.of("Asia/Seoul")).toLocalDate();
+		account.validFrom = at.atZoneSameInstant(ZoneId.of("Asia/Seoul")).toLocalDate();
 		account.status = BankAccountStatus.ACTIVE;
 		account.initialize(at);
 		return account;
@@ -156,7 +164,7 @@ public class BankAccount {
 	}
 
 	/** 기본 계좌는 먼저 전환해야 종료할 수 있으며 과거 거래와 FK는 보존합니다. */
-	public void close(java.time.LocalDate date) {
+	public void close(LocalDate date) {
 		if (primary)
 			throw new IllegalStateException("Primary account cannot close");
 		if (status == BankAccountStatus.CLOSED)
@@ -166,12 +174,12 @@ public class BankAccount {
 	}
 
 	/** 실제 과거 사용 근거가 있으면 앱 등록일보다 앞선 월도 조회하되 사용 전 월은 만들지 않습니다. */
-	public java.time.LocalDate availableFrom(java.time.LocalDate firstUse) {
+	public LocalDate availableFrom(LocalDate firstUse) {
 		return firstUse != null && firstUse.isBefore(validFrom) ? firstUse : validFrom;
 	}
 
 	/** 사용하지 않은 종료 통장은 숨기고 사용한 통장은 종료 월까지 과거 목록·필터에 유지합니다. */
-	public boolean visibleIn(java.time.YearMonth month, java.time.LocalDate firstUse) {
+	public boolean visibleIn(YearMonth month, LocalDate firstUse) {
 		if (availableFrom(firstUse).isAfter(month.atEndOfMonth()))
 			return false;
 		if (status != BankAccountStatus.CLOSED)
@@ -185,7 +193,7 @@ public class BankAccount {
 	@PreUpdate
 	private void updateTimestamp() {
 		// PostgreSQL의 마이크로초 정밀도와 맞춰 응답 직후 재수정의 버전 비교가 어긋나지 않게 합니다.
-		var now = OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+		var now = OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.MICROS);
 		updatedAt = now.isAfter(updatedAt) ? now : updatedAt.plusNanos(1000);
 	}
 }

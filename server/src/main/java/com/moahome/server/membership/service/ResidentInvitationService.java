@@ -1,8 +1,16 @@
 package com.moahome.server.membership.service;
 
 import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
-import com.moahome.server.auth.exception.*;
+
+import jakarta.persistence.EntityManager;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.moahome.server.common.security.InvitationCodeSecurity;
 import com.moahome.server.common.security.PhoneSecurity;
 import com.moahome.server.common.validation.TextValues;
 import com.moahome.server.membership.domain.*;
@@ -17,10 +25,7 @@ import com.moahome.server.resident.dto.ResidentUpdateRequest;
 import com.moahome.server.resident.repo.*;
 import com.moahome.server.resident.service.*;
 import com.moahome.server.user.service.UserService;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import lombok.RequiredArgsConstructor;
+
 import static com.moahome.server.membership.repo.RedisInvitationCodeRepository.Kind.RESIDENT;
 
 /** 개인 초대 발급과 수락·정정 승인은 명부 변경과 같은 Property 잠금 아래 원자적으로 처리합니다. */
@@ -58,14 +63,14 @@ public class ResidentInvitationService {
 
 	private final ObjectProvider<PhoneSecurity> phones;
 
-	private final ObjectProvider<com.moahome.server.common.security.InvitationCodeSecurity> codeSecurity;
+	private final ObjectProvider<InvitationCodeSecurity> codeSecurity;
 
 	private final Clock clock;
 
-	private final jakarta.persistence.EntityManager entityManager;
+	private final EntityManager entityManager;
 
 	private OffsetDateTime now() {
-		return OffsetDateTime.now(clock).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+		return OffsetDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
 	}
 
 	/** 발급·정정 반영은 명부 수정 권한이 있는 현재 관리자만 수행합니다. */

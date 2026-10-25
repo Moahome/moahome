@@ -1,9 +1,5 @@
 package com.moahome.server.property.exception;
 
-import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.auth.security.AuthErrorHandler.ErrorResponse;
-import com.moahome.server.property.controller.UnitManagementController;
-import com.moahome.server.user.exception.UserException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
@@ -11,6 +7,12 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+
+import com.moahome.server.auth.exception.AuthException;
+import com.moahome.server.auth.security.AuthErrorHandler.ErrorResponse;
+import com.moahome.server.billing.exception.BillingException;
+import com.moahome.server.property.controller.UnitManagementController;
+import com.moahome.server.user.exception.UserException;
 
 @RestControllerAdvice(assignableTypes = UnitManagementController.class)
 public class UnitManagementExceptionHandler {
@@ -33,8 +35,8 @@ public class UnitManagementExceptionHandler {
 	}
 
 	/** 당월 청구 생성에 필요한 설정 오류도 세대 추가 실패로 돌려주며 트랜잭션은 전체 롤백합니다. */
-	@ExceptionHandler(com.moahome.server.billing.exception.BillingException.class)
-	public ResponseEntity<ErrorResponse> billing(com.moahome.server.billing.exception.BillingException exception) {
+	@ExceptionHandler(BillingException.class)
+	public ResponseEntity<ErrorResponse> billing(BillingException exception) {
 		var code = exception.code();
 		return error(code.status, code.name(), code.message);
 	}

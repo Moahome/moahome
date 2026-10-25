@@ -4,20 +4,24 @@ import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.banking.repo.BankAccountRepository;
 import com.moahome.server.billing.domain.*;
 import com.moahome.server.billing.dto.*;
 import com.moahome.server.billing.repo.*;
 import com.moahome.server.common.security.PaymentTextSecurity;
+import com.moahome.server.common.validation.TextValues;
 import com.moahome.server.payment.exception.PaymentException;
 import com.moahome.server.payment.repo.PaymentRepository;
+import com.moahome.server.payment.service.CumulativePaymentService;
 import com.moahome.server.property.domain.*;
 import com.moahome.server.property.repo.*;
 import com.moahome.server.property.service.ManagementAccessService;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
@@ -46,7 +50,7 @@ public class OpeningBalanceService {
 
 	private final BillingGenerationService generation;
 
-	private final com.moahome.server.payment.service.CumulativePaymentService cumulative;
+	private final CumulativePaymentService cumulative;
 
 	private final PaymentTextSecurity security;
 
@@ -56,7 +60,7 @@ public class OpeningBalanceService {
 	    BuildingRepository buildings, BankAccountRepository accounts, OpeningBalanceBatchRepository batches,
 	    OpeningBalanceItemRepository items, BankOpeningBalanceRepository bankBalances,
 	    CreditApplicationRepository applications, ChargeRepository charges, PaymentRepository payments,
-	    BillingGenerationService generation, com.moahome.server.payment.service.CumulativePaymentService cumulative,
+	    BillingGenerationService generation, CumulativePaymentService cumulative,
 	    @Lazy PaymentTextSecurity security, Clock clock) {
 		this.access = access;
 		this.properties = properties;
@@ -173,7 +177,7 @@ public class OpeningBalanceService {
 			if (entry.originMonth() != null && !entry.originMonth().isBlank()
 			    && BillingCalendar.parseMonth(entry.originMonth()).isAfter(YearMonth.from(input.cutoffDate())))
 				throw new IllegalArgumentException("Invalid origin month");
-			var note = com.moahome.server.common.validation.TextValues.optional(entry.responsibility(), 500);
+			var note = TextValues.optional(entry.responsibility(), 500);
 			items
 			    .save(OpeningBalanceItem.create(batch, entry.unitId(), money(entry.receivable()), money(entry.credit()),
 			        entry.originMonth() == null || entry.originMonth().isBlank() ? null : entry.originMonth(),

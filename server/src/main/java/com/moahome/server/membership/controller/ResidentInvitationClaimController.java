@@ -1,16 +1,19 @@
 package com.moahome.server.membership.controller;
 
 import java.util.UUID;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.membership.dto.*;
-import com.moahome.server.membership.service.*;
+
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import lombok.RequiredArgsConstructor;
 
-@io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "bearerAuth")
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.membership.dto.*;
+import com.moahome.server.membership.service.*;
+
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/resident-invitations")

@@ -2,6 +2,12 @@ package com.moahome.server.closing.service;
 
 import java.time.*;
 import java.util.*;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+
+import com.moahome.server.auth.exception.AuthErrorCode;
 import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.banking.dto.BankingBalanceResponse;
 import com.moahome.server.banking.dto.BankingResponse;
@@ -12,7 +18,7 @@ import com.moahome.server.payment.dto.PaymentResponse;
 import com.moahome.server.payment.service.PaymentService;
 import com.moahome.server.property.dto.ManagementPropertyResponse;
 import com.moahome.server.property.service.ManagementAccessService;
-import org.junit.jupiter.api.Test;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -35,13 +41,13 @@ class MonthlySettlementServiceTest {
 	@Test
 	void deniesNonManagerBeforeReadingAnyFinancialData() {
 		when(access.getManagementContext(user, property))
-		    .thenThrow(new AuthException(com.moahome.server.auth.exception.AuthErrorCode.ACCESS_DENIED));
+		    .thenThrow(new AuthException(AuthErrorCode.ACCESS_DENIED));
 		assertThrows(AuthException.class, () -> service.get(user, property, "2026-10"));
 		verifyNoInteractions(banking, balances, payments);
 	}
 
-	@org.junit.jupiter.params.ParameterizedTest
-	@org.junit.jupiter.params.provider.EnumSource(value = PropertyMemberRole.class, names = {"ADMIN", "MANAGER"})
+	@ParameterizedTest
+	@EnumSource(value = PropertyMemberRole.class, names = {"ADMIN", "MANAGER"})
 	void defaultsToKoreanMonthAndKeepsTheExistingLedgerAndBalanceResults(PropertyMemberRole role) {
 		var ledger = new PaymentResponse.Ledger(property, LocalDate.of(2026, 11, 1), List.of(), List.of(), List.of(),
 		    List.of(), List.of());

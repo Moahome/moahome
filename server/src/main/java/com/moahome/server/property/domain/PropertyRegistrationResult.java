@@ -3,10 +3,13 @@ package com.moahome.server.property.domain;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.UUID;
+
 import jakarta.persistence.*;
 import lombok.Getter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+
+import com.moahome.server.common.validation.TextValues;
 
 @Getter
 @Entity
@@ -44,7 +47,7 @@ public class PropertyRegistrationResult {
 		PropertyRegistrationResult result = new PropertyRegistrationResult();
 		result.id = new PropertyRegistrationId(userId, requestId);
 		result.requestFingerprint = fingerprint;
-		result.fingerprintKeyVersion = com.moahome.server.common.validation.TextValues.required(keyVersion, 30);
+		result.fingerprintKeyVersion = TextValues.required(keyVersion, 30);
 		result.propertyId = Objects.requireNonNull(propertyId);
 		result.responseSnapshot = Objects.requireNonNull(responseSnapshot);
 		result.createdAt = Objects.requireNonNull(at);

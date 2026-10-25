@@ -1,10 +1,7 @@
 package com.moahome.server.resident.controller;
 
 import java.util.*;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.auth.exception.*;
-import com.moahome.server.resident.dto.*;
-import com.moahome.server.resident.service.ResidentExportService;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -14,6 +11,13 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.auth.exception.*;
+import com.moahome.server.resident.dto.*;
+import com.moahome.server.resident.service.ResidentExportService;
+
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -34,7 +38,7 @@ class ResidentExportControllerTest {
 
 	private final String url = "/api/properties/" + property + "/residents/export";
 
-	private org.springframework.test.web.servlet.request.RequestPostProcessor identity() {
+	private RequestPostProcessor identity() {
 		return authentication(UsernamePasswordAuthenticationToken
 		    .authenticated(new AuthPrincipal(actor.toString(), UUID.randomUUID().toString()), null, List.of()));
 	}

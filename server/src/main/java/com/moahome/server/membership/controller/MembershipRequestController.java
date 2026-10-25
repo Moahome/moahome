@@ -1,14 +1,17 @@
 package com.moahome.server.membership.controller;
 
 import java.util.UUID;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.membership.dto.SignupRequests;
-import com.moahome.server.membership.service.MembershipRequestService;
+
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.membership.dto.ResidentInvitations;
+import com.moahome.server.membership.dto.SignupRequests;
+import com.moahome.server.membership.service.MembershipRequestService;
 
 @RestController
 @RequestMapping("/api/properties/{propertyId}/membership-requests")
@@ -23,7 +26,7 @@ public class MembershipRequestController {
 	@PostMapping("/options")
 	public ResponseEntity<SignupRequests.Options> options(@AuthenticationPrincipal AuthPrincipal actor,
 	    @PathVariable UUID propertyId,
-	    @Valid @RequestBody com.moahome.server.membership.dto.ResidentInvitations.Token input) {
+	    @Valid @RequestBody ResidentInvitations.Token input) {
 		return safe(service.options(UUID.fromString(actor.userId()), propertyId, input.token()));
 	}
 

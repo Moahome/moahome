@@ -1,16 +1,13 @@
 package com.moahome.server.property.repo;
 
+import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.util.Comparator;
+import java.util.List;
 import java.util.UUID;
-import com.moahome.server.auth.exception.AuthErrorCode;
-import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.membership.repo.PropertyMemberRepository;
-import com.moahome.server.property.domain.Property;
-import com.moahome.server.property.service.ManagementAccessService;
-import com.moahome.server.user.domain.User;
-import com.moahome.server.user.repo.UserRepository;
-import com.moahome.server.user.service.UserService;
-import com.moahome.server.user.support.PostgresTestServer;
+import java.util.stream.Stream;
+
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,26 +24,47 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import static org.assertj.core.api.Assertions.*;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import com.moahome.server.auth.exception.AuthErrorCode;
+import com.moahome.server.auth.exception.AuthException;
+import com.moahome.server.billing.service.BillingGenerationService;
+import com.moahome.server.membership.repo.PropertyMemberRepository;
+import com.moahome.server.property.domain.Building;
+import com.moahome.server.property.domain.Property;
+import com.moahome.server.property.dto.BuildingRequest;
+import com.moahome.server.property.dto.UnitBatchRequest;
+import com.moahome.server.property.dto.UnitRequest;
 import com.moahome.server.property.dto.UnitResponse;
-import java.util.List;
+import com.moahome.server.property.exception.UnitManagementException;
+import com.moahome.server.property.service.ManagementAccessService;
+import com.moahome.server.property.service.UnitManagementService;
+import com.moahome.server.resident.service.ResidentListService;
+import com.moahome.server.resident.service.ResidentManagementService;
+import com.moahome.server.user.domain.User;
+import com.moahome.server.user.exception.UserException;
+import com.moahome.server.user.repo.UserRepository;
+import com.moahome.server.user.service.UserService;
+import com.moahome.server.user.support.PostgresTestServer;
+
+import static org.assertj.core.api.Assertions.*;
 
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({com.moahome.server.resident.service.ResidentListService.class, ManagementAccessService.class,
-        UserService.class, com.moahome.server.property.service.UnitManagementService.class,
+@Import({ResidentListService.class, ManagementAccessService.class,
+        UserService.class, UnitManagementService.class,
         ManagementAccessPersistenceTest.Beans.class})
 @ActiveProfiles("database-test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class ManagementAccessPersistenceTest {
 	private static final PostgresTestServer POSTGRES = new PostgresTestServer();
 
-	@org.springframework.test.context.bean.override.mockito.MockitoBean
-	com.moahome.server.billing.service.BillingGenerationService billing;
+	@MockitoBean
+	BillingGenerationService billing;
 
-	@org.springframework.test.context.bean.override.mockito.MockitoBean
-	com.moahome.server.resident.service.ResidentManagementService residentManagement;
+	@MockitoBean
+	ResidentManagementService residentManagement;
 
 	@Autowired
 	UserRepository users;
@@ -64,7 +82,7 @@ class ManagementAccessPersistenceTest {
 	JdbcTemplate jdbc;
 
 	@Autowired
-	com.moahome.server.property.service.UnitManagementService unitManagement;
+	UnitManagementService unitManagement;
 
 	@Autowired
 	BuildingRepository buildings;
@@ -73,7 +91,7 @@ class ManagementAccessPersistenceTest {
 	UnitRepository units;
 
 	@Autowired
-	jakarta.persistence.EntityManager entityManager;
+	EntityManager entityManager;
 
 	private UUID userId;
 
@@ -104,8 +122,8 @@ class ManagementAccessPersistenceTest {
 		member(later, userId, "MANAGER");
 		member(first, userId, "ADMIN");
 		member(sameTime, userId, "ADMIN");
-		List<UUID> expectedTies = java.util.stream.Stream.of(first, sameTime)
-		    .sorted(java.util.Comparator.comparing(UUID::toString)).toList();
+		List<UUID> expectedTies = Stream.of(first, sameTime)
+		    .sorted(Comparator.comparing(UUID::toString)).toList();
 		assertThat(management.getManagedProperties(userId).properties()).extracting(p -> p.propertyId())
 		    .containsExactly(expectedTies.get(0), expectedTies.get(1), later);
 		assertThat(management.getManagementContext(userId, later).role().name()).isEqualTo("MANAGER");
@@ -120,13 +138,13 @@ class ManagementAccessPersistenceTest {
 		member(resident, userId, "RESIDENT");
 		var other = property("다른 사용자", AT);
 		member(other, users.saveAndFlush(User.create("다른 사용자", null)).getId(), "ADMIN");
-		for (String condition : java.util.List.of("status = 'INACTIVE'", "ended_at = now()", "deleted_at = now()")) {
+		for (String condition : List.of("status = 'INACTIVE'", "ended_at = now()", "deleted_at = now()")) {
 			var target = property("종료 참여", AT);
 			var membership = member(target, userId, "MANAGER");
 			jdbc.update("update property_members set " + condition + " where id = ?", membership);
 			assertDenied(target);
 		}
-		for (String condition : java.util.List.of("status = 'INACTIVE'", "deleted_at = now()")) {
+		for (String condition : List.of("status = 'INACTIVE'", "deleted_at = now()")) {
 			var target = property("비활성 대상", AT);
 			member(target, userId, "ADMIN");
 			jdbc.update("update properties set " + condition + " where id = ?", target);
@@ -169,18 +187,18 @@ class ManagementAccessPersistenceTest {
 		var target = properties.saveAndFlush(Property.create("세대 관리", "주소", null, null, true, AT));
 		member(target.getId(), userId, "ADMIN");
 		var building = buildings
-		    .saveAndFlush(com.moahome.server.property.domain.Building.create(target, "101동", 0, AT));
-		var second = buildings.saveAndFlush(com.moahome.server.property.domain.Building.create(target, "102동", 1, AT));
+		    .saveAndFlush(Building.create(target, "101동", 0, AT));
+		var second = buildings.saveAndFlush(Building.create(target, "102동", 1, AT));
 		var created = unitManagement.create(userId, target.getId(),
-		    new com.moahome.server.property.dto.UnitRequest(building.getId(), "001", null, -1, "ACTIVE"));
+		    new UnitRequest(building.getId(), "001", null, -1, "ACTIVE"));
 		unitManagement.create(userId, target.getId(),
-		    new com.moahome.server.property.dto.UnitRequest(second.getId(), "001", null, null, "VACANT"));
+		    new UnitRequest(second.getId(), "001", null, null, "VACANT"));
 		var before = unitManagement.list(userId, target.getId());
 		assertThat(before.hasBuildings()).isTrue();
 		assertThat(before.buildings()).hasSize(2);
 		assertThat(before.units()).hasSize(2);
 		unitManagement.update(userId, target.getId(), created.id(),
-		    new com.moahome.server.property.dto.UnitRequest(second.getId(), "B101", "지하", -1, "VACANT"));
+		    new UnitRequest(second.getId(), "B101", "지하", -1, "VACANT"));
 		entityManager.clear();
 		var stored = units.findById(created.id()).orElseThrow();
 		assertThat(stored.getUnitNumber()).isEqualTo("B101");
@@ -188,8 +206,8 @@ class ManagementAccessPersistenceTest {
 		assertThat(stored.getStatus().name()).isEqualTo("VACANT");
 		assertThat(unitManagement.list(userId, target.getId()).units()).hasSize(2);
 		assertThatThrownBy(() -> unitManagement.create(userId, target.getId(),
-		    new com.moahome.server.property.dto.UnitRequest(second.getId(), "001", null, null, "ACTIVE")))
-		    .isInstanceOfSatisfying(com.moahome.server.property.exception.UnitManagementException.class,
+		    new UnitRequest(second.getId(), "001", null, null, "ACTIVE")))
+		    .isInstanceOfSatisfying(UnitManagementException.class,
 		        error -> assertThat(error.code().name()).isEqualTo("DUPLICATE_UNIT"));
 	}
 
@@ -209,13 +227,13 @@ class ManagementAccessPersistenceTest {
 		var target = properties.saveAndFlush(Property.create("일괄 관리", "주소", null, null, true, AT));
 		member(target.getId(), userId, "ADMIN");
 		var building = unitManagement.createBuilding(userId, target.getId(),
-		    new com.moahome.server.property.dto.BuildingRequest("101"));
+		    new BuildingRequest("101"));
 		List<UnitResponse> created = unitManagement.createBatch(userId, target.getId(),
-		    new com.moahome.server.property.dto.UnitBatchRequest(java.util.List.of(
-		        new com.moahome.server.property.dto.UnitRequest(building.id(), "201", null, 2, "ACTIVE"),
-		        new com.moahome.server.property.dto.UnitRequest(building.id(), "202", "별채", 2, "VACANT"))));
+		    new UnitBatchRequest(List.of(
+		        new UnitRequest(building.id(), "201", null, 2, "ACTIVE"),
+		        new UnitRequest(building.id(), "202", "별채", 2, "VACANT"))));
 		unitManagement.updateBuilding(userId, target.getId(), building.id(),
-		    new com.moahome.server.property.dto.BuildingRequest("A"));
+		    new BuildingRequest("A"));
 		entityManager.clear();
 		assertThat(created).hasSize(2);
 		assertThat(buildings.findById(building.id()).orElseThrow().getName()).isEqualTo("A동");
@@ -230,16 +248,16 @@ class ManagementAccessPersistenceTest {
 		var target = properties.saveAndFlush(Property.create("삭제 검증", "주소", null, null, true, AT));
 		member(target.getId(), userId, "ADMIN");
 		var first = unitManagement.createBuilding(userId, target.getId(),
-		    new com.moahome.server.property.dto.BuildingRequest("101"));
+		    new BuildingRequest("101"));
 		var second = unitManagement.createBuilding(userId, target.getId(),
-		    new com.moahome.server.property.dto.BuildingRequest("102"));
+		    new BuildingRequest("102"));
 		var selected = unitManagement.create(userId, target.getId(),
-		    new com.moahome.server.property.dto.UnitRequest(first.id(), "201", "별칭", 2, "ACTIVE"));
+		    new UnitRequest(first.id(), "201", "별칭", 2, "ACTIVE"));
 		var connected = unitManagement.create(userId, target.getId(),
-		    new com.moahome.server.property.dto.UnitRequest(first.id(), "202", null, 2, "VACANT"));
+		    new UnitRequest(first.id(), "202", null, 2, "VACANT"));
 		var retained = unitManagement.create(userId, target.getId(),
-		    new com.moahome.server.property.dto.UnitRequest(second.id(), "201", null, 2, "ACTIVE"));
-		unitManagement.deleteUnits(userId, target.getId(), java.util.List.of(selected.id()));
+		    new UnitRequest(second.id(), "201", null, 2, "ACTIVE"));
+		unitManagement.deleteUnits(userId, target.getId(), List.of(selected.id()));
 		entityManager.clear();
 		var deleted = units.findById(selected.id()).orElseThrow();
 		var deletedAt = deleted.getDeletedAt();
@@ -247,7 +265,7 @@ class ManagementAccessPersistenceTest {
 		assertThat(deletedAt).isNotNull();
 		assertThat(deleted.getDisplayName()).isEqualTo("별칭");
 		assertThat(unitManagement.list(userId, target.getId()).units()).hasSize(2);
-		unitManagement.deleteUnits(userId, target.getId(), java.util.List.of(selected.id()));
+		unitManagement.deleteUnits(userId, target.getId(), List.of(selected.id()));
 		unitManagement.deleteBuilding(userId, target.getId(), first.id());
 		unitManagement.deleteBuilding(userId, target.getId(), first.id());
 		entityManager.clear();
@@ -262,7 +280,7 @@ class ManagementAccessPersistenceTest {
 		    .containsExactly(retained.id());
 		assertThat(units.findByPropertyId(target.getId())).hasSize(3);
 		assertThatThrownBy(() -> unitManagement.deleteBuilding(userId, target.getId(), second.id()))
-		    .isInstanceOfSatisfying(com.moahome.server.property.exception.UnitManagementException.class,
+		    .isInstanceOfSatisfying(UnitManagementException.class,
 		        error -> assertThat(error.code().name()).isEqualTo("LAST_BUILDING_NOT_DELETABLE"));
 		entityManager.clear();
 		assertThat(buildings.findById(second.id()).orElseThrow().getDeletedAt()).isNull();
@@ -279,7 +297,7 @@ class ManagementAccessPersistenceTest {
 		assertThat(resident.role().name()).isEqualTo("RESIDENT");
 		assertThat(resident.residentEligible()).isFalse();
 		assertThatThrownBy(() -> management.getPropertyAccessContext(UUID.randomUUID(), first))
-		    .isInstanceOf(com.moahome.server.user.exception.UserException.class);
+		    .isInstanceOf(UserException.class);
 		jdbc.update("update property_members set role='MANAGER' where id=?", membership);
 		assertThat(management.getPropertyAccessContext(userId, second).role().name()).isEqualTo("MANAGER");
 		member(second, userId, "RESIDENT");
@@ -311,8 +329,8 @@ class ManagementAccessPersistenceTest {
 	@TestConfiguration
 	static class Beans {
 		@Bean
-		java.time.Clock clock() {
-			return java.time.Clock.systemUTC();
+		Clock clock() {
+			return Clock.systemUTC();
 		}
 	}
 }

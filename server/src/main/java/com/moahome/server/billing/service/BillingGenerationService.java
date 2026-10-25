@@ -4,12 +4,16 @@ import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
-import com.moahome.server.billing.domain.*;
-import com.moahome.server.billing.repo.*;
-import com.moahome.server.property.domain.*;
-import com.moahome.server.property.repo.*;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.moahome.server.billing.domain.*;
+import com.moahome.server.billing.exception.BillingException;
+import com.moahome.server.billing.repo.*;
+import com.moahome.server.payment.service.CumulativePaymentService;
+import com.moahome.server.property.domain.*;
+import com.moahome.server.property.repo.*;
 
 @Service
 public class BillingGenerationService {
@@ -33,12 +37,12 @@ public class BillingGenerationService {
 
 	private final Clock clock;
 
-	private final com.moahome.server.payment.service.CumulativePaymentService cumulative;
+	private final CumulativePaymentService cumulative;
 
 	public BillingGenerationService(PropertyRepository properties, UnitRepository units, BuildingRepository buildings,
 	    BillingTemplates configurations, BillingPeriodRepository periods, ChargeRepository charges,
 	    ChargeItemRepository items, Clock clock,
-	    com.moahome.server.payment.service.CumulativePaymentService cumulative, BillingAdditionRepository additions,
+	    CumulativePaymentService cumulative, BillingAdditionRepository additions,
 	    FeeTemplateRepository templates) {
 		this.properties = properties;
 		this.units = units;
@@ -233,8 +237,8 @@ public class BillingGenerationService {
 	/** 수납 정정 정책을 임의로 적용하지 않고 먼저 명시적인 수납 취소로 청구 연결을 정리하게 합니다. */
 	private void requireUnallocated(Charge charge) {
 		if (charges.hasActiveAllocations(List.of(charge.getId())))
-			throw new com.moahome.server.billing.exception.BillingException(
-			    com.moahome.server.billing.exception.BillingException.Code.BILLING_CHARGE_HAS_PAYMENTS);
+			throw new BillingException(
+			    BillingException.Code.BILLING_CHARGE_HAS_PAYMENTS);
 	}
 
 }

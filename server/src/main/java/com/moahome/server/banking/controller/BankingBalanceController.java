@@ -1,16 +1,20 @@
 package com.moahome.server.banking.controller;
 
 import java.util.*;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.banking.dto.*;
-import com.moahome.server.banking.service.BankingBalanceService;
+
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-@io.swagger.v3.oas.annotations.tags.Tag(name = "동별 잔고·정산")
-@io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "bearerAuth")
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.banking.dto.*;
+import com.moahome.server.banking.service.BankingBalanceService;
+
+@Tag(name = "동별 잔고·정산")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/properties/{propertyId}/banking/balances")
 public class BankingBalanceController {

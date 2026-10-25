@@ -4,28 +4,32 @@ import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.*;
+
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.banking.domain.*;
 import com.moahome.server.banking.dto.*;
 import com.moahome.server.banking.repo.*;
+import com.moahome.server.billing.domain.BankOpeningBalance;
 import com.moahome.server.billing.domain.BillingCalendar;
+import com.moahome.server.billing.domain.OpeningBalanceBatch;
+import com.moahome.server.billing.repo.BankOpeningBalanceRepository;
+import com.moahome.server.billing.repo.OpeningBalanceBatchRepository;
 import com.moahome.server.common.security.PaymentTextSecurity;
+import com.moahome.server.expense.domain.Expense;
+import com.moahome.server.expense.domain.ExpenseAllocation;
 import com.moahome.server.expense.repo.*;
 import com.moahome.server.payment.domain.Payment;
 import com.moahome.server.payment.exception.PaymentException;
 import com.moahome.server.payment.repo.PaymentRepository;
+import com.moahome.server.property.domain.Building;
 import com.moahome.server.property.domain.BuildingStatus;
+import com.moahome.server.property.domain.Unit;
 import com.moahome.server.property.repo.*;
 import com.moahome.server.property.service.ManagementAccessService;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
-import com.moahome.server.billing.domain.BankOpeningBalance;
-import com.moahome.server.billing.domain.OpeningBalanceBatch;
-import com.moahome.server.expense.domain.Expense;
-import com.moahome.server.expense.domain.ExpenseAllocation;
-import com.moahome.server.property.domain.Building;
-import com.moahome.server.property.domain.Unit;
 
 @Service
 @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -66,9 +70,9 @@ public class BankingBalanceService {
 
 	private final IncomeAllocationRepository incomeAllocations;
 
-	private final com.moahome.server.billing.repo.OpeningBalanceBatchRepository openingBatches;
+	private final OpeningBalanceBatchRepository openingBatches;
 
-	private final com.moahome.server.billing.repo.BankOpeningBalanceRepository bankOpenings;
+	private final BankOpeningBalanceRepository bankOpenings;
 
 	public BankingBalanceService(ManagementAccessService access, PropertyRepository properties,
 	    BuildingRepository buildings, UnitRepository units, BankTransactionRepository transactions,
@@ -77,8 +81,8 @@ public class BankingBalanceService {
 	    BuildingCashOpeningChangeRepository openingChanges, ExternalSettlementLinkRepository links,
 	    ExternalSettlementDecisionRepository decisions, @Lazy PaymentTextSecurity security, Clock clock,
 	    IncomeAllocationRepository incomeAllocations,
-	    com.moahome.server.billing.repo.OpeningBalanceBatchRepository openingBatches,
-	    com.moahome.server.billing.repo.BankOpeningBalanceRepository bankOpenings, BankTransferRepository transfers,
+	    OpeningBalanceBatchRepository openingBatches,
+	    BankOpeningBalanceRepository bankOpenings, BankTransferRepository transfers,
 	    BankBalanceCheckRepository balanceChecks) {
 		this.access = access;
 		this.properties = properties;
@@ -615,7 +619,7 @@ public class BankingBalanceService {
 		    .orElse(0);
 		if (revision != request.revision())
 			throw new PaymentException("BANK_OPENING_CONFLICT");
-		bankOpenings.saveAndFlush(com.moahome.server.billing.domain.BankOpeningBalance.independent(request.id(),
+		bankOpenings.saveAndFlush(BankOpeningBalance.independent(request.id(),
 		    property, request.accountId(), request.cutoffDate(), new BigDecimal(request.amount()), revision + 1, user,
 		    OffsetDateTime.now(clock)));
 	}

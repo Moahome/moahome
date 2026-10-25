@@ -1,26 +1,31 @@
 package com.moahome.server.banking.repo;
 
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
-import com.moahome.server.banking.domain.BankAccount;
+
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import com.moahome.server.banking.domain.BankAccount;
 
 public interface BankAccountRepository extends JpaRepository<BankAccount, UUID> {
 	/** 모든 통장 조회에서 저장된 최초 등록 순서를 공통으로 사용합니다. */
-	@org.springframework.data.jpa.repository.Query("select a from BankAccount a where a.propertyId = :propertyId and a.deletedAt is null order by a.registrationOrder, a.createdAt, a.id")
-	java.util.List<BankAccount> findByPropertyIdAndDeletedAtIsNull(UUID propertyId);
+	@Query("select a from BankAccount a where a.propertyId = :propertyId and a.deletedAt is null order by a.registrationOrder, a.createdAt, a.id")
+	List<BankAccount> findByPropertyIdAndDeletedAtIsNull(UUID propertyId);
 
 	/** 관리대상 잠금 아래 삭제·종료된 통장의 번호도 재사용하지 않고 다음 등록 순서를 배정합니다. */
-	@org.springframework.data.jpa.repository.Query("select coalesce(max(a.registrationOrder), -1) + 1 from BankAccount a where a.propertyId = :propertyId")
+	@Query("select coalesce(max(a.registrationOrder), -1) + 1 from BankAccount a where a.propertyId = :propertyId")
 	int nextRegistrationOrder(UUID propertyId);
 
 	interface Usage {
 		UUID getAccountId();
 
-		java.time.LocalDate getFirstUse();
+		LocalDate getFirstUse();
 	}
 
 	/** 실제 입출금·수납·지출만 사용 이력으로 확인합니다. 초기 잔고·잔액 확인으로 생성 전 월이나 빈 종료 계좌를 되살리지 않습니다. */
-	@org.springframework.data.jpa.repository.Query(value = """
+	@Query(value = """
 	    WITH common_accounts AS (
 	      SELECT id FROM bank_accounts WHERE property_id=:propertyId AND deleted_at IS NULL AND building_id IS NULL
 	    ), usage_dates AS (
@@ -32,5 +37,5 @@ public interface BankAccountRepository extends JpaRepository<BankAccount, UUID> 
 	    SELECT a.id AS "accountId",min(u.used_on) AS "firstUse" FROM common_accounts a
 	      LEFT JOIN usage_dates u ON u.account_id=a.id GROUP BY a.id
 	    """, nativeQuery = true)
-	java.util.List<Usage> findUsageByPropertyId(UUID propertyId);
+	List<Usage> findUsageByPropertyId(UUID propertyId);
 }

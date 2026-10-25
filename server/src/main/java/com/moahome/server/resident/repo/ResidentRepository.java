@@ -1,10 +1,14 @@
 package com.moahome.server.resident.repo;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
-import com.moahome.server.resident.domain.Resident;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+
+import com.moahome.server.resident.domain.Resident;
 
 public interface ResidentRepository extends JpaRepository<Resident, UUID> {
 	List<Resident> findByPropertyIdAndUserIdAndDeletedAtIsNull(UUID propertyId, UUID userId);
@@ -39,12 +43,12 @@ public interface ResidentRepository extends JpaRepository<Resident, UUID> {
 		String getRelationType();
 	}
 
-	java.util.List<Resident> findByPropertyIdAndNameAndPhoneHmac(UUID propertyId, String name, String phoneHmac);
+	List<Resident> findByPropertyIdAndNameAndPhoneHmac(UUID propertyId, String name, String phoneHmac);
 
-	java.util.Optional<Resident> findByIdAndPropertyId(UUID id, UUID propertyId);
+	Optional<Resident> findByIdAndPropertyId(UUID id, UUID propertyId);
 
 	/** 내보내기에서 해당 대상의 미삭제 주민만 한 번에 읽어 다른 대상의 연락처가 섞이지 않게 합니다. */
-	List<Resident> findByPropertyIdAndIdInAndDeletedAtIsNull(UUID propertyId, java.util.Collection<UUID> ids);
+	List<Resident> findByPropertyIdAndIdInAndDeletedAtIsNull(UUID propertyId, Collection<UUID> ids);
 
 	/**
 	 * 명부 전체를 주민당 한 행으로 읽고 현재 소속과 가입 상태의 근거를 조회합니다.

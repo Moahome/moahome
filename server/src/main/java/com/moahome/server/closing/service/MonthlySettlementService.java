@@ -4,8 +4,6 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.util.UUID;
-import com.moahome.server.auth.exception.AuthErrorCode;
-import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.banking.dto.BankingResponse;
 import com.moahome.server.banking.service.BankingBalanceService;
 import com.moahome.server.banking.service.BankingService;

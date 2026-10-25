@@ -2,26 +2,30 @@ package com.moahome.server.property.service;
 
 import java.util.List;
 import java.util.UUID;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataAccessResourceFailureException;
+
 import com.moahome.server.auth.exception.AuthErrorCode;
 import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.membership.repo.PropertyMemberRepository;
 import com.moahome.server.membership.repo.PropertyMemberRepository.ManagementProperty;
+import com.moahome.server.property.dto.ManagementPropertyResponse;
+import com.moahome.server.resident.repo.ResidentRepository;
 import com.moahome.server.user.exception.UserErrorCode;
 import com.moahome.server.user.exception.UserException;
 import com.moahome.server.user.service.UserService;
-import org.junit.jupiter.api.Test;
-import org.springframework.dao.DataAccessResourceFailureException;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
-import com.moahome.server.property.dto.ManagementPropertyResponse;
 
 class ManagementAccessServiceTest {
 	private final UserService users = mock(UserService.class);
 
 	private final PropertyMemberRepository members = mock(PropertyMemberRepository.class);
 
-	private final com.moahome.server.resident.repo.ResidentRepository residents = mock(com.moahome.server.resident.repo.ResidentRepository.class);
+	private final ResidentRepository residents = mock(ResidentRepository.class);
 
 	private final ManagementAccessService service = new ManagementAccessService(users, members, residents);
 

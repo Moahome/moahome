@@ -1,15 +1,18 @@
 package com.moahome.server.membership.controller;
 
 import java.util.UUID;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.membership.dto.*;
-import com.moahome.server.membership.service.MemberManagementService;
+
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-@io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "bearerAuth")
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.membership.dto.*;
+import com.moahome.server.membership.service.MemberManagementService;
+
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/member-invitations")
 public class InvitationClaimController {

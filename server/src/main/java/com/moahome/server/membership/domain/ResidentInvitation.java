@@ -1,9 +1,13 @@
 package com.moahome.server.membership.domain;
 
 import java.time.OffsetDateTime;
+import java.util.Set;
 import java.util.UUID;
+
 import jakarta.persistence.*;
 import lombok.Getter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /** 주민을 미리 지정한 개인 초대이며 토큰 원문 없이 발급·수락·정정 검토의 출처를 보존합니다. */
 @Getter
@@ -28,7 +32,7 @@ public class ResidentInvitation {
 	@Column(name = "resident_updated_at", columnDefinition = "timestamptz")
 	private OffsetDateTime residentUpdatedAt;
 
-	@org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.CHAR)
+	@JdbcTypeCode(SqlTypes.CHAR)
 	@Column(name = "token_hash", columnDefinition = "char(64)")
 	private String tokenHash;
 
@@ -62,11 +66,11 @@ public class ResidentInvitation {
 	@Column(name = "phone_encrypted", columnDefinition = "text")
 	private String phoneEncrypted;
 
-	@org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.CHAR)
+	@JdbcTypeCode(SqlTypes.CHAR)
 	@Column(name = "phone_hmac", columnDefinition = "char(64)")
 	private String phoneHmac;
 
-	@org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.CHAR)
+	@JdbcTypeCode(SqlTypes.CHAR)
 	@Column(name = "phone_last4", columnDefinition = "char(4)")
 	private String phoneLast4;
 
@@ -118,7 +122,7 @@ public class ResidentInvitation {
 
 	/** 자동 승인에는 수락자를, 정정 승인에는 실제 관리소장을 처리자로 남깁니다. */
 	public void approve(UUID actor, OffsetDateTime at) {
-		if (requestedBy == null || !java.util.Set.of("ISSUED", "CHANGE_REQUESTED").contains(status))
+		if (requestedBy == null || !Set.of("ISSUED", "CHANGE_REQUESTED").contains(status))
 			throw new IllegalStateException("Invalid invitation");
 		status = "APPROVED";
 		reviewedBy = actor;
@@ -129,7 +133,7 @@ public class ResidentInvitation {
 	public void finish(String next, UUID actor, OffsetDateTime at) {
 		if (!"ISSUED".equals(status) && !"CHANGE_REQUESTED".equals(status))
 			throw new IllegalStateException("Invalid invitation");
-		if (!java.util.Set.of("REVOKED", "REJECTED").contains(next))
+		if (!Set.of("REVOKED", "REJECTED").contains(next))
 			throw new IllegalArgumentException("Invalid transition");
 		status = next;
 		reviewedBy = actor;

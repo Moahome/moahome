@@ -7,6 +7,7 @@ import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 public final class RedisTestServer implements AutoCloseable {
 	private final Process process;
@@ -52,7 +53,7 @@ public final class RedisTestServer implements AutoCloseable {
 	public void close() {
 		process.destroy();
 		try {
-			if (!process.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)) {
+			if (!process.waitFor(2, TimeUnit.SECONDS)) {
 				process.destroyForcibly();
 			}
 		} catch (InterruptedException exception) {

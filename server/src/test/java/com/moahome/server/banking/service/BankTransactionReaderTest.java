@@ -1,14 +1,20 @@
 package com.moahome.server.banking.service;
 
 import java.io.*;
-import org.junit.jupiter.api.Test;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.List;
+
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
+
 import com.moahome.server.payment.exception.PaymentException;
+
 import static org.assertj.core.api.Assertions.*;
-import java.util.List;
 
 class BankTransactionReaderTest {
 	final BankTransactionReader reader = new BankTransactionReader();
@@ -19,7 +25,7 @@ class BankTransactionReaderTest {
 		    .read(csv("입금일,입금자명,입금액,적요\n2026-10-15,김대표,\"50,000\",\"메모, 줄바꿈\n유지\""));
 		assertThat(rows.getFirst().amount()).isEqualByComparingTo("50000");
 		assertThat(rows.getFirst().memo()).contains("\n");
-		for (String row : java.util.List.of("2026-02-30,김대표,50000", "2026-10-15,김대표,1.5", "2026-10-15,김대표,-1"))
+		for (String row : List.of("2026-02-30,김대표,50000", "2026-10-15,김대표,1.5", "2026-10-15,김대표,-1"))
 			assertThatThrownBy(() -> reader.read(csv("입금일,입금자명,입금액\n" + row))).isInstanceOf(PaymentException.class);
 	}
 
@@ -29,7 +35,7 @@ class BankTransactionReaderTest {
 			var sheet = workbook.createSheet("거래");
 			var header = sheet.createRow(0);
 			for (int i = 0; i < 3; i++)
-				header.createCell(i).setCellValue(java.util.List.of("입금일", "입금자명", "입금액").get(i));
+				header.createCell(i).setCellValue(List.of("입금일", "입금자명", "입금액").get(i));
 			var row = sheet.createRow(1);
 			row.createCell(0).setCellValue("2026-10-15");
 			row.createCell(1).setCellValue("김대표");
@@ -57,7 +63,7 @@ class BankTransactionReaderTest {
 			info.createCell(1).setCellValue("0000000000000000");
 			sheet.createRow(3).createCell(0).setCellValue("잔액");
 			var header = sheet.createRow(5);
-			List<String> labels = java.util.List.of("거래일시", "구분", "적요", "출금액", "입금액", "잔액", "거래점");
+			List<String> labels = List.of("거래일시", "구분", "적요", "출금액", "입금액", "잔액", "거래점");
 			for (int i = 0; i < labels.size(); i++)
 				header.createCell(i).setCellValue(labels.get(i));
 			for (int i = 0; i < 9; i++) {
@@ -79,8 +85,8 @@ class BankTransactionReaderTest {
 			assertThat(rows).extracting(BankTransactionReader.Row::payer).containsExactly("검증입금0", "검증입금2", "검증입금4",
 			    "검증입금6", "검증입금8");
 			assertThat(rows).allSatisfy(row -> {
-				assertThat(row.date()).isEqualTo(java.time.LocalDate.of(2026, 10, 15));
-				assertThat(row.time()).isEqualTo(java.time.LocalTime.of(9, 12, 34));
+				assertThat(row.date()).isEqualTo(LocalDate.of(2026, 10, 15));
+				assertThat(row.time()).isEqualTo(LocalTime.of(9, 12, 34));
 				assertThat(row.amount()).isEqualByComparingTo("50000");
 				assertThat(row.memo()).isEqualTo(row.payer());
 			});
@@ -98,7 +104,7 @@ class BankTransactionReaderTest {
 		try (var workbook = new XSSFWorkbook()) {
 			var sheet = workbook.createSheet("거래");
 			sheet.createRow(0).createCell(0).setCellValue("거래내역조회");
-			List<String> labels = java.util.List.of("거래일시", "적요", "출금액", "입금액", "잔액");
+			List<String> labels = List.of("거래일시", "적요", "출금액", "입금액", "잔액");
 			var header = sheet.createRow(5);
 			for (int i = 0; i < labels.size(); i++)
 				header.createCell(i).setCellValue(labels.get(i));
@@ -145,7 +151,7 @@ class BankTransactionReaderTest {
 			sheet.createRow(0).createCell(1).setCellValue("카카오뱅크 거래내역");
 			sheet.createRow(2).createCell(1).setCellValue("계좌 정보");
 			var header = sheet.createRow(10);
-			List<String> labels = java.util.List.of("거래일시", "구분", "거래금액", "거래 후 잔액", "거래구분", "내용", "메모");
+			List<String> labels = List.of("거래일시", "구분", "거래금액", "거래 후 잔액", "거래구분", "내용", "메모");
 			for (int i = 0; i < labels.size(); i++)
 				header.createCell(i + 1).setCellValue(labels.get(i));
 			for (int i = 0; i < 16; i++) {
@@ -163,8 +169,8 @@ class BankTransactionReaderTest {
 			assertThat(rows).hasSize(5).allSatisfy(row -> {
 				assertThat(row.payer()).isEqualTo("103동501");
 				assertThat(row.memo()).isEqualTo("관리비 메모");
-				assertThat(row.date()).isEqualTo(java.time.LocalDate.of(2026, 7, 17));
-				assertThat(row.time()).isEqualTo(java.time.LocalTime.of(17, 38, 28));
+				assertThat(row.date()).isEqualTo(LocalDate.of(2026, 7, 17));
+				assertThat(row.time()).isEqualTo(LocalTime.of(17, 38, 28));
 				assertThat(row.amount()).isEqualByComparingTo("50000");
 			});
 			assertThat(rows.getFirst().balance()).isEqualByComparingTo("150000");
@@ -176,7 +182,7 @@ class BankTransactionReaderTest {
 	@Test
 	void sharedTransactionAmountRequiresDirectionAndRejectsNegativeDepositsOrUnknownDirections() {
 		String header = "거래일시,구분,거래금액,거래 후 잔액,거래구분,내용,메모\n";
-		for (String transaction : java.util.List.of("입금,-50000", "이체,50000", "입금,1.5", "출금,invalid"))
+		for (String transaction : List.of("입금,-50000", "이체,50000", "입금,1.5", "출금,invalid"))
 			assertThatThrownBy(
 			    () -> reader.read(csv(header + "2026.07.17 17:38:28," + transaction + ",150000,일반입금,103동501,관리비")))
 			    .isInstanceOf(PaymentException.class).hasMessage("INVALID_BANK_ROW");
@@ -196,6 +202,6 @@ class BankTransactionReaderTest {
 
 	MockMultipartFile csv(String text) {
 		return new MockMultipartFile("file", "거래.csv", "text/csv",
-		    text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+		    text.getBytes(StandardCharsets.UTF_8));
 	}
 }

@@ -2,9 +2,13 @@ package com.moahome.server.payment.dto;
 
 import java.time.LocalDate;
 import java.util.*;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
+
+import com.moahome.server.banking.dto.BankingRequests;
 import com.moahome.server.common.validation.TextInput;
+import com.moahome.server.common.validation.TextValues;
 
 public final class PaymentRequests {
 	private PaymentRequests() {
@@ -15,13 +19,13 @@ public final class PaymentRequests {
 	    @NotNull @Pattern(regexp = "HOUSEHOLD|OTHER|SHARED") String purpose,
 	    @TextInput(max = 100, optional = true) String payer, @TextInput(max = 100, optional = true) String category,
 	    @TextInput(max = 500, optional = true) String note,
-	    @Valid com.moahome.server.banking.dto.BankingRequests.Expense incomeAllocation) {
+	    @Valid BankingRequests.Expense incomeAllocation) {
 		/** 기존 세대 지정 요청도 같은 API를 유지하며 신규 요청은 용도별 입력을 서비스에서 검증합니다. */
 		public Manual {
 			purpose = purpose == null ? "HOUSEHOLD" : purpose;
-			payer = com.moahome.server.common.validation.TextValues.optional(payer);
-			category = com.moahome.server.common.validation.TextValues.optional(category);
-			note = com.moahome.server.common.validation.TextValues.optional(note);
+			payer = TextValues.optional(payer);
+			category = TextValues.optional(category);
+			note = TextValues.optional(note);
 		}
 
 		public Manual(UUID id, UUID unitId, LocalDate date, String amount, UUID accountId) {
@@ -50,7 +54,7 @@ public final class PaymentRequests {
 	    @TextInput(max = 500, optional = true) String note) {
 		/** 선택 메모는 빈 문자열·공백을 미입력으로 정리한 뒤 Bean Validation을 적용합니다. */
 		public OtherIncome {
-			note = com.moahome.server.common.validation.TextValues.optional(note);
+			note = TextValues.optional(note);
 		}
 	}
 

@@ -1,11 +1,7 @@
 package com.moahome.server.property.controller;
 
 import java.util.UUID;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.property.dto.*;
-import com.moahome.server.property.service.PropertyRegistrationService;
-import com.moahome.server.auth.security.AuthErrorHandler;
-import com.moahome.server.property.exception.RegistrationExceptionHandler;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -18,6 +14,14 @@ import jakarta.validation.Valid;
 import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.auth.security.AuthErrorHandler;
+import com.moahome.server.property.dto.*;
+import com.moahome.server.property.exception.RegistrationErrorCode;
+import com.moahome.server.property.exception.RegistrationException;
+import com.moahome.server.property.exception.RegistrationExceptionHandler;
+import com.moahome.server.property.service.PropertyRegistrationService;
 
 @RestController
 @RequestMapping("/api/property-registrations")
@@ -75,8 +79,8 @@ public class PropertyRegistrationController {
 	    @Parameter(hidden = true) @AuthenticationPrincipal AuthPrincipal principal,
 	    @Parameter(description = "최종 등록에 사용한 중복 방지 ID", schema = @Schema(format = "uuid")) @PathVariable String requestId) {
 		if (!requestId.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")) {
-			throw new com.moahome.server.property.exception.RegistrationException(
-			    com.moahome.server.property.exception.RegistrationErrorCode.INVALID_REQUEST);
+			throw new RegistrationException(
+			    RegistrationErrorCode.INVALID_REQUEST);
 		}
 		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
 		    .body(registrations.getResult(UUID.fromString(principal.userId()), UUID.fromString(requestId)));

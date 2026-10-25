@@ -8,17 +8,8 @@ import java.util.List;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
-import com.moahome.server.auth.controller.AppAuthController;
-import com.moahome.server.auth.security.AuthErrorHandler;
-import com.moahome.server.auth.security.JwtAuthenticationFilter;
-import com.moahome.server.auth.security.SessionCsrfTokenRepository;
-import com.moahome.server.auth.security.WebAuthSupport;
-import com.moahome.server.auth.security.OAuthAuthorizationRequestRepository;
-import com.moahome.server.auth.security.OAuthLoginHandler;
-import com.moahome.server.auth.service.KakaoOAuthUserService;
-import com.moahome.server.auth.service.AuthService;
-
 import jakarta.servlet.DispatcherType;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -49,6 +40,16 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import com.moahome.server.auth.controller.AppAuthController;
+import com.moahome.server.auth.security.AuthErrorHandler;
+import com.moahome.server.auth.security.JwtAuthenticationFilter;
+import com.moahome.server.auth.security.OAuthAuthorizationRequestRepository;
+import com.moahome.server.auth.security.OAuthLoginHandler;
+import com.moahome.server.auth.security.SessionCsrfTokenRepository;
+import com.moahome.server.auth.security.WebAuthSupport;
+import com.moahome.server.auth.service.AuthService;
+import com.moahome.server.auth.service.KakaoOAuthUserService;
 
 @Configuration
 @PropertySource("classpath:jwtSecurity.properties")
@@ -179,7 +180,7 @@ public class SecurityConfig {
 		        .csrfTokenRepository(new SessionCsrfTokenRepository())
 		        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler() {
 			        @Override
-			        public String resolveCsrfTokenValue(jakarta.servlet.http.HttpServletRequest request,
+			        public String resolveCsrfTokenValue(HttpServletRequest request,
 			            CsrfToken token) {
 				        return request.getHeader(token.getHeaderName());
 			        }

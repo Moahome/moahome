@@ -4,11 +4,14 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.sql.SQLException;
 import java.util.UUID;
-import com.moahome.server.property.exception.*;
+
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+
+import com.moahome.server.property.exception.*;
 
 @Repository
 public class PropertyRegistrationLock {
@@ -26,7 +29,7 @@ public class PropertyRegistrationLock {
 			jdbc.query("select pg_advisory_xact_lock(?)", rs -> {
 			}, key(userId, requestId));
 		} catch (DataAccessException exception) {
-			if (!(exception.getMostSpecificCause() instanceof java.sql.SQLException sql)
+			if (!(exception.getMostSpecificCause() instanceof SQLException sql)
 			    || !"55P03".equals(sql.getSQLState())) {
 				throw exception;
 			}

@@ -1,26 +1,19 @@
 package com.moahome.server.payment.repo;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
-import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.auth.support.MutableClock;
-import com.moahome.server.banking.service.BankTransactionReader;
-import com.moahome.server.billing.service.*;
-import com.moahome.server.common.security.*;
-import com.moahome.server.payment.dto.*;
-import com.moahome.server.payment.exception.PaymentException;
-import com.moahome.server.payment.service.PaymentService;
-import com.moahome.server.property.dto.PropertyRegistrationRequest.UnitInput;
-import com.moahome.server.property.service.*;
-import com.moahome.server.property.repo.PropertyRegistrationLock;
-import com.moahome.server.property.support.*;
-import com.moahome.server.resident.service.*;
-import com.moahome.server.user.domain.User;
-import com.moahome.server.user.repo.UserRepository;
-import com.moahome.server.user.service.UserService;
-import com.moahome.server.user.support.PostgresTestServer;
+
 import jakarta.validation.*;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.FlywayException;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -29,6 +22,11 @@ import org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.*;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
+import org.springframework.data.redis.core.RedisCallback;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.annotation.DirtiesContext;
@@ -38,67 +36,120 @@ import org.springframework.transaction.annotation.*;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
-import static org.assertj.core.api.Assertions.*;
+
+import com.moahome.server.auth.exception.AuthException;
+import com.moahome.server.auth.support.MutableClock;
+import com.moahome.server.auth.support.RedisTestServer;
 import com.moahome.server.banking.dto.BankAccountSettings;
+import com.moahome.server.banking.dto.BankBalanceCheckRequests;
 import com.moahome.server.banking.dto.BankingBalanceRequests;
+import com.moahome.server.banking.dto.BankingBalanceResponse;
 import com.moahome.server.banking.dto.BankingRequests;
+import com.moahome.server.banking.dto.BankingResponse;
+import com.moahome.server.banking.service.BankAccountService;
+import com.moahome.server.banking.service.BankBalanceCheckService;
+import com.moahome.server.banking.service.BankTransactionReader;
+import com.moahome.server.banking.service.BankingBalanceService;
+import com.moahome.server.banking.service.BankingService;
+import com.moahome.server.banking.service.IncomeAllocationService;
+import com.moahome.server.billing.domain.BillingMode;
+import com.moahome.server.billing.dto.BillingSettingsRequest;
+import com.moahome.server.billing.dto.OpeningBalanceRequest;
+import com.moahome.server.billing.dto.OpeningBalanceResponse;
+import com.moahome.server.billing.exception.BillingException;
+import com.moahome.server.billing.service.*;
+import com.moahome.server.common.security.*;
+import com.moahome.server.config.InvitationCredentialMigrationCallback;
+import com.moahome.server.config.PhoneSecurityProperties;
+import com.moahome.server.expense.service.ExpenseService;
+import com.moahome.server.membership.domain.PropertyMemberRole;
+import com.moahome.server.membership.domain.ResidentInviteCode;
+import com.moahome.server.membership.dto.MemberRequests;
+import com.moahome.server.membership.dto.ResidentInvitations;
+import com.moahome.server.membership.dto.SignupRequests;
+import com.moahome.server.membership.repo.RedisInvitationCodeRepository;
+import com.moahome.server.membership.service.MemberManagementService;
+import com.moahome.server.membership.service.MembershipRequestService;
+import com.moahome.server.membership.service.ResidentInvitationService;
+import com.moahome.server.membership.service.ResidentJoinCodeService;
+import com.moahome.server.payment.dto.*;
+import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.payment.service.CumulativePaymentService;
+import com.moahome.server.payment.service.PayerMatchService;
+import com.moahome.server.payment.service.PaymentService;
+import com.moahome.server.property.dto.PropertyRegistrationRequest;
+import com.moahome.server.property.dto.PropertyRegistrationRequest.UnitInput;
+import com.moahome.server.property.dto.RegistrationOpeningInput;
+import com.moahome.server.property.exception.RegistrationException;
+import com.moahome.server.property.repo.PropertyRegistrationLock;
+import com.moahome.server.property.service.*;
+import com.moahome.server.property.support.*;
+import com.moahome.server.resident.dto.ResidentDeleteRequest;
+import com.moahome.server.resident.dto.ResidentUpdateRequest;
+import com.moahome.server.resident.service.*;
+import com.moahome.server.user.domain.User;
+import com.moahome.server.user.repo.UserRepository;
+import com.moahome.server.user.service.UserService;
+import com.moahome.server.user.support.PostgresTestServer;
+
+import static org.assertj.core.api.Assertions.*;
 
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({com.moahome.server.banking.service.BankBalanceCheckService.class,
-        com.moahome.server.config.InvitationCredentialMigrationCallback.class,
-        com.moahome.server.banking.service.IncomeAllocationService.class,
-        com.moahome.server.banking.service.BankAccountService.class,
-        com.moahome.server.banking.service.BankingBalanceService.class,
-        com.moahome.server.banking.service.BankingService.class,
-        com.moahome.server.expense.service.ExpenseService.class,
-        com.moahome.server.payment.service.CumulativePaymentService.class, PaymentService.class,
-        com.moahome.server.payment.service.PayerMatchService.class,
+@Import({BankBalanceCheckService.class,
+        InvitationCredentialMigrationCallback.class,
+        IncomeAllocationService.class,
+        BankAccountService.class,
+        BankingBalanceService.class,
+        BankingService.class,
+        ExpenseService.class,
+        CumulativePaymentService.class, PaymentService.class,
+        PayerMatchService.class,
         BankTransactionReader.class, BillingTemplates.class, BillingGenerationService.class, BillingService.class,
         PropertyRegistrationService.class, RegistrationOpeningService.class, PropertyRegistrationLock.class,
         ManagementAccessService.class, UserService.class, OpeningBalanceService.class,
-        com.moahome.server.membership.service.MemberManagementService.class,
-        com.moahome.server.membership.service.MembershipRequestService.class,
-        com.moahome.server.membership.service.ResidentInvitationService.class,
-        com.moahome.server.membership.service.ResidentJoinCodeService.class, ResidentRegistrationService.class,
+        MemberManagementService.class,
+        MembershipRequestService.class,
+        ResidentInvitationService.class,
+        ResidentJoinCodeService.class, ResidentRegistrationService.class,
         ResidentManagementService.class, ResidentListService.class,
-        com.moahome.server.membership.repo.RedisInvitationCodeRepository.class, PaymentPersistenceTest.TestBeans.class})
+        RedisInvitationCodeRepository.class, PaymentPersistenceTest.TestBeans.class})
 @ActiveProfiles("database-test")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class PaymentPersistenceTest {
 	static final PostgresTestServer POSTGRES = new PostgresTestServer();
 
-	static final com.moahome.server.auth.support.RedisTestServer REDIS =
-	    new com.moahome.server.auth.support.RedisTestServer();
+	static final RedisTestServer REDIS =
+	    new RedisTestServer();
 
 	@Autowired
-	org.springframework.data.redis.core.StringRedisTemplate redis;
+	StringRedisTemplate redis;
 
 	@Autowired
 	PaymentService service;
 
 	@Autowired
-	com.moahome.server.banking.service.BankAccountService bankAccountSettings;
+	BankAccountService bankAccountSettings;
 
 	@Autowired
-	com.moahome.server.banking.service.BankingService banking;
+	BankingService banking;
 
 	@Autowired
-	com.moahome.server.banking.service.BankingBalanceService cashBalances;
+	BankingBalanceService cashBalances;
 
 	@Autowired
-	com.moahome.server.banking.service.BankBalanceCheckService balanceChecks;
+	BankBalanceCheckService balanceChecks;
 
 	@Autowired
 	OpeningBalanceService opening;
 
 	@Autowired
-	com.moahome.server.membership.service.MemberManagementService memberManagement;
+	MemberManagementService memberManagement;
 
 	@Autowired
-	com.moahome.server.membership.service.MembershipRequestService signupRequests;
+	MembershipRequestService signupRequests;
 
 	@Autowired
 	ResidentManagementService residentManagement;
@@ -162,7 +213,7 @@ class PaymentPersistenceTest {
 
 	@AfterEach
 	void cleanup() {
-		redis.execute((org.springframework.data.redis.core.RedisCallback<Void>) connection -> {
+		redis.execute((RedisCallback<Void>) connection -> {
 			connection.serverCommands().flushDb();
 			return null;
 		});
@@ -180,7 +231,7 @@ class PaymentPersistenceTest {
 		var source = service.importFile(user, property, bank("가상정리입금", "50000")).payments().getFirst();
 		service.confirm(user, property, source.id(), new PaymentRequests.Confirm(unit, null, null));
 		String schema = "payer_cleanup_" + UUID.randomUUID().toString().replace("-", "");
-		var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).target("20261025065248").load();
 		previous.migrate();
 		try {
@@ -210,7 +261,7 @@ class PaymentPersistenceTest {
 			assertThat(applied).hasSize(2);
 			assertThat(jdbc.queryForObject("select checksum from " + schema
 			    + ".flyway_schema_history where version='20261025060837'", Integer.class)).isEqualTo(2135699727);
-			var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+			var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			    .schemas(schema).defaultSchema(schema).target("20261025075117").load();
 			assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
 			upgraded.validate();
@@ -243,7 +294,7 @@ class PaymentPersistenceTest {
 		UUID secondProperty = registration.register(user, RegistrationFixtures.request(UUID.randomUUID(), false))
 		    .response().property().id();
 		String schema = "constraint_cleanup_" + UUID.randomUUID().toString().replace("-", "");
-		var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).target("20261025075117").load();
 		previous.migrate();
 		try {
@@ -267,7 +318,7 @@ class PaymentPersistenceTest {
 			String removedQuery = "select count(*) from pg_constraint c join pg_namespace n on n.oid=c.connamespace "
 			    + "where n.nspname=? and c.conname in ('units_property_id_id_unique','fee_template_items_fee_template_id_fkey')";
 			assertThat(jdbc.queryForObject(removedQuery, Integer.class, schema)).isEqualTo(2);
-			var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+			var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			    .schemas(schema).defaultSchema(schema).load();
 			assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
 			upgraded.validate();
@@ -288,7 +339,7 @@ class PaymentPersistenceTest {
 			    + "(id,fee_template_id,property_id,item_name,default_amount,sort_order,is_active,created_at,updated_at) "
 			    + "values (?,?,?,'제약 검증',1,999,true,now(),now())";
 			assertThatThrownBy(() -> jdbc.update(insert, UUID.randomUUID(), template, secondProperty))
-			    .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class)
+			    .isInstanceOf(DataIntegrityViolationException.class)
 			    .hasStackTraceContaining("fee_template_items_property_template_fk");
 			assertThat(jdbc.update(insert, UUID.randomUUID(), template, property)).isEqualTo(1);
 		} finally {
@@ -409,7 +460,7 @@ class PaymentPersistenceTest {
 	void bankBalanceChecksPreserveLedgerAndCancelWithoutDeletingHistory() {
 		UUID account = bankAccountSettings.read(user, property).accountId();
 		var before = cashBalances.workspace(user, property, "2026-10");
-		var input = new com.moahome.server.banking.dto.BankBalanceCheckRequests.Create(UUID.randomUUID(), account,
+		var input = new BankBalanceCheckRequests.Create(UUID.randomUUID(), account,
 		    "2338114", OffsetDateTime.parse("2026-10-14T09:20:00+09:00"), "BANK_APP", "직접 확인");
 		balanceChecks.create(user, property, input);
 		balanceChecks.create(user, property, input);
@@ -427,8 +478,8 @@ class PaymentPersistenceTest {
 		assertThat(balanceChecks.history(user, property, account).checks()).hasSize(1);
 		assertThat(cashBalances.workspace(user, property, "2026-09").bankBalance()).isNull();
 		assertThatThrownBy(() -> jdbc.update("update bank_balance_checks set balance_amount=1 where id=?", input.id()))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
-		var cancellation = new com.moahome.server.banking.dto.BankBalanceCheckRequests.Cancel(UUID.randomUUID(),
+		    .isInstanceOf(DataAccessException.class);
+		var cancellation = new BankBalanceCheckRequests.Cancel(UUID.randomUUID(),
 		    "금액 오입력");
 		balanceChecks.cancel(user, property, input.id(), cancellation);
 		balanceChecks.cancel(user, property, input.id(), cancellation);
@@ -440,21 +491,21 @@ class PaymentPersistenceTest {
 		});
 		assertThat(cashBalances.workspace(user, property, "2026-10").bankBalance()).isNull();
 		assertThatThrownBy(() -> jdbc.update("delete from bank_balance_checks where id=?", input.id()))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 	}
 
 	@Test
 	void bankBalanceChecksRejectFutureForeignAccountAndChangedRetry() {
 		UUID account = bankAccountSettings.read(user, property).accountId();
-		var input = new com.moahome.server.banking.dto.BankBalanceCheckRequests.Create(UUID.randomUUID(), account,
+		var input = new BankBalanceCheckRequests.Create(UUID.randomUUID(), account,
 		    "100", OffsetDateTime.parse("2026-10-14T09:20:00+09:00"), "OTHER", null);
 		balanceChecks.create(user, property, input);
 		assertThatThrownBy(() -> balanceChecks.create(user, property,
-		    new com.moahome.server.banking.dto.BankBalanceCheckRequests.Create(input.id(), account, "101",
+		    new BankBalanceCheckRequests.Create(input.id(), account, "101",
 		        input.checkedAt(), "OTHER", null)))
 		    .isInstanceOfSatisfying(PaymentException.class, e -> assertThat(e.code()).isEqualTo("BANK_CHECK_CONFLICT"));
 		assertThatThrownBy(() -> balanceChecks.create(user, property,
-		    new com.moahome.server.banking.dto.BankBalanceCheckRequests.Create(UUID.randomUUID(), account, "100",
+		    new BankBalanceCheckRequests.Create(UUID.randomUUID(), account, "100",
 		        OffsetDateTime.now(clock).plusSeconds(1), "OTHER", null)))
 		    .isInstanceOfSatisfying(PaymentException.class,
 		        e -> assertThat(e.code()).isEqualTo("INVALID_BANK_CHECK_TIME"));
@@ -491,23 +542,23 @@ class PaymentPersistenceTest {
 
 	MockMultipartFile csv(String body) {
 		return new MockMultipartFile("file", "은행.csv", "text/csv",
-		    body.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+		    body.getBytes(StandardCharsets.UTF_8));
 	}
 
 	/** 기존 업무 시나리오의 금액·상대를 유지하면서 카카오 계좌에는 검증된 구분·거래금액 양식을 전달합니다. */
 	private MockMultipartFile kakaoFile(MockMultipartFile source) {
 		String body;
 		try {
-			body = new String(source.getBytes(), java.nio.charset.StandardCharsets.UTF_8);
-		} catch (java.io.IOException exception) {
-			throw new java.io.UncheckedIOException(exception);
+			body = new String(source.getBytes(), StandardCharsets.UTF_8);
+		} catch (IOException exception) {
+			throw new UncheckedIOException(exception);
 		}
 		StringBuilder converted = new StringBuilder("거래일시,구분,거래금액,거래 후 잔액,거래구분,내용,메모\n");
 		for (String line : body.lines().skip(1).toList()) {
 			String[] cells = line.split(",", -1);
 			if (cells[0].equals("거래일시"))
 				continue;
-			boolean expense = new java.math.BigDecimal(cells[2]).signum() > 0;
+			boolean expense = new BigDecimal(cells[2]).signum() > 0;
 			converted.append(cells[0]).append(',').append(expense ? "출금" : "입금").append(',')
 			    .append(expense ? cells[2] : cells[3]).append(',').append(cells.length > 4 ? cells[4] : "0")
 			    .append(",이체,").append(cells[1]).append(",\n");
@@ -532,7 +583,7 @@ class PaymentPersistenceTest {
 		assertThat(result.managementStart().cutoffDate()).isEqualTo(LocalDate.of(2026, 9, 30));
 		assertThat(opening.workspace(user, target).managementStarted()).isTrue();
 		assertThat(opening.workspace(user, target).units())
-		    .extracting(com.moahome.server.billing.dto.OpeningBalanceResponse.Unit::receivable)
+		    .extracting(OpeningBalanceResponse.Unit::receivable)
 		    .containsExactlyInAnyOrder("10000", "0");
 		assertThat(
 		    jdbc.queryForObject("select count(*) from charges where property_id=? and charge_type='OPENING_RECEIVABLE'",
@@ -550,7 +601,7 @@ class PaymentPersistenceTest {
 		assertThat(cash.bankBalance()).isEqualTo("350000");
 		assertThat(cash.bankAsOf()).contains("2026-09-30");
 		assertThat(cash.buildings())
-		    .extracting(com.moahome.server.banking.dto.BankingBalanceResponse.Building::openingBalance)
+		    .extracting(BankingBalanceResponse.Building::openingBalance)
 		    .containsExactlyInAnyOrder("100000", "200000");
 		assertThat(registration.register(user, request).created()).isFalse();
 		assertThat(registration.getResult(user, request.requestId())).isEqualTo(result);
@@ -558,15 +609,15 @@ class PaymentPersistenceTest {
 		    jdbc.queryForObject("select count(*) from opening_balance_batches where property_id=?", Long.class, target))
 		    .isEqualTo(1);
 		var changed = request.openingBalances();
-		var other = new com.moahome.server.property.dto.RegistrationOpeningInput(changed.cutoffDate(),
+		var other = new RegistrationOpeningInput(changed.cutoffDate(),
 		    changed.firstBillingMonth(), changed.units(),
-		    List.of(new com.moahome.server.property.dto.RegistrationOpeningInput.AccountOpening(0, "350001")),
+		    List.of(new RegistrationOpeningInput.AccountOpening(0, "350001")),
 		    changed.cashCutoffDate(), changed.buildings());
-		var conflict = new com.moahome.server.property.dto.PropertyRegistrationRequest(request.requestId(),
+		var conflict = new PropertyRegistrationRequest(request.requestId(),
 		    request.basicInfo(), request.buildings(), request.units(), request.bankAccounts(), request.feeItems(),
 		    request.administrator(), other);
 		assertThatThrownBy(() -> registration.register(user, conflict))
-		    .isInstanceOf(com.moahome.server.property.exception.RegistrationException.class);
+		    .isInstanceOf(RegistrationException.class);
 	}
 
 	/** 동 없는 등록과 미래 첫 부과월도 저장하되 현재 월 청구나 가상 동은 만들지 않습니다. */
@@ -591,18 +642,18 @@ class PaymentPersistenceTest {
 		var base = registrationOpeningRequest(true, "2026-10");
 		var old = base.openingBalances();
 		var accountInputs = new ArrayList<>(base.bankAccounts());
-		accountInputs.add(new com.moahome.server.property.dto.PropertyRegistrationRequest.BankAccountInput("090",
+		accountInputs.add(new PropertyRegistrationRequest.BankAccountInput("090",
 		    "카카오뱅크", "3333012345678", "관리단", false, "예비비"));
-		var amounts = new com.moahome.server.property.dto.RegistrationOpeningInput(old.cutoffDate(),
+		var amounts = new RegistrationOpeningInput(old.cutoffDate(),
 		    old.firstBillingMonth(), old.units(),
-		    List.of(new com.moahome.server.property.dto.RegistrationOpeningInput.AccountOpening(0, "350000"),
-		        new com.moahome.server.property.dto.RegistrationOpeningInput.AccountOpening(1, "400000")),
+		    List.of(new RegistrationOpeningInput.AccountOpening(0, "350000"),
+		        new RegistrationOpeningInput.AccountOpening(1, "400000")),
 		    old.cashCutoffDate(),
-		    List.of(new com.moahome.server.property.dto.RegistrationOpeningInput.BuildingOpening(0, "a", "100000"),
-		        new com.moahome.server.property.dto.RegistrationOpeningInput.BuildingOpening(0, "b", "200000"),
-		        new com.moahome.server.property.dto.RegistrationOpeningInput.BuildingOpening(1, "a", "250000"),
-		        new com.moahome.server.property.dto.RegistrationOpeningInput.BuildingOpening(1, "b", "150000")));
-		var input = new com.moahome.server.property.dto.PropertyRegistrationRequest(base.requestId(), base.basicInfo(),
+		    List.of(new RegistrationOpeningInput.BuildingOpening(0, "a", "100000"),
+		        new RegistrationOpeningInput.BuildingOpening(0, "b", "200000"),
+		        new RegistrationOpeningInput.BuildingOpening(1, "a", "250000"),
+		        new RegistrationOpeningInput.BuildingOpening(1, "b", "150000")));
+		var input = new PropertyRegistrationRequest(base.requestId(), base.basicInfo(),
 		    base.buildings(), base.units(), accountInputs, base.feeItems(), base.administrator(), amounts);
 		UUID target = registration.register(user, input).response().property().id();
 		registration.register(user, input);
@@ -626,36 +677,36 @@ class PaymentPersistenceTest {
 		jdbc.execute(
 		    "create trigger fail_opening_application before insert on credit_applications for each row execute function fail_opening_application()");
 		assertThatThrownBy(() -> registration.register(user, request))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 		assertThat(count("properties")).isEqualTo(propertyCount);
 		assertThat(count("building_cash_openings")).isEqualTo(cashCount);
 		assertThat(count("opening_balance_batches")).isEqualTo(batchCount);
 		assertThatThrownBy(() -> registration.getResult(user, request.requestId()))
-		    .isInstanceOf(com.moahome.server.property.exception.RegistrationException.class);
+		    .isInstanceOf(RegistrationException.class);
 		jdbc.execute("drop function fail_opening_application() cascade");
 		assertThat(registration.register(user, request).response().managementStart()).isNotNull();
 	}
 
 	/** 기존 등록 계약을 유지하며 새 초기 설정에만 명시적인 인계 정보를 덧붙입니다. */
-	private com.moahome.server.property.dto.PropertyRegistrationRequest registrationOpeningRequest(boolean hasBuildings,
+	private PropertyRegistrationRequest registrationOpeningRequest(boolean hasBuildings,
 	    String firstMonth) {
 		var base = RegistrationFixtures.request(UUID.randomUUID(), hasBuildings);
-		var opening = new com.moahome.server.property.dto.RegistrationOpeningInput(LocalDate.of(2026, 9, 30),
+		var opening = new RegistrationOpeningInput(LocalDate.of(2026, 9, 30),
 		    firstMonth,
 		    List.of(
-		        new com.moahome.server.property.dto.RegistrationOpeningInput.UnitOpening(hasBuildings ? "a" : null,
+		        new RegistrationOpeningInput.UnitOpening(hasBuildings ? "a" : null,
 		            "201", "10000", "7000"),
-		        new com.moahome.server.property.dto.RegistrationOpeningInput.UnitOpening(hasBuildings ? "b" : null,
+		        new RegistrationOpeningInput.UnitOpening(hasBuildings ? "b" : null,
 		            "202", "0", "0")),
-		    List.of(new com.moahome.server.property.dto.RegistrationOpeningInput.AccountOpening(0, "350000")),
+		    List.of(new RegistrationOpeningInput.AccountOpening(0, "350000")),
 		    hasBuildings ? LocalDate.of(2026, 9, 30) : null,
 		    hasBuildings
-		        ? List.of(new com.moahome.server.property.dto.RegistrationOpeningInput.BuildingOpening("a", "100000"),
-		            new com.moahome.server.property.dto.RegistrationOpeningInput.BuildingOpening("b", "200000"))
+		        ? List.of(new RegistrationOpeningInput.BuildingOpening("a", "100000"),
+		            new RegistrationOpeningInput.BuildingOpening("b", "200000"))
 		        : List.of());
-		return new com.moahome.server.property.dto.PropertyRegistrationRequest(base.requestId(), base.basicInfo(),
+		return new PropertyRegistrationRequest(base.requestId(), base.basicInfo(),
 		    base.buildings(), base.units(), base.bankAccounts(), base.feeItems(),
-		    new com.moahome.server.property.dto.PropertyRegistrationRequest.AdministratorInput("EXTERNAL", null, null,
+		    new PropertyRegistrationRequest.AdministratorInput("EXTERNAL", null, null,
 		        null, null),
 		    opening);
 	}
@@ -673,7 +724,7 @@ class PaymentPersistenceTest {
 		    "select valid_from,valid_to,is_primary,status from bank_accounts where id=?", before.accountId());
 		var numberBefore = jdbc.queryForObject("select account_number_encrypted from bank_accounts where id=?",
 		    String.class, before.accountId());
-		var request = new com.moahome.server.banking.dto.BankAccountSettings.Request(before.accountId(),
+		var request = new BankAccountSettings.Request(before.accountId(),
 		    before.updatedAt(), "004", "국민은행", "000-9876-5432", "정정 예금주");
 		var saved = bankAccountSettings.correct(user, property, request);
 		assertThat(saved.accountId()).isEqualTo(before.accountId());
@@ -690,11 +741,11 @@ class PaymentPersistenceTest {
 		var numberAfter = jdbc.queryForObject("select account_number_encrypted from bank_accounts where id=?",
 		    String.class, before.accountId());
 		assertThat(numberAfter).isNotEqualTo(numberBefore).doesNotContain("00098765432");
-		var stale = new com.moahome.server.banking.dto.BankAccountSettings.Request(before.accountId(),
+		var stale = new BankAccountSettings.Request(before.accountId(),
 		    before.updatedAt(), "004", "국민은행", "00011112222", "다른 정정");
 		assertThatThrownBy(() -> bankAccountSettings.correct(user, property, stale)).isInstanceOfSatisfying(
 		    PaymentException.class, e -> assertThat(e.code()).isEqualTo("BANK_ACCOUNT_CONFLICT"));
-		var next = new com.moahome.server.banking.dto.BankAccountSettings.Request(saved.accountId(), saved.updatedAt(),
+		var next = new BankAccountSettings.Request(saved.accountId(), saved.updatedAt(),
 		    "004", "국민은행", saved.accountNumber(), "최종 예금주");
 		assertThat(bankAccountSettings.correct(user, property, next).holderName()).isEqualTo("최종 예금주");
 
@@ -705,7 +756,7 @@ class PaymentPersistenceTest {
 	void rejectsAccountCorrectionByResidentBeforeReadingAccountDetails() {
 		var original = bankAccountSettings.read(user, property);
 		jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", property, user);
-		var request = new com.moahome.server.banking.dto.BankAccountSettings.Request(original.accountId(),
+		var request = new BankAccountSettings.Request(original.accountId(),
 		    original.updatedAt(), "004", "국민은행", "00099998888", "정정 예금주");
 		assertThatThrownBy(() -> bankAccountSettings.read(user, property)).isInstanceOf(AuthException.class);
 		assertThatThrownBy(() -> bankAccountSettings.correct(user, property, request))
@@ -736,35 +787,35 @@ class PaymentPersistenceTest {
 		return property;
 	}
 
-	com.moahome.server.billing.dto.OpeningBalanceResponse draftHandover(LocalDate cutoff, String first) {
+	OpeningBalanceResponse draftHandover(LocalDate cutoff, String first) {
 		var current = opening.workspace(user, property);
-		var input = new com.moahome.server.billing.dto.OpeningBalanceRequest(
+		var input = new OpeningBalanceRequest(
 		    current.batch() == null ? null : current.batch().id(),
 		    current.batch() == null ? null : current.batch().revision(), cutoff, first,
 		    current.units().stream().map(u -> {
 			    String number = jdbc.queryForObject("select unit_number from units where id=?", String.class,
 			        u.unitId());
-			    return new com.moahome.server.billing.dto.OpeningBalanceRequest.UnitInput(u.unitId(),
+			    return new OpeningBalanceRequest.UnitInput(u.unitId(),
 			        number.equals("101") ? "100000" : "0",
 			        number.equals("102") ? "30000" : number.equals("103") ? "80000" : "0", null,
 			        number.equals("101") ? "이전 임차인 확인 필요" : null);
 		    }).toList(),
 		    current.accounts().stream().map(
-		        a -> new com.moahome.server.billing.dto.OpeningBalanceRequest.AccountInput(a.accountId(), "2000000"))
+		        a -> new OpeningBalanceRequest.AccountInput(a.accountId(), "2000000"))
 		        .toList());
 		return opening.save(user, property, input);
 	}
 
-	void confirmHandover(com.moahome.server.billing.dto.OpeningBalanceResponse draft) {
+	void confirmHandover(OpeningBalanceResponse draft) {
 		opening.confirm(user, property, draft.batch().id(), draft.batch().revision());
 	}
 
-	java.math.BigDecimal due(UUID target) {
+	BigDecimal due(UUID target) {
 		return jdbc.queryForObject("select coalesce(sum(c.total_amount"
 		    + "-(select coalesce(sum(a.allocated_amount),0) from payment_allocations a where a.charge_id=c.id and a.status='ACTIVE')"
 		    + "-(select coalesce(sum(a.amount),0) from credit_applications a where a.charge_id=c.id and a.status='ACTIVE')),0)"
 		    + " from charges c where c.property_id=? and c.unit_id=? and c.status='ISSUED' and c.total_amount>0",
-		    java.math.BigDecimal.class, property, target);
+		    BigDecimal.class, property, target);
 	}
 
 	/** 입출금을 함께 가져와도 원본은 한 건씩 남고 전기료는 외부 부담을 포함해 정확히 배분됩니다. */
@@ -784,20 +835,20 @@ class PaymentPersistenceTest {
 		assertThat(count("bank_transactions")).isZero();
 		var income = preview.rows().get(0);
 		var power = preview.rows().get(1);
-		var expense = new com.moahome.server.banking.dto.BankingRequests.Expense("전기료", null, "RATIO", true,
-		    List.of(new com.moahome.server.banking.dto.BankingRequests.Allocation(first, null, null, "25"),
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(second, null, null, "25"),
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(null, "외부 101동", null, "50")));
-		var selected = new com.moahome.server.banking.dto.BankingRequests.Import(
-		    List.of(new com.moahome.server.banking.dto.BankingRequests.Selection(income.id(), null, null, null, null),
-		        new com.moahome.server.banking.dto.BankingRequests.Selection(power.id(), null, null, null, expense)));
+		var expense = new BankingRequests.Expense("전기료", null, "RATIO", true,
+		    List.of(new BankingRequests.Allocation(first, null, null, "25"),
+		        new BankingRequests.Allocation(second, null, null, "25"),
+		        new BankingRequests.Allocation(null, "외부 101동", null, "50")));
+		var selected = new BankingRequests.Import(
+		    List.of(new BankingRequests.Selection(income.id(), null, null, null, null),
+		        new BankingRequests.Selection(power.id(), null, null, null, expense)));
 		var saved = banking.upload(user, property, file, selected);
 		assertThat(saved.rows()).hasSize(2);
 		assertThat(count("payments")).isEqualTo(1);
 		assertThat(count("expenses")).isEqualTo(1);
 		assertThat(
 		    saved.rows().stream().filter(r -> r.expense() != null).findFirst().orElseThrow().expense().allocations())
-		    .extracting(com.moahome.server.banking.dto.BankingResponse.Allocation::amount)
+		    .extracting(BankingResponse.Allocation::amount)
 		    .containsExactly("45665", "45665", "91330");
 		assertThat(saved.rules()).hasSize(1);
 		assertThat(saved.rules().getFirst().category()).isEqualTo("전기료");
@@ -811,9 +862,9 @@ class PaymentPersistenceTest {
 		assertThat(jdbc.queryForObject("select category_encrypted from expenses", String.class)).doesNotContain("전기료");
 		assertThatThrownBy(
 		    () -> jdbc.update("update expense_allocations set allocated_amount=1 where building_id=?", first))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 		assertThatThrownBy(() -> jdbc.update("delete from expense_allocations where building_id=?", first))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 	}
 
 	/** 시작 보유금·실제 입금·1/4 지출·부분 회수와 취소를 실제 PostgreSQL에서 함께 검증합니다. */
@@ -827,22 +878,22 @@ class PaymentPersistenceTest {
 			    "insert into buildings(id,property_id,name,sort_order,status,created_at,updated_at) values (?,?,?,0,'ACTIVE',now(),now())",
 			    pair.getKey(), property, pair.getValue());
 		jdbc.update("update units set building_id=? where id=?", first, unit);
-		var setup = new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
-		    List.of(new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(first, "600000"),
-		        new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(second, "300000")));
+		var setup = new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
+		    List.of(new BankingBalanceRequests.OpeningPart(first, "600000"),
+		        new BankingBalanceRequests.OpeningPart(second, "300000")));
 		cashBalances.saveOpenings(user, property, setup);
 		cashBalances.saveOpenings(user, property, setup);
 		assertThat(count("building_cash_openings")).isEqualTo(2);
 		var file = csv(
 		    "거래일시,적요,출금액,입금액,잔액\n2026-10-15 08:00:00,김대표,0,50000,950000\n2026-10-15 09:00:00,07전기요금,182660,0,767340");
 		var preview = banking.preview(user, property, file);
-		var power = new com.moahome.server.banking.dto.BankingRequests.Expense("전기료", null, "RATIO", false,
-		    List.of(new com.moahome.server.banking.dto.BankingRequests.Allocation(first, null, null, "25"),
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(second, null, null, "25"),
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(null, "외부 101동", null, "50")));
+		var power = new BankingRequests.Expense("전기료", null, "RATIO", false,
+		    List.of(new BankingRequests.Allocation(first, null, null, "25"),
+		        new BankingRequests.Allocation(second, null, null, "25"),
+		        new BankingRequests.Allocation(null, "외부 101동", null, "50")));
 		banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(
-		        preview.rows().stream().map(r -> new com.moahome.server.banking.dto.BankingRequests.Selection(r.id(),
+		    new BankingRequests.Import(
+		        preview.rows().stream().map(r -> new BankingRequests.Selection(r.id(),
 		            null, null, null, r.direction().equals("EXPENSE") ? power : null)).toList()));
 		jdbc.update("update units set building_id=? where id=?", second, unit);
 		var before = cashBalances.workspace(user, property, "2026-10");
@@ -855,11 +906,11 @@ class PaymentPersistenceTest {
 		// 기준일 당일 지출은 기준 잔고에 포함됩니다. 이전 월은 이 거래를 되돌리고 미래 은행 잔고를 가져오지 않습니다.
 		var earlierFile = csv("거래일시,적요,출금액,입금액,잔액\n2026-09-30 10:00:00,청소,10000,0,900000");
 		var earlierPreview = banking.preview(user, property, earlierFile);
-		var earlierExpense = new com.moahome.server.banking.dto.BankingRequests.Expense("청소", null, "EQUAL", false,
-		    List.of(new com.moahome.server.banking.dto.BankingRequests.Allocation(first, null, null, null)));
+		var earlierExpense = new BankingRequests.Expense("청소", null, "EQUAL", false,
+		    List.of(new BankingRequests.Allocation(first, null, null, null)));
 		banking.upload(user, property, earlierFile,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(earlierPreview.rows().stream()
-		        .map(r -> new com.moahome.server.banking.dto.BankingRequests.Selection(r.id(), null, null, null,
+		    new BankingRequests.Import(earlierPreview.rows().stream()
+		        .map(r -> new BankingRequests.Selection(r.id(), null, null, null,
 		            earlierExpense))
 		        .toList()));
 		var september = cashBalances.workspace(user, property, "2026-09");
@@ -887,10 +938,10 @@ class PaymentPersistenceTest {
 		    .filter(p -> p.payer().equals("외부 전기료 반환")).findFirst().orElseThrow();
 		service.confirmOtherIncome(user, property, imported.id(), new PaymentRequests.OtherIncome("외부 부담금", null));
 		UUID external = before.externals().getFirst().id(), linkId = UUID.randomUUID();
-		var link = new com.moahome.server.banking.dto.BankingBalanceRequests.Settlement(linkId, external, imported.id(),
+		var link = new BankingBalanceRequests.Settlement(linkId, external, imported.id(),
 		    "30000");
 		// 입금 연결 없이도 외부 지급 건을 정산에서 제외하고 복원합니다. 통장·부담액·회수 이력은 바꾸지 않습니다.
-		var exclude = new com.moahome.server.banking.dto.BankingBalanceRequests.SettlementDecision(UUID.randomUUID(),
+		var exclude = new BankingBalanceRequests.SettlementDecision(UUID.randomUUID(),
 		    external, true, 0L);
 		List<Map<String, Object>> originalBank = jdbc.queryForList("select * from bank_transactions order by id");
 		List<Map<String, Object>> originalParts = jdbc.queryForList("select * from expense_allocations order by id");
@@ -909,14 +960,14 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> jdbc.update(
 		    "insert into external_settlement_links(id,property_id,allocation_id,payment_id,amount,created_by,created_at) values (?,?,?,?,1,?,now())",
 		    UUID.randomUUID(), property, external, imported.id(), user))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 		assertThatThrownBy(
 		    () -> cashBalances.decideSettlement(user, property,
-		        new com.moahome.server.banking.dto.BankingBalanceRequests.SettlementDecision(UUID.randomUUID(),
+		        new BankingBalanceRequests.SettlementDecision(UUID.randomUUID(),
 		            external, false, 0L)))
 		    .isInstanceOf(PaymentException.class).hasMessage("EXTERNAL_SETTLEMENT_DECISION_CONFLICT");
 		cashBalances.decideSettlement(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.SettlementDecision(UUID.randomUUID(), external,
+		    new BankingBalanceRequests.SettlementDecision(UUID.randomUUID(), external,
 		        false, 1L));
 		cashBalances.decideSettlement(user, property, exclude);
 		assertThat(cashBalances.workspace(user, property, "2026-10").externals().getFirst().excluded()).isFalse();
@@ -924,7 +975,7 @@ class PaymentPersistenceTest {
 		assertThat(jdbc.queryForList("select * from expense_allocations order by id")).isEqualTo(originalParts);
 		assertThatThrownBy(
 		    () -> jdbc.update("update external_settlement_decisions set excluded=false where id=?", exclude.id()))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 		assertThatThrownBy(() -> cashBalances.decideSettlement(user, UUID.randomUUID(), exclude))
 		    .isInstanceOf(AuthException.class);
 		cashBalances.settle(user, property, link);
@@ -933,30 +984,30 @@ class PaymentPersistenceTest {
 		assertThat(cashBalances.workspace(user, property, "2026-10").externals().getFirst().remaining())
 		    .isEqualTo("61330");
 		cashBalances.decideSettlement(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.SettlementDecision(UUID.randomUUID(), external,
+		    new BankingBalanceRequests.SettlementDecision(UUID.randomUUID(), external,
 		        true, 2L));
 		var partiallyRecovered = cashBalances.workspace(user, property, "2026-10").externals().getFirst();
 		assertThat(partiallyRecovered.excluded()).isTrue();
 		assertThat(partiallyRecovered.received()).isEqualTo("30000");
 		assertThat(partiallyRecovered.recoveries()).hasSize(1);
 		cashBalances.decideSettlement(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.SettlementDecision(UUID.randomUUID(), external,
+		    new BankingBalanceRequests.SettlementDecision(UUID.randomUUID(), external,
 		        false, 3L));
 
 		assertThatThrownBy(() -> cashBalances.settle(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.Settlement(UUID.randomUUID(), external,
+		    new BankingBalanceRequests.Settlement(UUID.randomUUID(), external,
 		        imported.id(), "15000")))
 		    .isInstanceOf(PaymentException.class);
-		cashBalances.settle(user, property, new com.moahome.server.banking.dto.BankingBalanceRequests.Settlement(
+		cashBalances.settle(user, property, new BankingBalanceRequests.Settlement(
 		    UUID.randomUUID(), external, imported.id(), "10000"));
 		assertThat(cashBalances.workspace(user, property, "2026-10").externals().getFirst().remaining())
 		    .isEqualTo("51330");
 		assertThatThrownBy(() -> jdbc.update(
 		    "insert into external_settlement_links(id,property_id,allocation_id,payment_id,amount,created_by,created_at) values (?,?,?,?,1,?,now())",
 		    UUID.randomUUID(), property, external, imported.id(), user))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 		assertThatThrownBy(() -> jdbc.update("update building_cash_openings set amount=0 where building_id=?", first))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 		service.cancel(user, property, imported.id(), "입금 분류 확인");
 		assertThat(cashBalances.workspace(user, property, "2026-10").externals().getFirst().remaining())
 		    .isEqualTo("91330");
@@ -977,26 +1028,26 @@ class PaymentPersistenceTest {
 		jdbc.update("update units set building_id=? where id=?", first, unit);
 		jdbc.update("update properties set balance_cutoff_date=date '2026-09-30' where id=?", property);
 		cashBalances.saveOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(LocalDate.of(2026, 10, 1),
-		        List.of(new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(first, "600000"),
-		            new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(second, "300000"))));
+		    new BankingBalanceRequests.Opening(LocalDate.of(2026, 10, 1),
+		        List.of(new BankingBalanceRequests.OpeningPart(first, "600000"),
+		            new BankingBalanceRequests.OpeningPart(second, "300000"))));
 		var file = csv(
 		    "거래일시,적요,출금액,입금액,잔액\n2026-10-15 08:00:00,김대표,0,50000,950000\n2026-10-15 09:00:00,청소,20000,0,930000");
 		var preview = banking.preview(user, property, file);
-		var cleaning = new com.moahome.server.banking.dto.BankingRequests.Expense("청소", null, "EQUAL", false,
-		    List.of(new com.moahome.server.banking.dto.BankingRequests.Allocation(first, null, null, null)));
+		var cleaning = new BankingRequests.Expense("청소", null, "EQUAL", false,
+		    List.of(new BankingRequests.Allocation(first, null, null, null)));
 		banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(preview.rows().stream()
-		        .map(r -> new com.moahome.server.banking.dto.BankingRequests.Selection(r.id(),
+		    new BankingRequests.Import(preview.rows().stream()
+		        .map(r -> new BankingRequests.Selection(r.id(),
 		            r.direction().equals("INCOME") ? unit : null, null, null,
 		            r.direction().equals("EXPENSE") ? cleaning : null))
 		        .toList()));
 		List<Map<String, Object>> originalBank = jdbc.queryForList("select * from bank_transactions order by id");
 		List<Map<String, Object>> originalPayments = jdbc.queryForList("select * from payments order by id");
 		List<BankingBalanceRequests.OpeningCorrectionPart> parts = List.of(
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningCorrectionPart(first, "500000", 0L),
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningCorrectionPart(second, "250000", 0L));
-		var request = new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
+		    new BankingBalanceRequests.OpeningCorrectionPart(first, "500000", 0L),
+		    new BankingBalanceRequests.OpeningCorrectionPart(second, "250000", 0L));
+		var request = new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
 		    LocalDate.of(2026, 6, 30), parts);
 		cashBalances.correctOpenings(user, property, request);
 		cashBalances.correctOpenings(user, property, request);
@@ -1015,22 +1066,22 @@ class PaymentPersistenceTest {
 		assertThat(jdbc.queryForList("select * from payments order by id")).isEqualTo(originalPayments);
 		assertThatThrownBy(
 		    () -> cashBalances.correctOpenings(user, property,
-		        new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
+		        new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
 		            request.cutoffDate(), parts)))
 		    .isInstanceOf(PaymentException.class).hasMessage("CASH_OPENING_CONFLICT");
 		assertThatThrownBy(() -> cashBalances.correctOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
+		    new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
 		        request.cutoffDate(), List.of(parts.getFirst()))))
 		    .isInstanceOf(PaymentException.class).hasMessage("INVALID_CASH_OPENING");
 		List<BankingBalanceRequests.OpeningCorrectionPart> next = List.of(
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningCorrectionPart(first, "510000", 1L),
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningCorrectionPart(second, "260000", 1L));
+		    new BankingBalanceRequests.OpeningCorrectionPart(first, "510000", 1L),
+		    new BankingBalanceRequests.OpeningCorrectionPart(second, "260000", 1L));
 		assertThatThrownBy(() -> cashBalances.correctOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
+		    new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
 		        LocalDate.of(2026, 10, 16), next)))
 		    .isInstanceOf(PaymentException.class).hasMessage("INVALID_CASH_OPENING_DATE");
 		cashBalances.correctOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
+		    new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
 		        request.cutoffDate(), next));
 		cashBalances.correctOpenings(user, property, request);
 		assertThat(cashBalances.workspace(user, property, "2026-10").buildings().stream()
@@ -1040,9 +1091,9 @@ class PaymentPersistenceTest {
 		    "select previous_cutoff_date from building_cash_opening_changes where building_id=? and previous_revision=0",
 		    LocalDate.class, first)).isEqualTo(LocalDate.of(2026, 10, 1));
 		assertThatThrownBy(() -> jdbc.update("update building_cash_openings set amount=0 where building_id=?", first))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 		assertThatThrownBy(() -> jdbc.update("delete from building_cash_opening_changes where building_id=?", first))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 	}
 
 	/** 과거 세대 연결 입금은 자동으로 동에 넣고 기존 스냅샷·기타 입금·은행 원본은 그대로 보존합니다. */
@@ -1057,13 +1108,13 @@ class PaymentPersistenceTest {
 		var file = csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 08:00:00,김대표,0,50000,950000");
 		var preview = banking.preview(user, property, file);
 		banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(preview.rows().stream()
-		        .map(r -> new com.moahome.server.banking.dto.BankingRequests.Selection(r.id(), unit, null, null, null))
+		    new BankingRequests.Import(preview.rows().stream()
+		        .map(r -> new BankingRequests.Selection(r.id(), unit, null, null, null))
 		        .toList()));
 		var payment = jdbc.queryForObject(
 		    "select id from payments where property_id=? and receipt_type='HOUSEHOLD' limit 1", UUID.class, property);
 		String schema = "automatic_cash_" + UUID.randomUUID().toString().replace("-", "");
-		var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).target("20261017105017").load();
 		previous.migrate();
 		for (String table : List.of("users", "properties", "buildings", "units", "bank_accounts", "residents",
@@ -1075,7 +1126,7 @@ class PaymentPersistenceTest {
 		List<Map<String, Object>> originalBank = jdbc
 		    .queryForList("select * from " + schema + ".bank_transactions order by id");
 		originalBank.forEach(row -> row.put("transfer_candidate", false));
-		var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).load();
 		upgraded.migrate();
 		upgraded.validate();
@@ -1104,7 +1155,7 @@ class PaymentPersistenceTest {
 	void appliedBankingMigrationKeepsChecksumAndUpgradesWithoutChangingTransactions() {
 		service.importFile(user, property, bank("원본보존", "50000"));
 		String schema = "banking_protection_" + UUID.randomUUID().toString().replace("-", "");
-		var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).target("20261017074932").load();
 		previous.migrate();
 		assertThat(previous.info().current().getChecksum()).isEqualTo(-1029174370);
@@ -1115,7 +1166,7 @@ class PaymentPersistenceTest {
 		    .queryForList("select * from " + schema + ".bank_transactions order by id");
 		originals.forEach(row -> row.put("transfer_candidate", false));
 		List<Map<String, Object>> receipts = jdbc.queryForList("select * from " + schema + ".payments order by id");
-		var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).load();
 		int pending = upgraded.info().pending().length;
 		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(pending);
@@ -1149,24 +1200,24 @@ class PaymentPersistenceTest {
 	void invalidExpenseRollsBackBothDirectionsAndRejectsOtherPropertyTarget() {
 		var file = csv("거래일시,적요,출금액,입금액\n2026-10-15 08:00:00,김대표,0,50000\n2026-10-15 09:00:00,전기요금,182660,0");
 		var preview = banking.preview(user, property, file);
-		var expense = new com.moahome.server.banking.dto.BankingRequests.Expense("전기료", null, "RATIO", false,
-		    List.of(new com.moahome.server.banking.dto.BankingRequests.Allocation(null, "102동", null, "25"),
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(null, "103동", null, "25")));
-		var selected = new com.moahome.server.banking.dto.BankingRequests.Import(List.of(
-		    new com.moahome.server.banking.dto.BankingRequests.Selection(preview.rows().get(0).id(), null, null, null,
+		var expense = new BankingRequests.Expense("전기료", null, "RATIO", false,
+		    List.of(new BankingRequests.Allocation(null, "102동", null, "25"),
+		        new BankingRequests.Allocation(null, "103동", null, "25")));
+		var selected = new BankingRequests.Import(List.of(
+		    new BankingRequests.Selection(preview.rows().get(0).id(), null, null, null,
 		        null),
-		    new com.moahome.server.banking.dto.BankingRequests.Selection(preview.rows().get(1).id(), null, null, null,
+		    new BankingRequests.Selection(preview.rows().get(1).id(), null, null, null,
 		        expense)));
 		assertThatThrownBy(() -> banking.upload(user, property, file, selected)).isInstanceOf(PaymentException.class);
 		assertThat(count("bank_transactions")).isZero();
 		assertThat(count("payments")).isZero();
 		assertThat(count("expenses")).isZero();
-		var foreignExpense = new com.moahome.server.banking.dto.BankingRequests.Expense("전기료", null, "EQUAL", false,
+		var foreignExpense = new BankingRequests.Expense("전기료", null, "EQUAL", false,
 		    List.of(
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(UUID.randomUUID(), null, null, null)));
+		        new BankingRequests.Allocation(UUID.randomUUID(), null, null, null)));
 		assertThatThrownBy(() -> banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(
-		        List.of(new com.moahome.server.banking.dto.BankingRequests.Selection(preview.rows().get(1).id(), null,
+		    new BankingRequests.Import(
+		        List.of(new BankingRequests.Selection(preview.rows().get(1).id(), null,
 		            null, null, foreignExpense)))))
 		    .isInstanceOfSatisfying(PaymentException.class,
 		        e -> assertThat(e.code()).isEqualTo("INVALID_EXPENSE_TARGET"));
@@ -1178,8 +1229,8 @@ class PaymentPersistenceTest {
 		var file = csv(
 		    "거래일시,적요,출금액,입금액,잔액\n2026-10-15 09:00:00,환불거래,30000,0,100000\n2026-10-15 09:00:35,환불거래,0,30000,130000\n2026-10-15 10:00:00,김대표,0,60000,190000");
 		var preview = banking.preview(user, property, file);
-		var selected = new com.moahome.server.banking.dto.BankingRequests.Import(
-		    preview.rows().stream().map(r -> new com.moahome.server.banking.dto.BankingRequests.Selection(r.id(), null,
+		var selected = new BankingRequests.Import(
+		    preview.rows().stream().map(r -> new BankingRequests.Selection(r.id(), null,
 		        "김대표".equals(r.payer()) ? "수리비" : null, null, null)).toList());
 		var saved = banking.upload(user, property, file, selected);
 		assertThat(saved.rows()).hasSize(3);
@@ -1203,16 +1254,16 @@ class PaymentPersistenceTest {
 			    "insert into buildings(id,property_id,name,sort_order,status,created_at,updated_at) values (?,?,?,0,'ACTIVE',now(),now())",
 			    pair.getKey(), property, pair.getValue());
 		cashBalances.saveOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
-		        List.of(new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(first, "10000"),
-		            new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(second, "20000"))));
+		    new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
+		        List.of(new BankingBalanceRequests.OpeningPart(first, "10000"),
+		            new BankingBalanceRequests.OpeningPart(second, "20000"))));
 		var file = csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 08:00:00,예금이자,0,1000,31000");
 		var preview = banking.preview(user, property, file);
-		var split = new com.moahome.server.banking.dto.BankingRequests.Expense("예금이자", null, "EQUAL", false,
-		    List.of(new com.moahome.server.banking.dto.BankingRequests.Allocation(first, null, null, null),
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(second, null, null, null)));
-		var input = new com.moahome.server.banking.dto.BankingRequests.Import(
-		    List.of(new com.moahome.server.banking.dto.BankingRequests.Selection(preview.rows().getFirst().id(), null,
+		var split = new BankingRequests.Expense("예금이자", null, "EQUAL", false,
+		    List.of(new BankingRequests.Allocation(first, null, null, null),
+		        new BankingRequests.Allocation(second, null, null, null)));
+		var input = new BankingRequests.Import(
+		    List.of(new BankingRequests.Selection(preview.rows().getFirst().id(), null,
 		        "예금이자", null, null, split)));
 		var saved = banking.upload(user, property, file, input);
 		var original = saved.rows().getFirst();
@@ -1230,20 +1281,20 @@ class PaymentPersistenceTest {
 		assertThat(service.workspace(user, property).payments().getFirst().allocations()).isEmpty();
 		assertThatThrownBy(
 		    () -> jdbc.update("update income_allocations set amount=1 where payment_id=?", original.paymentId()))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
-		var changed = new com.moahome.server.banking.dto.BankingRequests.Expense("예금이자", null, "RATIO", false,
-		    List.of(new com.moahome.server.banking.dto.BankingRequests.Allocation(first, null, null, "25"),
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(second, null, null, "75")));
+		    .isInstanceOf(DataAccessException.class);
+		var changed = new BankingRequests.Expense("예금이자", null, "RATIO", false,
+		    List.of(new BankingRequests.Allocation(first, null, null, "25"),
+		        new BankingRequests.Allocation(second, null, null, "75")));
 		assertThatThrownBy(() -> banking.confirmIncomeAllocation(user, property, original.id(), changed))
 		    .isInstanceOf(PaymentException.class);
 		banking.deleteMany(user, property,
-		    new com.moahome.server.banking.dto.BankingRequests.DeleteMany(List.of(original.id())));
+		    new BankingRequests.DeleteMany(List.of(original.id())));
 		assertThat(cashBalances.workspace(user, property, "2026-10").buildings()).extracting(b -> b.income())
 		    .containsOnly("0");
 		assertThat(cashBalances.workspace(user, property, "2026-10").entries()).isEmpty();
 		assertThat(count("income_allocations")).isEqualTo(2);
-		var ratioInput = new com.moahome.server.banking.dto.BankingRequests.Import(
-		    List.of(new com.moahome.server.banking.dto.BankingRequests.Selection(preview.rows().getFirst().id(), null,
+		var ratioInput = new BankingRequests.Import(
+		    List.of(new BankingRequests.Selection(preview.rows().getFirst().id(), null,
 		        "예금이자", null, null, changed)));
 		var again = banking.upload(user, property, file, ratioInput).rows().getFirst();
 		assertThat(again.id()).isNotEqualTo(original.id());
@@ -1264,18 +1315,18 @@ class PaymentPersistenceTest {
 			    "insert into buildings(id,property_id,name,sort_order,status,created_at,updated_at) values (?,?,?,0,'ACTIVE',now(),now())",
 			    pair.getKey(), property, pair.getValue());
 		cashBalances.saveOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
-		        List.of(new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(first, "500000"),
-		            new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(second, "500000"))));
+		    new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
+		        List.of(new BankingBalanceRequests.OpeningPart(first, "500000"),
+		            new BankingBalanceRequests.OpeningPart(second, "500000"))));
 		var file = csv("거래일시,적요,출금액,입금액\n2026-10-12 10:00:00,전기료,182690,0");
 		var preview = banking.preview(user, property, file);
-		var expense = new com.moahome.server.banking.dto.BankingRequests.Expense("전기료", null, "AMOUNT", false,
-		    List.of(new com.moahome.server.banking.dto.BankingRequests.Allocation(first, null, "45672", null),
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(second, null, "45673", null),
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(null, "외부 101동", "91345", null)));
+		var expense = new BankingRequests.Expense("전기료", null, "AMOUNT", false,
+		    List.of(new BankingRequests.Allocation(first, null, "45672", null),
+		        new BankingRequests.Allocation(second, null, "45673", null),
+		        new BankingRequests.Allocation(null, "외부 101동", "91345", null)));
 		var saved = banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(
-		        List.of(new com.moahome.server.banking.dto.BankingRequests.Selection(preview.rows().getFirst().id(),
+		    new BankingRequests.Import(
+		        List.of(new BankingRequests.Selection(preview.rows().getFirst().id(),
 		            null, null, null, expense))));
 		var before = cashBalances.workspace(user, property, "2026-10");
 		var external = before.externals().getFirst();
@@ -1283,7 +1334,7 @@ class PaymentPersistenceTest {
 		assertThat(external.transactionAmount()).isEqualTo("182690");
 		assertThat(external.amount()).isEqualTo("91345");
 		assertThat(before.buildings()).extracting(b -> b.expense()).containsExactlyInAnyOrder("45672", "45673");
-		var request = new com.moahome.server.banking.dto.BankingRequests.DeleteMany(List.of(external.transactionId()));
+		var request = new BankingRequests.DeleteMany(List.of(external.transactionId()));
 		banking.deleteMany(user, property, request);
 		banking.deleteMany(user, property, request);
 		var after = cashBalances.workspace(user, property, "2026-10");
@@ -1304,17 +1355,17 @@ class PaymentPersistenceTest {
 			    "insert into buildings(id,property_id,name,sort_order,status,created_at,updated_at) values (?,?,?,0,'ACTIVE',now(),now())",
 			    pair.getKey(), property, pair.getValue());
 		cashBalances.saveOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
-		        List.of(new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(first, "0"),
-		            new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(second, "0"))));
+		    new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
+		        List.of(new BankingBalanceRequests.OpeningPart(first, "0"),
+		            new BankingBalanceRequests.OpeningPart(second, "0"))));
 		var file = csv(
 		    "거래일시,적요,출금액,입금액\n2026-10-15 08:00:00,이자,0,1000\n2026-10-15 09:00:00,외부회수,0,500\n2026-10-15 10:00:00,전기료,1000,0");
 		var preview = banking.preview(user, property, file);
-		var external = new com.moahome.server.banking.dto.BankingRequests.Expense("전기료", null, "EQUAL", false,
-		    List.of(new com.moahome.server.banking.dto.BankingRequests.Allocation(null, "외부 101동", null, null)));
+		var external = new BankingRequests.Expense("전기료", null, "EQUAL", false,
+		    List.of(new BankingRequests.Allocation(null, "외부 101동", null, null)));
 		var saved = banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(preview.rows().stream()
-		        .map(r -> new com.moahome.server.banking.dto.BankingRequests.Selection(r.id(), null,
+		    new BankingRequests.Import(preview.rows().stream()
+		        .map(r -> new BankingRequests.Selection(r.id(), null,
 		            "INCOME".equals(r.direction()) ? r.payer() : null, null,
 		            "EXPENSE".equals(r.direction()) ? external : null))
 		        .toList()));
@@ -1322,29 +1373,29 @@ class PaymentPersistenceTest {
 		var recovery = saved.rows().stream().filter(r -> r.payer().equals("외부회수")).findFirst().orElseThrow();
 		var power = saved.rows().stream().filter(r -> r.payer().equals("전기료")).findFirst().orElseThrow();
 		List<BankingRequests.Allocation> shares = List.of(
-		    new com.moahome.server.banking.dto.BankingRequests.Allocation(first, null, null, null),
-		    new com.moahome.server.banking.dto.BankingRequests.Allocation(second, null, null, null));
+		    new BankingRequests.Allocation(first, null, null, null),
+		    new BankingRequests.Allocation(second, null, null, null));
 		banking.confirmIncomeAllocation(user, property, interest.id(),
-		    new com.moahome.server.banking.dto.BankingRequests.Expense("이자", null, "EQUAL", false, shares));
+		    new BankingRequests.Expense("이자", null, "EQUAL", false, shares));
 		var target = cashBalances.workspace(user, property, "2026-10").externals().getFirst().id();
 		assertThatThrownBy(() -> cashBalances.settle(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.Settlement(UUID.randomUUID(), target,
+		    new BankingBalanceRequests.Settlement(UUID.randomUUID(), target,
 		        interest.paymentId(), "100")))
 		    .isInstanceOf(PaymentException.class);
 		assertThatThrownBy(() -> jdbc.update(
 		    "insert into external_settlement_links(id,property_id,allocation_id,payment_id,amount,created_by,created_at) values (?,?,?,?,100,?,now())",
 		    UUID.randomUUID(), property, target, interest.paymentId(), user))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
-		cashBalances.settle(user, property, new com.moahome.server.banking.dto.BankingBalanceRequests.Settlement(
+		    .isInstanceOf(DataAccessException.class);
+		cashBalances.settle(user, property, new BankingBalanceRequests.Settlement(
 		    UUID.randomUUID(), target, recovery.paymentId(), "100"));
 		assertThatThrownBy(() -> banking.confirmIncomeAllocation(user, property, recovery.id(),
-		    new com.moahome.server.banking.dto.BankingRequests.Expense("외부회수", null, "EQUAL", false, shares)))
+		    new BankingRequests.Expense("외부회수", null, "EQUAL", false, shares)))
 		    .isInstanceOfSatisfying(PaymentException.class,
 		        e -> assertThat(e.code()).isEqualTo("INCOME_ALREADY_SETTLED"));
 		assertThat(cashBalances.workspace(user, property, "2026-10").incomes()).singleElement()
 		    .satisfies(r -> assertThat(r.available()).isEqualTo("400"));
 		banking.deleteMany(user, property,
-		    new com.moahome.server.banking.dto.BankingRequests.DeleteMany(List.of(power.id())));
+		    new BankingRequests.DeleteMany(List.of(power.id())));
 		var after = cashBalances.workspace(user, property, "2026-10");
 		assertThat(after.externals()).isEmpty();
 		assertThat(after.incomes()).singleElement().satisfies(r -> assertThat(r.available()).isEqualTo("500"));
@@ -1361,12 +1412,12 @@ class PaymentPersistenceTest {
 			    pair.getKey(), property, pair.getValue());
 		var file = csv("거래일시,적요,출금액,입금액\n2026-10-15 08:00:00,예금이자,0,1001");
 		var preview = banking.preview(user, property, file);
-		var split = new com.moahome.server.banking.dto.BankingRequests.Expense("이자", null, "EQUAL", false,
-		    List.of(new com.moahome.server.banking.dto.BankingRequests.Allocation(first, null, null, null),
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(second, null, null, null)));
+		var split = new BankingRequests.Expense("이자", null, "EQUAL", false,
+		    List.of(new BankingRequests.Allocation(first, null, null, null),
+		        new BankingRequests.Allocation(second, null, null, null)));
 		assertThatThrownBy(() -> banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(
-		        List.of(new com.moahome.server.banking.dto.BankingRequests.Selection(preview.rows().getFirst().id(),
+		    new BankingRequests.Import(
+		        List.of(new BankingRequests.Selection(preview.rows().getFirst().id(),
 		            null, "이자", null, null, split)))))
 		    .isInstanceOfSatisfying(PaymentException.class,
 		        e -> assertThat(e.code()).isEqualTo("ALLOCATION_REMAINDER_REQUIRED"));
@@ -1383,16 +1434,16 @@ class PaymentPersistenceTest {
 		var file = csv(
 		    "거래일시,적요,출금액,입금액,잔액\n2026-10-15 08:00:00,김대표,0,50000,50000\n2026-10-15 09:00:00,청소,20000,0,30000");
 		var preview = banking.preview(user, property, file);
-		var expense = new com.moahome.server.banking.dto.BankingRequests.Expense("청소", null, "EQUAL", false,
-		    List.of(new com.moahome.server.banking.dto.BankingRequests.Allocation(null, "외부", null, null)));
-		var selection = new com.moahome.server.banking.dto.BankingRequests.Import(
-		    preview.rows().stream().map(r -> new com.moahome.server.banking.dto.BankingRequests.Selection(r.id(), null,
+		var expense = new BankingRequests.Expense("청소", null, "EQUAL", false,
+		    List.of(new BankingRequests.Allocation(null, "외부", null, null)));
+		var selection = new BankingRequests.Import(
+		    preview.rows().stream().map(r -> new BankingRequests.Selection(r.id(), null,
 		        null, null, "EXPENSE".equals(r.direction()) ? expense : null)).toList());
 		var saved = banking.upload(user, property, file, selection);
 		List<UUID> ids = saved.rows().stream().map(r -> r.id()).toList();
-		var remove = new com.moahome.server.banking.dto.BankingRequests.DeleteMany(ids);
+		var remove = new BankingRequests.DeleteMany(ids);
 		assertThatThrownBy(() -> banking.deleteMany(user, property,
-		    new com.moahome.server.banking.dto.BankingRequests.DeleteMany(List.of(ids.getFirst(), UUID.randomUUID()))))
+		    new BankingRequests.DeleteMany(List.of(ids.getFirst(), UUID.randomUUID()))))
 		    .isInstanceOf(PaymentException.class);
 		assertThat(banking.workspace(user, property).rows()).hasSize(2);
 		assertThat(banking.deleteMany(user, property, remove).rows()).isEmpty();
@@ -1414,7 +1465,7 @@ class PaymentPersistenceTest {
 		assertThat(count("bank_transactions")).isEqualTo(4);
 		assertThat(count("expenses")).isEqualTo(2);
 		assertThatThrownBy(() -> jdbc.update("update bank_transactions set deleted_at=null,deleted_by=null where id=?",
-		    ids.getFirst())).isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    ids.getFirst())).isInstanceOf(DataAccessException.class);
 		assertThatThrownBy(
 		    () -> banking.deleteMany(users.saveAndFlush(User.create("다른관리자", null)).getId(), property, remove))
 		    .isInstanceOf(AuthException.class);
@@ -1440,7 +1491,7 @@ class PaymentPersistenceTest {
 		assertThat(ledger.charges()).filteredOn(c -> "MONTHLY".equals(c.chargeType())).hasSize(4);
 		assertThat(ledger.charges()).filteredOn(c -> "OPENING_RECEIVABLE".equals(c.chargeType())).hasSize(1);
 		assertThat(jdbc.queryForObject("select sum(amount) from credit_applications where property_id=?",
-		    java.math.BigDecimal.class, property)).isEqualByComparingTo("80000");
+		    BigDecimal.class, property)).isEqualByComparingTo("80000");
 		assertThat(opening.workspace(user, property).accounts().getFirst().amount()).isEqualTo("2000000");
 		assertThat(jdbc.queryForObject(
 		    "select responsibility_encrypted from opening_balance_items where property_id=? and unit_id=?",
@@ -1502,7 +1553,7 @@ class PaymentPersistenceTest {
 		confirmHandover(draft);
 		var confirmed = opening.workspace(user, property);
 		opening.cancel(user, property, confirmed.batch().id(),
-		    new com.moahome.server.billing.dto.OpeningBalanceRequest.Cancel(confirmed.batch().revision(), "인계 금액 확인"));
+		    new OpeningBalanceRequest.Cancel(confirmed.batch().revision(), "인계 금액 확인"));
 		assertThat(opening.workspace(user, property).batch()).isNull();
 		var next = draftHandover(LocalDate.of(2026, 9, 30), "2026-10");
 		confirmHandover(next);
@@ -1515,7 +1566,7 @@ class PaymentPersistenceTest {
 		service.confirm(user, property, id, new PaymentRequests.Confirm(unit, null, null));
 		var latest = opening.workspace(user, property).batch();
 		assertThatThrownBy(() -> opening.cancel(user, property, latest.id(),
-		    new com.moahome.server.billing.dto.OpeningBalanceRequest.Cancel(latest.revision(), "재정정")))
+		    new OpeningBalanceRequest.Cancel(latest.revision(), "재정정")))
 		    .isInstanceOfSatisfying(PaymentException.class,
 		        e -> assertThat(e.code()).isEqualTo("OPENING_ALREADY_HAS_RECEIPTS"));
 	}
@@ -1553,17 +1604,17 @@ class PaymentPersistenceTest {
 		    property);
 		UUID joining = users.saveAndFlush(User.create("가입계정", null)).getId();
 		var application = signupRequests.request(joining, property,
-		    new com.moahome.server.membership.dto.SignupRequests.Create(unit, "신청 주민", "01012345678",
+		    new SignupRequests.Create(unit, "신청 주민", "01012345678",
 		        sharedCode(property, user)));
 		assertThat(jdbc.queryForObject("select user_id from residents where id=?", UUID.class, residentId)).isNull();
 		assertThatThrownBy(() -> memberManagement.workspace(joining, property)).isInstanceOf(AuthException.class);
 		var pending = signupRequests.workspace(user, property).requests().getFirst();
 		signupRequests.approve(user, property, application.id(),
-		    new com.moahome.server.membership.dto.SignupRequests.Approve(residentId, pending.updatedAt()));
+		    new SignupRequests.Approve(residentId, pending.updatedAt()));
 		memberManagement.changeResidentRole(user, property, residentId,
-		    new com.moahome.server.membership.dto.MemberRequests.Role(
-		        com.moahome.server.membership.domain.PropertyMemberRole.MANAGER,
-		        com.moahome.server.membership.domain.PropertyMemberRole.RESIDENT));
+		    new MemberRequests.Role(
+		        PropertyMemberRole.MANAGER,
+		        PropertyMemberRole.RESIDENT));
 		var row = service.workspace(user, property).units().stream().filter(u -> u.id().equals(unit)).findFirst()
 		    .orElseThrow();
 		assertThat(row.representativeId()).isEqualTo(residentId);
@@ -1571,9 +1622,9 @@ class PaymentPersistenceTest {
 		    String.class, property, joining)).isEqualTo("MANAGER");
 		assertThat(memberManagement.workspace(joining, property).propertyId()).isEqualTo(property);
 		memberManagement.changeResidentRole(user, property, residentId,
-		    new com.moahome.server.membership.dto.MemberRequests.Role(
-		        com.moahome.server.membership.domain.PropertyMemberRole.RESIDENT,
-		        com.moahome.server.membership.domain.PropertyMemberRole.MANAGER));
+		    new MemberRequests.Role(
+		        PropertyMemberRole.RESIDENT,
+		        PropertyMemberRole.MANAGER));
 		assertThat(
 		    jdbc.queryForObject("select count(*) from member_role_events where property_id=?", Long.class, property))
 		    .isEqualTo(3);
@@ -1586,22 +1637,22 @@ class PaymentPersistenceTest {
 		    property);
 		UUID joining = users.saveAndFlush(User.create("가입 계정", null)).getId();
 		var created = signupRequests.request(joining, property,
-		    new com.moahome.server.membership.dto.SignupRequests.Create(unit, "신청 주민", "01012345678",
+		    new SignupRequests.Create(unit, "신청 주민", "01012345678",
 		        sharedCode(property, user)));
 		var pending = signupRequests.workspace(user, property).requests().getFirst();
 		signupRequests.approve(user, property, created.id(),
-		    new com.moahome.server.membership.dto.SignupRequests.Approve(residentId, pending.updatedAt()));
+		    new SignupRequests.Approve(residentId, pending.updatedAt()));
 		var detail = residentManagement.detail(user, property, residentId);
-		var invalid = new com.moahome.server.resident.dto.ResidentUpdateRequest("이".repeat(51), unit, "OTHER", "KEEP",
-		    null, null, detail.updatedAt(), com.moahome.server.membership.domain.PropertyMemberRole.MANAGER,
-		    com.moahome.server.membership.domain.PropertyMemberRole.RESIDENT);
+		var invalid = new ResidentUpdateRequest("이".repeat(51), unit, "OTHER", "KEEP",
+		    null, null, detail.updatedAt(), PropertyMemberRole.MANAGER,
+		    PropertyMemberRole.RESIDENT);
 		assertThatThrownBy(() -> residentManagement.update(user, property, residentId, invalid))
 		    .isInstanceOf(IllegalArgumentException.class);
 		assertThat(jdbc.queryForObject("select role from property_members where property_id=? and user_id=?",
 		    String.class, property, joining)).isEqualTo("RESIDENT");
-		var valid = new com.moahome.server.resident.dto.ResidentUpdateRequest("김대표", unit, "OTHER", "KEEP", null, null,
-		    detail.updatedAt(), com.moahome.server.membership.domain.PropertyMemberRole.MANAGER,
-		    com.moahome.server.membership.domain.PropertyMemberRole.RESIDENT);
+		var valid = new ResidentUpdateRequest("김대표", unit, "OTHER", "KEEP", null, null,
+		    detail.updatedAt(), PropertyMemberRole.MANAGER,
+		    PropertyMemberRole.RESIDENT);
 		assertThat(residentManagement.update(user, property, residentId, valid).serviceRole()).isEqualTo("MANAGER");
 		assertThat(
 		    jdbc.queryForObject("select count(*) from member_role_events where property_id=?", Long.class, property))
@@ -1629,7 +1680,7 @@ class PaymentPersistenceTest {
 		UUID member = jdbc.queryForObject("select id from property_members where property_id=? and user_id=?",
 		    UUID.class, property, joining);
 		memberManagement.transfer(user, property, member,
-		    com.moahome.server.membership.domain.PropertyMemberRole.MANAGER);
+		    PropertyMemberRole.MANAGER);
 		assertThat(jdbc.queryForObject("select role from property_members where property_id=? and user_id=?",
 		    String.class, property, user)).isEqualTo("MANAGER");
 		assertThat(jdbc.queryForObject(
@@ -1769,7 +1820,7 @@ class PaymentPersistenceTest {
 		jdbc.execute(
 		    "create trigger payment_event_failure before insert on payment_events for each row execute function fail_payment_event()");
 		assertThatThrownBy(() -> service.confirmOtherIncome(user, property, original.id(), request))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 		var unchanged = service.workspace(user, property).payments().stream().filter(p -> p.id().equals(original.id()))
 		    .findFirst().orElseThrow();
 		assertThat(unchanged.status()).isEqualTo("PENDING");
@@ -1784,13 +1835,13 @@ class PaymentPersistenceTest {
 		var original = service.importFile(user, property, bank("외부입금자", "50000")).payments().getFirst();
 		service.confirmOtherIncome(user, property, original.id(), new PaymentRequests.OtherIncome("기타", null));
 		assertThatThrownBy(() -> jdbc.update("update payments set matched_unit_id=? where id=?", unit, original.id()))
-		    .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+		    .isInstanceOf(DataIntegrityViolationException.class);
 		assertThatThrownBy(() -> new TransactionTemplate(transactionManager).execute(status -> {
 			jdbc.update(
 			    "insert into payment_allocations(id,property_id,payment_id,charge_id,allocated_amount,status,allocated_by,allocated_at) values (?,?,?,?,100,'ACTIVE',?,now())",
 			    UUID.randomUUID(), property, original.id(), charge, user);
 			return null;
-		})).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+		})).isInstanceOf(DataIntegrityViolationException.class);
 		assertThat(count("payment_allocations")).isZero();
 	}
 
@@ -1801,16 +1852,16 @@ class PaymentPersistenceTest {
 		var original = jdbc.queryForMap("select * from charges where id=?", charge);
 		var allocated = jdbc.queryForList("select * from payment_allocations order by id");
 		var settings = billingSettings.settings(user, property);
-		var mode = com.moahome.server.billing.domain.BillingMode.ALL;
-		var request = new com.moahome.server.billing.dto.BillingSettingsRequest(settings.revisionId(), "2026-11", "긴급 수선",
-		    List.of(new com.moahome.server.billing.dto.BillingSettingsRequest.Item(null, "기본", 50000L)), mode, List.of(), mode,
-		    List.of(new com.moahome.server.billing.dto.BillingSettingsRequest.TemporaryItem(null, null, "수선", 100000L, null, "2026-10")), "2026-11", UUID.randomUUID());
+		var mode = BillingMode.ALL;
+		var request = new BillingSettingsRequest(settings.revisionId(), "2026-11", "긴급 수선",
+		    List.of(new BillingSettingsRequest.Item(null, "기본", 50000L)), mode, List.of(), mode,
+		    List.of(new BillingSettingsRequest.TemporaryItem(null, null, "수선", 100000L, null, "2026-10")), "2026-11", UUID.randomUUID());
 		billingSettings.saveSettings(user, property, request);
 		assertThat(jdbc.queryForMap("select * from charges where id=?", charge)).isEqualTo(original);
 		assertThat(jdbc.queryForList("select * from payment_allocations order by id")).isEqualTo(allocated);
 		var ledger = service.workspace(user, property);
-		assertThat(ledger.charges().stream().filter(row -> row.unitId().equals(unit)).map(row -> new java.math.BigDecimal(row.amount()))
-		    .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)).isEqualByComparingTo("150000");
+		assertThat(ledger.charges().stream().filter(row -> row.unitId().equals(unit)).map(row -> new BigDecimal(row.amount()))
+		    .reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo("150000");
 		assertThat(jdbc.queryForObject("select coalesce(sum(allocated_amount),0)::text from payment_allocations where status='ACTIVE'", String.class)).isEqualTo("50000");
 		billingSettings.saveSettings(user, property, request);
 		assertThat(jdbc.queryForObject("select count(*) from billing_additions", Long.class)).isEqualTo(1L);
@@ -1861,8 +1912,8 @@ class PaymentPersistenceTest {
 
 	@Test
 	void bankXlsPreviewImportConfirmationAndReuploadReuseOneReceipt() throws Exception {
-		try (var workbook = new org.apache.poi.hssf.usermodel.HSSFWorkbook();
-		    var bytes = new java.io.ByteArrayOutputStream()) {
+		try (var workbook = new HSSFWorkbook();
+		    var bytes = new ByteArrayOutputStream()) {
 			var sheet = workbook.createSheet("거래내역조회");
 			sheet.createRow(0).createCell(0).setCellValue("거래내역조회");
 			var header = sheet.createRow(5);
@@ -1982,7 +2033,7 @@ class PaymentPersistenceTest {
 		service.importFile(user, property, file);
 		assertThat(count("payments")).isEqualTo(2);
 		clock.set(Instant.parse("2026-11-01T00:00:00Z"));
-		assertThat(billing.generate(property, java.time.YearMonth.of(2026, 11))).isTrue();
+		assertThat(billing.generate(property, YearMonth.of(2026, 11))).isTrue();
 		assertThat(jdbc.queryForObject(
 		    "select sum(allocated_amount)::text from payment_allocations where status='ACTIVE'", String.class))
 		    .isEqualTo("100000");
@@ -2010,7 +2061,7 @@ class PaymentPersistenceTest {
 		service.importFile(user, property, file);
 		assertThat(count("payments")).isEqualTo(2);
 		clock.set(Instant.parse("2026-11-01T00:00:00Z"));
-		billing.generate(property, java.time.YearMonth.of(2026, 11));
+		billing.generate(property, YearMonth.of(2026, 11));
 		assertThat(jdbc.queryForObject(
 		    "select sum(allocated_amount)::text from payment_allocations where status='ACTIVE'", String.class))
 		    .isEqualTo("100000");
@@ -2254,7 +2305,7 @@ class PaymentPersistenceTest {
 		var deleted = imported.payments().stream().filter(p -> p.payer().equals("삭제할입금")).findFirst().orElseThrow();
 		service.delete(user, property, deleted.id());
 		String schema = "bank_reimport_" + UUID.randomUUID().toString().replace("-", "");
-		var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).target("20261016120311").load();
 		previous.migrate();
 		for (String table : List.of("users", "properties", "buildings", "units", "bank_accounts", "residents",
@@ -2265,7 +2316,7 @@ class PaymentPersistenceTest {
 			jdbc.execute("insert into " + schema + "." + table + "(" + columns + ") select " + columns + " from public."
 			    + table);
 		}
-		var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).load();
 		int pendingMigrations = upgraded.info().pending().length;
 		assertThat(pendingMigrations).isPositive();
@@ -2285,7 +2336,7 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> jdbc
 		    .execute("insert into " + schema + ".bank_transactions(id," + columns + ") select gen_random_uuid(),"
 		        + columns + " from " + schema + ".bank_transactions where deleted_at is not null"))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 		jdbc.execute("drop schema " + schema + " cascade");
 	}
 
@@ -2293,7 +2344,7 @@ class PaymentPersistenceTest {
 	@Test
 	void residentInvitationUpgradePreservesApprovedHistoryAndAppliedChecksums() {
 		String schema = "resident_invitation_upgrade_" + UUID.randomUUID().toString().replace("-", "");
-		var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).target("20261017010845").load();
 		previous.migrate();
 		for (String table : List.of("users", "properties", "buildings", "units", "residents"))
@@ -2315,7 +2366,7 @@ class PaymentPersistenceTest {
 		assertThat(jdbc.queryForObject(
 		    "select checksum from " + schema + ".flyway_schema_history where version='20261017010845'", Integer.class))
 		    .isEqualTo(1109723267);
-		var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).load();
 		int pendingMigrations = upgraded.info().pending().length;
 		assertThat(pendingMigrations).isPositive();
@@ -2332,7 +2383,7 @@ class PaymentPersistenceTest {
 		        "update " + schema
 		            + ".member_invitations set status='REQUESTED',reviewed_by=null,reviewed_at=null where id=?",
 		        pending))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 		jdbc.execute("drop schema " + schema + " cascade");
 	}
 
@@ -2352,9 +2403,9 @@ class PaymentPersistenceTest {
 		service.confirm(user, property, id, confirm("50000"));
 		assertThatThrownBy(
 		    () -> billing.cancelCurrentMonthUnits(user, property, List.of(unit), OffsetDateTime.now(clock)))
-		    .isInstanceOf(com.moahome.server.billing.exception.BillingException.class);
+		    .isInstanceOf(BillingException.class);
 		assertThatThrownBy(() -> jdbc.update("update charges set status='EXCLUDED_VACANT' where id=?", charge))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 	}
 
 	@Test
@@ -2390,7 +2441,7 @@ class PaymentPersistenceTest {
 	@Test
 	void upgradeKeepsExistingResidentsAccountsAndBillsWithoutCreatingSampleReceipts() {
 		String schema = "payment_upgrade_" + UUID.randomUUID().toString().replace("-", "");
-		var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).target("20261012063902").load();
 		previous.migrate();
 		for (String table : List.of("users", "properties", "buildings", "units", "bank_accounts", "residents",
@@ -2398,7 +2449,7 @@ class PaymentPersistenceTest {
 			copyPreviousTable(schema, table);
 		List<Map<String, Object>> before = jdbc.queryForList("select * from " + schema + ".charges order by id");
 		before.forEach(row -> { row.put("charge_type", "MONTHLY"); row.put("billing_addition_id", null); });
-		var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).load();
 		int pendingMigrations = upgraded.info().pending().length;
 		assertThat(pendingMigrations).isPositive();
@@ -2417,7 +2468,7 @@ class PaymentPersistenceTest {
 		service.confirm(user, property, id, confirm("50000"));
 		service.importFile(user, property, bank("이대표", "25000"));
 		String schema = "applied_payment_" + UUID.randomUUID().toString().replace("-", "");
-		var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).target("20261015231910").load();
 		previous.migrate();
 		assertThat(previous.info().current().getChecksum()).isEqualTo(940038749);
@@ -2453,7 +2504,7 @@ class PaymentPersistenceTest {
 		List<Map<String, Object>> originals = jdbc
 		    .queryForList("select id,amount,payer_name_encrypted,deduplication_key from " + schema
 		        + ".bank_transactions order by id");
-		var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).load();
 		int pendingMigrations = upgraded.info().pending().length;
 		assertThat(pendingMigrations).isPositive();
@@ -2478,7 +2529,7 @@ class PaymentPersistenceTest {
 		    String.class, schema)).hasSize(2).allMatch(config -> config.contains(schema));
 		assertThatThrownBy(
 		    () -> jdbc.update("update " + schema + ".charges set status='EXCLUDED_VACANT' where id=?", charge))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 		jdbc.execute("drop schema " + schema + " cascade");
 	}
 
@@ -2509,9 +2560,9 @@ class PaymentPersistenceTest {
 		assertThat(banking.manualExpense(user, property, request).rows().getFirst().expense().allocations())
 		    .extracting(a -> a.label()).contains("102동");
 		assertThatThrownBy(() -> jdbc.update("update expenses set total_amount=1 where id=?", request.id()))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 		assertThatThrownBy(() -> jdbc.update("delete from expense_allocations where expense_id=?", request.id()))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 	}
 
 	/** 과거 수동 출금은 기준일 이전도 등록하고 해당 월에 표시하며 기준 잔고 앞의 잔액은 역산합니다. */
@@ -2574,7 +2625,7 @@ class PaymentPersistenceTest {
 		    "create trigger fail_manual_part before insert on expense_allocations for each row execute function fail_manual_expense_part()");
 		try {
 			assertThatThrownBy(() -> banking.manualExpense(user, property, request))
-			    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+			    .isInstanceOf(DataAccessException.class);
 			assertThat(count("expenses")).isZero();
 		} finally {
 			jdbc.execute("drop function fail_manual_expense_part() cascade");
@@ -2621,7 +2672,7 @@ class PaymentPersistenceTest {
 		        null, new BankingRequests.Expense("청소비", null, "EQUAL", false,
 		            targets.stream().map(id -> new BankingRequests.Allocation(id, null, null, null)).toList())))));
 		String schema = "manual_expense_" + UUID.randomUUID().toString().replace("-", "");
-		var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).target("20261018062533").load();
 		previous.migrate();
 		try {
@@ -2635,7 +2686,7 @@ class PaymentPersistenceTest {
 			    .queryForList("select id,property_id,bank_transaction_id,category_encrypted,total_amount from " + schema
 			        + ".expenses order by id");
 			var beforeParts = jdbc.queryForList("select * from " + schema + ".expense_allocations order by id");
-			var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+			var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			    .schemas(schema).defaultSchema(schema).load();
 			upgraded.migrate();
 			upgraded.validate();
@@ -2759,14 +2810,14 @@ class PaymentPersistenceTest {
 	@TestConfiguration
 	static class TestBeans {
 		@Bean
-		org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory invitationRedisConnectionFactory() {
-			return new org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory("127.0.0.1", REDIS.port());
+		LettuceConnectionFactory invitationRedisConnectionFactory() {
+			return new LettuceConnectionFactory("127.0.0.1", REDIS.port());
 		}
 
 		@Bean
-		org.springframework.data.redis.core.StringRedisTemplate invitationRedis(
-		    org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory factory) {
-			return new org.springframework.data.redis.core.StringRedisTemplate(factory);
+		StringRedisTemplate invitationRedis(
+		    LettuceConnectionFactory factory) {
+			return new StringRedisTemplate(factory);
 		}
 
 		@Bean
@@ -2792,17 +2843,17 @@ class PaymentPersistenceTest {
 		@Bean
 		PhoneSecurity phoneSecurity() {
 			byte[] encryption = new byte[32], hmac = new byte[32];
-			var random = new java.security.SecureRandom();
+			var random = new SecureRandom();
 			random.nextBytes(encryption);
 			random.nextBytes(hmac);
-			return new PhoneSecurity(new com.moahome.server.config.PhoneSecurityProperties("v1",
+			return new PhoneSecurity(new PhoneSecurityProperties("v1",
 			    Map.of("v1", Base64.getEncoder().encodeToString(encryption)),
 			    Base64.getEncoder().encodeToString(hmac)));
 		}
 
 		@Bean
-		com.moahome.server.common.security.InvitationCodeSecurity invitationCodeSecurity() {
-			return new com.moahome.server.common.security.InvitationCodeSecurity(
+		InvitationCodeSecurity invitationCodeSecurity() {
+			return new InvitationCodeSecurity(
 			    RegistrationTestKeys.accountProperties());
 		}
 
@@ -2842,7 +2893,7 @@ class PaymentPersistenceTest {
 		var imported = service.importFile(user, property, bank("미확인입금", "6000")).payments().stream()
 		    .filter(p -> "BANK_IMPORT".equals(p.source())).findFirst().orElseThrow();
 		UUID original = imported.bankTransactionId();
-		var selected = new com.moahome.server.banking.dto.BankingRequests.DeleteMany(List.of(original),
+		var selected = new BankingRequests.DeleteMany(List.of(original),
 		    List.of(manual));
 		banking.deleteMany(user, property, selected);
 		banking.deleteMany(user, property, selected);
@@ -2877,7 +2928,7 @@ class PaymentPersistenceTest {
 		    .filter(p -> "BANK_IMPORT".equals(p.source())).findFirst().orElseThrow();
 		UUID original = imported.bankTransactionId();
 		assertThatThrownBy(() -> banking.deleteMany(user, property,
-		    new com.moahome.server.banking.dto.BankingRequests.DeleteMany(List.of(original),
+		    new BankingRequests.DeleteMany(List.of(original),
 		        List.of(manual, imported.id()))))
 		    .isInstanceOf(PaymentException.class).extracting(e -> ((PaymentException) e).code())
 		    .isEqualTo("PAYMENT_DELETE_NOT_ALLOWED");
@@ -2889,7 +2940,7 @@ class PaymentPersistenceTest {
 		assertThat(jdbc.queryForObject("select status from payments where id=?", String.class, manual))
 		    .isEqualTo("CONFIRMED");
 
-		var selected = new com.moahome.server.banking.dto.BankingRequests.DeleteMany(List.of(original),
+		var selected = new BankingRequests.DeleteMany(List.of(original),
 		    List.of(manual));
 		banking.deleteMany(user, property, selected);
 		banking.deleteMany(user, property, selected);
@@ -2920,7 +2971,7 @@ class PaymentPersistenceTest {
 			addAccount("090", "카카오뱅크", "00012345678" + index, "자유 용도 " + index);
 		assertThat(bankAccountSettings.list(user, property)).hasSize(6).filteredOn(a -> a.isPrimary()).hasSize(1);
 		assertThat(second.accountNumber()).isEqualTo("000123456789");
-		var promote = new com.moahome.server.banking.dto.BankAccountSettings.Save(second.accountId(),
+		var promote = new BankAccountSettings.Save(second.accountId(),
 		    second.updatedAt(), second.bankCode(), second.bankName(), second.accountNumber(), second.holderName(),
 		    second.alias(), true, first.accountId());
 		var primary = bankAccountSettings.save(user, property, promote);
@@ -2929,12 +2980,12 @@ class PaymentPersistenceTest {
 		assertThat(jdbc.queryForObject("select bank_account_id from payments where id=?", UUID.class, manual))
 		    .isEqualTo(first.accountId());
 		assertThatThrownBy(() -> bankAccountSettings.close(user, property, primary.accountId(),
-		    new com.moahome.server.banking.dto.BankAccountSettings.Close(primary.updatedAt()))).isInstanceOfSatisfying(
+		    new BankAccountSettings.Close(primary.updatedAt()))).isInstanceOfSatisfying(
 		        PaymentException.class, e -> assertThat(e.code()).isEqualTo("BANK_ACCOUNT_PRIMARY_REQUIRED"));
 		var old = bankAccountSettings.list(user, property).stream().filter(a -> a.accountId().equals(first.accountId()))
 		    .findFirst().orElseThrow();
 		var closed = bankAccountSettings.close(user, property, old.accountId(),
-		    new com.moahome.server.banking.dto.BankAccountSettings.Close(old.updatedAt()));
+		    new BankAccountSettings.Close(old.updatedAt()));
 		assertThat(closed.status()).isEqualTo("CLOSED");
 		assertThat(bankAccountSettings.list(user, property)).hasSize(6);
 		assertThat(service.workspace(user, property).payments())
@@ -2942,7 +2993,7 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> banking.preview(user, property, bank("김대표", "5000"), old.accountId()))
 		    .isInstanceOf(PaymentException.class);
 		assertThatThrownBy(() -> bankAccountSettings.save(user, property,
-		    new com.moahome.server.banking.dto.BankAccountSettings.Save(UUID.randomUUID(), null, "090", "카카오뱅크",
+		    new BankAccountSettings.Save(UUID.randomUUID(), null, "090", "카카오뱅크",
 		        second.accountNumber(), "예시", null, false, primary.accountId())))
 		    .isInstanceOfSatisfying(PaymentException.class,
 		        e -> assertThat(e.code()).isEqualTo("BANK_ACCOUNT_DUPLICATE"));
@@ -2952,19 +3003,19 @@ class PaymentPersistenceTest {
 	@Test
 	void accountRegistrationOrderIsPreservedAcrossSettingsPaymentsTransactionsAndBalances() {
 		var draft = RegistrationFixtures.request(UUID.randomUUID(), false);
-		var input = new com.moahome.server.property.dto.PropertyRegistrationRequest(draft.requestId(),
+		var input = new PropertyRegistrationRequest(draft.requestId(),
 		    draft.basicInfo(), draft.buildings(), draft.units(),
 		    List.of(
-		        new com.moahome.server.property.dto.PropertyRegistrationRequest.BankAccountInput("088", "신한은행",
+		        new PropertyRegistrationRequest.BankAccountInput("088", "신한은행",
 		            "111122223333", "관리단", false),
-		        new com.moahome.server.property.dto.PropertyRegistrationRequest.BankAccountInput("090", "카카오뱅크",
+		        new PropertyRegistrationRequest.BankAccountInput("090", "카카오뱅크",
 		            "444455556666", "관리단", true)),
 		    draft.feeItems());
 		var target = registration.register(user, input).response().property().id();
 		List<BankAccountSettings.Response> initial = bankAccountSettings.list(user, target);
 		assertThat(initial).extracting(a -> a.bankName()).containsExactly("신한은행", "카카오뱅크");
 		var primary = initial.getLast();
-		var third = bankAccountSettings.save(user, target, new com.moahome.server.banking.dto.BankAccountSettings.Save(
+		var third = bankAccountSettings.save(user, target, new BankAccountSettings.Save(
 		    UUID.randomUUID(), null, "020", "우리은행", "777788889999", "관리단", "새 통장", true, primary.accountId()));
 		List<UUID> expected = List.of(initial.getFirst().accountId(), primary.accountId(), third.accountId());
 		assertThat(bankAccountSettings.list(user, target)).extracting(a -> a.accountId())
@@ -2977,7 +3028,7 @@ class PaymentPersistenceTest {
 		    .containsExactlyElementsOf(expected);
 		var second = bankAccountSettings.list(user, target).get(1);
 		bankAccountSettings.close(user, target, second.accountId(),
-		    new com.moahome.server.banking.dto.BankAccountSettings.Close(second.updatedAt()));
+		    new BankAccountSettings.Close(second.updatedAt()));
 		assertThat(bankAccountSettings.list(user, target)).extracting(a -> a.accountId())
 		    .containsExactlyElementsOf(expected);
 		assertThat(jdbc.queryForList(
@@ -2990,26 +3041,26 @@ class PaymentPersistenceTest {
 	void accountWritesAreIdempotentAndRejectStaleOrForeignRequests() {
 		var primary = bankAccountSettings.read(user, property);
 		UUID id = UUID.randomUUID();
-		var request = new com.moahome.server.banking.dto.BankAccountSettings.Save(id, null, "090", "카카오뱅크",
+		var request = new BankAccountSettings.Save(id, null, "090", "카카오뱅크",
 		    "00011112222", "관리단", "예비", false, primary.accountId());
 		var account = bankAccountSettings.save(user, property, request);
 		assertThat(bankAccountSettings.save(user, property, request)).isEqualTo(account);
 		var renamed = bankAccountSettings.save(user, property,
-		    new com.moahome.server.banking.dto.BankAccountSettings.Save(id, account.updatedAt(), account.bankCode(),
+		    new BankAccountSettings.Save(id, account.updatedAt(), account.bankCode(),
 		        account.bankName(), account.accountNumber(), account.holderName(), "변경한 별칭", false,
 		        primary.accountId()));
 		assertThatThrownBy(() -> bankAccountSettings.save(user, property,
-		    new com.moahome.server.banking.dto.BankAccountSettings.Save(id, account.updatedAt(), account.bankCode(),
+		    new BankAccountSettings.Save(id, account.updatedAt(), account.bankCode(),
 		        account.bankName(), account.accountNumber(), account.holderName(), "오래된 변경", false,
 		        primary.accountId())))
 		    .isInstanceOfSatisfying(PaymentException.class,
 		        e -> assertThat(e.code()).isEqualTo("BANK_ACCOUNT_CONFLICT"));
 		bankAccountSettings.save(user, property,
-		    new com.moahome.server.banking.dto.BankAccountSettings.Save(id, renamed.updatedAt(), renamed.bankCode(),
+		    new BankAccountSettings.Save(id, renamed.updatedAt(), renamed.bankCode(),
 		        renamed.bankName(), renamed.accountNumber(), renamed.holderName(), renamed.alias(), true,
 		        primary.accountId()));
 		assertThatThrownBy(() -> bankAccountSettings.save(user, property,
-		    new com.moahome.server.banking.dto.BankAccountSettings.Save(UUID.randomUUID(), null, "004", "국민은행",
+		    new BankAccountSettings.Save(UUID.randomUUID(), null, "004", "국민은행",
 		        "00033334444", "관리단", null, true, primary.accountId())))
 		    .isInstanceOfSatisfying(PaymentException.class,
 		        e -> assertThat(e.code()).isEqualTo("BANK_ACCOUNT_CONFLICT"));
@@ -3018,7 +3069,7 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> banking.preview(user, other, bank("김대표", "5000"), id))
 		    .isInstanceOf(PaymentException.class);
 		assertThatThrownBy(() -> bankAccountSettings.save(user, other,
-		    new com.moahome.server.banking.dto.BankAccountSettings.Save(id, renamed.updatedAt(), renamed.bankCode(),
+		    new BankAccountSettings.Save(id, renamed.updatedAt(), renamed.bankCode(),
 		        renamed.bankName(), renamed.accountNumber(), renamed.holderName(), renamed.alias(), false,
 		        bankAccountSettings.read(user, other).accountId())))
 		    .isInstanceOf(PaymentException.class);
@@ -3036,8 +3087,8 @@ class PaymentPersistenceTest {
 		    building, property, "102동");
 		jdbc.update("update units set building_id=? where id=?", building, unit);
 		cashBalances.saveOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(LocalDate.of(2026, 10, 1),
-		        List.of(new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(building, "0"))));
+		    new BankingBalanceRequests.Opening(LocalDate.of(2026, 10, 1),
+		        List.of(new BankingBalanceRequests.OpeningPart(building, "0"))));
 		var first = bankAccountSettings.read(user, property);
 		var second = addAccount("090", "카카오뱅크", "000123456789", "자유 통장");
 		var source = csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 08:00:00,김대표,0,30000,100000");
@@ -3046,8 +3097,8 @@ class PaymentPersistenceTest {
 			var preview = banking.preview(user, property, file, account);
 			assertThat(preview.rows()).hasSize(1).allMatch(row -> row.accountId().equals(account));
 			banking.upload(user, property, file,
-			    new com.moahome.server.banking.dto.BankingRequests.Import(preview.rows().stream().map(
-			        r -> new com.moahome.server.banking.dto.BankingRequests.Selection(r.id(), unit, null, null, null))
+			    new BankingRequests.Import(preview.rows().stream().map(
+			        r -> new BankingRequests.Selection(r.id(), unit, null, null, null))
 			        .toList(), account));
 			assertThat(banking.preview(user, property, file, account).duplicateCount()).isEqualTo(1);
 		}
@@ -3079,8 +3130,8 @@ class PaymentPersistenceTest {
 		var file = csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 08:00:00,김대표,0,30000,100000");
 		var preview = banking.preview(user, property, file, first.accountId());
 		banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(preview.rows().stream()
-		        .map(r -> new com.moahome.server.banking.dto.BankingRequests.Selection(r.id(), unit, null, null, null))
+		    new BankingRequests.Import(preview.rows().stream()
+		        .map(r -> new BankingRequests.Selection(r.id(), unit, null, null, null))
 		        .toList(), first.accountId()));
 		var second = addAccount("090", "카카오뱅크", "000123456789", null);
 		var balances = cashBalances.workspace(user, property, "2026-10");
@@ -3099,7 +3150,7 @@ class PaymentPersistenceTest {
 		assertThat(count("payments")).isZero();
 		assertThat(count("expenses")).isZero();
 		var before = cashBalances.workspace(user, property, "2026-10");
-		var request = new com.moahome.server.banking.dto.BankingRequests.Transfer(UUID.randomUUID(), outgoing,
+		var request = new BankingRequests.Transfer(UUID.randomUUID(), outgoing,
 		    incoming);
 		var linked = banking.connectTransfer(user, property, request);
 		assertThat(linked.rows()).hasSize(2)
@@ -3111,23 +3162,23 @@ class PaymentPersistenceTest {
 		assertThat(after.buildings()).isEqualTo(before.buildings());
 		assertThat(after.pending()).isEmpty();
 		assertThatThrownBy(() -> banking.confirmExpense(user, property, outgoing,
-		    new com.moahome.server.banking.dto.BankingRequests.Expense("이체", null, "AMOUNT", false,
-		        List.of(new com.moahome.server.banking.dto.BankingRequests.Allocation(null, "외부", "10000", null)))))
+		    new BankingRequests.Expense("이체", null, "AMOUNT", false,
+		        List.of(new BankingRequests.Allocation(null, "외부", "10000", null)))))
 		    .isInstanceOfSatisfying(PaymentException.class,
 		        e -> assertThat(e.code()).isEqualTo("BANK_TRANSFER_CONFLICT"));
 		assertThatThrownBy(() -> banking.deleteMany(user, property,
-		    new com.moahome.server.banking.dto.BankingRequests.DeleteMany(List.of(outgoing)))).isInstanceOfSatisfying(
+		    new BankingRequests.DeleteMany(List.of(outgoing)))).isInstanceOfSatisfying(
 		        PaymentException.class, e -> assertThat(e.code()).isEqualTo("BANK_TRANSFER_DELETE_PAIR_REQUIRED"));
 		assertThatThrownBy(() -> jdbc.update("update bank_transactions set amount=9999 where id=?", outgoing))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 		banking.cancelTransfer(user, property, request.id());
 		banking.cancelTransfer(user, property, request.id());
 		assertThat(banking.workspace(user, property).rows()).allMatch(r -> r.status().equals("TRANSFER_PENDING"));
 		assertThat(cashBalances.workspace(user, property, "2026-10").pending()).hasSize(2);
-		var relink = new com.moahome.server.banking.dto.BankingRequests.Transfer(UUID.randomUUID(), outgoing, incoming);
+		var relink = new BankingRequests.Transfer(UUID.randomUUID(), outgoing, incoming);
 		banking.connectTransfer(user, property, relink);
 		banking.deleteMany(user, property,
-		    new com.moahome.server.banking.dto.BankingRequests.DeleteMany(List.of(outgoing, incoming)));
+		    new BankingRequests.DeleteMany(List.of(outgoing, incoming)));
 		assertThat(banking.workspace(user, property).rows()).isEmpty();
 		assertThat(count("bank_transfers")).isEqualTo(2);
 		assertThat(count("payments")).isZero();
@@ -3144,17 +3195,17 @@ class PaymentPersistenceTest {
 		var wrongAmount = transferFile(second.accountId(), "INCOME", "20000", "20000");
 		for (UUID incoming : List.of(sameAccount, wrongAmount))
 			assertThatThrownBy(() -> banking.connectTransfer(user, property,
-			    new com.moahome.server.banking.dto.BankingRequests.Transfer(UUID.randomUUID(), outgoing, incoming)))
+			    new BankingRequests.Transfer(UUID.randomUUID(), outgoing, incoming)))
 			    .isInstanceOf(PaymentException.class);
 		long sources = count("bank_transactions");
 		var file = kakaoFile(
 		    csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 10:00:00,김대표,0,5000,25000\n2026-10-15 11:00:00,청소,10000,0,15000"));
 		var preview = banking.preview(user, property, file, second.accountId());
-		var invalid = new com.moahome.server.banking.dto.BankingRequests.Expense("청소", null, "AMOUNT", false,
-		    List.of(new com.moahome.server.banking.dto.BankingRequests.Allocation(null, "외부", "9999", null)));
+		var invalid = new BankingRequests.Expense("청소", null, "AMOUNT", false,
+		    List.of(new BankingRequests.Allocation(null, "외부", "9999", null)));
 		assertThatThrownBy(() -> banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(preview.rows().stream()
-		        .map(r -> new com.moahome.server.banking.dto.BankingRequests.Selection(r.id(), null, null, null,
+		    new BankingRequests.Import(preview.rows().stream()
+		        .map(r -> new BankingRequests.Selection(r.id(), null, null, null,
 		            r.direction().equals("EXPENSE") ? invalid : null))
 		        .toList(), second.accountId())))
 		    .isInstanceOf(PaymentException.class);
@@ -3162,10 +3213,10 @@ class PaymentPersistenceTest {
 		assertThat(count("payments")).isZero();
 	}
 
-	private com.moahome.server.banking.dto.BankAccountSettings.Response addAccount(String code, String name,
+	private BankAccountSettings.Response addAccount(String code, String name,
 	    String number, String alias) {
 		var primary = bankAccountSettings.read(user, property);
-		return bankAccountSettings.save(user, property, new com.moahome.server.banking.dto.BankAccountSettings.Save(
+		return bankAccountSettings.save(user, property, new BankAccountSettings.Save(
 		    UUID.randomUUID(), null, code, name, number, "관리단", alias, false, primary.accountId()));
 	}
 
@@ -3177,8 +3228,8 @@ class PaymentPersistenceTest {
 			file = kakaoFile(file);
 		var preview = banking.preview(user, property, file, account);
 		var saved = banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(
-		        preview.rows().stream().map(r -> new com.moahome.server.banking.dto.BankingRequests.Selection(r.id(),
+		    new BankingRequests.Import(
+		        preview.rows().stream().map(r -> new BankingRequests.Selection(r.id(),
 		            null, null, null, null, null, true)).toList(),
 		        account));
 		return saved.rows().stream()
@@ -3295,8 +3346,8 @@ class PaymentPersistenceTest {
 		var file = bank("은행", "1000");
 		var preview = banking.preview(user, property, file);
 		var imported = banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(
-		        List.of(new com.moahome.server.banking.dto.BankingRequests.Selection(preview.rows().getFirst().id(),
+		    new BankingRequests.Import(
+		        List.of(new BankingRequests.Selection(preview.rows().getFirst().id(),
 		            null, null, null, null))));
 		var bankReceipt = imported.rows().getFirst().paymentId();
 		service.link(user, property, bankReceipt, id);
@@ -3316,14 +3367,14 @@ class PaymentPersistenceTest {
 		    null, "OTHER", "외부 관리단", "분담금", null, null));
 		var file = csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 08:00:00,공동 수리,1000,0,10000");
 		var preview = banking.preview(user, property, file);
-		var expense = new com.moahome.server.banking.dto.BankingRequests.Expense("공동 수리", null, "AMOUNT", false,
-		    List.of(new com.moahome.server.banking.dto.BankingRequests.Allocation(null, "외부 관리단", "1000", null)));
+		var expense = new BankingRequests.Expense("공동 수리", null, "AMOUNT", false,
+		    List.of(new BankingRequests.Allocation(null, "외부 관리단", "1000", null)));
 		banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(
-		        List.of(new com.moahome.server.banking.dto.BankingRequests.Selection(preview.rows().getFirst().id(),
+		    new BankingRequests.Import(
+		        List.of(new BankingRequests.Selection(preview.rows().getFirst().id(),
 		            null, null, null, expense))));
 		var external = cashBalances.workspace(user, property, "2026-10").externals().getFirst();
-		cashBalances.settle(user, property, new com.moahome.server.banking.dto.BankingBalanceRequests.Settlement(
+		cashBalances.settle(user, property, new BankingBalanceRequests.Settlement(
 		    UUID.randomUUID(), external.id(), receipt, "500"));
 		assertThat(cashBalances.workspace(user, property, "2026-10").externals().getFirst().received())
 		    .isEqualTo("500");
@@ -3331,7 +3382,7 @@ class PaymentPersistenceTest {
 		service.manual(user, property, new PaymentRequests.Manual(shared, null, LocalDate.of(2026, 10, 15), "1000",
 		    null, "SHARED", "은행", "예금이자", null, manualIncomeSplit(targets, "EQUAL", "0", "0")));
 		assertThatThrownBy(() -> cashBalances.settle(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.Settlement(UUID.randomUUID(), external.id(),
+		    new BankingBalanceRequests.Settlement(UUID.randomUUID(), external.id(),
 		        shared, "500")))
 		    .isInstanceOf(PaymentException.class);
 		service.cancel(user, property, receipt, "오입금");
@@ -3344,20 +3395,20 @@ class PaymentPersistenceTest {
 		List<UUID> targets = manualIncomeBuildings();
 		jdbc.update("update buildings set name='2동' where id=?", targets.getFirst());
 		jdbc.update("update buildings set name='3동' where id=?", targets.getLast());
-		var single = new com.moahome.server.banking.dto.BankingRequests.Expense("동별 입금", null, "AMOUNT", false, List.of(
-		    new com.moahome.server.banking.dto.BankingRequests.Allocation(targets.getFirst(), null, "1000000", null)));
+		var single = new BankingRequests.Expense("동별 입금", null, "AMOUNT", false, List.of(
+		    new BankingRequests.Allocation(targets.getFirst(), null, "1000000", null)));
 		service.manual(user, property, new PaymentRequests.Manual(UUID.randomUUID(), null, LocalDate.of(2026, 10, 15),
 		    "1000000", null, "SHARED", "2동", "동별 입금", null, single));
-		var split = new com.moahome.server.banking.dto.BankingRequests.Expense("동별 입금", null, "AMOUNT", false, List.of(
-		    new com.moahome.server.banking.dto.BankingRequests.Allocation(targets.getFirst(), null, "1000000", null),
-		    new com.moahome.server.banking.dto.BankingRequests.Allocation(targets.getLast(), null, "500000", null)));
+		var split = new BankingRequests.Expense("동별 입금", null, "AMOUNT", false, List.of(
+		    new BankingRequests.Allocation(targets.getFirst(), null, "1000000", null),
+		    new BankingRequests.Allocation(targets.getLast(), null, "500000", null)));
 		service.manual(user, property, new PaymentRequests.Manual(UUID.randomUUID(), null, LocalDate.of(2026, 10, 15),
 		    "1500000", null, "SHARED", "동별 분담금", "동별 입금", null, split));
 		var file = bank("추가 동별 분담금", "1500000");
 		var preview = banking.preview(user, property, file);
 		banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(
-		        List.of(new com.moahome.server.banking.dto.BankingRequests.Selection(preview.rows().getFirst().id(),
+		    new BankingRequests.Import(
+		        List.of(new BankingRequests.Selection(preview.rows().getFirst().id(),
 		            null, "동별 입금", null, null, split))));
 		var cash = cashBalances.workspace(user, property, "2026-10");
 		assertThat(cash.buildings()).filteredOn(b -> b.id().equals(targets.getFirst())).singleElement()
@@ -3381,17 +3432,17 @@ class PaymentPersistenceTest {
 			    "insert into buildings(id,property_id,name,sort_order,status,created_at,updated_at) values (?,?,?,?,'ACTIVE',now(),now())",
 			    ids.get(i), property, (102 + i) + "동", i);
 		cashBalances.saveOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30), ids.stream()
-		        .map(id -> new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(id, "0")).toList()));
+		    new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30), ids.stream()
+		        .map(id -> new BankingBalanceRequests.OpeningPart(id, "0")).toList()));
 		return ids;
 	}
 
-	private com.moahome.server.banking.dto.BankingRequests.Expense manualIncomeSplit(List<UUID> targets, String mode,
+	private BankingRequests.Expense manualIncomeSplit(List<UUID> targets, String mode,
 	    String first, String second) {
-		return new com.moahome.server.banking.dto.BankingRequests.Expense("예금이자", null, mode, false,
+		return new BankingRequests.Expense("예금이자", null, mode, false,
 		    List.of(
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(targets.getFirst(), null, first, "25"),
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(targets.getLast(), null, second, "75")));
+		        new BankingRequests.Allocation(targets.getFirst(), null, first, "25"),
+		        new BankingRequests.Allocation(targets.getLast(), null, second, "75")));
 	}
 
 	/** 추가 통장도 각각 다른 날짜의 실제 잔액을 등록하고 동별 현금·입금·인계는 만들지 않습니다. */
@@ -3401,9 +3452,9 @@ class PaymentPersistenceTest {
 		var second = addAccount("090", "카카오뱅크", "3333012345678", "예비비");
 		var before = cashBalances.workspace(user, property, "2026-10");
 		long batches = count("opening_balance_batches");
-		var a = new com.moahome.server.banking.dto.BankingBalanceRequests.AccountOpening(UUID.randomUUID(),
+		var a = new BankingBalanceRequests.AccountOpening(UUID.randomUUID(),
 		    first.accountId(), LocalDate.of(2026, 7, 1), "3550000", 0L);
-		var b = new com.moahome.server.banking.dto.BankingBalanceRequests.AccountOpening(UUID.randomUUID(),
+		var b = new BankingBalanceRequests.AccountOpening(UUID.randomUUID(),
 		    second.accountId(), LocalDate.of(2026, 10, 1), "500000", 0L);
 		cashBalances.saveAccountOpening(user, property, a);
 		cashBalances.saveAccountOpening(user, property, b);
@@ -3429,10 +3480,10 @@ class PaymentPersistenceTest {
 	@Test
 	void accountOpeningCorrectionsPreserveHistoryAndRejectStaleOrChangedRequests() {
 		var account = bankAccountSettings.read(user, property).accountId();
-		var a = new com.moahome.server.banking.dto.BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
+		var a = new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
 		    LocalDate.of(2026, 7, 1), "0", 0L);
 		cashBalances.saveAccountOpening(user, property, a);
-		var b = new com.moahome.server.banking.dto.BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
+		var b = new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
 		    LocalDate.of(2026, 10, 1), "4000000", 1L);
 		cashBalances.saveAccountOpening(user, property, b);
 		cashBalances.saveAccountOpening(user, property, b);
@@ -3442,16 +3493,16 @@ class PaymentPersistenceTest {
 			assertThat(r.openingBalance()).isEqualTo("4000000");
 		});
 		for (var invalid : List.of(
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
+		    new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
 		        b.cutoffDate(), "5000000", 1L),
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.AccountOpening(b.id(), account, b.cutoffDate(),
+		    new BankingBalanceRequests.AccountOpening(b.id(), account, b.cutoffDate(),
 		        "5000000", 1L)))
 			assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, invalid)).isInstanceOfSatisfying(
 			    PaymentException.class, e -> assertThat(e.code()).isEqualTo("BANK_OPENING_CONFLICT"));
 		assertThatThrownBy(() -> jdbc.update("update bank_opening_balances set amount=1 where id=?", b.id()))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 		assertThatThrownBy(() -> jdbc.update("delete from bank_opening_balances where id=?", b.id()))
-		    .isInstanceOf(org.springframework.dao.DataAccessException.class);
+		    .isInstanceOf(DataAccessException.class);
 		assertThat(count("bank_opening_balances")).isEqualTo(2);
 	}
 
@@ -3461,11 +3512,11 @@ class PaymentPersistenceTest {
 		var file = csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 09:00:00,미분류입금,0,1000,501000");
 		var preview = banking.preview(user, property, file);
 		banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(
-		        List.of(new com.moahome.server.banking.dto.BankingRequests.Selection(preview.rows().getFirst().id(),
+		    new BankingRequests.Import(
+		        List.of(new BankingRequests.Selection(preview.rows().getFirst().id(),
 		            null, null, null, null))));
 		cashBalances.saveAccountOpening(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
+		    new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
 		        LocalDate.of(2026, 10, 1), "500000", 0L));
 		assertThat(cashBalances.workspace(user, property, "2026-10").accounts()).singleElement().satisfies(r -> {
 			assertThat(r.balance()).isEqualTo("501000");
@@ -3473,7 +3524,7 @@ class PaymentPersistenceTest {
 		});
 		assertThat(cashBalances.workspace(user, property, "2026-09").accounts()).noneMatch(r -> r.balance() != null);
 		cashBalances.saveAccountOpening(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
+		    new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
 		        LocalDate.of(2026, 10, 15), "502000", 1L));
 		assertThat(cashBalances.workspace(user, property, "2026-10").accounts()).singleElement()
 		    .satisfies(r -> assertThat(r.balance()).isEqualTo("502000"));
@@ -3484,21 +3535,21 @@ class PaymentPersistenceTest {
 		var account = bankAccountSettings.read(user, property).accountId();
 		var second = addAccount("090", "카카오뱅크", "3333012345678", "예비비");
 		bankAccountSettings.close(user, property, second.accountId(),
-		    new com.moahome.server.banking.dto.BankAccountSettings.Close(second.updatedAt()));
+		    new BankAccountSettings.Close(second.updatedAt()));
 		for (var invalid : List.of(
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
+		    new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
 		        LocalDate.of(2026, 10, 16), "0", 0L),
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
+		    new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
 		        LocalDate.of(2026, 10, 1), "-1", 0L),
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.AccountOpening(UUID.randomUUID(),
+		    new BankingBalanceRequests.AccountOpening(UUID.randomUUID(),
 		        UUID.randomUUID(), LocalDate.of(2026, 10, 1), "0", 0L),
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.AccountOpening(UUID.randomUUID(),
+		    new BankingBalanceRequests.AccountOpening(UUID.randomUUID(),
 		        second.accountId(), LocalDate.of(2026, 10, 1), "0", 0L)))
 			assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, invalid))
 			    .isInstanceOf(PaymentException.class);
 		var outsider = users.saveAndFlush(User.create("외부관리자", null)).getId();
 		assertThatThrownBy(() -> cashBalances.saveAccountOpening(outsider, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
+		    new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
 		        LocalDate.of(2026, 10, 1), "0", 0L)))
 		    .isInstanceOf(AuthException.class);
 		assertThat(count("bank_opening_balances")).isZero();
@@ -3509,7 +3560,7 @@ class PaymentPersistenceTest {
 	void independentAccountOpeningMigrationPreservesExistingHandoverBalances() {
 		registration.register(user, registrationOpeningRequest(true, "2026-10"));
 		String schema = "account_opening_" + UUID.randomUUID().toString().replace("-", "");
-		var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).target("20261018050254").load();
 		previous.migrate();
 		for (String table : List.of("users", "properties", "buildings", "units", "bank_accounts",
@@ -3517,7 +3568,7 @@ class PaymentPersistenceTest {
 			copyPreviousTable(schema, table);
 		List<Map<String, Object>> before = jdbc.queryForList(
 		    "select id,amount,bank_account_id,batch_id from " + schema + ".bank_opening_balances order by id");
-		var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).load();
 		int pending = upgraded.info().pending().length;
 		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(pending);
@@ -3536,17 +3587,17 @@ class PaymentPersistenceTest {
 	void originalCashOpeningMigrationUsesAccountAtRegistrationAndPreservesHistory() {
 		List<UUID> targets = manualIncomeBuildings();
 		cashBalances.correctOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
+		    new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
 		        LocalDate.of(2026, 7, 1),
 		        List.of(
-		            new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningCorrectionPart(targets.getFirst(),
+		            new BankingBalanceRequests.OpeningCorrectionPart(targets.getFirst(),
 		                "688582", 0L),
-		            new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningCorrectionPart(targets.getLast(),
+		            new BankingBalanceRequests.OpeningCorrectionPart(targets.getLast(),
 		                "100000", 0L))));
 		var first = bankAccountSettings.read(user, property).accountId();
 		var second = addAccount("090", "카카오뱅크", "3333012345678", "예비비").accountId();
 		String schema = "cash_scope_" + UUID.randomUUID().toString().replace("-", "");
-		var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).target("20261018052108").load();
 		previous.migrate();
 		for (String table : List.of("users", "properties", "buildings", "units", "bank_accounts",
@@ -3565,7 +3616,7 @@ class PaymentPersistenceTest {
 		List<Map<String, Object>> historyBefore = jdbc.queryForList(
 		    "select id,opening_id,request_id,previous_revision,previous_amount,new_amount,changed_by from " + schema
 		        + ".building_cash_opening_changes order by id");
-		var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).load();
 		upgraded.migrate();
 		upgraded.validate();
@@ -3600,10 +3651,10 @@ class PaymentPersistenceTest {
 		assertThat(view.legacyOpening().buildings()).hasSize(2);
 		assertThat(view.buildings())
 		    .allMatch(b -> b.openingBalance() == null && b.balance() == null && "OPENING_REQUIRED".equals(b.status()));
-		cashBalances.saveOpenings(user, property, new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(
+		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(
 		    view.legacyOpening().cutoffDate(),
 		    view.legacyOpening().buildings().stream().map(
-		        b -> new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(b.buildingId(), b.amount()))
+		        b -> new BankingBalanceRequests.OpeningPart(b.buildingId(), b.amount()))
 		        .toList(),
 		    first));
 		var confirmed = cashBalances.workspace(user, property, "2026-10", first);
@@ -3620,22 +3671,22 @@ class PaymentPersistenceTest {
 		List<UUID> targets = manualIncomeBuildings();
 		var first = bankAccountSettings.read(user, property).accountId();
 		var second = addAccount("090", "카카오뱅크", "3333012345678", "예비비").accountId();
-		var a = new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(LocalDate.of(2026, 7, 1),
+		var a = new BankingBalanceRequests.Opening(LocalDate.of(2026, 7, 1),
 		    List.of(
-		        new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(targets.getFirst(), "1000000"),
-		        new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(targets.getLast(), "500000")),
+		        new BankingBalanceRequests.OpeningPart(targets.getFirst(), "1000000"),
+		        new BankingBalanceRequests.OpeningPart(targets.getLast(), "500000")),
 		    first);
-		var b = new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
-		    List.of(new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(targets.getFirst(), "200000"),
-		        new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(targets.getLast(), "300000")),
+		var b = new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
+		    List.of(new BankingBalanceRequests.OpeningPart(targets.getFirst(), "200000"),
+		        new BankingBalanceRequests.OpeningPart(targets.getLast(), "300000")),
 		    second);
 		cashBalances.saveOpenings(user, property, a);
 		cashBalances.saveOpenings(user, property, b);
 		cashBalances.saveOpenings(user, property, b);
-		var split = new com.moahome.server.banking.dto.BankingRequests.Expense("동별 입금", null, "AMOUNT", false,
+		var split = new BankingRequests.Expense("동별 입금", null, "AMOUNT", false,
 		    List.of(
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(targets.getFirst(), null, "70000", null),
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(targets.getLast(), null, "30000", null)));
+		        new BankingRequests.Allocation(targets.getFirst(), null, "70000", null),
+		        new BankingRequests.Allocation(targets.getLast(), null, "30000", null)));
 		service.manual(user, property, new PaymentRequests.Manual(UUID.randomUUID(), null, LocalDate.of(2026, 10, 15),
 		    "100000", second, "SHARED", "동별 분담금", "동별 입금", null, split));
 		var firstView = cashBalances.workspace(user, property, "2026-10", first);
@@ -3651,12 +3702,12 @@ class PaymentPersistenceTest {
 		var all = cashBalances.workspace(user, property, "2026-10");
 		assertThat(all.cutoffDate()).isNull();
 		assertThat(all.buildings()).extracting(r -> r.balance()).containsExactlyInAnyOrder("1270000", "830000");
-		var correction = new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
+		var correction = new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
 		    a.cutoffDate(),
 		    List.of(
-		        new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningCorrectionPart(targets.getFirst(),
+		        new BankingBalanceRequests.OpeningCorrectionPart(targets.getFirst(),
 		            "1100000", 0L),
-		        new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningCorrectionPart(targets.getLast(),
+		        new BankingBalanceRequests.OpeningCorrectionPart(targets.getLast(),
 		            "500000", 0L)),
 		    first);
 		cashBalances.correctOpenings(user, property, correction);
@@ -3668,7 +3719,7 @@ class PaymentPersistenceTest {
 		assertThat(jdbc.queryForObject("select count(*) from building_cash_opening_changes where bank_account_id=?",
 		    Long.class, first)).isEqualTo(2);
 		assertThatThrownBy(() -> cashBalances.correctOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningCorrection(correction.id(), b.cutoffDate(),
+		    new BankingBalanceRequests.OpeningCorrection(correction.id(), b.cutoffDate(),
 		        correction.buildings(), second)))
 		    .isInstanceOfSatisfying(PaymentException.class,
 		        e -> assertThat(e.code()).isEqualTo("CASH_OPENING_CONFLICT"));
@@ -3685,16 +3736,16 @@ class PaymentPersistenceTest {
 		List<UUID> targets = manualIncomeBuildings();
 		var account = bankAccountSettings.read(user, property).accountId();
 		cashBalances.saveOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
+		    new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
 		        List.of(
-		            new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(targets.getFirst(),
+		            new BankingBalanceRequests.OpeningPart(targets.getFirst(),
 		                "1000000"),
-		            new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(targets.getLast(), "500000")),
+		            new BankingBalanceRequests.OpeningPart(targets.getLast(), "500000")),
 		        account));
-		var split = new com.moahome.server.banking.dto.BankingRequests.Expense("동별 입금", null, "AMOUNT", false,
+		var split = new BankingRequests.Expense("동별 입금", null, "AMOUNT", false,
 		    List.of(
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(targets.getFirst(), null, "11455", null),
-		        new com.moahome.server.banking.dto.BankingRequests.Allocation(targets.getLast(), null, "11455", null)));
+		        new BankingRequests.Allocation(targets.getFirst(), null, "11455", null),
+		        new BankingRequests.Allocation(targets.getLast(), null, "11455", null)));
 		service.manual(user, property, new PaymentRequests.Manual(UUID.randomUUID(), null, LocalDate.of(2026, 10, 15),
 		    "22910", account, "SHARED", "분담금", "동별 입금", null, split));
 		var view = cashBalances.workspace(user, property, "2026-10", account);
@@ -3729,18 +3780,18 @@ class PaymentPersistenceTest {
 		var account = bankAccountSettings.read(user, property).accountId();
 		jdbc.update("update bank_accounts set valid_from=date '2026-08-01' where id=?", account);
 		cashBalances.saveOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
+		    new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
 		        List.of(
-		            new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(targets.getFirst(),
+		            new BankingBalanceRequests.OpeningPart(targets.getFirst(),
 		                "1000000"),
-		            new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(targets.getLast(), "0")),
+		            new BankingBalanceRequests.OpeningPart(targets.getLast(), "0")),
 		        account));
 		var file = csv(
 		    "거래일시,적요,출금액,입금액,잔액\n2026-10-15 09:00:00,계좌 이체,0,5000,1005000\n2026-10-15 10:00:00,계좌 이체,2000,0,1003000");
 		var preview = banking.preview(user, property, file, account);
 		banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(
-		        preview.rows().stream().map(r -> new com.moahome.server.banking.dto.BankingRequests.Selection(r.id(),
+		    new BankingRequests.Import(
+		        preview.rows().stream().map(r -> new BankingRequests.Selection(r.id(),
 		            null, null, null, null, null, true)).toList(),
 		        account));
 		UUID manual = UUID.randomUUID();
@@ -3754,8 +3805,8 @@ class PaymentPersistenceTest {
 		var matchingFile = bank("분담금", "10000");
 		var matchingPreview = banking.preview(user, property, matchingFile, account);
 		var imported = banking.upload(user, property, matchingFile,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(
-		        List.of(new com.moahome.server.banking.dto.BankingRequests.Selection(
+		    new BankingRequests.Import(
+		        List.of(new BankingRequests.Selection(
 		            matchingPreview.rows().getFirst().id(), null, null, null, null)),
 		        account));
 		var bankReceipt = imported.rows().stream().filter(r -> r.amount().equals("10000")).findFirst().orElseThrow()
@@ -3778,17 +3829,17 @@ class PaymentPersistenceTest {
 		var first = bankAccountSettings.read(user, property).accountId();
 		jdbc.update("update bank_accounts set valid_from=date '2026-07-01' where id=?", first);
 		var second = addAccount("090", "카카오뱅크", "3333012345678", "예비비").accountId();
-		cashBalances.saveOpenings(user, property, new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(
+		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(
 		    LocalDate.of(2026, 7, 1),
-		    List.of(new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(targets.getFirst(), "100000"),
-		        new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(targets.getLast(), "200000")),
+		    List.of(new BankingBalanceRequests.OpeningPart(targets.getFirst(), "100000"),
+		        new BankingBalanceRequests.OpeningPart(targets.getLast(), "200000")),
 		    first));
 		cashBalances.saveOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
+		    new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
 		        List.of(
-		            new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(targets.getFirst(),
+		            new BankingBalanceRequests.OpeningPart(targets.getFirst(),
 		                "1000000"),
-		            new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(targets.getLast(), "500000")),
+		            new BankingBalanceRequests.OpeningPart(targets.getLast(), "500000")),
 		        second));
 		var august = cashBalances.workspace(user, property, "2026-08");
 		assertThat(august.accounts()).extracting(a -> a.id()).containsExactly(first);
@@ -3809,8 +3860,8 @@ class PaymentPersistenceTest {
 		var file = kakaoFile(csv("거래일시,적요,출금액,입금액,잔액\n2026-08-15 09:00:00,과거 입금,0,1000,1499000"));
 		var preview = banking.preview(user, property, file, second);
 		banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(
-		        List.of(new com.moahome.server.banking.dto.BankingRequests.Selection(preview.rows().getFirst().id(),
+		    new BankingRequests.Import(
+		        List.of(new BankingRequests.Selection(preview.rows().getFirst().id(),
 		            null, null, null, null)),
 		        second));
 		var importedHistory = cashBalances.workspace(user, property, "2026-08", second);
@@ -3827,11 +3878,11 @@ class PaymentPersistenceTest {
 		List<UUID> targets = manualIncomeBuildings();
 		var account = bankAccountSettings.read(user, property).accountId();
 		cashBalances.saveOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
+		    new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
 		        List.of(
-		            new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(targets.getFirst(),
+		            new BankingBalanceRequests.OpeningPart(targets.getFirst(),
 		                "1000000"),
-		            new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(targets.getLast(), "500000")),
+		            new BankingBalanceRequests.OpeningPart(targets.getLast(), "500000")),
 		        account));
 		var before = cashBalances.workspace(user, property, "2026-08", account);
 		assertThat(before.accountId()).isNull();
@@ -3846,13 +3897,13 @@ class PaymentPersistenceTest {
 		List<UUID> targets = manualIncomeBuildings();
 		var own = bankAccountSettings.read(user, property).accountId();
 		List<BankingBalanceRequests.OpeningPart> rows = List
-		    .of(new com.moahome.server.banking.dto.BankingBalanceRequests.OpeningPart(targets.getFirst(), "100"));
+		    .of(new BankingBalanceRequests.OpeningPart(targets.getFirst(), "100"));
 		assertThatThrownBy(() -> cashBalances.saveOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(LocalDate.of(2026, 10, 1), rows,
+		    new BankingBalanceRequests.Opening(LocalDate.of(2026, 10, 1), rows,
 		        UUID.randomUUID())))
 		    .isInstanceOf(PaymentException.class);
 		assertThatThrownBy(() -> cashBalances.saveOpenings(user, property,
-		    new com.moahome.server.banking.dto.BankingBalanceRequests.Opening(LocalDate.of(2026, 10, 1), rows, own)))
+		    new BankingBalanceRequests.Opening(LocalDate.of(2026, 10, 1), rows, own)))
 		    .isInstanceOf(PaymentException.class);
 		assertThat(jdbc.queryForObject("select count(*) from building_cash_openings where bank_account_id is not null",
 		    Long.class)).isZero();
@@ -3873,8 +3924,8 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> banking.preview(user, property, file, account)).isInstanceOf(PaymentException.class)
 		    .hasMessage("BANK_IMPORT_UNSUPPORTED");
 		assertThatThrownBy(() -> banking.upload(user, property, file,
-		    new com.moahome.server.banking.dto.BankingRequests.Import(
-		        List.of(new com.moahome.server.banking.dto.BankingRequests.Selection(UUID.randomUUID(), null, null,
+		    new BankingRequests.Import(
+		        List.of(new BankingRequests.Selection(UUID.randomUUID(), null, null,
 		            null, null)),
 		        account)))
 		    .isInstanceOf(PaymentException.class).hasMessage("BANK_IMPORT_UNSUPPORTED");
@@ -3907,8 +3958,8 @@ class PaymentPersistenceTest {
 	@Test
 	void importsNegativeNhWithdrawalAsPendingIncreaseWithOriginalSign() throws Exception {
 		jdbc.update("update bank_accounts set bank_code='011' where property_id=?", property);
-		try (var workbook = new org.apache.poi.hssf.usermodel.HSSFWorkbook();
-		    var bytes = new java.io.ByteArrayOutputStream()) {
+		try (var workbook = new HSSFWorkbook();
+		    var bytes = new ByteArrayOutputStream()) {
 			var sheet = workbook.createSheet("거래");
 			List<String> headers = List.of("구분", "거래일자", "출금금액(원)", "입금금액(원)", "거래 후 잔액(원)", "거래내용", "거래기록사항", "거래점",
 			    "거래시간", "이체메모", "거래메모");
@@ -3952,10 +4003,10 @@ class PaymentPersistenceTest {
 		return joinCodes.issue(actor, property).token();
 	}
 	@Autowired
-	com.moahome.server.membership.service.ResidentJoinCodeService joinCodes;
+	ResidentJoinCodeService joinCodes;
 
 	@Autowired
-	com.moahome.server.membership.service.ResidentInvitationService personalInvites;
+	ResidentInvitationService personalInvites;
 
 	@Test
 	void personalCodeAcceptsWithoutPhoneAndRejectsOtherAccountReuse() {
@@ -3965,7 +4016,7 @@ class PaymentPersistenceTest {
 		var issued = personalInvites.issue(user, property, person);
 		UUID joining = users.saveAndFlush(User.create("개인 초대 수락", null)).getId();
 		assertThat(issued.expiresAt().toInstant()).isEqualTo(clock.instant().plusSeconds(1800));
-		var input = new com.moahome.server.membership.dto.ResidentInvitations.Claim(issued.token(), false, null, null,
+		var input = new ResidentInvitations.Claim(issued.token(), false, null, null,
 		    null);
 		assertThat(personalInvites.preview(joining, issued.token()).phoneLast4()).isNull();
 		assertThat(personalInvites.accept(joining, input).status()).isEqualTo("APPROVED");
@@ -3986,7 +4037,7 @@ class PaymentPersistenceTest {
 		    property);
 		var issued = personalInvites.issue(user, property, person);
 		UUID joining = users.saveAndFlush(User.create("정정 신청", null)).getId();
-		var input = new com.moahome.server.membership.dto.ResidentInvitations.Claim(issued.token(), true, "정정한 이름",
+		var input = new ResidentInvitations.Claim(issued.token(), true, "정정한 이름",
 		    "KEEP", null);
 		assertThat(personalInvites.accept(joining, input).status()).isEqualTo("CHANGE_REQUESTED");
 		assertThat(redis.hasKey("membership:invitation:resident:" + issued.id())).isFalse();
@@ -3995,7 +4046,7 @@ class PaymentPersistenceTest {
 		assertThat(jdbc.queryForObject("select user_id from residents where id=?", UUID.class, person)).isNull();
 		var pending = personalInvites.workspace(user, property).invitations().getFirst();
 		personalInvites.review(user, property, pending.id(),
-		    new com.moahome.server.membership.dto.ResidentInvitations.Review(pending.revision()), true);
+		    new ResidentInvitations.Review(pending.revision()), true);
 		assertThat(jdbc.queryForObject("select name from residents where id=?", String.class, person))
 		    .isEqualTo("정정한 이름");
 		assertThat(jdbc.queryForObject("select user_id from residents where id=?", UUID.class, person))
@@ -4014,7 +4065,7 @@ class PaymentPersistenceTest {
 		    "update resident_invitations set created_at=created_at-interval '2 days',expires_at=created_at-interval '1 day' where id=?",
 		    second.id());
 		assertThatThrownBy(() -> personalInvites.accept(joining,
-		    new com.moahome.server.membership.dto.ResidentInvitations.Claim(second.token(), false, null, null, null)))
+		    new ResidentInvitations.Claim(second.token(), false, null, null, null)))
 		    .isInstanceOf(PaymentException.class);
 		assertThat(jdbc.queryForObject("select user_id from residents where id=?", UUID.class, person)).isNull();
 	}
@@ -4024,7 +4075,7 @@ class PaymentPersistenceTest {
 		String code = sharedCode(property, user);
 		UUID joining = users.saveAndFlush(User.create("공통 가입", null)).getId();
 		var result = signupRequests.request(joining, property,
-		    new com.moahome.server.membership.dto.SignupRequests.Create(unit, "신청한 실명", null, code));
+		    new SignupRequests.Create(unit, "신청한 실명", null, code));
 		assertThat(
 		    jdbc.queryForObject("select applicant_name from membership_requests where id=?", String.class, result.id()))
 		    .isEqualTo("신청한 실명");
@@ -4032,7 +4083,7 @@ class PaymentPersistenceTest {
 		    result.id())).isNull();
 		joinCodes.revoke(user, property);
 		assertThatThrownBy(() -> signupRequests.request(joining, property,
-		    new com.moahome.server.membership.dto.SignupRequests.Create(unit, "신청한 실명", null, code)))
+		    new SignupRequests.Create(unit, "신청한 실명", null, code)))
 		    .isInstanceOf(PaymentException.class);
 	}
 
@@ -4065,14 +4116,14 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> personalInvites.share(user, property, issued.id()))
 		    .isInstanceOf(PaymentException.class).hasMessage("INVALID_INVITATION");
 		assertThatThrownBy(() -> personalInvites.restore(user, property, issued.id(),
-		    com.moahome.server.membership.domain.ResidentInviteCode.create("R"))).isInstanceOf(PaymentException.class);
+		    ResidentInviteCode.create("R"))).isInstanceOf(PaymentException.class);
 		assertThatThrownBy(() -> personalInvites.restore(user, property, issued.id(), issued.token()))
 		    .isInstanceOf(PaymentException.class).hasMessage("INVALID_INVITATION");
 		assertThat(jdbc.queryForObject("select count(*) from resident_invitations where property_id=?", Integer.class,
 		    property)).isEqualTo(1);
 		UUID joining = users.saveAndFlush(User.create("기존 링크 수락", null)).getId();
 		assertThatThrownBy(() -> personalInvites.accept(joining,
-		    new com.moahome.server.membership.dto.ResidentInvitations.Claim(issued.token(), false, null, null, null))
+		    new ResidentInvitations.Claim(issued.token(), false, null, null, null))
 		).isInstanceOf(PaymentException.class).hasMessage("INVALID_INVITATION");
 		assertThat(jdbc.queryForObject("select user_id from residents where id=?", UUID.class, person)).isNull();
 	}
@@ -4088,7 +4139,7 @@ class PaymentPersistenceTest {
 		assertThat(redis.hasKey("membership:invitation:resident:" + first.id())).isFalse();
 		UUID joining = users.saveAndFlush(User.create("초대 이용", null)).getId();
 		personalInvites.accept(joining,
-		    new com.moahome.server.membership.dto.ResidentInvitations.Claim(second.token(), false, null, null, null));
+		    new ResidentInvitations.Claim(second.token(), false, null, null, null));
 		assertThatThrownBy(() -> personalInvites.share(user, property, second.id()))
 		    .isInstanceOf(PaymentException.class);
 		assertThat(redis.hasKey("membership:invitation:resident:" + second.id())).isFalse();
@@ -4104,7 +4155,7 @@ class PaymentPersistenceTest {
 		assertThat(banking.workspace(user, property).propertyId()).isEqualTo(property);
 		assertThat(residentLists.list(user, property).residents()).isNotEmpty();
 		var corrected = bankAccountSettings.correct(user, property,
-		    new com.moahome.server.banking.dto.BankAccountSettings.Request(original.accountId(), original.updatedAt(),
+		    new BankAccountSettings.Request(original.accountId(), original.updatedAt(),
 		        "004", "국민은행", "00099998888", "부담당자 정정"));
 		assertThat(corrected.holderName()).isEqualTo("부담당자 정정");
 		UUID payment = manual("50000");
@@ -4112,12 +4163,12 @@ class PaymentPersistenceTest {
 		var issued = personalInvites.issue(user, property, person);
 		UUID joining = users.saveAndFlush(User.create("부담당자 초대 주민", null)).getId();
 		personalInvites.accept(joining,
-		    new com.moahome.server.membership.dto.ResidentInvitations.Claim(issued.token(), false, null, null, null));
+		    new ResidentInvitations.Claim(issued.token(), false, null, null, null));
 		assertThat(residentManagement.detail(user, property, person).serviceRole()).isEqualTo("RESIDENT");
 		assertThatThrownBy(() -> memberManagement.changeResidentRole(user, property, person,
-		    new com.moahome.server.membership.dto.MemberRequests.Role(
-		        com.moahome.server.membership.domain.PropertyMemberRole.MANAGER,
-		        com.moahome.server.membership.domain.PropertyMemberRole.RESIDENT)))
+		    new MemberRequests.Role(
+		        PropertyMemberRole.MANAGER,
+		        PropertyMemberRole.RESIDENT)))
 		    .isInstanceOf(AuthException.class);
 		assertThatThrownBy(() -> memberManagement.issue(user, property, null)).isInstanceOf(AuthException.class);
 		assertThat(jdbc.queryForObject("select role from property_members where property_id=? and user_id=?",
@@ -4136,18 +4187,18 @@ class PaymentPersistenceTest {
 		var chief = residentManagement.detail(deputy, property, person);
 		assertThat(chief.name()).isEqualTo("김대표");
 		assertThatThrownBy(() -> residentManagement.update(deputy, property, person,
-		    new com.moahome.server.resident.dto.ResidentUpdateRequest("수정 시도", unit, "OWNER", "KEEP", null, null,
+		    new ResidentUpdateRequest("수정 시도", unit, "OWNER", "KEEP", null, null,
 		        chief.updatedAt())))
 		    .isInstanceOf(AuthException.class);
 		assertThatThrownBy(() -> residentManagement.delete(deputy, property, person,
-		    new com.moahome.server.resident.dto.ResidentDeleteRequest(null, chief.updatedAt())))
+		    new ResidentDeleteRequest(null, chief.updatedAt())))
 		    .isInstanceOf(AuthException.class);
 		assertThatThrownBy(
-		    () -> residentManagement.deleteForUnits(deputy, property, List.of(unit), java.time.OffsetDateTime.now()))
+		    () -> residentManagement.deleteForUnits(deputy, property, List.of(unit), OffsetDateTime.now()))
 		    .isInstanceOf(AuthException.class);
 		assertThat(jdbc.queryForObject("select name from residents where id=?", String.class, person)).isEqualTo("김대표");
 		assertThat(
-		    jdbc.queryForObject("select deleted_at from residents where id=?", java.time.OffsetDateTime.class, person))
+		    jdbc.queryForObject("select deleted_at from residents where id=?", OffsetDateTime.class, person))
 		    .isNull();
 	}
 
@@ -4159,7 +4210,7 @@ class PaymentPersistenceTest {
 	void concurrentPersonalAcceptsCreateOneMembershipAndCurrentAccessTracksRoleChanges() throws Exception {
 		UUID person = jdbc.queryForObject("select id from residents where property_id=? and name='김대표'", UUID.class, property);
 		var issued = personalInvites.issue(user, property, person);
-		var input = new com.moahome.server.membership.dto.ResidentInvitations.Claim(issued.token(), false, null, null, null);
+		var input = new ResidentInvitations.Claim(issued.token(), false, null, null, null);
 		List<UUID> accounts = List.of(users.saveAndFlush(User.create("동시 수락1", null)).getId(),
 		    users.saveAndFlush(User.create("동시 수락2", null)).getId());
 		var start = new CountDownLatch(1);
@@ -4193,7 +4244,7 @@ class PaymentPersistenceTest {
 		UUID person = jdbc.queryForObject("select id from residents where property_id=? and name='김대표'", UUID.class, property);
 		var issued = personalInvites.issue(user, property, person);
 		UUID joining = users.saveAndFlush(User.create("저장 재시도", null)).getId();
-		var input = new com.moahome.server.membership.dto.ResidentInvitations.Claim(issued.token(), false, null, null, null);
+		var input = new ResidentInvitations.Claim(issued.token(), false, null, null, null);
 		jdbc.execute("create function fail_invite_member() returns trigger language plpgsql as $$ begin raise exception 'test'; end $$");
 		jdbc.execute("create trigger fail_invite_member before insert on property_members for each row execute function fail_invite_member()");
 		try {
@@ -4211,17 +4262,17 @@ class PaymentPersistenceTest {
 		List<UUID> people = jdbc.queryForList("select id from residents where property_id=? order by name", UUID.class, property);
 		UUID approvedUser = users.saveAndFlush(User.create("승인 이력", null)).getId();
 		var approved = personalInvites.issue(user, property, people.get(0));
-		personalInvites.accept(approvedUser, new com.moahome.server.membership.dto.ResidentInvitations.Claim(approved.token(), false, null, null, null));
+		personalInvites.accept(approvedUser, new ResidentInvitations.Claim(approved.token(), false, null, null, null));
 		UUID correctionUser = users.saveAndFlush(User.create("정정 이력", null)).getId();
 		var correction = personalInvites.issue(user, property, people.get(1));
-		personalInvites.accept(correctionUser, new com.moahome.server.membership.dto.ResidentInvitations.Claim(correction.token(), true, "정정 이름", "KEEP", null));
+		personalInvites.accept(correctionUser, new ResidentInvitations.Claim(correction.token(), true, "정정 이름", "KEEP", null));
 		var unused = personalInvites.issue(user, property, people.get(2));
 		var shared = joinCodes.issue(user, property);
 		UUID external = users.saveAndFlush(User.create("외부 신청", null)).getId();
 		var manager = memberManagement.issue(user, property, null);
 		memberManagement.claim(external, manager.code());
 		String schema = "redis_upgrade_" + UUID.randomUUID().toString().replace("-", "");
-		var old = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var old = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).target("20261024081150").load();
 		old.migrate();
 		try {
@@ -4233,15 +4284,15 @@ class PaymentPersistenceTest {
 			columns = jdbc.queryForObject("select string_agg(quote_ident(column_name),',' order by ordinal_position) from information_schema.columns where table_schema='public' and table_name='member_invitations'", String.class);
 			jdbc.execute("insert into " + schema + ".member_invitations(" + columns + ") select " + columns.replace("expires_at", "created_at+interval '1 day'") + " from member_invitations");
 			String before = jdbc.queryForObject("select row_to_json(i)::text from " + schema + ".resident_invitations i where id=?", String.class, correction.id());
-			var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+			var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 			    .schemas(schema).defaultSchema(schema).target("20261025015144")
-			    .callbacks(new com.moahome.server.config.InvitationCredentialMigrationCallback()).load();
+			    .callbacks(new InvitationCredentialMigrationCallback()).load();
 			// 철회 중 장애가 나면 선행 암호문 정리도 롤백되어 구버전 데이터가 부분 변경되지 않아야 합니다.
 			jdbc.execute("create function " + schema + ".fail_invitation_revoke() returns trigger language plpgsql as $$ "
 			    + "begin if NEW.status='REVOKED' then raise exception 'test revoke failure'; end if; return NEW; end $$");
 			jdbc.execute("create trigger fail_invitation_revoke before update on " + schema + ".resident_invitations "
 			    + "for each row execute function " + schema + ".fail_invitation_revoke()");
-			assertThatThrownBy(upgraded::migrate).isInstanceOf(org.flywaydb.core.api.FlywayException.class);
+			assertThatThrownBy(upgraded::migrate).isInstanceOf(FlywayException.class);
 			assertThat(jdbc.queryForObject("select token_encrypted from " + schema + ".resident_invitations where id=?", String.class, unused.id()))
 			    .isEqualTo("old-protected-code");
 			assertThat(jdbc.queryForObject("select status from " + schema + ".resident_invitations where id=?", String.class, unused.id()))
@@ -4265,8 +4316,8 @@ class PaymentPersistenceTest {
 	void appliedRedisCredentialMigrationKeepsChecksumAndDoesNotRevokeNewInvitations() {
 		UUID person = jdbc.queryForObject("select id from residents where property_id=? and name='김대표'", UUID.class, property);
 		var issued = personalInvites.issue(user, property, person);
-		var current = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
-		    .callbacks(new com.moahome.server.config.InvitationCredentialMigrationCallback()).load();
+		var current = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		    .callbacks(new InvitationCredentialMigrationCallback()).load();
 		current.validate();
 		assertThat(Arrays.stream(current.info().applied())
 		    .filter(info -> "20261025015144".equals(info.getVersion().getVersion())).findFirst().orElseThrow().getChecksum())

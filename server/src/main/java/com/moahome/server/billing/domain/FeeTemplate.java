@@ -1,13 +1,16 @@
 package com.moahome.server.billing.domain;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.Objects;
 import java.util.UUID;
-import com.moahome.server.common.validation.TextValues;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+
+import com.moahome.server.common.validation.TextValues;
 
 @Getter
 @Entity
@@ -27,10 +30,10 @@ public class FeeTemplate {
 	private boolean defaultTemplate;
 
 	@Column(name = "effective_from")
-	private java.time.LocalDate effectiveFrom;
+	private LocalDate effectiveFrom;
 
 	@Column(name = "effective_to")
-	private java.time.LocalDate effectiveTo;
+	private LocalDate effectiveTo;
 
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
@@ -81,7 +84,7 @@ public class FeeTemplate {
 	}
 
 	/** 기존 내용을 덮어쓰지 않고 다음 달부터 사용할 새 버전과 필수 수정 사유를 보존합니다. */
-	public static FeeTemplate schedule(UUID propertyId, long revision, java.time.YearMonth month, String reason,
+	public static FeeTemplate schedule(UUID propertyId, long revision, YearMonth month, String reason,
 	    UUID actorId, OffsetDateTime at) {
 		if (revision <= 0)
 			throw new IllegalArgumentException("Invalid template revision");
@@ -94,7 +97,7 @@ public class FeeTemplate {
 	}
 
 	/** 이번 달 추가 부과의 원본은 반복 설정 조회에서 제외하고 사유·처리자를 별도로 보존합니다. */
-	public static FeeTemplate addition(UUID propertyId, long revision, java.time.YearMonth month, String reason,
+	public static FeeTemplate addition(UUID propertyId, long revision, YearMonth month, String reason,
 	    UUID actor, BillingMode mode, OffsetDateTime at) {
 		var template = schedule(propertyId, revision, month, reason, actor, at);
 		template.defaultTemplate = false;

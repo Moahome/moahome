@@ -2,11 +2,7 @@ package com.moahome.server.billing.controller;
 
 import java.time.*;
 import java.util.*;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.auth.exception.*;
-import com.moahome.server.billing.dto.*;
-import com.moahome.server.billing.exception.BillingException;
-import com.moahome.server.billing.service.BillingService;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -19,6 +15,14 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.auth.exception.*;
+import com.moahome.server.billing.dto.*;
+import com.moahome.server.billing.exception.BillingException;
+import com.moahome.server.billing.service.BillingService;
+
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -42,7 +46,7 @@ class BillingControllerTest {
 	@MockitoBean
 	BillingService service;
 
-	private org.springframework.test.web.servlet.request.RequestPostProcessor identity() {
+	private RequestPostProcessor identity() {
 		return authentication(UsernamePasswordAuthenticationToken
 		    .authenticated(new AuthPrincipal(userId.toString(), UUID.randomUUID().toString()), null, List.of()));
 	}

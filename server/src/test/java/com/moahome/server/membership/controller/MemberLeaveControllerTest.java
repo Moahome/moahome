@@ -2,14 +2,11 @@ package com.moahome.server.membership.controller;
 
 import java.util.List;
 import java.util.UUID;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.membership.dto.MemberRequests;
-import com.moahome.server.membership.service.MemberManagementService;
-import com.moahome.server.payment.exception.PaymentException;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -19,6 +16,13 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.membership.dto.MemberRequests;
+import com.moahome.server.membership.service.MemberManagementService;
+import com.moahome.server.payment.exception.PaymentException;
+
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -41,7 +45,7 @@ class MemberLeaveControllerTest {
 
 	private final String url = "/api/properties/" + property + "/members/me/leave";
 
-	private org.springframework.test.web.servlet.request.RequestPostProcessor identity() {
+	private RequestPostProcessor identity() {
 		return authentication(UsernamePasswordAuthenticationToken.authenticated(
 		    new AuthPrincipal(actor.toString(), UUID.randomUUID().toString()), null, List.of()));
 	}

@@ -1,9 +1,16 @@
 package com.moahome.server.banking.dto;
 
+import java.time.LocalDate;
 import java.util.*;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
+
 import com.moahome.server.common.validation.TextInput;
+import com.moahome.server.common.validation.TextValues;
 
 public final class BankingRequests {
 	private BankingRequests() {
@@ -13,9 +20,9 @@ public final class BankingRequests {
 	    @Pattern(regexp = "[0-9]{1,15}") String amount,
 	    @Pattern(regexp = "[0-9]{1,3}(\\.[0-9]{1,2})?") String percentage) {
 		public Allocation {
-			label = com.moahome.server.common.validation.TextValues.optional(label);
-			amount = com.moahome.server.common.validation.TextValues.optional(amount);
-			percentage = com.moahome.server.common.validation.TextValues.optional(percentage);
+			label = TextValues.optional(label);
+			amount = TextValues.optional(amount);
+			percentage = TextValues.optional(percentage);
 		}
 	}
 
@@ -23,17 +30,17 @@ public final class BankingRequests {
 	    @NotNull @Pattern(regexp = "EQUAL|RATIO|AMOUNT") String mode, boolean saveAsRule,
 	    @NotEmpty @Size(max = 100) List<@NotNull @Valid Allocation> allocations) {
 		public Expense {
-			note = com.moahome.server.common.validation.TextValues.optional(note);
+			note = TextValues.optional(note);
 		}
 	}
 
 	public record ManualExpense(@NotNull UUID id, @NotNull UUID accountId,
-	    @NotNull java.time.LocalDate date, @NotNull @Pattern(regexp = "[0-9]{1,15}") String amount,
+	    @NotNull LocalDate date, @NotNull @Pattern(regexp = "[0-9]{1,15}") String amount,
 	    @TextInput(max = 100) String category, @TextInput(max = 500, optional = true) String note,
 	    @NotNull @Pattern(regexp = "EQUAL|RATIO|AMOUNT") String mode,
 	    @NotEmpty @Size(max = 100) List<@NotNull @Valid Allocation> allocations) {
 		public ManualExpense {
-			note = com.moahome.server.common.validation.TextValues.optional(note);
+			note = TextValues.optional(note);
 		}
 
 		public Expense expense() {
@@ -45,7 +52,7 @@ public final class BankingRequests {
 	    @TextInput(max = 500, optional = true) String incomeNote, @Valid Expense expense,
 	    @Valid Expense incomeAllocation,
 	    // 일반 거래와 이전 클라이언트는 이체 표시를 생략하므로 해당 필드만 false로 기본 처리합니다.
-	    @com.fasterxml.jackson.annotation.JsonSetter(nulls = com.fasterxml.jackson.annotation.Nulls.AS_EMPTY) boolean transfer) {
+	    @JsonSetter(nulls = Nulls.AS_EMPTY) boolean transfer) {
 		public Selection(UUID id, UUID unitId, String incomeCategory, String incomeNote, Expense expense,
 		    Expense incomeAllocation) {
 			this(id, unitId, incomeCategory, incomeNote, expense, incomeAllocation, false);
@@ -68,7 +75,7 @@ public final class BankingRequests {
 		}
 
 		@AssertTrue(message = "INVALID_SELECTION")
-		@com.fasterxml.jackson.annotation.JsonIgnore
+		@JsonIgnore
 		public boolean isSelectionValid() {
 			return !transactionIds.isEmpty() || !paymentIds.isEmpty();
 		}

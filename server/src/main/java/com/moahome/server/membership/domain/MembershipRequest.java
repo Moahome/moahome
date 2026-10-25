@@ -1,11 +1,15 @@
 package com.moahome.server.membership.domain;
 
 import java.time.OffsetDateTime;
+import java.util.Objects;
 import java.util.UUID;
+
 import jakarta.persistence.*;
 import lombok.Getter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+
+import com.moahome.server.common.validation.TextValues;
 
 /** 가입 신청은 승인 전 권한을 만들지 않고 관리자가 확인한 명부와 계정을 승인 시 연결합니다. */
 @Getter
@@ -92,8 +96,8 @@ public class MembershipRequest {
 
 	/** 신규 공통 신청의 이름과 검증한 초대 출처를 보존하며 이름으로 명부를 수정하지 않습니다. */
 	public void describeApplicant(String name, UUID code) {
-		applicantName = com.moahome.server.common.validation.TextValues.required(name, 50);
-		joinCodeId = java.util.Objects.requireNonNull(code);
+		applicantName = TextValues.required(name, 50);
+		joinCodeId = Objects.requireNonNull(code);
 	}
 
 	/** 명시적으로 선택한 주민만 승인 연결하고 최초 검토자·시각을 보존합니다. */

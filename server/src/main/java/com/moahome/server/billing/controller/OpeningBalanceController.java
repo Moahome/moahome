@@ -1,39 +1,45 @@
 package com.moahome.server.billing.controller;
 
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.billing.dto.*;
-import com.moahome.server.billing.service.OpeningBalanceService;
+import java.util.stream.Collectors;
+
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import java.util.List;
-import java.util.Set;
+import org.springframework.web.multipart.MultipartFile;
 
-@io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "bearerAuth")
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.billing.dto.*;
+import com.moahome.server.billing.service.OpeningBalanceExcelReader;
+import com.moahome.server.billing.service.OpeningBalanceService;
+
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/properties/{propertyId}/billing/opening-balances")
 public class OpeningBalanceController {
 	private final OpeningBalanceService service;
 
-	private final com.moahome.server.billing.service.OpeningBalanceExcelReader excel;
+	private final OpeningBalanceExcelReader excel;
 
 	public OpeningBalanceController(OpeningBalanceService service,
-	    com.moahome.server.billing.service.OpeningBalanceExcelReader excel) {
+	    OpeningBalanceExcelReader excel) {
 		this.service = service;
 		this.excel = excel;
 	}
 
 	/** 파일 검증은 저장하지 않으며 현재 대상의 세대 ID만 반환합니다. */
 	@PostMapping(value = "/import/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-	public ResponseEntity<java.util.List<OpeningBalanceRequest.UnitInput>> preview(
+	public ResponseEntity<List<OpeningBalanceRequest.UnitInput>> preview(
 	    @AuthenticationPrincipal AuthPrincipal actor, @PathVariable UUID propertyId,
-	    @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
+	    @RequestPart("file") MultipartFile file) {
 		var current = service.workspace(UUID.fromString(actor.userId()), propertyId);
 		List<OpeningBalanceRequest.UnitInput> rows = excel.read(file);
 		Set<UUID> allowed = current.units().stream().map(OpeningBalanceResponse.Unit::unitId)
-		    .collect(java.util.stream.Collectors.toSet());
+		    .collect(Collectors.toSet());
 		if (rows.stream().anyMatch(row -> !allowed.contains(row.unitId())))
 			throw new IllegalArgumentException("Invalid opening target");
 		return safe(rows);

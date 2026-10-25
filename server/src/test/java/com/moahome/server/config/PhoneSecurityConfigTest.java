@@ -2,9 +2,13 @@ package com.moahome.server.config;
 
 import java.security.SecureRandom;
 import java.util.Base64;
-import com.moahome.server.common.security.PhoneSecurity;
+
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.BeansException;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+
+import com.moahome.server.common.security.PhoneSecurity;
+
 import static org.assertj.core.api.Assertions.*;
 
 class PhoneSecurityConfigTest {
@@ -18,7 +22,7 @@ class PhoneSecurityConfigTest {
 		    .run(application -> {
 			    assertThat(application.getStartupFailure()).isNull();
 			    assertThatThrownBy(() -> application.getBean(PhoneSecurity.class))
-			        .isInstanceOf(org.springframework.beans.BeansException.class);
+			        .isInstanceOf(BeansException.class);
 		    });
 	}
 

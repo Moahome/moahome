@@ -1,17 +1,20 @@
 package com.moahome.server.membership.controller;
 
 import java.util.UUID;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.membership.dto.ResidentInvitations;
-import com.moahome.server.membership.service.*;
+
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import lombok.RequiredArgsConstructor;
+
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.membership.dto.ResidentInvitations;
+import com.moahome.server.membership.service.*;
 
 /** 모든 주민 초대 관리 요청은 서비스에서 관리대상 권한을 재검증합니다. */
-@io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "bearerAuth")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/properties/{propertyId}/resident-invitations")

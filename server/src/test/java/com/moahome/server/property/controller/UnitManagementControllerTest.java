@@ -1,11 +1,7 @@
 package com.moahome.server.property.controller;
 
 import java.util.*;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.auth.exception.*;
-import com.moahome.server.property.domain.UnitStatus;
-import com.moahome.server.property.dto.*;
-import com.moahome.server.property.service.UnitManagementService;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -18,6 +14,14 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.auth.exception.*;
+import com.moahome.server.property.domain.UnitStatus;
+import com.moahome.server.property.dto.*;
+import com.moahome.server.property.service.UnitManagementService;
+
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -41,7 +45,7 @@ class UnitManagementControllerTest {
 	@MockitoBean
 	UnitManagementService service;
 
-	private org.springframework.test.web.servlet.request.RequestPostProcessor identity() {
+	private RequestPostProcessor identity() {
 		return authentication(UsernamePasswordAuthenticationToken
 		    .authenticated(new AuthPrincipal(userId.toString(), UUID.randomUUID().toString()), null, List.of()));
 	}

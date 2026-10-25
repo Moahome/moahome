@@ -2,6 +2,11 @@ package com.moahome.server.resident.service;
 
 import java.time.OffsetDateTime;
 import java.util.*;
+
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.property.domain.Property;
@@ -9,7 +14,7 @@ import com.moahome.server.property.dto.ManagementPropertyResponse;
 import com.moahome.server.property.repo.*;
 import com.moahome.server.property.service.ManagementAccessService;
 import com.moahome.server.resident.repo.ResidentRepository;
-import org.junit.jupiter.api.Test;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -35,8 +40,8 @@ class ResidentListServiceTest {
 		verifyNoInteractions(properties, buildings, residents);
 	}
 
-	@org.junit.jupiter.params.ParameterizedTest
-	@org.junit.jupiter.params.provider.EnumSource(value = PropertyMemberRole.class, names = {"ADMIN", "MANAGER"})
+	@ParameterizedTest
+	@EnumSource(value = PropertyMemberRole.class, names = {"ADMIN", "MANAGER"})
 	void readsOnlyRequestedPropertyAndKeepsEmptyDirectoryAsSuccess(PropertyMemberRole role) {
 		when(access.getManagementContext(userId, propertyId))
 		    .thenReturn(new ManagementPropertyResponse(propertyId, "대상", role));

@@ -4,6 +4,10 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
+
+import org.junit.jupiter.api.Test;
+
+import com.moahome.server.auth.exception.AuthErrorCode;
 import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.banking.domain.BankAccount;
 import com.moahome.server.banking.domain.BankAccountStatus;
@@ -13,7 +17,7 @@ import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.property.dto.ManagementPropertyResponse;
 import com.moahome.server.property.repo.PropertyRepository;
 import com.moahome.server.property.service.ManagementAccessService;
-import org.junit.jupiter.api.Test;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -48,7 +52,7 @@ class BankAccountServiceTest {
 	@Test
 	void nonManagerCannotReadDetailsOrDecryptNumbers() {
 		when(access.getManagementContext(user, property))
-		    .thenThrow(new AuthException(com.moahome.server.auth.exception.AuthErrorCode.ACCESS_DENIED));
+		    .thenThrow(new AuthException(AuthErrorCode.ACCESS_DENIED));
 		assertThatThrownBy(() -> service.detail(user, property, id)).isInstanceOf(AuthException.class);
 		assertThatThrownBy(() -> service.revealNumber(user, property, id)).isInstanceOf(AuthException.class);
 		verifyNoInteractions(accounts, security);

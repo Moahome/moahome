@@ -1,9 +1,8 @@
 package com.moahome.server.property.controller;
 
+import java.util.List;
 import java.util.UUID;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.property.dto.*;
-import com.moahome.server.property.service.UnitManagementService;
+
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -12,8 +11,13 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import static com.moahome.server.property.exception.UnitManagementException.Code.INVALID_REQUEST;
+
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.property.dto.*;
 import com.moahome.server.property.exception.UnitManagementException;
+import com.moahome.server.property.service.UnitManagementService;
+
+import static com.moahome.server.property.exception.UnitManagementException.Code.INVALID_REQUEST;
 
 @RestController
 @RequestMapping("/api/properties/{propertyId}")
@@ -56,7 +60,7 @@ public class UnitManagementController {
 	/** 미리보기에서 확인한 새 세대를 한 트랜잭션으로 저장합니다. */
 	@PostMapping("/units/batch")
 	@Operation(summary = "세대 일괄 추가")
-	public ResponseEntity<java.util.List<UnitResponse>> createBatch(@AuthenticationPrincipal AuthPrincipal principal,
+	public ResponseEntity<List<UnitResponse>> createBatch(@AuthenticationPrincipal AuthPrincipal principal,
 	    @PathVariable String propertyId, @Valid @RequestBody UnitBatchRequest request) {
 		return ResponseEntity.status(201).cacheControl(CacheControl.noStore())
 		    .body(service.createBatch(UUID.fromString(principal.userId()), parseId(propertyId), request));
@@ -88,7 +92,7 @@ public class UnitManagementController {
 	public ResponseEntity<Void> deleteUnit(@AuthenticationPrincipal AuthPrincipal principal,
 	    @PathVariable String propertyId, @PathVariable String unitId) {
 		service.deleteUnits(UUID.fromString(principal.userId()), parseId(propertyId),
-		    java.util.List.of(parseId(unitId)));
+		    List.of(parseId(unitId)));
 		return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
 	}
 

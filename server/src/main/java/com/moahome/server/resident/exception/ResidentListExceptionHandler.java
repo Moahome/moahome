@@ -1,29 +1,38 @@
 package com.moahome.server.resident.exception;
 
-import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.auth.security.AuthErrorHandler.ErrorResponse;
-import com.moahome.server.resident.controller.ResidentListController;
-import com.moahome.server.resident.controller.ResidentRegistrationController;
-import com.moahome.server.user.exception.UserException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.*;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
+
+import com.moahome.server.auth.exception.AuthException;
+import com.moahome.server.auth.security.AuthErrorHandler.ErrorResponse;
+import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.resident.controller.ResidentExportController;
+import com.moahome.server.resident.controller.ResidentImportController;
+import com.moahome.server.resident.controller.ResidentListController;
+import com.moahome.server.resident.controller.ResidentManagementController;
+import com.moahome.server.resident.controller.ResidentRegistrationController;
+import com.moahome.server.user.exception.UserException;
 
 @RestControllerAdvice(assignableTypes = { ResidentListController.class, ResidentRegistrationController.class,
-        com.moahome.server.resident.controller.ResidentImportController.class,
-        com.moahome.server.resident.controller.ResidentManagementController.class,
-        com.moahome.server.resident.controller.ResidentExportController.class })
+        ResidentImportController.class,
+        ResidentManagementController.class,
+        ResidentExportController.class })
 public class ResidentListExceptionHandler {
-	@ExceptionHandler(com.moahome.server.payment.exception.PaymentException.class)
-	public ResponseEntity<ErrorResponse> role(com.moahome.server.payment.exception.PaymentException exception) {
+	@ExceptionHandler(PaymentException.class)
+	public ResponseEntity<ErrorResponse> role(PaymentException exception) {
 		return error(HttpStatus.CONFLICT, exception.code(), "현재 연결 계정과 역할을 확인해주세요.");
 	}
 
 	/** 입력값·SQL·명부·전화번호 원문 대신 원인별 고정 안내만 반환합니다. */
 	@ExceptionHandler({ IllegalArgumentException.class,
-	        org.springframework.web.bind.MethodArgumentNotValidException.class,
-	        org.springframework.http.converter.HttpMessageNotReadableException.class,
-	        org.springframework.web.multipart.support.MissingServletRequestPartException.class })
+	        MethodArgumentNotValidException.class,
+	        HttpMessageNotReadableException.class,
+	        MissingServletRequestPartException.class })
 	public ResponseEntity<ErrorResponse> invalid(Exception exception) {
 		return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "주민 정보를 확인해주세요.");
 	}
@@ -35,7 +44,7 @@ public class ResidentListExceptionHandler {
 	}
 
 	@ExceptionHandler({ ResidentImportException.class,
-	        org.springframework.web.multipart.MaxUploadSizeExceededException.class })
+	        MaxUploadSizeExceededException.class })
 	public ResponseEntity<ErrorResponse> excel(Exception exception) {
 		String code = exception instanceof ResidentImportException failure ? failure.code() : "INVALID_EXCEL_FILE";
 		String message = switch (code) {

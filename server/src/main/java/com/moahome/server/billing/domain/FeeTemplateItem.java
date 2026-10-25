@@ -1,13 +1,15 @@
 package com.moahome.server.billing.domain;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Objects;
 import java.util.UUID;
-import com.moahome.server.common.validation.TextValues;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+
+import com.moahome.server.common.validation.TextValues;
 
 @Getter
 @Entity
@@ -40,7 +42,7 @@ public class FeeTemplateItem {
 	private String itemName;
 
 	@Column(name = "default_amount", nullable = false, precision = 15, scale = 0)
-	private java.math.BigDecimal defaultAmount;
+	private BigDecimal defaultAmount;
 
 	@Column(name = "revenue_account_id")
 	private UUID revenueAccountId;
@@ -78,7 +80,7 @@ public class FeeTemplateItem {
 		// 직접 입력과 기존 항목은 null을 유지하며 표시 이름으로 종류를 추측하지 않습니다.
 		item.itemCode = itemCode;
 		item.itemName = TextValues.required(itemName, 100);
-		item.defaultAmount = java.math.BigDecimal.valueOf(amount);
+		item.defaultAmount = BigDecimal.valueOf(amount);
 		item.sortOrder = sortOrder;
 		item.active = true;
 		item.initialize(at);

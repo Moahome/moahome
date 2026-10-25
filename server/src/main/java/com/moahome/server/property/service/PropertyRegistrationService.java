@@ -3,6 +3,18 @@ package com.moahome.server.property.service;
 import java.math.BigInteger;
 import java.time.*;
 import java.util.*;
+import java.util.stream.IntStream;
+
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.dao.DataAccessException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
+
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.banking.domain.BankAccount;
 import com.moahome.server.banking.repo.BankAccountRepository;
@@ -10,6 +22,7 @@ import com.moahome.server.billing.domain.*;
 import com.moahome.server.billing.repo.*;
 import com.moahome.server.billing.service.BillingGenerationService;
 import com.moahome.server.common.security.AccountNumberSecurity;
+import com.moahome.server.common.security.PhoneSecurity;
 import com.moahome.server.membership.domain.PropertyMember;
 import com.moahome.server.membership.repo.PropertyMemberRepository;
 import com.moahome.server.property.domain.*;
@@ -17,14 +30,13 @@ import com.moahome.server.property.dto.*;
 import com.moahome.server.property.dto.PropertyRegistrationResponse.*;
 import com.moahome.server.property.exception.*;
 import com.moahome.server.property.repo.*;
+import com.moahome.server.resident.domain.Resident;
+import com.moahome.server.resident.domain.UnitResident;
+import com.moahome.server.resident.repo.ResidentRepository;
+import com.moahome.server.resident.repo.UnitResidentRepository;
+import com.moahome.server.resident.service.ResidentRegistrationService;
 import com.moahome.server.user.domain.User;
 import com.moahome.server.user.service.UserService;
-import jakarta.validation.Validator;
-import org.springframework.dao.DataAccessException;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.ObjectMapper;
-import jakarta.validation.ConstraintViolation;
 
 @Service
 public class PropertyRegistrationService {
@@ -60,23 +72,23 @@ public class PropertyRegistrationService {
 
 	private final BillingGenerationService billing;
 
-	private final org.springframework.beans.factory.ObjectProvider<com.moahome.server.common.security.PhoneSecurity> phones;
+	private final ObjectProvider<PhoneSecurity> phones;
 
-	private final com.moahome.server.resident.repo.ResidentRepository residents;
+	private final ResidentRepository residents;
 
-	private final com.moahome.server.resident.repo.UnitResidentRepository affiliations;
+	private final UnitResidentRepository affiliations;
 
-	private final org.springframework.beans.factory.ObjectProvider<RegistrationOpeningService> opening;
+	private final ObjectProvider<RegistrationOpeningService> opening;
 
 	public PropertyRegistrationService(UserService users, PropertyRepository properties, BuildingRepository buildings,
 	    UnitRepository units, BankAccountRepository bankAccounts, FeeTemplateRepository templates,
 	    FeeTemplateItemRepository items, PropertyMemberRepository members, PropertyRegistrationResultRepository results,
 	    PropertyRegistrationLock lock, AccountNumberSecurity accountSecurity, RegistrationFingerprint fingerprints,
 	    Validator validator, ObjectMapper mapper, Clock clock, BillingGenerationService billing,
-	    org.springframework.beans.factory.ObjectProvider<com.moahome.server.common.security.PhoneSecurity> phones,
-	    com.moahome.server.resident.repo.ResidentRepository residents,
-	    com.moahome.server.resident.repo.UnitResidentRepository affiliations,
-	    org.springframework.beans.factory.ObjectProvider<RegistrationOpeningService> opening) {
+	    ObjectProvider<PhoneSecurity> phones,
+	    ResidentRepository residents,
+	    UnitResidentRepository affiliations,
+	    ObjectProvider<RegistrationOpeningService> opening) {
 		this.users = users;
 		this.properties = properties;
 		this.buildings = buildings;
@@ -108,7 +120,7 @@ public class PropertyRegistrationService {
 	}
 
 	/** 입력 전체와 현재 계정을 검증하고 초기 설정·권한·성공 결과를 하나의 트랜잭션으로 저장합니다. */
-	@Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
+	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public RegistrationOutcome register(UUID userId, PropertyRegistrationRequest input) {
 		User user = requireActiveUser(userId);
 		validate(input);
@@ -149,7 +161,7 @@ public class PropertyRegistrationService {
 
 		// 같은 시각에 저장한 통장도 초기 설정에서 입력한 순서를 별도로 보존합니다.
 		List<BankAccount> createdAccounts = bankAccounts
-		    .saveAllAndFlush(java.util.stream.IntStream.range(0, input.bankAccounts().size()).mapToObj(index -> {
+		    .saveAllAndFlush(IntStream.range(0, input.bankAccounts().size()).mapToObj(index -> {
 			    var account = input.bankAccounts().get(index);
 			    var created = BankAccount.createPublic(property, account.bankCode(), account.bankName(),
 			        account.holderName(), accountSecurity.protect(account.accountNumber()), account.isPrimary(), index,
@@ -203,7 +215,7 @@ public class PropertyRegistrationService {
 			throw invalid("administrator.name", "REQUIRED", "관리소장 이름을 입력해주세요.");
 		try {
 			if (profile.phone() != null)
-				com.moahome.server.resident.service.ResidentRegistrationService.normalizePhone(profile.phone());
+				ResidentRegistrationService.normalizePhone(profile.phone());
 		} catch (IllegalArgumentException failure) {
 			throw invalid("administrator.phone", "INVALID_FORMAT", "연락처 형식을 확인해주세요.");
 		}
@@ -224,28 +236,28 @@ public class PropertyRegistrationService {
 		if ("EXTERNAL".equals(input.residenceType()))
 			return new CreatorSummary("EXTERNAL", null, null, null);
 		String phone = input.phone() == null ? null
-		    : com.moahome.server.resident.service.ResidentRegistrationService.normalizePhone(input.phone());
+		    : ResidentRegistrationService.normalizePhone(input.phone());
 		String encrypted = null;
 		String hmac = null;
 		String last4 = null;
 		if (phone != null) {
 			// 번호를 입력했을 때에만 보호 서비스를 요구하며, 보호 설정 장애에서 평문 저장으로 대체하지 않습니다.
-			com.moahome.server.common.security.PhoneSecurity security;
+			PhoneSecurity security;
 			try {
 				security = phones.getObject();
-			} catch (org.springframework.beans.BeansException failure) {
+			} catch (BeansException failure) {
 				throw new RegistrationException(RegistrationErrorCode.PHONE_SECURITY_UNAVAILABLE);
 			}
 			encrypted = security.encrypt(phone);
 			hmac = security.hmac(phone);
 			last4 = security.last4(phone);
 		}
-		var resident = com.moahome.server.resident.domain.Resident.register(UUID.randomUUID(), property, input.name(),
+		var resident = Resident.register(UUID.randomUUID(), property, input.name(),
 		    encrypted, hmac, last4, at);
 		resident.connectApprovedUser(actor, at);
 		residents.saveAndFlush(resident);
 		// 관리소장 등록은 일반 명부의 최초 대표 자동 지정에서 제외하고 세대 관계만 연결합니다.
-		var relation = com.moahome.server.resident.domain.UnitResident.register(resident, unit, "OTHER", false, at);
+		var relation = UnitResident.register(resident, unit, "OTHER", false, at);
 		affiliations.saveAndFlush(relation);
 		return new CreatorSummary("RESIDENT", resident.getId(), unit.getId(), relation.getId());
 	}

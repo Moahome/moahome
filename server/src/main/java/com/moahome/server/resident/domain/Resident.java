@@ -1,17 +1,22 @@
 package com.moahome.server.resident.domain;
 
 import java.time.OffsetDateTime;
+import java.util.Objects;
 import java.util.UUID;
+
 import jakarta.persistence.*;
 import lombok.Getter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import org.springframework.data.domain.Persistable;
+
+import com.moahome.server.common.validation.TextValues;
 
 /** 로그인 계정과 구분한 주민 명부이며 연락처는 암호문·검색값·끝 네 자리만 보관합니다. */
 @Getter
 @Entity
 @Table(name = "residents")
-public class Resident implements org.springframework.data.domain.Persistable<UUID> {
+public class Resident implements Persistable<UUID> {
 	@Transient
 	private boolean newRecord;
 
@@ -71,7 +76,7 @@ public class Resident implements org.springframework.data.domain.Persistable<UUI
 	public void connectApprovedUser(UUID user, OffsetDateTime at) {
 		if (deletedAt != null || (userId != null && !userId.equals(user)))
 			throw new IllegalStateException("Resident account conflict");
-		userId = java.util.Objects.requireNonNull(user);
+		userId = Objects.requireNonNull(user);
 		updatedAt = at;
 	}
 
@@ -80,17 +85,17 @@ public class Resident implements org.springframework.data.domain.Persistable<UUI
 		if ((encryptedPhone == null) != (phoneHmac == null) || (encryptedPhone == null) != (phoneLast4 == null)) {
 			throw new IllegalArgumentException("Incomplete protected contact");
 		}
-		this.name = com.moahome.server.common.validation.TextValues.required(name, 50);
+		this.name = TextValues.required(name, 50);
 		this.phoneEncrypted = encryptedPhone;
 		this.phoneHmac = phoneHmac;
 		this.phoneLast4 = phoneLast4;
-		this.updatedAt = java.util.Objects.requireNonNull(at);
+		this.updatedAt = Objects.requireNonNull(at);
 	}
 
 	/** 명부는 이력과 연결 ID를 보존하고 소프트 삭제하며 권한 종료는 같은 트랜잭션의 서비스가 조율합니다. */
 	public void delete(UUID actor, OffsetDateTime at) {
-		deletedAt = java.util.Objects.requireNonNull(at);
-		deletedBy = java.util.Objects.requireNonNull(actor);
+		deletedAt = Objects.requireNonNull(at);
+		deletedBy = Objects.requireNonNull(actor);
 		updatedAt = at;
 	}
 
@@ -100,12 +105,12 @@ public class Resident implements org.springframework.data.domain.Persistable<UUI
 			throw new IllegalStateException("Resident is not deleted");
 		deletedAt = null;
 		deletedBy = null;
-		updatedAt = java.util.Objects.requireNonNull(at);
+		updatedAt = Objects.requireNonNull(at);
 	}
 
 	/** 대표가 된 주민의 이전 상세로 수정·삭제하지 못하도록 대표 변경도 조회 버전에 반영합니다. */
 	public void touch(OffsetDateTime at) {
-		updatedAt = java.util.Objects.requireNonNull(at);
+		updatedAt = Objects.requireNonNull(at);
 	}
 
 	/** 명부 등록만으로 계정·가입 권한을 연결하지 않고 연락처의 세 저장값은 함께 설정합니다. */
@@ -114,9 +119,9 @@ public class Resident implements org.springframework.data.domain.Persistable<UUI
 		var resident = new Resident();
 		// 요청 ID는 외부에서 지정하므로 신규 저장은 merge 대신 persist로 수행해 다른 대상의 ID 충돌에도 덮어쓰지 않습니다.
 		resident.newRecord = true;
-		resident.id = java.util.Objects.requireNonNull(id);
-		resident.propertyId = java.util.Objects.requireNonNull(propertyId);
-		resident.name = com.moahome.server.common.validation.TextValues.required(name, 50);
+		resident.id = Objects.requireNonNull(id);
+		resident.propertyId = Objects.requireNonNull(propertyId);
+		resident.name = TextValues.required(name, 50);
 		if ((encryptedPhone == null) != (phoneHmac == null) || (encryptedPhone == null) != (phoneLast4 == null)) {
 			throw new IllegalArgumentException("Incomplete protected contact");
 		}
@@ -124,7 +129,7 @@ public class Resident implements org.springframework.data.domain.Persistable<UUI
 		resident.phoneHmac = phoneHmac;
 		resident.phoneLast4 = phoneLast4;
 		resident.status = "ACTIVE";
-		resident.createdAt = java.util.Objects.requireNonNull(at);
+		resident.createdAt = Objects.requireNonNull(at);
 		resident.updatedAt = at;
 		return resident;
 	}

@@ -3,15 +3,11 @@ package com.moahome.server.banking.controller;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.auth.exception.AuthErrorCode;
-import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.banking.dto.BankAccountSettings;
-import com.moahome.server.banking.service.BankAccountService;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -21,8 +17,16 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import static org.mockito.Mockito.*;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.auth.exception.AuthErrorCode;
+import com.moahome.server.auth.exception.AuthException;
+import com.moahome.server.banking.dto.BankAccountSettings;
+import com.moahome.server.banking.service.BankAccountService;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -43,7 +47,7 @@ class BankAccountControllerTest {
 		return "/api/properties/" + property + "/banking/account";
 	}
 
-	org.springframework.test.web.servlet.request.RequestPostProcessor identity() {
+	RequestPostProcessor identity() {
 		return authentication(UsernamePasswordAuthenticationToken
 		    .authenticated(new AuthPrincipal(user.toString(), UUID.randomUUID().toString()), null, List.of()));
 	}

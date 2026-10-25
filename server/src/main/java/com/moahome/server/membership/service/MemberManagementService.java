@@ -1,23 +1,28 @@
 package com.moahome.server.membership.service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.*;
 import java.time.*;
 import java.util.*;
-import java.security.*;
-import java.nio.charset.StandardCharsets;
-import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.membership.domain.*;
 import com.moahome.server.membership.dto.*;
 import com.moahome.server.membership.repo.*;
 import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.property.domain.PropertyStatus;
 import com.moahome.server.property.repo.PropertyRepository;
+import com.moahome.server.property.repo.UnitRepository;
 import com.moahome.server.property.service.ManagementAccessService;
 import com.moahome.server.resident.domain.Resident;
+import com.moahome.server.resident.domain.ResidentAccountLink;
 import com.moahome.server.resident.repo.*;
 import com.moahome.server.user.repo.UserRepository;
 import com.moahome.server.user.service.UserService;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+
 import static com.moahome.server.membership.repo.RedisInvitationCodeRepository.Kind.MANAGER;
 
 @Service
@@ -41,7 +46,7 @@ public class MemberManagementService {
 
 	private final ResidentAccountLinkRepository accountLinks;
 
-	private final com.moahome.server.property.repo.UnitRepository units;
+	private final UnitRepository units;
 
 	private final UserRepository users;
 
@@ -52,7 +57,7 @@ public class MemberManagementService {
 	public MemberManagementService(ManagementAccessService access, PropertyRepository properties,
 	    PropertyMemberRepository members, MemberRoleEventRepository events, MemberInvitationRepository invitations,
 	    ResidentRepository residents, UnitResidentRepository affiliations, ResidentAccountLinkRepository accountLinks,
-	    com.moahome.server.property.repo.UnitRepository units, UserRepository users, UserService accounts,
+	    UnitRepository units, UserRepository users, UserService accounts,
 	    Clock clock, RedisInvitationCodeRepository temporaryCodes) {
 		this.access = access;
 		this.properties = properties;
@@ -200,7 +205,7 @@ public class MemberManagementService {
 		residents.flush();
 		if (!recorded)
 			accountLinks.saveAndFlush(
-			    com.moahome.server.resident.domain.ResidentAccountLink.record(resident, affiliation, actor, now()));
+			    ResidentAccountLink.record(resident, affiliation, actor, now()));
 	}
 
 	/** 주민 상세의 역할 변경은 승인된 계정 연결에만 적용하고 관리소장 변경은 전용 인계로 제한합니다. */
@@ -302,7 +307,7 @@ public class MemberManagementService {
 		var property = invitations.findPropertyByHash(hash).orElseThrow(() -> failure("INVALID_INVITATION"));
 		var target = properties.findForUnitUpdate(property).orElseThrow(() -> failure("INVALID_INVITATION"));
 		if (target.getDeletedAt() != null
-		    || target.getStatus() != com.moahome.server.property.domain.PropertyStatus.ACTIVE)
+		    || target.getStatus() != PropertyStatus.ACTIVE)
 			throw failure("INVALID_INVITATION");
 		var invitation = invitations.findByTokenHash(hash).orElseThrow(() -> failure("INVALID_INVITATION"));
 		if (invitation.getRole() != PropertyMemberRole.MANAGER || actor.equals(invitation.getCreatedBy()))

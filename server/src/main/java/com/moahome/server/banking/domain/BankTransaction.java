@@ -2,9 +2,13 @@ package com.moahome.server.banking.domain;
 
 import java.math.BigDecimal;
 import java.time.*;
+import java.util.Objects;
 import java.util.UUID;
+
 import jakarta.persistence.*;
 import lombok.Getter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter
 @Entity
@@ -38,7 +42,7 @@ public class BankTransaction {
 	private String payerNameEncrypted;
 
 	@Column(name = "payer_name_hmac", nullable = false, columnDefinition = "char(64)")
-	@org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.CHAR)
+	@JdbcTypeCode(SqlTypes.CHAR)
 	private String payerNameHmac;
 
 	@Column(name = "memo_encrypted", columnDefinition = "text")
@@ -48,7 +52,7 @@ public class BankTransaction {
 	private String bankReference;
 
 	@Column(name = "deduplication_key", nullable = false, columnDefinition = "char(64)")
-	@org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.CHAR)
+	@JdbcTypeCode(SqlTypes.CHAR)
 	private String deduplicationKey;
 
 	@Column(name = "imported_by", nullable = false)
@@ -83,8 +87,8 @@ public class BankTransaction {
 	public void softDelete(UUID actor, OffsetDateTime at) {
 		if (deletedAt != null)
 			return;
-		deletedBy = java.util.Objects.requireNonNull(actor);
-		deletedAt = java.util.Objects.requireNonNull(at);
+		deletedBy = Objects.requireNonNull(actor);
+		deletedAt = Objects.requireNonNull(at);
 	}
 
 	/** 업로드 원본은 확정·취소로 덮어쓰지 않고 중복 키와 보호된 입금 정보를 보존합니다. */

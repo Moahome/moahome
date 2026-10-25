@@ -1,9 +1,9 @@
 package com.moahome.server.closing.controller;
 
 import java.util.UUID;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.closing.dto.MonthlySettlementResponse;
-import com.moahome.server.closing.service.MonthlySettlementService;
+
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -13,8 +13,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-@io.swagger.v3.oas.annotations.tags.Tag(name = "월별 정산")
-@io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "bearerAuth")
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.closing.dto.MonthlySettlementResponse;
+import com.moahome.server.closing.service.MonthlySettlementService;
+
+@Tag(name = "월별 정산")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/properties/{propertyId}/closing/monthly")
 public class MonthlySettlementController {

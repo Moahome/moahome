@@ -3,18 +3,21 @@ package com.moahome.server.property.service;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.UUID;
-import com.moahome.server.auth.exception.AuthErrorCode;
-import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.membership.repo.PropertyMemberRepository;
-import com.moahome.server.membership.repo.PropertyMemberRepository.ManagementProperty;
-import com.moahome.server.property.dto.ManagedPropertiesResponse;
-import com.moahome.server.property.dto.PropertyAccessContextResponse;
-import com.moahome.server.resident.repo.ResidentRepository;
-import com.moahome.server.property.dto.ManagementPropertyResponse;
-import com.moahome.server.user.service.UserService;
+
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.moahome.server.auth.exception.AuthErrorCode;
+import com.moahome.server.auth.exception.AuthException;
+import com.moahome.server.membership.domain.PropertyMemberRole;
+import com.moahome.server.membership.repo.PropertyMemberRepository;
+import com.moahome.server.membership.repo.PropertyMemberRepository.ManagementProperty;
+import com.moahome.server.property.dto.ManagedPropertiesResponse;
+import com.moahome.server.property.dto.ManagementPropertyResponse;
+import com.moahome.server.property.dto.PropertyAccessContextResponse;
+import com.moahome.server.resident.repo.ResidentRepository;
+import com.moahome.server.user.service.UserService;
 
 @Service
 @Transactional(readOnly = true)
@@ -67,11 +70,11 @@ public class ManagementAccessService {
 	/** 부담당자는 현재 관리소장의 명부를 고칠 수 없으며 대상 계정의 현재 참여로 판단합니다. */
 	public void requireResidentWrite(UUID actor, UUID propertyId, UUID residentUserId) {
 		var context = getManagementContext(actor, propertyId);
-		if (context.role() != com.moahome.server.membership.domain.PropertyMemberRole.MANAGER || residentUserId == null)
+		if (context.role() != PropertyMemberRole.MANAGER || residentUserId == null)
 			return;
 		boolean chief = members.findByPropertyIdAndUserIdAndDeletedAtIsNull(propertyId, residentUserId).stream()
 		    .anyMatch(member -> member.isCurrent()
-		        && member.getRole() == com.moahome.server.membership.domain.PropertyMemberRole.ADMIN);
+		        && member.getRole() == PropertyMemberRole.ADMIN);
 		if (chief)
 			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
 	}

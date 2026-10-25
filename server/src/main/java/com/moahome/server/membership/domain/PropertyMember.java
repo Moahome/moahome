@@ -4,7 +4,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Objects;
 import java.util.UUID;
-import com.moahome.server.common.validation.TextValues;
 import com.moahome.server.property.domain.Property;
 import com.moahome.server.user.domain.User;
 import jakarta.persistence.*;

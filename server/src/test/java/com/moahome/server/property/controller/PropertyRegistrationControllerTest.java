@@ -3,6 +3,27 @@ package com.moahome.server.property.controller;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Stream;
+
+import org.hamcrest.Matchers;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.*;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+import tools.jackson.databind.ObjectMapper;
+
 import com.moahome.server.auth.domain.AuthPrincipal;
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.billing.domain.FeeItemCode;
@@ -11,22 +32,6 @@ import com.moahome.server.property.dto.PropertyRegistrationResponse.*;
 import com.moahome.server.property.exception.*;
 import com.moahome.server.property.service.PropertyRegistrationService;
 import com.moahome.server.property.support.RegistrationFixtures;
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.EnumSource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.*;
-import org.springframework.dao.DataAccessResourceFailureException;
-import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.MockMvc;
-import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -36,7 +41,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(PropertyRegistrationController.class)
-@org.springframework.test.context.ActiveProfiles("test")
+@ActiveProfiles("test")
 @Import({ PropertyRegistrationControllerTest.Security.class, RegistrationRequestConverter.class })
 class PropertyRegistrationControllerTest {
 	private static final UUID USER_ID = UUID.randomUUID();
@@ -54,7 +59,7 @@ class PropertyRegistrationControllerTest {
 	@MockitoBean
 	PropertyRegistrationService registrations;
 
-	private org.springframework.test.web.servlet.request.RequestPostProcessor identity() {
+	private RequestPostProcessor identity() {
 		return authentication(UsernamePasswordAuthenticationToken
 		    .authenticated(new AuthPrincipal(USER_ID.toString(), UUID.randomUUID().toString()), null, List.of()));
 	}
@@ -66,8 +71,8 @@ class PropertyRegistrationControllerTest {
 		    .content("{\"name\":\" 모아빌라 \",\"address\":\" 주소 \",\"addressDetail\":\" \",\"hasBuildings\":false}"))
 		    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
 		    .andExpect(jsonPath("name").value("모아빌라")).andExpect(jsonPath("address").value("주소"))
-		    .andExpect(jsonPath("addressDetail").value(org.hamcrest.Matchers.nullValue()))
-		    .andExpect(jsonPath("propertyType").value(org.hamcrest.Matchers.nullValue()))
+		    .andExpect(jsonPath("addressDetail").value(Matchers.nullValue()))
+		    .andExpect(jsonPath("propertyType").value(Matchers.nullValue()))
 		    .andExpect(jsonPath("hasBuildings").value(false)).andExpect(jsonPath("$.length()").value(5));
 		verify(registrations).validateBasicInfo(USER_ID, new BasicInfoRequest("모아빌라", "주소", null, null, false));
 		verifyNoMoreInteractions(registrations);

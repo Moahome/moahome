@@ -1,18 +1,21 @@
 package com.moahome.server.resident.repo;
 
+import java.io.ByteArrayOutputStream;
+import java.security.SecureRandom;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.*;
-import com.moahome.server.property.domain.*;
-import com.moahome.server.property.repo.*;
-import com.moahome.server.property.service.ManagementAccessService;
-import com.moahome.server.resident.service.ResidentListService;
-import com.moahome.server.resident.domain.ResidentSignupStatus;
-import com.moahome.server.user.domain.User;
-import com.moahome.server.user.repo.UserRepository;
-import com.moahome.server.user.service.UserService;
-import com.moahome.server.user.support.PostgresTestServer;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.*;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -23,41 +26,75 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.*;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.annotation.*;
-import static org.assertj.core.api.Assertions.*;
+import tools.jackson.databind.ObjectMapper;
+
+import com.moahome.server.auth.exception.AuthException;
+import com.moahome.server.billing.service.BillingGenerationService;
+import com.moahome.server.common.security.PhoneSecurity;
+import com.moahome.server.config.PhoneSecurityProperties;
+import com.moahome.server.membership.dto.MemberRequests;
+import com.moahome.server.membership.repo.MemberRoleEventRepository;
+import com.moahome.server.membership.repo.RedisInvitationCodeRepository;
+import com.moahome.server.membership.service.MemberManagementService;
+import com.moahome.server.property.domain.*;
 import com.moahome.server.property.dto.UnitListResponse;
+import com.moahome.server.property.repo.*;
+import com.moahome.server.property.service.ManagementAccessService;
+import com.moahome.server.property.service.UnitManagementService;
+import com.moahome.server.resident.domain.ResidentSignupStatus;
+import com.moahome.server.resident.dto.ResidentDeleteRequest;
+import com.moahome.server.resident.dto.ResidentImportCommitRequest;
 import com.moahome.server.resident.dto.ResidentListResponse;
+import com.moahome.server.resident.dto.ResidentRegistrationRequest;
 import com.moahome.server.resident.dto.ResidentRegistrationResponse;
+import com.moahome.server.resident.dto.ResidentUpdateRequest;
+import com.moahome.server.resident.exception.ResidentImportException;
+import com.moahome.server.resident.exception.ResidentRegistrationException;
+import com.moahome.server.resident.service.ResidentExcelReader;
+import com.moahome.server.resident.service.ResidentImportService;
+import com.moahome.server.resident.service.ResidentListService;
+import com.moahome.server.resident.service.ResidentManagementService;
+import com.moahome.server.resident.service.ResidentRegistrationService;
+import com.moahome.server.user.domain.User;
+import com.moahome.server.user.repo.UserRepository;
+import com.moahome.server.user.service.UserService;
+import com.moahome.server.user.support.PostgresTestServer;
+
+import static org.assertj.core.api.Assertions.*;
 
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({com.moahome.server.property.service.UnitManagementService.class, ResidentListService.class,
+@Import({UnitManagementService.class, ResidentListService.class,
         ManagementAccessService.class, UserService.class, ResidentDirectoryPersistenceTest.Beans.class,
-        com.moahome.server.resident.service.ResidentRegistrationService.class,
-        com.moahome.server.resident.service.ResidentImportService.class,
-        com.moahome.server.resident.service.ResidentExcelReader.class,
-        com.moahome.server.resident.service.ResidentManagementService.class,
-        com.moahome.server.membership.service.MemberManagementService.class})
+        ResidentRegistrationService.class,
+        ResidentImportService.class,
+        ResidentExcelReader.class,
+        ResidentManagementService.class,
+        MemberManagementService.class})
 @ActiveProfiles("database-test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class ResidentDirectoryPersistenceTest {
 	private static final PostgresTestServer POSTGRES = new PostgresTestServer();
 
-	@org.springframework.test.context.bean.override.mockito.MockitoBean
-	com.moahome.server.billing.service.BillingGenerationService billing;
+	@MockitoBean
+	BillingGenerationService billing;
 
-	@org.springframework.test.context.bean.override.mockito.MockitoBean
-	com.moahome.server.membership.repo.RedisInvitationCodeRepository temporaryCodes;
+	@MockitoBean
+	RedisInvitationCodeRepository temporaryCodes;
 
 	@Autowired
-	com.moahome.server.membership.service.MemberManagementService memberManagement;
+	MemberManagementService memberManagement;
 
-	@org.springframework.test.context.bean.override.mockito.MockitoSpyBean
-	com.moahome.server.membership.repo.MemberRoleEventRepository roleEvents;
+	@MockitoSpyBean
+	MemberRoleEventRepository roleEvents;
 
 	private static final OffsetDateTime AT = OffsetDateTime.parse("2026-10-10T04:00:00Z");
 
@@ -80,16 +117,16 @@ class ResidentDirectoryPersistenceTest {
 	ResidentListService service;
 
 	@Autowired
-	com.moahome.server.property.service.UnitManagementService unitManagement;
+	UnitManagementService unitManagement;
 
 	@Autowired
-	com.moahome.server.resident.service.ResidentManagementService management;
+	ResidentManagementService management;
 
 	@Autowired
-	com.moahome.server.resident.service.ResidentRegistrationService registrations;
+	ResidentRegistrationService registrations;
 
 	@Autowired
-	com.moahome.server.common.security.PhoneSecurity phoneSecurity;
+	PhoneSecurity phoneSecurity;
 
 	@Autowired
 	JdbcTemplate jdbc;
@@ -98,7 +135,7 @@ class ResidentDirectoryPersistenceTest {
 	Flyway flyway;
 
 	@Autowired
-	com.moahome.server.resident.service.ResidentImportService imports;
+	ResidentImportService imports;
 
 	@Autowired
 	ResidentImportBatchRepository batches;
@@ -238,7 +275,7 @@ class ResidentDirectoryPersistenceTest {
 		var result = service.list(actor, property.getId());
 		assertThat(result.residents()).hasSize(5);
 		Map<UUID, ResidentSignupStatus> states = result.residents().stream()
-		    .collect(java.util.stream.Collectors.toMap(item -> item.id(), item -> item.signupStatus()));
+		    .collect(Collectors.toMap(item -> item.id(), item -> item.signupStatus()));
 		assertThat(states).containsEntry(approved, ResidentSignupStatus.APPROVED)
 		    .containsEntry(pending, ResidentSignupStatus.PENDING)
 		    .containsEntry(linkedOnly, ResidentSignupStatus.NOT_JOINED)
@@ -247,9 +284,9 @@ class ResidentDirectoryPersistenceTest {
 		Map<UUID, UnitListResponse.ResidentSummary> summaries = unitManagement.list(actor, property.getId())
 		    .residentSummaries();
 		assertThat(summaries.get(unit.getId()))
-		    .isEqualTo(new com.moahome.server.property.dto.UnitListResponse.ResidentSummary(null, 5, 1, 1, 3));
+		    .isEqualTo(new UnitListResponse.ResidentSummary(null, 5, 1, 1, 3));
 		assertThat(summaries.get(oldUnit.getId()))
-		    .isEqualTo(new com.moahome.server.property.dto.UnitListResponse.ResidentSummary(null, 0, 0, 0, 0));
+		    .isEqualTo(new UnitListResponse.ResidentSummary(null, 0, 0, 0, 0));
 		// 과거 승인이 있어도 현재 참여가 끝났거나 현재 세대의 승인이 아니면 가입 완료가 아닙니다.
 		jdbc.update("update property_members set ended_at=now() where property_id=? and user_id=?", property.getId(),
 		    approvedUser);
@@ -359,17 +396,17 @@ class ResidentDirectoryPersistenceTest {
 		assertThat(registrations.register(actor, property.getId(), input)).isEqualTo(first);
 		assertThatThrownBy(() -> registrations.register(actor, property.getId(),
 		    registration(unit.getId(), "동일 주민", "+82 10 2345 6789")))
-		    .isInstanceOfSatisfying(com.moahome.server.resident.exception.ResidentRegistrationException.class,
+		    .isInstanceOfSatisfying(ResidentRegistrationException.class,
 		        error -> assertThat(error.code().name()).isEqualTo("DUPLICATE_RESIDENT"));
 		// 전화번호 공유와 연락처 없는 동명이인은 주민을 자동 병합하거나 배제할 근거가 아닙니다.
 		registrations.register(actor, property.getId(), registration(unit.getId(), "다른 가족", "01023456789"));
 		registrations.register(actor, property.getId(), registration(unit.getId(), "동명이인", null));
 		registrations.register(actor, property.getId(), registration(unit.getId(), "동명이인", null));
 		assertThat(service.list(actor, property.getId()).residents()).hasSize(4);
-		var changed = new com.moahome.server.resident.dto.ResidentRegistrationRequest(input.requestId(), "다른 이름", null,
+		var changed = new ResidentRegistrationRequest(input.requestId(), "다른 이름", null,
 		    unit.getId(), "FAMILY");
 		assertThatThrownBy(() -> registrations.register(actor, property.getId(), changed)).isInstanceOfSatisfying(
-		    com.moahome.server.resident.exception.ResidentRegistrationException.class,
+		    ResidentRegistrationException.class,
 		    error -> assertThat(error.code().name()).isEqualTo("REGISTRATION_CONFLICT"));
 		jdbc.update("update residents set deleted_at=now() where id=?", first.id());
 		var restored = registrations.register(actor, property.getId(),
@@ -394,7 +431,7 @@ class ResidentDirectoryPersistenceTest {
 		var createdAt = jdbc.queryForObject("select created_at from residents where id=?", OffsetDateTime.class,
 		    first.id());
 		management.delete(actor, property.getId(), first.id(),
-		    new com.moahome.server.resident.dto.ResidentDeleteRequest(null,
+		    new ResidentDeleteRequest(null,
 		        management.detail(actor, property.getId(), first.id()).updatedAt()));
 		List<Map<String, Object>> history = jdbc.queryForList("select * from unit_residents where resident_id=?",
 		    first.id());
@@ -445,7 +482,7 @@ class ResidentDirectoryPersistenceTest {
 		assertThat(preview.rows()).extracting(row -> row.status()).containsExactly("READY", "READY", "DUPLICATE");
 		assertThat(preview.rows().getFirst().reason()).contains("재등록 가능");
 		assertThat(service.list(actor, property.getId()).residents()).isEmpty();
-		var selected = new com.moahome.server.resident.dto.ResidentImportCommitRequest(List.of(2, 3));
+		var selected = new ResidentImportCommitRequest(List.of(2, 3));
 		var saved = imports.commit(actor, property.getId(), preview.importId(), selected);
 		assertThat(saved.rows()).extracting(row -> row.status()).containsExactly("SUCCESS", "SUCCESS", "DUPLICATE");
 		assertThat(saved.rows()).extracting(row -> row.representative()).containsExactly(false, true, false);
@@ -486,8 +523,8 @@ class ResidentDirectoryPersistenceTest {
 		} finally {
 			jdbc.execute("drop function fail_restoration() cascade");
 		}
-		var gate = new java.util.concurrent.CountDownLatch(1);
-		try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+		var gate = new CountDownLatch(1);
+		try (var pool = Executors.newFixedThreadPool(2)) {
 			var first = pool.submit(() -> {
 				gate.await();
 				return registrations.register(actor, property.getId(), retry);
@@ -497,8 +534,8 @@ class ResidentDirectoryPersistenceTest {
 				return registrations.register(actor, property.getId(), retry);
 			});
 			gate.countDown();
-			assertThat(first.get(10, java.util.concurrent.TimeUnit.SECONDS))
-			    .isEqualTo(second.get(10, java.util.concurrent.TimeUnit.SECONDS));
+			assertThat(first.get(10, TimeUnit.SECONDS))
+			    .isEqualTo(second.get(10, TimeUnit.SECONDS));
 		}
 		assertThat(service.list(actor, property.getId()).residents()).hasSize(1);
 		assertThat(jdbc.queryForObject("select count(*) from unit_residents where resident_id=? and deleted_at is null",
@@ -588,8 +625,8 @@ class ResidentDirectoryPersistenceTest {
 		var foreignUnit = units.saveAndFlush(Unit.create(other, null, "401", null, null, UnitStatus.ACTIVE, AT));
 		assertThatThrownBy(
 		    () -> registrations.register(actor, property.getId(), registration(foreignUnit.getId(), "주민", null)))
-		    .isInstanceOf(com.moahome.server.resident.exception.ResidentRegistrationException.class);
-		var invalid = new com.moahome.server.resident.dto.ResidentRegistrationRequest(UUID.randomUUID(), "주민", null,
+		    .isInstanceOf(ResidentRegistrationException.class);
+		var invalid = new ResidentRegistrationRequest(UUID.randomUUID(), "주민", null,
 		    unit.getId(), "UNKNOWN");
 		assertThatThrownBy(() -> registrations.register(actor, property.getId(), invalid))
 		    .isInstanceOf(IllegalArgumentException.class);
@@ -602,12 +639,12 @@ class ResidentDirectoryPersistenceTest {
 		jdbc.update("update units set deleted_at=now() where id=?", unit.getId());
 		assertThatThrownBy(
 		    () -> registrations.register(actor, property.getId(), registration(unit.getId(), "주민", null)))
-		    .isInstanceOf(com.moahome.server.resident.exception.ResidentRegistrationException.class);
+		    .isInstanceOf(ResidentRegistrationException.class);
 		jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", property.getId(),
 		    actor);
 		assertThatThrownBy(
 		    () -> registrations.register(actor, property.getId(), registration(unit.getId(), "주민", null)))
-		    .isInstanceOf(com.moahome.server.auth.exception.AuthException.class);
+		    .isInstanceOf(AuthException.class);
 	}
 
 	@Test
@@ -616,8 +653,8 @@ class ResidentDirectoryPersistenceTest {
 		var actor = users.saveAndFlush(User.create("동시 등록 관리자", null)).getId();
 		member(property.getId(), actor);
 		var unit = units.saveAndFlush(Unit.create(property, null, "501", null, null, UnitStatus.ACTIVE, AT));
-		var gate = new java.util.concurrent.CountDownLatch(1);
-		try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+		var gate = new CountDownLatch(1);
+		try (var pool = Executors.newFixedThreadPool(2)) {
 			var first = pool.submit(() -> {
 				gate.await();
 				return registrations.register(actor, property.getId(), registration(unit.getId(), "첫 요청", null));
@@ -627,8 +664,8 @@ class ResidentDirectoryPersistenceTest {
 				return registrations.register(actor, property.getId(), registration(unit.getId(), "둘째 요청", null));
 			});
 			gate.countDown();
-			List<ResidentRegistrationResponse> results = List.of(first.get(10, java.util.concurrent.TimeUnit.SECONDS),
-			    second.get(10, java.util.concurrent.TimeUnit.SECONDS));
+			List<ResidentRegistrationResponse> results = List.of(first.get(10, TimeUnit.SECONDS),
+			    second.get(10, TimeUnit.SECONDS));
 			assertThat(results.stream().filter(item -> item.representative()).count()).isEqualTo(1);
 		}
 		assertThat(service.list(actor, property.getId()).residents()).hasSize(2);
@@ -660,10 +697,10 @@ class ResidentDirectoryPersistenceTest {
 		assertThat(service.list(actor, property.getId()).residents()).hasSize(1);
 		var payload = batches.findById(preview.importId()).orElseThrow().getRowsPayload();
 		assertThat(payload).contains("phoneEncrypted").doesNotContain("010-2345-6789", "+821023456789", "01012345678");
-		assertThat(new tools.jackson.databind.ObjectMapper().writeValueAsString(preview))
+		assertThat(new ObjectMapper().writeValueAsString(preview))
 		    .doesNotContain("phoneEncrypted", "phoneHmac");
 		assertThatThrownBy(() -> imports.commit(actor, property.getId(), preview.importId(),
-		    new com.moahome.server.resident.dto.ResidentImportCommitRequest(List.of(3))))
+		    new ResidentImportCommitRequest(List.of(3))))
 		    .isInstanceOf(IllegalArgumentException.class);
 	}
 
@@ -679,7 +716,7 @@ class ResidentDirectoryPersistenceTest {
 		var preview = imports.preview(actor, property.getId(),
 		    excel(new String[][]{{"", "301", "선택 안 함", "소유주", ""}, {"", "301", "첫 선택", "", ""},
 		            {"", "301", "두 번째", "가족", ""}, {"", "302", "기존 세대 추가", "가족", ""}, {"", "999", "오류 제외", "가족", ""}}));
-		var selection = new com.moahome.server.resident.dto.ResidentImportCommitRequest(List.of(5, 4, 3));
+		var selection = new ResidentImportCommitRequest(List.of(5, 4, 3));
 		var result = imports.commit(actor, property.getId(), preview.importId(), selection);
 		assertThat(result.rows()).extracting(row -> row.status()).containsExactly("NOT_SELECTED", "SUCCESS", "SUCCESS",
 		    "SUCCESS", "ERROR");
@@ -710,7 +747,7 @@ class ResidentDirectoryPersistenceTest {
 		registrations.register(actor, property.getId(), registration(unit.getId(), "경합 주민", "01012345678"));
 		jdbc.update("update units set deleted_at=now() where id=?", removedUnit.getId());
 		var result = imports.commit(actor, property.getId(), preview.importId(),
-		    new com.moahome.server.resident.dto.ResidentImportCommitRequest(List.of(2, 3, 4)));
+		    new ResidentImportCommitRequest(List.of(2, 3, 4)));
 		assertThat(result.rows()).extracting(row -> row.status()).containsExactly("DUPLICATE", "ERROR", "SUCCESS");
 		assertThat(service.list(actor, property.getId()).residents()).hasSize(2);
 	}
@@ -725,35 +762,35 @@ class ResidentDirectoryPersistenceTest {
 		units.saveAndFlush(Unit.create(property, null, "301", null, null, UnitStatus.ACTIVE, AT));
 		var file = excel(new String[][]{{"", "301", "주민", "가족", ""}});
 		var preview = imports.preview(actor, property.getId(), file);
-		var selection = new com.moahome.server.resident.dto.ResidentImportCommitRequest(List.of(2));
+		var selection = new ResidentImportCommitRequest(List.of(2));
 		// 관리소장 인계 이후에도 이전 관리소장의 업로드 초안을 다른 작성자가 확정하지 못합니다.
 		jdbc.update("update property_members set role='MANAGER' where property_id=? and user_id=?", property.getId(),
 		    actor);
 		jdbc.update("update property_members set role='ADMIN' where property_id=? and user_id=?", property.getId(),
 		    other);
 		assertThatThrownBy(() -> imports.commit(other, property.getId(), preview.importId(), selection))
-		    .isInstanceOf(com.moahome.server.resident.exception.ResidentImportException.class);
+		    .isInstanceOf(ResidentImportException.class);
 		jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", property.getId(),
 		    other);
 		assertThatThrownBy(() -> imports.preview(other, property.getId(), file))
-		    .isInstanceOf(com.moahome.server.auth.exception.AuthException.class);
+		    .isInstanceOf(AuthException.class);
 		assertThatThrownBy(() -> imports.commit(other, property.getId(), preview.importId(), selection))
-		    .isInstanceOf(com.moahome.server.auth.exception.AuthException.class);
+		    .isInstanceOf(AuthException.class);
 		jdbc.update("update property_members set role='ADMIN' where property_id=? and user_id=?", property.getId(),
 		    actor);
 		jdbc.update(
 		    "update resident_import_batches set created_at=now()-interval '2 days', expires_at=now()-interval '1 day' where id=?",
 		    preview.importId());
 		assertThatThrownBy(() -> imports.commit(actor, property.getId(), preview.importId(), selection))
-		    .isInstanceOf(com.moahome.server.resident.exception.ResidentImportException.class);
+		    .isInstanceOf(ResidentImportException.class);
 		imports.removeExpiredBatches();
 		assertThat(batches.findById(preview.importId())).isEmpty();
 		assertThat(service.list(actor, property.getId()).residents()).isEmpty();
 	}
 
-	private org.springframework.mock.web.MockMultipartFile excel(String[][] data) throws Exception {
-		try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook();
-		    var bytes = new java.io.ByteArrayOutputStream()) {
+	private MockMultipartFile excel(String[][] data) throws Exception {
+		try (var workbook = new XSSFWorkbook();
+		    var bytes = new ByteArrayOutputStream()) {
 			var sheet = workbook.createSheet();
 			var header = sheet.createRow(0);
 			String[] labels = {"동", "호수", "이름", "관계", "연락처"};
@@ -765,14 +802,14 @@ class ResidentDirectoryPersistenceTest {
 					target.createCell(col).setCellValue(data[row][col]);
 			}
 			workbook.write(bytes);
-			return new org.springframework.mock.web.MockMultipartFile("file", "residents.xlsx",
+			return new MockMultipartFile("file", "residents.xlsx",
 			    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes.toByteArray());
 		}
 	}
 
-	private com.moahome.server.resident.dto.ResidentRegistrationRequest registration(UUID unitId, String name,
+	private ResidentRegistrationRequest registration(UUID unitId, String name,
 	    String phone) {
-		return new com.moahome.server.resident.dto.ResidentRegistrationRequest(UUID.randomUUID(), name, phone, unitId,
+		return new ResidentRegistrationRequest(UUID.randomUUID(), name, phone, unitId,
 		    "TENANT");
 	}
 
@@ -790,11 +827,11 @@ class ResidentDirectoryPersistenceTest {
 		var other = property(false);
 		member(other.getId(), actor);
 		assertThatThrownBy(() -> management.revealPhone(actor, other.getId(), saved.id()))
-		    .isInstanceOf(com.moahome.server.resident.exception.ResidentRegistrationException.class)
+		    .isInstanceOf(ResidentRegistrationException.class)
 		    .hasMessage("RESIDENT_NOT_FOUND");
 		var outsider = users.saveAndFlush(User.create("상세 외부 계정", null)).getId();
 		assertThatThrownBy(() -> management.detail(outsider, property.getId(), saved.id()))
-		    .isInstanceOf(com.moahome.server.auth.exception.AuthException.class);
+		    .isInstanceOf(AuthException.class);
 		jdbc.update("update residents set phone_encrypted='invalid-cipher' where id=?", saved.id());
 		assertThatThrownBy(() -> management.revealPhone(actor, property.getId(), saved.id()))
 		    .hasMessage("PHONE_SECURITY_UNAVAILABLE");
@@ -814,7 +851,7 @@ class ResidentDirectoryPersistenceTest {
 		    users.saveAndFlush(User.create("미확인 신청 계정", null)).getId(), id, "POSSIBLE", "PENDING");
 		var detail = management.detail(actor, property.getId(), id);
 		assertThat(detail.hasLinkedRequests()).isTrue();
-		var input = new com.moahome.server.resident.dto.ResidentUpdateRequest("변경 주민", unit.getId(), "OWNER", "REPLACE",
+		var input = new ResidentUpdateRequest("변경 주민", unit.getId(), "OWNER", "REPLACE",
 		    "01098765432", null, detail.updatedAt());
 		var updated = management.update(actor, property.getId(), id, input);
 		assertThat(updated.name()).isEqualTo("변경 주민");
@@ -827,7 +864,7 @@ class ResidentDirectoryPersistenceTest {
 		assertThat(jdbc.queryForObject("select request_phone_last4 from membership_requests where id=?", String.class,
 		    possible)).isEqualTo("1234");
 		assertThatThrownBy(() -> management.update(actor, property.getId(), id,
-		    new com.moahome.server.resident.dto.ResidentUpdateRequest("변경 주민", unit.getId(), "OWNER", "REMOVE", null,
+		    new ResidentUpdateRequest("변경 주민", unit.getId(), "OWNER", "REMOVE", null,
 		        null, updated.updatedAt())))
 		    .hasMessage("CONTACT_REQUIRED_FOR_REQUEST");
 		assertThat(management.revealPhone(actor, property.getId(), id)).isEqualTo("+821098765432");
@@ -849,16 +886,16 @@ class ResidentDirectoryPersistenceTest {
 		var detail = management.detail(actor, property.getId(), id);
 		assertThat(detail.representativeCandidates()).extracting(item -> item.id()).containsExactly(remaining);
 		assertThatThrownBy(() -> management.update(actor, property.getId(), id,
-		    new com.moahome.server.resident.dto.ResidentUpdateRequest("이동 대표", destination.getId(), "TENANT", "KEEP",
+		    new ResidentUpdateRequest("이동 대표", destination.getId(), "TENANT", "KEEP",
 		        null, null, detail.updatedAt())))
 		    .hasMessage("REPRESENTATIVE_REQUIRED");
 		assertThatThrownBy(() -> management.update(actor, property.getId(), id,
-		    new com.moahome.server.resident.dto.ResidentUpdateRequest("이동 대표", destination.getId(), "TENANT", "KEEP",
+		    new ResidentUpdateRequest("이동 대표", destination.getId(), "TENANT", "KEEP",
 		        null, destinationRep, detail.updatedAt())))
 		    .hasMessage("INVALID_REPRESENTATIVE");
 		assertThat(management.detail(actor, property.getId(), id).unitId()).isEqualTo(source.getId());
 		var moved = management.update(actor, property.getId(), id,
-		    new com.moahome.server.resident.dto.ResidentUpdateRequest("이동 대표", destination.getId(), "TENANT", "KEEP",
+		    new ResidentUpdateRequest("이동 대표", destination.getId(), "TENANT", "KEEP",
 		        null, remaining, detail.updatedAt()));
 		assertThat(moved.unitId()).isEqualTo(destination.getId());
 		assertThat(moved.representative()).isFalse();
@@ -894,11 +931,11 @@ class ResidentDirectoryPersistenceTest {
 		var pending = request(property.getId(), unit.getId(), user, id, "MATCHED", "PENDING");
 		var detail = management.detail(actor, property.getId(), id);
 		assertThatThrownBy(() -> management.delete(actor, property.getId(), id,
-		    new com.moahome.server.resident.dto.ResidentDeleteRequest(null, detail.updatedAt())))
+		    new ResidentDeleteRequest(null, detail.updatedAt())))
 		    .hasMessage("REPRESENTATIVE_REQUIRED");
 		assertThat(jdbc.queryForObject("select status from property_members where property_id=? and user_id=?",
 		    String.class, property.getId(), user)).isEqualTo("ACTIVE");
-		var input = new com.moahome.server.resident.dto.ResidentDeleteRequest(remaining, detail.updatedAt());
+		var input = new ResidentDeleteRequest(remaining, detail.updatedAt());
 		management.delete(actor, property.getId(), id, input);
 		management.delete(actor, property.getId(), id, input);
 		assertThatThrownBy(() -> management.detail(actor, property.getId(), id)).hasMessage("RESIDENT_NOT_FOUND");
@@ -931,7 +968,7 @@ class ResidentDirectoryPersistenceTest {
 		assertThat(detail.unitId()).isNull();
 		assertThat(detail.representativeCandidates()).extracting(item -> item.id()).containsExactly(remaining);
 		management.delete(actor, property.getId(), id,
-		    new com.moahome.server.resident.dto.ResidentDeleteRequest(remaining, detail.updatedAt()));
+		    new ResidentDeleteRequest(remaining, detail.updatedAt()));
 		assertThat(
 		    jdbc.queryForObject("select is_household_rep from unit_residents where resident_id=? and status='ACTIVE'",
 		        Boolean.class, remaining))
@@ -949,19 +986,19 @@ class ResidentDirectoryPersistenceTest {
 		registrations.register(actor, property.getId(), registration(unit.getId(), "기존 주민", "01012345678"));
 		var detail = management.detail(actor, property.getId(), id);
 		assertThatThrownBy(() -> management.update(actor, property.getId(), id,
-		    new com.moahome.server.resident.dto.ResidentUpdateRequest("기존 주민", unit.getId(), "OWNER", "KEEP", null,
+		    new ResidentUpdateRequest("기존 주민", unit.getId(), "OWNER", "KEEP", null,
 		        null, detail.updatedAt())))
 		    .hasMessage("DUPLICATE_RESIDENT");
 		assertThat(management.detail(actor, property.getId(), id).name()).isEqualTo("수정 전 주민");
 		var updated = management.update(actor, property.getId(), id,
-		    new com.moahome.server.resident.dto.ResidentUpdateRequest("수정 후 주민", unit.getId(), "OWNER", "KEEP", null,
+		    new ResidentUpdateRequest("수정 후 주민", unit.getId(), "OWNER", "KEEP", null,
 		        null, detail.updatedAt()));
 		assertThat(updated.phoneLast4()).isEqualTo("5678");
 		assertThat(management.revealPhone(actor, property.getId(), id)).isEqualTo("+821012345678");
 		assertThat(management.detail(actor, property.getId(), id).updatedAt()).isEqualTo(updated.updatedAt());
 		// 저장 응답의 시각을 그대로 사용한 다음 수정도 새로고침 없이 성공해야 합니다.
 		var again = management.update(actor, property.getId(), id,
-		    new com.moahome.server.resident.dto.ResidentUpdateRequest("연속 수정 주민", unit.getId(), "OWNER", "KEEP", null,
+		    new ResidentUpdateRequest("연속 수정 주민", unit.getId(), "OWNER", "KEEP", null,
 		        null, updated.updatedAt()));
 		assertThat(again.name()).isEqualTo("연속 수정 주민");
 	}
@@ -1001,8 +1038,8 @@ class ResidentDirectoryPersistenceTest {
 		var unit = units.saveAndFlush(Unit.create(property, null, "901", null, null, UnitStatus.ACTIVE, AT));
 		var person = resident(property.getId(), "서비스 종료 주민", "ACTIVE", user);
 		relation(property.getId(), person, unit.getId(), "ACTIVE", true);
-		memberManagement.leave(user, property.getId(), new com.moahome.server.membership.dto.MemberRequests.Leave(
-		    com.moahome.server.membership.dto.MemberRequests.LeaveReason.SERVICE_ONLY));
+		memberManagement.leave(user, property.getId(), new MemberRequests.Leave(
+		    MemberRequests.LeaveReason.SERVICE_ONLY));
 		assertThat(jdbc.queryForObject("select status from property_members where property_id=? and user_id=?",
 		    String.class, property.getId(), user)).isEqualTo("INACTIVE");
 		assertThat(jdbc.queryForObject("select status from property_members where property_id=? and user_id=?",
@@ -1013,9 +1050,9 @@ class ResidentDirectoryPersistenceTest {
 		assertThat(jdbc.queryForObject("select action from member_role_events where property_id=?", String.class,
 		    property.getId())).isEqualTo("ENDED");
 		assertThatThrownBy(() -> memberManagement.leave(user, property.getId(),
-		    new com.moahome.server.membership.dto.MemberRequests.Leave(
-		        com.moahome.server.membership.dto.MemberRequests.LeaveReason.MOVE_OUT)))
-		    .isInstanceOf(com.moahome.server.auth.exception.AuthException.class);
+		    new MemberRequests.Leave(
+		        MemberRequests.LeaveReason.MOVE_OUT)))
+		    .isInstanceOf(AuthException.class);
 		assertThat(jdbc.queryForObject("select status from unit_residents where resident_id=?", String.class, person))
 		    .isEqualTo("ACTIVE");
 	}
@@ -1030,13 +1067,13 @@ class ResidentDirectoryPersistenceTest {
 		var remaining = resident(property.getId(), "남은 주민", "ACTIVE", null);
 		relation(property.getId(), person, unit.getId(), "ACTIVE", false);
 		relation(property.getId(), remaining, unit.getId(), "ACTIVE", true);
-		var input = new com.moahome.server.membership.dto.MemberRequests.Leave(
-		    com.moahome.server.membership.dto.MemberRequests.LeaveReason.MOVE_OUT);
-		org.mockito.Mockito.doThrow(new IllegalStateException("audit failure")).when(roleEvents).flush();
+		var input = new MemberRequests.Leave(
+		    MemberRequests.LeaveReason.MOVE_OUT);
+		Mockito.doThrow(new IllegalStateException("audit failure")).when(roleEvents).flush();
 		try {
 			assertThatThrownBy(() -> memberManagement.leave(user, property.getId(), input)).hasMessage("audit failure");
 		} finally {
-			org.mockito.Mockito.reset(roleEvents);
+			Mockito.reset(roleEvents);
 		}
 		assertThat(jdbc.queryForObject("select status from property_members where property_id=? and user_id=?",
 		    String.class, property.getId(), user)).isEqualTo("ACTIVE");
@@ -1048,7 +1085,7 @@ class ResidentDirectoryPersistenceTest {
 		assertThat(jdbc.queryForObject("select status from unit_residents where resident_id=?", String.class, person))
 		    .isEqualTo("MOVED_OUT");
 		assertThat(jdbc.queryForObject("select move_out_date from unit_residents where resident_id=?",
-		    java.time.LocalDate.class, person)).isEqualTo(java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul")));
+		    LocalDate.class, person)).isEqualTo(LocalDate.now(ZoneId.of("Asia/Seoul")));
 		assertThat(jdbc.queryForObject("select status from unit_residents where resident_id=?", String.class, remaining))
 		    .isEqualTo("ACTIVE");
 		assertThat(jdbc.queryForObject("select deleted_at from residents where id=?", OffsetDateTime.class, person))
@@ -1067,8 +1104,8 @@ class ResidentDirectoryPersistenceTest {
 		var remaining = resident(property.getId(), "가족", "ACTIVE", null);
 		relation(property.getId(), person, unit.getId(), "ACTIVE", true);
 		relation(property.getId(), remaining, unit.getId(), "ACTIVE", false);
-		var input = new com.moahome.server.membership.dto.MemberRequests.Leave(
-		    com.moahome.server.membership.dto.MemberRequests.LeaveReason.MOVE_OUT);
+		var input = new MemberRequests.Leave(
+		    MemberRequests.LeaveReason.MOVE_OUT);
 		assertThatThrownBy(() -> memberManagement.leave(chief, property.getId(), input))
 		    .hasMessage("MEMBER_TRANSFER_REQUIRED");
 		assertThatThrownBy(() -> memberManagement.leave(user, property.getId(), input))
@@ -1110,26 +1147,26 @@ class ResidentDirectoryPersistenceTest {
 	@TestConfiguration
 	static class Beans {
 		@Bean
-		tools.jackson.databind.ObjectMapper objectMapper() {
-			return new tools.jackson.databind.ObjectMapper();
+		ObjectMapper objectMapper() {
+			return new ObjectMapper();
 		}
 
 		@Bean
-		com.moahome.server.common.security.PhoneSecurity phoneSecurity() {
-			var random = new java.security.SecureRandom();
+		PhoneSecurity phoneSecurity() {
+			var random = new SecureRandom();
 			var encryption = new byte[32];
 			var hmac = new byte[32];
 			random.nextBytes(encryption);
 			random.nextBytes(hmac);
-			return new com.moahome.server.common.security.PhoneSecurity(
-			    new com.moahome.server.config.PhoneSecurityProperties("v1",
+			return new PhoneSecurity(
+			    new PhoneSecurityProperties("v1",
 			        Map.of("v1", Base64.getEncoder().encodeToString(encryption)),
 			        Base64.getEncoder().encodeToString(hmac)));
 		}
 
 		@Bean
-		java.time.Clock clock() {
-			return java.time.Clock.systemUTC();
+		Clock clock() {
+			return Clock.systemUTC();
 		}
 	}
 }

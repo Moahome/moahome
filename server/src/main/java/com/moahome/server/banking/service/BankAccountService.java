@@ -1,6 +1,18 @@
 package com.moahome.server.banking.service;
 
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+
+import org.springframework.context.annotation.Lazy;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.moahome.server.auth.exception.AuthErrorCode;
 import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.banking.domain.BankAccount;
@@ -11,11 +23,6 @@ import com.moahome.server.common.security.AccountNumberSecurity;
 import com.moahome.server.payment.exception.PaymentException;
 import com.moahome.server.property.repo.PropertyRepository;
 import com.moahome.server.property.service.ManagementAccessService;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.context.annotation.Profile;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import java.util.List;
 
 @Service
 @Profile("!test")
@@ -29,10 +36,10 @@ public class BankAccountService {
 
 	private final AccountNumberSecurity security;
 
-	private final java.time.Clock clock;
+	private final Clock clock;
 
 	public BankAccountService(ManagementAccessService access, PropertyRepository properties,
-	    BankAccountRepository accounts, @Lazy AccountNumberSecurity security, java.time.Clock clock) {
+	    BankAccountRepository accounts, @Lazy AccountNumberSecurity security, Clock clock) {
 		this.access = access;
 		this.properties = properties;
 		this.accounts = accounts;
@@ -115,7 +122,7 @@ public class BankAccountService {
 	}
 
 	/** 종료 통장도 과거 내역 확인을 위해 목록에 유지하며 번호 원문은 이 권한 조회에서만 제공합니다. */
-	public java.util.List<BankAccountSettings.Response> list(UUID userId, UUID propertyId) {
+	public List<BankAccountSettings.Response> list(UUID userId, UUID propertyId) {
 		requireManagementAccess(userId, propertyId);
 		return accounts.findByPropertyIdAndDeletedAtIsNull(propertyId).stream().map(this::response).toList();
 	}
@@ -137,7 +144,7 @@ public class BankAccountService {
 		    && account.getBankCode().equals(request.bankCode()) && account.getBankName().equals(request.bankName())
 		    && account.getHolderNameSnapshot().equals(request.holderName())
 		    && account.getAccountNumberHmac().equals(number.hmac())
-		    && java.util.Objects.equals(account.getAlias(), request.alias())
+		    && Objects.equals(account.getAlias(), request.alias())
 		    && account.isPrimary() == request.isPrimary();
 		// 응답을 잃은 동일 요청은 저장된 결과를 반환하되 이후 다른 전환을 다시 적용하지 않습니다.
 		if (same)
@@ -158,7 +165,7 @@ public class BankAccountService {
 		if (account == null) {
 			account = BankAccount.register(request.accountId(), property, request.bankCode(), request.bankName(),
 			    request.holderName(), number, request.alias(), accounts.nextRegistrationOrder(propertyId),
-			    java.time.OffsetDateTime.now(clock));
+			    OffsetDateTime.now(clock));
 			// 할당 ID를 사용하는 신규 계좌는 merge 결과를 계속 사용해야 같은 요청의 기본 지정도 저장됩니다.
 			account = accounts.save(account);
 		} else {
@@ -190,7 +197,7 @@ public class BankAccountService {
 			throw new PaymentException("BANK_ACCOUNT_CONFLICT");
 		if (account.isPrimary())
 			throw new PaymentException("BANK_ACCOUNT_PRIMARY_REQUIRED");
-		account.close(java.time.LocalDate.now(clock.withZone(java.time.ZoneId.of("Asia/Seoul"))));
+		account.close(LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul"))));
 		accounts.flush();
 		return response(account);
 	}

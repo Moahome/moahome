@@ -1,11 +1,8 @@
 package com.moahome.server.resident.controller;
 
-import java.util.*;
 import java.time.OffsetDateTime;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.resident.dto.*;
-import com.moahome.server.resident.exception.ResidentImportException;
-import com.moahome.server.resident.service.ResidentImportService;
+import java.util.*;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -15,6 +12,13 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.resident.dto.*;
+import com.moahome.server.resident.exception.ResidentImportException;
+import com.moahome.server.resident.service.ResidentImportService;
+
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -42,7 +46,7 @@ class ResidentImportControllerTest {
 	private final MockMultipartFile file = new MockMultipartFile("file", "residents.xlsx",
 	    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", new byte[] { 1 });
 
-	private org.springframework.test.web.servlet.request.RequestPostProcessor identity() {
+	private RequestPostProcessor identity() {
 		return authentication(UsernamePasswordAuthenticationToken
 		    .authenticated(new AuthPrincipal(actor.toString(), UUID.randomUUID().toString()), null, List.of()));
 	}

@@ -3,25 +3,29 @@ package com.moahome.server.banking.service;
 import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.banking.domain.*;
 import com.moahome.server.banking.dto.*;
 import com.moahome.server.banking.repo.*;
 import com.moahome.server.billing.domain.BillingCalendar;
 import com.moahome.server.common.security.PaymentTextSecurity;
+import com.moahome.server.expense.domain.ExpenseAllocation;
 import com.moahome.server.expense.repo.*;
 import com.moahome.server.expense.service.ExpenseService;
+import com.moahome.server.payment.domain.Payment;
 import com.moahome.server.payment.dto.PaymentResponse;
 import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.payment.repo.PaymentRepository;
 import com.moahome.server.payment.service.PaymentService;
 import com.moahome.server.property.domain.*;
 import com.moahome.server.property.repo.*;
 import com.moahome.server.property.service.ManagementAccessService;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-import com.moahome.server.expense.domain.ExpenseAllocation;
 
 @Service
 @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -56,7 +60,7 @@ public class BankingService {
 
 	private final IncomeAllocationService incomeAllocationService;
 
-	private final com.moahome.server.payment.repo.PaymentRepository receiptRepository;
+	private final PaymentRepository receiptRepository;
 
 	private final ExternalSettlementLinkRepository settlementLinks;
 
@@ -65,7 +69,7 @@ public class BankingService {
 	    ExpenseAllocationRepository allocations, ExpenseService expenseService, PaymentService payments,
 	    BankTransactionReader reader, @Lazy PaymentTextSecurity security, Clock clock,
 	    IncomeAllocationRepository incomeAllocations,
-	    com.moahome.server.payment.repo.PaymentRepository receiptRepository,
+	    PaymentRepository receiptRepository,
 	    ExternalSettlementLinkRepository settlementLinks, BankTransferRepository transfers,
 	    IncomeAllocationService incomeAllocationService) {
 		this.access = access;
@@ -484,7 +488,7 @@ public class BankingService {
 			throw new PaymentException("BANK_TRANSFER_DELETE_PAIR_REQUIRED");
 		// 은행 원본과 수동 수납 선택은 구분하며 다른 대상·은행 연결 수납은 수동 삭제로 우회하지 못합니다.
 		LinkedHashSet<UUID> manualIds = new LinkedHashSet<>(request.paymentIds());
-		List<com.moahome.server.payment.domain.Payment> manual = receiptRepository.findAllById(manualIds);
+		List<Payment> manual = receiptRepository.findAllById(manualIds);
 		if (manual.size() != manualIds.size() || manual.stream().anyMatch(p -> !property.equals(p.getPropertyId())))
 			throw new PaymentException("PAYMENT_NOT_FOUND");
 		if (manual.stream().anyMatch(p -> !"MANUAL".equals(p.getSourceType()) || p.getBankTransactionId() != null))

@@ -6,19 +6,19 @@ import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.springframework.security.oauth2.jwt.Jwt;
+
 import com.moahome.server.auth.domain.AuthSession;
 import com.moahome.server.auth.domain.ClientType;
 import com.moahome.server.auth.exception.AuthErrorCode;
 import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.auth.repo.RedisAuthSessionRepository;
-
-import com.moahome.server.user.service.UserService;
 import com.moahome.server.user.exception.UserErrorCode;
 import com.moahome.server.user.exception.UserException;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.security.oauth2.jwt.Jwt;
+import com.moahome.server.user.service.UserService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -80,8 +80,8 @@ class AuthServiceTest {
 		assertCode(() -> auth.authenticateAccess("access"), AuthErrorCode.ACCOUNT_UNAVAILABLE);
 		assertCode(() -> auth.refresh("refresh", ClientType.APP), AuthErrorCode.ACCOUNT_UNAVAILABLE);
 		assertCode(() -> auth.startSession(id, ClientType.APP), AuthErrorCode.ACCOUNT_UNAVAILABLE);
-		verify(tokens, never()).issue(org.mockito.ArgumentMatchers.anyString(),
-		    org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+		verify(tokens, never()).issue(ArgumentMatchers.anyString(),
+		    ArgumentMatchers.anyString(), ArgumentMatchers.any());
 	}
 
 	private Jwt jwt(String userId) {

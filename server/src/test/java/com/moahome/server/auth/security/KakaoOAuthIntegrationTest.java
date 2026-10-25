@@ -3,9 +3,11 @@ package com.moahome.server.auth.security;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -15,25 +17,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import com.moahome.server.auth.domain.ClientType;
-import com.moahome.server.auth.domain.VerifiedSocialProfile;
-import com.moahome.server.auth.exception.AuthErrorCode;
-import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.auth.repo.RedisAuthSessionRepository;
-import com.moahome.server.auth.repo.RedisOAuthStateRepository;
-import com.moahome.server.auth.repo.SocialAccountRepository;
-import com.moahome.server.auth.service.AuthService;
-import com.moahome.server.auth.service.SocialAccountService;
-import com.moahome.server.auth.service.TokenService;
-import com.moahome.server.auth.support.MutableClock;
-import com.moahome.server.auth.support.RedisTestServer;
-import com.moahome.server.config.KakaoOAuthConfig;
-import com.moahome.server.config.KakaoOAuthProperties;
-import com.moahome.server.user.exception.UserErrorCode;
-import com.moahome.server.user.exception.UserException;
-import com.moahome.server.user.repo.UserRepository;
-import com.moahome.server.user.service.UserService;
 
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.AfterAll;
@@ -58,11 +41,60 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.test.web.client.match.MockRestRequestMatchers;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 import tools.jackson.databind.ObjectMapper;
+
+import com.moahome.server.auth.domain.ClientType;
+import com.moahome.server.auth.domain.VerifiedSocialProfile;
+import com.moahome.server.auth.exception.AuthErrorCode;
+import com.moahome.server.auth.exception.AuthException;
+import com.moahome.server.auth.repo.RedisAuthSessionRepository;
+import com.moahome.server.auth.repo.RedisOAuthStateRepository;
+import com.moahome.server.auth.repo.SocialAccountRepository;
+import com.moahome.server.auth.service.AuthService;
+import com.moahome.server.auth.service.SocialAccountService;
+import com.moahome.server.auth.service.TokenService;
+import com.moahome.server.auth.support.MutableClock;
+import com.moahome.server.auth.support.RedisTestServer;
+import com.moahome.server.banking.service.BankAccountService;
+import com.moahome.server.banking.service.BankBalanceCheckService;
+import com.moahome.server.banking.service.BankingBalanceService;
+import com.moahome.server.banking.service.BankingService;
+import com.moahome.server.banking.service.IncomeAllocationService;
+import com.moahome.server.billing.service.BillingGenerationService;
+import com.moahome.server.billing.service.BillingService;
+import com.moahome.server.billing.service.BillingTemplates;
+import com.moahome.server.billing.service.OpeningBalanceService;
+import com.moahome.server.config.KakaoOAuthConfig;
+import com.moahome.server.config.KakaoOAuthProperties;
+import com.moahome.server.expense.service.ExpenseService;
+import com.moahome.server.membership.service.MemberManagementService;
+import com.moahome.server.membership.service.MembershipRequestService;
+import com.moahome.server.membership.service.ResidentInvitationService;
+import com.moahome.server.membership.service.ResidentJoinCodeService;
+import com.moahome.server.payment.service.CumulativePaymentService;
+import com.moahome.server.payment.service.PayerMatchService;
+import com.moahome.server.payment.service.PaymentService;
+import com.moahome.server.property.repo.PropertyRegistrationLock;
+import com.moahome.server.property.service.ManagementAccessService;
+import com.moahome.server.property.service.PropertyRegistrationService;
+import com.moahome.server.property.service.UnitManagementService;
+import com.moahome.server.property.support.RegistrationTestKeys;
+import com.moahome.server.resident.service.ResidentExportService;
+import com.moahome.server.resident.service.ResidentImportService;
+import com.moahome.server.resident.service.ResidentListService;
+import com.moahome.server.resident.service.ResidentManagementService;
+import com.moahome.server.resident.service.ResidentRegistrationService;
+import com.moahome.server.user.exception.UserErrorCode;
+import com.moahome.server.user.exception.UserException;
+import com.moahome.server.user.repo.UserRepository;
+import com.moahome.server.user.service.UserService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -83,7 +115,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import org.springframework.util.MultiValueMap;
 
 @SpringBootTest(properties = "moahome.billing.scheduler-enabled=false")
 @AutoConfigureMockMvc
@@ -137,76 +168,76 @@ class KakaoOAuthIntegrationTest {
 	private RedisAuthSessionRepository sessions;
 
 	@MockitoBean
-	private com.moahome.server.membership.service.ResidentInvitationService residentInvitations;
+	private ResidentInvitationService residentInvitations;
 
 	@MockitoBean
-	private com.moahome.server.membership.service.ResidentJoinCodeService residentJoinCodes;
+	private ResidentJoinCodeService residentJoinCodes;
 
 	@MockitoBean
-	private com.moahome.server.payment.service.PaymentService payments;
+	private PaymentService payments;
 
 	@MockitoBean
-	private com.moahome.server.payment.service.PayerMatchService payerMatches;
+	private PayerMatchService payerMatches;
 
 	@MockitoBean
-	private com.moahome.server.banking.service.BankingService banking;
+	private BankingService banking;
 
 	@MockitoBean
-	private com.moahome.server.banking.service.IncomeAllocationService incomeAllocations;
+	private IncomeAllocationService incomeAllocations;
 
 	@MockitoBean
-	private com.moahome.server.banking.service.BankingBalanceService bankingBalances;
+	private BankingBalanceService bankingBalances;
 
 	@MockitoBean
-	private com.moahome.server.banking.service.BankBalanceCheckService bankBalanceChecks;
+	private BankBalanceCheckService bankBalanceChecks;
 
 	@MockitoBean
-	private com.moahome.server.banking.service.BankAccountService bankAccountSettings;
+	private BankAccountService bankAccountSettings;
 
 	@MockitoBean
-	private com.moahome.server.expense.service.ExpenseService expenses;
+	private ExpenseService expenses;
 
 	@MockitoBean
-	private com.moahome.server.payment.service.CumulativePaymentService cumulativePayments;
+	private CumulativePaymentService cumulativePayments;
 
 	@MockitoBean
-	private com.moahome.server.billing.service.BillingService billing;
+	private BillingService billing;
 
 	@MockitoBean
-	private com.moahome.server.billing.service.OpeningBalanceService openingBalances;
+	private OpeningBalanceService openingBalances;
 
 	@MockitoBean
-	private com.moahome.server.membership.service.MemberManagementService memberManagement;
+	private MemberManagementService memberManagement;
 
 	@MockitoBean
-	private com.moahome.server.membership.service.MembershipRequestService membershipRequests;
+	private MembershipRequestService membershipRequests;
 
 	@MockitoBean
-	private com.moahome.server.billing.service.BillingTemplates billingTemplates;
+	private BillingTemplates billingTemplates;
 
 	@MockitoBean
-	private com.moahome.server.billing.service.BillingGenerationService billingGeneration;
+	private BillingGenerationService billingGeneration;
 
 	@MockitoBean
-	private com.moahome.server.property.service.ManagementAccessService management;
+	private ManagementAccessService management;
 
 	@MockitoBean
-	private com.moahome.server.property.service.UnitManagementService unitManagement;
+	private UnitManagementService unitManagement;
 
 	@MockitoBean
-	private com.moahome.server.resident.service.ResidentListService residentList;
+	private ResidentListService residentList;
 
 	@MockitoBean
-	private com.moahome.server.resident.service.ResidentRegistrationService residentRegistration;
+	private ResidentRegistrationService residentRegistration;
 
 	@MockitoBean
-	private com.moahome.server.resident.service.ResidentImportService residentImport;
+	private ResidentImportService residentImport;
 
 	@MockitoBean
-	private com.moahome.server.resident.service.ResidentManagementService residentManagement;
+	private ResidentManagementService residentManagement;
 
 	@MockitoBean
-	private com.moahome.server.resident.service.ResidentExportService residentExport;
+	private ResidentExportService residentExport;
 
 	@MockitoBean
 	private SocialAccountService identities;
@@ -221,14 +252,14 @@ class KakaoOAuthIntegrationTest {
 	private SocialAccountRepository socialAccounts;
 
 	@MockitoBean
-	private com.moahome.server.property.service.PropertyRegistrationService registrations;
+	private PropertyRegistrationService registrations;
 
 	@MockitoBean
-	private com.moahome.server.property.repo.PropertyRegistrationLock registrationLock;
+	private PropertyRegistrationLock registrationLock;
 
 	@DynamicPropertySource
 	static void infrastructure(DynamicPropertyRegistry registry) {
-		com.moahome.server.property.support.RegistrationTestKeys.register(registry);
+		RegistrationTestKeys.register(registry);
 		byte[] accessKey = new byte[64];
 		byte[] refreshKey = new byte[64];
 		SecureRandom random = new SecureRandom();
@@ -499,7 +530,7 @@ class KakaoOAuthIntegrationTest {
 		    result.getResponse().getCookie(OAuthAuthorizationRequestRepository.COOKIE_PREFIX + state), result);
 	}
 
-	private org.springframework.test.web.servlet.ResultActions callback(Attempt attempt) throws Exception {
+	private ResultActions callback(Attempt attempt) throws Exception {
 		return mvc.perform(get(KakaoOAuthConfig.CALLBACK_PATH).secure(true).with(request -> {
 			request.setScheme("https");
 			request.setServerName("api.example.test");
@@ -511,7 +542,7 @@ class KakaoOAuthIntegrationTest {
 	private void expectLogin(Attempt attempt, String userResponse) {
 		kakao.expect(requestTo(TOKEN_URI)).andExpect(method(HttpMethod.POST)).andExpect(request -> {
 			String body = ((MockClientHttpRequest) request).getBodyAsString();
-			Map<String, String> form = java.util.Arrays.stream(body.split("&")).map(pair -> pair.split("=", 2))
+			Map<String, String> form = Arrays.stream(body.split("&")).map(pair -> pair.split("=", 2))
 			    .collect(Collectors.toMap(pair -> pair[0], pair -> URLDecoder.decode(pair[1], StandardCharsets.UTF_8)));
 			assertThat(form).containsEntry("client_id", properties.clientId())
 			    .containsEntry("client_secret", properties.clientSecret())
@@ -522,7 +553,7 @@ class KakaoOAuthIntegrationTest {
 		    withSuccess("{\"access_token\":\"test-kakao-token\",\"token_type\":\"bearer\",\"expires_in\":3600}",
 		        MediaType.APPLICATION_JSON));
 		kakao.expect(requestTo(USER_URI)).andExpect(method(HttpMethod.GET))
-		    .andExpect(org.springframework.test.web.client.match.MockRestRequestMatchers.header("Authorization",
+		    .andExpect(MockRestRequestMatchers.header("Authorization",
 		        "Bearer test-kakao-token"))
 		    .andRespond(withSuccess(userResponse, MediaType.APPLICATION_JSON));
 	}
@@ -531,7 +562,7 @@ class KakaoOAuthIntegrationTest {
 		try {
 			return Base64.getUrlEncoder().withoutPadding().encodeToString(
 			    MessageDigest.getInstance("SHA-256").digest(verifier.getBytes(StandardCharsets.US_ASCII)));
-		} catch (java.security.NoSuchAlgorithmException exception) {
+		} catch (NoSuchAlgorithmException exception) {
 			throw new AssertionError(exception);
 		}
 	}

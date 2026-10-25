@@ -1,12 +1,15 @@
 package com.moahome.server.property.dto;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 public record PropertyRegistrationResponse(UUID requestId, PropertySummary property, MembershipSummary membership,
     RegistrationSummary summary, Instant createdAt,
-    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) CreatorSummary administrator,
-    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) ManagementStart managementStart) {
+    @JsonInclude(JsonInclude.Include.NON_NULL) CreatorSummary administrator,
+    @JsonInclude(JsonInclude.Include.NON_NULL) ManagementStart managementStart) {
 	public PropertyRegistrationResponse(UUID requestId, PropertySummary property, MembershipSummary membership,
 	    RegistrationSummary summary, Instant createdAt, CreatorSummary administrator) {
 		this(requestId, property, membership, summary, createdAt, administrator, null);
@@ -17,8 +20,8 @@ public record PropertyRegistrationResponse(UUID requestId, PropertySummary prope
 		this(requestId, property, membership, summary, createdAt, null, null);
 	}
 
-	public record ManagementStart(java.time.LocalDate cutoffDate, String firstBillingMonth,
-	    java.time.LocalDate cashCutoffDate) {
+	public record ManagementStart(LocalDate cutoffDate, String firstBillingMonth,
+	    LocalDate cashCutoffDate) {
 	}
 
 	/** 최초 자동 연결의 명부·세대 관계 ID만 보존하고 이름·연락처 원문은 성공 스냅샷에 넣지 않습니다. */

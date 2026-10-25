@@ -2,12 +2,17 @@ package com.moahome.server.resident.service;
 
 import java.io.*;
 import java.nio.file.*;
+import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
+
 import com.moahome.server.resident.exception.ResidentImportException;
+
 import static org.assertj.core.api.Assertions.*;
-import java.util.List;
 
 class ResidentExcelReaderTest {
 	private final ResidentExcelReader reader = new ResidentExcelReader();
@@ -66,8 +71,8 @@ class ResidentExcelReaderTest {
 
 	@Test
 	void rejectsOversizedExpandedArchiveBeforeParsingWorkbook() throws Exception {
-		try (var bytes = new ByteArrayOutputStream(); var zip = new java.util.zip.ZipOutputStream(bytes)) {
-			zip.putNextEntry(new java.util.zip.ZipEntry("large.xml"));
+		try (var bytes = new ByteArrayOutputStream(); var zip = new ZipOutputStream(bytes)) {
+			zip.putNextEntry(new ZipEntry("large.xml"));
 			zip.write(new byte[21 * 1024 * 1024]);
 			zip.closeEntry();
 			zip.finish();

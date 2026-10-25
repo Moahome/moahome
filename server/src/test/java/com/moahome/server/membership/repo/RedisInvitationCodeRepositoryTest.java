@@ -2,15 +2,19 @@ package com.moahome.server.membership.repo;
 
 import java.time.*;
 import java.util.UUID;
-import com.moahome.server.auth.support.RedisTestServer;
-import com.moahome.server.payment.exception.PaymentException;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import com.moahome.server.auth.support.RedisTestServer;
+import com.moahome.server.payment.exception.PaymentException;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -43,7 +47,7 @@ class RedisInvitationCodeRepositoryTest {
 			repository.deleteAfterCommit(RedisInvitationCodeRepository.Kind.RESIDENT, id);
 			verifyNoInteractions(redis);
 			var callback = TransactionSynchronizationManager.getSynchronizations().getFirst();
-			callback.afterCompletion(org.springframework.transaction.support.TransactionSynchronization.STATUS_ROLLED_BACK);
+			callback.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK);
 			verifyNoInteractions(redis);
 			when(redis.delete(anyString())).thenThrow(new DataAccessResourceFailureException("test"));
 			assertThatCode(callback::afterCommit).doesNotThrowAnyException();

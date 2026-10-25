@@ -3,19 +3,7 @@ package com.moahome.server.membership.repo;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
-import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.membership.domain.*;
-import com.moahome.server.membership.service.MemberManagementService;
-import com.moahome.server.payment.exception.PaymentException;
-import com.moahome.server.property.domain.*;
-import com.moahome.server.property.repo.*;
-import com.moahome.server.property.service.ManagementAccessService;
-import com.moahome.server.resident.domain.*;
-import com.moahome.server.resident.repo.*;
-import com.moahome.server.user.domain.User;
-import com.moahome.server.user.repo.UserRepository;
-import com.moahome.server.user.service.UserService;
-import com.moahome.server.user.support.PostgresTestServer;
+
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -32,7 +20,23 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.*;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.*;
+
+import com.moahome.server.auth.exception.AuthException;
+import com.moahome.server.membership.domain.*;
+import com.moahome.server.membership.service.MemberManagementService;
+import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.property.domain.*;
+import com.moahome.server.property.repo.*;
+import com.moahome.server.property.service.ManagementAccessService;
+import com.moahome.server.resident.domain.*;
+import com.moahome.server.resident.repo.*;
+import com.moahome.server.user.domain.User;
+import com.moahome.server.user.repo.UserRepository;
+import com.moahome.server.user.service.UserService;
+import com.moahome.server.user.support.PostgresTestServer;
+
 import static org.assertj.core.api.Assertions.*;
 
 @DataJpaTest(showSql = false)
@@ -44,7 +48,7 @@ import static org.assertj.core.api.Assertions.*;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class ChiefAccountLinkPersistenceTest {
-	@org.springframework.test.context.bean.override.mockito.MockitoBean
+	@MockitoBean
 	RedisInvitationCodeRepository temporaryCodes;
 	private static final PostgresTestServer POSTGRES = new PostgresTestServer();
 

@@ -1,13 +1,17 @@
 package com.moahome.server.property.domain;
 
 import java.time.*;
+import java.util.UUID;
+
+import org.junit.jupiter.api.Test;
+
 import com.moahome.server.banking.domain.BankAccount;
 import com.moahome.server.billing.domain.*;
 import com.moahome.server.common.security.AccountNumberSecurity;
 import com.moahome.server.membership.domain.*;
 import com.moahome.server.property.support.RegistrationTestKeys;
 import com.moahome.server.user.domain.*;
-import org.junit.jupiter.api.Test;
+
 import static org.assertj.core.api.Assertions.*;
 
 class RegistrationDomainTest {
@@ -18,14 +22,14 @@ class RegistrationDomainTest {
 		var property = Property.create("삭제 검증", "주소", null, null, true, at);
 		var building = Building.create(property, "101동", 0, at);
 		var unit = Unit.create(property, building, "001", "별칭", 1, UnitStatus.ACTIVE, at);
-		var actor = java.util.UUID.randomUUID();
+		var actor = UUID.randomUUID();
 		var unitId = unit.getId();
 		assertThatThrownBy(() -> unit.softDelete(actor, null)).isInstanceOf(NullPointerException.class);
 		assertThat(unit.getDeletedBy()).isNull();
 		unit.softDelete(actor, at);
 		building.softDelete(actor, at);
-		unit.softDelete(java.util.UUID.randomUUID(), at.plusDays(1));
-		building.softDelete(java.util.UUID.randomUUID(), at.plusDays(1));
+		unit.softDelete(UUID.randomUUID(), at.plusDays(1));
+		building.softDelete(UUID.randomUUID(), at.plusDays(1));
 		assertThat(unit.getId()).isEqualTo(unitId);
 		assertThat(unit.getBuildingId()).isEqualTo(building.getId());
 		assertThat(unit.getUnitNumber()).isEqualTo("001");

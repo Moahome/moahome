@@ -11,32 +11,15 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
-
-import com.moahome.server.user.service.UserService;
-import com.moahome.server.user.domain.SystemRole;
-import com.moahome.server.user.domain.UserStatus;
-import com.moahome.server.user.dto.CurrentUserResponse;
-import com.moahome.server.user.repo.UserRepository;
-import com.moahome.server.auth.repo.SocialAccountRepository;
-import com.moahome.server.user.exception.UserErrorCode;
-import com.moahome.server.user.exception.UserException;
-
-import com.moahome.server.auth.controller.AppAuthController;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.auth.domain.ClientType;
-import com.moahome.server.auth.exception.AuthErrorCode;
-import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.auth.repo.RedisAuthSessionRepository;
-import com.moahome.server.auth.service.AuthService;
-import com.moahome.server.auth.service.TokenService;
-import com.moahome.server.auth.support.MutableClock;
-import com.moahome.server.auth.support.RedisTestServer;
+import java.util.concurrent.TimeUnit;
 
 import jakarta.servlet.http.Cookie;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -44,22 +27,74 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.ObjectMapper;
+
+import com.moahome.server.auth.controller.AppAuthController;
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.auth.domain.ClientType;
+import com.moahome.server.auth.exception.AuthErrorCode;
+import com.moahome.server.auth.exception.AuthException;
+import com.moahome.server.auth.repo.RedisAuthSessionRepository;
+import com.moahome.server.auth.repo.SocialAccountRepository;
+import com.moahome.server.auth.service.AuthService;
+import com.moahome.server.auth.service.TokenService;
+import com.moahome.server.auth.support.MutableClock;
+import com.moahome.server.auth.support.RedisTestServer;
+import com.moahome.server.banking.service.BankAccountService;
+import com.moahome.server.banking.service.BankBalanceCheckService;
+import com.moahome.server.banking.service.BankingBalanceService;
+import com.moahome.server.banking.service.BankingService;
+import com.moahome.server.banking.service.IncomeAllocationService;
+import com.moahome.server.billing.service.BillingGenerationService;
+import com.moahome.server.billing.service.BillingService;
+import com.moahome.server.billing.service.BillingTemplates;
+import com.moahome.server.billing.service.OpeningBalanceService;
+import com.moahome.server.expense.service.ExpenseService;
+import com.moahome.server.membership.domain.PropertyMemberRole;
+import com.moahome.server.membership.dto.SignupRequests;
+import com.moahome.server.membership.service.MemberManagementService;
+import com.moahome.server.membership.service.MembershipRequestService;
+import com.moahome.server.membership.service.ResidentInvitationService;
+import com.moahome.server.membership.service.ResidentJoinCodeService;
+import com.moahome.server.payment.service.CumulativePaymentService;
+import com.moahome.server.payment.service.PayerMatchService;
+import com.moahome.server.payment.service.PaymentService;
+import com.moahome.server.property.dto.BasicInfoRequest;
+import com.moahome.server.property.dto.ManagedPropertiesResponse;
+import com.moahome.server.property.dto.ManagementPropertyResponse;
+import com.moahome.server.property.dto.PropertyAccessContextResponse;
+import com.moahome.server.property.repo.PropertyRegistrationLock;
+import com.moahome.server.property.service.ManagementAccessService;
+import com.moahome.server.property.service.PropertyRegistrationService;
+import com.moahome.server.property.service.UnitManagementService;
+import com.moahome.server.property.support.RegistrationTestKeys;
+import com.moahome.server.resident.service.ResidentExportService;
+import com.moahome.server.resident.service.ResidentImportService;
+import com.moahome.server.resident.service.ResidentListService;
+import com.moahome.server.resident.service.ResidentManagementService;
+import com.moahome.server.resident.service.ResidentRegistrationService;
+import com.moahome.server.user.domain.SystemRole;
+import com.moahome.server.user.domain.UserStatus;
+import com.moahome.server.user.dto.CurrentUserResponse;
+import com.moahome.server.user.exception.UserErrorCode;
+import com.moahome.server.user.exception.UserException;
+import com.moahome.server.user.repo.UserRepository;
+import com.moahome.server.user.service.UserService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -111,76 +146,76 @@ class SecurityIntegrationTest {
 	private RedisAuthSessionRepository sessions;
 
 	@MockitoBean
-	private com.moahome.server.membership.service.ResidentInvitationService residentInvitations;
+	private ResidentInvitationService residentInvitations;
 
 	@MockitoBean
-	private com.moahome.server.membership.service.ResidentJoinCodeService residentJoinCodes;
+	private ResidentJoinCodeService residentJoinCodes;
 
 	@MockitoBean
-	private com.moahome.server.payment.service.PaymentService payments;
+	private PaymentService payments;
 
 	@MockitoBean
-	private com.moahome.server.payment.service.PayerMatchService payerMatches;
+	private PayerMatchService payerMatches;
 
 	@MockitoBean
-	private com.moahome.server.banking.service.BankingService banking;
+	private BankingService banking;
 
 	@MockitoBean
-	private com.moahome.server.banking.service.IncomeAllocationService incomeAllocations;
+	private IncomeAllocationService incomeAllocations;
 
 	@MockitoBean
-	private com.moahome.server.banking.service.BankingBalanceService bankingBalances;
+	private BankingBalanceService bankingBalances;
 
 	@MockitoBean
-	private com.moahome.server.banking.service.BankBalanceCheckService bankBalanceChecks;
+	private BankBalanceCheckService bankBalanceChecks;
 
 	@MockitoBean
-	private com.moahome.server.banking.service.BankAccountService bankAccountSettings;
+	private BankAccountService bankAccountSettings;
 
 	@MockitoBean
-	private com.moahome.server.expense.service.ExpenseService expenses;
+	private ExpenseService expenses;
 
 	@MockitoBean
-	private com.moahome.server.payment.service.CumulativePaymentService cumulativePayments;
+	private CumulativePaymentService cumulativePayments;
 
 	@MockitoBean
-	private com.moahome.server.billing.service.BillingService billing;
+	private BillingService billing;
 
 	@MockitoBean
-	private com.moahome.server.billing.service.OpeningBalanceService openingBalances;
+	private OpeningBalanceService openingBalances;
 
 	@MockitoBean
-	private com.moahome.server.membership.service.MemberManagementService memberManagement;
+	private MemberManagementService memberManagement;
 
 	@MockitoBean
-	private com.moahome.server.membership.service.MembershipRequestService membershipRequests;
+	private MembershipRequestService membershipRequests;
 
 	@MockitoBean
-	private com.moahome.server.billing.service.BillingTemplates billingTemplates;
+	private BillingTemplates billingTemplates;
 
 	@MockitoBean
-	private com.moahome.server.billing.service.BillingGenerationService billingGeneration;
+	private BillingGenerationService billingGeneration;
 
 	@MockitoBean
-	private com.moahome.server.property.service.ManagementAccessService management;
+	private ManagementAccessService management;
 
 	@MockitoBean
-	private com.moahome.server.property.service.UnitManagementService unitManagement;
+	private UnitManagementService unitManagement;
 
 	@MockitoBean
-	private com.moahome.server.resident.service.ResidentListService residentList;
+	private ResidentListService residentList;
 
 	@MockitoBean
-	private com.moahome.server.resident.service.ResidentRegistrationService residentRegistration;
+	private ResidentRegistrationService residentRegistration;
 
 	@MockitoBean
-	private com.moahome.server.resident.service.ResidentImportService residentImport;
+	private ResidentImportService residentImport;
 
 	@MockitoBean
-	private com.moahome.server.resident.service.ResidentManagementService residentManagement;
+	private ResidentManagementService residentManagement;
 
 	@MockitoBean
-	private com.moahome.server.resident.service.ResidentExportService residentExport;
+	private ResidentExportService residentExport;
 
 	@MockitoBean
 	private UserService users;
@@ -192,14 +227,14 @@ class SecurityIntegrationTest {
 	private SocialAccountRepository socialAccounts;
 
 	@MockitoBean
-	private com.moahome.server.property.service.PropertyRegistrationService registrations;
+	private PropertyRegistrationService registrations;
 
 	@MockitoBean
-	private com.moahome.server.property.repo.PropertyRegistrationLock registrationLock;
+	private PropertyRegistrationLock registrationLock;
 
 	@DynamicPropertySource
 	static void infrastructure(DynamicPropertyRegistry registry) {
-		com.moahome.server.property.support.RegistrationTestKeys.register(registry);
+		RegistrationTestKeys.register(registry);
 		byte[] accessKey = new byte[64];
 		byte[] refreshKey = new byte[64];
 		SecureRandom random = new SecureRandom();
@@ -236,7 +271,7 @@ class SecurityIntegrationTest {
 			    .content("{\"token\":\"R-ABCD-EFGH-JKLM\",\"correction\":false}")).andExpect(status().isUnauthorized())
 			    .andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
 		}
-		org.mockito.Mockito.verifyNoInteractions(residentInvitations, residentJoinCodes);
+		Mockito.verifyNoInteractions(residentInvitations, residentJoinCodes);
 	}
 
 	@Test
@@ -247,8 +282,8 @@ class SecurityIntegrationTest {
 		String path = "/api/properties/" + property + "/membership-requests/unlinked-residents";
 		var pair = auth.startSession(actor.toString(), ClientType.WEB);
 		when(membershipRequests.unlinkedResidents(actor, property))
-		    .thenReturn(new com.moahome.server.membership.dto.SignupRequests.UnlinkedResidents(property,
-		        List.of(new com.moahome.server.membership.dto.SignupRequests.UnlinkedResident(resident, "미연결 주민",
+		    .thenReturn(new SignupRequests.UnlinkedResidents(property,
+		        List.of(new SignupRequests.UnlinkedResident(resident, "미연결 주민",
 		            "1234", null, "101", "TENANT"))));
 		mvc.perform(get(path)).andExpect(status().isUnauthorized());
 		mvc.perform(get(path).header("Authorization", "Bearer " + pair.accessToken())).andExpect(status().isOk())
@@ -328,14 +363,14 @@ class SecurityIntegrationTest {
 		}
 		mvc.perform(get("/api/property-registrations/" + requestId).cookie(refreshCookie(pair)))
 		    .andExpect(status().isUnauthorized()).andExpect(jsonPath("code").value("AUTHENTICATION_REQUIRED"));
-		var basic = new com.moahome.server.property.dto.BasicInfoRequest("모아빌라", "주소", null, null, false);
+		var basic = new BasicInfoRequest("모아빌라", "주소", null, null, false);
 		when(registrations.validateBasicInfo(userId, basic)).thenReturn(basic);
 		mvc.perform(post("/api/property-registrations/basic-info/validate")
 		    .header("Authorization", "Bearer " + pair.accessToken()).contentType(MediaType.APPLICATION_JSON)
 		    .content(mapper.writeValueAsString(basic))).andExpect(status().isOk())
 		    .andExpect(jsonPath("hasBuildings").value(false)).andExpect(header().string("Cache-Control", "no-store"));
 		verify(registrations).validateBasicInfo(userId, basic);
-		org.mockito.Mockito.doThrow(new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE)).when(sessions)
+		Mockito.doThrow(new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE)).when(sessions)
 		    .find(anyString());
 		mvc.perform(post("/api/property-registrations/basic-info/validate")
 		    .header("Authorization", "Bearer " + pair.accessToken()).contentType(MediaType.APPLICATION_JSON)
@@ -356,7 +391,7 @@ class SecurityIntegrationTest {
 		    "Bearer " + pair.accessToken())).andExpect(status().isOk())
 		    .andExpect(header().string("Cache-Control", "no-store")).andExpect(jsonPath("id").value(userId.toString()))
 		    .andExpect(jsonPath("displayName").value("모아 주민"))
-		    .andExpect(jsonPath("profileImageUrl").value(org.hamcrest.Matchers.nullValue()))
+		    .andExpect(jsonPath("profileImageUrl").value(Matchers.nullValue()))
 		    .andExpect(jsonPath("systemRole").value("USER")).andExpect(jsonPath("status").value("ACTIVE"))
 		    .andExpect(jsonPath("$.length()").value(5));
 		verify(users).getCurrentUser(userId);
@@ -369,10 +404,10 @@ class SecurityIntegrationTest {
 		var pair = auth.startSession(userId.toString(), ClientType.WEB);
 		String list = "/api/users/me/managed-properties";
 		String context = "/api/properties/" + propertyId + "/management-context";
-		var property = new com.moahome.server.property.dto.ManagementPropertyResponse(propertyId, "대상",
-		    com.moahome.server.membership.domain.PropertyMemberRole.MANAGER);
+		var property = new ManagementPropertyResponse(propertyId, "대상",
+		    PropertyMemberRole.MANAGER);
 		when(management.getManagedProperties(userId))
-		    .thenReturn(new com.moahome.server.property.dto.ManagedPropertiesResponse(List.of(property)));
+		    .thenReturn(new ManagedPropertiesResponse(List.of(property)));
 		when(management.getManagementContext(userId, propertyId)).thenReturn(property);
 		for (String path : List.of(list, context)) {
 			mvc.perform(get(path)).andExpect(status().isUnauthorized())
@@ -392,8 +427,8 @@ class SecurityIntegrationTest {
 		var pair = auth.startSession(userId.toString(), ClientType.WEB);
 		String path = "/api/properties/" + propertyId + "/access-context";
 		when(management.getPropertyAccessContext(userId, propertyId)).thenReturn(
-		    new com.moahome.server.property.dto.PropertyAccessContextResponse(propertyId, "대상",
-		        com.moahome.server.membership.domain.PropertyMemberRole.RESIDENT, false));
+		    new PropertyAccessContextResponse(propertyId, "대상",
+		        PropertyMemberRole.RESIDENT, false));
 		mvc.perform(get(path)).andExpect(status().isUnauthorized());
 		mvc.perform(get(path).header("Authorization", "Bearer " + pair.accessToken()))
 		    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
@@ -581,10 +616,10 @@ class SecurityIntegrationTest {
 		try (var executor = Executors.newFixedThreadPool(2)) {
 			var first = executor.submit(task);
 			var second = executor.submit(task);
-			assertThat(ready.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+			assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
 			start.countDown();
-			assertThat(List.of(first.get(5, java.util.concurrent.TimeUnit.SECONDS),
-			    second.get(5, java.util.concurrent.TimeUnit.SECONDS))).containsExactlyInAnyOrder(true, false);
+			assertThat(List.of(first.get(5, TimeUnit.SECONDS),
+			    second.get(5, TimeUnit.SECONDS))).containsExactlyInAnyOrder(true, false);
 		}
 		assertCode(() -> auth.authenticateAccess(pair.accessToken()), AuthErrorCode.SESSION_EXPIRED);
 	}
@@ -612,7 +647,7 @@ class SecurityIntegrationTest {
 	void inactiveAccountCannotUseExistingAccessOrRefreshButCanLogout() throws Exception {
 		String id = "00000000-0000-0000-0000-000000000001";
 		var pair = auth.startSession(id, ClientType.APP);
-		org.mockito.Mockito.when(users.requireActive(java.util.UUID.fromString(id)))
+		Mockito.when(users.requireActive(UUID.fromString(id)))
 		    .thenThrow(new UserException(UserErrorCode.ACCOUNT_UNAVAILABLE));
 		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + pair.accessToken()))
 		    .andExpect(status().isForbidden()).andExpect(jsonPath("code").value("ACCOUNT_UNAVAILABLE"));

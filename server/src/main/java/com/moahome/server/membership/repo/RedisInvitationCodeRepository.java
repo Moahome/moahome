@@ -4,8 +4,10 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
-import com.moahome.server.payment.exception.PaymentException;
+
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -14,7 +16,8 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
-import lombok.RequiredArgsConstructor;
+
+import com.moahome.server.payment.exception.PaymentException;
 
 /** 초대의 임시 검증값과 재전달 암호문만 TTL로 보관하고 신청·승인 원장은 DB에 유지합니다. */
 @Repository
@@ -117,7 +120,7 @@ public class RedisInvitationCodeRepository {
 	}
 
 	private String key(Kind kind, UUID id) {
-		return "membership:invitation:" + kind.name().toLowerCase(java.util.Locale.ROOT) + ":" + id;
+		return "membership:invitation:" + kind.name().toLowerCase(Locale.ROOT) + ":" + id;
 	}
 
 	private String epoch(OffsetDateTime time) {

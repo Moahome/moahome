@@ -1,9 +1,15 @@
 package com.moahome.server.membership.service;
 
 import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.moahome.server.auth.exception.*;
+import com.moahome.server.common.validation.TextValues;
 import com.moahome.server.membership.domain.*;
 import com.moahome.server.membership.dto.SignupRequests;
 import com.moahome.server.membership.repo.*;
@@ -12,11 +18,10 @@ import com.moahome.server.property.domain.*;
 import com.moahome.server.property.repo.*;
 import com.moahome.server.property.service.ManagementAccessService;
 import com.moahome.server.resident.repo.*;
+import com.moahome.server.resident.service.ResidentRegistrationService;
+import com.moahome.server.user.domain.User;
+import com.moahome.server.user.repo.UserRepository;
 import com.moahome.server.user.service.UserService;
-import com.moahome.server.common.security.PhoneSecurity;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
@@ -41,9 +46,9 @@ public class MembershipRequestService {
 
 	private final UserService users;
 
-	private final com.moahome.server.user.repo.UserRepository userRecords;
+	private final UserRepository userRecords;
 
-	private final com.moahome.server.resident.service.ResidentRegistrationService registrations;
+	private final ResidentRegistrationService registrations;
 
 	private final Clock clock;
 
@@ -52,8 +57,8 @@ public class MembershipRequestService {
 	public MembershipRequestService(ManagementAccessService access, PropertyRepository properties, UnitRepository units,
 	    BuildingRepository buildings, MembershipRequestRepository requests, PropertyMemberRepository members,
 	    MemberRoleEventRepository events, ResidentRepository residents, UnitResidentRepository affiliations,
-	    UserService users, com.moahome.server.user.repo.UserRepository userRecords,
-	    com.moahome.server.resident.service.ResidentRegistrationService registrations, Clock clock,
+	    UserService users, UserRepository userRecords,
+	    ResidentRegistrationService registrations, Clock clock,
 	    ResidentJoinCodeService joinCodes) {
 		this.access = access;
 		this.properties = properties;
@@ -72,7 +77,7 @@ public class MembershipRequestService {
 	}
 
 	private OffsetDateTime now() {
-		return OffsetDateTime.now(clock).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+		return OffsetDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
 	}
 
 	private Property target(UUID property) {
@@ -110,7 +115,7 @@ public class MembershipRequestService {
 		properties.findForUnitUpdate(property).orElseThrow(() -> new PaymentException("MEMBER_NOT_FOUND"));
 		target(property);
 		var code = joinCodes.require(property, input.code());
-		String name = com.moahome.server.common.validation.TextValues.required(input.name(), 50);
+		String name = TextValues.required(input.name(), 50);
 		if (!unitLabels(property).containsKey(input.unitId()))
 			throw new IllegalArgumentException("Invalid unit");
 		List<MembershipRequest> existing = requests
@@ -154,7 +159,7 @@ public class MembershipRequestService {
 			        .map(person -> new SignupRequests.Candidate(person.getId(), person.getName())).toList();
 			    return new SignupRequests.Item(r.getId(), r.getUnitId(), labels.getOrDefault(r.getUnitId(), "삭제된 세대"),
 			        userRecords.findByIdAndDeletedAtIsNull(r.getUserId())
-			            .map(com.moahome.server.user.domain.User::getDisplayName).orElse("탈퇴한 사용자"),
+			            .map(User::getDisplayName).orElse("탈퇴한 사용자"),
 			        r.getPhoneLast4(), r.getStatus(), r.getRequestedAt(), r.getUpdatedAt(), candidates,
 			        r.getApplicantName());
 		    }).toList();

@@ -3,23 +3,13 @@ package com.moahome.server.billing.repo;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
-import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.auth.support.MutableClock;
-import com.moahome.server.billing.dto.BillingSettingsRequest;
-import com.moahome.server.billing.exception.BillingException;
-import com.moahome.server.billing.service.*;
-import com.moahome.server.common.security.AccountNumberSecurity;
-import com.moahome.server.property.dto.PropertyRegistrationRequest.UnitInput;
-import com.moahome.server.property.service.*;
-import com.moahome.server.property.support.*;
-import com.moahome.server.property.repo.PropertyRepository;
-import com.moahome.server.property.repo.PropertyRegistrationLock;
-import com.moahome.server.user.domain.User;
-import com.moahome.server.user.repo.UserRepository;
-import com.moahome.server.user.service.UserService;
-import com.moahome.server.user.support.PostgresTestServer;
+import java.util.stream.IntStream;
+
 import jakarta.validation.*;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -34,19 +24,46 @@ import org.springframework.test.context.*;
 import org.springframework.transaction.annotation.*;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
-import static org.assertj.core.api.Assertions.*;
+
+import com.moahome.server.auth.exception.AuthException;
+import com.moahome.server.auth.support.MutableClock;
+import com.moahome.server.billing.domain.BillingMode;
+import com.moahome.server.billing.domain.FeeItemCode;
+import com.moahome.server.billing.dto.BillingSettingsRequest;
+import com.moahome.server.billing.exception.BillingException;
+import com.moahome.server.billing.service.*;
+import com.moahome.server.common.security.AccountNumberSecurity;
+import com.moahome.server.payment.service.CumulativePaymentService;
+import com.moahome.server.property.dto.BuildingRequest;
+import com.moahome.server.property.dto.PropertyRegistrationRequest;
+import com.moahome.server.property.dto.PropertyRegistrationRequest.UnitInput;
+import com.moahome.server.property.dto.UnitBatchRequest;
 import com.moahome.server.property.dto.UnitRequest;
 import com.moahome.server.property.dto.UnitResponse;
+import com.moahome.server.property.exception.UnitManagementException;
+import com.moahome.server.property.repo.PropertyRegistrationLock;
+import com.moahome.server.property.repo.PropertyRepository;
+import com.moahome.server.property.service.*;
+import com.moahome.server.property.support.*;
+import com.moahome.server.resident.service.ResidentListService;
+import com.moahome.server.resident.service.ResidentManagementService;
+import com.moahome.server.resident.service.ResidentRegistrationService;
+import com.moahome.server.user.domain.User;
+import com.moahome.server.user.repo.UserRepository;
+import com.moahome.server.user.service.UserService;
+import com.moahome.server.user.support.PostgresTestServer;
+
+import static org.assertj.core.api.Assertions.*;
 
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({com.moahome.server.payment.service.CumulativePaymentService.class, BillingService.class,
+@Import({CumulativePaymentService.class, BillingService.class,
         BillingTemplates.class, BillingGenerationService.class, PropertyRegistrationService.class,
         PropertyRegistrationLock.class, ManagementAccessService.class, UnitManagementService.class,
-        com.moahome.server.resident.service.ResidentManagementService.class,
-        com.moahome.server.resident.service.ResidentRegistrationService.class, UserService.class,
-        com.moahome.server.resident.service.ResidentListService.class, BillingPersistenceTest.TestBeans.class})
+        ResidentManagementService.class,
+        ResidentRegistrationService.class, UserService.class,
+        ResidentListService.class, BillingPersistenceTest.TestBeans.class})
 @ActiveProfiles("database-test")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -63,7 +80,7 @@ class BillingPersistenceTest {
 	UnitManagementService unitManagement;
 
 	@Autowired
-	com.moahome.server.resident.service.ResidentListService residentLists;
+	ResidentListService residentLists;
 
 	@Autowired
 	PropertyRegistrationService registration;
@@ -105,14 +122,14 @@ class BillingPersistenceTest {
 
 	/** 이 테스트군은 운영 개시 이후의 월별 부과를 검증하므로 개시된 대상과 첫 청구를 명시적으로 준비합니다. */
 	private PropertyRegistrationService.RegistrationOutcome registerForBilling(UUID actor,
-	    com.moahome.server.property.dto.PropertyRegistrationRequest request) {
+	    PropertyRegistrationRequest request) {
 		var result = registration.register(actor, request);
 		var id = result.response().property().id();
 		jdbc.update(
 		    "update properties set management_started_at=created_at,first_billing_month=date_trunc('month',created_at at time zone 'Asia/Seoul')::date where id=?",
 		    id);
 		generation.generate(id,
-		    YearMonth.from(result.response().createdAt().atZone(java.time.ZoneId.of("Asia/Seoul"))));
+		    YearMonth.from(result.response().createdAt().atZone(ZoneId.of("Asia/Seoul"))));
 		return result;
 	}
 
@@ -145,7 +162,7 @@ class BillingPersistenceTest {
 		assertThatThrownBy(
 		    () -> jdbc.update("update charge_items set item_code='MANAGEMENT_FEE' where id=?", chargeItem))
 		    .isInstanceOf(DataIntegrityViolationException.class);
-		for (var code : com.moahome.server.billing.domain.FeeItemCode.values()) {
+		for (var code : FeeItemCode.values()) {
 			jdbc.update("update fee_template_items set item_code=? where id=?", code.name(), templateItem);
 			jdbc.update("update charge_items set item_code=? where id=?", code.name(), chargeItem);
 			assertThat(billing.settings(userId, propertyId).current().items().stream()
@@ -266,7 +283,7 @@ class BillingPersistenceTest {
 		var buildingId = buildingId("201");
 		var first = unitManagement.create(userId, propertyId, unitRequest(buildingId, "701", "ACTIVE"));
 		List<UnitResponse> batch = unitManagement.createBatch(userId, propertyId,
-		    new com.moahome.server.property.dto.UnitBatchRequest(
+		    new UnitBatchRequest(
 		        List.of(unitRequest(buildingId, "702", "VACANT"), unitRequest(buildingId, "703", "ACTIVE"))));
 		generation.addCurrentMonthUnits(propertyId, List.of(first.id()));
 		var month = billing.monthly(userId, propertyId, YearMonth.of(2026, 10));
@@ -410,7 +427,7 @@ class BillingPersistenceTest {
 		assertThatThrownBy(() -> unitManagement.create(userId, propertyId, unitRequest(buildingId, "711", "ACTIVE")))
 		    .isInstanceOf(RuntimeException.class);
 		assertThatThrownBy(() -> unitManagement.createBatch(userId, propertyId,
-		    new com.moahome.server.property.dto.UnitBatchRequest(
+		    new UnitBatchRequest(
 		        List.of(unitRequest(buildingId, "712", "ACTIVE"), unitRequest(buildingId, "713", "VACANT")))))
 		    .isInstanceOf(RuntimeException.class);
 		assertThat(
@@ -445,13 +462,13 @@ class BillingPersistenceTest {
 		unitManagement.deleteUnits(userId, propertyId, List.of(deleted.id()));
 		var start = new CountDownLatch(1);
 		try (var executor = Executors.newFixedThreadPool(2)) {
-			List<Future<String>> tasks = java.util.stream.IntStream.range(0, 2)
+			List<Future<String>> tasks = IntStream.range(0, 2)
 			    .mapToObj(index -> executor.submit(() -> {
 				    start.await();
 				    try {
 					    unitManagement.create(userId, propertyId, input);
 					    return "CREATED";
-				    } catch (com.moahome.server.property.exception.UnitManagementException exception) {
+				    } catch (UnitManagementException exception) {
 					    return exception.code().name();
 				    }
 			    })).toList();
@@ -467,8 +484,8 @@ class BillingPersistenceTest {
 		    .filteredOn(row -> row.room().equals("701")).hasSize(1);
 	}
 
-	@org.junit.jupiter.params.ParameterizedTest
-	@org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
 	void deletedUnitNumberCanBeAddedAgainWithFreshBillingWithoutRevivingOldResidentsOrPastCharges(
 	    boolean hasBuildings) {
 		var target = registerForBilling(userId, RegistrationFixtures.request(UUID.randomUUID(), hasBuildings))
@@ -517,8 +534,8 @@ class BillingPersistenceTest {
 		    .isEqualTo(canceled);
 	}
 
-	@org.junit.jupiter.params.ParameterizedTest
-	@org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
 	void batchAndUpdateCanReuseDeletedNumbersButRejectExistingUnitsAndInRequestDuplicates(boolean hasBuildings) {
 		var target = registerForBilling(userId, RegistrationFixtures.request(UUID.randomUUID(), hasBuildings))
 		    .response().property().id();
@@ -528,10 +545,10 @@ class BillingPersistenceTest {
 		List<UnitRequest> inputs = List.of(unitRequest(building, "701", "ACTIVE"),
 		    unitRequest(building, "702", "VACANT"));
 		List<UnitResponse> original = unitManagement.createBatch(userId, target,
-		    new com.moahome.server.property.dto.UnitBatchRequest(inputs));
+		    new UnitBatchRequest(inputs));
 		unitManagement.deleteUnits(userId, target, original.stream().map(unit -> unit.id()).toList());
 		List<UnitResponse> replacement = unitManagement.createBatch(userId, target,
-		    new com.moahome.server.property.dto.UnitBatchRequest(inputs));
+		    new UnitBatchRequest(inputs));
 		assertThat(replacement).extracting(unit -> unit.id())
 		    .doesNotContainAnyElementsOf(original.stream().map(unit -> unit.id()).toList());
 		assertThat(billing.monthly(userId, target, YearMonth.of(2026, 10)).charges())
@@ -540,16 +557,16 @@ class BillingPersistenceTest {
 		    .noneMatch(row -> row.room().equals("702"));
 		var editing = unitManagement.create(userId, target, unitRequest(building, "703", "ACTIVE"));
 		assertThatThrownBy(() -> unitManagement.update(userId, target, editing.id(), inputs.getFirst()))
-		    .isInstanceOf(com.moahome.server.property.exception.UnitManagementException.class);
+		    .isInstanceOf(UnitManagementException.class);
 		List<UnitResponse> before = unitManagement.list(userId, target).units();
-		var conflicting = new com.moahome.server.property.dto.UnitBatchRequest(
+		var conflicting = new UnitBatchRequest(
 		    List.of(unitRequest(building, "704", "ACTIVE"), inputs.getFirst()));
 		assertThatThrownBy(() -> unitManagement.createBatch(userId, target, conflicting))
-		    .isInstanceOf(com.moahome.server.property.exception.UnitManagementException.class);
+		    .isInstanceOf(UnitManagementException.class);
 		var duplicate = unitRequest(building, "705", "ACTIVE");
 		assertThatThrownBy(() -> unitManagement.createBatch(userId, target,
-		    new com.moahome.server.property.dto.UnitBatchRequest(List.of(duplicate, duplicate))))
-		    .isInstanceOf(com.moahome.server.property.exception.UnitManagementException.class);
+		    new UnitBatchRequest(List.of(duplicate, duplicate))))
+		    .isInstanceOf(UnitManagementException.class);
 		assertThat(unitManagement.list(userId, target).units()).isEqualTo(before);
 		unitManagement.deleteUnits(userId, target, List.of(replacement.getFirst().id()));
 		var updated = unitManagement.update(userId, target, editing.id(), inputs.getFirst());
@@ -564,7 +581,7 @@ class BillingPersistenceTest {
 		var withoutBuildings = registerForBilling(userId, RegistrationFixtures.request(UUID.randomUUID(), false))
 		    .response().property().id();
 		String schema = "unit_reuse_upgrade_" + UUID.randomUUID().toString().replace("-", "");
-		var previous = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).target("20261012061303").load();
 		previous.migrate();
 		for (String table : List.of("users", "properties", "buildings", "units", "fee_templates", "fee_template_items",
@@ -577,7 +594,7 @@ class BillingPersistenceTest {
 		storedCharges.forEach(row -> { row.put("charge_type", "MONTHLY"); row.put("billing_addition_id", null); });
 		List<Map<String, Object>> storedItems = jdbc
 		    .queryForList("select * from " + schema + ".charge_items order by id");
-		var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).load();
 		int pendingMigrations = upgraded.info().pending().length;
 		assertThat(pendingMigrations).isPositive();
@@ -645,7 +662,7 @@ class BillingPersistenceTest {
 	@Test
 	void deletedBuildingRecreationCountsOnlyNewTargetsAndRepairsLegacyChargesWithoutTouchingPast() {
 		var request = RegistrationFixtures.withUnits(RegistrationFixtures.request(UUID.randomUUID(), true),
-		    java.util.stream.IntStream.range(0, 31)
+		    IntStream.range(0, 31)
 		        .mapToObj(
 		            index -> new UnitInput(index < 15 ? "a" : "b", String.valueOf(101 + index), null, 1, "ACTIVE"))
 		        .toList());
@@ -660,9 +677,9 @@ class BillingPersistenceTest {
 		jdbc.update("update units set deleted_at=now(),deleted_by=? where building_id=?", userId, oldBuilding);
 		assertThat(billing.monthly(userId, target, YearMonth.of(2026, 11)).charges()).hasSize(15);
 		var replacement = unitManagement.createBuilding(userId, target,
-		    new com.moahome.server.property.dto.BuildingRequest("102동"));
+		    new BuildingRequest("102동"));
 		unitManagement.createBatch(userId, target,
-		    new com.moahome.server.property.dto.UnitBatchRequest(java.util.stream.IntStream.range(15, 31)
+		    new UnitBatchRequest(IntStream.range(15, 31)
 		        .mapToObj(index -> unitRequest(replacement.id(), String.valueOf(101 + index), "ACTIVE")).toList()));
 		generation.supplementCurrentMonth(target);
 		var current = billing.monthly(userId, target, YearMonth.of(2026, 11));
@@ -720,7 +737,7 @@ class BillingPersistenceTest {
 	@Test
 	void cancellationMigrationPreservesExistingIssuedHeadersAndItemsAndEnforcesCompleteAudit() {
 		String schema = "charge_upgrade_" + UUID.randomUUID().toString().replace("-", "");
-		var old = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var old = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).target("20261010131153").load();
 		old.migrate();
 		for (String table : List.of("users", "properties", "buildings", "units", "fee_templates", "fee_template_items",
@@ -732,7 +749,7 @@ class BillingPersistenceTest {
 		jdbc.execute("insert into " + schema + ".charge_items select * from public.charge_items");
 		List<Map<String, Object>> original = jdbc
 		    .queryForList("select " + originalColumns + " from public.charges order by id");
-		var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).load();
 		int pendingMigrations = upgraded.info().pending().length;
 		assertThat(pendingMigrations).isPositive();
@@ -783,8 +800,8 @@ class BillingPersistenceTest {
 		    propertyId, number);
 	}
 
-	private com.moahome.server.property.dto.UnitRequest unitRequest(UUID buildingId, String number, String status) {
-		return new com.moahome.server.property.dto.UnitRequest(buildingId, number, null, 7, status);
+	private UnitRequest unitRequest(UUID buildingId, String number, String status) {
+		return new UnitRequest(buildingId, number, null, 7, status);
 	}
 
 	private void addMember(UUID property, UUID user, String role) {
@@ -822,11 +839,11 @@ class BillingPersistenceTest {
 		var before = billing.monthly(userId, propertyId, YearMonth.of(2026, 10));
 		var request = new BillingSettingsRequest(settings.revisionId(), "2026-11", "102동 한정 수선비",
 		    List.of(new BillingSettingsRequest.Item(null, "일반관리비", 50000L)),
-		    com.moahome.server.billing.domain.BillingMode.ALL, List.of(),
-		    com.moahome.server.billing.domain.BillingMode.BUILDING,
+		    BillingMode.ALL, List.of(),
+		    BillingMode.BUILDING,
 		    List.of(new BillingSettingsRequest.TemporaryItem(target, null, "수선비", 100000L, "승강기 보수")));
 		var saved = billing.saveSettings(userId, propertyId, request);
-		assertThat(saved.scheduled().mode()).isEqualTo(com.moahome.server.billing.domain.BillingMode.ALL);
+		assertThat(saved.scheduled().mode()).isEqualTo(BillingMode.ALL);
 		assertThat(saved.scheduled().temporaryItems()).hasSize(1);
 		var preview = billing.monthly(userId, propertyId, YearMonth.of(2026, 11));
 		assertThat(preview.charges()).hasSize(3);
@@ -849,12 +866,12 @@ class BillingPersistenceTest {
 	@Test
 	void buildingBaseAllowsAllTemporaryAndValidatesTargetsAndCombinedTotals() {
 		var settings = billing.settings(userId, propertyId);
-		var mode = com.moahome.server.billing.domain.BillingMode.BUILDING;
+		var mode = BillingMode.BUILDING;
 		List<BillingSettingsRequest.BuildingItems> groups = settings.buildings().stream()
 		    .map(building -> new BillingSettingsRequest.BuildingItems(building.id(),
 		        List.of(new BillingSettingsRequest.Item(null, "관리비", 50000L)))).toList();
 		var request = new BillingSettingsRequest(settings.revisionId(), "2026-11", "동별 기본과 전체 임시",
-		    List.of(), mode, groups, com.moahome.server.billing.domain.BillingMode.ALL,
+		    List.of(), mode, groups, BillingMode.ALL,
 		    List.of(new BillingSettingsRequest.TemporaryItem(null, null, "점검비", 10000L, null)));
 		var saved = billing.saveSettings(userId, propertyId, request);
 		assertThat(saved.scheduled().buildingItems()).hasSize(settings.buildings().size());
@@ -867,8 +884,8 @@ class BillingPersistenceTest {
 		assertThatThrownBy(() -> billing.saveSettings(userId, propertyId,
 		    new BillingSettingsRequest(saved.revisionId(), "2026-11", "합계 초과",
 		        List.of(new BillingSettingsRequest.Item(null, "기본", 999999999999999L)),
-		        com.moahome.server.billing.domain.BillingMode.ALL, List.of(),
-		        com.moahome.server.billing.domain.BillingMode.ALL,
+		        BillingMode.ALL, List.of(),
+		        BillingMode.ALL,
 		        List.of(new BillingSettingsRequest.TemporaryItem(null, null, "추가", 1L, null)))))
 		    .isInstanceOf(IllegalArgumentException.class);
 	}
@@ -881,7 +898,7 @@ class BillingPersistenceTest {
 		UUID requestId = UUID.randomUUID();
 		var request = new BillingSettingsRequest(settings.revisionId(), "2026-11", "이번 달 긴급 수선과 다음 달 점검",
 		    List.of(new BillingSettingsRequest.Item(null, "기본", 50000L)),
-		    com.moahome.server.billing.domain.BillingMode.ALL, List.of(), com.moahome.server.billing.domain.BillingMode.BUILDING,
+		    BillingMode.ALL, List.of(), BillingMode.BUILDING,
 		    List.of(new BillingSettingsRequest.TemporaryItem(buildingId("201"), null, "긴급 수선", 100000L, null, "2026-10"),
 		        new BillingSettingsRequest.TemporaryItem(buildingId("201"), null, "점검", 20000L, null, "2026-11")), "2026-11", requestId);
 		var saved = billing.saveSettings(userId, propertyId, request);
@@ -916,8 +933,8 @@ class BillingPersistenceTest {
 		jdbc.execute("create trigger fail_added_charge before insert on charges for each row execute function fail_added_charge()");
 		try {
 			var request = new BillingSettingsRequest(settings.revisionId(), "2026-11", "긴급 수선",
-			    List.of(new BillingSettingsRequest.Item(null, "기본", 50000L)), com.moahome.server.billing.domain.BillingMode.ALL,
-			    List.of(), com.moahome.server.billing.domain.BillingMode.ALL,
+			    List.of(new BillingSettingsRequest.Item(null, "기본", 50000L)), BillingMode.ALL,
+			    List.of(), BillingMode.ALL,
 			    List.of(new BillingSettingsRequest.TemporaryItem(null, null, "수선", 100L, null, "2026-10")), "2026-11", UUID.randomUUID());
 			assertThatThrownBy(() -> billing.saveSettings(userId, propertyId, request)).isInstanceOf(RuntimeException.class);
 			assertThat(jdbc.queryForObject("select count(*) from billing_additions", Long.class)).isZero();

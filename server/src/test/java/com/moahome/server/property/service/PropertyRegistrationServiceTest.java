@@ -1,31 +1,41 @@
 package com.moahome.server.property.service;
 
+import java.nio.charset.StandardCharsets;
 import java.time.*;
 import java.util.*;
 import java.util.stream.Stream;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
+import jakarta.validation.*;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.*;
+import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.dao.DataAccessResourceFailureException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
+
 import com.moahome.server.auth.exception.*;
-import com.moahome.server.banking.domain.BankAccount;
 import com.moahome.server.banking.repo.BankAccountRepository;
 import com.moahome.server.billing.domain.FeeItemCode;
 import com.moahome.server.billing.repo.*;
+import com.moahome.server.billing.service.BillingGenerationService;
 import com.moahome.server.common.security.AccountNumberSecurity;
+import com.moahome.server.config.RegistrationSecurityProperties;
 import com.moahome.server.membership.domain.*;
 import com.moahome.server.membership.repo.PropertyMemberRepository;
-import com.moahome.server.property.domain.*;
 import com.moahome.server.property.dto.*;
 import com.moahome.server.property.dto.PropertyRegistrationRequest.*;
 import com.moahome.server.property.exception.*;
 import com.moahome.server.property.repo.*;
 import com.moahome.server.property.support.*;
+import com.moahome.server.resident.repo.ResidentRepository;
+import com.moahome.server.resident.repo.UnitResidentRepository;
 import com.moahome.server.user.domain.*;
 import com.moahome.server.user.service.UserService;
-import jakarta.validation.*;
-import org.junit.jupiter.api.*;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.*;
-import org.springframework.dao.DataAccessResourceFailureException;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.json.JsonMapper;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -51,8 +61,8 @@ class PropertyRegistrationServiceTest {
 
 	private final PropertyRegistrationLock lock = mock(PropertyRegistrationLock.class);
 
-	private final com.moahome.server.billing.service.BillingGenerationService billing = mock(
-	    com.moahome.server.billing.service.BillingGenerationService.class);
+	private final BillingGenerationService billing = mock(
+	    BillingGenerationService.class);
 
 	private final ObjectMapper mapper = JsonMapper.builder().build();
 
@@ -66,10 +76,10 @@ class PropertyRegistrationServiceTest {
 	    units, accounts, templates, items, members, results, lock,
 	    new AccountNumberSecurity(RegistrationTestKeys.accountProperties()),
 	    new RegistrationFingerprint(RegistrationTestKeys.fingerprintProperties(), mapper), validation.getValidator(),
-	    mapper, clock, billing, mock(org.springframework.beans.factory.ObjectProvider.class),
-	    mock(com.moahome.server.resident.repo.ResidentRepository.class),
-	    mock(com.moahome.server.resident.repo.UnitResidentRepository.class),
-	    mock(org.springframework.beans.factory.ObjectProvider.class));
+	    mapper, clock, billing, mock(ObjectProvider.class),
+	    mock(ResidentRepository.class),
+	    mock(UnitResidentRepository.class),
+	    mock(ObjectProvider.class));
 
 	@BeforeEach
 	void prepare() {
@@ -162,7 +172,7 @@ class PropertyRegistrationServiceTest {
 		    new UnitInput("b", "101", null, 32767, "VACANT")));
 		assertThat(service.register(user.getId(), request).response().summary().monthlyDefaultAmount())
 		    .isEqualTo(50000);
-		var member = org.mockito.ArgumentCaptor.forClass(PropertyMember.class);
+		var member = ArgumentCaptor.forClass(PropertyMember.class);
 		verify(members).saveAndFlush(member.capture());
 		assertThat(member.getValue().getUserId()).isEqualTo(user.getId());
 		assertThat(member.getValue().getRole()).isEqualTo(PropertyMemberRole.ADMIN);
@@ -210,9 +220,9 @@ class PropertyRegistrationServiceTest {
 		String oldKey = RegistrationTestKeys.randomKey();
 		String newKey = RegistrationTestKeys.randomKey();
 		var old = new RegistrationFingerprint(
-		    new com.moahome.server.config.RegistrationSecurityProperties("v1", Map.of("v1", oldKey)), mapper);
+		    new RegistrationSecurityProperties("v1", Map.of("v1", oldKey)), mapper);
 		var rotated = new RegistrationFingerprint(
-		    new com.moahome.server.config.RegistrationSecurityProperties("v2", Map.of("v1", oldKey, "v2", newKey)),
+		    new RegistrationSecurityProperties("v2", Map.of("v1", oldKey, "v2", newKey)),
 		    mapper);
 		var r = RegistrationFixtures.request(UUID.randomUUID(), false);
 		var otherId = new PropertyRegistrationRequest(UUID.randomUUID(), r.basicInfo(), r.buildings(), r.units(),
@@ -231,7 +241,7 @@ class PropertyRegistrationServiceTest {
 	void feeCodesPreserveLegacyFingerprintForDirectInputAndDistinguishCodedRequests() throws Exception {
 		String encodedKey = RegistrationTestKeys.randomKey();
 		var fingerprints = new RegistrationFingerprint(
-		    new com.moahome.server.config.RegistrationSecurityProperties("v1", Map.of("v1", encodedKey)), mapper);
+		    new RegistrationSecurityProperties("v1", Map.of("v1", encodedKey)), mapper);
 		var request = RegistrationFixtures.request(UUID.randomUUID(), false);
 		// 필드 추가 전 성공 결과의 지문을 재현해 null 코드가 기존 재시도를 충돌로 바꾸지 않는지 확인합니다.
 		List<Map<String, Object>> legacyFees = request.feeItems().stream().map(item -> {
@@ -240,9 +250,9 @@ class PropertyRegistrationServiceTest {
 			fields.put("defaultAmount", item.defaultAmount());
 			return fields;
 		}).toList();
-		var mac = javax.crypto.Mac.getInstance("HmacSHA256");
-		mac.init(new javax.crypto.spec.SecretKeySpec(Base64.getDecoder().decode(encodedKey), "HmacSHA256"));
-		mac.update("moahome:property-registration:v1:".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+		var mac = Mac.getInstance("HmacSHA256");
+		mac.init(new SecretKeySpec(Base64.getDecoder().decode(encodedKey), "HmacSHA256"));
+		mac.update("moahome:property-registration:v1:".getBytes(StandardCharsets.UTF_8));
 		String legacy = HexFormat.of().formatHex(mac.doFinal(mapper.writeValueAsBytes(
 		    List.of(request.basicInfo(), request.buildings(), request.units(), request.bankAccounts(), legacyFees))));
 		assertThat(fingerprints.matches(legacy, request, "v1")).isTrue();

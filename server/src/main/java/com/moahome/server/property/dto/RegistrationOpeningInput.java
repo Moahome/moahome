@@ -2,8 +2,12 @@ package com.moahome.server.property.dto;
 
 import java.time.LocalDate;
 import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
+
+import com.moahome.server.common.validation.TextValues;
 
 /** 등록 전 임시 동 참조와 호수·계좌 배열 위치를 사용하고 실제 ID는 서버에서 연결합니다. */
 public record RegistrationOpeningInput(@NotNull(message = "REQUIRED") LocalDate cutoffDate,
@@ -18,7 +22,7 @@ public record RegistrationOpeningInput(@NotNull(message = "REQUIRED") LocalDate 
 	    @NotNull(message = "REQUIRED") @Pattern(regexp = "[0-9]{1,15}", message = "INVALID_FORMAT") String receivable,
 	    @NotNull(message = "REQUIRED") @Pattern(regexp = "[0-9]{1,15}", message = "INVALID_FORMAT") String credit) {
 		public UnitOpening {
-			unitNumber = com.moahome.server.common.validation.TextValues.strip(unitNumber);
+			unitNumber = TextValues.strip(unitNumber);
 		}
 	}
 
@@ -27,7 +31,7 @@ public record RegistrationOpeningInput(@NotNull(message = "REQUIRED") LocalDate 
 	}
 
 	public record BuildingOpening(
-	    @Min(0) @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL) Integer accountIndex,
+	    @Min(0) @JsonInclude(JsonInclude.Include.NON_NULL) Integer accountIndex,
 	    @NotBlank(message = "REQUIRED") String buildingClientId,
 	    @NotNull(message = "REQUIRED") @Pattern(regexp = "-?[0-9]{1,15}", message = "INVALID_FORMAT") String amount) {
 		public BuildingOpening(String buildingClientId, String amount) {

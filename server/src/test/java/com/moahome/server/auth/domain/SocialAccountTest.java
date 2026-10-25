@@ -2,9 +2,10 @@ package com.moahome.server.auth.domain;
 
 import java.time.OffsetDateTime;
 
-import com.moahome.server.user.domain.User;
-
 import org.junit.jupiter.api.Test;
+
+import com.moahome.server.user.domain.User;
+import com.moahome.server.user.exception.UserException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,6 +37,6 @@ class SocialAccountTest {
 		user.suspend();
 		assertThatThrownBy(
 		    () -> SocialAccount.link(user, new VerifiedSocialProfile(SocialProvider.KAKAO, "123", null, "사용자", null)))
-		    .isInstanceOf(com.moahome.server.user.exception.UserException.class);
+		    .isInstanceOf(UserException.class);
 	}
 }

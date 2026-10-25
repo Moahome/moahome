@@ -46,7 +46,7 @@ public class ResidentExportService {
 		if (!rows.keySet().containsAll(ids))
 			throw new ResidentRegistrationException(RESIDENT_NOT_FOUND);
 		Map<UUID, Resident> records = residents.findByPropertyIdAndIdInAndDeletedAtIsNull(propertyId, ids).stream()
-		    .collect(Collectors.toMap(com.moahome.server.resident.domain.Resident::getId, Function.identity()));
+		    .collect(Collectors.toMap(Resident::getId, Function.identity()));
 		if (records.size() != ids.size())
 			throw new ResidentRegistrationException(RESIDENT_NOT_FOUND);
 		Map<UUID, String> buildings = directory.buildings().stream().collect(Collectors

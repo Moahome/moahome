@@ -3,6 +3,14 @@ package com.moahome.server.banking.service;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
+import java.util.stream.Stream;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.*;
+
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.banking.domain.*;
 import com.moahome.server.banking.dto.*;
@@ -11,9 +19,7 @@ import com.moahome.server.common.security.PaymentTextSecurity;
 import com.moahome.server.payment.exception.PaymentException;
 import com.moahome.server.property.repo.PropertyRepository;
 import com.moahome.server.property.service.ManagementAccessService;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
+import com.moahome.server.user.repo.UserRepository;
 
 @Service
 @Transactional(readOnly = true)
@@ -28,16 +34,16 @@ public class BankBalanceCheckService {
 
 	private final PaymentTextSecurity security;
 
-	private final com.moahome.server.user.repo.UserRepository users;
+	private final UserRepository users;
 
 	private final Clock clock;
 
-	@jakarta.persistence.PersistenceContext
-	private jakarta.persistence.EntityManager entityManager;
+	@PersistenceContext
+	private EntityManager entityManager;
 
 	public BankBalanceCheckService(BankBalanceCheckRepository checks, BankAccountRepository accounts,
 	    PropertyRepository properties, ManagementAccessService access, @Lazy PaymentTextSecurity security, Clock clock,
-	    com.moahome.server.user.repo.UserRepository users) {
+	    UserRepository users) {
 		this.checks = checks;
 		this.accounts = accounts;
 		this.properties = properties;
@@ -122,7 +128,7 @@ public class BankBalanceCheckService {
 		    .filter(c -> c.getBankAccountId().equals(accountId)).toList();
 		Map<UUID, String> names = new HashMap<>();
 		users
-		    .findAllById(rows.stream().flatMap(c -> java.util.stream.Stream.of(c.getCheckedBy(), c.getCanceledBy()))
+		    .findAllById(rows.stream().flatMap(c -> Stream.of(c.getCheckedBy(), c.getCanceledBy()))
 		        .filter(Objects::nonNull).distinct().toList())
 		    .forEach(u -> names.put(u.getId(), u.getDeletedAt() == null ? u.getDisplayName() : "탈퇴한 관리자"));
 		return new BankBalanceCheckResponse(property, accountId,

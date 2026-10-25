@@ -1,9 +1,13 @@
 package com.moahome.server.common.security;
 
 import java.util.Map;
-import com.moahome.server.config.AccountSecurityProperties;
-import com.moahome.server.property.support.RegistrationTestKeys;
+
 import org.junit.jupiter.api.Test;
+
+import com.moahome.server.config.AccountSecurityProperties;
+import com.moahome.server.config.PhoneSecurityProperties;
+import com.moahome.server.property.support.RegistrationTestKeys;
+
 import static org.assertj.core.api.Assertions.*;
 
 class AccountNumberSecurityTest {
@@ -32,7 +36,7 @@ class AccountNumberSecurityTest {
 		assertThatThrownBy(() -> rotated.decrypt(encrypted.replace("v1:", "v2:")))
 		    .isInstanceOf(IllegalArgumentException.class);
 		var phone = new PhoneSecurity(
-		    new com.moahome.server.config.PhoneSecurityProperties("v1", Map.of("v1", firstKey), hmac));
+		    new PhoneSecurityProperties("v1", Map.of("v1", firstKey), hmac));
 		assertThatThrownBy(() -> old.decrypt(phone.encrypt("+821012345678")))
 		    .isInstanceOf(IllegalArgumentException.class);
 	}

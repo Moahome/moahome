@@ -3,14 +3,16 @@ package com.moahome.server.resident.domain;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.UUID;
+
 import jakarta.persistence.*;
 import lombok.Getter;
+import org.springframework.data.domain.Persistable;
 
 /** 새 요청 ID와 재사용한 주민·새 현재 관계를 연결해 재등록 응답 유실에도 중복 복구하지 않습니다. */
 @Getter
 @Entity
 @Table(name = "resident_registration_results")
-public class ResidentRegistrationResult implements org.springframework.data.domain.Persistable<UUID> {
+public class ResidentRegistrationResult implements Persistable<UUID> {
 	@Id
 	@Column(name = "request_id")
 	private UUID id;

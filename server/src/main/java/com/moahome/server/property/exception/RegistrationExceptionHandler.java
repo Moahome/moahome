@@ -1,10 +1,9 @@
 package com.moahome.server.property.exception;
 
+import java.util.Comparator;
 import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.moahome.server.auth.exception.*;
-import com.moahome.server.property.controller.PropertyRegistrationController;
-import com.moahome.server.user.exception.UserException;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.DataAccessException;
@@ -17,6 +16,10 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+
+import com.moahome.server.auth.exception.*;
+import com.moahome.server.property.controller.PropertyRegistrationController;
+import com.moahome.server.user.exception.UserException;
 
 @RestControllerAdvice(assignableTypes = PropertyRegistrationController.class)
 public class RegistrationExceptionHandler {
@@ -33,7 +36,7 @@ public class RegistrationExceptionHandler {
 		List<RegistrationException.FieldError> errors = exception.getBindingResult().getFieldErrors().stream()
 		    .map(field -> new RegistrationException.FieldError(field.getField().replace(".<list element>", ""),
 		        field.getDefaultMessage(), "입력 정보를 확인해주세요."))
-		    .sorted(java.util.Comparator.comparing(RegistrationException.FieldError::field)
+		    .sorted(Comparator.comparing(RegistrationException.FieldError::field)
 		        .thenComparing(RegistrationException.FieldError::reason))
 		    .distinct().toList();
 		return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", message(RegistrationErrorCode.INVALID_REQUEST, request),

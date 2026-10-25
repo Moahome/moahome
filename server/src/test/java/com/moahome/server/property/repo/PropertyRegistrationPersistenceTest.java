@@ -1,22 +1,12 @@
 package com.moahome.server.property.repo;
 
+import java.math.BigDecimal;
+import java.sql.Date;
+import java.sql.Timestamp;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
-import com.moahome.server.auth.exception.*;
-import com.moahome.server.auth.support.MutableClock;
-import com.moahome.server.billing.domain.FeeItemCode;
-import com.moahome.server.billing.domain.FeeTemplateItem;
-import com.moahome.server.billing.repo.FeeTemplateItemRepository;
-import com.moahome.server.common.security.AccountNumberSecurity;
-import com.moahome.server.property.dto.*;
-import com.moahome.server.property.exception.*;
-import com.moahome.server.property.service.*;
-import com.moahome.server.property.support.*;
-import com.moahome.server.user.domain.*;
-import com.moahome.server.user.repo.UserRepository;
-import com.moahome.server.user.service.UserService;
-import com.moahome.server.user.support.PostgresTestServer;
+
 import jakarta.validation.*;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.*;
@@ -38,15 +28,37 @@ import org.springframework.transaction.annotation.*;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
+
+import com.moahome.server.auth.exception.*;
+import com.moahome.server.auth.support.MutableClock;
+import com.moahome.server.billing.domain.FeeItemCode;
+import com.moahome.server.billing.domain.FeeTemplateItem;
+import com.moahome.server.billing.repo.FeeTemplateItemRepository;
+import com.moahome.server.billing.service.BillingGenerationService;
+import com.moahome.server.billing.service.BillingTemplates;
+import com.moahome.server.common.security.AccountNumberSecurity;
+import com.moahome.server.common.security.PhoneSecurity;
+import com.moahome.server.config.PhoneSecurityProperties;
+import com.moahome.server.payment.service.CumulativePaymentService;
+import com.moahome.server.property.dto.*;
+import com.moahome.server.property.exception.*;
+import com.moahome.server.property.service.*;
+import com.moahome.server.property.support.*;
+import com.moahome.server.resident.repo.ResidentRepository;
+import com.moahome.server.user.domain.*;
+import com.moahome.server.user.repo.UserRepository;
+import com.moahome.server.user.service.UserService;
+import com.moahome.server.user.support.PostgresTestServer;
+
 import static org.assertj.core.api.Assertions.*;
 
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({ com.moahome.server.payment.service.CumulativePaymentService.class, PropertyRegistrationService.class,
+@Import({ CumulativePaymentService.class, PropertyRegistrationService.class,
         PropertyRegistrationLock.class, UserService.class, PropertyRegistrationPersistenceTest.TestBeans.class,
-        com.moahome.server.billing.service.BillingGenerationService.class,
-        com.moahome.server.billing.service.BillingTemplates.class })
+        BillingGenerationService.class,
+        BillingTemplates.class })
 @ActiveProfiles("database-test")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -79,10 +91,10 @@ class PropertyRegistrationPersistenceTest {
 	AccountNumberSecurity accountSecurity;
 
 	@Autowired
-	com.moahome.server.common.security.PhoneSecurity phoneSecurity;
+	PhoneSecurity phoneSecurity;
 
 	@Autowired
-	com.moahome.server.resident.repo.ResidentRepository residents;
+	ResidentRepository residents;
 
 	@Autowired
 	ObjectMapper mapper;
@@ -243,7 +255,7 @@ class PropertyRegistrationPersistenceTest {
 		assertThat(count("billing_periods")).isZero();
 		assertThat(count("charges")).isZero();
 		assertThat(count("charge_items")).isZero();
-		assertThat(jdbc.queryForObject("select management_started_at from properties", java.sql.Timestamp.class))
+		assertThat(jdbc.queryForObject("select management_started_at from properties", Timestamp.class))
 		    .isNull();
 		Map<String, Object> account = jdbc.queryForMap("select * from bank_accounts");
 		assertThat(account.get("building_id")).isNull();
@@ -311,7 +323,7 @@ class PropertyRegistrationPersistenceTest {
 		var outcome = registrations.register(userId, request);
 		assertThat(outcome.response().summary().monthlyDefaultAmount()).isEqualTo(-15000);
 		assertThat(jdbc.queryForList("select default_amount from fee_template_items order by sort_order",
-		    java.math.BigDecimal.class)).containsExactly(new java.math.BigDecimal("-15000"), java.math.BigDecimal.ZERO);
+		    BigDecimal.class)).containsExactly(new BigDecimal("-15000"), BigDecimal.ZERO);
 		assertThat(registrations.getResult(userId, request.requestId())).isEqualTo(outcome.response());
 	}
 
@@ -359,7 +371,7 @@ class PropertyRegistrationPersistenceTest {
 		assertThat(registrations.register(userId, request).created()).isFalse();
 		assertThat(registrations.register(userId, request).response()).isEqualTo(first.response());
 		assertThat(registrations.getResult(userId, request.requestId())).isEqualTo(first.response());
-		assertThat(jdbc.queryForObject("select valid_from from bank_accounts", java.sql.Date.class).toString())
+		assertThat(jdbc.queryForObject("select valid_from from bank_accounts", Date.class).toString())
 		    .isEqualTo("2026-10-06");
 		var changed = new PropertyRegistrationRequest(request.requestId(), request.basicInfo(), request.buildings(),
 		    request.units(), request.bankAccounts(),
@@ -548,10 +560,10 @@ class PropertyRegistrationPersistenceTest {
 		}
 
 		@Bean
-		com.moahome.server.common.security.PhoneSecurity phoneSecurity() {
-			return new com.moahome.server.common.security.PhoneSecurity(
-			    new com.moahome.server.config.PhoneSecurityProperties("v1",
-			        java.util.Map.of("v1", RegistrationTestKeys.randomKey()), RegistrationTestKeys.randomKey()));
+		PhoneSecurity phoneSecurity() {
+			return new PhoneSecurity(
+			    new PhoneSecurityProperties("v1",
+			        Map.of("v1", RegistrationTestKeys.randomKey()), RegistrationTestKeys.randomKey()));
 		}
 
 		@Bean

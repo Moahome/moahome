@@ -1,12 +1,7 @@
 package com.moahome.server.resident.controller;
 
 import java.util.*;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.auth.exception.*;
-import com.moahome.server.resident.domain.ResidentSignupStatus;
-import com.moahome.server.resident.dto.ResidentListResponse;
-import com.moahome.server.resident.dto.ResidentListResponse.ResidentItem;
-import com.moahome.server.resident.service.ResidentListService;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -19,6 +14,15 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.auth.exception.*;
+import com.moahome.server.resident.domain.ResidentSignupStatus;
+import com.moahome.server.resident.dto.ResidentListResponse;
+import com.moahome.server.resident.dto.ResidentListResponse.ResidentItem;
+import com.moahome.server.resident.service.ResidentListService;
+
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -40,7 +44,7 @@ class ResidentListControllerTest {
 
 	private final String url = "/api/properties/" + propertyId + "/residents";
 
-	private org.springframework.test.web.servlet.request.RequestPostProcessor identity() {
+	private RequestPostProcessor identity() {
 		return authentication(UsernamePasswordAuthenticationToken
 		    .authenticated(new AuthPrincipal(userId.toString(), UUID.randomUUID().toString()), null, List.of()));
 	}

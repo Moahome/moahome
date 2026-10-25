@@ -2,15 +2,23 @@ package com.moahome.server.payment.service;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.security.*;
 import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.banking.domain.*;
+import com.moahome.server.banking.dto.BankingResponse;
 import com.moahome.server.banking.repo.*;
-import com.moahome.server.banking.service.BankTransactionReader;
 import com.moahome.server.banking.service.BankTransactionDuplicates;
+import com.moahome.server.banking.service.BankTransactionKeys;
+import com.moahome.server.banking.service.BankTransactionReader;
+import com.moahome.server.banking.service.IncomeAllocationService;
 import com.moahome.server.billing.domain.*;
 import com.moahome.server.billing.repo.*;
 import com.moahome.server.common.security.PaymentTextSecurity;
@@ -23,10 +31,6 @@ import com.moahome.server.property.repo.*;
 import com.moahome.server.property.service.ManagementAccessService;
 import com.moahome.server.resident.dto.ResidentListResponse.ResidentItem;
 import com.moahome.server.resident.service.ResidentListService;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -69,7 +73,7 @@ public class PaymentService {
 
 	private final CreditApplicationRepository creditApplications;
 
-	private final com.moahome.server.banking.service.IncomeAllocationService incomeAllocationService;
+	private final IncomeAllocationService incomeAllocationService;
 
 	private final IncomeAllocationRepository incomeAllocations;
 
@@ -82,7 +86,7 @@ public class PaymentService {
 	    BankTransactionReader reader, Clock clock, CumulativePaymentService cumulative,
 	    OpeningBalanceBatchRepository openingBatches, OpeningBalanceItemRepository openingItems,
 	    CreditApplicationRepository creditApplications,
-	    com.moahome.server.banking.service.IncomeAllocationService incomeAllocationService,
+	    IncomeAllocationService incomeAllocationService,
 	    IncomeAllocationRepository incomeAllocations, PayerMatchService payerMatches) {
 		this.access = access;
 		this.residents = residents;
@@ -279,11 +283,11 @@ public class PaymentService {
 		    security.decrypt(p.getIncomeCategoryEncrypted()), security.decrypt(p.getIncomeNoteEncrypted()),
 		    shares.isEmpty()
 		        ? null
-		        : new com.moahome.server.banking.dto.BankingResponse.Expense(p.getId(),
+		        : new BankingResponse.Expense(p.getId(),
 		            security.decrypt(p.getIncomeCategoryEncrypted()), security.decrypt(p.getIncomeNoteEncrypted()),
 		            shares.getFirst().getAllocationMode(), false,
 		            shares.stream()
-		                .map(a -> new com.moahome.server.banking.dto.BankingResponse.Allocation(a.getBuildingId(),
+		                .map(a -> new BankingResponse.Allocation(a.getBuildingId(),
 		                    security.decrypt(a.getBuildingLabelEncrypted()), a.getAmount().toPlainString(),
 		                    a.getPercentage() == null ? null : a.getPercentage().toPlainString()))
 		                .toList()));
@@ -733,7 +737,7 @@ public class PaymentService {
 
 	/** 제공된 시간·잔액을 포함한 식별을 공유하고 과거 원본 키는 호환 대조에서 보존합니다. */
 	private String key(BankTransactionReader.Row row) {
-		return com.moahome.server.banking.service.BankTransactionKeys.key(row, security);
+		return BankTransactionKeys.key(row, security);
 	}
 
 	/** 파일 미리보기의 선택 ID는 저장 ID와 구분하며 중복 판정에 쓰는 거래 키로 재검증 가능합니다. */

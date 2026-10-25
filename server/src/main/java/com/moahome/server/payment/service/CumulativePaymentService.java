@@ -5,18 +5,23 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
-import com.moahome.server.billing.domain.Charge;
-import com.moahome.server.billing.repo.BillingPeriodRepository;
-import com.moahome.server.billing.repo.ChargeRepository;
-import com.moahome.server.common.security.PaymentTextSecurity;
-import com.moahome.server.payment.domain.*;
-import com.moahome.server.payment.repo.*;
+
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import com.moahome.server.billing.domain.BillingPeriod;
+import com.moahome.server.billing.domain.Charge;
 import com.moahome.server.billing.domain.CreditApplication;
 import com.moahome.server.billing.domain.OpeningBalanceBatch;
+import com.moahome.server.billing.repo.BillingPeriodRepository;
+import com.moahome.server.billing.repo.ChargeRepository;
+import com.moahome.server.billing.repo.CreditApplicationRepository;
+import com.moahome.server.billing.repo.OpeningBalanceBatchRepository;
+import com.moahome.server.billing.repo.OpeningBalanceItemRepository;
+import com.moahome.server.common.security.PaymentTextSecurity;
+import com.moahome.server.payment.domain.*;
+import com.moahome.server.payment.repo.*;
 
 @Service
 public class CumulativePaymentService {
@@ -34,18 +39,18 @@ public class CumulativePaymentService {
 
 	private final Clock clock;
 
-	private final com.moahome.server.billing.repo.OpeningBalanceBatchRepository openingBatches;
+	private final OpeningBalanceBatchRepository openingBatches;
 
-	private final com.moahome.server.billing.repo.OpeningBalanceItemRepository openingItems;
+	private final OpeningBalanceItemRepository openingItems;
 
-	private final com.moahome.server.billing.repo.CreditApplicationRepository creditApplications;
+	private final CreditApplicationRepository creditApplications;
 
 	public CumulativePaymentService(PaymentRepository payments, PaymentAllocationRepository allocations,
 	    PaymentEventRepository events, ChargeRepository charges, BillingPeriodRepository periods,
 	    @Lazy PaymentTextSecurity security, Clock clock,
-	    com.moahome.server.billing.repo.OpeningBalanceBatchRepository openingBatches,
-	    com.moahome.server.billing.repo.OpeningBalanceItemRepository openingItems,
-	    com.moahome.server.billing.repo.CreditApplicationRepository creditApplications) {
+	    OpeningBalanceBatchRepository openingBatches,
+	    OpeningBalanceItemRepository openingItems,
+	    CreditApplicationRepository creditApplications) {
 		this.payments = payments;
 		this.allocations = allocations;
 		this.events = events;
@@ -113,7 +118,7 @@ public class CumulativePaymentService {
 				if (existing.isPresent())
 					existing.get().increase(amount);
 				else
-					creditApplications.save(com.moahome.server.billing.domain.CreditApplication.apply(source, charge,
+					creditApplications.save(CreditApplication.apply(source, charge,
 					    amount, actor == null ? batch.getConfirmedBy() : actor, at));
 				paid.merge(charge.getId(), amount, BigDecimal::add);
 				remaining = remaining.subtract(amount);

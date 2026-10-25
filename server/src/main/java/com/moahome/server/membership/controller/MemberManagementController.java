@@ -1,15 +1,21 @@
 package com.moahome.server.membership.controller;
 
 import java.util.UUID;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.membership.dto.*;
-import com.moahome.server.membership.service.MemberManagementService;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
 import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-@io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "bearerAuth")
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.membership.domain.PropertyMemberRole;
+import com.moahome.server.membership.dto.*;
+import com.moahome.server.membership.service.MemberManagementService;
+
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/properties/{propertyId}/members")
 public class MemberManagementController {
@@ -26,8 +32,8 @@ public class MemberManagementController {
 	}
 
 	/** 계정 ID를 입력받지 않고 인증된 본인의 참여만 종료합니다. */
-	@io.swagger.v3.oas.annotations.Operation(summary = "본인 나가기", description = "서비스 참여 종료 또는 본인 퇴거를 선택합니다. 관리소장은 인계가 필요합니다.")
-	@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "204", description = "참여 종료 성공")
+	@Operation(summary = "본인 나가기", description = "서비스 참여 종료 또는 본인 퇴거를 선택합니다. 관리소장은 인계가 필요합니다.")
+	@ApiResponse(responseCode = "204", description = "참여 종료 성공")
 	@PostMapping("/me/leave")
 	public ResponseEntity<Void> leave(@AuthenticationPrincipal AuthPrincipal actor, @PathVariable UUID propertyId,
 	    @Valid @RequestBody MemberRequests.Leave input) {
@@ -60,7 +66,7 @@ public class MemberManagementController {
 	@PostMapping("/{memberId}/transfer")
 	public ResponseEntity<Void> transfer(@AuthenticationPrincipal AuthPrincipal actor, @PathVariable UUID propertyId,
 	    @PathVariable UUID memberId, @Valid @RequestBody MemberRequests.Role input) {
-		if (input.role() != com.moahome.server.membership.domain.PropertyMemberRole.ADMIN)
+		if (input.role() != PropertyMemberRole.ADMIN)
 			throw new IllegalArgumentException("Transfer requires ADMIN");
 		service.transfer(UUID.fromString(actor.userId()), propertyId, memberId, input.expectedRole());
 		return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();

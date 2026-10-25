@@ -2,15 +2,7 @@ package com.moahome.server.property.controller;
 
 import java.util.List;
 import java.util.UUID;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.auth.exception.AuthErrorCode;
-import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.membership.domain.PropertyMemberRole;
-import com.moahome.server.property.dto.ManagedPropertiesResponse;
-import com.moahome.server.property.dto.ManagementPropertyResponse;
-import com.moahome.server.property.service.ManagementAccessService;
-import com.moahome.server.user.exception.UserErrorCode;
-import com.moahome.server.user.exception.UserException;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -23,6 +15,18 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.auth.exception.AuthErrorCode;
+import com.moahome.server.auth.exception.AuthException;
+import com.moahome.server.membership.domain.PropertyMemberRole;
+import com.moahome.server.property.dto.ManagedPropertiesResponse;
+import com.moahome.server.property.dto.ManagementPropertyResponse;
+import com.moahome.server.property.service.ManagementAccessService;
+import com.moahome.server.user.exception.UserErrorCode;
+import com.moahome.server.user.exception.UserException;
+
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -46,7 +50,7 @@ class ManagementAccessControllerTest {
 	@MockitoBean
 	ManagementAccessService management;
 
-	private org.springframework.test.web.servlet.request.RequestPostProcessor identity() {
+	private RequestPostProcessor identity() {
 		return authentication(UsernamePasswordAuthenticationToken
 		    .authenticated(new AuthPrincipal(USER_ID.toString(), UUID.randomUUID().toString()), null, List.of()));
 	}

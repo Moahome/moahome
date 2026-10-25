@@ -1,20 +1,23 @@
 package com.moahome.server.banking.service;
 
+import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
+
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.moahome.server.banking.domain.IncomeAllocation;
 import com.moahome.server.banking.dto.BankingRequests;
 import com.moahome.server.banking.repo.*;
 import com.moahome.server.common.security.PaymentTextSecurity;
+import com.moahome.server.expense.domain.Expense;
 import com.moahome.server.payment.domain.Payment;
 import com.moahome.server.payment.exception.PaymentException;
 import com.moahome.server.property.domain.BuildingStatus;
 import com.moahome.server.property.repo.BuildingRepository;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import com.moahome.server.expense.domain.Expense;
-import java.math.BigDecimal;
 
 /** 수동 등록과 파일 업로드가 동일한 동별 배분 검증·저장 규칙을 사용합니다. */
 @Service
@@ -39,7 +42,7 @@ public class IncomeAllocationService {
 	}
 
 	/** 호출자는 관리대상 잠금과 입금 확정을 완료해야 하며 전액 합계·현재 동·재시도 일치를 다시 검증합니다. */
-	@Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+	@Transactional(propagation = Propagation.MANDATORY)
 	public void allocate(Payment receipt, BankingRequests.Expense request, UUID user) {
 		if (!"CONFIRMED".equals(receipt.getStatus()) || !"OTHER".equals(receipt.getReceiptType())
 		    || receipt.getDeletedAt() != null || request.saveAsRule())
@@ -54,16 +57,16 @@ public class IncomeAllocationService {
 			    .filter(v -> property.equals(v.getPropertyId()) && v.getDeletedAt() == null
 			        && v.getStatus() == BuildingStatus.ACTIVE)
 			    .orElseThrow(() -> new PaymentException("INVALID_EXPENSE_TARGET"));
-			return new com.moahome.server.expense.domain.Expense.Share(b.getId(), b.getName(), a.amount(),
+			return new Expense.Share(b.getId(), b.getName(), a.amount(),
 			    a.percentage());
 		}).toList();
-		List<BigDecimal> amounts = com.moahome.server.expense.domain.Expense.allocate(receipt.getAmount(),
+		List<BigDecimal> amounts = Expense.allocate(receipt.getAmount(),
 		    request.mode(), shares);
 		List<IncomeAllocation> previous = incomeAllocations.findByPaymentIdOrderBySortOrderAsc(receipt.getId());
 		ArrayList<IncomeAllocation> result = new ArrayList<IncomeAllocation>();
 		for (int i = 0; i < shares.size(); i++) {
 			var part = shares.get(i);
-			var percentage = "RATIO".equals(request.mode()) ? new java.math.BigDecimal(part.percentage()).setScale(2)
+			var percentage = "RATIO".equals(request.mode()) ? new BigDecimal(part.percentage()).setScale(2)
 			    : null;
 			if (!previous.isEmpty()) {
 				if (previous.size() != shares.size())

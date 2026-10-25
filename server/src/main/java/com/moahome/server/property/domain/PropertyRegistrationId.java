@@ -1,7 +1,9 @@
 package com.moahome.server.property.domain;
 
 import java.io.Serializable;
+import java.util.Objects;
 import java.util.UUID;
+
 import jakarta.persistence.*;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -20,7 +22,7 @@ public class PropertyRegistrationId implements Serializable {
 	}
 
 	public PropertyRegistrationId(UUID userId, UUID requestId) {
-		this.userId = java.util.Objects.requireNonNull(userId);
-		this.requestId = java.util.Objects.requireNonNull(requestId);
+		this.userId = Objects.requireNonNull(userId);
+		this.requestId = Objects.requireNonNull(requestId);
 	}
 }

@@ -1,20 +1,27 @@
 package com.moahome.server.payment.controller;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.payment.service.PaymentService;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.*;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
+
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.payment.dto.PaymentRequests;
+import com.moahome.server.payment.service.PaymentService;
+
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -36,7 +43,7 @@ class PaymentControllerTest {
 		return "/api/properties/" + property + "/payments";
 	}
 
-	org.springframework.test.web.servlet.request.RequestPostProcessor identity() {
+	RequestPostProcessor identity() {
 		return authentication(UsernamePasswordAuthenticationToken
 		    .authenticated(new AuthPrincipal(user.toString(), UUID.randomUUID().toString()), null, List.of()));
 	}
@@ -91,7 +98,7 @@ class PaymentControllerTest {
 		mvc.perform(post(base() + "/delete").with(identity()).contentType(MediaType.APPLICATION_JSON)
 		    .content("{\"paymentIds\":[\"" + payment + "\"]}")).andExpect(status().isOk());
 		verify(service).deleteMany(user, property,
-		    new com.moahome.server.payment.dto.PaymentRequests.DeleteMany(List.of(payment)));
+		    new PaymentRequests.DeleteMany(List.of(payment)));
 	}
 
 	@Test
@@ -100,7 +107,7 @@ class PaymentControllerTest {
 		mvc.perform(post(base() + "/" + payment + "/confirm").with(identity()).contentType(MediaType.APPLICATION_JSON)
 		    .content("{\"unitId\":\"" + unit + "\"}")).andExpect(status().isOk());
 		verify(service).confirm(user, property, payment,
-		    new com.moahome.server.payment.dto.PaymentRequests.Confirm(unit, null, null));
+		    new PaymentRequests.Confirm(unit, null, null));
 	}
 
 	@Test
@@ -114,7 +121,7 @@ class PaymentControllerTest {
 		    .contentType(MediaType.APPLICATION_JSON).content("{\"category\":\"예금이자\",\"note\":\"세후 입금\"}"))
 		    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"));
 		verify(service).confirmOtherIncome(user, property, payment,
-		    new com.moahome.server.payment.dto.PaymentRequests.OtherIncome("예금이자", "세후 입금"));
+		    new PaymentRequests.OtherIncome("예금이자", "세후 입금"));
 	}
 
 	@Test
@@ -124,28 +131,28 @@ class PaymentControllerTest {
 			mvc.perform(post(base() + "/" + payment + "/other-income").with(identity())
 			    .contentType(MediaType.APPLICATION_JSON).content(input)).andExpect(status().isOk());
 		verify(service, times(4)).confirmOtherIncome(user, property, payment,
-		    new com.moahome.server.payment.dto.PaymentRequests.OtherIncome("전기료", null));
+		    new PaymentRequests.OtherIncome("전기료", null));
 	}
 
 	@Test
 	void bankImportBindsSelectedIdsAndRejectsInvalidSelections() throws Exception {
-		var file = new org.springframework.mock.web.MockMultipartFile("file", "은행.csv", "text/csv",
-		    "입금일,입금자명,입금액".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+		var file = new MockMultipartFile("file", "은행.csv", "text/csv",
+		    "입금일,입금자명,입금액".getBytes(StandardCharsets.UTF_8));
 		for (String input : List.of("{\"transactionIds\":[]}", "{\"transactionIds\":[null]}",
 		    "{\"transactionIds\":[\"bad-id\"]}")) {
-			var selection = new org.springframework.mock.web.MockMultipartFile("selection", "selection.json",
-			    "application/json", input.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+			var selection = new MockMultipartFile("selection", "selection.json",
+			    "application/json", input.getBytes(StandardCharsets.UTF_8));
 			mvc.perform(multipart(base() + "/import").file(file).file(selection).with(identity()))
 			    .andExpect(status().isBadRequest());
 		}
 		verifyNoInteractions(service);
-		var selection = new org.springframework.mock.web.MockMultipartFile("selection", "selection.json",
+		var selection = new MockMultipartFile("selection", "selection.json",
 		    "application/json",
-		    ("{\"transactionIds\":[\"" + payment + "\"]}").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+		    ("{\"transactionIds\":[\"" + payment + "\"]}").getBytes(StandardCharsets.UTF_8));
 		mvc.perform(multipart(base() + "/import").file(file).file(selection).with(identity()))
 		    .andExpect(status().isOk());
 		verify(service).importFile(user, property, file,
-		    new com.moahome.server.payment.dto.PaymentRequests.BankImportSelection(List.of(payment)));
+		    new PaymentRequests.BankImportSelection(List.of(payment)));
 		mvc.perform(multipart(base() + "/import").file(file).with(identity())).andExpect(status().isOk());
 		verify(service).importFile(user, property, file, null);
 	}

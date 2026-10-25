@@ -1,10 +1,13 @@
 package com.moahome.server.membership.repo;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
-import com.moahome.server.membership.domain.MembershipRequest;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+
+import com.moahome.server.membership.domain.MembershipRequest;
 
 public interface MembershipRequestRepository extends JpaRepository<MembershipRequest, UUID> {
 	List<MembershipRequest> findByPropertyIdOrderByRequestedAtDesc(UUID propertyId);
@@ -13,7 +16,7 @@ public interface MembershipRequestRepository extends JpaRepository<MembershipReq
 	    UUID unitId, String status);
 
 	List<MembershipRequest> findByPropertyIdAndUnitIdInAndStatusAndDeletedAtIsNull(UUID propertyId,
-	    java.util.Collection<UUID> unitIds, String status);
+	    Collection<UUID> unitIds, String status);
 
 	/** 주민이 확인된 신청과 연결 계정의 승인 기록만 사용하며 연락처·호수만 같은 다른 사람의 신청은 제외합니다. */
 	@Query("""

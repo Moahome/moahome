@@ -1,13 +1,16 @@
 package com.moahome.server.property.domain;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.util.Objects;
 import java.util.UUID;
-import com.moahome.server.common.validation.TextValues;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+
+import com.moahome.server.common.validation.TextValues;
 
 @Getter
 @Entity
@@ -36,13 +39,13 @@ public class Property {
 	private OffsetDateTime managementStartedAt;
 
 	@Column(name = "balance_cutoff_date")
-	private java.time.LocalDate balanceCutoffDate;
+	private LocalDate balanceCutoffDate;
 
 	@Column(name = "first_billing_month")
-	private java.time.LocalDate firstBillingMonth;
+	private LocalDate firstBillingMonth;
 
 	/** 등록과 운영 개시를 분리하고 잔액 기준일 다음 거래부터 새 수납으로 처리합니다. */
-	public void startManagement(java.time.LocalDate cutoff, java.time.YearMonth firstMonth, OffsetDateTime at) {
+	public void startManagement(LocalDate cutoff, YearMonth firstMonth, OffsetDateTime at) {
 		if (managementStartedAt != null || !firstMonth.atDay(1).isAfter(cutoff)) {
 			throw new IllegalStateException("Management start conflict");
 		}

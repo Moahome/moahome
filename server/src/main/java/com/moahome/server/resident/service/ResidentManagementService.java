@@ -1,24 +1,30 @@
 package com.moahome.server.resident.service;
 
 import java.time.*;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
+
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.common.security.PhoneSecurity;
 import com.moahome.server.common.validation.TextValues;
+import com.moahome.server.membership.domain.MembershipRequest;
 import com.moahome.server.membership.domain.PropertyMemberRole;
+import com.moahome.server.membership.dto.MemberRequests;
 import com.moahome.server.membership.repo.*;
+import com.moahome.server.membership.service.MemberManagementService;
 import com.moahome.server.property.repo.*;
 import com.moahome.server.property.service.ManagementAccessService;
 import com.moahome.server.resident.domain.*;
 import com.moahome.server.resident.dto.*;
 import com.moahome.server.resident.exception.ResidentRegistrationException;
 import com.moahome.server.resident.repo.*;
-import org.springframework.beans.BeansException;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+
 import static com.moahome.server.resident.exception.ResidentRegistrationException.Code.*;
-import com.moahome.server.membership.domain.MembershipRequest;
 
 @Service
 public class ResidentManagementService {
@@ -42,13 +48,13 @@ public class ResidentManagementService {
 
 	private final Clock clock;
 
-	private final ObjectProvider<com.moahome.server.membership.service.MemberManagementService> roleManagement;
+	private final ObjectProvider<MemberManagementService> roleManagement;
 
 	public ResidentManagementService(ManagementAccessService access, PropertyRepository properties,
 	    ResidentRepository residents, UnitResidentRepository affiliations, ResidentListService lists,
 	    ResidentRegistrationService registrations, PropertyMemberRepository members,
 	    MembershipRequestRepository requests, ObjectProvider<PhoneSecurity> phones, Clock clock,
-	    ObjectProvider<com.moahome.server.membership.service.MemberManagementService> roleManagement) {
+	    ObjectProvider<MemberManagementService> roleManagement) {
 		this.access = access;
 		this.properties = properties;
 		this.residents = residents;
@@ -120,7 +126,7 @@ public class ResidentManagementService {
 			if (input.serviceRole() == null || input.expectedServiceRole() == null)
 				throw new IllegalArgumentException("Incomplete role change");
 			roleManagement.getObject().changeResidentRole(actor, propertyId, residentId,
-			    new com.moahome.server.membership.dto.MemberRequests.Role(input.serviceRole(),
+			    new MemberRequests.Role(input.serviceRole(),
 			        input.expectedServiceRole()));
 		}
 		var unit = registrations.requireUnit(property, input.unitId());
@@ -164,7 +170,7 @@ public class ResidentManagementService {
 				    : RESIDENT_RESTORE_REQUIRED);
 		}
 		// PostgreSQL timestamptz의 마이크로초 정밀도와 맞춰 응답의 수정 시각을 다음 요청에서도 비교할 수 있게 합니다.
-		var at = OffsetDateTime.now(clock).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+		var at = OffsetDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
 		resident.update(name, encrypted, hmac, last4, at);
 		if (input.phoneAction().equals("REPLACE")) {
 			for (var request : linked)
@@ -199,7 +205,7 @@ public class ResidentManagementService {
 		var current = affiliations
 		    .findByPropertyIdAndResidentIdAndStatusAndDeletedAtIsNull(propertyId, residentId, "ACTIVE").orElse(null);
 		var successor = requireSuccessor(propertyId, residentId, current, input.replacementResidentId());
-		var at = OffsetDateTime.now(clock).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+		var at = OffsetDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
 		designateSuccessor(actor, successor, at);
 		deleteResident(actor, propertyId, resident, current, at);
 	}

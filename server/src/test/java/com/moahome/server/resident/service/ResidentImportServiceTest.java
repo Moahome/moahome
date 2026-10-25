@@ -2,6 +2,11 @@ package com.moahome.server.resident.service;
 
 import java.time.*;
 import java.util.*;
+
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import tools.jackson.databind.ObjectMapper;
+
 import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.property.domain.*;
 import com.moahome.server.property.dto.ManagementPropertyResponse;
@@ -10,8 +15,7 @@ import com.moahome.server.property.service.ManagementAccessService;
 import com.moahome.server.resident.domain.ResidentImportBatch;
 import com.moahome.server.resident.dto.*;
 import com.moahome.server.resident.repo.*;
-import org.junit.jupiter.api.Test;
-import tools.jackson.databind.ObjectMapper;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -52,7 +56,7 @@ class ResidentImportServiceTest {
 		    "ERROR");
 		assertThat(preview.rows().subList(0, 2)).extracting(ResidentImportResponse.Row::relationType)
 		    .containsOnly("OTHER");
-		var capture = org.mockito.ArgumentCaptor.forClass(ResidentImportBatch.class);
+		var capture = ArgumentCaptor.forClass(ResidentImportBatch.class);
 		verify(batches).saveAndFlush(capture.capture());
 		when(batches.findByIdAndPropertyIdAndCreatedBy(preview.importId(), propertyId, actor))
 		    .thenReturn(Optional.of(capture.getValue()));

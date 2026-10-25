@@ -1,9 +1,11 @@
 package com.moahome.server.resident.domain;
 
+import java.time.OffsetDateTime;
+import java.util.Objects;
+import java.util.UUID;
+
 import jakarta.persistence.*;
 import lombok.Getter;
-import java.time.OffsetDateTime;
-import java.util.UUID;
 
 @Getter
 @Entity
@@ -34,9 +36,9 @@ public class ResidentImportBatch {
 	public static ResidentImportBatch create(UUID propertyId, UUID actorId, String payload, OffsetDateTime at) {
 		var batch = new ResidentImportBatch();
 		batch.id = UUID.randomUUID();
-		batch.propertyId = java.util.Objects.requireNonNull(propertyId);
-		batch.createdBy = java.util.Objects.requireNonNull(actorId);
-		batch.rowsPayload = java.util.Objects.requireNonNull(payload);
+		batch.propertyId = Objects.requireNonNull(propertyId);
+		batch.createdBy = Objects.requireNonNull(actorId);
+		batch.rowsPayload = Objects.requireNonNull(payload);
 		batch.createdAt = at;
 		batch.expiresAt = at.plusDays(1);
 		return batch;

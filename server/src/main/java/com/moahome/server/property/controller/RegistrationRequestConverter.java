@@ -76,7 +76,7 @@ public class RegistrationRequestConverter extends AbstractHttpMessageConverter<O
 
 	/** 알려진 계약 필드와 배열 인덱스만 반환해 사용자 정의 키나 입력 원문을 오류에서 제외합니다. */
 	private String safeField(JacksonException exception) {
-		Set<String> allowed = java.util.Set.of("requestId", "basicInfo", "name", "address", "addressDetail",
+		Set<String> allowed = Set.of("requestId", "basicInfo", "name", "address", "addressDetail",
 		    "propertyType", "hasBuildings", "buildings", "clientId", "units", "buildingClientId", "unitNumber",
 		    "displayName", "floor", "status", "bankAccounts", "bankCode", "bankName", "accountNumber", "holderName",
 		    "isPrimary", "feeItems", "itemCode", "itemName", "defaultAmount", "administrator", "residenceType", "phone",

@@ -3,8 +3,12 @@ package com.moahome.server.expense.domain;
 import java.math.*;
 import java.time.*;
 import java.util.*;
+
 import jakarta.persistence.*;
 import lombok.Getter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import com.moahome.server.payment.exception.PaymentException;
 
 @Getter
@@ -45,7 +49,7 @@ public class Expense {
 	private boolean saveAsRule;
 
 	@Column(name = "rule_key", columnDefinition = "char(64)")
-	@org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.CHAR)
+	@JdbcTypeCode(SqlTypes.CHAR)
 	private String ruleKey;
 
 	@Column(name = "confirmed_by", nullable = false)

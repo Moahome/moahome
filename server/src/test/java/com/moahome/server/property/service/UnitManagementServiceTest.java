@@ -3,12 +3,21 @@ package com.moahome.server.property.service;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.*;
+
+import org.assertj.core.api.ThrowableAssert;
+import org.junit.jupiter.api.Test;
+
 import com.moahome.server.auth.exception.*;
+import com.moahome.server.billing.service.BillingGenerationService;
+import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.property.domain.*;
 import com.moahome.server.property.dto.*;
 import com.moahome.server.property.exception.UnitManagementException;
 import com.moahome.server.property.repo.*;
-import org.junit.jupiter.api.Test;
+import com.moahome.server.resident.dto.ResidentListResponse;
+import com.moahome.server.resident.service.ResidentListService;
+import com.moahome.server.resident.service.ResidentManagementService;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -21,14 +30,14 @@ class UnitManagementServiceTest {
 
 	private final UnitRepository units = mock(UnitRepository.class);
 
-	private final com.moahome.server.resident.service.ResidentListService residents = mock(
-	    com.moahome.server.resident.service.ResidentListService.class);
+	private final ResidentListService residents = mock(
+	    ResidentListService.class);
 
-	private final com.moahome.server.resident.service.ResidentManagementService residentManagement = mock(
-	    com.moahome.server.resident.service.ResidentManagementService.class);
+	private final ResidentManagementService residentManagement = mock(
+	    ResidentManagementService.class);
 
-	private final com.moahome.server.billing.service.BillingGenerationService billing = mock(
-	    com.moahome.server.billing.service.BillingGenerationService.class);
+	private final BillingGenerationService billing = mock(
+	    BillingGenerationService.class);
 
 	private final UnitManagementService service = new UnitManagementService(access, properties, buildings, units,
 	    Clock.systemUTC(), residents, residentManagement, billing);
@@ -42,12 +51,12 @@ class UnitManagementServiceTest {
 	@Test
 	void managerReadsUnitsWithTheSameResidentSummary() {
 		when(access.getManagementContext(userId, property.getId())).thenReturn(new ManagementPropertyResponse(
-		    property.getId(), property.getName(), com.moahome.server.membership.domain.PropertyMemberRole.MANAGER));
+		    property.getId(), property.getName(), PropertyMemberRole.MANAGER));
 		when(properties.findById(property.getId())).thenReturn(Optional.of(property));
 		var unit = Unit.create(property, building, "301", null, 3, UnitStatus.ACTIVE, OffsetDateTime.now());
 		when(units.findByPropertyIdAndDeletedAtIsNull(property.getId())).thenReturn(List.of(unit));
 		when(residents.list(userId, property.getId())).thenReturn(
-		    new com.moahome.server.resident.dto.ResidentListResponse(property.getId(), true, List.of(), List.of()));
+		    new ResidentListResponse(property.getId(), true, List.of(), List.of()));
 		var response = service.list(userId, property.getId());
 		assertThat(response.units()).hasSize(1);
 		assertThat(response.residentSummaries()).containsKey(unit.getId());
@@ -219,7 +228,7 @@ class UnitManagementServiceTest {
 		return new UnitRequest(buildingId, number, null, null, "ACTIVE");
 	}
 
-	private void assertCode(org.assertj.core.api.ThrowableAssert.ThrowingCallable action, String code) {
+	private void assertCode(ThrowableAssert.ThrowingCallable action, String code) {
 		assertThatThrownBy(action).isInstanceOfSatisfying(UnitManagementException.class,
 		    error -> assertThat(error.code().name()).isEqualTo(code));
 	}

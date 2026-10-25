@@ -2,9 +2,11 @@ package com.moahome.server.common.security;
 
 import java.nio.charset.StandardCharsets;
 import java.security.*;
+import java.text.Normalizer;
 import java.util.*;
 import javax.crypto.*;
 import javax.crypto.spec.*;
+
 import com.moahome.server.config.AccountSecurityProperties;
 
 public class PaymentTextSecurity {
@@ -87,7 +89,7 @@ public class PaymentTextSecurity {
 
 	/** 입금자명 매칭은 유니코드 정규화·공백 제거 후 HMAC으로 비교하며 원문은 로그에 남기지 않습니다. */
 	public String nameHash(String value) {
-		String normalized = java.text.Normalizer.normalize(value, java.text.Normalizer.Form.NFC).replaceAll("(?U)\\s+",
+		String normalized = Normalizer.normalize(value, Normalizer.Form.NFC).replaceAll("(?U)\\s+",
 		    "");
 		requireNumber(normalized);
 		try {

@@ -1,18 +1,23 @@
 package com.moahome.server.banking.controller;
 
+import java.util.List;
 import java.util.UUID;
-import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.banking.dto.BankAccountSettings;
-import com.moahome.server.banking.service.BankAccountService;
+
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import com.moahome.server.auth.domain.AuthPrincipal;
+import com.moahome.server.banking.dto.BankAccountSettings;
+import com.moahome.server.banking.service.BankAccountService;
+
 @RestController
-@io.swagger.v3.oas.annotations.tags.Tag(name = "관리계좌")
-@io.swagger.v3.oas.annotations.security.SecurityRequirement(name = "bearerAuth")
+@Tag(name = "관리계좌")
+@SecurityRequirement(name = "bearerAuth")
 @RequestMapping("/api/properties/{propertyId}/banking/account")
 public class BankAccountController {
 	private final BankAccountService service;
@@ -48,7 +53,7 @@ public class BankAccountController {
 	}
 
 	@GetMapping("/list")
-	public ResponseEntity<java.util.List<BankAccountSettings.Response>> list(
+	public ResponseEntity<List<BankAccountSettings.Response>> list(
 	    @AuthenticationPrincipal AuthPrincipal user, @PathVariable UUID propertyId) {
 		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
 		    .body(service.list(UUID.fromString(user.userId()), propertyId));

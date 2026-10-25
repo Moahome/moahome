@@ -2,21 +2,10 @@ package com.moahome.server.user.repo;
 
 import java.time.Clock;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-
-import com.moahome.server.auth.domain.SocialAccount;
-import com.moahome.server.auth.domain.SocialProvider;
-import com.moahome.server.auth.domain.VerifiedSocialProfile;
-import com.moahome.server.auth.repo.SocialAccountRepository;
-import com.moahome.server.auth.service.SocialAccountService;
-import com.moahome.server.user.domain.SystemRole;
-import com.moahome.server.user.domain.User;
-import com.moahome.server.user.domain.UserStatus;
-import com.moahome.server.user.exception.UserException;
-import com.moahome.server.user.service.UserService;
-import com.moahome.server.user.support.PostgresTestServer;
 
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterAll;
@@ -38,6 +27,18 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.moahome.server.auth.domain.SocialAccount;
+import com.moahome.server.auth.domain.SocialProvider;
+import com.moahome.server.auth.domain.VerifiedSocialProfile;
+import com.moahome.server.auth.repo.SocialAccountRepository;
+import com.moahome.server.auth.service.SocialAccountService;
+import com.moahome.server.user.domain.SystemRole;
+import com.moahome.server.user.domain.User;
+import com.moahome.server.user.domain.UserStatus;
+import com.moahome.server.user.exception.UserException;
+import com.moahome.server.user.service.UserService;
+import com.moahome.server.user.support.PostgresTestServer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -247,7 +248,7 @@ class UserPersistenceTest {
 	void concurrentFirstLoginsCreateOnlyOneUserAndOneSocialAccount() throws Exception {
 		CountDownLatch ready = new CountDownLatch(2);
 		CountDownLatch start = new CountDownLatch(1);
-		java.util.concurrent.Callable<UUID> task = () -> {
+		Callable<UUID> task = () -> {
 			ready.countDown();
 			if (!start.await(5, TimeUnit.SECONDS)) {
 				throw new IllegalStateException("Concurrent login start timed out");

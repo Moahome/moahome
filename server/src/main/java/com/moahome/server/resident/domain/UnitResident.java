@@ -1,11 +1,15 @@
 package com.moahome.server.resident.domain;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
-import com.moahome.server.property.domain.Unit;
+
 import jakarta.persistence.*;
 import lombok.Getter;
+
+import com.moahome.server.property.domain.Unit;
 
 @Getter
 @Entity
@@ -45,14 +49,14 @@ public class UnitResident {
 	private UUID deletedBy;
 
 	@Column(name = "move_out_date")
-	private java.time.LocalDate moveOutDate;
+	private LocalDate moveOutDate;
 
 	protected UnitResident() {
 	}
 
 	/** 같은 세대에서 주민 구분만 바꾸며 대표 여부는 임의로 변경하지 않습니다. */
 	public void changeRelation(String relation, OffsetDateTime at) {
-		if (!java.util.Set.of("OWNER", "TENANT", "FAMILY", "OTHER").contains(relation))
+		if (!Set.of("OWNER", "TENANT", "FAMILY", "OTHER").contains(relation))
 			throw new IllegalArgumentException("Invalid relation");
 		relationType = relation;
 		updatedAt = at;
@@ -80,7 +84,7 @@ public class UnitResident {
 	public static UnitResident register(Resident resident, Unit unit, String relationType, boolean representative,
 	    OffsetDateTime at) {
 		if (!resident.getPropertyId().equals(unit.getPropertyId()) || unit.getDeletedAt() != null
-		    || !java.util.Set.of("OWNER", "TENANT", "FAMILY", "OTHER").contains(relationType)) {
+		    || !Set.of("OWNER", "TENANT", "FAMILY", "OTHER").contains(relationType)) {
 			throw new IllegalArgumentException("Invalid resident affiliation");
 		}
 		var relation = new UnitResident();

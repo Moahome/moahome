@@ -2,6 +2,13 @@ package com.moahome.server.resident.service;
 
 import java.time.*;
 import java.util.*;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.beans.factory.ObjectProvider;
+
+import com.moahome.server.auth.exception.AuthErrorCode;
+import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.common.security.PhoneSecurity;
 import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.property.domain.*;
@@ -11,9 +18,7 @@ import com.moahome.server.property.service.ManagementAccessService;
 import com.moahome.server.resident.dto.ResidentRegistrationRequest;
 import com.moahome.server.resident.exception.ResidentRegistrationException;
 import com.moahome.server.resident.repo.*;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -72,11 +77,11 @@ class ResidentRegistrationServiceTest {
 	@Test
 	void nonManagerCannotReadOrWriteRegistrationData() {
 		when(access.getManagementContext(actor, property.getId()))
-		    .thenThrow(new com.moahome.server.auth.exception.AuthException(
-		        com.moahome.server.auth.exception.AuthErrorCode.ACCESS_DENIED));
+		    .thenThrow(new AuthException(
+		        AuthErrorCode.ACCESS_DENIED));
 		assertThatThrownBy(() -> service.register(actor, property.getId(),
 		    new ResidentRegistrationRequest(UUID.randomUUID(), "주민", null, unit.getId(), "FAMILY")))
-		    .isInstanceOf(com.moahome.server.auth.exception.AuthException.class);
+		    .isInstanceOf(AuthException.class);
 		verifyNoInteractions(properties, units, buildings, residents, affiliations, security);
 	}
 }

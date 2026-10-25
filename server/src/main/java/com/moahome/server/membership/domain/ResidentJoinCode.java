@@ -2,8 +2,11 @@ package com.moahome.server.membership.domain;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
+
 import jakarta.persistence.*;
 import lombok.Getter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /** 공통 코드는 여러 주민의 신청에 사용하며 재발급·폐기·24시간 만료 뒤에는 새 신청을 받지 않습니다. */
 @Getter
@@ -16,7 +19,7 @@ public class ResidentJoinCode {
 	@Column(name = "property_id")
 	private UUID propertyId;
 
-	@org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.CHAR)
+	@JdbcTypeCode(SqlTypes.CHAR)
 	@Column(name = "code_hash", columnDefinition = "char(64)")
 	private String codeHash;
 

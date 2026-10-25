@@ -2,8 +2,11 @@ package com.moahome.server.billing.domain;
 
 import java.time.*;
 import java.util.*;
+
 import jakarta.persistence.*;
 import lombok.Getter;
+
+import com.moahome.server.common.validation.TextValues;
 
 @Getter
 @Entity
@@ -91,6 +94,6 @@ public class OpeningBalanceBatch {
 		status = "CANCELED";
 		canceledBy = actor;
 		canceledAt = at;
-		cancelReason = com.moahome.server.common.validation.TextValues.required(reason, 500);
+		cancelReason = TextValues.required(reason, 500);
 	}
 }

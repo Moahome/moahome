@@ -3,6 +3,8 @@ package com.moahome.server.payment.dto;
 import java.time.LocalDate;
 import java.util.*;
 
+import com.moahome.server.banking.dto.BankingResponse;
+
 public final class PaymentResponse {
 	private PaymentResponse() {
 	}
@@ -37,7 +39,7 @@ public final class PaymentResponse {
 	    String amount, String unitId, String reason, List<Allocation> allocations, UUID linkedPaymentId,
 	    UUID bankTransactionId, String holdReason, String cancelReason, String separateReason, String memo,
 	    String receiptType, String incomeCategory, String incomeNote,
-	    com.moahome.server.banking.dto.BankingResponse.Expense incomeAllocation) {
+	    BankingResponse.Expense incomeAllocation) {
 		public Payment(UUID id, String source, String status, UUID accountId, LocalDate date, String payer,
 		    String amount, String unitId, String reason, List<Allocation> allocations, UUID linkedPaymentId,
 		    UUID bankTransactionId, String holdReason, String cancelReason, String separateReason, String memo,
