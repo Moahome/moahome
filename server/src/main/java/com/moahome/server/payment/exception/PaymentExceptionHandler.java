@@ -26,6 +26,8 @@ public class PaymentExceptionHandler {
 	@ExceptionHandler(PaymentException.class)
 	public ResponseEntity<ErrorResponse> billing(PaymentException exception) {
 		var code = exception.code();
+		if (code.equals("INVITATION_SERVICE_UNAVAILABLE"))
+			return error(HttpStatus.SERVICE_UNAVAILABLE, code, "초대코드를 처리하지 못했습니다. 잠시 후 다시 시도해주세요.");
 		HttpStatus status = HttpStatus.CONFLICT;
 		if (code.startsWith("INVALID_") || code.equals("BANK_ROW_LIMIT") || code.equals("EMPTY_BANK_FILE")
 		    || code.equals("BANK_IMPORT_UNSUPPORTED"))

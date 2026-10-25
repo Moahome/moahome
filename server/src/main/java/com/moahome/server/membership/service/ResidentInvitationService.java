@@ -21,6 +21,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
+import static com.moahome.server.membership.repo.RedisInvitationCodeRepository.Kind.RESIDENT;
 
 /** 개인 초대 발급과 수락·정정 승인은 명부 변경과 같은 Property 잠금 아래 원자적으로 처리합니다. */
 @Service
@@ -40,6 +41,8 @@ public class ResidentInvitationService {
 	private final BuildingRepository buildings;
 
 	private final ResidentInvitationRepository invitations;
+
+	private final RedisInvitationCodeRepository temporaryCodes;
 
 	private final PropertyMemberRepository members;
 
@@ -120,7 +123,7 @@ public class ResidentInvitationService {
 		return new ResidentInvitations.Workspace(property, rows);
 	}
 
-	/** 재발급은 이전 미사용 링크를 먼저 철회하고 새 1일 토큰을 만들며 검토 중 정정 요청은 보존합니다. */
+	/** 재발급은 이전 미사용 링크를 철회하고 새 30분 코드를 만들며 검토 중 정정 요청은 보존합니다. */
 	@Transactional
 	public ResidentInvitations.Issued issue(UUID actor, UUID property, UUID residentId) {
 		lockManagementAccess(actor, property);
@@ -133,13 +136,17 @@ public class ResidentInvitationService {
 		if (current.stream().anyMatch(i -> "CHANGE_REQUESTED".equals(i.getStatus())))
 			throw failure("MEMBER_ROLE_CONFLICT");
 		var at = now();
-		current.forEach(i -> i.finish("REVOKED", actor, at));
+		current.forEach(i -> {
+			i.finish("REVOKED", actor, at);
+			temporaryCodes.deleteAfterCommit(RESIDENT, i.getId());
+		});
 		invitations.flush();
 		String token = ResidentInviteCode.create("R");
 		var invitation = ResidentInvitation.issue(property, residentId, relation.getUnitId(), relation.getId(),
 		    resident.getUpdatedAt(), ResidentInviteCode.hash(token), actor, at);
-		invitation.retainProtectedCode(codeSecurity.getObject().encrypt(property, invitation.getId(), token));
 		invitations.saveAndFlush(invitation);
+		temporaryCodes.create(RESIDENT, invitation.getId(), property, invitation.getTokenHash(),
+		    invitation.getExpiresAt(), codeSecurity.getObject().encrypt(property, invitation.getId(), token));
 		return new ResidentInvitations.Issued(invitation.getId(), token, invitation.getExpiresAt());
 	}
 
@@ -151,16 +158,16 @@ public class ResidentInvitationService {
 		if (!"ISSUED".equals(status(invitation)))
 			throw failure("INVALID_INVITATION");
 		unchanged(invitation);
-		// 과거 해시만 저장한 초대는 복구할 수 없으므로 유효한 링크를 임의 폐기하지 않고 보관된 원문으로만 복원할 수 있음을 전달합니다.
-		if (invitation.getTokenEncrypted() == null)
-			return new ResidentInvitations.Issued(id, null, invitation.getExpiresAt());
-		String token = codeSecurity.getObject().decrypt(property, id, invitation.getTokenEncrypted());
+		String encrypted = requireCode(invitation);
+		if (encrypted.isBlank())
+			throw failure("INVALID_INVITATION");
+		String token = codeSecurity.getObject().decrypt(property, id, encrypted);
 		if (!ResidentInviteCode.hash(token).equals(invitation.getTokenHash()))
 			throw failure("INVALID_INVITATION");
 		return new ResidentInvitations.Issued(id, token, invitation.getExpiresAt());
 	}
 
-	/** 보관된 기존 원문을 해시와 대조해 복원하며 코드·발급 시각·만료·수락 상태는 바꾸지 않습니다. */
+	/** 기존 클라이언트의 복원 요청도 현재 Redis 코드와 대조하며 유실된 검증값을 DB 해시로 복구하지 않습니다. */
 	@Transactional
 	public ResidentInvitations.Issued restore(UUID actor, UUID property, UUID id, String original) {
 		lockManagementAccess(actor, property);
@@ -170,15 +177,13 @@ public class ResidentInvitationService {
 		unchanged(invitation);
 		if (!ResidentInviteCode.hash(original).equals(invitation.getTokenHash()))
 			throw failure("INVALID_INVITATION");
-		String raw = original.strip().toUpperCase(java.util.Locale.ROOT).replace("-", "");
-		String code = raw.substring(0, 1) + "-" + raw.substring(1, 5) + "-" + raw.substring(5, 9) + "-"
-		    + raw.substring(9);
-		// 다른 코드로 바꿔 복구한 것으로 표시하지 않습니다. 같은 원문을 다시 보호 저장할 때만 기존 링크가 유지됩니다.
-		if (invitation.getTokenEncrypted() == null) {
-			invitation.retainProtectedCode(codeSecurity.getObject().encrypt(property, id, code));
-			invitations.flush();
-		}
-		return new ResidentInvitations.Issued(id, code, invitation.getExpiresAt());
+		return share(actor, property, id);
+	}
+
+	/** DB 해시는 이력·동일 수락 재시도 식별용이며 미사용 초대의 권한 증명에는 Redis 존재가 필수입니다. */
+	private String requireCode(ResidentInvitation invitation) {
+		return temporaryCodes.require(RESIDENT, invitation.getId(), invitation.getPropertyId(),
+		    invitation.getTokenHash(), invitation.getExpiresAt());
 	}
 
 	private ResidentInvitation required(UUID property, UUID id) {
@@ -210,9 +215,10 @@ public class ResidentInvitationService {
 		var property = properties.findById(invitation.getPropertyId())
 		    .filter(p -> p.getDeletedAt() == null && p.getStatus() == PropertyStatus.ACTIVE)
 		    .orElseThrow(() -> failure("INVALID_INVITATION"));
-		if ("ISSUED".equals(status(invitation)))
+		if ("ISSUED".equals(status(invitation))) {
 			unchanged(invitation);
-		else if (!actor.equals(invitation.getRequestedBy())
+			requireCode(invitation);
+		} else if (!actor.equals(invitation.getRequestedBy())
 		    || !Set.of("CHANGE_REQUESTED", "APPROVED").contains(invitation.getStatus()))
 			throw failure("INVALID_INVITATION");
 		var resident = person(invitation.getPropertyId(), invitation.getResidentId());
@@ -265,13 +271,18 @@ public class ResidentInvitationService {
 		entityManager.refresh(found);
 		var invitation = token(input.token());
 		if (actor.equals(invitation.getRequestedBy())
-		    && Set.of("APPROVED", "CHANGE_REQUESTED").contains(invitation.getStatus()))
+		    && Set.of("APPROVED", "CHANGE_REQUESTED").contains(invitation.getStatus())) {
+			// 커밋 후 Redis 삭제 응답이 유실됐어도 같은 계정의 재시도에서 다시 정리하고 기존 결과를 반환합니다.
+			temporaryCodes.deleteAfterCommit(RESIDENT, invitation.getId());
 			return new ResidentInvitations.Result(invitation.getStatus());
+		}
 		if (!"ISSUED".equals(status(invitation)))
 			throw failure("INVALID_INVITATION");
+		requireCode(invitation);
 		var resident = unchanged(invitation);
 		canConnect(invitation, actor);
 		invitation.claim(actor, now());
+		temporaryCodes.deleteAfterCommit(RESIDENT, invitation.getId());
 		if (!input.correction()) {
 			if (input.name() != null || input.phoneAction() != null || input.phone() != null)
 				throw new IllegalArgumentException("Unexpected corrections");
@@ -302,6 +313,7 @@ public class ResidentInvitationService {
 		if (!Set.of("ISSUED", "CHANGE_REQUESTED").contains(invitation.getStatus()))
 			throw failure("INVALID_INVITATION");
 		invitation.finish("REVOKED", actor, now());
+		temporaryCodes.deleteAfterCommit(RESIDENT, invitation.getId());
 		invitations.flush();
 		return workspace(actor, property);
 	}

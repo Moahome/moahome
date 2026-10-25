@@ -135,3 +135,26 @@
 `GET /api/users/me/resident-properties`는 Bearer 인증 계정의 현재 ACTIVE·미종료·미삭제 `RESIDENT` 참여와 활성·미삭제 관리대상을 조회합니다. 응답은 `{properties:[{propertyId,name,role:"RESIDENT"}]}`이며 참여가 없으면 빈 배열입니다. 대상 생성 시각·ID 순으로 정렬하고 동일 대상·역할은 중복 제거합니다. 관리자 참여는 반환하지 않고 관리자 영역 접근권한을 부여하지 않습니다. 이름 외의 명부·연락처·세대 자료를 반환하지 않습니다.
 
 기존 목록과 같은 정상 계정 확인·인증 오류·내부 오류 및 `Cache-Control: no-store`를 사용합니다. 주민 홈은 이 목록으로 본인의 참여만 표시하며 세부 업무 API는 포함하지 않습니다.
+
+## 8. 동적 권한을 위한 최소 조회 보완안 (2026-10-25)
+
+상태: 설계 제안·미구현. 기존 management-context는 RESIDENT를 거부하고 resident-properties는 관리자 참여를 반환하지 않으므로 두 역할 사이의 변경을 단일 Property 기준으로 판별하는 용도가 부족합니다. 두 기존 API의 접근 범위를 넓히지 않고 아래 읽기 전용 API 하나를 추가하는 안을 권합니다. 신규 권한 DB·JWT 역할·Redis 권한 원장은 추가하지 않습니다.
+
+`GET /api/properties/{propertyId}/access-context`
+
+정상 Bearer 계정과 현재 ACTIVE·미종료·미삭제 참여, 활성·미삭제 Property를 결합해 조회합니다. 참여 역할은 ADMIN/MANAGER/RESIDENT를 허용하고, 주민 영역 접근에 필요한 현재 주민·계정·세대 관계는 별도로 검증합니다. 요청 본문·사용자 ID·역할 입력은 받지 않습니다.
+
+성공 응답 제안은 `{propertyId,name,role,residentEligible}`입니다. role은 현재 Property 역할이며 residentEligible은 현재 계정의 같은 Property 미삭제 주민·유효 현재 세대와 승인 출처가 일치하는지의 boolean입니다. 관리자라는 이유로 주민 관계를 생성하거나 주민으로 표시하지 않습니다. 외부 관리자에는 false일 수 있습니다. 개인정보 원문·주민/세대 목록·역할 이벤트·토큰은 반환하지 않으며 no-store입니다.
+
+| HTTP | 오류·처리 |
+| --- | --- |
+| 400 | INVALID_REQUEST: UUID 형식 오류 |
+| 401 | 기존 인증 오류 |
+| 403 | ACCOUNT_UNAVAILABLE: 계정 이용 불가 |
+| 403 | ACCESS_DENIED: 참여 없음·종료·삭제·Property 없음/비활성. 존재 여부를 구분해 노출하지 않음 |
+| 500 | INTERNAL_SERVER_ERROR: 역할 충돌·내부 조회 오류. 임의 역할·빈 성공으로 대체하지 않음 |
+| 503 | AUTH_SERVICE_UNAVAILABLE: 기존 계정 확인 저장소 장애 |
+
+RESIDENT 참여는 있지만 residentEligible이 false이면 주민 업무를 열지 않고 연결 확인 안내를 합니다. 이 상태를 참여 없음이나 관리자 승격으로 해석하지 않습니다. 임시 주민 홈의 단순 참여 목록과 세부 주민 업무의 조건을 구분합니다. 이 응답은 개별 업무 API에 재전송하는 권한 증명이 아니며 각 요청은 계속 현재 서버 권한을 검사합니다.
+
+같은 역할의 중복은 기존 조회처럼 하나로 묶고, 서로 다른 역할이 동시에 활성인 경우는 충돌로 실패시킵니다. 역할별 우선순위나 자동 정리 Migration은 새로 만들지 않습니다. 응답 계약 확정·Controller/Security/OpenAPI 테스트 후 구현하며 Server 세부 변경 위치는 [조회 보완 설계](../server/docs/managementAccess.md#동적-권한을-위한-조회-보완-설계-2026-10-25)를 따릅니다.

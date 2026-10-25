@@ -32,6 +32,7 @@ export function InvitationShare({ issued, name, propertyId, personal, onClose, o
   const pending = useRef(false);
   const [restoreError, setRestoreError] = useState('');
   const [failed, setFailed] = useState(false);
+  const validity = personal ? '30분' : '24시간';
   const link = () => `${window.location.origin}${personal ? '/invitations' : `/join/${propertyId}`}#${token}`;
   async function copy(kind: 'code' | 'link') {
     if (!token) return;
@@ -43,7 +44,7 @@ export function InvitationShare({ issued, name, propertyId, personal, onClose, o
   }
   async function share() {
     if (!token) return;
-    const text = `모아홈 초대코드: ${token}\n발급 후 24시간 동안 사용할 수 있어요.\n${link()}`;
+    const text = `모아홈 초대코드: ${token}\n발급 후 ${validity} 동안 사용할 수 있어요.\n${link()}`;
     try {
       if (typeof navigator.share === 'function') {
         await navigator.share({
@@ -193,7 +194,7 @@ export function InvitationShare({ issued, name, propertyId, personal, onClose, o
           <span>
             유효기간:
             {new Date(issued.expiresAt).toLocaleString('ko-KR')}
-            까지 (발급 후 24시간)
+            {`까지 (발급 후 ${validity})`}
           </span>
         </div>
         {token && (

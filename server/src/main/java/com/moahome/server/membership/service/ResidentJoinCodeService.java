@@ -6,6 +6,8 @@ import com.moahome.server.auth.exception.*;
 import com.moahome.server.membership.domain.*;
 import com.moahome.server.membership.dto.ResidentInvitations;
 import com.moahome.server.membership.repo.ResidentJoinCodeRepository;
+import com.moahome.server.membership.repo.RedisInvitationCodeRepository;
+import static com.moahome.server.membership.repo.RedisInvitationCodeRepository.Kind.SHARED;
 import com.moahome.server.payment.exception.PaymentException;
 import com.moahome.server.property.repo.PropertyRepository;
 import com.moahome.server.property.service.ManagementAccessService;
@@ -20,6 +22,8 @@ import lombok.RequiredArgsConstructor;
 public class ResidentJoinCodeService {
 	private final ResidentJoinCodeRepository codes;
 
+	private final RedisInvitationCodeRepository temporaryCodes;
+
 	private final PropertyRepository properties;
 
 	private final ManagementAccessService access;
@@ -30,6 +34,7 @@ public class ResidentJoinCodeService {
 		var code = codes.findByCodeHash(ResidentInviteCode.hash(value))
 		    .filter(c -> c.getPropertyId().equals(property) && c.isLive(OffsetDateTime.now(clock)))
 		    .orElseThrow(() -> new PaymentException("INVALID_INVITATION"));
+		temporaryCodes.require(SHARED, code.getId(), property, code.getCodeHash(), code.getExpiresAt());
 		return code;
 	}
 
@@ -37,6 +42,7 @@ public class ResidentJoinCodeService {
 	public UUID property(String value) {
 		var code = codes.findByCodeHash(ResidentInviteCode.hash(value)).filter(c -> c.isLive(OffsetDateTime.now(clock)))
 		    .orElseThrow(() -> new PaymentException("INVALID_INVITATION"));
+		temporaryCodes.require(SHARED, code.getId(), code.getPropertyId(), code.getCodeHash(), code.getExpiresAt());
 		return code.getPropertyId();
 	}
 
@@ -49,11 +55,15 @@ public class ResidentJoinCodeService {
 	@Transactional
 	public ResidentInvitations.Issued issue(UUID actor, UUID property) {
 		lock(actor, property);
-		codes.findByPropertyIdAndStatus(property, "ISSUED").forEach(ResidentJoinCode::revoke);
+		codes.findByPropertyIdAndStatus(property, "ISSUED").forEach(code -> {
+			code.revoke();
+			temporaryCodes.deleteAfterCommit(SHARED, code.getId());
+		});
 		codes.flush();
 		String value = ResidentInviteCode.create("B");
 		var code = codes.saveAndFlush(
 		    ResidentJoinCode.issue(property, ResidentInviteCode.hash(value), actor, OffsetDateTime.now(clock)));
+		temporaryCodes.create(SHARED, code.getId(), property, code.getCodeHash(), code.getExpiresAt(), null);
 		return new ResidentInvitations.Issued(code.getId(), value, code.getExpiresAt());
 	}
 
@@ -61,7 +71,10 @@ public class ResidentJoinCodeService {
 	@Transactional
 	public void revoke(UUID actor, UUID property) {
 		lock(actor, property);
-		codes.findByPropertyIdAndStatus(property, "ISSUED").forEach(ResidentJoinCode::revoke);
+		codes.findByPropertyIdAndStatus(property, "ISSUED").forEach(code -> {
+			code.revoke();
+			temporaryCodes.deleteAfterCommit(SHARED, code.getId());
+		});
 		codes.flush();
 	}
 }

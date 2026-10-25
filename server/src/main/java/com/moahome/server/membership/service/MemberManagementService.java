@@ -18,6 +18,7 @@ import com.moahome.server.user.repo.UserRepository;
 import com.moahome.server.user.service.UserService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import static com.moahome.server.membership.repo.RedisInvitationCodeRepository.Kind.MANAGER;
 
 @Service
 @Transactional(readOnly = true)
@@ -31,6 +32,8 @@ public class MemberManagementService {
 	private final MemberRoleEventRepository events;
 
 	private final MemberInvitationRepository invitations;
+
+	private final RedisInvitationCodeRepository temporaryCodes;
 
 	private final ResidentRepository residents;
 
@@ -50,7 +53,7 @@ public class MemberManagementService {
 	    PropertyMemberRepository members, MemberRoleEventRepository events, MemberInvitationRepository invitations,
 	    ResidentRepository residents, UnitResidentRepository affiliations, ResidentAccountLinkRepository accountLinks,
 	    com.moahome.server.property.repo.UnitRepository units, UserRepository users, UserService accounts,
-	    Clock clock) {
+	    Clock clock, RedisInvitationCodeRepository temporaryCodes) {
 		this.access = access;
 		this.properties = properties;
 		this.members = members;
@@ -63,6 +66,7 @@ public class MemberManagementService {
 		this.users = users;
 		this.accounts = accounts;
 		this.clock = clock;
+		this.temporaryCodes = temporaryCodes;
 	}
 
 	private OffsetDateTime now() {
@@ -94,7 +98,7 @@ public class MemberManagementService {
 		    }).toList();
 		List<MemberResponse.Invitation> invitationRows = invitations.findByPropertyIdOrderByCreatedAtDesc(property)
 		    .stream().filter(i -> i.getRole() == PropertyMemberRole.MANAGER).map(i -> {
-			    String status = Set.of("ISSUED", "REQUESTED").contains(i.getStatus())
+			    String status = "ISSUED".equals(i.getStatus())
 			        && !now().isBefore(i.getExpiresAt()) ? "EXPIRED" : i.getStatus();
 			    return new MemberResponse.Invitation(i.getId(), i.getRevision(), status, i.getRole(), null, null,
 			        i.getRequestedBy() == null
@@ -246,6 +250,8 @@ public class MemberManagementService {
 		new SecureRandom().nextBytes(bytes);
 		String code = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
 		var invitation = invitations.saveAndFlush(MemberInvitation.issue(property, hash(code), actor, now()));
+		temporaryCodes.create(MANAGER, invitation.getId(), property, invitation.getTokenHash(),
+		    invitation.getExpiresAt(), null);
 		return new MemberResponse.Issued(invitation.getId(), code, invitation.getExpiresAt());
 	}
 
@@ -262,12 +268,21 @@ public class MemberManagementService {
 		var invitation = invitations.findByTokenHash(hash).orElseThrow(() -> failure("INVALID_INVITATION"));
 		if (invitation.getRole() != PropertyMemberRole.MANAGER || actor.equals(invitation.getCreatedBy()))
 			throw failure("INVALID_INVITATION");
+		if ("REQUESTED".equals(invitation.getStatus()) && actor.equals(invitation.getRequestedBy())) {
+			temporaryCodes.deleteAfterCommit(MANAGER, invitation.getId());
+			return new MemberResponse.Requested(target.getName(), "REQUESTED");
+		}
+		if (!"ISSUED".equals(invitation.getStatus()))
+			throw failure("INVALID_INVITATION");
+		temporaryCodes.require(MANAGER, invitation.getId(), property, invitation.getTokenHash(),
+		    invitation.getExpiresAt());
 		try {
 			invitation.request(actor, now());
 		} catch (IllegalStateException failure) {
 			throw failure("INVALID_INVITATION");
 		}
 		invitations.flush();
+		temporaryCodes.deleteAfterCommit(MANAGER, invitation.getId());
 		return new MemberResponse.Requested(target.getName(), "REQUESTED");
 	}
 
@@ -283,11 +298,6 @@ public class MemberManagementService {
 			return workspace(actor, property);
 		if (invitation.getRevision() != revision || !"REQUESTED".equals(invitation.getStatus()))
 			throw failure("MEMBER_ROLE_CONFLICT");
-		try {
-			invitation.requireLive(now());
-		} catch (IllegalStateException failure) {
-			throw failure("INVALID_INVITATION");
-		}
 		var user = accounts.requireActive(invitation.getRequestedBy());
 		List<PropertyMember> existing = members.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, user.getId())
 		    .stream().filter(PropertyMember::isCurrent).toList();
@@ -316,6 +326,7 @@ public class MemberManagementService {
 		if (invitation.getRevision() != revision || "APPROVED".equals(invitation.getStatus()))
 			throw failure("MEMBER_ROLE_CONFLICT");
 		invitation.revoke(actor, now());
+		temporaryCodes.deleteAfterCommit(MANAGER, invitation.getId());
 		invitations.flush();
 		return workspace(actor, property);
 	}

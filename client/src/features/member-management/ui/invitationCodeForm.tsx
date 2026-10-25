@@ -384,7 +384,7 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
         )}
         {!options && !preview && (
           <p>
-            공통·개인 초대코드는 발급 후 24시간 동안 유효합니다.
+            전체 공유 초대는 발급 후 24시간, 개인·외부 부담당자 초대는 30분 동안 유효합니다.
           </p>
         )}
         {options && (

@@ -116,7 +116,7 @@ API 호출은 기존 `entities/session`을 사용할 수 있는 Feature에 둡�
 
 `tests/managementLayout.spec.ts`와 등록 테스트에서 서버 목록·현재 권한, 직접 주소·새로고침·뒤로가기·bfcache, 로그아웃·계정 변경, 최근 기록 폐기·조회 재시도와 등록 복구·추가 등록 예외를 확인합니다. 실행 결과는 실제 명령을 기준으로 보고합니다.
 
-주민 홈·본인 전체 신청 상태 조회는 후속입니다. 주민 가입 신청·관리자의 승인·거절은 [역할·가입 화면](memberManagement.md)을 따릅니다. `/entry` 분리는 확정된 개발 작업이 아닙니다.
+임시 주민 홈은 아래 2026-10-24 절의 구현 범위를 따르며 주민 세부 업무·본인 전체 신청 상태 조회는 후속입니다. 주민 가입 신청·관리자의 승인·거절은 [역할·가입 화면](memberManagement.md)을 따릅니다. `/entry` 분리는 확정된 개발 작업이 아닙니다.
 
 ## 관리할 곳 추가·참여 진입 (2026-10-17)
 
@@ -133,3 +133,69 @@ API 호출은 기존 `entities/session`을 사용할 수 있는 Feature에 둡�
 `/resident`는 관리자 레이아웃·사이드바를 사용하지 않고 본인의 현재 RESIDENT 참여에 대한 관리대상 이름과 준비 안내만 표시합니다. 실제 공지·관리비·차량 화면을 제공하는 것으로 표시하지 않습니다. 새로고침에서 세션과 현재 주민 참여를 다시 확인하며 로그인 전이나 조회 중에는 가입한 곳을 표시하지 않습니다. 참여가 없으면 참여·승인 대기 안내를 표시합니다. 임의로 관리자 권한을 추측하지 않으며 직접 관리자 주소에 접근해도 기존 관리 권한 검증을 거칩니다.
 
 개인 초대로 즉시 가입한 뒤 `주민 홈으로`를 누르면 이 화면으로 이동합니다. 일반 승인 대기·정보 수정 검토 중에는 가입 완료로 이동시키지 않습니다. 관리 권한이 있는 계정의 기존 기본 관리대상 진입은 유지하고, 관리대상이 없는 승인 주민은 재로그인 후 `/start`에서 이 화면으로 이동합니다. 조회 계약은 [접근 API](../../docs/managementAccessApi.md)를 따릅니다.
+
+## 오류 복귀와 공개 랜딩 분리 설계 (2026-10-25)
+
+상태: 설계·미구현. 업무 규칙은 [도메인 규칙](../../docs/domainRules.md#초대-인증서비스-복귀역할-변경의-후속-확정-방향-2026-10-25), 동적 접근 관리는 [레이아웃 설계](managementLayout.md#동적-권한-확인과-화면-보존-설계-2026-10-25)를 기준으로 합니다. 모바일 공개 랜딩 자체를 차단하는 요구로 확대하지 않습니다. 별도 `/entry`나 `proxy.ts`를 추가하지 않고 현재 `/start`를 재사용합니다.
+
+### 실제 소스와 수정 대상
+
+아래 경로는 `client/src/` 기준입니다.
+
+| 실제 파일 | 현재 동작 | 변경 설계 |
+| --- | --- | --- |
+| `screens/not-found/ui/notFoundPage.tsx`, `app/not-found.tsx` | 전역 404의 홈 링크가 `/`. PC·모바일 동일 | 확인된 서비스 메인 또는 `/start` 복귀 |
+| `shared/ui/server-connection-error/requestError.tsx`, `serverConnectionError.tsx` | 조회별 재시도, 403/404 안내 | 조회 재시도 유지. 자동 역할 이동은 공통 접근 경계가 판단 |
+| `widgets/management-layout/ui/_components/management-access-state/managementAccessState.tsx` | 모든 비로딩 상태에 시작 링크 | 통신 장애와 접근 종료를 구분하고 필요한 복귀만 제공 |
+| `screens/login/ui/loginPage.tsx` | `/`·`/#service` 링크 존재 | 서비스 로그인·복귀에서 공개 랜딩으로 보내는 링크 검토·조정 |
+| `screens/login-callback/ui/loginCallbackPage.tsx` | 브랜드 링크 `/`, 성공 후 `/start` | 성공 분기 유지, 오류 브랜드·복귀도 서비스 흐름 사용 |
+| `widgets/service-header/ui/serviceHeader.tsx` | 기본 homeHref `/start` | 공통 목적지 전달 유지 |
+| `app/(main)/manage/[propertyId]/managementShell.tsx` | 관리자 로고→같은 대상 대시보드, 모바일 상세 뒤로가기 | 재사용. 상세 목록 문맥 유지 |
+| `screens/resident-home/ui/residentHomePage.tsx` | 주민 로고→`/resident`, 401→로그인 | 주민 진입·복귀 재사용 |
+| `features/logout/ui/logoutButton.tsx` | 로그아웃 후 `/login` | 유지. 공개 랜딩으로 바꾸지 않음 |
+| `screens/start/ui/startPage.tsx`, `features/enter-service/model/useManagementAccess.ts` | 관리자 최근 유효/첫 대상→주민 목록→시작 흐름 | 목적지 재결정 재사용, 장애를 대상 없음으로 대체하지 않음 |
+
+`app/error.tsx`·`app/global-error.tsx`·`proxy.ts`·`middleware.ts`·PWA manifest/service worker는 현재 소스/정적 파일 목록에서 찾지 못했습니다. 설치형 앱의 실제 실행 주소·네이티브 래퍼는 확인 필요입니다. `app/error.tsx`를 추가한다면 렌더링 예외 경계와 조회/저장 실패를 구분하고 reset으로 저장 API를 자동 재전송하지 않습니다. 파일 후보이며 현재 구현이 아닙니다.
+
+### 서비스 복귀 결정
+
+공통 목적지 결정은 기존 `features/enter-service`의 책임으로 두며, 순수 경로 결정 함수 후보 `lib/serviceDestination.ts`를 검토합니다. 현재 세션·검증된 Property 접근 결과로만 목적지를 고르고 최근 기록을 권한 증명으로 사용하지 않습니다. 공유 컴포넌트는 도메인 조회를 새로 소유하지 않고 결정된 href나 행동을 전달받습니다.
+
+```mermaid
+flowchart TD
+    A[PC·모바일 오류] --> B{일시적인 조회 실패?}
+    B -- 예 --> C[화면·입력 유지 후 실패한 조회 재시도]
+    B -- 아니오 --> D{로그인 만료 확인?}
+    D -- 예 --> E[로그인]
+    D -- 아니오 --> F{현재 Property·권한 확인됨?}
+    F -- 관리자 --> G[같은 대상 대시보드]
+    F -- 주민 자격 --> H[주민 홈]
+    F -- 목적지 재결정 --> I[start에서 현재 참여 확인]
+    I --> J{확인 결과}
+    J -- 관리자 --> G
+    J -- 주민 --> H
+    J -- 참여 없음 --> K[기존 등록·참여 안내]
+    J -- 장애 --> C
+```
+
+업무 403 후 같은 역할·같은 영역 자격이 확인되면 현재 위치에서 접근 불가를 안내합니다. 역할 변경으로 영역이 맞지 않을 때만 replace 이동합니다. 삭제된 개별 자료는 원래 목록으로, Property 접근이 종료되면 다른 현재 참여 또는 `/start`로 복귀합니다. 모바일 상세의 본문·푸터 목록 버튼 금지와 헤더 `<` 복귀 규칙은 유지합니다.
+
+공개 `/` 직접 방문은 PC·모바일 모두 기존 랜딩을 표시합니다. 설치형 앱의 기본 실행 주소는 `/start` 또는 로그인으로 설정하는 설계이며 화면 너비·User-Agent만으로 루트 전체를 차단하지 않습니다. 로그인 전 서비스 404의 복귀도 로그인 흐름을 사용하며 임의의 외부 return URL은 허용하지 않습니다.
+
+### 초대 링크와 OAuth의 실제 연결
+
+현재 `features/member-management/ui/invitationCodeForm.tsx`는 fragment를 브라우저에서 읽고 비로그인이면 `/login`을 별도 탭으로 엽니다. 로그인 시도 후 원래 탭 focus 또는 `로그인 확인`에서 새로고침해 같은 fragment로 검증합니다. `loginCallbackPage.tsx`는 성공 후 `/start`로 이동합니다. 자동으로 원래 탭의 초대로 redirect하는 공통 returnTo 구현이 있는 것으로 기록하지 않습니다.
+
+기존 별도 탭 흐름에서 원래 링크가 유지되는지 모바일·카카오톡 브라우저까지 검증합니다. 로그인 후 원래 초대의 Redis를 반드시 재검증하며 OAuth 중 만료되면 가입시키지 않고 만료·재발급을 안내합니다. 원문 코드를 쿼리·로그·localStorage/sessionStorage에 복사하는 신규 복귀 방식을 추가하지 않습니다. 설치형 앱에서 별도 탭 복귀가 불가능하면 서버 OAuth 상태에 바인딩한 단기 복귀 핸들 등 별도 설계를 먼저 검토해야 하며 현재 지원으로 간주하지 않습니다.
+
+저장 응답 유실은 조회 재시도와 구분합니다. 기존 등록 requestId, 역할 expectedRole, 초대 revision·동일 계정 완료 상태를 유지합니다. request UUID가 있는 업무는 같은 요청을 재사용하고, 모든 API에 멱등성이 있다고 추정하지 않습니다. 새 requestId를 만들어 중복 저장을 재시도하지 않습니다.
+
+### 구현 순서와 검증 계획
+
+1. 공통 복귀 판단을 기존 enter-service에서 정리하고 404·로그인·콜백·관리 접근 오류의 링크를 연결합니다.
+2. [후속 필수 구현 순서](managementLayout.md#필수-구현-순서와-선행-검증)에 따라 HTTP signal 지원·최초/백그라운드 상태 분리·계정/Property Query 범위를 먼저 검증한 뒤 공통 접근 검사와 역할 전환을 연결합니다. 새로고침·보호 화면 진입 시 확인과 업무 403 후 일회성 재확인을 연결합니다. 30초 주기와 포커스·재연결 자동 권한 조회는 필수 구현에 넣지 않습니다.
+3. 기존 `tests/stateMessages.spec.ts`, `serverConnectionError.spec.ts`, `authFlow.spec.ts`, `managementLayout.spec.ts`, `onboardingFlow.spec.ts`를 확장합니다.
+
+검증 항목은 PC/모바일 공개 랜딩 직접 접근·서비스 404 복귀·로그아웃·세션 만료·같은 역할의 업무 403·Property 종료·삭제 자료 목록 복귀·네트워크 오류 입력 유지·초대 코드/링크 로그인 후 복귀·OAuth 중 만료입니다. 설치형 앱 실행은 실제 환경이 확인된 뒤 별도 검증합니다. 이 절은 설계이며 관련 브라우저 테스트·Client 빌드를 실행한 것으로 기록하지 않습니다.
+
+추가 필수 과제인 업무 화면 유지와 AbortSignal 전달은 현재 미구현이며 착수 시 코드를 재확인합니다. 정상 caller 취소는 일반 조회 장애·401·403·500과 구분하고, 권한을 그대로 유지한 재조회에서 모달·입력·파일·필터·페이지·스크롤이 보존돼야 합니다. 실제 권한 상실이 확인되면 이전 범위 요청과 캐시를 정리한 후 이동합니다. Mutation 대기 취소는 서버 처리 실패의 근거가 아니며 결과가 불명확하면 기존 요청 식별자를 유지해 실제 서버 결과를 확인합니다. 변경 파일·구현 방법·필수 구현 순서·테스트·배포 완료 기준은 [Client 공통 접근 설계](managementLayout.md#후속-필수-과제의-재확인-범위)를 기준으로 하고 여기서 중복 정의하지 않습니다.

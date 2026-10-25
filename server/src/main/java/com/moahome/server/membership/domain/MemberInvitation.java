@@ -52,7 +52,7 @@ public class MemberInvitation {
 	protected MemberInvitation() {
 	}
 
-	/** 외부 부담당자 초대코드는 해시만 저장하고 1일 동안 한 계정만 신청할 수 있으며 신청 자체로 권한을 부여하지 않습니다. */
+	/** 외부 부담당자는 30분 안에 한 계정만 신청하며 DB 해시는 사용 출처로만 보존합니다. */
 	public static MemberInvitation issue(UUID property, String hash, UUID actor, OffsetDateTime at) {
 		var invite = new MemberInvitation();
 		invite.id = UUID.randomUUID();
@@ -62,14 +62,14 @@ public class MemberInvitation {
 		invite.status = "ISSUED";
 		invite.createdBy = actor;
 		invite.createdAt = at;
-		invite.expiresAt = at.plusDays(1);
+		invite.expiresAt = at.plusMinutes(30);
 		return invite;
 	}
 
 	public void request(UUID actor, OffsetDateTime at) {
-		requireLive(at);
 		if ("REQUESTED".equals(status) && actor.equals(requestedBy))
 			return;
+		requireLive(at);
 		if (!"ISSUED".equals(status))
 			throw new IllegalStateException("Invitation already used");
 		requestedBy = actor;
@@ -83,7 +83,7 @@ public class MemberInvitation {
 	}
 
 	public void approve(UUID actor, OffsetDateTime at) {
-		requireLive(at);
+		// 신청 기한 안에 소진된 코드는 재사용할 수 없지만 관리소장의 검토는 만료 후에도 허용합니다.
 		if (!"REQUESTED".equals(status))
 			throw new IllegalStateException("Invitation has no request");
 		status = "APPROVED";

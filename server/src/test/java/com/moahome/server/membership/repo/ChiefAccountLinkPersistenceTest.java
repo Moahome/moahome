@@ -44,6 +44,8 @@ import static org.assertj.core.api.Assertions.*;
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class ChiefAccountLinkPersistenceTest {
+	@org.springframework.test.context.bean.override.mockito.MockitoBean
+	RedisInvitationCodeRepository temporaryCodes;
 	private static final PostgresTestServer POSTGRES = new PostgresTestServer();
 
 	private static final OffsetDateTime AT = OffsetDateTime.parse("2026-10-17T04:41:08Z");

@@ -32,9 +32,6 @@ public class ResidentInvitation {
 	@Column(name = "token_hash", columnDefinition = "char(64)")
 	private String tokenHash;
 
-	@Column(name = "token_encrypted", columnDefinition = "text")
-	private String tokenEncrypted;
-
 	@Column
 	private String status;
 
@@ -81,7 +78,7 @@ public class ResidentInvitation {
 	protected ResidentInvitation() {
 	}
 
-	/** 발급 시점의 주민·세대 관계와 명부 버전을 고정하고 1일 유효한 일회용 초대를 만듭니다. */
+	/** 발급 시점의 주민·세대 관계와 명부 버전을 고정하고 30분 유효한 일회용 초대를 만듭니다. */
 	public static ResidentInvitation issue(UUID property, UUID resident, UUID unit, UUID relation,
 	    OffsetDateTime residentVersion, String hash, UUID actor, OffsetDateTime at) {
 		var invite = new ResidentInvitation();
@@ -95,22 +92,14 @@ public class ResidentInvitation {
 		invite.status = "ISSUED";
 		invite.createdBy = actor;
 		invite.createdAt = at;
-		invite.expiresAt = at.plusDays(1);
+		invite.expiresAt = at.plusMinutes(30);
 		return invite;
 	}
 
-	/** 유효한 미사용 초대만 재전달용 암호문을 보관하며 원문·발급 시각·유효기간은 변경하지 않습니다. */
-	public void retainProtectedCode(String encrypted) {
-		if (!"ISSUED".equals(status) || requestedBy != null || tokenEncrypted != null)
-			throw new IllegalStateException("Invalid invitation retention");
-		tokenEncrypted = java.util.Objects.requireNonNull(encrypted);
-	}
-
-	/** 원래 정보를 확인한 수락이나 정정 제출은 모두 1일 안에 한 계정만 수행할 수 있습니다. */
+	/** 수락이나 정정 제출은 발급 후 30분 안에 한 계정만 수행하며 검토 기한과 구분합니다. */
 	public void claim(UUID actor, OffsetDateTime at) {
 		if (requestedBy != null || !"ISSUED".equals(status) || !at.isBefore(expiresAt))
 			throw new IllegalStateException("Invalid invitation");
-		tokenEncrypted = null;
 		requestedBy = actor;
 		requestedAt = at;
 	}
@@ -142,7 +131,6 @@ public class ResidentInvitation {
 			throw new IllegalStateException("Invalid invitation");
 		if (!java.util.Set.of("REVOKED", "REJECTED").contains(next))
 			throw new IllegalArgumentException("Invalid transition");
-		tokenEncrypted = null;
 		status = next;
 		reviewedBy = actor;
 		reviewedAt = at;

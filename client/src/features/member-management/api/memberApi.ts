@@ -119,6 +119,7 @@ export function memberManagementError(error: unknown) {
     MEMBER_RESIDENT_REQUIRED: '현재 주민 연결이 필요해요. 외부 부담당자는 관리자 접근 종료를 사용해주세요.',
     MEMBER_NOT_FOUND: '해당 관리대상의 참여자 또는 초대를 찾을 수 없어요.',
     INVALID_INVITATION: '초대코드가 만료되었거나 사용할 수 없어요. 새 코드를 요청해주세요.',
+    INVITATION_SERVICE_UNAVAILABLE: '초대코드를 처리하지 못했어요. 잠시 후 다시 시도해주세요.',
     ACCESS_DENIED: '관리소장만 권한을 변경할 수 있어요.',
     INVALID_REQUEST: '입력한 역할과 초대코드를 확인해주세요.'
   };

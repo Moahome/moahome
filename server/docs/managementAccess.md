@@ -76,3 +76,21 @@
 - DB 검증: 기존 등록 Migration으로 만든 관리대상 / 참여를 읽으며 새 Migration 없이 동작함.
 
 Service / Controller 단위 검사, 기존 Bearer Security 통합 검사와 격리 PostgreSQL의 `ManagementAccessPersistenceTest`에 검증을 작성했습니다. 실행과 빌드는 [Server AGENTS.md](../AGENTS.md)를 따릅니다.
+
+## 동적 권한을 위한 조회 보완 설계 (2026-10-25)
+
+상태: 미구현 설계. [도메인 규칙](../../docs/domainRules.md#초대-인증서비스-복귀역할-변경의-후속-확정-방향-2026-10-25)의 역할 변경 감지를 위한 최소 조회입니다. 신규 요청·응답·오류는 [공통 API 보완안](../../docs/managementAccessApi.md#8-동적-권한을-위한-최소-조회-보완안-2026-10-25)에만 정의합니다.
+
+기존 실제 위치는 `src/main/java/com/moahome/server/` 아래 `property/controller/ManagementAccessController.java`, `property/service/ManagementAccessService.java`, `membership/repo/PropertyMemberRepository.java`, `resident/repo/ResidentRepository.java`, `resident/repo/UnitResidentRepository.java`입니다. 계정 상태는 `user/service/UserService.java`, 업무 인증은 `auth/security/JwtAuthenticationFilter.java`·`auth/service/AuthService.java`, 역할 변경과 이벤트는 `membership/service/MemberManagementService.java`·`membership/domain/MemberRoleEvent.java`가 담당합니다. `auth/service/TokenService.java`의 JWT에는 현재 관리대상별 역할을 넣지 않습니다.
+
+변경 순서는 다음과 같습니다.
+
+1. PropertyMemberRepository에 정상 계정의 단일 Property 현재 참여를 ADMIN/MANAGER/RESIDENT 범위로 읽는 투영 조회를 추가합니다. 기존 findManagementContext와 hasCurrentAccess의 의미를 바꾸지 않습니다.
+2. 주민 자격은 같은 Property·현재 계정·미삭제 주민·유효 세대 관계·승인 출처의 일치를 기존 ResidentRepository 조회 기준과 대조해 계산합니다. 이름·전화번호로 주민을 추정하지 않습니다.
+3. ManagementAccessService에 getPropertyAccessContext 후보 메서드를 추가해 계정 확인·역할 충돌 검사·최소 DTO 조합만 합니다. DTO 후보 `PropertyAccessContextResponse.java`는 property/dto에 둡니다. 불필요한 공통 권한 계층은 추가하지 않습니다.
+4. ManagementAccessController에 access-context 읽기 경로를 추가하고 기존 Bearer·정상 계정·no-store·오류 은닉을 적용합니다. 기존 클라이언트 목록·관리 컨텍스트는 호환 유지합니다.
+5. 기존 역할 변경·인계·명부 수정과 개별 업무의 ManagementAccessService 검사를 계속 사용합니다. 관리자 조회가 성공했다는 과거 기록으로 이후 API를 허용하지 않습니다.
+
+조회는 readOnly 트랜잭션이며 권한 캐시를 Redis에 추가하지 않습니다. 역할 변경 요청은 기존 Property 잠금·현재 actor 권한·예상 역할·실제 주민 연결 검증과 member_role_events 저장을 유지합니다. 관리소장의 일반 강등은 거부하고 인계의 ADMIN→MANAGER를 정상 변경으로 처리합니다. 외부 MANAGER의 주민 전환 조건은 이번 조회에서 느슨하게 바꾸지 않습니다.
+
+추가 테스트는 기존 `property/repo/ManagementAccessPersistenceTest.java`에 세 역할·타 계정·다른 Property·주민 자격·종료/삭제/비활성·충돌·역할 변경 후 재조회를 보강합니다. `auth/security/SecurityIntegrationTest.java`와 `config/OpenApiIntegrationTest.java`에는 Bearer·UUID·최소 필드·no-store·403/503 계약을 추가합니다. 같은 사용자의 A 대상 관리자·B 대상 주민 결과가 섞이지 않는지 검증합니다. 주민 승격 후 이전 주민 업무 API, 강등 후 이전 관리자 업무 API를 직접 호출해 현재 DB 권한으로 차단되는지도 별도 검증합니다. 주민 세부 업무 API는 아직 없으므로 현 단계에서 존재한다고 가정하지 않습니다.

@@ -60,12 +60,19 @@ import com.moahome.server.banking.dto.BankingRequests;
         com.moahome.server.membership.service.MembershipRequestService.class,
         com.moahome.server.membership.service.ResidentInvitationService.class,
         com.moahome.server.membership.service.ResidentJoinCodeService.class, ResidentRegistrationService.class,
-        ResidentManagementService.class, ResidentListService.class, PaymentPersistenceTest.TestBeans.class})
+        ResidentManagementService.class, ResidentListService.class,
+        com.moahome.server.membership.repo.RedisInvitationCodeRepository.class, PaymentPersistenceTest.TestBeans.class})
 @ActiveProfiles("database-test")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class PaymentPersistenceTest {
 	static final PostgresTestServer POSTGRES = new PostgresTestServer();
+
+	static final com.moahome.server.auth.support.RedisTestServer REDIS =
+	    new com.moahome.server.auth.support.RedisTestServer();
+
+	@Autowired
+	org.springframework.data.redis.core.StringRedisTemplate redis;
 
 	@Autowired
 	PaymentService service;
@@ -150,6 +157,10 @@ class PaymentPersistenceTest {
 
 	@AfterEach
 	void cleanup() {
+		redis.execute((org.springframework.data.redis.core.RedisCallback<Void>) connection -> {
+			connection.serverCommands().flushDb();
+			return null;
+		});
 		jdbc.execute("drop function if exists fail_payment_event() cascade");
 		jdbc.execute("drop function if exists fail_opening_application() cascade");
 		jdbc.execute(
@@ -1363,15 +1374,20 @@ class PaymentPersistenceTest {
 	}
 
 	@Test
-	void externalManagerInvitationExpiresAfterOneDayAndTransferKeepsOneChief() {
+	void externalManagerInvitationExpiresAfterThirtyMinutesButSubmittedRequestCanBeApprovedLater() {
 		UUID joining = users.saveAndFlush(User.create("외부관리자", null)).getId();
 		var expired = memberManagement.issue(user, property, null);
-		clock.set(Instant.parse("2026-10-16T00:00:00Z"));
+		assertThat(expired.expiresAt().toInstant()).isEqualTo(clock.instant().plusSeconds(1800));
+		clock.set(clock.instant().plusSeconds(1800));
 		assertThatThrownBy(() -> memberManagement.claim(joining, expired.code())).isInstanceOf(PaymentException.class);
 		var invite = memberManagement.issue(user, property, null);
 		memberManagement.claim(joining, invite.code());
+		assertThat(redis.hasKey("membership:invitation:manager:" + invite.id())).isFalse();
+		clock.set(clock.instant().plusSeconds(3600));
+		assertThat(memberManagement.claim(joining, invite.code()).status()).isEqualTo("REQUESTED");
 		var pending = memberManagement.workspace(user, property).invitations().stream()
 		    .filter(i -> i.id().equals(invite.id())).findFirst().orElseThrow();
+		assertThat(pending.status()).isEqualTo("REQUESTED");
 		memberManagement.approve(user, property, pending.id(), pending.revision());
 		assertThat(jdbc.queryForObject("select count(*) from residents where property_id=? and user_id=?", Long.class,
 		    property, joining)).isZero();
@@ -2485,6 +2501,17 @@ class PaymentPersistenceTest {
 
 	@TestConfiguration
 	static class TestBeans {
+		@Bean
+		org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory invitationRedisConnectionFactory() {
+			return new org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory("127.0.0.1", REDIS.port());
+		}
+
+		@Bean
+		org.springframework.data.redis.core.StringRedisTemplate invitationRedis(
+		    org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory factory) {
+			return new org.springframework.data.redis.core.StringRedisTemplate(factory);
+		}
+
 		@Bean
 		MutableClock clock() {
 			return new MutableClock(Instant.now());
@@ -3675,10 +3702,12 @@ class PaymentPersistenceTest {
 		jdbc.update("update residents set phone_encrypted=null,phone_hmac=null,phone_last4=null where id=?", person);
 		var issued = personalInvites.issue(user, property, person);
 		UUID joining = users.saveAndFlush(User.create("개인 초대 수락", null)).getId();
+		assertThat(issued.expiresAt().toInstant()).isEqualTo(clock.instant().plusSeconds(1800));
 		var input = new com.moahome.server.membership.dto.ResidentInvitations.Claim(issued.token(), false, null, null,
 		    null);
 		assertThat(personalInvites.preview(joining, issued.token()).phoneLast4()).isNull();
 		assertThat(personalInvites.accept(joining, input).status()).isEqualTo("APPROVED");
+		assertThat(redis.hasKey("membership:invitation:resident:" + issued.id())).isFalse();
 		assertThat(personalInvites.accept(joining, input).status()).isEqualTo("APPROVED");
 		assertThat(jdbc.queryForObject("select user_id from residents where id=?", UUID.class, person))
 		    .isEqualTo(joining);
@@ -3698,6 +3727,8 @@ class PaymentPersistenceTest {
 		var input = new com.moahome.server.membership.dto.ResidentInvitations.Claim(issued.token(), true, "정정한 이름",
 		    "KEEP", null);
 		assertThat(personalInvites.accept(joining, input).status()).isEqualTo("CHANGE_REQUESTED");
+		assertThat(redis.hasKey("membership:invitation:resident:" + issued.id())).isFalse();
+		clock.set(clock.instant().plusSeconds(1800));
 		assertThat(jdbc.queryForObject("select name from residents where id=?", String.class, person)).isEqualTo("김대표");
 		assertThat(jdbc.queryForObject("select user_id from residents where id=?", UUID.class, person)).isNull();
 		var pending = personalInvites.workspace(user, property).invitations().getFirst();
@@ -3751,39 +3782,37 @@ class PaymentPersistenceTest {
 		var opened = personalInvites.share(user, property, issued.id());
 		assertThat(opened).isEqualTo(issued);
 		assertThat(personalInvites.share(user, property, issued.id())).isEqualTo(issued);
-		assertThat(jdbc.queryForObject("select token_encrypted from resident_invitations where id=?", String.class,
-		    issued.id())).doesNotContain(issued.token());
+		String key = "membership:invitation:resident:" + issued.id();
+		assertThat(redis.<String, String>opsForHash().get(key, "encrypted")).doesNotContain(issued.token());
+		assertThat(redis.getExpire(key)).isBetween(1790L, 1800L);
 		assertThat(jdbc.queryForObject("select count(*) from resident_invitations where property_id=?", Integer.class,
 		    property)).isEqualTo(1);
 		UUID outsider = users.saveAndFlush(User.create("초대 조회 권한 없음", null)).getId();
 		assertThatThrownBy(() -> personalInvites.share(outsider, property, issued.id()))
 		    .isInstanceOf(AuthException.class);
-		jdbc.update("update resident_invitations set token_encrypted=null where id=?", issued.id());
-		assertThat(personalInvites.share(user, property, issued.id()).token()).isNull();
 		UUID joining = users.saveAndFlush(User.create("기존 링크 이용", null)).getId();
 		assertThat(personalInvites.preview(joining, issued.token()).status()).isEqualTo("ISSUED");
 	}
 
 	@Test
-	void legacyInvitationRestoresOnlyMatchingOriginalWithoutReplacingLinkOrDeadline() {
+	void lostRedisInvitationCannotBeRestoredOrAcceptedFromDatabaseHash() {
 		UUID person = jdbc.queryForObject("select id from residents where property_id=? and name='김대표'", UUID.class,
 		    property);
 		var issued = personalInvites.issue(user, property, person);
-		jdbc.update("update resident_invitations set token_encrypted=null where id=?", issued.id());
-		assertThat(personalInvites.share(user, property, issued.id()).token()).isNull();
+		redis.delete("membership:invitation:resident:" + issued.id());
+		assertThatThrownBy(() -> personalInvites.share(user, property, issued.id()))
+		    .isInstanceOf(PaymentException.class).hasMessage("INVALID_INVITATION");
 		assertThatThrownBy(() -> personalInvites.restore(user, property, issued.id(),
 		    com.moahome.server.membership.domain.ResidentInviteCode.create("R"))).isInstanceOf(PaymentException.class);
-		assertThat(jdbc.queryForObject("select token_encrypted from resident_invitations where id=?", String.class,
-		    issued.id())).isNull();
-		assertThat(personalInvites.restore(user, property, issued.id(), issued.token())).isEqualTo(issued);
-		assertThat(personalInvites.share(user, property, issued.id())).isEqualTo(issued);
-		assertThat(personalInvites.restore(user, property, issued.id(), issued.token())).isEqualTo(issued);
+		assertThatThrownBy(() -> personalInvites.restore(user, property, issued.id(), issued.token()))
+		    .isInstanceOf(PaymentException.class).hasMessage("INVALID_INVITATION");
 		assertThat(jdbc.queryForObject("select count(*) from resident_invitations where property_id=?", Integer.class,
 		    property)).isEqualTo(1);
 		UUID joining = users.saveAndFlush(User.create("기존 링크 수락", null)).getId();
-		assertThat(personalInvites.accept(joining,
+		assertThatThrownBy(() -> personalInvites.accept(joining,
 		    new com.moahome.server.membership.dto.ResidentInvitations.Claim(issued.token(), false, null, null, null))
-		    .status()).isEqualTo("APPROVED");
+		).isInstanceOf(PaymentException.class).hasMessage("INVALID_INVITATION");
+		assertThat(jdbc.queryForObject("select user_id from residents where id=?", UUID.class, person)).isNull();
 	}
 
 	@Test
@@ -3794,15 +3823,13 @@ class PaymentPersistenceTest {
 		var second = personalInvites.issue(user, property, person);
 		assertThatThrownBy(() -> personalInvites.share(user, property, first.id()))
 		    .isInstanceOf(PaymentException.class);
-		assertThat(jdbc.queryForObject("select token_encrypted from resident_invitations where id=?", String.class,
-		    first.id())).isNull();
+		assertThat(redis.hasKey("membership:invitation:resident:" + first.id())).isFalse();
 		UUID joining = users.saveAndFlush(User.create("초대 이용", null)).getId();
 		personalInvites.accept(joining,
 		    new com.moahome.server.membership.dto.ResidentInvitations.Claim(second.token(), false, null, null, null));
 		assertThatThrownBy(() -> personalInvites.share(user, property, second.id()))
 		    .isInstanceOf(PaymentException.class);
-		assertThat(jdbc.queryForObject("select token_encrypted from resident_invitations where id=?", String.class,
-		    second.id())).isNull();
+		assertThat(redis.hasKey("membership:invitation:resident:" + second.id())).isFalse();
 	}
 
 	@Test
