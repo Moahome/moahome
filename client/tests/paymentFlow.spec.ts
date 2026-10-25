@@ -142,7 +142,8 @@ test.beforeEach(async ({ page }) => {
       systemRole: 'USER',
       status: 'ACTIVE'
     };
-    else if (path.endsWith('/management-context')) body = {
+    else if (path.endsWith('/access-context')) body = {
+      residentEligible: false,
       propertyId: PROPERTY_ID,
       name: '모아빌라',
       role: 'ADMIN'
@@ -272,7 +273,10 @@ test.beforeEach(async ({ page }) => {
         'Access-Control-Allow-Headers': 'X-CSRF-TOKEN, Authorization, Content-Type',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(route.request().url().endsWith('/access-context') && body && typeof body === 'object' ? {
+        residentEligible: false,
+        ...body
+      } : body)
     });
   });
 });
@@ -1887,7 +1891,10 @@ test('모두 자동 확정한 과거월 파일은 가져온 월의 처리 완료
         'Access-Control-Allow-Origin': 'http://localhost:3100',
         'Access-Control-Allow-Credentials': 'true'
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(route.request().url().endsWith('/access-context') && body && typeof body === 'object' ? {
+        residentEligible: false,
+        ...body
+      } : body)
     });
   });
   await page.goto(MATCHING);await page.getByRole('button', {
@@ -2330,7 +2337,10 @@ for (const width of [1440, 390, 320]) {
         'Access-Control-Allow-Origin': 'http://localhost:3100',
         'Access-Control-Allow-Credentials': 'true'
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(route.request().url().endsWith('/access-context') && body && typeof body === 'object' ? {
+        residentEligible: false,
+        ...body
+      } : body)
     });
     await page.route(`http://localhost:8080/api/properties/${PROPERTY_ID}/payments/**`, async (route) => {
       const path = new URL(route.request().url()).pathname.split('/payments/')[1];

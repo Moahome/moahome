@@ -71,7 +71,7 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
   const base = `/manage/${propertyId}`;
   const query = useQuery({
     queryKey: ['monthly-settlement', session.data?.id, propertyId, rawMonth],
-    queryFn: () => getMonthlySettlement(propertyId, rawMonth ?? undefined),
+    queryFn: ({ signal }) => getMonthlySettlement(propertyId, rawMonth ?? undefined, signal),
     enabled: Boolean(session.data) && validMonth,
     retry: false,
     gcTime: 0

@@ -50,8 +50,9 @@ export async function restoreResidentInvitation(propertyId: string, id: string, 
   }
   return value;
 }
-export async function getResidentInvitations(propertyId: string) {
+export async function getResidentInvitations(propertyId: string, signal?: AbortSignal) {
   return read(await authenticatedAPI<ResidentInvitationWorkspace>({
+    signal,
     url: `/api/properties/${propertyId}/resident-invitations`
   }), propertyId);
 }
@@ -80,7 +81,7 @@ export async function previewResidentInvitation(token: string) {
       token
     }
   });
-  if (!value || typeof value.name !== 'string' || typeof value.unitLabel !== 'string' || typeof value.propertyName !== 'string'
+  if (!value || !isPropertyId(value.propertyId) || typeof value.name !== 'string' || typeof value.unitLabel !== 'string' || typeof value.propertyName !== 'string'
     || !['ISSUED', 'CHANGE_REQUESTED', 'APPROVED'].includes(value.status)) throw new ApiError(200, 'INVALID_RESPONSE', '초대 정보를 확인할 수 없습니다.');
   return value;
 }

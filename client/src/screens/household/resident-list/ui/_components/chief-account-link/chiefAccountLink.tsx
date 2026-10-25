@@ -50,7 +50,7 @@ export function ChiefAccountLink({ propertyId, data, presentation = 'modal', onC
       await client.invalidateQueries({
         predicate: (query) =>
           ['property-residents', 'property-units', 'property-members', 'resident-detail'].includes(String(query.queryKey[0]))
-        && query.queryKey.includes(propertyId)
+        && query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
       });
       onLinked();
     } catch (error) {

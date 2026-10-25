@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { ResidentHomePage } from '@/screens/resident-home';
 
@@ -6,5 +7,7 @@ export const metadata: Metadata = {
 };
 
 export default function Page() { return (
-  <ResidentHomePage />
+  <Suspense>
+    <ResidentHomePage />
+  </Suspense>
 ); }

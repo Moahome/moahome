@@ -2,6 +2,7 @@
 
 import {
   ApiError,
+  isRequestCanceled,
   isServerConnectionError
 } from '@/shared/api';
 import { ServerConnectionError } from './serverConnectionError';
@@ -15,6 +16,7 @@ export function RequestError({ error, onRetry, retrying = false, inputPreserved 
   retrying?: boolean;
   inputPreserved?: boolean;
 }) {
+  if (isRequestCanceled(error)) return null;
   if (isServerConnectionError(error)) return (
     <ServerConnectionError
       error={error}

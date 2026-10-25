@@ -708,7 +708,7 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 
 ### 초대 인증의 Redis 이전 설계 (2026-10-25)
 
-상태: 위 절은 기존 Migration의 구조입니다. 사용자가 초대 인증의 Redis 이전을 확정했으며 아래는 변경 설계와 앞선 요청으로 작성 중인 Migration 초안입니다. 실제 개발·공유·운영 DB에 적용된 것으로 해석하지 않습니다. 유형별 기한·소진·검토 정책은 [도메인 규칙](domainRules.md#초대-인증서비스-복귀역할-변경의-후속-확정-방향-2026-10-25), Redis 키·정합성·배포는 [Server 설계](../server/docs/memberManagement.md#redis-이전-상세-설계와-진행-상태-2026-10-25)를 따릅니다.
+상태: 위 절은 기존 Migration의 구조입니다. 사용자가 초대 인증의 Redis 이전을 확정했으며 아래는 구현한 저장 구조와 Migration입니다. 실제 개발·공유·운영 DB에 적용된 것으로 해석하지 않습니다. 유형별 기한·소진·검토 정책은 [도메인 규칙](domainRules.md#초대-인증서비스-복귀역할-변경의-후속-확정-방향-2026-10-25), Redis 키·정합성·배포는 [Server 설계](../server/docs/memberManagement.md#redis-이전-상세-설계와-진행-상태-2026-10-25)를 따릅니다.
 
 | 저장소·컬럼 | 분류 | 변경 설계 |
 | --- | --- | --- |
@@ -720,9 +720,9 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 | property_members / member_role_events / resident_account_links / residents.user_id | 권한·역할·주민 계정 연결 출처 | 기존 저장과 현재 상태 검증 유지 |
 | Redis 활성 검증값·재전달 암호문 | 신규 임시 인증 저장 | Property·초대 ID·해시·기한을 바인딩, 원문·주민 개인정보 미저장 |
 
-작업 중인 `V20261025015144__move_invitation_credentials_to_redis.sql`은 기존 ISSUED 코드 철회, DB 암호문 컬럼 제거, 외부 초대의 `expires_at=created_at+1 day` 고정 CHECK를 `expires_at>created_at`으로 교체하는 초안입니다. 과거 발급 기한을 소급 변경하지 않으며 REQUESTED/CHANGE_REQUESTED/APPROVED/REJECTED 및 계정 연결·역할 이력은 유지해야 합니다. 만료는 단순 상태 전이와 구분해 기존 시각에서 판정합니다.
+`V20261025015144__move_invitation_credentials_to_redis.sql`은 기존 ISSUED 코드 철회, DB 암호문 컬럼 제거, 외부 초대의 `expires_at=created_at+1 day` 고정 CHECK를 `expires_at>created_at`으로 교체합니다. 과거 발급 기한을 소급 변경하지 않으며 REQUESTED/CHANGE_REQUESTED/APPROVED/REJECTED 및 계정 연결·역할 이력은 유지해야 합니다. 만료는 단순 상태 전이와 구분해 기존 시각에서 판정합니다.
 
-초안은 이미 적용된 Migration을 수정하지 않습니다. 컬럼 제거는 구버전 코드와 호환되지 않으므로 중지 후 전환·백업·복구 계획이 필요합니다. 빈 DB 전체 적용과 직전 스키마의 실제 초대·신청 데이터를 넣은 업그레이드 검증을 완료하기 전 운영 적용하지 않습니다. 기존 Migration 파일 존재와 실제 환경 적용 여부는 구분합니다.
+2026-10-25 재실행 장애 조사에서 로컬 개발 DB에 이 파일의 원본이 이미 적용돼 있음을 확인했습니다. 파일은 적용 당시 체크섬 `832303297`로 복원하며 이후 수정하지 않습니다. 아직 이 버전을 적용하지 않은 환경의 기존 암호문 CHECK 충돌은 Server의 `InvitationCredentialMigrationCallback`이 해당 버전의 실행 직전에 ISSUED 암호문만 NULL로 정리해 방지합니다. 이 보정은 해당 Migration과 같은 트랜잭션에 참여하고 실패 시 함께 롤백하며, 이미 적용된 환경의 재시작에는 실행되지 않습니다. 상세 검증과 실제 환경 관찰은 [Server 검증 기록](../server/docs/memberManagement.md#서버-재실행-실패와-migration-체크섬-복구-2026-10-25)을 따릅니다. 컬럼 제거는 구버전 코드와 호환되지 않으므로 중지 후 전환·백업·복구 계획이 필요하며 실제 환경 적용 이력은 실행 전에 조회합니다.
 
 ---
 

@@ -15,8 +15,9 @@ const validAmount = (value: unknown): value is string => typeof value === 'strin
 const validNonnegative = (value: unknown): value is string => validAmount(value) && BigInt(value) >= BigInt(0);
 
 /** 다른 관리대상의 응답과 잘못된 금액을 표시하지 않고 서버에서 확정한 보유금 결과만 사용합니다. */
-export async function getBankingBalances(propertyId: string, month: string, accountId?: string): Promise<BalanceWorkspace> {
+export async function getBankingBalances(propertyId: string, month: string, accountId?: string, signal?: AbortSignal): Promise<BalanceWorkspace> {
   const data = await authenticatedAPI<BalanceWorkspace>({
+    signal,
     url: `/api/properties/${propertyId}/banking/balances`,
     data: {
       month,

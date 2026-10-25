@@ -91,7 +91,8 @@ for (const width of [1440, 390]) {
         systemRole: 'USER',
         status: 'ACTIVE'
       };
-      else if (path.endsWith('/management-context')) body = {
+      else if (path.endsWith('/access-context')) body = {
+        residentEligible: false,
         propertyId: PROPERTY,
         name: '모아빌라',
         role: 'ADMIN'
@@ -205,7 +206,10 @@ for (const width of [1440, 390]) {
         status: 200,
         headers,
         contentType: 'application/json',
-        body: JSON.stringify(body)
+        body: JSON.stringify(route.request().url().endsWith('/access-context') && body && typeof body === 'object' ? {
+          residentEligible: false,
+          ...body
+        } : body)
       });
     });
     const listUrl = `${BASE}/balances?month=2026-10&account=${ACCOUNT}`;
@@ -346,7 +350,8 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
       systemRole: 'USER',
       status: 'ACTIVE'
     };
-    else if (path.endsWith('/management-context')) body = {
+    else if (path.endsWith('/access-context')) body = {
+      residentEligible: false,
       propertyId: PROPERTY,
       name: '모아빌라',
       role: 'ADMIN'
@@ -423,7 +428,10 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(body)
+      body: JSON.stringify(route.request().url().endsWith('/access-context') && body && typeof body === 'object' ? {
+        residentEligible: false,
+        ...body
+      } : body)
     });
   });
   await page.setViewportSize({
@@ -955,7 +963,8 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
       systemRole: 'USER',
       status: 'ACTIVE'
     };
-    else if (path.endsWith('/management-context')) body = {
+    else if (path.endsWith('/access-context')) body = {
+      residentEligible: false,
       propertyId: PROPERTY,
       name: '모아빌라',
       role: 'ADMIN'
@@ -2073,7 +2082,8 @@ test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭�
       systemRole: 'USER',
       status: 'ACTIVE'
     };
-    else if (path.endsWith('/management-context')) body = {
+    else if (path.endsWith('/access-context')) body = {
+      residentEligible: false,
       propertyId: PROPERTY,
       name: '모아빌라',
       role: 'ADMIN'
@@ -2516,7 +2526,8 @@ for (const width of [1440, 390]) {
         systemRole: 'USER',
         status: 'ACTIVE'
       };
-      else if (path.endsWith('/management-context')) body = {
+      else if (path.endsWith('/access-context')) body = {
+        residentEligible: false,
         propertyId: PROPERTY,
         name: '모아빌라',
         role: 'ADMIN'
@@ -2813,7 +2824,8 @@ for (const width of [1440, 390, 320]) {
         systemRole: 'USER',
         status: 'ACTIVE'
       };
-      else if (path.endsWith('/management-context')) body = {
+      else if (path.endsWith('/access-context')) body = {
+        residentEligible: false,
         propertyId: PROPERTY,
         name: '모아빌라',
         role: 'ADMIN'
@@ -3120,7 +3132,8 @@ for (const { width, unassigned } of [{
         systemRole: 'USER',
         status: 'ACTIVE'
       };
-      else if (path.endsWith('/management-context')) body = {
+      else if (path.endsWith('/access-context')) body = {
+        residentEligible: false,
         propertyId: PROPERTY,
         name: '모아빌라',
         role: 'ADMIN'
@@ -3207,7 +3220,10 @@ for (const { width, unassigned } of [{
         status: 200,
         contentType: 'application/json',
         headers,
-        body: JSON.stringify(body)
+        body: JSON.stringify(route.request().url().endsWith('/access-context') && body && typeof body === 'object' ? {
+          residentEligible: false,
+          ...body
+        } : body)
       });
     });
     await page.goto(`${BASE}/balances?month=2026-10`);
@@ -3424,7 +3440,8 @@ for (const width of [1440, 390]) {
         systemRole: 'USER',
         status: 'ACTIVE'
       };
-      else if (path.endsWith('/management-context')) body = {
+      else if (path.endsWith('/access-context')) body = {
+        residentEligible: false,
         propertyId: PROPERTY,
         name: '모아빌라',
         role: 'ADMIN'
@@ -3474,7 +3491,10 @@ for (const width of [1440, 390]) {
         status: 200,
         contentType: 'application/json',
         headers,
-        body: JSON.stringify(body)
+        body: JSON.stringify(route.request().url().endsWith('/access-context') && body && typeof body === 'object' ? {
+          residentEligible: false,
+          ...body
+        } : body)
       });
     });
     await page.goto(`${BASE}/balances?month=2026-10&account=${ACCOUNT}`);
@@ -3626,7 +3646,8 @@ for (const width of [1440, 390]) {
         systemRole: 'USER',
         status: 'ACTIVE'
       };
-      else if (path.endsWith('/management-context')) body = {
+      else if (path.endsWith('/access-context')) body = {
+        residentEligible: false,
         propertyId: PROPERTY,
         name: '모아빌라',
         role: 'ADMIN'
@@ -3677,7 +3698,10 @@ for (const width of [1440, 390]) {
         status: 200,
         contentType: 'application/json',
         headers,
-        body: JSON.stringify(body)
+        body: JSON.stringify(route.request().url().endsWith('/access-context') && body && typeof body === 'object' ? {
+          residentEligible: false,
+          ...body
+        } : body)
       });
     });
     await page.goto(`${BASE}/balances?month=2026-08&account=${second}`);
@@ -3812,7 +3836,8 @@ for (const width of [1440, 390, 320]) {
         systemRole: 'USER',
         status: 'ACTIVE'
       };
-      else if (path.endsWith('/management-context')) body = {
+      else if (path.endsWith('/access-context')) body = {
+        residentEligible: false,
         propertyId: PROPERTY,
         name: '모아빌라',
         role: 'ADMIN'
@@ -3896,7 +3921,10 @@ for (const width of [1440, 390, 320]) {
           'Cache-Control': 'no-store'
         },
         contentType: 'application/json',
-        body: JSON.stringify(body)
+        body: JSON.stringify(route.request().url().endsWith('/access-context') && body && typeof body === 'object' ? {
+          residentEligible: false,
+          ...body
+        } : body)
       });
     });
     const listHref = `${BASE}/balances?month=2026-10&account=${second}`;
@@ -4086,7 +4114,8 @@ for (const width of [1440, 390, 320]) {
         systemRole: 'USER',
         status: 'ACTIVE'
       };
-      else if (path.endsWith('/management-context')) body = {
+      else if (path.endsWith('/access-context')) body = {
+        residentEligible: false,
         propertyId: PROPERTY,
         name: '모아빌라',
         role: 'ADMIN'
@@ -4130,7 +4159,10 @@ for (const width of [1440, 390, 320]) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(body)
+        body: JSON.stringify(route.request().url().endsWith('/access-context') && body && typeof body === 'object' ? {
+          residentEligible: false,
+          ...body
+        } : body)
       });
     });
     await page.goto(`${BASE}/upload?account=${unsupported}`);
@@ -4402,7 +4434,8 @@ for (const width of [1440, 390]) {
         systemRole: 'USER',
         status: 'ACTIVE'
       };
-      else if (path.endsWith('/management-context')) body = {
+      else if (path.endsWith('/access-context')) body = {
+        residentEligible: false,
         propertyId: PROPERTY,
         name: '모아빌라',
         role: 'ADMIN'
@@ -4503,7 +4536,10 @@ for (const width of [1440, 390]) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(body)
+        body: JSON.stringify(route.request().url().endsWith('/access-context') && body && typeof body === 'object' ? {
+          residentEligible: false,
+          ...body
+        } : body)
       });
     });
     await page.goto(`${BASE}/expenses?month=2026-10&account=${ACCOUNT}`);
@@ -4998,7 +5034,8 @@ for (const width of [1440, 425, 390]) {
         payments: [],
         history: []
       };
-      else if (path.endsWith('/management-context')) body = {
+      else if (path.endsWith('/access-context')) body = {
+        residentEligible: false,
         propertyId: PROPERTY,
         name: '모아빌라',
         role: 'ADMIN'

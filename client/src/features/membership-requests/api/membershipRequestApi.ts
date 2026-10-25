@@ -8,8 +8,9 @@ import type {
 } from './membershipRequestApiTypes';
 
 /** 가입 상태를 미연결 여부로 대신 판단하지 않고 서버가 확인한 명부만 받아 표시합니다. */
-export async function getUnlinkedResidents(propertyId: string) {
+export async function getUnlinkedResidents(propertyId: string, signal?: AbortSignal) {
   const value = await authenticatedAPI<UnlinkedResidents>({
+    signal,
     url: `/api/properties/${propertyId}/membership-requests/unlinked-residents`
   });
   if (!value || value.propertyId !== propertyId || !Array.isArray(value.residents)
@@ -34,8 +35,9 @@ function read(value: SignupWorkspace, property: string) {
 
   return value;
 }
-export async function getSignupRequests(property: string) {
+export async function getSignupRequests(property: string, signal?: AbortSignal) {
   return read(await authenticatedAPI<SignupWorkspace>({
+    signal,
     url: `/api/properties/${property}/membership-requests`
   }), property);
 }

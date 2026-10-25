@@ -269,6 +269,27 @@ class ManagementAccessPersistenceTest {
 		assertThat(units.findById(retained.id()).orElseThrow().getDeletedAt()).isNull();
 	}
 
+	@Test
+	void propertyAccessKeepsRolesScopedAndRechecksTerminationAndConflicts() {
+		UUID first = property("관리 대상", AT), second = property("주민 대상", AT);
+		member(first, userId, "MANAGER");
+		UUID membership = member(second, userId, "RESIDENT");
+		assertThat(management.getPropertyAccessContext(userId, first).role().name()).isEqualTo("MANAGER");
+		var resident = management.getPropertyAccessContext(userId, second);
+		assertThat(resident.role().name()).isEqualTo("RESIDENT");
+		assertThat(resident.residentEligible()).isFalse();
+		assertThatThrownBy(() -> management.getPropertyAccessContext(UUID.randomUUID(), first))
+		    .isInstanceOf(com.moahome.server.user.exception.UserException.class);
+		jdbc.update("update property_members set role='MANAGER' where id=?", membership);
+		assertThat(management.getPropertyAccessContext(userId, second).role().name()).isEqualTo("MANAGER");
+		member(second, userId, "RESIDENT");
+		assertThatThrownBy(() -> management.getPropertyAccessContext(userId, second)).isInstanceOf(IllegalStateException.class);
+		jdbc.update("update property_members set ended_at=now() where property_id=?", second);
+		assertThatThrownBy(() -> management.getPropertyAccessContext(userId, second)).isInstanceOf(AuthException.class);
+		jdbc.update("update properties set deleted_at=now() where id=?", first);
+		assertThatThrownBy(() -> management.getPropertyAccessContext(userId, first)).isInstanceOf(AuthException.class);
+	}
+
 	private UUID property(String name, OffsetDateTime at) {
 		return properties.saveAndFlush(Property.create(name, "주소", null, null, false, at)).getId();
 	}

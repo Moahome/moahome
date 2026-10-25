@@ -23,8 +23,9 @@ function read(value: MemberWorkspace, property: string) {
 
   return value;
 }
-export async function getMembers(property: string) {
+export async function getMembers(property: string, signal?: AbortSignal) {
   return read(await authenticatedAPI<MemberWorkspace>({
+    signal,
     url: `/api/properties/${property}/members`
   }), property);
 }

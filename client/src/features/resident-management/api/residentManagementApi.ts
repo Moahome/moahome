@@ -32,8 +32,9 @@ function readDetail(result: ResidentDetail | undefined, propertyId: string, resi
   return result;
 }
 
-export async function getResidentDetail(propertyId: string, residentId: string) {
+export async function getResidentDetail(propertyId: string, residentId: string, signal?: AbortSignal) {
   return readDetail(await authenticatedAPI<ResidentDetail>({
+    signal,
     url: `/api/properties/${propertyId}/residents/${residentId}`
   }), propertyId, residentId);
 }

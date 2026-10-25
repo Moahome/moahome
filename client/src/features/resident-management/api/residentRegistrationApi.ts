@@ -8,8 +8,9 @@ import type {
 } from './residentRegistrationApiTypes';
 
 /** 기존 세대 조회 API를 사용하고 등록에 필요한 식별자·동·호수만 선택지로 사용합니다. */
-export async function getRegistrationOptions(propertyId: string): Promise<RegistrationOptions> {
+export async function getRegistrationOptions(propertyId: string, signal?: AbortSignal): Promise<RegistrationOptions> {
   const result = await authenticatedAPI<RegistrationOptions>({
+    signal,
     url: `/api/properties/${propertyId}/units`
   });
   if (!result || result.propertyId !== propertyId || typeof result.hasBuildings !== 'boolean'

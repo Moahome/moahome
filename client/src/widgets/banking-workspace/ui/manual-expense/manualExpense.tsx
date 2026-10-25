@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  capturePropertyQueryScope,
+  setPropertyQueryData
+} from '@/entities/property';
+
 import { LoadingState } from '@/shared/ui/state-message';
 
 import { RequestError } from '@/shared/ui/server-connection-error';
@@ -52,11 +57,12 @@ export function ManualExpense({
   onCreated: (id: string, date: string, accountId: string) => void;
 }) {
   const session = useSession();
+  const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const cache = useQueryClient();
   const queryKey = ['banking-workspace', session.data?.id, propertyId];
   const workspace = useQuery({
     queryKey,
-    queryFn: () => getBankingWorkspace(propertyId),
+    queryFn: ({ signal }) => getBankingWorkspace(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false
   });
@@ -128,7 +134,7 @@ export function ManualExpense({
         mode: draft.mode,
         allocations: split.allocations
       });
-      cache.setQueryData(queryKey, saved);
+      setPropertyQueryData(cache, queryKey, saved, propertyScope);
       void cache.invalidateQueries({
         queryKey: ['banking-balances', session.data?.id, propertyId]
       });

@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  capturePropertyQueryScope,
+  setPropertyQueryData
+} from '@/entities/property';
+
 import { useSession } from '@/entities/session';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
@@ -28,6 +33,7 @@ export function TransferDetail({ propertyId, row, data, presentation = 'modal', 
   propertyId: string; row: BankingTransaction; data: BankingWorkspaceData; presentation?: 'modal' | 'page'; onClose?: () => void;
 }) {
   const session = useSession();
+  const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const cache = useQueryClient();
   const [target, setTarget] = useState('');
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
@@ -49,7 +55,7 @@ export function TransferDetail({ propertyId, row, data, presentation = 'modal', 
         outgoingId: row.direction === 'EXPENSE' ? row.id : target,
         incomingId: row.direction === 'INCOME' ? row.id : target
       });
-      cache.setQueryData(['banking-workspace', session.data?.id, propertyId], result);
+      setPropertyQueryData(cache, ['banking-workspace', session.data?.id, propertyId], result, propertyScope);
       await cache.invalidateQueries({
         queryKey: ['banking-balances', session.data?.id, propertyId]
       });

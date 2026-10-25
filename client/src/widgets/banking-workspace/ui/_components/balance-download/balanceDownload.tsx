@@ -1,3 +1,4 @@
+import { useSession } from '@/entities/session';
 import {
   useCallback,
   useMemo,
@@ -20,12 +21,13 @@ import {
 export function BalanceDownload({ data, initialAccountId = '', initialBuildingId = '', onClose }: {
   data: BalanceReportSnapshot; initialAccountId?: string; initialBuildingId?: string; onClose: () => void;
 }) {
+  const session = useSession();
   const [buildingId, setBuildingId] = useState(initialBuildingId);
   const [accountId, setAccountId] = useState(initialAccountId);
   const needsAccountBalance = Boolean(accountId) && data.balances.buildings.every((building) => building.accountBalances === undefined);
   const accountBalances = useQuery({
-    queryKey: ['balance-download-account-balances', data.propertyId, data.month, data.generatedAt, accountId],
-    queryFn: () => getBankingBalances(data.propertyId, data.month, accountId),
+    queryKey: ['balance-download-account-balances', session.data?.id, data.propertyId, data.month, data.generatedAt, accountId],
+    queryFn: ({ signal }) => getBankingBalances(data.propertyId, data.month, accountId, signal),
     enabled: needsAccountBalance,
     staleTime: Infinity,
     gcTime: 0,

@@ -349,3 +349,40 @@ test('multipart 파일은 JSON 변환·Content-Type 지정 없이 Bearer와 함�
     }
   });
 });
+
+test('호출자 취소·본문 읽기 취소·타임아웃은 네트워크 장애와 구분', async () => {
+  const canceled = new AbortController();
+  canceled.abort();
+  let sent = 0;
+  globalThis.fetch = async () => { sent++; return Response.json({}); };
+  await expect(customAPI({
+    url: '/api/example',
+    signal: canceled.signal
+  })).rejects.toMatchObject({
+    code: 'REQUEST_CANCELED'
+  });
+  expect(sent).toBe(0);
+  globalThis.fetch = async (_url, options) => new Promise((_resolve, reject) => {
+    options!.signal!.addEventListener('abort', () => reject(options!.signal!.reason), {
+      once: true
+    });
+  });
+  await expect(customAPI({
+    url: '/api/example',
+    timeoutMs: 10
+  })).rejects.toMatchObject({
+    code: 'REQUEST_TIMEOUT'
+  });
+  const body = new AbortController();
+  globalThis.fetch = async () => {
+    const response = Response.json({});
+    response.text = async () => { body.abort(); throw new DOMException('canceled', 'AbortError'); };
+    return response;
+  };
+  await expect(customAPI({
+    url: '/api/example',
+    signal: body.signal
+  })).rejects.toMatchObject({
+    code: 'REQUEST_CANCELED'
+  });
+});

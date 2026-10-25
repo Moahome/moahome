@@ -222,7 +222,7 @@ public class ResidentInvitationService {
 		    || !Set.of("CHANGE_REQUESTED", "APPROVED").contains(invitation.getStatus()))
 			throw failure("INVALID_INVITATION");
 		var resident = person(invitation.getPropertyId(), invitation.getResidentId());
-		return new ResidentInvitations.Preview(property.getName(), resident.getName(), label(invitation),
+		return new ResidentInvitations.Preview(property.getId(), property.getName(), resident.getName(), label(invitation),
 		    resident.getPhoneLast4(), invitation.getStatus(), invitation.getExpiresAt(), invitation.getRevision());
 	}
 

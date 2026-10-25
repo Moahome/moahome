@@ -55,8 +55,9 @@ function readUnit(unit: UnitResponse): UnitDraft {
 }
 
 /** 현재 관리대상의 저장된 목록을 조회하고 다른 대상의 응답은 표시하지 않습니다. */
-export async function getUnits(propertyId: string): Promise<UnitList> {
+export async function getUnits(propertyId: string, signal?: AbortSignal): Promise<UnitList> {
   const result = await authenticatedAPI<UnitListResponse>({
+    signal,
     url: `/api/properties/${propertyId}/units`
   });
 

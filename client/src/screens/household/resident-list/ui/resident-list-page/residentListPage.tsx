@@ -80,6 +80,7 @@ export function ResidentListPage({
     setMessage('주민을 등록했어요.');
     void queryClient.invalidateQueries({
       predicate: (query) => ['property-residents', 'property-units'].includes(String(query.queryKey[0]))
+          && query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
     });
   }
   const { list, data, view } = controller;

@@ -18,8 +18,9 @@ function readAccount<T extends Omit<BankAccountSettings, 'alias'>>(value: T, pro
 }
 
 /** 계좌 원문은 인증된 관리소장 조회에서만 읽고 브라우저 저장소에 보관하지 않습니다. */
-export async function getBankAccount(propertyId: string) {
+export async function getBankAccount(propertyId: string, signal?: AbortSignal) {
   return readAccount(await authenticatedAPI<BankAccountSettings>({
+    signal,
     url: `/api/properties/${propertyId}/banking/account`
   }), propertyId);
 }
@@ -55,8 +56,9 @@ export function bankAccountError(error: unknown) {
 }
 
 /** 통장 목록 원문은 설정을 열었을 때만 조회하며 종료 통장도 과거 내역 확인을 위해 유지합니다. */
-export async function getBankAccounts(propertyId: string) {
+export async function getBankAccounts(propertyId: string, signal?: AbortSignal) {
   const rows = await authenticatedAPI<ManagedBankAccount[]>({
+    signal,
     url: `/api/properties/${propertyId}/banking/account/list`
   });
   if (!Array.isArray(rows) || !rows.every((row) => readAccount(row, propertyId) && typeof row.isPrimary === 'boolean'

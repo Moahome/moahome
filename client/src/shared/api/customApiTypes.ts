@@ -6,6 +6,7 @@ export interface CustomApiOptions {
   data?: unknown;
   headers?: HeadersInit;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 export interface ApiFieldError {

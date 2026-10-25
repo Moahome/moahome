@@ -109,7 +109,7 @@ export function BalanceCheckPanel({
   ];
   const query = useQuery({
     queryKey,
-    queryFn: () => getBankBalanceChecks(propertyId, account.id),
+    queryFn: ({ signal }) => getBankBalanceChecks(propertyId, account.id, signal),
     enabled: history && Boolean(session.data),
     retry: false,
     gcTime: 0,

@@ -55,7 +55,7 @@ export function ResidentRegistrationForm({
   const session = useSession();
   const options = useQuery({
     queryKey: ['resident-registration-units', session.data?.id, propertyId],
-    queryFn: () => getRegistrationOptions(propertyId),
+    queryFn: ({ signal }) => getRegistrationOptions(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     staleTime: 0,

@@ -32,7 +32,7 @@ export function StartSessionState({
   }
 
   const canRetry = kind === 'property' || (error instanceof ApiError
-    && (error.status === 503 || error.code === 'NETWORK_ERROR'));
+    && (error.status === 503 || error.code === 'NETWORK_ERROR' || error.code === 'REQUEST_TIMEOUT'));
 
   if (canRetry && isServerConnectionError(error)) return (
     <main

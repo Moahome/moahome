@@ -21,6 +21,7 @@ export interface IssuedResidentInvitation {
   expiresAt: string;
 }
 export interface ResidentInvitationPreview {
+  propertyId: string;
   propertyName: string;
   name: string;
   unitLabel: string;

@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  capturePropertyQueryScope,
+  setPropertyQueryData
+} from '@/entities/property';
+
+import {
   AllocationEditor,
   IncomeAllocationSummary
 } from '@/entities/banking';
@@ -30,11 +35,12 @@ import styles from './bankingIncomeAllocation.module.css';
 /** 확정 기타 입금만 배분하며 원본 한 건·입금 전액을 동별 몫으로 나누어 저장합니다. */
 export function BankingIncomeAllocation({ propertyId, paymentId, onBusyChange }: { propertyId: string; paymentId: string; onBusyChange?: (busy: boolean) => void }) {
   const session = useSession();
+  const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const cache = useQueryClient();
   const queryKey = ['banking-workspace', session.data?.id, propertyId];
   const workspace = useQuery({
     queryKey,
-    queryFn: () => getBankingWorkspace(propertyId),
+    queryFn: ({ signal }) => getBankingWorkspace(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
@@ -65,7 +71,7 @@ export function BankingIncomeAllocation({ propertyId, paymentId, onBusyChange }:
         saveAsRule: false,
         allocations: result.allocations
       });
-      cache.setQueryData(queryKey, saved); setNotice(true);
+      setPropertyQueryData(cache, queryKey, saved, propertyScope); setNotice(true);
       void cache.invalidateQueries({
         queryKey: ['banking-balances', session.data?.id, propertyId]
       });

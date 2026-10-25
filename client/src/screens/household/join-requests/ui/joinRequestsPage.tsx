@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  capturePropertyQueryScope,
+  setPropertyQueryData
+} from '@/entities/property';
+
+import {
   LoadingState,
   StateMessage
 } from '@/shared/ui/state-message';
@@ -57,11 +62,12 @@ export function JoinRequestsPage({
   propertyId: string;
 }) {
   const session = useSession();
+  const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const client = useQueryClient();
   const context = useManagementContext(session.data?.id, propertyId, false);
   const invitations = useQuery({
     queryKey: ['resident-invitations', session.data?.id, propertyId],
-    queryFn: () => getResidentInvitations(propertyId),
+    queryFn: ({ signal }) => getResidentInvitations(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
@@ -72,7 +78,7 @@ export function JoinRequestsPage({
   const canIssue = Boolean(context.data);
   const query = useQuery({
     queryKey: ['unlinked-residents', session.data?.id, propertyId],
-    queryFn: () => getUnlinkedResidents(propertyId),
+    queryFn: ({ signal }) => getUnlinkedResidents(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
@@ -146,7 +152,7 @@ export function JoinRequestsPage({
     if (pending.current) return;
     pending.current = true; setBusy(true);
     try {
-      client.setQueryData(['resident-invitations', session.data?.id, propertyId], await reviewResidentInvitation(propertyId, invitation.id, invitation.revision, 'revoke'));
+      setPropertyQueryData(client, ['resident-invitations', session.data?.id, propertyId], await reviewResidentInvitation(propertyId, invitation.id, invitation.revision, 'revoke'), propertyScope);
       setNotice('개인 초대를 철회했어요.');
     } catch (failure) { setNotice(memberManagementError(failure)); }
     finally { pending.current = false; setBusy(false); }

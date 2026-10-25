@@ -12,6 +12,12 @@ const PROPERTY = 'f5405dd1-42ea-4279-9302-812ffcc2d21b';
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
 const BASE = `/manage/${PROPERTY}`;
 async function json(route: Route, body: unknown, status = 200) {
+  if (route.request().url().endsWith('/access-context') && status === 200 && body && typeof body === 'object') {
+    body = {
+      residentEligible: false,
+      ...body
+    };
+  }
   await route.fulfill({
     status,
     contentType: 'application/json',
@@ -133,10 +139,11 @@ async function mockWorkspace(page: Page, joined = false) {
         role: state.managementRole
       }] : []
     });
-    if (path.endsWith('/management-context')) return json(route, {
+    if (path.endsWith('/access-context')) return json(route, {
       propertyId: PROPERTY,
       name: '모아빌라',
-      role: state.managementRole
+      role: !state.hasManagedProperties && state.residentJoined ? 'RESIDENT' : state.managementRole,
+      residentEligible: state.residentJoined
     });
     if (['POST', 'PUT', 'DELETE'].includes(request.method())) state.writes.push({
       path,
@@ -202,6 +209,7 @@ async function mockWorkspace(page: Page, joined = false) {
       }]
     });
     if (path.endsWith('/api/resident-invitations/preview')) return json(route, {
+      propertyId: PROPERTY,
       propertyName: '모아빌라',
       name: '김주민',
       unitLabel: '102동 201호',
@@ -1045,13 +1053,14 @@ for (const width of [1440, 390]) {
       status: 'ACTIVE'
     };
     let reads = 0;
+    let readFailed = true;
     const writes: Record<string, unknown>[] = [];
     await page.route(`${API}/api/properties/${PROPERTY}/banking/account**`, async (route) => {
       if (route.request().method() === 'OPTIONS') return json(route, {});
       expect(route.request().headers().authorization).toBe('Bearer synthetic-access');
       if (route.request().method() === 'GET') {
         reads += 1;
-        if (reads === 1) return json(route, {
+        if (readFailed) return json(route, {
           code: 'PAYMENT_SERVICE_UNAVAILABLE'
         }, 503);
         return json(route, [account]);
@@ -1100,6 +1109,7 @@ for (const width of [1440, 390]) {
       exact: true
     });
     await expect(dialog.getByRole('alert')).toBeVisible();
+    readFailed = false;
     await dialog.getByRole('button', {
       name: '다시 시도',
       exact: true
@@ -1245,7 +1255,7 @@ for (const width of [1440, 390]) {
 
 test('부담당자의 설정에도 계좌 관리를 제공', async ({ page }) => {
   await mockWorkspace(page);
-  await page.route(`${API}/api/properties/${PROPERTY}/management-context`, route => json(route, {
+  await page.route(`${API}/api/properties/${PROPERTY}/access-context`, route => json(route, {
     propertyId: PROPERTY,
     name: '모아빌라',
     role: 'MANAGER'
@@ -2285,7 +2295,7 @@ for (const width of [1440, 375]) {
     await page.getByRole('button', {
       name: '주민 홈으로'
     }).click();
-    await expect(page).toHaveURL('/resident');
+    await expect(page).toHaveURL(new RegExp(`/resident(?:\\?propertyId=${PROPERTY})?$`));
     await expect(page.getByRole('heading', {
       name: '주민 홈',
       exact: true
@@ -2298,7 +2308,7 @@ for (const width of [1440, 375]) {
     })).toHaveCount(0);
     expect(state.writes.some((row) => row.path.endsWith('/accept'))).toBe(true);
     await page.goto('/start');
-    await expect(page).toHaveURL('/resident');
+    await expect(page).toHaveURL(new RegExp(`/resident(?:\\?propertyId=${PROPERTY})?$`));
     await page.reload();
     await expect(page.getByRole('heading', {
       name: '주민 홈',

@@ -8,8 +8,9 @@ import { ApiError } from '@/shared/api';
 import type { ResidentList } from './residentApiTypes';
 
 /** 전체 연락처 대신 끝 네 자리와 같은 관리대상의 현재 소속만 받아 명부의 자료형을 검증합니다. */
-export async function getResidents(propertyId: string): Promise<ResidentList> {
+export async function getResidents(propertyId: string, signal?: AbortSignal): Promise<ResidentList> {
   const result = await authenticatedAPI<ResidentList>({
+    signal,
     url: `/api/properties/${propertyId}/residents`
   });
   const invalid = () => new ApiError(200, 'INVALID_RESPONSE', '주민 목록을 확인할 수 없습니다.');

@@ -240,7 +240,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   const downloadButton = useRef<HTMLButtonElement>(null);
   const query = useQuery({
     queryKey: ['banking-balances', session.data?.id, propertyId, month, accountId],
-    queryFn: () => getBankingBalances(propertyId, month, accountId === 'ALL' ? undefined : accountId),
+    queryFn: ({ signal }) => getBankingBalances(propertyId, month, accountId === 'ALL' ? undefined : accountId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
@@ -1628,7 +1628,7 @@ function BalanceActionDialog(props: BalanceActionDialogProps) {
   const scoped = props.action.kind === 'opening' && accounts.length > 0;
   const query = useQuery({
     queryKey: ['banking-balances', session.data?.id, props.propertyId, props.data.month, accountId],
-    queryFn: () => getBankingBalances(props.propertyId, props.data.month, accountId),
+    queryFn: ({ signal }) => getBankingBalances(props.propertyId, props.data.month, accountId, signal),
     enabled: scoped && Boolean(accountId),
     retry: false,
     gcTime: 0
@@ -1684,6 +1684,7 @@ function BalanceActionDialog(props: BalanceActionDialogProps) {
 }
 
 function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, presentation = 'modal', openingSelector, openingAccountId, openingDraft: cachedOpening, onOpeningDraftChange }: BalanceActionDialogProps) {
+  const session = useSession();
   const cache = useQueryClient();
   const [cutoff, setCutoff] = useState(cachedOpening?.cutoff ?? data.cutoffDate ?? data.legacyOpening?.cutoffDate ?? '');
   const [amounts, setAmounts] = useState<Record<string, string>>(() => cachedOpening?.amounts ?? {
@@ -1825,7 +1826,7 @@ function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, p
     setBusy(true);
     setError('');
     const relatedQueries: QueryFilters = {
-      predicate: (query) => query.queryKey.includes(propertyId)
+      predicate: (query) => query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
         && ['banking-workspace', 'payment-workspace', 'billing'].includes(String(query.queryKey[0]))
     };
     try {

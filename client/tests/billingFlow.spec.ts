@@ -21,6 +21,12 @@ const items = [{
   amount: '0'
 }];
 async function json(route: Route, body: unknown, status = 200) {
+  if (route.request().url().endsWith('/access-context') && status === 200 && body && typeof body === 'object') {
+    body = {
+      residentEligible: false,
+      ...body
+    };
+  }
   await route.fulfill({
     status,
     contentType: 'application/json',
@@ -86,7 +92,7 @@ async function mockBilling(page: Page) {
     if (path === '/api/users/me/managed-properties') return json(route, {
       properties: [property]
     });
-    if (path.endsWith('/management-context')) return json(route, property);
+    if (path.endsWith('/access-context')) return json(route, property);
     if (path.endsWith('/billing/settings')) {
       const [year, month] = state.currentMonth.split('-').map(Number);
       settings = {

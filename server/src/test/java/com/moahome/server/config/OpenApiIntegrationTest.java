@@ -196,7 +196,7 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(
 		    mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(96);
+		assertThat(document.path("paths").properties()).hasSize(97);
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/membership-requests/unlinked-residents")
 		    .at("/get/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/closing/monthly")
@@ -257,7 +257,7 @@ class OpenApiIntegrationTest {
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/residents")
 		    .at("/post/security/0/bearerAuth").isArray()).isTrue();
 		for (String path : List.of("/api/users/me/managed-properties",
-		    "/api/properties/{propertyId}/management-context", "/api/properties/{propertyId}/residents")) {
+		    "/api/properties/{propertyId}/management-context", "/api/properties/{propertyId}/access-context", "/api/properties/{propertyId}/residents")) {
 			assertThat(document.path("paths").path(path).at("/get/security/0/bearerAuth").isArray()).isTrue();
 		}
 		for (String method : List.of("get", "post")) {

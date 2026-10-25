@@ -82,3 +82,12 @@
     padding: 20px;
   }
 }
+
+.error-state {
+  display: grid;
+  place-items: center;
+  height: 100dvh;
+  overflow: auto;
+  padding: 24px;
+  background: var(--background);
+}

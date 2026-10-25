@@ -38,7 +38,7 @@ async function requestSession(): Promise<WebSession> {
     });
   } catch (error) {
     // Rotation 응답이 유실되면 교체 여부를 알 수 없으므로 이전 쿠키로 자동 재시도하지 않습니다.
-    if (error instanceof ApiError && ['NETWORK_ERROR', 'INVALID_RESPONSE'].includes(error.code)) {
+    if (error instanceof ApiError && ['NETWORK_ERROR', 'REQUEST_TIMEOUT', 'INVALID_RESPONSE'].includes(error.code)) {
       requiresLogin = true;
       clearSession();
       throw new ApiError(0, 'LOGIN_REQUIRED', '로그인 결과를 확인하지 못했습니다. 다시 로그인해 주세요.');

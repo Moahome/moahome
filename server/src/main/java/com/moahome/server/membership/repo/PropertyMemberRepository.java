@@ -44,6 +44,17 @@ public interface PropertyMemberRepository extends JpaRepository<PropertyMember, 
   """)
 	List<ManagementProperty> findResidentProperties(UUID userId);
 
+	/** 단일 대상의 현재 역할을 모두 읽어 영역 간 변경과 충돌을 구분합니다. */
+	@Query("""
+		select p.id as propertyId, p.name as name, m.role as role
+		from PropertyMember m, Property p
+		where m.propertyId=p.id and m.userId=:userId and p.id=:propertyId
+		and m.status=com.moahome.server.membership.domain.PropertyMemberStatus.ACTIVE
+		and m.endedAt is null and m.deletedAt is null
+		and p.status=com.moahome.server.property.domain.PropertyStatus.ACTIVE and p.deletedAt is null
+		""")
+	List<ManagementProperty> findAccessContext(UUID userId, UUID propertyId);
+
 	interface ManagementProperty {
 		UUID getPropertyId();
 

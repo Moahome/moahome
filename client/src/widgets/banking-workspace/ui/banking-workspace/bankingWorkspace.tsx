@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  capturePropertyQueryScope,
+  setPropertyQueryData
+} from '@/entities/property';
+
+import {
   LoadingState,
   StateMessage
 } from '@/shared/ui/state-message';
@@ -82,13 +87,14 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   renderReceiptDetail?: (paymentId: string, onClose: () => void, onProcessed: (id: string, status: string) => void) => ReactNode;
 }) {
   const session = useSession();
+  const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const cache = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryKey = ['banking-workspace', session.data?.id, propertyId];
   const workspace = useQuery({
     queryKey,
-    queryFn: () => getBankingWorkspace(propertyId),
+    queryFn: ({ signal }) => getBankingWorkspace(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
@@ -276,7 +282,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
         queryKey
       });
       const saved = await deleteBankingTransactions(propertyId, deletingRows.filter((row) => !receiptIds.has(row.id)).map((row) => row.id), deletingRows.filter((row) => receiptIds.has(row.id)).map((row) => row.paymentId!));
-      cache.setQueryData(queryKey, saved);
+      setPropertyQueryData(cache, queryKey, saved, propertyScope);
       await Promise.all(['payment-workspace', 'banking-balances', 'billing'].map((key) => cache.invalidateQueries({
         queryKey: [key, session.data?.id, propertyId]
       })));
@@ -573,7 +579,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
         queryKey
       });
       const saved = await importBankingFile(propertyId, file, rows, preview.rows[0]?.accountId ?? activeAccountId);
-      cache.setQueryData(queryKey, saved);
+      setPropertyQueryData(cache, queryKey, saved, propertyScope);
       void cache.invalidateQueries({
         queryKey: ['payment-workspace', session.data?.id, propertyId]
       });

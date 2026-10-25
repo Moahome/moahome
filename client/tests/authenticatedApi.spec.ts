@@ -1,3 +1,4 @@
+import { clearPropertyQueries } from '../src/features/enter-service/model/clearPropertyQueries';
 import {
   expect,
   test
@@ -476,4 +477,123 @@ test('파일 업로드의 인증 만료 재시도는 같은 multipart 본문을 
     ok: true
   });
   expect(posts).toBe(2);
+});
+
+test('취소된 업무 요청은 재발급하지 않고 같은 신호를 전송', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  let requests = 0;
+  globalThis.fetch = async () => { requests++; return expiredResponse(); };
+  await expect(authenticatedAPI({
+    url: '/api/example',
+    signal: controller.signal
+  })).rejects.toMatchObject({
+    code: 'REQUEST_CANCELED'
+  });
+  expect(requests).toBe(0);
+  const active = new AbortController();
+  globalThis.fetch = async (_url, options) => {
+    expect(options?.signal).toBeInstanceOf(AbortSignal);
+    active.abort();
+    throw active.signal.reason;
+  };
+  await expect(authenticatedAPI({
+    url: '/api/example',
+    signal: active.signal
+  })).rejects.toMatchObject({
+    code: 'REQUEST_CANCELED'
+  });
+});
+
+test('Property 조회 취소와 캐시 정리는 현재 계정·대상에만 적용', async () => {
+  const { QueryClient } = await import('@tanstack/react-query');
+  const client = new QueryClient();
+  client.setQueryData(['billing', 'user-a', 'property-b'], 'other-property');
+  client.setQueryData(['billing', 'user-b', 'property-a'], 'other-user');
+  client.setQueryData(['property-access', 'user-a', 'property-a'], 'current-access');
+  client.setQueryData(['billing', 'user-a', 'property-a'], 'old-data');
+  let canceled = false;
+  const pending = client.fetchQuery({
+    queryKey: ['resident-list', 'user-a', 'property-a'],
+    queryFn: ({ signal }) => new Promise((_resolve, reject) => {
+      signal.addEventListener('abort', () => { canceled = true; reject(signal.reason); });
+    })
+  }).catch(() => undefined);
+  await clearPropertyQueries(client, 'user-a', 'property-a');
+  await pending;
+  expect(canceled).toBe(true);
+  expect(client.getQueryData(['billing', 'user-a', 'property-a'])).toBeUndefined();
+  expect(client.getQueryData(['billing', 'user-a', 'property-b'])).toBe('other-property');
+  expect(client.getQueryData(['billing', 'user-b', 'property-a'])).toBe('other-user');
+  expect(client.getQueryData(['property-access', 'user-a', 'property-a'])).toBe('current-access');
+  client.clear();
+});
+
+test('재발급 중 취소는 해당 호출만 중단하고 다른 호출의 재발급과 재시도를 보존', async () => {
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  let refreshing = false;
+  let retries = 0;
+  globalThis.fetch = async (url, options) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith('/csrf')) return Response.json({
+      csrfToken: 'test-csrf'
+    });
+    if (path.endsWith('/refresh')) {
+      refreshing = true;
+      await gate;
+      return Response.json(createSession('test-new-access'));
+    }
+    if (new Headers(options?.headers).get('Authorization') === 'Bearer test-old-access') return expiredResponse();
+    retries++;
+    return Response.json({
+      ok: true
+    });
+  };
+  const controller = new AbortController();
+  const canceled = authenticatedAPI({
+    url: '/api/example',
+    signal: controller.signal
+  });
+  const other = authenticatedAPI({
+    url: '/api/example'
+  });
+  await expect.poll(() => refreshing).toBe(true);
+  controller.abort();
+  await expect(canceled).rejects.toMatchObject({
+    code: 'REQUEST_CANCELED'
+  });
+  release();
+  await expect(other).resolves.toEqual({
+    ok: true
+  });
+  expect(retries).toBe(1);
+});
+
+test('접근 상실 뒤 늦은 Mutation 응답은 이전 캐시를 재생성하지 않고 계정 전환도 구분', async () => {
+  const { QueryClient } = await import('@tanstack/react-query');
+  const { capturePropertyQueryScope, endPropertyQueryScope, setPropertyQueryData } = await import('../src/entities/property/model/propertyQueryScope');
+  const client = new QueryClient();
+  const key = ['billing', 'user-late', 'property-late'];
+  client.setQueryData(['session', 'current-user'], {
+    id: 'user-late'
+  });
+  const old = capturePropertyQueryScope('user-late', 'property-late');
+  setPropertyQueryData(client, key, 'saved', old);
+  expect(client.getQueryData(key)).toBe('saved');
+  endPropertyQueryScope('user-late', 'property-late');
+  client.removeQueries({
+    queryKey: key
+  });
+  setPropertyQueryData(client, key, 'late-response', old);
+  expect(client.getQueryData(key)).toBeUndefined();
+  const current = capturePropertyQueryScope('user-late', 'property-late');
+  setPropertyQueryData(client, key, 'new-scope', current);
+  expect(client.getQueryData(key)).toBe('new-scope');
+  client.setQueryData(['session', 'current-user'], {
+    id: 'other-user'
+  });
+  setPropertyQueryData(client, key, 'old-account', current);
+  expect(client.getQueryData(key)).toBe('new-scope');
+  client.clear();
 });

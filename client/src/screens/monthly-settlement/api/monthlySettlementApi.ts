@@ -8,8 +8,9 @@ import { readPaymentLedger } from '@/widgets/payment-workspace';
 import type { MonthlySettlementSnapshot } from './monthlySettlementApiTypes';
 
 /** 서버의 동일 스냅샷을 기존 업무별 검증기로 확인하며 일부 실패를 빈 자료나 0원으로 바꾸지 않습니다. */
-export async function getMonthlySettlement(propertyId: string, month?: string): Promise<MonthlySettlementSnapshot> {
+export async function getMonthlySettlement(propertyId: string, month?: string, signal?: AbortSignal): Promise<MonthlySettlementSnapshot> {
   const data = await authenticatedAPI<MonthlySettlementSnapshot>({
+    signal,
     url: `/api/properties/${propertyId}/closing/monthly`,
     data: month ? {
       month

@@ -3,6 +3,7 @@ export {
 } from './apiUrl';
 export {
   ApiError,
+  isRequestCanceled,
   customAPI,
   reportApiError
 } from './customApi';

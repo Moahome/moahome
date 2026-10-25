@@ -384,6 +384,29 @@ class SecurityIntegrationTest {
 	}
 
 	@Test
+	void propertyAccessContextChecksBearerUuidMinimalResponseAndSafeFailures() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000001"), propertyId = UUID.randomUUID();
+		var pair = auth.startSession(userId.toString(), ClientType.WEB);
+		String path = "/api/properties/" + propertyId + "/access-context";
+		when(management.getPropertyAccessContext(userId, propertyId)).thenReturn(
+		    new com.moahome.server.property.dto.PropertyAccessContextResponse(propertyId, "대상",
+		        com.moahome.server.membership.domain.PropertyMemberRole.RESIDENT, false));
+		mvc.perform(get(path)).andExpect(status().isUnauthorized());
+		mvc.perform(get(path).header("Authorization", "Bearer " + pair.accessToken()))
+		    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+		    .andExpect(jsonPath("$.length()").value(4)).andExpect(jsonPath("residentEligible").value(false))
+		    .andExpect(jsonPath("role").value("RESIDENT"));
+		mvc.perform(get("/api/properties/invalid/access-context").header("Authorization", "Bearer " + pair.accessToken()))
+		    .andExpect(status().isBadRequest()).andExpect(jsonPath("code").value("INVALID_REQUEST"));
+		for (var code : List.of(AuthErrorCode.ACCESS_DENIED, AuthErrorCode.AUTH_SERVICE_UNAVAILABLE)) {
+			doThrow(new AuthException(code)).when(management).getPropertyAccessContext(userId, propertyId);
+			mvc.perform(get(path).header("Authorization", "Bearer " + pair.accessToken()))
+			    .andExpect(status().is(code.status().value())).andExpect(header().string("Cache-Control", "no-store"))
+			    .andExpect(jsonPath("code").value(code.name()));
+		}
+	}
+
+	@Test
 	void currentUserRejectsAccountThatBecameUnavailableAfterAuthentication() throws Exception {
 		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000001");
 		var pair = auth.startSession(userId.toString(), ClientType.WEB);

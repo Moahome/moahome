@@ -6,6 +6,7 @@ import com.moahome.server.auth.exception.AuthErrorCode;
 import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.auth.security.AuthErrorHandler.ErrorResponse;
 import com.moahome.server.property.dto.ManagedPropertiesResponse;
+import com.moahome.server.property.dto.PropertyAccessContextResponse;
 import com.moahome.server.property.dto.ManagementPropertyResponse;
 import com.moahome.server.property.service.ManagementAccessService;
 import com.moahome.server.user.exception.UserException;
@@ -59,6 +60,17 @@ public class ManagementAccessController {
 		}
 		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
 		    .body(management.getManagementContext(UUID.fromString(principal.userId()), UUID.fromString(propertyId)));
+	}
+
+	/** 역할별 기존 API의 범위를 넓히지 않고 같은 대상의 현재 영역 자격을 확인합니다. */
+	@GetMapping("/api/properties/{propertyId}/access-context")
+	@Operation(summary = "관리대상의 현재 역할과 주민 자격 확인")
+	public ResponseEntity<PropertyAccessContextResponse> accessContext(
+	    @Parameter(hidden = true) @AuthenticationPrincipal AuthPrincipal principal, @PathVariable String propertyId) {
+		if (!propertyId.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"))
+			throw new AuthException(AuthErrorCode.INVALID_REQUEST);
+		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+		    .body(management.getPropertyAccessContext(UUID.fromString(principal.userId()), UUID.fromString(propertyId)));
 	}
 
 	@ExceptionHandler(AuthException.class)

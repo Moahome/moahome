@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  capturePropertyQueryScope,
+  setPropertyQueryData
+} from '@/entities/property';
+
+import {
   LoadingState,
   StateMessage
 } from '@/shared/ui/state-message';
@@ -32,12 +37,13 @@ import styles from './invitationCorrections.module.css';
 /** 개인 초대의 정정 대기는 기존 일반 신청과 출처를 구분하고 명부 수정 권한이 있는 관리자만 검토합니다. */
 export function InvitationCorrections({ propertyId, onBusyChange }: { propertyId: string; onBusyChange: (busy: boolean) => void }) {
   const session = useSession();
+  const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const client = useQueryClient();
   const context = useManagementContext(session.data?.id, propertyId, false);
   const key = ['resident-invitations', session.data?.id, propertyId];
   const query = useQuery({
     queryKey: key,
-    queryFn: () => getResidentInvitations(propertyId),
+    queryFn: ({ signal }) => getResidentInvitations(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
@@ -57,9 +63,10 @@ export function InvitationCorrections({ propertyId, onBusyChange }: { propertyId
     pending.current = true; setBusy(true); setNotice('');
     onBusyChange(true);
     try {
-      client.setQueryData(key, await reviewResidentInvitation(propertyId, row.id, row.revision, action));
+      setPropertyQueryData(client, key, await reviewResidentInvitation(propertyId, row.id, row.revision, action), propertyScope);
       void client.invalidateQueries({
         predicate: (q) => ['property-residents', 'property-units', 'unlinked-residents'].includes(String(q.queryKey[0]))
+          && q.queryKey[1] === session.data?.id && q.queryKey[2] === propertyId
       });
       setNotice(action === 'approve' ? '명부를 정정하고 주민 가입을 승인했어요.' : '정정 요청을 거절했어요. 명부는 변경하지 않았습니다.');
     } catch (failure) { setNotice(memberManagementError(failure)); }

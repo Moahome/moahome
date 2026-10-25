@@ -32,8 +32,9 @@ function readSettings(result: BillingSettings, propertyId: string): BillingSetti
   return result;
 }
 /** 현재 사용자·관리대상의 조회 응답만 사용하며 잘못된 자료는 예시나 빈 설정으로 대체하지 않습니다. */
-export async function getBillingSettings(propertyId: string): Promise<BillingSettings> {
+export async function getBillingSettings(propertyId: string, signal?: AbortSignal): Promise<BillingSettings> {
   return readSettings(await authenticatedAPI<BillingSettings>({
+    signal,
     url: `/api/properties/${propertyId}/billing/settings`
   }), propertyId);
 }
@@ -57,9 +58,10 @@ export async function saveBillingSettings(propertyId: string, settings: BillingS
   }), propertyId);
 }
 /** 모바일 직접 진입과 데스크톱 목록은 같은 월·세대 범위의 업무 API를 조회합니다. */
-export async function getBillingMonth(propertyId: string, month: string, unitId?: string): Promise<BillingMonth> {
+export async function getBillingMonth(propertyId: string, month: string, unitId?: string, signal?: AbortSignal): Promise<BillingMonth> {
   if (!MONTH.test(month) || (unitId && !UUID.test(unitId))) throw new ApiError(400, 'INVALID_REQUEST', '조회할 관리비 정보를 확인해주세요.');
   const result = await authenticatedAPI<BillingMonth>({
+    signal,
     url: `/api/properties/${propertyId}/billing/monthly/${month}${unitId ? `/units/${unitId}` : ''}`
   });
   if (!result || result.propertyId !== propertyId || typeof result.hasBuildings !== 'boolean' || result.month !== month || !['ISSUED', 'SCHEDULED', 'NOT_BILLED'].includes(result.status)
@@ -72,8 +74,9 @@ export async function getBillingMonth(propertyId: string, month: string, unitId?
 
   return result;
 }
-export async function getBillingHistory(propertyId: string): Promise<BillingPeriod[]> {
+export async function getBillingHistory(propertyId: string, signal?: AbortSignal): Promise<BillingPeriod[]> {
   const result = await authenticatedAPI<BillingHistoryResponse>({
+    signal,
     url: `/api/properties/${propertyId}/billing/history`
   });
   if (!result || result.propertyId !== propertyId || !Array.isArray(result.periods) || result.periods.some((period) => !period

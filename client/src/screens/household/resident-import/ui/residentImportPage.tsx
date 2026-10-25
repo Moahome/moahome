@@ -53,7 +53,7 @@ export function ResidentImportPage({
   if (busy === 'save') saveLabel = '등록 중…';
   const listPath = `/manage/${propertyId}/residents`;
 
-  if (!context.isSuccess) {
+  if (!context.data) {
     return (
       <LoadingState
         title={'등록 권한을 확인하고 있어요.'}

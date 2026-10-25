@@ -76,8 +76,8 @@ PaymentPersistenceTest에 전화번호 없는 개인 수락·타 계정 재사�
 | `common/security/InvitationCodeSecurity.java`의 encrypt/decrypt | 초대·Property ID를 AAD로 사용하는 AES-256-GCM | 기존 키링·AAD를 재사용하며 암호문 저장 위치만 변경 |
 | `membership/repo/ResidentInvitationRepository.java`, `ResidentJoinCodeRepository.java`, `MemberInvitationRepository.java` | DB 해시로 초대 출처 조회 | 미사용 인증을 이 조회만으로 허용하지 않음 |
 | `auth/repo/RedisAuthSessionRepository.java`, `RedisOAuthStateRepository.java` | 세션·OAuth Redis 저장과 Lua | 연결·구현 관례 재사용, 키 공간은 분리 |
-| `membership/repo/RedisInvitationCodeRepository.java` | 이전 전 없음 | 신규 작업 파일. 생성·검증 Lua와 DB 완료 콜백 |
-| `payment/exception/PaymentExceptionHandler.java` | 기존 공통 업무 오류 처리 | Redis 초대 장애 503 분기 작업 중 |
+| `membership/repo/RedisInvitationCodeRepository.java` | 이전 전 없음 | 구현. 생성·검증 Lua와 DB 완료 콜백 |
+| `payment/exception/PaymentExceptionHandler.java` | 기존 공통 업무 오류 처리 | Redis 초대 장애 503 분기 구현 |
 
 Controller는 기존 `membership/controller/ResidentInvitationController.java`, `ResidentInvitationClaimController.java`, `MembershipRequestController.java`, `InvitationClaimController.java`, `MemberManagementController.java`의 HTTP 경계를 유지합니다. API 경로·본문·응답은 공통 계약을 기준으로 합니다.
 
@@ -159,7 +159,7 @@ sequenceDiagram
 
 1. 배포 대상의 DB 백업·활성 미사용 초대 수·접수 요청 수·Redis 접근 가능 여부를 운영자가 확인합니다. 값·코드를 문서에 복사하지 않습니다.
 2. 신규 발급을 중지하고 구버전 서버를 종료합니다. 구버전과 신버전을 혼합하면 DB 전용 코드가 재발급될 수 있으므로 이번 전환에서는 함께 실행하지 않습니다.
-3. 후속 Flyway 초안 `V20261025015144__move_invitation_credentials_to_redis.sql`을 검토합니다. 기존 ISSUED는 발급자 출처로 자동 철회하고 revision을 올리며, 접수된 REQUESTED/CHANGE_REQUESTED와 승인·거절 이력은 유지합니다. 만료시각을 소급 연장하지 않습니다.
+3. Flyway `V20261025015144__move_invitation_credentials_to_redis.sql`을 검토합니다. 기존 ISSUED는 발급자 출처로 자동 철회하고 revision을 올리며, 접수된 REQUESTED/CHANGE_REQUESTED와 승인·거절 이력은 유지합니다. 만료시각을 소급 연장하지 않습니다.
 4. 같은 Migration은 DB 재전달 암호문 제거와 외부 초대의 기존 1일 고정 CHECK 완화를 포함합니다. 이미 공유한 Migration은 수정하지 않습니다. 상세 컬럼 분류는 ERD를 따릅니다.
 5. Redis 검증 필수 버전의 Server와 기간 안내를 바꾼 Client를 함께 준비합니다. 새 발급·재전달·소진·기한 후 검토·장애 시 거부를 격리 스모크 테스트로 확인합니다.
 6. 이전 코드 재발급을 안내합니다. Redis 전체 삭제나 세션/OAuth 키 삭제를 전환 절차로 사용하지 않습니다.
@@ -179,14 +179,14 @@ sequenceDiagram
 | 단계 | 작업과 파일 | 상태 |
 | --- | --- | --- |
 | 1 | 도메인·ERD·API에 정책과 저장 역할 구분 | 이번 문서 정리 |
-| 2 | RedisInvitationCodeRepository·초대 Service·Entity·장애 응답 | 앞선 요청으로 작업 중 |
-| 3 | 후속 Migration과 기존 신청·승인 이력 보존 | SQL 초안 존재, 실제 환경 미적용 |
+| 2 | RedisInvitationCodeRepository·초대 Service·Entity·장애 응답 | 구현 |
+| 3 | 후속 Migration과 기존 신청·승인 이력 보존 | 구현·기존 데이터 업그레이드 검증. 로컬 개발 DB의 기존 원본 적용 이력은 아래 재실행 장애 조사에서 확인 |
 | 4 | Client 초대 안내·공유 문구·503 메시지 | 수정 및 기본 검증 통과. 실행 범위는 아래 커밋 전 검증 참조 |
-| 5 | 동시 사용·롤백·Redis 삭제 장애·Migration 업그레이드 검증 | 추가 검증 필요 |
-| 6 | Client·HTTP 별도 작업: signal 전달→최초/백그라운드 UI 분리→Query 소유 범위→공통 접근 검사→진입 시 역할 이동→통합 검증 | 두 선행 필수 과제 포함. 설계만 작성, 미구현 |
+| 5 | 동시 사용·롤백·Redis 삭제 장애·Migration 업그레이드 검증 | 후속 장애·동시성·업그레이드 테스트 추가. 아래 실행 범위 참조 |
+| 6 | Client·HTTP 별도 작업: signal 전달→최초/백그라운드 UI 분리→Query 소유 범위→공통 접근 검사→진입 시 역할 이동→통합 검증 | 후속 구현. 아래 실행 범위 참조 |
 | 7 | 전체 빌드·스모크 테스트·운영 환경 확인 | Server·Client 기본 빌드 통과, 운영 스모크·환경 확인 미실행 |
 
-단계 6은 Redis 초대 저장 구조와 별도의 Client·HTTP 개선 흐름입니다. 업무 화면/모달 보존과 AbortSignal 전달은 현재 미구현이며 착수 시 실제 코드를 재확인해야 합니다. 상세 변경 파일·구현 방법·계정/Property Query 범위·필수 구현 순서·검증 기준은 [Client 후속 필수 계획](../../client/docs/managementLayout.md#후속-필수-과제의-재확인-범위)을 따릅니다. 기본 동작은 새로고침·보호 화면 진입에서 현재 권한을 확인하는 것입니다. 30초 주기·포커스·재연결 자동 권한 조회는 필수 작업에서 제외하고 SSE와 함께 필요 시 후속 검토합니다. Redis 이전 선택 테스트 통과를 이 Client 작업이나 전체 배포 완료로 대신하지 않습니다.
+단계 6은 Redis 초대 저장 구조와 별도의 Client·HTTP 개선이며 이번 후속 요청에서 구현했습니다. 상세 변경 파일·구현 방법·계정/Property Query 범위·필수 구현 순서·검증 기준은 [Client 후속 필수 계획](../../client/docs/managementLayout.md#후속-필수-과제의-재확인-범위)을 따릅니다. 기본 동작은 새로고침·보호 화면 진입에서 현재 권한을 확인하는 것입니다. 30초 주기·포커스·재연결 자동 권한 조회는 필수 작업에서 제외하고 SSE와 함께 필요 시 후속 검토합니다. Redis 이전 선택 테스트 통과를 이 Client 작업이나 전체 배포 완료로 대신하지 않습니다.
 
 문서 전용 요청 전 `PaymentPersistenceTest`의 personal/lostRedis/reopening/reissue/sharedCode/corrections/externalManagerInvitation 선택 테스트와 `ChiefAccountLinkPersistenceTest`는 실제 실행해 통과했습니다. 이는 전체 `./gradlew build`, Client 검사, 모든 장애·동시성·데이터 보존 검증의 완료를 뜻하지 않습니다. 문서 전용 단계에서는 테스트·빌드·Migration을 추가 실행하지 않았습니다. 이후 사용자 커밋 요청에 따른 검증은 다음과 같습니다.
 
@@ -209,4 +209,58 @@ sequenceDiagram
 | Migration | 빈 DB 전체 적용과 이전 최신 스키마→신규 적용, 기존 미사용 코드 철회, 접수·승인·역할·현재 주민 연결·FK 보존, CHECK 변경 |
 | 보안 | 원문/개인정보 로그·URL 미포함, 암호문 AAD 혼입·변조 거부, 타 Property·타 계정 접근 거부 |
 
-Redis 장애 테스트 후보는 `membership/repo/RedisInvitationCodeRepositoryTest.java`이며 아직 작성하지 않았습니다. 격리 Redis·PostgreSQL은 기존 `auth/support/RedisTestServer.java`, `user/support/PostgresTestServer.java`를 재사용합니다. 데이터 삭제가 필요한 테스트는 테스트가 소유한 일회성 인스턴스에만 적용하며 운영 전환 절차에 포함하지 않습니다. 필수 명령은 구현 재개 후 Server에서 `./gradlew test`, 최종 `./gradlew build`입니다.
+`membership/repo/RedisInvitationCodeRepositoryTest.java`에 실제 Redis 연결 불가와 커밋 후 삭제 실패·롤백 시 미삭제 테스트를 추가했습니다. 격리 Redis·PostgreSQL은 기존 `auth/support/RedisTestServer.java`, `user/support/PostgresTestServer.java`를 재사용합니다. 데이터 삭제가 필요한 테스트는 테스트가 소유한 일회성 인스턴스에만 적용하며 운영 전환 절차에 포함하지 않습니다. 필수 명령은 구현 재개 후 Server에서 `./gradlew test`, 최종 `./gradlew build`입니다.
+
+### 후속 구현·검증 기록 (2026-10-25)
+
+이번 후속 요청에서는 기존 Redis 구현을 재작성하지 않고 공통 HTTP 취소·화면 수명·Query 범위·현재 접근 API·역할 이동·서비스 복귀를 구현했습니다. 상세 Client 동작은 [공통 레이아웃](../../client/docs/managementLayout.md#동적-권한-확인과-화면-보존-설계-2026-10-25), Server 조회는 [접근 설계](managementAccess.md#동적-권한을-위한-조회-보완-설계-2026-10-25)를 따릅니다.
+
+기존 암호문이 있는 ISSUED 개인 초대의 업그레이드 테스트에서 `resident_invitations_protected_code_state` 위반을 재현했습니다. 당시 미적용 전제와 사용자 수정 허용에 따라 원본 SQL을 보완했으나, 이후 로컬 개발 DB의 실제 적용 이력이 확인돼 원본을 복원했습니다. 최종 구현은 아래 재실행 장애 복구 기록의 버전 한정 Flyway 콜백을 사용합니다. 후속 버전만 추가해서는 앞선 실패 Migration을 통과할 수 없다는 점과 구버전 서버 중지·실제 적용 이력 확인 조건은 유지합니다.
+
+- Server `./gradlew build` 통과: 523개, 실패·오류·생략 0. 신규 access-context의 역할·주민 자격·충돌·계정/대상 분리·종료·권한 변경 후 이전 관리자 업무 거부, 실제 Redis 연결 불가, 커밋 후 삭제 장애의 결과 보존, DB 저장 실패 후 코드 재시도, 두 계정 동시 개인 수락과 단일 권한 생성, 직전 스키마의 암호문·접수 정정·외부 신청·승인·주민 연결 보존을 추가 검증했습니다. 빈 DB 전체 적용도 기존 격리 PostgreSQL 테스트에서 검증합니다.
+- Client `npm run lint`, `npx --no-install tsc --noEmit`, `npm run test:api` 통과: API·구조·세션 등 114개. 취소·timeout 분리, 공유 Refresh 중 단일 호출 취소·Refresh timeout의 추가 Rotation 차단, 계정/Property 정리와 늦은 Mutation의 캐시 재생성 방지를 포함합니다.
+- Client `npm run build -- --webpack` 프로덕션 빌드 통과. 이번 실행은 webpack 방식이며 기본 Turbopack 빌드를 통과했다고 기록하지 않습니다.
+
+변경된 복귀 계약의 기대값, AbortSignal에 따른 개발 StrictMode 초기 취소를 고려하지 않은 모의 응답, 열린 모달 뒤의 접근 재시도 버튼과 모의 현재 역할을 보완했습니다. 남은 실패를 구분하기 위해 기준 커밋 `5ff412e`의 별도 임시 복사본에서 남은 후보 12개를 실행해 9개 실패·3개 통과를 확인했습니다. 이 9개는 이번 변경 전에도 같은 조건으로 실패하며 이번 범위의 제품 코드로 수정하지 않았습니다.
+
+| 기존 실패 | 확인한 문제 |
+| --- | --- |
+| authFlow 시작 화면 1개 | PC 참여가 모달을 여는 현재 동작에 대해 옛 /join 이동을 기대 |
+| managementLayout 세대 목록 1개 | 드롭다운 표시 개수 글자의 폭 검사 |
+| managementLayout 주민 목록 1개 | 현재 목록 표현과 옛 기대값 불일치 |
+| managementLayout 파일 드래그 1개 | 자식 이탈 뒤 dashed 테두리 기대와 실제 solid 표시 불일치 |
+| managementLayout 주민 상세 3개·번호 조회 실패 1개 | 현재 조회 오류·상세 동작과 옛 문구/선택자 불일치 |
+| managementLayout 세대 주민 요약 1개 | 누락 응답의 오류 기대와 모의 응답 보완 방식 불일치 |
+
+최종 공통 회귀 명령은 다음과 같습니다. 기준 실패를 분리한 실행을 전체 E2E 성공으로 표현하지 않습니다.
+
+`PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/managementLayout.spec.ts tests/onboardingFlow.spec.ts tests/serverConnectionError.spec.ts tests/stateMessages.spec.ts tests/authFlow.spec.ts --grep-invert '시작 화면의 데스크톱|세대 페이지는|주민 목록은 사람별|엑셀 파일 드래그|주민 상세 [0-9]+px|주민 상세를 다시|세대 주민 요약의'`
+
+- 189개 중 188개 통과, 공통 가입 링크 1개가 최초 로그인 확인 대기 중 timeout으로 실패했습니다. 이후 인증 회귀·공통 링크 재실행·업무 스모크 34개 중 33개 통과했으며 공통 링크는 재실행 통과했습니다. 남은 통장 배분 스모크 1개는 모의 access-context의 residentEligible 누락을 찾아 계약에 맞춰 보완했습니다.
+- 후속 사용자 오류 화면 제보를 재현해 오류 안내와 기존 업무 화면이 위아래로 나오는 표시를 수정했습니다. 기존 업무 DOM을 숨긴 채 보존하고, 네이티브 모달·popover도 표시만 닫았다가 복원합니다. PC·모바일 오류 단독 표시와 입력·모달 DOM 복원의 관련 브라우저 3개가 통과했습니다.
+- 공통 API 테스트는 Refresh timeout을 응답 유실로 처리해 추가 Rotation을 차단하는 검증까지 포함해 114개입니다. 후속 표시 수정 뒤에도 최신 `npm run lint`, `npx --no-install tsc --noEmit`, `npm run test:api` 114개와 `npm run build -- --webpack`이 통과했습니다.
+
+남은 운영·추가 검증: 실제 OAuth·카카오톡 브라우저·설치형 앱, 운영 Redis ACL/TLS·eviction·Persistence, 서버 강제 종료·커밋 응답 유실의 복구 훈련, 외부 신청/정정/철회 경합 전체 조합과 실제 운영 스모크입니다. 커밋 후 Redis 삭제 실패 검증은 콜백 격리 테스트이며 운영 장애 주입이나 삭제 Outbox를 구현한 것으로 간주하지 않습니다. 이 작업에서 개발·공유·운영 DB Migration 적용, 배포·커밋·푸시는 하지 않았습니다. 이후 재실행 장애 조사에서 이미 존재하던 로컬 개발 DB 적용 이력을 읽기 전용으로 확인한 사실은 아래에 별도로 기록합니다.
+
+최종 사용자 제보 수정 후 다음 Chrome 회귀 17개가 모두 통과했습니다. 오류 단독 표시·입력/모달 DOM 복원·역할 전환·다중 Property 분리·보호 화면 진입·주기 조회 없음·공통 가입 링크·수납 저장/실패 재시도·통장 업로드/동별 배분·관리비 설정·월별 정산·기존 잔액 응답의 보고서를 포함합니다.
+
+```bash
+PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/managementLayout.spec.ts tests/onboardingFlow.spec.ts tests/billingFlow.spec.ts tests/paymentFlow.spec.ts tests/bankingFlow.spec.ts tests/monthlySettlementFlow.spec.ts tests/balanceReportFlow.spec.ts --grep '업무 403|일시 접근 오류|권한 변경 [0-9]+px|주민 목록은 다른|보호 화면 이동|연결 없는|열린 대시보드|공통 가입 링크|설정하기는 별도|수납 확정 결과|수동 저장 실패|업로드 페이지에서 필터|기타 입금을 동별로 배분|월별 정산 1440px|기존 응답도 계좌 잔액'
+```
+
+관련 화면 캡처에서 PC·모바일 모두 오류 화면 아래에 기존 화면이 나오지 않음을 확인했습니다. 신규 표시 수정 뒤 전체 브라우저 묶음을 다시 통과했다고 주장하지 않으며, 위 최종 17개와 앞선 공통 회귀·기준 실패 확인 결과를 구분합니다.
+
+### 서버 재실행 실패와 Migration 체크섬 복구 (2026-10-25)
+
+로컬 개발 API가 재실행되지 않는다는 제보를 조사한 결과, 개발 DB의 `flyway_schema_history`에는 원본 `V20261025015144`가 체크섬 `832303297`로 이미 적용돼 있었습니다. 앞선 미적용 전제의 수정본 체크섬은 `1863247747`이어서 기존 DB의 Flyway 검증을 통과할 수 없었습니다. 실제 적용 이력을 확인하기 전에 원본을 수정했던 판단을 정정합니다. DB 이력의 체크섬을 갱신하거나 `repair`하지 않고 SQL을 적용 당시 원본으로 복원했습니다.
+
+원본 SQL을 보존하면서 이전 스키마의 ISSUED 암호문 CHECK 문제도 해결하기 위해 `config/InvitationCredentialMigrationCallback.java`를 추가했습니다. Spring Boot의 기존 Flyway Callback 등록을 사용하며 `BEFORE_EACH_MIGRATE` 중 버전 `20261025015144`에만 동작합니다. 아직 이 버전을 적용하지 않은 환경에서 미사용 암호문만 먼저 NULL로 정리하고 기존 SQL이 철회·컬럼 제거를 수행하게 합니다. Flyway의 같은 트랜잭션을 사용하므로 후속 철회 실패 시 선행 정리도 롤백됩니다. 이미 적용된 DB의 검증·재시작이나 신규 발급에는 개입하지 않습니다. 새로운 버전이나 DB 이력 변경은 추가하지 않았습니다.
+
+검증 결과:
+
+- `./gradlew build` 통과: 524개, 실패·오류·생략 0. 격리 DB에서 원본 체크섬 고정, 적용 완료 후 재시작 시 신규 초대 보존, 암호문이 있는 직전 스키마 업그레이드와 접수·승인 이력 보존, 철회 장애 시 선행 암호문 정리의 롤백과 재시도를 검증했습니다.
+- 실제 개발 DB 이력을 읽기 전용으로 조회해 적용 45개·미적용 0개와 모든 파일의 체크섬 일치를 확인했습니다. 진단용 Flyway 비활성화 실행을 종료한 후 기본 `./gradlew bootRun`으로 실행했고, `Successfully validated 45 migrations`, `No migration necessary`, `Started ServerApplication`을 확인했습니다.
+- 복구 검증 당시 로컬 `GET /v3/api-docs`는 200, 인증정보 없는 `GET /api/properties`는 정상 인증 거부인 401을 반환했습니다. 이 요청은 로그인된 업무 흐름 전체 검증을 뜻하지 않습니다.
+- 이 복구에서 실제 개발 DB의 스키마·업무 데이터·Flyway 이력을 수정하거나 신규 Migration을 적용하지 않았습니다. 공유·운영 DB 변경, 배포·커밋·푸시도 하지 않았습니다.
+
+이후 사용자 실행 로그(12:11:35)의 실패 원인은 `Port 8080 was already in use`였습니다. 앞서 에이전트가 검증용으로 실행해 둔 프로세스(PID 30583)가 포트를 점유한 상태에서 사용자가 다시 실행해 충돌했습니다. 에이전트 소유 실행 세션을 종료하고 8080 리스너가 없음을 확인했습니다. 사용자의 터미널 실행을 막지 않도록 검증 서버를 다시 시작하지 않았습니다. 해당 사용자 로그에서 Flyway 45개 검증과 스키마 최신 상태 확인은 이미 통과했으며, Redis Repository 식별 INFO는 종료 원인이 아닙니다.

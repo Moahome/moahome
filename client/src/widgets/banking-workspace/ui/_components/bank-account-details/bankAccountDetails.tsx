@@ -35,7 +35,7 @@ export function BankAccountDetails({ propertyId, account, month }: {
   const session = useSession();
   const query = useQuery({
     queryKey: ['bank-account-detail', session.data?.id, propertyId, account.id],
-    queryFn: () => getBankAccountDetail(propertyId, account.id),
+    queryFn: ({ signal }) => getBankAccountDetail(propertyId, account.id, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0,

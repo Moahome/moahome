@@ -8,6 +8,8 @@ import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.membership.repo.PropertyMemberRepository;
 import com.moahome.server.membership.repo.PropertyMemberRepository.ManagementProperty;
 import com.moahome.server.property.dto.ManagedPropertiesResponse;
+import com.moahome.server.property.dto.PropertyAccessContextResponse;
+import com.moahome.server.resident.repo.ResidentRepository;
 import com.moahome.server.property.dto.ManagementPropertyResponse;
 import com.moahome.server.user.service.UserService;
 import org.springframework.dao.DataAccessException;
@@ -21,9 +23,12 @@ public class ManagementAccessService {
 
 	private final PropertyMemberRepository members;
 
-	public ManagementAccessService(UserService users, PropertyMemberRepository members) {
+	private final ResidentRepository residents;
+
+	public ManagementAccessService(UserService users, PropertyMemberRepository members, ResidentRepository residents) {
 		this.users = users;
 		this.members = members;
+		this.residents = residents;
 	}
 
 	/** 정상 계정의 현재 관리자 참여만 조회하며 조회 실패를 대상 없음으로 처리하지 않습니다. */
@@ -46,6 +51,17 @@ public class ManagementAccessService {
 		if (properties.isEmpty())
 			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
 		return properties.getFirst();
+	}
+
+	/** 현재 역할과 실제 주민 연결을 함께 확인하며 주민 출처가 없는 관리자를 주민으로 추정하지 않습니다. */
+	public PropertyAccessContextResponse getPropertyAccessContext(UUID userId, UUID propertyId) {
+		requireActiveAccount(userId);
+		List<ManagementPropertyResponse> properties = uniqueProperties(members.findAccessContext(userId, propertyId));
+		if (properties.isEmpty())
+			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
+		var property = properties.getFirst();
+		return new PropertyAccessContextResponse(property.propertyId(), property.name(), property.role(),
+		    residents.hasApprovedResident(propertyId, userId));
 	}
 
 	/** 부담당자는 현재 관리소장의 명부를 고칠 수 없으며 대상 계정의 현재 참여로 판단합니다. */

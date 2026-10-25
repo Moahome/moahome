@@ -760,9 +760,9 @@ test('비로그인 상태에서도 공개 화면을 표시하고 화면 이동 �
     name: '카카오로 시작하기'
   })).toBeVisible();
   await page.getByRole('link', {
-    name: '서비스 소개 보기'
+    name: '시작 화면으로'
   }).click();
-  await expect(page).toHaveURL(/\/#service$/);
+  await expect(page).toHaveURL(/\/login$/);
   expect(csrfRequests).toBe(1);
 });
 

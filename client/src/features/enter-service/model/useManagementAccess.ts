@@ -5,16 +5,14 @@ import {
   getManagedPropertiesQueryKey,
   isPropertyId
 } from '@/entities/property';
-import { ApiError } from '@/shared/api';
 import {
   getManagedProperties,
   getResidentProperties,
-  getManagementContext
+  getPropertyAccessContext
 } from '../api/managementAccessApi';
 import {
   forgetRecentProperty,
   readRecentProperty,
-  rememberRecentProperty
 } from './recentProperty';
 
 const FRESH_ACCESS_QUERY_OPTIONS = {
@@ -32,8 +30,8 @@ export function useManagementEntry(userId: string | undefined, enabled = true) {
     ...FRESH_ACCESS_QUERY_OPTIONS,
     queryKey: getManagedPropertiesQueryKey(userId),
     enabled: Boolean(userId) && enabled,
-    queryFn: async () => {
-      const properties = await getManagedProperties();
+    queryFn: async ({ signal }) => {
+      const properties = await getManagedProperties(signal);
       const recentId = readRecentProperty(userId!);
       const recent = properties.find((property) => property.propertyId === recentId);
       if (recentId && !recent) forgetRecentProperty(userId!, recentId);
@@ -42,26 +40,14 @@ export function useManagementEntry(userId: string | undefined, enabled = true) {
   });
 }
 
-/** 공통 레이아웃에서 현재 권한을 검증하며 그 안의 화면은 이미 검증한 결과를 재조회 없이 공유할 수 있습니다. */
+/** 같은 계정·대상의 모든 접근 구독은 하나의 현재 역할 조회를 공유합니다. */
 export function useManagementContext(userId: string | undefined, propertyId: string, revalidateOnMount = true) {
   return useQuery({
     ...FRESH_ACCESS_QUERY_OPTIONS,
-    // 하위 화면의 재마운트가 부모의 조회 중 숨김과 반복되지 않도록 같은 결과를 구독할 때는 재조회를 생략합니다.
     refetchOnMount: revalidateOnMount ? 'always' : false,
-    queryKey: ['management-context', userId, propertyId],
+    queryKey: ['property-access', userId, propertyId],
     enabled: Boolean(userId) && isPropertyId(propertyId),
-    queryFn: async () => {
-      try {
-        const property = await getManagementContext(propertyId);
-        rememberRecentProperty(userId!, propertyId);
-        return property;
-      } catch (error) {
-        if (error instanceof ApiError && error.code === 'ACCESS_DENIED') {
-          forgetRecentProperty(userId!, propertyId);
-        }
-        throw error;
-      }
-    }
+    queryFn: ({ signal }) => getPropertyAccessContext(propertyId, signal)
   });
 }
 
@@ -71,7 +57,7 @@ export function useResidentProperties(userId: string | undefined, enabled = true
     ...FRESH_ACCESS_QUERY_OPTIONS,
     queryKey: ['resident-properties', userId],
     enabled: Boolean(userId) && enabled,
-    queryFn: getResidentProperties,
+    queryFn: ({ signal }) => getResidentProperties(signal),
     gcTime: 0
   });
 }

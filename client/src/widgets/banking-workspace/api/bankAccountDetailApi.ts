@@ -6,8 +6,9 @@ import type {
 } from './bankAccountDetailApiTypes';
 
 /** 마스킹 상세에 원문이 섞이거나 다른 통장의 응답이 도착하면 조회 캐시에 넣지 않습니다. */
-export async function getBankAccountDetail(propertyId: string, accountId: string): Promise<BankAccountDetail> {
+export async function getBankAccountDetail(propertyId: string, accountId: string, signal?: AbortSignal): Promise<BankAccountDetail> {
   const result = await authenticatedAPI<BankAccountDetail>({
+    signal,
     url: `/api/properties/${propertyId}/banking/account/${accountId}`
   });
   if (!result || result.propertyId !== propertyId || result.accountId !== accountId

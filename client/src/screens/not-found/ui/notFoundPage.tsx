@@ -13,7 +13,7 @@ export function NotFoundPage() {
         description={'주소가 올바른지 확인해 주세요.'}
         actions={(
           <Link
-            href={'/'}
+            href={'/start'}
           >
             홈으로 돌아가기
           </Link>

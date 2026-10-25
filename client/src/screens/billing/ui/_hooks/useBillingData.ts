@@ -7,11 +7,11 @@ import {
 } from '@/features/billing-management';
 
 /** 계정·관리대상·조회 조건을 캐시 키에 포함하고 장애를 빈 청구나 예시 데이터로 대체하지 않습니다. */
-function useBillingQuery<T>(propertyId: string, kind: string, queryFn: () => Promise<T>, refreshWithTime = false) {
+function useBillingQuery<T>(propertyId: string, kind: string, queryFn: (signal: AbortSignal) => Promise<T>, refreshWithTime = false) {
   const session = useSession();
   return useQuery({
     queryKey: ['billing', session.data?.id, propertyId, kind],
-    queryFn,
+    queryFn: ({ signal }) => queryFn(signal),
     enabled: Boolean(session.data),
     retry: false,
     staleTime: 0,
@@ -23,11 +23,11 @@ function useBillingQuery<T>(propertyId: string, kind: string, queryFn: () => Pro
   });
 }
 export function useBillingSettings(propertyId: string) {
-  return useBillingQuery(propertyId, 'settings', () => getBillingSettings(propertyId), true);
+  return useBillingQuery(propertyId, 'settings', (signal) => getBillingSettings(propertyId, signal), true);
 }
 export function useBillingMonth(propertyId: string, month: string, unitId?: string) {
-  return useBillingQuery(propertyId, `month:${month}:${unitId ?? ''}`, () => getBillingMonth(propertyId, month, unitId));
+  return useBillingQuery(propertyId, `month:${month}:${unitId ?? ''}`, (signal) => getBillingMonth(propertyId, month, unitId, signal));
 }
 export function useBillingHistory(propertyId: string) {
-  return useBillingQuery(propertyId, 'history', () => getBillingHistory(propertyId));
+  return useBillingQuery(propertyId, 'history', (signal) => getBillingHistory(propertyId, signal));
 }

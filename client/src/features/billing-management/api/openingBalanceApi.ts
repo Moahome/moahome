@@ -22,8 +22,9 @@ function read(value: OpeningWorkspace, property: string) {
 
   return value;
 }
-export async function getOpeningBalances(property: string) {
+export async function getOpeningBalances(property: string, signal?: AbortSignal) {
   return read(await authenticatedAPI<OpeningWorkspace>({
+    signal,
     url: `/api/properties/${property}/billing/opening-balances`
   }), property);
 }

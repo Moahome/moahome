@@ -282,7 +282,7 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
         actions={(onComplete || approved) && (
           <Button
             variant={'outline'}
-            onClick={approved ? () => router.push('/resident') : onComplete}
+            onClick={approved ? () => router.push(preview ? `/resident?propertyId=${preview.propertyId}` : '/resident') : onComplete}
           >
             {approved ? '주민 홈으로' : '확인'}
           </Button>

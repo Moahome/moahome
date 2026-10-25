@@ -32,7 +32,7 @@ function getFailureState(error: unknown): CallbackState {
     };
   }
 
-  if (error.status === 503 || error.code === 'NETWORK_ERROR') {
+  if (error.status === 503 || error.code === 'NETWORK_ERROR' || error.code === 'REQUEST_TIMEOUT') {
     return {
       status: 'error',
       message: '로그인 서비스에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.',
@@ -118,7 +118,7 @@ export function LoginCallbackPage() {
         aria-busy={state.status === 'loading'}
       >
         <Link
-          href={'/'}
+          href={'/start'}
           className={styles.brand}
           aria-label={'모아홈 홈으로'}
         >

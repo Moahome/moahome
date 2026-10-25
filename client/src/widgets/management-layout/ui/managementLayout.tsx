@@ -8,8 +8,14 @@ import {
 } from 'react';
 import { useSession } from '@/entities/session';
 import { isPropertyId } from '@/entities/property';
-import { useManagementContext } from '@/features/enter-service';
-import { ApiError } from '@/shared/api';
+import { usePropertyAccessGuard } from '@/features/enter-service';
+import {
+  ApiError,
+  isRequestCanceled
+} from '@/shared/api';
+import { usePathname } from 'next/navigation';
+import { RequestError } from '@/shared/ui/server-connection-error';
+import { usePreservedWorkspace } from './_hooks/usePreservedWorkspace';
 import { ManagementAccessState } from './_components/management-access-state/managementAccessState';
 import { ManagementSidebar } from './_components/management-sidebar/managementSidebar';
 import styles from './managementLayout.module.css';
@@ -29,10 +35,20 @@ export function ManagementLayout({
   children: ReactNode;
 }) {
   const session = useSession();
-  const property = useManagementContext(session.data?.id, propertyId);
+  const pathname = usePathname();
+  const property = usePropertyAccessGuard({
+    userId: session.data?.id,
+    propertyId,
+    routeKey: pathname,
+    area: 'management'
+  });
   const pageRef = useRef<HTMLDivElement>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const errorRef = useRef<HTMLElement>(null);
   const error = session.error ?? property.error;
   const requiresLogin = error instanceof ApiError && (error.status === 401 || error.code === 'ACCOUNT_UNAVAILABLE');
+  const suspended = Boolean(error && !isRequestCanceled(error) && property.ready && !requiresLogin);
+  usePreservedWorkspace(suspended, workspaceRef, errorRef);
 
   useEffect(() => {
     if (requiresLogin) window.location.replace('/login');
@@ -65,7 +81,39 @@ export function ManagementLayout({
         title={'등록된 곳의 주소가 올바르지 않아요.'}
       />
     );
-  } else if (requiresLogin || session.isFetching || property.isFetching || (!error && !property.isSuccess)) {
+  } else if (property.ready && !requiresLogin && session.data) {
+    content = (
+      <>
+        {suspended && (
+          <main
+            ref={errorRef}
+            className={styles['access-error']}
+            tabIndex={-1}
+          >
+            <RequestError
+              error={error}
+              inputPreserved
+              retrying={property.isFetching}
+              onRetry={() => void property.revalidate()}
+            />
+          </main>
+        )}
+        <div
+          ref={workspaceRef}
+          hidden={suspended}
+          inert={suspended}
+        >
+          <ManagementFrame
+            key={`${session.data.id}:${propertyId}`}
+            propertyId={propertyId}
+            header={header}
+          >
+            {children}
+          </ManagementFrame>
+        </div>
+      </>
+    );
+  } else if (requiresLogin || (!error && !property.blocked) || property.isFetching) {
     content = (
       <ManagementAccessState
         title={'관리할 곳을 확인하고 있어요.'}
@@ -79,14 +127,21 @@ export function ManagementLayout({
         error={property.error}
       />
     );
+  } else if (property.blocked && property.data?.role === 'RESIDENT' && !property.data.residentEligible) {
+    content = (
+      <ManagementAccessState
+        title={'주민 연결을 확인해주세요.'}
+        onRetry={() => void property.revalidate()}
+      />
+    );
   } else if (error) {
     content = (
       <ManagementAccessState
         title={'관리할 곳을 확인하지 못했어요.'}
         error={error}
-        onRetry={() => void (session.isSuccess ? property : session).refetch({
+        onRetry={() => void (session.data ? property.revalidate() : session.refetch({
           cancelRefetch: false
-        })}
+        }))}
       />
     );
   } else if (!session.data || !property.data) {
@@ -98,13 +153,10 @@ export function ManagementLayout({
     );
   } else {
     content = (
-      <ManagementFrame
-        key={session.data.id}
-        propertyId={propertyId}
-        header={header}
-      >
-        {children}
-      </ManagementFrame>
+      <ManagementAccessState
+        title={'현재 접근 권한을 확인하고 있어요.'}
+        loading
+      />
     );
   }
 

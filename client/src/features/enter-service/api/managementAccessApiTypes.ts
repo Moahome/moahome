@@ -17,3 +17,10 @@ export interface ResidentProperty {
 export interface ResidentPropertiesResponse {
   properties: ResidentProperty[];
 }
+
+export interface PropertyAccessContext {
+  propertyId: string;
+  name: string;
+  role: 'ADMIN' | 'MANAGER' | 'RESIDENT';
+  residentEligible: boolean;
+}

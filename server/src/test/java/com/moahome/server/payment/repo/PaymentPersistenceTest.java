@@ -47,6 +47,7 @@ import com.moahome.server.banking.dto.BankingRequests;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
 @Import({com.moahome.server.banking.service.BankBalanceCheckService.class,
+        com.moahome.server.config.InvitationCredentialMigrationCallback.class,
         com.moahome.server.banking.service.IncomeAllocationService.class,
         com.moahome.server.banking.service.BankAccountService.class,
         com.moahome.server.banking.service.BankingBalanceService.class,
@@ -3887,6 +3888,131 @@ class PaymentPersistenceTest {
 		assertThat(
 		    jdbc.queryForObject("select deleted_at from residents where id=?", java.time.OffsetDateTime.class, person))
 		    .isNull();
+	}
+
+	@Autowired
+	ManagementAccessService currentAccess;
+
+	/** 한 코드의 두 계정 수락은 Property 잠금으로 직렬화하고 완료 재시도는 권한을 추가하지 않습니다. */
+	@Test
+	void concurrentPersonalAcceptsCreateOneMembershipAndCurrentAccessTracksRoleChanges() throws Exception {
+		UUID person = jdbc.queryForObject("select id from residents where property_id=? and name='김대표'", UUID.class, property);
+		var issued = personalInvites.issue(user, property, person);
+		var input = new com.moahome.server.membership.dto.ResidentInvitations.Claim(issued.token(), false, null, null, null);
+		List<UUID> accounts = List.of(users.saveAndFlush(User.create("동시 수락1", null)).getId(),
+		    users.saveAndFlush(User.create("동시 수락2", null)).getId());
+		var start = new CountDownLatch(1);
+		try (var pool = Executors.newFixedThreadPool(2)) {
+			List<Future<Boolean>> attempts = accounts.stream().map(account -> pool.submit(() -> {
+				start.await();
+				try { personalInvites.accept(account, input); return true; }
+				catch (PaymentException exception) { return false; }
+			})).toList();
+			start.countDown();
+			int accepted = 0;
+			for (var attempt : attempts) if (attempt.get(10, TimeUnit.SECONDS)) accepted++;
+			assertThat(accepted).isEqualTo(1);
+		}
+		UUID winner = jdbc.queryForObject("select user_id from residents where id=?", UUID.class, person);
+		assertThat(currentAccess.getPropertyAccessContext(winner, property).residentEligible()).isTrue();
+		personalInvites.accept(winner, input);
+		assertThat(jdbc.queryForObject("select count(*) from property_members where property_id=? and user_id=?", Integer.class, property, winner)).isEqualTo(1);
+		jdbc.update("update property_members set role='MANAGER' where property_id=? and user_id=?", property, winner);
+		assertThat(currentAccess.getPropertyAccessContext(winner, property).role().name()).isEqualTo("MANAGER");
+		assertThat(currentAccess.getPropertyAccessContext(winner, property).residentEligible()).isTrue();
+		jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", property, winner);
+		assertThatThrownBy(() -> service.workspace(winner, property)).isInstanceOf(AuthException.class);
+		jdbc.update("update unit_residents set status='MOVED_OUT' where resident_id=?", person);
+		assertThat(currentAccess.getPropertyAccessContext(winner, property).residentEligible()).isFalse();
+	}
+
+	/** DB 저장 실패는 주민 연결·초대 소진·권한을 함께 롤백하며 Redis 코드로 재시도할 수 있어야 합니다. */
+	@Test
+	void personalAcceptStorageFailurePreservesCodeForRetry() {
+		UUID person = jdbc.queryForObject("select id from residents where property_id=? and name='김대표'", UUID.class, property);
+		var issued = personalInvites.issue(user, property, person);
+		UUID joining = users.saveAndFlush(User.create("저장 재시도", null)).getId();
+		var input = new com.moahome.server.membership.dto.ResidentInvitations.Claim(issued.token(), false, null, null, null);
+		jdbc.execute("create function fail_invite_member() returns trigger language plpgsql as $$ begin raise exception 'test'; end $$");
+		jdbc.execute("create trigger fail_invite_member before insert on property_members for each row execute function fail_invite_member()");
+		try {
+			assertThatThrownBy(() -> personalInvites.accept(joining, input)).isInstanceOf(RuntimeException.class);
+			assertThat(jdbc.queryForObject("select user_id from residents where id=?", UUID.class, person)).isNull();
+			assertThat(jdbc.queryForObject("select status from resident_invitations where id=?", String.class, issued.id())).isEqualTo("ISSUED");
+			assertThat(redis.hasKey("membership:invitation:resident:" + issued.id())).isTrue();
+		} finally { jdbc.execute("drop function fail_invite_member() cascade"); }
+		assertThat(personalInvites.accept(joining, input).status()).isEqualTo("APPROVED");
+	}
+
+	/** 직전 스키마에 실제 신청·승인 출처를 복사해 인증 컬럼 제거가 업무 이력을 변경하지 않는지 확인합니다. */
+	@Test
+	void redisCredentialMigrationRevokesOnlyUnusedCodesAndPreservesSubmittedHistory() {
+		List<UUID> people = jdbc.queryForList("select id from residents where property_id=? order by name", UUID.class, property);
+		UUID approvedUser = users.saveAndFlush(User.create("승인 이력", null)).getId();
+		var approved = personalInvites.issue(user, property, people.get(0));
+		personalInvites.accept(approvedUser, new com.moahome.server.membership.dto.ResidentInvitations.Claim(approved.token(), false, null, null, null));
+		UUID correctionUser = users.saveAndFlush(User.create("정정 이력", null)).getId();
+		var correction = personalInvites.issue(user, property, people.get(1));
+		personalInvites.accept(correctionUser, new com.moahome.server.membership.dto.ResidentInvitations.Claim(correction.token(), true, "정정 이름", "KEEP", null));
+		var unused = personalInvites.issue(user, property, people.get(2));
+		var shared = joinCodes.issue(user, property);
+		UUID external = users.saveAndFlush(User.create("외부 신청", null)).getId();
+		var manager = memberManagement.issue(user, property, null);
+		memberManagement.claim(external, manager.code());
+		String schema = "redis_upgrade_" + UUID.randomUUID().toString().replace("-", "");
+		var old = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		    .schemas(schema).defaultSchema(schema).target("20261024081150").load();
+		old.migrate();
+		try {
+			for (String table : List.of("users", "properties", "buildings", "units", "residents", "unit_residents", "property_members", "member_role_events", "resident_join_codes"))
+				copyPreviousTable(schema, table);
+			String columns = jdbc.queryForObject("select string_agg(quote_ident(column_name),',' order by ordinal_position) from information_schema.columns where table_schema='public' and table_name='resident_invitations'", String.class);
+			jdbc.execute("insert into " + schema + ".resident_invitations(" + columns + ") select " + columns + " from resident_invitations");
+			jdbc.update("update " + schema + ".resident_invitations set token_encrypted='old-protected-code' where id=?", unused.id());
+			columns = jdbc.queryForObject("select string_agg(quote_ident(column_name),',' order by ordinal_position) from information_schema.columns where table_schema='public' and table_name='member_invitations'", String.class);
+			jdbc.execute("insert into " + schema + ".member_invitations(" + columns + ") select " + columns.replace("expires_at", "created_at+interval '1 day'") + " from member_invitations");
+			String before = jdbc.queryForObject("select row_to_json(i)::text from " + schema + ".resident_invitations i where id=?", String.class, correction.id());
+			var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+			    .schemas(schema).defaultSchema(schema)
+			    .callbacks(new com.moahome.server.config.InvitationCredentialMigrationCallback()).load();
+			// 철회 중 장애가 나면 선행 암호문 정리도 롤백되어 구버전 데이터가 부분 변경되지 않아야 합니다.
+			jdbc.execute("create function " + schema + ".fail_invitation_revoke() returns trigger language plpgsql as $$ "
+			    + "begin if NEW.status='REVOKED' then raise exception 'test revoke failure'; end if; return NEW; end $$");
+			jdbc.execute("create trigger fail_invitation_revoke before update on " + schema + ".resident_invitations "
+			    + "for each row execute function " + schema + ".fail_invitation_revoke()");
+			assertThatThrownBy(upgraded::migrate).isInstanceOf(org.flywaydb.core.api.FlywayException.class);
+			assertThat(jdbc.queryForObject("select token_encrypted from " + schema + ".resident_invitations where id=?", String.class, unused.id()))
+			    .isEqualTo("old-protected-code");
+			assertThat(jdbc.queryForObject("select status from " + schema + ".resident_invitations where id=?", String.class, unused.id()))
+			    .isEqualTo("ISSUED");
+			jdbc.execute("drop function " + schema + ".fail_invitation_revoke() cascade");
+			assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
+			upgraded.validate();
+			assertThat(jdbc.queryForObject("select status from " + schema + ".resident_invitations where id=?", String.class, unused.id())).isEqualTo("REVOKED");
+			assertThat(jdbc.queryForObject("select status from " + schema + ".resident_join_codes where id=?", String.class, shared.id())).isEqualTo("REVOKED");
+			assertThat(jdbc.queryForObject("select status from " + schema + ".member_invitations where id=?", String.class, manager.id())).isEqualTo("REQUESTED");
+			assertThat(jdbc.queryForObject("select status from " + schema + ".resident_invitations where id=?", String.class, approved.id())).isEqualTo("APPROVED");
+			assertThat(jdbc.queryForObject("select (to_jsonb(i)||jsonb_build_object('token_encrypted',null))::text from " + schema + ".resident_invitations i where id=?", String.class, correction.id()))
+			    .isEqualTo(jdbc.queryForObject("select ?::jsonb::text", String.class, before));
+			assertThat(jdbc.queryForObject("select user_id from " + schema + ".residents where id=?", UUID.class, people.get(0))).isEqualTo(approvedUser);
+			jdbc.update("update " + schema + ".member_invitations set expires_at=created_at+interval '30 minutes' where id=?", manager.id());
+		} finally { jdbc.execute("drop schema " + schema + " cascade"); }
+	}
+
+	/** 적용된 초대 Migration의 체크섬을 고정하고 일반 재시작이 신규 초대를 철회하지 않는지 확인합니다. */
+	@Test
+	void appliedRedisCredentialMigrationKeepsChecksumAndDoesNotRevokeNewInvitations() {
+		UUID person = jdbc.queryForObject("select id from residents where property_id=? and name='김대표'", UUID.class, property);
+		var issued = personalInvites.issue(user, property, person);
+		var current = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		    .callbacks(new com.moahome.server.config.InvitationCredentialMigrationCallback()).load();
+		current.validate();
+		assertThat(Arrays.stream(current.info().applied())
+		    .filter(info -> "20261025015144".equals(info.getVersion().getVersion())).findFirst().orElseThrow().getChecksum())
+		    .isEqualTo(832303297);
+		assertThat(current.migrate().migrationsExecuted).isZero();
+		assertThat(jdbc.queryForObject("select status from resident_invitations where id=?", String.class, issued.id())).isEqualTo("ISSUED");
+		assertThat(redis.hasKey("membership:invitation:resident:" + issued.id())).isTrue();
 	}
 
 }

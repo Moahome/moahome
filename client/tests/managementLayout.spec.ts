@@ -13,7 +13,7 @@ const DASHBOARD = `/manage/${PROPERTY_ID}/dashboard`;
 const REFERENCE_KEY = `moahome.management.recent-property.${USER_ID}`;
 const RESULT_URL = `${API_ORIGIN}/api/property-registrations/${REQUEST_ID}`;
 const LIST_URL = `${API_ORIGIN}/api/users/me/managed-properties`;
-const CONTEXT_URL = `${API_ORIGIN}/api/properties/${PROPERTY_ID}/management-context`;
+const CONTEXT_URL = `${API_ORIGIN}/api/properties/${PROPERTY_ID}/access-context`;
 const PROPERTY = {
   propertyId: PROPERTY_ID,
   name: '성내빌라',
@@ -43,6 +43,12 @@ const RESULT = {
 };
 
 async function fulfillJson(route: Route, body: unknown, status = 200) {
+  if (route.request().url().endsWith('/access-context') && status === 200 && body && typeof body === 'object') {
+    body = {
+      residentEligible: false,
+      ...body
+    };
+  }
   // 기존 세대 시나리오는 주민 요약을 조회하지 않는 권한의 명시적 null 응답을 사용합니다.
   if (body && typeof body === 'object' && 'units' in body && 'hasBuildings' in body && !('residentSummaries' in body)) {
     body = {
@@ -105,7 +111,7 @@ test.beforeEach(async ({ page }) => {
     });
     if (route.request().url() === CONTEXT_URL) return fulfillJson(route, PROPERTY);
     if (route.request().url() === RESULT_URL) return fulfillJson(route, RESULT);
-    if (/^\/api\/properties\/[^/]+\/management-context$/.test(path)) return fulfillJson(route, {
+    if (/^\/api\/properties\/[^/]+\/access-context$/.test(path)) return fulfillJson(route, {
       code: 'ACCESS_DENIED'
     }, 403);
     throw new Error(`Unexpected API: ${route.request().method()} ${path}`);
@@ -270,24 +276,20 @@ test('다른 관리대상 주소에는 등록 결과의 이름과 사이드바�
   })).toHaveCount(0);
 });
 
-test('현재 관리 권한 거부는 이전 이름을 숨기고 최근 선택을 폐기', async ({ page }) => {
+test('현재 참여 종료는 이전 이름을 숨기고 최근 선택을 폐기한 뒤 시작 화면으로 이동', async ({ page }) => {
   await seedRecentProperty(page);
   await page.route(CONTEXT_URL, (route) => fulfillJson(route, {
     code: 'ACCESS_DENIED'
   }, 403));
+  await page.route(LIST_URL, (route) => fulfillJson(route, {
+    properties: []
+  }));
   await page.goto(DASHBOARD);
-  await expect(page.getByText('접근 권한을 확인해주세요')).toBeVisible();
+  await expect(page).toHaveURL('/start');
   await expect(page.getByText('성내빌라', {
     exact: true
   })).toHaveCount(0);
   expect(await page.evaluate((key) => localStorage.getItem(key), REFERENCE_KEY)).toBeNull();
-  await page.route(LIST_URL, (route) => fulfillJson(route, {
-    properties: []
-  }));
-  await page.getByRole('link', {
-    name: '시작 화면으로',
-    exact: true
-  }).click();
   await expect(page.getByRole('button', {
     name: '관리할 곳 만들기',
     exact: true
@@ -498,7 +500,7 @@ test('여러 관리대상은 현재 목록에 있는 최근 선택을 우선하�
   await page.route(LIST_URL, (route) => fulfillJson(route, {
     properties: [PROPERTY, second]
   }));
-  await page.route(`${API_ORIGIN}/api/properties/${secondId}/management-context`, (route) => fulfillJson(route, second));
+  await page.route(`${API_ORIGIN}/api/properties/${secondId}/access-context`, (route) => fulfillJson(route, second));
   await page.goto('/start');
   await expect(page).toHaveURL(`/manage/${secondId}/dashboard`);
   await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
@@ -1796,10 +1798,9 @@ for (const width of [1440, 375, 320]) {
 test('주민 목록 로딩·조회 실패·권한 거부·빈 명부를 구분하고 재시도로 복구', async ({ page }) => {
   let release!: () => void;
   const pending = new Promise<void>((resolve) => { release = resolve; });
-  let calls = 0;
+  let failed = true;
   await page.route(RESIDENTS_URL, async (route) => {
-    calls += 1;
-    if (calls === 1) {
+    if (failed) {
       await pending;
       return fulfillJson(route, {
         code: 'RESIDENT_SERVICE_UNAVAILABLE'
@@ -1816,6 +1817,7 @@ test('주민 목록 로딩·조회 실패·권한 거부·빈 명부를 구분�
   await expect(main.getByRole('article')).toHaveCount(0);
   release();
   await expect(main.getByRole('alert')).toContainText('서버에 연결하지 못했어요');
+  failed = false;
   await main.getByRole('button', {
     name: '다시 시도',
     exact: true
@@ -3477,5 +3479,447 @@ for (const width of [375, 320]) {
     await page.goto(`${HOUSEHOLDS}/automatic`);
     await back.click();
     await expect(page).toHaveURL(HOUSEHOLDS);
+  });
+}
+
+test('업무 403 재확인의 대기·503·재시도는 오류 화면만 표시하면서 주민 등록 모달과 입력 DOM을 보존', async ({ page }) => {
+  await page.setViewportSize({
+    width: 1440,
+    height: 960
+  });
+  await mockResidentRegistrationUnits(page, false);
+  await page.route(RESIDENTS_URL, (route) => route.request().method() === 'POST'
+    ? fulfillJson(route, {
+      code: 'ACCESS_DENIED'
+    }, 403)
+    : fulfillJson(route, residentDirectory(false)));
+  let checks = 0;
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route(CONTEXT_URL, async (route) => {
+    checks++;
+    if (checks === 2) { await gate; return fulfillJson(route, {
+      code: 'INTERNAL_SERVER_ERROR'
+    }, 503); }
+    return fulfillJson(route, PROPERTY);
+  });
+  await page.goto(RESIDENTS);
+  await page.getByRole('button', {
+    name: '주민 등록',
+    exact: true
+  }).click();
+  await fillResidentRegistration(page, false);
+  // 숨긴 DOM도 같은 노드인지 확인하므로 접근성 트리 대신 입력과 모달의 실제 요소를 추적합니다.
+  const dialog = page.locator('dialog[aria-labelledby="resident-registration-title"]');
+  const name = dialog.locator('input[placeholder="이름을 입력해주세요"]');
+  const value = await name.inputValue();
+  await name.evaluate((element) => { element.dataset.preserved = 'yes'; });
+  await dialog.getByRole('button', {
+    name: '등록',
+    exact: true
+  }).click();
+  await expect.poll(() => checks).toBe(2);
+  await expect(dialog).toBeVisible();
+  await expect(name).toHaveValue(value);
+  release();
+  await expect(page.getByText('서버에 연결하지 못했어요')).toBeVisible();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByRole('navigation', {
+    name: '관리 메뉴'
+  })).toHaveCount(0);
+  await expect(page.getByRole('main')).toHaveCount(1);
+  await page.screenshot({
+    path: test.info().outputPath('accessErrorOnly.png'),
+    fullPage: true
+  });
+  await expect(name).toHaveValue(value);
+  await page.getByRole('button', {
+    name: '다시 시도',
+    exact: true
+  }).first().click();
+  await expect.poll(() => checks).toBe(3);
+  await expect(dialog).toBeVisible();
+  await expect(name).toHaveValue(value);
+  await expect(name).toHaveAttribute('data-preserved', 'yes');
+  await expect(page).toHaveURL(RESIDENTS);
+  await page.screenshot({
+    path: test.info().outputPath('preservedRegistration.png'),
+    fullPage: true
+  });
+});
+
+for (const width of [1440, 390]) {
+  test(`권한 변경 ${width}px는 같은 Property의 주민 홈과 관리자 대시보드로 전환`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    let role = 'RESIDENT';
+    await page.route(CONTEXT_URL, (route) => fulfillJson(route, {
+      ...PROPERTY,
+      role,
+      residentEligible: true
+    }));
+    await page.goto(DASHBOARD);
+    await expect(page).toHaveURL(`/resident?propertyId=${PROPERTY_ID}`);
+    await expect(page.getByRole('heading', {
+      name: '주민 홈',
+      exact: true
+    })).toBeVisible();
+    role = 'MANAGER';
+    await page.reload();
+    await expect(page).toHaveURL(DASHBOARD);
+    await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  });
+}
+
+for (const width of [1440, 390]) {
+  for (const role of ['ADMIN', 'MANAGER']) {
+    test(`기본 주민 홈 ${width}px는 마지막 주민 참여가 ${role}로 변경되면 새로고침 후 관리자 대시보드로 이동`, async ({ page }) => {
+      await page.setViewportSize({
+        width,
+        height: 900
+      });
+      let resident = true;
+      let managementChecks = 0;
+      await page.route(`${API_ORIGIN}/api/users/me/resident-properties`, (route) => fulfillJson(route, {
+        properties: resident ? [{
+          ...PROPERTY,
+          role: 'RESIDENT'
+        }] : []
+      }));
+      await page.route(LIST_URL, (route) => {
+        managementChecks++;
+        return fulfillJson(route, {
+          properties: [{
+            ...PROPERTY,
+            role
+          }]
+        });
+      });
+      await page.route(CONTEXT_URL, (route) => fulfillJson(route, {
+        ...PROPERTY,
+        role
+      }));
+      await page.goto('/resident');
+      await expect(page.getByRole('button', {
+        name: PROPERTY.name,
+        exact: true
+      })).toBeVisible();
+      expect(managementChecks).toBe(0);
+      resident = false;
+      await page.reload();
+      await expect(page).toHaveURL(DASHBOARD);
+      await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+      expect(managementChecks).toBe(1);
+      await page.goBack();
+      await expect(page).not.toHaveURL('/resident');
+    });
+  }
+
+  test(`기본 주민 홈 ${width}px는 전체 참여가 종료되면 새로고침 후 시작 안내로 이동`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    let resident = true;
+    await page.route(`${API_ORIGIN}/api/users/me/resident-properties`, (route) => fulfillJson(route, {
+      properties: resident ? [{
+        ...PROPERTY,
+        role: 'RESIDENT'
+      }] : []
+    }));
+    await page.route(LIST_URL, (route) => fulfillJson(route, {
+      properties: []
+    }));
+    await page.goto('/resident');
+    await expect(page.getByRole('button', {
+      name: PROPERTY.name,
+      exact: true
+    })).toBeVisible();
+    resident = false;
+    await page.reload();
+    await expect(page).toHaveURL('/start');
+    await expect(page.getByRole('button', {
+      name: '관리할 곳 만들기',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('heading', {
+      name: '아직 가입한 곳이 없어요'
+    })).toHaveCount(0);
+  });
+}
+
+test('기본 주민 홈은 다른 대상에 주민 참여가 남아 있으면 관리자 역할을 전역 적용하지 않음', async ({ page }) => {
+  let promoted = false;
+  let managementChecks = 0;
+  const otherResident = {
+    propertyId: 'a8244d21-62f3-4b94-aa40-24e3446139c1',
+    name: '다른 주민 아파트',
+    role: 'RESIDENT'
+  };
+  await page.route(`${API_ORIGIN}/api/users/me/resident-properties`, (route) => fulfillJson(route, {
+    properties: promoted ? [otherResident] : [{
+      ...PROPERTY,
+      role: 'RESIDENT'
+    }, otherResident]
+  }));
+  await page.route(LIST_URL, (route) => {
+    managementChecks++;
+    return fulfillJson(route, {
+      properties: [PROPERTY]
+    });
+  });
+  await page.goto('/resident');
+  await expect(page.getByRole('button', {
+    name: PROPERTY.name,
+    exact: true
+  })).toBeVisible();
+  promoted = true;
+  await page.reload();
+  await expect(page.getByRole('button', {
+    name: otherResident.name,
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('button', {
+    name: PROPERTY.name,
+    exact: true
+  })).toHaveCount(0);
+  await expect(page).toHaveURL('/resident');
+  expect(managementChecks).toBe(0);
+});
+
+test('기본 주민 홈의 관리자 대체 진입은 현재 서버 목록에 있는 최근 관리대상을 선택', async ({ page }) => {
+  const recent = {
+    ...PROPERTY,
+    propertyId: 'a8244d21-62f3-4b94-aa40-24e3446139c1',
+    name: '최근 아파트',
+    role: 'MANAGER'
+  };
+  await seedRecentProperty(page, recent.propertyId);
+  await page.route(LIST_URL, (route) => fulfillJson(route, {
+    properties: [PROPERTY, recent]
+  }));
+  await page.route(`${API_ORIGIN}/api/properties/${recent.propertyId}/access-context`, (route) => fulfillJson(route, recent));
+  await page.goto('/resident');
+  await expect(page).toHaveURL(`/manage/${recent.propertyId}/dashboard`);
+  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+});
+
+for (const failedQuery of ['resident-properties', 'managed-properties']) {
+  test(`기본 주민 홈의 ${failedQuery} 장애는 참여 종료로 이동하지 않고 실패 조회만 재시도`, async ({ page }) => {
+    let unavailable = true;
+    let residentChecks = 0;
+    let managementChecks = 0;
+    await page.route(`${API_ORIGIN}/api/users/me/resident-properties`, (route) => {
+      residentChecks++;
+      if (failedQuery === 'resident-properties' && unavailable) return fulfillJson(route, {
+        code: 'AUTH_SERVICE_UNAVAILABLE'
+      }, 503);
+      return fulfillJson(route, {
+        properties: []
+      });
+    });
+    await page.route(LIST_URL, (route) => {
+      managementChecks++;
+      if (failedQuery === 'managed-properties' && unavailable) return fulfillJson(route, {
+        code: 'AUTH_SERVICE_UNAVAILABLE'
+      }, 503);
+      return fulfillJson(route, {
+        properties: [PROPERTY]
+      });
+    });
+    await page.goto('/resident');
+    await expect(page.getByRole('heading', {
+      name: '서버에 연결하지 못했어요'
+    })).toBeVisible();
+    await expect(page).toHaveURL('/resident');
+    if (failedQuery === 'resident-properties') expect(managementChecks).toBe(0);
+    const previousResidentChecks = residentChecks;
+    unavailable = false;
+    await page.getByRole('button', {
+      name: '다시 시도',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(DASHBOARD);
+    if (failedQuery === 'managed-properties') expect(residentChecks).toBe(previousResidentChecks);
+  });
+}
+
+test('기본 주민 홈은 start의 캐시가 있어도 새 조회 전에 이전 내용이나 빈 참여 안내를 표시하지 않음', async ({ page }) => {
+  let releaseResident = () => {};
+  let releaseManagement = () => {};
+  let residentChecks = 0;
+  let managementChecks = 0;
+  const residentGate = new Promise<void>((resolve) => { releaseResident = resolve; });
+  const managementGate = new Promise<void>((resolve) => { releaseManagement = resolve; });
+  await page.route(`${API_ORIGIN}/api/users/me/resident-properties`, async (route) => {
+    residentChecks++;
+    if (residentChecks === 1) return fulfillJson(route, {
+      properties: [{
+        ...PROPERTY,
+        role: 'RESIDENT'
+      }]
+    });
+    await residentGate;
+    return fulfillJson(route, {
+      properties: []
+    });
+  });
+  await page.route(LIST_URL, async (route) => {
+    managementChecks++;
+    if (managementChecks === 1) return fulfillJson(route, {
+      properties: []
+    });
+    await managementGate;
+    return fulfillJson(route, {
+      properties: [PROPERTY]
+    });
+  });
+  await page.goto('/start');
+  await expect(page).toHaveURL('/resident');
+  await expect(page.getByText('주민 참여 정보를 확인하고 있어요.')).toBeVisible();
+  await expect(page.getByRole('heading', {
+    name: '모아홈에 오신 것을 환영해요',
+    exact: true
+  })).toHaveCount(0);
+  await expect(page.getByRole('heading', {
+    name: '아직 가입한 곳이 없어요',
+    exact: true
+  })).toHaveCount(0);
+  const pendingManagement = page.waitForRequest(LIST_URL);
+  releaseResident();
+  await pendingManagement;
+  await expect(page.getByText('주민 참여 정보를 확인하고 있어요.')).toBeVisible();
+  await expect(page.getByRole('heading', {
+    name: '아직 가입한 곳이 없어요',
+    exact: true
+  })).toHaveCount(0);
+  releaseManagement();
+  await expect(page).toHaveURL(DASHBOARD);
+});
+
+test('주민 목록은 다른 대상의 관리자 역할을 전역 역할로 적용하지 않고 명시적 선택만 검증', async ({ page }) => {
+  let checks = 0;
+  await page.route(CONTEXT_URL, (route) => { checks++; return fulfillJson(route, {
+    ...PROPERTY,
+    role: 'MANAGER'
+  }); });
+  await page.route(`${API_ORIGIN}/api/users/me/resident-properties`, (route) => fulfillJson(route, {
+    properties: [{
+      ...PROPERTY,
+      role: 'RESIDENT'
+    }]
+  }));
+  await page.goto('/resident');
+  await expect(page.getByRole('button', {
+    name: PROPERTY.name,
+    exact: true
+  })).toBeVisible();
+  expect(checks).toBe(0);
+  await page.getByRole('button', {
+    name: PROPERTY.name,
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(DASHBOARD);
+});
+
+test('보호 화면 이동은 서버 권한 확인을 마칠 때까지 새 화면을 숨기고 종료된 참여는 start로 복귀', async ({ page }) => {
+  await page.goto(DASHBOARD);
+  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  await page.route(CONTEXT_URL, async (route) => { await gate; return fulfillJson(route, {
+    code: 'ACCESS_DENIED'
+  }, 403); });
+  await page.route(LIST_URL, route => fulfillJson(route, {
+    properties: []
+  }));
+  await page.getByRole('link', {
+    name: '설정',
+    exact: true
+  }).click();
+  await expect(page.getByText('관리할 곳을 확인하고 있어요.')).toBeVisible();
+  await expect(page.getByRole('heading', {
+    name: '설정',
+    exact: true
+  })).toHaveCount(0);
+  release();
+  await expect(page).toHaveURL('/start');
+  await expect(page.getByRole('button', {
+    name: '관리할 곳 만들기',
+    exact: true
+  })).toBeVisible();
+});
+
+test('연결 없는 주민으로 변경되면 주민 업무를 열지 않고 연결 확인을 안내', async ({ page }) => {
+  await page.route(CONTEXT_URL, route => fulfillJson(route, {
+    ...PROPERTY,
+    role: 'RESIDENT',
+    residentEligible: false
+  }));
+  await page.goto(DASHBOARD);
+  await expect(page.getByText('주민 연결을 확인해주세요.')).toBeVisible();
+  await expect(page.getByRole('navigation', {
+    name: '관리 메뉴'
+  })).toHaveCount(0);
+});
+
+test('열린 대시보드는 30초 경과·포커스·네트워크 복구만으로 권한을 조회하지 않음', async ({ page }) => {
+  let checks = 0;
+  await page.route(CONTEXT_URL, route => { checks++; return fulfillJson(route, PROPERTY); });
+  await page.clock.install();
+  await page.goto(DASHBOARD);
+  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  const initial = checks;
+  await page.clock.fastForward(31_000);
+  await page.evaluate(() => { window.dispatchEvent(new Event('focus')); window.dispatchEvent(new Event('online')); });
+  expect(checks).toBe(initial);
+});
+
+for (const width of [1440, 390]) {
+  test(`일시 접근 오류 ${width}px는 기존 화면을 밑으로 밀지 않고 단일 오류 화면에서 입력을 복원`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 700
+    });
+    await mockResidentRegistrationUnits(page, false);
+    await page.route(RESIDENTS_URL, route => fulfillJson(route, {
+      code: 'ACCESS_DENIED'
+    }, 403));
+    let failed = false;
+    await page.route(CONTEXT_URL, route => failed
+      ? route.abort('failed')
+      : fulfillJson(route, PROPERTY));
+    await page.goto(`/manage/${PROPERTY_ID}/residents/new`);
+    await fillResidentRegistration(page, false);
+    const name = page.locator('input[placeholder="이름을 입력해주세요"]');
+    await name.evaluate((element) => { element.dataset.preserved = 'yes'; });
+    failed = true;
+    await page.getByRole('button', {
+      name: '등록',
+      exact: true
+    }).click();
+    await expect(page.getByText('서버에 연결하지 못했어요')).toBeVisible();
+    await expect(page.getByRole('banner')).toHaveCount(0);
+    await expect(page.getByRole('main')).toHaveCount(1);
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await expect(page.getByRole('navigation', {
+      name: '관리 메뉴'
+    })).toHaveCount(0);
+    await expect(name).not.toBeVisible();
+    await expect(name).toHaveValue('새 주민');
+    await page.screenshot({
+      path: test.info().outputPath(`accessErrorOnly${width}.png`),
+      fullPage: true
+    });
+    failed = false;
+    await page.getByRole('button', {
+      name: '다시 시도',
+      exact: true
+    }).click();
+    await expect(name).toBeVisible();
+    await expect(name).toHaveValue('새 주민');
+    await expect(name).toHaveAttribute('data-preserved', 'yes');
   });
 }

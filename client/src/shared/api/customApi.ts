@@ -17,11 +17,16 @@ export class ApiError extends Error {
   }
 }
 
+/** 호출자 취소는 화면 오류·인증 실패·서버 롤백의 근거로 사용하지 않습니다. */
+export function isRequestCanceled(error: unknown): boolean {
+  return error instanceof ApiError && error.code === 'REQUEST_CANCELED';
+}
+
 const reportedErrors = new WeakSet<object>();
 
 /** 개발 콘솔에는 실패 위치와 안전한 진단 정보만 남기며, 전송부·화면이 같은 오류를 중복 기록하지 않습니다. */
 export function reportApiError(error: unknown, context: Pick<CustomApiOptions, 'url' | 'method'> | ApiErrorSource) {
-  if (process.env.NODE_ENV !== 'development') return;
+  if (isRequestCanceled(error) || process.env.NODE_ENV !== 'development') return;
   if (error !== null && typeof error === 'object') {
     if (reportedErrors.has(error)) return;
     reportedErrors.add(error);
@@ -112,6 +117,7 @@ async function requestAPI<T = unknown>({
   data,
   headers: customHeaders,
   timeoutMs = 15_000,
+  signal,
 }: CustomApiOptions): Promise<T> {
   const url = getApiUrl(path);
   const headers = new Headers(customHeaders);
@@ -132,7 +138,10 @@ async function requestAPI<T = unknown>({
   let response: Response;
   let responseText: string;
 
+  const timeout = AbortSignal.timeout(timeoutMs);
+  const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
   try {
+    requestSignal.throwIfAborted();
     response = await fetch(url, {
       method,
       headers,
@@ -140,10 +149,17 @@ async function requestAPI<T = unknown>({
       credentials: 'include',
       cache: 'no-store',
       // 응답 대기가 무한정 계속되어 세션 복원 잠금이 유지되는 상황을 방지합니다.
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: requestSignal,
     });
     responseText = await response.text();
+    requestSignal.throwIfAborted();
   } catch {
+    if (requestSignal.aborted) {
+      if (requestSignal.reason === timeout.reason && timeout.aborted) {
+        throw new ApiError(0, 'REQUEST_TIMEOUT', '서버 응답 시간이 초과되었습니다.');
+      }
+      throw new ApiError(0, 'REQUEST_CANCELED', '요청 대기가 취소되었습니다.');
+    }
     throw new ApiError(0, 'NETWORK_ERROR', '서버에 연결할 수 없습니다.');
   }
 

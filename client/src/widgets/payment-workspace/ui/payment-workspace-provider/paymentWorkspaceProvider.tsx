@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  capturePropertyQueryScope,
+  setPropertyQueryData
+} from '@/entities/property';
+
 import { LoadingState } from '@/shared/ui/state-message';
 
 import { useSession } from '@/entities/session';
@@ -37,11 +42,12 @@ const PaymentWorkspaceContext = createContext<PaymentWorkspaceContextValue | nul
 /** 계정·관리대상별 실제 원장을 조회하고 조회 장애를 예시 데이터나 빈 수납으로 대체하지 않습니다. */
 export function PaymentWorkspaceProvider({ propertyId, children }: { propertyId: string; children: ReactNode }) {
   const session = useSession();
+  const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const cache = useQueryClient();
   const key = ['payment-workspace', session.data?.id, propertyId];
   const query = useQuery({
     queryKey: key,
-    queryFn: () => getPaymentLedger(propertyId),
+    queryFn: ({ signal }) => getPaymentLedger(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     staleTime: 0,
@@ -63,7 +69,7 @@ export function PaymentWorkspaceProvider({ propertyId, children }: { propertyId:
     });
     try {
       const saved = await mutatePayment(propertyId, command);
-      cache.setQueryData(key, saved);
+      setPropertyQueryData(cache, key, saved, propertyScope);
       onSaved?.(saved);
       void cache.invalidateQueries({
         queryKey: ['billing', session.data?.id, propertyId]

@@ -10,6 +10,12 @@ const BASE = `/manage/${PROPERTY}`;
 
 /** 상태 표시 검증은 실제 인증·저장소 없이 조회 결과만 모의 처리합니다. */
 async function json(route: Route, body: unknown, status = 200) {
+  if (route.request().url().endsWith('/access-context') && status === 200 && body && typeof body === 'object') {
+    body = {
+      residentEligible: false,
+      ...body
+    };
+  }
   await route.fulfill({
     status,
     contentType: 'application/json',
@@ -75,7 +81,7 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
         name: '모아빌라',
         role: 'MANAGER'
       };
-      if (path.endsWith('/management-context')) return json(route, property);
+      if (path.endsWith('/access-context')) return json(route, property);
       if (path.endsWith('/managed-properties')) return json(route, {
         properties: [property]
       });
@@ -245,7 +251,7 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
       let paymentPending = false;
       await page.route(`${API}/api/properties/${PROPERTY}/**`, async (route) => {
         const path = new URL(route.request().url()).pathname;
-        if (route.request().method() !== 'GET' || path.endsWith('/management-context')) return route.fallback();
+        if (route.request().method() !== 'GET' || path.endsWith('/access-context')) return route.fallback();
         if (!paymentPending && path.endsWith('/payments/workspace')) return route.fallback();
         await responseReady;
         await route.abort('failed');
@@ -342,7 +348,7 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
       await expect(state.locator('img')).toHaveAttribute('src', /notFound/);
       await expect(state.getByRole('link', {
         name: '홈으로 돌아가기'
-      })).toHaveAttribute('href', '/');
+      })).toHaveAttribute('href', '/start');
       await expect(state.getByRole('link', {
         name: '홈으로 돌아가기'
       })).toHaveCSS('color', 'rgb(37, 99, 235)');

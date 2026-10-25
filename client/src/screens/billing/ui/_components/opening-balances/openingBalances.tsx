@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  capturePropertyQueryScope,
+  setPropertyQueryData
+} from '@/entities/property';
+
 import { LoadingState } from '@/shared/ui/state-message';
 
 import { RequestError } from '@/shared/ui/server-connection-error';
@@ -41,11 +46,12 @@ import styles from './openingBalances.module.css';
 /** 계정·관리대상별 초안을 읽고 저장 성공한 서버 버전으로만 편집 화면을 교체합니다. */
 export function OpeningBalances({ propertyId }: { propertyId: string }) {
   const session = useSession();
+  const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const client = useQueryClient();
   const queryKey = ['opening-balances', session.data?.id, propertyId];
   const query = useQuery({
     queryKey,
-    queryFn: () => getOpeningBalances(propertyId),
+    queryFn: ({ signal }) => getOpeningBalances(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
@@ -69,9 +75,10 @@ export function OpeningBalances({ propertyId }: { propertyId: string }) {
       key={`${propertyId}:${query.data.batch?.id}:${query.data.batch?.revision}`}
       data={query.data}
       onSaved={(saved) => {
-        client.setQueryData(queryKey, saved);
+        setPropertyQueryData(client, queryKey, saved, propertyScope);
         void client.invalidateQueries({
           predicate: (q) => ['billing', 'payment-workspace'].includes(String(q.queryKey[0]))
+          && q.queryKey[1] === session.data?.id && q.queryKey[2] === propertyId
         });
       }}
     />

@@ -6,7 +6,7 @@
 
 ### 현재 조회 연결
 
-`GET /api/properties/{propertyId}/management-context`로 현재 관리자 참여와 활성 관리대상을 확인합니다. 등록 당시 역할이나 등록 요청 ID에 의존하지 않으며 임시 대시보드에는 업무 데이터와 관리 작업을 제공하지 않습니다. 관리비는 실제 설정·세대·청구 API를 사용합니다.
+`GET /api/properties/{propertyId}/access-context`로 현재 관리자 참여와 활성 관리대상을 확인합니다. 등록 당시 역할이나 등록 요청 ID에 의존하지 않으며 임시 대시보드에는 업무 데이터와 관리 작업을 제공하지 않습니다. 관리비는 실제 설정·세대·청구 API를 사용합니다.
 
 일반 `/start`는 서버 목록으로 기본 대상을 결정하며 [서비스 진입 설계의 현재 조회 연결](serviceEntry.md#현재-조회-연결)을 따릅니다. 브라우저 등록 기록 없이도 현재 관리자 참여로 연결됩니다.
 
@@ -194,11 +194,12 @@ PC와 모바일은 같은 `ManagementSidebar`, `SidebarDropdown`, `SidebarLink`�
 
 | 상태 | 레이아웃 처리 |
 | --- | --- |
-| 세션 / 현재 관리 권한 확인 중 | 이전 관리대상 이름·본문을 숨기고 확인 상태 표시 |
+| 최초 / 새 보호 경로 확인 중 | 이전 관리대상 이름·본문을 숨기고 확인 상태 표시 |
+| 같은 화면 권한 재확인 중 | 기존 업무 화면·입력 유지 |
 | 권한 확인 성공 | 확인한 대상의 사이드바와 하위 본문 표시 |
 | 인증 거부 / 계정 이용 불가 | 기존 인증 흐름에 따라 로그인으로 이동 |
-| 현재 관리 권한 없음 | 이전 본문을 숨기고 접근 거부 및 서비스 재진입 동작 제공 |
-| 네트워크 / 내부 조회 장애 | 이전 본문을 숨기고 해당 조회 재시도 제공 |
+| 현재 관리 권한 없음 | 현재 역할·주민 자격을 확인해 맞는 메인 또는 /start로 이동 |
+| 네트워크 / 내부 조회 장애 | 최초에는 재시도 안내, 같은 화면 재확인에서는 기존 본문을 유지하고 재시도 |
 | 관리대상 ID 형식 오류 | API를 호출하지 않고 잘못된 접근 상태와 서비스 재진입 동작 제공 |
 
 현재 화면의 재진입 동작은 `/start`로 연결해 목록을 새로 확인합니다. 별도 `/entry`는 후속 범위입니다. 거부된 ID를 최근 기록에서 제거할 때는 현재 사용자와 제거 대상 ID가 같은지 확인해 늦은 응답이 다른 선택을 지우지 않도록 합니다. 실패를 빈 목록으로 처리해 `/start`로 자동 이동하지 않습니다.
@@ -222,7 +223,7 @@ PC와 모바일은 같은 `ManagementSidebar`, `SidebarDropdown`, `SidebarLink`�
 - 모든 이동 항목에 자신의 목적지 경로가 정의되고 활성 항목이 현재 관리대상 UUID를 포함한 실제 `Link`로 연결됨.
 - 후속 하위 페이지 연결 시 메뉴별 URL과 화면 슬라이스로 이동하고 동일 레이아웃에서 본문만 교체되며 해당 그룹이 펼쳐짐.
 - PC 메뉴 스크롤, 긴 이름, 320px / 390px 모바일의 가로 넘침과 열기·닫기·포커스·스크롤 복원.
-- 직접 URL 접근, 주민 역할 / 다른 사용자 / 권한 종료의 거부, 조회 중과 장애 시 이전 본문 숨김.
+- 직접 URL 접근, 역할 변경·다른 사용자·권한 종료 처리, 최초 확인 전 본문 숨김과 같은 화면 재조회 시 작업 보존.
 - 관리대상 변경과 로그아웃 후 뒤로가기 / bfcache 복원에서 계정·대상 정보가 섞이지 않음.
 
 현재 메뉴·반응형·목록 / 현재 권한 연결과 조회 실패 / 계정 격리 / 캐시 복원 검증은 `tests/managementLayout.spec.ts`와 기존 등록 테스트에 작성했습니다. 후속 업무 메뉴는 해당 기능 구현 시 검증합니다. 실행 명령은 [Client AGENTS.md](../AGENTS.md)를 따릅니다.
@@ -250,182 +251,56 @@ PC와 모바일은 같은 `ManagementSidebar`, `SidebarDropdown`, `SidebarLink`�
 
 ## 동적 권한 확인과 화면 보존 설계 (2026-10-25)
 
-상태: 미구현 설계. 업무 규칙은 [도메인 규칙](../../docs/domainRules.md#초대-인증서비스-복귀역할-변경의-후속-확정-방향-2026-10-25), 조회 보완안은 [공유 API](../../docs/managementAccessApi.md#8-동적-권한을-위한-최소-조회-보완안-2026-10-25), 오류 복귀는 [서비스 진입](serviceEntry.md#오류-복귀와-공개-랜딩-분리-설계-2026-10-25)을 따릅니다. 이 절은 기존 최초 진입 확인을 확장하며 아직 동작한다고 기록하지 않습니다.
-
-### 현재 코드의 제약
-
-- `src/features/enter-service/model/useManagementAccess.ts`에 실제 함수 useManagementEntry/useManagementContext/useResidentProperties가 있습니다. useManagementAccess라는 이름의 Hook이 따로 구현된 것은 아닙니다. 공통 옵션은 staleTime 0, refetchOnMount always, 포커스·재연결 자동 조회 false이며 주기 조회는 없습니다.
-- `src/widgets/management-layout/ui/managementLayout.tsx`는 session.isFetching 또는 property.isFetching이면 ManagementFrame과 children을 로딩 상태로 교체합니다. 같은 화면에서 재시도 등으로 조회가 다시 실행되면 업무 컴포넌트·모달·입력을 제거할 수 있습니다. 주기 조회 도입 여부와 별개의 상태 처리 문제입니다.
-- `src/screens/resident-home/ui/residentHomePage.tsx`는 현재 주민 목록만 조회하고 401/ACCOUNT_UNAVAILABLE 때 로그인으로 보냅니다. 관리자 승격 감지·특정 Property 자동 전환은 없습니다.
-- `src/app/providers/appProviders.tsx`는 브라우저 QueryClient를 하나 생성하고 세션을 복원합니다. `src/entities/session/model/useSession.ts`는 조회를 공유하며 포커스·재연결 재조회를 꺼 둡니다. 역할 조회를 위해 Refresh Rotation을 주기 실행할 필요는 없습니다.
-- `src/entities/session/api/authenticatedApi.ts`는 ACCESS_TOKEN_EXPIRED에서만 세션 재발급 후 원 요청을 한 번 재시도합니다. 403은 현재 호출부로 전달하며 역할 재조회가 자동 연결돼 있지 않습니다.
+상태: 구현. 사용자 요구는 [도메인 규칙](../../docs/domainRules.md#초대-인증서비스-복귀역할-변경의-후속-확정-방향-2026-10-25), 응답은 [접근 API](../../docs/managementAccessApi.md#8-동적-권한을-위한-최소-조회-보완안-2026-10-25), 복귀 경로는 [서비스 진입](serviceEntry.md#오류-복귀와-공개-랜딩-분리-설계-2026-10-25)을 따릅니다.
 
 ### 공통 Query와 가드의 책임
 
-기존 enter-service 슬라이스에서 접근 Query를 공통화합니다. 후보 함수 usePropertyAccess를 같은 모델 파일에 추가하거나 실제 복잡도가 커질 때만 분리합니다. 기존 useManagementContext는 필요한 화면의 호환 구독으로 재사용하고 독립 타이머·중복 API 호출을 만들지 않습니다. Query key 제안은 `['property-access', userId, propertyId]`입니다. 세션·대상이 확정됐을 때만 enabled이며 같은 계정·대상의 레이아웃과 화면이 결과를 공유합니다.
+`features/enter-service/model/useManagementAccess.ts`의 `useManagementContext`는 `['property-access', userId, propertyId]`로 access-context를 공유합니다. 기존 하위 화면의 조회 구독도 같은 Query를 사용합니다. `usePropertyAccessGuard.ts`가 최초·새로고침·pathname 변경과 업무 403의 일회성 재확인을 담당합니다. 세션·유효 Property ID가 있을 때만 조회하고 보호 화면은 해당 진입의 검증이 완료된 뒤 표시합니다. 주기 조회·포커스·재연결 자동 접근 조회·SSE·WebSocket은 추가하지 않았습니다.
 
-관리 레이아웃은 ADMIN/MANAGER 영역을, 주민 영역 가드는 RESIDENT와 실제 주민 자격을 확인합니다. 신규 `widgets/resident-layout`는 후속 주민 화면에서도 공유될 때 검토할 후보이며 현재 존재하지 않습니다. 주민 홈 한 곳에만 필요한 단계에서는 기존 화면과 enter-service 조합으로 처리합니다. app 라우터 경계에서 상위 조합을 하고 같은 FSD 레이어의 슬라이스를 직접 참조하지 않습니다.
-
-현재 `/resident`는 여러 참여 대상을 나열하며 선택한 Property ID가 없습니다. 다른 Property의 관리자 역할을 보고 현재 주민 화면에서 강제로 이동시키면 안 됩니다. 구현 전에 활성 대상 식별을 정리해야 합니다. 제안은 초대 완료·명시적 대상 선택에서 실제 Property ID를 진입 상태로 전달하고 서버 검증 후 사용하며, 대상 문맥이 없으면 기존 `/start`로 목적지를 결정하는 것입니다. 주민 홈의 다중 대상 선택 UI·ID 전달 형식은 확인 필요이며 임의로 첫 대상의 역할을 전역 역할로 정하지 않습니다.
+관리 레이아웃은 ADMIN/MANAGER를 확인합니다. `/resident?propertyId={id}`는 해당 Property의 RESIDENT와 residentEligible을 확인합니다. 문맥 없는 `/resident`는 본인 주민 참여가 남아 있으면 목록을 유지하며 다른 대상의 관리자 역할을 적용하지 않습니다. 주민 목록이 정상적으로 비었을 때만 기존 관리자 진입 조회를 이어서 실행해 관리자 대시보드 또는 `/start`로 replace합니다. 캐시가 있어도 최초 조회 전에는 이전 내용을 표시하지 않고 조회 실패는 재시도로 처리합니다. 상세 흐름은 [서비스 진입](serviceEntry.md#임시-주민-홈)을 따릅니다. 목록의 명시적 선택과 개인 초대 완료에서 Property 문맥을 전달하는 것은 이번 구현 선택이며 전역 역할·최근 주민 대상 정책을 새로 확정하지 않습니다.
 
 ### 상태와 화면 수명
 
-| 상태 | 화면·입력·권한 처리 |
+| 상태 | 구현 동작 |
 | --- | --- |
-| 최초 검증 결과 없음 | 보호된 업무 화면을 열지 않고 로딩 또는 최초 실패 재시도 |
-| 현재 역할·영역 자격 확인 | 기존 업무 화면 유지 |
-| 백그라운드 재조회 중 | isFetching만으로 children 제거 금지. 최초 isPending/검증 부재와 구분 |
-| 재조회 네트워크/서버 장애 | 이전 확인 결과와 입력 유지, 갱신 실패 안내·재시도. 권한 회수로 처리 금지 |
-| 업무 403 후 같은 영역 자격 확인 | 해당 업무 접근 불가만 안내. 메인으로 자동 이동하지 않음 |
-| 영역 자격 변경 확정 | 즉시 이전 영역 데이터 표시·요청을 중단하고 해당 범위 정리 후 replace |
-| 현재 참여 종료 확정 | 해당 대상 데이터 정리 후 다른 현재 참여 또는 `/start` |
-| 인증 만료/계정 이용 불가 확정 | 기존 세션 정리·로그인 흐름. 단순 갱신 장애와 구분 |
-
-재조회 오류와 이전 성공 데이터가 함께 존재할 수 있으므로 error만 보고 검증 결과를 폐기하지 않습니다. 무제한 캐시를 권한 증명으로 쓰는 것은 아니며 업무 API가 매 요청 현재 서버 권한을 검사합니다. 로그아웃·계정 변경·bfcache 복원의 기존 개인정보 숨김과 재검증은 유지합니다.
-
-### 재조회·취소·캐시 범위
-
-최신 사용자 의도는 새로고침하거나 보호된 화면에 진입했을 때 현재 권한을 확인하고, 맞지 않는 영역이면 해당 역할의 메인으로 이동하는 것입니다. 최초 로그인 후 진입·새로고침·직접 URL 접근·보호 영역 이동에서 현재 계정과 Property를 확인합니다. 같은 레이아웃을 공유하는 Client 경로 이동은 재마운트가 보장되지 않으므로 필요한 진입 검증을 공통 경계에서 수행합니다. 업무 API의 403이 발생하면 원인을 구분하기 위해 일회성 권한 재확인을 사용할 수 있습니다. 가만히 열린 화면의 변경 감지는 이번 요구사항이 아니며 30초 주기·탭/앱 활성화·네트워크 복구만을 이유로 한 자동 권한 조회는 필수 구현에서 제외합니다. 현재 꺼진 포커스·재연결 옵션을 자동으로 켜지 않습니다.
-
-1. 403 신호를 받으면 같은 userId/propertyId의 접근 조회를 한 번 공유합니다. 접근 조회 자체의 403을 다시 같은 조회로 보내는 재귀 루프는 막습니다.
-2. 새로운 접근 결과와 현재 영역 자격을 비교합니다. RESIDENT→MANAGER는 같은 대상 대시보드, MANAGER→RESIDENT는 검증된 주민 메인으로 이동합니다. ADMIN→MANAGER 인계는 같은 관리 영역이므로 메뉴·관리소장 전용 행동을 다시 계산하고 불필요한 입력 초기화는 피하는 안을 권합니다.
-3. 실제 상실한 접근 범위의 업무 Query를 취소하고 캐시를 제거합니다. 현재 접근 판정·세션·다른 Property 캐시는 전역 삭제하지 않습니다. 확인된 새 역할 스냅샷으로 목적지를 결정해 정리 도중 이전 Query가 다시 요청하지 않게 합니다.
-4. 진행 중 요청의 늦은 성공이 이전 캐시·화면 상태를 다시 채우지 못하도록 요청 취소와 계정·대상·접근 세대 비교를 함께 적용합니다. 새 역할이 확인된 뒤 이전 화면을 그대로 보여주며 이동을 기다리지 않습니다.
-
-현재 키 예시는 billing의 `['billing', userId, propertyId, kind]`, 주민 명부의 `['property-residents', userId, propertyId]`, 초대의 `['resident-invitations', userId, propertyId]`, 미연결 명부의 `['unlinked-residents', userId, propertyId]`입니다. resident-properties는 계정 단위 목록이므로 변경 대상의 항목을 새로 조회합니다. `balance-download-account-balances`처럼 userId가 없는 파생 키도 존재하므로 키 문자열의 propertyId 포함 여부만으로 전부 제거하는 구현은 피합니다. 각 실제 키·화면 로컬 상태·업무 캐시 소유 범위를 점검해 정리 함수를 작성하고 로그아웃의 기존 전체 정리와 구분합니다.
-
-`src/shared/api/customApiTypes.ts`의 CustomApiOptions에는 호출자 signal이 없습니다. `customApi.ts`는 내부 timeout signal만 fetch에 전달합니다. 따라서 cancelQueries를 호출했다고 실제 HTTP 요청까지 취소된 것으로 간주할 수 없습니다. 구현 시 optional signal 전달과 timeout 결합, authenticatedApi를 통한 전파를 추가하고 호출자 취소를 NETWORK_ERROR로 잘못 표시하지 않게 설계해야 합니다. 세션 복원·Refresh Rotation·이미 전송된 저장 요청은 역할 Query처럼 무작정 취소하지 않습니다. 클라이언트 취소가 서버 트랜잭션 취소를 보장하지 않으므로 쓰기는 서버에서 권한·멱등성을 검증합니다.
-
-```mermaid
-sequenceDiagram
-    participant UI as 현재 Property 화면
-    participant Q as 공통 접근 Query
-    participant API as Spring 현재 권한
-    participant Cache as 업무 캐시
-    UI->>Q: 새로고침·보호 화면 진입 또는 업무 403 후 확인
-    Note over UI: 백그라운드 조회 중 화면·모달·입력 유지
-    Q->>API: 현재 계정의 Property 접근 조회
-    API-->>Q: 현재 역할·주민 자격 또는 오류
-    alt 같은 영역 자격
-        Q-->>UI: 현재 화면 유지
-    else 영역 접근 변경 확정
-        Q->>Cache: 이전 범위 요청 취소·캐시 정리
-        Q-->>UI: 새 역할 메인으로 replace
-    else 일시적인 통신 장애
-        Q-->>UI: 이전 화면 유지·갱신 실패 안내
-    end
-```
-
-### 수정 파일과 검증 계획
-
-수정 대상은 기존 `features/enter-service/api/managementAccessApi.ts`·`managementAccessApiTypes.ts`·`model/useManagementAccess.ts`, `widgets/management-layout/ui/managementLayout.tsx`, `screens/resident-home/ui/residentHomePage.tsx`, `entities/session/api/authenticatedApi.ts`, `shared/api/customApiTypes.ts`·`customApi.ts`입니다. 공통 가드·정리 함수는 실제 재사용 책임에 맞춰 enter-service와 상위 조합에 둡니다. 신규 권한 DB·프런트 전역 Permission 프레임워크는 추가하지 않습니다.
-
-기존 `tests/managementLayout.spec.ts`·`onboardingFlow.spec.ts`·`authenticatedApi.spec.ts`·`customApi.spec.ts`·`sessionRestore.spec.ts`를 재사용하고 다음 항목을 보강합니다.
-
-- RESIDENT→MANAGER, MANAGER→RESIDENT, ADMIN→MANAGER 인계, 주민 관계 없는 외부 MANAGER, 다른 Property의 다른 역할.
-- 새로고침·직접 주소·보호 화면 진입에서 변경 반영, 같은 대상 중복 조회 합치기, 403 재조회 재귀 방지.
-- 역할 변화 없는 업무 403은 현재 화면 유지, 일시 실패는 입력 유지, 최초 실패는 미검증 업무 비노출.
-- 같은 화면의 수동 재조회·실패 후 재시도에서 모달·입력·파일·선택 유지, 실제 접근 상실 때만 이전 화면 제거. 브라우저 새로고침에 따른 정상 문서 재생성과 구분.
-- 느린 이전 요청의 응답·취소가 새 계정/Property 캐시를 오염하지 않음, 상실 범위만 제거, 세션 Rotation 취소 방지.
-- 이전 영역 URL 재접근과 서버 API 직접 호출의 권한 거부. 실제 주민 업무 API가 없는 범위는 구현 전 테스트 대상으로 구분.
-
-이 문서 정리에서는 테스트를 실행하지 않습니다. 구현 재개 후 Client 규칙에 따라 `npm run lint`, `npx --no-install tsc --noEmit`, `npm run build`, `npm test`와 영향 화면의 PC·모바일 확인이 필요합니다.
+| 최초·새 보호 경로 확인 | 보호 업무 화면을 표시하지 않고 확인 또는 실패 재시도 |
+| 같은 화면 재조회 | 기존 ManagementFrame·children 유지. 입력·모달·파일·필터·페이지 상태를 접근 검사 때문에 초기화하지 않음. 조회가 실패하면 아래 행의 오류 단독 표시로 전환 |
+| 같은 화면 일시 장애 | 업무 DOM은 hidden·inert로 보존하고 오류 안내만 표시. 같은 접근 조회 성공 후 원래 작업 복원 |
+| 업무 403 | 원래 업무 오류 유지, access-context 재확인. 같은 영역이면 이동 없음 |
+| 주민→관리자 | 해당 Property 관리자 대시보드로 replace |
+| 관리자→유효 주민 | 해당 Property 문맥의 주민 홈으로 replace |
+| RESIDENT·주민 연결 없음 | 업무 화면 숨김, 연결 확인 안내. 참여 종료로 추정하지 않음 |
+| 참여 종료·삭제·대상 비활성 | 해당 사용자·대상 조회 정리 후 /start로 replace |
+| 인증 만료·계정 이용 불가 | 로그인으로 이동 |
 
 ### 후속 필수 과제의 재확인 범위
 
-2026-10-25 추가 요구사항으로 **권한 재조회 중 업무 화면 유지**와 **공통 HTTP AbortSignal 전달**을 후속 필수 구현 과제로 지정합니다. 두 항목은 현재 미구현이며 구현 착수 시 실제 코드를 다시 확인해야 합니다. 이번 추가 요청은 기존 설계 문서만 수정하며 코드·테스트·Migration·도메인 문서는 변경하지 않습니다. Redis 초대 저장 이전과 별개의 Client·HTTP 개선 작업이며 위 계획에 함께 포함합니다.
-
-이번 소스 재확인에서 설치된 `@tanstack/react-query`와 `@tanstack/query-core`는 모두 **5.104.1**입니다. package.json의 버전 범위만 보고 판단하지 않았습니다. 실제 설치 소스 `node_modules/@tanstack/query-core/src/queryObserver.ts`·`query.ts`에서 다음을 확인했습니다. 아래 상태 정의와 요청 합치기는 현재 설치 버전의 동작이며 의존성 변경 시 다시 확인합니다.
-
-| 상태·동작 | 확인 결과와 설계에 미치는 영향 |
-| --- | --- |
-| isPending | status가 pending인 경우. 최초 실패 뒤에도 무조건 true인 상태가 아니므로 최초 검증 여부를 이것만으로 판단하지 않음 |
-| isFetching | fetchStatus가 fetching인 경우. 최초 조회와 백그라운드 재조회 모두 포함 |
-| isLoading | isPending && isFetching. 최초 로딩 표현에 사용하되 현재 계정·대상의 검증 여부와 함께 판단 |
-| isRefetching | isFetching && !isPending. 정상 데이터 재조회뿐 아니라 기존 오류 뒤 재조회도 포함하므로 권한 보유의 근거가 아님 |
-| isRefetchError | 오류와 기존 데이터가 함께 존재할 수 있음. 이미 확인한 같은 범위의 화면을 즉시 제거하면 입력 손실 가능 |
-| 진행 중인 동일 Query | 재조회 취소를 요청하지 않으면 기존 진행 Promise를 공유하는 경로 존재 |
-| 포커스·연결 복구 | 내부적으로 refetch의 cancelRefetch false 사용 |
-| 명시적 refetch | 기본 cancelRefetch true 경로가 있어 기존 데이터가 있으면 취소·재시작 가능. 공통 접근 갱신은 false로 진행 요청 공유 |
-
-최초 검증 상태는 현재 userId/propertyId에 종속된 성공 결과와 그 결과의 유효성을 기준으로 관리합니다. 이전 계정·대상의 데이터, placeholderData나 다른 화면의 성공으로 보호 화면을 열지 않습니다. 동일 역할·영역이면 부모 key나 조건 분기를 바꾸지 않고 ManagementFrame/주민 업무 서브트리를 계속 마운트합니다. 현재 session.isFetching 분기도 같은 원칙으로 검토하되 인증 만료·계정 이용 불가의 확정 결과는 별도 처리합니다.
-
-공통 접근 갱신은 동일 계정·대상의 Query key와 진행 중 Promise를 공유합니다. 진입 확인·수동 재조회·업무 403 후 확인이 겹치면 같은 실행 중 요청을 취소하고 새 요청을 만들지 않습니다. 사용자 코드에서 타이머·독립 조회를 만들지 않고, 필요하면 같은 이벤트 배치의 갱신 요청을 합칩니다. 같은 역할의 업무 403과 접근 조회 자체의 403을 구분해 무한 조회를 막습니다. 동시에 다른 userId/propertyId의 요청을 하나로 합치지는 않습니다.
+기존 설계의 HTTP 취소·최초/백그라운드 분리·Query 범위·공통 접근·이동 처리를 구현했습니다. 접근 검사로 인한 언마운트를 제거한 범위이며 개별 업무의 필터 변경·명시적인 화면 이동·초안 폐기 정책을 변경하지 않습니다. 아직 없는 주민 세부 업무 폼이나 설치형 앱 동작까지 제공하는 것으로 해석하지 않습니다.
 
 ### HTTP 요청 취소의 구현 방법
 
-현재 전송 수단은 브라우저 **fetch**입니다. Axios를 사용한 것으로 가정하지 않습니다. 다음은 실제 변경할 파일과 책임입니다. 표의 코드는 아직 구현하지 않았습니다.
+`CustomApiOptions.signal?: AbortSignal`을 customAPI→authenticatedAPI와 주요 업무 Query의 API까지 전달합니다. timeout 신호와 호출자 신호를 합성하고 fetch·본문 읽기 이후에도 취소를 확인합니다. 오류 코드는 REQUEST_CANCELED / REQUEST_TIMEOUT / NETWORK_ERROR / 기존 HTTP 오류로 구분합니다. 정상 취소는 공통 개발 오류 로그·RequestError 그림에서 제외합니다.
 
-| 실제 파일 (`client/src/` 기준) | 후속 변경 |
-| --- | --- |
-| `shared/api/customApiTypes.ts` | CustomApiOptions에 optional `signal?: AbortSignal` 추가. 기존 호출은 그대로 허용 |
-| `shared/api/customApi.ts` | 호출자 signal과 기존 AbortSignal.timeout을 결합해 fetch에 전달. fetch와 response.text의 취소도 같은 기준으로 처리 |
-| `shared/api/index.ts` | 취소 판별을 여러 계층에서 공유해야 할 때만 공개 helper 추가 |
-| `entities/session/api/authenticatedApi.ts` | signal 전달 유지, 취소를 인증 오류로 처리하지 않음. Refresh 뒤 원 요청 재전송 전 취소·현재 계정 확인 |
-| `features/enter-service/api/managementAccessApi.ts`, `model/useManagementAccess.ts` | queryFn의 signal→업무 API→authenticatedAPI→customAPI→fetch 전달 |
-| `features/billing-management/api/billingApi.ts`, `screens/billing/ui/_hooks/useBillingData.ts` | 현재 인자 없는 조회 함수를 QueryFunctionContext의 signal이 전달되는 형태로 확장 |
-| `widgets/banking-workspace/api/`와 실제 useQuery 호출부 | 통장·잔고·상세 조회에도 optional signal 전달. 저장 함수는 조회와 분리 |
-| `widgets/management-layout/ui/managementLayout.tsx`, `screens/resident-home/ui/residentHomePage.tsx` | 최초 검증·백그라운드 갱신·실제 권한 변경을 분리, 취소 자체로 오류 화면을 띄우지 않음 |
-
-구현 순서는 아래와 같습니다.
-
-1. signal이 없으면 기존 method·headers·body·credentials·no-store·timeout·반환 타입·HTTP 오류 의미를 유지합니다. 시작부터 aborted인 호출은 fetch 전에 취소로 종료합니다.
-2. 호출자 signal을 기존 timeout 대신 단순 덮어쓰지 않습니다. 지원 런타임을 확인해 AbortSignal.any로 두 신호를 결합하는 안을 우선 검토합니다. 미지원 대상에는 AbortController와 once listener를 이용한 동등한 결합을 사용하고 finally에서 listener를 정리합니다. 먼저 발생한 취소 원인을 기록해 뒤늦은 caller abort가 이미 발생한 timeout을 바꾸지 않게 합니다.
-3. queryFn의 `{signal}`을 모든 조회 계층에 전달합니다. API helper의 두 번째 인자 등은 optional 옵션으로 확장해 기존 인자 없는 호출과 호환합니다. signal을 쿼리 파라미터·요청 본문·헤더로 직렬화하지 않습니다.
-4. fetch 호출·본문 읽기 전후의 정상 caller 취소는 AbortError 또는 공통 취소 판별이 가능한 형태로 전달합니다. `catch`에서 모든 오류를 NETWORK_ERROR로 감싸는 현재 로직을 분리합니다. 정상 취소는 오류 토스트·장애 화면·개발 실패 로그·인증 재발급의 대상에서 제외합니다.
-5. timeout은 정상 취소로 숨기지 않습니다. 기존 NETWORK_ERROR 계약을 유지하는 것이 기본안이며 별도 timeout 코드 변경은 이번 설계에 추가하지 않습니다. HTTP 401/403/500 및 서버 업무 code는 ApiError로 유지하고 호출자 취소와 구분합니다.
-6. 요청 signal이 중단되면 해당 QueryFn이 성공 데이터를 반환하거나 수동 setQueryData/화면 state를 갱신하지 않게 합니다. signal을 지원하지 않는 기존 helper·수동 Promise도 남을 수 있으므로 계정·대상·접근 세대 일치 검사를 방어로 유지합니다.
-7. 같은 Access 만료로 여러 요청이 공유하는 restoreSession은 한 조회의 취소로 중단하지 않습니다. 취소한 호출은 공유 재발급을 마친 뒤에도 원 조회를 다시 보내지 않으며, 재전송 시에는 현재 계정·원 signal을 다시 확인합니다. 정상 401 갱신 1회 정책은 유지합니다.
-
-취소 신호 판별의 세부 helper 배치는 실제 재사용 범위에 따라 정합니다. 단지 error.name 문자열 하나만으로 timeout·모든 HTTP 오류를 묶지 않습니다. 정상 취소를 RequestError의 서버 장애로 표현하지 않는지 실제 화면 catch 호출부도 함께 점검합니다.
+Access 만료의 1회 재시도에서도 같은 신호를 사용합니다. 공유 Refresh Rotation에는 호출자의 신호를 전달하지 않으며 취소한 호출자만 대기를 종료하고 원 요청을 재전송하지 않습니다. Mutation은 접근 상실 때 자동 취소하지 않습니다. 호출자가 Mutation 대기를 취소하더라도 서버 롤백을 뜻하지 않으며 기존 요청 식별자·업무 결과 확인 흐름을 유지합니다.
 
 ### Query 소유 범위와 처리 순서
 
-아래는 실제 확인된 Query key와 후속 정리 기준입니다. 아직 완성된 키 등록·정리 구현이 있다는 의미는 아닙니다.
+Property 업무 Query는 `[업무명, userId, propertyId, ...조회조건]`을 사용합니다. 기존 키를 확인하고 누락돼 있던 `balance-download-account-balances`에 userId를 보완했습니다. 최초 확인 전 새 업무를 마운트하지 않고, 실제 접근 상실 시 `clearPropertyQueries`가 해당 사용자·Property의 Query만 cancel→remove합니다. queryFn의 signal이 HTTP까지 전달돼 늦은 조회 결과를 반영하지 않습니다. 현재 access-context는 전환 판단용으로 유지하고 사용자별 참여 목록은 무효화만 합니다. 다른 계정·Property·세션과 Mutation은 정리하지 않습니다. 기존 업무 Mutation의 무효화·조회 취소도 같은 계정·대상 범위로 보완했습니다.
 
-| Query key·출처 | 취소·무효화·제거 기준 |
-| --- | --- |
-| `['property-access', userId, propertyId]` (설계안) | 새 접근 판정 보존. 오래된 다른 범위의 조회만 취소, 업무 캐시와 함께 무조건 제거하지 않음 |
-| `['management-context', userId, propertyId]` | 호환 접근 구독을 공통 결과와 일치시킴. 기존 역할로 재실행하는 루프 방지 |
-| billing, property-residents, resident-invitations, unlinked-residents, membership-requests | 실제 key[1]의 userId·key[2]의 propertyId 및 상실한 업무 영역을 함께 확인해 진행 조회 취소 후 제거 |
-| banking-workspace, banking-balances, bank-account-detail | 같은 계정·대상 접두사 및 월·통장·상세 후속 인자를 포함한 하위 Query를 같은 범위로 처리 |
-| `['resident-properties', userId]`, 본인 관리자 대상 목록 | 계정 단위 참여 목록은 대상 종료·역할 변경 후 무효화/재조회. 다른 대상의 정상 목록을 전역 삭제하지 않음 |
-| `['balance-download-account-balances', propertyId, month, generatedAt, accountId]` | 현재 userId 없는 파생 키. 후속 구현에서 키 소유자 또는 meta 등 명시적 소유 범위를 보완한 뒤 정확히 처리 |
-| 세션 Query·공유 Refresh, Mutation | Property 조회 정리의 취소 대상에서 제외. 로그아웃·계정 변경의 기존 보안 처리는 별도 적용 |
-
-캐시 정리는 새 접근 결과 확정→이전 업무 조회 enabled 차단과 화면 표시 중단→해당 범위 cancelQueries 대기→관련 캐시 제거→새 역할 메인 replace 순서로 설계합니다. 현재 접근 결과가 그대로면 이 정리를 실행하지 않습니다. 단순 목록 값 갱신은 invalidateQueries로 처리하며 이미 권한을 상실한 업무를 무효화만 해 자동 재조회시키지 않습니다. Query key의 문자열 부분 일치나 업무 prefix만으로 모든 사용자를 제거하는 방식은 금지합니다.
-
-Mutation은 서버 결과 조회가 별도인 흐름으로 둡니다. 저장·승인·입금 확정 요청은 클라이언트 취소만으로 실패/롤백/미실행으로 표시하지 않습니다. 이미 보낸 요청 UUID·expectedRole·revision 등 기존 멱등/동시성 조건을 유지하고, 결과 불명확 시 해당 사용자·대상의 실제 서버 처리 결과를 조회합니다. 권한 종료로 결과 조회도 거부되면 확인 불가로 처리하며 임의로 실패를 확정하거나 새 UUID로 재저장하지 않습니다. 삭제·승인 등 모든 API에 같은 멱등성 계약이 있다고 추정하지 않습니다.
+`entities/property/model/propertyQueryScope.ts`는 실제 접근 상실 시 해당 범위의 revision만 올립니다. 저장을 시작한 화면의 범위를 보관하고, 늦은 Mutation 응답의 setQueryData는 범위 revision·현재 계정을 확인해 이전 캐시를 재생성하지 않습니다. 같은 역할 재조회·일시 장애에서는 revision을 바꾸지 않습니다. 서버 저장은 취소하지 않으며 이를 롤백이나 저장 실패로 표시하지 않습니다.
 
 ### 필수 구현 순서와 선행 검증
 
-| 순서 | 작업 | 구분·의존 관계 |
-| --- | --- | --- |
-| 1 | 공통 HTTP 옵션에 AbortSignal 전달 지원 | 후속 필수 구현. 기존 호출 호환·취소/timeout/HTTP 오류 구분 검증 |
-| 2 | 최초 권한 조회와 백그라운드 UI 상태 분리 | 후속 필수 구현. 수동 재조회로 업무 서브트리·모달·입력 보존을 먼저 검증 |
-| 3 | 사용자·Property별 Query key·캐시 정리 규칙 정립 | 후속 필수 구현. 소유자 없는 키 보완·범위 취소·늦은 응답 차단 검증 |
-| 4 | 기존 Spring 권한 조회를 활용한 공통 접근 검사 | 후속 구현. API 보완안과 활성 주민 Property 문맥 확인 필요 |
-| 5 | 역할 변경 시 이전 조회 취소·역할별 메인 이동 | 후속 구현. 1~4의 검증 후 상실 영역만 정리 |
-| 6 | 새로고침·화면 진입 확인과 업무 403 후 일회성 재확인 연결 | 후속 구현. 같은 역할의 업무 거부와 영역 권한 상실을 구분하며 중복 조회·재귀 방지 |
-| 7 | 모달·입력 보존 및 진입 시 역할 변경 통합 테스트 | 필수 검증. 새로고침·직접 URL·Client 영역 이동·수동 재시도·403 확인 |
-
-30초 주기 조회·SSE·WebSocket은 후속 선택 기능으로만 분류하며 이번 단계에서 추가하지 않습니다. 탭/앱 활성화·네트워크 복구 자동 권한 확인 역시 필요성이 생길 때 검토합니다. 같은 화면에서 아무 행동도 하지 않으면 역할 변경을 즉시 감지하지 못할 수 있다는 제한을 수용합니다. 서버의 현재 권한 검사는 계속 필요하며 이미 표시된 자료의 즉시 제거를 보장하지 않습니다. 관리자 권한 회수와 동시에 열린 화면의 자료를 가려야 하는 별도 요구가 생기면 실시간 알림의 연결·재연결·실패 조건부터 다시 설계합니다.
-
-이 순서는 Redis 저장 이전과 독립적으로 추적합니다. 단기 코드의 TTL·소진 정책을 이 작업을 이유로 변경하지 않습니다. 전체 배포 완료 판단은 Redis 검증과 Client·HTTP 검증을 모두 충족한 뒤에만 합니다.
+HTTP signal 및 오류 분리→업무 Query 전달·계정 범위→서버 access-context→최초/백그라운드 구분과 공통 가드→역할 이동과 복귀 링크 순서로 구현했습니다. 새 Permission 테이블·proxy.ts·별도 진입 경로는 추가하지 않았습니다.
 
 ### 테스트 시나리오와 배포 전 완료 기준
 
-기존 테스트 파일만 설계상 대상으로 지정하며 이번 요청에서 테스트 코드를 수정하거나 실행하지 않습니다.
+`customApi.spec.ts`는 시작 전 취소·본문 읽기 취소·timeout 분리를, `authenticatedApi.spec.ts`는 공유 Refresh 중 단일 호출 취소·재전송 방지·계정/Property 조회 정리를 검증합니다. `managementLayout.spec.ts`에는 최초 미노출·보호 경로 이동·같은 화면 업무 403→503→재시도의 모달/입력 유지·PC/모바일 역할 전환·다중 대상 분리·연결 없음 안내를 추가했습니다. 기존 업무 화면과 초대 테스트의 모의 접근 API도 새 계약으로 변경했습니다. 실제 실행 결과와 남은 검증은 [검증 기록](../../server/docs/memberManagement.md#구현-순서와-검증-상태)을 따릅니다. 실제 OAuth·카카오톡 브라우저·설치형 앱과 운영 환경 스모크는 별도이며 배포 완료로 기록하지 않습니다.
 
-| 기존 테스트 | 추가 검증 기준 |
-| --- | --- |
-| `tests/customApi.spec.ts` | signal 생략 호출 호환, 시작 전/헤더 대기/본문 읽기 중 취소, timeout만 발생한 경우, 401/403/500과 정상 취소 구분, 오류 로그·toast 제외 |
-| `tests/authenticatedApi.spec.ts`, `sessionRestore.spec.ts` | signal 전파, 취소 시 Refresh 미시작, 공유 Refresh 도중 하나만 취소, 완료 뒤 취소된 원 조회 재전송 금지, 정상 만료 1회 재시도 유지 |
-| `tests/managementLayout.spec.ts` | 최초 미검증 화면 비노출, 같은 역할의 수동 재조회에서 업무 DOM 연속성 유지, 일시 실패→재시도 중 모달·입력·파일·필터·페이지·스크롤 유지 |
-| `tests/onboardingFlow.spec.ts` | 실제 존재하는 임시 주민 홈의 접근 상태 유지와 승격/강등 이동, 다중 Property 역할 분리. 미구현 주민 업무 폼을 이미 있는 테스트처럼 취급하지 않음 |
-| `tests/paymentFlow.spec.ts`, `bankingFlow.spec.ts` | 실제 관리자 업무 폼·파일 선택·모달 입력 상태를 수동 재조회·재시도에서도 유지, 실제 권한 상실 시에만 정리·이동 |
-| 접근·HTTP 통합 | 지연된 이전 Property 조회 취소, 취소 직전/직후 늦은 성공 응답, 수동 setQueryData 방지, 다른 Property/계정·세션 Query 비영향 |
-| 진입·조회 통합 | 새로고침·직접 URL·같은 레이아웃의 Client 경로 이동에서 현재 권한 확인, 수동 재조회·403 확인이 겹쳐도 같은 범위의 동시 요청 공유. 타이머·포커스·연결 복구 자동 권한 조회가 추가되지 않음 |
-| Mutation 통합 | 클라이언트 대기 취소 뒤 서버 성공/실패/조회 거부를 각각 확인, 같은 요청 UUID 유지, 중복 저장·가짜 롤백 표시 없음 |
+### 접근 조회 오류의 단독 표시 (2026-10-25 후속 사용자 정정)
 
-완료 기준은 위 테스트의 실제 통과, 같은 역할에서 업무 컴포넌트 언마운트 없음, 정상 취소의 장애 미표시, 상실 권한의 늦은 응답 비노출, 기존 조회 호환, Mutation 결과 조회 원칙 유지입니다. 구현·검증 전에는 두 기능을 제공 중이라고 기록하지 않습니다. 30초 주기는 이번 완료 기준에 포함하지 않습니다. 구현 재개 후 필수 lint·타입 검사·프로덕션 빌드·Playwright 명령과 실제 실패/미실행 사유를 기록하고 PC·모바일의 작업 중 화면을 확인한 뒤 배포합니다.
+사용자가 오류 안내 아래로 스크롤하면 이전 대시보드가 나타나는 현상을 제보했습니다. 재조회 오류 안내를 ManagementFrame 앞의 일반 콘텐츠로 추가하면서 기존 화면을 아래로 밀어낸 표시 버그였습니다. 최초 조회 실패에는 기존 화면이 없으므로 새로고침 뒤 오류만 보였던 차이도 이 구조에서 발생합니다.
+
+오류 안내만 별도의 화면으로 표시하고 기존 업무 영역은 hidden·inert로 숨깁니다. 컴포넌트를 제거하거나 입력을 초기화하지 않습니다. `usePreservedWorkspace`는 열려 있던 네이티브 dialog·popover의 표시만 잠시 닫고, 같은 화면의 조회가 복구되면 DOM과 함께 창·포커스·스크롤 위치를 복원합니다. 실제 역할 변경·이탈로 제거된 창은 다시 열지 않습니다. 주민 홈도 오류와 기존 목록을 세로로 함께 표시하지 않습니다. 연결 오류의 실제 원인은 서버 중단·네트워크·CORS 등을 별도 확인해야 하며 이 표시 버그와 구분합니다.
+
+`managementLayout.spec.ts`에 PC/모바일 오류 단독 표시, 숨긴 입력의 값·DOM 연속성, 모달의 비표시→동일 DOM 복원을 검증합니다. 실제 실행 결과는 [후속 검증 기록](../../server/docs/memberManagement.md#후속-구현검증-기록-2026-10-25)을 참조합니다.

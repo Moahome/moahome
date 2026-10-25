@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  capturePropertyQueryScope,
+  setPropertyQueryData
+} from '@/entities/property';
+
 import { LoadingState } from '@/shared/ui/state-message';
 
 import { AllocationEditor } from '@/entities/banking';
@@ -42,11 +47,12 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
   onClose?: () => void;
 }) {
   const session = useSession();
+  const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const cache = useQueryClient();
   const queryKey = ['banking-workspace', session.data?.id, propertyId];
   const workspace = useQuery({
     queryKey,
-    queryFn: () => getBankingWorkspace(propertyId),
+    queryFn: ({ signal }) => getBankingWorkspace(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
@@ -165,7 +171,7 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
         ...draft,
         allocations: calculated.allocations
       });
-      cache.setQueryData(queryKey, saved); setEdited(null); setNotice(true);
+      setPropertyQueryData(cache, queryKey, saved, propertyScope); setEdited(null); setNotice(true);
       // 원장에서 열린 지출을 확정하면 해당 동의 잔고와 누적 원장도 다시 조회합니다.
       void cache.invalidateQueries({
         queryKey: ['banking-balances', session.data?.id, propertyId]

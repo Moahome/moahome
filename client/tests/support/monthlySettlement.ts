@@ -396,7 +396,8 @@ export async function mockSettlement(page: Page, state = {
       systemRole: 'USER',
       status: 'ACTIVE'
     };
-    else if (path.endsWith('/management-context')) body = {
+    else if (path.endsWith('/access-context')) body = {
+      residentEligible: false,
       propertyId: SETTLEMENT_PROPERTY,
       name: '모아빌라',
       role: 'ADMIN'

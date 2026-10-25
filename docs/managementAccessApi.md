@@ -11,7 +11,8 @@
 | API | 용도 |
 | --- | --- |
 | `GET /api/users/me/managed-properties` | 로그인 후 기본 목적지 결정과 최근 선택 대상의 유효성 확인 |
-| `GET /api/properties/{propertyId}/management-context` | 직접 주소 접근, 새로고침과 선택 대상 변경 시 해당 관리대상의 현재 권한 확인 |
+| `GET /api/properties/{propertyId}/management-context` | 관리자 전용 현재 관리 권한 조회·기존 계약 호환 |
+| `GET /api/properties/{propertyId}/access-context` | 직접 접근·새로고침·보호 화면 이동·업무 거부 후 같은 Property의 현재 역할과 주민 자격 확인 |
 
 주민 홈의 최소 참여 목록은 아래 별도 경로로 제공합니다. 가입 요청, 승인 대기 조회, 대시보드 통계와 업무 데이터 조회는 이 계약에 포함하지 않습니다. 관리 영역 진입을 허용하는 것이 개별 업무의 모든 권한을 허용한다는 의미는 아닙니다.
 
@@ -138,13 +139,13 @@
 
 ## 8. 동적 권한을 위한 최소 조회 보완안 (2026-10-25)
 
-상태: 설계 제안·미구현. 기존 management-context는 RESIDENT를 거부하고 resident-properties는 관리자 참여를 반환하지 않으므로 두 역할 사이의 변경을 단일 Property 기준으로 판별하는 용도가 부족합니다. 두 기존 API의 접근 범위를 넓히지 않고 아래 읽기 전용 API 하나를 추가하는 안을 권합니다. 신규 권한 DB·JWT 역할·Redis 권한 원장은 추가하지 않습니다.
+상태: 구현. 기존 management-context와 resident-properties의 범위를 유지하고 단일 Property의 현재 역할·주민 자격을 확인하는 읽기 전용 API를 추가했습니다. 신규 권한 DB·JWT 역할·Redis 권한 원장은 추가하지 않습니다.
 
 `GET /api/properties/{propertyId}/access-context`
 
 정상 Bearer 계정과 현재 ACTIVE·미종료·미삭제 참여, 활성·미삭제 Property를 결합해 조회합니다. 참여 역할은 ADMIN/MANAGER/RESIDENT를 허용하고, 주민 영역 접근에 필요한 현재 주민·계정·세대 관계는 별도로 검증합니다. 요청 본문·사용자 ID·역할 입력은 받지 않습니다.
 
-성공 응답 제안은 `{propertyId,name,role,residentEligible}`입니다. role은 현재 Property 역할이며 residentEligible은 현재 계정의 같은 Property 미삭제 주민·유효 현재 세대와 승인 출처가 일치하는지의 boolean입니다. 관리자라는 이유로 주민 관계를 생성하거나 주민으로 표시하지 않습니다. 외부 관리자에는 false일 수 있습니다. 개인정보 원문·주민/세대 목록·역할 이벤트·토큰은 반환하지 않으며 no-store입니다.
+성공 응답은 `{propertyId,name,role,residentEligible}`입니다. role은 현재 Property 역할이며 residentEligible은 현재 계정의 같은 Property 미삭제 주민·유효 현재 세대와 승인 출처가 일치하는지의 boolean입니다. 관리자라는 이유로 주민 관계를 생성하거나 주민으로 표시하지 않습니다. 외부 관리자에는 false일 수 있습니다. 개인정보 원문·주민/세대 목록·역할 이벤트·토큰은 반환하지 않으며 no-store입니다.
 
 | HTTP | 오류·처리 |
 | --- | --- |
@@ -157,4 +158,4 @@
 
 RESIDENT 참여는 있지만 residentEligible이 false이면 주민 업무를 열지 않고 연결 확인 안내를 합니다. 이 상태를 참여 없음이나 관리자 승격으로 해석하지 않습니다. 임시 주민 홈의 단순 참여 목록과 세부 주민 업무의 조건을 구분합니다. 이 응답은 개별 업무 API에 재전송하는 권한 증명이 아니며 각 요청은 계속 현재 서버 권한을 검사합니다.
 
-같은 역할의 중복은 기존 조회처럼 하나로 묶고, 서로 다른 역할이 동시에 활성인 경우는 충돌로 실패시킵니다. 역할별 우선순위나 자동 정리 Migration은 새로 만들지 않습니다. 응답 계약 확정·Controller/Security/OpenAPI 테스트 후 구현하며 Server 세부 변경 위치는 [조회 보완 설계](../server/docs/managementAccess.md#동적-권한을-위한-조회-보완-설계-2026-10-25)를 따릅니다.
+같은 역할의 중복은 기존 조회처럼 하나로 묶고, 서로 다른 역할이 동시에 활성인 경우는 충돌로 실패시킵니다. 역할별 우선순위나 자동 정리 Migration은 새로 만들지 않습니다. Controller·Security·OpenAPI와 격리 PostgreSQL 테스트를 추가했으며 Server 세부 변경 위치는 [조회 보완 설계](../server/docs/managementAccess.md#동적-권한을-위한-조회-보완-설계-2026-10-25)를 따릅니다.

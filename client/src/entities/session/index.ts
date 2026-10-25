@@ -1,5 +1,6 @@
 export {
-  authenticatedAPI
+  authenticatedAPI,
+  subscribePropertyForbidden
 } from './api/authenticatedApi';
 export type {
   CurrentUser

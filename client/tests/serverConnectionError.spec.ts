@@ -8,6 +8,12 @@ const API = 'http://localhost:8080';
 const PROPERTY = 'f5405dd1-42ea-4279-9302-812ffcc2d21b';
 
 async function json(route: Route, body: unknown, status = 200) {
+  if (route.request().url().endsWith('/access-context') && status === 200 && body && typeof body === 'object') {
+    body = {
+      residentEligible: false,
+      ...body
+    };
+  }
   await route.fulfill({
     status,
     contentType: 'application/json',
@@ -114,7 +120,7 @@ test('관리 권한 조회 장애는 재시도로 같은 대상을 열고 토큰
         status: 'ACTIVE'
       });
     }
-    if (path.endsWith('/management-context')) {
+    if (path.endsWith('/access-context')) {
       contextReads++;
       return contextReads === 1 ? json(route, {
         code: 'SERVICE_UNAVAILABLE'
@@ -190,7 +196,7 @@ for (const endpoint of ['banking/workspace', 'payments/workspace', 'residents'])
           systemRole: 'USER',
           status: 'ACTIVE'
         });
-        if (path.endsWith('/management-context')) return json(route, {
+        if (path.endsWith('/access-context')) return json(route, {
           propertyId: PROPERTY,
           name: '모아빌라',
           role: 'MANAGER'
@@ -236,14 +242,16 @@ for (const endpoint of ['banking/workspace', 'payments/workspace', 'residents'])
       await expect(error.locator('img')).toHaveAttribute('src', expectedImage);
       await expect(error).not.toContainText('private internal details');
       await expect(error).not.toContainText('관리소장만');
-      expect(reads).toBe(1);
+      // 개발 StrictMode에서 취소된 첫 조회가 재마운트될 수 있으므로 재시도 증가량을 확인합니다.
+      const initialReads = reads;
+      expect(initialReads).toBeGreaterThanOrEqual(1);
       failed = false;
       await error.getByRole('button', {
         name: '다시 시도',
         exact: true
       }).click();
       await expect(error).toHaveCount(0);
-      expect(reads).toBe(2);
+      expect(reads).toBe(initialReads + 1);
     });
   }
 }

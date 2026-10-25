@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  capturePropertyQueryScope,
+  setPropertyQueryData
+} from '@/entities/property';
+
 import { LoadingState } from '@/shared/ui/state-message';
 
 import { RequestError } from '@/shared/ui/server-connection-error';
@@ -44,11 +49,12 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
   canPromote?: boolean;
 }) {
   const session = useSession();
+  const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const client = useQueryClient();
   const queryKey = ['resident-detail', session.data?.id, propertyId, residentId];
   const query = useQuery({
     queryKey,
-    queryFn: () => getResidentDetail(propertyId, residentId),
+    queryFn: ({ signal }) => getResidentDetail(propertyId, residentId, signal),
     enabled: Boolean(session.data),
     retry: false,
     staleTime: 0,
@@ -104,6 +110,7 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
       if (!active.current) return;
       void client.invalidateQueries({
         predicate: (query) => ['property-residents', 'property-units'].includes(String(query.queryKey[0]))
+          && query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
       });
       onDeleted();
     } catch (failure) {
@@ -260,9 +267,10 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
           onCancel={() => { changeMode('detail'); void query.refetch(); }}
           onSaved={(saved) => {
             setBusy(false);
-            if (saved) client.setQueryData(queryKey, saved);
+            if (saved) setPropertyQueryData(client, queryKey, saved, propertyScope);
             void client.invalidateQueries({
               predicate: (query) => ['property-residents', 'property-units'].includes(String(query.queryKey[0]))
+          && query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
             });
             changeMode('detail'); setMessage('주민 정보를 수정했어요.');
           }}

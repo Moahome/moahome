@@ -88,9 +88,9 @@ export function LoginPage({ errorCode }: { errorCode?: string }) {
           </Button>
         )}
         <Link
-          href={'/'}
+          href={'/start'}
         >
-          서비스 소개 보기
+          시작 화면으로
         </Link>
       </main>
     );
@@ -110,7 +110,7 @@ export function LoginPage({ errorCode }: { errorCode?: string }) {
         className={styles.header}
       >
         <Link
-          href={'/'}
+          href={'/start'}
           className={styles.brand}
           aria-label={'모아홈 홈으로'}
         >
@@ -229,13 +229,13 @@ export function LoginPage({ errorCode }: { errorCode?: string }) {
                 </span>
               </div>
               <Link
-                href={'/#service'}
+                href={'/start'}
                 className={styles['intro-link']}
               >
                 <ServiceIcon
                   name={'document'}
                 />
-                서비스 소개 보기
+                시작 화면으로
               </Link>
             </div>
             <p

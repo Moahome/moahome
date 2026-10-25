@@ -1,3 +1,4 @@
+import { useSession } from '@/entities/session';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   useEffect,
@@ -14,6 +15,7 @@ import type { ImportResult } from '../../api/residentImportApiTypes';
 /** 파일과 명부를 브라우저 저장소에 남기지 않고 업로드·선택·저장 결과의 수명과 중복 클릭을 관리합니다. */
 export function useResidentImport(propertyId: string) {
   const client = useQueryClient();
+  const session = useSession();
   const active = useRef(true);
   const locked = useRef(false);
   const notificationId = useRef(0);
@@ -78,6 +80,7 @@ export function useResidentImport(propertyId: string) {
       setCompleted(true);
       void client.invalidateQueries({
         predicate: (query) => ['property-residents', 'property-units'].includes(String(query.queryKey[0]))
+          && query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
       });
     } catch (failure) {
       if (active.current) notifyError(getImportError(failure));

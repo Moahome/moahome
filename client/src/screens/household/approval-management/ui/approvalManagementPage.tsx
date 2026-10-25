@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  capturePropertyQueryScope,
+  setPropertyQueryData
+} from '@/entities/property';
+
+import {
   LoadingState,
   StateMessage
 } from '@/shared/ui/state-message';
@@ -62,6 +67,7 @@ export function ApprovalManagementPage({
   requestId?: string;
 }) {
   const session = useSession();
+  const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const client = useQueryClient();
   const router = useRouter();
   const params = useSearchParams();
@@ -70,7 +76,7 @@ export function ApprovalManagementPage({
   const key = ['membership-requests', session.data?.id, propertyId];
   const query = useQuery({
     queryKey: key,
-    queryFn: () => getSignupRequests(propertyId),
+    queryFn: ({ signal }) => getSignupRequests(propertyId, signal),
     enabled: Boolean(session.data) && tab === 'requests',
     retry: false,
     gcTime: 0
@@ -122,9 +128,10 @@ export function ApprovalManagementPage({
     pending.current = true;
     setBusy(true);
     try {
-      client.setQueryData(key, await reviewSignupRequest(propertyId, request, resident));
+      setPropertyQueryData(client, key, await reviewSignupRequest(propertyId, request, resident), propertyScope);
       void client.invalidateQueries({
         predicate: (q) => ['property-residents', 'property-members', 'unlinked-residents'].includes(String(q.queryKey[0]))
+          && q.queryKey[1] === session.data?.id && q.queryKey[2] === propertyId
       });
       setNotice(resident ? '가입 요청을 승인했어요.' : '가입 요청을 거절했어요.');
       close();

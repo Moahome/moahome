@@ -20,6 +20,12 @@ const CURRENT_USER = {
 
 /** 실제 서버와 주소 검색 외부망 없이 사용자 입력·인증 요청의 결과를 확인합니다. */
 async function fulfillJson(route: Route, body: unknown, status = 200) {
+  if (route.request().url().endsWith('/access-context') && status === 200 && body && typeof body === 'object') {
+    body = {
+      residentEligible: false,
+      ...body
+    };
+  }
   await route.fulfill({
     status,
     contentType: 'application/json',
@@ -106,7 +112,7 @@ test.beforeEach(async ({ page }) => {
   await page.route(`${API_ORIGIN}/api/users/me/managed-properties`, (route) => fulfillJson(route, {
     properties: []
   }));
-  await page.route(`${API_ORIGIN}/api/properties/*/management-context`, (route) => fulfillJson(route, {
+  await page.route(`${API_ORIGIN}/api/properties/*/access-context`, (route) => fulfillJson(route, {
     propertyId: 'f5405dd1-42ea-4279-9302-812ffcc2d21b',
     name: '관리대상',
     role: 'ADMIN'

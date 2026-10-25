@@ -58,8 +58,9 @@ export function readWorkspace(result: BankingWorkspaceData, propertyId: string):
   }
   return result;
 }
-export async function getBankingWorkspace(propertyId: string) {
+export async function getBankingWorkspace(propertyId: string, signal?: AbortSignal) {
   return readWorkspace(await authenticatedAPI<BankingWorkspaceData>({
+    signal,
     url: `/api/properties/${propertyId}/banking/workspace`
   }), propertyId);
 }

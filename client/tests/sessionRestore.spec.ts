@@ -282,3 +282,30 @@ test('로그아웃은 진행 중인 Rotation이 완료된 뒤 실행되어 세�
   expect(requests).toEqual(['/api/auth/web/csrf', '/api/auth/web/refresh', '/api/auth/web/csrf', '/api/auth/web/logout']);
   expect(getSession()).toBeNull();
 });
+
+test('Refresh 타임아웃도 응답 유실로 처리해 추가 Rotation을 차단', async () => {
+  const originalTimeout = AbortSignal.timeout;
+  let refreshRequests = 0;
+  AbortSignal.timeout = () => originalTimeout(10);
+  globalThis.fetch = async (input, options) => {
+    if (new URL(String(input)).pathname.endsWith('/csrf')) return Response.json({
+      csrfToken: 'test-csrf'
+    });
+    refreshRequests++;
+    return new Promise((_resolve, reject) => {
+      options!.signal!.addEventListener('abort', () => reject(options!.signal!.reason), {
+        once: true
+      });
+    });
+  };
+  try {
+    await expect(restoreSession()).rejects.toMatchObject({
+      code: 'LOGIN_REQUIRED'
+    });
+    await expect(restoreSession()).rejects.toMatchObject({
+      code: 'LOGIN_REQUIRED'
+    });
+    expect(refreshRequests).toBe(1);
+    expect(getSession()).toBeNull();
+  } finally { AbortSignal.timeout = originalTimeout; }
+});

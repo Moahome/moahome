@@ -67,7 +67,7 @@ export function useUnitList(propertyId: string, saved?: string) {
   const queryKey = ['property-units', session.data?.id, propertyId];
   const list = useQuery({
     queryKey,
-    queryFn: () => getUnits(propertyId),
+    queryFn: ({ signal }) => getUnits(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     staleTime: 0,

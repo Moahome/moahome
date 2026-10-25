@@ -50,8 +50,9 @@ export function readLedger(value: PreviewLedger & PaymentLedgerIdentity, propert
   }
   return value;
 }
-export async function getPaymentLedger(propertyId: string): Promise<PreviewLedger> {
+export async function getPaymentLedger(propertyId: string, signal?: AbortSignal): Promise<PreviewLedger> {
   return readLedger(await authenticatedAPI({
+    signal,
     url: `/api/properties/${propertyId}/payments/workspace`
   }), propertyId);
 }

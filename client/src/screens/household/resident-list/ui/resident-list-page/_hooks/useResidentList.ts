@@ -14,7 +14,7 @@ export function useResidentList(propertyId: string) {
   const session = useSession();
   const list = useQuery({
     queryKey: ['property-residents', session.data?.id, propertyId],
-    queryFn: () => getResidents(propertyId),
+    queryFn: ({ signal }) => getResidents(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     staleTime: 0,

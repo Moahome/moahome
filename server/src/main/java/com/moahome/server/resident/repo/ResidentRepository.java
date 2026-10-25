@@ -50,7 +50,7 @@ public interface ResidentRepository extends JpaRepository<Resident, UUID> {
 	 * 명부 전체를 주민당 한 행으로 읽고 현재 소속과 가입 상태의 근거를 조회합니다.
 	 * 호수·전화번호만으로 사람을 추측하지 않고 확인된 연결과 실제 승인·참여를 사용합니다.
 	 */
-	@Query(value = """
+	String DIRECTORY_QUERY = """
 		select r.id as id, r.name as name, r.phone_last4 as "phoneLast4",
 		    u.id as "unitId", u.building_id as "buildingId", u.unit_number as "unitNumber",
 		    case when u.id is not null then ur.relation_type end as "relationType",
@@ -121,8 +121,16 @@ public interface ResidentRepository extends JpaRepository<Resident, UUID> {
 		left join units u on u.property_id = r.property_id and u.id = ur.unit_id and u.deleted_at is null
 		where r.property_id = :propertyId and r.deleted_at is null
 		order by r.name, r.id
-		""", nativeQuery = true)
+		""";
+	@Query(value = DIRECTORY_QUERY, nativeQuery = true)
 	List<DirectoryRow> findDirectory(UUID propertyId);
+
+	/** 명부와 동일한 승인 출처를 재사용하되 현재 계정의 주민 자격 boolean만 반환합니다. */
+	@Query(value = "select exists(select 1 from (" + DIRECTORY_QUERY + """
+		) directory join residents resident on resident.id=directory.id
+		where resident.user_id=:userId and directory.approved)
+		""", nativeQuery = true)
+	boolean hasApprovedResident(UUID propertyId, UUID userId);
 
 	/** 목록에는 끝 네 자리만 조회하여 암호문·전화번호 검색값·계정 ID가 응답 처리에 섞이지 않게 합니다. */
 	interface DirectoryRow {

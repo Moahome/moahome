@@ -7,8 +7,9 @@ import type {
 } from './bankingBalanceApiTypes';
 
 /** 다른 관리대상·통장 응답과 잘못된 금액을 거부하고 취소한 확인 원문도 보존합니다. */
-export async function getBankBalanceChecks(propertyId: string, accountId: string): Promise<BankBalanceCheck[]> {
+export async function getBankBalanceChecks(propertyId: string, accountId: string, signal?: AbortSignal): Promise<BankBalanceCheck[]> {
   const data = await authenticatedAPI<BankBalanceCheckHistory>({
+    signal,
     url: `/api/properties/${propertyId}/banking/balances/checks`,
     data: {
       accountId

@@ -59,7 +59,7 @@ export function UnitEntryPage({
   const [notice, setNotice] = useState<{ id: string; message: string } | null>(null);
   const list = useQuery({
     queryKey,
-    queryFn: () => getUnits(propertyId),
+    queryFn: ({ signal }) => getUnits(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     staleTime: 0,

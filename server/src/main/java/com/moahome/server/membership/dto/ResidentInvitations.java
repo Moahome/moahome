@@ -39,7 +39,7 @@ public final class ResidentInvitations {
 	public record Workspace(UUID propertyId, List<Item> invitations) {
 	}
 
-	public record Preview(String propertyName, String name, String unitLabel, String phoneLast4, String status,
+	public record Preview(UUID propertyId, String propertyName, String name, String unitLabel, String phoneLast4, String status,
 	    OffsetDateTime expiresAt, long revision) {
 	}
 

@@ -45,7 +45,7 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
   const cache = useQueryClient();
   const accounts = useQuery({
     queryKey: ['bank-account-settings', session.data?.id, propertyId],
-    queryFn: () => getBankAccounts(propertyId),
+    queryFn: ({ signal }) => getBankAccounts(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0,
@@ -64,7 +64,7 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
   async function refresh() {
     await accounts.refetch();
     await cache.invalidateQueries({
-      predicate: (query) => query.queryKey.includes(propertyId)
+      predicate: (query) => query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
       && ['payment-workspace', 'banking-workspace', 'banking-balances', 'billing-workspace'].includes(String(query.queryKey[0]))
     });
     setEditing(null);setClosing(null);onSaved();

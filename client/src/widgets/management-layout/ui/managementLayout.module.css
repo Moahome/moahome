@@ -60,3 +60,12 @@
     transition: none;
   }
 }
+
+.access-error {
+  display: grid;
+  place-items: center;
+  height: 100dvh;
+  overflow: auto;
+  padding: 24px;
+  background: var(--background);
+}

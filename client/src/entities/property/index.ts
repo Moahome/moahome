@@ -63,3 +63,9 @@ export {
 export {
   UnitDetail
 } from './ui/unit-detail/unitDetail';
+
+export {
+  capturePropertyQueryScope,
+  endPropertyQueryScope,
+  setPropertyQueryData
+} from './model/propertyQueryScope';

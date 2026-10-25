@@ -21,7 +21,9 @@ class ManagementAccessServiceTest {
 
 	private final PropertyMemberRepository members = mock(PropertyMemberRepository.class);
 
-	private final ManagementAccessService service = new ManagementAccessService(users, members);
+	private final com.moahome.server.resident.repo.ResidentRepository residents = mock(com.moahome.server.resident.repo.ResidentRepository.class);
+
+	private final ManagementAccessService service = new ManagementAccessService(users, members, residents);
 
 	private final UUID userId = UUID.randomUUID();
 
@@ -83,6 +85,32 @@ class ManagementAccessServiceTest {
 		assertThatThrownBy(() -> service.getManagedProperties(userId)).isInstanceOf(IllegalStateException.class);
 		assertThatThrownBy(() -> service.getManagementContext(userId, propertyId))
 		    .isInstanceOf(IllegalStateException.class);
+	}
+
+	@Test
+	void accessContextSeparatesCurrentRoleFromResidentEligibility() {
+		for (var role : PropertyMemberRole.values()) {
+			var current = row(propertyId, role);
+			when(members.findAccessContext(userId, propertyId)).thenReturn(List.of(current));
+			when(residents.hasApprovedResident(propertyId, userId)).thenReturn(false);
+			var context = service.getPropertyAccessContext(userId, propertyId);
+			assertThat(context.role()).isEqualTo(role);
+			assertThat(context.residentEligible()).isFalse();
+			when(residents.hasApprovedResident(propertyId, userId)).thenReturn(true);
+			assertThat(service.getPropertyAccessContext(userId, propertyId).residentEligible()).isTrue();
+		}
+	}
+
+	@Test
+	void accessContextRejectsMissingAndConflictingRolesBeforeReadingResidentData() {
+		when(members.findAccessContext(userId, propertyId)).thenReturn(List.of());
+		assertThatThrownBy(() -> service.getPropertyAccessContext(userId, propertyId))
+		    .isInstanceOf(AuthException.class);
+		List<ManagementProperty> conflicts = List.of(row(propertyId, PropertyMemberRole.RESIDENT), row(propertyId, PropertyMemberRole.MANAGER));
+		when(members.findAccessContext(userId, propertyId)).thenReturn(conflicts);
+		assertThatThrownBy(() -> service.getPropertyAccessContext(userId, propertyId))
+		    .isInstanceOf(IllegalStateException.class);
+		verifyNoInteractions(residents);
 	}
 
 	private ManagementProperty row(UUID id, PropertyMemberRole role) {

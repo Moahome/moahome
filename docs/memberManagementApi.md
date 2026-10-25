@@ -120,7 +120,7 @@
 | Method | 경로 | 요청 | 결과 |
 | --- | --- | --- | --- |
 | POST | `/api/resident-invitations/shared-options` | `{token:공통코드}` | `{propertyId,propertyName,units}` |
-| POST | `/api/resident-invitations/preview` | `{token:개인코드}` | `{propertyName,name,unitLabel,phoneLast4,status,expiresAt,revision}` |
+| POST | `/api/resident-invitations/preview` | `{token:개인코드}` | `{propertyId,propertyName,name,unitLabel,phoneLast4,status,expiresAt,revision}` |
 | POST | `/api/resident-invitations/accept` | `{token,correction:false}` | `{status:APPROVED}` |
 | POST | 같은 accept 경로 | `{token,correction:true,name,phoneAction,phone?}` | `{status:CHANGE_REQUESTED}` |
 
@@ -132,7 +132,7 @@ phoneAction은 KEEP / SET / REMOVE입니다. SET일 때만 phone을 필수로 �
 
 ## Redis 이전의 변경 계약 (2026-10-25)
 
-기존 URL·요청 DTO·성공 필드는 유지하는 설계입니다. 정책은 [도메인 규칙](domainRules.md#초대-인증서비스-복귀역할-변경의-후속-확정-방향-2026-10-25)을 참조하며 기간 표를 중복 정의하지 않습니다. Server의 Redis 이전은 앞선 구현 요청으로 작업 중이고, 아래 오류·호환성 검증까지 완료한 API 배포로 보지 않습니다.
+기존 URL·요청 DTO는 유지합니다. 후속 구현에서 개인 preview 성공 응답에 Property 문맥을 위한 `propertyId`를 추가했습니다. 다른 주민 개인정보와 코드를 쿼리에 전달하지 않습니다. 정책은 [도메인 규칙](domainRules.md#초대-인증서비스-복귀역할-변경의-후속-확정-방향-2026-10-25)을 참조하며 기간 표를 중복 정의하지 않습니다. Server Redis 이전은 구현됐으며 실제 환경 배포 여부는 [검증 기록](../server/docs/memberManagement.md#구현-순서와-검증-상태)을 따릅니다.
 
 | 기존 API | 변경할 의미 |
 | --- | --- |
@@ -153,4 +153,4 @@ phoneAction은 KEEP / SET / REMOVE입니다. SET일 때만 phone을 필수로 �
 | 503 | INVITATION_SERVICE_UNAVAILABLE | Redis 연결/명령 장애. 현재 입력 유지·재시도. 만료로 단정하지 않음 |
 | 기존 상태 | 기존 계정·연결 충돌·명부 변경 오류 | 기존 업무 계약 유지 |
 
-이전 오류 표의 INVALID_INVITATION 409는 실제 `PaymentExceptionHandler`의 `INVALID_` 접두사 처리인 400과 달랐으므로 실제 계약과 맞춥니다. 503 추가는 작업 중인 변경입니다. 모든 응답은 no-store이며 토큰·암호문·SQL·개인정보를 오류에 포함하지 않습니다. DB 커밋 후 Redis 삭제 실패를 가입 실패 503으로 바꾸지 않습니다. 실패 유형과 영구 상태를 구분한 재시도는 [Server 정합성 설계](../server/docs/memberManagement.md#db와-redis의-확정-순서)를 따릅니다.
+이전 오류 표의 INVALID_INVITATION 409는 실제 `PaymentExceptionHandler`의 `INVALID_` 접두사 처리인 400과 달랐으므로 실제 계약과 맞춥니다. 503 처리를 구현했습니다. 모든 응답은 no-store이며 토큰·암호문·SQL·개인정보를 오류에 포함하지 않습니다. DB 커밋 후 Redis 삭제 실패를 가입 실패 503으로 바꾸지 않습니다. 실패 유형과 영구 상태를 구분한 재시도는 [Server 정합성 설계](../server/docs/memberManagement.md#db와-redis의-확정-순서)를 따릅니다.
