@@ -1,3 +1,4 @@
+import type { BillingSettings } from '../src/entities/billing';
 import {
   expect,
   test,
@@ -41,8 +42,16 @@ async function json(route: Route, body: unknown, status = 200) {
   });
 }
 async function mockBilling(page: Page) {
-  let settings = {
+  let settings: BillingSettings = {
     propertyId: PROPERTY,
+    hasBuildings: true,
+    buildings: [{
+      id: id(11),
+      name: '102동'
+    }, {
+      id: id(10),
+      name: '101동'
+    }],
     currentMonth: '2026-10',
     firstBillingMonth: '2026-01',
     nextBillingDate: '2026-11-01',
@@ -63,7 +72,8 @@ async function mockBilling(page: Page) {
     wrongScope: false,
     hasBuildings: true,
     currentMonth: '2026-10',
-    millionSummary: false
+    millionSummary: false,
+    currentAdditions: [] as { id: string; buildingId: string | null; code: null; name: string; amount: string }[]
   };
   await page.route(`${API}/**`, async route => {
     const request = route.request(); const path = new URL(request.url()).pathname;
@@ -106,12 +116,40 @@ async function mockBilling(page: Page) {
           code: state.fail === 409 ? 'BILLING_SETTINGS_CONFLICT' : 'BILLING_SERVICE_UNAVAILABLE'
         }, state.fail);
         expect(body.revisionId).toBe(settings.revisionId);
+        state.currentAdditions.push(...(body.temporaryItems ?? []).filter((item: { month?: string }) => (item.month ?? body.temporaryMonth ?? body.effectiveMonth) === state.currentMonth)
+          .map((item: { buildingId: string | null; itemCode: null; itemName: string; defaultAmount: number }, index: number) => ({
+            id: id(800 + state.currentAdditions.length + index),
+            buildingId: item.buildingId,
+            code: item.itemCode ?? null,
+            name: item.itemName,
+            amount: String(item.defaultAmount)
+          })));
+
         settings = {
           ...settings,
           revisionId: id(5),
           scheduled: {
             id: id(5),
             effectiveMonth: body.effectiveMonth,
+            mode: body.mode ?? 'ALL',
+            buildingItems: (body.buildingItems ?? []).map((group: { buildingId: string; items: {itemCode: null; itemName: string; defaultAmount: number}[] }, groupIndex: number) => ({
+              buildingId: group.buildingId,
+              items: group.items.map((item, index) => ({
+                id: id(500 + groupIndex * 100 + index),
+                code: item.itemCode,
+                name: item.itemName,
+                amount: String(item.defaultAmount)
+              }))
+            })),
+            temporaryMode: body.temporaryMode ?? 'ALL',
+            temporaryItems: (body.temporaryItems ?? []).filter((item: { month?: string }) => (item.month ?? body.temporaryMonth ?? body.effectiveMonth) !== state.currentMonth).map((item: { buildingId: string | null; itemName: string; itemCode: null; defaultAmount: number; note: string }, index: number) => ({
+              id: id(900 + index),
+              buildingId: item.buildingId,
+              code: item.itemCode ?? null,
+              name: item.itemName,
+              amount: String(item.defaultAmount),
+              note: item.note
+            })),
             items: body.items.map((item: {itemName: string; defaultAmount: number}, index: number) => ({
               id: id(50+index),
               code: null,
@@ -123,7 +161,11 @@ async function mockBilling(page: Page) {
           }
         };
       }
-      return json(route, settings);
+      return json(route, {
+        ...settings,
+        hasBuildings: state.hasBuildings,
+        buildings: state.hasBuildings ? settings.buildings : []
+      });
     }
     if (path.endsWith('/billing/history')) return json(route, {
       propertyId: PROPERTY,
@@ -159,7 +201,7 @@ async function mockBilling(page: Page) {
         room:String(101+index),
         displayName:index===0?'관리실':null,
         representativeName:index===0?'김모아':null,
-        items:selected
+        items:[...selected, ...(month === state.currentMonth ? state.currentAdditions.filter((item) => !item.buildingId || item.buildingId === (index < 15 ? id(10) : id(11))) : [])]
       })).reverse();
       if (match[2]) charges = charges.filter(charge => charge.unitId === match[2]);
       return json(route, {
@@ -375,6 +417,21 @@ for (const width of [1440,390,320]) {
       name:'관리비 부과 이력',
       exact:true
     }); await expect(history.getByRole('row')).toHaveCount(11);
+    if (width < 768) {
+      const monthFilter = main.getByRole('button', {
+        name: '이력 조회 월: 전체 기간',
+        exact: true
+      });
+      const header = main.getByRole('heading', {
+        name: '확정된 부과 이력',
+        exact: true
+      }).locator('../..');
+      const filterBounds = await monthFilter.boundingBox();
+      const headerBounds = await header.boundingBox();
+      expect(filterBounds).not.toBeNull();
+      expect(headerBounds).not.toBeNull();
+      expect(Math.abs(filterBounds!.width - headerBounds!.width)).toBeLessThanOrEqual(1);
+    }
     await main.getByRole('textbox',{
       name:'부과 이력 검색',
       exact:true
@@ -383,30 +440,69 @@ for (const width of [1440,390,320]) {
     const expectedRooms = Array.from({
       length: 25
     }, (_, index) => `${101 + index}호`);
-    if (width===1440) {
-      const detailTable = page.getByRole('dialog').getByRole('table', {
-        name: '확정 세대 내역',
-        exact: true
-      });
-      await expect(detailTable.getByRole('row')).toHaveCount(26);
-      await expect(detailTable.getByRole('rowheader')).toHaveText(expectedRooms);
-      await page.keyboard.press('Escape');
+    if (width < 768) {
+      await expect(page).toHaveURL(/history\/2026-10$/);
+      await page.reload();
     }
-    else { await expect(page).toHaveURL(/history\/2026-10$/); await page.reload(); await expect(main.getByRole('table',{
-      name:'확정 세대 내역',
-      exact:true
-    })).toBeVisible();
-    await expect(main.getByRole('table', {
+    const detail = width >= 768 ? page.getByRole('dialog') : main;
+    const detailTable = detail.getByRole('table', {
       name: '확정 세대 내역',
       exact: true
-    }).getByRole('rowheader')).toHaveText(expectedRooms);
-    await expect(main.getByRole('button', {
-      name: /목록/
-    })).toHaveCount(0);
-    await page.getByRole('banner').getByRole('link',{
-      name:'목록',
-      exact:true
-    }).click(); }
+    });
+    const detailPages = detail.getByRole('navigation', {
+      name: '부과 상세 페이지',
+      exact: true
+    });
+    await expect(detailTable.getByRole('row')).toHaveCount(11);
+    await expect(detailTable.getByRole('rowheader')).toHaveText(expectedRooms.slice(0, 10));
+    await detailPages.getByRole('button', {
+      name: '다음 페이지',
+      exact: true
+    }).click();
+    await expect(detailTable.getByRole('rowheader')).toHaveText(expectedRooms.slice(10, 20));
+    await detailPages.getByRole('button', {
+      name: '다음 페이지',
+      exact: true
+    }).click();
+    await expect(detailTable.getByRole('rowheader')).toHaveText(expectedRooms.slice(20));
+    await expect(detailPages.getByRole('button', {
+      name: '다음 페이지',
+      exact: true
+    })).toBeDisabled();
+    await expect(detail.getByText('375,000원', {
+      exact: true
+    })).toBeVisible();
+    const detailSize = detail.getByRole('combobox', {
+      name: '부과 상세 표시 개수',
+      exact: true
+    });
+    for (const size of [20, 50]) {
+      await detailSize.click();
+      await page.getByRole('option', {
+        name: `${size}개씩 보기`,
+        exact: true
+      }).click();
+      await expect(detailTable.getByRole('rowheader')).toHaveText(expectedRooms.slice(0, size));
+      await expect(detailPages.getByRole('button', {
+        name: '1페이지',
+        exact: true
+      })).toHaveAttribute('aria-current', 'page');
+    }
+    await page.screenshot({
+      path: test.info().outputPath(`billingHistoryDetail${width}.png`),
+      fullPage: true
+    });
+    if (width >= 768) {
+      await page.keyboard.press('Escape');
+    } else {
+      await expect(main.getByRole('button', {
+        name: /목록/
+      })).toHaveCount(0);
+      await page.getByRole('banner').getByRole('link', {
+        name: '목록',
+        exact: true
+      }).click();
+    }
     await main.getByRole('tab',{
       name:'관리비 설정',
       exact:true
@@ -432,18 +528,23 @@ for (const width of [1440,390,320]) {
       const currentToggle = page.getByRole('button', {
         name: /현재 적용 항목/
       });
+      await currentToggle.hover();
+      await expect(currentToggle).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
       const currentSettings = main.getByRole('region', {
         name: '현재 적용 항목',
         exact: true
       });
-      await expect(currentToggle).toContainText('총 2개 · 당월 기준');
+      await expect(currentToggle).toContainText('당월 기준');
       await expect(currentToggle).toContainText('15,000원');
       await expect(currentToggle).toHaveAttribute('aria-expanded', 'false');
-      await expect(currentSettings.locator('dl')).toBeHidden();
+      await expect(currentSettings.getByRole('table', {
+        name: '현재 적용 항목',
+        exact: true
+      })).toBeHidden();
       await currentToggle.click();
       await expect(currentToggle).toHaveAttribute('aria-expanded', 'true');
-      await expect(currentSettings.locator('dt')).toHaveText(['기본 관리비', '조정']);
-      await expect(currentSettings.locator('dd')).toHaveText(['15,000원', '0원']);
+      await expect(currentSettings.getByRole('rowheader')).toHaveText(['기본 관리비', '조정']);
+      await expect(currentSettings).toContainText('15,000원');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await currentSettings.evaluate(async (element) => {
         await Promise.all(element.getAnimations({
@@ -457,7 +558,10 @@ for (const width of [1440,390,320]) {
       await currentToggle.focus();
       await page.keyboard.press('Enter');
       await expect(currentToggle).toHaveAttribute('aria-expanded', 'false');
-      await expect(currentSettings.locator('dl')).toBeHidden();
+      await expect(currentSettings.getByRole('table', {
+        name: '현재 적용 항목',
+        exact: true
+      })).toBeHidden();
     }
   });
 }
@@ -603,7 +707,7 @@ test('설정하기는 별도 편집 페이지·사유 필수·음수와 0원 저
     exact:true
   }).fill('-1000');
   const save=main.getByRole('button',{
-    name:'다음 달 설정 저장',
+    name:'다음 달 예약 저장',
     exact:true
   }); await save.click();
   await expect(main.getByText('수정 사유를 입력해주세요.',{
@@ -655,7 +759,7 @@ test('설정하기는 별도 편집 페이지·사유 필수·음수와 0원 저
 });
 test('업무 API 권한·장애·다른 대상 응답을 빈 청구로 숨기지 않음', async ({page}) => {
   const state=await mockBilling(page); state.monthFailure=403; await page.goto(BASE); const main=page.getByRole('main');
-  await expect(main.getByText('관리비를 조회하거나 설정할 권한이 없어요.',{
+  await expect(main.getByText('접근 권한을 확인해주세요',{
     exact:true
   })).toBeVisible();
   await expect(main.getByRole('table',{
@@ -666,7 +770,7 @@ test('업무 API 권한·장애·다른 대상 응답을 빈 청구로 숨기지
     name:'다시 시도',
     exact:true
   }).click();
-  await expect(main.getByText('관리비 정보를 처리하지 못했어요. 다시 시도해주세요.',{
+  await expect(main.getByText('정보를 불러오지 못했어요',{
     exact:true
   })).toBeVisible();
   state.wrongScope=false; await main.getByRole('button',{
@@ -707,5 +811,456 @@ for (const width of [1600, 1280, 390, 320]) {
       fullPage: true,
       animations: 'disabled'
     });
+  });
+}
+
+for (const width of [1440, 390]) {
+  test(`기본 전체와 임시 동별을 독립 선택하고 저장·재진입한다 ${width}px`, async ({ page }) => {
+    const state = await mockBilling(page);
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    await page.goto(`${BASE}/settings`);
+    const base = page.getByRole('group', {
+      name: '기본 부과 방식',
+      exact: true
+    });
+    const temporary = page.getByRole('group', {
+      name: '임시 부과 방식',
+      exact: true
+    });
+    await temporary.getByRole('radio', {
+      name: /^동별 부과/
+    }).check();
+    await expect(base.getByRole('radio', {
+      name: /^전체 부과/
+    })).toBeChecked();
+    await page.getByRole('button', {
+      name: '임시 부과 추가',
+      exact: true
+    }).click();
+    await page.getByRole('combobox', {
+      name: '부과 대상 동',
+      exact: true
+    }).click();
+    await expect(page.getByRole('option')).toHaveText(['101동', '102동']);
+    await page.getByRole('option', {
+      name: '102동',
+      exact: true
+    }).click();
+    const temporaryRow = page.getByRole('group', {
+      name: '임시 부과 1',
+      exact: true
+    });
+    const effectiveMonth = temporaryRow.getByRole('combobox', {
+      name: '적용 월',
+      exact: true
+    }).getByText('2026년 11월', {
+      exact: true
+    });
+    await expect(effectiveMonth).toBeVisible();
+    await expect(effectiveMonth).toHaveCSS('font-size', '16px');
+    await expect(effectiveMonth).toHaveCSS('color', 'rgb(15, 23, 42)');
+    await expect(temporaryRow).not.toContainText('11월만');
+    if (width < 768) {
+      const baseRow = page.getByRole('group', {
+        name: '항목 1',
+        exact: true
+      });
+      const baseDelete = baseRow.getByRole('button', {
+        name: '항목 1 삭제',
+        exact: true
+      });
+      const temporaryDelete = temporaryRow.getByRole('button', {
+        name: '임시 부과 1 삭제',
+        exact: true
+      });
+      for (const [row, button] of [[baseRow, baseDelete], [temporaryRow, temporaryDelete]]) {
+        const rowBounds = await row.boundingBox();
+        const buttonBounds = await button.boundingBox();
+        expect(rowBounds).not.toBeNull();
+        expect(buttonBounds).not.toBeNull();
+        expect(buttonBounds!.y - rowBounds!.y).toBeLessThanOrEqual(24);
+        expect(rowBounds!.x + rowBounds!.width - buttonBounds!.x - buttonBounds!.width).toBeLessThanOrEqual(24);
+        await expect(button.locator('svg:visible')).toHaveCount(1);
+      }
+    }
+    const temporaryKind = page.getByRole('combobox', {
+      name: '임시 항목 1 종류',
+      exact: true
+    });
+    await expect(page.getByRole('textbox', {
+      name: '임시 항목 1 이름',
+      exact: true
+    })).toHaveCount(0);
+    await temporaryKind.click();
+    await page.getByRole('option', {
+      name: '청소비',
+      exact: true
+    }).click();
+    await expect(page.getByRole('textbox', {
+      name: '임시 항목 1 이름',
+      exact: true
+    })).toHaveCount(0);
+    await temporaryKind.click();
+    await page.getByRole('option', {
+      name: '기타',
+      exact: true
+    }).click();
+    await expect(page.getByRole('textbox', {
+      name: '임시 항목 1 이름',
+      exact: true
+    })).toHaveCSS('color', 'rgb(15, 23, 42)');
+    await page.getByRole('textbox', {
+      name: '임시 항목 1 이름',
+      exact: true
+    }).fill('수선비');
+    await page.getByRole('textbox', {
+      name: '세대당 추가 금액',
+      exact: true
+    }).fill('100000');
+    const preview = page.getByRole('table', {
+      name: '동별 부과 미리보기',
+      exact: true
+    });
+    await expect(preview.getByRole('row').filter({
+      hasText: '102동'
+    })).toContainText('115,000원');
+    await expect(preview.getByRole('row').filter({
+      hasText: '101동'
+    })).toContainText('15,000원');
+    await page.getByRole('textbox', {
+      name: '수정 사유',
+      exact: true
+    }).fill('102동 다음 달 수선비');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`billingIndependentModes${width}.png`),
+      fullPage: true
+    });
+    await page.getByRole('button', {
+      name: '다음 달 예약 저장',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(/tab=items/);
+    expect(state.writes[0]).toMatchObject({
+      mode: 'ALL',
+      temporaryMode: 'BUILDING',
+      temporaryItems: [{
+        buildingId: id(11),
+        defaultAmount: 100000
+      }]
+    });
+    await page.getByRole('button', {
+      name: '설정하기',
+      exact: true
+    }).click();
+    await expect(page.getByRole('textbox', {
+      name: '세대당 추가 금액',
+      exact: true
+    })).toHaveValue('100,000');
+    await expect(base.getByRole('radio', {
+      name: /^전체 부과/
+    })).toBeChecked();
+    await expect(temporary.getByRole('radio', {
+      name: /^동별 부과/
+    })).toBeChecked();
+    await base.getByRole('radio', {
+      name: /^동별 부과/
+    }).check();
+    await expect(page.getByRole('region', {
+      name: '전체 동 기본 항목 설정',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByRole('region', {
+      name: '동별 기본 항목 설정',
+      exact: true
+    })).toBeVisible();
+    await page.getByRole('region', {
+      name: '동별 기본 항목 설정',
+      exact: true
+    }).getByRole('button', {
+      name: /^102동/
+    }).click();
+    const building = page.getByRole('region', {
+      name: '102동',
+      exact: true
+    });
+    await building.getByRole('textbox', {
+      name: '항목 1 기본 금액',
+      exact: true
+    }).fill('60000');
+    await temporary.getByRole('radio', {
+      name: /^전체 부과/
+    }).check();
+    await page.getByRole('textbox', {
+      name: '수정 사유',
+      exact: true
+    }).fill('동별 기본과 전체 임시 부과');
+    await page.getByRole('button', {
+      name: '다음 달 예약 저장',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(/tab=items/);
+    expect(state.writes[1]).toMatchObject({
+      mode: 'BUILDING',
+      items: [],
+      temporaryMode: 'ALL',
+      temporaryItems: [{
+        buildingId: null,
+        defaultAmount: 100000
+      }]
+    });
+    await page.reload();
+    const scheduled = page.getByRole('table', {
+      name: '다음 달 적용 예정 항목',
+      exact: true
+    });
+    await expect(scheduled).toContainText('동별 금액 다름');
+    await scheduled.getByRole('button', {
+      name: '기본 관리비 동별 금액',
+      exact: true
+    }).click();
+    await expect(scheduled).toContainText('60,000원');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`billingBuildingSummary${width}.png`),
+      fullPage: true
+    });
+  });
+}
+
+for (const width of [1440, 390]) {
+  test(`임시 항목마다 적용월 드롭다운을 선택해 이번 달 추가와 다음 달 예약을 함께 저장 ${width}px`, async ({ page }) => {
+    const state = await mockBilling(page);
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    await page.goto(`${BASE}/settings`);
+    await expect(page.getByRole('group', {
+      name: '임시 부과 적용 월',
+      exact: true
+    })).toHaveCount(0);
+    const add = page.getByRole('button', {
+      name: '임시 부과 추가',
+      exact: true
+    });
+    await add.click();
+    const current = page.getByRole('group', {
+      name: '임시 부과 1',
+      exact: true
+    });
+    await current.getByRole('combobox', {
+      name: '적용 월',
+      exact: true
+    }).click();
+    await expect(page.getByRole('option')).toHaveText(['2026년 10월', '2026년 11월']);
+    await page.getByRole('option', {
+      name: '2026년 10월',
+      exact: true
+    }).click();
+    await current.getByRole('combobox', {
+      name: '임시 항목 1 종류',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '청소비',
+      exact: true
+    }).click();
+    await current.getByRole('textbox', {
+      name: '세대당 추가 금액',
+      exact: true
+    }).fill('100000');
+    await add.click();
+    const next = page.getByRole('group', {
+      name: '임시 부과 2',
+      exact: true
+    });
+    await expect(next.getByRole('combobox', {
+      name: '적용 월',
+      exact: true
+    })).toContainText('2026년 11월');
+    await next.getByRole('combobox', {
+      name: '임시 항목 2 종류',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '승강기 유지비',
+      exact: true
+    }).click();
+    await next.getByRole('textbox', {
+      name: '세대당 추가 금액',
+      exact: true
+    }).fill('20000');
+    await page.getByRole('textbox', {
+      name: '수정 사유',
+      exact: true
+    }).fill('긴급 청소와 다음 달 점검');
+    const save = page.getByRole('button', {
+      name: '이번 달 추가 부과',
+      exact: true
+    });
+    state.fail = 503;
+    await save.click();
+    await expect(page.getByRole('main').getByRole('alert')).toContainText('다시 시도');
+    const requestId = state.writes[0].requestId;
+    expect(requestId).toMatch(/^[0-9a-f-]{36}$/);
+    state.fail = 0;
+    await save.click();
+    await expect(page).toHaveURL(/tab=monthly&month=2026-10/);
+    expect(state.writes[1].requestId).toBe(requestId);
+    expect(state.writes[1]).toMatchObject({
+      temporaryItems: [{
+        month: '2026-10',
+        defaultAmount: 100000
+      }, {
+        month: '2026-11',
+        defaultAmount: 20000
+      }]
+    });
+    const monthly = page.getByRole('table', {
+      name: '세대별 관리비',
+      exact: true
+    });
+    await expect(monthly.getByRole('row').nth(1)).toContainText('115,000원');
+    await page.goto(`${BASE}/settings`);
+    await expect(page.getByRole('textbox', {
+      name: '세대당 추가 금액',
+      exact: true
+    })).toHaveValue('20,000');
+    await expect(page.getByRole('combobox', {
+      name: '적용 월',
+      exact: true
+    })).toContainText('2026년 11월');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+}
+
+for (const width of [1440, 390, 320]) {
+  test(`참고용 금액 계산·복사는 부과 초안과 저장에 영향을 주지 않는다 ${width}px`, async ({ page }) => {
+    const state = await mockBilling(page);
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          writeText: async (value: string) => {
+            document.documentElement.dataset.copiedAmount = value;
+          }
+        }
+      });
+    });
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    await page.goto(`${BASE}/settings`);
+    const baseAmount = page.getByRole('textbox', {
+      name: '항목 1 기본 금액',
+      exact: true
+    });
+    await baseAmount.fill('50000');
+    await page.getByRole('button', {
+      name: '임시 부과 추가',
+      exact: true
+    }).click();
+    const temporaryAmount = page.getByRole('textbox', {
+      name: '세대당 추가 금액',
+      exact: true
+    });
+    await temporaryAmount.fill('10000');
+    const trigger = page.getByRole('button', {
+      name: '금액 계산기',
+      exact: true
+    });
+    await trigger.click();
+    const dialog = page.getByRole('dialog', {
+      name: '부과 금액 계산기',
+      exact: true
+    });
+    const amount = dialog.getByRole('textbox', {
+      name: '필요한 총금액',
+      exact: true
+    });
+    const count = dialog.getByRole('textbox', {
+      name: '나눌 세대 수',
+      exact: true
+    });
+    await expect(amount).toBeFocused();
+    await expect(dialog).toContainText('참고용 · 부과 금액에 자동 반영되지 않습니다.');
+    await amount.fill('1500000');
+    await count.fill('0');
+    await expect(dialog).toContainText('나눌 세대 수는 1 이상으로 입력해주세요.');
+    await expect(dialog.getByRole('region', {
+      name: '분담 금액 계산 결과'
+    })).toHaveCount(0);
+    await count.fill('20');
+    const exact = dialog.getByRole('article', {
+      name: '세대당 금액',
+      exact: true
+    });
+    await expect(exact).toContainText('75,000원');
+    await expect(exact).toContainText('1,500,000원');
+    await expect(exact).toContainText('차이 없음');
+    await count.fill('17');
+    const lower = dialog.getByRole('article', {
+      name: '원 단위 내림',
+      exact: true
+    });
+    const upper = dialog.getByRole('article', {
+      name: '원 단위 올림',
+      exact: true
+    });
+    await expect(lower).toContainText('88,235원');
+    await expect(lower).toContainText('1,499,995원');
+    await expect(lower).toContainText('5원 부족');
+    await expect(upper).toContainText('88,236원');
+    await expect(upper).toContainText('1,500,012원');
+    await expect(upper).toContainText('12원 초과');
+    await lower.getByRole('button', {
+      name: '원 단위 내림 복사',
+      exact: true
+    }).click();
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.copiedAmount)).toBe('88235');
+    await expect(dialog).toContainText('88,235원을 복사했어요.');
+    await count.press('Enter');
+    await expect(dialog).toBeVisible();
+    const bounds = await dialog.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath(`billingCalculator${width}.png`),
+      fullPage: true
+    });
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+    await expect(trigger).toBeFocused();
+    await expect(baseAmount).toHaveValue('50,000');
+    await expect(temporaryAmount).toHaveValue('10,000');
+    expect(state.writes).toHaveLength(0);
+    await trigger.click();
+    await expect(count).toHaveValue('17');
+    // 복사 권한이 없는 환경에서도 계산 결과와 입력을 잃지 않습니다.
+    await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async () => { throw new Error('clipboard unavailable'); }
+      }
+    }));
+    await upper.getByRole('button', {
+      name: '원 단위 올림 복사',
+      exact: true
+    }).click();
+    await expect(dialog).toContainText('복사하지 못했어요. 금액을 선택해 복사해주세요.');
+    await expect(upper).toContainText('88,236원');
+    await dialog.getByRole('button', {
+      name: '계산기 닫기',
+      exact: true
+    }).click();
+    await expect(dialog).not.toBeVisible();
+    expect(state.writes).toHaveLength(0);
   });
 }

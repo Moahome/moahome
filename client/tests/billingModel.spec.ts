@@ -1,6 +1,7 @@
 import type {
   BillingCharge,
-  BillingItem
+  BillingItem,
+  BillingPlan
 } from '../src/entities/billing';
 import {
   expect,
@@ -8,6 +9,9 @@ import {
 } from '@playwright/test';
 import {
   getBillingDates,
+  getBillingPlan,
+  getBillingPlanError,
+  getPlanItems,
   getSettingsError,
   getSortedBillingCharges,
   isBillingMonth,
@@ -79,4 +83,65 @@ test('다음 달 설정은 사유가 필수이고 0원·음수·상쇄를 허용
   const balanced = items(['999999999999999', '999999999999999', '-999999999999999']);
   expect(getSettingsError(balanced, '조정')).toBeNull();
   expect(sumBillingItems(balanced)).toBe(BigInt('999999999999999'));
+});
+
+
+test('전체 기본과 동별 임시는 독립 적용하고 종료된 임시 항목을 다음 달 편집에 복사하지 않음', () => {
+  const plan: BillingPlan = {
+    mode: 'ALL',
+    items: items(['50000']),
+    buildingItems: [],
+    temporaryMode: 'BUILDING',
+    temporaryItems: [{
+      ...items(['100000'])[0],
+      buildingId: '102',
+      note: ''
+    }]
+  };
+  expect(sumBillingItems(getPlanItems(plan, '101'))).toBe(BigInt(50000));
+  expect(sumBillingItems(getPlanItems(plan, '102'))).toBe(BigInt(150000));
+  expect(getBillingPlanError(plan, '수선비', ['101', '102'])).toBeNull();
+  expect(getBillingPlanError({
+    ...plan,
+    temporaryItems: [{
+      ...plan.temporaryItems[0],
+      buildingId: null
+    }]
+  }, '수선비', ['101', '102'])).toContain('대상 동');
+  const next = getBillingPlan({
+    ...plan,
+    id: 'template',
+    effectiveMonth: '2026-11',
+    reason: null,
+    changedAt: ''
+  }, false);
+  expect(next.mode).toBe('ALL');
+  expect(next.temporaryItems).toEqual([]);
+  expect(sumBillingItems(getPlanItems(next, '102'))).toBe(BigInt(50000));
+});
+
+test('동별 합계는 동마다 검사하고 기본과 임시를 더한 범위를 검증', () => {
+  const plan: BillingPlan = {
+    mode: 'BUILDING',
+    items: [],
+    temporaryMode: 'ALL',
+    temporaryItems: [],
+    buildingItems: ['101', '102'].map((buildingId) => ({
+      buildingId,
+      items: items(['999999999999999'])
+    }))
+  };
+  expect(getBillingPlanError(plan, '동별 금액', ['101', '102'])).toBeNull();
+  expect(getBillingPlanError({
+    ...plan,
+    temporaryItems: [{
+      ...items(['1'])[0],
+      buildingId: null,
+      note: ''
+    }]
+  }, '추가', ['101', '102'])).toContain('합한');
+  expect(getBillingPlanError({
+    ...plan,
+    buildingItems: plan.buildingItems.slice(0, 1)
+  }, '누락', ['101', '102'])).toContain('각 동');
 });

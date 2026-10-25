@@ -20,6 +20,18 @@ public class FeeTemplateItem {
 	@Column(name = "fee_template_id", nullable = false, updatable = false)
 	private UUID feeTemplateId;
 
+	@Column(name = "property_id", nullable = false, updatable = false)
+	private UUID propertyId;
+
+	@Column(name = "building_id")
+	private UUID buildingId;
+
+	@Column(name = "is_temporary", nullable = false)
+	private boolean temporary;
+
+	@Column(length = 500)
+	private String note;
+
 	@Enumerated(EnumType.STRING)
 	@Column(name = "item_code", length = 30)
 	private FeeItemCode itemCode;
@@ -62,6 +74,7 @@ public class FeeTemplateItem {
 		}
 		FeeTemplateItem item = new FeeTemplateItem();
 		item.feeTemplateId = template.getId();
+		item.propertyId = template.getPropertyId();
 		// 직접 입력과 기존 항목은 null을 유지하며 표시 이름으로 종류를 추측하지 않습니다.
 		item.itemCode = itemCode;
 		item.itemName = TextValues.required(itemName, 100);
@@ -69,6 +82,16 @@ public class FeeTemplateItem {
 		item.sortOrder = sortOrder;
 		item.active = true;
 		item.initialize(at);
+		return item;
+	}
+
+	/** 임시 항목도 템플릿 원본으로 보존해 확정 청구에서 출처를 추적할 수 있게 합니다. */
+	public static FeeTemplateItem scoped(FeeTemplate template, FeeItemCode code, String name, long amount,
+	    int order, UUID buildingId, boolean temporary, String note, OffsetDateTime at) {
+		var item = create(template, code, name, amount, order, at);
+		item.buildingId = buildingId;
+		item.temporary = temporary;
+		item.note = note == null ? null : TextValues.strip(note);
 		return item;
 	}
 

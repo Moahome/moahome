@@ -37,4 +37,19 @@ public class BillingTemplates {
 			throw new BillingException(BILLING_SETTINGS_NOT_FOUND);
 		return result;
 	}
+
+	/** 기본 범위와 독립적인 임시 범위를 합치되 임시 항목은 버전의 적용 시작월에만 사용합니다. */
+	public List<FeeTemplateItem> applicableItems(FeeTemplate template, List<FeeTemplateItem> sources,
+	    YearMonth month, UUID buildingId) {
+		List<FeeTemplateItem> applicable = sources.stream().filter(item -> {
+			if (item.isTemporary())
+				return month.atDay(1).equals(template.getEffectiveFrom())
+				    && (template.getTemporaryMode() == BillingMode.ALL || Objects.equals(item.getBuildingId(), buildingId));
+			return template.getBillingMode() == BillingMode.ALL || Objects.equals(item.getBuildingId(), buildingId);
+		}).toList();
+		// 새 동 등에 반복 설정이 없을 때 임의의 금액이나 빈 0원 청구를 만들지 않습니다.
+		if (applicable.stream().noneMatch(item -> !item.isTemporary()))
+			throw new BillingException(BILLING_SETTINGS_NOT_FOUND);
+		return applicable;
+	}
 }

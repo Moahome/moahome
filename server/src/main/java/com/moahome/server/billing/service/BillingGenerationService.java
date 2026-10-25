@@ -27,6 +27,10 @@ public class BillingGenerationService {
 
 	private final ChargeItemRepository items;
 
+	private final BillingAdditionRepository additions;
+
+	private final FeeTemplateRepository templates;
+
 	private final Clock clock;
 
 	private final com.moahome.server.payment.service.CumulativePaymentService cumulative;
@@ -34,7 +38,8 @@ public class BillingGenerationService {
 	public BillingGenerationService(PropertyRepository properties, UnitRepository units, BuildingRepository buildings,
 	    BillingTemplates configurations, BillingPeriodRepository periods, ChargeRepository charges,
 	    ChargeItemRepository items, Clock clock,
-	    com.moahome.server.payment.service.CumulativePaymentService cumulative) {
+	    com.moahome.server.payment.service.CumulativePaymentService cumulative, BillingAdditionRepository additions,
+	    FeeTemplateRepository templates) {
 		this.properties = properties;
 		this.units = units;
 		this.buildings = buildings;
@@ -44,6 +49,8 @@ public class BillingGenerationService {
 		this.items = items;
 		this.clock = clock;
 		this.cumulative = cumulative;
+		this.additions = additions;
+		this.templates = templates;
 	}
 
 	/** 월·관리대상별 독립 트랜잭션에서 생성과 확정을 완료하며 동시 스케줄·재시도에는 같은 기간을 다시 생성하지 않습니다. */
@@ -88,12 +95,14 @@ public class BillingGenerationService {
 		var period = periods.findByPropertyIdAndBillingYearAndBillingMonth(propertyId, (short) month.getYear(),
 		    (short) month.getMonthValue()).orElseThrow();
 		synchronizeCurrentMonthTargets(propertyId, period);
-		Set<UUID> charged = charges.findByBillingPeriodId(period.getId()).stream().map(Charge::getUnitId)
+		Set<UUID> charged = charges.findByBillingPeriodId(period.getId()).stream()
+		    .filter(charge -> charge.getBillingAdditionId() == null).map(Charge::getUnitId)
 		    .collect(Collectors.toSet());
 		List<Unit> additions = units.findByPropertyIdAndIdIn(propertyId, unitIds).stream()
 		    .filter(unit -> unit.getDeletedAt() == null && !charged.contains(unit.getId())).toList();
 		if (!additions.isEmpty())
 			issueCharges(propertyId, period, additions, OffsetDateTime.now(clock));
+		issueAdditions(propertyId, period);
 		cumulative.settle(propertyId, null);
 	}
 
@@ -136,7 +145,6 @@ public class BillingGenerationService {
 	private void issueCharges(UUID propertyId, BillingPeriod period, List<Unit> targets, OffsetDateTime at) {
 		var template = configurations.applicable(configurations.versions(propertyId), period.month());
 		List<FeeTemplateItem> sources = configurations.items(template);
-		var total = sources.stream().map(FeeTemplateItem::getDefaultAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
 		Map<UUID, String> names = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId)
 		    .stream().collect(Collectors.toMap(Building::getId, Building::getName));
 		List<Charge> headers = new ArrayList<>();
@@ -145,13 +153,49 @@ public class BillingGenerationService {
 			if (unit.getStatus() != UnitStatus.ACTIVE || unit.getDeletedAt() != null
 			    || (unit.getBuildingId() != null && !names.containsKey(unit.getBuildingId())))
 				continue;
+			List<FeeTemplateItem> applicable = configurations.applicableItems(template, sources, period.month(), unit.getBuildingId());
+			var total = applicable.stream().map(FeeTemplateItem::getDefaultAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
 			var charge = Charge.draft(period, unit, names.getOrDefault(unit.getBuildingId(), ""), total, at);
 			charge.issue(at);
 			headers.add(charge);
-			sources.forEach(source -> snapshots.add(ChargeItem.snapshot(charge, source, at)));
+			applicable.forEach(source -> snapshots.add(ChargeItem.snapshot(charge, source, at)));
 		}
 		charges.saveAllAndFlush(headers);
 		items.saveAllAndFlush(snapshots);
+	}
+
+	/** 재시도·월중 세대 추가에도 추가 부과별 미생성 세대만 발행하고 기존 청구·수납은 보존합니다. */
+	private void issueAdditions(UUID propertyId, BillingPeriod period) {
+		List<Charge> existing = charges.findByBillingPeriodId(period.getId());
+		List<Unit> targets = units.findByPropertyIdAndDeletedAtIsNull(propertyId);
+		Map<UUID, String> names = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId)
+		    .stream().collect(Collectors.toMap(Building::getId, Building::getName));
+		for (var addition : additions.findByBillingPeriodIdOrderByCreatedAtAscIdAsc(period.getId())) {
+			var template = templates.findById(addition.getTemplateId()).orElseThrow();
+			List<FeeTemplateItem> sources = configurations.items(template);
+			Set<UUID> issued = existing.stream().filter(charge -> addition.getId().equals(charge.getBillingAdditionId()))
+			    .map(Charge::getUnitId).collect(Collectors.toSet());
+			for (var unit : targets) {
+				if (unit.getStatus() != UnitStatus.ACTIVE || issued.contains(unit.getId())
+				    || (unit.getBuildingId() != null && !names.containsKey(unit.getBuildingId())))
+					continue;
+				List<FeeTemplateItem> applicable = sources.stream()
+				    .filter(item -> template.getTemporaryMode() == BillingMode.ALL
+				        || Objects.equals(item.getBuildingId(), unit.getBuildingId())).toList();
+				if (applicable.isEmpty())
+					continue;
+				BigDecimal amount = applicable.stream().map(FeeTemplateItem::getDefaultAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+				BigDecimal combined = existing.stream().filter(charge -> unit.getId().equals(charge.getUnitId())
+				    && "ISSUED".equals(charge.getStatus())).map(Charge::getTotalAmount).reduce(amount, BigDecimal::add);
+				if (combined.abs().compareTo(BigDecimal.valueOf(999_999_999_999_999L)) > 0)
+					throw new IllegalArgumentException("Invalid additional billing total");
+				var at = OffsetDateTime.now(clock);
+				var charge = charges.saveAndFlush(Charge.additional(period, addition, unit,
+				    names.getOrDefault(unit.getBuildingId(), ""), amount, at));
+				items.saveAllAndFlush(applicable.stream().map(source -> ChargeItem.snapshot(charge, source, at)).toList());
+				existing.add(charge);
+			}
+		}
 	}
 
 	/** 당월 공실 상태를 동기화하고 이전 삭제의 누락 청구는 실제 삭제자 근거로만 취소합니다. */

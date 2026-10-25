@@ -28,13 +28,18 @@ export function BillingSettingsPage({ propertyId }: { propertyId: string }) {
   const mutation = useMutation({
     mutationFn: (draft: ScheduledSettings) => {
       if (!query.data) throw new Error('Settings unavailable');
-      return saveBillingSettings(propertyId, query.data, draft.items, draft.reason);
+      return saveBillingSettings(propertyId, query.data, draft, draft.reason);
     },
     retry: false,
-    onSuccess: async () => {
+    onSuccess: async (_settings, draft) => {
       await queryClient.invalidateQueries({
         queryKey: ['billing', session.data?.id, propertyId]
       });
+      const current = draft.temporaryItems.find((item) => item.month && item.month !== draft.month)?.month;
+      if (current) {
+        router.replace(`/manage/${propertyId}/billing/monthly?tab=monthly&month=${current}&added=1`);
+        return;
+      }
       router.replace(`/manage/${propertyId}/billing/monthly?tab=items&saved=1`);
     }
   });
@@ -56,7 +61,7 @@ export function BillingSettingsPage({ propertyId }: { propertyId: string }) {
         title={'관리비 설정'}
         titleId={'billing-settings-title'}
         menu={'관리비 부과'}
-        description={'변경한 항목과 금액은 다음 달 부과부터 적용됩니다.'}
+        description={'기본 설정은 다음 달부터, 임시 부과는 선택한 월에 적용됩니다.'}
         actionsClassName={styles['desktop-actions']}
         actions={(
           <Button
@@ -69,14 +74,9 @@ export function BillingSettingsPage({ propertyId }: { propertyId: string }) {
         )}
       />
       <BillingSettingsForm
-        key={settings.revisionId}
-        currentItems={settings.current.items}
+        key={`${settings.revisionId}-${settings.currentMonth}`}
+        settings={settings}
         nextMonth={nextMonth}
-        scheduled={settings.scheduled ? {
-          month: settings.scheduled.effectiveMonth,
-          items: settings.scheduled.items,
-          reason: settings.scheduled.reason ?? ''
-        } : null}
         busy={mutation.isPending}
         errorMessage={mutation.isError ? getBillingError(mutation.error) : ''}
         onApply={async (draft) => { try { await mutation.mutateAsync(draft); return true; } catch { return false; } }}

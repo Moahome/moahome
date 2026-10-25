@@ -28,6 +28,7 @@ API 서버는 `8080`에서 OpenAPI 문서와 업무 API를 제공하고, Swagger
 | --- | --- |
 | 현재 현황·계획·검토 후보 | [프로젝트 개요](docs/projectOverview.md) |
 | 우선 추진할 주민 안내 서비스 | [건물별 공지·명부 발송·채널톡 문의 기획](docs/residentCommunication.md) |
+| 관리비 부과 변경 기획 | [전체·동별 부과와 월 한정 임시 부과](docs/billingSettings.md) |
 | 업무 정책·저장 구조 | [도메인 규칙](docs/domainRules.md), [ERD](docs/erd.md) |
 | 실행·인증 | [개발 환경](docs/developmentGuide.md), [JWT 인증](docs/securityDesign.md) |
 | 등록·접근 | [관리대상 등록](docs/propertyRegistrationApi.md), [관리 영역 접근](docs/managementAccessApi.md) |

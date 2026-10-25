@@ -1,0 +1,134 @@
+.modal {
+  width: min(640px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--foreground);
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 24px;
+    border-bottom: 1px solid var(--border);
+
+    h2 {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    p {
+      margin-top: 8px;
+      color: var(--sub-text);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+  }
+
+  .close[data-variant='ghost'] {
+    color: var(--foreground);
+  }
+
+  .body {
+    padding: 24px;
+  }
+
+  .inputs,
+  .options {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .results {
+    margin-top: 24px;
+  }
+
+  .formula {
+    margin-bottom: 16px;
+    font-size: 14px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  .option {
+    min-width: 0;
+    padding: 20px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+
+    &:only-child {
+      grid-column: 1 / -1;
+    }
+
+    h3 {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    dl {
+      display: grid;
+      gap: 12px;
+      margin: 20px 0;
+      font-size: 13px;
+    }
+
+    dl > div {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    dt {
+      color: var(--sub-text);
+    }
+
+    dd {
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      overflow-wrap: anywhere;
+    }
+
+    > button {
+      width: 100%;
+    }
+  }
+
+  .amount {
+    display: block;
+    margin-top: 12px;
+    color: var(--primary);
+    font-size: 26px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  .empty {
+    margin-top: 24px;
+    color: var(--sub-text);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+}
+
+@media (max-width: 767px) {
+  .modal {
+    .header,
+    .body {
+      padding: 20px 16px;
+    }
+
+    .inputs,
+    .options {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}

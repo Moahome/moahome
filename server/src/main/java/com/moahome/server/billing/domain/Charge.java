@@ -20,6 +20,9 @@ public class Charge {
 	@Column(name = "billing_period_id")
 	private UUID billingPeriodId;
 
+	@Column(name = "billing_addition_id")
+	private UUID billingAdditionId;
+
 	@Column(name = "charge_type", nullable = false, length = 30)
 	private String chargeType = "MONTHLY";
 
@@ -118,6 +121,17 @@ public class Charge {
 		charge.status = "DRAFT";
 		charge.createdAt = at;
 		charge.updatedAt = at;
+		return charge;
+	}
+
+	/** 기존 청구를 수정하지 않고 추가 부과별 청구를 같은 월에 발행합니다. */
+	public static Charge additional(BillingPeriod period, BillingAddition addition, Unit unit, String building,
+	    BigDecimal amount, OffsetDateTime at) {
+		if (!period.getId().equals(addition.getBillingPeriodId()))
+			throw new IllegalArgumentException("Invalid addition period");
+		var charge = draft(period, unit, building, amount, at);
+		charge.billingAdditionId = addition.getId();
+		charge.issue(at);
 		return charge;
 	}
 

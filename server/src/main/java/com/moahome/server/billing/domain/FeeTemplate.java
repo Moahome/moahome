@@ -39,6 +39,14 @@ public class FeeTemplate {
 	@Column(nullable = false)
 	private long revision;
 
+	@Enumerated(EnumType.STRING)
+	@Column(name = "billing_mode", nullable = false, length = 20)
+	private BillingMode billingMode = BillingMode.ALL;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "temporary_mode", nullable = false, length = 20)
+	private BillingMode temporaryMode = BillingMode.ALL;
+
 	@Column(name = "change_reason", length = 1000)
 	private String changeReason;
 
@@ -83,6 +91,21 @@ public class FeeTemplate {
 		template.changeReason = TextValues.required(reason, 1000);
 		template.changedBy = Objects.requireNonNull(actorId);
 		return template;
+	}
+
+	/** 이번 달 추가 부과의 원본은 반복 설정 조회에서 제외하고 사유·처리자를 별도로 보존합니다. */
+	public static FeeTemplate addition(UUID propertyId, long revision, java.time.YearMonth month, String reason,
+	    UUID actor, BillingMode mode, OffsetDateTime at) {
+		var template = schedule(propertyId, revision, month, reason, actor, at);
+		template.defaultTemplate = false;
+		template.temporaryMode = mode;
+		return template;
+	}
+
+	/** 기본·임시의 범위를 독립적으로 보존하며 한쪽 선택으로 다른 쪽 범위를 바꾸지 않습니다. */
+	public void configureModes(BillingMode billingMode, BillingMode temporaryMode) {
+		this.billingMode = Objects.requireNonNull(billingMode);
+		this.temporaryMode = Objects.requireNonNull(temporaryMode);
 	}
 
 	/** 신규 레코드 모두에 등록 시각을 적용해 초기 설정과 응답 시각을 일치시킵니다. */

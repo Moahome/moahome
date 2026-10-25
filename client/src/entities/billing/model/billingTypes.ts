@@ -7,7 +7,38 @@ export interface BillingItem {
   amount: string;
 }
 
-export interface BillingTemplate {
+export type BillingMode = 'ALL' | 'BUILDING';
+
+export interface BillingBuilding {
+  id: string;
+  name: string;
+}
+
+export interface BillingBuildingItems {
+  buildingId: string;
+  items: BillingItem[];
+}
+
+export interface BillingTemporaryItem extends BillingItem {
+  month?: string;
+  buildingId: string | null;
+  note: string;
+}
+
+export interface BillingPlan {
+  mode: BillingMode;
+  items: BillingItem[];
+  buildingItems: BillingBuildingItems[];
+  temporaryMode: BillingMode;
+  temporaryItems: BillingTemporaryItem[];
+}
+
+export interface BillingSettingsChange extends BillingPlan {
+  temporaryMonth?: string;
+  requestId?: string;
+}
+
+export interface BillingTemplate extends Partial<BillingPlan> {
   id: string;
   effectiveMonth: string;
   items: BillingItem[];
@@ -24,6 +55,8 @@ export interface BillingSettings {
   current: BillingTemplate;
   scheduled: BillingTemplate | null;
   managementStarted?: boolean;
+  hasBuildings?: boolean;
+  buildings?: BillingBuilding[];
 }
 
 export interface BillingCharge {

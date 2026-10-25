@@ -2,17 +2,15 @@ import type {
   BillingSettings,
   BillingTemplate
 } from '@/entities/billing';
-import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
-import { DataTable } from '@/shared/ui/data-table';
 import { ListCard } from '@/shared/ui/list-card';
 import { useRouter } from 'next/navigation';
 import { formatBillingMonth } from '../../../lib/billingLabel';
 import {
   getBillingDates,
-  shiftBillingMonth,
-  sumBillingItems
+  shiftBillingMonth
 } from '../../../model/billing';
+import { BillingTemplateSummary } from '../billing-template-summary/billingTemplateSummary';
 import styles from './billingItems.module.css';
 
 /** 관리비 설정 탭은 현재·예약 설정을 조회하며 명시적인 설정하기에서만 별도 편집 페이지로 이동합니다. */
@@ -45,11 +43,13 @@ export function BillingItems({ propertyId, settings }: { propertyId: string; set
         </Button>
       </div>
       <TemplateCard
+        buildings={settings.buildings ?? []}
         template={settings.current}
         title={'현재 적용 중인 기본 항목'}
       />
       {settings.scheduled && (
         <TemplateCard
+          buildings={settings.buildings ?? []}
           template={settings.scheduled}
           title={'다음 달 적용 예정 항목'}
         />
@@ -95,7 +95,7 @@ export function BillingItems({ propertyId, settings }: { propertyId: string; set
     </div>
   );
 }
-function TemplateCard({ template, title }: { template: BillingTemplate; title: string }) {
+function TemplateCard({ template, title, buildings }: { template: BillingTemplate; title: string; buildings: NonNullable<BillingSettings['buildings']> }) {
   return (
     <ListCard>
       <div
@@ -112,37 +112,11 @@ function TemplateCard({ template, title }: { template: BillingTemplate; title: s
           기준
         </span>
       </div>
-      <DataTable
+      <BillingTemplateSummary
+        template={template}
+        buildings={buildings}
         label={title}
-        rows={template.items}
-        getRowKey={(item) => item.id}
-        minWidth={260}
-        emptyState={'등록된 항목이 없어요.'}
-        columns={[
-          {
-            key: 'name',
-            header: '항목',
-            rowHeader: true,
-            render: (item) => item.name
-          },
-          {
-            key: 'amount',
-            header: '기본 금액',
-            align: 'right',
-            render: (item) => formatWon(item.amount)
-          }
-        ]}
       />
-      <div
-        className={styles['current-total']}
-      >
-        <span>
-          세대당 기본 합계
-        </span>
-        <strong>
-          {formatWon(sumBillingItems(template.items))}
-        </strong>
-      </div>
       {template.reason && (
         <p
           className={styles.reason}

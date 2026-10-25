@@ -1,0 +1,126 @@
+.content {
+  min-width: 0;
+
+  .mode {
+    margin: 8px 0 16px;
+    color: var(--sub-text);
+    font-size: 13px;
+  }
+
+  .item-toggle {
+    min-height: 0;
+    padding: 0;
+    color: var(--foreground);
+    font-size: 14px;
+
+    &[data-variant='ghost']:hover:not(:disabled) {
+      background: transparent;
+    }
+
+    &[aria-expanded='true'] .chevron {
+      transform: rotate(180deg);
+    }
+  }
+
+  .chevron {
+    transition: transform 180ms ease;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--primary) 8%, var(--card));
+    color: var(--primary);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .buildings {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    padding: 16px 0;
+
+    > div {
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    dt {
+      margin-bottom: 8px;
+      color: var(--sub-text);
+    }
+
+    dd {
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  .total {
+    display: flex;
+    justify-content: flex-end;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding-top: 20px;
+
+    span {
+      color: var(--sub-text);
+      font-size: 13px;
+    }
+
+    strong {
+      font-size: 20px;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .temporary {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+
+    h3 {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    p,
+    small {
+      margin-top: 6px;
+      color: var(--sub-text);
+      font-size: 12px;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    li {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-top: 16px;
+    }
+
+    small {
+      display: block;
+    }
+  }
+}
+
+@media (max-width: 767px) {
+  .content .total {
+    justify-content: space-between;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content .chevron {
+    transition: none;
+  }
+}

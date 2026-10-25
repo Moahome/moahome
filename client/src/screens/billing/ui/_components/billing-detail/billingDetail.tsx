@@ -1,8 +1,13 @@
+'use client';
+
+import { useState } from 'react';
 import type { BillingCharge } from '@/entities/billing';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
 import { DataTable } from '@/shared/ui/data-table';
+import { ListToolbar } from '@/shared/ui/list-toolbar';
+import { Pagination } from '@/shared/ui/pagination';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { formatBillingMonth } from '../../../lib/billingLabel';
 import {
@@ -12,7 +17,7 @@ import {
 } from '../../../model/billing';
 import styles from './billingDetail.module.css';
 
-/** 확정·예정 청구의 항목과 합계를 조회하며 상세에서는 청구를 변경하지 않습니다. */
+/** 월별 세대 내역은 페이지로 나누고 청구 합계는 해당 월 전체를 기준으로 유지합니다. */
 export function BillingDetail({
   month,
   charges,
@@ -28,9 +33,14 @@ export function BillingDetail({
   presentation?: 'modal' | 'page';
   onClose: () => void;
 }) {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const unit = charges.length === 1 ? charges[0] : null;
   const dates = getBillingDates(month);
   const sortedCharges = getSortedBillingCharges(charges);
+  const pageCount = Math.max(1, Math.ceil(sortedCharges.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const visibleCharges = sortedCharges.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const total = charges.reduce((sum, charge) => sum + sumBillingItems(charge.items), BigInt(0));
   const title = unit ? `${unit.building} ${unit.room.endsWith('호') ? unit.room : `${unit.room}호`} 관리비 상세`.trim() : `${formatBillingMonth(month)} 부과 상세`;
 
@@ -91,6 +101,18 @@ export function BillingDetail({
           </dd>
         </div>
       </dl>
+      {!unit && (
+        <ListToolbar
+          total={charges.length}
+          unit={'세대'}
+          sizeLabel={'부과 상세 표시 개수'}
+          pageSize={pageSize}
+          onSizeChange={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+        />
+      )}
       {unit ? (
         <DataTable
           label={'청구 상세 항목'}
@@ -116,7 +138,7 @@ export function BillingDetail({
       ) : (
         <DataTable
           label={'확정 세대 내역'}
-          rows={sortedCharges}
+          rows={visibleCharges}
           getRowKey={(charge) => charge.id}
           minWidth={hasBuildings ? 360 : 280}
           emptyState={'부과 내역이 없습니다.'}
@@ -139,6 +161,17 @@ export function BillingDetail({
               render: (charge) => formatWon(sumBillingItems(charge.items))
             },
           ]}
+        />
+      )}
+      {!unit && (
+        <Pagination
+          label={'부과 상세 페이지'}
+          unit={'세대'}
+          total={charges.length}
+          page={currentPage}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          onPageChange={setPage}
         />
       )}
       <div

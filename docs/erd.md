@@ -781,6 +781,8 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 
 [도메인 규칙](domainRules.md#5-관리비-부과--청구)과 [관리비 API](billingApi.md)를 따릅니다. `V20261010131153__create_monthly_billing.sql`에서 아래 기간·청구·항목과 기본 설정 버전을 구현했습니다. 해당 Migration에는 취소·재발행·월 마감·수납·회계 연결 컬럼을 추가하지 않았습니다. 세대 삭제의 당월 취소는 후속 `V20261012052031__support_unit_deletion_charge_cancellation.sql`로 CANCELED 상태와 취소 감사 컬럼을 추가합니다.
 
+2026-10-25 [전체·동별 기본 부과와 독립적인 다음 달 임시 부과](domainRules.md#확정-정책-전체동별-부과와-다음-달-한정-변경-2026-10-25)를 `V20261025043039__support_building_and_temporary_billing.sql`로 확장했습니다. 기존 템플릿·항목 ID와 확정 청구는 보존합니다. 기본·임시 각각의 범위와 월별 적용은 [관리비 설정 기획](billingSettings.md)을 참조합니다.
+
 ## 7.1 billing_periods
 
 ### 목적
@@ -828,6 +830,8 @@ UNIQUE(property_id, billing_year, billing_month)
 | `is_default` | boolean | N | 기본 템플릿 |
 | `effective_from` | date | N | 적용월의 1일 |
 | `revision` | bigint | N | 최초 0, 변경마다 증가 |
+| `billing_mode` | varchar(20) | N | 기본 부과 범위 ALL / BUILDING, 기존 ALL |
+| `temporary_mode` | varchar(20) | N | 독립적인 임시 부과 범위 ALL / BUILDING, 기존 ALL |
 | `change_reason` | varchar(1000) | Y | 변경 버전에서 필수 |
 | `changed_by` | uuid | Y | 변경자 users FK, 변경 버전에서 필수 |
 | `effective_to` | date | Y | 적용 종료 |
@@ -849,6 +853,10 @@ UNIQUE(property_id, billing_year, billing_month)
 |---|---|---:|---|
 | `id` | uuid | N | PK |
 | `fee_template_id` | uuid | N | FK |
+| `property_id` | uuid | N | 원본 템플릿에서 보정, property_id + fee_template_id 복합 FK |
+| `building_id` | uuid | Y | 동별 대상, property_id + building_id 복합 FK |
+| `is_temporary` | boolean | N | 기본 false, true는 원본 버전 적용 시작월에만 사용 |
+| `note` | varchar(500) | Y | 임시 부과 비고 |
 | `item_code` | varchar(30) | Y | 추천 항목 코드, 직접 입력은 NULL |
 | `item_name` | varchar(100) | N | 항목명 |
 | `default_amount` | numeric(15,0) | N | 기본 금액 |
@@ -880,6 +888,7 @@ UNIQUE(property_id, billing_year, billing_month)
 |---|---|---:|---|
 | `id` | uuid | N | PK |
 | `property_id` | uuid | N | FK |
+| `billing_addition_id` | uuid | Y | 이번 달 별도 추가 부과, 관리대상·추가 부과·기간 복합 FK |
 | `billing_period_id` | uuid | Y | MONTHLY는 필수, OPENING_RECEIVABLE은 null |
 | `unit_id` | uuid | N | 관리대상·세대 복합 FK |
 | `building_name_snapshot` | varchar(50) | N | 부과 당시 동명, 동 없음은 빈 문자열 |
@@ -898,7 +907,11 @@ UNIQUE(property_id, billing_year, billing_month)
 ### 제약
 
 ```sql
-UNIQUE(billing_period_id, unit_id)
+-- 기본은 한 건, 추가는 요청별 한 건
+CREATE UNIQUE INDEX charges_base_period_unit_idx ON charges(billing_period_id, unit_id)
+WHERE billing_addition_id IS NULL;
+CREATE UNIQUE INDEX charges_addition_unit_idx ON charges(billing_addition_id, unit_id)
+WHERE billing_addition_id IS NOT NULL;
 FOREIGN KEY(property_id, billing_period_id) REFERENCES billing_periods(property_id, id)
 FOREIGN KEY(property_id, unit_id) REFERENCES units(property_id, id)
 ```
@@ -936,6 +949,12 @@ FOREIGN KEY(property_id, unit_id) REFERENCES units(property_id, id)
 `(property_id, charge_id)` 복합 FK와 `(charge_id, sort_order)` UNIQUE를 적용합니다. `item_code`는 위 7.3과 같은 허용 코드·NULL CHECK를 적용합니다. 기간은 ISSUED일 때 확정 시각이 존재하며 청구는 ISSUED·EXCLUDED_VACANT·CANCELED에서 발행 시각을 보존하도록 CHECK 합니다.
 
 ---
+
+## 이번 달 추가 부과 저장 (2026-10-25)
+
+`V20261025050103__support_current_month_billing_additions.sql`은 billing_additions에 id·property_id·billing_period_id·template_id·request_id·request_fingerprint·created_by·created_at을 저장합니다. 관리대상+요청 ID는 유일하며 템플릿·기간은 같은 관리대상 복합 FK로 연결합니다. 원본 템플릿은 is_default=false이고 당시 사유·처리자·항목을 보존합니다.
+
+charges의 기존 원본을 수정하지 않고 billing_addition_id로 별도 청구를 연결합니다. 기본 월별 청구의 기간·세대 유일성은 유지하고 추가는 추가 부과·세대별 유일성으로 분리합니다. charges.charge_type은 기존 MONTHLY를 유지하므로 기존 수납 배분·입금·보고서가 같은 월의 추가 청구를 포함합니다. 복합 FK는 추가 청구와 원본 추가 부과의 관리대상·기간 일치를 보장합니다. 추가 부과별 요청 지문으로 응답 유실 재시도를 구분하며 다음 달 기본 템플릿 조회에서는 제외합니다.
 
 ## 7.6 기존 잔액 인계
 

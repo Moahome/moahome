@@ -63,12 +63,16 @@ export function BillingHistory({ propertyId }: { propertyId: string }) {
             월별 자동 부과 결과와 세대별 청구 내역을 확인하세요.
           </p>
         </div>
-        <MonthPicker
-          label={'이력 조회 월'}
-          value={filter}
-          clearable
-          onChange={(month) => { setFilter(month); setPage(1); }}
-        />
+        <div
+          className={styles['month-filter']}
+        >
+          <MonthPicker
+            label={'이력 조회 월'}
+            value={filter}
+            clearable
+            onChange={(month) => { setFilter(month); setPage(1); }}
+          />
+        </div>
       </div>
       <div
         className={styles.filters}

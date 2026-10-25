@@ -1,0 +1,3 @@
+export {
+  calculateEqualSplit
+} from './equalSplit';

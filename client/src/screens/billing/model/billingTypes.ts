@@ -1,9 +1,8 @@
-import type { BillingItem } from '@/entities/billing';
+import type { BillingSettingsChange } from '@/entities/billing';
 import type { BILLING_TABS } from './billing';
 
-export interface ScheduledSettings {
+export interface ScheduledSettings extends BillingSettingsChange {
   month: string;
-  items: BillingItem[];
   reason: string;
 }
 

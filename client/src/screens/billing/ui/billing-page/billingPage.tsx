@@ -36,20 +36,22 @@ export function BillingPage({
   const requestedTab = query.get('tab');
   const settings = useBillingSettings(propertyId);
   const tab = BILLING_TABS.find((item) => item.id === requestedTab)?.id ?? (settings.data?.managementStarted === false ? 'opening' : 'monthly');
+  const added = query.get('added') === '1';
   const saved = query.get('saved') === '1';
   const [notice, setNotice] = useState<{
     id: number;
     message: string;
-  } | null>(() => saved ? {
+  } | null>(() => saved || added ? {
     id: Date.now(),
-    message: '다음 달 적용 설정을 저장했어요.'
+    message: added ? '이번 달 임시 관리비를 추가 부과했어요.' : '다음 달 적용 설정을 저장했어요.'
   } : null);
   useEffect(() => {
-    if (!saved) return;
+    if (!saved && !added) return;
     const next = new URLSearchParams(query.toString());
     next.delete('saved');
+    next.delete('added');
     window.history.replaceState(window.history.state, '', `${pathname}?${next.toString()}`);
-  }, [saved, pathname, query]);
+  }, [saved, added, pathname, query]);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   /** 탭 변경을 이력에 남겨 직접 진입·새로고침·뒤로가기가 같은 화면을 선택하게 합니다. */

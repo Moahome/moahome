@@ -574,7 +574,7 @@ class BillingPersistenceTest {
 		jdbc.update("update " + schema + ".units set deleted_at=now(),deleted_by=? where unit_number='201'", userId);
 		List<Map<String, Object>> storedUnits = jdbc.queryForList("select * from " + schema + ".units order by id");
 		List<Map<String, Object>> storedCharges = jdbc.queryForList("select * from " + schema + ".charges order by id");
-		storedCharges.forEach(row -> row.put("charge_type", "MONTHLY"));
+		storedCharges.forEach(row -> { row.put("charge_type", "MONTHLY"); row.put("billing_addition_id", null); });
 		List<Map<String, Object>> storedItems = jdbc
 		    .queryForList("select * from " + schema + ".charge_items order by id");
 		var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
@@ -812,6 +812,120 @@ class BillingPersistenceTest {
 		        + "values (?,?,?,?,'OTHER','ACTIVE',?,now(),now())",
 		    UUID.randomUUID(), propertyId, residentId, unitId, representative);
 		return residentId;
+	}
+
+	@Test
+	void allBaseAndBuildingTemporaryAreIndependentAndExpireAfterOneMonth() {
+		var settings = billing.settings(userId, propertyId);
+		UUID target = jdbc.queryForObject("select building_id from units where property_id=? and unit_number='201'", UUID.class, propertyId);
+		jdbc.update("update units set status='ACTIVE' where property_id=? and unit_number='301'", propertyId);
+		var before = billing.monthly(userId, propertyId, YearMonth.of(2026, 10));
+		var request = new BillingSettingsRequest(settings.revisionId(), "2026-11", "102동 한정 수선비",
+		    List.of(new BillingSettingsRequest.Item(null, "일반관리비", 50000L)),
+		    com.moahome.server.billing.domain.BillingMode.ALL, List.of(),
+		    com.moahome.server.billing.domain.BillingMode.BUILDING,
+		    List.of(new BillingSettingsRequest.TemporaryItem(target, null, "수선비", 100000L, "승강기 보수")));
+		var saved = billing.saveSettings(userId, propertyId, request);
+		assertThat(saved.scheduled().mode()).isEqualTo(com.moahome.server.billing.domain.BillingMode.ALL);
+		assertThat(saved.scheduled().temporaryItems()).hasSize(1);
+		var preview = billing.monthly(userId, propertyId, YearMonth.of(2026, 11));
+		assertThat(preview.charges()).hasSize(3);
+		assertThat(preview.charges().stream().filter(row -> row.room().equals("201")).findFirst().orElseThrow().items())
+		    .extracting(item -> item.amount()).containsExactly("50000", "100000");
+		assertThat(preview.charges().stream().filter(row -> row.room().equals("301")).findFirst().orElseThrow().items())
+		    .extracting(item -> item.amount()).containsExactly("50000");
+		assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 10))).isEqualTo(before);
+		clock.set(Instant.parse("2026-11-01T00:00:00Z"));
+		generation.generate(propertyId, YearMonth.of(2026, 11));
+		assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 11)).charges())
+		    .flatExtracting(row -> row.items()).extracting(item -> item.amount()).contains("100000");
+		clock.set(Instant.parse("2026-12-01T00:00:00Z"));
+		generation.generate(propertyId, YearMonth.of(2026, 12));
+		assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 12)).charges())
+		    .flatExtracting(row -> row.items()).extracting(item -> item.amount()).containsOnly("50000");
+		assertThat(billing.settings(userId, propertyId).current().temporaryItems()).isEmpty();
+	}
+
+	@Test
+	void buildingBaseAllowsAllTemporaryAndValidatesTargetsAndCombinedTotals() {
+		var settings = billing.settings(userId, propertyId);
+		var mode = com.moahome.server.billing.domain.BillingMode.BUILDING;
+		List<BillingSettingsRequest.BuildingItems> groups = settings.buildings().stream()
+		    .map(building -> new BillingSettingsRequest.BuildingItems(building.id(),
+		        List.of(new BillingSettingsRequest.Item(null, "관리비", 50000L)))).toList();
+		var request = new BillingSettingsRequest(settings.revisionId(), "2026-11", "동별 기본과 전체 임시",
+		    List.of(), mode, groups, com.moahome.server.billing.domain.BillingMode.ALL,
+		    List.of(new BillingSettingsRequest.TemporaryItem(null, null, "점검비", 10000L, null)));
+		var saved = billing.saveSettings(userId, propertyId, request);
+		assertThat(saved.scheduled().buildingItems()).hasSize(settings.buildings().size());
+		assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 11)).charges())
+		    .flatExtracting(row -> row.items()).extracting(item -> item.amount()).containsOnly("50000", "10000");
+		assertThatThrownBy(() -> billing.saveSettings(userId, propertyId,
+		    new BillingSettingsRequest(saved.revisionId(), "2026-11", "잘못된 동", List.of(), mode,
+		        List.of(new BillingSettingsRequest.BuildingItems(UUID.randomUUID(), groups.getFirst().items())),
+		        mode, List.of()))).isInstanceOf(IllegalArgumentException.class);
+		assertThatThrownBy(() -> billing.saveSettings(userId, propertyId,
+		    new BillingSettingsRequest(saved.revisionId(), "2026-11", "합계 초과",
+		        List.of(new BillingSettingsRequest.Item(null, "기본", 999999999999999L)),
+		        com.moahome.server.billing.domain.BillingMode.ALL, List.of(),
+		        com.moahome.server.billing.domain.BillingMode.ALL,
+		        List.of(new BillingSettingsRequest.TemporaryItem(null, null, "추가", 1L, null)))))
+		    .isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	void currentAndNextTemporaryItemsAreSeparatedAndRetriesDoNotDuplicateCharges() {
+		var settings = billing.settings(userId, propertyId);
+		var original = jdbc.queryForList("select * from charges where billing_addition_id is null order by id");
+		var originalItems = jdbc.queryForList("select * from charge_items order by id");
+		UUID requestId = UUID.randomUUID();
+		var request = new BillingSettingsRequest(settings.revisionId(), "2026-11", "이번 달 긴급 수선과 다음 달 점검",
+		    List.of(new BillingSettingsRequest.Item(null, "기본", 50000L)),
+		    com.moahome.server.billing.domain.BillingMode.ALL, List.of(), com.moahome.server.billing.domain.BillingMode.BUILDING,
+		    List.of(new BillingSettingsRequest.TemporaryItem(buildingId("201"), null, "긴급 수선", 100000L, null, "2026-10"),
+		        new BillingSettingsRequest.TemporaryItem(buildingId("201"), null, "점검", 20000L, null, "2026-11")), "2026-11", requestId);
+		var saved = billing.saveSettings(userId, propertyId, request);
+		assertThat(saved.scheduled().temporaryItems()).extracting(item -> item.amount()).containsExactly("20000");
+		assertThat(jdbc.queryForList("select * from charges where billing_addition_id is null order by id")).isEqualTo(original);
+		for (var item : originalItems)
+			assertThat(jdbc.queryForMap("select * from charge_items where id=?", item.get("id"))).isEqualTo(item);
+		var current = billing.monthly(userId, propertyId, YearMonth.of(2026, 10));
+		assertThat(current.charges()).hasSize(2);
+		assertThat(current.charges().stream().filter(row -> row.room().equals("201")).findFirst().orElseThrow().items())
+		    .extracting(item -> item.amount()).contains("100000");
+		assertThat(jdbc.queryForObject("select count(*) from billing_additions", Long.class)).isEqualTo(1L);
+		assertThat(jdbc.queryForObject("select count(*) from charges where billing_addition_id is not null", Long.class)).isEqualTo(2L);
+		billing.saveSettings(userId, propertyId, request);
+		assertThat(jdbc.queryForObject("select count(*) from charges where billing_addition_id is not null", Long.class)).isEqualTo(2L);
+		assertThat(billing.history(userId, propertyId).periods().getFirst().unitCount()).isEqualTo(2);
+		assertThat(billing.history(userId, propertyId).periods().getFirst().totalAmount()).isEqualTo("300000");
+		unitManagement.create(userId, propertyId, unitRequest(buildingId("201"), "401", "ACTIVE"));
+		assertThat(billing.detail(userId, propertyId, YearMonth.of(2026, 10), unitId("401")).charges().getFirst().items())
+		    .extracting(item -> item.amount()).contains("100000");
+		clock.set(Instant.parse("2026-11-01T00:00:00Z"));
+		generation.generate(propertyId, YearMonth.of(2026, 11));
+		assertThat(billing.monthly(userId, propertyId, YearMonth.of(2026, 11)).charges()).flatExtracting(row -> row.items())
+		    .extracting(item -> item.amount()).contains("20000").doesNotContain("100000");
+	}
+
+	@Test
+	void additionFailureRollsBackBatchChargesAndFutureSettings() {
+		var settings = billing.settings(userId, propertyId);
+		long templateCount = jdbc.queryForObject("select count(*) from fee_templates", Long.class);
+		jdbc.execute("create function fail_added_charge() returns trigger language plpgsql as $$ begin if NEW.billing_addition_id is not null then raise exception 'test'; end if; return NEW; end $$");
+		jdbc.execute("create trigger fail_added_charge before insert on charges for each row execute function fail_added_charge()");
+		try {
+			var request = new BillingSettingsRequest(settings.revisionId(), "2026-11", "긴급 수선",
+			    List.of(new BillingSettingsRequest.Item(null, "기본", 50000L)), com.moahome.server.billing.domain.BillingMode.ALL,
+			    List.of(), com.moahome.server.billing.domain.BillingMode.ALL,
+			    List.of(new BillingSettingsRequest.TemporaryItem(null, null, "수선", 100L, null, "2026-10")), "2026-11", UUID.randomUUID());
+			assertThatThrownBy(() -> billing.saveSettings(userId, propertyId, request)).isInstanceOf(RuntimeException.class);
+			assertThat(jdbc.queryForObject("select count(*) from billing_additions", Long.class)).isZero();
+			assertThat(jdbc.queryForObject("select count(*) from fee_templates", Long.class)).isEqualTo(templateCount);
+			assertThat(billing.settings(userId, propertyId).revisionId()).isEqualTo(settings.revisionId());
+		} finally {
+			jdbc.execute("drop function fail_added_charge() cascade");
+		}
 	}
 
 	@Test

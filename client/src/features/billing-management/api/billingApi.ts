@@ -2,10 +2,12 @@ import type {
   BillingItem,
   BillingMonth,
   BillingPeriod,
+  BillingSettingsChange,
   BillingSettings,
   BillingTemplate
 } from '@/entities/billing';
 import { FEE_ITEM_OPTIONS } from '@/entities/billing';
+import { getSortedBuildings } from '@/entities/property';
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
 import type { BillingHistoryResponse } from './billingApiTypes';
@@ -21,15 +23,27 @@ function validItems(items: BillingItem[]): boolean {
     && BigInt(item.amount) >= -BigInt('999999999999999') && BigInt(item.amount) <= BigInt('999999999999999'));
 }
 function validTemplate(template: BillingTemplate): boolean {
-  return Boolean(template && UUID.test(template.id) && MONTH.test(template.effectiveMonth) && validItems(template.items)
+  return Boolean(template && UUID.test(template.id) && MONTH.test(template.effectiveMonth) && (template.mode === 'BUILDING'
+    ? Array.isArray(template.buildingItems) && template.buildingItems.length > 0
+      && template.items.length === 0 && template.buildingItems.every((group) => UUID.test(group.buildingId) && validItems(group.items))
+    : (template.mode === undefined || template.mode === 'ALL') && validItems(template.items))
+    && (template.temporaryMode === undefined || ['ALL', 'BUILDING'].includes(template.temporaryMode))
+    && (template.temporaryItems === undefined || Array.isArray(template.temporaryItems)
+      && template.temporaryItems.every((item) => validItems([item])
+        && (item.buildingId === null || UUID.test(item.buildingId)) && (item.note === null || typeof item.note === 'string')))
     && (template.reason === null || typeof template.reason === 'string') && Number.isFinite(Date.parse(template.changedAt)));
 }
 function readSettings(result: BillingSettings, propertyId: string): BillingSettings {
   if (!result || result.propertyId !== propertyId || !MONTH.test(result.currentMonth) || !MONTH.test(result.firstBillingMonth)
     || !UUID.test(result.revisionId) || !Number.isFinite(Date.parse(result.nextBillingDate)) || !validTemplate(result.current)
-    || (result.scheduled !== null && !validTemplate(result.scheduled))) invalid();
+    || (result.scheduled !== null && !validTemplate(result.scheduled))
+    || (result.buildings !== undefined && (!Array.isArray(result.buildings)
+      || result.buildings.some((building) => !UUID.test(building.id) || typeof building.name !== 'string')))) invalid();
 
-  return result;
+  return {
+    ...result,
+    buildings: getSortedBuildings(result.buildings ?? [])
+  };
 }
 /** 현재 사용자·관리대상의 조회 응답만 사용하며 잘못된 자료는 예시나 빈 설정으로 대체하지 않습니다. */
 export async function getBillingSettings(propertyId: string, signal?: AbortSignal): Promise<BillingSettings> {
@@ -39,7 +53,7 @@ export async function getBillingSettings(propertyId: string, signal?: AbortSigna
   }), propertyId);
 }
 /** 최신 버전·적용월과 필수 사유를 전달하고 서버가 반환한 실제 저장 결과를 사용합니다. */
-export async function saveBillingSettings(propertyId: string, settings: BillingSettings, items: BillingItem[], reason: string): Promise<BillingSettings> {
+export async function saveBillingSettings(propertyId: string, settings: BillingSettings, plan: BillingSettingsChange, reason: string): Promise<BillingSettings> {
   const [year, month] = settings.currentMonth.split('-').map(Number);
   const effectiveMonth = `${year + (month === 12 ? 1 : 0)}-${String(month === 12 ? 1 : month + 1).padStart(2, '0')}`;
   return readSettings(await authenticatedAPI<BillingSettings>({
@@ -48,8 +62,28 @@ export async function saveBillingSettings(propertyId: string, settings: BillingS
     data: {
       revisionId: settings.revisionId,
       effectiveMonth,
+      temporaryMonth: plan.temporaryMonth ?? effectiveMonth,
+      requestId: plan.requestId,
       reason: reason.trim(),
-      items: items.map((item) => ({
+      mode: plan.mode,
+      temporaryMode: plan.temporaryMode,
+      buildingItems: plan.buildingItems.map((group) => ({
+        buildingId: group.buildingId,
+        items: group.items.map((item) => ({
+          itemCode: item.code,
+          itemName: item.name.trim(),
+          defaultAmount: Number(item.amount)
+        }))
+      })),
+      temporaryItems: plan.temporaryItems.map((item) => ({
+        buildingId: item.buildingId,
+        itemCode: item.code,
+        itemName: item.name.trim(),
+        defaultAmount: Number(item.amount),
+        note: item.note.trim(),
+        month: item.month ?? plan.temporaryMonth ?? effectiveMonth
+      })),
+      items: plan.items.map((item) => ({
         itemCode: item.code,
         itemName: item.name.trim(),
         defaultAmount: Number(item.amount)

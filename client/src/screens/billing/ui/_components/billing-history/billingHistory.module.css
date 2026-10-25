@@ -18,6 +18,11 @@
   }
 }
 
+.month-filter {
+  width: 220px;
+  min-width: 0;
+}
+
 .amount {
   font-variant-numeric: tabular-nums;
 }
@@ -93,6 +98,15 @@
 }
 
 @media (max-width: 767px) {
+  .header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .month-filter {
+    width: 100%;
+  }
+
   .filters {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;

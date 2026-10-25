@@ -7,7 +7,13 @@ export type {
 
 export type {
   BillingCharge,
+  BillingBuilding,
+  BillingBuildingItems,
   BillingItem,
+  BillingMode,
+  BillingPlan,
+  BillingSettingsChange,
+  BillingTemporaryItem,
   BillingMonth,
   BillingPeriod,
   BillingSettings,

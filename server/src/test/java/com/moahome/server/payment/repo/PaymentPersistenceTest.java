@@ -54,7 +54,7 @@ import com.moahome.server.banking.dto.BankingRequests;
         com.moahome.server.banking.service.BankingService.class,
         com.moahome.server.expense.service.ExpenseService.class,
         com.moahome.server.payment.service.CumulativePaymentService.class, PaymentService.class,
-        BankTransactionReader.class, BillingTemplates.class, BillingGenerationService.class,
+        BankTransactionReader.class, BillingTemplates.class, BillingGenerationService.class, BillingService.class,
         PropertyRegistrationService.class, RegistrationOpeningService.class, PropertyRegistrationLock.class,
         ManagementAccessService.class, UserService.class, OpeningBalanceService.class,
         com.moahome.server.membership.service.MemberManagementService.class,
@@ -107,6 +107,9 @@ class PaymentPersistenceTest {
 
 	@Autowired
 	BillingGenerationService billing;
+
+	@Autowired
+	BillingService billingSettings;
 
 	@Autowired
 	PropertyRegistrationService registration;
@@ -1561,6 +1564,28 @@ class PaymentPersistenceTest {
 	}
 
 	@Test
+	void currentBillingAdditionKeepsPaidChargeAndAllocationsAndAddsOnlyNewReceivable() {
+		UUID payment = manual("50000");
+		service.confirm(user, property, payment, confirm("50000"));
+		var original = jdbc.queryForMap("select * from charges where id=?", charge);
+		var allocated = jdbc.queryForList("select * from payment_allocations order by id");
+		var settings = billingSettings.settings(user, property);
+		var mode = com.moahome.server.billing.domain.BillingMode.ALL;
+		var request = new com.moahome.server.billing.dto.BillingSettingsRequest(settings.revisionId(), "2026-11", "긴급 수선",
+		    List.of(new com.moahome.server.billing.dto.BillingSettingsRequest.Item(null, "기본", 50000L)), mode, List.of(), mode,
+		    List.of(new com.moahome.server.billing.dto.BillingSettingsRequest.TemporaryItem(null, null, "수선", 100000L, null, "2026-10")), "2026-11", UUID.randomUUID());
+		billingSettings.saveSettings(user, property, request);
+		assertThat(jdbc.queryForMap("select * from charges where id=?", charge)).isEqualTo(original);
+		assertThat(jdbc.queryForList("select * from payment_allocations order by id")).isEqualTo(allocated);
+		var ledger = service.workspace(user, property);
+		assertThat(ledger.charges().stream().filter(row -> row.unitId().equals(unit)).map(row -> new java.math.BigDecimal(row.amount()))
+		    .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)).isEqualByComparingTo("150000");
+		assertThat(jdbc.queryForObject("select coalesce(sum(allocated_amount),0)::text from payment_allocations where status='ACTIVE'", String.class)).isEqualTo("50000");
+		billingSettings.saveSettings(user, property, request);
+		assertThat(jdbc.queryForObject("select count(*) from billing_additions", Long.class)).isEqualTo(1L);
+	}
+
+	@Test
 	void realRepresentativesAndIssuedChargesAreUsedAndManualRetriesDoNotDuplicate() {
 		var ledger = service.workspace(user, property);
 		assertThat(ledger.units()).extracting(PaymentResponse.Unit::representativeName).containsExactly("김대표", "이대표");
@@ -2141,7 +2166,7 @@ class PaymentPersistenceTest {
 		    "unit_residents", "fee_templates", "fee_template_items", "billing_periods", "charges", "charge_items"))
 			copyPreviousTable(schema, table);
 		List<Map<String, Object>> before = jdbc.queryForList("select * from " + schema + ".charges order by id");
-		before.forEach(row -> row.put("charge_type", "MONTHLY"));
+		before.forEach(row -> { row.put("charge_type", "MONTHLY"); row.put("billing_addition_id", null); });
 		var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
 		    .schemas(schema).defaultSchema(schema).load();
 		int pendingMigrations = upgraded.info().pending().length;
@@ -3973,7 +3998,7 @@ class PaymentPersistenceTest {
 			jdbc.execute("insert into " + schema + ".member_invitations(" + columns + ") select " + columns.replace("expires_at", "created_at+interval '1 day'") + " from member_invitations");
 			String before = jdbc.queryForObject("select row_to_json(i)::text from " + schema + ".resident_invitations i where id=?", String.class, correction.id());
 			var upgraded = org.flywaydb.core.Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
-			    .schemas(schema).defaultSchema(schema)
+			    .schemas(schema).defaultSchema(schema).target("20261025015144")
 			    .callbacks(new com.moahome.server.config.InvitationCredentialMigrationCallback()).load();
 			// 철회 중 장애가 나면 선행 암호문 정리도 롤백되어 구버전 데이터가 부분 변경되지 않아야 합니다.
 			jdbc.execute("create function " + schema + ".fail_invitation_revoke() returns trigger language plpgsql as $$ "
