@@ -49,7 +49,7 @@ DataSource, Redis와 카카오 OAuth는 환경변수에 연결되어 있습니�
 
 | 변수 | 용도 |
 | --- | --- |
-| `NEXT_PUBLIC_HOST` | Client의 공개 호스트 주소 |
+| `NEXT_PUBLIC_HOST` | Client의 공개 웹 Origin. 공유 미리보기 이미지의 절대 주소에 사용하며 운영 빌드에는 실제 HTTPS Origin을 설정합니다. 미설정 시 `http://localhost:3000`을 사용합니다. |
 | `NEXT_PUBLIC_API_HOST` | Client에서 접근할 Server API Origin. 로컬은 `http://localhost:8080`이며 경로 / 쿼리 / fragment를 포함하지 않습니다. |
 | `NEXT_PUBLIC_SOCKET_HOST` | 향후 소켓 연결에 사용할 공개 주소. 현재 소켓 기능은 구현되지 않았습니다. |
 

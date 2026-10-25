@@ -13,6 +13,12 @@ npm run dev
 
 개발 주소는 `http://localhost:3000`입니다. 프로덕션은 `npm run build` 후 `npm run start`로 실행합니다. 공개 환경변수를 변경하면 개발 서버를 재시작하거나 프로덕션을 다시 빌드합니다.
 
+## URL 공유 미리보기
+
+홈페이지와 기본 공유에는 노트북 이미지, `/join`, `/join/[propertyId]`, `/resident`와 `/invitations?type=resident`에는 스마트폰 이미지를 사용합니다. `/invitations`는 부담당자 초대용 노트북 이미지와 안내 문구를 제공합니다. 주민 개인 초대의 링크 복사·메시지 공유는 `?type=resident`를 포함하며 초대코드는 기존처럼 `#` 뒤에 유지합니다. 기존 개인 초대 링크도 가입할 수 있지만 용도 표시가 없으면 기본 초대 미리보기가 표시됩니다.
+
+이미지는 `public/images/share/`에 제공받은 PNG 원본으로 보관합니다. 미리보기는 로그인·초대 조회 없이 읽을 수 있는 Open Graph와 Twitter 메타데이터로 제공하며 이름·세대·초대코드를 포함하지 않습니다. 빌드 환경의 `NEXT_PUBLIC_HOST`를 실제 공개 웹 Origin으로 설정해야 이미지 절대 주소가 해당 호스트를 가리킵니다. 미설정 시 로컬 개발 주소를 사용합니다. 카카오톡에 이전 미리보기가 남으면 배포 후 [카카오 OG 캐시 초기화 도구](https://developers.kakao.com/tool/clear/og)를 사용합니다. 문자 앱의 미리보기 표시 여부는 수신 환경에 따라 다릅니다.
+
 ## 화면과 상세 설계
 
 | 영역 | 문서 |

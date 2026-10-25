@@ -20,7 +20,7 @@ export default defineConfig({
     },
     {
       name: 'chromium',
-      testMatch: ['authFlow.spec.ts', 'propertyRegistration.spec.ts', 'managementLayout.spec.ts', 'billingFlow.spec.ts', 'paymentFlow.spec.ts', 'onboardingFlow.spec.ts', 'bankingFlow.spec.ts', 'serverConnectionError.spec.ts', 'stateMessages.spec.ts', 'monthlySettlementFlow.spec.ts', 'balanceReportFlow.spec.ts'],
+      testMatch: ['authFlow.spec.ts', 'propertyRegistration.spec.ts', 'managementLayout.spec.ts', 'billingFlow.spec.ts', 'paymentFlow.spec.ts', 'onboardingFlow.spec.ts', 'bankingFlow.spec.ts', 'serverConnectionError.spec.ts', 'stateMessages.spec.ts', 'monthlySettlementFlow.spec.ts', 'balanceReportFlow.spec.ts', 'sharePreview.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
         channel: process.env.PLAYWRIGHT_CHANNEL,
@@ -34,6 +34,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       NEXT_DIST_DIR: '.next-test',
+      NEXT_PUBLIC_HOST: 'http://localhost:3100',
       NEXT_PUBLIC_API_HOST: 'http://localhost:8080',
       NEXT_TELEMETRY_DISABLED: '1',
     },

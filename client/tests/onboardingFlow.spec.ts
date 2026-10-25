@@ -1739,7 +1739,7 @@ test('주민별 개인 초대를 발급하고 코드·바로 가입 링크 전�
     exact: true
   }).click();
   await expect(modal.getByRole('status')).toContainText('가입 링크를 복사했어요.');
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('http://localhost:3100/invitations#R-ABCD-EFGH-JKLM');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('http://localhost:3100/invitations?type=resident#R-ABCD-EFGH-JKLM');
   await expect(modal.getByRole('button', {
     name: '메시지로 공유'
   })).toBeVisible();
@@ -2177,7 +2177,7 @@ for (const code of ['B-ABCD-EFGH-JKLM', 'R-ABCD-EFGH-JKLM']) {
   test(`비로그인 ${code[0]} 초대 링크는 정보를 노출하지 않고 로그인 후 원래 가입으로 복귀`, async ({ page }) => {
     const state = await mockWorkspace(page);
     state.loggedIn = false;
-    const link = code.startsWith('B') ? `/join/${PROPERTY}#${code}` : `/invitations#${code}`;
+    const link = code.startsWith('B') ? `/join/${PROPERTY}#${code}` : `/invitations?type=resident#${code}`;
     await page.goto(link);
     await expect(page.getByRole('link', {
       name: '카카오 로그인',

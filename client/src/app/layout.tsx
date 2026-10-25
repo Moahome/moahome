@@ -3,6 +3,7 @@ import { Geist_Mono } from 'next/font/google';
 import localFont from 'next/font/local';
 import { ServiceMaintenancePage } from '@/screens/service-maintenance';
 import { AppProviders } from './providers/appProviders';
+import { SERVICE_SHARE_METADATA } from './metadata/shareMetadata';
 import './globals.css';
 
 const pretendard = localFont({
@@ -18,6 +19,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  ...SERVICE_SHARE_METADATA,
+  metadataBase: new URL(process.env.NEXT_PUBLIC_HOST || 'http://localhost:3000'),
   title: {
     default: '모아홈 | 함께 만드는 더 좋은 우리 집',
     template: '%s | 모아홈',

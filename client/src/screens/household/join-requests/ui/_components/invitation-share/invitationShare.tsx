@@ -33,7 +33,8 @@ export function InvitationShare({ issued, name, propertyId, personal, onClose, o
   const [restoreError, setRestoreError] = useState('');
   const [failed, setFailed] = useState(false);
   const validity = personal ? '30분' : '24시간';
-  const link = () => `${window.location.origin}${personal ? '/invitations' : `/join/${propertyId}`}#${token}`;
+  // 서버가 개인 초대코드를 읽지 않고도 주민용 미리보기를 선택할 수 있게 공유 용도만 쿼리로 전달합니다.
+  const link = () => `${window.location.origin}${personal ? '/invitations?type=resident' : `/join/${propertyId}`}#${token}`;
   async function copy(kind: 'code' | 'link') {
     if (!token) return;
     try {
