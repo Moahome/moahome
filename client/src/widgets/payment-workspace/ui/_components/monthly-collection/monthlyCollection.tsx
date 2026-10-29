@@ -17,7 +17,11 @@ import { Pagination } from '@/shared/ui/pagination';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { SummaryCard } from '@/shared/ui/summary-card';
 import { Toast } from '@/shared/ui/toast';
-import { useRouter } from 'next/navigation';
+import {
+  usePathname,
+  useRouter,
+  useSearchParams
+} from 'next/navigation';
 import { useState } from 'react';
 import { createMonthlyWorkbook } from '../../../model/monthlyExport';
 import {
@@ -95,11 +99,13 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
   onFiltersChange: (filters: MonthlyCollectionFilters) => void;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { ledger } = usePaymentWorkspace();
   const { query, status, building } = filters;
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(searchParams.get('unit'));
   const rows = getMonthlyPreviewRows(ledger, month);
   const income = getMonthlyPreviewIncome(ledger, month);
   // 탭별 인원은 상태 필터를 적용하기 전의 검색·동 범위에서 세대마다 한 번만 셉니다.
@@ -396,7 +402,15 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
         <MonthlyDetail
           month={month}
           unitId={selected}
-          onClose={() => setSelected(null)}
+          onClose={() => {
+            setSelected(null);
+            if (!searchParams.has('unit')) return;
+            const query = new URLSearchParams(searchParams.toString());
+            query.delete('unit');
+            router.replace(`${pathname}${query.size ? `?${query}` : ''}`, {
+              scroll: false
+            });
+          }}
         />
       )}
     </div>

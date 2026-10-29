@@ -13,7 +13,7 @@
   min-width: var(--table-min-width);
   border-collapse: collapse;
   text-align: left;
-  font-size: 14px;
+  font-size: 16px;
 
   thead {
     background: var(--background);

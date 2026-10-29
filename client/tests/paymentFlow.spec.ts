@@ -2040,7 +2040,7 @@ for (const width of [1440, 390]) {
     await expect(table.getByRole('rowheader')).toHaveCount(4);
   });
 
-  test(`${width}px 월별 수납 상세는 현재 대표와 통장의 동호수 입금자명을 구분`, async ({ page }) => {
+  test(`${width}px 월별 수납 상세는 현재 대표와 입금자명을 구분하고 최근 입금 3건을 표시`, async ({ page }, testInfo) => {
     await page.setViewportSize({
       width,
       height: 1000
@@ -2050,6 +2050,32 @@ for (const width of [1440, 390]) {
       ...payment,
       payer: '102동401호'
     } : payment);
+    const receipt = ledger.payments.find((payment) => payment.id === id('p1'))!;
+    ledger.payments.push(...['2026-05-20', '2026-08-20', '2026-06-20', '2026-07-20'].map((date) => ({
+      ...receipt,
+      id: id(`recent-receipt-${date}`),
+      date,
+      allocations: []
+    })), {
+      ...receipt,
+      id: id('future-receipt'),
+      date: '2026-10-01',
+      allocations: []
+    }, {
+      ...receipt,
+      id: id('canceled-receipt'),
+      date: '2026-09-21',
+      status: 'CANCELED',
+      allocations: []
+    });
+    ledger.payments.push(...Array.from({
+      length: 11
+    }, (_, index) => ({
+      ...receipt,
+      id: id(`older-receipt-${index}`),
+      date: `2025-12-${String(index + 1).padStart(2, '0')}`,
+      allocations: []
+    })));
     await page.route(`**/api/properties/${PROPERTY_ID}/payments/workspace`, (route) => route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -2062,7 +2088,8 @@ for (const width of [1440, 390]) {
         propertyId: PROPERTY_ID
       })
     }));
-    await page.goto(`/manage/${PROPERTY_ID}/payments/monthly`);
+    const monthlyPath = `/manage/${PROPERTY_ID}/banking/monthly`;
+    await page.goto(`${monthlyPath}?month=2026-09`);
     const row = page.getByRole('table', {
       name: '세대별 월별 수납 현황'
     }).getByRole('row').filter({
@@ -2081,9 +2108,98 @@ for (const width of [1440, 390]) {
     await expect(detail.getByText('102동401호', {
       exact: true
     })).toBeVisible();
-    await expect(detail.getByRole('region', {
-      name: '누적 입금 내역'
-    })).toContainText('2026-09-20 · 102동401호');
+    const recentReceipts = detail.getByRole('region', {
+      name: '최근 입금 내역'
+    });
+    await expect(recentReceipts).toContainText('전체 16건');
+    await expect(recentReceipts.locator('dt')).toHaveText([
+      '2026-09-20 · 102동401호',
+      '2026-08-20 · 102동401호',
+      '2026-07-20 · 102동401호'
+    ]);
+    await expect(recentReceipts.getByRole('button', {
+      name: '전체 내역',
+      exact: true
+    })).toBeEnabled();
+    await expect(recentReceipts.getByRole('link')).toHaveCount(0);
+    await recentReceipts.screenshot({
+      path: testInfo.outputPath(`recent-receipts-${width}.png`)
+    });
+    await recentReceipts.getByRole('button', {
+      name: '전체 내역',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(`${monthlyPath}/2026-09/${id('101')}/receipts`);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    const history = page.getByRole('table', {
+      name: '전체 입금 내역',
+      exact: true
+    });
+    await expect(history.getByRole('row')).toHaveCount(11);
+    await expect(history).not.toContainText('2026-09-21');
+    await expect(history).not.toContainText('2026-10-01');
+    await page.getByRole('navigation', {
+      name: '전체 입금 내역 페이지'
+    }).getByRole('button', {
+      name: '다음 페이지'
+    }).click();
+    await expect(history.getByRole('row')).toHaveCount(7);
+    await page.getByRole('combobox', {
+      name: '입금 연도',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '2026년',
+      exact: true
+    }).click();
+    await expect(history.getByRole('row')).toHaveCount(6);
+    await expect(page.getByRole('heading', {
+      name: '입금 기록 5건',
+      exact: true
+    })).toBeVisible();
+    await page.getByRole('combobox', {
+      name: '입금 연도',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '전체 연도',
+      exact: true
+    }).click();
+    await page.getByRole('combobox', {
+      name: '입금 내역 표시 개수',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '20개씩 보기',
+      exact: true
+    }).click();
+    await expect(history.getByRole('row')).toHaveCount(17);
+    await page.reload();
+    await expect(history.getByRole('row')).toHaveCount(11);
+    await page.screenshot({
+      path: testInfo.outputPath(`receipt-history-${width}.png`),
+      fullPage: true
+    });
+    if (width > 767) {
+      await page.getByRole('button', {
+        name: '목록',
+        exact: true
+      }).click();
+      await expect(page).toHaveURL(`${monthlyPath}?month=2026-09&unit=${id('101')}`);
+      await expect(page.getByRole('dialog', {
+        name: '101호 수납 상세'
+      })).toBeVisible();
+      await expect(page.getByRole('dialog')).toContainText('2026-09 · 월별 수납 현황');
+    } else {
+      await page.getByRole('banner').getByRole('link', {
+        name: '수납 상세로 돌아가기',
+        exact: true
+      }).click();
+      await expect(page).toHaveURL(`${monthlyPath}/2026-09/${id('101')}`);
+      await expect(page.getByRole('region', {
+        name: '최근 입금 내역'
+      })).toContainText('전체 16건');
+    }
   });
 }
 

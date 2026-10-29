@@ -20,7 +20,11 @@ import { Pagination } from '@/shared/ui/pagination';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { SummaryCard } from '@/shared/ui/summary-card';
 import { Toast } from '@/shared/ui/toast';
-import { useRouter } from 'next/navigation';
+import {
+  usePathname,
+  useRouter,
+  useSearchParams
+} from 'next/navigation';
 import {
   useRef,
   useState
@@ -95,7 +99,23 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
   banking?: boolean;
 }) {
   const router = useRouter();
-  const { ledger, update, month, setMonth, busy } = usePaymentWorkspace();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { ledger, update, month: workspaceMonth, setMonth: setWorkspaceMonth, busy } = usePaymentWorkspace();
+  const requestedMonth = searchParams.get('month');
+  const month = view === 'monthly' && /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth ?? '') ? requestedMonth! : workspaceMonth;
+
+  /** 전체 내역에서 복귀한 조회월을 사용하고 월을 바꾸면 복귀용 상세 선택을 해제합니다. */
+  function setMonth(value: string) {
+    setWorkspaceMonth(value);
+    if (view !== 'monthly' || !requestedMonth) return;
+    const query = new URLSearchParams(searchParams.toString());
+    query.delete('month');
+    query.delete('unit');
+    router.replace(`${pathname}${query.size ? `?${query}` : ''}`, {
+      scroll: false
+    });
+  }
   const [query, setQuery] = useState('');
   const [monthlyFilters, setMonthlyFilters] = useState<MonthlyCollectionFilters>({
     query: '',

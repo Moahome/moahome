@@ -12,6 +12,9 @@ export {
   MonthlyDetailPage
 } from './ui/monthly-detail-page/monthlyDetailPage';
 export {
+  MonthlyReceiptsPage
+} from './ui/monthly-receipts-page/monthlyReceiptsPage';
+export {
   PaymentDetail
 } from './ui/_components/payment-detail/paymentDetail';
 

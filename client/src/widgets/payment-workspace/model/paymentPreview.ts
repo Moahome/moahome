@@ -9,6 +9,12 @@ import type {
   PreviewPayment
 } from './paymentPreviewTypes';
 
+/** 최근 입금과 전체 내역에 같은 세대·확정 상태·조회월 말 기준을 적용하며 취소·미확정 입금은 제외합니다. */
+export function getConfirmedUnitReceipts(ledger: PreviewLedger, unitId: string, month: string): PreviewPayment[] {
+  return ledger.payments.filter((payment) => payment.unitId === unitId && payment.status === 'CONFIRMED' && payment.date <= getPreviewDueDate(month))
+    .sort((left, right) => right.date.localeCompare(left.date));
+}
+
 /** 월별 표와 엑셀에서 같은 검색·동·납부 상태를 적용하고 페이지 구분은 호출 화면에 맡깁니다. */
 export function filterMonthlyPreviewRows(rows: MonthlyPreviewRow[], filters: MonthlyCollectionFilters): MonthlyPreviewRow[] {
   const query = filters.query.trim();

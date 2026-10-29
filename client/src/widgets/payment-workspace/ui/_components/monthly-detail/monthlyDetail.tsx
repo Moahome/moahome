@@ -5,6 +5,11 @@ import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
+  usePathname,
+  useRouter
+} from 'next/navigation';
+import {
+  getConfirmedUnitReceipts,
   getMonthlyPreviewRows,
   getPreviewDueDate
 } from '../../../model/paymentPreview';
@@ -43,10 +48,14 @@ export function MonthlyDetail({ month, unitId, presentation = 'modal', onClose }
   presentation?: 'modal' | 'page';
   onClose: () => void;
 }) {
-  const { ledger } = usePaymentWorkspace();
+  const { ledger, propertyId } = usePaymentWorkspace();
+  const router = useRouter();
+  const pathname = usePathname();
+  const listPath = `/manage/${propertyId}/${pathname.includes('/banking/') ? 'banking' : 'payments'}/monthly`;
   const row = getMonthlyPreviewRows(ledger, month).find((item) => item.unitId === unitId);
-  const receipts = ledger.payments.filter((payment) => payment.unitId === unitId && payment.status === 'CONFIRMED' && payment.date <= getPreviewDueDate(month))
-    .sort((left, right) => right.date.localeCompare(left.date));
+  const receipts = getConfirmedUnitReceipts(ledger, unitId, month);
+  // 누적 계산과 전체 건수는 유지하고 상세에는 최신 3건만 표시해 내역이 길어지지 않게 합니다.
+  const recentReceipts = receipts.slice(0, 3);
   const summary = row ? getDetailSummary(row) : null;
   const billedAmount = row ? row.billed + (row.settlementAmount ?? BigInt(0)) : BigInt(0);
   const Title = presentation === 'page' ? 'h1' : 'h2';
@@ -235,25 +244,52 @@ export function MonthlyDetail({ month, unitId, presentation = 'modal', onClose }
           </section>
           <section
             className={styles['detail-section']}
-            aria-label={'누적 입금 내역'}
+            aria-label={'최근 입금 내역'}
           >
-            <h3>
-              누적 입금 내역
-            </h3>
-            <dl>
-              {receipts.map((payment) => (
-                <div
-                  key={payment.id}
-                >
-                  <dt>
-                    {`${payment.date} · ${payment.payer}`}
-                  </dt>
-                  <dd>
-                    {formatWon(payment.amount)}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+            <div>
+              <h3>
+                최근 입금 내역
+              </h3>
+              <PaymentBadge
+                tone={'neutral'}
+              >
+                {`전체 ${receipts.length}건`}
+              </PaymentBadge>
+            </div>
+            {recentReceipts.length > 0 ? (
+              <dl>
+                {recentReceipts.map((payment) => (
+                  <div
+                    key={payment.id}
+                  >
+                    <dt>
+                      {`${payment.date} · ${payment.payer}`}
+                    </dt>
+                    <dd>
+                      {formatWon(payment.amount)}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <p
+                className={styles['empty-receipts']}
+              >
+                확정된 입금 내역이 없습니다.
+              </p>
+            )}
+            <Button
+              className={styles['receipt-history-button']}
+              onClick={() => router.push(`${listPath}/${month}/${encodeURIComponent(unitId)}/receipts`)}
+              trailingIcon={(
+                <ServiceIcon
+                  name={'arrow'}
+                  size={16}
+                />
+              )}
+            >
+              전체 내역
+            </Button>
           </section>
           <p
             className={styles.note}

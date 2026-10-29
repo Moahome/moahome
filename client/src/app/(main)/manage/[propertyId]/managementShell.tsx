@@ -61,6 +61,13 @@ export function ManagementShell({
 
 /** 직접 접근에서도 같은 관리대상 안의 목록·상세로 돌아가는 모바일 헤더를 구성합니다. */
 function getMobileBack(pathname: string, basePath: string, month: string | null, account: string | null) {
+  // 전체 입금 내역은 직접 접근·새로고침 후에도 같은 조회월·세대의 수납 상세로 돌아갑니다.
+  const receiptsPath = pathname.match(/\/(banking|payments)\/monthly\/(\d{4}-(?:0[1-9]|1[0-2]))\/([0-9a-f-]{36})\/receipts$/i);
+  if (receiptsPath) return {
+    href: `${basePath}/${receiptsPath[1]}/monthly/${receiptsPath[2]}/${receiptsPath[3]}`,
+    label: '수납 상세로 돌아가기',
+    title: '전체 입금 내역'
+  };
   if (pathname === `${basePath}/settings/accounts`) return {
     href: `${basePath}/settings`,
     label: '설정으로 돌아가기',

@@ -5,7 +5,7 @@
   border-radius: 20px;
   background: color-mix(in srgb, var(--sub-text) 9%, var(--card));
   color: var(--sub-text);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
 
