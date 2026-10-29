@@ -56,14 +56,17 @@ export function PaymentDetail({ paymentId, presentation = 'modal', menuLabel = '
           />
         )}
       </header>
-      <PaymentEditor
-        paymentId={paymentId}
-        onProcessed={onProcessed}
-        disabled={supplementBusy}
-        onClose={onClose}
+      <div
+        className={styles.body}
       >
-        {renderSupplement?.(setSupplementBusy)}
-      </PaymentEditor>
+        <PaymentEditor
+          paymentId={paymentId}
+          onProcessed={onProcessed}
+          disabled={supplementBusy}
+        >
+          {renderSupplement?.(setSupplementBusy)}
+        </PaymentEditor>
+      </div>
     </>
   );
   if (presentation === 'page') return (

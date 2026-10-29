@@ -3,11 +3,22 @@
   max-height: calc(100dvh - 48px);
   margin: auto;
   padding: 0;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 18px;
   background: var(--card);
   color: var(--foreground);
+
+  &[open] {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* 긴 입금·배분 정보만 스크롤해 제목과 우측 상단 닫기를 계속 표시합니다. */
+  .body {
+    min-height: 0;
+    overflow-y: auto;
+  }
 
   &::backdrop {
     background: color-mix(in srgb, var(--foreground) 35%, transparent);
@@ -25,6 +36,7 @@
 
 .header {
   display: flex;
+  flex-shrink: 0;
   justify-content: space-between;
   align-items: center;
   gap: 16px;

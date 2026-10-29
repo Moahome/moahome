@@ -3447,7 +3447,7 @@ for (const width of [1440, 390]) {
 }
 
 for (const width of [1440, 390]) {
-  test(`기타 입금 상세 개선 ${width}px는 분류·비율 막대·배분 합계 다음에 닫기와 확정 취소를 표시`, async ({ page }, testInfo) => {
+  test(`기타 입금 상세 개선 ${width}px는 하단 닫기 없이 배분·확정 취소와 PC 고정 헤더를 제공`, async ({ page }, testInfo) => {
     await page.setViewportSize({
       width,
       height: 1100
@@ -3552,23 +3552,59 @@ for (const width of [1440, 390]) {
     })).toHaveAttribute('value', '10000');
     await expect(table.getByRole('row').last()).toContainText('22,910원');
     await expect(detail).toContainText('총 금액이 모두 배분되었습니다.');
-    const close = detail.getByRole('button', {
+    await expect(detail.getByRole('button', {
       name: '닫기',
       exact: true
-    });
-    expect((await close.boundingBox())!.y).toBeGreaterThan((await table.boundingBox())!.y);
+    })).toHaveCount(0);
     await expect(detail.getByRole('button', {
       name: '확정 취소',
       exact: true
     })).toBeEnabled();
+    if (width > 767) {
+      await page.setViewportSize({
+        width,
+        height: 600
+      });
+      const header = detail.getByRole('heading', {
+        name: '입금 처리 상세',
+        exact: true
+      });
+      const headerTop = (await header.boundingBox())!.y;
+      const editor = detail.getByRole('region', {
+        name: '입금 처리 상세',
+        exact: true
+      });
+      // 본문을 끝까지 내려도 헤더 위치와 닫기 접근성은 유지되어야 합니다.
+      await editor.evaluate((element) => {
+        const body = element.parentElement!;
+        body.scrollTop = body.scrollHeight;
+      });
+      expect(await editor.evaluate((element) => element.parentElement!.scrollTop)).toBeGreaterThan(0);
+      expect((await header.boundingBox())!.y).toBeCloseTo(headerTop, 0);
+      await expect(detail.getByRole('button', {
+        name: '입금 상세 닫기',
+        exact: true
+      })).toBeInViewport();
+      await expect(detail.getByRole('button', {
+        name: '확정 취소',
+        exact: true
+      })).toBeInViewport();
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await detail.screenshot({
       path: testInfo.outputPath(`otherIncomeDetail${width}.png`),
       animations: 'disabled'
     });
-    await close.click();
+    if (width > 767) await detail.getByRole('button', {
+      name: '입금 상세 닫기',
+      exact: true
+    }).click();
+    else await page.getByRole('banner').getByRole('link', {
+      name: '통장 거래로 돌아가기',
+      exact: true
+    }).click();
     if (width > 767) await expect(detail).toHaveCount(0);
-    else await expect(page).toHaveURL(`${base}/transactions`);
+    else await expect(page).toHaveURL(`${base}/transactions?month=2026-10`);
     payment.status = 'CANCELED';
     await page.goto(`${base}/receipts/${payment.id}`);
     await expect(page.getByText('취소된 배분 내역입니다.', {

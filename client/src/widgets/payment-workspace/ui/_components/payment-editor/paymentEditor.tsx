@@ -41,9 +41,8 @@ export function getPaymentStatusLabel(payment: PreviewPayment): string {
 }
 
 /** 입력값은 초안으로 유지하고 확정 순간의 최신 원장으로 다시 검증합니다. */
-export function PaymentEditor({ paymentId, onProcessed, disabled = false, children, onClose }: {
+export function PaymentEditor({ paymentId, onProcessed, disabled = false, children }: {
   children?: ReactNode;
-  onClose?: () => void;
   disabled?: boolean; paymentId: string; onProcessed?: (id: string, status: PreviewPayment['status'], receiptType?: PreviewPayment['receiptType']) => void;
 }) {
   const { ledger, update, busy: workspaceBusy } = usePaymentWorkspace();
@@ -476,15 +475,6 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false, childr
       <div
         className={[styles.actions, otherIncome && styles.footer].filter(Boolean).join(' ')}
       >
-        {otherIncome && onClose && (
-          <Button
-            variant={'outline'}
-            disabled={busy}
-            onClick={onClose}
-          >
-            닫기
-          </Button>
-        )}
         {pending && (
           <Button
             disabled={busy || (otherIncome ? !category.trim() || candidates.length > 0 : !unitId || (candidates.length > 0 && !draft.separateReason?.trim()))}

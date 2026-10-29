@@ -109,6 +109,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const [transferDetail, setTransferDetail] = useState<BankingTransaction | null>(null);
   const [direction, setDirection] = useState('ALL');
   const [status, setStatus] = useState('ALL');
+  const [processing, setProcessing] = useState('ALL');
   const [building, setBuilding] = useState('ALL');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -190,7 +191,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
       setTransferRows([]);
       setFile(next); setPreview(result); setExcluded([]); setExpenses({}); setReceipts({}); setEditingId(null);
       setReplacingFile(false);
-      setDirection('ALL'); setStatus('ALL'); setSearch(''); setPage(1);
+      setDirection('ALL'); setStatus('ALL'); setProcessing('ALL'); setSearch(''); setPage(1);
     } catch (error) { notify(bankingError(error)); }
     finally { busyRef.current = false; setBusy(false); }
   }
@@ -240,11 +241,51 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     && `${row.payer} ${row.memo ?? ''} ${row.unitLabel} ${row.expense?.category ?? ''} ${row.expense?.note ?? ''}`.includes(search.trim()));
   // 조회 월·통장·검색·상태 조건이 적용된 빈 결과는 등록 자료 자체가 없는 상태와 구분합니다.
   const hasFilters = Boolean(search.trim() || accountId !== 'ALL' || direction !== 'ALL' || status !== 'ALL'
+    || (preview && processing !== 'ALL')
     || (view === 'expenses' && building !== 'ALL') || currentMonth !== data.asOf.slice(0, 7));
   // 과거 월·다른 목록 범위에 원본이 있으면 미등록으로 안내하지 않고 현재 조건의 빈 결과로 표시합니다.
   const showNoResults = hasFilters || source.length > 0;
   const activeRows = baseRows.filter((row) => row.status !== 'CANCELED');
-  const filtered = direction === 'CANCELED' ? baseRows.filter((row) => row.status === 'CANCELED') : activeRows.filter((row) => direction === 'ALL' || row.direction === direction);
+  const directionRows = direction === 'CANCELED' ? baseRows.filter((row) => row.status === 'CANCELED') : activeRows.filter((row) => direction === 'ALL' || row.direction === direction);
+  // 표와 같은 분류 결과로 건수·필터를 계산하고 파일 전체의 선택·초안은 건드리지 않습니다.
+  const processingKinds = preview ? directionRows.map((row) => processingContent(row).kind) : [];
+  const processingOptions = [
+    {
+      value: 'ALL',
+      label: '처리 내용 전체'
+    },
+    ...(direction !== 'EXPENSE' ? [
+      {
+        value: 'UNCLASSIFIED',
+        label: '입금 분류 필요'
+      },
+      {
+        value: 'HOUSEHOLD',
+        label: '세대 수납 예정'
+      },
+      {
+        value: 'SHARED',
+        label: '동별 입금'
+      },
+      {
+        value: 'OTHER',
+        label: '기타 입금'
+      }
+    ] : []),
+    ...(direction !== 'INCOME' ? [{
+      value: 'EXPENSE',
+      label: '지출'
+    }] : []),
+    {
+      value: 'TRANSFER',
+      label: '계좌 간 이체'
+    }
+  ].map((option) => ({
+    value: option.value,
+    label: `${option.label} (${option.value === 'ALL' ? directionRows.length : processingKinds.filter((kind) => kind === option.value).length})`
+  }));
+  const filtered = preview && processing !== 'ALL'
+    ? directionRows.filter((row) => processingContent(row).kind === processing) : directionRows;
   const currentPage = Math.min(page, Math.max(1, Math.ceil(filtered.length / pageSize)));
   const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const selectionScope = JSON.stringify([propertyId, accountId, currentMonth, direction, status, search, pageSize, currentPage]);
@@ -359,14 +400,17 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   }; }
   /** 처리 종류와 연결 대상을 구분하고, 공동 입금은 동 이름 대신 개수로 요약합니다. */
   function processingContent(row: BankingTransaction): {
+    kind: 'TRANSFER' | 'CANCELED' | 'EXPENSE' | 'SHARED' | 'OTHER' | 'UNCLASSIFIED' | 'HOUSEHOLD';
     title: string;
     detail?: string;
   } {
     if (row.transferCandidate || (preview && transferRows.includes(row.id))) return {
+      kind: 'TRANSFER',
       title: '계좌 간 이체',
       detail: row.transferId ? '연결 완료' : '상대 통장 연결 대기'
     };
     if (row.status === 'CANCELED') return {
+      kind: 'CANCELED',
       title: '취소된 수납',
       detail: row.unitLabel
     };
@@ -376,6 +420,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
       const count = new Set(draft?.allocations.filter((part) => part.label.trim()).map((part) => part.buildingId ?? `external:${part.label.trim()}`)).size;
 
       return {
+        kind: 'EXPENSE',
         title: '지출',
         detail: count ? `${count}동 부담` : '부담 동 확인 필요'
       };
@@ -384,10 +429,12 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     const draft = preview ? receiptDraft(row) : null;
     const allocation = draft?.kind === 'SHARED' ? expenseDraft(row) : row.incomeAllocation;
     if (allocation) return {
+      kind: 'SHARED',
       title: '동별 입금',
       detail: allocation.allocations.length ? `${allocation.allocations.length}개 동 배분${preview ? ' 예정' : ''}` : '배분 동 확인 필요'
     };
     if (draft?.kind === 'OTHER' || row.receiptType === 'OTHER') return {
+      kind: 'OTHER',
       title: '기타 입금',
       detail: !preview && 'source' in row && row.source === 'MANUAL' ? row.unitLabel : undefined
     };
@@ -395,15 +442,18 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     const unitId = draft?.kind === 'HOUSEHOLD' ? draft.unitId : row.unitId;
     const unitLabel = data?.units.find((unit) => unit.id === unitId)?.label || (!preview && row.unitLabel);
     if (!unitLabel) return {
+      kind: 'UNCLASSIFIED',
       title: '입금 분류 필요'
     };
     // 미리보기와 미확정 후보를 실제 수납이 완료된 세대로 표시하지 않습니다.
     if (preview) return {
+      kind: 'HOUSEHOLD',
       title: '세대 수납 예정',
       detail: unitLabel
     };
 
     return {
+      kind: 'HOUSEHOLD',
       title: ['CONFIRMED', 'LINKED'].includes(row.status) ? '세대 수납' : '세대 확인 필요',
       detail: unitLabel
     };
@@ -521,6 +571,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   }
   function resetUpload() {
     setReplacingFile(false);
+    setProcessing('ALL');
     setTransferRows([]);setPreview(null); setFile(null); setExcluded([]); setExpenses({}); setReceipts({}); setEditingId(null); setPage(1); setDirection('ALL');
   }
   /** 서로 다른 필터에서 고른 입출금도 하나의 요청으로 보내고 실패 시 초안 전체를 보존합니다. */
@@ -535,7 +586,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
       if (row.direction === 'EXPENSE') {
         const draft = expenseDraft(row);
         const result = calculateExpenseAllocation(row.amount, draft);
-        if (result.error) { setDirection('EXPENSE'); setSearch(''); setStatus('ALL'); setPage(Math.floor(preview.rows.filter((r) => r.direction === 'EXPENSE').findIndex((r) => r.id === row.id) / pageSize) + 1); setEditingId(row.id); notify(`${row.payer}: ${result.error}`); return; }
+        if (result.error) { setProcessing('ALL'); setDirection('EXPENSE'); setSearch(''); setStatus('ALL'); setPage(Math.floor(preview.rows.filter((r) => r.direction === 'EXPENSE').findIndex((r) => r.id === row.id) / pageSize) + 1); setEditingId(row.id); notify(`${row.payer}: ${result.error}`); return; }
         rows.push({
           id: row.id,
           expense: {
@@ -546,12 +597,12 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
       }
       const draft = receiptDraft(row);
       if ((draft.kind === 'HOUSEHOLD' && !draft.unitId) || (draft.kind === 'OTHER' && !draft.category.trim())) {
-        setDirection('INCOME'); setEditingId(row.id); notify('입금의 세대 또는 기타 입금 항목을 지정해주세요.'); return;
+        setProcessing('ALL'); setDirection('INCOME'); setEditingId(row.id); notify('입금의 세대 또는 기타 입금 항목을 지정해주세요.'); return;
       }
       if (draft.kind === 'SHARED') {
         const allocation = expenseDraft(row);
         const calculated = calculateExpenseAllocation(row.amount, allocation, 'income');
-        if (calculated.error) { setDirection('INCOME'); setEditingId(row.id); notify(calculated.error); return; }
+        if (calculated.error) { setProcessing('ALL'); setDirection('INCOME'); setEditingId(row.id); notify(calculated.error); return; }
         rows.push({
           id: row.id,
           incomeCategory: allocation.category.trim(),
@@ -915,7 +966,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               <FilterTabs
                 label={'입출금 필터'}
                 value={direction}
-                onChange={(value) => { setSelection(null); setDirection(value); setStatus('ALL'); setPage(1); }}
+                onChange={(value) => { setSelection(null); setDirection(value); setStatus('ALL'); setProcessing('ALL'); setPage(1); }}
                 items={[
                   {
                     value: 'ALL',
@@ -1012,6 +1063,15 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                 />
               )}
 
+              {preview && (
+                <Dropdown
+                  aria-label={'처리 내용'}
+                  value={processing}
+                  options={processingOptions}
+                  disabled={busy}
+                  onChange={(value) => { setProcessing(value); setPage(1); }}
+                />
+              )}
               <Dropdown
                 aria-label={'표시 개수'}
                 value={String(pageSize)}

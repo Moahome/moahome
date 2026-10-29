@@ -315,6 +315,8 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
   const rows = [...Array.from({
     length: 11
   }, (_, index) => row(200 + index, 'INCOME', `입금자${index}`, '50000')), row(300, 'EXPENSE', '07전기요금', '182660')];
+  rows[2].unitId = id(400);
+  rows[2].unitLabel = '102동 501호';
   let saved: BankingWorkspaceData = {
     accounts: [IMPORT_ACCOUNT],
     propertyId: PROPERTY,
@@ -326,7 +328,10 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
       id: BUILDING_A,
       label: '102동'
     }],
-    units: [],
+    units: [{
+      id: id(400),
+      label: '102동 501호'
+    }],
     rows: [],
     rules: []
   };
@@ -498,6 +503,108 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
   await page.getByLabel('입금자0 거래 선택', {
     exact: true
   }).uncheck();
+  const processing = page.getByRole('combobox', {
+    name: '처리 내용',
+    exact: true
+  });
+  const chooseProcessing = async (name: string) => {
+    await processing.click();
+    await page.getByRole('option', {
+      name,
+      exact: true
+    }).click();
+  };
+  await chooseProcessing('세대 수납 예정 (1)');
+  await expect(page.getByRole('table', {
+    name: '업로드 거래 미리보기',
+    exact: true
+  })).toContainText('102동 501호');
+  await chooseProcessing('입금 분류 필요 (10)');
+  await page.getByRole('table', {
+    name: '업로드 거래 미리보기',
+    exact: true
+  })
+    .getByRole('row').filter({
+      hasText: '입금자1'
+    }).first().click();
+  const receiptEditor = page.getByRole('dialog');
+  await receiptEditor.getByRole('combobox', {
+    name: '입금 용도',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '외부 분담금·수리비 등 기타 입금',
+    exact: true
+  }).click();
+  await receiptEditor.getByLabel('기타 입금 항목', {
+    exact: true
+  }).fill('공동 수리비');
+  await receiptEditor.getByRole('button', {
+    name: '설정 완료',
+    exact: true
+  }).click();
+  await expect(processing).toContainText('입금 분류 필요 (9)');
+  await chooseProcessing('기타 입금 (1)');
+  const filteredPreview = page.getByRole('table', {
+    name: '업로드 거래 미리보기',
+    exact: true
+  });
+  await expect(filteredPreview.getByRole('row')).toHaveCount(2);
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    await expect(processing).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await processing.click();
+    await expect(page.getByRole('option', {
+      name: '기타 입금 (1)',
+      exact: true
+    })).toBeInViewport();
+    await page.screenshot({
+      path: test.info().outputPath(`processingFilter${width}.png`),
+      fullPage: true
+    });
+    await page.keyboard.press('Escape');
+  }
+  await page.setViewportSize({
+    width: 1440,
+    height: 1000
+  });
+  await expect(page.getByLabel('선택 거래 저장', {
+    exact: true
+  })).toContainText('선택한 거래 11건');
+  await page.getByLabel('거래 검색', {
+    exact: true
+  }).fill('검색결과없음');
+  await expect(processing).toContainText('기타 입금 (0)');
+  await expect(filteredPreview).not.toContainText('입금자1');
+  await page.getByLabel('거래 검색', {
+    exact: true
+  }).fill('');
+  await filteredPreview.getByRole('row').filter({
+    hasText: '입금자1'
+  }).click();
+  await expect(receiptEditor.getByLabel('기타 입금 항목', {
+    exact: true
+  })).toHaveValue('공동 수리비');
+  await receiptEditor.getByRole('combobox', {
+    name: '입금 용도',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '명단 일치 자동 수납 · 미일치는 확인 필요',
+    exact: true
+  }).click();
+  await receiptEditor.getByRole('button', {
+    name: '설정 완료',
+    exact: true
+  }).click();
+  await chooseProcessing('처리 내용 전체 (11)');
+  await expect(page.getByLabel('입금자0 거래 선택', {
+    exact: true
+  })).not.toBeChecked();
   await page.getByRole('button', {
     name: '다음 페이지',
     exact: true
@@ -513,6 +620,16 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
     name: '업로드 거래 미리보기',
     exact: true
   });
+  await expect(processing).toContainText('처리 내용 전체 (1)');
+  await processing.click();
+  await expect(page.getByRole('option', {
+    name: '지출 (1)',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('option', {
+    name: /세대 수납 예정/
+  })).toHaveCount(0);
+  await page.keyboard.press('Escape');
   await expect(previewTable.getByRole('columnheader', {
     name: '입금',
     exact: true
@@ -2372,6 +2489,18 @@ test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭�
     name: '업로드 거래 미리보기',
     exact: true
   })).toContainText('2개 동 배분 예정');
+  await page.getByRole('combobox', {
+    name: '처리 내용',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '동별 입금 (1)',
+    exact: true
+  }).click();
+  await expect(page.getByRole('table', {
+    name: '업로드 거래 미리보기',
+    exact: true
+  })).toContainText('예금이자');
   await page.getByRole('button', {
     name: '선택 거래 저장',
     exact: true
@@ -2748,6 +2877,18 @@ for (const width of [1440, 390]) {
       name: '설정 완료',
       exact: true
     }).click();
+    await page.getByRole('combobox', {
+      name: '처리 내용',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '계좌 간 이체 (1)',
+      exact: true
+    }).click();
+    await expect(page.getByRole('table', {
+      name: '업로드 거래 미리보기',
+      exact: true
+    })).toContainText('다음 이체');
     await page.getByRole('button', {
       name: /선택.*가져오기|선택.*저장|선택.*처리/
     }).click();

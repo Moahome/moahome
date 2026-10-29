@@ -47,7 +47,7 @@
   }
 
   &[data-preview='true'] {
-    grid-template-columns: minmax(0, 1fr) 160px;
+    grid-template-columns: minmax(0, 1fr) 230px 160px;
   }
 }
 
