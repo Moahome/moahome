@@ -1198,28 +1198,22 @@ function BalanceChart({ rows }: { rows: readonly BalanceBuilding[] }) {
   );
 }
 
-/** 조회 동들의 입출금 비중과 동별 금액을 검색·선택해 확인합니다. */
+/** 검색 가능한 동 선택 하나로 그래프와 표의 조회 범위를 함께 변경합니다. */
 function ChartDialog({ buildings, onClose, presentation = 'modal' }: { buildings: readonly BalanceBuilding[]; onClose: () => void; presentation?: 'modal' | 'page' }) {
   const [building, setBuilding] = useState('ALL');
-  const [search, setSearch] = useState('');
-  const rows = buildings.filter((row) => (building === 'ALL' || row.id === building) && row.label.includes(search.trim()));
+  const rows = buildings.filter((row) => building === 'ALL' || row.id === building);
   return (
     <DetailDialog
       title={'동별 입금·지출 비교'}
+      className={styles['chart-dialog']}
       presentation={presentation}
       onClose={onClose}
     >
       <div
         className={styles['chart-controls']}
       >
-        <Input
-          label={'그래프 동 검색'}
-          value={search}
-          placeholder={'동 이름 검색'}
-          onChange={(event) => setSearch(event.target.value)}
-        />
         <SelectDropdown
-          label={'그래프 동 선택'}
+          label={'동 선택'}
           value={building}
           onChange={setBuilding}
           options={[{
@@ -1240,7 +1234,7 @@ function ChartDialog({ buildings, onClose, presentation = 'modal' }: { buildings
           />
         ) : (
           <StateMessage
-            variant={search.trim() || building !== 'ALL' ? 'no-results' : 'empty-data'}
+            variant={building !== 'ALL' ? 'no-results' : 'empty-data'}
             layout={'inline'}
             title={'조건에 맞는 동이 없습니다.'}
           />
@@ -1248,7 +1242,7 @@ function ChartDialog({ buildings, onClose, presentation = 'modal' }: { buildings
       </div>
       <PagedTable
         label={'동별 입금 출금 비교'}
-        hasFilters={Boolean(search.trim() || building !== 'ALL')}
+        hasFilters={building !== 'ALL'}
         rows={rows}
         columns={[
           {
@@ -1505,7 +1499,7 @@ function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
   );
 }
 /** 같은 내용을 PC 모달과 모바일 독립 페이지에서 재사용하며 페이지의 복귀는 공통 헤더가 담당합니다. */
-function DetailDialog({ title, children, onClose, busy = false, compact = false, footer, presentation = 'modal' }: {
+function DetailDialog({ title, children, onClose, busy = false, compact = false, footer, presentation = 'modal', className }: {
     title: string;
     children: ReactNode;
     onClose: () => void;
@@ -1513,10 +1507,11 @@ function DetailDialog({ title, children, onClose, busy = false, compact = false,
     compact?: boolean;
     footer?: ReactNode;
     presentation?: 'modal' | 'page';
+    className?: string;
 }) {
   if (presentation === 'page') return (
     <section
-      className={styles.page}
+      className={[styles.page, className].filter(Boolean).join(' ')}
       aria-label={title}
     >
       <ListHeader
@@ -1546,7 +1541,7 @@ function DetailDialog({ title, children, onClose, busy = false, compact = false,
   );
   return (
     <ClientModal
-      className={styles.modal}
+      className={[styles.modal, className].filter(Boolean).join(' ')}
       data-compact={compact}
       aria-labelledby={'balance-dialog-title'}
       onClose={onClose}

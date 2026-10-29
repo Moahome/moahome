@@ -1594,7 +1594,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   });
   await expect(graphDialog).toContainText('109동');
   await graphDialog.getByRole('combobox', {
-    name: '그래프 동 선택',
+    name: '동 선택',
     exact: true
   }).fill('103');
   await graphDialog.getByRole('option', {

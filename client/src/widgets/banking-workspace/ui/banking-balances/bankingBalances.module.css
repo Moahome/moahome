@@ -582,8 +582,73 @@
 
 .chart-controls {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.chart-dialog {
+  font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.6;
+
+  h1,
+  h2 {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  .modal-header p {
+    font-size: 15px;
+    font-weight: 500;
+  }
+
+  label,
+  [role='combobox'],
+  [role='listbox'] {
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  button {
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  table {
+    font-size: 17px;
+    font-weight: 500;
+
+    thead th {
+      color: var(--foreground);
+      font-weight: 600;
+    }
+  }
+
+  .donut-center > span {
+    font-size: 16px;
+    font-weight: 500;
+  }
+
+  .donut-center strong {
+    font-size: 24px;
+    font-weight: 700;
+  }
+
+  .donut-legend {
+    font-size: 18px;
+    font-weight: 500;
+
+    > span {
+      grid-template-columns: 10px 40px minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    strong {
+      font-weight: 600;
+    }
+  }
 }
 
 .donut-panel {
@@ -668,19 +733,15 @@
 }
 
 .chart-expanded .donut {
-  width: 240px;
-  height: 240px;
-  padding: 28px;
+  width: 280px;
+  height: 280px;
+  padding: 32px;
 }
 
 @media (max-width: 767px) {
-  .chart-controls {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .chart-expanded .donut {
-    width: 200px;
-    height: 200px;
+    width: 240px;
+    height: 240px;
     padding: 24px;
   }
 }
