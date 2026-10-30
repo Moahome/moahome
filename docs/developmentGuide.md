@@ -204,7 +204,7 @@ npm run dev
 
 ```bash
 npm run lint
-npx --no-install tsc --noEmit
+npm run typecheck
 npm run build
 npx playwright install chromium
 npm test

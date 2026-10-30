@@ -431,11 +431,12 @@ features/resident-management/api/
 
 ```bash
 npm run lint
-npx --no-install tsc --noEmit
+npm run typecheck
 npm run build
 npm test
 ```
 
+- 타입 검사는 `npm run typecheck`로 라우트 타입 생성 후 수행합니다. 새 체크아웃과 CI에서 생성 파일이 없는 상태를 고려하며, Next.js의 `PageProps`·`LayoutProps`를 수동 선언하거나 생성 파일을 커밋해 해결하지 않습니다.
 - 구현 변경 후 위 ESLint, TypeScript 타입 검사, 프로덕션 빌드를 수행합니다.
 - Playwright로 구조 경계 / 공통 API / 세션 복원 / 업무 API 인증 테스트와 로그인 / 기본 정보 등록 화면 통합 테스트를 실행합니다. 최초 브라우저 준비는 `npx playwright install chromium`을 사용합니다.
 - `npm run test:api`는 브라우저 없이 구조 경계 / API / 세션 복원 / 업무 API 인증과 관리비 금액·월말 계산 단위 테스트를 실행하고, `npm run test:e2e`는 로그인 / 초기 설정 / 관리 화면과 관리비 탭·조회 / 저장 API 연결 통합 테스트를 실행합니다. 설치된 Chrome을 사용하려면 `PLAYWRIGHT_CHANNEL=chrome npm test`로 실행합니다.

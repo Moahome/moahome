@@ -34,7 +34,7 @@ jobs:
           cache-dependency-path: client/package-lock.json
       - run: npm ci
       - run: npm run lint
-      - run: npx --no-install tsc --noEmit
+      - run: npm run typecheck
       - run: npm run build
       - run: npx --no-install playwright install --with-deps chromium
       - run: npm test

@@ -53,10 +53,12 @@ const result = await authenticatedAPI<{ count: number }>({
 
 ```bash
 npm run lint
-npx --no-install tsc --noEmit
+npm run typecheck
 npm run build
 npm test
 ```
+
+`npm run typecheck`는 `next typegen`으로 `PageProps`·`LayoutProps` 등 라우트 타입을 생성한 뒤 TypeScript 검사를 실행합니다. 새 체크아웃과 CI에서도 이전 개발·빌드 결과 없이 검사할 수 있으며, 생성 파일은 Git에 포함하지 않습니다.
 
 `npm run test:api`는 브라우저 없는 구조·API·세션·업무 모델 검사, `npm run test:e2e`는 브라우저 통합 검사입니다. 최초 브라우저 준비는 `npx playwright install chromium`, 설치된 Chrome 사용은 `PLAYWRIGHT_CHANNEL=chrome npm test`입니다. 테스트 서버는 포트 3100과 `.next-test/`를 사용합니다.
 
