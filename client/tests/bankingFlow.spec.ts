@@ -258,7 +258,9 @@ for (const width of [1440, 390]) {
       name: '삭제',
       exact: true
     }).click();
-    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(page.getByRole('alert').filter({
+      hasText: '통장 정보를 처리하지 못했어요. 입력을 확인하고 다시 시도해주세요.'
+    })).toBeVisible();
     await expect(page.getByRole('heading', {
       name: '거래를 삭제할까요?',
       exact: true
@@ -3459,7 +3461,9 @@ for (const { width, unassigned } of [{
       name: '변경 저장',
       exact: true
     }).click();
-    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(page.getByRole('alert').filter({
+      hasText: '처리하지 못했어요. 입력을 유지하고 다시 시도해주세요.'
+    })).toBeVisible();
     await expect(amount).toHaveValue('500,000');
     await page.getByRole('button', {
       name: '변경 저장',
@@ -5045,7 +5049,9 @@ for (const width of [1440, 390]) {
       exact: true
     });
     await submit.click();
-    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(page.getByRole('alert').filter({
+      hasText: '통장 정보를 처리하지 못했어요. 입력을 확인하고 다시 시도해주세요.'
+    })).toBeVisible();
     await expect(page.getByRole('textbox', {
       name: '지출명',
       exact: true
@@ -5538,7 +5544,7 @@ for (const width of [1920, 390, 320]) {
         if (width === 1920) {
           expect(cards.every((card) => Math.abs(card.top - cards[0].top) < 1)).toBe(true);
           await summary.screenshot({
-            path: `/private/tmp/moahome-summary-${specific ? 'account' : 'all'}-${direction}-${width}.png`
+            path: test.info().outputPath(`summary-${specific ? 'account' : 'all'}-${direction}-${width}.png`)
           });
         }
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

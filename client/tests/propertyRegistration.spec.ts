@@ -2067,7 +2067,7 @@ test('호수의 문자·붙여넣기와 앞자리 0을 보존하고 층은 정�
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.evaluate(() => navigator.clipboard.writeText('B01'));
   await number.selectText();
-  await number.press('Meta+V');
+  await number.press('ControlOrMeta+V');
   await expect(number).toHaveValue('B01');
   await editor.getByLabel('층', {
     exact: true
@@ -3463,11 +3463,19 @@ test('주소 검색 로딩 실패는 닫거나 재시도할 수 있고 폼 입�
     name: '주소 검색',
     exact: true
   }).click();
+  await expect(page.getByRole('dialog', {
+    name: '주소 검색',
+    exact: true
+  })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', {
     name: '주소 검색',
     exact: true
   })).toHaveCount(0);
+  await expect(page.getByRole('dialog', {
+    name: '관리할 곳 등록',
+    exact: true
+  })).toBeVisible();
   await expect(page.getByRole('textbox', {
     name: '주소',
     exact: true

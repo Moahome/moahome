@@ -64,6 +64,8 @@ npm test
 
 브라우저 검사는 테스트 전용 환경변수로 `.next-test/`에 프로덕션 빌드를 생성한 뒤 `next start`로 실행합니다. 개발 서버의 경로별 재컴파일·Fast Refresh·manifest 읽기 경합을 화면 오류와 혼동하지 않도록 배포 번들을 검증하며, 기본 `workers: 1`을 사용합니다. API 프로젝트만 실행하면 빌드·서버를 시작하지 않습니다.
 
+GitHub Actions에서는 `npm test -- --workers=2`로 전체 검사를 두 작업자에서 실행합니다. Playwright의 테스트 서버 시작에 프로덕션 빌드가 포함되므로 CI에서 같은 빌드를 별도로 반복하지 않습니다. 검증 후 Vercel 배포 단계에서는 실제 운영 환경변수로 다시 빌드합니다.
+
 브라우저 테스트는 API·주소 검색 응답을 모의 처리합니다. 실제 카카오·API 서버·DB·Redis 연동 검증과 구분하며 필수 검증·대체 빌드의 보고 기준은 [Client 규칙](AGENTS.md#9-test--build)을 따릅니다.
 
 실행 결과는 `playwright-report/`의 HTML 보고서로 남깁니다. 테스트 목록·단계·실패 화면·Trace를 보려면 아래 명령을 실행한 뒤 표시되는 로컬 주소를 엽니다. 실패한 테스트의 화면과 Trace는 자동 보관하며, 주요 화면 시나리오의 캡처는 보고서 첨부에서 확인합니다. 보고서와 `test-results/`는 Git에 포함하지 않습니다. GitHub Actions도 테스트 결과가 생성되면 성공·실패와 관계없이 `client-test-results` artifact로 7일간 보관합니다.

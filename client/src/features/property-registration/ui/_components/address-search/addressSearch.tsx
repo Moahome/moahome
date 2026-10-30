@@ -85,6 +85,8 @@ export function AddressSearch({
       aria-labelledby={'address-search-title'}
       onCancel={(event) => {
         event.preventDefault();
+        // 검색창의 Escape가 부모 등록창까지 닫아 작성 중인 입력을 지우지 않게 합니다.
+        event.stopPropagation();
         onClose();
       }}
     >

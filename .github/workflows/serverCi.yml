@@ -45,7 +45,7 @@ jobs:
         run: bash server/scripts/verifyDeployment.sh
       - name: Upload test reports
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: server-test-reports
           path: server/build/reports/tests/

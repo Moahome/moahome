@@ -35,12 +35,13 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
-      - run: npm run build
       - run: npx --no-install playwright install --with-deps chromium
-      - run: npm test
+      # Playwright가 프로덕션 빌드 후 서버를 시작하므로 별도 중복 빌드는 생략합니다.
+      - name: Build and run all tests
+        run: npm test -- --workers=2
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: client-test-results
           path: |
