@@ -119,6 +119,8 @@ WEB_ALLOWED_ORIGINS=http://localhost:3000
 WEB_LOGIN_SUCCESS_URI=http://localhost:3000/login/callback
 ```
 
+구매한 `villamoa.kr`의 운영 호스트·환경변수와 카카오 콜백 값은 [배포 계획의 운영 설정 표](deploymentPlan.md#4-운영-설정과-비밀값)를 따릅니다. 위 값은 로컬 개발용이며, 운영 설정 입력과 카카오디벨로퍼스 등록은 별도 수행합니다.
+
 - `KAKAO_CLIENT_ID`에는 REST API 키를 사용합니다. 중복된 `KAKAO_REST_API_KEY`는 사용하지 않으며 로컬 `.env`도 `KAKAO_CLIENT_ID`로 통일합니다. 다른 환경에 기존 중복 변수가 남아 있으면 배포 설정도 같은 기준으로 정리합니다.
 - 카카오디벨로퍼스에서 카카오 로그인 사용을 활성화하고, 사용하는 REST API 키의 리다이렉트 URI에 `KAKAO_REDIRECT_URI`와 정확히 같은 주소를 등록합니다. 토큰 교환에서도 인가 요청에 사용한 동일한 URI를 전달합니다. [카카오 로그인 설정 문서](https://developers.kakao.com/docs/ko/kakaologin/prerequisite)를 참고합니다.
 - 해당 REST API 키의 Client Secret을 활성화하고 `KAKAO_CLIENT_SECRET`에 설정합니다. 토큰 요청의 `client_secret`으로 Server에서만 전달합니다. 키와 Secret이 같은 카카오 앱 / REST API 키의 설정인지 확인합니다.

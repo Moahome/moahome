@@ -13,6 +13,8 @@ npm run dev
 
 개발 주소는 `http://localhost:3000`입니다. 프로덕션은 `npm run build` 후 `npm run start`로 실행합니다. 공개 환경변수를 변경하면 개발 서버를 재시작하거나 프로덕션을 다시 빌드합니다.
 
+구매한 `villamoa.kr`의 운영 웹·API 주소와 Vercel·DNS 연결 상태는 [공통 배포 계획](../docs/deploymentPlan.md#2-접속-구조와-네트워크), 빌드에 넣을 공개 환경변수는 [운영 설정 표](../docs/deploymentPlan.md#4-운영-설정과-비밀값)를 따릅니다.
+
 ## URL 공유 미리보기
 
 홈페이지와 기본 공유에는 노트북 이미지, `/join`, `/join/[propertyId]`, `/resident`와 `/invitations?type=resident`에는 스마트폰 이미지를 사용합니다. `/invitations`는 부담당자 초대용 노트북 이미지와 안내 문구를 제공합니다. 주민 개인 초대의 링크 복사·메시지 공유는 `?type=resident`를 포함하며 초대코드는 기존처럼 `#` 뒤에 유지합니다. 기존 개인 초대 링크도 가입할 수 있지만 용도 표시가 없으면 기본 초대 미리보기가 표시됩니다.

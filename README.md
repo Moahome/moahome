@@ -3,6 +3,8 @@
 모아홈은 소규모 빌라·공동주택의 주민 관리, 관리비 운영과 회계를 연결하는 관리비 통합 플랫폼입니다.
 현재 구현 상태와 검토 후보는 [프로젝트 개요](docs/projectOverview.md#4-현재-개발-상태)에서 관리합니다.
 
+운영 도메인 `villamoa.kr`은 구매 완료했으며, 웹·API 주소 배치와 DNS·HTTPS 연결 상태는 [배포 계획](docs/deploymentPlan.md#2-접속-구조와-네트워크)에서 관리합니다.
+
 ## 로컬 API 문서
 
 `server/`에서 API 서버와 별도 Swagger UI를 실행합니다. 환경 준비는 [개발 환경 가이드](docs/developmentGuide.md)를 따릅니다.

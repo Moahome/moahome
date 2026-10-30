@@ -17,7 +17,7 @@
 | Spring Boot·Nginx | 검증한 이미지와 Compose 설정으로 EC2에서 재배포 |
 | RDS PostgreSQL | 기존 인스턴스·데이터 유지, 새 EC2의 사설 접근 설정 추가 |
 | Redis | 새 호스트의 별도 볼륨으로 상태 이전하거나, 사전에 정한 초기화·복구 절차 적용 |
-| API 도메인 | 같은 도메인을 유지하고 DNS의 대상 IP 변경 |
+| API 도메인 | `api.villamoa.kr`을 유지하고 DNS의 대상 IP 변경 |
 | 프론트 Vercel | 기존 프론트 유지. API URL·인증 계약이 같으면 서버 IP 변경만으로 재빌드하지 않음 |
 | 파일·비밀값·인증서 | 저장 위치별로 별도 이전·복구 확인 |
 | GitHub Actions·GHCR | 기존 검증·이미지 게시 흐름 재사용, 새 서버의 이미지 읽기 권한 확인 |
@@ -104,12 +104,12 @@ Redis 8의 AOF는 단일 파일이라고 가정하지 않습니다. manifest·ba
 7. 오류율·응답시간·인증 실패·DB 연결·Redis 메모리와 주요 합계를 관측합니다. 구·신 서버에 쓰기가 분산되지 않았는지 확인합니다.
 8. 실제 전파·업무 검증과 복구 기간이 끝나면 새 호스트의 인증서 갱신·백업·배포 경로를 확인하고 기존 Lightsail 접근 규칙·자격 증명·리소스를 정리합니다. 기존 서버의 재기동 방지와 보호 자료 보관·폐기를 확인한 뒤 종료합니다.
 
-새 IP의 HTTPS 직접 검증에는 예를 들어 다음 방식을 사용할 수 있습니다. `api.example.com`과 `203.0.113.10`은 설명용이며 실제 도메인·EC2 공인 IP로 교체합니다. 점검 중에는 운영자에게 허용한 검증 경로에서만 확인합니다.
+새 IP의 HTTPS 직접 검증에는 예를 들어 다음 방식을 사용할 수 있습니다. API 도메인은 구매한 도메인을 사용하는 [접속 구성](deploymentPlan.md#2-접속-구조와-네트워크)을 따르며, `203.0.113.10`은 설명용이므로 실제 EC2 공인 IP로 교체합니다. 점검 중에는 운영자에게 허용한 검증 경로에서만 확인합니다.
 
 ```bash
 curl --fail --silent --show-error \
-  --resolve api.example.com:443:203.0.113.10 \
-  https://api.example.com/actuator/health/readiness
+  --resolve api.villamoa.kr:443:203.0.113.10 \
+  https://api.villamoa.kr/actuator/health/readiness
 ```
 
 API 도메인이 같으면 기존 Client API URL·쿠키·CORS·카카오 콜백을 유지하는 것이 기본안입니다. 도메인 자체를 바꾸는 경우는 프론트 재빌드·허용 Origin·쿠키·OAuth 등록까지 영향을 확인하는 별도 변경으로 다룹니다.

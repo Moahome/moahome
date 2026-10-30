@@ -32,12 +32,28 @@ Vercel Hobby의 검토 근거는 개인·비상업적 사용 목적입니다. �
 
 ## 2. 접속 구조와 네트워크
 
-`example.com`은 설명용 도메인이며 실제 확보한 도메인으로 교체합니다.
+2026-10-30 사용자가 `villamoa.kr` 도메인 구매를 완료했다고 확인했습니다. 아래 주소 배치는 구매한 루트 도메인을 웹 대표 주소로 사용하는 초기 운영안입니다. 도메인 구매와 Vercel 프로젝트 연결·DNS 전파·인증서 발급·카카오 설정 완료는 구분하며, 외부 서비스의 실제 연결 상태는 아직 확인하지 않았습니다.
+
+| 용도 | 주소 | 적용 방향 |
+| --- | --- | --- |
+| 구매 도메인·웹 대표 주소 | `https://villamoa.kr` | Vercel의 Client 프로젝트에 연결 |
+| API 주소 | `https://api.villamoa.kr` | Lightsail 고정 공인 IPv4 → Nginx → Spring Boot |
+| 선택 웹 별칭 | `https://www.villamoa.kr` | 사용할 경우 Vercel에 추가하고 대표 주소로 리다이렉트 |
+
+DNS는 해당 도메인의 권한 있는 네임서버를 관리하는 화면에서 설정합니다. 다음 값은 연결 대상의 기준이며 실제 레코드 등록·검증은 아직 수행하지 않았습니다.
+
+| 이름 | 종류 | 연결할 값 |
+| --- | --- | --- |
+| `@` 또는 루트 | A | Vercel 프로젝트의 Domains 화면이 안내하는 실제 값 |
+| `api` | A | 생성 후 확인한 Lightsail 고정 공인 IPv4 |
+| `www` — 별칭 사용 시 | CNAME | Vercel 프로젝트가 안내하는 해당 도메인의 실제 값 |
+
+Vercel에 `villamoa.kr`을 추가한 뒤 안내된 DNS 값과 도메인·인증서 상태를 확인합니다. `www`를 사용하면 별도로 추가하고 대표 주소로 리다이렉트합니다. 프론트의 HTTPS는 Vercel에서 확인하고, API의 HTTPS는 아래 Nginx·Certbot 절차로 별도 준비합니다. API에 IPv6를 연결할 때는 서버·방화벽·인증 경로를 함께 검증한 뒤 AAAA 레코드를 추가합니다. [Vercel 도메인 연결 안내](https://vercel.com/docs/domains/working-with-domains/add-a-domain)
 
 ```text
 사용자 브라우저
-  ├─ HTTPS app.example.com → Vercel / Next.js
-  └─ HTTPS api.example.com → Lightsail 고정 공인 IP
+  ├─ HTTPS villamoa.kr → Vercel / Next.js
+  └─ HTTPS api.villamoa.kr → Lightsail 고정 공인 IP
                               └─ Nginx :443
                                   └─ Spring Boot :8080 (Docker 내부)
                                       ├─ Redis :6379 (Docker 내부)
@@ -60,7 +76,7 @@ Nginx가 외부 HTTPS를 받아 Docker 내부의 API로 전달합니다. 인증�
 
 초기 구현안은 Nginx를 Compose로 실행하고 Certbot은 Ubuntu 호스트에서 실행하는 방식입니다. 컨테이너 Nginx에는 Certbot의 `--nginx` 자동 편집 기능 대신 `webroot` 방식을 사용합니다.
 
-1. API 도메인의 A 레코드를 Lightsail 고정 IP에 연결합니다.
+1. `api.villamoa.kr`의 A 레코드를 Lightsail 고정 IP에 연결하고 외부 DNS 해석과 HTTP 80 접근을 확인합니다. HTTP-01 인증 요청이 이 서버의 challenge 경로에 도달해야 합니다. [Let's Encrypt 인증 방식](https://letsencrypt.org/docs/challenge-types/#http-01-challenge)
 2. Nginx를 HTTP 설정으로 먼저 실행해 `/.well-known/acme-challenge/` 경로를 제공합니다. 최초 발급 전에는 아직 없는 인증서 파일을 HTTPS 설정에서 참조하지 않습니다.
 3. 호스트 Certbot과 Nginx 컨테이너에 같은 인증용 웹 디렉터리를 연결하고, Certbot의 `webroot` 방식으로 도메인 인증과 인증서 발급을 수행합니다.
 4. Nginx에 `/etc/letsencrypt` 전체를 읽기 전용으로 연결합니다. `live` 아래 파일이 `archive`를 참조하므로 개별 인증서 파일만 마운트하지 않습니다.
@@ -78,13 +94,19 @@ API 컨테이너 교체 후에도 Nginx가 새 API 주소로 연결되는지 확
 | --- | --- |
 | DB 연결 | `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` |
 | Redis 연결 | `SPRING_DATA_REDIS_HOST=redis`, `SPRING_DATA_REDIS_PORT=6379` |
-| 웹 주소 | `NEXT_PUBLIC_HOST=https://app.example.com` |
-| API 주소 | `NEXT_PUBLIC_API_HOST=https://api.example.com` |
+| Nginx·API 인증서 도메인 | `.deploy.env`의 `API_DOMAIN=api.villamoa.kr` |
+| 웹 주소 | `NEXT_PUBLIC_HOST=https://villamoa.kr` |
+| API 주소 | `NEXT_PUBLIC_API_HOST=https://api.villamoa.kr` |
+| 운영 웹 Origin | `WEB_ALLOWED_ORIGINS=https://villamoa.kr` |
+| 카카오 → Server 콜백 | `KAKAO_REDIRECT_URI=https://api.villamoa.kr/login/oauth2/code/kakao` |
+| Server → Client 로그인 완료 | `WEB_LOGIN_SUCCESS_URI=https://villamoa.kr/login/callback` |
 | 인증·암호화 | [개발 가이드의 Server 환경변수](developmentGuide.md#server-환경변수)를 기준으로 운영 설정에 연결 |
 | Profile·문서 | `prod` 명시, 운영 OpenAPI 비활성화, HTTPS용 쿠키 설정 |
 | 스키마 변경 | Flyway 사용, JPA `ddl-auto=validate` 또는 `none`, 운영 `update`·`create` 금지 |
 
 `NEXT_PUBLIC_API_BASE_URL`은 현재 Client에서 읽지 않으므로 사용하지 않습니다. `NEXT_PUBLIC_` 값에는 공개 URL만 넣으며 변경 후 프론트를 다시 빌드합니다. 카카오 콜백과 Client 로그인 복귀 주소는 기존 [설정 계약](developmentGuide.md#카카오-로그인-설정)을 따라 실제 도메인으로 연결합니다.
+
+이 표는 운영 환경에 입력할 값입니다. 로컬 개발은 기존 `localhost`, CI 빌드 검증은 `example.test` 주소를 사용합니다. Vercel 운영 환경변수·서버 환경 파일·카카오디벨로퍼스에는 위 운영 값을 별도로 입력해야 합니다. 카카오에는 위 Server 콜백을 Redirect URI로 정확히 등록하고, 웹 로그인 완료 주소와 구분합니다. 기본 웹 Origin은 대표 주소 하나이며 별칭·미리보기 배포 주소의 로그인 허용 여부는 별도 검토합니다.
 
 DB 마스터 계정과 앱 계정을 분리합니다. 초기에는 앱 시작 시 Flyway를 실행하므로 신규 스키마 생성·변경에 필요한 권한과 기존 객체 소유권을 함께 검증합니다. Migration 전용 계정까지 분리할 때는 Flyway 연결과 앱 실행 권한도 분리하며 DML 권한만 준 계정으로 Migration이 실행된다고 가정하지 않습니다.
 
@@ -152,6 +174,8 @@ S3 도입만으로 은행 업로드 원본이나 보고서를 영구 저장하�
 ## 9. 비용과 실제 진행 상태
 
 비용은 서울 리전의 생성 시점 공식 견적을 사용합니다. Lightsail·RDS 컴퓨팅과 스토리지 외에 백업·스냅샷·트래픽·도메인·모니터링·레지스트리·CI 사용량·세금, Vercel 유료 전환 시 비용을 함께 확인합니다. 기존 첨부안의 월 추정치를 확정 청구액이나 비용 상한으로 사용하지 않습니다.
+
+도메인 `villamoa.kr`은 사용자 확인 기준으로 구매 완료입니다. 구매 금액·등록업체·갱신일·실제 DNS 설정은 이 문서에서 확인하지 않았으며, 갱신 비용과 관리 정보는 보호된 운영 기록에 보관합니다. 프론트·API 배포, HTTPS와 실제 카카오 로그인 검증은 후속 작업입니다.
 
 2026-10-30 운영용 Dockerfile·Compose·Nginx·Certbot 스크립트·GitHub Actions·Health 구현과 격리 로컬 검증 스크립트를 작성했습니다. 파일 위치·실행법과 검증 범위는 [Server 배포 가이드](../server/docs/deploymentGuide.md)를 참조합니다. 파일 작성과 로컬 통과를 GitHub 원격 실행·GHCR 게시·Vercel 배포·AWS 리소스 구축 완료로 기록하지 않습니다. 외부 연결 후 실행한 검증과 결과를 추가합니다.
 
