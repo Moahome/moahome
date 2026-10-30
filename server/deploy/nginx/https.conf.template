@@ -1,0 +1,59 @@
+# 쿼리·쿠키·인증 헤더·Referer를 기록하지 않습니다.
+log_format moahome '$request_method $uri $status $body_bytes_sent $request_time';
+
+server {
+    listen 80;
+    server_name ${API_DOMAIN};
+    server_tokens off;
+    access_log off;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        try_files $uri =404;
+    }
+
+    location / {
+        return 308 https://${API_DOMAIN}$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name ${API_DOMAIN};
+    server_tokens off;
+    ssl_certificate /etc/letsencrypt/live/${API_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${API_DOMAIN}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:TLS:10m;
+    access_log /dev/stdout moahome;
+
+    # 업로드 요청 전체 한도를 Spring의 6MB 설정과 맞춥니다.
+    client_max_body_size 6m;
+
+    # API 교체로 컨테이너 IP가 바뀌어도 Docker DNS를 다시 조회합니다.
+    resolver 127.0.0.11 valid=5s ipv6=off;
+    set $api_upstream api:8080;
+
+    location = /actuator/health {
+        include /etc/nginx/proxy.conf;
+    }
+
+    location = /actuator/health/readiness {
+        include /etc/nginx/proxy.conf;
+    }
+
+    location /actuator {
+        return 404;
+    }
+
+    # upstream 오류 로그에도 OAuth code·state가 남지 않게 이 경로의 로그를 끕니다.
+    location ~ ^/(oauth2/|login/oauth2/) {
+        access_log off;
+        error_log /dev/null;
+        include /etc/nginx/proxy.conf;
+    }
+
+    location / {
+        include /etc/nginx/proxy.conf;
+    }
+}

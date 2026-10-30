@@ -1,0 +1,66 @@
+name: Server CI and image
+
+on:
+  pull_request:
+    paths: ["server/**", ".github/workflows/serverCi.yml"]
+  push:
+    branches: [main]
+    paths: ["server/**", ".github/workflows/serverCi.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Prepare isolated test executables
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common redis-server
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get update
+          sudo apt-get install -y postgresql-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+      - name: Test and build
+        working-directory: server
+        run: bash gradlew --no-daemon build
+      - name: Verify production deployment locally
+        env:
+          API_IMAGE: moahome-api:ci
+        run: bash server/scripts/verifyDeployment.sh
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-test-reports
+          path: server/build/reports/tests/
+          retention-days: 7
+      - name: Log in to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish verified image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/moahome-api:${GITHUB_SHA}"
+          docker tag moahome-api:ci "$image"
+          docker push "$image"
+          echo "Published: $image" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,10 @@
+[Unit]
+Description=Renew Moahome HTTPS certificate and reload Nginx
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/moahome
+ExecStart=/usr/bin/bash /opt/moahome/certificates.sh renew

@@ -262,6 +262,19 @@ class SecurityIntegrationTest {
 		REDIS.close();
 	}
 
+	/** 운영 점검에는 상태만 공개하며 상세 설정·다른 경로와 쓰기 요청으로 허용 범위를 넓히지 않습니다. */
+	@Test
+	void healthExposesOnlyStatusAndKeepsOtherManagementPathsProtected() throws Exception {
+		mvc.perform(get("/actuator/health")).andExpect(status().isOk())
+		    .andExpect(jsonPath("$.status").value("UP"))
+		    .andExpect(jsonPath("$.components").doesNotExist())
+		    .andExpect(jsonPath("$.details").doesNotExist());
+		for (String path : List.of("/actuator/env", "/actuator/health/redis", "/actuator/metrics", "/api/users/me")) {
+			mvc.perform(get(path)).andExpect(status().isUnauthorized());
+		}
+		mvc.perform(post("/actuator/health")).andExpect(status().isUnauthorized());
+	}
+
 	/** 링크·코드를 알아도 Bearer 인증 전에는 초대 확인·신청·수락 서비스에 도달하지 않습니다. */
 	@Test
 	void residentInvitationEndpointsRejectAnonymousEvenWithCode() throws Exception {

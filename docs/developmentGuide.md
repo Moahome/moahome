@@ -35,13 +35,15 @@ docker compose version
 | `server/.env` | 이미 준비된 PostgreSQL, Redis와 카카오 환경변수 |
 | `server/docker-compose.yml` | PostgreSQL, Redis와 별도 Swagger UI 컨테이너 구성 |
 | `server/src/main/resources/application.yml` | DataSource / Redis 연결과 Spring 공통 설정. 기본 Profile은 `local`, HTTP 포트는 `8080`입니다. |
-| `server/src/main/resources/application.properties` | 로컬 OpenAPI 공통 설정. 문서 기본 비활성화, 내장 Swagger UI 제외 |
+| `server/src/main/resources/application.properties` | 추적되는 공통 인증·JPA·OpenAPI·Health 설정. 실제 비밀값은 포함하지 않습니다. |
 | `server/src/main/resources/application-local.properties` | `local` Profile의 OpenAPI 활성화와 Swagger Origin 추가 |
+| `server/src/main/resources/application-prod.properties` | 추적되는 운영 환경변수 연결·준비 상태 확인 설정 |
+| `server/src/test/resources/application-test.properties` | 추적되는 격리 테스트 설정. 개발 DB·로컬 `.env`를 사용하지 않습니다. |
 | `client/package.json` | Client 개발 서버, lint, 테스트와 빌드 명령 |
 | `server/build.gradle` | Java Toolchain, 서버 의존성과 테스트 / 빌드 구성 |
 
 별도 `application-local.yml` 없이 `application.yml`의 `local` Profile 문서에서 기존 `.env`를 읽습니다.
-`application.yml`과 두 `application*.properties`는 로컬 설정으로 Git에서 제외합니다. `jwtSecurity.properties`, `propertyRegistration.properties`, `residentSecurity.properties`는 실제 비밀값 없이 환경변수 연결만 정의하는 공통 파일로 추적합니다.
+로컬 `application.yml`은 Git에서 제외합니다. 비밀값 없는 공통·local·prod `application*.properties`와 테스트 `application-test.properties`는 추적합니다. `jwtSecurity.properties`, `propertyRegistration.properties`, `residentSecurity.properties`도 실제 비밀값 없이 환경변수 연결만 정의하는 공통 파일로 추적합니다. Gradle 테스트는 `classpath:application.properties`와 Profile 설정을 읽어 추적 제외된 개발 YAML에 의존하지 않습니다.
 DataSource, Redis와 카카오 OAuth는 환경변수에 연결되어 있습니다.
 인증 설정과 토큰 전달은 [JWT 인증 설계](securityDesign.md)를 따릅니다. 기능별 구현 상태는 [프로젝트 현황](projectOverview.md#4-현재-개발-상태)에서 관리합니다.
 
@@ -230,7 +232,7 @@ npm run start
 - `build`에는 `test`가 포함됩니다.
 - 현재 테스트에는 애플리케이션 Context, JWT / 설정 / Entity / Service / 전화번호·계좌번호 보안 단위 테스트, 등록 Controller 검증, Security / Redis 통합 테스트와 User / 소셜 계정 / 관리대상 등록 PostgreSQL 통합 테스트가 있습니다.
 - OpenAPI 통합 테스트는 JSON / YAML 접근, 구현된 API의 인증과 응답 계약, 문서 쓰기 차단과 Swagger Origin의 CORS를 확인합니다. local 설정의 기존 Origin 유지와 4000 포트 추가도 검증합니다. Security 통합 테스트는 다른 Profile의 Swagger Origin 차단과 문서 비활성화 시 인증된 사용자에게도 문서가 제공되지 않는지 확인합니다.
-- `application-test.yml`은 DB / JPA / Flyway 자동 구성을 제외하여 개발 DB를 사용하지 않습니다. `database-test` Profile의 PostgreSQL 통합 테스트는 별도의 임시 클러스터에 Flyway를 적용하고 JPA 매핑을 검증합니다.
+- `application-test.properties`는 DB / JPA / Flyway 자동 구성을 제외하여 개발 DB를 사용하지 않습니다. `database-test` Profile의 PostgreSQL 통합 테스트는 별도의 임시 클러스터에 Flyway를 적용하고 JPA 매핑을 검증합니다. 남아 있는 로컬 `application-test.yml`을 테스트 기준 설정으로 사용하지 않습니다.
 - Security 통합 테스트는 `redis-server` 실행 파일로 저장 기능을 끈 일회성 Redis를 임의 포트에서 시작하고 종료합니다. 실행 파일이 PATH에 없다면 `REDIS_SERVER_EXECUTABLE`에 경로를 지정합니다. 개발 Redis를 재사용하지 않습니다.
 - PostgreSQL 통합 테스트는 PATH의 `initdb`와 `postgres` 실행 파일로 임시 디렉터리 / 임의 포트의 로컬 전용 DB를 실행하고 종료합니다. PATH에 없다면 `POSTGRES_INITDB_EXECUTABLE`과 `POSTGRES_SERVER_EXECUTABLE`에 같은 PostgreSQL 설치의 실행 파일 경로를 지정합니다. Compose의 개발 DB를 재사용하지 않습니다. PostgreSQL 17 이상을 사용합니다.
 - 테스트 JWT / 전화번호·계좌번호 암호화 / HMAC / 등록 지문 키는 실행 시 무작위로 생성하며 실제 `server/.env`의 키를 읽지 않습니다. Context 테스트는 전화번호 키 없이 서버가 시작되는 것도 확인합니다.

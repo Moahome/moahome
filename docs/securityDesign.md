@@ -16,6 +16,8 @@
 | 인증 상태 | Redis에서 로그인 세션별로 관리 |
 | API 접근 | 기본적으로 인증 필요. 로그인·재발급 등 명시한 인증 경로는 별도 검증 적용 |
 
+2026-10-30 배포 점검용으로 `GET /actuator/health`와 `GET /actuator/health/readiness`만 인증 없이 허용합니다. readiness는 운영 Profile에서 활성화하며 DB·Redis 연결과 앱 준비 상태를 함께 확인합니다. 응답은 상태만 제공하고 구성 요소·설정·오류 상세를 숨깁니다. 다른 Actuator 경로와 쓰기 요청은 이 예외에 포함하지 않으며 Nginx는 나머지 Actuator 경로를 차단합니다. 실행·검증은 [Server 배포 가이드](../server/docs/deploymentGuide.md)를 따릅니다.
+
 카카오 토큰과 모아홈 서비스 토큰은 구분합니다. 카카오 로그인 성공을 관리대상 가입 승인으로 간주하지 않으며, 관리대상별 소속과 업무 권한은 [도메인 규칙](domainRules.md)에 따라 Server에서 검증합니다.
 
 ## 2. 토큰 검증과 재발급

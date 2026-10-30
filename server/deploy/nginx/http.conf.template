@@ -1,0 +1,16 @@
+# 최초 인증서 발급에만 사용하며 인증서가 없는 상태에서도 Nginx를 시작합니다.
+server {
+    listen 80;
+    server_name ${API_DOMAIN};
+    server_tokens off;
+    access_log off;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        try_files $uri =404;
+    }
+
+    location / {
+        return 503;
+    }
+}

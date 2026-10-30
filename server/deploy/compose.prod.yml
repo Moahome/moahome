@@ -1,0 +1,89 @@
+name: ${COMPOSE_PROJECT_NAME:-moahome-prod}
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  api:
+    image: ${API_IMAGE:?API_IMAGE가 필요합니다}
+    restart: unless-stopped
+    init: true
+    env_file:
+      - path: ${APP_ENV_FILE:-./.env.prod}
+        format: raw
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_CONFIG_LOCATION: classpath:application.properties
+    volumes:
+      - ${RDS_CA_FILE:-./certs/rds-ca.pem}:/etc/rds/rds-ca.pem:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 2300m
+    pids_limit: 256
+    stop_grace_period: 35s
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, --max-time, "5", --output, /dev/null, "http://127.0.0.1:8080/actuator/health/readiness"]
+      start_period: 60s
+      interval: 10s
+      timeout: 6s
+      retries: 6
+    networks: [edge, backend]
+    logging: *logging
+
+  redis:
+    image: ${REDIS_IMAGE:-redis:8-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537}
+    restart: unless-stopped
+    command: [redis-server, /usr/local/etc/redis/redis.conf]
+    volumes:
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis_data:/data
+    mem_limit: 384m
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [backend]
+    logging: *logging
+
+  nginx:
+    image: ${NGINX_IMAGE:-nginx:stable-alpine@sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949}
+    restart: unless-stopped
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?API_DOMAIN이 필요합니다}
+      # Nginx 자체 변수는 치환하지 않고 공개 도메인만 템플릿에 반영합니다.
+      NGINX_ENVSUBST_FILTER: ^API_DOMAIN$$
+    ports:
+      - "${HTTP_BIND:-0.0.0.0}:${HTTP_PORT:-80}:80"
+      - "${HTTP_BIND:-0.0.0.0}:${HTTPS_PORT:-443}:443"
+    volumes:
+      - ${NGINX_TEMPLATE:-./nginx/https.conf.template}:/etc/nginx/templates/default.conf.template:ro
+      - ./nginx/proxy.conf:/etc/nginx/proxy.conf:ro
+      - ${ACME_WEBROOT:-./certbot/www}:/var/www/certbot:ro
+      - ${CERTIFICATE_DIR:-/etc/letsencrypt}:/etc/letsencrypt:ro
+    mem_limit: 128m
+    healthcheck:
+      test: [CMD-SHELL, "test -s /var/run/nginx.pid && nginx -t -q"]
+      start_period: 5s
+      interval: 5s
+      timeout: 3s
+      retries: 6
+    networks: [edge]
+    logging: *logging
+
+networks:
+  edge:
+  backend:
+    internal: true
+
+volumes:
+  redis_data:

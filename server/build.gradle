@@ -27,6 +27,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-security-oauth2-resource-server'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-api:3.1.1'
 	implementation 'org.flywaydb:flyway-database-postgresql'
 	compileOnly 'org.projectlombok:lombok'
@@ -47,4 +48,10 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// 추적 제외된 개발 application.yml·.env가 로컬 검증과 CI의 결과를 바꾸지 않게 합니다.
+	systemProperty 'spring.config.location', 'classpath:application.properties'
+}
+
+tasks.named('bootJar') {
+	archiveFileName = 'moahome.jar'
 }

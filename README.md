@@ -31,6 +31,7 @@ API 서버는 `8080`에서 OpenAPI 문서와 업무 API를 제공하고, Swagger
 | 관리비 부과 변경 기획 | [전체·동별 부과와 월 한정 임시 부과](docs/billingSettings.md) |
 | 업무 정책·저장 구조 | [도메인 규칙](docs/domainRules.md), [ERD](docs/erd.md) |
 | 실행·인증 | [개발 환경](docs/developmentGuide.md), [JWT 인증](docs/securityDesign.md) |
+| 초기 운영·배포 | [AWS·Nginx·GitHub Actions 배포 계획](docs/deploymentPlan.md), [Server 배포 실행·검증](server/docs/deploymentGuide.md) |
 | 등록·접근 | [관리대상 등록](docs/propertyRegistrationApi.md), [관리 영역 접근](docs/managementAccessApi.md) |
 | 세대·주민·역할 | [세대 관리](docs/unitManagementApi.md), [주민 관리](docs/residentManagementApi.md), [참여자·가입](docs/memberManagementApi.md) |
 | 부과·수납·통장·정산 | [관리비](docs/billingApi.md), [입금](docs/paymentApi.md), [통장](docs/bankingManagement.md), [월별 정산](docs/monthlySettlementApi.md) |

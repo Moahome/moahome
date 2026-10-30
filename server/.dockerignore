@@ -1,0 +1,22 @@
+# 허용한 빌드 입력만 전송해 .env·로컬 설정·인증정보가 이미지 계층에 들어가지 않게 합니다.
+**
+!build.gradle
+!settings.gradle
+!gradlew
+!gradle/
+!gradle/wrapper/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+!src/
+!src/main/
+!src/main/java/
+!src/main/java/**
+!src/main/resources/
+!src/main/resources/**
+src/main/resources/application*
+!src/main/resources/application.properties
+!src/main/resources/application-prod.properties
+**/.env*
+**/*.pem
+**/*.key
+**/*secret*
