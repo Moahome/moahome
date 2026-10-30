@@ -900,7 +900,7 @@ test('입금 API 조회 장애를 예시 데이터로 대체하지 않고 재시
   let fail=true;
   await page.route(`**/api/properties/${PROPERTY_ID}/payments/workspace`,async (route)=>{
     if(route.request().method()!=='GET'||!fail) {await route.fallback();return;}
-    fail=false;
+    // 개발 모드에서 첫 조회가 취소되어도 명시적인 재시도 전까지 장애를 유지합니다.
     await route.fulfill({
       status:503,
       contentType:'application/json',
@@ -923,6 +923,7 @@ test('입금 API 조회 장애를 예시 데이터로 대체하지 않고 재시
   await expect(page.getByText('김모아',{
     exact:true
   })).toHaveCount(0);
+  fail=false;
   await page.getByRole('button',{
     name:'다시 시도'
   }).click();

@@ -573,13 +573,32 @@ test('모바일 주민 상세는 헤더 뒤로가기와 기존 수정 폼의 역
 test('설정에서 관리대상이 있는 계정도 추가 화면에 진입하고 일반 시작의 기본 이동은 유지', async ({ page }) => {
   await mockWorkspace(page);
   await page.goto(`${BASE}/settings`);
-  await expect(page.getByRole('main').getByRole('button')).toHaveCount(2);
+  const settings = page.getByRole('region', {
+    name: '설정 항목',
+    exact: true
+  });
+  await expect(settings.getByRole('button', {
+    name: '등록 및 참여',
+    exact: true
+  })).toBeVisible();
+  await expect(settings.getByRole('button', {
+    name: '계좌 관리',
+    exact: true
+  })).toBeVisible();
+  await expect(settings.getByRole('button', {
+    name: '나가기',
+    exact: true
+  })).toBeVisible();
   await expect(page.getByRole('main')).not.toContainText('초대 신청');
   await expect(page.getByRole('main')).not.toContainText('외부 부담당자');
   await page.screenshot({
     path: test.info().outputPath('settings.png'),
     fullPage: true,
     animations: 'disabled'
+  });
+  await test.info().attach('설정 항목', {
+    path: test.info().outputPath('settings.png'),
+    contentType: 'image/png'
   });
   await page.getByRole('button', {
     name: '등록 및 참여',

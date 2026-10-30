@@ -60,7 +60,17 @@ npm test
 
 `npm run test:api`는 브라우저 없는 구조·API·세션·업무 모델 검사, `npm run test:e2e`는 브라우저 통합 검사입니다. 최초 브라우저 준비는 `npx playwright install chromium`, 설치된 Chrome 사용은 `PLAYWRIGHT_CHANNEL=chrome npm test`입니다. 테스트 서버는 포트 3100과 `.next-test/`를 사용합니다.
 
+브라우저 검사는 테스트 전용 환경변수로 `.next-test/`에 프로덕션 빌드를 생성한 뒤 `next start`로 실행합니다. 개발 서버의 경로별 재컴파일·Fast Refresh·manifest 읽기 경합을 화면 오류와 혼동하지 않도록 배포 번들을 검증하며, 기본 `workers: 1`을 사용합니다. API 프로젝트만 실행하면 빌드·서버를 시작하지 않습니다.
+
 브라우저 테스트는 API·주소 검색 응답을 모의 처리합니다. 실제 카카오·API 서버·DB·Redis 연동 검증과 구분하며 필수 검증·대체 빌드의 보고 기준은 [Client 규칙](AGENTS.md#9-test--build)을 따릅니다.
+
+실행 결과는 `playwright-report/`의 HTML 보고서로 남깁니다. 테스트 목록·단계·실패 화면·Trace를 보려면 아래 명령을 실행한 뒤 표시되는 로컬 주소를 엽니다. 실패한 테스트의 화면과 Trace는 자동 보관하며, 주요 화면 시나리오의 캡처는 보고서 첨부에서 확인합니다. 보고서와 `test-results/`는 Git에 포함하지 않습니다. GitHub Actions도 테스트 결과가 생성되면 성공·실패와 관계없이 `client-test-results` artifact로 7일간 보관합니다.
+
+```bash
+npm run test:report
+```
+
+다른 보고서 서버가 이미 실행 중이면 `npm run test:report -- --port 9324`처럼 포트를 지정합니다. 이전 결과를 비교하려면 테스트 실행 시 `PLAYWRIGHT_HTML_REPORT`와 `--output`을 별도 경로로 지정해 다음 실행에 덮어쓰이지 않게 합니다. 개발 모드의 취소된 요청은 완료된 API 응답과 구분하고, PC 모달·모바일 경로와 스크롤 복원·소수점 좌표를 고려해 실제 화면 동작을 검증합니다.
 
 ## 서버 연결 오류 안내
 

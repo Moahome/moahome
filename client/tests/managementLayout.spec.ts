@@ -194,7 +194,7 @@ test('브라우저 등록 기록 없이 DB 목록으로 대시보드에 이동�
   expect(await page.evaluate((key) => localStorage.getItem(key), REFERENCE_KEY)).toBe(PROPERTY_ID);
 });
 
-test('서버 목록이 실제로 비었을 때만 시작 화면을 표시하고 임의 주소는 권한 조회로 거부', async ({ page }) => {
+test('서버 목록이 실제로 비었을 때만 시작 화면을 표시하고 임의 주소는 권한 거부 후 시작 화면으로 복귀', async ({ page }) => {
   await page.route(LIST_URL, (route) => fulfillJson(route, {
     properties: []
   }));
@@ -203,8 +203,15 @@ test('서버 목록이 실제로 비었을 때만 시작 화면을 표시하고 
     name: '관리할 곳 만들기',
     exact: true
   })).toBeVisible();
+  const denied = page.waitForResponse((response) => response.url().endsWith('/00000000-0000-0000-0000-000000000099/access-context')
+    && response.status() === 403);
   await page.goto('/manage/00000000-0000-0000-0000-000000000099/dashboard');
-  await expect(page.getByText('접근 권한을 확인해주세요')).toBeVisible();
+  await denied;
+  await expect(page).toHaveURL('/start');
+  await expect(page.getByRole('button', {
+    name: '관리할 곳 만들기',
+    exact: true
+  })).toBeVisible();
   await expect(page.getByText('새로운 기능을 준비하고 있어요!', {
     exact: true
   })).toHaveCount(0);
@@ -265,15 +272,22 @@ test('완료 화면 버튼은 해당 대상에 연결되고 새로고침에도 �
   expect(await page.evaluate((key) => localStorage.getItem(key), REFERENCE_KEY)).toBe(PROPERTY_ID);
 });
 
-test('다른 관리대상 주소에는 등록 결과의 이름과 사이드바를 표시하지 않음', async ({ page }) => {
+test('권한 없는 관리대상 주소는 본인 기본 관리대상으로 복귀하고 그 대상의 메뉴만 표시', async ({ page }) => {
+  const denied = page.waitForResponse((response) => response.url().endsWith('/00000000-0000-0000-0000-000000000099/access-context')
+    && response.status() === 403);
   await page.goto('/manage/00000000-0000-0000-0000-000000000099/dashboard');
-  await expect(page.getByText('접근 권한을 확인해주세요')).toBeVisible();
+  await denied;
+  await expect(page).toHaveURL(DASHBOARD);
   await expect(page.getByText('성내빌라', {
     exact: true
   })).toHaveCount(0);
-  await expect(page.getByRole('navigation', {
+  const navigation = page.getByRole('navigation', {
     name: '관리 메뉴'
-  })).toHaveCount(0);
+  });
+  await expect(navigation).toBeVisible();
+  for (const link of await navigation.getByRole('link').all()) {
+    await expect(link).toHaveAttribute('href', new RegExp(`^/manage/${PROPERTY_ID}/`));
+  }
 });
 
 test('현재 참여 종료는 이전 이름을 숨기고 최근 선택을 폐기한 뒤 시작 화면으로 이동', async ({ page }) => {
@@ -748,13 +762,17 @@ test('세대 페이지는 저장 목록을 조회하고 검색·상태 필터·�
     name: '10개씩 보기',
     exact: true
   });
-  const labelFits = await selectedSize.locator('span').evaluate((element) => {
+  await expect.poll(() => selectedSize.locator('span').evaluate((element) => {
     const range = document.createRange();
     range.selectNodeContents(element);
     const bounds = range.getBoundingClientRect();
-    return bounds.width <= element.clientWidth && range.getClientRects().length === 1;
+    // clientWidth의 정수 반올림 때문에 정상적인 77.08px 문자를 77px 넘침으로 오판하지 않습니다.
+    return bounds.width <= element.getBoundingClientRect().width + 1 && range.getClientRects().length === 1;
+  })).toBe(true);
+  await test.info().attach('세대 목록 표시 개수 선택', {
+    body: await page.screenshot(),
+    contentType: 'image/png'
   });
-  expect(labelFits).toBe(true);
   await page.keyboard.press('Escape');
   await page.evaluate(() => window.scrollTo(0, 0));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
@@ -1668,7 +1686,12 @@ test('주민 목록은 사람별 행·대표·마스킹·전체 집계를 표시
     name: '가입 상태',
     exact: true
   })).toBeVisible();
-  await expect(main.getByText(/계정 연결|미연결/)).toHaveCount(0);
+  // 가입 상태 열은 이전 계정 연결 표현을 쓰지 않으며, 별도의 관리소장 본인 연결 버튼은 유지합니다.
+  await expect(main.getByRole('table').getByText(/계정 연결|미연결/)).toHaveCount(0);
+  await expect(main.getByRole('button', {
+    name: '내 계정 연결',
+    exact: true
+  })).toBeVisible();
   await expect(main.getByRole('row')).toHaveCount(11);
   const first = main.getByRole('row').filter({
     hasText: '김민수'
@@ -2793,20 +2816,27 @@ test('엑셀 파일 드래그는 배경·테두리·안내를 강조하고 이�
   await expect(zone.getByRole('button', {
     name: '검증 중…'
   })).toBeDisabled();
-  await expect(zone).toHaveCSS('border-style', 'dashed');
+  // 검증 중에는 점선·선택 안내 대신 공통 로딩을 표시하고 추가 드롭을 무시합니다.
+  await expect(zone).toHaveAttribute('aria-busy', 'true');
+  await expect(zone).toHaveAttribute('data-dragging', 'false');
+  await expect(zone.getByRole('status')).toContainText('파일을 확인하고 있어요.');
+  await expect(zone).toHaveCSS('border-style', 'solid');
+  await expect(zone).toHaveCSS('border-color', 'rgba(0, 0, 0, 0)');
   await zone.dispatchEvent('dragenter', {
     dataTransfer
   });
   await zone.dispatchEvent('drop', {
     dataTransfer
   });
-  await expect(zone).toHaveCSS('border-style', 'dashed');
+  await expect(zone).toHaveAttribute('data-dragging', 'false');
+  await expect(zone.getByRole('status')).toBeVisible();
   releaseUpload();
   await expect(page.getByLabel('알림', {
     exact: true
   }).getByRole('alert')).toContainText('연락처 저장 설정');
   expect(uploads).toBe(1);
   await expect(select).toBeEnabled();
+  await expect(zone).toHaveCSS('border-style', 'dashed');
   await expect(zone).toHaveCSS('background-color', initialBackground);
   await dataTransfer.dispose();
 });
@@ -2948,7 +2978,7 @@ for (const width of [1440, 375, 320]) {
     await expect(upload).toHaveCSS('color', 'rgb(22, 101, 52)');
     await expect(upload.locator('svg')).toHaveCount(1);
     await expect(page.getByRole('columnheader', {
-      name: '호수',
+      name: '동·호수',
       exact: true
     })).toBeVisible();
     await expect(page.getByRole('columnheader', {
@@ -3057,6 +3087,10 @@ for (const width of [1440, 375, 320]) {
       fullPage: true,
       animations: 'disabled'
     });
+    await test.info().attach(`주민 상세 ${width}px`, {
+      path: test.info().outputPath(`residentDetail${width}.png`),
+      contentType: 'image/png'
+    });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     expect(await page.evaluate(() => [...Object.values(localStorage), ...Object.values(sessionStorage)].some((value) => value.includes('+82101231234') || value.includes('010-9876-5432')))).toBe(false);
     await view.getByRole('button', {
@@ -3161,7 +3195,10 @@ test('주민 상세를 다시 열면 번호는 마스킹되고 전체 번호 조
   await page.getByRole('button', {
     name: '김민수 상세 보기'
   }).click();
-  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('처리 결과를 확인하지 못했어요');
+  await expect(page.getByRole('dialog').getByRole('alert', {
+    name: '정보를 불러오지 못했어요',
+    exact: true
+  })).toBeVisible();
   await expect(page.getByRole('dialog')).not.toContainText('0101231234');
   await expect(page.getByRole('dialog')).not.toContainText('+82101231234');
 });
@@ -3323,7 +3360,16 @@ test('세대 주민 요약의 누락·잘못된 합계는 0명으로 표시하�
     residentSummaries: invalid
   }));
   await page.goto(HOUSEHOLDS);
-  await expect(page.getByRole('alert')).toContainText('세대 주민 정보를 확인할 수 없습니다.');
+  const error = page.getByRole('alert', {
+    name: '정보를 불러오지 못했어요',
+    exact: true
+  });
+  const table = page.getByRole('table', {
+    name: '세대 목록'
+  });
+  // 잘못된 합계를 0명으로 보정하지 않고 공통 오류를 표시하며 업무 표를 숨깁니다.
+  await expect(error).toBeVisible();
+  await expect(table).toHaveCount(0);
   invalid = {
     [unitId]: {
       representativeName: '예시',
@@ -3333,11 +3379,16 @@ test('세대 주민 요약의 누락·잘못된 합계는 0명으로 표시하�
       notJoined: 0
     }
   };
+  const invalidSummary = page.waitForResponse((response) => response.url() === UNITS_URL
+    && response.request().method() === 'GET');
   await page.getByRole('button', {
     name: '다시 시도',
     exact: true
   }).click();
-  await expect(page.getByRole('alert')).toContainText('세대 주민 정보를 확인할 수 없습니다.');
+  await invalidSummary;
+  await expect(error).toBeVisible();
+  await expect(error).toHaveAttribute('aria-busy', 'false');
+  await expect(table).toHaveCount(0);
   invalid = null;
   await page.getByRole('button', {
     name: '다시 시도',

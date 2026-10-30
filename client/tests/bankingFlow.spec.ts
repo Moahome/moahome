@@ -555,6 +555,8 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
       width,
       height: 1000
     });
+    // 화면 폭 변경 뒤 기존 거래 행의 스크롤 위치가 유지될 수 있으므로 실제 조작할 필터를 먼저 표시합니다.
+    await processing.scrollIntoViewIfNeeded();
     await expect(processing).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await processing.click();
@@ -565,6 +567,10 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
     await page.screenshot({
       path: test.info().outputPath(`processingFilter${width}.png`),
       fullPage: true
+    });
+    await test.info().attach(`업로드 처리 필터 ${width}px`, {
+      path: test.info().outputPath(`processingFilter${width}.png`),
+      contentType: 'image/png'
     });
     await page.keyboard.press('Escape');
   }
@@ -774,16 +780,8 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
     name: '선택 거래 저장'
   }).click();
   await expect(page.getByText('서버에 연결하지 못했어요. 선택과 입력을 유지하고 다시 시도해주세요.')).toBeVisible();
-  await expect.poll(() => diagnostics.length).toBe(1);
-  expect(diagnostics[0]).toMatchObject({
-    method: 'POST',
-    path: `/api/properties/${PROPERTY}/banking/import`,
-    status: 503,
-    code: 'NETWORK_ERROR'
-  });
-  expect(JSON.stringify(diagnostics)).not.toContain('은행 원본');
-  expect(JSON.stringify(diagnostics)).not.toContain('test-access');
-  expect(JSON.stringify(diagnostics)).not.toContain('test-csrf');
+  // 운영 번들은 진단 로그를 남기지 않습니다. 개발 로그의 내용·비밀값 제외는 customApi.spec.ts에서 검증합니다.
+  expect(diagnostics).toEqual([]);
   await openExpense();
   await expect(editor.getByLabel('외부 101동 부담 비율', {
     exact: true
@@ -2001,7 +1999,10 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     }
   }));
   await page.goto(`${BASE}/balances/details/difference?month=2026-08`);
-  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('alert', {
+    name: '서버에 연결하지 못했어요',
+    exact: true
+  })).toBeVisible();
   await expect(backToBalances).toBeVisible();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.unroute('**/banking/balances?month=2026-08');
@@ -3899,6 +3900,15 @@ for (const width of [1440, 390, 320]) {
     let malformedDetail = false;
     let finishReveal: (() => void) | undefined;
     const details: string[] = [];
+    const completedDetails: string[] = [];
+    // 개발 Strict Mode의 취소된 첫 GET은 응답 중복과 구분하고 완료된 상세 응답만 집계합니다.
+    page.on('response', (response) => {
+      const path = new URL(response.url()).pathname;
+      if (response.request().method() === 'GET' && response.ok()
+        && path.startsWith(`/api/properties/${PROPERTY}/banking/account/`)) {
+        completedDetails.push(path.split('/').at(-1)!);
+      }
+    });
     const balances = [
       {
         id: ACCOUNT,
@@ -4082,7 +4092,8 @@ for (const width of [1440, 390, 320]) {
     await expect(detail).toContainText('2026-09-30 기준');
     await expect(detail).toContainText('···· 5678');
     expect(reveals).toBe(0);
-    expect(details).toEqual([second]);
+    expect(details.every((accountId) => accountId === second)).toBe(true);
+    await expect.poll(() => completedDetails).toEqual([second]);
     if (width <= 767) {
       await expect(page).toHaveURL(new RegExp(`/details/account\\?month=2026-10&account=${second}&target=${second}$`));
       await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -4108,6 +4119,10 @@ for (const width of [1440, 390, 320]) {
     await page.screenshot({
       path: testInfo.outputPath(`bankAccountDetail${width}.png`),
       fullPage: true
+    });
+    await testInfo.attach(`통장 상세 ${width}px`, {
+      path: testInfo.outputPath(`bankAccountDetail${width}.png`),
+      contentType: 'image/png'
     });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await detail.getByRole('button', {
@@ -5352,10 +5367,19 @@ for (const width of [1440, 425, 390]) {
       name: '확인 이력 표시 개수',
       exact: true
     });
-    expect((await sizePicker.boundingBox())!.y).toBeLessThan((await records.first().boundingBox())!.y);
+    // 모바일 스크롤 복원 도중 두 좌표를 서로 다른 시점에 읽지 않고 한 번에 배치를 비교합니다.
+    await expect.poll(() => records.first().evaluate((record) => {
+      const picker = record.closest('dialog, section')?.querySelector('[aria-label="확인 이력 표시 개수"]');
+
+      return Boolean(picker && picker.getBoundingClientRect().bottom <= record.getBoundingClientRect().top);
+    })).toBe(true);
     await page.screenshot({
       path: testInfo.outputPath(`balanceCheckHistoryDefault${width}.png`),
       fullPage: width <= 767
+    });
+    await testInfo.attach(`은행 잔액 확인 이력 ${width}px`, {
+      path: testInfo.outputPath(`balanceCheckHistoryDefault${width}.png`),
+      contentType: 'image/png'
     });
     await sizePicker.click();
     await page.getByRole('option', {

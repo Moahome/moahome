@@ -531,12 +531,22 @@ async function expectFixedSetupHeader(page: Page) {
   const header = page.getByText('초기 설정', {
     exact: true
   }).locator('..');
+  await expect(header).toBeVisible();
   await expect(header).toHaveCSS('position', 'fixed');
-  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  const bounds = await header.boundingBox();
-  expect(Math.abs(bounds!.y)).toBeLessThanOrEqual(1);
-  expect(bounds!.width).toBe(page.viewportSize()!.width);
-  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.evaluate(() => window.scrollTo({
+    top: document.documentElement.scrollHeight,
+    behavior: 'instant'
+  }));
+  // 단계 전환 중 잠시 교체되는 헤더를 null 단언으로 읽지 않고 실제 고정 배치가 안정될 때까지 확인합니다.
+  await expect.poll(async () => {
+    const bounds = await header.boundingBox();
+
+    return bounds !== null && Math.abs(bounds.y) <= 1 && bounds.width === page.viewportSize()!.width;
+  }).toBe(true);
+  await page.evaluate(() => window.scrollTo({
+    top: 0,
+    behavior: 'instant'
+  }));
 }
 
 /** 같은 두 번째 페이지에서 담당자·기존 장부 기준일과 없음 선택을 확인합니다. */
@@ -1191,6 +1201,12 @@ test('계좌와 이전 단계 입력을 이력 이동·새로고침에 복원하
     name: '이전',
     exact: true
   }).click();
+  // 같은 이름의 이전 버튼을 다시 누르기 전에 첫 단계 이동이 완료됐는지 확인합니다.
+  await expect(page).toHaveURL(/registration=account/);
+  await expect(page.getByRole('heading', {
+    name: '관리계좌 및 잔고',
+    exact: true
+  })).toBeVisible();
   await page.getByRole('button', {
     name: '이전',
     exact: true
@@ -5895,6 +5911,11 @@ for (const width of [1440, 390, 320]) {
       name: '다음',
       exact: true
     }).click();
+    await expect(page).toHaveURL(/registration=review/);
+    await expect(page.getByRole('heading', {
+      name: '등록 정보를 확인해주세요',
+      exact: true
+    })).toBeVisible();
     await expect(page.getByRole('navigation', {
       name: '초기 설정 진행 단계',
       exact: true

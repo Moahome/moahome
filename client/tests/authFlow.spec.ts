@@ -1001,11 +1001,24 @@ test('시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
     name: '주민으로 참여하기',
     exact: true
   }).click();
-  await expect(page).toHaveURL(/\/join$/);
-  await expect(page.getByRole('textbox', {
-    name: '주민 참여 링크'
+  // 현재 설계는 PC의 같은 화면 모달과 모바일의 독립 가입 경로를 구분합니다.
+  await expect(page).toHaveURL(/\/start$/);
+  const invitation = page.getByRole('dialog', {
+    name: '초대코드로 참여하기',
+    exact: true
+  });
+  await expect(invitation.getByRole('textbox', {
+    name: '초대코드',
+    exact: true
   })).toBeVisible();
-  await page.goBack();
+  await test.info().attach('PC 주민 참여 모달', {
+    body: await page.screenshot(),
+    contentType: 'image/png'
+  });
+  await invitation.getByRole('button', {
+    name: '초대코드 입력 닫기',
+    exact: true
+  }).click();
   await page.getByRole('button', {
     name: /^승인 대기 중인 요청/
   }).click();
@@ -1032,6 +1045,23 @@ test('시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
     path: test.info().outputPath('startMobile.png'),
     fullPage: true
   });
+  await page.getByRole('button', {
+    name: '주민으로 참여하기',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/\/join$/);
+  await expect(page.getByRole('textbox', {
+    name: '초대코드',
+    exact: true
+  })).toBeVisible();
+  await test.info().attach('모바일 주민 참여 페이지', {
+    body: await page.screenshot({
+      fullPage: true
+    }),
+    contentType: 'image/png'
+  });
+  await page.goBack();
+  await expect(page).toHaveURL(/\/start$/);
   await page.getByRole('button', {
     name: '모아 주민님 메뉴 열기'
   }).click();

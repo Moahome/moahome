@@ -9,9 +9,13 @@ export default defineConfig({
   testDir: './tests',
   fullyParallel: false,
   workers: 1,
-  reporter: 'list',
+  reporter: [['list'], ['html', {
+    open: 'never'
+  }]],
   use: {
     baseURL: 'http://localhost:3100',
+    screenshot: 'only-on-failure',
+    trace: 'retain-on-failure',
   },
   projects: [
     {
@@ -28,10 +32,11 @@ export default defineConfig({
     },
   ],
   webServer: isApiOnly ? undefined : {
-    command: 'npm run dev -- --webpack --port 3100',
+    // 개발 서버의 재컴파일·manifest 읽기 경합 대신 실제 배포 번들로 화면 동작을 검증합니다.
+    command: 'npm run build && npm run start -- --port 3100',
     url: 'http://localhost:3100/login',
     reuseExistingServer: false,
-    timeout: 120_000,
+    timeout: 180_000,
     env: {
       NEXT_DIST_DIR: '.next-test',
       NEXT_PUBLIC_HOST: 'http://localhost:3100',
