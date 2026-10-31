@@ -19,6 +19,13 @@ import styles from './appInstallProvider.module.css';
 const DISMISSED_UNTIL_KEY = 'moahome-app-install-dismissed-until';
 const DISMISS_DURATION_MS = 60 * 60 * 1000;
 
+/** 브라우저를 지정하지 않은 웹 열기 요청으로 기기의 기본 브라우저·앱 선택 처리를 사용합니다. */
+function getBrowserIntent(installUrl: string) {
+  const url = new URL(installUrl);
+
+  return `intent://${url.host}${url.pathname}#Intent;scheme=${url.protocol.slice(0, -1)};action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;S.browser_fallback_url=${encodeURIComponent(installUrl)};end`;
+}
+
 /** 화면 전환 전에 설치 이벤트를 보관하고 모바일 배너와 설정의 설치 동작을 공유합니다. */
 export function AppInstallProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -43,8 +50,7 @@ export function AppInstallProvider({ children }: { children: ReactNode }) {
   const available = environment.ready && environment.mobile;
   const isInstalled = installed || environment.standalone;
   const showBanner = available && !isInstalled && !dismissed && (pathname === '/' || pathname === '/login');
-  // 카카오톡의 공개 링크에서는 선택 안내만 먼저 표시하며 외부 앱 실행은 사용자 클릭에 맡깁니다.
-  const showGuide = available && !isInstalled && (guideOpen || (showBanner && environment.kakao));
+  const showGuide = available && !isInstalled && guideOpen;
 
   useEffect(() => {
     const mobileQuery = window.matchMedia('(max-width: 767px)');
@@ -138,10 +144,22 @@ export function AppInstallProvider({ children }: { children: ReactNode }) {
     syncDismissalRef.current?.();
   }
 
-  /** 카카오톡에는 외부 브라우저 선택을 안내하고, 일반 브라우저의 설치 이벤트는 한 번만 소비합니다. */
+  /** Android 카카오톡에서는 클릭 시 OS에 브라우저 열기를 요청하고 일반 설치 이벤트는 한 번만 소비합니다. */
   async function install() {
     if (!available || isInstalled || busyRef.current) return;
     setFailed(false);
+    if (environment.kakao && environment.android) {
+      try {
+        // 자동 실행·타이머 없이 사용자 제스처 안에서 요청하며 특정 브라우저로 고정하지 않습니다.
+        // 실제 앱 실행·선택창 표시는 OS와 카카오톡의 처리에 달려 있어 여기서 성공으로 기록하지 않습니다.
+        window.open(getBrowserIntent(environment.installUrl), '_self');
+      } catch {
+        setFailed(true);
+        setGuideOpen(true);
+      }
+      return;
+    }
+
     const event = promptRef.current;
     if (environment.kakao || !event) {
       setGuideOpen(true);
@@ -163,10 +181,9 @@ export function AppInstallProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  /** 카카오톡에서 먼저 열린 안내를 닫으면 배너와 함께 한 시간 숨깁니다. 설정에서는 다시 열 수 있습니다. */
+  /** 직접 연 설치 도움말만 닫고 상단 배너의 한 시간 숨김은 배너 X에서 처리합니다. */
   function closeGuide() {
     setGuideOpen(false);
-    if (environment.kakao) dismissBanner();
   }
 
   let guideTitle = '모아홈 앱 설치';
@@ -265,11 +282,19 @@ export function AppInstallProvider({ children }: { children: ReactNode }) {
             </Button>
           </header>
           {environment.kakao ? (
-            <ExternalBrowserGuide
-              android={environment.android}
-              ios={environment.ios}
-              installUrl={environment.installUrl}
-            />
+            <>
+              {failed && (
+                <p
+                  role={'status'}
+                >
+                  외부 브라우저 열기를 요청하지 못했어요. 카카오톡 메뉴에서 다른 브라우저로 열기를 선택해 주세요.
+                </p>
+              )}
+              <ExternalBrowserGuide
+                ios={environment.ios}
+                installUrl={environment.installUrl}
+              />
+            </>
           ) : (
             <>
               {failed && (

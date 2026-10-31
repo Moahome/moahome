@@ -338,68 +338,90 @@ test('독립 앱으로 실행하면 설치 배너를 표시하지 않는다', as
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
-test('카카오톡 Android 링크는 브라우저 선택을 먼저 표시하고 설치 주소만 전달한다', async ({ page }) => {
+/** 데스크톱에서는 OS 앱 실행을 대신하지 않고 사용자 클릭이 만든 브라우저 열기 요청만 기록합니다. */
+async function captureBrowserRequest(page: Page, fail = false) {
+  await page.addInitScript((fail) => {
+    window.open = (url, target) => {
+      if (fail) throw new Error('External navigation unavailable');
+      document.documentElement.dataset.externalBrowserUrl = String(url);
+      document.documentElement.dataset.externalBrowserTarget = String(target);
+      return window;
+    };
+  }, fail);
+}
+
+test('카카오톡 Android는 안내창 없이 설치 버튼에서 OS에 브라우저 열기를 요청한다', async ({ page }) => {
   await page.clock.install();
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'userAgent', {
       value: 'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Mobile Safari/537.36 KAKAOTALK/26.1.0',
     });
-    Object.defineProperty(navigator, 'clipboard', {
-      value: {
-        writeText: async (value: string) => {
-          document.documentElement.dataset.copiedUrl = value;
-        },
-      },
-    });
   });
+  await captureBrowserRequest(page);
   await page.goto('/login?next=%2Fmanage&code=private-code#private-invitation');
-  const guide = page.getByRole('dialog', {
-    name: '외부 브라우저에서 설치',
+  const banner = page.getByRole('complementary', {
+    name: BANNER_NAME
   });
-  await expect(guide).toBeVisible();
-  await expect(page).toHaveURL(/\/login\?next=.*#private-invitation$/);
-  for (const [label, packageName] of [
-    ['Chrome에서 열기', 'com.android.chrome'],
-    ['삼성 인터넷에서 열기', 'com.sec.android.app.sbrowser'],
-  ]) {
-    const href = await guide.getByRole('link', {
-      name: label,
-      exact: true,
-    }).getAttribute('href');
-    expect(href).toContain('intent://localhost:3100/start#Intent;scheme=http;');
-    expect(href).toContain(`package=${packageName};`);
-    expect(href).toContain(`S.browser_fallback_url=${encodeURIComponent('http://localhost:3100/start')};end`);
-    expect(href).not.toMatch(/private-code|private-invitation|next=/);
-  }
-  await guide.getByRole('button', {
-    name: '주소 복사',
+  await expect(banner).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('html')).not.toHaveAttribute('data-external-browser-url');
+  await offerInstall(page);
+  await banner.getByRole('button', {
+    name: '설치하기',
+    exact: true
   }).click();
-  await expect(guide.getByRole('status')).toHaveText('주소를 복사했어요.');
-  await expect(page.locator('html')).toHaveAttribute('data-copied-url', 'http://localhost:3100/start');
-  await page.setViewportSize({
-    width: 320,
-    height: 640,
-  });
-  const bounds = (await guide.boundingBox())!;
-  expect(bounds.x).toBeGreaterThanOrEqual(0);
-  expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
-  expect(bounds.y).toBeGreaterThanOrEqual(0);
-  expect(bounds.y + bounds.height).toBeLessThanOrEqual(640);
-  expect(await guide.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-  await guide.getByRole('button', {
-    name: '설치 방법 닫기',
+  const href = await page.locator('html').getAttribute('data-external-browser-url');
+  expect(href).toContain('intent://localhost:3100/start#Intent;scheme=http;');
+  expect(href).toContain('action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;');
+  expect(href).toContain(`S.browser_fallback_url=${encodeURIComponent('http://localhost:3100/start')};end`);
+  expect(href).not.toMatch(/package=|component=|private-code|private-invitation|next=/);
+  await expect(page.locator('html')).toHaveAttribute('data-external-browser-target', '_self');
+  await expect(page.locator('html')).not.toHaveAttribute('data-install-calls');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await banner.getByRole('button', {
+    name: '앱 설치 안내 닫기'
   }).click();
-  await expect(guide).toHaveCount(0);
+  await expect(banner).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole('button', {
-    name: '카카오로 시작하기',
+    name: '카카오로 시작하기'
   })).toBeVisible();
-  await expect(guide).toHaveCount(0);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(banner).toHaveCount(0);
   await page.clock.fastForward(60 * 60 * 1000);
-  await expect(guide).toBeVisible();
+  await expect(banner).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('html')).not.toHaveAttribute('data-external-browser-url');
 });
 
-test('카카오톡 iPhone은 Safari 안내를 표시하고 주소 복사 차단 시 수동 복사를 돕는다', async ({ page }) => {
+test('카카오톡 Android의 열기 요청에서 예외가 발생하면 수동 전환·주소 복사로 복구한다', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Mobile KAKAOTALK/26.1.0',
+    });
+  });
+  await captureBrowserRequest(page, true);
+  await page.goto('/login');
+  await page.getByRole('button', {
+    name: '설치하기',
+    exact: true
+  }).click();
+  const guide = page.getByRole('dialog', {
+    name: '외부 브라우저에서 설치'
+  });
+  await expect(guide).toContainText('외부 브라우저 열기를 요청하지 못했어요.');
+  await expect(guide.getByRole('textbox', {
+    name: '모아홈 설치 주소'
+  })).toHaveValue('http://localhost:3100/start');
+  await expect(guide.getByRole('button', {
+    name: '주소 복사'
+  })).toBeVisible();
+  await expect(guide.getByRole('link', {
+    name: 'Chrome에서 열기'
+  })).toHaveCount(0);
+});
+
+test('카카오톡 iPhone은 설치 버튼을 누를 때만 Safari 안내와 수동 복사를 제공한다', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'userAgent', {
       value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 Mobile KAKAOTALK/26.1.0',
@@ -411,6 +433,11 @@ test('카카오톡 iPhone은 Safari 안내를 표시하고 주소 복사 차단 
     });
   });
   await page.goto('/');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('button', {
+    name: '설치하기',
+    exact: true
+  }).click();
   const guide = page.getByRole('dialog', {
     name: '외부 브라우저에서 설치',
   });
@@ -431,12 +458,13 @@ test('카카오톡 iPhone은 Safari 안내를 표시하고 주소 복사 차단 
   await expect(guide).toHaveCount(0);
 });
 
-test('카카오톡도 PC에는 선택창을 띄우지 않고 설정에서는 숨김 중에도 다시 연다', async ({ page }) => {
+test('카카오톡 설정에서는 배너 숨김 중에도 OS에 열기를 요청하며 PC·설치 완료 시에는 숨긴다', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'userAgent', {
       value: 'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Mobile KAKAOTALK/26.1.0',
     });
   });
+  await captureBrowserRequest(page);
   await page.setViewportSize({
     width: 1440,
     height: 960,
@@ -457,9 +485,8 @@ test('카카오톡도 PC에는 선택창을 띄우지 않고 설정에서는 숨
     name: '앱 설치',
     exact: true,
   }).click();
-  await expect(page.getByRole('dialog', {
-    name: '외부 브라우저에서 설치',
-  })).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.locator('html')).toHaveAttribute('data-external-browser-url', /^intent:\/\/localhost:3100\/start#Intent;/);
   await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')));
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('button', {
