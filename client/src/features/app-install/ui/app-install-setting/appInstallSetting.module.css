@@ -1,0 +1,47 @@
+.item {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+
+  > button {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 44px;
+    font-size: 14px;
+  }
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary) 9%, var(--card));
+  color: var(--primary);
+
+  svg {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+.copy {
+  min-width: 0;
+
+  h3 {
+    font-size: 15px;
+    font-weight: 750;
+    line-height: 1.5;
+  }
+
+  p {
+    margin-top: 6px;
+    color: var(--sub-text);
+    font-size: 12px;
+    line-height: 1.6;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+}

@@ -33,6 +33,16 @@ export const metadata: Metadata = {
       type: 'image/svg+xml',
       sizes: 'any',
     },
+    apple: {
+      url: '/icons/appleTouchIcon.png',
+      sizes: '180x180',
+      type: 'image/png',
+    },
+  },
+  appleWebApp: {
+    capable: true,
+    title: '모아홈',
+    statusBarStyle: 'default',
   },
 };
 

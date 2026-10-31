@@ -10,6 +10,7 @@ import {
   useManagementContext
 } from '@/features/enter-service';
 import { LeavePropertyButton } from '@/features/leave-property';
+import { AppInstallSetting } from '@/features/app-install';
 import { Button } from '@/shared/ui/button';
 import { ListCard } from '@/shared/ui/list-card';
 import { ListHeader } from '@/shared/ui/list-header';
@@ -42,6 +43,7 @@ export function SettingsPage({ propertyId }: { propertyId: string }) {
         className={styles.group}
         aria-label={'설정 항목'}
       >
+        <AppInstallSetting />
         <ListCard>
           <div
             className={styles.item}

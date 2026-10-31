@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { useSession } from '@/entities/session';
 import { RegistrationDraftLifecycle } from '@/features/property-registration';
+import { AppInstallProvider } from '@/features/app-install';
 
 /** 공개 화면도 표시하면서 앱 시작 시 세션을 복원합니다. 콜백 화면은 같은 조회 상태를 사용합니다. */
 function SessionBootstrap() {
@@ -32,7 +33,9 @@ export function AppProviders({
     >
       <SessionBootstrap />
       <RegistrationDraftLifecycle />
-      {children}
+      <AppInstallProvider>
+        {children}
+      </AppInstallProvider>
     </QueryClientProvider>
   );
 }
