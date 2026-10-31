@@ -13,6 +13,7 @@ import { ClientModal } from '@/shared/ui/client-modal';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { AppInstallContext } from '../../model/appInstallContext';
 import type { BeforeInstallPromptEvent } from '../../model/appInstallTypes';
+import { ExternalBrowserGuide } from '../_components/external-browser-guide/externalBrowserGuide';
 import styles from './appInstallProvider.module.css';
 
 const DISMISSED_UNTIL_KEY = 'moahome-app-install-dismissed-until';
@@ -29,6 +30,9 @@ export function AppInstallProvider({ children }: { children: ReactNode }) {
     ready: false,
     mobile: false,
     ios: false,
+    android: false,
+    kakao: false,
+    installUrl: '',
     standalone: false,
   });
   const [installed, setInstalled] = useState(false);
@@ -39,6 +43,8 @@ export function AppInstallProvider({ children }: { children: ReactNode }) {
   const available = environment.ready && environment.mobile;
   const isInstalled = installed || environment.standalone;
   const showBanner = available && !isInstalled && !dismissed && (pathname === '/' || pathname === '/login');
+  // 카카오톡의 공개 링크에서는 선택 안내만 먼저 표시하며 외부 앱 실행은 사용자 클릭에 맡깁니다.
+  const showGuide = available && !isInstalled && (guideOpen || (showBanner && environment.kakao));
 
   useEffect(() => {
     const mobileQuery = window.matchMedia('(max-width: 767px)');
@@ -74,6 +80,10 @@ export function AppInstallProvider({ children }: { children: ReactNode }) {
         ready: true,
         mobile: mobileQuery.matches,
         ios,
+        android: /Android/i.test(navigator.userAgent),
+        kakao: /KAKAOTALK/i.test(navigator.userAgent),
+        // 설치 진입점만 전달해 인증 콜백·초대 링크의 쿼리와 해시를 외부 앱에 복사하지 않습니다.
+        installUrl: new URL('/start', window.location.origin).href,
         standalone: standaloneQuery.matches || ('standalone' in navigator && navigator.standalone === true),
       });
       syncDismissal();
@@ -128,12 +138,12 @@ export function AppInstallProvider({ children }: { children: ReactNode }) {
     syncDismissalRef.current?.();
   }
 
-  /** 설치 이벤트는 한 번만 소비하고 미지원·실패 환경에는 브라우저의 설치 방법을 안내합니다. */
+  /** 카카오톡에는 외부 브라우저 선택을 안내하고, 일반 브라우저의 설치 이벤트는 한 번만 소비합니다. */
   async function install() {
     if (!available || isInstalled || busyRef.current) return;
     setFailed(false);
     const event = promptRef.current;
-    if (!event) {
+    if (environment.kakao || !event) {
       setGuideOpen(true);
       return;
     }
@@ -152,6 +162,16 @@ export function AppInstallProvider({ children }: { children: ReactNode }) {
       setBusy(false);
     }
   }
+
+  /** 카카오톡에서 먼저 열린 안내를 닫으면 배너와 함께 한 시간 숨깁니다. 설정에서는 다시 열 수 있습니다. */
+  function closeGuide() {
+    setGuideOpen(false);
+    if (environment.kakao) dismissBanner();
+  }
+
+  let guideTitle = '모아홈 앱 설치';
+  if (environment.ios) guideTitle = '홈 화면에 추가';
+  if (environment.kakao) guideTitle = '외부 브라우저에서 설치';
 
   return (
     <AppInstallContext.Provider
@@ -216,12 +236,12 @@ export function AppInstallProvider({ children }: { children: ReactNode }) {
           </Button>
         </aside>
       )}
-      {guideOpen && available && !isInstalled && (
+      {showGuide && (
         <ClientModal
           className={styles.guide}
           aria-labelledby={'app-install-title'}
           aria-describedby={'app-install-description'}
-          onClose={() => setGuideOpen(false)}
+          onClose={closeGuide}
           closeOnOutsideClick
         >
           <header
@@ -230,66 +250,76 @@ export function AppInstallProvider({ children }: { children: ReactNode }) {
             <h2
               id={'app-install-title'}
             >
-              {environment.ios ? '홈 화면에 추가' : '모아홈 앱 설치'}
+              {guideTitle}
             </h2>
             <Button
               variant={'ghost'}
               size={'sm'}
               iconOnly
               aria-label={'설치 방법 닫기'}
-              onClick={() => setGuideOpen(false)}
+              onClick={closeGuide}
             >
               <ServiceIcon
                 name={'close'}
               />
             </Button>
           </header>
-          {failed && (
-            <p
-              role={'status'}
-            >
-              설치 창을 열지 못했어요. 브라우저 메뉴에서 설치해 주세요.
-            </p>
-          )}
-          <p
-            id={'app-install-description'}
-          >
-            홈 화면에 모아홈을 추가하면 앱처럼 바로 열 수 있어요.
-          </p>
-          {environment.ios ? (
-            <ol>
-              <li>
-                브라우저의 공유 버튼을 누르세요.
-              </li>
-              <li>
-                홈 화면에 추가를 선택하세요.
-              </li>
-              <li>
-                추가를 눌러 완료하세요.
-              </li>
-            </ol>
+          {environment.kakao ? (
+            <ExternalBrowserGuide
+              android={environment.android}
+              ios={environment.ios}
+              installUrl={environment.installUrl}
+            />
           ) : (
-            <ol>
-              <li>
-                Chrome 또는 삼성 인터넷에서 모아홈을 여세요.
-              </li>
-              <li>
-                브라우저 메뉴에서 앱 설치 또는 홈 화면에 추가를 선택하세요.
-              </li>
-              <li>
-                설치 또는 추가를 눌러 완료하세요.
-              </li>
-            </ol>
+            <>
+              {failed && (
+                <p
+                  role={'status'}
+                >
+                  설치 창을 열지 못했어요. 브라우저 메뉴에서 설치해 주세요.
+                </p>
+              )}
+              <p
+                id={'app-install-description'}
+              >
+                홈 화면에 모아홈을 추가하면 앱처럼 바로 열 수 있어요.
+              </p>
+              {environment.ios ? (
+                <ol>
+                  <li>
+                    브라우저의 공유 버튼을 누르세요.
+                  </li>
+                  <li>
+                    홈 화면에 추가를 선택하세요.
+                  </li>
+                  <li>
+                    추가를 눌러 완료하세요.
+                  </li>
+                </ol>
+              ) : (
+                <ol>
+                  <li>
+                    Chrome 또는 삼성 인터넷에서 모아홈을 여세요.
+                  </li>
+                  <li>
+                    브라우저 메뉴에서 앱 설치 또는 홈 화면에 추가를 선택하세요.
+                  </li>
+                  <li>
+                    설치 또는 추가를 눌러 완료하세요.
+                  </li>
+                </ol>
+              )}
+              <p
+                className={styles.note}
+              >
+                {environment.ios
+                  ? '메뉴가 보이지 않으면 Safari에서 열어 주세요.'
+                  : '설치 메뉴가 보이지 않으면 최신 브라우저에서 다시 확인해 주세요.'}
+                {' '}
+                카카오톡 안에서 열었다면 외부 브라우저에서 열어 주세요.
+              </p>
+            </>
           )}
-          <p
-            className={styles.note}
-          >
-            {environment.ios
-              ? '메뉴가 보이지 않으면 Safari에서 열어 주세요.'
-              : '설치 메뉴가 보이지 않으면 최신 브라우저에서 다시 확인해 주세요.'}
-            {' '}
-            카카오톡 안에서 열었다면 외부 브라우저에서 열어 주세요.
-          </p>
         </ClientModal>
       )}
     </AppInstallContext.Provider>
