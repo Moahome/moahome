@@ -28,14 +28,22 @@ export async function createMonthlyCollectionPdf(data: MonthlyReportSnapshot): P
   const money = (value: string | bigint) => typeof value === 'bigint' ? `${formatInteger(value)}원` : value;
   const description = pdf.setFont('Pretendard', 'normal').setFontSize(11).splitTextToSize(document.description, 200) as string[];
   const timestampY = 43 + description.length * 5;
-  const cardsY = timestampY + 12;
+  const period = metadata('조회 월');
+  pdf.setFont('Pretendard', 'bold'); pdf.setFontSize(18);
+  const periodTextWidth = pdf.getTextWidth(period);
+  const periodWidth = Math.min(142, Math.max(64, periodTextWidth + 18));
+  const periodFontSize = Math.min(18, 18 * (periodWidth - 18) / periodTextWidth);
+  pdf.setFont('Pretendard', 'normal'); pdf.setFontSize(9.5);
+  const metadataLines = pdf.splitTextToSize(`${metadata('조회 세대')} · ${metadata('기간 상태')} · 조회 시각 ${metadata('조회시각')}`, 273 - periodWidth - 6) as string[];
+  const periodBottom = timestampY + Math.max(7, metadataLines.length * 4 - 5);
+  const cardsY = periodBottom + 5;
   const tableY = cardsY + 38;
   const reportWidths: Record<number, number[]> = {
     4: [70, 65, 70, 68],
     6: [44, 40, 48, 48, 50, 43],
     7: [38, 34, 40, 40, 43, 43, 35]
   };
-  const widths = reportWidths[document.columns.length];
+  const widths = reportWidths[document.columns.length] ?? document.columns.map((column) => 273 * column.width / document.columns.reduce((total, item) => total + item.width, 0));
   const statusColors: Record<string, string> = {
     미납: colors.danger,
     일부납부: colors.warning,
@@ -173,14 +181,14 @@ export async function createMonthlyCollectionPdf(data: MonthlyReportSnapshot): P
       if (titleWidth > 200) pdf.setFontSize(23 * 200 / titleWidth);
       pdf.text(document.title, 12, 27);
       pdf.setFont('Pretendard', 'normal'); pdf.setFontSize(11); pdf.setTextColor(colors.muted); pdf.text(description, 12, 38);
-      // 조회 월은 건수·조회시각과 분리해 큰 글씨와 달력 표식으로 강조합니다.
-      pdf.setFillColor(tint(colors.primary)); pdf.roundedRect(12, timestampY - 8, 64, 11, 2, 2, 'F');
+      // 연도를 포함한 월 범위의 실제 글자 폭으로 상자를 넓히고 보조 정보를 남은 폭에 줄바꿈합니다.
+      pdf.setFillColor(tint(colors.primary)); pdf.roundedRect(12, timestampY - 8, periodWidth, 11, 2, 2, 'F');
       pdf.setDrawColor(colors.primary); pdf.setLineWidth(0.5); pdf.roundedRect(15, timestampY - 5, 5, 5, 0.5, 0.5, 'S');
       pdf.line(15, timestampY - 3.5, 20, timestampY - 3.5); pdf.line(16.2, timestampY - 6, 16.2, timestampY - 4.2); pdf.line(18.8, timestampY - 6, 18.8, timestampY - 4.2);
-      pdf.setFont('Pretendard', 'bold'); pdf.setFontSize(18); pdf.setTextColor(colors.primary); pdf.text(metadata('조회 월'), 23, timestampY);
+      pdf.setFont('Pretendard', 'bold'); pdf.setFontSize(periodFontSize); pdf.setTextColor(colors.primary); pdf.text(period, 23, timestampY);
       pdf.setFont('Pretendard', 'normal'); pdf.setFontSize(9.5); pdf.setTextColor(colors.muted);
-      pdf.text(`${metadata('조회 세대')} · ${metadata('기간 상태')} · 조회 시각 ${metadata('조회시각')}`, 82, timestampY - 0.5);
-      pdf.setLineWidth(0.2); pdf.setDrawColor(colors.border); pdf.line(12, timestampY + 7, 285, timestampY + 7);
+      pdf.text(metadataLines, 12 + periodWidth + 6, timestampY - (metadataLines.length > 1 ? 3 : 0.5));
+      pdf.setLineWidth(0.2); pdf.setDrawColor(colors.border); pdf.line(12, periodBottom, 285, periodBottom);
       const gap = 5;
       const width = (273 - gap * (metrics.length - 1)) / metrics.length;
       metrics.forEach((metric, index) => {

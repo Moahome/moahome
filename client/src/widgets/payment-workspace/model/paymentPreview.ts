@@ -16,7 +16,7 @@ export function getConfirmedUnitReceipts(ledger: PreviewLedger, unitId: string, 
 }
 
 /** 월별 표와 엑셀에서 같은 검색·동·납부 상태를 적용하고 페이지 구분은 호출 화면에 맡깁니다. */
-export function filterMonthlyPreviewRows(rows: MonthlyPreviewRow[], filters: MonthlyCollectionFilters): MonthlyPreviewRow[] {
+export function filterMonthlyPreviewRows<Row extends MonthlyPreviewRow>(rows: Row[], filters: MonthlyCollectionFilters): Row[] {
   const query = filters.query.trim();
   return rows.filter((row) => (!filters.building || row.buildingName === filters.building)
     && `${row.unitLabel} ${row.representativeName}`.includes(query)
@@ -106,7 +106,8 @@ export function getMonthlyPreviewRows(ledger: PreviewLedger, month: string): Mon
     let status: MonthlyPreviewRow['status'] = '미납';
     if (balance === BigInt(0)) status = '납부완료';
     else if (applied > BigInt(0)) status = '일부납부';
-    if (prepaid > BigInt(0)) status = '선입금';
+    // 당월 관리비의 납부 상태를 우선하며, 부과 없이 잔액만 보유한 세대를 선입금으로 표시합니다.
+    if (!billedUnitIds.has(unit.id) && prepaid > BigInt(0)) status = '선입금';
     if (settlementPending) status = '정산 확인 필요';
 
     const row: MonthlyPreviewRow = {

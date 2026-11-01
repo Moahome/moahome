@@ -15,7 +15,12 @@ import {
   Dropdown,
   Input
 } from '@/shared/ui/form-controls';
-import { MonthPicker } from '@/shared/ui/month-picker';
+import { MonthRangePicker } from '@/shared/ui/month-range-picker';
+import {
+  formatMonthRange,
+  getMonthRangeQuery,
+  type MonthRange
+} from '@/shared/lib/month-range';
 import { Pagination } from '@/shared/ui/pagination';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { SummaryCard } from '@/shared/ui/summary-card';
@@ -27,10 +32,14 @@ import {
 import { useState } from 'react';
 import {
   filterMonthlyPreviewRows,
-  getMonthlyPreviewIncome,
-  getMonthlyPreviewRows,
   getPreviewBuildingOptions
 } from '../../../model/paymentPreview';
+import {
+  getMonthlyRowKey,
+  getMonthlyRangeRows,
+  getMonthlyRangeIncome,
+  sumMonthlyRangeRows
+} from '../../../model/monthlyRange';
 import type { MonthlyCollectionFilters } from '../../../model/paymentPreviewTypes';
 import { usePaymentWorkspace } from '../../payment-workspace-provider/paymentWorkspaceProvider';
 import { MonthlyDetail } from '../monthly-detail/monthlyDetail';
@@ -41,15 +50,15 @@ import {
 import styles from './monthlyCollection.module.css';
 
 /** 월별 실제 입금 합계와 청구의 이월·충당·미수를 함께 표시하되 두 기준의 금액을 섞지 않습니다. */
-export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath, filters, onFiltersChange,
-  selectedUnitIds, onSelectionChange, onToggleSelection }: {
+export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath, filters, onFiltersChange,
+  selectedRowKeys, onSelectionChange, onToggleSelection }: {
   propertyId: string;
-  month: string;
-  onMonthChange: (month: string) => void;
+  range: MonthRange;
+  onRangeChange: (range: MonthRange) => void;
   detailPath?: string;
   filters: MonthlyCollectionFilters;
   onFiltersChange: (filters: MonthlyCollectionFilters) => void;
-  selectedUnitIds?: readonly string[];
+  selectedRowKeys?: readonly string[];
   onSelectionChange: (ids: string[]) => void;
   onToggleSelection: () => void;
 }) {
@@ -60,10 +69,18 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
   const { query, status, building } = filters;
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [selected, setSelected] = useState<string | null>(searchParams.get('unit'));
-  const rows = getMonthlyPreviewRows(ledger, month);
-  const income = getMonthlyPreviewIncome(ledger, month);
-  // 탭별 인원은 상태 필터를 적용하기 전의 검색·동 범위에서 세대마다 한 번만 셉니다.
+  const [selected, setSelected] = useState<{ unitId: string; month: string } | null>(() => {
+    const unitId = searchParams.get('unit');
+    return unitId ? {
+      unitId,
+      month: range.endMonth
+    } : null;
+  });
+  const multipleMonths = range.startMonth !== range.endMonth;
+  const rows = getMonthlyRangeRows(ledger, range);
+  const income = getMonthlyRangeIncome(ledger, range);
+  const closingPending = rows.some((row) => row.month === range.endMonth && row.settlementPending);
+  // 여러 달에서는 세대·월별 상태를 세므로 같은 세대라도 월이 다르면 별도 행으로 표시합니다.
   const matches = filterMonthlyPreviewRows(rows, {
     ...filters,
     status: '전체'
@@ -73,13 +90,19 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const selecting = selectedUnitIds !== undefined;
-  const checkedIds = new Set(selectedUnitIds ?? []);
-  const visibleSelectedCount = visible.filter((row) => checkedIds.has(row.unitId)).length;
-  const sum = (key: 'carry' | 'billed' | 'applied' | 'balance') => rows.reduce((total, row) => total + row[key] + (key === 'billed' ? row.settlementAmount ?? BigInt(0) : BigInt(0)), BigInt(0));
+  const selecting = selectedRowKeys !== undefined;
+  const checkedIds = new Set(selectedRowKeys ?? []);
+  const visibleSelectedCount = visible.filter((row) => checkedIds.has(getMonthlyRowKey(row))).length;
+  const sum = (key: 'carry' | 'billed' | 'applied' | 'balance') => sumMonthlyRangeRows(rows, range, key);
 
   // 선입금 잔액은 당월까지의 청구를 이미 충당한 결과이므로 발생액을 다시 차감하지 않습니다.
   const columns: DataTableColumn<(typeof rows)[number]>[] = [
+    ...(multipleMonths ? [{
+      key: 'month',
+      header: '부과 월',
+      width: 115,
+      render: (row: (typeof rows)[number]) => row.month
+    }] : []),
     {
       key: 'unit',
       header: '세대',
@@ -154,7 +177,7 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
 
   ];
   const amountColumns = status === '선입금'
-    ? columns.filter((column) => ['unit', 'representative', 'prepaid', 'status', 'date'].includes(column.key))
+    ? columns.filter((column) => ['month', 'unit', 'representative', 'prepaid', 'status', 'date'].includes(column.key))
     : columns;
   const visibleColumns: typeof columns = selecting ? [{
     key: 'selection',
@@ -163,14 +186,14 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
       <input
         className={styles['selection-checkbox']}
         type={'checkbox'}
-        aria-label={'현재 페이지 세대 전체 선택'}
+        aria-label={multipleMonths ? '현재 페이지 월별 내역 전체 선택' : '현재 페이지 세대 전체 선택'}
         checked={visible.length > 0 && visibleSelectedCount === visible.length}
         ref={(element) => { if (element) element.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visible.length; }}
         onChange={(event) => {
-          const next = new Set(selectedUnitIds);
+          const next = new Set(selectedRowKeys);
           visible.forEach((row) => {
-            if (event.target.checked) next.add(row.unitId);
-            else next.delete(row.unitId);
+            if (event.target.checked) next.add(getMonthlyRowKey(row));
+            else next.delete(getMonthlyRowKey(row));
           });
           onSelectionChange([...next]);
         }}
@@ -180,28 +203,32 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
       <input
         className={styles['selection-checkbox']}
         type={'checkbox'}
-        aria-label={`${row.unitLabel} 선택`}
-        checked={checkedIds.has(row.unitId)}
-        onChange={() => toggleSelection(row.unitId)}
+        aria-label={`${multipleMonths ? `${row.month} ` : ''}${row.unitLabel} 선택`}
+        checked={checkedIds.has(getMonthlyRowKey(row))}
+        onChange={() => toggleSelection(getMonthlyRowKey(row))}
       />
     )
   }, ...amountColumns] : amountColumns;
 
-  /** 페이지를 넘겨도 선택한 세대는 유지하고 동일 세대를 중복해서 선택하지 않습니다. */
-  function toggleSelection(unitId: string) {
-    const next = new Set(selectedUnitIds);
-    if (next.has(unitId)) next.delete(unitId);
-    else next.add(unitId);
+  /** 페이지를 넘겨도 선택한 월·세대 행을 유지하며 다른 월의 같은 세대는 독립적으로 선택합니다. */
+  function toggleSelection(rowKey: string) {
+    const next = new Set(selectedRowKeys);
+    if (next.has(rowKey)) next.delete(rowKey);
+    else next.add(rowKey);
     onSelectionChange([...next]);
   }
 
   /** PC에서는 중앙 모달로, 모바일에서는 독립된 세대별 수납 상세 주소로 이동합니다. */
-  function openDetail(unitId: string) {
+  function openDetail(unitId: string, month: string) {
     if (window.matchMedia('(max-width: 767px)').matches) {
-      router.push(`${detailPath ?? `/manage/${propertyId}/payments/monthly`}/${month}/${encodeURIComponent(unitId)}`);
+      const period = getMonthRangeQuery(searchParams);
+      router.push(`${detailPath ?? `/manage/${propertyId}/payments/monthly`}/${month}/${encodeURIComponent(unitId)}${period.size ? `?${period}` : ''}`);
       return;
     }
-    setSelected(unitId);
+    setSelected({
+      unitId,
+      month
+    });
   }
 
   return (
@@ -212,17 +239,17 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
         className={styles.kpis}
       >
         {[
-          ['전월 이월액', 'carry', 'warning'],
-          ['당월 관리비 발생액', 'billed', 'primary'],
-          ['당월 수납 반영액', 'applied', 'success'],
-          ['당월 말 미수금', 'balance', 'danger']
+          [multipleMonths ? '시작 월 이월액' : '전월 이월액', 'carry', 'warning'],
+          [multipleMonths ? '기간 관리비 발생액' : '당월 관리비 발생액', 'billed', 'primary'],
+          [multipleMonths ? '기간 수납 반영액' : '당월 수납 반영액', 'applied', 'success'],
+          [multipleMonths ? '종료 월 미수금' : '당월 말 미수금', 'balance', 'danger']
         ].map(([label, key, tone]) => (
           <SummaryCard
             density={'compact'}
             key={key}
             label={label}
-            value={key === 'balance' && rows.some((row) => row.settlementPending) ? '정산 확인 필요' : formatInteger(sum(key as 'carry' | 'billed' | 'applied' | 'balance'))}
-            unit={key === 'balance' && rows.some((row) => row.settlementPending) ? '' : '원'}
+            value={key === 'balance' && closingPending ? '정산 확인 필요' : formatInteger(sum(key as 'carry' | 'billed' | 'applied' | 'balance'))}
+            unit={key === 'balance' && closingPending ? '' : '원'}
             valueTone={sum(key as 'carry' | 'billed' | 'applied' | 'balance') < BigInt(0) ? 'danger' : 'neutral'}
             tone={sum(key as 'carry' | 'billed' | 'applied' | 'balance') < BigInt(0) ? 'danger' : tone as 'warning' | 'primary' | 'success' | 'danger'}
             icon={(
@@ -241,25 +268,26 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
           실제 입금 합계
         </h2>
         <p>
-          {month.replace('-', '년 ')}
-          월에 실제 받은 전체 동의 입금입니다. 일부납부·선입금을 포함하며, 아래 세대 검색·동 필터와 관계없이 표시합니다.
+          {formatMonthRange(range)}
+          {' '}
+          동안 실제 받은 전체 동의 입금입니다. 일부납부·선입금을 포함하며, 아래 세대 검색·동 필터와 관계없이 표시합니다.
         </p>
         <div
           className={styles['income-kpis']}
         >
           {[
             {
-              label: '당월 세대 입금액',
+              label: multipleMonths ? '기간 세대 입금액' : '당월 세대 입금액',
               value: income.household,
               tone: 'success' as const
             },
             {
-              label: '당월 기타 입금액',
+              label: multipleMonths ? '기간 기타 입금액' : '당월 기타 입금액',
               value: income.other,
               tone: 'neutral' as const
             },
             {
-              label: '당월 전체 입금액',
+              label: multipleMonths ? '기간 전체 입금액' : '당월 전체 입금액',
               value: income.total,
               tone: 'primary' as const
             }
@@ -312,13 +340,14 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
           <div
             className={styles.filters}
           >
-            <MonthPicker
-              label={'조회 월'}
+            <MonthRangePicker
+              label={'조회 기간'}
+              referenceMonth={ledger.asOf.slice(0, 7)}
               labelHidden
-              value={month}
+              value={range}
               onChange={(value) => {
                 setSelected(null);
-                onMonthChange(value);
+                onRangeChange(value);
                 setPage(1);
               }}
             />
@@ -376,7 +405,7 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
             <span
               role={selecting ? 'status' : undefined}
             >
-              {selecting ? `${checkedIds.size}세대 선택` : `총 ${filtered.length}세대`}
+              {selecting ? `${checkedIds.size}${multipleMonths ? '건' : '세대'} 선택` : `총 ${filtered.length}${multipleMonths ? '건 (세대·월)' : '세대'}`}
             </span>
             <Button
               variant={'text'}
@@ -391,12 +420,12 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
           <DataTable
             label={'세대별 월별 수납 현황'}
             rows={visible}
-            getRowKey={(row) => row.unitId}
-            onRowClick={(row) => selecting ? toggleSelection(row.unitId) : openDetail(row.unitId)}
+            getRowKey={getMonthlyRowKey}
+            onRowClick={(row) => selecting ? toggleSelection(getMonthlyRowKey(row)) : openDetail(row.unitId, row.month)}
             minWidth={status === '선입금' ? 720 : 1100}
             emptyState={(
               <StateMessage
-                variant={Boolean(query.trim() || building || status !== '전체' || month !== ledger.asOf.slice(0, 7)) ? 'no-results' : 'empty-data'}
+                variant={Boolean(query.trim() || building || status !== '전체' || range.startMonth !== ledger.asOf.slice(0, 7) || range.endMonth !== ledger.asOf.slice(0, 7)) ? 'no-results' : 'empty-data'}
                 layout={'inline'}
                 title={'조건에 맞는 세대가 없습니다.'}
               />
@@ -408,7 +437,7 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
           >
             <Pagination
               label={'월별 수납 현황 페이지'}
-              unit={'세대'}
+              unit={multipleMonths ? '건' : '세대'}
               total={filtered.length}
               page={currentPage}
               pageCount={pageCount}
@@ -419,6 +448,7 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
           <p
             className={styles.footer}
           >
+            {multipleMonths && '각 행은 해당 월의 수납 현황입니다. 잔액은 월별로 합산하지 않으며 요약은 시작 월 이월액·종료 월 미수금을 표시합니다. 편집에서는 월별 행을 개별 선택합니다. '}
             선입금 탭은 조회월 말에 잔액이 남은 세대이며, 당월 부과가 없는 세대와 기존 인계 선납도 포함합니다. 미수금은 양수 청구의 충당액으로 계산하며 0원·음수 부과는 정산 확인 대상입니다.
           </p>
         </section>
@@ -426,8 +456,8 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
       </div>
       {selected && (
         <MonthlyDetail
-          month={month}
-          unitId={selected}
+          month={selected.month}
+          unitId={selected.unitId}
           onClose={() => {
             setSelected(null);
             if (!searchParams.has('unit')) return;

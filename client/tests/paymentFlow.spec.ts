@@ -1,3 +1,4 @@
+import { selectMonthRange } from './support/monthRange';
 import {
   expect,
   test
@@ -281,14 +282,14 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('제목 헤더가 조회 도구 위에 있고 기존 월 선택기를 사용하며 선택 해제 X와 계좌 필터가 없음', async ({ page }) => {
+test('제목 헤더가 조회 도구 위에 있고 공통 월 기간 선택기를 사용하며 선택 해제 X와 계좌 필터가 없음', async ({ page }) => {
   await page.goto(MATCHING);
   const heading = page.getByRole('heading', {
     name: '입금 확인·매칭',
     exact: true
   });
   const month = page.getByRole('button', {
-    name: '조회 월: 2026년 10월'
+    name: '조회 기간: 2026.10.01 ~ 2026.10.31'
   });
   await expect(heading).toBeVisible();
   const headingBox = await heading.boundingBox();
@@ -300,16 +301,9 @@ test('제목 헤더가 조회 도구 위에 있고 기존 월 선택기를 사�
   await expect(page.getByRole('combobox', {
     name: '입금 계좌'
   })).toHaveCount(0);
-  await month.click();
-  await expect(page.getByRole('dialog', {
-    name: '조회 월'
-  })).toBeVisible();
-  await page.getByRole('button', {
-    name: '2026년 11월',
-    exact: true
-  }).click();
+  await selectMonthRange(page, '2026-11');
   await expect(page.getByRole('button', {
-    name: '조회 월: 2026년 11월'
+    name: '조회 기간: 2026.11.01 ~ 2026.11.30'
   })).toBeVisible();
 });
 
@@ -350,13 +344,7 @@ test('수납 확정 결과가 월별 수납표에 반영되고 아직 부과하�
   });
   await expect(row).toContainText('납부완료');
   await expect(row).toContainText('80,000원');
-  await page.getByRole('button', {
-    name: '조회 월: 2026년 10월'
-  }).click();
-  await page.getByRole('button', {
-    name: '2026년 11월',
-    exact: true
-  }).click();
+  await selectMonthRange(page, '2026-11');
   await expect(row).toHaveCount(0);
   await expect(page.getByText('조건에 맞는 세대가 없습니다.', {
     exact: true
@@ -587,7 +575,7 @@ for (const width of [320, 390, 1100, 1440]) {
     });
     await page.goto(MATCHING);
     const month = page.getByRole('button', {
-      name: '조회 월: 2026년 10월'
+      name: '조회 기간: 2026.10.01 ~ 2026.10.31'
     });
     const search = page.getByRole('textbox', {
       name: '입금 검색'
@@ -607,7 +595,7 @@ for (const width of [320, 390, 1100, 1440]) {
     const sizeBox = await size.boundingBox();
     expect(tabsBox!.y + tabsBox!.height).toBeLessThan(searchBox!.y);
     if (width === 1440) {
-      expect(searchBox!.width).toBeGreaterThan(500);
+      expect(searchBox!.width).toBeGreaterThan(300);
       const searchField = await search.locator('..').boundingBox();
       const buildingField = await page.getByRole('combobox', {
         name: '입금 세대 동 필터'
@@ -626,7 +614,7 @@ for (const width of [320, 390, 1100, 1440]) {
     })).toBeVisible();
     await month.click();
     const calendar = page.getByRole('dialog', {
-      name: '조회 월'
+      name: '조회 기간 선택'
     });
     await expect(calendar).toBeVisible();
     const bounds = await calendar.boundingBox();
@@ -1205,13 +1193,7 @@ for (const view of ['matching', 'monthly'] as const) {
         fullPage: true
       });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-      await page.getByRole('button', {
-        name: '조회 월: 2026년 10월'
-      }).click();
-      await page.getByRole('button', {
-        name: '2026년 11월',
-        exact: true
-      }).click();
+      await selectMonthRange(page, '2026-11');
       await expect(table).toContainText(matching ? '조건에 맞는 입금 거래가 없습니다.' : '조건에 맞는 세대가 없습니다.');
       await expect(pagination.getByRole('button', {
         name: '다음 페이지'
@@ -1922,7 +1904,7 @@ test('모두 자동 확정한 과거월 파일은 가져온 월의 처리 완료
     exact: true
   }).click();
   await expect(page.getByRole('button', {
-    name: '조회 월: 2026년 8월'
+    name: '조회 기간: 2026.08.01 ~ 2026.08.31'
   })).toBeVisible();
   await expect(page.getByRole('row').filter({
     hasText: '101호'
@@ -2777,13 +2759,7 @@ for (const width of [1440, 390, 320]) {
       fullPage: true
     });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.getByRole('button', {
-      name: '조회 월: 2026년 10월'
-    }).click();
-    await page.getByRole('button', {
-      name: '2026년 9월',
-      exact: true
-    }).click();
+    await selectMonthRange(page, '2026-09');
     await expect(summary.getByRole('article', {
       name: '당월 세대 입금액 0원'
     })).toBeVisible();
@@ -3943,6 +3919,9 @@ for (const width of [1440, 390]) {
     await expect(table).toContainText('선입금주민0');
     await expect(table).toContainText('선입금주민1');
     await expect(table).toContainText('선입금주민2');
+    await expect(table.getByRole('row').filter({
+      hasText: '선입금주민2'
+    })).toContainText('납부완료');
     await expect(table).not.toContainText('선입금주민3');
     await expect(table.getByRole('row').filter({
       hasText: '선입금주민0'

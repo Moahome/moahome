@@ -662,12 +662,12 @@ test('부과 없는 선입금 세대도 월말 잔액으로 표시하며 취소�
     }]
   }, '2026-11').find((row) => row.unitId === units[0].id)).toMatchObject({
     prepaid: BigInt(20000),
-    status: '선입금'
+    status: '납부완료'
   });
 });
 
 
-test('전월 말 선입금은 다음 달 음수 이월로 표시하고 충당 후 잔액에 따라 선입금 배지를 구분한다', () => {
+test('선입금은 음수 이월·잔액으로 보존하되 당월 관리비가 모두 충당되면 납부완료로 표시한다', () => {
   const ledger = createPaymentSample();
   const unitId = ledger.units[0].id;
   ledger.units = [ledger.units[0]];
@@ -692,14 +692,14 @@ test('전월 말 선입금은 다음 달 음수 이월로 표시하고 충당 �
   }];
   const october = getMonthlyPreviewRows(ledger, '2026-10')[0];
   expect(october.prepaid).toBe(BigInt(70000));
-  expect(october.status).toBe('선입금');
+  expect(october.status).toBe('납부완료');
   const november = getMonthlyPreviewRows(ledger, '2026-11')[0];
   expect(november).toMatchObject({
     carry: BigInt(-70000),
     applied: BigInt(50000),
     balance: BigInt(0),
     prepaid: BigInt(20000),
-    status: '선입금'
+    status: '납부완료'
   });
   const december = getMonthlyPreviewRows(ledger, '2026-12')[0];
   expect(december).toMatchObject({

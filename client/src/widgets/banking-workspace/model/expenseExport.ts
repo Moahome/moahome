@@ -1,20 +1,27 @@
+import {
+  formatDateRange,
+  type DateRange
+} from '@/shared/lib/date-range';
 import { createReportWorkbook } from '@/shared/lib/excel-report';
 import type { BankingTransaction } from '../api/bankingApiTypes';
 import { getExpenseAmount } from './expenseAllocation';
 
 /** 조회 조건 전체와 관리 동 부담액을 첨부 내역서 서식에 표시하며 외부 금액은 합산하지 않습니다. */
 export async function createExpenseWorkbook(rows: readonly BankingTransaction[], buildingIds: readonly string[], context?: {
-  month: string;
+  month?: string;
+  period?: DateRange;
   buildingLabel: string;
   search: string;
 }): Promise<Blob> {
   const amount = rows.reduce((sum, row) => sum + getExpenseAmount(row, buildingIds), BigInt(0));
   const month = context?.month ?? rows[0]?.date.slice(0, 7) ?? '';
-  const scope = `${month ? month.replace('-', '년 ') + '월' : '전체 기간'} · ${context?.buildingLabel ?? '선택 동'}`;
+  let period = month ? month.replace('-', '년 ') + '월' : '전체 기간';
+  if (context?.period) period = formatDateRange(context.period);
+  const scope = `${period} · ${context?.buildingLabel ?? '선택 동'}`;
 
   return createReportWorkbook({
     title: '모아홈 지출 내역',
-    description: '월별 공용 지출 보고서',
+    description: '공용 지출 보고서',
     sheet: '지출 내역',
     columns: [{
       label: '거래일시',
@@ -34,7 +41,7 @@ export async function createExpenseWorkbook(rows: readonly BankingTransaction[],
       label: '지출 건수',
       value: `${rows.length}건`
     }, {
-      label: '조회 월 / 관리대상',
+      label: '조회 기간 / 관리대상',
       value: scope
     }],
     rows: rows.map((row) => [

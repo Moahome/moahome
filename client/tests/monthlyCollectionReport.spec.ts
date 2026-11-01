@@ -199,7 +199,7 @@ test('음수 선입금 이월은 보고서·합계·Excel에서 부호와 붉은
   data.ledger.openingCredits = [];
   const document = getMonthlyReportDocument(data);
   expect(document.rows[0][2]).toBe(BigInt(-70000));
-  expect(document.rows[0].at(-1)).toBe('선입금');
+  expect(document.rows[0].at(-1)).toBe('납부완료');
   expect(document.total?.[2]).toBe(BigInt(-70000));
   expect(getMonthlyReportMetrics(document)[0].tone).toBe('danger');
   const workbook = await createMonthlyWorkbook(data);

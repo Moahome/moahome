@@ -197,7 +197,7 @@ Next.js와 도구가 사용하는 `page.tsx`, `layout.tsx`, `not-found.tsx`,
 - 목록 화면은 기존 관리 레이아웃의 가로폭을 채웁니다. 화면마다 임의의 `max-width`로 목록을 좁히지 않습니다. 제목은 공통 ListHeader, 표는 DataTable, 표시 개수·페이지 이동은 공통 입력과 Pagination을 사용합니다. 표 기본 글씨는 16px, 페이지 건수와 수납 배지는 14px로 공유하며 화면별로 축소하지 않습니다. 상세 입력 폼·모달의 별도 폭 규칙과 구분합니다.
 - Dropdown의 placeholder는 미선택 표시이며 실제 옵션에 추가하지 않습니다. 옵션은 고유한 값으로 관리합니다.
 - Dropdown / SelectDropdown에 선택 해제용 X 버튼을 표시하지 않습니다. 공통 컴포넌트의 `clearable` 기본값은 `false`로 유지하고 화면에서 `true`로 켜지 않습니다. 필터 해제는 `전체` 옵션 또는 사용자가 요청한 별도 초기화 버튼으로 처리합니다.
-- 날짜·월 선택은 `shared/ui/calendar-picker`의 CalendarPicker로 통일합니다. 월 선택은 MonthPicker(공통 달력의 month 모드)를 재사용하고, 입금일 등 날짜 선택은 date 모드를 사용합니다. 브라우저 기본 `input type="month"` / `input type="date"`로 대체하지 않습니다.
+- 날짜·월 선택은 `shared/ui/calendar-picker`의 CalendarPicker로 통일합니다. 단일 월은 MonthPicker, 단일 날짜는 CalendarPicker의 date 모드를 사용합니다. 조회 기간은 CalendarRangePicker를 공유하는 MonthRangePicker(시작 월·종료 월)와 DateRangePicker(시작일·종료일)를 화면 목적에 맞게 사용합니다. 월별 수납 현황은 월 기간, 통장 거래·지출·입금 확인은 날짜 기간을 사용합니다. 브라우저 기본 `input type="month"` / `input type="date"`로 대체하지 않습니다.
 - 엑셀 파일 업로드는 기존 주민 업로드에서 공유한 `shared/ui/file-dropzone`의 드래그 앤 드롭·파일 선택 UI를 사용합니다. 파일 형식·업무 검증은 각 화면에서 처리합니다.
 - 엑셀 관련 행동(다운로드·업로드·파일 선택·양식 다운로드)은 흰 배경·초록색 글자·테두리와 Excel 아이콘으로 고정합니다. 버튼은 공통 `Button`의 `variant="outline"`, `tone="excel"`과 `ServiceIcon(name="excel")`을 사용하며 녹색 배경을 채우거나 기본 파란색 버튼을 사용하지 않습니다. 다운로드 링크도 같은 표현을 따릅니다. 배경은 `--card`, 글자·테두리·아이콘은 기존 `--excel-background` 토큰을 사용하고 호버는 공통 outline 표현을 따릅니다.
 - 공통 달력은 입력 버튼을 기준으로 열고 본문·모달 경계를 침범하지 않게 위치를 제한합니다. 열린 상태의 반응형 표시도 확인합니다.

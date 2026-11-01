@@ -37,7 +37,7 @@
 
 .filters {
   display: grid;
-  grid-template-columns: 170px minmax(180px, 1fr) minmax(200px, 260px) 140px 140px;
+  grid-template-columns: minmax(250px, 290px) minmax(140px, 1fr) minmax(160px, 220px) 120px 120px;
   align-items: end;
   gap: 12px;
   padding: 16px;
@@ -292,7 +292,7 @@
   }
 
   .filters {
-    grid-template-columns: 170px minmax(0, 1fr);
+    grid-template-columns: minmax(250px, 290px) minmax(0, 1fr);
   }
 }
 

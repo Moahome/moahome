@@ -1,6 +1,8 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { getMonthRangeQuery } from '@/shared/lib/month-range';
+import { getDateRangeQuery } from '@/shared/lib/date-range';
 import {
   usePathname,
   useSearchParams
@@ -29,8 +31,7 @@ export function ManagementShell({
     && (pathname.startsWith(`${basePath}/banking/receipts/`) || pathname.startsWith(`${basePath}/banking/transactions/`));
   const fromExpenses = searchParams.get('from') === 'expenses'
     && pathname.startsWith(`${basePath}/banking/transactions/`);
-  const expenseQuery = new URLSearchParams();
-  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(ledgerMonth ?? '')) expenseQuery.set('month', ledgerMonth!);
+  const expenseQuery = getDateRangeQuery(searchParams);
   if (/^[0-9a-f-]{36}$/i.test(ledgerAccount ?? '')) expenseQuery.set('account', ledgerAccount!);
   const mobileBack = fromExpenses ? {
     href: `${basePath}/banking/expenses${expenseQuery.size ? `?${expenseQuery}` : ''}`,
@@ -40,7 +41,7 @@ export function ManagementShell({
     href: `${basePath}/banking/balances/${ledgerBuilding}?month=${ledgerMonth}${accountQuery}`,
     label: '동별 상세 원장으로 돌아가기',
     title: '거래 상세'
-  } : getMobileBack(pathname, basePath, ledgerMonth, ledgerAccount);
+  } : getMobileBack(pathname, basePath, ledgerMonth, ledgerAccount, getMonthRangeQuery(searchParams), getDateRangeQuery(searchParams));
 
   return (
     <ManagementLayout
@@ -60,11 +61,12 @@ export function ManagementShell({
 }
 
 /** 직접 접근에서도 같은 관리대상 안의 목록·상세로 돌아가는 모바일 헤더를 구성합니다. */
-function getMobileBack(pathname: string, basePath: string, month: string | null, account: string | null) {
+function getMobileBack(pathname: string, basePath: string, month: string | null, account: string | null, period: URLSearchParams, datePeriod: URLSearchParams) {
+  const periodSuffix = period.size ? `?${period}` : '';
   // 전체 입금 내역은 직접 접근·새로고침 후에도 같은 조회월·세대의 수납 상세로 돌아갑니다.
   const receiptsPath = pathname.match(/\/(banking|payments)\/monthly\/(\d{4}-(?:0[1-9]|1[0-2]))\/([0-9a-f-]{36})\/receipts$/i);
   if (receiptsPath) return {
-    href: `${basePath}/${receiptsPath[1]}/monthly/${receiptsPath[2]}/${receiptsPath[3]}`,
+    href: `${basePath}/${receiptsPath[1]}/monthly/${receiptsPath[2]}/${receiptsPath[3]}${periodSuffix}`,
     label: '수납 상세로 돌아가기',
     title: '전체 입금 내역'
   };
@@ -73,6 +75,9 @@ function getMobileBack(pathname: string, basePath: string, month: string | null,
     label: '설정으로 돌아가기',
     title: '계좌 관리'
   };
+  const transactionQuery = new URLSearchParams(datePeriod);
+  if (/^[0-9a-f-]{36}$/i.test(account ?? '')) transactionQuery.set('account', account!);
+  const transactionSuffix = transactionQuery.size ? `?${transactionQuery}` : '';
   const balanceQuery = new URLSearchParams();
   if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month ?? '')) balanceQuery.set('month', month!);
   if (/^[0-9a-f-]{36}$/i.test(account ?? '')) balanceQuery.set('account', account!);
@@ -85,27 +90,27 @@ function getMobileBack(pathname: string, basePath: string, month: string | null,
     };
   }
   if (pathname === `${basePath}/banking/manual`) return {
-    href: `${basePath}/banking/transactions`,
+    href: `${basePath}/banking/transactions${transactionSuffix}`,
     label: '통장 거래로 돌아가기',
     title: '수동 입금 등록'
   };
   if (pathname === `${basePath}/banking/manual-expense`) return {
-    href: `${basePath}/banking/transactions${balanceQuery.size ? `?${balanceQuery}` : ''}`,
+    href: `${basePath}/banking/transactions${transactionSuffix}`,
     label: '통장 거래로 돌아가기',
     title: '수동 지출 등록'
   };
   if (pathname === `${basePath}/banking/upload`) return {
-    href: `${basePath}/banking/transactions`,
+    href: `${basePath}/banking/transactions${transactionSuffix}`,
     label: '통장 거래로 돌아가기',
     title: '거래내역 가져오기'
   };
   if (pathname.startsWith(`${basePath}/banking/monthly/`)) return {
-    href: `${basePath}/banking/monthly`,
+    href: `${basePath}/banking/monthly${periodSuffix}`,
     label: '월별 수납 현황으로 돌아가기',
     title: '수납 상세'
   };
   if (pathname.startsWith(`${basePath}/banking/receipts/`) || pathname.startsWith(`${basePath}/banking/transactions/`)) return {
-    href: `${basePath}/banking/transactions${/^\d{4}-(0[1-9]|1[0-2])$/.test(month ?? '') ? `?month=${month}` : ''}`,
+    href: `${basePath}/banking/transactions${transactionSuffix}`,
     label: '통장 거래로 돌아가기',
     title: '거래 상세'
   };
@@ -115,12 +120,12 @@ function getMobileBack(pathname: string, basePath: string, month: string | null,
     title: '가입 요청 확인'
   };
   if (pathname.startsWith(`${basePath}/payments/monthly/`)) return {
-    href: `${basePath}/payments/monthly`,
+    href: `${basePath}/payments/monthly${periodSuffix}`,
     label: '월별 수납 현황으로 돌아가기',
     title: '수납 상세'
   };
   if (pathname.startsWith(`${basePath}/payments/matching/`)) return {
-    href: `${basePath}/payments/matching`,
+    href: `${basePath}/payments/matching${transactionSuffix}`,
     label: '입금 확인·매칭으로 돌아가기',
     title: '입금 상세'
   };

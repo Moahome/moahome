@@ -26,7 +26,7 @@
 
 .filters {
   display: grid;
-  grid-template-columns: 170px minmax(180px, 1fr) 140px 160px;
+  grid-template-columns: minmax(240px, 290px) minmax(160px, 1fr) 140px 160px;
   align-items: end;
   gap: 12px;
   padding: 16px;
@@ -138,7 +138,7 @@
 
 @container (min-width: 541px) and (max-width: 940px) {
   .filters {
-    grid-template-columns: 190px minmax(0, 1fr);
+    grid-template-columns: minmax(240px, 1fr) minmax(0, 1fr);
 
   }
 }

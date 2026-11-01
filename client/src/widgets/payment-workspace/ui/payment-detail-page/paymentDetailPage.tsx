@@ -1,13 +1,22 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import {
+  useRouter,
+  useSearchParams
+} from 'next/navigation';
+import { getDateRangeQuery } from '@/shared/lib/date-range';
 import { PaymentDetail } from '../_components/payment-detail/paymentDetail';
 import { usePaymentWorkspace } from '../payment-workspace-provider/paymentWorkspaceProvider';
 
 /** 모바일 상세 주소 재진입을 지원하며 존재하지 않는 수납을 다른 항목으로 대체하지 않습니다. */
 export function PaymentDetailPage({ propertyId, paymentId, listPath, detailPath, renderSupplement }: { propertyId: string; paymentId: string; listPath?: string; detailPath?: string; renderSupplement?: (onBusyChange: (busy: boolean) => void) => ReactNode }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const query = getDateRangeQuery(searchParams);
+  const account = searchParams.get('account');
+  if (/^[0-9a-f-]{36}$/i.test(account ?? '')) query.set('account', account!);
+  const suffix = query.size ? `?${query}` : '';
   const { ledger } = usePaymentWorkspace();
   const payment = ledger.payments.find((item) => item.id === paymentId);
   const list = listPath ?? `/manage/${propertyId}/payments/matching`;
@@ -29,9 +38,9 @@ export function PaymentDetailPage({ propertyId, paymentId, listPath, detailPath,
       presentation={'page'}
       renderSupplement={renderSupplement}
       menuLabel={listPath ? '통장 관리' : undefined}
-      onClose={() => router.replace(list)}
+      onClose={() => router.replace(`${list}${suffix}`)}
       onProcessed={(id) => {
-        if (id !== paymentId) router.replace(`${detailPath ?? list}/${encodeURIComponent(id)}`);
+        if (id !== paymentId) router.replace(`${detailPath ?? list}/${encodeURIComponent(id)}${suffix}`);
       }}
     />
   );

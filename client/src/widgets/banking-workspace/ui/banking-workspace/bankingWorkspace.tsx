@@ -29,7 +29,16 @@ import {
 } from '@/shared/ui/form-controls';
 import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { ListHeader } from '@/shared/ui/list-header';
-import { MonthPicker } from '@/shared/ui/month-picker';
+import { DateRangePicker } from '@/shared/ui/date-range-picker';
+import {
+  formatDateRange,
+  getDateRangeQuery,
+  getMonthDateRange,
+  getQueryDateRange,
+  isDateInRange,
+  setDateRangeQuery,
+  type DateRange
+} from '@/shared/lib/date-range';
 import { Pagination } from '@/shared/ui/pagination';
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -70,7 +79,7 @@ import {
   sortExpenseLabels
 } from '../../model/expenseAllocation';
 import { createExpenseWorkbook } from '../../model/expenseExport';
-import { getAccountsForMonth } from '../../model/bankAccountVisibility';
+import { getAccountsForRange } from '../../model/bankAccountVisibility';
 import { BankImportActions } from '../_components/bank-import-actions/bankImportActions';
 import { TransferDetail } from '../_components/transfer-detail/transferDetail';
 import { BankingExpensePage } from '../banking-expense-page/bankingExpensePage';
@@ -99,10 +108,6 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
-  });
-  const [month, setMonth] = useState<string | null>(() => {
-    const requested = searchParams.get('month');
-    return requested && /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : null;
   });
   const [requestedAccountId, setAccountId] = useState(() => searchParams.get('account') ?? 'ALL');
   const [transferRows, setTransferRows] = useState<string[]>([]);
@@ -149,15 +154,15 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     });
   }, [propertyId, router, searchParams, view]);
   const data = workspace.data;
-  const requestedMonth = month ?? data?.asOf.slice(0, 7) ?? '';
-  const monthAccounts = view === 'upload' ? data?.accounts ?? [] : getAccountsForMonth(data?.accounts ?? [], requestedMonth);
+  const dateRange = getQueryDateRange(searchParams, data?.asOf);
+  const requestedMonth = dateRange.endDate.slice(0, 7);
+  const monthAccounts = view === 'upload' ? data?.accounts ?? [] : getAccountsForRange(data?.accounts ?? [], dateRange);
   const accountId = data && view !== 'upload' && !monthAccounts.some((account) => account.id === requestedAccountId)
     ? 'ALL' : requestedAccountId;
-  // 월을 바꿔 숨겨진 종료 통장이 선택돼 있으면 해당 월 전체 통장으로 복귀하고 URL도 함께 정리합니다.
+  // 기간과 겹치지 않는 통장은 전체 조회로 복귀하며 사용자가 적용한 날짜는 유지합니다.
   useEffect(() => {
     if (!data || view === 'upload' || accountId === requestedAccountId) return;
     const query = new URLSearchParams(searchParams.toString());
-    query.set('month', requestedMonth);
     query.delete('account');
     router.replace(`/manage/${propertyId}/banking/${view}?${query}`, {
       scroll: false
@@ -209,7 +214,9 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
       })}
     />
   );
-  const currentMonth = month ?? data.asOf.slice(0, 7);
+  const currentMonth = dateRange.endDate.slice(0, 7);
+  const periodLabel = formatDateRange(dateRange);
+  const defaultRange = getMonthDateRange(data.asOf.slice(0, 7));
   const accounts = monthAccounts;
   const visibleAccountIds = new Set(accounts.map((account) => account.id));
   const activeAccountId = accountId === 'ALL' ? accounts.find((account) => account.isPrimary && account.status === 'ACTIVE')?.id : accountId;
@@ -232,7 +239,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   // 수동 수납은 은행 원본을 만들지 않으며 연결 전 항목만 함께 표시합니다. 연결되면 은행 행 하나로 남습니다.
   const source = preview?.rows ?? (view === 'upload' ? [] : [...data.rows, ...(view === 'transactions' ? receiptRows : [])]
     .sort((a, b) => `${b.date} ${b.time ?? ''}`.localeCompare(`${a.date} ${a.time ?? ''}`)));
-  const baseRows = source.filter((row) => (preview || row.date.startsWith(currentMonth))
+  const baseRows = source.filter((row) => (preview || isDateInRange(row.date, dateRange))
     && (preview || !data.accounts?.length || visibleAccountIds.has(row.accountId))
     && (preview || accountId === 'ALL' || row.accountId === accountId)
     && (view !== 'expenses' || row.expense?.allocations.some((part) => data.buildings.some((item) => item.id === part.buildingId)))
@@ -242,7 +249,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   // 조회 월·통장·검색·상태 조건이 적용된 빈 결과는 등록 자료 자체가 없는 상태와 구분합니다.
   const hasFilters = Boolean(search.trim() || accountId !== 'ALL' || direction !== 'ALL' || status !== 'ALL'
     || (preview && processing !== 'ALL')
-    || (view === 'expenses' && building !== 'ALL') || currentMonth !== data.asOf.slice(0, 7));
+    || (view === 'expenses' && building !== 'ALL') || dateRange.startDate !== defaultRange.startDate || dateRange.endDate !== defaultRange.endDate);
   // 과거 월·다른 목록 범위에 원본이 있으면 미등록으로 안내하지 않고 현재 조건의 빈 결과로 표시합니다.
   const showNoResults = hasFilters || source.length > 0;
   const activeRows = baseRows.filter((row) => row.status !== 'CANCELED');
@@ -288,7 +295,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     ? directionRows.filter((row) => processingContent(row).kind === processing) : directionRows;
   const currentPage = Math.min(page, Math.max(1, Math.ceil(filtered.length / pageSize)));
   const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const selectionScope = JSON.stringify([propertyId, accountId, currentMonth, direction, status, search, pageSize, currentPage]);
+  const selectionScope = JSON.stringify([propertyId, accountId, dateRange.startDate, dateRange.endDate, direction, status, search, pageSize, currentPage]);
   const isSelecting = view === 'transactions' && !preview && selection?.scope === selectionScope;
   const selectableRows = visible.filter(canDelete);
   const deletingRows = isSelecting ? selectableRows.filter((row) => selection.ids.includes(row.id)) : [];
@@ -300,13 +307,30 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
         ? deletingRows.filter((row) => row.id !== id).map((row) => row.id) : [...deletingRows.map((row) => row.id), id]
     });
   }
-  /** 조회 월을 주소에도 보존해 수동 등록 뒤 새로고침이 이전 월로 되돌아가지 않게 합니다. */
+  /** 기간 적용은 URL·통장 범위·선택·페이지를 함께 바꿔 합계와 목록이 같은 조건을 사용하게 합니다. */
+  function changeDateRange(value: DateRange) {
+    setSelection(null);
+    setPage(1);
+    const next = new URLSearchParams(searchParams.toString());
+    setDateRangeQuery(next, value);
+    const nextAccount = getAccountsForRange(data?.accounts ?? [], value).some((account) => account.id === accountId) ? accountId : 'ALL';
+    setAccountId(nextAccount);
+    if (nextAccount === 'ALL') next.delete('account');
+    else next.set('account', nextAccount);
+    next.delete('imported');
+    router.replace(`/manage/${propertyId}/banking/${view}?${next}`, {
+      scroll: false
+    });
+  }
+  /** 수동 등록 후에는 해당 거래가 속한 월을 조회하며 이전의 기간 조건은 함께 해제합니다. */
   function changeMonth(value: string) {
-    setSelection(null); setMonth(value); setPage(1);
+    setSelection(null); setPage(1);
     if (!['transactions', 'expenses'].includes(view)) return;
     const query = new URLSearchParams(searchParams.toString());
+    query.delete('startDate');
+    query.delete('endDate');
     query.set('month', value);
-    const nextAccount = getAccountsForMonth(data?.accounts ?? [], value).some((account) => account.id === accountId) ? accountId : 'ALL';
+    const nextAccount = getAccountsForRange(data?.accounts ?? [], getMonthDateRange(value)).some((account) => account.id === accountId) ? accountId : 'ALL';
     setAccountId(nextAccount);
     if (nextAccount === 'ALL') query.delete('account');
     else query.set('account', nextAccount);
@@ -343,7 +367,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     .reduce((sum, row) => sum + BigInt(row.amount), BigInt(0));
   const expense = summaryRows.filter((row) => row.direction === 'EXPENSE').reduce((sum, row) => sum + BigInt(row.amount), BigInt(0));
   const netAmount = income - expense;
-  const summaryDescription = preview ? '중복·인계 이전 제외 후 전체 거래 기준' : `${currentMonth} 은행 거래·취소되지 않은 수동 입출금 기준`;
+  const summaryDescription = preview ? '중복·인계 이전 제외 후 전체 거래 기준' : `${periodLabel} 등록된 은행 거래·수동 입출금 기준`;
   const expenseBuildings = buildings.filter((item) => building === 'ALL' || item.id === building);
   const expenseBuildingIds = expenseBuildings.map((item) => item.id);
   const buildingExpense = baseRows.reduce((sum, row) => sum + getExpenseAmount(row, expenseBuildingIds), BigInt(0));
@@ -362,20 +386,20 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     exportBusyRef.current = true; setExporting(true);
     try {
       const blob = await createExpenseWorkbook(baseRows, expenseBuildingIds, {
-        month: currentMonth,
+        period: dateRange,
         buildingLabel: building === 'ALL' ? '전체 동' : expenseBuildings.map((item) => item.label).join(' · '),
         search: search.trim()
       });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `모아홈_지출내역_${currentMonth}_${building === 'ALL' ? '전체동' : '선택동'}.xlsx`;
+      anchor.download = `모아홈_지출내역_${dateRange.startDate}_${dateRange.endDate}_${building === 'ALL' ? '전체동' : '선택동'}.xlsx`;
       try { anchor.click(); }
       finally { window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
     } catch { notify('엑셀 파일을 만들지 못했어요. 다시 시도해주세요.'); }
     finally { exportBusyRef.current = false; setExporting(false); }
   }
-  const latestRows = [...data.rows].filter((row) => row.sourceType !== 'MANUAL' && row.accountId === accountId && row.date.slice(0, 7) <= currentMonth)
+  const latestRows = [...data.rows].filter((row) => row.sourceType !== 'MANUAL' && row.accountId === accountId && row.date <= dateRange.endDate)
     .sort((a, b) => `${b.date} ${b.time ?? ''}`.localeCompare(`${a.date} ${a.time ?? ''}`));
   const lastRaw = latestRows[0];
   const lastDay = latestRows.filter((row) => row.date === lastRaw?.date);
@@ -642,7 +666,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
         queryKey: ['billing', session.data?.id, propertyId]
       });
       const importedMonth = selected[0].date.slice(0, 7);
-      setMonth(importedMonth); resetUpload();
+      resetUpload();
       router.push(`/manage/${propertyId}/banking/transactions?imported=1${importedMonth === data!.asOf.slice(0, 7) ? '' : `&month=${importedMonth}`}`);
     } catch (error) { notify(bankingError(error)); }
     finally { busyRef.current = false; setBusy(false); }
@@ -670,90 +694,95 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
         title={title}
         titleId={'banking-title'}
         description={description}
-        actions={(<>
-          {view === 'expenses' && (
-            <Button
-              variant={'outline'}
-              tone={'excel'}
-              loading={exporting}
-              disabled={!baseRows.length}
-              onClick={() => { void downloadExpenses(); }}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'excel'}
-                />
-              )}
-            >
-              엑셀 다운로드
-            </Button>
-          )}
-          {view === 'transactions' && renderManualRegistration && (
-            <Button
-              disabled={busy}
-              onClick={() => {
-                if (window.matchMedia('(max-width: 767px)').matches) {
-                  router.push(`/manage/${propertyId}/banking/manual`);
-                  return;
-                }
-                setManualOpen(true);
-              }}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'plus'}
-                />
-              )}
-            >
-              수동 입금 등록
-            </Button>
-          )}
-          {view === 'transactions' && (
-            <Button
-              disabled={busy}
-              onClick={() => {
-                if (window.matchMedia('(max-width: 767px)').matches) {
-                  const query = new URLSearchParams({
-                    month: currentMonth
-                  });
+        actions={(
+          <>
+            {view === 'expenses' && (
+              <Button
+                variant={'outline'}
+                tone={'excel'}
+                loading={exporting}
+                disabled={!baseRows.length}
+                onClick={() => { void downloadExpenses(); }}
+                leadingIcon={(
+                  <ServiceIcon
+                    name={'excel'}
+                  />
+                )}
+              >
+                엑셀 다운로드
+              </Button>
+            )}
+            {view === 'transactions' && renderManualRegistration && (
+              <Button
+                disabled={busy}
+                onClick={() => {
+                  if (window.matchMedia('(max-width: 767px)').matches) {
+                    const query = getDateRangeQuery(searchParams, currentMonth);
+                    if (accountId !== 'ALL') query.set('account', accountId);
+                    router.push(`/manage/${propertyId}/banking/manual?${query}`);
+                    return;
+                  }
+                  setManualOpen(true);
+                }}
+                leadingIcon={(
+                  <ServiceIcon
+                    name={'plus'}
+                  />
+                )}
+              >
+                수동 입금 등록
+              </Button>
+            )}
+            {view === 'transactions' && (
+              <Button
+                disabled={busy}
+                onClick={() => {
+                  if (window.matchMedia('(max-width: 767px)').matches) {
+                    const query = getDateRangeQuery(searchParams, currentMonth);
+                    if (accountId !== 'ALL') query.set('account', accountId);
+                    router.push(`/manage/${propertyId}/banking/manual-expense?${query}`);
+                    return;
+                  }
+                  setManualExpenseOpen(true);
+                }}
+                leadingIcon={(
+                  <ServiceIcon
+                    name={'plus'}
+                  />
+                )}
+              >
+                수동 지출 등록
+              </Button>
+            )}
+            {view === 'transactions' && (
+              <Button
+                variant={'outline'}
+                tone={'excel'}
+                leadingIcon={(
+                  <ServiceIcon
+                    name={'excel'}
+                  />
+                )}
+                disabled={busy || (accountId !== 'ALL' && !canImport)}
+                onClick={() => {
+                  const query = getDateRangeQuery(searchParams, currentMonth);
                   if (accountId !== 'ALL') query.set('account', accountId);
-                  router.push(`/manage/${propertyId}/banking/manual-expense?${query}`);
-                  return;
-                }
-                setManualExpenseOpen(true);
-              }}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'plus'}
-                />
-              )}
-            >
-              수동 지출 등록
-            </Button>
-          )}
-          {view === 'transactions' && (
-            <Button
-              variant={'outline'}
-              tone={'excel'}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'excel'}
-                />
-              )}
-              disabled={busy || (accountId !== 'ALL' && !canImport)}
-              onClick={() => router.push(`/manage/${propertyId}/banking/upload${accountId === 'ALL' ? '' : `?account=${encodeURIComponent(accountId)}`}`)}
-            >
-              엑셀 업로드
-            </Button>
-          )}
-          {view === 'upload' && (
-            <Button
-              variant={'outline'}
-              disabled={busy}
-              onClick={() => router.push(`/manage/${propertyId}/banking/transactions`)}
-            >
-              거래내역으로 돌아가기
-            </Button>
-          )}
-        </>
+                  router.push(`/manage/${propertyId}/banking/upload?${query}`);
+                }}
+              >
+                엑셀 업로드
+              </Button>
+            )}
+            {view === 'upload' && (
+              <Button
+                variant={'outline'}
+                disabled={busy}
+                onClick={() => router.push(`/manage/${propertyId}/banking/transactions`)}
+              >
+                거래내역으로 돌아가기
+              </Button>
+            )}
+          </>
         )}
       />
       {view === 'transactions' && accountId !== 'ALL' && !canImport && (
@@ -877,7 +906,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                     label={view === 'expenses' ? '지출 합계 도움말' : '출금 합계 도움말'}
                     title={view === 'expenses' ? '지출 합계' : '출금 합계'}
                   >
-                    {view === 'expenses' ? `${currentMonth} 기준` : summaryDescription}
+                    {view === 'expenses' ? `${periodLabel} 기준` : summaryDescription}
                   </InfoTooltip>
                 )}
                 value={formatInteger(view === 'expenses' ? buildingExpense : expense)}
@@ -993,11 +1022,13 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               data-preview={Boolean(preview)}
             >
               {!preview && (
-                <MonthPicker
-                  value={currentMonth}
-                  onChange={changeMonth}
-                  label={'조회 월'}
+                <DateRangePicker
+                  value={dateRange}
+                  onChange={changeDateRange}
+                  referenceDate={data.asOf}
+                  label={'조회 기간'}
                   labelHidden
+                  disabled={busy}
                 />
               )}
               <Input
@@ -1020,7 +1051,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                   }))]}
                   onChange={(value) => {
                     setAccountId(value); setSelection(null); setPage(1);
-                    const next = new URLSearchParams(searchParams.toString()); next.set('account', value); next.set('month', currentMonth);
+                    const next = new URLSearchParams(searchParams.toString()); next.set('account', value); if (!next.has('startDate')) next.set('month', currentMonth);
                     router.replace(`?${next}`, {
                       scroll: false
                     });
@@ -1135,7 +1166,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                   variant={showNoResults ? 'no-results' : 'empty-data'}
                   layout={'inline'}
                   title={showNoResults ? '조건에 맞는 검색 결과가 없어요.' : '아직 등록된 거래가 없어요.'}
-                  description={showNoResults ? '조회 월이나 검색·필터 조건을 변경해주세요.' : '거래를 등록하면 이곳에서 확인할 수 있어요.'}
+                  description={showNoResults ? '조회 기간이나 검색·필터 조건을 변경해주세요.' : '거래를 등록하면 이곳에서 확인할 수 있어요.'}
                 />
               )}
               minWidth={view === 'expenses' ? 340 : 800}
@@ -1143,14 +1174,12 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               onRowClick={(row) => {
                 if (isSelecting) { toggleDeletion(row.id); return; }
                 if (!preview && row.transferCandidate) {
-                  if (window.matchMedia('(max-width: 767px)').matches) { router.push(`/manage/${propertyId}/banking/transactions/${row.id}?month=${currentMonth}`);return; }
+                  if (window.matchMedia('(max-width: 767px)').matches) { const query = getDateRangeQuery(searchParams, currentMonth); if (accountId !== 'ALL') query.set('account', accountId); router.push(`/manage/${propertyId}/banking/transactions/${row.id}?${query}`);return; }
                   setTransferDetail(row);return;
                 }
                 if (preview) { setEditingId((current) => current === row.id ? null : row.id); return; }
                 if (window.matchMedia('(max-width: 767px)').matches) {
-                  const query = new URLSearchParams({
-                    month: currentMonth
-                  });
+                  const query = getDateRangeQuery(searchParams, currentMonth);
                   if (view === 'expenses') query.set('from', 'expenses');
                   if (accountId !== 'ALL') query.set('account', accountId);
                   router.push(`${row.paymentId ? `/manage/${propertyId}/banking/receipts/${row.paymentId}` : `/manage/${propertyId}/banking/transactions/${row.id}`}?${query}`);
@@ -1473,7 +1502,6 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
           onClose={() => setManualExpenseOpen(false)}
           onCreated={(_id, date, savedAccountId) => {
             setManualExpenseOpen(false);
-            setMonth(date.slice(0, 7));
             setAccountId(savedAccountId);
             setBuilding('ALL');
             setDirection('EXPENSE');

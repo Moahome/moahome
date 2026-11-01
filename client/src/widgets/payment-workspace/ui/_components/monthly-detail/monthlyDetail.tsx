@@ -1,12 +1,14 @@
 'use client';
 
+import { getMonthRangeQuery } from '@/shared/lib/month-range';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   usePathname,
-  useRouter
+  useRouter,
+  useSearchParams
 } from 'next/navigation';
 import {
   getConfirmedUnitReceipts,
@@ -56,6 +58,9 @@ export function MonthlyDetail({ month, unitId, presentation = 'modal', onClose }
   const { ledger, propertyId } = usePaymentWorkspace();
   const router = useRouter();
   const pathname = usePathname();
+  const search = useSearchParams();
+  const period = getMonthRangeQuery(search);
+  const suffix = period.size ? `?${period}` : '';
   const listPath = `/manage/${propertyId}/${pathname.includes('/banking/') ? 'banking' : 'payments'}/monthly`;
   const row = getMonthlyPreviewRows(ledger, month).find((item) => item.unitId === unitId);
   const receipts = getConfirmedUnitReceipts(ledger, unitId, month);
@@ -289,7 +294,7 @@ export function MonthlyDetail({ month, unitId, presentation = 'modal', onClose }
             )}
             <Button
               className={styles['receipt-history-button']}
-              onClick={() => router.push(`${listPath}/${month}/${encodeURIComponent(unitId)}/receipts`)}
+              onClick={() => router.push(`${listPath}/${month}/${encodeURIComponent(unitId)}/receipts${suffix}`)}
               trailingIcon={(
                 <ServiceIcon
                   name={'arrow'}

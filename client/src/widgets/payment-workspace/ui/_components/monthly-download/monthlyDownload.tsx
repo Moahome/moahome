@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  formatMonthRange,
+  type MonthRange
+} from '@/shared/lib/month-range';
+
 import dynamic from 'next/dynamic';
 import {
   useCallback,
@@ -25,13 +30,14 @@ const ReportDownload = dynamic(() => import('@/shared/ui/report-download').then(
 });
 
 // 서식 변경 후 열린 미리보기에 이전 PDF·PNG가 남지 않도록 보고서 캐시 키에 서식 버전을 포함합니다.
-const MONTHLY_REPORT_LAYOUT_VERSION = 3;
+const MONTHLY_REPORT_LAYOUT_VERSION = 4;
 
 /** 다운로드를 열 때 현재 권한에서 확인한 빌라 이름·원장·조회 조건을 같은 자료로 고정합니다. */
-export function MonthlyExportButton({ month, filters, selectedUnitIds }: {
+export function MonthlyExportButton({ month, range, filters, selectedRowKeys }: {
   month: string;
+  range: MonthRange;
   filters: MonthlyCollectionFilters;
-  selectedUnitIds?: readonly string[];
+  selectedRowKeys?: readonly string[];
 }) {
   const { ledger, propertyId, busy } = usePaymentWorkspace();
   const session = useSession();
@@ -42,20 +48,21 @@ export function MonthlyExportButton({ month, filters, selectedUnitIds }: {
     <>
       <Button
         variant={'outline'}
-        disabled={busy || !context.data?.name || selectedUnitIds?.length === 0}
+        disabled={busy || !context.data?.name || selectedRowKeys?.length === 0}
         onClick={() => {
-          if (!context.data?.name || selectedUnitIds?.length === 0) return;
+          if (!context.data?.name || selectedRowKeys?.length === 0) return;
           setSnapshot({
             propertyId,
             propertyName: context.data.name,
             ledger,
             month,
+            range,
             filters: {
               ...filters,
             },
             generatedAt: new Date().toISOString(),
-            ...(selectedUnitIds === undefined ? {} : {
-              selectedUnitIds: [...selectedUnitIds]
+            ...(selectedRowKeys === undefined ? {} : {
+              selectedRowKeys: [...selectedRowKeys]
             }),
           });
         }}
@@ -65,9 +72,9 @@ export function MonthlyExportButton({ month, filters, selectedUnitIds }: {
           />
         )}
       >
-        {selectedUnitIds === undefined ? '다운로드' : '선택 다운로드'}
+        {selectedRowKeys === undefined ? '다운로드' : '선택 다운로드'}
       </Button>
-      {snapshot && snapshot.propertyId === propertyId && snapshot.month === month && (
+      {snapshot && snapshot.propertyId === propertyId && snapshot.range?.startMonth === range.startMonth && snapshot.range?.endMonth === range.endMonth && (
         <MonthlyDownload
           data={snapshot}
           onClose={() => setSnapshot(null)}
@@ -82,18 +89,24 @@ function MonthlyDownload({ data, onClose }: { data: MonthlyReportSnapshot; onClo
   const document = useMemo(() => getMonthlyReportDocument(data), [data]);
   const createWorkbook = useCallback(() => createMonthlyWorkbook(data), [data]);
   const createPdf = useCallback(() => import('../../../model/monthlyReportPdf').then((module) => module.createMonthlyCollectionPdf(data)), [data]);
-  const selectionLabel = data.selectedUnitIds === undefined ? '' : `선택 ${document.rows.length}세대`;
-  const filename = `${data.propertyName}_수납현황_${data.month}_${data.filters.status}${data.filters.building ? `_${data.filters.building}` : ''}${selectionLabel ? `_${selectionLabel.replace(' ', '')}` : ''}`.replace(/[\\/:*?"<>|]/g, '_');
+  const range = data.range ?? {
+    startMonth: data.month,
+    endMonth: data.month
+  };
+  const multipleMonths = range.startMonth !== range.endMonth;
+  const period = multipleMonths ? `${range.startMonth}_${range.endMonth}` : data.month;
+  const selectionLabel = data.selectedRowKeys === undefined ? '' : `선택 ${data.selectedRowKeys.length}${multipleMonths ? '건' : '세대'}`;
+  const filename = `${data.propertyName}_수납현황_${period}_${data.filters.status}${data.filters.building ? `_${data.filters.building}` : ''}${selectionLabel ? `_${selectionLabel.replace(' ', '')}` : ''}`.replace(/[\\/:*?"<>|]/g, '_');
 
   return (
     <ReportDownload
-      title={`${data.month.replace('-', '년 ')}월 월별 수납 현황`}
-      description={selectionLabel ? '선택한 세대와 해당 합계를 확인하고 내려받으세요.' : '현재 상태·동·검색 조건의 전체 세대를 확인하고 내려받으세요.'}
+      title={`${formatMonthRange(range)} 월별 수납 현황`}
+      description={selectionLabel ? '선택한 월별 내역과 해당 합계를 확인하고 내려받으세요.' : '현재 상태·동·검색 조건의 전체 세대를 확인하고 내려받으세요.'}
       filename={filename}
-      sourceKey={JSON.stringify([MONTHLY_REPORT_LAYOUT_VERSION, data.propertyId, data.month, data.generatedAt, data.filters, data.selectedUnitIds])}
+      sourceKey={JSON.stringify([MONTHLY_REPORT_LAYOUT_VERSION, data.propertyId, range, data.generatedAt, data.filters, data.selectedRowKeys])}
       documents={[document]}
       highlights={getMonthlyReportMetrics(document)}
-      scopeLabel={`${data.filters.building || '전체 동'} · ${data.filters.status} · ${selectionLabel || `${document.rows.length}세대`}`}
+      scopeLabel={`${data.filters.building || '전체 동'} · ${data.filters.status} · ${selectionLabel || `${document.rows.length}${multipleMonths ? '건 (세대·월)' : '세대'}`}`}
       pdfDescription={'A4 가로 보고서'}
       createWorkbook={createWorkbook}
       createPdf={createPdf}

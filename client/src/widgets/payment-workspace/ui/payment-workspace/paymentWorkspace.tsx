@@ -15,7 +15,24 @@ import {
   Input
 } from '@/shared/ui/form-controls';
 import { ListHeader } from '@/shared/ui/list-header';
-import { MonthPicker } from '@/shared/ui/month-picker';
+import { DateRangePicker } from '@/shared/ui/date-range-picker';
+import {
+  getQueryDateRange,
+  getDateRangeQuery,
+  getMonthDateRange,
+  isDateInRange,
+  setDateRangeQuery,
+  type DateRange
+} from '@/shared/lib/date-range';
+import {
+  getQueryMonthRange,
+  setMonthRangeQuery,
+  type MonthRange
+} from '@/shared/lib/month-range';
+import {
+  getMonthlyRangeRows,
+  getMonthlyRowKey
+} from '../../model/monthlyRange';
 import { Pagination } from '@/shared/ui/pagination';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { SummaryCard } from '@/shared/ui/summary-card';
@@ -35,7 +52,6 @@ import {
 } from '../../api/paymentApi';
 import {
   filterMonthlyPreviewRows,
-  getMonthlyPreviewRows,
   getPreviewBuildingName,
   getPreviewBuildingOptions,
   getPreviewSelectableUnits
@@ -102,20 +118,43 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { ledger, update, month: workspaceMonth, setMonth: setWorkspaceMonth, busy } = usePaymentWorkspace();
-  const requestedMonth = searchParams.get('month');
-  const month = view === 'monthly' && /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth ?? '') ? requestedMonth! : workspaceMonth;
+  const range = getQueryMonthRange(searchParams, workspaceMonth);
+  const dateRange = getQueryDateRange(searchParams, ledger.asOf);
+  const month = view === 'monthly' ? range.endMonth : dateRange.endDate.slice(0, 7);
 
-  /** 전체 내역에서 복귀한 조회월을 사용하고 월을 바꾸면 복귀용 상세 선택을 해제합니다. */
-  function setMonth(value: string) {
+  /** 연도를 포함한 시작·종료 월을 URL에 저장하고 기간 변경 시 이전 선택과 상세 지정을 해제합니다. */
+  function setRange(value: MonthRange) {
     setMonthlySelection(null);
-    setWorkspaceMonth(value);
-    if (view !== 'monthly' || !requestedMonth) return;
-    const query = new URLSearchParams(searchParams.toString());
-    query.delete('month');
+    setSelection(null);
+    setPage(1);
+    setWorkspaceMonth(value.endMonth);
+    const query = setMonthRangeQuery(new URLSearchParams(searchParams.toString()), value);
     query.delete('unit');
-    router.replace(`${pathname}${query.size ? `?${query}` : ''}`, {
+    query.delete('startDate'); query.delete('endDate');
+    router.replace(`${pathname}?${query}`, {
       scroll: false
     });
+  }
+
+  /** 실제 입금은 월별 집계와 구분해 시작일·종료일을 포함한 날짜 범위로 조회합니다. */
+  function setDateRange(value: DateRange) {
+    setSelection(null);
+    setPage(1);
+    setWorkspaceMonth(value.endDate.slice(0, 7));
+    const query = new URLSearchParams(searchParams.toString());
+    query.delete('startMonth'); query.delete('endMonth');
+    setDateRangeQuery(query, value);
+    router.replace(`${pathname}?${query}`, {
+      scroll: false
+    });
+  }
+
+  function setMonth(value: string) {
+    if (view === 'monthly') setRange({
+      startMonth: value,
+      endMonth: value
+    });
+    else setDateRange(getMonthDateRange(value));
   }
   const [query, setQuery] = useState('');
   const [monthlyFilters, setMonthlyFilters] = useState<MonthlyCollectionFilters>({
@@ -124,12 +163,12 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
     status: '전체'
   });
   const [monthlySelection, setMonthlySelection] = useState<{ scope: string; ids: string[] } | null>(null);
-  const monthlySelectionScope = JSON.stringify([propertyId, month, monthlyFilters]);
+  const monthlySelectionScope = JSON.stringify([propertyId, range, monthlyFilters]);
   const monthlySelecting = monthlySelection?.scope === monthlySelectionScope;
   // 취소·명단 갱신으로 조회 결과에서 빠진 세대는 선택 건수와 다운로드에서도 함께 제외합니다.
-  const monthlySelectedIds = monthlySelecting
-    ? filterMonthlyPreviewRows(getMonthlyPreviewRows(ledger, month), monthlyFilters)
-      .filter((row) => monthlySelection.ids.includes(row.unitId)).map((row) => row.unitId)
+  const monthlySelectedKeys = monthlySelecting
+    ? filterMonthlyPreviewRows(getMonthlyRangeRows(ledger, range), monthlyFilters)
+      .map(getMonthlyRowKey).filter((key) => monthlySelection.ids.includes(key))
     : undefined;
 
   /** 조회 범위가 바뀌면 이전 선택을 지워 다른 월·필터의 세대가 파일에 섞이지 않게 합니다. */
@@ -167,7 +206,7 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
   const filtered = ledger.payments.filter((payment) => {
     const unit = unitById.get(payment.unitId);
 
-    return payment.status !== 'LINKED' && payment.date.startsWith(month)
+    return payment.status !== 'LINKED' && isDateInRange(payment.date, dateRange)
       && (payment.receiptType === 'OTHER' || !building || (unit && getPreviewBuildingName(unit) === building))
       && `${payment.payer} ${unit?.label ?? ''} ${unit?.representativeName ?? ''} ${payment.amount} ${payment.memo ?? ''} ${payment.incomeCategory ?? ''} ${payment.incomeNote ?? ''}`.includes(query.trim());
   });
@@ -185,7 +224,7 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
   const pageCount = Math.max(1, Math.ceil(matches.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const visible = matches.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const selectionScope = JSON.stringify([propertyId, month, tab, query, building, pageSize, currentPage]);
+  const selectionScope = JSON.stringify([propertyId, dateRange, tab, query, building, pageSize, currentPage]);
   const isSelecting = selection?.scope === selectionScope;
   const selectedIds = isSelecting ? selection.ids : [];
   const deletable = visible.filter((payment) => payment.status === 'PENDING' || payment.status === 'ON_HOLD');
@@ -232,7 +271,8 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
   /** PC는 목록을 유지한 중앙 모달, 모바일은 기존 관리 화면과 같은 독립 상세 주소를 사용합니다. */
   function openPayment(id: string) {
     if (window.matchMedia('(max-width: 767px)').matches) {
-      router.push(`/manage/${propertyId}/payments/matching/${encodeURIComponent(id)}`);
+      const period = getDateRangeQuery(searchParams);
+      router.push(`/manage/${propertyId}/payments/matching/${encodeURIComponent(id)}${period.size ? `?${period}` : ''}`);
       return;
     }
     setDetailId(id);
@@ -330,8 +370,9 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
         ) : (
           <MonthlyExportButton
             month={month}
+            range={range}
             filters={monthlyFilters}
-            selectedUnitIds={monthlySelectedIds}
+            selectedRowKeys={monthlySelectedKeys}
           />
         )}
       />
@@ -342,9 +383,10 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
       </p>
       {view === 'monthly' ? (
         <MonthlyCollection
+          key={`${range.startMonth}:${range.endMonth}`}
           filters={monthlyFilters}
           onFiltersChange={updateMonthlyFilters}
-          selectedUnitIds={monthlySelectedIds}
+          selectedRowKeys={monthlySelectedKeys}
           onSelectionChange={(ids) => setMonthlySelection({
             scope: monthlySelectionScope,
             ids
@@ -354,8 +396,8 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
             ids: []
           })}
           propertyId={propertyId}
-          month={month}
-          onMonthChange={setMonth}
+          range={range}
+          onRangeChange={setRange}
           detailPath={banking ? `/manage/${propertyId}/banking/monthly` : undefined}
         />
       ) : (
@@ -437,11 +479,12 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
               <div
                 className={styles.filters}
               >
-                <MonthPicker
-                  label={'조회 월'}
-                  value={month}
+                <DateRangePicker
+                  label={'조회 기간'}
+                  referenceDate={ledger.asOf}
+                  value={dateRange}
                   onChange={(value) => {
-                    setSelection(null);setMonth(value);
+                    setDateRange(value);
                     setPage(1);
                   }}
                 />
@@ -538,7 +581,7 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
                 minWidth={650}
                 emptyState={(
                   <StateMessage
-                    variant={Boolean(query.trim() || building || tab !== 'PENDING' || month !== ledger.asOf.slice(0, 7)) ? 'no-results' : 'empty-data'}
+                    variant={Boolean(query.trim() || building || tab !== 'PENDING' || dateRange.startDate !== `${ledger.asOf.slice(0, 7)}-01` || dateRange.endDate !== getMonthDateRange(ledger.asOf.slice(0, 7)).endDate) ? 'no-results' : 'empty-data'}
                     layout={'inline'}
                     title={'조건에 맞는 입금 거래가 없습니다.'}
                   />

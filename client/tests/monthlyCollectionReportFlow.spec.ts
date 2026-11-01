@@ -441,7 +441,7 @@ test('선입금 보고서는 이월·당월 발생 열 없이 차감 후 잔액�
   const tabs = page.getByRole('group', {
     name: '수납 상태'
   });
-  await expect(tabs.getByRole('button')).toHaveText(['전체 (2)', '미납 (0)', '일부납부 (0)', '선입금 (2)', '납부완료 (0)']);
+  await expect(tabs.getByRole('button')).toHaveText(['전체 (2)', '미납 (0)', '일부납부 (0)', '선입금 (2)', '납부완료 (1)']);
   await tabs.getByRole('button', {
     name: '선입금 (2)',
     exact: true
