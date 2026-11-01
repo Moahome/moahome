@@ -382,7 +382,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const ambiguous = lastDay.length > 1 && (lastDay.some((row) => row.time === null)
     || new Set(lastDay.filter((row) => row.time === lastRaw.time).map((row) => row.balance)).size > 1);
   const latest = !ambiguous && lastRaw?.balance !== null ? lastRaw : undefined;
-  let latestValue = '은행 확인 자료 없음';
+  let latestValue = '자료 없음';
   let latestDescription: string | undefined;
   if (latest) {
     latestValue = formatInteger(latest.balance!);

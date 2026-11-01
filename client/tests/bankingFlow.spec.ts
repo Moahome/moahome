@@ -4787,7 +4787,7 @@ for (const width of [1440, 390]) {
       exact: true
     })).toBeVisible();
     await expect(page.getByRole('article', {
-      name: '최근 은행 확인 잔액 은행 확인 자료 없음',
+      name: '최근 은행 확인 잔액 자료 없음',
       exact: true
     })).toBeVisible();
     // 나중에 은행 원본과 연결되면 수동 행은 빠지고 원본 금액만 한 번 합산해야 합니다.
