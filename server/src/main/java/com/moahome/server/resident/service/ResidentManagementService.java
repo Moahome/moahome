@@ -93,7 +93,47 @@ public class ResidentManagementService {
 		    row.unitId(), row.buildingId(), building, row.unitNumber(), row.relationType(), row.representative(),
 		    row.signupStatus(), resident.getCreatedAt(), resident.getUpdatedAt(),
 		    !requests.findLinked(propertyId, residentId, resident.getUserId()).isEmpty(), candidates,
-		    row.serviceRole());
+		    row.serviceRole(), current == null ? null : affiliations.findCurrentUnitResidents(propertyId, current.getUnitId())
+		        .stream().filter(UnitResident::isHouseholdRep).map(UnitResident::getResidentId).findFirst().orElse(null));
+	}
+
+	/** 대상 잠금 아래 기존·신규 대표의 쓰기 권한과 조회 버전을 검사하고 대표를 원자적으로 교체합니다. */
+	@Transactional
+	public ResidentDetailResponse designateRepresentative(UUID actor, UUID propertyId, UUID residentId,
+	    ResidentRepresentativeRequest input) {
+		requireManagementAccess(actor, propertyId);
+		var property = properties.findForUnitUpdate(propertyId)
+		    .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+		requireManagementAccess(actor, propertyId);
+		var resident = requireResident(propertyId, residentId);
+		access.requireResidentWrite(actor, propertyId, resident.getUserId());
+		requireUnchanged(resident, input.expectedUpdatedAt());
+		var current = affiliations
+		    .findByPropertyIdAndResidentIdAndStatusAndDeletedAtIsNull(propertyId, residentId, "ACTIVE")
+		    .orElseThrow(() -> failure(INVALID_REPRESENTATIVE));
+		if (!current.getUnitId().equals(input.unitId()))
+			throw failure(RESIDENT_CHANGED);
+		registrations.requireUnit(property, current.getUnitId());
+		List<UnitResident> household = affiliations.findCurrentUnitResidents(propertyId, current.getUnitId());
+		var previous = household.stream().filter(UnitResident::isHouseholdRep).findFirst().orElse(null);
+		if (!Objects.equals(previous == null ? null : previous.getResidentId(), input.expectedRepresentativeResidentId()))
+			throw failure(RESIDENT_CHANGED);
+		if (current.isHouseholdRep())
+			return detail(actor, propertyId, residentId);
+		var at = OffsetDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
+		if (previous != null) {
+			var former = requireResident(propertyId, previous.getResidentId());
+			// 부담당자가 다른 주민을 지정해 관리소장 명부의 대표를 간접 해제하는 것도 금지합니다.
+			access.requireResidentWrite(actor, propertyId, former.getUserId());
+			previous.releaseRepresentative(at);
+			former.touch(at);
+			// 세대당 현재 대표 유일 인덱스를 지키기 위해 해제를 먼저 DB에 반영합니다.
+			affiliations.flush();
+		}
+		designateSuccessor(actor, current, at);
+		affiliations.flush();
+		residents.flush();
+		return detail(actor, propertyId, residentId);
 	}
 
 	/** 전체 번호는 사용자 버튼 요청에만 복호화하며 키 장애·변조 암호문을 원문 없는 고정 오류로 변환합니다. */

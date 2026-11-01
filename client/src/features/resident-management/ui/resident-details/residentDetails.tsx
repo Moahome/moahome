@@ -32,6 +32,7 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import { Toast } from '@/shared/ui/toast';
 import {
   deleteResident,
+  designateResidentRepresentative,
   getResidentDetail,
   revealResidentPhone
 } from '../../api/residentManagementApi';
@@ -61,7 +62,7 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
     gcTime: 0,
     refetchOnWindowFocus: false
   });
-  const [mode, setMode] = useState<'detail' | 'edit' | 'delete'>('detail');
+  const [mode, setMode] = useState<'detail' | 'edit' | 'delete' | 'representative'>('detail');
   const [phone, setPhone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -74,7 +75,29 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
   const resident = query.data;
   const canModify = Boolean(resident && (resident.serviceRole !== 'ADMIN' || canPromote));
   const Title = presentation === 'page' ? 'h1' : 'h2';
-  const title = mode === 'edit' ? '주민 수정' : mode === 'delete' ? '주민 삭제' : '주민 상세';
+  const title = mode === 'edit' ? '주민 수정' : mode === 'delete' ? '주민 삭제' : mode === 'representative' ? '대표 주민 지정' : '주민 상세';
+
+  /** 실패 시 확인 화면을 유지하며 성공한 뒤 이전·새 대표의 상세와 세대·주민 목록을 다시 읽습니다. */
+  async function confirmRepresentative() {
+    if (!resident || pending.current) return;
+    pending.current = true;
+    setBusy(true); setError('');
+    try {
+      const saved = await designateResidentRepresentative(propertyId, resident);
+      if (!active.current) return;
+      setPropertyQueryData(client, queryKey, saved, propertyScope);
+      void client.invalidateQueries({
+        predicate: (query) => ['property-residents', 'property-units', 'resident-detail'].includes(String(query.queryKey[0]))
+          && query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
+      });
+      changeMode('detail'); setMessage('대표 주민을 지정했어요.');
+    } catch (failure) {
+      if (active.current) setError(getResidentManagementError(failure));
+    } finally {
+      pending.current = false;
+      if (active.current) setBusy(false);
+    }
+  }
 
   /** 숨기기·수정·삭제 전환에서는 공개 번호를 즉시 버리고 조회 실패에도 기존 마스킹을 유지합니다. */
   async function togglePhone() {
@@ -217,8 +240,20 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
               <dt>
                 대표 주민
               </dt>
-              <dd>
+              <dd
+                className={styles.phone}
+              >
                 {resident.representative ? '대표' : '—'}
+                {canModify && resident.unitId && !resident.representative && (
+                  <Button
+                    size={'sm'}
+                    variant={'outline'}
+                    disabled={busy}
+                    onClick={() => changeMode('representative')}
+                  >
+                    대표 지정
+                  </Button>
+                )}
               </dd>
             </div>
             <div>
@@ -321,6 +356,44 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
               onClick={() => void confirmDelete()}
             >
               삭제
+            </Button>
+          </footer>
+        </div>
+      )}
+      {resident && canModify && mode === 'representative' && (
+        <div
+          className={styles.state}
+        >
+          <p>
+            <strong>
+              {resident.name}
+            </strong>
+            {' '}
+            주민을
+            {' '}
+            {resident.buildingName}
+            {' '}
+            {resident.unitNumber && (/호$/.test(resident.unitNumber) ? resident.unitNumber : `${resident.unitNumber}호`)}
+            의 대표로 지정하시겠습니까?
+          </p>
+          <p>
+            같은 세대의 기존 대표는 해제됩니다. 서비스 역할과 가입 상태는 유지됩니다.
+          </p>
+          <footer
+            className={styles.actions}
+          >
+            <Button
+              variant={'outline'}
+              disabled={busy}
+              onClick={() => { changeMode('detail'); void query.refetch(); }}
+            >
+              취소
+            </Button>
+            <Button
+              loading={busy}
+              onClick={() => void confirmRepresentative()}
+            >
+              대표 지정
             </Button>
           </footer>
         </div>

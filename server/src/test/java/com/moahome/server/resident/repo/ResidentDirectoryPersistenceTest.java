@@ -49,6 +49,7 @@ import com.moahome.server.property.service.ManagementAccessService;
 import com.moahome.server.property.service.UnitManagementService;
 import com.moahome.server.resident.domain.ResidentSignupStatus;
 import com.moahome.server.resident.dto.ResidentDeleteRequest;
+import com.moahome.server.resident.dto.ResidentRepresentativeRequest;
 import com.moahome.server.resident.dto.ResidentImportCommitRequest;
 import com.moahome.server.resident.dto.ResidentListResponse;
 import com.moahome.server.resident.dto.ResidentRegistrationRequest;
@@ -835,6 +836,63 @@ class ResidentDirectoryPersistenceTest {
 		jdbc.update("update residents set phone_encrypted='invalid-cipher' where id=?", saved.id());
 		assertThatThrownBy(() -> management.revealPhone(actor, property.getId(), saved.id()))
 		    .hasMessage("PHONE_SECURITY_UNAVAILABLE");
+	}
+
+	@Test
+	void representativeChangesAtomicallyAndRejectsStaleSelectionOrDifferentUnit() {
+		var property = property(false);
+		var actor = users.saveAndFlush(User.create("대표 지정 관리자", null)).getId();
+		member(property.getId(), actor);
+		var unit = units.saveAndFlush(Unit.create(property, null, "551", null, null, UnitStatus.ACTIVE, AT));
+		var first = registrations.register(actor, property.getId(), registration(unit.getId(), "기존 대표", null)).id();
+		var next = registrations.register(actor, property.getId(), registration(unit.getId(), "새 대표", null)).id();
+		var third = registrations.register(actor, property.getId(), registration(unit.getId(), "다른 주민", null)).id();
+		var detail = management.detail(actor, property.getId(), next);
+		var stale = management.detail(actor, property.getId(), third);
+		assertThat(detail.currentRepresentativeId()).isEqualTo(first);
+		assertThatThrownBy(() -> management.designateRepresentative(actor, property.getId(), next,
+		    new ResidentRepresentativeRequest(UUID.randomUUID(), first, detail.updatedAt())))
+		    .hasMessage("RESIDENT_CHANGED");
+		var selected = management.designateRepresentative(actor, property.getId(), next,
+		    new ResidentRepresentativeRequest(unit.getId(), first, detail.updatedAt()));
+		assertThat(selected.representative()).isTrue();
+		assertThat(selected.currentRepresentativeId()).isEqualTo(next);
+		assertThat(management.detail(actor, property.getId(), first).representative()).isFalse();
+		assertThatThrownBy(() -> management.designateRepresentative(actor, property.getId(), third,
+		    new ResidentRepresentativeRequest(unit.getId(), first, stale.updatedAt())))
+		    .hasMessage("RESIDENT_CHANGED");
+		assertThat(jdbc.queryForObject("select count(*) from unit_residents where unit_id=? and status='ACTIVE' and is_household_rep=true and deleted_at is null", Integer.class, unit.getId()))
+		    .isEqualTo(1);
+		assertThat(selected.signupStatus()).isEqualTo(detail.signupStatus());
+		assertThat(selected.serviceRole()).isEqualTo(detail.serviceRole());
+	}
+
+	@Test
+	void managerCannotReleaseChiefRepresentativeThroughAnotherResidentButCanAssignOrdinaryResident() {
+		var property = property(false);
+		var chief = users.saveAndFlush(User.create("대표 관리소장", null)).getId();
+		var manager = users.saveAndFlush(User.create("대표 부담당자", null)).getId();
+		var outsider = users.saveAndFlush(User.create("다른 대상 관리자", null)).getId();
+		member(property.getId(), chief);
+		member(property.getId(), manager, "MANAGER");
+		var unit = units.saveAndFlush(Unit.create(property, null, "552", null, null, UnitStatus.ACTIVE, AT));
+		var first = resident(property.getId(), "관리소장 명부", "ACTIVE", chief);
+		var next = resident(property.getId(), "일반 주민 명부", "ACTIVE", null);
+		relation(property.getId(), first, unit.getId(), "ACTIVE", true);
+		relation(property.getId(), next, unit.getId(), "ACTIVE", false);
+		var detail = management.detail(manager, property.getId(), next);
+		var input = new ResidentRepresentativeRequest(unit.getId(), first, detail.updatedAt());
+		assertThatThrownBy(() -> management.designateRepresentative(manager, property.getId(), next, input))
+		    .isInstanceOf(AuthException.class);
+		assertThatThrownBy(() -> management.designateRepresentative(outsider, property.getId(), next, input))
+		    .isInstanceOf(AuthException.class);
+		assertThat(management.detail(chief, property.getId(), first).representative()).isTrue();
+		management.designateRepresentative(chief, property.getId(), next, input);
+		var third = resident(property.getId(), "추가 주민", "ACTIVE", null);
+		relation(property.getId(), third, unit.getId(), "ACTIVE", false);
+		var thirdDetail = management.detail(manager, property.getId(), third);
+		assertThat(management.designateRepresentative(manager, property.getId(), third,
+		    new ResidentRepresentativeRequest(unit.getId(), next, thirdDetail.updatedAt())).representative()).isTrue();
 	}
 
 	@Test

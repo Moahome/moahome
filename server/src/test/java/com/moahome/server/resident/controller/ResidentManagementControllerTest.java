@@ -80,6 +80,10 @@ class ResidentManagementControllerTest {
 		}
 		mvc.perform(delete(url).with(identity()).contentType(MediaType.APPLICATION_JSON).content("{}"))
 		    .andExpect(status().isBadRequest());
+		mvc.perform(put(url + "/representative").contentType(MediaType.APPLICATION_JSON).content("{}"))
+		    .andExpect(status().isUnauthorized());
+		mvc.perform(put(url + "/representative").with(identity()).contentType(MediaType.APPLICATION_JSON).content("{}"))
+		    .andExpect(status().isBadRequest());
 		verifyNoInteractions(service);
 	}
 

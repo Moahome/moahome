@@ -11,6 +11,7 @@ export interface ResidentDetail {
   unitNumber: string | null;
   relationType: string | null;
   representative: boolean;
+  currentRepresentativeId?: string | null;
   signupStatus: ResidentSignupStatus;
   serviceRole?: 'ADMIN' | 'MANAGER' | 'RESIDENT' | 'CONFLICT' | null;
   createdAt: string;

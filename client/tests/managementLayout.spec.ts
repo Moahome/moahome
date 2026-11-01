@@ -4363,3 +4363,104 @@ test('나가기 주민 설정의 권한 조회 장애는 모달을 숨기고 재
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(choice).toBeChecked();
 });
+
+
+for (const width of [1440, 390]) {
+  test(`대표 지정 ${width}px는 확인·오류 재시도 후 기존 대표와 주민 목록을 갱신`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const directory = residentDirectory();
+    const original = directory.residents[0];
+    const target = directory.residents[1];
+    let detail = {
+      ...target,
+      propertyId: PROPERTY_ID,
+      buildingName: '103동',
+      createdAt: '2026-10-10T04:00:00Z',
+      updatedAt: '2026-10-10T04:00:00Z',
+      hasLinkedRequests: false,
+      representativeCandidates: [],
+      currentRepresentativeId: original.id
+    };
+    let calls = 0;
+    await page.route(RESIDENTS_URL, (route) => fulfillJson(route, directory));
+    await page.route(`${RESIDENTS_URL}/${target.id}`, (route) => fulfillJson(route, detail));
+    await page.route(`${RESIDENTS_URL}/${target.id}/representative`, (route) => {
+      calls++;
+      expect(route.request().method()).toBe('PUT');
+      expect(route.request().postDataJSON()).toEqual({
+        unitId: target.unitId,
+        expectedUpdatedAt: detail.updatedAt,
+        expectedRepresentativeResidentId: original.id
+      });
+      if (calls === 1) return fulfillJson(route, {
+        code: 'RESIDENT_SERVICE_UNAVAILABLE'
+      }, 503);
+      directory.residents[0].representative = false;
+      directory.residents[1].representative = true;
+      detail = {
+        ...detail,
+        representative: true,
+        currentRepresentativeId: target.id,
+        updatedAt: '2026-11-01T00:00:00Z'
+      };
+      return fulfillJson(route, detail);
+    });
+    await page.goto(RESIDENTS);
+    await page.getByRole('button', {
+      name: `${target.name} 상세 보기`,
+      exact: true
+    }).click();
+    const view = width < 768 ? page.getByRole('main') : page.getByRole('dialog');
+    await view.getByRole('button', {
+      name: '대표 지정',
+      exact: true
+    }).click();
+    await expect(view).toContainText('같은 세대의 기존 대표는 해제됩니다');
+    await view.getByRole('button', {
+      name: '취소',
+      exact: true
+    }).click();
+    expect(calls).toBe(0);
+    await view.getByRole('button', {
+      name: '대표 지정',
+      exact: true
+    }).click();
+    await view.getByRole('button', {
+      name: '대표 지정',
+      exact: true
+    }).click();
+    await expect(view.getByRole('alert')).toBeVisible();
+    await view.getByRole('button', {
+      name: '대표 지정',
+      exact: true
+    }).click();
+    await expect(view.getByRole('heading', {
+      name: '주민 상세',
+      exact: true
+    })).toBeVisible();
+    await expect(view.getByRole('button', {
+      name: '대표 지정',
+      exact: true
+    })).toHaveCount(0);
+    if (width < 768) await page.getByRole('link', {
+      name: '주민 목록으로 돌아가기'
+    }).click();
+    else await view.getByRole('button', {
+      name: '주민 상세 닫기'
+    }).click();
+    const table = page.getByRole('table', {
+      name: '주민 목록',
+      exact: true
+    });
+    await expect(table.getByRole('row').filter({
+      hasText: target.name
+    })).toContainText('대표');
+    await expect(table.getByRole('row').filter({
+      hasText: original.name
+    })).not.toContainText('대표');
+    expect(calls).toBe(2);
+  });
+}

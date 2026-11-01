@@ -22,6 +22,7 @@ function readDetail(result: ResidentDetail | undefined, propertyId: string, resi
     || !RESIDENT_SIGNUP_OPTIONS.some((item) => item.value === result.signupStatus)
     || !(result.serviceRole === undefined || result.serviceRole === null || ['ADMIN', 'MANAGER', 'RESIDENT', 'CONFLICT'].includes(result.serviceRole))
     || typeof result.representative !== 'boolean' || typeof result.hasLinkedRequests !== 'boolean'
+    || !(result.currentRepresentativeId === undefined || result.currentRepresentativeId === null || isPropertyId(result.currentRepresentativeId))
     || !Number.isFinite(Date.parse(result.createdAt)) || !Number.isFinite(Date.parse(result.updatedAt))
     || !Array.isArray(result.representativeCandidates)
     || result.representativeCandidates.some((item) => !item || !isPropertyId(item.id) || item.id === residentId || typeof item.name !== 'string' || !item.name.trim())
@@ -58,6 +59,19 @@ export async function updateResident(propertyId: string, residentId: string, inp
     method: 'PUT',
     data: input
   }), propertyId, residentId);
+}
+
+/** 현재 세대·대표·수정 시각을 함께 검증하며 명부나 계정 권한을 변경하지 않고 대표만 지정합니다. */
+export async function designateResidentRepresentative(propertyId: string, resident: ResidentDetail) {
+  return readDetail(await authenticatedAPI<ResidentDetail>({
+    url: `/api/properties/${propertyId}/residents/${resident.id}/representative`,
+    method: 'PUT',
+    data: {
+      unitId: resident.unitId,
+      expectedUpdatedAt: resident.updatedAt,
+      expectedRepresentativeResidentId: resident.currentRepresentativeId ?? null
+    }
+  }), propertyId, resident.id);
 }
 
 /** 삭제 대상과 상세 조회 시각·직접 선택한 대표만 보내고 권한 종료는 서버 트랜잭션에 맡깁니다. */

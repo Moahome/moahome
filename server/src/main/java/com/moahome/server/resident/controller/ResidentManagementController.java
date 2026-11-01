@@ -55,6 +55,14 @@ public class ResidentManagementController {
 		return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
 	}
 
+	@PutMapping("/representative")
+	@Operation(summary = "세대 대표 주민 지정")
+	public ResponseEntity<ResidentDetailResponse> representative(@AuthenticationPrincipal AuthPrincipal actor,
+	    @PathVariable String propertyId, @PathVariable String residentId,
+	    @Valid @RequestBody ResidentRepresentativeRequest input) {
+		return safe(service.designateRepresentative(UUID.fromString(actor.userId()), id(propertyId), id(residentId), input));
+	}
+
 	private UUID id(String value) {
 		if (!value.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"))
 			throw new IllegalArgumentException("Invalid ID");
