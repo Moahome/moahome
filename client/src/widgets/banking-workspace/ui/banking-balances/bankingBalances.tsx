@@ -71,7 +71,10 @@ import type {
   BalanceEntry,
   BalanceWorkspace
 } from '../../api/bankingBalanceApiTypes';
-import { getAccountBalanceTotal } from '../../model/accountBalance';
+import {
+  getAccountBalanceTotal,
+  getBalancePeriodLabel
+} from '../../model/accountBalance';
 import {
   getBalanceSummary,
   getBuildingLedger
@@ -287,12 +290,11 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     );
   const summary = getBalanceSummary(data);
   const selectedAccount = data.accounts?.find((account) => account.id === accountId);
-  const visibleAccounts = selectedAccount ? [selectedAccount] : data.accounts ?? [];
   const { amount: bankBalance } = getAccountBalanceTotal(data);
   const bankLabel = selectedAccount ? '선택 통장 장부 잔액' : '통장 장부 잔액 합계';
-  const bankAsOf = `${month} 월말 · 등록된 입출금 기준`;
+  const bankAsOf = getBalancePeriodLabel(month);
   const bankHelp = '통장 초기 잔액에 업로드·수동 입출금을 반영한 금액입니다. 은행 확인이나 동별 배분 없이도 계산됩니다.';
-  const differenceDescription = `${month} 월말 장부 잔액 − 동별 잔고 합계`;
+  const differenceDescription = `${getBalancePeriodLabel(month)} · 장부 잔액 − 동별 잔고 합계`;
   const missing = data.buildings.filter((b) => b.active && b.status === 'OPENING_REQUIRED');
   const filtered = sortExpenseLabels(data.buildings).filter((b) => b.label.includes(search.trim()) && (filter === 'ALL' || (filter === 'NEEDS_OPENING' && b.status === 'OPENING_REQUIRED') || (filter === 'NEGATIVE' && b.balance !== null && BigInt(b.balance) < BigInt(0))));
   if (sort !== 'name')
@@ -347,6 +349,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       router.push(`/manage/${propertyId}/banking/balances/details/${kind}?${queryParams}`);
       return;
     }
+    if (['initial', 'check', 'checks'].includes(kind)) setAccountDetailId(null);
     if (kind === 'initial') { setInitialAccountId(id ?? null); return; }
     if (kind === 'check' || kind === 'checks') { setCheckPanel({
       id: id ?? '',
@@ -403,12 +406,45 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       </p>
     );
     return (
-      <BankAccountDetails
-        key={`${session.data?.id}-${propertyId}-${month}-${accountId}-${account.id}`}
-        propertyId={propertyId}
-        account={account}
-        month={month}
-      />
+      <>
+        <BankAccountDetails
+          key={`${session.data?.id}-${propertyId}-${month}-${accountId}-${account.id}`}
+          propertyId={propertyId}
+          account={account}
+          month={month}
+        />
+        <div
+          className={styles['account-actions']}
+          role={'group'}
+          aria-label={'통장 관리'}
+        >
+          {account.status === 'ACTIVE' && (
+            <Button
+              variant={'outline'}
+              size={'sm'}
+              onClick={() => openPanel('check', account.id)}
+            >
+              은행 잔액 직접 확인
+            </Button>
+          )}
+          {data?.initialCorrectionAllowed === true && (
+            <Button
+              variant={'outline'}
+              size={'sm'}
+              onClick={() => openPanel('initial', account.id)}
+            >
+              초기 잔액 정정
+            </Button>
+          )}
+          <Button
+            variant={'outline'}
+            size={'sm'}
+            onClick={() => openPanel('checks', account.id)}
+          >
+            확인 이력 보기
+          </Button>
+        </div>
+      </>
     );
   }
   if (panel) {
@@ -720,7 +756,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           tone={'warning'}
           value={summary.total === null ? '설정 필요' : formatInteger(summary.total)}
           unit={summary.total === null ? '' : '원'}
-          description={summary.total !== null ? `${month} 월말 · 동별 귀속 기준` : '통장을 선택해 동별 시작 잔고를 등록해주세요.'}
+          description={summary.total !== null ? `${getBalancePeriodLabel(month)} · 동별 귀속 금액` : '통장을 선택해 동별 시작 잔고를 등록해주세요.'}
           icon={(
             <ServiceIcon
               name={'coins'}
@@ -766,13 +802,8 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       </div>
       {!!data.accounts?.length && (
         <AccountBalances
-          accounts={visibleAccounts}
-          month={month}
+          data={data}
           onOpen={(id) => openPanel('account', id)}
-          onInitial={(id) => openPanel('initial', id)}
-          canCorrectInitial={data.initialCorrectionAllowed === true}
-          onCheck={(id) => openPanel('check', id)}
-          onHistory={(id) => openPanel('checks', id)}
         />
       )}
       <section

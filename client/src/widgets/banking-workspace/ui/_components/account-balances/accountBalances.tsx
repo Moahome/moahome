@@ -8,32 +8,32 @@ import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import type { AccountBalance } from '../../../api/bankingBalanceApiTypes';
+import type { BalanceWorkspace } from '../../../api/bankingBalanceApiTypes';
 import {
   getAccountBalanceDisplay,
+  getAccountBuildingBalance,
+  getBalancePeriodLabel,
   getBankConfirmationDescription
 } from '../../../model/accountBalance';
 import styles from './accountBalances.module.css';
-import { BankingActionsMenu } from '../banking-actions-menu/bankingActionsMenu';
 
-/** 월말 장부 잔액을 기본으로 표시하고 마지막 은행 확인값은 별도 참고 정보로 보존합니다. */
+/** 은행 확인일은 실제 자료의 날짜만 축약하고 장부 기준일이나 입력 시각으로 대체하지 않습니다. */
+function confirmationDate(date: string | null) {
+  const match = date?.match(/^\d{4}-(\d{2})-(\d{2})/);
+
+  return match ? ` (${match[1]}.${match[2]})` : '';
+}
+
+/** 통장별로 확인값·장부·동별 보유금을 비교하고 행 전체를 통해 상세와 관리 동작으로 이동합니다. */
 export function AccountBalances({
-  accounts,
-  month,
+  data,
   onOpen,
-  onCheck,
-  onHistory,
-  onInitial,
-  canCorrectInitial,
 }: {
-  accounts: AccountBalance[];
-  month: string;
+  data: BalanceWorkspace;
   onOpen: (accountId: string) => void;
-  onCheck: (id: string) => void;
-  onHistory: (id: string) => void;
-  onInitial: (id: string) => void;
-  canCorrectInitial: boolean;
 }) {
+  const accounts = data.accounts?.filter((account) => !data.accountId || data.accountId === account.id) ?? [];
+
   return (
     <section
       className={styles.card}
@@ -48,7 +48,7 @@ export function AccountBalances({
           title={'통장 잔액 안내'}
           note={'은행 잔액 확인은 선택 사항입니다.'}
         >
-          통장 초기 잔액에 업로드·수동 입출금을 반영한 금액입니다.
+          통장 초기 잔액에 업로드·수동 입출금을 반영한 금액입니다. 선택한 달까지 등록된 거래로 계산하며 은행 확인일은 각 통장에 표시합니다.
         </InfoTooltip>
         <h2>
           통장별 장부 잔액
@@ -58,13 +58,20 @@ export function AccountBalances({
         className={styles.list}
       >
         {accounts.map((account) => {
-          // 은행명·마스킹 라벨은 로고 표시에만 사용하고 계좌 식별은 응답 ID를 유지합니다.
-          const bank = BANK_OPTIONS.find(
-            (option) =>
-              account.label === option.label ||
-              account.label.startsWith(`${option.label} `),
-          );
+          const bank = BANK_OPTIONS.find((option) => account.label === option.label || account.label.startsWith(`${option.label} `));
+          // 서버 라벨의 별칭 구분자만 분리하며 별칭으로 기본 통장 여부를 추측하지 않습니다.
+          const separator = account.label.indexOf(' · ');
+          const name = separator < 0 ? account.label : account.label.slice(0, separator);
+          const alias = separator < 0 ? '' : account.label.slice(separator + 3);
           const display = getAccountBalanceDisplay(account);
+          const buildingBalance = getAccountBuildingBalance(data, account.id);
+          let buildingAmount = buildingBalance === null ? '설정 필요' : formatWon(buildingBalance);
+          if (!data.buildings.length) buildingAmount = '동 구분 없음';
+          const bankDescription = getBankConfirmationDescription(account);
+          let bankAmount = '기록 없음';
+          if (account.confirmation?.status === 'ORDER_UNCLEAR') bankAmount = '순서 확인 필요';
+          else if (account.confirmation?.status === 'BALANCE_MISSING') bankAmount = '잔액 미제공';
+          else if (account.balance !== null) bankAmount = `${formatWon(account.balance)}${confirmationDate(account.confirmation?.date ?? account.asOf)}`;
 
           return (
             <li
@@ -94,56 +101,63 @@ export function AccountBalances({
                 <span
                   className={styles.identity}
                 >
-                  <strong>
-                    {account.label}
-                    {account.status === 'CLOSED' ? ' · 사용 종료' : ''}
-                  </strong>
-                  <small>
-                    {month}
-                    {' '}
-                    월말 · 등록된 입출금 기준
-                  </small>
-                  <small>
-                    {display.description}
-                  </small>
-                  <small>
-                    {getBankConfirmationDescription(account)}
-                  </small>
+                  <span
+                    className={styles.heading}
+                  >
+                    <strong>
+                      {name}
+                    </strong>
+                    {alias && (
+                      <span
+                        className={styles.alias}
+                      >
+                        {alias}
+                      </span>
+                    )}
+                    {account.status === 'CLOSED' && (
+                      <span
+                        className={styles.status}
+                      >
+                        사용 종료
+                      </span>
+                    )}
+                  </span>
+                  <span
+                    className={styles.comparison}
+                  >
+                    <span
+                      title={bankDescription}
+                    >
+                      은행 확인
+                      {' '}
+                      {bankAmount}
+                    </span>
+                    <span
+                      title={`${getBalancePeriodLabel(data.month)} · ${display.description}`}
+                    >
+                      장부 잔액
+                      {' '}
+                      {display.amount === null ? '초기 잔액 설정 필요' : formatWon(display.amount)}
+                    </span>
+                    <span>
+                      동별 보유금
+                      {' '}
+                      {buildingAmount}
+                    </span>
+                  </span>
                 </span>
                 <span
                   className={styles.amount}
                   data-unknown={display.amount === null}
                 >
-                  {display.amount === null
-                    ? '초기 잔액 설정 필요'
-                    : formatWon(display.amount)}
+                  {display.amount === null ? '초기 잔액 설정 필요' : formatWon(display.amount)}
                 </span>
-
-              </Button>
-              <div
-                className={styles.actions}
-              >
-                <BankingActionsMenu
-                  label={`${account.label} 잔액 메뉴`}
-                  items={[
-                    ...(account.status === 'ACTIVE' ? [{
-                      label: '은행 잔액 직접 확인',
-                      icon: 'pen' as const,
-                      onSelect: () => onCheck(account.id)
-                    }] : []),
-                    ...(canCorrectInitial ? [{
-                      label: '초기 잔액 정정',
-                      icon: 'pen' as const,
-                      onSelect: () => onInitial(account.id)
-                    }] : []),
-                    {
-                      label: '확인 이력 보기',
-                      icon: 'clock',
-                      onSelect: () => onHistory(account.id)
-                    }
-                  ]}
+                <ServiceIcon
+                  className={styles.chevron}
+                  name={'chevron'}
+                  direction={'right'}
                 />
-              </div>
+              </Button>
             </li>
           );
         })}

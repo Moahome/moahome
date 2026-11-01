@@ -472,3 +472,54 @@ test('사용 종료 통장은 사용 이력·조회 월로 필터링하고 사�
   expect(getAccountsForMonth(accounts, '2026-11').map((account) => account.id)).toEqual(['active', 'legacy']);
   expect(accounts.map((account) => account.id)).toEqual(['active', 'used', 'unused', 'legacy']);
 });
+
+
+test('통장별 보유금 비교는 해당 통장의 동별 몫만 합산하고 미설정·선택 범위를 구분', async () => {
+  const { getAccountBuildingBalance, getBalancePeriodLabel } = await import('../src/widgets/banking-workspace/model/accountBalance');
+  const data = {
+    accounts: [{
+      id: 'a'
+    }, {
+      id: 'b'
+    }],
+    buildings: [{
+      active: true,
+      balance: '170',
+      accountBalances: [{
+        accountId: 'a',
+        balance: '100'
+      }, {
+        accountId: 'b',
+        balance: '70'
+      }]
+    }, {
+      active: true,
+      balance: '280',
+      accountBalances: [{
+        accountId: 'a',
+        balance: '200'
+      }, {
+        accountId: 'b',
+        balance: '80'
+      }]
+    }]
+  } as unknown as import('../src/widgets/banking-workspace/api/bankingBalanceApiTypes').BalanceWorkspace;
+  expect(getAccountBuildingBalance(data, 'a')).toBe('300');
+  expect(getAccountBuildingBalance(data, 'b')).toBe('150');
+  expect(getAccountBuildingBalance({
+    ...data,
+    accountId: 'a',
+    buildings: data.buildings.map((row) => ({
+      ...row,
+      balance: '20'
+    }))
+  }, 'a')).toBe('40');
+  data.buildings[1].accountBalances![0].balance = null;
+  expect(getAccountBuildingBalance(data, 'a')).toBeNull();
+  expect(getAccountBuildingBalance(data, 'b')).toBe('150');
+  expect(getAccountBuildingBalance({
+    ...data,
+    buildings: []
+  }, 'a')).toBeNull();
+  expect(getBalancePeriodLabel('2026-11')).toBe('2026년 11월 등록 내역 기준');
+});

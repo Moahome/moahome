@@ -19,6 +19,7 @@ import {
 import type { AccountBalance } from '../../../api/bankingBalanceApiTypes';
 import {
   getAccountBalanceDisplay,
+  getBalancePeriodLabel,
   getBankConfirmationDescription
 } from '../../../model/accountBalance';
 import styles from './bankAccountDetails.module.css';
@@ -184,9 +185,7 @@ export function BankAccountDetails({ propertyId, account, month }: {
           {display.amount === null ? '초기 잔액 설정 필요' : formatWon(display.amount)}
         </strong>
         <small>
-          {month}
-          {' '}
-          월말 · 등록된 입출금 기준
+          {getBalancePeriodLabel(month)}
         </small>
         {display.description && (
           <small>

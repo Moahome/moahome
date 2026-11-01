@@ -916,3 +916,19 @@
   .opening-metrics strong { font-size: 14px; }
   .opening-metrics .opening-symbol { flex-basis: 24px; width: 24px; height: 24px; }
 }
+
+
+.account-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+
+  @media (max-width: 767px) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

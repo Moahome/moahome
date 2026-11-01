@@ -46,3 +46,26 @@ export function getAccountBalanceTotal(data: BalanceWorkspace) {
     calculated: complete
   };
 }
+
+/** 진행 중인 달을 월말 확정액으로 오해하지 않도록 선택 월의 등록 내역 기준으로 설명합니다. */
+export function getBalancePeriodLabel(month: string) {
+  const [year, monthNumber] = month.split('-');
+
+  return `${year}년 ${Number(monthNumber)}월 등록 내역 기준`;
+}
+
+/** 조회 중인 통장과 동별 귀속의 범위를 일치시키고 누락된 동별 금액을 0원으로 채우지 않습니다. */
+export function getAccountBuildingBalance(data: BalanceWorkspace, accountId: string) {
+  if (!data.buildings.length) return null;
+  const scoped = data.accountId === accountId || (!data.accountId && data.accounts?.length === 1 && data.accounts[0].id === accountId);
+  const amounts = data.buildings.flatMap((building) => {
+    if (scoped) return [building.balance];
+    const own = building.accountBalances?.find((row) => row.accountId === accountId);
+    if (!own && !building.active) return [];
+
+    return [own?.balance ?? null];
+  });
+  if (!amounts.length || amounts.some((amount) => amount === null)) return null;
+
+  return amounts.reduce((sum, amount) => sum + BigInt(amount!), BigInt(0)).toString();
+}
