@@ -261,7 +261,12 @@ test('동별 잔고는 시작 잔고 미설정을 0원으로 합산하지 않고
   };
   const data = {
     buildings: [building],
-    bankBalance: '513005',
+    bankBalance: '900000',
+    accounts: [{
+      id: 'bank',
+      calculatedBalance: '513005',
+      calculationBasisDate: '2026-09-30'
+    }],
     externals: [{
       remaining: '91330'
     }]
@@ -320,7 +325,7 @@ test('동별 잔고는 시작 잔고 미설정을 0원으로 합산하지 않고
   expect(entries[0].id).toBe('out');
 });
 
-test('통장 잔액 합계와 차액은 확인값·계산값을 같은 기준으로 사용하고 원본 확인값은 보존', async () => {
+test('통장 장부와 동별 차이는 수동 거래 반영 계산값을 사용하고 은행 확인값은 별도로 보존', async () => {
   const { getAccountBalanceDisplay, getAccountBalanceTotal } = await import('../src/widgets/banking-workspace/model/accountBalance');
   const { getBalanceSummary } = await import('../src/widgets/banking-workspace/model/balanceLedger');
   const account = {
@@ -341,8 +346,8 @@ test('통장 잔액 합계와 차액은 확인값·계산값을 같은 기준으
     balance: '1500000',
     asOf: '2026-10-15'
   })).toMatchObject({
-    amount: '1500000',
-    calculated: false
+    amount: '1522910',
+    calculated: true
   });
   expect(getAccountBalanceDisplay({
     ...account,
@@ -378,10 +383,10 @@ test('통장 잔액 합계와 차액은 확인값·계산값을 같은 기준으
     }]
   };
   expect(getAccountBalanceTotal(mixed)).toEqual({
-    amount: '2338114',
+    amount: '2522909',
     calculated: true
   });
-  expect(getBalanceSummary(mixed).difference).toBe(BigInt(-66718));
+  expect(getBalanceSummary(mixed).difference).toBe(BigInt(118077));
   expect(mixed.bankBalance).toBeNull();
   expect(getAccountBalanceTotal({
     ...mixed,
@@ -397,6 +402,27 @@ test('통장 잔액 합계와 차액은 확인값·계산값을 같은 기준으
   };
   expect(getAccountBalanceTotal(missing).amount).toBeNull();
   expect(getBalanceSummary(missing).difference).toBeNull();
+  expect(getAccountBalanceDisplay({
+    ...account,
+    balance: '1500000',
+    calculatedBalance: null
+  }).amount).toBeNull();
+  expect(getAccountBalanceDisplay({
+    ...account,
+    confirmation: {
+      source: 'MULTIPLE',
+      sourceId: null,
+      date: '2026-10-15',
+      time: null,
+      precision: 'DATE',
+      status: 'ORDER_UNCLEAR'
+    }
+  }).amount).toBe('1522910');
+  expect(getAccountBalanceTotal({
+    ...data,
+    accounts: [],
+    bankBalance: '1500000'
+  }).amount).toBeNull();
   expect(getBalanceSummary({
     ...mixed,
     buildings: [{

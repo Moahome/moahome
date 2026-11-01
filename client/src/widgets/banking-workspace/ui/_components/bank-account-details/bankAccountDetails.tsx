@@ -17,7 +17,10 @@ import {
   revealBankAccountNumber
 } from '../../../api/bankAccountDetailApi';
 import type { AccountBalance } from '../../../api/bankingBalanceApiTypes';
-import { getAccountBalanceDisplay } from '../../../model/accountBalance';
+import {
+  getAccountBalanceDisplay,
+  getBankConfirmationDescription
+} from '../../../model/accountBalance';
 import styles from './bankAccountDetails.module.css';
 
 const STATUS_LABELS = {
@@ -175,23 +178,23 @@ export function BankAccountDetails({ propertyId, account, month }: {
         aria-label={'통장 잔액 정보'}
       >
         <p>
-          {display.calculated ? '계산 잔액' : '은행 확인 잔액'}
+          통장 장부 잔액
         </p>
         <strong>
-          {display.amount === null ? '은행 확인 자료 없음' : formatWon(display.amount)}
+          {display.amount === null ? '초기 잔액 설정 필요' : formatWon(display.amount)}
         </strong>
         <small>
           {month}
           {' '}
-          조회 기준
+          월말 · 등록된 입출금 기준
         </small>
         {display.description && (
           <small>
-            {display.calculated ? display.description : `${display.description} 확인`}
+            {display.description}
           </small>
         )}
         <p>
-          {display.amount === null ? '잔액이 0원이라는 뜻은 아닙니다.' : '실시간 조회가 아닙니다.'}
+          {getBankConfirmationDescription(account)}
         </p>
       </section>
     </div>

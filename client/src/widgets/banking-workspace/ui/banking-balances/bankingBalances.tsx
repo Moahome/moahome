@@ -71,10 +71,7 @@ import type {
   BalanceEntry,
   BalanceWorkspace
 } from '../../api/bankingBalanceApiTypes';
-import {
-  getAccountBalanceDisplay,
-  getAccountBalanceTotal
-} from '../../model/accountBalance';
+import { getAccountBalanceTotal } from '../../model/accountBalance';
 import {
   getBalanceSummary,
   getBuildingLedger
@@ -291,21 +288,11 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   const summary = getBalanceSummary(data);
   const selectedAccount = data.accounts?.find((account) => account.id === accountId);
   const visibleAccounts = selectedAccount ? [selectedAccount] : data.accounts ?? [];
-  const accountDisplays = visibleAccounts.map(getAccountBalanceDisplay);
-  const { amount: bankBalance, calculated } = getAccountBalanceTotal(data);
-  let bankAsOf = data.bankAsOf;
-  let bankLabel = selectedAccount ? '선택 통장 확인 잔액' : '은행 확인 잔고';
-  if (calculated) {
-    bankLabel = selectedAccount ? '선택 통장 계산 잔액' : accountDisplays.every((display) => display.calculated) ? '통장 계산 잔액 합계' : '통장 잔액 합계';
-    bankAsOf = '계산 잔액을 포함한 통장별 잔액 합계';
-  }
-  if (accountDisplays.length === 1) bankAsOf = accountDisplays[0].description;
-  let bankHelp = '은행 거래 파일·잔액 인계·직접 확인 기록의 기준시점을 비교한 확인 잔액입니다.';
-  if (calculated) bankHelp = accountDisplays.length > 1
-    ? '통장별 은행 확인값 또는 계산 잔액을 합한 금액입니다.'
-    : '시작 잔고에 등록된 통장 입출금을 반영한 금액입니다.';
-  const timeDifferent = visibleAccounts.some((row) => row.balance !== null && row.comparisonTimeDifferent);
-  const differenceDescription = `통장 잔액 − 동별 잔고 합계${calculated ? ' · 계산 잔액 포함' : ''}${timeDifferent ? ' · 비교 시점 다름' : ''}`;
+  const { amount: bankBalance } = getAccountBalanceTotal(data);
+  const bankLabel = selectedAccount ? '선택 통장 장부 잔액' : '통장 장부 잔액 합계';
+  const bankAsOf = `${month} 월말 · 등록된 입출금 기준`;
+  const bankHelp = '통장 초기 잔액에 업로드·수동 입출금을 반영한 금액입니다. 은행 확인이나 동별 배분 없이도 계산됩니다.';
+  const differenceDescription = `${month} 월말 장부 잔액 − 동별 잔고 합계`;
   const missing = data.buildings.filter((b) => b.active && b.status === 'OPENING_REQUIRED');
   const filtered = sortExpenseLabels(data.buildings).filter((b) => b.label.includes(search.trim()) && (filter === 'ALL' || (filter === 'NEEDS_OPENING' && b.status === 'OPENING_REQUIRED') || (filter === 'NEGATIVE' && b.balance !== null && BigInt(b.balance) < BigInt(0))));
   if (sort !== 'name')
@@ -697,15 +684,15 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         <SummaryCard
           density={'compact'}
           label={bankLabel}
-          value={bankBalance === null ? '은행 확인 자료 없음' : formatInteger(bankBalance)}
+          value={bankBalance === null ? '초기 잔액 설정 필요' : formatInteger(bankBalance)}
           unit={bankBalance === null ? '' : '원'}
-          description={bankAsOf ?? '잔액이 0원이라는 뜻은 아닙니다.'}
+          description={bankAsOf}
           help={(
             <InfoTooltip
               size={'sm'}
               label={`${bankLabel} 도움말`}
               title={bankLabel}
-              note={'표시된 시점 기준이며 실시간 잔액이 아닙니다.'}
+              note={'은행 확인값은 통장별 참고 정보로 따로 표시합니다.'}
             >
               {bankHelp}
             </InfoTooltip>
@@ -733,7 +720,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           tone={'warning'}
           value={summary.total === null ? '설정 필요' : formatInteger(summary.total)}
           unit={summary.total === null ? '' : '원'}
-          description={data.cutoffDate ? `${data.cutoffDate} 기준 잔고로 계산` : summary.total !== null ? '통장마다 등록한 기준일로 계산' : '통장을 선택해 동별 시작 잔고를 등록해주세요.'}
+          description={summary.total !== null ? `${month} 월말 · 동별 귀속 기준` : '통장을 선택해 동별 시작 잔고를 등록해주세요.'}
           icon={(
             <ServiceIcon
               name={'coins'}
@@ -742,20 +729,20 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         />
         <SummaryCard
           density={'compact'}
-          label={'잔고 비교 차이'}
+          label={'장부·동별 잔고 차이'}
           help={(
             <InfoTooltip
               size={'sm'}
-              label={'잔고 비교 차이 도움말'}
-              title={'잔고 비교 차이'}
-              note={'확인 시점과 미배분 거래에 따라 차이가 날 수 있습니다.'}
+              label={'장부·동별 잔고 차이 도움말'}
+              title={'장부·동별 잔고 차이'}
+              note={'차이는 미배분 자금·외부 부담금·초기 귀속 설정에 따라 생길 수 있습니다.'}
             >
-              화면의 통장 잔액에서 동별 잔고 합계를 뺀 금액입니다.
+              같은 조회 월말의 통장 장부 잔액에서 동별 잔고 합계를 뺀 금액입니다.
             </InfoTooltip>
           )}
           value={summary.difference === null ? '계산 자료 없음' : formatInteger(summary.difference)}
           unit={summary.difference === null ? '' : '원'}
-          description={summary.difference === null ? '통장 잔액과 동별 기준 잔고가 있어야 계산할 수 있어요.' : differenceDescription}
+          description={summary.difference === null ? '통장 초기 잔액과 동별 기준 잔고가 있어야 계산할 수 있어요.' : differenceDescription}
           tone={'success'}
           valueTone={summary.difference !== null && summary.difference < BigInt(0) ? 'danger' : 'neutral'}
           icon={(
@@ -780,6 +767,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       {!!data.accounts?.length && (
         <AccountBalances
           accounts={visibleAccounts}
+          month={month}
           onOpen={(id) => openPanel('account', id)}
           onInitial={(id) => openPanel('initial', id)}
           canCorrectInitial={data.initialCorrectionAllowed === true}
@@ -903,7 +891,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           >
             <div>
               <dt>
-                통장 잔액 − 동별 합계
+                통장 장부 잔액 − 동별 합계
               </dt>
               <dd
                 data-negative={summary.difference !== null && summary.difference < BigInt(0)}
@@ -2830,14 +2818,14 @@ function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, p
       {action.kind === 'difference' && (
         <>
           <p>
-            화면에 표시된 통장 잔액에서 동별 잔고 합계를 뺀 차이입니다. 통장 잔액에는 계산 잔액·미분류 거래·외부 부담금·공통 자금이 포함될 수 있으며 차이를 자동 배분하거나 대사 완료로 처리하지 않습니다.
+            같은 조회 월말의 통장 장부 잔액에서 동별 잔고 합계를 뺀 차이입니다. 미분류 거래·외부 부담금·공통 자금이나 초기 동별 귀속 설정에 따라 차이가 생길 수 있습니다. 마지막 은행 확인값과의 차이가 아니며 차이를 자동 배분하거나 대사 완료로 처리하지 않습니다.
           </p>
           <dl
             className={styles.overview}
           >
             <div>
               <dt>
-                통장 잔액 − 동별 합계
+                통장 장부 잔액 − 동별 합계
               </dt>
               <dd
                 data-negative={getBalanceSummary(data).difference !== null && getBalanceSummary(data).difference! < BigInt(0)}

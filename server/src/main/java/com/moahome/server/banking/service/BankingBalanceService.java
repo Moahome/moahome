@@ -163,7 +163,7 @@ public class BankingBalanceService {
 		List<Payment> allReceipts = payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property).stream()
 		    .filter(this::active)
 		    .filter(p -> p.getBankTransactionId() == null
-		        ? "MANUAL".equals(p.getSourceType()) && "OTHER".equals(p.getReceiptType())
+		        ? "MANUAL".equals(p.getSourceType())
 		        : allBankById.containsKey(p.getBankTransactionId())
 		            && "INCOME".equals(allBankById.get(p.getBankTransactionId()).getDirection()))
 		    .toList();
@@ -198,8 +198,8 @@ public class BankingBalanceService {
 				continue;
 			var original = allBankById.get(p.getBankTransactionId());
 			allEntries.add(
-			    new BankingBalanceResponse.Entry(original.getId(), p.getCashBuildingId(), original.getTransactionDate(),
-			        original.getTransactionTime(), security.decrypt(p.getPayerNameEncrypted()), amount(p.getAmount()),
+			    new BankingBalanceResponse.Entry(original == null ? p.getId() : original.getId(), p.getCashBuildingId(), p.getPaymentDate(),
+			        original == null ? null : original.getTransactionTime(), security.decrypt(p.getPayerNameEncrypted()), amount(p.getAmount()),
 			        "0", p.getId(), p.getBankAccountId()));
 		}
 		for (var part : allParts) {
@@ -217,12 +217,12 @@ public class BankingBalanceService {
 		var openingBatch = confirmedBatches.stream().filter(batch -> !batch.getCutoffDate().isAfter(end)).findFirst();
 		List<BankOpeningBalance> baselines = openingBatch.map(batch -> bankOpenings.findByBatchId(batch.getId()))
 		    .orElse(List.of());
+		// 장부는 현재 유효한 초기 기준에서 과거 월도 역산하지만 은행 확인값은 조회 월 이후 자료를 사용하지 않습니다.
+		List<BankOpeningBalance> ledgerBaselines = confirmedBatches.isEmpty() ? List.of()
+		    : bankOpenings.findByBatchId(confirmedBatches.getFirst().getId());
 		Map<UUID, BankOpeningBalance> independent = independentOpenings.stream()
 		    .collect(Collectors.toMap(o -> o.getBankAccountId(), o -> o, (latest, older) -> latest));
 		ArrayList<BankingBalanceResponse.AccountBalance> allAccountBalances = new ArrayList<BankingBalanceResponse.AccountBalance>();
-		Set<UUID> requiredBuildings = buildings.findByPropertyId(property).stream()
-		    .filter(b -> b.getDeletedAt() == null && b.getStatus() == BuildingStatus.ACTIVE).map(b -> b.getId())
-		    .collect(Collectors.toSet());
 		for (var account : common) {
 			List<BankTransaction> accountRows = allBank.stream()
 			    .filter(t -> t.getBankAccountId().equals(account.getId()) && !t.getTransactionDate().isAfter(end))
@@ -240,7 +240,9 @@ public class BankingBalanceService {
 			var registered = independent.get(account.getId());
 			var handover = baselines.stream().filter(row -> row.getBankAccountId().equals(account.getId())).findFirst()
 			    .orElse(null);
-			var configured = registered != null ? registered : handover;
+			var configured = registered != null ? registered
+			    : ledgerBaselines.stream().filter(row -> row.getBankAccountId().equals(account.getId())).findFirst()
+			        .orElse(null);
 			List<BankBalanceSelection.Candidate> candidates = new ArrayList<>();
 			last.ifPresent(t -> candidates.add(new BankBalanceSelection.Candidate("BANK_IMPORT", t.getId(),
 			    t.getTransactionDate(), ambiguous ? null : t.getTransactionTime(),
@@ -277,7 +279,7 @@ public class BankingBalanceService {
 			                ? " 마감 잔액"
 			                : selected.time() == null ? "" : " " + selected.time());
 
-			var calculated = calculateAccountBalance(account.getId(), month, allOpenings, requiredBuildings, allBank,
+			var calculated = calculateAccountBalance(account.getId(), month, configured, allBank,
 			    allReceipts, allExpenses);
 			allAccountBalances.add(new BankingBalanceResponse.AccountBalance(account.getId(),
 			    account.getBankName() + " ····" + account.getAccountLast4()
@@ -341,7 +343,7 @@ public class BankingBalanceService {
 		    .filter(t -> accountIds.contains(t.getBankAccountId()) && !t.getTransactionDate().isAfter(readEnd))
 		    .toList();
 		Map<UUID, BankTransaction> bankById = bank.stream().collect(Collectors.toMap(bankTransaction -> bankTransaction.getId(), t -> t));
-		// 수동 기타 입금은 관리자가 확인한 금액으로 반영하고 은행 확인 잔액은 파일 원본에서만 조회합니다.
+		// 확정 수동 입금도 장부에 반영하며 은행 확인값은 원본·초기 잔액·직접 확인 이력으로 별도 보존합니다.
 		List<Payment> receipts = allReceipts.stream()
 		    .filter(p -> accountIds.contains(p.getBankAccountId()) && !p.getPaymentDate().isAfter(readEnd)).toList();
 		Map<UUID, Payment> receiptById = receipts.stream().filter(p -> !p.getPaymentDate().isAfter(end))
@@ -565,17 +567,14 @@ public class BankingBalanceService {
 	private record AccountCalculation(BigDecimal balance, LocalDate cutoff) {
 	}
 
-	/** 동별 기준값이 모두 있는 통장은 등록 입출금으로 계산하되 은행 파일의 실제 확인 잔액을 덮어쓰지 않습니다. */
-	private AccountCalculation calculateAccountBalance(UUID account, YearMonth month, List<BuildingCashOpening> saved,
-	    Set<UUID> requiredBuildings, List<BankTransaction> bank, List<Payment> receipts, List<Expense> expenses) {
-		List<BuildingCashOpening> own = saved.stream().filter(o -> account.equals(o.getBankAccountId())).toList();
-		if (own.isEmpty()
-		    || !requiredBuildings.stream().allMatch(id -> own.stream().anyMatch(o -> id.equals(o.getBuildingId()))))
+	/** 통장 초기 잔액에 실제 입출금을 누적·역산합니다. 동별 귀속 설정과 은행 직접 확인은 계산 기준을 바꾸지 않습니다. */
+	private AccountCalculation calculateAccountBalance(UUID account, YearMonth month, BankOpeningBalance baseline,
+	    List<BankTransaction> bank, List<Payment> receipts, List<Expense> expenses) {
+		// 동별 합계는 통장 전체 자금과 다를 수 있으므로 초기 잔액이 없으면 장부 잔액도 미설정으로 둡니다.
+		if (baseline == null)
 			return null;
-		LocalDate cutoff = own.getFirst().getCutoffDate();
-		if (own.stream().anyMatch(o -> !cutoff.equals(o.getCutoffDate())))
-			return null;
-		BigDecimal opening = own.stream().map(buildingCashOpening -> buildingCashOpening.getAmount()).reduce(BigDecimal.ZERO, (bigDecimal, other) -> bigDecimal.add(other));
+		LocalDate cutoff = baseline.getCutoffDate();
+		BigDecimal opening = baseline.getAmount();
 		ArrayList<BuildingCashCalculation.Movement> movements = new ArrayList<BuildingCashCalculation.Movement>();
 		// 통장의 실제 이동은 동별 배분 여부와 무관하므로 미분류 원본·외부 지출·내부 이체도 전액 반영합니다.
 		for (var row : bank) {
@@ -585,10 +584,10 @@ public class BankingBalanceService {
 			    "INCOME".equals(row.getDirection()) ? row.getAmount() : BigDecimal.ZERO,
 			    "EXPENSE".equals(row.getDirection()) ? row.getAmount() : BigDecimal.ZERO));
 		}
-		// 기존 수동 현금 인식 기준을 유지하고, 원본에 연결된 입금은 위 원본과 중복 합산하지 않습니다.
+		// 확정한 수기 입금은 용도와 무관하게 반영하고, 은행에 연결된 입금은 원본과 중복 합산하지 않습니다.
 		for (var receipt : receipts) {
 			if (!account.equals(receipt.getBankAccountId()) || receipt.getBankTransactionId() != null
-			    || !"MANUAL".equals(receipt.getSourceType()) || !"OTHER".equals(receipt.getReceiptType()))
+			    || !"MANUAL".equals(receipt.getSourceType()))
 				continue;
 			movements.add(
 			    new BuildingCashCalculation.Movement(receipt.getPaymentDate(), receipt.getAmount(), BigDecimal.ZERO));

@@ -9,35 +9,17 @@ import { Button } from '@/shared/ui/button';
 import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import type { AccountBalance } from '../../../api/bankingBalanceApiTypes';
-import { getAccountBalanceDisplay } from '../../../model/accountBalance';
+import {
+  getAccountBalanceDisplay,
+  getBankConfirmationDescription
+} from '../../../model/accountBalance';
 import styles from './accountBalances.module.css';
 import { BankingActionsMenu } from '../banking-actions-menu/bankingActionsMenu';
 
-/** 서버의 확인 시각을 짧게 표시하되 날짜만 제공된 잔액에 임의의 시간을 붙이지 않습니다. */
-function formatConfirmation(asOf: string) {
-  const match =
-    /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?)?$/.exec(
-      asOf,
-    );
-  if (!match) return `${asOf} 확인`;
-
-  const [, , month, day, hour, minute] = match;
-  return `${month}.${day}${hour ? ` ${hour}:${minute}` : ''} 확인`;
-}
-
-/** 표시 출처는 실제 확인 자료에 있을 때만 붙이고 확인 날짜를 중복 표시하지 않습니다. */
-function confirmationLabel(account: AccountBalance) {
-  const source = account.confirmation;
-  if (source?.source === 'BANK_IMPORT') return ' · 엑셀 거래내역';
-  if (source?.source !== 'DIRECT_CHECK') return '';
-  if (source.method === 'BANK_APP') return ' · 은행 앱에서 직접 확인';
-  if (source.method === 'INTERNET_BANKING') return ' · 인터넷뱅킹에서 확인';
-  return ' · 직접 확인';
-}
-
-/** 은행 확인값과 기준 잔고에서 계산한 값을 구분하고 출처는 마우스·키보드·터치 도움말로 설명합니다. */
+/** 월말 장부 잔액을 기본으로 표시하고 마지막 은행 확인값은 별도 참고 정보로 보존합니다. */
 export function AccountBalances({
   accounts,
+  month,
   onOpen,
   onCheck,
   onHistory,
@@ -45,6 +27,7 @@ export function AccountBalances({
   canCorrectInitial,
 }: {
   accounts: AccountBalance[];
+  month: string;
   onOpen: (accountId: string) => void;
   onCheck: (id: string) => void;
   onHistory: (id: string) => void;
@@ -54,21 +37,21 @@ export function AccountBalances({
   return (
     <section
       className={styles.card}
-      aria-label={'통장별 확인 잔액'}
+      aria-label={'통장별 장부 잔액'}
     >
       <header
         className={styles.header}
       >
         <InfoTooltip
           size={'sm'}
-          label={'통장별 확인 잔액 도움말'}
+          label={'통장별 장부 잔액 도움말'}
           title={'통장 잔액 안내'}
-          note={'실시간 조회가 아닙니다.'}
+          note={'은행 잔액 확인은 선택 사항입니다.'}
         >
-          확인값 또는 계산 잔액입니다.
+          통장 초기 잔액에 업로드·수동 입출금을 반영한 금액입니다.
         </InfoTooltip>
         <h2>
-          통장별 확인 잔액
+          통장별 장부 잔액
         </h2>
       </header>
       <ul
@@ -115,32 +98,24 @@ export function AccountBalances({
                     {account.label}
                     {account.status === 'CLOSED' ? ' · 사용 종료' : ''}
                   </strong>
-                  {display.calculated ? (
-                    <small>
-                      계산 잔액 ·
-                      {display.description}
-                    </small>
-                  ) : account.asOf ? (
-                    <time
-                      dateTime={account.asOf.replace(' ', 'T')}
-                      title={account.asOf}
-                      aria-label={`${account.asOf} 확인`}
-                    >
-                      {formatConfirmation(account.asOf)}
-                      {confirmationLabel(account)}
-                    </time>
-                  ) : (
-                    <small>
-                      잔액이 0원이라는 뜻은 아닙니다.
-                    </small>
-                  )}
+                  <small>
+                    {month}
+                    {' '}
+                    월말 · 등록된 입출금 기준
+                  </small>
+                  <small>
+                    {display.description}
+                  </small>
+                  <small>
+                    {getBankConfirmationDescription(account)}
+                  </small>
                 </span>
                 <span
                   className={styles.amount}
                   data-unknown={display.amount === null}
                 >
                   {display.amount === null
-                    ? '은행 확인 자료 없음'
+                    ? '초기 잔액 설정 필요'
                     : formatWon(display.amount)}
                 </span>
 

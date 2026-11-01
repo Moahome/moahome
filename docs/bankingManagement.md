@@ -151,7 +151,7 @@ Selection의 `transfer:true`는 세대·기타 입금·지출·공동 입금 배
 
 통장 목록 응답 배열은 저장된 최초 등록 순서입니다. 초기 설정의 입력 순서를 유지하고 추가 통장은 뒤에 붙이며 기본 지정 변경·은행명 정정은 순서를 바꾸지 않습니다. 별도 순서 변경 API는 제공하지 않습니다.
 
-accounts의 각 항목에 `calculatedBalance: 원 단위 부호 있는 문자열|null`, `calculationBasisDate: YYYY-MM-DD|null`을 추가합니다. [기준 잔고 기반 계산 기준](domainRules.md#기준-잔고-기반-통장-계산-잔액-표시-2026-10-18-후속)을 적용하며 계산에 필요한 동별 기준값이 없으면 두 필드는 null입니다. 기존 balance·asOf와 Workspace.bankBalance·bankAsOf는 은행 파일·기존 실제 잔액 기록의 확인값 의미를 유지합니다. 계산값으로 이 필드를 채우거나 가상의 은행 원본을 저장하지 않습니다. 원본이 없어도 통장×동 기준값이 확인됐으면 계산값을 반환하며 이전 월은 해당 통장 기준일에서 역산합니다.
+accounts의 각 항목은 `calculatedBalance: 원 단위 부호 있는 문자열|null`, `calculationBasisDate: YYYY-MM-DD|null`을 반환합니다. 2026-11-01 후속 요청에 따라 [장부 계산 기준](domainRules.md#기준-잔고-기반-통장-계산-잔액-표시-2026-10-18-후속)은 통장 자체의 최신 유효 초기 잔액·기준일이며 동별 기준값과 독립적입니다. 조회 월말까지의 은행 원본·미연결 확정 수동 입금·수동 출금을 반영하고 이전 월은 역산합니다. 통장 초기 잔액이 없으면 두 필드는 null입니다. Client는 이 계산값으로 기본 장부 잔액·전체 합계·동별 차이를 표시합니다. 기존 balance·asOf와 Workspace.bankBalance·bankAsOf는 실제 은행 확인값의 의미를 유지하며 별도 참고 정보입니다. 직접 확인으로 장부를 재설정하거나 가상의 은행 원본을 저장하지 않습니다.
 
 `accounts`에는 조회 월 말까지 사용 근거가 있는 통장만 포함하며 같은 계좌 집합으로 동별 합계·입출금·정산을 계산합니다. 같은 관리대상에 속하지만 사용 전인 accountId를 요청하면 응답 accountId는 null이고 해당 월의 전체 통장 결과를 반환합니다. 다른 관리대상의 계좌는 기존대로 거부합니다. 사용 근거 판정은 위 공통 계산 기준을 따르며 해당 월에 사용한 통장이 없으면 accounts·buildings는 빈 목록, 은행 잔액과 기준일은 null입니다.
 
@@ -247,7 +247,7 @@ checks는 실제 확인시점·기록시점 내림차순의 전체 이력이며 
 
 잔고 응답의 통장별 accounts에 `confirmation: {source,sourceId,date,time,precision,status,method}|null`, `comparisonTimeDifferent: boolean`을 추가합니다. 기존 balance/asOf는 선택된 실제 확인값, calculatedBalance는 별도 계산값입니다. source는 `BANK_IMPORT / HANDOVER / ACCOUNT_OPENING / DIRECT_CHECK / MULTIPLE`, precision은 `DATE / TIME / DAY_END`, status는 `READY / ORDER_UNCLEAR / BALANCE_MISSING`입니다. 직접 확인일 때 method에 확인 방법을 반환하고 나머지는 null입니다. 복수 출처·순서 불명확일 때 sourceId는 null일 수 있으며 DATE·DAY_END에는 가상 시각을 만들지 않습니다.
 
-순서 불명확은 확인 금액을 null로 반환하고 Client도 계산값으로 이를 가리지 않습니다. 최신 거래의 잔액 미제공은 기존 계산값 대체 표시를 유지하되 확인 자료 상태를 보존합니다. 실제 확인값과 월말 동별 계산시점의 차이는 comparisonTimeDifferent로 전달합니다. 원천·과거 월·합계 해석은 업무 기준을 따르며 가상 거래·새 계산 시작값을 생성하는 API는 없습니다. 날짜·시각 충돌의 강제 대사는 후속 범위입니다.
+순서 불명확은 확인 금액을 null로 반환하고 최신 거래 잔액 미제공 상태도 보존합니다. 2026-11-01 후속 화면은 장부를 기본 표시하되 은행 확인 자료의 상태를 별도 안내합니다. 실제 확인값과 월말 계산시점의 차이는 comparisonTimeDifferent로 보존하며 장부·동별 차액 계산에는 사용하지 않습니다. 원천·과거 월·합계 해석은 업무 기준을 따르며 가상 거래·새 계산 시작값을 생성하는 API는 없습니다. 날짜·시각 충돌의 강제 대사는 후속 범위입니다.
 
 ## 신규 동 통장 선택·보유금 인계 계약 설계 (2026-10-26)
 

@@ -1038,7 +1038,7 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
 
 test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 모바일 상세를 연결', async ({ page }) => {
   test.setTimeout(120_000);
-  // 달력의 이전 달과 9월 30일 기준일이 실행 날짜에 따라 달라지지 않게 조회 자료의 현재 날짜를 고정합니다.
+  // 통장 초기 기준일과 조회 자료의 현재 날짜를 고정해 동별 금액 설정·정정 흐름을 검증합니다.
   await page.clock.setFixedTime(new Date('2026-10-23T03:00:00Z'));
   const buildings = Array.from({
     length: 8
@@ -1174,7 +1174,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     } else if (path.endsWith('/banking/balances/openings/corrections')) {
       correctionRequests.push(route.request().postData()!);
       const correction = route.request().postDataJSON();
-      expect(correction.cutoffDate).toBe('2026-06-30');
+      expect(correction.cutoffDate).toBe('2026-09-30');
       expect(correction.buildings).toHaveLength(8);
       expect(correction.buildings.every((part: { revision: number }) => part.revision === 0)).toBe(true);
       if (correctionRequests.length === 1) {
@@ -1231,6 +1231,17 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
         cutoffDate: opened ? openingDate : null,
         bankBalance: '807340',
         bankAsOf: '2026-10-15 10:00:00',
+        accounts: [{
+          id: ACCOUNT,
+          label: '하나은행 ····1234',
+          status: 'ACTIVE',
+          balance: '807340',
+          asOf: '2026-10-15 10:00:00',
+          openingDate: '2026-09-30',
+          openingBalance: '900000',
+          calculatedBalance: '807340',
+          calculationBasisDate: '2026-09-30'
+        }],
         buildings: buildings.map((b, index) => opened ? {
           ...b,
           openingBalance: index === 0 ? firstOpening : index === 1 ? '300000' : '0',
@@ -1469,18 +1480,11 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     exact: true
   }).click();
   await expect(setup.getByRole('alert')).toContainText('기준일');
-  await setup.getByRole('button', {
+  await expect(setup).toContainText('2026-09-30');
+  await expect(setup.getByRole('button', {
     name: '기준일',
     exact: false
-  }).click();
-  await page.getByRole('button', {
-    name: '이전 달',
-    exact: true
-  }).click();
-  await page.getByRole('button', {
-    name: '2026년 9월 30일',
-    exact: true
-  }).click();
+  })).toHaveCount(0);
   for (let index = 0; index < 8; index++) {
     await buildingSelect.fill(String(102 + index));
     await setup.getByRole('option', {
@@ -2074,21 +2078,12 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   await correction.getByRole('textbox', {
     name: '정정 사유',
     exact: true
-  }).fill('기초 기준일과 금액 오입력 정정');
-  await correction.getByRole('button', {
+  }).fill('기초 금액 오입력 정정');
+  await expect(correction).toContainText('2026-09-30');
+  await expect(correction.getByRole('button', {
     name: '기준일',
     exact: false
-  }).click();
-  for (let month = 0; month < 3; month++) {
-    await page.getByRole('button', {
-      name: '이전 달',
-      exact: true
-    }).click();
-  }
-  await page.getByRole('button', {
-    name: '2026년 6월 30일',
-    exact: true
-  }).click();
+  })).toHaveCount(0);
   await correction.getByLabel('102동 기준 잔고', {
     exact: true
   }).fill('610000');
@@ -2154,7 +2149,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     name: '기준 잔고 확인',
     exact: true
   });
-  await expect(corrected).toContainText('2026-06-30');
+  await expect(corrected).toContainText('2026-09-30');
   await expect(corrected.getByLabel('102동 기준 잔고', {
     exact: true
   })).toHaveValue('610,000');
@@ -2927,7 +2922,7 @@ for (const width of [1440, 390]) {
 }
 
 for (const width of [1440, 390, 320]) {
-  test(`통장별 확인 잔액 ${width}px는 은행 로고·확인 시각과 터치·키보드 도움말을 표시`, async ({ page }) => {
+  test(`통장별 장부 잔액 ${width}px는 은행 로고·확인 시각과 터치·키보드 도움말을 표시`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -2999,6 +2994,8 @@ for (const width of [1440, 390, 320]) {
             label: '신한은행 ····6546',
             status: 'ACTIVE',
             balance: '815204',
+            calculatedBalance: '815204',
+            calculationBasisDate: '2026-09-30',
             asOf: '2026-10-15 14:12:59'
           },
           {
@@ -3013,6 +3010,8 @@ for (const width of [1440, 390, 320]) {
             label: '하나은행 ····4321',
             status: 'CLOSED',
             balance: '0',
+            calculatedBalance: '0',
+            calculationBasisDate: '2026-09-30',
             asOf: '2026-09-30'
           }
         ]
@@ -3031,20 +3030,20 @@ for (const width of [1440, 390, 320]) {
     });
     await page.goto(`${BASE}/balances?month=2026-10`);
     const card = page.getByRole('region', {
-      name: '통장별 확인 잔액',
+      name: '통장별 장부 잔액',
       exact: true
     });
     await expect(card).toBeVisible();
     const rows = card.getByRole('listitem');
     await expect(rows).toHaveCount(3);
     await expect(rows.nth(0)).toContainText('815,204원');
-    await expect(rows.nth(0)).toContainText('10.15 14:12 확인');
+    await expect(rows.nth(0)).toContainText('2026-10-15 14:12:59');
     await expect(rows.nth(0).locator('img')).toHaveAttribute('src', '/banks/bank088.png');
-    await expect(rows.nth(0).locator('time')).toHaveAttribute('datetime', '2026-10-15T14:12:59');
-    await expect(rows.nth(1)).toContainText('은행 확인 자료 없음');
-    await expect(rows.nth(1)).toContainText('잔액이 0원이라는 뜻은 아닙니다.');
+    await expect(rows.nth(0)).toContainText('마지막 은행 확인: 815,204원');
+    await expect(rows.nth(1)).toContainText('초기 잔액 설정 필요');
+    await expect(rows.nth(1)).toContainText('은행 확인 기록 없음 · 확인은 선택 사항입니다.');
     await expect(rows.nth(2)).toContainText('사용 종료');
-    await expect(rows.nth(2)).toContainText('09.30 확인');
+    await expect(rows.nth(2)).toContainText('2026-09-30');
     await expect(rows.nth(2)).not.toContainText('00:00');
     await expect(card.getByRole('tooltip')).toHaveCount(0);
     await card.scrollIntoViewIfNeeded();
@@ -3052,14 +3051,14 @@ for (const width of [1440, 390, 320]) {
       path: test.info().outputPath(`accountBalances${width}.png`)
     });
     const info = card.getByRole('button', {
-      name: '통장별 확인 잔액 도움말',
+      name: '통장별 장부 잔액 도움말',
       exact: true
     });
     if (width > 767) await info.hover();
     else await info.click();
     const tooltip = page.getByRole('tooltip');
-    await expect(tooltip).toContainText('확인값 또는 계산 잔액입니다.');
-    await expect(tooltip).toContainText('실시간 조회가 아닙니다.');
+    await expect(tooltip).toContainText('통장 초기 잔액에 업로드·수동 입출금을 반영한 금액입니다.');
+    await expect(tooltip).toContainText('은행 잔액 확인은 선택 사항입니다.');
     expect((await tooltip.boundingBox())!.y).toBeGreaterThanOrEqual((await info.boundingBox())!.y + (await info.boundingBox())!.height);
     const bounds = await tooltip.boundingBox();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
@@ -3075,13 +3074,13 @@ for (const width of [1440, 390, 320]) {
     await info.press('Escape');
     await expect(tooltip).toHaveCount(0);
     await expect(page.getByRole('article', {
-      name: '은행 확인 잔고 은행 확인 자료 없음',
+      name: '통장 장부 잔액 합계 초기 잔액 설정 필요',
       exact: true
     })).toBeVisible();
     for (const [label, copy] of [
-      ['은행 확인 잔고', '은행 거래 파일·잔액 인계·직접 확인 기록의 기준시점을 비교한 확인 잔액입니다.'],
+      ['통장 장부 잔액 합계', '통장 초기 잔액에 업로드·수동 입출금을 반영한 금액입니다.'],
       ['동별 잔고 합계', '조회 중인 모든 통장의 동별 잔고를 합한 금액입니다.'],
-      ['잔고 비교 차이', '화면의 통장 잔액에서 동별 잔고 합계를 뺀 금액입니다.']
+      ['장부·동별 잔고 차이', '같은 조회 월말의 통장 장부 잔액에서 동별 잔고 합계를 뺀 금액입니다.']
     ]) {
       const help = page.getByRole('button', {
         name: `${label} 도움말`,
@@ -3171,6 +3170,8 @@ for (const { width, unassigned } of [{
           label: labels[0],
           status: 'ACTIVE',
           balance: '700000',
+          calculatedBalance: '700000',
+          calculationBasisDate: '2026-09-30',
           asOf: '2026-10-18'
         },
         {
@@ -3178,6 +3179,8 @@ for (const { width, unassigned } of [{
           label: labels[1],
           status: 'ACTIVE',
           balance: '300000',
+          calculatedBalance: '300000',
+          calculationBasisDate: '2026-09-30',
           asOf: '2026-10-18'
         }
       ]
@@ -3585,8 +3588,8 @@ for (const width of [1440, 390]) {
       id: ACCOUNT,
       label: '카카오뱅크 ····1020 · 예비비',
       status: 'ACTIVE',
-      balance: null,
-      asOf: null,
+      balance: '1500000',
+      asOf: '2026-09-30 마감 잔액',
       calculatedBalance: '1522910',
       calculationBasisDate: '2026-09-30'
     };
@@ -3646,6 +3649,8 @@ for (const width of [1440, 390]) {
           label: '신한은행 ····6546 · 공용 계좌',
           status: 'ACTIVE',
           balance: '815204',
+          calculatedBalance: '815204',
+          calculationBasisDate: '2026-09-30',
           asOf: '2026-10-15 14:12:00'
         }] : [account],
         buildings: [{
@@ -3678,22 +3683,22 @@ for (const width of [1440, 390]) {
     });
     await page.goto(`${BASE}/balances?month=2026-10&account=${ACCOUNT}`);
     const summary = page.getByRole('article', {
-      name: '선택 통장 계산 잔액 1,522,910원',
+      name: '선택 통장 장부 잔액 1,522,910원',
       exact: true
     });
     await expect(summary).toBeVisible();
-    await expect(summary).toContainText('2026-09-30 기준');
+    await expect(summary).toContainText('2026-10 월말');
     const buildingTotal = page.getByRole('article', {
       name: '동별 잔고 합계 1,522,910원',
       exact: true
     });
     await expect(buildingTotal.locator('svg').first()).toHaveCSS('color', 'rgb(245, 158, 11)');
     const calculatedHelp = summary.getByRole('button', {
-      name: '선택 통장 계산 잔액 도움말',
+      name: '선택 통장 장부 잔액 도움말',
       exact: true
     });
     await calculatedHelp.focus();
-    await expect(page.getByRole('tooltip')).toContainText('시작 잔고에 등록된 통장 입출금을 반영한 금액입니다.');
+    await expect(page.getByRole('tooltip')).toContainText('통장 초기 잔액에 업로드·수동 입출금을 반영한 금액입니다.');
     await calculatedHelp.press('Escape');
     const buildingHelp = buildingTotal.getByRole('button', {
       name: '동별 잔고 합계 도움말',
@@ -3721,15 +3726,16 @@ for (const width of [1440, 390]) {
       exact: true
     })).toHaveCount(0);
     const accounts = page.getByRole('region', {
-      name: '통장별 확인 잔액',
+      name: '통장별 장부 잔액',
       exact: true
     });
     await expect(accounts).toContainText('1,522,910원');
-    await expect(accounts).toContainText('계산 잔액');
+    await expect(accounts).toContainText('장부 잔액');
+    await expect(accounts).toContainText('마지막 은행 확인: 1,500,000원');
     await expect(page.getByRole('article', {
-      name: '잔고 비교 차이 0원',
+      name: '장부·동별 잔고 차이 0원',
       exact: true
-    })).toContainText('계산 잔액 포함');
+    })).toContainText('2026-10 월말 장부 잔액');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({
       path: testInfo.outputPath(`calculatedAccountBalance${width}.png`),
@@ -3741,14 +3747,14 @@ for (const width of [1440, 390]) {
     mixed = true;
     await page.goto(`${BASE}/balances?month=2026-10`);
     await expect(page.getByRole('article', {
-      name: '통장 잔액 합계 2,338,114원',
+      name: '통장 장부 잔액 합계 2,338,114원',
       exact: true
     })).toBeVisible();
     const difference = page.getByRole('article', {
-      name: '잔고 비교 차이 -66,718원',
+      name: '장부·동별 잔고 차이 -66,718원',
       exact: true
     });
-    await expect(difference).toContainText('계산 잔액 포함');
+    await expect(difference).toContainText('2026-10 월말 장부 잔액');
     await expect(difference.locator('strong')).toHaveCSS('color', 'rgb(239, 68, 68)');
     await expect(difference.locator('svg').first()).toHaveCSS('color', 'rgb(22, 163, 74)');
     await expect(page.getByRole('heading', {
@@ -3785,6 +3791,8 @@ for (const width of [1440, 390]) {
       label: '신한은행 ····6546 · 공용 계좌',
       status: 'ACTIVE',
       balance: '300000',
+      calculatedBalance: '300000',
+      calculationBasisDate: '2026-09-30',
       asOf: '2026-08-31'
     },
     {
@@ -3895,7 +3903,7 @@ for (const width of [1440, 390]) {
       exact: true
     })).toBeVisible();
     await expect(page.getByRole('region', {
-      name: '통장별 확인 잔액',
+      name: '통장별 장부 잔액',
       exact: true
     })).not.toContainText('카카오뱅크');
     await selector.click();
@@ -3924,7 +3932,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     await expect(page.getByRole('article', {
-      name: '선택 통장 계산 잔액 1,500,000원',
+      name: '선택 통장 장부 잔액 1,500,000원',
       exact: true
     })).toBeVisible();
     await page.getByRole('button', {
@@ -3975,6 +3983,8 @@ for (const width of [1440, 390, 320]) {
         label: '하나은행 ····6546 · 운영비',
         status: 'ACTIVE',
         balance: '815204',
+        calculatedBalance: '815204',
+        calculationBasisDate: '2026-09-30',
         asOf: '2026-10-15 14:12:59'
       },
       {
@@ -4147,9 +4157,9 @@ for (const width of [1440, 390, 320]) {
     await expect(detail).toContainText('테스트 예금주');
     await expect(detail).toContainText('카카오뱅크');
     await expect(detail).toContainText('사용 종료');
-    await expect(detail).toContainText('계산 잔액');
+    await expect(detail).toContainText('장부 잔액');
     await expect(detail).toContainText('200,000원');
-    await expect(detail).toContainText('2026-09-30 기준');
+    await expect(detail).toContainText('2026-09-30 초기 잔액 기준');
     await expect(detail).toContainText('···· 5678');
     expect(reveals).toBe(0);
     expect(details.every((accountId) => accountId === second)).toBe(true);
@@ -4242,8 +4252,8 @@ for (const width of [1440, 390, 320]) {
       name: '통장 상세',
       exact: true
     });
-    await expect(direct).toContainText('은행 확인 자료 없음');
-    await expect(direct).toContainText('잔액이 0원이라는 뜻은 아닙니다.');
+    await expect(direct).toContainText('초기 잔액 설정 필요');
+    await expect(direct).toContainText('은행 확인 기록 없음 · 확인은 선택 사항입니다.');
     await page.reload();
     await expect(direct).toContainText('···· 4321');
     if (width <= 767) {
@@ -5299,6 +5309,8 @@ for (const width of [1440, 425, 390]) {
           label: '하나은행 ····1234 · 관리비',
           status: 'ACTIVE',
           balance: saved && !canceled ? '2338114' : null,
+          calculatedBalance: '900000',
+          calculationBasisDate: '2026-09-30',
           asOf: saved && !canceled ? '2026-10-14 09:20:00' : null
         }, {
           id: id(11),
@@ -5323,6 +5335,10 @@ for (const width of [1440, 425, 390]) {
       });
     });
     await page.goto(`${BASE}/balances?month=2026-10`);
+    await expect(page.getByRole('article', {
+      name: '통장 장부 잔액 합계 2,422,910원',
+      exact: true
+    })).toBeVisible();
     if (width === 425) {
       const sizes = page.getByRole('combobox', {
         name: '동별 잔고 표시 개수',
@@ -5403,6 +5419,13 @@ for (const width of [1440, 425, 390]) {
     }).click();
     await expect(page.getByRole('button', {
       name: '하나은행 ····1234 · 관리비 잔액 메뉴',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('article', {
+      name: '통장 장부 잔액 합계 2,422,910원',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByText('마지막 은행 확인: 2,338,114원 · 2026-10-14 09:20:00', {
       exact: true
     })).toBeVisible();
     expect(creates).toHaveLength(2);

@@ -2572,6 +2572,7 @@ class PaymentPersistenceTest {
 	void manualExpenseBalancesUseActualDateAndKeepBankConfirmationSeparate() {
 		List<UUID> targets = manualIncomeBuildings();
 		var account = bankAccountSettings.read(user, property).accountId();
+		seedAccountOpening(account, "200000");
 		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
 		    targets.stream().map(id -> new BankingBalanceRequests.OpeningPart(id, "100000")).toList(), account));
 		// 통장 등록일보다 이른 수동 거래도 실제 과거 사용 근거로 조회할 수 있어야 합니다.
@@ -2588,8 +2589,8 @@ class PaymentPersistenceTest {
 		assertThat(view.buildings()).extracting(b -> b.expense()).containsOnly("5000");
 		assertThat(view.buildings()).extracting(b -> b.balance()).containsOnly("95000");
 		assertThat(view.accounts().getFirst().calculatedBalance()).isEqualTo("190000");
-		assertThat(view.bankBalance()).isNull();
-		assertThat(view.accounts().getFirst().balance()).isNull();
+		assertThat(view.bankBalance()).isEqualTo("200000");
+		assertThat(view.accounts().getFirst().balance()).isEqualTo("200000");
 		var september = cashBalances.workspace(user, property, "2026-09", account);
 		assertThat(september.accountId()).isEqualTo(account);
 		assertThat(september.entries()).hasSize(4);
@@ -2639,6 +2640,7 @@ class PaymentPersistenceTest {
 	void manualExpenseExternalRecoveryUsesSameAccountAndPreservesSourceAbsence() {
 		List<UUID> targets = manualIncomeBuildings();
 		var account = bankAccountSettings.read(user, property).accountId();
+		seedAccountOpening(account, "200000");
 		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
 		    targets.stream().map(id -> new BankingBalanceRequests.OpeningPart(id, "100000")).toList(), account));
 		var request = new BankingRequests.ManualExpense(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15), "3000",
@@ -3427,6 +3429,13 @@ class PaymentPersistenceTest {
 		assertThat(count("income_allocations")).isEqualTo(5);
 	}
 
+	/** 조회 회귀 테스트의 통장 초기 잔액을 동별 귀속과 독립적으로 준비합니다. */
+	private void seedAccountOpening(UUID account, String amount) {
+		jdbc.update("insert into bank_opening_balances(id,property_id,bank_account_id,cutoff_date,amount,revision,"
+		    + "recorded_by,recorded_at) values (?,?,?,date '2026-09-30',?,1,?,now())",
+		    UUID.randomUUID(), property, account, new BigDecimal(amount), user);
+	}
+
 	private List<UUID> manualIncomeBuildings() {
 		List<UUID> ids = List.of(UUID.randomUUID(), UUID.randomUUID());
 		for (int i = 0; i < ids.size(); i++)
@@ -3733,11 +3742,71 @@ class PaymentPersistenceTest {
 		    .allMatch(r -> "READY".equals(r.status()));
 	}
 
+	/** 동이 없어도 수동 입출금으로 장부가 변하며 직접 확인·다른 통장·동별 설정과 분리합니다. */
+	@Test
+	void accountLedgerUsesOwnOpeningAndManualMovementsIndependentlyOfBankChecksAndBuildings() {
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		seedAccountOpening(account, "500000");
+		jdbc.update("update bank_accounts set valid_from=date '2026-08-01' where id=?", account);
+		balanceChecks.create(user, property, new BankBalanceCheckRequests.Create(UUID.randomUUID(), account,
+		    "700000", OffsetDateTime.parse("2026-10-14T09:00:00+09:00"), "BANK_APP", null));
+		UUID income = UUID.randomUUID();
+		service.manual(user, property, new PaymentRequests.Manual(income, null, LocalDate.of(2026, 10, 15),
+		    "100000", account, "OTHER", "분담금", "수입", null, null));
+		var withoutBuildings = cashBalances.workspace(user, property, "2026-10", account);
+		assertThat(withoutBuildings.buildings()).isEmpty();
+		assertThat(withoutBuildings.accounts().getFirst().calculatedBalance()).isEqualTo("600000");
+		List<UUID> targets = manualIncomeBuildings();
+		banking.manualExpense(user, property,
+		    manualExpenseRequest(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15), "20000", targets));
+		var view = cashBalances.workspace(user, property, "2026-10", account);
+		assertThat(view.accounts()).singleElement().satisfies(row -> {
+			assertThat(row.calculatedBalance()).isEqualTo("580000");
+			assertThat(row.balance()).isEqualTo("700000");
+			assertThat(row.confirmation().source()).isEqualTo("DIRECT_CHECK");
+		});
+		assertThat(count("bank_transactions")).isZero();
+		UUID second = addAccount("090", "카카오뱅크", "3333012345678", "예비비").accountId();
+		seedAccountOpening(second, "150000");
+		service.manual(user, property, new PaymentRequests.Manual(UUID.randomUUID(), null, LocalDate.of(2026, 10, 15),
+		    "2000", second, "OTHER", "이자", "수입", null, null));
+		var all = cashBalances.workspace(user, property, "2026-10");
+		assertThat(all.accounts()).filteredOn(row -> row.id().equals(account)).singleElement()
+		    .satisfies(row -> assertThat(row.calculatedBalance()).isEqualTo("580000"));
+		assertThat(all.accounts()).filteredOn(row -> row.id().equals(second)).singleElement()
+		    .satisfies(row -> assertThat(row.calculatedBalance()).isEqualTo("152000"));
+		service.cancel(user, property, income, "오입력");
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).accounts().getFirst()
+		    .calculatedBalance()).isEqualTo("480000");
+		service.manual(user, property, new PaymentRequests.Manual(UUID.randomUUID(), null, LocalDate.of(2026, 9, 15),
+		    "1000", account, "OTHER", "과거 입금", "수입", null, null));
+		assertThat(cashBalances.workspace(user, property, "2026-09", account).accounts().getFirst()
+		    .calculatedBalance()).isEqualTo("500000");
+		assertThat(cashBalances.workspace(user, property, "2026-08", account).accounts().getFirst()
+		    .calculatedBalance()).isEqualTo("499000");
+	}
+
+	/** 동별 금액만으로 통장 전체 초기 잔액을 추측하지 않으며 은행 확인도 장부 설정을 대신하지 않습니다. */
+	@Test
+	void accountLedgerRemainsUnknownWithoutOwnOpeningEvenWithBuildingsAndBankCheck() {
+		manualIncomeBuildings();
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		balanceChecks.create(user, property, new BankBalanceCheckRequests.Create(UUID.randomUUID(), account,
+		    "123000", OffsetDateTime.parse("2026-10-14T09:00:00+09:00"), "BANK_APP", null));
+		var view = cashBalances.workspace(user, property, "2026-10", account);
+		assertThat(view.accounts()).singleElement().satisfies(row -> {
+			assertThat(row.balance()).isEqualTo("123000");
+			assertThat(row.calculatedBalance()).isNull();
+			assertThat(row.calculationBasisDate()).isNull();
+		});
+	}
+
 	/** 은행 파일이 없어도 통장별 기준값과 수동 동별 입금을 계산하고, 실제 은행 확인값은 별도로 둡니다. */
 	@Test
 	void accountCalculationIncludesConfirmedManualIncomeWithoutClaimingBankVerification() {
 		List<UUID> targets = manualIncomeBuildings();
 		var account = bankAccountSettings.read(user, property).accountId();
+		seedAccountOpening(account, "1500000");
 		cashBalances.saveOpenings(user, property,
 		    new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
 		        List.of(
@@ -3752,10 +3821,10 @@ class PaymentPersistenceTest {
 		service.manual(user, property, new PaymentRequests.Manual(UUID.randomUUID(), null, LocalDate.of(2026, 10, 15),
 		    "22910", account, "SHARED", "분담금", "동별 입금", null, split));
 		var view = cashBalances.workspace(user, property, "2026-10", account);
-		assertThat(view.bankBalance()).isNull();
+		assertThat(view.bankBalance()).isEqualTo("1500000");
 		assertThat(view.accounts()).singleElement().satisfies(a -> {
-			assertThat(a.balance()).isNull();
-			assertThat(a.asOf()).isNull();
+			assertThat(a.balance()).isEqualTo("1500000");
+			assertThat(a.asOf()).contains("2026-09-30");
 			assertThat(a.calculatedBalance()).isEqualTo("1522910");
 			assertThat(a.calculationBasisDate()).isEqualTo(LocalDate.of(2026, 9, 30));
 		});
@@ -3773,7 +3842,7 @@ class PaymentPersistenceTest {
 		    "insert into buildings(id,property_id,name,sort_order,status,created_at,updated_at) values (?,?,?,3,'ACTIVE',now(),now())",
 		    extra, property, "104동");
 		assertThat(cashBalances.workspace(user, property, "2026-10", account).accounts().getFirst().calculatedBalance())
-		    .isNull();
+		    .isEqualTo("1522910");
 	}
 
 	/** 원본·이체는 전액, 미연결 수동 기타 입금은 한 번 반영하고 기준일 이전 월은 역산합니다. */
@@ -3781,6 +3850,7 @@ class PaymentPersistenceTest {
 	void accountCalculationPreservesActualSnapshotAndCountsRawTransfersWithoutDuplicatingReceipt() {
 		List<UUID> targets = manualIncomeBuildings();
 		var account = bankAccountSettings.read(user, property).accountId();
+		seedAccountOpening(account, "1000000");
 		jdbc.update("update bank_accounts set valid_from=date '2026-08-01' where id=?", account);
 		cashBalances.saveOpenings(user, property,
 		    new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
@@ -3832,6 +3902,7 @@ class PaymentPersistenceTest {
 		var first = bankAccountSettings.read(user, property).accountId();
 		jdbc.update("update bank_accounts set valid_from=date '2026-07-01' where id=?", first);
 		var second = addAccount("090", "카카오뱅크", "3333012345678", "예비비").accountId();
+		seedAccountOpening(second, "1500000");
 		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(
 		    LocalDate.of(2026, 7, 1),
 		    List.of(new BankingBalanceRequests.OpeningPart(targets.getFirst(), "100000"),
