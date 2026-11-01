@@ -1594,7 +1594,7 @@ test('같은 달 두 입금은 세대만 지정해 모두 확정하고 완납 �
   const row = page.getByRole('row').filter({
     hasText: '102동 401호'
   });
-  await expect(row).toContainText('납부완료');
+  await expect(row).toContainText('선입금');
   await row.click();
   await expect(page.getByRole('dialog')).toContainText(/선입금 잔액\s*50,000원/);
 });
