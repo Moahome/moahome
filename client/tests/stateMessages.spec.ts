@@ -241,7 +241,7 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
   });
 
   for (const width of [1440, 390, 320]) {
-    test(`메뉴 로딩 통일 ${width}px는 조회 중 큰 캐릭터·흰 배경을 표시하고 추가 테두리 없이 실패 상태로 전환`, async ({ page }, testInfo) => {
+    test(`메뉴 로딩 통일 ${width}px는 조회 중 큰 캐릭터를 중앙에 표시하고 추가 테두리 없이 실패 상태로 전환`, async ({ page }, testInfo) => {
       await page.setViewportSize({
         width,
         height: 1000
@@ -281,7 +281,7 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
         await expect.poll(() => image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)).toBe(true);
         await expect(loading).toHaveCSS('border-width', '0px');
         const surface = loading.locator('..');
-        await expect(surface).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+        await expect(surface).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
         await expect(surface).toHaveCSS('border-width', '0px');
         const bounds = await image.boundingBox();
         expect(bounds?.width).toBeGreaterThan(width >= 1000 ? 390 : 150);
