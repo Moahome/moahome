@@ -63,7 +63,10 @@ export function InfoTooltip({ label, title, children, note, size = 'md' }: {
       if (!root.current?.contains(target) && !tooltip.current?.contains(target)) setOpen(false);
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
+      if (event.key !== 'Escape') return;
+      // 도움말을 먼저 닫고 같은 Escape로 부모 네이티브 모달까지 취소되는 것을 막습니다.
+      event.preventDefault();
+      setOpen(false);
     };
     document.addEventListener('pointerdown', outside);
     document.addEventListener('keydown', escape);

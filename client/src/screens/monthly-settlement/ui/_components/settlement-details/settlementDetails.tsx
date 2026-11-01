@@ -1,5 +1,6 @@
 import { StateMessage } from '@/shared/ui/state-message';
 import {
+  useEffect,
   useRef,
   useState,
   type KeyboardEvent
@@ -62,6 +63,16 @@ export function SettlementDetails({ report, month, propertyId }: {
   const requested = search.get('tab');
   const tab = DETAIL_TABS.find((item) => item.id === requested)?.id ?? 'collections';
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  // 직접 진입·뒤로 가기·키보드 이동에서도 선택 탭이 가로 스크롤 영역 안에 보이게 합니다.
+  useEffect(() => {
+    const selected = refs.current[DETAIL_TABS.findIndex((item) => item.id === tab)];
+    const list = selected?.parentElement;
+    if (!selected || !list) return;
+    const button = selected.getBoundingClientRect();
+    const bounds = list.getBoundingClientRect();
+    if (button.left < bounds.left) list.scrollLeft -= bounds.left - button.left;
+    if (button.right > bounds.right) list.scrollLeft += button.right - bounds.right;
+  }, [tab]);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('전체');
   const [building, setBuilding] = useState('');

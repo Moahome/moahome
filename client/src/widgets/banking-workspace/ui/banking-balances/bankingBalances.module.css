@@ -923,12 +923,27 @@
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 24px;
+  margin-top: 4px;
   padding-top: 20px;
   border-top: 1px solid var(--border);
 
   @media (max-width: 767px) {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+
+.account-dialog {
+  width: min(920px, calc(100vw - 40px));
+
+  .modal-header { padding: 28px 32px 24px; border-bottom: 0; }
+  .modal-header p { font-size: 14px; }
+  .modal-header h2 { font-size: 30px; }
+  .modal-body { padding: 12px 32px 24px; gap: 20px; }
+
+  @media (max-width: 767px) {
+    width: 100%;
+    .detail-body { padding: 20px 16px; }
   }
 }

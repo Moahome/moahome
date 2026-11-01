@@ -37,9 +37,10 @@ import type { ManagedBankAccount } from '../../../api/bankAccountApiTypes';
 import styles from './bankAccountEditor.module.css';
 
 /** 통장 원문은 이 설정 안에서만 조회하고 목록·추가·정정·사용 종료 후 관련 업무 캐시를 갱신합니다. */
-export function BankAccountEditor({ propertyId, onClose, onSaved, presentation = 'modal' }: {
+export function BankAccountEditor({ propertyId, onClose, onSaved, presentation = 'modal', initialAccountId }: {
   propertyId: string; onClose: () => void; onSaved: () => void;
   presentation?: 'modal' | 'page';
+  initialAccountId?: string;
 }) {
   const session = useSession();
   const cache = useQueryClient();
@@ -52,6 +53,7 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
     refetchOnWindowFocus: false
   });
   const [editing, setEditing] = useState<{ id: string; original: ManagedBankAccount | null } | null>(null);
+  const [requestedId, setRequestedId] = useState(initialAccountId);
   const [closing, setClosing] = useState<ManagedBankAccount | null>(null);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
@@ -59,6 +61,12 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
   // 삭제한 통장은 설정 목록에서 숨기되 서버 원본과 과거 거래 연결은 유지합니다.
   const rows = (accounts.data ?? []).filter((account) => account.status !== 'CLOSED');
   const primary = rows.find((row) => row.isPrimary && row.status === 'ACTIVE');
+  // 상세에서 지정한 통장도 현재 권한으로 조회된 사용 중인 계좌일 때만 편집합니다.
+  const requested = rows.find((row) => row.accountId === requestedId && row.status === 'ACTIVE');
+  const activeEditing = editing ?? (requested ? {
+    id: requested.accountId,
+    original: requested
+  } : null);
 
   /** 설정 저장은 과거 거래를 이동하지 않으며 열린 업무 화면이 최신 통장 목록을 다시 읽게 합니다. */
   async function refresh() {
@@ -67,7 +75,7 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
       predicate: (query) => query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
       && ['payment-workspace', 'banking-workspace', 'banking-balances', 'billing-workspace'].includes(String(query.queryKey[0]))
     });
-    setEditing(null);setClosing(null);onSaved();
+    setRequestedId(undefined);setEditing(null);setClosing(null);onSaved();
   }
   /** 삭제 확인한 통장의 사용을 종료하고 과거 거래는 보존한 채 목록과 업무 캐시를 갱신합니다. */
   async function endUse() {
@@ -78,7 +86,7 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
     finally { pending.current = false;setBusy(false); }
   }
 
-  const title = editing ? (editing.original ? '통장 수정' : '통장 추가') : '공동 납부계좌 관리';
+  const title = activeEditing ? (activeEditing.original ? '통장 수정' : '통장 추가') : '공동 납부계좌 관리';
 
   const header = presentation === 'page' ? (
     <ListHeader
@@ -111,14 +119,14 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
 
   const content = (
     <>
-      {editing && primary ? (
+      {activeEditing && primary ? (
         <AccountForm
-          key={editing.id}
+          key={activeEditing.id}
           propertyId={propertyId}
-          id={editing.id}
-          original={editing.original}
+          id={activeEditing.id}
+          original={activeEditing.original}
           primaryId={primary.accountId}
-          onCancel={() => setEditing(null)}
+          onCancel={() => { setRequestedId(undefined); setEditing(null); }}
           onSaved={refresh}
           onBusy={setBusy}
         />

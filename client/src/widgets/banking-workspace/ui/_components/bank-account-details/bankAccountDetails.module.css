@@ -7,104 +7,153 @@
 .identity {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 28px;
+  padding: 8px 0 12px;
   overflow-wrap: anywhere;
+}
 
-  img {
-    width: 48px;
-    height: 48px;
-  }
+.bank-icon {
+  display: grid;
+  flex: 0 0 88px;
+  place-items: center;
+  width: 88px;
+  height: 88px;
+  overflow: hidden;
+  border-radius: 12px;
 
-  div {
-    display: grid;
-    min-width: 0;
-    gap: 6px;
-  }
+  img { width: 100%; height: 100%; object-fit: contain; }
+}
 
-  h3 {
-    font-size: 20px;
-  }
+.bank-identity {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
 
-  p,
-  small {
-    color: var(--sub-text);
+  h3 { font-size: 27px; font-weight: 750; letter-spacing: -0.6px; }
+  > p { color: var(--sub-text); font-size: 20px; }
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+
+  > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 650;
   }
+}
+
+.status {
+  color: var(--sub-text);
+  background: var(--background);
+
+  &::before { width: 8px; height: 8px; border-radius: 50%; background: currentColor; content: ''; }
+  &[data-status='ACTIVE'] { color: var(--secondary-teal); background: color-mix(in srgb, var(--secondary-teal) 9%, var(--card)); }
+}
+
+.primary {
+  color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, var(--card));
 }
 
 .fields {
   margin: 0;
+  border-top: 1px solid var(--border);
 
   > div {
     display: grid;
-    grid-template-columns: 80px minmax(0, 1fr);
+    grid-template-columns: 160px minmax(0, 1fr);
     align-items: center;
-    gap: 16px;
-    padding: 16px 0;
+    gap: 20px;
+    min-height: 64px;
+    padding: 14px 0;
     border-bottom: 1px solid var(--border);
   }
 
-  dt {
-    color: var(--sub-text);
-  }
-
-  dd {
-    min-width: 0;
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
+  dt { color: var(--sub-text); font-size: 16px; }
+  dd { min-width: 0; margin: 0; font-size: 20px; font-weight: 550; overflow-wrap: anywhere; }
 }
 
 .number {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 24px;
   font-variant-numeric: tabular-nums;
 
-  span {
-    min-width: 0;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-  }
+  span { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 }
 
 .balance {
   display: grid;
-  gap: 10px;
-  padding: 20px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--background);
+  gap: 12px;
+  padding: 26px;
+  border: 1px solid color-mix(in srgb, var(--primary) 12%, var(--card));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--primary) 4%, var(--card));
   overflow-wrap: anywhere;
 
-  strong {
-    color: var(--primary);
-    font-size: 26px;
-    font-variant-numeric: tabular-nums;
-  }
-
-  p,
-  small {
-    color: var(--sub-text);
-  }
+  > small { color: var(--sub-text); font-size: 16px; }
 }
 
-.state {
-  display: grid;
-  justify-items: start;
-  gap: 12px;
+.balance-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--sub-text);
+
+  h4 { font-size: 16px; font-weight: 650; }
 }
+
+.amount {
+  color: var(--primary);
+  font-size: clamp(28px, 3.5vw, 38px);
+  font-weight: 750;
+  letter-spacing: -0.7px;
+  font-variant-numeric: tabular-nums;
+
+  &[data-negative='true'] { color: var(--danger); }
+}
+
+.confirmation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  color: var(--sub-text);
+  font-size: 15px;
+
+  > svg { flex-shrink: 0; }
+  p { flex: 1; min-width: 0; line-height: 1.6; }
+  strong { font-weight: 650; }
+}
+
+.state { display: grid; justify-items: start; gap: 12px; color: var(--sub-text); }
+
+.balance-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 
 @media (max-width: 767px) {
-  .fields {
-    > div {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 10px;
-    }
-  }
-
-  .balance {
-    padding: 16px;
-  }
+  .content { gap: 20px; }
+  .identity { gap: 16px; padding-top: 0; }
+  .bank-icon { flex-basis: 64px; width: 64px; height: 64px; }
+  .bank-identity { gap: 6px; }
+  .bank-identity h3 { font-size: 22px; }
+  .bank-identity > p { font-size: 16px; }
+  .badges { gap: 6px; }
+  .badges > span { padding: 5px 10px; font-size: 12px; }
+  .fields > div { grid-template-columns: 76px minmax(0, 1fr); gap: 12px; }
+  .fields dt { font-size: 14px; }
+  .fields dd { font-size: 16px; }
+  .number { gap: 12px; }
+  .balance { padding: 18px; }
+  .balance > small, .confirmation { font-size: 13px; }
 }

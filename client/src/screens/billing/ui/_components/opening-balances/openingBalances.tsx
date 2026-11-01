@@ -30,7 +30,10 @@ import {
 } from '@/features/billing-management';
 import { Button } from '@/shared/ui/button';
 import { useRouter } from 'next/navigation';
-import { BankIcon } from '@/entities/banking';
+import {
+  BANK_OPTIONS,
+  BankIcon
+} from '@/entities/banking';
 import { SummaryCard } from '@/shared/ui/summary-card';
 import { OpeningUnitList } from './openingUnitList';
 import { ClientModal } from '@/shared/ui/client-modal';
@@ -565,53 +568,59 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
           className={styles.accounts}
           disabled={busy || confirmed || initialLocked}
         >
-          {accounts.map((account) => (
-            <div
-              className={styles.account}
-              key={account.accountId}
-            >
+          {accounts.map((account) => {
+            // 은행 코드가 없던 이전 응답·초안도 서버가 만든 은행명 표시와 공통 은행 목록으로 로고를 복원합니다.
+            const bankCode = data.accounts.find((row) => row.accountId === account.accountId)?.bankCode
+              ?? account.bankCode
+              ?? BANK_OPTIONS.find((bank) => account.label.startsWith(`${bank.label} ····`))?.value;
+            return (
               <div
-                className={styles['account-label']}
+                className={styles.account}
+                key={account.accountId}
               >
-                {account.bankCode ? (
-                  <BankIcon
-                    bankCode={account.bankCode}
-                  />
-                ) : (
-                  <ServiceIcon
-                    name={'bank'}
-                  />
-                )}
-                <strong>
-                  {account.label}
-                </strong>
-              </div>
-              {confirmed ? (
                 <div
-                  className={styles['account-amount']}
+                  className={styles['account-label']}
                 >
-                  <span>
-                    시작 잔액
-                  </span>
+                  {bankCode ? (
+                    <BankIcon
+                      bankCode={bankCode}
+                    />
+                  ) : (
+                    <ServiceIcon
+                      name={'bank'}
+                    />
+                  )}
                   <strong>
-                    {account.initialBalance === false ? '인계 기록 없음' : `${formatInteger(account.amount)}원`}
+                    {account.label}
                   </strong>
                 </div>
-              ) : (
-                <AmountInput
-                  label={'시작 잔액'}
-                  aria-label={`${account.label} 시작 잔액`}
-                  value={account.amount}
-                  onChange={(value) => {
-                    setAccounts((rows) => rows.map((row) => row.accountId === account.accountId ? {
-                      ...row,
-                      amount: value
-                    } : row)); setDirty(true);
-                  }}
-                />
-              )}
-            </div>
-          ))}
+                {confirmed ? (
+                  <div
+                    className={styles['account-amount']}
+                  >
+                    <span>
+                      시작 잔액
+                    </span>
+                    <strong>
+                      {account.initialBalance === false ? '인계 기록 없음' : `${formatInteger(account.amount)}원`}
+                    </strong>
+                  </div>
+                ) : (
+                  <AmountInput
+                    label={'시작 잔액'}
+                    aria-label={`${account.label} 시작 잔액`}
+                    value={account.amount}
+                    onChange={(value) => {
+                      setAccounts((rows) => rows.map((row) => row.accountId === account.accountId ? {
+                        ...row,
+                        amount: value
+                      } : row)); setDirty(true);
+                    }}
+                  />
+                )}
+              </div>
+            );
+          })}
           {!accounts.length && (
             <p>
               등록된 관리 계좌가 없어요.

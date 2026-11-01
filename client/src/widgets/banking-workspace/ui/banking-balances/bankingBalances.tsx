@@ -294,7 +294,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   const bankLabel = selectedAccount ? '선택 통장 장부 잔액' : '통장 장부 잔액 합계';
   const bankAsOf = getBalancePeriodLabel(month);
   const bankHelp = '통장 초기 잔액에 업로드·수동 입출금을 반영한 금액입니다. 은행 확인이나 동별 배분 없이도 계산됩니다.';
-  const differenceDescription = `${getBalancePeriodLabel(month)} · 장부 잔액 − 동별 잔고 합계`;
+  const differenceDescription = '장부 잔액 − 동별 잔고';
   const missing = data.buildings.filter((b) => b.active && b.status === 'OPENING_REQUIRED');
   const filtered = sortExpenseLabels(data.buildings).filter((b) => b.label.includes(search.trim()) && (filter === 'ALL' || (filter === 'NEEDS_OPENING' && b.status === 'OPENING_REQUIRED') || (filter === 'NEGATIVE' && b.balance !== null && BigInt(b.balance) < BigInt(0))));
   if (sort !== 'name')
@@ -412,36 +412,34 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           propertyId={propertyId}
           account={account}
           month={month}
+          onCheck={account.status === 'ACTIVE' ? () => openPanel('check', account.id) : undefined}
+          onInitial={data?.initialCorrectionAllowed === true ? () => openPanel('initial', account.id) : undefined}
         />
         <div
           className={styles['account-actions']}
           role={'group'}
           aria-label={'통장 관리'}
         >
-          {account.status === 'ACTIVE' && (
-            <Button
-              variant={'outline'}
-              size={'sm'}
-              onClick={() => openPanel('check', account.id)}
-            >
-              은행 잔액 직접 확인
-            </Button>
-          )}
-          {data?.initialCorrectionAllowed === true && (
-            <Button
-              variant={'outline'}
-              size={'sm'}
-              onClick={() => openPanel('initial', account.id)}
-            >
-              초기 잔액 정정
-            </Button>
-          )}
           <Button
             variant={'outline'}
-            size={'sm'}
             onClick={() => openPanel('checks', account.id)}
           >
-            확인 이력 보기
+            확인 이력
+          </Button>
+          <Button
+            variant={'outline'}
+            disabled={account.status !== 'ACTIVE'}
+            onClick={() => router.push(`/manage/${propertyId}/settings/accounts?edit=${encodeURIComponent(account.id)}`)}
+          >
+            통장 정보 수정
+          </Button>
+          <Button
+            onClick={() => router.push(`/manage/${propertyId}/banking/transactions?${new URLSearchParams({
+              month,
+              account: account.id
+            })}`)}
+          >
+            거래 내역 보기
           </Button>
         </div>
       </>
@@ -487,6 +485,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     if (panel === 'account') return (
       <DetailDialog
         title={'통장 상세'}
+        className={styles['account-dialog']}
         presentation={'page'}
         onClose={closePage}
       >
@@ -1152,7 +1151,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       {accountDetailId && (
         <DetailDialog
           title={'통장 상세'}
-          compact
+          className={styles['account-dialog']}
           onClose={() => setAccountDetailId(null)}
         >
           {renderAccountDetail(accountDetailId)}

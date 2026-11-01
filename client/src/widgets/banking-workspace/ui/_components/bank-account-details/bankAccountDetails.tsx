@@ -6,6 +6,8 @@ import { BankIcon } from '@/entities/banking';
 import { useSession } from '@/entities/session';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
+import { InfoTooltip } from '@/shared/ui/info-tooltip';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import { useQuery } from '@tanstack/react-query';
 import {
   useEffect,
@@ -31,10 +33,12 @@ const STATUS_LABELS = {
 };
 
 /** PC·모바일에서 같은 통장 정보를 표시하고 전체 번호는 공개 중인 컴포넌트에만 보관합니다. */
-export function BankAccountDetails({ propertyId, account, month }: {
+export function BankAccountDetails({ propertyId, account, month, onCheck, onInitial }: {
   propertyId: string;
   account: AccountBalance;
   month: string;
+  onCheck?: () => void;
+  onInitial?: () => void;
 }) {
   const session = useSession();
   const query = useQuery({
@@ -107,10 +111,16 @@ export function BankAccountDetails({ propertyId, account, month }: {
       <header
         className={styles.identity}
       >
-        <BankIcon
-          bankCode={detail.bankCode}
-        />
-        <div>
+        <span
+          className={styles['bank-icon']}
+        >
+          <BankIcon
+            bankCode={detail.bankCode}
+          />
+        </span>
+        <div
+          className={styles['bank-identity']}
+        >
           <h3>
             {detail.bankName}
           </h3>
@@ -119,10 +129,23 @@ export function BankAccountDetails({ propertyId, account, month }: {
               {detail.alias}
             </p>
           )}
-          <small>
-            {STATUS_LABELS[detail.status]}
-            {detail.isPrimary ? ' · 기본 납부계좌' : ''}
-          </small>
+          <div
+            className={styles.badges}
+          >
+            <span
+              className={styles.status}
+              data-status={detail.status}
+            >
+              {STATUS_LABELS[detail.status]}
+            </span>
+            {detail.isPrimary && (
+              <span
+                className={styles.primary}
+              >
+                기본 납부계좌
+              </span>
+            )}
+          </div>
         </div>
       </header>
       <dl
@@ -178,23 +201,80 @@ export function BankAccountDetails({ propertyId, account, month }: {
         className={styles.balance}
         aria-label={'통장 잔액 정보'}
       >
-        <p>
-          통장 장부 잔액
-        </p>
-        <strong>
+        <div
+          className={styles['balance-heading']}
+        >
+          <h4>
+            현재 장부 잔액
+          </h4>
+          <InfoTooltip
+            label={'현재 장부 잔액 도움말'}
+            title={'현재 장부 잔액'}
+            size={'sm'}
+          >
+            {getBalancePeriodLabel(month)}
+            의 장부 잔액입니다. 통장 초기 잔액에 업로드·수동 입출금을 반영합니다.
+            {display.description}
+          </InfoTooltip>
+        </div>
+        <strong
+          className={styles.amount}
+          data-negative={display.amount !== null && BigInt(display.amount) < BigInt(0)}
+        >
           {display.amount === null ? '초기 잔액 설정 필요' : formatWon(display.amount)}
         </strong>
         <small>
           {getBalancePeriodLabel(month)}
         </small>
-        {display.description && (
-          <small>
-            {display.description}
-          </small>
+        <div
+          className={styles.confirmation}
+        >
+          <ServiceIcon
+            name={'bank'}
+            size={20}
+          />
+          <p>
+            {account.balance !== null && (!account.confirmation || account.confirmation.status === 'READY')
+              ? <>
+                참고 · 마지막 은행 확인
+                <strong>
+                  {formatWon(account.balance)}
+                </strong>
+              </>
+              : getBankConfirmationDescription(account)}
+          </p>
+          <InfoTooltip
+            label={'마지막 은행 확인 도움말'}
+            title={'마지막 은행 확인'}
+            size={'sm'}
+          >
+            {getBankConfirmationDescription(account)}
+          </InfoTooltip>
+        </div>
+        {(onCheck || onInitial) && (
+          <div
+            className={styles['balance-actions']}
+          >
+            {onCheck && (
+              <Button
+                variant={'text'}
+                size={'sm'}
+                onClick={onCheck}
+              >
+                은행 잔액 직접 확인
+              </Button>
+            )}
+            {onInitial && (
+              <Button
+                variant={'text'}
+                size={'sm'}
+                onClick={onInitial}
+              >
+                초기 잔액 정정
+              </Button>
+            )}
+          </div>
         )}
-        <p>
-          {getBankConfirmationDescription(account)}
-        </p>
       </section>
     </div>
   );

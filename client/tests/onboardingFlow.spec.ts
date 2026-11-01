@@ -3116,3 +3116,35 @@ for (const width of [1440, 390]) {
     })).toBeVisible();
   });
 }
+
+test('계좌별 시작 잔액은 은행 코드가 없는 이전 응답에도 하나은행·카카오뱅크 로고를 표시한다', async ({ page }) => {
+  await mockWorkspace(page);
+  await page.route(`${API}/api/properties/${PROPERTY}/billing/opening-balances`, (route) => json(route, {
+    propertyId: PROPERTY,
+    asOf: '2026-11-01',
+    managementStarted: false,
+    cutoffDate: null,
+    firstBillingMonth: null,
+    batch: null,
+    units: [],
+    accounts: [
+      {
+        accountId: id(20),
+        label: '하나은행 ····5107',
+        amount: '514614'
+      },
+      {
+        accountId: id(21),
+        label: '카카오뱅크 ····3016',
+        amount: '1522910'
+      }
+    ],
+    history: []
+  }));
+  await page.goto(`${BASE}/billing/monthly?tab=opening`);
+  for (const code of ['081', '090']) {
+    const logo = page.locator(`img[src="/banks/bank${code}.png"]`);
+    await expect(logo).toBeVisible();
+    expect(await logo.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  }
+});

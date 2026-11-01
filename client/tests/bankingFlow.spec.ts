@@ -4159,7 +4159,24 @@ for (const width of [1440, 390, 320]) {
     await expect(detail).toContainText('사용 종료');
     await expect(detail).toContainText('장부 잔액');
     await expect(detail).toContainText('200,000원');
-    await expect(detail).toContainText('2026-09-30 초기 잔액 기준');
+    await detail.getByRole('button', {
+      name: '현재 장부 잔액 도움말',
+      exact: true
+    }).click();
+    await expect(page.getByRole('tooltip')).toContainText('2026-09-30 초기 잔액 기준');
+    await page.keyboard.press('Escape');
+    await expect(detail.getByRole('button', {
+      name: '확인 이력',
+      exact: true
+    })).toBeVisible();
+    await expect(detail.getByRole('button', {
+      name: '통장 정보 수정',
+      exact: true
+    })).toBeDisabled();
+    await expect(detail.getByRole('button', {
+      name: '거래 내역 보기',
+      exact: true
+    })).toBeVisible();
     await expect(detail).toContainText('···· 5678');
     expect(reveals).toBe(0);
     expect(details.every((accountId) => accountId === second)).toBe(true);
@@ -5369,7 +5386,7 @@ for (const width of [1440, 425, 390]) {
       exact: true
     }).click();
     const item = page.getByRole('button', {
-      name: '확인 이력 보기',
+      name: '확인 이력',
       exact: true
     });
     await expect(item).toBeVisible();
@@ -5438,7 +5455,7 @@ for (const width of [1440, 425, 390]) {
       exact: true
     }).click();
     await page.getByRole('button', {
-      name: '확인 이력 보기',
+      name: '확인 이력',
       exact: true
     }).click();
     if (width > 767) {

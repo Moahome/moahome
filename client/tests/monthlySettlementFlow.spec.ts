@@ -82,6 +82,13 @@ for (const width of [1440, 430, 390]) {
       name: '월별 정산 상세'
     });
     await expect(tabs.getByRole('tab')).toHaveCount(4);
+    const tabBounds = await tabs.getByRole('tab').evaluateAll((elements) => elements.map((element) => ({
+      top: element.getBoundingClientRect().top,
+      bottom: element.getBoundingClientRect().bottom
+    })));
+    expect(Math.max(...tabBounds.map((bounds) => bounds.top)) - Math.min(...tabBounds.map((bounds) => bounds.top))).toBeLessThan(1);
+    if (width < 768) expect(await tabs.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+
     await expect(page.getByRole('table')).toHaveCount(1);
     for (const name of ['통장별 잔액', '동별 자금', '외부 부담금', '수납과 미납']) {
       await tabs.getByRole('tab', {

@@ -6,12 +6,18 @@
 
   .tabs {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
     gap: 8px;
     padding: 0 20px;
     border-bottom: 1px solid var(--border);
 
     button {
+      flex: 0 0 auto;
+      white-space: nowrap;
       min-height: 56px;
       padding: 14px 20px;
       border: 0;
@@ -102,12 +108,10 @@
 
   @media (width <= 767px) {
     .tabs {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0;
+      gap: 8px;
       padding: 0 12px;
 
-      button { min-width: 0; padding: 12px 6px; font-size: 12px; }
+      button { min-width: max-content; padding: 14px 12px; font-size: 13px; }
     }
 
     .panel { padding: 20px 16px 0; }
