@@ -30,6 +30,7 @@ import { Pagination } from '@/shared/ui/pagination';
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { SummaryCard } from '@/shared/ui/summary-card';
+import { QueryRefresh } from '@/shared/ui/query-refresh';
 import { Toast } from '@/shared/ui/toast';
 import {
   useQuery,
@@ -231,7 +232,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   const [filter, setFilter] = useState(params.get('filter') ?? 'ALL');
   const [incomeBuilding, setIncomeBuilding] = useState('ALL');
   const [incomeSearch, setIncomeSearch] = useState('');
-  const [externalFilter, setExternalFilter] = useState('ACTIVE');
+  const [externalFilter, setExternalFilter] = useState(() => params.get('externalStatus') === 'UNRECOVERED' ? 'UNRECOVERED' : 'ACTIVE');
   const [externalSearch, setExternalSearch] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
   const [detail, setDetail] = useState<string | null>(null);
@@ -253,6 +254,12 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     gcTime: 0
   });
   const data = query.data;
+  useEffect(() => {
+    if (!data || query.isFetching || params.get('externalStatus') !== 'UNRECOVERED') return;
+    document.getElementById('external-settlements')?.scrollIntoView({
+      block: 'start'
+    });
+  }, [data, query.isFetching, params]);
   // 사용 전 월의 오래된 선택 URL도 서버가 확정한 전체 범위로 맞춰 새로고침·상세 이동에서 되살아나지 않게 합니다.
   useEffect(() => {
     if (!data?.accounts || data.accountId !== null || accountId === 'ALL' || data.accounts.some((account) => account.id === accountId)) return;
@@ -290,11 +297,11 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     );
   const summary = getBalanceSummary(data);
   const selectedAccount = data.accounts?.find((account) => account.id === accountId);
-  const { amount: bankBalance } = getAccountBalanceTotal(data);
-  const bankLabel = selectedAccount ? '선택 통장 장부 잔액' : '통장 장부 잔액 합계';
-  const bankAsOf = getBalancePeriodLabel(month);
-  const bankHelp = '통장 초기 잔액에 업로드·수동 입출금을 반영한 금액입니다. 은행 확인이나 동별 배분 없이도 계산됩니다.';
-  const differenceDescription = '장부 잔액 − 동별 잔고';
+  const { amount: bankBalance, calculated: bankCalculated } = getAccountBalanceTotal(data);
+  const bankLabel = selectedAccount ? '선택 통장 잔액' : '통장 잔액 합계';
+  const bankAsOf = bankCalculated ? getBalancePeriodLabel(month) : selectedAccount?.asOf ?? '통장별 마지막 확인 기준';
+  const bankHelp = '등록된 통장 잔액을 표시합니다.';
+  const differenceDescription = bankCalculated ? '통장 잔액 − 동별 잔고' : '마지막 확인 잔액 기준 · 참고';
   const missing = data.buildings.filter((b) => b.active && b.status === 'OPENING_REQUIRED');
   const filtered = sortExpenseLabels(data.buildings).filter((b) => b.label.includes(search.trim()) && (filter === 'ALL' || (filter === 'NEEDS_OPENING' && b.status === 'OPENING_REQUIRED') || (filter === 'NEGATIVE' && b.balance !== null && BigInt(b.balance) < BigInt(0))));
   if (sort !== 'name')
@@ -650,6 +657,16 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           </>
         )}
       />
+      <QueryRefresh
+        className={styles['query-refresh']}
+        updatedAt={query.dataUpdatedAt}
+        refreshing={query.isFetching}
+        failed={query.isError}
+        label={'잔고·정산 새로고침'}
+        onRefresh={() => void query.refetch({
+          cancelRefetch: false
+        })}
+      />
       <section
         className={styles['query-card']}
         aria-label={'조회 조건'}
@@ -706,11 +723,6 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           {' '}
           {data.cutoffDate}
           {' '}
-          ·
-          {' '}
-          {month <= data.cutoffDate.slice(0, 7) ? '기준 잔고에서 확인된 입출금을 역산합니다.' : '기준 잔고 이후 확인된 입출금을 누적합니다.'}
-          {' '}
-          미처리 거래와 귀속 미확인 입금은 동별 잔고에 반영되지 않습니다.
         </p>
       )}
       <div
@@ -719,7 +731,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         <SummaryCard
           density={'compact'}
           label={bankLabel}
-          value={bankBalance === null ? '초기 잔액 설정 필요' : formatInteger(bankBalance)}
+          value={bankBalance === null ? '확인 필요' : formatInteger(bankBalance)}
           unit={bankBalance === null ? '' : '원'}
           description={bankAsOf}
           help={(
@@ -727,7 +739,6 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
               size={'sm'}
               label={`${bankLabel} 도움말`}
               title={bankLabel}
-              note={'은행 확인값은 통장별 참고 정보로 따로 표시합니다.'}
             >
               {bankHelp}
             </InfoTooltip>
@@ -764,20 +775,19 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         />
         <SummaryCard
           density={'compact'}
-          label={'장부·동별 잔고 차이'}
+          label={'잔고 차이'}
           help={(
             <InfoTooltip
               size={'sm'}
-              label={'장부·동별 잔고 차이 도움말'}
-              title={'장부·동별 잔고 차이'}
-              note={'차이는 미배분 자금·외부 부담금·초기 귀속 설정에 따라 생길 수 있습니다.'}
+              label={'잔고 차이 도움말'}
+              title={'잔고 차이'}
             >
-              같은 조회 월말의 통장 장부 잔액에서 동별 잔고 합계를 뺀 금액입니다.
+              통장 잔액과 동별 잔고를 비교한 참고 금액입니다.
             </InfoTooltip>
           )}
-          value={summary.difference === null ? '계산 자료 없음' : formatInteger(summary.difference)}
+          value={summary.difference === null ? '확인 필요' : formatInteger(summary.difference)}
           unit={summary.difference === null ? '' : '원'}
-          description={summary.difference === null ? '통장 초기 잔액과 동별 기준 잔고가 있어야 계산할 수 있어요.' : differenceDescription}
+          description={summary.difference === null ? undefined : differenceDescription}
           tone={'success'}
           valueTone={summary.difference !== null && summary.difference < BigInt(0) ? 'danger' : 'neutral'}
           icon={(
@@ -971,6 +981,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       </div>
       <section
         className={styles.card}
+        id={'external-settlements'}
       >
         <h2>
           외부 부담금 정산
@@ -983,7 +994,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         <PagedTable
           label={'외부 부담금'}
           hasFilters={Boolean(externalSearch.trim() || externalFilter !== 'ALL')}
-          rows={data.externals.filter((row) => (externalFilter === 'ALL' || Boolean(row.excluded) === (externalFilter === 'EXCLUDED')) && `${row.label} ${row.expenseName}`.includes(externalSearch.trim())).sort((a, b) => b.date.localeCompare(a.date))}
+          rows={data.externals.filter((row) => (externalFilter === 'UNRECOVERED' ? !row.excluded && BigInt(row.remaining) > BigInt(0) : externalFilter === 'ALL' || Boolean(row.excluded) === (externalFilter === 'EXCLUDED')) && `${row.label} ${row.expenseName}`.includes(externalSearch.trim())).sort((a, b) => b.date.localeCompare(a.date))}
           toolbar={(
             <>
               <Input
@@ -997,6 +1008,9 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
                 value={externalFilter}
                 onChange={setExternalFilter}
                 options={[{
+                  value: 'UNRECOVERED',
+                  label: '미회수'
+                }, {
                   value: 'ACTIVE',
                   label: '정산 대상'
                 }, {

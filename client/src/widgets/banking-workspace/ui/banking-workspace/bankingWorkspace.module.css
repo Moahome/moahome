@@ -9,6 +9,10 @@
     min-width: 0;
   }
 
+  .query-refresh {
+    justify-self: end;
+  }
+
   input[type='checkbox'] {
     accent-color: var(--primary);
     width: 16px;

@@ -103,9 +103,16 @@ export function getMonthlyPreviewRows(ledger: PreviewLedger, month: string): Mon
     const settlementAmount = settlementCharges.length ? settlementCharges.reduce((sum, charge) => sum + BigInt(charge.amount), BigInt(0)) : null;
     const settlementPending = ledger.charges.some((charge) => charge.unitId === unit.id && charge.month <= month && charge.status === 'ISSUED' && BigInt(charge.amount) <= BigInt(0));
     const prepaid = received > oldCharges + billed ? received - oldCharges - billed : BigInt(0);
+    const monthlyBalance = getMonthlyChargeReceivable({
+      billed,
+      balance
+    });
+    const statusBalance = billed > BigInt(0) ? monthlyBalance : balance;
+    const statusApplied = billed > BigInt(0) ? billed - monthlyBalance : applied;
     let status: MonthlyPreviewRow['status'] = '미납';
-    if (balance === BigInt(0)) status = '납부완료';
-    else if (applied > BigInt(0)) status = '일부납부';
+    // 입금 시점과 무관하게 이번 달 청구에 충당됐는지만 보며 선납으로 전액 충당돼도 납부완료입니다.
+    if (statusBalance === BigInt(0)) status = '납부완료';
+    else if (statusApplied > BigInt(0)) status = '일부납부';
     // 당월 관리비의 납부 상태를 우선하며, 부과 없이 잔액만 보유한 세대를 선입금으로 표시합니다.
     if (!billedUnitIds.has(unit.id) && prepaid > BigInt(0)) status = '선입금';
     if (settlementPending) status = '정산 확인 필요';
@@ -127,6 +134,13 @@ export function getMonthlyPreviewRows(ledger: PreviewLedger, month: string): Mon
     };
     return row;
   }).filter((row) => billedUnitIds.has(row.unitId) || row.prepaid > BigInt(0));
+}
+
+/** 누적 미수에서 해당 월 신규 청구에 남은 부분만 구분하며 기존의 오래된 청구 우선 충당을 유지합니다. */
+export function getMonthlyChargeReceivable(row: Pick<MonthlyPreviewRow, 'billed' | 'balance'>): bigint {
+  const billed = row.billed > BigInt(0) ? row.billed : BigInt(0);
+
+  return row.balance < billed ? row.balance : billed;
 }
 
 /** 선택월의 실제 확정 입금을 종류별로 합산하며 일부납부·선입금도 입금 전액을 포함합니다. 청구 충당액과 구분합니다. */

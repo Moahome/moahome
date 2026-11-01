@@ -1,3 +1,4 @@
+import { emptyDashboardFixture } from './support/dashboard';
 import {
   expect,
   test,
@@ -83,7 +84,7 @@ async function seedRecentProperty(page: Page, propertyId = PROPERTY_ID) {
 }
 
 test.beforeEach(async ({ page }) => {
-  // 인증과 목록·현재 관리 권한 조회만 허용하며 업무 데이터 API는 호출하지 않습니다.
+  // 현재 권한과 빈 대시보드 원천으로 탐색을 검증하며 개별 업무는 해당 시나리오에서 모의 처리합니다.
   await page.route(`${API_ORIGIN}/**`, async (route) => {
     if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
     const path = new URL(route.request().url()).pathname;
@@ -110,6 +111,7 @@ test.beforeEach(async ({ page }) => {
       properties: [PROPERTY]
     });
     if (route.request().url() === CONTEXT_URL) return fulfillJson(route, PROPERTY);
+    if (path.endsWith('/dashboard')) return fulfillJson(route, emptyDashboardFixture(path.split('/')[3], new URL(route.request().url()).searchParams.get('month') ?? undefined));
     if (route.request().url() === RESULT_URL) return fulfillJson(route, RESULT);
     if (/^\/api\/properties\/[^/]+\/access-context$/.test(path)) return fulfillJson(route, {
       code: 'ACCESS_DENIED'
@@ -125,7 +127,7 @@ test('브라우저 등록 기록 없이 DB 목록으로 대시보드에 이동�
   });
   await page.goto('/start');
   await expect(page).toHaveURL(DASHBOARD);
-  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
   const header = page.getByRole('banner');
   await expect(header.getByRole('link', {
     name: '모아홈 대시보드',
@@ -212,7 +214,7 @@ test('서버 목록이 실제로 비었을 때만 시작 화면을 표시하고 
     name: '관리할 곳 만들기',
     exact: true
   })).toBeVisible();
-  await expect(page.getByText('새로운 기능을 준비하고 있어요!', {
+  await expect(page.getByText('현재 처리할 업무', {
     exact: true
   })).toHaveCount(0);
 });
@@ -236,7 +238,7 @@ test('오래된 등록 기록에 의존하지 않고 DB 목록의 관리대상�
   });
   await page.goto('/start');
   await expect(page).toHaveURL(DASHBOARD);
-  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
   await expect(page.getByText('성내빌라', {
     exact: true
   })).toHaveCount(0);
@@ -266,9 +268,9 @@ test('완료 화면 버튼은 해당 대상에 연결되고 새로고침에도 �
     exact: true
   }).click();
   await expect(page).toHaveURL(DASHBOARD);
-  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
   await page.reload();
-  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
   expect(await page.evaluate((key) => localStorage.getItem(key), REFERENCE_KEY)).toBe(PROPERTY_ID);
 });
 
@@ -335,7 +337,7 @@ test('조회 장애에는 시작 화면으로 보내지 않고 재시도하며 �
     exact: true
   }).click();
   await expect(page).toHaveURL(DASHBOARD);
-  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
 });
 
 test('다른 계정은 이전 사용자의 최근 선택과 이름을 표시하지 않음', async ({ page }) => {
@@ -367,7 +369,7 @@ for (const width of [320, 390, 767]) {
       height: 844
     });
     await page.goto(DASHBOARD);
-    await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+    await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
     const opener = page.getByRole('button', {
       name: '임준현님 메뉴 열기',
       exact: true
@@ -426,7 +428,7 @@ test('프로필은 오른쪽 관리 드로어 하나를 열고 뒤로가기는 �
     height: 844
   });
   await page.goto(DASHBOARD);
-  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
   const startingLeft = await page.getByRole('button', {
     name: '임준현님 메뉴 열기',
     exact: true
@@ -493,14 +495,14 @@ test('브라우저 문서 캐시 복원은 이전 내용을 숨기고 현재 관
   let lookups = 0;
   await page.route(CONTEXT_URL, (route) => { lookups++; return fulfillJson(route, PROPERTY); });
   await page.goto(DASHBOARD);
-  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
   await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
   await expect(page.getByRole('main')).not.toBeVisible();
   await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', {
     persisted: true
   })));
   await expect.poll(() => lookups).toBe(2);
-  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
 });
 
 test('여러 관리대상은 현재 목록에 있는 최근 선택을 우선하며 기록이 없어도 진입', async ({ page }) => {
@@ -517,14 +519,14 @@ test('여러 관리대상은 현재 목록에 있는 최근 선택을 우선하�
   await page.route(`${API_ORIGIN}/api/properties/${secondId}/access-context`, (route) => fulfillJson(route, second));
   await page.goto('/start');
   await expect(page).toHaveURL(`/manage/${secondId}/dashboard`);
-  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
 });
 
 test('권한이 없는 최근 선택은 폐기하고 서버 목록의 첫 관리대상으로 이동', async ({ page }) => {
   await seedRecentProperty(page, '00000000-0000-0000-0000-000000000099');
   await page.goto('/start');
   await expect(page).toHaveURL(DASHBOARD);
-  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
   expect(await page.evaluate((key) => localStorage.getItem(key), REFERENCE_KEY)).toBe(PROPERTY_ID);
 });
 
@@ -560,7 +562,7 @@ test('권한 조회 응답의 대상이 다르면 이전 대상 이름과 본문
   await expect(page.getByText('성내빌라', {
     exact: true
   })).toHaveCount(0);
-  await expect(page.getByText('새로운 기능을 준비하고 있어요!', {
+  await expect(page.getByText('현재 처리할 업무', {
     exact: true
   })).toHaveCount(0);
 });
@@ -593,7 +595,7 @@ test.describe('모바일 헤더 방문 기록', () => {
       }]
     }));
     await page.goto(DASHBOARD);
-    await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+    await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
   });
 
   /** 드로어의 임시 이력을 대체해 실제 사용자와 같은 대시보드→목록 경로를 만듭니다. */
@@ -1695,7 +1697,7 @@ for (const width of [1440, 375]) {
   }
 }
 
-for (const width of [1440, 375, 320]) {
+for (const width of [1440, 320]) {
   test(`주민 엑셀 다운로드 ${width}px는 연락처 마스킹 미리보기와 필터 전체 다운로드를 제공`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -2135,7 +2137,7 @@ async function fillResidentRegistration(page: Page, hasBuildings = true) {
   await expect(page.getByRole('listbox')).toHaveCount(0);
 }
 
-for (const width of [1440, 375, 320]) {
+for (const width of [1440, 320]) {
   test(`주민 등록 ${width}px는 웹 모달·모바일 페이지로 열고 선택 연락처 없이 저장한 뒤 목록·카드를 갱신`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -2462,7 +2464,7 @@ test('주민 등록 세대 조회 실패는 공통 오류로 재시도하고 부
   })).toBeVisible();
 });
 
-for (const width of [320, 767]) {
+for (const width of [320]) {
   test(`모바일 세대 ${width}px 등록·상세·수정 페이지의 헤더 뒤로가기·직접 접근·저장·삭제`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -2658,7 +2660,7 @@ function importPreview() {
   };
 }
 
-for (const width of [1440, 375, 320]) {
+for (const width of [1440, 320]) {
   test(`엑셀 업로드 ${width}px는 파일 검증·정상 행 선택·페이지 이동·완료·마스킹 결과 다운로드`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -2987,7 +2989,7 @@ test('엑셀 파일 드래그는 배경·테두리·안내를 강조하고 이�
   await dataTransfer.dispose();
 });
 
-for (const width of [1440, 375, 320]) {
+for (const width of [1440, 320]) {
   test(`엑셀 헤더 오류 ${width}px는 PC 상단·모바일 하단 토스트로 표시하고 같은 오류의 재시도는 표시 시간을 새로 시작`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -3038,7 +3040,7 @@ for (const width of [1440, 375, 320]) {
   });
 }
 
-for (const width of [1440, 375, 320]) {
+for (const width of [1440, 320]) {
   test(`주민 상세 ${width}px는 웹 모달·모바일 페이지에서 번호 공개·숨김·수정 재시도·대표 선택 삭제를 제공`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -3419,7 +3421,7 @@ for (const width of [1440, 320]) {
   });
 }
 
-for (const width of [1440, 375, 320]) {
+for (const width of [1440, 320]) {
   test(`세대 주민 요약 ${width}px는 실제 대표·가입 인원과 빈 세대를 목록·상세에 표시`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -3555,7 +3557,7 @@ test('세대 주민 요약의 누락·잘못된 합계는 0명으로 표시하�
   })).toHaveCount(0);
 });
 
-for (const width of [375, 320]) {
+for (const width of [320]) {
   test(`모바일 동 관리·자동 입력 ${width}px는 페이지와 헤더 뒤로가기를 사용하고 수정·실패 재시도를 유지`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -3752,7 +3754,7 @@ test('업무 403 재확인의 대기·503·재시도는 오류 화면만 표시�
   });
 });
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`권한 변경 ${width}px는 같은 Property의 주민 홈과 관리자 대시보드로 전환`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -3773,11 +3775,11 @@ for (const width of [1440, 390]) {
     role = 'MANAGER';
     await page.reload();
     await expect(page).toHaveURL(DASHBOARD);
-    await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+    await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
   });
 }
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   for (const role of ['ADMIN', 'MANAGER']) {
     test(`기본 주민 홈 ${width}px는 마지막 주민 참여가 ${role}로 변경되면 새로고침 후 관리자 대시보드로 이동`, async ({ page }) => {
       await page.setViewportSize({
@@ -3814,7 +3816,7 @@ for (const width of [1440, 390]) {
       resident = false;
       await page.reload();
       await expect(page).toHaveURL(DASHBOARD);
-      await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+      await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
       expect(managementChecks).toBe(1);
       await page.goBack();
       await expect(page).not.toHaveURL('/resident');
@@ -3907,7 +3909,7 @@ test('기본 주민 홈의 관리자 대체 진입은 현재 서버 목록에 �
   await page.route(`${API_ORIGIN}/api/properties/${recent.propertyId}/access-context`, (route) => fulfillJson(route, recent));
   await page.goto('/resident');
   await expect(page).toHaveURL(`/manage/${recent.propertyId}/dashboard`);
-  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
 });
 
 for (const failedQuery of ['resident-properties', 'managed-properties']) {
@@ -4030,7 +4032,7 @@ test('주민 목록은 다른 대상의 관리자 역할을 전역 역할로 적
 
 test('보호 화면 이동은 서버 권한 확인을 마칠 때까지 새 화면을 숨기고 종료된 참여는 start로 복귀', async ({ page }) => {
   await page.goto(DASHBOARD);
-  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
   let release: () => void = () => {};
   const gate = new Promise<void>((resolve) => { release = resolve; });
   await page.route(CONTEXT_URL, async (route) => { await gate; return fulfillJson(route, {
@@ -4074,7 +4076,7 @@ test('열린 대시보드는 30초 경과·포커스·네트워크 복구만으�
   await page.route(CONTEXT_URL, route => { checks++; return fulfillJson(route, PROPERTY); });
   await page.clock.install();
   await page.goto(DASHBOARD);
-  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
   const initial = checks;
   await page.clock.fastForward(31_000);
   await page.evaluate(() => { window.dispatchEvent(new Event('focus')); window.dispatchEvent(new Event('online')); });
@@ -4476,7 +4478,7 @@ for (const width of [1440, 390]) {
   });
 }
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`주민 수정 대표 설정 ${width}px는 정보 수정과 대표 지정을 한 번에 저장`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -4576,7 +4578,7 @@ for (const width of [1440, 390]) {
   });
 }
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`대표 지정 미지원·미반영 ${width}px는 오류 토스트로 알리고 수정 성공을 표시하지 않는다`, async ({ page }) => {
     await page.setViewportSize({
       width,

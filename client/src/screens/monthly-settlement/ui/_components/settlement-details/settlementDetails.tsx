@@ -500,13 +500,13 @@ export function SettlementDetails({ report, month, propertyId }: {
             },
             {
               key: 'applied',
-              header: '수납 반영액',
+              header: '이월 포함 반영액',
               render: (row) => money(row.applied),
               align: 'right'
             },
             {
               key: 'balance',
-              header: '미수금',
+              header: '누적 미수금',
               render: (row) => row.settlementPending ? '정산 확인 필요' : money(row.balance),
               align: 'right'
             },

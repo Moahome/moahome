@@ -39,6 +39,7 @@ npm run dev
 | --- | --- |
 | 로그인 후 진입·추가 등록 | [서비스 진입](docs/serviceEntry.md), [초기 등록·초안](docs/propertyRegistration.md) |
 | 관리 공통 UI·메뉴 | [관리 레이아웃](docs/managementLayout.md) |
+| 관리자 대시보드 | [화면](docs/dashboard.md), [API](../docs/dashboardApi.md) |
 | 세대·주민·가입·역할 | [세대 목록](docs/unitList.md), [주민 목록](docs/residentList.md), [역할·가입](docs/memberManagement.md) |
 | 부과·수납 | [부과 화면](docs/managementLayout.md#관리비-부과-2026-10-10), [수납 화면](docs/paymentManagement.md) |
 | 통장·지출·동별 잔고 | [통장 화면](docs/bankingManagement.md) |
@@ -82,6 +83,8 @@ GitHub Actions에서는 `npm test -- --workers=2`로 전체 검사를 두 작업
 
 브라우저 테스트는 API·주소 검색 응답을 모의 처리합니다. 실제 카카오·API 서버·DB·Redis 연동 검증과 구분하며 필수 검증·대체 빌드의 보고 기준은 [Client 규칙](AGENTS.md#9-test--build)을 따릅니다.
 
+테스트는 같은 업무의 폭별 중복을 줄여 관리합니다. 금액·선입금·권한·저장 결과는 유지하고 PC 모달·모바일 페이지의 차이와 좁은 화면 배치는 필요한 대표 폭에서 확인합니다. 공통 도움말·달력의 조작을 업무마다 다시 검증하지 않습니다. 특정 파일만 확인하려면 `npm run test:e2e -- bankingFlow.spec.ts`처럼 실행하며 CI는 계속 전체 검사를 수행합니다.
+
 실행 결과는 `playwright-report/`의 HTML 보고서로 남깁니다. 테스트 목록·단계·실패 화면·Trace를 보려면 아래 명령을 실행한 뒤 표시되는 로컬 주소를 엽니다. 실패한 테스트의 화면과 Trace는 자동 보관하며, 주요 화면 시나리오의 캡처는 보고서 첨부에서 확인합니다. 보고서와 `test-results/`는 Git에 포함하지 않습니다. GitHub Actions도 테스트 결과가 생성되면 성공·실패와 관계없이 `client-test-results` artifact로 7일간 보관합니다.
 
 ```bash
@@ -96,13 +99,13 @@ npm run test:report
 
 조회 연결 실패·타임아웃·HTTP 5xx는 `shared/ui/server-connection-error`의 `ServerConnectionError`로 표시합니다. 재시도는 해당 조회만 다시 실행하며 저장을 자동 반복하지 않습니다. 인증·권한·입력 오류와 토큰 교체 결과 미확인의 재로그인 처리는 [인증 설계](../docs/securityDesign.md)를 따릅니다. 실제 폼을 유지하는 화면만 `inputPreserved`를 지정합니다.
 
-HTTP 5xx는 기존 `/images/errors/serverError.webp`, 네트워크 실패·타임아웃(`NETWORK_ERROR`)은 `/images/states/networkError.webp`를 사용합니다. 프론트엔드 자체가 제공되지 않는 호스팅 오류 화면은 별도 범위입니다.
+현재 HTTP 5xx·타임아웃(`REQUEST_TIMEOUT`)은 기존 `/images/errors/serverError.webp`, 응답 없는 연결 실패(`NETWORK_ERROR`)는 `/images/states/networkError.webp`를 사용합니다. 서버 중단도 NETWORK_ERROR가 될 수 있어 네트워크 그림이 나타나는 한계가 있습니다. 원인과 그림 구분 개선 제안은 [공통 오류 안내 검토](docs/managementLayout.md#서버-장애와-네트워크-오류-그림-검토-2026-11-01)를 참조합니다. 개선 제안은 미구현이며 프론트엔드 자체가 제공되지 않는 호스팅 오류 화면은 별도 범위입니다.
 
 ## 상태 안내 이미지
 
 `shared/ui/state-message`의 `StateMessage`가 상태별 그림·제목·설명·행동을 표시합니다. 기존 완료·파일 선택·중복 수납 검토 UI에서 그림만 사용할 때는 같은 모듈의 `StateIllustration`을 사용합니다. 목록은 `layout="inline"`으로 기존 `DataTable.emptyState`에 전달하고, 조회 성공 여부와 적용된 검색·필터는 호출 화면에서 판단합니다. 로딩·조회 실패를 빈 데이터로 처리하지 않습니다.
 
-대시보드·차량 내역·차량 승인·공지사항과 주민 홈의 미제공 기능에는 준비 중 안내를 연결했습니다. 403·API 404는 각각 자물쇠·지도 그림과 조회 실패 문구로 표시하며, 존재하지 않는 URL은 Next.js `not-found.tsx`에서 별도의 404 화면과 홈 링크를 제공합니다. 네트워크 실패와 HTTP 5xx는 그림을 구분하고 해당 조회만 재시도합니다. 기존 서버 오류 그림을 유지하며 새 500 그림은 중복으로 추가하지 않았습니다.
+차량 내역·차량 승인·공지사항과 주민 홈의 미제공 기능에는 준비 중 안내를 연결했습니다. 403·API 404는 각각 자물쇠·지도 그림과 조회 실패 문구로 표시하며, 존재하지 않는 URL은 Next.js `not-found.tsx`에서 별도의 404 화면과 홈 링크를 제공합니다. 네트워크 실패와 HTTP 5xx는 그림을 구분하고 해당 조회만 재시도합니다. 기존 서버 오류 그림을 유지하며 새 500 그림은 중복으로 추가하지 않았습니다.
 
 전체 서비스 점검은 서버 환경변수 `MOAHOME_MAINTENANCE_MODE=true`로 명시합니다. 개발 서버는 값을 바꾼 뒤 재시작하고, 프로덕션은 같은 값을 빌드와 실행 환경에 적용해 다시 빌드·배포합니다. 해제할 때도 값을 제거하거나 `false`로 바꾸고 같은 절차를 수행합니다. 루트 레이아웃이 점검 안내로 전환되며 세션 복원과 업무 화면을 마운트하지 않습니다. 일반 서버 오류만으로 점검 화면에 전환하지 않습니다. 이 설정은 프론트엔드 표시 전용이며 API 서버의 점검·쓰기 제한은 운영 환경에서 별도로 처리합니다.
 

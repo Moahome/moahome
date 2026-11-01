@@ -35,6 +35,10 @@ interface PaymentWorkspaceContextValue {
   month: string;
   setMonth: (month: string) => void;
   busy: boolean;
+  updatedAt: number;
+  refreshing: boolean;
+  refreshFailed: boolean;
+  refresh: () => void;
   update: (command: PaymentCommand, message: string, onSaved?: (ledger: PreviewLedger) => void) => Promise<string | null>;
 }
 const PaymentWorkspaceContext = createContext<PaymentWorkspaceContextValue | null>(null);
@@ -117,7 +121,13 @@ export function PaymentWorkspaceProvider({ propertyId, children }: { propertyId:
         month: selectedMonth ?? query.data.asOf.slice(0, 7),
         setMonth,
         update,
-        busy
+        busy,
+        updatedAt: query.dataUpdatedAt,
+        refreshing: query.isFetching,
+        refreshFailed: query.isError,
+        refresh: () => { void query.refetch({
+          cancelRefetch: false
+        }); }
       }}
     >
       {children}

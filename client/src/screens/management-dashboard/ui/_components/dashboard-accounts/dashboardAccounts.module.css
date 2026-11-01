@@ -1,0 +1,112 @@
+.accounts {
+  padding: 0;
+  margin: -8px 0 0;
+  max-height: 266px;
+  overflow-y: auto;
+  list-style: none;
+
+  li + li {
+    border-top: 1px solid var(--border);
+  }
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 82px;
+    padding: 12px 2px;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 6px;
+
+    &:hover {
+      background: var(--background);
+    }
+    &:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: -2px;
+    }
+    > svg {
+      flex-shrink: 0;
+      color: var(--sub-text);
+    }
+  }
+
+  .icon {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    color: var(--primary);
+  }
+
+  .identity,
+  .balance {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+
+    strong {
+      font-size: 15px;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
+    small {
+      color: var(--sub-text);
+      font-size: 12px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .identity {
+    flex: 1;
+  }
+  .balance {
+    max-width: 55%;
+    text-align: right;
+  }
+}
+
+.total {
+  padding: 15px;
+  margin-top: 16px;
+  border-radius: 10px;
+  background: var(--background);
+
+  > div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 14px;
+  }
+  p {
+    margin: 7px 0 0;
+    color: var(--sub-text);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+}
+
+.empty {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  color: var(--sub-text);
+  font-size: 14px;
+}
+
+@media (max-width: 420px) {
+  .accounts {
+    .icon {
+      display: none;
+    }
+    .identity strong,
+    .balance strong {
+      font-size: 14px;
+    }
+  }
+}

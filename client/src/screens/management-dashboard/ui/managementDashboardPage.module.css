@@ -1,5 +1,98 @@
 .page {
   display: grid;
-  gap: 24px;
+  gap: 18px;
   min-width: 0;
+
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+  }
+
+  .month-picker {
+    width: 220px;
+  }
+
+
+  .refreshing {
+    margin: 0;
+    color: var(--sub-text);
+    font-size: 14px;
+  }
+
+  .summary,
+  .overview,
+  .activity {
+    display: grid;
+    min-width: 0;
+    gap: 16px;
+  }
+
+  .summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .overview {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .activity {
+    grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  }
+}
+
+.account-modal {
+  width: min(680px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  padding: 24px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--foreground);
+
+  > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  h2 {
+    font-size: 22px;
+    font-weight: 750;
+  }
+}
+
+@media (max-width: 1250px) {
+  .page {
+    .summary {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .overview {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .overview > :last-child {
+      grid-column: 1 / -1;
+    }
+    .activity {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+}
+
+@media (max-width: 767px) {
+  .page {
+    gap: 16px;
+
+    .controls {
+      align-items: stretch;
+    }
+    .month-picker {
+      width: 100%;
+    }
+    .summary,
+    .overview {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
 }

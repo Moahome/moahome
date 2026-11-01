@@ -1,5 +1,7 @@
 import { LoadingState } from '@/shared/ui/state-message';
 import {
+  lazy,
+  Suspense,
   useEffect,
   useRef,
   useState,
@@ -12,9 +14,13 @@ import { ClientModal } from '@/shared/ui/client-modal';
 import { DataTable } from '@/shared/ui/data-table';
 import { Radio } from '@/shared/ui/form-controls';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import { PdfPreview } from './_components/pdf-preview/pdfPreview';
 import { ImagePreview } from './_components/image-preview/imagePreview';
 import styles from './reportDownload.module.css';
+
+// 원장·요약 조회에는 PDF 브라우저 모듈이 필요하지 않아 실제 미리보기를 열 때만 불러옵니다.
+const PdfPreview = lazy(() => import('./_components/pdf-preview/pdfPreview').then((module) => ({
+  default: module.PdfPreview
+})));
 
 /** 보고서 내용은 호출자가 정하고 파일 형식·실제 PDF/PNG 미리보기·저장·오류 처리는 두 화면이 함께 사용합니다. */
 export function ReportDownload({ title, description, filename, sourceKey, documents, highlights = [], scopeLabel, createWorkbook, createPdf, pdfDescription = 'A4 세로 보고서', renderFilters, pending = false, error = '', onRetry, onClose }: {
@@ -268,10 +274,18 @@ export function ReportDownload({ title, description, filename, sourceKey, docume
             aria-label={format === 'image' ? '이미지 미리보기' : 'PDF 미리보기'}
           >
             {format === 'pdf' && pdf && (
-              <PdfPreview
-                key={sourceKey}
-                blob={pdf}
-              />
+              <Suspense
+                fallback={(
+                  <LoadingState
+                    title={'PDF 미리보기를 불러오고 있어요.'}
+                  />
+                )}
+              >
+                <PdfPreview
+                  key={sourceKey}
+                  blob={pdf}
+                />
+              </Suspense>
             )}
             {format === 'image' && images && (
               <ImagePreview

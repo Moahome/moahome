@@ -406,7 +406,11 @@ test('통장 장부와 동별 차이는 수동 거래 반영 계산값을 사용
     ...account,
     balance: '1500000',
     calculatedBalance: null
-  }).amount).toBeNull();
+  })).toMatchObject({
+    amount: '1500000',
+    calculated: false,
+    label: '마지막 확인 잔액'
+  });
   expect(getAccountBalanceDisplay({
     ...account,
     confirmation: {
@@ -522,4 +526,65 @@ test('통장별 보유금 비교는 해당 통장의 동별 몫만 합산하고 
     buildings: []
   }, 'a')).toBeNull();
   expect(getBalancePeriodLabel('2026-11')).toBe('2026년 11월 등록 내역 기준');
+});
+
+test('시작 금액을 다시 요구하지 않고 기존 확인 잔액을 상세·합계에 유지하며 없는 값만 확인 필요로 구분', async () => {
+  const { getAccountBalanceDisplay, getAccountBalanceTotal } = await import('../src/widgets/banking-workspace/model/accountBalance');
+  const account = {
+    id: 'bank',
+    label: '통장',
+    status: 'ACTIVE',
+    balance: '514614',
+    asOf: '2026-10-31 14:22',
+    calculatedBalance: null
+  };
+  expect(getAccountBalanceDisplay(account)).toMatchObject({
+    amount: '514614',
+    calculated: false,
+    label: '마지막 확인 잔액'
+  });
+  const data = {
+    accounts: [account],
+    accountId: null
+  } as unknown as import('../src/widgets/banking-workspace/api/bankingBalanceApiTypes').BalanceWorkspace;
+  expect(getAccountBalanceTotal(data)).toEqual({
+    amount: '514614',
+    calculated: false
+  });
+  expect(getAccountBalanceDisplay({
+    ...account,
+    balance: null
+  }).amount).toBeNull();
+});
+
+test('업무 검토 기간은 실제 거래일이며 중복 의심은 은행 원본과 대응하는 수동 후보만 반환', async () => {
+  const { getBankingDuplicateIds, getBankingReviewRange } = await import('../src/widgets/banking-workspace/model/bankingReview');
+  const original = {
+    id: 'bank',
+    sourceType: 'BANK_IMPORT',
+    accountId: 'account',
+    date: '2026-10-15',
+    amount: '50000',
+    direction: 'INCOME',
+    status: 'CONFIRMED'
+  } as import('../src/widgets/banking-workspace/api/bankingApiTypes').BankingTransaction;
+  const manual = {
+    ...original,
+    id: 'receipt:manual',
+    sourceType: undefined
+  };
+  const canceled = {
+    ...manual,
+    id: 'receipt:canceled',
+    status: 'CANCELED'
+  };
+  expect([...getBankingDuplicateIds([original, manual, canceled], '2026-11-01')]).toEqual(['receipt:manual']);
+  expect(getBankingReviewRange([original], '2026-11-01')).toEqual({
+    startDate: '2026-10-15',
+    endDate: '2026-11-01'
+  });
+  expect(getBankingReviewRange([], '2026-11-01')).toEqual({
+    startDate: '2026-11-01',
+    endDate: '2026-11-01'
+  });
 });

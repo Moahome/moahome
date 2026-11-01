@@ -60,7 +60,7 @@
 | 동별 잔고·외부 정산 | 구현됨 | 통장×동 기준 잔고·정정·원장, 외부 부담금 회수·정산 제외, 동별 명세 Excel·PDF·PNG | [Client 통장](../client/docs/bankingManagement.md) |
 | 은행 잔액 직접 확인 | 구현됨 | 실제 확인값 등록·이력·취소. 확인값과 계산값을 구분하며 자동 대사·차액 보정은 하지 않음 | [통장 계약](bankingManagement.md#은행-잔액-직접-확인-api-2026-10-24) |
 | 월별 정산 | 구현됨 | 전체 월 요약·점검·종합보고서 Excel·PDF·PNG. 현재 유효 원천을 조회하며 확정 보고서 저장·잠금은 없음 | [정산 API](monthlySettlementApi.md), [Client 정산](../client/docs/monthlySettlement.md) |
-| 관리자 대시보드 | 일부 구현 | 경로·메뉴·권한 확인과 `임시 페이지`만 제공. 업무 요약·통계는 미구현 | [관리 레이아웃](../client/docs/managementLayout.md#6-임시-대시보드의-범위) |
+| 관리자 대시보드 | 구현됨 | 2026-11-01 월별 청구·납부·미수·지출, 현재 업무 필터, 납부·선입금, 통장·최근 거래·6개월 추이와 금액 툴팁 | [화면](../client/docs/dashboard.md), [API](dashboardApi.md) |
 | 건물별 비회원 공지 | 미구현 | 전체·대상 지정 공지와 로그인 없는 안내 공간을 우선 추진. 현재 관리 메뉴는 준비 중 | [공지와 메시지 기획](residentCommunication.md) |
 | 주민 명부 알림톡·문자 | 미구현 | 모아홈 내부 발송, 기본 명부 전체·관리자 선택 발송. 외부 제공 API·템플릿·실패 처리 설계 필요 | [공지와 메시지 기획](residentCommunication.md#관리자-작성과-발송-흐름) |
 | 건물 담당자 채널톡 문의 | 미구현 | 건물별 담당자 응대와 차량 등록·수정 요청 버튼. 채널 구성·명부 주민 연결은 설계 필요 | [공지와 메시지 기획](residentCommunication.md#건물-담당자-메시지-문의) |

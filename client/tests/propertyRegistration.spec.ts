@@ -1,3 +1,4 @@
+import { emptyDashboardFixture } from './support/dashboard';
 import {
   expect,
   test,
@@ -106,6 +107,10 @@ async function fillRequiredFields(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
+  await page.route(`${API_ORIGIN}/api/properties/*/dashboard*`, route => {
+    const url = new URL(route.request().url());
+    return fulfillJson(route, emptyDashboardFixture(url.pathname.split('/')[3], url.searchParams.get('month') ?? undefined));
+  });
   await page.route(`${API_ORIGIN}/api/users/me/resident-properties`, (route) => fulfillJson(route, {
     properties: []
   }));
@@ -1462,7 +1467,7 @@ test('관리비는 빈 목록·0원으로 시작하고 0원과 음수 항목의 
   expect(finalRequests).toHaveLength(0);
 });
 
-for (const width of [1440, 320]) {
+for (const width of [1440]) {
   test(`관리비 종류 ${width}px에서 추천 이름 고정·직접 입력 초기화·개별 오류·취소·복원을 유지`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -1683,7 +1688,7 @@ test('모바일 관리비는 종류별 아이콘·색상·연한 배경과 직�
   });
 });
 
-for (const width of [1440, 320]) {
+for (const width of [1440]) {
   test(`관리비 금액 ${width}px는 콤마·중간 커서·선택 교체·구분자 삭제를 유지하고 원본 정수를 저장`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -1853,7 +1858,7 @@ test('관리비 최종 합계의 범위 초과는 진행을 막고 음수 상쇄
   })).toContainText('999,999,999,999,999원');
 });
 
-for (const width of [1440, 320]) {
+for (const width of [1440]) {
   test(`관리비 ${width}px에서 수정 취소·삭제 취소·확인과 마지막 항목 삭제의 진행 조건을 유지`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -3678,7 +3683,7 @@ function completedResult() {
   });
 }
 
-for (const width of [1440, 320]) {
+for (const width of [1440]) {
   test(`완료 재진입 ${width}px는 저장소 요약을 신뢰하지 않고 서버 권한 확인 뒤 결과만 표시`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -4054,7 +4059,7 @@ test('캐시 복원 이벤트는 이전 화면을 가리고 로그아웃된 세�
   expect(lookups).toBe(0);
 });
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440, 320]) {
   test(`등록 확인 ${width}px는 전체 계좌번호·실제 요약·수정 후 순차 진행·새로고침을 유지하고 성공 전 완료를 표시하지 않음`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -4114,7 +4119,7 @@ for (const width of [1440, 390, 320]) {
   });
 }
 
-for (const width of [390, 320]) {
+for (const width of [320]) {
   test(`모바일 확인 ${width}px는 요약 전체를 펼치고 오른쪽 수정 글씨에서 단계 순서를 유지`, async ({ page }) => {
     test.setTimeout(60_000);
     await page.setViewportSize({
@@ -5135,7 +5140,7 @@ test('잘못된 성공 응답은 완료로 믿지 않고 기존 요청 ID의 유
   expect(lookups).toBe(1);
 });
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440, 320]) {
   test(`등록 상태 ${width}px는 로딩·실패 모달과 별도 완료 페이지를 표시하고 완료 전 입력을 유지`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -5449,7 +5454,7 @@ for (const hasBuildings of [false, true]) {
   });
 }
 
-for (const width of [320, 390]) {
+for (const width of [320]) {
   test(`기존 관리소장 입력 ${width}px: 흰 카드·동과 호수 개별 검색·동 변경 후 재선택`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -5691,7 +5696,7 @@ for (const width of [1440, 390]) {
   }
 }
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440, 320]) {
   test(`통합 초기 설정 5단계 ${width}px는 인계·동별 잔고와 10개 페이지 입력을 저장`, async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({

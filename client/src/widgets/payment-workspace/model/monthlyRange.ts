@@ -4,9 +4,13 @@ import {
 } from '@/shared/lib/month-range';
 import {
   getMonthlyPreviewRows,
+  getMonthlyChargeReceivable,
   getMonthlyPreviewIncome
 } from './paymentPreview';
-import type { PreviewLedger } from './paymentPreviewTypes';
+import type {
+  MonthlyPreviewRow,
+  PreviewLedger
+} from './paymentPreviewTypes';
 import type { MonthlyRangeRow } from './monthlyRangeTypes';
 
 /** 최신 월부터 표시하고 각 월의 기존 세대 순서·수납 계산과 상세 조회 기준을 보존합니다. */
@@ -44,4 +48,17 @@ export function getMonthlyRangeIncome(ledger: PreviewLedger, range: MonthRange) 
 /** 같은 세대라도 부과 월이 다르면 별개의 조회·선택 행입니다. */
 export function getMonthlyRowKey(row: Pick<MonthlyRangeRow, 'month' | 'unitId'>) {
   return `${row.month}:${row.unitId}`;
+}
+
+/** 상단의 발생·납부·미수는 같은 신규 청구 집합으로 맞추고 누적 원장의 이월·잔여액은 변경하지 않습니다. */
+export function getMonthlyChargeSummary(rows: readonly MonthlyPreviewRow[]) {
+  const pending = rows.some((row) => row.settlementPending);
+  const billed = rows.reduce((sum, row) => sum + row.billed + (row.settlementAmount ?? BigInt(0)), BigInt(0));
+  const receivable = rows.reduce((sum, row) => sum + getMonthlyChargeReceivable(row), BigInt(0));
+
+  return {
+    billed,
+    applied: pending ? null : billed - receivable,
+    receivable: pending ? null : receivable
+  };
 }

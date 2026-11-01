@@ -48,7 +48,7 @@ export function AccountBalances({
           title={'통장 잔액 안내'}
           note={'은행 잔액 확인은 선택 사항입니다.'}
         >
-          통장 초기 잔액에 업로드·수동 입출금을 반영한 금액입니다. 선택한 달까지 등록된 거래로 계산하며 은행 확인일은 각 통장에 표시합니다.
+          등록된 입출금으로 계산한 잔액입니다. 계산값이 없으면 마지막 확인 잔액과 날짜를 표시합니다.
         </InfoTooltip>
         <h2>
           통장별 장부 잔액
@@ -135,9 +135,9 @@ export function AccountBalances({
                     <span
                       title={`${getBalancePeriodLabel(data.month)} · ${display.description}`}
                     >
-                      장부 잔액
+                      {display.calculated ? '장부 잔액' : display.label}
                       {' '}
-                      {display.amount === null ? '초기 잔액 설정 필요' : formatWon(display.amount)}
+                      {display.amount === null ? '확인 필요' : formatWon(display.amount)}
                     </span>
                     <span>
                       동별 보유금
@@ -150,7 +150,7 @@ export function AccountBalances({
                   className={styles.amount}
                   data-unknown={display.amount === null}
                 >
-                  {display.amount === null ? '초기 잔액 설정 필요' : formatWon(display.amount)}
+                  {display.amount === null ? '확인 필요' : formatWon(display.amount)}
                 </span>
                 <ServiceIcon
                   className={styles.chevron}

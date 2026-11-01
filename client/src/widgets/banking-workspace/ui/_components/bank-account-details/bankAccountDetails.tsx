@@ -205,16 +205,15 @@ export function BankAccountDetails({ propertyId, account, month, onCheck, onInit
           className={styles['balance-heading']}
         >
           <h4>
-            현재 장부 잔액
+            {display.label}
           </h4>
           <InfoTooltip
-            label={'현재 장부 잔액 도움말'}
-            title={'현재 장부 잔액'}
+            label={`${display.label} 도움말`}
+            title={display.label}
             size={'sm'}
             compact
           >
-            {getBalancePeriodLabel(month)}
-            의 장부 잔액입니다. 통장 초기 잔액에 업로드·수동 입출금을 반영합니다.
+            {display.calculated ? `${getBalancePeriodLabel(month)}의 장부 잔액입니다. 통장 초기 잔액에 업로드·수동 입출금을 반영합니다.` : '기존에 확인한 은행 잔액과 확인시점을 표시합니다. 매월 다시 입력할 필요가 없습니다.'}
             {display.description}
           </InfoTooltip>
         </div>
@@ -222,10 +221,10 @@ export function BankAccountDetails({ propertyId, account, month, onCheck, onInit
           className={styles.amount}
           data-negative={display.amount !== null && BigInt(display.amount) < BigInt(0)}
         >
-          {display.amount === null ? '초기 잔액 설정 필요' : formatWon(display.amount)}
+          {display.amount === null ? '확인된 잔액 없음' : formatWon(display.amount)}
         </strong>
         <small>
-          {getBalancePeriodLabel(month)}
+          {display.calculated ? getBalancePeriodLabel(month) : display.description}
         </small>
         <div
           className={styles.confirmation}

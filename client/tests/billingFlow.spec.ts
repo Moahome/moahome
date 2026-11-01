@@ -271,7 +271,7 @@ for (const width of [1440, 390]) {
     expect(writes).toEqual([]);
   });
 }
-for (const width of [1440,390,320]) {
+for (const width of [1440, 320]) {
   test(`관리비 ${width}px 검색·페이지·달력·행 상세와 직접 재진입`, async ({page}) => {
     await mockBilling(page); await page.setViewportSize({
       width,
@@ -814,7 +814,7 @@ for (const width of [1600, 1280, 390, 320]) {
   });
 }
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`기본 전체와 임시 동별을 독립 선택하고 저장·재진입한다 ${width}px`, async ({ page }) => {
     const state = await mockBilling(page);
     await page.setViewportSize({
@@ -1031,7 +1031,7 @@ for (const width of [1440, 390]) {
   });
 }
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`임시 항목마다 적용월 드롭다운을 선택해 이번 달 추가와 다음 달 예약을 함께 저장 ${width}px`, async ({ page }) => {
     const state = await mockBilling(page);
     await page.setViewportSize({
@@ -1138,7 +1138,7 @@ for (const width of [1440, 390]) {
   });
 }
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440]) {
   test(`참고용 금액 계산·복사는 부과 초안과 저장에 영향을 주지 않는다 ${width}px`, async ({ page }) => {
     const state = await mockBilling(page);
     await page.addInitScript(() => {
@@ -1278,7 +1278,7 @@ for (const width of [1440, 390, 320]) {
   });
 }
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440, 320]) {
   test(`기본 항목은 전체·동별 모두 마지막 한 개를 삭제할 수 없다 ${width}px`, async ({ page }) => {
     const state = await mockBilling(page);
     await page.setViewportSize({

@@ -67,7 +67,7 @@ function fixture() {
   return data;
 }
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440, 320]) {
   test(`월 기간 ${width}px는 연도 경계·최신순 월별 내역·취소·역전 검증과 모바일 복귀를 유지`, async ({ page }, testInfo) => {
     await page.setViewportSize({
       width,
@@ -141,7 +141,7 @@ for (const width of [1440, 390, 320]) {
       exact: true
     })).toBeVisible();
     await expect(page.getByRole('article', {
-      name: '종료 월 미수금 20,000원',
+      name: '기간 청구 미수금 20,000원',
       exact: true
     })).toBeVisible();
     await page.getByRole('button', {

@@ -497,7 +497,7 @@ test('8~10월 매달 5만 원을 납부하면 완납이며 누락된 수납과 �
     carry: BigInt(50000),
     applied: BigInt(50000),
     balance: BigInt(50000),
-    status: '일부납부'
+    status: '미납'
   });
   const shortOctober = getMonthlyPreviewRows({
     ...ledger,

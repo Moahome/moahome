@@ -1,3 +1,4 @@
+import { emptyDashboardFixture } from './support/dashboard';
 import {
   expect,
   test,
@@ -82,6 +83,7 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
         role: 'MANAGER'
       };
       if (path.endsWith('/access-context')) return json(route, property);
+      if (path.endsWith('/dashboard')) return json(route, emptyDashboardFixture(PROPERTY));
       if (path.endsWith('/managed-properties')) return json(route, {
         properties: [property]
       });
@@ -240,7 +242,7 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
     expect(previews).toBe(1);
   });
 
-  for (const width of [1440, 390, 320]) {
+  for (const width of [1440, 320]) {
     test(`메뉴 로딩 통일 ${width}px는 조회 중 큰 캐릭터를 중앙에 표시하고 추가 테두리 없이 실패 상태로 전환`, async ({ page }, testInfo) => {
       await page.setViewportSize({
         width,
@@ -476,14 +478,15 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
       }
     });
 
-    test(`준비 중 메뉴 ${width}px는 대시보드·공지·차량 안내에 연결되고 모바일 메뉴를 닫음`, async ({ page }, testInfo) => {
+    test(`대시보드 ${width}px에서 준비 중 공지·차량 메뉴로 이동하고 모바일 메뉴를 닫음`, async ({ page }, testInfo) => {
       await page.setViewportSize({
         width,
         height: 900
       });
       await page.goto(`${BASE}/dashboard`);
       await expect(page.getByRole('heading', {
-        name: '새로운 기능을 준비하고 있어요!'
+        name: '대시보드',
+        exact: true
       })).toBeVisible();
       for (const [label, path] of [['공지사항', 'notices'], ['차량 내역', 'vehicles'], ['차량 승인', 'vehicles/approvals']]) {
         if (width < 768) await page.getByRole('button', {

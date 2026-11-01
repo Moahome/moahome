@@ -4,18 +4,27 @@ import type {
 } from '../api/bankingBalanceApiTypes';
 import { formatWon } from '@/shared/lib/format';
 
-/** 수동 입출금을 반영한 장부 잔액만 표시하며, 과거 은행 확인값으로 미설정 장부를 대체하지 않습니다. */
+/** 계산 가능한 장부를 우선 표시하고 없으면 마지막 확인값을 시점·다른 명칭으로 보존해 매월 재설정을 요구하지 않습니다. */
 export function getAccountBalanceDisplay(account: AccountBalance) {
   if (account.calculatedBalance != null && account.calculationBasisDate) return {
     amount: account.calculatedBalance,
     calculated: true,
+    label: '현재 장부 잔액',
     description: `${account.calculationBasisDate} 초기 잔액 기준 · 등록 입출금 반영`
+  };
+
+  if (account.balance !== null && (!account.confirmation || account.confirmation.status === 'READY')) return {
+    amount: account.balance,
+    calculated: false,
+    label: '마지막 확인 잔액',
+    description: account.asOf ? `${account.asOf} 확인 기준` : '기록된 은행 확인 잔액'
   };
 
   return {
     amount: null,
     calculated: false,
-    description: '통장 초기 잔액 설정 필요'
+    label: '통장 잔액',
+    description: '확인된 잔액이 없습니다.'
   };
 }
 
@@ -35,7 +44,7 @@ export function getBankConfirmationDescription(account: AccountBalance) {
   return `마지막 은행 확인: ${formatWon(account.balance)}${account.asOf ? ` · ${account.asOf}` : ''}${source}`;
 }
 
-/** 같은 조회 월·통장 범위의 장부 잔액을 합산하며, 한 통장이라도 초기 금액이 없으면 합계를 확정하지 않습니다. */
+/** 조회 범위에 남아 있는 계산값·확인값을 이어 보여주고 실제로 잔액을 모르는 통장만 합계에서 미확인으로 둡니다. */
 export function getAccountBalanceTotal(data: BalanceWorkspace) {
   const accounts = data.accountId ? data.accounts?.filter((account) => account.id === data.accountId) : data.accounts;
   const displays = accounts?.map(getAccountBalanceDisplay) ?? [];
@@ -43,7 +52,7 @@ export function getAccountBalanceTotal(data: BalanceWorkspace) {
 
   return {
     amount: complete ? displays.reduce((sum, account) => sum + BigInt(account.amount!), BigInt(0)).toString() : null,
-    calculated: complete
+    calculated: complete && displays.every((account) => account.calculated)
   };
 }
 

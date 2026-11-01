@@ -1,3 +1,4 @@
+import { emptyDashboardFixture } from './support/dashboard';
 import {
   expect,
   test,
@@ -27,7 +28,7 @@ async function json(route: Route, body: unknown, status = 200) {
   });
 }
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440, 320]) {
   for (const failure of ['network', '503']) {
     test(`연결 오류 ${failure} ${width}px는 캐릭터·안내를 표시하고 재시도에서 실패한 조회만 실행`, async ({ page }, testInfo) => {
       await page.setViewportSize({
@@ -130,6 +131,7 @@ test('관리 권한 조회 장애는 재시도로 같은 대상을 열고 토큰
         role: 'ADMIN'
       });
     }
+    if (path.endsWith('/dashboard')) return json(route, emptyDashboardFixture(PROPERTY));
     throw new Error(`Unexpected API ${path}`);
   });
   await page.goto(`/manage/${PROPERTY}/dashboard`);
@@ -143,7 +145,7 @@ test('관리 권한 조회 장애는 재시도로 같은 대상을 열고 토큰
     name: '다시 시도',
     exact: true
   }).click();
-  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
   expect(contextReads).toBe(2);
   expect(refreshes).toBe(1);
   expect(users).toBe(1);

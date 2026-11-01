@@ -1,0 +1,157 @@
+.refresh {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 10px 12px 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 3px 12px color-mix(in srgb, var(--foreground) 3%, transparent);
+
+  .status {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    gap: 12px;
+  }
+
+  .indicator {
+    position: relative;
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--sub-text);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--sub-text) 10%, transparent);
+
+    &::after {
+      position: absolute;
+      inset: -5px;
+      border-radius: inherit;
+      background: inherit;
+      opacity: 0;
+      content: '';
+      pointer-events: none;
+    }
+  }
+
+  &[data-state='ready'] .indicator::after,
+  &[data-state='refreshing'] .indicator::after {
+    animation: status-pulse 2.8s ease-out infinite;
+  }
+
+  &[data-state='refreshing'] .indicator::after {
+    animation-duration: 1.6s;
+  }
+
+  &[data-state='ready'] .indicator {
+    background: var(--success);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--success) 12%, transparent);
+  }
+
+  &[data-state='refreshing'] .indicator {
+    background: var(--primary);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--primary) 10%, transparent);
+  }
+
+  &[data-state='failed'] .indicator {
+    background: var(--danger);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--danger) 10%, transparent);
+  }
+
+  .information {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+  }
+
+  .label {
+    color: var(--sub-text);
+    font-size: 12px;
+  }
+
+  .time {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 4px;
+    color: var(--foreground);
+    font-size: 13px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .action {
+    flex-shrink: 0;
+    padding-left: 16px;
+    border-left: 1px solid var(--border);
+  }
+
+  .button[data-variant='primary'] {
+    min-height: 40px;
+    padding: 10px 14px;
+    border-color: var(--primary);
+    border-radius: 10px;
+    background: var(--primary);
+    color: var(--card);
+    box-shadow: 0 3px 8px color-mix(in srgb, var(--primary) 18%, transparent);
+
+    &:hover:not(:disabled) {
+      background: var(--primary-dark);
+    }
+
+    &[aria-busy='true'] svg {
+      animation: refresh-spin 1s linear infinite;
+    }
+  }
+}
+
+@keyframes status-pulse {
+  0% {
+    transform: scale(0.65);
+    opacity: 0.2;
+  }
+
+  75%,
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+@keyframes refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 420px) {
+  .refresh {
+    width: 100%;
+    gap: 10px;
+    padding: 10px 12px;
+
+    .status {
+      gap: 10px;
+    }
+
+    .action {
+      padding-left: 10px;
+    }
+
+    .button[data-variant='primary'] {
+      padding: 10px;
+      font-size: 13px;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .refresh .indicator::after,
+  .refresh .button[data-variant='primary'][aria-busy='true'] svg {
+    animation: none;
+  }
+}

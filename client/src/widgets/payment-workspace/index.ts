@@ -29,9 +29,14 @@ export {
 export {
   getMonthlyPreviewRows,
   getMonthlyPreviewIncome,
+  getPreviewBilledUnits,
   filterMonthlyPreviewRows,
   getPreviewDueDate
 } from './model/paymentPreview';
 export type {
   PreviewLedger
 } from './model/paymentPreviewTypes';
+
+export {
+  getMonthlyChargeSummary
+} from './model/monthlyRange';

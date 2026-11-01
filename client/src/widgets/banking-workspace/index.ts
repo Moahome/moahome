@@ -35,3 +35,7 @@ export type {
 export {
   getAccountsForMonth
 } from './model/bankAccountVisibility';
+
+export {
+  BankAccountDetails
+} from './ui/_components/bank-account-details/bankAccountDetails';

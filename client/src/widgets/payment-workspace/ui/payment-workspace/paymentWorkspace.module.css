@@ -198,3 +198,7 @@
   border-top: 1px solid var(--border);
   background: var(--background);
 }
+
+.query-refresh {
+  justify-self: end;
+}

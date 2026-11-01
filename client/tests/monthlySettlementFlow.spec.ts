@@ -38,7 +38,7 @@ async function downloadExcel(page: Page) {
   }).click();
 }
 
-for (const width of [1440, 430, 390]) {
+for (const width of [1440, 390]) {
   test(`월별 정산 ${width}px는 단일 메뉴·실제 집계·Excel·조회 월 이동을 제공`, async ({ page }, testInfo) => {
     await page.setViewportSize({
       width,

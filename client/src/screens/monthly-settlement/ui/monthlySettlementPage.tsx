@@ -17,6 +17,7 @@ import { Button } from '@/shared/ui/button';
 import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { ListHeader } from '@/shared/ui/list-header';
 import { MonthPicker } from '@/shared/ui/month-picker';
+import { QueryRefresh } from '@/shared/ui/query-refresh';
 import {
   ServiceIcon,
   type ServiceIconName
@@ -133,39 +134,16 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 다운로드
               </Button>
             </div>
-            {data && validMonth && (
-              <div
-                className={styles.updated}
-              >
-                <span>
-                  최종 조회
-                </span>
-                <time
-                  dateTime={data.generatedAt}
-                >
-                  {new Date(data.generatedAt).toLocaleString('ko-KR', {
-                    timeZone: 'Asia/Seoul',
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </time>
-                <Button
-                  variant={'ghost'}
-                  size={'sm'}
-                  iconOnly
-                  aria-label={'정산 자료 새로고침'}
-                  disabled={query.isFetching}
-                  onClick={() => void query.refetch()}
-                >
-                  <ServiceIcon
-                    name={'reset'}
-                  />
-                </Button>
-              </div>
-            )}
+            <QueryRefresh
+              updatedAt={query.data?.generatedAt}
+              refreshing={query.isFetching}
+              failed={query.isError}
+              disabled={!validMonth}
+              label={'정산 자료 새로고침'}
+              onRefresh={() => void query.refetch({
+                cancelRefetch: false
+              })}
+            />
           </div>
         )}
       />
@@ -219,7 +197,7 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 help: '해당 월 은행 원본과 수동 지출입니다. 외부 부담분과 내부 이체도 포함합니다.'
               },
               {
-                label: '관리비 실제 수납',
+                label: '세대 실제 입금',
                 value: report.householdIncome,
                 icon: 'coins',
                 tone: 'success',
@@ -235,20 +213,20 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 help: '조회 월말의 동별 보유금 합계입니다. 은행 확인 잔액과 구분합니다.'
               },
               {
-                label: '청구 수납 반영액',
+                label: '청구 납부반영액',
                 value: report.applied,
                 icon: 'receipt',
                 tone: 'teal',
                 description: '',
-                help: '기존 월별 수납 표 기준입니다. 이전 선입금 충당을 포함해 실제 입금과 다를 수 있습니다.'
+                help: '선택 월 청구에 충당한 납부액입니다. 이전 선입금에서 충당한 금액도 포함합니다.'
               },
               {
-                label: '월별 수납 미수금',
+                label: '당월 청구 미수금',
                 value: report.receivable,
                 icon: 'document',
                 tone: 'danger',
                 description: '',
-                help: '기존 월별 수납 대상 세대의 전월 이월 포함 잔여액입니다. 미정 청구가 있으면 정산 확인이 필요합니다.'
+                help: '선택 월 신규 청구 중 남은 미납액입니다. 이전 달 미납은 누적 원장에서 구분합니다.'
               },
               {
                 label: '당월 청구액',

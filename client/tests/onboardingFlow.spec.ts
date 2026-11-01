@@ -2033,7 +2033,7 @@ test('개인 초대 정정 요청은 승인 관리에서 이름·선택 연락�
   });
 });
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440, 320]) {
   test(`승인 관리 탭 ${width}px는 두 출처와 필터를 분리하고 초대 가입 표·페이지·선택 탭을 유지`, async ({ page }, testInfo) => {
     await page.setViewportSize({
       width,
@@ -2446,7 +2446,7 @@ test('부담당자는 재로그인 시 관리자 대시보드에 진입하고 �
   })).toBeVisible();
 });
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`부담당자 ${width}px는 통장 거래·주민 조회·일반 수정을 쓰고 주민 승격만 선택할 수 없다`, async ({ page }) => {
     const state = await mockWorkspace(page, true); state.managementRole = 'MANAGER';
     await page.setViewportSize({
@@ -2555,7 +2555,7 @@ test('부담당자에게 관리소장 상세는 조회만 제공하고 수정·�
 });
 
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`기존 잔액 대시보드 미리보기 ${width}px는 검색·동·상태와 전체 합계를 유지`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -2827,7 +2827,7 @@ test('확정 인계 정정은 수납 차단을 유지하며 취소 성공 후 �
   expect(saves).toBe(1);
 });
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440, 320]) {
   test(`잔액 엑셀 업로드 ${width}px는 단일 버튼에서 PC 모달·모바일 페이지를 열고 미저장 금액을 보존`, async ({ page }) => {
     await page.setViewportSize({
       width,

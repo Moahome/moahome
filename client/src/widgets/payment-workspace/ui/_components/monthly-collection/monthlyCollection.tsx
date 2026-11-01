@@ -38,6 +38,7 @@ import {
   getMonthlyRowKey,
   getMonthlyRangeRows,
   getMonthlyRangeIncome,
+  getMonthlyChargeSummary,
   sumMonthlyRangeRows
 } from '../../../model/monthlyRange';
 import type { MonthlyCollectionFilters } from '../../../model/paymentPreviewTypes';
@@ -79,7 +80,6 @@ export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath
   const multipleMonths = range.startMonth !== range.endMonth;
   const rows = getMonthlyRangeRows(ledger, range);
   const income = getMonthlyRangeIncome(ledger, range);
-  const closingPending = rows.some((row) => row.month === range.endMonth && row.settlementPending);
   // 여러 달에서는 세대·월별 상태를 세므로 같은 세대라도 월이 다르면 별도 행으로 표시합니다.
   const matches = filterMonthlyPreviewRows(rows, {
     ...filters,
@@ -94,6 +94,13 @@ export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath
   const checkedIds = new Set(selectedRowKeys ?? []);
   const visibleSelectedCount = visible.filter((row) => checkedIds.has(getMonthlyRowKey(row))).length;
   const sum = (key: 'carry' | 'billed' | 'applied' | 'balance') => sumMonthlyRangeRows(rows, range, key);
+  const chargeSummary = getMonthlyChargeSummary(rows);
+  /** 상단 납부·미수는 신규 청구 기준으로 표시하고 이월 원장 값은 그대로 유지합니다. */
+  function summaryValue(key: string) {
+    if (key === 'balance') return chargeSummary.receivable;
+    if (key === 'applied') return chargeSummary.applied;
+    return sum(key as 'carry' | 'billed');
+  }
 
   // 선입금 잔액은 당월까지의 청구를 이미 충당한 결과이므로 발생액을 다시 차감하지 않습니다.
   const columns: DataTableColumn<(typeof rows)[number]>[] = [
@@ -142,13 +149,13 @@ export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath
     },
     {
       key: 'applied',
-      header: '당월 수납 반영액',
+      header: '이월 포함 반영액',
       align: 'right',
       render: (row) => formatWon(row.applied)
     },
     {
       key: 'balance',
-      header: '미수금 잔액',
+      header: '누적 미수금',
       align: 'right',
       render: (row) => !row.settlementPending ? formatWon(row.balance) : '정산 확인 필요'
     },
@@ -241,24 +248,29 @@ export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath
         {[
           [multipleMonths ? '시작 월 이월액' : '전월 이월액', 'carry', 'warning'],
           [multipleMonths ? '기간 관리비 발생액' : '당월 관리비 발생액', 'billed', 'primary'],
-          [multipleMonths ? '기간 수납 반영액' : '당월 수납 반영액', 'applied', 'success'],
-          [multipleMonths ? '종료 월 미수금' : '당월 말 미수금', 'balance', 'danger']
-        ].map(([label, key, tone]) => (
-          <SummaryCard
-            density={'compact'}
-            key={key}
-            label={label}
-            value={key === 'balance' && closingPending ? '정산 확인 필요' : formatInteger(sum(key as 'carry' | 'billed' | 'applied' | 'balance'))}
-            unit={key === 'balance' && closingPending ? '' : '원'}
-            valueTone={sum(key as 'carry' | 'billed' | 'applied' | 'balance') < BigInt(0) ? 'danger' : 'neutral'}
-            tone={sum(key as 'carry' | 'billed' | 'applied' | 'balance') < BigInt(0) ? 'danger' : tone as 'warning' | 'primary' | 'success' | 'danger'}
-            icon={(
-              <ServiceIcon
-                name={'receipt'}
-              />
-            )}
-          />
-        ))}
+          [multipleMonths ? '기간 청구 납부반영액' : '당월 청구 납부반영액', 'applied', 'success'],
+          [multipleMonths ? '기간 청구 미수금' : '당월 청구 미수금', 'balance', 'danger']
+        ].map(([label, key, tone]) => {
+          const value = summaryValue(key);
+          const negative = value !== null && value < BigInt(0);
+
+          return (
+            <SummaryCard
+              density={'compact'}
+              key={key}
+              label={label}
+              value={value === null ? '정산 확인 필요' : formatInteger(value)}
+              unit={value === null ? '' : '원'}
+              valueTone={negative ? 'danger' : 'neutral'}
+              tone={negative ? 'danger' : tone as 'warning' | 'primary' | 'success' | 'danger'}
+              icon={(
+                <ServiceIcon
+                  name={'receipt'}
+                />
+              )}
+            />
+          );
+        })}
       </div>
       <section
         className={styles['income-summary']}

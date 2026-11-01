@@ -1,0 +1,29 @@
+.transactions {
+  min-width: 0;
+
+  .amount {
+    color: var(--danger);
+    font-size: 15px;
+    font-weight: 550;
+    white-space: nowrap;
+
+    &[data-income='true'] {
+      color: var(--success);
+    }
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 6px;
+    color: var(--warning);
+    background: color-mix(in srgb, var(--warning) 10%, var(--card));
+    font-size: 14px;
+    white-space: nowrap;
+
+    &[data-confirmed='true'] {
+      color: var(--success);
+      background: color-mix(in srgb, var(--success) 10%, var(--card));
+    }
+  }
+}

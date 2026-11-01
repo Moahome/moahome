@@ -28,7 +28,7 @@ test('실제 입출금·이월 충당·동별 부담·외부 미회수를 분리
   expect(report.bankExpense).toBe(BigInt(27000));
   expect(report.householdIncome).toBe(BigInt(40000));
   expect(report.billed).toBe(BigInt(50000));
-  expect(report.applied).toBe(BigInt(40000));
+  expect(report.applied).toBe(BigInt(10000));
   expect(report.receivable).toBe(BigInt(40000));
   expect(report.buildingBalance).toBe(BigInt(128000));
   expect(report.outstanding).toBe(BigInt(6000));

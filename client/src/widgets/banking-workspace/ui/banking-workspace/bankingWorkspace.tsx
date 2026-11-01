@@ -43,6 +43,7 @@ import { Pagination } from '@/shared/ui/pagination';
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { SummaryCard } from '@/shared/ui/summary-card';
+import { QueryRefresh } from '@/shared/ui/query-refresh';
 import { Toast } from '@/shared/ui/toast';
 import {
   useQuery,
@@ -82,6 +83,10 @@ import { createExpenseWorkbook } from '../../model/expenseExport';
 import { getAccountsForRange } from '../../model/bankAccountVisibility';
 import { BankImportActions } from '../_components/bank-import-actions/bankImportActions';
 import { TransferDetail } from '../_components/transfer-detail/transferDetail';
+import {
+  getBankingDuplicateIds,
+  getBankingReviewRange
+} from '../../model/bankingReview';
 import { BankingExpensePage } from '../banking-expense-page/bankingExpensePage';
 import { ManualExpense } from '../manual-expense/manualExpense';
 import styles from './bankingWorkspace.module.css';
@@ -112,8 +117,8 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const [requestedAccountId, setAccountId] = useState(() => searchParams.get('account') ?? 'ALL');
   const [transferRows, setTransferRows] = useState<string[]>([]);
   const [transferDetail, setTransferDetail] = useState<BankingTransaction | null>(null);
-  const [direction, setDirection] = useState('ALL');
-  const [status, setStatus] = useState('ALL');
+  const [direction, setDirection] = useState(() => ['INCOME', 'EXPENSE', 'CANCELED'].includes(searchParams.get('direction') ?? '') ? searchParams.get('direction')! : 'ALL');
+  const [status, setStatus] = useState(() => ['PENDING', 'CONFIRMED', 'ON_HOLD'].includes(searchParams.get('status') ?? '') ? searchParams.get('status')! : 'ALL');
   const [processing, setProcessing] = useState('ALL');
   const [building, setBuilding] = useState('ALL');
   const [search, setSearch] = useState('');
@@ -154,7 +159,14 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     });
   }, [propertyId, router, searchParams, view]);
   const data = workspace.data;
-  const dateRange = getQueryDateRange(searchParams, data?.asOf);
+  const review = view === 'transactions' && ['income', 'expenses', 'duplicates'].includes(searchParams.get('review') ?? '') ? searchParams.get('review') : null;
+  const reviewSource = [...(data?.rows ?? []), ...receiptRows];
+  const duplicateIds = getBankingDuplicateIds(reviewSource, data?.asOf ?? '');
+  // 대시보드의 현재 업무는 실제 후보의 기간만 제시하고 가상의 최솟값이나 현재 월로 과거 업무를 숨기지 않습니다.
+  const reviewRows = reviewSource.filter((row) => review === 'duplicates' ? duplicateIds.has(row.id)
+    : row.status === 'PENDING' && row.direction === (review === 'expenses' ? 'EXPENSE' : 'INCOME'));
+  const dateRange = review && data && !searchParams.has('startDate') && !searchParams.has('month')
+    ? getBankingReviewRange(reviewRows, data.asOf) : getQueryDateRange(searchParams, data?.asOf);
   const requestedMonth = dateRange.endDate.slice(0, 7);
   const monthAccounts = view === 'upload' ? data?.accounts ?? [] : getAccountsForRange(data?.accounts ?? [], dateRange);
   const accountId = data && view !== 'upload' && !monthAccounts.some((account) => account.id === requestedAccountId)
@@ -240,6 +252,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const source = preview?.rows ?? (view === 'upload' ? [] : [...data.rows, ...(view === 'transactions' ? receiptRows : [])]
     .sort((a, b) => `${b.date} ${b.time ?? ''}`.localeCompare(`${a.date} ${a.time ?? ''}`)));
   const baseRows = source.filter((row) => (preview || isDateInRange(row.date, dateRange))
+    && (preview || review !== 'duplicates' || duplicateIds.has(row.id))
     && (preview || !data.accounts?.length || visibleAccountIds.has(row.accountId))
     && (preview || accountId === 'ALL' || row.accountId === accountId)
     && (view !== 'expenses' || row.expense?.allocations.some((part) => data.buildings.some((item) => item.id === part.buildingId)))
@@ -247,7 +260,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     && (view !== 'expenses' || building === 'ALL' || row.expense?.allocations.some((a) => a.buildingId === building))
     && `${row.payer} ${row.memo ?? ''} ${row.unitLabel} ${row.expense?.category ?? ''} ${row.expense?.note ?? ''}`.includes(search.trim()));
   // 조회 월·통장·검색·상태 조건이 적용된 빈 결과는 등록 자료 자체가 없는 상태와 구분합니다.
-  const hasFilters = Boolean(search.trim() || accountId !== 'ALL' || direction !== 'ALL' || status !== 'ALL'
+  const hasFilters = Boolean(review || search.trim() || accountId !== 'ALL' || direction !== 'ALL' || status !== 'ALL'
     || (preview && processing !== 'ALL')
     || (view === 'expenses' && building !== 'ALL') || dateRange.startDate !== defaultRange.startDate || dateRange.endDate !== defaultRange.endDate);
   // 과거 월·다른 목록 범위에 원본이 있으면 미등록으로 안내하지 않고 현재 조건의 빈 결과로 표시합니다.
@@ -295,7 +308,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     ? directionRows.filter((row) => processingContent(row).kind === processing) : directionRows;
   const currentPage = Math.min(page, Math.max(1, Math.ceil(filtered.length / pageSize)));
   const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const selectionScope = JSON.stringify([propertyId, accountId, dateRange.startDate, dateRange.endDate, direction, status, search, pageSize, currentPage]);
+  const selectionScope = JSON.stringify([propertyId, accountId, dateRange.startDate, dateRange.endDate, direction, status, review, search, pageSize, currentPage]);
   const isSelecting = view === 'transactions' && !preview && selection?.scope === selectionScope;
   const selectableRows = visible.filter(canDelete);
   const deletingRows = isSelecting ? selectableRows.filter((row) => selection.ids.includes(row.id)) : [];
@@ -785,6 +798,44 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
           </>
         )}
       />
+      {view !== 'upload' && (
+        <QueryRefresh
+          className={styles['query-refresh']}
+          updatedAt={workspace.dataUpdatedAt}
+          refreshing={workspace.isFetching}
+          failed={workspace.isError}
+          disabled={busy || Boolean(preview)}
+          label={'통장 거래 새로고침'}
+          onRefresh={() => void workspace.refetch({
+            cancelRefetch: false
+          })}
+        />
+      )}
+      {review === 'duplicates' && (
+        <div
+          role={'status'}
+        >
+          중복 의심 수동 거래만 표시하고 있어요. 거래 상세에서 은행 원본과 비교해주세요.
+          <Button
+            variant={'text'}
+            size={'sm'}
+            onClick={() => {
+              const next = new URLSearchParams(searchParams.toString());
+              next.delete('review');
+              next.delete('direction');
+              next.delete('status');
+              setDirection('ALL');
+              setStatus('ALL');
+              setPage(1);
+              router.replace(`/manage/${propertyId}/banking/transactions${next.size ? `?${next}` : ''}`, {
+                scroll: false
+              });
+            }}
+          >
+            전체 거래
+          </Button>
+        </div>
+      )}
       {view === 'transactions' && accountId !== 'ALL' && !canImport && (
         <p
           role={'status'}

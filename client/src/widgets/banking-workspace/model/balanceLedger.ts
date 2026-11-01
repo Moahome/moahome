@@ -5,7 +5,7 @@ import type {
 } from '../api/bankingBalanceApiTypes';
 import { getAccountBalanceTotal } from './accountBalance';
 
-/** 같은 조회 월말의 통장 장부 잔액과 동별 합계의 차이를 계산하며 미설정 값을 0원으로 채우거나 차액을 자동 배분하지 않습니다. */
+/** 조회 중인 통장 잔액과 동별 합계의 참고 차이를 표시하며 미확인 값을 0원으로 채우거나 차액을 자동 배분하지 않습니다. */
 export function getBalanceSummary(data: BalanceWorkspace) {
   const complete = data.buildings.length > 0 && data.buildings.every((b) => b.balance !== null);
   const total = complete ? data.buildings.reduce((sum, b) => sum + BigInt(b.balance!), BigInt(0)) : null;

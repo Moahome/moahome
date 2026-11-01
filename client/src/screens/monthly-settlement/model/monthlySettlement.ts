@@ -1,6 +1,7 @@
 import {
   getMonthlyPreviewRows,
   getMonthlyPreviewIncome,
+  getMonthlyChargeSummary,
   getPreviewDueDate
 } from '@/widgets/payment-workspace';
 import type { MonthlySettlementSnapshot } from '../api/monthlySettlementApiTypes';
@@ -50,7 +51,7 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
   cash.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   // 기존 월별 수납 표의 이월·선입금 충당과 정산 확인 상태를 그대로 사용합니다.
   const collections = getMonthlyPreviewRows(data.payments, month);
-  const sumCollections = (key: 'carry' | 'billed' | 'applied' | 'balance') => collections.reduce((sum, row) => sum + row[key], BigInt(0));
+  const chargeSummary = getMonthlyChargeSummary(collections);
   const bankIncome = cash.filter((row) => row.direction === 'INCOME').reduce((sum, row) => sum + row.amount, BigInt(0));
   const bankExpense = cash.filter((row) => row.direction === 'EXPENSE').reduce((sum, row) => sum + row.amount, BigInt(0));
   const householdIncome = getMonthlyPreviewIncome(data.payments, month).household;
@@ -152,9 +153,9 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
     householdIncome,
     buildingBalance,
     outstanding,
-    billed: sumCollections('billed') + collections.reduce((sum, row) => sum + (row.settlementAmount ?? BigInt(0)), BigInt(0)),
-    applied: sumCollections('applied'),
-    receivable: unresolvedCharges.length ? null : sumCollections('balance'),
+    billed: chargeSummary.billed,
+    applied: chargeSummary.applied,
+    receivable: chargeSummary.receivable,
     checkCount: checks.reduce((sum, row) => sum + row.count, 0)
   };
 }

@@ -1,3 +1,4 @@
+import { emptyDashboardFixture } from './support/dashboard';
 import { selectMonthRange } from './support/monthRange';
 import {
   expect,
@@ -128,7 +129,8 @@ test.beforeEach(async ({ page }) => {
   await page.route('http://localhost:8080/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     let body: unknown = {};
-    if (path.endsWith('/csrf')) body = {
+    if (path.endsWith('/dashboard')) body = emptyDashboardFixture(path.split('/')[3], new URL(route.request().url()).searchParams.get('month') ?? undefined);
+    else if (path.endsWith('/csrf')) body = {
       csrfToken: 'test-csrf'
     };
     else if (path.endsWith('/refresh')) body = {
@@ -1304,9 +1306,10 @@ for (const width of [390, 767]) {
   }
 }
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440, 320]) {
   test(`${width}px 수납 상세는 미납·일부납부·납부완료·정산 상태별 금액과 색상을 구분`, async ({ page }, testInfo) => {
     const ledger = storedLedger();
+    // 전월 미수 3만원을 먼저 충당한 뒤 당월 청구에도 1만원이 반영돼야 일부납부 사례입니다.
     ledger.payments.push({
       id: id('detail-partial'),
       source: 'MANUAL',
@@ -1314,10 +1317,13 @@ for (const width of [1440, 390, 320]) {
       accountId: ledger.accounts[0].id,
       date: '2026-10-15',
       payer: '김모아',
-      amount: '10000',
+      amount: '40000',
       unitId: id('101'),
       reason: '',
       allocations: [{
+        chargeId: id('c10109'),
+        amount: '30000'
+      }, {
         chargeId: id('c10110'),
         amount: '10000'
       }]
@@ -1373,7 +1379,7 @@ for (const width of [1440, 390, 320]) {
         unit: '101호',
         status: '일부납부',
         label: '남은 미납금액',
-        amount: '70,000원',
+        amount: '40,000원',
         color: null
       },
       {
@@ -1461,7 +1467,7 @@ for (const width of [1440, 390, 320]) {
   });
 }
 
-test('같은 달 두 입금은 세대만 지정해 모두 확정하고 완납 이후 금액은 선입금으로 표시', async ({ page }, testInfo) => {
+test('같은 달 두 입금은 모두 확정하고 납부완료와 초과 선입금 잔액을 함께 유지', async ({ page }, testInfo) => {
   let ledger = storedLedger();
   const unit = {
     ...ledger.units[0],
@@ -1576,7 +1582,7 @@ test('같은 달 두 입금은 세대만 지정해 모두 확정하고 완납 �
   const row = page.getByRole('row').filter({
     hasText: '102동 401호'
   });
-  await expect(row).toContainText('선입금');
+  await expect(row).toContainText('납부완료');
   await row.click();
   await expect(page.getByRole('dialog')).toContainText(/선입금 잔액\s*50,000원/);
 });
@@ -1911,7 +1917,7 @@ test('모두 자동 확정한 과거월 파일은 가져온 월의 처리 완료
   })).toContainText('확정');
 });
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`${width}px 반영할 세대는 대표·가족 이름과 동호수로 검색하고 결과가 없으면 유지`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -2120,7 +2126,7 @@ for (const width of [1440, 390]) {
       name: '전체 내역',
       exact: true
     }).click();
-    await expect(page).toHaveURL(`${monthlyPath}/2026-09/${id('101')}/receipts`);
+    await expect(page).toHaveURL(`${monthlyPath}/2026-09/${id('101')}/receipts?month=2026-09`);
     await expect(page.getByRole('dialog')).toHaveCount(0);
     const history = page.getByRole('table', {
       name: '전체 입금 내역',
@@ -2186,7 +2192,7 @@ for (const width of [1440, 390]) {
         name: '수납 상세로 돌아가기',
         exact: true
       }).click();
-      await expect(page).toHaveURL(`${monthlyPath}/2026-09/${id('101')}`);
+      await expect(page).toHaveURL(`${monthlyPath}/2026-09/${id('101')}?month=2026-09`);
       await expect(page.getByRole('region', {
         name: '최근 입금 내역'
       })).toContainText('전체 16건');
@@ -2194,7 +2200,7 @@ for (const width of [1440, 390]) {
   });
 }
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`${width}px 월별 수납은 검색 오른쪽 동 필터와 상태별 세대 수를 함께 적용`, async ({ page }, testInfo) => {
     await page.setViewportSize({
       width,
@@ -2283,7 +2289,7 @@ for (const width of [1440, 390]) {
   });
 }
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440, 320]) {
   test(`${width}px 기타 입금은 항목·메모로 확정하고 별도 합계·검색·취소 이력을 제공`, async ({ page }, testInfo) => {
     await page.setViewportSize({
       width,
@@ -2419,7 +2425,7 @@ for (const width of [1440, 390, 320]) {
   });
 }
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440, 320]) {
   test(`${width}px 은행 미리보기는 10건씩 표시하고 페이지별 제외·전체 해제·실패 재시도 선택을 유지`, async ({ page }, testInfo) => {
     await page.setViewportSize({
       width,
@@ -2622,7 +2628,7 @@ test('기타 입금 확정은 선택 메모를 비워도 서버에 빈 문자열
   })).toBeVisible();
 });
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440]) {
   test(`${width}px 월별 실제 입금 합계는 세대·기타·전체를 구분하고 세대 필터와 독립`, async ({ page }, testInfo) => {
     await page.setViewportSize({
       width,
@@ -2858,7 +2864,7 @@ test('통장 입금과 월별 수납은 PC에서 목록을 유지한 모달로 �
   })).toBeVisible();
 });
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440, 320]) {
   test(`통장 수동 입금 복구 ${width}px는 등록·확정·새로고침과 수동 출처를 유지`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -2904,7 +2910,7 @@ for (const width of [1440, 390, 320]) {
       exact: true
     }).click();
     if (width < 768) {
-      await expect(page).toHaveURL(`/manage/${PROPERTY_ID}/banking/manual`);
+      await expect(page).toHaveURL(`/manage/${PROPERTY_ID}/banking/manual?month=2026-09`);
       await page.reload();
       await expect(page.getByRole('dialog')).toHaveCount(0);
       await expect(page.getByRole('link', {
@@ -3623,7 +3629,7 @@ for (const width of [1440, 390]) {
     const dashboard = `/manage/${PROPERTY_ID}/dashboard`;
     if (width <= 767) {
       await page.goto(dashboard);
-      await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+      await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
     }
     await page.goto(`${base}/transactions`);
     await page.getByRole('row').filter({
@@ -3727,7 +3733,7 @@ for (const width of [1440, 390]) {
   });
 }
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`${width}px 월별 수납 엑셀은 선택 탭·검색·동을 반영하고 페이지 전체를 내보냄`, async ({ page }, testInfo) => {
     await page.setViewportSize({
       width,

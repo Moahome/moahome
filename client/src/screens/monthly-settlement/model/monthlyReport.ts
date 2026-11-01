@@ -21,7 +21,7 @@ export function getMonthlyReportDocuments(data: MonthlySettlementSnapshot): Repo
   };
   const included = report.external.filter((row) => !row.excluded);
   const sumExternal = (field: 'amount' | 'received' | 'remaining') => included.reduce((total, row) => total + BigInt(row[field]), BigInt(0));
-  const sumCollections = (field: 'carry' | 'prepaid') => report.collections.reduce((total, row) => total + row[field], BigInt(0));
+  const sumCollections = (field: 'carry' | 'prepaid' | 'applied' | 'balance') => report.collections.reduce((total, row) => total + row[field], BigInt(0));
   return [
     {
       ...common,
@@ -40,8 +40,8 @@ export function getMonthlyReportDocuments(data: MonthlySettlementSnapshot): Repo
         width: 42
       }],
       rows: [
-        ['통장 입금', report.bankIncome, '은행 원본·유효 수동 포함'], ['통장 출금', report.bankExpense, '외부 부담·내부 이체 포함'], ['관리비 실제 수납', report.householdIncome, '입금월 기준'], ['동별 보유금', amount(report.buildingBalance), '조회 월말 동별 합계'],
-        ['당월 청구액', report.billed, '발행된 당월 청구'], ['청구 수납 반영액', report.applied, '과거 선입금 충당 포함'], ['월별 수납 미수금', amount(report.receivable), '전월 이월액 포함'], ['외부 미회수액', report.outstanding, '선택 월 지출 · 정산 제외분 제외']
+        ['통장 입금', report.bankIncome, '은행 원본·유효 수동 포함'], ['통장 출금', report.bankExpense, '외부 부담·내부 이체 포함'], ['세대 실제 입금', report.householdIncome, '입금월 기준'], ['동별 보유금', amount(report.buildingBalance), '조회 월말 동별 합계'],
+        ['당월 청구액', report.billed, '발행된 당월 청구'], ['청구 납부반영액', amount(report.applied), '과거 선입금 충당 포함'], ['당월 청구 미수금', amount(report.receivable), '선택 월 신규 청구 기준'], ['외부 미회수액', report.outstanding, '선택 월 지출 · 정산 제외분 제외']
       ],
       summary: [{
         label: '조회 월',
@@ -115,15 +115,15 @@ export function getMonthlyReportDocuments(data: MonthlySettlementSnapshot): Repo
       }, {
         label: '대표',
         width: 19
-      }, ...moneyColumns(['전월 이월', '당월 발생', '수납 반영', '미수금', '선입금']), {
+      }, ...moneyColumns(['전월 이월', '당월 발생', '이월 포함 반영', '누적 미수금', '선입금']), {
         label: '상태',
         width: 22
       }],
       rows: [...report.collections].sort((a, b) => a.unitLabel.localeCompare(b.unitLabel, 'ko', {
         numeric: true
       }) || a.unitId.localeCompare(b.unitId)).map((row) => [row.unitLabel, row.representativeName || '—', row.carry, row.billed + (row.settlementAmount ?? BigInt(0)), row.applied, row.settlementPending ? '정산 확인 필요' : row.balance, row.prepaid, row.status]),
-      total: ['합계', '', sumCollections('carry'), report.billed, report.applied, amount(report.receivable), sumCollections('prepaid'), ''],
-      note: '실제 수납과 청구 수납 반영액은 다를 수 있습니다. 정산 미정 미수금을 0원으로 표시하지 않습니다.'
+      total: ['합계', '', sumCollections('carry'), report.billed, sumCollections('applied'), report.collections.some((row) => row.settlementPending) ? '정산 확인 필요' : sumCollections('balance'), sumCollections('prepaid'), ''],
+      note: '실제 수납과 청구 납부반영액은 다를 수 있습니다. 정산 미정 미수금을 0원으로 표시하지 않습니다.'
     },
     {
       ...common,
@@ -170,7 +170,7 @@ export function getMonthlyReportDocuments(data: MonthlySettlementSnapshot): Repo
       }],
       rows: report.external.map((row) => [row.date, row.label, row.expenseName, BigInt(row.amount), BigInt(row.received), BigInt(row.remaining), row.recoveryStatus]),
       total: ['합계', '', '', sumExternal('amount'), sumExternal('received'), report.outstanding, ''],
-      note: '정산 제외 내역은 표시하되 합계에서 제외하고, 외부 회수액은 관리비 실제 수납으로 합산하지 않습니다.'
+      note: '정산 제외 내역은 표시하되 합계에서 제외하고, 외부 회수액은 세대 실제 입금으로 합산하지 않습니다.'
     }
   ];
 }
