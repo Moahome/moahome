@@ -45,7 +45,7 @@ export async function createBalanceStyledWorkbook(document: ReportDefinition): P
   const amount = (value: bigint | null) => value ?? '설정 필요';
   const summary = (label: string) => document.summary.find((row) => row.label === label)?.value ?? '';
   const data: SheetData = [
-    merge(document.title.replace('모아홈 ', '모아홈 | '), 8, {
+    merge(document.title, 8, {
       height: 42,
       fontSize: 19,
       fontWeight: 'bold',

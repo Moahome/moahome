@@ -3,7 +3,9 @@ import type { BalanceWorkspace } from '../api/bankingBalanceApiTypes';
 
 export interface BalanceReportSnapshot {
   propertyId: string;
+  propertyName: string;
   month: string;
+  startMonth?: string;
   generatedAt: string;
   banking: Pick<BankingWorkspaceData, 'accounts'>;
   balances: BalanceWorkspace;

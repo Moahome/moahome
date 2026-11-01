@@ -61,7 +61,7 @@ export function SettlementDetails({ report, month, propertyId }: {
   const search = useSearchParams();
   const router = useRouter();
   const requested = search.get('tab');
-  const tab = DETAIL_TABS.find((item) => item.id === requested)?.id ?? 'collections';
+  const tab = DETAIL_TABS.find((item) => item.id === requested)?.id ?? 'accounts';
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   // 직접 진입·뒤로 가기·키보드 이동에서도 선택 탭이 가로 스크롤 영역 안에 보이게 합니다.
   useEffect(() => {

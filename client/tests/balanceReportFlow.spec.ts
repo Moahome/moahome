@@ -110,7 +110,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     const download = await downloadReady;
-    expect(download.suggestedFilename()).toBe('모아홈_동별입출금내역_2026-10.pdf');
+    expect(download.suggestedFilename()).toBe('모아빌라_동별입출금내역_2026-10.pdf');
     await download.saveAs(testInfo.outputPath('settlement.pdf'));
     const bytes = new Uint8Array(await readFile((await download.path())!));
     expect(new TextDecoder().decode(bytes.subarray(0, 5))).toBe('%PDF-');
@@ -130,7 +130,7 @@ for (const width of [1440, 390]) {
       text.push(content.items.map((item) => 'str' in item ? item.str : '').join(' '));
     }
     const combined = text.join(' ');
-    expect(combined).toContain('모아홈 동별 입출금 내역');
+    expect(combined).toContain('모아빌라 동별 입출금 내역');
     expect(combined).toContain('추가 입금 51');
     expect(combined).toContain('전기요금 부담');
     expect(combined).not.toContain('월말 점검');
@@ -140,7 +140,7 @@ for (const width of [1440, 390]) {
     expect(combined).toContain('거래일 기준 오름차순');
     expect(combined).toContain('(한국시간)');
     expect(combined).not.toContain('2026-10-31T14:30:00Z');
-    const collectionPages = text.filter((value) => value.includes('모아홈 동별 입출금 내역'));
+    const collectionPages = text.filter((value) => value.includes('모아빌라 동별 입출금 내역'));
     expect(collectionPages.length).toBe(4);
     expect(text[3]).not.toContain('조회 대상');
     for (const value of collectionPages) {
@@ -269,7 +269,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     const excel = await excelReady;
-    expect(excel.suggestedFilename()).toBe('모아홈_동별입출금내역_2026-10_103동.xlsx');
+    expect(excel.suggestedFilename()).toBe('모아빌라_동별입출금내역_2026-10_103동.xlsx');
     const archive = unzipSync(await readFile((await excel.path())!));
     const xml = Object.entries(archive).filter(([name]) => name.endsWith('.xml')).map(([, bytes]) => strFromU8(bytes)).join('');
     expect(xml).toContain('103동 청소비');
@@ -293,7 +293,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     const pdf = await pdfReady;
-    expect(pdf.suggestedFilename()).toBe('모아홈_동별입출금내역_2026-10_103동.pdf');
+    expect(pdf.suggestedFilename()).toBe('모아빌라_동별입출금내역_2026-10_103동.pdf');
     const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
     const task = getDocument({
       data: new Uint8Array(await readFile((await pdf.path())!)),
@@ -440,7 +440,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     const excel = await excelReady;
-    expect(excel.suggestedFilename()).toBe('모아홈_동별입출금내역_2026-10_103동_카카오뱅크 ····1004.xlsx');
+    expect(excel.suggestedFilename()).toBe('모아빌라_동별입출금내역_2026-10_103동_카카오뱅크 ····1004.xlsx');
     const files = unzipSync(await readFile((await excel.path())!));
     const xml = Object.entries(files).filter(([name]) => name.endsWith('.xml')).map(([, bytes]) => strFromU8(bytes)).join('');
     expect(xml).toContain('103동 카카오 입금');
@@ -465,7 +465,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     const pdf = await pdfReady;
-    expect(pdf.suggestedFilename()).toBe('모아홈_동별입출금내역_2026-10_103동_카카오뱅크 ····1004.pdf');
+    expect(pdf.suggestedFilename()).toBe('모아빌라_동별입출금내역_2026-10_103동_카카오뱅크 ····1004.pdf');
     const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
     const task = getDocument({
       data: new Uint8Array(await readFile((await pdf.path())!)),
@@ -695,9 +695,9 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     const zip = await zipReady;
-    expect(zip.suggestedFilename()).toBe('모아홈_동별입출금내역_2026-10.zip');
+    expect(zip.suggestedFilename()).toBe('모아빌라_동별입출금내역_2026-10.zip');
     const files = unzipSync(await readFile((await zip.path())!));
-    expect(Object.keys(files)).toEqual(['모아홈_동별입출금내역_2026-10_01.png', '모아홈_동별입출금내역_2026-10_02.png']);
+    expect(Object.keys(files)).toEqual(['모아빌라_동별입출금내역_2026-10_01.png', '모아빌라_동별입출금내역_2026-10_02.png']);
     expect(files[Object.keys(files)[0]]).toEqual(firstBytes);
     expect(files[Object.keys(files)[1]]).toEqual(secondBytes);
     await modal.getByRole('combobox', {
@@ -723,7 +723,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     const png = await pngReady;
-    expect(png.suggestedFilename()).toBe('모아홈_동별입출금내역_2026-10_103동.png');
+    expect(png.suggestedFilename()).toBe('모아빌라_동별입출금내역_2026-10_103동.png');
     const bytes = await readFile((await png.path())!);
     expect(new Uint8Array(bytes)).toEqual(previewBytes);
     expect([...bytes.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -788,5 +788,5 @@ test('이미지 변환 실패는 다운로드를 막고 재시도 뒤 실제 PNG
     exact: true
   }).click();
   const download = await ready;
-  expect(download.suggestedFilename()).toBe('모아홈_동별입출금내역_2026-10.png');
+  expect(download.suggestedFilename()).toBe('모아빌라_동별입출금내역_2026-10.png');
 });

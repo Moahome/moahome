@@ -1,4 +1,7 @@
-import { getAccountsForMonth } from './bankAccountVisibility';
+import { getAccountsForRange } from './bankAccountVisibility';
+import { getMonthDateRange } from '@/shared/lib/date-range';
+import { formatMonthRange } from '@/shared/lib/month-range';
+import { isBalanceDateInRange } from './balanceLedger';
 import {
   formatReportTimestamp,
   getReportPeriodLabel
@@ -16,7 +19,7 @@ export function getBalanceReportBuildingOptions(data: BalanceReportSnapshot) {
       label: building.label
     }));
   for (const entry of data.balances.entries) {
-    if (!entry.date.startsWith(data.month) || (BigInt(entry.income) === BigInt(0) && BigInt(entry.expense) === BigInt(0))) continue;
+    if (!isBalanceDateInRange(entry.date, data.month, data.startMonth) || (BigInt(entry.income) === BigInt(0) && BigInt(entry.expense) === BigInt(0))) continue;
     if (!groups.some((group) => group.id === entry.buildingId)) groups.push({
       id: entry.buildingId,
       label: '동 확인 필요'
@@ -27,7 +30,10 @@ export function getBalanceReportBuildingOptions(data: BalanceReportSnapshot) {
 
 /** 기존 통장 거래와 같은 시작·종료 월·입출금 이력 규칙으로 필터를 구성하며 과거 수납 목록으로 계좌를 복원하지 않습니다. */
 export function getBalanceReportAccountOptions(data: BalanceReportSnapshot) {
-  return getAccountsForMonth(data.banking.accounts ?? [], data.month).map((account) => ({
+  return getAccountsForRange(data.banking.accounts ?? [], {
+    startDate: `${data.startMonth ?? data.month}-01`,
+    endDate: getMonthDateRange(data.month).endDate
+  }).map((account) => ({
     id: account.id,
     label: data.balances.accounts?.find((row) => row.id === account.id)?.label
       ?? `${account.bankName} ····${account.last4}${account.alias ? ` · ${account.alias}` : ''}`
@@ -36,7 +42,7 @@ export function getBalanceReportAccountOptions(data: BalanceReportSnapshot) {
   }) || a.id.localeCompare(b.id));
 }
 
-/** 동·계좌 선택을 거래·소계·전체 합계에 먼저 적용하고 한 문서의 실제 입금·부담 지출만 구성합니다. */
+/** 현재 관리대상 이름을 제목에 사용하고 동·계좌 선택을 거래·소계·전체 합계에 함께 적용합니다. */
 export function getBalanceReportDocument(data: BalanceReportSnapshot, buildingId = '', accountId = ''): ReportDefinition {
   const groups = getBalanceReportBuildingOptions(data);
   const selected = groups.find((group) => group.id === buildingId);
@@ -46,7 +52,7 @@ export function getBalanceReportDocument(data: BalanceReportSnapshot, buildingId
   if (accountId && !selectedAccount) throw new Error('INVALID_SETTLEMENT_ACCOUNT');
   const scope = selected?.label ?? '전체 동';
   const generatedAt = formatReportTimestamp(data.generatedAt);
-  const entries = data.balances.entries.filter((row) => row.date.startsWith(data.month)
+  const entries = data.balances.entries.filter((row) => isBalanceDateInRange(row.date, data.month, data.startMonth)
     && (!buildingId || row.buildingId === buildingId)
     && (!accountId || row.accountId === accountId)
     && (BigInt(row.income) !== BigInt(0) || BigInt(row.expense) !== BigInt(0)));
@@ -81,15 +87,18 @@ export function getBalanceReportDocument(data: BalanceReportSnapshot, buildingId
       rows.push([group.label, `${entry.date}${entry.time ? ` ${entry.time}` : ''}`, account?.label ?? '통장 미확인',
         direction, entry.label, received, paid, running ?? '설정 필요']);
     }
-    if (!movements.length) rows.push([group.label, '', '', '내역 없음', '조회 월의 입금·지출 내역이 없습니다.', '', '', start == null ? '설정 필요' : BigInt(start)]);
+    if (!movements.length) rows.push([group.label, '', '', '내역 없음', '조회 기간의 입금·지출 내역이 없습니다.', '', '', start == null ? '설정 필요' : BigInt(start)]);
     rows.push([group.label, '기초 잔액', start == null ? '설정 필요' : BigInt(start), '동별 합계', '', income, expense, end == null ? '설정 필요' : BigInt(end)]);
     totalIncome += income;
     totalExpense += expense;
   }
   return {
-    title: selected ? `모아홈 ${selected.label} 입출금 내역` : '모아홈 동별 입출금 내역',
+    title: selected ? `${data.propertyName} ${selected.label} 입출금 내역` : `${data.propertyName} 동별 입출금 내역`,
     sheet: '동별 입출금 내역',
-    description: `${data.month} ${scope} 입금·지출 내역입니다. 지출액은 각 동의 실제 부담액입니다.`,
+    description: `${formatMonthRange({
+      startMonth: data.startMonth ?? data.month,
+      endMonth: data.month
+    })} ${scope} 입금·지출 내역입니다. 지출액은 각 동의 실제 부담액입니다.`,
     columns: [
       {
         label: '동',
@@ -125,8 +134,8 @@ export function getBalanceReportDocument(data: BalanceReportSnapshot, buildingId
     rows,
     total: [selected || selectedAccount ? '선택 범위 합계' : '전체 합계', '', '', '', '', totalIncome, totalExpense, totalEnd ?? '설정 필요'],
     summary: [{
-      label: '조회 월',
-      value: data.month
+      label: data.startMonth && data.startMonth !== data.month ? '조회 기간' : '조회 월',
+      value: data.startMonth && data.startMonth !== data.month ? `${data.startMonth} ~ ${data.month}` : data.month
     }, {
       label: '조회 동',
       value: scope

@@ -259,7 +259,7 @@ for (const width of [1440, 390]) {
           name: /목록/
         })).toHaveCount(0);
         await page.getByRole('banner').getByRole('link', {
-          name: '목록',
+          name: '뒤로가기',
           exact: true
         }).click();
       }
@@ -374,6 +374,7 @@ for (const width of [1440, 320]) {
     });
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await page.keyboard.press('Escape');
+    const detailOrigin = page.url();
     await table.getByRole('row').nth(1).getByRole('cell').last().click();
     if (width===1440) {
       const modal=page.getByRole('dialog'); await expect(modal.getByRole('table',{
@@ -404,10 +405,10 @@ for (const width of [1440, 320]) {
         fullPage: true
       });
       await page.getByRole('link',{
-        name:'목록',
+        name:'뒤로가기',
         exact:true
       }).click();
-      await expect(page).toHaveURL(/tab=monthly&month=2026-11/);
+      await expect(page).toHaveURL(detailOrigin);
     }
     await main.getByRole('tab',{
       name:'부과 이력',
@@ -499,7 +500,7 @@ for (const width of [1440, 320]) {
         name: /목록/
       })).toHaveCount(0);
       await page.getByRole('banner').getByRole('link', {
-        name: '목록',
+        name: '뒤로가기',
         exact: true
       }).click();
     }

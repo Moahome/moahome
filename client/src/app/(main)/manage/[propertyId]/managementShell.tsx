@@ -22,9 +22,10 @@ export function ManagementShell({
   const basePath = `/manage/${propertyId}`;
   const searchParams = useSearchParams();
   const ledgerBuilding = searchParams.get('buildingId');
-  const ledgerMonth = searchParams.get('month');
+  const ledgerMonth = searchParams.get('month') ?? searchParams.get('endMonth');
+  const ledgerPeriod = getMonthRangeQuery(searchParams);
   const ledgerAccount = searchParams.get('account');
-  const accountQuery = /^[0-9a-f-]{36}$/i.test(ledgerAccount ?? '') ? `&account=${ledgerAccount}` : '';
+  if (/^[0-9a-f-]{36}$/i.test(ledgerAccount ?? '')) ledgerPeriod.set('account', ledgerAccount!);
   // 원장 진입 문맥만 허용해 다른 관리대상이나 임의 URL로 돌아가지 않게 합니다.
   const fromBalance = searchParams.get('from') === 'balance'
     && /^[0-9a-f-]{36}$/i.test(ledgerBuilding ?? '') && /^\d{4}-(0[1-9]|1[0-2])$/.test(ledgerMonth ?? '')
@@ -38,7 +39,7 @@ export function ManagementShell({
     label: '지출 내역으로 돌아가기',
     title: '지출 상세'
   } : fromBalance ? {
-    href: `${basePath}/banking/balances/${ledgerBuilding}?month=${ledgerMonth}${accountQuery}`,
+    href: `${basePath}/banking/balances/${ledgerBuilding}?${ledgerPeriod}`,
     label: '동별 상세 원장으로 돌아가기',
     title: '거래 상세'
   } : getMobileBack(pathname, basePath, ledgerMonth, ledgerAccount, getMonthRangeQuery(searchParams), getDateRangeQuery(searchParams));
@@ -78,7 +79,7 @@ function getMobileBack(pathname: string, basePath: string, month: string | null,
   const transactionQuery = new URLSearchParams(datePeriod);
   if (/^[0-9a-f-]{36}$/i.test(account ?? '')) transactionQuery.set('account', account!);
   const transactionSuffix = transactionQuery.size ? `?${transactionQuery}` : '';
-  const balanceQuery = new URLSearchParams();
+  const balanceQuery = new URLSearchParams(period);
   if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month ?? '')) balanceQuery.set('month', month!);
   if (/^[0-9a-f-]{36}$/i.test(account ?? '')) balanceQuery.set('account', account!);
   if (pathname.startsWith(`${basePath}/banking/balances/`)) {

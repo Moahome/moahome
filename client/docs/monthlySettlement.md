@@ -12,7 +12,7 @@
 
 브라우저 탭 제목은 `월별 정산 | 모아홈`입니다. 페이지 metadata에서 제목을 지정하고 루트의 공통 제목 템플릿을 재사용합니다.
 
-경로는 `/manage/[propertyId]/closing/monthly`이며 선택 월을 `month=YYYY-MM`으로 유지합니다. 생략하면 서버 한국시간의 현재 월을 선택하고 잘못된 월은 다시 선택하도록 안내합니다. 직접 진입·새로고침과 월 선택 변경을 지원합니다. 상세 탭은 `tab=accounts|buildings|collections|external`로 유지하며 기본은 `collections`(수납과 미납)입니다.
+경로는 `/manage/[propertyId]/closing/monthly`이며 선택 월을 `month=YYYY-MM`으로 유지합니다. 생략하면 서버 한국시간의 현재 월을 선택하고 잘못된 월은 다시 선택하도록 안내합니다. 직접 진입·새로고침과 월 선택 변경을 지원합니다. 상세 탭은 `tab=accounts|buildings|collections|external`로 유지하며 기본은 `accounts`(통장별 잔액)입니다. URL에 명시한 탭은 그대로 유지합니다.
 
 ## 화면 구성
 

@@ -6,7 +6,7 @@ import type {
 
 const HISTORY_KEY = 'moahome.navigation.history';
 const MAX_ENTRIES = 50;
-const RETURN_QUERY_KEYS = ['month', 'account', 'buildingId', 'tab', 'propertyId'];
+const RETURN_QUERY_KEYS = ['month', 'account', 'buildingId', 'tab', 'propertyId', 'startMonth', 'endMonth', 'startDate', 'endDate', 'target'];
 let activeHistory: NavigationHistoryRecord | null = null;
 let returning: NavigationHistoryReturn | null = null;
 let tracking = false;
@@ -138,7 +138,7 @@ export function trackNavigationHistory() {
   function finishReturning() {
     const pending = returning;
     returning = null;
-    if (!pending) return;
+    if (!pending || pending.mode === 'previous') return;
     const restored = new URL(window.location.href);
     const destination = new URL(pending.href, restored);
     const requiredQuery = new URLSearchParams(destination.search);
@@ -165,7 +165,23 @@ export function trackNavigationHistory() {
   window.addEventListener('hashchange', resetOnHashChange);
 }
 
-/** 지정된 상위 경로의 실제 방문 기록으로 복귀하며, 확인할 수 없으면 호출자가 replace합니다. */
+/** 헤더도 기기 뒤로가기와 같이 실제 이전 화면으로 이동하고, 이력이 없는 직접 진입만 호출자의 대체 경로를 사용합니다. */
+export function goBackToPreviousRoute() {
+  if (returning) return true;
+  const position = getPosition();
+  if (!activeHistory || position === null) return false;
+  const previous = activeHistory.urls[position - activeHistory.start - 1];
+  if (!previous) return false;
+  // 브라우저가 복원하는 원래 URL을 그대로 사용하며 조건을 추가하거나 재정렬하지 않습니다.
+  returning = {
+    mode: 'previous'
+  };
+  // 같은 경로라도 조회 조건이 다를 수 있으므로 중간 항목을 건너뛰지 않습니다.
+  window.history.back();
+  return true;
+}
+
+/** 업로드 완료·취소처럼 목적지가 정해진 업무 흐름에서만 사용합니다. 헤더 뒤로가기는 이전 화면을 사용합니다. */
 export function goBackToRoute(href: string, onReplace: (href: string) => void) {
   if (returning) return true;
   const position = getPosition();
@@ -184,6 +200,7 @@ export function goBackToRoute(href: string, onReplace: (href: string) => void) {
     });
     if (!matchesQuery) continue;
     returning = {
+      mode: 'destination',
       href,
       onReplace
     };

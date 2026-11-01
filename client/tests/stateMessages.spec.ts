@@ -367,13 +367,13 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
       await expect(state).toBeVisible();
       await expect(state.locator('img')).toHaveAttribute('src', /notFound/);
       await expect(state.getByRole('link', {
-        name: '홈으로 돌아가기'
+        name: '뒤로가기'
       })).toHaveAttribute('href', '/start');
       await expect(state.getByRole('link', {
-        name: '홈으로 돌아가기'
+        name: '뒤로가기'
       })).toHaveCSS('color', 'rgb(37, 99, 235)');
       await expect(state.getByRole('link', {
-        name: '홈으로 돌아가기'
+        name: '뒤로가기'
       })).toHaveCSS('text-decoration-line', 'underline');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       await page.screenshot({

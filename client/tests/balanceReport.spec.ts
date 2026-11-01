@@ -22,6 +22,7 @@ import {
 test('다운로드는 한 시트에 동별 실제 입금·부담 지출만 담고 별도 수납·통장·회수 시트는 만들지 않음', async () => {
   const data = settlementFixture();
   const document = getBalanceReportDocument(data);
+  expect(document.title).toBe('모아빌라 동별 입출금 내역');
   expect(document.rows.map((row) => row[4])).toEqual(['102동 101호 관리비', '전기요금 부담', '동별 기타 입금', '']);
   expect(document.total).toEqual(['전체 합계', '', '', '', '', BigInt(40000), BigInt(12000), BigInt(128000)]);
   const blob = await createBalanceReportWorkbook(data);
@@ -31,6 +32,8 @@ test('다운로드는 한 시트에 동별 실제 입금·부담 지출만 담�
   expect(workbook).toContain('동별 입출금 내역');
   const xml = Object.entries(files).filter(([name]) => name.endsWith('.xml')).map(([, bytes]) => strFromU8(bytes)).join('');
   expect(xml).toContain('102동 101호 관리비');
+  expect(xml).toContain('모아빌라 동별 입출금 내역');
+  expect(xml).not.toContain('모아홈 동별 입출금 내역');
   expect(xml).toContain('102동 소계');
   expect(xml).toContain('12000');
   expect(xml).not.toContain('외부 A');
@@ -80,6 +83,7 @@ test('다운로드 동 선택은 해당 동의 거래·소계·합계만 남기�
   const before = JSON.stringify(data);
   expect(getBalanceReportBuildingOptions(data).map((row) => row.label)).toEqual(['2동', '10동', '102동', '103동']);
   const selected = getBalanceReportDocument(data, settlementId(203));
+  expect(selected.title).toBe('모아빌라 103동 입출금 내역');
   expect(selected.rows.every((row) => row[0] === '103동')).toBe(true);
   expect(selected.rows.map((row) => row[4])).toEqual(['103동 청소비', '']);
   expect(selected.total?.slice(5, 7)).toEqual([BigInt(0), BigInt(6000)]);
@@ -223,4 +227,45 @@ test('월초부터 월말 순서대로 잔액을 누적하며 개별 계좌에�
   expect(getReportPeriodLabel(data)).toBe('9월 마감');
   data.month = '2026-10';
   expect(getReportPeriodLabel(data)).toBe('집계 중');
+});
+
+test('동별 기간 원장과 보고서는 시작 잔액·기간 입출금·종료 잔액을 공유하고 단일 월 응답으로 기간을 대체하지 않음', async () => {
+  const { getBuildingLedger } = await import('../src/widgets/banking-workspace/model/balanceLedger');
+  const { readBankingBalances } = await import('../src/widgets/banking-workspace/api/bankingBalanceApi');
+  const data = settlementFixture();
+  data.startMonth = data.balances.startMonth = '2026-09';
+  data.balances.buildings[0].startBalance = '80000';
+  data.balances.buildings[0].income = '60000';
+  data.balances.entries.push({
+    id: settlementId(990),
+    buildingId: settlementId(3),
+    accountId: settlementId(2),
+    date: '2026-09-05',
+    time: null,
+    label: '전월 입금',
+    income: '20000',
+    expense: '0'
+  }, {
+    id: settlementId(991),
+    buildingId: settlementId(3),
+    accountId: settlementId(2),
+    date: '2026-11-01',
+    time: null,
+    label: '기간 밖 입금',
+    income: '90000',
+    expense: '0'
+  });
+  const document = getBalanceReportDocument(data);
+  expect(document.title).toBe('모아빌라 동별 입출금 내역');
+  expect(document.total).toEqual(['전체 합계', '', '', '', '', BigInt(60000), BigInt(12000), BigInt(128000)]);
+  expect(document.rows.some((row) => row[4] === '기간 밖 입금')).toBe(false);
+  expect(document.summary.find((row) => row.label === '조회 기간')?.value).toBe('2026-09 ~ 2026-10');
+  const ledger = getBuildingLedger(data.balances.buildings[0], data.balances.entries, data.month, data.startMonth);
+  expect(ledger[0].balance).toBe(BigInt(100000));
+  expect(ledger.at(-1)?.balance).toBe(BigInt(128000));
+  expect(readBankingBalances(data.balances, data.propertyId, data.month, undefined, '2026-09')).toBe(data.balances);
+  expect(() => readBankingBalances({
+    ...data.balances,
+    startMonth: undefined
+  }, data.propertyId, data.month, undefined, '2026-09')).toThrow();
 });

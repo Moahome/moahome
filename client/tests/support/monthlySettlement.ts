@@ -3,13 +3,14 @@ import {
   type Page
 } from '@playwright/test';
 import type { MonthlySettlementSnapshot } from '../../src/screens/monthly-settlement/api/monthlySettlementApiTypes';
+import type { BalanceReportSnapshot } from '../../src/widgets/banking-workspace/model/balanceReportTypes';
 import type { BankingTransaction } from '../../src/widgets/banking-workspace/api/bankingApiTypes';
 
 export const settlementId = (value: number) => `00000000-0000-4000-8000-${String(value).padStart(12, '0')}`;
 export const SETTLEMENT_PROPERTY = settlementId(1);
 export const SETTLEMENT_ACCOUNT = settlementId(2);
 
-export function settlementFixture(): MonthlySettlementSnapshot {
+export function settlementFixture(): MonthlySettlementSnapshot & BalanceReportSnapshot {
   const id = settlementId;
   const propertyId = SETTLEMENT_PROPERTY;
   const accountId = SETTLEMENT_ACCOUNT;
@@ -65,6 +66,7 @@ export function settlementFixture(): MonthlySettlementSnapshot {
   };
   return {
     propertyId,
+    propertyName: '모아빌라',
     month: '2026-10',
     generatedAt: '2026-10-31T14:30:00Z',
     banking: {
@@ -288,7 +290,7 @@ export function settlementFixture(): MonthlySettlementSnapshot {
 }
 
 /** 응답 순서와 무관한 정렬·회수 단계·자료 부족 필터를 함께 검증할 상세 자료입니다. */
-export function settlementDetailFixture(): MonthlySettlementSnapshot {
+export function settlementDetailFixture(): MonthlySettlementSnapshot & BalanceReportSnapshot {
   const data = settlementFixture();
   const account = data.balances.accounts![0];
   data.banking.accounts!.push({

@@ -17,25 +17,28 @@ const validAmount = (value: unknown): value is string => typeof value === 'strin
 const validNonnegative = (value: unknown): value is string => validAmount(value) && BigInt(value) >= BigInt(0);
 
 /** 다른 관리대상의 응답과 잘못된 금액을 표시하지 않고 서버에서 확정한 보유금 결과만 사용합니다. */
-export async function getBankingBalances(propertyId: string, month: string, accountId?: string, signal?: AbortSignal): Promise<BalanceWorkspace> {
+export async function getBankingBalances(propertyId: string, month: string, accountId?: string, signal?: AbortSignal, startMonth = month): Promise<BalanceWorkspace> {
   const data = await authenticatedAPI<BalanceWorkspace>({
     signal,
     url: `/api/properties/${propertyId}/banking/balances`,
     data: {
       month,
+      ...(startMonth !== month ? {
+        startMonth
+      } : {}),
       ...(accountId ? {
         accountId
       } : {})
     }
   });
-  return readBankingBalances(data, propertyId, month, accountId);
+  return readBankingBalances(data, propertyId, month, accountId, startMonth);
 }
 
 /** 단독 조회와 월별 정산의 일괄 조회에 같은 금액·관리대상·조회월 검증을 적용합니다. */
-export function readBankingBalances(data: BalanceWorkspace, propertyId: string, month: string, accountId?: string): BalanceWorkspace {
+export function readBankingBalances(data: BalanceWorkspace, propertyId: string, month: string, accountId?: string, startMonth = month): BalanceWorkspace {
   // 사용 전 월로 이동하면 서버가 해당 월의 전체 통장 범위로 돌려줍니다. 목록에 남은 통장의 선택 불일치는 허용하지 않습니다.
   const resetToAll = accountId !== undefined && data?.accountId === null && Array.isArray(data.accounts) && !data.accounts.some((account) => account.id === accountId);
-  if (data?.propertyId !== propertyId || data.month !== month || (data.accountId !== undefined && data.accountId !== (accountId ?? null) && !resetToAll) || !Array.isArray(data.buildings) || !Array.isArray(data.entries)
+  if (data?.propertyId !== propertyId || data.month !== month || (data.startMonth ?? data.month) !== startMonth || (data.accountId !== undefined && data.accountId !== (accountId ?? null) && !resetToAll) || !Array.isArray(data.buildings) || !Array.isArray(data.entries)
     || (data.legacyOpening != null && (!/^\d{4}-\d{2}-\d{2}$/.test(data.legacyOpening.cutoffDate) || !Array.isArray(data.legacyOpening.buildings) || data.legacyOpening.buildings.some((part) => typeof part.buildingId !== 'string' || !validAmount(part.amount))))
     || !Array.isArray(data.externals) || !Array.isArray(data.incomes) || !Array.isArray(data.pending)
     || (data.bankBalance !== null && !validAmount(data.bankBalance))

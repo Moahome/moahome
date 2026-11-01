@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   useRef,
   type ReactNode
@@ -9,7 +8,7 @@ import {
 import { useSession } from '@/entities/session';
 import type { CurrentUser } from '@/entities/session';
 import { LogoutButton } from '@/features/logout';
-import { goBackToRoute } from '@/shared/lib/navigation-history';
+import { goBackToPreviousRoute } from '@/shared/lib/navigation-history';
 import { BrandMark } from '@/shared/ui/brand-mark';
 import { NoticeDialog } from '@/shared/ui/notice-dialog';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -38,7 +37,6 @@ export function ServiceHeader({
 }) {
   // 관리 레이아웃은 권한 확인 후 이 위젯을 표시하며, 세션 조회 결과는 시작 화면과 공유합니다.
   const session = useSession();
-  const router = useRouter();
   const profile = user ?? session.data;
   const noticeRef = useRef<HTMLDialogElement>(null);
   if (!profile) return null;
@@ -58,10 +56,10 @@ export function ServiceHeader({
               href={mobileBack.href}
               replace
               onNavigate={(event) => {
-                // 실제 상위 방문으로 되돌리고, 직접 접근 등 기록이 없을 때만 현재 상세를 대체합니다.
-                if (goBackToRoute(mobileBack.href, (href) => router.replace(href))) event.preventDefault();
+                // 실제 이전 화면으로 돌아가며 직접 접근처럼 방문 기록이 없을 때만 대체 경로를 사용합니다.
+                if (goBackToPreviousRoute()) event.preventDefault();
               }}
-              aria-label={mobileBack.label}
+              aria-label={'뒤로가기'}
               className={styles['back-link']}
             >
               <ServiceIcon

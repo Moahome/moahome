@@ -74,6 +74,18 @@ for (const width of [1440, 390]) {
       name: '외부 미회수액 6,000원',
       exact: true
     })).toBeVisible();
+    await expect(page.getByRole('tab', {
+      name: '통장별 잔액',
+      exact: true
+    })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('table', {
+      name: '통장별 잔액',
+      exact: true
+    })).toBeVisible();
+    await page.getByRole('tab', {
+      name: '수납과 미납',
+      exact: true
+    }).click();
     await expect(page.getByRole('table', {
       name: '수납과 미납',
       exact: true
@@ -238,7 +250,7 @@ test('수납 상세의 검색·상태·동·페이지 필터와 독립적으로 
     failure: false,
     wrongProperty: false
   }, 21);
-  await page.goto(`${BASE}?month=2026-10`);
+  await page.goto(`${BASE}?month=2026-10&tab=collections`);
   const table = page.getByRole('table', {
     name: '수납과 미납',
     exact: true

@@ -21,6 +21,26 @@ async function mockDashboard(page: Page, state = {
   empty: false
 }) {
   await mockSettlement(page);
+  await page.route('http://localhost:8080/api/properties/*/banking/account/*', (route) => route.fulfill({
+    headers: {
+      'Access-Control-Allow-Origin': 'http://localhost:3100',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS'
+    },
+    json: {
+      propertyId: SETTLEMENT_PROPERTY,
+      accountId: settlementId(2),
+      updatedAt: '2026-10-31T00:00:00Z',
+      bankCode: '081',
+      bankName: '하나은행',
+      last4: '1234',
+      holderName: '테스트 예금주',
+      alias: null,
+      isPrimary: true,
+      status: 'ACTIVE'
+    }
+  }));
   const requests: string[] = [];
   await page.route('http://localhost:8080/api/properties/*/dashboard*', async (route) => {
     const headers = {
@@ -83,7 +103,7 @@ for (const width of [1440, 390, 320]) {
       exact: true
     })).toContainText('일부납부');
     await expect(page.getByRole('region', {
-      name: '통장별 확인 잔액',
+      name: '통장별 잔액',
       exact: true
     })).toContainText('120,000원');
     await expect(page.getByRole('table', {
@@ -195,7 +215,7 @@ test('PC 최근 수동 입금은 기존 모달을 열고 닫을 때 대시보드
   await expect.poll(() => requests.length).toBe(2);
 });
 
-test('모바일 최근 거래는 기존 상세로 이동하고 헤더로 같은 월 통장 목록에 복귀', async ({ page }) => {
+test('모바일 최근 거래는 상세로 이동하고 헤더로 같은 월의 출발 대시보드에 복귀', async ({ page }) => {
   await page.setViewportSize({
     width: 390,
     height: 844
@@ -210,10 +230,11 @@ test('모바일 최근 거래는 기존 상세로 이동하고 헤더로 같은 
   await expect(page.getByRole('heading', {
     name: '입금 처리 상세'
   })).toBeVisible();
-  await page.getByRole('link', {
-    name: /월별|통장 거래|목록/
-  }).first().click();
-  await expect(page).toHaveURL(/\/banking\/transactions\?month=2026-10$/);
+  await page.getByRole('banner').getByRole('link', {
+    name: '뒤로가기',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(`${BASE}?month=2026-10`);
 });
 
 test('그래프 호버·키보드 초점은 선택한 막대 하나의 금액만 보여주고 Escape로 닫음', async ({ page }) => {
@@ -356,4 +377,37 @@ test('공용 새로고침은 업데이트 시각·파란 버튼과 실패 상태
     name: '청구 납부반영액 10,000원',
     exact: true
   })).toBeVisible();
+});
+
+
+test('모바일 통장 상세의 헤더·기기 뒤로가기는 대시보드 또는 잔고의 실제 출발 화면과 조회 조건으로 복귀', async ({ page }) => {
+  await page.setViewportSize({
+    width: 390,
+    height: 900
+  });
+  await mockDashboard(page);
+  for (const from of ['dashboard', 'balances']) {
+    const origin = from === 'dashboard' ? `${BASE}?month=2026-10`
+      : `/manage/${SETTLEMENT_PROPERTY}/banking/balances?account=${settlementId(2)}&month=2026-10`;
+    await page.goto(origin);
+    const open = () => page.getByRole('button', {
+      name: from === 'dashboard' ? '하나은행 통장 상세' : /하나은행.*통장 상세 보기/
+    }).click();
+    await open();
+    await expect(page).toHaveURL(/banking\/balances\/details\/account/);
+    await page.reload();
+    await page.getByRole('banner').getByRole('link', {
+      name: '뒤로가기',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(origin);
+    await open();
+    await expect(page).toHaveURL(/banking\/balances\/details\/account/);
+    await expect(page.getByRole('heading', {
+      name: '통장 상세',
+      exact: true
+    })).toBeVisible();
+    await page.goBack();
+    await expect(page).toHaveURL(origin);
+  }
 });

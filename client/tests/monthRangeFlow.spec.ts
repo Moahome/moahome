@@ -217,7 +217,7 @@ for (const width of [1440, 320]) {
       await expect(page).toHaveURL(/monthly\/2027-03\/.*startMonth=2026-11&endMonth=2027-03/);
       await page.reload();
       await page.getByRole('link', {
-        name: '월별 수납 현황으로 돌아가기',
+        name: '뒤로가기',
         exact: true
       }).click();
       await expect(rows).toHaveCount(5);
@@ -320,3 +320,111 @@ test('기간 보고서는 월 범위와 최신 월부터의 내역을 PDF·PNG�
   }).click();
   expect((await image).suggestedFilename()).toMatch(pageCount === 1 ? /\.png$/ : /\.zip$/);
 });
+
+for (const width of [1440, 320]) {
+  test(`동별 잔고 월 기간 ${width}px는 조회·원장·복귀와 빌라 이름의 보고서에 같은 범위를 유지`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    await mockSettlement(page);
+    const requests: string[] = [];
+    await page.route(`http://localhost:8080/api/properties/${SETTLEMENT_PROPERTY}/banking/balances*`, (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fallback();
+      const url = new URL(route.request().url());
+      requests.push(url.search);
+      const data = settlementFixture().balances;
+      data.month = url.searchParams.get('month') ?? '2026-10';
+      data.startMonth = url.searchParams.get('startMonth') ?? data.month;
+      data.accountId = url.searchParams.get('accountId');
+      if (data.startMonth === '2026-09' && data.month === '2026-10') {
+        data.buildings[0].startBalance = '80000';
+        data.buildings[0].income = '60000';
+        data.entries.push({
+          id: settlementId(990),
+          buildingId: settlementId(3),
+          accountId: settlementId(2),
+          date: '2026-09-05',
+          time: null,
+          label: '전월 입금',
+          income: '20000',
+          expense: '0'
+        });
+      }
+      return route.fulfill({
+        json: data,
+        headers: {
+          'Access-Control-Allow-Origin': 'http://localhost:3100',
+          'Access-Control-Allow-Credentials': 'true'
+        }
+      });
+    });
+    await page.goto(`${BASE}/banking/balances?month=2026-10`);
+    await selectMonthRange(page, '2026-09', '2026-10');
+    await expect(page).toHaveURL(/startMonth=2026-09&endMonth=2026-10/);
+    const table = page.getByRole('table', {
+      name: '동별 잔고',
+      exact: true
+    });
+    await expect(table).toContainText('80,000원');
+    await expect(table).toContainText('60,000원');
+    await expect.poll(() => requests.some((value) => value.includes('startMonth=2026-09') && value.includes('month=2026-10'))).toBe(true);
+    await page.reload();
+    await expect(table).toContainText('60,000원');
+    if (width < 768) {
+      await page.getByRole('combobox', {
+        name: '조회 통장',
+        exact: true
+      }).click();
+      await page.getByRole('option', {
+        name: /하나은행/
+      }).click();
+      await table.getByRole('row').filter({
+        hasText: '102동'
+      }).click();
+      await expect(page.getByRole('table', {
+        name: '동별 상세 원장',
+        exact: true
+      })).toContainText('전월 입금');
+      await page.reload();
+      await page.getByRole('banner').getByRole('link', {
+        name: '뒤로가기',
+        exact: true
+      }).click();
+      await expect(page).toHaveURL((url) => url.searchParams.get('startMonth') === '2026-09' && url.searchParams.get('endMonth') === '2026-10' && url.searchParams.get('account') === settlementId(2));
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      return;
+    }
+    await page.getByRole('button', {
+      name: '다운로드',
+      exact: true
+    }).click();
+    const dialog = page.getByRole('dialog', {
+      name: /동별 입출금 내역/
+    });
+    await dialog.getByRole('radio', {
+      name: 'PDF',
+      exact: true
+    }).check();
+    const waiting = page.waitForEvent('download');
+    await dialog.getByRole('button', {
+      name: 'PDF 다운로드',
+      exact: true
+    }).click();
+    const download = await waiting;
+    expect(download.suggestedFilename()).toBe('모아빌라_동별입출금내역_2026-09_2026-10.pdf');
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const task = getDocument({
+      data: new Uint8Array(await readFile((await download.path())!)),
+      useSystemFonts: false
+    });
+    const pdf = await task.promise;
+    const content = await (await pdf.getPage(1)).getTextContent();
+    const text = content.items.map((item) => 'str' in item ? item.str : '').join(' ');
+    expect(text).toContain('모아빌라 동별 입출금 내역');
+    expect(text).toContain('2026.09');
+    expect(text).toContain('2026.10');
+    expect(text).toContain('전월 입금');
+    await task.destroy();
+  });
+}

@@ -21,10 +21,10 @@ export function getBalanceSummary(data: BalanceWorkspace) {
 }
 
 /** 원본 거래일 순으로 동별 실제 이동과 누적 잔고를 계산합니다. 원본의 출금 전액을 다시 더하지 않습니다. */
-export function getBuildingLedger(building: BalanceBuilding, entries: readonly BalanceEntry[], month: string) {
+export function getBuildingLedger(building: BalanceBuilding, entries: readonly BalanceEntry[], month: string, startMonth = month) {
   let balance = building.startBalance === null ? null : BigInt(building.startBalance);
 
-  return entries.filter((e) => e.buildingId === building.id && e.date.startsWith(month))
+  return entries.filter((e) => e.buildingId === building.id && isBalanceDateInRange(e.date, month, startMonth))
     .sort((a, b) => `${a.date} ${a.time ?? ''} ${a.id}`.localeCompare(`${b.date} ${b.time ?? ''} ${b.id}`))
     .map((e) => {
       if (balance !== null) balance += BigInt(e.income) - BigInt(e.expense);
@@ -33,4 +33,10 @@ export function getBuildingLedger(building: BalanceBuilding, entries: readonly B
         balance
       };
     });
+}
+
+/** 화면과 보고서가 같은 월 경계로 기간 내 거래를 판정해 일부 달의 내역이 빠지지 않게 합니다. */
+export function isBalanceDateInRange(date: string, endMonth: string, startMonth = endMonth) {
+  const month = date.slice(0, 7);
+  return month >= startMonth && month <= endMonth;
 }

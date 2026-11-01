@@ -9,7 +9,10 @@ export interface NavigationHistoryRecord {
   urls: string[];
 }
 
-export interface NavigationHistoryReturn {
+export type NavigationHistoryReturn = {
+  mode: 'previous';
+} | {
+  mode: 'destination';
   href: string;
   onReplace: (href: string) => void;
-}
+};

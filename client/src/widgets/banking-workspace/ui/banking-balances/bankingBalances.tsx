@@ -4,8 +4,9 @@ import {
   StateMessage
 } from '@/shared/ui/state-message';
 import { ApiError } from '@/shared/api';
-import { getOpeningBalances } from '@/features/billing-management';
 import { useSession } from '@/entities/session';
+import { useManagementContext } from '@/features/enter-service';
+import { getOpeningBalances } from '@/features/billing-management';
 import {
   formatInteger,
   formatWon
@@ -25,7 +26,13 @@ import {
 } from '@/shared/ui/form-controls';
 import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { ListHeader } from '@/shared/ui/list-header';
-import { MonthPicker } from '@/shared/ui/month-picker';
+import { MonthRangePicker } from '@/shared/ui/month-range-picker';
+import {
+  formatMonthRange,
+  getQueryMonthRange,
+  getMonthRangeQuery,
+  setMonthRangeQuery
+} from '@/shared/lib/month-range';
 import { Pagination } from '@/shared/ui/pagination';
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -219,13 +226,14 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     renderReceiptDetail?: (paymentId: string, onClose: () => void) => ReactNode;
 }) {
   const session = useSession();
+  const context = useManagementContext(session.data?.id, propertyId, false);
   const cache = useQueryClient();
   const router = useRouter();
   const params = useSearchParams();
-  const requested = params.get('month');
-  const month = requested && /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : new Intl.DateTimeFormat('sv-SE', {
-    timeZone: 'Asia/Seoul'
-  }).format(new Date()).slice(0, 7);
+  const range = getQueryMonthRange(params);
+  const month = range.endMonth;
+  const startMonth = range.startMonth;
+  const periodLabel = formatMonthRange(range);
   const accountId = params.get('account') ?? 'ALL';
   const [search, setSearch] = useState(params.get('search') ?? '');
   const [sort, setSort] = useState('name');
@@ -247,8 +255,8 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   const exportBusy = useRef(false);
   const downloadButton = useRef<HTMLButtonElement>(null);
   const query = useQuery({
-    queryKey: ['banking-balances', session.data?.id, propertyId, month, accountId],
-    queryFn: ({ signal }) => getBankingBalances(propertyId, month, accountId === 'ALL' ? undefined : accountId, signal),
+    queryKey: ['banking-balances', session.data?.id, propertyId, month, accountId, startMonth],
+    queryFn: ({ signal }) => getBankingBalances(propertyId, month, accountId === 'ALL' ? undefined : accountId, signal, startMonth),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
@@ -313,9 +321,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     });
   const exportRows = selected.length ? filtered.filter((b) => selected.includes(b.id)) : filtered;
   const detailBuilding = data.buildings.find((b) => b.id === (buildingId ?? detail));
-  const balanceQuery = new URLSearchParams({
-    month
-  });
+  const balanceQuery = getMonthRangeQuery(params, month);
   if (selectedAccount) balanceQuery.set('account', selectedAccount.id);
   const balanceListHref = `/manage/${propertyId}/banking/balances?${balanceQuery}`;
   /** 변경 성공 후 서버 조회를 갱신하고 실패한 폼은 닫지 않습니다. */
@@ -344,9 +350,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   /** 모바일은 월·대상 ID를 가진 독립 페이지, PC는 현재 목록 위의 공통 모달을 사용합니다. */
   function openPanel(kind: BalancePanel, id?: string) {
     if (window.matchMedia('(max-width: 767px)').matches) {
-      const queryParams = new URLSearchParams({
-        month
-      });
+      const queryParams = new URLSearchParams(balanceQuery);
       if (selectedAccount) queryParams.set('account', selectedAccount.id);
       if (id) queryParams.set('target', id);
       if (kind === 'chart') {
@@ -375,19 +379,21 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       id
     });
   }
-  /** 입출금 명세의 선택 범위를 모달에서 바꿀 수 있도록 전체 잔고와 통장 메타데이터를 확인합니다. */
+  /** 현재 권한에서 확인한 빌라 이름과 전체 잔고·통장 정보를 같은 다운로드 자료에 보관합니다. */
   async function download() {
-    if (exportBusy.current || !data || query.isFetching || query.isError) return;
+    if (exportBusy.current || !data || query.isFetching || query.isError || !context.data?.name) return;
     exportBusy.current = true;
     setExporting(true);
     try {
       const [banking, balances] = await Promise.all([
         getBankingWorkspace(propertyId),
-        data.accountId ? getBankingBalances(propertyId, month) : Promise.resolve(data)
+        data.accountId ? getBankingBalances(propertyId, month, undefined, undefined, startMonth) : Promise.resolve(data)
       ]);
       setDownloadData({
         propertyId,
+        propertyName: context.data.name,
         month,
+        startMonth,
         generatedAt: new Date().toISOString(),
         banking,
         balances
@@ -531,7 +537,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           titleId={'balance-title'}
           menu={'통장 관리'}
           title={detailBuilding ? `${detailBuilding.label} 상세 원장` : '동별 상세 원장'}
-          description={`${month} 기준 실제 입금과 부담 지출입니다.`}
+          description={`${periodLabel} 기준 실제 입금과 부담 지출입니다.`}
         />
         {detailBuilding ? (
           <BuildingLedger
@@ -584,17 +590,17 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     },
     {
       key: 'income',
-      header: '월 입금',
+      header: startMonth === month ? '월 입금' : '기간 입금',
       render: (b) => b.status === 'READY' ? money(b.income) : '—'
     },
     {
       key: 'expense',
-      header: '월 지출',
+      header: startMonth === month ? '월 지출' : '기간 지출',
       render: (b) => b.status === 'READY' ? money(b.expense) : '—'
     },
     {
       key: 'balance',
-      header: '월말 잔고',
+      header: startMonth === month ? '월말 잔고' : '기말 잔고',
       render: (b) => (
         <strong
           data-negative={b.balance !== null && BigInt(b.balance) < BigInt(0)}
@@ -609,7 +615,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     <section
       className={styles.page}
     >
-      {downloadData && downloadData.propertyId === propertyId && downloadData.month === month && (
+      {downloadData && downloadData.propertyId === propertyId && downloadData.month === month && (downloadData.startMonth ?? month) === startMonth && (
         <BalanceDownload
           data={downloadData}
           initialAccountId={selectedAccount?.id ?? ''}
@@ -643,7 +649,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
                 variant={'outline'}
                 ref={downloadButton}
                 loading={exporting}
-                disabled={query.isFetching || query.isError}
+                disabled={query.isFetching || query.isError || !context.data?.name}
                 onClick={() => { void download(); }}
                 leadingIcon={(
                   <ServiceIcon
@@ -680,13 +686,13 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           <div
             className={styles['month-control']}
           >
-            <MonthPicker
-              label={'조회 월'}
+            <MonthRangePicker
+              label={'조회 기간'}
               labelHidden
-              value={month}
+              value={range}
               onChange={(value) => {
                 setSelected([]); setDetail(null);
-                const next = new URLSearchParams(params.toString()); next.set('month', value);
+                const next = setMonthRangeQuery(new URLSearchParams(params.toString()), value);
                 router.replace(`?${next}`, {
                   scroll: false
                 });
@@ -699,7 +705,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
               className={styles['account-control']}
               value={selectedAccount?.id ?? 'ALL'}
               onChange={(value) => {
-                const next = new URLSearchParams(params.toString()); next.set('account', value); next.set('month', month);
+                const next = new URLSearchParams(params.toString()); next.set('account', value);
                 router.replace(`?${next}`, {
                   scroll: false
                 });
@@ -900,7 +906,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           className={styles.card}
         >
           <h2>
-            월 입금·출금 비중
+            {startMonth === month ? '월 입금·출금 비중' : '기간 입금·출금 비중'}
           </h2>
           <p
             className={styles.muted}
@@ -908,7 +914,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
             현재 조회 동
             {' '}
             {filtered.length}
-            개 · 월 입금 / 출금
+            {startMonth === month ? '개 · 월 입금 / 출금' : '개 · 기간 입금 / 출금'}
           </p>
           <button
             className={styles['chart-trigger']}
@@ -1423,16 +1429,20 @@ function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
       const path = entry.paymentId ? `receipts/${entry.paymentId}` : `transactions/${entry.id}`;
       const query = new URLSearchParams({
         from: 'balance',
-        buildingId: building.id,
-        month: data.month
+        buildingId: building.id
       });
+      if (data.startMonth && data.startMonth !== data.month) setMonthRangeQuery(query, {
+        startMonth: data.startMonth,
+        endMonth: data.month
+      });
+      else query.set('month', data.month);
       if (data.accountId) query.set('account', data.accountId);
       router.push(`/manage/${propertyId}/banking/${path}?${query}`);
       return;
     }
     setTransactionDetail(entry);
   }
-  const entries = getBuildingLedger(building, data.entries, data.month);
+  const entries = getBuildingLedger(building, data.entries, data.month, data.startMonth);
   const columns: DataTableColumn<(typeof entries)[number]>[] = [
     {
       key: 'date',
@@ -1494,7 +1504,7 @@ function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
         </div>
         <div>
           <span>
-            월 입금
+            {data.startMonth && data.startMonth !== data.month ? '기간 입금' : '월 입금'}
           </span>
           <strong>
             {money(building.income)}
@@ -1502,7 +1512,7 @@ function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
         </div>
         <div>
           <span>
-            월 지출
+            {data.startMonth && data.startMonth !== data.month ? '기간 지출' : '월 지출'}
           </span>
           <strong>
             {money(building.expense)}
@@ -1510,7 +1520,7 @@ function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
         </div>
         <div>
           <span>
-            월말 잔고
+            {data.startMonth && data.startMonth !== data.month ? '기말 잔고' : '월말 잔고'}
           </span>
           <strong
             data-negative={building.balance !== null && BigInt(building.balance!) < BigInt(0)}
@@ -1522,13 +1532,16 @@ function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
       <p
         className={styles.muted}
       >
-        {data.month}
+        {formatMonthRange({
+          startMonth: data.startMonth ?? data.month,
+          endMonth: data.month
+        })}
         {' '}
         · 잔고 기준일
         {' '}
         {data.cutoffDate ?? '미설정'}
         {' '}
-        의 잔고에서 조회 월의 입출금을 계산합니다.
+        의 잔고에서 조회 기간의 입출금을 계산합니다.
       </p>
       <PagedTable
         label={'동별 상세 원장'}
@@ -2094,8 +2107,8 @@ function BalanceActionDialog(props: BalanceActionDialogProps) {
   }, [accountId]);
   const scoped = props.action.kind === 'opening' && accounts.length > 0;
   const query = useQuery({
-    queryKey: ['banking-balances', session.data?.id, props.propertyId, props.data.month, accountId],
-    queryFn: ({ signal }) => getBankingBalances(props.propertyId, props.data.month, accountId, signal),
+    queryKey: ['banking-balances', session.data?.id, props.propertyId, props.data.month, accountId, props.data.startMonth],
+    queryFn: ({ signal }) => getBankingBalances(props.propertyId, props.data.month, accountId, signal, props.data.startMonth),
     enabled: scoped && Boolean(accountId),
     retry: false,
     gcTime: 0

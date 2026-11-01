@@ -564,7 +564,7 @@ test('월별 수납 상세는 PC 중앙 모달이고 모바일 독립 페이지'
     name: /^(목록|목록으로|주민 목록|세대 목록으로)$/
   })).toHaveCount(0);
   await page.getByRole('banner').getByRole('link', {
-    name: '월별 수납 현황으로 돌아가기'
+    name: '뒤로가기'
   }).click();
   await expect(page).toHaveURL(monthly);
 });
@@ -1268,7 +1268,7 @@ for (const width of [390, 767]) {
       const list = `/manage/${PROPERTY_ID}/payments/${view}`;
       const detail = monthly ? `${list}/2026-10/${id('101')}` : `${list}/${id('b1')}`;
       const back = page.getByRole('banner').getByRole('link', {
-        name: monthly ? '월별 수납 현황으로 돌아가기' : '입금 확인·매칭으로 돌아가기'
+        name: '뒤로가기'
       });
       await page.goto(detail);
       await expect(back).toBeVisible();
@@ -1459,7 +1459,7 @@ for (const width of [1440, 320]) {
       } else {
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await page.getByRole('banner').getByRole('link', {
-          name: '월별 수납 현황으로 돌아가기'
+          name: '뒤로가기'
         }).click();
         await expect(page).toHaveURL(list);
       }
@@ -2189,7 +2189,7 @@ for (const width of [1440, 390]) {
       await expect(page.getByRole('dialog')).toContainText('2026-09 · 월별 수납 현황');
     } else {
       await page.getByRole('banner').getByRole('link', {
-        name: '수납 상세로 돌아가기',
+        name: '뒤로가기',
         exact: true
       }).click();
       await expect(page).toHaveURL(`${monthlyPath}/2026-09/${id('101')}?month=2026-09`);
@@ -2352,7 +2352,7 @@ for (const width of [1440, 320]) {
         name: /목록/
       })).toHaveCount(0);
       await page.getByRole('banner').getByRole('link', {
-        name: '입금 확인·매칭으로 돌아가기'
+        name: '뒤로가기'
       }).click();
     }
     await page.getByRole('button', {
@@ -2401,7 +2401,7 @@ for (const width of [1440, 320]) {
       name: '입금 상세 닫기'
     }).click();
     else await page.getByRole('banner').getByRole('link', {
-      name: '입금 확인·매칭으로 돌아가기'
+      name: '뒤로가기'
     }).click();
     await page.getByRole('textbox', {
       name: '입금 검색'
@@ -2859,7 +2859,7 @@ test('통장 입금과 월별 수납은 PC에서 목록을 유지한 모달로 �
   await expect(page).toHaveURL(`${monthly}/2026-10/${id('101')}`);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('banner').getByRole('link', {
-    name: '월별 수납 현황으로 돌아가기',
+    name: '뒤로가기',
     exact: true
   })).toBeVisible();
 });
@@ -2914,7 +2914,7 @@ for (const width of [1440, 320]) {
       await page.reload();
       await expect(page.getByRole('dialog')).toHaveCount(0);
       await expect(page.getByRole('link', {
-        name: '통장 거래로 돌아가기',
+        name: '뒤로가기',
         exact: true
       })).toBeVisible();
       await expect(page.getByRole('button', {
@@ -2976,7 +2976,7 @@ for (const width of [1440, 320]) {
       exact: true
     })).toBeVisible();
     if (width < 768) await page.getByRole('link', {
-      name: '통장 거래로 돌아가기',
+      name: '뒤로가기',
       exact: true
     }).click();
     else await page.getByRole('button', {
@@ -3011,7 +3011,7 @@ for (const width of [1440, 320]) {
       exact: true
     })).toBeVisible();
     if (width < 768) await page.getByRole('link', {
-      name: '통장 거래로 돌아가기',
+      name: '뒤로가기',
       exact: true
     }).click();
     else await page.getByRole('button', {
@@ -3149,7 +3149,7 @@ for (const width of [1440, 390]) {
     await canceled.click();
     await expect(page.getByText(/취소 사유:.*오입력 정정/)).toBeVisible();
     if (width < 768) await page.getByRole('link', {
-      name: '통장 거래로 돌아가기',
+      name: '뒤로가기',
       exact: true
     }).click();
     else await page.getByRole('button', {
@@ -3712,13 +3712,13 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     else await page.getByRole('banner').getByRole('link', {
-      name: '통장 거래로 돌아가기',
+      name: '뒤로가기',
       exact: true
     }).click();
     if (width > 767) await expect(detail).toHaveCount(0);
     else {
-      await expect(page).toHaveURL(`${base}/transactions?month=2026-10`);
-      // 누락된 월을 보완하는 replace가 새 기록을 만들면 뒤로가기에 상세·중복 목록이 다시 나타납니다.
+      await expect(page).toHaveURL(`${base}/transactions`);
+      // 실제 출발 URL을 바꾸거나 새 기록을 만들면 기기 뒤로가기에 상세·중복 목록이 다시 나타납니다.
       await page.goBack();
       await expect(page).toHaveURL(dashboard);
     }

@@ -1,3 +1,4 @@
+import { selectMonthRange } from './support/monthRange';
 import {
   expect,
   test
@@ -847,7 +848,7 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
   await expect(page).toHaveURL(`${BASE}/transactions/${id(300)}?month=2026-10`);
   await expect(page).toHaveTitle('지출 상세 | 모아홈');
   await expect(page.getByRole('link', {
-    name: '통장 거래로 돌아가기',
+    name: '뒤로가기',
     exact: true
   })).toBeVisible();
   for (const width of [320, 390]) {
@@ -1869,7 +1870,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   }).click();
   await expect(tooltip).toHaveCount(0);
   const monthControl = page.getByRole('button', {
-    name: '조회 월: 2026년 10월',
+    name: /^조회 기간:/,
     exact: true
   });
   const availableMonthWidth = await monthControl.evaluate((button) => {
@@ -1879,7 +1880,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   });
   expect(Math.abs((await monthControl.boundingBox())!.width - availableMonthWidth)).toBeLessThanOrEqual(1);
   const backToBalances = page.getByRole('link', {
-    name: '동별 잔고·정산으로 돌아가기',
+    name: '뒤로가기',
     exact: true
   });
   await page.getByRole('button', {
@@ -2022,7 +2023,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   }).click();
   await expect(page).toHaveURL(`${BASE}/balances/${id(102)}?month=2026-10`);
   await expect(page.getByRole('link', {
-    name: '동별 잔고·정산으로 돌아가기',
+    name: '뒤로가기',
     exact: true
   })).toBeVisible();
   await page.reload();
@@ -2054,7 +2055,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   }).click();
   await expect(page).toHaveURL(`${BASE}/receipts/${id(620)}?from=balance&buildingId=${id(102)}&month=2026-10`);
   await page.getByRole('link', {
-    name: '동별 상세 원장으로 돌아가기',
+    name: '뒤로가기',
     exact: true
   }).click();
   await expect(page).toHaveURL(`${BASE}/balances/${id(102)}?month=2026-10`);
@@ -3377,13 +3378,13 @@ for (const { width, unassigned } of [{
     });
     await expect(selector).toBeVisible();
     const monthControl = page.getByRole('button', {
-      name: '조회 월: 2026년 10월',
+      name: /^조회 기간:/,
       exact: true
     });
     expect((await selector.boundingBox())!.height).toBe((await monthControl.boundingBox())!.height);
-    await expect(page.getByText('조회 월', {
-      exact: true
-    })).toHaveCSS('clip-path', 'inset(50%)');
+    await expect(page.getByRole('button', {
+      name: /^조회 기간:/
+    })).toBeVisible();
     await expect(page.getByText('조회 통장', {
       exact: true
     })).toHaveCount(0);
@@ -3534,7 +3535,7 @@ for (const { width, unassigned } of [{
     await expect(amount).toHaveValue('500,000');
     if (width < 768) {
       await page.getByRole('link', {
-        name: '동별 잔고·정산으로 돌아가기',
+        name: '뒤로가기',
         exact: true
       }).click();
       await expect(selector).toContainText('카카오뱅크');
@@ -3900,7 +3901,7 @@ for (const width of [1440]) {
       name: '조회 통장',
       exact: true
     });
-    await expect(page).toHaveURL(/month=2026-08&account=ALL/);
+    await expect(page).toHaveURL((url) => url.searchParams.get('startMonth') === '2026-08' && url.searchParams.get('endMonth') === '2026-08' && url.searchParams.get('account') === 'ALL');
     await expect(selector).toContainText('전체 통장');
     await expect(page.getByRole('article', {
       name: '동별 잔고 합계 300,000원',
@@ -3921,15 +3922,8 @@ for (const width of [1440]) {
     });
     await page.reload();
     await expect(selector).toContainText('전체 통장');
-    await page.getByRole('button', {
-      name: '조회 월: 2026년 8월',
-      exact: true
-    }).click();
-    await page.getByRole('button', {
-      name: '2026년 9월',
-      exact: true
-    }).click();
-    await expect(page).toHaveURL(/month=2026-09/);
+    await selectMonthRange(page, '2026-09');
+    await expect(page).toHaveURL((url) => url.searchParams.get('startMonth') === '2026-09' && url.searchParams.get('endMonth') === '2026-09');
     await selector.click();
     await page.getByRole('option', {
       name: accounts[1].label,
@@ -3939,15 +3933,8 @@ for (const width of [1440]) {
       name: '선택 통장 잔액 1,500,000원',
       exact: true
     })).toBeVisible();
-    await page.getByRole('button', {
-      name: '조회 월: 2026년 9월',
-      exact: true
-    }).click();
-    await page.getByRole('button', {
-      name: '2026년 8월',
-      exact: true
-    }).click();
-    await expect(page).toHaveURL(/month=2026-08&account=ALL/);
+    await selectMonthRange(page, '2026-08');
+    await expect(page).toHaveURL((url) => url.searchParams.get('startMonth') === '2026-08' && url.searchParams.get('endMonth') === '2026-08' && url.searchParams.get('account') === 'ALL');
     await expect(selector).toContainText('전체 통장');
     await expect(page.getByRole('article', {
       name: '동별 잔고 합계 300,000원',
@@ -4135,7 +4122,7 @@ for (const width of [1440, 320]) {
       exact: true
     });
     const back = () => page.getByRole('link', {
-      name: '동별 잔고·정산으로 돌아가기',
+      name: '뒤로가기',
       exact: true
     });
     const closeDetail = async () => {
@@ -4864,7 +4851,7 @@ for (const width of [1440, 390]) {
     if (width === 390) {
       await expect(page).toHaveURL(`${BASE}/manual-expense?month=2026-10&account=${ACCOUNT}`);
       await expect(page.getByRole('link', {
-        name: '통장 거래로 돌아가기'
+        name: '뒤로가기'
       })).toBeVisible();
       await page.reload();
       await expect(page.getByRole('heading', {
@@ -5232,7 +5219,7 @@ for (const width of [1440, 390]) {
     })).toHaveCount(0);
     if (width === 390) {
       await page.getByRole('link', {
-        name: '지출 내역으로 돌아가기'
+        name: '뒤로가기'
       }).click();
       await expect(page).toHaveURL(`${BASE}/expenses?month=2026-09&account=${ACCOUNT}`);
     }
@@ -5429,7 +5416,7 @@ for (const width of [1440, 425]) {
     } else {
       await expect(page).toHaveURL(/details\/check\?/);
       await expect(page.getByRole('link', {
-        name: '동별 잔고·정산으로 돌아가기'
+        name: '뒤로가기'
       })).toBeVisible();
     }
     await page.getByLabel('은행에서 확인한 잔액', {

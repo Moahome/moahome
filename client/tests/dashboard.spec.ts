@@ -75,6 +75,7 @@ test('선입금만 보유한 미부과 세대는 도넛 분모에서 구분하�
 test('미확인·선택월 이후 확인값은 0원이나 합계로 대체하지 않음', () => {
   const data = dashboardFixture();
   expect(getDashboardReport(data).referenceTotal).toBe(BigInt(120000));
+  data.balances.accounts![0].calculatedBalance = null;
   data.balances.accounts![0].confirmation!.date = '2026-11-01';
   expect(getDashboardReport(data).accounts[0].balance).toBeNull();
   expect(getDashboardReport(data).referenceTotal).toBeNull();
@@ -166,4 +167,30 @@ test('전월 선납은 당월 납부로 충당되어 100만원 청구·5만원 �
     expect(summary.applied).toBe(report.applied);
     expect(summary.receivable).toBe(report.receivable);
   }
+});
+
+test('통장 목록은 상세와 같은 장부 우선 계산을 사용하고 0원 장부를 다른 확인 금액으로 바꾸지 않음', () => {
+  const data = dashboardFixture();
+  const first = data.balances.accounts![0];
+  first.balance = '514614';
+  first.calculatedBalance = '2037630';
+  first.calculationBasisDate = '2026-09-30';
+  const second = {
+    ...first,
+    id: settlementId(992),
+    label: '예비비',
+    balance: '1523016',
+    calculatedBalance: '0'
+  };
+  data.balances.accounts!.push(second);
+  data.banking.accounts!.push({
+    ...data.banking.accounts![0],
+    id: second.id,
+    alias: '예비비',
+    isPrimary: false
+  });
+  const report = getDashboardReport(data);
+  expect(report.accounts.map((account) => account.balance)).toEqual(['2037630', '0']);
+  expect(report.referenceTotal).toBe(BigInt(2037630));
+  expect(report.referenceOnly).toBe(false);
 });

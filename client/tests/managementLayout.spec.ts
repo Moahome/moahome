@@ -633,7 +633,7 @@ test.describe('모바일 헤더 방문 기록', () => {
 
   async function returnToList(page: Page) {
     await page.getByRole('banner').getByRole('link', {
-      name: '세대 목록으로 돌아가기'
+      name: '뒤로가기'
     }).click();
     await expect(page).toHaveURL(HOUSEHOLDS);
   }
@@ -657,7 +657,7 @@ test.describe('모바일 헤더 방문 기록', () => {
     }).click();
     await expect(page).toHaveURL(`${detailPath}/edit`);
     await page.getByRole('banner').getByRole('link', {
-      name: '세대 상세로 돌아가기'
+      name: '뒤로가기'
     }).click();
     await expect(page).toHaveURL(detailPath);
     await returnToList(page);
@@ -670,7 +670,7 @@ test.describe('모바일 헤더 방문 기록', () => {
     await openDetail(page);
     await page.reload();
     await expect(page.getByRole('banner').getByRole('link', {
-      name: '세대 목록으로 돌아가기'
+      name: '뒤로가기'
     })).toBeVisible();
     await page.goBack();
     await expect(page).toHaveURL(HOUSEHOLDS);
@@ -708,7 +708,7 @@ test.describe('모바일 헤더 방문 기록', () => {
     })).not.toBeVisible();
     await expect(page).toHaveURL(detailPath);
     await page.getByRole('banner').getByRole('link', {
-      name: '세대 목록으로 돌아가기'
+      name: '뒤로가기'
     }).click();
     await expect(page).toHaveURL(listWithQuery);
     await page.goBack();
@@ -1166,7 +1166,7 @@ test('세대 조회 장애는 빈 목록과 구분하고 모바일에서 표·�
   });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.getByRole('banner').getByRole('link', {
-    name: '세대 목록으로 돌아가기'
+    name: '뒤로가기'
   }).click();
   await expect(page).toHaveURL(HOUSEHOLDS);
   await expect(main.getByText('아직 등록된 세대가 없어요.', {
@@ -1742,7 +1742,7 @@ for (const width of [1440, 320]) {
     if (width < 768) {
       await expect(page).toHaveURL(`${RESIDENTS}/export`);
       await expect(page.getByRole('link', {
-        name: '주민 목록으로 돌아가기'
+        name: '뒤로가기'
       })).toBeVisible();
       await expect(page.getByRole('dialog')).toHaveCount(0);
     }
@@ -2194,7 +2194,7 @@ for (const width of [1440, 320]) {
     } else {
       await expect(page).toHaveURL(`${RESIDENTS}/new`);
       const back = page.getByRole('banner').getByRole('link', {
-        name: '주민 목록으로 돌아가기'
+        name: '뒤로가기'
       });
       await expect(back).toBeVisible();
       await back.click();
@@ -2519,7 +2519,7 @@ for (const width of [320]) {
     await expect(page).toHaveURL(`${HOUSEHOLDS}/new`);
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(banner.getByRole('link', {
-      name: '세대 목록으로 돌아가기'
+      name: '뒤로가기'
     })).toBeVisible();
     await main.getByRole('textbox', {
       name: '호수',
@@ -2566,7 +2566,7 @@ for (const width of [320]) {
     });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await banner.getByRole('link', {
-      name: '세대 목록으로 돌아가기'
+      name: '뒤로가기'
     }).click();
     await expect(page).toHaveURL(HOUSEHOLDS);
     await page.goto(`${HOUSEHOLDS}/${unitId}`);
@@ -2586,7 +2586,7 @@ for (const width of [320]) {
       exact: true
     })).toHaveValue('201');
     await banner.getByRole('link', {
-      name: '세대 상세로 돌아가기'
+      name: '뒤로가기'
     }).click();
     await expect(page).toHaveURL(`${HOUSEHOLDS}/${unitId}`);
     await main.getByRole('button', {
@@ -2630,7 +2630,7 @@ for (const width of [320]) {
     await page.goto(`${HOUSEHOLDS}/${unitId}`);
     await expect(main.getByRole('alert')).toContainText('세대를 확인할 수 없거나 수정할 수 없어요.');
     await banner.getByRole('link', {
-      name: '세대 목록으로 돌아가기'
+      name: '뒤로가기'
     }).click();
     await expect(page).toHaveURL(HOUSEHOLDS);
   });
@@ -2699,7 +2699,7 @@ for (const width of [1440, 320]) {
     }).click();
     await expect(page).toHaveURL(IMPORT_PATH);
     if (width < 768) await expect(page.getByRole('banner').getByRole('link', {
-      name: '주민 목록으로 돌아가기'
+      name: '뒤로가기'
     })).toBeVisible();
     const templateDownload = page.waitForEvent('download');
     await page.getByRole('link', {
@@ -3146,7 +3146,7 @@ for (const width of [1440, 320]) {
       await expect(page).toHaveURL(`${RESIDENTS}/${first.id}`);
       await expect(page.getByRole('dialog')).toHaveCount(0);
       await expect(page.getByRole('banner').getByRole('link', {
-        name: '주민 목록으로 돌아가기'
+        name: '뒤로가기'
       })).toBeVisible();
       await expect(view.getByRole('button', {
         name: /목록/
@@ -3598,7 +3598,7 @@ for (const width of [320]) {
     await page.goto(HOUSEHOLDS);
     const main = page.getByRole('main');
     const back = page.getByRole('banner').getByRole('link', {
-      name: '세대 목록으로 돌아가기'
+      name: '뒤로가기'
     });
     await main.getByRole('button', {
       name: '동 관리',
@@ -4459,7 +4459,7 @@ for (const width of [1440, 390]) {
       exact: true
     })).toHaveCount(0);
     if (width < 768) await page.getByRole('link', {
-      name: '주민 목록으로 돌아가기'
+      name: '뒤로가기'
     }).click();
     else await view.getByRole('button', {
       name: '주민 상세 닫기'
@@ -4564,7 +4564,7 @@ for (const width of [1440]) {
     }).click();
     expect(calls).toBe(1);
     if (width < 768) await page.getByRole('link', {
-      name: '주민 목록으로 돌아가기'
+      name: '뒤로가기'
     }).click();
     else await page.getByRole('dialog').getByRole('button', {
       name: '주민 상세 닫기'

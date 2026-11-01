@@ -92,6 +92,7 @@ export type BalanceWorkspace = {
   accountId?: string | null;
   propertyId: string;
   month: string;
+  startMonth?: string;
   cutoffDate: string | null;
   bankBalance: string | null;
   bankAsOf: string | null;

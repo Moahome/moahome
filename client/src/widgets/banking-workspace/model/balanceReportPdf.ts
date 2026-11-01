@@ -13,6 +13,7 @@ import {
 export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildingId = '', accountId = ''): Promise<Blob> {
   const [{ autoTable }, pdf] = await Promise.all([import('jspdf-autotable'), createReportPdfDocument()]);
   const document = getBalanceReportDocument(data, buildingId, accountId);
+  const period = data.startMonth && data.startMonth !== data.month ? `${data.startMonth.replace('-', '.')} ~ ${data.month.replace('-', '.')}` : `${data.month.slice(0, 4)}년 ${Number(data.month.slice(5))}월`;
   // 소계·전체 합계는 Excel과 같은 문서 정의에서 읽고 빈 동 안내는 거래 건수에 포함하지 않습니다.
   const sections = getBalanceReportSections(document);
   if (!sections.length) sections.push({
@@ -24,7 +25,7 @@ export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildi
     expense: BigInt(0)
   });
   pdf.setProperties({
-    title: `모아홈 동별 입출금 ${data.month}`,
+    title: `${document.title} ${period}`,
     subject: '동별 입금·지출 내역',
     creator: '모아홈'
   });
@@ -74,7 +75,7 @@ export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildi
       head: [['거래일시', '구분', '입금자 · 지출명', '입금액', '지출액', '잔액']],
       body: section.rows.length ? section.rows.map((row) => [String(row[1]), String(row[3]), String(row[4]), money(BigInt(row[5])), money(BigInt(row[6])), typeof row[7] === 'bigint' ? money(row[7]) : '설정 필요'])
         : [[{
-          content: '조회 월의 입금·지출 내역이 없습니다.',
+          content: '조회 기간의 입금·지출 내역이 없습니다.',
           colSpan: 6
         }]],
       foot,
@@ -169,9 +170,12 @@ export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildi
         pdf.setFont('Pretendard', 'normal'); pdf.setFontSize(8); pdf.setTextColor(colors.primary);
         pdf.text('MOAHOME  /  MONTHLY REPORT', 15.5, 12.8);
         pdf.setFont('Pretendard', 'bold'); pdf.setFontSize(17.5); pdf.setTextColor(colors.text);
-        pdf.text('모아홈 동별 입출금 내역', 12, 25.5);
+        // 등록 가능한 긴 관리대상 이름도 오른쪽 여백을 넘지 않도록 제목 크기를 맞춥니다.
+        const titleWidth = pdf.getTextWidth(document.title);
+        if (titleWidth > 186) pdf.setFontSize(17.5 * 186 / titleWidth);
+        pdf.text(document.title, 12, 25.5);
         pdf.setFont('Pretendard', 'normal'); pdf.setFontSize(8.5); pdf.setTextColor(colors.muted);
-        pdf.text(`${data.month.slice(0, 4)}년 ${Number(data.month.slice(5))}월  |  지출액은 각 동의 실제 부담액 기준입니다.`, 12, 31.5);
+        pdf.text(`${period}  |  지출액은 각 동의 실제 부담액 기준입니다.`, 12, 31.5);
         pdf.setFillColor(colors.alternate); pdf.setDrawColor(colors.border); pdf.setLineWidth(0.2);
         pdf.roundedRect(12, 36.5, 186, 16, 3, 3, 'FD');
         pdf.setFontSize(8); pdf.text('조회 대상', 16.5, 42); pdf.text('통장', 52, 42);
@@ -236,7 +240,7 @@ export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildi
     pdf.setDrawColor(colors.border); pdf.setLineWidth(0.2); pdf.line(12, 279, 198, 279);
     pdf.setFontSize(8); pdf.setTextColor(colors.muted);
     pdf.text('기초 잔액 + 입금액 - 지출액 = 월말 잔액 · 동별 자금 기준', 12, 285);
-    pdf.text(`${data.month.replace('-', '.')}   |   ${page} / ${pages}`, 198, 285, {
+    pdf.text(`${period}   |   ${page} / ${pages}`, 198, 285, {
       align: 'right'
     });
   }

@@ -553,7 +553,7 @@ test('모바일 주민 상세는 헤더 뒤로가기와 기존 수정 폼의 역
   await mockWorkspace(page, true);
   await page.goto(`${BASE}/residents/${id(10)}`);
   await expect(page.getByRole('link', {
-    name: '주민 목록으로 돌아가기'
+    name: '뒤로가기'
   })).toBeVisible();
   const main = page.getByRole('main');
   await expect(main).not.toContainText('초대코드');
@@ -1116,7 +1116,7 @@ for (const width of [1440, 390]) {
       exact: true
     })).toHaveCount(0);
     if (width <= 767) await expect(page.getByRole('link', {
-      name: '대시보드로 돌아가기',
+      name: '뒤로가기',
       exact: true
     })).toHaveCount(0);
     await page.screenshot({
@@ -1245,7 +1245,7 @@ for (const width of [1440, 390]) {
       primaryAccountId: id(20)
     });
     if (width <= 767) await page.getByRole('link', {
-      name: '설정으로 돌아가기',
+      name: '뒤로가기',
       exact: true
     }).click();
     else await dialog.getByRole('button', {
@@ -1271,7 +1271,7 @@ for (const width of [1440, 390]) {
       exact: true
     })).toHaveValue('00098765432');
     if (width <= 767) await page.getByRole('link', {
-      name: '설정으로 돌아가기',
+      name: '뒤로가기',
       exact: true
     }).click();
     else await dialog.getByRole('button', {
@@ -1460,7 +1460,7 @@ for (const width of [1440, 390]) {
       fullPage: true
     });
     if (width <= 767) await page.getByRole('link', {
-      name: '설정으로 돌아가기',
+      name: '뒤로가기',
       exact: true
     }).click();
     else await dialog.getByRole('button', {
@@ -1510,7 +1510,7 @@ test('모바일 계좌 관리 직접 접근·새로고침·로딩·오류에서�
   });
   await page.goto(`${BASE}/settings/accounts`);
   const back = page.getByRole('link', {
-    name: '설정으로 돌아가기',
+    name: '뒤로가기',
     exact: true
   });
   const content = page.getByRole('region', {
@@ -1648,7 +1648,7 @@ test('모바일 승인 상세는 직접 접근·새로고침에서도 공통 헤
   })).toBeVisible();
   await page.reload();
   await page.getByRole('link', {
-    name: '승인 관리로 돌아가기'
+    name: '뒤로가기'
   }).click();
   await expect(page).toHaveURL(`${BASE}/invitations`);
   await expect(page.getByRole('table', {
@@ -1659,7 +1659,7 @@ test('모바일 승인 상세는 직접 접근·새로고침에서도 공통 헤
     name: '가입 요청 확인'
   })).toBeVisible();
   await expect(page.getByRole('link', {
-    name: '승인 관리로 돌아가기'
+    name: '뒤로가기'
   })).toHaveAttribute('href', `${BASE}/invitations`);
 });
 
@@ -2877,7 +2877,7 @@ for (const width of [1440, 320]) {
       await expect(page).toHaveURL(`${BASE}/billing/monthly/opening-upload`);
       await expect(page.getByRole('dialog')).toHaveCount(0);
       const back = page.getByRole('link', {
-        name: '기존 잔액 인계로 돌아가기'
+        name: '뒤로가기'
       });
       await expect(back).toBeVisible();
       await back.click();

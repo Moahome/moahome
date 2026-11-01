@@ -5,6 +5,7 @@ import {
   useState
 } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { formatMonthRange } from '@/shared/lib/month-range';
 import { getReportPeriodLabel } from '@/shared/lib/pdf-report';
 import { Dropdown } from '@/shared/ui/form-controls';
 import { ReportDownload } from '@/shared/ui/report-download';
@@ -22,12 +23,18 @@ export function BalanceDownload({ data, initialAccountId = '', initialBuildingId
   data: BalanceReportSnapshot; initialAccountId?: string; initialBuildingId?: string; onClose: () => void;
 }) {
   const session = useSession();
+  const startMonth = data.startMonth ?? data.month;
+  const period = formatMonthRange({
+    startMonth,
+    endMonth: data.month
+  });
+  const filenamePeriod = startMonth === data.month ? data.month : `${startMonth}_${data.month}`;
   const [buildingId, setBuildingId] = useState(initialBuildingId);
   const [accountId, setAccountId] = useState(initialAccountId);
   const needsAccountBalance = Boolean(accountId) && data.balances.buildings.every((building) => building.accountBalances === undefined);
   const accountBalances = useQuery({
-    queryKey: ['balance-download-account-balances', session.data?.id, data.propertyId, data.month, data.generatedAt, accountId],
-    queryFn: ({ signal }) => getBankingBalances(data.propertyId, data.month, accountId, signal),
+    queryKey: ['balance-download-account-balances', session.data?.id, data.propertyId, data.month, startMonth, data.generatedAt, accountId],
+    queryFn: ({ signal }) => getBankingBalances(data.propertyId, data.month, accountId, signal, startMonth),
     enabled: needsAccountBalance,
     staleTime: Infinity,
     gcTime: 0,
@@ -45,14 +52,15 @@ export function BalanceDownload({ data, initialAccountId = '', initialBuildingId
   const createWorkbook = useCallback(() => createBalanceReportWorkbook(effectiveData, buildingId, accountId), [effectiveData, buildingId, accountId]);
   const createPdf = useCallback(() => import('../../../model/balanceReportPdf').then((module) => module.createBalanceReportPdf(effectiveData, buildingId, accountId)), [effectiveData, buildingId, accountId]);
   const suffix = [buildingId ? buildingLabel : '', accountId ? accountLabel : ''].filter(Boolean).map((label) => label.replace(/[\\/:*?"<>|]/g, '_')).join('_');
+  const propertyFilename = data.propertyName.replace(/[\\/:*?"<>|]/g, '_');
   const failed = needsAccountBalance && (accountBalances.isError || (accountBalances.data !== undefined && accountBalances.data.accountId !== accountId));
 
   return (
     <ReportDownload
-      title={`${data.month.replace('-', '년 ')}월 동별 입출금 내역`}
-      description={'선택한 월의 동별 입금·지출과 잔액을 확인하고 내려받으세요.'}
-      filename={`모아홈_동별입출금내역_${data.month}${suffix ? `_${suffix}` : ''}`}
-      sourceKey={`${data.generatedAt}:${buildingId}:${accountId}:${accountBalances.dataUpdatedAt}`}
+      title={`${period} 동별 입출금 내역`}
+      description={'선택한 기간의 동별 입금·지출과 잔액을 확인하고 내려받으세요.'}
+      filename={`${propertyFilename}_동별입출금내역_${filenamePeriod}${suffix ? `_${suffix}` : ''}`}
+      sourceKey={`${data.generatedAt}:${startMonth}:${data.month}:${buildingId}:${accountId}:${accountBalances.dataUpdatedAt}`}
       documents={[document]}
       highlights={['기초 잔액', '입금 합계', '지출 합계', '월말 잔액'].map((label, index) => ({
         label,

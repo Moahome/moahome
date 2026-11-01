@@ -1,4 +1,5 @@
 export {
+  goBackToPreviousRoute,
   goBackToRoute,
   trackNavigationHistory
 } from './navigationHistory';

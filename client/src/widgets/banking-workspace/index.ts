@@ -39,3 +39,7 @@ export {
 export {
   BankAccountDetails
 } from './ui/_components/bank-account-details/bankAccountDetails';
+
+export {
+  getAccountBalanceDisplay
+} from './model/accountBalance';
