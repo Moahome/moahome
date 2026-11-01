@@ -1,3 +1,8 @@
+import {
+  designateResidentRepresentative,
+  updateResident
+} from '../src/features/resident-management/api/residentManagementApi';
+import type { ResidentDetail } from '../src/features/resident-management/api/residentManagementApiTypes';
 import { clearPropertyQueries } from '../src/features/enter-service/model/clearPropertyQueries';
 import {
   expect,
@@ -596,4 +601,80 @@ test('접근 상실 뒤 늦은 Mutation 응답은 이전 캐시를 재생성하�
   setPropertyQueryData(client, key, 'old-account', current);
   expect(client.getQueryData(key)).toBe('new-scope');
   client.clear();
+});
+
+
+for (const action of ['edit', 'designate'] as const) {
+  test(`대표 지정 ${action}은 HTTP 200이어도 대표 변경이 반영되지 않은 응답을 성공으로 처리하지 않는다`, async () => {
+    const propertyId = '00000000-0000-4000-8000-000000000010';
+    const resident: ResidentDetail = {
+      id: '00000000-0000-4000-8000-000000000011',
+      propertyId,
+      name: '검증 주민',
+      phoneLast4: null,
+      unitId: '00000000-0000-4000-8000-000000000012',
+      buildingId: null,
+      buildingName: null,
+      unitNumber: '101',
+      relationType: 'OWNER',
+      representative: false,
+      signupStatus: 'NOT_JOINED',
+      serviceRole: null,
+      createdAt: '2026-11-01T00:00:00Z',
+      updatedAt: '2026-11-01T00:00:00Z',
+      hasLinkedRequests: false,
+      representativeCandidates: []
+    };
+    globalThis.fetch = async () => Response.json(resident);
+    const send = () => action === 'designate' ? designateResidentRepresentative(propertyId, resident) : updateResident(propertyId, resident.id, {
+      name: resident.name,
+      unitId: resident.unitId!,
+      relationType: 'OWNER',
+      phoneAction: 'KEEP',
+      phone: null,
+      replacementResidentId: null,
+      expectedUpdatedAt: resident.updatedAt,
+      designateRepresentative: true,
+      expectedRepresentativeResidentId: null
+    });
+    await expect(send()).rejects.toMatchObject({
+      code: 'REPRESENTATIVE_NOT_APPLIED'
+    });
+    globalThis.fetch = async () => Response.json({
+      ...resident,
+      representative: true,
+      currentRepresentativeId: resident.id
+    });
+    await expect(send()).resolves.toMatchObject({
+      representative: true,
+      currentRepresentativeId: resident.id
+    });
+  });
+}
+
+
+test('대표 지정 경로가 없는 404는 주민 부재 오류와 구분한다', async () => {
+  const resident = {
+    id: '00000000-0000-4000-8000-000000000011',
+    unitId: '00000000-0000-4000-8000-000000000012',
+    updatedAt: '2026-11-01T00:00:00Z'
+  } as ResidentDetail;
+  globalThis.fetch = async () => Response.json({
+    status: 404,
+    error: 'Not Found',
+    path: '/api/properties/example/residents/example/representative'
+  }, {
+    status: 404
+  });
+  await expect(designateResidentRepresentative('00000000-0000-4000-8000-000000000010', resident)).rejects.toMatchObject({
+    code: 'REPRESENTATIVE_UNAVAILABLE'
+  });
+  globalThis.fetch = async () => Response.json({
+    code: 'RESIDENT_NOT_FOUND'
+  }, {
+    status: 404
+  });
+  await expect(designateResidentRepresentative('00000000-0000-4000-8000-000000000010', resident)).rejects.toMatchObject({
+    code: 'RESIDENT_NOT_FOUND'
+  });
 });

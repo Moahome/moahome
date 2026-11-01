@@ -399,12 +399,12 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
         </div>
       )}
       {error && (
-        <p
-          className={styles.error}
-          role={'alert'}
-        >
-          {error}
-        </p>
+        <Toast
+          key={error}
+          message={error}
+          tone={'error'}
+          onClose={() => setError('')}
+        />
       )}
       {message && (
         <Toast

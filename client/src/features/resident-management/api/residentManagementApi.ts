@@ -53,25 +53,44 @@ export async function revealResidentPhone(propertyId: string, residentId: string
   return result.phone;
 }
 
+/** 대표 지정 요청은 HTTP 성공뿐 아니라 응답의 세대·대표 여부까지 일치해야 완료로 처리합니다. */
+function requireRepresentativeResult(result: ResidentDetail, unitId: string | null) {
+  if (!result.representative || result.unitId !== unitId
+    || (result.currentRepresentativeId !== undefined && result.currentRepresentativeId !== result.id)) {
+    throw new ApiError(200, 'REPRESENTATIVE_NOT_APPLIED', '대표 지정이 반영되지 않았습니다.');
+  }
+  return result;
+}
+
 export async function updateResident(propertyId: string, residentId: string, input: ResidentUpdateInput) {
-  return readDetail(await authenticatedAPI<ResidentDetail>({
+  const result = readDetail(await authenticatedAPI<ResidentDetail>({
     url: `/api/properties/${propertyId}/residents/${residentId}`,
     method: 'PUT',
     data: input
   }), propertyId, residentId);
+  return input.designateRepresentative ? requireRepresentativeResult(result, input.unitId) : result;
 }
 
 /** 현재 세대·대표·수정 시각을 함께 검증하며 명부나 계정 권한을 변경하지 않고 대표만 지정합니다. */
 export async function designateResidentRepresentative(propertyId: string, resident: ResidentDetail) {
-  return readDetail(await authenticatedAPI<ResidentDetail>({
-    url: `/api/properties/${propertyId}/residents/${resident.id}/representative`,
-    method: 'PUT',
-    data: {
-      unitId: resident.unitId,
-      expectedUpdatedAt: resident.updatedAt,
-      expectedRepresentativeResidentId: resident.currentRepresentativeId ?? null
+  try {
+    const result = readDetail(await authenticatedAPI<ResidentDetail>({
+      url: `/api/properties/${propertyId}/residents/${resident.id}/representative`,
+      method: 'PUT',
+      data: {
+        unitId: resident.unitId,
+        expectedUpdatedAt: resident.updatedAt,
+        expectedRepresentativeResidentId: resident.currentRepresentativeId ?? null
+      }
+    }), propertyId, resident.id);
+    return requireRepresentativeResult(result, resident.unitId);
+  } catch (error) {
+    // 명부 부재는 기존 오류를 유지하고, 전용 경로를 제공하지 않는 서버의 404를 구분합니다.
+    if (error instanceof ApiError && error.status === 404 && error.code !== 'RESIDENT_NOT_FOUND') {
+      throw new ApiError(404, 'REPRESENTATIVE_UNAVAILABLE', '대표 지정 기능에 연결할 수 없습니다.');
     }
-  }), propertyId, resident.id);
+    throw error;
+  }
 }
 
 /** 삭제 대상과 상세 조회 시각·직접 선택한 대표만 보내고 권한 종료는 서버 트랜잭션에 맡깁니다. */

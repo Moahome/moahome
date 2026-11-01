@@ -1100,11 +1100,11 @@ test('기존 세대 모달로 추가·수정하고 저장 실패에는 입력을
     name: '알림 닫기',
     exact: true
   })).toHaveCount(0);
-  // CSS 애니메이션은 모의 타이머와 별개로 진행하므로 하단 배치 완료를 기다립니다.
+  // CSS 애니메이션은 모의 타이머와 별개로 진행하므로 PC 상단 배치 완료를 기다립니다.
   await expect.poll(async () => {
     const box = await toast.locator('..').boundingBox();
 
-    return Math.abs(page.viewportSize()!.height - box!.y - box!.height - 32);
+    return Math.abs(box!.y - 24);
   }).toBeLessThan(2);
   const toastBox = await toast.boundingBox();
   const viewport = page.viewportSize()!;
@@ -2232,12 +2232,14 @@ for (const width of [1440, 375, 320]) {
     const notice = page.getByRole('status').filter({
       hasText: '주민을 등록했어요.'
     }).locator('..');
-    await expect(notice).toHaveCSS('background-color', 'rgb(22, 101, 52)');
-    await expect(notice).toHaveCSS('color', 'rgb(255, 255, 255)');
-    await expect.poll(async () => (await notice.boundingBox())!.height).toBeLessThanOrEqual(50);
+    await expect(notice).toHaveCSS('background-color', 'rgb(236, 252, 203)');
+    await expect(notice).toHaveCSS('color', 'rgb(22, 101, 52)');
+    await expect(notice).toHaveCSS('border-radius', width < 768 ? '999px' : '8px');
+    await expect(notice.getByRole('status')).toHaveCSS('font-size', width < 768 ? '14px' : '16px');
+    await expect.poll(async () => (await notice.boundingBox())!.height).toBeLessThanOrEqual(width < 768 ? 50 : 60);
     await expect.poll(async () => {
       const box = (await notice.boundingBox())!;
-      return Math.abs(960 - box.y - box.height - (width < 768 ? 16 : 32));
+      return width < 768 ? Math.abs(960 - box.y - box.height - 16) : Math.abs(box.y - 24);
     }).toBeLessThan(2);
     const noticeBox = (await notice.boundingBox())!;
     expect(noticeBox.width).toBeGreaterThan(noticeBox.height * 2);
@@ -2986,7 +2988,7 @@ test('엑셀 파일 드래그는 배경·테두리·안내를 강조하고 이�
 });
 
 for (const width of [1440, 375, 320]) {
-  test(`엑셀 헤더 오류 ${width}px는 하단 중앙 토스트로 표시하고 같은 오류의 재시도는 표시 시간을 새로 시작`, async ({ page }) => {
+  test(`엑셀 헤더 오류 ${width}px는 PC 상단·모바일 하단 토스트로 표시하고 같은 오류의 재시도는 표시 시간을 새로 시작`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -3014,9 +3016,10 @@ for (const width of [1440, 375, 320]) {
     await expect.poll(async () => {
       const box = await toast.locator('..').boundingBox();
 
-      return Math.abs(900 - box!.y - box!.height - (width < 768 ? 16 : 32));
+      return width < 768 ? Math.abs(900 - box!.y - box!.height - 16) : Math.abs(box!.y - 24);
     }).toBeLessThan(2);
     const box = await toast.boundingBox();
+    await expect(toast.locator('..')).toHaveCSS('border-radius', width < 768 ? '999px' : '8px');
     const container = (await toast.locator('..').boundingBox())!;
     expect(container.height).toBeLessThanOrEqual(100);
     expect(container.width).toBeGreaterThan(container.height * 2);
@@ -3207,7 +3210,9 @@ for (const width of [1440, 375, 320]) {
       name: '수정',
       exact: true
     }).click();
-    await expect(view.getByRole('alert')).toContainText('이름과 연락처가 같은 주민');
+    await expect(page.getByLabel('알림', {
+      exact: true
+    }).getByRole('alert')).toContainText('이름과 연락처가 같은 주민');
     await expect(view.getByRole('textbox', {
       name: '주민 이름',
       exact: true
@@ -3245,7 +3250,9 @@ for (const width of [1440, 375, 320]) {
       name: '삭제',
       exact: true
     }).click();
-    await expect(view.getByRole('alert')).toContainText('새 대표');
+    await expect(page.getByLabel('알림', {
+      exact: true
+    }).getByRole('alert')).toContainText('새 대표');
     expect(deletes).toBe(0);
     await view.getByRole('combobox', {
       name: '새 대표 주민',
@@ -3259,7 +3266,9 @@ for (const width of [1440, 375, 320]) {
       name: '삭제',
       exact: true
     }).click();
-    await expect(view.getByRole('alert')).toContainText('다시 시도');
+    await expect(page.getByLabel('알림', {
+      exact: true
+    }).getByRole('alert')).toContainText('다시 시도');
     await expect(view.getByRole('combobox', {
       name: '새 대표 주민',
       exact: true
@@ -4432,7 +4441,9 @@ for (const width of [1440, 390]) {
       name: '대표 지정',
       exact: true
     }).click();
-    await expect(view.getByRole('alert')).toBeVisible();
+    await expect(page.getByLabel('알림', {
+      exact: true
+    }).getByRole('alert')).toBeVisible();
     await view.getByRole('button', {
       name: '대표 지정',
       exact: true
@@ -4562,5 +4573,104 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole('row').filter({
       hasText: previous.name
     })).not.toContainText('대표');
+  });
+}
+
+for (const width of [1440, 390]) {
+  test(`대표 지정 미지원·미반영 ${width}px는 오류 토스트로 알리고 수정 성공을 표시하지 않는다`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const directory = residentDirectory();
+    const target = directory.residents[1];
+    const detail = {
+      ...target,
+      propertyId: PROPERTY_ID,
+      buildingName: '103동',
+      createdAt: '2026-10-10T04:00:00Z',
+      updatedAt: '2026-10-10T04:00:00Z',
+      hasLinkedRequests: false,
+      representativeCandidates: [],
+      currentRepresentativeId: directory.residents[0].id
+    };
+    await page.route(RESIDENTS_URL, (route) => fulfillJson(route, directory));
+    await page.route(`${RESIDENTS_URL}/${target.id}`, (route) => fulfillJson(route, detail));
+    await page.route(`${RESIDENTS_URL}/${target.id}/representative`, (route) => fulfillJson(route, {
+      status: 404,
+      error: 'Not Found',
+      path: new URL(route.request().url()).pathname
+    }, 404));
+    await page.route(UNITS_URL, (route) => fulfillJson(route, {
+      propertyId: PROPERTY_ID,
+      hasBuildings: true,
+      buildings: directory.buildings,
+      units: [{
+        id: target.unitId,
+        buildingId: BUILDING_ID,
+        unitNumber: '301',
+        status: 'ACTIVE'
+      }]
+    }));
+    await page.goto(RESIDENTS);
+    await page.getByRole('button', {
+      name: `${target.name} 상세 보기`,
+      exact: true
+    }).click();
+    let view = width < 768 ? page.getByRole('main') : page.getByRole('dialog');
+    await view.getByRole('button', {
+      name: '대표 지정',
+      exact: true
+    }).click();
+    await view.getByRole('button', {
+      name: '대표 지정',
+      exact: true
+    }).click();
+    await expect(page.getByLabel('알림', {
+      exact: true
+    }).getByRole('alert')).toContainText('현재 서버에서 대표 지정 기능을 사용할 수 없어요.');
+    await expect(view.getByRole('heading', {
+      name: '대표 주민 지정',
+      exact: true
+    })).toBeVisible();
+    await view.getByRole('button', {
+      name: '취소',
+      exact: true
+    }).click();
+    await view.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    view = width < 768 ? page.getByRole('main') : page.getByRole('dialog');
+    await view.getByRole('combobox', {
+      name: '대표 주민',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '이 주민을 대표로 지정',
+      exact: true
+    }).click();
+    await view.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    const toast = page.getByLabel('알림', {
+      exact: true
+    }).filter({
+      hasText: '대표 지정이 반영되지 않았어요.'
+    });
+    await expect(toast.getByRole('alert')).toBeVisible();
+    await expect(toast).toHaveAttribute('data-tone', 'error');
+    await expect(view.getByRole('combobox', {
+      name: '대표 주민',
+      exact: true
+    })).toHaveText('이 주민을 대표로 지정');
+    await expect(page.getByText('주민 정보를 수정했어요.', {
+      exact: true
+    })).toHaveCount(0);
+    await page.screenshot({
+      path: test.info().outputPath(`representativeFailureToast${width}.png`),
+      fullPage: true
+    });
   });
 }

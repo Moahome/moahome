@@ -1,5 +1,6 @@
 'use client';
 
+import { Toast } from '@/shared/ui/toast';
 import { LoadingState } from '@/shared/ui/state-message';
 
 import { RequestError } from '@/shared/ui/server-connection-error';
@@ -369,12 +370,12 @@ export function ResidentRegistrationForm({
         {resident ? '연락처 변경은 연결된 가입 신청에도 반영합니다. 동·호수를 옮기는 대표 주민은 기존 세대의 새 대표를 직접 선택해주세요.' : '해당 세대에 처음 등록되는 주민은 대표로 지정됩니다. 주민 등록 후 서비스 가입은 별도로 진행합니다.'}
       </p>
       {message && (
-        <p
-          className={styles.error}
-          role={'alert'}
-        >
-          {message}
-        </p>
+        <Toast
+          key={message}
+          message={message}
+          tone={'error'}
+          onClose={() => setMessage('')}
+        />
       )}
       <div
         className={styles.actions}

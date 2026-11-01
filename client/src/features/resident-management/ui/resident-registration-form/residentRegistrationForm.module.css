@@ -21,11 +21,6 @@
   line-height: 1.7;
 }
 
-.error {
-  color: var(--danger);
-  font-size: 14px;
-  line-height: 1.6;
-}
 
 .actions {
   display: flex;

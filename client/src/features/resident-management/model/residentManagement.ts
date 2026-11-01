@@ -8,6 +8,8 @@ export function getResidentManagementError(error: unknown) {
     MEMBER_ROLE_CONFLICT: '역할이 변경됐어요. 최신 주민 정보를 확인해주세요.',
     RESIDENT_NOT_FOUND: '주민 정보가 없거나 삭제되었어요. 주민 목록에서 다시 확인해주세요.',
     RESIDENT_CHANGED: '다른 작업으로 주민 정보가 변경되었어요. 취소 후 최신 정보를 다시 확인해주세요.',
+    REPRESENTATIVE_NOT_APPLIED: '대표 지정이 반영되지 않았어요. 최신 정보를 확인한 뒤 다시 시도해주세요.',
+    REPRESENTATIVE_UNAVAILABLE: '현재 서버에서 대표 지정 기능을 사용할 수 없어요.',
     REPRESENTATIVE_REQUIRED: '남은 주민 중 새 대표를 선택해주세요.',
     INVALID_REPRESENTATIVE: '같은 동·호수의 다른 주민을 대표로 선택해주세요.',
     CONTACT_REQUIRED_FOR_REQUEST: '가입 신청이 연결된 주민은 연락처를 비울 수 없어요.',

@@ -87,11 +87,6 @@
   line-height: 1.7;
 }
 
-.error {
-  margin-top: 16px;
-  color: var(--danger);
-  line-height: 1.6;
-}
 
 @media (max-width: 767px) {
   .page {
