@@ -4,6 +4,8 @@ import localFont from 'next/font/local';
 import { ServiceMaintenancePage } from '@/screens/service-maintenance';
 import { AppProviders } from './providers/appProviders';
 import { SERVICE_SHARE_METADATA } from './metadata/shareMetadata';
+import { MobileSplash } from './ui/mobile-splash/mobileSplash';
+import { MOBILE_SPLASH_BOOTSTRAP } from './ui/mobile-splash/mobileSplashBootstrap';
 import './globals.css';
 
 const pretendard = localFont({
@@ -51,8 +53,21 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
     <html
       lang={'ko'}
       data-scroll-behavior={'smooth'}
+      data-mobile-splash={'idle'}
+      suppressHydrationWarning
       className={`${pretendard.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        {/* 처음 그리기 전에 탭의 표시 여부를 결정하며 html의 스플래시 표시 속성만 변경합니다. */}
+        {process.env.MOAHOME_MAINTENANCE_MODE !== 'true' && (
+          <script
+            id={'mobile-splash-bootstrap'}
+            dangerouslySetInnerHTML={{
+              __html: MOBILE_SPLASH_BOOTSTRAP
+            }}
+          />
+        )}
+      </head>
       <body
         className={'min-h-full flex flex-col'}
       >
@@ -60,9 +75,11 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
         {process.env.MOAHOME_MAINTENANCE_MODE === 'true' ? (
           <ServiceMaintenancePage />
         ) : (
-          <AppProviders>
-            {children}
-          </AppProviders>
+          <MobileSplash>
+            <AppProviders>
+              {children}
+            </AppProviders>
+          </MobileSplash>
         )}
       </body>
     </html>

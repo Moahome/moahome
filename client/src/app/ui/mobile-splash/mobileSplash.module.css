@@ -1,0 +1,271 @@
+.splash {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  overflow: hidden;
+  background: var(--card);
+  color: var(--primary);
+  pointer-events: none;
+  touch-action: none;
+
+  &::before,
+  &::after {
+    position: absolute;
+    width: 150vw;
+    height: 62svh;
+    border-radius: 50%;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--primary) 11%, var(--card)), var(--card));
+    content: '';
+    transform: rotate(-32deg);
+  }
+
+  &::before {
+    top: -38svh;
+    left: -78vw;
+  }
+
+  &::after {
+    right: -62vw;
+    bottom: -32svh;
+  }
+}
+
+.content {
+  display: contents;
+}
+
+.scene {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+  text-align: center;
+}
+
+.mark {
+  display: block;
+  width: clamp(170px, 57vw, 250px);
+  height: auto;
+  overflow: visible;
+  transform-origin: center bottom;
+}
+
+.left-home,
+.right-home {
+  fill: var(--primary);
+}
+
+.roof {
+  fill: var(--primary-dark);
+}
+
+.inner-home {
+  fill: var(--card);
+}
+
+.door {
+  fill: var(--secondary-teal);
+  transform-box: fill-box;
+  transform-origin: left center;
+}
+
+.door-light {
+  fill: color-mix(in srgb, var(--secondary-teal) 12%, var(--card));
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--secondary-teal) 24%, transparent));
+}
+
+.name {
+  margin: 22px 0 0;
+  font-size: clamp(42px, 13vw, 60px);
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  line-height: 1.15;
+}
+
+.tagline {
+  margin: 16px 0 0;
+  color: var(--sub-text);
+  font-size: clamp(13px, 3.9vw, 18px);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+@media (max-width: 767px) and (prefers-reduced-motion: no-preference) {
+  :global(html[data-mobile-splash='active']) .splash {
+    display: grid;
+    place-items: center;
+    pointer-events: auto;
+    animation: splash-exit 1900ms linear both;
+
+    .mark {
+      animation: mark-settle 360ms 740ms both;
+    }
+
+    .left-home {
+      animation: home-left 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .right-home {
+      animation: home-right 700ms 60ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .roof {
+      animation: piece-reveal 280ms 480ms both;
+    }
+
+    .inner-home {
+      animation: piece-reveal 250ms 610ms both;
+    }
+
+    .door-rise {
+      animation: door-rise 320ms 720ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .door {
+      animation: door-open 330ms 1300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .name {
+      animation: text-reveal 360ms 880ms both;
+    }
+
+    .tagline {
+      animation: text-reveal 300ms 1080ms both;
+    }
+  }
+
+  /* 기존 레이아웃을 유지하며 마지막 전환 전까지 배경 화면의 포커스·표시를 제외합니다. */
+  :global(html[data-mobile-splash='active']) .content {
+    animation: content-reveal 1900ms steps(1, end) both;
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .mark {
+    width: 125px;
+  }
+
+  .name {
+    margin-top: 12px;
+    font-size: 36px;
+  }
+
+  .tagline {
+    margin-top: 10px;
+    font-size: 13px;
+  }
+}
+
+@keyframes home-left {
+  from {
+    opacity: 0;
+    transform: translateX(-68px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes home-right {
+  from {
+    opacity: 0;
+    transform: translateX(68px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes piece-reveal {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes door-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes door-open {
+  from {
+    transform: scaleX(1) skewY(0deg);
+  }
+
+  to {
+    transform: scaleX(0.82) skewY(-5deg);
+  }
+}
+
+@keyframes mark-settle {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  45% {
+    transform: scale(1.025, 0.98);
+  }
+
+  75% {
+    transform: scale(0.995, 1.01);
+  }
+}
+
+@keyframes text-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes content-reveal {
+  0%,
+  84% {
+    visibility: hidden;
+  }
+
+  85%,
+  100% {
+    visibility: visible;
+  }
+}
+
+@keyframes splash-exit {
+  0%,
+  89% {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
+}

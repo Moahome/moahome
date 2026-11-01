@@ -101,6 +101,127 @@ test.beforeEach(async ({ page }) => {
   await mockSession(page);
 });
 
+test.describe('모바일 시작 스플래시', () => {
+  test.beforeEach(async ({ page }) => {
+    // 문서가 바뀌어도 실제 스플래시 재생 횟수를 확인하고 일시적인 재표시도 놓치지 않습니다.
+    await page.addInitScript(() => {
+      document.addEventListener('animationstart', (event) => {
+        if (!(event.target instanceof HTMLElement) || !event.target.hasAttribute('data-mobile-splash-overlay')) return;
+        sessionStorage.setItem('test.splash.plays', String(Number(sessionStorage.getItem('test.splash.plays')) + 1));
+      });
+    });
+  });
+
+  for (const width of [320, 390, 767]) {
+    test(`첫 모바일 진입 ${width}px는 집 조립·문 열림 후 로그인으로 연결하고 재방문에 반복하지 않음`, async ({ page }) => {
+      await page.setViewportSize({
+        width,
+        height: 844
+      });
+      await page.goto('/login');
+      const splash = page.locator('[data-mobile-splash-overlay]');
+      await expect(splash).toBeVisible();
+      await expect(splash).toContainText('모아홈');
+      await expect(splash).toContainText('우리 집 관리, 더 쉽고 편리하게');
+      await expect(page.getByRole('button', {
+        name: '카카오로 시작하기'
+      })).not.toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await expect(splash).not.toBeVisible({
+        timeout: 4000
+      });
+      await expect(page.getByRole('button', {
+        name: '카카오로 시작하기'
+      })).toBeVisible();
+      await page.reload();
+      await expect(splash).not.toBeVisible();
+      await page.goto('/login/callback');
+      await expect(page.getByRole('heading', {
+        name: '로그인을 확인해 주세요'
+      })).toBeVisible();
+      await expect(splash).not.toBeVisible();
+      expect(await page.evaluate(() => sessionStorage.getItem('test.splash.plays'))).toBe('1');
+    });
+  }
+
+  test('PC와 나중에 좁힌 화면에서는 시작 스플래시를 표시하지 않음', async ({ page }) => {
+    await page.setViewportSize({
+      width: 1440,
+      height: 960
+    });
+    await page.goto('/login');
+    await expect(page.getByRole('button', {
+      name: '카카오로 시작하기'
+    })).toBeVisible();
+    await page.setViewportSize({
+      width: 390,
+      height: 844
+    });
+    await expect(page.locator('[data-mobile-splash-overlay]')).not.toBeVisible();
+    expect(await page.evaluate(() => sessionStorage.getItem('test.splash.plays'))).toBeNull();
+  });
+
+  test('동작 줄이기는 스플래시를 생략하고 로그인 화면을 바로 제공', async ({ page }) => {
+    await page.emulateMedia({
+      reducedMotion: 'reduce'
+    });
+    await page.goto('/login');
+    await expect(page.locator('[data-mobile-splash-overlay]')).not.toBeVisible();
+    await expect(page.getByRole('button', {
+      name: '카카오로 시작하기'
+    })).toBeVisible();
+    expect(await page.evaluate(() => sessionStorage.getItem('test.splash.plays'))).toBeNull();
+  });
+
+  test('카카오 콜백으로 처음 복귀한 문서에서도 스플래시를 끼워 넣지 않음', async ({ page }) => {
+    await page.goto('/login/callback');
+    await expect(page.getByRole('heading', {
+      name: '로그인을 확인해 주세요'
+    })).toBeVisible();
+    await page.goto('/login');
+    await expect(page.getByRole('button', {
+      name: '카카오로 시작하기'
+    })).toBeVisible();
+    await expect(page.locator('[data-mobile-splash-overlay]')).not.toBeVisible();
+    expect(await page.evaluate(() => sessionStorage.getItem('test.splash.plays'))).toBeNull();
+  });
+
+  test('실제 인증 조회가 길어져도 연출은 끝내고 기존 대기·로그인 처리를 유지', async ({ page }) => {
+    let release = () => {};
+    const waiting = new Promise<void>((resolve) => { release = resolve; });
+    await page.route(`${API_ORIGIN}/api/auth/web/csrf`, async (route) => {
+      await waiting;
+      await route.fallback();
+    });
+    await page.goto('/login');
+    const splash = page.locator('[data-mobile-splash-overlay]');
+    await expect(splash).toBeVisible();
+    await expect(splash).not.toBeVisible({
+      timeout: 4000
+    });
+    await expect(page.getByRole('heading', {
+      name: '로그인 상태를 확인하고 있어요'
+    })).toBeVisible();
+    release();
+    await expect(page.getByRole('button', {
+      name: '카카오로 시작하기'
+    })).toBeVisible();
+    expect(await page.evaluate(() => sessionStorage.getItem('test.splash.plays'))).toBe('1');
+  });
+});
+
+test.describe('JavaScript 없는 공개 진입', () => {
+  test.use({
+    javaScriptEnabled: false
+  });
+
+  test('스플래시가 서버에서 렌더링한 공개 페이지를 가리지 않음', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('[data-mobile-splash-overlay]')).not.toBeVisible();
+    await expect(page.getByRole('main')).toBeVisible();
+  });
+});
+
 test('공개 Manifest와 PNG 아이콘은 설치 정보와 실제 해상도를 제공한다', async ({ request }) => {
   const response = await request.get('/manifest.webmanifest');
   expect(response.status()).toBe(200);
