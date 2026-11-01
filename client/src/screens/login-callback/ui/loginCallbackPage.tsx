@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useSession } from '@/entities/session';
+import { useHistoryRevalidation } from '@/shared/lib/navigation-history';
 import { BrandMark } from '@/shared/ui/brand-mark';
 import {
   ApiError,
@@ -66,6 +67,7 @@ function getFailureState(error: unknown): CallbackState {
 export function LoginCallbackPage() {
   const session = useSession();
   const router = useRouter();
+  const pageRef = useHistoryRevalidation<HTMLElement>();
   let state: CallbackState = {
     status: 'loading'
   };
@@ -99,6 +101,7 @@ export function LoginCallbackPage() {
 
   if (state.status === 'error' && state.canRetry && isServerConnectionError(session.error)) return (
     <main
+      ref={pageRef}
       className={styles.page}
     >
       <ServerConnectionError
@@ -110,6 +113,7 @@ export function LoginCallbackPage() {
 
   return (
     <main
+      ref={pageRef}
       className={styles.page}
     >
       <section

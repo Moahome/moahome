@@ -570,6 +570,150 @@ const HOUSEHOLDS = `/manage/${PROPERTY_ID}/households`;
 const UNITS_URL = `${API_ORIGIN}/api/properties/${PROPERTY_ID}/units`;
 const BUILDING_ID = '11111111-1111-4111-8111-111111111111';
 
+test.describe('모바일 헤더 방문 기록', () => {
+  const unitId = '33333333-3333-4333-8333-333333333333';
+  const detailPath = `${HOUSEHOLDS}/${unitId}`;
+
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({
+      width: 390,
+      height: 844
+    });
+    await page.route(UNITS_URL, (route) => fulfillJson(route, {
+      propertyId: PROPERTY_ID,
+      hasBuildings: false,
+      buildings: [],
+      units: [{
+        id: unitId,
+        buildingId: null,
+        unitNumber: '201',
+        displayName: null,
+        floor: 2,
+        status: 'ACTIVE'
+      }]
+    }));
+    await page.goto(DASHBOARD);
+    await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  });
+
+  /** 드로어의 임시 이력을 대체해 실제 사용자와 같은 대시보드→목록 경로를 만듭니다. */
+  async function openList(page: Page) {
+    await page.getByRole('button', {
+      name: '임준현님 메뉴 열기',
+      exact: true
+    }).click();
+    const drawer = page.getByRole('dialog', {
+      name: '메뉴',
+      exact: true
+    });
+    await drawer.getByRole('button', {
+      name: '세대 관리',
+      exact: true
+    }).click();
+    await drawer.getByRole('link', {
+      name: '세대 목록',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(HOUSEHOLDS);
+    await expect(drawer).not.toBeVisible();
+  }
+
+  async function openDetail(page: Page) {
+    await page.getByRole('main').getByRole('row').filter({
+      hasText: '201호'
+    }).click();
+    await expect(page).toHaveURL(detailPath);
+    await expect(page.getByRole('button', {
+      name: '수정',
+      exact: true
+    })).toBeVisible();
+  }
+
+  async function returnToList(page: Page) {
+    await page.getByRole('banner').getByRole('link', {
+      name: '세대 목록으로 돌아가기'
+    }).click();
+    await expect(page).toHaveURL(HOUSEHOLDS);
+  }
+
+  test('목록과 상세를 반복해도 기기 뒤로가기는 이전 대시보드로 이동', async ({ page }) => {
+    await openList(page);
+    for (let visit = 0; visit < 3; visit++) {
+      await openDetail(page);
+      await returnToList(page);
+    }
+    await page.goBack();
+    await expect(page).toHaveURL(DASHBOARD);
+  });
+
+  test('상세→수정→헤더 복귀는 상세·목록을 중복으로 쌓지 않음', async ({ page }) => {
+    await openList(page);
+    await openDetail(page);
+    await page.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(`${detailPath}/edit`);
+    await page.getByRole('banner').getByRole('link', {
+      name: '세대 상세로 돌아가기'
+    }).click();
+    await expect(page).toHaveURL(detailPath);
+    await returnToList(page);
+    await page.goBack();
+    await expect(page).toHaveURL(DASHBOARD);
+  });
+
+  test('상세 새로고침·브라우저 뒤로/앞으로 이후에도 원래 목록으로 복귀', async ({ page }) => {
+    await openList(page);
+    await openDetail(page);
+    await page.reload();
+    await expect(page.getByRole('banner').getByRole('link', {
+      name: '세대 목록으로 돌아가기'
+    })).toBeVisible();
+    await page.goBack();
+    await expect(page).toHaveURL(HOUSEHOLDS);
+    await page.goForward();
+    await expect(page).toHaveURL(detailPath);
+    await returnToList(page);
+    await page.goBack();
+    await expect(page).toHaveURL(DASHBOARD);
+  });
+
+  test('직접 진입한 상세는 지정 목록으로 대체하고 기기 뒤로가기에 상세를 남기지 않음', async ({ page }) => {
+    await page.goto(detailPath);
+    await page.reload();
+    await returnToList(page);
+    await page.goBack();
+    await expect(page).toHaveURL(DASHBOARD);
+  });
+
+  test('이전 목록의 URL 조회 조건을 보존하고 상세에서 연 메뉴의 기록도 정리', async ({ page }) => {
+    const listWithQuery = `${HOUSEHOLDS}?source=history-test#private-invite-test`;
+    await page.goto(listWithQuery);
+    await openDetail(page);
+    const navigationRecord = await page.evaluate(() => sessionStorage.getItem('moahome.navigation.history'));
+    expect(navigationRecord).not.toBeNull();
+    expect(navigationRecord).not.toContain('history-test');
+    expect(navigationRecord).not.toContain('private-invite-test');
+    await page.getByRole('button', {
+      name: '임준현님 메뉴 열기',
+      exact: true
+    }).click();
+    await page.goBack();
+    await expect(page.getByRole('dialog', {
+      name: '메뉴',
+      exact: true
+    })).not.toBeVisible();
+    await expect(page).toHaveURL(detailPath);
+    await page.getByRole('banner').getByRole('link', {
+      name: '세대 목록으로 돌아가기'
+    }).click();
+    await expect(page).toHaveURL(listWithQuery);
+    await page.goBack();
+    await expect(page).toHaveURL(DASHBOARD);
+  });
+});
+
 for (const width of [1440]) {
   test(`세대 상세 ${width}px는 행·키보드로 열고 닫기·수정·상세 삭제의 진입점을 구분`, async ({ page }, testInfo) => {
     await page.setViewportSize({

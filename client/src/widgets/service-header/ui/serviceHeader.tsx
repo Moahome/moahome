@@ -8,6 +8,7 @@ import {
 import { useSession } from '@/entities/session';
 import type { CurrentUser } from '@/entities/session';
 import { LogoutButton } from '@/features/logout';
+import { goBackToRoute } from '@/shared/lib/navigation-history';
 import { BrandMark } from '@/shared/ui/brand-mark';
 import { NoticeDialog } from '@/shared/ui/notice-dialog';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -53,6 +54,11 @@ export function ServiceHeader({
           >
             <Link
               href={mobileBack.href}
+              replace
+              onNavigate={(event) => {
+                // 실제 상위 방문으로 되돌리고, 직접 접근 등 기록이 없을 때만 현재 상세를 대체합니다.
+                if (goBackToRoute(mobileBack.href)) event.preventDefault();
+              }}
               aria-label={mobileBack.label}
               className={styles['back-link']}
             >

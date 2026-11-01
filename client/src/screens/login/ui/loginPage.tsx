@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useSession } from '@/entities/session';
+import { useHistoryRevalidation } from '@/shared/lib/navigation-history';
 import {
   getKakaoLoginErrorMessage,
   KakaoLoginButton
@@ -24,6 +25,7 @@ import styles from './loginPage.module.css';
 export function LoginPage({ errorCode }: { errorCode?: string }) {
   const session = useSession();
   const router = useRouter();
+  const pageRef = useHistoryRevalidation<HTMLDivElement>();
   const errorMessage = getKakaoLoginErrorMessage(errorCode);
   const canLogin = session.isError && session.error instanceof ApiError
     && (session.error.status === 401 || session.error.status === 403
@@ -98,6 +100,7 @@ export function LoginPage({ errorCode }: { errorCode?: string }) {
 
   return (
     <div
+      ref={pageRef}
       className={styles.page}
     >
       <a

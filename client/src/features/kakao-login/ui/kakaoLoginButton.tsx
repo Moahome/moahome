@@ -22,7 +22,8 @@ export function KakaoLoginButton() {
         url.searchParams.set('prompt', 'login');
       }
 
-      window.location.assign(url.toString());
+      // 인증 시작은 로그인 화면의 기록을 대체해 성공 후 기기 뒤로가기로 폼이 다시 열리지 않게 합니다.
+      window.location.replace(url.toString());
     } catch {
       setNotice('지금은 로그인을 시작할 수 없어요. 잠시 후 다시 시도해 주세요.');
     }

@@ -106,6 +106,87 @@ test('다른 계정 로그인은 서버에 재인증 옵션을 전달', async ({
   await expect(page).toHaveURL(loginUrl);
 });
 
+for (const forceLogin of [false, true]) {
+  test(`모바일 카카오 ${forceLogin ? '다른 계정' : '일반'} 로그인 성공 후 뒤로가기에 로그인·콜백이 남지 않음`, async ({ page }) => {
+    await page.setViewportSize({
+      width: 390,
+      height: 844
+    });
+    let authenticated = false;
+    await page.route(`${API_ORIGIN}/api/auth/web/**`, (route) => {
+      if (!authenticated) return fulfillJson(route, {
+        code: 'AUTHENTICATION_REQUIRED'
+      }, 401);
+
+      return fulfillJson(route, route.request().url().endsWith('/csrf') ? {
+        csrfToken: 'test-csrf'
+      } : accessResponse());
+    });
+    const beforeLogin = '/history-before-login';
+    await page.route(`http://localhost:3100${beforeLogin}`, (route) => route.fulfill({
+      contentType: 'text/html; charset=utf-8',
+      body: '<p>로그인 이전 화면</p>'
+    }));
+    // 제공자의 추가 문서 없이 서버 리다이렉트로 끝나는 인증 흐름만 모의 처리합니다.
+    await page.route(`${API_ORIGIN}/oauth2/authorization/kakao${forceLogin ? '?prompt=login' : ''}`, (route) => {
+      authenticated = true;
+
+      return route.fulfill({
+        status: 302,
+        headers: {
+          Location: 'http://localhost:3100/login/callback'
+        }
+      });
+    });
+    await page.goto(beforeLogin);
+    await page.goto('/login');
+    await page.getByRole('button', {
+      name: forceLogin ? '다른 계정으로 로그인' : '카카오로 시작하기',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL('/start');
+    await expect(page.getByRole('heading', {
+      name: '모아홈을 시작해 보세요!'
+    })).toBeVisible();
+    await page.goBack();
+    await expect(page).toHaveURL(beforeLogin);
+    await expect(page.getByText('로그인 이전 화면')).toBeVisible();
+  });
+}
+
+for (const path of ['/login', '/login/callback']) {
+  test(`캐시에서 복원한 ${path} 화면을 숨기고 현재 세션 확인 후 시작 화면으로 이동`, async ({ page }) => {
+    let authenticated = false;
+    await page.route(`${API_ORIGIN}/api/auth/web/**`, (route) => {
+      if (!authenticated) return fulfillJson(route, {
+        code: 'AUTHENTICATION_REQUIRED'
+      }, 401);
+
+      return fulfillJson(route, route.request().url().endsWith('/csrf') ? {
+        csrfToken: 'test-csrf'
+      } : accessResponse());
+    });
+    await page.goto(path);
+    const previousScreen = path === '/login' ? page.getByRole('button', {
+      name: '카카오로 시작하기'
+    }) : page.getByRole('heading', {
+      name: '로그인을 확인해 주세요'
+    });
+    await expect(previousScreen).toBeVisible();
+    await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pagehide')));
+    await expect(previousScreen).not.toBeVisible();
+    authenticated = true;
+    await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', {
+      persisted: true
+    })));
+    await expect(page).toHaveURL('/start');
+    await expect(page.getByRole('heading', {
+      name: '모아홈을 시작해 보세요!'
+    })).toBeVisible();
+    await expect(previousScreen).toHaveCount(0);
+  });
+}
+
 test('카카오톡 내부 브라우저의 다른 계정 로그인은 외부 브라우저 사용 안내', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'userAgent', {

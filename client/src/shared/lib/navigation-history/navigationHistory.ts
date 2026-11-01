@@ -1,0 +1,177 @@
+import type {
+  NavigationHistoryEntry,
+  NavigationHistoryRecord
+} from './navigationHistoryTypes';
+
+const HISTORY_KEY = 'moahome.navigation.history';
+const MAX_ENTRIES = 50;
+const RETURN_QUERY_KEYS = ['month', 'account', 'buildingId', 'tab', 'propertyId'];
+let activeHistory: NavigationHistoryRecord | null = null;
+let returning = false;
+let tracking = false;
+
+/** 초대 fragment·인증 정보·검색어를 복사하지 않고 복귀 경로와 허용된 조회 참조값만 보관합니다. */
+function getNavigationUrl(href = window.location.href) {
+  const url = new URL(href);
+  const query = new URLSearchParams();
+  for (const key of RETURN_QUERY_KEYS) {
+    const value = url.searchParams.get(key);
+    if (value !== null) query.set(key, value);
+  }
+  url.search = query.toString();
+  url.hash = '';
+
+  return url.href;
+}
+
+/** Next.js와 드로어의 상태를 유지하면서 앱이 직접 관찰한 방문 위치만 읽습니다. */
+function getEntry(): NavigationHistoryEntry | null {
+  const entry = window.history.state?.moahomeNavigation;
+  if (!entry || typeof entry.id !== 'string' || !Number.isInteger(entry.position) || entry.position < 0) return null;
+
+  return entry;
+}
+
+/** 주소만 보관하며 저장소를 사용할 수 없으면 현재 문서의 메모리 기록으로 제한합니다. */
+function saveHistory() {
+  try {
+    window.sessionStorage.setItem(HISTORY_KEY, JSON.stringify(activeHistory));
+  } catch {
+    // 저장소 차단·용량 초과는 화면 이동을 막지 않습니다. 새 문서에서는 지정된 복귀 경로를 사용합니다.
+  }
+}
+
+/** 새로고침 이후에도 같은 탭에서 관찰한 기록만 복원하고 불명확한 기록은 사용하지 않습니다. */
+function restoreHistory(): NavigationHistoryRecord | null {
+  try {
+    const record = JSON.parse(window.sessionStorage.getItem(HISTORY_KEY) ?? 'null');
+    if (!record || typeof record.id !== 'string' || !Number.isInteger(record.start) || record.start < 0
+      || !Array.isArray(record.urls) || record.urls.length === 0 || record.urls.length > MAX_ENTRIES
+      || !record.urls.every((url: unknown) => typeof url === 'string'
+        && new URL(url).origin === window.location.origin && getNavigationUrl(url) === url)) return null;
+
+    return record;
+  } catch {
+    return null;
+  }
+}
+
+/** 현재 항목이 관찰한 주소와 일치해야 기록 간 거리를 신뢰할 수 있습니다. */
+function getPosition() {
+  const entry = getEntry();
+  if (!activeHistory || entry?.id !== activeHistory.id) return null;
+  if (activeHistory.urls[entry.position - activeHistory.start] !== getNavigationUrl()) return null;
+
+  return entry.position;
+}
+
+/** push/replace를 관찰해 브라우저 이동·새로고침과 일치하는 앱 탐색 기록을 유지합니다. */
+export function trackNavigationHistory() {
+  // 앱 전체 수명의 관찰자이므로 Strict Mode의 공급자 재마운트에서도 한 번만 설치합니다.
+  if (tracking) return;
+  tracking = true;
+  const history = window.history;
+  const originalPush = history.pushState;
+  const originalReplace = history.replaceState;
+  activeHistory = restoreHistory();
+
+  /** 외부 문서·추적 전 항목에 진입하면 이전 탭 기록을 추측하지 않고 현재 항목부터 시작합니다. */
+  function ensurePosition() {
+    const position = getPosition();
+    if (position !== null) return position;
+    activeHistory = {
+      id: crypto.randomUUID(),
+      start: 0,
+      urls: [getNavigationUrl()]
+    };
+    originalReplace.call(history, {
+      ...history.state,
+      moahomeNavigation: {
+        id: activeHistory.id,
+        position: 0
+      }
+    }, '');
+    saveHistory();
+
+    return 0;
+  }
+
+  ensurePosition();
+
+  /** 새 이동은 앞으로 가기 기록을 버리고, 같은 주소의 드로어 임시 항목도 실제 한 칸으로 셉니다. */
+  const pushState: History['pushState'] = (data, unused, url) => {
+    const position = ensurePosition() + 1;
+    const record = activeHistory!;
+    originalPush.call(history, {
+      ...data,
+      moahomeNavigation: {
+        id: record.id,
+        position
+      }
+    }, unused, url);
+    record.urls = record.urls.slice(0, position - record.start);
+    record.urls.push(getNavigationUrl());
+    if (record.urls.length > MAX_ENTRIES) {
+      record.urls.shift();
+      record.start++;
+    }
+    saveHistory();
+  };
+
+  /** 대체 이동은 같은 위치의 주소만 갱신해 상세 저장·필터 변경을 새 방문으로 세지 않습니다. */
+  const replaceState: History['replaceState'] = (data, unused, url) => {
+    const position = ensurePosition();
+    const record = activeHistory!;
+    originalReplace.call(history, {
+      ...data,
+      moahomeNavigation: {
+        id: record.id,
+        position
+      }
+    }, unused, url);
+    record.urls[position - record.start] = getNavigationUrl();
+    saveHistory();
+  };
+
+  function finishReturning() {
+    returning = false;
+  }
+
+  /** 브라우저가 직접 추가하는 fragment 이력은 거리를 추측하지 않고 새 관찰 구간으로 분리합니다. */
+  function resetOnHashChange() {
+    activeHistory = null;
+    ensurePosition();
+  }
+
+  history.pushState = pushState;
+  history.replaceState = replaceState;
+  window.addEventListener('popstate', finishReturning);
+  window.addEventListener('hashchange', resetOnHashChange);
+}
+
+/** 지정된 상위 경로의 실제 방문 기록으로 복귀하며, 확인할 수 없으면 호출자가 replace합니다. */
+export function goBackToRoute(href: string) {
+  if (returning) return true;
+  const position = getPosition();
+  if (!activeHistory || position === null) return false;
+  const destination = new URL(href, window.location.href);
+  if (destination.origin !== window.location.origin) return false;
+
+  for (let index = position - activeHistory.start - 1; index >= 0; index--) {
+    const previous = new URL(activeHistory.urls[index]);
+    if (previous.origin !== destination.origin || previous.pathname !== destination.pathname) continue;
+    // 이전 목록의 조회 조건을 보존하되 명시된 월·계좌 등이 다른 목록으로 복귀하지 않습니다.
+    const matchesQuery = [...destination.searchParams].every(([key, value]) => {
+      const previousValue = previous.searchParams.get(key);
+
+      return previousValue === null || previousValue === value;
+    });
+    if (!matchesQuery) continue;
+    returning = true;
+    window.history.go(index + activeHistory.start - position);
+
+    return true;
+  }
+
+  return false;
+}
