@@ -500,38 +500,42 @@ test('잔액 인계는 내부 탭을 유지하며 실패 시 입력 보존·저�
   await expect(page.getByRole('tab', {
     name: '기존 잔액 인계'
   })).toHaveAttribute('aria-selected', 'true');
-  await page.getByRole('textbox', {
-    name: '101호 기존 미납',
-    exact: true
-  }).fill('100000');
-  await page.getByRole('textbox', {
-    name: '102호 기존 선납',
-    exact: true
-  }).fill('30000');
-  await page.getByRole('textbox', {
-    name: '103호 기존 선납',
-    exact: true
-  }).fill('80000');
+  for (const [label, field, value] of [['101호', '기존 미납', '100000'], ['102호', '기존 선납', '30000'], ['103호', '기존 선납', '80000']]) {
+    await page.getByRole('button', {
+      name: `${label} 인계 정정`,
+      exact: true
+    }).click();
+    await page.getByRole('dialog').getByRole('textbox', {
+      name: `${label} ${field}`,
+      exact: true
+    }).fill(value);
+    await page.getByRole('dialog').getByRole('button', {
+      name: '적용',
+      exact: true
+    }).click();
+  }
   await expect(page.getByRole('button', {
-    name: '인계 확정 · 관리 시작'
+    name: '인계 확정',
+    exact: true
   })).toBeDisabled();
   state.failSave = true;
   await page.getByRole('button', {
-    name: '초안 저장'
+    name: '임시 저장'
   }).click();
-  await expect(page.getByRole('textbox', {
-    name: '101호 기존 미납',
-    exact: true
-  })).toHaveValue('100,000');
+  await expect(page.getByRole('table', {
+    name: '세대별 기존 잔액'
+  }).getByRole('row').filter({
+    hasText: '101호'
+  })).toContainText('100,000원');
   state.failSave = false;
   await page.getByRole('button', {
-    name: '초안 저장'
+    name: '임시 저장'
   }).click();
   await expect(page.getByRole('button', {
-    name: '인계 확정 · 관리 시작'
+    name: '인계 확정'
   })).toBeEnabled();
   await page.getByRole('button', {
-    name: '인계 확정 · 관리 시작'
+    name: '인계 확정'
   }).click();
   await expect(page.getByText('인계 확정 완료 · 기준일 이전 입금은 신규 수납으로 반영하지 않습니다.')).toBeVisible();
   expect(state.writes.filter((r) => r.path.endsWith('/confirm'))).toHaveLength(1);
@@ -2538,3 +2542,397 @@ test('부담당자에게 관리소장 상세는 조회만 제공하고 수정·�
     exact: true
   })).toHaveCount(0);
 });
+
+
+for (const width of [1440, 390]) {
+  test(`기존 잔액 대시보드 미리보기 ${width}px는 검색·동·상태와 전체 합계를 유지`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 1100
+    });
+    await mockWorkspace(page);
+    const units = Array.from({
+      length: 12
+    }, (_, index) => ({
+      unitId: id(101 + index),
+      label: `${index < 3 ? '102동' : '103동'} ${201 + index}호`,
+      buildingId: id(index < 3 ? 501 : 502),
+      buildingName: index < 3 ? '102동' : '103동',
+      receivable: index === 2 ? '50000' : '0',
+      credit: [0, 3, 4, 5].includes(index) ? '50000' : '0',
+      originMonth: index === 2 ? '2026-08' : [0, 3, 4, 5].includes(index) ? '2026-09' : null,
+      responsibility: index === 2 ? '전월 미납' : [0, 3, 4, 5].includes(index) ? '선납 인계' : null
+    }));
+    const batch = {
+      id: id(50),
+      revision: 1,
+      status: 'DRAFT',
+      cutoffDate: '2026-09-30',
+      firstBillingMonth: '2026-10',
+      confirmedAt: null,
+      canceledAt: null,
+      cancelReason: null
+    };
+    const workspace = {
+      propertyId: PROPERTY,
+      asOf: '2026-10-31',
+      managementStarted: false,
+      cutoffDate: null,
+      firstBillingMonth: null,
+      batch,
+      units,
+      accounts: [{
+        accountId: id(20),
+        bankCode: '081',
+        label: '하나은행 ····5107',
+        amount: '514614'
+      }, {
+        accountId: id(21),
+        bankCode: '090',
+        label: '카카오뱅크 ····0213',
+        amount: '1522910'
+      }],
+      history: [batch]
+    };
+    await page.route(`${API}/api/properties/${PROPERTY}/billing/opening-balances`, async (route) => {
+      if (route.request().method() === 'PUT') {
+        expect(route.request().postDataJSON().units).toHaveLength(12);
+        batch.revision++;
+      }
+      return json(route, workspace);
+    });
+    await page.goto(`${BASE}/billing/monthly?tab=opening`);
+    await expect(page.getByRole('article', {
+      name: '기존 미납 합계 50,000원'
+    })).toBeVisible();
+    await expect(page.getByRole('article', {
+      name: '기존 선납 합계 200,000원'
+    })).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    await page.addStyleTag({
+      content: 'nextjs-portal { display: none; }'
+    });
+    await page.screenshot({
+      path: `/tmp/moahome-opening-${width}.png`,
+      fullPage: true
+    });
+    await page.getByRole('textbox', {
+      name: '기존 잔액 세대 검색'
+    }).fill('전월 미납');
+    const table = page.getByRole('table', {
+      name: '세대별 기존 잔액'
+    });
+    await expect(table.getByRole('row')).toHaveCount(2);
+    await expect(page.getByRole('article', {
+      name: '기존 선납 합계 200,000원'
+    })).toBeVisible();
+    await page.getByRole('button', {
+      name: '임시 저장',
+      exact: true
+    }).click();
+    await expect(page.getByRole('textbox', {
+      name: '기존 잔액 세대 검색'
+    })).toHaveValue('');
+    await page.getByRole('combobox', {
+      name: '기존 잔액 동 필터'
+    }).click();
+    await page.getByRole('option', {
+      name: '102동',
+      exact: true
+    }).click();
+    await expect(table.getByRole('row')).toHaveCount(4);
+    await page.getByRole('combobox', {
+      name: '기존 잔액 상태 필터'
+    }).click();
+    await page.getByRole('option', {
+      name: '미납 있음',
+      exact: true
+    }).click();
+    await expect(table.getByRole('row')).toHaveCount(2);
+    await page.getByRole('button', {
+      name: '102동 203호 인계 정정',
+      exact: true
+    }).click();
+    await page.getByRole('dialog').getByRole('textbox', {
+      name: '102동 203호 기존 미납'
+    }).fill('60000');
+    await page.getByRole('dialog').getByRole('button', {
+      name: '적용',
+      exact: true
+    }).click();
+    await expect(page.getByRole('article', {
+      name: '기존 미납 합계 60,000원'
+    })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+}
+
+
+test('확정 인계 정정은 수납 차단을 유지하며 취소 성공 후 기존 전 세대·계좌 입력을 편집 초안으로 복원', async ({ page }) => {
+  await mockWorkspace(page);
+  const units = [101, 102].map((n) => ({
+    unitId: id(n),
+    label: `${n}호`,
+    receivable: n === 101 ? '50000' : '0',
+    credit: n === 102 ? '30000' : '0',
+    originMonth: '2026-09',
+    responsibility: '이전 장부'
+  }));
+  const accounts = [{
+    accountId: id(20),
+    label: '하나은행 ····1234',
+    amount: '514614'
+  }];
+  const batch = {
+    id: id(50),
+    revision: 2,
+    status: 'CONFIRMED',
+    cutoffDate: '2026-09-30',
+    firstBillingMonth: '2026-10',
+    confirmedAt: '2026-10-01T00:00:00Z',
+    canceledAt: null,
+    cancelReason: null
+  };
+  let workspace: Record<string, unknown> = {
+    propertyId: PROPERTY,
+    asOf: '2026-10-31',
+    managementStarted: true,
+    cutoffDate: '2026-09-30',
+    firstBillingMonth: '2026-10',
+    batch,
+    units,
+    accounts,
+    history: [batch]
+  };
+  let attempts = 0;
+  let saves = 0;
+  await page.route(`${API}/api/properties/${PROPERTY}/billing/opening-balances**`, async (route) => {
+    if (route.request().url().endsWith('/cancel')) {
+      attempts++;
+      if (attempts === 1) return json(route, {
+        code: 'OPENING_ALREADY_HAS_RECEIPTS'
+      }, 409);
+      workspace = {
+        ...workspace,
+        batch: null,
+        units: units.map((unit) => ({
+          ...unit,
+          receivable: '0',
+          credit: '0',
+          originMonth: null,
+          responsibility: null
+        })),
+        accounts: accounts.map((account) => ({
+          ...account,
+          amount: '0'
+        })),
+        history: [{
+          ...batch,
+          status: 'CANCELED',
+          cancelReason: '잔액 재확인'
+        }]
+      };
+    }
+    if (route.request().method() === 'PUT') {
+      const input = route.request().postDataJSON();
+      expect(input.units).toEqual(units.map(({ label: _label, ...unit }) => ({
+        ...unit,
+        receivable: unit.unitId === id(101) ? '60000' : '0'
+      })));
+      expect(input.accounts).toEqual([{
+        accountId: id(20),
+        amount: '514614'
+      }]);
+      expect(input.cutoffDate).toBe('2026-09-30');
+      expect(input.firstBillingMonth).toBe('2026-10');
+      saves++;
+      workspace = {
+        ...workspace,
+        units: input.units.map((unit: { unitId: string }) => ({
+          ...units.find((row) => row.unitId === unit.unitId),
+          ...unit
+        })),
+        accounts,
+        batch: {
+          ...batch,
+          id: id(51),
+          revision: 1,
+          status: 'DRAFT'
+        }
+      };
+    }
+    return json(route, workspace);
+  });
+  await page.goto(`${BASE}/billing/monthly?tab=opening`);
+  await page.getByRole('button', {
+    name: '101호 인계 정정',
+    exact: true
+  }).click();
+  const modal = page.getByRole('dialog');
+  await modal.getByRole('textbox', {
+    name: '인계 취소 사유'
+  }).fill('잔액 재확인');
+  await modal.getByRole('button', {
+    name: '기존 인계 취소',
+    exact: true
+  }).click();
+  await expect(modal.getByRole('alert')).toContainText('확정 수납');
+  await expect(modal.getByRole('textbox', {
+    name: '인계 취소 사유'
+  })).toHaveValue('잔액 재확인');
+  await modal.getByRole('button', {
+    name: '기존 인계 취소',
+    exact: true
+  }).click();
+  await expect(modal.getByRole('heading', {
+    name: '101호 인계 정정'
+  })).toBeVisible();
+  await expect(modal.getByRole('textbox', {
+    name: '101호 기존 미납'
+  })).toHaveValue('50,000');
+  await modal.getByRole('textbox', {
+    name: '101호 기존 미납'
+  }).fill('60000');
+  await modal.getByRole('button', {
+    name: '적용',
+    exact: true
+  }).click();
+  await expect(page.getByRole('article', {
+    name: '기존 선납 합계 30,000원'
+  })).toBeVisible();
+  await expect(page.getByRole('button', {
+    name: '인계 확정',
+    exact: true
+  })).toBeDisabled();
+  await page.getByRole('button', {
+    name: '임시 저장',
+    exact: true
+  }).click();
+  await expect(page.getByRole('button', {
+    name: '인계 확정',
+    exact: true
+  })).toBeEnabled();
+  expect(attempts).toBe(2);
+  expect(saves).toBe(1);
+});
+
+for (const width of [1440, 390, 320]) {
+  test(`잔액 엑셀 업로드 ${width}px는 단일 버튼에서 PC 모달·모바일 페이지를 열고 미저장 금액을 보존`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    const state = await mockWorkspace(page);
+    let uploads = 0;
+    await page.route(`${API}/api/properties/${PROPERTY}/billing/opening-balances/import/preview`, (route) => {
+      if (route.request().method() === 'OPTIONS') return json(route, {});
+      uploads++;
+      if (uploads === 1) return json(route, {
+        code: 'INVALID_OPENING_FILE'
+      }, 400);
+      return json(route, [{
+        unitId: id(102),
+        receivable: '0',
+        credit: '30000',
+        originMonth: null,
+        responsibility: null
+      }]);
+    });
+    await page.goto(`${BASE}/billing/monthly?tab=opening`);
+    await expect(page.getByRole('button', {
+      name: '엑셀 양식 다운로드',
+      exact: true
+    })).toHaveCount(0);
+    await page.getByRole('button', {
+      name: '101호 인계 정정',
+      exact: true
+    }).click();
+    await page.getByRole('dialog').getByRole('textbox', {
+      name: '101호 기존 미납',
+      exact: true
+    }).fill('12000');
+    await page.getByRole('dialog').getByRole('button', {
+      name: '적용',
+      exact: true
+    }).click();
+    await page.getByRole('textbox', {
+      name: '관리은행 ····1234 시작 잔액'
+    }).fill('5000');
+    await page.getByRole('button', {
+      name: '엑셀 업로드',
+      exact: true
+    }).click();
+    if (width < 768) {
+      await expect(page).toHaveURL(`${BASE}/billing/monthly/opening-upload`);
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      const back = page.getByRole('link', {
+        name: '기존 잔액 인계로 돌아가기'
+      });
+      await expect(back).toBeVisible();
+      await back.click();
+      await expect(page.getByRole('table', {
+        name: '세대별 기존 잔액'
+      })).toContainText('12,000원');
+      await page.getByRole('button', {
+        name: '엑셀 업로드',
+        exact: true
+      }).click();
+    }
+    const view = width < 768 ? page.getByRole('main') : page.getByRole('dialog');
+    await expect(view.getByRole('region', {
+      name: '기존 잔액 엑셀 업로드',
+      exact: true
+    })).toBeVisible();
+    await page.screenshot({
+      path: `/tmp/moahome-opening-upload-${width}.png`,
+      fullPage: true
+    });
+    const downloadEvent = page.waitForEvent('download');
+    await view.getByRole('button', {
+      name: '엑셀 양식 다운로드',
+      exact: true
+    }).click();
+    expect((await downloadEvent).suggestedFilename()).toBe('기존_잔액_인계.xlsx');
+    const file = {
+      name: '잔액.xlsx',
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      buffer: Buffer.from('mocked workbook')
+    };
+    await view.getByLabel('엑셀 파일 선택', {
+      exact: true
+    }).setInputFiles(file);
+    await expect(page.getByRole('alert').filter({
+      hasText: '내려받은 .xlsx'
+    })).toBeVisible();
+    await view.getByLabel('엑셀 파일 선택', {
+      exact: true
+    }).setInputFiles(file);
+    await expect(page).toHaveURL(`${BASE}/billing/monthly?tab=opening`);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    const table = page.getByRole('table', {
+      name: '세대별 기존 잔액'
+    });
+    await expect(table.getByRole('row').filter({
+      hasText: '101호'
+    })).toContainText('12,000원');
+    await expect(table.getByRole('row').filter({
+      hasText: '102호'
+    })).toContainText('30,000원');
+    await expect(page.getByRole('textbox', {
+      name: '관리은행 ····1234 시작 잔액'
+    })).toHaveValue('5,000');
+    await expect(page.getByRole('button', {
+      name: '인계 확정',
+      exact: true
+    })).toBeDisabled();
+    expect(state.writes.filter((item) => item.path.endsWith('/billing/opening-balances'))).toHaveLength(0);
+    await page.getByRole('button', {
+      name: '임시 저장',
+      exact: true
+    }).click();
+    await expect(page.getByRole('button', {
+      name: '인계 확정',
+      exact: true
+    })).toBeEnabled();
+  });
+}

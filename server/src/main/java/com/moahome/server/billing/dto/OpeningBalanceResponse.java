@@ -10,9 +10,9 @@ public record OpeningBalanceResponse(UUID propertyId, LocalDate asOf, boolean ma
 	}
 
 	public record Unit(UUID unitId, String label, String receivable, String credit, String originMonth,
-	    String responsibility) {
+	    String responsibility, UUID buildingId, String buildingName) {
 	}
 
-	public record Account(UUID accountId, String label, String amount) {
+	public record Account(UUID accountId, String label, String amount, String bankCode) {
 	}
 }

@@ -13,8 +13,11 @@ function read(value: OpeningWorkspace, property: string) {
   if (!value || value.propertyId !== property || !Array.isArray(value.units) || !Array.isArray(value.accounts)
     || typeof value.managementStarted !== 'boolean' || !Number.isFinite(Date.parse(value.asOf))
     || !Array.isArray(value.history)
-    || value.units.some((u) => !isPropertyId(u.unitId) || typeof u.label !== 'string' || !AMOUNT.test(u.receivable) || !AMOUNT.test(u.credit))
-    || value.accounts.some((a) => !isPropertyId(a.accountId) || typeof a.label !== 'string' || !AMOUNT.test(a.amount))
+    || value.units.some((u) => !isPropertyId(u.unitId) || typeof u.label !== 'string' || !AMOUNT.test(u.receivable) || !AMOUNT.test(u.credit)
+      || !(u.buildingId === undefined || u.buildingId === null || isPropertyId(u.buildingId))
+      || !(u.buildingName === undefined || u.buildingName === null || typeof u.buildingName === 'string'))
+    || value.accounts.some((a) => !isPropertyId(a.accountId) || typeof a.label !== 'string' || !AMOUNT.test(a.amount)
+      || !(a.bankCode === undefined || typeof a.bankCode === 'string'))
     || (value.batch && (!isPropertyId(value.batch.id) || !Number.isSafeInteger(value.batch.revision)
       || !['DRAFT', 'CONFIRMED', 'CANCELED'].includes(value.batch.status)))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '잔액 인계 응답을 확인할 수 없습니다.');

@@ -173,7 +173,7 @@ ChargeRow는 `id`, `unitId`, `building`(동 없음은 빈 문자열), `room`, `d
 
 초안은 `{batchId,revision,cutoffDate,firstBillingMonth,units,accounts}`입니다. 새 작업은 batchId·revision이 null입니다. units는 `{unitId,receivable,credit,originMonth?,responsibility?}`, accounts는 `{accountId,amount}`이며 전체 미삭제 세대·계좌를 중복 없이 제출합니다. 금액은 0~999,999,999,999,999원의 정수 문자열입니다. 기준일은 오늘까지, 첫 부과월의 1일은 기준일 이후이며 서버 현재월의 다음 달을 넘지 않습니다. 발생월은 기준월 이하의 선택값, 부담 주체 메모는 선택 500자입니다.
 
-응답은 `{propertyId,asOf,managementStarted,cutoffDate,firstBillingMonth,batch,units,accounts,history}`입니다. batch는 `{id,revision,status,cutoffDate,firstBillingMonth,confirmedAt,canceledAt,cancelReason}`입니다. 세대·계좌 행에는 표시용 label이 추가됩니다. 같은 기준일·월을 다시 저장해도 revision을 갱신합니다. 오래된 초안은 409입니다.
+응답은 `{propertyId,asOf,managementStarted,cutoffDate,firstBillingMonth,batch,units,accounts,history}`입니다. batch는 `{id,revision,status,cutoffDate,firstBillingMonth,confirmedAt,canceledAt,cancelReason}`입니다. 세대·계좌 행에는 표시용 label이 추가됩니다. 2026-11-01 대시보드 개편으로 세대 행의 `buildingId`, `buildingName`(동 없음은 null), 계좌 행의 `bankCode`를 추가합니다. 이 필드는 동 필터·은행 아이콘 표시용이며 PUT 입력에는 보내지 않습니다. 같은 기준일·월을 다시 저장해도 revision을 갱신합니다. 오래된 초안은 409입니다.
 
 엑셀은 내려받은 `.xlsx` 양식의 `세대 ID·세대·기존 미납·기존 선납·발생월·부담 주체 메모` 순서이며 5MB·10,000행까지 허용합니다. ID는 현재 대상의 실제 세대와 대조하고 수식·소수·음수·중복 ID·잘못된 발생월을 거부합니다. 미리보기는 저장하지 않으며 직접 입력과 합쳐 검토한 전체 초안을 별도로 저장·확정합니다.
 

@@ -1,6 +1,8 @@
 export interface OpeningUnit {
   unitId: string;
   label: string;
+  buildingId?: string | null;
+  buildingName?: string | null;
   receivable: string;
   credit: string;
   originMonth: string | null;
@@ -18,6 +20,7 @@ export interface OpeningWorkspace {
   accounts: {
     accountId: string;
     label: string;
+    bankCode?: string;
     amount: string;
   }[];
   history: OpeningBatch[];
@@ -39,7 +42,7 @@ export interface OpeningInput {
   revision: number | null;
   cutoffDate: string;
   firstBillingMonth: string;
-  units: Omit<OpeningUnit, 'label'>[];
+  units: Pick<OpeningUnit, 'unitId' | 'receivable' | 'credit' | 'originMonth' | 'responsibility'>[];
   accounts: {
     accountId: string;
     amount: string;

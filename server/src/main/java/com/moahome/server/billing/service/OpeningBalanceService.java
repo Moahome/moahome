@@ -118,12 +118,13 @@ public class OpeningBalanceService {
 			        entry == null ? "0" : entry.getReceivable().toPlainString(),
 			        entry == null ? "0" : entry.getCredit().toPlainString(),
 			        entry == null ? null : entry.getOriginMonth(),
-			        entry == null ? null : security.decrypt(entry.getResponsibilityEncrypted()));
+		        entry == null ? null : security.decrypt(entry.getResponsibilityEncrypted()),
+		        u.getBuildingId(), names.get(u.getBuildingId()));
 		    }).sorted(Comparator.comparing(element -> element.label())).toList();
 		List<OpeningBalanceResponse.Account> accountRows = accounts.findByPropertyIdAndDeletedAtIsNull(propertyId)
 		    .stream()
 		    .map(a -> new OpeningBalanceResponse.Account(a.getId(), a.getBankName() + " ····" + a.getAccountLast4(),
-		        banks.containsKey(a.getId()) ? banks.get(a.getId()).getAmount().toPlainString() : "0"))
+		        banks.containsKey(a.getId()) ? banks.get(a.getId()).getAmount().toPlainString() : "0", a.getBankCode()))
 		    .toList();
 		return new OpeningBalanceResponse(propertyId, LocalDate.now(clock.withZone(BillingCalendar.ZONE)),
 		    property.getManagementStartedAt() != null, property.getBalanceCutoffDate(),

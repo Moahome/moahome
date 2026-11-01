@@ -149,6 +149,11 @@ function getMobileBack(pathname: string, basePath: string, month: string | null,
     label: '주민 목록으로 돌아가기',
     title: '주민 상세'
   };
+  if (pathname === `${basePath}/billing/monthly/opening-upload`) return {
+    href: `${basePath}/billing/monthly?tab=opening`,
+    label: '기존 잔액 인계로 돌아가기',
+    title: '엑셀 업로드'
+  };
   if (pathname === `${basePath}/billing/monthly/settings`) return {
     href: `${basePath}/billing/monthly?tab=items`,
     label: '목록',

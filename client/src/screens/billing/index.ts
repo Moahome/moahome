@@ -7,3 +7,7 @@ export {
 export {
   BillingSettingsPage
 } from './ui/billing-settings-page/billingSettingsPage';
+
+export {
+  BillingOpeningUploadPage
+} from './ui/opening-upload-page/openingUploadPage';

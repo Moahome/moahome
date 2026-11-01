@@ -10,6 +10,7 @@ import { LoadingState } from '@/shared/ui/state-message';
 import { RequestError } from '@/shared/ui/server-connection-error';
 
 import {
+  useEffect,
   useRef,
   useState
 } from 'react';
@@ -29,6 +30,11 @@ import {
 } from '@/features/billing-management';
 import { Button } from '@/shared/ui/button';
 import { useRouter } from 'next/navigation';
+import { BankIcon } from '@/entities/banking';
+import { SummaryCard } from '@/shared/ui/summary-card';
+import { OpeningUnitList } from './openingUnitList';
+import { ClientModal } from '@/shared/ui/client-modal';
+import { OpeningUnitEditor } from './openingUnitEditor';
 import { ListCard } from '@/shared/ui/list-card';
 import { CalendarPicker } from '@/shared/ui/calendar-picker';
 import {
@@ -36,15 +42,16 @@ import {
   Input
 } from '@/shared/ui/form-controls';
 import { createInputWorkbook } from '@/shared/lib/excel-report';
-import { DataTable } from '@/shared/ui/data-table';
-import { FileDropzone } from '@/shared/ui/file-dropzone';
+import { OpeningUploadContent } from './openingUploadContent';
+import type { OpeningBalanceDraft as DraftSeed } from '../../_types/openingBalanceDraftTypes';
+import { goBackToRoute } from '@/shared/lib/navigation-history';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { Toast } from '@/shared/ui/toast';
 import { formatInteger } from '@/shared/lib/format';
 import styles from './openingBalances.module.css';
 
 /** 계정·관리대상별 초안을 읽고 저장 성공한 서버 버전으로만 편집 화면을 교체합니다. */
-export function OpeningBalances({ propertyId }: { propertyId: string }) {
+export function OpeningBalances({ propertyId, uploadPage = false }: { propertyId: string; uploadPage?: boolean }) {
   const session = useSession();
   const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const client = useQueryClient();
@@ -56,6 +63,17 @@ export function OpeningBalances({ propertyId }: { propertyId: string }) {
     retry: false,
     gcTime: 0
   });
+  const draftKey = ['opening-balance-draft', session.data?.id, propertyId];
+  const draftQuery = useQuery<DraftSeed | null>({
+    queryKey: draftKey,
+    queryFn: () => null,
+    initialData: null,
+    enabled: false,
+    gcTime: 5 * 60 * 1000
+  });
+  const draftSeed = draftQuery.data;
+  const currentDraft = draftSeed && draftSeed.batchId === (query.data?.batch?.id ?? null)
+    && draftSeed.revision === (query.data?.batch?.revision ?? null) ? draftSeed : null;
   if (query.isPending) return (
     <LoadingState
       title={'기존 잔액을 불러오고 있어요.'}
@@ -72,9 +90,32 @@ export function OpeningBalances({ propertyId }: { propertyId: string }) {
 
   return (
     <OpeningForm
-      key={`${propertyId}:${query.data.batch?.id}:${query.data.batch?.revision}`}
+      key={`${propertyId}:${query.data.batch?.id}:${query.data.batch?.revision}:${currentDraft?.version ?? 0}`}
       data={query.data}
-      onSaved={(saved) => {
+      uploadPage={uploadPage}
+      initialDraft={currentDraft}
+      onDraft={(draft) => setPropertyQueryData(client, draftKey, {
+        ...draft,
+        owner: session.data?.id
+      }, propertyScope)}
+      onSaved={(saved, seed) => {
+        // 취소 응답의 현재 세대·계좌 범위를 유지하고 이전 금액만 편집 초안으로 복원합니다.
+        const unitDrafts = new Map(seed?.units.map((unit) => [unit.unitId, unit]));
+        const accountDrafts = new Map(seed?.accounts.map((account) => [account.accountId, account]));
+        setPropertyQueryData(client, draftKey, seed ? {
+          ...seed,
+          owner: session.data?.id,
+          batchId: saved.batch?.id ?? null,
+          revision: saved.batch?.revision ?? null,
+          units: saved.units.map((unit) => ({
+            ...unit,
+            ...unitDrafts.get(unit.unitId)
+          })),
+          accounts: saved.accounts.map((account) => ({
+            ...account,
+            ...accountDrafts.get(account.accountId)
+          }))
+        } : null, propertyScope);
         setPropertyQueryData(client, queryKey, saved, propertyScope);
         void client.invalidateQueries({
           predicate: (q) => ['billing', 'payment-workspace'].includes(String(q.queryKey[0]))
@@ -85,49 +126,90 @@ export function OpeningBalances({ propertyId }: { propertyId: string }) {
   );
 }
 
-function OpeningForm({ data, onSaved }: { data: OpeningWorkspace; onSaved: (data: OpeningWorkspace) => void }) {
+function OpeningForm({ data, initialDraft, onSaved, uploadPage, onDraft }: { data: OpeningWorkspace; initialDraft: DraftSeed | null; uploadPage: boolean; onDraft: (draft: DraftSeed) => void; onSaved: (data: OpeningWorkspace, seed?: DraftSeed) => void }) {
   const router = useRouter();
   const month = data.asOf.slice(0, 7);
   const previousEnd = new Date(`${month}-01T00:00:00Z`);
   previousEnd.setUTCDate(0);
-  const [cutoff, setCutoff] = useState(data.batch?.cutoffDate ?? data.cutoffDate ?? previousEnd.toISOString().slice(0, 10));
-  const [first, setFirst] = useState(data.batch?.firstBillingMonth ?? data.firstBillingMonth ?? month);
-  const [units, setUnits] = useState(data.units);
-  const [accounts, setAccounts] = useState(data.accounts);
-  const [dirty, setDirty] = useState(false);
+  const [cutoff, setCutoff] = useState(initialDraft?.cutoff ?? data.batch?.cutoffDate ?? data.cutoffDate ?? previousEnd.toISOString().slice(0, 10));
+  const [first, setFirst] = useState(initialDraft?.first ?? data.batch?.firstBillingMonth ?? data.firstBillingMonth ?? month);
+  const [units, setUnits] = useState(initialDraft?.units ?? data.units);
+  const [accounts, setAccounts] = useState(initialDraft?.accounts ?? data.accounts);
+  const [dirty, setDirty] = useState(initialDraft?.dirty ?? false);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
-  const [notice, setNotice] = useState('');
+  const active = useRef(false);
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
+  const [notice, setNotice] = useState(initialDraft?.message ?? '');
+  const [noticeTone, setNoticeTone] = useState<'success' | 'error'>(initialDraft?.message ? 'success' : 'error');
+  const [noticeId, setNoticeId] = useState(0);
   const [reason, setReason] = useState('');
   const [canceling, setCanceling] = useState(false);
+  const [editing, setEditing] = useState<string | null>(initialDraft?.editId ?? null);
+  const [correctionId, setCorrectionId] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
   const confirmed = data.batch?.status === 'CONFIRMED';
   const legacy = data.managementStarted && data.cutoffDate === null;
   const total = (key: 'receivable' | 'credit') => units.reduce((sum, u) => sum + (/^[0-9]+$/.test(u[key]) ? BigInt(u[key]) : BigInt(0)), BigInt(0));
 
+  /** 모바일 왕복에서는 미저장 금액·기준일을 메모리에만 보관하고 서버 원장과 분리합니다. */
+  function snapshot(): DraftSeed {
+    return {
+      propertyId: data.propertyId,
+      batchId: data.batch?.id ?? null,
+      revision: data.batch?.revision ?? null,
+      cutoff,
+      first,
+      units,
+      accounts,
+      dirty,
+      editId: null,
+      version: Date.now()
+    };
+  }
+
+  function openUpload() {
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      onDraft(snapshot());
+      router.push(`/manage/${data.propertyId}/billing/monthly/opening-upload`);
+      return;
+    }
+    setImporting(true);
+  }
+
+  /** 같은 오류를 재시도해도 알림 시간을 다시 시작하며 입력은 유지합니다. */
+  function showNotice(message: string, tone: 'success' | 'error' = 'error') {
+    setNotice(message); setNoticeTone(tone); setNoticeId((id) => id + 1);
+  }
+
   /** 저장 중 중복 클릭과 입력 변경을 막고 실패하면 작성 내용을 유지합니다. */
-  async function run(action: () => Promise<OpeningWorkspace>) {
+  async function run(action: () => Promise<OpeningWorkspace>, seed?: DraftSeed) {
     if (pending.current) return;
     pending.current = true; setBusy(true); setNotice('');
-    try { onSaved(await action()); }
-    catch (failure) { setNotice(openingBalanceError(failure)); }
+    try { onSaved(await action(), seed); }
+    catch (failure) { showNotice(openingBalanceError(failure)); }
     finally { pending.current = false; setBusy(false); }
   }
-  function updateUnit(id: string, key: 'receivable' | 'credit' | 'originMonth' | 'responsibility', value: string) {
-    setUnits((rows) => rows.map((u) => u.unitId === id ? {
-      ...u,
-      [key]: value
-    } : u)); setDirty(true);
-  }
+  /** 표시 중인 페이지와 관계없이 전체 세대·계좌를 검증하고 표시 메타데이터는 저장 요청에서 제외합니다. */
   async function save() {
     if (units.some((u) => !/^[0-9]{1,15}$/.test(u.receivable) || !/^[0-9]{1,15}$/.test(u.credit))
-      || accounts.some((a) => !/^[0-9]{1,15}$/.test(a.amount))) { setNotice('금액은 0원 이상의 정수로 입력해주세요.'); return; }
+      || accounts.some((a) => !/^[0-9]{1,15}$/.test(a.amount))) { showNotice('금액은 0원 이상의 정수로 입력해주세요.'); return; }
     const input: OpeningInput = {
       batchId: data.batch?.id ?? null,
       revision: data.batch?.revision ?? null,
       cutoffDate: cutoff,
       firstBillingMonth: first,
-      units: units.map(({ label: _label, ...u }) => u),
-      accounts: accounts.map(({ label: _label, ...a }) => a)
+      units: units.map(({ unitId, receivable, credit, originMonth, responsibility }) => ({
+        unitId,
+        receivable,
+        credit,
+        originMonth,
+        responsibility
+      })),
+      accounts: accounts.map(({ accountId, amount }) => ({
+        accountId,
+        amount
+      }))
     };
     await run(() => saveOpeningBalances(data.propertyId, input));
   }
@@ -137,13 +219,27 @@ function OpeningForm({ data, onSaved }: { data: OpeningWorkspace; onSaved: (data
     pending.current = true; setBusy(true);
     try {
       const result = await previewOpeningExcel(data.propertyId, file);
+      // 모바일 헤더 뒤로가기 뒤의 늦은 검증 응답이 새 편집 화면을 덮어쓰지 않게 합니다.
+      if (!active.current) return;
       const indexed = new Map(result.map((u) => [u.unitId, u]));
-      setUnits((rows) => rows.map((u) => ({
-        ...u,
-        ...indexed.get(u.unitId)
-      }))); setDirty(true);
-      setNotice(`${result.length}세대의 입력을 가져왔어요. 금액을 확인하고 초안을 저장해주세요.`);
-    } catch (error) { setNotice(openingBalanceError(error)); }
+      const updated = units.map((unit) => ({
+        ...unit,
+        ...indexed.get(unit.unitId)
+      }));
+      const message = `${result.length}세대의 입력을 가져왔어요. 금액을 확인하고 임시 저장해주세요.`;
+      if (uploadPage) {
+        onDraft({
+          ...snapshot(),
+          units: updated,
+          dirty: true,
+          message
+        });
+        goBackToRoute(`/manage/${data.propertyId}/billing/monthly?tab=opening`, (href) => router.replace(href));
+        return;
+      }
+      setUnits(updated); setDirty(true); setImporting(false);
+      showNotice(message, 'success');
+    } catch (error) { showNotice(openingBalanceError(error)); }
     finally { pending.current = false; setBusy(false); }
   }
   /** 재업로드 헤더와 세대 식별자는 유지하고 공통 서식·작성 안내만 적용합니다. */
@@ -205,23 +301,110 @@ function OpeningForm({ data, onSaved }: { data: OpeningWorkspace; onSaved: (data
     </ListCard>
   );
 
+  if (uploadPage) return (
+    <ListCard>
+      {confirmed ? (
+        <p>
+          확정된 인계입니다. 기존 잔액 인계 화면에서 정정한 뒤 업로드해주세요.
+        </p>
+      ) : (
+        <OpeningUploadContent
+          busy={busy}
+          onFile={(file) => void upload(file)}
+          onDownload={() => void download()}
+        />
+      )}
+      {notice && (
+        <Toast
+          key={noticeId}
+          tone={noticeTone}
+          message={notice}
+          onClose={() => setNotice('')}
+        />
+      )}
+    </ListCard>
+  );
+
+  const selected = units.find((unit) => unit.unitId === editing);
+
   return (
     <div
       className={styles.panel}
     >
-      <p>
-        기존 장부의 미납·선납금과 통장 잔액을 옮겨주세요. 등록만으로 관리비를 부과하지 않으며, 인계를 확정하면 지정한 첫 부과월부터 관리합니다.
-      </p>
-      <fieldset
-        disabled={busy || confirmed}
-        className={styles.form}
-      >
+      <ListCard>
         <div
+          className={styles['section-heading']}
+        >
+          <div
+            className={styles['heading-copy']}
+          >
+            <span
+              className={styles['state-icon']}
+            >
+              <ServiceIcon
+                name={'receipt'}
+              />
+            </span>
+            <div>
+              <h2>
+                기존 잔액 인계
+              </h2>
+              <p>
+                이전 기간의 미납·선납금과 통장 시작 잔액을 입력하여 새 부과를 위한 기존 잔액으로 인계합니다.
+              </p>
+              <p>
+                세대별 미납·선납금과 계좌의 시작 잔액은 별도로 관리되며, 새 입금액에 더하지 않습니다.
+              </p>
+            </div>
+          </div>
+          <div
+            className={styles.actions}
+          >
+            {confirmed ? (
+              <Button
+                variant={'outline'}
+                disabled={busy}
+                onClick={() => { setCorrectionId(null); setCanceling(true); }}
+              >
+                인계 정정
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant={'outline'}
+                  loading={busy}
+                  onClick={() => void save()}
+                  leadingIcon={(
+                    <ServiceIcon
+                      name={'receipt'}
+                    />
+                  )}
+                >
+                  임시 저장
+                </Button>
+                <Button
+                  disabled={busy || dirty || !data.batch}
+                  onClick={() => void run(() => changeOpeningBalances(data.propertyId, data.batch!, 'confirm'))}
+                  leadingIcon={(
+                    <ServiceIcon
+                      name={'check'}
+                    />
+                  )}
+                >
+                  인계 확정
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+        <fieldset
           className={styles.dates}
+          disabled={busy || confirmed || data.managementStarted}
         >
           <CalendarPicker
             label={'기존 장부 기준일'}
             value={cutoff}
+            maxDate={data.asOf}
             onChange={(value) => { setCutoff(value); setDirty(true); }}
             required
           />
@@ -232,225 +415,308 @@ function OpeningForm({ data, onSaved }: { data: OpeningWorkspace; onSaved: (data
             onChange={(value) => { setFirst(value); setDirty(true); }}
             required
           />
-        </div>
+        </fieldset>
         <p>
-          10월분을 새로 부과하려면 9월 30일 기준·첫 부과월 10월로 입력하세요. 10월분을 이미 고지했다면 최근 정리일 기준의 남은 잔액을 옮기고 첫 부과월을 11월로 선택하세요.
+          기준일 이전 장부의 남은 금액을 입력하고, 기준일 이후 새로 부과할 첫 달을 선택해주세요.
         </p>
-        {!confirmed && (
-          <div
-            className={styles.tools}
+        {confirmed && (
+          <p
+            className={styles['saved-state']}
           >
-            <Button
-              variant={'outline'}
-              tone={'excel'}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'excel'}
-                />
-              )}
-              onClick={() => void download()}
-            >
-              엑셀 양식 다운로드
-            </Button>
-            <FileDropzone
-              label={'기존 잔액 엑셀 업로드'}
-              inputLabel={'엑셀 파일 선택'}
-              accept={'.xlsx'}
-              description={'내려받은 양식을 사용해주세요. 5MB·10,000세대까지 지원합니다.'}
-              busy={busy}
-              onFile={(file) => void upload(file)}
-            />
-          </div>
-        )}
-        <DataTable
-          label={'세대별 기존 잔액'}
-          rows={units}
-          getRowKey={(u) => u.unitId}
-          minWidth={900}
-          emptyState={'등록된 세대가 없어요.'}
-          columns={[
-            {
-              key: 'unit',
-              header: '세대',
-              rowHeader: true,
-              render: (u) => u.label
-            },
-            {
-              key: 'receivable',
-              header: '기존 미납',
-              render: (u) => (
-                <AmountInput
-                  aria-label={`${u.label} 기존 미납`}
-                  value={u.receivable}
-                  onChange={(v) => updateUnit(u.unitId, 'receivable', v)}
-                />
-              )
-            },
-            {
-              key: 'credit',
-              header: '기존 선납',
-              render: (u) => (
-                <AmountInput
-                  aria-label={`${u.label} 기존 선납`}
-                  value={u.credit}
-                  onChange={(v) => updateUnit(u.unitId, 'credit', v)}
-                />
-              )
-            },
-            {
-              key: 'origin',
-              header: '발생월 (선택)',
-              render: (u) => (
-                <CalendarPicker
-                  label={`${u.label} 발생월`}
-                  labelHidden
-                  placeholder={'발생월 선택'}
-                  mode={'month'}
-                  value={u.originMonth ?? ''}
-                  onChange={(v) => updateUnit(u.unitId, 'originMonth', v)}
-                />
-              )
-            },
-            {
-              key: 'note',
-              header: '부담 주체 메모 (선택)',
-              render: (u) => (
-                <Input
-                  aria-label={`${u.label} 부담 주체 메모`}
-                  value={u.responsibility ?? ''}
-                  maxLength={500}
-                  onChange={(e) => updateUnit(u.unitId, 'responsibility', e.target.value)}
-                />
-              )
-            }
-          ]}
-        />
-        <p
-          className={styles.totals}
-        >
-          기존 미납 합계
-          {' '}
-          {formatInteger(total('receivable'))}
-          원 · 기존 선납 합계
-          {' '}
-          {formatInteger(total('credit'))}
-          원
-        </p>
-        <h3>
-          계좌별 시작 통장 잔액
-        </h3>
-        <p>
-          기준일의 실제 은행 잔액을 입력하세요. 세대 미납·선납금과 별도로 관리하며 새 입금액에 더하지 않습니다.
-        </p>
-        {accounts.map((a) => (
-          <AmountInput
-            key={a.accountId}
-            label={a.label}
-            value={a.amount}
-            onChange={(value) => {
-              setAccounts((rows) => rows.map((row) => row.accountId === a.accountId ? {
-                ...row,
-                amount: value
-              } : row)); setDirty(true);
-            }}
-          />
-        ))}
-      </fieldset>
-      {confirmed ? (
-        <div
-          className={styles.actions}
-        >
-          <p>
             인계 확정 완료 · 기준일 이전 입금은 신규 수납으로 반영하지 않습니다.
           </p>
-          <Button
-            variant={'outline'}
-            onClick={() => setCanceling(true)}
-            disabled={busy}
+        )}
+        {dirty && (
+          <p
+            className={styles['draft-state']}
           >
-            인계 정정
-          </Button>
-        </div>
-      ) : (
+            변경한 내용을 임시 저장한 뒤 확정해주세요.
+          </p>
+        )}
+      </ListCard>
+      <div
+        className={styles.summary}
+      >
+        <SummaryCard
+          density={'compact'}
+          label={'기존 미납 합계'}
+          value={formatInteger(total('receivable'))}
+          unit={'원'}
+          tone={'primary'}
+          icon={(
+            <ServiceIcon
+              name={'receipt'}
+            />
+          )}
+        />
+        <SummaryCard
+          density={'compact'}
+          label={'기존 선납 합계'}
+          value={formatInteger(total('credit'))}
+          unit={'원'}
+          tone={'teal'}
+          icon={(
+            <ServiceIcon
+              name={'coins'}
+            />
+          )}
+        />
+        <SummaryCard
+          density={'compact'}
+          label={'세대 수'}
+          value={units.length}
+          unit={'세대'}
+          tone={'neutral'}
+          icon={(
+            <ServiceIcon
+              name={'users'}
+            />
+          )}
+        />
+        <SummaryCard
+          density={'compact'}
+          label={'관리 계좌'}
+          value={accounts.length}
+          unit={'개'}
+          tone={'primary'}
+          icon={(
+            <ServiceIcon
+              name={'bank'}
+            />
+          )}
+        />
+      </div>
+      <OpeningUnitList
+        units={units}
+        busy={busy}
+        confirmed={confirmed}
+        onUpload={openUpload}
+        onEdit={(unitId) => {
+          if (confirmed) { setCorrectionId(unitId); setCanceling(true); return; }
+          setEditing(unitId);
+        }}
+      />
+      <ListCard>
         <div
-          className={styles.actions}
+          className={styles['account-heading']}
         >
-          <Button
-            variant={'outline'}
-            loading={busy}
-            onClick={() => void save()}
-          >
-            초안 저장
-          </Button>
-          <Button
-            disabled={busy || dirty || !data.batch}
-            onClick={() => void run(() => changeOpeningBalances(data.propertyId, data.batch!, 'confirm'))}
-          >
-            인계 확정 · 관리 시작
-          </Button>
-          {dirty && (
+          <ServiceIcon
+            name={'bank'}
+          />
+          <h2>
+            계좌별 시작 잔액
+          </h2>
+          <p>
+            세대 미납·선납과 별도로 관리되는 실제 은행 시작 잔액입니다.
+          </p>
+        </div>
+        <fieldset
+          className={styles.accounts}
+          disabled={busy || confirmed}
+        >
+          {accounts.map((account) => (
+            <div
+              className={styles.account}
+              key={account.accountId}
+            >
+              <div
+                className={styles['account-label']}
+              >
+                {account.bankCode ? (
+                  <BankIcon
+                    bankCode={account.bankCode}
+                  />
+                ) : (
+                  <ServiceIcon
+                    name={'bank'}
+                  />
+                )}
+                <strong>
+                  {account.label}
+                </strong>
+              </div>
+              <AmountInput
+                label={'시작 잔액'}
+                aria-label={`${account.label} 시작 잔액`}
+                value={account.amount}
+                onChange={(value) => {
+                  setAccounts((rows) => rows.map((row) => row.accountId === account.accountId ? {
+                    ...row,
+                    amount: value
+                  } : row)); setDirty(true);
+                }}
+              />
+            </div>
+          ))}
+          {!accounts.length && (
             <p>
-              변경한 내용을 저장한 뒤 확정해주세요.
+              등록된 관리 계좌가 없어요.
             </p>
           )}
-        </div>
-      )}
-      {canceling && data.batch && (
+        </fieldset>
+      </ListCard>
+      <ListCard>
         <div
-          className={styles.correction}
+          className={styles['account-heading']}
         >
-          <p>
-            확정 수납이 없을 때만 취소 후 잔액을 다시 인계할 수 있습니다. 기존 월별 청구는 보존하며 기준일과 첫 부과월은 유지합니다.
-          </p>
-          <Input
-            label={'인계 취소 사유'}
-            value={reason}
-            maxLength={500}
-            disabled={busy}
-            onChange={(e) => setReason(e.target.value)}
+          <ServiceIcon
+            name={'clock'}
           />
-          <div
-            className={styles.actions}
-          >
-            <Button
-              variant={'outline'}
-              disabled={busy}
-              onClick={() => setCanceling(false)}
-            >
-              취소
-            </Button>
-            <Button
-              tone={'danger'}
-              disabled={busy || !reason.trim()}
-              onClick={() => void run(() => changeOpeningBalances(data.propertyId, data.batch!, 'cancel', reason))}
-            >
-              기존 인계 취소
-            </Button>
-          </div>
-        </div>
-      )}
-      {data.history.length > 0 && (
-        <div>
-          <h3>
+          <h2>
             인계 이력
-          </h3>
-          <ul>
-            {data.history.map((b) => (
+          </h2>
+        </div>
+        {data.history.length ? (
+          <ul
+            className={styles.history}
+          >
+            {data.history.map((batch) => (
               <li
-                key={b.id}
+                key={batch.id}
               >
-                {b.cutoffDate}
-                {' '}
-                기준 ·
-                {' '}
-                {b.status === 'CANCELED' ? `취소: ${b.cancelReason}` : b.status === 'CONFIRMED' ? '확정' : '초안'}
+                <span>
+                  {batch.cutoffDate}
+                  {' '}
+                  기준 ·
+                  {' '}
+                  {batch.firstBillingMonth}
+                  {' '}
+                  첫 부과
+                </span>
+                <span
+                  className={styles.badge}
+                  data-tone={batch.status === 'CONFIRMED' ? 'teal' : undefined}
+                >
+                  {batch.status === 'CANCELED' ? '취소' : batch.status === 'CONFIRMED' ? '확정' : '임시 저장'}
+                </span>
+                {batch.cancelReason && (
+                  <p>
+                    {batch.cancelReason}
+                  </p>
+                )}
               </li>
             ))}
           </ul>
-        </div>
+        ) : (
+          <p>
+            아직 저장된 인계 이력이 없어요.
+          </p>
+        )}
+      </ListCard>
+      {selected && (
+        <OpeningUnitEditor
+          unit={selected}
+          onClose={() => setEditing(null)}
+          onApply={(unit) => {
+            setUnits((rows) => rows.map((row) => row.unitId === unit.unitId ? unit : row)); setDirty(true); setEditing(null);
+          }}
+        />
+      )}
+      {importing && (
+        <ClientModal
+          className={styles.modal}
+          aria-labelledby={'opening-import-title'}
+          busy={busy}
+          onClose={() => setImporting(false)}
+        >
+          <header
+            className={styles['section-heading']}
+          >
+            <h2
+              id={'opening-import-title'}
+            >
+              기존 잔액 엑셀 업로드
+            </h2>
+            <Button
+              iconOnly
+              variant={'ghost'}
+              aria-label={'엑셀 업로드 닫기'}
+              disabled={busy}
+              onClick={() => setImporting(false)}
+              leadingIcon={(
+                <ServiceIcon
+                  name={'close'}
+                />
+              )}
+            />
+          </header>
+          <OpeningUploadContent
+            busy={busy}
+            onFile={(file) => void upload(file)}
+            onDownload={() => void download()}
+          />
+        </ClientModal>
+      )}
+      {canceling && data.batch && (
+        <ClientModal
+          className={styles.modal}
+          aria-labelledby={'opening-cancel-title'}
+          busy={busy}
+          onClose={() => setCanceling(false)}
+        >
+          <header
+            className={styles['section-heading']}
+          >
+            <h2
+              id={'opening-cancel-title'}
+            >
+              확정 인계 정정
+            </h2>
+            <Button
+              iconOnly
+              variant={'ghost'}
+              aria-label={'확정 인계 정정 닫기'}
+              disabled={busy}
+              onClick={() => setCanceling(false)}
+              leadingIcon={(
+                <ServiceIcon
+                  name={'close'}
+                />
+              )}
+            />
+          </header>
+          <div
+            className={styles.editor}
+          >
+            <p>
+              확정 수납이 없을 때만 기존 인계 전체를 취소하고 다시 인계할 수 있습니다. 기존 입력은 편집 초안으로 유지됩니다. 기존 월별 청구와 기준일·첫 부과월은 유지합니다.
+            </p>
+            <Input
+              label={'인계 취소 사유'}
+              value={reason}
+              maxLength={500}
+              disabled={busy}
+              onChange={(event) => setReason(event.target.value)}
+            />
+            <div
+              className={styles.actions}
+            >
+              <Button
+                variant={'outline'}
+                disabled={busy}
+                onClick={() => setCanceling(false)}
+              >
+                취소
+              </Button>
+              <Button
+                tone={'danger'}
+                disabled={busy || !reason.trim()}
+                onClick={() => void run(() => changeOpeningBalances(data.propertyId, data.batch!, 'cancel', reason), {
+                  ...snapshot(),
+                  dirty: true,
+                  editId: correctionId
+                })}
+              >
+                기존 인계 취소
+              </Button>
+            </div>
+          </div>
+        </ClientModal>
       )}
       {notice && (
         <Toast
+          key={noticeId}
+          tone={noticeTone}
           message={notice}
           onClose={() => setNotice('')}
         />
@@ -458,4 +724,3 @@ function OpeningForm({ data, onSaved }: { data: OpeningWorkspace; onSaved: (data
     </div>
   );
 }
-
