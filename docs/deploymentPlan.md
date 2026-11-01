@@ -1,8 +1,8 @@
 # 초기 운영 배포 계획
 
-기준일: 2026-10-30. 본인 빌라에서 사용할 모아홈의 초기 운영 환경과 구축 순서를 정리합니다.
+기준일: 2026-10-31. 본인 빌라에서 사용할 모아홈의 초기 운영 환경, 구축 순서와 실제 진행 상태를 정리합니다.
 
-이 문서는 구축 계획입니다. AWS 리소스 생성, 운영 설정 파일 작성, GitHub Actions 연결이나 실서비스 배포가 완료됐다는 의미는 아닙니다. 로컬 실행은 [개발 환경 가이드](developmentGuide.md), 인증은 [JWT 인증 설계](securityDesign.md), 업무 데이터와 저장 구조는 [도메인 규칙](domainRules.md)·[ERD](erd.md)를 따릅니다.
+구축안과 실제 완료 상태를 구분합니다. 2026-10-31 초기 배포 01~14번을 완료했으며, 사용자 확인과 직접 검증한 근거는 [비용과 실제 진행 상태](#9-비용과-실제-진행-상태)에 기록합니다. 15번 백업·복구·운영 점검은 남아 있습니다. 로컬 실행은 [개발 환경 가이드](developmentGuide.md), 인증은 [JWT 인증 설계](securityDesign.md), 업무 데이터와 저장 구조는 [도메인 규칙](domainRules.md)·[ERD](erd.md)를 따릅니다.
 
 ## 1. 운영 목적과 구성
 
@@ -32,7 +32,7 @@ Vercel Hobby의 검토 근거는 개인·비상업적 사용 목적입니다. �
 
 ## 2. 접속 구조와 네트워크
 
-2026-10-30 사용자가 `villamoa.kr` 도메인 구매를 완료했다고 확인했습니다. 아래 주소 배치는 구매한 루트 도메인을 웹 대표 주소로 사용하는 초기 운영안입니다. 도메인 구매와 Vercel 프로젝트 연결·DNS 전파·인증서 발급·카카오 설정 완료는 구분하며, 외부 서비스의 실제 연결 상태는 아직 확인하지 않았습니다.
+2026-10-30 사용자가 `villamoa.kr` 도메인 구매를 완료했다고 확인했습니다. 2026-10-31 가비아 DNS에서 API 주소를 Lightsail에 연결하고 웹 대표 주소를 Vercel에 연결했습니다. 웹·API HTTPS 응답은 직접 확인했고, 실제 카카오 로그인과 서비스 검증은 사용자가 완료했다고 확인했습니다. 세부 근거와 남은 작업은 [실제 진행 상태](#9-비용과-실제-진행-상태)를 따릅니다.
 
 | 용도 | 주소 | 적용 방향 |
 | --- | --- | --- |
@@ -40,7 +40,7 @@ Vercel Hobby의 검토 근거는 개인·비상업적 사용 목적입니다. �
 | API 주소 | `https://api.villamoa.kr` | Lightsail 고정 공인 IPv4 → Nginx → Spring Boot |
 | 선택 웹 별칭 | `https://www.villamoa.kr` | 사용할 경우 Vercel에 추가하고 대표 주소로 리다이렉트 |
 
-DNS는 해당 도메인의 권한 있는 네임서버를 관리하는 화면에서 설정합니다. 다음 값은 연결 대상의 기준이며 실제 레코드 등록·검증은 아직 수행하지 않았습니다.
+DNS는 현재 사용 중인 가비아 DNS 관리툴에서 설정합니다. 아래 표는 연결 대상의 기준입니다. Vercel의 실제 레코드 값은 해당 프로젝트의 Domains 화면에서 확인하고, API는 Lightsail에 연결한 고정 공인 IPv4를 사용합니다.
 
 | 이름 | 종류 | 연결할 값 |
 | --- | --- | --- |
@@ -81,14 +81,14 @@ Nginx가 외부 HTTPS를 받아 Docker 내부의 API로 전달합니다. 인증�
 3. 호스트 Certbot과 Nginx 컨테이너에 같은 인증용 웹 디렉터리를 연결하고, Certbot의 `webroot` 방식으로 도메인 인증과 인증서 발급을 수행합니다.
 4. Nginx에 `/etc/letsencrypt` 전체를 읽기 전용으로 연결합니다. `live` 아래 파일이 `archive`를 참조하므로 개별 인증서 파일만 마운트하지 않습니다.
 5. Nginx 설정 검사 후 HTTPS를 활성화합니다. 인증용 경로를 유지하며 일반 HTTP 요청은 HTTPS로 전환합니다.
-6. Certbot 자동 갱신 타이머와 갱신 성공 후 실행할 deploy hook을 구성합니다. Hook은 Nginx 설정 검사 후 인증서를 다시 읽도록 reload합니다.
+6. 모아홈 전용 Certbot 갱신 타이머와 갱신 성공 후 실행할 deploy hook을 구성합니다. 전용 타이머를 활성화한 뒤 패키지 기본 `certbot.timer`를 비활성화해 갱신 확인 경로를 하나로 관리합니다. Hook은 Nginx 설정 검사 후 인증서를 다시 읽도록 reload합니다. 실행 명령과 시간대는 [Server 배포 가이드](../server/docs/deploymentGuide.md#5-nginx-최초-인증서와-자동-갱신)를 따릅니다.
 7. 갱신 모의 실행, hook 실행, 실제 제공 인증서의 유효기간을 각각 확인합니다. 인증서 발급·갱신 실패를 관측합니다.
 
 API 컨테이너 교체 후에도 Nginx가 새 API 주소로 연결되는지 확인합니다. Nginx의 요청 크기·대기시간은 현재 파일 업로드·API 제한과 맞추고, 인증 응답과 개인정보 응답을 프록시 캐시에 저장하지 않습니다.
 
 ## 4. 운영 설정과 비밀값
 
-현재 로컬 `application.yml`·`application*.properties`는 Git 추적에서 제외되어 있습니다. GitHub의 새 체크아웃에 로컬 설정이 있다고 가정하지 않습니다. 비밀값 없는 운영 설정과 환경변수 연결을 준비하고, 실제 값은 운영 환경에서 주입합니다. `SPRING_PROFILES_ACTIVE=prod` 지정만으로 운영 설정이 준비됐다고 판단하지 않습니다.
+로컬 개발 전용 `application.yml` 등은 Git 추적에서 제외하고, 공통 `application.properties`와 운영 `application-prod.properties`는 저장소에 포함합니다. GitHub의 새 체크아웃에 로컬 개발 설정이 있다고 가정하지 않습니다. 실제 비밀값은 운영 환경에서 주입합니다. `SPRING_PROFILES_ACTIVE=prod` 지정만으로 운영 환경변수까지 준비됐다고 판단하지 않습니다.
 
 | 설정 영역 | 적용 방향 |
 | --- | --- |
@@ -132,7 +132,7 @@ Redis는 단순 캐시가 아니라 로그인 세션·OAuth 임시 상태·초�
 | Client PR | ESLint·TypeScript·빌드와 관련 테스트 |
 | Server PR | JDK 21·PostgreSQL 17 이상·Redis 실행 환경 준비 후 Gradle 테스트·빌드 |
 | main 병합 | 검증 통과 후 변경 영역의 배포 산출물 생성. Server 이미지는 GHCR에 커밋 SHA 태그로 게시 |
-| 프론트 배포 | 검증 통과 후 Vercel CLI로 배포. Vercel Git 자동 배포와 중복 실행 방지 |
+| 프론트 배포 | Vercel 운영 환경변수로 빌드·배포. GitHub Actions의 Vercel CLI 배포와 Vercel Git 자동 배포의 중복 실행 방지 |
 | API 배포 | 운영자가 제한된 SSH로 접속해 게시된 이미지 태그·배포 설정 확인 후 API 교체 |
 | 배포 확인 | 내부 준비 상태·외부 HTTPS·로그인·관련 업무 동작 확인 |
 
@@ -144,7 +144,9 @@ Redis는 단순 캐시가 아니라 로그인 세션·OAuth 임시 상태·초�
 
 컨테이너 실행과 API 준비 완료를 구분합니다. Redis healthcheck와 준비 대기, Actuator의 최소 Health 응답을 작성했습니다. 운영 readiness는 DB·Redis·앱 준비 상태를 확인하고 공개 응답에는 상세 정보를 포함하지 않습니다. 로컬 검증과 실제 운영 연동의 구분은 [Server 배포 가이드](../server/docs/deploymentGuide.md)를 따릅니다. 루트 경로의 401이나 `compose up -d` 성공만으로 배포를 완료 처리하지 않습니다.
 
-Client 워크플로는 `.github/workflows/clientCi.yml`입니다. 기본 검사와 브라우저 테스트는 외부 배포 자격 증명 없이 실행합니다. Vercel 프로젝트의 Root Directory를 `client`로 지정하고 Git 자동 배포를 끈 뒤, GitHub Repository Variables에 `VERCEL_DEPLOY_ENABLED=true`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `production` Environment Secret에 `VERCEL_TOKEN`을 설정하면 main 검증 후 배포합니다. production 환경의 공개 URL도 Vercel에 등록합니다. 배포 명령은 저장소 루트에서 실행하며 새 운영 환경변수로 다시 빌드합니다. 이 연결 전에는 Client CI만 수행합니다.
+Client 워크플로는 `.github/workflows/clientCi.yml`입니다. 기본 검사와 브라우저 테스트는 외부 배포 자격 증명 없이 실행합니다. 구현된 CI 배포 경로를 사용할 때는 Vercel 프로젝트의 Root Directory를 `client`로 지정하고 Git 자동 배포를 끈 뒤, GitHub Repository Variables에 `VERCEL_DEPLOY_ENABLED=true`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `production` Environment Secret에 `VERCEL_TOKEN`을 설정합니다. 그러면 main 검증 후 Vercel CLI로 배포합니다. production 환경의 공개 URL도 Vercel에 등록합니다. 배포 명령은 저장소 루트에서 실행하며 새 운영 환경변수로 다시 빌드합니다. 이 연결 전에는 Client CI만 수행합니다.
+
+2026-10-31 최초 프론트 배포는 Vercel 화면에서 `Moahome/moahome`의 `main`·`client`를 Import하는 방식으로 수행했습니다. 위 GitHub Actions 배포 경로의 활성화와 Vercel Git 자동 배포 설정은 별도로 확인하지 않았습니다. 최초 배포 성공을 CI 검증 후에만 운영 배포되는 연결까지 확인한 것으로 기록하지 않으며, 후속 배포 전에 두 경로의 중복 실행 여부를 확인합니다.
 
 ## 7. 백업·복구와 관측
 
@@ -175,9 +177,42 @@ S3 도입만으로 은행 업로드 원본이나 보고서를 영구 저장하�
 
 비용은 서울 리전의 생성 시점 공식 견적을 사용합니다. Lightsail·RDS 컴퓨팅과 스토리지 외에 백업·스냅샷·트래픽·도메인·모니터링·레지스트리·CI 사용량·세금, Vercel 유료 전환 시 비용을 함께 확인합니다. 기존 첨부안의 월 추정치를 확정 청구액이나 비용 상한으로 사용하지 않습니다.
 
-도메인 `villamoa.kr`은 사용자 확인 기준으로 구매 완료입니다. 구매 금액·등록업체·갱신일·실제 DNS 설정은 이 문서에서 확인하지 않았으며, 갱신 비용과 관리 정보는 보호된 운영 기록에 보관합니다. 프론트·API 배포, HTTPS와 실제 카카오 로그인 검증은 후속 작업입니다.
+도메인 등록·DNS 관리 업체는 사용자 확인과 네임서버 조회 기준으로 가비아입니다. 구매 금액·갱신일은 확인하지 않았으며, 갱신 비용과 계정 관리 정보는 보호된 운영 기록에 보관합니다.
 
-2026-10-30 운영용 Dockerfile·Compose·Nginx·Certbot 스크립트·GitHub Actions·Health 구현과 격리 로컬 검증 스크립트를 작성했습니다. 파일 위치·실행법과 검증 범위는 [Server 배포 가이드](../server/docs/deploymentGuide.md)를 참조합니다. 파일 작성과 로컬 통과를 GitHub 원격 실행·GHCR 게시·Vercel 배포·AWS 리소스 구축 완료로 기록하지 않습니다. 외부 연결 후 실행한 검증과 결과를 추가합니다.
+### 2026-10-31 운영 구축·검증 기록
+
+사용자는 아래 01~14번을 모두 완료했고 실제 서비스 검증도 정상 동작했다고 확인했습니다. `직접 확인`은 명령·서버 로그·공개 응답 또는 GitHub 실행 결과로 확인한 범위이며, `사용자 확인`은 대화에서 보고받은 작업·수동 검증 결과입니다. 개별 주민·거래의 입력값이나 비밀값은 기록하지 않습니다.
+
+| 순서 | 작업 | 상태 | 확인 내용과 근거 |
+| --- | --- | --- | --- |
+| 01 | 배포 준비 코드 커밋 | 완료 | 배포 파일·CI·문서를 main에 반영하고, Wrapper 누락을 `150e99a` 커밋으로 수정·푸시한 사실 직접 확인 |
+| 02 | Lightsail 인스턴스 생성 | 완료 | 서울 리전·4GB 구성 사용자 확인. Ubuntu 24.04 LTS와 약 80GB 디스크 직접 확인 |
+| 03 | 고정 IP·방화벽 설정 | 완료 | 고정 공인 IPv4 `43.203.59.128` 연결과 HTTP·HTTPS 공개·SSH 제한 설정 사용자 확인. API DNS·SSH·HTTPS 연결 직접 확인 |
+| 04 | SSH 접속·서버 업데이트 | 완료 | 사용자 업데이트·폴더 준비 완료 확인. 배포 경로 `/opt/moahome`과 2GiB 스왑 활성화 직접 확인 |
+| 05 | Docker·Compose·Certbot 설치 | 완료 | 운영 Compose·컨테이너 실행과 실제 Certbot 발급·갱신 모의 실행으로 확인 |
+| 06 | RDS PostgreSQL 생성 | 완료 | `moahome-db-prod` 생성 사용자 확인. PostgreSQL 17.11 접속 직접 확인. DB 세부 사양·백업 보존 기간은 15번에서 재확인 |
+| 07 | Lightsail ↔ RDS 연결 | 완료 | 사설 주소 TCP 5432 연결, `sslmode=verify-full`·TLS 1.3 접속 확인. `moahome` DB와 앱 계정 `moahome_app`의 접속·스키마 USAGE·CREATE 권한 확인 |
+| 08 | 운영 환경 파일 작성 | 완료 | 서버의 `.env.prod`·`.deploy.env` 준비와 운영 기동 확인. 웹 Origin·로그인 완료 URL은 파일과 실행 중 컨테이너에서 직접 확인 |
+| 09 | GitHub Actions·배포 이미지 준비 | 완료 | main의 Server CI·운영 컨테이너 검증·GHCR 게시 성공 및 해당 이미지의 운영 실행 확인. 버전·실행 근거는 [Server 검증 기록](../server/docs/deploymentGuide.md#7-현재-검증-범위) 참조 |
+| 10 | API DNS 연결 | 완료 | 가비아 `api` A 레코드 → `43.203.59.128`을 공개 DNS 두 곳에서 직접 확인. 확인 당시 API AAAA 레코드 없음 |
+| 11 | Nginx·HTTPS 설정 | 완료 | 인증서 발급·HTTP 308 전환·HTTPS 인증서 검증과 갱신 모의 실행·Nginx reload 성공 확인. 전용 갱신 타이머 활성화·기본 타이머 비활성화 직접 확인 |
+| 12 | Spring Boot·Redis 배포 | 완료 | API·Redis·Nginx 모두 healthy, Flyway 적용·JPA 초기화·기동 및 외부 readiness `HTTP 200 {"status":"UP"}` 직접 확인 |
+| 13 | Vercel 프론트 배포 | 완료 | `main`·Root Directory `client`·Next.js Import 설정과 운영 공개 URL 입력 사용자 확인. `https://villamoa.kr`의 Vercel HTTPS `HTTP 200` 직접 확인 |
+| 14 | 실제 서비스 검증 | 완료 — 사용자 확인 | 카카오 로그인·로그아웃, 주민 등록, 관리비·수납 등 계획한 실제 서비스 검증 전체가 정상 동작한다고 사용자가 확인. 개별 시나리오의 실행 로그는 별도로 수집하지 않음 |
+| 15 | 백업·복구·운영 점검 | 대기 | 아래 남은 점검 항목을 수행한 뒤 실제 사용 준비 완료 여부 판단 |
+
+15번에서 남은 항목은 [백업·복구와 관측](#7-백업복구와-관측)을 기준으로 확인합니다.
+
+- RDS 자동 백업의 실제 보존 기간·복원 가능 시점, 변경 전 수동 스냅샷과 별도 DB에서의 복원 검증
+- 운영 암호화·HMAC 키와 환경 설정의 서버 외부 보관, 복원한 DB와 기존 키를 함께 사용하는 복구 검증
+- Lightsail 스냅샷·재시작 후 서비스 복구, Redis 데이터·세션 처리와 이전 이미지·DB 복구 절차 점검
+- 로그 회전·디스크·메모리·DB·오류·인증서 만료의 수집·알림과 정기 점검 방법 확인
+
+운영 재배포 경로와 관련해서는 위 Vercel 후속 배포 설정을 확인해야 합니다. Server CI의 Node.js 20 대상 Action 경고에 대응해 `gradle/actions/setup-gradle@v5`와 `docker/login-action@v4`로 워크플로를 갱신했습니다. 두 액션의 공식 메타데이터에서 `runs.using: node24`를 확인했으며, 이 변경을 반영한 GitHub Actions 실행 결과는 아직 확인하지 않았습니다. 앞서 완료한 CI·GHCR 게시 성공과 구분합니다.
+
+### 2026-10-30 배포 준비·로컬 검증 기록
+
+2026-10-30 운영용 Dockerfile·Compose·Nginx·Certbot 스크립트·GitHub Actions·Health 구현과 격리 로컬 검증 스크립트를 작성했습니다. 파일 위치·실행법과 검증 범위는 [Server 배포 가이드](../server/docs/deploymentGuide.md)를 참조합니다. 아래는 당시 로컬 검증 기록이며, 다음 날의 외부 서비스 구축·검증은 위 기록과 구분합니다.
 
 같은 날 Client의 ESLint·TypeScript 타입 검사와 기본 Turbopack 프로덕션 빌드가 통과했습니다. 최종 로컬 전체 검사는 `client/`에서 `PLAYWRIGHT_CHANNEL=chrome npm test -- --workers=2 --reporter=dot,html`로 실행해 617개 모두 통과했습니다(API 프로젝트 121개·Chromium 프로젝트 496개, 실패·중단·미실행 없음). 이전 API 테스트 129개 기록은 최초 전체 검사의 부분 통과 수를 혼동한 것으로 121개로 정정합니다.
 

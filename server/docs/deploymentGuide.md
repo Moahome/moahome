@@ -1,6 +1,6 @@
 # Server 운영 배포 가이드
 
-기준일: 2026-10-30. 인프라 구성과 운영 목적은 [공통 배포 계획](../../docs/deploymentPlan.md)을 따릅니다. 이 문서는 저장소에 작성한 배포 파일의 실행법을 설명하며 실제 AWS 구축·인증서 발급 완료를 의미하지 않습니다.
+기준일: 2026-10-31. 인프라 구성과 운영 목적은 [공통 배포 계획](../../docs/deploymentPlan.md)을 따릅니다. 이 문서는 배포 파일의 실행법과 서버 검증 결과를 설명합니다. 실제 구축·사용자 검증의 진행 상태와 남은 운영 점검은 [공통 구축 기록](../../docs/deploymentPlan.md#9-비용과-실제-진행-상태)에서 관리합니다.
 
 ## 1. 파일과 실행 환경
 
@@ -105,10 +105,13 @@ sudo bash certificates.sh issue <인증서-연락-이메일>
 sudo install -m 644 moahomeCertbot.service moahomeCertbot.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now moahomeCertbot.timer
+sudo systemctl disable --now certbot.timer
 sudo systemctl list-timers moahomeCertbot.timer
 ```
 
-전용 타이머는 `/opt/moahome` 경로를 기준으로 합니다. 경로를 변경하면 unit과 hook 경로도 함께 맞춥니다. 패키지 기본 타이머와 함께 실행되더라도 저장한 deploy hook이 적용되며 Certbot의 잠금으로 동일 인증서의 동시 갱신을 막습니다.
+전용 타이머는 `/opt/moahome` 경로를 기준으로 합니다. 경로를 변경하면 unit과 hook 경로도 함께 맞춥니다. 전용 타이머를 활성화한 뒤 패키지 기본 `certbot.timer`를 비활성화해 갱신 확인 경로를 하나로 관리합니다. 패키지의 service·timer 파일은 삭제하지 않습니다. 인증서 설정에 deploy hook이 저장돼 있으므로 기본 Certbot 경로로 갱신해도 hook이 적용되지만, 두 타이머를 함께 운영할 필요는 없습니다.
+
+타이머의 `03,15:00:00`은 별도 시간대 지정 없이 호스트 시간대를 따릅니다. 현재 운영 호스트는 UTC이므로 한국 시간 12시·다음 날 0시가 기준이며, `RandomizedDelaySec=1800`에 의해 최대 30분의 랜덤 지연이 추가됩니다. 앱 컨테이너의 `TZ=Asia/Seoul`은 호스트 타이머 시간대를 변경하지 않습니다. `systemctl is-enabled certbot.timer moahomeCertbot.timer`의 결과가 순서대로 `disabled`, `enabled`인지 확인합니다. `list-timers --all`의 표시 행 수만으로 비활성화 여부를 판단하지 않습니다.
 
 `api.villamoa.kr` 인증서를 실제 발급한 뒤 갱신 모의 실행과 hook을 확인합니다.
 
@@ -140,4 +143,14 @@ curl --fail --silent --show-error https://api.villamoa.kr/actuator/health/readin
 
 ## 7. 현재 검증 범위
 
-2026-10-30 로컬에서 서버 전체 테스트 562개와 Gradle build, 운영 Docker 이미지 빌드, 임시 PostgreSQL 17·Redis 8·Nginx를 연결한 통합 검증을 실행했습니다. Docker 검증은 Mac ARM 환경이며 GitHub Ubuntu x64 실행·GHCR 게시와 실제 AWS/RDS·공인 인증서·카카오 연동은 아직 수행하지 않았습니다. 후속 변경 때 검증 결과를 갱신합니다.
+2026-10-30 로컬에서 서버 전체 테스트 562개와 Gradle build, 운영 Docker 이미지 빌드, 임시 PostgreSQL 17·Redis 8·Nginx를 연결한 통합 검증을 실행했습니다. 당시 Docker 검증은 Mac ARM 환경이었으며 외부 서비스 구축·검증은 다음 날 별도로 진행했습니다.
+
+2026-10-31 검증 결과는 다음과 같습니다.
+
+- `gradle-wrapper.jar` 누락으로 실패한 CI를 `150e99ab45546b5a44634ba0e66d296763cd4eec` 커밋에서 수정했습니다. 개발 환경 파일을 제외한 임시 체크아웃의 Java 21 Gradle build와 테스트 562개가 모두 통과했습니다.
+- 해당 main push의 [Server CI 실행](https://github.com/Moahome/moahome/actions/runs/41169719413)에서 Ubuntu x64 빌드·테스트, 운영 컨테이너 검증과 GHCR 이미지 게시가 모두 성공했습니다.
+- 운영에서 확인한 API 이미지는 `ghcr.io/moahome/moahome-api:150e99ab45546b5a44634ba0e66d296763cd4eec`입니다. API·Redis·Nginx 컨테이너가 모두 healthy였고, API의 8080과 Redis의 6379는 호스트 공개 포트에 바인딩되지 않았습니다.
+- 운영 RDS PostgreSQL 17.11에 Flyway Migration 51개가 적용됐고 최종 버전은 `20261025080504`입니다. JPA 초기화와 Spring Boot 기동 로그, 외부 HTTPS readiness의 `HTTP 200 {"status":"UP"}`를 직접 확인했습니다.
+- 최초 공인 인증서는 `api.villamoa.kr`에 발급됐고 당시 만료일은 2027-01-29였습니다. HTTP 308 전환·HTTPS 검증과 `certbot renew --dry-run --run-deploy-hooks`의 갱신·Nginx reload 성공, 전용 타이머 활성화·기본 타이머 비활성화를 확인했습니다.
+
+Vercel·실제 카카오 로그인·업무 수동 검증에 대한 사용자 확인과 아직 수행하지 않은 백업·복구·운영 점검은 [공통 구축 기록](../../docs/deploymentPlan.md#9-비용과-실제-진행-상태)을 따릅니다. 위 초기 배포 결과만으로 복원·재시작·장애 대응까지 검증한 것으로 기록하지 않습니다.
