@@ -4431,6 +4431,8 @@ for (const width of [1440, 390, 320]) {
       const tooltip = page.getByRole('tooltip');
       await expect(tooltip).toContainText('입금 합계 − 출금 합계');
       await expect(tooltip).toBeVisible();
+      // hover 열림을 확인한 뒤에는 키보드 포커스로 고정해 스크롤 중 포인터 이탈과 좌표 검사를 분리합니다.
+      await netHelp.focus();
       // 포털의 표시·위치 갱신 사이에 요소가 사라져도 null을 단정하지 않고 같은 DOM 시점의 경계를 재확인합니다.
       await expect.poll(() => tooltip.evaluateAll((elements, viewportWidth) => {
         const bounds = elements[0]?.getBoundingClientRect();

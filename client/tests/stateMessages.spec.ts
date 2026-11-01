@@ -301,6 +301,12 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
         width,
         height: 900
       });
+      // 최초 모바일 스플래시가 끝나는 실제 시간과 700ms 로딩 전환을 서로 경쟁시키지 않습니다.
+      await page.addInitScript(() => sessionStorage.setItem('moahome.mobile-splash.seen', '1'));
+      await page.clock.install({
+        time: new Date('2026-11-01T00:00:00Z')
+      });
+      await page.clock.pauseAt(new Date('2026-11-01T00:01:00Z'));
       let finish!: () => void;
       const responseReady = new Promise<void>((resolve) => { finish = resolve; });
       await page.route(`${API}/api/properties/${PROPERTY}/units`, async (route) => {
@@ -311,9 +317,20 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
       const loading = page.getByRole('status', {
         name: '세대 목록을 불러오고 있어요.'
       });
+      // 인증·초기 렌더에 필요한 타이머는 한 프레임씩 진행하고 대상 로딩이 생기는 시점에 멈춥니다.
+      await expect.poll(async () => {
+        await page.clock.runFor(16);
+        return loading.count();
+      }, {
+        intervals: [10, 20, 50]
+      }).toBe(1);
       await expect(loading).toBeVisible();
       await expect(page.locator('img[data-state="loading"]')).toHaveCount(0);
       const image = loading.locator('img[data-state="loading"]');
+      // 로딩 시작을 찾는 데 지난 시간은 최대 한 프레임이므로 650ms 시점은 700ms 전환 이전입니다.
+      await page.clock.runFor(650);
+      await expect(image).toHaveCount(0);
+      await page.clock.runFor(50);
       await expect(image).toBeVisible();
       await expect.poll(() => image.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)).toBe(true);
       await expect(image).not.toHaveCSS('animation-name', 'none');
@@ -328,6 +345,7 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
       });
       await expect(image).toHaveCSS('animation-name', 'none');
       await expect(loading.locator('span[aria-hidden="true"]')).toHaveCSS('animation-name', 'none');
+      await page.clock.resume();
       finish();
       await expect(page.locator('section[data-state="empty-data"]')).toBeVisible();
       await expect(loading).toHaveCount(0);
