@@ -6,6 +6,7 @@ export const MONTHLY_STATUS_TONES = {
   미납: 'danger',
   일부납부: 'warning',
   납부완료: 'success',
+  선입금: 'teal',
   '정산 확인 필요': 'neutral'
 } as const;
 

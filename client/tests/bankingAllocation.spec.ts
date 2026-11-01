@@ -183,43 +183,54 @@ test('지출 XLSX는 두 동을 통합하고 선택 동·외부 제외·수식 �
   expect(large.cells.C21).toBe('11999999999999988');
 });
 
-test('공통 엑셀 서식은 수납 금액·선입금을 보존하고 재업로드 헤더를 첫 행에 유지', async () => {
+test('수납 보고서는 부과·충당액을 보존하고 최근 입금자·선입금 열은 제외하며 재업로드 헤더를 유지', async () => {
   const { createMonthlyWorkbook } = await import('../src/widgets/payment-workspace/model/monthlyExport');
   const { createInputWorkbook } = await import('../src/shared/lib/excel-report');
   const blob = await createMonthlyWorkbook({
-    asOf: '2026-10-17',
-    accounts: [],
-    units: [{
-      id: 'unit',
-      label: '102동 401호',
-      status: 'ACTIVE',
-      representativeName: '=이름'
-    }],
-    charges: [{
-      id: 'charge',
-      unitId: 'unit',
-      month: '2026-10',
-      amount: '50000',
-      status: 'ISSUED'
-    }],
-    payments: [{
-      id: 'receipt',
-      source: 'MANUAL',
-      status: 'CONFIRMED',
-      accountId: 'account',
-      date: '2026-10-15',
-      payer: '=이름',
-      amount: '150000',
-      unitId: 'unit',
-      reason: '',
-      allocations: []
-    }],
-    history: []
-  }, '2026-10');
+    propertyId: 'property',
+    propertyName: '성내빌라',
+    generatedAt: '2026-10-31T00:00:00Z',
+    filters: {
+      query: '',
+      building: '',
+      status: '전체'
+    },
+    month: '2026-10',
+    ledger: {
+      asOf: '2026-10-17',
+      accounts: [],
+      units: [{
+        id: 'unit',
+        label: '102동 401호',
+        status: 'ACTIVE',
+        representativeName: '=이름'
+      }],
+      charges: [{
+        id: 'charge',
+        unitId: 'unit',
+        month: '2026-10',
+        amount: '50000',
+        status: 'ISSUED'
+      }],
+      payments: [{
+        id: 'receipt',
+        source: 'MANUAL',
+        status: 'CONFIRMED',
+        accountId: 'account',
+        date: '2026-10-15',
+        payer: '=이름',
+        amount: '150000',
+        unitId: 'unit',
+        reason: '',
+        allocations: []
+      }],
+      history: []
+    },
+  });
   const zip = unzipSync(new Uint8Array(await blob.arrayBuffer()));
   const sheet = strFromU8(zip['xl/worksheets/sheet1.xml']);
-  expect(sheet).toContain('<v>50000</v>');expect(sheet).toContain('<v>100000</v>');
-  expect(sheet).toContain('ySplit="8"');expect(sheet).not.toContain('<f>');
+  expect(sheet).toContain('<v>50000</v>');expect(sheet).not.toContain('<v>100000</v>');
+  expect(sheet).toContain('ySplit="9"');expect(sheet).not.toContain('<f>');
   const input = await createInputWorkbook({
     title: '모아홈 기존 잔액 인계',
     sheet: '기존 잔액 인계',

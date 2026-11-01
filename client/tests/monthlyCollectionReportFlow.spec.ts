@@ -1,0 +1,505 @@
+import {
+  expect,
+  test
+} from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+import {
+  strFromU8,
+  unzipSync
+} from 'fflate';
+import {
+  mockSettlement,
+  settlementFixture,
+  settlementId,
+  SETTLEMENT_PROPERTY
+} from './support/monthlySettlement';
+
+const BASE = `/manage/${SETTLEMENT_PROPERTY}/banking/monthly`;
+
+for (const status of ['미납', '납부완료'] as const) {
+  test(`${status} 시안 보고서는 필요한 6개 열과 큰 조회 월·표 글씨를 Excel·PDF·PNG에 반영`, async ({ page }, testInfo) => {
+    const fixture = () => {
+      const data = settlementFixture();
+      data.payments.units = [{
+        ...data.payments.units[0],
+        label: '103동 201호',
+        buildingName: '103동',
+        representativeName: '구영아',
+      }];
+      data.payments.charges = [data.payments.charges.find((charge) => charge.month === '2026-10')!];
+      data.payments.payments = status === '미납' ? [] : [{
+        ...data.payments.payments[2],
+        amount: '50000',
+      }];
+      return data;
+    };
+    await mockSettlement(page, undefined, 0, fixture);
+    await page.route('http://localhost:8080/api/properties/*/access-context', (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true',
+      },
+      body: JSON.stringify({
+        propertyId: SETTLEMENT_PROPERTY,
+        name: '드림하이츠',
+        role: 'ADMIN',
+        residentEligible: false
+      }),
+    }));
+    await page.goto(BASE);
+    await expect(page.getByRole('columnheader', {
+      name: '최근 입금자',
+      exact: true
+    })).toHaveCount(0);
+    await page.getByRole('group', {
+      name: '수납 상태'
+    }).getByRole('button', {
+      name: new RegExp(`^${status}`)
+    }).click();
+    await page.getByRole('button', {
+      name: '다운로드',
+      exact: true
+    }).click();
+    const modal = page.getByRole('dialog');
+    await expect(modal.getByRole('heading', {
+      name: '드림하이츠 월별 수납 현황',
+      exact: true
+    })).toBeVisible();
+    await expect(modal.getByRole('columnheader')).toHaveCount(6);
+    for (const label of ['최근 입금자', '선입금 잔액', status === '미납' ? '당월 수납 반영액' : '미수금 잔액']) {
+      await expect(modal.getByRole('columnheader', {
+        name: label,
+        exact: true
+      })).toHaveCount(0);
+    }
+    const excelReady = page.waitForEvent('download');
+    await modal.getByRole('button', {
+      name: 'Excel 다운로드',
+      exact: true
+    }).click();
+    const excel = await excelReady;
+    const workbook = unzipSync(new Uint8Array(await readFile((await excel.path())!)));
+    const xml = Object.entries(workbook).filter(([name]) => name.endsWith('.xml')).map(([, value]) => strFromU8(value)).join('');
+    expect(xml).toContain('드림하이츠 월별 수납 현황');
+    expect(xml).not.toContain('선입금 잔액');
+    expect(xml).not.toContain('최근 입금자');
+    if (status === '납부완료') expect(xml).not.toContain('미수금 잔액');
+    await modal.getByRole('radio', {
+      name: 'PDF',
+      exact: true
+    }).check();
+    await expect(modal.getByRole('img', {
+      name: 'PDF 1페이지 미리보기',
+      exact: true
+    })).toBeVisible();
+    const pdfReady = page.waitForEvent('download');
+    await modal.getByRole('button', {
+      name: 'PDF 다운로드',
+      exact: true
+    }).click();
+    const pdfDownload = await pdfReady;
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const task = getDocument({
+      data: new Uint8Array(await readFile((await pdfDownload.path())!))
+    });
+    const pdf = await task.promise;
+    expect(pdf.numPages).toBe(1);
+    const items = (await (await pdf.getPage(1)).getTextContent()).items.filter((item) => 'str' in item);
+    expect(items.find((item) => item.str === '2026년 10월')?.height).toBeGreaterThanOrEqual(18);
+    expect(items.find((item) => item.str === '구영아')?.height).toBeGreaterThanOrEqual(14.5);
+    const bodyAmounts = items.filter((item) => item.str === '50,000원' && item.height > 14.4 && item.height < 14.6);
+    const totalAmounts = items.filter((item) => item.str === '50,000원' && item.height > 15.4 && item.height < 15.6);
+    expect(bodyAmounts).toHaveLength(2);
+    expect(totalAmounts).toHaveLength(2);
+    for (const body of bodyAmounts) {
+      const bodyRight = body.transform[4] + body.width;
+      const closestTotal = Math.min(...totalAmounts.map((total) => Math.abs(total.transform[4] + total.width - bodyRight)));
+      expect(closestTotal).toBeLessThan(1);
+    }
+    const text = items.map((item) => item.str).join(' ');
+    expect(text).toContain('50,000원');
+    expect(text).not.toContain('선입금 잔액');
+    expect(text).not.toContain('최근 입금자');
+    if (status === '납부완료') expect(text).not.toContain('미수금 잔액');
+    await task.destroy();
+    await modal.getByRole('radio', {
+      name: '이미지 (PNG)',
+      exact: true
+    }).check();
+    await expect(modal.getByRole('img', {
+      name: '이미지 1페이지 미리보기',
+      exact: true
+    })).toBeVisible();
+    const pngReady = page.waitForEvent('download');
+    await modal.getByRole('button', {
+      name: '이미지 다운로드',
+      exact: true
+    }).click();
+    const png = await pngReady;
+    await png.saveAs(testInfo.outputPath(`monthly-redesign-${status}.png`));
+    expect(png.suggestedFilename()).toBe(`드림하이츠_수납현황_2026-10_${status}.png`);
+  });
+}
+
+/** 목록 한 페이지보다 많은 실제 청구 세대를 준비해 마지막 세대까지 파일에 남는지 확인합니다. */
+function reportFixture() {
+  const data = settlementFixture();
+  for (let index = 0; index < 35; index++) {
+    const unitId = settlementId(400 + index);
+    const buildingName = `${102 + index % 2}동`;
+    data.payments.units.push({
+      id: unitId,
+      label: `${buildingName} ${201 + index}호`,
+      buildingName,
+      representativeName: `대표 ${index + 1}`,
+      status: 'ACTIVE',
+    });
+    data.payments.charges.push({
+      id: settlementId(700 + index),
+      unitId,
+      month: '2026-10',
+      amount: '10000',
+      status: 'ISSUED',
+    });
+  }
+  return data;
+}
+
+for (const width of [1440, 390]) {
+  test(`${width}px 월별 수납은 빌라 이름으로 Excel·가로 PDF·전체 PNG 미리보기와 다운로드를 제공`, async ({ page }, testInfo) => {
+    test.setTimeout(60000);
+    await page.setViewportSize({
+      width,
+      height: 950,
+    });
+    await mockSettlement(page, undefined, 0, reportFixture);
+    await page.goto(BASE);
+    await expect(page.getByRole('table', {
+      name: '세대별 월별 수납 현황',
+    }).getByRole('rowheader')).toHaveCount(10);
+    const opener = page.getByRole('button', {
+      name: '다운로드',
+      exact: true,
+    });
+    await opener.click();
+    const modal = page.getByRole('dialog', {
+      name: '2026년 10월 월별 수납 현황',
+    });
+    await expect(modal.getByRole('heading', {
+      name: '모아빌라 월별 수납 현황',
+      exact: true,
+    })).toBeVisible();
+    await expect(modal.getByText('102동 235호', {
+      exact: true,
+    })).toBeVisible();
+    expect(await modal.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`monthly-excel-${width}.png`),
+    });
+
+    const excelReady = page.waitForEvent('download');
+    await modal.getByRole('button', {
+      name: 'Excel 다운로드',
+      exact: true
+    }).click();
+    const excel = await excelReady;
+    expect(excel.suggestedFilename()).toBe('모아빌라_수납현황_2026-10_전체.xlsx');
+    const workbook = unzipSync(new Uint8Array(await readFile((await excel.path())!)));
+    const xml = Object.entries(workbook).filter(([name]) => name.endsWith('.xml')).map(([, bytes]) => strFromU8(bytes)).join('');
+    expect(xml).toContain('모아빌라 월별 수납 현황');
+    expect(xml).toContain('102동 235호');
+    expect(xml).not.toContain('모아홈 월별 수납 현황');
+
+    await modal.getByRole('radio', {
+      name: 'PDF',
+      exact: true
+    }).check();
+    await expect(modal.getByRole('img', {
+      name: 'PDF 1페이지 미리보기',
+      exact: true
+    })).toBeVisible({
+      timeout: 30000
+    });
+    const pdfReady = page.waitForEvent('download');
+    await modal.getByRole('button', {
+      name: 'PDF 다운로드',
+      exact: true
+    }).click();
+    const pdfDownload = await pdfReady;
+    expect(pdfDownload.suggestedFilename()).toBe('모아빌라_수납현황_2026-10_전체.pdf');
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const task = getDocument({
+      data: new Uint8Array(await readFile((await pdfDownload.path())!)),
+      useSystemFonts: false,
+    });
+    const pdf = await task.promise;
+    expect(pdf.numPages).toBeGreaterThan(1);
+    const pageCount = pdf.numPages;
+    const text: string[] = [];
+    for (let index = 1; index <= pageCount; index++) {
+      const pdfPage = await pdf.getPage(index);
+      expect(pdfPage.view[2]).toBeGreaterThan(pdfPage.view[3]);
+      text.push((await pdfPage.getTextContent()).items.map((item) => 'str' in item ? item.str : '').join(' '));
+    }
+    expect(text.join(' ')).toContain('모아빌라 월별 수납 현황');
+    expect(text.join(' ')).toContain('102동 235호');
+    expect(text.join(' ')).not.toContain('모아홈 월별 수납 현황');
+    await task.destroy();
+
+    await modal.getByRole('radio', {
+      name: '이미지 (PNG)',
+      exact: true
+    }).check();
+    await expect(modal.getByRole('img', {
+      name: '이미지 1페이지 미리보기',
+      exact: true
+    })).toBeVisible({
+      timeout: 30000
+    });
+    await page.screenshot({
+      path: testInfo.outputPath(`monthly-image-${width}.png`),
+    });
+    const zipReady = page.waitForEvent('download');
+    await modal.getByRole('button', {
+      name: '이미지 다운로드',
+      exact: true
+    }).click();
+    const zip = await zipReady;
+    expect(zip.suggestedFilename()).toBe('모아빌라_수납현황_2026-10_전체.zip');
+    const images = unzipSync(new Uint8Array(await readFile((await zip.path())!)));
+    expect(Object.keys(images)).toHaveLength(pageCount);
+    for (const [name, bytes] of Object.entries(images)) {
+      expect(name).toMatch(/^모아빌라_수납현황_2026-10_전체_\d{2}\.png$/);
+      const png = Buffer.from(bytes);
+      expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+      expect(png.readUInt32BE(16)).toBeGreaterThan(png.readUInt32BE(20));
+    }
+    await page.keyboard.press('Escape');
+    await expect(modal).toHaveCount(0);
+    await expect(opener).toBeFocused();
+  });
+}
+
+test('검색으로 좁힌 세대만 PDF에 저장하며 새로 열면 최신 필터와 이름을 사용한다', async ({ page }) => {
+  await mockSettlement(page, undefined, 0, reportFixture);
+  await page.goto(BASE);
+  await page.getByRole('textbox', {
+    name: '수납 현황 세대 검색'
+  }).fill('235');
+  await page.getByRole('button', {
+    name: '다운로드',
+    exact: true
+  }).click();
+  const modal = page.getByRole('dialog');
+  await expect(modal.getByText('102동 235호', {
+    exact: true
+  })).toBeVisible();
+  await expect(modal.getByText('103동 202호', {
+    exact: true
+  })).toHaveCount(0);
+  await modal.getByRole('radio', {
+    name: 'PDF',
+    exact: true
+  }).check();
+  await expect(modal.getByRole('img', {
+    name: 'PDF 1페이지 미리보기',
+    exact: true
+  })).toBeVisible();
+  const ready = page.waitForEvent('download');
+  await modal.getByRole('button', {
+    name: 'PDF 다운로드',
+    exact: true
+  }).click();
+  const download = await ready;
+  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const task = getDocument({
+    data: new Uint8Array(await readFile((await download.path())!))
+  });
+  const pdf = await task.promise;
+  expect(pdf.numPages).toBe(1);
+  const text = (await (await pdf.getPage(1)).getTextContent()).items.map((item) => 'str' in item ? item.str : '').join(' ');
+  expect(text).toContain('102동 235호');
+  expect(text).not.toContain('103동 202호');
+  await task.destroy();
+  await modal.getByRole('button', {
+    name: '다운로드 미리보기 닫기'
+  }).click();
+  await page.getByRole('textbox', {
+    name: '수납 현황 세대 검색'
+  }).fill('202');
+  await page.getByRole('button', {
+    name: '다운로드',
+    exact: true
+  }).click();
+  await expect(modal.getByText('103동 202호', {
+    exact: true
+  })).toBeVisible();
+  await expect(modal.getByText('102동 235호', {
+    exact: true
+  })).toHaveCount(0);
+});
+
+test('빈 결과는 안내와 0건 보고서를 제공하고 PDF 실패는 재시도 뒤 PNG로 저장한다', async ({ page }) => {
+  await mockSettlement(page);
+  let fail = true;
+  await page.route('**/fonts/pretendard/*.ttf', (route) => fail ? route.fulfill({
+    status: 503,
+    body: 'unavailable'
+  }) : route.continue());
+  await page.goto(BASE);
+  await page.getByRole('textbox', {
+    name: '수납 현황 세대 검색'
+  }).fill('없는세대');
+  await page.getByRole('button', {
+    name: '다운로드',
+    exact: true
+  }).click();
+  const modal = page.getByRole('dialog');
+  await expect(modal.getByText('조회 조건에 맞는 내역이 없습니다.', {
+    exact: true
+  })).toBeVisible();
+  await modal.getByRole('radio', {
+    name: 'PDF',
+    exact: true
+  }).check();
+  await expect(modal.getByRole('alert')).toContainText('PDF 파일을 만들지 못했어요.');
+  await expect(modal.getByRole('button', {
+    name: 'PDF 다운로드',
+    exact: true
+  })).toBeDisabled();
+  fail = false;
+  await modal.getByRole('button', {
+    name: '다시 시도',
+    exact: true
+  }).click();
+  await expect(modal.getByRole('img', {
+    name: 'PDF 1페이지 미리보기',
+    exact: true
+  })).toBeVisible();
+  await modal.getByRole('radio', {
+    name: '이미지 (PNG)',
+    exact: true
+  }).check();
+  await expect(modal.getByRole('img', {
+    name: '이미지 1페이지 미리보기',
+    exact: true
+  })).toBeVisible();
+  const ready = page.waitForEvent('download');
+  await modal.getByRole('button', {
+    name: '이미지 다운로드',
+    exact: true
+  }).click();
+  expect((await ready).suggestedFilename()).toBe('모아빌라_수납현황_2026-10_전체.png');
+});
+
+test('선입금 보고서는 이월·당월 발생 열 없이 차감 후 잔액만 PDF·이미지로 저장', async ({ page }, testInfo) => {
+  test.setTimeout(60000);
+  const fixture = () => {
+    const data = settlementFixture();
+    const names = ['예시 주민 1', '예시 주민 2'];
+    const units = names.map((name, index) => ({
+      ...data.payments.units[0],
+      id: settlementId(9000 + index),
+      label: `102동 ${201 + index}호`,
+      buildingName: '102동',
+      representativeName: name
+    }));
+    data.payments.units = units;
+    data.payments.charges = [1].map((index) => ({
+      id: settlementId(9100 + index),
+      unitId: units[index].id,
+      month: '2026-10',
+      amount: '50000',
+      status: 'ISSUED' as const
+    }));
+    data.payments.payments = [1].map((index) => ({
+      ...data.payments.payments[2],
+      id: settlementId(9200 + index),
+      unitId: units[index].id,
+      status: 'CONFIRMED' as const,
+      date: '2026-10-10',
+      amount: ['50000', '70000', '0', '120000', '150000', '30000'][index],
+      allocations: []
+    }));
+    data.payments.openingCredits = [{
+      id: settlementId(9300),
+      unitId: units[0].id,
+      date: '2026-09-30',
+      amount: '100000',
+      allocations: []
+    }];
+    return data;
+  };
+  await page.setViewportSize({
+    width: 1440,
+    height: 1000
+  });
+  await mockSettlement(page, undefined, 0, fixture);
+  await page.goto(BASE);
+  const tabs = page.getByRole('group', {
+    name: '수납 상태'
+  });
+  await expect(tabs.getByRole('button')).toHaveText(['전체 (2)', '미납 (0)', '일부납부 (0)', '선입금 (2)', '납부완료 (1)']);
+  await tabs.getByRole('button', {
+    name: '선입금 (2)',
+    exact: true
+  }).click();
+  const table = page.getByRole('table', {
+    name: '세대별 월별 수납 현황'
+  });
+  await expect(table.getByRole('columnheader')).toHaveText(['세대', '세대 대표', '선입금 잔액', '상태', '최근 입금일']);
+  await expect(table.getByRole('row').filter({
+    hasText: '102동 202호'
+  })).toContainText('20,000원');
+  await page.getByRole('button', {
+    name: '다운로드',
+    exact: true
+  }).click();
+  const modal = page.getByRole('dialog');
+  await expect(modal.getByRole('columnheader')).toHaveText(['세대', '세대 대표', '선입금 잔액', '상태']);
+  await modal.getByRole('radio', {
+    name: 'PDF',
+    exact: true
+  }).check();
+  await expect(modal.getByRole('img', {
+    name: 'PDF 1페이지 미리보기',
+    exact: true
+  })).toBeVisible();
+  const pdfReady = page.waitForEvent('download');
+  await modal.getByRole('button', {
+    name: 'PDF 다운로드',
+    exact: true
+  }).click();
+  const download = await pdfReady;
+  await download.saveAs(testInfo.outputPath('prepaid-report.pdf'));
+  await download.saveAs('/tmp/moahome-prepaid-report.pdf');
+  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const task = getDocument({
+    data: new Uint8Array(await readFile((await download.path())!))
+  });
+  const pdf = await task.promise;
+  const text = (await (await pdf.getPage(1)).getTextContent()).items.filter((item) => 'str' in item).map((item) => item.str).join(' ');
+  expect(text).toContain('선입금 잔액');
+  expect(text).toContain('20,000원');
+  expect(text).not.toContain('전월 이월액');
+  expect(text).not.toContain('당월 발생액');
+  await task.destroy();
+  await modal.getByRole('radio', {
+    name: '이미지 (PNG)',
+    exact: true
+  }).check();
+  await expect(modal.getByRole('img', {
+    name: '이미지 1페이지 미리보기',
+    exact: true
+  })).toBeVisible();
+  const pngReady = page.waitForEvent('download');
+  await modal.getByRole('button', {
+    name: '이미지 다운로드',
+    exact: true
+  }).click();
+  const png = await pngReady;
+  await png.saveAs(testInfo.outputPath('prepaid-report.png'));
+  await png.saveAs('/tmp/moahome-prepaid-report.png');
+});

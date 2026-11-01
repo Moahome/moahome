@@ -45,13 +45,12 @@ export interface MonthlyPreviewRow {
   unitLabel: string;
   buildingName: string;
   representativeName: string;
-  latestPayer: string;
   carry: bigint;
   billed: bigint;
   applied: bigint;
   balance: bigint;
   latestDate: string;
-  status: '미납' | '일부납부' | '납부완료' | '정산 확인 필요';
+  status: '미납' | '일부납부' | '납부완료' | '선입금' | '정산 확인 필요';
   prepaid: bigint;
   settlementAmount: bigint | null;
   settlementPending: boolean;

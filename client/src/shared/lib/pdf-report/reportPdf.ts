@@ -34,11 +34,11 @@ async function loadFont(path: string): Promise<string> {
   return btoa(binary);
 }
 
-/** 입출금 명세와 월간 요약에서 같은 A4 세로·한글 폰트 설정을 사용합니다. */
-export async function createReportPdfDocument() {
+/** 보고서별 열 수에 맞춰 A4 방향을 선택하되 기존 보고서는 세로·한글 폰트 설정을 유지합니다. */
+export async function createReportPdfDocument(orientation: 'portrait' | 'landscape' = 'portrait') {
   const [{ jsPDF }, regular, bold] = await Promise.all([import('jspdf'), loadFont('/fonts/pretendard/pretendardRegular.ttf'), loadFont('/fonts/pretendard/pretendardBold.ttf')]);
   const pdf = new jsPDF({
-    orientation: 'portrait',
+    orientation,
     unit: 'mm',
     format: 'a4',
     putOnlyUsedFonts: true,

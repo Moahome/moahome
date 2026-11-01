@@ -3,6 +3,7 @@ import {
   test
 } from '@playwright/test';
 import {
+  filterMonthlyPreviewRows,
   addPreviewManual,
   cancelPreviewPayment,
   confirmPreviewPayment,
@@ -602,4 +603,65 @@ test('월별 실제 입금은 일부납부·선입금을 전액 포함하고 기
     charges: []
   }, '2026-10')).toEqual(actual);
   expect(getMonthlyPreviewIncome(ledger, '2026-11').total).toEqual(BigInt(0));
+});
+
+
+test('부과 없는 선입금 세대도 월말 잔액으로 표시하며 취소·미확정·미래·기타 입금은 제외', () => {
+  const sample = createPaymentSample();
+  const units = Array.from({
+    length: 6
+  }, (_, index) => ({
+    id: `prepaid-${index}`,
+    label: `${101 + index}호`,
+    status: 'ACTIVE' as const,
+    representativeName: `대표 ${index}`,
+    buildingName: '102동'
+  }));
+  const receipt = sample.payments[0];
+  const ledger = {
+    ...sample,
+    units,
+    charges: [],
+    payments: units.map((unit, index) => ({
+      ...receipt,
+      id: `payment-${index}`,
+      unitId: unit.id,
+      date: index === 3 ? '2026-11-01' : '2026-10-10',
+      amount: '70000',
+      status: (['CONFIRMED', 'CANCELED', 'PENDING', 'CONFIRMED', 'CONFIRMED', 'ON_HOLD'] as const)[index],
+      receiptType: index === 4 ? 'OTHER' as const : 'HOUSEHOLD' as const,
+      allocations: []
+    })),
+    openingCredits: [{
+      id: 'opening-prepaid',
+      unitId: units[1].id,
+      date: '2026-09-30',
+      amount: '30000',
+      allocations: []
+    }]
+  };
+  const rows = getMonthlyPreviewRows(ledger, '2026-10');
+  expect(rows.map((row) => row.unitId)).toEqual([units[0].id, units[1].id]);
+  expect(rows.map((row) => row.prepaid)).toEqual([BigInt(70000), BigInt(30000)]);
+  expect(rows.map((row) => row.status)).toEqual(['선입금', '선입금']);
+  expect(rows.every((row) => row.billed === BigInt(0) && row.applied === BigInt(0) && row.balance === BigInt(0))).toBe(true);
+  expect(filterMonthlyPreviewRows(rows, {
+    query: '대표 0',
+    building: '102동',
+    status: '선입금'
+  })).toHaveLength(1);
+  expect(getMonthlyPreviewIncome(ledger, '2026-10').household).toBe(BigInt(70000));
+  expect(getMonthlyPreviewRows({
+    ...ledger,
+    charges: [{
+      id: 'new-charge',
+      unitId: units[0].id,
+      month: '2026-11',
+      amount: '50000',
+      status: 'ISSUED'
+    }]
+  }, '2026-11').find((row) => row.unitId === units[0].id)).toMatchObject({
+    prepaid: BigInt(20000),
+    status: '납부완료'
+  });
 });

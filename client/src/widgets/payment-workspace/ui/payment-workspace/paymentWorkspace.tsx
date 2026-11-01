@@ -42,10 +42,8 @@ import type {
   MonthlyCollectionFilters,
   PreviewPayment
 } from '../../model/paymentPreviewTypes';
-import {
-  MonthlyCollection,
-  MonthlyExportButton
-} from '../_components/monthly-collection/monthlyCollection';
+import { MonthlyCollection } from '../_components/monthly-collection/monthlyCollection';
+import { MonthlyExportButton } from '../_components/monthly-download/monthlyDownload';
 import { PaymentBadge } from '../_components/payment-badge/paymentBadge';
 import { PaymentDetail } from '../_components/payment-detail/paymentDetail';
 import { getPaymentStatusLabel } from '../_components/payment-editor/paymentEditor';

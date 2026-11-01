@@ -17,12 +17,13 @@ import { ImagePreview } from './_components/image-preview/imagePreview';
 import styles from './reportDownload.module.css';
 
 /** 보고서 내용은 호출자가 정하고 파일 형식·실제 PDF/PNG 미리보기·저장·오류 처리는 두 화면이 함께 사용합니다. */
-export function ReportDownload({ title, description, filename, sourceKey, documents, highlights = [], scopeLabel, createWorkbook, createPdf, renderFilters, pending = false, error = '', onRetry, onClose }: {
+export function ReportDownload({ title, description, filename, sourceKey, documents, highlights = [], scopeLabel, createWorkbook, createPdf, pdfDescription = 'A4 세로 보고서', renderFilters, pending = false, error = '', onRetry, onClose }: {
   title: string; description: string; filename: string; sourceKey: string;
   documents: readonly ReportDefinition[];
-  highlights?: readonly { label: string; value: string | bigint }[];
+  highlights?: readonly { label: string; value: string | bigint; tone?: 'primary' | 'teal' | 'success' | 'danger' }[];
   scopeLabel: string;
   createWorkbook: () => Promise<Blob>; createPdf: () => Promise<Blob>;
+  pdfDescription?: string;
   renderFilters?: (busy: boolean) => ReactNode;
   pending?: boolean; error?: string; onRetry?: () => void; onClose: () => void;
 }) {
@@ -142,7 +143,7 @@ export function ReportDownload({ title, description, filename, sourceKey, docume
         }, {
           value: 'pdf',
           label: 'PDF',
-          description: 'A4 세로 보고서'
+          description: pdfDescription
         }, {
           value: 'image',
           label: '이미지 (PNG)',
@@ -221,10 +222,12 @@ export function ReportDownload({ title, description, filename, sourceKey, docume
                   {sheetIndex === 0 && highlights.length > 0 && (
                     <div
                       className={styles['balance-summary']}
+                      data-count={highlights.length}
                     >
                       {highlights.map((item) => (
                         <div
                           key={item.label}
+                          data-tone={item.tone}
                         >
                           <span>
                             {item.label}
@@ -235,6 +238,13 @@ export function ReportDownload({ title, description, filename, sourceKey, docume
                         </div>
                       ))}
                     </div>
+                  )}
+                  {sheet.rows.length === 0 && (
+                    <p
+                      role={'status'}
+                    >
+                      조회 조건에 맞는 내역이 없습니다.
+                    </p>
                   )}
                   <DataTable
                     label={`${sheet.sheet} 다운로드 미리보기`}

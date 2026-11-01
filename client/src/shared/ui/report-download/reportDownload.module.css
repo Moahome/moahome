@@ -90,6 +90,8 @@
     gap: 10px;
     margin-bottom: 20px;
 
+    &[data-count='3'] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
     > div {
       display: grid;
       gap: 8px;
@@ -102,6 +104,16 @@
     strong { font-size: 17px; }
     > div:nth-child(2) strong { color: var(--primary); }
     > div:nth-child(3) strong { color: var(--danger); }
+
+    > div[data-tone='primary'] { --report-card-tone: var(--primary); }
+    > div[data-tone='teal'] { --report-card-tone: var(--secondary-teal); }
+    > div[data-tone='success'] { --report-card-tone: var(--success); }
+    > div[data-tone='danger'] { --report-card-tone: var(--danger); }
+    > div[data-tone] {
+      border-color: color-mix(in srgb, var(--report-card-tone) 25%, var(--card));
+      background: color-mix(in srgb, var(--report-card-tone) 4%, var(--card));
+    }
+    > div[data-tone] strong { color: var(--foreground); }
   }
 
   .error { display: grid; justify-items: start; gap: 12px; color: var(--danger); }
@@ -132,6 +144,10 @@
     .excel-preview { padding: 14px; }
     .excel-preview h3 { margin: -14px -14px 14px; padding: 16px 14px; }
     .balance-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .balance-summary[data-count='3'] {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      > div:last-child { grid-column: 1 / -1; }
+    }
     .footer { padding: 14px 16px; }
     .footer > div { width: 100%; }
     .footer button { min-height: 44px; padding: 8px 12px; font-size: 14px; }

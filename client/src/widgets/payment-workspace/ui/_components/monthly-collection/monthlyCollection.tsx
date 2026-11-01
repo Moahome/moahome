@@ -5,8 +5,10 @@ import {
   formatInteger,
   formatWon
 } from '@/shared/lib/format';
-import { Button } from '@/shared/ui/button';
-import { DataTable } from '@/shared/ui/data-table';
+import {
+  DataTable,
+  type DataTableColumn
+} from '@/shared/ui/data-table';
 import { FilterTabs } from '@/shared/ui/filter-tabs';
 import {
   Dropdown,
@@ -16,14 +18,12 @@ import { MonthPicker } from '@/shared/ui/month-picker';
 import { Pagination } from '@/shared/ui/pagination';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { SummaryCard } from '@/shared/ui/summary-card';
-import { Toast } from '@/shared/ui/toast';
 import {
   usePathname,
   useRouter,
   useSearchParams
 } from 'next/navigation';
 import { useState } from 'react';
-import { createMonthlyWorkbook } from '../../../model/monthlyExport';
 import {
   filterMonthlyPreviewRows,
   getMonthlyPreviewIncome,
@@ -38,56 +38,6 @@ import {
   PaymentBadge
 } from '../payment-badge/paymentBadge';
 import styles from './monthlyCollection.module.css';
-
-/** 다운로드 행동을 페이지 헤더에서 제공하고 원장·필터 UI의 배치를 바꾸지 않습니다. */
-export function MonthlyExportButton({ month, filters }: { month: string; filters: MonthlyCollectionFilters }) {
-  const { ledger } = usePaymentWorkspace();
-  const [error, setError] = useState('');
-  const [exporting, setExporting] = useState(false);
-  /** 페이지에 관계없이 현재 조회월·상태·검색·동 조건의 전체 결과를 공통 보고서 서식으로 저장합니다. */
-  async function download() {
-    setExporting(true);
-    setError('');
-    try {
-      const blob = await createMonthlyWorkbook(ledger, month, filters);
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `모아홈_수납현황_${month}_${filters.status}.xlsx`;
-      anchor.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch {
-      setError('엑셀 파일을 만들지 못했어요. 다시 시도해주세요.');
-    } finally {
-      setExporting(false);
-    }
-  }
-
-  return (
-    <>
-      <Button
-        variant={'outline'}
-        tone={'excel'}
-        loading={exporting}
-        onClick={download}
-        leadingIcon={(
-          <ServiceIcon
-            name={'excel'}
-          />
-        )}
-      >
-        엑셀 다운로드
-      </Button>
-      {error && (
-        <Toast
-          message={error}
-          tone={'error'}
-          onClose={() => setError('')}
-        />
-      )}
-    </>
-  );
-}
 
 /** 월별 실제 입금 합계와 청구의 이월·충당·미수를 함께 표시하되 두 기준의 금액을 섞지 않습니다. */
 export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath, filters, onFiltersChange }: {
@@ -119,6 +69,78 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
   const currentPage = Math.min(page, pageCount);
   const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const sum = (key: 'carry' | 'billed' | 'applied' | 'balance') => rows.reduce((total, row) => total + row[key] + (key === 'billed' ? row.settlementAmount ?? BigInt(0) : BigInt(0)), BigInt(0));
+
+  // 선입금 잔액은 당월까지의 청구를 이미 충당한 결과이므로 발생액을 다시 차감하지 않습니다.
+  const columns: DataTableColumn<(typeof rows)[number]>[] = [
+    {
+      key: 'unit',
+      header: '세대',
+      width: 150,
+      rowHeader: true,
+      render: (row) => (
+        <span
+          className={styles['unit-label']}
+        >
+          {row.unitLabel}
+        </span>
+      )
+    },
+    {
+      key: 'representative',
+      header: '세대 대표',
+      render: (row) => row.representativeName
+    },
+    {
+      key: 'carry',
+      header: '전월 이월액',
+      align: 'right',
+      render: (row) => formatWon(row.carry)
+    },
+    {
+      key: 'billed',
+      header: '당월 발생액',
+      align: 'right',
+      render: (row) => formatWon(row.billed + (row.settlementAmount ?? BigInt(0)))
+    },
+    {
+      key: 'applied',
+      header: '당월 수납 반영액',
+      align: 'right',
+      render: (row) => formatWon(row.applied)
+    },
+    {
+      key: 'balance',
+      header: '미수금 잔액',
+      align: 'right',
+      render: (row) => !row.settlementPending ? formatWon(row.balance) : '정산 확인 필요'
+    },
+    {
+      key: 'prepaid',
+      header: '선입금 잔액',
+      align: 'right',
+      render: (row) => formatWon(row.prepaid)
+    },
+    {
+      key: 'status',
+      header: '상태',
+      render: (row) => (
+        <PaymentBadge
+          tone={MONTHLY_STATUS_TONES[row.status]}
+        >
+          {row.status}
+        </PaymentBadge>
+      )
+    },
+    {
+      key: 'date',
+      header: '최근 입금일',
+      render: (row) => row.latestDate
+    },
+
+  ];
+  const visibleColumns = status === '선입금'
+    ? columns.filter((column) => ['unit', 'representative', 'prepaid', 'status', 'date'].includes(column.key))
+    : columns;
 
   /** PC에서는 중앙 모달로, 모바일에서는 독립된 세대별 수납 상세 주소로 이동합니다. */
   function openDetail(unitId: string) {
@@ -216,10 +238,13 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
         >
           <FilterTabs
             label={'수납 상태'}
-            items={['전체', '미납', '일부납부', '납부완료'].map((value) => ({
+            items={['전체', '미납', '일부납부', '선입금', '납부완료'].map((value) => ({
               value,
               label: value,
-              count: value === '전체' ? matches.length : matches.filter((row) => row.status === value).length
+              count: filterMonthlyPreviewRows(matches, {
+                ...filters,
+                status: value
+              }).length
             }))}
             value={status}
             onChange={(value) => {
@@ -296,7 +321,7 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
             rows={visible}
             getRowKey={(row) => row.unitId}
             onRowClick={(row) => openDetail(row.unitId)}
-            minWidth={1100}
+            minWidth={status === '선입금' ? 720 : 1100}
             emptyState={(
               <StateMessage
                 variant={Boolean(query.trim() || building || status !== '전체' || month !== ledger.asOf.slice(0, 7)) ? 'no-results' : 'empty-data'}
@@ -304,78 +329,7 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
                 title={'조건에 맞는 세대가 없습니다.'}
               />
             )}
-            columns={[
-              {
-                key: 'unit',
-                header: '세대',
-                width: 150,
-                rowHeader: true,
-                render: (row) => (
-                  <span
-                    className={styles['unit-label']}
-                  >
-                    {row.unitLabel}
-                  </span>
-                )
-              },
-              {
-                key: 'representative',
-                header: '세대 대표',
-                render: (row) => row.representativeName
-              },
-              {
-                key: 'payer',
-                header: '최근 입금자',
-                render: (row) => row.latestPayer
-              },
-              {
-                key: 'carry',
-                header: '전월 이월액',
-                align: 'right',
-                render: (row) => formatWon(row.carry)
-              },
-              {
-                key: 'billed',
-                header: '당월 발생액',
-                align: 'right',
-                render: (row) => formatWon(row.billed + (row.settlementAmount ?? BigInt(0)))
-              },
-              {
-                key: 'applied',
-                header: '당월 수납 반영액',
-                align: 'right',
-                render: (row) => formatWon(row.applied)
-              },
-              {
-                key: 'balance',
-                header: '미수금 잔액',
-                align: 'right',
-                render: (row) => !row.settlementPending ? formatWon(row.balance) : '정산 확인 필요'
-              },
-              {
-                key: 'prepaid',
-                header: '선입금 잔액',
-                align: 'right',
-                render: (row) => formatWon(row.prepaid)
-              },
-              {
-                key: 'status',
-                header: '상태',
-                render: (row) => (
-                  <PaymentBadge
-                    tone={MONTHLY_STATUS_TONES[row.status]}
-                  >
-                    {row.status}
-                  </PaymentBadge>
-                )
-              },
-              {
-                key: 'date',
-                header: '최근 입금일',
-                render: (row) => row.latestDate
-              },
-
-            ]}
+            columns={visibleColumns}
           />
           <div
             className={styles.pagination}
@@ -393,7 +347,7 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
           <p
             className={styles.footer}
           >
-            미수금은 양수 청구의 충당액으로 계산하며 선입금은 별도로 표시합니다. 0원·음수 부과는 정산 확인 대상입니다.
+            선입금 탭은 조회월 말에 잔액이 남은 세대이며, 당월 부과가 없는 세대와 기존 인계 선납도 포함합니다. 미수금은 양수 청구의 충당액으로 계산하며 0원·음수 부과는 정산 확인 대상입니다.
           </p>
         </section>
 

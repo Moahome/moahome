@@ -33,6 +33,11 @@ function getDetailSummary(row: MonthlyPreviewRow) {
     amount: row.applied,
     description: '조회월 말 기준 남은 미납금액이 없습니다.'
   };
+  if (row.status === '선입금') return {
+    label: '선입금 잔액',
+    amount: row.prepaid,
+    description: '조회월 말까지 받은 금액 중 관리비에 아직 충당하지 않은 잔액입니다.'
+  };
 
   return {
     label: '남은 미납금액',
@@ -214,14 +219,6 @@ export function MonthlyDetail({ month, unitId, presentation = 'modal', onClose }
                 </dt>
                 <dd>
                   {row.representativeName}
-                </dd>
-              </div>
-              <div>
-                <dt>
-                  최근 입금자
-                </dt>
-                <dd>
-                  {row.latestPayer}
                 </dd>
               </div>
               <div>

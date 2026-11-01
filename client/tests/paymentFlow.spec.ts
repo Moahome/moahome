@@ -1000,7 +1000,7 @@ test('수동 저장 실패는 입력을 보존하고 같은 요청 ID로 다시 
   expect(requests).toHaveLength(2);expect(requests[1]).toBe(requests[0]);
 });
 
-test('월별 수납 현황은 실제 부과 세대의 대표 이름과 실제 입금자를 별도로 표시', async ({ page }, testInfo) => {
+test('월별 수납 현황은 실제 부과 세대의 대표 이름을 표시하고 최근 입금자 열은 제거', async ({ page }, testInfo) => {
   await page.setViewportSize({
     width: 1440,
     height: 1000
@@ -1018,6 +1018,10 @@ test('월별 수납 현황은 실제 부과 세대의 대표 이름과 실제 �
   await expect(table).not.toContainText('501호');
   await expect(table).toContainText('김모아');
   await expect(table).toContainText('박두리');
+  await expect(table.getByRole('columnheader', {
+    name: '최근 입금자',
+    exact: true
+  })).toHaveCount(0);
   await expect(page.getByText('부과 제외', {
     exact: true
   })).toHaveCount(0);
@@ -1086,11 +1090,11 @@ for (const view of ['matching', 'monthly'] as const) {
         const searchBox = await search.boundingBox();
         expect(tabs!.y + tabs!.height).toBeLessThan(searchBox!.y);
         const download = page.getByRole('button', {
-          name: '엑셀 다운로드',
+          name: '다운로드',
           exact: true
         });
         await expect(download).toHaveCSS('background-color', 'rgb(255, 255, 255)');
-        await expect(download).toHaveCSS('color', 'rgb(22, 101, 52)');
+        await expect(download).toHaveCSS('color', 'rgb(37, 99, 235)');
         await expect(download.locator('svg')).toHaveCount(1);
         if (width < 768) {
           const downloadBox = await download.boundingBox();
@@ -1301,7 +1305,7 @@ for (const width of [390, 767]) {
       await expect(page).toHaveURL(list);
       if (monthly) {
         const download = await page.getByRole('button', {
-          name: '엑셀 다운로드',
+          name: '다운로드',
           exact: true
         }).boundingBox();
         const main = await page.getByRole('main').boundingBox();
@@ -1437,6 +1441,9 @@ for (const width of [1440, 390, 320]) {
         name: '수납 정보'
       });
       await expect(info).toBeVisible();
+      await expect(info.getByText('최근 입금자', {
+        exact: true
+      })).toHaveCount(0);
       await expect(detail.getByRole('button', {
         name: /목록|^닫기$/
       })).toHaveCount(0);
@@ -2042,7 +2049,7 @@ for (const width of [1440, 390]) {
     await expect(table.getByRole('rowheader')).toHaveCount(4);
   });
 
-  test(`${width}px 월별 수납 상세는 현재 대표와 입금자명을 구분하고 최근 입금 3건을 표시`, async ({ page }, testInfo) => {
+  test(`${width}px 월별 수납 상세는 대표 정보의 최근 입금자를 제거하고 원본 입금 3건을 표시`, async ({ page }, testInfo) => {
     await page.setViewportSize({
       width,
       height: 1000
@@ -2097,7 +2104,7 @@ for (const width of [1440, 390]) {
     }).getByRole('row').filter({
       hasText: '101호'
     });
-    await expect(row).toContainText('김모아');await expect(row).toContainText('102동401호');await row.click();
+    await expect(row).toContainText('김모아');await expect(row).not.toContainText('102동401호');await row.click();
     const detail = width > 767 ? page.getByRole('dialog', {
       name: '101호 수납 상세'
     }) : page.getByRole('main');
@@ -2107,9 +2114,9 @@ for (const width of [1440, 390]) {
     await expect(detail.getByText('김모아', {
       exact: true
     })).toBeVisible();
-    await expect(detail.getByText('102동401호', {
-      exact: true
-    })).toBeVisible();
+    await expect(detail.getByRole('region', {
+      name: '수납 정보'
+    })).not.toContainText('102동401호');
     const recentReceipts = detail.getByRole('region', {
       name: '최근 입금 내역'
     });
@@ -2242,7 +2249,7 @@ for (const width of [1440, 390]) {
     const table = page.getByRole('table', {
       name: '세대별 월별 수납 현황'
     });
-    await expect(tabs.getByRole('button')).toHaveText(['전체 (3)', '미납 (2)', '일부납부 (0)', '납부완료 (1)']);
+    await expect(tabs.getByRole('button')).toHaveText(['전체 (3)', '미납 (2)', '일부납부 (0)', '선입금 (0)', '납부완료 (1)']);
     const searchBox = await search.boundingBox(), filterBox = await filter.boundingBox();
     if (width > 767) expect(filterBox!.x).toBeGreaterThan(searchBox!.x + searchBox!.width);
     else expect(filterBox!.y).toBeGreaterThan(searchBox!.y);
@@ -2256,10 +2263,10 @@ for (const width of [1440, 390]) {
     const unitBounds = await unitCell.boundingBox();
     expect(unitBounds!.width).toBeGreaterThanOrEqual(130);
     await expect(unitCell.locator('span')).toHaveCSS('white-space', 'nowrap');
-    await expect(tabs.getByRole('button')).toHaveText(['전체 (2)', '미납 (2)', '일부납부 (0)', '납부완료 (0)']);
+    await expect(tabs.getByRole('button')).toHaveText(['전체 (2)', '미납 (2)', '일부납부 (0)', '선입금 (0)', '납부완료 (0)']);
     await search.fill('김모아');await expect(table.getByRole('rowheader')).toHaveText(['102동 101호']);
-    await expect(tabs.getByRole('button')).toHaveText(['전체 (1)', '미납 (1)', '일부납부 (0)', '납부완료 (0)']);
-    await search.fill('없는 이름');await expect(tabs.getByRole('button')).toHaveText(['전체 (0)', '미납 (0)', '일부납부 (0)', '납부완료 (0)']);
+    await expect(tabs.getByRole('button')).toHaveText(['전체 (1)', '미납 (1)', '일부납부 (0)', '선입금 (0)', '납부완료 (0)']);
+    await search.fill('없는 이름');await expect(tabs.getByRole('button')).toHaveText(['전체 (0)', '미납 (0)', '일부납부 (0)', '선입금 (0)', '납부완료 (0)']);
     await search.clear();await tabs.getByRole('button', {
       name: '미납 (2)',
       exact: true
@@ -2269,7 +2276,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     await expect(table).toContainText('조건에 맞는 세대가 없습니다.');
-    await expect(tabs.getByRole('button')).toHaveText(['전체 (1)', '미납 (0)', '일부납부 (0)', '납부완료 (1)']);
+    await expect(tabs.getByRole('button')).toHaveText(['전체 (1)', '미납 (0)', '일부납부 (0)', '선입금 (0)', '납부완료 (1)']);
     await tabs.getByRole('button', {
       name: '납부완료 (1)',
       exact: true
@@ -2279,7 +2286,7 @@ for (const width of [1440, 390]) {
       name: '전체 동',
       exact: true
     }).click();
-    await expect(tabs.getByRole('button')).toHaveText(['전체 (3)', '미납 (2)', '일부납부 (0)', '납부완료 (1)']);
+    await expect(tabs.getByRole('button')).toHaveText(['전체 (3)', '미납 (2)', '일부납부 (0)', '선입금 (0)', '납부완료 (1)']);
     await tabs.getByRole('button', {
       name: '전체 (3)',
       exact: true
@@ -3785,13 +3792,27 @@ for (const width of [1440, 390]) {
 
     /** 실제 다운로드 XLSX의 첫 열을 읽어 표 밖의 세대가 섞이거나 페이지 뒤의 세대가 누락되는지 확인합니다. */
     async function downloadRows(status: string, suffix: string) {
+      const selectedBuilding = await page.getByRole('combobox', {
+        name: '수납 현황 동 필터'
+      }).textContent();
       const event = page.waitForEvent('download');
       await page.getByRole('button', {
-        name: '엑셀 다운로드',
+        name: '다운로드',
+        exact: true
+      }).click();
+      const modal = page.getByRole('dialog', {
+        name: '2026년 10월 월별 수납 현황'
+      });
+      await expect(modal.getByRole('heading', {
+        name: '모아빌라 월별 수납 현황',
+        exact: true
+      })).toBeVisible();
+      await modal.getByRole('button', {
+        name: 'Excel 다운로드',
         exact: true
       }).click();
       const download = await event;
-      expect(download.suggestedFilename()).toBe(`모아홈_수납현황_2026-10_${status}.xlsx`);
+      expect(download.suggestedFilename()).toBe(`모아빌라_수납현황_2026-10_${status}${selectedBuilding === '전체 동' ? '' : `_${selectedBuilding}`}.xlsx`);
       const path = testInfo.outputPath(`monthly-${suffix}.xlsx`);
       await download.saveAs(path);
       const zip = unzipSync(await readFile(path));
@@ -3801,6 +3822,9 @@ for (const width of [1440, 390]) {
       const labels = [...xml.matchAll(/<c\b[^>]*\br="A\d+"[^>]*>([\s\S]*?)<\/c>/g)]
         .map((match) => strings[Number(match[1].match(/<v>(\d+)<\/v>/)?.[1])])
         .filter((value) => /^\d+동 \d+호$/.test(value ?? ''));
+      await modal.getByRole('button', {
+        name: '다운로드 미리보기 닫기'
+      }).click();
       return {
         labels,
         xml
@@ -3845,5 +3869,99 @@ for (const width of [1440, 390]) {
       name: /^미납\s*\(/
     }).click();
     expect((await downloadRows('미납', 'empty')).labels).toEqual([]);
+  });
+}
+
+
+for (const width of [1440, 390]) {
+  test(`선입금 현황 ${width}px는 청구 없는 세대·인계 선납과 완납 후 잔액을 함께 조회`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const source = storedLedger();
+    const units = [0, 1, 2, 3].map((index) => ({
+      id: id(`prepaid-only-${index}`),
+      label: `102동 ${101 + index}호`,
+      status: 'ACTIVE' as const,
+      buildingName: '102동',
+      representativeName: `선입금주민${index}`,
+      eligible: true
+    }));
+    const ledger: PreviewLedger = {
+      ...source,
+      asOf: '2026-10-31',
+      units,
+      charges: [{
+        id: id('prepaid-billed'),
+        unitId: units[2].id,
+        month: '2026-10',
+        amount: '50000',
+        status: 'ISSUED'
+      }],
+      payments: [0, 2, 3].map((index) => ({
+        id: id(`prepaid-payment-${index}`),
+        unitId: units[index].id,
+        source: 'MANUAL',
+        status: index === 3 ? 'PENDING' : 'CONFIRMED',
+        accountId: source.accounts[0].id,
+        date: '2026-10-10',
+        payer: `선입금주민${index}`,
+        amount: '70000',
+        reason: '',
+        allocations: []
+      })),
+      openingCredits: [{
+        id: id('prepaid-opening'),
+        unitId: units[1].id,
+        date: '2026-09-30',
+        amount: '30000',
+        allocations: []
+      }]
+    };
+    await page.route(`http://localhost:8080/api/properties/${PROPERTY_ID}/payments/workspace`, (route) => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true'
+      },
+      body: JSON.stringify({
+        ...ledger,
+        propertyId: PROPERTY_ID
+      })
+    }));
+    await page.goto(`/manage/${PROPERTY_ID}/payments/monthly?month=2026-10`);
+    const table = page.getByRole('table', {
+      name: '세대별 월별 수납 현황'
+    });
+    await expect(table.getByRole('row')).toHaveCount(4);
+    await page.getByRole('button', {
+      name: '선입금 (3)',
+      exact: true
+    }).click();
+    await expect(table).toContainText('선입금주민0');
+    await expect(table).toContainText('선입금주민1');
+    await expect(table).toContainText('선입금주민2');
+    await expect(table).not.toContainText('선입금주민3');
+    await expect(table.getByRole('row').filter({
+      hasText: '선입금주민0'
+    })).toContainText('70,000원');
+    await page.getByRole('textbox', {
+      name: '수납 현황 세대 검색'
+    }).fill('선입금주민0');
+    await expect(table.getByRole('row')).toHaveCount(2);
+    await table.getByRole('row').filter({
+      hasText: '선입금주민0'
+    }).click();
+    const view = width < 768 ? page.getByRole('main') : page.getByRole('dialog');
+    await expect(view.getByRole('heading', {
+      name: '102동 101호 수납 상세'
+    })).toBeVisible();
+    await expect(view).toContainText('선입금 잔액');
+    await page.screenshot({
+      path: test.info().outputPath(`prepaid-${width}.png`),
+      fullPage: true
+    });
   });
 }

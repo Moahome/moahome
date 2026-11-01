@@ -19,8 +19,8 @@ export function getConfirmedUnitReceipts(ledger: PreviewLedger, unitId: string, 
 export function filterMonthlyPreviewRows(rows: MonthlyPreviewRow[], filters: MonthlyCollectionFilters): MonthlyPreviewRow[] {
   const query = filters.query.trim();
   return rows.filter((row) => (!filters.building || row.buildingName === filters.building)
-    && `${row.unitLabel} ${row.representativeName} ${row.latestPayer}`.includes(query)
-    && (filters.status === '전체' || row.status === filters.status));
+    && `${row.unitLabel} ${row.representativeName}`.includes(query)
+    && (filters.status === '전체' || (filters.status === '선입금' ? row.prepaid > BigInt(0) : row.status === filters.status)));
 }
 
 /** 과거 입금이나 선입금도 직접 연결할 수 있도록 청구월과 관계없이 현재 사용 중 명단의 세대를 선택합니다. */
@@ -72,14 +72,15 @@ export function getPreviewBilledUnits(ledger: PreviewLedger, month: string): Pre
   return ledger.units.filter((unit) => billedIds.has(unit.id));
 }
 
-/** 조회월 실제 부과 세대에 한해 이월·충당·미수를 계산하며 과거 원장 자체는 보존합니다. */
+/** 조회월 부과 세대와 월말 선입금 보유 세대를 함께 표시하며 취소·미확정·미래 입금은 제외합니다. */
 export function getMonthlyPreviewRows(ledger: PreviewLedger, month: string): MonthlyPreviewRow[] {
   getPreviewDueDate(month);
   const start = `${month}-01`;
   const end = getPreviewDueDate(month);
   const validCharges = ledger.charges.filter(canPreviewAllocate);
+  const billedUnitIds = new Set(getPreviewBilledUnits(ledger, month).map((unit) => unit.id));
 
-  return getPreviewBilledUnits(ledger, month).map((unit) => {
+  return ledger.units.map((unit) => {
     const charges = validCharges.filter((charge) => charge.unitId === unit.id);
     const oldCharges = charges.filter((charge) => charge.month < month || (charge.chargeType === 'OPENING_RECEIVABLE' && charge.month <= month))
       .reduce((sum, charge) => sum + BigInt(charge.amount), BigInt(0));
@@ -100,14 +101,14 @@ export function getMonthlyPreviewRows(ledger: PreviewLedger, month: string): Mon
     let status: MonthlyPreviewRow['status'] = '미납';
     if (balance === BigInt(0)) status = '납부완료';
     else if (applied > BigInt(0)) status = '일부납부';
+    if (!billedUnitIds.has(unit.id) && prepaid > BigInt(0)) status = '선입금';
     if (settlementPending) status = '정산 확인 필요';
 
-    return {
+    const row: MonthlyPreviewRow = {
       unitId: unit.id,
       unitLabel: unit.label,
       buildingName: getPreviewBuildingName(unit),
       representativeName: unit.representativeName ?? '—',
-      latestPayer: [...payments].sort((left, right) => right.date.localeCompare(left.date)).at(0)?.payer ?? '—',
       carry,
       billed,
       applied,
@@ -118,7 +119,8 @@ export function getMonthlyPreviewRows(ledger: PreviewLedger, month: string): Mon
       settlementPending,
       latestDate: payments.map((payment) => payment.date).sort().at(-1) ?? '—'
     };
-  });
+    return row;
+  }).filter((row) => billedUnitIds.has(row.unitId) || row.prepaid > BigInt(0));
 }
 
 /** 선택월의 실제 확정 입금을 종류별로 합산하며 일부납부·선입금도 입금 전액을 포함합니다. 청구 충당액과 구분합니다. */
