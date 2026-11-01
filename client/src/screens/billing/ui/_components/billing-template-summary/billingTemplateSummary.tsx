@@ -1,6 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import {
+  useState,
+  type ReactNode
+} from 'react';
 import type {
   BillingBuilding,
   BillingTemplate
@@ -16,11 +19,39 @@ import {
 import styles from './billingTemplateSummary.module.css';
 
 /** 각 동의 세대당 금액을 합산하지 않고 최소·최대 범위로 요약합니다. */
-function amountRange(amounts: bigint[]): string {
+function amountRange(amounts: bigint[]): ReactNode {
   if (!amounts.length) return '미설정';
   const min = amounts.reduce((a, b) => a < b ? a : b);
   const max = amounts.reduce((a, b) => a > b ? a : b);
-  return min === max ? formatWon(min) : `${formatWon(min)} ~ ${formatWon(max)}`;
+  if (min === max) return (
+    <AmountValue
+      value={min}
+    />
+  );
+  return (
+    <>
+      <AmountValue
+        value={min}
+      />
+      {' '}
+      ~
+      {' '}
+      <AmountValue
+        value={max}
+      />
+    </>
+  );
+}
+
+/** 음수 원 금액만 Danger로 표시하고 혼합 범위의 양수 끝값은 기본 색상을 유지합니다. */
+function AmountValue({ value }: { value: bigint }) {
+  return (
+    <span
+      className={value < BigInt(0) ? styles.negative : undefined}
+    >
+      {formatWon(value)}
+    </span>
+  );
 }
 
 /** 항목별 비교는 표시용으로만 묶고 실제 저장·부과는 각 동의 독립 설정을 유지합니다. */
@@ -90,7 +121,11 @@ export function BillingTemplateSummary({ template, buildings, label, showTempora
                   {building.name}
                 </dt>
                 <dd>
-                  {row.amounts.has(building.id) ? formatWon(row.amounts.get(building.id)!) : '미부과'}
+                  {row.amounts.has(building.id) ? (
+                    <AmountValue
+                      value={row.amounts.get(building.id)!}
+                    />
+                  ) : '미부과'}
                 </dd>
               </div>
             ))}
@@ -183,7 +218,9 @@ export function BillingTemplateSummary({ template, buildings, label, showTempora
                 </span>
                 <strong>
                   세대당
-                  {formatWon(item.amount)}
+                  <AmountValue
+                    value={BigInt(item.amount)}
+                  />
                 </strong>
               </li>
             ))}

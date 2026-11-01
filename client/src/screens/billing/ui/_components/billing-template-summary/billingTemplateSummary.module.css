@@ -66,7 +66,7 @@
     gap: 16px;
     padding-top: 20px;
 
-    span {
+    > span {
       color: var(--sub-text);
       font-size: 13px;
     }
@@ -124,3 +124,5 @@
     transition: none;
   }
 }
+
+.negative { color: var(--danger); }
