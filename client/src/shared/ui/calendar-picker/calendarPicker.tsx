@@ -12,7 +12,7 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './calendarPicker.module.css';
 
 /** 월·날짜 선택을 같은 달력으로 제공하고 선택 후 호출 버튼으로 포커스를 돌려줍니다. */
-export function CalendarPicker({ label, value, onChange, mode = 'date', clearable = false, required = false, labelHidden = false, placeholder, variant = 'default' }: {
+export function CalendarPicker({ label, value, onChange, mode = 'date', clearable = false, required = false, labelHidden = false, placeholder, variant = 'default', maxDate }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -22,6 +22,7 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
   labelHidden?: boolean;
   placeholder?: string;
   variant?: 'default' | 'input';
+  maxDate?: string | (() => string);
 }) {
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
@@ -33,6 +34,9 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
   const selectedMonth = Number(value.slice(5, 7));
   const [month, setMonth] = useState(selectedMonth || new Date().getMonth() + 1);
   const [choosingMonth, setChoosingMonth] = useState(mode === 'month');
+  // 달력을 다시 열 때 동적으로 제공한 오늘 날짜의 상한도 함께 확인합니다.
+  const maximum = typeof maxDate === 'function' ? maxDate() : maxDate;
+  const maximumMonth = maximum?.slice(0, 7);
   const monthValue = `${year}-${String(month).padStart(2, '0')}`;
   const displayValue = value ? `${value.slice(0, 4)}년 ${selectedMonth}월${mode === 'date' ? ` ${Number(value.slice(8, 10))}일` : ''}` : (placeholder ?? (mode === 'month' ? '전체 기간' : '날짜 선택'));
   const offset = new Date(year, month - 1, 1).getDay();
@@ -41,6 +45,8 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
   /** 날짜 모드의 월 이동은 연도 경계를 함께 넘겨 잘못된 날짜 문자열을 만들지 않습니다. */
   function moveMonth(delta: number) {
     const next = new Date(year, month - 1 + delta, 1);
+    const nextMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+    if (maximumMonth && nextMonth > maximumMonth) return;
     setYear(next.getFullYear());
     setMonth(next.getMonth() + 1);
   }
@@ -102,7 +108,8 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
 
   useEffect(() => {
     if (!open) return;
-    (selected.current ?? trigger.current)?.focus();
+    const focusTarget = selected.current?.disabled ? calendar.current?.querySelector<HTMLButtonElement>('button:not(:disabled)') : selected.current;
+    (focusTarget ?? trigger.current)?.focus();
     function outside(event: PointerEvent) {
       if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false);
     }
@@ -112,6 +119,7 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
   }, [open, choosingMonth]);
 
   function choose(nextValue: string) {
+    if (nextValue && maximum && nextValue > (mode === 'month' ? maximum.slice(0, 7) : maximum)) return;
     onChange(nextValue);
     setOpen(false);
     trigger.current?.focus();
@@ -158,8 +166,10 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
         aria-expanded={open}
         aria-controls={open ? id : undefined}
         onClick={() => {
-          setYear(Number(value.slice(0, 4)) || new Date().getFullYear());
-          setMonth(selectedMonth || new Date().getMonth() + 1);
+          const latest = typeof maxDate === 'function' ? maxDate() : maxDate;
+          const initial = latest && (!value || value > latest) ? latest : value;
+          setYear(Number(initial.slice(0, 4)) || new Date().getFullYear());
+          setMonth(Number(initial.slice(5, 7)) || new Date().getMonth() + 1);
           setChoosingMonth(mode === 'month');
           setOpen((previous) => !previous);
         }}
@@ -222,7 +232,7 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
             iconOnly
             size={'sm'}
             aria-label={choosingMonth ? '다음 연도' : '다음 달'}
-            disabled={year >= 9998}
+            disabled={year >= 9998 || Boolean(maximumMonth && (choosingMonth ? year >= Number(maximumMonth.slice(0, 4)) : monthValue >= maximumMonth))}
             onClick={() => choosingMonth ? setYear(year + 1) : moveMonth(1)}
           >
             <ServiceIcon
@@ -247,6 +257,7 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
                   variant={value === monthValue ? 'primary' : 'ghost'}
                   aria-label={`${year}년 ${month}월`}
                   aria-pressed={value === monthValue}
+                  disabled={Boolean(maximumMonth && monthValue > maximumMonth)}
                   onClick={() => {
                     if (mode === 'month') { choose(monthValue); return; }
                     setMonth(month);
@@ -289,6 +300,7 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
                   size={'sm'}
                   aria-label={`${year}년 ${month}월 ${day}일`}
                   aria-pressed={date === value}
+                  disabled={Boolean(maximum && date > maximum)}
                   onClick={() => choose(date)}
                 >
                   {day}
