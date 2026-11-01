@@ -8,3 +8,8 @@ export interface NavigationHistoryRecord {
   start: number;
   urls: string[];
 }
+
+export interface NavigationHistoryReturn {
+  href: string;
+  onReplace: (href: string) => void;
+}

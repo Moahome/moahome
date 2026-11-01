@@ -1,13 +1,14 @@
 import type {
   NavigationHistoryEntry,
-  NavigationHistoryRecord
+  NavigationHistoryRecord,
+  NavigationHistoryReturn
 } from './navigationHistoryTypes';
 
 const HISTORY_KEY = 'moahome.navigation.history';
 const MAX_ENTRIES = 50;
 const RETURN_QUERY_KEYS = ['month', 'account', 'buildingId', 'tab', 'propertyId'];
 let activeHistory: NavigationHistoryRecord | null = null;
-let returning = false;
+let returning: NavigationHistoryReturn | null = null;
 let tracking = false;
 
 /** 초대 fragment·인증 정보·검색어를 복사하지 않고 복귀 경로와 허용된 조회 참조값만 보관합니다. */
@@ -133,8 +134,23 @@ export function trackNavigationHistory() {
     saveHistory();
   };
 
+  /** 기존 항목으로 이동한 뒤 누락된 복귀 조건만 대체해 월·탭과 방문 위치를 함께 보존합니다. */
   function finishReturning() {
-    returning = false;
+    const pending = returning;
+    returning = null;
+    if (!pending) return;
+    const restored = new URL(window.location.href);
+    const destination = new URL(pending.href, restored);
+    const requiredQuery = new URLSearchParams(destination.search);
+    if (restored.origin !== destination.origin || restored.pathname !== destination.pathname) return;
+    // 지정된 월·탭을 우선하고 실제 이전 URL의 검색·필터·fragment는 그대로 유지합니다.
+    for (const [key, value] of restored.searchParams) {
+      if (!requiredQuery.has(key)) destination.searchParams.append(key, value);
+    }
+    destination.hash ||= restored.hash;
+    if (destination.href === restored.href) return;
+    // 같은 이벤트의 Next.js 복원이 대체 이동을 덮어쓰지 않도록 다음 이벤트 루프에서 요청합니다.
+    window.setTimeout(() => pending.onReplace(`${destination.pathname}${destination.search}${destination.hash}`), 0);
   }
 
   /** 브라우저가 직접 추가하는 fragment 이력은 거리를 추측하지 않고 새 관찰 구간으로 분리합니다. */
@@ -150,7 +166,7 @@ export function trackNavigationHistory() {
 }
 
 /** 지정된 상위 경로의 실제 방문 기록으로 복귀하며, 확인할 수 없으면 호출자가 replace합니다. */
-export function goBackToRoute(href: string) {
+export function goBackToRoute(href: string, onReplace: (href: string) => void) {
   if (returning) return true;
   const position = getPosition();
   if (!activeHistory || position === null) return false;
@@ -167,7 +183,10 @@ export function goBackToRoute(href: string) {
       return previousValue === null || previousValue === value;
     });
     if (!matchesQuery) continue;
-    returning = true;
+    returning = {
+      href,
+      onReplace
+    };
     window.history.go(index + activeHistory.start - position);
 
     return true;

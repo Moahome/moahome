@@ -204,7 +204,7 @@ PC와 모바일은 같은 `ManagementSidebar`, `SidebarDropdown`, `SidebarLink`�
 
 기존 일반 Link는 `목록 → 상세 → 목록`을 새 방문으로 쌓았습니다. 현재 구현은 공통 헤더에서 `shared/lib/navigation-history`로 지정된 상위 경로의 기존 방문을 찾고 `history.go(음수)`로 복귀합니다. 예를 들어 `대시보드 → 목록 → 상세 → 헤더 < → 목록 → 기기 뒤로가기`는 대시보드에 도착합니다. `목록 → 상세 → 수정`의 각 헤더 복귀도 기존 상세·목록 위치를 사용합니다. 앞으로 가기 기록은 브라우저의 일반 동작대로 남으며, 이후 새 화면에 진입하면 교체됩니다.
 
-앱 전체의 `AppProviders`가 `pushState`·`replaceState`를 관찰합니다. Next.js 내부 상태와 드로어 표시 상태를 유지하면서 각 항목에 관찰 구간 ID·위치를 붙입니다. 탭의 `sessionStorage`에는 최근 최대 50개 경로와 복귀에 필요한 `month`·`account`·`buildingId`·`tab`·`propertyId`만 보관합니다. 초대 fragment·그 밖의 쿼리·응답 토큰·업무 본문은 복사하지 않습니다. 브라우저의 실제 기록으로 돌아가므로 기존 목록 URL의 다른 조회 조건도 그대로 유지됩니다. 명시된 월·계좌 등과 이전 목록의 명시적 값이 충돌하면 그 목록을 복귀 대상으로 사용하지 않습니다.
+앱 전체의 `AppProviders`가 `pushState`·`replaceState`를 관찰합니다. Next.js 내부 상태와 드로어 표시 상태를 유지하면서 각 항목에 관찰 구간 ID·위치를 붙입니다. 탭의 `sessionStorage`에는 최근 최대 50개 경로와 복귀에 필요한 `month`·`account`·`buildingId`·`tab`·`propertyId`만 보관합니다. 초대 fragment·그 밖의 쿼리·응답 토큰·업무 본문은 복사하지 않습니다. 브라우저의 실제 기록으로 돌아가므로 기존 목록 URL의 다른 조회 조건도 그대로 유지됩니다. 명시된 월·계좌 등과 이전 목록의 명시적 값이 충돌하면 그 목록을 복귀 대상으로 사용하지 않습니다. 이전 URL에 지정된 복귀 조건이 없다면 기존 항목으로 돌아간 다음 그 항목을 `replace`하여 월·탭 등을 보완합니다. Next.js의 같은 `popstate` 복원이 대체 이동을 덮어쓰지 않도록 다음 이벤트 루프에서 처리하며, 새 방문 기록은 추가하지 않습니다.
 
 직접 진입, 다른 문서 이동, 저장소 차단 후 새로고침, 추적 범위를 벗어난 기록처럼 거리를 확인할 수 없으면 지정된 복귀 경로로 현재 항목을 `replace`합니다. `history.length`나 referrer만으로 이전 화면을 추측하지 않습니다. 브라우저가 직접 추가한 fragment 이동은 새 관찰 구간으로 분리합니다. 드로어의 같은 URL 임시 기록도 실제 한 칸으로 세며 메뉴 닫기·링크 선택의 기존 처리와 함께 동작합니다. 이 탐색 정보는 인증·권한 판단에 사용하지 않습니다.
 
@@ -219,9 +219,19 @@ PC와 모바일은 같은 `ManagementSidebar`, `SidebarDropdown`, `SidebarLink`�
 - `npm run lint`, `npm run typecheck` 통과. `npm run test:api` 124개 통과.
 - `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- authFlow.spec.ts managementLayout.spec.ts --grep 'authFlow.spec.ts|모바일 헤더 방문 기록' --reporter=list` 최종 36개 통과. 로그인 전체 31개와 모바일 방문 기록 5개입니다. 테스트 서버 시작 시 실행하는 기본 `npm run build`의 Turbopack 프로덕션 빌드도 통과했습니다.
 - `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- authFlow.spec.ts managementLayout.spec.ts onboardingFlow.spec.ts paymentFlow.spec.ts bankingFlow.spec.ts --grep 'authFlow.spec.ts|모바일 헤더 방문 기록|헤더 뒤로가기|프로필은 오른쪽|모바일 승인 상세|모바일 복귀|모바일 상세를 연결|모바일 상세는 직접|모바일 독립 페이지|최초 시작의 주민 참여' --reporter=list` 확장 검사에서는 53개 통과, 1개 실패했습니다. 통과 항목에는 주민·계좌·승인·수납·통장 상세와 320/767px 세대 화면의 기존 복귀 검증이 포함됩니다.
-- 확장 검사의 기존 `bankingFlow.spec.ts` 동별 시작 잔고 시나리오는 달력을 이전 달로 한 번만 이동한 뒤 고정된 `2026년 9월 30일` 버튼을 찾습니다. 실행 당시 이전 달은 10월이어서 해당 버튼을 찾지 못하고 120초 시간초과했습니다. 실패 위치는 기준일 선택이며 모바일 상세 복귀 단계에 도달하기 전입니다. 이 날짜 의존 테스트는 이번 변경에서 수정하지 않았습니다.
+- 확장 검사의 기존 `bankingFlow.spec.ts` 동별 시작 잔고 시나리오는 달력을 이전 달로 한 번만 이동한 뒤 고정된 `2026년 9월 30일` 버튼을 찾았습니다. 실행 당시 이전 달은 10월이어서 해당 버튼을 찾지 못하고 120초 시간초과했습니다. 실패 위치는 기준일 선택이며 모바일 상세 복귀 단계에 도달하기 전입니다. 최초 수정에서는 이 테스트를 변경하지 않았으며, 아래 CI 실패 보완에서 브라우저의 기준 날짜를 고정했습니다.
 - `npm run dev -- --hostname 127.0.0.1 --port 3101`과 모의 API를 사용한 Chrome 검사에서 320/390/767px의 반복 상세 복귀·기기 뒤로가기·가로 넘침·런타임 오류 검사를 통과하고 스크린샷을 확인했습니다. 개발·테스트 서버는 확인 후 종료했습니다.
 - 문서 링크 경로와 `git diff --check`를 확인했습니다. 실제 카카오 인증과 휴대폰 Safari·카카오톡 내부 브라우저·설치형 앱은 검증하지 않았습니다.
+
+#### 전체 CI 실패 후 보완 (2026-11-01)
+
+사용자가 전달한 전체 검사 결과는 636개 통과·5개 실패였습니다. 관리비 모바일 390/320px 두 건과 기타 입금 모바일 상세 한 건은 이전 목록에 없던 `tab=monthly`·`month=2026-10`을 기존 기록 복귀 후 보완하지 않은 구현 오류였습니다. 이 세 건은 예상 URL을 완화하지 않고 위의 복귀 후 대체 처리로 수정했습니다. 기타 입금 검사에는 월을 보완한 목록에서 기기 뒤로가기가 대시보드에 도착하는지도 추가하여 상세·중복 목록이 남지 않는지 함께 확인합니다.
+
+잔고 시나리오는 모의 데이터의 기준 날짜 `2026-10-23`으로 `page.clock.setFixedTime`을 설정하여 실행 월·시간대가 달라져도 기준일 선택이 일정하게 유지되도록 했습니다. 은행 업로드 도움말 검사의 `boundingBox()` null 참조는 표시 확인 후 같은 DOM 시점의 좌표를 재조회하는 검사로 보완했습니다. 도움말이 실제로 표시되지 않거나 화면 경계를 벗어나면 검사는 계속 실패합니다.
+
+보완 후 `npm run lint`, `npm run typecheck`, `npm run test:api -- --reporter=list`가 통과했으며 API 검사는 124개입니다. `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- bankingFlow.spec.ts billingFlow.spec.ts paymentFlow.spec.ts managementLayout.spec.ts --grep '동별 시작 잔고·상세 원장|은행 코드별 업로드|검색·페이지·달력·행 상세|기타 입금 상세 개선|모바일 헤더 방문 기록' --workers=2 --repeat-each=2 --reporter=list`에서 14개 시나리오를 두 번씩 실행하여 28개 모두 통과했습니다. 테스트 서버 시작의 Turbopack 프로덕션 빌드도 통과했습니다. 개발 모드의 모바일 화면에서도 조회 월이 없는 목록으로 복귀한 뒤 `month`가 보완되는 것을 확인했습니다.
+
+이어서 `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- bankingFlow.spec.ts billingFlow.spec.ts paymentFlow.spec.ts managementLayout.spec.ts --workers=2 --reporter=list`로 관련 4개 파일 240개를 실행하여 239개가 통과했고 수동 입금 달력 검사 1개가 실패했습니다. 현재 작업 트리의 공통 수동 입금 폼은 서버 기준일인 `asOf=2026-10-15` 이후 날짜를 비활성화하는데 기존 검사는 10월 20일을 선택하려 했습니다. 테스트는 미래 날짜 허용 여부에 의존하지 않고 10일을 선택해 포커스 복귀를 검증하도록 수정했습니다. 폼의 날짜 제한은 변경하지 않았습니다. `PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- paymentFlow.spec.ts --grep '입금일도 공통 달력' --workers=2 --repeat-each=2 --reporter=list`로 수정한 검사를 두 번 실행하여 모두 통과했고 ESLint도 다시 통과했습니다. 전체 641개 CI를 재실행한 결과로 보고하지 않으며, 240개 실행과 마지막 테스트의 후속 재검증 결과를 구분합니다.
 
 ### 화면 용어
 

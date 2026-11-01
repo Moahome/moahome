@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   useRef,
   type ReactNode
@@ -37,6 +38,7 @@ export function ServiceHeader({
 }) {
   // 관리 레이아웃은 권한 확인 후 이 위젯을 표시하며, 세션 조회 결과는 시작 화면과 공유합니다.
   const session = useSession();
+  const router = useRouter();
   const profile = user ?? session.data;
   const noticeRef = useRef<HTMLDialogElement>(null);
   if (!profile) return null;
@@ -57,7 +59,7 @@ export function ServiceHeader({
               replace
               onNavigate={(event) => {
                 // 실제 상위 방문으로 되돌리고, 직접 접근 등 기록이 없을 때만 현재 상세를 대체합니다.
-                if (goBackToRoute(mobileBack.href)) event.preventDefault();
+                if (goBackToRoute(mobileBack.href, (href) => router.replace(href))) event.preventDefault();
               }}
               aria-label={mobileBack.label}
               className={styles['back-link']}

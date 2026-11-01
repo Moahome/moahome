@@ -1038,6 +1038,8 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
 
 test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 모바일 상세를 연결', async ({ page }) => {
   test.setTimeout(120_000);
+  // 달력의 이전 달과 9월 30일 기준일이 실행 날짜에 따라 달라지지 않게 조회 자료의 현재 날짜를 고정합니다.
+  await page.clock.setFixedTime(new Date('2026-10-23T03:00:00Z'));
   const buildings = Array.from({
     length: 8
   }, (_, index) => ({
@@ -4428,9 +4430,13 @@ for (const width of [1440, 390, 320]) {
       else await netHelp.click();
       const tooltip = page.getByRole('tooltip');
       await expect(tooltip).toContainText('입금 합계 − 출금 합계');
-      const bounds = await tooltip.boundingBox();
-      expect(bounds!.x).toBeGreaterThanOrEqual(0);
-      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+      await expect(tooltip).toBeVisible();
+      // 포털의 표시·위치 갱신 사이에 요소가 사라져도 null을 단정하지 않고 같은 DOM 시점의 경계를 재확인합니다.
+      await expect.poll(() => tooltip.evaluateAll((elements, viewportWidth) => {
+        const bounds = elements[0]?.getBoundingClientRect();
+
+        return Boolean(bounds && bounds.width > 0 && bounds.x >= 0 && bounds.right <= viewportWidth);
+      }, width)).toBe(true);
       await page.keyboard.press('Escape');
       await expect(tooltip).toHaveCount(0);
       await netHelp.focus();

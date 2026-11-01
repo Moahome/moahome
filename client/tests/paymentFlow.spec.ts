@@ -474,12 +474,13 @@ test('입금일도 공통 달력에서 날짜를 선택하고 모달은 X로 닫
     path: testInfo.outputPath('manual-calendar.png'),
     animations: 'disabled'
   });
+  // 서버 기준일(10월 15일) 이전 날짜로 선택·포커스를 확인해 미래 날짜 허용 여부에 의존하지 않습니다.
   await calendar.getByRole('button', {
-    name: '2026년 10월 20일',
+    name: '2026년 10월 10일',
     exact: true
   }).click();
   await expect(modal.getByRole('button', {
-    name: '입금일: 2026년 10월 20일'
+    name: '입금일: 2026년 10월 10일'
   })).toBeFocused();
   const submit = await modal.getByRole('button', {
     name: '등록',
@@ -3636,6 +3637,11 @@ for (const width of [1440, 390]) {
       }
     }));
     const base = `/manage/${PROPERTY_ID}/banking`;
+    const dashboard = `/manage/${PROPERTY_ID}/dashboard`;
+    if (width <= 767) {
+      await page.goto(dashboard);
+      await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+    }
     await page.goto(`${base}/transactions`);
     await page.getByRole('row').filter({
       hasText: payment.payer
@@ -3721,7 +3727,12 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     if (width > 767) await expect(detail).toHaveCount(0);
-    else await expect(page).toHaveURL(`${base}/transactions?month=2026-10`);
+    else {
+      await expect(page).toHaveURL(`${base}/transactions?month=2026-10`);
+      // 누락된 월을 보완하는 replace가 새 기록을 만들면 뒤로가기에 상세·중복 목록이 다시 나타납니다.
+      await page.goBack();
+      await expect(page).toHaveURL(dashboard);
+    }
     payment.status = 'CANCELED';
     await page.goto(`${base}/receipts/${payment.id}`);
     await expect(page.getByText('취소된 배분 내역입니다.', {
