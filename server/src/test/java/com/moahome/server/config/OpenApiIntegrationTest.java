@@ -232,7 +232,9 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(
 		    mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(101);
+		assertThat(document.path("paths").properties()).hasSize(102);
+		assertThat(document.path("paths").path("/api/properties/{propertyId}/dashboard")
+			.at("/get/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.at("/paths/~1api~1properties~1{propertyId}~1banking~1balances~1initial-billing-impact/get").isMissingNode()).isFalse();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/residents/{residentId}/representative")
 		    .at("/put/security/0/bearerAuth").isArray()).isTrue();

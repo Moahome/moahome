@@ -18,6 +18,7 @@ import com.moahome.server.banking.controller.BankingBalanceController;
 import com.moahome.server.banking.controller.BankingController;
 import com.moahome.server.billing.controller.OpeningBalanceController;
 import com.moahome.server.closing.controller.MonthlySettlementController;
+import com.moahome.server.dashboard.controller.DashboardController;
 import com.moahome.server.membership.controller.InvitationClaimController;
 import com.moahome.server.membership.controller.MemberManagementController;
 import com.moahome.server.membership.controller.MembershipRequestController;
@@ -30,6 +31,7 @@ import com.moahome.server.user.exception.UserException;
         BankBalanceCheckController.class,
         BankAccountController.class,
         MonthlySettlementController.class,
+        DashboardController.class,
         OpeningBalanceController.class,
         MemberManagementController.class,
         InvitationClaimController.class,
