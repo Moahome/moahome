@@ -559,7 +559,7 @@ export function RegistrationReview({
               </p>
             )}
             <dl
-              className={styles['info-list']}
+              className={styles['opening-info']}
             >
               <div>
                 <dt>
@@ -630,20 +630,25 @@ export function RegistrationReview({
               미납·선납과 실제 통장 잔액·동별 보유금은 별도로 저장합니다. 현재 세대 대표에게 과거 미납의 부담 주체를 자동 지정하지 않습니다.
             </p>
             {!locked && (
-              <Button
-                variant={'text'}
-                onClick={() => onEdit('units')}
+              <div
+                className={styles['opening-actions']}
+                role={'group'}
+                aria-label={'잔액 인계 수정'}
               >
-                미납·선납 수정
-              </Button>
-            )}
-            {!locked && (
-              <Button
-                variant={'text'}
-                onClick={() => onEdit('account')}
-              >
-                시작 잔고 수정
-              </Button>
+                <Button
+                  variant={'outline'}
+                  size={'lg'}
+                  onClick={() => onEdit('units')}
+                >
+                  미납·선납 수정
+                </Button>
+                <Button
+                  size={'lg'}
+                  onClick={() => onEdit('account')}
+                >
+                  시작 잔고 수정
+                </Button>
+              </div>
             )}
           </section>
         )}
