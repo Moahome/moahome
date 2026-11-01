@@ -34,6 +34,7 @@ import { BankIcon } from '@/entities/banking';
 import { SummaryCard } from '@/shared/ui/summary-card';
 import { OpeningUnitList } from './openingUnitList';
 import { ClientModal } from '@/shared/ui/client-modal';
+import { InitialBalanceEditor } from './initialBalanceEditor';
 import { OpeningUnitEditor } from './openingUnitEditor';
 import { ListCard } from '@/shared/ui/list-card';
 import { CalendarPicker } from '@/shared/ui/calendar-picker';
@@ -51,7 +52,7 @@ import { formatInteger } from '@/shared/lib/format';
 import styles from './openingBalances.module.css';
 
 /** 계정·관리대상별 초안을 읽고 저장 성공한 서버 버전으로만 편집 화면을 교체합니다. */
-export function OpeningBalances({ propertyId, uploadPage = false }: { propertyId: string; uploadPage?: boolean }) {
+export function OpeningBalances({ propertyId, uploadPage = false, correctionPage = false }: { propertyId: string; uploadPage?: boolean; correctionPage?: boolean }) {
   const session = useSession();
   const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const client = useQueryClient();
@@ -93,6 +94,7 @@ export function OpeningBalances({ propertyId, uploadPage = false }: { propertyId
       key={`${propertyId}:${query.data.batch?.id}:${query.data.batch?.revision}:${currentDraft?.version ?? 0}`}
       data={query.data}
       uploadPage={uploadPage}
+      correctionPage={correctionPage}
       initialDraft={currentDraft}
       onDraft={(draft) => setPropertyQueryData(client, draftKey, {
         ...draft,
@@ -118,7 +120,7 @@ export function OpeningBalances({ propertyId, uploadPage = false }: { propertyId
         } : null, propertyScope);
         setPropertyQueryData(client, queryKey, saved, propertyScope);
         void client.invalidateQueries({
-          predicate: (q) => ['billing', 'payment-workspace'].includes(String(q.queryKey[0]))
+          predicate: (q) => ['billing', 'payment-workspace', 'banking-balances', 'monthly-settlement'].includes(String(q.queryKey[0]))
           && q.queryKey[1] === session.data?.id && q.queryKey[2] === propertyId
         });
       }}
@@ -126,7 +128,7 @@ export function OpeningBalances({ propertyId, uploadPage = false }: { propertyId
   );
 }
 
-function OpeningForm({ data, initialDraft, onSaved, uploadPage, onDraft }: { data: OpeningWorkspace; initialDraft: DraftSeed | null; uploadPage: boolean; onDraft: (draft: DraftSeed) => void; onSaved: (data: OpeningWorkspace, seed?: DraftSeed) => void }) {
+function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, onDraft }: { data: OpeningWorkspace; initialDraft: DraftSeed | null; uploadPage: boolean; correctionPage: boolean; onDraft: (draft: DraftSeed) => void; onSaved: (data: OpeningWorkspace, seed?: DraftSeed) => void }) {
   const router = useRouter();
   const month = data.asOf.slice(0, 7);
   const previousEnd = new Date(`${month}-01T00:00:00Z`);
@@ -147,8 +149,10 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, onDraft }: { dat
   const [canceling, setCanceling] = useState(false);
   const [editing, setEditing] = useState<string | null>(initialDraft?.editId ?? null);
   const [correctionId, setCorrectionId] = useState<string | null>(null);
+  const [correctingInitial, setCorrectingInitial] = useState(false);
   const [importing, setImporting] = useState(false);
   const confirmed = data.batch?.status === 'CONFIRMED';
+  const initialLocked = data.managementStarted && Boolean(data.correctionDeadline && data.asOf > data.correctionDeadline);
   const legacy = data.managementStarted && data.cutoffDate === null;
   const total = (key: 'receivable' | 'credit') => units.reduce((sum, u) => sum + (/^[0-9]+$/.test(u[key]) ? BigInt(u[key]) : BigInt(0)), BigInt(0));
 
@@ -260,44 +264,65 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, onDraft }: { dat
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
   if (legacy) return (
+    <div
+      className={styles.panel}
+    >
+      <ListCard>
+        <section
+          className={styles['existing-state']}
+          aria-labelledby={'existing-balance-title'}
+        >
+          <div
+            className={styles['state-icon']}
+          >
+            <ServiceIcon
+              name={'receipt'}
+            />
+          </div>
+          <h2
+            id={'existing-balance-title'}
+          >
+            이미 관리비 부과를 시작한 곳이에요
+          </h2>
+          <p>
+            기존 잔액 인계는 첫 관리비를 부과하기 전에 입력합니다.
+            <br />
+            이곳에 저장된 관리비와 납부 내역은 아래에서 확인할 수 있어요.
+          </p>
+          <div
+            className={styles['state-actions']}
+          >
+            <Button
+              onClick={() => router.push(`/manage/${data.propertyId}/billing/monthly?tab=monthly`)}
+            >
+              월별 부과 보기
+            </Button>
+            <Button
+              variant={'outline'}
+              onClick={() => router.push(`/manage/${data.propertyId}/payments/monthly`)}
+            >
+              수납 현황 보기
+            </Button>
+          </div>
+        </section>
+      </ListCard>
+      <InitialBalanceHistoryView
+        changes={data.corrections}
+      />
+    </div>
+  );
+
+  if (correctionPage) return (
     <ListCard>
-      <section
-        className={styles['existing-state']}
-        aria-labelledby={'existing-balance-title'}
-      >
-        <div
-          className={styles['state-icon']}
-        >
-          <ServiceIcon
-            name={'receipt'}
-          />
-        </div>
-        <h2
-          id={'existing-balance-title'}
-        >
-          이미 관리비 부과를 시작한 곳이에요
-        </h2>
-        <p>
-          기존 잔액 인계는 첫 관리비를 부과하기 전에 입력합니다.
-          <br />
-          이곳에 저장된 관리비와 납부 내역은 아래에서 확인할 수 있어요.
-        </p>
-        <div
-          className={styles['state-actions']}
-        >
-          <Button
-            onClick={() => router.push(`/manage/${data.propertyId}/billing/monthly?tab=monthly`)}
-          >
-            월별 부과 보기
-          </Button>
-          <Button
-            variant={'outline'}
-            onClick={() => router.push(`/manage/${data.propertyId}/payments/monthly`)}
-          >
-            수납 현황 보기
-          </Button>
-        </div>
-      </section>
+      <InitialBalanceEditor
+        data={data}
+        page
+        onClose={() => goBackToRoute(`/manage/${data.propertyId}/billing/monthly?tab=opening`, (href) => router.replace(href))}
+        onSaved={(saved) => {
+          onSaved(saved);
+          goBackToRoute(`/manage/${data.propertyId}/billing/monthly?tab=opening`, (href) => router.replace(href));
+        }}
+      />
     </ListCard>
   );
 
@@ -360,43 +385,68 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, onDraft }: { dat
           <div
             className={styles.actions}
           >
-            {confirmed ? (
-              <Button
-                variant={'outline'}
-                disabled={busy}
-                onClick={() => { setCorrectionId(null); setCanceling(true); }}
-              >
-                인계 정정
-              </Button>
-            ) : (
+            {!initialLocked && (
               <>
-                <Button
-                  variant={'outline'}
-                  loading={busy}
-                  onClick={() => void save()}
-                  leadingIcon={(
-                    <ServiceIcon
-                      name={'receipt'}
-                    />
-                  )}
-                >
-                  임시 저장
-                </Button>
-                <Button
-                  disabled={busy || dirty || !data.batch}
-                  onClick={() => void run(() => changeOpeningBalances(data.propertyId, data.batch!, 'confirm'))}
-                  leadingIcon={(
-                    <ServiceIcon
-                      name={'check'}
-                    />
-                  )}
-                >
-                  인계 확정
-                </Button>
+                {confirmed && (
+                  <Button
+                    variant={'outline'}
+                    disabled={busy || data.initialCorrectionAllowed !== true}
+                    onClick={() => {
+                      if (window.matchMedia('(max-width: 767px)').matches) {
+                        router.push(`/manage/${data.propertyId}/billing/monthly/initial-correction`); return;
+                      }
+                      setCorrectingInitial(true);
+                    }}
+                  >
+                    초기 기준 정정
+                  </Button>
+                )}
+                {confirmed ? (
+                  <Button
+                    variant={'outline'}
+                    disabled={busy || data.initialCorrectionAllowed === false}
+                    onClick={() => { setCorrectionId(null); setCanceling(true); }}
+                  >
+                    인계 정정
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant={'outline'}
+                      loading={busy}
+                      onClick={() => void save()}
+                      leadingIcon={(
+                        <ServiceIcon
+                          name={'receipt'}
+                        />
+                      )}
+                    >
+                      임시 저장
+                    </Button>
+                    <Button
+                      disabled={busy || dirty || !data.batch}
+                      onClick={() => void run(() => changeOpeningBalances(data.propertyId, data.batch!, 'confirm'))}
+                      leadingIcon={(
+                        <ServiceIcon
+                          name={'check'}
+                        />
+                      )}
+                    >
+                      인계 확정
+                    </Button>
+                  </>
+                )}
               </>
             )}
           </div>
         </div>
+        {data.managementStarted && data.correctionDeadline && (
+          <p
+            className={styles['correction-period']}
+          >
+            {!initialLocked ? `초기 기준 정정 가능: ${data.correctionDeadline}까지` : `초기 기준 잠금 · 정정 기한 ${data.correctionDeadline}`}
+          </p>
+        )}
         <fieldset
           className={styles.dates}
           disabled={busy || confirmed || data.managementStarted}
@@ -490,6 +540,7 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, onDraft }: { dat
         units={units}
         busy={busy}
         confirmed={confirmed}
+        locked={initialLocked}
         onUpload={openUpload}
         onEdit={(unitId) => {
           if (confirmed) { setCorrectionId(unitId); setCanceling(true); return; }
@@ -512,7 +563,7 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, onDraft }: { dat
         </div>
         <fieldset
           className={styles.accounts}
-          disabled={busy || confirmed}
+          disabled={busy || confirmed || initialLocked}
         >
           {accounts.map((account) => (
             <div
@@ -535,17 +586,30 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, onDraft }: { dat
                   {account.label}
                 </strong>
               </div>
-              <AmountInput
-                label={'시작 잔액'}
-                aria-label={`${account.label} 시작 잔액`}
-                value={account.amount}
-                onChange={(value) => {
-                  setAccounts((rows) => rows.map((row) => row.accountId === account.accountId ? {
-                    ...row,
-                    amount: value
-                  } : row)); setDirty(true);
-                }}
-              />
+              {confirmed ? (
+                <div
+                  className={styles['account-amount']}
+                >
+                  <span>
+                    시작 잔액
+                  </span>
+                  <strong>
+                    {account.initialBalance === false ? '인계 기록 없음' : `${formatInteger(account.amount)}원`}
+                  </strong>
+                </div>
+              ) : (
+                <AmountInput
+                  label={'시작 잔액'}
+                  aria-label={`${account.label} 시작 잔액`}
+                  value={account.amount}
+                  onChange={(value) => {
+                    setAccounts((rows) => rows.map((row) => row.accountId === account.accountId ? {
+                      ...row,
+                      amount: value
+                    } : row)); setDirty(true);
+                  }}
+                />
+              )}
             </div>
           ))}
           {!accounts.length && (
@@ -603,6 +667,16 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, onDraft }: { dat
           </p>
         )}
       </ListCard>
+      <InitialBalanceHistoryView
+        changes={data.corrections}
+      />
+      {correctingInitial && (
+        <InitialBalanceEditor
+          data={data}
+          onClose={() => setCorrectingInitial(false)}
+          onSaved={(saved) => { setCorrectingInitial(false); onSaved(saved); }}
+        />
+      )}
       {selected && (
         <OpeningUnitEditor
           unit={selected}
@@ -722,5 +796,66 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, onDraft }: { dat
         />
       )}
     </div>
+  );
+}
+
+/** 정정 기한이나 원 인계 유무와 무관하게 저장한 초기 기준 정정 이력은 계속 조회합니다. */
+function InitialBalanceHistoryView({ changes }: { changes?: OpeningWorkspace['corrections'] }) {
+  if (!changes?.length) return null;
+  return (
+    <ListCard>
+      <h2>
+        초기 기준 정정 이력
+      </h2>
+      <ul
+        className={styles.history}
+      >
+        {changes.map((change) => (
+          <li
+            key={change.id}
+          >
+            <strong>
+              {change.kind === 'BUILDING' ? '동별 시작 잔고' : change.kind === 'ACCOUNT' ? '통장 시작 잔액' : '인계 기준일·통장 시작 잔액'}
+            </strong>
+            <span>
+              {new Date(change.changedAt).toLocaleString('ko-KR', {
+                timeZone: 'Asia/Seoul'
+              })}
+              {' '}
+              ·
+              {' '}
+              {change.changedByName}
+            </span>
+            <p>
+              기준일
+              {change.previousDate ?? '미설정'}
+              {' '}
+              →
+              {change.newDate ?? '미설정'}
+            </p>
+            {change.details.map((detail) => (
+              <p
+                key={detail.targetId}
+              >
+                {detail.label}
+                :
+                {' '}
+                {detail.previousBillingMonth ?? (detail.previousAmount === null ? '미설정' : `${formatInteger(detail.previousAmount)}원`)}
+                {' '}
+                →
+                {' '}
+                {detail.newBillingMonth ?? (detail.newAmount === null ? '미설정' : `${formatInteger(detail.newAmount)}원`)}
+                {detail.generatedMonths?.length ? ` · 추가 부과: ${detail.generatedMonths.join(', ')}` : ''}
+              </p>
+            ))}
+            <p>
+              사유:
+              {' '}
+              {change.reason}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </ListCard>
   );
 }

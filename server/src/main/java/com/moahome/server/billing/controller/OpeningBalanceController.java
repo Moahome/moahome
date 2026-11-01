@@ -71,6 +71,13 @@ public class OpeningBalanceController {
 		return safe(service.cancel(UUID.fromString(actor.userId()), propertyId, batchId, input));
 	}
 
+	@PostMapping("/{batchId}/initial-corrections")
+	public ResponseEntity<OpeningBalanceResponse> correctInitial(@AuthenticationPrincipal AuthPrincipal actor,
+	    @PathVariable UUID propertyId, @PathVariable UUID batchId,
+	    @Valid @RequestBody InitialBalanceCorrection.Input input) {
+		return safe(service.correctInitial(UUID.fromString(actor.userId()), propertyId, batchId, input));
+	}
+
 	private <T> ResponseEntity<T> safe(T result) {
 		return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(result);
 	}

@@ -11,6 +11,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.banking.repo.BankAccountRepository;
+import com.moahome.server.banking.repo.BankTransactionRepository;
+import com.moahome.server.expense.repo.ExpenseRepository;
 import com.moahome.server.billing.domain.*;
 import com.moahome.server.billing.dto.*;
 import com.moahome.server.billing.repo.*;
@@ -56,12 +58,21 @@ public class OpeningBalanceService {
 
 	private final Clock clock;
 
+	private final InitialBalanceCorrections corrections;
+
+	private final BankTransactionRepository transactions;
+
+	private final ExpenseRepository expenses;
+
+	private final BankBillingStartService billingStart;
+
 	public OpeningBalanceService(ManagementAccessService access, PropertyRepository properties, UnitRepository units,
 	    BuildingRepository buildings, BankAccountRepository accounts, OpeningBalanceBatchRepository batches,
 	    OpeningBalanceItemRepository items, BankOpeningBalanceRepository bankBalances,
 	    CreditApplicationRepository applications, ChargeRepository charges, PaymentRepository payments,
 	    BillingGenerationService generation, CumulativePaymentService cumulative,
-	    @Lazy PaymentTextSecurity security, Clock clock) {
+	    @Lazy PaymentTextSecurity security, Clock clock, InitialBalanceCorrections corrections,
+	    BankTransactionRepository transactions, ExpenseRepository expenses, BankBillingStartService billingStart) {
 		this.access = access;
 		this.properties = properties;
 		this.units = units;
@@ -77,6 +88,10 @@ public class OpeningBalanceService {
 		this.cumulative = cumulative;
 		this.security = security;
 		this.clock = clock;
+		this.corrections = corrections;
+		this.transactions = transactions;
+		this.expenses = expenses;
+		this.billingStart = billingStart;
 	}
 
 	private void requireManagementAccess(UUID actor, UUID property) {
@@ -124,13 +139,15 @@ public class OpeningBalanceService {
 		List<OpeningBalanceResponse.Account> accountRows = accounts.findByPropertyIdAndDeletedAtIsNull(propertyId)
 		    .stream()
 		    .map(a -> new OpeningBalanceResponse.Account(a.getId(), a.getBankName() + " ····" + a.getAccountLast4(),
-		        banks.containsKey(a.getId()) ? banks.get(a.getId()).getAmount().toPlainString() : "0", a.getBankCode()))
+		        banks.containsKey(a.getId()) ? banks.get(a.getId()).getAmount().toPlainString() : "0", a.getBankCode(), banks.containsKey(a.getId())))
 		    .toList();
 		return new OpeningBalanceResponse(propertyId, LocalDate.now(clock.withZone(BillingCalendar.ZONE)),
 		    property.getManagementStartedAt() != null, property.getBalanceCutoffDate(),
 		    property.getFirstBillingMonth() == null ? null : YearMonth.from(property.getFirstBillingMonth()).toString(),
 		    latest == null ? null : batchResponse(latest), unitRows, accountRows,
-		    history.stream().map(this::batchResponse).toList());
+		    history.stream().map(this::batchResponse).toList(), corrections.deadline(property),
+		    latest != null && "CONFIRMED".equals(latest.getStatus()) && corrections.allowed(property),
+		    corrections.history(propertyId));
 	}
 
 	private OpeningBalanceResponse.Batch batchResponse(OpeningBalanceBatch batch) {
@@ -143,6 +160,8 @@ public class OpeningBalanceService {
 	@Transactional
 	public OpeningBalanceResponse save(UUID actor, UUID propertyId, OpeningBalanceRequest input) {
 		var property = lock(actor, propertyId);
+		if (property.getManagementStartedAt() != null)
+			corrections.requireAllowed(property);
 		var first = BillingCalendar.parseMonth(input.firstBillingMonth());
 		validateDates(property, input.cutoffDate(), first);
 		var existing = batches.findByPropertyIdOrderByCreatedAtDesc(propertyId).stream()
@@ -192,13 +211,10 @@ public class OpeningBalanceService {
 		return response(propertyId);
 	}
 
-	/** 기존 시스템 사용 대상에는 임의의 도입 잔액을 소급 추가하지 않습니다. 정정 시 최초 기준일·첫 부과월은 고정합니다. */
+	/** 기존 시스템 사용 대상에는 임의의 도입 잔액을 소급 추가하지 않습니다. 취소 후 재인계는 저장된 기준일·첫 부과월을 유지하며 초기 기준일 정정은 전용 경로로 처리합니다. */
 	private void validateDates(Property property, LocalDate cutoff, YearMonth first) {
 		if (cutoff == null || cutoff.isAfter(LocalDate.now(clock.withZone(BillingCalendar.ZONE)))
-		    || !first.atDay(1).isAfter(cutoff) || first.isAfter(BillingCalendar.currentMonth(clock).plusMonths(1)))
-			throw new PaymentException("INVALID_OPENING_DATES");
-		if (property.getManagementStartedAt() == null
-		    && first.isBefore(YearMonth.from(property.getCreatedAt().atZoneSameInstant(BillingCalendar.ZONE))))
+		    || !BillingCalendar.validStart(cutoff, first) || first.isAfter(BillingCalendar.currentMonth(clock).plusMonths(1)))
 			throw new PaymentException("INVALID_OPENING_DATES");
 		if (property.getManagementStartedAt() != null
 		    && (property.getBalanceCutoffDate() == null || !property.getBalanceCutoffDate().equals(cutoff)
@@ -216,6 +232,8 @@ public class OpeningBalanceService {
 		var batch = required(propertyId, batchId);
 		if ("CONFIRMED".equals(batch.getStatus()))
 			return response(propertyId);
+		if (property.getManagementStartedAt() != null)
+			corrections.requireAllowed(property);
 		if (!"DRAFT".equals(batch.getStatus()) || batch.getRevision() != revision)
 			throw new PaymentException("OPENING_BALANCE_CONFLICT");
 		var first = YearMonth.from(batch.getFirstBillingMonth());
@@ -247,9 +265,9 @@ public class OpeningBalanceService {
 		properties.flush();
 		items.flush();
 		batches.flush();
-		// 과거 월 전체를 재생성하지 않고 선택한 첫 월만 생성합니다. 이후 누락 월 복구는 기존 스케줄이 담당합니다.
-		if (!first.isAfter(BillingCalendar.currentMonth(clock)))
-			generation.generate(propertyId, first);
+		// 통장 기준일로 도입한 첫 월부터 현재 월까지 빠진 청구를 먼저 생성한 뒤 실제 입금을 반영합니다.
+		for (YearMonth month = first; !month.isAfter(BillingCalendar.currentMonth(clock)); month = month.plusMonths(1))
+			generation.generateInitial(propertyId, month);
 		cumulative.settle(propertyId, actor);
 		return response(propertyId);
 	}
@@ -264,6 +282,7 @@ public class OpeningBalanceService {
 			return response(propertyId);
 		if (batch.getRevision() != input.revision() || !"CONFIRMED".equals(batch.getStatus()))
 			throw new PaymentException("OPENING_BALANCE_CONFLICT");
+		corrections.requireAllowed(properties.findById(propertyId).orElseThrow());
 		if (payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(propertyId).stream()
 		    .anyMatch(p -> "CONFIRMED".equals(p.getStatus())))
 			throw new PaymentException("OPENING_ALREADY_HAS_RECEIPTS");
@@ -279,6 +298,76 @@ public class OpeningBalanceService {
 		batch.cancel(actor, input.reason(), at);
 		batches.flush();
 		return response(propertyId);
+	}
+
+	/** 확정 인계를 취소하지 않고 초기 통장 기준과 필요한 부과를 함께 정정하며 기존 청구 금액·실제 수납은 보존합니다. */
+	@Transactional
+	public OpeningBalanceResponse correctInitial(UUID actor, UUID propertyId, UUID batchId,
+	    InitialBalanceCorrection.Input input) {
+		lock(actor, propertyId);
+		if (corrections.replay(input.id(), propertyId, actor, "HANDOVER", new InitialBalanceCorrection.Request(batchId, input)))
+			return response(propertyId);
+		var property = properties.findById(propertyId).orElseThrow();
+		corrections.requireAllowed(property);
+		var batch = required(propertyId, batchId);
+		if (!"CONFIRMED".equals(batch.getStatus()) || batch.getRevision() != input.revision())
+			throw new PaymentException("INITIAL_BALANCE_CONFLICT");
+		LocalDate cutoff = input.cutoffDate();
+		if (cutoff == null || cutoff.isAfter(LocalDate.now(clock.withZone(BillingCalendar.ZONE))))
+			throw new PaymentException("INVALID_INITIAL_BALANCE_DATE");
+		List<OpeningBalanceItem> entries = items.findByBatchId(batchId);
+		if (entries.stream().anyMatch(i -> i.getOriginMonth() != null
+		    && YearMonth.parse(i.getOriginMonth()).isAfter(YearMonth.from(cutoff))))
+			throw new PaymentException("INVALID_INITIAL_BALANCE_DATE");
+		LocalDate previous = batch.getCutoffDate();
+		// 동별 잔고가 있는 통장은 개별 정정창에서 새 날짜의 보유금까지 함께 확인해야 합니다.
+		if (!previous.equals(cutoff) && !buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId).isEmpty())
+			throw new PaymentException("INITIAL_BALANCE_USE_BANK_CORRECTION");
+		var billingImpact = billingStart.require(actor, propertyId, null, cutoff, input.billingToken(), input.confirmBilling());
+		// 기준일을 넘나드는 기존 거래를 자동으로 초기 이력/운영 거래로 바꾸지 않습니다.
+		if (!previous.equals(cutoff) && (
+		    transactions.findByPropertyId(propertyId).stream().anyMatch(t -> crosses(t.getTransactionDate(), previous, cutoff))
+		    || payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(propertyId).stream()
+		        .anyMatch(p -> crosses(p.getPaymentDate(), previous, cutoff))
+		    || expenses.findByPropertyIdOrderByConfirmedAtDesc(propertyId).stream()
+		        .anyMatch(e -> crosses(e.getExpenseDate(), previous, cutoff))))
+			throw new PaymentException("INITIAL_BALANCE_TRANSACTION_CONFLICT");
+		List<BankOpeningBalance> saved = bankBalances.findByBatchId(batchId);
+		Map<UUID, String> amounts = new HashMap<>();
+		for (var part : input.accounts()) {
+			money(part.amount());
+			if (amounts.put(part.accountId(), part.amount()) != null)
+				throw new PaymentException("INITIAL_BALANCE_CONFLICT");
+		}
+		if (!amounts.keySet().equals(saved.stream().map(BankOpeningBalance::getBankAccountId).collect(Collectors.toSet())))
+			throw new PaymentException("OPENING_TARGETS_CHANGED");
+		Map<UUID, String> labels = accounts.findByPropertyIdAndDeletedAtIsNull(propertyId).stream()
+		    .collect(Collectors.toMap(a -> a.getId(), a -> a.getBankName() + " ····" + a.getAccountLast4()));
+		List<InitialBalanceCorrection.Detail> details = new ArrayList<>(saved.stream().map(row ->
+		    new InitialBalanceCorrection.Detail(row.getBankAccountId(), labels.getOrDefault(row.getBankAccountId(), "인계 통장"),
+		        row.getCutoffDate(), cutoff, row.getAmount().toPlainString(), amounts.get(row.getBankAccountId()))).toList());
+		if (billingImpact.changed() || !billingImpact.missingMonths().isEmpty())
+			details.add(billingStart.detail(propertyId, billingImpact));
+		corrections.record(input.id(), propertyId, actor, "HANDOVER", new InitialBalanceCorrection.Request(batchId, input),
+		    input.reason(), previous, cutoff, details);
+		billingStart.apply(propertyId, cutoff, billingImpact);
+		if (!billingImpact.dateChanged())
+			batch.correctInitialCutoff(cutoff);
+		for (var row : saved)
+			row.correctInitial(cutoff, money(amounts.get(row.getBankAccountId())));
+		for (var entry : entries) {
+			if (entry.getChargeId() != null)
+				charges.findById(entry.getChargeId()).orElseThrow().correctOpeningDate(cutoff);
+		}
+		batches.flush();
+		bankBalances.flush();
+		properties.flush();
+		charges.flush();
+		return response(propertyId);
+	}
+
+	private boolean crosses(LocalDate date, LocalDate previous, LocalDate next) {
+		return date.isAfter(previous) != date.isAfter(next);
 	}
 
 	private OpeningBalanceBatch required(UUID property, UUID id) {

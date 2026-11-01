@@ -1,5 +1,6 @@
 package com.moahome.server.banking.controller;
 
+import com.moahome.server.billing.service.BankBillingStartService;
 import java.util.*;
 
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @Import(BankingBalanceControllerTest.Security.class)
 class BankingBalanceControllerTest {
+	@MockitoBean
+	BankBillingStartService billingStart;
 	@Autowired
 	MockMvc mvc;
 

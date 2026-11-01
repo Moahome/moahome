@@ -64,6 +64,8 @@ import com.moahome.server.billing.service.BillingGenerationService;
 import com.moahome.server.billing.service.BillingService;
 import com.moahome.server.billing.service.BillingTemplates;
 import com.moahome.server.billing.service.OpeningBalanceService;
+import com.moahome.server.billing.service.InitialBalanceCorrections;
+import com.moahome.server.billing.service.BankBillingStartService;
 import com.moahome.server.expense.service.ExpenseService;
 import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.membership.dto.SignupRequests;
@@ -183,6 +185,12 @@ class SecurityIntegrationTest {
 
 	@MockitoBean
 	private OpeningBalanceService openingBalances;
+
+	@MockitoBean
+	private InitialBalanceCorrections initialBalanceCorrections;
+
+	@MockitoBean
+	private BankBillingStartService bankBillingStart;
 
 	@MockitoBean
 	private MemberManagementService memberManagement;

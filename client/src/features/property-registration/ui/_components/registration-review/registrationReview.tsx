@@ -553,6 +553,11 @@ export function RegistrationReview({
             <h3>
               잔액 인계 및 관리 시작
             </h3>
+            {draft.openingBalances.automaticBilling && (
+              <p>
+                통장 기준일로 계산한 첫 부과월부터 현재 월까지 초기 기본 항목·금액으로 부과합니다. 기존 미납·선납에 같은 달 금액이 중복되지 않는지 확인해주세요.
+              </p>
+            )}
             <dl
               className={styles['info-list']}
             >

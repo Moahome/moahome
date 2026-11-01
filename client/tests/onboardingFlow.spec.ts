@@ -1214,7 +1214,9 @@ for (const width of [1440, 390]) {
     }).filter({
       hasText: '계좌 정보를 변경했어요.'
     });
-    await expect(toast.getByRole('status')).toHaveCSS('color', 'rgb(255, 255, 255)');
+    await expect(toast).toHaveCSS('background-color', 'rgb(236, 252, 203)');
+    await expect(toast.getByRole('status')).toHaveCSS('color', 'rgb(22, 101, 52)');
+    await expect(toast).toHaveCSS('border-radius', width < 768 ? '999px' : '8px');
     await page.screenshot({
       path: test.info().outputPath(`accountSuccessToast${width}.png`),
       fullPage: true,
@@ -2934,5 +2936,174 @@ for (const width of [1440, 390, 320]) {
       name: '인계 확정',
       exact: true
     })).toBeEnabled();
+  });
+}
+
+for (const width of [1440, 390]) {
+  test(`초기 기준 정정 ${width}px는 전용 화면에서 사유와 초기 금액을 저장하고 이력을 표시`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    await mockWorkspace(page);
+    let legacy = false;
+    let workspace = {
+      propertyId: PROPERTY,
+      asOf: '2026-11-01',
+      managementStarted: true,
+      cutoffDate: '2026-10-31',
+      firstBillingMonth: '2026-11',
+      batch: {
+        id: id(901),
+        revision: 1,
+        status: 'CONFIRMED',
+        cutoffDate: '2026-10-31',
+        firstBillingMonth: '2026-11',
+        confirmedAt: '2026-11-01T00:00:00Z',
+        canceledAt: null,
+        cancelReason: null
+      },
+      units: [{
+        unitId: id(101),
+        label: '101호',
+        receivable: '0',
+        credit: '50000',
+        originMonth: null,
+        responsibility: null
+      }],
+      accounts: [{
+        accountId: id(2),
+        bankCode: '081',
+        label: '하나은행 ····5107',
+        amount: '514614'
+      }],
+      history: [],
+      correctionDeadline: '2026-11-30',
+      initialCorrectionAllowed: true,
+      corrections: [] as unknown[]
+    };
+    const requests: Record<string, unknown>[] = [];
+    await page.route(`${API}/api/properties/${PROPERTY}/billing/opening-balances**`, (route) => {
+      if (route.request().method() === 'OPTIONS') return json(route, {});
+      if (route.request().method() === 'POST') {
+        const input = route.request().postDataJSON();
+        requests.push(input);
+        if (requests.length === 1) return json(route, {
+          code: 'PAYMENT_SERVICE_UNAVAILABLE'
+        }, 503);
+        expect(input.reason).toBe('기준일과 시작 금액 오입력 정정');
+        expect(input.cutoffDate).toBe('2026-10-31');
+        expect(input.accounts).toEqual([{
+          accountId: id(2),
+          amount: '520000'
+        }]);
+        workspace = {
+          ...workspace,
+          cutoffDate: input.cutoffDate,
+          batch: {
+            ...workspace.batch,
+            cutoffDate: input.cutoffDate,
+            revision: 2
+          },
+          accounts: [{
+            ...workspace.accounts[0],
+            amount: '520000'
+          }],
+          corrections: [{
+            id: input.id,
+            kind: 'HANDOVER',
+            previousDate: '2026-10-31',
+            newDate: input.cutoffDate,
+            details: [{
+              targetId: id(2),
+              label: '하나은행 ····5107',
+              previousDate: '2026-10-31',
+              newDate: input.cutoffDate,
+              previousAmount: '514614',
+              newAmount: '520000'
+            }],
+            reason: input.reason,
+            changedBy: id(1),
+            changedByName: '관리자',
+            changedAt: '2026-11-01T03:00:00Z'
+          }]
+        };
+      }
+      return json(route, legacy ? {
+        ...workspace,
+        batch: null,
+        cutoffDate: null
+      } : workspace);
+    });
+    await page.goto(`${BASE}/billing/monthly?tab=opening`);
+    await expect(page.getByLabel('하나은행 ····5107 시작 잔액')).toHaveCount(0);
+    await page.getByRole('button', {
+      name: '초기 기준 정정',
+      exact: true
+    }).click();
+    const form = width < 768 ? page.getByRole('main') : page.getByRole('dialog');
+    if (width < 768) {
+      await expect(page).toHaveURL(`${BASE}/billing/monthly/initial-correction`);
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page.getByRole('banner')).toContainText('초기 기준 정정');
+    }
+    await expect(form.getByRole('button', {
+      name: '초기 기준일',
+      exact: false
+    })).toBeDisabled();
+    await form.getByLabel('하나은행 ····5107 시작 잔액').fill('520000');
+    await form.getByRole('button', {
+      name: '정정 저장',
+      exact: true
+    }).click();
+    await expect(form.getByRole('alert')).toContainText('정정 사유');
+    expect(requests).toHaveLength(0);
+    await form.getByLabel('정정 사유').fill('기준일과 시작 금액 오입력 정정');
+    await page.screenshot({
+      path: `/tmp/moahome-initial-correction-${width}.png`,
+      animations: 'disabled',
+      fullPage: true
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await form.getByRole('button', {
+      name: '정정 저장',
+      exact: true
+    }).click();
+    await expect(form.getByRole('alert')).toBeVisible();
+    await expect(form.getByLabel('하나은행 ····5107 시작 잔액')).toHaveValue('520,000');
+    await form.getByRole('button', {
+      name: '정정 저장',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(`${BASE}/billing/monthly?tab=opening`);
+    await expect(page.getByRole('heading', {
+      name: '초기 기준 정정 이력',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByText('사유: 기준일과 시작 금액 오입력 정정')).toBeVisible();
+    expect(requests[1]).toEqual(requests[0]);
+    workspace.initialCorrectionAllowed = false;
+    workspace.asOf = '2026-12-01';
+    await page.reload();
+    await expect(page.getByRole('button', {
+      name: '초기 기준 정정',
+      exact: true
+    })).toHaveCount(0);
+    await page.goto(`${BASE}/billing/monthly/initial-correction`);
+    await expect(page.getByRole('button', {
+      name: '정정 저장',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByLabel('정정 사유')).toBeDisabled();
+    legacy = true;
+    await page.goto(`${BASE}/billing/monthly?tab=opening`);
+    await expect(page.getByRole('heading', {
+      name: '이미 관리비 부과를 시작한 곳이에요',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('heading', {
+      name: '초기 기준 정정 이력',
+      exact: true
+    })).toBeVisible();
   });
 }

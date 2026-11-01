@@ -6,6 +6,7 @@ export {
   saveBillingSettings
 } from './api/billingApi';
 export {
+  correctInitialBalances,
   changeOpeningBalances,
   getOpeningBalances,
   openingBalanceError,
@@ -13,6 +14,7 @@ export {
   saveOpeningBalances
 } from './api/openingBalanceApi';
 export type {
+  InitialBalanceInput,
   OpeningInput,
   OpeningWorkspace
 } from './api/openingBalanceApiTypes';

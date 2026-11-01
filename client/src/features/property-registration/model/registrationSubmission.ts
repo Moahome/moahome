@@ -42,6 +42,7 @@ function restoreSubmittedOpening(request: RegistrationRequest): OpeningBalancesD
   const value = request.openingBalances;
   if (!value) return null;
   if (typeof value.cutoffDate !== 'string' || typeof value.firstBillingMonth !== 'string'
+    || (value.automaticBilling !== undefined && typeof value.automaticBilling !== 'boolean')
     || !(value.cashCutoffDate === null || typeof value.cashCutoffDate === 'string')
     || !Array.isArray(value.units) || value.units.length !== request.units.length
     || !Array.isArray(value.buildings) || value.buildings.length !== request.buildings.length * (value.buildings.some((row) => row.accountIndex !== undefined) ? request.bankAccounts.length : 1)
@@ -51,6 +52,9 @@ function restoreSubmittedOpening(request: RegistrationRequest): OpeningBalancesD
   const opening: OpeningBalancesDraft = {
     cutoffDate: value.cutoffDate,
     firstBillingMonth: value.firstBillingMonth,
+    ...(value.automaticBilling ? {
+      automaticBilling: true
+    } : {}),
     unitMode: 'ENTER',
     units: {},
     buildings: {},
@@ -165,6 +169,9 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
       restored.openingBalances = {
         cutoffDate: old.cutoffDate,
         firstBillingMonth: old.firstBillingMonth,
+        ...(old.automaticBilling !== undefined ? {
+          automaticBilling: old.automaticBilling
+        } : {}),
         units: old.units.map((row) => ({
           buildingClientId: row.buildingClientId,
           unitNumber: row.unitNumber,
@@ -204,6 +211,9 @@ export function createRegistrationRequest(draft: RegistrationDraft, requestId: s
       openingBalances: {
         cutoffDate: draft.openingBalances.cutoffDate,
         firstBillingMonth: draft.openingBalances.firstBillingMonth,
+        ...(draft.openingBalances.automaticBilling ? {
+          automaticBilling: true
+        } : {}),
         units: draft.units.map((unit) => ({
           buildingClientId: unit.buildingClientId,
           unitNumber: unit.unitNumber,

@@ -5892,18 +5892,19 @@ for (const width of [1440, 390, 320]) {
     await expect(cashPanel.getByLabel('차이 +50,000원', {
       exact: true
     })).toBeVisible();
-    const dateControl = cashPanel.getByRole('button', {
-      name: /^동별 잔고 기준일:/
+    const dateControl = cashPanel.getByRole('group', {
+      name: '동별 잔고 통장 기준일',
+      exact: true
     });
     const accountControl = cashPanel.getByRole('combobox', {
       name: '입력할 통장',
       exact: true
     });
     if (width > 640) {
-      const accountTop = await accountControl.evaluate((element) => element.parentElement!.getBoundingClientRect().top);
-      expect(Math.abs((await dateControl.boundingBox())!.y - accountTop)).toBeLessThanOrEqual(1);
+      const accountFieldTop = await accountControl.evaluate((element) => element.parentElement!.parentElement!.getBoundingClientRect().top);
+      expect(Math.abs((await dateControl.boundingBox())!.y - accountFieldTop)).toBeLessThanOrEqual(1);
     }
-    await expect(dateControl.locator('..').locator('span[aria-hidden=true]').first()).toHaveCSS('color', 'rgb(239, 68, 68)');
+    await expect(dateControl).toContainText('통장 기준일');
 
     await page.screenshot({
       path: test.info().outputPath(`openingAccount${width}.png`),

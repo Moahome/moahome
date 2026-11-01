@@ -14,6 +14,9 @@ import com.moahome.server.banking.domain.*;
 import com.moahome.server.banking.dto.*;
 import com.moahome.server.banking.repo.*;
 import com.moahome.server.billing.domain.BankOpeningBalance;
+import com.moahome.server.billing.dto.InitialBalanceCorrection;
+import com.moahome.server.billing.service.InitialBalanceCorrections;
+import com.moahome.server.billing.service.BankBillingStartService;
 import com.moahome.server.billing.domain.BillingCalendar;
 import com.moahome.server.billing.domain.OpeningBalanceBatch;
 import com.moahome.server.billing.repo.BankOpeningBalanceRepository;
@@ -68,6 +71,10 @@ public class BankingBalanceService {
 
 	private final BankBalanceCheckRepository balanceChecks;
 
+	private final InitialBalanceCorrections corrections;
+
+	private final BankBillingStartService billingStart;
+
 	private final IncomeAllocationRepository incomeAllocations;
 
 	private final OpeningBalanceBatchRepository openingBatches;
@@ -83,7 +90,7 @@ public class BankingBalanceService {
 	    IncomeAllocationRepository incomeAllocations,
 	    OpeningBalanceBatchRepository openingBatches,
 	    BankOpeningBalanceRepository bankOpenings, BankTransferRepository transfers,
-	    BankBalanceCheckRepository balanceChecks) {
+	    BankBalanceCheckRepository balanceChecks, InitialBalanceCorrections corrections, BankBillingStartService billingStart) {
 		this.access = access;
 		this.properties = properties;
 		this.buildings = buildings;
@@ -104,6 +111,8 @@ public class BankingBalanceService {
 		this.bankOpenings = bankOpenings;
 		this.transfers = transfers;
 		this.balanceChecks = balanceChecks;
+		this.corrections = corrections;
+		this.billingStart = billingStart;
 	}
 
 	private LocalDate today() {
@@ -503,9 +512,12 @@ public class BankingBalanceService {
 		                    o -> new BankingBalanceResponse.LegacyOpeningPart(o.getBuildingId(), amount(o.getAmount())))
 		                .toList())
 		        : null;
+		var currentProperty = properties.findById(property).orElseThrow();
 		return new BankingBalanceResponse.Workspace(property, rawMonth, cutoff, confirmedBalance, confirmedAsOf, result,
 		    entries.stream().filter(e -> YearMonth.from(e.date()).equals(month)).toList(), external, income, pending,
-		    accountBalances, selectedAccountId, legacyOpening);
+		    accountBalances, selectedAccountId, legacyOpening,
+		    corrections.deadline(currentProperty),
+		    corrections.allowed(currentProperty));
 	}
 
 	/** 실제 확인값과 계산값이 충돌해도 어느 쪽의 남은 돈도 숨기지 않고, 근거가 없으면 미확인으로 남깁니다. */
@@ -592,10 +604,12 @@ public class BankingBalanceService {
 		    cutoff);
 	}
 
-	/** 새 통장 기초 잔액과 정정은 통장별 독립 기준일·버전으로 기록하고 동별 보유금·은행 원본을 변경하지 않습니다. */
+	/** 통장 초기 기준값을 버전으로 기록하고 날짜 정정은 확인한 동별 보유금·필요 부과와 함께 저장합니다. 은행 원본은 보존합니다. */
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public void saveAccountOpening(UUID user, UUID property, BankingBalanceRequests.AccountOpening request) {
 		lock(user, property);
+		if (corrections.replay(request.id(), property, user, "ACCOUNT", request))
+			return;
 		var repeated = bankOpenings.findById(request.id());
 		if (repeated.isPresent()) {
 			var saved = repeated.get();
@@ -606,6 +620,7 @@ public class BankingBalanceService {
 				throw new PaymentException("BANK_OPENING_CONFLICT");
 			return;
 		}
+		corrections.requireAllowed(properties.findById(property).orElseThrow());
 		if (request.cutoffDate().isAfter(today()))
 			throw new PaymentException("INVALID_BANK_OPENING_DATE");
 		if (request.amount() == null || !request.amount().matches("[0-9]{1,15}"))
@@ -619,9 +634,76 @@ public class BankingBalanceService {
 		    .orElse(0);
 		if (revision != request.revision())
 			throw new PaymentException("BANK_OPENING_CONFLICT");
+		List<BankOpeningBalance> previousRows = bankOpenings.findByPropertyIdAndBatchIdIsNullOrderByRevisionDesc(property)
+		    .stream().filter(o -> o.getBankAccountId().equals(request.accountId())).toList();
+		var previous = previousRows.isEmpty()
+		    ? openingBatches.findByPropertyIdOrderByCreatedAtDesc(property).stream()
+		        .filter(batch -> "CONFIRMED".equals(batch.getStatus())).findFirst()
+		        .flatMap(batch -> bankOpenings.findByBatchId(batch.getId()).stream()
+		            .filter(row -> request.accountId().equals(row.getBankAccountId())).findFirst()).orElse(null)
+		    : previousRows.getFirst();
+		var billingImpact = billingStart.require(user, property, request.accountId(), request.cutoffDate(),
+		    request.billingToken(), request.confirmBilling());
+		List<InitialBalanceCorrection.Detail> details = new ArrayList<>();
+		details.add(new InitialBalanceCorrection.Detail(request.accountId(), accounts.findById(request.accountId())
+		    .map(a -> a.getBankName() + " ····" + a.getAccountLast4()).orElse("통장 시작 잔액"),
+		    previous == null ? null : previous.getCutoffDate(), request.cutoffDate(),
+		    previous == null ? null : previous.getAmount().toPlainString(), request.amount()));
+		if (billingImpact.changed() || !billingImpact.missingMonths().isEmpty())
+			details.add(billingStart.detail(property, billingImpact));
+		alignBuildingOpenings(user, property, request, details);
+		corrections.record(request.id(), property, user, "ACCOUNT", request, request.reason(),
+		    previous == null ? null : previous.getCutoffDate(), request.cutoffDate(),
+		    details);
 		bankOpenings.saveAndFlush(BankOpeningBalance.independent(request.id(),
 		    property, request.accountId(), request.cutoffDate(), new BigDecimal(request.amount()), revision + 1, user,
 		    OffsetDateTime.now(clock)));
+		billingStart.apply(property, request.cutoffDate(), billingImpact);
+	}
+
+	/** 통장 날짜를 옮길 때 등록된 동의 보유금도 새 날짜 값으로 확인받고 전부 함께 정정합니다. */
+	private void alignBuildingOpenings(UUID actor, UUID property, BankingBalanceRequests.AccountOpening request,
+	    List<InitialBalanceCorrection.Detail> details) {
+		List<BuildingCashOpening> saved = openings.findByPropertyId(property).stream()
+		    .filter(row -> request.accountId().equals(row.getBankAccountId())).toList();
+		if (saved.stream().allMatch(row -> row.getCutoffDate().equals(request.cutoffDate())))
+			return;
+		if (request.buildings() == null || request.buildings().size() != saved.size())
+			throw new PaymentException("INITIAL_BUILDING_CONFIRMATION_REQUIRED");
+		Map<UUID, BankingBalanceRequests.OpeningCorrectionPart> parts = new HashMap<>();
+		for (var part : request.buildings()) {
+			if (parts.put(part.buildingId(), part) != null)
+				throw new PaymentException("CASH_OPENING_CONFLICT");
+		}
+		Map<UUID, String> names = buildings.findByPropertyId(property).stream()
+		    .collect(Collectors.toMap(Building::getId, Building::getName));
+		for (var row : saved) {
+			var part = parts.get(row.getBuildingId());
+			if (part == null || row.getRevision() != part.revision())
+				throw new PaymentException("CASH_OPENING_CONFLICT");
+			details.add(new InitialBalanceCorrection.Detail(row.getBuildingId(), names.getOrDefault(row.getBuildingId(), "동"),
+			    row.getCutoffDate(), request.cutoffDate(), row.getAmount().toPlainString(), part.amount()));
+		}
+		for (var row : saved)
+			row.correct(request.cutoffDate(), parts.get(row.getBuildingId()).amount(), request.id(), actor, OffsetDateTime.now(clock));
+		openings.flush();
+	}
+
+	/** 동별 보유금의 날짜를 통장 시작 잔액과 따로 변경하지 못하게 서버에서도 검사합니다. 이전 미분류 이력은 보존합니다. */
+	private void requireBankCutoff(UUID property, UUID accountId, LocalDate cutoff) {
+		if (accountId == null)
+			return;
+		var date = bankOpenings.findByPropertyIdAndBatchIdIsNullOrderByRevisionDesc(property).stream()
+		    .filter(row -> accountId.equals(row.getBankAccountId())).findFirst().map(BankOpeningBalance::getCutoffDate);
+		if (date.isEmpty()) {
+			date = openingBatches.findByPropertyIdOrderByCreatedAtDesc(property).stream()
+			    .filter(batch -> "CONFIRMED".equals(batch.getStatus())).findFirst()
+			    .flatMap(batch -> bankOpenings.findByBatchId(batch.getId()).stream()
+			        .filter(row -> accountId.equals(row.getBankAccountId())).findFirst())
+			    .map(BankOpeningBalance::getCutoffDate);
+		}
+		if (date.isPresent() && !date.get().equals(cutoff))
+			throw new PaymentException("CASH_OPENING_BANK_DATE_MISMATCH");
 	}
 
 	/** 통장별 기준값은 같은 관리대상의 공용 통장만 허용하며 종료 통장도 과거 값 정정에 사용할 수 있습니다. */
@@ -637,6 +719,7 @@ public class BankingBalanceService {
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public void saveOpenings(UUID user, UUID property, BankingBalanceRequests.Opening request) {
 		lock(user, property);
+		requireBankCutoff(property, request.accountId(), request.cutoffDate());
 		var cutoff = request.cutoffDate();
 		if (cutoff.isAfter(today()))
 			throw new PaymentException("INVALID_CASH_OPENING_DATE");
@@ -665,6 +748,10 @@ public class BankingBalanceService {
 		}
 		if (!current.stream().allMatch(id -> byId.containsKey(id) || seen.contains(id)))
 			throw new PaymentException("INVALID_CASH_OPENING");
+		var currentProperty = properties.findById(property).orElseThrow();
+		// 초기 등록 트랜잭션은 운영 시작 전 동별 값을 먼저 저장합니다. 운영 중 추가만 기한을 검사합니다.
+		if (!added.isEmpty() && currentProperty.getManagementStartedAt() != null)
+			corrections.requireAllowed(currentProperty);
 		openings.saveAllAndFlush(added);
 	}
 
@@ -673,6 +760,10 @@ public class BankingBalanceService {
 	public void correctOpenings(UUID user, UUID property, BankingBalanceRequests.OpeningCorrection request) {
 		lock(user, property);
 		requireOpeningAccount(property, request.accountId());
+		if (corrections.replay(request.id(), property, user, "BUILDING", request))
+			return;
+		requireBankCutoff(property, request.accountId(), request.cutoffDate());
+		corrections.requireAllowed(properties.findById(property).orElseThrow());
 		List<BuildingCashOpeningChange> repeated = openingChanges.findByRequestId(request.id());
 		if (!repeated.isEmpty()) {
 			Map<UUID, BuildingCashOpeningChange> repeatedByBuilding = repeated.stream()
@@ -708,6 +799,17 @@ public class BankingBalanceService {
 			if (current.getRevision() != part.revision())
 				throw new PaymentException("CASH_OPENING_CONFLICT");
 		}
+		Map<UUID, String> labels = buildings.findByPropertyId(property).stream()
+		    .collect(Collectors.toMap(Building::getId, Building::getName));
+		String accountLabel = request.accountId() == null ? "미분류 통장" : accounts.findById(request.accountId())
+		    .map(a -> a.getBankName() + " ····" + a.getAccountLast4()).orElse("인계 통장");
+		List<InitialBalanceCorrection.Detail> details = request.buildings().stream().map(part -> {
+			var old = byId.get(part.buildingId());
+			return new InitialBalanceCorrection.Detail(part.buildingId(), accountLabel + " / " + labels.getOrDefault(part.buildingId(), "동"),
+			    old.getCutoffDate(), request.cutoffDate(), old.getAmount().toPlainString(), part.amount());
+		}).toList();
+		corrections.record(request.id(), property, user, "BUILDING", request, request.reason(),
+		    saved.getFirst().getCutoffDate(), request.cutoffDate(), details);
 		// 검증을 모두 마친 뒤 변경해 일부 동만 새 기준일로 남지 않게 합니다. DB가 이전 값과 수정자를 보관합니다.
 		var at = OffsetDateTime.now(clock);
 		for (var part : request.buildings())

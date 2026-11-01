@@ -27,6 +27,7 @@ export interface RegistrationRequest {
   openingBalances?: {
     cutoffDate: string;
     firstBillingMonth: string;
+    automaticBilling?: boolean;
     units: {
       buildingClientId: string | null;
       unitNumber: string;

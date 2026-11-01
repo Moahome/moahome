@@ -79,6 +79,8 @@ export type AccountBalance = {
 };
 
 export type BalanceWorkspace = {
+  correctionDeadline?: string | null;
+  initialCorrectionAllowed?: boolean;
   accounts?: AccountBalance[];
   legacyOpening?: {
     cutoffDate: string;
@@ -116,6 +118,7 @@ export interface CashOpeningInput {
 }
 
 export interface CashOpeningCorrectionInput {
+  reason?: string;
   id: string;
   accountId?: string;
   cutoffDate: string;
@@ -162,3 +165,26 @@ export type BankBalanceCheck = {
 export type BankBalanceCheckInput = { id: string; accountId: string; amount: string; checkedAt: string; sourceType: BankBalanceCheck['sourceType']; memo?: string };
 
 export type BankBalanceCheckHistory = { propertyId: string; accountId: string; checks: BankBalanceCheck[] };
+
+export interface BankInitialBalanceInput {
+  id: string;
+  accountId: string;
+  cutoffDate: string;
+  amount: string;
+  revision: number;
+  reason: string;
+  billingToken?: string;
+  confirmBilling?: boolean;
+  buildings?: { buildingId: string; amount: string; revision: number }[];
+}
+
+export interface BankBillingImpact {
+  primary: boolean;
+  dateChanged: boolean;
+  changed: boolean;
+  previousMonth: string;
+  nextMonth: string;
+  missingMonths: { month: string; unitCount: number; amount: string; initialSettings?: boolean }[];
+  blockedReason: string | null;
+  token: string;
+}

@@ -81,3 +81,21 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.inherited-date {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  font-size: 14px;
+
+  span {
+    color: var(--sub-text);
+  }
+
+  strong {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    color: var(--foreground);
+  }
+}

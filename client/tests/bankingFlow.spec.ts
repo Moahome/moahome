@@ -2071,6 +2071,10 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     name: '기준 잔고 수정',
     exact: true
   });
+  await correction.getByRole('textbox', {
+    name: '정정 사유',
+    exact: true
+  }).fill('기초 기준일과 금액 오입력 정정');
   await correction.getByRole('button', {
     name: '기준일',
     exact: false
@@ -3151,6 +3155,8 @@ for (const { width, unassigned } of [{
     const data: import('../src/widgets/banking-workspace/api/bankingBalanceApiTypes').BalanceWorkspace = {
       propertyId: PROPERTY,
       month: '2026-10',
+      correctionDeadline: '2026-10-31',
+      initialCorrectionAllowed: true,
       cutoffDate: null,
       bankBalance: '1000000',
       bankAsOf: '2026-10-18',
@@ -3435,14 +3441,28 @@ for (const { width, unassigned } of [{
       return;
     }
     await expect(amount).toHaveValue('688,582');
-    await expect(page.getByText('잔고 기준일: 2026-07-01', {
+    await expect(page.getByRole('group', {
+      name: '잔고 기준일',
       exact: true
-    })).toBeVisible();
+    })).toContainText('2026-07-01');
+    if (width < 768) await page.screenshot({
+      path: `/tmp/moahome-opening-design-${width}.png`,
+      fullPage: true,
+      animations: 'disabled'
+    });
+    else await page.getByRole('dialog', {
+      name: '기준 잔고 확인',
+      exact: true
+    }).screenshot({
+      path: `/tmp/moahome-opening-design-${width}.png`,
+      animations: 'disabled'
+    });
     await choose(labels[1]);
     await expect(amount).toHaveValue('200,000');
-    await expect(page.getByText('잔고 기준일: 2026-09-30', {
+    await expect(page.getByRole('group', {
+      name: '잔고 기준일',
       exact: true
-    })).toBeVisible();
+    })).toContainText('2026-09-30');
     await expect(page.getByRole('button', {
       name: '통장별 기초 잔액',
       exact: true
@@ -3451,6 +3471,10 @@ for (const { width, unassigned } of [{
       name: '기준 잔고 수정',
       exact: true
     }).click();
+    await page.getByRole('textbox', {
+      name: '정정 사유',
+      exact: true
+    }).fill('통장별 동 초기 금액 정정');
     await amount.fill('500000');
     await choose(labels[0]); await expect(amount).toHaveValue('688,582');
     await choose(labels[1]); await expect(amount).toHaveValue('500,000');
@@ -3512,6 +3536,36 @@ for (const { width, unassigned } of [{
       name: '기준 잔고 확인 닫기',
       exact: true
     }).click();
+    data.initialCorrectionAllowed = false;
+    await page.reload();
+    // 응답 로딩 중의 빈 화면을 숨김 성공으로 판단하지 않도록 실제 잔고 표시를 먼저 기다립니다.
+    await expect(page.getByText('500,000', {
+      exact: true
+    }).first()).toBeVisible();
+    await expect(page.getByRole('button', {
+      name: '기준 잔고 확인',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByRole('button', {
+      name: '기준 잔고 도움말',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByRole('button', {
+      name: '시작 잔고 설정',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.locator('#opening-balance-description')).toHaveCount(0);
+    await expect(page.getByRole('button', {
+      name: '기준 잔고 수정',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByRole('button', {
+      name: '다운로드',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByText('500,000', {
+      exact: true
+    }).first()).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({
       path: testInfo.outputPath(`accountBalanceFilter${width}.png`),
@@ -5565,5 +5619,340 @@ for (const width of [1920, 390, 320]) {
     }).click();
     await expect(balance).toHaveCount(0);
     await expect(summary.getByRole('article')).toHaveCount(3);
+  });
+}
+
+for (const { width, handover } of [{
+  width: 1440,
+  handover: false
+}, {
+  width: 390,
+  handover: false
+}, {
+  width: 1440,
+  handover: true
+}]) {
+  test(`통장 행 초기 잔액 정정 ${width}px ${handover ? '인계 통장' : '독립 통장'}은 메뉴에서 직접 열고 기한 이후 조회만 허용`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 960
+    });
+    const target = id(11);
+    let allowed = true;
+    let saved = false;
+    let initialDate = '2026-09-30';
+    const writes: Record<string, unknown>[] = [];
+    const account = () => ({
+      id: target,
+      label: '카카오뱅크 ····3016 · 예비비',
+      status: 'ACTIVE',
+      balance: saved ? '625000' : '500000',
+      asOf: '2026-09-30',
+      openingDate: initialDate,
+      openingBalance: saved ? '625000' : '500000',
+      openingRevision: handover ? 0 : saved ? 3 : 2
+    });
+    await page.route('http://localhost:8080/**', async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const headers = {
+        'Access-Control-Allow-Origin': 'http://localhost:3100',
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-CSRF-TOKEN',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+      };
+      if (route.request().method() === 'OPTIONS') return route.fulfill({
+        status: 200,
+        headers
+      });
+      let body: unknown = {};
+      if (path.endsWith('/csrf')) body = {
+        csrfToken: 'test-csrf'
+      };
+      else if (path.endsWith('/refresh')) body = {
+        accessToken: 'test-access',
+        tokenType: 'Bearer',
+        accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
+      };
+      else if (path === '/api/users/me') body = {
+        id: id(1),
+        displayName: '관리자',
+        profileImageUrl: null,
+        systemRole: 'USER',
+        status: 'ACTIVE'
+      };
+      else if (path.endsWith('/access-context')) body = {
+        residentEligible: false,
+        propertyId: PROPERTY,
+        name: '모아빌라',
+        role: 'ADMIN'
+      };
+      else if (path.endsWith('/managed-properties')) body = {
+        properties: [{
+          propertyId: PROPERTY,
+          name: '모아빌라',
+          role: 'ADMIN'
+        }]
+      };
+      else if (path.endsWith('/payments/workspace')) body = {
+        propertyId: PROPERTY,
+        asOf: '2026-10-15',
+        accounts: [{
+          id: ACCOUNT,
+          label: '하나은행 ····5107'
+        }, {
+          id: target,
+          label: '카카오뱅크 ····3016'
+        }],
+        units: [],
+        charges: [],
+        payments: []
+      };
+      else if (path.endsWith('/resident-properties')) body = {
+        properties: []
+      };
+      else if (path.endsWith('/initial-billing-impact')) body = {
+        primary: true,
+        dateChanged: true,
+        changed: true,
+        previousMonth: '2026-10',
+        nextMonth: '2026-09',
+        missingMonths: [{
+          month: '2026-09',
+          unitCount: 12,
+          amount: '600000',
+          initialSettings: true
+        }],
+        blockedReason: null,
+        token: 'confirmed-billing-plan'
+      };
+      else if (path.endsWith('/account-openings') || path.endsWith('/initial-corrections')) {
+        const input = route.request().postDataJSON(); writes.push(input);
+        expect(input.reason).toBe('초기 금액 오입력 정정');
+        expect(path).toContain('/banking/balances/account-openings');
+        expect(input.accountId).toBe(target);
+        expect(input.amount).toBe('625000');
+        expect(input.revision).toBe(handover ? 0 : writes.length <= 2 ? 2 : 3);
+        if (writes.length === 1) return route.fulfill({
+          status: 503,
+          headers,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: 'TEMPORARY_ERROR'
+          })
+        });
+        saved = true;
+        initialDate = input.cutoffDate;
+        body = handover ? opening() : {
+          saved: true
+        };
+      } else if (path.endsWith('/billing/opening-balances')) body = opening();
+      else if (path.endsWith('/banking/balances')) body = {
+        propertyId: PROPERTY,
+        month: '2026-10',
+        cutoffDate: null,
+        bankBalance: null,
+        bankAsOf: null,
+        buildings: [],
+        entries: [],
+        externals: [],
+        incomes: [],
+        pending: [],
+        accountId: null,
+        correctionDeadline: '2026-10-31',
+        initialCorrectionAllowed: allowed,
+        accounts: [{
+          id: ACCOUNT,
+          label: '하나은행 ····5107',
+          status: 'ACTIVE',
+          balance: '1000000',
+          calculatedBalance: '1000000',
+          calculationBasisDate: '2026-09-30',
+          asOf: '2026-09-30',
+          openingDate: '2026-09-30',
+          openingBalance: '1000000',
+          openingRevision: 1
+        }, account()]
+      };
+      return route.fulfill({
+        status: 200,
+        headers,
+        contentType: 'application/json',
+        body: JSON.stringify(body)
+      });
+    });
+    function opening() {
+      return {
+        propertyId: PROPERTY,
+        asOf: '2026-10-15',
+        managementStarted: true,
+        cutoffDate: '2026-09-30',
+        firstBillingMonth: '2026-10',
+        history: [],
+        units: [],
+        correctionDeadline: '2026-10-31',
+        initialCorrectionAllowed: allowed,
+        batch: handover ? {
+          id: id(901),
+          revision: 7,
+          status: 'CONFIRMED',
+          cutoffDate: '2026-09-30',
+          firstBillingMonth: '2026-10',
+          confirmedAt: '2026-10-01T00:00:00Z',
+          canceledAt: null,
+          cancelReason: null
+        } : null,
+        accounts: [{
+          accountId: ACCOUNT,
+          label: '하나은행 ····5107',
+          amount: '1000000'
+        }, {
+          accountId: target,
+          label: '카카오뱅크 ····3016',
+          amount: saved ? '625000' : '500000'
+        }]
+      };
+    }
+    await page.goto(`${BASE}/balances?month=2026-10`);
+    await expect(page.getByRole('button', {
+      name: '카카오뱅크 ····3016 · 예비비 잔액 메뉴',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('button', {
+      name: '기준 잔고 확인',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByRole('button', {
+      name: '시작 잔고 설정',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByRole('button', {
+      name: '기준 잔고 도움말',
+      exact: true
+    })).toHaveCount(0);
+    await page.getByRole('button', {
+      name: '카카오뱅크 ····3016 · 예비비 잔액 메뉴',
+      exact: true
+    }).click();
+    await expect(page.getByRole('menuitem', {
+      name: '초기 잔액 정정',
+      exact: true
+    })).toBeVisible();
+    await page.screenshot({
+      path: `/tmp/moahome-bank-initial-menu-${width}.png`,
+      animations: 'disabled'
+    });
+    await page.getByRole('menuitem', {
+      name: '초기 잔액 정정',
+      exact: true
+    }).click();
+    const view = width < 768 ? page.getByRole('main') : page.getByRole('dialog');
+    if (width < 768) { await expect(page).toHaveURL(new RegExp(`/details/initial\\?month=2026-10&target=${target}`)); await expect(page.getByRole('dialog')).toHaveCount(0); }
+    await expect(view.getByRole('group', {
+      name: '정정 기한',
+      exact: true
+    })).toContainText('2026-10-31');
+    await expect(view.getByRole('group', {
+      name: '초기 잔고 기준일',
+      exact: true
+    })).toContainText('2026-09-30');
+    await expect(view.getByRole('textbox', {
+      name: '시작 잔액',
+      exact: true
+    })).toHaveValue('500,000');
+    await view.getByRole('textbox', {
+      name: '시작 잔액',
+      exact: true
+    }).fill('625000');
+    await view.getByRole('textbox', {
+      name: '정정 사유',
+      exact: true
+    }).fill('초기 금액 오입력 정정');
+    await page.screenshot({
+      path: `/tmp/moahome-bank-initial-${width}-${handover}.png`,
+      fullPage: true,
+      animations: 'disabled'
+    });
+    await view.getByRole('button', {
+      name: '정정 저장',
+      exact: true
+    }).click();
+    await expect(view.getByRole('alert')).toBeVisible();
+    await view.getByRole('button', {
+      name: '정정 저장',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(`${BASE}/balances?month=2026-10`);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    expect(writes[1]).toEqual(writes[0]);
+    if (!handover) {
+      await page.getByRole('button', {
+        name: '카카오뱅크 ····3016 · 예비비 잔액 메뉴',
+        exact: true
+      }).click();
+      await page.getByRole('menuitem', {
+        name: '초기 잔액 정정',
+        exact: true
+      }).click();
+      const editor = width < 768 ? page.getByRole('main') : page.getByRole('dialog');
+      await editor.getByRole('button', {
+        name: /^초기 기준일:/
+      }).click();
+      await page.getByRole('button', {
+        name: '2026년 9월 1일',
+        exact: true
+      }).click();
+      await editor.getByRole('textbox', {
+        name: '정정 사유',
+        exact: true
+      }).fill('초기 금액 오입력 정정');
+      await expect(editor).toContainText('첫 부과월: 2026-10 → 2026-09');
+      await expect(editor).toContainText('초기 등록 기본 항목·금액 사용');
+      await expect(editor.getByRole('button', {
+        name: '정정 저장',
+        exact: true
+      })).toBeDisabled();
+      expect(writes).toHaveLength(2);
+      await editor.getByRole('checkbox').check();
+      await page.screenshot({
+        path: `/tmp/moahome-bank-billing-confirmation-${width}.png`,
+        fullPage: true
+      });
+      await editor.getByRole('button', {
+        name: '정정 저장',
+        exact: true
+      }).click();
+      await expect(page).toHaveURL(`${BASE}/balances?month=2026-10`);
+      expect(writes).toHaveLength(3);
+      expect(writes[2]).toMatchObject({
+        billingToken: 'confirmed-billing-plan',
+        confirmBilling: true,
+        cutoffDate: '2026-09-01'
+      });
+    }
+    allowed = false;
+    await page.reload();
+    await page.getByRole('button', {
+      name: '카카오뱅크 ····3016 · 예비비 잔액 메뉴',
+      exact: true
+    }).click();
+    await expect(page.getByRole('menuitem', {
+      name: '초기 잔액 정정',
+      exact: true
+    })).toHaveCount(0);
+    await page.screenshot({
+      path: `/tmp/moahome-bank-initial-menu-locked-${width}.png`,
+      animations: 'disabled'
+    });
+    await page.goto(`${BASE}/balances/details/initial?month=2026-10&target=${target}`);
+    const lockedView = page.getByRole('main');
+    await expect(lockedView.getByRole('textbox', {
+      name: '시작 잔액',
+      exact: true
+    })).toBeDisabled();
+    await expect(lockedView.getByRole('button', {
+      name: '정정 저장',
+      exact: true
+    })).toHaveCount(0);
+    await expect(lockedView.getByRole('status')).toContainText('초기 기준 정정이 잠겨');
   });
 }

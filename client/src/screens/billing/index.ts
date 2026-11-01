@@ -11,3 +11,7 @@ export {
 export {
   BillingOpeningUploadPage
 } from './ui/opening-upload-page/openingUploadPage';
+
+export {
+  BillingOpeningCorrectionPage
+} from './ui/opening-correction-page/openingCorrectionPage';

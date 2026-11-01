@@ -11,6 +11,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 
 import com.moahome.server.common.validation.TextValues;
+import com.moahome.server.billing.domain.BillingCalendar;
 
 @Getter
 @Entity
@@ -44,14 +45,37 @@ public class Property {
 	@Column(name = "first_billing_month")
 	private LocalDate firstBillingMonth;
 
+	@Column(name = "initial_correction_deadline")
+	private LocalDate initialCorrectionDeadline;
+
 	/** 등록과 운영 개시를 분리하고 잔액 기준일 다음 거래부터 새 수납으로 처리합니다. */
 	public void startManagement(LocalDate cutoff, YearMonth firstMonth, OffsetDateTime at) {
-		if (managementStartedAt != null || !firstMonth.atDay(1).isAfter(cutoff)) {
+		if (managementStartedAt != null || !BillingCalendar.validStart(cutoff, firstMonth)) {
 			throw new IllegalStateException("Management start conflict");
 		}
 		balanceCutoffDate = Objects.requireNonNull(cutoff);
 		firstBillingMonth = firstMonth.atDay(1);
+		initialCorrectionDeadline = firstMonth.atEndOfMonth();
 		managementStartedAt = Objects.requireNonNull(at);
+		updatedAt = at;
+	}
+
+	/** 최초 운영 시각·첫 부과월을 유지하고 허용된 초기 정정에서만 장부 기준일을 바꿉니다. */
+	public void correctInitialCutoff(LocalDate cutoff, OffsetDateTime at) {
+		if (managementStartedAt == null || !BillingCalendar.validStart(cutoff, YearMonth.from(firstBillingMonth)))
+			throw new IllegalArgumentException("Invalid initial cutoff");
+		balanceCutoffDate = cutoff;
+		updatedAt = at;
+	}
+
+	/** 통장 시작 시점과 부과 시작월을 함께 정정하되 최초 정정 기한과 운영 시작 시각은 보존합니다. */
+	public void correctInitialStart(LocalDate cutoff, YearMonth first, OffsetDateTime at) {
+		if (managementStartedAt == null || !BillingCalendar.validStart(cutoff, first))
+			throw new IllegalArgumentException("Invalid initial start");
+		if (initialCorrectionDeadline == null)
+			initialCorrectionDeadline = YearMonth.from(firstBillingMonth).atEndOfMonth();
+		balanceCutoffDate = cutoff;
+		firstBillingMonth = first.atDay(1);
 		updatedAt = at;
 	}
 

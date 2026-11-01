@@ -173,10 +173,25 @@ ChargeRow는 `id`, `unitId`, `building`(동 없음은 빈 문자열), `room`, `d
 
 초안은 `{batchId,revision,cutoffDate,firstBillingMonth,units,accounts}`입니다. 새 작업은 batchId·revision이 null입니다. units는 `{unitId,receivable,credit,originMonth?,responsibility?}`, accounts는 `{accountId,amount}`이며 전체 미삭제 세대·계좌를 중복 없이 제출합니다. 금액은 0~999,999,999,999,999원의 정수 문자열입니다. 기준일은 오늘까지, 첫 부과월의 1일은 기준일 이후이며 서버 현재월의 다음 달을 넘지 않습니다. 발생월은 기준월 이하의 선택값, 부담 주체 메모는 선택 500자입니다.
 
-응답은 `{propertyId,asOf,managementStarted,cutoffDate,firstBillingMonth,batch,units,accounts,history}`입니다. batch는 `{id,revision,status,cutoffDate,firstBillingMonth,confirmedAt,canceledAt,cancelReason}`입니다. 세대·계좌 행에는 표시용 label이 추가됩니다. 2026-11-01 대시보드 개편으로 세대 행의 `buildingId`, `buildingName`(동 없음은 null), 계좌 행의 `bankCode`를 추가합니다. 이 필드는 동 필터·은행 아이콘 표시용이며 PUT 입력에는 보내지 않습니다. 같은 기준일·월을 다시 저장해도 revision을 갱신합니다. 오래된 초안은 409입니다.
+응답은 `{propertyId,asOf,managementStarted,cutoffDate,firstBillingMonth,batch,units,accounts,history}`입니다. batch는 `{id,revision,status,cutoffDate,firstBillingMonth,confirmedAt,canceledAt,cancelReason}`입니다. 세대·계좌 행에는 표시용 label이 추가됩니다. 2026-11-01 대시보드 개편으로 세대 행의 `buildingId`, `buildingName`(동 없음은 null), 계좌 행의 `bankCode`를 추가합니다. 후속 초기 정정에서 계좌 행의 `initialBalance:boolean`으로 해당 인계에 포함된 통장인지 구분합니다. 인계 이후 추가된 통장(false)은 인계 초기 정정 제출 범위에서 제외합니다. 이 필드는 동 필터·은행 아이콘 표시용이며 PUT 입력에는 보내지 않습니다. 같은 기준일·월을 다시 저장해도 revision을 갱신합니다. 오래된 초안은 409입니다.
 
 엑셀은 내려받은 `.xlsx` 양식의 `세대 ID·세대·기존 미납·기존 선납·발생월·부담 주체 메모` 순서이며 5MB·10,000행까지 허용합니다. ID는 현재 대상의 실제 세대와 대조하고 수식·소수·음수·중복 ID·잘못된 발생월을 거부합니다. 미리보기는 저장하지 않으며 직접 입력과 합쳐 검토한 전체 초안을 별도로 저장·확정합니다.
 
-CONFIRMED의 재확정은 원 결과를 반환합니다. 취소는 확정 수납이 없을 때만 허용하며 기존 월별 청구·최초 기준일·첫 부과월은 보존합니다. 정정은 취소 후 새 인계 작업으로 기록합니다. 기존 운영 대상에 인계 작업이 없으면 소급 잔액 추가를 허용하지 않습니다.
+CONFIRMED의 재확정은 원 결과를 반환합니다. 취소는 확정 수납이 없을 때만 허용하며 기존 월별 청구·최초 기준일·첫 부과월은 보존합니다. 세대 미납·선납 정정은 취소 후 새 인계 작업으로 기록합니다. 초기 기준일·통장 시작 금액은 아래 전용 정정을 사용합니다. 기존 운영 대상에 인계 작업이 없으면 소급 잔액 추가를 허용하지 않습니다.
 
 409: `OPENING_BALANCE_CONFLICT`, `OPENING_TARGETS_CHANGED`, `OPENING_ALREADY_HAS_RECEIPTS`. 400: `INVALID_OPENING_DATES`, `INVALID_OPENING_FILE`. 404: `OPENING_NOT_FOUND`. 저장소 충돌·장애는 기존 업무 오류 처리기의 `PAYMENT_CONFLICT` / `PAYMENT_SERVICE_UNAVAILABLE`을 재사용합니다. 자세한 업무 정책은 [도메인 규칙](domainRules.md#확정-정책-기존-잔액-인계와-관리-시작-2026-10-17)을 따릅니다.
+
+### 초기 기준 정정 (2026-11-01)
+
+`POST /api/properties/{propertyId}/billing/opening-balances/{batchId}/initial-corrections`는 확정 인계의 초기 기준일·통장 시작 금액만 정정합니다. 요청은 `{id,revision,cutoffDate,reason,accounts:[{accountId,amount}]}`입니다. id는 클라이언트 요청 UUID, revision은 조회한 batch 버전이며 accounts는 해당 인계에 저장된 통장 전체를 중복 없이 제출합니다. reason은 공백 제외 1~500자, amount는 기존 0 이상 15자리 원 단위 계약을 유지합니다.
+
+기존 인계 GET·저장 응답에 `correctionDeadline:date|null`, `initialCorrectionAllowed:boolean`, `corrections:History[]`를 추가합니다. History는 `{id,kind,previousDate,newDate,details,reason,changedBy,changedByName,changedAt}`이며 kind는 `HANDOVER / BUILDING / ACCOUNT`입니다. details는 `{targetId,label,previousDate,newDate,previousAmount,newAmount}` 배열입니다. 초기 미설정 값은 null이고 금액은 원 단위 문자열입니다. 변경자 이름은 조회 시 현재 프로필 표시명이며 식별용 UUID를 함께 보존합니다. 정정 결과도 전체 인계 응답으로 반환합니다.
+
+관리 시작 시각·세대 미납·선납·실제 수납·기존 월별 청구 금액은 유지합니다. 첫 부과월은 후속 통장 기준일 연동 정책에서 명시적 확인 후 변경할 수 있습니다. 기준일 변경으로 기존 거래의 적용 구분이 달라지면 거부하며 원본을 자동 수정하지 않습니다. 취소·재저장·재확정으로 잠금 기한을 우회할 수 없습니다. 업무 기한·권한·이력은 [도메인 정책](domainRules.md#초기-기준일시작-금액-정정-기한-2026-11-01)을 참조합니다.
+
+409 `INITIAL_BALANCE_LOCKED`(기한 종료), `INITIAL_BALANCE_CONFLICT`(조회 버전·요청 ID 충돌), `INITIAL_BALANCE_TRANSACTION_CONFLICT`(기존 거래의 기준일 구분 변경), `OPENING_TARGETS_CHANGED`(통장 범위 변경). 400 `INVALID_INITIAL_BALANCE_DATE`(기준일·미납 발생월 불일치). 기존 인증·권한·저장소 오류 계약은 유지합니다.
+
+
+### 통장 기준일 연동 이후의 초기 정정 (2026-11-01)
+
+인계 전용 초기 정정 요청에도 선택 billingToken / confirmBilling을 받으며 부과 시작이 바뀌면 [통장 부과 영향 조회](bankingManagement.md#통장-초기-기준일과-부과-연동-2026-11-01)의 최신 확인이 필요합니다. 동별 잔고가 있는 대상의 날짜 변경은 `INITIAL_BALANCE_USE_BANK_CORRECTION`으로 거부해 통장별 금액·동별 보유금을 함께 확인하는 경로를 사용하게 합니다. 인계 화면에서는 기존 날짜의 통장 금액만 정정하며 기준일 변경은 통장 관리에서 처리합니다. 정정 이력 Detail에는 선택 previousBillingMonth / newBillingMonth / generatedMonths가 추가됩니다.

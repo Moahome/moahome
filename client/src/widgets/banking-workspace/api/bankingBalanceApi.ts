@@ -2,6 +2,8 @@ import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
 import type {
   BalanceWorkspace,
+  BankInitialBalanceInput,
+  BankBillingImpact,
   CashIncomeInput,
   CashOpeningCorrectionInput,
   CashOpeningInput,
@@ -48,6 +50,37 @@ export function readBankingBalances(data: BalanceWorkspace, propertyId: string, 
   return data;
 }
 
+/** 선택 통장의 초기 기준·확인한 부과·동별 보유금을 함께 정정하며 은행 직접 확인 기록과 구분합니다. */
+export async function saveBankInitialBalance(propertyId: string, data: BankInitialBalanceInput) {
+  await authenticatedAPI({
+    url: `/api/properties/${propertyId}/banking/balances/account-openings`,
+    method: 'POST',
+    data
+  });
+}
+
+/** 기본 통장 기준일 변경에 따른 실제 누락 청구와 저장 차단 사유를 조회합니다. */
+export async function getBankBillingImpact(propertyId: string, accountId: string, cutoffDate: string, signal?: AbortSignal) {
+  const result = await authenticatedAPI<BankBillingImpact>({
+    url: `/api/properties/${propertyId}/banking/balances/initial-billing-impact`,
+    method: 'GET',
+    data: {
+      accountId,
+      cutoffDate
+    },
+    signal
+  });
+  if (!result || typeof result.primary !== 'boolean' || typeof result.dateChanged !== 'boolean'
+    || typeof result.changed !== 'boolean' || !/^\d{4}-\d{2}$/.test(result.previousMonth)
+    || !/^\d{4}-\d{2}$/.test(result.nextMonth) || typeof result.token !== 'string'
+    || !Array.isArray(result.missingMonths) || result.missingMonths.some((row) => !/^\d{4}-\d{2}$/.test(row.month)
+      || !Number.isSafeInteger(row.unitCount) || row.unitCount < 0 || !validAmount(row.amount))
+    || !(result.blockedReason === null || typeof result.blockedReason === 'string')) {
+    throw new ApiError(200, 'INVALID_RESPONSE', '부과 변경 내용을 확인할 수 없습니다.');
+  }
+  return result;
+}
+
 export async function saveCashOpenings(propertyId: string, data: CashOpeningInput) {
   await authenticatedAPI({
     url: `/api/properties/${propertyId}/banking/balances/openings`,
@@ -91,6 +124,15 @@ export function balanceError(error: unknown): string {
     INVALID_BANK_CHECK_TIME: '은행에서 확인한 날짜와 시각을 현재 또는 이전으로 입력해주세요.',
     BANK_CHECK_CONFLICT: '같은 요청이 다른 내용으로 처리됐어요. 최신 확인 이력을 다시 열어주세요.',
     ACCESS_DENIED: '동별 잔고를 조회할 권한이 없어요.',
+    INITIAL_BALANCE_LOCKED: '초기 기준 정정 기간이 지나 변경할 수 없어요.',
+    INITIAL_BALANCE_CONFLICT: '초기 기준이 변경됐어요. 최신 값을 확인해주세요.',
+    INITIAL_BILLING_CONFIRMATION_REQUIRED: '부과 변경 내역을 다시 확인하고 동의해주세요.',
+    INITIAL_BILLING_HAS_RECEIPTS: '확정 수납이 있어 부과 시작월을 변경할 수 없어요.',
+    INITIAL_BILLING_HAS_APPLICATIONS: '이미 충당한 인계 선납이 있어 부과 시작월을 변경할 수 없어요.',
+    INITIAL_BILLING_HAS_CHARGES: '이미 부과한 월을 제외하도록 기준일을 변경할 수 없어요.',
+    INITIAL_BILLING_SETTINGS_REQUIRED: '변경할 기간의 관리비 설정이 없어 기준일을 변경할 수 없어요.',
+    INITIAL_BUILDING_CONFIRMATION_REQUIRED: '새 통장 기준일의 모든 동별 보유금을 확인해주세요.',
+    CASH_OPENING_BANK_DATE_MISMATCH: '동별 잔고는 통장 초기 잔액 기준일과 같아야 해요. 통장 정정 화면에서 날짜를 변경해주세요.',
     INVALID_BANK_OPENING: '통장의 기초 잔액을 0원 이상의 원 단위로 입력해주세요.',
     INVALID_BANK_OPENING_DATE: '통장별 기준일은 오늘 또는 이전 날짜로 선택해주세요.',
     BANK_OPENING_CONFLICT: '통장 기초 잔액이 변경됐어요. 창을 다시 열어 최신 값을 확인해주세요.',

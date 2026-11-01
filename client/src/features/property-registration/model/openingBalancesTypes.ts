@@ -6,6 +6,7 @@ export interface UnitOpeningDraft {
 export interface OpeningBalancesDraft {
   cutoffDate: string;
   firstBillingMonth: string;
+  automaticBilling?: boolean;
   unitMode: '' | 'NONE' | 'ENTER';
   units: Record<string, UnitOpeningDraft>;
   accountAmount: string;

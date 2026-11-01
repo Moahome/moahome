@@ -15,7 +15,14 @@ public record RegistrationOpeningInput(@NotNull(message = "REQUIRED") LocalDate 
     @NotNull(message = "REQUIRED") @Size(max = 10000) List<@NotNull @Valid UnitOpening> units,
     @NotNull(message = "REQUIRED") @Size(max = 100) List<@NotNull @Valid AccountOpening> accounts,
     LocalDate cashCutoffDate,
-    @NotNull(message = "REQUIRED") @Size(max = 100000) List<@NotNull @Valid BuildingOpening> buildings) {
+    @NotNull(message = "REQUIRED") @Size(max = 100000) List<@NotNull @Valid BuildingOpening> buildings,
+    @JsonInclude(JsonInclude.Include.NON_NULL) Boolean automaticBilling) {
+	/**  이전 요청은 원래 직렬화와 재시도 지문을 유지합니다. */
+	public RegistrationOpeningInput(LocalDate cutoffDate, String firstBillingMonth, List<UnitOpening> units,
+	    List<AccountOpening> accounts, LocalDate cashCutoffDate, List<BuildingOpening> buildings) {
+		this(cutoffDate, firstBillingMonth, units, accounts, cashCutoffDate, buildings, null);
+	}
+
 	public record UnitOpening(
 	    @Pattern(regexp = "[A-Za-z0-9_-]{1,50}", message = "INVALID_FORMAT") String buildingClientId,
 	    @NotBlank(message = "REQUIRED") String unitNumber,

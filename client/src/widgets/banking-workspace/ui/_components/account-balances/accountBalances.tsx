@@ -41,11 +41,15 @@ export function AccountBalances({
   onOpen,
   onCheck,
   onHistory,
+  onInitial,
+  canCorrectInitial,
 }: {
   accounts: AccountBalance[];
   onOpen: (accountId: string) => void;
   onCheck: (id: string) => void;
   onHistory: (id: string) => void;
+  onInitial: (id: string) => void;
+  canCorrectInitial: boolean;
 }) {
   return (
     <section
@@ -151,6 +155,11 @@ export function AccountBalances({
                       label: '은행 잔액 직접 확인',
                       icon: 'pen' as const,
                       onSelect: () => onCheck(account.id)
+                    }] : []),
+                    ...(canCorrectInitial ? [{
+                      label: '초기 잔액 정정',
+                      icon: 'pen' as const,
+                      onSelect: () => onInitial(account.id)
                     }] : []),
                     {
                       label: '확인 이력 보기',

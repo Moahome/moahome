@@ -77,7 +77,7 @@ function getMobileBack(pathname: string, basePath: string, month: string | null,
   if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month ?? '')) balanceQuery.set('month', month!);
   if (/^[0-9a-f-]{36}$/i.test(account ?? '')) balanceQuery.set('account', account!);
   if (pathname.startsWith(`${basePath}/banking/balances/`)) {
-    const panelTitle = pathname.endsWith('/banking/balances/details/account') ? '통장 상세' : '동별 잔고·정산';
+    const panelTitle = pathname.endsWith('/banking/balances/details/initial') ? '초기 잔액 정정' : pathname.endsWith('/banking/balances/details/account') ? '통장 상세' : '동별 잔고·정산';
     return {
       href: `${basePath}/banking/balances${balanceQuery.size ? `?${balanceQuery}` : ''}`,
       label: '동별 잔고·정산으로 돌아가기',
@@ -149,10 +149,10 @@ function getMobileBack(pathname: string, basePath: string, month: string | null,
     label: '주민 목록으로 돌아가기',
     title: '주민 상세'
   };
-  if (pathname === `${basePath}/billing/monthly/opening-upload`) return {
+  if (pathname === `${basePath}/billing/monthly/opening-upload` || pathname === `${basePath}/billing/monthly/initial-correction`) return {
     href: `${basePath}/billing/monthly?tab=opening`,
     label: '기존 잔액 인계로 돌아가기',
-    title: '엑셀 업로드'
+    title: pathname.endsWith('/initial-correction') ? '초기 기준 정정' : '엑셀 업로드'
   };
   if (pathname === `${basePath}/billing/monthly/settings`) return {
     href: `${basePath}/billing/monthly?tab=items`,

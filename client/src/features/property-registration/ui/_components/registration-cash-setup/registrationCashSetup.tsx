@@ -152,18 +152,34 @@ export function RegistrationCashSetup({
         <div
           className={styles.row}
         >
-          <CalendarPicker
-            variant={'input'}
-            label={tab === 'account' ? '통장 기준일' : '동별 잔고 기준일'}
-            required
-            value={tab === 'account' ? opening.cutoffDate : opening.cashCutoffDate}
-            onChange={(date) =>
-              onOpeningChange({
-                ...opening,
-                [tab === 'account' ? 'cutoffDate' : 'cashCutoffDate']: date,
-              })
-            }
-          />
+          {tab === 'account' ? (
+            <CalendarPicker
+              variant={'input'}
+              label={'통장 기준일'}
+              required
+              value={opening.cutoffDate}
+              onChange={(date) =>
+                onOpeningChange({
+                  ...opening,
+                  cutoffDate: date,
+                  cashCutoffDate: date,
+                })
+              }
+            />
+          ) : (
+            <div
+              className={styles['inherited-date']}
+              role={'group'}
+              aria-label={'동별 잔고 통장 기준일'}
+            >
+              <span>
+                통장 기준일
+              </span>
+              <strong>
+                {opening.cutoffDate || '통장 기준일을 먼저 선택해주세요.'}
+              </strong>
+            </div>
+          )}
           <SelectDropdown
             label={'입력할 통장'}
             value={account?.clientId ?? ''}

@@ -83,6 +83,13 @@ public class FeeTemplate {
 		return template;
 	}
 
+	/** 초기 설정에서 확인한 항목은 통장 기준일로 계산한 첫 부과월부터 사용합니다. 기존 설정 버전은 소급 변경하지 않습니다. */
+	public static FeeTemplate createInitial(UUID propertyId, OffsetDateTime at, YearMonth first) {
+		var template = createDefault(propertyId, at);
+		template.effectiveFrom = first.atDay(1);
+		return template;
+	}
+
 	/** 기존 내용을 덮어쓰지 않고 다음 달부터 사용할 새 버전과 필수 수정 사유를 보존합니다. */
 	public static FeeTemplate schedule(UUID propertyId, long revision, YearMonth month, String reason,
 	    UUID actorId, OffsetDateTime at) {

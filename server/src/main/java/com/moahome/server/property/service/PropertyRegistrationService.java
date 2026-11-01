@@ -165,7 +165,9 @@ public class PropertyRegistrationService {
 			    created.rename(account.alias());
 			    return created;
 		    }).toList());
-		FeeTemplate template = FeeTemplate.createDefault(property.getId(), at);
+		FeeTemplate template = input.openingBalances() != null && Boolean.TRUE.equals(input.openingBalances().automaticBilling())
+		    ? FeeTemplate.createInitial(property.getId(), at, YearMonth.parse(input.openingBalances().firstBillingMonth()))
+		    : FeeTemplate.createDefault(property.getId(), at);
 		templates.saveAndFlush(template);
 		List<FeeTemplateItem> feeItems = new ArrayList<>();
 		for (int index = 0; index < input.feeItems().size(); index++) {

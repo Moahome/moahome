@@ -55,6 +55,15 @@ public class BankOpeningBalance {
 		return row;
 	}
 
+	/** 인계 통장의 초기 금액·기준일만 정정하며 독립 이력은 덮어쓰지 않습니다. */
+	public void correctInitial(LocalDate cutoff, BigDecimal next) {
+		if (batchId == null)
+			throw new IllegalStateException("Independent opening is immutable");
+		OpeningBalanceItem.requireAmount(next);
+		cutoffDate = Objects.requireNonNull(cutoff);
+		amount = next;
+	}
+
 	/** 운영 중 통장별 기준 잔액은 인계 batch를 생성하지 않고 독립 버전으로 보존합니다. */
 	public static BankOpeningBalance independent(UUID id, UUID property, UUID account, LocalDate cutoff,
 	    BigDecimal amount, long revision, UUID actor, OffsetDateTime at) {

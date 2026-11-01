@@ -71,9 +71,26 @@ public class OpeningBalanceBatch {
 	}
 
 	public void revise(LocalDate cutoff, YearMonth first) {
-		if (!"DRAFT".equals(status) || !first.atDay(1).isAfter(cutoff))
+		if (!"DRAFT".equals(status) || !BillingCalendar.validStart(cutoff, first))
 			throw new IllegalArgumentException("Invalid handover dates");
 		cutoffDate = Objects.requireNonNull(cutoff);
+		firstBillingMonth = first.atDay(1);
+		editToken = UUID.randomUUID();
+	}
+
+	/** 초기 기준 정정은 확정 상태와 첫 부과월을 보존합니다. 전후 값은 별도 불변 이력에 저장합니다. */
+	public void correctInitialCutoff(LocalDate cutoff) {
+		if (!"CONFIRMED".equals(status) || !BillingCalendar.validStart(cutoff, YearMonth.from(firstBillingMonth)))
+			throw new IllegalArgumentException("Invalid initial cutoff");
+		cutoffDate = cutoff;
+		editToken = UUID.randomUUID();
+	}
+
+	/** 통장 기준일 정정에 동의한 경우에만 부과월도 함께 갱신하며 확정 원본 상태는 유지합니다. */
+	public void correctInitialStart(LocalDate cutoff, YearMonth first) {
+		if (!"CONFIRMED".equals(status) || !BillingCalendar.validStart(cutoff, first))
+			throw new IllegalArgumentException("Invalid initial start");
+		cutoffDate = cutoff;
 		firstBillingMonth = first.atDay(1);
 		editToken = UUID.randomUUID();
 	}

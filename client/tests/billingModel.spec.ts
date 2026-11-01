@@ -1,3 +1,9 @@
+import type { RegistrationRequest } from '../src/features/property-registration/api/registrationApiTypes';
+import {
+  restorePendingRegistration,
+  savePendingRegistration
+} from '../src/features/property-registration/model/registrationSubmission';
+import { getAutoFirstBillingMonth } from '../src/features/property-registration/model/openingBalances';
 import type {
   BillingCharge,
   BillingItem,
@@ -144,4 +150,103 @@ test('동별 합계는 동마다 검사하고 기본과 임시를 더한 범위�
     ...plan,
     buildingItems: plan.buildingItems.slice(0, 1)
   }, '누락', ['101', '102'])).toContain('각 동');
+});
+
+
+test('통장 기준일은 월중이면 그달, 실제 월말이면 다음 달 부과로 계산한다', () => {
+  for (const [date, expected] of [
+    ['2026-10-01', '2026-10'], ['2026-10-30', '2026-10'], ['2026-10-31', '2026-11'],
+    ['2026-02-28', '2026-03'], ['2028-02-28', '2028-02'], ['2028-02-29', '2028-03'],
+    ['2026-12-31', '2027-01'], ['2026-02-30', ''], ['', '']
+  ]) expect(getAutoFirstBillingMonth(date)).toBe(expected);
+});
+
+
+test('동 없는 자동 부과 등록도 새로고침 재시도에서 원래 제출 본문을 보존한다', () => {
+  const originalLocal = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const originalSession = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
+  const originalEntries = Object.getOwnPropertyDescriptor(performance, 'getEntriesByType');
+  const memory = () => {
+    const data = new Map<string, string>();
+    return {
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => data.set(key, value),
+      removeItem: (key: string) => data.delete(key)
+    };
+  };
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: memory()
+  });
+  Object.defineProperty(globalThis, 'sessionStorage', {
+    configurable: true,
+    value: memory()
+  });
+  Object.defineProperty(performance, 'getEntriesByType', {
+    configurable: true,
+    value: () => [{
+      type: 'reload'
+    }]
+  });
+  const request: RegistrationRequest = {
+    requestId: '00000000-0000-4000-8000-000000000001',
+    basicInfo: {
+      name: '검증빌라',
+      address: '서울시 테스트 주소',
+      addressDetail: null,
+      propertyType: null,
+      hasBuildings: false
+    },
+    administrator: {
+      residenceType: 'EXTERNAL'
+    },
+    buildings: [],
+    units: [{
+      buildingClientId: null,
+      unitNumber: '201',
+      floor: 2,
+      displayName: null,
+      status: 'ACTIVE'
+    }],
+    bankAccounts: [{
+      bankCode: '081',
+      bankName: '하나은행',
+      accountNumber: '12345678901234',
+      holderName: '관리자',
+      isPrimary: true
+    }],
+    feeItems: [{
+      itemCode: null,
+      itemName: '관리비',
+      defaultAmount: 50000
+    }],
+    openingBalances: {
+      automaticBilling: true,
+      cutoffDate: '2026-10-01',
+      firstBillingMonth: '2026-10',
+      units: [{
+        buildingClientId: null,
+        unitNumber: '201',
+        receivable: '0',
+        credit: '0'
+      }],
+      accounts: [{
+        accountIndex: 0,
+        amount: '100000'
+      }],
+      cashCutoffDate: null,
+      buildings: []
+    }
+  };
+  try {
+    savePendingRegistration('owner', request);
+    expect(restorePendingRegistration('owner')?.request).toEqual(request);
+  } finally {
+    if (originalLocal) Object.defineProperty(globalThis, 'localStorage', originalLocal);
+    else Reflect.deleteProperty(globalThis, 'localStorage');
+    if (originalSession) Object.defineProperty(globalThis, 'sessionStorage', originalSession);
+    else Reflect.deleteProperty(globalThis, 'sessionStorage');
+    if (originalEntries) Object.defineProperty(performance, 'getEntriesByType', originalEntries);
+    else Reflect.deleteProperty(performance, 'getEntriesByType');
+  }
 });

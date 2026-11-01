@@ -36,7 +36,9 @@ public class RegistrationOpeningService {
 		var today = LocalDate.now(clock.withZone(BillingCalendar.ZONE));
 		var first = YearMonth.parse(input.firstBillingMonth());
 		var current = YearMonth.from(today);
-		if (input.cutoffDate().isAfter(today) || !first.atDay(1).isAfter(input.cutoffDate()) || first.isBefore(current)
+		boolean automatic = Boolean.TRUE.equals(input.automaticBilling());
+		if (input.cutoffDate().isAfter(today) || !BillingCalendar.validStart(input.cutoffDate(), first)
+		    || (automatic ? !first.equals(BillingCalendar.firstMonthFromCutoff(input.cutoffDate())) : first.isBefore(current))
 		    || first.isAfter(current.plusMonths(1))) {
 			throw invalid("cutoffDate", "기준일과 첫 부과월을 확인해주세요.");
 		}
@@ -77,6 +79,8 @@ public class RegistrationOpeningService {
 		if (input.cashCutoffDate() == null || input.cashCutoffDate().isAfter(today)) {
 			throw invalid("cashCutoffDate", "동별 잔고 기준일을 확인해주세요.");
 		}
+		if (automatic && !input.cashCutoffDate().equals(input.cutoffDate()))
+			throw invalid("cashCutoffDate", "동별 잔고는 통장 기준일을 함께 사용합니다.");
 	}
 
 	/** 어느 저장·부과 단계가 실패해도 등록까지 모두 롤백하고 같은 요청 ID로만 재시도합니다. */

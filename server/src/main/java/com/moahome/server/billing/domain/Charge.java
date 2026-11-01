@@ -65,6 +65,14 @@ public class Charge {
 	@Column(name = "updated_at", nullable = false, columnDefinition = "timestamptz")
 	private OffsetDateTime updatedAt;
 
+	/** 초기 미수의 기준 날짜만 맞추고 청구액·수납·충당은 변경하지 않습니다. */
+	public void correctOpeningDate(LocalDate cutoff) {
+		if (!"OPENING_RECEIVABLE".equals(chargeType))
+			throw new IllegalStateException("Not an opening charge");
+		dueDate = Objects.requireNonNull(cutoff);
+	}
+
+
 	protected Charge() {
 	}
 

@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.moahome.server.billing.domain.*;
 import com.moahome.server.billing.exception.BillingException;
+import com.moahome.server.billing.dto.BankBillingImpact;
 import com.moahome.server.billing.repo.*;
 import com.moahome.server.payment.service.CumulativePaymentService;
 import com.moahome.server.property.domain.*;
@@ -57,9 +58,39 @@ public class BillingGenerationService {
 		this.templates = templates;
 	}
 
-	/** 월·관리대상별 독립 트랜잭션에서 생성과 확정을 완료하며 동시 스케줄·재시도에는 같은 기간을 다시 생성하지 않습니다. */
+	/** 저장과 같은 적용 설정·사용 중 세대 조건으로 누락 월의 부과액을 미리 확인합니다. */
+	public BankBillingImpact.Month preview(UUID propertyId, YearMonth month) {
+		var template = configurations.forInitialStart(configurations.versions(propertyId), month);
+		List<FeeTemplateItem> sources = configurations.items(template);
+		Set<UUID> activeBuildings = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId)
+		    .stream().map(Building::getId).collect(Collectors.toSet());
+		int count = 0;
+		BigDecimal amount = BigDecimal.ZERO;
+		for (var unit : units.findByPropertyIdAndDeletedAtIsNull(propertyId)) {
+			if (unit.getStatus() != UnitStatus.ACTIVE || unit.getDeletedAt() != null
+			    || (unit.getBuildingId() != null && !activeBuildings.contains(unit.getBuildingId())))
+				continue;
+			amount = amount.add(configurations.applicableItems(template, sources, month, unit.getBuildingId())
+			    .stream().map(FeeTemplateItem::getDefaultAmount).reduce(BigDecimal.ZERO, BigDecimal::add));
+			count++;
+		}
+		return new BankBillingImpact.Month(month.toString(), count, amount.toPlainString(),
+		    template.getEffectiveFrom().isAfter(month.atDay(1)));
+	}
+
+	/** 월·관리대상별 독립 트랜잭션에서 생성·확정을 완료하고 같은 기간을 다시 생성하지 않습니다. */
 	@Transactional
 	public boolean generate(UUID propertyId, YearMonth month) {
+		return generate(propertyId, month, false);
+	}
+
+	/** 초기 등록·명시적으로 동의한 통장 정정에 한해 과거 미설정 월에 등록 당시 기본 설정을 사용합니다. */
+	@Transactional
+	public boolean generateInitial(UUID propertyId, YearMonth month) {
+		return generate(propertyId, month, true);
+	}
+
+	private boolean generate(UUID propertyId, YearMonth month, boolean initial) {
 		// 세대 변경·기본 설정 저장과 같은 관리대상 잠금을 사용해 대상과 적용 설정을 일관되게 읽습니다.
 		var property = properties.findForUnitUpdate(propertyId).orElse(null);
 		if (property == null || property.getManagementStartedAt() == null
@@ -75,7 +106,7 @@ public class BillingGenerationService {
 		}
 		var at = OffsetDateTime.now(clock);
 		var period = periods.saveAndFlush(BillingPeriod.draft(propertyId, month, at));
-		issueCharges(propertyId, period, units.findByPropertyIdAndDeletedAtIsNull(propertyId), at);
+		issueCharges(propertyId, period, units.findByPropertyIdAndDeletedAtIsNull(propertyId), at, initial);
 		period.confirm(at);
 		periods.flush();
 		// 이전에 받은 선입금도 새 청구에 충당해 월이 바뀌어도 누적 부과·수납의 차이가 유지됩니다.
@@ -147,7 +178,12 @@ public class BillingGenerationService {
 
 	/** 최초 자동 부과와 월중 추가 모두 사용 중 세대만 해당 월 적용 설정으로 부과하며 공실·비활성·삭제를 제외합니다. */
 	private void issueCharges(UUID propertyId, BillingPeriod period, List<Unit> targets, OffsetDateTime at) {
-		var template = configurations.applicable(configurations.versions(propertyId), period.month());
+		issueCharges(propertyId, period, targets, at, false);
+	}
+
+	private void issueCharges(UUID propertyId, BillingPeriod period, List<Unit> targets, OffsetDateTime at, boolean initial) {
+		var template = initial ? configurations.forInitialStart(configurations.versions(propertyId), period.month())
+		    : configurations.applicable(configurations.versions(propertyId), period.month());
 		List<FeeTemplateItem> sources = configurations.items(template);
 		Map<UUID, String> names = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId)
 		    .stream().collect(Collectors.toMap(building -> building.getId(), building -> building.getName()));

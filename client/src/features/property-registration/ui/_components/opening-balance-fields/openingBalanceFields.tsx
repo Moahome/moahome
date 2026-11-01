@@ -125,6 +125,7 @@ export function OpeningBalanceFields({ kind, opening, units, buildings, onChange
         label={'첫 신규 관리비 부과월'}
         mode={'month'}
         value={opening.firstBillingMonth}
+        disabled={opening.automaticBilling === true}
         onChange={(firstBillingMonth) => onChange({
           ...opening,
           firstBillingMonth
@@ -132,7 +133,9 @@ export function OpeningBalanceFields({ kind, opening, units, buildings, onChange
         required
       />
       <p>
-        이번 달 관리비를 이미 고지했다면 첫 부과월을 다음 달로 선택하세요. 마지막 확인에서 등록하고 관리 시작을 확정할 때 지정한 월부터 부과합니다.
+        {opening.automaticBilling
+          ? '기본 관리 통장 기준일이 월중이면 그달 전액부터, 월말이면 다음 달부터 부과합니다. 최종 등록 시 첫 부과월부터 현재 월까지 청구를 생성합니다. 기존 미납에 같은 기간 관리비가 중복되지 않는지 확인해주세요.'
+          : '이전 초안의 첫 부과월입니다. 통장 기준일을 수정하면 부과월을 자동 계산합니다.'}
       </p>
     </section>
   );

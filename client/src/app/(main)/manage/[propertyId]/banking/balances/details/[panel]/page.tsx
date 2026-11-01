@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { BankingBalancePanelPage } from '@/screens/banking/balance-panel';
 
 const PANEL_TITLES = {
+  initial: '초기 잔액 정정',
   account: '통장 상세',
   check: '은행 잔액 직접 확인',
   checks: '은행 잔액 확인 이력',

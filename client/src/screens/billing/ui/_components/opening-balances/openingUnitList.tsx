@@ -15,10 +15,11 @@ import { formatInteger } from '@/shared/lib/format';
 import styles from './openingBalances.module.css';
 
 /** 목록의 검색·필터는 표시에만 적용하고 저장할 전체 세대는 부모의 편집 상태에 유지합니다. */
-export function OpeningUnitList({ units, busy, confirmed, onEdit, onUpload }: {
+export function OpeningUnitList({ units, busy, confirmed, locked = false, onEdit, onUpload }: {
   units: OpeningWorkspace['units'];
   busy: boolean;
   confirmed: boolean;
+  locked?: boolean;
   onEdit: (id: string) => void;
   onUpload: () => void;
 }) {
@@ -51,14 +52,14 @@ export function OpeningUnitList({ units, busy, confirmed, onEdit, onUpload }: {
         <h2>
           세대별 기존 잔액
         </h2>
-        {!confirmed && (
+        {!confirmed && !locked && (
           <div
             className={styles['excel-tools']}
           >
             <Button
               variant={'outline'}
               tone={'excel'}
-              disabled={busy}
+              disabled={busy || locked}
               leadingIcon={(
                 <ServiceIcon
                   name={'excel'}
@@ -200,27 +201,29 @@ export function OpeningUnitList({ units, busy, confirmed, onEdit, onUpload }: {
               </span>
             )
           },
-          {
-            key: 'action',
-            header: '작업',
-            align: 'right',
-            render: (unit) => (
-              <Button
-                size={'sm'}
-                variant={'outline'}
-                disabled={busy}
-                aria-label={`${unit.label} 인계 정정`}
-                onClick={() => onEdit(unit.unitId)}
-                leadingIcon={(
-                  <ServiceIcon
-                    name={'pen'}
-                  />
-                )}
-              >
-                인계 정정
-              </Button>
-            )
-          }
+          ...(!locked ? [
+            {
+              key: 'action',
+              header: '작업',
+              align: 'right' as const,
+              render: (unit: OpeningWorkspace['units'][number]) => (
+                <Button
+                  size={'sm'}
+                  variant={'outline'}
+                  disabled={busy || locked}
+                  aria-label={`${unit.label} 인계 정정`}
+                  onClick={() => onEdit(unit.unitId)}
+                  leadingIcon={(
+                    <ServiceIcon
+                      name={'pen'}
+                    />
+                  )}
+                >
+                  인계 정정
+                </Button>
+              )
+            }
+          ] : [])
         ]}
       />
       <div

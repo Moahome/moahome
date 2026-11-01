@@ -16,6 +16,7 @@ import type {
 import { getFeeItemsError } from '../../model/feeItems';
 import {
   getCashOpeningError,
+  getAutoFirstBillingMonth,
   getFirstBillingError,
   getUnitOpeningError,
   restoreOpeningBalances
@@ -197,7 +198,14 @@ export function PropertyRegistrationFlow({
   function updateOpening(openingBalances: OpeningBalancesDraft) {
     setDraft((previous) => ({
       ...previous,
-      openingBalances
+      openingBalances: {
+        ...openingBalances,
+        ...(openingBalances.cutoffDate !== previous.openingBalances.cutoffDate ? {
+          automaticBilling: true,
+          firstBillingMonth: getAutoFirstBillingMonth(openingBalances.cutoffDate),
+          cashCutoffDate: openingBalances.cutoffDate
+        } : {})
+      }
     }));
   }
 

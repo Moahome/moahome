@@ -29,6 +29,8 @@ import com.moahome.server.billing.service.BillingGenerationService;
 import com.moahome.server.billing.service.BillingService;
 import com.moahome.server.billing.service.BillingTemplates;
 import com.moahome.server.billing.service.OpeningBalanceService;
+import com.moahome.server.billing.service.InitialBalanceCorrections;
+import com.moahome.server.billing.service.BankBillingStartService;
 import com.moahome.server.expense.service.ExpenseService;
 import com.moahome.server.membership.service.MemberManagementService;
 import com.moahome.server.membership.service.MembershipRequestService;
@@ -109,6 +111,12 @@ class OpenApiIntegrationTest {
 
 	@MockitoBean
 	private OpeningBalanceService openingBalances;
+
+	@MockitoBean
+	private InitialBalanceCorrections initialBalanceCorrections;
+
+	@MockitoBean
+	private BankBillingStartService bankBillingStart;
 
 	@MockitoBean
 	private MemberManagementService memberManagement;
@@ -224,7 +232,8 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(
 		    mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(99);
+		assertThat(document.path("paths").properties()).hasSize(101);
+		assertThat(document.at("/paths/~1api~1properties~1{propertyId}~1banking~1balances~1initial-billing-impact/get").isMissingNode()).isFalse();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/residents/{residentId}/representative")
 		    .at("/put/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/members/me/leave")

@@ -9,7 +9,42 @@ export interface OpeningUnit {
   responsibility: string | null;
 }
 
+export interface InitialBalanceDetail {
+  targetId: string;
+  label: string;
+  previousDate: string | null;
+  newDate: string | null;
+  previousAmount: string | null;
+  newAmount: string | null;
+  previousBillingMonth?: string | null;
+  newBillingMonth?: string | null;
+  generatedMonths?: string[] | null;
+}
+
+export interface InitialBalanceHistory {
+  id: string;
+  kind: 'HANDOVER' | 'BUILDING' | 'ACCOUNT';
+  previousDate: string | null;
+  newDate: string | null;
+  details: InitialBalanceDetail[];
+  reason: string;
+  changedBy: string;
+  changedByName: string;
+  changedAt: string;
+}
+
+export interface InitialBalanceInput {
+  id: string;
+  revision: number;
+  cutoffDate: string;
+  reason: string;
+  accounts: { accountId: string; amount: string }[];
+}
+
 export interface OpeningWorkspace {
+  correctionDeadline?: string | null;
+  initialCorrectionAllowed?: boolean;
+  corrections?: InitialBalanceHistory[];
   propertyId: string;
   asOf: string;
   managementStarted: boolean;
@@ -21,6 +56,7 @@ export interface OpeningWorkspace {
     accountId: string;
     label: string;
     bankCode?: string;
+    initialBalance?: boolean;
     amount: string;
   }[];
   history: OpeningBatch[];

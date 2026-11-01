@@ -1232,7 +1232,7 @@ Soft Delete 없음.
 - bank_transfers: UUID id PK, property_id, outgoing_id, incoming_id, created_by/created_at, 선택 canceled_by/canceled_at. 같은 대상의 원본 복합 FK와 활성 입금·출금별 유일 인덱스를 사용합니다. 방향·통장 차이·금액 일치·유효 원본을 DB에서도 검사합니다. 연결은 삭제·덮어쓰기하지 않고 취소 감사만 한 번 기록합니다.
 - DB는 이체 원본의 수납·지출 생성과 금액·계좌·분류 변형을 막고 연결 중인 원본 삭제는 지연 제약으로 양쪽 동시 삭제를 검증합니다. 취소한 연결은 보존하며 새 UUID로 다시 연결합니다.
 
-후속 사용자 요청에 따라 building_cash_openings와 building_cash_opening_changes는 bank_account_id 복합 FK와 통장×동 유일성을 사용합니다. 기존 단일 통장 등록값은 원래 통장으로 이관하고 여러 통장 중 소속을 정할 수 없는 값은 null로 보관해 명시적 확인에 사용합니다. 금액·기준일·버전·정정 이력은 보존합니다. bank_opening_balances는 동별 보유금과 별개인 은행 실제 잔액 인계값이며 별도 기초 잔액 화면 버튼을 추가하지 않습니다. 운영 중 직접 확인 기록은 아래 2026-10-24 저장 구현을 따릅니다. 미확인 잔액을 0원으로 생성하지 않습니다. 정식 회계전표는 추가하지 않습니다.
+후속 사용자 요청에 따라 building_cash_openings와 building_cash_opening_changes는 bank_account_id 복합 FK와 통장×동 유일성을 사용합니다. 기존 단일 통장 등록값은 원래 통장으로 이관하고 여러 통장 중 소속을 정할 수 없는 값은 null로 보관해 명시적 확인에 사용합니다. 금액·기준일·버전·정정 이력은 보존합니다. bank_opening_balances는 동별 보유금과 별개인 은행 실제 잔액 인계값입니다. 2026-11-01 후속 요청의 통장별 초기 정정 화면은 [Client 설계](../client/docs/bankingManagement.md#통장별-초기-잔액-정정과-기준-잔고-시안-2026-11-01)를 따르며 저장은 기존 인계값 또는 독립 초기 버전과 공통 정정 이력을 사용합니다. 2026-11-01 장부 기본 표시 변경은 bank_opening_balances의 통장 초기 잔액에 기존 입출금을 누적·역산하는 파생 조회이며 동별 시작 보유금과 분리합니다. 저장 구조·금액을 변경하거나 차이를 자동 재배분하지 않습니다. 운영 중 직접 확인 기록은 아래 2026-10-24 저장 구현을 따릅니다. 미확인 잔액을 0원으로 생성하지 않습니다. 정식 회계전표는 추가하지 않습니다.
 
 ### 은행 업로드 식별·메모 구현 (2026-10-23)
 
@@ -1845,3 +1845,20 @@ erDiagram
 - 실제 퇴거를 선택한 경우에만 본인의 현재 `unit_residents.status=MOVED_OUT`, `move_out_date`와 `updated_at`을 갱신하고 주민의 조회 버전도 갱신한다. 과거 관계의 대표 여부와 계정 연결·명부 원본은 보존한다.
 - 서비스 이용만 종료하면 현재 거주 관계를 변경하지 않는다. 활성 참여를 요구하는 기존 접근 조회에서 종료 참여는 제외된다.
 - 같은 Property 잠금과 하나의 트랜잭션으로 퇴거·참여 종료·이력 저장을 묶는다. 후반 저장 실패 시 전체를 롤백한다.
+
+## 초기 기준 정정 이력 (2026-11-01)
+
+상태: **구현**. [초기 정정 정책](domainRules.md#초기-기준일시작-금액-정정-기한-2026-11-01)에 따라 `V20261101050908__record_initial_balance_corrections.sql`로 `initial_balance_changes`를 추가합니다. 기존 금액·기준일을 Migration으로 보정하지 않습니다.
+
+- `id` UUID PK는 정정 요청 ID, `property_id`는 관리대상 FK입니다. `kind`는 HANDOVER / BUILDING / ACCOUNT입니다.
+- `request_body` text는 동일 요청 재시도 검증용 정규화된 DTO JSON이며 계좌번호 원문을 포함하지 않습니다. `previous_date`, `new_date`와 `details` JSON text에 대상 ID·표시명·변경 전후 날짜·원 단위 금액을 보관합니다.
+- `reason`은 공백이 아닌 500자 이내 사유, `changed_by`는 사용자 FK, `changed_at`은 실제 기록 시각입니다. 관리대상·기록 시각 인덱스와 UPDATE / DELETE 차단 트리거를 사용합니다.
+- 확정 인계 기준일은 `opening_balance_batches.cutoff_date`·`properties.balance_cutoff_date`와 해당 `bank_opening_balances`·초기 미수 청구의 기준 날짜를 같은 트랜잭션에서 맞춥니다. 후속 통장 기준일·부과 연동에서 first_billing_month는 명시적 동의 후 변경할 수 있고 management_started_at은 보존합니다. 최초 기한은 아래 initial_correction_deadline으로 고정합니다.
+- 동별 정정은 기존 `building_cash_opening_changes`의 버전·전후 금액 이력을 유지하면서 공통 정정 이력에 사유·처리자를 함께 보관합니다. 세대 대표 수정은 기존 unit_residents의 현재 대표 유일 제약을 재사용하며 새 테이블을 만들지 않습니다.
+
+
+### 통장 기준일과 부과 시작월 연동 저장 (2026-11-01)
+
+`V20261101063843__align_bank_cutoff_and_billing_start.sql`은 `properties.initial_correction_deadline` date를 추가하고 기존 대상의 최초 첫 부과월 말일로 채웁니다. 신규 운영 시작 때 값을 확정하며 이후 변경은 DB 트리거로 금지합니다. 월중 마감이면 같은 달 부과를 허용하도록 Property·인계 배치의 날짜 CHECK을 월 단위로 확장합니다. 기존 금액·월별 청구·입출금·동별 날짜는 보정하지 않습니다.
+
+통장별 정정은 기존 독립 bank_opening_balances 버전과 initial_balance_changes를 사용합니다. 기본 통장 날짜 변경은 Property·확정 배치의 기준일/부과월, 초기 미수 날짜와 누락 월 청구를 함께 저장합니다. 같은 통장의 동별 기준값은 확인한 새 금액·날짜로 갱신하고 기존 동별 정정 트리거 이력도 유지합니다. 공통 정정 details JSON에 previousBillingMonth / newBillingMonth / generatedMonths를 추가하며 이전 이력은 null로 읽습니다. 선입금 음수 이월·배지는 기존 원장 조회 표현이며 새 테이블·가상 입금은 만들지 않습니다.

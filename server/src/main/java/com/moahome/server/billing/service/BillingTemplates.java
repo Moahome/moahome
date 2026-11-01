@@ -30,6 +30,14 @@ public class BillingTemplates {
 		    .orElseThrow(() -> new BillingException(BILLING_SETTINGS_NOT_FOUND));
 	}
 
+	/** 통장 초기 시점을 앞당길 때만 사용자가 확인한 등록 당시 기본 항목을 과거 미설정 월에 사용합니다. */
+	public FeeTemplate forInitialStart(List<FeeTemplate> versions, YearMonth month) {
+		if (versions.stream().anyMatch(template -> !template.getEffectiveFrom().isAfter(month.atDay(1))))
+			return applicable(versions, month);
+		return versions.stream().filter(template -> template.getRevision() == 0).findFirst()
+		    .orElseThrow(() -> new BillingException(BILLING_SETTINGS_NOT_FOUND));
+	}
+
 	public List<FeeTemplateItem> items(FeeTemplate template) {
 		List<FeeTemplateItem> result = items
 		    .findByFeeTemplateIdAndActiveTrueAndDeletedAtIsNullOrderBySortOrderAsc(template.getId());

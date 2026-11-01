@@ -4,7 +4,9 @@ import java.time.*;
 import java.util.*;
 
 public record OpeningBalanceResponse(UUID propertyId, LocalDate asOf, boolean managementStarted, LocalDate cutoffDate,
-    String firstBillingMonth, Batch batch, List<Unit> units, List<Account> accounts, List<Batch> history) {
+    String firstBillingMonth, Batch batch, List<Unit> units, List<Account> accounts, List<Batch> history,
+    LocalDate correctionDeadline, boolean initialCorrectionAllowed,
+    List<InitialBalanceCorrection.History> corrections) {
 	public record Batch(UUID id, long revision, String status, LocalDate cutoffDate, String firstBillingMonth,
 	    OffsetDateTime confirmedAt, OffsetDateTime canceledAt, String cancelReason) {
 	}
@@ -13,6 +15,6 @@ public record OpeningBalanceResponse(UUID propertyId, LocalDate asOf, boolean ma
 	    String responsibility, UUID buildingId, String buildingName) {
 	}
 
-	public record Account(UUID accountId, String label, String amount, String bankCode) {
+	public record Account(UUID accountId, String label, String amount, String bankCode, boolean initialBalance) {
 	}
 }

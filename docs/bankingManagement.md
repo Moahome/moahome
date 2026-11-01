@@ -142,9 +142,9 @@ Selection의 `transfer:true`는 세대·기타 입금·지출·공동 입금 배
 
 `accountId`는 같은 관리대상의 공용 통장만 허용하며 선택 통장은 동별 기준값·원장·입출금·외부 부담금·정산 후보까지 같은 범위로 제한합니다. 전체는 각 통장의 독립 기준일에서 계산한 동별 금액을 합산합니다. 미확정 통장의 금액은 0원으로 보완하지 않습니다. 기존 호출의 accountId 생략 저장은 통장 미분류 호환 자료로 남기며 새 화면은 선택 통장을 항상 보냅니다. 통장별 금액과 은행 실제 확인 잔액은 서로 다른 정보입니다.
 
-기존 자료를 등록할 당시 공용 통장이 하나였다는 사실이 확인되면 금액·날짜·버전·이력을 유지해 원래 통장에 연결합니다. 소속이 불명확하면 legacyOpening의 기존 금액을 보여주고 `/openings`로 명시적인 통장별 확정을 받습니다. 이미 확정된 통장×동 값은 그대로 조회하며 정정은 기존 `/openings/corrections`를 사용합니다. 별도 통장 기초 잔액 등록 버튼·통장별/동별 탭은 제공하지 않습니다. 운영 중 잔액 직접 확인은 아래 2026-10-24 후속 구현과 구분합니다.
+기존 자료를 등록할 당시 공용 통장이 하나였다는 사실이 확인되면 금액·날짜·버전·이력을 유지해 원래 통장에 연결합니다. 소속이 불명확하면 legacyOpening의 기존 금액을 보여주고 `/openings`로 명시적인 통장별 확정을 받습니다. 이미 확정된 통장×동 값은 그대로 조회하며 정정은 기존 `/openings/corrections`를 사용합니다. 통장별/동별 탭을 추가하지 않습니다. 2026-11-01 후속 요청으로 기존 통장 행 메뉴에 초기 잔액 정정을 연결했으며 [Client 화면](../client/docs/bankingManagement.md#통장별-초기-잔액-정정과-기준-잔고-시안-2026-11-01)을 따릅니다. 운영 중 잔액 직접 확인은 아래 2026-10-24 후속 구현과 구분합니다.
 
-기존 독립 은행 실제 잔액 기록 호환 API `POST /balances/account-openings`는 `{id,accountId,cutoffDate,amount,revision}`을 받습니다. amount는 0 이상, 기준일은 오늘 또는 이전 날짜이며 요청 UUID·기대 버전으로 중복·정정 충돌을 검증합니다. 이 기록은 은행 확인 잔액 참고값이며 동별 기준 잔고를 생성하거나 변경하지 않습니다. 현재 기준 잔고 화면은 이 별도 API의 진입 버튼을 제공하지 않습니다. 이 호환 API를 아래 운영 중 확인 이력의 구현으로 간주하지 않습니다.
+기존 독립 은행 실제 잔액 기록 호환 API `POST /balances/account-openings`는 `{id,accountId,cutoffDate,amount,revision}`을 받습니다. amount는 0 이상, 기준일은 오늘 또는 이전 날짜이며 요청 UUID·기대 버전으로 중복·정정 충돌을 검증합니다. 이전 호환 요청은 은행 확인 잔액 참고값을 저장했습니다. 후속 통장 초기 정정은 아래 부과 연동·동별 날짜 통합 계약을 적용하며 통장 행 메뉴에서 진입합니다. 이 호환 API를 아래 운영 중 확인 이력의 구현으로 간주하지 않습니다.
 
 
 ### 계산 잔액 응답
@@ -268,3 +268,17 @@ checks는 실제 확인시점·기록시점 내림차순의 전체 이력이며 
 - 농협 음수 이동의 원지출 환입·취소 연결, 농협·수협의 별도 기관 코드 양식, 서로 다른 계좌의 외부 회수는 후속 검토입니다.
 
 후속 저장 책임은 [ERD](erd.md#후속-저장-설계-지출-취소은행-연결), 업무 판단은 [도메인 규칙](domainRules.md)을 따릅니다.
+
+## 초기 기준 정정 기한과 감사 이력 (2026-11-01)
+
+동별 `/banking/balances/openings/corrections`와 독립 통장 `/account-openings` 요청에 필수 `reason`(공백 제외 1~500자)을 추가합니다. 기대 버전·전후 값·요청 ID의 기존 충돌 계약을 유지하며 성공한 동일 요청은 기한 후에도 중복 적용하지 않습니다. 최초 동별 기준값 추가도 기한 종료 뒤에는 거부합니다. 잔고 Workspace는 `correctionDeadline:date|null`, `initialCorrectionAllowed:boolean`을 반환합니다. 기한은 [초기 기준 정책](domainRules.md#초기-기준일시작-금액-정정-기한-2026-11-01)을 따르며 종료 요청은 409 `INITIAL_BALANCE_LOCKED`입니다. 공통 정정 이력은 [인계 조회](billingApi.md#초기-기준-정정-2026-11-01)의 corrections로 조회합니다. 은행 잔액 직접 확인 API는 이 기한의 적용 대상이 아닙니다.
+
+
+## 통장 초기 기준일과 부과 연동 (2026-11-01)
+
+정책은 [도메인 규칙](domainRules.md#통장-초기-기준일부과-시작월동별-보유금-연동-2026-11-01)을 따릅니다.
+
+- `GET /api/properties/{propertyId}/banking/balances/initial-billing-impact?accountId={id}&cutoffDate=YYYY-MM-DD`: 관리 권한 확인 후 `{primary,dateChanged,changed,previousMonth,nextMonth,missingMonths:[{month,unitCount,amount,initialSettings}],blockedReason,token}`을 반환합니다. no-store 조회이며 저장하지 않습니다. initialSettings는 과거 설정이 없어 초기 기본 항목을 사용할 월입니다.
+- `POST .../account-openings`: 기존 `{id,accountId,cutoffDate,amount,revision,reason}`에 선택 `billingToken`, `confirmBilling`, `buildings:[{buildingId,amount,revision}]`를 추가합니다. 부과월 변경·누락 청구가 있으면 최신 토큰과 true 동의가 필수입니다. 등록된 동의 날짜가 바뀌면 모든 해당 동의 금액·버전이 필수입니다. 인계 출처 통장도 선택 통장의 독립 정정 버전으로 기록합니다.
+- 저장은 관리대상 잠금 아래 계획을 다시 계산하며 확인 누락·변경은 `INITIAL_BILLING_CONFIRMATION_REQUIRED`, 확정 수납은 `INITIAL_BILLING_HAS_RECEIPTS`, 이미 충당한 인계 선납은 `INITIAL_BILLING_HAS_APPLICATIONS`, 기존 부과 제외는 `INITIAL_BILLING_HAS_CHARGES`, 설정 근거 없음은 `INITIAL_BILLING_SETTINGS_REQUIRED`, 동별 확인 누락은 `INITIAL_BUILDING_CONFIRMATION_REQUIRED`로 전체 거부합니다. 기존 권한·기한·버전·거래 재분류 차단·재시도 계약을 유지합니다.
+- 동별 `openings` / `openings/corrections`는 선택 통장 초기 기준일이 있으면 같은 날짜만 허용합니다. 다르면 `CASH_OPENING_BANK_DATE_MISMATCH`입니다. 날짜 변경은 통장 초기 정정에서 처리하며 운영 중 은행 확인 기록에는 영향을 주지 않습니다.

@@ -10,6 +10,7 @@ import type {
 export const EMPTY_OPENING_BALANCES: OpeningBalancesDraft = {
   cutoffDate: '',
   firstBillingMonth: '',
+  automaticBilling: true,
   unitMode: '',
   units: {},
   accountAmount: '',
@@ -29,6 +30,15 @@ function validDate(value: string) {
   return /^[1-9][0-9]{3}-[0-9]{2}-[0-9]{2}$/.test(value)
     && Number.isFinite(Date.parse(`${value}T00:00:00Z`))
     && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+}
+
+/** 기본 관리 통장의 마감 기준일로 계산하며 월중에는 해당 월 전액을 부과합니다. */
+export function getAutoFirstBillingMonth(cutoff: string) {
+  if (!validDate(cutoff)) return '';
+  const next = new Date(`${cutoff.slice(0, 7)}-01T00:00:00Z`);
+  next.setUTCMonth(next.getUTCMonth() + 1);
+  const monthEnd = new Date(next.getTime() - 86400000).toISOString().slice(0, 10);
+  return cutoff === monthEnd ? next.toISOString().slice(0, 7) : cutoff.slice(0, 7);
 }
 
 /** 미납·선납 없음은 명시적으로 선택한 경우에만 0원으로 변환합니다. */
@@ -54,12 +64,16 @@ export function getCashOpeningError(opening: OpeningBalancesDraft, buildings: Bu
   if (!validDate(opening.cutoffDate) || opening.cutoffDate > getOpeningToday()) return '통장 기준일을 오늘 또는 이전 날짜로 선택해주세요.';
   if (accounts ? !accounts.length || accounts.some((account) => !AMOUNT.test(account.openingAmount)) : !AMOUNT.test(opening.accountAmount)) return '각 통장의 실제 잔액을 원 단위로 입력해주세요.';
   if (!buildings.length) return '';
+  if (opening.automaticBilling && opening.cashCutoffDate !== opening.cutoffDate) return '동별 잔고는 통장 초기 잔액 기준일을 함께 사용합니다.';
   if (!validDate(opening.cashCutoffDate) || opening.cashCutoffDate > getOpeningToday()) return '동별 잔고 기준일을 오늘 또는 이전 날짜로 선택해주세요.';
   if (accounts ? accounts.some((account) => buildings.some((building) => !CASH_AMOUNT.test(getAccountBuildingAmount(opening, account.clientId ?? '', building.clientId, accounts.length)))) : buildings.some((building) => !CASH_AMOUNT.test(opening.buildings[building.clientId] ?? ''))) return '모든 동의 보유금을 입력해주세요. 모르는 금액을 0원으로 확정하지 마세요.';
   return '';
 }
 /** 장부 기준일 이후의 이번 달 또는 다음 달만 첫 부과월로 지정할 수 있습니다. */
 export function getFirstBillingError(opening: OpeningBalancesDraft) {
+  if (opening.automaticBilling) return getAutoFirstBillingMonth(opening.cutoffDate)
+    && opening.firstBillingMonth === getAutoFirstBillingMonth(opening.cutoffDate)
+    && opening.cutoffDate <= getOpeningToday() ? '' : '통장 기준일과 자동 계산된 첫 부과월을 확인해주세요.';
   const month = getOpeningToday().slice(0, 7);
   const date = new Date(`${month}-01T00:00:00Z`);
   date.setUTCMonth(date.getUTCMonth() + 1);
@@ -79,6 +93,9 @@ export function restoreOpeningBalances(value: unknown, units: UnitDraft[], build
     buildings: {}
   };
   if (!data || typeof data !== 'object') return result;
+  // 기존 초안·성공 요청은 지정한 부과월과 재시도 본문을 보존하고 날짜를 새로 수정할 때 자동 계산합니다.
+  if (data.automaticBilling === true) result.automaticBilling = true;
+  else delete result.automaticBilling;
   for (const key of ['cutoffDate', 'firstBillingMonth', 'accountAmount', 'cashCutoffDate'] as const) {
     if (typeof data[key] === 'string') result[key] = data[key];
   }

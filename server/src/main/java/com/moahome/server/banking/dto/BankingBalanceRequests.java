@@ -11,7 +11,14 @@ public final class BankingBalanceRequests {
 
 	public record AccountOpening(@NotNull UUID id, @NotNull UUID accountId,
 	    @NotNull @PastOrPresent LocalDate cutoffDate, @NotNull @Pattern(regexp = "[0-9]{1,15}") String amount,
-	    @NotNull @PositiveOrZero Long revision) {
+	    @NotNull @PositiveOrZero Long revision, @NotBlank @Size(max = 500) String reason,
+	    String billingToken, boolean confirmBilling, List<@NotNull @Valid OpeningCorrectionPart> buildings) {
+		public AccountOpening(UUID id, UUID accountId, LocalDate cutoffDate, String amount, Long revision, String reason) {
+			this(id, accountId, cutoffDate, amount, revision, reason, null, false, null);
+		}
+		public AccountOpening(UUID id, UUID accountId, LocalDate cutoffDate, String amount, Long revision) {
+			this(id, accountId, cutoffDate, amount, revision, "초기 통장 기준 정정");
+		}
 	}
 
 	public record Opening(@NotNull LocalDate cutoffDate,
@@ -22,9 +29,13 @@ public final class BankingBalanceRequests {
 	}
 
 	public record OpeningCorrection(@NotNull UUID id, @NotNull LocalDate cutoffDate,
-	    @NotEmpty @Size(max = 1000) List<@NotNull @Valid OpeningCorrectionPart> buildings, UUID accountId) {
+	    @NotEmpty @Size(max = 1000) List<@NotNull @Valid OpeningCorrectionPart> buildings, UUID accountId,
+	    @NotBlank @Size(max = 500) String reason) {
+		public OpeningCorrection(UUID id, LocalDate cutoffDate, List<OpeningCorrectionPart> buildings, UUID accountId) {
+			this(id, cutoffDate, buildings, accountId, "초기 동별 기준 정정");
+		}
 		public OpeningCorrection(UUID id, LocalDate cutoffDate, List<OpeningCorrectionPart> buildings) {
-			this(id, cutoffDate, buildings, null);
+			this(id, cutoffDate, buildings, null, "초기 동별 기준 정정");
 		}
 	}
 
