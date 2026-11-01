@@ -112,9 +112,9 @@ Widget 외부에는 `ManagementLayout`의 공개 API를 제공합니다. 페이�
 | 세대 관리 | 승인 관리 | `/invitations` | 연결됨 |
 | 없음 | 관리비 부과 | `/billing/monthly` | 연결됨 |
 | 통장 관리 | 통장 거래 | `/banking/transactions` | 연결됨 |
+| 통장 관리 | 동별 잔고·정산 | `/banking/balances` | 연결됨 |
 | 통장 관리 | 월별 수납 현황 | `/banking/monthly` | 연결됨 |
 | 통장 관리 | 지출 내역 | `/banking/expenses` | 연결됨 |
-| 통장 관리 | 동별 잔고·정산 | `/banking/balances` | 연결됨 |
 | 없음 | 정산 / 마감 | `/closing/monthly` | 연결됨 |
 | 차량 관리 | 차량 내역 | `/vehicles` | 준비 안내 화면 연결 |
 | 차량 관리 | 차량 승인 | `/vehicles/approvals` | 준비 안내 화면 연결 |

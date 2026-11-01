@@ -6,16 +6,18 @@
 
 ## 메뉴와 경로
 
+통장 관리 메뉴는 `통장 거래 → 동별 잔고·정산 → 월별 수납 현황 → 지출 내역` 순서로 표시합니다.
+
 | 메뉴·상세 | `/manage/[propertyId]` 아래 경로 |
 | --- | --- |
 | 통장 관리 → 통장 거래 | `/banking/transactions` |
+| 통장 관리 → 동별 잔고·정산 | `/banking/balances` |
 | 통장 관리 → 월별 수납 현황 | `/banking/monthly` |
 | 통장 관리 → 지출 내역 | `/banking/expenses` |
 | 거래내역 가져오기·미리보기 | `/banking/upload` |
 | 수동 입금 등록(모바일) | `/banking/manual` |
 | 입금 상세 | `/banking/receipts/[paymentId]` |
 | 출금 상세 | `/banking/transactions/[transactionId]` |
-| 동별 잔고·정산 | `/banking/balances` |
 | 동별 상세 원장 | `/banking/balances/[buildingId]` |
 | 통장 상세(모바일) | `/banking/balances/details/account` |
 | 잔고 상세·정산(모바일) | `/banking/balances/details/[panel]` |

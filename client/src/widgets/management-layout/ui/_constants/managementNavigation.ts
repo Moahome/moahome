@@ -71,6 +71,12 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
         available: true
       },
       {
+        id: 'building-balances',
+        label: '동별 잔고·정산',
+        path: 'banking/balances',
+        available: true
+      },
+      {
         id: 'monthly-payments',
         label: '월별 수납 현황',
         path: 'banking/monthly',
@@ -80,12 +86,6 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
         id: 'expense-list',
         label: '지출 내역',
         path: 'banking/expenses',
-        available: true
-      },
-      {
-        id: 'building-balances',
-        label: '동별 잔고·정산',
-        path: 'banking/balances',
         available: true
       },
     ]
