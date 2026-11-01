@@ -4532,7 +4532,11 @@ test('최종 등록은 중복 클릭·뒤로가기를 막고 API 계약의 전�
     exact: true
   }).click();
   await expect(page).toHaveURL(/\/manage\/[0-9a-f-]+\/dashboard$/);
-  await expect(page.getByRole('main')).toContainText('새로운 기능을 준비하고 있어요!');
+  await expect(page.getByRole('heading', {
+    name: '대시보드',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('main')).toContainText('모아빌라의 관리 현황을 한눈에 확인하세요.');
   expect(lookups).toBe(0);
   await page.goBack();
   await expect(page).toHaveURL(/registration=complete/);
