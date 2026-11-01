@@ -3093,7 +3093,11 @@ for (const width of [1440, 390, 320]) {
       await expect(explanation.locator('strong')).toHaveCSS('font-size', '17px');
       const helpBounds = await help.boundingBox();
       const tipBounds = await explanation.boundingBox();
-      expect(tipBounds!.y).toBeGreaterThanOrEqual(helpBounds!.y + helpBounds!.height);
+      // 화면 아래쪽에서는 위로 열어도 도움말 전체가 보이고 버튼을 가리지 않아야 합니다.
+      expect(tipBounds!.y).toBeGreaterThanOrEqual(0);
+      expect(tipBounds!.y + tipBounds!.height).toBeLessThanOrEqual(900);
+      expect(tipBounds!.y >= helpBounds!.y + helpBounds!.height
+        || tipBounds!.y + tipBounds!.height <= helpBounds!.y).toBe(true);
       expect(tipBounds!.x).toBeGreaterThanOrEqual(0);
       expect(tipBounds!.x + tipBounds!.width).toBeLessThanOrEqual(width);
       await page.screenshot({
@@ -4164,6 +4168,23 @@ for (const width of [1440, 390, 320]) {
       exact: true
     }).click();
     await expect(page.getByRole('tooltip')).toContainText('2026-09-30 초기 잔액 기준');
+    await expect(detail.getByRole('button', {
+      name: '마지막 은행 확인 도움말',
+      exact: true
+    })).toHaveCount(0);
+    const help = page.getByRole('tooltip');
+    await expect(help).toHaveAttribute('data-help-size', 'sm');
+    const helpBox = (await help.boundingBox())!;
+    const detailBox = (await detail.boundingBox())!;
+    expect(helpBox.x).toBeGreaterThanOrEqual(detailBox.x);
+    expect(helpBox.x + helpBox.width).toBeLessThanOrEqual(detailBox.x + detailBox.width);
+    expect(helpBox.y).toBeGreaterThanOrEqual(0);
+    if (width > 767) {
+      expect(await help.evaluate((element) => element.closest('dialog[open]') !== null)).toBe(true);
+      expect(helpBox.y).toBeGreaterThanOrEqual(detailBox.y);
+      expect(helpBox.y + helpBox.height).toBeLessThanOrEqual(detailBox.y + detailBox.height);
+    }
+
     await page.keyboard.press('Escape');
     await expect(detail.getByRole('button', {
       name: '확인 이력',

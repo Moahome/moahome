@@ -211,6 +211,7 @@ export function BankAccountDetails({ propertyId, account, month, onCheck, onInit
             label={'현재 장부 잔액 도움말'}
             title={'현재 장부 잔액'}
             size={'sm'}
+            compact
           >
             {getBalancePeriodLabel(month)}
             의 장부 잔액입니다. 통장 초기 잔액에 업로드·수동 입출금을 반영합니다.
@@ -237,19 +238,13 @@ export function BankAccountDetails({ propertyId, account, month, onCheck, onInit
             {account.balance !== null && (!account.confirmation || account.confirmation.status === 'READY')
               ? <>
                 참고 · 마지막 은행 확인
+                {' '}
                 <strong>
                   {formatWon(account.balance)}
                 </strong>
               </>
               : getBankConfirmationDescription(account)}
           </p>
-          <InfoTooltip
-            label={'마지막 은행 확인 도움말'}
-            title={'마지막 은행 확인'}
-            size={'sm'}
-          >
-            {getBankConfirmationDescription(account)}
-          </InfoTooltip>
         </div>
         {(onCheck || onInitial) && (
           <div
