@@ -258,3 +258,6 @@
     }
   }
 }
+.negative-amount {
+  color: var(--danger);
+}

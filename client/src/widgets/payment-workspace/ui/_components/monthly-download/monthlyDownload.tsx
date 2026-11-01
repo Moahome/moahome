@@ -28,7 +28,11 @@ const ReportDownload = dynamic(() => import('@/shared/ui/report-download').then(
 const MONTHLY_REPORT_LAYOUT_VERSION = 3;
 
 /** 다운로드를 열 때 현재 권한에서 확인한 빌라 이름·원장·조회 조건을 같은 자료로 고정합니다. */
-export function MonthlyExportButton({ month, filters }: { month: string; filters: MonthlyCollectionFilters }) {
+export function MonthlyExportButton({ month, filters, selectedUnitIds }: {
+  month: string;
+  filters: MonthlyCollectionFilters;
+  selectedUnitIds?: readonly string[];
+}) {
   const { ledger, propertyId, busy } = usePaymentWorkspace();
   const session = useSession();
   const context = useManagementContext(session.data?.id, propertyId, false);
@@ -38,9 +42,9 @@ export function MonthlyExportButton({ month, filters }: { month: string; filters
     <>
       <Button
         variant={'outline'}
-        disabled={busy || !context.data?.name}
+        disabled={busy || !context.data?.name || selectedUnitIds?.length === 0}
         onClick={() => {
-          if (!context.data?.name) return;
+          if (!context.data?.name || selectedUnitIds?.length === 0) return;
           setSnapshot({
             propertyId,
             propertyName: context.data.name,
@@ -50,6 +54,9 @@ export function MonthlyExportButton({ month, filters }: { month: string; filters
               ...filters,
             },
             generatedAt: new Date().toISOString(),
+            ...(selectedUnitIds === undefined ? {} : {
+              selectedUnitIds: [...selectedUnitIds]
+            }),
           });
         }}
         leadingIcon={(
@@ -58,7 +65,7 @@ export function MonthlyExportButton({ month, filters }: { month: string; filters
           />
         )}
       >
-        다운로드
+        {selectedUnitIds === undefined ? '다운로드' : '선택 다운로드'}
       </Button>
       {snapshot && snapshot.propertyId === propertyId && snapshot.month === month && (
         <MonthlyDownload
@@ -75,17 +82,18 @@ function MonthlyDownload({ data, onClose }: { data: MonthlyReportSnapshot; onClo
   const document = useMemo(() => getMonthlyReportDocument(data), [data]);
   const createWorkbook = useCallback(() => createMonthlyWorkbook(data), [data]);
   const createPdf = useCallback(() => import('../../../model/monthlyReportPdf').then((module) => module.createMonthlyCollectionPdf(data)), [data]);
-  const filename = `${data.propertyName}_수납현황_${data.month}_${data.filters.status}${data.filters.building ? `_${data.filters.building}` : ''}`.replace(/[\\/:*?"<>|]/g, '_');
+  const selectionLabel = data.selectedUnitIds === undefined ? '' : `선택 ${document.rows.length}세대`;
+  const filename = `${data.propertyName}_수납현황_${data.month}_${data.filters.status}${data.filters.building ? `_${data.filters.building}` : ''}${selectionLabel ? `_${selectionLabel.replace(' ', '')}` : ''}`.replace(/[\\/:*?"<>|]/g, '_');
 
   return (
     <ReportDownload
       title={`${data.month.replace('-', '년 ')}월 월별 수납 현황`}
-      description={'현재 상태·동·검색 조건의 전체 세대를 확인하고 내려받으세요.'}
+      description={selectionLabel ? '선택한 세대와 해당 합계를 확인하고 내려받으세요.' : '현재 상태·동·검색 조건의 전체 세대를 확인하고 내려받으세요.'}
       filename={filename}
-      sourceKey={JSON.stringify([MONTHLY_REPORT_LAYOUT_VERSION, data.propertyId, data.month, data.generatedAt, data.filters])}
+      sourceKey={JSON.stringify([MONTHLY_REPORT_LAYOUT_VERSION, data.propertyId, data.month, data.generatedAt, data.filters, data.selectedUnitIds])}
       documents={[document]}
       highlights={getMonthlyReportMetrics(document)}
-      scopeLabel={`${data.filters.building || '전체 동'} · ${data.filters.status} · ${document.rows.length}세대`}
+      scopeLabel={`${data.filters.building || '전체 동'} · ${data.filters.status} · ${selectionLabel || `${document.rows.length}세대`}`}
       pdfDescription={'A4 가로 보고서'}
       createWorkbook={createWorkbook}
       createPdf={createPdf}

@@ -441,7 +441,7 @@ test('선입금 보고서는 이월·당월 발생 열 없이 차감 후 잔액�
   const tabs = page.getByRole('group', {
     name: '수납 상태'
   });
-  await expect(tabs.getByRole('button')).toHaveText(['전체 (2)', '미납 (0)', '일부납부 (0)', '선입금 (2)', '납부완료 (1)']);
+  await expect(tabs.getByRole('button')).toHaveText(['전체 (2)', '미납 (0)', '일부납부 (0)', '선입금 (2)', '납부완료 (0)']);
   await tabs.getByRole('button', {
     name: '선입금 (2)',
     exact: true
@@ -503,3 +503,205 @@ test('선입금 보고서는 이월·당월 발생 열 없이 차감 후 잔액�
   await png.saveAs(testInfo.outputPath('prepaid-report.png'));
   await png.saveAs('/tmp/moahome-prepaid-report.png');
 });
+
+for (const width of [1440, 390]) {
+  test(`선택 수납 다운로드 ${width}px는 페이지 간 선택을 유지하고 선택한 세대만 Excel·PDF·PNG에 담는다`, async ({ page }) => {
+    test.setTimeout(60000);
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    const fixture = () => {
+      const data = settlementFixture();
+      const source = data.payments.units[0];
+      data.payments.units = Array.from({
+        length: 20
+      }, (_, index) => ({
+        ...source,
+        id: settlementId(10000 + index),
+        label: `102동 ${201 + index}호`,
+        buildingName: '102동',
+        representativeName: `주민 ${index + 1}`
+      }));
+      data.payments.charges = data.payments.units.map((unit, index) => ({
+        id: settlementId(12000 + index),
+        unitId: unit.id,
+        month: '2026-10',
+        amount: '50000',
+        status: 'ISSUED' as const
+      }));
+      data.payments.payments = [];
+      data.payments.openingCredits = [];
+      return data;
+    };
+    await mockSettlement(page, undefined, 0, fixture);
+    const writes: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().includes(`/api/properties/${SETTLEMENT_PROPERTY}/`)) writes.push(request.url());
+    });
+    await page.goto(BASE);
+    const table = page.getByRole('table', {
+      name: '세대별 월별 수납 현황'
+    });
+    await expect(table.getByRole('checkbox')).toHaveCount(0);
+    await page.getByRole('button', {
+      name: '편집',
+      exact: true
+    }).click();
+    const downloadButton = page.getByRole('button', {
+      name: '선택 다운로드',
+      exact: true
+    });
+    await expect(downloadButton).toBeDisabled();
+    await table.getByRole('row').filter({
+      hasText: '102동 201호'
+    }).click();
+    await table.getByRole('checkbox', {
+      name: '102동 202호 선택',
+      exact: true
+    }).check();
+    await expect(table.getByRole('checkbox', {
+      name: '현재 페이지 세대 전체 선택'
+    })).toHaveJSProperty('indeterminate', true);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('button', {
+      name: '2페이지',
+      exact: true
+    }).click();
+    await table.getByRole('checkbox', {
+      name: '102동 212호 선택',
+      exact: true
+    }).check();
+    await table.getByRole('checkbox', {
+      name: '현재 페이지 세대 전체 선택'
+    }).check();
+    await expect(page.getByRole('status')).toHaveText('12세대 선택');
+    await table.getByRole('checkbox', {
+      name: '현재 페이지 세대 전체 선택'
+    }).uncheck();
+    await expect(page.getByRole('status')).toHaveText('2세대 선택');
+    await table.getByRole('checkbox', {
+      name: '102동 212호 선택',
+      exact: true
+    }).check();
+    await page.getByRole('button', {
+      name: '1페이지',
+      exact: true
+    }).click();
+    await expect(table.getByRole('checkbox', {
+      name: '102동 201호 선택',
+      exact: true
+    })).toBeChecked();
+    await expect(page.getByRole('status')).toHaveText('3세대 선택');
+    await page.evaluate(() => window.scrollTo({
+      top: 0,
+      behavior: 'instant'
+    }));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    await page.screenshot({
+      path: `/tmp/moahome-monthly-selection-${width}.png`,
+      fullPage: true,
+      animations: 'disabled'
+    });
+    await downloadButton.click();
+    const modal = page.getByRole('dialog');
+    for (const label of ['102동 201호', '102동 202호', '102동 212호']) await expect(modal.getByText(label, {
+      exact: true
+    })).toBeVisible();
+    await expect(modal.getByText('102동 203호', {
+      exact: true
+    })).toHaveCount(0);
+    await expect(modal).toContainText('선택 3세대');
+    await modal.screenshot({
+      path: `/tmp/moahome-monthly-selection-report-${width}.png`,
+      animations: 'disabled'
+    });
+    const excelReady = page.waitForEvent('download');
+    await modal.getByRole('button', {
+      name: 'Excel 다운로드',
+      exact: true
+    }).click();
+    const excel = await excelReady;
+    await excel.saveAs(`/tmp/moahome-monthly-selection-${width}.xlsx`);
+    expect(excel.suggestedFilename()).toBe('모아빌라_수납현황_2026-10_전체_선택3세대.xlsx');
+    const files = unzipSync(new Uint8Array(await readFile((await excel.path())!)));
+    const xml = Object.values(files).map((file) => strFromU8(file)).join('');
+    for (const label of ['102동 201호', '102동 202호', '102동 212호']) expect(xml).toContain(label);
+    expect(xml).not.toContain('102동 203호');
+    await modal.getByRole('radio', {
+      name: 'PDF',
+      exact: true
+    }).check();
+    await expect(modal.getByRole('img', {
+      name: 'PDF 1페이지 미리보기',
+      exact: true
+    })).toBeVisible({
+      timeout: 30000
+    });
+    const pdfReady = page.waitForEvent('download');
+    await modal.getByRole('button', {
+      name: 'PDF 다운로드',
+      exact: true
+    }).click();
+    const pdf = await pdfReady;
+    await pdf.saveAs(`/tmp/moahome-monthly-selection-${width}.pdf`);
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const task = getDocument({
+      data: new Uint8Array(await readFile((await pdf.path())!)),
+      useSystemFonts: true
+    });
+    const document = await task.promise;
+    const pages: string[] = [];
+    const pageCount = document.numPages;
+    for (let index = 1; index <= pageCount; index++) {
+      pages.push((await (await document.getPage(index)).getTextContent()).items.map((item) => 'str' in item ? item.str : '').join(' '));
+    }
+    const text = pages.join(' ');
+    await task.destroy();
+    for (const label of ['102동 201호', '102동 202호', '102동 212호']) expect(text).toContain(label);
+    expect(text).not.toContain('102동 203호');
+    expect(text).toContain('150,000');
+    await modal.getByRole('radio', {
+      name: '이미지 (PNG)',
+      exact: true
+    }).check();
+    const pngReady = page.waitForEvent('download');
+    await modal.getByRole('button', {
+      name: '이미지 다운로드',
+      exact: true
+    }).click();
+    const png = await pngReady;
+    expect(png.suggestedFilename()).toBe(`모아빌라_수납현황_2026-10_전체_선택3세대.${pageCount > 1 ? 'zip' : 'png'}`);
+    const bytes = new Uint8Array(await readFile((await png.path())!));
+    const images = pageCount > 1 ? Object.values(unzipSync(bytes)) : [bytes];
+    expect(images).toHaveLength(pageCount);
+    for (const image of images) expect(Array.from(image.slice(0, 8))).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+    await modal.getByRole('button', {
+      name: '다운로드 미리보기 닫기',
+      exact: true
+    }).click();
+    await page.getByRole('textbox', {
+      name: '수납 현황 세대 검색'
+    }).fill('201');
+    await expect(table.getByRole('checkbox')).toHaveCount(0);
+    await expect(page.getByRole('button', {
+      name: '다운로드',
+      exact: true
+    })).toBeEnabled();
+    await page.getByRole('button', {
+      name: '편집',
+      exact: true
+    }).click();
+    await expect(page.getByRole('status')).toHaveText('0세대 선택');
+    await table.getByRole('checkbox', {
+      name: '102동 201호 선택',
+      exact: true
+    }).check();
+    await page.getByRole('button', {
+      name: '완료',
+      exact: true
+    }).click();
+    await expect(table.getByRole('checkbox')).toHaveCount(0);
+    expect(writes).toEqual([]);
+  });
+}

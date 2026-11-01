@@ -12,7 +12,7 @@ import type {
   MonthlyReportSnapshot
 } from './monthlyExportTypes';
 
-/** 화면과 같은 조건의 전체 세대·합계를 문서로 구성하고 미확정 정산은 금액으로 확정하지 않습니다. */
+/** 현재 조회 조건과 선택한 세대만 문서·합계에 포함하며 선택이 없는 편집 상태를 전체 출력으로 바꾸지 않습니다. */
 export function getMonthlyReportDocument(data: MonthlyReportSnapshot): ReportDefinition {
   const { ledger, month, filters } = data;
   const unpaid = filters.status === '미납';
@@ -20,13 +20,15 @@ export function getMonthlyReportDocument(data: MonthlyReportSnapshot): ReportDef
   const prepaid = filters.status === '선입금';
   const showApplied = !unpaid && !prepaid;
   const showBalance = !paid && !prepaid;
-  const rows = filterMonthlyPreviewRows(getMonthlyPreviewRows(ledger, month), filters);
+  const selected = data.selectedUnitIds === undefined ? null : new Set(data.selectedUnitIds);
+  const rows = filterMonthlyPreviewRows(getMonthlyPreviewRows(ledger, month), filters)
+    .filter((row) => selected === null || selected.has(row.unitId));
   const sum = (key: 'carry' | 'billed' | 'applied' | 'balance' | 'prepaid') => rows.reduce((total, row) => total + row[key] + (key === 'billed' ? row.settlementAmount ?? BigInt(0) : BigInt(0)), BigInt(0));
   const balance = rows.some((row) => row.settlementPending) ? '정산 확인 필요' : sum('balance');
 
   return {
     title: `${data.propertyName} 월별 수납 현황`,
-    description: `세대별 청구·수납 및 미수금 보고서 · ${filters.status}${filters.building ? ` · ${filters.building}` : ''}${filters.query.trim() ? ` · 검색: ${filters.query.trim()}` : ''}`,
+    description: `세대별 청구·수납 및 미수금 보고서 · ${filters.status}${filters.building ? ` · ${filters.building}` : ''}${filters.query.trim() ? ` · 검색: ${filters.query.trim()}` : ''}${selected === null ? '' : ` · 선택 ${rows.length}세대`}`,
     sheet: '월별 수납 현황',
     // 미납은 충당액이 없는 상태이므로 시안처럼 이월·발생·미수만 보여주고 다른 상태에는 수납 반영액을 유지합니다.
     columns: (prepaid
@@ -42,7 +44,10 @@ export function getMonthlyReportDocument(data: MonthlyReportSnapshot): ReportDef
         align
       };
     }),
-    summary: [{
+    summary: [...(selected === null ? [] : [{
+      label: '출력 범위',
+      value: `선택 ${rows.length}세대`
+    }]), {
       label: '조회 월',
       value: month.replace('-', '년 ') + '월'
     }, {
@@ -86,7 +91,7 @@ export function getMonthlyReportMetrics(document: ReportDefinition): MonthlyRepo
     const index = document.columns.findIndex((column) => column.label === label);
     return index < 0 ? [] : [{
       label,
-      tone,
+      tone: typeof document.total?.[index] === 'bigint' && document.total[index] < BigInt(0) ? 'danger' : tone,
       value: document.total?.[index] ?? ''
     }];
   });

@@ -1,6 +1,7 @@
 'use client';
 
 import { StateMessage } from '@/shared/ui/state-message';
+import { Button } from '@/shared/ui/button';
 import {
   formatInteger,
   formatWon
@@ -40,13 +41,17 @@ import {
 import styles from './monthlyCollection.module.css';
 
 /** 월별 실제 입금 합계와 청구의 이월·충당·미수를 함께 표시하되 두 기준의 금액을 섞지 않습니다. */
-export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath, filters, onFiltersChange }: {
+export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath, filters, onFiltersChange,
+  selectedUnitIds, onSelectionChange, onToggleSelection }: {
   propertyId: string;
   month: string;
   onMonthChange: (month: string) => void;
   detailPath?: string;
   filters: MonthlyCollectionFilters;
   onFiltersChange: (filters: MonthlyCollectionFilters) => void;
+  selectedUnitIds?: readonly string[];
+  onSelectionChange: (ids: string[]) => void;
+  onToggleSelection: () => void;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -68,6 +73,9 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const selecting = selectedUnitIds !== undefined;
+  const checkedIds = new Set(selectedUnitIds ?? []);
+  const visibleSelectedCount = visible.filter((row) => checkedIds.has(row.unitId)).length;
   const sum = (key: 'carry' | 'billed' | 'applied' | 'balance') => rows.reduce((total, row) => total + row[key] + (key === 'billed' ? row.settlementAmount ?? BigInt(0) : BigInt(0)), BigInt(0));
 
   // 선입금 잔액은 당월까지의 청구를 이미 충당한 결과이므로 발생액을 다시 차감하지 않습니다.
@@ -94,7 +102,14 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
       key: 'carry',
       header: '전월 이월액',
       align: 'right',
-      render: (row) => formatWon(row.carry)
+      render: (row) => (
+        <span
+          className={styles.amount}
+          data-negative={row.carry < BigInt(0)}
+        >
+          {formatWon(row.carry)}
+        </span>
+      )
     },
     {
       key: 'billed',
@@ -138,9 +153,47 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
     },
 
   ];
-  const visibleColumns = status === '선입금'
+  const amountColumns = status === '선입금'
     ? columns.filter((column) => ['unit', 'representative', 'prepaid', 'status', 'date'].includes(column.key))
     : columns;
+  const visibleColumns: typeof columns = selecting ? [{
+    key: 'selection',
+    width: 48,
+    header: (
+      <input
+        className={styles['selection-checkbox']}
+        type={'checkbox'}
+        aria-label={'현재 페이지 세대 전체 선택'}
+        checked={visible.length > 0 && visibleSelectedCount === visible.length}
+        ref={(element) => { if (element) element.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visible.length; }}
+        onChange={(event) => {
+          const next = new Set(selectedUnitIds);
+          visible.forEach((row) => {
+            if (event.target.checked) next.add(row.unitId);
+            else next.delete(row.unitId);
+          });
+          onSelectionChange([...next]);
+        }}
+      />
+    ),
+    render: (row) => (
+      <input
+        className={styles['selection-checkbox']}
+        type={'checkbox'}
+        aria-label={`${row.unitLabel} 선택`}
+        checked={checkedIds.has(row.unitId)}
+        onChange={() => toggleSelection(row.unitId)}
+      />
+    )
+  }, ...amountColumns] : amountColumns;
+
+  /** 페이지를 넘겨도 선택한 세대는 유지하고 동일 세대를 중복해서 선택하지 않습니다. */
+  function toggleSelection(unitId: string) {
+    const next = new Set(selectedUnitIds);
+    if (next.has(unitId)) next.delete(unitId);
+    else next.add(unitId);
+    onSelectionChange([...next]);
+  }
 
   /** PC에서는 중앙 모달로, 모바일에서는 독립된 세대별 수납 상세 주소로 이동합니다. */
   function openDetail(unitId: string) {
@@ -159,7 +212,7 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
         className={styles.kpis}
       >
         {[
-          ['전월 이월 미수금', 'carry', 'warning'],
+          ['전월 이월액', 'carry', 'warning'],
           ['당월 관리비 발생액', 'billed', 'primary'],
           ['당월 수납 반영액', 'applied', 'success'],
           ['당월 말 미수금', 'balance', 'danger']
@@ -170,7 +223,8 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
             label={label}
             value={key === 'balance' && rows.some((row) => row.settlementPending) ? '정산 확인 필요' : formatInteger(sum(key as 'carry' | 'billed' | 'applied' | 'balance'))}
             unit={key === 'balance' && rows.some((row) => row.settlementPending) ? '' : '원'}
-            tone={tone as 'warning' | 'primary' | 'success' | 'danger'}
+            valueTone={sum(key as 'carry' | 'billed' | 'applied' | 'balance') < BigInt(0) ? 'danger' : 'neutral'}
+            tone={sum(key as 'carry' | 'billed' | 'applied' | 'balance') < BigInt(0) ? 'danger' : tone as 'warning' | 'primary' | 'success' | 'danger'}
             icon={(
               <ServiceIcon
                 name={'receipt'}
@@ -316,11 +370,29 @@ export function MonthlyCollection({ propertyId, month, onMonthChange, detailPath
               }}
             />
           </div>
+          <div
+            className={styles['edit-heading']}
+          >
+            <span
+              role={selecting ? 'status' : undefined}
+            >
+              {selecting ? `${checkedIds.size}세대 선택` : `총 ${filtered.length}세대`}
+            </span>
+            <Button
+              variant={'text'}
+              size={'sm'}
+              aria-pressed={selecting}
+              disabled={!filtered.length && !selecting}
+              onClick={onToggleSelection}
+            >
+              {selecting ? '완료' : '편집'}
+            </Button>
+          </div>
           <DataTable
             label={'세대별 월별 수납 현황'}
             rows={visible}
             getRowKey={(row) => row.unitId}
-            onRowClick={(row) => openDetail(row.unitId)}
+            onRowClick={(row) => selecting ? toggleSelection(row.unitId) : openDetail(row.unitId)}
             minWidth={status === '선입금' ? 720 : 1100}
             emptyState={(
               <StateMessage

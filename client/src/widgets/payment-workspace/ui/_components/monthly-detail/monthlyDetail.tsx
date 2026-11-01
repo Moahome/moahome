@@ -158,7 +158,7 @@ export function MonthlyDetail({ month, unitId, presentation = 'modal', onClose }
                   전월 이월 미수금
                 </dt>
                 <dd>
-                  {formatWon(row.carry)}
+                  {formatWon(row.carry > BigInt(0) ? row.carry : BigInt(0))}
                 </dd>
               </div>
               <div>
@@ -229,6 +229,18 @@ export function MonthlyDetail({ month, unitId, presentation = 'modal', onClose }
                   {formatWon(row.prepaid)}
                 </dd>
               </div>
+              {row.carry < BigInt(0) && (
+                <div>
+                  <dt>
+                    전월 이월 선입금
+                  </dt>
+                  <dd
+                    className={styles['negative-amount']}
+                  >
+                    {formatWon(row.carry)}
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt>
                   최근 입금일

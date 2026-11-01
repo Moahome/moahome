@@ -87,13 +87,18 @@ export function getMonthlyPreviewRows(ledger: PreviewLedger, month: string): Mon
     const billed = charges.filter((charge) => charge.month === month && charge.chargeType !== 'OPENING_RECEIVABLE').reduce((sum, charge) => sum + BigInt(charge.amount), BigInt(0));
     const payments = ledger.payments.filter((payment) => payment.status === 'CONFIRMED' && payment.receiptType !== 'OTHER' && payment.unitId === unit.id && payment.date <= end);
     // 인계 선납은 잔액 계산에만 포함하고 실제 입금 목록·월별 현금 합계에는 넣지 않습니다.
-    const openingCredit = (ledger.openingCredits ?? []).filter((credit) => credit.unitId === unit.id && credit.date <= end)
+    const credits = (ledger.openingCredits ?? []).filter((credit) => credit.unitId === unit.id && credit.date <= end);
+    const openingCredit = credits.reduce((sum, credit) => sum + BigInt(credit.amount), BigInt(0));
+    // 당월에 시작한 인계 선납을 전월 말 잔액에 섞지 않고 실제 기준 날짜로 월 경계를 나눕니다.
+    const previousCredit = credits.filter((credit) => credit.date < start)
       .reduce((sum, credit) => sum + BigInt(credit.amount), BigInt(0));
-    const previousReceived = payments.filter((payment) => payment.date < start).reduce((sum, payment) => sum + BigInt(payment.amount), openingCredit);
+    const previousReceived = payments.filter((payment) => payment.date < start).reduce((sum, payment) => sum + BigInt(payment.amount), previousCredit);
     const received = payments.reduce((sum, payment) => sum + BigInt(payment.amount), openingCredit);
-    const carry = oldCharges > previousReceived ? oldCharges - previousReceived : BigInt(0);
+    // 전월 말 선입금도 숨기지 않고 음수 이월로 표시합니다. 실제 청구 충당액은 양수 미수와 분리합니다.
+    const carry = oldCharges - previousReceived;
+    const receivableCarry = carry > BigInt(0) ? carry : BigInt(0);
     const balance = oldCharges + billed > received ? oldCharges + billed - received : BigInt(0);
-    const applied = carry + billed - balance;
+    const applied = receivableCarry + billed - balance;
     const settlementCharges = ledger.charges.filter((charge) => charge.unitId === unit.id && charge.month === month && charge.status === 'ISSUED' && BigInt(charge.amount) <= BigInt(0));
     const settlementAmount = settlementCharges.length ? settlementCharges.reduce((sum, charge) => sum + BigInt(charge.amount), BigInt(0)) : null;
     const settlementPending = ledger.charges.some((charge) => charge.unitId === unit.id && charge.month <= month && charge.status === 'ISSUED' && BigInt(charge.amount) <= BigInt(0));
@@ -101,7 +106,7 @@ export function getMonthlyPreviewRows(ledger: PreviewLedger, month: string): Mon
     let status: MonthlyPreviewRow['status'] = '미납';
     if (balance === BigInt(0)) status = '납부완료';
     else if (applied > BigInt(0)) status = '일부납부';
-    if (!billedUnitIds.has(unit.id) && prepaid > BigInt(0)) status = '선입금';
+    if (prepaid > BigInt(0)) status = '선입금';
     if (settlementPending) status = '정산 확인 필요';
 
     const row: MonthlyPreviewRow = {

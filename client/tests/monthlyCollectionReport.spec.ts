@@ -108,6 +108,10 @@ test('빌라 이름과 전체 부과 세대의 합계·미확정 정산을 같�
 
 test('상태·검색·동을 함께 적용해 필터 안의 세대와 합계만 내보내며 빈 결과는 0건으로 표시한다', () => {
   const data = snapshot();
+  data.ledger.payments = data.ledger.payments.map((payment) => payment.unitId === 'unit-1' ? {
+    ...payment,
+    amount: '10000'
+  } : payment);
   data.filters = {
     query: '201',
     building: '103동',
@@ -164,4 +168,64 @@ test('선입금 보고서는 미부과 세대와 완납 후 잔액을 함께 내
   const blob = await createMonthlyWorkbook(data);
   const files = unzipSync(new Uint8Array(await blob.arrayBuffer()));
   expect(Object.values(files).map((file) => strFromU8(file)).join('')).toContain('선입금 잔액');
+});
+
+
+test('음수 선입금 이월은 보고서·합계·Excel에서 부호와 붉은색을 보존한다', async () => {
+  const data = snapshot();
+  data.month = '2026-11';
+  data.filters.status = '전체';
+  data.ledger.units = [data.ledger.units[0]];
+  const unitId = data.ledger.units[0].id;
+  data.ledger.charges = ['10', '11'].map((month) => ({
+    id: `charge-${month}`,
+    unitId,
+    month: `2026-${month}`,
+    amount: '50000',
+    status: 'ISSUED'
+  }));
+  data.ledger.payments = [{
+    id: 'receipt',
+    unitId,
+    date: '2026-10-15',
+    amount: '120000',
+    payer: '검증입금',
+    status: 'CONFIRMED',
+    source: 'MANUAL',
+    accountId: '',
+    reason: '',
+    allocations: []
+  }];
+  data.ledger.openingCredits = [];
+  const document = getMonthlyReportDocument(data);
+  expect(document.rows[0][2]).toBe(BigInt(-70000));
+  expect(document.rows[0].at(-1)).toBe('선입금');
+  expect(document.total?.[2]).toBe(BigInt(-70000));
+  expect(getMonthlyReportMetrics(document)[0].tone).toBe('danger');
+  const workbook = await createMonthlyWorkbook(data);
+  const files = unzipSync(new Uint8Array(await workbook.arrayBuffer()));
+  const contents = Object.values(files).map((file) => strFromU8(file)).join('');
+  expect(contents).toContain('-70000');
+  expect(contents.toUpperCase()).toContain('EF4444');
+});
+
+test('선택한 세대만 보고서·합계·Excel에 포함하고 빈 선택은 전체 출력으로 바꾸지 않는다', async () => {
+  const data = snapshot();
+  data.selectedUnitIds = ['unit-0', 'unit-0', 'unit-3', 'unknown'];
+  const before = JSON.stringify(data);
+  const document = getMonthlyReportDocument(data);
+  expect(document.rows.map((row) => row[0])).toEqual(['102동 101호']);
+  expect(document.total).toEqual(['합계', '', BigInt(5000), BigInt(20000), BigInt(15000), BigInt(10000), '']);
+  expect(document.summary.find((item) => item.label === '출력 범위')?.value).toBe('선택 1세대');
+  const files = unzipSync(new Uint8Array(await (await createMonthlyWorkbook(data)).arrayBuffer()));
+  const xml = Object.values(files).map((file) => strFromU8(file)).join('');
+  expect(xml).toContain('102동 101호');
+  expect(xml).not.toContain('103동 201호');
+  expect(JSON.stringify(data)).toBe(before);
+  data.filters.building = '103동';
+  expect(getMonthlyReportDocument(data).rows).toEqual([]);
+  data.filters.building = '';
+  data.selectedUnitIds = [];
+  expect(getMonthlyReportDocument(data).rows).toEqual([]);
+  expect(getMonthlyReportDocument(data).total).toEqual(['합계', '', BigInt(0), BigInt(0), BigInt(0), BigInt(0), '']);
 });

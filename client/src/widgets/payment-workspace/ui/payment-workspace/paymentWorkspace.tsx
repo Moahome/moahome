@@ -34,6 +34,8 @@ import {
   previewBankFile
 } from '../../api/paymentApi';
 import {
+  filterMonthlyPreviewRows,
+  getMonthlyPreviewRows,
   getPreviewBuildingName,
   getPreviewBuildingOptions,
   getPreviewSelectableUnits
@@ -105,6 +107,7 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
 
   /** 전체 내역에서 복귀한 조회월을 사용하고 월을 바꾸면 복귀용 상세 선택을 해제합니다. */
   function setMonth(value: string) {
+    setMonthlySelection(null);
     setWorkspaceMonth(value);
     if (view !== 'monthly' || !requestedMonth) return;
     const query = new URLSearchParams(searchParams.toString());
@@ -120,6 +123,20 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
     building: '',
     status: '전체'
   });
+  const [monthlySelection, setMonthlySelection] = useState<{ scope: string; ids: string[] } | null>(null);
+  const monthlySelectionScope = JSON.stringify([propertyId, month, monthlyFilters]);
+  const monthlySelecting = monthlySelection?.scope === monthlySelectionScope;
+  // 취소·명단 갱신으로 조회 결과에서 빠진 세대는 선택 건수와 다운로드에서도 함께 제외합니다.
+  const monthlySelectedIds = monthlySelecting
+    ? filterMonthlyPreviewRows(getMonthlyPreviewRows(ledger, month), monthlyFilters)
+      .filter((row) => monthlySelection.ids.includes(row.unitId)).map((row) => row.unitId)
+    : undefined;
+
+  /** 조회 범위가 바뀌면 이전 선택을 지워 다른 월·필터의 세대가 파일에 섞이지 않게 합니다. */
+  function updateMonthlyFilters(value: MonthlyCollectionFilters) {
+    setMonthlySelection(null);
+    setMonthlyFilters(value);
+  }
   const [building, setBuilding] = useState('');
   const [tab, setTab] = useState<PreviewPayment['status'] | 'OTHER'>('PENDING');
   const [page, setPage] = useState(1);
@@ -314,6 +331,7 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
           <MonthlyExportButton
             month={month}
             filters={monthlyFilters}
+            selectedUnitIds={monthlySelectedIds}
           />
         )}
       />
@@ -325,7 +343,16 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
       {view === 'monthly' ? (
         <MonthlyCollection
           filters={monthlyFilters}
-          onFiltersChange={setMonthlyFilters}
+          onFiltersChange={updateMonthlyFilters}
+          selectedUnitIds={monthlySelectedIds}
+          onSelectionChange={(ids) => setMonthlySelection({
+            scope: monthlySelectionScope,
+            ids
+          })}
+          onToggleSelection={() => setMonthlySelection(monthlySelecting ? null : {
+            scope: monthlySelectionScope,
+            ids: []
+          })}
           propertyId={propertyId}
           month={month}
           onMonthChange={setMonth}

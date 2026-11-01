@@ -3963,5 +3963,22 @@ for (const width of [1440, 390]) {
       path: test.info().outputPath(`prepaid-${width}.png`),
       fullPage: true
     });
+    await page.goto(`/manage/${PROPERTY_ID}/payments/monthly?month=2026-11`);
+    const november = page.getByRole('table', {
+      name: '세대별 월별 수납 현황'
+    });
+    const prepaidRow = november.getByRole('row').filter({
+      hasText: '선입금주민2'
+    });
+    await expect(prepaidRow).toContainText('선입금');
+    await expect(prepaidRow).not.toContainText('납부완료');
+    await expect(prepaidRow.getByText('-20,000원', {
+      exact: true
+    })).toHaveCSS('color', 'rgb(239, 68, 68)');
+    await page.screenshot({
+      path: `/tmp/moahome-prepaid-carry-${width}.png`,
+      fullPage: true
+    });
+
   });
 }

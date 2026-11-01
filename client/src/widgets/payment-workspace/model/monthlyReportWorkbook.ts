@@ -82,6 +82,7 @@ export async function createMonthlyStyledWorkbook(document: ReportDefinition): P
     backgroundColor: tint(colors[metric.tone]),
   })));
   data.push(metrics.flatMap((metric, index) => merge(metric.value, spans[index], {
+    textColor: typeof metric.value === 'bigint' && metric.value < BigInt(0) ? colors.danger : colors.text,
     fontSize: 20,
     fontWeight: 'bold',
     height: 48,
@@ -106,7 +107,7 @@ export async function createMonthlyStyledWorkbook(document: ReportDefinition): P
       const statusColor = statusColors[String(value)];
       return cell(value, {
         align: column.align,
-        textColor: statusColor ?? colors.text,
+        textColor: typeof value === 'bigint' && value < BigInt(0) ? colors.danger : statusColor ?? colors.text,
         fontWeight: statusColor ? 'bold' : undefined,
         backgroundColor: statusColor ? tint(statusColor) : colors.white,
         borderColor: colors.muted,
@@ -119,6 +120,7 @@ export async function createMonthlyStyledWorkbook(document: ReportDefinition): P
     align: 'center',
   }));
   if (document.total) data.push(document.columns.map((column, index) => cell(document.total?.[index] ?? '', {
+    textColor: typeof document.total?.[index] === 'bigint' && document.total[index] < BigInt(0) ? colors.danger : colors.text,
     align: column.align,
     fontSize: 16,
     fontWeight: 'bold',

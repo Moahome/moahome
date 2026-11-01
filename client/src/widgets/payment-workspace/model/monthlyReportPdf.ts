@@ -133,6 +133,10 @@ export async function createMonthlyCollectionPdf(data: MonthlyReportSnapshot): P
       halign: document.columns[index].align ?? 'left'
     }])),
     didParseCell: (cell) => {
+      const valueAmount = cell.section === 'foot' ? document.total?.[cell.column.index]
+        : document.rows[cell.row.index]?.[cell.column.index];
+      if (cell.section !== 'head' && typeof valueAmount === 'bigint' && valueAmount < BigInt(0))
+        cell.cell.styles.textColor = colors.danger;
       if (cell.section === 'head') cell.cell.styles.halign = cell.column.index === 0 ? 'left' : 'center';
       // AutoTable의 합계 행에도 열 정렬을 명시해 Excel 미리보기와 실제 PDF·PNG의 금액 끝선을 맞춥니다.
       if (cell.section === 'foot') cell.cell.styles.halign = document.columns[cell.column.index].align ?? 'left';

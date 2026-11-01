@@ -662,6 +662,85 @@ test('부과 없는 선입금 세대도 월말 잔액으로 표시하며 취소�
     }]
   }, '2026-11').find((row) => row.unitId === units[0].id)).toMatchObject({
     prepaid: BigInt(20000),
+    status: '선입금'
+  });
+});
+
+
+test('전월 말 선입금은 다음 달 음수 이월로 표시하고 충당 후 잔액에 따라 선입금 배지를 구분한다', () => {
+  const ledger = createPaymentSample();
+  const unitId = ledger.units[0].id;
+  ledger.units = [ledger.units[0]];
+  ledger.charges = ['10', '11', '12'].map((month) => ({
+    id: `charge-${month}`,
+    unitId,
+    month: `2026-${month}`,
+    amount: '50000',
+    status: 'ISSUED' as const
+  }));
+  ledger.payments = [{
+    id: 'prepaid',
+    unitId,
+    date: '2026-10-15',
+    amount: '120000',
+    payer: '검증입금',
+    status: 'CONFIRMED',
+    source: 'BANK_IMPORT',
+    accountId: ledger.accounts[0].id,
+    reason: '',
+    allocations: []
+  }];
+  const october = getMonthlyPreviewRows(ledger, '2026-10')[0];
+  expect(october.prepaid).toBe(BigInt(70000));
+  expect(october.status).toBe('선입금');
+  const november = getMonthlyPreviewRows(ledger, '2026-11')[0];
+  expect(november).toMatchObject({
+    carry: BigInt(-70000),
+    applied: BigInt(50000),
+    balance: BigInt(0),
+    prepaid: BigInt(20000),
+    status: '선입금'
+  });
+  const december = getMonthlyPreviewRows(ledger, '2026-12')[0];
+  expect(december).toMatchObject({
+    carry: BigInt(-20000),
+    applied: BigInt(20000),
+    balance: BigInt(30000),
+    prepaid: BigInt(0),
+    status: '일부납부'
+  });
+  const exhausted = {
+    ...ledger,
+    payments: ledger.payments.map((row) => ({
+      ...row,
+      amount: '100000'
+    }))
+  };
+  expect(getMonthlyPreviewRows(exhausted, '2026-11')[0]).toMatchObject({
+    carry: BigInt(-50000),
+    prepaid: BigInt(0),
+    balance: BigInt(0),
     status: '납부완료'
   });
+  const currentCredit = {
+    ...ledger,
+    payments: [],
+    openingCredits: [{
+      id: 'initial',
+      unitId,
+      date: '2026-10-15',
+      amount: '120000',
+      allocations: []
+    }]
+  };
+  expect(getMonthlyPreviewRows(currentCredit, '2026-10')[0].carry).toBe(BigInt(0));
+  expect(getMonthlyPreviewRows(currentCredit, '2026-11')[0].carry).toBe(BigInt(-70000));
+  const canceled = {
+    ...ledger,
+    payments: ledger.payments.map((row) => ({
+      ...row,
+      status: 'CANCELED' as const
+    }))
+  };
+  expect(getMonthlyPreviewRows(canceled, '2026-11')[0].carry).toBe(BigInt(50000));
 });
