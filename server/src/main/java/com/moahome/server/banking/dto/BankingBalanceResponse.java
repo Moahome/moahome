@@ -61,7 +61,14 @@ public final class BankingBalanceResponse {
 	public record Workspace(UUID propertyId, String month, LocalDate cutoffDate, String bankBalance, String bankAsOf,
 	    List<Building> buildings, List<Entry> entries, List<External> externals, List<Income> incomes,
 	    List<Pending> pending, List<AccountBalance> accounts, UUID accountId, LegacyOpening legacyOpening,
-	    LocalDate correctionDeadline, boolean initialCorrectionAllowed) {
+	    LocalDate correctionDeadline, boolean initialCorrectionAllowed, String startMonth) {
+		public Workspace(UUID propertyId, String month, LocalDate cutoffDate, String bankBalance, String bankAsOf,
+		    List<Building> buildings, List<Entry> entries, List<External> externals, List<Income> incomes,
+		    List<Pending> pending, List<AccountBalance> accounts, UUID accountId, LegacyOpening legacyOpening,
+		    LocalDate correctionDeadline, boolean initialCorrectionAllowed) {
+			this(propertyId, month, cutoffDate, bankBalance, bankAsOf, buildings, entries, externals, incomes, pending,
+			    accounts, accountId, legacyOpening, correctionDeadline, initialCorrectionAllowed, month);
+		}
 		public Workspace(UUID propertyId, String month, LocalDate cutoffDate, String bankBalance, String bankAsOf,
 		    List<Building> buildings, List<Entry> entries, List<External> externals, List<Income> incomes,
 		    List<Pending> pending, List<AccountBalance> accounts, UUID accountId, LegacyOpening legacyOpening) {

@@ -39,9 +39,14 @@ public class BankingBalanceController {
 
 	@GetMapping
 	public ResponseEntity<BankingBalanceResponse.Workspace> workspace(@AuthenticationPrincipal AuthPrincipal user,
-	    @PathVariable UUID propertyId, @RequestParam String month, @RequestParam(required = false) UUID accountId) {
+	    @PathVariable UUID propertyId, @RequestParam String month, @RequestParam(required = false) UUID accountId,
+	    @RequestParam(required = false) String startMonth) {
+		// 기존 단일 월 호출은 유지하고 시작 월이 주어지면 같은 조회에서 기간 전체를 계산합니다.
+		var data = startMonth == null
+		    ? service.workspace(UUID.fromString(user.userId()), propertyId, month, accountId)
+		    : service.workspace(UUID.fromString(user.userId()), propertyId, startMonth, month, accountId);
 		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
-		    .body(service.workspace(UUID.fromString(user.userId()), propertyId, month, accountId));
+		    .body(data);
 	}
 
 	@PostMapping("/account-openings")

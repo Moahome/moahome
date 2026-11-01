@@ -61,17 +61,17 @@ Expense는 `{ category, note?, mode, saveAsRule, allocations }`, mode는 `EQUAL 
 
 | 메서드 | `/api/properties/{propertyId}/banking/balances` 아래 경로 | 요청 |
 | --- | --- | --- |
-| GET | `?month=YYYY-MM&accountId=UUID` | 조회 월·선택 통장. accountId 생략은 전체 |
+| GET | `?month=YYYY-MM&startMonth=YYYY-MM&accountId=UUID` | 종료 월·선택 시작 월·선택 통장. startMonth 생략은 month와 같은 한 달. accountId 생략은 전체 |
 | POST | `/openings` | `{ accountId, cutoffDate, buildings: [{ buildingId, amount }] }` |
 | POST | `/openings/corrections` | `{ id, accountId, cutoffDate, buildings: [{ buildingId, amount, revision }] }` |
 | POST | `/income-assignments` | `{ paymentId, buildingId }` |
 | POST | `/settlement-decisions` | `{ id, allocationId, excluded, revision }` (정산 제외·복원) |
 | POST | `/settlements` | `{ id, allocationId, paymentId, amount }` |
 
-변경 성공은 `{ saved: true }`를 반환하며 클라이언트는 같은 관리대상의 잔고 조회를 갱신합니다. 금액은 원 단위 숫자 문자열입니다. 조회 응답은 `{ propertyId, month, accountId, cutoffDate, bankBalance, bankAsOf, buildings, entries, externals, incomes, pending, accounts, legacyOpening }`입니다. accountId는 전체 조회일 때 null입니다. cutoffDate는 조회 범위의 기준일이 하나로 같을 때만 반환하고, 여러 통장의 서로 다른 기준일은 각 통장별 계산에 사용합니다. legacyOpening은 통장 귀속이 미정인 기존 확정값이 있을 때 `{cutoffDate,buildings:[{buildingId,amount}]}`로 반환합니다. 이 참고값은 선택 통장의 확정 잔고로 자동 합산하지 않습니다.
+변경 성공은 `{ saved: true }`를 반환하며 클라이언트는 같은 관리대상의 잔고 조회를 갱신합니다. 금액은 원 단위 숫자 문자열입니다. 조회 응답은 `{ propertyId, month, startMonth, accountId, cutoffDate, bankBalance, bankAsOf, buildings, entries, externals, incomes, pending, accounts, legacyOpening }`입니다. accountId는 전체 조회일 때 null입니다. cutoffDate는 조회 범위의 기준일이 하나로 같을 때만 반환하고, 여러 통장의 서로 다른 기준일은 각 통장별 계산에 사용합니다. legacyOpening은 통장 귀속이 미정인 기존 확정값이 있을 때 `{cutoffDate,buildings:[{buildingId,amount}]}`로 반환합니다. 이 참고값은 선택 통장의 확정 잔고로 자동 합산하지 않습니다.
 
 - buildings: `{ id, label, active, startBalance, income, expense, balance, status, openingBalance, openingRevision }`. openingRevision은 최초 0이며 정정 시 증가합니다. status는 `READY / OPENING_REQUIRED`, 시작값 미설정 잔고만 null입니다. openingBalance는 저장된 기준일 마감 잔고이며 조회 월 기초 잔고와 구분합니다. 기준일 이전 월은 확인된 입출금을 역산합니다. 비활성 동도 보유금·거래 이력이 있으면 반환합니다.
-- entries: `{ id, accountId, buildingId, date, time, label, income, expense, paymentId }`. 입금의 paymentId는 기존 입금 처리 상세를 열 때 사용하며 출금은 null입니다. 원본 ID와 동별 실제 금액이며 조회 월 전체의 거래만 반환합니다. 역산용 기준일까지의 다른 월 거래는 서버 계산에만 사용합니다.
+- entries: `{ id, accountId, buildingId, date, time, label, income, expense, paymentId }`. 입금의 paymentId는 기존 입금 처리 상세를 열 때 사용하며 출금은 null입니다. 원본 ID와 동별 실제 금액이며 시작 월 첫날~종료 월 말일의 거래를 반환합니다. 역산용 기준일까지의 다른 월 거래는 서버 계산에만 사용합니다.
 - externals: `{ id, label, expenseName, date, amount, received, remaining, recoveries, excluded, decisionRevision }`. excluded는 정산 대상 제외 상태이며 미회수 합계는 제외한 행을 빼고 계산합니다. decisionRevision은 처음 0이며 제외·복원마다 증가합니다. id는 외부 expense allocation ID이며 recoveries는 `{ id, paymentId, date, payer, amount }`입니다. 기준일 이후 부담액과 조회 월 말까지 유효한 실제 입금 연결만 집계합니다.
 - incomes: `{ id, transactionId, date, payer, amount, available, kind, linkedBuildingId, linkedUnitLabel }`. 연결 동·세대는 현재 연결 세대의 확인용 단서이며 과거 귀속을 확정한 값이 아닙니다. 세대 연결·동 정보가 없어 자동 반영할 수 없는 기존 HOUSEHOLD 수납과 외부 연결 후보 OTHER 입금입니다. 세대가 연결된 확정 HOUSEHOLD 은행 입금은 동 귀속을 자동 기록하고 이 목록에서는 제외합니다. 외부 회수는 명시적인 실제 입금 연결을 사용합니다.
 - pending: `{ id, date, label, direction, amount }`. 아직 확정되지 않은 은행 거래입니다. 역산 시에는 조회 월 초부터 기준일까지, 이후 월에는 기준일 다음 날부터 조회 월 말까지의 미확정 거래를 함께 확인합니다.
@@ -282,3 +282,7 @@ checks는 실제 확인시점·기록시점 내림차순의 전체 이력이며 
 - `POST .../account-openings`: 기존 `{id,accountId,cutoffDate,amount,revision,reason}`에 선택 `billingToken`, `confirmBilling`, `buildings:[{buildingId,amount,revision}]`를 추가합니다. 부과월 변경·누락 청구가 있으면 최신 토큰과 true 동의가 필수입니다. 등록된 동의 날짜가 바뀌면 모든 해당 동의 금액·버전이 필수입니다. 인계 출처 통장도 선택 통장의 독립 정정 버전으로 기록합니다.
 - 저장은 관리대상 잠금 아래 계획을 다시 계산하며 확인 누락·변경은 `INITIAL_BILLING_CONFIRMATION_REQUIRED`, 확정 수납은 `INITIAL_BILLING_HAS_RECEIPTS`, 이미 충당한 인계 선납은 `INITIAL_BILLING_HAS_APPLICATIONS`, 기존 부과 제외는 `INITIAL_BILLING_HAS_CHARGES`, 설정 근거 없음은 `INITIAL_BILLING_SETTINGS_REQUIRED`, 동별 확인 누락은 `INITIAL_BUILDING_CONFIRMATION_REQUIRED`로 전체 거부합니다. 기존 권한·기한·버전·거래 재분류 차단·재시도 계약을 유지합니다.
 - 동별 `openings` / `openings/corrections`는 선택 통장 초기 기준일이 있으면 같은 날짜만 허용합니다. 다르면 `CASH_OPENING_BANK_DATE_MISMATCH`입니다. 날짜 변경은 통장 초기 정정에서 처리하며 운영 중 은행 확인 기록에는 영향을 주지 않습니다.
+
+### 잔고 월 기간 조회 (2026-11-01)
+
+기존 `month`는 종료 월이며 선택 `startMonth`가 없으면 같은 한 달로 조회합니다. 둘 다 `YYYY-MM`으로 검증하고 시작 월이 종료 월보다 늦으면 400 `INVALID_BALANCE_PERIOD`를 반환합니다. `startMonth`를 응답에 포함합니다. 동별 기초 잔고는 시작 월 전월 말, 입출금은 전체 기간 합계, 기말 잔고와 통장 장부는 종료 월 말 기준입니다. 종료 통장은 사용 기간이 조회 기간과 겹치고 실제 사용 이력이 있을 때 포함합니다. 기존 권한·금액 문자열·no-store 계약은 유지하며 저장 구조나 Migration은 추가하지 않습니다.

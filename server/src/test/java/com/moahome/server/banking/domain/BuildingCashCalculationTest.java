@@ -53,6 +53,31 @@ class BuildingCashCalculationTest {
 		assertThat(previousYear.balance()).isEqualByComparingTo("50");
 	}
 
+	@Test
+	void periodAcrossYearsSumsMovementsButUsesOnlyEndpointBalances() {
+		var result = BuildingCashCalculation.calculate(new BigDecimal("100000"), LocalDate.of(2025, 12, 31),
+		    YearMonth.of(2026, 1), YearMonth.of(2026, 3),
+		    List.of(move("2025-12-31", "900000", "0"), move("2026-01-10", "50000", "0"),
+		        move("2026-02-15", "0", "20000"), move("2026-03-31", "30000", "0"),
+		        move("2026-04-01", "70000", "0")));
+		assertThat(result.start()).isEqualByComparingTo("100000");
+		assertThat(result.income()).isEqualByComparingTo("80000");
+		assertThat(result.expense()).isEqualByComparingTo("20000");
+		assertThat(result.balance()).isEqualByComparingTo("160000");
+	}
+
+	@Test
+	void rangeCanReverseAcrossTheOpeningDateAndIncludeLeapDay() {
+		var result = BuildingCashCalculation.calculate(new BigDecimal("1000"), LocalDate.of(2024, 3, 15),
+		    YearMonth.of(2023, 12), YearMonth.of(2024, 2),
+		    List.of(move("2023-12-10", "100", "0"), move("2024-02-29", "0", "200"),
+		        move("2024-03-15", "50", "0"), move("2024-03-16", "9000", "0")));
+		assertThat(result.start()).isEqualByComparingTo("1050");
+		assertThat(result.income()).isEqualByComparingTo("100");
+		assertThat(result.expense()).isEqualByComparingTo("200");
+		assertThat(result.balance()).isEqualByComparingTo("950");
+	}
+
 	private BuildingCashCalculation.Movement move(String date, String income, String expense) {
 		return new BuildingCashCalculation.Movement(LocalDate.parse(date), new BigDecimal(income),
 		    new BigDecimal(expense));

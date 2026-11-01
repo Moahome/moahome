@@ -61,6 +61,15 @@ class BankingBalanceControllerTest {
 	}
 
 	@Test
+	void monthRangeIsForwardedWithTheSameAccountAndCachePolicy() throws Exception {
+		UUID account = UUID.randomUUID();
+		mvc.perform(get(base()).param("startMonth", "2025-12").param("month", "2026-02")
+		    .param("accountId", account.toString()).with(identity()))
+		    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"));
+		verify(service).workspace(user, property, "2025-12", "2026-02", account);
+	}
+
+	@Test
 	void rejectsMissingBuildingAmountsAndNonpositiveSettlementInputsBeforeService() throws Exception {
 		mvc.perform(post(base() + "/openings").with(identity()).contentType(MediaType.APPLICATION_JSON)
 		    .content("{\"cutoffDate\":\"2026-09-30\",\"buildings\":[null]}")).andExpect(status().isBadRequest());

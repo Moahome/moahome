@@ -146,8 +146,17 @@ public class BankingBalanceService {
 
 	/** 선택 통장은 동별 기준값·입출금·정산까지 같은 범위로 조회하고 전체는 통장별 계산 결과를 합산합니다. */
 	public BankingBalanceResponse.Workspace workspace(UUID user, UUID property, String rawMonth, UUID accountId) {
+		return workspace(user, property, rawMonth, rawMonth, accountId);
+	}
+
+	/** 기간 조회도 한 트랜잭션의 원천으로 계산하며 잔액·미회수는 종료 월 시점, 입출금은 선택 기간으로 구분합니다. */
+	public BankingBalanceResponse.Workspace workspace(UUID user, UUID property, String rawStartMonth, String rawMonth,
+	    UUID accountId) {
 		requireManagementAccess(user, property);
+		YearMonth startMonth = BillingCalendar.parseMonth(rawStartMonth);
 		YearMonth month = BillingCalendar.parseMonth(rawMonth);
+		if (startMonth.isAfter(month))
+			throw new PaymentException("INVALID_BALANCE_PERIOD");
 		LocalDate end = month.atEndOfMonth();
 		List<BankAccount> common = accounts.findByPropertyIdAndDeletedAtIsNull(property).stream()
 		    .filter(a -> a.getBuildingId() == null).toList();
@@ -310,7 +319,8 @@ public class BankingBalanceService {
 			if (a.availableFrom(firstUse).isAfter(end)
 			    || (a.getStatus() == BankAccountStatus.CLOSED && firstUse == null))
 				return false;
-			if (a.visibleIn(month, firstUse))
+			if (a.getStatus() != BankAccountStatus.CLOSED || a.getValidTo() == null
+			    || !startMonth.atDay(1).isAfter(a.getValidTo()))
 				return true;
 			// 종료 후에도 잔액·동별 소유금·외부 미회수액은 사라지면 안 됩니다. 미확인은 0원으로 간주하지 않습니다.
 			return hasRetainedFunds(balancesById.get(a.getId()))
@@ -336,8 +346,8 @@ public class BankingBalanceService {
 		    .collect(Collectors.groupingBy(buildingCashOpening -> buildingCashOpening.getBuildingId()));
 		// 각 통장의 기준일이 달라도 모든 계산에 필요한 원본을 읽고 통장별 기준일로 각각 누적·역산합니다.
 		LocalDate readEnd = latestCutoff.isAfter(end) ? latestCutoff : end;
-		LocalDate reviewStart = firstCutoff == null || month.atDay(1).isBefore(firstCutoff)
-		    ? month.atDay(1).minusDays(1)
+		LocalDate reviewStart = firstCutoff == null || startMonth.atDay(1).isBefore(firstCutoff)
+		    ? startMonth.atDay(1).minusDays(1)
 		    : firstCutoff;
 		List<BankTransaction> bank = allBank.stream()
 		    .filter(t -> accountIds.contains(t.getBankAccountId()) && !t.getTransactionDate().isAfter(readEnd))
@@ -386,7 +396,7 @@ public class BankingBalanceService {
 				        new BigDecimal(e.expense())))
 				    .toList();
 				var totals = BuildingCashCalculation.calculate(opening == null ? BigDecimal.ZERO : opening.getAmount(),
-				    cutoff == null ? end : cutoff, month, movements);
+				    cutoff == null ? end : cutoff, startMonth, month, movements);
 				complete = opening != null;
 				startBalance = totals.start();
 				incomeTotal = totals.income();
@@ -408,7 +418,7 @@ public class BankingBalanceService {
 					    .toList();
 					var totals = BuildingCashCalculation.calculate(
 					    opening == null ? BigDecimal.ZERO : opening.getAmount(),
-					    opening == null ? end : opening.getCutoffDate(), month, movements);
+					    opening == null ? end : opening.getCutoffDate(), startMonth, month, movements);
 					// 같은 계산 결과를 계좌 필터에도 제공해 전체 동 잔액을 개별 계좌 잔액으로 잘못 출력하지 않습니다.
 					accountBalances.add(new BankingBalanceResponse.BuildingAccountBalance(account.getId(),
 					    opening == null ? null : amount(totals.start()),
@@ -516,10 +526,10 @@ public class BankingBalanceService {
 		        : null;
 		var currentProperty = properties.findById(property).orElseThrow();
 		return new BankingBalanceResponse.Workspace(property, rawMonth, cutoff, confirmedBalance, confirmedAsOf, result,
-		    entries.stream().filter(e -> YearMonth.from(e.date()).equals(month)).toList(), external, income, pending,
+		    entries.stream().filter(e -> !e.date().isBefore(startMonth.atDay(1)) && !e.date().isAfter(end)).toList(), external, income, pending,
 		    accountBalances, selectedAccountId, legacyOpening,
 		    corrections.deadline(currentProperty),
-		    corrections.allowed(currentProperty));
+		    corrections.allowed(currentProperty), rawStartMonth);
 	}
 
 	/** 실제 확인값과 계산값이 충돌해도 어느 쪽의 남은 돈도 숨기지 않고, 근거가 없으면 미확인으로 남깁니다. */
