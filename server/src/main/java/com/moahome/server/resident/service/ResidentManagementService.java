@@ -229,6 +229,13 @@ public class ResidentManagementService {
 			Objects.requireNonNull(current).changeRelation(input.relationType(), at);
 		}
 		residents.flush();
+		// 수정 폼의 대표 지정도 같은 트랜잭션에 포함해 권한·대표 충돌 시 명부 수정까지 롤백합니다.
+		if (Boolean.TRUE.equals(input.designateRepresentative())) {
+			if (moving)
+				throw failure(RESIDENT_CHANGED);
+			return designateRepresentative(actor, propertyId, residentId,
+			    new ResidentRepresentativeRequest(unit.getId(), input.expectedRepresentativeResidentId(), at));
+		}
 		return detail(actor, propertyId, residentId);
 	}
 

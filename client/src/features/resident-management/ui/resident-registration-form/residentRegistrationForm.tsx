@@ -70,6 +70,7 @@ export function ResidentRegistrationForm({
   const [serviceRole, setServiceRole] = useState(resident?.serviceRole ?? '');
   const canEditRole = resident?.signupStatus === 'APPROVED' && (resident.serviceRole === 'MANAGER' || resident.serviceRole === 'RESIDENT');
   const [phoneAction, setPhoneAction] = useState<'KEEP' | 'REPLACE' | 'REMOVE'>('KEEP');
+  const [designateRepresentative, setDesignateRepresentative] = useState(false);
   const [replacementResidentId, setReplacementResidentId] = useState('');
   const [attempted, setAttempted] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -133,6 +134,10 @@ export function ResidentRegistrationForm({
           phone: phoneAction === 'REPLACE' ? normalizedPhone : null,
           replacementResidentId: needsRepresentative ? replacementResidentId : null,
           expectedUpdatedAt: resident.updatedAt,
+          ...(designateRepresentative && resident.unitId === unitId ? {
+            designateRepresentative: true,
+            expectedRepresentativeResidentId: resident.currentRepresentativeId ?? null
+          } : {}),
           ...(canEditRole && serviceRole !== resident.serviceRole ? {
             serviceRole: serviceRole as 'MANAGER' | 'RESIDENT',
             expectedServiceRole: resident.serviceRole as 'MANAGER' | 'RESIDENT'
@@ -258,6 +263,7 @@ export function ResidentRegistrationForm({
             onChange={(value) => {
               setBuildingId(value);
               setUnitId('');
+              setDesignateRepresentative(false);
             }}
             placeholder={'동 선택 또는 검색'}
             error={attempted && !buildingId ? '동을 선택해주세요.' : undefined}
@@ -272,7 +278,7 @@ export function ResidentRegistrationForm({
             label: /호$/.test(unit.unitNumber) ? unit.unitNumber : `${unit.unitNumber}호`
           }))}
           disabled={Boolean(data?.hasBuildings && !buildingId)}
-          onChange={setUnitId}
+          onChange={(value) => { setUnitId(value); setDesignateRepresentative(false); }}
           placeholder={'호수 선택 또는 검색'}
           error={attempted ? unitError : undefined}
         />
@@ -285,6 +291,41 @@ export function ResidentRegistrationForm({
           placeholder={'주민 구분을 선택해주세요'}
           error={attempted ? relationError : undefined}
         />
+        {resident && (
+          <Dropdown
+            label={'대표 주민'}
+            value={resident.representative && resident.unitId === unitId ? 'representative' : designateRepresentative ? 'representative' : 'keep'}
+            disabled={resident.representative || resident.unitId !== unitId}
+            options={resident.representative ? [{
+              value: 'representative',
+              label: '현재 대표 주민'
+            }] : [
+              {
+                value: 'keep',
+                label: '기존 대표 유지'
+              },
+              {
+                value: 'representative',
+                label: '이 주민을 대표로 지정'
+              }
+            ]}
+            onChange={(value) => setDesignateRepresentative(value === 'representative')}
+          />
+        )}
+        {designateRepresentative && resident?.unitId === unitId && (
+          <p
+            className={styles.notice}
+          >
+            저장하면 같은 세대의 기존 대표는 해제됩니다.
+          </p>
+        )}
+        {resident && resident.unitId !== unitId && (
+          <p
+            className={styles.notice}
+          >
+            세대 이동을 저장한 뒤 대표를 지정할 수 있습니다.
+          </p>
+        )}
         {needsRepresentative && (
           <Dropdown
             label={'기존 동·호수의 새 대표'}

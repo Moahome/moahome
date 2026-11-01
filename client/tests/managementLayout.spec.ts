@@ -4464,3 +4464,103 @@ for (const width of [1440, 390]) {
     expect(calls).toBe(2);
   });
 }
+
+for (const width of [1440, 390]) {
+  test(`주민 수정 대표 설정 ${width}px는 정보 수정과 대표 지정을 한 번에 저장`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const directory = residentDirectory();
+    const previous = directory.residents[0];
+    const target = directory.residents[1];
+    let detail = {
+      ...target,
+      propertyId: PROPERTY_ID,
+      buildingName: '103동',
+      createdAt: '2026-10-10T04:00:00Z',
+      updatedAt: '2026-10-10T04:00:00Z',
+      hasLinkedRequests: false,
+      representativeCandidates: [],
+      currentRepresentativeId: previous.id
+    };
+    let calls = 0;
+    await page.route(RESIDENTS_URL, (route) => fulfillJson(route, directory));
+    await page.route(UNITS_URL, (route) => fulfillJson(route, {
+      propertyId: PROPERTY_ID,
+      hasBuildings: true,
+      buildings: directory.buildings,
+      units: [{
+        id: target.unitId,
+        buildingId: BUILDING_ID,
+        unitNumber: '301',
+        status: 'ACTIVE'
+      }]
+    }));
+    await page.route(`${RESIDENTS_URL}/${target.id}`, (route) => {
+      if (route.request().method() === 'PUT') {
+        const input = route.request().postDataJSON(); calls++;
+        expect(input.designateRepresentative).toBe(true);
+        expect(input.expectedRepresentativeResidentId).toBe(previous.id);
+        expect(input.name).toBe('변경한 대표');
+        directory.residents[0].representative = false;
+        directory.residents[1].representative = true;
+        directory.residents[1].name = input.name;
+        detail = {
+          ...detail,
+          name: input.name,
+          representative: true,
+          currentRepresentativeId: target.id,
+          updatedAt: '2026-11-01T00:00:00Z'
+        };
+      }
+      return fulfillJson(route, detail);
+    });
+    await page.goto(RESIDENTS);
+    await page.getByRole('button', {
+      name: `${target.name} 상세 보기`,
+      exact: true
+    }).click();
+    let view = width < 768 ? page.getByRole('main') : page.getByRole('dialog');
+    await view.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    view = width < 768 ? page.getByRole('main') : page.getByRole('dialog');
+    await view.getByRole('combobox', {
+      name: '대표 주민',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '이 주민을 대표로 지정',
+      exact: true
+    }).click();
+    await view.getByRole('textbox', {
+      name: '주민 이름',
+      exact: true
+    }).fill('변경한 대표');
+    await page.screenshot({
+      path: `/tmp/moahome-resident-edit-representative-${width}.png`,
+      animations: 'disabled',
+      fullPage: true
+    });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await view.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    expect(calls).toBe(1);
+    if (width < 768) await page.getByRole('link', {
+      name: '주민 목록으로 돌아가기'
+    }).click();
+    else await page.getByRole('dialog').getByRole('button', {
+      name: '주민 상세 닫기'
+    }).click();
+    await expect(page.getByRole('row').filter({
+      hasText: '변경한 대표'
+    })).toContainText('대표');
+    await expect(page.getByRole('row').filter({
+      hasText: previous.name
+    })).not.toContainText('대표');
+  });
+}

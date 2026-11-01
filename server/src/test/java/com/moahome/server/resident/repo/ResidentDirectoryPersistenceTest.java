@@ -839,6 +839,28 @@ class ResidentDirectoryPersistenceTest {
 	}
 
 	@Test
+	void residentEditCanDesignateRepresentativeAtomicallyAndRollsBackOnStaleRepresentative() {
+		var property = property(false);
+		var actor = users.saveAndFlush(User.create("수정 대표 관리자", null)).getId();
+		member(property.getId(), actor);
+		var unit = units.saveAndFlush(Unit.create(property, null, "553", null, null, UnitStatus.ACTIVE, AT));
+		var first = registrations.register(actor, property.getId(), registration(unit.getId(), "기존 대표", null)).id();
+		var next = registrations.register(actor, property.getId(), registration(unit.getId(), "수정할 주민", null)).id();
+		var detail = management.detail(actor, property.getId(), next);
+		assertThatThrownBy(() -> management.update(actor, property.getId(), next,
+		    new ResidentUpdateRequest("충돌하면 저장 안 됨", unit.getId(), "OWNER", "KEEP", null, null,
+		        detail.updatedAt(), null, null, true, UUID.randomUUID())))
+		    .hasMessage("RESIDENT_CHANGED");
+		assertThat(management.detail(actor, property.getId(), next).name()).isEqualTo("수정할 주민");
+		var saved = management.update(actor, property.getId(), next,
+		    new ResidentUpdateRequest("수정한 대표", unit.getId(), "OWNER", "KEEP", null, null,
+		        detail.updatedAt(), null, null, true, first));
+		assertThat(saved.name()).isEqualTo("수정한 대표");
+		assertThat(saved.representative()).isTrue();
+		assertThat(management.detail(actor, property.getId(), first).representative()).isFalse();
+	}
+
+	@Test
 	void representativeChangesAtomicallyAndRejectsStaleSelectionOrDifferentUnit() {
 		var property = property(false);
 		var actor = users.saveAndFlush(User.create("대표 지정 관리자", null)).getId();

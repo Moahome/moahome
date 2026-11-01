@@ -24,6 +24,8 @@ export interface ResidentDetail {
 }
 
 export interface ResidentUpdateInput {
+  designateRepresentative?: boolean;
+  expectedRepresentativeResidentId?: string | null;
   name: string;
   unitId: string;
   relationType: string;
