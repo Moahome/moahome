@@ -2,7 +2,7 @@
 
 작성일: 2026-10-09. **상태: Server 조회 API와 Client 연결 구현.** 기존 테이블을 읽으며 Migration을 추가하지 않았습니다.
 
-관리자 진입의 확정 정책은 [도메인 규칙](domainRules.md#로그인-이후-진입-기준), 조회할 데이터는 [ERD](erd.md#56-property_members)를 따릅니다. 화면과 이동은 [Client 서비스 진입 설계](../client/docs/serviceEntry.md), 공통 레이아웃은 [Client 관리 레이아웃 설계](../client/docs/managementLayout.md), 내부 조회는 [Server 관리 영역 접근 설계](../server/docs/managementAccess.md)에서 관리합니다.
+관리자 진입의 확정 정책은 [도메인 규칙](../domain/domainRules.md#로그인-이후-진입-기준), 조회할 데이터는 [ERD](../domain/erd.md#56-property_members)를 따릅니다. 화면과 이동은 [Client 서비스 진입 설계](../../client/docs/serviceEntry.md), 공통 레이아웃은 [Client 관리 레이아웃 설계](../../client/docs/managementLayout.md), 내부 조회는 [Server 관리 영역 접근 설계](../../server/docs/managementAccess.md)에서 관리합니다.
 
 ## 1. 목적과 범위
 
@@ -18,7 +18,7 @@
 
 ## 2. 공통 인증과 조회 기준
 
-- 기존 Bearer Access Token 인증을 사용합니다. 사용자 ID와 역할은 요청 입력으로 받지 않으며 인증된 계정을 기준으로 조회합니다. 토큰 전달·재발급과 공통 인증 오류는 [JWT 인증 설계](securityDesign.md)를 따릅니다.
+- 기존 Bearer Access Token 인증을 사용합니다. 사용자 ID와 역할은 요청 입력으로 받지 않으며 인증된 계정을 기준으로 조회합니다. 토큰 전달·재발급과 공통 인증 오류는 [JWT 인증 설계](../development/securityDesign.md)를 따릅니다.
 - 정상 계정인지 확인한 뒤 현재 유효한 관리대상 참여를 조회합니다. `users.system_role`은 관리대상 권한을 대신하지 않습니다.
 - 조회 대상은 `property_members.user_id`가 인증된 사용자이고, `role`이 `ADMIN` 또는 `MANAGER`, `status`가 `ACTIVE`, `ended_at`과 `deleted_at`이 NULL인 참여입니다. 연결된 `properties`도 `ACTIVE`이고 `deleted_at`이 NULL이어야 합니다.
 - 응답의 역할과 이름은 현재 참여와 관리대상에서 읽습니다. `property_registration_results.response_snapshot`이나 브라우저의 최근 기록을 읽어 권한을 부여하지 않습니다.
@@ -125,7 +125,7 @@
 
 [관리대상 등록 API](propertyRegistrationApi.md)는 입력 검증, 전체 저장과 본인이 제출한 등록 결과를 담당합니다. 등록 완료 표시 이후 관리자 영역으로 이동할 때는 이 문서의 현재 관리 권한 조회를 거칩니다. 기존 등록 결과 조회가 성공했더라도 주민 역할만 남아 있다면 관리자 영역에는 진입할 수 없습니다.
 
-최근 선택 정보는 Client의 편의 정보입니다. 이 API가 최근 선택을 저장하거나 신뢰하지 않습니다. 관련 보관 / 폐기 기준은 [Client 서비스 진입 설계](../client/docs/serviceEntry.md#4-최근-선택-기록)를 참조합니다.
+최근 선택 정보는 Client의 편의 정보입니다. 이 API가 최근 선택을 저장하거나 신뢰하지 않습니다. 관련 보관 / 폐기 기준은 [Client 서비스 진입 설계](../../client/docs/serviceEntry.md#4-최근-선택-기록)를 참조합니다.
 
 ## 6. 참여 중복과 역할 충돌
 
@@ -158,4 +158,4 @@
 
 RESIDENT 참여는 있지만 residentEligible이 false이면 주민 업무를 열지 않고 연결 확인 안내를 합니다. 이 상태를 참여 없음이나 관리자 승격으로 해석하지 않습니다. 임시 주민 홈의 단순 참여 목록과 세부 주민 업무의 조건을 구분합니다. 이 응답은 개별 업무 API에 재전송하는 권한 증명이 아니며 각 요청은 계속 현재 서버 권한을 검사합니다.
 
-같은 역할의 중복은 기존 조회처럼 하나로 묶고, 서로 다른 역할이 동시에 활성인 경우는 충돌로 실패시킵니다. 역할별 우선순위나 자동 정리 Migration은 새로 만들지 않습니다. Controller·Security·OpenAPI와 격리 PostgreSQL 테스트를 추가했으며 Server 세부 변경 위치는 [조회 보완 설계](../server/docs/managementAccess.md#동적-권한을-위한-조회-보완-설계-2026-10-25)를 따릅니다.
+같은 역할의 중복은 기존 조회처럼 하나로 묶고, 서로 다른 역할이 동시에 활성인 경우는 충돌로 실패시킵니다. 역할별 우선순위나 자동 정리 Migration은 새로 만들지 않습니다. Controller·Security·OpenAPI와 격리 PostgreSQL 테스트를 추가했으며 Server 세부 변경 위치는 [조회 보완 설계](../../server/docs/managementAccess.md#동적-권한을-위한-조회-보완-설계-2026-10-25)를 따릅니다.

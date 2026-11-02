@@ -1,6 +1,6 @@
 # Server 관리대상 등록 설계
 
-이 문서는 관리대상 등록 API의 Server 검증, 저장 초기값, 트랜잭션과 중복 방지 구현을 설명합니다. 요청 / 응답 / 오류는 [공통 등록 API](../../docs/propertyRegistrationApi.md), 컬럼 / 관계 / 제약은 [ERD](../../docs/erd.md), 확정 정책은 [도메인 규칙](../../docs/domainRules.md)을 참조합니다.
+이 문서는 관리대상 등록 API의 Server 검증, 저장 초기값, 트랜잭션과 중복 방지 구현을 설명합니다. 요청 / 응답 / 오류는 [공통 등록 API](../../docs/api/propertyRegistrationApi.md), 컬럼 / 관계 / 제약은 [ERD](../../docs/domain/erd.md), 확정 정책은 [도메인 규칙](../../docs/domain/domainRules.md)을 참조합니다.
 
 작성일: 2026-10-05. 수정일: 2026-10-10. 관리대상 등록 Controller / Service / Entity와 Migration을 구현했습니다. 이 문서는 저장 흐름과 현재 구현 범위를 설명하며 후속 주민 / 계좌 변경 / 월별 부과 정책은 확정하지 않습니다.
 
@@ -54,11 +54,11 @@
 
 전화번호용 `PhoneSecurity`의 암호화 방식을 확인했으며 전화번호 정규화와 기존 암호문 호환성을 유지하기 위해 그대로 둡니다. 계좌 전용 `common/security/AccountNumberSecurity`가 AES-256-GCM과 무작위 nonce, 버전 / 키 ID가 포함된 암호문, 별도의 HMAC-SHA256과 마지막 네 자리를 생성합니다. 계좌용 AAD / HMAC 문맥은 전화번호와 구분하며 외부 은행의 실계좌 확인은 수행하지 않습니다.
 
-외부 키 설정은 [개발 환경 가이드](../../docs/developmentGuide.md#server-환경변수)를 따릅니다. `config/PropertyRegistrationConfig`가 추적되는 `propertyRegistration.properties`의 환경변수 연결을 읽습니다. 키를 코드나 Migration에 넣지 않으며 설정이 없거나 잘못된 키이면 시작을 거부합니다. 암호화 키 교체 시 기존 키 ID를 유지하고, 등록 지문 키 교체 시 기존 버전을 유지해야 기존 계좌 복호화와 성공 요청 재비교가 가능합니다.
+외부 키 설정은 [개발 환경 가이드](../../docs/development/developmentGuide.md#server-환경변수)를 따릅니다. `config/PropertyRegistrationConfig`가 추적되는 `propertyRegistration.properties`의 환경변수 연결을 읽습니다. 키를 코드나 Migration에 넣지 않으며 설정이 없거나 잘못된 키이면 시작을 거부합니다. 암호화 키 교체 시 기존 키 ID를 유지하고, 등록 지문 키 교체 시 기존 버전을 유지해야 기존 계좌 복호화와 성공 요청 재비교가 가능합니다.
 
 ## 5. 중복 방지와 등록 결과
 
-성공 결과 저장 구조는 [ERD의 property_registration_results](../../docs/erd.md#58-property_registration_results)를 따릅니다. 필드 정의는 ERD에 유지하고 이 문서에서는 처리 순서를 설명합니다.
+성공 결과 저장 구조는 [ERD의 property_registration_results](../../docs/domain/erd.md#58-property_registration_results)를 따릅니다. 필드 정의는 ERD에 유지하고 이 문서에서는 처리 순서를 설명합니다.
 
 - 인증된 userId / requestId 단위의 저장을 DB 트랜잭션에서 직렬화합니다. 사전 조회나 Redis TTL, Client 버튼 잠금만으로 생성 횟수를 보장하지 않습니다.
 - 기존 성공 결과가 있으면 저장된 키 버전으로 정규화 본문 지문을 비교하고 현재 접근권한을 확인한 뒤 최초 응답 스냅샷을 반환합니다. 다른 본문에는 계약의 충돌 오류를 반환합니다.
@@ -72,7 +72,7 @@
 
 `RegistrationFingerprint`는 requestId를 제외한 정규화 DTO의 고정된 JSON 표현으로 HMAC을 계산합니다. 저장된 키 버전으로 재비교하고 배열 순서와 전체 입력을 비교합니다. 관리비 코드가 있으면 지문에 포함하고 `FeeItemInput.itemCode`가 null이면 해당 JSON 필드를 생략합니다. 코드 필드가 없던 이전 직렬화 표현을 유지해 기존 성공 요청의 재시도를 허용하며, 코드의 생략 / 명시적 null은 같은 지문입니다. 이름·금액이 같아도 코드만 바뀌면 충돌로 처리합니다. 결과 반환은 현재 활성 참여와 관리대상 상태를 확인하며 스냅샷을 권한 복구에 사용하지 않습니다.
 
-관리자 화면 연결을 위한 목록 / 현재 관리 권한 조회는 [관리 영역 접근 API](../../docs/managementAccessApi.md)와 [Server 관리 영역 접근 설계](managementAccess.md)에 따라 별도로 구현했습니다. 등록 결과 조회의 현재 접근 확인은 유지하고, 관리 영역 전용 조회에는 현재 `ADMIN` / `MANAGER` 조건을 적용합니다. 등록 Service에 로그인 후 목적지 선택이나 최근 선택 저장을 추가하지 않습니다.
+관리자 화면 연결을 위한 목록 / 현재 관리 권한 조회는 [관리 영역 접근 API](../../docs/api/managementAccessApi.md)와 [Server 관리 영역 접근 설계](managementAccess.md)에 따라 별도로 구현했습니다. 등록 결과 조회의 현재 접근 확인은 유지하고, 관리 영역 전용 조회에는 현재 `ADMIN` / `MANAGER` 조건을 적용합니다. 등록 Service에 로그인 후 목적지 선택이나 최근 선택 저장을 추가하지 않습니다.
 
 ## 6. 구현 시 검증
 
@@ -113,12 +113,12 @@ PostgreSQL 테스트는 별도 임시 클러스터에서 빈 DB / 기존 사용�
 
 ## 관리 담당자 후속 정책과 현재 구현의 차이 (2026-10-17)
 
-[생성자 권한](../../docs/domainRules.md#확정된-관리대상-생성자-권한)에 관리소장 담당자 등록의 대표 자동 지정 예외가 추가되었다. 대표 자동 지정 예외와 연락처 선택 정책은 Server에 적용했다. 외부 담당자 정보의 입력 제한은 아직 유지한다. 외부 담당자 이름·연락처의 저장 구조는 후속 구현이다. 기존 관리소장 계정의 본인 명부 연결은 [참여자 저장](memberManagement.md#기존-관리소장-본인-명부-연결)에서 구현했다. 기존 데이터를 이름·전화번호로 자동 연결하거나 소급 변경하지 않는다.
+[생성자 권한](../../docs/domain/domainRules.md#확정된-관리대상-생성자-권한)에 관리소장 담당자 등록의 대표 자동 지정 예외가 추가되었다. 대표 자동 지정 예외와 연락처 선택 정책은 Server에 적용했다. 외부 담당자 정보의 입력 제한은 아직 유지한다. 외부 담당자 이름·연락처의 저장 구조는 후속 구현이다. 기존 관리소장 계정의 본인 명부 연결은 [참여자 저장](memberManagement.md#기존-관리소장-본인-명부-연결)에서 구현했다. 기존 데이터를 이름·전화번호로 자동 연결하거나 소급 변경하지 않는다.
 
 
 ## 초기 설정의 인계·운영 시작 조합 (2026-10-18)
 
-RegistrationOpeningService는 최종 요청의 전체 세대·동·계좌 참조와 날짜를 검증하고 PropertyRegistrationService의 기존 READ_COMMITTED 트랜잭션에 반드시 참여합니다. 임시 동 식별자·호수·배열 위치를 실제 생성 ID로 매핑한 뒤 OpeningBalanceService의 save, BankingBalanceService의 saveOpenings, OpeningBalanceService의 confirm을 순서대로 재사용합니다. 권한·잠금·첫 부과·선납 충당은 기존 서비스를 따르고 실패 시 등록 결과까지 함께 롤백합니다. 새 입력이 없는 이전 등록은 조합 서비스를 호출하지 않아 저장·지문을 유지합니다. API 계약은 [공통 등록 문서](../../docs/propertyRegistrationApi.md#초기-설정의-잔액-인계와-관리-시작)를 참조합니다.
+RegistrationOpeningService는 최종 요청의 전체 세대·동·계좌 참조와 날짜를 검증하고 PropertyRegistrationService의 기존 READ_COMMITTED 트랜잭션에 반드시 참여합니다. 임시 동 식별자·호수·배열 위치를 실제 생성 ID로 매핑한 뒤 OpeningBalanceService의 save, BankingBalanceService의 saveOpenings, OpeningBalanceService의 confirm을 순서대로 재사용합니다. 권한·잠금·첫 부과·선납 충당은 기존 서비스를 따르고 실패 시 등록 결과까지 함께 롤백합니다. 새 입력이 없는 이전 등록은 조합 서비스를 호출하지 않아 저장·지문을 유지합니다. API 계약은 [공통 등록 문서](../../docs/api/propertyRegistrationApi.md#초기-설정의-잔액-인계와-관리-시작)를 참조합니다.
 
 
 ## 다중 통장 등록 (2026-10-18)
@@ -127,8 +127,8 @@ RegistrationOpeningService는 최종 요청의 전체 세대·동·계좌 참조
 
 ## 자동 시작월의 초기 생성 순서 (2026-11-01)
 
-automaticBilling 요청은 [등록 API](../../docs/propertyRegistrationApi.md#통장-기준일-자동-부과-시작-2026-11-01)의 날짜 조합을 검증합니다. 새 초기 템플릿을 계산된 첫 부과월부터 적용하도록 저장하고, 인계 확정에서 해당 월부터 현재 월까지 generateInitial을 순서대로 호출한 뒤 실제 은행·수기 입출금을 등록합니다. 기존 등록 트랜잭션과 성공 결과 저장을 공유하므로 부과·동별 보유금·거래 중 하나라도 실패하면 전체가 롤백됩니다. 필드를 생략한 요청의 기존 직렬화·재시도 지문은 유지합니다.
+automaticBilling 요청은 [등록 API](../../docs/api/propertyRegistrationApi.md#통장-기준일-자동-부과-시작-2026-11-01)의 날짜 조합을 검증합니다. 새 초기 템플릿을 계산된 첫 부과월부터 적용하도록 저장하고, 인계 확정에서 해당 월부터 현재 월까지 generateInitial을 순서대로 호출한 뒤 실제 은행·수기 입출금을 등록합니다. 기존 등록 트랜잭션과 성공 결과 저장을 공유하므로 부과·동별 보유금·거래 중 하나라도 실패하면 전체가 롤백됩니다. 필드를 생략한 요청의 기존 직렬화·재시도 지문은 유지합니다.
 
 ## 자동 시작월의 초기 생성 순서 (2026-11-01)
 
-automaticBilling 요청은 [등록 API](../../docs/propertyRegistrationApi.md#통장-기준일-자동-부과-시작-2026-11-01)의 날짜 조합을 검증합니다. 새 초기 템플릿을 계산된 첫 부과월부터 적용하도록 저장하고, 인계 확정에서 해당 월부터 현재 월까지 generateInitial을 순서대로 호출한 뒤 실제 은행·수기 입출금을 등록합니다. 기존 등록 트랜잭션과 성공 결과 저장을 공유하므로 부과·동별 보유금·거래 중 하나라도 실패하면 전체가 롤백됩니다. 필드를 생략한 요청의 기존 직렬화·재시도 지문은 유지합니다.
+automaticBilling 요청은 [등록 API](../../docs/api/propertyRegistrationApi.md#통장-기준일-자동-부과-시작-2026-11-01)의 날짜 조합을 검증합니다. 새 초기 템플릿을 계산된 첫 부과월부터 적용하도록 저장하고, 인계 확정에서 해당 월부터 현재 월까지 generateInitial을 순서대로 호출한 뒤 실제 은행·수기 입출금을 등록합니다. 기존 등록 트랜잭션과 성공 결과 저장을 공유하므로 부과·동별 보유금·거래 중 하나라도 실패하면 전체가 롤백됩니다. 필드를 생략한 요청의 기존 직렬화·재시도 지문은 유지합니다.

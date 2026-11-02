@@ -45,7 +45,7 @@ docker compose version
 별도 `application-local.yml` 없이 `application.yml`의 `local` Profile 문서에서 기존 `.env`를 읽습니다.
 로컬 `application.yml`은 Git에서 제외합니다. 비밀값 없는 공통·local·prod `application*.properties`와 테스트 `application-test.properties`는 추적합니다. `jwtSecurity.properties`, `propertyRegistration.properties`, `residentSecurity.properties`도 실제 비밀값 없이 환경변수 연결만 정의하는 공통 파일로 추적합니다. Gradle 테스트는 `classpath:application.properties`와 Profile 설정을 읽어 추적 제외된 개발 YAML에 의존하지 않습니다.
 DataSource, Redis와 카카오 OAuth는 환경변수에 연결되어 있습니다.
-인증 설정과 토큰 전달은 [JWT 인증 설계](securityDesign.md)를 따릅니다. 기능별 구현 상태는 [프로젝트 현황](projectOverview.md#4-현재-개발-상태)에서 관리합니다.
+인증 설정과 토큰 전달은 [JWT 인증 설계](securityDesign.md)를 따릅니다. 기능별 구현 상태는 [프로젝트 현황](../domain/projectOverview.md#4-현재-개발-상태)에서 관리합니다.
 
 ### Client 환경변수
 
@@ -109,7 +109,7 @@ Spring은 별도로 `local` Profile의 `.env` Import를 통해 같은 파일을 
 
 ### 카카오 로그인 설정
 
-카카오 로그인은 Server가 Authorization Code 교환과 사용자 검증을 처리하고 PKCE S256을 함께 적용합니다. 상세 흐름과 검증 책임은 [JWT 인증 설계](securityDesign.md)의 카카오 로그인 절을 따릅니다. `application.yml`의 OAuth 설정, Server 로그인 시작 / 콜백과 Client 로그인 버튼 / 콜백 화면은 구현되어 있습니다. Client의 관리자 진입 분기는 [서비스 진입 설계](../client/docs/serviceEntry.md)를 따릅니다. 주민 진입과 네이티브 앱 로그인 코드 교환은 후속 범위입니다.
+카카오 로그인은 Server가 Authorization Code 교환과 사용자 검증을 처리하고 PKCE S256을 함께 적용합니다. 상세 흐름과 검증 책임은 [JWT 인증 설계](securityDesign.md)의 카카오 로그인 절을 따릅니다. `application.yml`의 OAuth 설정, Server 로그인 시작 / 콜백과 Client 로그인 버튼 / 콜백 화면은 구현되어 있습니다. Client의 관리자 진입 분기는 [서비스 진입 설계](../../client/docs/serviceEntry.md)를 따릅니다. 주민 진입과 네이티브 앱 로그인 코드 교환은 후속 범위입니다.
 
 공개 주소의 로컬 예시는 다음과 같습니다. 실제 키 / Secret은 기존 환경 설정으로 주입하고 문서에 기록하지 않습니다.
 
@@ -119,7 +119,7 @@ WEB_ALLOWED_ORIGINS=http://localhost:3000
 WEB_LOGIN_SUCCESS_URI=http://localhost:3000/login/callback
 ```
 
-구매한 `villamoa.kr`의 운영 호스트·환경변수와 카카오 콜백 값은 [배포 계획의 운영 설정 표](deploymentPlan.md#4-운영-설정과-비밀값)를 따릅니다. 위 값은 로컬 개발용이며, 운영 설정 입력과 카카오디벨로퍼스 등록은 별도 수행합니다.
+구매한 `villamoa.kr`의 운영 호스트·환경변수와 카카오 콜백 값은 [배포 계획의 운영 설정 표](../operations/deploymentPlan.md#4-운영-설정과-비밀값)를 따릅니다. 위 값은 로컬 개발용이며, 운영 설정 입력과 카카오디벨로퍼스 등록은 별도 수행합니다.
 
 - `KAKAO_CLIENT_ID`에는 REST API 키를 사용합니다. 중복된 `KAKAO_REST_API_KEY`는 사용하지 않으며 로컬 `.env`도 `KAKAO_CLIENT_ID`로 통일합니다. 다른 환경에 기존 중복 변수가 남아 있으면 배포 설정도 같은 기준으로 정리합니다.
 - 카카오디벨로퍼스에서 카카오 로그인 사용을 활성화하고, 사용하는 REST API 키의 리다이렉트 URI에 `KAKAO_REDIRECT_URI`와 정확히 같은 주소를 등록합니다. 토큰 교환에서도 인가 요청에 사용한 동일한 URI를 전달합니다. [카카오 로그인 설정 문서](https://developers.kakao.com/docs/ko/kakaologin/prerequisite)를 참고합니다.
@@ -173,9 +173,9 @@ cd server
 - 다른 Profile을 명시하면 로컬 `.env`를 읽지 않습니다. 해당 환경에서 DB / Redis 변수를 주입하거나 `SPRING_DATASOURCE_*`, `SPRING_DATA_REDIS_*`로 연결 정보를 덮어씁니다.
 - JPA의 `ddl-auto`는 `validate`이고 스키마 변경은 Flyway가 담당합니다. Redis 연결 / 읽기 Timeout은 각각 `3s`입니다.
 - 기본 HTTP 주소는 `http://localhost:8080`입니다.
-- `local` Profile의 API 문서 주소와 인증 호출 방법은 [README의 로컬 API 문서](../README.md#로컬-api-문서)를 따릅니다. Swagger UI는 `docker compose up -d swagger-ui`로 별도 실행하며 `http://localhost:4000`에서 `8080`의 OpenAPI를 읽습니다. `tools` Profile의 서비스이므로 전체 기본 Compose 실행에는 포함하지 않고 명시적으로 실행합니다. 다른 Spring Profile에서는 OpenAPI를 기본 비활성화합니다.
+- `local` Profile의 API 문서 주소와 인증 호출 방법은 [README의 로컬 API 문서](../../README.md#로컬-api-문서)를 따릅니다. Swagger UI는 `docker compose up -d swagger-ui`로 별도 실행하며 `http://localhost:4000`에서 `8080`의 OpenAPI를 읽습니다. `tools` Profile의 서비스이므로 전체 기본 Compose 실행에는 포함하지 않고 명시적으로 실행합니다. 다른 Spring Profile에서는 OpenAPI를 기본 비활성화합니다.
 - IDE에서도 Working Directory를 `server/`로 지정합니다. 다른 디렉터리에서는 상대 경로 `.env`를 찾지 못합니다.
-- 웹 카카오 로그인 시작은 `GET /oauth2/authorization/kakao`, 콜백은 `GET /login/oauth2/code/kakao`입니다. Server 설정과 카카오디벨로퍼스 등록 주소를 일치시킵니다. Client는 `/login/callback`에서 세션을 복원합니다. [관리대상 등록 API](propertyRegistrationApi.md)의 인증·설정 조건도 적용하며 화면 연결은 [Client 등록 설계](../client/docs/propertyRegistration.md)를 참조합니다.
+- 웹 카카오 로그인 시작은 `GET /oauth2/authorization/kakao`, 콜백은 `GET /login/oauth2/code/kakao`입니다. Server 설정과 카카오디벨로퍼스 등록 주소를 일치시킵니다. Client는 `/login/callback`에서 세션을 복원합니다. [관리대상 등록 API](../api/propertyRegistrationApi.md)의 인증·설정 조건도 적용하며 화면 연결은 [Client 등록 설계](../../client/docs/propertyRegistration.md)를 참조합니다.
 
 서버 프로세스는 `Ctrl+C`로 종료합니다.
 
@@ -194,7 +194,7 @@ npm run dev
 - Client 환경변수를 변경하면 개발 서버를 다시 실행합니다.
 - 서버 프로세스는 `Ctrl+C`로 종료합니다.
 
-화면 구조·공통 UI·Server/Client Component 선택은 [Client 규칙](../client/AGENTS.md)과 영역별 `client/docs/`를 따릅니다.
+화면 구조·공통 UI·Server/Client Component 선택은 [Client 규칙](../../client/AGENTS.md)과 영역별 `../client/docs/`를 따릅니다.
 
 ## 6. 테스트 / 빌드
 
@@ -262,8 +262,8 @@ webpack으로 검증한 경우 기본 Turbopack 빌드 결과와 구분해 기�
 
 ## 8. 관련 문서
 
-- [프로젝트 개요](projectOverview.md): 목적, 서비스 구성과 MVP 범위
-- [도메인 규칙](domainRules.md): 용어, 업무 기준과 미정 정책
-- [루트 AGENTS.md](../AGENTS.md): 공통 작업 및 Git 규칙
-- [Client AGENTS.md](../client/AGENTS.md): FSD, UI와 검증 기준
-- [Server AGENTS.md](../server/AGENTS.md): Java / Spring / JPA, Redis와 Migration 규칙
+- [프로젝트 개요](../domain/projectOverview.md): 목적, 서비스 구성과 MVP 범위
+- [도메인 규칙](../domain/domainRules.md): 용어, 업무 기준과 미정 정책
+- [루트 AGENTS.md](../../AGENTS.md): 공통 작업 및 Git 규칙
+- [Client AGENTS.md](../../client/AGENTS.md): FSD, UI와 검증 기준
+- [Server AGENTS.md](../../server/AGENTS.md): Java / Spring / JPA, Redis와 Migration 규칙

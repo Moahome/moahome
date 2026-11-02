@@ -1,6 +1,6 @@
 # Server 운영 배포 가이드
 
-기준일: 2026-10-31. 인프라 구성과 운영 목적은 [공통 배포 계획](../../docs/deploymentPlan.md)을 따릅니다. 이 문서는 배포 파일의 실행법과 서버 검증 결과를 설명합니다. 실제 구축·사용자 검증의 진행 상태와 남은 운영 점검은 [공통 구축 기록](../../docs/deploymentPlan.md#9-비용과-실제-진행-상태)에서 관리합니다.
+기준일: 2026-10-31. 인프라 구성과 운영 목적은 [공통 배포 계획](../../docs/operations/deploymentPlan.md)을 따릅니다. 이 문서는 배포 파일의 실행법과 서버 검증 결과를 설명합니다. 실제 구축·사용자 검증의 진행 상태와 남은 운영 점검은 [공통 구축 기록](../../docs/operations/deploymentPlan.md#9-비용과-실제-진행-상태)에서 관리합니다.
 
 ## 1. 파일과 실행 환경
 
@@ -67,7 +67,7 @@ ghcr.io/<소문자 GitHub 소유자>/moahome-api:<전체 커밋 SHA>
 1. `/opt/moahome`을 만들고 `server/deploy/`의 파일을 SSH로 복사합니다. 서버에 이미 있는 `.env.prod`, `.deploy.env`, 인증서·데이터를 덮어쓰지 않습니다.
 2. Docker·Compose를 설치하고 호스트에 Certbot을 준비합니다.
 3. `.env.example`을 `.env.prod`로, `deploy.env.example`을 `.deploy.env`로 복사합니다.
-4. 도메인·앱 환경변수는 [운영 설정 표](../../docs/deploymentPlan.md#4-운영-설정과-비밀값)에 따라 입력합니다. 배포 양식의 도메인을 구매한 `villamoa.kr` 기준으로 바꾸고 `.deploy.env`에 `API_DOMAIN=api.villamoa.kr`을 설정합니다. `RDS_ENDPOINT`, `COMMIT_SHA`는 생성·검증한 실제 값으로 바꿉니다.
+4. 도메인·앱 환경변수는 [운영 설정 표](../../docs/operations/deploymentPlan.md#4-운영-설정과-비밀값)에 따라 입력합니다. 배포 양식의 도메인을 구매한 `villamoa.kr` 기준으로 바꾸고 `.deploy.env`에 `API_DOMAIN=api.villamoa.kr`을 설정합니다. `RDS_ENDPOINT`, `COMMIT_SHA`는 생성·검증한 실제 값으로 바꿉니다.
 5. RDS CA를 내려받고 비공개 DB의 TLS 인증서 검증·앱 계정 권한을 확인합니다.
 
 ```bash
@@ -82,7 +82,7 @@ curl -fsSL https://truststore.pki.rds.amazonaws.com/ap-northeast-2/ap-northeast-
 chmod 644 certs/rds-ca.pem
 ```
 
-위 복사는 최초 준비 때만 수행합니다. 앱 환경 파일은 Compose raw 형식으로 읽으므로 값을 따옴표로 감싸지 않고 셸에서 `source`하지 않습니다. 필수 키 목록·생성·교체 방식은 [개발 가이드](../../docs/developmentGuide.md#server-환경변수)를 참조합니다. 실제 값을 명령줄·Git·로그에 넣지 않습니다.
+위 복사는 최초 준비 때만 수행합니다. 앱 환경 파일은 Compose raw 형식으로 읽으므로 값을 따옴표로 감싸지 않고 셸에서 `source`하지 않습니다. 필수 키 목록·생성·교체 방식은 [개발 가이드](../../docs/development/developmentGuide.md#server-환경변수)를 참조합니다. 실제 값을 명령줄·Git·로그에 넣지 않습니다.
 
 Redis·Nginx는 로컬 검증에 사용한 digest를 양식과 Compose 기본값에 고정했습니다. 버전을 올릴 때 두 위치를 함께 갱신하고 로컬 통합 검증을 다시 수행합니다. RDS CA는 컨테이너의 비루트 사용자가 읽을 수 있어야 하며 암호화 키·개인키와 달리 공개 인증서입니다.
 
@@ -90,7 +90,7 @@ Redis·Nginx는 로컬 검증에 사용한 digest를 양식과 Compose 기본값
 
 ## 5. Nginx 최초 인증서와 자동 갱신
 
-`api.villamoa.kr`의 A 레코드가 Lightsail 고정 공인 IPv4를 가리키고 공개 TCP 80·443 연결이 준비된 상태에서 실행합니다. DNS·Vercel 프론트 연결은 [공통 접속 구성](../../docs/deploymentPlan.md#2-접속-구조와-네트워크)을 따릅니다. 아직 인증서가 없어도 HTTP 전용 Nginx부터 실행할 수 있습니다.
+`api.villamoa.kr`의 A 레코드가 Lightsail 고정 공인 IPv4를 가리키고 공개 TCP 80·443 연결이 준비된 상태에서 실행합니다. DNS·Vercel 프론트 연결은 [공통 접속 구성](../../docs/operations/deploymentPlan.md#2-접속-구조와-네트워크)을 따릅니다. 아직 인증서가 없어도 HTTP 전용 Nginx부터 실행할 수 있습니다.
 
 ```bash
 cd /opt/moahome
@@ -131,7 +131,7 @@ sudo bash deploy.sh ghcr.io/your-owner/moahome-api:COMMIT_SHA
 
 스크립트는 설정 검사 → API 이미지 pull → Redis 준비 확인 → API 교체·준비 확인 → Nginx 검사·reload 순서로 실행합니다. 동시에 두 배포를 실행하지 않도록 잠그고, 성공한 설정은 `.deploy.env`, 직전 정상 설정은 `.previousDeploy.env`에 보관합니다. 일반 API 배포에서는 Redis·Nginx 이미지를 pull하지 않습니다. 운영 파일 자체를 변경하는 배포는 별도로 검토합니다.
 
-실패한 API의 Flyway가 이미 DB를 변경했을 수 있으므로 자동 롤백하지 않습니다. 실패 시 실행 중인 컨테이너가 시도한 버전일 수 있으며, `.deploy.env`는 마지막 정상 확인 버전을 유지합니다. 실제 이미지·로그·DB 스키마를 확인하고 이전 앱과 호환될 때만 이전 이미지로 같은 배포 명령을 실행합니다. DB를 복원해야 하면 [공통 복구 기준](../../docs/deploymentPlan.md#7-백업복구와-관측)을 따릅니다.
+실패한 API의 Flyway가 이미 DB를 변경했을 수 있으므로 자동 롤백하지 않습니다. 실패 시 실행 중인 컨테이너가 시도한 버전일 수 있으며, `.deploy.env`는 마지막 정상 확인 버전을 유지합니다. 실제 이미지·로그·DB 스키마를 확인하고 이전 앱과 호환될 때만 이전 이미지로 같은 배포 명령을 실행합니다. DB를 복원해야 하면 [공통 복구 기준](../../docs/operations/deploymentPlan.md#7-백업복구와-관측)을 따릅니다.
 
 ```bash
 sudo docker compose --env-file .deploy.env -f compose.prod.yml ps
@@ -153,4 +153,4 @@ curl --fail --silent --show-error https://api.villamoa.kr/actuator/health/readin
 - 운영 RDS PostgreSQL 17.11에 Flyway Migration 51개가 적용됐고 최종 버전은 `20261025080504`입니다. JPA 초기화와 Spring Boot 기동 로그, 외부 HTTPS readiness의 `HTTP 200 {"status":"UP"}`를 직접 확인했습니다.
 - 최초 공인 인증서는 `api.villamoa.kr`에 발급됐고 당시 만료일은 2027-01-29였습니다. HTTP 308 전환·HTTPS 검증과 `certbot renew --dry-run --run-deploy-hooks`의 갱신·Nginx reload 성공, 전용 타이머 활성화·기본 타이머 비활성화를 확인했습니다.
 
-Vercel·실제 카카오 로그인·업무 수동 검증에 대한 사용자 확인과 아직 수행하지 않은 백업·복구·운영 점검은 [공통 구축 기록](../../docs/deploymentPlan.md#9-비용과-실제-진행-상태)을 따릅니다. 위 초기 배포 결과만으로 복원·재시작·장애 대응까지 검증한 것으로 기록하지 않습니다.
+Vercel·실제 카카오 로그인·업무 수동 검증에 대한 사용자 확인과 아직 수행하지 않은 백업·복구·운영 점검은 [공통 구축 기록](../../docs/operations/deploymentPlan.md#9-비용과-실제-진행-상태)을 따릅니다. 위 초기 배포 결과만으로 복원·재시작·장애 대응까지 검증한 것으로 기록하지 않습니다.

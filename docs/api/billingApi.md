@@ -1,8 +1,8 @@
 # 관리비 API
 
-상태: 설정 조회·예약 변경, 월별 청구·세대 상세·확정 이력 조회와 당월 청구 취소 구현. 업무 정책은 [도메인 규칙](domainRules.md#5-관리비-부과--청구), 저장 구조는 [ERD](erd.md#7-관리비-부과)를 참조합니다.
+상태: 설정 조회·예약 변경, 월별 청구·세대 상세·확정 이력 조회와 당월 청구 취소 구현. 업무 정책은 [도메인 규칙](../domain/domainRules.md#5-관리비-부과--청구), 저장 구조는 [ERD](../domain/erd.md#7-관리비-부과)를 참조합니다.
 
-2026-10-25 [전체·동별 기본 부과와 다음 달 임시 부과](billingSettings.md)를 구현했습니다. 기본·임시 범위를 독립적으로 저장하며 아래 추가 설정 계약을 사용합니다. 기존 범위 필드를 생략한 요청은 전체 기본 부과·임시 없음으로 처리합니다.
+2026-10-25 [전체·동별 기본 부과와 다음 달 임시 부과](../plans/billingSettings.md)를 구현했습니다. 기본·임시 범위를 독립적으로 저장하며 아래 추가 설정 계약을 사용합니다. 기존 범위 필드를 생략한 요청은 전체 기본 부과·임시 없음으로 처리합니다.
 
 모든 경로의 공통 prefix는 `/api/properties/{propertyId}/billing`입니다. Bearer 인증과 매 요청의 활성 계정·현재 ADMIN / MANAGER 참여·활성 관리대상 권한을 검증합니다. URL의 식별자는 UUID, 월은 `YYYY-MM`(1000~9999년)입니다. 응답은 `Cache-Control: no-store`를 사용합니다.
 
@@ -143,13 +143,13 @@ ChargeRow는 `id`, `unitId`, `building`(동 없음은 빈 문자열), `room`, `d
 
 ## 구현 설계
 
-[Client 화면·상태](../client/docs/managementLayout.md#관리비-부과-2026-10-10), [Server 트랜잭션·재시도](../server/docs/billing.md)를 참조합니다. 수납·환급·주민 공개 화면·회계 연결은 별도 구현입니다.
+[Client 화면·상태](../../client/docs/managementLayout.md#관리비-부과-2026-10-10), [Server 트랜잭션·재시도](../../server/docs/billing.md)를 참조합니다. 수납·환급·주민 공개 화면·회계 연결은 별도 구현입니다.
 
 활성 수납 배분이 있는 청구의 취소·제외는 `BILLING_CHARGE_HAS_PAYMENTS`(409)입니다. [입금 API](paymentApi.md)의 수납 정리를 먼저 수행하며 임의로 납부 기록을 제거하지 않습니다.
 
 ## 신규 동 인계에 따른 부과·인계 계약 변경 방향 (2026-10-26)
 
-상태: **설계 / 미구현**. 업무 기준은 [신규 동 인계 정책](domainRules.md#운영-중-신규-동-추가와-장부-인계-2026-10-26), 최종 입력 연결은 [세대 관리 계약 설계](unitManagementApi.md#운영-중-신규-동-인계-계약-설계-2026-10-26)를 참조합니다.
+상태: **설계 / 미구현**. 업무 기준은 [신규 동 인계 정책](../domain/domainRules.md#운영-중-신규-동-추가와-장부-인계-2026-10-26), 최종 입력 연결은 [세대 관리 계약 설계](unitManagementApi.md#운영-중-신규-동-인계-계약-설계-2026-10-26)를 참조합니다.
 
 현재 아래 기존 잔액 인계 API는 Property 전체 세대·계좌와 단일 미취소 인계 작업을 전제로 합니다. 운영 중 새 동만의 인계 요청을 그대로 제출하거나 확정된 최초 인계에 세대를 추가하는 용도로 사용할 수 없습니다. 신규 동 범위의 인계 조회·취소·재인계와 기존 선납 충당의 연결 계약이 필요합니다.
 
@@ -179,7 +179,7 @@ ChargeRow는 `id`, `unitId`, `building`(동 없음은 빈 문자열), `room`, `d
 
 CONFIRMED의 재확정은 원 결과를 반환합니다. 취소는 확정 수납이 없을 때만 허용하며 기존 월별 청구·최초 기준일·첫 부과월은 보존합니다. 세대 미납·선납 정정은 취소 후 새 인계 작업으로 기록합니다. 초기 기준일·통장 시작 금액은 아래 전용 정정을 사용합니다. 기존 운영 대상에 인계 작업이 없으면 소급 잔액 추가를 허용하지 않습니다.
 
-409: `OPENING_BALANCE_CONFLICT`, `OPENING_TARGETS_CHANGED`, `OPENING_ALREADY_HAS_RECEIPTS`. 400: `INVALID_OPENING_DATES`, `INVALID_OPENING_FILE`. 404: `OPENING_NOT_FOUND`. 저장소 충돌·장애는 기존 업무 오류 처리기의 `PAYMENT_CONFLICT` / `PAYMENT_SERVICE_UNAVAILABLE`을 재사용합니다. 자세한 업무 정책은 [도메인 규칙](domainRules.md#확정-정책-기존-잔액-인계와-관리-시작-2026-10-17)을 따릅니다.
+409: `OPENING_BALANCE_CONFLICT`, `OPENING_TARGETS_CHANGED`, `OPENING_ALREADY_HAS_RECEIPTS`. 400: `INVALID_OPENING_DATES`, `INVALID_OPENING_FILE`. 404: `OPENING_NOT_FOUND`. 저장소 충돌·장애는 기존 업무 오류 처리기의 `PAYMENT_CONFLICT` / `PAYMENT_SERVICE_UNAVAILABLE`을 재사용합니다. 자세한 업무 정책은 [도메인 규칙](../domain/domainRules.md#확정-정책-기존-잔액-인계와-관리-시작-2026-10-17)을 따릅니다.
 
 ### 초기 기준 정정 (2026-11-01)
 
@@ -187,7 +187,7 @@ CONFIRMED의 재확정은 원 결과를 반환합니다. 취소는 확정 수납
 
 기존 인계 GET·저장 응답에 `correctionDeadline:date|null`, `initialCorrectionAllowed:boolean`, `corrections:History[]`를 추가합니다. History는 `{id,kind,previousDate,newDate,details,reason,changedBy,changedByName,changedAt}`이며 kind는 `HANDOVER / BUILDING / ACCOUNT`입니다. details는 `{targetId,label,previousDate,newDate,previousAmount,newAmount}` 배열입니다. 초기 미설정 값은 null이고 금액은 원 단위 문자열입니다. 변경자 이름은 조회 시 현재 프로필 표시명이며 식별용 UUID를 함께 보존합니다. 정정 결과도 전체 인계 응답으로 반환합니다.
 
-관리 시작 시각·세대 미납·선납·실제 수납·기존 월별 청구 금액은 유지합니다. 첫 부과월은 후속 통장 기준일 연동 정책에서 명시적 확인 후 변경할 수 있습니다. 기준일 변경으로 기존 거래의 적용 구분이 달라지면 거부하며 원본을 자동 수정하지 않습니다. 취소·재저장·재확정으로 잠금 기한을 우회할 수 없습니다. 업무 기한·권한·이력은 [도메인 정책](domainRules.md#초기-기준일시작-금액-정정-기한-2026-11-01)을 참조합니다.
+관리 시작 시각·세대 미납·선납·실제 수납·기존 월별 청구 금액은 유지합니다. 첫 부과월은 후속 통장 기준일 연동 정책에서 명시적 확인 후 변경할 수 있습니다. 기준일 변경으로 기존 거래의 적용 구분이 달라지면 거부하며 원본을 자동 수정하지 않습니다. 취소·재저장·재확정으로 잠금 기한을 우회할 수 없습니다. 업무 기한·권한·이력은 [도메인 정책](../domain/domainRules.md#초기-기준일시작-금액-정정-기한-2026-11-01)을 참조합니다.
 
 409 `INITIAL_BALANCE_LOCKED`(기한 종료), `INITIAL_BALANCE_CONFLICT`(조회 버전·요청 ID 충돌), `INITIAL_BALANCE_TRANSACTION_CONFLICT`(기존 거래의 기준일 구분 변경), `OPENING_TARGETS_CHANGED`(통장 범위 변경). 400 `INVALID_INITIAL_BALANCE_DATE`(기준일·미납 발생월 불일치). 기존 인증·권한·저장소 오류 계약은 유지합니다.
 

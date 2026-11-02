@@ -4,7 +4,7 @@
 
 ## 점검 범위와 결과
 
-실제 DB 카탈로그를 현재 Entity·Repository·Service·Migration 및 [도메인 규칙](../../docs/domainRules.md), [ERD](../../docs/erd.md)와 대조했습니다. JPA 필드 참조만으로 사용 여부를 판단하지 않고 네이티브 SQL, DB 트리거, 감사 이력, Hibernate 낙관적 잠금과 등록 재시도 처리도 확인했습니다.
+실제 DB 카탈로그를 현재 Entity·Repository·Service·Migration 및 [도메인 규칙](../../docs/domain/domainRules.md), [ERD](../../docs/domain/erd.md)와 대조했습니다. JPA 필드 참조만으로 사용 여부를 판단하지 않고 네이티브 SQL, DB 트리거, 감사 이력, Hibernate 낙관적 잠금과 등록 재시도 처리도 확인했습니다.
 
 | 객체 | 정리 전 | 정리 후 |
 | --- | ---: | ---: |

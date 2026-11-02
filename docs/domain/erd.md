@@ -25,9 +25,9 @@
 
 기능별 진행 상태는 [프로젝트 현황](projectOverview.md#4-현재-개발-상태)에서 관리합니다. 이 문서의 구현 표시는 해당 저장 구조의 적용 여부이며 화면·업무 전체의 완료를 의미하지 않습니다.
 
-업무 규칙은 [domainRules.md](domainRules.md), 보안 코드와 인증 구현 기준은 [securityDesign.md](securityDesign.md), 작업 절차는 [AGENTS.md](../AGENTS.md)를 따른다. 차이가 발견되면 미정 정책을 추측해 코드나 ERD를 맞추지 않고 먼저 확인한다.
+업무 규칙은 [domainRules.md](domainRules.md), 보안 코드와 인증 구현 기준은 [securityDesign.md](../development/securityDesign.md), 작업 절차는 [AGENTS.md](../../AGENTS.md)를 따른다. 차이가 발견되면 미정 정책을 추측해 코드나 ERD를 맞추지 않고 먼저 확인한다.
 
-2026-10-25 PostgreSQL·Redis 전수 점검과 중복 제약 정리 결과는 [DB 점검 기록](../server/docs/databaseAudit.md)을 참조합니다. 세대의 `(property_id, id)` UNIQUE와 부과 항목의 관리대상·템플릿 복합 FK를 유지하며, 동일 검사를 반복하는 제약만 후속 Migration으로 제거합니다.
+2026-10-25 PostgreSQL·Redis 전수 점검과 중복 제약 정리 결과는 [DB 점검 기록](../../server/docs/databaseAudit.md)을 참조합니다. 세대의 `(property_id, id)` UNIQUE와 부과 항목의 관리대상·템플릿 복합 FK를 유지하며, 동일 검사를 반복하는 제약만 후속 Migration으로 제거합니다.
 
 ### 0.1 User / SocialAccount / Resident / PropertyMember 역할 분리
 
@@ -49,13 +49,13 @@
 - 주민 대상 알림톡/SMS는 우선 `residents`의 전화번호를 사용
 - 향후 계정 자체 휴대폰 인증/복구/공통 연락처 기능이 필요하면 `user_contacts` 같은 별도 엔티티 검토
 
-[건물별 공지·명부 발송·채널톡 문의 기획](residentCommunication.md)에 따른 공지·수신 대상·발송 결과·상담 연결·차량 자료의 저장 구조는 아직 설계하지 않았습니다. 기존 `residents`와 `Property`를 참조하는 방향이며, 채널톡 식별정보를 로그인 계정이나 `property_members` 접근 권한으로 대신 사용하지 않습니다. 수신자별 접근 링크도 미확정 설계안으로, 이 ERD에 확정 테이블·컬럼이나 Migration을 추가하지 않습니다.
+[건물별 공지·명부 발송·채널톡 문의 기획](../plans/residentCommunication.md)에 따른 공지·수신 대상·발송 결과·상담 연결·차량 자료의 저장 구조는 아직 설계하지 않았습니다. 기존 `residents`와 `Property`를 참조하는 방향이며, 채널톡 식별정보를 로그인 계정이나 `property_members` 접근 권한으로 대신 사용하지 않습니다. 수신자별 접근 링크도 미확정 설계안으로, 이 ERD에 확정 테이블·컬럼이나 Migration을 추가하지 않습니다.
 
 ### 0.3 User와 Resident 관계
 
 `Resident`는 가입 전에도 존재할 수 있다.
 
-현재 계정 연결은 `residents.user_id`에 저장하며 주민의 현재 세대는 `unit_residents`, 관리대상 권한은 `property_members`로 분리합니다. 가입 승인은 기존 명부·현재 관계를 검증한 뒤 계정 연결·권한·신청 상태를 함께 저장합니다. 승인 중 신규 명부 작성은 후속이며 먼저 기존 명부 등록 API를 사용합니다. 상세 정책과 원자성은 [참여자 API](memberManagementApi.md), [Server 역할·가입 설계](../server/docs/memberManagement.md)를 참조합니다.
+현재 계정 연결은 `residents.user_id`에 저장하며 주민의 현재 세대는 `unit_residents`, 관리대상 권한은 `property_members`로 분리합니다. 가입 승인은 기존 명부·현재 관계를 검증한 뒤 계정 연결·권한·신청 상태를 함께 저장합니다. 승인 중 신규 명부 작성은 후속이며 먼저 기존 명부 등록 API를 사용합니다. 상세 정책과 원자성은 [참여자 API](../api/memberManagementApi.md), [Server 역할·가입 설계](../../server/docs/memberManagement.md)를 참조합니다.
 
 
 동일 Property 안에서는 한 User가 여러 Resident로 중복 연결되지 않도록 한다.
@@ -208,7 +208,7 @@ deleted_by
 
 감사로그 JSON에는 개인정보 원문을 넣지 않는다.
 
-전화번호 저장에는 공통 `common/security/PhoneSecurity`를 재사용한다. 이 코드는 ERD의 별도 테이블이 아니며 전화번호 암호화 / 검색 / 마스킹용 값을 만든다. 휴대폰 소유 인증을 수행하지 않는다. 구현과 키 설정은 [보안 설계](securityDesign.md)의 전화번호 저장 절을 따른다.
+전화번호 저장에는 공통 `common/security/PhoneSecurity`를 재사용한다. 이 코드는 ERD의 별도 테이블이 아니며 전화번호 암호화 / 검색 / 마스킹용 값을 만든다. 휴대폰 소유 인증을 수행하지 않는다. 구현과 키 설정은 [보안 설계](../development/securityDesign.md)의 전화번호 저장 절을 따른다.
 
 ---
 
@@ -354,7 +354,7 @@ OAuth 세션/토큰 상태는 Redis 영역으로 분리한다.
 
 `has_buildings = false`이면 동을 생성하지 않고 모든 세대의 `building_id`를 NULL로 둔다. `true`이면 최소 1개의 동이 필요하며 각 세대의 동이 동일한 관리대상에 속해야 한다. 이름 / 동 구분의 저장 제약과 관계 검증은 실제 Migration / Service 구현 시 이 기준에 맞춘다.
 
-기본 정보 검증, 최종 저장과 중복 방지 / 결과 조회는 [관리대상 등록 API](propertyRegistrationApi.md)를 따른다. 관련 Entity와 등록 Migration은 구현했으며 저장 내부 흐름과 후속 FK 범위는 [Server 등록 설계](../server/docs/propertyRegistration.md)에서 관리한다. 관리 영역 접근 조회는 아래 `property_members`와 결합해 기존 `id`, `name`, 상태 / 삭제 정보를 읽으며 조회 전용 테이블을 추가하지 않는다. 저장된 동·세대의 삭제는 기존 `deleted_at` / `deleted_by`를 사용한다. 구현 범위와 연결 세대 처리는 [세대 관리 API](unitManagementApi.md#세대동-삭제)를 따른다. 동·세대 삭제 시 주민·당월 청구 정리와 세대 추가 즉시 부과는 [도메인 규칙](domainRules.md#세대-변경과-주민당월-청구-연결)을 따른다. 동 구분 변경·비활성화 정책은 후속 결정 대상이다.
+기본 정보 검증, 최종 저장과 중복 방지 / 결과 조회는 [관리대상 등록 API](../api/propertyRegistrationApi.md)를 따른다. 관련 Entity와 등록 Migration은 구현했으며 저장 내부 흐름과 후속 FK 범위는 [Server 등록 설계](../../server/docs/propertyRegistration.md)에서 관리한다. 관리 영역 접근 조회는 아래 `property_members`와 결합해 기존 `id`, `name`, 상태 / 삭제 정보를 읽으며 조회 전용 테이블을 추가하지 않는다. 저장된 동·세대의 삭제는 기존 `deleted_at` / `deleted_by`를 사용한다. 구현 범위와 연결 세대 처리는 [세대 관리 API](../api/unitManagementApi.md#세대동-삭제)를 따른다. 동·세대 삭제 시 주민·당월 청구 정리와 세대 추가 즉시 부과는 [도메인 규칙](domainRules.md#세대-변경과-주민당월-청구-연결)을 따른다. 동 구분 변경·비활성화 정책은 후속 결정 대상이다.
 
 ---
 
@@ -411,7 +411,7 @@ WHERE deleted_at IS NULL
 | `deleted_at` | timestamptz | Y | 소프트 삭제 |
 | `deleted_by` | uuid | Y | 삭제 처리자 |
 
-초기 등록의 동 이름 정리와 허용 상태는 [등록 API](propertyRegistrationApi.md#세대)를 따릅니다. 기존 상태 컬럼은 유지하며 초기 등록 입력에서는 `ACTIVE / VACANT`만 받습니다.
+초기 등록의 동 이름 정리와 허용 상태는 [등록 API](../api/propertyRegistrationApi.md#세대)를 따릅니다. 기존 상태 컬럼은 유지하며 초기 등록 입력에서는 `ACTIVE / VACANT`만 받습니다.
 
 ### 제약
 
@@ -464,7 +464,7 @@ WHERE building_id IS NULL AND deleted_at IS NULL;
 
 ### 구현 상태
 
-`V20261010041826__create_resident_directory.sql`로 테이블과 목록 조회용 Entity를 구현했다. 조회 권한·연락처 끝 4자리·전체 명부 범위는 [주민 관리 API](residentManagementApi.md)를 따른다. 저장 상태를 목록 필터로 사용하지 않는다. 개별·엑셀 등록·상세·수정·삭제와 기존 등록 API의 재등록 복구를 구현했으며 세대·연락처 기반 가입 신청과 관리자 승인에 따른 계정 연결을 구현했다. 기본 조회는 마스킹만 반환하고 명시적 상세 공개 또는 관리소장의 목록 내보내기 API에서만 전체 번호를 복호화한다. 연락처 수정 시 확인 연결된 가입 신청의 보호 연락처도 함께 변경하며 삭제 시 해당 대상의 주민 참여를 종료한다.
+`V20261010041826__create_resident_directory.sql`로 테이블과 목록 조회용 Entity를 구현했다. 조회 권한·연락처 끝 4자리·전체 명부 범위는 [주민 관리 API](../api/residentManagementApi.md)를 따른다. 저장 상태를 목록 필터로 사용하지 않는다. 개별·엑셀 등록·상세·수정·삭제와 기존 등록 API의 재등록 복구를 구현했으며 세대·연락처 기반 가입 신청과 관리자 승인에 따른 계정 연결을 구현했다. 기본 조회는 마스킹만 반환하고 명시적 상세 공개 또는 관리소장의 목록 내보내기 API에서만 전체 번호를 복호화한다. 연락처 수정 시 확인 연결된 가입 신청의 보호 연락처도 함께 변경하며 삭제 시 해당 대상의 주민 참여를 종료한다.
 
 ### 핵심 제약
 
@@ -541,7 +541,7 @@ CREATE UNIQUE INDEX unit_residents_active_resident_idx
 | `created_by` | uuid | N | 등록 관리자 users FK |
 | `created_at` | timestamptz | N | 저장 시각 |
 
-주민·관계는 관리대상·주민을 포함한 복합 FK로 참조합니다. 관계 원본에 `(property_id, resident_id, id)` UNIQUE를 추가하며 기존 행은 변경하지 않습니다. 별도 만료·삭제 정책은 추가하지 않습니다. 삭제 후 재입력은 명부 삭제 표시를 해제하고 새 관계를 생성하며 과거 관계·이용 권한을 재활성화하지 않습니다. 계약은 [주민 등록 API](residentManagementApi.md#주민-등록)를 따릅니다.
+주민·관계는 관리대상·주민을 포함한 복합 FK로 참조합니다. 관계 원본에 `(property_id, resident_id, id)` UNIQUE를 추가하며 기존 행은 변경하지 않습니다. 별도 만료·삭제 정책은 추가하지 않습니다. 삭제 후 재입력은 명부 삭제 표시를 해제하고 새 관계를 생성하며 과거 관계·이용 권한을 재활성화하지 않습니다. 계약은 [주민 등록 API](../api/residentManagementApi.md#주민-등록)를 따릅니다.
 
 ## 5.6 property_members
 
@@ -591,9 +591,9 @@ Property P002 → RESIDENT
 
 확정일: 2026-10-09. 관리자 기본 진입과 직접 주소 접근은 기존 `property_members`와 `properties`의 현재 값을 조회한다. 목록 / 현재 관리 권한 조회 API를 구현했다. 참여 중복 정리 정책이나 기존 DDL은 변경하지 않는다.
 
-조회할 현재 참여 / 역할 / 대상 조건과 응답은 [관리 영역 접근 API](managementAccessApi.md), 기본 대상 선택 정책은 [도메인 규칙](domainRules.md#로그인-이후-진입-기준)을 따른다. 등록 성공 결과에 보관된 과거 역할을 현재 참여로 대체하지 않는다.
+조회할 현재 참여 / 역할 / 대상 조건과 응답은 [관리 영역 접근 API](../api/managementAccessApi.md), 기본 대상 선택 정책은 [도메인 규칙](domainRules.md#로그인-이후-진입-기준)을 따른다. 등록 성공 결과에 보관된 과거 역할을 현재 참여로 대체하지 않는다.
 
-이미 구현된 컬럼으로 조회할 수 있으므로 새 Migration, 관리대상 접근 토큰 테이블과 사용자별 최근 선택 컬럼을 추가하지 않는다. 최근 선택의 브라우저 보관 설계는 [Client 서비스 진입 설계](../client/docs/serviceEntry.md#4-최근-선택-기록), 내부 조회 책임은 [Server 관리 영역 접근 설계](../server/docs/managementAccess.md)에서 관리한다.
+이미 구현된 컬럼으로 조회할 수 있으므로 새 Migration, 관리대상 접근 토큰 테이블과 사용자별 최근 선택 컬럼을 추가하지 않는다. 최근 선택의 브라우저 보관 설계는 [Client 서비스 진입 설계](../../client/docs/serviceEntry.md#4-최근-선택-기록), 내부 조회 책임은 [Server 관리 영역 접근 설계](../../server/docs/managementAccess.md)에서 관리한다.
 
 ---
 
@@ -651,7 +651,7 @@ Property P002 → RESIDENT
 - 자동 TTL을 두지 않는다. 후속 삭제 / 탈퇴의 보존·정리 정책을 확정할 때 이 결과와 중복 방지의 수명을 함께 검토한다.
 - GET에서 레코드가 없다는 것은 커밋된 성공 결과가 없다는 의미이며 아직 진행 중인 요청이 없음을 보장하지 않는다. 요청 실패 시 업무 데이터와 이 레코드를 함께 롤백한다.
 
-요청 비교와 반환 상태는 [등록 API](propertyRegistrationApi.md)의 계약, 동시성 처리와 저장 순서는 [Server 등록 설계](../server/docs/propertyRegistration.md)를 따른다. 관련 도메인의 초안 저장 정책은 변경하지 않는다.
+요청 비교와 반환 상태는 [등록 API](../api/propertyRegistrationApi.md)의 계약, 동시성 처리와 저장 순서는 [Server 등록 설계](../../server/docs/propertyRegistration.md)를 따른다. 관련 도메인의 초안 저장 정책은 변경하지 않는다.
 
 ---
 
@@ -668,15 +668,15 @@ Property P002 → RESIDENT
 | `created_at` | timestamptz | N | 업로드 시각 |
 | `expires_at` | timestamptz | N | 생성 후 24시간, 생성 시각보다 뒤라는 CHECK |
 
-만료 인덱스를 두고 만료 배치는 매시간 삭제한다. 파일 원본·연락처 평문은 보관하지 않으며 접근·보관·재시도는 [Server 등록 설계](../server/docs/residentRegistration.md#엑셀-검증과-행별-저장), 요청·응답은 [주민 API](residentManagementApi.md#엑셀-검증과-일괄-등록)를 따른다.
+만료 인덱스를 두고 만료 배치는 매시간 삭제한다. 파일 원본·연락처 평문은 보관하지 않으며 접근·보관·재시도는 [Server 등록 설계](../../server/docs/residentRegistration.md#엑셀-검증과-행별-저장), 요청·응답은 [주민 API](../api/residentManagementApi.md#엑셀-검증과-일괄-등록)를 따른다.
 
 ---
 
 ## 최초 거주 관리소장 자동 연결 (2026-10-17)
 
-신규 컬럼 없이 residents.user_id와 unit_residents의 현재 관계를 생성하고 등록한 본인의 ADMIN 참여를 유지합니다. 외부 관리소장은 주민 명부가 없는 ADMIN 참여입니다. 최초 자동 연결의 출처는 property_registration_results.response_snapshot의 administrator에 residenceType/residentId/unitId/unitResidentId로 보존합니다. 이름·연락처 원문을 스냅샷에 넣지 않으며 활성 참여와 현재 관계 ID의 일치로 가입 완료를 판정합니다. 자세한 계약은 [등록 API](propertyRegistrationApi.md#최초-관리소장-거주-선택-2026-10-17)를 참조합니다.
+신규 컬럼 없이 residents.user_id와 unit_residents의 현재 관계를 생성하고 등록한 본인의 ADMIN 참여를 유지합니다. 외부 관리소장은 주민 명부가 없는 ADMIN 참여입니다. 최초 자동 연결의 출처는 property_registration_results.response_snapshot의 administrator에 residenceType/residentId/unitId/unitResidentId로 보존합니다. 이름·연락처 원문을 스냅샷에 넣지 않으며 활성 참여와 현재 관계 ID의 일치로 가입 완료를 판정합니다. 자세한 계약은 [등록 API](../api/propertyRegistrationApi.md#최초-관리소장-거주-선택-2026-10-17)를 참조합니다.
 
-외부 담당자의 이름·연락처 저장 구조는 후속입니다. 거주 관리소장은 기존 주민·세대 관계와 아래 연결 출처를 사용하며 실제 입력 계약은 [등록 API](propertyRegistrationApi.md#최초-관리소장-거주-선택-2026-10-17)를 따릅니다.
+외부 담당자의 이름·연락처 저장 구조는 후속입니다. 거주 관리소장은 기존 주민·세대 관계와 아래 연결 출처를 사용하며 실제 입력 계약은 [등록 API](../api/propertyRegistrationApi.md#최초-관리소장-거주-선택-2026-10-17)를 따릅니다.
 
 ## 기존 관리소장의 주민 계정 연결 출처 (2026-10-17)
 
@@ -694,7 +694,7 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 
 ### 주민 초대 저장 구조
 
-`V20261024071301__create_resident_invitations.sql`로 다음 저장 구조를 추가했습니다. 업무 기준은 [주민 초대 정책](domainRules.md#주민-참여-흐름), 요청 계약은 [참여자 API](memberManagementApi.md#주민-초대-발급과-전달)를 따릅니다.
+`V20261024071301__create_resident_invitations.sql`로 다음 저장 구조를 추가했습니다. 업무 기준은 [주민 초대 정책](domainRules.md#주민-참여-흐름), 요청 계약은 [참여자 API](../api/memberManagementApi.md#주민-초대-발급과-전달)를 따릅니다.
 
 | 저장소 | 역할·제약 |
 | --- | --- |
@@ -704,13 +704,13 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 | membership_requests 확장 | applicant_name·join_code_id. 기존 신청은 유지하고 연락처 세 필드를 nullable로 변경하되 모두 있음/없음 묶음 제약 유지 |
 | 무결성 | 개인 진행 초대는 관리대상·주민별 하나, 주민/세대와 공통 코드의 복합 FK로 다른 관리대상 혼입 차단 |
 
-`V20261024081150__retain_encrypted_resident_invitation_code.sql`은 개인 초대 재전달용 nullable `token_encrypted`를 추가합니다. 기존 해시만 있는 행은 유지하고, 암호문은 ISSUED 상태에만 허용합니다. 수락·정정 제출·철회에서 제거하며 만료 여부는 기존 expires_at으로 검증합니다. 암호화 방식은 [Server 구현](../server/docs/memberManagement.md)을 따릅니다.
+`V20261024081150__retain_encrypted_resident_invitation_code.sql`은 개인 초대 재전달용 nullable `token_encrypted`를 추가합니다. 기존 해시만 있는 행은 유지하고, 암호문은 ISSUED 상태에만 허용합니다. 수락·정정 제출·철회에서 제거하며 만료 여부는 기존 expires_at으로 검증합니다. 암호화 방식은 [Server 구현](../../server/docs/memberManagement.md)을 따릅니다.
 
 개인 상태는 ISSUED / CHANGE_REQUESTED / APPROVED / REVOKED / REJECTED이며 미사용 만료는 시각에서 계산합니다. 개인 자동 승인은 주민·현재 관계·수락 계정·활성 참여가 일치하는 APPROVED 출처로 조회합니다. 정정 승인 대기도 지정한 현재 관계가 일치할 때만 해당 주민의 승인 대기로 읽습니다. 원문 코드와 전화번호를 감사 출처에 넣지 않습니다. 기존 member_invitations는 외부 부담당자 전용으로 유지합니다.
 
 ### 초대 인증의 Redis 이전 설계 (2026-10-25)
 
-상태: 위 절은 기존 Migration의 구조입니다. 사용자가 초대 인증의 Redis 이전을 확정했으며 아래는 구현한 저장 구조와 Migration입니다. 실제 개발·공유·운영 DB에 적용된 것으로 해석하지 않습니다. 유형별 기한·소진·검토 정책은 [도메인 규칙](domainRules.md#초대-인증서비스-복귀역할-변경의-후속-확정-방향-2026-10-25), Redis 키·정합성·배포는 [Server 설계](../server/docs/memberManagement.md#redis-이전-상세-설계와-진행-상태-2026-10-25)를 따릅니다.
+상태: 위 절은 기존 Migration의 구조입니다. 사용자가 초대 인증의 Redis 이전을 확정했으며 아래는 구현한 저장 구조와 Migration입니다. 실제 개발·공유·운영 DB에 적용된 것으로 해석하지 않습니다. 유형별 기한·소진·검토 정책은 [도메인 규칙](domainRules.md#초대-인증서비스-복귀역할-변경의-후속-확정-방향-2026-10-25), Redis 키·정합성·배포는 [Server 설계](../../server/docs/memberManagement.md#redis-이전-상세-설계와-진행-상태-2026-10-25)를 따릅니다.
 
 | 저장소·컬럼 | 분류 | 변경 설계 |
 | --- | --- | --- |
@@ -724,7 +724,7 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 
 `V20261025015144__move_invitation_credentials_to_redis.sql`은 기존 ISSUED 코드 철회, DB 암호문 컬럼 제거, 외부 초대의 `expires_at=created_at+1 day` 고정 CHECK를 `expires_at>created_at`으로 교체합니다. 과거 발급 기한을 소급 변경하지 않으며 REQUESTED/CHANGE_REQUESTED/APPROVED/REJECTED 및 계정 연결·역할 이력은 유지해야 합니다. 만료는 단순 상태 전이와 구분해 기존 시각에서 판정합니다.
 
-2026-10-25 재실행 장애 조사에서 로컬 개발 DB에 이 파일의 원본이 이미 적용돼 있음을 확인했습니다. 파일은 적용 당시 체크섬 `832303297`로 복원하며 이후 수정하지 않습니다. 아직 이 버전을 적용하지 않은 환경의 기존 암호문 CHECK 충돌은 Server의 `InvitationCredentialMigrationCallback`이 해당 버전의 실행 직전에 ISSUED 암호문만 NULL로 정리해 방지합니다. 이 보정은 해당 Migration과 같은 트랜잭션에 참여하고 실패 시 함께 롤백하며, 이미 적용된 환경의 재시작에는 실행되지 않습니다. 상세 검증과 실제 환경 관찰은 [Server 검증 기록](../server/docs/memberManagement.md#서버-재실행-실패와-migration-체크섬-복구-2026-10-25)을 따릅니다. 컬럼 제거는 구버전 코드와 호환되지 않으므로 중지 후 전환·백업·복구 계획이 필요하며 실제 환경 적용 이력은 실행 전에 조회합니다.
+2026-10-25 재실행 장애 조사에서 로컬 개발 DB에 이 파일의 원본이 이미 적용돼 있음을 확인했습니다. 파일은 적용 당시 체크섬 `832303297`로 복원하며 이후 수정하지 않습니다. 아직 이 버전을 적용하지 않은 환경의 기존 암호문 CHECK 충돌은 Server의 `InvitationCredentialMigrationCallback`이 해당 버전의 실행 직전에 ISSUED 암호문만 NULL로 정리해 방지합니다. 이 보정은 해당 Migration과 같은 트랜잭션에 참여하고 실패 시 함께 롤백하며, 이미 적용된 환경의 재시작에는 실행되지 않습니다. 상세 검증과 실제 환경 관찰은 [Server 검증 기록](../../server/docs/memberManagement.md#서버-재실행-실패와-migration-체크섬-복구-2026-10-25)을 따릅니다. 컬럼 제거는 구버전 코드와 호환되지 않으므로 중지 후 전환·백업·복구 계획이 필요하며 실제 환경 적용 이력은 실행 전에 조회합니다.
 
 ---
 
@@ -761,29 +761,29 @@ unit_resident_id는 현재 관계의 검증 출처이며 관계의 종료·재�
 
 ### 구현 상태
 
-`V20261010043914__create_membership_request_read_model.sql`로 주민 목록의 가입 상태 조회에 필요한 저장 구조와 중복 대기·관리대상 무결성 제약을 구현했다. 현재 주민 가입 신청·관리자 승인·거절과 별도 resident_invitations의 개인 초대 자동 승인을 구현했습니다. 일반 신청의 공통 초대 출처는 join_code_id로 저장하고 개인 수락 출처는 resident_invitations에 보관합니다. 현재 주민 목록의 판정 기준은 [주민 관리 API](residentManagementApi.md#가입-상태-판정)를 따른다. 확인되지 않은 매칭 후보를 주민의 승인 대기로 취급하지 않는다.
+`V20261010043914__create_membership_request_read_model.sql`로 주민 목록의 가입 상태 조회에 필요한 저장 구조와 중복 대기·관리대상 무결성 제약을 구현했다. 현재 주민 가입 신청·관리자 승인·거절과 별도 resident_invitations의 개인 초대 자동 승인을 구현했습니다. 일반 신청의 공통 초대 출처는 join_code_id로 저장하고 개인 수락 출처는 resident_invitations에 보관합니다. 현재 주민 목록의 판정 기준은 [주민 관리 API](../api/residentManagementApi.md#가입-상태-판정)를 따른다. 확인되지 않은 매칭 후보를 주민의 승인 대기로 취급하지 않는다.
 
-관리소장이 주민 연락처를 수정하면 해당 주민으로 확인 연결된 신청의 `request_phone_*` 3개 값도 함께 변경한다. 변경 후 신청 번호를 최초 입력 시점의 불변 스냅샷으로 취급하지 않는다. 주민 삭제 시 확인 연결된 대기는 취소하며 승인 이력은 유지한다. 연결 범위와 트랜잭션은 [주민 API](residentManagementApi.md#주민-상세연락처-공개수정삭제)를 따른다.
+관리소장이 주민 연락처를 수정하면 해당 주민으로 확인 연결된 신청의 `request_phone_*` 3개 값도 함께 변경한다. 변경 후 신청 번호를 최초 입력 시점의 불변 스냅샷으로 취급하지 않는다. 주민 삭제 시 확인 연결된 대기는 취소하며 승인 이력은 유지한다. 연결 범위와 트랜잭션은 [주민 API](../api/residentManagementApi.md#주민-상세연락처-공개수정삭제)를 따른다.
 
 ### 승인 처리
 
 동일 계정·세대의 미삭제 PENDING 요청은 `membership_requests_pending_user_unit_idx`의 부분 UNIQUE로 제한합니다. 승인에서는 기존 주민·현재 세대 관계를 검증하고 `residents.user_id`, `property_members`, `member_role_events`, 신청의 상태·검토자·시각을 같은 트랜잭션에 저장합니다. 실패하면 전체를 롤백합니다.
 
-주민 가입의 신청 이름은 applicant_name, 공통 코드 출처는 join_code_id로 저장합니다. request_phone_* 3개 컬럼은 모두 nullable이며 묶음 무결성을 유지합니다. 개인 자동 승인 출처는 별도 resident_invitations를 사용하고 세대 관계 유형은 신청 입력에 추가하지 않습니다. 외부 부담당자 초대는 아래 별도 저장 구조를 사용합니다. 승인 입력·충돌 처리와 후속 신규 명부 작성은 [참여자 API](memberManagementApi.md#주민-가입-요청), [도메인 정책](domainRules.md#가입-승인-시-함께-저장하는-범위)을 따릅니다.
+주민 가입의 신청 이름은 applicant_name, 공통 코드 출처는 join_code_id로 저장합니다. request_phone_* 3개 컬럼은 모두 nullable이며 묶음 무결성을 유지합니다. 개인 자동 승인 출처는 별도 resident_invitations를 사용하고 세대 관계 유형은 신청 입력에 추가하지 않습니다. 외부 부담당자 초대는 아래 별도 저장 구조를 사용합니다. 승인 입력·충돌 처리와 후속 신규 명부 작성은 [참여자 API](../api/memberManagementApi.md#주민-가입-요청), [도메인 정책](domainRules.md#가입-승인-시-함께-저장하는-범위)을 따릅니다.
 
 ## 외부 관리자 초대·역할 변경 저장 (2026-10-17)
 
 `member_invitations`는 외부 부담당자 전용 구현입니다. property_id, token_hash, MANAGER 역할, ISSUED/REQUESTED/APPROVED/REVOKED 상태, revision, 발급자/시각·1일 만료, 신청자/시각·검토자/시각을 보존합니다. 신규 외부 관리자 초대는 주민·세대를 연결하지 않으며 token_hash는 UNIQUE입니다. 이미 적용한 초기 스키마의 resident_id/unit_id는 과거 승인·철회 이력을 보존하기 위해 유지합니다. 적용된 후속 Migration은 완료되지 않은 과거 주민용 코드를 철회하고 이 테이블의 신규 주민 초대를 차단합니다. 새 개인 초대를 위해 과거 코드를 복원하거나 이 제약을 임의로 제거하지 않습니다. 만료는 현재 시각과 expires_at에서 계산합니다.
 
-`member_role_events`는 property_id/member_id/actor_id, GRANTED/CHANGED/ENDED, previous_role/next_role, changed_at을 보존하며 개인정보·코드 원문을 담지 않습니다. 주민 가입은 기존 membership_requests를 사용합니다. [참여자·가입 API](memberManagementApi.md)를 참조합니다.
+`member_role_events`는 property_id/member_id/actor_id, GRANTED/CHANGED/ENDED, previous_role/next_role, changed_at을 보존하며 개인정보·코드 원문을 담지 않습니다. 주민 가입은 기존 membership_requests를 사용합니다. [참여자·가입 API](../api/memberManagementApi.md)를 참조합니다.
 
 ---
 
 # 7. 관리비 부과
 
-[도메인 규칙](domainRules.md#5-관리비-부과--청구)과 [관리비 API](billingApi.md)를 따릅니다. `V20261010131153__create_monthly_billing.sql`에서 아래 기간·청구·항목과 기본 설정 버전을 구현했습니다. 해당 Migration에는 취소·재발행·월 마감·수납·회계 연결 컬럼을 추가하지 않았습니다. 세대 삭제의 당월 취소는 후속 `V20261012052031__support_unit_deletion_charge_cancellation.sql`로 CANCELED 상태와 취소 감사 컬럼을 추가합니다.
+[도메인 규칙](domainRules.md#5-관리비-부과--청구)과 [관리비 API](../api/billingApi.md)를 따릅니다. `V20261010131153__create_monthly_billing.sql`에서 아래 기간·청구·항목과 기본 설정 버전을 구현했습니다. 해당 Migration에는 취소·재발행·월 마감·수납·회계 연결 컬럼을 추가하지 않았습니다. 세대 삭제의 당월 취소는 후속 `V20261012052031__support_unit_deletion_charge_cancellation.sql`로 CANCELED 상태와 취소 감사 컬럼을 추가합니다.
 
-2026-10-25 [전체·동별 기본 부과와 독립적인 다음 달 임시 부과](domainRules.md#확정-정책-전체동별-부과와-다음-달-한정-변경-2026-10-25)를 `V20261025043039__support_building_and_temporary_billing.sql`로 확장했습니다. 기존 템플릿·항목 ID와 확정 청구는 보존합니다. 기본·임시 각각의 범위와 월별 적용은 [관리비 설정 기획](billingSettings.md)을 참조합니다.
+2026-10-25 [전체·동별 기본 부과와 독립적인 다음 달 임시 부과](domainRules.md#확정-정책-전체동별-부과와-다음-달-한정-변경-2026-10-25)를 `V20261025043039__support_building_and_temporary_billing.sql`로 확장했습니다. 기존 템플릿·항목 ID와 확정 청구는 보존합니다. 기본·임시 각각의 범위와 월별 적용은 [관리비 설정 기획](../plans/billingSettings.md)을 참조합니다.
 
 ## 7.1 billing_periods
 
@@ -870,9 +870,9 @@ UNIQUE(property_id, billing_year, billing_month)
 | `deleted_at` | timestamptz | Y | 삭제 |
 | `deleted_by` | uuid | Y | 삭제 처리자 |
 
-초기 등록의 `default_amount`는 2026-10-08에 변경한 0원·음수 허용 정수 원 단위 정책을 따른다. 기존 양수 제약은 후속 Migration으로 제거하고 numeric(15,0)의 범위는 유지한다. 입력과 합계는 [등록 API](propertyRegistrationApi.md) 설계의 numeric(15,0) 범위로 검증한다. 템플릿 / 항목을 기본값으로 저장하고 관리 시작 확정에서 지정한 첫 월의 청구를 생성·확정한다. 회계 전표는 별도 구현이다.
+초기 등록의 `default_amount`는 2026-10-08에 변경한 0원·음수 허용 정수 원 단위 정책을 따른다. 기존 양수 제약은 후속 Migration으로 제거하고 numeric(15,0)의 범위는 유지한다. 입력과 합계는 [등록 API](../api/propertyRegistrationApi.md) 설계의 numeric(15,0) 범위로 검증한다. 템플릿 / 항목을 기본값으로 저장하고 관리 시작 확정에서 지정한 첫 월의 청구를 생성·확정한다. 회계 전표는 별도 구현이다.
 
-`item_code`는 nullable varchar(30)을 유지합니다. 초기 구현에는 코드 CHECK가 없었으나, 후속 `V20261016135709__validate_fee_item_codes.sql`에서 확정된 추천 코드와 NULL만 허용하도록 검증합니다. JPA Enum에 없는 문자열이 저장돼 설정·부과 조회가 실패하는 문제를 방지합니다. 허용 코드와 직접 입력의 의미는 [등록 API](propertyRegistrationApi.md#기본-관리비-항목)를 따른다. 기존 NULL은 유지하며 항목명과 코드는 별도로 보존한다. enum 매핑과 저장 처리는 [Server 등록 설계](../server/docs/propertyRegistration.md#3-내부-초기값과-금액-처리)를 참조한다.
+`item_code`는 nullable varchar(30)을 유지합니다. 초기 구현에는 코드 CHECK가 없었으나, 후속 `V20261016135709__validate_fee_item_codes.sql`에서 확정된 추천 코드와 NULL만 허용하도록 검증합니다. JPA Enum에 없는 문자열이 저장돼 설정·부과 조회가 실패하는 문제를 방지합니다. 허용 코드와 직접 입력의 의미는 [등록 API](../api/propertyRegistrationApi.md#기본-관리비-항목)를 따른다. 기존 NULL은 유지하며 항목명과 코드는 별도로 보존한다. enum 매핑과 저장 처리는 [Server 등록 설계](../../server/docs/propertyRegistration.md#3-내부-초기값과-금액-처리)를 참조한다.
 
 ---
 
@@ -960,7 +960,7 @@ charges의 기존 원본을 수정하지 않고 billing_addition_id로 별도 �
 
 ## 7.6 기존 잔액 인계
 
-2026-10-17 구현. 업무 정책은 [도메인 규칙](domainRules.md#확정-정책-기존-잔액-인계와-관리-시작-2026-10-17), API는 [관리비 계약](billingApi.md#기존-잔액-인계)을 따릅니다.
+2026-10-17 구현. 업무 정책은 [도메인 규칙](domainRules.md#확정-정책-기존-잔액-인계와-관리-시작-2026-10-17), API는 [관리비 계약](../api/billingApi.md#기존-잔액-인계)을 따릅니다.
 
 | 테이블 | 저장 정보와 제약 |
 | --- | --- |
@@ -995,7 +995,7 @@ DB 지연 제약은 실제 수납 배분과 기존 선납 충당의 합계가 �
 
 ## 8.1 payments
 
-2026-10-16 구현. 실제 Migration은 `V20261015231910__create_payment_workspace.sql`이며 동작·상태·오류 계약은 [입금 API](paymentApi.md)를 따릅니다. 확인 필요 초안과 확정 수납을 구분하며 확정·취소는 원본을 삭제하지 않습니다.
+2026-10-16 구현. 실제 Migration은 `V20261015231910__create_payment_workspace.sql`이며 동작·상태·오류 계약은 [입금 API](../api/paymentApi.md)를 따릅니다. 확인 필요 초안과 확정 수납을 구분하며 확정·취소는 원본을 삭제하지 않습니다.
 
 | 컬럼 | 타입 | Null | 설명 |
 | --- | --- | --- | --- |
@@ -1116,7 +1116,7 @@ DB 지연 제약은 실제 수납 배분과 기존 선납 충당의 합계가 �
 
 ### 확정된 초기 계좌 범위와 기본 계좌
 
-확정일: 2026-10-05. 최종 등록의 계좌는 공용계좌이며 `building_id`를 NULL로 저장한다. 최소 1개를 받고 `is_primary = true`인 계좌를 정확히 1개 지정한다. `valid_from`은 등록 완료일로 자동 설정하고 Client에 시작일 입력을 요구하지 않는다. 날짜의 시간대는 [등록 API](propertyRegistrationApi.md), 상세 초기값은 [Server 등록 설계](../server/docs/propertyRegistration.md)를 따른다.
+확정일: 2026-10-05. 최종 등록의 계좌는 공용계좌이며 `building_id`를 NULL로 저장한다. 최소 1개를 받고 `is_primary = true`인 계좌를 정확히 1개 지정한다. `valid_from`은 등록 완료일로 자동 설정하고 Client에 시작일 입력을 요구하지 않는다. 날짜의 시간대는 [등록 API](../api/propertyRegistrationApi.md), 상세 초기값은 [Server 등록 설계](../../server/docs/propertyRegistration.md)를 따른다.
 
 2026-10-18 기존 계좌의 은행·번호·예금주 정정을 구현했다. ADMIN이 같은 bank_accounts 행의 정보와 updated_at만 갱신하며 ID·사용기간·기본 지정과 거래·수납·잔고 FK는 유지한다. 계좌번호는 기존 보호 컬럼을 갱신하고 새 컬럼·Migration은 추가하지 않는다. updated_at은 PostgreSQL과 같은 마이크로초 정밀도로 갱신해 정정 버전 비교에 사용한다. 통장 추가·기본 계좌 전환·사용 종료는 아래 다중 관리계좌 확장을 따른다. 주민 연결·동별 계좌 안내 기준은 기존 미정 범위를 유지한다.
 
@@ -1181,13 +1181,13 @@ Soft Delete 없음.
 | imported_at | timestamptz | N | 최초 가져오기 시각 |
 | deleted_at / deleted_by | timestamptz / uuid | Y | 미확정 입금 삭제 시각·처리자 |
 
-`V20261016122154__allow_reimport_of_deleted_bank_receipts.sql`에서 `deleted_at IS NULL` 원본만 `(bank_account_id,deduplication_key)`로 유일하게 제한합니다. 삭제 기록을 보존하면서 같은 파일의 재등록을 허용하고, 활성 재등록 거래는 다시 중복 방지합니다. 같은 대상의 계좌 복합 FK는 유지합니다. 원본 처리 상태는 연결된 payments 또는 expenses로 조회하며 중복 상태 컬럼을 두지 않습니다. 출금의 중복 키·선택 ID는 [통장 API](bankingManagement.md)를 따릅니다.
+`V20261016122154__allow_reimport_of_deleted_bank_receipts.sql`에서 `deleted_at IS NULL` 원본만 `(bank_account_id,deduplication_key)`로 유일하게 제한합니다. 삭제 기록을 보존하면서 같은 파일의 재등록을 허용하고, 활성 재등록 거래는 다시 중복 방지합니다. 같은 대상의 계좌 복합 FK는 유지합니다. 원본 처리 상태는 연결된 payments 또는 expenses로 조회하며 중복 상태 컬럼을 두지 않습니다. 출금의 중복 키·선택 ID는 [통장 API](../api/bankingManagement.md)를 따릅니다.
 
 ---
 
 ## 9.4 공용 통장 거래 분류
 
-2026-10-17 입출금 원본과 지출명 하나·동별/외부 부담 배분을 구현했습니다. 업무·API는 [통장 관리](bankingManagement.md)를 참조합니다.
+2026-10-17 입출금 원본과 지출명 하나·동별/외부 부담 배분을 구현했습니다. 업무·API는 [통장 관리](../api/bankingManagement.md)를 참조합니다.
 
 ```text
 공용 bank_accounts
@@ -1225,18 +1225,18 @@ Soft Delete 없음.
 
 ## 다중 관리계좌·내부 이체 확장 (2026-10-18)
 
-`V20261018025257__support_multiple_management_accounts.sql`이 기존 계좌·은행 원본·수납·잔액을 보존하면서 다음 구조를 추가합니다. 업무·API는 [다중 통장 계약](bankingManagement.md#다중-통장내부-이체-api-2026-10-18)을 따릅니다.
+`V20261018025257__support_multiple_management_accounts.sql`이 기존 계좌·은행 원본·수납·잔액을 보존하면서 다음 구조를 추가합니다. 업무·API는 [다중 통장 계약](../api/bankingManagement.md#다중-통장내부-이체-api-2026-10-18)을 따릅니다.
 
 - bank_accounts.account_alias: 선택 varchar(100). 용도 Enum이나 필수 동 연결을 추가하지 않습니다. 미삭제 `(property_id,bank_code,account_number_hmac)` 유일 인덱스와 활성 기본 통장 유일 인덱스를 적용합니다. 지연 제약으로 커밋 시 공용 활성 기본 계좌 정확히 1개를 검증합니다. 기본 전환·종료는 과거 FK를 바꾸지 않습니다.
 - bank_transactions.transfer_candidate: NOT NULL boolean, 기존 원본은 false로 보정합니다. 원본 금액·방향은 유지하고 내부 이동의 업무 분류 여부만 나타냅니다.
 - bank_transfers: UUID id PK, property_id, outgoing_id, incoming_id, created_by/created_at, 선택 canceled_by/canceled_at. 같은 대상의 원본 복합 FK와 활성 입금·출금별 유일 인덱스를 사용합니다. 방향·통장 차이·금액 일치·유효 원본을 DB에서도 검사합니다. 연결은 삭제·덮어쓰기하지 않고 취소 감사만 한 번 기록합니다.
 - DB는 이체 원본의 수납·지출 생성과 금액·계좌·분류 변형을 막고 연결 중인 원본 삭제는 지연 제약으로 양쪽 동시 삭제를 검증합니다. 취소한 연결은 보존하며 새 UUID로 다시 연결합니다.
 
-후속 사용자 요청에 따라 building_cash_openings와 building_cash_opening_changes는 bank_account_id 복합 FK와 통장×동 유일성을 사용합니다. 기존 단일 통장 등록값은 원래 통장으로 이관하고 여러 통장 중 소속을 정할 수 없는 값은 null로 보관해 명시적 확인에 사용합니다. 금액·기준일·버전·정정 이력은 보존합니다. bank_opening_balances는 동별 보유금과 별개인 은행 실제 잔액 인계값입니다. 2026-11-01 후속 요청의 통장별 초기 정정 화면은 [Client 설계](../client/docs/bankingManagement.md#통장별-초기-잔액-정정과-기준-잔고-시안-2026-11-01)를 따르며 저장은 기존 인계값 또는 독립 초기 버전과 공통 정정 이력을 사용합니다. 2026-11-01 장부 기본 표시 변경은 bank_opening_balances의 통장 초기 잔액에 기존 입출금을 누적·역산하는 파생 조회이며 동별 시작 보유금과 분리합니다. 저장 구조·금액을 변경하거나 차이를 자동 재배분하지 않습니다. 운영 중 직접 확인 기록은 아래 2026-10-24 저장 구현을 따릅니다. 미확인 잔액을 0원으로 생성하지 않습니다. 정식 회계전표는 추가하지 않습니다.
+후속 사용자 요청에 따라 building_cash_openings와 building_cash_opening_changes는 bank_account_id 복합 FK와 통장×동 유일성을 사용합니다. 기존 단일 통장 등록값은 원래 통장으로 이관하고 여러 통장 중 소속을 정할 수 없는 값은 null로 보관해 명시적 확인에 사용합니다. 금액·기준일·버전·정정 이력은 보존합니다. bank_opening_balances는 동별 보유금과 별개인 은행 실제 잔액 인계값입니다. 2026-11-01 후속 요청의 통장별 초기 정정 화면은 [Client 설계](../../client/docs/bankingManagement.md#통장별-초기-잔액-정정과-기준-잔고-시안-2026-11-01)를 따르며 저장은 기존 인계값 또는 독립 초기 버전과 공통 정정 이력을 사용합니다. 2026-11-01 장부 기본 표시 변경은 bank_opening_balances의 통장 초기 잔액에 기존 입출금을 누적·역산하는 파생 조회이며 동별 시작 보유금과 분리합니다. 저장 구조·금액을 변경하거나 차이를 자동 재배분하지 않습니다. 운영 중 직접 확인 기록은 아래 2026-10-24 저장 구현을 따릅니다. 미확인 잔액을 0원으로 생성하지 않습니다. 정식 회계전표는 추가하지 않습니다.
 
 ### 은행 업로드 식별·메모 구현 (2026-10-23)
 
-[실제 업로드 계약](bankingManagement.md#은행-코드별-업로드-구현-상태-2026-10-23)에 맞춰 새 입금의 시간·잔액 포함 키를 기존 `deduplication_key`에 저장합니다. 과거 키·원본 ID·FK는 갱신하지 않고 저장된 원본 정보로 호환 여부를 대조합니다. 은행별 지원 정의는 코드에만 둡니다. 후속 Migration으로 payments.auto_match_eligible(boolean NOT NULL DEFAULT true)을 추가해 신규 상대 미확인·농협 음수 거래의 자동 매칭 제외를 저장합니다. 기존 수납의 상태·금액·충당은 변경하지 않고 true로 보존합니다. 새 테이블이나 수동 지출 구조는 추가하지 않았습니다.
+[실제 업로드 계약](../api/bankingManagement.md#은행-코드별-업로드-구현-상태-2026-10-23)에 맞춰 새 입금의 시간·잔액 포함 키를 기존 `deduplication_key`에 저장합니다. 과거 키·원본 ID·FK는 갱신하지 않고 저장된 원본 정보로 호환 여부를 대조합니다. 은행별 지원 정의는 코드에만 둡니다. 후속 Migration으로 payments.auto_match_eligible(boolean NOT NULL DEFAULT true)을 추가해 신규 상대 미확인·농협 음수 거래의 자동 매칭 제외를 저장합니다. 기존 수납의 상태·금액·충당은 변경하지 않고 true로 보존합니다. 새 테이블이나 수동 지출 구조는 추가하지 않았습니다.
 
 여러 메모·거래 종류와 농협 음수 출금 원문 표기는 기존 암호화 `memo_encrypted`에 열 위치·부호를 보존합니다. 농협의 실제 증가 이동은 기존 `INCOME`·양수 `amount`로 표현하며 원지출 취소 연결은 생성하지 않습니다. 이 구현은 위 수동 지출·연결·취소 저장 설계가 적용된 의미가 아닙니다.
 
@@ -1260,9 +1260,9 @@ Soft Delete 없음.
 | `cancel_request_id` | uuid, nullable | 취소 요청 UUID, UNIQUE |
 | `cancel_reason_encrypted` | text, nullable | 취소 사유 암호문 |
 
-취소 감사 네 컬럼은 함께 비어 있거나 모두 존재해야 합니다. 관리대상·통장·실제 확인시점/기록시점 내림차순 인덱스를 사용합니다. 트리거는 원문 금액·확인시점·통장·출처·기록자·메모의 변경과 물리 삭제를 막고 최초 취소 감사만 허용합니다. 기존 동별 기준값·은행 원본·인계·거래 합계에는 반영하지 않습니다. 날짜만 있는 기존 원천을 임의의 확인일시로 이관하지 않습니다. [API](bankingManagement.md#은행-잔액-직접-확인-api-2026-10-24)를 참조합니다.
+취소 감사 네 컬럼은 함께 비어 있거나 모두 존재해야 합니다. 관리대상·통장·실제 확인시점/기록시점 내림차순 인덱스를 사용합니다. 트리거는 원문 금액·확인시점·통장·출처·기록자·메모의 변경과 물리 삭제를 막고 최초 취소 감사만 허용합니다. 기존 동별 기준값·은행 원본·인계·거래 합계에는 반영하지 않습니다. 날짜만 있는 기존 원천을 임의의 확인일시로 이관하지 않습니다. [API](../api/bankingManagement.md#은행-잔액-직접-확인-api-2026-10-24)를 참조합니다.
 
-초기 등록의 통장×동 보유금은 기존 `building_cash_openings`를 사용하며 새 컬럼을 추가하지 않습니다. 선택 통장별 등록이 같은 최종 등록 트랜잭션에서 저장됩니다. 임시 참조·이전 요청 호환은 [등록 API](propertyRegistrationApi.md#초기-통장별-동-보유금-확장-2026-10-24)를 참조합니다.
+초기 등록의 통장×동 보유금은 기존 `building_cash_openings`를 사용하며 새 컬럼을 추가하지 않습니다. 선택 통장별 등록이 같은 최종 등록 트랜잭션에서 저장됩니다. 임시 참조·이전 요청 호환은 [등록 API](../api/propertyRegistrationApi.md#초기-통장별-동-보유금-확장-2026-10-24)를 참조합니다.
 
 # 10. 지출
 
@@ -1414,7 +1414,7 @@ Soft Delete 없음.
 
 ## 수동 지출 등록 저장 구현 (2026-10-23)
 
-[업무 기준](domainRules.md#수동-지출-등록-2026-10-23-후속-확정)과 [API](bankingManagement.md#수동-지출-등록-api-2026-10-23)에 따라 `V20261023133125__add_manual_expenses.sql`을 추가했습니다. 등록·배분 저장을 구현했으며 취소·은행 연결 이력은 후속입니다.
+[업무 기준](domainRules.md#수동-지출-등록-2026-10-23-후속-확정)과 [API](../api/bankingManagement.md#수동-지출-등록-api-2026-10-23)에 따라 `V20261023133125__add_manual_expenses.sql`을 추가했습니다. 등록·배분 저장을 구현했으며 취소·은행 연결 이력은 후속입니다.
 
 `expenses`에 `source_type varchar(20) NOT NULL`, `bank_account_id uuid NOT NULL`, `expense_date date NOT NULL`을 추가합니다. 기존 은행 지출의 통장·날짜는 원본에서 보정하고 ID·금액·암호문·배분을 유지합니다. 기존 삭제된 원본의 지출도 보정하며 소프트 삭제 상태를 되돌리지 않습니다. 같은 관리대상의 통장 복합 FK와 통장·날짜 조회 인덱스를 추가합니다.
 
@@ -1613,7 +1613,7 @@ POSTED 후 직접 수정 금지.
 
 # 12. 월마감 / 통장대사
 
-현재 구현 범위는 [월별 정산](domainRules.md#월별-정산-조회-구현)의 조회·점검·Excel·PDF·이미지(PNG)입니다. [전용 읽기 API](monthlySettlementApi.md)에서 기존 거래·수납·잔고를 조합하며 새 테이블·컬럼·Migration을 추가하지 않았습니다. 아래 대사 확정·마감 실행·검증 이력 테이블과 11.4의 회계기간은 **후속 설계안**으로 유지합니다. 기존 은행 잔액 확인 기록은 계속 사용하며 월별 정산 조회나 다운로드를 마감 확정 이력으로 저장하지 않습니다.
+현재 구현 범위는 [월별 정산](domainRules.md#월별-정산-조회-구현)의 조회·점검·Excel·PDF·이미지(PNG)입니다. [전용 읽기 API](../api/monthlySettlementApi.md)에서 기존 거래·수납·잔고를 조합하며 새 테이블·컬럼·Migration을 추가하지 않았습니다. 아래 대사 확정·마감 실행·검증 이력 테이블과 11.4의 회계기간은 **후속 설계안**으로 유지합니다. 기존 은행 잔액 확인 기록은 계속 사용하며 월별 정산 조회나 다운로드를 마감 확정 이력으로 저장하지 않습니다.
 
 ## 12.1 bank_reconciliations
 
@@ -1818,15 +1818,15 @@ erDiagram
 
 # 16. 현재 ERD에서 후속 검토가 필요한 부분
 
-현재 가입의 관리자 직접 명부 선택·계정/역할 충돌 거부는 [참여자 API](memberManagementApi.md)를 따릅니다. 향후 병합·복구·승인 중 명부 작성 정책까지 확정한 것은 아닙니다. 업무 미정 목록은 [도메인 규칙](domainRules.md)에서 관리하고 상세 DDL은 해당 기능 구현 시 검토합니다.
+현재 가입의 관리자 직접 명부 선택·계정/역할 충돌 거부는 [참여자 API](../api/memberManagementApi.md)를 따릅니다. 향후 병합·복구·승인 중 명부 작성 정책까지 확정한 것은 아닙니다. 업무 미정 목록은 [도메인 규칙](domainRules.md)에서 관리하고 상세 DDL은 해당 기능 구현 시 검토합니다.
 
 ### 후속 기능에서 검토할 항목
 
 아래 항목은 관련 기능을 구현할 때 검토한다. 해당 기능을 현재 구현하지 않는다면 선행 조건으로 추가하지 않는다.
 
-1. [주민 안내 서비스](residentCommunication.md)의 공지 대상·주민 명부 수신 대상·발송 결과·보존 정책을 저장할 구조. 명부 연락처 사용 방향과 발송 권한은 [도메인 규칙](domainRules.md#건물-안내와-주민-메시지의-확정-방향)을 따름
+1. [주민 안내 서비스](../plans/residentCommunication.md)의 공지 대상·주민 명부 수신 대상·발송 결과·보존 정책을 저장할 구조. 명부 연락처 사용 방향과 발송 권한은 [도메인 규칙](domainRules.md#건물-안내와-주민-메시지의-확정-방향)을 따름
 2. 향후 `user_contacts` 엔티티가 필요한지
-3. [세대 대표 지정과 변경](domainRules.md#확정된-세대-대표-지정과-변경)의 미정 예외 처리. 최초 지정·변경 권한과 삭제·이동 시 명시적 승계는 확정되었으며 별도 퇴거·재입주 흐름은 후속 결정. 엑셀 최초 순서와 오류·중복 제외는 확정 정책 적용. 개별 등록의 동시 대표 지정은 [Server 주민 등록](../server/docs/residentRegistration.md)의 잠금으로 직렬화
+3. [세대 대표 지정과 변경](domainRules.md#확정된-세대-대표-지정과-변경)의 미정 예외 처리. 최초 지정·변경 권한과 삭제·이동 시 명시적 승계는 확정되었으며 별도 퇴거·재입주 흐름은 후속 결정. 엑셀 최초 순서와 오류·중복 제외는 확정 정책 적용. 개별 등록의 동시 대표 지정은 [Server 주민 등록](../../server/docs/residentRegistration.md)의 잠금으로 직렬화
 4. 선입금 자동 충당은 구현했으며 환불·부분 취소·음수 청구 정산은 후속 정책
 5. 연체료 도입 여부 및 계산 규칙
 6. 관리대상별 계정과목 커스터마이징 수준

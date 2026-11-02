@@ -2,7 +2,7 @@
 
 2026-10-25 상태: 기존 절은 이전 전 계약을 설명합니다. [Redis 이전 변경 계약](#redis-이전의-변경-계약-2026-10-25)은 새 확정 요구사항과 작업 중인 코드의 방향이며, 검증·배포 완료를 의미하지 않습니다. 기한·저장소·restore의 충돌은 후속 변경 계약을 우선합니다.
 
-기준일: 2026-10-24. 아래 경로·본문·응답은 현재 구현된 계약입니다. [전체 공유·개인 지정 주민 초대 정책](domainRules.md#주민-참여-흐름)을 코드·링크 전달과 이름 필수·연락처 선택 가입에 반영했습니다. 외부 부담당자 초대와 역할·인계의 기존 동작은 유지합니다. 저장 구조는 [ERD](erd.md#56-property_members), 화면은 [Client 설계](../client/docs/memberManagement.md), 트랜잭션은 [Server 설계](../server/docs/memberManagement.md)를 기준으로 합니다.
+기준일: 2026-10-24. 아래 경로·본문·응답은 현재 구현된 계약입니다. [전체 공유·개인 지정 주민 초대 정책](../domain/domainRules.md#주민-참여-흐름)을 코드·링크 전달과 이름 필수·연락처 선택 가입에 반영했습니다. 외부 부담당자 초대와 역할·인계의 기존 동작은 유지합니다. 저장 구조는 [ERD](../domain/erd.md#56-property_members), 화면은 [Client 설계](../../client/docs/memberManagement.md), 트랜잭션은 [Server 설계](../../server/docs/memberManagement.md)를 기준으로 합니다.
 
 ## 공통 계약
 
@@ -132,7 +132,7 @@ phoneAction은 KEEP / SET / REMOVE입니다. SET일 때만 phone을 필수로 �
 
 ## Redis 이전의 변경 계약 (2026-10-25)
 
-기존 URL·요청 DTO는 유지합니다. 후속 구현에서 개인 preview 성공 응답에 Property 문맥을 위한 `propertyId`를 추가했습니다. 다른 주민 개인정보와 코드를 쿼리에 전달하지 않습니다. 정책은 [도메인 규칙](domainRules.md#초대-인증서비스-복귀역할-변경의-후속-확정-방향-2026-10-25)을 참조하며 기간 표를 중복 정의하지 않습니다. Server Redis 이전은 구현됐으며 실제 환경 배포 여부는 [검증 기록](../server/docs/memberManagement.md#구현-순서와-검증-상태)을 따릅니다.
+기존 URL·요청 DTO는 유지합니다. 후속 구현에서 개인 preview 성공 응답에 Property 문맥을 위한 `propertyId`를 추가했습니다. 다른 주민 개인정보와 코드를 쿼리에 전달하지 않습니다. 정책은 [도메인 규칙](../domain/domainRules.md#초대-인증서비스-복귀역할-변경의-후속-확정-방향-2026-10-25)을 참조하며 기간 표를 중복 정의하지 않습니다. Server Redis 이전은 구현됐으며 실제 환경 배포 여부는 [검증 기록](../../server/docs/memberManagement.md#구현-순서와-검증-상태)을 따릅니다.
 
 | 기존 API | 변경할 의미 |
 | --- | --- |
@@ -153,13 +153,13 @@ phoneAction은 KEEP / SET / REMOVE입니다. SET일 때만 phone을 필수로 �
 | 503 | INVITATION_SERVICE_UNAVAILABLE | Redis 연결/명령 장애. 현재 입력 유지·재시도. 만료로 단정하지 않음 |
 | 기존 상태 | 기존 계정·연결 충돌·명부 변경 오류 | 기존 업무 계약 유지 |
 
-이전 오류 표의 INVALID_INVITATION 409는 실제 `PaymentExceptionHandler`의 `INVALID_` 접두사 처리인 400과 달랐으므로 실제 계약과 맞춥니다. 503 처리를 구현했습니다. 모든 응답은 no-store이며 토큰·암호문·SQL·개인정보를 오류에 포함하지 않습니다. DB 커밋 후 Redis 삭제 실패를 가입 실패 503으로 바꾸지 않습니다. 실패 유형과 영구 상태를 구분한 재시도는 [Server 정합성 설계](../server/docs/memberManagement.md#db와-redis의-확정-순서)를 따릅니다.
+이전 오류 표의 INVALID_INVITATION 409는 실제 `PaymentExceptionHandler`의 `INVALID_` 접두사 처리인 400과 달랐으므로 실제 계약과 맞춥니다. 503 처리를 구현했습니다. 모든 응답은 no-store이며 토큰·암호문·SQL·개인정보를 오류에 포함하지 않습니다. DB 커밋 후 Redis 삭제 실패를 가입 실패 503으로 바꾸지 않습니다. 실패 유형과 영구 상태를 구분한 재시도는 [Server 정합성 설계](../../server/docs/memberManagement.md#db와-redis의-확정-순서)를 따릅니다.
 
 ## 본인 나가기 (2026-10-25)
 
 `POST /api/properties/{propertyId}/members/me/leave`는 기존 관리자 전용 참여자 변경과 달리 현재 본인 `MANAGER` / `RESIDENT`가 호출한다. 정상 Bearer 계정·활성 Property·현재 참여를 서버에서 확인하며, 본인 ID는 인증 정보로 결정한다. `ADMIN`은 인계 전 종료할 수 없다.
 
-요청은 `{reason:"SERVICE_ONLY"}` 또는 `{reason:"MOVE_OUT"}`이며 필수 Enum·계약 밖 필드·UUID를 검증한다. 사용자·주민·세대 ID는 입력받지 않는다. 성공은 204, `Cache-Control: no-store`이다. 선택별 업무 범위는 [도메인 규칙](domainRules.md#본인-나가기-선택-2026-10-25)을 참조한다.
+요청은 `{reason:"SERVICE_ONLY"}` 또는 `{reason:"MOVE_OUT"}`이며 필수 Enum·계약 밖 필드·UUID를 검증한다. 사용자·주민·세대 ID는 입력받지 않는다. 성공은 204, `Cache-Control: no-store`이다. 선택별 업무 범위는 [도메인 규칙](../domain/domainRules.md#본인-나가기-선택-2026-10-25)을 참조한다.
 
 | 상태 | 코드 | 의미 |
 | --- | --- | --- |

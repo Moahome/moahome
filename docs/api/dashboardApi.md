@@ -2,7 +2,7 @@
 
 작성일: 2026-11-01. **상태: 전용 조회·화면 구현. 검증 결과는 Client 화면 문서에서 관리합니다.**
 
-화면 배치·브라우저 상태·이동은 [Client 대시보드](../client/docs/dashboard.md), 업무 정책은 [도메인 규칙](domainRules.md), 저장 구조는 [ERD](erd.md)를 따릅니다.
+화면 배치·브라우저 상태·이동은 [Client 대시보드](../../client/docs/dashboard.md), 업무 정책은 [도메인 규칙](../domain/domainRules.md), 저장 구조는 [ERD](../domain/erd.md)를 따릅니다.
 
 ## 조회 요청
 

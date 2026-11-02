@@ -25,7 +25,7 @@ public class OpenApiConfig {
 		return new OpenAPI()
 		    .info(new Info().title("모아홈 API").version("v1")
 		        .description("현재 구현된 인증, 사용자와 관리대상 등록 API입니다. " + "업무 API는 Access Token의 Bearer 인증을 사용합니다. "
-		            + "등록의 상세 계약은 docs/propertyRegistrationApi.md, 인증은 docs/securityDesign.md를 따릅니다."))
+		            + "등록의 상세 계약은 docs/api/propertyRegistrationApi.md, 인증은 docs/development/securityDesign.md를 따릅니다."))
 		    .components(new Components()
 		        .addSecuritySchemes("bearerAuth",
 		            new SecurityScheme().type(SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("JWT")

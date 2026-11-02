@@ -2,7 +2,7 @@
 
 은행·예금기관 식별용 아이콘을 로컬 파일로 제공하며 선택 UI는 이름을 함께 표시합니다. 파일은 2026-10-08에 확인한 Toss 공개 아이콘 자산의 원본 PNG입니다. 런타임에는 외부 CDN을 호출하지 않습니다. 파일명은 내부 은행코드 대응용이며 화면에는 표시하지 않습니다.
 
-공개 자산 경로는 [Toss Design System GridList 예제](https://tossmini-docs.toss.im/tds-mobile/components/grid-list/)를 참고했습니다. 은행코드·표시 이름은 [bankOptions.ts](../../src/entities/banking/constants/bankOptions.ts)와 [등록 API](../../../docs/propertyRegistrationApi.md)를 따릅니다. 지역농축협은 농협 심볼을 함께 사용합니다. 부산은행·경남은행은 BNK 심볼을 사용하며 [부산은행 CI](https://www.busanbank.co.kr/ib20/mnu/BHPBKI400004000)와 대응을 확인했습니다.
+공개 자산 경로는 [Toss Design System GridList 예제](https://tossmini-docs.toss.im/tds-mobile/components/grid-list/)를 참고했습니다. 은행코드·표시 이름은 [bankOptions.ts](../../src/entities/banking/constants/bankOptions.ts)와 [등록 API](../../../docs/api/propertyRegistrationApi.md)를 따릅니다. 지역농축협은 농협 심볼을 함께 사용합니다. 부산은행·경남은행은 BNK 심볼을 사용하며 [부산은행 CI](https://www.busanbank.co.kr/ib20/mnu/BHPBKI400004000)와 대응을 확인했습니다.
 
 | 로컬 파일 | 원본 자산 |
 | --- | --- |

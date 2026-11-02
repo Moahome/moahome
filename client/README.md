@@ -1,10 +1,10 @@
 # 모아홈 Client
 
-Next.js App Router·React·TypeScript 기반 Client입니다. 현재 기능과 검토 후보는 [프로젝트 개요](../docs/projectOverview.md#4-현재-개발-상태), 구조·UI·작성 규칙은 [Client AGENTS.md](AGENTS.md)를 따릅니다.
+Next.js App Router·React·TypeScript 기반 Client입니다. 현재 기능과 검토 후보는 [프로젝트 개요](../docs/domain/projectOverview.md#4-현재-개발-상태), 구조·UI·작성 규칙은 [Client AGENTS.md](AGENTS.md)를 따릅니다.
 
 ## 실행
 
-`client/`에서 실행합니다. 필요한 도구·공개 환경변수·API 서버 준비는 [개발 환경 가이드](../docs/developmentGuide.md)를 참조합니다.
+`client/`에서 실행합니다. 필요한 도구·공개 환경변수·API 서버 준비는 [개발 환경 가이드](../docs/development/developmentGuide.md)를 참조합니다.
 
 ```bash
 npm ci
@@ -13,7 +13,7 @@ npm run dev
 
 개발 주소는 `http://localhost:3000`입니다. 프로덕션은 `npm run build` 후 `npm run start`로 실행합니다. 공개 환경변수를 변경하면 개발 서버를 재시작하거나 프로덕션을 다시 빌드합니다.
 
-구매한 `villamoa.kr`의 운영 웹·API 주소와 Vercel·DNS 연결 상태는 [공통 배포 계획](../docs/deploymentPlan.md#2-접속-구조와-네트워크), 빌드에 넣을 공개 환경변수는 [운영 설정 표](../docs/deploymentPlan.md#4-운영-설정과-비밀값)를 따릅니다.
+구매한 `villamoa.kr`의 운영 웹·API 주소와 Vercel·DNS 연결 상태는 [공통 배포 계획](../docs/operations/deploymentPlan.md#2-접속-구조와-네트워크), 빌드에 넣을 공개 환경변수는 [운영 설정 표](../docs/operations/deploymentPlan.md#4-운영-설정과-비밀값)를 따릅니다.
 
 ## PWA 설치
 
@@ -39,7 +39,7 @@ npm run dev
 | --- | --- |
 | 로그인 후 진입·추가 등록 | [서비스 진입](docs/serviceEntry.md), [초기 등록·초안](docs/propertyRegistration.md) |
 | 관리 공통 UI·메뉴 | [관리 레이아웃](docs/managementLayout.md) |
-| 관리자 대시보드 | [화면](docs/dashboard.md), [API](../docs/dashboardApi.md) |
+| 관리자 대시보드 | [화면](docs/dashboard.md), [API](../docs/api/dashboardApi.md) |
 | 세대·주민·가입·역할 | [세대 목록](docs/unitList.md), [주민 목록](docs/residentList.md), [역할·가입](docs/memberManagement.md) |
 | 부과·수납 | [부과 화면](docs/managementLayout.md#관리비-부과-2026-10-10), [수납 화면](docs/paymentManagement.md) |
 | 통장·지출·동별 잔고 | [통장 화면](docs/bankingManagement.md) |
@@ -62,7 +62,7 @@ const result = await authenticatedAPI<{ count: number }>({
 
 위 경로는 사용법 예시입니다. GET 데이터는 쿼리, 다른 메서드의 데이터는 JSON 본문이며 파일은 공통 multipart 옵션을 사용합니다. 인증된 업무 요청은 메모리 Access Token을 사용하고 만료 응답에서 원 요청을 한 번 재시도합니다. 개별 화면에서 토큰·쿠키 Rotation을 중복 구현하지 않습니다.
 
-루트 `AppProviders`가 앱 시작·새로고침 시 세션을 복원하고 본인 정보를 조회합니다. 화면은 `useSession()`으로 같은 조회를 공유합니다. 쿠키·토큰 보관·여러 탭 조율·장애 처리의 기준은 [인증 설계](../docs/securityDesign.md)를 따릅니다.
+루트 `AppProviders`가 앱 시작·새로고침 시 세션을 복원하고 본인 정보를 조회합니다. 화면은 `useSession()`으로 같은 조회를 공유합니다. 쿠키·토큰 보관·여러 탭 조율·장애 처리의 기준은 [인증 설계](../docs/development/securityDesign.md)를 따릅니다.
 
 ## 검증
 
@@ -97,7 +97,7 @@ npm run test:report
 
 개발 모드 API 진단 로그는 메서드·쿼리를 제외한 경로·상태·안전한 오류 코드와 위치만 기록합니다. 인증정보·본문·파일·원본 예외는 출력하지 않으며 프로덕션에서는 비활성화합니다.
 
-조회 연결 실패·타임아웃·HTTP 5xx는 `shared/ui/server-connection-error`의 `ServerConnectionError`로 표시합니다. 재시도는 해당 조회만 다시 실행하며 저장을 자동 반복하지 않습니다. 인증·권한·입력 오류와 토큰 교체 결과 미확인의 재로그인 처리는 [인증 설계](../docs/securityDesign.md)를 따릅니다. 실제 폼을 유지하는 화면만 `inputPreserved`를 지정합니다.
+조회 연결 실패·타임아웃·HTTP 5xx는 `shared/ui/server-connection-error`의 `ServerConnectionError`로 표시합니다. 재시도는 해당 조회만 다시 실행하며 저장을 자동 반복하지 않습니다. 인증·권한·입력 오류와 토큰 교체 결과 미확인의 재로그인 처리는 [인증 설계](../docs/development/securityDesign.md)를 따릅니다. 실제 폼을 유지하는 화면만 `inputPreserved`를 지정합니다.
 
 현재 HTTP 5xx·타임아웃(`REQUEST_TIMEOUT`)은 기존 `/images/errors/serverError.webp`, 응답 없는 연결 실패(`NETWORK_ERROR`)는 `/images/states/networkError.webp`를 사용합니다. 서버 중단도 NETWORK_ERROR가 될 수 있어 네트워크 그림이 나타나는 한계가 있습니다. 원인과 그림 구분 개선 제안은 [공통 오류 안내 검토](docs/managementLayout.md#서버-장애와-네트워크-오류-그림-검토-2026-11-01)를 참조합니다. 개선 제안은 미구현이며 프론트엔드 자체가 제공되지 않는 호스팅 오류 화면은 별도 범위입니다.
 

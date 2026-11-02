@@ -2,7 +2,7 @@
 
 2026-10-25 상태 구분: 기존 절은 Redis 이전 전의 구현 설명입니다. 후속 확정 요구사항, 현재 작업 트리의 변경과 미완료 검증은 아래 [Redis 이전 상세 설계](#redis-이전-상세-설계와-진행-상태-2026-10-25)를 기준으로 합니다. 기존 1일 승인 제한·개인 24시간·DB 암호문 복원은 후속 설계로 대체하며, 작업 중 코드를 배포 완료로 기록하지 않습니다.
 
-기준일: 2026-10-24. 아래는 역할·가입 요청·외부 초대와 주민 공통 코드·개인 초대의 현재 저장 처리입니다. 업무 정책은 [도메인 규칙](../../docs/domainRules.md#주민-참여-흐름), 요청·응답·오류는 [참여자 API](../../docs/memberManagementApi.md), 저장 구조는 [ERD](../../docs/erd.md#외부-관리자-초대역할-변경-저장-2026-10-17)를 따른다. 화면 배치는 [Client 역할·가입 설계](../../client/docs/memberManagement.md)에서 관리한다.
+기준일: 2026-10-24. 아래는 역할·가입 요청·외부 초대와 주민 공통 코드·개인 초대의 현재 저장 처리입니다. 업무 정책은 [도메인 규칙](../../docs/domain/domainRules.md#주민-참여-흐름), 요청·응답·오류는 [참여자 API](../../docs/api/memberManagementApi.md), 저장 구조는 [ERD](../../docs/domain/erd.md#외부-관리자-초대역할-변경-저장-2026-10-17)를 따른다. 화면 배치는 [Client 역할·가입 설계](../../client/docs/memberManagement.md)에서 관리한다.
 
 ## 트랜잭션과 권한
 
@@ -36,7 +36,7 @@ MembershipRequestService는 Property 잠금 아래 공통 코드를 검증하고
 
 MemberManagementService.linkOwnResident는 같은 Property 잠금 뒤 현재 ADMIN / MANAGER·정상 계정·현재 명부/세대와 expectedUnitId를 검증한다. 타인 계정·다른 명부 연결은 덮어쓰지 않으며 resident.user_id와 resident_account_links를 같은 트랜잭션에 저장한다. 후반 기록 실패는 주민 연결도 롤백한다. 같은 연결 재요청은 이력을 중복 생성하지 않는다.
 
-ADMIN 참여·대표·연락처·이름·주민 구분은 변경하지 않으며 가짜 가입 요청이나 역할 변경 이벤트를 만들지 않는다. 새 관계 ID는 과거 본인 연결의 승인 근거를 재사용하지 않는다. 조회 기준은 [주민 API](../../docs/residentManagementApi.md#가입-상태-판정)를 따른다. Migration `V20261017044108__create_resident_account_links.sql`은 출처 테이블만 추가하고 기존 계정을 일괄 연결하지 않는다. 적용된 기존 Migration은 변경하지 않는다.
+ADMIN 참여·대표·연락처·이름·주민 구분은 변경하지 않으며 가짜 가입 요청이나 역할 변경 이벤트를 만들지 않는다. 새 관계 ID는 과거 본인 연결의 승인 근거를 재사용하지 않는다. 조회 기준은 [주민 API](../../docs/api/residentManagementApi.md#가입-상태-판정)를 따른다. Migration `V20261017044108__create_resident_account_links.sql`은 출처 테이블만 추가하고 기존 계정을 일괄 연결하지 않는다. 적용된 기존 Migration은 변경하지 않는다.
 
 ## 검증
 
@@ -44,7 +44,7 @@ PaymentPersistenceTest에서 기존 잔액과 함께 가입 승인·역할 변�
 
 ## 주민 초대 코드와 수락 처리
 
-ResidentJoinCodeService는 공통 발급·재발급·폐기를 Property 잠금 아래 직렬화합니다. options와 최종 신청 모두 유효 코드를 검증해 코드 없는 우회 경로를 남기지 않습니다. ResidentInviteCode는 60비트 난수의 표시 구분자를 정규화하고 해시로 검증합니다. 공통 코드는 해시만 저장합니다. 저장 DDL은 [ERD](../../docs/erd.md#61-invitations)를 참조합니다.
+ResidentJoinCodeService는 공통 발급·재발급·폐기를 Property 잠금 아래 직렬화합니다. options와 최종 신청 모두 유효 코드를 검증해 코드 없는 우회 경로를 남기지 않습니다. ResidentInviteCode는 60비트 난수의 표시 구분자를 정규화하고 해시로 검증합니다. 공통 코드는 해시만 저장합니다. 저장 DDL은 [ERD](../../docs/domain/erd.md#61-invitations)를 참조합니다.
 
 ResidentInvitationService는 같은 Property 잠금 아래 개인 발급·재발급·철회·수락·검토를 처리합니다. 수락 전 찾은 초대는 잠금 획득 후 EntityManager.refresh로 다시 읽어 동시 수락의 이전 상태를 사용하지 않습니다. 발급 당시 주민 버전과 현재 세대 관계를 다시 확인하고 기존 다른 계정·관리자 역할을 덮어쓰지 않습니다.
 
@@ -62,7 +62,7 @@ PaymentPersistenceTest에 전화번호 없는 개인 수락·타 계정 재사�
 
 ### 범위와 근거
 
-업무 확정 기준은 [도메인 규칙](../../docs/domainRules.md#초대-인증서비스-복귀역할-변경의-후속-확정-방향-2026-10-25), 필드·Migration은 [ERD](../../docs/erd.md#초대-인증의-redis-이전-설계-2026-10-25), 공유 계약은 [참여자 API](../../docs/memberManagementApi.md#redis-이전의-변경-계약-2026-10-25)를 참조합니다. 임시 인증을 Redis로 옮기며 DB는 영구 업무 기록을 유지합니다. 오류 복귀·동적 권한은 Client 설계와 [Server 접근 설계](managementAccess.md#동적-권한을-위한-조회-보완-설계-2026-10-25)에서 다룹니다. 입금 매칭은 변경하지 않습니다.
+업무 확정 기준은 [도메인 규칙](../../docs/domain/domainRules.md#초대-인증서비스-복귀역할-변경의-후속-확정-방향-2026-10-25), 필드·Migration은 [ERD](../../docs/domain/erd.md#초대-인증의-redis-이전-설계-2026-10-25), 공유 계약은 [참여자 API](../../docs/api/memberManagementApi.md#redis-이전의-변경-계약-2026-10-25)를 참조합니다. 임시 인증을 Redis로 옮기며 DB는 영구 업무 기록을 유지합니다. 오류 복귀·동적 권한은 Client 설계와 [Server 접근 설계](managementAccess.md#동적-권한을-위한-조회-보완-설계-2026-10-25)에서 다룹니다. 입금 매칭은 변경하지 않습니다.
 
 현재 확인한 실제 코드 위치는 `src/main/java/com/moahome/server/` 아래 다음과 같습니다.
 
@@ -168,7 +168,7 @@ sequenceDiagram
 
 ### 설정과 운영 확인 필요
 
-- 기존 `REDIS_HOST`·`REDIS_PORT`, 환경별 `SPRING_DATA_REDIS_*` 연결을 재사용합니다. 실제 로컬 설정은 추적 제외이며 참조는 [개발 가이드](../../docs/developmentGuide.md#server-환경변수)를 따릅니다. 현재 가이드는 연결·읽기 timeout을 각각 3초로 설명하며 변경하지 않았습니다.
+- 기존 `REDIS_HOST`·`REDIS_PORT`, 환경별 `SPRING_DATA_REDIS_*` 연결을 재사용합니다. 실제 로컬 설정은 추적 제외이며 참조는 [개발 가이드](../../docs/development/developmentGuide.md#server-환경변수)를 따릅니다. 현재 가이드는 연결·읽기 timeout을 각각 3초로 설명하며 변경하지 않았습니다.
 - 로컬 `server/docker-compose.yml`은 Redis 8·포트 매핑·Named Volume·ping healthcheck를 정의합니다. Volume만으로 AOF·복제·백업이 구성됐다고 판단하지 않습니다. Compose에 명시적인 ACL/TLS/AOF 설정은 확인되지 않았습니다.
 - 운영 Redis는 외부 공개를 제한하고 Server만 연결하도록 네트워크·ACL·인증·필요한 TLS를 배포 설정에서 검토합니다. 비밀값은 환경/비밀 저장소로만 주입합니다. 운영 인증·TLS·Persistence·고가용성·eviction·메모리 한도는 확인 필요입니다.
 - 세션과 같은 Redis를 쓰면 키 유실·eviction이 로그인과 초대에 함께 영향을 줍니다. 임의 삭제 대신 메모리·연결·삭제 실패를 관측하고 noeviction 또는 별도 인스턴스 등 실제 운영 구성을 검토합니다. 도입했다고 기록하지 않습니다.
@@ -267,7 +267,7 @@ PLAYWRIGHT_CHANNEL=chrome npm run test:e2e -- tests/managementLayout.spec.ts tes
 
 ## 본인 나가기 처리 (2026-10-25)
 
-[공유 API](../../docs/memberManagementApi.md#본인-나가기-2026-10-25)와 [저장 구조](../../docs/erd.md#본인-나가기-저장-2026-10-25)를 사용한다. 기존 MemberManagementController / Service에 본인 나가기를 추가했다. 이 요청은 관리자 전용 lock helper를 사용하지 않고 Property 행 잠금 뒤 `getPropertyAccessContext`로 정상 계정·현재 본인 참여를 확인한다. 여러 현재 참여나 ADMIN 종료를 거부한다.
+[공유 API](../../docs/api/memberManagementApi.md#본인-나가기-2026-10-25)와 [저장 구조](../../docs/domain/erd.md#본인-나가기-저장-2026-10-25)를 사용한다. 기존 MemberManagementController / Service에 본인 나가기를 추가했다. 이 요청은 관리자 전용 lock helper를 사용하지 않고 Property 행 잠금 뒤 `getPropertyAccessContext`로 정상 계정·현재 본인 참여를 확인한다. 여러 현재 참여나 ADMIN 종료를 거부한다.
 
 MOVE_OUT일 때에만 본인의 미삭제 주민·ACTIVE 세대 관계를 읽고 남은 주민이 있는 대표의 퇴거를 거부한다. 관계의 기존 end(false)로 한국시간의 처리일을 퇴거일로 기록한다. SERVICE_ONLY는 거주 정보를 변경하지 않는다. 참여 종료와 ENDED 역할 이력을 같은 트랜잭션에서 저장하고 flush 실패도 모두 롤백한다. Redis·세션 종료·청구 재계산은 호출하지 않는다.
 

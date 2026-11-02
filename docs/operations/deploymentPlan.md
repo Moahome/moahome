@@ -2,7 +2,7 @@
 
 기준일: 2026-10-31. 본인 빌라에서 사용할 모아홈의 초기 운영 환경, 구축 순서와 실제 진행 상태를 정리합니다.
 
-구축안과 실제 완료 상태를 구분합니다. 2026-10-31 초기 배포 01~14번을 완료했으며, 사용자 확인과 직접 검증한 근거는 [비용과 실제 진행 상태](#9-비용과-실제-진행-상태)에 기록합니다. 15번 백업·복구·운영 점검은 남아 있습니다. 로컬 실행은 [개발 환경 가이드](developmentGuide.md), 인증은 [JWT 인증 설계](securityDesign.md), 업무 데이터와 저장 구조는 [도메인 규칙](domainRules.md)·[ERD](erd.md)를 따릅니다.
+구축안과 실제 완료 상태를 구분합니다. 2026-10-31 초기 배포 01~14번을 완료했으며, 사용자 확인과 직접 검증한 근거는 [비용과 실제 진행 상태](#9-비용과-실제-진행-상태)에 기록합니다. 15번 백업·복구·운영 점검은 남아 있습니다. 로컬 실행은 [개발 환경 가이드](../development/developmentGuide.md), 인증은 [JWT 인증 설계](../development/securityDesign.md), 업무 데이터와 저장 구조는 [도메인 규칙](../domain/domainRules.md)·[ERD](../domain/erd.md)를 따릅니다.
 
 ## 1. 운영 목적과 구성
 
@@ -61,7 +61,7 @@ Vercel에 `villamoa.kr`을 추가한 뒤 안내된 DNS 값과 도메인·인증�
                                          (VPC Peering·TLS)
 ```
 
-- 웹과 API는 같은 도메인 아래 HTTPS로 구성해 기존 동일 사이트 쿠키 인증을 유지합니다. 쿠키·CORS·CSRF의 세부 기준은 [인증 설계](securityDesign.md#3-웹-토큰-전달)를 참조합니다.
+- 웹과 API는 같은 도메인 아래 HTTPS로 구성해 기존 동일 사이트 쿠키 인증을 유지합니다. 쿠키·CORS·CSRF의 세부 기준은 [인증 설계](../development/securityDesign.md#3-웹-토큰-전달)를 참조합니다.
 - Lightsail은 TCP 80·443만 전체에 공개하고 SSH 22는 운영자 IP로 제한합니다. IPv6를 사용하면 방화벽과 DNS도 같은 기준으로 설정합니다.
 - Spring Boot 8080과 Redis 6379는 호스트 공개 포트에 바인딩하지 않습니다.
 - RDS는 Public access를 `No`로 설정하고, 같은 서울 리전의 기본 VPC에 둡니다. Lightsail의 기본 VPC 피어링은 해당 리전의 기본 VPC를 대상으로 합니다.
@@ -81,7 +81,7 @@ Nginx가 외부 HTTPS를 받아 Docker 내부의 API로 전달합니다. 인증�
 3. 호스트 Certbot과 Nginx 컨테이너에 같은 인증용 웹 디렉터리를 연결하고, Certbot의 `webroot` 방식으로 도메인 인증과 인증서 발급을 수행합니다.
 4. Nginx에 `/etc/letsencrypt` 전체를 읽기 전용으로 연결합니다. `live` 아래 파일이 `archive`를 참조하므로 개별 인증서 파일만 마운트하지 않습니다.
 5. Nginx 설정 검사 후 HTTPS를 활성화합니다. 인증용 경로를 유지하며 일반 HTTP 요청은 HTTPS로 전환합니다.
-6. 모아홈 전용 Certbot 갱신 타이머와 갱신 성공 후 실행할 deploy hook을 구성합니다. 전용 타이머를 활성화한 뒤 패키지 기본 `certbot.timer`를 비활성화해 갱신 확인 경로를 하나로 관리합니다. Hook은 Nginx 설정 검사 후 인증서를 다시 읽도록 reload합니다. 실행 명령과 시간대는 [Server 배포 가이드](../server/docs/deploymentGuide.md#5-nginx-최초-인증서와-자동-갱신)를 따릅니다.
+6. 모아홈 전용 Certbot 갱신 타이머와 갱신 성공 후 실행할 deploy hook을 구성합니다. 전용 타이머를 활성화한 뒤 패키지 기본 `certbot.timer`를 비활성화해 갱신 확인 경로를 하나로 관리합니다. Hook은 Nginx 설정 검사 후 인증서를 다시 읽도록 reload합니다. 실행 명령과 시간대는 [Server 배포 가이드](../../server/docs/deploymentGuide.md#5-nginx-최초-인증서와-자동-갱신)를 따릅니다.
 7. 갱신 모의 실행, hook 실행, 실제 제공 인증서의 유효기간을 각각 확인합니다. 인증서 발급·갱신 실패를 관측합니다.
 
 API 컨테이너 교체 후에도 Nginx가 새 API 주소로 연결되는지 확인합니다. Nginx의 요청 크기·대기시간은 현재 파일 업로드·API 제한과 맞추고, 인증 응답과 개인정보 응답을 프록시 캐시에 저장하지 않습니다.
@@ -100,11 +100,11 @@ API 컨테이너 교체 후에도 Nginx가 새 API 주소로 연결되는지 확
 | 운영 웹 Origin | `WEB_ALLOWED_ORIGINS=https://villamoa.kr` |
 | 카카오 → Server 콜백 | `KAKAO_REDIRECT_URI=https://api.villamoa.kr/login/oauth2/code/kakao` |
 | Server → Client 로그인 완료 | `WEB_LOGIN_SUCCESS_URI=https://villamoa.kr/login/callback` |
-| 인증·암호화 | [개발 가이드의 Server 환경변수](developmentGuide.md#server-환경변수)를 기준으로 운영 설정에 연결 |
+| 인증·암호화 | [개발 가이드의 Server 환경변수](../development/developmentGuide.md#server-환경변수)를 기준으로 운영 설정에 연결 |
 | Profile·문서 | `prod` 명시, 운영 OpenAPI 비활성화, HTTPS용 쿠키 설정 |
 | 스키마 변경 | Flyway 사용, JPA `ddl-auto=validate` 또는 `none`, 운영 `update`·`create` 금지 |
 
-`NEXT_PUBLIC_API_BASE_URL`은 현재 Client에서 읽지 않으므로 사용하지 않습니다. `NEXT_PUBLIC_` 값에는 공개 URL만 넣으며 변경 후 프론트를 다시 빌드합니다. 카카오 콜백과 Client 로그인 복귀 주소는 기존 [설정 계약](developmentGuide.md#카카오-로그인-설정)을 따라 실제 도메인으로 연결합니다.
+`NEXT_PUBLIC_API_BASE_URL`은 현재 Client에서 읽지 않으므로 사용하지 않습니다. `NEXT_PUBLIC_` 값에는 공개 URL만 넣으며 변경 후 프론트를 다시 빌드합니다. 카카오 콜백과 Client 로그인 복귀 주소는 기존 [설정 계약](../development/developmentGuide.md#카카오-로그인-설정)을 따라 실제 도메인으로 연결합니다.
 
 이 표는 운영 환경에 입력할 값입니다. 로컬 개발은 기존 `localhost`, CI 빌드 검증은 `example.test` 주소를 사용합니다. Vercel 운영 환경변수·서버 환경 파일·카카오디벨로퍼스에는 위 운영 값을 별도로 입력해야 합니다. 카카오에는 위 Server 콜백을 Redirect URI로 정확히 등록하고, 웹 로그인 완료 주소와 구분합니다. 기본 웹 Origin은 대표 주소 하나이며 별칭·미리보기 배포 주소의 로그인 허용 여부는 별도 검토합니다.
 
@@ -114,7 +114,7 @@ DB 마스터 계정과 앱 계정을 분리합니다. 초기에는 앱 시작 �
 
 ## 5. Redis 운영안
 
-Redis는 단순 캐시가 아니라 로그인 세션·OAuth 임시 상태·초대 인증값을 저장합니다. 업무 출처와 Redis의 역할은 [ERD](erd.md#초대-인증의-redis-이전-설계-2026-10-25), 유실 시 기존 처리는 [Server 설계](../server/docs/memberManagement.md#설정과-운영-확인-필요)를 참조합니다.
+Redis는 단순 캐시가 아니라 로그인 세션·OAuth 임시 상태·초대 인증값을 저장합니다. 업무 출처와 Redis의 역할은 [ERD](../domain/erd.md#초대-인증의-redis-이전-설계-2026-10-25), 유실 시 기존 처리는 [Server 설계](../../server/docs/memberManagement.md#설정과-운영-확인-필요)를 참조합니다.
 
 - 현재 개발 구성과 같은 Redis 8을 기준으로 검증한 이미지 버전을 고정합니다.
 - 영속 볼륨에 AOF를 기록하며 초기 동기화 방식은 `appendfsync everysec`로 잡습니다. 비정상 종료 시 최근 쓰기가 유실될 수 있고 AOF가 별도 백업이나 고가용성을 대신하지는 않습니다.
@@ -136,13 +136,13 @@ Redis는 단순 캐시가 아니라 로그인 세션·OAuth 임시 상태·초�
 | API 배포 | 운영자가 제한된 SSH로 접속해 게시된 이미지 태그·배포 설정 확인 후 API 교체 |
 | 배포 확인 | 내부 준비 상태·외부 HTTPS·로그인·관련 업무 동작 확인 |
 
-현재 Server 통합 테스트는 컨테이너 서비스 대신 `redis-server`, `initdb`, `postgres`, `pg_ctl` 프로세스를 직접 실행합니다. 러너에 바이너리와 PATH 또는 지원하는 실행 경로 환경변수를 준비하고, 테스트 전용 설정도 새 체크아웃에서 사용할 수 있게 구성합니다. 개발·운영 DB와 비밀값은 재사용하지 않습니다. 세부 검증 기준은 [Server 규칙](../server/AGENTS.md#16-test--build), [Client 규칙](../client/AGENTS.md#9-test--build)을 따릅니다.
+현재 Server 통합 테스트는 컨테이너 서비스 대신 `redis-server`, `initdb`, `postgres`, `pg_ctl` 프로세스를 직접 실행합니다. 러너에 바이너리와 PATH 또는 지원하는 실행 경로 환경변수를 준비하고, 테스트 전용 설정도 새 체크아웃에서 사용할 수 있게 구성합니다. 개발·운영 DB와 비밀값은 재사용하지 않습니다. 세부 검증 기준은 [Server 규칙](../../server/AGENTS.md#16-test--build), [Client 규칙](../../client/AGENTS.md#9-test--build)을 따릅니다.
 
 일반 GitHub 호스팅 러너에서 운영자 IP만 허용된 SSH로 바로 접속할 수 있다고 가정하지 않습니다. 향후 서버 배포까지 자동화할 때는 배포 전용 접속 경로와 최소 권한을 먼저 구현합니다. 자동화를 위해 SSH를 전체 인터넷에 공개하거나 PR 코드를 운영 서버에서 직접 실행하지 않습니다.
 
 일반 API 배포는 새 이미지를 먼저 내려받고 API 서비스만 교체해 Redis·Nginx의 불필요한 재시작을 피합니다. 배포를 동시에 실행하지 않으며 이전 정상 이미지와 배포 설정을 보관합니다. Nginx·Redis 이미지는 API 배포와 별도로 버전을 올리고 검증합니다.
 
-컨테이너 실행과 API 준비 완료를 구분합니다. Redis healthcheck와 준비 대기, Actuator의 최소 Health 응답을 작성했습니다. 운영 readiness는 DB·Redis·앱 준비 상태를 확인하고 공개 응답에는 상세 정보를 포함하지 않습니다. 로컬 검증과 실제 운영 연동의 구분은 [Server 배포 가이드](../server/docs/deploymentGuide.md)를 따릅니다. 루트 경로의 401이나 `compose up -d` 성공만으로 배포를 완료 처리하지 않습니다.
+컨테이너 실행과 API 준비 완료를 구분합니다. Redis healthcheck와 준비 대기, Actuator의 최소 Health 응답을 작성했습니다. 운영 readiness는 DB·Redis·앱 준비 상태를 확인하고 공개 응답에는 상세 정보를 포함하지 않습니다. 로컬 검증과 실제 운영 연동의 구분은 [Server 배포 가이드](../../server/docs/deploymentGuide.md)를 따릅니다. 루트 경로의 401이나 `compose up -d` 성공만으로 배포를 완료 처리하지 않습니다.
 
 Client 워크플로는 `.github/workflows/clientCi.yml`입니다. 기본 검사와 브라우저 테스트는 외부 배포 자격 증명 없이 실행합니다. 구현된 CI 배포 경로를 사용할 때는 Vercel 프로젝트의 Root Directory를 `client`로 지정하고 Git 자동 배포를 끈 뒤, GitHub Repository Variables에 `VERCEL_DEPLOY_ENABLED=true`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `production` Environment Secret에 `VERCEL_TOKEN`을 설정합니다. 그러면 main 검증 후 Vercel CLI로 배포합니다. production 환경의 공개 URL도 Vercel에 등록합니다. 배포 명령은 저장소 루트에서 실행하며 새 운영 환경변수로 다시 빌드합니다. 이 연결 전에는 Client CI만 수행합니다.
 
@@ -193,7 +193,7 @@ S3 도입만으로 은행 업로드 원본이나 보고서를 영구 저장하�
 | 06 | RDS PostgreSQL 생성 | 완료 | `moahome-db-prod` 생성 사용자 확인. PostgreSQL 17.11 접속 직접 확인. DB 세부 사양·백업 보존 기간은 15번에서 재확인 |
 | 07 | Lightsail ↔ RDS 연결 | 완료 | 사설 주소 TCP 5432 연결, `sslmode=verify-full`·TLS 1.3 접속 확인. `moahome` DB와 앱 계정 `moahome_app`의 접속·스키마 USAGE·CREATE 권한 확인 |
 | 08 | 운영 환경 파일 작성 | 완료 | 서버의 `.env.prod`·`.deploy.env` 준비와 운영 기동 확인. 웹 Origin·로그인 완료 URL은 파일과 실행 중 컨테이너에서 직접 확인 |
-| 09 | GitHub Actions·배포 이미지 준비 | 완료 | main의 Server CI·운영 컨테이너 검증·GHCR 게시 성공 및 해당 이미지의 운영 실행 확인. 버전·실행 근거는 [Server 검증 기록](../server/docs/deploymentGuide.md#7-현재-검증-범위) 참조 |
+| 09 | GitHub Actions·배포 이미지 준비 | 완료 | main의 Server CI·운영 컨테이너 검증·GHCR 게시 성공 및 해당 이미지의 운영 실행 확인. 버전·실행 근거는 [Server 검증 기록](../../server/docs/deploymentGuide.md#7-현재-검증-범위) 참조 |
 | 10 | API DNS 연결 | 완료 | 가비아 `api` A 레코드 → `43.203.59.128`을 공개 DNS 두 곳에서 직접 확인. 확인 당시 API AAAA 레코드 없음 |
 | 11 | Nginx·HTTPS 설정 | 완료 | 인증서 발급·HTTP 308 전환·HTTPS 인증서 검증과 갱신 모의 실행·Nginx reload 성공 확인. 전용 갱신 타이머 활성화·기본 타이머 비활성화 직접 확인 |
 | 12 | Spring Boot·Redis 배포 | 완료 | API·Redis·Nginx 모두 healthy, Flyway 적용·JPA 초기화·기동 및 외부 readiness `HTTP 200 {"status":"UP"}` 직접 확인 |
@@ -212,13 +212,13 @@ S3 도입만으로 은행 업로드 원본이나 보고서를 영구 저장하�
 
 ### 2026-10-30 배포 준비·로컬 검증 기록
 
-2026-10-30 운영용 Dockerfile·Compose·Nginx·Certbot 스크립트·GitHub Actions·Health 구현과 격리 로컬 검증 스크립트를 작성했습니다. 파일 위치·실행법과 검증 범위는 [Server 배포 가이드](../server/docs/deploymentGuide.md)를 참조합니다. 아래는 당시 로컬 검증 기록이며, 다음 날의 외부 서비스 구축·검증은 위 기록과 구분합니다.
+2026-10-30 운영용 Dockerfile·Compose·Nginx·Certbot 스크립트·GitHub Actions·Health 구현과 격리 로컬 검증 스크립트를 작성했습니다. 파일 위치·실행법과 검증 범위는 [Server 배포 가이드](../../server/docs/deploymentGuide.md)를 참조합니다. 아래는 당시 로컬 검증 기록이며, 다음 날의 외부 서비스 구축·검증은 위 기록과 구분합니다.
 
 같은 날 Client의 ESLint·TypeScript 타입 검사와 기본 Turbopack 프로덕션 빌드가 통과했습니다. 최종 로컬 전체 검사는 `client/`에서 `PLAYWRIGHT_CHANNEL=chrome npm test -- --workers=2 --reporter=dot,html`로 실행해 617개 모두 통과했습니다(API 프로젝트 121개·Chromium 프로젝트 496개, 실패·중단·미실행 없음). 이전 API 테스트 129개 기록은 최초 전체 검사의 부분 통과 수를 혼동한 것으로 121개로 정정합니다.
 
 현재 요구사항의 PC 초대 모달·모바일 가입 경로, 주민 표시·권한 복귀·공통 오류·로딩을 기준으로 테스트 기대값을 갱신했습니다. 취소된 요청과 완료 응답을 구분하고, 스크롤·소수점 좌표와 단계 전환 완료를 확인하도록 테스트를 수정했습니다. 초기 설정 이동의 일회성 실패는 같은 코드로 10회 반복 통과한 뒤 최종 전체 검사에서도 통과했습니다. 화면·업무 로직 변경 없이 E2E와 검증 환경을 정리한 결과입니다.
 
-개발 서버에서 manifest 읽기 오류와 Fast Refresh 간섭이 확인돼, 브라우저 통합 검사는 테스트 전용 환경변수로 `.next-test/`에 프로덕션 빌드 후 `next start`를 실행하도록 변경했습니다. 로컬 기본 worker는 1개이며 Client CI와 위 전체 로컬 검사는 2개를 사용합니다. 결과 열기·화면 첨부·실패 Trace 보관은 [Client 검증 안내](../client/README.md#검증)를 따릅니다. Client CI는 전체 검사 실패 시 배포하지 않으며 생성된 HTML 보고서·테스트 결과를 성공·실패와 관계없이 7일간 보관하도록 설정했습니다. 이 로컬 검사는 모의 API·주소 검색 SDK를 사용하므로 실제 카카오·API 서버·DB·Redis 연동과 운영 배포 완료 여부는 별도 확인합니다.
+개발 서버에서 manifest 읽기 오류와 Fast Refresh 간섭이 확인돼, 브라우저 통합 검사는 테스트 전용 환경변수로 `.next-test/`에 프로덕션 빌드 후 `next start`를 실행하도록 변경했습니다. 로컬 기본 worker는 1개이며 Client CI와 위 전체 로컬 검사는 2개를 사용합니다. 결과 열기·화면 첨부·실패 Trace 보관은 [Client 검증 안내](../../client/README.md#검증)를 따릅니다. Client CI는 전체 검사 실패 시 배포하지 않으며 생성된 HTML 보고서·테스트 결과를 성공·실패와 관계없이 7일간 보관하도록 설정했습니다. 이 로컬 검사는 모의 API·주소 검색 SDK를 사용하므로 실제 카카오·API 서버·DB·Redis 연동과 운영 배포 완료 여부는 별도 확인합니다.
 
 이후 공유된 GitHub Actions 로그에서는 worker 1개로 약 19.3분 실행해 609개 통과·8개 실패가 확인됐습니다. 주소 검색에서 Escape로 부모 등록창까지 닫히는 실제 오류와 테스트의 알림 선택자·Mac 전용 경로·붙여넣기 단축키를 수정했습니다. CI는 전체 검사를 worker 2개로 실행하고 테스트 서버 시작에 포함된 프로덕션 빌드를 별도로 중복하지 않도록 변경했으며, Client·Server 결과 업로드 액션을 Node.js 24 기반 `actions/upload-artifact@v7`로 갱신했습니다. 수정 후 로컬 `PLAYWRIGHT_CHANNEL=chrome npm test -- --workers=2`는 617개 모두 통과했습니다(약 7.4분). 주소 검색 동작은 개발 서버에서도 1440·390·320px로 통과했습니다. 수정 후 GitHub 재실행 결과와 실제 CI 시간은 아직 확인하지 않았습니다.
 

@@ -2,7 +2,7 @@
 
 작성일: 2026-10-09. **상태: 목록 / 현재 관리 권한 API 구현.** 기존 참여와 관리대상 테이블을 사용하며 새 Migration은 없습니다.
 
-업무 정책은 [도메인 규칙](../../docs/domainRules.md#로그인-이후-진입-기준), 데이터 구조는 [ERD](../../docs/erd.md#56-property_members), 요청·응답·오류·조회 조건은 [공통 관리 영역 접근 API](../../docs/managementAccessApi.md)를 기준으로 합니다. 이 문서는 API 필드를 다시 정의하지 않고 서버 책임과 구현 순서를 설명합니다.
+업무 정책은 [도메인 규칙](../../docs/domain/domainRules.md#로그인-이후-진입-기준), 데이터 구조는 [ERD](../../docs/domain/erd.md#56-property_members), 요청·응답·오류·조회 조건은 [공통 관리 영역 접근 API](../../docs/api/managementAccessApi.md)를 기준으로 합니다. 이 문서는 API 필드를 다시 정의하지 않고 서버 책임과 구현 순서를 설명합니다.
 
 ## 1. 현재 코드와 설계의 차이
 
@@ -79,7 +79,7 @@ Service / Controller 단위 검사, 기존 Bearer Security 통합 검사와 격�
 
 ## 동적 권한을 위한 조회 보완 설계 (2026-10-25)
 
-상태: 구현. 공통 계약은 [접근 API](../../docs/managementAccessApi.md#8-동적-권한을-위한-최소-조회-보완안-2026-10-25)를 따릅니다.
+상태: 구현. 공통 계약은 [접근 API](../../docs/api/managementAccessApi.md#8-동적-권한을-위한-최소-조회-보완안-2026-10-25)를 따릅니다.
 
 - `PropertyMemberRepository.findAccessContext`는 현재 계정·단일 Property의 모든 활성 역할을 읽습니다. 기존 관리자 전용 조회·업무 권한 검사는 유지합니다. 동일 역할 중복은 묶고 서로 다른 역할은 내부 오류로 처리합니다.
 - `ResidentRepository.hasApprovedResident`는 명부 조회의 `DIRECTORY_QUERY`를 재사용해 현재 주민 계정·유효 세대 관계와 기존 승인 출처의 일치만 boolean으로 반환합니다. 이름·전화번호로 추정하지 않고 새 Permission 테이블·Redis 권한 캐시를 추가하지 않았습니다.
