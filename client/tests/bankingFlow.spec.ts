@@ -3901,7 +3901,8 @@ for (const width of [1440]) {
       name: '조회 통장',
       exact: true
     });
-    await expect(page).toHaveURL((url) => url.searchParams.get('startMonth') === '2026-08' && url.searchParams.get('endMonth') === '2026-08' && url.searchParams.get('account') === 'ALL');
+    // 기존 단일 월 주소는 조회 월을 보존하고 사용할 수 없는 통장 선택만 해제합니다.
+    await expect(page).toHaveURL(`${BASE}/balances?month=2026-08&account=ALL`);
     await expect(selector).toContainText('전체 통장');
     await expect(page.getByRole('article', {
       name: '동별 잔고 합계 300,000원',

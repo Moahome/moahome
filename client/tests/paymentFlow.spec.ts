@@ -2983,7 +2983,21 @@ for (const width of [1440, 320]) {
       name: '입금 상세 닫기',
       exact: true
     }).click();
-    await expect(page).toHaveURL(`${transactions}?month=2026-10`);
+    let listUrl = `${transactions}?month=2026-10`;
+    if (width < 768) {
+      // 모바일 헤더는 실제 이전 화면의 9월 조건을 보존하며 등록한 입금은 사용자가 10월을 조회해 확인합니다.
+      await expect(page).toHaveURL(`${transactions}?month=2026-09`);
+      await page.reload();
+      await expect(page.getByRole('table', {
+        name: '통장 거래',
+        exact: true
+      }).getByRole('row').filter({
+        hasText: '42,001원'
+      })).toHaveCount(0);
+      await selectMonthRange(page, '2026-10');
+      listUrl = `${transactions}?startDate=2026-10-01&endDate=2026-10-31`;
+    }
+    await expect(page).toHaveURL(listUrl);
     await page.reload();
     const table = page.getByRole('table', {
       name: '통장 거래',
@@ -3018,7 +3032,7 @@ for (const width of [1440, 320]) {
       name: '입금 상세 닫기',
       exact: true
     }).click();
-    await expect(page).toHaveURL(`${transactions}?month=2026-10`);
+    await expect(page).toHaveURL(listUrl);
     await page.reload();
     await expect(manual).toContainText('처리 완료');
     await expect(manual).toContainText('수동 입금');
