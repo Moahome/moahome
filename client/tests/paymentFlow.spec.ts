@@ -1088,8 +1088,13 @@ for (const view of ['matching', 'monthly'] as const) {
         await expect(download.locator('svg')).toHaveCount(1);
         if (width < 768) {
           const downloadBox = await download.boundingBox();
-          const mainBox = await page.getByRole('main').boundingBox();
-          expect(downloadBox!.width).toBeGreaterThan(mainBox!.width - 48);
+          const sizeBox = await size.boundingBox();
+          const tableBox = await table.boundingBox();
+          // 다운로드는 필터 아래·표 위의 도구 줄에 놓이며 모바일에서도 화면 밖으로 잘리지 않아야 합니다.
+          expect(downloadBox!.y).toBeGreaterThanOrEqual(sizeBox!.y + sizeBox!.height);
+          expect(downloadBox!.y + downloadBox!.height).toBeLessThanOrEqual(tableBox!.y);
+          expect(downloadBox!.x).toBeGreaterThanOrEqual(0);
+          expect(downloadBox!.x + downloadBox!.width).toBeLessThanOrEqual(width);
         }
       }
       await expect(page.getByRole('checkbox', {
@@ -1288,12 +1293,13 @@ for (const width of [390, 767]) {
       await back.click();
       await expect(page).toHaveURL(list);
       if (monthly) {
-        const download = await page.getByRole('button', {
+        const download = page.getByRole('button', {
           name: '다운로드',
           exact: true
-        }).boundingBox();
-        const main = await page.getByRole('main').boundingBox();
-        expect(download!.width).toBeGreaterThan(main!.width - 48);
+        });
+        // 상세에서 돌아온 목록의 다운로드 사용 가능 여부를 확인하고 예전 전체 너비 배치를 강제하지 않습니다.
+        await expect(download).toBeVisible();
+        await expect(download).toBeEnabled();
       }
       await page.goto(monthly ? `${list}/2026-10/${id('missing')}` : `${list}/${id('missing')}`);
       await expect(back).toBeVisible();
