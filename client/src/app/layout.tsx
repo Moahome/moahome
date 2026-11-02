@@ -28,7 +28,7 @@ export const metadata: Metadata = {
     template: '%s | 모아홈',
   },
   description:
-    '소규모 공동주택을 위한 관리비 통합 플랫폼, 모아홈. 주민의 관리비 조회부터 관리자의 부과·수납, 회계까지 하나로 연결합니다.',
+    '소규모 공동주택 관리비 통합 플랫폼, 모아홈. 관리소장의 세대·주민 관리부터 관리비 부과·수납, 통장 거래와 월별 정산까지 한곳에서 처리하세요.',
   icons: {
     icon: {
       url: '/moahomeIcon.svg',

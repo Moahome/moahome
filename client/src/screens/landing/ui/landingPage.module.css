@@ -111,6 +111,14 @@
   letter-spacing: -0.65px;
 }
 
+.hero-support {
+  margin-top: 12px;
+  color: var(--sub-text);
+  font-size: 16px;
+  line-height: 1.7;
+  letter-spacing: -0.4px;
+}
+
 .role-highlights {
   display: flex;
   align-items: center;
@@ -517,6 +525,13 @@
 
 .faq-item {
   border-bottom: 1px solid var(--border);
+  interpolate-size: allow-keywords;
+
+  &::details-content {
+    block-size: 0;
+    overflow: clip;
+    transition: block-size 180ms ease, content-visibility 180ms allow-discrete;
+  }
 
   summary {
     list-style: none;
@@ -537,7 +552,7 @@
       width: 18px;
       height: 18px;
       color: var(--sub-text);
-      transition: transform 0.2s;
+      transition: transform 180ms ease;
     }
   }
 
@@ -549,8 +564,8 @@
       color: var(--primary);
     }
 
-    > p {
-      animation: reveal-in 0.3s ease both;
+    &::details-content {
+      block-size: auto;
     }
   }
 
@@ -1154,6 +1169,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .faq-item::details-content {
+    transition: none;
+  }
+
   .service-card {
     &:hover {
       translate: none;

@@ -5,7 +5,7 @@ import {
   BRAND_POINTS,
   FAQ_ITEMS,
   MANAGEMENT_STEPS,
-  ROLES,
+  SERVICE_FEATURES,
 } from './_constants/landingContent';
 import { BrandLogo } from './_components/brand-logo/brandLogo';
 import { LandingHeader } from './_components/landing-header/landingHeader';
@@ -49,33 +49,37 @@ export function LandingPage() {
               <h1
                 id={'hero-title'}
               >
-                우리 집 관리,
+                복잡한 관리 업무,
                 <br />
                 이제
                 {' '}
                 <span>
                   모아홈
                 </span>
-                에서
+                {' '}
+                하나로
                 <br
                   className={styles['hero-mobile-break']}
                 />
                 {' '}
-                쉽고 투명하게
+                간편하게
               </h1>
               <p
                 className={styles['hero-description']}
               >
-                주민은 관리비를 쉽게 확인하고,
+                세대·주민 관리부터 관리비 부과, 입금 확인,
                 <br />
-                관리자는 부과·수납·지출을 간편하게,
-                <br />
-                회계까지 하나로 연결되는 우리 집 관리.
+                지출 정리와 월별 정산까지
+              </p>
+              <p
+                className={styles['hero-support']}
+              >
+                관리소장의 반복적인 업무를 한곳에서 쉽고 편리하게 처리하세요.
               </p>
               <div
                 className={styles['role-highlights']}
               >
-                {ROLES.map(({ icon, title, summary }, index) => (
+                {SERVICE_FEATURES.map(({ icon, title, summary }, index) => (
                   <a
                     href={`#role-${index}`}
                     className={styles['role-highlight']}
@@ -195,26 +199,26 @@ export function LandingPage() {
             <p
               className={styles.eyebrow}
             >
-              하나의 서비스, 연결되는 일상
+              하나의 서비스, 연결되는 관리 업무
             </p>
             <h2
               id={'service-title'}
             >
-              주민부터 관리자까지,
+              세대 관리부터 월별 정산까지,
               <br
                 className={styles['mobile-break']}
               />
               {' '}
-              모두에게 쉬운 관리
+              필요한 기능을 한곳에
             </h2>
             <p>
-              따로 관리하던 정보를 모아, 같은 내역을 함께 확인해요.
+              관리비 부과, 수납 확인, 통장 거래와 지출 내역을 한곳에서 관리하세요.
             </p>
           </div>
           <div
             className={styles['service-cards']}
           >
-            {ROLES.map(({ icon, title, description, items }, index) => (
+            {SERVICE_FEATURES.map(({ icon, title, description, items }, index) => (
               <article
                 className={styles['service-card']}
                 data-reveal
@@ -360,6 +364,7 @@ export function LandingPage() {
             {FAQ_ITEMS.map(({ question, answer }) => (
               <details
                 className={styles['faq-item']}
+                name={'landing-faq'}
                 data-reveal
                 key={question}
               >

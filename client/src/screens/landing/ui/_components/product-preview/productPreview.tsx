@@ -1,361 +1,390 @@
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   PREVIEW_MENU,
-  PREVIEW_PAYMENTS,
   PREVIEW_PHONE_ACTIONS,
   PREVIEW_PHONE_NAVIGATION,
-  PREVIEW_SCHEDULES,
+  PREVIEW_STATS,
+  PREVIEW_TASKS,
+  PREVIEW_TRANSACTIONS,
 } from '../../_constants/previewData';
 import { BrandLogo } from '../brand-logo/brandLogo';
 import styles from './productPreview.module.css';
 
+/** 실제 관리소장 메뉴와 대시보드 구성을 예시 자료로 보여주며 미구현 기능을 현재 기능처럼 표시하지 않습니다. */
 function DashboardPreview() {
   return (
     <div
       className={styles.dashboard}
     >
+      <div
+        className={styles['preview-topbar']}
+      >
+        <span
+          className={styles['preview-property']}
+        >
+          우리빌라
+          <ServiceIcon
+            name={'chevron'}
+            direction={'down'}
+          />
+        </span>
+        <span
+          className={styles['preview-profile']}
+        >
+          <ServiceIcon
+            name={'bell'}
+          />
+          <span
+            className={styles.avatar}
+          >
+            김
+          </span>
+          <span>
+            김모아
+          </span>
+        </span>
+      </div>
       <aside
         className={styles['preview-sidebar']}
       >
-        <BrandLogo
-          compact
-          variant={'sidebar'}
-        />
+        <div
+          className={styles['sidebar-brand']}
+        >
+          <BrandLogo
+            compact
+            variant={'sidebar'}
+          />
+        </div>
         <div
           className={styles['preview-menu']}
         >
-          {PREVIEW_MENU.map(({ icon, label }, index) => (
+          {PREVIEW_MENU.map(({ icon, label, expandable }, index) => (
             <div
+              className={styles['menu-group']}
               key={label}
-              className={index === 0 ? styles['active-menu'] : undefined}
             >
-              <ServiceIcon
-                name={icon}
-              />
-              {label}
+              <div
+                className={index === 0 ? styles['active-menu'] : undefined}
+              >
+                <ServiceIcon
+                  name={icon}
+                />
+                <span>
+                  {label}
+                </span>
+                {expandable && (
+                  <ServiceIcon
+                    name={'chevron'}
+                    direction={'right'}
+                  />
+                )}
+              </div>
             </div>
           ))}
         </div>
         <span
           className={styles['sidebar-bottom']}
         >
-          함께 만드는 더 좋은 우리 집
+          <ServiceIcon
+            name={'chevron'}
+            direction={'left'}
+          />
         </span>
       </aside>
       <div
         className={styles['preview-workspace']}
       >
         <div
-          className={styles['preview-topbar']}
-        >
-          <span>
-            우리빌라
-            {' '}
-            <ServiceIcon
-              name={'chevron'}
-              direction={'down'}
-            />
-          </span>
-          <span>
-            <ServiceIcon
-              name={'bell'}
-            />
-            {' '}
-            <span
-              className={styles.avatar}
-            >
-              김
-            </span>
-            {' '}
-            김모아 대표
-          </span>
-        </div>
-        <div
           className={styles['preview-content']}
         >
+          <small
+            className={styles['preview-breadcrumb']}
+          >
+            모아홈
+          </small>
           <h3>
-            안녕하세요, 김모아님
-            {' '}
-            <span
-              className={styles['greeting-dot']}
-            />
+            대시보드
           </h3>
           <p>
-            2026년 10월 관리 현황입니다.
+            우리빌라의 관리 현황을 한눈에 확인하세요.
           </p>
+          <div
+            className={styles['preview-controls']}
+          >
+            <span>
+              2026년 11월
+              <ServiceIcon
+                name={'chevron'}
+                direction={'down'}
+              />
+            </span>
+            <small>
+              방금 조회
+              <ServiceIcon
+                name={'reset'}
+              />
+            </small>
+          </div>
           <div
             className={styles['preview-stats']}
           >
-            <div>
-              <span
-                className={styles['stat-icon']}
+            {PREVIEW_STATS.map(({ icon, label, amount, note, tone }) => (
+              <div
+                className={styles[`${tone}-stat`]}
+                key={label}
               >
-                <ServiceIcon
-                  name={'receipt'}
-                />
-              </span>
-              <span>
-                총 청구액
-                <strong>
-                  1,200,000
-                  <span>
-                    원
-                  </span>
-                </strong>
-                <small>
-                  이번 달 관리비
-                </small>
-              </span>
-            </div>
-            <div
-              className={styles['teal-stat']}
-            >
-              <span
-                className={styles['stat-icon']}
-              >
-                <ServiceIcon
-                  name={'wallet'}
-                />
-              </span>
-              <span>
-                수납액
-                <strong>
-                  950,000
-                  <span>
-                    원
-                  </span>
-                </strong>
-                <small>
-                  수납률 79.2%
-                </small>
-              </span>
-            </div>
-            <div
-              className={styles['danger-stat']}
-            >
-              <span
-                className={styles['stat-icon']}
-              >
-                !
-              </span>
-              <span>
-                미수금
-                <strong>
-                  250,000
-                  <span>
-                    원
-                  </span>
-                </strong>
-                <small>
-                  미수율 20.8%
-                </small>
-              </span>
-            </div>
+                <span
+                  className={styles['stat-icon']}
+                >
+                  <ServiceIcon
+                    name={icon}
+                  />
+                </span>
+                <span>
+                  {label}
+                  <strong>
+                    {amount}
+                    <span>
+                      원
+                    </span>
+                  </strong>
+                  <small>
+                    {note}
+                  </small>
+                </span>
+              </div>
+            ))}
           </div>
           <div
-            className={styles['preview-columns']}
+            className={styles['preview-overview']}
           >
-            <div>
-              <div
-                className={styles['preview-panel']}
-              >
-                <h4>
-                  <ServiceIcon
-                    name={'check'}
-                  />
-                  {' '}
-                  처리할 일이 있어요
-                  {' '}
-                  <small>
-                    전체보기 ›
-                  </small>
-                </h4>
+            <section
+              className={styles['preview-panel']}
+            >
+              <h4>
+                현재 처리할 업무
+                <small>
+                  현재 기준
+                </small>
+              </h4>
+              {PREVIEW_TASKS.map(({ label, count }) => (
                 <div
                   className={styles['task-row']}
-                >
-                  <span
-                    className={styles['danger-stat']}
-                  >
-                    <ServiceIcon
-                      name={'notice'}
-                    />
-                  </span>
-                  <div>
-                    <b>
-                      미납 세대
-                    </b>
-                    <small>
-                      관리비가 아직 납부되지 않았어요.
-                    </small>
-                  </div>
-                  <em>
-                    5세대 ›
-                  </em>
-                </div>
-                <div
-                  className={styles['task-row']}
-                >
-                  <span
-                    className={styles['warning-stat']}
-                  >
-                    <ServiceIcon
-                      name={'clock'}
-                    />
-                  </span>
-                  <div>
-                    <b>
-                      입금 확인 필요
-                    </b>
-                    <small>
-                      입금 내역을 확인해 주세요.
-                    </small>
-                  </div>
-                  <em>
-                    3건 ›
-                  </em>
-                </div>
-                <div
-                  className={styles['task-row']}
+                  key={label}
                 >
                   <span>
-                    <ServiceIcon
-                      name={'users'}
-                    />
+                    {label}
                   </span>
-                  <div>
-                    <b>
-                      가입 승인 요청
-                    </b>
-                    <small>
-                      새로운 이웃이 기다리고 있어요.
-                    </small>
-                  </div>
-                  <em>
-                    1건 ›
-                  </em>
+                  <b>
+                    {count}
+                    건
+                  </b>
+                  <ServiceIcon
+                    name={'chevron'}
+                  />
                 </div>
-              </div>
+              ))}
+            </section>
+            <section
+              className={styles['preview-panel']}
+            >
+              <h4>
+                세대 납부 현황
+              </h4>
               <div
-                className={styles['preview-panel']}
+                className={styles['payment-status']}
               >
-                <h4>
-                  <ServiceIcon
-                    name={'wallet'}
-                  />
-                  {' '}
-                  최근 입금
-                  {' '}
-                  <small>
-                    전체보기 ›
-                  </small>
-                </h4>
-                <table
-                  className={styles['preview-table']}
+                <div
+                  className={styles['payment-donut']}
                 >
-                  <thead>
-                    <tr>
-                      <th>
-                        날짜
-                      </th>
-                      <th>
-                        세대
-                      </th>
-                      <th>
-                        금액
-                      </th>
-                      <th>
-                        상태
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {PREVIEW_PAYMENTS.map((payment) => (
-                      <tr
-                        key={payment.unit}
-                      >
-                        <td>
-                          {payment.date}
-                        </td>
-                        <td>
-                          {payment.unit}
-                        </td>
-                        <td>
-                          {payment.amount}
-                        </td>
-                        <td>
-                          <span
-                            className={
-                              payment.status === '일부납부'
-                                ? styles['partial-badge']
-                                : styles['paid-badge']
-                            }
-                          >
-                            {payment.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div>
-              <div
-                className={styles['preview-panel']}
-              >
-                <h4>
-                  <ServiceIcon
-                    name={'receipt'}
-                  />
-                  {' '}
-                  이번 달 일정
-                </h4>
-                {PREVIEW_SCHEDULES.map(({ day, label }) => (
-                  <div
-                    className={styles['schedule-row']}
-                    key={day}
-                  >
-                    <span>
-                      10.
-                      {day}
-                      <small>
-                        이번 달
-                      </small>
-                    </span>
+                  <strong>
+                    24세대
+                  </strong>
+                  <small>
+                    수납 대상
+                  </small>
+                </div>
+                <div
+                  className={styles['payment-legend']}
+                >
+                  <span>
                     <i />
+                    납부완료
+                    {' '}
                     <b>
-                      {label}
+                      19세대
                     </b>
+                  </span>
+                  <span>
+                    <i />
+                    미납
+                    {' '}
+                    <b>
+                      5세대
+                    </b>
+                  </span>
+                  <span>
+                    <i />
+                    선입금 보유
+                    {' '}
+                    <b>
+                      2세대
+                    </b>
+                  </span>
+                </div>
+                <small>
+                  완납 세대 비율 79.2%
+                </small>
+              </div>
+            </section>
+            <section
+              className={styles['preview-panel']}
+            >
+              <h4>
+                통장별 잔액
+              </h4>
+              <div
+                className={styles['account-row']}
+              >
+                <ServiceIcon
+                  name={'bank'}
+                />
+                <span>
+                  운영 통장
+                  <small>
+                    하나은행 ····1234
+                  </small>
+                </span>
+                <b>
+                  1,980,000원
+                </b>
+              </div>
+              <div
+                className={styles['account-row']}
+              >
+                <ServiceIcon
+                  name={'bank'}
+                />
+                <span>
+                  예비비 통장
+                  <small>
+                    신한은행 ····5678
+                  </small>
+                </span>
+                <b>
+                  250,000원
+                </b>
+              </div>
+              <div
+                className={styles['account-total']}
+              >
+                <span>
+                  전체 통장 잔액
+                </span>
+                <b>
+                  2,230,000원
+                </b>
+              </div>
+            </section>
+          </div>
+          <div
+            className={styles['preview-activity']}
+          >
+            <section
+              className={styles['preview-panel']}
+            >
+              <h4>
+                최근 통장 거래
+                <small>
+                  전체 내역 ›
+                </small>
+              </h4>
+              <table
+                className={styles['preview-table']}
+              >
+                <thead>
+                  <tr>
+                    <th>
+                      거래일시
+                    </th>
+                    <th>
+                      내용
+                    </th>
+                    <th>
+                      금액
+                    </th>
+                    <th>
+                      상태
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {PREVIEW_TRANSACTIONS.map(({ date, label, amount, status }) => (
+                    <tr
+                      key={label}
+                    >
+                      <td>
+                        {date}
+                      </td>
+                      <td>
+                        {label}
+                      </td>
+                      <td>
+                        {amount}
+                      </td>
+                      <td>
+                        <span
+                          className={status === '확정' ? styles['paid-badge'] : styles['partial-badge']}
+                        >
+                          {status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+            <section
+              className={styles['preview-panel']}
+            >
+              <h4>
+                최근 6개월 관리비 현황
+              </h4>
+              <div
+                className={styles['trend-legend']}
+              >
+                <span>
+                  청구액
+                </span>
+                <span>
+                  납부반영액
+                </span>
+              </div>
+              <div
+                className={styles['preview-trend']}
+              >
+                {[['06', 65, 60], ['07', 74, 68], ['08', 68, 64], ['09', 85, 75], ['10', 80, 72], ['11', 90, 71]].map(([month, billed, applied]) => (
+                  <div
+                    key={month}
+                  >
+                    <span
+                      style={{
+                        height: `${billed}%`
+                      }}
+                    />
+                    <span
+                      style={{
+                        height: `${applied}%`
+                      }}
+                    />
+                    <small>
+                      {month}
+                      월
+                    </small>
                   </div>
                 ))}
               </div>
-              <div
-                className={styles['preview-panel']}
-              >
-                <h4>
-                  <ServiceIcon
-                    name={'notice'}
-                  />
-                  {' '}
-                  공지사항
-                </h4>
-                <p
-                  className={styles['preview-notice']}
-                >
-                  · 10월 관리비가 부과되었습니다.
-                </p>
-                <p
-                  className={styles['preview-notice']}
-                >
-                  · 주차 공간 이용 안내
-                </p>
-                <p
-                  className={styles['preview-notice']}
-                >
-                  · 공용 공간 청소 일정 안내
-                </p>
-              </div>
-            </div>
+            </section>
           </div>
         </div>
       </div>
@@ -519,10 +548,10 @@ export function ProductPreview() {
         </div>
       </div>
       <figcaption>
-        주민과 관리자를 연결하는 모아홈
+        관리소장과 주민을 잇는 모아홈
         {' '}
         <span>
-          · 서비스 화면 예시
+          · 금액은 예시이며 주민 관리비 화면은 준비 중입니다.
         </span>
       </figcaption>
     </figure>
