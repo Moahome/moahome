@@ -4,7 +4,7 @@ import {
   useRef,
   useState
 } from 'react';
-import type { PDFDocumentProxy } from 'pdfjs-dist';
+import type { PDFDocumentProxy } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { Button } from '@/shared/ui/button';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './pdfPreview.module.css';
@@ -16,11 +16,12 @@ export function PdfPreview({ blob }: { blob: Blob }) {
   const [page, setPage] = useState(1);
   useEffect(() => {
     let active = true;
-    let task: ReturnType<typeof import('pdfjs-dist')['getDocument']> | undefined;
+    let task: ReturnType<typeof import('pdfjs-dist/legacy/build/pdf.mjs')['getDocument']> | undefined;
     async function open() {
       try {
-        const pdfjs = await import('pdfjs-dist');
-        pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+        // 최신 Map API가 없는 설치 앱에서도 표시하도록 본체와 Worker 모두 같은 버전의 호환 빌드를 사용합니다.
+        const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+        pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/legacy/build/pdf.worker.min.mjs', import.meta.url).toString();
         const bytes = await blob.arrayBuffer();
         if (!active) return;
         task = pdfjs.getDocument({

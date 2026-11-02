@@ -16,6 +16,60 @@ import {
 
 const BASE = `/manage/${SETTLEMENT_PROPERTY}/banking/monthly`;
 
+for (const format of ['PDF', '이미지 (PNG)'] as const) {
+  test(`getOrInsertComputed가 없는 환경에서도 ${format} 미리보기와 다운로드를 제공`, async ({ page }) => {
+    // 앱에서 확인한 구형 엔진의 Map API 부재를 문서와 별도 전역을 사용하는 Worker 모두에 재현합니다.
+    const removeMapMethods = `
+      for (const prototype of [Map.prototype, WeakMap.prototype]) {
+        Reflect.deleteProperty(prototype, 'getOrInsert');
+        Reflect.deleteProperty(prototype, 'getOrInsertComputed');
+      }
+    `;
+    await page.addInitScript(removeMapMethods);
+    let workerLoaded = false;
+    await page.route('**/pdf.worker*.mjs', async (route) => {
+      const response = await route.fetch();
+      workerLoaded = true;
+      await route.fulfill({
+        response,
+        body: `${removeMapMethods}\n${await response.text()}`
+      });
+    });
+    await page.setViewportSize({
+      width: 390,
+      height: 844
+    });
+    await mockSettlement(page);
+    await page.goto(BASE);
+    expect(await page.evaluate(() => 'getOrInsertComputed' in Map.prototype)).toBe(false);
+    await page.getByRole('button', {
+      name: '다운로드',
+      exact: true
+    }).click();
+    const modal = page.getByRole('dialog');
+    await modal.getByRole('radio', {
+      name: format,
+      exact: true
+    }).check();
+    const isPdf = format === 'PDF';
+    await expect(modal.getByRole('img', {
+      name: isPdf ? 'PDF 1페이지 미리보기' : '이미지 1페이지 미리보기',
+      exact: true
+    })).toBeVisible();
+    const ready = page.waitForEvent('download');
+    await modal.getByRole('button', {
+      name: isPdf ? 'PDF 다운로드' : '이미지 다운로드',
+      exact: true
+    }).click();
+    const download = await ready;
+    const bytes = new Uint8Array(await readFile((await download.path())!));
+    if (isPdf) expect(new TextDecoder().decode(bytes.subarray(0, 5))).toBe('%PDF-');
+    else expect(Array.from(bytes.subarray(0, 8))).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
+    expect(workerLoaded).toBe(true);
+    await expect(modal.getByRole('alert')).toHaveCount(0);
+  });
+}
+
 for (const status of ['미납', '납부완료'] as const) {
   test(`${status} 시안 보고서는 필요한 6개 열과 큰 조회 월·표 글씨를 Excel·PDF·PNG에 반영`, async ({ page }, testInfo) => {
     const fixture = () => {

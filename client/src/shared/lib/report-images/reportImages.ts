@@ -1,8 +1,9 @@
 /** 같은 PDF의 각 페이지를 흰 배경 PNG로 변환하며 페이지별로 캔버스를 해제해 긴 보고서의 메모리 사용을 줄입니다. */
 export async function createReportImages(blob: Blob, signal: AbortSignal): Promise<Blob[]> {
-  const pdfjs = await import('pdfjs-dist');
+  // 최신 Map API가 없는 설치 앱에서도 변환하도록 본체와 Worker 모두 같은 버전의 호환 빌드를 사용합니다.
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
   signal.throwIfAborted();
-  pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/legacy/build/pdf.worker.min.mjs', import.meta.url).toString();
   const task = pdfjs.getDocument({
     data: await blob.arrayBuffer()
   });
