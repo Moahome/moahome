@@ -20,6 +20,56 @@ import {
 
 const BASE = `/manage/${SETTLEMENT_PROPERTY}/banking/monthly`;
 
+test('수납 요약 도움말은 음수 이월과 신규 청구·선입금 충당·당월 미수를 구분', async ({ page }) => {
+  await page.setViewportSize({
+    width: 1440,
+    height: 1000
+  });
+  await mockSettlement(page, undefined, 0, () => {
+    const data = settlementFixture();
+    data.payments.charges[0].amount = '50000';
+    data.payments.charges[1].amount = '1000000';
+    data.payments.payments = [{
+      ...data.payments.payments[1],
+      amount: '50000'
+    }];
+    data.payments.openingCredits = [{
+      id: settlementId(999),
+      unitId: data.payments.units[0].id,
+      date: '2026-09-30',
+      amount: '200000',
+      allocations: []
+    }];
+    return data;
+  });
+  await page.goto(`${BASE}?month=2026-10`);
+  await expect(page.getByRole('article', {
+    name: '전월 이월액 -150,000원',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('article', {
+    name: '당월 청구 납부반영액 200,000원',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('article', {
+    name: '당월 청구 미수금 800,000원',
+    exact: true
+  })).toBeVisible();
+  for (const [label, text] of [
+    ['전월 이월액', '전월 말 미납 잔액에서 선입금 잔액을 뺀 금액입니다.'],
+    ['당월 관리비 발생액', '이번 달에 새로 부과한 관리비 청구액의 합계입니다.'],
+    ['당월 청구 납부반영액', '이전 선입금으로 충당한 금액도 포함하며'],
+    ['당월 청구 미수금', '이전 달 미납은 포함하지 않습니다.']
+  ]) {
+    await page.getByRole('button', {
+      name: `${label} 도움말`,
+      exact: true
+    }).click();
+    await expect(page.getByRole('tooltip')).toContainText(text);
+    await page.keyboard.press('Escape');
+  }
+});
+
 test('모바일 수납 상태는 한 줄에서 가로 이동하고 필터 아래 다운로드를 열 수 있음', async ({ page }) => {
   await page.setViewportSize({
     width: 390,

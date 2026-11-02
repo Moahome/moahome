@@ -91,6 +91,14 @@ for (const width of [1440, 320]) {
       has: page.locator('td')
     });
     await expect(rows).toHaveCount(5);
+    if (width >= 768) {
+      await page.getByRole('button', {
+        name: '기간 청구 미수금 도움말',
+        exact: true
+      }).click();
+      await expect(page.getByRole('tooltip')).toContainText('조회 기간 각 월의 신규 청구액 중 해당 월말에 납부 반영되지 않은 금액의 합계입니다.');
+      await page.keyboard.press('Escape');
+    }
     await expect(rows.first()).toContainText('2027-03');
     await expect(rows.last()).toContainText('2026-11');
     await page.getByRole('button', {
