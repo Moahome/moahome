@@ -52,7 +52,7 @@ export function getImportError(error: unknown) {
   const messages: Record<string, string> = {
     INVALID_EXCEL_FILE: '5MB 이하의 올바른 .xlsx 파일을 선택해주세요.',
     EXCEL_ROW_LIMIT: '한 번에 최대 1,000행까지 등록할 수 있어요.',
-    INVALID_EXCEL_HEADER: '양식의 첫 행을 동·호수·이름·주민 구분·연락처 순서로 맞춰주세요.',
+    INVALID_EXCEL_HEADER: '현재 관리대상의 엑셀 양식을 다시 내려받아 첫 행의 열 순서와 이름을 맞춰주세요.',
     EMPTY_EXCEL_FILE: '입력된 주민이 없어요.',
     IMPORT_EXPIRED: '검증 정보가 만료되었어요. 파일을 다시 올려주세요.',
     PHONE_SECURITY_UNAVAILABLE: '연락처 저장 설정을 확인한 후 같은 요청으로 다시 시도해주세요.',

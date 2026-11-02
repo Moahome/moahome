@@ -35,25 +35,13 @@ public class ResidentExcelReader {
 				if (sheet.getLastRowNum() > 1000)
 					throw new ResidentImportException("EXCEL_ROW_LIMIT");
 				var formatter = new DataFormatter(Locale.KOREA);
-				Row header = sheet.getRow(0);
-				String[] expected = { "동", "호수", "이름", "주민 구분", "연락처" };
-				if (header == null || header.getLastCellNum() != 5)
-					throw new ResidentImportException("INVALID_EXCEL_HEADER");
-				for (int index = 0; index < expected.length; index++) {
-					Cell cell = header.getCell(index);
-					String label = cell == null ? "" : formatter.formatCellValue(cell).strip();
-					// 이미 내려받은 기존 파일은 '관계' 헤더도 허용해 화면 명칭 변경으로 업로드가 중단되지 않게 합니다.
-					boolean matches = expected[index].equals(label) || (index == 3 && "관계".equals(label));
-					if (cell == null || cell.getCellType() == CellType.FORMULA || !matches) {
-						throw new ResidentImportException("INVALID_EXCEL_HEADER");
-					}
-				}
+				ColumnLayout layout = readHeader(sheet.getRow(0), formatter);
 				List<InputRow> result = new ArrayList<>();
 				for (int index = 1; index <= sheet.getLastRowNum(); index++) {
 					Row row = sheet.getRow(index);
 					if (row == null)
 						continue;
-					String[] values = new String[5];
+					String[] values = new String[layout.count()];
 					boolean invalid = false;
 					for (int column = 0; column < values.length; column++) {
 						Cell cell = row.getCell(column);
@@ -64,7 +52,9 @@ public class ResidentExcelReader {
 					}
 					if (!invalid && Arrays.stream(values).allMatch(string -> string.isEmpty()))
 						continue;
-					result.add(new InputRow(index + 1, values[0], values[1], values[2], values[3], values[4], invalid));
+					result.add(new InputRow(index + 1, layout.building() < 0 ? "" : values[layout.building()],
+					    values[layout.unitNumber()], values[layout.name()], values[layout.relation()],
+					    values[layout.phone()], invalid));
 				}
 				if (result.isEmpty())
 					throw new ResidentImportException("EMPTY_EXCEL_FILE");
@@ -75,6 +65,31 @@ public class ResidentExcelReader {
 		} catch (Exception exception) {
 			throw new ResidentImportException("INVALID_EXCEL_FILE");
 		}
+	}
+
+	private record ColumnLayout(int building, int unitNumber, int name, int relation, int phone, int count) {
+	}
+
+	/** 현재 동별·동 없는 양식과 기존 배포 양식만 허용하고 전화번호·주민 구분의 위치를 명시적으로 연결합니다. */
+	private ColumnLayout readHeader(Row header, DataFormatter formatter) {
+		if (header == null || (header.getLastCellNum() != 4 && header.getLastCellNum() != 5))
+			throw new ResidentImportException("INVALID_EXCEL_HEADER");
+		List<String> labels = new ArrayList<>();
+		for (int index = 0; index < header.getLastCellNum(); index++) {
+			Cell cell = header.getCell(index);
+			if (cell == null || cell.getCellType() != CellType.STRING)
+				throw new ResidentImportException("INVALID_EXCEL_HEADER");
+			labels.add(formatter.formatCellValue(cell).strip());
+		}
+		if (labels.equals(List.of("동", "호수", "이름", "연락처", "주민 구분")))
+			return new ColumnLayout(0, 1, 2, 4, 3, 5);
+		if (labels.equals(List.of("호수", "이름", "연락처", "주민 구분")))
+			return new ColumnLayout(-1, 0, 1, 3, 2, 4);
+		// 이미 내려받은 다섯 열 양식은 예전 순서와 '관계' 이름을 함께 지원합니다.
+		if (labels.equals(List.of("동", "호수", "이름", "주민 구분", "연락처"))
+		    || labels.equals(List.of("동", "호수", "이름", "관계", "연락처")))
+			return new ColumnLayout(0, 1, 2, 3, 4, 5);
+		throw new ResidentImportException("INVALID_EXCEL_HEADER");
 	}
 
 	/** 압축 크기만 작은 거대 XML·다량 항목을 전체 통합 문서로 읽기 전에 제한합니다. */

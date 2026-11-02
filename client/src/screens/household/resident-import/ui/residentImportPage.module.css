@@ -5,34 +5,35 @@
 
 .header {
   margin-bottom: 24px;
-
-  p {
-    margin-top: 8px;
-    color: var(--sub-text);
-    line-height: 1.6;
-  }
-
-  h1 {
-    margin-top: 8px;
-    font-size: 30px;
-    font-weight: 800;
-  }
 }
 
 .steps {
-  display: flex;
-  justify-content: space-around;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-bottom: 28px;
   padding: 20px 8px;
   list-style: none;
 
   li {
+    position: relative;
     display: grid;
     justify-items: center;
     gap: 10px;
     color: var(--sub-text);
     font-size: 14px;
+
+    &:not(:last-child)::after {
+      position: absolute;
+      top: 16px;
+      left: calc(50% + 26px);
+      width: calc(100% - 52px);
+      border-top: 1px dashed var(--border);
+      content: '';
+    }
+
+    &[data-done='true']::after {
+      border-color: var(--primary);
+    }
 
     span {
       display: grid;
@@ -188,8 +189,8 @@
 }
 
 @media (max-width: 767px) {
-  .header h1 {
-    font-size: 24px;
+  .list-button {
+    display: none;
   }
 
   .card {

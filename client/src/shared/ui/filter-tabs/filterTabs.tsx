@@ -7,6 +7,7 @@ export function FilterTabs<Value extends string>({
   items,
   value,
   onChange,
+  scrollable = false,
 }: {
   label: string;
   items: readonly {
@@ -16,12 +17,14 @@ export function FilterTabs<Value extends string>({
   }[];
   value: Value;
   onChange: (value: Value) => void;
+  scrollable?: boolean;
 }) {
   return (
     <div
       className={styles.tabs}
       role={'group'}
       aria-label={label}
+      data-scrollable={scrollable || undefined}
     >
       {items.map((item) => (
         <Button

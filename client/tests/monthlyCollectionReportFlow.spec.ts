@@ -20,6 +20,41 @@ import {
 
 const BASE = `/manage/${SETTLEMENT_PROPERTY}/banking/monthly`;
 
+test('모바일 수납 상태는 한 줄에서 가로 이동하고 필터 아래 다운로드를 열 수 있음', async ({ page }) => {
+  await page.setViewportSize({
+    width: 390,
+    height: 844
+  });
+  await mockSettlement(page);
+  await page.goto(BASE);
+  const tabs = page.getByRole('group', {
+    name: '수납 상태',
+    exact: true
+  });
+  await expect(tabs).toBeVisible();
+  const positions = await tabs.getByRole('button').evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().top));
+  expect(new Set(positions).size).toBe(1);
+  await tabs.getByRole('button', {
+    name: /납부완료/
+  }).click();
+  expect(await tabs.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  await tabs.getByRole('button', {
+    name: /전체/
+  }).click();
+  const download = page.getByRole('button', {
+    name: '다운로드',
+    exact: true
+  });
+  await download.scrollIntoViewIfNeeded();
+  await expect(download).toBeInViewport();
+  await download.click();
+  await expect(page).toHaveURL(/\/banking\/monthly\/download/);
+  await expect(reportPreview(page).getByRole('button', {
+    name: 'Excel 다운로드',
+    exact: true
+  })).toBeVisible();
+});
+
 for (const format of ['PDF', '이미지 (PNG)'] as const) {
   test(`getOrInsertComputed가 없는 환경에서도 ${format} 미리보기와 다운로드를 제공`, async ({ page }) => {
     // 앱에서 확인한 구형 엔진의 Map API 부재를 문서와 별도 전역을 사용하는 Worker 모두에 재현합니다.
@@ -240,6 +275,25 @@ for (const width of [1440, 390]) {
     const opener = page.getByRole('button', {
       name: '다운로드',
       exact: true,
+    });
+    const filterBox = await page.getByRole('combobox', {
+      name: '수납 현황 동 필터',
+      exact: true
+    }).boundingBox();
+    const buttonBox = await opener.boundingBox();
+    const editBox = await page.getByRole('button', {
+      name: '편집',
+      exact: true
+    }).boundingBox();
+    const tableBox = await page.getByRole('table', {
+      name: '세대별 월별 수납 현황',
+      exact: true
+    }).boundingBox();
+    expect(buttonBox!.y).toBeGreaterThanOrEqual(filterBox!.y + filterBox!.height);
+    expect(buttonBox!.y + buttonBox!.height).toBeLessThanOrEqual(tableBox!.y);
+    expect(buttonBox!.x + buttonBox!.width).toBeLessThanOrEqual(editBox!.x);
+    await page.screenshot({
+      path: testInfo.outputPath(`monthly-toolbar-${width}.png`)
     });
     await opener.click();
     const modal = reportPreview(page);

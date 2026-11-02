@@ -43,6 +43,7 @@ import {
 } from '../../../model/monthlyRange';
 import type { MonthlyCollectionFilters } from '../../../model/paymentPreviewTypes';
 import { usePaymentWorkspace } from '../../payment-workspace-provider/paymentWorkspaceProvider';
+import { MonthlyExportButton } from '../monthly-download/monthlyDownload';
 import { MonthlyDetail } from '../monthly-detail/monthlyDetail';
 import {
   MONTHLY_STATUS_TONES,
@@ -332,6 +333,7 @@ export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath
         >
           <FilterTabs
             label={'수납 상태'}
+            scrollable
             items={['전체', '미납', '일부납부', '선입금', '납부완료'].map((value) => ({
               value,
               label: value,
@@ -419,15 +421,25 @@ export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath
             >
               {selecting ? `${checkedIds.size}${multipleMonths ? '건' : '세대'} 선택` : `총 ${filtered.length}${multipleMonths ? '건 (세대·월)' : '세대'}`}
             </span>
-            <Button
-              variant={'text'}
-              size={'sm'}
-              aria-pressed={selecting}
-              disabled={!filtered.length && !selecting}
-              onClick={onToggleSelection}
+            <div
+              className={styles['table-actions']}
             >
-              {selecting ? '완료' : '편집'}
-            </Button>
+              <MonthlyExportButton
+                month={range.endMonth}
+                range={range}
+                filters={filters}
+                selectedRowKeys={selectedRowKeys}
+              />
+              <Button
+                variant={'text'}
+                size={'sm'}
+                aria-pressed={selecting}
+                disabled={!filtered.length && !selecting}
+                onClick={onToggleSelection}
+              >
+                {selecting ? '완료' : '편집'}
+              </Button>
+            </div>
           </div>
           <DataTable
             label={'세대별 월별 수납 현황'}

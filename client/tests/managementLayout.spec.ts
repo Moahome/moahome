@@ -111,6 +111,15 @@ test.beforeEach(async ({ page }) => {
       properties: [PROPERTY]
     });
     if (route.request().url() === CONTEXT_URL) return fulfillJson(route, PROPERTY);
+    if (path.endsWith('/units')) return fulfillJson(route, {
+      propertyId: PROPERTY_ID,
+      hasBuildings: true,
+      buildings: [{
+        id: '11111111-1111-4111-8111-111111111111',
+        name: '102동'
+      }],
+      units: []
+    });
     if (path.endsWith('/dashboard')) return fulfillJson(route, emptyDashboardFixture(path.split('/')[3], new URL(route.request().url()).searchParams.get('month') ?? undefined));
     if (route.request().url() === RESULT_URL) return fulfillJson(route, RESULT);
     if (/^\/api\/properties\/[^/]+\/access-context$/.test(path)) return fulfillJson(route, {
@@ -2716,19 +2725,23 @@ for (const width of [1440, 320]) {
     }).getByRole('alert')).toContainText('.xlsx');
     expect(uploads).toBe(0);
     await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0);
-    const listButton = page.getByRole('button', {
-      name: '주민 목록',
+    const listButton = page.getByRole('main').getByRole('button', {
+      name: '목록',
       exact: true
     });
-    await expect(listButton).toBeVisible();
+    if (width >= 768) {
+      await expect(listButton).toBeVisible();
+      await expect(page.getByRole('main').locator('header').getByRole('button', {
+        name: '목록',
+        exact: true
+      })).toBeVisible();
+    } else await expect(listButton).toBeHidden();
     await expect(page.getByRole('button', {
-      name: '주민 목록으로',
+      name: '주민 목록',
       exact: true
     })).toHaveCount(0);
-    const footer = listButton.locator('..');
-    const listBounds = await listButton.boundingBox();
-    const footerBounds = await footer.boundingBox();
-    expect(Math.abs(listBounds!.x + listBounds!.width - footerBounds!.x - footerBounds!.width)).toBeLessThan(2);
+    await expect(page.getByRole('main')).toContainText('첫 행은 동 · 호수 · 이름 · 연락처 · 주민 구분 순서로 유지해주세요.');
+    const footer = page.getByRole('main').locator('footer');
     await page.getByLabel('주민 엑셀 파일').setInputFiles({
       name: 'residents.xlsx',
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -2791,7 +2804,10 @@ for (const width of [1440, 320]) {
     await expect(page.getByRole('article', {
       name: '등록 성공 9건'
     })).toBeVisible();
-    await expect(footer.getByRole('button').last()).toHaveText('주민 목록');
+    await expect(footer.getByRole('button', {
+      name: '목록',
+      exact: true
+    })).toHaveCount(0);
     await expect(page.getByRole('row').filter({
       hasText: '엑셀 주민 4'
     })).toContainText('대표');
@@ -2817,7 +2833,10 @@ for (const width of [1440, 320]) {
     await expect(page.getByRole('heading', {
       name: '주민 엑셀 업로드'
     })).toBeVisible();
-    await listButton.click();
+    if (width >= 768) await listButton.click();
+    else await page.getByRole('banner').getByRole('link', {
+      name: '뒤로가기'
+    }).click();
     await expect(page).toHaveURL(RESIDENTS);
   });
 }
@@ -2995,7 +3014,7 @@ for (const width of [1440, 320]) {
       width,
       height: 900
     });
-    const message = '양식의 첫 행을 동·호수·이름·주민 구분·연락처 순서로 맞춰주세요.';
+    const message = '현재 관리대상의 엑셀 양식을 다시 내려받아 첫 행의 열 순서와 이름을 맞춰주세요.';
     await page.route(IMPORT_URL, (route) => fulfillJson(route, {
       code: 'INVALID_EXCEL_HEADER'
     }, 400));
@@ -4676,3 +4695,14 @@ for (const width of [1440]) {
     });
   });
 }
+
+test('동 없는 주민 업로드는 동 열 없는 양식과 작성 안내를 제공', async ({ page }) => {
+  await mockResidentRegistrationUnits(page, false);
+  await page.goto(IMPORT_PATH);
+  await expect(page.getByRole('link', {
+    name: '엑셀 양식 다운로드'
+  })).toHaveAttribute('href', '/residentImportNoBuildingTemplate.xlsx');
+  await expect(page.getByRole('main')).toContainText('첫 행은 호수 · 이름 · 연락처 · 주민 구분 순서로 유지해주세요.');
+  await expect(page.getByRole('main')).toContainText('호수·이름은 필수이며 연락처와 주민 구분은 선택입니다.');
+  await expect(page.getByRole('main')).not.toContainText('동 칸을 비워');
+});

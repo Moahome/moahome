@@ -21,6 +21,22 @@
     color: var(--primary);
     border-bottom-color: var(--primary);
   }
+
+  &[data-scrollable='true'] {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    button {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
+  }
 }
 
 @container (max-width: 540px) {

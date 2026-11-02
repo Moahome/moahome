@@ -3,9 +3,13 @@
 import { LoadingState } from '@/shared/ui/state-message';
 
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useSession } from '@/entities/session';
 import { useManagementContext } from '@/features/enter-service';
+import { getRegistrationOptions } from '@/features/resident-management';
+import { ListHeader } from '@/shared/ui/list-header';
+import { RequestError } from '@/shared/ui/server-connection-error';
 import { FileDropzone } from '@/shared/ui/file-dropzone';
 import { Button } from '@/shared/ui/button';
 import { SummaryCard } from '@/shared/ui/summary-card';
@@ -33,6 +37,15 @@ export function ResidentImportPage({
   const router = useRouter();
   const session = useSession();
   const context = useManagementContext(session.data?.id, propertyId, false);
+  const options = useQuery({
+    queryKey: ['resident-registration-units', session.data?.id, propertyId],
+    queryFn: ({ signal }) => getRegistrationOptions(propertyId, signal),
+    enabled: Boolean(session.data && context.data),
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: false
+  });
   const controller = useResidentImport(propertyId);
   const { result, selected, busy, error, completed, attempted } = controller;
   const [query, setQuery] = useState('');
@@ -52,6 +65,25 @@ export function ResidentImportPage({
   if (attempted) saveLabel = '같은 요청으로 다시 시도';
   if (busy === 'save') saveLabel = '등록 중…';
   const listPath = `/manage/${propertyId}/residents`;
+  const header = (
+    <ListHeader
+      className={styles.header}
+      menu={'주민 관리'}
+      title={title}
+      titleId={'resident-import-title'}
+      description={completed ? '행별 등록 결과를 확인해주세요.' : '엑셀 파일로 주민을 한 번에 등록하세요.'}
+      actions={(
+        <Button
+          className={styles['list-button']}
+          variant={'outline'}
+          disabled={Boolean(busy)}
+          onClick={() => router.replace(listPath)}
+        >
+          목록
+        </Button>
+      )}
+    />
+  );
 
   if (!context.data) {
     return (
@@ -60,6 +92,29 @@ export function ResidentImportPage({
       />
     );
   }
+
+  // 관리대상의 동 유무를 확인하기 전에는 잘못된 양식을 내려받지 않도록 업로드를 준비하지 않습니다.
+  if (!options.data) return (
+    <section
+      className={styles.page}
+      aria-labelledby={'resident-import-title'}
+    >
+      {header}
+      {options.isError ? (
+        <RequestError
+          error={options.error}
+          onRetry={() => void options.refetch({
+            cancelRefetch: false
+          })}
+        />
+      ) : (
+        <LoadingState
+          title={'관리대상에 맞는 양식을 준비하고 있어요.'}
+        />
+      )}
+    </section>
+  );
+  const hasBuildings = options.data.hasBuildings;
 
   /** 새 파일의 결과에 이전 검색·페이지 조건이 적용되지 않도록 표시 상태를 초기화합니다. */
   function upload(file?: File) {
@@ -76,21 +131,7 @@ export function ResidentImportPage({
       className={styles.page}
       aria-labelledby={'resident-import-title'}
     >
-      <header
-        className={styles.header}
-      >
-        <p>
-          주민 관리
-        </p>
-        <h1
-          id={'resident-import-title'}
-        >
-          {title}
-        </h1>
-        <p>
-          {completed ? '행별 등록 결과를 확인해주세요.' : '엑셀 파일로 주민을 한 번에 등록하세요.'}
-        </p>
-      </header>
+      {header}
       <ol
         className={styles.steps}
         aria-label={'일괄 등록 단계'}
@@ -134,7 +175,7 @@ export function ResidentImportPage({
           />
           <a
             className={styles['template-link']}
-            href={'/residentImportTemplate.xlsx'}
+            href={hasBuildings ? '/residentImportTemplate.xlsx' : '/residentImportNoBuildingTemplate.xlsx'}
             download={'주민 업로드 양식.xlsx'}
           >
             <ServiceIcon
@@ -150,16 +191,16 @@ export function ResidentImportPage({
             </h3>
             <ul>
               <li>
-                첫 행은 동 · 호수 · 이름 · 주민 구분 · 연락처 순서로 유지해주세요.
+                {hasBuildings ? '첫 행은 동 · 호수 · 이름 · 연락처 · 주민 구분 순서로 유지해주세요.' : '첫 행은 호수 · 이름 · 연락처 · 주민 구분 순서로 유지해주세요.'}
               </li>
               <li>
-                이름·동·호수는 필수이며 연락처와 주민 구분은 선택입니다.
+                {hasBuildings ? '동·호수·이름은 필수이며 연락처와 주민 구분은 선택입니다.' : '호수·이름은 필수이며 연락처와 주민 구분은 선택입니다.'}
               </li>
               <li>
                 주민 구분은 소유주·임차인·가족·기타 중 하나로 입력하며 비워두면 기타로 등록합니다.
               </li>
               <li>
-                등록된 세대에 연결하며 동 없는 관리대상은 동 칸을 비워주세요.
+                {hasBuildings ? '등록된 동·호수와 일치하도록 입력해주세요.' : '동 열이 없는 양식입니다. 등록된 호수와 일치하도록 입력해주세요.'}
               </li>
               <li>
                 호수와 연락처의 앞자리 0을 유지하고 수식은 사용하지 마세요.
@@ -349,13 +390,6 @@ export function ResidentImportPage({
             결과 CSV 다운로드
           </Button>
         )}
-        <Button
-          variant={'outline'}
-          disabled={Boolean(busy)}
-          onClick={() => router.replace(listPath)}
-        >
-          주민 목록
-        </Button>
       </footer>
     </section>
   );

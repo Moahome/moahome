@@ -4,3 +4,6 @@ export {
 export {
   ResidentDetails
 } from './ui/resident-details/residentDetails';
+export {
+  getRegistrationOptions
+} from './api/residentRegistrationApi';

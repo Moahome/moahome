@@ -61,7 +61,6 @@ import type {
   PreviewPayment
 } from '../../model/paymentPreviewTypes';
 import { MonthlyCollection } from '../_components/monthly-collection/monthlyCollection';
-import { MonthlyExportButton } from '../_components/monthly-download/monthlyDownload';
 import { PaymentBadge } from '../_components/payment-badge/paymentBadge';
 import { PaymentDetail } from '../_components/payment-detail/paymentDetail';
 import { getPaymentStatusLabel } from '../_components/payment-editor/paymentEditor';
@@ -120,7 +119,6 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
   const { ledger, update, month: workspaceMonth, setMonth: setWorkspaceMonth, busy } = usePaymentWorkspace();
   const range = getQueryMonthRange(searchParams, workspaceMonth);
   const dateRange = getQueryDateRange(searchParams, ledger.asOf);
-  const month = view === 'monthly' ? range.endMonth : dateRange.endDate.slice(0, 7);
 
   /** 연도를 포함한 시작·종료 월을 URL에 저장하고 기간 변경 시 이전 선택과 상세 지정을 해제합니다. */
   function setRange(value: MonthRange) {
@@ -330,10 +328,7 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
     >
       <ListHeader
         className={styles.header}
-        actionsClassName={[
-          styles['header-actions'],
-          view === 'monthly' && styles['export-actions']
-        ].filter(Boolean).join(' ')}
+        actionsClassName={styles['header-actions']}
         menu={banking ? '통장 관리' : '입금 관리'}
         title={view === 'matching' ? '입금 확인·매칭' : '월별 수납 현황'}
         titleId={'payment-title'}
@@ -367,14 +362,7 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
               통장 내역 가져오기
             </Button>
           </>
-        ) : (
-          <MonthlyExportButton
-            month={month}
-            range={range}
-            filters={monthlyFilters}
-            selectedRowKeys={monthlySelectedKeys}
-          />
-        )}
+        ) : undefined}
       />
       <p
         className={styles.notice}

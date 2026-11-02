@@ -48,8 +48,9 @@ async function readWorkbook(blob: Blob) {
   expect(blob.type).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   const files = unzipSync(new Uint8Array(await blob.arrayBuffer()));
   const strings = [...strFromU8(files['xl/sharedStrings.xml']).matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((match) => match[1]);
-  const sheet = strFromU8(files['xl/worksheets/sheet1.xml']);
+  const sheet = strFromU8(files['xl/worksheets/sheet1.xml']).replace(/<(\/?)\w+:/g, '<$1');
   const cells = Object.fromEntries([...sheet.matchAll(/<c r="([A-Z]+\d+)"[^>]*t="s"[^>]*><v>(\d+)<\/v><\/c>/g)].map((match) => [match[1], strings[Number(match[2])]]));
+  for (const match of sheet.matchAll(/<c r="([A-Z]+\d+)"[^>]*t="str"[^>]*><v>([\s\S]*?)<\/v><\/c>/g)) cells[match[1]] = match[2];
 
   return {
     sheet,
@@ -140,12 +141,25 @@ test('연락처 없는 주민은 빈 연락처 셀을 저장하고 국제 번호
   expect(strings.join(' ')).not.toContain('••••');
 });
 
-test('주민 등록 양식은 새 문서 색상을 사용해도 재업로드할 첫 행과 빈 입력 위치를 유지', async () => {
-  const { readFile } = await import('node:fs/promises');
-  const zip = unzipSync(await readFile('public/residentImportTemplate.xlsx'));
-  const first = strFromU8(zip['xl/worksheets/sheet1.xml']);
-  expect(first).toContain('r="A1"');expect(first).toContain('r="E1"');expect(first).toContain('ySplit="1"');
-  expect(strFromU8(zip['xl/styles.xml'])).toContain('FFDBEAFE');
-  for (const header of ['동', '호수', '이름', '주민 구분', '연락처']) expect(first).toContain(header);
-  expect(first).not.toContain('<f>');
-});
+for (const [filename, headers, relationColumn] of [
+  ['residentImportTemplate.xlsx', ['동', '호수', '이름', '연락처', '주민 구분'], 'E'],
+  ['residentImportNoBuildingTemplate.xlsx', ['호수', '이름', '연락처', '주민 구분'], 'D']
+] as const) {
+  test(`${filename}은 새 열 순서·첫 행 고정·빈 1,000행과 주민 구분 선택을 유지`, async () => {
+    const { readFile } = await import('node:fs/promises');
+    const bytes = await readFile(`public/${filename}`);
+    const { cells } = await readWorkbook(new Blob([bytes], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    }));
+    const zip = unzipSync(bytes);
+    const first = strFromU8(zip['xl/worksheets/sheet1.xml']).replace(/<(\/?)\w+:/g, '<$1');
+    expect(headers.map((_, index) => cells[`${String.fromCharCode(65 + index)}1`])).toEqual(headers);
+    expect(cells[`${String.fromCharCode(65 + headers.length)}1`]).toBeUndefined();
+    expect(first).toContain('ySplit="1"');
+    expect(first).toContain(`sqref="${relationColumn}2:${relationColumn}1001"`);
+    expect(strFromU8(zip['xl/styles.xml'])).toContain('FFDBEAFE');
+    expect((first.match(/<row /g) ?? []).length).toBe(1001);
+    expect(first).not.toContain('<f>');
+    expect(Object.keys(cells).some((key) => !key.endsWith('1'))).toBe(false);
+  });
+}

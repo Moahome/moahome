@@ -13,6 +13,7 @@ import {
   selectDateRange,
   selectMonthRange
 } from './support/monthRange';
+import { closeReportPreview } from './support/reportDownload';
 
 const BASE = `/manage/${SETTLEMENT_PROPERTY}`;
 
@@ -117,14 +118,22 @@ for (const width of [1440, 320]) {
     await expect(selectedReport.getByRole('table').getByRole('row').filter({
       hasText: '2026-11'
     })).toHaveCount(0);
-    await page.getByRole('button', {
-      name: '다운로드 미리보기 닫기',
-      exact: true
-    }).click();
-    await page.getByRole('button', {
-      name: '완료',
-      exact: true
-    }).click();
+    // PC는 모달을 닫고 모바일은 공통 헤더로 목록에 복귀하며 조회 기간을 유지해야 합니다.
+    await closeReportPreview(page);
+    await expect(page).toHaveURL(/\/banking\/monthly\?startMonth=2026-11&endMonth=2027-03/);
+    if (width >= 768) {
+      await expect(rows.first().getByRole('checkbox')).toBeChecked();
+      await page.getByRole('button', {
+        name: '완료',
+        exact: true
+      }).click();
+    } else {
+      // 독립 다운로드 페이지에서 돌아오면 목록이 다시 구성되어 선택 모드도 종료됩니다.
+      await expect(page.getByRole('button', {
+        name: '편집',
+        exact: true
+      })).toBeVisible();
+    }
 
     await expect(table.getByRole('row').filter({
       hasText: '2027-01'

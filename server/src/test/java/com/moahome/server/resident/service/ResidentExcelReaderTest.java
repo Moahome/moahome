@@ -42,14 +42,45 @@ class ResidentExcelReaderTest {
 		var path = Path.of("../client/public/residentImportTemplate.xlsx");
 		try (var workbook = new XSSFWorkbook(Files.newInputStream(path))) {
 			var sheet = workbook.getSheetAt(0);
-			assertThat(sheet.getRow(0).getCell(4).getStringCellValue()).isEqualTo("연락처");
+			assertThat(sheet.getRow(0).getCell(3).getStringCellValue()).isEqualTo("연락처");
 			assertThat(sheet.getColumnStyle(1).getDataFormatString()).isEqualTo("@");
-			assertThat(sheet.getColumnStyle(4).getDataFormatString()).isEqualTo("@");
+			assertThat(sheet.getColumnStyle(3).getDataFormatString()).isEqualTo("@");
 			var row = sheet.createRow(1);
-			String[] data = { "", "301", "양식 테스트", "가족", "" };
+			String[] data = { "102동", "001", "양식 테스트", "01012345678", "가족" };
 			for (int col = 0; col < 5; col++)
 				row.createCell(col).setCellValue(data[col]);
-			assertThat(reader.read(file(workbook))).hasSize(1);
+			var rows = reader.read(file(workbook));
+			assertThat(rows).hasSize(1);
+			assertThat(rows.getFirst().phone()).isEqualTo("01012345678");
+			assertThat(rows.getFirst().relation()).isEqualTo("가족");
+			assertThat(sheet.getDataValidations().getFirst().getRegions().getCellRangeAddresses()[0].formatAsString())
+			    .isEqualTo("E2:E1001");
+		}
+	}
+
+	@Test
+	void noBuildingTemplateOmitsBuildingAndPreservesTextAndOptionalRelation() throws Exception {
+		var path = Path.of("../client/public/residentImportNoBuildingTemplate.xlsx");
+		try (var workbook = new XSSFWorkbook(Files.newInputStream(path))) {
+			var sheet = workbook.getSheetAt(0);
+			assertThat(sheet.getRow(0).getLastCellNum()).isEqualTo((short) 4);
+			assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("호수");
+			assertThat(sheet.getRow(0).getCell(2).getStringCellValue()).isEqualTo("연락처");
+			assertThat(sheet.getColumnStyle(0).getDataFormatString()).isEqualTo("@");
+			assertThat(sheet.getColumnStyle(2).getDataFormatString()).isEqualTo("@");
+			assertCode(file(workbook), "EMPTY_EXCEL_FILE");
+			var row = sheet.createRow(1);
+			String[] data = { "001", "동 없는 주민", "01012345678", "" };
+			for (int col = 0; col < 4; col++)
+				row.createCell(col).setCellValue(data[col]);
+			var result = reader.read(file(workbook)).getFirst();
+			assertThat(result.building()).isEmpty();
+			assertThat(result.unitNumber()).isEqualTo("001");
+			assertThat(result.phone()).isEqualTo("01012345678");
+			assertThat(result.relation()).isEmpty();
+			assertThat(result.invalidCell()).isFalse();
+			assertThat(sheet.getDataValidations().getFirst().getRegions().getCellRangeAddresses()[0].formatAsString())
+			    .isEqualTo("D2:D1001");
 		}
 	}
 
