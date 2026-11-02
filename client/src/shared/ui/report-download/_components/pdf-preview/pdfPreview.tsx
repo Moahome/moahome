@@ -1,4 +1,7 @@
-import { LoadingState } from '@/shared/ui/state-message';
+import {
+  LoadingState,
+  StateMessage
+} from '@/shared/ui/state-message';
 import {
   useEffect,
   useRef,
@@ -10,10 +13,11 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './pdfPreview.module.css';
 
 /** 다운로드할 PDF 자체를 읽어 모바일에서도 브라우저 내장 뷰어에 의존하지 않고 출력 페이지를 보여줍니다. */
-export function PdfPreview({ blob }: { blob: Blob }) {
+export function PdfPreview({ blob, orientation = 'portrait' }: { blob: Blob; orientation?: 'portrait' | 'landscape' }) {
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null);
   const [error, setError] = useState(false);
   const [page, setPage] = useState(1);
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
     let active = true;
     let task: ReturnType<typeof import('pdfjs-dist/legacy/build/pdf.mjs')['getDocument']> | undefined;
@@ -35,13 +39,23 @@ export function PdfPreview({ blob }: { blob: Blob }) {
     }
     void open();
     return () => { active = false; void task?.destroy(); };
-  }, [blob]);
+  }, [blob, retry]);
   if (error) return (
-    <p
+    <StateMessage
+      variant={'review-required'}
+      layout={'inline'}
       role={'alert'}
-    >
-      PDF 미리보기를 표시하지 못했어요. 창을 닫고 다시 시도해주세요.
-    </p>
+      title={'PDF 미리보기를 표시하지 못했어요'}
+      description={'다시 시도하거나 PDF 파일을 내려받아 확인해주세요.'}
+      actions={(
+        <Button
+          variant={'outline'}
+          onClick={() => { setError(false); setRetry((value) => value + 1); }}
+        >
+          다시 시도
+        </Button>
+      )}
+    />
   );
   if (!document) return (
     <LoadingState
@@ -63,7 +77,8 @@ export function PdfPreview({ blob }: { blob: Blob }) {
         className={styles.toolbar}
       >
         <span>
-          A4 세로 ·
+          {orientation === 'landscape' ? 'A4 가로' : 'A4 세로'}
+          {' · '}
           {page}
           {' '}
           /
@@ -107,6 +122,7 @@ function PdfPage({ document, page }: { document: PDFDocumentProxy; page: number 
   const canvas = useRef<HTMLCanvasElement>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
     let active = true;
     let task: ReturnType<Awaited<ReturnType<PDFDocumentProxy['getPage']>>['render']> | undefined;
@@ -125,25 +141,34 @@ function PdfPage({ document, page }: { document: PDFDocumentProxy; page: number 
       if (active) setReady(true);
     }).catch(() => { if (active) setFailed(true); });
     return () => { active = false; task?.cancel(); };
-  }, [document, page]);
+  }, [document, page, retry]);
 
   return (
     <div
       className={styles.page}
     >
       {!ready && !failed && (
-        <p
-          role={'status'}
-        >
-          페이지를 그리고 있어요.
-        </p>
+        <LoadingState
+          layout={'inline'}
+          title={'페이지를 그리고 있어요.'}
+        />
       )}
       {failed && (
-        <p
+        <StateMessage
+          variant={'review-required'}
+          layout={'inline'}
           role={'alert'}
-        >
-          페이지를 표시하지 못했어요. 다른 페이지를 선택한 뒤 다시 시도해주세요.
-        </p>
+          title={'페이지를 표시하지 못했어요'}
+          description={'같은 페이지를 다시 불러와주세요.'}
+          actions={(
+            <Button
+              variant={'outline'}
+              onClick={() => { setFailed(false); setRetry((value) => value + 1); }}
+            >
+              다시 시도
+            </Button>
+          )}
+        />
       )}
       <canvas
         ref={canvas}

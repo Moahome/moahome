@@ -1,3 +1,4 @@
+import { closeReportPreview } from './support/reportDownload';
 import { selectMonthRange } from './support/monthRange';
 import {
   expect,
@@ -997,7 +998,12 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
     name: '엑셀 다운로드',
     exact: true
   }).click();
+  await page.getByRole('button', {
+    name: 'Excel 다운로드',
+    exact: true
+  }).click();
   const download = await downloadPromise;
+  await closeReportPreview(page);
   expect(download.suggestedFilename()).toBe('모아홈_지출내역_2026-10-01_2026-10-31_전체동.xlsx');
   const downloadPath = test.info().outputPath('expenses.xlsx');
   await download.saveAs(downloadPath);
@@ -5204,7 +5210,12 @@ for (const width of [1440, 390]) {
       name: '엑셀 다운로드',
       exact: true
     }).click();
+    await page.getByRole('button', {
+      name: 'Excel 다운로드',
+      exact: true
+    }).click();
     const workbook = unzipSync(await readFile((await (await downloaded).path())!));
+    await closeReportPreview(page);
     const xml = Object.values(workbook).map((bytes) => strFromU8(bytes)).join('\n');
     expect(xml).toContain('공용 청소비');
     expect(xml).toContain('10001');

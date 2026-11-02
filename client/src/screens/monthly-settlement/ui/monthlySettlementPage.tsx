@@ -4,7 +4,6 @@ import { LoadingState } from '@/shared/ui/state-message';
 
 import { RequestError } from '@/shared/ui/server-connection-error';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import {
   useRouter,
@@ -17,6 +16,7 @@ import { Button } from '@/shared/ui/button';
 import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { ListHeader } from '@/shared/ui/list-header';
 import { MonthPicker } from '@/shared/ui/month-picker';
+import { useReportDownload } from '@/shared/ui/report-download';
 import { QueryRefresh } from '@/shared/ui/query-refresh';
 import {
   ServiceIcon,
@@ -25,7 +25,6 @@ import {
 import { SummaryCard } from '@/shared/ui/summary-card';
 import { getMonthlySettlement } from '../api/monthlySettlementApi';
 import { getSettlementReport } from '../model/monthlySettlement';
-import type { MonthlySettlementSnapshot } from '../api/monthlySettlementApiTypes';
 import { SettlementDownload } from './_components/settlement-download/settlementDownload';
 import { SettlementDetails } from './_components/settlement-details/settlementDetails';
 import styles from './monthlySettlementPage.module.css';
@@ -77,7 +76,7 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
     retry: false,
     gcTime: 0
   });
-  const [downloadData, setDownloadData] = useState<MonthlySettlementSnapshot | null>(null);
+  const { openDownload } = useReportDownload();
   const data = query.data;
   const ready = Boolean(data && !query.isFetching && !query.isError && validMonth);
   const report = ready && data ? getSettlementReport(data) : null;
@@ -129,7 +128,19 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                   />
                 )}
                 disabled={!ready}
-                onClick={() => { if (ready && data) setDownloadData(data); }}
+                onClick={() => {
+                  if (!ready || !data) return;
+                  openDownload({
+                    pageHref: `${base}/closing/monthly/download?month=${month}`,
+                    render: (presentation, onClose) => (
+                      <SettlementDownload
+                        data={data}
+                        presentation={presentation}
+                        onClose={onClose}
+                      />
+                    )
+                  });
+                }}
               >
                 다운로드
               </Button>
@@ -359,12 +370,7 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
           />
         </>
       )}
-      {downloadData && downloadData.propertyId === propertyId && downloadData.month === month && (
-        <SettlementDownload
-          data={downloadData}
-          onClose={() => setDownloadData(null)}
-        />
-      )}
+
     </div>
   );
 }

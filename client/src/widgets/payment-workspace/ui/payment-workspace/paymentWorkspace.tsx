@@ -36,7 +36,6 @@ import {
 import { Pagination } from '@/shared/ui/pagination';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { SummaryCard } from '@/shared/ui/summary-card';
-import { QueryRefresh } from '@/shared/ui/query-refresh';
 import { Toast } from '@/shared/ui/toast';
 import {
   usePathname,
@@ -118,7 +117,7 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { ledger, updatedAt, refreshing, refreshFailed, refresh, update, month: workspaceMonth, setMonth: setWorkspaceMonth, busy } = usePaymentWorkspace();
+  const { ledger, update, month: workspaceMonth, setMonth: setWorkspaceMonth, busy } = usePaymentWorkspace();
   const range = getQueryMonthRange(searchParams, workspaceMonth);
   const dateRange = getQueryDateRange(searchParams, ledger.asOf);
   const month = view === 'monthly' ? range.endMonth : dateRange.endDate.slice(0, 7);
@@ -376,15 +375,6 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
             selectedRowKeys={monthlySelectedKeys}
           />
         )}
-      />
-      <QueryRefresh
-        className={styles['query-refresh']}
-        updatedAt={updatedAt}
-        refreshing={refreshing}
-        failed={refreshFailed}
-        disabled={busy}
-        label={'수납 자료 새로고침'}
-        onRefresh={refresh}
       />
       <p
         className={styles.notice}

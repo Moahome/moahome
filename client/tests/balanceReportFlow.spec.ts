@@ -1,4 +1,8 @@
 import {
+  reportPreview,
+  closeReportPreview
+} from './support/reportDownload';
+import {
   expect,
   test
 } from '@playwright/test';
@@ -18,7 +22,7 @@ import {
 const BASE = `/manage/${SETTLEMENT_PROPERTY}/banking/balances`;
 
 for (const width of [1440, 390]) {
-  test(`다운로드 ${width}px 모달은 Excel 전체 명세와 실제 PDF 페이지를 미리보고 같은 월의 파일을 저장`, async ({ page }, testInfo) => {
+  test(`다운로드 ${width}px 화면은 Excel 전체 명세와 실제 PDF 페이지를 미리보고 같은 월의 파일을 저장`, async ({ page }, testInfo) => {
     test.setTimeout(60000);
     await page.setViewportSize({
       width,
@@ -44,14 +48,16 @@ for (const width of [1440, 390]) {
       exact: true
     });
     await opener.click();
-    const modal = page.getByRole('dialog', {
-      name: '2026년 10월 동별 입출금 내역',
-      exact: true
-    });
+    const modal = reportPreview(page);
     await expect(modal).toBeVisible();
-    const bounds = await modal.boundingBox();
-    expect(Math.abs(bounds!.x + bounds!.width / 2 - width / 2)).toBeLessThanOrEqual(1);
-    expect(Math.abs(bounds!.y + bounds!.height / 2 - 450)).toBeLessThanOrEqual(1);
+    if (width >= 768) {
+      const bounds = await modal.boundingBox();
+      expect(Math.abs(bounds!.x + bounds!.width / 2 - width / 2)).toBeLessThanOrEqual(1);
+      expect(Math.abs(bounds!.y + bounds!.height / 2 - 450)).toBeLessThanOrEqual(1);
+    } else {
+      await expect(page).toHaveURL(/\/banking\/balances\/download/);
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+    }
     await expect(modal.getByRole('combobox', {
       name: '조회 동',
       exact: true
@@ -155,9 +161,9 @@ for (const width of [1440, 390]) {
     await expect(modal.getByText('추가 입금 51', {
       exact: true
     })).toBeVisible();
-    await page.keyboard.press('Escape');
+    await closeReportPreview(page);
     await expect(modal).toHaveCount(0);
-    await expect(opener).toBeFocused();
+    if (width >= 768) await expect(opener).toBeFocused();
     expect(requested).toEqual(['2026-10']);
   });
 }
@@ -175,12 +181,12 @@ test('PDF 생성 실패는 다운로드를 막고 재시도하며 Excel 미리�
     name: '다운로드',
     exact: true
   }).click();
-  const modal = page.getByRole('dialog');
+  const modal = reportPreview(page);
   await modal.getByRole('radio', {
     name: 'PDF',
     exact: true
   }).check();
-  await expect(modal.getByRole('alert')).toHaveText('PDF 파일을 만들지 못했어요. 다시 시도해주세요.');
+  await expect(modal.getByRole('alert').getByRole('heading')).toHaveText('PDF 파일을 만들지 못했어요. 다시 시도해주세요.');
   await expect(modal.getByRole('button', {
     name: 'PDF 다운로드',
     exact: true
@@ -244,7 +250,7 @@ for (const width of [1440, 390]) {
       name: '다운로드',
       exact: true
     }).click();
-    const modal = page.getByRole('dialog');
+    const modal = reportPreview(page);
     const filter = modal.getByRole('combobox', {
       name: '조회 동',
       exact: true
@@ -404,7 +410,7 @@ for (const width of [1440, 390]) {
       name: '다운로드',
       exact: true
     }).click();
-    const modal = page.getByRole('dialog');
+    const modal = reportPreview(page);
     const buildings = modal.getByRole('combobox', {
       name: '조회 동',
       exact: true
@@ -579,7 +585,7 @@ test('기존 응답도 계좌 잔액을 확인해 표시하고 9월 PDF는 1일�
     name: '다운로드',
     exact: true
   }).click();
-  const modal = page.getByRole('dialog');
+  const modal = reportPreview(page);
   await modal.getByRole('combobox', {
     name: '조회 계좌',
     exact: true
@@ -658,7 +664,7 @@ for (const width of [1440, 390]) {
       name: '다운로드',
       exact: true
     }).click();
-    const modal = page.getByRole('dialog');
+    const modal = reportPreview(page);
     await modal.getByRole('radio', {
       name: '이미지 (PNG)',
       exact: true
@@ -764,12 +770,12 @@ test('이미지 변환 실패는 다운로드를 막고 재시도 뒤 실제 PNG
     name: '다운로드',
     exact: true
   }).click();
-  const modal = page.getByRole('dialog');
+  const modal = reportPreview(page);
   await modal.getByRole('radio', {
     name: '이미지 (PNG)',
     exact: true
   }).check();
-  await expect(modal.getByRole('alert')).toHaveText('이미지를 만들지 못했어요. 다시 시도해주세요.');
+  await expect(modal.getByRole('alert').getByRole('heading')).toHaveText('이미지를 만들지 못했어요. 다시 시도해주세요.');
   await expect(modal.getByRole('button', {
     name: '이미지 다운로드',
     exact: true

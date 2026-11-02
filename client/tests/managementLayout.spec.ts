@@ -1776,7 +1776,7 @@ for (const width of [1440, 320]) {
       await expect(main).not.toContainText('010-1234-5678');
     } else {
       await page.reload();
-      await expect(main).toContainText('주민 목록에서 엑셀 다운로드를 다시 선택해주세요.');
+      await expect(main).toContainText('다운로드할 주민을 다시 선택해주세요');
       await expect(main).not.toContainText('010-1234-5678');
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

@@ -19,7 +19,8 @@ import {
 } from '../../../model/balanceReport';
 
 /** 잔고 화면에서 동별 입출금 명세를 출력하며 동·계좌 선택과 미확인 잔액 조회를 같은 범위로 유지합니다. */
-export function BalanceDownload({ data, initialAccountId = '', initialBuildingId = '', onClose }: {
+export function BalanceDownload({ data, initialAccountId = '', initialBuildingId = '', onClose, presentation = 'modal' }: {
+  presentation?: 'modal' | 'page';
   data: BalanceReportSnapshot; initialAccountId?: string; initialBuildingId?: string; onClose: () => void;
 }) {
   const session = useSession();
@@ -57,6 +58,7 @@ export function BalanceDownload({ data, initialAccountId = '', initialBuildingId
 
   return (
     <ReportDownload
+      presentation={presentation}
       title={`${period} 동별 입출금 내역`}
       description={'선택한 기간의 동별 입금·지출과 잔액을 확인하고 내려받으세요.'}
       filename={`${propertyFilename}_동별입출금내역_${filenamePeriod}${suffix ? `_${suffix}` : ''}`}

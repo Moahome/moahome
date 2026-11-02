@@ -226,9 +226,11 @@ function ManagementFrame({
           </main>
         </div>
       </div>
-      <FloatingCalculator
-        key={pathname}
-      />
+      {!pathname.endsWith('/download') && !pathname.endsWith('/residents/export') && (
+        <FloatingCalculator
+          key={pathname}
+        />
+      )}
     </div>
   );
 }

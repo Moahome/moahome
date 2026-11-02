@@ -1,6 +1,9 @@
 'use client';
 
-import { LoadingState } from '@/shared/ui/state-message';
+import {
+  LoadingState,
+  StateMessage
+} from '@/shared/ui/state-message';
 
 import {
   useEffect,
@@ -9,7 +12,6 @@ import {
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from '@/entities/session';
-import { Button } from '@/shared/ui/button';
 import { getResidentExportSelectionKey } from '../../model/residentExport';
 import { ResidentExportPreview } from '../_components/resident-export-preview/residentExportPreview';
 
@@ -54,17 +56,11 @@ function ExportSelection({
   }, [client, userId, propertyId]);
   const onClose = () => router.replace(`/manage/${propertyId}/residents`);
   if (!ids.length) return (
-    <section>
-      <p>
-        주민 목록에서 엑셀 다운로드를 다시 선택해주세요.
-      </p>
-      <Button
-        variant={'outline'}
-        onClick={onClose}
-      >
-        주민 목록
-      </Button>
-    </section>
+    <StateMessage
+      variant={'review-required'}
+      title={'다운로드할 주민을 다시 선택해주세요'}
+      description={'이전 화면에서 엑셀 다운로드를 다시 선택해주세요.'}
+    />
   );
 
   return (

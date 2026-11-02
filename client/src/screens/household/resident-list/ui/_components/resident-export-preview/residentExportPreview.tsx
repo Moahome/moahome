@@ -4,7 +4,7 @@ import { LoadingState } from '@/shared/ui/state-message';
 
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+import { DownloadLayout } from '@/shared/ui/report-download';
 import { DataTable } from '@/shared/ui/data-table';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { Toast } from '@/shared/ui/toast';
@@ -43,7 +43,6 @@ export function ResidentExportPreview({
   const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
-  const titleRef = useRef<HTMLHeadingElement>(null);
   const activeRef = useRef(false);
   const busyRef = useRef(false);
 
@@ -81,38 +80,38 @@ export function ResidentExportPreview({
     }
   }
 
-  const content = (
-    <>
-      <header
-        className={styles.header}
-      >
-        <div>
-          <h2
-            id={'resident-export-title'}
-            tabIndex={-1}
-            ref={titleRef}
-          >
-            엑셀 다운로드
-          </h2>
-          <p>
-            주민명·연락처·동·호수를 확인하고 다운로드하세요.
-          </p>
-        </div>
-        {presentation === 'modal' && (
-          <Button
-            variant={'ghost'}
-            iconOnly
-            aria-label={'엑셀 다운로드 닫기'}
-            disabled={busy}
-            onClick={onClose}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
+  const footer = (
+    <div>
+      {presentation === 'modal' && (
+        <Button
+          variant={'outline'}
+          tone={'neutral'}
+          disabled={busy}
+          onClick={onClose}
+        >
+          닫기
+        </Button>
+      )}
+      <Button
+        variant={'outline'}
+        tone={'excel'}
+        loading={busy}
+        disabled={!rows?.length}
+        onClick={() => void download()}
+        leadingIcon={(
+          <ServiceIcon
+            name={'excel'}
           />
         )}
-      </header>
+      >
+        {busy ? '다운로드 중…' : '엑셀 다운로드'}
+      </Button>
+    </div>
+
+  );
+
+  const content = (
+    <>
       {!rows && !failed && (
         <LoadingState
           title={'다운로드할 주민 정보를 불러오고 있어요.'}
@@ -177,32 +176,6 @@ export function ResidentExportPreview({
           </p>
         </>
       )}
-      <footer
-        className={styles.actions}
-      >
-        <Button
-          variant={'outline'}
-          tone={'neutral'}
-          disabled={busy}
-          onClick={onClose}
-        >
-          {presentation === 'modal' ? '닫기' : '주민 목록'}
-        </Button>
-        <Button
-          variant={'outline'}
-          tone={'excel'}
-          loading={busy}
-          disabled={!rows?.length}
-          onClick={() => void download()}
-          leadingIcon={(
-            <ServiceIcon
-              name={'excel'}
-            />
-          )}
-        >
-          {busy ? '다운로드 중…' : '엑셀 다운로드'}
-        </Button>
-      </footer>
       {notice && (
         <Toast
           key={`${retry}-${notice}`}
@@ -214,24 +187,17 @@ export function ResidentExportPreview({
     </>
   );
 
-  if (presentation === 'page') return (
-    <section
-      className={styles.page}
-      aria-labelledby={'resident-export-title'}
-    >
-      {content}
-    </section>
-  );
-
   return (
-    <ClientModal
-      className={styles.modal}
-      aria-labelledby={'resident-export-title'}
-      initialFocusRef={titleRef}
+    <DownloadLayout
+      title={'엑셀 다운로드'}
+      description={'주민명·연락처·동·호수를 확인하고 다운로드하세요.'}
+      presentation={presentation}
+      closeLabel={'엑셀 다운로드 닫기'}
       busy={busy}
       onClose={onClose}
+      footer={footer}
     >
       {content}
-    </ClientModal>
+    </DownloadLayout>
   );
 }

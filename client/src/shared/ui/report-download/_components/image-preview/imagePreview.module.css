@@ -21,5 +21,7 @@
     height: auto;
     border: 1px solid var(--border);
     background: var(--card);
+
+    &[hidden] { display: none; }
   }
 }

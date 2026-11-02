@@ -1,4 +1,8 @@
 import {
+  reportPreview,
+  closeReportPreview
+} from './support/reportDownload';
+import {
   expect,
   test,
   type Page
@@ -32,10 +36,7 @@ async function downloadExcel(page: Page) {
     name: 'Excel 다운로드',
     exact: true
   }).click();
-  await page.getByRole('button', {
-    name: '다운로드 미리보기 닫기',
-    exact: true
-  }).click();
+  await closeReportPreview(page);
 }
 
 for (const width of [1440, 390]) {
@@ -517,10 +518,7 @@ for (const width of [1440, 390]) {
       name: '다운로드',
       exact: true
     }).click();
-    const modal = page.getByRole('dialog', {
-      name: '2026년 10월 월별 정산 종합보고서',
-      exact: true
-    });
+    const modal = reportPreview(page);
     await expect(modal.getByRole('combobox', {
       name: '조회 동',
       exact: true
@@ -615,7 +613,7 @@ for (const width of [1440, 390]) {
     await page.screenshot({
       path: testInfo.outputPath(`monthly-image-${width}.png`)
     });
-    await page.keyboard.press('Escape');
+    await closeReportPreview(page);
     await expect(modal).toHaveCount(0);
   });
 }

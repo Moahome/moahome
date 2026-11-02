@@ -43,7 +43,6 @@ import { Pagination } from '@/shared/ui/pagination';
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { SummaryCard } from '@/shared/ui/summary-card';
-import { QueryRefresh } from '@/shared/ui/query-refresh';
 import { Toast } from '@/shared/ui/toast';
 import {
   useQuery,
@@ -79,7 +78,14 @@ import {
   getExpenseAmount,
   sortExpenseLabels
 } from '../../model/expenseAllocation';
-import { createExpenseWorkbook } from '../../model/expenseExport';
+import {
+  ReportDownload,
+  useReportDownload
+} from '@/shared/ui/report-download';
+import {
+  createExpenseWorkbook,
+  getExpenseReportDocument
+} from '../../model/expenseExport';
 import { getAccountsForRange } from '../../model/bankAccountVisibility';
 import { BankImportActions } from '../_components/bank-import-actions/bankImportActions';
 import { TransferDetail } from '../_components/transfer-detail/transferDetail';
@@ -101,6 +107,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   view?: 'transactions' | 'expenses' | 'upload';
   renderReceiptDetail?: (paymentId: string, onClose: () => void, onProcessed: (id: string, status: string) => void) => ReactNode;
 }) {
+  const { openDownload } = useReportDownload();
   const session = useSession();
   const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const cache = useQueryClient();
@@ -139,8 +146,6 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const [detail, setDetail] = useState<{ id: string; kind: 'receipt' | 'expense' } | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const exportBusyRef = useRef(false);
-  const [exporting, setExporting] = useState(false);
   const [notice, setNotice] = useState<{ id: number; message: string; tone: 'success' | 'error' } | null>(() => (
     (view === 'transactions' && searchParams.get('imported') === '1') || (view === 'transactions' && searchParams.get('registered') === '1') ? {
       id: 0,
@@ -395,22 +400,34 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
 
   /** 현재 월·동·검색에 맞는 전체 결과를 다운로드하며 페이지·표시 개수로 파일 범위를 줄이지 않습니다. */
   async function downloadExpenses() {
-    if (exportBusyRef.current || !baseRows.length) return;
-    exportBusyRef.current = true; setExporting(true);
-    try {
-      const blob = await createExpenseWorkbook(baseRows, expenseBuildingIds, {
-        period: dateRange,
-        buildingLabel: building === 'ALL' ? '전체 동' : expenseBuildings.map((item) => item.label).join(' · '),
-        search: search.trim()
-      });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `모아홈_지출내역_${dateRange.startDate}_${dateRange.endDate}_${building === 'ALL' ? '전체동' : '선택동'}.xlsx`;
-      try { anchor.click(); }
-      finally { window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
-    } catch { notify('엑셀 파일을 만들지 못했어요. 다시 시도해주세요.'); }
-    finally { exportBusyRef.current = false; setExporting(false); }
+    if (!baseRows.length) return;
+    const snapshotRows = [...baseRows];
+    const snapshotBuildings = [...expenseBuildingIds];
+    const context = {
+      period: {
+        ...dateRange
+      },
+      buildingLabel: building === 'ALL' ? '전체 동' : expenseBuildings.map((item) => item.label).join(' · '),
+      search: search.trim()
+    };
+    const document = getExpenseReportDocument(snapshotRows, snapshotBuildings, context);
+    openDownload({
+      pageHref: `/manage/${propertyId}/banking/expenses/download?${getDateRangeQuery(searchParams, currentMonth)}`,
+      render: (presentation, onClose) => (
+        <ReportDownload
+          presentation={presentation}
+          title={'지출 내역 다운로드'}
+          description={'현재 조회 조건의 전체 지출을 확인하고 내려받으세요.'}
+          filename={`모아홈_지출내역_${dateRange.startDate}_${dateRange.endDate}_${building === 'ALL' ? '전체동' : '선택동'}`}
+          sourceKey={JSON.stringify([dateRange, building, search])}
+          documents={[document]}
+          formats={['excel']}
+          scopeLabel={`${context.buildingLabel} · ${snapshotRows.length}건`}
+          createWorkbook={() => createExpenseWorkbook(snapshotRows, snapshotBuildings, context)}
+          onClose={onClose}
+        />
+      )
+    });
   }
   const latestRows = [...data.rows].filter((row) => row.sourceType !== 'MANUAL' && row.accountId === accountId && row.date <= dateRange.endDate)
     .sort((a, b) => `${b.date} ${b.time ?? ''}`.localeCompare(`${a.date} ${a.time ?? ''}`));
@@ -713,7 +730,6 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               <Button
                 variant={'outline'}
                 tone={'excel'}
-                loading={exporting}
                 disabled={!baseRows.length}
                 onClick={() => { void downloadExpenses(); }}
                 leadingIcon={(
@@ -798,19 +814,6 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
           </>
         )}
       />
-      {view !== 'upload' && (
-        <QueryRefresh
-          className={styles['query-refresh']}
-          updatedAt={workspace.dataUpdatedAt}
-          refreshing={workspace.isFetching}
-          failed={workspace.isError}
-          disabled={busy || Boolean(preview)}
-          label={'통장 거래 새로고침'}
-          onRefresh={() => void workspace.refetch({
-            cancelRefetch: false
-          })}
-        />
-      )}
       {review === 'duplicates' && (
         <div
           role={'status'}

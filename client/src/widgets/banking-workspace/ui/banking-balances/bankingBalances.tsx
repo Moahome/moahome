@@ -37,7 +37,6 @@ import { Pagination } from '@/shared/ui/pagination';
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { SummaryCard } from '@/shared/ui/summary-card';
-import { QueryRefresh } from '@/shared/ui/query-refresh';
 import { Toast } from '@/shared/ui/toast';
 import {
   useQuery,
@@ -92,6 +91,7 @@ import { BalanceCheckPanel } from '../_components/balance-check-panel/balanceChe
 import { AccountBalances } from '../_components/account-balances/accountBalances';
 import { BankAccountDetails } from '../_components/bank-account-details/bankAccountDetails';
 import { BankingExpensePage } from '../banking-expense-page/bankingExpensePage';
+import { useReportDownload } from '@/shared/ui/report-download';
 import { BalanceDownload } from '../_components/balance-download/balanceDownload';
 import type { BalanceReportSnapshot } from '../../model/balanceReportTypes';
 import styles from './bankingBalances.module.css';
@@ -250,7 +250,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   const [chartOpen, setChartOpen] = useState(false);
   const [action, setAction] = useState<Action | null>(null);
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
-  const [downloadData, setDownloadData] = useState<BalanceReportSnapshot | null>(null);
+  const { openDownload } = useReportDownload();
   const [exporting, setExporting] = useState(false);
   const exportBusy = useRef(false);
   const downloadButton = useRef<HTMLButtonElement>(null);
@@ -389,7 +389,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         getBankingWorkspace(propertyId),
         data.accountId ? getBankingBalances(propertyId, month, undefined, undefined, startMonth) : Promise.resolve(data)
       ]);
-      setDownloadData({
+      const snapshot: BalanceReportSnapshot = {
         propertyId,
         propertyName: context.data.name,
         month,
@@ -397,6 +397,19 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         generatedAt: new Date().toISOString(),
         banking,
         balances
+      };
+      openDownload({
+        focusTarget: downloadButton.current,
+        pageHref: `/manage/${propertyId}/banking/balances/download?${balanceQuery}`,
+        render: (presentation, onClose) => (
+          <BalanceDownload
+            data={snapshot}
+            presentation={presentation}
+            initialAccountId={selectedAccount?.id ?? ''}
+            initialBuildingId={selected.length === 1 ? selected[0] : ''}
+            onClose={onClose}
+          />
+        )
       });
     } catch {
       setNotice({
@@ -615,17 +628,6 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     <section
       className={styles.page}
     >
-      {downloadData && downloadData.propertyId === propertyId && downloadData.month === month && (downloadData.startMonth ?? month) === startMonth && (
-        <BalanceDownload
-          data={downloadData}
-          initialAccountId={selectedAccount?.id ?? ''}
-          initialBuildingId={selected.length === 1 ? selected[0] : ''}
-          onClose={() => {
-            setDownloadData(null);
-            requestAnimationFrame(() => downloadButton.current?.focus());
-          }}
-        />
-      )}
       <ListHeader
         className={styles.header}
         actionsClassName={styles['header-actions']}
@@ -662,16 +664,6 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
             </div>
           </>
         )}
-      />
-      <QueryRefresh
-        className={styles['query-refresh']}
-        updatedAt={query.dataUpdatedAt}
-        refreshing={query.isFetching}
-        failed={query.isError}
-        label={'잔고·정산 새로고침'}
-        onRefresh={() => void query.refetch({
-          cancelRefetch: false
-        })}
       />
       <section
         className={styles['query-card']}

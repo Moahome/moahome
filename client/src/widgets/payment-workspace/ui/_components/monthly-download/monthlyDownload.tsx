@@ -7,9 +7,13 @@ import {
 
 import dynamic from 'next/dynamic';
 import {
+  usePathname,
+  useSearchParams
+} from 'next/navigation';
+import { useReportDownload } from '@/shared/ui/report-download';
+import {
   useCallback,
-  useMemo,
-  useState
+  useMemo
 } from 'react';
 import { useSession } from '@/entities/session';
 import { useManagementContext } from '@/features/enter-service';
@@ -42,7 +46,9 @@ export function MonthlyExportButton({ month, range, filters, selectedRowKeys }: 
   const { ledger, propertyId, busy } = usePaymentWorkspace();
   const session = useSession();
   const context = useManagementContext(session.data?.id, propertyId, false);
-  const [snapshot, setSnapshot] = useState<MonthlyReportSnapshot | null>(null);
+  const { openDownload } = useReportDownload();
+  const pathname = usePathname();
+  const search = useSearchParams();
 
   return (
     <>
@@ -51,7 +57,7 @@ export function MonthlyExportButton({ month, range, filters, selectedRowKeys }: 
         disabled={busy || !context.data?.name || selectedRowKeys?.length === 0}
         onClick={() => {
           if (!context.data?.name || selectedRowKeys?.length === 0) return;
-          setSnapshot({
+          const snapshot: MonthlyReportSnapshot = {
             propertyId,
             propertyName: context.data.name,
             ledger,
@@ -64,6 +70,16 @@ export function MonthlyExportButton({ month, range, filters, selectedRowKeys }: 
             ...(selectedRowKeys === undefined ? {} : {
               selectedRowKeys: [...selectedRowKeys]
             }),
+          };
+          openDownload({
+            pageHref: `${pathname}/download?${search}`,
+            render: (presentation, onClose) => (
+              <MonthlyDownload
+                data={snapshot}
+                presentation={presentation}
+                onClose={onClose}
+              />
+            )
           });
         }}
         leadingIcon={(
@@ -74,18 +90,13 @@ export function MonthlyExportButton({ month, range, filters, selectedRowKeys }: 
       >
         {selectedRowKeys === undefined ? '다운로드' : '선택 다운로드'}
       </Button>
-      {snapshot && snapshot.propertyId === propertyId && snapshot.range?.startMonth === range.startMonth && snapshot.range?.endMonth === range.endMonth && (
-        <MonthlyDownload
-          data={snapshot}
-          onClose={() => setSnapshot(null)}
-        />
-      )}
+
     </>
   );
 }
 
 /** 열린 시점의 자료를 세 형식에서 공유해 미리보기와 실제 저장 내용을 일치시킵니다. */
-function MonthlyDownload({ data, onClose }: { data: MonthlyReportSnapshot; onClose: () => void }) {
+function MonthlyDownload({ data, onClose, presentation }: { data: MonthlyReportSnapshot; onClose: () => void; presentation: 'modal' | 'page' }) {
   const document = useMemo(() => getMonthlyReportDocument(data), [data]);
   const createWorkbook = useCallback(() => createMonthlyWorkbook(data), [data]);
   const createPdf = useCallback(() => import('../../../model/monthlyReportPdf').then((module) => module.createMonthlyCollectionPdf(data)), [data]);
@@ -100,6 +111,7 @@ function MonthlyDownload({ data, onClose }: { data: MonthlyReportSnapshot; onClo
 
   return (
     <ReportDownload
+      presentation={presentation}
       title={`${formatMonthRange(range)} 월별 수납 현황`}
       description={selectionLabel ? '선택한 월별 내역과 해당 합계를 확인하고 내려받으세요.' : '현재 상태·동·검색 조건의 전체 세대를 확인하고 내려받으세요.'}
       filename={filename}

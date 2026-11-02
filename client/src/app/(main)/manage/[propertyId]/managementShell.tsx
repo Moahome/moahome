@@ -1,6 +1,11 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { useSession } from '@/entities/session';
+import {
+  ReportDownloadProvider,
+  ReportDownloadModal
+} from '@/shared/ui/report-download';
 import { getMonthRangeQuery } from '@/shared/lib/month-range';
 import { getDateRangeQuery } from '@/shared/lib/date-range';
 import {
@@ -18,6 +23,21 @@ export function ManagementShell({
   propertyId: string;
   children: ReactNode;
 }) {
+  const session = useSession();
+  return (
+    <ReportDownloadProvider
+      key={`${session.data?.id}:${propertyId}`}
+    >
+      <ManagementShellContent
+        propertyId={propertyId}
+      >
+        {children}
+      </ManagementShellContent>
+    </ReportDownloadProvider>
+  );
+}
+
+function ManagementShellContent({ propertyId, children }: { propertyId: string; children: ReactNode }) {
   const pathname = usePathname();
   const basePath = `/manage/${propertyId}`;
   const searchParams = useSearchParams();
@@ -57,6 +77,7 @@ export function ManagementShell({
       )}
     >
       {children}
+      <ReportDownloadModal />
     </ManagementLayout>
   );
 }
@@ -64,6 +85,16 @@ export function ManagementShell({
 /** 직접 접근에서도 같은 관리대상 안의 목록·상세로 돌아가는 모바일 헤더를 구성합니다. */
 function getMobileBack(pathname: string, basePath: string, month: string | null, account: string | null, period: URLSearchParams, datePeriod: URLSearchParams) {
   const periodSuffix = period.size ? `?${period}` : '';
+  const downloadPath = pathname.match(/\/(banking\/(?:monthly|balances|expenses)|payments\/monthly|closing\/monthly)\/download$/);
+  if (downloadPath) {
+    const downloadQuery = new URLSearchParams(downloadPath[1] === 'banking/expenses' ? datePeriod : period);
+    if (/^[0-9a-f-]{36}$/i.test(account ?? '')) downloadQuery.set('account', account!);
+    return {
+      href: `${basePath}/${downloadPath[1]}${downloadQuery.size ? `?${downloadQuery}` : ''}`,
+      label: '뒤로가기',
+      title: '다운로드'
+    };
+  }
   // 전체 입금 내역은 직접 접근·새로고침 후에도 같은 조회월·세대의 수납 상세로 돌아갑니다.
   const receiptsPath = pathname.match(/\/(banking|payments)\/monthly\/(\d{4}-(?:0[1-9]|1[0-2]))\/([0-9a-f-]{36})\/receipts$/i);
   if (receiptsPath) return {

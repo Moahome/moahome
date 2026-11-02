@@ -1,4 +1,8 @@
 import {
+  reportPreview,
+  closeReportPreview
+} from './support/reportDownload';
+import {
   expect,
   test
 } from '@playwright/test';
@@ -46,7 +50,7 @@ for (const format of ['PDF', '이미지 (PNG)'] as const) {
       name: '다운로드',
       exact: true
     }).click();
-    const modal = page.getByRole('dialog');
+    const modal = reportPreview(page);
     await modal.getByRole('radio', {
       name: format,
       exact: true
@@ -116,7 +120,7 @@ for (const status of ['미납', '납부완료'] as const) {
       name: '다운로드',
       exact: true
     }).click();
-    const modal = page.getByRole('dialog');
+    const modal = reportPreview(page);
     await expect(modal.getByRole('heading', {
       name: '드림하이츠 월별 수납 현황',
       exact: true
@@ -238,9 +242,7 @@ for (const width of [1440, 390]) {
       exact: true,
     });
     await opener.click();
-    const modal = page.getByRole('dialog', {
-      name: '2026년 10월 월별 수납 현황',
-    });
+    const modal = reportPreview(page);
     await expect(modal.getByRole('heading', {
       name: '모아빌라 월별 수납 현황',
       exact: true,
@@ -330,9 +332,9 @@ for (const width of [1440, 390]) {
       expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
       expect(png.readUInt32BE(16)).toBeGreaterThan(png.readUInt32BE(20));
     }
-    await page.keyboard.press('Escape');
+    await closeReportPreview(page);
     await expect(modal).toHaveCount(0);
-    await expect(opener).toBeFocused();
+    if (width >= 768) await expect(opener).toBeFocused();
   });
 }
 
@@ -346,7 +348,7 @@ test('검색으로 좁힌 세대만 PDF에 저장하며 새로 열면 최신 필
     name: '다운로드',
     exact: true
   }).click();
-  const modal = page.getByRole('dialog');
+  const modal = reportPreview(page);
   await expect(modal.getByText('102동 235호', {
     exact: true
   })).toBeVisible();
@@ -410,7 +412,7 @@ test('빈 결과는 안내와 0건 보고서를 제공하고 PDF 실패는 재�
     name: '다운로드',
     exact: true
   }).click();
-  const modal = page.getByRole('dialog');
+  const modal = reportPreview(page);
   await expect(modal.getByText('조회 조건에 맞는 내역이 없습니다.', {
     exact: true
   })).toBeVisible();
@@ -511,7 +513,7 @@ test('선입금 보고서는 이월·당월 발생 열 없이 차감 후 잔액�
     name: '다운로드',
     exact: true
   }).click();
-  const modal = page.getByRole('dialog');
+  const modal = reportPreview(page);
   await expect(modal.getByRole('columnheader')).toHaveText(['세대', '세대 대표', '선입금 잔액', '상태']);
   await modal.getByRole('radio', {
     name: 'PDF',
@@ -658,7 +660,7 @@ for (const width of [1440, 390]) {
       animations: 'disabled'
     });
     await downloadButton.click();
-    const modal = page.getByRole('dialog');
+    const modal = reportPreview(page);
     for (const label of ['102동 201호', '102동 202호', '102동 212호']) await expect(modal.getByText(label, {
       exact: true
     })).toBeVisible();
@@ -730,10 +732,7 @@ for (const width of [1440, 390]) {
     const images = pageCount > 1 ? Object.values(unzipSync(bytes)) : [bytes];
     expect(images).toHaveLength(pageCount);
     for (const image of images) expect(Array.from(image.slice(0, 8))).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
-    await modal.getByRole('button', {
-      name: '다운로드 미리보기 닫기',
-      exact: true
-    }).click();
+    await closeReportPreview(page);
     await page.getByRole('textbox', {
       name: '수납 현황 세대 검색'
     }).fill('201');
