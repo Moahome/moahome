@@ -210,7 +210,9 @@ for (const width of [1440, 390]) {
     const download = await downloadReady;
     expect(download.suggestedFilename()).toBe('모아홈_월별정산_2026-10.xlsx');
     const archive = unzipSync(await readFile((await download.path())!));
-    expect(strFromU8(archive['xl/workbook.xml'])).toContain('월별 정산 보고서');
+    expect([...strFromU8(archive['xl/workbook.xml']).matchAll(/<sheet\b[^>]*name="([^"]+)"/g)].map((match) => match[1])).toEqual([
+      '종합 요약', '월말 점검', '통장별 잔액', '동별 자금', '수납과 미납', '입출금 명세', '외부 부담금'
+    ]);
     await expect(page.getByRole('link', {
       name: '월별 수납 현황',
       exact: true

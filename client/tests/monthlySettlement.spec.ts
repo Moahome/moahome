@@ -179,7 +179,19 @@ test('월별 종합보고서는 원본 통장 금액·동별 부담액·청구 �
   const workbook = await createMonthlyReportWorkbook(data);
   const files = unzipSync(new Uint8Array(await workbook.arrayBuffer()));
   const sheets = strFromU8(files['xl/workbook.xml']);
-  expect(sheets.match(/<sheet /g)).toHaveLength(1);
+  expect([...sheets.matchAll(/<sheet\b[^>]*name="([^"]+)"/g)].map((match) => match[1])).toEqual([
+    '종합 요약', '월말 점검', '통장별 잔액', '동별 자금', '수납과 미납', '입출금 명세', '외부 부담금'
+  ]);
+  expect(Object.keys(files).filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name))).toHaveLength(7);
+  for (const [index, document] of documents.entries()) {
+    const sheet = strFromU8(files[`xl/worksheets/sheet${index + 1}.xml`]);
+    expect(sheet).toContain('ySplit="5"');
+    for (const row of [...document.rows, ...(document.total ? [document.total] : [])]) {
+      for (const value of row) {
+        if (typeof value === 'bigint') expect(sheet).toContain(`<v>${value}</v>`);
+      }
+    }
+  }
   const xml = Object.entries(files).filter(([name]) => name.endsWith('.xml')).map(([, bytes]) => strFromU8(bytes)).join('');
   for (const title of ['월별 정산 종합보고서', '월말 점검', '통장별 잔액', '동별 보유금 현황', '수납과 미납', '통장 입출금 명세', '외부 부담금']) expect(xml).toContain(title);
   expect(xml).not.toContain('지난달 외부 부담');
