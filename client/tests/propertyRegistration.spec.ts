@@ -2502,7 +2502,10 @@ test('동별 중복 범위와 이름 수정의 세대 연결을 유지하고 동
     exact: true
   }).click();
   await expect(page).toHaveURL(/registration=units/);
-  await expect(page.getByRole('alert').filter({
+  await expect(page.getByRole('region', {
+    name: '동·세대 및 담당자',
+    exact: true
+  }).getByRole('alert').filter({
     hasText: '동과 세대 정보를 확인해주세요.'
   })).toBeVisible();
 });
@@ -6544,14 +6547,18 @@ test('초기 기준일 달력은 2·3단계에서 오늘까지 허용하고 누�
     name: '기존 미납·선납',
     exact: true
   }).click();
-  await expect(page.getByText('기존 장부 기준일을 오늘 또는 이전 날짜로 선택해주세요.', {
+  const openingFields = page.getByRole('region', {
+    name: '기존 미납·선납 설정',
+    exact: true
+  });
+  await expect(openingFields.getByText('기존 장부 기준일을 오늘 또는 이전 날짜로 선택해주세요.', {
     exact: true
   })).toHaveCount(0);
   await page.getByRole('button', {
     name: '다음',
     exact: true
   }).click();
-  await expect(page.getByText('기존 장부 기준일을 오늘 또는 이전 날짜로 선택해주세요.', {
+  await expect(openingFields.getByText('기존 장부 기준일을 오늘 또는 이전 날짜로 선택해주세요.', {
     exact: true
   })).toBeVisible();
   await page.getByRole('button', {
@@ -6598,7 +6605,10 @@ test('초기 기준일 달력은 2·3단계에서 오늘까지 허용하고 누�
     exact: true
   }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByText('실제 시작 잔액을 입력해주세요.', {
+  await expect(page.getByRole('region', {
+    name: '통장·동별 시작 잔고',
+    exact: true
+  }).getByText('실제 시작 잔액을 입력해주세요.', {
     exact: true
   })).toBeVisible();
 });
