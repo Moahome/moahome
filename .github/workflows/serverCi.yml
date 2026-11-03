@@ -18,6 +18,9 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-24.04
+    outputs:
+      image: ${{ steps.publish.outputs.image }}
+      digest: ${{ steps.publish.outputs.digest }}
     permissions:
       contents: read
       packages: write
@@ -58,9 +61,75 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish verified image
+        id: publish
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/moahome-api:${GITHUB_SHA}"
           docker tag moahome-api:ci "$image"
           docker push "$image"
-          echo "Published: $image" >> "$GITHUB_STEP_SUMMARY"
+          digest=$(docker image inspect "$image" --format '{{index .RepoDigests 0}}')
+          [[ "$digest" == "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/moahome-api@sha256:"* ]]
+          printf 'image=%s\ndigest=%s\n' "$image" "$digest" >> "$GITHUB_OUTPUT"
+          printf 'Published: `%s`\n\nDigest: `%s`\n' "$image" "$digest" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: verify
+    # PR과 수동 검사에서는 운영 Runner를 사용하지 않고 main에 게시한 검증 이미지에만 접근합니다.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, linux, x64, moahome-production]
+    environment: production
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    env:
+      API_IMAGE: ${{ needs.verify.outputs.digest }}
+      IMAGE_TAG: ${{ needs.verify.outputs.image }}
+    steps:
+      - name: Deploy and verify production API
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$API_IMAGE" =~ ^ghcr\.io/[a-z0-9_-]+/moahome-api@sha256:[a-f0-9]{64}$ ]]
+          cd /opt/moahome
+          sudo -n test -r .env.prod
+          sudo -n test -r .deploy.env
+          sudo -n test -r deploy.sh
+          sudo -n docker info > /dev/null
+
+          # 작업용 읽기 토큰만 임시 설정에 저장하고 기존 운영자의 Docker 로그인은 유지합니다.
+          registry_dir=$(mktemp -d "$RUNNER_TEMP/moahome-registry.XXXXXX")
+          cleanup() {
+            sudo -n rm -f -- "$registry_dir/config.json"
+            rmdir -- "$registry_dir"
+          }
+          trap cleanup EXIT
+          printf '%s' "$GHCR_TOKEN" | sudo -n docker --config "$registry_dir" login ghcr.io \
+            --username "$GITHUB_ACTOR" --password-stdin
+
+          # 게시 태그가 바뀌더라도 검증한 내용만 실행하도록 이미지 digest로 배포합니다.
+          sudo -n env DOCKER_CONFIG="$registry_dir" bash ./deploy.sh "$API_IMAGE"
+          compose() {
+            sudo -n env DOCKER_CONFIG="$registry_dir" docker compose \
+              --env-file .deploy.env -f compose.prod.yml "$@"
+          }
+          container_id=$(compose ps --all --quiet api)
+          [[ -n "$container_id" ]]
+          actual_image=$(sudo -n docker inspect "$container_id" --format '{{.Config.Image}}')
+          [[ "$actual_image" == "$API_IMAGE" ]]
+          state=$(sudo -n docker inspect "$container_id" --format '{{.State.Health.Status}} {{.RestartCount}}')
+          [[ "$state" == 'healthy 0' ]]
+
+          # 내부 준비 상태뿐 아니라 공개 HTTPS와 인증 보호도 통과해야 배포 성공으로 기록합니다.
+          compose exec -T api curl --fail --silent --show-error --max-time 10 \
+            http://127.0.0.1:8080/actuator/health/readiness
+          readiness=$(curl --fail --silent --show-error --max-time 10 --retry 5 --retry-delay 3 \
+            https://api.villamoa.kr/actuator/health/readiness)
+          [[ "$(printf '%s' "$readiness" | tr -d '[:space:]')" == '{"status":"UP"}' ]]
+          auth_status=$(curl --silent --show-error --max-time 10 --output /dev/null --write-out '%{http_code}' \
+            https://api.villamoa.kr/api/users/me)
+          [[ "$auth_status" == 401 ]]
+          printf 'Deployed: `%s`\n\nDigest: `%s`\n\nExternal readiness: UP\n' \
+            "$IMAGE_TAG" "$API_IMAGE" >> "$GITHUB_STEP_SUMMARY"

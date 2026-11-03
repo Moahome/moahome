@@ -25,14 +25,14 @@
 
 | 구성 | 구현된 동작 | 자동으로 보장하지 않는 것 |
 | --- | --- | --- |
-| [Server CI](../../.github/workflows/serverCi.yml) | PR·main 검증, main push 성공 시 GHCR에 전체 커밋 SHA 태그 이미지 게시 | 운영 API 배포, 운영 DB 이력과 후보 이미지의 사전 대조 |
+| [Server CI](../../.github/workflows/serverCi.yml) | PR·main 검증, main push 성공 시 GHCR 게시 후 운영 Runner에서 digest 기준 API 자동 배포·내부/외부 준비 상태·인증 보호 확인 | 운영 DB 이력 사전 대조·RDS 스냅샷 생성·실제 로그인과 업무 검증 |
 | [Client CI](../../.github/workflows/clientCi.yml) | 검사·테스트, main push와 `VERCEL_DEPLOY_ENABLED=true` 등 조건 충족 시 Vercel 운영 배포 | 운영 백엔드 배포 완료 대기. 수동 워크플로 실행의 운영 배포도 현재 조건에 포함되지 않음 |
 | [deploy.sh](../../server/deploy/deploy.sh) | 동일 호스트 배포 잠금, 이미지 pull, API 준비 확인, Nginx 검사·reload, 정상 설정 기록 | 배포 전 RDS 스냅샷 생성, 별도 Flyway 사전 검증, 실패 시 자동 롤백 |
 
 **현재 기본 절차는 백엔드와 프론트 변경을 나눠 병합·배포하는 것입니다.**
 
-1. 선행 Migration과 백엔드 변경을 먼저 병합하고 해당 Server CI·GHCR 게시 성공을 확인합니다. 뒤에 배포할 프론트 변경은 아직 main에 병합하지 않습니다.
-2. 이 문서의 DB 점검을 마치고 운영 API에 해당 이미지를 배포합니다. 기존 프론트의 로그인·조회까지 확인합니다.
+1. 이 문서의 DB 점검·백업을 먼저 마친 뒤 선행 Migration과 백엔드 변경을 병합합니다. 뒤에 배포할 프론트 변경은 아직 main에 병합하지 않습니다.
+2. Server CI의 검사·GHCR 게시와 운영 Runner의 `deploy` 작업 성공을 확인합니다. 기존 프론트의 로그인·조회까지 확인합니다. Runner 라벨·권한·경로 준비는 [Server 가이드](../../server/docs/deploymentGuide.md#운영-runner-연결과-자동-배포-2026-11-03)를 따릅니다.
 3. 프론트 변경을 병합하고 Client CI 성공 후 선택한 Vercel 경로로 배포합니다. 백엔드만 변경한 커밋으로도 Vercel Git 연동이 배포를 시작하는지 확인합니다. 이 경우에도 새 API가 필요한 프론트 코드가 먼저 포함되면 안 됩니다.
 
 양쪽을 한 커밋에 포함해야 하면 **병합 전에 프론트 운영 공개를 보류할 수 있는 배포 경로를 준비·확인**합니다. GitHub Actions를 사용하면 `production` Environment의 사용 가능한 승인 대기 설정 등으로 Client 배포를 백엔드 검증 뒤에 진행하도록 하고, Vercel Git 자동 배포가 이를 우회하지 않는지 확인합니다. `VERCEL_DEPLOY_ENABLED=false`로 작업을 건너뛰면 나중에 값을 바꾸는 것만으로 이미 건너뛴 배포가 시작되지 않으므로 별도 배포 실행 계획이 필요합니다. 이미 실행 중인 작업도 변수 변경만으로 중단됐다고 판단하지 않습니다.

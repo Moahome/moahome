@@ -1,6 +1,6 @@
 # Server 운영 배포 가이드
 
-기준일: 2026-10-31. 인프라 구성과 운영 목적은 [공통 배포 계획](../../docs/operations/deploymentPlan.md)을 따릅니다. 이 문서는 배포 파일의 실행법과 서버 검증 결과를 설명합니다. 실제 구축·사용자 검증의 진행 상태와 남은 운영 점검은 [공통 구축 기록](../../docs/operations/deploymentPlan.md#9-비용과-실제-진행-상태)에서 관리합니다.
+기준일: 2026-11-03. 인프라 구성과 운영 목적은 [공통 배포 계획](../../docs/operations/deploymentPlan.md)을 따릅니다. 이 문서는 배포 파일의 실행법과 서버 검증 결과를 설명합니다. 실제 구축·사용자 검증의 진행 상태와 남은 운영 점검은 [공통 구축 기록](../../docs/operations/deploymentPlan.md#9-비용과-실제-진행-상태)에서 관리합니다.
 
 ## 1. 파일과 실행 환경
 
@@ -19,7 +19,7 @@
 | `server/deploy/certificates.sh` | 최초 인증서 발급·갱신·Nginx 재적용 |
 | `server/deploy/moahomeCertbot.service`·`.timer` | Ubuntu에서 하루 두 번 인증서 갱신 확인 |
 | `server/scripts/verifyDeployment.sh` | 임시 DB·인증서·컨테이너를 사용하는 로컬 통합 검증 |
-| `.github/workflows/serverCi.yml` | PR 검증, main 이미지 게시 |
+| `.github/workflows/serverCi.yml` | PR 검증, main 이미지 게시 후 운영 Runner 자동 배포 |
 
 운영 호스트는 Ubuntu LTS, Docker Engine과 Compose 플러그인 2.30 이상, Bash·curl·Certbot·flock을 사용합니다. Compose의 raw env_file과 준비 대기를 지원하는 버전이 필요합니다. Docker 설치는 [공식 Ubuntu 안내](https://docs.docker.com/engine/install/ubuntu/)를 따릅니다. 호스트의 JDK·Gradle·PostgreSQL 서버 설치는 필요하지 않습니다.
 
@@ -48,7 +48,7 @@ SMOKE_SKIP_BUILD=1 bash server/scripts/verifyDeployment.sh
 
 실제 Let's Encrypt 발급·갱신, AWS 피어링·RDS, Vercel·카카오 연동과 GitHub에서의 실행은 별도 확인 항목입니다. 로컬 검증 결과로 외부 서비스 연결까지 완료됐다고 판단하지 않습니다. 운영용 Compose를 로컬에서 그대로 실행해 개발 서비스의 포트나 데이터를 공유하지 않습니다.
 
-## 3. GitHub Actions의 검증·이미지 게시
+## 3. GitHub Actions의 검증·이미지 게시·자동 배포
 
 Server 변경 PR에서는 JDK 21·Redis·PostgreSQL 17 실행 파일을 준비하고 `./gradlew build`와 위 Docker 통합 검증을 수행합니다. 임시 클러스터를 직접 실행하는 기존 테스트 구조를 유지하며 운영·개발 DB를 연결하지 않습니다.
 
@@ -59,6 +59,16 @@ ghcr.io/<소문자 GitHub 소유자>/moahome-api:<전체 커밋 SHA>
 ```
 
 게시에는 워크플로의 `GITHUB_TOKEN`과 `packages: write`를 사용합니다. PR과 수동 워크플로 실행에서는 이미지 게시를 수행하지 않습니다. 저장소·조직에서 Actions와 패키지 게시 권한을 허용해야 합니다. workflow 파일 작성만으로 저장소 설정이나 원격 패키지가 생성되지는 않습니다.
+
+### 운영 Runner 연결과 자동 배포 (2026-11-03)
+
+사용자 요청으로 `serverCi.yml`에 `needs: verify`인 `deploy` 작업을 추가했습니다. PR·수동 실행은 기존 Ubuntu 실행기에서 검사만 수행하고, `main` push는 테스트·격리 운영 구성 검사·이미지 게시 성공 뒤 운영 서버의 Runner에서 자동 배포합니다. 배포는 게시한 전체 SHA 태그와 함께 반환한 digest를 사용하며 워크플로 요약에 둘 다 기록합니다.
+
+운영 서버에는 저장소 전용 Linux x64 Runner를 `/home/ubuntu/actions-runner` 등 앱 배포 폴더와 분리해 설치합니다. Runner 이름은 기본값을 사용해도 되고 추가 라벨은 `moahome-production`이어야 합니다. 서비스 계정은 `/opt/moahome`의 기존 배포 파일과 Docker에 `sudo -n`으로 접근할 수 있어야 합니다. 파일과 설정 준비는 다음 절을 따르며 Runner 등록만으로 해당 파일이 생성되지는 않습니다. GitHub의 `production` Environment에 승인 규칙을 설정하면 해당 규칙을 통과해야 작업이 실행됩니다.
+
+작업은 해당 저장소의 일회성 `GITHUB_TOKEN`에 `packages: read`만 부여하고 임시 Docker 인증 설정으로 이미지를 내려받습니다. 기존 운영자 로그인과 `.env.prod`는 변경하지 않으며 종료 시 임시 인증 파일을 제거합니다. 실제 기동 이미지 digest, healthy 상태·재시작 0회, 내부 readiness, 외부 HTTPS readiness의 UP, 미인증 사용자 API의 401을 확인합니다. 실패 시 배포 성공으로 기록하지 않고 기존 스크립트처럼 DB 호환성을 모르는 자동 롤백을 수행하지 않습니다.
+
+DB 변경의 전체 이력 대조·격리 업그레이드 시험·백업은 [운영 배포 규칙](../../docs/operations/deploymentRules.md)에 따라 main 반영 전에 완료합니다. 이 작업은 RDS 스냅샷 생성과 기존 프론트의 실제 로그인·업무 검증까지 자동화한 것으로 보지 않습니다. 서버의 배포 파일 동기화와 프론트 배포 대기 연결도 이번 작업에는 포함하지 않습니다. 이 문서의 구현 설명은 운영 Runner에서 실행 성공을 확인한 기록과 구분합니다.
 
 ## 4. 운영 호스트 준비
 
