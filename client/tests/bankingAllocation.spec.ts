@@ -342,6 +342,7 @@ test('동별 잔고는 시작 잔고 미설정을 0원으로 합산하지 않고
     status: 'READY' as const
   };
   const data = {
+    month: '2026-10',
     buildings: [building],
     bankBalance: '900000',
     accounts: [{
@@ -350,6 +351,7 @@ test('동별 잔고는 시작 잔고 미설정을 0원으로 합산하지 않고
       calculationBasisDate: '2026-09-30'
     }],
     externals: [{
+      date: '2026-10-15',
       remaining: '91330'
     }]
   } as unknown as import('../src/widgets/banking-workspace/api/bankingBalanceApiTypes').BalanceWorkspace;

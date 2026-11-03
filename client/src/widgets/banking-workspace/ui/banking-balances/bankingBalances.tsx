@@ -86,7 +86,8 @@ import {
 } from '../../model/accountBalance';
 import {
   getBalanceSummary,
-  getBuildingLedger
+  getBuildingLedger,
+  getExternalExpensesForRange
 } from '../../model/balanceLedger';
 import { sortExpenseLabels } from '../../model/expenseAllocation';
 import { BalanceCheckPanel } from '../_components/balance-check-panel/balanceCheckPanel';
@@ -941,7 +942,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
             </div>
             <div>
               <dt>
-                외부 대납 미회수액
+                조회 기간 외부 대납 미회수액
               </dt>
               <dd>
                 {money(summary.external)}
@@ -989,12 +990,12 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         <p
           className={styles.muted}
         >
-          기준일 이후 조회 월 말까지의 부담금입니다. 실제 기타 입금을 연결한 금액만 회수액에 반영합니다.
+          선택한 기간에 지출한 부담금입니다. 회수액은 조회 기말까지 실제 기타 입금을 연결한 금액입니다.
         </p>
         <PagedTable
           label={'외부 부담금'}
           hasFilters={Boolean(externalSearch.trim() || externalFilter !== 'ALL')}
-          rows={data.externals.filter((row) => (externalFilter === 'UNRECOVERED' ? !row.excluded && BigInt(row.remaining) > BigInt(0) : externalFilter === 'ALL' || Boolean(row.excluded) === (externalFilter === 'EXCLUDED')) && `${row.label} ${row.expenseName}`.includes(externalSearch.trim())).sort((a, b) => b.date.localeCompare(a.date))}
+          rows={getExternalExpensesForRange(data).filter((row) => (externalFilter === 'UNRECOVERED' ? !row.excluded && BigInt(row.remaining) > BigInt(0) : externalFilter === 'ALL' || Boolean(row.excluded) === (externalFilter === 'EXCLUDED')) && `${row.label} ${row.expenseName}`.includes(externalSearch.trim())).sort((a, b) => b.date.localeCompare(a.date))}
           toolbar={(
             <>
               <Input
@@ -1416,6 +1417,7 @@ function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
   const router = useRouter();
   const [direction, setDirection] = useState('ALL');
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('LATEST');
   const [transactionDetail, setTransactionDetail] = useState<BalanceEntry | null>(null);
   /** 누적 잔고를 먼저 계산한 뒤 표시만 필터링해 입금·출금 필터가 잔고를 바꾸지 않게 합니다. */
   function openTransaction(entry: BalanceEntry) {
@@ -1436,23 +1438,21 @@ function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
     }
     setTransactionDetail(entry);
   }
+  // 누적 잔고는 과거부터 계산하고 정렬 선택은 계산된 행의 표시 순서에만 적용합니다.
   const entries = getBuildingLedger(building, data.entries, data.month, data.startMonth);
+  if (sort === 'LATEST') entries.reverse();
   const columns: DataTableColumn<(typeof entries)[number]>[] = [
     {
       key: 'date',
-      header: '거래일시',
+      header: '거래일',
       width: 140,
       render: (e) => (
-        <span
+        <time
           className={styles['ledger-date']}
+          dateTime={e.date}
         >
           {e.date}
-          <small
-            className={styles.muted}
-          >
-            {e.time}
-          </small>
-        </span>
+        </time>
       )
     }, {
       key: 'label',
@@ -1563,6 +1563,18 @@ function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
               }, {
                 value: 'EXPENSE',
                 label: '출금'
+              }]}
+            />
+            <Dropdown
+              label={'정렬'}
+              value={sort}
+              onChange={setSort}
+              options={[{
+                value: 'LATEST',
+                label: '최근순'
+              }, {
+                value: 'OLDEST',
+                label: '오래된순'
               }]}
             />
           </>
@@ -2886,7 +2898,7 @@ function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, p
             </div>
             <div>
               <dt>
-                외부 대납 미회수액
+                조회 기간 외부 대납 미회수액
               </dt>
               <dd>
                 {money(getBalanceSummary(data).external)}

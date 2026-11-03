@@ -31,6 +31,10 @@ import {
 } from '../src/widgets/payment-workspace/model/monthlyExport';
 import { getAccountsForRange } from '../src/widgets/banking-workspace/model/bankAccountVisibility';
 import {
+  getBalanceSummary,
+  getExternalExpensesForRange
+} from '../src/widgets/banking-workspace/model/balanceLedger';
+import {
   settlementFixture,
   settlementId
 } from './support/monthlySettlement';
@@ -39,6 +43,44 @@ const range = {
   startMonth: '2026-11',
   endMonth: '2027-03'
 };
+
+test('외부 부담금은 선택한 지출 월 범위만 표시하고 같은 범위의 미회수액을 집계한다', () => {
+  const data = settlementFixture().balances;
+  data.month = '2027-03';
+  data.startMonth = '2026-11';
+  const external = data.externals[0];
+  data.externals = ['2026-10-31', '2026-11-01', '2027-03-31', '2027-04-01'].map((date, index) => ({
+    ...external,
+    id: settlementId(950 + index),
+    date,
+    remaining: String((index + 1) * 1000)
+  }));
+  data.externals.push({
+    ...external,
+    id: settlementId(954),
+    date: '2027-03-01',
+    excluded: true,
+    remaining: '9000'
+  });
+  const before = JSON.stringify(data);
+
+  expect(getExternalExpensesForRange(data).map((row) => row.date)).toEqual(['2026-11-01', '2027-03-31', '2027-03-01']);
+  expect(getBalanceSummary(data).external).toBe(BigInt(5000));
+  expect(getExternalExpensesForRange({
+    ...data,
+    startMonth: undefined
+  }).map((row) => row.date)).toEqual(['2027-03-31', '2027-03-01']);
+  expect(getBalanceSummary({
+    ...data,
+    startMonth: undefined
+  }).external).toBe(BigInt(3000));
+  expect(getExternalExpensesForRange({
+    ...data,
+    month: '2027-05',
+    startMonth: '2027-05'
+  })).toEqual([]);
+  expect(JSON.stringify(data)).toBe(before);
+});
 
 test('연도를 넘는 월 기간은 양 끝 월을 포함하고 역전·잘못된 월 주소는 적용하지 않는다', () => {
   expect(getMonthsInRange(range)).toEqual(['2026-11', '2026-12', '2027-01', '2027-02', '2027-03']);

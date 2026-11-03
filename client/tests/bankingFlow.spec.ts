@@ -1667,6 +1667,34 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     name: '동별 상세 원장',
     exact: true
   });
+  await expect(ledgerTable.getByRole('columnheader', {
+    name: '거래일',
+    exact: true
+  })).toBeVisible();
+  await expect(ledgerTable).not.toContainText('08:00:00');
+  await expect(ledgerTable).not.toContainText('09:00:00');
+  const ledgerSort = detail.getByRole('combobox', {
+    name: '정렬',
+    exact: true
+  });
+  await expect(ledgerSort).toHaveText('최근순');
+  const ledgerRows = ledgerTable.locator('tbody tr');
+  await expect(ledgerRows.first()).toContainText('전기료');
+  await expect(ledgerRows.first()).toContainText('604,335원');
+  await ledgerSort.click();
+  await detail.getByRole('option', {
+    name: '오래된순',
+    exact: true
+  }).click();
+  await expect(ledgerRows.first()).toContainText('관리비');
+  await expect(ledgerRows.first()).toContainText('650,000원');
+  await expect(ledgerRows.last()).toContainText('604,335원');
+  await ledgerSort.click();
+  await detail.getByRole('option', {
+    name: '최근순',
+    exact: true
+  }).click();
+  await expect(ledgerRows.first()).toContainText('전기료');
   await direction.click();
   await detail.getByRole('option', {
     name: '출금',
@@ -2062,7 +2090,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     name: '동별 상세 원장',
     exact: true
   });
-  await expect(mobileLedger.getByRole('cell').first().locator('span').first()).toHaveCSS('white-space', 'nowrap');
+  await expect(mobileLedger.getByRole('cell').first().locator('time')).toHaveCSS('white-space', 'nowrap');
   for (const width of [320, 390]) {
     await page.setViewportSize({
       width,

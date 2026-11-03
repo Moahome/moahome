@@ -11,13 +11,18 @@ export function getBalanceSummary(data: BalanceWorkspace) {
   const total = complete ? data.buildings.reduce((sum, b) => sum + BigInt(b.balance!), BigInt(0)) : null;
   const accountTotal = getAccountBalanceTotal(data).amount;
   const difference = accountTotal !== null && total !== null ? BigInt(accountTotal) - total : null;
-  const external = data.externals.filter((row) => !row.excluded).reduce((sum, row) => sum + BigInt(row.remaining), BigInt(0));
+  const external = getExternalExpensesForRange(data).filter((row) => !row.excluded).reduce((sum, row) => sum + BigInt(row.remaining), BigInt(0));
 
   return {
     total,
     difference,
     external
   };
+}
+
+/** 외부 부담금 목록과 미회수 합계에 같은 지출 기간을 적용하며 회수액은 서버의 조회 기말 계산을 사용합니다. */
+export function getExternalExpensesForRange(data: BalanceWorkspace) {
+  return data.externals.filter((row) => isBalanceDateInRange(row.date, data.month, data.startMonth));
 }
 
 /** 원본 거래일 순으로 동별 실제 이동과 누적 잔고를 계산합니다. 원본의 출금 전액을 다시 더하지 않습니다. */
