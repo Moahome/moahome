@@ -85,15 +85,16 @@ export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildi
       theme: 'plain',
       styles: {
         font: 'Pretendard',
-        fontSize: 8,
+        // PDF에서 만든 이미지를 휴대폰으로 읽을 때도 거래 명세가 작아지지 않도록 글자와 행 높이를 확보합니다.
+        fontSize: 10.5,
         textColor: colors.text,
         cellPadding: {
-          top: 2.1,
-          bottom: 2.1,
+          top: 2.4,
+          bottom: 2.4,
           left: 2.8,
           right: 2.8
         },
-        minCellHeight: 7.7,
+        minCellHeight: 10,
         valign: 'middle',
         lineColor: colors.border,
         lineWidth: {
@@ -105,13 +106,13 @@ export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildi
         fillColor: colors.alternate,
         textColor: colors.text,
         fontStyle: 'bold',
-        minCellHeight: 9.4
+        minCellHeight: 10
       },
       footStyles: {
         fillColor: colors.blue,
         textColor: colors.text,
         fontStyle: 'bold',
-        minCellHeight: 9
+        minCellHeight: 10
       },
       alternateRowStyles: {
         fillColor: colors.alternate
@@ -121,11 +122,11 @@ export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildi
           cellWidth: 35
         },
         1: {
-          cellWidth: 13,
+          cellWidth: 18,
           halign: 'center'
         },
         2: {
-          cellWidth: 51
+          cellWidth: 46
         },
         3: {
           cellWidth: 29,
@@ -154,10 +155,10 @@ export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildi
         const label = String(cell.cell.raw);
         const outgoing = label === '지출';
         pdf.setFillColor(outgoing ? colors.red : colors.blue);
-        pdf.roundedRect(cell.cell.x + 1, cell.cell.y + (cell.cell.height - 4.8) / 2, 11, 4.8, 2.4, 2.4, 'F');
-        pdf.setFont('Pretendard', 'bold'); pdf.setFontSize(8);
+        pdf.roundedRect(cell.cell.x + 1, cell.cell.y + (cell.cell.height - 5.8) / 2, cell.cell.width - 2, 5.8, 2.9, 2.9, 'F');
+        pdf.setFont('Pretendard', 'bold'); pdf.setFontSize(10);
         pdf.setTextColor(outgoing ? colors.danger : colors.primary);
-        pdf.text(label, cell.cell.x + 6.5, cell.cell.y + cell.cell.height / 2 + 1, {
+        pdf.text(label, cell.cell.x + cell.cell.width / 2, cell.cell.y + cell.cell.height / 2 + 1.2, {
           align: 'center'
         });
       },
@@ -224,8 +225,8 @@ export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildi
           if (pdf.getTextWidth(value) > 34) pdf.setFontSize(11.5 * 34 / pdf.getTextWidth(value));
           pdf.text(value, x + 7.5, 81.5);
         });
-        pdf.setFont('Pretendard', 'bold'); pdf.setFontSize(11); pdf.setTextColor(colors.text); pdf.text(`${section.label} 거래 명세`, 12, 93);
-        pdf.setFont('Pretendard', 'normal'); pdf.setFontSize(8); pdf.setTextColor(colors.muted); pdf.text('거래일 기준 오름차순 · 동별 누적 잔액', 198, 93, {
+        pdf.setFont('Pretendard', 'bold'); pdf.setFontSize(13); pdf.setTextColor(colors.text); pdf.text(`${section.label} 거래 명세`, 12, 93);
+        pdf.setFont('Pretendard', 'normal'); pdf.setFontSize(9); pdf.setTextColor(colors.muted); pdf.text('거래일 기준 오름차순 · 동별 누적 잔액', 198, 93, {
           align: 'right'
         });
       }

@@ -541,7 +541,7 @@ for (const width of [1440, 390]) {
 }
 
 
-test('기존 응답도 계좌 잔액을 확인해 표시하고 9월 PDF는 1일부터 30일까지 잔액을 누적하며 17건을 한 페이지에 출력', async ({ page }, testInfo) => {
+test('기존 응답도 계좌 잔액을 확인하고 9월 PDF의 큰 거래 글씨와 페이지 나눔에도 17건 전체를 유지', async ({ page }, testInfo) => {
   const fixture = () => {
     const data = settlementFixture();
     data.month = '2026-09';
@@ -620,9 +620,16 @@ test('기존 응답도 계좌 잔액을 확인해 표시하고 9월 PDF는 1일�
     useSystemFonts: false
   });
   const pdf = await task.promise;
-  expect(pdf.numPages).toBe(1);
-  const content = await (await pdf.getPage(1)).getTextContent();
-  const text = content.items.map((item) => 'str' in item ? item.str : '').join(' ');
+  const pages = await Promise.all(Array.from({
+    length: pdf.numPages
+  }, async (_, index) => (await pdf.getPage(index + 1)).getTextContent()));
+  const items = pages.flatMap((content) => content.items).filter((item) => 'str' in item);
+  const text = items.map((item) => item.str).join(' ');
+  const firstTransactionDate = items.find((item) => item.str === '2026-09-01');
+  expect(firstTransactionDate?.height).toBeGreaterThanOrEqual(10);
+  for (const day of [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 14, 18, 22, 25, 28, 30]) {
+    expect(text).toContain(`2026-09-${String(day).padStart(2, '0')}`);
+  }
   expect(text).toContain('9월 마감');
   expect(text).toContain('128,000원');
   expect(text).not.toContain('설정 필요');
