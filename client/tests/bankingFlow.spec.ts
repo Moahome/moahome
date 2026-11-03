@@ -523,7 +523,7 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
   await expect(page.getByRole('table', {
     name: '업로드 거래 미리보기',
     exact: true
-  }).getByRole('columnheader')).toHaveText(['', '거래일시', '입금자', '입금', '처리 내용', '처리']);
+  }).getByRole('columnheader')).toHaveText(['', '거래일', '입금자', '입금', '처리 내용', '처리']);
   await page.getByLabel('입금자0 거래 선택', {
     exact: true
   }).uncheck();
@@ -671,7 +671,7 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
   await expect(previewTable.getByRole('columnheader', {
     name: /적요|매칭|배분/
   })).toHaveCount(0);
-  await expect(previewTable.getByRole('columnheader')).toHaveText(['', '거래일시', '지출명', '출금', '처리 내용', '처리']);
+  await expect(previewTable.getByRole('columnheader')).toHaveText(['', '거래일', '지출명', '출금', '처리 내용', '처리']);
   expect(await previewTable.locator('th, td').evaluateAll((cells) => cells.every((cell) => getComputedStyle(cell).textAlign === 'center'))).toBe(true);
   await expect(previewTable.getByRole('cell', {
     name: '182,660원',
@@ -685,7 +685,7 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
     name: '전체 (12)',
     exact: true
   }).click();
-  await expect(previewTable.getByRole('columnheader')).toHaveText(['', '거래일시', '입금자', '지출명', '입금', '출금', '처리 내용', '처리']);
+  await expect(previewTable.getByRole('columnheader')).toHaveText(['', '거래일', '입금자', '지출명', '입금', '출금', '처리 내용', '처리']);
   await expect(previewTable.getByRole('row').filter({
     hasText: '입금자1'
   }).first().getByRole('cell').nth(2)).toContainText('입금자1');
@@ -899,7 +899,7 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
     name: '지출 내역',
     exact: true
   });
-  await expect(expenseTable.getByRole('columnheader')).toHaveText(['거래일시', '지출명', '지출액']);
+  await expect(expenseTable.getByRole('columnheader')).toHaveText(['거래일', '지출명', '지출액']);
   expect(await expenseTable.locator('th, td').evaluateAll((cells) => cells.every((cell) => getComputedStyle(cell).textAlign === 'center'))).toBe(true);
   await expect(expenseTable.getByText('91,330원', {
     exact: true
@@ -928,7 +928,7 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
     exact: true
   }).click();
   await expect(building).toHaveAttribute('aria-expanded', 'false');
-  await expect(expenseTable.getByRole('columnheader')).toHaveText(['거래일시', '지출명', '지출액']);
+  await expect(expenseTable.getByRole('columnheader')).toHaveText(['거래일', '지출명', '지출액']);
   expect(await expenseTable.locator('th, td').evaluateAll((cells) => cells.every((cell) => getComputedStyle(cell).textAlign === 'center'))).toBe(true);
   await expect(expenseTable.getByText('45,665원', {
     exact: true
@@ -2830,7 +2830,7 @@ for (const width of [1440, 390]) {
       expect(Math.abs(accountBox.y - searchBox.y)).toBeLessThanOrEqual(1);
     } else expect(accountBox.y).toBeGreaterThanOrEqual(searchBox.y + searchBox.height);
     await accountFilter.click();
-    await expect(page.getByRole('option')).toHaveText(['전체 통장', '하나은행 ····1234 · 관리비', '카카오뱅크 ····5678 · 자유 보관']);
+    await expect(page.getByRole('option')).toHaveText(['전체 통장', '관리비', '자유 보관']);
     await page.keyboard.press('Escape');
     await page.getByRole('row').filter({
       hasText: '옮긴 돈'
@@ -2867,7 +2867,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     await page.getByRole('option').filter({
-      hasText: '카카오뱅크'
+      hasText: '자유 보관'
     }).click();
     await expect(page.getByRole('row').filter({
       hasText: '옮긴 돈'
@@ -2901,7 +2901,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     await page.getByRole('option').filter({
-      hasText: '카카오뱅크'
+      hasText: '자유 보관'
     }).click();
     await page.locator('input[type=file]').setInputFiles({
       name: '통장.csv',
@@ -3223,6 +3223,7 @@ for (const { width, unassigned } of [{
     });
     const second = id(11);
     const labels = ['하나은행 ····1234 · 운영비', '카카오뱅크 ····1020 · 예비비'];
+    const displayLabels = ['운영비', '예비비'];
     const openings: Record<string, { cutoffDate: string; amount: string; revision: number }> = {
       [ACCOUNT]: {
         cutoffDate: '2026-07-01',
@@ -3545,7 +3546,7 @@ for (const { width, unassigned } of [{
       path: `/tmp/moahome-opening-design-${width}.png`,
       animations: 'disabled'
     });
-    await choose(labels[1]);
+    await choose(displayLabels[1]);
     await expect(amount).toHaveValue('200,000');
     await expect(page.getByRole('group', {
       name: '잔고 기준일',
@@ -3564,8 +3565,8 @@ for (const { width, unassigned } of [{
       exact: true
     }).fill('통장별 동 초기 금액 정정');
     await amount.fill('500000');
-    await choose(labels[0]); await expect(amount).toHaveValue('688,582');
-    await choose(labels[1]); await expect(amount).toHaveValue('500,000');
+    await choose(displayLabels[0]); await expect(amount).toHaveValue('688,582');
+    await choose(displayLabels[1]); await expect(amount).toHaveValue('500,000');
     await page.screenshot({
       path: testInfo.outputPath(`buildingAccountOpening${width}.png`),
       fullPage: true,
@@ -3599,11 +3600,11 @@ for (const { width, unassigned } of [{
     });
     expect(openings[ACCOUNT].amount).toBe('688582');
     await selector.click(); await page.getByRole('option', {
-      name: labels[1],
+      name: displayLabels[1],
       exact: true
     }).click();
     await expect(page).toHaveURL(new RegExp(`account=${second}`));
-    await page.reload(); await expect(selector).toContainText('카카오뱅크');
+    await page.reload(); await expect(selector).toContainText('예비비');
     await expect(page.getByText('500,000', {
       exact: true
     }).first()).toBeVisible();
@@ -3611,14 +3612,14 @@ for (const { width, unassigned } of [{
       name: '기준 잔고 확인',
       exact: true
     }).click();
-    await expect(bank).toHaveValue(labels[1]);
+    await expect(bank).toHaveValue(displayLabels[1]);
     await expect(amount).toHaveValue('500,000');
     if (width < 768) {
       await page.getByRole('link', {
         name: '뒤로가기',
         exact: true
       }).click();
-      await expect(selector).toContainText('카카오뱅크');
+      await expect(selector).toContainText('예비비');
       await expect(page).toHaveURL(new RegExp(`account=${second}`));
     } else await page.getByRole('button', {
       name: '기준 잔고 확인 닫기',
@@ -4202,7 +4203,7 @@ for (const width of [1440, 320]) {
     });
     const listHref = `${BASE}/balances?month=2026-10&account=${second}`;
     const openRow = () => page.getByRole('button', {
-      name: '카카오뱅크 ····5678 · 예비비 통장 상세 보기',
+      name: '예비비 통장 상세 보기',
       exact: true
     });
     const back = () => page.getByRole('link', {
@@ -4506,7 +4507,7 @@ for (const width of [1440, 320]) {
       exact: true
     }).click();
     await page.getByRole('option', {
-      name: '하나은행 ····1234',
+      name: '하나은행 1234',
       exact: true
     }).click();
     await expect(page.getByLabel('통장 거래 파일 선택')).toBeEnabled();
@@ -4671,7 +4672,7 @@ for (const width of [1440, 320]) {
       exact: true
     }).click();
     await page.getByRole('option', {
-      name: '부산은행 ····1234',
+      name: '부산은행 1234',
       exact: true
     }).click();
     await expect(page.getByRole('heading', {
@@ -5501,7 +5502,7 @@ for (const width of [1440, 425]) {
     }
 
     await page.getByRole('button', {
-      name: '하나은행 ····1234 · 관리비 통장 상세 보기',
+      name: '관리비 통장 상세 보기',
       exact: true
     }).click();
     const item = page.getByRole('button', {
@@ -5557,7 +5558,7 @@ for (const width of [1440, 425]) {
       exact: true
     }).click();
     await expect(page.getByRole('button', {
-      name: '하나은행 ····1234 · 관리비 통장 상세 보기',
+      name: '관리비 통장 상세 보기',
       exact: true
     })).toBeVisible();
     await expect(page.getByRole('article', {
@@ -5570,7 +5571,7 @@ for (const width of [1440, 425]) {
     expect(creates).toHaveLength(2);
     expect(creates[0]).toEqual(creates[1]);
     await page.getByRole('button', {
-      name: '하나은행 ····1234 · 관리비 통장 상세 보기',
+      name: '관리비 통장 상세 보기',
       exact: true
     }).click();
     await page.getByRole('button', {
@@ -5990,7 +5991,7 @@ for (const { width, handover } of [{
     }
     await page.goto(`${BASE}/balances?month=2026-10`);
     await expect(page.getByRole('button', {
-      name: '카카오뱅크 ····3016 · 예비비 통장 상세 보기',
+      name: '예비비 통장 상세 보기',
       exact: true
     })).toBeVisible();
     await expect(page.getByRole('button', {
@@ -6006,7 +6007,7 @@ for (const { width, handover } of [{
       exact: true
     })).toHaveCount(0);
     await page.getByRole('button', {
-      name: '카카오뱅크 ····3016 · 예비비 통장 상세 보기',
+      name: '예비비 통장 상세 보기',
       exact: true
     }).click();
     await expect(page.getByRole('button', {
@@ -6062,7 +6063,7 @@ for (const { width, handover } of [{
     expect(writes[1]).toEqual(writes[0]);
     if (!handover) {
       await page.getByRole('button', {
-        name: '카카오뱅크 ····3016 · 예비비 통장 상세 보기',
+        name: '예비비 통장 상세 보기',
         exact: true
       }).click();
       await page.getByRole('button', {
@@ -6108,7 +6109,7 @@ for (const { width, handover } of [{
     allowed = false;
     await page.reload();
     await page.getByRole('button', {
-      name: '카카오뱅크 ····3016 · 예비비 통장 상세 보기',
+      name: '예비비 통장 상세 보기',
       exact: true
     }).click();
     await expect(page.getByRole('button', {

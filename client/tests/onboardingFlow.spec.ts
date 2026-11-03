@@ -2868,7 +2868,7 @@ for (const width of [1440, 320]) {
       exact: true
     }).click();
     await page.getByRole('textbox', {
-      name: '관리은행 ····1234 시작 잔액'
+      name: '관리은행 1234 시작 잔액'
     }).fill('5000');
     await page.getByRole('button', {
       name: '엑셀 업로드',
@@ -2931,7 +2931,7 @@ for (const width of [1440, 320]) {
       hasText: '102호'
     })).toContainText('30,000원');
     await expect(page.getByRole('textbox', {
-      name: '관리은행 ····1234 시작 잔액'
+      name: '관리은행 1234 시작 잔액'
     })).toHaveValue('5,000');
     await expect(page.getByRole('button', {
       name: '인계 확정',
@@ -3046,7 +3046,7 @@ for (const width of [1440, 390]) {
       } : workspace);
     });
     await page.goto(`${BASE}/billing/monthly?tab=opening`);
-    await expect(page.getByLabel('하나은행 ····5107 시작 잔액')).toHaveCount(0);
+    await expect(page.getByLabel('하나은행 5107 시작 잔액')).toHaveCount(0);
     await page.getByRole('button', {
       name: '초기 기준 정정',
       exact: true
@@ -3061,7 +3061,7 @@ for (const width of [1440, 390]) {
       name: '초기 기준일',
       exact: false
     })).toBeDisabled();
-    await form.getByLabel('하나은행 ····5107 시작 잔액').fill('520000');
+    await form.getByLabel('하나은행 5107 시작 잔액').fill('520000');
     await form.getByRole('button', {
       name: '정정 저장',
       exact: true
@@ -3080,7 +3080,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     await expect(form.getByRole('alert')).toBeVisible();
-    await expect(form.getByLabel('하나은행 ····5107 시작 잔액')).toHaveValue('520,000');
+    await expect(form.getByLabel('하나은행 5107 시작 잔액')).toHaveValue('520,000');
     await form.getByRole('button', {
       name: '정정 저장',
       exact: true

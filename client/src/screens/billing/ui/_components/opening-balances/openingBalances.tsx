@@ -32,7 +32,8 @@ import { Button } from '@/shared/ui/button';
 import { useRouter } from 'next/navigation';
 import {
   BANK_OPTIONS,
-  BankIcon
+  BankIcon,
+  getBankAccountLabel
 } from '@/entities/banking';
 import { SummaryCard } from '@/shared/ui/summary-card';
 import { OpeningUnitList } from './openingUnitList';
@@ -591,7 +592,7 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
                     />
                   )}
                   <strong>
-                    {account.label}
+                    {getBankAccountLabel(account)}
                   </strong>
                 </div>
                 {confirmed ? (
@@ -608,7 +609,7 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
                 ) : (
                   <AmountInput
                     label={'시작 잔액'}
-                    aria-label={`${account.label} 시작 잔액`}
+                    aria-label={`${getBankAccountLabel(account)} 시작 잔액`}
                     value={account.amount}
                     onChange={(value) => {
                       setAccounts((rows) => rows.map((row) => row.accountId === account.accountId ? {
@@ -846,7 +847,7 @@ function InitialBalanceHistoryView({ changes }: { changes?: OpeningWorkspace['co
               <p
                 key={detail.targetId}
               >
-                {detail.label}
+                {getBankAccountLabel(detail)}
                 :
                 {' '}
                 {detail.previousBillingMonth ?? (detail.previousAmount === null ? '미설정' : `${formatInteger(detail.previousAmount)}원`)}

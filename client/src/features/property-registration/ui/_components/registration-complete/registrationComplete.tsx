@@ -1,5 +1,8 @@
 'use client';
 
+import { getBankAccountLabel } from '@/entities/banking';
+
+
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { StateIllustration } from '@/shared/ui/state-message';
@@ -52,7 +55,7 @@ export function RegistrationComplete({
     },
     {
       label: '관리계좌',
-      value: hasDraft ? `${draft.bankAccounts.length}개 통장 · 기본 ${primary.bankName} ${primary.accountNumber}` : `관리계좌 ${result.summary.bankAccountCount}개 등록 완료`,
+      value: hasDraft ? `${draft.bankAccounts.length}개 통장 · 기본 ${getBankAccountLabel(primary)}` : `관리계좌 ${result.summary.bankAccountCount}개 등록 완료`,
       icon: 'bank'
     },
     {

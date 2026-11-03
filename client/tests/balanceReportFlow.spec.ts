@@ -431,7 +431,7 @@ for (const width of [1440, 390]) {
       exact: true
     })).toHaveCount(0);
     await page.getByRole('option', {
-      name: '카카오뱅크 ····1004',
+      name: '카카오뱅크 1004',
       exact: true
     }).click();
     await expect(modal.getByText('103동 카카오 입금', {
@@ -446,7 +446,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     const excel = await excelReady;
-    expect(excel.suggestedFilename()).toBe('모아빌라_동별입출금내역_2026-10_103동_카카오뱅크 ····1004.xlsx');
+    expect(excel.suggestedFilename()).toBe('모아빌라_동별입출금내역_2026-10_103동_카카오뱅크 1004.xlsx');
     const files = unzipSync(await readFile((await excel.path())!));
     const xml = Object.entries(files).filter(([name]) => name.endsWith('.xml')).map(([, bytes]) => strFromU8(bytes)).join('');
     expect(xml).toContain('103동 카카오 입금');
@@ -471,7 +471,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     const pdf = await pdfReady;
-    expect(pdf.suggestedFilename()).toBe('모아빌라_동별입출금내역_2026-10_103동_카카오뱅크 ····1004.pdf');
+    expect(pdf.suggestedFilename()).toBe('모아빌라_동별입출금내역_2026-10_103동_카카오뱅크 1004.pdf');
     const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
     const task = getDocument({
       data: new Uint8Array(await readFile((await pdf.path())!)),
@@ -490,7 +490,7 @@ for (const width of [1440, 390]) {
     holdFonts = true;
     await accounts.click();
     await page.getByRole('option', {
-      name: '하나은행 ····1234',
+      name: '하나은행 1234',
       exact: true
     }).click();
     await expect(modal.getByRole('button', {
@@ -510,7 +510,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).check();
     await expect(buildings).toHaveText('103동');
-    await expect(accounts).toHaveText('하나은행 ····1234');
+    await expect(accounts).toHaveText('하나은행 1234');
     await expect(modal.getByText('103동 하나 지출', {
       exact: true
     })).toBeVisible();
@@ -591,7 +591,7 @@ test('기존 응답도 계좌 잔액을 확인하고 9월 PDF의 큰 거래 글�
     exact: true
   }).click();
   await modal.getByRole('option', {
-    name: '하나은행 ····1234',
+    name: '하나은행 1234',
     exact: true
   }).click();
   await expect(modal.getByText('설정 필요', {

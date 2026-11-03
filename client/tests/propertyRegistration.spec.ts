@@ -1,3 +1,4 @@
+import { getBankAccountLabel } from '../src/entities/banking/lib/bankAccountLabel';
 import { emptyDashboardFixture } from './support/dashboard';
 import {
   expect,
@@ -622,7 +623,7 @@ async function prepareCashOpening(page: Page) {
   }).click();
   for (let index = 0; index < data.bankAccounts.length; index++) {
     const account = data.bankAccounts[index];
-    const label = `${account.bankName || `통장 ${index + 1}`}${account.alias ? ` · ${account.alias}` : ''}${account.accountNumber ? ` (${account.accountNumber.slice(-4)})` : ''}`;
+    const label = account.bankName ? getBankAccountLabel(account) : `통장 ${index + 1}`;
     await page.getByRole('combobox', {
       name: '입력할 통장',
       exact: true
@@ -646,7 +647,7 @@ async function prepareCashOpening(page: Page) {
   }).click();
   for (let index = 0; index < data.bankAccounts.length; index++) {
     const account = data.bankAccounts[index];
-    const label = `${account.bankName || `통장 ${index + 1}`}${account.alias ? ` · ${account.alias}` : ''}${account.accountNumber ? ` (${account.accountNumber.slice(-4)})` : ''}`;
+    const label = account.bankName ? getBankAccountLabel(account) : `통장 ${index + 1}`;
     await page.getByRole('combobox', {
       name: '입력할 통장',
       exact: true
@@ -6097,7 +6098,7 @@ for (const width of [1440, 390]) {
       name: '통장 2',
       exact: true
     });
-    await expect(second).toContainText('카카오뱅크');
+    await expect(second).toContainText('용도 미정 보관');
     await expect(second).toContainText('기본 납부계좌');
     await expect(first).not.toContainText('기본 납부계좌');
     await page.getByRole('tab', {
@@ -6108,7 +6109,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     await page.getByRole('option', {
-      name: '카카오뱅크 · 용도 미정 보관 (8888)',
+      name: '용도 미정 보관',
       exact: true
     }).click();
     await page.getByLabel('실제 시작 잔액', {

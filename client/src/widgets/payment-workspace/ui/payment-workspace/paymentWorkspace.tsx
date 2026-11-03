@@ -1,5 +1,8 @@
 'use client';
 
+import { getBankAccountLabel } from '@/entities/banking';
+
+
 import { StateMessage } from '@/shared/ui/state-message';
 import {
   formatInteger,
@@ -735,7 +738,7 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
           </p>
           <p>
             관리계좌:
-            {ledger.accounts[0]?.label}
+            {getBankAccountLabel(ledger.accounts[0])}
           </p>
           <FileDropzone
             label={'통장 거래내역 업로드 영역'}

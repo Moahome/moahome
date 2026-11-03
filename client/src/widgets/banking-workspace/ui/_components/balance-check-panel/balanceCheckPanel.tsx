@@ -14,7 +14,8 @@ import {
 } from '@tanstack/react-query';
 import {
   BANK_OPTIONS,
-  BankIcon
+  BankIcon,
+  getBankAccountLabel
 } from '@/entities/banking';
 import { useSession } from '@/entities/session';
 import { formatWon } from '@/shared/lib/format';
@@ -228,7 +229,7 @@ export function BalanceCheckPanel({
               />
             )}
             <p>
-              {account.label}
+              {getBankAccountLabel(account)}
             </p>
           </div>
         </div>

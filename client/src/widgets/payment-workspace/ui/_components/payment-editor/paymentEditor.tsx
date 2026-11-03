@@ -1,6 +1,9 @@
 'use client';
 
-import { IncomeAllocationSummary } from '@/entities/banking';
+import {
+  IncomeAllocationSummary,
+  getBankAccountLabel
+} from '@/entities/banking';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
@@ -157,7 +160,7 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false, childr
               입금 계좌
             </dt>
             <dd>
-              {ledger.accounts.find((item) => item.id === payment.accountId)?.label}
+              {getBankAccountLabel(ledger.accounts.find((item) => item.id === payment.accountId))}
             </dd>
           </div>
           <div>
@@ -386,7 +389,7 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false, childr
                 {' '}
                 ·
                 {' '}
-                {ledger.accounts.find((item) => item.id === candidate.accountId)?.label}
+                {getBankAccountLabel(ledger.accounts.find((item) => item.id === candidate.accountId))}
               </p>
               <Button
                 variant={'outline'}

@@ -2,7 +2,8 @@
 
 import {
   ManualExpenseForm,
-  ManualReceiptForm
+  ManualReceiptForm,
+  getBankAccountLabel
 } from '@/entities/banking';
 import { useState } from 'react';
 import { formatWon } from '@/shared/lib/format';
@@ -109,8 +110,7 @@ export function RegistrationTransactionEditor({ account, record, direction, unit
                   통장
                 </dt>
                 <dd>
-                  {account.bankName}
-                  {account.alias ? ` · ${account.alias}` : ''}
+                  {getBankAccountLabel(account)}
                 </dd>
               </div>
               <div>
@@ -215,7 +215,7 @@ export function RegistrationTransactionEditor({ account, record, direction, unit
       presentation={presentation}
       accounts={[{
         id: account.clientId,
-        label: `${account.bankName} ${account.alias ?? ''}`.trim(),
+        label: getBankAccountLabel(account),
         isPrimary: true
       }]}
       units={labels}

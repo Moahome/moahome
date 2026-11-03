@@ -72,8 +72,9 @@ export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildi
         left: 12,
         right: 12
       },
-      head: [['거래일시', '구분', '입금자 · 지출명', '입금액', '지출액', '잔액']],
-      body: section.rows.length ? section.rows.map((row) => [String(row[1]), String(row[3]), String(row[4]), money(BigInt(row[5])), money(BigInt(row[6])), typeof row[7] === 'bigint' ? money(row[7]) : '설정 필요'])
+      head: [['거래일', '구분', '입금자 · 지출명', '입금액', '지출액', '잔액']],
+      // 거래일은 날짜만 표시하며 원본 시각에 따른 거래 순서와 누적 잔액을 유지합니다.
+      body: section.rows.length ? section.rows.map((row) => [String(row[1]).slice(0, 10), String(row[3]), String(row[4]), money(BigInt(row[5])), money(BigInt(row[6])), typeof row[7] === 'bigint' ? money(row[7]) : '설정 필요'])
         : [[{
           content: '조회 기간의 입금·지출 내역이 없습니다.',
           colSpan: 6
@@ -119,14 +120,14 @@ export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildi
       },
       columnStyles: {
         0: {
-          cellWidth: 35
+          cellWidth: 30
         },
         1: {
           cellWidth: 18,
           halign: 'center'
         },
         2: {
-          cellWidth: 46
+          cellWidth: 51
         },
         3: {
           cellWidth: 29,

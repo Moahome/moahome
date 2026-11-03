@@ -3406,7 +3406,7 @@ for (const width of [1440, 390]) {
     await expect(form.getByRole('textbox', {
       name: '입금자명',
       exact: true
-    })).toHaveAttribute('readonly', '');
+    })).toBeEditable();
     await form.getByRole('combobox', {
       name: '입금 용도',
       exact: true

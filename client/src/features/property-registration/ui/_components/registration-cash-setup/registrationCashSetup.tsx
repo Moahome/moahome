@@ -1,5 +1,8 @@
 'use client';
 
+import { getBankAccountLabel } from '@/entities/banking';
+
+
 import {
   useEffect,
   useId,
@@ -244,7 +247,7 @@ export function RegistrationCashSetup({
             value={account?.clientId ?? ''}
             options={accounts.map((row, index) => ({
               value: row.clientId,
-              label: `${row.bankName || `통장 ${index + 1}`}${row.alias ? ` · ${row.alias}` : ''}${row.accountNumber ? ` (${row.accountNumber.slice(-4)})` : ''}`,
+              label: row.bankName ? getBankAccountLabel(row) : `통장 ${index + 1}`,
             }))}
             onChange={setSelectedAccount}
           />

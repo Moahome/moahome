@@ -1,5 +1,7 @@
 'use client';
 
+import { getBankAccountLabel } from '@/entities/banking';
+
 import {
   capturePropertyQueryScope,
   setPropertyQueryData
@@ -43,7 +45,7 @@ export function TransferDetail({ propertyId, row, data, presentation = 'modal', 
   const [saved, setSaved] = useState(false);
   function label(accountId: string) {
     const account = data.accounts?.find((account) => account.id === accountId);
-    return account ? `${account.bankName} ····${account.last4}${account.alias ? ` · ${account.alias}` : ''}` : '관리계좌';
+    return account ? getBankAccountLabel(account) : '관리계좌';
   }
   /** 요청 UUID를 실패 재시도에 유지하고 같은 금액이라는 이유만으로 상대 통장을 자동 확정하지 않습니다. */
   async function submit() {

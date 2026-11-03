@@ -1,6 +1,9 @@
 'use client';
 
-import { BankIcon } from '@/entities/banking';
+import {
+  BankIcon,
+  getBankAccountLabel
+} from '@/entities/banking';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -269,7 +272,7 @@ export function BankAccountSetup({
                       className={styles['account-title']}
                     >
                       <strong>
-                        {account.bankName || `통장 ${index + 1}`}
+                        {account.bankName ? getBankAccountLabel(account) : `통장 ${index + 1}`}
                       </strong>
                       {account.isPrimary && (
                         <span
@@ -282,11 +285,6 @@ export function BankAccountSetup({
                     <span
                       className={styles['account-details']}
                     >
-                      {account.alias && (
-                        <span>
-                          {account.alias}
-                        </span>
-                      )}
                       {account.accountNumber && (
                         <span>
                           {account.accountNumber}

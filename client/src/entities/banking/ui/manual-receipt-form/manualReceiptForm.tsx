@@ -1,5 +1,7 @@
 'use client';
 
+import { getBankAccountLabel } from '../../lib/bankAccountLabel';
+
 import {
   useState,
   type FormEvent
@@ -183,7 +185,7 @@ export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '
             required
             options={activeAccounts.map((account) => ({
               value: account.id,
-              label: account.label
+              label: getBankAccountLabel(account)
             }))}
           />
           {household && (

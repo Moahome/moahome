@@ -1,5 +1,7 @@
 'use client';
 
+import { getBankAccountLabel } from '../../lib/bankAccountLabel';
+
 import { AllocationEditor } from '../allocation-editor/allocationEditor';
 import { Button } from '@/shared/ui/button';
 import { CalendarPicker } from '@/shared/ui/calendar-picker';
@@ -189,7 +191,7 @@ export function ManualExpenseForm({ accounts: accountOptions, buildings: buildin
                   disabled={busy}
                   options={accounts.map((account) => ({
                     value: account.id,
-                    label: `${account.bankName} ····${account.last4}${account.alias ? ` · ${account.alias}` : ''}`
+                    label: getBankAccountLabel(account)
                   }))}
                 />
                 <CalendarPicker

@@ -2,7 +2,8 @@
 
 import {
   BANK_OPTIONS,
-  BankIcon
+  BankIcon,
+  getBankAccountLabel
 } from '@/entities/banking';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
@@ -59,10 +60,7 @@ export function AccountBalances({
       >
         {accounts.map((account) => {
           const bank = BANK_OPTIONS.find((option) => account.label === option.label || account.label.startsWith(`${option.label} `));
-          // 서버 라벨의 별칭 구분자만 분리하며 별칭으로 기본 통장 여부를 추측하지 않습니다.
-          const separator = account.label.indexOf(' · ');
-          const name = separator < 0 ? account.label : account.label.slice(0, separator);
-          const alias = separator < 0 ? '' : account.label.slice(separator + 3);
+          const name = getBankAccountLabel(account);
           const display = getAccountBalanceDisplay(account);
           const buildingBalance = getAccountBuildingBalance(data, account.id);
           let buildingAmount = buildingBalance === null ? '설정 필요' : formatWon(buildingBalance);
@@ -81,7 +79,7 @@ export function AccountBalances({
               <Button
                 variant={'ghost'}
                 className={styles.trigger}
-                aria-label={`${account.label} 통장 상세 보기`}
+                aria-label={`${name} 통장 상세 보기`}
                 onClick={() => onOpen(account.id)}
               >
                 <span
@@ -107,13 +105,6 @@ export function AccountBalances({
                     <strong>
                       {name}
                     </strong>
-                    {alias && (
-                      <span
-                        className={styles.alias}
-                      >
-                        {alias}
-                      </span>
-                    )}
                     {account.status === 'CLOSED' && (
                       <span
                         className={styles.status}

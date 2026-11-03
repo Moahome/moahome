@@ -1,4 +1,6 @@
 'use client';
+
+import { getBankAccountLabel } from '@/entities/banking';
 import {
   LoadingState,
   StateMessage
@@ -707,7 +709,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
                 label: '전체 통장'
               }, ...data.accounts.map((account) => ({
                 value: account.id,
-                label: account.label
+                label: getBankAccountLabel(account)
               }))]}
             />
           )}
@@ -1700,7 +1702,7 @@ function BankInitialBalanceEditor({ propertyId, account, data, onClose, onSaved,
         }}
       >
         <strong>
-          {account.label}
+          {getBankAccountLabel(account)}
         </strong>
         <div
           className={styles['opening-metrics']}
@@ -2117,7 +2119,7 @@ function BalanceActionDialog(props: BalanceActionDialogProps) {
       onChange={setAccountId}
       options={accounts.map((account) => ({
         value: account.id,
-        label: account.label
+        label: getBankAccountLabel(account)
       }))}
     />
   );

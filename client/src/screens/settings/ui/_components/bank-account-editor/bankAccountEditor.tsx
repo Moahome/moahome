@@ -9,7 +9,8 @@ import {
   BankIcon,
   EMPTY_BANK_ACCOUNT,
   getBankAccountErrors,
-  type BankAccountDraft
+  type BankAccountDraft,
+  getBankAccountLabel
 } from '@/entities/banking';
 import { UnitDeleteConfirmation } from '@/entities/property';
 import { useSession } from '@/entities/session';
@@ -170,7 +171,7 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
                   className={styles['account-identity']}
                 >
                   <h3>
-                    {account.alias || account.bankName}
+                    {getBankAccountLabel(account)}
                     {account.isPrimary ? ' · 기본 납부계좌' : ''}
                   </h3>
                   <p>
@@ -236,7 +237,7 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
       )}
       {closing && (
         <UnitDeleteConfirmation
-          label={closing.alias || closing.bankName}
+          label={getBankAccountLabel(closing)}
           title={'통장 삭제 확인'}
           description={'삭제한 통장은 목록에서 숨기고 과거 거래 내역은 보존합니다.'}
           busy={busy}
@@ -310,7 +311,7 @@ function AccountForm({ propertyId, id, original, primaryId, onCancel, onSaved, o
           {original ? '같은 통장의 오입력만 정정합니다. 실제로 다른 통장은 목록에서 추가해주세요.' : '새 통장의 잔액은 거래내역에서 확인하기 전까지 미확인으로 표시합니다. 동별 보유금을 자동으로 늘리지 않습니다.'}
         </p>
         <BankAccountCard
-          title={original ? original.alias || original.bankName : '새 통장'}
+          title={original ? getBankAccountLabel(original) : '새 통장'}
           account={draft}
           onChange={setDraft}
           onPrimaryChange={(checked) => { if (!original?.isPrimary || checked) setDraft({

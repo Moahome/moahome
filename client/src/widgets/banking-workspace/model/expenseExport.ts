@@ -20,7 +20,7 @@ export function getExpenseReportDocument(rows: readonly BankingTransaction[], bu
     description: '공용 지출 보고서',
     sheet: '지출 내역',
     columns: [{
-      label: '거래일시',
+      label: '거래일',
       width: 30
     }, {
       label: '지출명',
@@ -41,7 +41,7 @@ export function getExpenseReportDocument(rows: readonly BankingTransaction[], bu
       value: scope
     }],
     rows: rows.map((row) => [
-      `${row.date}${row.time ? ` ${row.time}` : ''}`,
+      row.date,
       row.expense?.category || row.payer,
       getExpenseAmount(row, buildingIds)
     ]),

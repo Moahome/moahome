@@ -9,7 +9,10 @@ import {
   LoadingState,
   StateMessage
 } from '@/shared/ui/state-message';
-import { BankImportEditor } from '@/entities/banking';
+import {
+  BankImportEditor,
+  getBankAccountLabel
+} from '@/entities/banking';
 import { useSession } from '@/entities/session';
 import {
   formatInteger,
@@ -241,9 +244,11 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const importSupport = importAccount?.importSupport;
   const canImport = importAccount?.status === 'ACTIVE' && importSupport?.enabled === true;
   const importMessage = importSupport?.message ?? '통장 업로드 지원 정보를 확인할 수 없습니다. 새로고침해주세요.';
+  /** 통장 선택·거래·지출 목록에 같은 공통 표시명을 사용합니다. */
   function accountLabel(id: string) {
     const account = accounts.find((row) => row.id === id);
-    return account ? `${account.bankName} ····${account.last4}${account.alias ? ` · ${account.alias}` : ''}${account.status === 'ACTIVE' ? '' : ' · 사용 종료'}` : '관리계좌';
+
+    return account ? getBankAccountLabel(account) : '관리계좌';
   }
   const buildings = sortExpenseLabels(data.buildings);
   const receiptById = new Map(receiptRows.map((row) => [row.id, row]));
@@ -1216,25 +1221,16 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                   header: '통장',
                   render: (row: BankingTransaction) => accountLabel(row.accountId)
                 }] : []),
-                ...(view === 'transactions' && !preview ? [{
-                  key: 'source',
-                  header: '등록 방식',
-                  render: (row: BankingTransaction) => row.sourceType === 'MANUAL' ? '수동 지출' : manualIds.has(row.id) ? '수동 입금' : '엑셀'
-                }] : []),
                 {
                   key: 'date',
-                  header: '거래일시',
+                  header: '거래일',
                   render: (row) => (
-                    <>
-                      <span>
-                        {row.date}
-                      </span>
-                      <small
-                        className={styles.muted}
-                      >
-                        {row.time}
-                      </small>
-                    </>
+                    <time
+                      className={styles['transaction-date']}
+                      dateTime={row.date}
+                    >
+                      {row.date}
+                    </time>
                   )
                 },
                 ...(showIncome ? [{
@@ -1387,10 +1383,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                       {row.direction === 'INCOME' ? '입금' : '출금'}
                     </b>
                     <span>
-                      {data.accounts?.find((account) => account.id === row.accountId)?.bankName}
-                      {' '}
-                      ····
-                      {data.accounts?.find((account) => account.id === row.accountId)?.last4}
+                      {getBankAccountLabel(data.accounts?.find((account) => account.id === row.accountId))}
                     </span>
                   </p>
                 </div>

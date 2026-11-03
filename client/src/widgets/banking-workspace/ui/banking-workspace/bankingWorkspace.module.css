@@ -21,6 +21,10 @@
   margin-bottom: 0;
 }
 
+.transaction-date {
+  white-space: nowrap;
+}
+
 .summary {
   display: grid;
   grid-template-columns: repeat(var(--summary-columns, 5), minmax(0, 1fr));

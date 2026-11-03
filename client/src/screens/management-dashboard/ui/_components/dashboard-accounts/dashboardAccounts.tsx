@@ -58,12 +58,6 @@ export function DashboardAccounts({ report, href, onOpen }: {
                 <strong>
                   {account.label}
                 </strong>
-                <small>
-                  {account.bankName}
-                  {' '}
-                  ····
-                  {account.last4}
-                </small>
               </span>
               <span
                 className={styles.balance}

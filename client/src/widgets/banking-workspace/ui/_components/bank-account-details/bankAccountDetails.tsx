@@ -2,7 +2,10 @@
 
 import { LoadingState } from '@/shared/ui/state-message';
 
-import { BankIcon } from '@/entities/banking';
+import {
+  BankIcon,
+  getBankAccountLabel
+} from '@/entities/banking';
 import { useSession } from '@/entities/session';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
@@ -122,11 +125,11 @@ export function BankAccountDetails({ propertyId, account, month, onCheck, onInit
           className={styles['bank-identity']}
         >
           <h3>
-            {detail.bankName}
+            {getBankAccountLabel(detail)}
           </h3>
           {detail.alias && (
             <p>
-              {detail.alias}
+              {detail.bankName}
             </p>
           )}
           <div

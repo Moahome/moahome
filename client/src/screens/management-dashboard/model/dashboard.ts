@@ -1,3 +1,4 @@
+import { getBankAccountLabel } from '@/entities/banking';
 import { getMonthDateRange } from '@/shared/lib/date-range';
 import { getMonthsInRange } from '@/shared/lib/month-range';
 import {
@@ -61,7 +62,7 @@ export function getDashboardReport(data: DashboardSnapshot) {
 
     return {
       ...account,
-      label: account.alias || account.bankName,
+      label: getBankAccountLabel(account),
       balance: display?.amount ?? null,
       calculated: display?.calculated ?? false,
       asOf: balance?.asOf ?? null,

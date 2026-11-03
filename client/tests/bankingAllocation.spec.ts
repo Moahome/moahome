@@ -670,3 +670,31 @@ test('업무 검토 기간은 실제 거래일이며 중복 의심은 은행 원
     endDate: '2026-11-01'
   });
 });
+
+
+test('통장 표시명은 이름을 우선하고 이름이 없으면 은행과 끝 네 자리만 표시', async () => {
+  const { getBankAccountLabel } = await import('../src/entities/banking/lib/bankAccountLabel');
+  expect(getBankAccountLabel({
+    alias: ' 공용 계좌 ',
+    bankName: '하나은행',
+    last4: '5107'
+  })).toBe('공용 계좌');
+  expect(getBankAccountLabel({
+    alias: ' ',
+    bankName: '하나은행',
+    last4: '5107'
+  })).toBe('하나은행 5107');
+  expect(getBankAccountLabel({
+    bankName: '국민은행',
+    accountNumber: '001-00005107'
+  })).toBe('국민은행 5107');
+  expect(getBankAccountLabel({
+    label: '하나은행 ····5107 · 공용 계좌'
+  })).toBe('공용 계좌');
+  expect(getBankAccountLabel({
+    label: '하나은행 ····5107'
+  })).toBe('하나은행 5107');
+  expect(getBankAccountLabel({
+    label: '하나은행 ····5107 · 사용 종료'
+  })).toBe('사용 종료');
+});

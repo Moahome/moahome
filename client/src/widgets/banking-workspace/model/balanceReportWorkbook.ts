@@ -106,7 +106,7 @@ export async function createBalanceStyledWorkbook(document: ReportDefinition): P
   for (const section of sections) {
     data.push(blank(), band(`${section.label} 거래 상세 · 총 ${section.rows.length}건`));
     cards(amount(section.start), section.income, section.expense, amount(section.end));
-    data.push(['거래일시', '구분', '입금자 · 지출명', '입금액', '지출액', '잔액'].flatMap((label, index) => merge(label, spans[index], {
+    data.push(['거래일', '구분', '입금자 · 지출명', '입금액', '지출액', '잔액'].flatMap((label, index) => merge(label, spans[index], {
       height: 30,
       fontWeight: 'bold',
       backgroundColor: colors.soft,

@@ -1,5 +1,8 @@
 'use client';
 
+import { getBankAccountLabel } from '@/entities/banking';
+
+
 import {
   useEffect,
   useRef,
@@ -128,7 +131,7 @@ export function InitialBalanceEditor({ data, page = false, onClose, onSaved }: {
           {accounts.map((account) => (
             <AmountInput
               key={account.accountId}
-              label={`${account.label} 시작 잔액`}
+              label={`${getBankAccountLabel(account)} 시작 잔액`}
               value={account.amount}
               onChange={(value) => setAccounts((rows) => rows.map((row) => row.accountId === account.accountId ? {
                 ...row,

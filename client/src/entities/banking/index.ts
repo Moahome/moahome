@@ -4,6 +4,9 @@ export {
 export {
   BankIcon
 } from './ui/bank-icon/bankIcon';
+export {
+  getBankAccountLabel
+} from './lib/bankAccountLabel';
 
 export {
   EMPTY_BANK_ACCOUNT,

@@ -138,7 +138,7 @@ test('계좌 필터와 동 필터를 함께 적용해 선택 계좌의 실제 �
   const selected = getBalanceReportDocument(data, settlementId(203), settlementId(201));
   expect(selected.rows.map((row) => row[4])).toEqual(['103동 카카오 입금', '']);
   expect(selected.total?.slice(5, 7)).toEqual([BigInt(9000), BigInt(0)]);
-  expect(selected.summary.find((row) => row.label === '조회 계좌')?.value).toBe('카카오뱅크 ····1004');
+  expect(selected.summary.find((row) => row.label === '조회 계좌')?.value).toBe('카카오뱅크 1004');
   expect(getBalanceReportDocument(data, '', settlementId(201)).total?.slice(5, 7)).toEqual([BigInt(9000), BigInt(0)]);
   expect(getBalanceReportDocument(data, settlementId(203), settlementId(2)).total?.slice(5, 7)).toEqual([BigInt(0), BigInt(6000)]);
   expect(getBalanceReportDocument(data, settlementId(3), settlementId(201)).total?.slice(5, 7)).toEqual([BigInt(0), BigInt(0)]);

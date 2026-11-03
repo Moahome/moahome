@@ -252,7 +252,7 @@ function DashboardPreview() {
                 <span>
                   운영 통장
                   <small>
-                    하나은행 ····1234
+                    하나은행 1234
                   </small>
                 </span>
                 <b>
@@ -268,7 +268,7 @@ function DashboardPreview() {
                 <span>
                   예비비 통장
                   <small>
-                    신한은행 ····5678
+                    신한은행 5678
                   </small>
                 </span>
                 <b>
@@ -305,7 +305,7 @@ function DashboardPreview() {
                 <thead>
                   <tr>
                     <th>
-                      거래일시
+                      거래일
                     </th>
                     <th>
                       내용

@@ -1,5 +1,8 @@
 'use client';
 
+import { getBankAccountLabel } from '@/entities/banking';
+
+
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import {
@@ -434,7 +437,7 @@ export function RegistrationReview({
                       통장
                     </dt>
                     <dd>
-                      {account.alias || account.bankName}
+                      {getBankAccountLabel(account)}
                       {account.isPrimary ? ' · 기본 납부계좌' : ''}
                     </dd>
                   </div>

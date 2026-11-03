@@ -37,12 +37,10 @@ export function DashboardTransactions({ report, href, onOpen }: {
           columns={[
             {
               key: 'date',
-              header: '거래일시',
+              header: '거래일',
               render: (row) => (
                 <span>
                   {row.date.replaceAll('-', '.')}
-                  {' '}
-                  {row.time?.slice(0, 5) ?? ''}
                 </span>
               )
             },

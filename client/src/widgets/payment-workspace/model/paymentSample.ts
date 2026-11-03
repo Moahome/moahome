@@ -9,10 +9,10 @@ export function createPaymentSample(): PreviewLedger {
     asOf: '2026-10-15',
     accounts: [{
       id: 'a1',
-      label: '하나은행 ····1234'
+      label: '하나은행 1234'
     }, {
       id: 'a2',
-      label: '국민은행 ····9421'
+      label: '국민은행 9421'
     }],
     units: [
       {

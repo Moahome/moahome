@@ -1,3 +1,4 @@
+import { getBankAccountLabel } from '@/entities/banking';
 import { getAccountsForRange } from './bankAccountVisibility';
 import { getMonthDateRange } from '@/shared/lib/date-range';
 import { formatMonthRange } from '@/shared/lib/month-range';
@@ -35,8 +36,7 @@ export function getBalanceReportAccountOptions(data: BalanceReportSnapshot) {
     endDate: getMonthDateRange(data.month).endDate
   }).map((account) => ({
     id: account.id,
-    label: data.balances.accounts?.find((row) => row.id === account.id)?.label
-      ?? `${account.bankName} ····${account.last4}${account.alias ? ` · ${account.alias}` : ''}`
+    label: getBankAccountLabel(account)
   })).sort((a, b) => a.label.localeCompare(b.label, 'ko', {
     numeric: true
   }) || a.id.localeCompare(b.id));
@@ -81,10 +81,11 @@ export function getBalanceReportDocument(data: BalanceReportSnapshot, buildingId
       expense += paid;
       // 월초 보유금에서 날짜순으로 누적하며 기준 잔액이 미설정이면 가짜 0원 잔액을 만들지 않습니다.
       if (running !== null) running += received - paid;
-      const account = data.balances.accounts?.find((item) => item.id === entry.accountId);
+      const account = data.banking.accounts?.find((item) => item.id === entry.accountId)
+        ?? data.balances.accounts?.find((item) => item.id === entry.accountId);
       let direction = '지출';
       if (received !== BigInt(0)) direction = paid !== BigInt(0) ? '입금·지출' : '입금';
-      rows.push([group.label, `${entry.date}${entry.time ? ` ${entry.time}` : ''}`, account?.label ?? '통장 미확인',
+      rows.push([group.label, entry.date, account ? getBankAccountLabel(account) : '통장 미확인',
         direction, entry.label, received, paid, running ?? '설정 필요']);
     }
     if (!movements.length) rows.push([group.label, '', '', '내역 없음', '조회 기간의 입금·지출 내역이 없습니다.', '', '', start == null ? '설정 필요' : BigInt(start)]);
@@ -104,7 +105,7 @@ export function getBalanceReportDocument(data: BalanceReportSnapshot, buildingId
         label: '동',
         width: 18
       }, {
-        label: '거래일시',
+        label: '거래일',
         width: 28
       }, {
         label: '통장',

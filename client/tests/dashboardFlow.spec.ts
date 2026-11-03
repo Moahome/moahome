@@ -332,7 +332,7 @@ test('기존 확인 잔액만 있는 통장은 상세에서 금액을 유지하�
   }));
   await page.goto(`${BASE}?month=2026-10`);
   await page.getByRole('button', {
-    name: '하나은행 통장 상세',
+    name: '하나은행 1234 통장 상세',
     exact: true
   }).click();
   const detail = page.getByRole('dialog', {
@@ -391,7 +391,7 @@ test('모바일 통장 상세의 헤더·기기 뒤로가기는 대시보드 또
       : `/manage/${SETTLEMENT_PROPERTY}/banking/balances?account=${settlementId(2)}&month=2026-10`;
     await page.goto(origin);
     const open = () => page.getByRole('button', {
-      name: from === 'dashboard' ? '하나은행 통장 상세' : /하나은행.*통장 상세 보기/
+      name: from === 'dashboard' ? '하나은행 1234 통장 상세' : /하나은행.*통장 상세 보기/
     }).click();
     await open();
     await expect(page).toHaveURL(/banking\/balances\/details\/account/);
