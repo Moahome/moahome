@@ -26,6 +26,7 @@
 | 구성 | 구현된 동작 | 자동으로 보장하지 않는 것 |
 | --- | --- | --- |
 | [Server CI](../../.github/workflows/serverCi.yml) | PR·main 검증, main push 성공 시 GHCR 게시 후 운영 Runner에서 digest 기준 API 자동 배포·내부/외부 준비 상태·인증 보호 확인 | 운영 DB 이력 사전 대조·RDS 스냅샷 생성·실제 로그인과 업무 검증 |
+| [이미지 자동 보관](../../server/docs/deploymentGuide.md#성공-이미지-3개-자동-보관) | Server CI 배포·외부 검증 성공 후 현재·이전 정상 API 이미지 총 3개를 운영 호스트·GHCR에 보관하고 오래된 버전 정리 | 도입 이전 성공 이력 추정, 수동 배포 후 자동 정리, DB 롤백. 운영 패키지 권한·실행 결과는 별도 확인 |
 | [Client CI](../../.github/workflows/clientCi.yml) | 검사·테스트, main push와 `VERCEL_DEPLOY_ENABLED=true` 등 조건 충족 시 Vercel 운영 배포 | 운영 백엔드 배포 완료 대기. 수동 워크플로 실행의 운영 배포도 현재 조건에 포함되지 않음 |
 | [deploy.sh](../../server/deploy/deploy.sh) | 동일 호스트 배포 잠금, 이미지 pull, API 준비 확인, Nginx 검사·reload, 정상 설정 기록 | 배포 전 RDS 스냅샷 생성, 별도 Flyway 사전 검증, 실패 시 자동 롤백 |
 
@@ -109,6 +110,8 @@ sudo bash deploy.sh ghcr.io/moahome/moahome-api:COMMIT_SHA
 ```
 
 배포 스크립트의 `API 준비 확인 완료`는 API 준비 확인 결과입니다. 뒤의 외부 HTTPS·실제 업무 확인까지 끝나야 다음 단계로 넘어갑니다. SSH 터미널에서 다음을 실행합니다. `psql`의 `moahome=>` 화면이라면 먼저 `\q`로 나옵니다.
+
+GitHub Actions 배포에서는 자동 외부 검증까지 통과한 뒤 이미지 정리를 수행합니다. 사용자 요청인 정상 이미지 3개 보관 기준과 초기 이력 수집·삭제 제외·오류 처리는 [Server 이미지 보관 절차](../../server/docs/deploymentGuide.md#성공-이미지-3개-자동-보관)를 따릅니다. `retain-images` 실패는 정리 실패이며 이미 정상 검증된 API를 자동 롤백하지 않습니다. 이미지 3개 보관으로 DB 호환성·백업 점검을 대체하지 않습니다.
 
 ```bash
 sudo docker compose --env-file .deploy.env -f compose.prod.yml ps

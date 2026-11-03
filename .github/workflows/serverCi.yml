@@ -42,6 +42,8 @@ jobs:
       - name: Test and build
         working-directory: server
         run: bash gradlew --no-daemon build
+      - name: Verify image retention safety
+        run: python3 -m unittest discover -s server/scripts -p 'testImageRetention.py'
       - name: Verify production deployment locally
         env:
           API_IMAGE: moahome-api:ci
@@ -133,3 +135,30 @@ jobs:
           [[ "$auth_status" == 401 ]]
           printf 'Deployed: `%s`\n\nDigest: `%s`\n\nExternal readiness: UP\n' \
             "$IMAGE_TAG" "$API_IMAGE" >> "$GITHUB_STEP_SUMMARY"
+
+  retain-images:
+    needs: [verify, deploy]
+    runs-on: [self-hosted, linux, x64, moahome-production]
+    timeout-minutes: 10
+    # 삭제 권한은 배포·외부 검증 성공 뒤의 정리 작업에만 부여합니다.
+    permissions:
+      contents: read
+      packages: write
+    env:
+      API_IMAGE: ${{ needs.verify.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Retain three successful API images on host and GHCR
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # 저장소의 검증한 스크립트를 사용하므로 /opt의 기존 배포 파일을 덮어쓰지 않습니다.
+          # 토큰은 프로세스 인자·운영 환경 파일에 남기지 않고 표준입력으로만 전달합니다.
+          printf '%s' "$GHCR_TOKEN" | sudo -n python3 \
+            "$GITHUB_WORKSPACE/server/deploy/retainImages.py" /opt/moahome "$API_IMAGE"
+          printf 'Image retention: latest three distinct successful API digests (bootstrap until three).\n' \
+            >> "$GITHUB_STEP_SUMMARY"

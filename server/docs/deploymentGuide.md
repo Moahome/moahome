@@ -16,12 +16,14 @@
 | `server/deploy/.env.example` | 실제 운영 값 없이 제공하는 앱 환경변수 양식 |
 | `server/deploy/deploy.env.example` | 공개 도메인·이미지 버전 양식 |
 | `server/deploy/deploy.sh` | API 배포 직렬화·준비 확인·이전 정상 설정 보관 |
+| `server/deploy/retainImages.py` | 외부 검증 성공 후 최근 정상 API 이미지 3개를 로컬·GHCR에 보관 |
 | `server/deploy/certificates.sh` | 최초 인증서 발급·갱신·Nginx 재적용 |
 | `server/deploy/moahomeCertbot.service`·`.timer` | Ubuntu에서 하루 두 번 인증서 갱신 확인 |
 | `server/scripts/verifyDeployment.sh` | 임시 DB·인증서·컨테이너를 사용하는 로컬 통합 검증 |
+| `server/scripts/testImageRetention.py` | Docker·GitHub API를 격리한 이미지 정리 안전 조건 검증 |
 | `.github/workflows/serverCi.yml` | PR 검증, main 이미지 게시 후 운영 Runner 자동 배포 |
 
-운영 호스트는 Ubuntu LTS, Docker Engine과 Compose 플러그인 2.30 이상, Bash·curl·Certbot·flock을 사용합니다. Compose의 raw env_file과 준비 대기를 지원하는 버전이 필요합니다. Docker 설치는 [공식 Ubuntu 안내](https://docs.docker.com/engine/install/ubuntu/)를 따릅니다. 호스트의 JDK·Gradle·PostgreSQL 서버 설치는 필요하지 않습니다.
+운영 호스트는 Ubuntu LTS, Docker Engine과 Compose 플러그인 2.30 이상, Bash·curl·Certbot·flock·Python 3.10 이상을 사용합니다. Python은 이미지 정리에 표준 라이브러리만 사용하며 별도 패키지를 설치하지 않습니다. Compose의 raw env_file과 준비 대기를 지원하는 버전이 필요합니다. Docker 설치는 [공식 Ubuntu 안내](https://docs.docker.com/engine/install/ubuntu/)를 따릅니다. 호스트의 JDK·Gradle·PostgreSQL 서버 설치는 필요하지 않습니다.
 
 ## 2. 유료 리소스 생성 전 로컬 검증
 
@@ -50,7 +52,7 @@ SMOKE_SKIP_BUILD=1 bash server/scripts/verifyDeployment.sh
 
 ## 3. GitHub Actions의 검증·이미지 게시·자동 배포
 
-Server 변경 PR에서는 JDK 21·Redis·PostgreSQL 17 실행 파일을 준비하고 `./gradlew build`와 위 Docker 통합 검증을 수행합니다. 임시 클러스터를 직접 실행하는 기존 테스트 구조를 유지하며 운영·개발 DB를 연결하지 않습니다.
+Server 변경 PR에서는 JDK 21·Redis·PostgreSQL 17 실행 파일을 준비하고 `./gradlew build`, 이미지 정리 안전 조건 테스트와 위 Docker 통합 검증을 수행합니다. 임시 클러스터를 직접 실행하는 기존 테스트 구조를 유지하며 운영·개발 DB를 연결하지 않습니다.
 
 main 브랜치의 변경은 같은 검증을 통과한 이미지에 아래 태그를 붙여 GHCR로 게시합니다. Ubuntu x64 러너에서 빌드하므로 초기 Lightsail x86_64 서버에 사용할 수 있습니다. 로컬 Mac의 ARM 이미지를 운영 이미지로 게시하지 않습니다.
 
@@ -69,6 +71,34 @@ ghcr.io/<소문자 GitHub 소유자>/moahome-api:<전체 커밋 SHA>
 작업은 해당 저장소의 일회성 `GITHUB_TOKEN`에 `packages: read`만 부여하고 임시 Docker 인증 설정으로 이미지를 내려받습니다. 기존 운영자 로그인과 `.env.prod`는 변경하지 않으며 종료 시 임시 인증 파일을 제거합니다. 실제 기동 이미지 digest, healthy 상태·재시작 0회, 내부 readiness, 외부 HTTPS readiness의 UP, 미인증 사용자 API의 401을 확인합니다. 실패 시 배포 성공으로 기록하지 않고 기존 스크립트처럼 DB 호환성을 모르는 자동 롤백을 수행하지 않습니다.
 
 DB 변경의 전체 이력 대조·격리 업그레이드 시험·백업은 [운영 배포 규칙](../../docs/operations/deploymentRules.md)에 따라 main 반영 전에 완료합니다. 이 작업은 RDS 스냅샷 생성과 기존 프론트의 실제 로그인·업무 검증까지 자동화한 것으로 보지 않습니다. 서버의 배포 파일 동기화와 프론트 배포 대기 연결도 이번 작업에는 포함하지 않습니다. 이 문서의 구현 설명은 운영 Runner에서 실행 성공을 확인한 기록과 구분합니다.
+
+### 성공 이미지 3개 자동 보관
+
+사용자 요청에 따라 **현재 성공 버전과 이전 성공 버전 2개, 서로 다른 API digest 총 3개**를 보관합니다. 새 배포가 성공했다고 그 이미지를 즉시 지우지 않으며, 네 번째 정상 버전이 기록되면 성공 순서가 가장 오래된 버전을 정리합니다. 같은 이미지 재배포나 롤백은 해당 digest를 최신 성공 위치로 옮기며 보관 개수를 중복 사용하지 않습니다.
+
+`serverCi.yml`의 `retain-images` 작업은 `verify`·`deploy` 성공 뒤 운영 Runner에서 실행합니다. `deploy`의 내부·외부 readiness, 실행 digest·healthy·재시작 횟수, 미인증 API의 401 검증을 모두 통과해야 실행됩니다. 실패한 배포에서는 정상 이력을 갱신하거나 기존 롤백 이미지를 삭제하지 않습니다. 실패 이미지 등 사용하지 않는 오래된 API 이미지도 다음 정상 배포의 정리 대상이 될 수 있습니다.
+
+처리는 다음 순서입니다.
+
+1. 저장소를 `persist-credentials: false`로 체크아웃하고 검증한 `server/deploy/retainImages.py`를 `sudo -n python3`로 실행합니다. `/opt/moahome`의 배포 파일이나 환경 파일을 덮어쓰지 않습니다.
+2. `deploy.sh`와 같은 `/opt/moahome/.deployment.lock`을 잡고 설정·실행 API가 검증한 digest와 일치하며 정상인지 다시 확인합니다. 검증 뒤 수동 배포 등으로 버전이 바뀌었다면 중단합니다. 정리가 끝날 때까지 다른 정상 배포는 이 잠금을 획득할 수 없습니다.
+3. `/opt/moahome/.successfulImages.json`에 최근 성공 digest를 기록합니다. 기존 이미지의 성공 여부를 생성 시각으로 추정하지 않으므로 **도입 후 서로 다른 정상 버전 3개가 쌓이기 전에는 삭제를 보류**합니다. 이 파일을 삭제·수정해 성공 이력을 임의로 재구성하지 않습니다.
+4. GHCR 전체 페이지에서 보관할 digest 3개의 존재를 확인한 뒤 로컬 API 이미지를 정리합니다. 모든 실행·중지 컨테이너가 참조하는 이미지와 다른 저장소에 공유된 이미지는 보호하고 강제 삭제는 사용하지 않습니다. Redis·Nginx, 볼륨과 Docker 빌드 캐시는 정리 대상이 아닙니다.
+5. GHCR의 `moahome-api` 패키지에서 보관할 digest를 제외한 오래된 전체 커밋 SHA 태그 버전을 삭제합니다. 보관 이미지보다 나중에 게시된 후보, 별도 수동 태그와 태그 없는 OCI 하위 manifest는 제외합니다. 다른 패키지는 건드리지 않습니다.
+
+보관 대상 정상 API 버전은 3개이며, 새 이미지 다운로드 중에는 일시적으로 4개 이상이 필요합니다. 초기 이력 수집 중, 사용 중인 다른 컨테이너·공유 이미지·별도 태그·새 후보 보호 또는 정리 실패 시에도 실제 개수는 3개보다 많을 수 있습니다. 이미지 간 공통 레이어는 공유되므로 표시 용량의 단순 합계와 실제 회수 용량은 다를 수 있습니다.
+
+배포 작업의 토큰은 기존처럼 `packages: read`를 유지하고 정리 작업에만 `packages: write`를 부여합니다. 삭제에는 GHCR 패키지에 대한 저장소의 **Admin 권한**도 필요합니다. `moahome-api` 패키지의 Settings → Manage Actions access에서 이 저장소의 권한을 확인합니다. 워크플로가 게시한 패키지는 기본적으로 저장소에 Admin 역할이 부여되지만 기존 패키지는 실제 설정을 확인해야 합니다. 별도 PAT를 저장하지 않고 작업의 `GITHUB_TOKEN`을 표준입력으로 전달합니다. 권한 기준은 [GitHub 공식 패키지 삭제 안내](https://docs.github.com/en/packages/learn-github-packages/deleting-and-restoring-a-package#packages-api-support)를 따릅니다.
+
+정리 오류는 `retain-images` 작업 실패로 표시하며 이미 정상 동작하는 API를 되돌리지 않습니다. 성공 이력은 보존하여 다음 정상 배포에서 다시 정리합니다. 이력 파일 손상·누락된 정상 이미지·권한·네트워크 오류는 로그를 확인하고 해결합니다. GHCR 조회·보관 이미지 확인이 실패하면 로컬 삭제도 시작하지 않으며, 삭제 도중 실패하면 일부 오래된 이미지가 남을 수 있습니다. 실제 운영에서의 권한 확인과 정리 실행 결과는 코드 구현과 구분합니다.
+
+안전 조건 테스트는 저장소 루트에서 실행합니다. 실제 Docker 삭제나 GHCR 접근은 수행하지 않습니다.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s server/scripts -p 'testImageRetention.py'
+```
+
+이 자동 정리는 GitHub Actions 배포 경로에 연결됩니다. 아래의 수동 `deploy.sh` 실행만으로는 외부 검증 완료를 알 수 없으므로 정리를 수행하지 않습니다. 이미지 보관은 앱 롤백 준비이며 DB Migration을 되돌리는 기능은 아닙니다.
 
 ## 4. 운영 호스트 준비
 
