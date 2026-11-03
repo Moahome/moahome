@@ -259,7 +259,7 @@ test.describe('대시보드 모바일 반응형', () => {
     hasTouch: true
   });
 
-  test('그래프 양 끝 툴팁은 잘리지 않고 425px부터 요약 카드를 두 열로 표시', async ({ page }, testInfo) => {
+  test('그래프 양 끝 툴팁은 잘리지 않고 360px부터 요약 카드를 두 열로 표시', async ({ page }, testInfo) => {
     await mockDashboard(page, undefined, (month) => {
       const data = dashboardFixture(month);
       data.payments.charges.find((charge) => charge.month === data.month)!.amount = '1000000';
@@ -273,7 +273,7 @@ test.describe('대시보드 모바일 반응형', () => {
     const cards = page.getByRole('article');
     await expect(cards).toHaveCount(4);
 
-    for (const width of [320, 390, 424, 425, 600, 768]) {
+    for (const width of [320, 359, 360, 390, 424, 425, 600, 768]) {
       await page.setViewportSize({
         width,
         height: 1000
@@ -287,12 +287,18 @@ test.describe('대시보드 모바일 반응형', () => {
           bottom: box.bottom
         };
       }));
-      if (width < 425) expect(bounds[1].y).toBeGreaterThanOrEqual(bounds[0].bottom);
+      if (width < 360) expect(bounds[1].y).toBeGreaterThanOrEqual(bounds[0].bottom);
       else {
         expect(Math.abs(bounds[0].y - bounds[1].y)).toBeLessThan(1);
         expect(Math.abs(bounds[2].y - bounds[3].y)).toBeLessThan(1);
         expect(Math.abs(bounds[0].x - bounds[2].x)).toBeLessThan(1);
         expect(bounds[2].y).toBeGreaterThanOrEqual(bounds[0].bottom);
+        const amount = cards.first().locator('strong');
+        const amountBox = (await amount.boundingBox())!;
+        const cardBox = (await cards.first().boundingBox())!;
+        const lineHeight = await amount.evaluate((element) => Number.parseFloat(getComputedStyle(element).lineHeight));
+        expect(amountBox.height).toBeLessThanOrEqual(lineHeight + 1);
+        expect(amountBox.x + amountBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width);
       }
       for (const bar of [bars.first(), bars.nth(10), bars.nth(11)]) {
         await bar.focus();

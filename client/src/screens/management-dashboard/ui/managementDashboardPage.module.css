@@ -97,9 +97,25 @@
   }
 }
 
-@media (min-width: 425px) and (max-width: 767px) {
+@media (min-width: 360px) and (max-width: 767px) {
   .page .summary {
     container-type: inline-size;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 360px) and (max-width: 424px) {
+  .page .summary {
+    gap: 12px;
+
+    /* 좁은 두 열에서도 금액의 숫자가 중간에 꺾이지 않도록 카드 안쪽 공간을 확보합니다. */
+    > article {
+      gap: 6px;
+      padding: 8px;
+
+      &[data-density='compact'] strong {
+        font-size: 18px;
+      }
+    }
   }
 }
