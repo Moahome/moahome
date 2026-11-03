@@ -16,5 +16,6 @@ export interface ManualReceiptUnit {
   id: string;
   label: string;
   representativeName?: string | null;
+  recentPayerName?: string;
   residentNames?: string[];
 }

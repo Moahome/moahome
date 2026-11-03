@@ -74,6 +74,14 @@
   [data-mode='RATIO'] & {
     grid-template-columns: minmax(0, 1fr) 80px 14px minmax(92px, 1fr) 32px;
   }
+
+  [data-mode='AMOUNT'] & {
+    grid-template-columns: minmax(0, 1fr) auto;
+
+    &[data-external='true'] {
+      grid-template-columns: minmax(0, 1fr) auto 40px;
+    }
+  }
 }
 
 .total {
@@ -81,26 +89,62 @@
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-  font-weight: 700;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
 
-  &[data-valid='false'] {
-    color: var(--warning);
-  }
-
-  &[data-valid='true'] {
-    color: var(--success);
-  }
-
-  &[data-overallocated='true'] {
+  [data-overallocated='true'] {
     color: var(--danger);
+    font-weight: 700;
   }
 }
 
 .warning {
-  color: var(--warning);
+  color: var(--sub-text);
   margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.complete {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--success);
+  font-size: 14px;
+
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.amount-controls {
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  justify-self: end;
+  gap: 8px;
+  width: 248px;
+  max-width: 100%;
+  min-width: 0;
+
+  > * {
+    flex: 0 0 calc((100% - 8px) / 2);
+    width: calc((100% - 8px) / 2);
+    min-width: 0;
+  }
+
+  .fill-remainder {
+    min-height: 50px;
+    padding: 10px 8px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
 }
 
 .remember {
@@ -216,12 +260,20 @@
   .share {
     min-height: 46px;
     padding: 10px 18px;
-    /* 삭제 버튼 유무와 관계없이 같은 열을 확보해 동·외부 부담처의 입력 위치를 맞춥니다. */
+    /* 균등·비율 입력은 삭제 열을 유지하며 직접 금액 입력은 아래에서 실제 버튼만 배치합니다. */
     grid-template-columns: minmax(0, 1fr) var(--allocation-value-width) var(--allocation-action-width);
   }
 
   &[data-mode='RATIO'] .share {
     grid-template-columns: minmax(0, 1fr) var(--allocation-value-width) 12px var(--allocation-value-width) var(--allocation-action-width);
+  }
+
+  &[data-mode='AMOUNT'] .share {
+    grid-template-columns: minmax(0, 1fr) auto;
+
+    &[data-external='true'] {
+      grid-template-columns: minmax(0, 1fr) auto 40px;
+    }
   }
 
   .total {
@@ -267,4 +319,30 @@
 .share-value {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 767px) {
+  .editor[data-mode='AMOUNT'] .share,
+  .editor[data-mode='AMOUNT'][data-sectioned='true'] .share {
+    grid-template-columns: minmax(0, 1fr) 40px;
+
+    &[data-external='true'] {
+      grid-template-columns: minmax(0, 1fr) 40px;
+    }
+
+    > :first-child {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .amount-controls {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+
+    > button:last-child {
+      grid-column: 2;
+      grid-row: 1;
+    }
+  }
 }

@@ -190,7 +190,7 @@ test.beforeEach(async ({ page }) => {
         const unit=ledger.units.find((u)=>u.id===input.unitId)!;
         ledger=addPreviewManual(ledger,{
           ...input,
-          payer:unit.representativeName!,
+          payer:input.payer ?? unit.representativeName!,
           accountId:ledger.accounts[0].id
         });
         body={
@@ -792,7 +792,7 @@ test('좁고 낮은 화면에서도 입금일 달력이 모달 경계를 지키�
   await expect(modal).toBeVisible();
 });
 
-test('수동 입금자는 실제 대표 이름으로 채우고 API 저장 후 새로고침에도 수납 내역이 남음', async ({ page }) => {
+test('수동 입금자는 기본 이름을 수정해 저장하고 다음 등록은 최근 확정 입금자명을 사용', async ({ page }) => {
   await page.setViewportSize({
     width: 1440,
     height: 1000
@@ -829,7 +829,12 @@ test('수동 입금자는 실제 대표 이름으로 채우고 API 저장 후 �
   await expect(modal.getByRole('textbox',{
     name:'입금자명',
     exact:true
-  })).toHaveAttribute('readonly','');
+  })).toBeEditable();
+  await modal.getByRole('textbox', {
+    name: '입금자명',
+    exact: true
+  }).fill('실제입금자');
+  await expect(modal.getByText('현재 대표 주민 이름입니다.')).toHaveCount(0);
   await modal.getByRole('textbox',{
     name:'입금액',
     exact:true
@@ -862,8 +867,31 @@ test('수동 입금자는 실제 대표 이름으로 채우고 API 저장 후 �
     name:/처리 완료/
   }).click();
   await expect(page.getByRole('row').filter({
-    hasText:'김모아'
+    hasText:'실제입금자'
   })).toContainText('42,000원');
+  await page.getByRole('button', {
+    name: '＋ 수동 입금 등록'
+  }).click();
+  await modal.getByRole('combobox', {
+    name: '입금 용도',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '세대 관리비 직접 지정',
+    exact: true
+  }).click();
+  await modal.getByRole('combobox', {
+    name: '세대',
+    exact: true
+  }).click();
+  await modal.getByRole('option', {
+    name: '101호',
+    exact: true
+  }).click();
+  await expect(modal.getByRole('textbox', {
+    name: '입금자명',
+    exact: true
+  })).toHaveValue('실제입금자');
 });
 
 test('처리 상태 탭은 선택 글씨와 밑줄만 강조하고 호버에도 배경을 채우지 않음', async ({page})=>{

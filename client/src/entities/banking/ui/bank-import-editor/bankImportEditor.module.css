@@ -11,7 +11,7 @@
     font-weight: 700;
   }
 
-  p {
+  > p {
     color: var(--sub-text);
     line-height: 1.6;
   }

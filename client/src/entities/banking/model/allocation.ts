@@ -16,6 +16,7 @@ export function calculateExpenseAllocation(total: string, draft: ExpenseDraft, p
       allocations: [],
       allocated: amount,
       remaining: BigInt(0),
+      allocationError: purpose !== 'expense' ? '입금 배분 방법을 확인해주세요.' : amount <= BigInt(0) ? '0원보다 큰 출금액을 입력해주세요.' : '',
       error: purpose !== 'expense' ? '입금 배분 방법을 확인해주세요.' : !draft.category.trim() ? '지출명을 입력해주세요.' : amount <= BigInt(0) ? '0원보다 큰 출금액을 입력해주세요.' : ''
     };
   }
@@ -40,18 +41,38 @@ export function calculateExpenseAllocation(total: string, draft: ExpenseDraft, p
   });
   const allocated = allocations.reduce((sum, a) => sum + BigInt(a.amount), BigInt(0));
   const remaining = amount - allocated;
-  let error = '';
-  if (!draft.category.trim()) error = purpose === 'income' ? '입금 항목을 입력해주세요.' : '지출명을 입력해주세요.';
-  else if (!allocations.length || allocations.some((a) => !a.label.trim() || BigInt(a.amount) <= BigInt(0))) error = purpose === 'income' ? '배분할 동과 0원보다 큰 금액을 입력해주세요.' : '부담할 곳과 0원보다 큰 금액을 입력해주세요.';
-  else if (draft.mode === 'RATIO' && ratio !== BigInt(10000)) error = '비율 합계를 100%로 맞춰주세요.';
-  else if (fractional) error = '원 미만 금액이 남습니다. 금액 직접 입력으로 조정해주세요.';
-  else if (remaining !== BigInt(0)) error = purpose === 'income' ? '배분액 합계를 입금액과 맞춰주세요.' : '부담액 합계를 출금액과 맞춰주세요.';
+  // 항목명 누락과 배분 검증을 분리해 필수 입력 때문에 정상 금액까지 경고로 표시하지 않습니다.
+  let allocationError = '';
+  if (!allocations.length || allocations.some((a) => !a.label.trim() || BigInt(a.amount) <= BigInt(0))) allocationError = purpose === 'income' ? '배분할 동과 0원보다 큰 금액을 입력해주세요.' : '부담할 곳과 0원보다 큰 금액을 입력해주세요.';
+  else if (draft.mode === 'RATIO' && ratio !== BigInt(10000)) allocationError = '비율 합계를 100%로 맞춰주세요.';
+  else if (fractional) allocationError = '원 미만 금액이 남습니다. 금액 직접 입력으로 조정해주세요.';
+  else if (remaining !== BigInt(0)) allocationError = purpose === 'income' ? '배분액 합계를 입금액과 맞춰주세요.' : '부담액 합계를 출금액과 맞춰주세요.';
   const keys = allocations.map((a) => a.buildingId ?? `external:${a.label.trim()}`);
-  if (new Set(keys).size !== keys.length) error = purpose === 'income' ? '같은 동이 중복되어 있어요.' : '같은 부담처가 중복되어 있어요.';
+  const duplicateMessage = purpose === 'income' ? '같은 동이 중복되어 있어요.' : '같은 부담처가 중복되어 있어요.';
+  const duplicateError = new Set(keys).size !== keys.length ? duplicateMessage : '';
+  allocationError = duplicateError || allocationError;
+  const categoryError = !draft.category.trim() ? `${purpose === 'income' ? '입금 항목' : '지출명'}을 입력해주세요.` : '';
+  const error = duplicateError || categoryError || allocationError;
   return {
     allocations,
     allocated,
     remaining,
+    allocationError,
     error
+  };
+}
+
+/** 직접 금액 입력에서 관리자가 지정한 한 곳에만 양수 잔액을 더하며 다른 몫은 보존합니다. */
+export function fillAllocationRemainder(total: string, draft: ExpenseDraft, index: number): ExpenseDraft {
+  if (draft.mode !== 'AMOUNT' || !draft.allocations[index] || !/^[0-9]{1,15}$/.test(total)
+    || draft.allocations.some((share) => !/^[0-9]{0,15}$/.test(share.amount))) return draft;
+  const result = calculateExpenseAllocation(total, draft);
+  if (result.remaining <= BigInt(0)) return draft;
+  return {
+    ...draft,
+    allocations: draft.allocations.map((share, position) => position === index ? {
+      ...share,
+      amount: (BigInt(share.amount || '0') + result.remaining).toString()
+    } : share)
   };
 }

@@ -2,7 +2,8 @@ import { closeReportPreview } from './support/reportDownload';
 import { selectMonthRange } from './support/monthRange';
 import {
   expect,
-  test
+  test,
+  type Locator
 } from '@playwright/test';
 import {
   strFromU8,
@@ -34,6 +35,23 @@ const IMPORT_ACCOUNT = {
   status: 'ACTIVE'
 };
 function id(index: number) { return `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`; }
+
+/** 직접 금액 입력과 잔액 버튼이 같은 크기이며 행 오른쪽에 불필요한 열을 남기지 않는지 확인합니다. */
+async function expectAllocationControlAlignment(input: Locator, button: Locator) {
+  const inputBox = (await input.locator('..').boundingBox())!;
+  const buttonBox = (await button.boundingBox())!;
+  expect(Math.abs(inputBox.height - buttonBox.height)).toBeLessThan(1);
+  expect(Math.abs(inputBox.width - buttonBox.width)).toBeLessThan(1);
+  expect(Math.abs(inputBox.y - buttonBox.y)).toBeLessThan(1);
+  expect(Math.abs(buttonBox.x - inputBox.x - inputBox.width - 8)).toBeLessThan(1);
+  const row = button.locator('..').locator('..');
+  const rowBox = (await row.boundingBox())!;
+  const rightInset = await row.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return parseFloat(style.paddingRight) + parseFloat(style.borderRightWidth);
+  });
+  expect(Math.abs(rowBox.x + rowBox.width - rightInset - buttonBox.x - buttonBox.width)).toBeLessThan(1);
+}
 function row(index: number, direction: 'INCOME' | 'EXPENSE', payer: string, amount: string): BankingTransaction {
   return {
     id: id(index),
@@ -2168,7 +2186,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
 test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭제 후 다시 가져오기', async ({ page }) => {
   let rows: BankingTransaction[] = [{
     ...row(901, 'INCOME', '예금이자', '1000'),
-    paymentId: id(911),
+    paymentId: null,
     status: 'CONFIRMED',
     receiptType: 'OTHER',
     unitLabel: '예금이자'
@@ -2332,6 +2350,21 @@ test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭�
   await table.getByRole('row').filter({
     hasText: '예금이자'
   }).click();
+  await expect(page.getByRole('dialog', {
+    name: '지출 상세',
+    exact: true
+  })).toHaveCount(0);
+  await expect(page.getByText('입금 상세 연결 정보를 확인할 수 없어요. 거래 정보를 다시 확인해주세요.', {
+    exact: true
+  })).toBeVisible();
+  rows = rows.map((item) => item.id === id(901) ? {
+    ...item,
+    paymentId: id(911)
+  } : item);
+  await page.reload();
+  await table.getByRole('row').filter({
+    hasText: '예금이자'
+  }).click();
   const detail = page.getByRole('dialog', {
     name: '입금 처리 상세',
     exact: true
@@ -2488,6 +2521,40 @@ test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭�
     exact: true
   }).click();
   await expect(upload).toContainText('배분액 합계 1,000원');
+  await upload.getByRole('combobox', {
+    name: '나누는 방법',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '금액 직접 입력',
+    exact: true
+  }).click();
+  await upload.getByLabel('103동 배분액', {
+    exact: true
+  }).fill('0');
+  await upload.getByRole('button', {
+    name: '103동 잔액 채우기',
+    exact: true
+  }).click();
+  await expect(upload.getByLabel('103동 배분액', {
+    exact: true
+  })).toHaveValue('500');
+  await expect(upload.getByText('배분 완료', {
+    exact: true
+  })).toBeVisible();
+  await expect(upload.getByRole('button', {
+    name: '103동 잔액 채우기',
+    exact: true
+  })).toBeDisabled();
+  await expectAllocationControlAlignment(
+    upload.getByLabel('103동 배분액', {
+      exact: true
+    }),
+    upload.getByRole('button', {
+      name: '103동 잔액 채우기',
+      exact: true
+    })
+  );
   await expect(upload.getByRole('checkbox', {
     name: '102동',
     exact: true
@@ -5019,11 +5086,22 @@ for (const width of [1440, 390]) {
     const amountSize = (await page.getByLabel('102동 부담액', {
       exact: true
     }).locator('..').boundingBox())!;
+    for (const label of ['102동', '103동']) {
+      await expectAllocationControlAlignment(
+        page.getByLabel(`${label} 부담액`, {
+          exact: true
+        }),
+        page.getByRole('button', {
+          name: `${label} 잔액 채우기`,
+          exact: true
+        })
+      );
+    }
     for (const label of ['103동', '외부 부담처']) {
       const size = (await page.getByLabel(`${label} 부담액`, {
         exact: true
       }).locator('..').boundingBox())!;
-      expect(size.x).toBe(amountSize.x);
+      if (label === '103동') expect(size.x).toBe(amountSize.x);
       expect(size.width).toBe(amountSize.width);
       expect(size.height).toBe(amountSize.height);
     }
@@ -5042,7 +5120,7 @@ for (const width of [1440, 390]) {
     const ratioSize = (await page.getByLabel('102동 부담 비율', {
       exact: true
     }).locator('..').boundingBox())!;
-    expect(ratioSize.width).toBe(amountSize.width);
+    expect(ratioSize.height).toBe(amountSize.height);
     for (const label of ['103동', '외부 부담처']) {
       const size = (await page.getByLabel(`${label} 부담 비율`, {
         exact: true
@@ -5072,7 +5150,14 @@ for (const width of [1440, 390]) {
     }).fill('5000');
     await page.getByLabel('103동 부담액', {
       exact: true
-    }).fill('5001');
+    }).fill('0');
+    await page.getByRole('button', {
+      name: '103동 잔액 채우기',
+      exact: true
+    }).click();
+    await expect(page.getByLabel('103동 부담액', {
+      exact: true
+    })).toHaveValue('5001');
     const registration = page.getByRole('button', {
       name: '등록',
       exact: true
@@ -5081,14 +5166,17 @@ for (const width of [1440, 390]) {
       exact: true
     }).locator('..');
     await expect(registration).toBeEnabled();
-    await expect(totals).toHaveCSS('color', 'rgb(22, 163, 74)');
+    await expect(totals).toHaveCSS('color', 'rgb(15, 23, 42)');
+    await expect(page.getByText('배분 완료', {
+      exact: true
+    })).toHaveCSS('color', 'rgb(22, 163, 74)');
     await page.getByLabel('103동 부담액', {
       exact: true
     }).fill('6001');
     await expect(registration).toBeDisabled();
     await expect(page.getByText('초과 금액 1,000원', {
       exact: true
-    }).locator('..')).toHaveCSS('color', 'rgb(239, 68, 68)');
+    })).toHaveCSS('color', 'rgb(239, 68, 68)');
     await expect(page.getByText('남은 금액 -1,000원', {
       exact: true
     })).toHaveCount(0);
@@ -5101,12 +5189,12 @@ for (const width of [1440, 390]) {
     await expect(registration).toBeDisabled();
     await expect(page.getByText('남은 금액 1,001원', {
       exact: true
-    }).locator('..')).toHaveCSS('color', 'rgb(245, 158, 11)');
+    }).locator('..')).toHaveCSS('color', 'rgb(15, 23, 42)');
     await page.getByLabel('103동 부담액', {
       exact: true
     }).fill('5001');
     await expect(registration).toBeEnabled();
-    await expect(totals).toHaveCSS('color', 'rgb(22, 163, 74)');
+    await expect(totals).toHaveCSS('color', 'rgb(15, 23, 42)');
     await page.getByRole('textbox', {
       name: '지출명',
       exact: true

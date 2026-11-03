@@ -211,7 +211,6 @@ export function RegistrationTransactionEditor({ account, record, direction, unit
   const cancelEdit = record ? () => setMode('detail') : undefined;
   if (direction === 'INCOME') return (
     <ManualReceiptForm
-      allowPayerInput
       title={title}
       presentation={presentation}
       accounts={[{

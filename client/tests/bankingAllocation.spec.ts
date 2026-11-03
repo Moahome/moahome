@@ -16,6 +16,7 @@ import {
   createExpenseDraft
 } from '../src/widgets/banking-workspace/model/expenseAllocation';
 import { getAccountsForMonth } from '../src/widgets/banking-workspace/model/bankAccountVisibility';
+import { fillAllocationRemainder } from '../src/entities/banking/model/allocation';
 import { createExpenseWorkbook } from '../src/widgets/banking-workspace/model/expenseExport';
 
 test('관리실 거래는 내용으로 지출명을 채우고 별도 항목 입력 없이 지출을 준비', () => {
@@ -56,6 +57,87 @@ function draft(mode: ExpenseDraft['mode'], parts: { label: string; amount?: stri
     }))
   };
 }
+
+test('잔액 채우기는 선택한 곳의 기존 금액에만 잔액을 더하고 반복·초과·자동 배분은 변경하지 않음', () => {
+  const original = draft('AMOUNT', [{
+    label: '102동',
+    amount: '20'
+  }, {
+    label: '103동',
+    amount: '100'
+  }]);
+  const filled = fillAllocationRemainder('10000', original, 1);
+  expect(filled.allocations.map((share) => share.amount)).toEqual(['20', '9980']);
+  expect(original.allocations.map((share) => share.amount)).toEqual(['20', '100']);
+  expect(fillAllocationRemainder('10000', filled, 1)).toBe(filled);
+  expect(fillAllocationRemainder('10', original, 1)).toBe(original);
+  expect(fillAllocationRemainder('10000', {
+    ...original,
+    mode: 'EQUAL'
+  }, 1).mode).toBe('EQUAL');
+  expect(fillAllocationRemainder('10000', original, -1)).toBe(original);
+  expect(fillAllocationRemainder('999999999999999', draft('AMOUNT', [{
+    label: '102동'
+  }]), 0).allocations[0].amount).toBe('999999999999999');
+});
+
+test('입금 항목 누락은 정상 배분 금액의 완료 상태와 분리해 검증', () => {
+  const result = calculateExpenseAllocation('10000', {
+    ...draft('AMOUNT', [{
+      label: '102동',
+      amount: '10000'
+    }]),
+    category: ''
+  }, 'income');
+  expect(result.error).toBe('입금 항목을 입력해주세요.');
+  expect(result.allocationError).toBe('');
+  expect(result.remaining).toBe(BigInt(0));
+});
+
+test('수동 입금 기본 이름은 세대별 최근 확정 입금만 사용하고 취소·미확정·기타 입금은 제외', async () => {
+  const { getManualReceiptUnits } = await import('../src/widgets/payment-workspace/model/paymentPreview');
+  const { createPaymentSample } = await import('../src/widgets/payment-workspace/model/paymentSample');
+  const ledger = createPaymentSample();
+  const payment = {
+    ...ledger.payments[0],
+    unitId: '101',
+    status: 'CONFIRMED' as const
+  };
+  ledger.payments = [
+    {
+      ...payment,
+      date: '2026-10-01',
+      payer: '예전이름'
+    },
+    {
+      ...payment,
+      date: '2026-10-15',
+      payer: '취소이름',
+      status: 'CANCELED'
+    },
+    {
+      ...payment,
+      date: '2026-10-15',
+      payer: '미확정이름',
+      status: 'PENDING'
+    },
+    {
+      ...payment,
+      date: '2026-10-15',
+      payer: '기타이름',
+      receiptType: 'OTHER'
+    },
+    {
+      ...payment,
+      date: '2026-10-10',
+      payer: '최근이름'
+    }
+  ];
+  const result = getManualReceiptUnits(ledger);
+  expect(result.find((unit) => unit.id === '101')?.recentPayerName).toBe('최근이름');
+  expect(result.find((unit) => unit.id === '202')?.recentPayerName).toBeUndefined();
+  expect(ledger.payments[0].payer).toBe('예전이름');
+});
 test('승강기는 두 동 균등, 전기료는 1/4·1/4·외부 1/2로 계산', () => {
   const elevator = calculateExpenseAllocation('506000', draft('EQUAL', [{
     label: '102동'

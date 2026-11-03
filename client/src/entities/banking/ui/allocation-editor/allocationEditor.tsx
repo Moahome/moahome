@@ -9,6 +9,7 @@ import {
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   calculateExpenseAllocation,
+  fillAllocationRemainder,
   sortExpenseLabels
 } from '../../model/allocation';
 import type { ExpenseDraft } from '../../model/allocationTypes';
@@ -72,6 +73,7 @@ export function AllocationEditor({ total, draft, buildings, onChange, disabled =
                 category: event.target.value
               })}
               placeholder={'거래 내용으로 자동 입력됩니다'}
+              description={!draft.category.trim() ? `${income ? '입금 항목' : '지출명'}을 입력해주세요.` : undefined}
             />
           )}
           <Dropdown
@@ -148,7 +150,7 @@ export function AllocationEditor({ total, draft, buildings, onChange, disabled =
         <p
           className={styles.help}
         >
-          {income ? '입금액을 선택한 동에 배분합니다. 한 동에 전액 지정할 수도 있습니다. 원 미만 금액은 금액 직접 입력으로 조정해주세요.' : '전기료처럼 두 동이 각각 1/4을 부담하면 25%씩 입력하고, 나머지 50%의 부담처도 지정해주세요.'}
+          {income ? '선택한 동에 입금액을 나눕니다.' : '선택한 곳에 출금액을 나눕니다. 외부 부담액도 지정해주세요.'}
         </p>
       </div>
       <div
@@ -167,6 +169,7 @@ export function AllocationEditor({ total, draft, buildings, onChange, disabled =
         {draft.allocations.map((share, index) => (
           <div
             className={styles.share}
+            data-external={!share.buildingId}
             key={share.buildingId ?? `external-${index}`}
           >
             {share.buildingId ? (
@@ -187,7 +190,7 @@ export function AllocationEditor({ total, draft, buildings, onChange, disabled =
             {draft.mode === 'RATIO' && (
               <Input
                 aria-label={`${share.label || '외부 부담처'} ${income ? '배분 비율' : '부담 비율'}`}
-                className={sectioned ? styles['share-value'] : undefined}
+                className={styles['share-value']}
                 inputMode={'decimal'}
                 placeholder={'25'}
                 value={share.percentage ?? ''}
@@ -202,15 +205,29 @@ export function AllocationEditor({ total, draft, buildings, onChange, disabled =
               </span>
             )}
             {draft.mode === 'AMOUNT' ? (
-              <Input
-                aria-label={`${share.label || '외부 부담처'} ${income ? '배분액' : '부담액'}`}
-                className={sectioned ? styles['share-value'] : undefined}
-                inputMode={'numeric'}
-                value={share.amount}
-                onChange={(event) => changeShare(index, {
-                  amount: event.target.value.replace(/[^0-9]/g, '')
-                })}
-              />
+              <div
+                className={styles['amount-controls']}
+              >
+                <Input
+                  aria-label={`${share.label || '외부 부담처'} ${income ? '배분액' : '부담액'}`}
+                  className={styles['share-value']}
+                  inputMode={'numeric'}
+                  maxLength={15}
+                  value={share.amount}
+                  onChange={(event) => changeShare(index, {
+                    amount: event.target.value.replace(/[^0-9]/g, '')
+                  })}
+                />
+                <Button
+                  variant={'outline'}
+                  className={styles['fill-remainder']}
+                  aria-label={`${share.label || '외부 부담처'} 잔액 채우기`}
+                  disabled={disabled || result.remaining <= BigInt(0) || draft.allocations.some((part) => !/^[0-9]{0,15}$/.test(part.amount))}
+                  onClick={() => onChange(fillAllocationRemainder(total, draft, index))}
+                >
+                  잔액 채우기
+                </Button>
+              </div>
             ) : (
               <strong>
                 {formatWon(result.allocations[index].amount)}
@@ -238,24 +255,43 @@ export function AllocationEditor({ total, draft, buildings, onChange, disabled =
         ))}
         <div
           className={styles.total}
-          data-valid={!result.error}
-          data-overallocated={result.remaining < BigInt(0)}
         >
           <span>
-            {`${income ? '배분액' : '부담액'} 합계 ${formatWon(result.allocated.toString())}`}
+            {`${income ? '배분액' : '부담액'} 합계 `}
+            <strong>
+              {formatWon(result.allocated.toString())}
+            </strong>
           </span>
-          <span>
+          <span
+            data-overallocated={result.remaining < BigInt(0)}
+          >
             {result.remaining < BigInt(0)
               ? `초과 금액 ${formatWon((-result.remaining).toString())}`
-              : `남은 금액 ${formatWon(result.remaining.toString())}`}
+              : <>
+                {'남은 금액 '}
+                <strong>
+                  {formatWon(result.remaining.toString())}
+                </strong>
+              </>}
           </span>
         </div>
-        {result.error && (!sectioned || draft.category.trim()) && (
+        {!result.allocationError && BigInt(total) > BigInt(0) && (
+          <p
+            className={styles.complete}
+            role={'status'}
+          >
+            <ServiceIcon
+              name={'check'}
+            />
+            배분 완료
+          </p>
+        )}
+        {result.allocationError && (
           <p
             role={'status'}
             className={styles.warning}
           >
-            {result.error}
+            {result.allocationError}
           </p>
         )}
       </div>

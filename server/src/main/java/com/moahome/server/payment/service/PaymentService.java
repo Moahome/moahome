@@ -364,6 +364,7 @@ public class PaymentService {
 		if (!Set.of("HOUSEHOLD", "OTHER", "SHARED").contains(purpose) || (household && request.unitId() == null)
 		    || (!household && request.unitId() != null)
 		    || (!household && (request.payer() == null || request.payer().length() > 100))
+		    || (request.payer() != null && request.payer().length() > 100)
 		    || (other && (request.category() == null || request.category().length() > 100))
 		    || (!other && (request.category() != null || request.note() != null))
 		    || ("SHARED".equals(purpose) != (request.incomeAllocation() != null)))
@@ -380,7 +381,7 @@ public class PaymentService {
 			    || !"MANUAL".equals(p.getSourceType()) || !purpose.equals(p.getManualPurpose())
 			    || (request.accountId() != null && !p.getBankAccountId().equals(request.accountId()))
 			    || (household && !Objects.equals(p.getMatchedUnitId(), request.unitId()))
-			    || (!household && !p.getPayerNameHmac().equals(security.nameHash(request.payer())))
+			    || (request.payer() != null && !p.getPayerNameHmac().equals(security.nameHash(request.payer())))
 			    || !Objects.equals(request.category(), security.decrypt(p.getIncomeCategoryEncrypted()))
 			    || !Objects.equals(request.note(), security.decrypt(p.getIncomeNoteEncrypted()))
 			    || !p.getPaymentDate().equals(request.date()) || p.getAmount().compareTo(amount) != 0)
@@ -390,7 +391,8 @@ public class PaymentService {
 			return ledger(user, property);
 		}
 		var rep = household ? representative(user, property, request.unitId()) : null;
-		String payer = rep == null ? request.payer() : rep.name();
+		// 세대 귀속과 실제 입금자명은 별개입니다. 이름을 생략한 이전 클라이언트만 대표 이름을 사용합니다.
+		String payer = request.payer() != null ? request.payer() : rep.name();
 		var protectedName = security.protect(payer);
 		var p = Payment.pending(request.id(), property, selectedAccount(property, request.accountId()).getId(), null,
 		    request.unitId(), rep == null ? null : rep.id(), request.date(), amount, "MANUAL",

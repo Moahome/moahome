@@ -39,11 +39,11 @@ UUID는 문자열, 날짜는 `YYYY-MM-DD`, 청구월은 `YYYY-MM`, 원 단위 �
 
 수동 등록의 `id`는 클라이언트가 생성한 요청 UUID입니다. `purpose`는 `HOUSEHOLD / OTHER / SHARED`이며 생략한 기존 요청은 HOUSEHOLD입니다. 명단 자동 매칭은 수동 용도로 받지 않습니다. 실제 입금 통장 `accountId`는 같은 관리대상의 사용 중인 공용계좌이며 생략하면 기존 기본 계좌를 사용합니다.
 
-- HOUSEHOLD: `unitId` 필수이며 서버가 현재 대표 주민을 입금자로 조회합니다. PENDING 초안으로 등록하고 상세에서 전액 수납을 확정합니다. `category / note / incomeAllocation`은 받지 않습니다.
+- HOUSEHOLD: `unitId` 필수이며 선택 세대·대표 주민 연결은 기존대로 검증합니다. `payer`가 있으면 실제 입금자명으로 보존하고, 생략한 이전 요청만 현재 대표 이름을 사용합니다. PENDING 초안으로 등록하고 상세에서 전액 수납을 확정합니다. `category / note / incomeAllocation`은 받지 않습니다.
 - OTHER: `unitId` 없이 `payer / category`를 필수로 받고 선택 `note`를 받습니다. CONFIRMED·OTHER로 등록하며 세대 관리비 충당을 만들지 않습니다.
 - SHARED: OTHER 입력과 `incomeAllocation`을 함께 받습니다. 분류명은 동별 입금이며 이자에 한정하지 않습니다. 배분 구조는 [통장 배분 계약](bankingManagement.md)의 Expense를 재사용하고 category·note는 상위 입력과 같아야 합니다. `saveAsRule=false`, 같은 관리대상의 활성 동 1~100개만 허용하며 외부 부담처는 허용하지 않습니다. 한 동 전액 또는 균등·비율·직접 금액으로 전액을 배분합니다. 예: amount=1500000, AMOUNT의 2동=1000000·3동=500000. 나머지·합계·비율 검증 실패 시 입금까지 롤백합니다.
 
-입금자·항목은 최대 100자, 메모는 선택 500자이며 앞뒤 공백을 정리합니다. 같은 UUID의 용도·통장·입금일·금액·입금자·항목·메모·배분이 같으면 중복 생성하지 않고 다르면 409입니다. HOUSEHOLD 재시도는 당시 대표 이름을 보존합니다. 원장의 `buildings:[{id,label}]`는 현재 배분 가능한 동이며 수납의 `incomeAllocation:{id,category,note,mode,saveAsRule:false,allocations}`은 저장된 방식·항목·메모·동별 몫입니다. 배분이 없으면 null입니다.
+입금자·항목은 최대 100자, 메모는 선택 500자이며 앞뒤 공백을 정리합니다. 같은 UUID의 용도·통장·입금일·금액·입금자·항목·메모·배분이 같으면 중복 생성하지 않고 다르면 409입니다. HOUSEHOLD도 명시한 입금자명을 재시도 검증에 포함하며 당시 저장 이름을 보존합니다. 원장의 `buildings:[{id,label}]`는 현재 배분 가능한 동이며 수납의 `incomeAllocation:{id,category,note,mode,saveAsRule:false,allocations}`은 저장된 방식·항목·메모·동별 몫입니다. 배분이 없으면 null입니다.
 
 수동 기타·동별 입금은 은행 파일 원본이나 거래 후 잔액을 생성하지 않습니다. 동별 입금은 지정한 동의 보유금에 반영하며 기존 수동 세대 수납의 은행 연결 전 현금 제외 기준은 유지합니다. 나중에 같은 거래를 업로드하면 기존 중복 검토·연결 경로를 사용합니다.
 

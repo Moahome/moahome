@@ -2140,6 +2140,32 @@ class PaymentPersistenceTest {
 		    .isEqualTo(1);
 	}
 
+	/** 실제 입금자와 세대 대표는 달라도 되며 수정한 이름과 세대 귀속을 재시도·확정 후에도 보존합니다. */
+	@Test
+	void manualHouseholdKeepsEnteredPayerAndRejectsChangedPayerReplay() {
+		UUID id = UUID.randomUUID();
+		var request = new PaymentRequests.Manual(id, unit, LocalDate.of(2026, 10, 15), "42000", null,
+		    "HOUSEHOLD", "실제입금자", null, null, null);
+		var saved = service.manual(user, property, request).payments().getFirst();
+		assertThat(saved.payer()).isEqualTo("실제입금자");
+		assertThat(saved.unitId()).isEqualTo(unit.toString());
+		assertThat(saved.status()).isEqualTo("PENDING");
+		assertThat(service.manual(user, property, request).payments()).hasSize(1);
+		assertThatThrownBy(() -> service.manual(user, property,
+		    new PaymentRequests.Manual(id, unit, request.date(), "42000", null,
+		        "HOUSEHOLD", "다른입금자", null, null, null)))
+		    .isInstanceOfSatisfying(PaymentException.class,
+		        e -> assertThat(e.code()).isEqualTo("PAYMENT_REQUEST_CONFLICT"));
+		var confirmed = service.confirm(user, property, id, new PaymentRequests.Confirm(unit, null, null));
+		assertThat(confirmed.payments()).singleElement().satisfies(payment -> {
+			assertThat(payment.payer()).isEqualTo("실제입금자");
+			assertThat(payment.unitId()).isEqualTo(unit.toString());
+			assertThat(payment.status()).isEqualTo("CONFIRMED");
+		});
+		assertThat(jdbc.queryForObject("select payer_name_encrypted from payments where id=?", String.class, id))
+		    .doesNotContain("실제입금자");
+	}
+
 	@Test
 	void bankImportMatchesRosterNamesAndDeduplicatesDateNameAmountAcrossFiles() {
 		assertThat(service.preview(user, property, bank("김대표", "50000")).rows().getFirst().unitId())

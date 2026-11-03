@@ -5,7 +5,7 @@ import {
   ManualReceiptForm,
   type ManualReceiptValues
 } from '@/entities/banking';
-import { getPreviewSelectableUnits } from '../../model/paymentPreview';
+import { getManualReceiptUnits } from '../../model/paymentPreview';
 import { usePaymentWorkspace } from '../payment-workspace-provider/paymentWorkspaceProvider';
 
 /** 저장 경로와 원장은 widget이 소유하고 기존 입금 입력은 초기 설정과 같은 공통 폼으로 표시합니다. */
@@ -23,10 +23,10 @@ export function ManualPayment({ unitId = '', presentation = 'modal', onClose, on
         accountId: values.accountId,
         date: values.date,
         amount: values.amount,
+        payer: values.payer,
         ...(values.purpose === 'HOUSEHOLD' ? {
           unitId: values.unitId
         } : {
-          payer: values.payer,
           category: values.category,
           note: values.note
         }),
@@ -41,7 +41,7 @@ export function ManualPayment({ unitId = '', presentation = 'modal', onClose, on
   return (
     <ManualReceiptForm
       accounts={ledger.accounts.filter((account) => !account.status || account.status === 'ACTIVE')}
-      units={getPreviewSelectableUnits(ledger)}
+      units={getManualReceiptUnits(ledger)}
       buildings={ledger.buildings ?? []}
       asOf={ledger.asOf}
       unitId={unitId}

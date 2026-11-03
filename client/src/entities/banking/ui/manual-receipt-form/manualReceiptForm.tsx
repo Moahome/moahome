@@ -24,7 +24,7 @@ import type {
 import styles from './manualReceiptForm.module.css';
 
 /** 입금 용도에 필요한 입력만 표시하고 세대 수납·기타 입금·동별 배분을 같은 수동 등록으로 처리합니다. */
-export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '', presentation = 'modal', title = '수동 입금 등록', allowPayerInput = false, busy = false, initialValue, onCancel, onClose, onSubmit }: {
+export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '', presentation = 'modal', title = '수동 입금 등록', busy = false, initialValue, onCancel, onClose, onSubmit }: {
   initialValue?: ManualReceiptValues;
   onCancel?: () => void;
   title?: string;
@@ -33,7 +33,6 @@ export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '
   buildings: { id: string; label: string }[];
   asOf: string;
   presentation?: 'modal' | 'page';
-  allowPayerInput?: boolean;
   busy?: boolean;
   unitId?: string;
   onClose: () => void;
@@ -43,6 +42,11 @@ export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '
   const [accountId, setAccountId] = useState(() => initialValue?.accountId ?? activeAccounts.find((account) => account.isPrimary)?.id ?? activeAccounts[0]?.id ?? '');
   const [purpose, setPurpose] = useState<'' | 'HOUSEHOLD' | 'OTHER' | 'SHARED'>(initialValue?.purpose ?? (unitId ? 'HOUSEHOLD' : ''));
   const [enteredPayer, setEnteredPayer] = useState(initialValue?.payer ?? '');
+  // 세대별 수정값을 보존해 세대를 오가거나 원장을 갱신해도 입력한 실제 이름을 덮어쓰지 않습니다.
+  const [householdPayers, setHouseholdPayers] = useState<Record<string, string>>(() =>
+    initialValue?.purpose === 'HOUSEHOLD' && initialValue.unitId ? {
+      [initialValue.unitId]: initialValue.payer
+    } : {});
   const [allocation, setAllocation] = useState<ExpenseDraft>(() => initialValue?.incomeAllocation ?? ({
     category: initialValue?.category ?? '',
     note: initialValue?.note ?? '',
@@ -61,7 +65,7 @@ export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '
   const [date, setDate] = useState(initialValue?.date ?? asOf);
   const selectableUnits = units;
   const selectedUnit = selectableUnits.find((item) => item.id === unit);
-  const payer = household && !allowPayerInput ? selectedUnit?.representativeName ?? '' : enteredPayer;
+  const payer = household ? householdPayers[unit] ?? selectedUnit?.recentPayerName ?? selectedUnit?.representativeName ?? '' : enteredPayer;
   const [amount, setAmount] = useState(initialValue?.amount ?? '');
   const [error, setError] = useState('');
   const [requestError, setRequestError] = useState<{ message: string; id: number } | null>(null);
@@ -69,9 +73,9 @@ export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '
   const split = calculateExpenseAllocation(amount || '0', allocation, 'income');
   const notices = {
     '': '입금 용도를 먼저 선택해주세요. 용도에 맞는 항목만 입력합니다.',
-    HOUSEHOLD: allowPayerInput ? '입금된 세대와 실제 입금자명을 입력해주세요.' : '선택한 세대의 현재 대표 주민을 입금자로 등록합니다. 상세에서 입금 전액을 누적 수납으로 확정합니다.',
+    HOUSEHOLD: '입금된 세대와 실제 입금 정보를 입력해주세요.',
     OTHER: '외부 분담금·수리비 등 세대 관리비와 별개인 입금입니다. 세대를 지정하지 않고 입금 항목으로 등록합니다.',
-    SHARED: '입금액을 한 동에 전액 지정하거나 여러 동에 나눠 등록합니다. 예: 2동 100만 원, 3동 50만 원.'
+    SHARED: '선택한 동에 입금액을 나눕니다.'
   };
 
   /** 서버에서 용도·명단·배분 합계를 다시 검증하며 실패한 요청의 ID와 입력을 유지합니다. */
@@ -80,7 +84,7 @@ export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '
     event.stopPropagation();
     if (!purpose) { setError('입금 용도를 선택해주세요.'); return; }
     if (!activeAccounts.some((account) => account.id === accountId)) { setError('입금된 통장을 선택해주세요.'); return; }
-    if (household && (!selectedUnit || !payer)) { setError('세대와 대표 주민을 확인해주세요.'); return; }
+    if (household && !selectedUnit) { setError('입금된 세대를 선택해주세요.'); return; }
     if (!payer.trim()) { setError('입금자명을 입력해주세요.'); return; }
     if (!/^[0-9]{1,15}$/.test(amount) || BigInt(amount) <= BigInt(0)) { setError('0원보다 큰 입금액을 입력해주세요.'); return; }
     if (other && !allocation.category.trim()) { setError('입금 항목을 입력해주세요.'); return; }
@@ -208,11 +212,16 @@ export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '
             <Input
               label={'입금자명'}
               value={payer}
-              readOnly={household && !allowPayerInput}
               disabled={busy}
-              onChange={(event) => setEnteredPayer(event.target.value)}
-              placeholder={household ? undefined : '은행에 표시된 입금자명'}
-              description={household && !allowPayerInput ? (payer ? '현재 대표 주민 이름입니다.' : '세대를 선택하고 대표 주민 등록 여부를 확인해주세요.') : undefined}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (household) setHouseholdPayers((current) => ({
+                  ...current,
+                  [unit]: value
+                }));
+                else setEnteredPayer(value);
+              }}
+              placeholder={'은행에 표시된 입금자명'}
               maxLength={100}
               required
             />
@@ -235,6 +244,7 @@ export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '
               })}
               placeholder={'예: 외부 분담금, 수리비, 예금이자'}
               maxLength={100}
+              description={!allocation.category.trim() ? '입금 항목을 입력해주세요.' : undefined}
               disabled={busy}
               required
             />

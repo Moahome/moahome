@@ -31,6 +31,21 @@ export function getPreviewSelectableUnits(ledger: PreviewLedger): PreviewLedger[
     }));
 }
 
+/** 확정 세대 입금만 날짜순으로 대조하고 같은 날짜는 서버의 최신 생성 순서를 유지합니다. */
+export function getManualReceiptUnits(ledger: PreviewLedger) {
+  const recentPayers = new Map<string, string>();
+  const confirmed = ledger.payments.filter((payment) => payment.status === 'CONFIRMED'
+    && payment.receiptType !== 'OTHER' && payment.unitId && payment.payer.trim())
+    .sort((left, right) => right.date.localeCompare(left.date));
+  for (const payment of confirmed) {
+    if (!recentPayers.has(payment.unitId)) recentPayers.set(payment.unitId, payment.payer);
+  }
+  return getPreviewSelectableUnits(ledger).map((unit) => ({
+    ...unit,
+    recentPayerName: recentPayers.get(unit.id)
+  }));
+}
+
 /** 서버의 실제 동 이름을 우선 사용하고 이전 원장 응답은 동·호수 표시에서 동 이름을 찾습니다. */
 export function getPreviewBuildingName(unit: PreviewLedger['units'][number]): string {
   return unit.buildingName ?? unit.label.match(/^(\S+동)\s*/)?.[1] ?? '';
