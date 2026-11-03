@@ -36,5 +36,6 @@
 
 ## 기획
 
+- [관리대상 생성 권한과 시스템 관리 개발 계획](plans/systemAdministration.md)
 - [관리비 부과 변경 기획](plans/billingSettings.md)
 - [건물별 공지·주민 안내 기획](plans/residentCommunication.md)
