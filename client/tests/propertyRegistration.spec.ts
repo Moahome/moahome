@@ -3902,7 +3902,7 @@ test('완료 뒤 뒤로가기는 서버 권한을 다시 확인하고 권한 해
   await expect(page.getByRole('region', {
     name: '등록된 정보',
     exact: true
-  })).toContainText('00012345678');
+  })).toContainText('하나은행 5678');
   await page.goBack();
   await expect(page).toHaveURL(/\/start$/);
   await expect(page.getByRole('heading', {
@@ -5245,7 +5245,7 @@ for (const width of [1440, 320]) {
     await expect(page.getByRole('region', {
       name: '등록된 정보',
       exact: true
-    })).toContainText('00012345678');
+    })).toContainText('하나은행 5678');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({

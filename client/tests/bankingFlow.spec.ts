@@ -313,7 +313,8 @@ for (const width of [1440, 390]) {
       exact: true
     });
     await expect(table.getByText('2026-10-12')).toHaveCount(0);
-    await expect(table.getByText('2026-09-10')).toBeVisible();
+    // 10월 조회에서는 삭제하지 않은 9월 부담금도 기간 밖이므로 표시하지 않습니다.
+    await expect(table.getByText('2026-09-10')).toHaveCount(0);
     expect(requests).toEqual([{
       transactionIds: [transactionId]
     }, {
@@ -4022,10 +4023,11 @@ for (const width of [1440]) {
     await expect(page.getByRole('region', {
       name: '통장별 장부 잔액',
       exact: true
-    })).not.toContainText('카카오뱅크');
+    })).not.toContainText('예비비');
     await selector.click();
     await expect(page.getByRole('option', {
-      name: /카카오뱅크/
+      name: '예비비',
+      exact: true
     })).toHaveCount(0);
     await page.keyboard.press('Escape');
     await page.screenshot({
@@ -4038,7 +4040,7 @@ for (const width of [1440]) {
     await expect(page).toHaveURL((url) => url.searchParams.get('startMonth') === '2026-09' && url.searchParams.get('endMonth') === '2026-09');
     await selector.click();
     await page.getByRole('option', {
-      name: accounts[1].label,
+      name: '예비비',
       exact: true
     }).click();
     await expect(page.getByRole('article', {

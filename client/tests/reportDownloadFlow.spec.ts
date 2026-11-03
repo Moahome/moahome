@@ -210,7 +210,7 @@ for (const width of [1440, 390, 320]) {
   });
 }
 
-test('통장 관리 전체의 일반 새로고침을 제거하고 정산의 새로고침은 유지한다', async ({ page }, testInfo) => {
+test('통장 관리와 월별 정산의 일반 새로고침을 표시하지 않는다', async ({ page }, testInfo) => {
   await mockSettlement(page);
   for (const path of ['transactions', 'balances', 'monthly', 'expenses']) {
     await page.goto(`${BASE}/banking/${path}?month=2026-10`);
@@ -229,5 +229,5 @@ test('통장 관리 전체의 일반 새로고침을 제거하고 정산의 새�
   await expect(page.getByRole('button', {
     name: '정산 자료 새로고침',
     exact: true
-  })).toBeVisible();
+  })).toHaveCount(0);
 });

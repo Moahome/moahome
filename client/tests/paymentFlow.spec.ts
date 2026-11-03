@@ -2900,7 +2900,7 @@ test('통장 입금과 월별 수납은 PC에서 목록을 유지한 모달로 �
 });
 
 for (const width of [1440, 320]) {
-  test(`통장 수동 입금 복구 ${width}px는 등록·확정·새로고침과 수동 출처를 유지`, async ({ page }) => {
+  test(`통장 수동 입금 복구 ${width}px는 등록·확정·새로고침을 유지하고 등록 방식 열을 표시하지 않음`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -3042,7 +3042,11 @@ for (const width of [1440, 320]) {
       hasText: '42,001원'
     });
     await expect(manual).toHaveCount(1);
-    await expect(manual).toContainText('수동 입금');
+    await expect(table.getByRole('columnheader', {
+      name: '등록 방식',
+      exact: true
+    })).toHaveCount(0);
+    await expect(manual).toContainText('김모아');
     await manual.click();
     await page.getByRole('button', {
       name: '수납 확정',
@@ -3070,7 +3074,7 @@ for (const width of [1440, 320]) {
     await expect(page).toHaveURL(listUrl);
     await page.reload();
     await expect(manual).toContainText('처리 완료');
-    await expect(manual).toContainText('수동 입금');
+    await expect(manual).toContainText('김모아');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({
       path: test.info().outputPath(`bankingManual${width}.png`),
