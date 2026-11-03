@@ -377,31 +377,21 @@ test('정산 상세의 통장·동·외부 검색과 상태 필터 및 정렬이
     exact: true
   }).fill('카카오');
   await expect(table.locator('tbody tr')).toHaveCount(1);
-  await page.getByRole('combobox', {
+  await expect(table.getByRole('columnheader')).toHaveText(['통장', '은행 확인 잔액', '확인일']);
+  await expect(page.getByRole('combobox', {
     name: '잔액 비교 상태',
     exact: true
-  }).click();
-  await page.getByRole('option', {
-    name: '차액 없음',
-    exact: true
-  }).click();
-  await expect(table.getByText('조회 조건에 맞는 내역이 없습니다.', {
-    exact: true
-  })).toBeVisible();
+  })).toHaveCount(0);
   await page.getByRole('button', {
     name: '초기화',
     exact: true
   }).click();
   await expect(table.locator('tbody tr')).toHaveCount(3);
-  await page.getByRole('combobox', {
-    name: '잔액 비교 상태',
+  await page.getByRole('textbox', {
+    name: '통장 잔액 검색',
     exact: true
-  }).click();
-  await page.getByRole('option', {
-    name: '비교 자료 필요',
-    exact: true
-  }).click();
-  await expect(table.getByText('국민은행 ····2004', {
+  }).fill('국민');
+  await expect(table.getByText('국민은행 2004', {
     exact: true
   })).toBeVisible();
   await expect(table.locator('tbody tr')).toHaveCount(1);
@@ -459,10 +449,10 @@ test('정산 상세의 통장·동·외부 검색과 상태 필터 및 정렬이
     exact: true
   }).click();
   await expect(table.locator('tbody tr')).toHaveCount(1);
-  await expect(page.getByRole('combobox', {
-    name: '잔액 비교 상태',
+  await expect(page.getByRole('textbox', {
+    name: '통장 잔액 검색',
     exact: true
-  })).toHaveText('비교 자료 필요');
+  })).toHaveValue('국민');
   await page.getByRole('tab', {
     name: '외부 부담금',
     exact: true

@@ -17,7 +17,6 @@ import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { ListHeader } from '@/shared/ui/list-header';
 import { MonthPicker } from '@/shared/ui/month-picker';
 import { useReportDownload } from '@/shared/ui/report-download';
-import { QueryRefresh } from '@/shared/ui/query-refresh';
 import {
   ServiceIcon,
   type ServiceIconName
@@ -145,16 +144,6 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 다운로드
               </Button>
             </div>
-            <QueryRefresh
-              updatedAt={query.data?.generatedAt}
-              refreshing={query.isFetching}
-              failed={query.isError}
-              disabled={!validMonth}
-              label={'정산 자료 새로고침'}
-              onRefresh={() => void query.refetch({
-                cancelRefetch: false
-              })}
-            />
           </div>
         )}
       />

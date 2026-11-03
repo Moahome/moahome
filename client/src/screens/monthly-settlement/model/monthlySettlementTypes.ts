@@ -21,6 +21,7 @@ export interface SettlementCheck {
 
 export interface SettlementAccount {
   id: string;
+  bankName?: string;
   label: string;
   confirmed: string | null;
   asOf: string | null;

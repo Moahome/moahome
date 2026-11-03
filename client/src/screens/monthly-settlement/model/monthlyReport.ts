@@ -1,3 +1,4 @@
+import { getBankAccountLabel } from '@/entities/banking';
 import type { ReportDefinition } from '@/shared/lib/excel-report';
 import {
   formatReportTimestamp,
@@ -77,19 +78,16 @@ export function getMonthlyReportDocuments(data: MonthlySettlementSnapshot): Repo
       ...common,
       title: '통장별 잔액',
       sheet: '통장별 잔액',
-      description: '확인시점·출처와 월말 계산 잔액',
+      description: '은행에서 확인한 통장 잔액과 확인일',
       columns: [{
         label: '통장',
         width: 36
-      }, ...moneyColumns(['확인 잔액']), {
-        label: '확인시점·출처',
-        width: 36
-      }, ...moneyColumns(['계산 잔액']), {
-        label: '비교 상태',
-        width: 26
+      }, ...moneyColumns(['은행 확인 잔액']), {
+        label: '확인일',
+        width: 24
       }],
-      rows: report.accounts.map((row) => [row.label, amount(row.confirmed), `${row.asOf ?? '미확인'} · ${row.source}`, amount(row.calculated), row.comparison]),
-      note: '같은 금액이어도 확인시점이 다르면 차액 0원 또는 대사 완료로 판정하지 않습니다.'
+      rows: report.accounts.map((row) => [row.label, amount(row.confirmed), row.asOf?.slice(0, 10) ?? '미확인']),
+      note: '은행에서 마지막으로 확인한 잔액이며 실시간 잔액이 아닙니다.'
     },
     {
       ...common,
@@ -146,7 +144,7 @@ export function getMonthlyReportDocuments(data: MonthlySettlementSnapshot): Repo
         label: '내부 이체',
         width: 16
       }],
-      rows: report.cash.map((row) => [row.date, data.balances.accounts?.find((account) => account.id === row.accountId)?.label ?? data.payments.accounts.find((account) => account.id === row.accountId)?.label ?? '통장 미확인', row.label, row.direction === 'INCOME' ? row.amount : BigInt(0), row.direction === 'EXPENSE' ? row.amount : BigInt(0), row.source, row.transfer ? '내부 이체' : '—']),
+      rows: report.cash.map((row) => [row.date, getBankAccountLabel(data.banking.accounts?.find((account) => account.id === row.accountId) ?? data.balances.accounts?.find((account) => account.id === row.accountId) ?? data.payments.accounts.find((account) => account.id === row.accountId)), row.label, row.direction === 'INCOME' ? row.amount : BigInt(0), row.direction === 'EXPENSE' ? row.amount : BigInt(0), row.source, row.transfer ? '내부 이체' : '—']),
       total: ['합계', '', '', report.bankIncome, report.bankExpense, '', ''],
       note: '통장 출금에는 외부 부담과 내부 이체가 포함됩니다. 각 동의 실제 부담 지출과 구분합니다.'
     },

@@ -1,3 +1,4 @@
+import { getBankAccountLabel } from '@/entities/banking';
 import {
   getMonthlyPreviewRows,
   getMonthlyPreviewIncome,
@@ -61,7 +62,7 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
   }) || a.id.localeCompare(b.id));
   const buildingBalance = buildings.length && buildings.every((row) => row.balance !== null)
     ? buildings.reduce((sum, row) => sum + BigInt(row.balance!), BigInt(0)) : null;
-  // 잔고·정산의 누적 응답은 유지하고 월별 정산에서는 선택 월에 지출한 부담금만 집계합니다.
+  // API의 누적 원본에서 선택 월에 지출한 부담금만 집계하고 회수액은 해당 월말 기준값을 사용합니다.
   const externalRows: SettlementExternal[] = data.balances.externals.filter((row) => row.date.startsWith(`${month}-`)).map((row) => ({
     ...row,
     recoveryStatus: getExternalRecoveryStatus(row)
@@ -80,7 +81,8 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
     else if (difference !== null) comparison = difference === BigInt(0) ? '동일 시점 차액 없음' : '차액 확인 필요';
     return {
       id: row.id,
-      label: row.label,
+      label: getBankAccountLabel(data.banking.accounts?.find((account) => account.id === row.id) ?? row),
+      bankName: data.banking.accounts?.find((account) => account.id === row.id)?.bankName ?? row.label,
       confirmed: row.balance,
       asOf: row.asOf,
       source: SOURCE_LABELS[row.confirmation?.source ?? ''] ?? row.confirmation?.source ?? '—',
@@ -177,7 +179,7 @@ function matchesSettlementQuery(query: string, ...values: string[]) {
 /** 통장명 검색과 동일 시점 비교 가능 여부·차액 필터를 페이지를 나누기 전에 적용합니다. */
 export function filterSettlementAccounts(rows: SettlementAccount[], query: string, status: string) {
   return rows.filter((row) => {
-    if (!matchesSettlementQuery(query, row.label)) return false;
+    if (!matchesSettlementQuery(query, row.label, row.bankName ?? '')) return false;
     if (status === '차액 없음') return row.difference === BigInt(0);
     if (status === '차액 있음') return row.difference !== null && row.difference !== BigInt(0);
     if (status === '비교 자료 필요') return row.difference === null;

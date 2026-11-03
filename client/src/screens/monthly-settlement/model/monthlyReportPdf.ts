@@ -145,8 +145,8 @@ export async function createMonthlyReportPdf(documents: readonly ReportDefinitio
     });
   }
 
-  pdf.addPage(); header('통장 확인 및 입출금 명세'); heading(accounts.title, 53, '확인시점이 다르면 동일 시점 대사 결과가 아닙니다');
-  table(accounts, 60, [58, 28, 44, 28, 26]);
+  pdf.addPage(); header('통장 확인 및 입출금 명세'); heading(accounts.title, 53, '은행에서 확인한 잔액과 날짜');
+  table(accounts, 60, [88, 44, 52]);
   let y = cursor + 14;
   if (y > 220) { pdf.addPage(); y = 22; }
   heading(`${cash.title} · 총 ${cash.rows.length}건`, y, '은행 원본과 유효 수동 거래');

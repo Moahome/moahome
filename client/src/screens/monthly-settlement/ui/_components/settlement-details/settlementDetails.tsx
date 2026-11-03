@@ -77,12 +77,11 @@ export function SettlementDetails({ report, month, propertyId }: {
   const [status, setStatus] = useState('전체');
   const [building, setBuilding] = useState('');
   const [accountQuery, setAccountQuery] = useState('');
-  const [accountStatus, setAccountStatus] = useState('전체');
   const [buildingQuery, setBuildingQuery] = useState('');
   const [buildingStatus, setBuildingStatus] = useState('전체');
   const [externalQuery, setExternalQuery] = useState('');
   const [externalStatus, setExternalStatus] = useState('전체');
-  const hasAccountFilters = Boolean(accountQuery.trim() || accountStatus !== '전체');
+  const hasAccountFilters = Boolean(accountQuery.trim());
   const hasBuildingFilters = Boolean(buildingQuery.trim() || buildingStatus !== '전체');
   const hasCollectionFilters = Boolean(query.trim() || building || status !== '전체');
   const hasExternalFilters = Boolean(externalQuery.trim() || externalStatus !== '전체');
@@ -96,7 +95,7 @@ export function SettlementDetails({ report, month, propertyId }: {
   const buildingOptions = [...new Set(report.collections.map((row) => row.buildingName).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko', {
     numeric: true
   }));
-  const accounts = filterSettlementAccounts(report.accounts, accountQuery, accountStatus);
+  const accounts = filterSettlementAccounts(report.accounts, accountQuery, '전체');
   const buildings = filterSettlementBuildings(report.buildings, buildingQuery, buildingStatus);
   const external = filterSettlementExternal(report.external, externalQuery, externalStatus);
   const totals = {
@@ -200,9 +199,6 @@ export function SettlementDetails({ report, month, propertyId }: {
             잔액 확인
           </Link>
         </div>
-        <p>
-          같은 시점의 잔액만 차액을 표시합니다. 차액이 없어도 대사 확정을 뜻하지 않습니다.
-        </p>
         <div
           className={styles.filters}
           data-simple={'true'}
@@ -218,15 +214,6 @@ export function SettlementDetails({ report, month, propertyId }: {
             value={accountQuery}
             onChange={(event) => { setAccountQuery(event.target.value); setPage(1); }}
           />
-          <Dropdown
-            aria-label={'잔액 비교 상태'}
-            value={accountStatus}
-            options={['전체', '차액 없음', '차액 있음', '비교 자료 필요'].map((value) => ({
-              value,
-              label: value === '전체' ? '전체 상태' : value
-            }))}
-            onChange={(value) => { setAccountStatus(value); setPage(1); }}
-          />
           {pageSizeControl}
           <Button
             variant={'outline'}
@@ -236,7 +223,7 @@ export function SettlementDetails({ report, month, propertyId }: {
                 name={'reset'}
               />
             )}
-            onClick={() => { setAccountQuery(''); setAccountStatus('전체'); setPage(1); }}
+            onClick={() => { setAccountQuery(''); setPage(1); }}
           >
             초기화
           </Button>
@@ -252,7 +239,7 @@ export function SettlementDetails({ report, month, propertyId }: {
               title={hasAccountFilters ? '조회 조건에 맞는 내역이 없습니다.' : '조회할 통장 잔액 자료가 없습니다.'}
             />
           )}
-          minWidth={1050}
+          minWidth={520}
           columns={[
             {
               key: 'name',
@@ -267,26 +254,9 @@ export function SettlementDetails({ report, month, propertyId }: {
             },
             {
               key: 'asof',
-              header: '확인시점 / 출처',
-              render: (row) => `${row.asOf ?? '—'} · ${row.source}`
+              header: '확인일',
+              render: (row) => row.asOf?.slice(0, 10) ?? '—'
             },
-            {
-              key: 'calculated',
-              header: '월말 계산 잔액',
-              render: (row) => money(row.calculated),
-              align: 'right'
-            },
-            {
-              key: 'difference',
-              header: '같은 시점 차액',
-              render: (row) => row.difference === null ? '비교 불가' : money(row.difference),
-              align: 'right'
-            },
-            {
-              key: 'comparison',
-              header: '비교 상태',
-              render: (row) => row.comparison
-            }
           ]}
         />
       </section>
