@@ -1,0 +1,18 @@
+.editor {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+
+  legend {
+    margin-bottom: 16px;
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  p {
+    color: var(--sub-text);
+    line-height: 1.6;
+  }
+}

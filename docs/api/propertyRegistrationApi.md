@@ -435,6 +435,39 @@ EXTERNAL은 거주 필드를 보내지 않습니다. RESIDENT는 세대 대표�
 
 이전 요청이 accountIndex를 전부 생략하면 기존 전체 동별 보유금 계약과 저장 동작을 유지합니다. 일부만 생략하거나 범위 밖·중복·누락한 조합은 거부합니다. 이전 요청의 직렬화에서는 null accountIndex를 제외해 기존 재시도 지문을 보존합니다. 별도 테이블·Migration은 추가하지 않고 기존 building_cash_openings의 통장×동 구조를 사용합니다. [도메인 기준](../domain/domainRules.md#초기-통장동별-시작-잔고-입력-개편-2026-10-24)과 [Client](../../client/docs/propertyRegistration.md#초기-통장동별-시작-잔고-입력-개편-2026-10-24)를 참조합니다.
 
+
+## 초기 입출금 등록 (2026-10-31)
+
+기존 최종 등록 계약의 선택 필드만 확장합니다. 저장 시점·전체 롤백·요청 UUID와 지문·결과 조회 계약은 유지합니다. 아래 두 필드를 생략하면 기존 요청 직렬화와 재시도를 보존합니다. 단계별 미리보기·등록 버튼으로 업무 DB를 저장하지 않습니다.
+
+### 등록 전 파일 검증
+
+두 경로 모두 활성 로그인 사용자의 Bearer 인증이 필요하며 Cache-Control:no-store입니다.
+
+- GET `/api/property-registrations/bank-import/support?bankCode=...`: 기존 은행별 `{enabled,extensions,message}`를 반환합니다. 지원 은행·형식은 [은행별 계약](bankingManagement.md#은행-코드별-업로드-구현-상태-2026-10-23)을 사용합니다.
+- POST `/api/property-registrations/bank-import/preview?bankCode=...`: multipart `file`을 받아 `{rows,period,support,duplicateCount}`를 반환합니다. 행은 `{id,date,time,payer,memo,amount,balance,direction,autoMatchEligible}`입니다. amount는 양수 문자열, direction은 INCOME/EXPENSE이며 balance·time·memo는 null일 수 있습니다. 원본 파싱·중복 식별을 수행하며 미래 거래는 거부합니다. 기존 Payment 오류 계약을 사용합니다.
+
+### 최종 요청의 선택 필드
+
+| 필드 | 계약 |
+| --- | --- |
+| openingBalances.bankImports | 최대 100개. 통장별 `{accountIndex,fileName,content,rows}` |
+| fileName / content | 파일명 최대 255자, 원본 Base64 최대 6,990,508자(5MiB 파일). 합산 Base64 28,000,000자 이하 |
+| bankImports[].rows | 1~5,000개의 선택 거래 `{id,unitIndex?,incomeCategory?,incomeNote?,expense?,incomeAllocation?,transfer}`. id는 미리보기 원본 식별 UUID |
+| openingBalances.manualTransactions | 최대 5,000개. `{id,accountIndex,direction,date,amount,payer,purpose,unitIndex?,category?,note?,allocation?}` |
+| manualTransactions[].id | 초안 거래 UUID. 한 요청 안에서 중복 불가 |
+| direction / purpose | INCOME/EXPENSE, HOUSEHOLD/OTHER/SHARED. 세대 입금은 unitIndex 필수, 기타·동별 입금은 category 필수, SHARED는 allocation 필수 |
+| date / amount / payer | 미래 불가 거래일, 양수 15자리 정수 문자열 금액, 1~100자 입금자·지출명 |
+
+accountIndex·unitIndex는 최종 bankAccounts·units 배열의 0부터 시작하는 위치입니다. 분류·배분의 buildingClientId는 같은 요청의 동 참조입니다. 원본 행의 날짜·금액·방향을 클라이언트가 다시 보내 덮어쓰지 않습니다.
+
+배분 입력은 `{category,note?,mode,saveAsRule,allocations}`입니다. mode는 EQUAL/RATIO/AMOUNT/PROPERTY이며, allocations는 최대 100개의 `{buildingClientId?,label?,amount?,percentage?}`입니다. PROPERTY는 동 구분 없는 출금에만 허용하고 allocations는 빈 배열입니다. 다른 방식은 실제 배분이 필요하며 기존 원 단위 합계·비율·동 참조 검증을 적용합니다. 입금에는 PROPERTY를 허용하지 않습니다. 이체 표시 거래에는 다른 분류를 함께 보내지 않습니다.
+
+최종 등록은 원본을 다시 파싱해 선택 UUID를 검증합니다. 기준일까지 입금은 payments.OPENING과 실제 원본/용도를 보존하며 기존 미수에 재충당하지 않습니다. 기준일 이후 거래는 기존 일반 처리 규칙을 사용합니다. 수기 거래는 가상의 은행 원본을 만들지 않습니다. 입금·출금 모두 잔액 기준일 필터를 적용하므로 이미 포함된 거래를 시작 잔액에 다시 가감하지 않습니다.
+
+성공 응답 형식은 기존과 같습니다. 원본 파일·Base64를 성공 결과나 로그에 보관하지 않습니다. 잘못된 선택·참조·조합은 INVALID_REQUEST의 openingBalances.bankImports 오류로 반환하고 인증·저장 장애는 기존 계약을 유지합니다. 이 기능은 과거 월의 청구 원문을 복원하는 계약을 추가하지 않습니다.
+
+
 ## 통장 기준일 자동 부과 시작 (2026-11-01)
 
 새 초기 설정은 `openingBalances.automaticBilling: true`를 전송합니다. 서버는 cutoffDate가 월중이면 그달, 월말이면 다음 달인지를 firstBillingMonth와 대조해 불일치 요청을 거부합니다. cashCutoffDate는 동이 있으면 같은 cutoffDate, 동이 없으면 null입니다. 명시한 초기 기본 항목·금액으로 첫 월부터 현재 월까지 부과한 뒤 실제 거래를 등록하며 전부 하나의 트랜잭션입니다. 과거 전체 청구·주민 이력을 복원하는 기능이 아닙니다. 이 필드를 생략한 이전 제출·성공 결과의 지문과 지정 부과월은 보존합니다.

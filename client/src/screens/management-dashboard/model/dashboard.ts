@@ -44,8 +44,9 @@ export function getDashboardReport(data: DashboardSnapshot) {
   // 출금 전액과 실제 관리대상 부담액을 구분하고 외부 부담·내부 이체는 운영 지출에 섞지 않습니다.
   const expenses = data.banking.rows.filter((row) => row.direction === 'EXPENSE' && row.status === 'CONFIRMED'
     && !row.transferId && row.expense);
-  const expense = expenses.reduce((sum, row) => sum + (row.expense!.allocations.filter((part) => part.buildingId !== null)
-    .reduce((total, part) => total + BigInt(part.amount), BigInt(0))), BigInt(0));
+  const expense = expenses.reduce((sum, row) => sum + (row.expense!.mode === 'PROPERTY' ? BigInt(row.amount)
+    : row.expense!.allocations.filter((part) => part.buildingId !== null)
+      .reduce((total, part) => total + BigInt(part.amount), BigInt(0))), BigInt(0));
   const accounts = getAccountsForMonth(data.banking.accounts ?? [], data.month).map((account) => {
     const balance = data.balances.accounts?.find((row) => row.id === account.id);
     const confirmation = balance?.confirmation;
@@ -94,7 +95,7 @@ export function getDashboardReport(data: DashboardSnapshot) {
       direction: 'INCOME',
       ruleKey: '',
       paymentId: payment.id,
-      status: payment.status,
+      status: payment.status === 'OPENING' ? 'CONFIRMED' : payment.status,
       unitId: payment.unitId,
       unitLabel: '',
       expense: null,

@@ -35,7 +35,7 @@ function validRows(rows: BankingTransaction[]): boolean {
       && row.incomeAllocation.allocations.length > 0 && row.incomeAllocation.allocations.every((a) => UUID.test(a.buildingId ?? '') && typeof a.label === 'string' && AMOUNT.test(a.amount) && BigInt(a.amount) > BigInt(0))
       && row.incomeAllocation.allocations.reduce((sum, a) => sum + BigInt(a.amount), BigInt(0)) === BigInt(row.amount)))
     && (row.expense === null || (UUID.test(row.expense.id) && typeof row.expense.category === 'string'
-      && ['EQUAL', 'RATIO', 'AMOUNT'].includes(row.expense.mode) && Array.isArray(row.expense.allocations)
+      && ['EQUAL', 'RATIO', 'AMOUNT', 'PROPERTY'].includes(row.expense.mode) && Array.isArray(row.expense.allocations)
       && row.expense.allocations.every((a) => (a.buildingId === null || UUID.test(a.buildingId)) && typeof a.label === 'string' && AMOUNT.test(a.amount)))));
 }
 export function readWorkspace(result: BankingWorkspaceData, propertyId: string): BankingWorkspaceData {

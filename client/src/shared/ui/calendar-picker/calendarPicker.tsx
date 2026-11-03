@@ -5,14 +5,16 @@ import {
   useId,
   useLayoutEffect,
   useRef,
-  useState
+  useState,
+  type ReactNode
 } from 'react';
 import { Button } from '@/shared/ui/button';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './calendarPicker.module.css';
 
 /** 월·날짜 선택을 같은 달력으로 제공하고 선택 후 호출 버튼으로 포커스를 돌려줍니다. */
-export function CalendarPicker({ label, value, onChange, mode = 'date', clearable = false, required = false, labelHidden = false, placeholder, variant = 'default', maxDate, disabled = false }: {
+export function CalendarPicker({ label, value, onChange, mode = 'date', clearable = false, required = false, labelHidden = false, placeholder, variant = 'default', maxDate, error, labelHelp, disabled = false }: {
+  labelHelp?: ReactNode;
   label: string;
   disabled?: boolean;
   value: string;
@@ -24,6 +26,7 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
   placeholder?: string;
   variant?: 'default' | 'input';
   maxDate?: string | (() => string);
+  error?: string;
 }) {
   const id = useId();
   const root = useRef<HTMLDivElement>(null);
@@ -35,7 +38,7 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
   const selectedMonth = Number(value.slice(5, 7));
   const [month, setMonth] = useState(selectedMonth || new Date().getMonth() + 1);
   const [choosingMonth, setChoosingMonth] = useState(mode === 'month');
-  // 달력을 다시 열 때 동적으로 제공한 오늘 날짜의 상한도 함께 확인합니다.
+  // 함수를 받으면 달력을 다시 열 때 한국시간 오늘의 상한을 새로 확인합니다.
   const maximum = typeof maxDate === 'function' ? maxDate() : maxDate;
   const maximumMonth = maximum?.slice(0, 7);
   const monthValue = `${year}-${String(month).padStart(2, '0')}`;
@@ -142,21 +145,23 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
         trigger.current?.focus();
       }}
     >
-      <span
+      <div
         id={`${id}-label`}
         className={styles.label}
         data-hidden={labelHidden || undefined}
       >
+        {labelHelp}
         {label}
         {required && (
           <span
+            className={styles.required}
             aria-hidden={'true'}
           >
             {' '}
             *
           </span>
         )}
-      </span>
+      </div>
       <Button
         ref={trigger}
         disabled={disabled}
@@ -167,6 +172,8 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
         aria-haspopup={'dialog'}
         aria-expanded={open}
         aria-controls={open ? id : undefined}
+        aria-invalid={Boolean(error) || undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
         onClick={() => {
           const latest = typeof maxDate === 'function' ? maxDate() : maxDate;
           const initial = latest && (!value || value > latest) ? latest : value;
@@ -192,6 +199,14 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
           size={16}
         />
       </Button>
+      {error && (
+        <p
+          id={`${id}-error`}
+          className={styles.error}
+        >
+          {error}
+        </p>
+      )}
       <div
         id={id}
         ref={calendar}

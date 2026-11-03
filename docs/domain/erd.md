@@ -1012,7 +1012,7 @@ DB 지연 제약은 실제 수납 배분과 기존 선납 충당의 합계가 �
 | payer_name_encrypted | text | N | 당시 입금자명 암호화 |
 | payer_name_hmac | char(64) | N | 정규화된 이름 검색값 |
 | memo_encrypted | text | Y | 원본 메모 암호화 |
-| status | varchar(20) | N | PENDING / ON_HOLD / CONFIRMED / CANCELED / LINKED |
+| status | varchar(20) | N | PENDING / ON_HOLD / CONFIRMED / CANCELED / LINKED / OPENING |
 | manual_purpose | varchar(20) | Y | MANUAL은 HOUSEHOLD / OTHER / SHARED, BANK_IMPORT는 NULL; 기존 수동 행은 HOUSEHOLD |
 | receipt_type | varchar(20) | N | HOUSEHOLD 세대 납부 / OTHER 기타 입금, 기존 행은 HOUSEHOLD |
 | income_category_encrypted | text | Y | 기타 입금의 항목명 암호화, OTHER에서 필수 |
@@ -1845,6 +1845,18 @@ erDiagram
 - 실제 퇴거를 선택한 경우에만 본인의 현재 `unit_residents.status=MOVED_OUT`, `move_out_date`와 `updated_at`을 갱신하고 주민의 조회 버전도 갱신한다. 과거 관계의 대표 여부와 계정 연결·명부 원본은 보존한다.
 - 서비스 이용만 종료하면 현재 거주 관계를 변경하지 않는다. 활성 참여를 요구하는 기존 접근 조회에서 종료 참여는 제외된다.
 - 같은 Property 잠금과 하나의 트랜잭션으로 퇴거·참여 종료·이력 저장을 묶는다. 후반 저장 실패 시 전체를 롤백한다.
+
+
+## 초기 입출금 저장 (2026-10-31)
+
+[등록 API](../api/propertyRegistrationApi.md#초기-입출금-등록-2026-10-31)의 최종 요청에 선택된 실제 입금·출금을 기존 테이블에 저장합니다. 미리보기 원본 파일은 보관 테이블을 만들지 않습니다.
+
+- payments.status에 OPENING을 추가합니다. source_type은 BANK_IMPORT 또는 MANUAL이며 원래 날짜·금액·세대/기타 용도와 확정자를 보존합니다. BANK_IMPORT는 실제 bank_transaction_id가 필요하고 MANUAL은 가상 원본 없이 저장합니다. 기준일 이하를 DB에서 검증하며 일반 CONFIRMED로 변경하거나 ACTIVE payment_allocations를 만들 수 없습니다. 초기 미수·선납은 기존 opening_balance_items를 사용합니다.
+- bank_transactions의 INCOME·EXPENSE 원본·중복 키·계좌 FK는 유지합니다. 기준일까지 원본도 저장하며 계산 잔액에는 기준일 이후 거래만 가감합니다. 과거 OPENING OTHER의 동별 배분도 income_allocations에 보존하지만 새 외부 회수로 사용하지 않습니다.
+- expenses.allocation_mode에 PROPERTY를 추가합니다. 동 구분 없는 대상의 공용 지출만 허용하며 expense_allocations는 0개입니다. 부모 total_amount가 전체 지출이고 외부 부담금이 아닙니다. EQUAL/RATIO/AMOUNT에는 기존 실제 배분·합계 검증을 유지합니다.
+- V20261031065016의 실험용 opening_payment_snapshots는 V20261031071757에서 빈 테이블 여부를 검사한 뒤 폐기합니다. 현재 Entity와 최종 계약은 이 테이블을 사용하지 않습니다. 실제 적용 DB에 자료가 있으면 Migration이 중단하므로 별도 검토 없이 유실하지 않습니다.
+
+위 구조는 실제 거래 보존을 위한 구현이며 과거 청구 원문·월별 납부 상태 인계가 완성됐다는 의미가 아닙니다. 실행 중인 개발·공유·운영 DB의 적용 여부는 별도 확인합니다.
 
 ## 초기 기준 정정 이력 (2026-11-01)
 

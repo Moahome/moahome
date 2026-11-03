@@ -135,6 +135,15 @@ public class Payment implements Persistable<UUID> {
 	protected Payment() {
 	}
 
+	/** 시작 잔액에 포함된 입금은 내역만 보존하고 새 미납에 재충당하지 않습니다. 등록 조합 서비스에서만 사용합니다. */
+	public void recordBeforeOpening() {
+		require("CONFIRMED");
+		if (!Set.of("BANK_IMPORT", "MANUAL").contains(sourceType)
+		    || ("BANK_IMPORT".equals(sourceType) && bankTransactionId == null))
+			throw new PaymentException("PAYMENT_STATE_CONFLICT");
+		status = "OPENING";
+	}
+
 	/** 수동·은행 경로 모두 초안으로 시작하고 원 금액·이름 스냅샷과 생성자를 보존합니다. */
 	public static Payment pending(UUID id, UUID property, UUID account, UUID bank, UUID unit, UUID resident,
 	    LocalDate date, BigDecimal amount, String source, String encrypted, String hmac, String memo, UUID actor,

@@ -182,9 +182,9 @@ public class BankingService {
 			        payment == null ? null : payment.id(),
 			        t.isTransferCandidate()
 			            ? (transferBySource.containsKey(t.getId()) ? "TRANSFER" : "TRANSFER_PENDING")
-			            : expense != null ? "CONFIRMED" : payment == null ? "PENDING" : payment.status(),
+			            : expense != null ? "CONFIRMED" : payment == null ? "PENDING" : "OPENING".equals(payment.status()) ? "CONFIRMED" : payment.status(),
 			        unitId, label, expense,
-			        payment == null || !"CONFIRMED".equals(payment.status())
+			        payment == null || !Set.of("CONFIRMED", "OPENING").contains(payment.status())
 			            || !allocatedIncome.containsKey(payment.id())
 			                ? null
 			                : new BankingResponse.Expense(payment.id(), payment.incomeCategory(), payment.incomeNote(),

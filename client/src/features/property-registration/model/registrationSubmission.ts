@@ -31,6 +31,11 @@ import {
 } from './openingBalances';
 import type { OpeningBalancesDraft } from './openingBalancesTypes';
 import type { PendingRegistration } from './registrationSubmissionTypes';
+import {
+  createRegistrationBankImports,
+  createRegistrationManualTransactions,
+  getRegistrationHistoryError
+} from './registrationBank';
 
 const SUBMISSION_KEY = 'moahome.property-registration.submission';
 const RECEIPT_KEY = 'moahome.property-registration.receipt';
@@ -189,6 +194,18 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
         }))
       };
     }
+    if (request.openingBalances && restored.openingBalances) {
+      const imports = request.openingBalances.bankImports;
+      if (imports !== undefined) {
+        if (!Array.isArray(imports) || imports.length > 100 || imports.some((file) => !file || !Number.isInteger(file.accountIndex) || file.accountIndex < 0 || file.accountIndex >= request.bankAccounts.length || typeof file.fileName !== 'string' || typeof file.content !== 'string' || file.content.length > 6990508 || !Array.isArray(file.rows) || !file.rows.length || file.rows.length > 5000)) return null;
+        restored.openingBalances.bankImports = imports;
+      }
+      const records = request.openingBalances.manualTransactions;
+      if (records !== undefined) {
+        if (!Array.isArray(records) || records.length > 5000 || records.some((record) => !record || !UUID_PATTERN.test(record.id) || !Number.isInteger(record.accountIndex) || record.accountIndex < 0 || record.accountIndex >= request.bankAccounts.length || !['INCOME', 'EXPENSE'].includes(record.direction) || typeof record.payer !== 'string' || typeof record.date !== 'string' || !/^[0-9]{1,15}$/.test(record.amount))) return null;
+        restored.openingBalances.manualTransactions = records;
+      }
+    }
     return restored;
   } catch {
     return null;
@@ -199,16 +216,24 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
 export function createRegistrationRequest(draft: RegistrationDraft, requestId: string, includeOpening = true): RegistrationRequest {
   if (getAdministratorError(draft.administrator, draft.units) || getUnitSetupError(draft.basicInfo.hasBuildings === true, draft.buildings, draft.units)
     || getRegistrationAccountsError(draft.bankAccounts) || getFeeItemsError(draft.feeItems)
-    || (includeOpening && (getUnitOpeningError(draft.openingBalances, draft.units) || getCashOpeningError(draft.openingBalances, draft.buildings, draft.bankAccounts) || getFirstBillingError(draft.openingBalances)))) {
+    || (includeOpening && (getUnitOpeningError(draft.openingBalances, draft.units) || getCashOpeningError(draft.openingBalances, draft.buildings, draft.bankAccounts) || getFirstBillingError(draft.openingBalances) || getRegistrationHistoryError(draft.openingBalances, draft.bankAccounts, draft.units, draft.buildings)))) {
     throw new Error('등록 정보를 확인해주세요.');
   }
 
   const selectedUnit = draft.units.find((unit) => unit.clientId === draft.administrator.unitClientId);
+  const bankImports = includeOpening ? createRegistrationBankImports(draft.openingBalances, draft.bankAccounts, draft.units) : [];
+  const manualTransactions = includeOpening ? createRegistrationManualTransactions(draft.openingBalances, draft.bankAccounts, draft.units) : [];
 
   return {
     requestId,
     ...(includeOpening ? {
       openingBalances: {
+        ...(bankImports.length ? {
+          bankImports
+        } : {}),
+        ...(manualTransactions.length ? {
+          manualTransactions
+        } : {}),
         cutoffDate: draft.openingBalances.cutoffDate,
         firstBillingMonth: draft.openingBalances.firstBillingMonth,
         ...(draft.openingBalances.automaticBilling ? {
@@ -278,7 +303,7 @@ export function savePendingRegistration(userId: string, request: RegistrationReq
   try { sessionStorage.setItem(SUBMISSION_KEY, JSON.stringify({
     userId,
     request
-  })); } catch { /* 새로고침 복원만 제한합니다. */ }
+  })); } catch { try { sessionStorage.removeItem(SUBMISSION_KEY); } catch { /* 원본이 큰 경우 이전 제출 본문으로 재시도하지 않습니다. */ } }
 }
 
 /** 결과가 불명확한 ID는 새 진입에도 확인하며 본문은 같은 사용자·탭의 새로고침에서만 복원합니다. */

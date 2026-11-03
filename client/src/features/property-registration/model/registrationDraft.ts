@@ -209,7 +209,16 @@ export function saveRegistrationDraft(userId: string, draft: RegistrationDraft) 
     // 진행 중 계좌 입력도 확정된 새로고침 복원 정책에 따라 탭 초안에 포함하고 이탈·로그아웃에 폐기합니다.
     sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({
       userId,
-      ...draft
+      ...draft,
+      openingBalances: {
+        ...draft.openingBalances,
+        ...(draft.openingBalances.bankImports ? {
+          bankImports: Object.fromEntries(Object.entries(draft.openingBalances.bankImports).map(([id, file]) => [id, {
+            ...file,
+            content: ''
+          }]))
+        } : {})
+      }
     }));
     // 실제 초안 저장이 성공한 뒤 이전 미리보기 사본을 제거해 입력을 두 곳에 보관하지 않습니다.
     sessionStorage.removeItem(LEGACY_PREVIEW_STORAGE_KEY);

@@ -55,6 +55,25 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
+.methods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  padding: 0;
+  border: 0;
+
+  legend {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+    font-weight: 700;
+  }
+
+  .required {
+    color: var(--danger);
+  }
+}
 .summary {
   display: grid;
   gap: 16px;
@@ -63,6 +82,10 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+
+  &[data-single='true'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 900px) {
@@ -80,6 +103,13 @@
   .row {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.support-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
 }
 
 .inherited-date {

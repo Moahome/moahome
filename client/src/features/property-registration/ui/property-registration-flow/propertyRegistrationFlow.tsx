@@ -1,6 +1,9 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import {
+  useRouter,
+  useSearchParams
+} from 'next/navigation';
 import {
   useCallback,
   useEffect,
@@ -22,6 +25,7 @@ import {
   restoreOpeningBalances
 } from '../../model/openingBalances';
 import type { OpeningBalancesDraft } from '../../model/openingBalancesTypes';
+import { getRegistrationHistoryError } from '../../model/registrationBank';
 import {
   discardRegistrationDraft,
   restoreRegistrationDraft,
@@ -33,6 +37,11 @@ import {
   discardSubmissionBody
 } from '../../model/registrationSubmission';
 import { getUnitSetupError } from '../../model/unitSetup';
+import { Button } from '@/shared/ui/button';
+import { ServiceIcon } from '@/shared/ui/service-icon';
+import { StateMessage } from '@/shared/ui/state-message';
+import { RegistrationTransactionEditor } from '../_components/registration-transaction-editor/registrationTransactionEditor';
+import cashPageStyles from '../_components/bank-account-setup/bankAccountSetup.module.css';
 import { BankAccountSetup } from '../_components/bank-account-setup/bankAccountSetup';
 import { FeeItemsSetup } from '../_components/fee-items-setup/feeItemsSetup';
 import { RegistrationComplete } from '../_components/registration-complete/registrationComplete';
@@ -61,6 +70,7 @@ export function PropertyRegistrationFlow({
   onDashboard: (propertyId: string) => void;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [draft, setDraft] = useState(() => restoreRegistrationDraft(userId));
   const [inputMessage, setInputMessage] = useState('');
   const [showRegisteredDetails, setShowRegisteredDetails] = useState(false);
@@ -68,7 +78,7 @@ export function PropertyRegistrationFlow({
   const errorRef = useRef<HTMLParagraphElement>(null);
   const administratorValid = !getAdministratorError(draft.administrator, draft.units);
   const unitsValid = !getUnitSetupError(draft.basicInfo.hasBuildings === true, draft.buildings, draft.units) && administratorValid && !getUnitOpeningError(draft.openingBalances, draft.units);
-  const accountValid = !getRegistrationAccountsError(draft.bankAccounts) && !getCashOpeningError(draft.openingBalances, draft.buildings, draft.bankAccounts);
+  const accountValid = !getRegistrationAccountsError(draft.bankAccounts) && !getCashOpeningError(draft.openingBalances, draft.buildings, draft.bankAccounts) && !getRegistrationHistoryError(draft.openingBalances, draft.bankAccounts, draft.units, draft.buildings);
   const feesValid = !getFeeItemsError(draft.feeItems) && !getFirstBillingError(draft.openingBalances);
 
   /** 서버의 입력 오류는 초안을 보존하고 해당 입력 단계부터 순서대로 다시 확인하게 합니다. */
@@ -210,7 +220,89 @@ export function PropertyRegistrationFlow({
   }
 
   let content;
-  if (confirmingResult) {
+  const transactionId = searchParams.get('transaction');
+  const transactionAccountId = searchParams.get('account');
+  function closeTransactionPage() {
+    const query = new URLSearchParams({
+      registration: 'account',
+      ...(transactionAccountId ? {
+        account: transactionAccountId
+      } : {})
+    });
+    router.replace(`${entryPath}?${query}`, {
+      scroll: false
+    });
+  }
+  if (!locked && currentStep === 'account' && transactionId) {
+    const account = draft.bankAccounts.find((entry) => entry.clientId === transactionAccountId);
+    const record = draft.openingBalances.manualTransactions?.find((entry) => entry.id === transactionId && entry.accountClientId === account?.clientId);
+    const direction = record?.direction ?? (searchParams.get('transactionDirection') === 'EXPENSE' ? 'EXPENSE' : 'INCOME');
+    content = (
+      <main
+        className={cashPageStyles.page}
+      >
+        <div
+          className={cashPageStyles['mobile-navigation']}
+        >
+          <Button
+            variant={'ghost'}
+            iconOnly
+            aria-label={'입출금 내역으로 돌아가기'}
+            onClick={closeTransactionPage}
+            leadingIcon={(
+              <ServiceIcon
+                name={'chevron'}
+                direction={'left'}
+              />
+            )}
+          />
+          <span>
+            입출금 내역
+          </span>
+        </div>
+        {account && (transactionId === 'new' || record) ? (
+          <RegistrationTransactionEditor
+            key={transactionId}
+            account={account}
+            record={record}
+            direction={direction}
+            units={draft.units}
+            buildings={draft.buildings}
+            presentation={'page'}
+            onClose={closeTransactionPage}
+            onDelete={record ? () => { setDraft((previous) => ({
+              ...previous,
+              openingBalances: {
+                ...previous.openingBalances,
+                manualTransactions: previous.openingBalances.manualTransactions?.filter((entry) => entry.id !== record.id)
+              }
+            })); closeTransactionPage(); } : undefined}
+            onSave={(value) => {
+              const next = {
+                ...value,
+                id: record?.id ?? crypto.randomUUID(),
+                accountClientId: account.clientId
+              };
+              setDraft((previous) => { const records = previous.openingBalances.manualTransactions ?? []; return {
+                ...previous,
+                openingBalances: {
+                  ...previous.openingBalances,
+                  manualTransactions: record ? records.map((entry) => entry.id === record.id ? next : entry) : [...records, next]
+                }
+              }; });
+              if (!record) closeTransactionPage();
+            }}
+          />
+        ) : (
+          <StateMessage
+            variant={'not-found'}
+            layout={'inline'}
+            title={'입출금 내역을 찾을 수 없어요.'}
+          />
+        )}
+      </main>
+    );
+  } else   if (confirmingResult) {
     content = (
       <RegistrationResultState
         failed={submission.status === 'unknown'}
@@ -270,6 +362,18 @@ export function PropertyRegistrationFlow({
   } else if (currentStep === 'account') {
     content = (
       <BankAccountSetup
+        selectedAccountId={searchParams.get('account') ?? undefined}
+        onOpenTransaction={(account, direction, transaction) => {
+          const query = new URLSearchParams({
+            registration: 'account',
+            account,
+            transaction: transaction ?? 'new',
+            transactionDirection: direction
+          });
+          router.push(`${entryPath}?${query}`, {
+            scroll: false
+          });
+        }}
         units={draft.units}
         buildings={draft.buildings}
         openingBalances={draft.openingBalances}
@@ -306,7 +410,7 @@ export function PropertyRegistrationFlow({
           ...previous,
           buildings,
           units,
-          openingBalances: restoreOpeningBalances(previous.openingBalances, units, buildings),
+          openingBalances: restoreOpeningBalances(previous.openingBalances, units, buildings, true),
           step: 'units'
         }))}
         onPrevious={() => navigateSetup('basic')}

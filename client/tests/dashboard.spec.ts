@@ -72,13 +72,16 @@ test('선입금만 보유한 미부과 세대는 도넛 분모에서 구분하�
   expect(pending.states[3].count).toBe(1);
 });
 
-test('미확인·선택월 이후 확인값은 0원이나 합계로 대체하지 않음', () => {
+test('미확인·선택월 이후 확인값은 합계를 만들지 않고 동 없는 PROPERTY 지출은 전액을 포함', () => {
   const data = dashboardFixture();
   expect(getDashboardReport(data).referenceTotal).toBe(BigInt(120000));
   data.balances.accounts![0].calculatedBalance = null;
   data.balances.accounts![0].confirmation!.date = '2026-11-01';
   expect(getDashboardReport(data).accounts[0].balance).toBeNull();
   expect(getDashboardReport(data).referenceTotal).toBeNull();
+  data.banking.rows[1].expense!.mode = 'PROPERTY';
+  data.banking.rows[1].expense!.allocations = [];
+  expect(getDashboardReport(data).expense).toBe(BigInt(20000));
 });
 
 test('6개월 추이는 연도를 넘어 같은 원장에서 계산하고 큰 정수 좌표와 실제 0원을 구분', () => {

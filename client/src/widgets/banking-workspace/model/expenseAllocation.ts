@@ -12,6 +12,7 @@ export {
 
 /** 선택한 동의 실제 부담액만 합산해 외부 부담액·은행 출금 원액과 구분합니다. */
 export function getExpenseAmount(row: BankingTransaction, buildingIds: readonly string[]): bigint {
+  if (row.expense?.mode === 'PROPERTY') return BigInt(row.amount);
   const selected = new Set(buildingIds);
   return row.expense?.allocations.reduce((sum, part) => (
     part.buildingId && selected.has(part.buildingId) ? sum + BigInt(part.amount) : sum
@@ -33,7 +34,7 @@ export function createExpenseDraft(row: BankingTransaction, workspace: BankingWo
   return {
     category: row.payer.trim().slice(0, 100),
     note: '',
-    mode: 'EQUAL',
+    mode: workspace.buildings.length ? 'EQUAL' : 'PROPERTY',
     saveAsRule: false,
     allocations: sortExpenseLabels(workspace.buildings).map((building) => ({
       buildingId: building.id,

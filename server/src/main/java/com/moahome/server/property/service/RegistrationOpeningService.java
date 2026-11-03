@@ -23,15 +23,19 @@ public class RegistrationOpeningService {
 	private final BankingBalanceService cash;
 
 	private final Clock clock;
+	private final RegistrationBankImportService imports;
 
-	public RegistrationOpeningService(OpeningBalanceService balances, BankingBalanceService cash, Clock clock) {
+	public RegistrationOpeningService(OpeningBalanceService balances, BankingBalanceService cash, Clock clock,
+	    RegistrationBankImportService imports) {
 		this.balances = balances;
 		this.cash = cash;
 		this.clock = clock;
+		this.imports = imports;
 	}
 
 	/** 명시적인 전체 금액과 날짜를 검증해 누락을 0원으로 추측하거나 다른 세대로 연결하지 않습니다. */
 	public void validate(PropertyRegistrationRequest request) {
+		imports.validate(request);
 		var input = request.openingBalances();
 		var today = LocalDate.now(clock.withZone(BillingCalendar.ZONE));
 		var first = YearMonth.parse(input.firstBillingMonth());
@@ -128,6 +132,7 @@ public class RegistrationOpeningService {
 		}
 		// 첫 부과·선납 충당은 날짜와 요약을 확인한 최종 제출에서만 확정합니다.
 		balances.confirm(actor, property.getId(), batch.id(), batch.revision());
+		imports.initialize(actor, property, request, buildings, units, accounts);
 		return new PropertyRegistrationResponse.ManagementStart(input.cutoffDate(), input.firstBillingMonth(),
 		    input.cashCutoffDate());
 	}

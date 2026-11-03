@@ -44,8 +44,8 @@ public class IncomeAllocationService {
 	/** 호출자는 관리대상 잠금과 입금 확정을 완료해야 하며 전액 합계·현재 동·재시도 일치를 다시 검증합니다. */
 	@Transactional(propagation = Propagation.MANDATORY)
 	public void allocate(Payment receipt, BankingRequests.Expense request, UUID user) {
-		if (!"CONFIRMED".equals(receipt.getStatus()) || !"OTHER".equals(receipt.getReceiptType())
-		    || receipt.getDeletedAt() != null || request.saveAsRule())
+		if (!Set.of("CONFIRMED", "OPENING").contains(receipt.getStatus()) || !"OTHER".equals(receipt.getReceiptType())
+		    || receipt.getDeletedAt() != null || request.saveAsRule() || "PROPERTY".equals(request.mode()))
 			throw new PaymentException("OTHER_INCOME_REQUIRED");
 		var property = receipt.getPropertyId();
 		if (settlementLinks.findByPropertyId(property).stream().anyMatch(l -> receipt.getId().equals(l.getPaymentId())))

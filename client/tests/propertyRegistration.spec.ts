@@ -111,6 +111,12 @@ test.beforeEach(async ({ page }) => {
     const url = new URL(route.request().url());
     return fulfillJson(route, emptyDashboardFixture(url.pathname.split('/')[3], url.searchParams.get('month') ?? undefined));
   });
+  await page.route(`${API_ORIGIN}/api/property-registrations/bank-import/support**`, (route) => fulfillJson(route, {
+    enabled: false,
+    extensions: [],
+    message: '이 은행의 거래내역 업로드는 아직 지원하지 않습니다.',
+  }));
+
   await page.route(`${API_ORIGIN}/api/users/me/resident-properties`, (route) => fulfillJson(route, {
     properties: []
   }));
@@ -769,16 +775,22 @@ test('동 없음은 빈 목록에서 시작하고 추가·중복 검증·수정�
   });
   await openUnitSetup(page);
   await expect(page.getByText('아직 등록한 세대가 없어요.')).toBeVisible();
-  await expect(page.getByRole('button', {
+  await page.getByRole('button', {
     name: '다음',
     exact: true
-  })).toBeDisabled();
+  }).click();
+  await expect(page).toHaveURL(/registration=units/);
+  await expect(page.getByRole('alert').filter({
+    hasText: '관리할 세대를 하나 이상 추가해주세요.'
+  })).toBeVisible();
   await addUnit(page, '201', '2');
   await addUnit(page, '201');
   await expect(page.getByRole('dialog', {
     name: '세대 추가',
     exact: true
-  }).getByRole('alert')).toContainText('이미 등록한 호수');
+  }).getByRole('alert').filter({
+    hasText: '이미 등록한 호수'
+  })).toBeVisible();
   await page.keyboard.press('Escape');
   await page.getByRole('button', {
     name: '201호 수정',
@@ -1268,10 +1280,14 @@ test('관리계좌 직접 진입과 새로고침의 유효하지 않은 세대�
   await page.evaluate(() => history.pushState(null, '', '/start?registration=account'));
   await page.reload();
   await expect(page).toHaveURL(/registration=units/);
-  await expect(page.getByRole('button', {
+  await page.getByRole('button', {
     name: '다음',
     exact: true
-  })).toBeDisabled();
+  }).click();
+  await expect(page).toHaveURL(/registration=units/);
+  await expect(page.getByRole('alert').filter({
+    hasText: '관리할 세대를 하나 이상 추가해주세요.'
+  })).toBeVisible();
 });
 
 test('손상된 계좌 초안은 이전 단계를 보존하고 다른 사용자에게 계좌 입력을 복원하지 않음', async ({ page }) => {
@@ -2479,10 +2495,14 @@ test('동별 중복 범위와 이름 수정의 세대 연결을 유지하고 동
     name: '201호 수정',
     exact: true
   })).toHaveCount(2);
-  await expect(page.getByRole('button', {
+  await page.getByRole('button', {
     name: '다음',
     exact: true
-  })).toBeDisabled();
+  }).click();
+  await expect(page).toHaveURL(/registration=units/);
+  await expect(page.getByRole('alert').filter({
+    hasText: '동과 세대 정보를 확인해주세요.'
+  })).toBeVisible();
 });
 
 for (const viewport of [{
@@ -2647,10 +2667,12 @@ for (const viewport of [{
       name: '완료',
       exact: true
     }).click();
-    await expect(page.getByRole('button', {
+    await page.getByRole('button', {
       name: '다음',
       exact: true
-    })).toBeDisabled();
+    }).click();
+    await expect(page).toHaveURL(/registration=units/);
+    await expect(page.getByRole('alert').first()).toBeVisible();
     const empty = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
     expect(empty.units).toEqual([]);
     expect(empty.buildings).toEqual(before.buildings.filter((building: { name: string }) => building.name !== '101동' && building.name !== '102동'));
@@ -2863,10 +2885,12 @@ for (const viewport of [{
       name: '삭제',
       exact: true
     }).click();
-    await expect(page.getByRole('button', {
+    await page.getByRole('button', {
       name: '다음',
       exact: true
-    })).toBeDisabled();
+    }).click();
+    await expect(page).toHaveURL(/registration=units/);
+    await expect(page.getByRole('alert').first()).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 }
@@ -3290,10 +3314,12 @@ test('층 범위·선택 입력을 검증하고 세대 삭제 후 최소 한 세
   }).click();
   await confirmUnitDeletion(page);
   await expect(page.getByText('아직 등록한 세대가 없어요.')).toBeVisible();
-  await expect(page.getByRole('button', {
+  await page.getByRole('button', {
     name: '다음',
     exact: true
-  })).toBeDisabled();
+  }).click();
+  await expect(page).toHaveURL(/registration=units/);
+  await expect(page.getByRole('alert').first()).toBeVisible();
 });
 
 test('동·세대 화면은 PC·모바일 표와 고정 하단 버튼을 표시하고 320px에서도 넘치지 않음', async ({ page }) => {
@@ -5245,10 +5271,12 @@ for (const hasBuildings of [false, true]) {
     await page.getByRole('radio', {
       name: /^거주 관리소장/
     }).check();
-    await expect(page.getByRole('button', {
+    await page.getByRole('button', {
       name: '다음',
       exact: true
-    })).toBeDisabled();
+    }).click();
+    await expect(page).toHaveURL(/registration=units/);
+    await expect(page.getByRole('alert').first()).toBeVisible();
     await page.getByRole('textbox', {
       name: '관리소장 이름',
       exact: true
@@ -5522,10 +5550,16 @@ for (const width of [320]) {
       name: 'A동',
       exact: true
     }).click();
-    await expect(page.getByRole('button', {
+    await page.getByRole('button', {
       name: '다음',
       exact: true
-    })).toBeDisabled();
+    }).click();
+    await expect(page).toHaveURL(/registration=units/);
+    await expect(page.getByRole('alert').first()).toBeVisible();
+    // 누락 안내의 포커스 이동이 끝난 뒤 호수 검색을 시작합니다.
+    await expect(page.getByRole('radio', {
+      name: /^거주 관리소장/
+    })).toBeFocused();
     await page.getByRole('combobox', {
       name: '거주 호수',
       exact: true
@@ -5656,10 +5690,12 @@ for (const width of [1440, 390]) {
       expect(Math.abs(previous!.width - next!.width)).toBeLessThanOrEqual(1);
       if (width > 640) expect(previous!.width).toBeGreaterThanOrEqual(152);
       await phone.fill('invalid');
-      await expect(page.getByRole('button', {
+      await page.getByRole('button', {
         name: '다음',
         exact: true
-      })).toBeDisabled();
+      }).click();
+      await expect(page).toHaveURL(/registration=units/);
+      await expect(page.getByRole('alert').first()).toBeVisible();
       await phone.clear();
       await expect(page.getByRole('button', {
         name: '다음',
@@ -6174,5 +6210,498 @@ for (const width of [1440, 390]) {
       fullPage: true,
       animations: 'disabled'
     });
+  });
+}
+
+for (const width of [1440, 390]) {
+  test(`초기 입출금 ${width}px: 공용 폼 등록은 다음 단계로 이동하지 않고 상세·수정·삭제를 분리`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    await openBankAccountSetup(page);
+    await fillBankAccount(page);
+    const next = page.getByRole('button', {
+      name: '다음',
+      exact: true
+    });
+    const toggle = page.locator('summary').filter({
+      hasText: '입출금 내역 (선택)'
+    });
+    await expect(page.getByRole('table', {
+      name: '직접 입력한 입출금'
+    })).not.toBeVisible();
+    await toggle.click();
+    await expect(page.getByRole('table', {
+      name: '직접 입력한 입출금'
+    })).toBeVisible();
+    await expect(page.locator('img[src*="emptyData"]')).toBeVisible();
+    await page.getByRole('button', {
+      name: '출금 등록',
+      exact: true
+    }).click();
+    if (width < 768) {
+      await expect(page).toHaveURL(/transaction=new/);
+      await expect(page.getByRole('button', {
+        name: '입출금 내역으로 돌아가기'
+      })).toBeVisible();
+    } else await expect(page).toHaveURL(/registration=account/);
+    await expect(page.getByRole('combobox', {
+      name: '나누는 방법',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByRole('button', {
+      name: /외부·공통 부담처 추가/
+    })).toHaveCount(0);
+    await page.getByRole('textbox', {
+      name: '지출명',
+      exact: true
+    }).fill('공용 전기료');
+    await page.getByRole('textbox', {
+      name: '출금액',
+      exact: true
+    }).fill('10000');
+    await page.getByRole('button', {
+      name: '등록',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(/registration=account/);
+    await expect(page).not.toHaveURL(/transaction=/);
+    if (!(await page.getByRole('table', {
+      name: '직접 입력한 입출금'
+    }).isVisible())) await toggle.click();
+    const table = page.getByRole('table', {
+      name: '직접 입력한 입출금'
+    });
+    await expect(table).toContainText('공용 전기료');
+    await table.getByRole('row').filter({
+      hasText: '공용 전기료'
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '출금 상세',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('textbox', {
+      name: '출금액',
+      exact: true
+    })).toHaveCount(0);
+    const edit = page.getByRole('button', {
+      name: '수정',
+      exact: true
+    });
+    await expect(edit).toHaveAttribute('data-tone', 'success');
+    await expect(page.getByRole('button', {
+      name: '삭제',
+      exact: true
+    })).toHaveAttribute('data-tone', 'danger');
+    await page.screenshot({
+      path: test.info().outputPath(`transactionDetail${width}.png`),
+      fullPage: true
+    });
+    await edit.click();
+    await page.screenshot({
+      path: test.info().outputPath(`transactionEdit${width}.png`),
+      fullPage: true
+    });
+    await expect(page.getByRole('textbox', {
+      name: '출금액',
+      exact: true
+    })).toHaveValue('10,000');
+    await page.getByRole('textbox', {
+      name: '출금액',
+      exact: true
+    }).fill('20000');
+    await page.getByRole('button', {
+      name: '취소',
+      exact: true
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '출금 상세',
+      exact: true
+    })).toBeVisible();
+    await edit.click();
+    await expect(page.getByRole('textbox', {
+      name: '출금액',
+      exact: true
+    })).toHaveValue('10,000');
+    await page.getByRole('textbox', {
+      name: '출금액',
+      exact: true
+    }).fill('15000');
+    await page.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '출금 상세',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByText('15,000원', {
+      exact: true
+    })).toBeVisible();
+    await page.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await page.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(page).not.toHaveURL(/transaction=/);
+    if (!(await table.isVisible())) await toggle.click();
+    await expect(table).not.toContainText('공용 전기료');
+    await page.getByRole('button', {
+      name: '입금 등록',
+      exact: true
+    }).click();
+    await page.getByRole('combobox', {
+      name: '입금 용도',
+      exact: true
+    }).click();
+    await expect(page.getByRole('option', {
+      name: '동별 입금',
+      exact: true
+    })).toHaveCount(0);
+    await page.getByRole('option', {
+      name: '세대 관리비 직접 지정',
+      exact: true
+    }).click();
+    await page.getByRole('combobox', {
+      name: '세대',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '201호',
+      exact: true
+    }).click();
+    await page.getByRole('textbox', {
+      name: '입금자명',
+      exact: true
+    }).fill('201호');
+    await page.getByRole('textbox', {
+      name: '입금액',
+      exact: true
+    }).fill('50000');
+    await page.getByRole('button', {
+      name: '등록',
+      exact: true
+    }).click();
+    await expect(page).not.toHaveURL(/transaction=/);
+    if (!(await table.isVisible())) await toggle.click();
+    await expect(table).toContainText('50,000원');
+    await table.getByRole('row').filter({
+      hasText: '201호'
+    }).click();
+    await expect(page.getByRole('heading', {
+      name: '입금 상세',
+      exact: true
+    })).toBeVisible();
+    if (width < 768) await page.getByRole('button', {
+      name: '입출금 내역으로 돌아가기'
+    }).click();
+    else await page.getByRole('button', {
+      name: '입출금 상세 닫기'
+    }).click();
+
+    await expect(page.getByRole('heading', {
+      name: '관리계좌 및 잔고',
+      exact: true
+    })).toBeVisible();
+    await expect(next).toBeEnabled();
+    await page.screenshot({
+      path: test.info().outputPath(`initialTransactions${width}.png`),
+      fullPage: true
+    });
+  });
+}
+
+test('초기 은행 업로드: 입금·출금 선택과 원본을 최종 등록에 함께 제출하고 직접 입력 항목을 숨김', async ({ page }) => {
+  let submitted: RegistrationRequest | undefined;
+  await page.route(`${API_ORIGIN}/api/property-registrations/bank-import/support**`, (route) => fulfillJson(route, {
+    enabled: true,
+    extensions: ['.xls', '.xlsx', '.csv'],
+    message: '하나은행 거래내역 파일'
+  }));
+  await openBankAccountSetup(page);
+  await fillBankAccount(page);
+  const cutoff = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).openingBalances.cutoffDate as string, DRAFT_STORAGE_KEY);
+  const rows = [
+    {
+      id: '00000000-0000-4000-8000-000000000011',
+      date: cutoff,
+      time: '09:00:00',
+      payer: '201호',
+      memo: null,
+      amount: '50000',
+      balance: '1000000',
+      direction: 'INCOME',
+      autoMatchEligible: true
+    },
+    {
+      id: '00000000-0000-4000-8000-000000000012',
+      date: cutoff,
+      time: '10:00:00',
+      payer: '청소비',
+      memo: null,
+      amount: '10000',
+      balance: '990000',
+      direction: 'EXPENSE',
+      autoMatchEligible: true
+    }
+  ];
+  await page.route(`${API_ORIGIN}/api/property-registrations/bank-import/preview`, (route) => fulfillJson(route, {
+    rows,
+    period: {
+      from: cutoff,
+      to: cutoff
+    },
+    support: {
+      enabled: true,
+      extensions: ['.csv'],
+      message: '하나은행'
+    },
+    duplicateCount: 0
+  }));
+  await page.route(FINAL_URL, async (route) => {
+    if (route.request().method() === 'OPTIONS') return fulfillJson(route, {});
+    submitted = route.request().postDataJSON();
+    return fulfillJson(route, registrationResult(submitted!), 201);
+  });
+  await page.getByRole('radio', {
+    name: '은행 거래내역 파일 업로드',
+    exact: true
+  }).check();
+  await expect(page.getByLabel('실제 시작 잔액', {
+    exact: true
+  })).toHaveCount(0);
+  await expect(page.getByText('입출금 내역 (선택)', {
+    exact: true
+  })).toHaveCount(0);
+  const csv = `거래일시,적요,출금액,입금액,잔액\n${cutoff} 09:00:00,201호,0,50000,1000000\n${cutoff} 10:00:00,청소비,10000,0,990000`;
+  await expect(page.getByRole('button', {
+    name: '파일 선택',
+    exact: true
+  })).toBeEnabled();
+  await page.getByLabel('은행 거래내역 파일 선택').setInputFiles({
+    name: 'bank.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(csv)
+  });
+  const table = page.getByRole('table', {
+    name: '초기 업로드 거래 미리보기'
+  });
+  await expect(table).toContainText('201호');
+  await expect(table).toContainText('청소비');
+  await expect(page.getByText('선택 2건 · 입금 1건 · 출금 1건', {
+    exact: true
+  })).toBeVisible();
+  await page.getByRole('button', {
+    name: '입금 (1)',
+    exact: true
+  }).click();
+  await expect(table).not.toContainText('청소비');
+  await page.getByRole('button', {
+    name: '전체 (2)',
+    exact: true
+  }).click();
+  await expect(page.getByText('선택 2건 · 입금 1건 · 출금 1건', {
+    exact: true
+  })).toBeVisible();
+  await page.getByRole('button', {
+    name: '다음',
+    exact: true
+  }).click();
+  await addFeeItem(page, '일반관리비', '10000');
+  await page.getByRole('button', {
+    name: '다음',
+    exact: true
+  }).click();
+  await page.getByRole('button', {
+    name: '등록하고 관리 시작',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/registration=complete/);
+  expect(submitted?.openingBalances?.accounts[0].amount).toBe('990000');
+  expect(submitted?.openingBalances?.bankImports).toHaveLength(1);
+  const upload = submitted!.openingBalances!.bankImports![0];
+  expect(Buffer.from(upload.content, 'base64').toString()).toBe(csv);
+  expect(upload.rows).toHaveLength(2);
+  expect(upload.rows[0].unitIndex).toBe(0);
+  expect(upload.rows[1].expense?.mode).toBe('PROPERTY');
+  expect(upload.rows[1].expense?.allocations).toEqual([]);
+});
+
+test('초기 기준일 달력은 2·3단계에서 오늘까지 허용하고 누락 오류는 다음 클릭 후 표시', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-10-15T03:00:00Z'));
+  await openUnitSetup(page, false, false);
+  await addUnit(page, '201', '2');
+  await page.getByRole('radio', {
+    name: /^외부 관리소장/
+  }).check();
+  await page.getByRole('button', {
+    name: '기존 미납·선납',
+    exact: true
+  }).click();
+  await expect(page.getByText('기존 장부 기준일을 오늘 또는 이전 날짜로 선택해주세요.', {
+    exact: true
+  })).toHaveCount(0);
+  await page.getByRole('button', {
+    name: '다음',
+    exact: true
+  }).click();
+  await expect(page.getByText('기존 장부 기준일을 오늘 또는 이전 날짜로 선택해주세요.', {
+    exact: true
+  })).toBeVisible();
+  await page.getByRole('button', {
+    name: /^기존 장부 기준일:/
+  }).click();
+  await expect(page.getByRole('button', {
+    name: '2026년 10월 16일',
+    exact: true
+  })).toBeDisabled();
+  await expect(page.getByRole('button', {
+    name: '다음 달',
+    exact: true
+  })).toBeDisabled();
+  await page.getByRole('button', {
+    name: '2026년 10월 15일',
+    exact: true
+  }).click();
+  await page.getByRole('radio', {
+    name: '기존 미납·선납 없음',
+    exact: true
+  }).check();
+  await page.getByRole('button', {
+    name: '다음',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/registration=account/);
+  await page.getByRole('button', {
+    name: /^통장 기준일:/
+  }).click();
+  await expect(page.getByRole('button', {
+    name: '2026년 10월 16일',
+    exact: true
+  })).toBeDisabled();
+  await expect(page.getByRole('button', {
+    name: '다음 달',
+    exact: true
+  })).toBeDisabled();
+  await page.getByRole('button', {
+    name: '2026년 10월 15일',
+    exact: true
+  }).click();
+  await page.getByRole('button', {
+    name: '다음',
+    exact: true
+  }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByText('실제 시작 잔액을 입력해주세요.', {
+    exact: true
+  })).toBeVisible();
+});
+
+for (const width of [1440, 390]) {
+  test(`시작 방법 ${width}px는 업로드를 먼저 표시하고 미지원 선택지를 숨기며 도움말을 제공`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 1000
+    });
+    let supported = false;
+    let failSupport = false;
+    let previewRequests = 0;
+    await page.route(`${API_ORIGIN}/api/property-registrations/bank-import/support**`, (route) => {
+      if (failSupport) return fulfillJson(route, {
+        code: 'HTTP_ERROR'
+      }, 404);
+      return fulfillJson(route, {
+        enabled: supported,
+        extensions: supported ? ['.xls', '.xlsx', '.csv'] : [],
+        message: supported ? '지원 형식: .xls · .xlsx · .csv' : '이 은행의 거래내역 업로드는 아직 지원하지 않습니다.'
+      });
+    });
+    await page.route(`${API_ORIGIN}/api/property-registrations/bank-import/preview`, (route) => {
+      previewRequests += 1;
+      return fulfillJson(route, {}, 400);
+    });
+    await openBankAccountSetup(page);
+    await fillBankAccount(page);
+    const upload = page.getByRole('radio', {
+      name: '은행 거래내역 파일 업로드',
+      exact: true
+    });
+    const manual = page.getByRole('radio', {
+      name: '직접 입력',
+      exact: true
+    });
+    await expect(manual).toBeChecked();
+    await expect(upload).toHaveCount(0);
+    await expect(page.getByText('이 은행의 거래내역 업로드는 아직 지원하지 않습니다.', {
+      exact: false
+    })).toHaveCount(0);
+    await expect(page.getByRole('button', {
+      name: '파일 선택',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByLabel('은행 거래내역 파일 선택')).toHaveCount(0);
+    // 과거에 업로드를 선택한 초안도 미지원이 확인되면 숨겨진 방식에 갇히지 않아야 합니다.
+    await page.evaluate((key) => {
+      const draft = JSON.parse(sessionStorage.getItem(key)!);
+      draft.openingBalances.startMethods = {
+        [draft.bankAccounts[0].clientId]: 'UPLOAD'
+      };
+      sessionStorage.setItem(key, JSON.stringify(draft));
+    }, DRAFT_STORAGE_KEY);
+    await page.reload();
+    await expect(manual).toBeChecked();
+    await expect(page.getByRole('textbox', {
+      name: '실제 시작 잔액',
+      exact: true
+    })).toBeVisible();
+    failSupport = true;
+    await page.reload();
+    await expect(page.getByRole('alert').filter({
+      hasText: '업로드 지원 정보를 확인하지 못했습니다.'
+    })).toBeVisible();
+    await expect(upload).toHaveCount(0);
+    failSupport = false;
+    supported = true;
+    await page.getByRole('button', {
+      name: '다시 시도',
+      exact: true
+    }).click();
+    await expect(upload).toBeVisible();
+    const help = page.getByRole('button', {
+      name: '시작 방법 도움말',
+      exact: true
+    });
+    const methods = page.locator('fieldset').filter({
+      has: help
+    });
+    await expect(methods.getByRole('radio').first()).toHaveAccessibleName('은행 거래내역 파일 업로드');
+    await expect(methods.getByRole('radio').last()).toHaveAccessibleName('직접 입력');
+    if (width >= 768) {
+      const first = await manual.boundingBox();
+      const second = await upload.boundingBox();
+      expect(second!.x).toBeLessThan(first!.x);
+      await help.hover();
+    } else await help.click();
+    const tooltip = page.getByRole('tooltip').filter({
+      hasText: '직접 입력:'
+    });
+    await expect(tooltip).not.toContainText('시작 방법');
+    await expect(tooltip).toContainText('직접 입력: 실제 잔액과 필요한 입출금을 직접 입력합니다.');
+    await expect(tooltip).toContainText('지원하는 은행에서만 선택할 수 있습니다.');
+    await page.screenshot({
+      path: test.info().outputPath(`startMethodHelp${width}.png`),
+      animations: 'disabled'
+    });
+    await page.keyboard.press('Escape');
+    await upload.check();
+    await expect(page.getByRole('button', {
+      name: '파일 선택',
+      exact: true
+    })).toBeEnabled();
+    expect(previewRequests).toBe(0);
   });
 }

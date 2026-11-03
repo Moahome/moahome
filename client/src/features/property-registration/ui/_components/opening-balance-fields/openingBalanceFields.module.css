@@ -54,6 +54,14 @@
   font-size: 13px;
 }
 
+.required {
+  color: var(--danger);
+}
+
+.panel .error {
+  color: var(--danger);
+}
+
 @media (max-width: 640px) {
   .panel {
     padding: 18px 16px;

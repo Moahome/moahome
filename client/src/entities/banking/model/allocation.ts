@@ -9,6 +9,16 @@ export function sortExpenseLabels<T extends { label: string }>(items: readonly T
 
 /** 금액은 정수로 계산하고 원 미만 나머지는 숨기지 않고 직접 조정하도록 표시합니다. */
 export function calculateExpenseAllocation(total: string, draft: ExpenseDraft, purpose: 'expense' | 'income' = 'expense') {
+  // 동 없는 관리대상의 지출은 전액 공용으로 기록하며 가상의 동이나 외부 부담액을 생성하지 않습니다.
+  if (draft.mode === 'PROPERTY') {
+    const amount = /^[0-9]{1,15}$/.test(total) ? BigInt(total) : BigInt(0);
+    return {
+      allocations: [],
+      allocated: amount,
+      remaining: BigInt(0),
+      error: purpose !== 'expense' ? '입금 배분 방법을 확인해주세요.' : !draft.category.trim() ? '지출명을 입력해주세요.' : amount <= BigInt(0) ? '0원보다 큰 출금액을 입력해주세요.' : ''
+    };
+  }
   const amount = BigInt(total);
   let fractional = false;
   let ratio = BigInt(0);

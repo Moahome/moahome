@@ -27,18 +27,25 @@ public final class BankingRequests {
 	}
 
 	public record Expense(@TextInput(max = 100) String category, @TextInput(max = 500, optional = true) String note,
-	    @NotNull @Pattern(regexp = "EQUAL|RATIO|AMOUNT") String mode, boolean saveAsRule,
-	    @NotEmpty @Size(max = 100) List<@NotNull @Valid Allocation> allocations) {
+	    @NotNull @Pattern(regexp = "EQUAL|RATIO|AMOUNT|PROPERTY") String mode, boolean saveAsRule,
+	    @NotNull @Size(max = 100) List<@NotNull @Valid Allocation> allocations) {
 		public Expense {
 			note = TextValues.optional(note);
+		}
+
+		/** 동 없는 공용 지출은 배분을 만들지 않고 나머지 방식에는 실제 부담처를 요구합니다. */
+		@AssertTrue(message = "INVALID_ALLOCATION")
+		@JsonIgnore
+		public boolean isAllocationShapeValid() {
+			return hasValidAllocations(mode, allocations);
 		}
 	}
 
 	public record ManualExpense(@NotNull UUID id, @NotNull UUID accountId,
 	    @NotNull LocalDate date, @NotNull @Pattern(regexp = "[0-9]{1,15}") String amount,
 	    @TextInput(max = 100) String category, @TextInput(max = 500, optional = true) String note,
-	    @NotNull @Pattern(regexp = "EQUAL|RATIO|AMOUNT") String mode,
-	    @NotEmpty @Size(max = 100) List<@NotNull @Valid Allocation> allocations) {
+	    @NotNull @Pattern(regexp = "EQUAL|RATIO|AMOUNT|PROPERTY") String mode,
+	    @NotNull @Size(max = 100) List<@NotNull @Valid Allocation> allocations) {
 		public ManualExpense {
 			note = TextValues.optional(note);
 		}
@@ -46,6 +53,17 @@ public final class BankingRequests {
 		public Expense expense() {
 			return new Expense(category, note, mode, false, allocations);
 		}
+
+		@AssertTrue(message = "INVALID_ALLOCATION")
+		@JsonIgnore
+		public boolean isAllocationShapeValid() {
+			return hasValidAllocations(mode, allocations);
+		}
+	}
+
+	private static boolean hasValidAllocations(String mode, List<Allocation> allocations) {
+		if (allocations == null || mode == null) return false;
+		return "PROPERTY".equals(mode) ? allocations.isEmpty() : !allocations.isEmpty();
 	}
 
 	public record Selection(@NotNull UUID id, UUID unitId, @TextInput(max = 100, optional = true) String incomeCategory,

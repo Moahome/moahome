@@ -13,6 +13,7 @@ import com.moahome.server.expense.repo.*;
 import com.moahome.server.payment.exception.PaymentException;
 import com.moahome.server.property.domain.BuildingStatus;
 import com.moahome.server.property.repo.BuildingRepository;
+import com.moahome.server.property.repo.PropertyRepository;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,14 +29,16 @@ public class ExpenseService {
 	private final PaymentTextSecurity security;
 
 	private final Clock clock;
+	private final PropertyRepository properties;
 
 	public ExpenseService(ExpenseRepository expenses, ExpenseAllocationRepository allocations,
-	    BuildingRepository buildings, @Lazy PaymentTextSecurity security, Clock clock) {
+	    BuildingRepository buildings, @Lazy PaymentTextSecurity security, Clock clock, PropertyRepository properties) {
 		this.expenses = expenses;
 		this.allocations = allocations;
 		this.buildings = buildings;
 		this.security = security;
 		this.clock = clock;
+		this.properties = properties;
 	}
 
 	/** 호출자는 관리대상 잠금·권한을 먼저 확보합니다. 비용과 동별 배분을 함께 저장해 부분 확정을 막습니다. */
@@ -143,6 +146,11 @@ public class ExpenseService {
 
 	/** 부담 동은 같은 관리대상의 활성 동만 허용하고 당시 명칭을 스냅샷으로 저장합니다. */
 	private List<Expense.Share> shares(UUID property, BankingRequests.Expense request) {
+		if ("PROPERTY".equals(request.mode())) {
+			if (properties.findById(property).orElseThrow().isHasBuildings() || !request.allocations().isEmpty())
+				throw new PaymentException("INVALID_EXPENSE_TARGET");
+			return List.of();
+		}
 		return request.allocations().stream().map(a -> {
 			String label = a.buildingId() == null ? TextValues.required(a.label(), 100)
 			    : buildings.findById(a.buildingId())

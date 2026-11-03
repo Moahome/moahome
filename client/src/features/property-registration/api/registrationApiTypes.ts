@@ -2,6 +2,10 @@ import type { FeeItemCode } from '@/entities/billing';
 import type { BankAccountDraft } from '../model/bankAccountTypes';
 import type { BasicInfo } from '../model/basicInfoTypes';
 import type {
+  RegistrationBankImportRequest,
+  RegistrationManualTransactionRequest
+} from './registrationBankApiTypes';
+import type {
   BuildingDraft,
   UnitDraft
 } from '../model/unitSetupTypes';
@@ -44,6 +48,8 @@ export interface RegistrationRequest {
       buildingClientId: string;
       amount: string;
     }[];
+    bankImports?: RegistrationBankImportRequest[];
+    manualTransactions?: RegistrationManualTransactionRequest[];
   };
 }
 

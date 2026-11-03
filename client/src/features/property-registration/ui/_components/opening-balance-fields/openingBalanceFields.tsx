@@ -19,7 +19,8 @@ import { getSortedBuildings } from '../../_utils/setupSorting';
 import styles from './openingBalanceFields.module.css';
 
 /** 기존 입력 페이지 안에서 인계 금액과 기준일을 확인하며 최종 제출 전에는 서버에 저장하지 않습니다. */
-export function OpeningBalanceFields({ kind, opening, units, buildings, onChange, hideAccountAmount = false }: {
+export function OpeningBalanceFields({ kind, opening, units, buildings, onChange, hideAccountAmount = false, showErrors = false }: {
+  showErrors?: boolean;
   hideAccountAmount?: boolean;
   kind: 'units' | 'account' | 'fees';
   opening: OpeningBalancesDraft;
@@ -59,6 +60,9 @@ export function OpeningBalanceFields({ kind, opening, units, buildings, onChange
       </p>
       <CalendarPicker
         label={'기존 장부 기준일'}
+        variant={'input'}
+        maxDate={getOpeningToday}
+        error={showErrors && (!opening.cutoffDate || opening.cutoffDate > getOpeningToday()) ? '기존 장부 기준일을 오늘 또는 이전 날짜로 선택해주세요.' : undefined}
         value={opening.cutoffDate}
         onChange={(cutoffDate) => onChange({
           ...opening,
@@ -68,12 +72,21 @@ export function OpeningBalanceFields({ kind, opening, units, buildings, onChange
       />
       <fieldset
         className={styles.choices}
+        aria-describedby={showErrors && !opening.unitMode ? 'opening-unit-mode-error' : undefined}
       >
         <legend>
           기존 미납·선납 여부
+          <span
+            className={styles.required}
+            aria-hidden={'true'}
+          >
+            {' '}
+            *
+          </span>
         </legend>
         <Radio
           name={'opening-unit-mode'}
+          aria-invalid={showErrors && !opening.unitMode || undefined}
           label={'기존 미납·선납 없음'}
           checked={opening.unitMode === 'NONE'}
           onChange={() => onChange({
@@ -83,6 +96,7 @@ export function OpeningBalanceFields({ kind, opening, units, buildings, onChange
         />
         <Radio
           name={'opening-unit-mode'}
+          aria-invalid={showErrors && !opening.unitMode || undefined}
           label={'세대별 금액 입력'}
           checked={opening.unitMode === 'ENTER'}
           onChange={() => onChange({
@@ -91,6 +105,14 @@ export function OpeningBalanceFields({ kind, opening, units, buildings, onChange
           })}
         />
       </fieldset>
+      {showErrors && !opening.unitMode && (
+        <p
+          id={'opening-unit-mode-error'}
+          className={styles.error}
+        >
+          기존 미납·선납 없음 또는 세대별 금액 입력을 선택해주세요.
+        </p>
+      )}
       {opening.unitMode === 'ENTER' && (
         <Button
           variant={'outline'}
@@ -166,82 +188,87 @@ export function OpeningBalanceFields({ kind, opening, units, buildings, onChange
           required
         />
       )}
-      {building && <>
-        <h4>
-          동별 보유금
-        </h4>
-        <p>
-          각 동이 보유한 금액을 입력하세요. 미납 합계를 보유금으로 옮기지 않습니다.
-        </p>
-        <CalendarPicker
-          label={'동별 잔고 기준일'}
-          value={opening.cashCutoffDate}
-          onChange={(cashCutoffDate) => onChange({
-            ...opening,
-            cashCutoffDate
-          })}
-          required
-        />
-        {opening.cashCutoffDate !== opening.cutoffDate && opening.cashCutoffDate && (
+      {building && (
+        <>
+          <h4>
+            동별 보유금
+          </h4>
           <p>
-            동별 보유금은 장부 기준일과 다른 날짜의 금액입니다.
+            각 동이 보유한 금액을 입력하세요. 미납 합계를 보유금으로 옮기지 않습니다.
           </p>
-        )}
-        {!opening.cashCutoffDate && opening.cutoffDate && (
-          <Button
-            variant={'text'}
-            onClick={() => onChange({
+          <CalendarPicker
+            label={'동별 잔고 기준일'}
+            maxDate={getOpeningToday}
+            value={opening.cashCutoffDate}
+            onChange={(cashCutoffDate) => onChange({
               ...opening,
-              cashCutoffDate: opening.cutoffDate
-            })}
-          >
-            장부 기준일과 같은 날짜 사용
-          </Button>
-        )}
-        <div
-          className={styles.row}
-        >
-          <SelectDropdown
-            label={'보유금 입력 동'}
-            value={building.clientId}
-            onChange={setSelected}
-            options={ordered.map((row) => ({
-              value: row.clientId,
-              label: row.name
-            }))}
-          />
-          <AmountInput
-            label={`${building.name} 시작 잔고`}
-            aria-label={`${building.name} 시작 잔고`}
-            value={opening.buildings[building.clientId] ?? ''}
-            onChange={(amount) => onChange({
-              ...opening,
-              buildings: {
-                ...opening.buildings,
-                [building.clientId]: amount
-              }
+              cashCutoffDate
             })}
             required
           />
-        </div>
-        <p
-          role={'status'}
-        >
-          {`입력 완료 ${entered.length} / ${buildings.length}개 동 · 보유금 합계 ${formatWon(total)}`}
-        </p>
-        {entered.length === buildings.length && /^[0-9]+$/.test(opening.accountAmount) && opening.cashCutoffDate === opening.cutoffDate && (
-          <p>
-            {'통장 잔액과 동별 합계의 차이: '}
-            <strong>
-              {formatWon(BigInt(opening.accountAmount) - total)}
-            </strong>
-            . 차이는 특정 동에 자동 배분하지 않습니다.
+          {opening.cashCutoffDate !== opening.cutoffDate && opening.cashCutoffDate && (
+            <p>
+              동별 보유금은 장부 기준일과 다른 날짜의 금액입니다.
+            </p>
+          )}
+          {!opening.cashCutoffDate && opening.cutoffDate && (
+            <Button
+              variant={'text'}
+              onClick={() => onChange({
+                ...opening,
+                cashCutoffDate: opening.cutoffDate
+              })}
+            >
+              장부 기준일과 같은 날짜 사용
+            </Button>
+          )}
+          <div
+            className={styles.row}
+          >
+            <SelectDropdown
+              label={'보유금 입력 동'}
+              value={building.clientId}
+              onChange={setSelected}
+              options={ordered.map((row) => ({
+                value: row.clientId,
+                label: row.name
+              }))}
+            />
+            <AmountInput
+              label={`${building.name} 시작 잔고`}
+              aria-label={`${building.name} 시작 잔고`}
+              value={opening.buildings[building.clientId] ?? ''}
+              onChange={(amount) => onChange({
+                ...opening,
+                buildings: {
+                  ...opening.buildings,
+                  [building.clientId]: amount
+                }
+              })}
+              required
+            />
+          </div>
+          <p
+            role={'status'}
+          >
+            {`입력 완료 ${entered.length} / ${buildings.length}개 동 · 보유금 합계 ${formatWon(total)}`}
           </p>
-        )}
-      </>}
-      {!buildings.length && <p>
-        동 구분이 없는 건물은 통장 실제 잔액으로 시작합니다.
-      </p>}
+          {entered.length === buildings.length && /^[0-9]+$/.test(opening.accountAmount) && opening.cashCutoffDate === opening.cutoffDate && (
+            <p>
+              {'통장 잔액과 동별 합계의 차이: '}
+              <strong>
+                {formatWon(BigInt(opening.accountAmount) - total)}
+              </strong>
+              . 차이는 특정 동에 자동 배분하지 않습니다.
+            </p>
+          )}
+        </>
+      )}
+      {!buildings.length && (
+        <p>
+          동 구분이 없는 건물은 통장 실제 잔액으로 시작합니다.
+        </p>
+      )}
       <p
         className={styles.hint}
       >

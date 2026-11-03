@@ -96,6 +96,13 @@ export function RegistrationReview({
   const firstUnitLabel = firstUnit ? `${draft.buildings.find((building) => building.clientId === firstUnit.buildingClientId)?.name ?? ''} ${getUnitLabel(firstUnit)}`.trim() : '';
   const hasDraft = (!complete || showResultDetails) && draft.units.length > 0 && draft.feeItems.length > 0;
   const hasOpeningDraft = hasDraft && Boolean(draft.openingBalances.cutoffDate);
+  const uploadedRows = draft.bankAccounts.flatMap((account) => {
+    if (draft.openingBalances.startMethods?.[account.clientId] !== 'UPLOAD') return [];
+    const file = draft.openingBalances.bankImports?.[account.clientId];
+    return file?.rows.filter((row) => file.choices[row.id]?.included) ?? [];
+  });
+  const manualRows = (draft.openingBalances.manualTransactions ?? []).filter((record) => draft.bankAccounts.some((account) => account.clientId === record.accountClientId && draft.openingBalances.startMethods?.[account.clientId] !== 'UPLOAD'));
+  const importedRows = [...uploadedRows, ...manualRows];
   const title = complete ? '등록된 정보를 확인해주세요' : '등록 정보를 확인해주세요';
   const propertyName = result?.property.name ?? draft.basicInfo.name;
 
@@ -213,16 +220,18 @@ export function RegistrationReview({
               onEdit={onEditAdministrator ?? (() => onEdit('units'))}
               toggleName={'관리소장 정보 상세'}
               detailsId={'review-administrator-details'}
-              summary={(<>
-                <strong>
-                  {draft.administrator.residenceType === 'RESIDENT' ? draft.administrator.name : '외부 관리소장'}
-                </strong>
-                <span
-                  className={styles['summary-line']}
-                >
-                  {draft.administrator.residenceType === 'RESIDENT' ? '거주 관리소장 · 주민 명부에 함께 등록' : '주민 명부에 등록하지 않음'}
-                </span>
-              </>)}
+              summary={(
+                <>
+                  <strong>
+                    {draft.administrator.residenceType === 'RESIDENT' ? draft.administrator.name : '외부 관리소장'}
+                  </strong>
+                  <span
+                    className={styles['summary-line']}
+                  >
+                    {draft.administrator.residenceType === 'RESIDENT' ? '거주 관리소장 · 주민 명부에 함께 등록' : '주민 명부에 등록하지 않음'}
+                  </span>
+                </>
+              )}
             >
               <dl
                 className={styles['info-list']}
@@ -235,24 +244,26 @@ export function RegistrationReview({
                     {draft.administrator.residenceType === 'RESIDENT' ? '거주 관리소장' : '외부 관리소장'}
                   </dd>
                 </div>
-                {draft.administrator.residenceType === 'RESIDENT' && (<>
-                  <div>
-                    <dt>
-                      연락처
-                    </dt>
-                    <dd>
-                      {draft.administrator.phone || '미입력'}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>
-                      거주 세대
-                    </dt>
-                    <dd>
-                      {(() => { const unit = draft.units.find((row) => row.clientId === draft.administrator.unitClientId); return unit ? [draft.buildings.find((building) => building.clientId === unit.buildingClientId)?.name, getUnitLabel(unit)].filter(Boolean).join(' ') : '세대 선택 필요'; })()}
-                    </dd>
-                  </div>
-                </>)}
+                {draft.administrator.residenceType === 'RESIDENT' && (
+                  <>
+                    <div>
+                      <dt>
+                        연락처
+                      </dt>
+                      <dd>
+                        {draft.administrator.phone || '미입력'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>
+                        거주 세대
+                      </dt>
+                      <dd>
+                        {(() => { const unit = draft.units.find((row) => row.clientId === draft.administrator.unitClientId); return unit ? [draft.buildings.find((building) => building.clientId === unit.buildingClientId)?.name, getUnitLabel(unit)].filter(Boolean).join(' ') : '세대 선택 필요'; })()}
+                      </dd>
+                    </div>
+                  </>
+                )}
               </dl>
             </ReviewRow>
             <ReviewRow
@@ -407,9 +418,11 @@ export function RegistrationReview({
               onEdit={() => onEdit('account')}
               toggleName={'관리계좌 상세'}
               detailsId={'review-account-details'}
-              summary={<strong>
-                {`통장 ${draft.bankAccounts.length}개 · 기본 ${draft.bankAccounts.find((account) => account.isPrimary)?.bankName ?? '미선택'}`}
-              </strong>}
+              summary={(
+                <strong>
+                  {`통장 ${draft.bankAccounts.length}개 · 기본 ${draft.bankAccounts.find((account) => account.isPrimary)?.bankName ?? '미선택'}`}
+                </strong>
+              )}
             >
               {draft.bankAccounts.map((account) => (
                 <dl
@@ -577,54 +590,69 @@ export function RegistrationReview({
                   {result?.managementStart?.firstBillingMonth ?? draft.openingBalances.firstBillingMonth}
                 </dd>
               </div>
-              {(result?.managementStart?.cashCutoffDate || (hasOpeningDraft && draft.buildings.length > 0)) && <div>
-                <dt>
-                  동별 잔고 기준일
-                </dt>
-                <dd>
-                  {result?.managementStart?.cashCutoffDate ?? draft.openingBalances.cashCutoffDate}
-                </dd>
-              </div>}
-              {hasOpeningDraft && <>
+              {(result?.managementStart?.cashCutoffDate || (hasOpeningDraft && draft.buildings.length > 0)) && (
                 <div>
                   <dt>
-                    통장 실제 잔액
+                    동별 잔고 기준일
                   </dt>
                   <dd>
-                    {formatWon(draft.bankAccounts.reduce((sum, account) => sum + BigInt(account.openingAmount || '0'), BigInt(0)))}
+                    {result?.managementStart?.cashCutoffDate ?? draft.openingBalances.cashCutoffDate}
                   </dd>
                 </div>
-                {draft.buildings.map((building) => (
-                  <div
-                    key={building.clientId}
-                  >
+              )}
+              {hasOpeningDraft && (
+                <>
+                  <div>
                     <dt>
-                      {building.name}
-                      {' '}
-                      보유금
+                      통장 실제 잔액
                     </dt>
                     <dd>
-                      {formatWon(draft.bankAccounts.reduce((sum, account) => sum + BigInt(getAccountBuildingAmount(draft.openingBalances, account.clientId, building.clientId, draft.bankAccounts.length) || '0'), BigInt(0)))}
+                      {formatWon(draft.bankAccounts.reduce((sum, account) => sum + BigInt(account.openingAmount || '0'), BigInt(0)))}
                     </dd>
                   </div>
-                ))}
-                <div>
-                  <dt>
-                    기존 미납 합계
-                  </dt>
-                  <dd>
-                    {formatWon(units.reduce((sum, unit) => sum + BigInt(getUnitOpening(draft.openingBalances, unit.clientId).receivable), BigInt(0)))}
-                  </dd>
-                </div>
-                <div>
-                  <dt>
-                    기존 선납 합계
-                  </dt>
-                  <dd>
-                    {formatWon(units.reduce((sum, unit) => sum + BigInt(getUnitOpening(draft.openingBalances, unit.clientId).credit), BigInt(0)))}
-                  </dd>
-                </div>
-              </>}
+                  {draft.buildings.map((building) => (
+                    <div
+                      key={building.clientId}
+                    >
+                      <dt>
+                        {building.name}
+                        {' '}
+                        보유금
+                      </dt>
+                      <dd>
+                        {formatWon(draft.bankAccounts.reduce((sum, account) => sum + BigInt(getAccountBuildingAmount(draft.openingBalances, account.clientId, building.clientId, draft.bankAccounts.length) || '0'), BigInt(0)))}
+                      </dd>
+                    </div>
+                  ))}
+                  <div>
+                    <dt>
+                      기존 미납 합계
+                    </dt>
+                    <dd>
+                      {formatWon(units.reduce((sum, unit) => sum + BigInt(getUnitOpening(draft.openingBalances, unit.clientId).receivable), BigInt(0)))}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>
+                      기존 선납 합계
+                    </dt>
+                    <dd>
+                      {formatWon(units.reduce((sum, unit) => sum + BigInt(getUnitOpening(draft.openingBalances, unit.clientId).credit), BigInt(0)))}
+                    </dd>
+                  </div>
+                  {importedRows.length > 0 && (
+                    <div>
+                      <dt>
+                        함께 저장할 거래
+                      </dt>
+                      <dd>
+                        {`입금 ${importedRows.filter((row) => row.direction === 'INCOME').length}건 · 출금 ${importedRows.filter((row) => row.direction === 'EXPENSE').length}건`}
+                      </dd>
+                    </div>
+                  )}
+
+                </>
+              )}
             </dl>
             <p>
               미납·선납과 실제 통장 잔액·동별 보유금은 별도로 저장합니다. 현재 세대 대표에게 과거 미납의 부담 주체를 자동 지정하지 않습니다.

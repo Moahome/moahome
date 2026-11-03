@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  useEffect,
   useId,
   useState
 } from 'react';
@@ -8,10 +9,14 @@ import {
   formatInteger,
   formatWon
 } from '@/shared/lib/format';
+import { useQuery } from '@tanstack/react-query';
+import { getRegistrationBankSupport } from '../../../api/registrationBankApi';
+import { LoadingState } from '@/shared/ui/state-message';
 import { Button } from '@/shared/ui/button';
 import { CalendarPicker } from '@/shared/ui/calendar-picker';
 import {
   AmountInput,
+  Radio,
   SelectDropdown
 } from '@/shared/ui/form-controls';
 import { InfoTooltip } from '@/shared/ui/info-tooltip';
@@ -24,6 +29,9 @@ import {
 import type { RegistrationAccount } from '../../../model/bankAccountTypes';
 import type { OpeningBalancesDraft } from '../../../model/openingBalancesTypes';
 import type { BuildingDraft } from '../../../model/unitSetupTypes';
+import type { UnitDraft } from '../../../model/unitSetupTypes';
+import { RegistrationBankUpload } from '../registration-bank-upload/registrationBankUpload';
+import { RegistrationManualTransactions } from '../registration-manual-transactions/registrationManualTransactions';
 import { getSortedBuildings } from '../../_utils/setupSorting';
 import styles from './registrationCashSetup.module.css';
 
@@ -34,16 +42,26 @@ export function RegistrationCashSetup({
   buildings,
   onAccountsChange,
   onOpeningChange,
+  showErrors = false,
+  units,
+  onBusyChange,
+  onOpenTransaction,
+  initialAccountId,
 }: {
+  onOpenTransaction?: (accountId: string, direction: 'INCOME' | 'EXPENSE', transactionId?: string) => void;
+  initialAccountId?: string;
   accounts: RegistrationAccount[];
   opening: OpeningBalancesDraft;
   buildings: BuildingDraft[];
   onAccountsChange: (accounts: RegistrationAccount[]) => void;
   onOpeningChange: (opening: OpeningBalancesDraft) => void;
+  showErrors?: boolean;
+  units: UnitDraft[];
+  onBusyChange: (busy: boolean) => void;
 }) {
   const tabId = useId();
   const [tab, setTab] = useState<'account' | 'building'>('account');
-  const [selectedAccount, setSelectedAccount] = useState('');
+  const [selectedAccount, setSelectedAccount] = useState(initialAccountId ?? '');
   const [selectedBuilding, setSelectedBuilding] = useState('');
   const account = accounts.find((row) => row.clientId === selectedAccount) ?? accounts[0];
   const ordered = getSortedBuildings(buildings);
@@ -70,6 +88,28 @@ export function RegistrationCashSetup({
     opening.cashCutoffDate === opening.cutoffDate &&
     Boolean(opening.cutoffDate);
   const difference = accountTotal - buildingTotal;
+  const startMethod = account ? opening.startMethods?.[account.clientId] ?? 'MANUAL' : 'MANUAL';
+  const bankSupport = useQuery({
+    queryKey: ['registration-bank-support', account?.bankCode],
+    queryFn: ({ signal }) => getRegistrationBankSupport(account?.bankCode ?? '', signal),
+    enabled: Boolean(account?.bankCode),
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+  });
+
+  // 지원 여부가 확정된 뒤에만 업로드 선택지를 제공합니다. 미지원 통장의 복원 초안은 직접 입력으로 전환합니다.
+  useEffect(() => {
+    if (!account || bankSupport.data?.enabled !== false || startMethod !== 'UPLOAD') return;
+    onOpeningChange({
+      ...opening,
+      startMethods: {
+        ...opening.startMethods,
+        [account.clientId]: 'MANUAL'
+      },
+    });
+  }, [account, bankSupport.data, startMethod, opening, onOpeningChange]);
+
 
   /** 한 통장의 입력만 바꾸고 다른 통장·동의 초안은 유지합니다. */
   function updateBuilding(amount: string) {
@@ -156,7 +196,26 @@ export function RegistrationCashSetup({
             <CalendarPicker
               variant={'input'}
               label={'통장 기준일'}
+              labelHelp={tab === 'account' ? (
+                <InfoTooltip
+                  size={'sm'}
+                  label={'통장 기준일 도움말'}
+                  title={'통장 기준일'}
+                >
+                  <p>
+                    월별 내역을 맞추기 쉽도록 가능하면 매월 1일이나 전월 말일을 선택해주세요.
+                  </p>
+                  <p>
+                    선택한 날짜의 마감 잔액을 사용합니다.
+                  </p>
+                  <p>
+                    기준일까지의 입출금은 이 잔액에 이미 포함된 것으로 처리합니다.
+                  </p>
+                </InfoTooltip>
+              ) : undefined}
               required
+              maxDate={getOpeningToday}
+              error={showErrors && (!(tab === 'account' ? opening.cutoffDate : opening.cashCutoffDate) || (tab === 'account' ? opening.cutoffDate : opening.cashCutoffDate) > getOpeningToday()) ? '기준일을 오늘 또는 이전 날짜로 선택해주세요.' : undefined}
               value={opening.cutoffDate}
               onChange={(date) =>
                 onOpeningChange({
@@ -191,26 +250,138 @@ export function RegistrationCashSetup({
           />
         </div>
         {tab === 'account' && account && (
-          <AmountInput
-            label={'실제 시작 잔액'}
-            aria-label={'실제 시작 잔액'}
-            required
-            value={account.openingAmount}
-            trailingContent={'원'}
-            placeholder={'금액을 입력해주세요.'}
-            onChange={(openingAmount) =>
-              onAccountsChange(
-                accounts.map((row) =>
-                  row.clientId === account.clientId
-                    ? {
-                      ...row,
-                      openingAmount,
+          <>
+            <fieldset
+              className={styles.methods}
+            >
+              <legend>
+                <InfoTooltip
+                  size={'sm'}
+                  label={'시작 방법 도움말'}
+                  note={'은행 거래내역 업로드는 지원하는 은행에서만 선택할 수 있습니다.'}
+                >
+                  직접 입력: 실제 잔액과 필요한 입출금을 직접 입력합니다.
+                  <br />
+                  파일 업로드: 거래내역과 기준일 잔액을 파일에서 불러옵니다.
+                </InfoTooltip>
+                시작 방법
+                <span
+                  className={styles.required}
+                  aria-hidden={'true'}
+                >
+                  *
+                </span>
+              </legend>
+              {bankSupport.data?.enabled && (
+                <Radio
+                  name={'cash-start-method'}
+                  label={'은행 거래내역 파일 업로드'}
+                  checked={startMethod === 'UPLOAD'}
+                  onChange={() => onOpeningChange({
+                    ...opening,
+                    startMethods: {
+                      ...opening.startMethods,
+                      [account.clientId]: 'UPLOAD'
                     }
-                    : row,
-                ),
-              )
-            }
-          />
+                  })}
+                />
+              )}
+              <Radio
+                name={'cash-start-method'}
+                label={'직접 입력'}
+                checked={startMethod === 'MANUAL'}
+                onChange={() => onOpeningChange({
+                  ...opening,
+                  startMethods: {
+                    ...opening.startMethods,
+                    [account.clientId]: 'MANUAL'
+                  }
+                })}
+              />
+            </fieldset>
+            {bankSupport.isError && (
+              <div
+                className={styles['support-error']}
+              >
+                <p
+                  role={'alert'}
+                >
+                  업로드 지원 정보를 확인하지 못했습니다.
+                </p>
+                <Button
+                  variant={'text'}
+                  onClick={() => { void bankSupport.refetch(); }}
+                >
+                  다시 시도
+                </Button>
+              </div>
+            )}
+            {startMethod === 'UPLOAD' && bankSupport.isPending && account.bankCode && (
+              <LoadingState
+                title={'은행별 업로드 지원을 확인하고 있어요.'}
+                layout={'inline'}
+              />
+            )}
+            {startMethod === 'UPLOAD' && bankSupport.data?.enabled && (
+              <RegistrationBankUpload
+                key={`${account.clientId}:${account.bankCode}:${account.accountNumber}`}
+                account={account}
+                support={bankSupport.data}
+                cutoffDate={opening.cutoffDate}
+                draft={opening.bankImports?.[account.clientId]}
+                units={units}
+                buildings={buildings}
+                onChange={(draft) => onOpeningChange({
+                  ...opening,
+                  bankImports: {
+                    ...opening.bankImports,
+                    [account.clientId]: draft
+                  }
+                })}
+                onBalance={(openingAmount) => onAccountsChange(accounts.map((row) => row.clientId === account.clientId ? {
+                  ...row,
+                  openingAmount
+                } : row))}
+                onBusyChange={onBusyChange}
+              />
+            )}
+            {startMethod === 'MANUAL' && (
+              <>
+                <AmountInput
+                  label={'실제 시작 잔액'}
+                  aria-label={'실제 시작 잔액'}
+                  required
+                  value={account.openingAmount}
+                  error={showErrors && !/^[0-9]{1,15}$/.test(account.openingAmount) ? '실제 시작 잔액을 입력해주세요.' : undefined}
+                  trailingContent={'원'}
+                  placeholder={'금액을 입력해주세요.'}
+                  onChange={(openingAmount) =>
+                    onAccountsChange(
+                      accounts.map((row) =>
+                        row.clientId === account.clientId
+                          ? {
+                            ...row,
+                            openingAmount,
+                          }
+                          : row,
+                      ),
+                    )
+                  }
+                />
+                <RegistrationManualTransactions
+                  onOpenPage={onOpenTransaction}
+                  account={account}
+                  records={opening.manualTransactions ?? []}
+                  units={units}
+                  buildings={buildings}
+                  onChange={(manualTransactions) => onOpeningChange({
+                    ...opening,
+                    manualTransactions
+                  })}
+                />
+              </>
+            )}
+          </>
         )}
         {tab === 'building' && account && building && (
           <>
@@ -295,6 +466,7 @@ export function RegistrationCashSetup({
         </h4>
         <div
           className={styles.cards}
+          data-single={!buildings.length || undefined}
         >
           {[
             {
@@ -318,18 +490,16 @@ export function RegistrationCashSetup({
               icon: 'bank' as const,
               text: '같은 기준일의 은행 시작 잔액에서 동별 보유금 합계를 뺀 금액입니다. 차이를 자동 배분하지 않습니다.',
             },
-          ].map((item) => (
+          ].filter((item) => buildings.length > 0 || item.label === '은행 시작 잔액').map((item) => (
             <SummaryCard
               key={item.label}
               label={item.label}
               value={
                 item.ready
                   ? `${item.label === '차이' && item.amount > BigInt(0) ? '+' : ''}${formatInteger(item.amount)}`
-                  : !buildings.length && item.label !== '은행 시작 잔액'
-                    ? '동 구분 없음'
-                    : item.label === '차이' && complete && buildings.length > 0
-                      ? '기준일 다름'
-                      : '입력 미완료'
+                  : item.label === '차이' && complete && buildings.length > 0
+                    ? '기준일 다름'
+                    : '입력 미완료'
               }
               unit={item.ready ? '원' : ''}
               density={'compact'}
@@ -340,13 +510,15 @@ export function RegistrationCashSetup({
                 />
               )}
               help={
-                <InfoTooltip
-                  size={'sm'}
-                  label={`${item.label} 도움말`}
-                  title={item.label}
-                >
-                  {item.text}
-                </InfoTooltip>
+                (
+                  <InfoTooltip
+                    size={'sm'}
+                    label={`${item.label} 도움말`}
+                    title={item.label}
+                  >
+                    {item.text}
+                  </InfoTooltip>
+                )
               }
             />
           ))}
@@ -355,9 +527,13 @@ export function RegistrationCashSetup({
           <p>
             입력을 완료한 금액: 통장
             {formatWon(accountTotal)}
-            {' '}
-            · 동별 보유금
-            {formatWon(buildingTotal)}
+            {buildings.length > 0 && (
+              <>
+                {' '}
+                · 동별 보유금
+                {formatWon(buildingTotal)}
+              </>
+            )}
           </p>
         )}
         {complete && buildings.length > 0 && !comparable && (

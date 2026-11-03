@@ -132,7 +132,7 @@ public class BankingBalanceService {
 	}
 
 	private boolean active(Payment p) {
-		return p.getDeletedAt() == null && "CONFIRMED".equals(p.getStatus());
+		return p.getDeletedAt() == null && Set.of("CONFIRMED", "OPENING").contains(p.getStatus());
 	}
 
 	private String amount(BigDecimal value) {
@@ -474,6 +474,7 @@ public class BankingBalanceService {
 		    .collect(Collectors.toMap(b -> b.getId(), b -> b));
 		ArrayList<BankingBalanceResponse.Income> income = new ArrayList<BankingBalanceResponse.Income>();
 		for (var p : receipts) {
+			if (!"CONFIRMED".equals(p.getStatus())) continue;
 			if (!p.getPaymentDate().isAfter(reviewStart))
 				continue;
 			if (("HOUSEHOLD".equals(p.getReceiptType()) && p.getCashBuildingId() != null)

@@ -1,3 +1,8 @@
+import type {
+  RegistrationBankDraft,
+  RegistrationManualTransaction
+} from './registrationBankTypes';
+
 export interface UnitOpeningDraft {
   receivable: string;
   credit: string;
@@ -13,4 +18,7 @@ export interface OpeningBalancesDraft {
   cashCutoffDate: string;
   buildings: Record<string, string>;
   accountBuildings?: Record<string, Record<string, string>>;
+  bankImports?: Record<string, RegistrationBankDraft>;
+  startMethods?: Record<string, 'UPLOAD' | 'MANUAL'>;
+  manualTransactions?: RegistrationManualTransaction[];
 }

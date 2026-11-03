@@ -6,6 +6,7 @@ import type {
   BuildingDraft,
   UnitDraft
 } from './unitSetupTypes';
+import { restoreRegistrationBankDraft } from './registrationBank';
 
 export const EMPTY_OPENING_BALANCES: OpeningBalancesDraft = {
   cutoffDate: '',
@@ -85,7 +86,7 @@ export function getFirstBillingError(opening: OpeningBalancesDraft) {
 }
 
 /** 삭제된 초안 ID는 제외하고 자료형이 깨진 금액은 재입력하게 하며 이전 초안을 자동 확정하지 않습니다. */
-export function restoreOpeningBalances(value: unknown, units: UnitDraft[], buildings: BuildingDraft[]): OpeningBalancesDraft {
+export function restoreOpeningBalances(value: unknown, units: UnitDraft[], buildings: BuildingDraft[], preserveFiles = false): OpeningBalancesDraft {
   const data = value as Partial<OpeningBalancesDraft> | null;
   const result: OpeningBalancesDraft = {
     ...EMPTY_OPENING_BALANCES,
@@ -118,6 +119,17 @@ export function restoreOpeningBalances(value: unknown, units: UnitDraft[], build
       result.accountBuildings[accountId] = Object.fromEntries(buildings.flatMap((building) => typeof rows[building.clientId] === 'string' ? [[building.clientId, rows[building.clientId]]] : []));
     }
   }
+  if (data.startMethods && typeof data.startMethods === 'object') result.startMethods = Object.fromEntries(Object.entries(data.startMethods).filter(([, method]) => method === 'UPLOAD' || method === 'MANUAL'));
+  if (data.bankImports && typeof data.bankImports === 'object') {
+    result.bankImports = {};
+    for (const [accountId, value] of Object.entries(data.bankImports)) {
+      if (['__proto__', 'constructor', 'prototype'].includes(accountId)) continue;
+      const draft = restoreRegistrationBankDraft(value, preserveFiles);
+      if (draft) result.bankImports[accountId] = draft;
+    }
+  }
+  if (Array.isArray(data.manualTransactions)) result.manualTransactions = data.manualTransactions.filter((record) => record && typeof record.id === 'string' && typeof record.accountClientId === 'string'
+    && ['INCOME', 'EXPENSE'].includes(record.direction) && typeof record.payer === 'string' && typeof record.date === 'string' && /^[0-9]{1,15}$/.test(record.amount));
   return result;
 }
 

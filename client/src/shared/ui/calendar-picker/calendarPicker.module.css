@@ -8,7 +8,7 @@
       font-weight: 700;
       line-height: 1.5;
 
-      > span {
+      .required {
         color: var(--danger);
       }
     }
@@ -27,10 +27,16 @@
   }
 
   .label {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 4px;
     margin-bottom: 8px;
     font-size: 13px;
     font-weight: 600;
+
+    .required {
+      color: var(--danger);
+    }
   }
 
   .trigger {
@@ -54,6 +60,17 @@
 
   .trigger[aria-expanded='true'] .chevron {
     transform: rotate(180deg);
+  }
+
+  .trigger[aria-invalid='true'] {
+    border-color: var(--danger);
+  }
+
+  .error {
+    margin-top: 8px;
+    color: var(--danger);
+    font-size: 14px;
+    line-height: 1.6;
   }
 
   .calendar {

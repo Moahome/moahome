@@ -86,6 +86,7 @@ import com.moahome.server.payment.service.PaymentService;
 import com.moahome.server.property.repo.PropertyRegistrationLock;
 import com.moahome.server.property.service.ManagementAccessService;
 import com.moahome.server.property.service.PropertyRegistrationService;
+import com.moahome.server.property.service.RegistrationBankImportService;
 import com.moahome.server.property.service.UnitManagementService;
 import com.moahome.server.property.support.RegistrationTestKeys;
 import com.moahome.server.resident.service.ResidentExportService;
@@ -195,6 +196,9 @@ class KakaoOAuthIntegrationTest {
 
 	@MockitoBean
 	private ExpenseService expenses;
+
+	@MockitoBean
+	private RegistrationBankImportService registrationBankImports;
 
 	@MockitoBean
 	private CumulativePaymentService cumulativePayments;

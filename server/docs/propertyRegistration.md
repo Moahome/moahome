@@ -125,9 +125,23 @@ RegistrationOpeningService는 최종 요청의 전체 세대·동·계좌 참조
 
 기존 계좌 배열·기본 지정 수 검증과 계좌별 인계값 저장을 그대로 사용합니다. 선택 alias만 계좌의 account_alias에 저장하고, null은 요청 지문 직렬화에서 생략해 이전 등록 요청 재시도를 보존합니다. 운영 중 추가·기본 전환·종료는 [통장 저장 설계](bankingManagement.md#다중-통장-저장과-내부-이체-2026-10-18)를 따릅니다.
 
-## 자동 시작월의 초기 생성 순서 (2026-11-01)
 
-automaticBilling 요청은 [등록 API](../../docs/api/propertyRegistrationApi.md#통장-기준일-자동-부과-시작-2026-11-01)의 날짜 조합을 검증합니다. 새 초기 템플릿을 계산된 첫 부과월부터 적용하도록 저장하고, 인계 확정에서 해당 월부터 현재 월까지 generateInitial을 순서대로 호출한 뒤 실제 은행·수기 입출금을 등록합니다. 기존 등록 트랜잭션과 성공 결과 저장을 공유하므로 부과·동별 보유금·거래 중 하나라도 실패하면 전체가 롤백됩니다. 필드를 생략한 요청의 기존 직렬화·재시도 지문은 유지합니다.
+## 초기 입출금 저장 연결 (2026-10-31)
+
+[공통 계약](../../docs/api/propertyRegistrationApi.md#초기-입출금-등록-2026-10-31)과 [도메인 기준](../../docs/domain/domainRules.md#초기-설정-업로드납부-현황-인계-검토-2026-10-31)을 구현합니다. 운영 업로드의 기준일 이하 차단을 제거하지 않고 초기 등록 서비스에서 처리합니다.
+
+RegistrationBankImportService의 미리보기는 UserService의 활성 계정 검사 후 기존 BankTransactionReader·BankImportFormat·BankTransactionKeys를 사용합니다. 업무 원장에 쓰지 않습니다. 최종 요청은 계좌·세대·동을 생성하기 전에 원본 Base64를 다시 파싱하고 선택 UUID·중복·미래 날짜·양수 금액·참조·방향별 분류를 검증합니다.
+
+RegistrationOpeningService는 기존 잔액 인계와 관리 시작을 확정한 뒤 같은 MANDATORY 트랜잭션에서 입출금을 저장합니다. 기준일까지 은행 입금은 PaymentService.recordOpeningBankReceipt, 수기 입금은 recordRegistrationManualReceipt로 실제 출처를 보존합니다. OPENING 상태는 새 미수에 충당하거나 선납을 생성하지 않으며 일반 확정으로 재변경하지 않습니다. 기준일 이후 입금에는 기존 누적 충당을 적용합니다. 은행 출금은 실제 bank_transactions와 기존 ExpenseService로 저장하고 수기 출금은 기존 BankingService.manualExpense를 사용합니다.
+
+동 구분이 없는 출금은 PROPERTY와 빈 배분으로 저장합니다. ExpenseService와 DB 지연 트리거가 동 없는 대상인지 확인하며 expense_allocations나 가상의 외부 부담처를 만들지 않습니다. 조회 잔액은 부모 지출 전액을 사용합니다.
+
+단일 최종 요청의 저장 실패는 관리대상·세대·계좌·초기 잔액·입출금·성공 결과 전체를 롤백합니다. 동일 요청 재시도는 기존 성공 결과를 반환하므로 거래를 중복 생성하지 않습니다. 원본 Base64는 요청 재검증에만 사용하며 파일 배치·원본 파일 보관 테이블은 추가하지 않습니다.
+
+Migration은 V20261031065016, V20261031071757, V20261031073149 순서입니다. 첫 구현 중 추가한 납부 스냅샷은 후속 Migration에서 빈 테이블인지 확인한 뒤 폐기하며 실제 자료가 있으면 조용히 삭제하지 않고 중단합니다. 삭제한 Entity/Repository의 실행 출력 잔여 클래스 검사와 실행 중인 서버 보호는 Server AGENTS.md를 따릅니다.
+
+PaymentPersistenceTest는 두 방향 저장·잔액 불변·기존 미수 재충당 금지·수기 원본 미생성·이후 수납 충당·동 없는 무배분 지출·동일 요청 재시도·출금 실패 전체 롤백을 격리 PostgreSQL에서 검증합니다. 실제 실행 결과는 완료 보고를 따릅니다.
+
 
 ## 자동 시작월의 초기 생성 순서 (2026-11-01)
 

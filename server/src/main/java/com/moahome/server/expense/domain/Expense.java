@@ -66,6 +66,8 @@ public class Expense {
 
 	/** 원 단위 배분만 허용하며 나머지는 숨겨 배정하지 않고 직접 금액 조정을 요구합니다. */
 	public static List<BigDecimal> allocate(BigDecimal total, String mode, List<Share> shares) {
+		if ("PROPERTY".equals(mode) && total != null && total.signum() > 0 && shares != null && shares.isEmpty())
+			return List.of();
 		if (total == null || total.signum() <= 0 || shares == null || shares.isEmpty() || shares.size() > 100
 		    || !Set.of("EQUAL", "RATIO", "AMOUNT").contains(mode))
 			throw new PaymentException("INVALID_EXPENSE_ALLOCATION");
@@ -134,7 +136,7 @@ public class Expense {
 	    BigDecimal total, String mode, UUID actor, OffsetDateTime at) {
 		if (id == null || property == null || account == null || date == null || actor == null || at == null
 		    || category == null || category.isBlank() || total == null || total.signum() <= 0
-		    || total.scale() > 0 || total.precision() > 15 || !Set.of("EQUAL", "RATIO", "AMOUNT").contains(mode))
+		    || total.scale() > 0 || total.precision() > 15 || !Set.of("EQUAL", "RATIO", "AMOUNT", "PROPERTY").contains(mode))
 			throw new PaymentException("INVALID_MANUAL_EXPENSE");
 		var e = create(property, null, account, date, category, memo, total, mode, false, null, actor, at);
 		e.id = id;

@@ -26,7 +26,7 @@ export function BankingTransactionsPage({ propertyId }: { propertyId: string }) 
     direction: 'INCOME' as const,
     ruleKey: '',
     paymentId: payment.id,
-    status: payment.status,
+    status: payment.status === 'OPENING' ? 'CONFIRMED' : payment.status,
     unitId: payment.unitId,
     unitLabel: payment.receiptType === 'OTHER' ? payment.incomeCategory ?? '' : ledger.units.find((unit) => unit.id === payment.unitId)?.label ?? '',
     expense: null,

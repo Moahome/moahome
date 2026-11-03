@@ -8,6 +8,7 @@ import { Button } from '@/shared/ui/button';
 import { FilterTabs } from '@/shared/ui/filter-tabs';
 import { HomeIllustration } from '@/shared/ui/home-illustration';
 import { ServiceIcon } from '@/shared/ui/service-icon';
+import { Toast } from '@/shared/ui/toast';
 import {
   useEffect,
   useRef,
@@ -66,6 +67,9 @@ export function UnitSetup({
   onNext: () => void;
 }) {
   const [view, setView] = useState<'units' | 'balances'>('units');
+  const [attempted, setAttempted] = useState(false);
+  const [notice, setNotice] = useState<{ id: number; message: string } | null>(null);
+  const rootRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const hasBuildings = basicInfo.hasBuildings === true;
   const [automaticTarget, setAutomaticTarget] = useState<{ buildingClientId?: string } | null>(null);
@@ -78,6 +82,20 @@ export function UnitSetup({
   const administratorError = getAdministratorError(administrator, units);
   const openingError = getUnitOpeningError(openingBalances, units);
   const canContinue = !setupError && !administratorError && !openingError;
+  const missing = [
+    {
+      kind: 'units',
+      message: setupError
+    },
+    {
+      kind: 'balances',
+      message: openingError
+    },
+    {
+      kind: 'administrator',
+      message: administratorError
+    }
+  ].filter((item) => Boolean(item.message));
   const hasOldBuildings = !hasBuildings && (buildings.length > 0 || units.some((unit) => unit.buildingClientId !== null));
 
   useEffect(() => {
@@ -175,9 +193,31 @@ export function UnitSetup({
     })));
   }
 
-  /** 동·세대 초안이 유효할 때만 관리계좌 설정으로 이동하며 업무 데이터를 저장하지 않습니다. */
+  /** 누락한 탭을 열고 해당 입력으로 이동해 무엇을 확인해야 하는지 바로 알 수 있게 합니다. */
+  function locateMissing(index: number) {
+    const item = missing[index];
+    if (!item?.message) return;
+    const message = item.message;
+    setNotice((previous) => ({
+      id: (previous?.id ?? 0) + 1,
+      message
+    }));
+    setAttempted(true);
+    setView(item.kind === 'balances' ? 'balances' : 'units');
+    requestAnimationFrame(() => {
+      const area = rootRef.current?.querySelector<HTMLElement>(item.kind === 'balances' ? '[aria-label="기존 미납·선납 설정"]' : item.kind === 'administrator' ? '[aria-label="관리 담당자 설정"]' : '[aria-label="등록할 세대 목록"]');
+      const input = area?.querySelector<HTMLElement>('[aria-invalid="true"]') ?? area?.querySelector<HTMLElement>('input:not([type="hidden"]):not(:disabled), button:not(:disabled)');
+      (input ?? headingRef.current)?.focus();
+      (input ?? area ?? headingRef.current)?.scrollIntoView({
+        block: 'center',
+        behavior: 'smooth'
+      });
+    });
+  }
+
+  /** 다음 버튼은 누락 위치를 안내하고 검증이 끝난 경우에만 단계 이동을 허용합니다. */
   function continueSetup() {
-    if (!canContinue) return;
+    if (!canContinue) { locateMissing(0); return; }
 
     onNext();
   }
@@ -185,6 +225,7 @@ export function UnitSetup({
   return (
     <main
       className={styles.page}
+      ref={rootRef}
     >
       <div
         className={styles['mobile-navigation']}
@@ -313,12 +354,14 @@ export function UnitSetup({
             units={units}
             buildings={buildings}
             onChange={onOpeningChange}
+            showErrors={attempted}
           />
         )}
         <UnitList
           balances={view === 'balances' ? {
             opening: openingBalances,
-            onChange: onOpeningChange
+            onChange: onOpeningChange,
+            showErrors: attempted
           } : undefined}
           hasBuildings={hasBuildings}
           buildings={buildings}
@@ -354,13 +397,6 @@ export function UnitSetup({
             onChange={onAdministratorChange}
           />
         </section>
-        {!setupError && (administratorError || openingError) && (
-          <p
-            className={styles['setup-hint']}
-          >
-            {administratorError || openingError}
-          </p>
-        )}
         <aside
           className={styles.notice}
         >
@@ -380,7 +416,7 @@ export function UnitSetup({
             </span>
           </p>
         </aside>
-        {setupError && units.length > 0 && (
+        {attempted && setupError && units.length > 0 && (
           <p
             className={styles.error}
             role={'alert'}
@@ -400,7 +436,6 @@ export function UnitSetup({
           </Button>
           <Button
             size={'lg'}
-            disabled={!canContinue}
             onClick={continueSetup}
             trailingIcon={(
               <ServiceIcon
@@ -452,6 +487,14 @@ export function UnitSetup({
           onSaveUnit={saveUnit}
           onDelete={deleteEntry}
           onClose={() => setEditing(null)}
+        />
+      )}
+      {notice && (
+        <Toast
+          key={notice.id}
+          message={notice.message}
+          tone={'error'}
+          onClose={() => setNotice(null)}
         />
       )}
     </main>

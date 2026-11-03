@@ -832,6 +832,71 @@ public class PaymentService {
 	public record BankReceiptChoice(UUID unitId, String category, String note) {
 	}
 
+	/** 초기 수기 입금은 실제 입금자와 세대를 확인하고 기준일까지 금액을 새 미수에 재충당하지 않습니다. */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public Payment recordRegistrationManualReceipt(UUID actor, UUID property, UUID account, UUID id,
+	    LocalDate date, String amount, String payer, String purpose, BankReceiptChoice choice) {
+		lock(actor, property);
+		selectedAccount(property, account);
+		if (date == null || date.isAfter(today()) || payer == null || payer.isBlank()
+		    || ("HOUSEHOLD".equals(purpose) != (choice.unitId() != null)))
+			throw new PaymentException("INVALID_BANK_SELECTION");
+		var receipt = Payment.pending(id, property, account, null, null, null, date, new BigDecimal(amount),
+		    "MANUAL", security.protect(payer.strip()).encrypted(), security.nameHash(payer), null, actor, now());
+		receipt.selectManualPurpose(purpose);
+		if (choice.unitId() != null) {
+			var unit = units.findById(choice.unitId()).filter(u -> property.equals(u.getPropertyId()) && u.getDeletedAt() == null)
+			    .orElseThrow(() -> new PaymentException("PAYMENT_UNIT_UNAVAILABLE"));
+			receipt.confirm(unit.getId(), null, null, actor, now());
+			receipt.assignCashBuilding(unit.getBuildingId());
+		} else {
+			if (choice.category() == null || choice.category().isBlank()) throw new PaymentException("INVALID_INCOME_CATEGORY");
+			receipt.confirmOther(security.protect(choice.category().strip()).encrypted(),
+			    choice.note() == null ? null : security.protect(choice.note()).encrypted(), actor, now());
+		}
+		if (!afterCutoff(property, date)) receipt.recordBeforeOpening();
+		payments.saveAndFlush(receipt);
+		audit(receipt, "MANUAL_CREATED", null, actor);
+		if ("CONFIRMED".equals(receipt.getStatus())) cumulative.settle(property, actor);
+		return receipt;
+	}
+
+	/** 최초 등록의 기준일까지 입금 원본과 확인한 용도를 저장하되 청구 배분·선납을 생성하지 않습니다. */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public Payment recordOpeningBankReceipt(UUID actor, UUID property, UUID account,
+	    BankTransactionReader.Row row, BankReceiptChoice choice) {
+		lock(actor, property);
+		var cutoff = properties.findById(property).orElseThrow().getBalanceCutoffDate();
+		if (cutoff == null || row.date().isAfter(cutoff) || !"INCOME".equals(row.direction())
+		    || choice == null || (choice.unitId() == null && choice.category() == null)
+		    || (choice.unitId() != null && choice.category() != null))
+			throw new PaymentException("INVALID_BANK_SELECTION");
+		selectedAccount(property, account);
+		var at = now();
+		var original = BankTransaction.create(property, account, row.date(), row.amount(),
+		    security.protect(row.payer()).encrypted(), security.nameHash(row.payer()),
+		    row.memo() == null ? null : security.protect(row.memo()).encrypted(), row.reference(), key(row), actor,
+		    at, row.time(), row.balance());
+		transactions.saveAndFlush(original);
+		var receipt = Payment.pending(UUID.randomUUID(), property, account, original.getId(), null, null,
+		    row.date(), row.amount(), "BANK_IMPORT", original.getPayerNameEncrypted(), original.getPayerNameHmac(),
+		    original.getMemoEncrypted(), actor, at);
+		if (choice.unitId() != null) {
+			var unit = units.findById(choice.unitId())
+			    .filter(u -> property.equals(u.getPropertyId()) && u.getDeletedAt() == null)
+			    .orElseThrow(() -> new PaymentException("PAYMENT_UNIT_UNAVAILABLE"));
+			receipt.confirm(unit.getId(), null, null, actor, at);
+			receipt.assignCashBuilding(unit.getBuildingId());
+		} else {
+			receipt.confirmOther(security.protect(choice.category()).encrypted(),
+			    choice.note() == null ? null : security.protect(choice.note()).encrypted(), actor, at);
+		}
+		receipt.recordBeforeOpening();
+		payments.saveAndFlush(receipt);
+		audit(receipt, "IMPORTED", null, actor);
+		return receipt;
+	}
+
 	/** 통장 수집도 기존 원본·초안·자동 수납 흐름을 사용합니다. 명시한 용도는 자동 확정보다 먼저 적용합니다. */
 	@Transactional
 	public PaymentResponse.Ledger importBankRows(UUID user, UUID property, List<BankTransactionReader.Row> rows,

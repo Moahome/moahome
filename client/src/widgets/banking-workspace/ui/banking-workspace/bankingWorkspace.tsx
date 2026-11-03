@@ -9,7 +9,7 @@ import {
   LoadingState,
   StateMessage
 } from '@/shared/ui/state-message';
-import { AllocationEditor } from '@/entities/banking';
+import { BankImportEditor } from '@/entities/banking';
 import { useSession } from '@/entities/session';
 import {
   formatInteger,
@@ -515,114 +515,28 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   /** 저장 전 거래 설정은 공통 모달에서 편집하고 닫아도 파일별 초안을 보존합니다. */
   function previewEditor(row: BankingTransaction) {
     if (!data) return null;
-    return row.direction === 'EXPENSE' ? (
-      <AllocationEditor
-        total={row.amount}
-        draft={expenseDraft(row)}
+    return (
+      <BankImportEditor
+        direction={row.direction}
+        amount={row.amount}
+        suggestedUnitId={row.unitId}
+        units={data.units}
         buildings={buildings}
+        receipt={receiptDraft(row)}
+        expense={expenseDraft(row)}
         disabled={busy}
-        onChange={(draft) => {
-          setNotice(null);
-          setExpenses((current) => ({
-            ...current,
-            [row.id]: draft
-          }));
-        }}
+        onReceiptChange={(draft) => setReceipts((current) => ({
+          ...current,
+          [row.id]: draft
+        }))}
+        onExpenseChange={(draft) => { setNotice(null); setExpenses((current) => ({
+          ...current,
+          [row.id]: draft
+        })); }}
       />
-    ) : (() => {
-      const draft = receiptDraft(row);
-      function change(patch: Partial<ReceiptDraft>) { setReceipts((current) => ({
-        ...current,
-        [row.id]: {
-          ...draft,
-          ...patch
-        }
-      })); }
-      return (
-        <fieldset
-          className={styles['receipt-editor']}
-          disabled={busy}
-        >
-          <legend>
-            입금 분류
-          </legend>
-          <Dropdown
-            label={'입금 용도'}
-            disabled={busy}
-            value={draft.kind}
-            onChange={(value) => change({
-              kind: value as ReceiptDraft['kind']
-            })}
-            options={[{
-              value: 'AUTO',
-              label: '명단 일치 자동 수납 · 미일치는 확인 필요'
-            }, {
-              value: 'HOUSEHOLD',
-              label: '세대 관리비 직접 지정'
-            }, {
-              value: 'OTHER',
-              label: '외부 분담금·수리비 등 기타 입금'
-            }, {
-              value: 'SHARED',
-              label: '동별 입금 · 직접 배분'
-            }]}
-          />
-          {draft.kind === 'AUTO' && (
-            <p>
-              {data.units.find((u) => u.id === row.unitId)?.label ?? '일치하는 세대가 없어 가져온 뒤 확인이 필요합니다.'}
-            </p>
-          )}
-          {draft.kind === 'HOUSEHOLD' && (
-            <Dropdown
-              label={'수납 세대'}
-              disabled={busy}
-              value={draft.unitId}
-              onChange={(value) => change({
-                unitId: value
-              })}
-              options={data.units.map((u) => ({
-                value: u.id,
-                label: u.label
-              }))}
-            />
-          )}
-          {draft.kind === 'SHARED' && (
-            <AllocationEditor
-              purpose={'income'}
-              total={row.amount}
-              draft={expenseDraft(row)}
-              buildings={buildings}
-              disabled={busy}
-              onChange={(next) => setExpenses((current) => ({
-                ...current,
-                [row.id]: next
-              }))}
-            />
-          )}
-          {draft.kind === 'OTHER' && (
-            <>
-              <Input
-                label={'기타 입금 항목'}
-                maxLength={100}
-                value={draft.category}
-                onChange={(event) => change({
-                  category: event.target.value
-                })}
-              />
-              <Input
-                label={'입금 메모'}
-                maxLength={500}
-                value={draft.note}
-                onChange={(event) => change({
-                  note: event.target.value
-                })}
-              />
-            </>
-          )}
-        </fieldset>
-      );
-    })();
+    );
   }
+
   function resetUpload() {
     setReplacingFile(false);
     setProcessing('ALL');

@@ -7,7 +7,7 @@ import {
 
 import { LoadingState } from '@/shared/ui/state-message';
 
-import { AllocationEditor } from '@/entities/banking';
+import { BankImportEditor } from '@/entities/banking';
 import { useSession } from '@/entities/session';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
@@ -71,7 +71,7 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
           menu={'통장 관리'}
           title={'지출 상세'}
           titleId={'expense-title'}
-          description={'거래 내용과 각 동의 지출액을 확인합니다.'}
+          description={workspace.data?.buildings.length ? '거래 내용과 각 동의 지출액을 확인합니다.' : '거래 내용과 지출액을 확인합니다.'}
         />
         <div
           className={styles.body}
@@ -261,74 +261,94 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
         ))}
       </dl>
       {row.expense ? (
-        <section
-          className={styles.confirmed}
-          aria-labelledby={'expense-allocation-title'}
-        >
-          <h4
-            id={'expense-allocation-title'}
-            className={styles['allocation-title']}
-          >
-            <ServiceIcon
-              name={'building'}
-              size={21}
-            />
-            동별 배분 내역
-          </h4>
-          <ul
-            className={styles['allocation-list']}
-            aria-label={'동별 배분 내역'}
-          >
-            {sortExpenseLabels(row.expense.allocations).map((part, index) => (
-              <li
-                key={part.buildingId ?? `external-${index}`}
+        <>
+          {row.expense.mode !== 'PROPERTY' && (
+            <section
+              className={styles.confirmed}
+              aria-labelledby={'expense-allocation-title'}
+            >
+              <h4
+                id={'expense-allocation-title'}
+                className={styles['allocation-title']}
               >
-                <span
-                  className={styles['target-icon']}
-                  aria-hidden={'true'}
+                <ServiceIcon
+                  name={'building'}
+                  size={21}
+                />
+                동별 배분 내역
+              </h4>
+              <ul
+                className={styles['allocation-list']}
+                aria-label={'동별 배분 내역'}
+              >
+                {sortExpenseLabels(row.expense.allocations).map((part, index) => (
+                  <li
+                    key={part.buildingId ?? `external-${index}`}
+                  >
+                    <span
+                      className={styles['target-icon']}
+                      aria-hidden={'true'}
+                    >
+                      <ServiceIcon
+                        name={'building'}
+                        size={24}
+                      />
+                    </span>
+                    <div
+                      className={styles.target}
+                    >
+                      <strong>
+                        {part.label}
+                      </strong>
+                      {part.percentage && (
+                        <small>
+                          {`${Number(part.percentage)}%`}
+                        </small>
+                      )}
+                    </div>
+                    <strong
+                      className={styles.amount}
+                    >
+                      {formatWon(part.amount)}
+                    </strong>
+                  </li>
+                ))}
+              </ul>
+              {row.expense.note && (
+                <p
+                  className={styles.note}
                 >
-                  <ServiceIcon
-                    name={'building'}
-                    size={24}
-                  />
-                </span>
-                <div
-                  className={styles.target}
-                >
-                  <strong>
-                    {part.label}
-                  </strong>
-                  {part.percentage && (
-                    <small>
-                      {`${Number(part.percentage)}%`}
-                    </small>
-                  )}
-                </div>
-                <strong
-                  className={styles.amount}
-                >
-                  {formatWon(part.amount)}
-                </strong>
-              </li>
-            ))}
-          </ul>
-          {row.expense.note && (
+                  {row.expense.note}
+                </p>
+              )}
+            </section>
+          )}
+          {row.expense.mode === 'PROPERTY' && row.expense.note && (
             <p
               className={styles.note}
             >
               {row.expense.note}
             </p>
           )}
-        </section>
+        </>
       )
         : (
           <>
-            <AllocationEditor
-              total={row.amount}
-              draft={draft}
+            <BankImportEditor
+              direction={'EXPENSE'}
+              amount={row.amount}
+              receipt={{
+                kind: 'AUTO',
+                unitId: '',
+                category: '',
+                note: ''
+              }}
+              onReceiptChange={() => {}}
+              units={[]}
+              expense={draft}
               buildings={workspace.data.buildings}
               disabled={busy}
-              onChange={setEdited}
+              onExpenseChange={setEdited}
             />
             {error && (
               <p

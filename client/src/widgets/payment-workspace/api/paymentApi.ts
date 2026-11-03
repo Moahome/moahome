@@ -11,7 +11,7 @@ import type {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const AMOUNT = /^-?[0-9]{1,15}$/;
-const STATES = ['PENDING', 'ON_HOLD', 'CONFIRMED', 'CANCELED', 'LINKED'];
+const STATES = ['PENDING', 'ON_HOLD', 'CONFIRMED', 'CANCELED', 'LINKED', 'OPENING'];
 
 /** 다른 관리대상의 응답·숫자 정밀도 손실·잘못된 참조를 화면 원장으로 받아들이지 않습니다. */
 export function readLedger(value: PreviewLedger & PaymentLedgerIdentity, propertyId: string): PreviewLedger {
@@ -28,7 +28,7 @@ export function readLedger(value: PreviewLedger & PaymentLedgerIdentity, propert
       && typeof p.payer === 'string' && typeof p.amount === 'string' && /^[0-9]{1,15}$/.test(p.amount) && BigInt(p.amount) > BigInt(0)
       && isPreviewDate(p.date) && ['MANUAL', 'BANK_IMPORT'].includes(p.source) && STATES.includes(p.status)
       && (p.receiptType === undefined || ['HOUSEHOLD', 'OTHER'].includes(p.receiptType))
-      && (p.receiptType !== 'OTHER' || (['CONFIRMED', 'CANCELED'].includes(p.status)
+      && (p.receiptType !== 'OTHER' || (['CONFIRMED', 'CANCELED', 'OPENING'].includes(p.status)
         && p.unitId === '' && p.allocations?.length === 0 && typeof p.incomeCategory === 'string' && Boolean(p.incomeCategory.trim())))
       && (p.incomeAllocation == null || (p.receiptType === 'OTHER' && UUID.test(p.incomeAllocation.id)
         && ['EQUAL', 'RATIO', 'AMOUNT'].includes(p.incomeAllocation.mode) && Array.isArray(p.incomeAllocation.allocations)

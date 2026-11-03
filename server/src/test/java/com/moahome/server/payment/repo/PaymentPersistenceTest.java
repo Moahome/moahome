@@ -79,6 +79,8 @@ import com.moahome.server.payment.service.PaymentService;
 import com.moahome.server.property.dto.PropertyRegistrationRequest;
 import com.moahome.server.property.dto.PropertyRegistrationRequest.UnitInput;
 import com.moahome.server.property.dto.RegistrationOpeningInput;
+import com.moahome.server.property.dto.RegistrationBankImport;
+import com.moahome.server.property.dto.RegistrationManualTransaction;
 import com.moahome.server.property.exception.RegistrationException;
 import com.moahome.server.property.repo.PropertyRegistrationLock;
 import com.moahome.server.property.service.*;
@@ -106,7 +108,7 @@ import static org.assertj.core.api.Assertions.*;
         CumulativePaymentService.class, PaymentService.class,
         PayerMatchService.class,
         BankTransactionReader.class, BillingTemplates.class, BillingGenerationService.class, BillingService.class,
-        PropertyRegistrationService.class, RegistrationOpeningService.class, PropertyRegistrationLock.class,
+        PropertyRegistrationService.class, RegistrationOpeningService.class, RegistrationBankImportService.class, PropertyRegistrationLock.class,
         ManagementAccessService.class, UserService.class, OpeningBalanceService.class,
         MemberManagementService.class,
         MembershipRequestService.class,
@@ -167,6 +169,8 @@ class PaymentPersistenceTest {
 
 	@Autowired
 	PropertyRegistrationService registration;
+	@Autowired
+	RegistrationBankImportService registrationImports;
 
 	@Autowired
 	UserRepository users;
@@ -689,6 +693,111 @@ class PaymentPersistenceTest {
 		assertThat(registration.register(user, request).response().managementStart()).isNotNull();
 	}
 
+	/** 기준일 이전 입금·출금도 저장하고 새 미수에 재충당하지 않으며 재시도는 원본을 중복 생성하지 않습니다. */
+	@Test
+	void registrationStoresBothDirectionsWithoutAddingHistoryToOpeningCashOrReceivables() throws IOException {
+		var request = initialBankRegistration(false);
+		UUID target = registration.register(user, request).response().property().id();
+		assertThat(jdbc.queryForObject("select count(*) from bank_transactions where property_id=?", Long.class, target)).isEqualTo(2);
+		assertThat(jdbc.queryForList("select direction from bank_transactions where property_id=?", String.class, target))
+		    .containsExactlyInAnyOrder("INCOME", "EXPENSE");
+		var ledger = service.workspace(user, target);
+		assertThat(ledger.payments()).hasSize(1);
+		assertThat(ledger.payments().getFirst().status()).isEqualTo("OPENING");
+		assertThat(ledger.payments().getFirst().allocations()).isEmpty();
+		assertThat(cashBalances.workspace(user, target, "2026-10").bankBalance()).isEqualTo("1000000");
+		assertThat(jdbc.queryForObject("select sum(total_amount) from charges where property_id=?", BigDecimal.class, target))
+		    .isEqualByComparingTo("20000");
+		assertThat(jdbc.queryForObject("select count(*) from payment_allocations where property_id=?", Long.class, target)).isZero();
+		assertThat(registration.register(user, request).created()).isFalse();
+		assertThat(jdbc.queryForObject("select count(*) from bank_transactions where property_id=?", Long.class, target)).isEqualTo(2);
+		assertThat(jdbc.queryForObject("select count(*) from expenses where property_id=?", Long.class, target)).isEqualTo(1);
+		assertThat(jdbc.queryForObject("select allocation_mode from expenses where property_id=?", String.class, target)).isEqualTo("PROPERTY");
+		assertThat(jdbc.queryForObject("select count(*) from expense_allocations where property_id=?", Long.class, target)).isZero();
+		var rows = banking.workspace(user, target).rows();
+		assertThat(rows).hasSize(2);
+		assertThat(rows).extracting(r -> r.status()).containsOnly("CONFIRMED");
+		assertThatThrownBy(() -> service.confirm(user, target, ledger.payments().getFirst().id(),
+		    new PaymentRequests.Confirm(UUID.fromString(ledger.payments().getFirst().unitId()), null, null)))
+		    .isInstanceOf(PaymentException.class);
+	}
+
+	/** 수기 입출금도 함께 저장하고 기준일 이후 입금만 기존 미수와 계산 잔액에 반영합니다. */
+	@Test
+	void registrationStoresManualIncomeAndExpenseWithoutFabricatingBankOriginals() throws IOException {
+		clock.set(Instant.parse("2026-10-16T00:00:00Z"));
+		var base = initialBankRegistration(true);
+		var old = base.openingBalances();
+		var distribution = new RegistrationBankImport.Distribution("청소비", null, "EQUAL", false,
+		    List.of(new RegistrationBankImport.Share("a", null, null, null)));
+		var records = List.of(
+		    new RegistrationManualTransaction(UUID.randomUUID(), 0, "INCOME", LocalDate.of(2026, 10, 10), "30000", "201호", "HOUSEHOLD", 0, null, null, null),
+		    new RegistrationManualTransaction(UUID.randomUUID(), 0, "EXPENSE", LocalDate.of(2026, 10, 12), "10000", "청소비", "OTHER", null, "청소비", null, distribution),
+		    new RegistrationManualTransaction(UUID.randomUUID(), 0, "INCOME", LocalDate.of(2026, 10, 16), "20000", "201호", "HOUSEHOLD", 0, null, null, null));
+		var values = new RegistrationOpeningInput(old.cutoffDate(), old.firstBillingMonth(), old.units(), old.accounts(),
+		    old.cashCutoffDate(), old.buildings(), null, records);
+		var request = new PropertyRegistrationRequest(base.requestId(), base.basicInfo(), base.buildings(), base.units(),
+		    base.bankAccounts(), base.feeItems(), base.administrator(), values);
+		UUID target = registration.register(user, request).response().property().id();
+		assertThat(jdbc.queryForObject("select count(*) from bank_transactions where property_id=?", Long.class, target)).isZero();
+		assertThat(jdbc.queryForObject("select count(*) from expenses where property_id=? and source_type='MANUAL'", Long.class, target)).isEqualTo(1);
+		var ledger = service.workspace(user, target);
+		assertThat(ledger.payments()).hasSize(2);
+		assertThat(ledger.payments()).extracting(p -> p.source()).containsOnly("MANUAL");
+		assertThat(ledger.payments()).extracting(p -> p.status()).containsExactlyInAnyOrder("OPENING", "CONFIRMED");
+		assertThat(jdbc.queryForObject("select sum(allocated_amount) from payment_allocations where property_id=? and status='ACTIVE'", BigDecimal.class, target)).isEqualByComparingTo("20000");
+		var balance = cashBalances.workspace(user, target, "2026-10");
+		assertThat(balance.bankBalance()).isEqualTo("1000000");
+		assertThat(balance.accounts().getFirst().calculatedBalance()).isEqualTo("1020000");
+		registration.register(user, request);
+		assertThat(jdbc.queryForObject("select count(*) from payments where property_id=?", Long.class, target)).isEqualTo(2);
+	}
+
+	/** 과거 출금 저장 실패 시 등록·입금·인계·성공 결과를 모두 롤백합니다. */
+	@Test
+	void registrationBankFailureRollsBackEveryInitialRecord() throws IOException {
+		var request = initialBankRegistration(true);
+		long beforeProperties = count("properties"), beforeTransactions = count("bank_transactions"), beforePayments = count("payments");
+		jdbc.execute("create function fail_initial_bank_expense() returns trigger language plpgsql as $$ begin raise exception 'initial expense failure'; end $$");
+		jdbc.execute("create trigger fail_initial_bank_expense before insert on expenses for each row execute function fail_initial_bank_expense()");
+		try {
+			assertThatThrownBy(() -> registration.register(user, request)).isInstanceOf(DataAccessException.class);
+			assertThat(count("properties")).isEqualTo(beforeProperties);
+			assertThat(count("bank_transactions")).isEqualTo(beforeTransactions);
+			assertThat(count("payments")).isEqualTo(beforePayments);
+			assertThat(jdbc.queryForObject("select count(*) from property_registration_results where request_id=?", Long.class, request.requestId())).isZero();
+		} finally {
+			jdbc.execute("drop function fail_initial_bank_expense() cascade");
+		}
+		assertThat(registration.register(user, request).created()).isTrue();
+	}
+
+	/** 최초 등록 미리보기는 계정만 검사하고 파일을 읽으며 업무 원장에는 쓰지 않습니다. */
+	private PropertyRegistrationRequest initialBankRegistration(boolean hasBuildings) throws IOException {
+		var base = registrationOpeningRequest(hasBuildings, "2026-11");
+		var file = csv("거래일시,적요,출금액,입금액,잔액\n2026-10-10 09:00:00,201호,0,30000,1010000\n2026-10-12 10:00:00,청소비,10000,0,1000000");
+		long originals = count("bank_transactions");
+		var preview = registrationImports.preview(user, "081", file);
+		assertThat(count("bank_transactions")).isEqualTo(originals);
+		List<RegistrationBankImport.Choice> selected = preview.rows().stream().map(row -> "INCOME".equals(row.direction())
+		    ? new RegistrationBankImport.Choice(row.id(), 0, null, null, null, null, false)
+		    : new RegistrationBankImport.Choice(row.id(), null, null, null,
+		        new RegistrationBankImport.Distribution("청소비", null, hasBuildings ? "EQUAL" : "PROPERTY", false,
+		            hasBuildings ? List.of(new RegistrationBankImport.Share("a", null, null, null)) : List.of()), null, false)).toList();
+		String content = Base64.getEncoder().encodeToString(file.getBytes());
+		var values = new RegistrationOpeningInput(LocalDate.of(2026, 10, 15), "2026-11",
+		    List.of(new RegistrationOpeningInput.UnitOpening(hasBuildings ? "a" : null, "201", "20000", "0"),
+		        new RegistrationOpeningInput.UnitOpening(hasBuildings ? "b" : null, "202", "0", "0")),
+		    List.of(new RegistrationOpeningInput.AccountOpening(0, "1000000")), hasBuildings ? LocalDate.of(2026, 10, 15) : null,
+		    hasBuildings ? List.of(new RegistrationOpeningInput.BuildingOpening(0, "a", "600000"),
+		        new RegistrationOpeningInput.BuildingOpening(0, "b", "400000")) : List.of(),
+		    List.of(new RegistrationBankImport(0, file.getOriginalFilename(), content, selected)),
+		    null);
+		var bank = new PropertyRegistrationRequest.BankAccountInput("081", "하나은행", "1234567890", "관리단", true);
+		return new PropertyRegistrationRequest(base.requestId(), base.basicInfo(), base.buildings(), base.units(),
+		    List.of(bank), base.feeItems(), base.administrator(), values);
+	}
+
 	/** 기존 등록 계약을 유지하며 새 초기 설정에만 명시적인 인계 정보를 덧붙입니다. */
 	private PropertyRegistrationRequest registrationOpeningRequest(boolean hasBuildings,
 	    String firstMonth) {
@@ -711,6 +820,43 @@ class PaymentPersistenceTest {
 		    new PropertyRegistrationRequest.AdministratorInput("EXTERNAL", null, null,
 		        null, null),
 		    opening);
+	}
+
+	@Test
+	void automaticRegistrationUsesBankMonthAndCreatesMissingBillsBeforeNewReceipts() {
+		var base = registrationOpeningRequest(false, "2026-09");
+		var old = base.openingBalances();
+		var input = new RegistrationOpeningInput(LocalDate.of(2026, 9, 1), "2026-09", old.units(), old.accounts(),
+		    null, List.of(), null, null, true);
+		var request = new PropertyRegistrationRequest(base.requestId(), base.basicInfo(), base.buildings(), base.units(),
+		    base.bankAccounts(), base.feeItems(), base.administrator(), input);
+		UUID target = registration.register(user, request).response().property().id();
+		assertThat(opening.workspace(user, target).firstBillingMonth()).isEqualTo("2026-09");
+		assertThat(jdbc.queryForList("select billing_month from billing_periods where property_id=? order by billing_month", Short.class, target))
+		    .containsExactly((short) 9, (short) 10);
+		assertThat(jdbc.queryForObject("select count(*) from payments where property_id=?", Long.class, target)).isZero();
+		assertThat(registration.register(user, request).created()).isFalse();
+		assertThat(jdbc.queryForObject("select count(*) from billing_periods where property_id=?", Long.class, target)).isEqualTo(2);
+	}
+
+	@Test
+	void initialBillingPlanUsesRegistrationSettingsAndRejectsStaleConsent() {
+		var account = bankAccountSettings.read(user, property).accountId();
+		var input = confirmBankOpening(new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
+		    LocalDate.of(2026, 9, 1), "100000", 0L, "통장 시작월 정정"));
+		var preview = bankBilling.preview(user, property, account, input.cutoffDate());
+		assertThat(preview.missingMonths()).singleElement().satisfies(month -> {
+			assertThat(month.month()).isEqualTo("2026-09");
+			assertThat(month.initialSettings()).isTrue();
+		});
+		jdbc.update("update units set status='VACANT' where id=?", unit);
+		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, input))
+		    .hasMessage("INITIAL_BILLING_CONFIRMATION_REQUIRED");
+		assertThat(jdbc.queryForObject("select count(*) from bank_opening_balances where property_id=?", Long.class, property)).isZero();
+		assertThat(count("initial_balance_changes")).isZero();
+		cashBalances.saveAccountOpening(user, property, confirmBankOpening(input));
+		assertThat(opening.workspace(user, property).firstBillingMonth()).isEqualTo("2026-09");
+		assertThat(jdbc.queryForObject("select count(*) from billing_periods where property_id=?", Long.class, property)).isEqualTo(2);
 	}
 
 	/** 계좌 정보 정정은 보호된 번호만 바꾸고 거래·수납·잔고 원본과 계좌 ID를 유지합니다. */
@@ -806,6 +952,106 @@ class PaymentPersistenceTest {
 		        a -> new OpeningBalanceRequest.AccountInput(a.accountId(), "2000000"))
 		        .toList());
 		return opening.save(user, property, input);
+	}
+
+	/** 초기 정정은 확정 인계의 금액·기준일만 바꾸고 첫 부과월·실제 거래·월별 청구를 보존합니다. */
+	@Test
+	void correctsInitialBankBaselineWithImmutableHistoryAndLocksAtFirstMonthEnd() {
+		newHandoverTarget();
+		confirmHandover(draftHandover(LocalDate.of(2026, 9, 30), "2026-10"));
+		UUID paid = manual("5000");
+		service.confirm(user, property, paid, new PaymentRequests.Confirm(unit, null, null));
+		List<Map<String, Object>> receipts = jdbc.queryForList("select * from payments where property_id=? order by id", property);
+		List<Map<String, Object>> allocations = jdbc.queryForList("select * from payment_allocations where property_id=? order by id", property);
+		var extra = addAccount("090", "카카오뱅크", "3333012345678", "추가 통장");
+		var current = opening.workspace(user, property);
+		assertThat(current.accounts().stream().filter(OpeningBalanceResponse.Account::initialBalance)).hasSize(1);
+		assertThat(current.accounts().stream().filter(a -> a.accountId().equals(extra.accountId())).findFirst().orElseThrow().initialBalance()).isFalse();
+		List<Map<String, Object>> bills = jdbc.queryForList("select id,total_amount,due_date from charges where property_id=? and charge_type='MONTHLY' order by id", property);
+		var input = new InitialBalanceCorrection.Input(UUID.randomUUID(), current.batch().revision(),
+		    LocalDate.of(2026, 10, 1), "인계 기준일과 초기 통장 금액 오입력 정정",
+		    current.accounts().stream().filter(OpeningBalanceResponse.Account::initialBalance).map(a -> new InitialBalanceCorrection.Account(a.accountId(), "2100000")).toList());
+		var saved = opening.correctInitial(user, property, current.batch().id(), input);
+		assertThat(saved.cutoffDate()).isEqualTo(input.cutoffDate());
+		assertThat(saved.accounts().stream().filter(OpeningBalanceResponse.Account::initialBalance)).allMatch(a -> a.amount().equals("2100000"));
+		assertThat(saved.firstBillingMonth()).isEqualTo("2026-10");
+		assertThat(saved.correctionDeadline()).isEqualTo(LocalDate.of(2026, 10, 31));
+		assertThat(saved.corrections()).hasSize(1);
+		assertThat(saved.corrections().getFirst().details().getFirst().previousAmount()).isEqualTo("2000000");
+		assertThat(saved.corrections().getFirst().changedBy()).isEqualTo(user);
+		assertThat(saved.corrections().getFirst().reason()).isEqualTo(input.reason());
+		assertThat(jdbc.queryForList("select id,total_amount,due_date from charges where property_id=? and charge_type='MONTHLY' order by id", property)).isEqualTo(bills);
+		assertThat(jdbc.queryForList("select * from payments where property_id=? order by id", property)).isEqualTo(receipts);
+		assertThat(jdbc.queryForList("select * from payment_allocations where property_id=? order by id", property)).isEqualTo(allocations);
+		assertThatThrownBy(() -> opening.correctInitial(user, property, current.batch().id(),
+		    new InitialBalanceCorrection.Input(UUID.randomUUID(), current.batch().revision(), input.cutoffDate(), input.reason(), input.accounts())))
+		    .hasMessage("INITIAL_BALANCE_CONFLICT");
+		clock.set(Instant.parse("2026-10-31T14:59:59Z"));
+		assertThat(opening.workspace(user, property).initialCorrectionAllowed()).isTrue();
+		clock.set(Instant.parse("2026-10-31T15:00:00Z"));
+		assertThat(opening.workspace(user, property).initialCorrectionAllowed()).isFalse();
+		assertThat(opening.correctInitial(user, property, current.batch().id(), input).corrections()).hasSize(1);
+		assertThatThrownBy(() -> opening.correctInitial(user, property, current.batch().id(),
+		    new InitialBalanceCorrection.Input(UUID.randomUUID(), saved.batch().revision(), input.cutoffDate(), input.reason(), input.accounts())))
+		    .hasMessage("INITIAL_BALANCE_LOCKED");
+		assertThatThrownBy(() -> jdbc.update("update initial_balance_changes set reason='changed' where id=?", input.id()))
+		    .isInstanceOf(DataAccessException.class);
+	}
+
+	@Test
+	void rejectsCutoffCorrectionThatWouldReclassifyRegisteredTransactions() {
+		newHandoverTarget();
+		confirmHandover(draftHandover(LocalDate.of(2026, 10, 14), "2026-11"));
+		jdbc.update("update bank_accounts set bank_code='081' where property_id=?", property);
+		service.importFile(user, property, bank("새 입금", "50000"));
+		var current = opening.workspace(user, property);
+		var input = new InitialBalanceCorrection.Input(UUID.randomUUID(), current.batch().revision(),
+		    LocalDate.of(2026, 10, 15), "기준일 정정",
+		    current.accounts().stream().map(a -> new InitialBalanceCorrection.Account(a.accountId(), a.amount())).toList());
+		assertThatThrownBy(() -> opening.correctInitial(user, property, current.batch().id(), input))
+		    .hasMessage("INITIAL_BALANCE_TRANSACTION_CONFLICT");
+		assertThat(opening.workspace(user, property).cutoffDate()).isEqualTo(current.cutoffDate());
+		assertThat(opening.workspace(user, property).corrections()).isEmpty();
+	}
+
+	@Test
+	void locksBuildingAndIndependentBankCorrectionsWithTheSameDeadline() {
+		UUID building = UUID.randomUUID();
+		jdbc.update("insert into buildings(id,property_id,name,sort_order,status,created_at,updated_at) values (?,?,?,0,'ACTIVE',now(),now())", building, property, "초기 잔고 동");
+		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
+		    List.of(new BankingBalanceRequests.OpeningPart(building, "100000"))));
+		var input = new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(), LocalDate.of(2026, 9, 29),
+		    List.of(new BankingBalanceRequests.OpeningCorrectionPart(building, "120000", 0L)), null, "초기 동별 금액 확인");
+		cashBalances.correctOpenings(user, property, input);
+		assertThat(opening.workspace(user, property).corrections()).hasSize(1);
+		clock.set(Instant.parse("2026-10-31T15:00:00Z"));
+		cashBalances.correctOpenings(user, property, input);
+		assertThatThrownBy(() -> cashBalances.correctOpenings(user, property,
+		    new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(), input.cutoffDate(),
+		        List.of(new BankingBalanceRequests.OpeningCorrectionPart(building, "130000", 1L)), null, "재정정")))
+		    .hasMessage("INITIAL_BALANCE_LOCKED");
+		UUID account = jdbc.queryForObject("select id from bank_accounts where property_id=? and is_primary", UUID.class, property);
+		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property,
+		    new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account, LocalDate.of(2026, 9, 30), "100000", 0L, "통장 정정")))
+		    .hasMessage("INITIAL_BALANCE_LOCKED");
+	}
+
+	/** 이전 스키마의 인계·통장 금액은 정정 이력 테이블 추가로 보정하거나 복제하지 않습니다. */
+	@Test
+	void initialCorrectionMigrationPreservesExistingBaselines() {
+		newHandoverTarget();
+		confirmHandover(draftHandover(LocalDate.of(2026, 9, 30), "2026-10"));
+		String schema = "initial_correction_" + UUID.randomUUID().toString().replace("-", "");
+		Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "").schemas(schema).defaultSchema(schema)
+		    .target("20261025080504").load().migrate();
+		for (String table : List.of("users", "properties", "buildings", "bank_accounts", "opening_balance_batches", "bank_opening_balances"))
+			copyPreviousTable(schema, table);
+		List<Map<String, Object>> before = jdbc.queryForList("select * from " + schema + ".bank_opening_balances order by id");
+		Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "").schemas(schema).defaultSchema(schema)
+		    .load().migrate();
+		assertThat(jdbc.queryForList("select * from " + schema + ".bank_opening_balances order by id")).isEqualTo(before);
+		assertThat(jdbc.queryForObject("select count(*) from " + schema + ".initial_balance_changes", Long.class)).isZero();
+		jdbc.execute("drop schema " + schema + " cascade");
 	}
 
 	void confirmHandover(OpeningBalanceResponse draft) {
@@ -3456,6 +3702,86 @@ class PaymentPersistenceTest {
 		        new BankingRequests.Allocation(targets.getLast(), null, second, "75")));
 	}
 
+	/** 저장 전에 확인한 청구 계획을 그대로 전송해 날짜 정정과 부과를 하나로 확정합니다. */
+	private BankingBalanceRequests.AccountOpening confirmBankOpening(BankingBalanceRequests.AccountOpening input) {
+		var impact = bankBilling.preview(user, property, input.accountId(), input.cutoffDate());
+		return new BankingBalanceRequests.AccountOpening(input.id(), input.accountId(), input.cutoffDate(),
+		    input.amount(), input.revision(), input.reason(), impact.token(), true, input.buildings());
+	}
+
+	@Test
+	void primaryBankCutoffRequiresBillingConsentAndKeepsOriginalDeadline() {
+		newHandoverTarget();
+		confirmHandover(draftHandover(LocalDate.of(2026, 10, 14), "2026-11"));
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		var input = new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
+		    LocalDate.of(2026, 10, 1), "2100000", 0L, "기본 통장 시작일 정정");
+		var plan = bankBilling.preview(user, property, account, input.cutoffDate());
+		assertThat(plan.previousMonth()).isEqualTo("2026-11");
+		assertThat(plan.nextMonth()).isEqualTo("2026-10");
+		assertThat(plan.missingMonths()).extracting(m -> m.month()).containsExactly("2026-10");
+		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, input))
+		    .hasMessage("INITIAL_BILLING_CONFIRMATION_REQUIRED");
+		assertThat(count("initial_balance_changes")).isZero();
+		var confirmed = confirmBankOpening(input);
+		cashBalances.saveAccountOpening(user, property, confirmed);
+		cashBalances.saveAccountOpening(user, property, confirmed);
+		var after = opening.workspace(user, property);
+		assertThat(after.firstBillingMonth()).isEqualTo("2026-10");
+		assertThat(after.cutoffDate()).isEqualTo(input.cutoffDate());
+		assertThat(after.correctionDeadline()).isEqualTo(LocalDate.of(2026, 11, 30));
+		assertThat(jdbc.queryForObject("select count(*) from billing_periods where property_id=?", Long.class, property)).isEqualTo(1);
+		assertThat(jdbc.queryForObject("select count(*) from charges where property_id=? and charge_type='MONTHLY'", Long.class, property)).isEqualTo(4);
+		assertThat(after.corrections()).hasSize(1);
+		assertThat(after.corrections().getFirst().details()).anyMatch(d -> "2026-10".equals(d.newBillingMonth()));
+		clock.set(Instant.parse("2026-11-30T15:00:00Z"));
+		cashBalances.saveAccountOpening(user, property, confirmed);
+		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property,
+		    new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account, input.cutoffDate(), "2200000", 1L)))
+		    .hasMessage("INITIAL_BALANCE_LOCKED");
+	}
+
+	@Test
+	void rejectsMovingBillingStartAfterOpeningCreditHasAlreadyBeenApplied() {
+		newHandoverTarget();
+		confirmHandover(draftHandover(LocalDate.of(2026, 9, 30), "2026-10"));
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		var plan = bankBilling.preview(user, property, account, LocalDate.of(2026, 9, 1));
+		assertThat(plan.blockedReason()).isEqualTo("INITIAL_BILLING_HAS_APPLICATIONS");
+		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property,
+		    new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
+		        LocalDate.of(2026, 9, 1), "2000000", 0L, "부과 시점 정정", plan.token(), true, null)))
+		    .hasMessage("INITIAL_BILLING_HAS_APPLICATIONS");
+		assertThat(opening.workspace(user, property).firstBillingMonth()).isEqualTo("2026-10");
+		assertThat(count("initial_balance_changes")).isZero();
+	}
+
+	@Test
+	void bankDateCorrectionRequiresAllBuildingBalancesAndRollsBackUnconfirmedChanges() {
+		newHandoverTarget();
+		confirmHandover(draftHandover(LocalDate.of(2026, 10, 14), "2026-11"));
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		UUID building = UUID.randomUUID();
+		jdbc.update("insert into buildings(id,property_id,name,sort_order,status,created_at,updated_at) values (?,?,?,0,'ACTIVE',now(),now())", building, property, "102동");
+		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(LocalDate.of(2026, 10, 14),
+		    List.of(new BankingBalanceRequests.OpeningPart(building, "2000000")), account));
+		var input = confirmBankOpening(new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
+		    LocalDate.of(2026, 10, 1), "2100000", 0L, "통장과 동별 기준 정정"));
+		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, input))
+		    .hasMessage("INITIAL_BUILDING_CONFIRMATION_REQUIRED");
+		assertThat(opening.workspace(user, property).firstBillingMonth()).isEqualTo("2026-11");
+		assertThat(count("initial_balance_changes")).isZero();
+		var confirmed = new BankingBalanceRequests.AccountOpening(input.id(), account, input.cutoffDate(), input.amount(),
+		    0L, input.reason(), input.billingToken(), true,
+		    List.of(new BankingBalanceRequests.OpeningCorrectionPart(building, "2100000", 0L)));
+		cashBalances.saveAccountOpening(user, property, confirmed);
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).cutoffDate()).isEqualTo(input.cutoffDate());
+		assertThatThrownBy(() -> cashBalances.correctOpenings(user, property,
+		    new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(), LocalDate.of(2026, 9, 30),
+		        List.of(new BankingBalanceRequests.OpeningCorrectionPart(building, "1", 1L)), account, "날짜 분리 시도")))
+		    .hasMessage("CASH_OPENING_BANK_DATE_MISMATCH");
+	}
+
 	/** 추가 통장도 각각 다른 날짜의 실제 잔액을 등록하고 동별 현금·입금·인계는 만들지 않습니다. */
 	@Test
 	void accountOpeningsUseIndependentDatesAndDoNotCreateBuildingCashOrReceipts() {
@@ -4400,230 +4726,5 @@ class PaymentPersistenceTest {
 		assertThat(jdbc.queryForObject("select status from resident_invitations where id=?", String.class, issued.id())).isEqualTo("ISSUED");
 		assertThat(redis.hasKey("membership:invitation:resident:" + issued.id())).isTrue();
 	}
-
-	@Test
-	void correctsInitialBankBaselineWithImmutableHistoryAndLocksAtFirstMonthEnd() {
-		newHandoverTarget();
-		confirmHandover(draftHandover(LocalDate.of(2026, 9, 30), "2026-10"));
-		UUID paid = manual("5000");
-		service.confirm(user, property, paid, new PaymentRequests.Confirm(unit, null, null));
-		List<Map<String, Object>> receipts = jdbc.queryForList("select * from payments where property_id=? order by id", property);
-		List<Map<String, Object>> allocations = jdbc.queryForList("select * from payment_allocations where property_id=? order by id", property);
-		var extra = addAccount("090", "카카오뱅크", "3333012345678", "추가 통장");
-		var current = opening.workspace(user, property);
-		assertThat(current.accounts().stream().filter(OpeningBalanceResponse.Account::initialBalance)).hasSize(1);
-		assertThat(current.accounts().stream().filter(a -> a.accountId().equals(extra.accountId())).findFirst().orElseThrow().initialBalance()).isFalse();
-		List<Map<String, Object>> bills = jdbc.queryForList("select id,total_amount,due_date from charges where property_id=? and charge_type='MONTHLY' order by id", property);
-		var input = new InitialBalanceCorrection.Input(UUID.randomUUID(), current.batch().revision(),
-		    LocalDate.of(2026, 10, 1), "인계 기준일과 초기 통장 금액 오입력 정정",
-		    current.accounts().stream().filter(OpeningBalanceResponse.Account::initialBalance).map(a -> new InitialBalanceCorrection.Account(a.accountId(), "2100000")).toList());
-		var saved = opening.correctInitial(user, property, current.batch().id(), input);
-		assertThat(saved.cutoffDate()).isEqualTo(input.cutoffDate());
-		assertThat(saved.accounts().stream().filter(OpeningBalanceResponse.Account::initialBalance)).allMatch(a -> a.amount().equals("2100000"));
-		assertThat(saved.firstBillingMonth()).isEqualTo("2026-10");
-		assertThat(saved.correctionDeadline()).isEqualTo(LocalDate.of(2026, 10, 31));
-		assertThat(saved.corrections()).hasSize(1);
-		assertThat(saved.corrections().getFirst().details().getFirst().previousAmount()).isEqualTo("2000000");
-		assertThat(saved.corrections().getFirst().changedBy()).isEqualTo(user);
-		assertThat(saved.corrections().getFirst().reason()).isEqualTo(input.reason());
-		assertThat(jdbc.queryForList("select id,total_amount,due_date from charges where property_id=? and charge_type='MONTHLY' order by id", property)).isEqualTo(bills);
-		assertThat(jdbc.queryForList("select * from payments where property_id=? order by id", property)).isEqualTo(receipts);
-		assertThat(jdbc.queryForList("select * from payment_allocations where property_id=? order by id", property)).isEqualTo(allocations);
-		assertThatThrownBy(() -> opening.correctInitial(user, property, current.batch().id(),
-		    new InitialBalanceCorrection.Input(UUID.randomUUID(), current.batch().revision(), input.cutoffDate(), input.reason(), input.accounts())))
-		    .hasMessage("INITIAL_BALANCE_CONFLICT");
-		clock.set(Instant.parse("2026-10-31T14:59:59Z"));
-		assertThat(opening.workspace(user, property).initialCorrectionAllowed()).isTrue();
-		clock.set(Instant.parse("2026-10-31T15:00:00Z"));
-		assertThat(opening.workspace(user, property).initialCorrectionAllowed()).isFalse();
-		assertThat(opening.correctInitial(user, property, current.batch().id(), input).corrections()).hasSize(1);
-		assertThatThrownBy(() -> opening.correctInitial(user, property, current.batch().id(),
-		    new InitialBalanceCorrection.Input(UUID.randomUUID(), saved.batch().revision(), input.cutoffDate(), input.reason(), input.accounts())))
-		    .hasMessage("INITIAL_BALANCE_LOCKED");
-		assertThatThrownBy(() -> jdbc.update("update initial_balance_changes set reason='changed' where id=?", input.id()))
-		    .isInstanceOf(DataAccessException.class);
-	}
-
-
-	@Test
-	void rejectsCutoffCorrectionThatWouldReclassifyRegisteredTransactions() {
-		newHandoverTarget();
-		confirmHandover(draftHandover(LocalDate.of(2026, 10, 14), "2026-11"));
-		jdbc.update("update bank_accounts set bank_code='081' where property_id=?", property);
-		service.importFile(user, property, bank("새 입금", "50000"));
-		var current = opening.workspace(user, property);
-		var input = new InitialBalanceCorrection.Input(UUID.randomUUID(), current.batch().revision(),
-		    LocalDate.of(2026, 10, 15), "기준일 정정",
-		    current.accounts().stream().map(a -> new InitialBalanceCorrection.Account(a.accountId(), a.amount())).toList());
-		assertThatThrownBy(() -> opening.correctInitial(user, property, current.batch().id(), input))
-		    .hasMessage("INITIAL_BALANCE_TRANSACTION_CONFLICT");
-		assertThat(opening.workspace(user, property).cutoffDate()).isEqualTo(current.cutoffDate());
-		assertThat(opening.workspace(user, property).corrections()).isEmpty();
-	}
-
-
-	@Test
-	void locksBuildingAndIndependentBankCorrectionsWithTheSameDeadline() {
-		UUID building = UUID.randomUUID();
-		jdbc.update("insert into buildings(id,property_id,name,sort_order,status,created_at,updated_at) values (?,?,?,0,'ACTIVE',now(),now())", building, property, "초기 잔고 동");
-		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
-		    List.of(new BankingBalanceRequests.OpeningPart(building, "100000"))));
-		var input = new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(), LocalDate.of(2026, 9, 29),
-		    List.of(new BankingBalanceRequests.OpeningCorrectionPart(building, "120000", 0L)), null, "초기 동별 금액 확인");
-		cashBalances.correctOpenings(user, property, input);
-		assertThat(opening.workspace(user, property).corrections()).hasSize(1);
-		clock.set(Instant.parse("2026-10-31T15:00:00Z"));
-		cashBalances.correctOpenings(user, property, input);
-		assertThatThrownBy(() -> cashBalances.correctOpenings(user, property,
-		    new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(), input.cutoffDate(),
-		        List.of(new BankingBalanceRequests.OpeningCorrectionPart(building, "130000", 1L)), null, "재정정")))
-		    .hasMessage("INITIAL_BALANCE_LOCKED");
-		UUID account = jdbc.queryForObject("select id from bank_accounts where property_id=? and is_primary", UUID.class, property);
-		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property,
-		    new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account, LocalDate.of(2026, 9, 30), "100000", 0L, "통장 정정")))
-		    .hasMessage("INITIAL_BALANCE_LOCKED");
-	}
-
-
-	@Test
-	void initialCorrectionMigrationPreservesExistingBaselines() {
-		newHandoverTarget();
-		confirmHandover(draftHandover(LocalDate.of(2026, 9, 30), "2026-10"));
-		String schema = "initial_correction_" + UUID.randomUUID().toString().replace("-", "");
-		Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "").schemas(schema).defaultSchema(schema)
-		    .target("20261025080504").load().migrate();
-		for (String table : List.of("users", "properties", "buildings", "bank_accounts", "opening_balance_batches", "bank_opening_balances"))
-			copyPreviousTable(schema, table);
-		List<Map<String, Object>> before = jdbc.queryForList("select * from " + schema + ".bank_opening_balances order by id");
-		Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "").schemas(schema).defaultSchema(schema)
-		    .load().migrate();
-		assertThat(jdbc.queryForList("select * from " + schema + ".bank_opening_balances order by id")).isEqualTo(before);
-		assertThat(jdbc.queryForObject("select count(*) from " + schema + ".initial_balance_changes", Long.class)).isZero();
-		jdbc.execute("drop schema " + schema + " cascade");
-	}
-
-
-	@Test
-	void automaticRegistrationUsesBankMonthAndCreatesMissingBillsBeforeNewReceipts() {
-		var base = registrationOpeningRequest(false, "2026-09");
-		var old = base.openingBalances();
-		var input = new RegistrationOpeningInput(LocalDate.of(2026, 9, 1), "2026-09", old.units(), old.accounts(),
-		    null, List.of(), true);
-		var request = new PropertyRegistrationRequest(base.requestId(), base.basicInfo(), base.buildings(), base.units(),
-		    base.bankAccounts(), base.feeItems(), base.administrator(), input);
-		UUID target = registration.register(user, request).response().property().id();
-		assertThat(opening.workspace(user, target).firstBillingMonth()).isEqualTo("2026-09");
-		assertThat(jdbc.queryForList("select billing_month from billing_periods where property_id=? order by billing_month", Short.class, target))
-		    .containsExactly((short) 9, (short) 10);
-		assertThat(jdbc.queryForObject("select count(*) from payments where property_id=?", Long.class, target)).isZero();
-		assertThat(registration.register(user, request).created()).isFalse();
-		assertThat(jdbc.queryForObject("select count(*) from billing_periods where property_id=?", Long.class, target)).isEqualTo(2);
-	}
-
-
-	@Test
-	void initialBillingPlanUsesRegistrationSettingsAndRejectsStaleConsent() {
-		var account = bankAccountSettings.read(user, property).accountId();
-		var input = confirmBankOpening(new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
-		    LocalDate.of(2026, 9, 1), "100000", 0L, "통장 시작월 정정"));
-		var preview = bankBilling.preview(user, property, account, input.cutoffDate());
-		assertThat(preview.missingMonths()).singleElement().satisfies(month -> {
-			assertThat(month.month()).isEqualTo("2026-09");
-			assertThat(month.initialSettings()).isTrue();
-		});
-		jdbc.update("update units set status='VACANT' where id=?", unit);
-		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, input))
-		    .hasMessage("INITIAL_BILLING_CONFIRMATION_REQUIRED");
-		assertThat(jdbc.queryForObject("select count(*) from bank_opening_balances where property_id=?", Long.class, property)).isZero();
-		assertThat(count("initial_balance_changes")).isZero();
-		cashBalances.saveAccountOpening(user, property, confirmBankOpening(input));
-		assertThat(opening.workspace(user, property).firstBillingMonth()).isEqualTo("2026-09");
-		assertThat(jdbc.queryForObject("select count(*) from billing_periods where property_id=?", Long.class, property)).isEqualTo(2);
-	}
-
-
-	@Test
-	void primaryBankCutoffRequiresBillingConsentAndKeepsOriginalDeadline() {
-		newHandoverTarget();
-		confirmHandover(draftHandover(LocalDate.of(2026, 10, 14), "2026-11"));
-		UUID account = bankAccountSettings.read(user, property).accountId();
-		var input = new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
-		    LocalDate.of(2026, 10, 1), "2100000", 0L, "기본 통장 시작일 정정");
-		var plan = bankBilling.preview(user, property, account, input.cutoffDate());
-		assertThat(plan.previousMonth()).isEqualTo("2026-11");
-		assertThat(plan.nextMonth()).isEqualTo("2026-10");
-		assertThat(plan.missingMonths()).extracting(m -> m.month()).containsExactly("2026-10");
-		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, input))
-		    .hasMessage("INITIAL_BILLING_CONFIRMATION_REQUIRED");
-		assertThat(count("initial_balance_changes")).isZero();
-		var confirmed = confirmBankOpening(input);
-		cashBalances.saveAccountOpening(user, property, confirmed);
-		cashBalances.saveAccountOpening(user, property, confirmed);
-		var after = opening.workspace(user, property);
-		assertThat(after.firstBillingMonth()).isEqualTo("2026-10");
-		assertThat(after.cutoffDate()).isEqualTo(input.cutoffDate());
-		assertThat(after.correctionDeadline()).isEqualTo(LocalDate.of(2026, 11, 30));
-		assertThat(jdbc.queryForObject("select count(*) from billing_periods where property_id=?", Long.class, property)).isEqualTo(1);
-		assertThat(jdbc.queryForObject("select count(*) from charges where property_id=? and charge_type='MONTHLY'", Long.class, property)).isEqualTo(4);
-		assertThat(after.corrections()).hasSize(1);
-		assertThat(after.corrections().getFirst().details()).anyMatch(d -> "2026-10".equals(d.newBillingMonth()));
-		clock.set(Instant.parse("2026-11-30T15:00:00Z"));
-		cashBalances.saveAccountOpening(user, property, confirmed);
-		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property,
-		    new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account, input.cutoffDate(), "2200000", 1L)))
-		    .hasMessage("INITIAL_BALANCE_LOCKED");
-	}
-
-
-	@Test
-	void rejectsMovingBillingStartAfterOpeningCreditHasAlreadyBeenApplied() {
-		newHandoverTarget();
-		confirmHandover(draftHandover(LocalDate.of(2026, 9, 30), "2026-10"));
-		UUID account = bankAccountSettings.read(user, property).accountId();
-		var plan = bankBilling.preview(user, property, account, LocalDate.of(2026, 9, 1));
-		assertThat(plan.blockedReason()).isEqualTo("INITIAL_BILLING_HAS_APPLICATIONS");
-		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property,
-		    new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
-		        LocalDate.of(2026, 9, 1), "2000000", 0L, "부과 시점 정정", plan.token(), true, null)))
-		    .hasMessage("INITIAL_BILLING_HAS_APPLICATIONS");
-		assertThat(opening.workspace(user, property).firstBillingMonth()).isEqualTo("2026-10");
-		assertThat(count("initial_balance_changes")).isZero();
-	}
-
-
-	@Test
-	void bankDateCorrectionRequiresAllBuildingBalancesAndRollsBackUnconfirmedChanges() {
-		newHandoverTarget();
-		confirmHandover(draftHandover(LocalDate.of(2026, 10, 14), "2026-11"));
-		UUID account = bankAccountSettings.read(user, property).accountId();
-		UUID building = UUID.randomUUID();
-		jdbc.update("insert into buildings(id,property_id,name,sort_order,status,created_at,updated_at) values (?,?,?,0,'ACTIVE',now(),now())", building, property, "102동");
-		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(LocalDate.of(2026, 10, 14),
-		    List.of(new BankingBalanceRequests.OpeningPart(building, "2000000")), account));
-		var input = confirmBankOpening(new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
-		    LocalDate.of(2026, 10, 1), "2100000", 0L, "통장과 동별 기준 정정"));
-		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, input))
-		    .hasMessage("INITIAL_BUILDING_CONFIRMATION_REQUIRED");
-		assertThat(opening.workspace(user, property).firstBillingMonth()).isEqualTo("2026-11");
-		assertThat(count("initial_balance_changes")).isZero();
-		var confirmed = new BankingBalanceRequests.AccountOpening(input.id(), account, input.cutoffDate(), input.amount(),
-		    0L, input.reason(), input.billingToken(), true,
-		    List.of(new BankingBalanceRequests.OpeningCorrectionPart(building, "2100000", 0L)));
-		cashBalances.saveAccountOpening(user, property, confirmed);
-		assertThat(cashBalances.workspace(user, property, "2026-10", account).cutoffDate()).isEqualTo(input.cutoffDate());
-		assertThatThrownBy(() -> cashBalances.correctOpenings(user, property,
-		    new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(), LocalDate.of(2026, 9, 30),
-		        List.of(new BankingBalanceRequests.OpeningCorrectionPart(building, "1", 1L)), account, "날짜 분리 시도")))
-		    .hasMessage("CASH_OPENING_BANK_DATE_MISMATCH");
-	}
-
-
-	/** 청구 변경 계획을 확인한 요청으로 날짜와 부과를 함께 확정합니다. */
-	private BankingBalanceRequests.AccountOpening confirmBankOpening(BankingBalanceRequests.AccountOpening input) {
-		var impact = bankBilling.preview(user, property, input.accountId(), input.cutoffDate());
-		return new BankingBalanceRequests.AccountOpening(input.id(), input.accountId(), input.cutoffDate(),
-		    input.amount(), input.revision(), input.reason(), impact.token(), true, input.buildings());
-	}
-
 
 }

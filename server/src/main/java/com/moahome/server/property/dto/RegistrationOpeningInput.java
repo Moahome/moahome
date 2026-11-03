@@ -16,11 +16,18 @@ public record RegistrationOpeningInput(@NotNull(message = "REQUIRED") LocalDate 
     @NotNull(message = "REQUIRED") @Size(max = 100) List<@NotNull @Valid AccountOpening> accounts,
     LocalDate cashCutoffDate,
     @NotNull(message = "REQUIRED") @Size(max = 100000) List<@NotNull @Valid BuildingOpening> buildings,
+    @JsonInclude(JsonInclude.Include.NON_NULL) @Size(max = 100) List<@NotNull @Valid RegistrationBankImport> bankImports,
+    @JsonInclude(JsonInclude.Include.NON_NULL) @Size(max = 5000) List<@NotNull @Valid RegistrationManualTransaction> manualTransactions,
     @JsonInclude(JsonInclude.Include.NON_NULL) Boolean automaticBilling) {
-	/**  이전 요청은 원래 직렬화와 재시도 지문을 유지합니다. */
+	public RegistrationOpeningInput(LocalDate cutoffDate, String firstBillingMonth, List<UnitOpening> units,
+	    List<AccountOpening> accounts, LocalDate cashCutoffDate, List<BuildingOpening> buildings,
+	    List<RegistrationBankImport> bankImports, List<RegistrationManualTransaction> manualTransactions) {
+		this(cutoffDate, firstBillingMonth, units, accounts, cashCutoffDate, buildings, bankImports, manualTransactions, null);
+	}
+	/** 새 입력을 생략한 이전 요청은 원래 직렬화와 재시도 지문을 유지합니다. */
 	public RegistrationOpeningInput(LocalDate cutoffDate, String firstBillingMonth, List<UnitOpening> units,
 	    List<AccountOpening> accounts, LocalDate cashCutoffDate, List<BuildingOpening> buildings) {
-		this(cutoffDate, firstBillingMonth, units, accounts, cashCutoffDate, buildings, null);
+		this(cutoffDate, firstBillingMonth, units, accounts, cashCutoffDate, buildings, null, null);
 	}
 
 	public record UnitOpening(

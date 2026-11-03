@@ -8,7 +8,7 @@ export type BankingAllocation = {
 export type ExpenseDraft = {
   category: string;
   note: string;
-  mode: 'EQUAL' | 'RATIO' | 'AMOUNT';
+  mode: 'EQUAL' | 'RATIO' | 'AMOUNT' | 'PROPERTY';
   saveAsRule: boolean;
   allocations: BankingAllocation[];
 };

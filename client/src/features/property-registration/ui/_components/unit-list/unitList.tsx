@@ -43,7 +43,7 @@ export function UnitList({
   onAutomaticAdd,
   balances,
 }: {
-  balances?: { opening: OpeningBalancesDraft; onChange: (opening: OpeningBalancesDraft) => void };
+  balances?: { opening: OpeningBalancesDraft; onChange: (opening: OpeningBalancesDraft) => void; showErrors?: boolean };
   hasBuildings: boolean;
   buildings: BuildingDraft[];
   units: UnitDraft[];
@@ -341,18 +341,20 @@ export function UnitList({
                 >
                   관리
                 </th>
-                {balances && <>
-                  <th
-                    scope={'col'}
-                  >
-                    기존 미납
-                  </th>
-                  <th
-                    scope={'col'}
-                  >
-                    기존 선납
-                  </th>
-                </>}
+                {balances && (
+                  <>
+                    <th
+                      scope={'col'}
+                    >
+                      기존 미납
+                    </th>
+                    <th
+                      scope={'col'}
+                    >
+                      기존 선납
+                    </th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody
@@ -486,6 +488,7 @@ export function UnitList({
                       >
                         <AmountInput
                           aria-label={`${hasBuildings ? `${buildingName ?? ''} ` : ''}${label} ${field === 'receivable' ? '기존 미납' : '기존 선납'}`}
+                          error={balances.showErrors && balances.opening.unitMode === 'ENTER' && !/^[0-9]{1,15}$/.test(getUnitOpening(balances.opening, unit.clientId)[field]) ? '금액을 입력해주세요.' : undefined}
                           value={getUnitOpening(balances.opening, unit.clientId)[field]}
                           readOnly={balances.opening.unitMode !== 'ENTER'}
                           onChange={(amount) => balances.onChange({

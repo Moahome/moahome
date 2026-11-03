@@ -23,9 +23,10 @@ import com.moahome.server.membership.controller.InvitationClaimController;
 import com.moahome.server.membership.controller.MemberManagementController;
 import com.moahome.server.membership.controller.MembershipRequestController;
 import com.moahome.server.payment.controller.PaymentController;
+import com.moahome.server.property.controller.RegistrationBankImportController;
 import com.moahome.server.user.exception.UserException;
 
-@RestControllerAdvice(assignableTypes = {PaymentController.class,
+@RestControllerAdvice(assignableTypes = {PaymentController.class, RegistrationBankImportController.class,
         BankingController.class,
         BankingBalanceController.class,
         BankBalanceCheckController.class,

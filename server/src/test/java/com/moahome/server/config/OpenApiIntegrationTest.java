@@ -42,6 +42,7 @@ import com.moahome.server.payment.service.PaymentService;
 import com.moahome.server.property.repo.PropertyRegistrationLock;
 import com.moahome.server.property.service.ManagementAccessService;
 import com.moahome.server.property.service.PropertyRegistrationService;
+import com.moahome.server.property.service.RegistrationBankImportService;
 import com.moahome.server.property.service.UnitManagementService;
 import com.moahome.server.property.support.RegistrationTestKeys;
 import com.moahome.server.resident.service.ResidentExportService;
@@ -102,6 +103,9 @@ class OpenApiIntegrationTest {
 
 	@MockitoBean
 	private ExpenseService expenses;
+
+	@MockitoBean
+	private RegistrationBankImportService registrationBankImports;
 
 	@MockitoBean
 	private CumulativePaymentService cumulativePayments;
@@ -232,12 +236,16 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(
 		    mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(102);
+		assertThat(document.path("paths").properties()).hasSize(104);
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/dashboard")
 			.at("/get/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.at("/paths/~1api~1properties~1{propertyId}~1banking~1balances~1initial-billing-impact/get").isMissingNode()).isFalse();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/residents/{residentId}/representative")
 		    .at("/put/security/0/bearerAuth").isArray()).isTrue();
+		assertThat(document.path("paths").path("/api/property-registrations/bank-import/support")
+		    .at("/get/security/0/bearerAuth").isArray()).isTrue();
+		assertThat(document.path("paths").path("/api/property-registrations/bank-import/preview")
+		    .at("/post/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/members/me/leave")
 		    .at("/post/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/membership-requests/unlinked-residents")

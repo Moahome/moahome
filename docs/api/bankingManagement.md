@@ -269,6 +269,13 @@ checks는 실제 확인시점·기록시점 내림차순의 전체 이력이며 
 
 후속 저장 책임은 [ERD](../domain/erd.md#후속-저장-설계-지출-취소은행-연결), 업무 판단은 [도메인 규칙](../domain/domainRules.md)을 따릅니다.
 
+
+### 초기 등록의 입출금과 동 없는 지출 (2026-10-31)
+
+초기 등록 전의 파일 지원·미리보기·최종 선택 저장은 [등록 API](propertyRegistrationApi.md#초기-입출금-등록-2026-10-31)를 따릅니다. 운영 업로드의 기준일 이전 차단을 이 경로 때문에 제거하지 않습니다. 초기 저장한 기준일까지 입금은 내부 OPENING 상태로 실제 원본·용도를 보존하며 통장 거래 목록에는 확정 이력으로 표시합니다. 이 상태를 일반 확정·취소·충당 대상으로 임의 전환하지 않습니다.
+
+동 구분 없는 관리대상의 지출은 기존 expense·manual expense 요청의 mode=PROPERTY와 allocations=[]를 허용합니다. 실제 동이 있는 대상의 PROPERTY 또는 PROPERTY에 배분 행을 붙인 요청은 거부합니다. 다른 mode에는 기존 실제 부담처와 합계 검증을 유지합니다. 지출 전액을 expenses.total_amount에 보관하고 가상 동·외부 부담금으로 만들지 않습니다. Client는 등록·상세에서 동별 배분을 숨기며 일반 입금 배분에는 PROPERTY를 허용하지 않습니다.
+
 ## 초기 기준 정정 기한과 감사 이력 (2026-11-01)
 
 동별 `/banking/balances/openings/corrections`와 독립 통장 `/account-openings` 요청에 필수 `reason`(공백 제외 1~500자)을 추가합니다. 기대 버전·전후 값·요청 ID의 기존 충돌 계약을 유지하며 성공한 동일 요청은 기한 후에도 중복 적용하지 않습니다. 최초 동별 기준값 추가도 기한 종료 뒤에는 거부합니다. 잔고 Workspace는 `correctionDeadline:date|null`, `initialCorrectionAllowed:boolean`을 반환합니다. 기한은 [초기 기준 정책](../domain/domainRules.md#초기-기준일시작-금액-정정-기한-2026-11-01)을 따르며 종료 요청은 409 `INITIAL_BALANCE_LOCKED`입니다. 공통 정정 이력은 [인계 조회](billingApi.md#초기-기준-정정-2026-11-01)의 corrections로 조회합니다. 은행 잔액 직접 확인 API는 이 기한의 적용 대상이 아닙니다.

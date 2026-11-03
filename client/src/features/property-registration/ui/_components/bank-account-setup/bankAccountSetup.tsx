@@ -4,6 +4,7 @@ import { BankIcon } from '@/entities/banking';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { ServiceIcon } from '@/shared/ui/service-icon';
+import { Toast } from '@/shared/ui/toast';
 import {
   useEffect,
   useRef,
@@ -16,6 +17,7 @@ import {
 } from '../../../model/bankAccount';
 import type { RegistrationAccount } from '../../../model/bankAccountTypes';
 import { getCashOpeningError } from '../../../model/openingBalances';
+import { getRegistrationHistoryError } from '../../../model/registrationBank';
 import type { OpeningBalancesDraft } from '../../../model/openingBalancesTypes';
 import type {
   BuildingDraft,
@@ -31,14 +33,18 @@ import { RegistrationAccountDialog } from './registrationAccountDialog';
 export function BankAccountSetup({
   propertyName,
   openingBalances,
-  units: _units,
+  units,
   buildings,
   onOpeningChange,
   accounts,
   onChange,
   onPrevious,
   onNext,
+  onOpenTransaction,
+  selectedAccountId,
 }: {
+  onOpenTransaction?: (accountId: string, direction: 'INCOME' | 'EXPENSE', transactionId?: string) => void;
+  selectedAccountId?: string;
   propertyName: string;
   openingBalances: OpeningBalancesDraft;
   units: UnitDraft[];
@@ -50,10 +56,31 @@ export function BankAccountSetup({
   onNext: () => void;
 }) {
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const rootRef = useRef<HTMLElement>(null);
+  const [attempted, setAttempted] = useState(false);
+  const [notice, setNotice] = useState<{ id: number; message: string } | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
   const [editing, setEditing] = useState<{ account: RegistrationAccount; isNew: boolean } | null>(null);
   const accountError = getRegistrationAccountsError(accounts);
-  const openingError = getCashOpeningError(openingBalances, buildings, accounts);
+  const openingError = getRegistrationHistoryError(openingBalances, accounts, units, buildings) || getCashOpeningError(openingBalances, buildings, accounts);
   const isValid = !accountError && !openingError;
+
+  /** 다음을 누른 시점에 누락을 안내하며 통장 편집창을 임의로 열지 않습니다. */
+  function locateMissing() {
+    setAttempted(true);
+    setNotice((previous) => ({
+      id: (previous?.id ?? 0) + 1,
+      message: accountError || openingError
+    }));
+    requestAnimationFrame(() => {
+      const input = rootRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+      input?.focus();
+      input?.scrollIntoView({
+        block: 'center',
+        behavior: 'smooth'
+      });
+    });
+  }
 
   useEffect(() => {
     headingRef.current?.focus({
@@ -98,7 +125,10 @@ export function BankAccountSetup({
   /** 유효한 계좌 입력을 유지하며 관리비 항목 설정으로 이동하고 업무 데이터는 저장하지 않습니다. */
   function continueSetup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!isValid) return;
+    // 포털로 표시한 입출금 모달의 제출은 React 부모 폼의 단계 이동으로 처리하지 않습니다.
+    if (event.target !== event.currentTarget) return;
+    if (importBusy) return;
+    if (!isValid) { locateMissing(); return; }
 
     onNext();
   }
@@ -106,6 +136,7 @@ export function BankAccountSetup({
   return (
     <main
       className={styles.page}
+      ref={rootRef}
     >
       <div
         className={styles['mobile-navigation']}
@@ -251,18 +282,26 @@ export function BankAccountSetup({
                     <span
                       className={styles['account-details']}
                     >
-                      {account.alias && <span>
-                        {account.alias}
-                      </span>}
-                      {account.accountNumber && <span>
-                        {account.accountNumber}
-                      </span>}
-                      {account.holderName && <span>
-                        {`예금주 ${account.holderName}`}
-                      </span>}
-                      {!account.bankCode && <span>
-                        은행과 계좌 정보를 등록해주세요.
-                      </span>}
+                      {account.alias && (
+                        <span>
+                          {account.alias}
+                        </span>
+                      )}
+                      {account.accountNumber && (
+                        <span>
+                          {account.accountNumber}
+                        </span>
+                      )}
+                      {account.holderName && (
+                        <span>
+                          {`예금주 ${account.holderName}`}
+                        </span>
+                      )}
+                      {!account.bankCode && (
+                        <span>
+                          은행과 계좌 정보를 등록해주세요.
+                        </span>
+                      )}
                     </span>
                     {account.openingAmount !== '' && (
                       <span
@@ -306,7 +345,7 @@ export function BankAccountSetup({
             <ServiceIcon
               name={'info'}
             />
-            통장은 여러 개 등록할 수 있으며, 여러 동이 공동으로 사용할 수 있습니다.
+            {buildings.length > 0 ? '통장은 여러 개 등록할 수 있으며, 여러 동이 공동으로 사용할 수 있습니다.' : '통장은 여러 개 등록할 수 있습니다.'}
           </p>
           <RegistrationCashSetup
             accounts={accounts}
@@ -314,14 +353,12 @@ export function BankAccountSetup({
             buildings={buildings}
             onAccountsChange={onChange}
             onOpeningChange={onOpeningChange}
+            showErrors={attempted}
+            units={units}
+            onBusyChange={setImportBusy}
+            onOpenTransaction={onOpenTransaction}
+            initialAccountId={selectedAccountId}
           />
-          {openingError && (
-            <p
-              className={styles['opening-hint']}
-            >
-              {openingError}
-            </p>
-          )}
           <div
             className={styles.actions}
           >
@@ -333,7 +370,7 @@ export function BankAccountSetup({
             </Button>
             <Button
               type={'submit'}
-              disabled={!isValid}
+              disabled={importBusy}
               trailingIcon={(
                 <ServiceIcon
                   name={'chevron'}
@@ -352,6 +389,14 @@ export function BankAccountSetup({
           accounts={accounts}
           onSave={saveAccount}
           onClose={() => setEditing(null)}
+        />
+      )}
+      {notice && (
+        <Toast
+          key={notice.id}
+          message={notice.message}
+          tone={'error'}
+          onClose={() => setNotice(null)}
         />
       )}
     </main>

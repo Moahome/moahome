@@ -18,7 +18,7 @@ export interface PreviewAllocation {
 export interface PreviewPayment {
   id: string;
   source: 'MANUAL' | 'BANK_IMPORT';
-  status: 'PENDING' | 'ON_HOLD' | 'CONFIRMED' | 'CANCELED' | 'LINKED';
+  status: 'PENDING' | 'ON_HOLD' | 'CONFIRMED' | 'CANCELED' | 'LINKED' | 'OPENING';
   accountId: string;
   date: string;
   payer: string;

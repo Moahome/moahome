@@ -1,0 +1,91 @@
+.section {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+
+  input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+  }
+}
+.file-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+
+  strong {
+    overflow-wrap: anywhere;
+  }
+}
+.filters {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.selection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.modal-header,
+.modal-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  background: var(--card);
+}
+.modal-header {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  h2 {
+    font-size: 22px;
+  }
+}
+.modal-body {
+  display: grid;
+  gap: 24px;
+  padding: 24px;
+  overflow-y: auto;
+}
+.modal-actions {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+}
+.transfer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+@media (max-width: 640px) {
+  .filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .file-info {
+    align-items: flex-start;
+  }
+  .modal-body {
+    padding: 20px 16px;
+  }
+}
+
+.editor-modal {
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--foreground);
+
+  &[open] {
+    display: flex;
+    flex-direction: column;
+  }
+}

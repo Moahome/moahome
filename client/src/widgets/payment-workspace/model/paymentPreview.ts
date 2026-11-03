@@ -11,7 +11,7 @@ import type {
 
 /** 최근 입금과 전체 내역에 같은 세대·확정 상태·조회월 말 기준을 적용하며 취소·미확정 입금은 제외합니다. */
 export function getConfirmedUnitReceipts(ledger: PreviewLedger, unitId: string, month: string): PreviewPayment[] {
-  return ledger.payments.filter((payment) => payment.unitId === unitId && payment.status === 'CONFIRMED' && payment.date <= getPreviewDueDate(month))
+  return ledger.payments.filter((payment) => payment.unitId === unitId && ['CONFIRMED', 'OPENING'].includes(payment.status) && payment.date <= getPreviewDueDate(month))
     .sort((left, right) => right.date.localeCompare(left.date));
 }
 
@@ -148,7 +148,7 @@ export function getMonthlyPreviewIncome(ledger: PreviewLedger, month: string) {
   getPreviewDueDate(month);
   let household = BigInt(0), other = BigInt(0), otherCount = 0;
   for (const payment of ledger.payments) {
-    if (payment.status !== 'CONFIRMED' || !payment.date.startsWith(month) || payment.date > ledger.asOf) continue;
+    if (!['CONFIRMED', 'OPENING'].includes(payment.status) || !payment.date.startsWith(month) || payment.date > ledger.asOf) continue;
     if (payment.receiptType === 'OTHER') {
       other += BigInt(payment.amount);otherCount++;
     } else household += BigInt(payment.amount);
