@@ -73,12 +73,16 @@
   }
 
   .tooltip {
+    --tooltip-width: min(250px, 85%);
+
     position: absolute;
     z-index: 2;
     top: 38px;
+    /* 툴팁 실제 너비의 절반만큼 중심 좌표를 제한해 첫·마지막 막대에서도 그래프 안에 표시합니다. */
+    left: clamp(calc(var(--tooltip-width) / 2), var(--tooltip-anchor, 50%), calc(100% - var(--tooltip-width) / 2));
     display: grid;
     gap: 8px;
-    width: min(250px, 85%);
+    width: var(--tooltip-width);
     padding: 14px;
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -95,12 +99,14 @@
 
     span {
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       gap: 12px;
       color: var(--sub-text);
     }
 
     b {
+      margin-left: auto;
       color: var(--foreground);
       font-weight: 650;
       white-space: nowrap;

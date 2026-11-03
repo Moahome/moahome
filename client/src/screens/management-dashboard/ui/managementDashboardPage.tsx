@@ -185,7 +185,6 @@ export function ManagementDashboardPage({ propertyId }: { propertyId: string }) 
                 value: report.billed,
                 icon: 'receipt',
                 tone: 'primary',
-                description: `${month} 신규 부과 기준`,
                 help: '선택 월의 신규 청구액입니다. 기존 미수 인계와 전월 이월을 포함하지 않습니다. 0원·음수 청구의 정산은 별도 확인이 필요합니다.'
               },
               {
@@ -193,7 +192,6 @@ export function ManagementDashboardPage({ propertyId }: { propertyId: string }) 
                 value: report.applied,
                 icon: 'check',
                 tone: 'success',
-                description: '선택 월 청구에 반영된 납부액',
                 help: '선택 월 신규 청구에 충당한 납부액입니다. 이전 선입금에서 충당한 금액도 포함하며 실제 신규 입금액과 구분합니다.'
               },
               {
@@ -201,7 +199,6 @@ export function ManagementDashboardPage({ propertyId }: { propertyId: string }) 
                 value: report.receivable,
                 icon: 'alert',
                 tone: 'danger',
-                description: '선택 월 청구 중 남은 미납액',
                 help: '선택 월 신규 청구에서 아직 충당하지 못한 금액입니다. 과거 미납은 이월 원장에서 확인하며 미정 청구가 있으면 확인 필요로 표시합니다.'
               },
               {
@@ -209,7 +206,6 @@ export function ManagementDashboardPage({ propertyId }: { propertyId: string }) 
                 value: report.expense,
                 icon: 'wallet',
                 tone: 'teal',
-                description: `확정 지출 ${report.expenseCount}건 · 내부 이체 제외`,
                 help: '선택 월의 확정 지출 중 관리대상 부담액입니다. 외부 부담분과 내부 이체·미분류 출금은 제외하며 동 구분 없는 지출은 전액을 포함합니다.'
               }
             ] as const).map((item) => (
@@ -226,7 +222,6 @@ export function ManagementDashboardPage({ propertyId }: { propertyId: string }) 
                     name={item.icon}
                   />
                 )}
-                description={item.description}
                 help={(
                   <InfoTooltip
                     size={'sm'}

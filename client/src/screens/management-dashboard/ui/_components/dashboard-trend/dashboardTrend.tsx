@@ -2,7 +2,8 @@
 
 import {
   useId,
-  useState
+  useState,
+  type CSSProperties
 } from 'react';
 import { formatWon } from '@/shared/lib/format';
 import { getChartRatio } from '../../../model/dashboard';
@@ -124,8 +125,8 @@ export function DashboardTrend({ trend, href }: { trend: DashboardReport['trend'
             role={'tooltip'}
             className={styles.tooltip}
             style={{
-              left: `${Math.max(23, Math.min(77, (active.index + 0.5) * 100 / trend.length))}%`
-            }}
+              '--tooltip-anchor': `${(active.index + 0.5) * 100 / trend.length}%`
+            } as CSSProperties}
           >
             <strong>
               {selected.month.replace('-', '년 ')}

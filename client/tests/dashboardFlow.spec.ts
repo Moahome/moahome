@@ -19,7 +19,7 @@ async function mockDashboard(page: Page, state = {
   failure: false,
   wrongProperty: false,
   empty: false
-}) {
+}, createFixture = dashboardFixture) {
   await mockSettlement(page);
   await page.route('http://localhost:8080/api/properties/*/banking/account/*', (route) => route.fulfill({
     headers: {
@@ -56,7 +56,7 @@ async function mockDashboard(page: Page, state = {
     expect(route.request().headers().authorization).toBe('Bearer test-access');
     const month = new URL(route.request().url()).searchParams.get('month') ?? '2026-10';
     requests.push(month);
-    const data = state.empty ? emptyDashboardFixture(SETTLEMENT_PROPERTY, month) : dashboardFixture(month);
+    const data = state.empty ? emptyDashboardFixture(SETTLEMENT_PROPERTY, month) : createFixture(month);
     if (state.wrongProperty) data.propertyId = settlementId(999);
     return route.fulfill({
       status: state.failure ? 503 : 200,
@@ -252,6 +252,86 @@ test('그래프 호버·키보드 초점은 선택한 막대 하나의 금액만
   await bar.focus();
   await bar.press('Escape');
   await expect(tooltip).toHaveCount(0);
+});
+
+test.describe('대시보드 모바일 반응형', () => {
+  test.use({
+    hasTouch: true
+  });
+
+  test('그래프 양 끝 툴팁은 잘리지 않고 425px부터 요약 카드를 두 열로 표시', async ({ page }, testInfo) => {
+    await mockDashboard(page, undefined, (month) => {
+      const data = dashboardFixture(month);
+      data.payments.charges.find((charge) => charge.month === data.month)!.amount = '1000000';
+
+      return data;
+    });
+    await page.goto(`${BASE}?month=2026-10`);
+    const graph = page.getByRole('figure');
+    const tooltip = page.getByRole('tooltip');
+    const bars = graph.locator('rect');
+    const cards = page.getByRole('article');
+    await expect(cards).toHaveCount(4);
+
+    for (const width of [320, 390, 424, 425, 600, 768]) {
+      await page.setViewportSize({
+        width,
+        height: 1000
+      });
+      const bounds = await cards.evaluateAll((elements) => elements.map((element) => {
+        const box = element.getBoundingClientRect();
+
+        return {
+          x: box.x,
+          y: box.y,
+          bottom: box.bottom
+        };
+      }));
+      if (width < 425) expect(bounds[1].y).toBeGreaterThanOrEqual(bounds[0].bottom);
+      else {
+        expect(Math.abs(bounds[0].y - bounds[1].y)).toBeLessThan(1);
+        expect(Math.abs(bounds[2].y - bounds[3].y)).toBeLessThan(1);
+        expect(Math.abs(bounds[0].x - bounds[2].x)).toBeLessThan(1);
+        expect(bounds[2].y).toBeGreaterThanOrEqual(bounds[0].bottom);
+      }
+      for (const bar of [bars.first(), bars.nth(10), bars.nth(11)]) {
+        await bar.focus();
+        await expect(tooltip).toBeVisible();
+        const graphBox = (await graph.boundingBox())!;
+        const tooltipBox = (await tooltip.boundingBox())!;
+        const amountBox = (await tooltip.locator('b').boundingBox())!;
+        expect(tooltipBox.x).toBeGreaterThanOrEqual(graphBox.x - 1);
+        expect(tooltipBox.x + tooltipBox.width).toBeLessThanOrEqual(graphBox.x + graphBox.width + 1);
+        expect(amountBox.x + amountBox.width).toBeLessThanOrEqual(tooltipBox.x + tooltipBox.width);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+    await page.setViewportSize({
+      width: 425,
+      height: 1000
+    });
+    await bars.nth(10).tap();
+    await expect(tooltip).toContainText('1,000,000원');
+    await page.screenshot({
+      path: testInfo.outputPath('dashboard425Grid.png'),
+      fullPage: true
+    });
+    await page.setViewportSize({
+      width: 320,
+      height: 1000
+    });
+    const resized = (await tooltip.boundingBox())!;
+    expect(resized.x).toBeGreaterThanOrEqual(0);
+    expect(resized.x + resized.width).toBeLessThanOrEqual(320);
+    await bars.nth(11).tap();
+    await expect(tooltip).toContainText('납부반영액');
+    await page.screenshot({
+      path: testInfo.outputPath('dashboard320Tooltip.png'),
+      fullPage: true
+    });
+    await bars.nth(11).press('Escape');
+    await expect(tooltip).toHaveCount(0);
+  });
 });
 
 test('0건 업무도 클릭할 수 있고 중복 의심은 후보가 없는 목록으로 연결하며 가상 연도를 표시하지 않음', async ({ page }) => {
