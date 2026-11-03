@@ -30,6 +30,7 @@
 
 ## 운영·배포
 
+- [운영 배포 순서·Migration 점검·장애 대응 규칙](operations/deploymentRules.md)
 - [배포 계획과 진행 상태](operations/deploymentPlan.md)
 - [서버 이관 계획](operations/ec2MigrationPlan.md)
 - [Server 배포 실행·검증](../server/docs/deploymentGuide.md)

@@ -125,6 +125,8 @@ Redis는 단순 캐시가 아니라 로그인 세션·OAuth 임시 상태·초�
 
 ## 6. GitHub Actions와 배포 흐름
 
+최초·후속 배포의 실행 순서와 Migration 사전 점검·장애 대응은 [운영 배포 규칙](deploymentRules.md)을 따릅니다. 양쪽 변경은 백엔드 정상 확인 후 프론트엔드를 공개하며, 아래 워크플로가 이 순서를 자동으로 보장하는 것은 아닙니다.
+
 초기 구현안은 **PR 자동 검증 → main 병합 후 이미지 게시 → 운영자가 서버에서 배포**입니다. SSH를 운영자 IP로 제한한 상태를 유지합니다. 이 단계는 자동 CI·이미지 게시와 수동 운영 배포로 구분하며, 서버 배포까지 자동화됐다고 기록하지 않습니다.
 
 | 시점 | 수행할 작업 |
@@ -132,8 +134,8 @@ Redis는 단순 캐시가 아니라 로그인 세션·OAuth 임시 상태·초�
 | Client PR | ESLint·TypeScript·빌드와 관련 테스트 |
 | Server PR | JDK 21·PostgreSQL 17 이상·Redis 실행 환경 준비 후 Gradle 테스트·빌드 |
 | main 병합 | 검증 통과 후 변경 영역의 배포 산출물 생성. Server 이미지는 GHCR에 커밋 SHA 태그로 게시 |
-| 프론트 배포 | Vercel 운영 환경변수로 빌드·배포. GitHub Actions의 Vercel CLI 배포와 Vercel Git 자동 배포의 중복 실행 방지 |
-| API 배포 | 운영자가 제한된 SSH로 접속해 게시된 이미지 태그·배포 설정 확인 후 API 교체 |
+| API 배포·검증 | 운영자가 제한된 SSH로 접속해 DB 이력·선행 Migration·이미지·배포 설정을 점검한 뒤 API 교체. 기존 프론트 동작까지 확인 |
+| 프론트 배포 | API 검증 후 Vercel 운영 환경변수로 빌드·배포. GitHub Actions의 Vercel CLI 배포와 Vercel Git 자동 배포의 중복 실행 방지 |
 | 배포 확인 | 내부 준비 상태·외부 HTTPS·로그인·관련 업무 동작 확인 |
 
 현재 Server 통합 테스트는 컨테이너 서비스 대신 `redis-server`, `initdb`, `postgres`, `pg_ctl` 프로세스를 직접 실행합니다. 러너에 바이너리와 PATH 또는 지원하는 실행 경로 환경변수를 준비하고, 테스트 전용 설정도 새 체크아웃에서 사용할 수 있게 구성합니다. 개발·운영 DB와 비밀값은 재사용하지 않습니다. 세부 검증 기준은 [Server 규칙](../../server/AGENTS.md#16-test--build), [Client 규칙](../../client/AGENTS.md#9-test--build)을 따릅니다.
@@ -144,7 +146,7 @@ Redis는 단순 캐시가 아니라 로그인 세션·OAuth 임시 상태·초�
 
 컨테이너 실행과 API 준비 완료를 구분합니다. Redis healthcheck와 준비 대기, Actuator의 최소 Health 응답을 작성했습니다. 운영 readiness는 DB·Redis·앱 준비 상태를 확인하고 공개 응답에는 상세 정보를 포함하지 않습니다. 로컬 검증과 실제 운영 연동의 구분은 [Server 배포 가이드](../../server/docs/deploymentGuide.md)를 따릅니다. 루트 경로의 401이나 `compose up -d` 성공만으로 배포를 완료 처리하지 않습니다.
 
-Client 워크플로는 `.github/workflows/clientCi.yml`입니다. 기본 검사와 브라우저 테스트는 외부 배포 자격 증명 없이 실행합니다. 구현된 CI 배포 경로를 사용할 때는 Vercel 프로젝트의 Root Directory를 `client`로 지정하고 Git 자동 배포를 끈 뒤, GitHub Repository Variables에 `VERCEL_DEPLOY_ENABLED=true`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `production` Environment Secret에 `VERCEL_TOKEN`을 설정합니다. 그러면 main 검증 후 Vercel CLI로 배포합니다. production 환경의 공개 URL도 Vercel에 등록합니다. 배포 명령은 저장소 루트에서 실행하며 새 운영 환경변수로 다시 빌드합니다. 이 연결 전에는 Client CI만 수행합니다.
+Client 워크플로는 `.github/workflows/clientCi.yml`입니다. 기본 검사와 브라우저 테스트는 외부 배포 자격 증명 없이 실행합니다. 구현된 CI 배포 경로를 사용할 때는 Vercel 프로젝트의 Root Directory를 `client`로 지정하고 Git 자동 배포를 끈 뒤, GitHub Repository Variables에 `VERCEL_DEPLOY_ENABLED=true`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `production` Environment Secret에 `VERCEL_TOKEN`을 설정합니다. 그러면 main 검증 후 Vercel CLI로 배포합니다. Server CI나 운영 API 검증을 기다리는 의존 관계는 없으므로 [변경 분리·공개 보류 절차](deploymentRules.md#2-현재-배포-경로에서-순서-지키기)를 먼저 확인합니다. production 환경의 공개 URL도 Vercel에 등록합니다. 배포 명령은 저장소 루트에서 실행하며 새 운영 환경변수로 다시 빌드합니다. 이 연결 전에는 Client CI만 수행합니다.
 
 2026-10-31 최초 프론트 배포는 Vercel 화면에서 `Moahome/moahome`의 `main`·`client`를 Import하는 방식으로 수행했습니다. 위 GitHub Actions 배포 경로의 활성화와 Vercel Git 자동 배포 설정은 별도로 확인하지 않았습니다. 최초 배포 성공을 CI 검증 후에만 운영 배포되는 연결까지 확인한 것으로 기록하지 않으며, 후속 배포 전에 두 경로의 중복 실행 여부를 확인합니다.
 

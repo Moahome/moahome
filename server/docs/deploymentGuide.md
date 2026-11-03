@@ -122,7 +122,9 @@ sudo journalctl -u moahomeCertbot.service --no-pager -n 30
 
 ## 6. API 배포와 복구
 
-HTTPS 준비와 DB 설정을 마친 뒤 전체 이미지 참조를 지정합니다.
+[운영 배포 규칙](../../docs/operations/deploymentRules.md)의 전체 DB 이력·선행 Migration·후보 이미지 대조와 백업·호환성 검증을 먼저 수행합니다. 이 스크립트는 배포 전에 해당 점검이나 RDS 스냅샷을 자동 실행하지 않습니다. 양쪽 변경은 백엔드 배포·검증 후 프론트엔드를 공개하며, 과거 버전 누락은 [순서 오류 복구 절차](../../docs/operations/deploymentRules.md#6-과거-migration-누락과-배포-실패-대응)를 따릅니다.
+
+HTTPS 준비와 DB 설정, 위 사전 점검을 마친 뒤 전체 이미지 참조를 지정합니다.
 
 ```bash
 cd /opt/moahome
