@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.banking.repo.BankAccountRepository;
+import com.moahome.server.banking.domain.BankAccount;
 import com.moahome.server.banking.repo.BankTransactionRepository;
 import com.moahome.server.expense.repo.ExpenseRepository;
 import com.moahome.server.billing.domain.*;
@@ -138,7 +139,7 @@ public class OpeningBalanceService {
 		    }).sorted(Comparator.comparing(element -> element.label())).toList();
 		List<OpeningBalanceResponse.Account> accountRows = accounts.findByPropertyIdAndDeletedAtIsNull(propertyId)
 		    .stream()
-		    .map(a -> new OpeningBalanceResponse.Account(a.getId(), a.getBankName() + " ····" + a.getAccountLast4(),
+		    .map(a -> new OpeningBalanceResponse.Account(a.getId(), bankAccountLabel(a),
 		        banks.containsKey(a.getId()) ? banks.get(a.getId()).getAmount().toPlainString() : "0", a.getBankCode(), banks.containsKey(a.getId())))
 		    .toList();
 		return new OpeningBalanceResponse(propertyId, LocalDate.now(clock.withZone(BillingCalendar.ZONE)),
@@ -342,7 +343,7 @@ public class OpeningBalanceService {
 		if (!amounts.keySet().equals(saved.stream().map(BankOpeningBalance::getBankAccountId).collect(Collectors.toSet())))
 			throw new PaymentException("OPENING_TARGETS_CHANGED");
 		Map<UUID, String> labels = accounts.findByPropertyIdAndDeletedAtIsNull(propertyId).stream()
-		    .collect(Collectors.toMap(a -> a.getId(), a -> a.getBankName() + " ····" + a.getAccountLast4()));
+		    .collect(Collectors.toMap(a -> a.getId(), a -> bankAccountLabel(a)));
 		List<InitialBalanceCorrection.Detail> details = new ArrayList<>(saved.stream().map(row ->
 		    new InitialBalanceCorrection.Detail(row.getBankAccountId(), labels.getOrDefault(row.getBankAccountId(), "인계 통장"),
 		        row.getCutoffDate(), cutoff, row.getAmount().toPlainString(), amounts.get(row.getBankAccountId()))).toList());
@@ -364,6 +365,13 @@ public class OpeningBalanceService {
 		properties.flush();
 		charges.flush();
 		return response(propertyId);
+	}
+
+	/** 초기 잔액 조회와 정정 이력에도 통장 이름을 우선하고 이름이 없으면 은행·끝 네 자리만 표시합니다. */
+	private String bankAccountLabel(BankAccount account) {
+		if (account.getAlias() != null)
+			return account.getAlias();
+		return account.getBankName() + " " + account.getAccountLast4();
 	}
 
 	private boolean crosses(LocalDate date, LocalDate previous, LocalDate next) {
