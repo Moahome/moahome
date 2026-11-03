@@ -1,5 +1,8 @@
 package com.moahome.server.auth.security;
 
+import jakarta.persistence.EntityManager;
+import com.moahome.server.systemadmin.service.SystemAdminService;
+import com.moahome.server.systemadmin.repo.SystemAdminRequestLock;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
@@ -147,6 +150,15 @@ class SecurityIntegrationTest {
 
 	@MockitoSpyBean
 	private RedisAuthSessionRepository sessions;
+
+	@MockitoBean
+	private EntityManager entityManager;
+
+	@MockitoBean
+	private SystemAdminService systemAdmin;
+
+	@MockitoBean
+	private SystemAdminRequestLock systemAdminRequestLock;
 
 	@MockitoBean
 	private ResidentInvitationService residentInvitations;
@@ -418,7 +430,7 @@ class SecurityIntegrationTest {
 		    .andExpect(jsonPath("displayName").value("모아 주민"))
 		    .andExpect(jsonPath("profileImageUrl").value(Matchers.nullValue()))
 		    .andExpect(jsonPath("systemRole").value("USER")).andExpect(jsonPath("status").value("ACTIVE"))
-		    .andExpect(jsonPath("$.length()").value(5));
+		    .andExpect(jsonPath("$.length()").value(6));
 		verify(users).getCurrentUser(userId);
 	}
 

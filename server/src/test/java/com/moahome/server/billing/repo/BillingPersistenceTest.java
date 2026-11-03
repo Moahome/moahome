@@ -112,6 +112,7 @@ class BillingPersistenceTest {
 	void prepare() {
 		clock.set(Instant.parse("2026-10-10T00:00:00Z"));
 		userId = users.saveAndFlush(User.create("관리자", null)).getId();
+		jdbc.update("update users set property_creation_allowed=true where id=?", userId);
 		var request = RegistrationFixtures.withUnits(RegistrationFixtures.request(UUID.randomUUID(), true),
 		    List.of(new UnitInput("a", "201", "기존 별칭", 2, "ACTIVE"), new UnitInput("a", "202", null, 2, "ACTIVE"),
 		        new UnitInput("b", "301", null, 3, "ACTIVE"), new UnitInput("b", "302", null, 3, "ACTIVE")));

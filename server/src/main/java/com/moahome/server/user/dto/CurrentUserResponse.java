@@ -10,5 +10,9 @@ import io.swagger.v3.oas.annotations.media.Schema;
 public record CurrentUserResponse(UUID id, @Schema(description = "로그인 계정의 닉네임", example = "모아 사용자") String displayName,
     @Schema(description = "선택적인 프로필 이미지 URL", nullable = true) String profileImageUrl,
     @Schema(description = "플랫폼 역할. 관리대상별 역할과 구분") SystemRole systemRole,
-    @Schema(description = "계정 상태. 정상 조회 응답은 ACTIVE") UserStatus status) {
+    @Schema(description = "계정 상태. 정상 조회 응답은 ACTIVE") UserStatus status,
+    @Schema(description = "관리대상 생성 권한. 시스템 관리자 역할과 별도로 부여") boolean canCreateProperty) {
+	public CurrentUserResponse(UUID id, String displayName, String profileImageUrl, SystemRole systemRole, UserStatus status) {
+		this(id, displayName, profileImageUrl, systemRole, status, false);
+	}
 }

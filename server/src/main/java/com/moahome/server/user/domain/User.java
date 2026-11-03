@@ -36,6 +36,9 @@ public class User {
 	@Column(name = "system_role", nullable = false, length = 20)
 	private SystemRole systemRole;
 
+	@Column(name = "property_creation_allowed", nullable = false)
+	private boolean propertyCreationAllowed;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 20)
 	private UserStatus status;
@@ -84,6 +87,18 @@ public class User {
 		if (lastLoginAt == null || at.isAfter(lastLoginAt)) {
 			lastLoginAt = at;
 		}
+	}
+
+	/** 생성 권한은 시스템 역할과 독립적이며 기존 관리대상의 참여 권한을 변경하지 않습니다. */
+	public void changePropertyCreationPermission(boolean allowed) {
+		requireActive();
+		propertyCreationAllowed = allowed;
+	}
+
+	/** 시스템 관리 권한만 부여하며 관리대상 생성 권한을 자동으로 열지 않습니다. */
+	public void promoteToSystemAdministrator() {
+		requireActive();
+		systemRole = SystemRole.ADMIN;
 	}
 
 	public void suspend() {

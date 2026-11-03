@@ -10,6 +10,7 @@ public enum AuthErrorCode {
 	SESSION_EXPIRED(HttpStatus.UNAUTHORIZED, "로그인 세션이 만료되었습니다."),
 	REFRESH_TOKEN_REUSED(HttpStatus.UNAUTHORIZED, "인증 정보가 재사용되어 다시 로그인해야 합니다."),
 	ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."), ACCOUNT_UNAVAILABLE(HttpStatus.FORBIDDEN, "이용할 수 없는 계정입니다."),
+	PROPERTY_CREATION_NOT_ALLOWED(HttpStatus.FORBIDDEN, "관리대상 생성 권한이 필요합니다. 시스템 관리자에게 권한을 부여받아주세요."),
 	CSRF_INVALID(HttpStatus.FORBIDDEN, "요청 보안 검증에 실패했습니다."),
 	INVALID_REQUEST(HttpStatus.BAD_REQUEST, "요청 형식이 올바르지 않습니다."),
 	AUTH_SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "인증 서비스를 일시적으로 사용할 수 없습니다.");

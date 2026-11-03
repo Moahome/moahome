@@ -197,6 +197,7 @@ class PaymentPersistenceTest {
 	void prepare() {
 		clock.set(Instant.parse("2026-10-15T00:00:00Z"));
 		user = users.saveAndFlush(User.create("관리자", null)).getId();
+		jdbc.update("update users set property_creation_allowed=true where id=?", user);
 		var request = RegistrationFixtures.withUnits(RegistrationFixtures.request(UUID.randomUUID(), false),
 		    List.of(new UnitInput(null, "101", null, 1, "ACTIVE"), new UnitInput(null, "202", null, 2, "ACTIVE")));
 		property = registration.register(user, request).response().property().id();

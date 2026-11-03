@@ -30,7 +30,7 @@ import com.moahome.server.property.service.PropertyRegistrationService;
 @ApiResponses({
         @ApiResponse(responseCode = "400", description = "INVALID_REQUEST: 잘못된 입력 또는 요청 형식", content = @Content(mediaType = "application/json", schema = @Schema(implementation = RegistrationExceptionHandler.ErrorResponse.class))),
         @ApiResponse(responseCode = "401", description = "인증 없음, 유효하지 않거나 만료된 토큰 / 세션", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
-        @ApiResponse(responseCode = "403", description = "ACCOUNT_UNAVAILABLE / ACCESS_DENIED", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
+        @ApiResponse(responseCode = "403", description = "ACCOUNT_UNAVAILABLE / ACCESS_DENIED / PROPERTY_CREATION_NOT_ALLOWED", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
         @ApiResponse(responseCode = "500", description = "INTERNAL_SERVER_ERROR", content = @Content(mediaType = "application/json", schema = @Schema(implementation = RegistrationExceptionHandler.ErrorResponse.class))),
         @ApiResponse(responseCode = "503", description = "AUTH_SERVICE_UNAVAILABLE / REGISTRATION_SERVICE_UNAVAILABLE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = RegistrationExceptionHandler.ErrorResponse.class))) })
 public class PropertyRegistrationController {

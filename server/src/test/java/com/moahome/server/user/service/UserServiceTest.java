@@ -1,5 +1,6 @@
 package com.moahome.server.user.service;
 
+import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,7 +22,7 @@ import static org.mockito.Mockito.when;
 class UserServiceTest {
 	private final UserRepository users = mock(UserRepository.class);
 
-	private final UserService service = new UserService(users, Clock.systemUTC());
+	private final UserService service = new UserService(users, Clock.systemUTC(), mock(EntityManager.class));
 
 	@Test
 	void returnsLatestActiveAccountProfileAndSystemRole() {

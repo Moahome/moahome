@@ -61,14 +61,14 @@ public class RegistrationBankImportService {
 	}
 
 	public BankingResponse.ImportSupport support(UUID actor, String bankCode) {
-		users.requireActive(actor);
+		users.requirePropertyCreation(actor);
 		return BankImportFormat.support(bankCode);
 	}
 
 	/** 존재하지 않는 관리대상의 원장을 만들지 않고 선택 은행의 파서와 거래 식별 규칙을 그대로 사용합니다. */
 	@Transactional(readOnly = true)
 	public Preview preview(UUID actor, String bankCode, MultipartFile file) {
-		users.requireActive(actor);
+		users.requirePropertyCreation(actor);
 		List<BankTransactionReader.Row> source = reader.readAll(file, bankCode);
 		List<Row> rows = new ArrayList<>();
 		Set<String> seen = new HashSet<>();

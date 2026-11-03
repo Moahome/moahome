@@ -45,6 +45,10 @@ import com.moahome.server.property.exception.*;
 import com.moahome.server.property.service.*;
 import com.moahome.server.property.support.*;
 import com.moahome.server.resident.repo.ResidentRepository;
+import com.moahome.server.systemadmin.service.SystemAdminService;
+import com.moahome.server.systemadmin.repo.SystemAdminRequestLock;
+import com.moahome.server.systemadmin.dto.SystemAdminRequests;
+import com.moahome.server.systemadmin.exception.SystemAdminException;
 import com.moahome.server.user.domain.*;
 import com.moahome.server.user.repo.UserRepository;
 import com.moahome.server.user.service.UserService;
@@ -58,19 +62,22 @@ import static org.assertj.core.api.Assertions.*;
 @Import({ CumulativePaymentService.class, PropertyRegistrationService.class,
         PropertyRegistrationLock.class, UserService.class, PropertyRegistrationPersistenceTest.TestBeans.class,
         BillingGenerationService.class,
-        BillingTemplates.class })
+        BillingTemplates.class, SystemAdminService.class, SystemAdminRequestLock.class })
 @ActiveProfiles("database-test")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class PropertyRegistrationPersistenceTest {
 	private static final PostgresTestServer POSTGRES = new PostgresTestServer();
 
-	private static final List<String> TABLES = List.of("unit_residents", "residents", "charge_items", "charges",
+	private static final List<String> TABLES = List.of("system_admin_events", "unit_residents", "residents", "charge_items", "charges",
 	    "billing_periods", "property_registration_results", "property_members", "fee_template_items", "fee_templates",
 	    "bank_accounts", "units", "buildings", "properties");
 
 	@Autowired
 	PropertyRegistrationService registrations;
+
+	@Autowired
+	SystemAdminService systemAdmin;
 
 	@Autowired
 	PropertyRegistrationLock lock;
@@ -118,6 +125,7 @@ class PropertyRegistrationPersistenceTest {
 	void prepare() {
 		clock.set(Instant.parse("2026-10-05T15:00:00Z"));
 		userId = users.saveAndFlush(User.create("등록자", null)).getId();
+		jdbc.update("update users set property_creation_allowed=true where id=?", userId);
 	}
 
 	@AfterEach
@@ -128,6 +136,107 @@ class PropertyRegistrationPersistenceTest {
 		}
 		jdbc.update("delete from social_accounts");
 		jdbc.update("delete from users");
+	}
+
+
+	/** 시스템 역할과 생성 허용을 분리하고 미허용 계정의 직접 API 호출에 부분 저장이 없는지 검사합니다. */
+	@Test
+	void creationPermissionIsRequiredEvenForSystemAdministrators() {
+		jdbc.update("update users set property_creation_allowed=false,system_role='ADMIN' where id=?", userId);
+		var request = RegistrationFixtures.request(UUID.randomUUID(), false);
+		assertThatThrownBy(() -> registrations.validateBasicInfo(userId, request.basicInfo()))
+		    .isInstanceOfSatisfying(AuthException.class, e -> assertThat(e.code()).isEqualTo(AuthErrorCode.PROPERTY_CREATION_NOT_ALLOWED));
+		assertThatThrownBy(() -> registrations.register(userId, request))
+		    .isInstanceOfSatisfying(AuthException.class, e -> assertThat(e.code()).isEqualTo(AuthErrorCode.PROPERTY_CREATION_NOT_ALLOWED));
+		assertThat(jdbc.queryForObject("select count(*) from properties", Integer.class)).isZero();
+		systemAdmin.changePermission(userId, userId, new SystemAdminRequests.Permission(UUID.randomUUID(), true, false));
+		assertThat(registrations.register(userId, request).created()).isTrue();
+	}
+
+	/** 일반 계정은 생성 권한을 가지고 있어도 관리자 회원 자료·승격 API에 접근하지 못합니다. */
+	@Test
+	void ordinaryCreatorCannotUseSystemAdministration() {
+		assertThatThrownBy(() -> systemAdmin.list(userId, "", false, 1, 20))
+		    .isInstanceOfSatisfying(AuthException.class, e -> assertThat(e.code()).isEqualTo(AuthErrorCode.ACCESS_DENIED));
+		assertThatThrownBy(() -> systemAdmin.promote(userId, userId, new SystemAdminRequests.Promotion(UUID.randomUUID())))
+		    .isInstanceOf(AuthException.class);
+		assertThat(jdbc.queryForObject("select count(*) from system_admin_events", Integer.class)).isZero();
+	}
+
+	/** 승격은 생성 허용을 열지 않고, 변경 UUID는 응답 유실에도 같은 변경을 두 번 적용하지 않습니다. */
+	@Test
+	void promotionPermissionAuditAndReplayRemainIndependent() {
+		jdbc.update("update users set system_role='ADMIN' where id=?", userId);
+		UUID target = users.saveAndFlush(User.create("별도 회원", null)).getId();
+		UUID promotionId = UUID.randomUUID();
+		assertThat(systemAdmin.promote(userId, target, new SystemAdminRequests.Promotion(promotionId)).canCreateProperty()).isFalse();
+		assertThat(systemAdmin.list(userId, "별도", true, 1, 20).users()).hasSize(1);
+		UUID requestId = UUID.randomUUID();
+		var allow = new SystemAdminRequests.Permission(requestId, true, false);
+		assertThat(systemAdmin.changePermission(userId, target, allow).canCreateProperty()).isTrue();
+		systemAdmin.changePermission(userId, target, new SystemAdminRequests.Permission(UUID.randomUUID(), false, true));
+		assertThat(systemAdmin.changePermission(userId, target, allow).canCreateProperty()).isFalse();
+		assertThat(jdbc.queryForObject("select count(*) from system_admin_events", Integer.class)).isEqualTo(3);
+		assertThatThrownBy(() -> systemAdmin.changePermission(userId, target, new SystemAdminRequests.Permission(requestId, false, false)))
+		    .isInstanceOf(SystemAdminException.class);
+		assertThatThrownBy(() -> systemAdmin.changePermission(userId, target, new SystemAdminRequests.Permission(UUID.randomUUID(), true, true)))
+		    .isInstanceOf(SystemAdminException.class);
+	}
+
+	/** 생성 허용 회수 후에도 완료한 동일 등록의 결과와 기존 ADMIN 참여는 복원할 수 있습니다. */
+	@Test
+	void revocationBlocksNewCreationButKeepsExistingResultAndMembership() {
+		jdbc.update("update users set system_role='ADMIN' where id=?", userId);
+		var request = RegistrationFixtures.request(UUID.randomUUID(), false);
+		UUID property = registrations.register(userId, request).response().property().id();
+		systemAdmin.changePermission(userId, userId, new SystemAdminRequests.Permission(UUID.randomUUID(), false, true));
+		assertThat(registrations.register(userId, request).created()).isFalse();
+		assertThat(registrations.register(userId, request).response().property().id()).isEqualTo(property);
+		assertThatThrownBy(() -> registrations.register(userId, RegistrationFixtures.request(UUID.randomUUID(), false)))
+		    .isInstanceOfSatisfying(AuthException.class, e -> assertThat(e.code()).isEqualTo(AuthErrorCode.PROPERTY_CREATION_NOT_ALLOWED));
+		assertThat(jdbc.queryForObject("select count(*) from property_members where user_id=? and status='ACTIVE'", Integer.class, userId)).isEqualTo(1);
+	}
+
+
+	/** 회수가 사용자 행 잠금을 가진 동안 시작한 등록도 커밋 뒤 최신 미허용 값을 확인해야 합니다. */
+	@Test
+	void creationWaitsForConcurrentRevocationAndLeavesNoPartialProperty() throws Exception {
+		jdbc.update("update users set system_role='ADMIN' where id=?", userId);
+		UUID target = users.saveAndFlush(User.create("경합 등록자", null)).getId();
+		jdbc.update("update users set property_creation_allowed=true where id=?", target);
+		CountDownLatch revoked = new CountDownLatch(1);
+		CountDownLatch release = new CountDownLatch(1);
+		CountDownLatch started = new CountDownLatch(1);
+		try (var executor = Executors.newFixedThreadPool(2)) {
+			var revocation = executor.submit(() -> new TransactionTemplate(transactions).execute(status -> {
+				systemAdmin.changePermission(userId, target, new SystemAdminRequests.Permission(UUID.randomUUID(), false, true));
+				revoked.countDown();
+				try {
+					if (!release.await(5, TimeUnit.SECONDS)) throw new IllegalStateException("revocation release timed out");
+				} catch (InterruptedException exception) {
+					Thread.currentThread().interrupt();
+					throw new IllegalStateException(exception);
+				}
+				return true;
+			}));
+			assertThat(revoked.await(5, TimeUnit.SECONDS)).isTrue();
+			var creation = executor.submit(() -> {
+				started.countDown();
+				try {
+					registrations.register(target, RegistrationFixtures.request(UUID.randomUUID(), false));
+					return "CREATED";
+				} catch (AuthException exception) {
+					return exception.code().name();
+				}
+			});
+			assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
+			release.countDown();
+			assertThat(revocation.get(10, TimeUnit.SECONDS)).isTrue();
+			assertThat(creation.get(10, TimeUnit.SECONDS)).isEqualTo("PROPERTY_CREATION_NOT_ALLOWED");
+		} finally {
+			release.countDown();
+		}
+		assertThat(jdbc.queryForObject("select count(*) from properties", Integer.class)).isZero();
 	}
 
 	@AfterAll
@@ -385,6 +494,7 @@ class PropertyRegistrationPersistenceTest {
 		var request = RegistrationFixtures.request(UUID.randomUUID(), false);
 		registrations.register(userId, request);
 		UUID other = users.saveAndFlush(User.create("다른 등록자", null)).getId();
+		jdbc.update("update users set property_creation_allowed=true where id=?", other);
 		assertCode(() -> registrations.getResult(other, request.requestId()),
 		    RegistrationErrorCode.REGISTRATION_NOT_FOUND);
 		assertThat(registrations.register(other, request).created()).isTrue();

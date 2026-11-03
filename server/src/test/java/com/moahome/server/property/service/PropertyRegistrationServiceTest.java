@@ -83,6 +83,8 @@ class PropertyRegistrationServiceTest {
 	@BeforeEach
 	void prepare() {
 		when(users.requireActive(user.getId())).thenReturn(user);
+		when(users.requirePropertyCreation(user.getId())).thenReturn(user);
+		when(users.requirePropertyCreationForUpdate(user.getId())).thenReturn(user);
 	}
 
 	@AfterEach

@@ -1,5 +1,8 @@
 package com.moahome.server;
 
+import jakarta.persistence.EntityManager;
+import com.moahome.server.systemadmin.service.SystemAdminService;
+import com.moahome.server.systemadmin.repo.SystemAdminRequestLock;
 import java.security.SecureRandom;
 import java.util.Base64;
 
@@ -46,6 +49,15 @@ import com.moahome.server.user.repo.UserRepository;
 @SpringBootTest(properties = "moahome.billing.scheduler-enabled=false")
 @ActiveProfiles("test")
 class ServerApplicationTests {
+	@MockitoBean
+	private EntityManager entityManager;
+
+	@MockitoBean
+	private SystemAdminService systemAdmin;
+
+	@MockitoBean
+	private SystemAdminRequestLock systemAdminRequestLock;
+
 	@MockitoBean
 	private ResidentInvitationService residentInvitations;
 

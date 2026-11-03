@@ -230,6 +230,7 @@ deleted_by
 | `display_name` | varchar(50) | N | 카카오 닉네임 등 표시명. 공백만 있는 값도 허용하지 않음 |
 | `profile_image_url` | varchar(500) | Y | 프로필 이미지 URL |
 | `system_role` | varchar(20) | N | 플랫폼 역할: `USER / ADMIN`. 기존 계정 / 일반 가입 기본값 `USER`. Entity / 후속 Migration에 구현 |
+| `property_creation_allowed` | boolean | N | 관리대상 생성 허용. 기존·신규 계정 기본 false, 시스템 역할과 독립 |
 | `status` | varchar(20) | N | `ACTIVE / SUSPENDED / WITHDRAWN` |
 | `last_login_at` | timestamptz | Y | 마지막 로그인 |
 | `created_at` | timestamptz | N | 생성시각 |
@@ -1874,3 +1875,10 @@ erDiagram
 `V20261101063843__align_bank_cutoff_and_billing_start.sql`은 `properties.initial_correction_deadline` date를 추가하고 기존 대상의 최초 첫 부과월 말일로 채웁니다. 신규 운영 시작 때 값을 확정하며 이후 변경은 DB 트리거로 금지합니다. 월중 마감이면 같은 달 부과를 허용하도록 Property·인계 배치의 날짜 CHECK을 월 단위로 확장합니다. 기존 금액·월별 청구·입출금·동별 날짜는 보정하지 않습니다.
 
 통장별 정정은 기존 독립 bank_opening_balances 버전과 initial_balance_changes를 사용합니다. 기본 통장 날짜 변경은 Property·확정 배치의 기준일/부과월, 초기 미수 날짜와 누락 월 청구를 함께 저장합니다. 같은 통장의 동별 기준값은 확인한 새 금액·날짜로 갱신하고 기존 동별 정정 트리거 이력도 유지합니다. 공통 정정 details JSON에 previousBillingMonth / newBillingMonth / generatedMonths를 추가하며 이전 이력은 null로 읽습니다. 선입금 음수 이월·배지는 기존 원장 조회 표현이며 새 테이블·가상 입금은 만들지 않습니다.
+
+
+## 시스템 관리 권한과 변경 이력 (2026-11-03)
+
+`V20261103092736__add_system_administration_permissions.sql`은 users.property_creation_allowed를 false 기본값으로 추가하고 system_admin_events를 생성합니다. 기존 관리대상 참여나 소유 자료를 변경하지 않습니다.
+
+system_admin_events는 request_id UUID PK, actor_id / target_id → users FK, action(CREATION_PERMISSION / ADMIN_PROMOTION), previous_value / requested_value, created_at을 보관합니다. 생성 권한은 true/false, 승격은 USER/ADMIN → ADMIN만 허용하는 CHECK를 둡니다. 대상·시각 인덱스를 두며 별도의 관리자 명단 테이블은 만들지 않습니다. 요청 재사용·잠금·감사의 저장 순서는 [Server 설계](../../server/docs/systemAdministration.md)를 참조합니다.

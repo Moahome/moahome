@@ -22,6 +22,7 @@
 - [세대 관리](api/unitManagementApi.md) · [주민 관리](api/residentManagementApi.md) · [참여자·가입](api/memberManagementApi.md)
 - [관리비 부과](api/billingApi.md) · [수납](api/paymentApi.md)
 - [통장 관리](api/bankingManagement.md) · [월별 정산](api/monthlySettlementApi.md) · [대시보드](api/dashboardApi.md)
+- [시스템 관리 API](api/systemAdministration.md)
 
 ## 개발·보안
 

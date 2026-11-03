@@ -110,7 +110,7 @@ public class PropertyRegistrationService {
 	/** 기본 정보만 다시 검증하고 정리한 값을 반환하며 업무 레코드와 중복 방지 ID를 생성하지 않습니다. */
 	@Transactional(readOnly = true)
 	public BasicInfoRequest validateBasicInfo(UUID userId, BasicInfoRequest input) {
-		requireActiveUser(userId);
+		users.requirePropertyCreation(userId);
 		validate(input);
 		return input;
 	}
@@ -131,6 +131,9 @@ public class PropertyRegistrationService {
 			}
 			return new RegistrationOutcome(snapshot(result), false);
 		}
+
+		// 이미 성공한 같은 요청은 위에서 기존 접근권한으로 복원하고, 새 생성에만 현재 허용과 잠금을 요구합니다.
+		user = users.requirePropertyCreationForUpdate(userId);
 
 		long monthlyAmount = validateRelationships(input);
 		int creatorUnitIndex = validateAdministrator(input);

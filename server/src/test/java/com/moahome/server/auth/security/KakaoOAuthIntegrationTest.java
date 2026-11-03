@@ -1,5 +1,8 @@
 package com.moahome.server.auth.security;
 
+import jakarta.persistence.EntityManager;
+import com.moahome.server.systemadmin.service.SystemAdminService;
+import com.moahome.server.systemadmin.repo.SystemAdminRequestLock;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -166,6 +169,15 @@ class KakaoOAuthIntegrationTest {
 
 	@MockitoSpyBean
 	private RedisAuthSessionRepository sessions;
+
+	@MockitoBean
+	private EntityManager entityManager;
+
+	@MockitoBean
+	private SystemAdminService systemAdmin;
+
+	@MockitoBean
+	private SystemAdminRequestLock systemAdminRequestLock;
 
 	@MockitoBean
 	private ResidentInvitationService residentInvitations;
