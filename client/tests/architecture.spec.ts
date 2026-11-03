@@ -35,6 +35,14 @@ test('통장 화면 그룹도 공개 API를 사용하고 형제 화면 참조를
     "export { BankingTransactionsPage } from '@/screens/banking/transactions';")).map((message) => message.messageId)).toEqual(['sameLayer']);
 });
 
+test('시스템 관리 화면도 공개 API로 연결하고 형제 화면 참조를 차단', async () => {
+  expect(await architectureMessages('src/app/example.ts', "export { SystemAdminMemberListPage } from '@/screens/system-admin/member-list';")).toEqual([]);
+  expect((await architectureMessages('src/screens/system-admin/member-detail/ui/systemAdminMemberDetailPage.tsx',
+    "export { SystemAdminMemberListPage } from '@/screens/system-admin/member-list';")).map((message) => message.messageId)).toEqual(['sameLayer']);
+  expect((await architectureMessages('src/app/example.ts',
+    "export { value } from '@/screens/system-admin';")).map((message) => message.messageId)).toEqual(['publicApi']);
+});
+
 test('같은 업무 그룹의 형제 화면·그룹 통합 진입점·화면 내부 Import는 거부', async () => {
   expect((await architectureMessages('src/screens/payment/monthly/ui/paymentMonthlyPage.tsx',
     "export { PaymentMatchingPage } from '@/screens/payment/matching';")).map((message) => message.messageId)).toEqual(['sameLayer']);

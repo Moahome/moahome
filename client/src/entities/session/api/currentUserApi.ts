@@ -18,10 +18,15 @@ export async function getCurrentUser(): Promise<CurrentUser> {
     !user.displayName.trim() ||
     !(user.profileImageUrl === null || typeof user.profileImageUrl === 'string') ||
     !['USER', 'ADMIN'].includes(user.systemRole) ||
+    (user.canCreateProperty !== undefined && typeof user.canCreateProperty !== 'boolean') ||
     user.status !== 'ACTIVE'
   ) {
     throw new ApiError(200, 'INVALID_RESPONSE', '사용자 정보를 확인할 수 없습니다.');
   }
 
-  return user;
+  // 이전 API 응답의 누락 필드는 생성 허용으로 추정하지 않습니다.
+  return {
+    ...user,
+    canCreateProperty: user.canCreateProperty === true
+  };
 }

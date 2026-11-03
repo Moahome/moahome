@@ -20,8 +20,10 @@ export function HeaderMobileMenu({
   homeHref,
   homeLabel,
   content,
+  systemAdministrator = false,
 }: {
   user: Pick<CurrentUser, 'displayName' | 'profileImageUrl'>;
+  systemAdministrator?: boolean;
   homeHref: string;
   homeLabel: string;
   content?: (onNavigate: () => void) => ReactNode;
@@ -287,6 +289,15 @@ export function HeaderMobileMenu({
           <div
             className={styles.footer}
           >
+            {systemAdministrator && (
+              <Link
+                className={styles['system-link']}
+                href={'/admin'}
+                onClick={closeMenu}
+              >
+                시스템 관리
+              </Link>
+            )}
             <LogoutButton
               variant={'menu'}
             />

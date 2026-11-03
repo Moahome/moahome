@@ -118,6 +118,7 @@ test('관리 권한 조회 장애는 재시도로 같은 대상을 열고 토큰
         displayName: '관리자',
         profileImageUrl: null,
         systemRole: 'USER',
+        canCreateProperty: true,
         status: 'ACTIVE'
       });
     }
@@ -196,6 +197,7 @@ for (const endpoint of ['banking/workspace', 'payments/workspace', 'residents'])
           displayName: '부담당자',
           profileImageUrl: null,
           systemRole: 'USER',
+          canCreateProperty: true,
           status: 'ACTIVE'
         });
         if (path.endsWith('/access-context')) return json(route, {

@@ -38,6 +38,7 @@ async function mockSession(page: Page, role?: 'ADMIN' | 'RESIDENT') {
         displayName: '모아 주민',
         profileImageUrl: null,
         systemRole: 'USER',
+        canCreateProperty: true,
         status: 'ACTIVE',
       };
     } else if (path.endsWith('/access-context')) {

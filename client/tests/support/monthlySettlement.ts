@@ -396,6 +396,7 @@ export async function mockSettlement(page: Page, state = {
       displayName: '관리소장',
       profileImageUrl: null,
       systemRole: 'USER',
+      canCreateProperty: true,
       status: 'ACTIVE'
     };
     else if (path.endsWith('/access-context')) body = {

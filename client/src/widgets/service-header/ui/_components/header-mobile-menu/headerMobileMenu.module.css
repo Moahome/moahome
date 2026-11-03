@@ -179,3 +179,5 @@
     display: block;
   }
 }
+
+.system-link { display: block; padding: 16px 0; color: var(--primary); font-weight: 600; }

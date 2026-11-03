@@ -75,6 +75,7 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
         displayName: '상태 관리자',
         profileImageUrl: null,
         systemRole: 'USER',
+        canCreateProperty: true,
         status: 'ACTIVE',
       });
       const property = {

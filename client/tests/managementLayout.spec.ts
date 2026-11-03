@@ -101,6 +101,7 @@ test.beforeEach(async ({ page }) => {
       displayName: '임준현',
       profileImageUrl: '/moahomeIcon.svg',
       systemRole: 'USER',
+      canCreateProperty: true,
       status: 'ACTIVE'
     });
     expect(route.request().headers().authorization).toBe('Bearer test-access');
@@ -361,6 +362,7 @@ test('다른 계정은 이전 사용자의 최근 선택과 이름을 표시하�
     displayName: '다른 사용자',
     profileImageUrl: null,
     systemRole: 'USER',
+    canCreateProperty: true,
     status: 'ACTIVE'
   }));
   await page.goto('/start');

@@ -91,6 +91,7 @@ async function mockBilling(page: Page) {
       displayName: '관리자',
       profileImageUrl: '/moahomeIcon.svg',
       systemRole: 'USER',
+      canCreateProperty: true,
       status: 'ACTIVE'
     });
     expect(request.headers().authorization).toBe('Bearer test-access');

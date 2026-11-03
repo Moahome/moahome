@@ -127,11 +127,20 @@ export function ServiceHeader({
               <p>
                 모아홈에 오신 것을 환영해요.
               </p>
+              {session.data?.systemRole === 'ADMIN' && (
+                <Link
+                  className={styles['system-link']}
+                  href={'/admin'}
+                >
+                  시스템 관리
+                </Link>
+              )}
               <LogoutButton />
             </div>
           </details>
           <HeaderMobileMenu
             user={profile}
+            systemAdministrator={session.data?.systemRole === 'ADMIN'}
             homeHref={homeHref}
             homeLabel={homeLabel}
             content={mobileContent}

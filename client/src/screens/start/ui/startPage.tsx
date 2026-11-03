@@ -28,6 +28,7 @@ import { NeighborhoodIllustration } from '@/shared/ui/neighborhood-illustration'
 import { ServiceHeader } from '@/widgets/service-header';
 import { StartIntro } from './_components/start-intro/startIntro';
 import { NoticeDialog } from '@/shared/ui/notice-dialog';
+import { StateMessage } from '@/shared/ui/state-message';
 import { StartSessionState } from './_components/start-session-state/startSessionState';
 import { PendingRequestCard } from './_components/pending-request-card/pendingRequestCard';
 import { StartCard } from './_components/start-card/startCard';
@@ -123,6 +124,24 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
     });
   }
 
+  /** 생성 권한은 계정의 최신 응답으로 확인하며 조회 실패·미허용을 등록 진입으로 처리하지 않습니다. */
+  async function startCreation() {
+    const latest = await session.refetch({
+      cancelRefetch: false
+    });
+    if (!latest.isSuccess) {
+      showNotice('권한 확인 실패', '잠시 후 다시 시도해주세요.');
+      return;
+    }
+    if (!latest.data.canCreateProperty) {
+      showNotice('생성 권한이 필요합니다.', '시스템 관리자에게 생성 권한을 부여받아주세요.');
+      return;
+    }
+    router.push(`${entryPath}?registration=basic`, {
+      scroll: false
+    });
+  }
+
   if (!session.isSuccess) {
     return (
       <StartSessionState
@@ -169,7 +188,18 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
           onNotify={() => showNotice('알림', '알림 기능을 준비하고 있어요.')}
         />
       </div>
-      {registrationStep && (
+      {registrationStep && registrationStep !== 'complete' && !hasPendingSubmission && !session.data.canCreateProperty && (
+        <main
+          className={styles.main}
+        >
+          <StateMessage
+            variant={'forbidden'}
+            title={'관리대상 생성 권한이 필요합니다.'}
+            description={'시스템 관리자에게 생성 권한을 부여받아주세요.'}
+          />
+        </main>
+      )}
+      {registrationStep && (registrationStep === 'complete' || hasPendingSubmission || session.data.canCreateProperty) && (
         <PropertyRegistrationFlow
           key={session.data.id}
           userId={session.data.id}
@@ -194,9 +224,7 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
           >
             <StartCard
               kind={'create'}
-              onSelect={() => router.push(`${entryPath}?registration=basic`, {
-                scroll: false
-              })}
+              onSelect={() => void startCreation()}
             />
             <StartCard
               kind={'join'}

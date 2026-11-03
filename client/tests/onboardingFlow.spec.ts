@@ -122,6 +122,7 @@ async function mockWorkspace(page: Page, joined = false) {
       displayName: '관리자',
       profileImageUrl: null,
       systemRole: 'USER',
+      canCreateProperty: true,
       status: 'ACTIVE'
     });
     expect(request.headers().authorization).toBe('Bearer synthetic-access');

@@ -16,6 +16,7 @@ const CURRENT_USER = {
   displayName: '모아 주민',
   profileImageUrl: null,
   systemRole: 'USER',
+  canCreateProperty: true,
   status: 'ACTIVE',
 };
 

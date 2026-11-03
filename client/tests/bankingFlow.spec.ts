@@ -109,6 +109,7 @@ for (const width of [1440, 390]) {
         displayName: '관리자',
         profileImageUrl: null,
         systemRole: 'USER',
+        canCreateProperty: true,
         status: 'ACTIVE'
       };
       else if (path.endsWith('/access-context')) body = {
@@ -375,6 +376,7 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
       displayName: '관리자',
       profileImageUrl: null,
       systemRole: 'USER',
+      canCreateProperty: true,
       status: 'ACTIVE'
     };
     else if (path.endsWith('/access-context')) body = {
@@ -1105,6 +1107,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
       displayName: '관리자',
       profileImageUrl: null,
       systemRole: 'USER',
+      canCreateProperty: true,
       status: 'ACTIVE'
     };
     else if (path.endsWith('/access-context')) body = {
@@ -2226,6 +2229,7 @@ test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭�
       displayName: '관리자',
       profileImageUrl: null,
       systemRole: 'USER',
+      canCreateProperty: true,
       status: 'ACTIVE'
     };
     else if (path.endsWith('/access-context')) body = {
@@ -2731,6 +2735,7 @@ for (const width of [1440, 390]) {
         displayName: '관리자',
         profileImageUrl: null,
         systemRole: 'USER',
+        canCreateProperty: true,
         status: 'ACTIVE'
       };
       else if (path.endsWith('/access-context')) body = {
@@ -3018,6 +3023,7 @@ for (const width of [1440, 320]) {
         displayName: '관리자',
         profileImageUrl: null,
         systemRole: 'USER',
+        canCreateProperty: true,
         status: 'ACTIVE'
       };
       else if (path.endsWith('/access-context')) body = {
@@ -3340,6 +3346,7 @@ for (const { width, unassigned } of [{
         displayName: '관리자',
         profileImageUrl: null,
         systemRole: 'USER',
+        canCreateProperty: true,
         status: 'ACTIVE'
       };
       else if (path.endsWith('/access-context')) body = {
@@ -3698,6 +3705,7 @@ for (const width of [1440]) {
         displayName: '관리자',
         profileImageUrl: null,
         systemRole: 'USER',
+        canCreateProperty: true,
         status: 'ACTIVE'
       };
       else if (path.endsWith('/access-context')) body = {
@@ -3909,6 +3917,7 @@ for (const width of [1440]) {
         displayName: '관리자',
         profileImageUrl: null,
         systemRole: 'USER',
+        canCreateProperty: true,
         status: 'ACTIVE'
       };
       else if (path.endsWith('/access-context')) body = {
@@ -4097,6 +4106,7 @@ for (const width of [1440, 320]) {
         displayName: '관리자',
         profileImageUrl: null,
         systemRole: 'USER',
+        canCreateProperty: true,
         status: 'ACTIVE'
       };
       else if (path.endsWith('/access-context')) body = {
@@ -4414,6 +4424,7 @@ for (const width of [1440, 320]) {
         displayName: '관리자',
         profileImageUrl: null,
         systemRole: 'USER',
+        canCreateProperty: true,
         status: 'ACTIVE'
       };
       else if (path.endsWith('/access-context')) body = {
@@ -4738,6 +4749,7 @@ for (const width of [1440, 390]) {
         displayName: '관리자',
         profileImageUrl: null,
         systemRole: 'USER',
+        canCreateProperty: true,
         status: 'ACTIVE'
       };
       else if (path.endsWith('/access-context')) body = {
@@ -5357,6 +5369,7 @@ for (const width of [1440, 425]) {
         displayName: '관리자',
         profileImageUrl: null,
         systemRole: 'USER',
+        canCreateProperty: true,
         status: 'ACTIVE'
       };
       else if (path.endsWith('/payments/workspace')) body = {
@@ -5673,6 +5686,7 @@ for (const width of [1920, 390, 320]) {
         displayName: '관리자',
         profileImageUrl: null,
         systemRole: 'USER',
+        canCreateProperty: true,
         status: 'ACTIVE'
       };
       else if (path.endsWith('/access-context')) body = {
@@ -5827,6 +5841,7 @@ for (const { width, handover } of [{
         displayName: '관리자',
         profileImageUrl: null,
         systemRole: 'USER',
+        canCreateProperty: true,
         status: 'ACTIVE'
       };
       else if (path.endsWith('/access-context')) body = {

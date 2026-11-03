@@ -213,3 +213,5 @@
     }
   }
 }
+
+.system-link { display: block; padding: 12px 0; color: var(--primary); font-weight: 600; }

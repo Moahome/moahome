@@ -143,6 +143,7 @@ test.beforeEach(async ({ page }) => {
       displayName: '관리자',
       profileImageUrl: null,
       systemRole: 'USER',
+      canCreateProperty: true,
       status: 'ACTIVE'
     };
     else if (path.endsWith('/access-context')) body = {

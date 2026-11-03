@@ -1,0 +1,34 @@
+.shell {
+  min-height: 100dvh;
+  background: var(--background);
+  color: var(--foreground);
+}
+.layout {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 32px;
+  padding: 32px;
+}
+.navigation {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-self: start;
+  padding: 20px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  p { padding: 0 12px 12px; font-weight: 700; }
+  a { padding: 12px; border-radius: 8px; color: var(--sub-text); }
+  a[aria-current='page'] { color: var(--primary); background: var(--button-primary-background); font-weight: 700; }
+}
+.main { min-width: 0; }
+@media (max-width: 767px) {
+  .layout { grid-template-columns: 1fr; gap: 20px; padding: 24px 16px; }
+  .navigation {
+    flex-direction: row;
+    padding: 8px;
+    p { display: none; }
+    a { flex: 1; text-align: center; }
+  }
+}
