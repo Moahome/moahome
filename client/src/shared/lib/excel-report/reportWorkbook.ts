@@ -16,7 +16,8 @@ const COLORS = {
   white: '#FFFFFF',
   summary: '#EFF6FF',
   heading: '#DBEAFE',
-  alternate: '#F8FAFC'
+  alternate: '#F8FAFC',
+  danger: '#EF4444'
 };
 const BASE: CellObject = {
   fontFamily: '맑은 고딕',
@@ -57,8 +58,14 @@ export {
   cell as createReportCell
 };
 
+/** 손익처럼 음수 강조를 요청한 보고서만 원 금액의 부호로 글자색을 결정합니다. */
+function getAmountColor(value: ReportValue, highlightNegative: boolean, fallback: string) {
+  if (highlightNegative && typeof value === 'bigint' && value < BigInt(0)) return COLORS.danger;
+  return fallback;
+}
+
 /** 입력 데이터와 열 정의만 받아 공통 헤더·교차 행을 적용하며 이름·전화번호는 수식으로 변환하지 않습니다. */
-function table(columns: readonly ReportColumn[], rows: readonly (readonly ReportValue[])[]): SheetData {
+function table(columns: readonly ReportColumn[], rows: readonly (readonly ReportValue[])[], highlightNegative = false): SheetData {
   return [
     columns.map((column) => cell(column.label, {
       height: 42,
@@ -69,15 +76,17 @@ function table(columns: readonly ReportColumn[], rows: readonly (readonly Report
     ...rows.map((row, index) => columns.map((column, columnIndex) => cell(row[columnIndex] ?? '', {
       height: 42,
       align: column.align ?? 'left',
+      textColor: getAmountColor(row[columnIndex] ?? '', highlightNegative, COLORS.text),
       backgroundColor: index % 2 === 0 ? COLORS.alternate : COLORS.white
     })))
   ];
 }
 
 /** 한 보고서 시트의 내용·표시 옵션을 구성해 원장별 추가 시트도 같은 문서 서식을 사용합니다. */
-function reportSheet({ title, description, sheet, columns, rows, summary, total, note }: ReportDefinition) {
+function reportSheet({ title, description, sheet, columns, rows, summary, total, note, highlightNegative = false }: ReportDefinition) {
   const width = columns.length;
-  const labelSpan = Math.max(1, Math.ceil(width * 0.6));
+  // 두 열 보고서에서도 값 열을 한 칸 확보해 columnSpan 0과 음수 길이 배열을 만들지 않습니다.
+  const labelSpan = Math.min(width - 1, Math.max(1, Math.ceil(width * 0.6)));
   const merged = (value: string, style: CellObject) => [cell(value, {
     ...style,
     columnSpan: width
@@ -111,7 +120,7 @@ function reportSheet({ title, description, sheet, columns, rows, summary, total,
         align: 'right',
         fontSize: index === 0 ? 22 : 14,
         fontWeight: 'bold',
-        textColor: index === 0 ? COLORS.primary : COLORS.text,
+        textColor: getAmountColor(item.value, highlightNegative, index === 0 ? COLORS.primary : COLORS.text),
         backgroundColor: COLORS.summary
       }),
       ...Array(width - labelSpan - 1).fill(null)
@@ -119,13 +128,13 @@ function reportSheet({ title, description, sheet, columns, rows, summary, total,
     [cell('', {
       height: 17
     })],
-    ...table(columns, rows)
+    ...table(columns, rows, highlightNegative)
   ];
   if (total) data.push(columns.map((column, index) => cell(total[index] ?? '', {
     height: 48,
     fontSize: 16,
     fontWeight: 'bold',
-    textColor: COLORS.primary,
+    textColor: getAmountColor(total[index] ?? '', highlightNegative, COLORS.primary),
     backgroundColor: COLORS.summary,
     align: column.align ?? 'left'
   })));

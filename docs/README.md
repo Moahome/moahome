@@ -20,7 +20,7 @@
 
 - [관리대상 등록](api/propertyRegistrationApi.md) · [관리 영역 접근](api/managementAccessApi.md)
 - [세대 관리](api/unitManagementApi.md) · [주민 관리](api/residentManagementApi.md) · [참여자·가입](api/memberManagementApi.md)
-- [관리비 부과](api/billingApi.md) · [수납](api/paymentApi.md)
+- [관리비 부과](api/billingApi.md) · [수납](api/paymentApi.md) · [손익계산서](api/incomeStatementApi.md)
 - [통장 관리](api/bankingManagement.md) · [월별 정산](api/monthlySettlementApi.md) · [대시보드](api/dashboardApi.md)
 - [시스템 관리 API](api/systemAdministration.md)
 
@@ -42,3 +42,4 @@
 - [관리비 부과 변경 기획](plans/billingSettings.md)
 - [건물별 공지·주민 안내 기획](plans/residentCommunication.md)
 - [회계·정산과 손익계산서 확정 범위·개발 계획](plans/accountingSettlement.md)
+- [Client 손익계산서 화면·원천 상세·다운로드](../client/docs/incomeStatement.md)

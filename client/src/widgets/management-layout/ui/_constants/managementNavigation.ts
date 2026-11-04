@@ -106,8 +106,7 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
         id: 'income-statement',
         label: '손익계산서',
         path: 'accounting/income-statement',
-        available: false,
-        statusLabel: '구현 예정'
+        available: true
       },
       {
         id: 'ledger',

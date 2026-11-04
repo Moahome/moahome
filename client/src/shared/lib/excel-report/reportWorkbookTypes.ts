@@ -21,4 +21,5 @@ export type ReportDefinition = {
   summary: readonly ReportSummary[];
   total?: readonly ReportValue[];
   note: string;
+  highlightNegative?: boolean;
 };

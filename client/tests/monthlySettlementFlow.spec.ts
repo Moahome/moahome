@@ -1,3 +1,4 @@
+import { mockIncomeStatement } from './support/incomeStatement';
 import {
   reportPreview,
   closeReportPreview
@@ -185,7 +186,11 @@ for (const width of [1440, 390]) {
       name: '회계·정산',
       exact: true
     })).toHaveAttribute('aria-expanded', 'true');
-    for (const title of ['손익계산서', '계정별 원장', '계정과목 설정']) {
+    await expect(page.getByRole('link', {
+      name: '손익계산서',
+      exact: true
+    })).toBeVisible();
+    for (const title of ['계정별 원장', '계정과목 설정']) {
       await expect(page.getByRole('link', {
         name: `${title} 구현 예정`,
         exact: true
@@ -613,7 +618,6 @@ for (const width of [1440, 390]) {
 }
 
 for (const [path, title] of [
-  ['income-statement', '손익계산서'],
   ['ledger', '계정별 원장'],
   ['accounts', '계정과목 설정']
 ]) {
@@ -662,4 +666,30 @@ test('기존 정산 URL은 조회 월과 상세 탭을 유지해 새 경로로 �
   });
   expect(download.status()).toBe(307);
   expect(download.headers().location).toBe(`${BASE}/download?month=2026-10`);
+});
+
+
+test('손익계산서 메뉴는 실제 조회 화면을 열고 새로고침에도 선택을 유지한다', async ({ page }) => {
+  await mockSettlement(page);
+  await mockIncomeStatement(page);
+  await page.goto(`${BASE}?month=2026-10`);
+  await page.getByRole('link', {
+    name: '손익계산서',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(`/manage/${SETTLEMENT_PROPERTY}/accounting/income-statement`);
+  await expect(page.getByRole('heading', {
+    name: '손익계산서',
+    exact: true,
+    level: 1
+  })).toBeVisible();
+  await expect(page.getByRole('article', {
+    name: '기간 순손익 1,000,000원',
+    exact: true
+  })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('link', {
+    name: '손익계산서',
+    exact: true
+  })).toHaveAttribute('aria-current', 'page');
 });
