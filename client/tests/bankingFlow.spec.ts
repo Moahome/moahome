@@ -3803,7 +3803,7 @@ for (const width of [1440]) {
       exact: true
     });
     await expect(summary).toBeVisible();
-    await expect(summary).toContainText('2026년 10월 등록 내역 기준');
+    await expect(summary.locator('small')).toHaveCount(0);
     const buildingTotal = page.getByRole('article', {
       name: '동별 잔고 합계 1,522,910원',
       exact: true
@@ -3815,6 +3815,7 @@ for (const width of [1440]) {
     });
     await calculatedHelp.focus();
     await expect(page.getByRole('tooltip')).toContainText('등록된 통장 잔액을 표시합니다.');
+    await expect(page.getByRole('tooltip')).toContainText('2026년 10월 등록 내역 기준');
     await calculatedHelp.press('Escape');
     const buildingHelp = buildingTotal.getByRole('button', {
       name: '동별 잔고 합계 도움말',
@@ -3851,7 +3852,14 @@ for (const width of [1440]) {
     await expect(page.getByRole('article', {
       name: '잔고 차이 0원',
       exact: true
-    })).toContainText('통장 잔액 − 동별 잔고');
+    })).toBeVisible();
+    const differenceHelp = page.getByRole('button', {
+      name: '잔고 차이 도움말',
+      exact: true
+    });
+    await differenceHelp.focus();
+    await expect(page.getByRole('tooltip')).toContainText('통장 잔액 − 동별 잔고');
+    await differenceHelp.press('Escape');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.screenshot({
       path: testInfo.outputPath(`calculatedAccountBalance${width}.png`),
@@ -3870,7 +3878,7 @@ for (const width of [1440]) {
       name: '잔고 차이 -66,718원',
       exact: true
     });
-    await expect(difference).toContainText('통장 잔액 − 동별 잔고');
+    await expect(difference.locator('small')).toHaveCount(0);
     await expect(difference.locator('strong')).toHaveCSS('color', 'rgb(239, 68, 68)');
     await expect(difference.locator('svg').first()).toHaveCSS('color', 'rgb(22, 163, 74)');
     await expect(page.getByRole('heading', {
@@ -5795,7 +5803,7 @@ for (const width of [1920, 390, 320]) {
           };
         }));
         expect(Math.abs(cards[0].left - parent.x)).toBeLessThan(1);
-        expect(Math.abs(cards.at(-1)!.right - (parent.x + parent.width))).toBeLessThan(1);
+        expect(Math.abs(Math.max(...cards.map((card) => card.right)) - (parent.x + parent.width))).toBeLessThan(1);
         expect(Math.max(...cards.map((c) => c.width)) - Math.min(...cards.map((c) => c.width))).toBeLessThan(1);
         if (width === 1920) {
           expect(cards.every((card) => Math.abs(card.top - cards[0].top) < 1)).toBe(true);

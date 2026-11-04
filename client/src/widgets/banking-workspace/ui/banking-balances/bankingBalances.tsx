@@ -734,12 +734,12 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           label={bankLabel}
           value={bankBalance === null ? '확인 필요' : formatInteger(bankBalance)}
           unit={bankBalance === null ? '' : '원'}
-          description={bankAsOf}
           help={(
             <InfoTooltip
               size={'sm'}
               label={`${bankLabel} 도움말`}
               title={bankLabel}
+              note={bankAsOf}
             >
               {bankHelp}
             </InfoTooltip>
@@ -762,12 +762,12 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
               note={'동에 배분하지 않은 입금은 포함하지 않습니다.'}
             >
               {selectedAccount ? '선택한 통장 안에서 각 동에 귀속된 잔고를 합한 금액입니다.' : '조회 중인 모든 통장의 동별 잔고를 합한 금액입니다.'}
+              {summary.total !== null ? ` ${getBalancePeriodLabel(month)} · 동별 귀속 금액` : ' 통장을 선택해 동별 시작 잔고를 등록해주세요.'}
             </InfoTooltip>
           )}
           tone={'warning'}
           value={summary.total === null ? '설정 필요' : formatInteger(summary.total)}
           unit={summary.total === null ? '' : '원'}
-          description={summary.total !== null ? `${getBalancePeriodLabel(month)} · 동별 귀속 금액` : '통장을 선택해 동별 시작 잔고를 등록해주세요.'}
           icon={(
             <ServiceIcon
               name={'coins'}
@@ -782,13 +782,13 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
               size={'sm'}
               label={'잔고 차이 도움말'}
               title={'잔고 차이'}
+              note={summary.difference === null ? undefined : differenceDescription}
             >
               통장 잔액과 동별 잔고를 비교한 참고 금액입니다.
             </InfoTooltip>
           )}
           value={summary.difference === null ? '확인 필요' : formatInteger(summary.difference)}
           unit={summary.difference === null ? '' : '원'}
-          description={summary.difference === null ? undefined : differenceDescription}
           tone={'success'}
           valueTone={summary.difference !== null && summary.difference < BigInt(0) ? 'danger' : 'neutral'}
           icon={(
@@ -802,7 +802,15 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           label={'관리 동 수'}
           value={data.buildings.filter((b) => b.active).length}
           unit={'개 동'}
-          description={'등록된 관리 동 기준'}
+          help={(
+            <InfoTooltip
+              size={'sm'}
+              label={'관리 동 수 도움말'}
+              title={'관리 동 수'}
+            >
+              등록된 관리 동 기준입니다.
+            </InfoTooltip>
+          )}
           icon={(
             <ServiceIcon
               name={'building'}

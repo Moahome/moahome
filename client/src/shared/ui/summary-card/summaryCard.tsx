@@ -4,6 +4,7 @@ import styles from './summaryCard.module.css';
 /** 호출자가 집계한 값과 의미 색상을 표시하며 업무 집계와 카드 배치는 화면에서 관리합니다. */
 export function SummaryCard({
   label,
+  shortLabel,
   value,
   unit,
   icon,
@@ -14,6 +15,7 @@ export function SummaryCard({
   help,
 }: {
   label: string;
+  shortLabel?: string;
   value: number | string;
   unit: string;
   icon: ReactNode;
@@ -44,9 +46,18 @@ export function SummaryCard({
           className={styles.label}
         >
           {help}
-          <span>
+          <span
+            className={shortLabel ? styles['full-label'] : undefined}
+          >
             {label}
           </span>
+          {shortLabel && (
+            <span
+              className={styles['short-label']}
+            >
+              {shortLabel}
+            </span>
+          )}
         </div>
         <div
           className={styles.value}
