@@ -1,5 +1,8 @@
 package com.moahome.server.config;
 
+import com.moahome.server.accounting.service.AccountingWriteService;
+import com.moahome.server.accounting.service.IncomeStatementService;
+import com.moahome.server.billing.service.BillingIncomeSourceService;
 import jakarta.persistence.EntityManager;
 import com.moahome.server.systemadmin.service.SystemAdminService;
 import com.moahome.server.systemadmin.repo.SystemAdminRequestLock;
@@ -76,6 +79,15 @@ class OpenApiIntegrationTest {
 
 	@Autowired
 	private ObjectMapper mapper;
+
+	@MockitoBean
+	private AccountingWriteService accountingWrites;
+
+	@MockitoBean
+	private IncomeStatementService incomeStatements;
+
+	@MockitoBean
+	private BillingIncomeSourceService billingIncomeSources;
 
 	@MockitoBean
 	private EntityManager entityManager;
@@ -248,7 +260,9 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(
 		    mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(108);
+		assertThat(document.path("paths").properties()).hasSize(113);
+		assertThat(document.path("paths").path("/api/properties/{propertyId}/accounting/income-statement")
+			.at("/get/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/dashboard")
 			.at("/get/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.at("/paths/~1api~1properties~1{propertyId}~1banking~1balances~1initial-billing-impact/get").isMissingNode()).isFalse();

@@ -1,5 +1,8 @@
 package com.moahome.server;
 
+import com.moahome.server.accounting.service.AccountingWriteService;
+import com.moahome.server.accounting.service.IncomeStatementService;
+import com.moahome.server.billing.service.BillingIncomeSourceService;
 import jakarta.persistence.EntityManager;
 import com.moahome.server.systemadmin.service.SystemAdminService;
 import com.moahome.server.systemadmin.repo.SystemAdminRequestLock;
@@ -49,6 +52,15 @@ import com.moahome.server.user.repo.UserRepository;
 @SpringBootTest(properties = "moahome.billing.scheduler-enabled=false")
 @ActiveProfiles("test")
 class ServerApplicationTests {
+	@MockitoBean
+	private AccountingWriteService accountingWrites;
+
+	@MockitoBean
+	private IncomeStatementService incomeStatements;
+
+	@MockitoBean
+	private BillingIncomeSourceService billingIncomeSources;
+
 	@MockitoBean
 	private EntityManager entityManager;
 

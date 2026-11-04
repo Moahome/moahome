@@ -1,5 +1,8 @@
 package com.moahome.server.auth.security;
 
+import com.moahome.server.accounting.service.AccountingWriteService;
+import com.moahome.server.accounting.service.IncomeStatementService;
+import com.moahome.server.billing.service.BillingIncomeSourceService;
 import jakarta.persistence.EntityManager;
 import com.moahome.server.systemadmin.service.SystemAdminService;
 import com.moahome.server.systemadmin.repo.SystemAdminRequestLock;
@@ -150,6 +153,15 @@ class SecurityIntegrationTest {
 
 	@MockitoSpyBean
 	private RedisAuthSessionRepository sessions;
+
+	@MockitoBean
+	private AccountingWriteService accountingWrites;
+
+	@MockitoBean
+	private IncomeStatementService incomeStatements;
+
+	@MockitoBean
+	private BillingIncomeSourceService billingIncomeSources;
 
 	@MockitoBean
 	private EntityManager entityManager;

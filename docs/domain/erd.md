@@ -1430,9 +1430,26 @@ Soft Delete 없음.
 
 # 11. 회계
 
-2026-10-24 개발 우선순위에 따라 아래 회계 테이블은 **후속 설계안**으로 유지합니다. [도메인 규칙](domainRules.md#9-회계)의 범위에 따라 자동전표·원장을 월별 정산 조회의 선행 조건으로 구현하지 않습니다. 이 절의 정의는 실제 Migration 적용이나 회계 구현 완료를 의미하지 않습니다.
+아래 11.0은 2026-11-04 손익 원천 연결에 추가한 **실제 저장 구조**이며, 11.1 이후의 정식 전표·원장 테이블은 **후속 설계안**으로 유지합니다. [도메인 규칙](domainRules.md#9-회계)의 범위에 따라 자동전표·원장을 월별 정산 조회의 선행 조건으로 구현하지 않습니다. 후속 설계안의 정의는 실제 Migration 적용이나 회계 전체 구현 완료를 의미하지 않습니다.
 
-2026-11-04 [회계·정산의 개발 범위와 기본 처리 기준](domainRules.md#회계정산-개발-범위와-처리-기준-2026-11-04-사용자-확정)은 사용자 확정이며, [기획 문서](../plans/accountingSettlement.md)에 이번 범위와 후속 범위를 구분합니다. 아래 테이블·컬럼은 새 구현의 확정 스키마가 아닙니다. 부과월 수익·귀속 월 비용·미지급·선급·선수금·동별 귀속·분할과 정정 이력을 지원하도록 상세 설계해야 하며, 이번 문서 작업에서 물리 저장 구조와 Migration은 변경하지 않았습니다.
+2026-11-04 [회계·정산의 개발 범위와 기본 처리 기준](domainRules.md#회계정산-개발-범위와-처리-기준-2026-11-04-사용자-확정)은 사용자 확정이며, [기획 문서](../plans/accountingSettlement.md)에 이번 범위와 후속 범위를 구분합니다. 11.1 이후의 테이블·컬럼은 새 구현의 확정 스키마가 아닙니다. 부과월 수익·귀속 월 비용·미지급·선급·선수금·동별 귀속·분할과 정정 이력을 지원하도록 상세 설계해야 하며, 현재 손익 조회용 저장과 정식 전표 설계를 구분합니다.
+
+## 11.0 실제 손익 조회·원천 분류 저장 (2026-11-04 구현)
+
+손익 원천 연결은 다음 4개 테이블을 사용합니다. 11.1의 범용 `accounts`·전표 설계를 그대로 구현한 것은 아닙니다. 금액·원천 청구·출금·동 배분은 기존 테이블에서 읽고 복제 입력하지 않습니다. API는 [손익 계약](../api/incomeStatementApi.md), 트랜잭션·이력·Migration 순서는 [Server 설계](../../server/docs/incomeStatement.md)를 참조합니다.
+
+| 테이블 | 실제 주요 컬럼 | 연결·제약 |
+| --- | --- | --- |
+| `accounting_profiles` | `property_id` PK, `start_month` date, `fiscal_year_start_month` int, `created_by`, `created_at` | 관리대상별 명시적 시작 기준; 월초·1~12 검사 |
+| `accounting_accounts` | `id` UUID PK, `property_id`, `name`, `report_group`, `system_key`, `created_by`, `created_at` | 손익 4분류; 관리대상+분류+이름 유일, 관리대상+system_key 유일. 기본 관리비수익과 명시적으로 추가한 비용 과목 |
+| `expense_accounting_reviews` | `id` UUID PK, `property_id`, `expense_id`, `account_id`, `recognition_month`, `revision`, `reason_encrypted`, `confirmed_by`, `confirmed_at` | 관리대상+지출·과목 복합 FK, 지출별 revision 유일·연속, 비용 과목 검사 |
+| `revenue_accounting_reviews` | `id` UUID PK, `property_id`, `source_template_item_id`, `recognized`, `revision`, `reason_encrypted`, `confirmed_by`, `confirmed_at` | 기존 부과 항목의 관리대상 대조, 항목별 revision 유일·연속 |
+
+4개 테이블은 UPDATE/DELETE를 막고 분류 변경은 새 revision을 추가합니다. 원천 분류 사유는 암호화합니다. 지출은 시작 전 귀속도 확인할 수 있으나 보고서는 회계 시작 월 이전을 조회하지 않습니다. 부과 성격 확인은 동일 항목 ID의 유효 확정 청구에 적용하며 다음 과거 기간 조회도 바꿀 수 있습니다. 이는 전표의 당시 연결 보존·역분개·마감 자료 보존이 아닙니다.
+
+현재 API는 시작 기준·계정의 수정/삭제, 자산·부채·자본 과목, 미지급/선급 원장, 지출 과목 분할, 정식 전표를 구현하지 않습니다. 후속 정식 회계 설계에서 기존 이력과의 이전·연결을 별도로 검토합니다.
+
+---
 
 ## 11.1 accounts
 
