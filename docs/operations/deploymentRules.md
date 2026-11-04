@@ -1,6 +1,6 @@
 # 운영 배포 규칙
 
-기준일: 2026-11-03. 최초 배포와 이후 기능 배포에서 **DB 변경 확인 → 백엔드 배포·검증 → 프론트엔드 배포·검증** 순서를 지킵니다. DB 변경은 현재 구조대로 백엔드 시작 시 Flyway가 적용합니다. 별도 DB 배포 도구가 구현됐다는 의미는 아닙니다.
+기준일: 2026-11-04. 최초 배포와 이후 기능 배포에서 **DB 변경 확인 → 백엔드 배포·검증 → 프론트엔드 배포·검증** 순서를 지킵니다. DB 변경은 현재 구조대로 백엔드 시작 시 Flyway가 적용합니다. 별도 DB 배포 도구가 구현됐다는 의미는 아닙니다.
 
 이 문서는 사용자가 요청한 배포 순서와 Migration 누락 방지 기준을 운영 절차로 정리합니다. 인프라 구성·구축 이력은 [배포 계획](deploymentPlan.md), 서버 준비·실행 명령은 [Server 배포 가이드](../../server/docs/deploymentGuide.md), Migration 작성 규칙은 [Server 규칙](../../server/AGENTS.md#flyway-migration)을 참조합니다. 실제 운영 호스트와 배포 경로는 배포 때 확인하며, EC2 이관 완료나 원격 설정 변경을 이 문서 작성만으로 확정하지 않습니다.
 
@@ -28,7 +28,7 @@
 | [Server CI](../../.github/workflows/serverCi.yml) | PR·main 검증, main push 성공 시 GHCR 게시 후 운영 Runner에서 digest 기준 API 자동 배포·내부/외부 준비 상태·인증 보호 확인 | 운영 DB 이력 사전 대조·RDS 스냅샷 생성·실제 로그인과 업무 검증 |
 | [이미지 자동 보관](../../server/docs/deploymentGuide.md#성공-이미지-3개-자동-보관) | Server CI 배포·외부 검증 성공 후 현재·이전 정상 API 이미지 총 3개를 운영 호스트·GHCR에 보관하고 오래된 버전 정리 | 도입 이전 성공 이력 추정, 수동 배포 후 자동 정리, DB 롤백. 운영 패키지 권한·실행 결과는 별도 확인 |
 | [Client CI](../../.github/workflows/clientCi.yml) | 검사·테스트, main push와 `VERCEL_DEPLOY_ENABLED=true` 등 조건 충족 시 Vercel 운영 배포 | 운영 백엔드 배포 완료 대기. 수동 워크플로 실행의 운영 배포도 현재 조건에 포함되지 않음 |
-| [deploy.sh](../../server/deploy/deploy.sh) | 동일 호스트 배포 잠금, 이미지 pull, API 준비 확인, Nginx 검사·reload, 정상 설정 기록 | 배포 전 RDS 스냅샷 생성, 별도 Flyway 사전 검증, 실패 시 자동 롤백 |
+| [deploy.sh·deployApi.py](../../server/deploy/deployApi.py) | 동일 호스트 잠금, 이미지 pull, API·Nginx·내부/외부 검증, 정상 설정 기록, 동일 Migration·환경의 직전 정상 이미지로 조건부 자동 복귀 | 배포 전 RDS 스냅샷 생성, 운영 DB 이력 자동 대조, Migration 변경 시 자동 복귀, DB 데이터 롤백 |
 
 **현재 기본 절차는 백엔드와 프론트 변경을 나눠 병합·배포하는 것입니다.**
 
@@ -109,9 +109,11 @@ cd /opt/moahome
 sudo bash deploy.sh ghcr.io/moahome/moahome-api:COMMIT_SHA
 ```
 
-배포 스크립트의 `API 준비 확인 완료`는 API 준비 확인 결과입니다. 뒤의 외부 HTTPS·실제 업무 확인까지 끝나야 다음 단계로 넘어갑니다. SSH 터미널에서 다음을 실행합니다. `psql`의 `moahome=>` 화면이라면 먼저 `\q`로 나옵니다.
+배포 스크립트는 이제 내부·외부 readiness와 인증 보호까지 통과해야 성공을 기록합니다. 실제 로그인·업무 확인까지 끝나야 다음 단계로 넘어갑니다. [자동 복귀 조건과 제한](../../server/docs/deploymentGuide.md#조건부-자동-롤백)을 함께 확인합니다. 수동 배포는 운영 폴더의 `deploy.sh`와 `deployApi.py`를 함께 갱신해야 새 동작을 사용합니다.
 
 GitHub Actions 배포에서는 자동 외부 검증까지 통과한 뒤 이미지 정리를 수행합니다. 사용자 요청인 정상 이미지 3개 보관 기준과 초기 이력 수집·삭제 제외·오류 처리는 [Server 이미지 보관 절차](../../server/docs/deploymentGuide.md#성공-이미지-3개-자동-보관)를 따릅니다. `retain-images` 실패는 정리 실패이며 이미 정상 검증된 API를 자동 롤백하지 않습니다. 이미지 3개 보관으로 DB 호환성·백업 점검을 대체하지 않습니다.
+
+SSH 터미널에서 다음을 실행합니다. `psql`의 `moahome=>` 화면이라면 먼저 `\q`로 나옵니다.
 
 ```bash
 sudo docker compose --env-file .deploy.env -f compose.prod.yml ps
@@ -151,7 +153,8 @@ curl --fail --silent --show-error --max-time 10 https://api.villamoa.kr/actuator
 
 - 프론트 배포를 진행하지 않고 마지막 예외, 실패 SQL·버전, 잠금·연결 상태와 실제 적용 이력을 확인합니다. PostgreSQL의 트랜잭션 처리만 믿고 모든 변경이 취소됐다고 가정하지 않습니다.
 - 실패한 배포는 `.deploy.env`를 갱신하지 않았어도 실행 중인 컨테이너를 이미 바꿨을 수 있습니다. [Server 복구 절차](../../server/docs/deploymentGuide.md#6-api-배포와-복구)에 따라 실제 이미지와 DB 상태를 확인합니다.
-- 이전 이미지 복귀는 현재 DB·업무 데이터와의 호환성을 확인한 경우에만 진행합니다. 이미 성공한 Migration을 자동 취소하거나 이전 이미지를 무조건 실행하지 않습니다. `.previousDeploy.env`는 DB 백업이 아닙니다.
+- 자동 복귀는 [Server 조건부 자동 롤백](../../server/docs/deploymentGuide.md#조건부-자동-롤백)의 동일 Migration·환경 및 직전 정상 상태 확인을 충족할 때만 한 번 수행합니다. 복귀 성공도 새 배포의 실패이며 정상 이미지 이력·정리를 진행하지 않습니다. Migration이 다르거나 판별·복귀가 실패하면 수동 복구합니다.
+- 수동 이전 이미지 복귀는 현재 DB·업무 데이터와의 호환성을 확인한 경우에만 진행합니다. 이미 성공한 Migration을 자동 취소하거나 이전 이미지를 무조건 실행하지 않습니다. `.previousDeploy.env`는 DB 백업이 아닙니다.
 - 호환성이 없으면 검증한 후속 수정 배포 또는 [DB 복구 절차](deploymentPlan.md#7-백업복구와-관측)를 선택합니다. DB 복원은 이후 정상 거래의 유실·정합성 영향을 확인하고 업무 쓰기를 통제한 뒤 별도 복원 DB에서 검증합니다.
 - 운영 `flyway clean`, 이력 행 삭제·직접 수정, 이미 공유·적용된 SQL의 이름·내용 변경으로 오류를 우회하지 않습니다. `repair`도 누락 SQL을 실행하는 명령이 아니며, 원인 검토 없이 검증을 통과시키는 용도로 사용하지 않습니다.
 

@@ -26,6 +26,12 @@ cleanup() {
             result=1
         fi
     fi
+    if [[ -f "$SMOKE_DIR/rollbackImage.txt" ]]; then
+        if ! docker image rm "$(cat "$SMOKE_DIR/rollbackImage.txt")" >/dev/null; then
+            printf '%s\n' '임시 롤백 검증 이미지 정리 실패' >&2
+            result=1
+        fi
+    fi
     rm -rf -- "$SMOKE_DIR"
     exit "$result"
 }
@@ -161,6 +167,10 @@ spoof_status=$(request --header 'Forwarded: for=127.0.0.1;host=untrusted.example
 expect_status 401 /api/users/me
 expect_status 404 /actuator/env
 expect_status 401 /v3/api-docs
+
+# 동일 Migration 후보의 실패 후 실제 이미지 복귀와 공개 검증을 격리 환경에서 확인합니다.
+SMOKE_PROJECT="$project" SMOKE_API_IMAGE="$api_image" PYTHONDONTWRITEBYTECODE=1 \
+    python3 "$server_dir/scripts/verifyDeploymentRollback.py"
 
 # API 진입 전의 ACME 파일 제공과 HTTP→HTTPS 전환도 확인합니다.
 [[ $(curl --noproxy '*' --fail --silent "http://127.0.0.1:$http_port/.well-known/acme-challenge/probe") == acme-local-check ]]
