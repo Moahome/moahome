@@ -1,6 +1,6 @@
 # Server 운영 배포 가이드
 
-기준일: 2026-11-03. 인프라 구성과 운영 목적은 [공통 배포 계획](../../docs/operations/deploymentPlan.md)을 따릅니다. 이 문서는 배포 파일의 실행법과 서버 검증 결과를 설명합니다. 실제 구축·사용자 검증의 진행 상태와 남은 운영 점검은 [공통 구축 기록](../../docs/operations/deploymentPlan.md#9-비용과-실제-진행-상태)에서 관리합니다.
+기준일: 2026-11-04. 인프라 구성과 운영 목적은 [공통 배포 계획](../../docs/operations/deploymentPlan.md)을 따릅니다. 이 문서는 배포 파일의 실행법과 서버 검증 결과를 설명합니다. 실제 구축·사용자 검증의 진행 상태와 남은 운영 점검은 [공통 구축 기록](../../docs/operations/deploymentPlan.md#9-비용과-실제-진행-상태)에서 관리합니다.
 
 ## 1. 파일과 실행 환경
 
@@ -15,19 +15,21 @@
 | `server/deploy/redis.conf` | AOF·noeviction·메모리 한도 |
 | `server/deploy/.env.example` | 실제 운영 값 없이 제공하는 앱 환경변수 양식 |
 | `server/deploy/deploy.env.example` | 공개 도메인·이미지 버전 양식 |
-| `server/deploy/deploy.sh` | API 배포 직렬화·준비 확인·이전 정상 설정 보관 |
+| `server/deploy/deploy.sh`·`deployApi.py` | API 배포·내부/외부 검증·조건부 자동 롤백·정상 설정 보관 |
 | `server/deploy/retainImages.py` | 외부 검증 성공 후 최근 정상 API 이미지 3개를 로컬·GHCR에 보관 |
 | `server/deploy/certificates.sh` | 최초 인증서 발급·갱신·Nginx 재적용 |
 | `server/deploy/moahomeCertbot.service`·`.timer` | Ubuntu에서 하루 두 번 인증서 갱신 확인 |
 | `server/scripts/verifyDeployment.sh` | 임시 DB·인증서·컨테이너를 사용하는 로컬 통합 검증 |
 | `server/scripts/testImageRetention.py` | Docker·GitHub API를 격리한 이미지 정리 안전 조건 검증 |
+| `server/scripts/testDeploymentRollback.py` | 배포 실패·자동 복귀 조건·정상 설정 보존 검증 |
+| `server/scripts/verifyDeploymentRollback.py` | 로컬 통합 검증 중 실제 API 이미지 교체·복귀 확인 |
 | `.github/workflows/serverCi.yml` | PR 검증, main 이미지 게시 후 운영 Runner 자동 배포 |
 
 운영 호스트는 Ubuntu LTS, Docker Engine과 Compose 플러그인 2.30 이상, Bash·curl·Certbot·flock·Python 3.10 이상을 사용합니다. Python은 이미지 정리에 표준 라이브러리만 사용하며 별도 패키지를 설치하지 않습니다. Compose의 raw env_file과 준비 대기를 지원하는 버전이 필요합니다. Docker 설치는 [공식 Ubuntu 안내](https://docs.docker.com/engine/install/ubuntu/)를 따릅니다. 호스트의 JDK·Gradle·PostgreSQL 서버 설치는 필요하지 않습니다.
 
 ## 2. 유료 리소스 생성 전 로컬 검증
 
-저장소 루트에서 Docker 엔진을 실행한 뒤 아래 명령을 수행합니다. 스크립트는 호스트의 Bash·OpenSSL·curl·JDK 21의 `jar`를 사용합니다.
+저장소 루트에서 Docker 엔진을 실행한 뒤 아래 명령을 수행합니다. 스크립트는 호스트의 Bash·Python 3·OpenSSL·curl·JDK 21의 `jar`를 사용합니다.
 
 ```bash
 bash server/scripts/verifyDeployment.sh
@@ -41,8 +43,9 @@ bash server/scripts/verifyDeployment.sh
 - HTTP 인증 경로·HTTPS 전환·최초 발급용 HTTP 설정 전환
 - Redis 재생성 후 AOF 데이터 유지, 장애 시 상세 없는 503과 재연결
 - API 재생성 후 Nginx의 DNS 재조회, Nginx 설정 검사·reload
+- 동일 Migration·실행 환경인 새 이미지로 실제 API 교체 후 검증 실패 주입, 직전 이미지 복귀·내부/외부 검증 및 배포 실패 상태 유지
 
-종료 시 자신이 만든 컨테이너·네트워크·볼륨·임시 인증서만 삭제합니다. 빌드한 `moahome-api:local-check` 이미지와 Docker 빌드 캐시는 다음 검증에 재사용합니다. 이미지를 다시 빌드해야 하는 변경이 없을 때만 아래 단축 명령을 사용합니다.
+종료 시 자신이 만든 컨테이너·네트워크·볼륨·임시 인증서와 롤백 검증용 파생 이미지만 삭제합니다. 빌드한 `moahome-api:local-check` 이미지와 Docker 빌드 캐시는 다음 검증에 재사용합니다. 이미지를 다시 빌드해야 하는 변경이 없을 때만 아래 단축 명령을 사용합니다.
 
 ```bash
 SMOKE_SKIP_BUILD=1 bash server/scripts/verifyDeployment.sh
@@ -52,7 +55,7 @@ SMOKE_SKIP_BUILD=1 bash server/scripts/verifyDeployment.sh
 
 ## 3. GitHub Actions의 검증·이미지 게시·자동 배포
 
-Server 변경 PR에서는 JDK 21·Redis·PostgreSQL 17 실행 파일을 준비하고 `./gradlew build`, 이미지 정리 안전 조건 테스트와 위 Docker 통합 검증을 수행합니다. 임시 클러스터를 직접 실행하는 기존 테스트 구조를 유지하며 운영·개발 DB를 연결하지 않습니다.
+Server 변경 PR에서는 JDK 21·Redis·PostgreSQL 17 실행 파일을 준비하고 `./gradlew build`, 배포·이미지 정리 안전 조건 테스트와 위 Docker 통합 검증을 수행합니다. 임시 클러스터를 직접 실행하는 기존 테스트 구조를 유지하며 운영·개발 DB를 연결하지 않습니다.
 
 main 브랜치의 변경은 같은 검증을 통과한 이미지에 아래 태그를 붙여 GHCR로 게시합니다. Ubuntu x64 러너에서 빌드하므로 초기 Lightsail x86_64 서버에 사용할 수 있습니다. 로컬 Mac의 ARM 이미지를 운영 이미지로 게시하지 않습니다.
 
@@ -68,7 +71,7 @@ ghcr.io/<소문자 GitHub 소유자>/moahome-api:<전체 커밋 SHA>
 
 운영 서버에는 저장소 전용 Linux x64 Runner를 `/home/ubuntu/actions-runner` 등 앱 배포 폴더와 분리해 설치합니다. Runner 이름은 기본값을 사용해도 되고 추가 라벨은 `moahome-production`이어야 합니다. 서비스 계정은 `/opt/moahome`의 기존 배포 파일과 Docker에 `sudo -n`으로 접근할 수 있어야 합니다. 파일과 설정 준비는 다음 절을 따르며 Runner 등록만으로 해당 파일이 생성되지는 않습니다. GitHub의 `production` Environment에 승인 규칙을 설정하면 해당 규칙을 통과해야 작업이 실행됩니다.
 
-작업은 해당 저장소의 일회성 `GITHUB_TOKEN`에 `packages: read`만 부여하고 임시 Docker 인증 설정으로 이미지를 내려받습니다. 기존 운영자 로그인과 `.env.prod`는 변경하지 않으며 종료 시 임시 인증 파일을 제거합니다. 실제 기동 이미지 digest, healthy 상태·재시작 0회, 내부 readiness, 외부 HTTPS readiness의 UP, 미인증 사용자 API의 401을 확인합니다. 실패 시 배포 성공으로 기록하지 않고 기존 스크립트처럼 DB 호환성을 모르는 자동 롤백을 수행하지 않습니다.
+배포 작업은 해당 저장소의 일회성 `GITHUB_TOKEN`에 `packages: read`만 부여하고 임시 Docker 인증 설정으로 이미지를 내려받습니다. 기존 운영자 로그인과 `.env.prod`는 변경하지 않으며 종료 시 임시 인증 파일을 제거합니다. 체크아웃한 검증 대상 커밋의 `deploy.sh`·`deployApi.py`를 `--deploy-dir /opt/moahome`으로 실행합니다. 실제 이미지 ID, healthy 상태·재시작 0회, 내부 readiness, 외부 HTTPS readiness의 UP, 미인증 사용자 API의 401을 하나의 배포 잠금 안에서 확인하고, 실패 시 [조건부 자동 롤백](#조건부-자동-롤백)을 수행합니다. 복귀에 성공해도 새 배포를 성공으로 기록하지 않습니다.
 
 DB 변경의 전체 이력 대조·격리 업그레이드 시험·백업은 [운영 배포 규칙](../../docs/operations/deploymentRules.md)에 따라 main 반영 전에 완료합니다. 이 작업은 RDS 스냅샷 생성과 기존 프론트의 실제 로그인·업무 검증까지 자동화한 것으로 보지 않습니다. 서버의 배포 파일 동기화와 프론트 배포 대기 연결도 이번 작업에는 포함하지 않습니다. 이 문서의 구현 설명은 운영 Runner에서 실행 성공을 확인한 기록과 구분합니다.
 
@@ -98,7 +101,7 @@ DB 변경의 전체 이력 대조·격리 업그레이드 시험·백업은 [운
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s server/scripts -p 'testImageRetention.py'
 ```
 
-이 자동 정리는 GitHub Actions 배포 경로에 연결됩니다. 아래의 수동 `deploy.sh` 실행만으로는 외부 검증 완료를 알 수 없으므로 정리를 수행하지 않습니다. 이미지 보관은 앱 롤백 준비이며 DB Migration을 되돌리는 기능은 아닙니다.
+이 자동 정리는 GitHub Actions의 후속 작업에 연결됩니다. 수동 `deploy.sh`도 내부·외부 검증과 조건부 복귀를 수행하지만 이미지 정리는 실행하지 않습니다. 이미지 보관은 앱 롤백 준비이며 DB Migration을 되돌리는 기능은 아닙니다.
 
 ## 4. 운영 호스트 준비
 
@@ -171,9 +174,39 @@ cd /opt/moahome
 sudo bash deploy.sh ghcr.io/your-owner/moahome-api:COMMIT_SHA
 ```
 
-스크립트는 설정 검사 → API 이미지 pull → Redis 준비 확인 → API 교체·준비 확인 → Nginx 검사·reload 순서로 실행합니다. 동시에 두 배포를 실행하지 않도록 잠그고, 성공한 설정은 `.deploy.env`, 직전 정상 설정은 `.previousDeploy.env`에 보관합니다. 일반 API 배포에서는 Redis·Nginx 이미지를 pull하지 않습니다. 운영 파일 자체를 변경하는 배포는 별도로 검토합니다.
+스크립트는 설정 검사 → API 이미지 pull → 직전 정상 상태·자동 복귀 조건 확인 → Redis 준비 확인 → API 교체 → Nginx 검사·reload → 내부·외부 readiness·인증 보호 확인 순서로 실행합니다. 이 전체 과정과 실패 시 복귀까지 동일 호스트 잠금을 유지합니다. 모든 자동 검증이 통과해야 `.deploy.env`를 새 버전으로 갱신하고 직전 설정을 `.previousDeploy.env`에 보관합니다. 일반 API 배포에서는 Redis·Nginx 이미지를 pull하지 않습니다. 운영 파일 자체를 변경하는 배포는 별도로 검토합니다.
 
-실패한 API의 Flyway가 이미 DB를 변경했을 수 있으므로 자동 롤백하지 않습니다. 실패 시 실행 중인 컨테이너가 시도한 버전일 수 있으며, `.deploy.env`는 마지막 정상 확인 버전을 유지합니다. 실제 이미지·로그·DB 스키마를 확인하고 이전 앱과 호환될 때만 이전 이미지로 같은 배포 명령을 실행합니다. DB를 복원해야 하면 [공통 복구 기준](../../docs/operations/deploymentPlan.md#7-백업복구와-관측)을 따릅니다.
+수동 배포에 새 동작을 적용하려면 `deploy.sh`와 `deployApi.py`를 함께 운영 폴더에 복사합니다. 기존 `deploy.sh`만 서버에 남아 있다면 새 자동 롤백 기능이 적용됐다고 판단하지 않습니다. CI는 체크아웃한 두 파일을 직접 사용하므로 이 복사를 기다리지 않습니다. Compose·인증서·환경 파일은 기존처럼 운영 폴더에서 읽습니다.
+
+### 조건부 자동 롤백
+
+사용자의 자동 롤백 요청을 다음의 보수적인 조건으로 구현합니다. 자동 복귀 대상은 배포 직전에 실제 실행 중이며 내부·외부 검증을 통과한 **직전 정상 이미지 하나**입니다. 성공 이력의 첫 줄이나 `.previousDeploy.env`를 무조건 실행하지 않습니다.
+
+- 현재 배포 설정의 이미지와 실행 컨테이너의 이미지 ID가 일치하고 API가 healthy·재시작 0회이며 내부·외부 readiness·미인증 API의 401 검증을 통과해야 합니다.
+- 이전·후보 이미지의 JAR에 포함된 Migration 전체 경로·내용, 기본·운영 앱 설정, Flyway 라이브러리, Flyway를 직접 참조하는 Java 클래스가 같아야 합니다. 현재 SQL 외에 `InvitationCredentialMigrationCallback`도 비교합니다.
+- 실행 환경변수·이미지 실행 명령·사용자·경로가 같아야 합니다. Compose에서 별도 앱 명령을 지정한 구성은 자동 복귀에서 제외합니다. 배포 도중 환경 파일·배포 설정이 달라지면 복귀를 중단합니다.
+
+비교용 컨테이너는 네트워크 없이 생성하고 **시작하지 않은 채** JAR만 복사한 뒤 제거합니다. 앱을 추가로 실행해 운영 DB를 사전 변경하지 않습니다. 태그 변경의 영향을 받지 않게 이미지 ID와 digest를 고정하며 복귀할 때 이미지를 다시 pull하지 않습니다.
+
+| 상황 | 동작 |
+| --- | --- |
+| API 교체 전 설정 검사·다운로드 실패 | API를 교체하지 않고 배포 실패 |
+| API 교체 이후 기동·Nginx·내부/외부 검증 실패, 복귀 조건 충족 | 직전 정상 이미지로 한 번 복귀하고 동일한 검증 수행 |
+| 복귀 검증 성공 | `.deploy.env`를 복귀한 이미지로 유지하고 새 배포는 실패로 종료. 정상 이미지 이력·자동 정리는 실행하지 않음 |
+| Migration·설정 차이, 기존 정상 상태 불명확, 판별 오류 | 자동 복귀 제외. 실패하면 실제 이미지·DB 상태 확인 후 수동 복구 |
+| 복귀 자체도 실패 | 더 오래된 이미지를 연속 실행하지 않고 실패·수동 복구 필요 표시 |
+
+이 검사는 이미지에 새 Migration이 없음을 확인하는 제한적인 조건입니다. 실제 DB 이력 대조나 새 앱이 기록한 모든 업무 데이터의 이전 앱 호환성을 자동 증명하지 않습니다. 배포 전 호환성 검토·DB 점검은 계속 수행하며, SQL 밖의 기동 코드로 DB 구조를 변경하지 않습니다. 강제 종료·Runner 소실·Docker 장애에서는 복귀 실행이 보장되지 않으므로 실제 컨테이너·로그를 확인합니다. DB·Redis 데이터와 Migration을 자동으로 되돌리지 않습니다.
+
+복귀 조건을 충족하지 않거나 복귀도 실패하면 컨테이너가 시도한 버전일 수 있습니다. `.deploy.env`만 보고 실행 버전을 판단하지 않습니다. 실제 이미지·로그·DB 스키마를 확인하고 이전 앱과 호환될 때만 이전 이미지로 같은 배포 명령을 실행합니다. DB를 복원해야 하면 [공통 복구 기준](../../docs/operations/deploymentPlan.md#7-백업복구와-관측)을 따릅니다.
+
+배포·보관 안전 조건 테스트는 아래 명령으로 함께 실행합니다. 위 로컬 통합 검증은 별도로 실제 컨테이너 교체·복귀를 확인합니다.
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s server/scripts -p 'test*.py'
+```
+
+운영 컨테이너와 공개 준비 상태는 다음 명령으로 확인합니다.
 
 ```bash
 sudo docker compose --env-file .deploy.env -f compose.prod.yml ps
@@ -184,6 +217,8 @@ curl --fail --silent --show-error https://api.villamoa.kr/actuator/health/readin
 정상 준비 응답은 `200 {"status":"UP"}`이고, 저장소 장애는 상세 없이 `503 {"status":"DOWN"}`입니다. 그다음 실제 로그인과 변경된 업무 흐름을 확인해야 배포가 완료됩니다. `/actuator/env` 같은 상세 경로는 Nginx에서 차단하며 API 자체에서도 인증 없이 허용하지 않습니다.
 
 ## 7. 현재 검증 범위
+
+2026-11-04 로컬 Java 21의 격리 Gradle build·서버 테스트 600개, 배포·이미지 보관 안전 조건 테스트 33개, 워크플로 YAML·Bash 문법 검사를 통과했습니다. Mac ARM Docker 환경에서는 동일 JAR·실행 환경을 가진 서로 다른 이미지로 API를 실제 교체한 뒤 검증 실패를 주입하여 직전 이미지 복귀·내부/외부 HTTPS·인증 보호 재검증과 배포 실패 상태 유지를 확인했습니다. 임시 PostgreSQL 17·Redis·Nginx의 기존 통합 검증도 통과했고 생성한 컨테이너·네트워크·볼륨·파생 이미지는 정리했습니다. 이 결과는 운영 Runner에서 새 자동 롤백을 실행한 기록이 아닙니다.
 
 2026-10-30 로컬에서 서버 전체 테스트 562개와 Gradle build, 운영 Docker 이미지 빌드, 임시 PostgreSQL 17·Redis 8·Nginx를 연결한 통합 검증을 실행했습니다. 당시 Docker 검증은 Mac ARM 환경이었으며 외부 서비스 구축·검증은 다음 날 별도로 진행했습니다.
 
