@@ -35,6 +35,14 @@ test('통장 화면 그룹도 공개 API를 사용하고 형제 화면 참조를
     "export { BankingTransactionsPage } from '@/screens/banking/transactions';")).map((message) => message.messageId)).toEqual(['sameLayer']);
 });
 
+test('회계 화면은 공개 API로 연결하고 그룹 루트와 형제 화면 내부 참조를 차단', async () => {
+  expect(await architectureMessages('src/app/example.ts', "export { MonthlySettlementPage } from '@/screens/accounting/settlement';")).toEqual([]);
+  expect((await architectureMessages('src/screens/accounting/income-statement/ui/incomeStatementPage.tsx',
+    "export { MonthlySettlementPage } from '@/screens/accounting/settlement';")).map((message) => message.messageId)).toEqual(['sameLayer']);
+  expect((await architectureMessages('src/app/example.ts',
+    "export { value } from '@/screens/accounting';")).map((message) => message.messageId)).toEqual(['publicApi']);
+});
+
 test('시스템 관리 화면도 공개 API로 연결하고 형제 화면 참조를 차단', async () => {
   expect(await architectureMessages('src/app/example.ts', "export { SystemAdminMemberListPage } from '@/screens/system-admin/member-list';")).toEqual([]);
   expect((await architectureMessages('src/screens/system-admin/member-detail/ui/systemAdminMemberDetailPage.tsx',

@@ -5,6 +5,7 @@ export interface ManagementMenuLink {
   label: string;
   path: string;
   available: boolean;
+  statusLabel?: string;
 }
 
 type ManagementMenuItem = {
@@ -91,11 +92,38 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
     ]
   },
   {
-    id: 'closing',
-    label: '정산 / 마감',
+    id: 'accounting',
+    label: '회계·정산',
     icon: 'closing',
-    path: 'closing/monthly',
-    available: true
+    children: [
+      {
+        id: 'settlement',
+        label: '정산 현황',
+        path: 'accounting/settlement',
+        available: true
+      },
+      {
+        id: 'income-statement',
+        label: '손익계산서',
+        path: 'accounting/income-statement',
+        available: false,
+        statusLabel: '구현 예정'
+      },
+      {
+        id: 'ledger',
+        label: '계정별 원장',
+        path: 'accounting/ledger',
+        available: false,
+        statusLabel: '구현 예정'
+      },
+      {
+        id: 'account-settings',
+        label: '계정과목 설정',
+        path: 'accounting/accounts',
+        available: false,
+        statusLabel: '구현 예정'
+      }
+    ]
   },
   {
     id: 'vehicles',

@@ -225,7 +225,7 @@ test('통장 관리와 월별 정산의 일반 새로고침을 표시하지 않�
       path: testInfo.outputPath('banking-no-refresh.png')
     });
   }
-  await page.goto(`${BASE}/closing/monthly?month=2026-10`);
+  await page.goto(`${BASE}/accounting/settlement?month=2026-10`);
   await expect(page.getByRole('button', {
     name: '정산 자료 새로고침',
     exact: true

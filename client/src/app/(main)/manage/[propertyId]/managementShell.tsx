@@ -85,7 +85,7 @@ function ManagementShellContent({ propertyId, children }: { propertyId: string; 
 /** 직접 접근에서도 같은 관리대상 안의 목록·상세로 돌아가는 모바일 헤더를 구성합니다. */
 function getMobileBack(pathname: string, basePath: string, month: string | null, account: string | null, period: URLSearchParams, datePeriod: URLSearchParams) {
   const periodSuffix = period.size ? `?${period}` : '';
-  const downloadPath = pathname.match(/\/(banking\/(?:monthly|balances|expenses)|payments\/monthly|closing\/monthly)\/download$/);
+  const downloadPath = pathname.match(/\/(banking\/(?:monthly|balances|expenses)|payments\/monthly|accounting\/settlement)\/download$/);
   if (downloadPath) {
     const downloadQuery = new URLSearchParams(downloadPath[1] === 'banking/expenses' ? datePeriod : period);
     if (/^[0-9a-f-]{36}$/i.test(account ?? '')) downloadQuery.set('account', account!);

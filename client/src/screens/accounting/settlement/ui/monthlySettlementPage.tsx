@@ -86,7 +86,7 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
   function changeMonth(value: string) {
     const params = new URLSearchParams(search.toString());
     params.set('month', value);
-    router.replace(`${base}/closing/monthly?${params}`, {
+    router.replace(`${base}/accounting/settlement?${params}`, {
       scroll: false
     });
   }
@@ -96,8 +96,8 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
       className={styles.page}
     >
       <ListHeader
-        menu={'정산 / 마감'}
-        title={'월별 정산'}
+        menu={'회계·정산'}
+        title={'정산 현황'}
         description={'한 달의 입출금과 수납, 동별 자금과 확인할 일을 모아봅니다.'}
         titleId={'monthly-settlement-title'}
         className={styles.header}
@@ -130,7 +130,7 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 onClick={() => {
                   if (!ready || !data) return;
                   openDownload({
-                    pageHref: `${base}/closing/monthly/download?month=${month}`,
+                    pageHref: `${base}/accounting/settlement/download?month=${month}`,
                     render: (presentation, onClose) => (
                       <SettlementDownload
                         data={data}

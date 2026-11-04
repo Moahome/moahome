@@ -7,7 +7,7 @@ import {
   getDashboardReport,
   getChartRatio
 } from '../src/screens/management-dashboard/model/dashboard';
-import { getSettlementReport } from '../src/screens/monthly-settlement/model/monthlySettlement';
+import { getSettlementReport } from '../src/screens/accounting/settlement/model/monthlySettlement';
 import {
   getMonthlyChargeSummary,
   getMonthlyPreviewRows

@@ -9,13 +9,13 @@ import {
 import {
   createMonthlyReportWorkbook,
   getMonthlyReportDocuments
-} from '../src/screens/monthly-settlement/model/monthlyReport';
+} from '../src/screens/accounting/settlement/model/monthlyReport';
 import {
   getSettlementReport,
   filterSettlementAccounts,
   filterSettlementBuildings,
   filterSettlementExternal
-} from '../src/screens/monthly-settlement/model/monthlySettlement';
+} from '../src/screens/accounting/settlement/model/monthlySettlement';
 import {
   settlementFixture,
   settlementDetailFixture,

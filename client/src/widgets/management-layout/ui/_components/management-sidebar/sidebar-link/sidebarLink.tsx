@@ -20,6 +20,7 @@ export function SidebarLink({
   collapsed?: boolean;
 }) {
   const href = `/manage/${propertyId}/${item.path}`;
+  const statusLabel = item.statusLabel ?? '준비 중';
   const isCurrent = pathname === href || (item.path === 'banking/transactions' && ['upload', 'manual', 'manual-expense'].some((path) => pathname === `/manage/${propertyId}/banking/${path}`));
   const content = (
     <>
@@ -30,7 +31,7 @@ export function SidebarLink({
         {item.label}
       </span>
       {!item.available && !collapsed && <small>
-        준비 중
+        {statusLabel}
       </small>}
     </>
   );
@@ -41,8 +42,8 @@ export function SidebarLink({
       className={styles.link}
       data-icon={Boolean(icon)}
       data-collapsed={collapsed}
-      aria-label={collapsed ? `${item.label}${item.available ? '' : ' (준비 중)'}` : undefined}
-      title={collapsed ? `${item.label}${item.available ? '' : ' (준비 중)'}` : undefined}
+      aria-label={collapsed ? `${item.label}${item.available ? '' : ` (${statusLabel})`}` : undefined}
+      title={collapsed ? `${item.label}${item.available ? '' : ` (${statusLabel})`}` : undefined}
       aria-current={isCurrent ? 'page' : undefined}
       onNavigate={onNavigate}
       replace={Boolean(onNavigate)}

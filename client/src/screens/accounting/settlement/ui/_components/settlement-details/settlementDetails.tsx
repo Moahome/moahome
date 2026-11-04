@@ -116,7 +116,7 @@ export function SettlementDetails({ report, month, propertyId }: {
     params.set('month', month);
     params.set('tab', value);
     setPage(1);
-    router.replace(`/manage/${propertyId}/closing/monthly?${params}`, {
+    router.replace(`/manage/${propertyId}/accounting/settlement?${params}`, {
       scroll: false
     });
   }
