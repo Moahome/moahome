@@ -18,6 +18,8 @@ export type ReportDefinition = {
   sheet: string;
   columns: readonly ReportColumn[];
   rows: readonly (readonly ReportValue[])[];
+  /** 계층형 표의 대분류·소계와 세부 행을 구분하며 일반 목록은 기존 교차 행 서식을 유지합니다. */
+  rowKinds?: readonly ('section' | 'detail')[];
   summary: readonly ReportSummary[];
   total?: readonly ReportValue[];
   note: string;

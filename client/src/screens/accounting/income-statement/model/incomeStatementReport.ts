@@ -40,6 +40,7 @@ export function getIncomeReportDocuments(report: IncomeStatementReport, cumulati
       align: 'right'
     }],
     rows: report.rows.filter((row) => row.kind !== 'total').map((row) => [row.kind === 'account' ? `    ${row.label}` : row.label, row.amount]),
+    rowKinds: report.rows.filter((row) => row.kind !== 'total').map((row) => row.kind === 'account' ? 'detail' : 'section'),
     summary,
     total: ['기간 순손익', report.profit],
     note
@@ -87,7 +88,7 @@ export function getIncomeReportDocuments(report: IncomeStatementReport, cumulati
     rows: report.issues.map((issue) => [issue.label, BigInt(issue.amount)]),
     summary: [],
     highlightNegative: true,
-    note: '이 금액은 미확인 원천 금액이며 손익 합계가 아닙니다. 귀속 월 미확인 지출은 조회 기간과 별개로 표시합니다.'
+    note: '이 금액은 계정과목 등이 미확인인 원천 금액이며 손익 합계가 아닙니다.'
   }] : [])];
 }
 
@@ -105,6 +106,20 @@ export async function createIncomeReportPdf(report: IncomeStatementReport, cumul
     blue: '#EFF6FF',
     white: '#FFFFFF',
     danger: '#EF4444'
+  };
+  // 화면과 PDF·PNG는 사용자가 정한 표·비용 그래프의 공통 색상 토큰을 공유합니다.
+  const rootStyles = getComputedStyle(document.documentElement);
+  const expenseColor = rootStyles.getPropertyValue('--chart-expense').trim() || colors.border;
+  const statementColors = {
+    header: rootStyles.getPropertyValue('--income-statement-header-background').trim() || colors.blue,
+    section: rootStyles.getPropertyValue('--income-statement-section-background').trim() || colors.blue,
+    total: rootStyles.getPropertyValue('--income-statement-total-background').trim() || colors.blue,
+    border: rootStyles.getPropertyValue('--income-statement-border').trim() || colors.border,
+    negative: rootStyles.getPropertyValue('--income-statement-negative').trim() || colors.danger
+  };
+  const trendTableColors = {
+    odd: rootStyles.getPropertyValue('--income-trend-table-odd-background').trim() || statementColors.header,
+    even: rootStyles.getPropertyValue('--income-trend-table-even-background').trim() || statementColors.section
   };
   const money = (value: bigint | string) => typeof value === 'bigint' ? `${formatInteger(value)}원` : value;
   pdf.setProperties({
@@ -156,19 +171,28 @@ export async function createIncomeReportPdf(report: IncomeStatementReport, cumul
       bottom: 20,
       left: 14
     },
-    head: [['계정과목', '기간 합계']],
+    head: [['계정과목', {
+      content: '기간 합계',
+      styles: {
+        halign: 'right'
+      }
+    }]],
     body: report.rows.map((row) => [row.kind === 'account' ? `    ${row.label}` : row.label, money(row.amount)]),
     styles: {
       font: 'Pretendard',
       fontSize: 11,
       cellPadding: 3.3,
       textColor: colors.text,
-      lineColor: colors.border,
+      fillColor: colors.white,
+      lineColor: statementColors.border,
       lineWidth: 0.1
     },
+    alternateRowStyles: {
+      fillColor: colors.white
+    },
     headStyles: {
-      fillColor: colors.soft,
-      textColor: colors.muted,
+      fillColor: statementColors.header,
+      textColor: colors.text,
       fontStyle: 'bold'
     },
     columnStyles: {
@@ -182,10 +206,11 @@ export async function createIncomeReportPdf(report: IncomeStatementReport, cumul
     didParseCell(data) {
       const row = report.rows[data.row.index];
       if (data.section === 'body' && row?.kind !== 'account') {
-        data.cell.styles.fillColor = row?.kind === 'total' ? colors.blue : colors.soft;
+        data.cell.styles.fillColor = row?.kind === 'total' ? statementColors.total : statementColors.section;
         data.cell.styles.fontStyle = 'bold';
       }
-      if (data.section === 'body' && data.column.index === 1 && row?.amount < BigInt(0)) data.cell.styles.textColor = colors.danger;
+      if (data.section === 'body' && data.column.index === 0 && row?.kind === 'total') data.cell.styles.textColor = colors.primary;
+      if (data.section === 'body' && data.column.index === 1 && row?.amount < BigInt(0)) data.cell.styles.textColor = statementColors.negative;
     },
     didDrawPage(data) { if (data.pageNumber > 1) header('손익계산서 (계속)'); }
   });
@@ -217,7 +242,7 @@ export async function createIncomeReportPdf(report: IncomeStatementReport, cumul
     }
     rows.forEach((row, index) => {
       [row.revenue, row.expense].forEach((value, series) => {
-        pdf.setFillColor(value < BigInt(0) ? colors.danger : series === 0 ? colors.primary : colors.border);
+        pdf.setFillColor(value < BigInt(0) ? colors.danger : series === 0 ? colors.primary : expenseColor);
         pdf.rect(x(index) - 6 + series * 6, Math.min(y(value), y(BigInt(0))), 5, Math.max(0.3, Math.abs(y(value) - y(BigInt(0)))), 'F');
       });
       pdf.setTextColor(colors.muted);
@@ -247,7 +272,7 @@ export async function createIncomeReportPdf(report: IncomeStatementReport, cumul
       pdf.circle(x(index), y(row.profit), 1.1, 'FD');
     });
     pdf.setTextColor(colors.primary); pdf.text('■ 수익', 55, 130);
-    pdf.setTextColor(colors.muted); pdf.text('■ 비용', 90, 130);
+    pdf.setTextColor(expenseColor); pdf.text('■ 비용', 90, 130);
     pdf.setTextColor(colors.teal); pdf.text('─ 순손익', 125, 130);
     autoTable(pdf, {
       startY: 138,
@@ -263,11 +288,15 @@ export async function createIncomeReportPdf(report: IncomeStatementReport, cumul
         font: 'Pretendard',
         fontSize: 10,
         cellPadding: 3,
-        textColor: colors.text
+        textColor: colors.text,
+        fillColor: trendTableColors.odd,
+        lineColor: statementColors.border,
+        lineWidth: 0.1
       },
       headStyles: {
-        fillColor: colors.soft,
-        textColor: colors.muted
+        fillColor: statementColors.section,
+        textColor: colors.text,
+        fontStyle: 'bold'
       },
       columnStyles: {
         1: {
@@ -281,7 +310,10 @@ export async function createIncomeReportPdf(report: IncomeStatementReport, cumul
         }
       },
       didParseCell(data) {
+        if (data.section === 'head' && data.column.index > 0) data.cell.styles.halign = 'right';
         if (data.section !== 'body') return;
+        // 라이브러리의 기본 교차 행 색상보다 우선해 홀수·짝수 행 전체에 실제 블루 채움을 기록합니다.
+        data.cell.styles.fillColor = data.row.index % 2 === 0 ? trendTableColors.odd : trendTableColors.even;
         const row = rows[data.row.index];
         const value = [null, row.revenue, row.expense, row.profit][data.column.index];
         if (value !== null && value < BigInt(0)) data.cell.styles.textColor = colors.danger;

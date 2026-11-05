@@ -20,6 +20,17 @@ html {
   /* 2026-10-23 사용자 지정: 선택 거래 작업바 배경은 흰색을 사용합니다. */
   --bank-import-actions-background: var(--card);
   --secondary-teal: #0d9488;
+  /* 2026-11-05 사용자 지정: 손익 그래프의 비용은 오렌지색으로 표시합니다. */
+  --chart-expense: #f4a261;
+  /* 2026-11-05 사용자 시안: 손익계산서 표와 PDF·PNG에 같은 파란색 구분을 적용합니다. */
+  --income-statement-header-background: #e0f2fe;
+  --income-statement-section-background: #dbeafe;
+  --income-statement-total-background: var(--button-primary-border);
+  --income-statement-border: #bfd3ea;
+  --income-statement-negative: #dc2626;
+  /* 다운로드의 월별·누계 표는 흰색 여백과 구분되도록 두 가지 블루 행 배경을 사용합니다. */
+  --income-trend-table-odd-background: #eaf3ff;
+  --income-trend-table-even-background: #e3efff;
   --background: #f8fafc;
   --card: #ffffff;
   --foreground: #0f172a;

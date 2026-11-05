@@ -44,6 +44,24 @@ test('기간 경계·동별 합계·조회 시작 월부터의 누계를 같은 
   expect(getIncomeReportDocuments(all, true)[1].rows.at(-1)?.[3]).toBe(all.profit);
 });
 
+test('손익 표와 다운로드는 거래 순서와 관계없이 계정 코드를 오름차순으로 표시한다', () => {
+  const source = createIncomeStatementExample();
+  const labels = ['801 일반관리비', '807 정화조비', '802 청소비', '803 엘리베이터비', '809 지급수수료', '804 수도전기료', '808 통신비'];
+  source.records = labels.map((accountName, index) => ({
+    id: String(index),
+    accountId: String(index),
+    accountName,
+    group: 'operatingExpense',
+    month: '2026-09',
+    buildingId: 'example-a',
+    amount: '100'
+  }));
+  const report = getIncomeStatement(source, source.availableRange)!;
+  const expected = ['801 일반관리비', '802 청소비', '803 엘리베이터비', '804 수도전기료', '807 정화조비', '808 통신비', '809 지급수수료'];
+  expect(report.rows.filter((row) => row.kind === 'account').map((row) => row.label)).toEqual(expected);
+  expect(getIncomeReportDocuments(report, false)[0].rows.filter((row) => /^8\d{2} /.test(String(row[0]).trim())).map((row) => String(row[0]).trim())).toEqual(expected);
+});
+
 test('자료 범위 밖·역전 기간·존재하지 않는 동은 0원 손익으로 대체하지 않는다', () => {
   const source = createIncomeStatementExample();
   for (const range of [
@@ -109,7 +127,7 @@ test('같은 이름의 과목 ID·큰 정수·영업외 비용·음수 조정과
   expect(report.rows.find((row) => row.id === 'other-profit')?.amount).toBe(-BigInt(100));
 });
 
-test('두 열 손익 Excel은 요약 병합을 유지하고 음수 금액을 정확한 숫자·붉은 글씨로 저장한다', async () => {
+test('손익 Excel은 대분류·세부·최종 합계의 색상·굵기를 구분하고 음수의 정확한 숫자를 유지한다', async () => {
   const source = createIncomeStatementExample();
   source.records = source.records.map((record) => record.group === 'operatingRevenue' ? {
     ...record,
@@ -127,5 +145,37 @@ test('두 열 손익 Excel은 요약 병합을 유지하고 음수 금액을 정
   expect(sheet).toContain('-3760000');
   expect(sheet).not.toContain('colspan="0"');
   expect(styles).toContain('EF4444');
+  for (const color of ['DBEAFE', 'BFDBFE', 'BFD3EA']) expect(styles).toContain(color);
+  const formats = styles.match(/<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/)![1].match(/<xf\b[^>]*>/g)!;
+  // 저장한 XLSX의 실제 셀 서식을 대조해 대분류가 일반 계정과 같은 색·굵기로 저장되는 회귀를 막습니다.
+  const cellFormat = (reference: string) => {
+    const tag = sheet.match(new RegExp(`<c\\b[^>]*r="${reference}"[^>]*>`))![0];
+    return formats[Number(tag.match(/\bs="(\d+)"/)![1])];
+  };
+  const firstDataRow = documents[0].summary.length + 6;
+  const sectionFormat = cellFormat(`A${firstDataRow}`);
+  const detailIndex = documents[0].rowKinds!.indexOf('detail');
+  const detailFormat = cellFormat(`A${firstDataRow + detailIndex}`);
+  expect(sectionFormat.match(/fillId="\d+"/)![0]).not.toBe(detailFormat.match(/fillId="\d+"/)![0]);
+  expect(sectionFormat.match(/fontId="\d+"/)![0]).not.toBe(detailFormat.match(/fontId="\d+"/)![0]);
+  expect(cellFormat(`A${firstDataRow + documents[0].rows.length}`).match(/fillId="\d+"/)![0])
+    .not.toBe(sectionFormat.match(/fillId="\d+"/)![0]);
   expect(strFromU8(workbook['xl/workbook.xml'])).toContain('월별 손익');
+});
+
+test('미반영 내역의 원본 이름·일자·사유를 보고서에 보존하고 손익에는 합산하지 않는다', () => {
+  const source = createIncomeStatementExample();
+  source.issues = [{
+    sourceName: '정화조 청소',
+    sourceContext: '거래일 2026-10-15 · 부담처 외부 관리단',
+    label: '외부 부담금과 우리 부담 비용을 구분해야 합니다.',
+    amount: '182690'
+  }];
+  const report = getIncomeStatement(source, source.availableRange)!;
+  const pending = getIncomeReportDocuments(report, false).at(-1)!;
+  expect(pending.rows[0]).toEqual([
+    '정화조 청소 · 거래일 2026-10-15 · 부담처 외부 관리단 · 외부 부담금과 우리 부담 비용을 구분해야 합니다.',
+    BigInt(182690)
+  ]);
+  expect(report.profit).toBe(BigInt(1000000));
 });

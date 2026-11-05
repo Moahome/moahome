@@ -247,11 +247,13 @@ export function ReportDownload({ title, description, filename, sourceKey, docume
               {documents.map((sheet, sheetIndex) => {
                 const rows = [...sheet.rows, ...(sheet.total ? [sheet.total] : [])].map((values, index) => ({
                   id: String(index),
-                  values
+                  values,
+                  kind: index < sheet.rows.length ? sheet.rowKinds?.[index] : 'total'
                 }));
                 return (
                   <section
                     key={sheet.title}
+                    data-sectioned={Boolean(sheet.rowKinds)}
                   >
                     <h3>
                       {sheet.title}
@@ -318,6 +320,7 @@ export function ReportDownload({ title, description, filename, sourceKey, docume
                         align: column.align,
                         render: (row: typeof rows[number]) => (
                           <span
+                            data-report-row-kind={row.kind}
                             className={sheet.highlightNegative && typeof row.values[index] === 'bigint' && row.values[index] < BigInt(0) ? styles['negative-amount'] : undefined}
                           >
                             {typeof row.values[index] === 'bigint' ? `${formatInteger(row.values[index])}원` : row.values[index] ?? ''}

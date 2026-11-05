@@ -53,7 +53,7 @@
     }
 
     [data-series='expense'] i {
-      background: color-mix(in srgb, var(--sub-text) 35%, var(--card));
+      background: var(--chart-expense);
     }
 
     [data-series='profit'] i {
@@ -168,7 +168,7 @@
     fill: var(--primary);
 
     &[data-series='expense'] {
-      fill: color-mix(in srgb, var(--sub-text) 35%, var(--card));
+      fill: var(--chart-expense);
     }
 
     &[data-negative='true'] {
