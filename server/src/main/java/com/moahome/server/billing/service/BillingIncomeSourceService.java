@@ -29,7 +29,7 @@ public class BillingIncomeSourceService {
 		this.periods = periods;
 	}
 
-	/** 조회가 새 부과를 생성하지 않으며 취소·초안·인계 미수는 신규 관리비 수익 원천에서 제외합니다. */
+	/** 확정 청구의 당시 세대 표시를 전달하며 조회로 새 부과를 생성하거나 취소·초안·인계 미수를 수익에 넣지 않습니다. */
 	@Transactional(readOnly = true)
 	public List<BillingIncomeSource> get(UUID property) {
 		List<Charge> issued = charges.findByPropertyId(property).stream()
@@ -46,9 +46,10 @@ public class BillingIncomeSourceService {
 			if (period == null)
 				throw new IllegalStateException("Missing billing period");
 			result.add(new BillingIncomeSource(charge.getId(), charge.getUnitId(), period.month().toString(),
-				charge.getBuildingName(), charge.getTotalAmount(), byCharge.getOrDefault(charge.getId(), List.of())
+				charge.getBuildingName(), charge.getUnitNumber(), charge.getDisplayName(), charge.getTotalAmount(),
+				byCharge.getOrDefault(charge.getId(), List.of())
 					.stream().map(item -> new BillingIncomeSource.Item(item.getId(), item.getSourceTemplateItemId(), item.getItemName(),
-						item.getItemCode(), item.getAmount())).toList()));
+						item.getItemCode(), item.getAmount(), item.getRevenueAccountId())).toList()));
 		}
 		return List.copyOf(result);
 	}

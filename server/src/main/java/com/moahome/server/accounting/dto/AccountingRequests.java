@@ -18,15 +18,16 @@ public final class AccountingRequests {
 		@Min(1) @Max(12) int fiscalYearStartMonth) {
 	}
 
-	public record CreateAccount(@NotBlank @Size(max = 100) String name, @NotNull IncomeGroup group) {
+	public record CreateAccount(@NotBlank @Size(max = 100) String name, @NotNull IncomeGroup group,
+		@Pattern(regexp = "8[0-9]{2}") String code) {
 	}
 
 	public record ReviewExpense(@NotNull UUID accountId,
-		@NotBlank @Pattern(regexp = "[1-9][0-9]{3}-(0[1-9]|1[0-2])") String recognitionMonth,
-		@NotNull @Min(0) Integer expectedRevision, @NotBlank @Size(max = 500) String reason) {
+		@Pattern(regexp = "[1-9][0-9]{3}-(0[1-9]|1[0-2])") String recognitionMonth,
+		@NotNull @Min(0) Integer expectedRevision, @Size(max = 500) String reason) {
 	}
 
 	public record ReviewRevenue(@NotNull Boolean recognized, @NotNull @Min(0) Integer expectedRevision,
-		@NotBlank @Size(max = 500) String reason) {
+		@Size(max = 500) String reason) {
 	}
 }

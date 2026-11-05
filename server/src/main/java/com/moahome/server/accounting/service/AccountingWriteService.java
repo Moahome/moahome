@@ -4,9 +4,13 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.util.UUID;
+import java.util.List;
+import java.util.Arrays;
+import java.util.stream.IntStream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.moahome.server.accounting.domain.AccountingAccount;
+import com.moahome.server.accounting.domain.DefaultAccount;
 import com.moahome.server.accounting.domain.AccountingProfile;
 import com.moahome.server.accounting.domain.ExpenseAccountingReview;
 import com.moahome.server.accounting.domain.IncomeGroup;
@@ -76,8 +80,8 @@ public class AccountingWriteService {
 		}
 		OffsetDateTime at = OffsetDateTime.now(clock);
 		profiles.saveAndFlush(AccountingProfile.create(property, start, request.fiscalYearStartMonth(), actor, at));
-		accounts.saveAndFlush(AccountingAccount.create(property, "관리비수익", IncomeGroup.OPERATING_REVENUE,
-			"MANAGEMENT_REVENUE", actor, at));
+		accounts.saveAllAndFlush(Arrays.stream(DefaultAccount.values()).map(value -> AccountingAccount.create(
+			property, value.getCode(), value.getName(), value.getGroup(), value.getSystemKey(), actor, at)).toList());
 	}
 
 	/** 비용 과목은 관리자가 명시하고 같은 분류·명칭의 재요청은 기존 ID를 반환합니다. */
@@ -88,10 +92,27 @@ public class AccountingWriteService {
 		if (request.group() == null || !request.group().isExpense())
 			throw new AccountingException("INVALID_ACCOUNTING_ACCOUNT");
 		String name = TextValues.required(request.name(), 100);
-		return accounts.findByPropertyIdOrderByCreatedAtAscIdAsc(property).stream()
+		List<AccountingAccount> current = accounts.findByPropertyIdOrderByCreatedAtAscIdAsc(property);
+		AccountingAccount existing = current.stream()
 			.filter(account -> account.getReportGroup() == request.group() && account.getName().equals(name))
-			.findFirst().orElseGet(() -> accounts.saveAndFlush(AccountingAccount.create(property, name,
-				request.group(), null, actor, OffsetDateTime.now(clock)))).getId();
+			.findFirst().orElse(null);
+		if (existing != null) {
+			if (request.code() != null && !request.code().equals(existing.getCode()))
+				throw new AccountingException("ACCOUNTING_CODE_CONFLICT");
+			return existing.getId();
+		}
+		// 사용자 지정 보험료 812·잡비 813까지 보존하고 추가 과목은 814부터 빈 코드를 배정합니다.
+		String code = request.code();
+		if (code == null) {
+			code = IntStream.rangeClosed(814, 899).mapToObj(String::valueOf)
+				.filter(value -> current.stream().noneMatch(account -> value.equals(account.getCode())))
+				.findFirst().orElseThrow(() -> new AccountingException("ACCOUNTING_CODE_EXHAUSTED"));
+		}
+		String selectedCode = code;
+		if (!request.group().acceptsCode(code) || current.stream().anyMatch(account -> selectedCode.equals(account.getCode())))
+			throw new AccountingException("ACCOUNTING_CODE_CONFLICT");
+		return accounts.saveAndFlush(AccountingAccount.create(property, code, name, request.group(), null,
+			actor, OffsetDateTime.now(clock))).getId();
 	}
 
 	/** 확인 저장과 원천 변경은 같은 관리대상 잠금을 사용하며 정정은 기존 이력 대신 새 버전을 추가합니다. */
@@ -99,7 +120,6 @@ public class AccountingWriteService {
 		requireAdminAndLock(actor, property);
 		profiles.findById(property)
 			.orElseThrow(() -> new AccountingException("ACCOUNTING_SETUP_REQUIRED"));
-		YearMonth month = BillingCalendar.parseMonth(request.recognitionMonth());
 		if (request.expectedRevision() < 0)
 			throw new AccountingException("INVALID_ACCOUNTING_REVIEW");
 		AccountingAccount account = accounts.findById(request.accountId())
@@ -110,10 +130,9 @@ public class AccountingWriteService {
 			.filter(row -> row.expense() != null && expenseId.equals(row.expense().id())
 				&& "EXPENSE".equals(row.direction()) && "CONFIRMED".equals(row.status()))
 			.findFirst().orElseThrow(() -> new AccountingException("ACCOUNTING_SOURCE_NOT_FOUND"));
-		if (properties.findById(property).orElseThrow().isHasBuildings()
-			&& source.expense().allocations().stream().anyMatch(allocation -> allocation.buildingId() == null))
-			throw new AccountingException("ACCOUNTING_EXTERNAL_REVIEW_REQUIRED");
-		String reason = TextValues.required(request.reason(), 500);
+		// 별도 날짜 입력은 받지 않고 원본 지출 날짜로 매칭 월을 정합니다. 외부 몫은 미수금으로 분리합니다.
+		YearMonth month = YearMonth.from(source.date());
+		String reason = matchingReason(request.reason());
 		ExpenseAccountingReview previous = reviews.findFirstByPropertyIdAndExpenseIdOrderByRevisionDesc(property,
 			expenseId).orElse(null);
 		// 응답 유실의 같은 저장은 중복 이력을 만들지 않으며 충돌하는 다른 수정은 최신 버전 재확인을 요구합니다.
@@ -137,7 +156,7 @@ public class AccountingWriteService {
 			.anyMatch(item -> itemId.equals(item.sourceTemplateItemId()));
 		if (!exists)
 			throw new AccountingException("ACCOUNTING_SOURCE_NOT_FOUND");
-		String reason = TextValues.required(request.reason(), 500);
+		String reason = matchingReason(request.reason());
 		RevenueAccountingReview previous = revenueReviews
 			.findFirstByPropertyIdAndSourceTemplateItemIdOrderByRevisionDesc(property, itemId).orElse(null);
 		if (previous != null && previous.isRecognized() == request.recognized()
@@ -148,6 +167,12 @@ public class AccountingWriteService {
 			throw new AccountingException("ACCOUNTING_REVIEW_CONFLICT");
 		revenueReviews.saveAndFlush(RevenueAccountingReview.create(property, itemId, request.recognized(), revision + 1,
 			security.protect(reason).encrypted(), actor, OffsetDateTime.now(clock)));
+	}
+
+	/** 단순 계정 매칭에는 사용자 사유를 요구하지 않으며 기존 이력의 필수 감사 설명만 기본값으로 남깁니다. */
+	private String matchingReason(String input) {
+		String reason = TextValues.optional(input, 500);
+		return reason == null ? "계정과목 매칭" : reason;
 	}
 
 	/** 조회 권한과 설정·회계 확인 권한을 구분하고 잠금 전에도 서버에서 현재 역할을 검사합니다. */

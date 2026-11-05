@@ -1,6 +1,7 @@
 package com.moahome.server.accounting.service;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.util.List;
@@ -52,7 +53,7 @@ class AccountingWriteServiceTest {
 	private final Clock clock = Clock.systemUTC();
 	private final AccountingWriteService service = new AccountingWriteService(access, properties, profiles, accounts,
 		reviews, revenues, billing, banking, security, clock);
-	private final AccountingAccount account = AccountingAccount.create(propertyId, "비용", IncomeGroup.OPERATING_EXPENSE,
+	private final AccountingAccount account = AccountingAccount.create(propertyId, "812", "비용", IncomeGroup.OPERATING_EXPENSE,
 		null, actor, OffsetDateTime.now(clock));
 
 	@BeforeEach
@@ -67,10 +68,12 @@ class AccountingWriteServiceTest {
 		var row = mock(BankingResponse.Transaction.class);
 		when(row.direction()).thenReturn("EXPENSE");
 		when(row.status()).thenReturn("CONFIRMED");
+		when(row.date()).thenReturn(LocalDate.of(2026, 9, 15));
 		when(row.expense()).thenReturn(new BankingResponse.Expense(expenseId, "비용", null, "PROPERTY", false, List.of()));
 		when(banking.workspace(actor, propertyId)).thenReturn(new BankingResponse.Workspace(propertyId,
 			null, List.of(), List.of(), List.of(row), List.of()));
 		when(security.protect("확인 사유")).thenReturn(new PaymentTextSecurity.ProtectedText("encrypted", "hash"));
+		when(security.protect("계정과목 매칭")).thenReturn(new PaymentTextSecurity.ProtectedText("matched", "hash"));
 	}
 
 	@Test
@@ -103,8 +106,16 @@ class AccountingWriteServiceTest {
 		service.reviewExpense(actor, propertyId, expenseId, request);
 		verify(reviews, never()).saveAndFlush(any());
 		assertThatThrownBy(() -> service.reviewExpense(actor, propertyId, expenseId,
-			new AccountingRequests.ReviewExpense(account.getId(), "2026-10", 0, "확인 사유")))
+			new AccountingRequests.ReviewExpense(account.getId(), "2026-10", 0, "다른 사유")))
 			.isInstanceOf(AccountingException.class).hasMessage("ACCOUNTING_REVIEW_CONFLICT");
+	}
+
+	@Test
+	void matchesWithoutUserDateOrReasonAndUsesOriginalExpenseDate() {
+		service.reviewExpense(actor, propertyId, expenseId,
+			new AccountingRequests.ReviewExpense(account.getId(), null, 0, null));
+		verify(reviews).saveAndFlush(argThat(review -> review.getRecognitionMonth().equals(LocalDate.of(2026, 9, 1))
+			&& review.getReasonEncrypted().equals("matched")));
 	}
 
 	@Test
@@ -114,7 +125,7 @@ class AccountingWriteServiceTest {
 		assertThatThrownBy(() -> service.reviewExpense(actor, propertyId, expenseId,
 			new AccountingRequests.ReviewExpense(account.getId(), "2026-10", 0, "확인 사유")))
 			.hasMessage("ACCOUNTING_SOURCE_NOT_FOUND");
-		var foreign = AccountingAccount.create(UUID.randomUUID(), "비용", IncomeGroup.OPERATING_EXPENSE, null,
+		var foreign = AccountingAccount.create(UUID.randomUUID(), "812", "비용", IncomeGroup.OPERATING_EXPENSE, null,
 			actor, OffsetDateTime.now(clock));
 		when(accounts.findById(foreign.getId())).thenReturn(Optional.of(foreign));
 		assertThatThrownBy(() -> service.reviewExpense(actor, propertyId, expenseId,

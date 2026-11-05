@@ -40,8 +40,12 @@ export async function getIncomeStatementWorkspace({ propertyId, startMonth, endM
   if (value.completeness !== 'SETUP_REQUIRED' && (!value.configuration || !isValidMonth(value.configuration.startMonth)
     || !Number.isInteger(value.configuration.fiscalYearStartMonth) || value.configuration.fiscalYearStartMonth < 1
     || value.configuration.fiscalYearStartMonth > 12)) invalid();
-  if (value.buildings.some((row) => !row || !id(row.id) || typeof row.name !== 'string')
-    || value.accounts.some((row) => !row || !id(row.id) || typeof row.name !== 'string' || !group(row.group))
+  // 표시용 추가 필드가 없는 이전 서버 응답도 읽되, 제공된 값의 형식과 기존 금액·연결 검증은 유지합니다.
+  if (value.buildings.some((row) => !row || !id(row.id) || typeof row.name !== 'string'
+      || (row.deleted !== undefined && typeof row.deleted !== 'boolean'))
+    || value.accounts.some((row) => !row || !id(row.id) || typeof row.name !== 'string'
+      || (!group(row.group) && !['asset', 'liability'].includes(row.group))
+      || (row.code !== undefined && !/^[12489]\d{2}$/.test(row.code)))
     || value.records.some((row) => !row || typeof row.id !== 'string' || !id(row.accountId)
       || !group(row.group) || !amount(row.amount) || !isValidMonth(row.month)
       || row.month < value.range.startMonth || row.month > value.range.endMonth
@@ -50,6 +54,8 @@ export async function getIncomeStatementWorkspace({ propertyId, startMonth, endM
       || (buildingId && row.buildingId !== buildingId)
       || !value.accounts.some((account) => account.id === row.accountId && account.group === row.group && account.name === row.accountName))
     || value.issues.some((row) => !row || typeof row.id !== 'string' || typeof row.label !== 'string'
+      || (row.sourceName !== undefined && (typeof row.sourceName !== 'string' || !row.sourceName.trim()))
+      || (row.sourceContext !== undefined && typeof row.sourceContext !== 'string')
       || typeof row.code !== 'string' || !amount(row.amount) || typeof row.path !== 'string'
       || !/^\/(billing|banking)\//.test(row.path)
       || (row.expenseId !== null && !id(row.expenseId)) || (row.revenueItemId !== null && !id(row.revenueItemId)))
@@ -64,6 +70,16 @@ export async function getIncomeStatementWorkspace({ propertyId, startMonth, endM
     || (value.completeness === 'READY' && value.issues.length)
     || (value.completeness === 'REVIEW_REQUIRED' && !value.issues.length)
     || (['SETUP_REQUIRED', 'BEFORE_START'].includes(value.completeness) && value.records.length)) invalid();
+  if (value.receivables !== undefined && (!Array.isArray(value.receivables) || value.receivables.some((row) =>
+    !row || !id(row.id) || !/^1\d{2}$/.test(row.accountCode) || typeof row.name !== 'string'
+    || typeof row.counterparty !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)
+    || !amount(row.amount) || !amount(row.received) || !amount(row.remaining)
+    || BigInt(row.amount) - BigInt(row.received) !== BigInt(row.remaining)
+    || typeof row.path !== 'string' || !row.path.startsWith('/banking/')))) invalid();
+  if (value.otherIncomes !== undefined && (!Array.isArray(value.otherIncomes) || value.otherIncomes.some((row) =>
+    !row || !id(row.id) || !id(row.transactionId) || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)
+    || typeof row.name !== 'string' || !amount(row.amount)
+    || !value.accounts.some((account) => account.id === row.accountId && account.group === 'otherRevenue')))) invalid();
   return {
     ...value,
     availableRange: {
@@ -72,6 +88,7 @@ export async function getIncomeStatementWorkspace({ propertyId, startMonth, endM
     },
     records: value.records.map((record) => ({
       ...record,
+      accountName: [value.accounts.find((account) => account.id === record.accountId)?.code, record.accountName].filter(Boolean).join(' '),
       buildingId: record.buildingId ?? ''
     })),
     isExample: false,

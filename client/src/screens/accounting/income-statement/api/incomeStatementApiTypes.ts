@@ -8,6 +8,8 @@ export interface AccountingIssue {
   id: string;
   code: string;
   label: string;
+  sourceName?: string;
+  sourceContext?: string;
   amount: string;
   path: string;
   expenseId: string | null;
@@ -31,12 +33,14 @@ export interface AccountingRevenueItem {
   amount: string;
   recognized: boolean;
   revision: number;
+  sourceContext?: string;
 }
 
 export interface AccountingAccount {
   id: string;
+  code?: string;
   name: string;
-  group: IncomeGroup;
+  group: IncomeGroup | 'asset' | 'liability';
   systemKey: string | null;
 }
 
@@ -52,6 +56,30 @@ export interface IncomeStatementWorkspace extends IncomeStatementSource {
   expenses: AccountingExpense[];
   revenueItems: AccountingRevenueItem[];
   accounts: AccountingAccount[];
+  buildings: { id: string; name: string; deleted?: boolean }[];
+  receivables?: AccountingReceivable[];
+  otherIncomes?: AccountingOtherIncome[];
+}
+
+export interface AccountingOtherIncome {
+  id: string;
+  transactionId: string;
+  date: string;
+  name: string;
+  amount: string;
+  accountId: string;
+}
+
+export interface AccountingReceivable {
+  id: string;
+  accountCode: string;
+  name: string;
+  date: string;
+  counterparty: string;
+  amount: string;
+  received: string;
+  remaining: string;
+  path: string;
 }
 
 export interface IncomeStatementQuery {
@@ -70,6 +98,7 @@ export interface ConfigureAccountingRequest {
 export interface CreateAccountingAccountRequest {
   name: string;
   group: 'OPERATING_EXPENSE' | 'OTHER_EXPENSE';
+  code?: string;
 }
 
 export interface CreateAccountingAccountResponse {
@@ -78,13 +107,13 @@ export interface CreateAccountingAccountResponse {
 
 export interface ReviewAccountingExpenseRequest {
   accountId: string;
-  recognitionMonth: string;
+  recognitionMonth?: string;
   expectedRevision: number;
-  reason: string;
+  reason?: string;
 }
 
 export interface ReviewAccountingRevenueRequest {
   recognized: boolean;
   expectedRevision: number;
-  reason: string;
+  reason?: string;
 }

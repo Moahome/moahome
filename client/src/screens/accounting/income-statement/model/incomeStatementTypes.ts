@@ -16,7 +16,7 @@ export interface IncomeStatementSource {
   propertyName?: string;
   isExample?: boolean;
   notice?: string;
-  issues?: readonly { label: string; amount: string }[];
+  issues?: readonly { label: string; amount: string; sourceName?: string; sourceContext?: string }[];
   availableRange: MonthRange;
   buildings: readonly { id: string; name: string }[];
   records: readonly IncomeRecord[];

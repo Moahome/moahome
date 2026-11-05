@@ -2,6 +2,7 @@ package com.moahome.server.accounting.domain;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import java.util.Arrays;
 import com.moahome.server.common.validation.TextValues;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -24,6 +25,9 @@ public class AccountingAccount {
 	@Column(nullable = false, length = 100)
 	private String name;
 
+	@Column(nullable = false, length = 3)
+	private String code;
+
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 30)
 	private IncomeGroup reportGroup;
@@ -40,16 +44,19 @@ public class AccountingAccount {
 	protected AccountingAccount() {
 	}
 
-	/** 이번 손익 조회에 쓰는 과목만 만들고 자산·부채 계정을 미리 생성하지 않습니다. */
-	public static AccountingAccount create(UUID property, String name, IncomeGroup group, String systemKey,
+	/** 코드와 유형을 함께 검증하며 표시 코드와 별개인 계정 ID로 원천을 연결합니다. */
+	public static AccountingAccount create(UUID property, String code, String name, IncomeGroup group, String systemKey,
 		UUID actor, OffsetDateTime at) {
-		if (group == null || (systemKey != null && (!"MANAGEMENT_REVENUE".equals(systemKey)
-			|| group != IncomeGroup.OPERATING_REVENUE)))
+		if (group == null || !group.acceptsCode(code))
 			throw new IllegalArgumentException("Invalid account group");
+		if (systemKey != null && Arrays.stream(DefaultAccount.values()).noneMatch(value ->
+			systemKey.equals(value.getSystemKey()) && group == value.getGroup() && code.equals(value.getCode())))
+			throw new IllegalArgumentException("Invalid system account");
 		AccountingAccount account = new AccountingAccount();
 		account.id = UUID.randomUUID();
 		account.propertyId = property;
 		account.name = TextValues.required(name, 100);
+		account.code = code;
 		account.reportGroup = group;
 		account.systemKey = systemKey;
 		account.createdBy = actor;

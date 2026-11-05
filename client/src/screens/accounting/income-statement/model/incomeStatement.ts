@@ -42,7 +42,10 @@ export function getIncomeStatement(source: IncomeStatementSource, range: MonthRa
         kind: 'account'
       });
     }
-    rows.push(...accounts.values());
+    // API가 제공한 코드·명칭 표시값을 숫자 오름차순으로 정렬해 거래 입력 순서를 표·다운로드에 노출하지 않습니다.
+    rows.push(...[...accounts.values()].sort((left, right) => left.label.localeCompare(right.label, 'ko', {
+      numeric: true
+    })));
   }
 
   rows.push({
@@ -100,7 +103,11 @@ export function getIncomeStatement(source: IncomeStatementSource, range: MonthRa
     propertyName: source.propertyName ?? '모아홈',
     isExample: source.isExample ?? false,
     notice: source.notice ?? '',
-    issues: source.issues ?? [],
+    // 다운로드에서도 같은 사유의 여러 거래를 원본 이름·날짜·세대로 구분할 수 있게 합니다.
+    issues: source.issues?.map((issue) => ({
+      label: [issue.sourceName, issue.sourceContext, issue.label].filter(Boolean).join(' · '),
+      amount: issue.amount
+    })) ?? [],
     range,
     buildingName: source.buildings.find((building) => building.id === buildingId)?.name ?? '전체 동',
     revenue,

@@ -22,6 +22,9 @@ import com.moahome.server.auth.exception.AuthErrorCode;
 import com.moahome.server.auth.exception.AuthException;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.argThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -70,6 +73,17 @@ class IncomeStatementControllerTest {
 	private RequestPostProcessor identity() {
 		return authentication(UsernamePasswordAuthenticationToken.authenticated(
 			new AuthPrincipal(actor.toString(), UUID.randomUUID().toString()), null, List.of()));
+	}
+
+	@Test
+	void acceptsAccountMatchingWithoutSeparateDateOrChangeReason() throws Exception {
+		UUID expense = UUID.randomUUID(), account = UUID.randomUUID();
+		mvc.perform(post("/api/properties/" + propertyId + "/accounting/expenses/" + expense + "/reviews")
+			.with(identity()).contentType("application/json")
+			.content("{\"accountId\":\"" + account + "\",\"expectedRevision\":0}"))
+			.andExpect(status().isNoContent());
+		verify(writes).reviewExpense(eq(actor), eq(propertyId), eq(expense), argThat(request ->
+			request.accountId().equals(account) && request.recognitionMonth() == null && request.reason() == null));
 	}
 
 	@TestConfiguration

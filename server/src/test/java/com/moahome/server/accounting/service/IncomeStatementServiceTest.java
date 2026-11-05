@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import com.moahome.server.accounting.domain.AccountingAccount;
 import com.moahome.server.accounting.domain.AccountingProfile;
+import com.moahome.server.accounting.domain.DefaultAccount;
 import com.moahome.server.accounting.domain.ExpenseAccountingReview;
 import com.moahome.server.accounting.domain.IncomeGroup;
 import com.moahome.server.accounting.domain.RevenueAccountingReview;
@@ -25,11 +26,14 @@ import com.moahome.server.auth.exception.AuthErrorCode;
 import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.banking.dto.BankingResponse;
 import com.moahome.server.banking.service.BankingService;
+import com.moahome.server.banking.service.BankingBalanceService;
+import com.moahome.server.banking.dto.BankingBalanceResponse;
 import com.moahome.server.billing.domain.FeeItemCode;
 import com.moahome.server.billing.dto.BillingIncomeSource;
 import com.moahome.server.billing.service.BillingIncomeSourceService;
 import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.property.domain.Property;
+import com.moahome.server.property.domain.Building;
 import com.moahome.server.property.dto.ManagementPropertyResponse;
 import com.moahome.server.property.repo.BuildingRepository;
 import com.moahome.server.property.repo.PropertyRepository;
@@ -56,11 +60,12 @@ class IncomeStatementServiceTest {
 	private final RevenueAccountingReviewRepository revenues = mock(RevenueAccountingReviewRepository.class);
 	private final BillingIncomeSourceService billing = mock(BillingIncomeSourceService.class);
 	private final BankingService banking = mock(BankingService.class);
+	private final BankingBalanceService balances = mock(BankingBalanceService.class);
 	private final IncomeStatementService service = new IncomeStatementService(access, properties, buildings, profiles,
-		accounts, reviews, revenues, billing, banking, clock);
-	private final AccountingAccount revenue = AccountingAccount.create(propertyId, "관리비수익",
+		accounts, reviews, revenues, billing, banking, balances, clock);
+	private final AccountingAccount revenue = AccountingAccount.create(propertyId, "401", "관리비수입",
 		IncomeGroup.OPERATING_REVENUE, "MANAGEMENT_REVENUE", actor, at);
-	private final AccountingAccount cost = AccountingAccount.create(propertyId, "청소비",
+	private final AccountingAccount cost = AccountingAccount.create(propertyId, "802", "청소비",
 		IncomeGroup.OPERATING_EXPENSE, null, actor, at);
 
 	@BeforeEach
@@ -75,6 +80,8 @@ class IncomeStatementServiceTest {
 			YearMonth.of(2026, 10), 1, actor, at)));
 		when(banking.workspace(actor, propertyId)).thenReturn(new BankingResponse.Workspace(propertyId,
 			LocalDate.of(2026, 11, 1), List.of(), List.of(), List.of(), List.of()));
+		when(balances.workspace(actor, propertyId, "2026-10", null)).thenReturn(new BankingBalanceResponse.Workspace(
+			propertyId, "2026-10", null, "0", null, List.of(), List.of(), List.of(), List.of(), List.of()));
 	}
 
 	@Test
@@ -98,13 +105,13 @@ class IncomeStatementServiceTest {
 	@Test
 	void onlyRecognizesExplicitlyConfirmedRevenueAndLeavesNegativeAndUnknownItemsVisible() {
 		var confirmed = new BillingIncomeSource.Item(UUID.randomUUID(), itemId, "사용자 지정 이름", null,
-			new BigDecimal("200"));
+			new BigDecimal("200"), null);
 		var unconfirmed = new BillingIncomeSource.Item(UUID.randomUUID(), UUID.randomUUID(), "기본 관리비",
-			FeeItemCode.GENERAL_MANAGEMENT, new BigDecimal("50"));
+			null, new BigDecimal("50"), null);
 		when(billing.get(propertyId)).thenReturn(List.of(
-			new BillingIncomeSource(UUID.randomUUID(), UUID.randomUUID(), "2026-10", "", new BigDecimal("250"),
+			new BillingIncomeSource(UUID.randomUUID(), UUID.randomUUID(), "2026-10", "", "101", null, new BigDecimal("250"),
 				List.of(confirmed, unconfirmed)),
-			new BillingIncomeSource(UUID.randomUUID(), UUID.randomUUID(), "2026-10", "", new BigDecimal("-10"), List.of())));
+			new BillingIncomeSource(UUID.randomUUID(), UUID.randomUUID(), "2026-10", "", "102", null, new BigDecimal("-10"), List.of())));
 		when(revenues.findByPropertyIdOrderByRevisionDesc(propertyId)).thenReturn(List.of(
 			RevenueAccountingReview.create(propertyId, itemId, true, 1, "encrypted", actor, at)));
 		var result = service.get(actor, propertyId, "2026-10", "2026-10", null);
@@ -116,13 +123,170 @@ class IncomeStatementServiceTest {
 	}
 
 	@Test
-	void usesExpenseRecognitionMonthAndKeepsUnreviewedHistoricExpensesPending() {
+	void distinguishesDeletedBuildingsWithTheSameNameWithoutMergingTheirIds() {
+		Building current = mock(Building.class), deleted = mock(Building.class);
+		UUID currentId = UUID.randomUUID(), deletedId = UUID.randomUUID();
+		when(current.getId()).thenReturn(currentId);
+		when(current.getName()).thenReturn("102동");
+		when(deleted.getId()).thenReturn(deletedId);
+		when(deleted.getName()).thenReturn("102동");
+		when(deleted.getDeletedAt()).thenReturn(at);
+		when(buildings.findByPropertyId(propertyId)).thenReturn(List.of(current, deleted));
+		var result = service.get(actor, propertyId, "2026-10", "2026-10", currentId);
+		assertThat(result.buildings()).extracting(value -> value.id()).containsExactly(currentId, deletedId);
+		assertThat(result.buildings()).extracting(value -> value.deleted()).containsExactly(false, true);
+	}
+
+	@Test
+	void identifiesUnattributedChargesByTheirOriginalMonthAndUnitSnapshots() {
+		Property property = properties.findById(propertyId).orElseThrow();
+		when(property.isHasBuildings()).thenReturn(true);
+		UUID firstUnit = UUID.randomUUID(), secondUnit = UUID.randomUUID();
+		when(billing.get(propertyId)).thenReturn(List.of(
+			new BillingIncomeSource(UUID.randomUUID(), firstUnit, "2026-10", "", "101", "상가",
+				new BigDecimal("50000"), List.of()),
+			new BillingIncomeSource(UUID.randomUUID(), secondUnit, "2026-10", "", "102", null,
+				new BigDecimal("50000"), List.of())));
+		var result = service.get(actor, propertyId, "2026-10", "2026-10", null);
+		assertThat(result.issues()).hasSize(2);
+		assertThat(result.issues()).extracting(issue -> issue.sourceName()).containsOnly("관리비 부과");
+		assertThat(result.issues()).extracting(issue -> issue.sourceContext()).containsExactly(
+			"2026-10 부과 · 동 정보 없음 · 101호 · 상가", "2026-10 부과 · 동 정보 없음 · 102호");
+		assertThat(result.issues().getFirst().path()).contains(firstUnit.toString());
+		assertThat(result.records()).isEmpty();
+	}
+
+	@Test
+	void recognizesExternalReceivablesAndRecoveriesWithoutAddingRevenueOrExpense() {
+		Property property = properties.findById(propertyId).orElseThrow();
+		when(property.isHasBuildings()).thenReturn(true);
+		var first = expense(UUID.randomUUID());
+		var second = expense(UUID.randomUUID());
+		UUID firstId = first.id(), secondId = second.id();
+		when(first.expense()).thenReturn(new BankingResponse.Expense(firstId, "9월 공동 청소", null,
+			"AMOUNT", false, List.of(new BankingResponse.Allocation(null, "외부 관리단", "100", null))));
+		when(second.date()).thenReturn(LocalDate.of(2026, 10, 15));
+		when(second.expense()).thenReturn(new BankingResponse.Expense(secondId, "10월 정화조 청소", null,
+			"AMOUNT", false, List.of(new BankingResponse.Allocation(null, "옆 건물", "100", null))));
+		when(banking.workspace(actor, propertyId)).thenReturn(new BankingResponse.Workspace(propertyId,
+			LocalDate.of(2026, 11, 1), List.of(), List.of(), List.of(first, second), List.of()));
+		UUID receiptId = UUID.randomUUID();
+		AccountingAccount receivable = AccountingAccount.create(propertyId, "102", "미수금", IncomeGroup.ASSET,
+			"RECEIVABLE", actor, at);
+		when(accounts.findByPropertyIdOrderByCreatedAtAscIdAsc(propertyId)).thenReturn(List.of(revenue, cost, receivable));
+		var receipt = mock(BankingResponse.Transaction.class);
+		when(receipt.id()).thenReturn(receiptId);
+		when(receipt.paymentId()).thenReturn(receiptId);
+		when(receipt.date()).thenReturn(LocalDate.of(2026, 10, 20));
+		when(receipt.direction()).thenReturn("INCOME");
+		when(receipt.status()).thenReturn("CONFIRMED");
+		when(receipt.receiptType()).thenReturn("OTHER");
+		when(receipt.amount()).thenReturn("40");
+		List<BankingBalanceResponse.External> external = List.of(
+			new BankingBalanceResponse.External(firstId, "외부 관리단", "9월 공동 청소", first.date(), "100", "40", "60",
+				List.of(new BankingBalanceResponse.Recovery(UUID.randomUUID(), receiptId, receipt.date(), "회수 입금", "40")),
+				false, 0, null, firstId, "100"),
+			new BankingBalanceResponse.External(secondId, "옆 건물", "10월 정화조 청소", second.date(), "100", "0", "100",
+				List.of(), false, 0, null, secondId, "100"));
+		when(balances.workspace(actor, propertyId, "2026-10", null)).thenReturn(new BankingBalanceResponse.Workspace(
+			propertyId, "2026-10", null, "0", null, List.of(), List.of(), external, List.of(), List.of()));
+		when(banking.workspace(actor, propertyId)).thenReturn(new BankingResponse.Workspace(propertyId,
+			LocalDate.of(2026, 11, 1), List.of(), List.of(), List.of(first, second, receipt), List.of()));
+		var result = service.get(actor, propertyId, "2026-10", "2026-10", null);
+		assertThat(result.issues()).isEmpty();
+		assertThat(result.receivables()).extracting(value -> value.accountCode()).containsOnly("102");
+		assertThat(result.receivables()).extracting(value -> value.remaining()).containsExactly("100");
+		assertThat(result.receivables()).extracting(value -> value.date()).containsOnly(LocalDate.of(2026, 10, 15));
+		assertThat(result.records()).isEmpty();
+		assertThat(result.expenses()).isEmpty();
+		assertThat(result.otherIncomes()).isEmpty();
+	}
+
+	@Test
+	void automaticallyRecognizesOtherIncomeAs901UsingActualDepositAmount() {
+		AccountingAccount otherIncome = AccountingAccount.create(propertyId, "901", "영업외수익",
+			IncomeGroup.OTHER_REVENUE, "OTHER_INCOME", actor, at);
+		when(accounts.findByPropertyIdOrderByCreatedAtAscIdAsc(propertyId)).thenReturn(List.of(revenue, cost, otherIncome));
+		var receipt = mock(BankingResponse.Transaction.class);
+		UUID paymentId = UUID.randomUUID();
+		when(receipt.id()).thenReturn(UUID.randomUUID());
+		when(receipt.paymentId()).thenReturn(paymentId);
+		when(receipt.date()).thenReturn(LocalDate.of(2026, 10, 19));
+		when(receipt.direction()).thenReturn("INCOME");
+		when(receipt.status()).thenReturn("CONFIRMED");
+		when(receipt.receiptType()).thenReturn("OTHER");
+		when(receipt.amount()).thenReturn("218");
+		when(receipt.payer()).thenReturn("예금이자 248 소득세 30");
+		when(banking.workspace(actor, propertyId)).thenReturn(new BankingResponse.Workspace(propertyId,
+			LocalDate.of(2026, 11, 1), List.of(), List.of(), List.of(receipt), List.of()));
+		var result = service.get(actor, propertyId, "2026-10", "2026-10", null);
+		assertThat(result.issues()).isEmpty();
+		assertThat(result.records()).singleElement().satisfies(value -> {
+			assertThat(value.accountId()).isEqualTo(otherIncome.getId());
+			assertThat(value.group()).isEqualTo("otherRevenue");
+			assertThat(value.amount()).isEqualTo("218");
+		});
+		assertThat(result.otherIncomes().getFirst().id()).isEqualTo(paymentId);
+	}
+
+	@Test
+	void matchesDefaultExpenseCodesAndAliasesWithoutCombiningDifferentCostSubjects() {
+		assertThat(DefaultAccount.matchExpense("801 일반관리비")).contains(DefaultAccount.GENERAL_MANAGEMENT);
+		assertThat(DefaultAccount.matchExpense("현대엘리베이터")).contains(DefaultAccount.ELEVATOR);
+		assertThat(DefaultAccount.matchExpense("09전기요금")).contains(DefaultAccount.UTILITIES);
+		assertThat(DefaultAccount.matchExpense("06월 문자수수료")).contains(DefaultAccount.COMMUNICATION);
+		assertThat(DefaultAccount.matchExpense("보험료 ((보험사))")).contains(DefaultAccount.INSURANCE);
+		assertThat(DefaultAccount.INSURANCE.getCode()).isEqualTo("812");
+		assertThat(DefaultAccount.matchExpense("811")).contains(DefaultAccount.MISCELLANEOUS);
+		assertThat(DefaultAccount.MISCELLANEOUS.getCode()).isEqualTo("813");
+		assertThat(DefaultAccount.matchExpense("정화조 ((국민 계좌) 업체)")).contains(DefaultAccount.SEPTIC);
+		assertThat(DefaultAccount.matchExpense("청소비 및 수선비")).isEmpty();
+		assertThat(DefaultAccount.matchExpense("거래처만 있음")).isEmpty();
+	}
+
+	@Test
+	void automaticallyMatchesExistingCostsAndRecognizesThemInTheExpenseDateMonth() {
+		AccountingAccount utilities = AccountingAccount.create(propertyId, "804", "수도전기료",
+			IncomeGroup.OPERATING_EXPENSE, null, actor, at);
+		when(accounts.findByPropertyIdOrderByCreatedAtAscIdAsc(propertyId)).thenReturn(List.of(revenue, cost, utilities));
+		UUID expenseId = UUID.randomUUID();
+		var row = expense(expenseId);
+		when(row.expense()).thenReturn(new BankingResponse.Expense(expenseId, "09전기요금", null, "PROPERTY", false, List.of()));
+		when(row.date()).thenReturn(LocalDate.of(2026, 10, 12));
+		when(banking.workspace(actor, propertyId)).thenReturn(new BankingResponse.Workspace(propertyId,
+			LocalDate.of(2026, 11, 1), List.of(), List.of(), List.of(row), List.of()));
+		var result = service.get(actor, propertyId, "2026-10", "2026-10", null);
+		assertThat(result.expenses().getFirst().accountId()).isEqualTo(utilities.getId());
+		assertThat(result.expenses().getFirst().recognitionMonth()).isEqualTo("2026-10");
+		assertThat(result.issues()).isEmpty();
+		assertThat(result.records()).singleElement().satisfies(record -> {
+			assertThat(record.month()).isEqualTo("2026-10");
+			assertThat(record.amount()).isEqualTo("100");
+		});
+		verify(reviews, never()).save(any());
+	}
+
+	@Test
+	void automaticallyRecognizesStandardManagementChargesWithoutOpeningClassification() {
+		when(billing.get(propertyId)).thenReturn(List.of(new BillingIncomeSource(UUID.randomUUID(), UUID.randomUUID(),
+			"2026-10", "", "101", null, new BigDecimal("3000000"), List.of(new BillingIncomeSource.Item(
+				UUID.randomUUID(), itemId, "일반관리비", FeeItemCode.GENERAL_MANAGEMENT, new BigDecimal("3000000"), null)))));
+		var result = service.get(actor, propertyId, "2026-10", "2026-10", null);
+		assertThat(result.records()).hasSize(1);
+		assertThat(result.records().getFirst().accountId()).isEqualTo(revenue.getId());
+		assertThat(result.revenueItems().getFirst().recognized()).isTrue();
+		assertThat(result.issues()).isEmpty();
+	}
+
+	@Test
+	void preservesExplicitHistoricAttributionAndDoesNotShowOutOfRangeExpenses() {
 		UUID expenseId = UUID.randomUUID();
 		var row = expense(expenseId);
 		when(banking.workspace(actor, propertyId)).thenReturn(new BankingResponse.Workspace(propertyId,
 			LocalDate.of(2026, 11, 1), List.of(), List.of(), List.of(row), List.of()));
 		var pending = service.get(actor, propertyId, "2026-10", "2026-10", null);
-		assertThat(pending.issues()).hasSize(1);
+		assertThat(pending.issues()).isEmpty();
+		assertThat(pending.expenses()).isEmpty();
 		assertThat(pending.records()).isEmpty();
 		when(reviews.findByPropertyIdOrderByRevisionDesc(propertyId)).thenReturn(List.of(
 			ExpenseAccountingReview.create(propertyId, expenseId, cost, YearMonth.of(2026, 10), 1, "encrypted", actor, at)));
