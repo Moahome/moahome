@@ -154,6 +154,20 @@ class UnitManagementServiceTest {
 	}
 
 	@Test
+	void addingDeletedBuildingNameRestoresOriginalIdentityWithoutCreatingOrRestoringResidents() {
+		when(properties.findForUnitUpdate(property.getId())).thenReturn(Optional.of(property));
+		building.softDelete(userId, OffsetDateTime.now());
+		when(buildings.findByPropertyIdAndNameAndDeletedAtIsNotNull(property.getId(), "101동"))
+			.thenReturn(List.of(building));
+		var restored = service.createBuilding(userId, property.getId(), new BuildingRequest("101"));
+		assertThat(restored.id()).isEqualTo(building.getId());
+		assertThat(building.getDeletedAt()).isNull();
+		assertThat(building.getDeletedBy()).isNull();
+		verify(buildings, never()).saveAndFlush(any());
+		verifyNoInteractions(units, residentManagement, billing);
+	}
+
+	@Test
 	void buildingAdditionAndRenameKeepIdentityAndCheckDuplicateNames() {
 		when(properties.findForUnitUpdate(property.getId())).thenReturn(Optional.of(property));
 		when(buildings.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));

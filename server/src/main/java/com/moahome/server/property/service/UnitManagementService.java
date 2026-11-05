@@ -147,13 +147,23 @@ public class UnitManagementService {
 		return additions.stream().map(UnitResponse::from).toList();
 	}
 
-	/** 동 구분을 바꾸지 않고 동 있음 대상에 새 동을 추가하며 대상 잠금으로 이름 중복을 직렬화합니다. */
+	/** 같은 이름의 삭제 동은 대상 잠금 안에서 기존 ID로 복구하며 처음 쓰는 이름만 새로 생성합니다. */
 	@Transactional
 	public UnitListResponse.BuildingItem createBuilding(UUID userId, UUID propertyId, BuildingRequest request) {
 		var property = requireWritableProperty(userId, propertyId);
 		if (!property.isHasBuildings())
 			throw new UnitManagementException(INVALID_REQUEST);
 		List<Building> current = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId);
+		List<Building> deleted = buildings.findByPropertyIdAndNameAndDeletedAtIsNotNull(propertyId, request.name());
+		if (deleted.size() > 1)
+			throw new UnitManagementException(DUPLICATE_BUILDING);
+		if (!deleted.isEmpty()) {
+			Building previous = deleted.getFirst();
+			requireUniqueBuildingName(propertyId, request.name(), previous.getId());
+			previous.restore();
+			buildings.flush();
+			return new UnitListResponse.BuildingItem(previous.getId(), previous.getName());
+		}
 		int order = current.stream().mapToInt(entry -> entry.getSortOrder()).max().orElse(-1) + 1;
 		var building = Building.create(property, request.name(), order, OffsetDateTime.now(clock));
 		requireUniqueBuildingName(propertyId, building.getName(), building.getId());

@@ -1303,7 +1303,7 @@ function ChartDialog({ buildings, onClose, presentation = 'modal' }: { buildings
           options={[{
             value: 'ALL',
             label: '전체 동'
-          }, ...buildings.map((row) => ({
+          }, ...sortExpenseLabels(buildings).map((row) => ({
             value: row.id,
             label: row.label
           }))]}

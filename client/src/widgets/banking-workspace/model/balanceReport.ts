@@ -1,4 +1,7 @@
-import { getBankAccountLabel } from '@/entities/banking';
+import {
+  getBankAccountLabel,
+  sortExpenseLabels
+} from '@/entities/banking';
 import { getAccountsForRange } from './bankAccountVisibility';
 import { getMonthDateRange } from '@/shared/lib/date-range';
 import { formatMonthRange } from '@/shared/lib/month-range';
@@ -26,7 +29,7 @@ export function getBalanceReportBuildingOptions(data: BalanceReportSnapshot) {
       label: '동 확인 필요'
     });
   }
-  return groups;
+  return sortExpenseLabels(groups);
 }
 
 /** 기존 통장 거래와 같은 시작·종료 월·입출금 이력 규칙으로 필터를 구성하며 과거 수납 목록으로 계좌를 복원하지 않습니다. */

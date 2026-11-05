@@ -1,4 +1,5 @@
 import { StateMessage } from '@/shared/ui/state-message';
+import { getSortedBuildings } from '@/entities/property';
 import type {
   BillingCharge,
   BillingSettings
@@ -52,7 +53,10 @@ export function MonthlyBilling({ propertyId, settings, onOpenItems }: {
   const charges = getSortedBillingCharges(list.data?.charges ?? []);
   const hasBuildings = list.data?.hasBuildings ?? false;
   // 확정 내역의 동명도 선택할 수 있도록 해당 월의 실제 청구에서 필터 선택지를 구성합니다.
-  const buildings = [...new Set(charges.map((charge) => charge.building).filter(Boolean))];
+  const buildings = getSortedBuildings([...new Set(charges.map((charge) => charge.building).filter(Boolean))]
+    .map((name) => ({
+      name
+    }))).map((building) => building.name);
   const selectedBuilding = hasBuildings && buildings.includes(building) ? building : '';
   const hasFilters = Boolean(query.trim() || selectedBuilding);
   const filtered = charges.filter((charge) => (!selectedBuilding || charge.building === selectedBuilding)

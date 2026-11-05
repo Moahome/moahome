@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface BuildingRepository extends JpaRepository<Building, UUID> {
 	List<Building> findByPropertyId(UUID propertyId);
 
+	List<Building> findByPropertyIdAndNameAndDeletedAtIsNotNull(UUID propertyId, String name);
+
 	long countByPropertyIdAndDeletedAtIsNull(UUID propertyId);
 
 	List<Building> findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(UUID propertyId);
