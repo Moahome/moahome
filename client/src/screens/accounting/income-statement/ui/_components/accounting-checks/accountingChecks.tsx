@@ -8,7 +8,6 @@ import {
 import { formatInteger } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
-import { DataTable } from '@/shared/ui/data-table';
 import { Dropdown } from '@/shared/ui/form-controls';
 import { ListToolbar } from '@/shared/ui/list-toolbar';
 import { Pagination } from '@/shared/ui/pagination';
@@ -17,9 +16,17 @@ import type { IncomeStatementWorkspace } from '../../../api/incomeStatementApiTy
 import type { AccountingEditorTarget } from '../accounting-editor/accountingEditor';
 import styles from './accountingChecks.module.css';
 
+/** 남은 미수금이 0원인 이유를 회수 상태로 함께 표시합니다. */
+function getReceivableStatus(received: string, remaining: string) {
+  if (BigInt(remaining) === BigInt(0)) return '회수 완료';
+  if (BigInt(received) > BigInt(0)) return '일부 회수';
+  return '미회수';
+}
+
 /** 미반영 자료를 먼저 보여주며 목록 탐색은 손익·다운로드의 전체 합계에 영향을 주지 않습니다. */
-export function AccountingChecks({ data, onEdit, onSource, onClose }: {
+export function AccountingChecks({ data, onEdit, onSource, onClose, presentation = 'modal' }: {
   data: IncomeStatementWorkspace;
+  presentation?: 'modal' | 'page';
   onEdit: (target: AccountingEditorTarget) => void;
   onSource: (path: string) => void;
   onClose: () => void;
@@ -43,12 +50,24 @@ export function AccountingChecks({ data, onEdit, onSource, onClose }: {
       scroll: false
     });
   }
-  const rows: { id: string; name: string; amount: string; status: string; path: string; target?: AccountingEditorTarget; pending: boolean }[] = [
-    ...data.revenueItems.map((value) => ({
+  const managementAccount = data.accounts.find((account) => account.systemKey === 'MANAGEMENT_REVENUE');
+  const recognizedRevenue = data.revenueItems.filter((value) => value.recognized);
+  const rows: { id: string; name: string; context: string; date?: string; amount: string; status: string; path: string; target?: AccountingEditorTarget; actionLabel?: string; pending: boolean; recovered?: boolean }[] = [
+    ...(recognizedRevenue.length ? [{
+      id: `account:${managementAccount?.id ?? 'management-revenue'}`,
+      name: [managementAccount?.code, managementAccount?.name ?? '관리비수입'].filter(Boolean).join(' '),
+      context: `${data.range.startMonth} ~ ${data.range.endMonth} 부과 합계`,
+      amount: recognizedRevenue.reduce((sum, item) => sum + BigInt(item.amount), BigInt(0)).toString(),
+      status: '수익 반영',
+      path: `/billing/monthly?tab=history&month=${data.range.startMonth}`,
+      pending: false
+    }] : []),
+    ...data.revenueItems.filter((value) => !value.recognized).map((value) => ({
       id: `revenue:${value.id}`,
       name: value.name,
+      context: value.sourceContext ?? `${data.range.startMonth} ~ ${data.range.endMonth} 부과 합계`,
       amount: value.amount,
-      status: value.recognized ? '관리비수익' : '수익 성격 확인 필요',
+      status: '수익 성격 확인 필요',
       path: `/billing/monthly?tab=history&month=${data.range.startMonth}`,
       target: {
         kind: 'revenue' as const,
@@ -59,8 +78,10 @@ export function AccountingChecks({ data, onEdit, onSource, onClose }: {
     ...data.expenses.map((value) => ({
       id: `expense:${value.id}`,
       name: value.name,
+      context: `거래일 ${value.date}`,
+      date: value.date,
       amount: value.amount,
-      status: value.recognitionMonth ? `${data.accounts.find((account) => account.id === value.accountId)?.name ?? ''} · ${value.recognitionMonth}` : '과목·귀속 월 확인 필요',
+      status: value.accountId ? `${data.accounts.filter((account) => account.id === value.accountId).map((account) => [account.code, account.name].filter(Boolean).join(' ')).join('')} · ${value.recognitionMonth ?? value.date.slice(0, 7)}` : '과목 확인 필요',
       path: `/banking/transactions/${value.transactionId}`,
       target: {
         kind: 'expense' as const,
@@ -68,144 +89,214 @@ export function AccountingChecks({ data, onEdit, onSource, onClose }: {
       },
       pending: data.issues.some((issue) => issue.expenseId === value.id)
     })),
+    ...(data.otherIncomes ?? []).map((value) => ({
+      id: `income:${value.id}`,
+      name: value.name,
+      context: `거래일 ${value.date}`,
+      date: value.date,
+      amount: value.amount,
+      status: '901 영업외수익',
+      path: `/banking/receipts/${value.id}`,
+      pending: false
+    })),
+    ...(data.receivables ?? []).filter((value) => value.date.slice(0, 7) >= data.range.startMonth
+      && value.date.slice(0, 7) <= data.range.endMonth).map((value) => ({
+      id: `receivable:${value.id}`,
+      name: `${value.accountCode} 미수금 · ${value.name}`,
+      context: `거래일 ${value.date} · ${value.counterparty}`,
+      date: value.date,
+      amount: value.remaining,
+      status: getReceivableStatus(value.received, value.remaining),
+      recovered: BigInt(value.remaining) === BigInt(0),
+      path: value.path,
+      pending: false
+    })),
     ...data.issues.filter((issue) => !issue.expenseId && !issue.revenueItemId).map((issue) => ({
       id: issue.id,
-      name: issue.label,
+      name: issue.sourceName ?? issue.label,
+      context: issue.sourceContext?.match(/거래일 \d{4}-\d{2}-\d{2}/)?.[0] ?? issue.sourceContext ?? '',
+      date: issue.sourceContext?.match(/거래일 (\d{4}-\d{2}-\d{2})/)?.[1],
       amount: issue.amount,
-      status: '확인 필요',
+      status: issue.label,
       path: issue.path,
+      actionLabel: issue.code === 'OTHER_INCOME_BUILDING_REQUIRED' ? '동 지정' : undefined,
       pending: true
     }))
   ];
-  const filtered = rows.filter((row) => status === 'all' || row.pending);
+  // 날짜가 있는 원천은 종류와 관계없이 최신 거래부터 표시하고 기간 부과 합계는 그 뒤에 둡니다.
+  const filtered = rows.filter((row) => status === 'all' || row.pending)
+    .sort((left, right) => (right.date ?? '').localeCompare(left.date ?? ''));
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  return (
-    <ClientModal
-      className={styles.modal}
-      aria-labelledby={'income-sources-title'}
-      onClose={onClose}
-      closeOnOutsideClick
-    >
-      <header
-        className={styles.header}
-      >
-        <div>
-          <p>
-            손익계산서
-          </p>
-          <h2
-            id={'income-sources-title'}
+  const content = (
+    <>
+      {presentation === 'modal' && (
+        <header
+          className={styles.header}
+        >
+          <span
+            className={styles['heading-icon']}
+            aria-hidden={'true'}
           >
-            손익 반영 자료
-          </h2>
-        </div>
-        <Button
-          variant={'ghost'}
-          size={'sm'}
-          iconOnly
-          aria-label={'손익 반영 자료 닫기'}
-          onClick={onClose}
-          leadingIcon={(
             <ServiceIcon
-              name={'close'}
+              name={'chart'}
             />
-          )}
-        />
-      </header>
+          </span>
+          <div>
+            <h2
+              id={'income-sources-title'}
+            >
+              손익 반영 자료
+            </h2>
+          </div>
+          <Button
+            variant={'ghost'}
+            size={'sm'}
+            iconOnly
+            aria-label={'손익 반영 자료 닫기'}
+            onClick={onClose}
+            leadingIcon={(
+              <ServiceIcon
+                name={'close'}
+              />
+            )}
+          />
+        </header>
+      )}
       <div
         className={styles.body}
       >
-        <p
-          className={styles.description}
-        >
-          확인되지 않은 금액은 손익 합계에 포함하지 않습니다. 지출의 과목·귀속 월과 부과 항목의 수익 성격을 확인해주세요.
-        </p>
         <div
-          className={styles.filters}
+          className={styles.notice}
         >
-          <Dropdown
-            aria-label={'손익 반영 상태'}
-            value={status}
-            options={[{
-              value: 'pending',
-              label: '확인 필요'
-            }, {
-              value: 'all',
-              label: '전체'
-            }]}
-            onChange={(value) => changeList({
-              status: value,
-              page: 1
-            })}
+          <ServiceIcon
+            name={'info'}
           />
-          <ListToolbar
-            total={filtered.length}
-            unit={'건'}
-            sizeLabel={'손익 반영 자료 표시 개수'}
-            pageSize={pageSize}
-            onSizeChange={(size) => changeList({
-              pageSize: size,
-              page: 1
-            })}
-          />
+          <div>
+            <strong>
+              확인되지 않은 금액은 손익에 포함하지 않습니다.
+            </strong>
+            <p>
+              계정과목을 확인해주세요.
+            </p>
+          </div>
         </div>
-        <DataTable
-          label={'손익 반영 자료'}
-          rows={visible}
-          getRowKey={(row) => row.id}
-          minWidth={680}
-          emptyState={'확인할 자료가 없습니다.'}
-          onRowClick={(row) => onSource(row.path)}
-          columns={[
-            {
-              key: 'name',
-              header: '항목',
-              rowHeader: true,
-              render: (row) => row.name
-            },
-            {
-              key: 'amount',
-              header: '금액',
-              align: 'right',
-              render: (row) => (
+        <Dropdown
+          label={'반영 상태'}
+          aria-label={'손익 반영 상태'}
+          value={status}
+          options={[{
+            value: 'all',
+            label: '전체'
+          }, {
+            value: 'pending',
+            label: '확인 필요'
+          }]}
+          onChange={(value) => changeList({
+            status: value,
+            page: 1
+          })}
+        />
+        <ListToolbar
+          total={filtered.length}
+          unit={'건'}
+          sizeLabel={'손익 반영 자료 표시 개수'}
+          pageSize={pageSize}
+          onSizeChange={(size) => changeList({
+            pageSize: size,
+            page: 1
+          })}
+        />
+        <div
+          className={styles.cards}
+          role={'list'}
+          aria-label={'손익 반영 자료'}
+        >
+          {visible.map((row) => (
+            <article
+              className={styles.card}
+              key={row.id}
+              role={'listitem'}
+              aria-label={row.name}
+            >
+              <button
+                type={'button'}
+                className={styles['card-source']}
+                onClick={() => onSource(row.path)}
+                aria-label={`${row.name} 내역`}
+              >
                 <span
+                  className={styles['source-icon']}
+                  aria-hidden={'true'}
+                >
+                  <ServiceIcon
+                    name={'document'}
+                  />
+                </span>
+                <span
+                  className={styles['source-copy']}
+                >
+                  <strong>
+                    {row.name}
+                  </strong>
+                  {row.context && <span>
+                    {row.context}
+                  </span>}
+                </span>
+              </button>
+              <div
+                className={styles['card-footer']}
+              >
+                <strong
                   className={styles.money}
                   data-negative={BigInt(row.amount) < BigInt(0)}
                 >
                   {formatInteger(row.amount)}
                   원
-                </span>
-              )
-            },
-            {
-              key: 'status',
-              header: '반영 기준',
-              render: (row) => row.status
-            },
-            ...(data.canManage ? [{
-              key: 'actions',
-              header: '분류',
-              render: (row: typeof rows[number]) => row.target ? (
-                <Button
-                  size={'sm'}
-                  variant={'outline'}
-                  aria-label={`${row.name} 분류`}
-                  onClick={() => { if (row.target) onEdit(row.target); }}
+                </strong>
+                <span
+                  className={styles.badge}
+                  data-pending={row.pending}
+                  data-recovered={row.recovered}
                 >
-                  수정
-                </Button>
-              ) : '—'
-            }] : [])
-          ]}
-        />
-        <p
-          className={styles.description}
-        >
-          행을 선택하면 기존 업무 내역을 엽니다. 귀속 월이 없는 지출은 출금일과 관계없이 확인 대상에 남습니다.
-        </p>
+                  {row.pending && (
+                    <ServiceIcon
+                      name={'info'}
+                    />
+                  )}
+                  {row.recovered && (
+                    <ServiceIcon
+                      name={'check'}
+                    />
+                  )}
+                  {row.status}
+                </span>
+                {data.canManage && (row.target || row.actionLabel) && (
+                  <Button
+                    size={'sm'}
+                    className={styles.action}
+                    aria-label={`${row.name} ${row.actionLabel ?? '매칭'}`}
+                    onClick={() => {
+                      if (row.target) onEdit(row.target);
+                      else onSource(row.path);
+                    }}
+                  >
+                    {row.actionLabel ?? '매칭'}
+                  </Button>
+                )}
+              </div>
+            </article>
+          ))}
+          {!visible.length && (
+            <p
+              className={styles.empty}
+            >
+              확인할 자료가 없습니다.
+            </p>
+          )}
+        </div>
         <Pagination
           label={'손익 반영 자료 페이지'}
           unit={'건'}
@@ -218,6 +309,26 @@ export function AccountingChecks({ data, onEdit, onSource, onClose }: {
           })}
         />
       </div>
+    </>
+  );
+
+  if (presentation === 'page') return (
+    <section
+      className={`${styles.panel} ${styles.page}`}
+      aria-label={'손익 반영 자료'}
+    >
+      {content}
+    </section>
+  );
+
+  return (
+    <ClientModal
+      className={`${styles.panel} ${styles.modal}`}
+      aria-labelledby={'income-sources-title'}
+      onClose={onClose}
+      closeOnOutsideClick
+    >
+      {content}
     </ClientModal>
   );
 }

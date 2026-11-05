@@ -38,9 +38,10 @@ const ERROR_MESSAGES: Record<string, string> = {
   INVALID_ACCOUNTING_REQUEST: '회계 입력 내용을 확인해주세요.'
 };
 
-/** 관리자가 명시한 기준만 저장하며 실패 시 입력을 유지하고 기존 원천의 금액·날짜는 수정하지 않습니다. */
-export function AccountingEditor({ propertyId, data, target, onClose, onSaved }: {
+/** 기존 지출 날짜를 재사용해 계정과목만 매칭하고 실패 시 선택을 유지합니다. */
+export function AccountingEditor({ propertyId, data, target, onClose, onSaved, presentation = 'modal' }: {
   propertyId: string;
+  presentation?: 'modal' | 'page';
   data: IncomeStatementWorkspace;
   target: AccountingEditorTarget;
   onClose: () => void;
@@ -48,19 +49,22 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved }:
 }) {
   const expense = target.kind === 'expense' ? target.value : null;
   const revenue = target.kind === 'revenue' ? target.value : null;
-  const accounts = data.accounts.filter((account) => account.group.endsWith('Expense'));
-  const [month, setMonth] = useState(expense?.recognitionMonth ?? '');
+  // API 반환·등록 순서와 관계없이 비용 과목은 코드 오름차순으로 선택합니다.
+  const accounts = data.accounts.filter((account) => account.group.endsWith('Expense'))
+    .sort((left, right) => (left.code ?? '999').localeCompare(right.code ?? '999', 'ko', {
+      numeric: true
+    }) || left.name.localeCompare(right.name, 'ko'));
+  const [month, setMonth] = useState('');
   const [fiscalStart, setFiscalStart] = useState('');
   const [accountId, setAccountId] = useState(expense?.accountId ?? (accounts.length ? '' : 'new'));
   const [accountName, setAccountName] = useState('');
+  const [accountCode, setAccountCode] = useState('');
   const [accountGroup, setAccountGroup] = useState<'OPERATING_EXPENSE' | 'OTHER_EXPENSE'>('OPERATING_EXPENSE');
-  const [nature, setNature] = useState(revenue && revenue.revision > 0 ? (revenue.recognized ? 'general' : 'review') : '');
-  const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const title = target.kind === 'setup' ? '회계 시작 기준' : expense ? '지출 분류' : '수익 분류';
+  const title = target.kind === 'setup' ? '회계 시작 기준' : expense ? '지출 매칭' : '수익 매칭';
   const ready = target.kind === 'setup' ? Boolean(month && fiscalStart)
-    : Boolean(reason.trim() && (expense ? month && accountId && (accountId !== 'new' || accountName.trim()) : nature));
+    : Boolean(expense ? accountId && (accountId !== 'new' || accountName.trim()) : revenue);
 
   /** 과목 추가와 지출 확인은 순서대로 요청하고 재시도는 서버의 명칭·버전 중복 방지 규칙을 따릅니다. */
   async function save() {
@@ -77,19 +81,21 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved }:
         const selected = accountId === 'new'
           ? await createAccountingAccount(propertyId, {
             name: accountName.trim(),
-            group: accountGroup
+            group: accountGroup,
+            code: accountCode || undefined
           }) : accountId;
         await reviewAccountingExpense(propertyId, expense.id, {
           accountId: selected,
-          recognitionMonth: month,
           expectedRevision: expense.revision,
-          reason: reason.trim()
+          // 이전 서버도 같은 원본 날짜로 저장하도록 요청 형식만 호환하고 별도 입력은 받지 않습니다.
+          recognitionMonth: expense.date.slice(0, 7),
+          reason: '계정과목 매칭'
         });
       } else if (revenue) {
         await reviewAccountingRevenue(propertyId, revenue.id, {
-          recognized: nature === 'general',
+          recognized: true,
           expectedRevision: revenue.revision,
-          reason: reason.trim()
+          reason: '계정과목 매칭'
         });
       }
       await onSaved();
@@ -102,33 +108,30 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved }:
     }
   }
 
-  return (
-    <ClientModal
-      className={styles.modal}
-      aria-labelledby={'accounting-editor-title'}
-      onClose={onClose}
-      busy={busy}
-    >
-      <header>
-        <h2
-          id={'accounting-editor-title'}
-        >
-          {title}
-        </h2>
-        <Button
-          variant={'ghost'}
-          size={'sm'}
-          iconOnly
-          aria-label={'분류 닫기'}
-          disabled={busy}
-          onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
-        />
-      </header>
+  const content = (
+    <>
+      {presentation === 'modal' && (
+        <header>
+          <h2
+            id={'accounting-editor-title'}
+          >
+            {title}
+          </h2>
+          <Button
+            variant={'ghost'}
+            size={'sm'}
+            iconOnly
+            aria-label={'매칭 닫기'}
+            disabled={busy}
+            onClick={onClose}
+            leadingIcon={(
+              <ServiceIcon
+                name={'close'}
+              />
+            )}
+          />
+        </header>
+      )}
       <form
         onSubmit={(event) => { event.preventDefault(); void save(); }}
       >
@@ -151,6 +154,7 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved }:
               />
               <Dropdown
                 label={'회계연도 시작 월'}
+                required
                 value={fiscalStart}
                 disabled={busy}
                 options={Array.from({
@@ -183,11 +187,12 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved }:
                 <>
                   <Dropdown
                     label={'비용 과목'}
+                    required
                     value={accountId}
                     disabled={busy}
                     options={[...accounts.map((account) => ({
                       value: account.id,
-                      label: account.name
+                      label: [account.code, account.name].filter(Boolean).join(' ')
                     })), {
                       value: 'new',
                       label: '새 비용 과목'
@@ -197,7 +202,17 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved }:
                   {accountId === 'new' && (
                     <>
                       <Input
+                        label={'계정 코드'}
+                        value={accountCode}
+                        placeholder={'미입력 시 814~899 자동 배정'}
+                        maxLength={3}
+                        inputMode={'numeric'}
+                        disabled={busy}
+                        onChange={(event) => setAccountCode(event.target.value.replace(/\D/g, ''))}
+                      />
+                      <Input
                         label={'과목명'}
+                        required
                         value={accountName}
                         maxLength={100}
                         disabled={busy}
@@ -205,6 +220,7 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved }:
                       />
                       <Dropdown
                         label={'보고서 분류'}
+                        required
                         value={accountGroup}
                         disabled={busy}
                         options={[{
@@ -218,46 +234,14 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved }:
                       />
                     </>
                   )}
-                  <MonthPicker
-                    label={'비용 귀속 월'}
-                    required
-                    variant={'input'}
-                    placeholder={'월 선택'}
-                    value={month}
-                    disabled={busy}
-                    onChange={setMonth}
-                  />
-                  <p>
-                    실제 출금일과 비용 귀속 월은 다를 수 있습니다. 이 확인은 기존 출금·부담 배분을 변경하지 않습니다.
-                  </p>
                 </>
               ) : (
-                <>
-                  <Dropdown
-                    label={'항목 성격'}
-                    value={nature}
-                    disabled={busy}
-                    options={[{
-                      value: 'general',
-                      label: '일반 관리비수익'
-                    }, {
-                      value: 'review',
-                      label: '예치·적립 등 별도 확인'
-                    }]}
-                    onChange={setNature}
-                  />
-                  <p>
-                    같은 부과 항목의 확정 청구에 적용합니다. 일반 관리비는 부과월의 수익에 반영하고, 예치·적립 성격은 별도 확인 대상으로 남깁니다.
-                  </p>
-                </>
+                <Input
+                  label={'계정과목'}
+                  value={'401 관리비수입'}
+                  readOnly
+                />
               )}
-              <Input
-                label={'변경 사유'}
-                value={reason}
-                maxLength={500}
-                disabled={busy}
-                onChange={(event) => setReason(event.target.value)}
-              />
             </>
           )}
           {error && (
@@ -281,10 +265,30 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved }:
             disabled={!ready}
             loading={busy}
           >
-            저장
+            {target.kind === 'setup' ? '저장' : '매칭'}
           </Button>
         </footer>
       </form>
+    </>
+  );
+
+  if (presentation === 'page') return (
+    <section
+      className={`${styles.panel} ${styles.page}`}
+      aria-label={title}
+    >
+      {content}
+    </section>
+  );
+
+  return (
+    <ClientModal
+      className={styles.panel}
+      aria-labelledby={'accounting-editor-title'}
+      onClose={onClose}
+      busy={busy}
+    >
+      {content}
     </ClientModal>
   );
 }

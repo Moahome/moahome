@@ -1,4 +1,7 @@
-import type { AccountingIssue } from '../../src/screens/accounting/income-statement/api/incomeStatementApiTypes';
+import type {
+  AccountingAccount,
+  AccountingIssue
+} from '../../src/screens/accounting/income-statement/api/incomeStatementApiTypes';
 import type { Page } from '@playwright/test';
 import { createIncomeStatementExample } from './incomeExample';
 import {
@@ -30,10 +33,16 @@ export function incomeFixture() {
     completeness: 'READY',
     buildings: [{
       id: INCOME_BUILDING_A,
-      name: 'A동'
+      name: 'A동',
+      deleted: false
     }, {
       id: INCOME_BUILDING_B,
-      name: 'B동'
+      name: 'B동',
+      deleted: false
+    }, {
+      id: settlementId(8103),
+      name: 'A동',
+      deleted: true
     }],
     accounts: [...names].map(([id, value]) => ({
       id: ids.get(id)!,
@@ -64,6 +73,8 @@ export async function mockIncomeStatement(page: Page, options: { manager?: boole
         id: `source:${index}`,
         code: 'SOURCE_REVIEW_REQUIRED',
         label: index === 0 ? '지출 확인' : index === 1 ? '음수 청구 확인' : index === 2 ? '기타 입금 확인' : `미반영 자료 ${index + 1}`,
+        sourceName: index === 0 ? '전기요금' : index === 1 ? '관리비 부과' : index === 2 ? '기타 입금' : `미반영 자료 ${index + 1}`,
+        sourceContext: index === 1 ? '2026-10 부과 · 동 정보 없음 · 101호' : '거래일 2026-10-15 · 부담처 A동, 외부 관리단',
         amount: '20000',
         path: index === 1 ? `/banking/monthly/2026-10/${settlementId(4)}?month=2026-10` : index === 2 ? `/banking/receipts/${settlementId(71)}` : `/banking/transactions/${settlementId(11)}`,
         expenseId: null,
@@ -96,8 +107,8 @@ export async function mockIncomeStatement(page: Page, options: { manager?: boole
   });
 }
 
-/** 설정·수익 확인·출금 월과 다른 비용 귀속·정정 충돌을 실제 HTTP 요청 순서로 검증합니다. */
-export async function mockAccountingLifecycle(page: Page) {
+/** 설정·과목 매칭·지출 날짜 귀속·매칭 충돌을 실제 HTTP 요청 순서로 검증합니다. */
+export async function mockAccountingLifecycle(page: Page, options: { accounts?: AccountingAccount[] } = {}) {
   const ids = {
     revenueAccount: settlementId(8301),
     revenueItem: settlementId(8302),
@@ -147,7 +158,7 @@ export async function mockAccountingLifecycle(page: Page) {
             message: '최신 회계 자료를 다시 확인해주세요.'
           };
         } else {
-          state.expenseMonth = input.recognitionMonth;
+          state.expenseMonth = '2026-10';
           state.expenseRevision++;
         }
       }
@@ -161,6 +172,8 @@ export async function mockAccountingLifecycle(page: Page) {
           id: `revenue:${ids.revenueItem}`,
           code: 'REVENUE_CLASSIFICATION_REQUIRED',
           label: '일반관리비 성격 확인 필요',
+          sourceName: '일반관리비',
+          sourceContext: '2026-10 ~ 2026-10 부과 합계',
           amount: '1000000',
           path: '/billing/monthly?month=2026-10',
           expenseId: null,
@@ -169,7 +182,9 @@ export async function mockAccountingLifecycle(page: Page) {
         ...(!state.expenseMonth ? [{
           id: `expense:${ids.expense}`,
           code: 'EXPENSE_ACCOUNTING_REVIEW_REQUIRED',
-          label: '청소비 과목·귀속 월 확인 필요',
+          label: '청소비 과목 확인 필요',
+          sourceName: '청소비',
+          sourceContext: '거래일 2026-10-15',
           amount: '1500000',
           path: `/banking/transactions/${ids.expense}`,
           expenseId: ids.expense,
@@ -191,10 +206,12 @@ export async function mockAccountingLifecycle(page: Page) {
         accounts: [
           {
             id: ids.revenueAccount,
+            code: '401',
             name: '관리비수익',
             group: 'operatingRevenue',
             systemKey: 'MANAGEMENT_REVENUE'
           },
+          ...(options.accounts ?? []),
           ...(state.account ? [{
             id: ids.costAccount,
             name: state.account,
@@ -234,7 +251,7 @@ export async function mockAccountingLifecycle(page: Page) {
         expenses: state.configured ? [{
           id: ids.expense,
           transactionId: ids.expense,
-          date: '2026-09-15',
+          date: '2026-10-15',
           name: '청소비',
           amount: '1500000',
           accountId: state.expenseMonth ? ids.costAccount : null,

@@ -10,7 +10,11 @@ import {
   useQueryClient
 } from '@tanstack/react-query';
 import { useSession } from '@/entities/session';
-import { isPropertyId } from '@/entities/property';
+import { goBackToPreviousRoute } from '@/shared/lib/navigation-history';
+import {
+  getSortedBuildings,
+  isPropertyId
+} from '@/entities/property';
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { LoadingState } from '@/shared/ui/state-message';
 import { getIncomeStatementWorkspace } from '../api/incomeStatementApi';
@@ -43,12 +47,15 @@ import { IncomeTrend } from './_components/income-trend/incomeTrend';
 import styles from './incomeStatementPage.module.css';
 
 /** 서버가 권한·원천·확인 상태를 검사한 자료만 조회 조건별 손익과 보고서에 연결합니다. */
-export function IncomeStatementPage({ propertyId }: { propertyId: string }) {
+export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
+  propertyId: string;
+  presentation?: 'main' | 'sources' | 'review';
+}) {
   const search = useSearchParams();
   const router = useRouter();
   const { openDownload } = useReportDownload();
   const filterQuery = new URLSearchParams(search.toString());
-  for (const key of ['view', 'sources', 'sourceStatus', 'sourcePage', 'sourceSize']) filterQuery.delete(key);
+  for (const key of ['view', 'sources', 'sourceStatus', 'sourcePage', 'sourceSize', 'kind', 'item']) filterQuery.delete(key);
   const queryKey = filterQuery.toString();
   const session = useSession();
   const cache = useQueryClient();
@@ -96,6 +103,8 @@ export function IncomeStatementPage({ propertyId }: { propertyId: string }) {
     range,
     buildingId
   };
+  // 삭제 동은 신규 선택에서 제외하되 과거 주소로 명시한 동의 ID와 원천 연결은 유지합니다.
+  const selectableBuildings = getSortedBuildings((data?.buildings ?? []).filter((building) => !building.deleted || building.id === draft.buildingId));
   const cumulative = search.get('view') === 'cumulative';
   const ready = data && validQuery && !query.isFetching && !query.isError;
   const report = ready && ['READY', 'REVIEW_REQUIRED'].includes(data.completeness) ? getIncomeStatement(data, range, buildingId) : null;
@@ -107,6 +116,11 @@ export function IncomeStatementPage({ propertyId }: { propertyId: string }) {
     if (open) {
       params.set('sources', '1');
       params.set('sourceStatus', data?.issues.length ? 'pending' : 'all');
+      if (window.matchMedia('(max-width: 767px)').matches) {
+        params.delete('sources');
+        router.push(`${base}/sources?${params}`);
+        return;
+      }
     } else {
       for (const key of ['sources', 'sourceStatus', 'sourcePage', 'sourceSize']) params.delete(key);
     }
@@ -115,10 +129,60 @@ export function IncomeStatementPage({ propertyId }: { propertyId: string }) {
     });
   }
 
-  /** 조회 버튼으로 적용한 조건을 주소에 기록해 뒤로가기·새로고침에도 같은 조회 자료를 표시합니다. */
-  function applyFilters() {
-    if (!isValidMonthRange(draft.range)) return;
-    const params = setMonthRangeQuery(new URLSearchParams(search.toString()), draft.range);
+  /** 모바일은 독립 페이지로 이동하고 PC는 목록 대신 분류 모달 하나만 표시합니다. */
+  function openEditor(target: AccountingEditorTarget) {
+    if (!window.matchMedia('(max-width: 767px)').matches) {
+      setEditor(target);
+      return;
+    }
+    const params = new URLSearchParams(search.toString());
+    params.delete('sources');
+    params.set('kind', target.kind);
+    if (target.kind !== 'setup') params.set('item', target.value.id);
+    else params.delete('item');
+    router.push(`${base}/review?${params}`);
+  }
+
+  /** 기기 뒤로가기와 같은 이전 화면을 사용하며 직접 접근 때만 같은 대상의 목록으로 대체합니다. */
+  function closeEditor() {
+    if (presentation !== 'review') {
+      setEditor(null);
+      return;
+    }
+    const params = new URLSearchParams(search.toString());
+    const setup = params.get('kind') === 'setup';
+    params.delete('kind');
+    params.delete('item');
+    if (!goBackToPreviousRoute()) router.replace(`${base}${setup ? '' : '/sources'}?${params}`);
+  }
+
+  /** 주소의 ID는 현재 관리대상 응답에서만 찾아 다른 대상·삭제 원천을 입력 화면에 연결하지 않습니다. */
+  function getPageEditor(): AccountingEditorTarget | null {
+    if (search.get('kind') === 'setup') return {
+      kind: 'setup'
+    };
+    const item = search.get('item');
+    if (search.get('kind') === 'expense') {
+      const value = data?.expenses.find((value) => value.id === item);
+      return value ? {
+        kind: 'expense',
+        value
+      } : null;
+    }
+    if (search.get('kind') === 'revenue') {
+      const value = data?.revenueItems.find((value) => value.id === item);
+      return value ? {
+        kind: 'revenue',
+        value
+      } : null;
+    }
+    return null;
+  }
+
+  /** 기간 선택창의 조회와 바깥 조회 버튼을 같은 처리로 연결하며 확정한 새 기간을 바로 주소에 반영합니다. */
+  function applyFilters(nextRange = draft.range) {
+    if (!isValidMonthRange(nextRange)) return;
+    const params = setMonthRangeQuery(new URLSearchParams(search.toString()), nextRange);
     if (draft.buildingId) params.set('building', draft.buildingId);
     else params.delete('building');
     router.replace(`${base}?${params}`, {
@@ -134,6 +198,60 @@ export function IncomeStatementPage({ propertyId }: { propertyId: string }) {
     router.replace(`${base}${params.size ? `?${params}` : ''}`, {
       scroll: false
     });
+  }
+
+  if (presentation !== 'main') {
+    if (!validQuery) return (
+      <StateMessage
+        variant={'no-results'}
+        title={'조회 기간·동을 다시 선택해주세요.'}
+      />
+    );
+    if (query.isError) return (
+      <RequestError
+        error={query.error}
+        onRetry={() => void query.refetch()}
+      />
+    );
+    if (!data || query.isPending) return (
+      <LoadingState
+        title={'손익 자료를 불러오고 있어요.'}
+      />
+    );
+    if (presentation === 'sources') return (
+      <AccountingChecks
+        data={data}
+        presentation={'page'}
+        onClose={() => { if (!goBackToPreviousRoute()) router.replace(base); }}
+        onEdit={openEditor}
+        onSource={(path) => router.push(`/manage/${propertyId}${path}`)}
+      />
+    );
+    const target = getPageEditor();
+    if (!data.canManage) return (
+      <StateMessage
+        variant={'forbidden'}
+        title={'분류 권한이 없습니다.'}
+      />
+    );
+    if (!target) return (
+      <StateMessage
+        variant={'not-found'}
+        title={'분류할 자료를 찾을 수 없습니다.'}
+      />
+    );
+    return (
+      <AccountingEditor
+        propertyId={propertyId}
+        data={data}
+        target={target}
+        presentation={'page'}
+        onClose={closeEditor}
+        onSaved={async () => { await cache.invalidateQueries({
+          queryKey: ['income-statement', session.data?.id, propertyId]
+        }); }}
+      />
+    );
   }
 
   return (
@@ -189,7 +307,8 @@ export function IncomeStatementPage({ propertyId }: { propertyId: string }) {
             {data?.notice ?? '부과월 수익과 관리자가 확인한 지출 귀속 월을 기준으로 조회합니다.'}
           </span>
         </div>
-        {report && data && (data.issues.length > 0 || data.expenses.length > 0 || data.revenueItems.length > 0) && (
+        {report && data && (data.issues.length > 0 || data.expenses.length > 0 || data.revenueItems.length > 0
+          || (data.receivables?.length ?? 0) > 0 || (data.otherIncomes?.length ?? 0) > 0) && (
           <Button
             variant={'outline'}
             size={'sm'}
@@ -204,29 +323,33 @@ export function IncomeStatementPage({ propertyId }: { propertyId: string }) {
         aria-label={'손익 조회 조건'}
         onSubmit={(event) => { event.preventDefault(); applyFilters(); }}
       >
-        <MonthRangePicker
-          label={'조회 기간'}
-          value={draft.range}
-          referenceMonth={currentMonth}
-          onChange={(range) => setSelection({
-            ...draft,
-            range
-          })}
-        />
         <Dropdown
-          label={'조회 동'}
+          aria-label={'조회 동'}
           value={draft.buildingId}
           options={[{
             value: '',
             label: '전체 동'
-          }, ...(data?.buildings ?? []).map((building) => ({
+          }, ...selectableBuildings.map((building) => ({
             value: building.id,
-            label: building.name
+            label: building.deleted ? `${building.name} (삭제된 동)` : building.name
           }))]}
           onChange={(buildingId) => setSelection({
             ...draft,
             buildingId
           })}
+        />
+        <MonthRangePicker
+          label={'조회 기간'}
+          labelHidden
+          value={draft.range}
+          referenceMonth={currentMonth}
+          onChange={(range) => {
+            setSelection({
+              ...draft,
+              range
+            });
+            applyFilters(range);
+          }}
         />
         <Button
           type={'submit'}
@@ -270,7 +393,7 @@ export function IncomeStatementPage({ propertyId }: { propertyId: string }) {
           description={data.canManage ? '확인할 회계 시작 월과 회계연도 시작 월을 지정한 뒤 자료를 연결합니다.' : '관리소장에게 회계 시작 기준 설정을 요청해주세요.'}
           actions={data.canManage && (
             <Button
-              onClick={() => setEditor({
+              onClick={() => openEditor({
                 kind: 'setup'
               })}
             >
@@ -410,13 +533,13 @@ export function IncomeStatementPage({ propertyId }: { propertyId: string }) {
           </div>
         </>
       )}
-      {checksOpen && data && (
+      {checksOpen && data && !editor && !source && (
         <AccountingChecks
           data={data}
           onClose={() => setChecksOpen(false)}
-          onEdit={setEditor}
+          onEdit={openEditor}
           onSource={(path) => {
-            if (window.matchMedia('(max-width: 767px)').matches || path.startsWith('/billing/') || path === '/banking/transactions') {
+            if (window.matchMedia('(max-width: 767px)').matches || path.startsWith('/billing/') || path.startsWith('/banking/balances') || path === '/banking/transactions') {
               router.push(`/manage/${propertyId}${path}`);
               return;
             }
@@ -441,7 +564,7 @@ export function IncomeStatementPage({ propertyId }: { propertyId: string }) {
           propertyId={propertyId}
           data={data}
           target={editor}
-          onClose={() => setEditor(null)}
+          onClose={closeEditor}
           onSaved={async () => { await cache.invalidateQueries({
             queryKey: ['income-statement', session.data?.id, propertyId]
           }); }}

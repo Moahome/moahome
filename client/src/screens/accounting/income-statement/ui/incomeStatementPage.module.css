@@ -50,16 +50,18 @@
 
   .filters {
     display: grid;
-    grid-template-columns: minmax(260px, 360px) minmax(180px, 260px) auto;
+    grid-template-columns: minmax(0, 220px) minmax(0, 340px) auto;
+    justify-self: start;
+    width: min(100%, 740px);
     align-items: end;
     gap: 14px;
-    padding: 18px;
+    padding: 16px;
     border: 1px solid var(--border);
     border-radius: 14px;
     background: var(--card);
 
     > button {
-      justify-self: end;
+      justify-self: start;
     }
   }
 
@@ -186,6 +188,7 @@
   @container (max-width: 700px) {
     .filters {
       grid-template-columns: minmax(0, 1fr);
+      width: 100%;
       padding: 14px;
 
       > button {

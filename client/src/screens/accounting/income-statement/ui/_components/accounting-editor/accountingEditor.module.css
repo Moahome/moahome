@@ -1,4 +1,4 @@
-.modal {
+.panel {
   width: min(600px, calc(100vw - 32px));
   max-height: calc(100dvh - 32px);
   padding: 0;
@@ -7,6 +7,22 @@
   background: var(--card);
   color: var(--foreground);
   overflow-y: auto;
+
+  &.page {
+    width: 100%;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    overflow: visible;
+
+    > form {
+      margin-top: 0;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--card);
+    }
+  }
 
   > header {
     display: flex;
