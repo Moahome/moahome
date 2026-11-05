@@ -353,9 +353,10 @@ test('조회 실패와 다른 관리대상 응답을 빈 월·0원으로 표시�
     name: '다시 시도',
     exact: true
   }).click();
-  await expect(page.getByText('정보를 불러오지 못했어요', {
+  await expect(page.getByRole('alert', {
+    name: '서버에 연결하지 못했어요',
     exact: true
-  })).toBeVisible();
+  }).locator('img')).toHaveAttribute('src', /serverError/);
   await expect(page.getByRole('button', {
     name: '다운로드',
     exact: true

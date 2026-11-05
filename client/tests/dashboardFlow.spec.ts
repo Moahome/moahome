@@ -169,8 +169,8 @@ test('조회 실패·범위 오류는 0원으로 바꾸지 않고 현재 조회�
     exact: true
   }).click();
   await expect(page.getByRole('alert', {
-    name: '정보를 불러오지 못했어요'
-  })).toBeVisible();
+    name: '서버에 연결하지 못했어요'
+  }).locator('img')).toHaveAttribute('src', /serverError/);
   await expect(page.getByRole('article')).toHaveCount(0);
   state.wrongProperty = false;
   state.empty = true;

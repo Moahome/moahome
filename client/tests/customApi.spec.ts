@@ -15,8 +15,8 @@ const originalApiHost = process.env.NEXT_PUBLIC_API_HOST;
 const originalNodeEnv = process.env.NODE_ENV;
 const originalConsoleError = console.error;
 
-test('연결 오류 안내는 통신·서버 장애만 포함하고 인증·권한·입력 오류는 제외', () => {
-  for (const error of [new ApiError(0, 'NETWORK_ERROR', ''), new ApiError(500, 'HTTP_ERROR', ''), new ApiError(503, 'SERVICE_UNAVAILABLE', ''), new ApiError(504, 'HTTP_ERROR', '')]) {
+test('연결 오류 안내는 통신·서버 장애와 잘못된 응답을 포함하고 인증·권한·입력 오류는 제외', () => {
+  for (const error of [new ApiError(0, 'NETWORK_ERROR', ''), new ApiError(200, 'INVALID_RESPONSE', ''), new ApiError(500, 'HTTP_ERROR', ''), new ApiError(503, 'SERVICE_UNAVAILABLE', ''), new ApiError(504, 'HTTP_ERROR', '')]) {
     expect(isServerConnectionError(error)).toBe(true);
   }
   for (const error of [null, new Error('local error'), new ApiError(0, 'LOGIN_REQUIRED', ''), new ApiError(0, 'INVALID_REQUEST', ''), new ApiError(401, 'AUTHENTICATION_REQUIRED', ''), new ApiError(403, 'ACCESS_DENIED', ''), new ApiError(409, 'CONFLICT', '')]) {
