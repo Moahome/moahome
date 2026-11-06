@@ -2899,7 +2899,6 @@ for (const width of [1440, 390]) {
       name: '최근 은행 확인 잔액 도움말',
       exact: true
     });
-    const recentBalanceTooltip = page.getByRole('tooltip');
     await expect(recentBalanceHelp).toHaveCount(0);
     await expect(page.getByRole('button', {
       name: /^조회 기간:/
@@ -2959,18 +2958,11 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole('row').filter({
       hasText: '받은 돈'
     })).toBeVisible();
-    await expect(page.getByText('110,000', {
-      exact: true
-    })).toBeVisible();
-    await recentBalanceHelp.focus();
-    await expect(recentBalanceTooltip).toContainText('은행 거래 파일에 기록된 마지막 거래 후 잔액입니다.');
-    await expect(recentBalanceTooltip).toContainText('수동 입출금은 반영되지 않습니다.');
-    await page.screenshot({
-      path: testInfo.outputPath(`transactionSelectedBankHelp${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
-    await recentBalanceHelp.press('Escape');
+    // 은행 확인값 UI는 제거됐어도 선택 통장 조회와 이체 결과는 유지합니다.
+    await expect(recentBalanceHelp).toHaveCount(0);
+    await expect(page.getByRole('article', {
+      name: /최근 은행 확인 잔액/
+    })).toHaveCount(0);
     await page.screenshot({
       path: test.info().outputPath(`multipleBanking${width}.png`),
       fullPage: true,
@@ -3925,7 +3917,7 @@ for (const width of [1440]) {
     });
     await expect(accounts).toContainText('1,522,910원');
     await expect(accounts).toContainText('장부 잔액');
-    await expect(accounts).toContainText('은행 확인 1,500,000원 (09.30)');
+    await expect(accounts).not.toContainText('은행 확인');
     await expect(page.getByRole('article', {
       name: '잔고 차이 0원',
       exact: true
@@ -4376,7 +4368,7 @@ for (const width of [1440, 320]) {
     await expect(detail.getByRole('button', {
       name: '확인 이력',
       exact: true
-    })).toBeVisible();
+    })).toHaveCount(0);
     await expect(detail.getByRole('button', {
       name: '통장 정보 수정',
       exact: true
@@ -4478,7 +4470,8 @@ for (const width of [1440, 320]) {
       exact: true
     });
     await expect(direct).toContainText('확인된 잔액 없음');
-    await expect(direct).toContainText('은행 확인 기록 없음 · 확인은 선택 사항입니다.');
+    await expect(direct).toContainText('잔액 계산 확인 필요');
+    await expect(direct).not.toContainText('은행 확인 기록');
     await page.reload();
     await expect(direct).toContainText('···· 4321');
     if (width <= 767) {

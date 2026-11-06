@@ -550,7 +550,7 @@ test('잘못된 목록 응답을 대상 없음으로 처리하지 않고 재시�
   }));
   await page.goto('/start');
   await expect(page.getByRole('heading', {
-    name: '관리할 곳을 확인하지 못했어요',
+    name: '서버에 연결하지 못했어요',
     exact: true
   })).toBeVisible();
   await expect(page.getByRole('button', {
@@ -569,7 +569,7 @@ test('권한 조회 응답의 대상이 다르면 이전 대상 이름과 본문
     propertyId: '00000000-0000-0000-0000-000000000099'
   }));
   await page.goto(DASHBOARD);
-  await expect(page.getByText('정보를 불러오지 못했어요')).toBeVisible();
+  await expect(page.getByText('서버에 연결하지 못했어요')).toBeVisible();
   await expect(page.getByText('성내빌라', {
     exact: true
   })).toHaveCount(0);
@@ -3414,7 +3414,7 @@ test('주민 상세를 다시 열면 번호는 마스킹되고 전체 번호 조
     name: '김민수 상세 보기'
   }).click();
   await expect(page.getByRole('dialog').getByRole('alert', {
-    name: '정보를 불러오지 못했어요',
+    name: '서버에 연결하지 못했어요',
     exact: true
   })).toBeVisible();
   await expect(page.getByRole('dialog')).not.toContainText('0101231234');
@@ -3579,7 +3579,7 @@ test('세대 주민 요약의 누락·잘못된 합계는 0명으로 표시하�
   }));
   await page.goto(HOUSEHOLDS);
   const error = page.getByRole('alert', {
-    name: '정보를 불러오지 못했어요',
+    name: '서버에 연결하지 못했어요',
     exact: true
   });
   const table = page.getByRole('table', {
