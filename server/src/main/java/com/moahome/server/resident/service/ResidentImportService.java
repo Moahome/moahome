@@ -44,10 +44,12 @@ public class ResidentImportService {
 
 	private final Clock clock;
 
+	private final ResidentImportCommitService commits;
+
 	public ResidentImportService(ManagementAccessService access, PropertyRepository properties,
 	    BuildingRepository buildings, UnitRepository units, ResidentRepository residents,
 	    ResidentImportBatchRepository batches, ResidentRegistrationService registrations, ResidentExcelReader reader,
-	    ObjectProvider<PhoneSecurity> phones, ObjectMapper mapper, Clock clock) {
+	    ObjectProvider<PhoneSecurity> phones, ObjectMapper mapper, Clock clock, ResidentImportCommitService commits) {
 		this.access = access;
 		this.properties = properties;
 		this.buildings = buildings;
@@ -59,14 +61,17 @@ public class ResidentImportService {
 		this.phones = phones;
 		this.mapper = mapper;
 		this.clock = clock;
+		this.commits = commits;
 	}
 
 	/** 현재 관리자에게 업로드를 허용하고 동의한 연락처만 보호해 세대 연결·중복 검증 결과를 임시 보관합니다. */
 	@Transactional
 	public ResidentImportResponse preview(UUID actor, UUID propertyId, MultipartFile file) {
 		requireManagementAccess(actor, propertyId);
-		var property = properties.findById(propertyId)
+		// 철회 직전의 검증이 철회 후에 임시 번호를 저장하지 않도록 생성도 같은 대상 잠금에서 직렬화합니다.
+		var property = properties.findForUnitUpdate(propertyId)
 		    .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+		requireManagementAccess(actor, propertyId);
 		List<ResidentExcelReader.InputRow> source = reader.read(file);
 		Map<UUID, String> buildingNames = new HashMap<>();
 		buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId).stream()
@@ -116,8 +121,8 @@ public class ResidentImportService {
 				// 이전 검증 JSON에 동의 정보가 없어도 연락처를 복원하지 않습니다.
 				String phone = row.phoneConsent() ? decryptPhone(row.phoneEncrypted()) : null;
 				// 별도 서비스의 트랜잭션을 행마다 완료하므로 다른 행의 입력 오류로 이미 성공한 주민을 취소하지 않습니다.
-				var saved = registrations.register(actor, propertyId, new ResidentRegistrationRequest(row.requestId(),
-				    row.name(), phone, row.unitId(), row.relationType()));
+				var saved = commits.register(actor, propertyId, importId, new ResidentRegistrationRequest(row.requestId(),
+				    row.name(), phone, row.unitId(), row.relationType(), row.phoneConsent()));
 				result.add(display(row, "SUCCESS", row.phoneConsent() ? "등록 완료" : "등록 완료 · 동의 미확인으로 연락처 미저장", saved.representative()));
 			} catch (ResidentRegistrationException exception) {
 				if (exception.code().status.is5xxServerError())
@@ -151,13 +156,13 @@ public class ResidentImportService {
 		}
 	}
 
-	/** 개별 등록과 같은 중복 기준을 적용하며 정확히 일치하는 삭제 명부는 선택 후 재등록할 수 있게 표시합니다. */
+	/** 현재 명부와 파일 내 중복만 검사하며 번호를 파기한 삭제 명부는 이름·전화번호로 자동 복구하지 않습니다. */
 	private ResidentImportRow validate(ResidentExcelReader.InputRow input, Property property, Map<String, UUID> targets,
 	    Set<String> contacts) {
 		String building = property.isHasBuildings() ? Building.normalizeName(input.building()) : "";
 		String unitNumber = input.unitNumber().replaceFirst("호$", "").strip();
 		String name = input.name();
-		String relation = relation(input.relation());
+		String relation = ResidentExcelReader.normalizeRelation(input.relation());
 		String consent = input.phoneConsent() == null ? "" : input.phoneConsent().strip().toUpperCase(Locale.ROOT);
 		boolean phoneConsent = "O".equals(consent);
 		UUID unitId = targets.get(key(building, unitNumber));
@@ -197,11 +202,6 @@ public class ResidentImportService {
 				if (existing.stream().anyMatch(person -> person.getDeletedAt() == null)) {
 					status = "DUPLICATE";
 					reason = "이름·연락처가 같은 주민이 이미 등록되어 있어요.";
-				} else if (existing.size() > 1) {
-					status = "ERROR";
-					reason = "같은 이름·연락처의 삭제 기록이 여러 개예요. 기존 주민을 확인해주세요.";
-				} else if (!existing.isEmpty()) {
-					reason = "재등록 가능 · 기존 주민 기록 재사용";
 				}
 			}
 		}
@@ -232,16 +232,4 @@ public class ResidentImportService {
 		return value == null ? "" : value.substring(0, Math.min(120, value.length()));
 	}
 
-	private String relation(String input) {
-		// 비어 있는 주민 구분은 미확인 기타로 저장하고 잘못 입력한 값은 기존처럼 행 오류로 안내합니다.
-		if (input == null || input.isBlank())
-			return "OTHER";
-		return switch (input) {
-			case "소유주", "소유자", "주인", "OWNER" -> "OWNER";
-			case "임차인", "세입자", "TENANT" -> "TENANT";
-			case "가족", "FAMILY" -> "FAMILY";
-			case "기타", "OTHER" -> "OTHER";
-			default -> null;
-		};
-	}
 }

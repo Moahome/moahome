@@ -3,7 +3,7 @@
 import { Button } from '@/shared/ui/button';
 import styles from './pagination.module.css';
 
-/** 페이지 수가 줄어든 결과를 기준으로 이동 버튼과 현재 표시 범위를 함께 갱신합니다. */
+/** 숫자는 최대 다섯 페이지씩 묶고 화살표는 이전·다음 묶음의 첫 페이지로 이동합니다. */
 export function Pagination({
   label,
   unit,
@@ -21,9 +21,10 @@ export function Pagination({
   pageSize: number;
   onPageChange: (page: number) => void;
 }) {
-  const firstPage = Math.max(1, Math.min(page - 2, pageCount - 4));
+  const firstPage = Math.floor((page - 1) / 5) * 5 + 1;
+  const lastPage = Math.min(firstPage + 4, pageCount);
   const pageNumbers = Array.from({
-    length: Math.min(5, pageCount)
+    length: lastPage - firstPage + 1
   }, (_, index) => firstPage + index);
   const firstIndex = (page - 1) * pageSize;
 
@@ -48,9 +49,9 @@ export function Pagination({
           variant={'outline'}
           size={'sm'}
           iconOnly
-          aria-label={'이전 페이지'}
-          disabled={page === 1}
-          onClick={() => onPageChange(page - 1)}
+          aria-label={'이전 5페이지'}
+          disabled={firstPage === 1}
+          onClick={() => onPageChange(Math.max(1, firstPage - 5))}
         >
           ‹
         </Button>
@@ -71,9 +72,9 @@ export function Pagination({
           variant={'outline'}
           size={'sm'}
           iconOnly
-          aria-label={'다음 페이지'}
-          disabled={page === pageCount}
-          onClick={() => onPageChange(page + 1)}
+          aria-label={'다음 5페이지'}
+          disabled={lastPage === pageCount}
+          onClick={() => onPageChange(firstPage + 5)}
         >
           ›
         </Button>

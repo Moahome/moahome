@@ -17,9 +17,10 @@ import com.moahome.server.resident.controller.ResidentListController;
 import com.moahome.server.resident.controller.ResidentManagementController;
 import com.moahome.server.resident.controller.ResidentRegistrationController;
 import com.moahome.server.user.exception.UserException;
+import com.moahome.server.property.controller.RegistrationResidentPreviewController;
 
 @RestControllerAdvice(assignableTypes = { ResidentListController.class, ResidentRegistrationController.class,
-        ResidentImportController.class,
+        ResidentImportController.class, RegistrationResidentPreviewController.class,
         ResidentManagementController.class,
         ResidentExportController.class })
 public class ResidentListExceptionHandler {

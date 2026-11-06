@@ -10,6 +10,8 @@ import {
   useRef,
   useState
 } from 'react';
+import { getResidentSetupError } from '../../model/residentSetup';
+import { ResidentSetup } from '../resident-setup/residentSetup';
 import { getAdministratorError } from '../../model/administrator';
 import { getRegistrationAccountsError } from '../../model/bankAccount';
 import type {
@@ -78,6 +80,7 @@ export function PropertyRegistrationFlow({
   const errorRef = useRef<HTMLParagraphElement>(null);
   const administratorValid = !getAdministratorError(draft.administrator, draft.units);
   const unitsValid = !getUnitSetupError(draft.basicInfo.hasBuildings === true, draft.buildings, draft.units) && administratorValid && !getUnitOpeningError(draft.openingBalances, draft.units);
+  const residentsValid = !getResidentSetupError(draft.residents ?? [], draft.units, draft.administrator);
   const accountValid = !getRegistrationAccountsError(draft.bankAccounts) && !getCashOpeningError(draft.openingBalances, draft.buildings, draft.bankAccounts) && !getRegistrationHistoryError(draft.openingBalances, draft.bankAccounts, draft.units, draft.buildings);
   const feesValid = !getFeeItemsError(draft.feeItems) && !getFirstBillingError(draft.openingBalances);
 
@@ -100,7 +103,8 @@ export function PropertyRegistrationFlow({
   const locked = submission.status !== 'idle';
   let currentStep: RegistrationStep | 'complete' = 'basic';
   if (step !== 'basic' && draft.basicInfoValidated) currentStep = 'units';
-  if (['account', 'fees', 'review'].includes(step) && draft.basicInfoValidated && unitsValid) currentStep = 'account';
+  if (['residents', 'account', 'fees', 'review'].includes(step) && draft.basicInfoValidated && unitsValid) currentStep = 'residents';
+  if (['account', 'fees', 'review'].includes(step) && currentStep === 'residents' && residentsValid) currentStep = 'account';
   if (['fees', 'review'].includes(step) && currentStep === 'account' && accountValid) currentStep = 'fees';
   if (step === 'review' && currentStep === 'fees' && feesValid) currentStep = 'review';
   // 제출 이후에는 URL 뒤로가기도 수정으로 처리하지 않고 저장 결과부터 확인합니다.
@@ -384,8 +388,25 @@ export function PropertyRegistrationFlow({
           ...previous,
           bankAccounts
         }))}
-        onPrevious={() => navigateSetup('units')}
+        onPrevious={() => navigateSetup('residents')}
         onNext={() => navigateSetup('fees')}
+      />
+    );
+  } else if (currentStep === 'residents') {
+    content = (
+      <ResidentSetup
+        propertyName={draft.basicInfo.name}
+        hasBuildings={draft.basicInfo.hasBuildings === true}
+        buildings={draft.buildings}
+        units={draft.units}
+        administrator={draft.administrator}
+        residents={draft.residents ?? []}
+        onChange={(residents) => setDraft((previous) => ({
+          ...previous,
+          residents
+        }))}
+        onPrevious={() => navigateSetup('units')}
+        onNext={() => navigateSetup('account')}
       />
     );
   } else if (currentStep === 'units') {
@@ -414,7 +435,7 @@ export function PropertyRegistrationFlow({
           step: 'units'
         }))}
         onPrevious={() => navigateSetup('basic')}
-        onNext={() => navigateSetup('account')}
+        onNext={() => navigateSetup('residents')}
       />
     );
   } else {

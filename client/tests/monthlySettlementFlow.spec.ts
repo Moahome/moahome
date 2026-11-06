@@ -267,7 +267,7 @@ test('수납 상세의 검색·상태·동·페이지 필터와 독립적으로 
   });
   await expect(table.locator('tbody tr')).toHaveCount(10);
   await page.getByRole('button', {
-    name: '다음 페이지',
+    name: '2페이지',
     exact: true
   }).click();
   await expect(table.getByText('103동 210호', {

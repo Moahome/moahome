@@ -54,6 +54,9 @@ import com.moahome.server.property.service.UnitManagementService;
 import com.moahome.server.property.support.RegistrationTestKeys;
 import com.moahome.server.resident.service.ResidentExportService;
 import com.moahome.server.resident.service.ResidentImportService;
+import com.moahome.server.resident.service.ResidentImportCommitService;
+import com.moahome.server.resident.service.ResidentPhoneRetentionService;
+import com.moahome.server.property.service.RegistrationResidentPreviewService;
 import com.moahome.server.resident.service.ResidentListService;
 import com.moahome.server.resident.service.ResidentManagementService;
 import com.moahome.server.resident.service.ResidentRegistrationService;
@@ -181,6 +184,15 @@ class OpenApiIntegrationTest {
 	private ResidentImportService residentImport;
 
 	@MockitoBean
+	private ResidentImportCommitService residentImportCommits;
+
+	@MockitoBean
+	private ResidentPhoneRetentionService phoneRetention;
+
+	@MockitoBean
+	private RegistrationResidentPreviewService registrationResidentPreview;
+
+	@MockitoBean
 	private ResidentManagementService residentManagement;
 
 	@MockitoBean
@@ -267,7 +279,9 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(
 		    mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(115);
+		assertThat(document.path("paths").properties()).hasSize(117);
+		assertThat(document.path("paths").path("/api/property-registrations/resident-import/preview").at("/post/security/0/bearerAuth").isArray()).isTrue();
+		assertThat(document.path("paths").path("/api/properties/{propertyId}/residents/deleted").at("/get/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/banking/transfers/from-transaction")
 		    .at("/post/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/accounting/income-statement")

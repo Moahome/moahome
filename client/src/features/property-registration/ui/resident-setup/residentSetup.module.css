@@ -1,0 +1,134 @@
+.page {
+  width: min(calc(100% - 48px), 1000px);
+  margin-inline: auto;
+  padding: 42px 0 60px;
+}
+
+.heading {
+  text-align: center;
+
+  h1 { font-size: 34px; font-weight: 800; letter-spacing: -1.3px; }
+  p { margin-top: 8px; color: var(--sub-text); font-size: 17px; }
+}
+
+.card {
+  padding: 32px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--card);
+  box-shadow: 0 10px 36px color-mix(in srgb, var(--foreground) 3%, transparent);
+}
+
+.intro {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 28px;
+
+  h2 { margin: 4px 0 7px; outline: none; font-size: 27px; font-weight: 800; letter-spacing: -.9px; }
+  p { color: var(--sub-text); font-size: 15px; line-height: 1.7; }
+}
+
+.intro-icon {
+  display: grid;
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+  place-items: center;
+  border-radius: 22px;
+  background: color-mix(in srgb, var(--primary) 8%, var(--card));
+  color: var(--primary);
+
+  svg { width: 38px; height: 38px; }
+}
+
+.eyebrow { color: var(--primary); font-size: 13px; font-weight: 700; }
+
+.methods { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 24px; padding: 0; border: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+.editor { padding: 24px; }
+.dialog { width: min(calc(100vw - 32px), 720px); padding: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--card); }
+.dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--border); }
+.dialog-header h2 { outline: none; font-size: 24px; font-weight: 750; }
+.dialog-description { margin-top: 7px; color: var(--sub-text); font-size: 16px; line-height: 1.7; }
+.editor label { font-size: 16px; }
+.editor .section-heading > span { font-size: 14px; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.section-heading h3, .upload h3 { font-size: 18px; font-weight: 750; }
+.section-heading > span { color: var(--sub-text); font-size: 13px; }
+.section-heading b { color: var(--danger); }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 24px; }
+.contact { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 24px; margin-top: 22px; }
+.contact > :last-child { grid-column: 1 / -1; padding-top: 0; }
+.add-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+.add-actions button { min-width: 132px; }
+.roster { margin-top: 28px; }
+.roster-actions { display: flex; align-items: flex-end; gap: 12px; }
+.roster-actions > :first-child { min-width: 108px; }
+.roster-actions > span { color: var(--sub-text); font-size: 13px; }
+.count { margin-left: 6px; color: var(--primary); font-size: 18px; }
+.resident-name { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.manager-badge { padding: 2px 7px; border-radius: 5px; background: color-mix(in srgb, var(--primary) 8%, var(--card)); color: var(--primary); font-size: 12px; font-weight: 600; }
+.muted { color: var(--sub-text); font-size: 14px; }
+.row-actions { display: flex; justify-content: flex-end; gap: 4px; }
+.empty { display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 28px 12px; }
+.empty svg { width: 36px; height: 36px; margin-bottom: 4px; color: color-mix(in srgb, var(--sub-text) 65%, var(--border)); }
+.empty strong { color: var(--foreground); font-size: 15px; font-weight: 600; }
+.empty p { color: var(--sub-text); font-size: 14px; }
+.notice { display: flex; align-items: flex-start; gap: 10px; margin-top: 22px; color: var(--sub-text); font-size: 13px; line-height: 1.7; }
+.notice svg { flex-shrink: 0; width: 18px; height: 18px; margin-top: 2px; color: var(--primary); }
+.actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+.actions > p { color: var(--sub-text); font-size: 13px; }
+.actions > div { display: flex; gap: 10px; }
+.actions button { min-width: 120px; }
+.message { margin-top: 16px; color: var(--danger); font-size: 14px; line-height: 1.7; }
+.upload-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.upload-heading p { margin-top: 8px; color: var(--sub-text); font-size: 16px; line-height: 1.8; }
+.upload [role='region'] p { font-size: 16px; }
+.template-link { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 48px; margin-top: 16px; padding: 12px 20px; border: 1px solid var(--excel-background); border-radius: 8px; background: var(--card); color: var(--excel-background); font-size: 16px; font-weight: 600; }
+.template-link svg { width: 18px; height: 18px; }
+.hint { margin-top: 12px; color: var(--sub-text); font-size: 13px; line-height: 1.7; }
+.import-result { margin-top: 24px; }
+.import-result > h3 { margin-bottom: 12px; font-size: 16px; }
+.import-result > button { display: flex; margin: 14px 0 0 auto; }
+
+@media (max-width: 760px) {
+  .fields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .contact { grid-template-columns: 1fr; gap: 14px; }
+  .contact > :last-child { padding-top: 0; }
+  .card { padding: 24px; }
+  .intro h2 { font-size: 24px; }
+  .intro-icon { width: 58px; height: 58px; border-radius: 18px; }
+  .actions { flex-wrap: wrap; }
+  .actions > div { margin-left: auto; }
+}
+
+@media (max-width: 640px) {
+  .page { width: 100%; padding: 24px 16px 40px; }
+  .heading { margin-bottom: 24px; }
+  .heading h1 { font-size: 22px; letter-spacing: -.7px; }
+  .heading p { font-size: 14px; }
+  .card { padding: 22px 16px; border-radius: 14px; }
+  .intro { align-items: flex-start; gap: 12px; margin-bottom: 22px; }
+  .intro-icon { width: 42px; height: 42px; border-radius: 12px; }
+  .intro-icon svg { width: 26px; height: 26px; }
+  .intro h2 { font-size: 21px; line-height: 1.45; }
+  .intro p { font-size: 13px; }
+  .methods { grid-template-columns: 1fr; gap: 8px; }
+  .manager { padding: 14px 12px; gap: 9px; }
+  .manager p { font-size: 12px; }
+  .manager-icon { display: none; }
+  .fields { gap: 16px 12px; }
+  .section-heading { align-items: baseline; }
+  .section-heading h3 { font-size: 17px; }
+  .section-heading > span { font-size: 12px; }
+  .roster-actions { gap: 8px; }
+  .roster-actions > span { display: none; }
+  .editor { padding: 20px 16px; }
+  .dialog-header { padding: 16px; }
+  .upload-heading { align-items: flex-start; flex-direction: column; }
+  .actions > p { width: 100%; }
+  .actions > div { width: 100%; }
+  .actions button { flex: 1; min-width: 0; }
+}

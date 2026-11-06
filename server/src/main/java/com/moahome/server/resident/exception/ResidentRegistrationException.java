@@ -10,6 +10,7 @@ public class ResidentRegistrationException extends RuntimeException {
 		INVALID_REPRESENTATIVE(HttpStatus.BAD_REQUEST, "같은 세대의 다른 현재 주민을 대표로 선택해주세요."),
 		CONTACT_REQUIRED_FOR_REQUEST(HttpStatus.CONFLICT, "가입 신청이 연결된 주민의 연락처는 비울 수 없습니다."),
 		INVALID_UNIT(HttpStatus.BAD_REQUEST, "등록할 세대를 다시 선택해주세요."),
+		PHONE_CONSENT_REQUIRED(HttpStatus.BAD_REQUEST, "전화번호 수집·이용 동의를 확인해주세요."),
 		DUPLICATE_RESIDENT(HttpStatus.CONFLICT, "이름과 연락처가 같은 주민이 이미 있습니다. 기존 주민을 확인해주세요."),
 		RESIDENT_RESTORE_REQUIRED(HttpStatus.CONFLICT, "삭제된 명부에 이름과 연락처가 같은 주민이 있습니다. 기존 주민을 확인해주세요."),
 		REGISTRATION_CONFLICT(HttpStatus.CONFLICT, "이미 사용된 등록 요청입니다. 주민 목록에서 등록 결과를 확인해주세요."),

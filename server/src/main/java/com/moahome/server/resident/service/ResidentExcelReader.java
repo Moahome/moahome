@@ -126,4 +126,17 @@ public class ResidentExcelReader {
 				throw new ResidentImportException("INVALID_EXCEL_FILE");
 		}
 	}
+	/**  초기 설정과 운영 업로드가 같은 주민 구분 입력을 정규화합니다. */
+	public static String normalizeRelation(String input) {
+		// 비어 있는 주민 구분은 미확인 기타로 저장하고 잘못 입력한 값은 기존처럼 행 오류로 안내합니다.
+		if (input == null || input.isBlank())
+			return "OTHER";
+		return switch (input) {
+			case "소유주", "소유자", "주인", "OWNER" -> "OWNER";
+			case "임차인", "세입자", "TENANT" -> "TENANT";
+			case "가족", "FAMILY" -> "FAMILY";
+			case "기타", "OTHER" -> "OTHER";
+			default -> null;
+		};
+	}
 }

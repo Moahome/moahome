@@ -682,7 +682,7 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
     exact: true
   })).not.toBeChecked();
   await page.getByRole('button', {
-    name: '다음 페이지',
+    name: '2페이지',
     exact: true
   }).click();
   await expect(page.getByText('입금자10', {
@@ -1063,7 +1063,7 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
   }).click();
   await expect(expenseTable.getByRole('row')).toHaveCount(21);
   await page.getByRole('button', {
-    name: '다음 페이지',
+    name: '2페이지',
     exact: true
   }).click();
   await expect(expenseTable.getByRole('row')).toHaveCount(6);

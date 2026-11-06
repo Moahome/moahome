@@ -22,6 +22,7 @@ import com.moahome.server.billing.domain.*;
 import com.moahome.server.billing.repo.*;
 import com.moahome.server.common.security.AccountNumberSecurity;
 import com.moahome.server.common.security.PhoneSecurity;
+import com.moahome.server.common.security.PhoneConsent;
 import com.moahome.server.membership.domain.PropertyMember;
 import com.moahome.server.membership.repo.PropertyMemberRepository;
 import com.moahome.server.property.domain.*;
@@ -137,6 +138,7 @@ public class PropertyRegistrationService {
 
 		long monthlyAmount = validateRelationships(input);
 		int creatorUnitIndex = validateAdministrator(input);
+		List<PropertyRegistrationRequest.ResidentInput> residentInputs = validateResidents(input);
 		if (input.openingBalances() != null)
 			opening.getObject().validate(input);
 		OffsetDateTime at = OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
@@ -184,6 +186,7 @@ public class PropertyRegistrationService {
 		members.saveAndFlush(member);
 		var creator = registerCreator(userId, property.getId(), input.administrator(),
 		    creatorUnitIndex < 0 ? null : createdUnits.get(creatorUnitIndex), at);
+		registerResidents(userId, property.getId(), input, residentInputs, createdUnits, at);
 		// 이전 등록은 기본 정보만 저장하고 새 최종 확인 요청은 기존 운영 시작 서비스를 같은 트랜잭션에서 실행합니다.
 		var managementStart = input.openingBalances() == null ? null
 		    : opening.getObject().initialize(userId, property, input, buildingMap, createdUnits, createdAccounts);
@@ -215,8 +218,12 @@ public class PropertyRegistrationService {
 		if (profile.name() == null)
 			throw invalid("administrator.name", "REQUIRED", "관리소장 이름을 입력해주세요.");
 		try {
-			if (profile.phone() != null)
+			if (profile.phone() != null) {
+				if (!Boolean.TRUE.equals(profile.phoneConsent())) {
+					throw invalid("administrator.phoneConsent", "REQUIRED", "전화번호 수집·이용 동의를 확인해주세요.");
+				}
 				ResidentRegistrationService.normalizePhone(profile.phone());
+			}
 		} catch (IllegalArgumentException failure) {
 			throw invalid("administrator.phone", "INVALID_FORMAT", "연락처 형식을 확인해주세요.");
 		}
@@ -255,12 +262,94 @@ public class PropertyRegistrationService {
 		}
 		var resident = Resident.register(UUID.randomUUID(), property, input.name(),
 		    encrypted, hmac, last4, at);
+		if (phone != null) {
+			resident.confirmPhone(PhoneConsent.confirm("SELF", actor, at));
+		}
 		resident.connectApprovedUser(actor, at);
 		residents.saveAndFlush(resident);
 		// 관리소장 등록은 일반 명부의 최초 대표 자동 지정에서 제외하고 세대 관계만 연결합니다.
 		var relation = UnitResident.register(resident, unit, "OTHER", false, at);
 		affiliations.saveAndFlush(relation);
 		return new CreatorSummary("RESIDENT", resident.getId(), unit.getId(), relation.getId());
+	}
+
+	/** 담당자와 같은 세대·이름인 행만 제외하고 선택 번호의 동의·중복과 최소 주민 수를 저장 전에 확인합니다. */
+	private List<PropertyRegistrationRequest.ResidentInput> validateResidents(PropertyRegistrationRequest input) {
+		if (input.residents() == null) {
+			throw invalid("residents", "REQUIRED", "주민 명부를 확인해주세요.");
+		}
+		List<PropertyRegistrationRequest.ResidentInput> included = new ArrayList<>();
+		Set<String> contacts = new HashSet<>();
+		var administrator = input.administrator();
+		if (administrator != null && administrator.phone() != null) {
+			contacts.add(administrator.name() + "\u0000" + ResidentRegistrationService.normalizePhone(administrator.phone()));
+		}
+		for (int index = 0; index < input.residents().size(); index++) {
+			var row = input.residents().get(index);
+			String field = "residents[" + index + "]";
+			if (administrator != null && "RESIDENT".equals(administrator.residenceType())
+			    && Objects.equals(administrator.buildingClientId(), row.buildingClientId())
+			    && Objects.equals(administrator.unitNumber(), row.unitNumber()) && Objects.equals(administrator.name(), row.name())) {
+				continue;
+			}
+			if (input.units().stream().noneMatch(unit -> Objects.equals(unit.buildingClientId(), row.buildingClientId())
+			    && unit.unitNumber().equals(row.unitNumber()))) {
+				throw invalid(field + ".unitNumber", "INVALID_REFERENCE", "등록한 세대를 선택해주세요.");
+			}
+			if (row.phone() != null) {
+				if (!Boolean.TRUE.equals(row.phoneConsent())) {
+					throw invalid(field + ".phoneConsent", "REQUIRED", "전화번호 수집·이용 동의를 확인해주세요.");
+				}
+				String phone;
+				try {
+					phone = ResidentRegistrationService.normalizePhone(row.phone());
+				} catch (IllegalArgumentException failure) {
+					throw invalid(field + ".phone", "INVALID_FORMAT", "연락처 형식을 확인해주세요.");
+				}
+				if (!contacts.add(row.name() + "\u0000" + phone)) {
+					throw invalid(field + ".phone", "DUPLICATE", "이름과 전화번호가 같은 주민이 있습니다.");
+				}
+			}
+			included.add(row);
+		}
+		if (included.isEmpty() && (administrator == null || !"RESIDENT".equals(administrator.residenceType()))) {
+			throw invalid("residents", "REQUIRED", "주민을 1명 이상 등록해주세요.");
+		}
+		return included;
+	}
+
+	/** 입력 목록 순서로 주민·현재 관계를 함께 저장하고 관리소장의 대표 지정 예외는 유지합니다. */
+	private void registerResidents(UUID actor, UUID property, PropertyRegistrationRequest request,
+	    List<PropertyRegistrationRequest.ResidentInput> source, List<Unit> createdUnits, OffsetDateTime at) {
+		Set<UUID> occupied = new HashSet<>();
+		Map<String, Unit> targets = new HashMap<>();
+		for (int index = 0; index < createdUnits.size(); index++) {
+			var input = request.units().get(index);
+			targets.put(input.buildingClientId() + "\u0000" + input.unitNumber(), createdUnits.get(index));
+		}
+		for (var row : source) {
+			Unit unit = Objects.requireNonNull(targets.get(row.buildingClientId() + "\u0000" + row.unitNumber()));
+			String encrypted = null, hmac = null, last4 = null;
+			if (row.phone() != null) {
+				String normalized = ResidentRegistrationService.normalizePhone(row.phone());
+				PhoneSecurity security;
+				try {
+					security = phones.getObject();
+				} catch (BeansException failure) {
+					throw new RegistrationException(RegistrationErrorCode.PHONE_SECURITY_UNAVAILABLE);
+				}
+				encrypted = security.encrypt(normalized);
+				hmac = security.hmac(normalized);
+				last4 = security.last4(normalized);
+			}
+			Resident resident = Resident.register(UUID.randomUUID(), property, row.name(), encrypted, hmac, last4, at);
+			if (encrypted != null) {
+				resident.confirmPhone(PhoneConsent.confirm("ADMIN", actor, at));
+			}
+			residents.saveAndFlush(resident);
+			// 주민 단계에서 첫 일반 주민을 대표로 지정하고 이후 입력은 기존 대표를 유지합니다.
+			affiliations.saveAndFlush(UnitResident.register(resident, unit, row.relationType(), occupied.add(unit.getId()), at));
+		}
 	}
 
 	/** 제출자의 커밋된 결과만 조회하고 현재 권한을 확인한 뒤 최초 응답 스냅샷을 반환합니다. */

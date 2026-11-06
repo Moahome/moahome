@@ -15,7 +15,10 @@ public final class ResidentInvitations {
 	}
 
 	public record Claim(@NotBlank @Size(max = 32) String token, boolean correction, @Size(max = 50) String name,
-	    @Pattern(regexp = "KEEP|SET|REMOVE") String phoneAction, @Size(max = 64) String phone) {
+	    @Pattern(regexp = "KEEP|SET|REMOVE") String phoneAction, @Size(max = 64) String phone, Boolean phoneConsent) {
+		public Claim(String token, boolean correction, String name, String phoneAction, String phone) {
+			this(token, correction, name, phoneAction, phone, null);
+		}
 		@Override
 		public String toString() {
 			return "Claim[REDACTED]";
@@ -40,7 +43,11 @@ public final class ResidentInvitations {
 	}
 
 	public record Preview(UUID propertyId, String propertyName, String name, String unitLabel, String phoneLast4, String status,
-	    OffsetDateTime expiresAt, long revision) {
+	    OffsetDateTime expiresAt, long revision, boolean phoneConsent) {
+		public Preview(UUID propertyId, String propertyName, String name, String unitLabel, String phoneLast4, String status,
+		    OffsetDateTime expiresAt, long revision) {
+			this(propertyId, propertyName, name, unitLabel, phoneLast4, status, expiresAt, revision, false);
+		}
 	}
 
 	public record Result(String status) {

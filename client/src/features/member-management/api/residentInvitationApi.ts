@@ -82,6 +82,9 @@ export async function previewResidentInvitation(token: string) {
     }
   });
   if (!value || !isPropertyId(value.propertyId) || typeof value.name !== 'string' || typeof value.unitLabel !== 'string' || typeof value.propertyName !== 'string'
+    || !(value.phoneLast4 === null || (typeof value.phoneLast4 === 'string' && /^\d{4}$/.test(value.phoneLast4)))
+    || !(value.phoneConsent === undefined || typeof value.phoneConsent === 'boolean')
+    || (value.phoneConsent === true && value.phoneLast4 === null)
     || !['ISSUED', 'CHANGE_REQUESTED', 'APPROVED'].includes(value.status)) throw new ApiError(200, 'INVALID_RESPONSE', '초대 정보를 확인할 수 없습니다.');
   return value;
 }

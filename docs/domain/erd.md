@@ -438,6 +438,12 @@ WHERE building_id IS NULL AND deleted_at IS NULL;
 
 ## 5.4 residents
 
+2026-11-06 후속 [초기 설정 주민 명부 정책](domainRules.md#초기-설정-주민-명부-단계-추가-2026-11-06)은 미구현입니다. 거주 관리소장의 동·호수·이름이 같은 추가 행을 제외하는 초기 등록 검증이며, 일반 주민 전체에 같은 세대·이름 UNIQUE 제약을 추가하는 정책이 아닙니다. 기존 `residents`·`unit_residents`를 재사용하는 방향이고 상세 요청·저장 설계는 후속입니다.
+
+전화번호 동의 기록은 로컬 코드와 `V20261106131944__record_phone_collection_consent.sql`에 구현했습니다. 기존 운영 번호의 사전 동의 확인에 따른 이관과 실제 운영 적용 여부를 구분하며, 운영 DB에는 아직 적용하지 않았습니다. 업무 기준은 [동의 이관 정책](domainRules.md#기존-운영-전화번호의-동의-이관-2026-11-06)과 [동일 주민의 번호 정정 정책](domainRules.md#확정된-주민-상세수정삭제)을 따릅니다.
+
+아래 다섯 `phone_consent*` 컬럼은 `membership_requests`·`resident_invitations`에도 같은 타입·의미로 저장하며 `PhoneConsent` 임베디드를 사용합니다. 확인 상태는 번호와 유효한 출처·기록 시각을 요구하고 신규 확인에는 처리자·고지 버전도 필요합니다. 미확인 상태는 나머지 동의 메타데이터가 null입니다. 기존 동의가 완료된 동일 주민의 번호 정정은 이 메타데이터를 유지합니다. `V20261106132607__purge_deleted_resident_phone_copies.sql`은 이미 삭제된 주민과 확인 연결된 사본의 번호·동의 정보를 정리하며 업무 이력 ID는 보존합니다.
+
 ### 목적
 
 특정 Property에 등록된 실제 주민 명단.
@@ -456,6 +462,11 @@ WHERE building_id IS NULL AND deleted_at IS NULL;
 | `phone_encrypted` | text | Y | 전화번호 암호화 |
 | `phone_hmac` | char(64) | Y | 전화번호 대조/검색 |
 | `phone_last4` | char(4) | Y | 마스킹 표시 |
+| `phone_consent` | boolean | N | 기본 false, 전화번호 수집·이용 동의 확인 |
+| `phone_consent_source` | varchar(30) | Y | SELF / ADMIN / EXCEL / LEGACY_IMPORT |
+| `phone_consent_recorded_at` | timestamptz | Y | 확인 기록 시각. LEGACY_IMPORT는 이관 시각이며 과거 실제 동의일이 아님 |
+| `phone_consent_recorded_by` | uuid | Y | FK → users.id, 신규 확인 처리자. 과거 이관은 null |
+| `phone_consent_notice_version` | varchar(30) | Y | 신규 PHONE_V1, 과거 이관은 null |
 | `user_id` | uuid | Y | 가입 승인 후 FK → users.id |
 | `status` | varchar(20) | N | `ACTIVE / MOVED_OUT / INACTIVE` |
 | `created_at` | timestamptz | N | 생성 |
@@ -529,7 +540,7 @@ CREATE UNIQUE INDEX unit_residents_active_resident_idx
 
 ---
 
-2026-11-06 엑셀 전화번호 동의는 기존 `resident_import_batches.rows_payload`에 boolean `phoneConsent`로 함께 보존합니다. false·미존재이면 `phoneEncrypted`·`phoneLast4`를 저장하거나 사용하지 않고 최종 주민의 보호 연락처 3개 컬럼도 null로 저장합니다. 새 주민 동의 컬럼·테이블이나 기존 주민 정보 보정 Migration은 추가하지 않습니다. 기존 주민 연락처를 일괄 삭제하지 않으며 업무 기준은 [주민 엑셀 정책](domainRules.md#확정된-주민-엑셀-일괄-등록)을 따릅니다.
+2026-11-06 엑셀 전화번호 동의는 기존 `resident_import_batches.rows_payload`에 boolean `phoneConsent`로 함께 보존합니다. false·미존재이면 `phoneEncrypted`·`phoneLast4`를 저장하거나 사용하지 않고 최종 주민의 보호 연락처 3개 컬럼도 null로 저장합니다. 영속 저장 시에는 [주민 동의 컬럼](#54-residents)도 기록합니다. 업무 기준은 [주민 엑셀 정책](domainRules.md#확정된-주민-엑셀-일괄-등록)을 따릅니다.
 
 ### 주민 등록 요청 결과 (`resident_registration_results`)
 

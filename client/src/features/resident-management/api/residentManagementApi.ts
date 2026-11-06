@@ -15,6 +15,8 @@ import type {
 function readDetail(result: ResidentDetail | undefined, propertyId: string, residentId: string): ResidentDetail {
   if (!result || result.id !== residentId || result.propertyId !== propertyId || typeof result.name !== 'string' || !result.name.trim()
     || !(result.phoneLast4 === null || (typeof result.phoneLast4 === 'string' && /^\d{4}$/.test(result.phoneLast4)))
+    || !(result.phoneConsent === undefined || typeof result.phoneConsent === 'boolean')
+    || (result.phoneConsent === true && result.phoneLast4 === null)
     || !(result.unitId === null || isPropertyId(result.unitId)) || !(result.buildingId === null || isPropertyId(result.buildingId))
     || !(result.unitNumber === null || typeof result.unitNumber === 'string')
     || !(result.buildingName === null || typeof result.buildingName === 'string')

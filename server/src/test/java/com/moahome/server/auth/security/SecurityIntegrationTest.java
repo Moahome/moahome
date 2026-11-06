@@ -95,6 +95,9 @@ import com.moahome.server.property.service.UnitManagementService;
 import com.moahome.server.property.support.RegistrationTestKeys;
 import com.moahome.server.resident.service.ResidentExportService;
 import com.moahome.server.resident.service.ResidentImportService;
+import com.moahome.server.resident.service.ResidentImportCommitService;
+import com.moahome.server.resident.service.ResidentPhoneRetentionService;
+import com.moahome.server.property.service.RegistrationResidentPreviewService;
 import com.moahome.server.resident.service.ResidentListService;
 import com.moahome.server.resident.service.ResidentManagementService;
 import com.moahome.server.resident.service.ResidentRegistrationService;
@@ -253,6 +256,15 @@ class SecurityIntegrationTest {
 
 	@MockitoBean
 	private ResidentImportService residentImport;
+
+	@MockitoBean
+	private ResidentImportCommitService residentImportCommits;
+
+	@MockitoBean
+	private ResidentPhoneRetentionService phoneRetention;
+
+	@MockitoBean
+	private RegistrationResidentPreviewService registrationResidentPreview;
 
 	@MockitoBean
 	private ResidentManagementService residentManagement;

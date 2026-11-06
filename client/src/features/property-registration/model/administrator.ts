@@ -6,11 +6,12 @@ export const EMPTY_ADMINISTRATOR: AdministratorDraft = {
   residenceType: '',
   name: '',
   phone: '',
+  phoneConsent: false,
   unitClientId: ''
 };
 
 /** 등록자는 로그인 계정으로 고정하고 거주를 선택한 경우에만 명부 입력과 같은 등록의 세대를 확인합니다. */
-export function getAdministratorError(profile: AdministratorDraft, units: UnitDraft[]): string {
+export function getAdministratorError(profile: AdministratorDraft, units: UnitDraft[], requireConsent = true): string {
   if (!profile.residenceType) return '관리소장의 거주 여부를 선택해주세요.';
   if (profile.residenceType === 'EXTERNAL') return '';
   if (!profile.name.trim() || getTextLength(profile.name.trim()) > 50) return '관리소장 이름을 1~50자로 입력해주세요.';
@@ -18,6 +19,7 @@ export function getAdministratorError(profile: AdministratorDraft, units: UnitDr
   const digits = phone.replace(/[ ()-]/g, '');
   if (phone && (phone.length > 64 || !/^\+?[0-9 ()-]+$/.test(phone)
     || !(/^(0[1-9][0-9]{7,9}|\+[1-9][0-9]{3,14})$/.test(digits)))) return '관리소장 연락처를 확인해주세요.';
+  if (requireConsent && phone && !profile.phoneConsent) return '관리소장 전화번호 수집·이용 동의를 확인해주세요.';
   if (!units.some((unit) => unit.clientId === profile.unitClientId)) return '등록한 세대 중 거주하는 세대를 선택해주세요.';
   return '';
 }
@@ -36,6 +38,7 @@ export function restoreAdministrator(value: unknown): AdministratorDraft {
     residenceType: profile.residenceType,
     name: profile.name,
     phone: profile.phone,
+    phoneConsent: profile.phoneConsent === true,
     unitClientId: profile.unitClientId
   };
 }

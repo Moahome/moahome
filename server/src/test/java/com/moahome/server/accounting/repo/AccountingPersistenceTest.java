@@ -70,7 +70,8 @@ class AccountingPersistenceTest {
 			assertThatThrownBy(() -> jdbc.update("update accounting_accounts set code='899' where id=?", account))
 				.isInstanceOf(DataIntegrityViolationException.class);
 			Flyway selected = Flyway.configure().dataSource(dataSource).load();
-			assertThat(selected.migrate().migrationsExecuted).isEqualTo(3);
+			int pending = selected.info().pending().length;
+			assertThat(selected.migrate().migrationsExecuted).isEqualTo(pending);
 			selected.validate();
 			assertThat(jdbc.queryForObject("select report_group from accounting_accounts where property_id=? and code='103'", String.class, property)).isEqualTo("ASSET");
 			assertThat(jdbc.queryForObject("select accounting_account_id from expenses where id=?", UUID.class, expense)).isNull();

@@ -9,7 +9,10 @@ public final class SignupRequests {
 	}
 
 	public record Create(@NotNull UUID unitId, @NotBlank @Size(max = 50) String name, @Size(max = 64) String phone,
-	    @NotBlank @Size(max = 32) String code) {
+	    @NotBlank @Size(max = 32) String code, Boolean phoneConsent) {
+		public Create(UUID unitId, String name, String phone, String code) {
+			this(unitId, name, phone, code, null);
+		}
 		@Override
 		public String toString() {
 			return "Create[REDACTED]";

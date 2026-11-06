@@ -12,6 +12,7 @@ export function getResidentManagementError(error: unknown) {
     REPRESENTATIVE_UNAVAILABLE: '현재 서버에서 대표 지정 기능을 사용할 수 없어요.',
     REPRESENTATIVE_REQUIRED: '남은 주민 중 새 대표를 선택해주세요.',
     INVALID_REPRESENTATIVE: '같은 동·호수의 다른 주민을 대표로 선택해주세요.',
+    PHONE_CONSENT_REQUIRED: '전화번호 수집·이용 동의를 확인해주세요.',
     CONTACT_REQUIRED_FOR_REQUEST: '가입 신청이 연결된 주민은 연락처를 비울 수 없어요.',
     DUPLICATE_RESIDENT: '이름과 연락처가 같은 주민이 이미 있어요. 기존 주민을 확인해주세요.',
     RESIDENT_RESTORE_REQUIRED: '삭제된 명부에 이름과 연락처가 같은 주민이 있어요.',

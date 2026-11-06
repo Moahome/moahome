@@ -5,6 +5,7 @@ export interface ResidentDetail {
   propertyId: string;
   name: string;
   phoneLast4: string | null;
+  phoneConsent?: boolean;
   unitId: string | null;
   buildingId: string | null;
   buildingName: string | null;
@@ -29,6 +30,7 @@ export interface ResidentUpdateInput {
   name: string;
   unitId: string;
   relationType: string;
+  phoneConsent?: boolean;
   phoneAction: 'KEEP' | 'REPLACE' | 'REMOVE';
   phone: string | null;
   replacementResidentId: string | null;

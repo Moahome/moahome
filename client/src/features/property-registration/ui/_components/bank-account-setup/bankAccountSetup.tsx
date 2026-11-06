@@ -147,7 +147,7 @@ export function BankAccountSetup({
         <Button
           variant={'ghost'}
           iconOnly
-          aria-label={'동·세대 및 담당자로 돌아가기'}
+          aria-label={'주민 명부 등록으로 돌아가기'}
           onClick={onPrevious}
           leadingIcon={(
             <ServiceIcon
@@ -173,7 +173,7 @@ export function BankAccountSetup({
         </p>
       </header>
       <SetupProgress
-        currentStep={3}
+        currentStep={4}
       />
       <section
         className={styles.card}

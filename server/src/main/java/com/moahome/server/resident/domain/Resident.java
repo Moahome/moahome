@@ -11,6 +11,7 @@ import org.hibernate.type.SqlTypes;
 import org.springframework.data.domain.Persistable;
 
 import com.moahome.server.common.validation.TextValues;
+import com.moahome.server.common.security.PhoneConsent;
 
 /** 로그인 계정과 구분한 주민 명부이며 연락처는 암호문·검색값·끝 네 자리만 보관합니다. */
 @Getter
@@ -51,6 +52,9 @@ public class Resident implements Persistable<UUID> {
 	@Column(name = "phone_last4", length = 4, columnDefinition = "char(4)")
 	private String phoneLast4;
 
+	@Embedded
+	private PhoneConsent phoneConsent = PhoneConsent.none();
+
 	@Column(name = "user_id")
 	private UUID userId;
 
@@ -85,11 +89,22 @@ public class Resident implements Persistable<UUID> {
 		if ((encryptedPhone == null) != (phoneHmac == null) || (encryptedPhone == null) != (phoneLast4 == null)) {
 			throw new IllegalArgumentException("Incomplete protected contact");
 		}
+		if (!Objects.equals(this.phoneHmac, phoneHmac) || encryptedPhone == null) {
+			phoneConsent = PhoneConsent.none();
+		}
 		this.name = TextValues.required(name, 50);
 		this.phoneEncrypted = encryptedPhone;
 		this.phoneHmac = phoneHmac;
 		this.phoneLast4 = phoneLast4;
 		this.updatedAt = Objects.requireNonNull(at);
+	}
+
+	/** 현재 번호에 적용할 동의 기록을 복사하며 기존 동의의 승계 여부는 변경 서비스에서 판단합니다. */
+	public void confirmPhone(PhoneConsent consent) {
+		if (phoneEncrypted == null || consent == null || !consent.isConfirmed()) {
+			throw new IllegalArgumentException("Confirmed contact required");
+		}
+		phoneConsent = consent.copy();
 	}
 
 	/** 명부는 이력과 연결 ID를 보존하고 소프트 삭제하며 권한 종료는 같은 트랜잭션의 서비스가 조율합니다. */

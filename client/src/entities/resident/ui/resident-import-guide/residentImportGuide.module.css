@@ -1,0 +1,15 @@
+.guide {
+  margin-top: 24px;
+  padding: 22px 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+
+  h3 { margin-bottom: 14px; color: var(--foreground); font-size: 18px; font-weight: 700; }
+  ul { display: grid; gap: 9px; padding-left: 21px; color: var(--sub-text); font-size: 16px; line-height: 1.8; list-style: disc; }
+  li { display: list-item; padding-left: 3px; list-style-type: disc; overflow-wrap: anywhere; }
+}
+
+@media (max-width: 640px) {
+  .guide { padding: 18px 16px; }
+}

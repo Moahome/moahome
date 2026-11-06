@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.common.security.PhoneSecurity;
+import com.moahome.server.common.security.PhoneConsent;
 import com.moahome.server.common.validation.TextValues;
 import com.moahome.server.membership.domain.MembershipRequest;
 import com.moahome.server.membership.domain.PropertyMemberRole;
@@ -50,11 +51,13 @@ public class ResidentManagementService {
 
 	private final ObjectProvider<MemberManagementService> roleManagement;
 
+	private final ResidentPhoneRetentionService phoneRetention;
+
 	public ResidentManagementService(ManagementAccessService access, PropertyRepository properties,
 	    ResidentRepository residents, UnitResidentRepository affiliations, ResidentListService lists,
 	    ResidentRegistrationService registrations, PropertyMemberRepository members,
 	    MembershipRequestRepository requests, ObjectProvider<PhoneSecurity> phones, Clock clock,
-	    ObjectProvider<MemberManagementService> roleManagement) {
+	    ObjectProvider<MemberManagementService> roleManagement, ResidentPhoneRetentionService phoneRetention) {
 		this.access = access;
 		this.properties = properties;
 		this.residents = residents;
@@ -66,6 +69,7 @@ public class ResidentManagementService {
 		this.phones = phones;
 		this.clock = clock;
 		this.roleManagement = roleManagement;
+		this.phoneRetention = phoneRetention;
 	}
 
 	/** 상세 조회에서도 매번 관리소장 권한·관리대상·미삭제 명부를 확인하고 마스킹된 정보만 반환합니다. */
@@ -94,7 +98,8 @@ public class ResidentManagementService {
 		    row.signupStatus(), resident.getCreatedAt(), resident.getUpdatedAt(),
 		    !requests.findLinked(propertyId, residentId, resident.getUserId()).isEmpty(), candidates,
 		    row.serviceRole(), current == null ? null : affiliations.findCurrentUnitResidents(propertyId, current.getUnitId())
-		        .stream().filter(UnitResident::isHouseholdRep).map(UnitResident::getResidentId).findFirst().orElse(null));
+		        .stream().filter(UnitResident::isHouseholdRep).map(UnitResident::getResidentId).findFirst().orElse(null),
+		    resident.getPhoneConsent().isConfirmed());
 	}
 
 	/** 대상 잠금 아래 기존·신규 대표의 쓰기 권한과 조회 버전을 검사하고 대표를 원자적으로 교체합니다. */
@@ -153,6 +158,19 @@ public class ResidentManagementService {
 	/** 등록과 같은 대상 잠금 아래 명부·연락처·확인된 신청·현재 세대·직접 선택한 대표를 원자적으로 수정합니다. */
 	@Transactional
 	public ResidentDetailResponse update(UUID actor, UUID propertyId, UUID residentId, ResidentUpdateRequest input) {
+		return updateWithConsent(actor, propertyId, residentId, input, null, null);
+	}
+
+	/** 개인 초대 정정은 접수 시 보존한 기존·신규 동의의 처리자·시각을 그대로 이어받습니다. */
+	@Transactional
+	public ResidentDetailResponse updateFromInvitation(UUID actor, UUID propertyId, UUID residentId,
+	    ResidentUpdateRequest input, PhoneConsent consent, UUID invitationId) {
+		return updateWithConsent(actor, propertyId, residentId, input, consent, invitationId);
+	}
+
+	/** 현재 동의를 확인한 뒤 번호·확인된 신청·세대 관계를 함께 변경하고 철회 시 사본까지 정리합니다. */
+	private ResidentDetailResponse updateWithConsent(UUID actor, UUID propertyId, UUID residentId,
+	    ResidentUpdateRequest input, PhoneConsent originalConsent, UUID approvingInvitation) {
 		requireManagementAccess(actor, propertyId);
 		var property = properties.findForUnitUpdate(propertyId)
 		    .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
@@ -179,19 +197,22 @@ public class ResidentManagementService {
 		var name = TextValues.required(input.name(), 50);
 		String encrypted = resident.getPhoneEncrypted(), hmac = resident.getPhoneHmac(),
 		    last4 = resident.getPhoneLast4();
+		// 같은 주민의 번호 정정은 이미 확인한 수집·이용 동의를 유지합니다. 철회된 동의는 승계하지 않습니다.
+		var replacementConsent = originalConsent != null && originalConsent.isConfirmed()
+		    ? originalConsent.copy() : resident.getPhoneConsent().copy();
 		switch (input.phoneAction()) {
 			case "KEEP" -> {
 				if (input.phone() != null)
 					throw new IllegalArgumentException("Unexpected contact");
 			}
 			case "REMOVE" -> {
-				if (!linked.isEmpty())
-					throw failure(CONTACT_REQUIRED_FOR_REQUEST);
 				encrypted = null;
 				hmac = null;
 				last4 = null;
 			}
 			case "REPLACE" -> {
+				if (!replacementConsent.isConfirmed())
+					ResidentRegistrationService.requirePhoneConsent(input.phone(), input.phoneConsent());
 				var protectedPhone = registrations.protectPhone(input.phone());
 				if (protectedPhone == null)
 					throw new IllegalArgumentException("Contact required");
@@ -213,8 +234,16 @@ public class ResidentManagementService {
 		var at = OffsetDateTime.now(clock).truncatedTo(ChronoUnit.MICROS);
 		resident.update(name, encrypted, hmac, last4, at);
 		if (input.phoneAction().equals("REPLACE")) {
-			for (var request : linked)
+			// 번호 변경 시각을 새 동의 시각으로 기록하지 않고 기존 출처·처리자·시각을 보존합니다.
+			resident.confirmPhone(replacementConsent.isConfirmed()
+			    ? replacementConsent : PhoneConsent.confirm("ADMIN", actor, at));
+			for (var request : linked) {
 				request.changePhone(encrypted, hmac, last4, at);
+				request.confirmPhone(resident.getPhoneConsent());
+			}
+		}
+		if (input.phoneAction().equals("REMOVE")) {
+			phoneRetention.removePhoneCopies(actor, resident, at, approvingInvitation);
 		}
 		if (moving) {
 			if (current != null)
@@ -293,6 +322,8 @@ public class ResidentManagementService {
 			current.end(actor, at, true);
 		if (resident.getDeletedAt() == null)
 			resident.delete(actor, at);
+		resident.update(resident.getName(), null, null, null, at);
+		phoneRetention.removePhoneCopies(actor, resident, at);
 		if (resident.getUserId() != null) {
 			members.findByPropertyIdAndUserIdAndDeletedAtIsNull(propertyId, resident.getUserId()).stream()
 			    .filter(member -> member.getRole() == PropertyMemberRole.RESIDENT && member.getEndedAt() == null)

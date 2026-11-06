@@ -117,7 +117,7 @@ import static org.assertj.core.api.Assertions.*;
         MembershipRequestService.class,
         ResidentInvitationService.class,
         ResidentJoinCodeService.class, ResidentRegistrationService.class,
-        ResidentManagementService.class, ResidentListService.class,
+        ResidentManagementService.class, ResidentPhoneRetentionService.class, ResidentListService.class,
         RedisInvitationCodeRepository.class, PaymentPersistenceTest.TestBeans.class})
 @ActiveProfiles("database-test")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -162,6 +162,9 @@ class PaymentPersistenceTest {
 	ResidentManagementService residentManagement;
 
 	@Autowired
+	PhoneSecurity phoneSecurity;
+
+	@Autowired
 	ResidentListService residentLists;
 
 	@Autowired
@@ -204,6 +207,7 @@ class PaymentPersistenceTest {
 		var request = RegistrationFixtures.withUnits(RegistrationFixtures.request(UUID.randomUUID(), false),
 		    List.of(new UnitInput(null, "101", null, 1, "ACTIVE"), new UnitInput(null, "202", null, 2, "ACTIVE")));
 		property = registration.register(user, request).response().property().id();
+		removeSetupResidents(property);
 		jdbc.update("update bank_accounts set bank_code='081' where property_id=?", property);
 		// 수납 회귀 테스트는 운영 개시 후를 준비합니다. 도입 절차는 별도 인계 시나리오에서 실제 서비스로 검증합니다.
 		jdbc.update(
@@ -529,6 +533,12 @@ class PaymentPersistenceTest {
 		POSTGRES.close();
 	}
 
+	/** 공통 초기 등록의 최소 명부를 치우고 수납 시나리오가 요구하는 대표·가족 명부를 아래에서 준비합니다. */
+	void removeSetupResidents(UUID propertyId) {
+		jdbc.update("delete from unit_residents where property_id=?", propertyId);
+		jdbc.update("delete from residents where property_id=?", propertyId);
+	}
+
 	void resident(UUID unit, String name, boolean rep) {
 		UUID resident = UUID.randomUUID();
 		jdbc.update(
@@ -625,7 +635,7 @@ class PaymentPersistenceTest {
 		    changed.cashCutoffDate(), changed.buildings());
 		var conflict = new PropertyRegistrationRequest(request.requestId(),
 		    request.basicInfo(), request.buildings(), request.units(), request.bankAccounts(), request.feeItems(),
-		    request.administrator(), other);
+		    request.administrator(), other, request.residents());
 		assertThatThrownBy(() -> registration.register(user, conflict))
 		    .isInstanceOf(RegistrationException.class);
 	}
@@ -664,7 +674,7 @@ class PaymentPersistenceTest {
 		        new RegistrationOpeningInput.BuildingOpening(1, "a", "250000"),
 		        new RegistrationOpeningInput.BuildingOpening(1, "b", "150000")));
 		var input = new PropertyRegistrationRequest(base.requestId(), base.basicInfo(),
-		    base.buildings(), base.units(), accountInputs, base.feeItems(), base.administrator(), amounts);
+		    base.buildings(), base.units(), accountInputs, base.feeItems(), base.administrator(), amounts, base.residents());
 		UUID target = registration.register(user, input).response().property().id();
 		registration.register(user, input);
 		assertThat(jdbc.queryForObject(
@@ -742,7 +752,7 @@ class PaymentPersistenceTest {
 		var values = new RegistrationOpeningInput(old.cutoffDate(), old.firstBillingMonth(), old.units(), old.accounts(),
 		    old.cashCutoffDate(), old.buildings(), null, records);
 		var request = new PropertyRegistrationRequest(base.requestId(), base.basicInfo(), base.buildings(), base.units(),
-		    base.bankAccounts(), base.feeItems(), base.administrator(), values);
+		    base.bankAccounts(), base.feeItems(), base.administrator(), values, base.residents());
 		UUID target = registration.register(user, request).response().property().id();
 		assertThat(banking.workspace(user, target).rows().stream().filter(row -> row.expense() != null).findFirst().orElseThrow().expense().accountCode()).isEqualTo("802");
 		assertThat(jdbc.queryForObject("select count(*) from bank_transactions where property_id=?", Long.class, target)).isZero();
@@ -801,7 +811,7 @@ class PaymentPersistenceTest {
 		    null);
 		var bank = new PropertyRegistrationRequest.BankAccountInput("081", "하나은행", "1234567890", "관리단", true);
 		return new PropertyRegistrationRequest(base.requestId(), base.basicInfo(), base.buildings(), base.units(),
-		    List.of(bank), base.feeItems(), base.administrator(), values);
+		    List.of(bank), base.feeItems(), base.administrator(), values, base.residents());
 	}
 
 	/** 초기 업로드의 임시 통장 위치도 한쪽 은행 원본에서 양쪽 장부를 반영하며 비용을 생성하지 않습니다. */
@@ -821,7 +831,7 @@ class PaymentPersistenceTest {
 		var request = new PropertyRegistrationRequest(base.requestId(), base.basicInfo(), base.buildings(), base.units(),
 		    List.of(new PropertyRegistrationRequest.BankAccountInput("081", "하나은행", "1234567890", "관리단", true),
 		        new PropertyRegistrationRequest.BankAccountInput("090", "카카오뱅크", "3333012345678", "관리단", false)),
-		    base.feeItems(), base.administrator(), opening);
+		    base.feeItems(), base.administrator(), opening, base.residents());
 		UUID registered = registration.register(user, request).response().property().id();
 		var saved = banking.workspace(user, registered);
 		assertThat(saved.rows()).hasSize(2).allMatch(row -> row.automaticTransfer());
@@ -854,7 +864,7 @@ class PaymentPersistenceTest {
 		    base.buildings(), base.units(), base.bankAccounts(), base.feeItems(),
 		    new PropertyRegistrationRequest.AdministratorInput("EXTERNAL", null, null,
 		        null, null),
-		    opening);
+		    opening, base.residents());
 	}
 
 	@Test
@@ -864,7 +874,7 @@ class PaymentPersistenceTest {
 		var input = new RegistrationOpeningInput(LocalDate.of(2026, 9, 1), "2026-09", old.units(), old.accounts(),
 		    null, List.of(), null, null, true);
 		var request = new PropertyRegistrationRequest(base.requestId(), base.basicInfo(), base.buildings(), base.units(),
-		    base.bankAccounts(), base.feeItems(), base.administrator(), input);
+		    base.bankAccounts(), base.feeItems(), base.administrator(), input, base.residents());
 		UUID target = registration.register(user, request).response().property().id();
 		assertThat(opening.workspace(user, target).firstBillingMonth()).isEqualTo("2026-09");
 		assertThat(jdbc.queryForList("select billing_month from billing_periods where property_id=? order by billing_month", Short.class, target))
@@ -955,6 +965,7 @@ class PaymentPersistenceTest {
 		    List.of(new UnitInput(null, "101", null, 1, "ACTIVE"), new UnitInput(null, "102", null, 1, "ACTIVE"),
 		        new UnitInput(null, "103", null, 1, "ACTIVE"), new UnitInput(null, "104", null, 1, "ACTIVE")));
 		property = registration.register(user, request).response().property().id();
+		removeSetupResidents(property);
 		unit = jdbc.queryForObject("select id from units where property_id=? and unit_number='101'", UUID.class,
 		    property);
 		otherUnit = jdbc.queryForObject("select id from units where property_id=? and unit_number='102'", UUID.class,
@@ -1888,7 +1899,7 @@ class PaymentPersistenceTest {
 		UUID joining = users.saveAndFlush(User.create("가입계정", null)).getId();
 		var application = signupRequests.request(joining, property,
 		    new SignupRequests.Create(unit, "신청 주민", "01012345678",
-		        sharedCode(property, user)));
+		        sharedCode(property, user), true));
 		assertThat(jdbc.queryForObject("select user_id from residents where id=?", UUID.class, residentId)).isNull();
 		assertThatThrownBy(() -> memberManagement.workspace(joining, property)).isInstanceOf(AuthException.class);
 		var pending = signupRequests.workspace(user, property).requests().getFirst();
@@ -1921,7 +1932,7 @@ class PaymentPersistenceTest {
 		UUID joining = users.saveAndFlush(User.create("가입 계정", null)).getId();
 		var created = signupRequests.request(joining, property,
 		    new SignupRequests.Create(unit, "신청 주민", "01012345678",
-		        sharedCode(property, user)));
+		        sharedCode(property, user), true));
 		var pending = signupRequests.workspace(user, property).requests().getFirst();
 		signupRequests.approve(user, property, created.id(),
 		    new SignupRequests.Approve(residentId, pending.updatedAt()));
@@ -3345,7 +3356,7 @@ class PaymentPersistenceTest {
 		            "111122223333", "관리단", false),
 		        new PropertyRegistrationRequest.BankAccountInput("090", "카카오뱅크",
 		            "444455556666", "관리단", true)),
-		    draft.feeItems());
+		    draft.feeItems(), draft.administrator(), draft.openingBalances(), draft.residents());
 		var target = registration.register(user, input).response().property().id();
 		List<BankAccountSettings.Response> initial = bankAccountSettings.list(user, target);
 		assertThat(initial).extracting(a -> a.bankName()).containsExactly("신한은행", "카카오뱅크");
@@ -4814,6 +4825,27 @@ class PaymentPersistenceTest {
 		    .isEqualTo(joining);
 	}
 
+	/** 기존 운영 번호의 동의는 개인 초대 정정과 관리자 승인에도 재수집하지 않고 이어집니다. */
+	@Test
+	void personalPhoneCorrectionPreservesLegacyConsentWithoutAnotherCheckbox() {
+		UUID person = jdbc.queryForObject("select id from residents where property_id=? and name='김대표'", UUID.class,
+		    property);
+		jdbc.update("update residents set phone_encrypted=?, phone_hmac=?, phone_last4=?, phone_consent=true, phone_consent_source='LEGACY_IMPORT', phone_consent_recorded_at=?, phone_consent_recorded_by=null, phone_consent_notice_version=null where id=?",
+			    phoneSecurity.encrypt("+821012345678"), phoneSecurity.hmac("+821012345678"), phoneSecurity.last4("+821012345678"),
+		    OffsetDateTime.now(clock), person);
+		var original = jdbc.queryForMap("select phone_consent, phone_consent_source, phone_consent_recorded_at, phone_consent_recorded_by, phone_consent_notice_version from residents where id=?", person);
+		var issued = personalInvites.issue(user, property, person);
+		UUID joining = users.saveAndFlush(User.create("기존 동의 번호 정정", null)).getId();
+		assertThat(personalInvites.preview(joining, issued.token()).phoneConsent()).isTrue();
+		var input = new ResidentInvitations.Claim(issued.token(), true, "김대표", "SET", "01098765432");
+		assertThat(personalInvites.accept(joining, input).status()).isEqualTo("CHANGE_REQUESTED");
+		assertThat(jdbc.queryForMap("select phone_consent, phone_consent_source, phone_consent_recorded_at, phone_consent_recorded_by, phone_consent_notice_version from resident_invitations where id=?", issued.id())).isEqualTo(original);
+		var pending = personalInvites.workspace(user, property).invitations().getFirst();
+		personalInvites.review(user, property, pending.id(), new ResidentInvitations.Review(pending.revision()), true);
+		assertThat(jdbc.queryForObject("select phone_last4 from residents where id=?", String.class, person)).isEqualTo("5432");
+		assertThat(jdbc.queryForMap("select phone_consent, phone_consent_source, phone_consent_recorded_at, phone_consent_recorded_by, phone_consent_notice_version from residents where id=?", person)).isEqualTo(original);
+	}
+
 	@Test
 	void reissueRevokesOldPersonalCodeAndExpiredCodesCannotBeAccepted() {
 		UUID person = jdbc.queryForObject("select id from residents where property_id=? and name='김대표'", UUID.class,
@@ -5039,7 +5071,7 @@ class PaymentPersistenceTest {
 		try {
 			for (String table : List.of("users", "properties", "buildings", "units", "residents", "unit_residents", "property_members", "member_role_events", "resident_join_codes"))
 				copyPreviousTable(schema, table);
-			String columns = jdbc.queryForObject("select string_agg(quote_ident(column_name),',' order by ordinal_position) from information_schema.columns where table_schema='public' and table_name='resident_invitations'", String.class);
+			String columns = jdbc.queryForObject("select string_agg(quote_ident(column_name),',' order by ordinal_position) from information_schema.columns where table_schema='public' and table_name='resident_invitations' and column_name in (select column_name from information_schema.columns where table_schema=? and table_name='resident_invitations')", String.class, schema);
 			jdbc.execute("insert into " + schema + ".resident_invitations(" + columns + ") select " + columns + " from resident_invitations");
 			jdbc.update("update " + schema + ".resident_invitations set token_encrypted='old-protected-code' where id=?", unused.id());
 			columns = jdbc.queryForObject("select string_agg(quote_ident(column_name),',' order by ordinal_position) from information_schema.columns where table_schema='public' and table_name='member_invitations'", String.class);

@@ -117,6 +117,8 @@
 
 ### 주민 코드 확인과 가입
 
+개인 초대 미리보기는 현재 명부의 boolean `phoneConsent`를 반환합니다. 동일 주민의 연락처 정정(`phoneAction: SET`)은 기존 동의가 완료되어 있으면 재동의를 요구하지 않고 기존 동의 출처·기록자·기록 시각·고지 버전을 정정 요청과 최종 명부에 유지합니다. 최초 번호 입력·미확인·철회 후 재입력만 `phoneConsent: true`가 필요하며 서버가 최신 명부 동의를 검증합니다. 공통 가입 신청에서 처음 입력하는 번호는 사전 연결된 주민의 동의를 추측해 승계하지 않습니다.
+
 | Method | 경로 | 요청 | 결과 |
 | --- | --- | --- | --- |
 | POST | `/api/resident-invitations/shared-options` | `{token:공통코드}` | `{propertyId,propertyName,units}` |

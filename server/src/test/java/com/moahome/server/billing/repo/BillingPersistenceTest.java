@@ -47,6 +47,7 @@ import com.moahome.server.property.service.*;
 import com.moahome.server.property.support.*;
 import com.moahome.server.resident.service.ResidentListService;
 import com.moahome.server.resident.service.ResidentManagementService;
+import com.moahome.server.resident.service.ResidentPhoneRetentionService;
 import com.moahome.server.resident.service.ResidentRegistrationService;
 import com.moahome.server.user.domain.User;
 import com.moahome.server.user.repo.UserRepository;
@@ -61,7 +62,7 @@ import static org.assertj.core.api.Assertions.*;
 @Import({CumulativePaymentService.class, BillingService.class,
         BillingTemplates.class, BillingGenerationService.class, PropertyRegistrationService.class,
         PropertyRegistrationLock.class, ManagementAccessService.class, UnitManagementService.class,
-        ResidentManagementService.class,
+        ResidentManagementService.class, ResidentPhoneRetentionService.class,
         ResidentRegistrationService.class, UserService.class,
         ResidentListService.class, BillingPersistenceTest.TestBeans.class})
 @ActiveProfiles("database-test")
@@ -126,6 +127,9 @@ class BillingPersistenceTest {
 	    PropertyRegistrationRequest request) {
 		var result = registration.register(actor, request);
 		var id = result.response().property().id();
+		// 주민 없는 기존 관리대상의 부과도 독립적으로 검증하도록 테스트용 초기 최소 명부만 제거합니다.
+		jdbc.update("delete from unit_residents where property_id=?", id);
+		jdbc.update("delete from residents where property_id=?", id);
 		jdbc.update(
 		    "update properties set management_started_at=created_at,first_billing_month=date_trunc('month',created_at at time zone 'Asia/Seoul')::date where id=?",
 		    id);

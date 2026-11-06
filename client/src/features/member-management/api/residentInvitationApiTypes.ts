@@ -26,6 +26,7 @@ export interface ResidentInvitationPreview {
   name: string;
   unitLabel: string;
   phoneLast4: string | null;
+  phoneConsent?: boolean;
   status: 'ISSUED' | 'CHANGE_REQUESTED' | 'APPROVED';
   expiresAt: string;
   revision: number;
@@ -41,12 +42,14 @@ export interface ResidentInvitationAcceptance {
   name?: string;
   phoneAction?: 'KEEP' | 'SET' | 'REMOVE';
   phone?: string;
+  phoneConsent?: boolean;
 }
 export interface ResidentJoinSubmission {
   code: string;
   unitId: string;
   name: string;
   phone: string | null;
+  phoneConsent?: boolean;
 }
 
 export interface ResidentInvitationResult { status: string; }

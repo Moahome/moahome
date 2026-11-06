@@ -938,7 +938,7 @@ test('세대 페이지는 저장 목록을 조회하고 검색·상태 필터·�
     fullPage: true
   });
   await main.getByRole('button', {
-    name: '다음 페이지',
+    name: '2페이지',
     exact: true
   }).click();
   await expect(main.getByRole('row')).toHaveCount(3);
@@ -1742,7 +1742,7 @@ for (const width of [1440, 320]) {
       exact: true
     }).click();
     await main.getByRole('button', {
-      name: '다음 페이지',
+      name: '2페이지',
       exact: true
     }).click();
     await main.getByRole('button', {
@@ -1863,7 +1863,7 @@ test('주민 목록은 사람별 행·대표·마스킹·전체 집계를 표시
     name: /비활성|주민 상태/
   })).toHaveCount(0);
   await main.getByRole('button', {
-    name: '다음 페이지',
+    name: '2페이지',
     exact: true
   }).click();
   await expect(main.getByRole('row')).toHaveCount(3);
@@ -1936,7 +1936,7 @@ test('주민 목록은 사람별 행·대표·마스킹·전체 집계를 표시
   await expect(main.getByRole('navigation', {
     name: '주민 목록 페이지'
   }).getByRole('button', {
-    name: '다음 페이지'
+    name: '다음 5페이지'
   })).toBeDisabled();
 });
 
@@ -2277,10 +2277,16 @@ for (const width of [1440, 375]) {
     const data = residentDirectory();
     const original = data.residents[0];
     data.residents = [];
+    await page.route(`${RESIDENTS_URL}/deleted`, (route) => fulfillJson(route, [{
+      id: original.id,
+      name: original.name
+    }]));
     await page.route(RESIDENTS_URL, async (route) => {
       if (route.request().method() !== 'POST') return fulfillJson(route, data);
       const input = route.request().postDataJSON();
       expect(input.requestId).not.toBe(original.id);
+      expect(input.restoreResidentId).toBe(original.id);
+      expect(input.phoneConsent).toBe(true);
       data.residents.push({
         ...original,
         name: input.name,
@@ -2298,11 +2304,31 @@ for (const width of [1440, 375]) {
       name: '주민 등록',
       exact: true
     }).click();
+    await page.getByRole('combobox', {
+      name: '등록 방식',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '삭제 명부에서 복구',
+      exact: true
+    }).click();
+    await page.getByRole('combobox', {
+      name: '복구할 주민',
+      exact: true
+    }).fill(original.name);
+    await page.getByRole('option', {
+      name: original.name,
+      exact: true
+    }).click();
     await fillResidentRegistration(page);
     await page.getByRole('textbox', {
       name: '연락처 (선택)',
       exact: true
     }).fill('01012345678');
+    await page.getByRole('checkbox', {
+      name: '주민의 전화번호 수집·이용 동의를 받았습니다.',
+      exact: true
+    }).check();
     await page.getByRole('button', {
       name: '등록',
       exact: true
@@ -2372,6 +2398,13 @@ test('주민 등록은 필수값·연락처를 검증하고 국내 번호를 변
     name: '연락처 (선택)',
     exact: true
   }).fill('010-1234-5678');
+  await save.click();
+  await expect(dialog).toContainText('전화번호 수집·이용 동의를 확인해주세요.');
+  expect(posts).toBe(0);
+  await dialog.getByRole('checkbox', {
+    name: '주민의 전화번호 수집·이용 동의를 받았습니다.',
+    exact: true
+  }).check();
   await save.click();
   await expect(dialog.getByRole('button', {
     name: '등록 중…'
@@ -3078,6 +3111,7 @@ for (const width of [1440, 320]) {
     let detail = {
       ...first,
       propertyId: PROPERTY_ID,
+      phoneConsent: true,
       buildingName: '103동',
       createdAt: '2026-10-10T04:00:00Z',
       updatedAt: '2026-10-10T04:00:00Z',
@@ -3108,6 +3142,7 @@ for (const width of [1440, 320]) {
         const input = route.request().postDataJSON();
         expect(input.phoneAction).toBe('REPLACE');
         expect(input.phone).toBe('+821098765432');
+        expect(input).not.toHaveProperty('phoneConsent');
         expect(input.expectedUpdatedAt).toBe('2026-10-10T04:00:00Z');
         if (edits === 1) return fulfillJson(route, {
           code: 'DUPLICATE_RESIDENT'
@@ -3233,6 +3268,9 @@ for (const width of [1440, 320]) {
       name: '새 연락처',
       exact: true
     }).fill('010-9876-5432');
+    await expect(view.getByRole('checkbox', {
+      name: /전화번호 수집·이용 동의/
+    })).toHaveCount(0);
     await view.getByRole('button', {
       name: '수정',
       exact: true
@@ -3421,7 +3459,7 @@ for (const width of [1440, 320]) {
     await expect(main.getByRole('row').nth(1)).toContainText('소유주');
     await expect(main).not.toContainText('소유자');
     await main.getByRole('button', {
-      name: '다음 페이지',
+      name: '2페이지',
       exact: true
     }).click();
     await expect.poll(names).toEqual(['주민 11', '주민 12']);
@@ -4712,3 +4750,109 @@ test('동 없는 주민 업로드는 동 열 없는 양식과 작성 안내를 �
   await expect(page.getByRole('main')).toContainText('호수·이름은 필수이며 연락처와 주민 구분은 선택입니다.');
   await expect(page.getByRole('main')).not.toContainText('동 칸을 비워');
 });
+
+for (const scenario of [
+  {
+    label: '기존 동의 완료',
+    phoneLast4: '1234',
+    phoneConsent: true,
+    needsConsent: false
+  },
+  {
+    label: '도입 전 동의 완료 번호',
+    phoneLast4: '1234',
+    phoneConsent: undefined,
+    needsConsent: false
+  },
+  {
+    label: '최초 연락처 입력',
+    phoneLast4: null,
+    phoneConsent: false,
+    needsConsent: true
+  },
+  {
+    label: '동의 미확인 번호',
+    phoneLast4: '1234',
+    phoneConsent: false,
+    needsConsent: true
+  }
+]) {
+  test(`연락처 동의 표시: ${scenario.label}은 서버 상태에 맞춰 번호 변경을 저장`, async ({ page }) => {
+    await mockResidentRegistrationUnits(page, false);
+    const directory = residentDirectory(false);
+    const first = directory.residents[0];
+    const detail = {
+      ...first,
+      propertyId: PROPERTY_ID,
+      phoneLast4: scenario.phoneLast4,
+      phoneConsent: scenario.phoneConsent,
+      buildingName: null,
+      createdAt: '2026-10-10T04:00:00Z',
+      updatedAt: '2026-10-10T04:00:00Z',
+      hasLinkedRequests: false,
+      representativeCandidates: []
+    };
+    let saves = 0;
+    await page.route(RESIDENTS_URL, (route) => fulfillJson(route, directory));
+    await page.route(`${RESIDENTS_URL}/${first.id}`, (route) => {
+      if (route.request().method() === 'GET') return fulfillJson(route, detail);
+      const input = route.request().postDataJSON();
+      expect(input.phoneAction).toBe('REPLACE');
+      expect(input.phone).toBe('+821098765432');
+      if (scenario.needsConsent) expect(input.phoneConsent).toBe(true);
+      else expect(input).not.toHaveProperty('phoneConsent');
+      saves++;
+      return fulfillJson(route, {
+        ...detail,
+        phoneLast4: '5432',
+        phoneConsent: true,
+        updatedAt: '2026-10-10T04:00:01Z'
+      });
+    });
+    await page.goto(RESIDENTS);
+    await page.getByRole('row').filter({
+      hasText: first.name
+    }).getByRole('cell').first().click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    await dialog.getByRole('combobox', {
+      name: '연락처 변경',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '새 연락처로 변경',
+      exact: true
+    }).click();
+    await dialog.getByRole('textbox', {
+      name: '새 연락처',
+      exact: true
+    }).fill('010-9876-5432');
+    const consent = dialog.getByRole('checkbox', {
+      name: '주민의 전화번호 수집·이용 동의를 받았습니다.',
+      exact: true
+    });
+    await expect(consent).toHaveCount(scenario.needsConsent ? 1 : 0);
+    if (scenario.needsConsent) {
+      await dialog.getByRole('button', {
+        name: '수정',
+        exact: true
+      }).click();
+      await expect(dialog).toContainText('전화번호 수집·이용 동의를 확인해주세요.');
+      expect(saves).toBe(0);
+      await consent.check();
+    }
+    await dialog.getByRole('button', {
+      name: '수정',
+      exact: true
+    }).click();
+    await expect(dialog.getByRole('heading', {
+      name: '주민 상세',
+      exact: true
+    })).toBeVisible();
+    await expect(dialog).toContainText('•••• 5432');
+    expect(saves).toBe(1);
+  });
+}

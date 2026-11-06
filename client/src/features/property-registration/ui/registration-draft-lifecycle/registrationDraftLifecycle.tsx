@@ -14,7 +14,7 @@ export function RegistrationDraftLifecycle() {
 
   useEffect(() => {
     const step = new URLSearchParams(window.location.search).get('registration');
-    if (['/start', '/properties/add'].includes(pathname) && step && ['basic', 'units', 'administrator', 'account', 'fees', 'review', 'complete'].includes(step)) return;
+    if (['/start', '/properties/add'].includes(pathname) && step && ['basic', 'units', 'administrator', 'residents', 'account', 'fees', 'review', 'complete'].includes(step)) return;
     discardRegistrationDraft();
     discardSubmissionBody();
     discardRegistrationReceipt();

@@ -9,7 +9,11 @@ import {
   getSortedBuildings,
   getSortedUnits
 } from '@/entities/property';
-import { RESIDENT_RELATION_OPTIONS } from '@/entities/resident';
+import {
+  PhoneConsent,
+  hasExistingPhoneConsent,
+  RESIDENT_RELATION_OPTIONS
+} from '@/entities/resident';
 import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
 import {
@@ -27,6 +31,7 @@ import {
 import { updateResident } from '../../api/residentManagementApi';
 import type { ResidentDetail } from '../../api/residentManagementApiTypes';
 import {
+  getDeletedResidents,
   getRegistrationOptions,
   registerResident
 } from '../../api/residentRegistrationApi';
@@ -65,6 +70,17 @@ export function ResidentRegistrationForm({
   });
   const [name, setName] = useState(resident?.name ?? '');
   const [phone, setPhone] = useState('');
+  const [phoneConsent, setPhoneConsent] = useState(false);
+  const [restoreMode, setRestoreMode] = useState(false);
+  const [restoreResidentId, setRestoreResidentId] = useState('');
+  const deletedOptions = useQuery({
+    queryKey: ['deleted-residents', session.data?.id, propertyId],
+    queryFn: ({ signal }) => getDeletedResidents(propertyId, signal),
+    enabled: !resident && restoreMode && Boolean(session.data),
+    staleTime: 0,
+    gcTime: 0,
+    retry: false
+  });
   const [buildingId, setBuildingId] = useState(resident?.buildingId ?? '');
   const [unitId, setUnitId] = useState(resident?.unitId ?? '');
   const [relationType, setRelationType] = useState(resident?.relationType ?? 'OTHER');
@@ -86,6 +102,7 @@ export function ResidentRegistrationForm({
     };
   }, []);
   const data = options.data;
+  const needsPhoneConsent = !resident || !hasExistingPhoneConsent(resident);
   const buildings = getSortedBuildings(data?.buildings ?? []);
   const units = getSortedUnits((data?.units ?? []).filter((unit) => unit.status !== 'INACTIVE').map((unit) => ({
     clientId: unit.id,
@@ -107,6 +124,7 @@ export function ResidentRegistrationForm({
   } catch {
     phoneError = '올바른 연락처를 입력해주세요.';
   }
+  if (normalizedPhone && needsPhoneConsent && !phoneConsent) phoneError = '전화번호 수집·이용 동의를 확인해주세요.';
   const nameError = !name.trim() || [...name.trim()].length > 50 ? '이름을 1~50자로 입력해주세요.' : '';
   const unitError = !selectable.some((unit) => unit.clientId === unitId) ? '호수를 선택해주세요.' : '';
   const relationError = !RESIDENT_RELATION_OPTIONS.some((item) => item.value === relationType) ? '주민 구분을 선택해주세요.' : '';
@@ -119,7 +137,7 @@ export function ResidentRegistrationForm({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAttempted(true);
-    if (pendingRef.current || !options.isSuccess || nameError || phoneError || unitError || relationError || representativeError) return;
+    if (pendingRef.current || !options.isSuccess || nameError || phoneError || unitError || relationError || representativeError || (restoreMode && !restoreResidentId)) return;
     pendingRef.current = true;
     setBusy(true);
     setMessage('');
@@ -133,6 +151,9 @@ export function ResidentRegistrationForm({
           relationType,
           phoneAction,
           phone: phoneAction === 'REPLACE' ? normalizedPhone : null,
+          ...(phoneAction === 'REPLACE' && needsPhoneConsent ? {
+            phoneConsent
+          } : {}),
           replacementResidentId: needsRepresentative ? replacementResidentId : null,
           expectedUpdatedAt: resident.updatedAt,
           ...(designateRepresentative && resident.unitId === unitId ? {
@@ -151,6 +172,10 @@ export function ResidentRegistrationForm({
         requestId: requestId.current,
         name: name.trim(),
         phone: normalizedPhone,
+        phoneConsent,
+        ...(restoreMode ? {
+          restoreResidentId
+        } : {}),
         unitId,
         relationType
       });
@@ -206,6 +231,41 @@ export function ResidentRegistrationForm({
         className={styles.fields}
         disabled={busy}
       >
+        {!resident && (
+          <Dropdown
+            label={'등록 방식'}
+            value={restoreMode ? 'RESTORE' : 'NEW'}
+            options={[{
+              value: 'NEW',
+              label: '새 주민 등록'
+            }, {
+              value: 'RESTORE',
+              label: '삭제 명부에서 복구'
+            }]}
+            onChange={(value) => { setRestoreMode(value === 'RESTORE'); setRestoreResidentId(''); }}
+          />
+        )}
+        {!resident && restoreMode && (
+          <SelectDropdown
+            label={'복구할 주민'}
+            value={restoreResidentId}
+            required
+            options={(deletedOptions.data ?? []).map((row) => ({
+              value: row.id,
+              label: row.name
+            }))}
+            placeholder={deletedOptions.isPending ? '삭제 명부를 불러오는 중…' : '삭제한 주민을 선택해주세요'}
+            onChange={(value) => { setRestoreResidentId(value); setName(deletedOptions.data?.find((row) => row.id === value)?.name ?? ''); }}
+            error={attempted && !restoreResidentId ? '복구할 주민을 선택해주세요.' : undefined}
+          />
+        )}
+        {restoreMode && (
+          <p
+            className={styles.notice}
+          >
+            기존 명부 ID와 이력은 유지합니다. 삭제된 전화번호는 새로 입력하고 동의를 확인해주세요. 서비스 권한은 자동 복구하지 않습니다.
+          </p>
+        )}
         <Input
           label={'주민 이름'}
           name={'residentName'}
@@ -230,12 +290,12 @@ export function ResidentRegistrationForm({
                 value: 'REPLACE',
                 label: '새 연락처로 변경'
               },
-              ...(!resident.hasLinkedRequests ? [{
+              ...([{
                 value: 'REMOVE',
-                label: '연락처 삭제'
-              }] : [])
+                label: '연락처 삭제·동의 철회'
+              }])
             ]}
-            onChange={(value) => { setPhoneAction(value as 'KEEP' | 'REPLACE' | 'REMOVE'); setPhone(''); }}
+            onChange={(value) => { setPhoneAction(value as 'KEEP' | 'REPLACE' | 'REMOVE'); setPhone(''); setPhoneConsent(false); }}
           />
         )}
         {(!resident || phoneAction === 'REPLACE') && (
@@ -246,10 +306,18 @@ export function ResidentRegistrationForm({
             type={'tel'}
             autoComplete={'off'}
             value={phone}
-            onChange={(event) => setPhone(event.target.value)}
+            onChange={(event) => { setPhone(event.target.value); setPhoneConsent(false); }}
             error={attempted ? phoneError : undefined}
             placeholder={'010-1234-5678'}
             description={'목록에는 끝 4자리만 표시됩니다.'}
+          />
+        )}
+        {needsPhoneConsent && (!resident || phoneAction === 'REPLACE') && (
+          <PhoneConsent
+            checked={phoneConsent}
+            self={resident?.serviceRole === 'ADMIN'}
+            onChange={setPhoneConsent}
+            error={attempted && normalizedPhone && !phoneConsent ? '전화번호 수집·이용 동의를 확인해주세요.' : undefined}
           />
         )}
         {data?.hasBuildings && (

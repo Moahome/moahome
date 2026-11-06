@@ -1,3 +1,8 @@
+import { normalizeResidentPhone } from '@/entities/resident';
+import {
+  getResidentSetupError,
+  isAdministratorResident
+} from './residentSetup';
 import { ApiError } from '@/shared/api';
 import type { RegistrationRequest } from '../api/registrationApiTypes';
 import { EMPTY_AUTOMATIC_UNIT_RULE } from './automaticUnits';
@@ -138,6 +143,7 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
         residenceType: administrator.residenceType,
         name: administrator.name ?? '',
         phone: administrator.phone ?? '',
+        phoneConsent: administrator.phoneConsent,
         unitClientId: selectedIndex < 0 ? '' : String(selectedIndex)
       } : {
         ...EMPTY_ADMINISTRATOR,
@@ -148,6 +154,16 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
         addressDetail: request.basicInfo.addressDetail ?? '',
         propertyType: request.basicInfo.propertyType ?? ''
       },
+      ...(request.residents !== undefined ? {
+        residents: request.residents.map((row, index) => ({
+          clientId: `resident-${index}`,
+          unitClientId: String(request.units.findIndex((unit) => unit.buildingClientId === row.buildingClientId && unit.unitNumber === row.unitNumber)),
+          name: row.name,
+          phone: row.phone ?? '',
+          phoneConsent: row.phoneConsent,
+          relationType: row.relationType
+        }))
+      } : {}),
       buildings: request.buildings,
       units: request.units.map((unit, index) => ({
         ...unit,
@@ -165,7 +181,7 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
       openingBalances: openingBalances ?? {
         ...EMPTY_OPENING_BALANCES
       }
-    }, request.requestId, Boolean(request.openingBalances && request.openingBalances.buildings.some((row) => row.accountIndex !== undefined)));
+    }, request.requestId, Boolean(request.openingBalances && request.openingBalances.buildings.some((row) => row.accountIndex !== undefined)), true);
     // 이전 버전 제출은 거주 필드를 덧붙이지 않아 서버에 저장된 원래 지문과 일치하게 합니다.
     if (!administrator) delete restored.administrator;
     // 기존 제출 본문은 새 통장별 필드를 덧붙이지 않고 원래 지문과 금액을 유지합니다.
@@ -213,8 +229,9 @@ function readStoredRequest(value: unknown): RegistrationRequest | null {
 }
 
 /** 화면용 세대 ID와 자동 입력 규칙은 제외하고 검증된 입력만 최종 계약으로 변환합니다. */
-export function createRegistrationRequest(draft: RegistrationDraft, requestId: string, includeOpening = true): RegistrationRequest {
-  if (getAdministratorError(draft.administrator, draft.units) || getUnitSetupError(draft.basicInfo.hasBuildings === true, draft.buildings, draft.units)
+export function createRegistrationRequest(draft: RegistrationDraft, requestId: string, includeOpening = true, restoringSubmission = false): RegistrationRequest {
+  if (getAdministratorError(draft.administrator, draft.units, !restoringSubmission) || getUnitSetupError(draft.basicInfo.hasBuildings === true, draft.buildings, draft.units)
+    || (draft.residents !== undefined && getResidentSetupError(draft.residents, draft.units, draft.administrator))
     || getRegistrationAccountsError(draft.bankAccounts) || getFeeItemsError(draft.feeItems)
     || (includeOpening && (getUnitOpeningError(draft.openingBalances, draft.units) || getCashOpeningError(draft.openingBalances, draft.buildings, draft.bankAccounts) || getFirstBillingError(draft.openingBalances) || getRegistrationHistoryError(draft.openingBalances, draft.bankAccounts, draft.units, draft.buildings)))) {
     throw new Error('등록 정보를 확인해주세요.');
@@ -226,6 +243,16 @@ export function createRegistrationRequest(draft: RegistrationDraft, requestId: s
 
   return {
     requestId,
+    ...(draft.residents !== undefined ? {
+      residents: draft.residents.filter((row) => !isAdministratorResident(row, draft.administrator)).map((row) => { const unit = draft.units.find((unit) => unit.clientId === row.unitClientId)!; return {
+        buildingClientId: unit.buildingClientId,
+        unitNumber: unit.unitNumber,
+        name: row.name.trim(),
+        phone: normalizeResidentPhone(row.phone),
+        phoneConsent: row.phoneConsent,
+        relationType: row.relationType
+      }; })
+    } : {}),
     ...(includeOpening ? {
       openingBalances: {
         ...(bankImports.length ? {
@@ -262,7 +289,10 @@ export function createRegistrationRequest(draft: RegistrationDraft, requestId: s
       residenceType: 'RESIDENT',
       name: draft.administrator.name.trim(),
       ...(draft.administrator.phone.trim() ? {
-        phone: draft.administrator.phone.trim()
+        phone: draft.administrator.phone.trim(),
+        ...(draft.administrator.phoneConsent !== undefined ? {
+          phoneConsent: draft.administrator.phoneConsent
+        } : {})
       } : {}),
       buildingClientId: selectedUnit!.buildingClientId,
       unitNumber: selectedUnit!.unitNumber
@@ -398,6 +428,7 @@ export function getRegistrationInputError(error: ApiError): { step: Registration
   const steps: Record<string, RegistrationStep> = {
     basicInfo: 'basic',
     administrator: 'units',
+    residents: 'residents',
     buildings: 'units',
     units: 'units',
     bankAccounts: 'account',
@@ -413,6 +444,7 @@ export function getRegistrationInputError(error: ApiError): { step: Registration
   const labels: Record<string, string> = {
     basic: '기본 정보',
     units: '동·세대 정보',
+    residents: '주민 명부',
     administrator: '관리 담당자',
     account: '관리계좌',
     fees: '관리비 항목',
