@@ -165,6 +165,14 @@ sudo journalctl -u moahomeCertbot.service --no-pager -n 30
 
 ## 6. API 배포와 복구
 
+### 운영 호스트의 읽기 전용 사전 점검
+
+운영 호스트의 기존 SSH 접속에서 `sudo -n python3 preflight.py --migration-dir <검증 후보의 Migration 디렉터리> --candidate <전체 SHA>`로 실행합니다. 실행 API의 TLS 설정을 메모리로만 읽고 psql의 읽기 전용 세션으로 전체 Flyway 이력을 조회합니다. 후보 파일의 이름·Flyway 체크섬·실패 이력·중복·낮은 미적용 버전을 대조하며 업무 자료·설정 비밀값은 Actions 로그에 출력하지 않습니다. psql·기존 인증서 검증이 없으면 설정을 완화하지 않고 실패합니다.
+
+이력과 전화번호 이관 대상 집계는 `/opt/moahome/.preflight/<전체 SHA>.json`에 권한 600으로 저장합니다. 일반 실행 로그는 적용 개수·미적용 버전·실행 이미지 참조만 포함합니다. 이 수동 점검은 배포·Migration·백업 생성을 수행하지 않으며 main push의 자동 배포 앞에 대기 조건을 추가하지 않습니다. 백업과 프론트 공개 순서는 공통 운영 규칙을 계속 따릅니다.
+
+검사는 운영 DB 연결 없이 `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s server/scripts -p 'test*.py'`로 수행합니다.
+
 [운영 배포 규칙](../../docs/operations/deploymentRules.md)의 전체 DB 이력·선행 Migration·후보 이미지 대조와 백업·호환성 검증을 먼저 수행합니다. 이 스크립트는 배포 전에 해당 점검이나 RDS 스냅샷을 자동 실행하지 않습니다. 양쪽 변경은 백엔드 배포·검증 후 프론트엔드를 공개하며, 과거 버전 누락은 [순서 오류 복구 절차](../../docs/operations/deploymentRules.md#6-과거-migration-누락과-배포-실패-대응)를 따릅니다.
 
 HTTPS 준비와 DB 설정, 위 사전 점검을 마친 뒤 전체 이미지 참조를 지정합니다.
