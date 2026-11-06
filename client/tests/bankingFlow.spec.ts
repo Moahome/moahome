@@ -38,18 +38,25 @@ function id(index: number) { return `00000000-0000-4000-8000-${String(index).pad
 
 /** 직접 금액 입력과 잔액 버튼이 같은 크기이며 행 오른쪽에 불필요한 열을 남기지 않는지 확인합니다. */
 async function expectAllocationControlAlignment(input: Locator, button: Locator) {
-  const inputBox = (await input.locator('..').boundingBox())!;
-  const buttonBox = (await button.boundingBox())!;
+  // 부드러운 스크롤 중에도 같은 프레임의 좌표를 비교하도록 세 요소를 한 번에 측정합니다.
+  const { inputBox, buttonBox, rowBox, rightInset } = await input.evaluate((element, action) => {
+    const inputBox = element.parentElement!.getBoundingClientRect().toJSON();
+    const buttonBox = action!.getBoundingClientRect().toJSON();
+    const row = action!.parentElement!.parentElement!;
+    const rowBox = row.getBoundingClientRect().toJSON();
+    const style = getComputedStyle(row);
+    const rightInset = parseFloat(style.paddingRight) + parseFloat(style.borderRightWidth);
+    return {
+      inputBox,
+      buttonBox,
+      rowBox,
+      rightInset
+    };
+  }, await button.elementHandle());
   expect(Math.abs(inputBox.height - buttonBox.height)).toBeLessThan(1);
   expect(Math.abs(inputBox.width - buttonBox.width)).toBeLessThan(1);
   expect(Math.abs(inputBox.y - buttonBox.y)).toBeLessThan(1);
   expect(Math.abs(buttonBox.x - inputBox.x - inputBox.width - 8)).toBeLessThan(1);
-  const row = button.locator('..').locator('..');
-  const rowBox = (await row.boundingBox())!;
-  const rightInset = await row.evaluate((element) => {
-    const style = getComputedStyle(element);
-    return parseFloat(style.paddingRight) + parseFloat(style.borderRightWidth);
-  });
   expect(Math.abs(rowBox.x + rowBox.width - rightInset - buttonBox.x - buttonBox.width)).toBeLessThan(1);
 }
 function row(index: number, direction: 'INCOME' | 'EXPENSE', payer: string, amount: string): BankingTransaction {
