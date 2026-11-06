@@ -1,5 +1,6 @@
 'use client';
 
+import { PhoneConsent } from '@/entities/resident';
 import {
   Input,
   Radio
@@ -79,7 +80,16 @@ export function AdministratorProfile({ profile, units, buildings, hasBuildings, 
             autoComplete={'tel'}
             onChange={(event) => onChange({
               ...profile,
-              phone: event.target.value
+              phone: event.target.value,
+              phoneConsent: false
+            })}
+          />
+          <PhoneConsent
+            self
+            checked={profile.phoneConsent === true}
+            onChange={(phoneConsent) => onChange({
+              ...profile,
+              phoneConsent
             })}
           />
           <AdministratorUnitFields

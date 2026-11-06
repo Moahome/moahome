@@ -9,7 +9,10 @@ public final class BankBalanceSelection {
 	}
 
 	public record Candidate(String source, UUID id, LocalDate date, LocalTime time, String precision, String amount,
-	    String status) {
+	    String status, OffsetDateTime recordedAt) {
+		public Candidate(String source, UUID id, LocalDate date, LocalTime time, String precision, String amount, String status) {
+			this(source, id, date, time, precision, amount, status, null);
+		}
 	}
 
 	/** 마감값은 해당 날짜의 거래 이후이며 날짜만 있는 거래와 당일 시각 자료는 순서 미확인으로 남깁니다. */
@@ -17,6 +20,10 @@ public final class BankBalanceSelection {
 		int date = a.date().compareTo(b.date());
 		if (date != 0)
 			return date > 0;
+		// 같은 기준일의 수동 마감 정정은 실제 기록 시각이 늦은 확인을 사용합니다.
+		if (a.precision().equals("DAY_END") && b.precision().equals("DAY_END")
+		    && a.recordedAt() != null && b.recordedAt() != null)
+			return a.recordedAt().isAfter(b.recordedAt());
 		if (a.precision().equals("DAY_END"))
 			return !b.precision().equals("DAY_END");
 		if (b.precision().equals("DAY_END") || a.time() == null || b.time() == null)

@@ -82,6 +82,7 @@ class PropertyRegistrationServiceTest {
 
 	@BeforeEach
 	void prepare() {
+		when(units.saveAllAndFlush(any())).thenAnswer(call -> call.getArgument(0));
 		when(users.requireActive(user.getId())).thenReturn(user);
 		when(users.requirePropertyCreation(user.getId())).thenReturn(user);
 		when(users.requirePropertyCreationForUpdate(user.getId())).thenReturn(user);
@@ -227,7 +228,7 @@ class PropertyRegistrationServiceTest {
 		    mapper);
 		var r = RegistrationFixtures.request(UUID.randomUUID(), false);
 		var otherId = new PropertyRegistrationRequest(UUID.randomUUID(), r.basicInfo(), r.buildings(), r.units(),
-		    List.of(new BankAccountInput(" SAMPLE ", " 예시은행 ", "000 1234 5678", " 예금주 ", true)), r.feeItems());
+		    List.of(new BankAccountInput(" SAMPLE ", " 예시은행 ", "000 1234 5678", " 예금주 ", true)), r.feeItems(), r.administrator(), r.openingBalances(), r.residents());
 		String fingerprint = old.create(r, "v1");
 		assertThat(old.create(otherId, "v1")).isEqualTo(fingerprint);
 		assertThat(rotated.matches(fingerprint, r, "v1")).isTrue();
@@ -243,7 +244,8 @@ class PropertyRegistrationServiceTest {
 		String encodedKey = RegistrationTestKeys.randomKey();
 		var fingerprints = new RegistrationFingerprint(
 		    new RegistrationSecurityProperties("v1", Map.of("v1", encodedKey)), mapper);
-		var request = RegistrationFixtures.request(UUID.randomUUID(), false);
+		var current = RegistrationFixtures.request(UUID.randomUUID(), false);
+		var request = new PropertyRegistrationRequest(current.requestId(), current.basicInfo(), current.buildings(), current.units(), current.bankAccounts(), current.feeItems());
 		// 필드 추가 전 성공 결과의 지문을 재현해 null 코드가 기존 재시도를 충돌로 바꾸지 않는지 확인합니다.
 		List<Map<String, Object>> legacyFees = request.feeItems().stream().map(item -> {
 			Map<String, Object> fields = new LinkedHashMap<>();
@@ -275,6 +277,6 @@ class PropertyRegistrationServiceTest {
 	private static PropertyRegistrationRequest change(PropertyRegistrationRequest r, BasicInfoRequest basic,
 	    List<BuildingInput> buildings, List<UnitInput> units, List<BankAccountInput> accounts,
 	    List<FeeItemInput> items) {
-		return new PropertyRegistrationRequest(r.requestId(), basic, buildings, units, accounts, items);
+		return new PropertyRegistrationRequest(r.requestId(), basic, buildings, units, accounts, items, r.administrator(), r.openingBalances(), r.residents());
 	}
 }

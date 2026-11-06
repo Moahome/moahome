@@ -1,0 +1,32 @@
+.consent {
+  min-width: 0;
+
+  label {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    color: var(--foreground);
+    font-size: 14px;
+    line-height: 1.6;
+    cursor: pointer;
+  }
+
+  input {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    accent-color: var(--primary);
+  }
+
+  p {
+    margin: 6px 0 0 27px;
+    color: var(--sub-text);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .error {
+    color: var(--danger);
+  }
+}

@@ -604,16 +604,69 @@ async function prepareUnitOpening(page: Page) {
     exact: true
   }).click();
 }
+/** 새 주민 단계를 실제 모달 입력으로 완료하며 거주 관리소장은 다시 등록하지 않습니다. */
+async function completeResidentSetup(page: Page) {
+  await expect(page).toHaveURL(/registration=residents/);
+  const next = page.getByRole('button', {
+    name: '다음',
+    exact: true
+  });
+  if (await next.isDisabled()) {
+    const draft = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
+    const unit = draft.units[0];
+    await page.getByRole('button', {
+      name: '주민 추가',
+      exact: true
+    }).click();
+    const dialog = page.getByRole('dialog', {
+      name: '주민 추가',
+      exact: true
+    });
+    if (draft.basicInfo.hasBuildings) {
+      const building = draft.buildings.find((row: { clientId: string }) => row.clientId === unit.buildingClientId);
+      await dialog.getByRole('combobox', {
+        name: '동',
+        exact: true
+      }).fill(building.name);
+      await page.getByRole('option', {
+        name: building.name,
+        exact: true
+      }).click();
+    }
+    const label = /호$/.test(unit.unitNumber) ? unit.unitNumber : `${unit.unitNumber}호`;
+    await dialog.getByRole('combobox', {
+      name: '호수',
+      exact: true
+    }).fill(unit.unitNumber);
+    await page.getByRole('option', {
+      name: label,
+      exact: true
+    }).click();
+    await dialog.getByRole('textbox', {
+      name: '주민 이름',
+      exact: true
+    }).fill('테스트 주민');
+    await dialog.getByRole('button', {
+      name: '추가',
+      exact: true
+    }).click();
+    await expect(dialog).not.toBeVisible();
+  }
+  await next.click();
+  await expect(page).toHaveURL(/registration=account/);
+}
+
 async function continueUnitSetup(page: Page) {
   await prepareUnitOpening(page);
   await page.getByRole('button', {
     name: '다음',
     exact: true
   }).click();
-  await expect(page).toHaveURL(/registration=account/);
+  await completeResidentSetup(page);
 }
 async function completeExternalAdministrator(page: Page) {
   if (new URL(page.url()).searchParams.get('registration') === 'units') await continueUnitSetup(page);
+  if (new URL(page.url()).searchParams.get('registration') === 'residents') await completeResidentSetup(page);
   await expect(page).toHaveURL(/registration=account/);
 }
 async function prepareCashOpening(page: Page) {
@@ -881,6 +934,8 @@ async function saveAccountEditor(page: Page) {
 
 /** 은행은 실제 드롭다운으로 선택하고 가상 계좌를 사용해 앞자리 0의 보존을 검증합니다. */
 async function fillBankAccount(page: Page, save = true) {
+  await expect(page).toHaveURL(/registration=(residents|account)/);
+  if (new URL(page.url()).searchParams.get('registration') === 'residents') await completeResidentSetup(page);
   await openAccountEditor(page);
   await page.getByRole('combobox', {
     name: '은행',
@@ -1230,6 +1285,11 @@ test('계좌와 이전 단계 입력을 이력 이동·새로고침에 복원하
     name: '이전',
     exact: true
   }).click();
+  await expect(page).toHaveURL(/registration=residents/);
+  await page.getByRole('button', {
+    name: '이전',
+    exact: true
+  }).click();
   await expect(page).toHaveURL(/registration=units/);
   await expect(page.getByRole('button', {
     name: '201호 수정',
@@ -1241,7 +1301,7 @@ test('계좌와 이전 단계 입력을 이력 이동·새로고침에 복원하
     exact: true
   })).toContainText('00012345678');
   await page.goBack();
-  await expect(page).toHaveURL(/registration=units/);
+  await expect(page).toHaveURL(/registration=residents/);
   await page.goForward();
   await expect(page.getByRole('button', {
     name: '통장 1 수정',
@@ -1383,13 +1443,13 @@ for (const width of [1440, 390, 320]) {
       animations: 'disabled'
     });
     if (width <= 640) {
-      await expect(page.getByLabel('5단계 중 3단계: 관리계좌 및 잔고')).toBeVisible();
+      await expect(page.getByLabel('6단계 중 4단계: 관리계좌 및 잔고')).toBeVisible();
       await page.getByRole('button', {
-        name: '동·세대 및 담당자로 돌아가기',
+        name: '주민 명부 등록으로 돌아가기',
         exact: true
       }).click();
       await expect(page.getByRole('heading', {
-        name: '동·세대 및 담당자',
+        name: '함께 사는 주민을 등록해주세요',
         exact: true
       })).toBeVisible();
     }
@@ -2056,7 +2116,7 @@ for (const width of [1440, 390, 320]) {
       fullPage: true,
       animations: 'disabled'
     });
-    if (width <= 640) await expect(page.getByLabel('5단계 중 4단계: 관리비 설정')).toBeVisible();
+    if (width <= 640) await expect(page.getByLabel('6단계 중 5단계: 관리비 설정')).toBeVisible();
     await addFeeItem(page, '긴 항목명'.repeat(16), '-999999999999999');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.getByRole('button', {
@@ -2790,7 +2850,7 @@ for (const viewport of [{
       name: '등록 세대 페이지',
       exact: true
     }).getByRole('button', {
-      name: '다음 페이지',
+      name: '2페이지',
       exact: true
     }).click();
     await expect(room('102동 201호 선택')).not.toBeChecked();
@@ -3648,8 +3708,8 @@ async function openRegistrationReview(page: Page) {
 /** 상세 안에 있는 수정 동작을 사용하기 전에 같은 항목의 아코디언을 펼칩니다. */
 /** 수정 뒤 첫 이동부터 남은 단계를 순서대로 확인하여 최종 확인 직행을 허용하지 않습니다. */
 async function finishSequentialReview(page: Page, firstStep: string) {
-  const steps = ['units', 'account', 'fees', 'review'];
-  if (firstStep === 'administrator') firstStep = 'account';
+  const steps = ['units', 'residents', 'account', 'fees', 'review'];
+  if (firstStep === 'administrator') firstStep = 'residents';
   const start = steps.indexOf(firstStep);
   expect(start).toBeGreaterThanOrEqual(0);
   await expect(page).toHaveURL(new RegExp(`registration=${firstStep}`));
@@ -4281,7 +4341,7 @@ for (const width of [320]) {
       }).click();
       const nextSteps: Record<string, string> = {
         basic: 'units',
-        units: 'account',
+        units: 'residents',
         account: 'fees',
         fees: 'review'
       };
@@ -5290,6 +5350,10 @@ for (const hasBuildings of [false, true]) {
       name: '관리소장 연락처',
       exact: true
     }).fill('010-1234-5678');
+    await page.getByRole('checkbox', {
+      name: '[선택] 전화번호 수집·이용에 동의합니다.',
+      exact: true
+    }).check();
     if (hasBuildings) {
       await page.getByRole('combobox', {
         name: '거주 동',
@@ -5407,6 +5471,10 @@ for (const hasBuildings of [false, true]) {
       name: '관리소장 연락처',
       exact: true
     }).fill('010-1234-5678');
+    await page.getByRole('checkbox', {
+      name: '[선택] 전화번호 수집·이용에 동의합니다.',
+      exact: true
+    }).check();
     if (hasBuildings) {
       await page.getByRole('combobox', {
         name: '거주 동',
@@ -5610,7 +5678,7 @@ for (const width of [320]) {
 
 for (const width of [1440, 390]) {
   for (const hasBuildings of [false, true]) {
-    test(`통합 5단계 ${width}px ${hasBuildings ? '동·호수 두 입력' : '호수 전체 너비'}: 연락처 없이 등록·필수 표시·기존 버튼 배치`, async ({ page }) => {
+    test(`통합 6단계 ${width}px ${hasBuildings ? '동·호수 두 입력' : '호수 전체 너비'}: 연락처 없이 등록·필수 표시·기존 버튼 배치`, async ({ page }) => {
       await page.setViewportSize({
         width,
         height: 1000
@@ -5634,7 +5702,7 @@ for (const width of [1440, 390]) {
       })).toBeVisible();
       await expect(page.getByRole('navigation', {
         name: '초기 설정 진행 단계'
-      }).locator('li')).toHaveCount(5);
+      }).locator('li')).toHaveCount(6);
       await expect(page.getByRole('region', {
         name: '관리소장 정보'
       }).getByRole('complementary')).toHaveCount(0);
@@ -5742,7 +5810,7 @@ for (const width of [1440, 390]) {
 }
 
 for (const width of [1440, 320]) {
-  test(`통합 초기 설정 5단계 ${width}px는 인계·동별 잔고와 10개 페이지 입력을 저장`, async ({ page }) => {
+  test(`통합 초기 설정 6단계 ${width}px는 인계·동별 잔고와 10개 페이지 입력을 저장`, async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({
       width,
@@ -5828,7 +5896,7 @@ for (const width of [1440, 320]) {
       name: '등록 세대 페이지',
       exact: true
     }).getByRole('button', {
-      name: '다음 페이지',
+      name: '2페이지',
       exact: true
     }).click();
     await expect(table.locator('tbody tr')).toHaveCount(2);
@@ -5866,7 +5934,7 @@ for (const width of [1440, 320]) {
       exact: true
     });
     await pager.getByRole('button', {
-      name: '다음 페이지',
+      name: '2페이지',
       exact: true
     }).click();
     await page.getByRole('textbox', {
@@ -5874,7 +5942,7 @@ for (const width of [1440, 320]) {
       exact: true
     }).fill('20000');
     await pager.getByRole('button', {
-      name: '이전 페이지',
+      name: '1페이지',
       exact: true
     }).click();
     await expect(receivable).toHaveValue('15,000');
@@ -5902,6 +5970,7 @@ for (const width of [1440, 320]) {
       name: '다음',
       exact: true
     }).click();
+    await completeResidentSetup(page);
     await expect(page).toHaveURL(/registration=account/);
     await expect(page.getByLabel('실제 시작 잔액', {
       exact: true
@@ -5978,7 +6047,7 @@ for (const width of [1440, 320]) {
     await expect(page.getByRole('navigation', {
       name: '초기 설정 진행 단계',
       exact: true
-    }).locator('li')).toHaveCount(5);
+    }).locator('li')).toHaveCount(6);
     if (width < 641) await expectFixedSetupHeader(page);
     const summary = page.getByRole('region', {
       name: '잔액 인계 및 관리 시작 요약',
@@ -6262,6 +6331,14 @@ for (const width of [1440, 390]) {
       name: '지출명',
       exact: true
     }).fill('공용 전기료');
+    await page.getByRole('combobox', {
+      name: '계정과목',
+      exact: true
+    }).fill('804');
+    await page.getByRole('option', {
+      name: '804 수도전기료',
+      exact: true
+    }).click();
     await page.getByRole('textbox', {
       name: '출금액',
       exact: true
@@ -6279,6 +6356,7 @@ for (const width of [1440, 390]) {
       name: '직접 입력한 입출금'
     });
     await expect(table).toContainText('공용 전기료');
+    await expect(table).toContainText('804 수도전기료');
     await table.getByRole('row').filter({
       hasText: '공용 전기료'
     }).click();
@@ -6497,6 +6575,26 @@ test('초기 은행 업로드: 입금·출금 선택과 원본을 최종 등록�
   });
   await expect(table).toContainText('201호');
   await expect(table).toContainText('청소비');
+  await table.getByRole('row').filter({
+    hasText: '청소비'
+  }).click();
+  await expect(page.getByRole('checkbox', {
+    name: '관리 통장 간 이체',
+    exact: true
+  })).toHaveCount(0);
+  await page.getByRole('combobox', {
+    name: '계정과목',
+    exact: true
+  }).fill('802');
+  await page.getByRole('option', {
+    name: '802 청소비',
+    exact: true
+  }).click();
+  await page.getByRole('button', {
+    name: '설정 완료',
+    exact: true
+  }).click();
+  await expect(table).toContainText('802 청소비');
   await expect(page.getByText('선택 2건 · 입금 1건 · 출금 1건', {
     exact: true
   })).toBeVisible();
@@ -6533,6 +6631,7 @@ test('초기 은행 업로드: 입금·출금 선택과 원본을 최종 등록�
   expect(upload.rows).toHaveLength(2);
   expect(upload.rows[0].unitIndex).toBe(0);
   expect(upload.rows[1].expense?.mode).toBe('PROPERTY');
+  expect(upload.rows[1].expense?.accountCode).toBe('802');
   expect(upload.rows[1].expense?.allocations).toEqual([]);
 });
 
@@ -6584,6 +6683,7 @@ test('초기 기준일 달력은 2·3단계에서 오늘까지 허용하고 누�
     name: '다음',
     exact: true
   }).click();
+  await completeResidentSetup(page);
   await expect(page).toHaveURL(/registration=account/);
   await page.getByRole('button', {
     name: /^통장 기준일:/
@@ -6717,3 +6817,161 @@ for (const width of [1440, 390]) {
     expect(previewRequests).toBe(0);
   });
 }
+
+test('초기 주민 명부는 0명 진행을 막고 모달의 동의 입력과 같은 탭 복원을 유지', async ({ page }) => {
+  await openUnitSetup(page, false);
+  await addUnit(page, '101');
+  await prepareUnitOpening(page);
+  await page.getByRole('button', {
+    name: '다음',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/registration=residents/);
+  const next = page.getByRole('button', {
+    name: '다음',
+    exact: true
+  });
+  await expect(next).toBeDisabled();
+  await expect(page.getByText('나중에 등록', {
+    exact: true
+  })).toHaveCount(0);
+  await expect(page.getByText('표시 개수', {
+    exact: true
+  })).toHaveCount(0);
+  await page.getByRole('button', {
+    name: '주민 추가',
+    exact: true
+  }).click();
+  const dialog = page.getByRole('dialog', {
+    name: '주민 추가',
+    exact: true
+  });
+  await expect(dialog).toContainText('소속 세대와 주민 정보를 입력해주세요.');
+  await expect(dialog.getByRole('combobox', {
+    name: '동',
+    exact: true
+  })).toHaveCount(0);
+  await dialog.getByRole('combobox', {
+    name: '호수',
+    exact: true
+  }).fill('101');
+  await page.getByRole('option', {
+    name: '101호',
+    exact: true
+  }).click();
+  await dialog.getByRole('textbox', {
+    name: '주민 이름',
+    exact: true
+  }).fill('동의 검증 주민');
+  await dialog.getByRole('textbox', {
+    name: '전화번호 (선택)',
+    exact: true
+  }).fill('01012345678');
+  await dialog.getByRole('button', {
+    name: '추가',
+    exact: true
+  }).click();
+  await expect(dialog.getByRole('alert')).toContainText('동의');
+  await dialog.getByRole('checkbox', {
+    name: '주민의 전화번호 수집·이용 동의를 받았습니다.',
+    exact: true
+  }).check();
+  await dialog.getByRole('button', {
+    name: '추가',
+    exact: true
+  }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByRole('table', {
+    name: '등록할 주민',
+    exact: true
+  })).toContainText('동의 검증 주민');
+  await page.reload();
+  await expect(page.getByRole('table', {
+    name: '등록할 주민',
+    exact: true
+  })).toContainText('010-1234-5678');
+  await expect(next).toBeEnabled();
+  await next.click();
+  await expect(page).toHaveURL(/registration=account/);
+});
+
+test('초기 주민 엑셀은 공통 목록으로 추가하고 페이지 숫자·화살표를 5개 묶음으로 이동', async ({ page }) => {
+  await openUnitSetup(page, false);
+  await addUnit(page, '101');
+  await prepareUnitOpening(page);
+  await page.getByRole('button', {
+    name: '다음',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/registration=residents/);
+  await page.route(`${API_ORIGIN}/api/property-registrations/resident-import/preview`, (route) => fulfillJson(route,
+    Array.from({
+      length: 57
+    }, (_, index) => ({
+      rowNumber: index + 2,
+      buildingClientId: null,
+      unitNumber: '101',
+      name: `명부 주민 ${String(index + 1).padStart(2, '0')}`,
+      phone: null,
+      phoneConsent: false,
+      relationType: 'OTHER',
+      status: 'READY',
+      reason: '등록 가능'
+    }))));
+  await page.getByRole('radio', {
+    name: /^엑셀 업로드/
+  }).check();
+  await expect(page.getByText('등록한 호수에 맞춰 입력해주세요.', {
+    exact: false
+  })).toBeVisible();
+  await page.getByLabel('주민 엑셀 파일', {
+    exact: true
+  }).setInputFiles({
+    name: 'residents.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: Buffer.from('preview fixture')
+  });
+  await page.getByRole('button', {
+    name: '선택한 주민 추가',
+    exact: true
+  }).click();
+  const pages = page.getByRole('navigation', {
+    name: '주민 목록 페이지',
+    exact: true
+  });
+  await expect(pages.getByRole('button', {
+    name: /^\d+페이지$/
+  })).toHaveText(['1', '2', '3', '4', '5']);
+  await pages.getByRole('button', {
+    name: '다음 5페이지',
+    exact: true
+  }).click();
+  await expect(pages.getByRole('button', {
+    name: /^\d+페이지$/
+  })).toHaveText(['6']);
+  const table = page.getByRole('table', {
+    name: '등록할 주민',
+    exact: true
+  });
+  await expect(table).toContainText('명부 주민 57');
+  await expect(pages.getByRole('button', {
+    name: '다음 5페이지',
+    exact: true
+  })).toBeDisabled();
+  await expect(table.getByRole('button', {
+    name: '명부 주민 57 수정',
+    exact: true
+  })).toBeVisible();
+  await expect(table.getByRole('button', {
+    name: '명부 주민 57 삭제',
+    exact: true
+  })).toBeVisible();
+  await pages.getByRole('button', {
+    name: '이전 5페이지',
+    exact: true
+  }).click();
+  await expect(pages.getByRole('button', {
+    name: /^\d+페이지$/
+  })).toHaveText(['1', '2', '3', '4', '5']);
+  await expect(table).toContainText('명부 주민 01');
+});

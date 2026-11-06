@@ -48,6 +48,7 @@ import com.moahome.server.property.repo.*;
 import com.moahome.server.property.service.ManagementAccessService;
 import com.moahome.server.property.service.UnitManagementService;
 import com.moahome.server.resident.domain.ResidentSignupStatus;
+import com.moahome.server.resident.domain.ResidentImportBatch;
 import com.moahome.server.resident.dto.ResidentDeleteRequest;
 import com.moahome.server.resident.dto.ResidentRepresentativeRequest;
 import com.moahome.server.resident.dto.ResidentImportCommitRequest;
@@ -59,8 +60,10 @@ import com.moahome.server.resident.exception.ResidentImportException;
 import com.moahome.server.resident.exception.ResidentRegistrationException;
 import com.moahome.server.resident.service.ResidentExcelReader;
 import com.moahome.server.resident.service.ResidentImportService;
+import com.moahome.server.resident.service.ResidentImportCommitService;
 import com.moahome.server.resident.service.ResidentListService;
 import com.moahome.server.resident.service.ResidentManagementService;
+import com.moahome.server.resident.service.ResidentPhoneRetentionService;
 import com.moahome.server.resident.service.ResidentRegistrationService;
 import com.moahome.server.user.domain.User;
 import com.moahome.server.user.repo.UserRepository;
@@ -75,9 +78,9 @@ import static org.assertj.core.api.Assertions.*;
 @Import({UnitManagementService.class, ResidentListService.class,
         ManagementAccessService.class, UserService.class, ResidentDirectoryPersistenceTest.Beans.class,
         ResidentRegistrationService.class,
-        ResidentImportService.class,
+        ResidentImportService.class, ResidentImportCommitService.class,
         ResidentExcelReader.class,
-        ResidentManagementService.class,
+        ResidentManagementService.class, ResidentPhoneRetentionService.class,
         MemberManagementService.class})
 @ActiveProfiles("database-test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -411,7 +414,7 @@ class ResidentDirectoryPersistenceTest {
 		    error -> assertThat(error.code().name()).isEqualTo("REGISTRATION_CONFLICT"));
 		jdbc.update("update residents set deleted_at=now() where id=?", first.id());
 		var restored = registrations.register(actor, property.getId(),
-		    registration(unit.getId(), "동일 주민", "01023456789"));
+		    restoration(unit.getId(), "동일 주민", "01023456789", first.id()));
 		assertThat(restored.id()).isEqualTo(first.id());
 		assertThat(service.list(actor, property.getId()).residents()).hasSize(4);
 	}
@@ -441,7 +444,7 @@ class ResidentDirectoryPersistenceTest {
 			assertThat(row.get("move_out_date")).isNull();
 			assertThat(row.get("deleted_at")).isNotNull();
 		});
-		var retry = registration(unit.getId(), "다시 등록할 주민", "+82 10 1234 5678");
+		var retry = restoration(unit.getId(), "다시 등록할 주민", "+82 10 1234 5678", first.id());
 		var restored = registrations.register(actor, property.getId(), retry);
 		assertThat(restored.id()).isEqualTo(first.id()).isNotEqualTo(retry.requestId());
 		assertThat(restored.representative()).isTrue();
@@ -464,7 +467,7 @@ class ResidentDirectoryPersistenceTest {
 	}
 
 	@Test
-	void deletingAllThenReimportingAllowsSelectionReusesIdsAndKeepsOriginalRepresentativeAndRetryResults()
+	void reimportAfterDeletionCreatesNewRecordsWhileExplicitRestoreUsesOldDirectory()
 	    throws Exception {
 		var property = property(true);
 		var actor = users.saveAndFlush(User.create("명부 재입력 관리자", null)).getId();
@@ -481,18 +484,18 @@ class ResidentDirectoryPersistenceTest {
 		            {"102동", "201", "기존 대표", "임차인", "01012345678"},
 		            {"102동", "201", "기존 대표", "임차인", "+82 10 1234 5678"}}));
 		assertThat(preview.rows()).extracting(row -> row.status()).containsExactly("READY", "READY", "DUPLICATE");
-		assertThat(preview.rows().getFirst().reason()).contains("재등록 가능");
+		assertThat(preview.rows().getFirst().reason()).contains("등록 가능");
 		assertThat(service.list(actor, property.getId()).residents()).isEmpty();
 		var selected = new ResidentImportCommitRequest(List.of(2, 3));
 		var saved = imports.commit(actor, property.getId(), preview.importId(), selected);
 		assertThat(saved.rows()).extracting(row -> row.status()).containsExactly("SUCCESS", "SUCCESS", "DUPLICATE");
-		assertThat(saved.rows()).extracting(row -> row.representative()).containsExactly(false, true, false);
+		assertThat(saved.rows()).extracting(row -> row.representative()).containsExactly(false, false, false);
 		assertThat(imports.commit(actor, property.getId(), preview.importId(), selected)).isEqualTo(saved);
 		assertThat(service.list(actor, property.getId()).residents()).extracting(row -> row.id())
-		    .containsExactlyInAnyOrder(representative.id(), family.id());
+		    .doesNotContain(representative.id(), family.id()).hasSize(2);
 		assertThat(
 		    jdbc.queryForObject("select count(*) from residents where property_id=?", Integer.class, property.getId()))
-		    .isEqualTo(2);
+		    .isEqualTo(4);
 		assertThat(jdbc.queryForObject("select count(*) from unit_residents where property_id=? and deleted_at is null",
 		    Integer.class, property.getId())).isEqualTo(2);
 	}
@@ -508,7 +511,7 @@ class ResidentDirectoryPersistenceTest {
 		management.deleteForUnits(actor, property.getId(), List.of(unit.getId()), OffsetDateTime.now());
 		var deletedAt = jdbc.queryForObject("select deleted_at from residents where id=?", OffsetDateTime.class,
 		    original.id());
-		var retry = registration(unit.getId(), "복구할 주민", "01012345678");
+		var retry = restoration(unit.getId(), "복구할 주민", "01012345678", original.id());
 		jdbc.execute(
 		    "create function fail_restoration() returns trigger language plpgsql as $$ begin raise exception 'test'; end; $$");
 		jdbc.execute(
@@ -561,7 +564,7 @@ class ResidentDirectoryPersistenceTest {
 		List<Map<String, Object>> history = jdbc.queryForList("select * from unit_residents where resident_id=?",
 		    original.id());
 		var restored = registrations.register(actor, property.getId(),
-		    registration(destination.getId(), "기존 주민", "01012345678"));
+		    restoration(destination.getId(), "기존 주민", "01012345678", original.id()));
 		assertThat(restored.id()).isEqualTo(original.id());
 		assertThat(restored.representative()).isFalse();
 		assertThat(management.detail(actor, property.getId(), retained.id()).representative()).isTrue();
@@ -599,7 +602,12 @@ class ResidentDirectoryPersistenceTest {
 		assertThat(pendingMigrations).isPositive();
 		assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(pendingMigrations);
 		upgraded.validate();
-		assertThat(jdbc.queryForList("select * from " + schema + ".residents")).isEqualTo(roster);
+		List<Map<String, Object>> upgradedRoster = jdbc.queryForList("select * from " + schema + ".residents");
+		for (var row : upgradedRoster) {
+			assertThat(row.get("phone_consent")).isEqualTo(false);
+			row.keySet().removeIf(key -> key.startsWith("phone_consent"));
+		}
+		assertThat(upgradedRoster).isEqualTo(roster);
 		assertThat(jdbc.queryForList("select * from " + schema + ".unit_residents")).isEqualTo(relations);
 		var actor = UUID.randomUUID();
 		jdbc.update("insert into " + schema + ".users(id,display_name,status) values (?,'기존 관리자','ACTIVE')", actor);
@@ -794,13 +802,14 @@ class ResidentDirectoryPersistenceTest {
 		    var bytes = new ByteArrayOutputStream()) {
 			var sheet = workbook.createSheet();
 			var header = sheet.createRow(0);
-			String[] labels = {"동", "호수", "이름", "관계", "연락처"};
-			for (int index = 0; index < 5; index++)
+			String[] labels = {"동", "호수", "이름", "연락처", "주민 구분", "전화번호 수집 동의"};
+			for (int index = 0; index < labels.length; index++)
 				header.createCell(index).setCellValue(labels[index]);
 			for (int row = 0; row < data.length; row++) {
 				var target = sheet.createRow(row + 1);
-				for (int col = 0; col < 5; col++)
-					target.createCell(col).setCellValue(data[row][col]);
+				String[] values = {data[row][0], data[row][1], data[row][2], data[row][4], data[row][3], data[row].length > 5 ? data[row][5] : "O"};
+				for (int col = 0; col < values.length; col++)
+					target.createCell(col).setCellValue(values[col]);
 			}
 			workbook.write(bytes);
 			return new MockMultipartFile("file", "residents.xlsx",
@@ -808,10 +817,125 @@ class ResidentDirectoryPersistenceTest {
 		}
 	}
 
+	/** 동의하지 않은 번호는 미리보기 JSON·검색용 HMAC·주민 명부 어디에도 저장하지 않습니다. */
+	@Test
+	void importStoresPhoneOnlyForExplicitConsentAndKeepsNonconsentingResidents() throws Exception {
+		var property = property(false);
+		var actor = users.saveAndFlush(User.create("동의 확인 관리자", null)).getId();
+		member(property.getId(), actor);
+		units.saveAndFlush(Unit.create(property, null, "001", null, null, UnitStatus.ACTIVE, AT));
+		var preview = imports.preview(actor, property.getId(), excel(new String[][] {
+		    {"", "001", "동의 주민", "가족", "01012345678", "O"},
+		    {"", "001", "미동의 주민", "가족", "01098765432", "X"},
+		    {"", "001", "미확인 주민", "가족", "전화번호 형식도 검사하지 않음", ""},
+		    {"", "001", "잘못된 동의", "가족", "01022223333", "동의"}
+		}));
+		assertThat(preview.rows()).extracting(row -> row.status()).containsExactly("READY", "READY", "READY", "ERROR");
+		assertThat(preview.rows()).extracting(row -> row.phoneLast4()).containsExactly("5678", null, null, null);
+		String payload = jdbc.queryForObject("select rows_payload::text from resident_import_batches where id=?", String.class, preview.importId());
+		assertThat(payload).doesNotContain("01012345678", "01098765432", "01022223333", "전화번호 형식도 검사하지 않음");
+		var temporary = new ObjectMapper().readTree(payload);
+		for (int index : List.of(1, 2, 3)) {
+			assertThat(temporary.get(index).get("phoneEncrypted").isNull()).isTrue();
+			assertThat(temporary.get(index).get("phoneLast4").isNull()).isTrue();
+			assertThat(temporary.get(index).get("phoneConsent").booleanValue()).isFalse();
+		}
+		var saved = imports.commit(actor, property.getId(), preview.importId(), new ResidentImportCommitRequest(List.of(2, 3, 4)));
+		assertThat(saved.rows()).extracting(row -> row.status()).containsExactly("SUCCESS", "SUCCESS", "SUCCESS", "ERROR");
+		assertThat(jdbc.queryForObject("select phone_last4 from residents where property_id=? and name='동의 주민'", String.class, property.getId())).isEqualTo("5678");
+		assertThat(jdbc.queryForObject("select count(*) from residents where property_id=? and name in ('미동의 주민','미확인 주민') and phone_encrypted is null and phone_hmac is null and phone_last4 is null", Integer.class, property.getId())).isEqualTo(2);
+		assertThat(imports.commit(actor, property.getId(), preview.importId(), new ResidentImportCommitRequest(List.of(2, 3, 4)))).isEqualTo(saved);
+	}
+
+
+	/** 신규 번호는 동의가 필요하고 삭제·철회는 번호와 검색값을 지우며 복구에는 명부를 직접 선택합니다. */
+	@Test
+	void consentIsRequiredAndDeletionPurgesPhoneBeforeExplicitDirectoryRestoration() {
+		var property = property(false);
+		var actor = users.saveAndFlush(User.create("동의 검증 관리자", null)).getId();
+		member(property.getId(), actor);
+		var unit = units.saveAndFlush(Unit.create(property, null, "909", null, null, UnitStatus.ACTIVE, AT));
+		assertThatThrownBy(() -> registrations.register(actor, property.getId(),
+		    new ResidentRegistrationRequest(UUID.randomUUID(), "복구 주민", "01012345678", unit.getId(), "OTHER", false)))
+		    .hasMessage("PHONE_CONSENT_REQUIRED");
+		var saved = registrations.register(actor, property.getId(), registration(unit.getId(), "복구 주민", "01012345678"));
+		assertThat(jdbc.queryForObject("select phone_consent from residents where id=?", Boolean.class, saved.id())).isTrue();
+		management.delete(actor, property.getId(), saved.id(), new ResidentDeleteRequest(null, management.detail(actor, property.getId(), saved.id()).updatedAt()));
+		Map<String, Object> removed = jdbc.queryForMap("select phone_encrypted,phone_hmac,phone_last4,phone_consent from residents where id=?", saved.id());
+		assertThat(removed.get("phone_encrypted")).isNull();
+		assertThat(removed.get("phone_hmac")).isNull();
+		assertThat(removed.get("phone_last4")).isNull();
+		assertThat(removed.get("phone_consent")).isEqualTo(false);
+		assertThat(registrations.deletedResidents(actor, property.getId())).extracting(row -> row.id()).contains(saved.id());
+		var restored = registrations.register(actor, property.getId(), restoration(unit.getId(), "복구 주민", "01098765432", saved.id()));
+		assertThat(restored.id()).isEqualTo(saved.id());
+		assertThat(management.revealPhone(actor, property.getId(), saved.id())).isEqualTo("+821098765432");
+	}
+
+
+	/** 새 동의 구조는 기존 운영 번호만 완료로 이관하고 삭제된 번호·번호 없는 주민은 완료로 만들지 않습니다. */
+	@Test
+	void consentMigrationsBackfillAllStoredPhonePathsAndPurgeAlreadyDeletedDirectory() {
+		String schema = "phone_consent_upgrade_" + UUID.randomUUID().toString().replace("-", "");
+		Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "").schemas(schema).defaultSchema(schema)
+		    .target("20261106110951").load().migrate();
+		try {
+			UUID actor = UUID.randomUUID(), property = UUID.randomUUID(), unit = UUID.randomUUID();
+			UUID resident = UUID.randomUUID(), deleted = UUID.randomUUID(), noPhone = UUID.randomUUID(), relation = UUID.randomUUID();
+			jdbc.update("insert into " + schema + ".users(id,display_name,status) values (?,'이관 관리자','ACTIVE')", actor);
+			jdbc.update("insert into " + schema + ".properties(id,name,address,has_buildings,status,created_at,updated_at) values (?,'이관 대상','주소',false,'ACTIVE',now(),now())", property);
+			jdbc.update("insert into " + schema + ".units(id,property_id,unit_number,status,created_at,updated_at) values (?,?,'101','ACTIVE',now(),now())", unit, property);
+			String encrypted = phoneSecurity.encrypt("+821012345678"), hmac = phoneSecurity.hmac("+821012345678");
+			for (UUID id : List.of(resident, deleted)) {
+				jdbc.update("insert into " + schema + ".residents(id,property_id,name,phone_encrypted,phone_hmac,phone_last4,status,created_at,updated_at,deleted_at) values (?,?,'기존 동의 주민',?,?,'5678','ACTIVE',now(),now(),?)", id, property, encrypted, hmac, id.equals(deleted) ? OffsetDateTime.now() : null);
+			}
+			jdbc.update("insert into " + schema + ".residents(id,property_id,name,status,created_at,updated_at) values (?,?,'번호 없는 주민','ACTIVE',now(),now())", noPhone, property);
+			jdbc.update("insert into " + schema + ".unit_residents(id,property_id,resident_id,unit_id,relation_type,status,is_household_rep,created_at,updated_at) values (?,?,?,?,'OTHER','ACTIVE',false,now(),now())", relation, property, resident, unit);
+			jdbc.update("insert into " + schema + ".membership_requests(id,property_id,unit_id,user_id,request_phone_encrypted,request_phone_hmac,request_phone_last4,match_status,status,requested_at,created_at,updated_at) values (?,?,?,?,?,?,'5678','NOT_MATCHED','PENDING',now(),now(),now())", UUID.randomUUID(), property, unit, actor, encrypted, hmac);
+			jdbc.update("insert into " + schema + ".resident_invitations(id,property_id,resident_id,unit_id,unit_resident_id,resident_updated_at,token_hash,status,revision,created_by,created_at,expires_at,phone_encrypted,phone_hmac,phone_last4) values (?,?,?,?,?,now(),?,'ISSUED',0,?,now(),now()+interval '30 minutes',?,?,'5678')", UUID.randomUUID(), property, resident, unit, relation, "a".repeat(64), actor, encrypted, hmac);
+			Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "").schemas(schema).defaultSchema(schema).load().migrate();
+			for (String table : List.of("residents", "membership_requests", "resident_invitations")) {
+				assertThat(jdbc.queryForList("select phone_consent_source from " + schema + "." + table + " where phone_consent=true", String.class)).containsExactly("LEGACY_IMPORT");
+				assertThat(jdbc.queryForObject("select count(*) from " + schema + "." + table + " where phone_consent=true and phone_consent_recorded_at is not null and phone_consent_recorded_by is null and phone_consent_notice_version is null", Integer.class)).isEqualTo(1);
+			}
+			assertThat(jdbc.queryForObject("select phone_consent from " + schema + ".residents where id=?", Boolean.class, noPhone)).isFalse();
+			assertThat(jdbc.queryForObject("select phone_encrypted from " + schema + ".residents where id=?", String.class, deleted)).isNull();
+			assertThat(jdbc.queryForObject("select phone_consent from " + schema + ".residents where id=?", Boolean.class, deleted)).isFalse();
+		} finally {
+			jdbc.execute("drop schema " + schema + " cascade");
+		}
+	}
+
 	private ResidentRegistrationRequest registration(UUID unitId, String name,
 	    String phone) {
 		return new ResidentRegistrationRequest(UUID.randomUUID(), name, phone, unitId,
-		    "TENANT");
+		    "TENANT", phone != null);
+	}
+
+	private ResidentRegistrationRequest restoration(UUID unitId, String name, String phone, UUID residentId) {
+		return new ResidentRegistrationRequest(UUID.randomUUID(), name, phone, unitId, "TENANT", phone != null, residentId);
+	}
+
+	/** 변경 전에 검증한 임시 데이터에도 동의가 없으면 연락처를 복호화하거나 명부에 저장하지 않습니다. */
+	@Test
+	void legacyImportBatchWithoutConsentCannotRestoreStoredPhoneAtCommit() throws Exception {
+		var property = property(false);
+		var actor = users.saveAndFlush(User.create("이전 검증 관리자", null)).getId();
+		member(property.getId(), actor);
+		units.saveAndFlush(Unit.create(property, null, "001", null, null, UnitStatus.ACTIVE, AT));
+		var preview = imports.preview(actor, property.getId(), excel(new String[][] {
+		    {"", "001", "이전 검증 주민", "가족", "01012345678", "O"}
+		}));
+		String payload = batches.findById(preview.importId()).orElseThrow().getRowsPayload();
+		assertThat(payload).contains(",\"phoneConsent\":true");
+		var legacy = batches.saveAndFlush(ResidentImportBatch.create(property.getId(), actor,
+		    payload.replace(",\"phoneConsent\":true", ""), OffsetDateTime.now()));
+		var result = imports.commit(actor, property.getId(), legacy.getId(), new ResidentImportCommitRequest(List.of(2)));
+		assertThat(result.rows()).singleElement().satisfies(row -> {
+			assertThat(row.status()).isEqualTo("SUCCESS");
+			assertThat(row.phoneLast4()).isNull();
+		});
+		assertThat(jdbc.queryForObject("select count(*) from residents where property_id=? and phone_encrypted is null and phone_hmac is null and phone_last4 is null", Integer.class, property.getId())).isEqualTo(1);
 	}
 
 	@Test
@@ -931,6 +1055,8 @@ class ResidentDirectoryPersistenceTest {
 		    users.saveAndFlush(User.create("미확인 신청 계정", null)).getId(), id, "POSSIBLE", "PENDING");
 		var detail = management.detail(actor, property.getId(), id);
 		assertThat(detail.hasLinkedRequests()).isTrue();
+		assertThat(detail.phoneConsent()).isTrue();
+		var originalConsent = jdbc.queryForMap("select phone_consent, phone_consent_source, phone_consent_recorded_at, phone_consent_recorded_by, phone_consent_notice_version from residents where id=?", id);
 		var input = new ResidentUpdateRequest("변경 주민", unit.getId(), "OWNER", "REPLACE",
 		    "01098765432", null, detail.updatedAt());
 		var updated = management.update(actor, property.getId(), id, input);
@@ -938,17 +1064,46 @@ class ResidentDirectoryPersistenceTest {
 		assertThat(updated.phoneLast4()).isEqualTo("5432");
 		assertThat(updated.relationType()).isEqualTo("OWNER");
 		assertThat(updated.representative()).isTrue();
+		assertThat(updated.phoneConsent()).isTrue();
+		assertThat(jdbc.queryForMap("select phone_consent, phone_consent_source, phone_consent_recorded_at, phone_consent_recorded_by, phone_consent_notice_version from residents where id=?", id)).isEqualTo(originalConsent);
+		assertThat(jdbc.queryForMap("select phone_consent, phone_consent_source, phone_consent_recorded_at, phone_consent_recorded_by, phone_consent_notice_version from membership_requests where id=?", confirmed)).isEqualTo(originalConsent);
 		assertThat(phoneSecurity.decrypt(jdbc.queryForObject(
 		    "select request_phone_encrypted from membership_requests where id=?", String.class, confirmed)))
 		    .isEqualTo("+821098765432");
 		assertThat(jdbc.queryForObject("select request_phone_last4 from membership_requests where id=?", String.class,
 		    possible)).isEqualTo("1234");
-		assertThatThrownBy(() -> management.update(actor, property.getId(), id,
+		management.update(actor, property.getId(), id,
 		    new ResidentUpdateRequest("변경 주민", unit.getId(), "OWNER", "REMOVE", null,
-		        null, updated.updatedAt())))
-		    .hasMessage("CONTACT_REQUIRED_FOR_REQUEST");
-		assertThat(management.revealPhone(actor, property.getId(), id)).isEqualTo("+821098765432");
+		        null, updated.updatedAt()));
+		assertThat(management.revealPhone(actor, property.getId(), id)).isNull();
+		assertThat(management.detail(actor, property.getId(), id).phoneConsent()).isFalse();
+		assertThat(jdbc.queryForObject("select request_phone_encrypted from membership_requests where id=?", String.class, confirmed)).isNull();
 		assertThatThrownBy(() -> management.update(actor, property.getId(), id, input)).hasMessage("RESIDENT_CHANGED");
+	}
+
+	/** 첫 번호 입력과 철회 후 재수집은 동의가 필요하며 이미 확인한 동의만 번호 정정에 이어집니다. */
+	@Test
+	void firstPhoneAndPhoneAfterWithdrawalRequireConsent() {
+		var property = property(false);
+		var actor = users.saveAndFlush(User.create("연락처 동의 관리자", null)).getId();
+		member(property.getId(), actor);
+		var unit = units.saveAndFlush(Unit.create(property, null, "910", null, null, UnitStatus.ACTIVE, AT));
+		var id = registrations.register(actor, property.getId(), registration(unit.getId(), "연락처 추가", null)).id();
+		var detail = management.detail(actor, property.getId(), id);
+		assertThat(detail.phoneConsent()).isFalse();
+		assertThatThrownBy(() -> management.update(actor, property.getId(), id,
+		    new ResidentUpdateRequest("연락처 추가", unit.getId(), "OTHER", "REPLACE", "01012345678", null, detail.updatedAt())))
+		    .hasMessage("PHONE_CONSENT_REQUIRED");
+		var added = management.update(actor, property.getId(), id,
+		    new ResidentUpdateRequest("연락처 추가", unit.getId(), "OTHER", "REPLACE", "01012345678", null, detail.updatedAt(), true));
+		assertThat(added.phoneConsent()).isTrue();
+		var removed = management.update(actor, property.getId(), id,
+		    new ResidentUpdateRequest("연락처 추가", unit.getId(), "OTHER", "REMOVE", null, null, added.updatedAt()));
+		assertThat(removed.phoneConsent()).isFalse();
+		assertThatThrownBy(() -> management.update(actor, property.getId(), id,
+		    new ResidentUpdateRequest("연락처 추가", unit.getId(), "OTHER", "REPLACE", "01098765432", null, removed.updatedAt(), false)))
+		    .hasMessage("PHONE_CONSENT_REQUIRED");
+		assertThat(management.revealPhone(actor, property.getId(), id)).isNull();
 	}
 
 	@Test

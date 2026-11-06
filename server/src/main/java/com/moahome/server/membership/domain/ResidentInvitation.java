@@ -8,6 +8,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import com.moahome.server.common.security.PhoneConsent;
 
 /** 주민을 미리 지정한 개인 초대이며 토큰 원문 없이 발급·수락·정정 검토의 출처를 보존합니다. */
 @Getter
@@ -74,6 +75,9 @@ public class ResidentInvitation {
 	@Column(name = "phone_last4", columnDefinition = "char(4)")
 	private String phoneLast4;
 
+	@Embedded
+	private PhoneConsent phoneConsent = PhoneConsent.none();
+
 	@Column(name = "reviewed_by")
 	private UUID reviewedBy;
 
@@ -118,6 +122,22 @@ public class ResidentInvitation {
 		phoneHmac = hmac;
 		phoneLast4 = last4;
 		status = "CHANGE_REQUESTED";
+	}
+
+	/** 기존 주민의 동의 또는 신청자의 최초 동의를 승인까지 보존하고 관리자의 새 동의로 바꾸지 않습니다. */
+	public void confirmPhone(PhoneConsent consent) {
+		if (phoneEncrypted == null || consent == null || !consent.isConfirmed()) {
+			throw new IllegalArgumentException("Confirmed contact required");
+		}
+		phoneConsent = consent.copy();
+	}
+
+	/** 동의 철회·명부 삭제 후에는 초대 정정 자료에서도 번호 보호값과 확인 기록을 제거합니다. */
+	public void clearPhone() {
+		phoneEncrypted = null;
+		phoneHmac = null;
+		phoneLast4 = null;
+		phoneConsent = PhoneConsent.none();
 	}
 
 	/** 자동 승인에는 수락자를, 정정 승인에는 실제 관리소장을 처리자로 남깁니다. */

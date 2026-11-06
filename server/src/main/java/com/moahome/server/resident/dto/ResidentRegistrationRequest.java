@@ -8,7 +8,16 @@ import com.moahome.server.common.validation.TextValues;
 /** 요청 ID는 응답 유실 후 같은 등록을 재시도해도 주민이 중복 생성되지 않도록 사용합니다. */
 public record ResidentRegistrationRequest(@NotNull UUID requestId, @TextInput(max = 50) String name,
     @Size(max = 64) String phone, @NotNull UUID unitId,
-    @NotBlank @Pattern(regexp = "OWNER|TENANT|FAMILY|OTHER") String relationType) {
+    @NotBlank @Pattern(regexp = "OWNER|TENANT|FAMILY|OTHER") String relationType, Boolean phoneConsent,
+    UUID restoreResidentId) {
+	public ResidentRegistrationRequest(UUID requestId, String name, String phone, UUID unitId, String relationType) {
+		this(requestId, name, phone, unitId, relationType, null, null);
+	}
+
+	public ResidentRegistrationRequest(UUID requestId, String name, String phone, UUID unitId, String relationType,
+	    Boolean phoneConsent) {
+		this(requestId, name, phone, unitId, relationType, phoneConsent, null);
+	}
 	/** 구분을 모르는 등록도 허용하되 저장 관계는 항상 명시적인 OTHER 값으로 정규화합니다. */
 	public ResidentRegistrationRequest {
 		name = TextValues.strip(name);

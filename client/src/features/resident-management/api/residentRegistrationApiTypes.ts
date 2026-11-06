@@ -17,6 +17,8 @@ export interface ResidentRegistrationInput {
   requestId: string;
   name: string;
   phone: string | null;
+  phoneConsent?: boolean;
+  restoreResidentId?: string | null;
   unitId: string;
   relationType: string;
 }
@@ -26,4 +28,9 @@ export interface ResidentRegistrationResponse {
   propertyId: string;
   unitId: string;
   representative: boolean;
+}
+
+export interface DeletedResidentOption {
+  id: string;
+  name: string;
 }

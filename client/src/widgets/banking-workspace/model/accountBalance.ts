@@ -2,49 +2,26 @@ import type {
   AccountBalance,
   BalanceWorkspace
 } from '../api/bankingBalanceApiTypes';
-import { formatWon } from '@/shared/lib/format';
 
-/** 계산 가능한 장부를 우선 표시하고 없으면 마지막 확인값을 시점·다른 명칭으로 보존해 매월 재설정을 요구하지 않습니다. */
+/** 현재 통장 금액은 장부 계산값으로만 표시하고 은행 확인 기록을 현재 잔액으로 대체하지 않습니다. */
 export function getAccountBalanceDisplay(account: AccountBalance) {
   if (account.calculatedBalance != null && account.calculationBasisDate) return {
     amount: account.calculatedBalance,
     calculated: true,
     label: '현재 장부 잔액',
-    description: `${account.calculationBasisDate} 초기 잔액 기준 · 등록 입출금 반영`
-  };
-
-  if (account.balance !== null && (!account.confirmation || account.confirmation.status === 'READY')) return {
-    amount: account.balance,
-    calculated: false,
-    label: '마지막 확인 잔액',
-    description: account.asOf ? `${account.asOf} 확인 기준` : '기록된 은행 확인 잔액'
+    description: account.calculationSource === 'BANK_CONFIRMATION_TRANSFER' || account.calculationSource === 'LATEST_BALANCE' || account.calculationSource === 'TRANSACTION_LEDGER' ? `${account.calculationBasisDate} 거래 원장 기준 · 이후 입출금 반영` : `${account.calculationBasisDate} 초기 잔액 기준 · 등록 입출금 반영`
   };
 
   return {
     amount: null,
     calculated: false,
-    label: '통장 잔액',
-    description: '확인된 잔액이 없습니다.'
+    label: '잔액 계산 확인 필요',
+    description: '거래 원장의 시작 금액과 누락 거래를 확인해주세요.'
   };
+
 }
 
-/** 마지막 은행 확인값은 장부와 분리해 출처·시점과 함께 보여주며, 자료 충돌을 정상 확인으로 표현하지 않습니다. */
-export function getBankConfirmationDescription(account: AccountBalance) {
-  if (account.confirmation?.status === 'ORDER_UNCLEAR') return '은행 확인 자료의 순서를 확인해주세요.';
-  if (account.confirmation?.status === 'BALANCE_MISSING') return '최근 은행 거래에 잔액이 제공되지 않았습니다.';
-  if (account.balance === null) return '은행 확인 기록 없음 · 확인은 선택 사항입니다.';
-  let source = '';
-  if (account.confirmation?.source === 'BANK_IMPORT') source = ' · 엑셀 거래내역';
-  if (account.confirmation?.source === 'DIRECT_CHECK') {
-    source = ' · 직접 확인';
-    if (account.confirmation.method === 'BANK_APP') source = ' · 은행 앱에서 직접 확인';
-    if (account.confirmation.method === 'INTERNET_BANKING') source = ' · 인터넷뱅킹에서 확인';
-  }
-
-  return `마지막 은행 확인: ${formatWon(account.balance)}${account.asOf ? ` · ${account.asOf}` : ''}${source}`;
-}
-
-/** 조회 범위에 남아 있는 계산값·확인값을 이어 보여주고 실제로 잔액을 모르는 통장만 합계에서 미확인으로 둡니다. */
+/** 같은 조회 범위의 장부값만 합산하며 계산하지 못한 통장을 은행 참고값이나 0원으로 채우지 않습니다. */
 export function getAccountBalanceTotal(data: BalanceWorkspace) {
   const accounts = data.accountId ? data.accounts?.filter((account) => account.id === data.accountId) : data.accounts;
   const displays = accounts?.map(getAccountBalanceDisplay) ?? [];

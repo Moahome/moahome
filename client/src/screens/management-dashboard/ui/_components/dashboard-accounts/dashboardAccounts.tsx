@@ -5,16 +5,6 @@ import type { DashboardReport } from '../../../model/dashboardTypes';
 import { DashboardPanel } from '../dashboard-panel/dashboardPanel';
 import styles from './dashboardAccounts.module.css';
 
-const SOURCES: Record<string, string> = {
-  LEDGER: '장부 계산',
-  DIRECT_CHECK: '직접 확인',
-  BANK_TRANSACTION: '은행 거래',
-  BANK_IMPORT: '은행 거래',
-  OPENING: '시작 잔액',
-  ACCOUNT_OPENING: '시작 잔액',
-  HANDOVER: '잔액 인계'
-};
-
 /** 상세와 같은 장부 우선 잔액을 표시하며 누락된 통장 금액을 0원으로 합산하지 않습니다. */
 export function DashboardAccounts({ report, href, onOpen }: {
   report: DashboardReport;
@@ -66,7 +56,7 @@ export function DashboardAccounts({ report, href, onOpen }: {
                   {account.balance === null ? '확인 필요' : formatWon(account.balance)}
                 </strong>
                 <small>
-                  {account.balance === null ? '잔액 자료가 필요해요.' : `${account.confirmationDate} ${account.confirmationTime?.slice(0, 5) ?? ''} · ${SOURCES[account.source ?? ''] ?? '확인 잔액'}`}
+                  {account.balance === null ? '잔액 자료가 필요해요.' : `${account.balanceDate} · 장부 계산`}
                 </small>
               </span>
               <ServiceIcon
@@ -89,15 +79,13 @@ export function DashboardAccounts({ report, href, onOpen }: {
       >
         <div>
           <strong>
-            {report.referenceOnly ? '전체 통장 잔액 (참고)' : '전체 통장 잔액'}
+            전체 통장 잔액
           </strong>
           <strong>
-            {report.referenceTotal === null ? '확인 필요' : formatWon(report.referenceTotal)}
+            {report.accountTotal === null ? '확인 필요' : formatWon(report.accountTotal)}
           </strong>
         </div>
-        {report.referenceOnly && <p>
-          확인 잔액이 포함된 합계는 참고용입니다.
-        </p>}
+
       </div>
     </DashboardPanel>
   );

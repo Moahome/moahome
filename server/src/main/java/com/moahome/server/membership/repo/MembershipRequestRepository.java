@@ -26,4 +26,13 @@ public interface MembershipRequestRepository extends JpaRepository<MembershipReq
             or (:userId is not null and request.userId = :userId and request.status = 'APPROVED'))
         """)
 	List<MembershipRequest> findLinked(UUID propertyId, UUID residentId, UUID userId);
+
+	/** 보유 기간 종료 시에는 삭제된 신청의 복사본도 파기하되 확인되지 않은 다른 사람의 신청은 건드리지 않습니다. */
+	@Query("""
+        select request from MembershipRequest request
+        where request.propertyId = :propertyId
+        and ((request.matchedResidentId = :residentId and request.matchStatus in ('MATCHED', 'MANUAL'))
+            or (:userId is not null and request.userId = :userId and request.status = 'APPROVED'))
+        """)
+	List<MembershipRequest> findAllLinkedForPhoneRemoval(UUID propertyId, UUID residentId, UUID userId);
 }

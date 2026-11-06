@@ -3,6 +3,7 @@
 import {
   ManualExpenseForm,
   ManualReceiptForm,
+  getExpenseAccountLabel,
   getBankAccountLabel
 } from '@/entities/banking';
 import { useState } from 'react';
@@ -105,6 +106,16 @@ export function RegistrationTransactionEditor({ account, record, direction, unit
             <dl
               className={styles.fields}
             >
+              {direction === 'EXPENSE' && (
+                <div>
+                  <dt>
+                    계정과목
+                  </dt>
+                  <dd>
+                    {getExpenseAccountLabel(record.allocation)}
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt>
                   통장
@@ -269,6 +280,7 @@ export function RegistrationTransactionEditor({ account, record, direction, unit
         date: record.date,
         amount: record.amount,
         category: record.category ?? record.payer,
+        accountCode: record.allocation?.accountCode,
         note: record.note ?? '',
         mode: record.allocation?.mode ?? 'PROPERTY',
         allocations: record.allocation?.allocations ?? []
@@ -283,6 +295,7 @@ export function RegistrationTransactionEditor({ account, record, direction, unit
         note: value.note,
         allocation: {
           category: value.category,
+          accountCode: value.accountCode,
           note: value.note,
           mode: value.mode,
           saveAsRule: false,

@@ -7,7 +7,10 @@ import {
 
 import { LoadingState } from '@/shared/ui/state-message';
 
-import { BankImportEditor } from '@/entities/banking';
+import {
+  BankImportEditor,
+  getExpenseAccountLabel
+} from '@/entities/banking';
 import { useSession } from '@/entities/session';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
@@ -136,7 +139,7 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
       })}
     />
   );
-  const transfer = workspace.data.rows.find((item) => item.id === transactionId && item.transferCandidate);
+  const transfer = workspace.data.rows.find((item) => item.id === transactionId && (item.transferCandidate || edited?.accountCode === '103'));
   if (transfer) return (
     <TransferDetail
       propertyId={propertyId}
@@ -181,6 +184,12 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
   }
   const expenseName = row.expense?.category ?? row.payer;
   const originalDetails = [
+    {
+      label: '계정과목',
+      icon: 'expense',
+      value: getExpenseAccountLabel(row.expense),
+      kind: 'account'
+    },
     {
       label: '출금액',
       icon: 'coins',
@@ -336,6 +345,8 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
           <>
             <BankImportEditor
               direction={'EXPENSE'}
+              allowTransfer={!row.expense && workspace.data.accounts?.some((account) => account.id !== row.accountId && account.status === 'ACTIVE')}
+              expenseAccounts={workspace.data.expenseAccounts}
               amount={row.amount}
               receipt={{
                 kind: 'AUTO',

@@ -3,6 +3,7 @@ package com.moahome.server.property.dto;
 import java.util.List;
 import java.util.UUID;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import com.moahome.server.common.validation.TextInput;
@@ -15,13 +16,33 @@ public record RegistrationBankImport(@NotNull @Min(0) Integer accountIndex,
 	public record Choice(@NotNull UUID id, @Min(0) Integer unitIndex,
 	    @TextInput(max = 100, optional = true) String incomeCategory,
 	    @TextInput(max = 500, optional = true) String incomeNote,
-	    @Valid Distribution expense, @Valid Distribution incomeAllocation, boolean transfer) {
+	    @Valid Distribution expense, @Valid Distribution incomeAllocation, boolean transfer,
+	    @JsonInclude(JsonInclude.Include.NON_NULL) @Min(0) Integer transferAccountIndex,
+	    @JsonInclude(JsonInclude.Include.NON_NULL) @Size(max = 100) List<@NotNull @Valid TransferShare> transferAllocations) {
+		public Choice(UUID id, Integer unitIndex, String incomeCategory, String incomeNote,
+		    Distribution expense, Distribution incomeAllocation, boolean transfer, Integer transferAccountIndex) {
+			this(id, unitIndex, incomeCategory, incomeNote, expense, incomeAllocation, transfer, transferAccountIndex, null);
+		}
+		public Choice(UUID id, Integer unitIndex, String incomeCategory, String incomeNote,
+		    Distribution expense, Distribution incomeAllocation, boolean transfer) {
+			this(id, unitIndex, incomeCategory, incomeNote, expense, incomeAllocation, transfer, null);
+		}
+	}
+
+	public record TransferShare(@NotNull @Pattern(regexp = "[A-Za-z0-9_-]{1,50}") String buildingClientId,
+	    @NotNull @Pattern(regexp = "[0-9]{1,15}") String amount) {
 	}
 
 	public record Distribution(@TextInput(max = 100) String category,
 	    @TextInput(max = 500, optional = true) String note,
 	    @NotNull @Pattern(regexp = "EQUAL|RATIO|AMOUNT|PROPERTY") String mode, boolean saveAsRule,
-	    @NotNull @Size(max = 100) List<@NotNull @Valid Share> allocations) {
+	    @NotNull @Size(max = 100) List<@NotNull @Valid Share> allocations,
+	    @JsonInclude(JsonInclude.Include.NON_NULL)
+	    @Pattern(regexp = "8[0-9]{2}") String accountCode) {
+		public Distribution(String category, String note, String mode, boolean saveAsRule, List<Share> allocations) {
+			this(category, note, mode, saveAsRule, allocations, null);
+		}
+
 		/** 공용 지출을 가상의 동·외부 부담처로 배분하지 않도록 입력 구조를 검사합니다. */
 		@AssertTrue(message = "INVALID_ALLOCATION")
 		@JsonIgnore

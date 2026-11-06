@@ -1,3 +1,4 @@
+import type { RegistrationResident } from './residentSetupTypes';
 import type { AdministratorDraft } from './administratorTypes';
 import type { AutomaticUnitRule } from './automaticUnitsTypes';
 import type { RegistrationAccount } from './bankAccountTypes';
@@ -9,11 +10,12 @@ import type {
   UnitDraft
 } from './unitSetupTypes';
 
-export type RegistrationStep = 'basic' | 'units' | 'account' | 'fees' | 'review';
+export type RegistrationStep = 'basic' | 'units' | 'residents' | 'account' | 'fees' | 'review';
 
 export interface RegistrationDraft {
   basicInfo: BasicInfoDraft;
   administrator: AdministratorDraft;
+  residents?: RegistrationResident[];
   buildings: BuildingDraft[];
   units: UnitDraft[];
   automaticUnitRule: AutomaticUnitRule;

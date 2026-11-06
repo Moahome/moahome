@@ -8,3 +8,13 @@ export type {
 export {
   formatResidentPhone
 } from './lib/residentPhone';
+export {
+  normalizeResidentPhone,
+  hasExistingPhoneConsent
+} from './model/residentPhone';
+export {
+  PhoneConsent
+} from './ui/phone-consent/phoneConsent';
+export {
+  ResidentImportGuide
+} from './ui/resident-import-guide/residentImportGuide';

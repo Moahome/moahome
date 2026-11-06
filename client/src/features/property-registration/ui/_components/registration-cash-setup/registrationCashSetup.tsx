@@ -329,6 +329,8 @@ export function RegistrationCashSetup({
               <RegistrationBankUpload
                 key={`${account.clientId}:${account.bankCode}:${account.accountNumber}`}
                 account={account}
+                accounts={accounts}
+                canTransfer={accounts.length > 1}
                 support={bankSupport.data}
                 cutoffDate={opening.cutoffDate}
                 draft={opening.bankImports?.[account.clientId]}
@@ -528,12 +530,11 @@ export function RegistrationCashSetup({
         </div>
         {!complete && (
           <p>
-            입력을 완료한 금액: 통장
+            {'입력을 완료한 금액: 통장 '}
             {formatWon(accountTotal)}
             {buildings.length > 0 && (
               <>
-                {' '}
-                · 동별 보유금
+                {' · 동별 보유금 '}
                 {formatWon(buildingTotal)}
               </>
             )}

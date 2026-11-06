@@ -26,7 +26,7 @@ const PdfPreview = lazy(() => import('./_components/pdf-preview/pdfPreview').the
 })));
 
 /** 보고서 내용은 호출자가 정하고 파일 형식·실제 PDF/PNG 미리보기·저장·오류 처리를 각 보고서가 함께 사용합니다. */
-export function ReportDownload({ title, description, filename, sourceKey, documents, highlights = [], scopeLabel, createWorkbook, createPdf, pdfDescription = 'A4 세로 보고서', renderFilters, pending = false, error = '', onRetry, onClose, presentation = 'modal', formats = ['excel', 'pdf', 'image'] }: {
+export function ReportDownload({ title, description, filename, sourceKey, documents, highlights = [], scopeLabel, createWorkbook, createPdf, excelDescription = '보고서 · 한 시트', pdfDescription = 'A4 세로 보고서', renderFilters, pending = false, error = '', onRetry, onClose, presentation = 'modal', formats = ['excel', 'pdf', 'image'] }: {
   presentation?: 'modal' | 'page';
   formats?: readonly ('excel' | 'pdf' | 'image')[];
   title: string; description: string; filename: string; sourceKey: string;
@@ -34,6 +34,7 @@ export function ReportDownload({ title, description, filename, sourceKey, docume
   highlights?: readonly { label: string; value: string | bigint; tone?: 'primary' | 'teal' | 'success' | 'danger' }[];
   scopeLabel: string;
   createWorkbook: () => Promise<Blob>; createPdf?: () => Promise<Blob>;
+  excelDescription?: string;
   pdfDescription?: string;
   renderFilters?: (busy: boolean) => ReactNode;
   pending?: boolean; error?: string; onRetry?: () => void; onClose: () => void;
@@ -167,7 +168,7 @@ export function ReportDownload({ title, description, filename, sourceKey, docume
             {([{
               value: 'excel',
               label: 'Excel',
-              description: '보고서 · 한 시트'
+              description: excelDescription
             }, {
               value: 'pdf',
               label: 'PDF',
@@ -246,11 +247,13 @@ export function ReportDownload({ title, description, filename, sourceKey, docume
               {documents.map((sheet, sheetIndex) => {
                 const rows = [...sheet.rows, ...(sheet.total ? [sheet.total] : [])].map((values, index) => ({
                   id: String(index),
-                  values
+                  values,
+                  kind: index < sheet.rows.length ? sheet.rowKinds?.[index] : 'total'
                 }));
                 return (
                   <section
                     key={sheet.title}
+                    data-sectioned={Boolean(sheet.rowKinds)}
                   >
                     <h3>
                       {sheet.title}
@@ -262,7 +265,20 @@ export function ReportDownload({ title, description, filename, sourceKey, docume
                       <p
                         className={styles.metadata}
                       >
-                        {sheet.summary.map((item) => `${item.label} ${typeof item.value === 'bigint' ? `${formatInteger(item.value)}원` : item.value}`).join(' · ')}
+                        {sheet.summary.map((item, index) => (
+                          <span
+                            key={item.label}
+                          >
+                            {index > 0 && ' · '}
+                            {item.label}
+                            {' '}
+                            <span
+                              className={sheet.highlightNegative && typeof item.value === 'bigint' && item.value < BigInt(0) ? styles['negative-amount'] : undefined}
+                            >
+                              {typeof item.value === 'bigint' ? `${formatInteger(item.value)}원` : item.value}
+                            </span>
+                          </span>
+                        ))}
                       </p>
                     )}
                     {sheetIndex === 0 && highlights.length > 0 && (
@@ -302,7 +318,14 @@ export function ReportDownload({ title, description, filename, sourceKey, docume
                         key: String(index),
                         header: column.label,
                         align: column.align,
-                        render: (row: typeof rows[number]) => typeof row.values[index] === 'bigint' ? `${formatInteger(row.values[index])}원` : row.values[index] ?? ''
+                        render: (row: typeof rows[number]) => (
+                          <span
+                            data-report-row-kind={row.kind}
+                            className={sheet.highlightNegative && typeof row.values[index] === 'bigint' && row.values[index] < BigInt(0) ? styles['negative-amount'] : undefined}
+                          >
+                            {typeof row.values[index] === 'bigint' ? `${formatInteger(row.values[index])}원` : row.values[index] ?? ''}
+                          </span>
+                        )
                       }))}
                     />
                   </section>

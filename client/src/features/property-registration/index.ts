@@ -7,3 +7,9 @@ export {
 export {
   hasPendingRegistration
 } from './model/registrationSubmission';
+export {
+  ResidentSetup
+} from './ui/resident-setup/residentSetup';
+export type {
+  RegistrationResident
+} from './model/residentSetupTypes';

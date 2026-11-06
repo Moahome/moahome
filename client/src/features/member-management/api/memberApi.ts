@@ -115,6 +115,7 @@ export async function requestMemberInvitation(code: string) {
 export function memberManagementError(error: unknown) {
   if (!(error instanceof ApiError)) return '권한 정보를 처리하지 못했어요. 다시 확인해주세요.';
   const messages: Record<string, string> = {
+    PHONE_CONSENT_REQUIRED: '전화번호 수집·이용 동의를 확인해주세요.',
     MEMBER_ACCOUNT_REQUIRED: '계정 연결과 가입 승인이 완료된 주민만 역할을 변경할 수 있어요.',
     MEMBER_ROLE_CONFLICT: '역할이나 신청 상태가 변경됐어요. 최신 정보를 확인해주세요. 관리소장 변경은 인계를 사용해주세요.',
     MEMBER_RESIDENT_REQUIRED: '현재 주민 연결이 필요해요. 외부 부담당자는 관리자 접근 종료를 사용해주세요.',

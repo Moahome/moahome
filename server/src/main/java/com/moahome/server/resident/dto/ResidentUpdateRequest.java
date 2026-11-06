@@ -13,17 +13,30 @@ public record ResidentUpdateRequest(@NotBlank @Size(max = 100) String name, @Not
     @NotBlank @Pattern(regexp = "KEEP|REPLACE|REMOVE") String phoneAction, @Size(max = 64) String phone,
     UUID replacementResidentId, @NotNull OffsetDateTime expectedUpdatedAt,
     PropertyMemberRole serviceRole,
-    PropertyMemberRole expectedServiceRole, Boolean designateRepresentative, UUID expectedRepresentativeResidentId) {
+    PropertyMemberRole expectedServiceRole, Boolean designateRepresentative, UUID expectedRepresentativeResidentId,
+    Boolean phoneConsent) {
+	public ResidentUpdateRequest(String name, UUID unitId, String relationType, String phoneAction, String phone,
+	    UUID replacementResidentId, OffsetDateTime expectedUpdatedAt, PropertyMemberRole serviceRole,
+	    PropertyMemberRole expectedServiceRole, Boolean designateRepresentative, UUID expectedRepresentativeResidentId) {
+		this(name, unitId, relationType, phoneAction, phone, replacementResidentId, expectedUpdatedAt, serviceRole,
+		    expectedServiceRole, designateRepresentative, expectedRepresentativeResidentId, null);
+	}
+
+	public ResidentUpdateRequest(String name, UUID unitId, String relationType, String phoneAction, String phone,
+	    UUID replacementResidentId, OffsetDateTime expectedUpdatedAt, Boolean phoneConsent) {
+		this(name, unitId, relationType, phoneAction, phone, replacementResidentId, expectedUpdatedAt, null, null,
+		    null, null, phoneConsent);
+	}
 	public ResidentUpdateRequest(String name, UUID unitId, String relationType, String phoneAction, String phone,
 	    UUID replacementResidentId, OffsetDateTime expectedUpdatedAt, PropertyMemberRole serviceRole,
 	    PropertyMemberRole expectedServiceRole) {
 		this(name, unitId, relationType, phoneAction, phone, replacementResidentId, expectedUpdatedAt,
-		    serviceRole, expectedServiceRole, null, null);
+		    serviceRole, expectedServiceRole, null, null, null);
 	}
 	public ResidentUpdateRequest(String name, UUID unitId, String relationType, String phoneAction, String phone,
 	    UUID replacementResidentId, OffsetDateTime expectedUpdatedAt) {
 		this(name, unitId, relationType, phoneAction, phone, replacementResidentId, expectedUpdatedAt, null, null,
-		    null, null);
+		    null, null, null);
 	}
 
 	@Override

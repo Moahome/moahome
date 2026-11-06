@@ -2,6 +2,7 @@ import { isPropertyId } from '@/entities/property';
 import { authenticatedAPI } from '@/entities/session';
 import { ApiError } from '@/shared/api';
 import type {
+  DeletedResidentOption,
   RegistrationOptions,
   ResidentRegistrationInput,
   ResidentRegistrationResponse
@@ -37,4 +38,14 @@ export async function registerResident(propertyId: string, input: ResidentRegist
     || typeof result.representative !== 'boolean') {
     throw new ApiError(200, 'INVALID_RESPONSE', '등록 결과를 확인할 수 없습니다.');
   }
+}
+
+/** 번호를 파기한 삭제 명부를 직접 선택할 수 있도록 ID·이름만 검증해 반환합니다. */
+export async function getDeletedResidents(propertyId: string, signal?: AbortSignal): Promise<DeletedResidentOption[]> {
+  const rows = await authenticatedAPI<DeletedResidentOption[]>({
+    signal,
+    url: `/api/properties/${propertyId}/residents/deleted`
+  });
+  if (!Array.isArray(rows) || rows.some((row) => !row || !isPropertyId(row.id) || typeof row.name !== 'string')) throw new ApiError(200, 'INVALID_RESPONSE', '삭제 명부를 확인할 수 없습니다.');
+  return rows;
 }

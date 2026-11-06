@@ -204,6 +204,23 @@ class BankingControllerTest {
 		    && r.note() == null && r.amount().equals("10000") && !r.expense().saveAsRule()));
 	}
 
+	/** 수동 금액을 받지 않고 기존 은행 원본·상대 계좌의 필수 UUID를 검증합니다. */
+	@Test
+	void postsTransferFromBankOriginalWithRequiredCounterpartAccount() throws Exception {
+		String url = base() + "/transfers/from-transaction";
+		mvc.perform(post(url).contentType(MediaType.APPLICATION_JSON).content("{}"))
+		    .andExpect(status().isUnauthorized());
+		mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON).content("{}"))
+		    .andExpect(status().isBadRequest());
+		verifyNoInteractions(service);
+		UUID id = UUID.randomUUID(), counterpart = UUID.randomUUID();
+		mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON)
+		    .content("{\"id\":\"%s\",\"transactionId\":\"%s\",\"counterpartAccountId\":\"%s\"}".formatted(id, transaction, counterpart)))
+		    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"));
+		verify(service).postTransfer(eq(user), eq(property), argThat(request -> request.id().equals(id)
+		    && request.transactionId().equals(transaction) && request.counterpartAccountId().equals(counterpart)));
+	}
+
 	@TestConfiguration
 	static class Security {
 		@Bean

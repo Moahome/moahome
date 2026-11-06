@@ -90,7 +90,6 @@ import {
   getExternalExpensesForRange
 } from '../../model/balanceLedger';
 import { sortExpenseLabels } from '../../model/expenseAllocation';
-import { BalanceCheckPanel } from '../_components/balance-check-panel/balanceCheckPanel';
 import { AccountBalances } from '../_components/account-balances/accountBalances';
 import { BankAccountDetails } from '../_components/bank-account-details/bankAccountDetails';
 import { BankingExpensePage } from '../banking-expense-page/bankingExpensePage';
@@ -102,12 +101,10 @@ type Action = {
     kind: 'opening' | 'settlement' | 'assignment' | 'difference';
     id?: string;
 };
-export type BalancePanel = Action['kind'] | 'chart' | 'account' | 'check' | 'checks' | 'initial';
+export type BalancePanel = Action['kind'] | 'chart' | 'account' | 'initial';
 const PANEL_TITLES: Record<BalancePanel, string> = {
   account: '통장 상세',
   initial: '초기 잔액 정정',
-  check: '은행 잔액 직접 확인',
-  checks: '은행 잔액 확인 이력',
   opening: '기준 잔고 확인',
   chart: '동별 입금·지출 비교',
   difference: '잔고 차이 내역',
@@ -249,7 +246,6 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   const [detail, setDetail] = useState<string | null>(null);
   const [accountDetailId, setAccountDetailId] = useState<string | null>(null);
   const [initialAccountId, setInitialAccountId] = useState<string | null>(null);
-  const [checkPanel, setCheckPanel] = useState<{ id: string; history: boolean } | null>(null);
   const [chartOpen, setChartOpen] = useState(false);
   const [action, setAction] = useState<Action | null>(null);
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
@@ -308,11 +304,11 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     );
   const summary = getBalanceSummary(data);
   const selectedAccount = data.accounts?.find((account) => account.id === accountId);
-  const { amount: bankBalance, calculated: bankCalculated } = getAccountBalanceTotal(data);
+  const { amount: bankBalance } = getAccountBalanceTotal(data);
   const bankLabel = selectedAccount ? '선택 통장 잔액' : '통장 잔액 합계';
-  const bankAsOf = bankCalculated ? getBalancePeriodLabel(month) : selectedAccount?.asOf ?? '통장별 마지막 확인 기준';
+  const bankAsOf = getBalancePeriodLabel(month);
   const bankHelp = '등록된 통장 잔액을 표시합니다.';
-  const differenceDescription = bankCalculated ? '통장 잔액 − 동별 잔고' : '마지막 확인 잔액 기준 · 참고';
+  const differenceDescription = '통장 잔액 − 동별 잔고';
   const missing = data.buildings.filter((b) => b.active && b.status === 'OPENING_REQUIRED');
   const filtered = sortExpenseLabels(data.buildings).filter((b) => b.label.includes(search.trim()) && (filter === 'ALL' || (filter === 'NEEDS_OPENING' && b.status === 'OPENING_REQUIRED') || (filter === 'NEGATIVE' && b.balance !== null && BigInt(b.balance) < BigInt(0))));
   if (sort !== 'name')
@@ -363,12 +359,8 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       router.push(`/manage/${propertyId}/banking/balances/details/${kind}?${queryParams}`);
       return;
     }
-    if (['initial', 'check', 'checks'].includes(kind)) setAccountDetailId(null);
+    if (kind === 'initial') setAccountDetailId(null);
     if (kind === 'initial') { setInitialAccountId(id ?? null); return; }
-    if (kind === 'check' || kind === 'checks') { setCheckPanel({
-      id: id ?? '',
-      history: kind === 'checks'
-    }); return; }
     if (kind === 'account') {
       setAccountDetailId(id ?? null);
       return;
@@ -441,7 +433,6 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           propertyId={propertyId}
           account={account}
           month={month}
-          onCheck={account.status === 'ACTIVE' ? () => openPanel('check', account.id) : undefined}
           onInitial={data?.initialCorrectionAllowed === true ? () => openPanel('initial', account.id) : undefined}
         />
         <div
@@ -449,12 +440,6 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           role={'group'}
           aria-label={'통장 관리'}
         >
-          <Button
-            variant={'outline'}
-            onClick={() => openPanel('checks', account.id)}
-          >
-            확인 이력
-          </Button>
           <Button
             variant={'outline'}
             disabled={account.status !== 'ACTIVE'}
@@ -487,23 +472,6 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           presentation={'page'}
           onClose={closePage}
           onSaved={() => saved('초기 잔액을 정정했어요.')}
-        />
-      ) : (
-        <p>
-          해당 통장을 찾을 수 없습니다.
-        </p>
-      );
-    }
-    if (panel === 'check' || panel === 'checks') {
-      const target = data.accounts?.find((row) => row.id === params.get('target'));
-      return target ? (
-        <BalanceCheckPanel
-          key={`${panel}-${target.id}`}
-          propertyId={propertyId}
-          account={target}
-          history={panel === 'checks'}
-          presentation={'page'}
-          onClose={closePage}
         />
       ) : (
         <p>
@@ -734,12 +702,12 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           label={bankLabel}
           value={bankBalance === null ? '확인 필요' : formatInteger(bankBalance)}
           unit={bankBalance === null ? '' : '원'}
-          description={bankAsOf}
           help={(
             <InfoTooltip
               size={'sm'}
               label={`${bankLabel} 도움말`}
               title={bankLabel}
+              note={bankAsOf}
             >
               {bankHelp}
             </InfoTooltip>
@@ -762,12 +730,12 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
               note={'동에 배분하지 않은 입금은 포함하지 않습니다.'}
             >
               {selectedAccount ? '선택한 통장 안에서 각 동에 귀속된 잔고를 합한 금액입니다.' : '조회 중인 모든 통장의 동별 잔고를 합한 금액입니다.'}
+              {summary.total !== null ? ` ${getBalancePeriodLabel(month)} · 동별 귀속 금액` : ' 통장을 선택해 동별 시작 잔고를 등록해주세요.'}
             </InfoTooltip>
           )}
           tone={'warning'}
           value={summary.total === null ? '설정 필요' : formatInteger(summary.total)}
           unit={summary.total === null ? '' : '원'}
-          description={summary.total !== null ? `${getBalancePeriodLabel(month)} · 동별 귀속 금액` : '통장을 선택해 동별 시작 잔고를 등록해주세요.'}
           icon={(
             <ServiceIcon
               name={'coins'}
@@ -782,13 +750,13 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
               size={'sm'}
               label={'잔고 차이 도움말'}
               title={'잔고 차이'}
+              note={summary.difference === null ? undefined : differenceDescription}
             >
               통장 잔액과 동별 잔고를 비교한 참고 금액입니다.
             </InfoTooltip>
           )}
           value={summary.difference === null ? '확인 필요' : formatInteger(summary.difference)}
           unit={summary.difference === null ? '' : '원'}
-          description={summary.difference === null ? undefined : differenceDescription}
           tone={'success'}
           valueTone={summary.difference !== null && summary.difference < BigInt(0) ? 'danger' : 'neutral'}
           icon={(
@@ -802,7 +770,15 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           label={'관리 동 수'}
           value={data.buildings.filter((b) => b.active).length}
           unit={'개 동'}
-          description={'등록된 관리 동 기준'}
+          help={(
+            <InfoTooltip
+              size={'sm'}
+              label={'관리 동 수 도움말'}
+              title={'관리 동 수'}
+            >
+              등록된 관리 동 기준입니다.
+            </InfoTooltip>
+          )}
           icon={(
             <ServiceIcon
               name={'building'}
@@ -1154,15 +1130,6 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           }}
         />
       )}
-      {checkPanel && data.accounts?.find((row) => row.id === checkPanel.id) && (
-        <BalanceCheckPanel
-          key={`${checkPanel.id}-${checkPanel.history}`}
-          propertyId={propertyId}
-          account={data.accounts.find((row) => row.id === checkPanel.id)!}
-          history={checkPanel.history}
-          onClose={() => setCheckPanel(null)}
-        />
-      )}
       {accountDetailId && (
         <DetailDialog
           title={'통장 상세'}
@@ -1295,7 +1262,7 @@ function ChartDialog({ buildings, onClose, presentation = 'modal' }: { buildings
           options={[{
             value: 'ALL',
             label: '전체 동'
-          }, ...buildings.map((row) => ({
+          }, ...sortExpenseLabels(buildings).map((row) => ({
             value: row.id,
             label: row.label
           }))]}
@@ -1422,7 +1389,7 @@ function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
   /** 누적 잔고를 먼저 계산한 뒤 표시만 필터링해 입금·출금 필터가 잔고를 바꾸지 않게 합니다. */
   function openTransaction(entry: BalanceEntry) {
     if (window.matchMedia('(max-width: 767px)').matches) {
-      const path = entry.paymentId ? `receipts/${entry.paymentId}` : `transactions/${entry.id}`;
+      const path = entry.paymentId ? `receipts/${entry.paymentId}` : `transactions/${entry.transactionId ?? entry.id}`;
       const query = new URLSearchParams({
         from: 'balance',
         buildingId: building.id
@@ -1584,7 +1551,7 @@ function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
       {transactionDetail && (transactionDetail.paymentId ? renderReceiptDetail?.(transactionDetail.paymentId, () => setTransactionDetail(null)) : (
         <BankingExpensePage
           propertyId={propertyId}
-          transactionId={transactionDetail.id}
+          transactionId={transactionDetail.transactionId ?? transactionDetail.id}
           presentation={'modal'}
           onClose={() => setTransactionDetail(null)}
         />
@@ -2881,7 +2848,7 @@ function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, p
       {action.kind === 'difference' && (
         <>
           <p>
-            같은 조회 월말의 통장 장부 잔액에서 동별 잔고 합계를 뺀 차이입니다. 미분류 거래·외부 부담금·공통 자금이나 초기 동별 귀속 설정에 따라 차이가 생길 수 있습니다. 마지막 은행 확인값과의 차이가 아니며 차이를 자동 배분하거나 대사 완료로 처리하지 않습니다.
+            같은 조회 월말의 통장 장부 잔액에서 동별 잔고 합계를 뺀 차이입니다. 미분류 거래·외부 부담금·공통 자금이나 초기 동별 귀속 설정에 따라 차이가 생길 수 있습니다. 차이만으로 오류를 판단하거나 특정 동에 자동 배분하지 않습니다.
           </p>
           <dl
             className={styles.overview}

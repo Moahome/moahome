@@ -2,26 +2,40 @@
 
 import {
   Dropdown,
+  SelectDropdown,
   Input
 } from '@/shared/ui/form-controls';
-import type { ExpenseDraft } from '../../model/allocationTypes';
+import {
+  BANK_TRANSFER_ACCOUNT,
+  DEFAULT_EXPENSE_ACCOUNTS
+} from '../../constants/expenseAccounts';
+import { getReceiptUnitSearchOptions } from '../../lib/receiptUnitOptions';
+import type { ManualReceiptUnit } from '../../model/manualReceiptTypes';
+import { ExpenseAccountSelect } from '../expense-account-select/expenseAccountSelect';
+import type {
+  ExpenseAccountOption,
+  ExpenseDraft
+} from '../../model/allocationTypes';
 import type { BankReceiptDraft } from '../../model/bankReceiptDraftTypes';
 import { AllocationEditor } from '../allocation-editor/allocationEditor';
 import styles from './bankImportEditor.module.css';
 
 /** 운영 업로드와 초기 설정에서 동일한 입금 용도·세대 지정·지출 배분 입력을 사용합니다. */
-export function BankImportEditor({ direction, amount, suggestedUnitId, units, buildings, receipt, expense, onReceiptChange, onExpenseChange, disabled = false }: {
+export function BankImportEditor({ direction, amount, suggestedUnitId, units, buildings, expenseAccounts, receipt, expense, onReceiptChange, onExpenseChange, allowTransfer = false, disabled = false }: {
   direction: string;
   amount: string;
+  expenseAccounts?: readonly ExpenseAccountOption[];
   suggestedUnitId?: string;
-  units: { id: string; label: string }[];
+  units: ManualReceiptUnit[];
   buildings: { id: string; label: string }[];
   receipt: BankReceiptDraft;
   expense: ExpenseDraft;
   onReceiptChange: (draft: BankReceiptDraft) => void;
   onExpenseChange: (draft: ExpenseDraft) => void;
   disabled?: boolean;
+  allowTransfer?: boolean;
 }) {
+  const accountOptions = allowTransfer ? [BANK_TRANSFER_ACCOUNT, ...(expenseAccounts ?? DEFAULT_EXPENSE_ACCOUNTS)] : expenseAccounts;
   if (direction === 'EXPENSE' && !buildings.length) return (
     <div
       className={styles.editor}
@@ -37,6 +51,15 @@ export function BankImportEditor({ direction, amount, suggestedUnitId, units, bu
           category: event.target.value,
           mode: 'PROPERTY',
           allocations: []
+        })}
+      />
+      <ExpenseAccountSelect
+        value={expense.accountCode}
+        options={accountOptions}
+        disabled={disabled}
+        onChange={(accountCode) => onExpenseChange({
+          ...expense,
+          accountCode
         })}
       />
       <Input
@@ -56,6 +79,7 @@ export function BankImportEditor({ direction, amount, suggestedUnitId, units, bu
   if (direction === 'EXPENSE') return (
     <AllocationEditor
       total={amount}
+      expenseAccounts={accountOptions}
       draft={expense}
       buildings={buildings}
       disabled={disabled}
@@ -103,18 +127,17 @@ export function BankImportEditor({ direction, amount, suggestedUnitId, units, bu
         </p>
       )}
       {receipt.kind === 'HOUSEHOLD' && (
-        <Dropdown
+        <SelectDropdown
           label={'수납 세대'}
+          placeholder={'이름 또는 동·호수로 검색'}
+          emptyMessage={'일치하는 세대가 없습니다.'}
           value={receipt.unitId}
           disabled={disabled}
           onChange={(unitId) => onReceiptChange({
             ...receipt,
             unitId
           })}
-          options={units.map((unit) => ({
-            value: unit.id,
-            label: unit.label
-          }))}
+          options={getReceiptUnitSearchOptions(units)}
         />
       )}
       {receipt.kind === 'SHARED' && buildings.length > 0 && (

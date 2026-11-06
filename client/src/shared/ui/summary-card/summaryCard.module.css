@@ -17,6 +17,10 @@
     font-size: 14px;
   }
 
+  .short-label {
+    display: none;
+  }
+
   &[data-density='comfortable'] .value strong { white-space: nowrap; }
 
   .value strong {
@@ -157,7 +161,51 @@
     }
 
     .value strong {
+      overflow-wrap: normal;
+      word-break: keep-all;
       font-size: 20px;
+    }
+  }
+}
+
+@container (min-width: 301px) and (max-width: 400px) {
+  .card[data-density='compact'] {
+    /* 두 열에서도 왼쪽 아이콘과 오른쪽 제목·금액의 묶음을 유지합니다. */
+    gap: 6px;
+    padding: 12px 10px;
+
+    .icon {
+      width: 24px;
+      height: 24px;
+
+      svg {
+        width: 18px;
+        height: 18px;
+      }
+    }
+
+    .label {
+      gap: 4px;
+
+      .full-label {
+        display: none;
+      }
+
+      .short-label {
+        display: inline;
+      }
+    }
+
+    .value {
+      gap: 3px;
+
+      strong {
+        font-size: 16px;
+      }
+    }
+
+    .unit {
+      font-size: 10px;
     }
   }
 }

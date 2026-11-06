@@ -22,8 +22,8 @@ class ResidentExcelReaderTest {
 		try (var workbook = workbook()) {
 			var sheet = workbook.getSheetAt(0);
 			var row = sheet.createRow(1);
-			String[] data = { "102동", "001", "주민", "가족", "01012345678" };
-			for (int col = 0; col < 5; col++)
+			String[] data = { "102동", "001", "주민", "01012345678", "가족", "O" };
+			for (int col = 0; col < data.length; col++)
 				row.createCell(col).setCellValue(data[col]);
 			sheet.createRow(2); // 빈 행은 주민으로 집계하지 않습니다.
 			sheet.createRow(3).createCell(2).setCellFormula("1+1");
@@ -46,8 +46,8 @@ class ResidentExcelReaderTest {
 			assertThat(sheet.getColumnStyle(1).getDataFormatString()).isEqualTo("@");
 			assertThat(sheet.getColumnStyle(3).getDataFormatString()).isEqualTo("@");
 			var row = sheet.createRow(1);
-			String[] data = { "102동", "001", "양식 테스트", "01012345678", "가족" };
-			for (int col = 0; col < 5; col++)
+			String[] data = { "102동", "001", "양식 테스트", "01012345678", "가족", "O" };
+			for (int col = 0; col < data.length; col++)
 				row.createCell(col).setCellValue(data[col]);
 			var rows = reader.read(file(workbook));
 			assertThat(rows).hasSize(1);
@@ -63,15 +63,15 @@ class ResidentExcelReaderTest {
 		var path = Path.of("../client/public/residentImportNoBuildingTemplate.xlsx");
 		try (var workbook = new XSSFWorkbook(Files.newInputStream(path))) {
 			var sheet = workbook.getSheetAt(0);
-			assertThat(sheet.getRow(0).getLastCellNum()).isEqualTo((short) 4);
+			assertThat(sheet.getRow(0).getLastCellNum()).isEqualTo((short) 5);
 			assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("호수");
 			assertThat(sheet.getRow(0).getCell(2).getStringCellValue()).isEqualTo("연락처");
 			assertThat(sheet.getColumnStyle(0).getDataFormatString()).isEqualTo("@");
 			assertThat(sheet.getColumnStyle(2).getDataFormatString()).isEqualTo("@");
 			assertCode(file(workbook), "EMPTY_EXCEL_FILE");
 			var row = sheet.createRow(1);
-			String[] data = { "001", "동 없는 주민", "01012345678", "" };
-			for (int col = 0; col < 4; col++)
+			String[] data = { "001", "동 없는 주민", "01012345678", "", "O" };
+			for (int col = 0; col < data.length; col++)
 				row.createCell(col).setCellValue(data[col]);
 			var result = reader.read(file(workbook)).getFirst();
 			assertThat(result.building()).isEmpty();
@@ -81,6 +81,25 @@ class ResidentExcelReaderTest {
 			assertThat(result.invalidCell()).isFalse();
 			assertThat(sheet.getDataValidations().getFirst().getRegions().getCellRangeAddresses()[0].formatAsString())
 			    .isEqualTo("D2:D1001");
+		}
+	}
+
+	@Test
+	void legacyTemplatesWithoutConsentDoNotPassPhoneNumbersToStorage() throws Exception {
+		try (var workbook = new XSSFWorkbook()) {
+			var sheet = workbook.createSheet();
+			var header = sheet.createRow(0);
+			String[] labels = {"동", "호수", "이름", "관계", "연락처"};
+			String[] values = {"102동", "001", "이전 양식", "가족", "01012345678"};
+			var row = sheet.createRow(1);
+			for (int index = 0; index < labels.length; index++) {
+				header.createCell(index).setCellValue(labels[index]);
+				row.createCell(index).setCellValue(values[index]);
+			}
+			var input = reader.read(file(workbook)).getFirst();
+			assertThat(input.phoneConsent()).isEmpty();
+			assertThat(input.phone()).isEmpty();
+			assertThat(input.name()).isEqualTo("이전 양식");
 		}
 	}
 
@@ -118,8 +137,8 @@ class ResidentExcelReaderTest {
 	private XSSFWorkbook workbook() {
 		var workbook = new XSSFWorkbook();
 		var header = workbook.createSheet().createRow(0);
-		String[] labels = { "동", "호수", "이름", "관계", "연락처" };
-		for (int index = 0; index < 5; index++)
+		String[] labels = { "동", "호수", "이름", "연락처", "주민 구분", "전화번호 수집 동의" };
+		for (int index = 0; index < labels.length; index++)
 			header.createCell(index).setCellValue(labels[index]);
 		return workbook;
 	}

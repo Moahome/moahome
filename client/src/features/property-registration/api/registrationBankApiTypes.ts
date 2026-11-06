@@ -8,12 +8,15 @@ export interface RegistrationBankImportRequest {
     incomeCategory?: string;
     incomeNote?: string;
     transfer: boolean;
+    transferAccountIndex?: number;
+    transferAllocations?: { buildingClientId: string; amount: string }[];
     expense?: RegistrationBankDistribution;
     incomeAllocation?: RegistrationBankDistribution;
   }[];
 }
 
 export interface RegistrationBankDistribution {
+  accountCode?: string;
   category: string;
   note: string | null;
   mode: 'EQUAL' | 'RATIO' | 'AMOUNT' | 'PROPERTY';

@@ -1130,7 +1130,7 @@ for (const view of ['matching', 'monthly'] as const) {
         name: '미수 있는 세대만'
       })).toHaveCount(0);
       await pagination.getByRole('button', {
-        name: '다음 페이지'
+        name: '2페이지'
       }).click();
       await expect(pagination.getByRole('button', {
         name: '2페이지',
@@ -1143,7 +1143,7 @@ for (const view of ['matching', 'monthly'] as const) {
       }).click();
       await expect(table.getByRole('row')).toHaveCount(6);
       await expect(pagination.getByRole('button', {
-        name: '다음 페이지'
+        name: '다음 5페이지'
       })).toBeDisabled();
       await expect(summary).toBeVisible();
 
@@ -1169,7 +1169,7 @@ for (const view of ['matching', 'monthly'] as const) {
       }).click();
       await expect(table.getByRole('row')).toHaveCount(26);
       await expect(pagination.getByRole('button', {
-        name: '다음 페이지'
+        name: '다음 5페이지'
       })).toBeDisabled();
       await size.click();
       await page.getByRole('option', {
@@ -1189,10 +1189,10 @@ for (const view of ['matching', 'monthly'] as const) {
       await search.fill('없는 검색 결과');
       await expect(table).toContainText(matching ? '조건에 맞는 입금 거래가 없습니다.' : '조건에 맞는 세대가 없습니다.');
       await expect(pagination.getByRole('button', {
-        name: '이전 페이지'
+        name: '이전 5페이지'
       })).toBeDisabled();
       await expect(pagination.getByRole('button', {
-        name: '다음 페이지'
+        name: '다음 5페이지'
       })).toBeDisabled();
       await search.clear();
       await pagination.getByRole('button', {
@@ -1232,7 +1232,7 @@ for (const view of ['matching', 'monthly'] as const) {
       await selectMonthRange(page, '2026-11');
       await expect(table).toContainText(matching ? '조건에 맞는 입금 거래가 없습니다.' : '조건에 맞는 세대가 없습니다.');
       await expect(pagination.getByRole('button', {
-        name: '다음 페이지'
+        name: '다음 5페이지'
       })).toBeDisabled();
     });
   }
@@ -2173,7 +2173,7 @@ for (const width of [1440, 390]) {
     await page.getByRole('navigation', {
       name: '전체 입금 내역 페이지'
     }).getByRole('button', {
-      name: '다음 페이지'
+      name: '2페이지'
     }).click();
     await expect(history.getByRole('row')).toHaveCount(7);
     await page.getByRole('combobox', {

@@ -1,5 +1,6 @@
 package com.moahome.server.banking.dto;
 
+import com.moahome.server.accounting.dto.ExpenseAccountOption;
 import java.time.*;
 import java.util.*;
 
@@ -10,20 +11,42 @@ public final class BankingResponse {
 	public record Building(UUID id, String label) {
 	}
 
-	public record Unit(UUID id, String label) {
+	public record Unit(UUID id, String label, List<String> residentNames) {
+		public Unit(UUID id, String label) {
+			this(id, label, List.of());
+		}
 	}
 
 	public record Allocation(UUID buildingId, String label, String amount, String percentage) {
 	}
 
 	public record Expense(UUID id, String category, String note, String mode, boolean saveAsRule,
-	    List<Allocation> allocations) {
+	    List<Allocation> allocations, String accountCode, String accountName) {
+		public Expense(UUID id, String category, String note, String mode, boolean saveAsRule, List<Allocation> allocations) {
+			this(id, category, note, mode, saveAsRule, allocations, null, null);
+		}
 	}
 
 	public record Transaction(UUID id, UUID accountId, LocalDate date, LocalTime time, String payer, String memo,
 	    String amount, String balance, String direction, String ruleKey, UUID paymentId, String status, String unitId,
 	    String unitLabel, Expense expense, Expense incomeAllocation, String receiptType, boolean transferCandidate,
-	    UUID transferId, String sourceType) {
+	    UUID transferId, String sourceType, UUID transferAccountId, boolean automaticTransfer,
+	    List<BankingRequests.TransferAllocation> transferAllocations) {
+		public Transaction(UUID id, UUID accountId, LocalDate date, LocalTime time, String payer, String memo,
+		    String amount, String balance, String direction, String ruleKey, UUID paymentId, String status, String unitId,
+		    String unitLabel, Expense expense, Expense incomeAllocation, String receiptType, boolean transferCandidate,
+		    UUID transferId, String sourceType, UUID transferAccountId, boolean automaticTransfer) {
+			this(id, accountId, date, time, payer, memo, amount, balance, direction, ruleKey, paymentId, status, unitId,
+			    unitLabel, expense, incomeAllocation, receiptType, transferCandidate, transferId, sourceType, transferAccountId, automaticTransfer, List.of());
+		}
+		public Transaction(UUID id, UUID accountId, LocalDate date, LocalTime time, String payer, String memo,
+		    String amount, String balance, String direction, String ruleKey, UUID paymentId, String status,
+		    String unitId, String unitLabel, Expense expense, Expense incomeAllocation, String receiptType,
+		    boolean transferCandidate, UUID transferId, String sourceType) {
+			this(id, accountId, date, time, payer, memo, amount, balance, direction, ruleKey, paymentId, status,
+			    unitId, unitLabel, expense, incomeAllocation, receiptType, transferCandidate, transferId, sourceType, null, false);
+		}
+
 		public Transaction(UUID id, UUID accountId, LocalDate date, LocalTime time, String payer, String memo,
 		    String amount, String balance, String direction, String ruleKey, UUID paymentId, String status,
 		    String unitId, String unitLabel, Expense expense, Expense incomeAllocation, String receiptType,
@@ -40,11 +63,16 @@ public final class BankingResponse {
 		}
 	}
 
-	public record Rule(String key, UUID accountId, String category, String mode, List<Allocation> allocations) {
+	public record Rule(String key, UUID accountId, String category, String mode, List<Allocation> allocations, String accountCode) {
 	}
 
 	public record Workspace(UUID propertyId, LocalDate asOf, List<Building> buildings, List<Unit> units,
-	    List<Transaction> rows, List<Rule> rules, List<Account> accounts) {
+	    List<Transaction> rows, List<Rule> rules, List<Account> accounts,
+	    List<ExpenseAccountOption> expenseAccounts) {
+		public Workspace(UUID propertyId, LocalDate asOf, List<Building> buildings, List<Unit> units,
+		    List<Transaction> rows, List<Rule> rules, List<Account> accounts) {
+			this(propertyId, asOf, buildings, units, rows, rules, accounts, List.of());
+		}
 		public Workspace(UUID propertyId, LocalDate asOf, List<Building> buildings, List<Unit> units,
 		    List<Transaction> rows, List<Rule> rules) {
 			this(propertyId, asOf, buildings, units, rows, rules, List.of());

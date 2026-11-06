@@ -1,4 +1,7 @@
-import { calculateExpenseAllocation } from '@/entities/banking';
+import {
+  calculateExpenseAllocation,
+  calculateTransferAllocation
+} from '@/entities/banking';
 import type {
   RegistrationBankChoice,
   RegistrationBankDraft,
@@ -52,7 +55,13 @@ export function getRegistrationBankError(draft: RegistrationBankDraft, cutoffDat
   if (!draft.content) return '새로고침 후에는 은행 원본 파일을 다시 선택해주세요.';
   for (const row of selected) {
     const choice = draft.choices[row.id];
-    if (choice.transfer) continue;
+    if (choice.transfer) {
+      if (!choice.transferAccountId) return `${row.payer}: 이체한 상대 관리 통장을 선택해주세요.`;
+      const transfer = calculateTransferAllocation(row.amount, choice.transferAllocations ?? [], buildings.length > 0);
+      if (transfer.error) return `${row.payer}: ${transfer.error}`;
+      if (transfer.allocations.some((part) => !buildings.some((building) => building.clientId === part.buildingId))) return '이체할 동을 다시 선택해주세요.';
+      continue;
+    }
     const receipt = choice.receipt;
     if (row.direction === 'INCOME') {
       if (receipt.kind === 'HOUSEHOLD' && !units.some((unit) => unit.clientId === receipt.unitId)) return `${row.payer}: 수납 세대를 선택해주세요.`;
@@ -77,6 +86,11 @@ export function getRegistrationHistoryError(opening: OpeningBalancesDraft, accou
     if (!file.rows.some((row) => file.choices[row.id]?.included)) return '가져올 입금·출금을 한 건 이상 선택해주세요.';
     if (getRegistrationBankBalance(file, opening.cutoffDate) === null) return '통장 기준일의 마감 잔액을 확인할 수 있는 파일을 선택해주세요. 파일에 잔액이 없으면 직접 입력을 사용해주세요.';
     if (file.bankCode !== account.bankCode || normalizeAccountNumber(file.accountNumber) !== normalizeAccountNumber(account.accountNumber)) return '통장 정보가 변경되었습니다. 은행 파일을 다시 선택해주세요.';
+    if (accounts.length < 2 && file.rows.some((row) => file.choices[row.id]?.included && file.choices[row.id].transfer)) return '계좌 간 이체는 통장이 두 개 이상 필요합니다. 해당 거래의 설정을 다시 확인해주세요.';
+    if (file.rows.some((row) => {
+      const choice = file.choices[row.id];
+      return choice?.included && choice.transfer && (!choice.transferAccountId || choice.transferAccountId === account.clientId || !accounts.some((candidate) => candidate.clientId === choice.transferAccountId));
+    })) return '이체한 상대 관리 통장을 다시 선택해주세요.';
     const error = getRegistrationBankError(file, opening.cutoffDate, units, buildings);
     if (error) return error;
   }
@@ -135,9 +149,12 @@ export function restoreRegistrationBankDraft(value: unknown, preserveFile: boole
   for (const row of draft.rows) {
     const choice = draft.choices[row.id];
     if (!choice || typeof choice.included !== 'boolean' || typeof choice.transfer !== 'boolean' || !choice.receipt
+      || (choice.transferAccountId !== undefined && typeof choice.transferAccountId !== 'string')
+      || (choice.transferAllocations !== undefined && (!Array.isArray(choice.transferAllocations) || choice.transferAllocations.some((part) => !part || typeof part.buildingId !== 'string' || typeof part.amount !== 'string')))
       || !['AUTO', 'HOUSEHOLD', 'OTHER', 'SHARED'].includes(choice.receipt.kind)
       || [choice.receipt.unitId, choice.receipt.category, choice.receipt.note].some((field) => typeof field !== 'string')
       || !choice.expense || !['EQUAL', 'RATIO', 'AMOUNT', 'PROPERTY'].includes(choice.expense.mode)
+      || (choice.expense.accountCode != null && !/^8\d{2}$/.test(choice.expense.accountCode))
       || typeof choice.expense.category !== 'string' || typeof choice.expense.note !== 'string'
       || !Array.isArray(choice.expense.allocations) || choice.expense.allocations.some((share) => !share || typeof share.label !== 'string'
         || typeof share.amount !== 'string' || !(share.buildingId === null || typeof share.buildingId === 'string')
@@ -159,7 +176,14 @@ export function createRegistrationBankImports(opening: OpeningBalancesDraft, acc
       const choice = draft.choices[row.id];
       if (choice.transfer) return {
         id: row.id,
-        transfer: true
+        transfer: true,
+        transferAccountIndex: accounts.findIndex((candidate) => candidate.clientId === choice.transferAccountId),
+        ...(choice.transferAllocations?.length ? {
+          transferAllocations: calculateTransferAllocation(row.amount, choice.transferAllocations, true).allocations.map((part) => ({
+            buildingClientId: part.buildingId,
+            amount: part.amount
+          }))
+        } : {})
       };
       const receipt = choice.receipt;
       if (row.direction === 'EXPENSE') return {
@@ -211,6 +235,9 @@ function distribution(amount: string, expense: RegistrationBankChoice['expense']
   const result = calculateExpenseAllocation(amount, expense, purpose);
   return {
     category: expense.category.trim(),
+    ...(purpose === 'expense' && expense.accountCode ? {
+      accountCode: expense.accountCode
+    } : {}),
     note: expense.note.trim() || null,
     mode: expense.mode,
     saveAsRule: purpose === 'expense' && expense.saveAsRule,

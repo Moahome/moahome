@@ -16,9 +16,18 @@ export interface RegistrationRequest {
     residenceType: 'RESIDENT' | 'EXTERNAL';
     name?: string;
     phone?: string;
+    phoneConsent?: boolean;
     buildingClientId?: string | null;
     unitNumber?: string;
   };
+  residents?: {
+    buildingClientId: string | null;
+    unitNumber: string;
+    name: string;
+    phone: string | null;
+    phoneConsent: boolean;
+    relationType: 'OWNER' | 'TENANT' | 'FAMILY' | 'OTHER';
+  }[];
   basicInfo: BasicInfo;
   buildings: BuildingDraft[];
   units: Omit<UnitDraft, 'clientId'>[];

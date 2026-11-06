@@ -4,7 +4,7 @@ import type { BankingTransaction } from '../api/bankingApiTypes';
 export function getBankingDuplicateIds(rows: readonly BankingTransaction[], asOf: string): Set<string> {
   const manual = (row: BankingTransaction) => row.sourceType === 'MANUAL' || row.id.startsWith('receipt:');
   const key = (row: BankingTransaction) => `${row.accountId}:${row.date}:${row.direction}:${BigInt(row.amount)}`;
-  const originalKeys = new Set(rows.filter((row) => !manual(row) && row.date <= asOf).map(key));
+  const originalKeys = new Set(rows.filter((row) => !manual(row) && row.sourceType !== 'TRANSFER_AUTO' && !(row.automaticTransfer && row.status === 'CANCELED') && row.date <= asOf).map(key));
 
   return new Set(rows.filter((row) => manual(row) && row.date <= asOf
     && ['PENDING', 'ON_HOLD', 'CONFIRMED'].includes(row.status) && originalKeys.has(key(row))).map((row) => row.id));

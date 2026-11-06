@@ -1,6 +1,10 @@
 'use client';
 
-import { BankImportEditor } from '@/entities/banking';
+import {
+  BankImportEditor,
+  TransferAllocationEditor,
+  getExpenseAccountLabel
+} from '@/entities/banking';
 import { ApiError } from '@/shared/api';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
@@ -44,9 +48,11 @@ import type {
 import styles from './registrationBankUpload.module.css';
 
 /** 은행별 검증과 기존 거래 설정을 재사용하며 모든 입력은 최종 등록 전까지 초안으로만 유지합니다. */
-export function RegistrationBankUpload({ account, cutoffDate, draft, units, buildings, support, onChange, onBalance, onBusyChange }: {
+export function RegistrationBankUpload({ account, accounts, canTransfer, cutoffDate, draft, units, buildings, support, onChange, onBalance, onBusyChange }: {
   support: RegistrationBankSupport;
   account: RegistrationAccount;
+  accounts: RegistrationAccount[];
+  canTransfer: boolean;
   cutoffDate: string;
   draft?: RegistrationBankDraft;
   units: UnitDraft[];
@@ -181,14 +187,26 @@ export function RegistrationBankUpload({ account, cutoffDate, draft, units, buil
   /** 현재 거래 설정을 검사하되 다른 페이지 거래의 검증은 다음 단계에서도 전체 기준으로 수행합니다. */
   function completeSetting() {
     if (!draft || !row) return;
+    // 통장을 하나로 줄였으면 이전 이체 분류를 일반 거래로 다시 확인한 뒤에만 확정합니다.
+    const choice = {
+      ...draft.choices[row.id],
+      transfer: canTransfer && draft.choices[row.id].transfer
+    };
     const error = getRegistrationBankError({
       ...draft,
+      choices: {
+        ...draft.choices,
+        [row.id]: choice
+      },
       rows: [row]
     }, cutoffDate, units, buildings);
     if (error) { setNotice((previous) => ({
       id: (previous?.id ?? 0) + 1,
       message: error
     })); return; }
+    if (!canTransfer && draft.choices[row.id].transfer) updateChoice(row.id, {
+      transfer: false
+    });
     setEditingId(null);
   }
 
@@ -372,6 +390,12 @@ export function RegistrationBankUpload({ account, cutoffDate, draft, units, buil
                 render: (entry) => entry.direction === 'INCOME' ? '입금' : '출금'
               },
               {
+                key: 'account-code',
+                header: '계정과목',
+                render: (entry) => draft.choices[entry.id]?.transfer ? '103 통장간 거래' : entry.direction === 'EXPENSE'
+                  ? getExpenseAccountLabel(draft.choices[entry.id]?.expense) : '—'
+              },
+              {
                 key: 'payer',
                 header: '입금자·지출명',
                 render: (entry) => entry.payer
@@ -385,11 +409,7 @@ export function RegistrationBankUpload({ account, cutoffDate, draft, units, buil
                 key: 'amount',
                 header: '금액',
                 render: (entry) => formatWon(BigInt(entry.amount) * (entry.direction === 'EXPENSE' ? BigInt(-1) : BigInt(1)))
-              },
-              {
-                key: 'balance',
-                header: '은행 잔액',
-                render: (entry) => entry.balance === null ? '—' : formatWon(BigInt(entry.balance))
+
               }
             ]}
           />
@@ -441,21 +461,56 @@ export function RegistrationBankUpload({ account, cutoffDate, draft, units, buil
             <p>
               {`${row.date} · ${row.payer} · ${formatWon(BigInt(row.amount))}`}
             </p>
-            <label
-              className={styles.transfer}
-            >
-              <input
-                type={'checkbox'}
-                checked={draft.choices[row.id].transfer}
-                onChange={(event) => updateChoice(row.id, {
-                  transfer: event.target.checked
-                })}
-              />
-              관리 통장 간 이체
-            </label>
-            {!draft.choices[row.id].transfer && (
+            {canTransfer && (
+              <label
+                className={styles.transfer}
+              >
+                <input
+                  type={'checkbox'}
+                  checked={draft.choices[row.id].transfer}
+                  onChange={(event) => updateChoice(row.id, {
+                    transfer: event.target.checked
+                  })}
+                />
+                관리 통장 간 이체
+              </label>
+            )}
+            {canTransfer && draft.choices[row.id].transfer && (
+              <>
+                <p>
+                  103 통장간 거래
+                </p>
+                <Dropdown
+                  label={row.direction === 'INCOME' ? '출금 통장' : '입금 통장'}
+                  value={draft.choices[row.id].transferAccountId ?? ''}
+                  options={accounts.filter((candidate) => candidate.clientId !== account.clientId).map((candidate) => ({
+                    value: candidate.clientId,
+                    label: candidate.alias || candidate.bankName
+                  }))}
+                  onChange={(value) => updateChoice(row.id, {
+                    transferAccountId: value
+                  })}
+                />
+                <p>
+                  상대 통장과 동별 보유금을 같은 금액으로 함께 옮깁니다. 수납·비용은 새로 만들지 않습니다.
+                </p>
+                {targets.length > 0 && (
+                  <TransferAllocationEditor
+                    key={row.id}
+                    total={row.amount}
+                    buildings={targets}
+                    value={draft.choices[row.id].transferAllocations ?? []}
+                    onChange={(value) => updateChoice(row.id, {
+                      transferAllocations: value
+                    })}
+                  />
+                )}
+              </>
+            )}
+            {!(canTransfer && draft.choices[row.id].transfer) && (
               <BankImportEditor
                 direction={row.direction}
+                allowTransfer={canTransfer}
                 amount={row.amount}
                 suggestedUnitId={draft.choices[row.id].receipt.unitId}
                 units={labels}
@@ -465,7 +520,9 @@ export function RegistrationBankUpload({ account, cutoffDate, draft, units, buil
                 onReceiptChange={(receipt) => updateChoice(row.id, {
                   receipt
                 })}
-                onExpenseChange={(expense) => updateChoice(row.id, {
+                onExpenseChange={(expense) => updateChoice(row.id, expense.accountCode === '103' ? {
+                  transfer: true
+                } : {
                   expense
                 })}
               />

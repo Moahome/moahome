@@ -2,7 +2,7 @@
 
 이 문서는 Client와 Server가 함께 사용하는 관리대상 등록의 기본 정보 검증, 최종 일괄 저장과 결과 조회 API 계약을 정의합니다. API의 입력, 응답, 오류와 중복 요청의 의미를 이 문서에서 관리합니다.
 
-수정일: 2026-10-24. 업무 정책은 [도메인 규칙](../domain/domainRules.md), 저장 구조는 [ERD](../domain/erd.md), 진행 현황은 [프로젝트 개요](../domain/projectOverview.md#4-현재-개발-상태)를 따릅니다. 화면·초안은 [Client 등록](../../client/docs/propertyRegistration.md), 내부 저장·동시성은 [Server 등록](../../server/docs/propertyRegistration.md)에서 관리합니다.
+수정일: 2026-11-06. 업무 정책은 [도메인 규칙](../domain/domainRules.md), 저장 구조는 [ERD](../domain/erd.md), 진행 현황은 [프로젝트 개요](../domain/projectOverview.md#4-현재-개발-상태)를 따릅니다. 화면·초안은 [Client 등록](../../client/docs/propertyRegistration.md), 내부 저장·동시성은 [Server 등록](../../server/docs/propertyRegistration.md)에서 관리합니다.
 
 ## 1. 공통 적용 기준
 
@@ -14,7 +14,7 @@
 
 ### 공통 인증과 오류
 
-세 API 모두 `Authorization: Bearer <Access Token>`으로 인증하며 `Cache-Control: no-store`인 JSON을 반환합니다. 업무 API는 Refresh 쿠키로 인증하지 않고 `X-CSRF-TOKEN`을 요구하지 않습니다. 인증 / CORS는 [보안 설계](../development/securityDesign.md)를 따릅니다. 오류에는 입력 원문, 계좌번호, 토큰이나 내부 저장소 예외를 포함하지 않습니다.
+등록 관련 API는 모두 `Authorization: Bearer <Access Token>`으로 인증하며 `Cache-Control: no-store`인 JSON을 반환합니다. 업무 API는 Refresh 쿠키로 인증하지 않고 `X-CSRF-TOKEN`을 요구하지 않습니다. 인증 / CORS는 [보안 설계](../development/securityDesign.md)를 따릅니다. 오류에는 입력 원문, 계좌번호, 토큰이나 내부 저장소 예외를 포함하지 않습니다.
 
 | HTTP | code | 발생 조건 |
 | --- | --- | --- |
@@ -138,6 +138,7 @@ HTTP `200 OK`로 정리한 기본 정보 객체를 직접 반환합니다. 선�
 | `basicInfo` | object | 필수 | 기본 정보 검증 API와 같은 입력 객체 |
 | `buildings` | object array | 필수 | 동 없음이면 빈 배열, 동 있음이면 최소 1개 |
 | `units` | object array | 필수 | 최소 1개의 세대 |
+| `residents` | object array | 신규 등록 필수 | 최대 1,000명, 거주 관리소장을 포함한 주민 최소 1명. 세부 계약은 아래 초기 주민 명부 입력 참조 |
 | `bankAccounts` | object array | 필수 | 최소 1개의 공용 관리계좌 |
 | `feeItems` | object array | 필수 | 최소 1개의 기본 관리비 항목 |
 
@@ -256,6 +257,9 @@ Client의 초기 관리계좌 화면은 국내 은행과 아래 예금 취급 �
     { "buildingClientId": "building-101", "unitNumber": "202", "displayName": "202호", "floor": 2, "status": "ACTIVE" },
     { "buildingClientId": "building-102", "unitNumber": "301", "displayName": "301호", "floor": 3, "status": "ACTIVE" },
     { "buildingClientId": "building-102", "unitNumber": "302", "displayName": "302호", "floor": 3, "status": "VACANT" }
+  ],
+  "residents": [
+    { "buildingClientId": "building-101", "unitNumber": "201", "name": "예시 주민", "phone": null, "phoneConsent": false, "relationType": "OTHER" }
   ],
   "bankAccounts": [
     {
@@ -453,13 +457,13 @@ EXTERNAL은 거주 필드를 보내지 않습니다. RESIDENT는 세대 대표�
 | --- | --- |
 | openingBalances.bankImports | 최대 100개. 통장별 `{accountIndex,fileName,content,rows}` |
 | fileName / content | 파일명 최대 255자, 원본 Base64 최대 6,990,508자(5MiB 파일). 합산 Base64 28,000,000자 이하 |
-| bankImports[].rows | 1~5,000개의 선택 거래 `{id,unitIndex?,incomeCategory?,incomeNote?,expense?,incomeAllocation?,transfer}`. id는 미리보기 원본 식별 UUID |
+| bankImports[].rows | 1~5,000개의 선택 거래 `{id,unitIndex?,incomeCategory?,incomeNote?,expense?,incomeAllocation?,transfer,transferAccountIndex?}`. id는 미리보기 원본 식별 UUID |
 | openingBalances.manualTransactions | 최대 5,000개. `{id,accountIndex,direction,date,amount,payer,purpose,unitIndex?,category?,note?,allocation?}` |
 | manualTransactions[].id | 초안 거래 UUID. 한 요청 안에서 중복 불가 |
 | direction / purpose | INCOME/EXPENSE, HOUSEHOLD/OTHER/SHARED. 세대 입금은 unitIndex 필수, 기타·동별 입금은 category 필수, SHARED는 allocation 필수 |
 | date / amount / payer | 미래 불가 거래일, 양수 15자리 정수 문자열 금액, 1~100자 입금자·지출명 |
 
-accountIndex·unitIndex는 최종 bankAccounts·units 배열의 0부터 시작하는 위치입니다. 분류·배분의 buildingClientId는 같은 요청의 동 참조입니다. 원본 행의 날짜·금액·방향을 클라이언트가 다시 보내 덮어쓰지 않습니다.
+accountIndex·unitIndex는 최종 bankAccounts·units 배열의 0부터 시작하는 위치입니다. `transferAccountIndex`는 이체 상대 통장의 bankAccounts 위치이며 자기 통장·범위 밖 참조를 허용하지 않습니다. 신규 화면은 이체 시 필수 지정하고 기존 생략 요청은 종전 원본 대기 방식을 유지합니다. 선택 `transferAllocations:[{buildingClientId,amount}]`는 해당 요청의 동 ID를 최종 동 UUID로 변환해 같은 이체에 저장합니다. 동이 있는 신규 화면은 이체 전액을 검증하며 기존 생략 요청의 재시도 지문은 유지합니다. 단일 원본 이체·대사·취소는 [통장 API](bankingManagement.md#한쪽-은행-원본에서-양쪽-이체-반영-2026-11-06)를 따릅니다. 분류·배분의 buildingClientId는 같은 요청의 동 참조입니다. 원본 행의 날짜·금액·방향을 클라이언트가 다시 보내 덮어쓰지 않습니다.
 
 배분 입력은 `{category,note?,mode,saveAsRule,allocations}`입니다. mode는 EQUAL/RATIO/AMOUNT/PROPERTY이며, allocations는 최대 100개의 `{buildingClientId?,label?,amount?,percentage?}`입니다. PROPERTY는 동 구분 없는 출금에만 허용하고 allocations는 빈 배열입니다. 다른 방식은 실제 배분이 필요하며 기존 원 단위 합계·비율·동 참조 검증을 적용합니다. 입금에는 PROPERTY를 허용하지 않습니다. 이체 표시 거래에는 다른 분류를 함께 보내지 않습니다.
 
@@ -476,3 +480,25 @@ accountIndex·unitIndex는 최종 bankAccounts·units 배열의 0부터 시작�
 ## 관리대상 생성 권한 (2026-11-03)
 
 기본 정보 검증, 등록 전 은행 지원 조회·미리보기, 신규 최종 등록에는 현재 계정의 별도 생성 허용이 필요합니다. 시스템 관리자 역할만으로 이 검사를 생략하지 않습니다. 미허용은 `403 / PROPERTY_CREATION_NOT_ALLOWED`이고 부분 저장하지 않습니다. 이미 성공한 동일 등록 요청은 권한 회수 뒤에도 현재 관리대상 접근권한과 기존 본문을 확인해 결과를 복원합니다. 상세 계약은 [시스템 관리 API](systemAdministration.md)를 따릅니다.
+
+## 초기 지출 계정과목 선택 (2026-11-06)
+
+`openingBalances.bankImports[].rows[].expense`와 `openingBalances.manualTransactions[].allocation`에 선택 `accountCode`를 받습니다. 값·조회·유효성은 [지출 계정과목 계약](bankingManagement.md#지출-계정과목-선택-2026-11-06)을 따릅니다. 초기 설정은 기본 비용 코드를 선택하며 동·세대 초안과 함께 마지막 전체 트랜잭션에서 저장합니다. 입금·이체의 비용 과목 입력은 제공하지 않습니다.
+
+미선택 필드는 JSON 직렬화에서 생략해 이전 등록 요청의 지문을 보존하고 선택값은 요청 지문에 포함합니다. 실패·응답 유실 뒤 같은 요청의 과목 선택을 바꾸지 않습니다. 기존 최종 등록의 원자적 저장·결과 확인 기준을 유지합니다.
+
+## 초기 주민 명부 입력 (2026-11-06)
+
+신규 최종 등록은 `residents` 배열을 제출합니다. 최대 1,000개이며 거주 관리소장만 등록하는 경우 빈 배열을 제출합니다. 생략은 이전 형식으로 이미 성공한 요청의 재시도에만 허용합니다. 최종 등록의 원자적 저장 범위에 일반 주민과 현재 세대 관계를 포함합니다.
+
+각 행은 `{buildingClientId,unitNumber,name,phone,phoneConsent,relationType}`입니다. 소속은 같은 요청의 동·세대 초안 참조이며 동 없음이면 buildingClientId는 null입니다. 이름은 필수, 전화번호는 선택이며 입력한 번호는 `phoneConsent: true`가 필요합니다. 주민 구분은 OWNER / TENANT / FAMILY / OTHER이고 생략 시 OTHER입니다. 담당자의 전화번호 입력에도 administrator.phoneConsent를 전달합니다. 사용자 ID·주민 권한·대표 여부를 입력받지 않습니다.
+
+서버는 유효한 거주 관리소장을 포함해 주민 최소 한 명을 확인합니다. 해당 관리소장과 같은 세대·앞뒤 공백을 제거한 이름인 행은 번호와 무관하게 제외하며 일반 중복 규칙을 대체하지 않습니다. 대표 지정과 제외의 업무 기준은 [초기 주민 정책](../domain/domainRules.md#초기-설정-주민-명부-단계-추가-2026-11-06)을 따릅니다. 주민의 잘못된 입력은 최종 등록의 INVALID_REQUEST에 residents 필드 오류로 안내합니다. 이미 성공한 이전 요청은 기존 직렬화·HMAC과 현재 접근권한을 확인해 재생성 없이 반환합니다.
+
+### 저장 전 엑셀 검증
+
+`POST /api/property-registrations/resident-import/preview`는 Bearer 인증·현재 생성 허용을 확인한 multipart 요청입니다. `file`은 기존 주민 .xlsx 양식(최대 5MB·1,000명), `setup`은 application/json 파트입니다.
+
+setup은 `{hasBuildings,buildings,units,administrator}`입니다. buildings는 `{clientId,name}`, units는 `{buildingClientId,unitNumber}` 배열이고 거주 담당자일 때만 administrator에 `{name,unitIndex}`를 제출합니다. unitIndex는 units 배열의 0부터 시작하는 위치입니다. 외부 담당자는 null입니다. 저장 전 초안만 검증하며 명부·엑셀 임시 DB 레코드를 생성하지 않습니다.
+
+응답은 `[{rowNumber,buildingClientId,unitNumber,name,phone,phoneConsent,relationType,status,reason}]`이며 Cache-Control: no-store입니다. status는 READY / ERROR / DUPLICATE이고 전화번호는 동의 O인 정상 처리 범위만 정규화해 반환합니다. 동 유무별 열·동의 O/X·파일 검증은 [주민 엑셀 계약](residentManagementApi.md#엑셀-검증과-일괄-등록)을 공유합니다. 업로드 미디어 타입은 multipart/form-data이며 위 JSON 전용 415 문구는 JSON 등록 API에 적용됩니다.

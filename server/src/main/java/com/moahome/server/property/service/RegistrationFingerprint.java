@@ -64,6 +64,9 @@ public class RegistrationFingerprint {
 			// 이전 요청의 지문은 보존하고 새 인계 금액·날짜도 같은 요청 ID에서 변경하지 못하게 합니다.
 			if (request.openingBalances() != null)
 				fields.add(request.openingBalances());
+			if (request.residents() != null) {
+				fields.add(request.residents());
+			}
 			byte[] payload = mapper.writeValueAsBytes(fields);
 			return HexFormat.of().formatHex(mac.doFinal(payload));
 		} catch (GeneralSecurityException exception) {

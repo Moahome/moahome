@@ -10,6 +10,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import com.moahome.server.common.validation.TextValues;
+import com.moahome.server.common.security.PhoneConsent;
 
 /** 가입 신청은 승인 전 권한을 만들지 않고 관리자가 확인한 명부와 계정을 승인 시 연결합니다. */
 @Getter
@@ -47,6 +48,9 @@ public class MembershipRequest {
 	@JdbcTypeCode(SqlTypes.CHAR)
 	@Column(name = "request_phone_last4", columnDefinition = "char(4)")
 	private String phoneLast4;
+
+	@Embedded
+	private PhoneConsent phoneConsent = PhoneConsent.none();
 
 	@Column(name = "match_status")
 	private String matchStatus;
@@ -123,12 +127,21 @@ public class MembershipRequest {
 
 	/** 관리소장이 변경한 현재 연락처를 확인된 신청에 함께 반영하며 미확인 사람의 신청을 전화번호로 추측하지 않습니다. */
 	public void changePhone(String encrypted, String hmac, String last4, OffsetDateTime at) {
-		if (encrypted == null || hmac == null || last4 == null)
-			throw new IllegalArgumentException("Request contact required");
+		if ((encrypted == null) != (hmac == null) || (encrypted == null) != (last4 == null))
+			throw new IllegalArgumentException("Incomplete contact");
 		phoneEncrypted = encrypted;
 		phoneHmac = hmac;
 		phoneLast4 = last4;
+		phoneConsent = PhoneConsent.none();
 		updatedAt = at;
+	}
+
+	/** 신청자의 본인 동의와 관리자의 번호 정정 확인을 구분하고 현재 번호에만 연결합니다. */
+	public void confirmPhone(PhoneConsent consent) {
+		if (phoneEncrypted == null || consent == null || !consent.isConfirmed()) {
+			throw new IllegalArgumentException("Confirmed contact required");
+		}
+		phoneConsent = consent.copy();
 	}
 
 	/** 삭제한 주민의 대기 신청이 나중에 승인되어 권한을 다시 부여하지 않도록 현재 대기를 취소합니다. */

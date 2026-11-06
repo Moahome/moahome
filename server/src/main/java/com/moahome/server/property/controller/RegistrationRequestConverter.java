@@ -81,7 +81,7 @@ public class RegistrationRequestConverter extends AbstractHttpMessageConverter<O
 		    "displayName", "floor", "status", "bankAccounts", "bankCode", "bankName", "accountNumber", "holderName",
 		    "isPrimary", "feeItems", "itemCode", "itemName", "defaultAmount", "administrator", "residenceType", "phone",
 		    "openingBalances", "cutoffDate", "firstBillingMonth", "receivable", "credit", "accountIndex", "amount",
-		    "cashCutoffDate");
+		    "cashCutoffDate", "residents", "phoneConsent", "relationType");
 		StringBuilder path = new StringBuilder();
 		for (var reference : exception.getPath()) {
 			String name = reference.getPropertyName();

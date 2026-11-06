@@ -12,15 +12,21 @@ import {
   fillAllocationRemainder,
   sortExpenseLabels
 } from '../../model/allocation';
-import type { ExpenseDraft } from '../../model/allocationTypes';
+import { ExpenseAccountSelect } from '../expense-account-select/expenseAccountSelect';
+import type {
+  ExpenseAccountOption,
+  ExpenseDraft
+} from '../../model/allocationTypes';
 import styles from './allocationEditor.module.css';
 
 /** 부담 동과 외부 부담처를 명시적으로 정하고 합계·원 미만 잔여액을 확인하게 합니다. */
-export function AllocationEditor({ total, draft, buildings, onChange, disabled = false, purpose = 'expense', showDetails = true, compact = false, showRule = true, sectioned = false }: {
-  total: string; draft: ExpenseDraft; buildings: { id: string; label: string }[]; onChange: (draft: ExpenseDraft) => void; disabled?: boolean; purpose?: 'expense' | 'income'; showDetails?: boolean; compact?: boolean; showRule?: boolean; sectioned?: boolean;
+export function AllocationEditor({ total, draft, buildings, expenseAccounts, onChange, disabled = false, purpose = 'expense', showDetails = true, compact = false, showRule = true, sectioned = false }: {
+  expenseAccounts?: readonly ExpenseAccountOption[];
+  total: string; draft: ExpenseDraft; buildings: { id: string; label: string }[]; onChange: (draft: ExpenseDraft) => void; disabled?: boolean; purpose?: 'expense' | 'income' | 'transfer'; showDetails?: boolean; compact?: boolean; showRule?: boolean; sectioned?: boolean;
 }) {
-  const income = purpose === 'income';
-  const result = calculateExpenseAllocation(total, draft, purpose);
+  const income = purpose !== 'expense';
+  const transfer = purpose === 'transfer';
+  const result = calculateExpenseAllocation(total, draft, income ? 'income' : 'expense');
   function changeMode(mode: ExpenseDraft['mode']) {
     onChange({
       ...draft,
@@ -40,7 +46,7 @@ export function AllocationEditor({ total, draft, buildings, onChange, disabled =
   return (
     <fieldset
       className={styles.editor}
-      aria-label={income ? '입금 배분 설정' : '지출 설정'}
+      aria-label={transfer ? '이체 배분 설정' : income ? '입금 배분 설정' : '지출 설정'}
       data-mode={draft.mode}
       data-compact={compact}
       data-sectioned={sectioned}
@@ -95,6 +101,17 @@ export function AllocationEditor({ total, draft, buildings, onChange, disabled =
             disabled={disabled}
           />
         </div>
+        {!income && showDetails && (
+          <ExpenseAccountSelect
+            value={draft.accountCode}
+            options={expenseAccounts}
+            disabled={disabled}
+            onChange={(accountCode) => onChange({
+              ...draft,
+              accountCode
+            })}
+          />
+        )}
         <div
           className={styles.targets}
           role={'group'}
@@ -150,7 +167,7 @@ export function AllocationEditor({ total, draft, buildings, onChange, disabled =
         <p
           className={styles.help}
         >
-          {income ? '선택한 동에 입금액을 나눕니다.' : '선택한 곳에 출금액을 나눕니다. 외부 부담액도 지정해주세요.'}
+          {transfer ? '선택한 동에 이체금액을 나눕니다.' : income ? '선택한 동에 입금액을 나눕니다.' : '선택한 곳에 출금액을 나눕니다. 외부 부담액도 지정해주세요.'}
         </p>
       </div>
       <div
@@ -291,7 +308,7 @@ export function AllocationEditor({ total, draft, buildings, onChange, disabled =
             role={'status'}
             className={styles.warning}
           >
-            {result.allocationError}
+            {transfer ? result.allocationError.replaceAll('입금', '이체') : result.allocationError}
           </p>
         )}
       </div>

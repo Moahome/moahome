@@ -250,7 +250,7 @@ class PropertyRegistrationPersistenceTest {
 	void residentCreatorIsImmediatelyLinkedOnceWithProtectedPhone(boolean hasBuildings) {
 		var original = RegistrationFixtures.request(UUID.randomUUID(), hasBuildings);
 		var profile = new PropertyRegistrationRequest.AdministratorInput("RESIDENT", "실제 관리소장", "010-1234-5678",
-		    hasBuildings ? "a" : null, "201");
+		    hasBuildings ? "a" : null, "201", true);
 		var request = withAdministrator(original, profile);
 		var result = registrations.register(userId, request);
 		var creator = result.response().administrator();
@@ -283,14 +283,14 @@ class PropertyRegistrationPersistenceTest {
 	}
 
 	@Test
-	void externalCreatorCreatesOnlyAdminMembership() {
+	void externalCreatorCreatesAdminMembershipAndSeparateResident() {
 		var request = withAdministrator(RegistrationFixtures.request(UUID.randomUUID(), false),
 		    new PropertyRegistrationRequest.AdministratorInput("EXTERNAL", null, null, null, null));
 		var response = registrations.register(userId, request).response();
 		assertThat(response.administrator().residenceType()).isEqualTo("EXTERNAL");
 		assertThat(response.administrator().residentId()).isNull();
-		assertThat(count("residents")).isZero();
-		assertThat(count("unit_residents")).isZero();
+		assertThat(count("residents")).isEqualTo(1);
+		assertThat(count("unit_residents")).isEqualTo(1);
 		assertThat(count("property_members")).isEqualTo(1);
 	}
 
@@ -332,16 +332,48 @@ class PropertyRegistrationPersistenceTest {
 		jdbc.execute(
 		    "create trigger fail_registration_result before insert on property_registration_results for each row execute function fail_registration()");
 		var request = withAdministrator(RegistrationFixtures.request(UUID.randomUUID(), false),
-		    new PropertyRegistrationRequest.AdministratorInput("RESIDENT", "관리소장", "010-1234-5678", null, "201"));
+		    new PropertyRegistrationRequest.AdministratorInput("RESIDENT", "관리소장", "010-1234-5678", null, "201", true));
 		assertThatThrownBy(() -> registrations.register(userId, request)).isInstanceOf(RuntimeException.class);
 		for (String table : TABLES)
 			assertThat(count(table)).as(table).isZero();
 	}
 
+
+	/** 화면을 거치지 않은 신규 요청도 주민 단계를 생략하거나 미동의 번호를 저장할 수 없습니다. */
+	@Test
+	void newRegistrationRequiresResidentsAndExplicitConsentBeforeCreatingAnyRows() {
+		var base = RegistrationFixtures.request(UUID.randomUUID(), false);
+		var missing = new PropertyRegistrationRequest(base.requestId(), base.basicInfo(), base.buildings(), base.units(), base.bankAccounts(), base.feeItems());
+		assertCode(() -> registrations.register(userId, missing), RegistrationErrorCode.INVALID_REQUEST);
+		var noConsent = new PropertyRegistrationRequest(base.requestId(), base.basicInfo(), base.buildings(), base.units(), base.bankAccounts(), base.feeItems(), null, null,
+		    List.of(new PropertyRegistrationRequest.ResidentInput(null, "201", "새 주민", "01012345678", false, "OTHER")));
+		assertCode(() -> registrations.register(userId, noConsent), RegistrationErrorCode.INVALID_REQUEST);
+		assertThat(count("properties")).isZero();
+		assertThat(count("residents")).isZero();
+	}
+
+	/** 관리소장과 같은 세대·이름인 행은 번호 차이와 관계없이 제외하고 다른 주민은 한 번만 저장합니다. */
+	@ParameterizedTest
+	@ValueSource(booleans = { false, true })
+	void initialRosterExcludesAdministratorAndAtomicallyStoresResidentsWithConsent(boolean hasBuildings) {
+		var base = RegistrationFixtures.request(UUID.randomUUID(), hasBuildings);
+		var administrator = new PropertyRegistrationRequest.AdministratorInput("RESIDENT", "관리소장", "01012345678", hasBuildings ? "a" : null, "201", true);
+		var request = new PropertyRegistrationRequest(base.requestId(), base.basicInfo(), base.buildings(), base.units(), base.bankAccounts(), base.feeItems(), administrator, null,
+		    List.of(new PropertyRegistrationRequest.ResidentInput(hasBuildings ? "a" : null, "201", "관리소장", "not-a-number", false, "OWNER"),
+		        new PropertyRegistrationRequest.ResidentInput(hasBuildings ? "b" : null, "202", "일반 주민", "01098765432", true, "TENANT")));
+		var outcome = registrations.register(userId, request);
+		assertThat(count("residents")).isEqualTo(2);
+		assertThat(jdbc.queryForObject("select name from residents where id=?", String.class, outcome.response().administrator().residentId())).isEqualTo("관리소장");
+		assertThat(jdbc.queryForList("select phone_consent_source from residents order by name", String.class)).containsExactlyInAnyOrder("SELF", "ADMIN");
+		assertThat(registrations.register(userId, request).created()).isFalse();
+		assertThat(count("residents")).isEqualTo(2);
+	}
+
 	private PropertyRegistrationRequest withAdministrator(PropertyRegistrationRequest request,
 	    PropertyRegistrationRequest.AdministratorInput profile) {
 		return new PropertyRegistrationRequest(request.requestId(), request.basicInfo(), request.buildings(),
-		    request.units(), request.bankAccounts(), request.feeItems(), profile);
+		    request.units(), request.bankAccounts(), request.feeItems(), profile, request.openingBalances(),
+		    "RESIDENT".equals(profile.residenceType()) ? List.of() : request.residents());
 	}
 
 	@ParameterizedTest
@@ -428,7 +460,7 @@ class PropertyRegistrationPersistenceTest {
 		var r = RegistrationFixtures.request(UUID.randomUUID(), false);
 		var request = new PropertyRegistrationRequest(r.requestId(), r.basicInfo(), r.buildings(), r.units(),
 		    r.bankAccounts(), List.of(new PropertyRegistrationRequest.FeeItemInput(null, "차감", -15000L),
-		        new PropertyRegistrationRequest.FeeItemInput(null, "영", 0L)));
+		        new PropertyRegistrationRequest.FeeItemInput(null, "영", 0L)), r.administrator(), r.openingBalances(), r.residents());
 		var outcome = registrations.register(userId, request);
 		assertThat(outcome.response().summary().monthlyDefaultAmount()).isEqualTo(-15000);
 		assertThat(jdbc.queryForList("select default_amount from fee_template_items order by sort_order",
@@ -484,7 +516,7 @@ class PropertyRegistrationPersistenceTest {
 		    .isEqualTo("2026-10-06");
 		var changed = new PropertyRegistrationRequest(request.requestId(), request.basicInfo(), request.buildings(),
 		    request.units(), request.bankAccounts(),
-		    List.of(new PropertyRegistrationRequest.FeeItemInput(null, "다름", 1L)));
+		    List.of(new PropertyRegistrationRequest.FeeItemInput(null, "다름", 1L)), request.administrator(), request.openingBalances(), request.residents());
 		assertCode(() -> registrations.register(userId, changed), RegistrationErrorCode.REGISTRATION_REQUEST_CONFLICT);
 		assertThat(count("properties")).isEqualTo(1);
 	}

@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.moahome.server.common.security.InvitationCodeSecurity;
 import com.moahome.server.common.security.PhoneSecurity;
+import com.moahome.server.common.security.PhoneConsent;
 import com.moahome.server.common.validation.TextValues;
 import com.moahome.server.membership.domain.*;
 import com.moahome.server.membership.dto.ResidentInvitations;
@@ -228,7 +229,8 @@ public class ResidentInvitationService {
 			throw failure("INVALID_INVITATION");
 		var resident = person(invitation.getPropertyId(), invitation.getResidentId());
 		return new ResidentInvitations.Preview(property.getId(), property.getName(), resident.getName(), label(invitation),
-		    resident.getPhoneLast4(), invitation.getStatus(), invitation.getExpiresAt(), invitation.getRevision());
+		    resident.getPhoneLast4(), invitation.getStatus(), invitation.getExpiresAt(), invitation.getRevision(),
+		    resident.getPhoneConsent().isConfirmed());
 	}
 
 	/** 동일 관리대상의 다른 주민 연결이나 관리자 역할을 덮어쓰지 않습니다. 기존 일반 신청도 임의 종료하지 않습니다. */
@@ -300,11 +302,19 @@ public class ResidentInvitationService {
 			throw new IllegalArgumentException("Invalid contact action");
 		if (!"SET".equals(action) && input.phone() != null)
 			throw new IllegalArgumentException("Unexpected contact");
+		if ("SET".equals(action) && !resident.getPhoneConsent().isConfirmed()) {
+			ResidentRegistrationService.requirePhoneConsent(input.phone(), input.phoneConsent());
+		}
 		var phone = "SET".equals(action) ? registrations.protectPhone(input.phone()) : null;
 		if ("SET".equals(action) && phone == null)
 			throw new IllegalArgumentException("Contact required");
 		invitation.requestChange(name, action, phone == null ? null : phone.encrypted(),
 		    phone == null ? null : phone.hmac(), phone == null ? null : phone.last4());
+		if (phone != null) {
+			// 같은 주민의 기존 동의는 번호 정정에도 유지하며 최초 수집에만 새 동의 기록을 만듭니다.
+			invitation.confirmPhone(resident.getPhoneConsent().isConfirmed() ? resident.getPhoneConsent()
+			    : PhoneConsent.confirm("SELF", actor, invitation.getRequestedAt()));
+		}
 		invitations.flush();
 		return new ResidentInvitations.Result("CHANGE_REQUESTED");
 	}
@@ -349,8 +359,9 @@ public class ResidentInvitationService {
 		String phone = "SET".equals(invitation.getPhoneAction())
 		    ? phones.getObject().decrypt(invitation.getPhoneEncrypted())
 		    : null;
-		management.update(actor, property, resident.getId(), new ResidentUpdateRequest(invitation.getRequestedName(),
-		    relation.getUnitId(), relation.getRelationType(), action, phone, null, resident.getUpdatedAt()));
+		management.updateFromInvitation(actor, property, resident.getId(), new ResidentUpdateRequest(invitation.getRequestedName(),
+		    relation.getUnitId(), relation.getRelationType(), action, phone, null, resident.getUpdatedAt(),
+		    invitation.getPhoneConsent().isConfirmed()), invitation.getPhoneConsent(), invitation.getId());
 		connect(invitation, resident, actor);
 		return workspace(actor, property);
 	}

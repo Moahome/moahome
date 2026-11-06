@@ -1,0 +1,221 @@
+.page {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+  container-type: inline-size;
+
+  > * {
+    min-width: 0;
+  }
+
+  .header {
+    align-items: flex-end;
+    margin-bottom: 0;
+  }
+
+  .notice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border: 1px solid var(--button-primary-border);
+    border-radius: 10px;
+    background: var(--button-primary-background);
+    color: var(--sub-text);
+    font-size: 13px;
+    line-height: 1.6;
+
+    > div {
+      flex: 1;
+      min-width: 0;
+    }
+
+    > button {
+      flex-shrink: 0;
+    }
+
+    > svg {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      color: var(--primary);
+    }
+
+    strong {
+      margin-right: 12px;
+      color: var(--primary);
+      font-weight: 700;
+    }
+  }
+
+  .filters {
+    display: grid;
+    grid-template-columns: minmax(0, 220px) minmax(0, 340px) auto;
+    justify-self: start;
+    width: min(100%, 740px);
+    align-items: end;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--card);
+
+    > button {
+      justify-self: start;
+    }
+  }
+
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .content {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 20px;
+  }
+
+  .statement {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--income-statement-border);
+    border-radius: 12px;
+    background: var(--card);
+
+    > [role='region'] {
+      border-radius: 0;
+    }
+
+    thead {
+      border-block: 1px solid var(--income-statement-border);
+      background: var(--income-statement-header-background);
+
+      th {
+        height: 48px;
+        padding: 11px 16px;
+        color: var(--foreground);
+        font-weight: 750;
+        line-height: 24px;
+      }
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--income-statement-border);
+      background: var(--card);
+
+      &:last-child {
+        border-bottom: 0;
+      }
+    }
+
+    tbody th,
+    tbody td {
+      padding: 10px 16px;
+    }
+
+    tr:has([data-row-kind='group']),
+    tr:has([data-row-kind='subtotal']) {
+      background: var(--income-statement-section-background);
+      font-weight: 750;
+    }
+
+    tr:has([data-row-kind='total']) {
+      background: var(--income-statement-total-background);
+      font-size: 18px;
+      font-weight: 750;
+
+      th,
+      td {
+        padding-block: 14px;
+      }
+    }
+  }
+
+  .panel-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 22px;
+
+    h2 {
+      font-size: 19px;
+      font-weight: 750;
+    }
+
+    p {
+      margin-top: 6px;
+      color: var(--sub-text);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    > span {
+      flex-shrink: 0;
+      padding-top: 4px;
+      color: var(--sub-text);
+      font-size: 12px;
+    }
+  }
+
+  .row-label {
+    &[data-row-kind='account'] {
+      padding-left: 14px;
+      font-weight: 400;
+    }
+
+    &:not([data-row-kind='account']) {
+      font-weight: 750;
+    }
+
+    &[data-row-kind='total'] {
+      color: var(--primary);
+    }
+  }
+
+  .money {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+
+    &[data-negative='true'] {
+      color: var(--income-statement-negative);
+    }
+  }
+
+  @container (max-width: 700px) {
+    .filters {
+      grid-template-columns: minmax(0, 1fr);
+      width: 100%;
+      padding: 14px;
+
+      > button {
+        width: 100%;
+      }
+    }
+
+    .summary {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+
+      > :last-child {
+        grid-column: 1 / -1;
+      }
+    }
+
+    .notice {
+      align-items: flex-start;
+
+      strong,
+      span {
+        display: block;
+      }
+    }
+
+    .panel-heading {
+      padding: 18px 12px;
+    }
+  }
+}

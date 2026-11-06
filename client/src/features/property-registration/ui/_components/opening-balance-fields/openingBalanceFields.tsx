@@ -3,6 +3,7 @@
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { CalendarPicker } from '@/shared/ui/calendar-picker';
+import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import {
   AmountInput,
   Radio,
@@ -60,6 +61,19 @@ export function OpeningBalanceFields({ kind, opening, units, buildings, onChange
       </p>
       <CalendarPicker
         label={'기존 장부 기준일'}
+        labelHelp={(
+          <InfoTooltip
+            label={'기존 장부 기준일 안내'}
+            title={'기존 장부 기준일'}
+            size={'sm'}
+          >
+            선택한 날짜의 마감 시점에 남아 있는 세대별 미납·선납 금액을 입력해주세요.
+            <br />
+            장부를 정리하기 쉽게 매월 1일 또는 말일을 권장합니다. 오늘 또는 이전의 다른 날짜도 선택할 수 있습니다.
+            <br />
+            통장 실제 잔액과 세대별 미납·선납은 별도로 관리합니다.
+          </InfoTooltip>
+        )}
         variant={'input'}
         maxDate={getOpeningToday}
         error={showErrors && (!opening.cutoffDate || opening.cutoffDate > getOpeningToday()) ? '기존 장부 기준일을 오늘 또는 이전 날짜로 선택해주세요.' : undefined}

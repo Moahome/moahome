@@ -438,6 +438,12 @@ WHERE building_id IS NULL AND deleted_at IS NULL;
 
 ## 5.4 residents
 
+2026-11-06 후속 [초기 설정 주민 명부 정책](domainRules.md#초기-설정-주민-명부-단계-추가-2026-11-06)은 미구현입니다. 거주 관리소장의 동·호수·이름이 같은 추가 행을 제외하는 초기 등록 검증이며, 일반 주민 전체에 같은 세대·이름 UNIQUE 제약을 추가하는 정책이 아닙니다. 기존 `residents`·`unit_residents`를 재사용하는 방향이고 상세 요청·저장 설계는 후속입니다.
+
+전화번호 동의 기록은 로컬 코드와 `V20261106131944__record_phone_collection_consent.sql`에 구현했습니다. 기존 운영 번호의 사전 동의 확인에 따른 이관과 실제 운영 적용 여부를 구분하며, 운영 DB에는 아직 적용하지 않았습니다. 업무 기준은 [동의 이관 정책](domainRules.md#기존-운영-전화번호의-동의-이관-2026-11-06)과 [동일 주민의 번호 정정 정책](domainRules.md#확정된-주민-상세수정삭제)을 따릅니다.
+
+아래 다섯 `phone_consent*` 컬럼은 `membership_requests`·`resident_invitations`에도 같은 타입·의미로 저장하며 `PhoneConsent` 임베디드를 사용합니다. 확인 상태는 번호와 유효한 출처·기록 시각을 요구하고 신규 확인에는 처리자·고지 버전도 필요합니다. 미확인 상태는 나머지 동의 메타데이터가 null입니다. 기존 동의가 완료된 동일 주민의 번호 정정은 이 메타데이터를 유지합니다. `V20261106132607__purge_deleted_resident_phone_copies.sql`은 이미 삭제된 주민과 확인 연결된 사본의 번호·동의 정보를 정리하며 업무 이력 ID는 보존합니다.
+
 ### 목적
 
 특정 Property에 등록된 실제 주민 명단.
@@ -456,6 +462,11 @@ WHERE building_id IS NULL AND deleted_at IS NULL;
 | `phone_encrypted` | text | Y | 전화번호 암호화 |
 | `phone_hmac` | char(64) | Y | 전화번호 대조/검색 |
 | `phone_last4` | char(4) | Y | 마스킹 표시 |
+| `phone_consent` | boolean | N | 기본 false, 전화번호 수집·이용 동의 확인 |
+| `phone_consent_source` | varchar(30) | Y | SELF / ADMIN / EXCEL / LEGACY_IMPORT |
+| `phone_consent_recorded_at` | timestamptz | Y | 확인 기록 시각. LEGACY_IMPORT는 이관 시각이며 과거 실제 동의일이 아님 |
+| `phone_consent_recorded_by` | uuid | Y | FK → users.id, 신규 확인 처리자. 과거 이관은 null |
+| `phone_consent_notice_version` | varchar(30) | Y | 신규 PHONE_V1, 과거 이관은 null |
 | `user_id` | uuid | Y | 가입 승인 후 FK → users.id |
 | `status` | varchar(20) | N | `ACTIVE / MOVED_OUT / INACTIVE` |
 | `created_at` | timestamptz | N | 생성 |
@@ -528,6 +539,8 @@ CREATE UNIQUE INDEX unit_residents_active_resident_idx
 재입주 시 새 가입 요청과 승인을 거치며 과거 퇴거 관계를 덮어쓰거나 이전 접근권한을 자동 복구하지 않는다. 관리소장의 세대 이동은 기존 관계를 종료하고 새 현재 관계를 저장한다. 별도 재입주 흐름은 후속 범위이다.
 
 ---
+
+2026-11-06 엑셀 전화번호 동의는 기존 `resident_import_batches.rows_payload`에 boolean `phoneConsent`로 함께 보존합니다. false·미존재이면 `phoneEncrypted`·`phoneLast4`를 저장하거나 사용하지 않고 최종 주민의 보호 연락처 3개 컬럼도 null로 저장합니다. 영속 저장 시에는 [주민 동의 컬럼](#54-residents)도 기록합니다. 업무 기준은 [주민 엑셀 정책](domainRules.md#확정된-주민-엑셀-일괄-등록)을 따릅니다.
 
 ### 주민 등록 요청 결과 (`resident_registration_results`)
 
@@ -1231,9 +1244,14 @@ Soft Delete 없음.
 - bank_accounts.account_alias: 선택 varchar(100). 용도 Enum이나 필수 동 연결을 추가하지 않습니다. 미삭제 `(property_id,bank_code,account_number_hmac)` 유일 인덱스와 활성 기본 통장 유일 인덱스를 적용합니다. 지연 제약으로 커밋 시 공용 활성 기본 계좌 정확히 1개를 검증합니다. 기본 전환·종료는 과거 FK를 바꾸지 않습니다.
 - bank_transactions.transfer_candidate: NOT NULL boolean, 기존 원본은 false로 보정합니다. 원본 금액·방향은 유지하고 내부 이동의 업무 분류 여부만 나타냅니다.
 - bank_transfers: UUID id PK, property_id, outgoing_id, incoming_id, created_by/created_at, 선택 canceled_by/canceled_at. 같은 대상의 원본 복합 FK와 활성 입금·출금별 유일 인덱스를 사용합니다. 방향·통장 차이·금액 일치·유효 원본을 DB에서도 검사합니다. 연결은 삭제·덮어쓰기하지 않고 취소 감사만 한 번 기록합니다.
+- bank_transfer_allocations(2026-11-06): UUID `id` PK, `property_id`, `transfer_id`, `building_id`, 양수 원 단위 `amount`, 생성자·시각. 같은 대상 이체·동의 복합 FK, 이체×동 유일성, 전액 합계의 지연 검증을 둡니다. 이동 배분은 덮어쓰거나 삭제하지 않고 이체 취소 여부로 양쪽 집계를 함께 제외합니다. `V20261106110951__connect_transfer_building_ownership.sql`에 구현했습니다.
+- bank_transfer_postings(2026-11-06): UUID `id` PK, `property_id`, 필수 `source_transaction_id`(유일), `counterpart_account_id`, 선택 `counterpart_transaction_id`(유일), `accounting_account_id`, 생성자·시각과 선택 취소자·시각. 원본·상대 통장·103 자산 계정은 같은 대상의 복합 FK로 연결합니다. 실제 상대 원본이 없을 때만 이체에서 장부 행을 파생하며 은행 원본 테이블에 가짜 거래를 추가하지 않습니다. 상대 원본은 같은 날짜·금액·반대 방향·지정 통장으로 한 번만 대사합니다. 기존 이체·다른 자동 이체와 원본 중복 사용, 수납·지출 분류 중복, 이력 삭제와 활성 원본 삭제를 DB에서도 차단합니다. 취소 상태·생성 정보는 불변이며 취소 후 대사는 원본 연결만 허용합니다. `V20261106101642__add_single_source_bank_transfer_postings.sql`은 기존 회계 설정에 누락된 103 자산 계정을 추가하며 같은 코드를 덮어쓰지 않습니다.
+
 - DB는 이체 원본의 수납·지출 생성과 금액·계좌·분류 변형을 막고 연결 중인 원본 삭제는 지연 제약으로 양쪽 동시 삭제를 검증합니다. 취소한 연결은 보존하며 새 UUID로 다시 연결합니다.
 
 후속 사용자 요청에 따라 building_cash_openings와 building_cash_opening_changes는 bank_account_id 복합 FK와 통장×동 유일성을 사용합니다. 기존 단일 통장 등록값은 원래 통장으로 이관하고 여러 통장 중 소속을 정할 수 없는 값은 null로 보관해 명시적 확인에 사용합니다. 금액·기준일·버전·정정 이력은 보존합니다. bank_opening_balances는 동별 보유금과 별개인 은행 실제 잔액 인계값입니다. 2026-11-01 후속 요청의 통장별 초기 정정 화면은 [Client 설계](../../client/docs/bankingManagement.md#통장별-초기-잔액-정정과-기준-잔고-시안-2026-11-01)를 따르며 저장은 기존 인계값 또는 독립 초기 버전과 공통 정정 이력을 사용합니다. 2026-11-01 장부 기본 표시 변경은 bank_opening_balances의 통장 초기 잔액에 기존 입출금을 누적·역산하는 파생 조회이며 동별 시작 보유금과 분리합니다. 저장 구조·금액을 변경하거나 차이를 자동 재배분하지 않습니다. 운영 중 직접 확인 기록은 아래 2026-10-24 저장 구현을 따릅니다. 미확인 잔액을 0원으로 생성하지 않습니다. 정식 회계전표는 추가하지 않습니다.
+
+2026-11-06 최종 사용자 정정으로 은행 확인값은 DB 과거 자료로 보존하며 화면·현재 잔액·합계·정산 점검·보고서에서 사용하지 않습니다. bank_transactions.balance는 은행 원본의 거래 후 금액으로 보존하고 시작 기준이 없을 때 최초 거래의 계산 근거로만 사용할 수 있습니다. bank_balance_checks의 직접 확인 금액은 현재 장부의 시작 기준으로 대체하지 않습니다. 저장된 금액·이력·기존 Migration은 변경하지 않습니다.
 
 ### 은행 업로드 식별·메모 구현 (2026-10-23)
 
@@ -1345,7 +1363,7 @@ Soft Delete 없음.
 
 ## 10.4 expense_lines
 
-상태: 후속 설계, 미구현. 현재는 출금 한 건당 expenses의 지출명을 저장합니다.
+상태: 저장 상세 설계, 미구현. 현재는 출금 한 건당 expenses의 지출명을 저장합니다. 2026-11-04 [확정 범위](domainRules.md#회계정산-개발-범위와-처리-기준-2026-11-04-사용자-확정)에 따라 과목별 지출 분할과 분할별 동·외부 부담 연결은 이번 회계 개발에 포함하며, 아래 컬럼은 최종 DDL이 아닙니다.
 
 ### 목적
 
@@ -1430,13 +1448,48 @@ Soft Delete 없음.
 
 # 11. 회계
 
-2026-10-24 개발 우선순위에 따라 아래 회계 테이블은 **후속 설계안**으로 유지합니다. [도메인 규칙](domainRules.md#9-회계)의 범위에 따라 자동전표·원장을 월별 정산 조회의 선행 조건으로 구현하지 않습니다. 이 절의 정의는 실제 Migration 적용이나 회계 구현 완료를 의미하지 않습니다.
+아래 11.0은 2026-11-04 손익 원천 연결에 추가한 **실제 저장 구조**이며, 11.1 이후의 정식 전표·원장 테이블은 **후속 설계안**으로 유지합니다. [도메인 규칙](domainRules.md#9-회계)의 범위에 따라 자동전표·원장을 월별 정산 조회의 선행 조건으로 구현하지 않습니다. 후속 설계안의 정의는 실제 Migration 적용이나 회계 전체 구현 완료를 의미하지 않습니다.
+
+2026-11-04 [회계·정산의 개발 범위와 기본 처리 기준](domainRules.md#회계정산-개발-범위와-처리-기준-2026-11-04-사용자-확정)은 사용자 확정이며, [기획 문서](../plans/accountingSettlement.md)에 이번 범위와 후속 범위를 구분합니다. 11.1 이후의 테이블·컬럼은 새 구현의 확정 스키마가 아닙니다. 부과월 수익·귀속 월 비용·미지급·선급·선수금·동별 귀속·분할과 정정 이력을 지원하도록 상세 설계해야 하며, 현재 손익 조회용 저장과 정식 전표 설계를 구분합니다.
+
+## 11.0 실제 손익 조회·원천 분류 저장 (2026-11-04 구현)
+
+손익 원천 연결은 다음 4개 테이블을 사용합니다. 11.1의 범용 `accounts`·전표 설계를 그대로 구현한 것은 아닙니다. 금액·원천 청구·출금·동 배분은 기존 테이블에서 읽고 복제 입력하지 않습니다. API는 [손익 계약](../api/incomeStatementApi.md), 트랜잭션·이력·Migration 순서는 [Server 설계](../../server/docs/incomeStatement.md)를 참조합니다.
+
+| 테이블 | 실제 주요 컬럼 | 연결·제약 |
+| --- | --- | --- |
+| `accounting_profiles` | `property_id` PK, `start_month` date, `fiscal_year_start_month` int, `created_by`, `created_at` | 관리대상별 명시적 시작 기준; 월초·1~12 검사 |
+| `accounting_accounts` | `id` UUID PK, `property_id`, `code`, `name`, `report_group`, `system_key`, `created_by`, `created_at` | 자산·부채와 손익 4분류; 관리대상+code 유일, 코드 범위·그룹 일치. 기본 18과목과 추가 비용 과목 |
+| `expense_accounting_reviews` | `id` UUID PK, `property_id`, `expense_id`, `account_id`, `recognition_month`, `revision`, `reason_encrypted`, `confirmed_by`, `confirmed_at` | 관리대상+지출·과목 복합 FK, 지출별 revision 유일·연속, 비용 과목 검사 |
+| `revenue_accounting_reviews` | `id` UUID PK, `property_id`, `source_template_item_id`, `recognized`, `revision`, `reason_encrypted`, `confirmed_by`, `confirmed_at` | 기존 부과 항목의 관리대상 대조, 항목별 revision 유일·연속 |
+
+4개 테이블은 UPDATE/DELETE를 막고 분류 변경은 새 revision을 추가합니다. 원천 분류 사유는 암호화합니다. 지출은 시작 전 귀속도 확인할 수 있으나 보고서는 회계 시작 월 이전을 조회하지 않습니다. 부과 성격 확인은 동일 항목 ID의 유효 확정 청구에 적용하며 다음 과거 기간 조회도 바꿀 수 있습니다. 이는 전표의 당시 연결 보존·역분개·마감 자료 보존이 아닙니다.
+
+현재 API는 기본 자산·부채·수익·비용 과목과 코드를 조회하고 비용 과목 선택·추가를 지원합니다. 시작 기준·계정의 수정/삭제, 자본 과목, 미지급/선급 원장, 지출 과목 분할, 정식 전표는 구현하지 않습니다. 후속 정식 회계 설계에서 기존 이력과의 이전·연결을 별도로 검토합니다.
+
+현재 지출의 기본 비용 월은 기존 `expense_date`에서 사용하고 별도 날짜 입력은 받지 않습니다. 기존 `expense_accounting_reviews.recognition_month`의 명시적 이력은 보존하며 새 매칭은 원본 지출 날짜로 저장합니다. 변경 사유는 사용자 필수가 아니며 기존 감사 컬럼에는 생략 시 `계정과목 매칭`을 기록합니다. 이 변경에는 새 컬럼·Migration이 없습니다.
+
+### 계정 코드 저장과 연결 (2026-11-05)
+
+[사용자 확정 코드](domainRules.md#계정-코드-체계와-통장-입출금-연결-2026-11-05-사용자-요구)에 따라 `V20261105105439`에서 `accounting_accounts.code` varchar(3)를 추가했습니다. 계정 ID·분류 이력의 FK는 유지하며 자산·부채는 `report_group=ASSET/LIABILITY`, 수익·비용은 기존 손익 그룹을 사용합니다. `account_type`, `is_active`나 11.1의 정식 `accounts` 테이블을 추가한 것은 아닙니다.
+
+관리대상+code 유일성과 코드 범위·그룹 일치를 DB에서 검사합니다. 통장·미수금·선수금·미지급금·관리비수입은 system_key로 역할을 구분하고, 업무 연결은 계정 ID를 사용합니다. 후속 901 영업외수익을 포함한 기본 18과목을 제공하며 기존 비용 과목 중 기본 이름과 정확히 일치하는 과목은 같은 ID에 코드를 부여합니다. 나머지 기존 비용 과목은 812부터 이관하며 범위 초과 시 Migration을 중단합니다. 이관 중 과목의 표시 정보만 일회 변경한 뒤 UPDATE/DELETE 차단을 복원합니다.
+
+`V20261105133047`은 보험료 812를 추가하고 기존 잡비를 813으로 이동합니다. 계정 ID·참조는 유지하며 새 기본 코드와 충돌한 사용자 과목은 814부터 빈 코드로 이동합니다. 불변 트리거는 일회 이관 중에만 해제하고 복원합니다. 추가 컬럼이나 금액 보정은 없습니다.
+
+표준 일반관리비의 `fee_template_items/charge_items.revenue_account_id`를 관리비수입 ID로 연결합니다. 금액·청구 ID·수납 배분은 변경하지 않습니다. 외부 미수금 조회는 기존 부담 배분·실제 회수 연결을 읽으며 별도 미수금 복제 테이블·가상 입금을 만들지 않습니다. 명칭 이력·사용 중지·정식 전표·마감은 남은 범위입니다.
+
+---
 
 ## 11.1 accounts
 
 ### 목적
 
 자동전표/원장의 기준이 되는 계정과목.
+
+[계정과목 관리의 사용자 확정 원칙](domainRules.md#계정과목의-범용-구성과-관리-원칙-2026-11-04-사용자-확정)에 따라 범용 기본 과목과 관리대상별 추가 과목을 제공하고 계정 ID로 업무·전표를 연결합니다. 특정 건물명이나 외부 계정코드를 시스템의 고정 업무 키로 사용하지 않습니다.
+
+아래는 기존 후속 설계입니다. 공통 기본 과목을 공유 행으로 제공할지 관리대상별 계정을 생성할지, 코드 유일성의 물리 제약과 보고서 분류·명칭 이력 저장은 미정입니다. 코드 검색의 관리대상 범위는 위 연결 설계안에서 다루며 `property_id IS NULL` 방식과 아래 컬럼을 최종 스키마로 확정한 것은 아닙니다.
 
 | 컬럼 | 타입 | Null | 설명 |
 |---|---|---:|---|
@@ -1455,6 +1508,8 @@ Soft Delete 없음.
 | `updated_at` | timestamptz | N | 수정 |
 | `deleted_at` | timestamptz | Y | 삭제 |
 | `deleted_by` | uuid | Y | 삭제 처리자 |
+
+`deleted_at`·`deleted_by`가 설계에 있다는 이유로 사용한 계정의 삭제를 허용하지 않습니다. 사용한 계정의 ID·업무·전표 연결과 과거 기록을 보존하고, 사용 중지와 필수 계정 연결 보호를 적용할 저장 제약은 구현 시 설계합니다. 미사용 과목의 삭제 허용 범위와 명칭·코드 변경 이력은 도메인의 미정 사항을 따릅니다.
 
 ---
 
@@ -1523,7 +1578,7 @@ Soft Delete 없음.
 
 ### 목적
 
-월별 회계 장부의 열림/마감 상태.
+월별 회계 장부의 열림/마감 상태에 대한 기존 설계입니다. 2026-11-04 확정 기준에 따라 관리대상별 회계연도 시작 월과 월별·연간 조회는 이번 범위이지만 실제 마감·잠금·재오픈은 후속입니다. 아래 상태·잠금 컬럼을 이번에 모두 구현해야 한다는 뜻은 아니며, 회계연도 시작 월·회계월·실제 달력 기간의 대응을 상세 설계에서 정의합니다.
 
 | 컬럼 | 타입 | Null | 설명 |
 |---|---|---:|---|
@@ -1830,7 +1885,7 @@ erDiagram
 3. [세대 대표 지정과 변경](domainRules.md#확정된-세대-대표-지정과-변경)의 미정 예외 처리. 최초 지정·변경 권한과 삭제·이동 시 명시적 승계는 확정되었으며 별도 퇴거·재입주 흐름은 후속 결정. 엑셀 최초 순서와 오류·중복 제외는 확정 정책 적용. 개별 등록의 동시 대표 지정은 [Server 주민 등록](../../server/docs/residentRegistration.md)의 잠금으로 직렬화
 4. 선입금 자동 충당은 구현했으며 환불·부분 취소·음수 청구 정산은 후속 정책
 5. 연체료 도입 여부 및 계산 규칙
-6. 관리대상별 계정과목 커스터마이징 수준
+6. [확정된 계정과목 관리 원칙](domainRules.md#계정과목의-범용-구성과-관리-원칙-2026-11-04-사용자-확정)과 [추가 코드 요구](domainRules.md#계정-코드-체계와-통장-입출금-연결-2026-11-05-사용자-요구)에 따른 명칭·코드 변경 이력·미사용 과목 삭제·기본 과목 제공의 상세 저장 방식. 관리대상별 추가·필수 계정 보호·사용 중지·계정 ID 연결은 확정이며 개별 코드와 기본 계정은 확정·저장했으며 명칭 이력·사용 중지는 후속 설계
 7. 동별 계좌와 Property 공용계좌 동시 사용 정책
 8. 마감 후 오류 수정 방식: 재오픈 vs 역분개
 9. 주민 공개 지출 범위와 증빙 공개 수준
@@ -1882,3 +1937,11 @@ erDiagram
 `V20261103092736__add_system_administration_permissions.sql`은 users.property_creation_allowed를 false 기본값으로 추가하고 system_admin_events를 생성합니다. 기존 관리대상 참여나 소유 자료를 변경하지 않습니다.
 
 system_admin_events는 request_id UUID PK, actor_id / target_id → users FK, action(CREATION_PERMISSION / ADMIN_PROMOTION), previous_value / requested_value, created_at을 보관합니다. 생성 권한은 true/false, 승격은 USER/ADMIN → ADMIN만 허용하는 CHECK를 둡니다. 대상·시각 인덱스를 두며 별도의 관리자 명단 테이블은 만들지 않습니다. 요청 재사용·잠금·감사의 저장 순서는 [Server 설계](../../server/docs/systemAdministration.md)를 참조합니다.
+
+2026-11-05 기타 입금 후속 연결: `V20261105125806__add_other_income_account.sql`로 `901 영업외수익`(`OTHER_REVENUE`, system_key=`OTHER_INCOME`)을 추가합니다. 기존 400번대 영업외수익 계정 ID·이력은 보존하며 새 기타 입금은 901을 사용합니다. 외부 부담금은 102 미수금, 연결된 실제 회수액은 미수금 감소로 먼저 제외합니다. 별도 입금 복제 테이블이나 가상 입금을 생성하지 않습니다.
+
+### 지출 최초 계정과목 연결 (2026-11-06)
+
+`V20261106092754__link_expenses_to_accounting_accounts.sql`은 `expenses.accounting_account_id` nullable UUID를 추가합니다. `(property_id, accounting_account_id)`는 `accounting_accounts(property_id,id)`를 참조하고 INSERT 트리거로 비용 그룹만 허용합니다. 기존 행은 NULL로 유지하며 기존 불변 원본·배분 보호를 유지합니다.
+
+초기 설정·회계 시작 설정 전에도 선택을 보존하기 위해 최초 과목을 지출 원본에 저장합니다. 해당 기본 과목이 아직 없으면 같은 등록 트랜잭션에서 생성하되 `accounting_profiles`와 시작 월은 자동 생성하지 않습니다. 이후 회계 설정은 이미 있는 기본 코드의 계정 ID를 유지하고 빠진 기본 과목만 추가합니다. 최신 `expense_accounting_reviews`가 최초 선택보다 우선하고 최초 선택이 없는 원본만 기존 자동 매칭을 적용합니다. API 표시 코드를 연결 FK로 저장하지 않습니다.

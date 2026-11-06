@@ -50,29 +50,21 @@ export function getDashboardReport(data: DashboardSnapshot) {
       .reduce((total, part) => total + BigInt(part.amount), BigInt(0))), BigInt(0));
   const accounts = getAccountsForMonth(data.banking.accounts ?? [], data.month).map((account) => {
     const balance = data.balances.accounts?.find((row) => row.id === account.id);
-    const confirmation = balance?.confirmation;
     const end = getMonthDateRange(data.month).endDate;
     const cutoff = end < data.businessDate ? end : data.businessDate;
-    const confirmed = confirmation?.status === 'READY' && confirmation.date <= cutoff;
-    // 목록과 상세 모두 공통 장부 우선 표시를 사용하고 확인값은 계산 자료가 없는 경우에만 이어 표시합니다.
-    const display = balance ? getAccountBalanceDisplay({
-      ...balance,
-      balance: confirmed ? balance.balance : null
-    }) : null;
+    // 대시보드도 통장 상세와 같은 장부 계산값만 사용하고 은행 확인일·금액에 영향받지 않습니다.
+    const display = balance ? getAccountBalanceDisplay(balance) : null;
 
     return {
       ...account,
       label: getBankAccountLabel(account),
       balance: display?.amount ?? null,
       calculated: display?.calculated ?? false,
-      asOf: balance?.asOf ?? null,
-      source: display?.calculated ? 'LEDGER' : confirmation?.source ?? null,
-      confirmationDate: display?.calculated ? end : confirmation?.date ?? null,
-      confirmationTime: display?.calculated ? null : confirmation?.time ?? null,
+      balanceDate: display?.calculated ? cutoff : null,
       calculatedBalance: balance?.calculatedBalance ?? null
     };
   });
-  const referenceTotal = accounts.length && accounts.every((row) => row.balance !== null)
+  const accountTotal = accounts.length && accounts.every((row) => row.balance !== null)
     ? accounts.reduce((sum, row) => sum + BigInt(row.balance!), BigInt(0)) : null;
   const recent = data.banking.rows.map((row) => ({
     ...row,
@@ -135,8 +127,7 @@ export function getDashboardReport(data: DashboardSnapshot) {
     prepaidCount: rows.filter((row) => row.prepaid > BigInt(0)).length,
     prepaidOnlyCount: rows.filter((row) => !billedIds.has(row.unitId) && row.prepaid > BigInt(0)).length,
     accounts,
-    referenceTotal,
-    referenceOnly: accounts.some((account) => !account.calculated),
+    accountTotal,
     recent: recent.slice(0, 5),
     trend
   };

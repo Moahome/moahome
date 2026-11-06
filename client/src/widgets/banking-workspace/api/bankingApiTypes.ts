@@ -1,4 +1,6 @@
 import type {
+  ExpenseAccountOption,
+  TransferAllocationPart,
   BankingAllocation,
   ExpenseDraft
 } from '@/entities/banking';
@@ -9,7 +11,7 @@ export type BankingExpense = ExpenseDraft & {
 
 export type BankingTransaction = {
   id: string;
-  sourceType?: 'BANK_IMPORT' | 'MANUAL';
+  sourceType?: 'BANK_IMPORT' | 'MANUAL' | 'TRANSFER_AUTO';
   accountId: string;
   date: string;
   time: string | null;
@@ -21,6 +23,9 @@ export type BankingTransaction = {
   ruleKey: string;
   transferCandidate?: boolean;
   transferId?: string | null;
+  transferAccountId?: string | null;
+  automaticTransfer?: boolean;
+  transferAllocations?: TransferAllocationPart[];
   paymentId: string | null;
   status: string;
   unitId: string;
@@ -59,6 +64,7 @@ export type BankingAccount = {
 
 export type BankingWorkspaceData = {
   accounts?: BankingAccount[];
+  expenseAccounts?: ExpenseAccountOption[];
   propertyId: string;
   asOf: string;
   buildings: {
@@ -68,12 +74,14 @@ export type BankingWorkspaceData = {
   units: {
     id: string;
     label: string;
+    residentNames?: string[];
   }[];
   rows: BankingTransaction[];
   rules: {
     key: string;
     accountId: string;
     category: string;
+    accountCode?: string | null;
     mode: ExpenseDraft['mode'];
     allocations: BankingAllocation[];
   }[];
@@ -98,6 +106,9 @@ export type BankingSelection = {
   expense?: ExpenseDraft;
   incomeAllocation?: ExpenseDraft;
   transfer?: boolean;
+  transferAccountId?: string;
+  matchTransferId?: string;
+  transferAllocations?: TransferAllocationPart[];
 };
 
 export type {
@@ -109,4 +120,15 @@ export interface BankTransferInput {
   id: string;
   outgoingId: string;
   incomingId: string;
+}
+
+export interface BankTransferFromTransactionInput {
+  id: string;
+  transactionId: string;
+  counterpartAccountId: string;
+  allocations?: TransferAllocationPart[];
+}
+
+export interface BankTransferAllocationsInput {
+  allocations: TransferAllocationPart[];
 }

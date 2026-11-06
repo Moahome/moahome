@@ -85,6 +85,15 @@ public class Building {
 		deletedAt = at;
 	}
 
+	/** 같은 이름의 재추가는 기존 동 ID를 복구해 과거 연결을 유지하며 주민 권한·세대 상태는 자동 변경하지 않습니다. */
+	public void restore() {
+		if (deletedAt == null)
+			return;
+		deletedAt = null;
+		deletedBy = null;
+		status = BuildingStatus.ACTIVE;
+	}
+
 	/** 신규 레코드 모두에 등록 시각을 적용해 초기 설정과 응답 시각을 일치시킵니다. */
 	private void initialize(OffsetDateTime at) {
 		id = UUID.randomUUID();

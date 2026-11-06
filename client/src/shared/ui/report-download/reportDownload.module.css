@@ -37,6 +37,37 @@
     > section {
       margin-bottom: 24px;
     }
+    > section[data-sectioned='true'] {
+      --border: var(--income-statement-border);
+
+      table {
+        border: 1px solid var(--border);
+      }
+      thead {
+        background: var(--income-statement-section-background);
+
+        th {
+          color: var(--foreground);
+          font-weight: 700;
+        }
+      }
+      th,
+      td {
+        border: 1px solid var(--border);
+      }
+      tbody tr {
+        background: var(--card);
+      }
+      tr:has([data-report-row-kind='section']) {
+        background: var(--income-statement-section-background);
+        font-weight: 700;
+      }
+      tr:has([data-report-row-kind='total']) {
+        background: var(--income-statement-total-background);
+        color: var(--primary);
+        font-weight: 700;
+      }
+    }
     > section > p {
       margin-bottom: 16px;
       font-size: 13px;
@@ -153,4 +184,7 @@
       }
     }
   }
+}
+.negative-amount {
+  color: var(--danger);
 }

@@ -1920,7 +1920,8 @@ test('공통 가입 링크는 코드 입력 없이 이름 필수·연락처 선�
     code: 'B-ABCD-EFGH-JKLM',
     name: '신청한 실명',
     unitId: id(101),
-    phone: null
+    phone: null,
+    phoneConsent: false
   });
 });
 
@@ -1949,6 +1950,53 @@ test('개인 링크는 코드 입력 없이 지정 주민 정보 확인 후 바�
   expect(state.writes.find((r) => r.path.endsWith('/accept'))?.body).toEqual({
     token: 'R-ABCD-EFGH-JKLM',
     correction: false
+  });
+});
+
+test('개인 초대 번호 변경은 기존 동의 완료이면 재동의 없이 정정을 요청', async ({ page }) => {
+  const state = await mockWorkspace(page);
+  await page.route(`${API}/api/resident-invitations/preview`, (route) => json(route, {
+    propertyId: PROPERTY,
+    propertyName: '모아빌라',
+    name: '김주민',
+    unitLabel: '102동 201호',
+    phoneLast4: '1234',
+    phoneConsent: true,
+    status: 'ISSUED',
+    expiresAt: new Date(Date.now() + 86400000).toISOString(),
+    revision: 0
+  }));
+  await page.goto('/invitations#R-ABCD-EFGH-JKLM');
+  await page.getByRole('button', {
+    name: '수정',
+    exact: true
+  }).click();
+  await page.getByRole('combobox', {
+    name: '연락처 변경',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '연락처 입력·변경',
+    exact: true
+  }).click();
+  await page.getByRole('textbox', {
+    name: '변경할 연락처',
+    exact: true
+  }).fill('010-9876-5432');
+  await expect(page.getByRole('checkbox', {
+    name: /전화번호 수집·이용에 동의/
+  })).toHaveCount(0);
+  await page.getByRole('button', {
+    name: '수정',
+    exact: true
+  }).click();
+  await expect(page.getByRole('status')).toContainText('정보 정정을 요청했어요.');
+  expect(state.writes.find((row) => row.path.endsWith('/accept'))?.body).toEqual({
+    token: 'R-ABCD-EFGH-JKLM',
+    correction: true,
+    name: '김주민',
+    phoneAction: 'SET',
+    phone: '010-9876-5432'
   });
 });
 

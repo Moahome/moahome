@@ -5,6 +5,7 @@ import { LoadingState } from '@/shared/ui/state-message';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import { ResidentImportGuide } from '@/entities/resident';
 import { useSession } from '@/entities/session';
 import { useManagementContext } from '@/features/enter-service';
 import { getRegistrationOptions } from '@/features/resident-management';
@@ -183,33 +184,9 @@ export function ResidentImportPage({
             />
             엑셀 양식 다운로드
           </a>
-          <div
-            className={styles.guide}
-          >
-            <h3>
-              작성 안내
-            </h3>
-            <ul>
-              <li>
-                {hasBuildings ? '첫 행은 동 · 호수 · 이름 · 연락처 · 주민 구분 순서로 유지해주세요.' : '첫 행은 호수 · 이름 · 연락처 · 주민 구분 순서로 유지해주세요.'}
-              </li>
-              <li>
-                {hasBuildings ? '동·호수·이름은 필수이며 연락처와 주민 구분은 선택입니다.' : '호수·이름은 필수이며 연락처와 주민 구분은 선택입니다.'}
-              </li>
-              <li>
-                주민 구분은 소유주·임차인·가족·기타 중 하나로 입력하며 비워두면 기타로 등록합니다.
-              </li>
-              <li>
-                {hasBuildings ? '등록된 동·호수와 일치하도록 입력해주세요.' : '동 열이 없는 양식입니다. 등록된 호수와 일치하도록 입력해주세요.'}
-              </li>
-              <li>
-                호수와 연락처의 앞자리 0을 유지하고 수식은 사용하지 마세요.
-              </li>
-              <li>
-                오류·중복은 제외하며 같은 세대의 최초 등록 주민만 대표가 됩니다.
-              </li>
-            </ul>
-          </div>
+          <ResidentImportGuide
+            hasBuildings={hasBuildings}
+          />
         </div>
       )}
       {result && (

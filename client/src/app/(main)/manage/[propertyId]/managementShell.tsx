@@ -62,7 +62,7 @@ function ManagementShellContent({ propertyId, children }: { propertyId: string; 
     href: `${basePath}/banking/balances/${ledgerBuilding}?${ledgerPeriod}`,
     label: '동별 상세 원장으로 돌아가기',
     title: '거래 상세'
-  } : getMobileBack(pathname, basePath, ledgerMonth, ledgerAccount, getMonthRangeQuery(searchParams), getDateRangeQuery(searchParams));
+  } : getMobileBack(pathname, basePath, ledgerMonth, ledgerAccount, getMonthRangeQuery(searchParams), getDateRangeQuery(searchParams), new URLSearchParams(searchParams.toString()));
 
   return (
     <ManagementLayout
@@ -83,9 +83,27 @@ function ManagementShellContent({ propertyId, children }: { propertyId: string; 
 }
 
 /** 직접 접근에서도 같은 관리대상 안의 목록·상세로 돌아가는 모바일 헤더를 구성합니다. */
-function getMobileBack(pathname: string, basePath: string, month: string | null, account: string | null, period: URLSearchParams, datePeriod: URLSearchParams) {
+function getMobileBack(pathname: string, basePath: string, month: string | null, account: string | null, period: URLSearchParams, datePeriod: URLSearchParams, context: URLSearchParams) {
   const periodSuffix = period.size ? `?${period}` : '';
-  const downloadPath = pathname.match(/\/(banking\/(?:monthly|balances|expenses)|payments\/monthly|closing\/monthly)\/download$/);
+  if (pathname === `${basePath}/accounting/income-statement/sources` || pathname === `${basePath}/accounting/income-statement/review`) {
+    const reviewing = pathname.endsWith('/review');
+    const kind = context.get('kind');
+    const params = new URLSearchParams(context);
+    params.delete('kind');
+    params.delete('item');
+    const parent = reviewing && kind !== 'setup' ? '/sources' : '';
+    const titles: Record<string, string> = {
+      setup: '회계 시작 기준',
+      expense: '지출 매칭',
+      revenue: '수익 매칭'
+    };
+    return {
+      href: `${basePath}/accounting/income-statement${parent}${params.size ? `?${params}` : ''}`,
+      label: '뒤로가기',
+      title: reviewing ? titles[kind ?? ''] ?? '손익 분류' : '손익 반영 자료'
+    };
+  }
+  const downloadPath = pathname.match(/\/(banking\/(?:monthly|balances|expenses)|payments\/monthly|accounting\/(?:settlement|income-statement))\/download$/);
   if (downloadPath) {
     const downloadQuery = new URLSearchParams(downloadPath[1] === 'banking/expenses' ? datePeriod : period);
     if (/^[0-9a-f-]{36}$/i.test(account ?? '')) downloadQuery.set('account', account!);

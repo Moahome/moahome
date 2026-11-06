@@ -1,0 +1,243 @@
+.panel {
+  min-width: 0;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+
+  .heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+
+    h2 {
+      font-size: 19px;
+      font-weight: 750;
+    }
+  }
+
+  .switch {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+
+    button[aria-pressed='true'] {
+      background: var(--button-primary-background);
+      color: var(--primary);
+    }
+  }
+
+  .legend {
+    display: flex;
+    justify-content: flex-end;
+    gap: 16px;
+    margin: 22px 0 8px;
+    color: var(--sub-text);
+    font-size: 12px;
+
+    span {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    i {
+      width: 12px;
+      height: 10px;
+      border-radius: 2px;
+      background: var(--primary);
+    }
+
+    [data-series='expense'] i {
+      background: var(--chart-expense);
+    }
+
+    [data-series='profit'] i {
+      height: 3px;
+      background: var(--secondary-teal);
+    }
+  }
+
+  .scroll {
+    overflow-x: auto;
+
+    &:focus-visible {
+      outline: 2px solid var(--primary);
+      outline-offset: 3px;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      overflow: visible;
+    }
+
+    text {
+      fill: var(--sub-text);
+      font-size: 12px;
+    }
+  }
+
+  .grid {
+    stroke: var(--border);
+    stroke-width: 1;
+  }
+
+  .stage {
+    position: relative;
+  }
+
+  .tooltip {
+    position: absolute;
+    z-index: 1;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--card);
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--foreground) 12%, transparent);
+    transform: translateY(calc(-100% - 14px));
+    pointer-events: none;
+    font-size: 12px;
+
+    &::after {
+      position: absolute;
+      bottom: -5px;
+      left: calc(var(--tooltip-arrow) - 4px);
+      width: 8px;
+      height: 8px;
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+      transform: rotate(45deg);
+      content: '';
+    }
+
+    &[data-below='true'] {
+      transform: translateY(14px);
+
+      &::after {
+        top: -5px;
+        bottom: auto;
+        transform: rotate(225deg);
+      }
+    }
+
+    > strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--foreground);
+      font-size: 13px;
+    }
+
+    dl {
+      display: grid;
+      gap: 5px;
+
+      > div {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      dt {
+        color: var(--sub-text);
+      }
+
+      dd {
+        color: var(--foreground);
+        font-weight: 650;
+        font-variant-numeric: tabular-nums;
+
+        &[data-negative='true'] {
+          color: var(--danger);
+        }
+      }
+    }
+  }
+
+  .baseline {
+    stroke: var(--sub-text);
+    stroke-width: 1;
+  }
+
+  .bar {
+    fill: var(--primary);
+
+    &[data-series='expense'] {
+      fill: var(--chart-expense);
+    }
+
+    &[data-negative='true'] {
+      fill: var(--danger);
+    }
+  }
+
+  .line {
+    fill: none;
+    stroke: var(--secondary-teal);
+    stroke-width: 2.5;
+  }
+
+  .point {
+    fill: var(--card);
+    stroke: var(--secondary-teal);
+    stroke-width: 2.5;
+    cursor: pointer;
+
+    &[data-negative='true'] {
+      stroke: var(--danger);
+    }
+
+    &:hover,
+    &:focus-visible {
+      fill: var(--secondary-teal);
+      stroke-width: 4;
+      outline: none;
+
+      &[data-negative='true'] {
+        fill: var(--danger);
+      }
+    }
+  }
+
+  .detail {
+    min-height: 42px;
+    margin: 8px 0 12px;
+    color: var(--sub-text);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .negative-line {
+    fill: none;
+    stroke: var(--danger);
+    stroke-width: 2.5;
+  }
+
+  .money {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+
+    &[data-negative='true'] {
+      color: var(--danger);
+    }
+  }
+
+  .profit {
+    color: var(--primary);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+
+    &[data-negative='true'] {
+      color: var(--danger);
+    }
+  }
+
+  @media (max-width: 767px) {
+    padding: 18px 12px;
+  }
+}

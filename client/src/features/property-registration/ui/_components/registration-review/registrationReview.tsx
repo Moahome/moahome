@@ -16,6 +16,7 @@ import {
   type ReactNode
 } from 'react';
 import type { RegistrationResult } from '../../../api/registrationApiTypes';
+import { isAdministratorResident } from '../../../model/residentSetup';
 import { getFeeItemsTotal } from '../../../model/feeItems';
 import {
   getAccountBuildingAmount,
@@ -175,7 +176,7 @@ export function RegistrationReview({
         </p>
       </header>
       <SetupProgress
-        currentStep={5}
+        currentStep={6}
         complete={complete}
         mobileCountInHeader
       />
@@ -412,6 +413,32 @@ export function RegistrationReview({
                 ))}
               </div>
             </ReviewRow>
+            {hasDraft && draft.residents !== undefined && (
+              <ReviewRow
+                label={'주민 명부'}
+                regionLabel={'주민 명부 요약'}
+                icon={'users'}
+                locked={locked}
+                editLabel={'주민 명부 수정'}
+                onEdit={() => onEdit('residents')}
+                toggleName={'주민 명부 상세'}
+                detailsId={'review-resident-details'}
+                summary={(
+                  <strong>
+                    {draft.residents.filter((row) => !isAdministratorResident(row, draft.administrator)).length + Number(draft.administrator.residenceType === 'RESIDENT')}
+                    명
+                  </strong>
+                )}
+              >
+                <p>
+                  거주 관리소장을 포함한 주민을 함께 등록합니다. 관리소장과 동·호수·이름이 같은 행은 중복 등록하지 않습니다.
+                </p>
+                <p>
+                  {[...(draft.administrator.residenceType === 'RESIDENT' ? [draft.administrator.name] : []), ...draft.residents.filter((row) => !isAdministratorResident(row, draft.administrator)).map((row) => row.name)].slice(0, 5).join(', ')}
+                  {draft.residents.length > 5 ? ' 외' : ''}
+                </p>
+              </ReviewRow>
+            )}
             <ReviewRow
               label={'관리계좌'}
               regionLabel={'관리계좌 요약'}

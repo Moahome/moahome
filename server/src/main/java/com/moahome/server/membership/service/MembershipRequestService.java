@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.common.validation.TextValues;
+import com.moahome.server.common.security.PhoneConsent;
 import com.moahome.server.membership.domain.*;
 import com.moahome.server.membership.dto.SignupRequests;
 import com.moahome.server.membership.repo.*;
@@ -124,12 +125,16 @@ public class MembershipRequestService {
 		if (members.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, actor).stream()
 		    .anyMatch(propertyMember -> propertyMember.isCurrent()))
 			throw new PaymentException("MEMBER_ROLE_CONFLICT");
+		ResidentRegistrationService.requirePhoneConsent(input.phone(), input.phoneConsent());
 		var protectedPhone = registrations.protectPhone(input.phone());
 		var created = MembershipRequest.request(property, input.unitId(), actor,
 		    protectedPhone == null ? null : protectedPhone.encrypted(),
 		    protectedPhone == null ? null : protectedPhone.hmac(),
 		    protectedPhone == null ? null : protectedPhone.last4(), now());
 		created.describeApplicant(name, code.getId());
+		if (protectedPhone != null) {
+			created.confirmPhone(PhoneConsent.confirm("SELF", actor, created.getCreatedAt()));
+		}
 		requests.saveAndFlush(created);
 		return new SignupRequests.Result(created.getId(), "PENDING");
 	}

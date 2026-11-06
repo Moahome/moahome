@@ -40,3 +40,7 @@ export type {
 export {
   getMonthlyChargeSummary
 } from './model/monthlyRange';
+
+export {
+  MonthlyDetail
+} from './ui/_components/monthly-detail/monthlyDetail';

@@ -5,6 +5,7 @@ import {
 } from '@/shared/lib/excel-report';
 import type { BankingTransaction } from '../api/bankingApiTypes';
 import type { ExpenseExportContext } from './expenseExportTypes';
+import { getExpenseAccountLabel } from '@/entities/banking';
 import { getExpenseAmount } from './expenseAllocation';
 
 /** 조회 조건 전체와 관리 동 부담액을 첨부 내역서 서식에 표시하며 외부 금액은 합산하지 않습니다. */
@@ -26,6 +27,9 @@ export function getExpenseReportDocument(rows: readonly BankingTransaction[], bu
       label: '지출명',
       width: 38
     }, {
+      label: '계정과목',
+      width: 30
+    }, {
       label: '지출액',
       width: 25,
       align: 'right'
@@ -43,9 +47,10 @@ export function getExpenseReportDocument(rows: readonly BankingTransaction[], bu
     rows: rows.map((row) => [
       row.date,
       row.expense?.category || row.payer,
+      getExpenseAccountLabel(row.expense),
       getExpenseAmount(row, buildingIds)
     ]),
-    total: ['합계', '', amount],
+    total: ['합계', '', '', amount],
     note: `※ 금액은 원 단위이며 선택한 관리 동의 부담액만 포함합니다.${context?.search ? ` 검색 조건: ${context.search}` : ''}`
   };
 }

@@ -61,7 +61,7 @@ class ResidentRegistrationServiceTest {
 	@Test
 	void optionalContactDoesNotRequireEncryptionKeysButContactFailurePreventsWrites() {
 		authorize();
-		var request = new ResidentRegistrationRequest(UUID.randomUUID(), "주민", "01012345678", unit.getId(), "OWNER");
+		var request = new ResidentRegistrationRequest(UUID.randomUUID(), "주민", "01012345678", unit.getId(), "OWNER", true);
 		when(security.getObject()).thenThrow(new NoSuchBeanDefinitionException("phone security unavailable"));
 		assertThatThrownBy(() -> service.register(actor, property.getId(), request)).isInstanceOfSatisfying(
 		    ResidentRegistrationException.class,

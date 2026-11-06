@@ -303,7 +303,7 @@ for (const width of [1440, 320]) {
       name:'관리비 페이지',
       exact:true
     }).getByRole('button',{
-      name:'다음 페이지',
+      name:'2페이지',
       exact:true
     }).click();
     await expect(table.getByRole('button').first()).toHaveText('111호');
@@ -458,17 +458,17 @@ for (const width of [1440, 320]) {
     await expect(detailTable.getByRole('row')).toHaveCount(11);
     await expect(detailTable.getByRole('rowheader')).toHaveText(expectedRooms.slice(0, 10));
     await detailPages.getByRole('button', {
-      name: '다음 페이지',
+      name: '2페이지',
       exact: true
     }).click();
     await expect(detailTable.getByRole('rowheader')).toHaveText(expectedRooms.slice(10, 20));
     await detailPages.getByRole('button', {
-      name: '다음 페이지',
+      name: '3페이지',
       exact: true
     }).click();
     await expect(detailTable.getByRole('rowheader')).toHaveText(expectedRooms.slice(20));
     await expect(detailPages.getByRole('button', {
-      name: '다음 페이지',
+      name: '다음 5페이지',
       exact: true
     })).toBeDisabled();
     await expect(detail.getByText('375,000원', {
@@ -772,9 +772,10 @@ test('업무 API 권한·장애·다른 대상 응답을 빈 청구로 숨기지
     name:'다시 시도',
     exact:true
   }).click();
-  await expect(main.getByText('정보를 불러오지 못했어요',{
-    exact:true
-  })).toBeVisible();
+  await expect(main.getByRole('alert', {
+    name: '서버에 연결하지 못했어요',
+    exact: true
+  }).locator('img')).toHaveAttribute('src', /serverError/);
   state.wrongScope=false; await main.getByRole('button',{
     name:'다시 시도',
     exact:true

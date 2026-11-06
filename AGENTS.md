@@ -73,6 +73,8 @@ Server는 Layered Architecture를 사용합니다.
 - Success: `#16A34A`
 - Warning: `#F59E0B`
 - Danger: `#EF4444`
+- 손익 그래프 비용: `#F4A261` (2026-11-05 사용자 지정, 공통 `--chart-expense` 토큰)
+- 손익계산서 표: 2026-11-05 사용자 지정의 [파란색 표 규칙](client/docs/incomeStatement.md#손익계산서-표)을 적용하며 `--income-statement-*` 공통 토큰으로 관리합니다.
 
 임의로 브랜드 색상을 추가하지 않습니다.
 

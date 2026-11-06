@@ -9,13 +9,13 @@ import {
 import {
   createMonthlyReportWorkbook,
   getMonthlyReportDocuments
-} from '../src/screens/monthly-settlement/model/monthlyReport';
+} from '../src/screens/accounting/settlement/model/monthlyReport';
 import {
   getSettlementReport,
   filterSettlementAccounts,
   filterSettlementBuildings,
   filterSettlementExternal
-} from '../src/screens/monthly-settlement/model/monthlySettlement';
+} from '../src/screens/accounting/settlement/model/monthlySettlement';
 import {
   settlementFixture,
   settlementDetailFixture,
@@ -61,22 +61,31 @@ test('인계 선납은 청구 잔여액에만 반영하고 0원·음수 정산�
   expect(pending.billed).toBe(BigInt(49000));
   expect(pending.receivable).toBeNull();
   expect(pending.buildingBalance).toBeNull();
-  expect(pending.accounts[0].difference).toBeNull();
+  expect(pending.accounts[0].balance).toBe('120000');
 });
 
-test('동일 월말의 일 마감 확인값에만 차액을 계산하고 시각 자료·순서 미확인은 비교 불가로 유지', () => {
+test('은행 확인 금액·시각·순서 상태는 정산 장부값과 확인 필요 건수를 바꾸지 않음', () => {
   const data = settlementFixture();
-  expect(getSettlementReport(data).accounts[0].difference).toBe(BigInt(0));
-  data.balances.accounts![0].balance = '120500';
-  expect(getSettlementReport(data).accounts[0].difference).toBe(BigInt(500));
-  data.balances.accounts![0].confirmation!.date = '2026-10-30';
-  expect(getSettlementReport(data).accounts[0].difference).toBeNull();
-  data.balances.accounts![0].confirmation!.date = '2026-10-31';
-  data.balances.accounts![0].confirmation!.precision = 'TIME';
-  expect(getSettlementReport(data).accounts[0].difference).toBeNull();
-  data.balances.accounts![0].confirmation!.precision = 'DAY_END';
-  data.balances.accounts![0].confirmation!.status = 'ORDER_UNCLEAR';
-  expect(getSettlementReport(data).accounts[0].difference).toBeNull();
+  const row = data.balances.accounts![0];
+  for (const state of ['READY', 'ORDER_UNCLEAR', 'BALANCE_MISSING'] as const) {
+    row.balance = '999999';
+    row.confirmation!.date = '2026-11-30';
+    row.confirmation!.status = state;
+    row.confirmation!.precision = 'TIME';
+    const report = getSettlementReport(data);
+    expect(report.accounts[0].balance).toBe('120000');
+    expect(report.buildingBalance).toBe(BigInt(128000));
+    expect(report.checks.find((check) => check.id === 'accounts')?.count).toBe(0);
+    expect(report.outstanding).toBe(BigInt(6000));
+    const document = getMonthlyReportDocuments(data)[2];
+    expect(document.columns[1].label).toBe('장부 잔액');
+    expect(document.rows[0][1]).toBe(BigInt(120000));
+  }
+  row.calculatedBalance = null;
+  const missing = getSettlementReport(data);
+  expect(missing.accounts[0].balance).toBeNull();
+  expect(missing.checks.find((check) => check.id === 'accounts')?.count).toBe(1);
+  expect(getMonthlyReportDocuments(data)[2].rows[0][1]).toBe('확인 필요');
 });
 
 test('동은 숫자 오름차순, 외부 부담금은 지출일 최신순으로 원천을 변경하지 않고 정렬하고 회수 상태를 구분', () => {
@@ -91,11 +100,10 @@ test('동은 숫자 오름차순, 외부 부담금은 지출일 최신순으로 
   expect(JSON.stringify(data)).toBe(before);
 });
 
-test('통장·동 검색과 자료 부족 필터는 미확인 잔액을 0원 또는 차액 없음으로 분류하지 않음', () => {
+test('통장 검색은 은행 비교 상태와 무관하며 동별 설정 누락은 그대로 구분', () => {
   const report = getSettlementReport(settlementDetailFixture());
-  expect(filterSettlementAccounts(report.accounts, ' 카카오 ', '차액 있음').map((row) => row.id)).toEqual([settlementId(201)]);
-  expect(filterSettlementAccounts(report.accounts, '', '비교 자료 필요').map((row) => row.id)).toEqual([settlementId(202)]);
-  expect(filterSettlementAccounts(report.accounts, '국민', '차액 없음')).toHaveLength(0);
+  expect(filterSettlementAccounts(report.accounts, ' 카카오 ').map((row) => row.id)).toEqual([settlementId(201)]);
+  expect(filterSettlementAccounts(report.accounts, '없는통장')).toHaveLength(0);
   expect(filterSettlementBuildings(report.buildings, '', '설정 필요').map((row) => row.label)).toEqual(['103동']);
   expect(filterSettlementBuildings(report.buildings, '103', '설정됨')).toHaveLength(0);
 });
@@ -197,4 +205,39 @@ test('월별 종합보고서는 원본 통장 금액·동별 부담액·청구 �
   expect(xml).not.toContain('지난달 외부 부담');
   expect(xml).not.toContain('마감 미확정');
   expect(xml).toContain('확인 필요');
+});
+
+test('자동 이체는 양쪽 통장 이동을 표시하고 취소하면 양쪽 현금 합계와 확인 대상에서 함께 제외', () => {
+  const data = settlementFixture();
+  const before = getSettlementReport(data);
+  const source = {
+    ...data.banking.rows[0],
+    id: settlementId(990),
+    amount: '10000',
+    direction: 'EXPENSE' as const,
+    expense: null,
+    paymentId: null,
+    status: 'TRANSFER',
+    transferCandidate: true,
+    automaticTransfer: true,
+    transferId: settlementId(992)
+  };
+  const counterpart = {
+    ...source,
+    id: settlementId(991),
+    direction: 'INCOME' as const,
+    sourceType: 'TRANSFER_AUTO' as const,
+    balance: null
+  };
+  data.banking.rows.push(source, counterpart);
+  const active = getSettlementReport(data);
+  expect(active.bankIncome).toBe(before.bankIncome + BigInt(10000));
+  expect(active.bankExpense).toBe(before.bankExpense + BigInt(10000));
+  expect(active.cash.find((row) => row.id === counterpart.id)?.source).toBe('이체 자동 반영');
+  source.status = 'CANCELED';
+  counterpart.status = 'CANCELED';
+  const canceled = getSettlementReport(data);
+  expect(canceled.bankIncome).toBe(before.bankIncome);
+  expect(canceled.bankExpense).toBe(before.bankExpense);
+  expect(canceled.checks).toEqual(before.checks);
 });

@@ -13,6 +13,7 @@ import type {
   BillingTemporaryItem
 } from '@/entities/billing';
 import { formatWon } from '@/shared/lib/format';
+import { getSortedBuildings } from '@/entities/property';
 import { Button } from '@/shared/ui/button';
 import { DataTable } from '@/shared/ui/data-table';
 import {
@@ -48,7 +49,7 @@ export function BillingSettingsForm({ settings, nextMonth, onApply, busy, errorM
   busy: boolean;
   errorMessage: string;
 }) {
-  const buildings = settings.buildings ?? [];
+  const buildings = getSortedBuildings(settings.buildings ?? []);
   const sourcePlan = getBillingPlan(settings.scheduled ?? settings.current, Boolean(settings.scheduled));
   // 예약 뒤 동 목록이 바뀌어도 현재 동마다 편집할 자리를 두고 누락 금액은 직접 입력하게 합니다.
   const seed: BillingPlan = {

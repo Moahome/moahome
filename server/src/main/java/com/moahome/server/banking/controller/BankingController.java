@@ -69,6 +69,18 @@ public class BankingController {
 		return ok(service.deleteMany(UUID.fromString(user.userId()), propertyId, request));
 	}
 
+	@PostMapping("/transfers/from-transaction")
+	public ResponseEntity<BankingResponse.Workspace> postTransfer(@AuthenticationPrincipal AuthPrincipal user,
+	    @PathVariable UUID propertyId, @Valid @RequestBody BankingRequests.TransferFromTransaction request) {
+		return ok(service.postTransfer(UUID.fromString(user.userId()), propertyId, request));
+	}
+
+	@PostMapping("/transfers/{id}/allocations")
+	public ResponseEntity<BankingResponse.Workspace> transferAllocations(@AuthenticationPrincipal AuthPrincipal user,
+	    @PathVariable UUID propertyId, @PathVariable UUID id, @Valid @RequestBody BankingRequests.TransferAllocations request) {
+		return ok(service.allocateTransfer(UUID.fromString(user.userId()), propertyId, id, request));
+	}
+
 	@PostMapping("/transfers")
 	public ResponseEntity<BankingResponse.Workspace> transfer(@AuthenticationPrincipal AuthPrincipal user,
 	    @PathVariable UUID propertyId, @Valid @RequestBody BankingRequests.Transfer request) {

@@ -270,7 +270,7 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
         ['banking/transactions', '통장 정보를 불러오고 있어요.'],
         ['banking/expenses', '통장 정보를 불러오고 있어요.'],
         ['banking/balances', '잔고를 불러오고 있어요.'],
-        ['closing/monthly', '월별 정산 자료를 불러오고 있어요.'],
+        ['accounting/settlement', '월별 정산 자료를 불러오고 있어요.'],
       ]) {
         paymentPending = path.startsWith('payments/');
         responseReady = new Promise<void>((resolve) => { finish = resolve; });

@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import com.moahome.server.resident.domain.Resident;
 
 public interface ResidentRepository extends JpaRepository<Resident, UUID> {
+	List<Resident> findByPropertyIdAndDeletedAtIsNotNullOrderByNameAscIdAsc(UUID propertyId);
 	List<Resident> findByPropertyIdAndUserIdAndDeletedAtIsNull(UUID propertyId, UUID userId);
 
 	/** 가입 요청 목록은 승인 상태를 추측하지 않고 실제 계정 미연결 주민 전원을 최소 정보로 조회합니다. */

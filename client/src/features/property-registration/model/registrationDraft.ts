@@ -1,3 +1,7 @@
+import {
+  getResidentSetupError,
+  restoreRegistrationResidents
+} from './residentSetup';
 import { UNIT_STATUS_OPTIONS } from '@/entities/property';
 import { EMPTY_AUTOMATIC_UNIT_RULE } from './automaticUnits';
 import type { AutomaticUnitRule } from './automaticUnitsTypes';
@@ -55,6 +59,7 @@ function createEmptyDraft(): RegistrationDraft {
     basicInfo: {
       ...EMPTY_BASIC_INFO
     },
+    residents: [],
     buildings: [],
     units: [],
     automaticUnitRule: {
@@ -133,9 +138,13 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
     const basicInfoValidated = data.basicInfoValidated === true && Object.keys(getBasicInfoErrors(basicInfo)).length === 0;
     const unitsValid = basicInfoValidated && !getUnitSetupError(basicInfo.hasBuildings === true, buildings, units);
     const openingBalances = restoreOpeningBalances(data.openingBalances, units, buildings);
+    const administrator = restoreAdministrator(data.administrator);
+    const residents = restoreRegistrationResidents(data.residents);
+    const residentsValid = !getResidentSetupError(residents, units, administrator);
     let step: RegistrationStep = 'basic';
-    if (basicInfoValidated && ['units', 'administrator', 'account', 'fees', 'review'].includes(data.step)) step = 'units';
-    if (['account', 'fees', 'review'].includes(data.step) && unitsValid && !getUnitOpeningError(openingBalances, units)) step = 'account';
+    if (basicInfoValidated && ['units', 'administrator', 'residents', 'account', 'fees', 'review'].includes(data.step)) step = 'units';
+    if (['residents', 'account', 'fees', 'review'].includes(data.step) && unitsValid) step = 'residents';
+    if (['account', 'fees', 'review'].includes(data.step) && residentsValid && unitsValid && !getUnitOpeningError(openingBalances, units)) step = 'account';
 
     // 이전 단일 통장 초안도 첫 계좌와 확인된 잔액으로 보존하며 새 통장 잔액은 추측하지 않습니다.
     const sourceAccounts: unknown[] = Array.isArray(data.bankAccounts) ? data.bankAccounts : [data.bankAccount];
@@ -170,7 +179,8 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
     if (data.step === 'review' && step === 'fees' && isFeeItemDraftList(feeItems) && !getFeeItemsError(feeItems) && !getFirstBillingError(openingBalances)) step = 'review';
 
     return {
-      administrator: restoreAdministrator(data.administrator),
+      administrator,
+      residents,
       basicInfo: {
         name: basicInfo.name,
         address: basicInfo.address,

@@ -6,6 +6,7 @@ import java.util.Objects;
 import java.util.UUID;
 import com.moahome.server.auth.exception.*;
 import com.moahome.server.common.security.PhoneSecurity;
+import com.moahome.server.common.security.PhoneConsent;
 import com.moahome.server.common.validation.TextValues;
 import com.moahome.server.property.domain.*;
 import com.moahome.server.property.repo.*;
@@ -20,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import static com.moahome.server.resident.exception.ResidentRegistrationException.Code.*;
 import java.util.List;
+import java.util.ArrayList;
 
 @Service
 public class ResidentRegistrationService {
@@ -56,9 +58,32 @@ public class ResidentRegistrationService {
 		this.clock = clock;
 	}
 
+	/** 관리자가 수정할 수 있는 삭제 명부만 직접 선택지로 제공하며 번호로 복구 대상을 추측하지 않습니다. */
+	@Transactional(readOnly = true)
+	public List<DeletedResidentOption> deletedResidents(UUID actor, UUID property) {
+		access.getManagementContext(actor, property);
+		List<DeletedResidentOption> options = new ArrayList<>();
+		for (Resident resident : residents.findByPropertyIdAndDeletedAtIsNotNullOrderByNameAscIdAsc(property)) {
+			try {
+				access.requireResidentWrite(actor, property, resident.getUserId());
+				options.add(new DeletedResidentOption(resident.getId(), resident.getName()));
+			} catch (AuthException denied) {
+				// 부담당자가 수정할 수 없는 관리소장 명부는 복구 선택지에도 노출하지 않습니다.
+			}
+		}
+		return List.copyOf(options);
+	}
+
 	/** 관리자 확인 후 대상 잠금 안에서 명부와 현재 소속을 함께 저장하여 중복 검사·대표 지정을 직렬화합니다. */
 	@Transactional
 	public ResidentRegistrationResponse register(UUID userId, UUID propertyId, ResidentRegistrationRequest request) {
+		return registerWithConsentSource(userId, propertyId, request, "ADMIN");
+	}
+
+	/** 입력 경로는 서버 호출부가 지정하며 기존 성공 요청 재시도에서는 원래 번호 동의를 변경하지 않습니다. */
+	@Transactional
+	public ResidentRegistrationResponse registerWithConsentSource(UUID userId, UUID propertyId,
+	    ResidentRegistrationRequest request, String consentSource) {
 		access.getManagementContext(userId, propertyId);
 		// 세대 추가·삭제와 같은 잠금을 사용하므로 등록 중 세대 삭제와 최초 대표 지정이 교차하지 않습니다.
 		var property = properties.findForUnitUpdate(propertyId)
@@ -80,17 +105,17 @@ public class ResidentRegistrationService {
 		var previous = residents.findById(request.requestId());
 		if (previous.isPresent())
 			return replay(previous.get(), propertyId, request, name, phone, null);
+		requirePhoneConsent(request.phone(), request.phoneConsent());
 
 		// 연락처 없는 동명이인과 전화번호를 공유하는 다른 이름의 가족은 이름만으로 합치지 않습니다.
-		Resident resident = null;
+		Resident resident = request.restoreResidentId() == null ? null
+		    : residents.findByIdAndPropertyId(request.restoreResidentId(), propertyId)
+		        .filter(person -> person.getDeletedAt() != null)
+		        .orElseThrow(() -> new ResidentRegistrationException(REGISTRATION_CONFLICT));
 		if (phone != null) {
 			List<Resident> duplicates = residents.findByPropertyIdAndNameAndPhoneHmac(propertyId, name, phone.hmac());
 			if (duplicates.stream().anyMatch(person -> person.getDeletedAt() == null))
 				throw new ResidentRegistrationException(DUPLICATE_RESIDENT);
-			if (duplicates.size() > 1)
-				throw new ResidentRegistrationException(RESIDENT_RESTORE_REQUIRED);
-			if (!duplicates.isEmpty())
-				resident = duplicates.getFirst();
 		}
 		var at = OffsetDateTime.now(clock);
 		// 과거 관계도 최초 등록 이력에 포함해 대표가 없는 기존 세대를 임의로 재지정하지 않습니다.
@@ -102,6 +127,11 @@ public class ResidentRegistrationService {
 		} else {
 			access.requireResidentWrite(userId, propertyId, resident.getUserId());
 			representative = restoreResident(userId, propertyId, resident, unit, at) || representative;
+			resident.update(name, phone == null ? null : phone.encrypted(), phone == null ? null : phone.hmac(),
+			    phone == null ? null : phone.last4(), at);
+		}
+		if (phone != null) {
+			resident.confirmPhone(PhoneConsent.confirm(consentSource, userId, at));
 		}
 		residents.saveAndFlush(resident);
 		var relation = UnitResident.register(resident, unit, request.relationType(), representative, at);
@@ -133,6 +163,7 @@ public class ResidentRegistrationService {
 	private ResidentRegistrationResponse replay(Resident resident, UUID propertyId, ResidentRegistrationRequest request,
 	    String name, ProtectedPhone phone, UUID expectedRelationId) {
 		if (!resident.getPropertyId().equals(propertyId) || resident.getDeletedAt() != null
+		    || (request.restoreResidentId() != null && !request.restoreResidentId().equals(resident.getId()))
 		    || !resident.getName().equals(name)
 		    || !Objects.equals(resident.getPhoneHmac(), phone == null ? null : phone.hmac())) {
 			throw new ResidentRegistrationException(REGISTRATION_CONFLICT);
@@ -148,6 +179,13 @@ public class ResidentRegistrationService {
 		}
 		return new ResidentRegistrationResponse(resident.getId(), propertyId, relation.getUnitId(),
 		    relation.isHouseholdRep());
+	}
+
+	/** 번호 없는 등록은 허용하고 새로운 번호를 저장하는 모든 경로에서 명시적 확인을 요구합니다. */
+	public static void requirePhoneConsent(String phone, Boolean consent) {
+		if (phone != null && !phone.isBlank() && !Boolean.TRUE.equals(consent)) {
+			throw new ResidentRegistrationException(PHONE_CONSENT_REQUIRED);
+		}
 	}
 
 	/** 관리대상에 속한 미삭제 세대와 활성 동만 선택할 수 있으며 공실 표시는 등록만으로 변경하지 않습니다. */

@@ -2,7 +2,7 @@ import {
   expect,
   type Page
 } from '@playwright/test';
-import type { MonthlySettlementSnapshot } from '../../src/screens/monthly-settlement/api/monthlySettlementApiTypes';
+import type { MonthlySettlementSnapshot } from '../../src/screens/accounting/settlement/api/monthlySettlementApiTypes';
 import type { BalanceReportSnapshot } from '../../src/widgets/banking-workspace/model/balanceReportTypes';
 import type { BankingTransaction } from '../../src/widgets/banking-workspace/api/bankingApiTypes';
 

@@ -13,6 +13,10 @@ import {
   useState,
   useSyncExternalStore
 } from 'react';
+import {
+  PhoneConsent,
+  hasExistingPhoneConsent
+} from '@/entities/resident';
 import { useSession } from '@/entities/session';
 import { isServerConnectionError } from '@/shared/api';
 import { ServerConnectionError } from '@/shared/ui/server-connection-error';
@@ -132,6 +136,7 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('');
   const [phone, setPhone] = useState('');
+  const [phoneConsent, setPhoneConsent] = useState(false);
   const [phoneAction, setPhoneAction] = useState('KEEP');
   const [correction, setCorrection] = useState(false);
   const [result, setResult] = useState<{
@@ -191,6 +196,8 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
   /** 검증 성공 전에는 명부·권한을 변경하지 않으며 선택 연락처가 비어 있으면 null로 보냅니다. */
   async function submit() {
     if (pending.current || !code.trim() || !session.data) return;
+    const needsPhoneConsent = options || (preview && correction && phoneAction === 'SET' && !hasExistingPhoneConsent(preview));
+    if (needsPhoneConsent && phone.trim() && !phoneConsent) { setError('전화번호 수집·이용 동의를 확인해주세요.'); return; }
     pending.current = true;
     setBusy(true);
     onBusyChange?.(true);
@@ -201,7 +208,8 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
           code,
           name: name.trim(),
           unitId: unit,
-          phone: phone.trim() || null
+          phone: phone.trim() || null,
+          phoneConsent
         });
         setResult({
           status: 'PENDING',
@@ -215,7 +223,10 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
             name: name.trim(),
             phoneAction: phoneAction as 'KEEP' | 'SET' | 'REMOVE',
             ...(phoneAction === 'SET' ? {
-              phone
+              phone,
+              ...(!hasExistingPhoneConsent(preview) ? {
+                phoneConsent
+              } : {})
             } : {})
           } : {})
         });
@@ -419,7 +430,13 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
               autoComplete={'tel'}
               placeholder={'010-1234-5678'}
               disabled={busy}
-              onChange={(event) => setPhone(event.target.value)}
+              onChange={(event) => { setPhone(event.target.value); setPhoneConsent(false); }}
+            />
+            <PhoneConsent
+              self
+              checked={phoneConsent}
+              onChange={setPhoneConsent}
+              disabled={busy}
             />
             <p>
               연락처 없이도 신청할 수 있어요. 관리자가 명부를 확인한 뒤 승인합니다.
@@ -508,7 +525,7 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
                     value: 'REMOVE',
                     label: '연락처 없음'
                   }]}
-                  onChange={setPhoneAction}
+                  onChange={(value) => { setPhoneAction(value); setPhoneConsent(false); setPhone(''); }}
                   disabled={busy}
                 />
                 {phoneAction === 'SET' && (
@@ -517,8 +534,16 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
                     type={'tel'}
                     value={phone}
                     disabled={busy}
-                    onChange={(event) => setPhone(event.target.value)}
+                    onChange={(event) => { setPhone(event.target.value); setPhoneConsent(false); }}
                     required
+                  />
+                )}
+                {phoneAction === 'SET' && !hasExistingPhoneConsent(preview) && (
+                  <PhoneConsent
+                    self
+                    checked={phoneConsent}
+                    onChange={setPhoneConsent}
+                    disabled={busy}
                   />
                 )}
                 <p>

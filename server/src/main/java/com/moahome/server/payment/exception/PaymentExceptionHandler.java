@@ -25,6 +25,7 @@ import com.moahome.server.membership.controller.MembershipRequestController;
 import com.moahome.server.payment.controller.PaymentController;
 import com.moahome.server.property.controller.RegistrationBankImportController;
 import com.moahome.server.user.exception.UserException;
+import com.moahome.server.resident.exception.ResidentRegistrationException;
 
 @RestControllerAdvice(assignableTypes = {PaymentController.class, RegistrationBankImportController.class,
         BankingController.class,
@@ -38,6 +39,11 @@ import com.moahome.server.user.exception.UserException;
         InvitationClaimController.class,
         MembershipRequestController.class})
 public class PaymentExceptionHandler {
+	/** 가입 신청·개인 초대도 주민 입력과 같은 전화번호 동의 오류를 반환합니다. */
+	@ExceptionHandler(ResidentRegistrationException.class)
+	public ResponseEntity<ErrorResponse> resident(ResidentRegistrationException exception) {
+		return error(exception.code().status, exception.code().name(), exception.code().message);
+	}
 	@ExceptionHandler(PaymentException.class)
 	public ResponseEntity<ErrorResponse> billing(PaymentException exception) {
 		var code = exception.code();

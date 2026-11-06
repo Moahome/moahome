@@ -1,5 +1,9 @@
 package com.moahome.server.auth.security;
 
+import com.moahome.server.banking.service.BankTransferPostingService;
+import com.moahome.server.accounting.service.AccountingWriteService;
+import com.moahome.server.accounting.service.IncomeStatementService;
+import com.moahome.server.billing.service.BillingIncomeSourceService;
 import jakarta.persistence.EntityManager;
 import com.moahome.server.systemadmin.service.SystemAdminService;
 import com.moahome.server.systemadmin.repo.SystemAdminRequestLock;
@@ -91,6 +95,9 @@ import com.moahome.server.property.service.UnitManagementService;
 import com.moahome.server.property.support.RegistrationTestKeys;
 import com.moahome.server.resident.service.ResidentExportService;
 import com.moahome.server.resident.service.ResidentImportService;
+import com.moahome.server.resident.service.ResidentImportCommitService;
+import com.moahome.server.resident.service.ResidentPhoneRetentionService;
+import com.moahome.server.property.service.RegistrationResidentPreviewService;
 import com.moahome.server.resident.service.ResidentListService;
 import com.moahome.server.resident.service.ResidentManagementService;
 import com.moahome.server.resident.service.ResidentRegistrationService;
@@ -150,6 +157,21 @@ class SecurityIntegrationTest {
 
 	@MockitoSpyBean
 	private RedisAuthSessionRepository sessions;
+
+	@MockitoBean
+	BankTransferPostingService bankTransferPostings;
+
+	@MockitoBean
+	private AccountingWriteService accountingWrites;
+
+	@MockitoBean
+	private com.moahome.server.accounting.service.ExpenseAccountService expenseAccounts;
+
+	@MockitoBean
+	private IncomeStatementService incomeStatements;
+
+	@MockitoBean
+	private BillingIncomeSourceService billingIncomeSources;
 
 	@MockitoBean
 	private EntityManager entityManager;
@@ -234,6 +256,15 @@ class SecurityIntegrationTest {
 
 	@MockitoBean
 	private ResidentImportService residentImport;
+
+	@MockitoBean
+	private ResidentImportCommitService residentImportCommits;
+
+	@MockitoBean
+	private ResidentPhoneRetentionService phoneRetention;
+
+	@MockitoBean
+	private RegistrationResidentPreviewService registrationResidentPreview;
 
 	@MockitoBean
 	private ResidentManagementService residentManagement;

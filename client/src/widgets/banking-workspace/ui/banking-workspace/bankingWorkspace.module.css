@@ -151,6 +151,8 @@
   background: color-mix(in srgb, var(--warning) 10%, var(--card));
   color: var(--warning);
 
+  &[data-state='TRANSFER'],
+  &[data-state='LINKED'],
   &[data-state='CONFIRMED'] {
     color: var(--success);
     background: color-mix(in srgb, var(--success) 10%, var(--card));
@@ -301,16 +303,17 @@
 }
 
 @container (max-width: 540px) {
-  /* 좁은 화면에서는 금액을 한 줄로 읽을 수 있도록 카드에 본문 전체 폭을 제공합니다. */
-  .summary, .summary[data-view='upload'] {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .file-info {
     flex-basis: 100%;
   }
 
   .filters, .filters[data-preview='true'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 359px) {
+  .summary, .summary[data-view='upload'] {
     grid-template-columns: minmax(0, 1fr);
   }
 }

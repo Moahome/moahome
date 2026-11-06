@@ -12,7 +12,11 @@ import com.moahome.server.resident.exception.ResidentImportException;
 @Component
 public class ResidentExcelReader {
 	public record InputRow(int rowNumber, String building, String unitNumber, String name, String relation,
-	    String phone, boolean invalidCell) {
+	    String phone, boolean invalidCell, String phoneConsent) {
+		public InputRow(int rowNumber, String building, String unitNumber, String name, String relation,
+		    String phone, boolean invalidCell) {
+			this(rowNumber, building, unitNumber, name, relation, phone, invalidCell, "");
+		}
 		@Override
 		public String toString() {
 			return "InputRow[REDACTED]";
@@ -43,7 +47,13 @@ public class ResidentExcelReader {
 						continue;
 					String[] values = new String[layout.count()];
 					boolean invalid = false;
+					String consent = layout.consent() < 0 ? "" : formatter.formatCellValue(row.getCell(layout.consent())).strip().toUpperCase(Locale.ROOT);
 					for (int column = 0; column < values.length; column++) {
+						// 동의를 확인하지 않은 번호는 읽기 단계에서 제외해 임시 저장·검색·응답으로 전달하지 않습니다.
+						if (column == layout.phone() && !"O".equals(consent)) {
+							values[column] = "";
+							continue;
+						}
 						Cell cell = row.getCell(column);
 						boolean unsupported = cell != null
 						    && !Set.of(CellType.STRING, CellType.NUMERIC, CellType.BLANK).contains(cell.getCellType());
@@ -54,7 +64,7 @@ public class ResidentExcelReader {
 						continue;
 					result.add(new InputRow(index + 1, layout.building() < 0 ? "" : values[layout.building()],
 					    values[layout.unitNumber()], values[layout.name()], values[layout.relation()],
-					    values[layout.phone()], invalid));
+					    values[layout.phone()], invalid, consent));
 				}
 				if (result.isEmpty())
 					throw new ResidentImportException("EMPTY_EXCEL_FILE");
@@ -67,12 +77,12 @@ public class ResidentExcelReader {
 		}
 	}
 
-	private record ColumnLayout(int building, int unitNumber, int name, int relation, int phone, int count) {
+	private record ColumnLayout(int building, int unitNumber, int name, int relation, int phone, int count, int consent) {
 	}
 
 	/** 현재 동별·동 없는 양식과 기존 배포 양식만 허용하고 전화번호·주민 구분의 위치를 명시적으로 연결합니다. */
 	private ColumnLayout readHeader(Row header, DataFormatter formatter) {
-		if (header == null || (header.getLastCellNum() != 4 && header.getLastCellNum() != 5))
+		if (header == null || header.getLastCellNum() < 4 || header.getLastCellNum() > 6)
 			throw new ResidentImportException("INVALID_EXCEL_HEADER");
 		List<String> labels = new ArrayList<>();
 		for (int index = 0; index < header.getLastCellNum(); index++) {
@@ -81,14 +91,18 @@ public class ResidentExcelReader {
 				throw new ResidentImportException("INVALID_EXCEL_HEADER");
 			labels.add(formatter.formatCellValue(cell).strip());
 		}
+		if (labels.equals(List.of("동", "호수", "이름", "연락처", "주민 구분", "전화번호 수집 동의")))
+			return new ColumnLayout(0, 1, 2, 4, 3, 6, 5);
+		if (labels.equals(List.of("호수", "이름", "연락처", "주민 구분", "전화번호 수집 동의")))
+			return new ColumnLayout(-1, 0, 1, 3, 2, 5, 4);
 		if (labels.equals(List.of("동", "호수", "이름", "연락처", "주민 구분")))
-			return new ColumnLayout(0, 1, 2, 4, 3, 5);
+			return new ColumnLayout(0, 1, 2, 4, 3, 5, -1);
 		if (labels.equals(List.of("호수", "이름", "연락처", "주민 구분")))
-			return new ColumnLayout(-1, 0, 1, 3, 2, 4);
+			return new ColumnLayout(-1, 0, 1, 3, 2, 4, -1);
 		// 이미 내려받은 다섯 열 양식은 예전 순서와 '관계' 이름을 함께 지원합니다.
 		if (labels.equals(List.of("동", "호수", "이름", "주민 구분", "연락처"))
 		    || labels.equals(List.of("동", "호수", "이름", "관계", "연락처")))
-			return new ColumnLayout(0, 1, 2, 3, 4, 5);
+			return new ColumnLayout(0, 1, 2, 3, 4, 5, -1);
 		throw new ResidentImportException("INVALID_EXCEL_HEADER");
 	}
 
@@ -111,5 +125,18 @@ public class ResidentExcelReader {
 			if (entries == 0)
 				throw new ResidentImportException("INVALID_EXCEL_FILE");
 		}
+	}
+	/**  초기 설정과 운영 업로드가 같은 주민 구분 입력을 정규화합니다. */
+	public static String normalizeRelation(String input) {
+		// 비어 있는 주민 구분은 미확인 기타로 저장하고 잘못 입력한 값은 기존처럼 행 오류로 안내합니다.
+		if (input == null || input.isBlank())
+			return "OTHER";
+		return switch (input) {
+			case "소유주", "소유자", "주인", "OWNER" -> "OWNER";
+			case "임차인", "세입자", "TENANT" -> "TENANT";
+			case "가족", "FAMILY" -> "FAMILY";
+			case "기타", "OTHER" -> "OTHER";
+			default -> null;
+		};
 	}
 }

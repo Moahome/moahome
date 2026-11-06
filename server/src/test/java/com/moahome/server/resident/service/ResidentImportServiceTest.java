@@ -38,7 +38,7 @@ class ResidentImportServiceTest {
 		var unit = mock(Unit.class);
 		when(access.getManagementContext(actor, propertyId))
 		    .thenReturn(new ManagementPropertyResponse(propertyId, "대상", PropertyMemberRole.ADMIN));
-		when(properties.findById(propertyId)).thenReturn(Optional.of(property));
+		when(properties.findForUnitUpdate(propertyId)).thenReturn(Optional.of(property));
 		when(property.getId()).thenReturn(propertyId);
 		when(units.findByPropertyIdAndDeletedAtIsNull(propertyId)).thenReturn(List.of(unit));
 		when(unit.getId()).thenReturn(unitId);
@@ -49,8 +49,9 @@ class ResidentImportServiceTest {
 		        new ResidentExcelReader.InputRow(3, "", "301", "구분 공백", "  ", "", false),
 		        new ResidentExcelReader.InputRow(4, "", "301", "오입력", "관리자", "", false)));
 		when(batches.saveAndFlush(any())).thenAnswer(input -> input.getArgument(0));
+		var commits = mock(ResidentImportCommitService.class);
 		var service = new ResidentImportService(access, properties, buildings, units, residents, batches, registrations,
-		    reader, mock(), new ObjectMapper(), Clock.systemUTC());
+		    reader, mock(), new ObjectMapper(), Clock.systemUTC(), commits);
 		var preview = service.preview(actor, propertyId, null);
 		assertThat(preview.rows()).extracting(row -> row.status()).containsExactly("READY", "READY",
 		    "ERROR");
@@ -60,15 +61,15 @@ class ResidentImportServiceTest {
 		verify(batches).saveAndFlush(capture.capture());
 		when(batches.findByIdAndPropertyIdAndCreatedBy(preview.importId(), propertyId, actor))
 		    .thenReturn(Optional.of(capture.getValue()));
-		when(registrations.register(eq(actor), eq(propertyId), any())).thenAnswer(input -> {
-			ResidentRegistrationRequest request = input.getArgument(2);
+		when(commits.register(eq(actor), eq(propertyId), eq(preview.importId()), any())).thenAnswer(input -> {
+			ResidentRegistrationRequest request = input.getArgument(3);
 			return new ResidentRegistrationResponse(request.requestId(), propertyId, unitId, false);
 		});
 		var result = service.commit(actor, propertyId, preview.importId(),
 		    new ResidentImportCommitRequest(List.of(2, 3)));
 		assertThat(result.rows()).extracting(row -> row.status()).containsExactly("SUCCESS", "SUCCESS",
 		    "ERROR");
-		verify(registrations, times(2)).register(eq(actor), eq(propertyId),
+		verify(commits, times(2)).register(eq(actor), eq(propertyId), eq(preview.importId()),
 		    argThat(input -> input.relationType().equals("OTHER")));
 	}
 }

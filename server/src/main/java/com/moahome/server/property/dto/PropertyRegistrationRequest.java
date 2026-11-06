@@ -20,7 +20,13 @@ public record PropertyRegistrationRequest(
     @Schema(description = "최소 1개의 공용계좌. isPrimary=true는 정확히 1개. 계좌번호 중복 불가") @NotEmpty(message = "REQUIRED") List<@NotNull(message = "REQUIRED") @Valid BankAccountInput> bankAccounts,
     @Schema(description = "최소 1개. 금액과 합계는 -999999999999999원부터 999999999999999원까지의 정수") @NotEmpty(message = "REQUIRED") List<@NotNull(message = "REQUIRED") @Valid FeeItemInput> feeItems,
     @Schema(description = "등록한 본인의 거주 여부. 이전 버전 재시도에서만 생략 가능", nullable = true) @JsonInclude(JsonInclude.Include.NON_NULL) @Valid AdministratorInput administrator,
-    @Schema(description = "새 초기 설정의 잔액 인계·관리 시작. 생략한 이전 요청은 등록만 저장", nullable = true) @JsonInclude(JsonInclude.Include.NON_NULL) @Valid RegistrationOpeningInput openingBalances) {
+    @Schema(description = "새 초기 설정의 잔액 인계·관리 시작. 생략한 이전 요청은 등록만 저장", nullable = true) @JsonInclude(JsonInclude.Include.NON_NULL) @Valid RegistrationOpeningInput openingBalances,
+    @JsonInclude(JsonInclude.Include.NON_NULL) @Size(max = 1000) List<@NotNull @Valid ResidentInput> residents) {
+	public PropertyRegistrationRequest(UUID requestId, BasicInfoRequest basicInfo, List<BuildingInput> buildings,
+	    List<UnitInput> units, List<BankAccountInput> bankAccounts, List<FeeItemInput> feeItems,
+	    AdministratorInput administrator, RegistrationOpeningInput openingBalances) {
+		this(requestId, basicInfo, buildings, units, bankAccounts, feeItems, administrator, openingBalances, null);
+	}
 	public PropertyRegistrationRequest(UUID requestId, BasicInfoRequest basicInfo, List<BuildingInput> buildings,
 	    List<UnitInput> units, List<BankAccountInput> bankAccounts, List<FeeItemInput> feeItems,
 	    AdministratorInput administrator) {
@@ -38,7 +44,12 @@ public record PropertyRegistrationRequest(
 	    @NotNull(message = "REQUIRED") @Pattern(regexp = "RESIDENT|EXTERNAL", message = "INVALID_FORMAT") String residenceType,
 	    @TextInput(max = 50, optional = true) String name, @Size(max = 64, message = "TOO_LONG") String phone,
 	    @Pattern(regexp = "[A-Za-z0-9_-]{1,50}", message = "INVALID_FORMAT") String buildingClientId,
-	    @TextInput(max = 30, optional = true) String unitNumber) {
+	    @TextInput(max = 30, optional = true) String unitNumber,
+	    @JsonInclude(JsonInclude.Include.NON_NULL) Boolean phoneConsent) {
+		public AdministratorInput(String residenceType, String name, String phone, String buildingClientId,
+		    String unitNumber) {
+			this(residenceType, name, phone, buildingClientId, unitNumber, null);
+		}
 		public AdministratorInput {
 			name = TextValues.optional(name);
 			phone = TextValues.optional(phone);
@@ -48,6 +59,28 @@ public record PropertyRegistrationRequest(
 		@Override
 		public String toString() {
 			return "AdministratorInput[REDACTED]";
+		}
+	}
+
+	/** 주민은 같은 요청의 동·호수로 연결하며 계정·대표·권한은 입력받지 않습니다. */
+	public record ResidentInput(
+	    @Pattern(regexp = "[A-Za-z0-9_-]{1,50}") String buildingClientId,
+	    @TextInput(max = 30) String unitNumber, @TextInput(max = 50) String name,
+	    @Size(max = 64) String phone, Boolean phoneConsent,
+	    @Pattern(regexp = "OWNER|TENANT|FAMILY|OTHER") String relationType) {
+		public ResidentInput {
+			name = TextValues.strip(name);
+			phone = TextValues.optional(phone);
+			unitNumber = TextValues.strip(unitNumber);
+			relationType = TextValues.optional(relationType);
+			if (relationType == null) {
+				relationType = "OTHER";
+			}
+		}
+
+		@Override
+		public String toString() {
+			return "ResidentInput[REDACTED]";
 		}
 	}
 

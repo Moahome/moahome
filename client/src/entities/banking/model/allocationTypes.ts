@@ -5,7 +5,17 @@ export type BankingAllocation = {
   percentage: string | null;
 };
 
-export type ExpenseDraft = {
+export interface ExpenseAccountOption {
+  code: string;
+  name: string;
+}
+
+export interface ExpenseAccountSelection {
+  accountCode?: string | null;
+  accountName?: string | null;
+}
+
+export type ExpenseDraft = ExpenseAccountSelection & {
   category: string;
   note: string;
   mode: 'EQUAL' | 'RATIO' | 'AMOUNT' | 'PROPERTY';

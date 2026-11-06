@@ -24,6 +24,9 @@ export function createExpenseDraft(row: BankingTransaction, workspace: BankingWo
   const rule = row.direction === 'EXPENSE' && workspace.rules.find((item) => item.accountId === row.accountId && item.key === row.ruleKey);
   if (rule) return {
     category: rule.category,
+    ...(rule.accountCode ? {
+      accountCode: rule.accountCode
+    } : {}),
     note: '',
     mode: rule.mode,
     saveAsRule: false,

@@ -9,6 +9,8 @@ public interface ResidentInvitationRepository extends JpaRepository<ResidentInvi
 
 	List<ResidentInvitation> findByPropertyIdOrderByCreatedAtDesc(UUID propertyId);
 
+	List<ResidentInvitation> findByPropertyIdAndResidentId(UUID propertyId, UUID residentId);
+
 	List<ResidentInvitation> findByPropertyIdAndResidentIdAndStatusIn(UUID propertyId, UUID residentId,
 	    Collection<String> statuses);
 }

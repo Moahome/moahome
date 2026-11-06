@@ -249,14 +249,14 @@ export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath
       >
         {[
           [multipleMonths ? '시작 월 이월액' : '전월 이월액', 'carry', 'teal',
-            `${multipleMonths ? '조회 시작 월의 전월 말' : '전월 말'} 미납 잔액에서 선입금 잔액을 뺀 금액입니다. 음수는 선입금이 더 많이 남아 있다는 뜻입니다.`],
+            `${multipleMonths ? '조회 시작 월의 전월 말' : '전월 말'} 미납 잔액에서 선입금 잔액을 뺀 금액입니다. 음수는 선입금이 더 많이 남아 있다는 뜻입니다.`, multipleMonths ? '시작 이월액' : '전월 이월액'],
           [multipleMonths ? '기간 관리비 발생액' : '당월 관리비 발생액', 'billed', 'primary',
-            `${multipleMonths ? '조회 기간에' : '이번 달에'} 새로 부과한 관리비 청구액의 합계입니다. ${multipleMonths ? '시작 월' : '전월'} 이월액은 포함하지 않습니다.`],
+            `${multipleMonths ? '조회 기간에' : '이번 달에'} 새로 부과한 관리비 청구액의 합계입니다. ${multipleMonths ? '시작 월' : '전월'} 이월액은 포함하지 않습니다.`, '관리비 발생액'],
           [multipleMonths ? '기간 청구 납부반영액' : '당월 청구 납부반영액', 'applied', 'success',
-            `${multipleMonths ? '조회 기간 각 월의 청구액에 납부로 반영된 금액의 합계입니다.' : '이번 달 청구액에 납부로 반영된 금액입니다.'} 이전 선입금으로 충당한 금액도 포함하며, ${multipleMonths ? '같은 기간' : '이번 달'} 실제 입금액과는 다를 수 있습니다.`],
+            `${multipleMonths ? '조회 기간 각 월의 청구액에 납부로 반영된 금액의 합계입니다.' : '이번 달 청구액에 납부로 반영된 금액입니다.'} 이전 선입금으로 충당한 금액도 포함하며, ${multipleMonths ? '같은 기간' : '이번 달'} 실제 입금액과는 다를 수 있습니다.`, '납부 반영액'],
           [multipleMonths ? '기간 청구 미수금' : '당월 청구 미수금', 'balance', 'danger',
-            multipleMonths ? '조회 기간 각 월의 신규 청구액 중 해당 월말에 납부 반영되지 않은 금액의 합계입니다. 조회 시작 월 이전의 미납은 포함하지 않습니다.' : '이번 달 청구액 중 아직 납부 반영되지 않은 금액입니다. 이전 달 미납은 포함하지 않습니다.']
-        ].map(([label, key, tone, help]) => {
+            multipleMonths ? '조회 기간 각 월의 신규 청구액 중 해당 월말에 납부 반영되지 않은 금액의 합계입니다. 조회 시작 월 이전의 미납은 포함하지 않습니다.' : '이번 달 청구액 중 아직 납부 반영되지 않은 금액입니다. 이전 달 미납은 포함하지 않습니다.', '청구 미수금']
+        ].map(([label, key, tone, help, shortLabel]) => {
           const value = summaryValue(key);
           const negative = value !== null && value < BigInt(0);
           // 선입금 우위의 음수 이월과 양수 청구 미수는 금액을 붉게 표시하되 카드 아이콘으로 항목을 구분합니다.
@@ -267,6 +267,7 @@ export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath
               density={'compact'}
               key={key}
               label={label}
+              shortLabel={shortLabel}
               help={(
                 <InfoTooltip
                   size={'sm'}

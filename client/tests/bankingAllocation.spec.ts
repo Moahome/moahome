@@ -206,6 +206,8 @@ test('지출 XLSX는 두 동을 통합하고 선택 동·외부 제외·수식 �
     amount: '182660',
     expense: {
       category: '=전기료',
+      accountCode: '804',
+      accountName: '수도전기료',
       allocations: [
         {
           buildingId: '102',
@@ -239,13 +241,14 @@ test('지출 XLSX는 두 동을 통합하고 선택 동·외부 제외·수식 �
   const all = await workbook(Array.from({
     length: 12
   }, () => row), ['102', '103']);
-  expect(all.cells.C9).toBe('91330');
-  expect(all.cells.C21).toBe('1095960');
+  expect(all.cells.D9).toBe('91330');
+  expect(all.cells.D21).toBe('1095960');
   expect(all.cells.B9).toBe('=전기료');
+  expect(all.cells.C9).toBe('804 수도전기료');
   expect(all.sheet).not.toContain('<f>');
   expect((all.sheet.match(/<row /g) ?? []).length).toBe(23);
   const single = await workbook([row], ['102']);
-  expect(single.cells.C9).toBe('45665');
+  expect(single.cells.D9).toBe('45665');
   const big = {
     ...row,
     amount: '999999999999999',
@@ -262,7 +265,7 @@ test('지출 XLSX는 두 동을 통합하고 선택 동·외부 제외·수식 �
   const large = await workbook(Array.from({
     length: 12
   }, () => big), ['102']);
-  expect(large.cells.C21).toBe('11999999999999988');
+  expect(large.cells.D21).toBe('11999999999999988');
 });
 
 test('수납 보고서는 부과·충당액을 보존하고 최근 입금자·선입금 열은 제외하며 재업로드 헤더를 유지', async () => {
@@ -433,6 +436,21 @@ test('통장 장부와 동별 차이는 수동 거래 반영 계산값을 사용
     amount: '1522910',
     calculated: true
   });
+  // 원장 계산이 불가하면 은행 참고값을 현재 잔액이나 합계로 되살리지 않습니다.
+  const unavailable = {
+    ...account,
+    balance: '1500000',
+    asOf: '2026-10-15',
+    calculatedBalance: null,
+    calculationSource: 'UNAVAILABLE' as const
+  };
+  expect(getAccountBalanceDisplay(unavailable)).toMatchObject({
+    amount: null,
+    calculated: false
+  });
+  expect(getAccountBalanceTotal({
+    accounts: [unavailable]
+  } as unknown as import('../src/widgets/banking-workspace/api/bankingBalanceApiTypes').BalanceWorkspace).amount).toBeNull();
   expect(getAccountBalanceDisplay({
     ...account,
     calculatedBalance: null
@@ -491,9 +509,9 @@ test('통장 장부와 동별 차이는 수동 거래 반영 계산값을 사용
     balance: '1500000',
     calculatedBalance: null
   })).toMatchObject({
-    amount: '1500000',
+    amount: null,
     calculated: false,
-    label: '마지막 확인 잔액'
+    label: '잔액 계산 확인 필요'
   });
   expect(getAccountBalanceDisplay({
     ...account,
@@ -612,7 +630,7 @@ test('통장별 보유금 비교는 해당 통장의 동별 몫만 합산하고 
   expect(getBalancePeriodLabel('2026-11')).toBe('2026년 11월 등록 내역 기준');
 });
 
-test('시작 금액을 다시 요구하지 않고 기존 확인 잔액을 상세·합계에 유지하며 없는 값만 확인 필요로 구분', async () => {
+test('계산값이 없는 이전 응답도 은행 확인 금액을 현재 잔액·합계로 대체하지 않음', async () => {
   const { getAccountBalanceDisplay, getAccountBalanceTotal } = await import('../src/widgets/banking-workspace/model/accountBalance');
   const account = {
     id: 'bank',
@@ -623,16 +641,16 @@ test('시작 금액을 다시 요구하지 않고 기존 확인 잔액을 상세
     calculatedBalance: null
   };
   expect(getAccountBalanceDisplay(account)).toMatchObject({
-    amount: '514614',
+    amount: null,
     calculated: false,
-    label: '마지막 확인 잔액'
+    label: '잔액 계산 확인 필요'
   });
   const data = {
     accounts: [account],
     accountId: null
   } as unknown as import('../src/widgets/banking-workspace/api/bankingBalanceApiTypes').BalanceWorkspace;
   expect(getAccountBalanceTotal(data)).toEqual({
-    amount: '514614',
+    amount: null,
     calculated: false
   });
   expect(getAccountBalanceDisplay({
@@ -663,6 +681,15 @@ test('업무 검토 기간은 실제 거래일이며 중복 의심은 은행 원
     status: 'CANCELED'
   };
   expect([...getBankingDuplicateIds([original, manual, canceled], '2026-11-01')]).toEqual(['receipt:manual']);
+  expect([...getBankingDuplicateIds([{
+    ...original,
+    sourceType: 'TRANSFER_AUTO'
+  }, manual], '2026-11-01')]).toEqual([]);
+  expect([...getBankingDuplicateIds([{
+    ...original,
+    automaticTransfer: true,
+    status: 'CANCELED'
+  }, manual], '2026-11-01')]).toEqual([]);
   expect(getBankingReviewRange([original], '2026-11-01')).toEqual({
     startDate: '2026-10-15',
     endDate: '2026-11-01'
