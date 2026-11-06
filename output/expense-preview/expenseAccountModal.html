@@ -1,0 +1,249 @@
+<div id="moahome-expense-preview" class="viz-dotted-background">
+  <section class="expense-modal" aria-labelledby="expense-preview-title">
+    <header class="expense-header">
+      <div><p>통장 관리</p><h2 id="expense-preview-title">수동 지출 등록</h2></div>
+      <button type="button" class="icon-button cursor-interaction" aria-label="수동 지출 등록 닫기" data-close><i data-lucide="x" aria-hidden="true"></i></button>
+    </header>
+    <form class="expense-form">
+      <div class="expense-body">
+        <section class="expense-section" aria-labelledby="expense-basic-title">
+          <h3 id="expense-basic-title"><span class="step-number">1</span>기본 정보</h3>
+          <div class="basic-grid">
+            <label class="expense-field">출금 통장 <span class="required">*</span><select name="bank"><option>공용 관리 통장</option><option>시설 관리 통장</option></select></label>
+            <label class="expense-field">출금일 <span class="required">*</span><input type="date" name="date" value="2026-11-06" max="2026-11-06" required></label>
+            <label class="expense-field">지출명 <span class="required">*</span><input name="expenseName" value="승강기 정기 점검" placeholder="예: 공용 전기료" maxlength="100" required></label>
+            <label class="expense-field">출금액 <span class="required">*</span><span class="amount-input"><input name="amount" inputmode="numeric" value="150,000" aria-label="출금액" required><span>원</span></span></label>
+            <div class="expense-field account-field">
+              <label for="expense-account-query">계정과목 <span class="optional">선택</span></label>
+              <div class="account-control">
+                <input id="expense-account-query" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="expense-account-options" aria-describedby="expense-account-help" autocomplete="off" placeholder="코드 또는 과목명으로 검색">
+                <button type="button" class="account-toggle cursor-interaction" aria-label="계정과목 목록 열기"><i data-lucide="chevron-down" aria-hidden="true"></i></button>
+                <div id="expense-account-options" class="account-options" role="listbox" aria-label="비용 계정과목" hidden></div>
+              </div>
+              <p class="field-help" id="expense-account-help">선택한 과목으로 손익계산서에 연결합니다. 미선택 시 기존 자동 매칭을 적용합니다.</p>
+            </div>
+          </div>
+        </section>
+        <section class="expense-section" aria-labelledby="expense-allocation-title">
+          <h3 id="expense-allocation-title"><span class="step-number">2</span>배분 설정</h3>
+          <label class="expense-field">나누는 방법<select name="split"><option value="equal">선택한 곳에 똑같이 나누기</option><option value="amount">금액 직접 입력</option><option value="ratio">비율 지정</option></select></label>
+          <div class="target-row" role="group" aria-label="부담 동">
+            <label class="target-chip cursor-interaction"><input type="checkbox" name="building" value="101동" checked>101동</label>
+            <label class="target-chip cursor-interaction"><input type="checkbox" name="building" value="102동" checked>102동</label>
+            <button class="expense-button secondary cursor-interaction" type="button" data-add-target><i data-lucide="plus" aria-hidden="true"></i>외부·공통 부담처 추가</button>
+          </div>
+          <p class="field-help">선택한 곳에 출금액을 나눕니다. 외부 부담액도 지정해주세요.</p>
+        </section>
+        <section class="expense-section" aria-labelledby="expense-amount-title">
+          <h3 id="expense-amount-title"><span class="step-number">3</span>부담 금액</h3>
+          <div class="allocation-list"></div>
+          <div class="allocation-total"><span>배분 합계</span><strong data-total>150,000원</strong></div>
+        </section>
+        <section class="expense-section" aria-labelledby="expense-memo-title">
+          <h3 id="expense-memo-title"><span class="step-number">4</span>메모</h3>
+          <input name="memo" aria-label="메모" placeholder="메모를 입력해주세요. (선택사항)" maxlength="500">
+        </section>
+        <p class="preview-status" role="status" aria-live="polite"></p>
+      </div>
+      <footer class="expense-actions"><button class="expense-button neutral cursor-interaction" type="button" data-close>취소</button><button class="expense-button primary cursor-interaction" type="submit">등록</button></footer>
+    </form>
+  </section>
+  <button class="expense-button primary reopen cursor-interaction" type="button" hidden>수동 지출 등록 열기</button>
+</div>
+<style>
+  #moahome-expense-preview {
+    --expense-card: #FFFFFF; --expense-text: #0F172A; --expense-sub-text: #64748B;
+    --expense-border: #E2E8F0; --expense-primary: #2563EB; --expense-primary-dark: #1D4ED8;
+    --expense-soft: #EFF6FF; --expense-primary-border: #BFDBFE; --expense-danger: #EF4444;
+    --expense-input-text: #1E293B; --expense-placeholder: #94A3B8;
+    color-scheme: light; padding: 18px 8px; font-family: Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-size: 16px; line-height: 1.5; color: var(--expense-text);
+  }
+  #moahome-expense-preview * { box-sizing: border-box; }
+  #moahome-expense-preview [hidden] { display: none !important; }
+  #moahome-expense-preview .expense-modal { max-width: 960px; margin: auto; border: 1px solid var(--expense-border); border-radius: 16px; background: var(--expense-card); }
+  #moahome-expense-preview .expense-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 24px 32px; }
+  #moahome-expense-preview p, #moahome-expense-preview h2, #moahome-expense-preview h3 { margin: 0; }
+  #moahome-expense-preview .expense-header p { font-size: 14px; color: var(--expense-sub-text); margin-bottom: 6px; }
+  #moahome-expense-preview h2 { font-size: 28px; line-height: 1.4; font-weight: 700; }
+  #moahome-expense-preview .expense-body { padding: 0 32px; }
+  #moahome-expense-preview .expense-section { display: grid; gap: 12px; padding: 18px 0; border-top: 1px solid var(--expense-border); min-width: 0; }
+  #moahome-expense-preview h3 { display: flex; align-items: center; gap: 14px; font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  #moahome-expense-preview .step-number { display: grid; place-items: center; width: 28px; height: 28px; flex-shrink: 0; border-radius: 50%; font-size: 14px; color: var(--expense-primary-dark); background: var(--expense-soft); }
+  #moahome-expense-preview .basic-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
+  #moahome-expense-preview .expense-field { display: block; min-width: 0; font-size: 14px; font-weight: 500; }
+  #moahome-expense-preview .required { color: var(--expense-danger); }
+  #moahome-expense-preview .optional { color: var(--expense-sub-text); font-size: 12px; font-weight: 400; margin-left: 4px; }
+  #moahome-expense-preview input:not([type="checkbox"]), #moahome-expense-preview select { display: block; width: 100%; height: 44px; margin-top: 7px; border: 1px solid var(--expense-border); border-radius: 8px; background: var(--expense-card); padding: 10px 12px; color: var(--expense-input-text); font: inherit; font-size: 16px; min-width: 0; }
+  #moahome-expense-preview input::placeholder { color: var(--expense-placeholder); }
+  #moahome-expense-preview button { font: inherit; }
+  #moahome-expense-preview .amount-input { position: relative; display: block; }
+  #moahome-expense-preview .amount-input input { text-align: right; padding-right: 36px; }
+  #moahome-expense-preview .amount-input > span { position: absolute; right: 13px; top: 11px; font-size: 16px; font-weight: 400; color: var(--expense-sub-text); }
+  #moahome-expense-preview .account-field { grid-column: 1 / -1; }
+  #moahome-expense-preview .account-control { position: relative; }
+  #moahome-expense-preview .account-control input { padding-right: 48px; }
+  #moahome-expense-preview .account-toggle { position: absolute; right: 2px; top: 2px; display: grid; place-items: center; width: 40px; height: 40px; border: 0; background: transparent; color: var(--expense-sub-text); border-radius: 7px; }
+  #moahome-expense-preview .account-toggle svg { transition: transform 180ms ease; }
+  #moahome-expense-preview .account-control[data-open="true"] .account-toggle svg { transform: rotate(180deg); }
+  #moahome-expense-preview .account-options { position: absolute; top: calc(100% + 5px); left: 0; right: 0; z-index: 20; padding: 6px; max-height: 268px; overflow: auto; background: var(--expense-card); border: 1px solid var(--expense-border); border-radius: 10px; box-shadow: 0 8px 24px color-mix(in srgb, var(--expense-text) 12%, transparent); opacity: 0; transform: translateY(-5px); transition: opacity 180ms ease, transform 180ms ease; }
+  #moahome-expense-preview .account-control[data-open="true"] .account-options { opacity: 1; transform: translateY(0); }
+  #moahome-expense-preview .account-option { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 12px; border: 0; border-radius: 6px; background: var(--expense-card); color: var(--expense-input-text); text-align: left; min-height: 42px; }
+  #moahome-expense-preview .account-option:hover, #moahome-expense-preview .account-option[data-active="true"], #moahome-expense-preview .account-option[aria-selected="true"] { background: var(--expense-soft); color: var(--expense-primary-dark); }
+  #moahome-expense-preview .account-code { font-variant-numeric: tabular-nums; color: var(--expense-sub-text); }
+  #moahome-expense-preview .account-option .selection-mark { margin-left: auto; color: var(--expense-primary); }
+  #moahome-expense-preview .empty-options { padding: 12px; color: var(--expense-sub-text); font-size: 14px; }
+  #moahome-expense-preview .field-help { color: var(--expense-sub-text); font-size: 13px; font-weight: 400; margin-top: 7px; }
+  #moahome-expense-preview .target-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  #moahome-expense-preview .target-chip { display: flex; align-items: center; gap: 8px; border: 1px solid var(--expense-border); border-radius: 8px; padding: 9px 14px; }
+  #moahome-expense-preview .target-chip:has(input:checked) { background: var(--expense-soft); border-color: var(--expense-primary-border); color: var(--expense-primary-dark); }
+  #moahome-expense-preview input[type="checkbox"] { margin: 0; width: 16px; height: 16px; accent-color: var(--expense-primary); }
+  #moahome-expense-preview .expense-button { display: inline-flex; justify-content: center; align-items: center; gap: 8px; border: 1px solid var(--expense-border); background: var(--expense-card); color: var(--expense-text); border-radius: 8px; min-height: 44px; padding: 9px 18px; font-weight: 500; }
+  #moahome-expense-preview .primary, #moahome-expense-preview .secondary { border-color: var(--expense-primary-border); color: var(--expense-primary); }
+  #moahome-expense-preview .primary { background: var(--expense-soft); }
+  #moahome-expense-preview .expense-button:hover { filter: brightness(.98); }
+  #moahome-expense-preview .expense-button:disabled { opacity: .5; cursor: not-allowed; }
+  #moahome-expense-preview .icon-button { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; background: transparent; color: var(--expense-sub-text); border-radius: 8px; }
+  #moahome-expense-preview .allocation-row, #moahome-expense-preview .allocation-total { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; }
+  #moahome-expense-preview .allocation-row { border-bottom: 1px solid var(--expense-border); }
+  #moahome-expense-preview .allocation-row label { min-width: 0; }
+  #moahome-expense-preview .allocation-row input { width: 150px; margin: 0; text-align: right; }
+  #moahome-expense-preview .allocation-total strong { font-weight: 600; font-variant-numeric: tabular-nums; }
+  #moahome-expense-preview .expense-actions { display: flex; justify-content: flex-end; gap: 10px; padding: 0 32px 22px; }
+  #moahome-expense-preview .preview-status { color: var(--expense-sub-text); font-size: 14px; padding-bottom: 14px; }
+  #moahome-expense-preview .preview-status:empty { display: none; }
+  #moahome-expense-preview .reopen { margin: 24px auto; }
+  #moahome-expense-preview svg { width: 18px; height: 18px; flex-shrink: 0; }
+  @media (max-width: 520px) {
+    #moahome-expense-preview { padding: 12px 0; }
+    #moahome-expense-preview .expense-header { padding: 20px; }
+    #moahome-expense-preview .expense-body { padding: 0 20px; }
+    #moahome-expense-preview .expense-actions { padding: 0 20px 20px; }
+    #moahome-expense-preview .basic-grid { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+    #moahome-expense-preview h2 { font-size: 24px; }
+    #moahome-expense-preview h3 { font-size: 18px; }
+    #moahome-expense-preview .target-row .expense-button { width: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    #moahome-expense-preview .account-options, #moahome-expense-preview .account-toggle svg { transition: none; }
+  }
+</style>
+<script>
+(() => {
+  const root = document.getElementById('moahome-expense-preview');
+  const form = root.querySelector('form');
+  const query = root.querySelector('#expense-account-query');
+  const menu = root.querySelector('#expense-account-options');
+  const control = root.querySelector('.account-control');
+  const toggle = root.querySelector('.account-toggle');
+  const status = root.querySelector('.preview-status');
+  const accounts = [['801','일반관리비'],['802','청소비'],['803','엘리베이터비'],['804','수도전기료'],['805','모아홈비'],['806','수선비'],['807','정화조비'],['808','통신비'],['809','지급수수료'],['810','소모품'],['812','보험료'],['813','잡비']];
+  let selected = '';
+  let active = 0;
+  let expanded = false;
+  let hideTimer;
+  let external = false;
+  let manualShares = {};
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const money = value => Number(String(value).replace(/[^0-9]/g, '')) || 0;
+  const format = value => new Intl.NumberFormat('ko-KR').format(value);
+  const selectedLabel = () => accounts.find(row => row[0] === selected)?.join(' ') || '';
+  const filtered = () => accounts.filter(row => row.join(' ').includes(query.value.trim()));
+
+  /** 선택 코드는 미리보기 상태로만 유지하며 과목을 고르면 검색창에 코드와 이름을 함께 표시합니다. */
+  function persist() {
+    if (window.openai?.setWidgetState) window.openai.setWidgetState({ modelContent: { accountCode: selected, accountName: selectedLabel() }, privateContent: null }).catch(() => {});
+  }
+  function renderOptions() {
+    const rows = filtered();
+    active = Math.max(0, Math.min(active, rows.length - 1));
+    menu.replaceChildren();
+    rows.forEach((row, index) => {
+      const option = document.createElement('button');
+      option.type = 'button'; option.className = 'account-option cursor-interaction'; option.id = `expense-account-${row[0]}`;
+      option.setAttribute('role', 'option'); option.setAttribute('aria-selected', String(selected === row[0]));
+      option.dataset.active = String(index === active);
+      const code = document.createElement('span'); code.className = 'account-code'; code.textContent = row[0];
+      const name = document.createElement('span'); name.textContent = row[1]; option.append(code, name);
+      if (row[0] === selected) { const mark = document.createElement('span'); mark.className = 'selection-mark'; mark.textContent = '✓'; mark.setAttribute('aria-hidden','true'); option.append(mark); }
+      option.addEventListener('pointerdown', event => event.preventDefault());
+      option.addEventListener('click', () => choose(row[0]));
+      menu.append(option);
+    });
+    if (!rows.length) { const empty = document.createElement('p'); empty.className = 'empty-options'; empty.textContent = '일치하는 과목이 없습니다.'; menu.append(empty); }
+    if (expanded && rows[active]) query.setAttribute('aria-activedescendant', `expense-account-${rows[active][0]}`);
+    else query.removeAttribute('aria-activedescendant');
+  }
+  function openMenu() {
+    clearTimeout(hideTimer); expanded = true; menu.hidden = false; menu.inert = false; query.value = ''; active = 0;
+    query.setAttribute('aria-expanded','true'); toggle.setAttribute('aria-label','계정과목 목록 닫기'); renderOptions();
+    requestAnimationFrame(() => { if (expanded) control.dataset.open = 'true'; });
+  }
+  function closeMenu() {
+    expanded = false; control.dataset.open = 'false'; menu.inert = true; query.value = selectedLabel();
+    query.setAttribute('aria-expanded','false'); query.removeAttribute('aria-activedescendant'); toggle.setAttribute('aria-label','계정과목 목록 열기');
+    hideTimer = setTimeout(() => { if (!expanded) menu.hidden = true; }, reducedMotion ? 0 : 180);
+  }
+  function choose(code) { selected = code; closeMenu(); persist(); query.focus(); }
+  query.addEventListener('click', () => { if (!expanded) openMenu(); });
+  query.addEventListener('input', () => { if (!expanded) { expanded = true; clearTimeout(hideTimer); menu.hidden = false; menu.inert = false; control.dataset.open = 'true'; query.setAttribute('aria-expanded','true'); } active = 0; renderOptions(); });
+  toggle.addEventListener('click', () => { if (expanded) closeMenu(); else { openMenu(); query.focus(); } });
+  query.addEventListener('keydown', event => {
+    if (event.isComposing) return;
+    if (event.key === 'Escape' || event.key === 'Tab') { if (event.key === 'Escape' && expanded) event.preventDefault(); closeMenu(); return; }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault(); if (!expanded) { openMenu(); return; }
+      active += event.key === 'ArrowDown' ? 1 : -1; renderOptions(); menu.querySelector('[data-active="true"]')?.scrollIntoView({block:'nearest'}); return;
+    }
+    if (event.key === 'Enter') { event.preventDefault(); if (!expanded) openMenu(); else if (filtered()[active]) choose(filtered()[active][0]); }
+  });
+  root.addEventListener('pointerdown', event => { if (!control.contains(event.target) && expanded) closeMenu(); });
+  query.addEventListener('blur', () => { if (expanded) closeMenu(); });
+
+  /** 배분 방식과 선택 동을 바꾸면 표시 금액을 다시 계산하며 실제 지출 데이터는 생성하지 않습니다. */
+  function renderAllocation() {
+    const amount = money(form.elements.amount.value);
+    const targets = [...root.querySelectorAll('input[name="building"]:checked')].map(input => input.value);
+    if (external) targets.push('외부 부담처');
+    const mode = form.elements.split.value;
+    const list = root.querySelector('.allocation-list'); list.replaceChildren();
+    let total = 0;
+    targets.forEach((target, index) => {
+      const row = document.createElement('div'); row.className = 'allocation-row';
+      const label = document.createElement('label'); label.textContent = target;
+      const id = `expense-share-${index}`; label.htmlFor = id; row.append(label);
+      if (mode === 'equal') {
+        const share = Math.floor(amount / targets.length) + (index < amount % targets.length ? 1 : 0); total += share;
+        const value = document.createElement('span'); value.textContent = `${format(share)}원`; row.append(value);
+      } else {
+        const input = document.createElement('input'); input.id = id; input.inputMode = 'numeric'; input.placeholder = mode === 'ratio' ? '비율 (%)' : '금액 (원)';
+        input.value = manualShares[target] ?? ''; input.setAttribute('aria-label', `${target} ${mode === 'ratio' ? '비율' : '금액'}`);
+        input.addEventListener('input', () => { manualShares[target] = money(input.value); updateTotal(); }); row.append(input);
+      }
+      list.append(row);
+    });
+    function updateTotal() {
+      total = mode === 'ratio' ? Math.round(amount * targets.reduce((sum, target) => sum + (manualShares[target] || 0), 0) / 100) : targets.reduce((sum, target) => sum + (manualShares[target] || 0), 0);
+      root.querySelector('[data-total]').textContent = `${format(total)}원`;
+    }
+    if (mode !== 'equal') updateTotal(); else root.querySelector('[data-total]').textContent = `${format(total)}원`;
+    if (!targets.length) { const empty = document.createElement('p'); empty.className = 'field-help'; empty.textContent = '부담할 동을 선택해주세요.'; list.append(empty); }
+  }
+  form.elements.amount.addEventListener('input', renderAllocation);
+  form.elements.amount.addEventListener('blur', () => { form.elements.amount.value = format(money(form.elements.amount.value)); });
+  root.querySelectorAll('input[name="building"]').forEach(input => input.addEventListener('change', renderAllocation));
+  form.elements.split.addEventListener('change', () => { manualShares = {}; renderAllocation(); });
+  root.querySelector('[data-add-target]').addEventListener('click', event => { external = !external; event.currentTarget.textContent = external ? '외부 부담처 제외' : '외부·공통 부담처 추가'; renderAllocation(); });
+  form.addEventListener('submit', event => { event.preventDefault(); closeMenu(); status.textContent = `미리보기 · ${selectedLabel() || '과목 미선택'} · 실제 지출은 저장되지 않습니다.`; persist(); });
+  const modal = root.querySelector('.expense-modal'); const reopen = root.querySelector('.reopen');
+  root.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => { closeMenu(); modal.hidden = true; reopen.hidden = false; reopen.focus(); }));
+  reopen.addEventListener('click', () => { reopen.hidden = true; modal.hidden = false; root.querySelector('[data-close]').focus(); });
+  function restore(state) {
+    const code = state?.modelContent?.accountCode;
+    if (typeof code === 'string' && accounts.some(row => row[0] === code)) { selected = code; query.value = selectedLabel(); }
+  }
+  restore(window.openai?.widgetState);
+  window.addEventListener('openai:set_globals', event => { if (event.detail?.globals?.widgetState) restore(event.detail.globals.widgetState); });
+  renderAllocation();
+})();
+</script>
