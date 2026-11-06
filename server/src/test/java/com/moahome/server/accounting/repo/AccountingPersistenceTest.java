@@ -52,7 +52,7 @@ class AccountingPersistenceTest {
 			assertThat(coded.migrate().migrationsExecuted).isEqualTo(2);
 			coded.validate();
 			UUID miscellaneous = jdbc.queryForObject("select id from accounting_accounts where property_id=? and code='811'", UUID.class, property);
-			Flyway insured = Flyway.configure().dataSource(dataSource).load();
+			Flyway insured = Flyway.configure().dataSource(dataSource).target("20261105133047").load();
 			assertThat(insured.migrate().migrationsExecuted).isEqualTo(1);
 			insured.validate();
 			// 충돌한 사용자 과목과 기존 잡비는 ID·분류 이력을 유지한 채 새 코드로 연결됩니다.
@@ -69,6 +69,18 @@ class AccountingPersistenceTest {
 				.isInstanceOf(DataIntegrityViolationException.class);
 			assertThatThrownBy(() -> jdbc.update("update accounting_accounts set code='899' where id=?", account))
 				.isInstanceOf(DataIntegrityViolationException.class);
+			Flyway selected = Flyway.configure().dataSource(dataSource).load();
+			assertThat(selected.migrate().migrationsExecuted).isEqualTo(3);
+			selected.validate();
+			assertThat(jdbc.queryForObject("select report_group from accounting_accounts where property_id=? and code='103'", String.class, property)).isEqualTo("ASSET");
+			assertThat(jdbc.queryForObject("select accounting_account_id from expenses where id=?", UUID.class, expense)).isNull();
+			UUID newExpense = UUID.randomUUID();
+			jdbc.update("insert into expenses(id,property_id,source_type,bank_account_id,expense_date,category_encrypted,total_amount,allocation_mode,save_as_rule,confirmed_by,confirmed_at,accounting_account_id) values (?,?,'MANUAL',?,'2026-11-01','cipher',100,'PROPERTY',false,?,now(),?)", newExpense, property, bank, user, account);
+			assertThatThrownBy(() -> jdbc.update("insert into expenses(id,property_id,source_type,bank_account_id,expense_date,category_encrypted,total_amount,allocation_mode,save_as_rule,confirmed_by,confirmed_at,accounting_account_id) values (?,?,'MANUAL',?,'2026-11-01','cipher',100,'PROPERTY',false,?,now(),?)", UUID.randomUUID(), property, bank, user, revenue))
+				.isInstanceOf(DataIntegrityViolationException.class);
+			assertThatThrownBy(() -> jdbc.update("update expenses set accounting_account_id=null where id=?", newExpense))
+				.isInstanceOf(DataIntegrityViolationException.class);
+
 		}
 	}
 }

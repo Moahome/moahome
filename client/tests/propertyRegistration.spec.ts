@@ -6262,6 +6262,14 @@ for (const width of [1440, 390]) {
       name: '지출명',
       exact: true
     }).fill('공용 전기료');
+    await page.getByRole('combobox', {
+      name: '계정과목',
+      exact: true
+    }).fill('804');
+    await page.getByRole('option', {
+      name: '804 수도전기료',
+      exact: true
+    }).click();
     await page.getByRole('textbox', {
       name: '출금액',
       exact: true
@@ -6279,6 +6287,7 @@ for (const width of [1440, 390]) {
       name: '직접 입력한 입출금'
     });
     await expect(table).toContainText('공용 전기료');
+    await expect(table).toContainText('804 수도전기료');
     await table.getByRole('row').filter({
       hasText: '공용 전기료'
     }).click();
@@ -6497,6 +6506,26 @@ test('초기 은행 업로드: 입금·출금 선택과 원본을 최종 등록�
   });
   await expect(table).toContainText('201호');
   await expect(table).toContainText('청소비');
+  await table.getByRole('row').filter({
+    hasText: '청소비'
+  }).click();
+  await expect(page.getByRole('checkbox', {
+    name: '관리 통장 간 이체',
+    exact: true
+  })).toHaveCount(0);
+  await page.getByRole('combobox', {
+    name: '계정과목',
+    exact: true
+  }).fill('802');
+  await page.getByRole('option', {
+    name: '802 청소비',
+    exact: true
+  }).click();
+  await page.getByRole('button', {
+    name: '설정 완료',
+    exact: true
+  }).click();
+  await expect(table).toContainText('802 청소비');
   await expect(page.getByText('선택 2건 · 입금 1건 · 출금 1건', {
     exact: true
   })).toBeVisible();
@@ -6533,6 +6562,7 @@ test('초기 은행 업로드: 입금·출금 선택과 원본을 최종 등록�
   expect(upload.rows).toHaveLength(2);
   expect(upload.rows[0].unitIndex).toBe(0);
   expect(upload.rows[1].expense?.mode).toBe('PROPERTY');
+  expect(upload.rows[1].expense?.accountCode).toBe('802');
   expect(upload.rows[1].expense?.allocations).toEqual([]);
 });
 

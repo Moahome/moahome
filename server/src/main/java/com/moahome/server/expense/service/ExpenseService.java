@@ -1,5 +1,6 @@
 package com.moahome.server.expense.service;
 
+import com.moahome.server.accounting.service.ExpenseAccountService;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.*;
@@ -29,16 +30,19 @@ public class ExpenseService {
 	private final PaymentTextSecurity security;
 
 	private final Clock clock;
+	private final ExpenseAccountService expenseAccounts;
 	private final PropertyRepository properties;
 
 	public ExpenseService(ExpenseRepository expenses, ExpenseAllocationRepository allocations,
-	    BuildingRepository buildings, @Lazy PaymentTextSecurity security, Clock clock, PropertyRepository properties) {
+	    BuildingRepository buildings, @Lazy PaymentTextSecurity security, Clock clock, PropertyRepository properties,
+	    ExpenseAccountService expenseAccounts) {
 		this.expenses = expenses;
 		this.allocations = allocations;
 		this.buildings = buildings;
 		this.security = security;
 		this.clock = clock;
 		this.properties = properties;
+		this.expenseAccounts = expenseAccounts;
 	}
 
 	/** 호출자는 관리대상 잠금·권한을 먼저 확보합니다. 비용과 동별 배분을 함께 저장해 부분 확정을 막습니다. */
@@ -54,6 +58,7 @@ public class ExpenseService {
 		var previous = expenses.findByBankTransactionId(original.getId());
 		if (previous.isPresent()) {
 			var e = previous.get();
+			expenseAccounts.requireSameInitial(original.getPropertyId(), e.getAccountingAccountId(), request.accountCode());
 			List<ExpenseAllocation> saved = allocations.findByPropertyIdOrderBySortOrderAsc(original.getPropertyId())
 			    .stream().filter(a -> e.getId().equals(a.getExpenseId())).toList();
 			boolean same = category.equals(security.decrypt(e.getCategoryEncrypted()))
@@ -74,7 +79,7 @@ public class ExpenseService {
 		    security.protect(category).encrypted(), note == null ? null : security.protect(note).encrypted(),
 		    original.getAmount(), request.mode(), request.saveAsRule(),
 		    BankTransactionKeys.ruleKey(security.decrypt(original.getPayerNameEncrypted()), security), actor,
-		    OffsetDateTime.now(clock)));
+		    OffsetDateTime.now(clock), expenseAccounts.select(original.getPropertyId(), request.accountCode(), actor)));
 		ArrayList<ExpenseAllocation> parts = new ArrayList<ExpenseAllocation>();
 		for (int i = 0; i < shares.size(); i++) {
 			var share = shares.get(i);
@@ -93,6 +98,7 @@ public class ExpenseService {
 		var previous = expenses.findById(request.id());
 		if (previous.isPresent()) {
 			requireSameManual(previous.get(), property, request, actor);
+			expenseAccounts.requireSameInitial(property, previous.get().getAccountingAccountId(), request.accountCode());
 			return;
 		}
 		var input = request.expense();
@@ -103,7 +109,7 @@ public class ExpenseService {
 		String note = TextValues.optional(request.note(), 500);
 		var expense = expenses.saveAndFlush(Expense.manual(request.id(), property, request.accountId(), request.date(),
 		    security.protect(category).encrypted(), note == null ? null : security.protect(note).encrypted(), total,
-		    request.mode(), actor, OffsetDateTime.now(clock)));
+		    request.mode(), actor, OffsetDateTime.now(clock), expenseAccounts.select(property, request.accountCode(), actor)));
 		ArrayList<ExpenseAllocation> parts = new ArrayList<>();
 		for (int i = 0; i < shares.size(); i++) {
 			var share = shares.get(i);

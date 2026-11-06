@@ -10,7 +10,6 @@ import { useSession } from '@/entities/session';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { InfoTooltip } from '@/shared/ui/info-tooltip';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import { useQuery } from '@tanstack/react-query';
 import {
   useEffect,
@@ -24,8 +23,7 @@ import {
 import type { AccountBalance } from '../../../api/bankingBalanceApiTypes';
 import {
   getAccountBalanceDisplay,
-  getBalancePeriodLabel,
-  getBankConfirmationDescription
+  getBalancePeriodLabel
 } from '../../../model/accountBalance';
 import styles from './bankAccountDetails.module.css';
 
@@ -36,11 +34,10 @@ const STATUS_LABELS = {
 };
 
 /** PC·모바일에서 같은 통장 정보를 표시하고 전체 번호는 공개 중인 컴포넌트에만 보관합니다. */
-export function BankAccountDetails({ propertyId, account, month, onCheck, onInitial }: {
+export function BankAccountDetails({ propertyId, account, month, onInitial }: {
   propertyId: string;
   account: AccountBalance;
   month: string;
-  onCheck?: () => void;
   onInitial?: () => void;
 }) {
   const session = useSession();
@@ -216,7 +213,7 @@ export function BankAccountDetails({ propertyId, account, month, onCheck, onInit
             size={'sm'}
             compact
           >
-            {display.calculated ? `${getBalancePeriodLabel(month)}의 장부 잔액입니다. 통장 초기 잔액에 업로드·수동 입출금을 반영합니다.` : '기존에 확인한 은행 잔액과 확인시점을 표시합니다. 매월 다시 입력할 필요가 없습니다.'}
+            {display.calculated ? `${getBalancePeriodLabel(month)}의 장부 잔액입니다. 시작 금액에 유효 입출금과 이체·취소를 반영합니다.` : '장부 잔액을 계산할 시작 금액과 거래 자료를 확인해주세요.'}
             {display.description}
           </InfoTooltip>
         </div>
@@ -229,38 +226,10 @@ export function BankAccountDetails({ propertyId, account, month, onCheck, onInit
         <small>
           {display.calculated ? getBalancePeriodLabel(month) : display.description}
         </small>
-        <div
-          className={styles.confirmation}
-        >
-          <ServiceIcon
-            name={'bank'}
-            size={20}
-          />
-          <p>
-            {account.balance !== null && (!account.confirmation || account.confirmation.status === 'READY')
-              ? <>
-                참고 · 마지막 은행 확인
-                {' '}
-                <strong>
-                  {formatWon(account.balance)}
-                </strong>
-              </>
-              : getBankConfirmationDescription(account)}
-          </p>
-        </div>
-        {(onCheck || onInitial) && (
+        {onInitial && (
           <div
             className={styles['balance-actions']}
           >
-            {onCheck && (
-              <Button
-                variant={'text'}
-                size={'sm'}
-                onClick={onCheck}
-              >
-                은행 잔액 직접 확인
-              </Button>
-            )}
             {onInitial && (
               <Button
                 variant={'text'}

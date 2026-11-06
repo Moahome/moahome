@@ -453,13 +453,13 @@ EXTERNAL은 거주 필드를 보내지 않습니다. RESIDENT는 세대 대표�
 | --- | --- |
 | openingBalances.bankImports | 최대 100개. 통장별 `{accountIndex,fileName,content,rows}` |
 | fileName / content | 파일명 최대 255자, 원본 Base64 최대 6,990,508자(5MiB 파일). 합산 Base64 28,000,000자 이하 |
-| bankImports[].rows | 1~5,000개의 선택 거래 `{id,unitIndex?,incomeCategory?,incomeNote?,expense?,incomeAllocation?,transfer}`. id는 미리보기 원본 식별 UUID |
+| bankImports[].rows | 1~5,000개의 선택 거래 `{id,unitIndex?,incomeCategory?,incomeNote?,expense?,incomeAllocation?,transfer,transferAccountIndex?}`. id는 미리보기 원본 식별 UUID |
 | openingBalances.manualTransactions | 최대 5,000개. `{id,accountIndex,direction,date,amount,payer,purpose,unitIndex?,category?,note?,allocation?}` |
 | manualTransactions[].id | 초안 거래 UUID. 한 요청 안에서 중복 불가 |
 | direction / purpose | INCOME/EXPENSE, HOUSEHOLD/OTHER/SHARED. 세대 입금은 unitIndex 필수, 기타·동별 입금은 category 필수, SHARED는 allocation 필수 |
 | date / amount / payer | 미래 불가 거래일, 양수 15자리 정수 문자열 금액, 1~100자 입금자·지출명 |
 
-accountIndex·unitIndex는 최종 bankAccounts·units 배열의 0부터 시작하는 위치입니다. 분류·배분의 buildingClientId는 같은 요청의 동 참조입니다. 원본 행의 날짜·금액·방향을 클라이언트가 다시 보내 덮어쓰지 않습니다.
+accountIndex·unitIndex는 최종 bankAccounts·units 배열의 0부터 시작하는 위치입니다. `transferAccountIndex`는 이체 상대 통장의 bankAccounts 위치이며 자기 통장·범위 밖 참조를 허용하지 않습니다. 신규 화면은 이체 시 필수 지정하고 기존 생략 요청은 종전 원본 대기 방식을 유지합니다. 선택 `transferAllocations:[{buildingClientId,amount}]`는 해당 요청의 동 ID를 최종 동 UUID로 변환해 같은 이체에 저장합니다. 동이 있는 신규 화면은 이체 전액을 검증하며 기존 생략 요청의 재시도 지문은 유지합니다. 단일 원본 이체·대사·취소는 [통장 API](bankingManagement.md#한쪽-은행-원본에서-양쪽-이체-반영-2026-11-06)를 따릅니다. 분류·배분의 buildingClientId는 같은 요청의 동 참조입니다. 원본 행의 날짜·금액·방향을 클라이언트가 다시 보내 덮어쓰지 않습니다.
 
 배분 입력은 `{category,note?,mode,saveAsRule,allocations}`입니다. mode는 EQUAL/RATIO/AMOUNT/PROPERTY이며, allocations는 최대 100개의 `{buildingClientId?,label?,amount?,percentage?}`입니다. PROPERTY는 동 구분 없는 출금에만 허용하고 allocations는 빈 배열입니다. 다른 방식은 실제 배분이 필요하며 기존 원 단위 합계·비율·동 참조 검증을 적용합니다. 입금에는 PROPERTY를 허용하지 않습니다. 이체 표시 거래에는 다른 분류를 함께 보내지 않습니다.
 
@@ -476,3 +476,9 @@ accountIndex·unitIndex는 최종 bankAccounts·units 배열의 0부터 시작�
 ## 관리대상 생성 권한 (2026-11-03)
 
 기본 정보 검증, 등록 전 은행 지원 조회·미리보기, 신규 최종 등록에는 현재 계정의 별도 생성 허용이 필요합니다. 시스템 관리자 역할만으로 이 검사를 생략하지 않습니다. 미허용은 `403 / PROPERTY_CREATION_NOT_ALLOWED`이고 부분 저장하지 않습니다. 이미 성공한 동일 등록 요청은 권한 회수 뒤에도 현재 관리대상 접근권한과 기존 본문을 확인해 결과를 복원합니다. 상세 계약은 [시스템 관리 API](systemAdministration.md)를 따릅니다.
+
+## 초기 지출 계정과목 선택 (2026-11-06)
+
+`openingBalances.bankImports[].rows[].expense`와 `openingBalances.manualTransactions[].allocation`에 선택 `accountCode`를 받습니다. 값·조회·유효성은 [지출 계정과목 계약](bankingManagement.md#지출-계정과목-선택-2026-11-06)을 따릅니다. 초기 설정은 기본 비용 코드를 선택하며 동·세대 초안과 함께 마지막 전체 트랜잭션에서 저장합니다. 입금·이체의 비용 과목 입력은 제공하지 않습니다.
+
+미선택 필드는 JSON 직렬화에서 생략해 이전 등록 요청의 지문을 보존하고 선택값은 요청 지문에 포함합니다. 실패·응답 유실 뒤 같은 요청의 과목 선택을 바꾸지 않습니다. 기존 최종 등록의 원자적 저장·결과 확인 기준을 유지합니다.

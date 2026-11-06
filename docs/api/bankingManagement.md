@@ -122,6 +122,7 @@ Expense는 `{ category, note?, mode, saveAsRule, allocations }`, mode는 `EQUAL 
 | GET `/api/properties/{propertyId}/banking/account/list` | 계좌 목록. 기존 계좌 응답에 `alias, isPrimary, status` 추가. 권한 확인 뒤 원문 조회 |
 | POST `/api/properties/{propertyId}/banking/account/save` | `{accountId,updatedAt?,bankCode,bankName,accountNumber,holderName,alias?,isPrimary,primaryAccountId}` → 계좌 응답 |
 | POST `/api/properties/{propertyId}/banking/account/{id}/close` | `{updatedAt}` → 종료한 계좌 응답 |
+| POST `/api/properties/{propertyId}/banking/transfers/from-transaction` | `{id,transactionId,counterpartAccountId}` → 최신 Workspace. 기존 은행 원본 한 건에서 양쪽 장부 반영 |
 | POST `/api/properties/{propertyId}/banking/transfers` | `{id,outgoingId,incomingId}` → 최신 Workspace |
 | POST `/api/properties/{propertyId}/banking/transfers/{id}/cancel` | 본문 없음 → 최신 Workspace |
 
@@ -131,11 +132,25 @@ Workspace에 `accounts:[{id,bankName,last4,alias,isPrimary,status}]`를 추가�
 
 `POST /payments/manual` 요청에 선택 accountId를 추가합니다. 명시한 통장이 종료·다른 대상이면 거부하고, 같은 UUID 재시도에서도 통장 일치를 검사합니다. 기존 생략 호출은 기본 계좌를 사용합니다. 수납 Workspace.accounts에 isPrimary·status를 추가합니다.
 
-Selection의 `transfer:true`는 세대·기타 입금·지출·공동 입금 배분 설정과 함께 보낼 수 없습니다. 원본만 저장하며 거래에 `transferCandidate:true`, 상태 `TRANSFER_PENDING`을 반환합니다. 연결하면 `transferId`와 `TRANSFER` 상태를 반환하고 연결 해제하면 대기로 돌아갑니다. 양쪽 원본의 동일 대상·다른 통장·반대 방향·같은 양수 금액을 검사하며 중복 연결·이미 분류한 원본·잘못된 UUID 재사용은 `BANK_TRANSFER_CONFLICT`(409)입니다. 같은 요청 ID 재시도는 이후 취소된 연결을 다시 적용하지 않습니다. 연결 원본의 한쪽만 삭제하면 `BANK_TRANSFER_DELETE_PAIR_REQUIRED`(409)입니다.
+기존 호환 계약에서 `Selection.transfer:true`만 보낸 요청은 세대·기타 입금·지출·공동 입금 배분 설정과 함께 보낼 수 없습니다. 이 경우 원본만 저장하며 거래에 `transferCandidate:true`, 상태 `TRANSFER_PENDING`을 반환합니다. 연결하면 `transferId`와 `TRANSFER` 상태를 반환하고 연결 해제하면 대기로 돌아갑니다. 양쪽 원본의 동일 대상·다른 통장·반대 방향·같은 양수 금액을 검사하며 중복 연결·이미 분류한 원본·잘못된 UUID 재사용은 `BANK_TRANSFER_CONFLICT`(409)입니다. 같은 요청 ID 재시도는 이후 취소된 연결을 다시 적용하지 않습니다. 연결 원본의 한쪽만 삭제하면 `BANK_TRANSFER_DELETE_PAIR_REQUIRED`(409)입니다.
+
+### 한쪽 은행 원본에서 양쪽 이체 반영 (2026-11-06)
+
+사용자 요청에 따라 신규 화면은 `transfer:true, transferAccountId`를 함께 제출합니다. `transferAccountId`는 같은 관리대상의 다른 사용 중 공용 통장이며 수납·기타 입금·비용 배분은 함께 제출하지 않습니다. 출금에서 `103 통장간 거래` 선택은 이 분류로 전환하며 `Expense.accountCode=103` 비용 요청으로 보내지 않습니다. 수동 입금·지출에는 이체 생성을 추가하지 않습니다.
+
+원본은 한 건만 저장하고 이체에 `103 통장간 거래`(ASSET)를 연결합니다. Workspace는 양쪽 행에 `transferCandidate:true, transferId, transferAccountId, automaticTransfer:true`를 반환합니다. 상대 은행 원본이 아직 없으면 파생 행의 `sourceType`은 `TRANSFER_AUTO`, `id`는 이체 ID, `balance`는 null입니다. 이 행은 실제 은행 원본이나 수납·지출이 아닙니다. 장부 잔액에는 반대 방향으로 한 번 반영하고 실제 은행 확인 잔액은 만들지 않습니다.
+
+상대 통장의 파일 미리보기는 지정 통장·같은 거래일·같은 금액·반대 방향의 미대사 이체가 유일하면 이체 ID와 상대 통장을 제시합니다. 확인 후 `transfer:true, transferAccountId, matchTransferId`로 저장하면 자동 행을 실제 원본으로 대체해 금액은 한 번만 반영합니다. 이미 미분류 원본이 있으면 같은 검증으로 대사하며 이미 수납·비용으로 사용한 원본은 덮어쓰지 않습니다. 같은 날·금액 후보가 여럿이면 `BANK_TRANSFER_MATCH_AMBIGUOUS`(409)로 검토를 요구합니다. 일자가 다르면 자동 대사하지 않습니다. 미리보기 뒤 후보가 바뀌면 `BANK_TRANSFER_CONFLICT`(409), 대응 이체를 일반 수납·비용으로 저장하면 `BANK_TRANSFER_CONFIRM_REQUIRED`(409)입니다.
+
+이 방식의 `cancel`은 양쪽 앱 장부 반영을 함께 제외하고 `CANCELED`로 표시합니다. 원본·실제 은행 확인 잔액·취소 이력은 보존하며 실제 은행 송금을 되돌리는 API는 아닙니다. 취소 후 재시도는 이체를 되살리지 않습니다. 취소 후 상대 원본을 가져와도 같은 이체에 원본만 연결하고 취소 상태를 유지합니다. 활성 자동 이체 원본의 선택 삭제는 `BANK_TRANSFER_CANCEL_REQUIRED`(409)이며 먼저 이체를 취소해야 합니다. 취소 뒤에는 파생 행 ID를 포함한 선택 삭제도 같은 이체의 양쪽 원본 삭제로 처리합니다. 삭제 이력·취소 이력은 보존하며 같은 파일을 새 원본으로 다시 가져올 수 있습니다. 기존 두 원본 연결 방식의 취소는 기존 연결 해제 의미를 유지합니다.
+
+같은 통장·다른 대상·종료 통장은 `INVALID_TRANSFER_ACCOUNT`(400), 103 기존 설정 충돌은 `BANK_TRANSFER_ACCOUNT_CONFLICT`(409)입니다. 전체 등록·대사·취소는 관리대상 행 잠금 안에서 원자적으로 처리합니다.
+
+동별 이동 요청은 `Selection.transferAllocations` 또는 `POST /transfers/from-transaction`의 `allocations`에 `[{buildingId,amount}]`를 보냅니다. 기존 이체의 미설정 이동금액은 `POST /transfers/{id}/allocations`의 `{allocations}`로 확정합니다. 같은 대상의 활성 동·양수 정수 원·중복 없는 동·이체 전액 합계를 검증합니다. 동일 배분의 재시도는 허용하고 이미 확정한 다른 배분은 `BANK_TRANSFER_ALLOCATION_CONFLICT`로 거부합니다. 기존 필드 생략 요청은 호환하지만 동이 있는데 미설정한 이체는 잔고 pending에 표시합니다. 양쪽 Workspace 행과 후속 상대 원본 미리보기는 `transferAllocations`를 반환합니다. Entry의 `transactionId`는 상세 이동용 실제 원본 ID이며 파생 Entry ID와 구분합니다.
 
 `Selection.transfer`는 선택 입력이며 생략·null은 `false`로 처리합니다. 일반 입출금과 이전 클라이언트의 multipart 요청을 허용하되 명시한 `true`는 유지하고, 잘못된 boolean 값이나 다른 요청 필드의 검증을 완화하지 않습니다.
 
-잔고 응답에 `accounts:[{id,label,status,balance,asOf}]`를 추가하고 bankBalance는 조회 범위에 속한 통장의 확인 잔액 합계입니다. 하나라도 미확인이면 null이며 계좌별 asOf를 표시합니다. 통장 내부 이체는 은행 입출금에는 남지만 동별 Entry·세대 수납·운영 지출에는 포함하지 않습니다. 연결 대기는 pending에 표시하고 연결 완료는 제외합니다. 외부 부담금과 연결 후보 입금에는 accountId를 추가해 기존 같은 통장 회수 제한에 맞는 후보만 선택합니다. 다른 계좌로 받은 외부 부담금 회수는 후속 정책입니다.
+잔고 응답에 `accounts:[{id,label,status,balance,asOf}]`를 추가하고 bankBalance는 조회 범위에 속한 통장의 확인 잔액 합계입니다. 하나라도 미확인이면 null이며 계좌별 asOf를 표시합니다. 통장 내부 이체는 실제 통장 입출금이며 세대 수납·운영 지출에는 포함하지 않습니다. 동별 이동금액을 저장하면 양쪽 같은 동의 Entry에 반대 부호로 반영합니다. 연결 대기는 pending에 표시하고 연결 완료는 제외합니다. 외부 부담금과 연결 후보 입금에는 accountId를 추가해 기존 같은 통장 회수 제한에 맞는 후보만 선택합니다. 다른 계좌로 받은 외부 부담금 회수는 후속 정책입니다.
 
 수동 기타·동별 입금은 [수동 등록 계약](paymentApi.md#수동-등록확정취소)을 사용합니다. 동별 잔고 조회는 미연결 수동 기타 입금의 transactionId=null을 허용하며, 동별 배분 원장 행은 수동 입금 UUID와 paymentId를 반환합니다. 은행 원본 상세를 만들어 열지 않고 기존 수납 상세를 엽니다. 확정 수동 OTHER는 미배분 기타 입금·외부 회수 후보에, SHARED는 지정 동의 입금에 반영하며 나중에 원본 연결 후에도 한 번만 집계합니다.
 
@@ -153,7 +168,7 @@ Selection의 `transfer:true`는 세대·기타 입금·지출·공동 입금 배
 
 통장 목록 응답 배열은 저장된 최초 등록 순서입니다. 초기 설정의 입력 순서를 유지하고 추가 통장은 뒤에 붙이며 기본 지정 변경·은행명 정정은 순서를 바꾸지 않습니다. 별도 순서 변경 API는 제공하지 않습니다.
 
-accounts의 각 항목은 `calculatedBalance: 원 단위 부호 있는 문자열|null`, `calculationBasisDate: YYYY-MM-DD|null`을 반환합니다. 2026-11-01 후속 요청에 따라 [장부 계산 기준](../domain/domainRules.md#기준-잔고-기반-통장-계산-잔액-표시-2026-10-18-후속)은 통장 자체의 최신 유효 초기 잔액·기준일이며 동별 기준값과 독립적입니다. 조회 월말까지의 은행 원본·미연결 확정 수동 입금·수동 출금을 반영하고 이전 월은 역산합니다. 통장 초기 잔액이 없으면 두 필드는 null입니다. Client는 이 계산값으로 기본 장부 잔액·전체 합계·동별 차이를 표시합니다. 기존 balance·asOf와 Workspace.bankBalance·bankAsOf는 실제 은행 확인값의 의미를 유지하며 별도 참고 정보입니다. 직접 확인으로 장부를 재설정하거나 가상의 은행 원본을 저장하지 않습니다.
+accounts의 각 항목은 `calculatedBalance: 원 단위 부호 있는 문자열|null`, `calculationBasisDate: YYYY-MM-DD|null`, `calculationSource: INITIAL_BALANCE|TRANSACTION_LEDGER|UNAVAILABLE`를 반환합니다. 계산 기준은 [통장 거래 원장 정책](../domain/domainRules.md#기준-잔고-기반-통장-계산-잔액-표시-2026-10-18-후속)을 따릅니다. Client의 현재 금액·합계·동별 차이와 대시보드·정산은 같은 calculatedBalance를 사용합니다. 계산값이 없는 모든 응답은 참고 balance로 현재 잔액을 대체하지 않습니다. balance·asOf·confirmation은 기존 저장 자료의 호환 메타데이터이며 현재 금액·합계·정산 점검·화면·보고서에 사용하지 않습니다. 현재 월의 대시보드 계산 날짜는 월말과 오늘 중 빠른 날짜입니다.
 
 `accounts`에는 조회 월 말까지 사용 근거가 있는 통장만 포함하며 같은 계좌 집합으로 동별 합계·입출금·정산을 계산합니다. 같은 관리대상에 속하지만 사용 전인 accountId를 요청하면 응답 accountId는 null이고 해당 월의 전체 통장 결과를 반환합니다. 다른 관리대상의 계좌는 기존대로 거부합니다. 사용 근거 판정은 위 공통 계산 기준을 따르며 해당 월에 사용한 통장이 없으면 accounts·buildings는 빈 목록, 은행 잔액과 기준일은 null입니다.
 
@@ -233,6 +248,8 @@ accounts의 각 항목은 `calculatedBalance: 원 단위 부호 있는 문자열
 
 ## 은행 잔액 직접 확인 API (2026-10-24)
 
+2026-11-06 최종 사용자 정정으로 Client의 직접 확인·이력·확인 금액 표시를 제거했습니다. 아래 API와 DB 이력은 기존 기록의 호환을 위해 보존하며 현재 장부의 계산 시작값이나 금액·합계 대체값으로 사용하지 않습니다.
+
 상태: **등록·이력 조회·취소 및 잔고 조회 연동 구현**. 최초 제안에서 확정한 실제 계약이며 업무 기준은 [도메인 규칙](../domain/domainRules.md#운영-중-은행-잔액-직접-확인-2026-10-24), 저장 구조는 [ERD](../domain/erd.md#은행-잔액-직접-확인-저장-2026-10-24)을 따릅니다.
 
 | 메서드 | `/api/properties/{propertyId}/banking/balances` 아래 경로 | 요청 / 응답 |
@@ -295,3 +312,15 @@ checks는 실제 확인시점·기록시점 내림차순의 전체 이력이며 
 ### 잔고 월 기간 조회 (2026-11-01)
 
 기존 `month`는 종료 월이며 선택 `startMonth`가 없으면 같은 한 달로 조회합니다. 둘 다 `YYYY-MM`으로 검증하고 시작 월이 종료 월보다 늦으면 400 `INVALID_BALANCE_PERIOD`를 반환합니다. `startMonth`를 응답에 포함합니다. 동별 기초 잔고는 시작 월 전월 말, 입출금은 전체 기간 합계, 기말 잔고와 통장 장부는 종료 월 말 기준입니다. 종료 통장은 사용 기간이 조회 기간과 겹치고 실제 사용 이력이 있을 때 포함합니다. 기존 권한·금액 문자열·no-store 계약은 유지하며 저장 구조나 Migration은 추가하지 않습니다.
+
+## 지출 계정과목 선택 (2026-11-06)
+
+수동 지출 요청과 `Selection.expense` / 출금 확정 요청에 선택 필드 `accountCode`를 추가합니다. 값은 `800~899`의 세 자리 문자열이며 생략·null은 기존 자동 매칭을 뜻합니다. 해당 대상의 등록된 비용 과목 또는 기본 비용 코드만 허용합니다. 없는 추가 코드·다른 유형은 `400 INVALID_ACCOUNTING_ACCOUNT`이며 지출·배분·계정 생성은 모두 롤백합니다. 같은 요청 재시도에서 최초 선택이 바뀌면 `409 BANK_REQUEST_CONFLICT`입니다.
+
+Workspace는 `expenseAccounts: [{code,name}]`를 코드순으로 반환합니다. 회계 시작 설정 전에도 기본 비용 코드를 제공하고, 설정된 대상의 추가 비용 과목을 포함합니다. 조회는 계정을 생성하지 않습니다. `rows[].expense`는 표시용 `accountCode`·`accountName`(미연결 시 null)을 포함하며 최신 회계 정정을 우선합니다. `rules[].accountCode`는 같은 내용의 후속 출금에 과목을 제안합니다. 화면의 미지정 표시는 회계 시작 월 설정이나 비용 확정을 대신하지 않습니다.
+
+선택은 기존 지출 확정 권한을 사용합니다. 저장 후 회계 정정은 [손익 API](incomeStatementApi.md#지출-계정과목-매칭)의 ADMIN 권한·revision을 유지합니다. 외부 부담·통장 잔액·원본 금액과 기존 자동 매칭은 그대로 재사용합니다. 초기 설정 입력도 [관리대상 등록 API](propertyRegistrationApi.md)의 동일한 선택 필드를 사용합니다.
+
+### 업로드 세대 검색 정보 (2026-11-06)
+
+관리자용 Workspace의 `units`는 `{id,label,residentNames}`를 반환합니다. 기존 수납 원장의 선택 가능한 세대·현재 소속 주민 이름을 그대로 전달하며 별도 주민 검색 API나 이름 기반의 확정 정책을 추가하지 않습니다. Client는 동·호수·대표 및 가족 이름으로 후보를 검색하고 실제 세대 UUID만 제출합니다.

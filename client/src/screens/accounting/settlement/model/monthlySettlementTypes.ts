@@ -23,13 +23,8 @@ export interface SettlementAccount {
   id: string;
   bankName?: string;
   label: string;
-  confirmed: string | null;
-  asOf: string | null;
-  source: string;
-  calculated: string | null;
+  balance: string | null;
   basis: string | null;
-  difference: bigint | null;
-  comparison: string;
 }
 
 export type SettlementRecoveryStatus = '회수 필요' | '일부 회수' | '회수 완료' | '정산 제외';

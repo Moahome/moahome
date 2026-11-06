@@ -28,7 +28,12 @@ public final class BankingRequests {
 
 	public record Expense(@TextInput(max = 100) String category, @TextInput(max = 500, optional = true) String note,
 	    @NotNull @Pattern(regexp = "EQUAL|RATIO|AMOUNT|PROPERTY") String mode, boolean saveAsRule,
-	    @NotNull @Size(max = 100) List<@NotNull @Valid Allocation> allocations) {
+	    @NotNull @Size(max = 100) List<@NotNull @Valid Allocation> allocations,
+	    @Pattern(regexp = "8[0-9]{2}") String accountCode) {
+		public Expense(String category, String note, String mode, boolean saveAsRule, List<Allocation> allocations) {
+			this(category, note, mode, saveAsRule, allocations, null);
+		}
+
 		public Expense {
 			note = TextValues.optional(note);
 		}
@@ -45,13 +50,19 @@ public final class BankingRequests {
 	    @NotNull LocalDate date, @NotNull @Pattern(regexp = "[0-9]{1,15}") String amount,
 	    @TextInput(max = 100) String category, @TextInput(max = 500, optional = true) String note,
 	    @NotNull @Pattern(regexp = "EQUAL|RATIO|AMOUNT|PROPERTY") String mode,
-	    @NotNull @Size(max = 100) List<@NotNull @Valid Allocation> allocations) {
+	    @NotNull @Size(max = 100) List<@NotNull @Valid Allocation> allocations,
+	    @Pattern(regexp = "8[0-9]{2}") String accountCode) {
+		public ManualExpense(UUID id, UUID accountId, LocalDate date, String amount, String category, String note,
+		    String mode, List<Allocation> allocations) {
+			this(id, accountId, date, amount, category, note, mode, allocations, null);
+		}
+
 		public ManualExpense {
 			note = TextValues.optional(note);
 		}
 
 		public Expense expense() {
-			return new Expense(category, note, mode, false, allocations);
+			return new Expense(category, note, mode, false, allocations, accountCode);
 		}
 
 		@AssertTrue(message = "INVALID_ALLOCATION")
@@ -70,7 +81,17 @@ public final class BankingRequests {
 	    @TextInput(max = 500, optional = true) String incomeNote, @Valid Expense expense,
 	    @Valid Expense incomeAllocation,
 	    // 일반 거래와 이전 클라이언트는 이체 표시를 생략하므로 해당 필드만 false로 기본 처리합니다.
-	    @JsonSetter(nulls = Nulls.AS_EMPTY) boolean transfer) {
+	    @JsonSetter(nulls = Nulls.AS_EMPTY) boolean transfer, UUID transferAccountId, UUID matchTransferId,
+	    @Size(max = 100) List<@NotNull @Valid TransferAllocation> transferAllocations) {
+		public Selection(UUID id, UUID unitId, String incomeCategory, String incomeNote, Expense expense,
+		    Expense incomeAllocation, boolean transfer, UUID transferAccountId, UUID matchTransferId) {
+			this(id, unitId, incomeCategory, incomeNote, expense, incomeAllocation, transfer, transferAccountId, matchTransferId, null);
+		}
+		public Selection(UUID id, UUID unitId, String incomeCategory, String incomeNote, Expense expense,
+		    Expense incomeAllocation, boolean transfer) {
+			this(id, unitId, incomeCategory, incomeNote, expense, incomeAllocation, transfer, null, null);
+		}
+
 		public Selection(UUID id, UUID unitId, String incomeCategory, String incomeNote, Expense expense,
 		    Expense incomeAllocation) {
 			this(id, unitId, incomeCategory, incomeNote, expense, incomeAllocation, false);
@@ -103,6 +124,20 @@ public final class BankingRequests {
 		public Import(List<Selection> rows) {
 			this(rows, null);
 		}
+	}
+
+	public record TransferFromTransaction(@NotNull UUID id, @NotNull UUID transactionId,
+	    @NotNull UUID counterpartAccountId,
+	    @Size(max = 100) List<@NotNull @Valid TransferAllocation> allocations) {
+		public TransferFromTransaction(UUID id, UUID transactionId, UUID counterpartAccountId) {
+			this(id, transactionId, counterpartAccountId, null);
+		}
+	}
+
+	public record TransferAllocation(@NotNull UUID buildingId, @NotNull @Pattern(regexp = "[0-9]{1,15}") String amount) {
+	}
+
+	public record TransferAllocations(@NotEmpty @Size(max = 100) List<@NotNull @Valid TransferAllocation> allocations) {
 	}
 
 	public record Transfer(@NotNull UUID id, @NotNull UUID outgoingId, @NotNull UUID incomingId) {

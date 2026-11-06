@@ -1,3 +1,4 @@
+import { getReceiptUnitSearchOptions } from '@/entities/banking';
 import type {
   CumulativePaymentDraft,
   MonthlyCollectionFilters,
@@ -65,16 +66,7 @@ export function getPreviewBuildingOptions(ledger: PreviewLedger) {
 
 /** 이름과 동·호수 표기로 현재 세대를 찾으며 검색 결과는 실제 세대 식별자로만 선택합니다. */
 export function getPreviewUnitSearchOptions(ledger: PreviewLedger) {
-  return getPreviewSelectableUnits(ledger).map((unit) => ({
-    value: unit.id,
-    label: unit.label,
-    searchKeywords: [
-      ...(unit.residentNames ?? []),
-      unit.representativeName ?? '',
-      unit.label.replace(/[동호\s]/g, ''),
-      unit.label.replace(/동\s*/, '-').replace(/호$/, '')
-    ]
-  }));
+  return getReceiptUnitSearchOptions(getPreviewSelectableUnits(ledger));
 }
 
 /** 실제 발행된 해당 월 청구의 세대만 반환하며 취소·공실 제외와 명부만 있는 세대는 선택하지 않습니다. */

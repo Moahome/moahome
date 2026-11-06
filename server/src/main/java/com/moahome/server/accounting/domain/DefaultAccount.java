@@ -8,6 +8,7 @@ import java.util.Optional;
 public enum DefaultAccount {
 	BANK("101", "통장", IncomeGroup.ASSET, "BANK"),
 	RECEIVABLE("102", "미수금", IncomeGroup.ASSET, "RECEIVABLE"),
+	BANK_TRANSFER("103", "통장간 거래", IncomeGroup.ASSET, null),
 	ADVANCE_RECEIPT("201", "선수금", IncomeGroup.LIABILITY, "ADVANCE_RECEIPT"),
 	PAYABLE("202", "미지급금", IncomeGroup.LIABILITY, "PAYABLE"),
 	MANAGEMENT_REVENUE("401", "관리비수입", IncomeGroup.OPERATING_REVENUE, "MANAGEMENT_REVENUE"),

@@ -1,5 +1,6 @@
 import type {
   BankReceiptDraft,
+  TransferAllocationPart,
   ExpenseDraft
 } from '@/entities/banking';
 
@@ -18,6 +19,8 @@ export interface RegistrationBankRow {
 export interface RegistrationBankChoice {
   included: boolean;
   transfer: boolean;
+  transferAccountId?: string;
+  transferAllocations?: TransferAllocationPart[];
   receipt: BankReceiptDraft;
   expense: ExpenseDraft;
 }

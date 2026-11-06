@@ -50,6 +50,7 @@ public class BankingBalanceService {
 	private final BankAccountRepository accounts;
 
 	private final BankTransferRepository transfers;
+	private final BankTransferPostingService transferPostings;
 
 	private final PaymentRepository payments;
 
@@ -90,7 +91,7 @@ public class BankingBalanceService {
 	    IncomeAllocationRepository incomeAllocations,
 	    OpeningBalanceBatchRepository openingBatches,
 	    BankOpeningBalanceRepository bankOpenings, BankTransferRepository transfers,
-	    BankBalanceCheckRepository balanceChecks, InitialBalanceCorrections corrections, BankBillingStartService billingStart) {
+	    BankBalanceCheckRepository balanceChecks, InitialBalanceCorrections corrections, BankBillingStartService billingStart, BankTransferPostingService transferPostings) {
 		this.access = access;
 		this.properties = properties;
 		this.buildings = buildings;
@@ -110,6 +111,7 @@ public class BankingBalanceService {
 		this.openingBatches = openingBatches;
 		this.bankOpenings = bankOpenings;
 		this.transfers = transfers;
+		this.transferPostings = transferPostings;
 		this.balanceChecks = balanceChecks;
 		this.corrections = corrections;
 		this.billingStart = billingStart;
@@ -165,8 +167,9 @@ public class BankingBalanceService {
 			throw new PaymentException("PAYMENT_ACCOUNT_UNAVAILABLE");
 		List<BuildingCashOpening> allOpenings = openings.findByPropertyId(property);
 		List<Expense> allExpenses = expenses.findByPropertyIdOrderByConfirmedAtDesc(property);
-		List<BankTransaction> allBank = transactions.findByPropertyId(property).stream()
-		    .filter(t -> t.getDeletedAt() == null).toList();
+		List<BankTransaction> allBankHistory = transactions.findByPropertyId(property);
+		Map<UUID, BankTransaction> historyById = allBankHistory.stream().collect(Collectors.toMap(BankTransaction::getId, value -> value));
+		List<BankTransaction> allBank = allBankHistory.stream().filter(t -> t.getDeletedAt() == null).toList();
 		Map<UUID, BankTransaction> allBankById = allBank.stream()
 		    .collect(Collectors.toMap(bankTransaction -> bankTransaction.getId(), t -> t));
 		List<Payment> allReceipts = payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property).stream()
@@ -221,6 +224,7 @@ public class BankingBalanceService {
 			    security.decrypt(e.getCategoryEncrypted()), "0", amount(part.getAllocatedAmount()), null,
 			    e.getBankAccountId()));
 		}
+		allEntries.addAll(transferPostings.buildingEntries(property));
 		List<BankBalanceCheck> directChecks = balanceChecks.findByPropertyIdOrderByCheckedAtDescCreatedAtDesc(property);
 		// 계좌별 마지막 원본과 인계값을 각각 확인합니다. 한 통장이라도 미확인이면 전체를 0원으로 대체하지 않습니다.
 		var openingBatch = confirmedBatches.stream().filter(batch -> !batch.getCutoffDate().isAfter(end)).findFirst();
@@ -257,24 +261,42 @@ public class BankingBalanceService {
 			    t.getTransactionDate(), ambiguous ? null : t.getTransactionTime(),
 			    ambiguous || t.getTransactionTime() == null ? "DATE" : "TIME",
 			    ambiguous || t.getBalance() == null ? null : amount(t.getBalance()),
-			    ambiguous ? "ORDER_UNCLEAR" : t.getBalance() == null ? "BALANCE_MISSING" : "READY")));
+			    ambiguous ? "ORDER_UNCLEAR" : t.getBalance() == null ? "BALANCE_MISSING" : "READY", t.getImportedAt())));
 			// 독립 등록의 최신 revision이 과거 조회 범위 밖이면 그 월까지의 기록을 기준시점으로 다시 선택합니다.
 			for (BankOpeningBalance opening : independentOpenings) {
 				if (opening.getBankAccountId().equals(account.getId()) && !opening.getCutoffDate().isAfter(end)) {
 					candidates.add(new BankBalanceSelection.Candidate("ACCOUNT_OPENING", opening.getId(),
-					    opening.getCutoffDate(), null, "DAY_END", amount(opening.getAmount()), "READY"));
+					    opening.getCutoffDate(), null, "DAY_END", amount(opening.getAmount()), "READY", opening.getRecordedAt()));
 					break;
 				}
 			}
 			if (handover != null && !handover.getCutoffDate().isAfter(end))
 				candidates.add(new BankBalanceSelection.Candidate("HANDOVER", handover.getId(),
-				    handover.getCutoffDate(), null, "DAY_END", amount(handover.getAmount()), "READY"));
+				    handover.getCutoffDate(), null, "DAY_END", amount(handover.getAmount()), "READY", handover.getRecordedAt()));
 			for (BankBalanceCheck check : directChecks) {
 				var at = check.getCheckedAt().atZoneSameInstant(BillingCalendar.ZONE);
 				if (check.getBankAccountId().equals(account.getId()) && check.getCanceledAt() == null
 				    && !at.toLocalDate().isAfter(end))
 					candidates.add(new BankBalanceSelection.Candidate("DIRECT_CHECK", check.getId(), at.toLocalDate(),
-					    at.toLocalTime(), "TIME", amount(check.getBalanceAmount()), "READY"));
+					    at.toLocalTime(), "TIME", amount(check.getBalanceAmount()), "READY", check.getCreatedAt()));
+			}
+			// 관리자가 통장 안의 전체 동 보유금을 같은 기준일로 확정했다면 그 합계도 유효한 수동 잔액 근거입니다.
+			// 일부 동만 설정된 합계는 통장 전체 자금으로 간주하지 않습니다.
+			List<BuildingCashOpening> owned = allOpenings.stream().filter(value -> account.getId().equals(value.getBankAccountId())).toList();
+			Set<UUID> ownedIds = owned.stream().map(value -> value.getBuildingId()).collect(Collectors.toSet());
+			List<Building> activeBuildings = buildings.findByPropertyId(property).stream()
+			    .filter(value -> value.getDeletedAt() == null && value.getStatus() == BuildingStatus.ACTIVE).toList();
+			if (!owned.isEmpty() && !activeBuildings.isEmpty() && activeBuildings.stream().allMatch(value -> ownedIds.contains(value.getId()))
+			    && owned.stream().map(value -> value.getCutoffDate()).distinct().count() == 1
+			    && !owned.getFirst().getCutoffDate().isAfter(end)) {
+				OffsetDateTime recorded = owned.stream().map(value -> value.getUpdatedAt() == null ? value.getCreatedAt() : value.getUpdatedAt())
+				    .max(OffsetDateTime::compareTo).orElseThrow();
+				boolean superseded = candidates.stream().anyMatch(candidate -> candidate.precision().equals("DAY_END")
+				    && candidate.date().equals(owned.getFirst().getCutoffDate()) && candidate.recordedAt() != null
+				    && !candidate.recordedAt().isBefore(recorded));
+				if (!superseded) candidates.add(new BankBalanceSelection.Candidate("BUILDING_OPENING", owned.getFirst().getId(),
+				    owned.getFirst().getCutoffDate(), null, "DAY_END", amount(owned.stream().map(value -> value.getAmount())
+				        .reduce(BigDecimal.ZERO, BigDecimal::add)), "READY", recorded));
 			}
 			var selected = BankBalanceSelection.select(candidates);
 			String value = selected == null ? null : selected.amount();
@@ -288,8 +310,36 @@ public class BankingBalanceService {
 			                ? " 마감 잔액"
 			                : selected.time() == null ? "" : " " + selected.time());
 
-			var calculated = calculateAccountBalance(account.getId(), month, configured, allBank,
-			    allReceipts, allExpenses);
+			// 현재 돈은 시작 잔액과 실제 통장 거래 원장에서 계산합니다. 나중에 확인한 은행 금액으로 원장을 덮어쓰지 않습니다.
+			List<BankBalanceSelection.Candidate> ledgerBases = new ArrayList<>();
+			if (configured != null) ledgerBases.add(new BankBalanceSelection.Candidate("ACCOUNT_OPENING", configured.getId(),
+			    configured.getCutoffDate(), null, "DAY_END", amount(configured.getAmount()), "READY", configured.getRecordedAt()));
+			// 동별 시작 보유금을 모두 확정했다면 같은 돈의 수동 시작 근거로 사용합니다.
+			if (!owned.isEmpty() && !activeBuildings.isEmpty() && activeBuildings.stream().allMatch(valueBuilding -> ownedIds.contains(valueBuilding.getId()))
+			    && owned.stream().map(BuildingCashOpening::getCutoffDate).distinct().count() == 1) {
+				OffsetDateTime recorded = owned.stream().map(valueOpening -> valueOpening.getUpdatedAt() == null ? valueOpening.getCreatedAt() : valueOpening.getUpdatedAt())
+				    .max(OffsetDateTime::compareTo).orElseThrow();
+				boolean sameExisting = ledgerBases.stream().anyMatch(candidate -> candidate.date().equals(owned.getFirst().getCutoffDate())
+				    && candidate.recordedAt() != null && !candidate.recordedAt().isBefore(recorded));
+				if (!sameExisting) ledgerBases.add(new BankBalanceSelection.Candidate("BUILDING_OPENING", owned.getFirst().getId(),
+				    owned.getFirst().getCutoffDate(), null, "DAY_END", amount(owned.stream().map(BuildingCashOpening::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add)), "READY", recorded));
+			}
+			BankBalanceSelection.Candidate basis = BankBalanceSelection.select(ledgerBases);
+			AccountCalculation calculated;
+			if (basis != null && basis.amount() != null && "READY".equals(basis.status())) {
+				calculated = calculateFromOpening(property, account.getId(), month, new BigDecimal(basis.amount()), basis.date(), allBank, allReceipts, allExpenses);
+			} else {
+				// 시작 금액이 없을 때만 최초의 유효 은행 거래 잔액을 기초로 삼고 이후에는 거래만 누적합니다.
+				List<BankBalanceSelection.Candidate> bootstraps = allBankHistory.stream().filter(row -> account.getId().equals(row.getBankAccountId())
+				    && row.getBalance() != null && !row.getTransactionDate().isAfter(end))
+				    .map(row -> new BankBalanceSelection.Candidate("BANK_IMPORT", row.getId(), row.getTransactionDate(), row.getTransactionTime(),
+				        row.getTransactionTime() == null ? "DATE" : "TIME", amount(row.getBalance()), "READY", row.getImportedAt()))
+				    .sorted(Comparator.comparing(BankBalanceSelection.Candidate::date).thenComparing(valueCandidate -> valueCandidate.time() == null ? LocalTime.MIN : valueCandidate.time())).toList();
+				// 은행 확인은 시점이 다른 참고 기록입니다. 원장 기준이 없다는 이유로 현재 금액의 시작값으로 승격하지 않습니다.
+				BankBalanceSelection.Candidate first = bootstraps.isEmpty() ? null : bootstraps.getFirst();
+				calculated = calculateObservedAccount(property, account.getId(), end, first, historyById, allReceipts, allExpenses);
+			}
+
 			allAccountBalances.add(new BankingBalanceResponse.AccountBalance(account.getId(),
 			    account.getBankName() + " ····" + account.getAccountLast4()
 			        + (account.getAlias() == null ? "" : " · " + account.getAlias()),
@@ -304,7 +354,8 @@ public class BankingBalanceService {
 			            selected.time(), selected.precision(), selected.status(),
 			            directChecks.stream().filter(check -> check.getId().equals(selected.id()))
 			                .map(bankBalanceCheck -> bankBalanceCheck.getSourceType()).findFirst().orElse(null)),
-			    selected != null && (!selected.date().equals(end) || !selected.precision().equals("DAY_END"))));
+			    selected != null && (!selected.date().equals(end) || !selected.precision().equals("DAY_END")),
+			    calculated == null ? "UNAVAILABLE" : calculated.source()));
 		}
 		Map<UUID, BankAccountRepository.Usage> usage = accounts.findUsageByPropertyId(property).stream()
 		    .collect(Collectors.toMap(entry -> entry.getAccountId(), item -> item));
@@ -498,12 +549,28 @@ public class BankingBalanceService {
 			confirmedTransactions.add(t.getOutgoingId());
 			confirmedTransactions.add(t.getIncomingId());
 		});
+		transferPostings.all(property).forEach(value -> {
+			confirmedTransactions.add(value.getSourceTransactionId());
+			if (value.getCounterpartTransactionId() != null) confirmedTransactions.add(value.getCounterpartTransactionId());
+		});
 		List<BankingBalanceResponse.Pending> pending = bank.stream()
 		    .filter(t -> t.getTransactionDate().isAfter(reviewStart) && !confirmedTransactions.contains(t.getId()))
 		    .map(t -> new BankingBalanceResponse.Pending(t.getId(), t.getTransactionDate(),
 		        (t.isTransferCandidate() ? "이체 연결 대기 · " : "") + security.decrypt(t.getPayerNameEncrypted()),
 		        t.getDirection(), amount(t.getAmount())))
 		    .toList();
+		if (!buildings.findByPropertyId(property).isEmpty()) {
+			List<BankingBalanceResponse.Pending> missing = new ArrayList<>(pending);
+			for (BankTransferPosting posting : transferPostings.all(property)) {
+				BankTransaction source = allBankById.get(posting.getSourceTransactionId());
+				if (posting.getCanceledAt() != null || source == null || source.getTransactionDate().isAfter(end)
+				    || !(accountIds.contains(source.getBankAccountId()) || accountIds.contains(posting.getCounterpartAccountId()))
+				    || !transferPostings.allocations(property, posting.getId()).isEmpty()) continue;
+				missing.add(new BankingBalanceResponse.Pending(source.getId(), source.getTransactionDate(),
+				    "통장간 거래 · 동별 이동금액 설정 필요", source.getDirection(), amount(source.getAmount())));
+			}
+			pending = missing;
+		}
 		Set<UUID> visibleIds = availableAccounts.stream().map(bankAccount -> bankAccount.getId()).collect(Collectors.toSet());
 		List<BankingBalanceResponse.AccountBalance> accountBalances = allAccountBalances.stream()
 		    .filter(a -> visibleIds.contains(a.id())).toList();
@@ -575,25 +642,121 @@ public class BankingBalanceService {
 		}).map(p -> expenses.get(p.getExpenseId()).getBankAccountId()).collect(Collectors.toSet());
 	}
 
-	private record AccountCalculation(BigDecimal balance, LocalDate cutoff) {
+	private record AccountCalculation(BigDecimal balance, LocalDate cutoff, String source) {
+		private AccountCalculation(BigDecimal balance, LocalDate cutoff) {
+			this(balance, cutoff, "INITIAL_BALANCE");
+		}
+	}
+
+	/** 가장 최근의 유효 잔액을 기준으로 이후 수동 입출금·이체·취소를 날짜순으로 반영하며 출처로 금액을 무시하지 않습니다. */
+	private AccountCalculation calculateObservedAccount(UUID property, UUID account, LocalDate end,
+	    BankBalanceSelection.Candidate observed, Map<UUID, BankTransaction> bank, List<Payment> receipts, List<Expense> expenses) {
+		if (observed == null || observed.amount() == null || !"READY".equals(observed.status())) return null;
+		List<BankTransferPosting> relevant = transferPostings.all(property).stream().filter(posting -> {
+			BankTransaction source = bank.get(posting.getSourceTransactionId());
+			return source != null && !source.getTransactionDate().isAfter(end)
+			    && (account.equals(source.getBankAccountId()) || account.equals(posting.getCounterpartAccountId()));
+		}).toList();
+		BigDecimal balance = new BigDecimal(observed.amount());
+		Set<UUID> canceled = transferPostings.canceledSources(property);
+		for (BankTransaction row : bank.values()) {
+			if (row.getDeletedAt() != null || !account.equals(row.getBankAccountId()) || row.getTransactionDate().isAfter(end) || canceled.contains(row.getId())) continue;
+			if (row.getId().equals(observed.id())) continue;
+			Boolean after = afterObservation(row, observed);
+			if (after == null) return null;
+			if (after) balance = balance.add("INCOME".equals(row.getDirection()) ? row.getAmount() : row.getAmount().negate());
+		}
+		for (BankTransferPosting posting : relevant) {
+			BankTransaction source = bank.get(posting.getSourceTransactionId());
+			if (posting.getCanceledAt() == null) {
+				if (posting.getCounterpartTransactionId() != null || !account.equals(posting.getCounterpartAccountId())) continue;
+				Boolean after = afterObservation(source, observed);
+				// 같은 날 시각이 없으면 은행 확인에 이체가 포함됐는지 추정하지 않습니다.
+				if (after == null) return null;
+				if (after) balance = balance.add("INCOME".equals(source.getDirection()) ? source.getAmount().negate() : source.getAmount());
+				continue;
+			}
+			List<BankTransaction> actual = new ArrayList<>();
+			actual.add(source);
+			BankTransaction counterpart = bank.get(posting.getCounterpartTransactionId());
+			if (counterpart != null) actual.add(counterpart);
+			for (BankTransaction row : actual) {
+				if (!account.equals(row.getBankAccountId()) || hasActiveReplacement(row, bank.values())) continue;
+				Boolean after = afterObservation(row, observed);
+				if (after == null) return null;
+				// 은행 확인값에 이미 포함된 취소 이체만 장부에서 역방향으로 제거합니다.
+				if (!after) balance = balance.add("INCOME".equals(row.getDirection()) ? row.getAmount().negate() : row.getAmount());
+			}
+		}
+		// 출처가 아니라 실제 입출금 날짜를 기준으로 최신 확인 이후의 수동 거래도 모두 반영합니다.
+		// 같은 날의 마감 확인에는 당일 거래가 이미 포함되므로 중복 합산하지 않습니다.
+		for (Payment receipt : receipts) {
+			if (account.equals(receipt.getBankAccountId()) && receipt.getBankTransactionId() == null
+			    && receipt.getLinkedPaymentId() == null && "MANUAL".equals(receipt.getSourceType())
+			    && afterManualObservation(receipt.getPaymentDate(), receipt.getCreatedAt(), observed) && !receipt.getPaymentDate().isAfter(end))
+				balance = balance.add(receipt.getAmount());
+		}
+		for (Expense expense : expenses) {
+			if (account.equals(expense.getBankAccountId()) && "MANUAL".equals(expense.getSourceType())
+			    && afterManualObservation(expense.getExpenseDate(), expense.getConfirmedAt(), observed) && !expense.getExpenseDate().isAfter(end))
+				balance = balance.subtract(expense.getTotalAmount());
+		}
+		return new AccountCalculation(balance, observed.date(), "TRANSACTION_LEDGER");
+	}
+
+	private boolean hasActiveReplacement(BankTransaction original, Collection<BankTransaction> history) {
+		return original.getDeletedAt() != null && history.stream().anyMatch(row -> row.getDeletedAt() == null
+		    && row.getBankAccountId().equals(original.getBankAccountId()) && row.getDeduplicationKey().equals(original.getDeduplicationKey()));
+	}
+
+	/** 같은 거래일에는 확인 뒤 새로 기록한 미연결 수기 거래를 포함하고 명시한 일 마감에는 중복하지 않습니다. */
+	private boolean afterManualObservation(LocalDate date, OffsetDateTime recordedAt, BankBalanceSelection.Candidate observed) {
+		int compare = date.compareTo(observed.date());
+		if (compare != 0) return compare > 0;
+		if ("DAY_END".equals(observed.precision())) return false;
+		return observed.recordedAt() != null && !recordedAt.isBefore(observed.recordedAt());
+	}
+
+	/** 확인일 마감은 당일 거래를 포함하고 시각 자료는 실제 순서만 비교합니다. */
+	private Boolean afterObservation(BankTransaction source, BankBalanceSelection.Candidate observed) {
+		int date = source.getTransactionDate().compareTo(observed.date());
+		if (date != 0) return date > 0;
+		if ("DAY_END".equals(observed.precision())) return false;
+		if (source.getTransactionTime() == null || observed.time() == null) return null;
+		return source.getTransactionTime().isAfter(observed.time());
 	}
 
 	/** 통장 초기 잔액에 실제 입출금을 누적·역산합니다. 동별 귀속 설정과 은행 직접 확인은 계산 기준을 바꾸지 않습니다. */
-	private AccountCalculation calculateAccountBalance(UUID account, YearMonth month, BankOpeningBalance baseline,
+	private AccountCalculation calculateAccountBalance(UUID property, UUID account, YearMonth month, BankOpeningBalance baseline,
 	    List<BankTransaction> bank, List<Payment> receipts, List<Expense> expenses) {
 		// 동별 합계는 통장 전체 자금과 다를 수 있으므로 초기 잔액이 없으면 장부 잔액도 미설정으로 둡니다.
 		if (baseline == null)
 			return null;
-		LocalDate cutoff = baseline.getCutoffDate();
-		BigDecimal opening = baseline.getAmount();
+		return calculateFromOpening(property, account, month, baseline.getAmount(), baseline.getCutoffDate(), bank, receipts, expenses);
+	}
+
+	/** 출처별로 돈을 재합산하지 않고 하나의 시작 금액에 유효 원본·수기·이체를 한 번씩 누적합니다. */
+	private AccountCalculation calculateFromOpening(UUID property, UUID account, YearMonth month, BigDecimal opening,
+	    LocalDate cutoff, List<BankTransaction> bank, List<Payment> receipts, List<Expense> expenses) {
 		ArrayList<BuildingCashCalculation.Movement> movements = new ArrayList<BuildingCashCalculation.Movement>();
 		// 통장의 실제 이동은 동별 배분 여부와 무관하므로 미분류 원본·외부 지출·내부 이체도 전액 반영합니다.
+		Set<UUID> canceledTransfers = transferPostings.canceledSources(property);
 		for (var row : bank) {
-			if (!account.equals(row.getBankAccountId()))
+			if (canceledTransfers.contains(row.getId()) || !account.equals(row.getBankAccountId()))
 				continue;
 			movements.add(new BuildingCashCalculation.Movement(row.getTransactionDate(),
 			    "INCOME".equals(row.getDirection()) ? row.getAmount() : BigDecimal.ZERO,
 			    "EXPENSE".equals(row.getDirection()) ? row.getAmount() : BigDecimal.ZERO));
+		}
+		// 반대편 원본 도착 전의 자동 장부 이동만 추가합니다. 실제 원본은 위 루프에서 한 번 반영합니다.
+		for (var posting : transferPostings.all(property)) {
+			if (posting.getCanceledAt() != null || posting.getCounterpartTransactionId() != null
+			    || !account.equals(posting.getCounterpartAccountId())) continue;
+			BankTransaction source = bank.stream().filter(value -> value.getId().equals(posting.getSourceTransactionId())).findFirst().orElse(null);
+			if (source == null) continue;
+			movements.add(new BuildingCashCalculation.Movement(source.getTransactionDate(),
+			    "EXPENSE".equals(source.getDirection()) ? source.getAmount() : BigDecimal.ZERO,
+			    "INCOME".equals(source.getDirection()) ? source.getAmount() : BigDecimal.ZERO));
 		}
 		// 확정한 수기 입금은 용도와 무관하게 반영하고, 은행에 연결된 입금은 원본과 중복 합산하지 않습니다.
 		for (var receipt : receipts) {

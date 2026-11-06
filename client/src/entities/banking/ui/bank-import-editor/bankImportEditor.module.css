@@ -2,11 +2,15 @@
   display: grid;
   gap: 18px;
   min-width: 0;
+  margin: 0;
   padding: 0;
   border: 0;
 
   legend {
-    margin-bottom: 16px;
+    float: left;
+    width: 100%;
+    margin: 0;
+    padding: 0;
     font-size: 18px;
     font-weight: 700;
   }

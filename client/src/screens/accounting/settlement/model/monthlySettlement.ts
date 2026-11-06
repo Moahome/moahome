@@ -1,9 +1,9 @@
 import { getBankAccountLabel } from '@/entities/banking';
+import { getAccountBalanceDisplay } from '@/widgets/banking-workspace';
 import {
   getMonthlyPreviewRows,
   getMonthlyPreviewIncome,
-  getMonthlyChargeSummary,
-  getPreviewDueDate
+  getMonthlyChargeSummary
 } from '@/widgets/payment-workspace';
 import type { MonthlySettlementSnapshot } from '../api/monthlySettlementApiTypes';
 import type {
@@ -14,19 +14,10 @@ import type {
   SettlementRecoveryStatus
 } from './monthlySettlementTypes';
 
-const SOURCE_LABELS: Record<string, string> = {
-  DIRECT_CHECK: '직접 확인',
-  BANK_TRANSACTION: '은행 거래',
-  BANK_IMPORT: '은행 거래',
-  OPENING: '시작 잔액',
-  ACCOUNT_OPENING: '시작 잔액',
-  HANDOVER: '잔액 인계'
-};
-
 /** 실제 입출금과 청구 충당을 분리하고 취소·연결된 수동 입금은 은행 원본과 중복 합산하지 않습니다. */
 export function getSettlementReport(data: MonthlySettlementSnapshot) {
   const month = data.month;
-  const bankRows = data.banking.rows.filter((row) => row.date.startsWith(month));
+  const bankRows = data.banking.rows.filter((row) => row.date.startsWith(month) && !(row.automaticTransfer && row.status === 'CANCELED'));
   const cash: SettlementCashRow[] = bankRows.map((row) => ({
     id: row.id,
     accountId: row.accountId,
@@ -34,7 +25,7 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
     label: row.expense?.category || row.payer,
     amount: BigInt(row.amount),
     direction: row.direction,
-    source: row.sourceType === 'MANUAL' ? '수동 지출' : '은행 원본',
+    source: row.sourceType === 'TRANSFER_AUTO' ? '이체 자동 반영' : row.sourceType === 'MANUAL' ? '수동 지출' : '은행 원본',
     transfer: row.transferId != null
   }));
   const manual = data.payments.payments.filter((row) => row.source === 'MANUAL' && row.status === 'CONFIRMED'
@@ -69,33 +60,21 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
   })).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
   const external = externalRows.filter((row) => !row.excluded);
   const outstanding = external.reduce((sum, row) => sum + BigInt(row.remaining), BigInt(0));
-  const end = getPreviewDueDate(month);
   const accounts: SettlementAccount[] = (data.balances.accounts ?? []).map((row) => {
-    // 월말 계산값과 시점이 같은 일 마감 확인값만 차액을 산출합니다. 0원 차액도 대사 확정은 아닙니다.
-    const comparable = row.balance !== null && row.calculatedBalance != null && row.confirmation?.status === 'READY'
-      && row.confirmation.date === end && row.confirmation.precision === 'DAY_END';
-    const difference = comparable ? BigInt(row.balance!) - BigInt(row.calculatedBalance!) : null;
-    let comparison = '비교 시점 확인 필요';
-    if (row.balance === null) comparison = '은행 확인 자료 필요';
-    else if (row.calculatedBalance == null) comparison = '계산 기준 자료 필요';
-    else if (difference !== null) comparison = difference === BigInt(0) ? '동일 시점 차액 없음' : '차액 확인 필요';
+    // 정산·보고서도 통장 상세와 같은 장부값을 사용하며 확인일이나 은행 참고 금액으로 교체하지 않습니다.
+    const display = getAccountBalanceDisplay(row);
     return {
       id: row.id,
       label: getBankAccountLabel(data.banking.accounts?.find((account) => account.id === row.id) ?? row),
       bankName: data.banking.accounts?.find((account) => account.id === row.id)?.bankName ?? row.label,
-      confirmed: row.balance,
-      asOf: row.asOf,
-      source: SOURCE_LABELS[row.confirmation?.source ?? ''] ?? row.confirmation?.source ?? '—',
-      calculated: row.calculatedBalance ?? null,
-      basis: row.calculationBasisDate ?? null,
-      difference,
-      comparison
+      balance: display.amount,
+      basis: row.calculationBasisDate ?? null
     };
   });
   const unclassified = bankRows.filter((row) => !['CONFIRMED', 'TRANSFER'].includes(row.status));
   const unresolvedCharges = collections.filter((row) => row.settlementPending);
   // 은행 원본의 비교 키를 먼저 모아 많은 거래에서도 중복 후보를 반복 전수 탐색하지 않습니다.
-  const bankKeys = new Set(bankRows.filter((row) => row.sourceType !== 'MANUAL')
+  const bankKeys = new Set(bankRows.filter((row) => row.sourceType !== 'MANUAL' && row.sourceType !== 'TRANSFER_AUTO')
     .map((row) => `${row.accountId}:${row.date}:${row.direction}:${BigInt(row.amount)}`));
   const potentialManualDuplicates = cash.filter((row) => row.source.startsWith('수동')
     && bankKeys.has(`${row.accountId}:${row.date}:${row.direction}:${row.amount}`));
@@ -110,8 +89,8 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
     {
       id: 'accounts',
       title: '통장 잔액 확인',
-      description: '확인·계산 자료가 부족하거나 비교 시점·차액을 확인할 통장입니다.',
-      count: accounts.filter((row) => row.difference !== BigInt(0)).length,
+      description: '장부 잔액을 계산할 시작 금액과 거래 자료가 부족한 통장입니다.',
+      count: accounts.filter((row) => row.balance === null).length,
       path: 'banking/balances'
     },
     {
@@ -176,15 +155,9 @@ function matchesSettlementQuery(query: string, ...values: string[]) {
   return values.join(' ').toLocaleLowerCase('ko-KR').includes(keyword);
 }
 
-/** 통장명 검색과 동일 시점 비교 가능 여부·차액 필터를 페이지를 나누기 전에 적용합니다. */
-export function filterSettlementAccounts(rows: SettlementAccount[], query: string, status: string) {
-  return rows.filter((row) => {
-    if (!matchesSettlementQuery(query, row.label, row.bankName ?? '')) return false;
-    if (status === '차액 없음') return row.difference === BigInt(0);
-    if (status === '차액 있음') return row.difference !== null && row.difference !== BigInt(0);
-    if (status === '비교 자료 필요') return row.difference === null;
-    return true;
-  });
+/** 통장 검색은 장부 금액을 바꾸거나 은행 확인 상태를 업무 필터로 추가하지 않습니다. */
+export function filterSettlementAccounts(rows: SettlementAccount[], query: string) {
+  return rows.filter((row) => matchesSettlementQuery(query, row.label, row.bankName ?? ''));
 }
 
 /** 동 검색과 보유금 설정 여부로 좁히되 미설정 금액을 0원으로 취급하지 않습니다. */

@@ -80,7 +80,10 @@ public class AccountingWriteService {
 		}
 		OffsetDateTime at = OffsetDateTime.now(clock);
 		profiles.saveAndFlush(AccountingProfile.create(property, start, request.fiscalYearStartMonth(), actor, at));
-		accounts.saveAllAndFlush(Arrays.stream(DefaultAccount.values()).map(value -> AccountingAccount.create(
+		List<AccountingAccount> current = accounts.findByPropertyIdOrderByCreatedAtAscIdAsc(property);
+		accounts.saveAllAndFlush(Arrays.stream(DefaultAccount.values())
+			.filter(value -> current.stream().noneMatch(account -> account.getCode().equals(value.getCode())))
+			.map(value -> AccountingAccount.create(
 			property, value.getCode(), value.getName(), value.getGroup(), value.getSystemKey(), actor, at)).toList());
 	}
 

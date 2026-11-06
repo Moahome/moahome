@@ -266,6 +266,38 @@ class IncomeStatementServiceTest {
 		verify(reviews, never()).save(any());
 	}
 
+
+	/** 등록 시 선택이 지출명 자동 매칭보다 우선하고 이후 명시적 회계 정정이 다시 우선합니다. */
+	@Test
+	void initialExpenseSelectionOverridesNameMatchingAndLaterReviewOverridesSelection() {
+		AccountingAccount elevator = AccountingAccount.create(propertyId, "803", "엘리베이터비",
+		    IncomeGroup.OPERATING_EXPENSE, null, actor, at);
+		when(accounts.findByPropertyIdOrderByCreatedAtAscIdAsc(propertyId)).thenReturn(List.of(revenue, cost, elevator));
+		UUID id = UUID.randomUUID();
+		var source = expense(id);
+		when(source.expense()).thenReturn(new BankingResponse.Expense(id, "청소비", null, "PROPERTY", false,
+		    List.of(), "803", "엘리베이터비"));
+		when(source.date()).thenReturn(LocalDate.of(2026, 10, 12));
+		when(banking.workspace(actor, propertyId)).thenReturn(new BankingResponse.Workspace(propertyId,
+		    LocalDate.of(2026, 11, 1), List.of(), List.of(), List.of(source), List.of()));
+		assertThat(service.get(actor, propertyId, "2026-10", "2026-10", null).expenses().getFirst().accountId())
+		    .isEqualTo(elevator.getId());
+		when(reviews.findByPropertyIdOrderByRevisionDesc(propertyId)).thenReturn(List.of(
+		    ExpenseAccountingReview.create(propertyId, id, cost, YearMonth.of(2026, 10), 1, "cipher", actor, at)));
+		assertThat(service.get(actor, propertyId, "2026-10", "2026-10", null).expenses().getFirst().accountId())
+		    .isEqualTo(cost.getId());
+	}
+
+
+	/** 모르는 지출·동일 이름의 복수 후보를 잡비나 첫 과목으로 추정하지 않습니다. */
+	@Test
+	void unknownOrAmbiguousExpenseNamesRemainUnmatched() {
+		assertThat(ExpenseAccountService.match("모르는 지출", List.of(cost))).isNull();
+		AccountingAccount other = AccountingAccount.create(propertyId, "814", "청소비", IncomeGroup.OTHER_EXPENSE,
+		    null, actor, at);
+		assertThat(ExpenseAccountService.match("청소비", List.of(cost, other))).isNull();
+	}
+
 	@Test
 	void automaticallyRecognizesStandardManagementChargesWithoutOpeningClassification() {
 		when(billing.get(propertyId)).thenReturn(List.of(new BillingIncomeSource(UUID.randomUUID(), UUID.randomUUID(),

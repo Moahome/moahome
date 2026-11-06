@@ -329,6 +329,8 @@ export function RegistrationCashSetup({
               <RegistrationBankUpload
                 key={`${account.clientId}:${account.bankCode}:${account.accountNumber}`}
                 account={account}
+                accounts={accounts}
+                canTransfer={accounts.length > 1}
                 support={bankSupport.data}
                 cutoffDate={opening.cutoffDate}
                 draft={opening.bankImports?.[account.clientId]}

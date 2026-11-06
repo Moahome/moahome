@@ -36,11 +36,12 @@ public class RegistrationBankImportService {
 	private final ExpenseService expenses;
 	private final IncomeAllocationService incomes;
 	private final Clock clock;
+	private final BankTransferPostingService transferPostings;
 
 	public RegistrationBankImportService(BankTransactionReader reader, UserService users,
 	    @Lazy PaymentTextSecurity security, BankTransactionRepository transactions, PaymentService payments,
 	    BankingService banking, ExpenseService expenses, IncomeAllocationService incomes,
-	    Clock clock) {
+	    Clock clock, BankTransferPostingService transferPostings) {
 		this.reader = reader;
 		this.users = users;
 		this.security = security;
@@ -50,6 +51,7 @@ public class RegistrationBankImportService {
 		this.expenses = expenses;
 		this.incomes = incomes;
 		this.clock = clock;
+		this.transferPostings = transferPostings;
 	}
 
 	public record Row(UUID id, LocalDate date, LocalTime time, String payer, String memo, String amount,
@@ -119,7 +121,25 @@ public class RegistrationBankImportService {
 					if (row == null || !seen.add(file.accountIndex() + ":" + choice.id())
 					    || (choice.unitIndex() != null && choice.unitIndex() >= request.units().size()))
 						throw new PaymentException("INVALID_BANK_SELECTION");
+					if (choice.transferAllocations() != null) {
+						Set<String> allocationIds = new HashSet<>();
+						Set<String> buildingIds = request.buildings().stream().map(value -> value.clientId()).collect(Collectors.toSet());
+						BigDecimal allocated = BigDecimal.ZERO;
+						for (var part : choice.transferAllocations()) {
+							BigDecimal amount = new BigDecimal(part.amount());
+							if (!choice.transfer() || amount.signum() <= 0 || !buildingIds.contains(part.buildingClientId())
+							    || !allocationIds.add(part.buildingClientId())) throw new PaymentException("INVALID_TRANSFER_ALLOCATION");
+							allocated = allocated.add(amount);
+						}
+						if (allocated.compareTo(row.amount()) != 0) throw new PaymentException("BANK_TRANSFER_ALLOCATION_MISMATCH");
+					}
+					if (choice.transferAccountIndex() != null && (!choice.transfer()
+					    || choice.transferAccountIndex() >= request.bankAccounts().size()
+					    || choice.transferAccountIndex().equals(file.accountIndex())))
+						throw new PaymentException("INVALID_TRANSFER_ACCOUNT");
 					if (choice.transfer()) {
+						if (request.bankAccounts().size() < 2)
+							throw new PaymentException("INVALID_TRANSFER_ACCOUNT");
 						if (choice.unitIndex() != null || choice.incomeCategory() != null || choice.incomeNote() != null
 						    || choice.expense() != null || choice.incomeAllocation() != null)
 							throw new PaymentException("INVALID_BANK_SELECTION");
@@ -166,7 +186,7 @@ public class RegistrationBankImportService {
 					if (allocation != null) incomes.allocate(receipt, allocation, actor);
 				} else {
 					banking.manualExpense(actor, property.getId(), new BankingRequests.ManualExpense(row.id(), account, row.date(),
-					    row.amount(), allocation.category(), allocation.note(), allocation.mode(), allocation.allocations()));
+					    row.amount(), allocation.category(), allocation.note(), allocation.mode(), allocation.allocations(), allocation.accountCode()));
 				}
 			}
 			for (var file : input.bankImports() == null ? List.<RegistrationBankImport>of() : input.bankImports()) {
@@ -178,9 +198,13 @@ public class RegistrationBankImportService {
 					UUID unitId = choice.unitIndex() == null ? null : units.get(choice.unitIndex()).getId();
 					var expense = distribution(choice.expense(), buildings);
 					var allocation = distribution(choice.incomeAllocation(), buildings);
+					List<BankingRequests.TransferAllocation> transferAllocations = choice.transferAllocations() == null ? null
+					    : choice.transferAllocations().stream().map(part -> new BankingRequests.TransferAllocation(
+					        buildings.get(part.buildingClientId()).getId(), part.amount())).toList();
 					if (row.date().isAfter(input.cutoffDate())) {
 						subsequent.add(new BankingRequests.Selection(choice.id(), unitId, choice.incomeCategory(),
-						    choice.incomeNote(), expense, allocation, choice.transfer()));
+						    choice.incomeNote(), expense, allocation, choice.transfer(),
+						    choice.transferAccountIndex() == null ? null : accounts.get(choice.transferAccountIndex()).getId(), null, transferAllocations));
 						continue;
 					}
 					if ("INCOME".equals(row.direction()) && !choice.transfer()) {
@@ -196,6 +220,8 @@ public class RegistrationBankImportService {
 					if ("EXPENSE".equals(row.direction())) original.markExpense();
 					if (choice.transfer()) original.markTransferCandidate();
 					transactions.saveAndFlush(original);
+					if (choice.transfer() && choice.transferAccountIndex() != null)
+						transferPostings.record(UUID.randomUUID(), original, accounts.get(choice.transferAccountIndex()).getId(), null, actor, transferAllocations);
 					if (expense != null) expenses.confirm(original, expense, actor);
 				}
 				if (!subsequent.isEmpty())
@@ -210,7 +236,7 @@ public class RegistrationBankImportService {
 		if (input == null) return null;
 		return new BankingRequests.Expense(input.category(), input.note(), input.mode(), input.saveAsRule(),
 		    input.allocations().stream().map(a -> new BankingRequests.Allocation(a.buildingClientId() == null ? null
-		        : buildings.get(a.buildingClientId()).getId(), a.label(), a.amount(), a.percentage())).toList());
+		        : buildings.get(a.buildingClientId()).getId(), a.label(), a.amount(), a.percentage())).toList(), input.accountCode());
 	}
 
 	private Map<UUID, BankTransactionReader.Row> source(RegistrationBankImport input, String bankCode) {

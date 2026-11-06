@@ -95,7 +95,7 @@ export function SettlementDetails({ report, month, propertyId }: {
   const buildingOptions = [...new Set(report.collections.map((row) => row.buildingName).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko', {
     numeric: true
   }));
-  const accounts = filterSettlementAccounts(report.accounts, accountQuery, '전체');
+  const accounts = filterSettlementAccounts(report.accounts, accountQuery);
   const buildings = filterSettlementBuildings(report.buildings, buildingQuery, buildingStatus);
   const external = filterSettlementExternal(report.external, externalQuery, externalStatus);
   const totals = {
@@ -247,15 +247,15 @@ export function SettlementDetails({ report, month, propertyId }: {
               render: (row) => row.label
             },
             {
-              key: 'confirmed',
-              header: '은행 확인 잔액',
-              render: (row) => money(row.confirmed),
+              key: 'balance',
+              header: '장부 잔액',
+              render: (row) => money(row.balance),
               align: 'right'
             },
             {
-              key: 'asof',
-              header: '확인일',
-              render: (row) => row.asOf?.slice(0, 10) ?? '—'
+              key: 'basis',
+              header: '초기 기준일',
+              render: (row) => row.basis ?? '—'
             },
           ]}
         />

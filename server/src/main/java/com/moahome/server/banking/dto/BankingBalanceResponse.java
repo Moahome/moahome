@@ -21,7 +21,11 @@ public final class BankingBalanceResponse {
 	}
 
 	public record Entry(UUID id, UUID buildingId, LocalDate date, LocalTime time, String label, String income,
-	    String expense, UUID paymentId, UUID accountId) {
+	    String expense, UUID paymentId, UUID accountId, UUID transactionId) {
+		public Entry(UUID id, UUID buildingId, LocalDate date, LocalTime time, String label, String income,
+		    String expense, UUID paymentId, UUID accountId) {
+			this(id, buildingId, date, time, label, income, expense, paymentId, accountId, null);
+		}
 		public Entry(UUID id, UUID buildingId, LocalDate date, LocalTime time, String label, String income,
 		    String expense, UUID paymentId) {
 			this(id, buildingId, date, time, label, income, expense, paymentId, null);
@@ -89,7 +93,13 @@ public final class BankingBalanceResponse {
 
 	public record AccountBalance(UUID id, String label, String status, String balance, String asOf,
 	    LocalDate openingDate, String openingBalance, long openingRevision, String calculatedBalance,
-	    LocalDate calculationBasisDate, Confirmation confirmation, boolean comparisonTimeDifferent) {
+	    LocalDate calculationBasisDate, Confirmation confirmation, boolean comparisonTimeDifferent, String calculationSource) {
+		public AccountBalance(UUID id, String label, String status, String balance, String asOf, LocalDate openingDate,
+		    String openingBalance, long openingRevision, String calculatedBalance, LocalDate calculationBasisDate,
+		    Confirmation confirmation, boolean comparisonTimeDifferent) {
+			this(id, label, status, balance, asOf, openingDate, openingBalance, openingRevision, calculatedBalance,
+			    calculationBasisDate, confirmation, comparisonTimeDifferent, null);
+		}
 		public AccountBalance(UUID id, String label, String status, String balance, String asOf, LocalDate openingDate,
 		    String openingBalance, long openingRevision, String calculatedBalance, LocalDate calculationBasisDate) {
 			this(id, label, status, balance, asOf, openingDate, openingBalance, openingRevision, calculatedBalance,

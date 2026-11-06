@@ -78,6 +78,7 @@ export function ManualExpense({ propertyId, initialAccountId, presentation = 'mo
   return (
     <ManualExpenseForm
       accounts={workspace.data.accounts ?? []}
+      expenseAccounts={workspace.data.expenseAccounts}
       buildings={workspace.data.buildings}
       asOf={workspace.data.asOf}
       initialAccountId={initialAccountId}

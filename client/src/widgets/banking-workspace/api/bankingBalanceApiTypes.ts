@@ -17,6 +17,7 @@ export type BalanceBuilding = {
 };
 
 export type BalanceEntry = {
+  transactionId?: string | null;
   id: string;
   buildingId: string;
   date: string;
@@ -76,6 +77,7 @@ export type AccountBalance = {
   comparisonTimeDifferent?: boolean;
   calculatedBalance?: string | null;
   calculationBasisDate?: string | null;
+  calculationSource?: 'INITIAL_BALANCE' | 'BANK_CONFIRMATION_TRANSFER' | 'LATEST_BALANCE' | 'TRANSACTION_LEDGER' | 'UNAVAILABLE' | null;
 };
 
 export type BalanceWorkspace = {
@@ -148,24 +150,6 @@ export interface ExternalSettlementDecisionInput {
   excluded: boolean;
   revision: number;
 }
-
-export type BankBalanceCheck = {
-  id: string;
-  amount: string;
-  checkedAt: string;
-  sourceType: 'BANK_APP' | 'INTERNET_BANKING' | 'OTHER';
-  checkedBy: string;
-  checkedByName?: string;
-  memo: string | null;
-  createdAt: string;
-  canceledAt: string | null;
-  canceledBy: string | null;
-  canceledByName?: string | null;
-  cancelReason: string | null;
-};
-export type BankBalanceCheckInput = { id: string; accountId: string; amount: string; checkedAt: string; sourceType: BankBalanceCheck['sourceType']; memo?: string };
-
-export type BankBalanceCheckHistory = { propertyId: string; accountId: string; checks: BankBalanceCheck[] };
 
 export interface BankInitialBalanceInput {
   id: string;

@@ -380,12 +380,12 @@ for (const [label, direction, review] of [['확인 필요 입금', 'INCOME', 'in
   });
 }
 
-test('기존 확인 잔액만 있는 통장은 상세에서 금액을 유지하고 초기 잔액 재설정을 요구하지 않음', async ({ page }) => {
+test('대시보드와 통장 상세는 다른 은행 확인 금액을 노출하지 않고 같은 장부 잔액을 표시', async ({ page }) => {
   await mockDashboard(page);
   await page.route('http://localhost:8080/api/properties/*/dashboard*', (route) => {
     const data = dashboardFixture();
-    data.balances.accounts![0].calculatedBalance = null;
-    data.balances.accounts![0].calculationBasisDate = null;
+    data.balances.accounts![0].balance = '999999';
+    data.balances.accounts![0].calculatedBalance = '90000';
     return route.fulfill({
       headers: {
         'Access-Control-Allow-Origin': 'http://localhost:3100',
@@ -425,8 +425,9 @@ test('기존 확인 잔액만 있는 통장은 상세에서 금액을 유지하�
     name: '통장 상세',
     exact: true
   });
-  await expect(detail).toContainText('마지막 확인 잔액');
-  await expect(detail.getByText('120,000원', {
+  await expect(detail).not.toContainText('마지막 확인 잔액');
+  await expect(detail).not.toContainText('999,999원');
+  await expect(detail.getByText('90,000원', {
     exact: true
   }).first()).toBeVisible();
   await expect(detail).not.toContainText('초기 잔액 설정 필요');

@@ -46,7 +46,7 @@ const CHECK_TITLES: Record<string, string> = {
 };
 const CHECK_DESCRIPTIONS: Record<string, string> = {
   classification: '미분류·보류·취소 내역',
-  accounts: '확인시점·계산 잔액 비교',
+  accounts: '장부 잔액 계산 자료',
   buildings: '기초·기말 잔고 설정',
   charges: '0원·음수 청구 확인',
   manual: '같은 통장·날짜·금액 비교',
@@ -210,7 +210,7 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 icon: 'building',
                 tone: 'teal',
                 description: '조회 월말 동별 합계',
-                help: '조회 월말의 동별 보유금 합계입니다. 은행 확인 잔액과 구분합니다.'
+                help: '조회 월말의 동별 보유금 합계입니다. 외부 부담금·미배분 자금으로 통장 잔액과 다를 수 있습니다.'
               },
               {
                 label: '청구 납부반영액',

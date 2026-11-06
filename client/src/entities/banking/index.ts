@@ -32,8 +32,19 @@ export {
 } from './model/allocation';
 export type {
   BankingAllocation,
+  ExpenseAccountOption,
+  ExpenseAccountSelection,
   ExpenseDraft
 } from './model/allocationTypes';
+export {
+  DEFAULT_EXPENSE_ACCOUNTS
+} from './constants/expenseAccounts';
+export {
+  getExpenseAccountLabel
+} from './lib/expenseAccountLabel';
+export {
+  ExpenseAccountSelect
+} from './ui/expense-account-select/expenseAccountSelect';
 export {
   AllocationEditor
 } from './ui/allocation-editor/allocationEditor';
@@ -60,3 +71,17 @@ export {
 export type {
   ManualExpenseValues
 } from './model/manualExpenseTypes';
+
+export {
+  getReceiptUnitSearchOptions
+} from './lib/receiptUnitOptions';
+
+export {
+  TransferAllocationEditor
+} from './ui/transfer-allocation-editor/transferAllocationEditor';
+export {
+  calculateTransferAllocation
+} from './model/transferAllocation';
+export type {
+  TransferAllocationPart
+} from './model/transferAllocationTypes';

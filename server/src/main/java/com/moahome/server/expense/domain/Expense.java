@@ -30,6 +30,9 @@ public class Expense {
 	@Column(name = "bank_account_id", nullable = false)
 	private UUID bankAccountId;
 
+	@Column(name = "accounting_account_id")
+	private UUID accountingAccountId;
+
 	@Column(name = "expense_date", nullable = false)
 	private LocalDate expenseDate;
 
@@ -113,12 +116,20 @@ public class Expense {
 	public static Expense create(UUID property, UUID transaction, UUID account, LocalDate date,
 	    String category, String memo, BigDecimal total,
 	    String mode, boolean rule, String key, UUID actor, OffsetDateTime at) {
+		return create(property, transaction, account, date, category, memo, total, mode, rule, key, actor, at, null);
+	}
+
+	/** 최초 과목은 지출 원본에 보존해 회계 정정과 등록 요청 재시도를 서로 구분합니다. */
+	public static Expense create(UUID property, UUID transaction, UUID account, LocalDate date,
+	    String category, String memo, BigDecimal total, String mode, boolean rule, String key,
+	    UUID actor, OffsetDateTime at, UUID accountingAccountId) {
 		var e = new Expense();
 		e.id = UUID.randomUUID();
 		e.propertyId = property;
 		e.bankTransactionId = transaction;
 		e.sourceType = "BANK_IMPORT";
 		e.bankAccountId = account;
+		e.accountingAccountId = accountingAccountId;
 		e.expenseDate = date;
 		e.categoryEncrypted = category;
 		e.memoEncrypted = memo;
@@ -134,11 +145,17 @@ public class Expense {
 	/** 은행 원본을 만들지 않고 실제 출금 정보를 보존하며 요청 ID로 중복 등록을 막습니다. */
 	public static Expense manual(UUID id, UUID property, UUID account, LocalDate date, String category, String memo,
 	    BigDecimal total, String mode, UUID actor, OffsetDateTime at) {
+		return manual(id, property, account, date, category, memo, total, mode, actor, at, null);
+	}
+
+	/** 수동 지출도 등록 시 선택한 과목을 같은 불변 원본에 함께 기록합니다. */
+	public static Expense manual(UUID id, UUID property, UUID account, LocalDate date, String category, String memo,
+	    BigDecimal total, String mode, UUID actor, OffsetDateTime at, UUID accountingAccountId) {
 		if (id == null || property == null || account == null || date == null || actor == null || at == null
 		    || category == null || category.isBlank() || total == null || total.signum() <= 0
 		    || total.scale() > 0 || total.precision() > 15 || !Set.of("EQUAL", "RATIO", "AMOUNT", "PROPERTY").contains(mode))
 			throw new PaymentException("INVALID_MANUAL_EXPENSE");
-		var e = create(property, null, account, date, category, memo, total, mode, false, null, actor, at);
+		var e = create(property, null, account, date, category, memo, total, mode, false, null, actor, at, accountingAccountId);
 		e.id = id;
 		e.sourceType = "MANUAL";
 		return e;

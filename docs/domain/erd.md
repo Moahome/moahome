@@ -1231,9 +1231,14 @@ Soft Delete 없음.
 - bank_accounts.account_alias: 선택 varchar(100). 용도 Enum이나 필수 동 연결을 추가하지 않습니다. 미삭제 `(property_id,bank_code,account_number_hmac)` 유일 인덱스와 활성 기본 통장 유일 인덱스를 적용합니다. 지연 제약으로 커밋 시 공용 활성 기본 계좌 정확히 1개를 검증합니다. 기본 전환·종료는 과거 FK를 바꾸지 않습니다.
 - bank_transactions.transfer_candidate: NOT NULL boolean, 기존 원본은 false로 보정합니다. 원본 금액·방향은 유지하고 내부 이동의 업무 분류 여부만 나타냅니다.
 - bank_transfers: UUID id PK, property_id, outgoing_id, incoming_id, created_by/created_at, 선택 canceled_by/canceled_at. 같은 대상의 원본 복합 FK와 활성 입금·출금별 유일 인덱스를 사용합니다. 방향·통장 차이·금액 일치·유효 원본을 DB에서도 검사합니다. 연결은 삭제·덮어쓰기하지 않고 취소 감사만 한 번 기록합니다.
+- bank_transfer_allocations(2026-11-06): UUID `id` PK, `property_id`, `transfer_id`, `building_id`, 양수 원 단위 `amount`, 생성자·시각. 같은 대상 이체·동의 복합 FK, 이체×동 유일성, 전액 합계의 지연 검증을 둡니다. 이동 배분은 덮어쓰거나 삭제하지 않고 이체 취소 여부로 양쪽 집계를 함께 제외합니다. `V20261106110951__connect_transfer_building_ownership.sql`에 구현했습니다.
+- bank_transfer_postings(2026-11-06): UUID `id` PK, `property_id`, 필수 `source_transaction_id`(유일), `counterpart_account_id`, 선택 `counterpart_transaction_id`(유일), `accounting_account_id`, 생성자·시각과 선택 취소자·시각. 원본·상대 통장·103 자산 계정은 같은 대상의 복합 FK로 연결합니다. 실제 상대 원본이 없을 때만 이체에서 장부 행을 파생하며 은행 원본 테이블에 가짜 거래를 추가하지 않습니다. 상대 원본은 같은 날짜·금액·반대 방향·지정 통장으로 한 번만 대사합니다. 기존 이체·다른 자동 이체와 원본 중복 사용, 수납·지출 분류 중복, 이력 삭제와 활성 원본 삭제를 DB에서도 차단합니다. 취소 상태·생성 정보는 불변이며 취소 후 대사는 원본 연결만 허용합니다. `V20261106101642__add_single_source_bank_transfer_postings.sql`은 기존 회계 설정에 누락된 103 자산 계정을 추가하며 같은 코드를 덮어쓰지 않습니다.
+
 - DB는 이체 원본의 수납·지출 생성과 금액·계좌·분류 변형을 막고 연결 중인 원본 삭제는 지연 제약으로 양쪽 동시 삭제를 검증합니다. 취소한 연결은 보존하며 새 UUID로 다시 연결합니다.
 
 후속 사용자 요청에 따라 building_cash_openings와 building_cash_opening_changes는 bank_account_id 복합 FK와 통장×동 유일성을 사용합니다. 기존 단일 통장 등록값은 원래 통장으로 이관하고 여러 통장 중 소속을 정할 수 없는 값은 null로 보관해 명시적 확인에 사용합니다. 금액·기준일·버전·정정 이력은 보존합니다. bank_opening_balances는 동별 보유금과 별개인 은행 실제 잔액 인계값입니다. 2026-11-01 후속 요청의 통장별 초기 정정 화면은 [Client 설계](../../client/docs/bankingManagement.md#통장별-초기-잔액-정정과-기준-잔고-시안-2026-11-01)를 따르며 저장은 기존 인계값 또는 독립 초기 버전과 공통 정정 이력을 사용합니다. 2026-11-01 장부 기본 표시 변경은 bank_opening_balances의 통장 초기 잔액에 기존 입출금을 누적·역산하는 파생 조회이며 동별 시작 보유금과 분리합니다. 저장 구조·금액을 변경하거나 차이를 자동 재배분하지 않습니다. 운영 중 직접 확인 기록은 아래 2026-10-24 저장 구현을 따릅니다. 미확인 잔액을 0원으로 생성하지 않습니다. 정식 회계전표는 추가하지 않습니다.
+
+2026-11-06 최종 사용자 정정으로 은행 확인값은 DB 과거 자료로 보존하며 화면·현재 잔액·합계·정산 점검·보고서에서 사용하지 않습니다. bank_transactions.balance는 은행 원본의 거래 후 금액으로 보존하고 시작 기준이 없을 때 최초 거래의 계산 근거로만 사용할 수 있습니다. bank_balance_checks의 직접 확인 금액은 현재 장부의 시작 기준으로 대체하지 않습니다. 저장된 금액·이력·기존 Migration은 변경하지 않습니다.
 
 ### 은행 업로드 식별·메모 구현 (2026-10-23)
 
@@ -1921,3 +1926,9 @@ erDiagram
 system_admin_events는 request_id UUID PK, actor_id / target_id → users FK, action(CREATION_PERMISSION / ADMIN_PROMOTION), previous_value / requested_value, created_at을 보관합니다. 생성 권한은 true/false, 승격은 USER/ADMIN → ADMIN만 허용하는 CHECK를 둡니다. 대상·시각 인덱스를 두며 별도의 관리자 명단 테이블은 만들지 않습니다. 요청 재사용·잠금·감사의 저장 순서는 [Server 설계](../../server/docs/systemAdministration.md)를 참조합니다.
 
 2026-11-05 기타 입금 후속 연결: `V20261105125806__add_other_income_account.sql`로 `901 영업외수익`(`OTHER_REVENUE`, system_key=`OTHER_INCOME`)을 추가합니다. 기존 400번대 영업외수익 계정 ID·이력은 보존하며 새 기타 입금은 901을 사용합니다. 외부 부담금은 102 미수금, 연결된 실제 회수액은 미수금 감소로 먼저 제외합니다. 별도 입금 복제 테이블이나 가상 입금을 생성하지 않습니다.
+
+### 지출 최초 계정과목 연결 (2026-11-06)
+
+`V20261106092754__link_expenses_to_accounting_accounts.sql`은 `expenses.accounting_account_id` nullable UUID를 추가합니다. `(property_id, accounting_account_id)`는 `accounting_accounts(property_id,id)`를 참조하고 INSERT 트리거로 비용 그룹만 허용합니다. 기존 행은 NULL로 유지하며 기존 불변 원본·배분 보호를 유지합니다.
+
+초기 설정·회계 시작 설정 전에도 선택을 보존하기 위해 최초 과목을 지출 원본에 저장합니다. 해당 기본 과목이 아직 없으면 같은 등록 트랜잭션에서 생성하되 `accounting_profiles`와 시작 월은 자동 생성하지 않습니다. 이후 회계 설정은 이미 있는 기본 코드의 계정 ID를 유지하고 빠진 기본 과목만 추가합니다. 최신 `expense_accounting_reviews`가 최초 선택보다 우선하고 최초 선택이 없는 원본만 기존 자동 매칭을 적용합니다. API 표시 코드를 연결 FK로 저장하지 않습니다.

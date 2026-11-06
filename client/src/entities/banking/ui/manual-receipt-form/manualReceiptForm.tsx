@@ -1,5 +1,6 @@
 'use client';
 
+import { getReceiptUnitSearchOptions } from '../../lib/receiptUnitOptions';
 import { getBankAccountLabel } from '../../lib/bankAccountLabel';
 
 import {
@@ -196,11 +197,7 @@ export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '
               required
               placeholder={'이름 또는 동·호수로 검색'}
               disabled={busy}
-              options={units.map((entry) => ({
-                value: entry.id,
-                label: entry.label,
-                searchKeywords: [...(entry.residentNames ?? []), entry.representativeName ?? '']
-              }))}
+              options={getReceiptUnitSearchOptions(units)}
             />
           )}
           <CalendarPicker

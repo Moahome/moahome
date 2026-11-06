@@ -2,6 +2,7 @@
 
 import { getBankAccountLabel } from '../../lib/bankAccountLabel';
 
+import { ExpenseAccountSelect } from '../expense-account-select/expenseAccountSelect';
 import { AllocationEditor } from '../allocation-editor/allocationEditor';
 import { Button } from '@/shared/ui/button';
 import { CalendarPicker } from '@/shared/ui/calendar-picker';
@@ -18,7 +19,10 @@ import {
   useState,
   type FormEvent
 } from 'react';
-import type { ExpenseDraft } from '../../model/allocationTypes';
+import type {
+  ExpenseAccountOption,
+  ExpenseDraft
+} from '../../model/allocationTypes';
 import type { ManualExpenseValues } from '../../model/manualExpenseTypes';
 import {
   calculateExpenseAllocation,
@@ -27,7 +31,8 @@ import {
 import styles from './manualExpenseForm.module.css';
 
 /** PC 모달과 모바일 페이지에서 같은 등록·배분·재시도를 사용하고 저장 성공 후 원장을 갱신합니다. */
-export function ManualExpenseForm({ accounts: accountOptions, buildings: buildingOptions, asOf, initialAccountId, presentation = 'modal', title = '수동 지출 등록', busy = false, initialValue, onCancel, onClose, onSubmit }: {
+export function ManualExpenseForm({ accounts: accountOptions, expenseAccounts, buildings: buildingOptions, asOf, initialAccountId, presentation = 'modal', title = '수동 지출 등록', busy = false, initialValue, onCancel, onClose, onSubmit }: {
+  expenseAccounts?: readonly ExpenseAccountOption[];
   initialValue?: ManualExpenseValues;
   onCancel?: () => void;
   accounts: { id: string; bankName: string; last4: string; alias?: string | null; isPrimary?: boolean; status: string }[];
@@ -46,6 +51,7 @@ export function ManualExpenseForm({ accounts: accountOptions, buildings: buildin
   const [amount, setAmount] = useState(initialValue?.amount ?? '');
   const [edited, setEdited] = useState<ExpenseDraft | null>(initialValue ? {
     category: initialValue.category,
+    accountCode: initialValue.accountCode,
     note: initialValue.note,
     mode: buildingOptions.length ? initialValue.mode : 'PROPERTY',
     saveAsRule: false,
@@ -108,6 +114,9 @@ export function ManualExpenseForm({ accounts: accountOptions, buildings: buildin
         date,
         amount,
         category: draft.category.trim(),
+        ...(draft.accountCode ? {
+          accountCode: draft.accountCode
+        } : {}),
         note: draft.note.trim(),
         mode: draft.mode,
         allocations: split.allocations
@@ -221,6 +230,15 @@ export function ManualExpenseForm({ accounts: accountOptions, buildings: buildin
                   required
                 />
               </div>
+              <ExpenseAccountSelect
+                value={draft.accountCode}
+                options={expenseAccounts}
+                disabled={busy}
+                onChange={(accountCode) => setEdited({
+                  ...draft,
+                  accountCode
+                })}
+              />
               {!draft.category.trim() && (
                 <p
                   className={styles.warning}

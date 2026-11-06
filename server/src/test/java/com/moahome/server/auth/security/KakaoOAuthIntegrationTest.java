@@ -1,5 +1,6 @@
 package com.moahome.server.auth.security;
 
+import com.moahome.server.banking.service.BankTransferPostingService;
 import com.moahome.server.accounting.service.AccountingWriteService;
 import com.moahome.server.accounting.service.IncomeStatementService;
 import com.moahome.server.billing.service.BillingIncomeSourceService;
@@ -174,7 +175,13 @@ class KakaoOAuthIntegrationTest {
 	private RedisAuthSessionRepository sessions;
 
 	@MockitoBean
+	BankTransferPostingService bankTransferPostings;
+
+	@MockitoBean
 	private AccountingWriteService accountingWrites;
+
+	@MockitoBean
+	private com.moahome.server.accounting.service.ExpenseAccountService expenseAccounts;
 
 	@MockitoBean
 	private IncomeStatementService incomeStatements;

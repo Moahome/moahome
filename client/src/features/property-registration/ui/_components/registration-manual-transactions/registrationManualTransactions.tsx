@@ -1,6 +1,7 @@
 'use client';
 
 
+import { getExpenseAccountLabel } from '@/entities/banking';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { DataTable } from '@/shared/ui/data-table';
@@ -119,6 +120,11 @@ export function RegistrationManualTransactions({ account, records, units, buildi
               key: 'payer',
               header: '입금자·지출명',
               render: (record) => record.payer
+            },
+            {
+              key: 'account-code',
+              header: '계정과목',
+              render: (record) => record.direction === 'EXPENSE' ? getExpenseAccountLabel(record.allocation) : '—'
             },
             {
               key: 'unit',

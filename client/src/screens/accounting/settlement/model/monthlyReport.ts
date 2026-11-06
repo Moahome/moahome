@@ -78,16 +78,16 @@ export function getMonthlyReportDocuments(data: MonthlySettlementSnapshot): Repo
       ...common,
       title: '통장별 잔액',
       sheet: '통장별 잔액',
-      description: '은행에서 확인한 통장 잔액과 확인일',
+      description: '조회 월의 입출금·이체 취소를 반영한 장부 잔액',
       columns: [{
         label: '통장',
         width: 36
-      }, ...moneyColumns(['은행 확인 잔액']), {
-        label: '확인일',
+      }, ...moneyColumns(['장부 잔액']), {
+        label: '초기 기준일',
         width: 24
       }],
-      rows: report.accounts.map((row) => [row.label, amount(row.confirmed), row.asOf?.slice(0, 10) ?? '미확인']),
-      note: '은행에서 마지막으로 확인한 잔액이며 실시간 잔액이 아닙니다.'
+      rows: report.accounts.map((row) => [row.label, amount(row.balance), row.basis ?? '—']),
+      note: '통장 상세와 같은 장부 계산값입니다. 외부 부담금·미배분 자금으로 동별 보유금 합계와 다를 수 있습니다.'
     },
     {
       ...common,

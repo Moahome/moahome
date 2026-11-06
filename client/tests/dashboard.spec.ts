@@ -8,6 +8,7 @@ import {
   getChartRatio
 } from '../src/screens/management-dashboard/model/dashboard';
 import { getSettlementReport } from '../src/screens/accounting/settlement/model/monthlySettlement';
+import { getMonthlyReportDocuments } from '../src/screens/accounting/settlement/model/monthlyReport';
 import {
   getMonthlyChargeSummary,
   getMonthlyPreviewRows
@@ -74,11 +75,11 @@ test('선입금만 보유한 미부과 세대는 도넛 분모에서 구분하�
 
 test('미확인·선택월 이후 확인값은 합계를 만들지 않고 동 없는 PROPERTY 지출은 전액을 포함', () => {
   const data = dashboardFixture();
-  expect(getDashboardReport(data).referenceTotal).toBe(BigInt(120000));
+  expect(getDashboardReport(data).accountTotal).toBe(BigInt(120000));
   data.balances.accounts![0].calculatedBalance = null;
   data.balances.accounts![0].confirmation!.date = '2026-11-01';
   expect(getDashboardReport(data).accounts[0].balance).toBeNull();
-  expect(getDashboardReport(data).referenceTotal).toBeNull();
+  expect(getDashboardReport(data).accountTotal).toBeNull();
   data.banking.rows[1].expense!.mode = 'PROPERTY';
   data.banking.rows[1].expense!.allocations = [];
   expect(getDashboardReport(data).expense).toBe(BigInt(20000));
@@ -90,7 +91,7 @@ test('6개월 추이는 연도를 넘어 같은 원장에서 계산하고 큰 �
   expect(report.trend.map((row) => row.month)).toEqual(['2025-09', '2025-10', '2025-11', '2025-12', '2026-01', '2026-02']);
   expect(report.trend.at(-1)?.applied).toBe(report.applied);
   expect(report.completeRate).toBeNull();
-  expect(report.referenceTotal).toBeNull();
+  expect(report.accountTotal).toBeNull();
   expect(getChartRatio(BigInt('999999999999999999999'), BigInt('999999999999999999999'))).toBe(1);
   expect(getChartRatio(BigInt(-1), BigInt(2))).toBe(0.5);
 });
@@ -194,6 +195,20 @@ test('통장 목록은 상세와 같은 장부 우선 계산을 사용하고 0�
   });
   const report = getDashboardReport(data);
   expect(report.accounts.map((account) => account.balance)).toEqual(['2037630', '0']);
-  expect(report.referenceTotal).toBe(BigInt(2037630));
-  expect(report.referenceOnly).toBe(false);
+  expect(report.accountTotal).toBe(BigInt(2037630));
+  expect(report.accounts.every((account) => account.calculated)).toBe(true);
+});
+
+test('같은 장부의 대시보드·정산·보고서는 은행 확인일·금액과 무관하게 취소 반영 금액을 사용', () => {
+  const data = dashboardFixture();
+  const account = data.balances.accounts![0];
+  account.balance = '999999';
+  account.confirmation!.date = '2026-11-30';
+  account.confirmation!.status = 'ORDER_UNCLEAR';
+  // 은행 파일의 과거 금액이 남아 있어도 서버에서 취소 반영한 현재 장부값만 전달합니다.
+  account.calculatedBalance = '0';
+  expect(getDashboardReport(data).accountTotal).toBe(BigInt(0));
+  expect(getSettlementReport(data).accounts[0].balance).toBe('0');
+  expect(getMonthlyReportDocuments(data)[2].rows[0][1]).toBe(BigInt(0));
+  expect(getSettlementReport(data).checks.find((row) => row.id === 'accounts')?.count).toBe(0);
 });

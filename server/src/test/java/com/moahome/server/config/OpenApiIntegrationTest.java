@@ -1,5 +1,6 @@
 package com.moahome.server.config;
 
+import com.moahome.server.banking.service.BankTransferPostingService;
 import com.moahome.server.accounting.service.AccountingWriteService;
 import com.moahome.server.accounting.service.IncomeStatementService;
 import com.moahome.server.billing.service.BillingIncomeSourceService;
@@ -81,7 +82,13 @@ class OpenApiIntegrationTest {
 	private ObjectMapper mapper;
 
 	@MockitoBean
+	BankTransferPostingService bankTransferPostings;
+
+	@MockitoBean
 	private AccountingWriteService accountingWrites;
+
+	@MockitoBean
+	private com.moahome.server.accounting.service.ExpenseAccountService expenseAccounts;
 
 	@MockitoBean
 	private IncomeStatementService incomeStatements;
@@ -260,7 +267,9 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(
 		    mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(113);
+		assertThat(document.path("paths").properties()).hasSize(115);
+		assertThat(document.path("paths").path("/api/properties/{propertyId}/banking/transfers/from-transaction")
+		    .at("/post/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/accounting/income-statement")
 			.at("/get/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/dashboard")

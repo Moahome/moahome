@@ -1,5 +1,6 @@
 package com.moahome.server;
 
+import com.moahome.server.banking.service.BankTransferPostingService;
 import com.moahome.server.accounting.service.AccountingWriteService;
 import com.moahome.server.accounting.service.IncomeStatementService;
 import com.moahome.server.billing.service.BillingIncomeSourceService;
@@ -53,7 +54,13 @@ import com.moahome.server.user.repo.UserRepository;
 @ActiveProfiles("test")
 class ServerApplicationTests {
 	@MockitoBean
+	BankTransferPostingService bankTransferPostings;
+
+	@MockitoBean
 	private AccountingWriteService accountingWrites;
+
+	@MockitoBean
+	private com.moahome.server.accounting.service.ExpenseAccountService expenseAccounts;
 
 	@MockitoBean
 	private IncomeStatementService incomeStatements;

@@ -242,7 +242,9 @@ public class IncomeStatementService {
 				: YearMonth.from(review.getRecognitionMonth())).toString();
 			if (!within(month, start, end))
 				continue;
-			AccountingAccount account = review == null ? matchExpenseAccount(expense.category(), sourceAccounts)
+			AccountingAccount account = review == null ? sourceAccounts.stream()
+				.filter(value -> value.getCode().equals(expense.accountCode()) && value.getReportGroup().isExpense())
+				.findFirst().orElseGet(() -> ExpenseAccountService.match(expense.category(), sourceAccounts))
 				: byAccount.get(review.getAccountId());
 			BigDecimal ownAmount = property.isHasBuildings() ? expense.allocations().stream()
 				.filter(allocation -> allocation.buildingId() != null)
@@ -317,20 +319,6 @@ public class IncomeStatementService {
 				transactionName(row), selected.toPlainString(), account.getId()));
 	}
 
-	/** 명시한 비용 코드·기본 과목명은 같은 관리대상의 실제 계정 ID로 자동 연결합니다. */
-	private AccountingAccount matchExpenseAccount(String category, List<AccountingAccount> sourceAccounts) {
-		if (category == null)
-			return null;
-		String normalized = category.replaceAll("(?U)\\s+", "");
-		List<AccountingAccount> exact = sourceAccounts.stream().filter(value -> value.getReportGroup().isExpense())
-			.filter(value -> value.getCode().equals(normalized)
-				|| value.getName().replaceAll("(?U)\\s+", "").equals(normalized)).toList();
-		if (exact.size() == 1)
-			return exact.getFirst();
-		return DefaultAccount.matchExpense(category).flatMap(value -> sourceAccounts.stream()
-			.filter(account -> account.getReportGroup().isExpense() && value.getCode().equals(account.getCode()))
-			.findFirst()).orElse(null);
-	}
 
 	/** 외부 부담은 기존 회수 원장과 대조해 미수금으로 표시하고 실제 회수만 잔액에서 차감합니다. */
 	private Map<UUID, BigDecimal> appendReceivables(UUID actor, Property property, List<AccountingAccount> sourceAccounts,

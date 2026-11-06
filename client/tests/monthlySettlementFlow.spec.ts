@@ -387,7 +387,7 @@ test('정산 상세의 통장·동·외부 검색과 상태 필터 및 정렬이
     exact: true
   }).fill('카카오');
   await expect(table.locator('tbody tr')).toHaveCount(1);
-  await expect(table.getByRole('columnheader')).toHaveText(['통장', '은행 확인 잔액', '확인일']);
+  await expect(table.getByRole('columnheader')).toHaveText(['통장', '장부 잔액', '초기 기준일']);
   await expect(page.getByRole('combobox', {
     name: '잔액 비교 상태',
     exact: true

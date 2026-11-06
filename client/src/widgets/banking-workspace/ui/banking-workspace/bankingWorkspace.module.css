@@ -151,6 +151,8 @@
   background: color-mix(in srgb, var(--warning) 10%, var(--card));
   color: var(--warning);
 
+  &[data-state='TRANSFER'],
+  &[data-state='LINKED'],
   &[data-state='CONFIRMED'] {
     color: var(--success);
     background: color-mix(in srgb, var(--success) 10%, var(--card));
