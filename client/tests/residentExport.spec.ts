@@ -142,10 +142,10 @@ test('연락처 없는 주민은 빈 연락처 셀을 저장하고 국제 번호
 });
 
 for (const [filename, headers, relationColumn] of [
-  ['residentImportTemplate.xlsx', ['동', '호수', '이름', '연락처', '주민 구분'], 'E'],
-  ['residentImportNoBuildingTemplate.xlsx', ['호수', '이름', '연락처', '주민 구분'], 'D']
+  ['residentImportTemplate.xlsx', ['동', '호수', '이름', '연락처', '주민 구분', '전화번호 수집 동의'], 'E'],
+  ['residentImportNoBuildingTemplate.xlsx', ['호수', '이름', '연락처', '주민 구분', '전화번호 수집 동의'], 'D']
 ] as const) {
-  test(`${filename}은 새 열 순서·첫 행 고정·빈 1,000행과 주민 구분 선택을 유지`, async () => {
+  test(`${filename}은 새 열 순서·첫 행 고정·빈 1,000행과 주민 구분·전화번호 동의 선택을 유지`, async () => {
     const { readFile } = await import('node:fs/promises');
     const bytes = await readFile(`public/${filename}`);
     const { cells } = await readWorkbook(new Blob([bytes], {
@@ -160,6 +160,9 @@ for (const [filename, headers, relationColumn] of [
     expect(strFromU8(zip['xl/styles.xml'])).toContain('FFDBEAFE');
     expect((first.match(/<row /g) ?? []).length).toBe(1001);
     expect(first).not.toContain('<f>');
+    const consentColumn = String.fromCharCode(64 + headers.length);
+    expect(first).toContain(`sqref="${consentColumn}2:${consentColumn}1001"`);
+    expect(first).toContain('"O,X"');
     expect(Object.keys(cells).some((key) => !key.endsWith('1'))).toBe(false);
   });
 }

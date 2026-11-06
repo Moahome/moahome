@@ -61,7 +61,7 @@ public class ResidentImportService {
 		this.clock = clock;
 	}
 
-	/** 현재 관리자에게 업로드를 허용하고 정규화·세대 연결·중복 검증 결과를 암호화 연락처와 함께 임시 보관합니다. */
+	/** 현재 관리자에게 업로드를 허용하고 동의한 연락처만 보호해 세대 연결·중복 검증 결과를 임시 보관합니다. */
 	@Transactional
 	public ResidentImportResponse preview(UUID actor, UUID propertyId, MultipartFile file) {
 		requireManagementAccess(actor, propertyId);
@@ -113,11 +113,12 @@ public class ResidentImportService {
 				continue;
 			}
 			try {
-				String phone = decryptPhone(row.phoneEncrypted());
+				// 이전 검증 JSON에 동의 정보가 없어도 연락처를 복원하지 않습니다.
+				String phone = row.phoneConsent() ? decryptPhone(row.phoneEncrypted()) : null;
 				// 별도 서비스의 트랜잭션을 행마다 완료하므로 다른 행의 입력 오류로 이미 성공한 주민을 취소하지 않습니다.
 				var saved = registrations.register(actor, propertyId, new ResidentRegistrationRequest(row.requestId(),
 				    row.name(), phone, row.unitId(), row.relationType()));
-				result.add(display(row, "SUCCESS", "등록 완료", saved.representative()));
+				result.add(display(row, "SUCCESS", row.phoneConsent() ? "등록 완료" : "등록 완료 · 동의 미확인으로 연락처 미저장", saved.representative()));
 			} catch (ResidentRegistrationException exception) {
 				if (exception.code().status.is5xxServerError())
 					throw exception;
@@ -157,10 +158,14 @@ public class ResidentImportService {
 		String unitNumber = input.unitNumber().replaceFirst("호$", "").strip();
 		String name = input.name();
 		String relation = relation(input.relation());
+		String consent = input.phoneConsent() == null ? "" : input.phoneConsent().strip().toUpperCase(Locale.ROOT);
+		boolean phoneConsent = "O".equals(consent);
 		UUID unitId = targets.get(key(building, unitNumber));
 		String failure = null;
 		if (input.invalidCell())
 			failure = "수식·오류·논리값 셀은 사용할 수 없어요.";
+		else if (!consent.isEmpty() && !Set.of("O", "X").contains(consent))
+			failure = "전화번호 수집 동의는 O 또는 X로 입력해주세요.";
 		else if (!property.isHasBuildings() && !input.building().isBlank())
 			failure = "동이 없는 관리대상이에요. 동 칸을 비워주세요.";
 		else if (name.isBlank() || name.codePointCount(0, name.length()) > 50)
@@ -170,7 +175,7 @@ public class ResidentImportService {
 		else if (unitId == null)
 			failure = "등록된 동·호수를 찾을 수 없어요. 세대 목록을 확인해주세요.";
 		ResidentRegistrationService.ProtectedPhone phone = null;
-		if (failure == null) {
+		if (failure == null && phoneConsent) {
 			try {
 				phone = registrations.protectPhone(input.phone());
 			} catch (IllegalArgumentException exception) {
@@ -179,6 +184,8 @@ public class ResidentImportService {
 		}
 		String status = failure == null ? "READY" : "ERROR";
 		String reason = failure == null ? "등록 가능" : failure;
+		if (failure == null && !phoneConsent)
+			reason = "등록 가능 · 동의 미확인으로 연락처 미저장";
 		if (phone != null && failure == null) {
 			String identity = name + ":" + phone.hmac();
 			if (!contacts.add(identity)) {
@@ -200,7 +207,7 @@ public class ResidentImportService {
 		}
 		return new ResidentImportRow(input.rowNumber(), UUID.randomUUID(), clip(building), clip(unitNumber), clip(name),
 		    relation, unitId, phone == null ? null : phone.encrypted(), phone == null ? null : phone.last4(), status,
-		    reason);
+		    reason, phoneConsent);
 	}
 
 	private void requireManagementAccess(UUID actor, UUID propertyId) {
@@ -214,7 +221,7 @@ public class ResidentImportService {
 	private ResidentImportResponse.Row display(ResidentImportRow row, String status, String reason,
 	    boolean representative) {
 		return new ResidentImportResponse.Row(row.rowNumber(), row.building(), row.unitNumber(), row.name(),
-		    row.relationType(), row.phoneLast4(), status, reason, representative);
+		    row.relationType(), row.phoneConsent() ? row.phoneLast4() : null, status, reason, representative);
 	}
 
 	private String key(String building, String number) {

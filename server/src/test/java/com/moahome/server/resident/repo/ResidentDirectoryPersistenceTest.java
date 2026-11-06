@@ -48,6 +48,7 @@ import com.moahome.server.property.repo.*;
 import com.moahome.server.property.service.ManagementAccessService;
 import com.moahome.server.property.service.UnitManagementService;
 import com.moahome.server.resident.domain.ResidentSignupStatus;
+import com.moahome.server.resident.domain.ResidentImportBatch;
 import com.moahome.server.resident.dto.ResidentDeleteRequest;
 import com.moahome.server.resident.dto.ResidentRepresentativeRequest;
 import com.moahome.server.resident.dto.ResidentImportCommitRequest;
@@ -794,13 +795,14 @@ class ResidentDirectoryPersistenceTest {
 		    var bytes = new ByteArrayOutputStream()) {
 			var sheet = workbook.createSheet();
 			var header = sheet.createRow(0);
-			String[] labels = {"동", "호수", "이름", "관계", "연락처"};
-			for (int index = 0; index < 5; index++)
+			String[] labels = {"동", "호수", "이름", "연락처", "주민 구분", "전화번호 수집 동의"};
+			for (int index = 0; index < labels.length; index++)
 				header.createCell(index).setCellValue(labels[index]);
 			for (int row = 0; row < data.length; row++) {
 				var target = sheet.createRow(row + 1);
-				for (int col = 0; col < 5; col++)
-					target.createCell(col).setCellValue(data[row][col]);
+				String[] values = {data[row][0], data[row][1], data[row][2], data[row][4], data[row][3], data[row].length > 5 ? data[row][5] : "O"};
+				for (int col = 0; col < values.length; col++)
+					target.createCell(col).setCellValue(values[col]);
 			}
 			workbook.write(bytes);
 			return new MockMultipartFile("file", "residents.xlsx",
@@ -808,10 +810,62 @@ class ResidentDirectoryPersistenceTest {
 		}
 	}
 
+	/** 동의하지 않은 번호는 미리보기 JSON·검색용 HMAC·주민 명부 어디에도 저장하지 않습니다. */
+	@Test
+	void importStoresPhoneOnlyForExplicitConsentAndKeepsNonconsentingResidents() throws Exception {
+		var property = property(false);
+		var actor = users.saveAndFlush(User.create("동의 확인 관리자", null)).getId();
+		member(property.getId(), actor);
+		units.saveAndFlush(Unit.create(property, null, "001", null, null, UnitStatus.ACTIVE, AT));
+		var preview = imports.preview(actor, property.getId(), excel(new String[][] {
+		    {"", "001", "동의 주민", "가족", "01012345678", "O"},
+		    {"", "001", "미동의 주민", "가족", "01098765432", "X"},
+		    {"", "001", "미확인 주민", "가족", "전화번호 형식도 검사하지 않음", ""},
+		    {"", "001", "잘못된 동의", "가족", "01022223333", "동의"}
+		}));
+		assertThat(preview.rows()).extracting(row -> row.status()).containsExactly("READY", "READY", "READY", "ERROR");
+		assertThat(preview.rows()).extracting(row -> row.phoneLast4()).containsExactly("5678", null, null, null);
+		String payload = jdbc.queryForObject("select rows_payload::text from resident_import_batches where id=?", String.class, preview.importId());
+		assertThat(payload).doesNotContain("01012345678", "01098765432", "01022223333", "전화번호 형식도 검사하지 않음");
+		var temporary = new ObjectMapper().readTree(payload);
+		for (int index : List.of(1, 2, 3)) {
+			assertThat(temporary.get(index).get("phoneEncrypted").isNull()).isTrue();
+			assertThat(temporary.get(index).get("phoneLast4").isNull()).isTrue();
+			assertThat(temporary.get(index).get("phoneConsent").booleanValue()).isFalse();
+		}
+		var saved = imports.commit(actor, property.getId(), preview.importId(), new ResidentImportCommitRequest(List.of(2, 3, 4)));
+		assertThat(saved.rows()).extracting(row -> row.status()).containsExactly("SUCCESS", "SUCCESS", "SUCCESS", "ERROR");
+		assertThat(jdbc.queryForObject("select phone_last4 from residents where property_id=? and name='동의 주민'", String.class, property.getId())).isEqualTo("5678");
+		assertThat(jdbc.queryForObject("select count(*) from residents where property_id=? and name in ('미동의 주민','미확인 주민') and phone_encrypted is null and phone_hmac is null and phone_last4 is null", Integer.class, property.getId())).isEqualTo(2);
+		assertThat(imports.commit(actor, property.getId(), preview.importId(), new ResidentImportCommitRequest(List.of(2, 3, 4)))).isEqualTo(saved);
+	}
+
 	private ResidentRegistrationRequest registration(UUID unitId, String name,
 	    String phone) {
 		return new ResidentRegistrationRequest(UUID.randomUUID(), name, phone, unitId,
 		    "TENANT");
+	}
+
+	/** 변경 전에 검증한 임시 데이터에도 동의가 없으면 연락처를 복호화하거나 명부에 저장하지 않습니다. */
+	@Test
+	void legacyImportBatchWithoutConsentCannotRestoreStoredPhoneAtCommit() throws Exception {
+		var property = property(false);
+		var actor = users.saveAndFlush(User.create("이전 검증 관리자", null)).getId();
+		member(property.getId(), actor);
+		units.saveAndFlush(Unit.create(property, null, "001", null, null, UnitStatus.ACTIVE, AT));
+		var preview = imports.preview(actor, property.getId(), excel(new String[][] {
+		    {"", "001", "이전 검증 주민", "가족", "01012345678", "O"}
+		}));
+		String payload = batches.findById(preview.importId()).orElseThrow().getRowsPayload();
+		assertThat(payload).contains(",\"phoneConsent\":true");
+		var legacy = batches.saveAndFlush(ResidentImportBatch.create(property.getId(), actor,
+		    payload.replace(",\"phoneConsent\":true", ""), OffsetDateTime.now()));
+		var result = imports.commit(actor, property.getId(), legacy.getId(), new ResidentImportCommitRequest(List.of(2)));
+		assertThat(result.rows()).singleElement().satisfies(row -> {
+			assertThat(row.status()).isEqualTo("SUCCESS");
+			assertThat(row.phoneLast4()).isNull();
+		});
+		assertThat(jdbc.queryForObject("select count(*) from residents where property_id=? and phone_encrypted is null and phone_hmac is null and phone_last4 is null", Integer.class, property.getId())).isEqualTo(1);
 	}
 
 	@Test

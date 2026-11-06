@@ -2709,6 +2709,10 @@ for (const width of [1440, 320]) {
       exact: true
     }).click();
     await expect(page).toHaveURL(IMPORT_PATH);
+    await expect(page.getByText('X·빈칸이면 전화번호를 입력했어도 저장하지 않고 연락처 없이 주민만 등록합니다.', {
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('main')).not.toContainText('이전 양식');
     if (width < 768) await expect(page.getByRole('banner').getByRole('link', {
       name: '뒤로가기'
     })).toBeVisible();
@@ -2742,7 +2746,7 @@ for (const width of [1440, 320]) {
       name: '주민 목록',
       exact: true
     })).toHaveCount(0);
-    await expect(page.getByRole('main')).toContainText('첫 행은 동 · 호수 · 이름 · 연락처 · 주민 구분 순서로 유지해주세요.');
+    await expect(page.getByRole('main')).toContainText('첫 행은 동 · 호수 · 이름 · 연락처 · 주민 구분 · 전화번호 수집 동의 순서로 유지해주세요.');
     const footer = page.getByRole('main').locator('footer');
     await page.getByLabel('주민 엑셀 파일').setInputFiles({
       name: 'residents.xlsx',
@@ -4704,7 +4708,7 @@ test('동 없는 주민 업로드는 동 열 없는 양식과 작성 안내를 �
   await expect(page.getByRole('link', {
     name: '엑셀 양식 다운로드'
   })).toHaveAttribute('href', '/residentImportNoBuildingTemplate.xlsx');
-  await expect(page.getByRole('main')).toContainText('첫 행은 호수 · 이름 · 연락처 · 주민 구분 순서로 유지해주세요.');
+  await expect(page.getByRole('main')).toContainText('첫 행은 호수 · 이름 · 연락처 · 주민 구분 · 전화번호 수집 동의 순서로 유지해주세요.');
   await expect(page.getByRole('main')).toContainText('호수·이름은 필수이며 연락처와 주민 구분은 선택입니다.');
   await expect(page.getByRole('main')).not.toContainText('동 칸을 비워');
 });

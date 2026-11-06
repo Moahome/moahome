@@ -529,6 +529,8 @@ CREATE UNIQUE INDEX unit_residents_active_resident_idx
 
 ---
 
+2026-11-06 엑셀 전화번호 동의는 기존 `resident_import_batches.rows_payload`에 boolean `phoneConsent`로 함께 보존합니다. false·미존재이면 `phoneEncrypted`·`phoneLast4`를 저장하거나 사용하지 않고 최종 주민의 보호 연락처 3개 컬럼도 null로 저장합니다. 새 주민 동의 컬럼·테이블이나 기존 주민 정보 보정 Migration은 추가하지 않습니다. 기존 주민 연락처를 일괄 삭제하지 않으며 업무 기준은 [주민 엑셀 정책](domainRules.md#확정된-주민-엑셀-일괄-등록)을 따릅니다.
+
 ### 주민 등록 요청 결과 (`resident_registration_results`)
 
 재등록에서 새 요청 ID와 재사용한 주민 ID를 연결하며 응답 유실의 재시도에도 한 현재 관계만 저장합니다. `V20261012054221__support_resident_reregistration_results.sql`로 추가합니다.
