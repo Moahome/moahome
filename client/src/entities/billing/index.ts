@@ -19,3 +19,13 @@ export type {
   BillingSettings,
   BillingTemplate
 } from './model/billingTypes';
+
+export {
+  BillingDetail
+} from './ui/billingDetail';
+export {
+  getSortedBillingCharges, getBillingDates, sumBillingItems
+} from './model/billing';
+export {
+  formatBillingMonth
+} from './lib/billingLabel';

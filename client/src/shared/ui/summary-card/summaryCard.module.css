@@ -8,6 +8,10 @@
   border-radius: 14px;
   background: var(--card);
 
+  &[data-surface='subtle'] {
+    background: var(--background);
+  }
+
   .label {
     display: flex;
     align-items: center;

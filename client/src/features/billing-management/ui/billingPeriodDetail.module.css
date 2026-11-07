@@ -1,0 +1,31 @@
+.modal {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  padding: 24px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--foreground);
+
+  &::backdrop {
+    background: color-mix(in srgb, var(--foreground) 42%, transparent);
+  }
+}
+
+.page {
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+
+  h2 {
+    font-size: 20px;
+    font-weight: 700;
+  }
+}

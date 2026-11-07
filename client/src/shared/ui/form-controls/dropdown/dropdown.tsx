@@ -22,15 +22,24 @@ import styles from './dropdown.module.css';
 
 export type DropdownOption = Option;
 
-export interface DropdownProps extends Omit<ComponentPropsWithRef<'button'>, 'children' | 'type' | 'value' | 'defaultValue' | 'onChange' | 'onClick' | 'onKeyDown'>, FormFieldOptions {
+interface DropdownBaseProps extends Omit<ComponentPropsWithRef<'button'>, 'children' | 'type' | 'value' | 'defaultValue' | 'onChange' | 'onClick' | 'onKeyDown'>, FormFieldOptions {
   options: readonly DropdownOption[];
   placeholder?: string;
-  value?: string;
-  defaultValue?: string;
-  onChange?: (value: string) => void;
   required?: boolean;
   clearable?: boolean;
 }
+
+export type DropdownProps = DropdownBaseProps & ({
+  multiple?: false;
+  value?: string;
+  defaultValue?: string;
+  onChange?: (value: string) => void;
+} | {
+  multiple: true;
+  value?: string[];
+  defaultValue?: string[];
+  onChange?: (value: string[]) => void;
+});
 
 /** 입력의 전체 폭에 맞춰 목록을 배치하고 아래 공간이 부족할 때만 위쪽으로 펼칩니다. */
 function positionMenu(trigger: HTMLButtonElement, menu: HTMLDivElement) {
@@ -68,7 +77,8 @@ export function Dropdown({
   options,
   placeholder = '선택해주세요',
   value,
-  defaultValue = '',
+  defaultValue,
+  multiple = false,
   onChange,
   onBlur,
   required,
@@ -90,11 +100,17 @@ export function Dropdown({
     text: '',
     time: 0
   });
-  const [internalValue, setInternalValue] = useState(defaultValue);
+  const [internalValue, setInternalValue] = useState<string[]>(Array.isArray(defaultValue) ? defaultValue : [defaultValue ?? '']);
   const [isOpen, setIsOpen] = useState(false);
   const [activeValue, setActiveValue] = useState('');
-  const selectedValue = value ?? internalValue;
+  const selectedValues = Array.isArray(value) ? value : typeof value === 'string' ? [value] : internalValue;
+  const selectedValue = selectedValues[0] ?? '';
+  const selectedOptions = options.filter((option) => selectedValues.includes(option.value) && option.value);
   const selectedOption = options.find((option) => option.value === selectedValue);
+  const displayLabel = multiple && selectedOptions.length > 1
+    ? `${selectedOptions[0].label} 외 ${selectedOptions.length - 1}개`
+    : selectedOptions[0]?.label ?? selectedOption?.label
+      ?? (multiple && !selectedValues.some(Boolean) ? options.find((option) => option.value === '')?.label : undefined) ?? placeholder;
   const enabledOptions = options.filter((option) => !option.disabled);
   const activeIndex = options.findIndex((option) => option.value === activeValue);
   const invalid = error ? true : ariaInvalid;
@@ -104,7 +120,7 @@ export function Dropdown({
     error,
     describedBy: ariaDescribedBy
   });
-  const showClear = clearable && !required && Boolean(selectedValue);
+  const showClear = clearable && !required && Boolean(selectedValue) && !multiple;
 
   useImperativeHandle(ref, () => triggerRef.current!);
 
@@ -158,7 +174,7 @@ export function Dropdown({
 
     /** 비제어 선택은 기본 form reset 동작에 맞춰 최초 선택값으로 돌아갑니다. */
     function resetValue() {
-      setInternalValue(defaultValue);
+      setInternalValue(Array.isArray(defaultValue) ? defaultValue : [defaultValue ?? '']);
       setIsOpen(false);
     }
 
@@ -179,9 +195,19 @@ export function Dropdown({
   function selectValue(nextValue: string) {
     if (triggerRef.current?.matches(':disabled') || (!nextValue && required)) return;
 
-    if (value === undefined) setInternalValue(nextValue);
-    onChange?.(nextValue);
-    setIsOpen(false);
+    // 다중 선택은 목록을 유지하고 전체 항목을 누르면 명시적인 선택을 모두 해제합니다.
+    if (multiple) {
+      const next = !nextValue ? [] : selectedValues.includes(nextValue)
+        ? selectedValues.filter((item) => item !== nextValue && item !== '')
+        : options.filter((option) => option.value && (option.value === nextValue || selectedValues.includes(option.value)))
+          .map((option) => option.value);
+      if (value === undefined) setInternalValue(next);
+      (onChange as ((values: string[]) => void) | undefined)?.(next);
+    } else {
+      if (value === undefined) setInternalValue([nextValue]);
+      (onChange as ((value: string) => void) | undefined)?.(nextValue);
+      setIsOpen(false);
+    }
     triggerRef.current?.focus({
       preventScroll: true
     });
@@ -220,7 +246,7 @@ export function Dropdown({
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       if (!isOpen) openMenu();
-      else if (activeValue) selectValue(activeValue);
+      else selectValue(activeValue);
       return;
     }
 
@@ -259,7 +285,7 @@ export function Dropdown({
         type={'text'}
         name={name}
         form={form}
-        value={selectedValue}
+        value={multiple ? selectedValues.join(',') : selectedValue}
         required={required}
         disabled={disabled}
         tabIndex={-1}
@@ -280,7 +306,7 @@ export function Dropdown({
         role={'combobox'}
         className={[styles.dropdown, className].filter(Boolean).join(' ')}
         disabled={disabled}
-        data-placeholder={!selectedValue || undefined}
+        data-placeholder={!selectedOption && selectedOptions.length === 0 || undefined}
         data-clearable={showClear || undefined}
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy ?? (label ? `${controlId}-label` : undefined)}
@@ -301,7 +327,8 @@ export function Dropdown({
         <span
           className={styles.value}
         >
-          {selectedOption?.label ?? (selectedValue || placeholder)}
+          {/* 비동기 목록이 없거나 조회에 실패해도 내부 식별자를 화면 문구로 노출하지 않습니다. */}
+          {displayLabel}
         </span>
         <ServiceIcon
           name={'chevron'}
@@ -333,6 +360,7 @@ export function Dropdown({
         className={styles.menu}
         popover={'manual'}
         role={'listbox'}
+        aria-multiselectable={multiple || undefined}
         aria-label={label ?? ariaLabel ?? '선택 목록'}
         aria-hidden={!isOpen}
         data-open={isOpen}
@@ -343,7 +371,7 @@ export function Dropdown({
             id={`${controlId}-option-${index}`}
             className={styles.option}
             role={'option'}
-            aria-selected={selectedValue === option.value}
+            aria-selected={(multiple ? (option.value ? selectedValues.includes(option.value) : !selectedOptions.length) : selectedValue === option.value)}
             aria-disabled={option.disabled || undefined}
             data-active={activeValue === option.value || undefined}
             onMouseDown={(event) => event.preventDefault()}
@@ -357,7 +385,7 @@ export function Dropdown({
             <span>
               {option.label}
             </span>
-            {selectedValue === option.value && (
+            {(multiple ? (option.value ? selectedValues.includes(option.value) : !selectedOptions.length) : selectedValue === option.value) && (
               <ServiceIcon
                 name={'check'}
                 strokeWidth={2}

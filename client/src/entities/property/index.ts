@@ -4,6 +4,7 @@ export {
   UNIT_STATUS_OPTIONS
 } from './constants/propertyOptions';
 export {
+  formatBuildingUnitText,
   getFloorLabel,
   getUnitLabel
 } from './lib/unitLabel';

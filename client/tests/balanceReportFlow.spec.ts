@@ -246,6 +246,58 @@ for (const width of [1440, 390]) {
       await route.continue();
     });
     await page.goto(`${BASE}?month=2026-10`);
+    const conditions = page.getByRole('region', {
+      name: '조회 조건',
+      exact: true
+    });
+    const buildingFilter = conditions.getByRole('combobox', {
+      name: '조회 동',
+      exact: true
+    });
+    await expect(conditions.getByRole('heading')).toHaveCount(0);
+    await expect(page.locator('label').filter({
+      hasText: /^(동 검색|잔고 정렬|잔고 상태)$/
+    })).toHaveCount(0);
+    const balanceTable = page.getByRole('table', {
+      name: '동별 잔고',
+      exact: true
+    });
+    await expect(balanceTable.getByRole('columnheader', {
+      name: '선택',
+      exact: true
+    })).toHaveCount(0);
+    await expect(balanceTable.getByRole('checkbox')).toHaveCount(0);
+    if (width >= 768) {
+      const controls = await Promise.all([
+        conditions.getByRole('button', {
+          name: /^조회 기간:/
+        }).boundingBox(),
+        conditions.getByRole('combobox', {
+          name: '조회 통장',
+          exact: true
+        }).boundingBox(),
+        buildingFilter.boundingBox()
+      ]);
+      expect(controls.every((box) => box !== null)).toBe(true);
+      expect(Math.max(...controls.map((box) => box!.y + box!.height / 2)) - Math.min(...controls.map((box) => box!.y + box!.height / 2))).toBeLessThanOrEqual(1);
+    }
+    await buildingFilter.click();
+    await expect(page.getByRole('option')).toHaveText(['전체 동', '2동', '10동', '102동', '103동']);
+    await page.getByRole('option', {
+      name: '103동',
+      exact: true
+    }).click();
+    await expect(balanceTable.locator('tbody tr')).toHaveCount(1);
+    await expect(balanceTable).not.toContainText('102동');
+    expect(new URL(page.url()).searchParams.get('building')).toBe(settlementId(203));
+    await page.reload();
+    await expect(buildingFilter).toHaveText('103동');
+    await page.screenshot({
+      path: testInfo.outputPath(`balance-query-${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+
     await page.getByRole('button', {
       name: '다운로드',
       exact: true
@@ -255,13 +307,7 @@ for (const width of [1440, 390]) {
       name: '조회 동',
       exact: true
     });
-    await expect(filter).toHaveText('전체 동');
-    await filter.click();
-    await expect(page.getByRole('option')).toHaveText(['전체 동', '2동', '10동', '102동', '103동']);
-    await page.getByRole('option', {
-      name: '103동',
-      exact: true
-    }).click();
+    await expect(filter).toHaveText('103동');
     await expect(modal.getByRole('table').locator('tbody tr td:first-child')).toHaveText(['103동', '103동', '선택 범위 합계']);
     await expect(modal.getByText('103동 청소비', {
       exact: true

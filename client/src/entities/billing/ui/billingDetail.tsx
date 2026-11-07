@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { BillingCharge } from '@/entities/billing';
+import type { BillingCharge } from '../model/billingTypes';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
@@ -9,12 +9,12 @@ import { DataTable } from '@/shared/ui/data-table';
 import { ListToolbar } from '@/shared/ui/list-toolbar';
 import { Pagination } from '@/shared/ui/pagination';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import { formatBillingMonth } from '../../../lib/billingLabel';
+import { formatBillingMonth } from '../lib/billingLabel';
 import {
   getBillingDates,
   getSortedBillingCharges,
   sumBillingItems
-} from '../../../model/billing';
+} from '../model/billing';
 import styles from './billingDetail.module.css';
 
 /** 월별 세대 내역은 페이지로 나누고 청구 합계는 해당 월 전체를 기준으로 유지합니다. */

@@ -6,6 +6,9 @@ export {
   saveBillingSettings
 } from './api/billingApi';
 export {
+  BillingPeriodDetail
+} from './ui/billingPeriodDetail';
+export {
   correctInitialBalances,
   changeOpeningBalances,
   getOpeningBalances,

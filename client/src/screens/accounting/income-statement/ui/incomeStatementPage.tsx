@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import {
   useRouter,
@@ -492,7 +493,20 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
                         className={styles['row-label']}
                         data-row-kind={row.kind}
                       >
-                        {row.label}
+                        {row.kind === 'account' ? (
+                          <Link
+                            href={`/manage/${propertyId}/accounting/ledger?${new URLSearchParams({
+                              startMonth: report.range.startMonth,
+                              endMonth: report.range.endMonth,
+                              account: row.id.split(':').at(-1)!,
+                              ...(buildingId ? {
+                                building: buildingId
+                              } : {})
+                            })}`}
+                          >
+                            {row.label}
+                          </Link>
+                        ) : row.label}
                       </span>
                     )
                   },

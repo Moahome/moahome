@@ -1,16 +1,15 @@
 import type { Metadata } from 'next';
-import { ComingSoonPage } from '@/screens/coming-soon';
+import { AccountingAccountsPage } from '@/screens/accounting/accounts';
 
 export const metadata: Metadata = {
   title: '계정과목 설정'
 };
 
-export default function Page() {
+export default async function Page({ params }: PageProps<'/manage/[propertyId]/accounting/accounts'>) {
+  const { propertyId } = await params;
   return (
-    <ComingSoonPage
-      menu={'회계·정산'}
-      title={'계정과목 설정'}
-      planned
+    <AccountingAccountsPage
+      propertyId={propertyId}
     />
   );
 }

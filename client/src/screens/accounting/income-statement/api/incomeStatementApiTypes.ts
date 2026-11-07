@@ -52,6 +52,7 @@ export interface AccountingAccount {
   name: string;
   group: IncomeGroup | 'asset' | 'liability';
   systemKey: string | null;
+  active?: boolean;
 }
 
 export interface IncomeStatementWorkspace extends IncomeStatementSource {
@@ -114,16 +115,6 @@ export interface IncomeStatementQuery {
 export interface ConfigureAccountingRequest {
   startMonth: string;
   fiscalYearStartMonth: number;
-}
-
-export interface CreateAccountingAccountRequest {
-  name: string;
-  group: 'OPERATING_EXPENSE' | 'OTHER_EXPENSE';
-  code?: string;
-}
-
-export interface CreateAccountingAccountResponse {
-  id: string;
 }
 
 export interface ReviewAccountingExpenseRequest {

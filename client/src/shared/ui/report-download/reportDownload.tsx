@@ -29,7 +29,7 @@ const PdfPreview = lazy(() => import('./_components/pdf-preview/pdfPreview').the
 export function ReportDownload({ title, description, filename, sourceKey, documents, highlights = [], scopeLabel, createWorkbook, createPdf, excelDescription = '보고서 · 한 시트', pdfDescription = 'A4 세로 보고서', renderFilters, pending = false, error = '', onRetry, onClose, presentation = 'modal', formats = ['excel', 'pdf', 'image'] }: {
   presentation?: 'modal' | 'page';
   formats?: readonly ('excel' | 'pdf' | 'image')[];
-  title: string; description: string; filename: string; sourceKey: string;
+  title: string; description?: string; filename: string; sourceKey: string;
   documents: readonly ReportDefinition[];
   highlights?: readonly { label: string; value: string | bigint; tone?: 'primary' | 'teal' | 'success' | 'danger' }[];
   scopeLabel: string;

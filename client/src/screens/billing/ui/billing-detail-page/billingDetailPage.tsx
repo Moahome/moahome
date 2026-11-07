@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { BillingDetail } from '../_components/billing-detail/billingDetail';
+import { BillingDetail } from '@/entities/billing';
 import { BillingLoadState } from '../_components/billing-load-state/billingLoadState';
 import { useBillingMonth } from '../_hooks/useBillingData';
 

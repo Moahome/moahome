@@ -112,15 +112,13 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
         id: 'ledger',
         label: '계정별 원장',
         path: 'accounting/ledger',
-        available: false,
-        statusLabel: '구현 예정'
+        available: true
       },
       {
         id: 'account-settings',
         label: '계정과목 설정',
         path: 'accounting/accounts',
-        available: false,
-        statusLabel: '구현 예정'
+        available: true
       }
     ]
   },
