@@ -17,12 +17,14 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   useRef,
   useState,
+  type ReactNode,
   type FormEvent
 } from 'react';
 import type {
   ExpenseAccountOption,
   ExpenseDraft
 } from '../../model/allocationTypes';
+import type { ManualTransferSeed } from '../../model/manualTransferTypes';
 import type { ManualExpenseValues } from '../../model/manualExpenseTypes';
 import {
   calculateExpenseAllocation,
@@ -31,7 +33,9 @@ import {
 import styles from './manualExpenseForm.module.css';
 
 /** PC 모달과 모바일 페이지에서 같은 등록·배분·재시도를 사용하고 저장 성공 후 원장을 갱신합니다. */
-export function ManualExpenseForm({ accounts: accountOptions, expenseAccounts, buildings: buildingOptions, asOf, initialAccountId, presentation = 'modal', title = '수동 지출 등록', busy = false, initialValue, onCancel, onClose, onSubmit }: {
+export function ManualExpenseForm({ accounts: accountOptions, expenseAccounts, buildings: buildingOptions, asOf, initialAccountId, presentation = 'modal', title = '수동 지출 등록', busy = false, initialValue, onCancel, onClose, onSubmit, onTransfer, renderTransfer }: {
+  onTransfer?: (seed: ManualTransferSeed | null) => void;
+  renderTransfer?: (selector: ReactNode) => ReactNode;
   expenseAccounts?: readonly ExpenseAccountOption[];
   initialValue?: ManualExpenseValues;
   onCancel?: () => void;
@@ -127,6 +131,27 @@ export function ManualExpenseForm({ accounts: accountOptions, expenseAccounts, b
     }
   }
 
+  // 내부 이체는 비용 과목과 별도로 선택하며 해제하면 작성 중이던 일반 지출 입력으로 돌아갑니다.
+  const transferControl = onTransfer && accounts.length > 1 ? (
+    <label
+      className={styles.transfer}
+    >
+      <input
+        type={'checkbox'}
+        checked={Boolean(renderTransfer)}
+        disabled={busy}
+        onChange={(event) => onTransfer(event.target.checked ? {
+          direction: 'EXPENSE',
+          accountId,
+          date,
+          amount,
+          note: draft.note ?? ''
+        } : null)}
+      />
+      계좌 이체
+    </label>
+  ) : null;
+
   const content = (
     <>
       {presentation === 'page' ? (
@@ -164,164 +189,167 @@ export function ManualExpenseForm({ accounts: accountOptions, expenseAccounts, b
           />
         </header>
       )}
-      <form
-        onSubmit={submit}
-        noValidate
-        className={styles.form}
-      >
-        <div
-          className={styles.body}
+      {renderTransfer ? renderTransfer(transferControl) : (
+        <form
+          onSubmit={submit}
+          noValidate
+          className={styles.form}
         >
-          <fieldset
-            disabled={busy}
-            className={styles.fields}
+          <div
+            className={styles.body}
           >
-            <section
-              className={styles.section}
-              aria-labelledby={'manual-expense-basics'}
+            <fieldset
+              disabled={busy}
+              className={styles.fields}
             >
-              <h3
-                id={'manual-expense-basics'}
-                className={styles['section-title']}
+              <section
+                className={styles.section}
+                aria-labelledby={'manual-expense-basics'}
               >
-                <span>
-                  1
-                </span>
-                기본 정보
-              </h3>
-              <div
-                className={styles.basics}
-              >
-                <Dropdown
-                  label={'출금 통장'}
-                  required
-                  value={accountId}
-                  onChange={setSelectedAccount}
+                <h3
+                  id={'manual-expense-basics'}
+                  className={styles['section-title']}
+                >
+                  <span>
+                    1
+                  </span>
+                  기본 정보
+                </h3>
+                <div
+                  className={styles.basics}
+                >
+                  <Dropdown
+                    label={'출금 통장'}
+                    required
+                    value={accountId}
+                    onChange={setSelectedAccount}
+                    disabled={busy}
+                    options={accounts.map((account) => ({
+                      value: account.id,
+                      label: getBankAccountLabel(account)
+                    }))}
+                  />
+                  <CalendarPicker
+                    label={'출금일'}
+                    maxDate={asOf}
+                    variant={'input'}
+                    value={date}
+                    onChange={setEnteredDate}
+                    required
+                  />
+                  <Input
+                    label={'지출명'}
+                    value={draft.category}
+                    onChange={(event) => setEdited({
+                      ...draft,
+                      category: event.target.value
+                    })}
+                    maxLength={100}
+                    placeholder={'예: 공용 전기료'}
+                    required
+                  />
+                  <AmountInput
+                    label={'출금액'}
+                    trailingContent={'원'}
+                    value={amount}
+                    onChange={setAmount}
+                    required
+                  />
+                </div>
+                <ExpenseAccountSelect
+                  value={draft.accountCode}
+                  options={expenseAccounts}
                   disabled={busy}
-                  options={accounts.map((account) => ({
-                    value: account.id,
-                    label: getBankAccountLabel(account)
-                  }))}
+                  onChange={(accountCode) => setEdited({
+                    ...draft,
+                    accountCode
+                  })}
                 />
-                <CalendarPicker
-                  label={'출금일'}
-                  maxDate={asOf}
-                  variant={'input'}
-                  value={date}
-                  onChange={setEnteredDate}
-                  required
+                {transferControl}
+                {!draft.category.trim() && (
+                  <p
+                    className={styles.warning}
+                    role={'status'}
+                  >
+                    <span
+                      aria-hidden={'true'}
+                    >
+                      !
+                    </span>
+                    지출명을 입력해주세요.
+                  </p>
+                )}
+              </section>
+              {buildingOptions.length > 0 && (
+                <AllocationEditor
+                  total={validAmount ? amount : '0'}
+                  draft={draft}
+                  buildings={data.buildings}
+                  onChange={setEdited}
+                  disabled={busy}
+                  showDetails={false}
+                  showRule={false}
+                  sectioned
                 />
+              )}
+              <section
+                className={styles.section}
+                aria-labelledby={'manual-expense-memo'}
+              >
+                <h3
+                  id={'manual-expense-memo'}
+                  className={styles['section-title']}
+                >
+                  <span>
+                    {buildingOptions.length > 0 ? '4' : '2'}
+                  </span>
+                  메모
+                </h3>
                 <Input
-                  label={'지출명'}
-                  value={draft.category}
+                  aria-label={'메모'}
+                  placeholder={'메모를 입력해주세요. (선택사항)'}
+                  value={draft.note}
                   onChange={(event) => setEdited({
                     ...draft,
-                    category: event.target.value
+                    note: event.target.value
                   })}
-                  maxLength={100}
-                  placeholder={'예: 공용 전기료'}
-                  required
+                  maxLength={500}
                 />
-                <AmountInput
-                  label={'출금액'}
-                  trailingContent={'원'}
-                  value={amount}
-                  onChange={setAmount}
-                  required
-                />
-              </div>
-              <ExpenseAccountSelect
-                value={draft.accountCode}
-                options={expenseAccounts}
-                disabled={busy}
-                onChange={(accountCode) => setEdited({
-                  ...draft,
-                  accountCode
-                })}
-              />
-              {!draft.category.trim() && (
-                <p
-                  className={styles.warning}
-                  role={'status'}
-                >
-                  <span
-                    aria-hidden={'true'}
-                  >
-                    !
-                  </span>
-                  지출명을 입력해주세요.
-                </p>
-              )}
-            </section>
-            {buildingOptions.length > 0 && (
-              <AllocationEditor
-                total={validAmount ? amount : '0'}
-                draft={draft}
-                buildings={data.buildings}
-                onChange={setEdited}
-                disabled={busy}
-                showDetails={false}
-                showRule={false}
-                sectioned
-              />
-            )}
-            <section
-              className={styles.section}
-              aria-labelledby={'manual-expense-memo'}
-            >
-              <h3
-                id={'manual-expense-memo'}
-                className={styles['section-title']}
+              </section>
+            </fieldset>
+            {error && (
+              <p
+                role={'alert'}
+                className={styles.error}
               >
-                <span>
-                  {buildingOptions.length > 0 ? '4' : '2'}
-                </span>
-                메모
-              </h3>
-              <Input
-                aria-label={'메모'}
-                placeholder={'메모를 입력해주세요. (선택사항)'}
-                value={draft.note}
-                onChange={(event) => setEdited({
-                  ...draft,
-                  note: event.target.value
-                })}
-                maxLength={500}
-              />
-            </section>
-          </fieldset>
-          {error && (
-            <p
-              role={'alert'}
-              className={styles.error}
-            >
-              {error}
-            </p>
-          )}
-        </div>
-        <footer
-          className={styles.actions}
-        >
-          {(presentation === 'modal' || onCancel) && (
-            <Button
-              variant={'outline'}
-              tone={'neutral'}
-              disabled={busy}
-              onClick={onCancel ?? onClose}
-            >
-              취소
-            </Button>
-          )}
-          <Button
-            type={'submit'}
-            tone={initialValue ? 'success' : undefined}
-            loading={busy}
-            disabled={busy || !canSubmit}
+                {error}
+              </p>
+            )}
+          </div>
+          <footer
+            className={styles.actions}
           >
-            {initialValue ? '수정' : '등록'}
-          </Button>
-        </footer>
-      </form>
+            {(presentation === 'modal' || onCancel) && (
+              <Button
+                variant={'outline'}
+                tone={'neutral'}
+                disabled={busy}
+                onClick={onCancel ?? onClose}
+              >
+                취소
+              </Button>
+            )}
+            <Button
+              type={'submit'}
+              tone={initialValue ? 'success' : undefined}
+              loading={busy}
+              disabled={busy || !canSubmit}
+            >
+              {initialValue ? '수정' : '등록'}
+            </Button>
+          </footer>
+        </form>
+      )}
     </>
   );
 

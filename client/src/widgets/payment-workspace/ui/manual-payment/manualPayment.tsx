@@ -3,16 +3,20 @@
 import { useState } from 'react';
 import {
   ManualReceiptForm,
+  type ManualTransferSeed,
   type ManualReceiptValues
 } from '@/entities/banking';
+import { ManualBankTransfer } from '@/features/manual-bank-transfer';
 import { getManualReceiptUnits } from '../../model/paymentPreview';
 import { usePaymentWorkspace } from '../payment-workspace-provider/paymentWorkspaceProvider';
 
 /** 저장 경로와 원장은 widget이 소유하고 기존 입금 입력은 초기 설정과 같은 공통 폼으로 표시합니다. */
 export function ManualPayment({ unitId = '', presentation = 'modal', onClose, onCreated }: {
-  presentation?: 'modal' | 'page'; unitId?: string; onClose: () => void; onCreated: (id: string, date: string) => void;
+  presentation?: 'modal' | 'page'; unitId?: string; onClose: () => void; onCreated: (id: string, date: string, transferAccountId?: string) => void;
 }) {
-  const { ledger, update, busy } = usePaymentWorkspace();
+  const { ledger, propertyId, update, busy } = usePaymentWorkspace();
+  const [transferBusy, setTransferBusy] = useState(false);
+  const [transferSeed, setTransferSeed] = useState<ManualTransferSeed | null>(null);
   const [requestId] = useState(() => crypto.randomUUID());
   async function submit(values: ManualReceiptValues) {
     const failure = await update({
@@ -40,13 +44,28 @@ export function ManualPayment({ unitId = '', presentation = 'modal', onClose, on
   }
   return (
     <ManualReceiptForm
+      onTransfer={setTransferSeed}
+      renderTransfer={transferSeed ? (selector) => (
+        <ManualBankTransfer
+          propertyId={propertyId}
+          accounts={ledger.accounts.filter((account) => !account.status || account.status === 'ACTIVE')}
+          buildings={ledger.buildings ?? []}
+          asOf={ledger.asOf}
+          seed={transferSeed}
+          onClose={onClose}
+          onBusyChange={setTransferBusy}
+          onCreated={(id, date, _from, to) => onCreated(id, date, to)}
+        >
+          {selector}
+        </ManualBankTransfer>
+      ) : undefined}
       accounts={ledger.accounts.filter((account) => !account.status || account.status === 'ACTIVE')}
       units={getManualReceiptUnits(ledger)}
       buildings={ledger.buildings ?? []}
       asOf={ledger.asOf}
       unitId={unitId}
       presentation={presentation}
-      busy={busy}
+      busy={busy || transferBusy}
       onClose={onClose}
       onSubmit={submit}
     />

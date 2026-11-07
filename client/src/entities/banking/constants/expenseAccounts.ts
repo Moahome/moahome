@@ -51,9 +51,3 @@ export const DEFAULT_EXPENSE_ACCOUNTS: readonly ExpenseAccountOption[] = [
     name: '잡비'
   }
 ];
-
-/** 은행 출금을 다른 관리 통장으로 이동할 때만 선택하며 비용 목록·수동 지출에는 포함하지 않습니다. */
-export const BANK_TRANSFER_ACCOUNT = {
-  code: '103',
-  name: '통장간 거래'
-} as const;

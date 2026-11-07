@@ -695,7 +695,17 @@ export function PaymentWorkspace({ propertyId, view, banking = false }: {
       {manualOpen && (
         <ManualPayment
           onClose={() => setManualOpen(false)}
-          onCreated={(id, date) => {
+          onCreated={(id, date, transferAccountId) => {
+            if (transferAccountId) {
+              setManualOpen(false);
+              const query = new URLSearchParams({
+                month: date.slice(0, 7),
+                account: transferAccountId,
+                registered: 'transfer'
+              });
+              router.push(`/manage/${propertyId}/banking/transactions?${query}`);
+              return;
+            }
             setManualOpen(false);setSelection(null);
             setTab('PENDING');
             setMonth(date.slice(0, 7));

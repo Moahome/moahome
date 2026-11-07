@@ -241,3 +241,42 @@ test('자동 이체는 양쪽 통장 이동을 표시하고 취소하면 양쪽 
   expect(canceled.bankExpense).toBe(before.bankExpense);
   expect(canceled.checks).toEqual(before.checks);
 });
+
+
+test('수동 이체는 양쪽 현금에 한 번 표시하고 은행 원본·중복 수납으로 오인하지 않으며 취소하면 함께 제외', () => {
+  const data = settlementFixture();
+  const before = getSettlementReport(data);
+  const manual = data.payments.payments.find((row) => row.source === 'MANUAL' && row.status === 'CONFIRMED' && !row.bankTransactionId)!;
+  const template = data.banking.rows[0];
+  const incoming = {
+    ...template,
+    id: settlementId(950),
+    date: manual.date,
+    accountId: manual.accountId,
+    sourceType: 'TRANSFER_MANUAL' as const,
+    transferId: settlementId(951),
+    automaticTransfer: true,
+    status: 'TRANSFER' as 'TRANSFER' | 'CANCELED',
+    direction: 'INCOME' as const,
+    amount: manual.amount,
+    expense: null
+  };
+  const outgoing = {
+    ...incoming,
+    id: settlementId(952),
+    accountId: settlementId(953),
+    direction: 'EXPENSE' as const
+  };
+  data.banking.rows.push(incoming, outgoing);
+  const report = getSettlementReport(data);
+  expect(report.bankIncome).toBe(before.bankIncome + BigInt(manual.amount));
+  expect(report.bankExpense).toBe(before.bankExpense + BigInt(manual.amount));
+  expect(report.householdIncome).toBe(before.householdIncome);
+  expect(report.cash.filter((row) => [incoming.id, outgoing.id].includes(row.id)).map((row) => row.source)).toEqual(['수동 이체', '수동 이체']);
+  expect(report.checks.find((row) => row.id === 'manual')?.count).toBe(before.checks.find((row) => row.id === 'manual')?.count);
+  incoming.status = 'CANCELED';
+  outgoing.status = 'CANCELED';
+  const canceled = getSettlementReport(data);
+  expect(canceled.bankIncome).toBe(before.bankIncome);
+  expect(canceled.bankExpense).toBe(before.bankExpense);
+});

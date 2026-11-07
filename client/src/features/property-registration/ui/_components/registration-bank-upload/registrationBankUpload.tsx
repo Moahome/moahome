@@ -392,7 +392,7 @@ export function RegistrationBankUpload({ account, accounts, canTransfer, cutoffD
               {
                 key: 'account-code',
                 header: '계정과목',
-                render: (entry) => draft.choices[entry.id]?.transfer ? '103 통장간 거래' : entry.direction === 'EXPENSE'
+                render: (entry) => draft.choices[entry.id]?.transfer ? '계좌 이체' : entry.direction === 'EXPENSE'
                   ? getExpenseAccountLabel(draft.choices[entry.id]?.expense) : '—'
               },
               {
@@ -477,9 +477,6 @@ export function RegistrationBankUpload({ account, accounts, canTransfer, cutoffD
             )}
             {canTransfer && draft.choices[row.id].transfer && (
               <>
-                <p>
-                  103 통장간 거래
-                </p>
                 <Dropdown
                   label={row.direction === 'INCOME' ? '출금 통장' : '입금 통장'}
                   value={draft.choices[row.id].transferAccountId ?? ''}
@@ -510,7 +507,6 @@ export function RegistrationBankUpload({ account, accounts, canTransfer, cutoffD
             {!(canTransfer && draft.choices[row.id].transfer) && (
               <BankImportEditor
                 direction={row.direction}
-                allowTransfer={canTransfer}
                 amount={row.amount}
                 suggestedUnitId={draft.choices[row.id].receipt.unitId}
                 units={labels}
@@ -520,9 +516,7 @@ export function RegistrationBankUpload({ account, accounts, canTransfer, cutoffD
                 onReceiptChange={(receipt) => updateChoice(row.id, {
                   receipt
                 })}
-                onExpenseChange={(expense) => updateChoice(row.id, expense.accountCode === '103' ? {
-                  transfer: true
-                } : {
+                onExpenseChange={(expense) => updateChoice(row.id, {
                   expense
                 })}
               />

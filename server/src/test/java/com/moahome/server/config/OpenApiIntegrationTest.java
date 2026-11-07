@@ -283,9 +283,13 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(
 		    mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(117);
+		assertThat(document.path("paths").properties()).hasSize(119);
 		assertThat(document.path("paths").path("/api/property-registrations/resident-import/preview").at("/post/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/residents/deleted").at("/get/security/0/bearerAuth").isArray()).isTrue();
+		assertThat(document.path("paths").path("/api/properties/{propertyId}/banking/transfers/manual")
+			.path("post").path("security").get(0).has("bearerAuth")).isTrue();
+		assertThat(document.path("paths").path("/api/properties/{propertyId}/banking/balances/transfer-funds")
+			.path("get").path("security").get(0).has("bearerAuth")).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/banking/transfers/from-transaction")
 		    .at("/post/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/accounting/income-statement")

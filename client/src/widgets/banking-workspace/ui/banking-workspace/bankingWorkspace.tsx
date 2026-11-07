@@ -11,7 +11,6 @@ import {
 } from '@/shared/ui/state-message';
 import {
   BankImportEditor,
-  TransferAllocationEditor,
   calculateTransferAllocation,
   type TransferAllocationPart,
   getExpenseAccountLabel,
@@ -96,6 +95,7 @@ import {
 import { getAccountsForRange } from '../../model/bankAccountVisibility';
 import { BankImportActions } from '../_components/bank-import-actions/bankImportActions';
 import { TransferDetail } from '../_components/transfer-detail/transferDetail';
+import { TransferAllocation } from '../_components/transfer-allocation/transferAllocation';
 import {
   getBankingDuplicateIds,
   getBankingReviewRange
@@ -109,7 +109,7 @@ type ReceiptDraft = { kind: 'AUTO' | 'HOUSEHOLD' | 'OTHER' | 'SHARED'; unitId: s
 /** 필터·페이지를 바꿔도 파일 전체의 선택·분류 초안을 유지하고 실제 저장은 서버 원본 재검증으로 처리합니다. */
 export function BankingWorkspace({ propertyId, view = 'transactions', renderReceiptDetail, receiptRows = [], renderManualRegistration }: {
   receiptRows?: (BankingTransaction & { source: 'MANUAL' | 'BANK_IMPORT'; deletable: boolean })[];
-  renderManualRegistration?: (onClose: () => void, onCreated: (id: string, date: string) => void) => ReactNode;
+  renderManualRegistration?: (onClose: () => void, onCreated: (id: string, date: string, transferAccountId?: string) => void) => ReactNode;
   propertyId: string;
   view?: 'transactions' | 'expenses' | 'upload';
   renderReceiptDetail?: (paymentId: string, onClose: () => void, onProcessed: (id: string, status: string) => void) => ReactNode;
@@ -156,15 +156,15 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [notice, setNotice] = useState<{ id: number; message: string; tone: 'success' | 'error' } | null>(() => (
-    (view === 'transactions' && searchParams.get('imported') === '1') || (view === 'transactions' && searchParams.get('registered') === '1') ? {
+    (view === 'transactions' && searchParams.get('imported') === '1') || (view === 'transactions' && ['1', 'transfer'].includes(searchParams.get('registered') ?? '')) ? {
       id: 0,
-      message: searchParams.get('registered') === '1' ? '지출을 등록했어요.' : '선택한 거래를 저장했어요.',
+      message: searchParams.get('registered') === 'transfer' ? '계좌 간 이체를 등록했어요.' : searchParams.get('registered') === '1' ? '지출을 등록했어요.' : '선택한 거래를 저장했어요.',
       tone: 'success'
     } : null
   ));
   // 업로드 뒤 목록에서 성공 알림을 한 번 표시하고 새로고침 시 다시 뜨지 않게 이동 표식을 지웁니다.
   useEffect(() => {
-    if (!['transactions', 'expenses'].includes(view) || (searchParams.get('imported') !== '1' && searchParams.get('registered') !== '1')) return;
+    if (!['transactions', 'expenses'].includes(view) || (searchParams.get('imported') !== '1' && !['1', 'transfer'].includes(searchParams.get('registered') ?? ''))) return;
     const query = new URLSearchParams(searchParams.toString());
     query.delete('imported');
     query.delete('registered');
@@ -279,7 +279,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     && (view !== 'expenses' || row.expense?.allocations.some((part) => data.buildings.some((item) => item.id === part.buildingId)))
     && (status === 'ALL' || (status === 'CONFIRMED' && ['CONFIRMED', 'LINKED', 'TRANSFER'].includes(row.status)) || (status === 'PENDING' && ['PENDING', 'TRANSFER_PENDING'].includes(row.status)) || (status === 'ON_HOLD' && row.status === 'ON_HOLD'))
     && (view !== 'expenses' || building === 'ALL' || row.expense?.allocations.some((a) => a.buildingId === building))
-    && `${row.payer} ${row.memo ?? ''} ${row.unitLabel} ${row.expense?.category ?? ''} ${row.expense?.note ?? ''} ${row.transferCandidate || (preview && transferRows.includes(row.id)) ? '103 통장간 거래' : getExpenseAccountLabel(row.expense)}`.includes(search.trim()));
+    && `${row.payer} ${row.memo ?? ''} ${row.unitLabel} ${row.expense?.category ?? ''} ${row.expense?.note ?? ''} ${row.transferCandidate || (preview && transferRows.includes(row.id)) ? '계좌 이체' : getExpenseAccountLabel(row.expense)}`.includes(search.trim()));
   // 조회 월·통장·검색·상태 조건이 적용된 빈 결과는 등록 자료 자체가 없는 상태와 구분합니다.
   const hasFilters = Boolean(review || search.trim() || accountId !== 'ALL' || direction !== 'ALL' || status !== 'ALL'
     || (preview && processing !== 'ALL')
@@ -529,7 +529,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   }
   /** 신규 상대 통장은 사용 중 계좌만 선택하며 서버가 제시한 기존 이체는 종료 계좌도 그대로 확인합니다. */
   function canTransfer(row: BankingTransaction) {
-    return Boolean(row.transferId) || accounts.some((account) => account.id !== row.accountId && account.status === 'ACTIVE');
+    return Boolean(row.transferId) || (data?.accounts ?? []).filter((account) => account.status === 'ACTIVE').length > 1;
   }
 
   /** 저장 전 거래 설정은 공통 모달에서 편집하고 닫아도 파일별 초안을 보존합니다. */
@@ -542,7 +542,6 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
       >
         <BankImportEditor
           direction={row.direction}
-          allowTransfer={canTransfer(row)}
           expenseAccounts={data.expenseAccounts}
           amount={row.amount}
           suggestedUnitId={row.unitId}
@@ -556,10 +555,6 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
             [row.id]: draft
           }))}
           onExpenseChange={(draft) => {
-            if (draft.accountCode === '103') {
-              setTransferRows((current) => current.includes(row.id) ? current : [...current, row.id]);
-              return;
-            }
             setNotice(null); setExpenses((current) => ({
               ...current,
               [row.id]: draft
@@ -1267,7 +1262,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                 ...(view === 'expenses' ? [{
                   key: 'expense-account',
                   header: '계정과목',
-                  render: (row: BankingTransaction) => row.transferCandidate || (preview && transferRows.includes(row.id)) ? '103 통장간 거래' : row.direction === 'EXPENSE'
+                  render: (row: BankingTransaction) => row.transferCandidate || (preview && transferRows.includes(row.id)) ? '계좌 이체' : row.direction === 'EXPENSE'
                     ? getExpenseAccountLabel(preview ? {
                       ...expenseDraft(row),
                       accountName: data.expenseAccounts?.find((account) => account.code === expenseDraft(row).accountCode)?.name
@@ -1483,7 +1478,11 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                     {transferDescription}
                   </p>
                   {buildings.length > 0 && (
-                    <TransferAllocationEditor
+                    <TransferAllocation
+                      key={row.id}
+                      propertyId={propertyId}
+                      outgoingAccountId={row.direction === 'EXPENSE' ? row.accountId : transferAccounts[row.id] ?? ''}
+                      date={row.date}
                       total={row.amount}
                       buildings={buildings}
                       value={transferAllocations[row.id] ?? []}
@@ -1541,7 +1540,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
           propertyId={propertyId}
           initialAccountId={activeAccountId}
           onClose={() => setManualExpenseOpen(false)}
-          onCreated={(_id, date, savedAccountId) => {
+          onCreated={(_id, date, savedAccountId, transfer) => {
             setManualExpenseOpen(false);
             setAccountId(savedAccountId);
             setBuilding('ALL');
@@ -1556,18 +1555,31 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
             router.replace(`/manage/${propertyId}/banking/transactions?${query}`, {
               scroll: false
             });
-            notify('지출을 등록했어요.', 'success');
+            notify(transfer ? '계좌 간 이체를 등록했어요.' : '지출을 등록했어요.', 'success');
           }}
         />
       )}
-      {manualOpen && renderManualRegistration?.(() => setManualOpen(false), (id, date) => {
+      {manualOpen && renderManualRegistration?.(() => setManualOpen(false), (id, date, transferAccountId) => {
         setManualOpen(false);
         setSelection(null);
-        changeMonth(date.slice(0, 7));
         setDirection('INCOME');
         setStatus('ALL');
         setSearch('');
         setPage(1);
+        if (transferAccountId) {
+          setAccountId(transferAccountId);
+          setDetail(null);
+          const query = new URLSearchParams({
+            month: date.slice(0, 7),
+            account: transferAccountId
+          });
+          router.replace(`/manage/${propertyId}/banking/transactions?${query}`, {
+            scroll: false
+          });
+          notify('계좌 간 이체를 등록했어요.', 'success');
+          return;
+        }
+        changeMonth(date.slice(0, 7));
         setDetail({
           id,
           kind: 'receipt'

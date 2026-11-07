@@ -4,6 +4,7 @@ import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import {
   Dropdown,
+  AmountInput,
   Input
 } from '@/shared/ui/form-controls';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -20,13 +21,16 @@ import type {
 import styles from './allocationEditor.module.css';
 
 /** 부담 동과 외부 부담처를 명시적으로 정하고 합계·원 미만 잔여액을 확인하게 합니다. */
-export function AllocationEditor({ total, draft, buildings, expenseAccounts, onChange, disabled = false, purpose = 'expense', showDetails = true, compact = false, showRule = true, sectioned = false }: {
+export function AllocationEditor({ total, draft, buildings, expenseAccounts, onChange, disabled = false, purpose = 'expense', showDetails = true, compact = false, showRule = true, sectioned = false, limits, validationError }: {
+  limits?: Readonly<Record<string, string | null>>;
+  validationError?: string;
   expenseAccounts?: readonly ExpenseAccountOption[];
   total: string; draft: ExpenseDraft; buildings: { id: string; label: string }[]; onChange: (draft: ExpenseDraft) => void; disabled?: boolean; purpose?: 'expense' | 'income' | 'transfer'; showDetails?: boolean; compact?: boolean; showRule?: boolean; sectioned?: boolean;
 }) {
   const income = purpose !== 'expense';
   const transfer = purpose === 'transfer';
   const result = calculateExpenseAllocation(total, draft, income ? 'income' : 'expense');
+  const allocationError = validationError || result.allocationError;
   function changeMode(mode: ExpenseDraft['mode']) {
     onChange({
       ...draft,
@@ -48,6 +52,7 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
       className={styles.editor}
       aria-label={transfer ? '이체 배분 설정' : income ? '입금 배분 설정' : '지출 설정'}
       data-mode={draft.mode}
+      data-transfer={transfer}
       data-compact={compact}
       data-sectioned={sectioned}
       disabled={disabled}
@@ -190,9 +195,25 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
             key={share.buildingId ?? `external-${index}`}
           >
             {share.buildingId ? (
-              <strong>
-                {share.label}
-              </strong>
+              <div>
+                <strong>
+                  {share.label}
+                </strong>
+                {limits !== undefined && (
+                  <p
+                    className={styles['available-amount']}
+                  >
+                    {limits[share.buildingId] == null ? '보유금 확인 필요' : (
+                      <>
+                        {'이체 가능 '}
+                        <strong>
+                          {formatWon((BigInt(limits[share.buildingId]!) > BigInt(0) ? BigInt(limits[share.buildingId]!) : BigInt(0)).toString())}
+                        </strong>
+                      </>
+                    )}
+                  </p>
+                )}
+              </div>
             ) : (
               <Input
                 aria-label={`외부 부담처 ${index + 1}`}
@@ -225,22 +246,35 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
               <div
                 className={styles['amount-controls']}
               >
-                <Input
-                  aria-label={`${share.label || '외부 부담처'} ${income ? '배분액' : '부담액'}`}
-                  className={styles['share-value']}
-                  inputMode={'numeric'}
-                  maxLength={15}
-                  value={share.amount}
-                  onChange={(event) => changeShare(index, {
-                    amount: event.target.value.replace(/[^0-9]/g, '')
-                  })}
-                />
+                {transfer ? (
+                  <AmountInput
+                    aria-label={`${share.label} 배분액`}
+                    className={styles['share-value']}
+                    maxLength={19}
+                    value={share.amount}
+                    onChange={(value) => changeShare(index, {
+                      amount: value.replace(/[^0-9]/g, '').slice(0, 15)
+                    })}
+                  />
+                ) : (
+                  <Input
+                    aria-label={`${share.label || '외부 부담처'} ${income ? '배분액' : '부담액'}`}
+                    className={styles['share-value']}
+                    inputMode={'numeric'}
+                    maxLength={15}
+                    value={share.amount}
+                    onChange={(event) => changeShare(index, {
+                      amount: event.target.value.replace(/[^0-9]/g, '')
+                    })}
+                  />
+                )}
                 <Button
                   variant={'outline'}
                   className={styles['fill-remainder']}
                   aria-label={`${share.label || '외부 부담처'} 잔액 채우기`}
-                  disabled={disabled || result.remaining <= BigInt(0) || draft.allocations.some((part) => !/^[0-9]{0,15}$/.test(part.amount))}
-                  onClick={() => onChange(fillAllocationRemainder(total, draft, index))}
+                  disabled={disabled || result.remaining <= BigInt(0) || draft.allocations.some((part) => !/^[0-9]{0,15}$/.test(part.amount))
+                    || (limits !== undefined && (limits[share.buildingId ?? ''] == null || BigInt(limits[share.buildingId ?? '']!) <= BigInt(share.amount || '0')))}
+                  onClick={() => onChange(fillAllocationRemainder(total, draft, index, limits === undefined ? undefined : limits[share.buildingId ?? ''] ?? null))}
                 >
                   잔액 채우기
                 </Button>
@@ -292,7 +326,7 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
               </>}
           </span>
         </div>
-        {!result.allocationError && BigInt(total) > BigInt(0) && (
+        {!allocationError && BigInt(total) > BigInt(0) && (
           <p
             className={styles.complete}
             role={'status'}
@@ -303,12 +337,12 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
             배분 완료
           </p>
         )}
-        {result.allocationError && (
+        {allocationError && (
           <p
             role={'status'}
             className={styles.warning}
           >
-            {transfer ? result.allocationError.replaceAll('입금', '이체') : result.allocationError}
+            {transfer ? allocationError.replaceAll('입금', '이체') : allocationError}
           </p>
         )}
       </div>

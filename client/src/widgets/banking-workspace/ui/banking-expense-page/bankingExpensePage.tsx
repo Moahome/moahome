@@ -60,6 +60,7 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
     retry: false,
     gcTime: 0
   });
+  const [transferSelected, setTransferSelected] = useState(false);
   const [edited, setEdited] = useState<ExpenseDraft | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
@@ -139,7 +140,7 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
       })}
     />
   );
-  const transfer = workspace.data.rows.find((item) => item.id === transactionId && (item.transferCandidate || edited?.accountCode === '103'));
+  const transfer = workspace.data.rows.find((item) => item.id === transactionId && (item.transferCandidate || transferSelected));
   if (transfer) return (
     <TransferDetail
       propertyId={propertyId}
@@ -343,9 +344,21 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
       )
         : (
           <>
+            {(workspace.data.accounts ?? []).filter((account) => account.status === 'ACTIVE').length > 1 && (
+              <label
+                className={styles.transfer}
+              >
+                <input
+                  type={'checkbox'}
+                  checked={false}
+                  disabled={busy}
+                  onChange={(event) => setTransferSelected(event.target.checked)}
+                />
+                계좌 이체
+              </label>
+            )}
             <BankImportEditor
               direction={'EXPENSE'}
-              allowTransfer={!row.expense && workspace.data.accounts?.some((account) => account.id !== row.accountId && account.status === 'ACTIVE')}
               expenseAccounts={workspace.data.expenseAccounts}
               amount={row.amount}
               receipt={{

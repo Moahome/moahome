@@ -134,9 +134,18 @@ Workspace에 `accounts:[{id,bankName,last4,alias,isPrimary,status}]`를 추가�
 
 기존 호환 계약에서 `Selection.transfer:true`만 보낸 요청은 세대·기타 입금·지출·공동 입금 배분 설정과 함께 보낼 수 없습니다. 이 경우 원본만 저장하며 거래에 `transferCandidate:true`, 상태 `TRANSFER_PENDING`을 반환합니다. 연결하면 `transferId`와 `TRANSFER` 상태를 반환하고 연결 해제하면 대기로 돌아갑니다. 양쪽 원본의 동일 대상·다른 통장·반대 방향·같은 양수 금액을 검사하며 중복 연결·이미 분류한 원본·잘못된 UUID 재사용은 `BANK_TRANSFER_CONFLICT`(409)입니다. 같은 요청 ID 재시도는 이후 취소된 연결을 다시 적용하지 않습니다. 연결 원본의 한쪽만 삭제하면 `BANK_TRANSFER_DELETE_PAIR_REQUIRED`(409)입니다.
 
+### 수동 계좌 간 이체 등록 (2026-11-07)
+
+- `GET /api/properties/{propertyId}/banking/balances/transfer-funds?accountId={UUID}&date={YYYY-MM-DD}` → `{propertyId,accountId,date,accountAvailable,buildings:[{buildingId,available}]}`. 가용 금액은 원 단위 정수 문자열이며 계산 근거가 없으면 null입니다. 이체일 마감부터 현재까지의 최소 일별 보유금으로 이후 입금을 과거에 선사용하지 않습니다. 동이 없는 대상은 buildings가 빈 배열입니다.
+- `POST /api/properties/{propertyId}/banking/transfers/manual` → 최신 Workspace. 요청은 `{id,fromAccountId,toAccountId,date,amount,note?,allocations:[{buildingId,amount}]}`입니다. id는 클라이언트 UUID, amount는 양수 정수 원, note는 선택 500자입니다. 미래 날짜와 같은 통장·종료·다른 대상의 통장을 거부합니다. 동이 있으면 중복 없는 활성 동의 이동금액 합계가 전액이어야 합니다. 동이 없으면 allocations는 빈 배열입니다.
+- ADMIN / MANAGER 권한을 검사하고 no-store를 반환합니다. 등록은 기존 관리대상 잠금 안에서 통장 전체와 동별 가용 보유금을 다시 검사합니다. 미확인·초과는 `BANK_TRANSFER_BALANCE_REQUIRED` / `BANK_TRANSFER_BALANCE_EXCEEDED`(409), 같은 ID의 다른 내용은 `BANK_REQUEST_CONFLICT`(409)입니다. 동일 요청의 재시도는 취소·삭제 이후에도 이체를 되살리지 않습니다.
+- 은행 원본·수납·지출을 생성하지 않습니다. Workspace의 양쪽 행은 `sourceType:TRANSFER_MANUAL`, `transferCandidate:true`, `automaticTransfer:true`, 같은 transferId와 반대 transferAccountId를 가집니다. balance·paymentId·expenseId는 null입니다. 미대사 출금 표시 ID는 이체 ID, 미대사 입금 표시 ID는 이체 ID에서 파생한 안정적인 UUID입니다. deletionGroups는 현재 양쪽 표시 ID를 제공합니다.
+- 나중에 같은 통장·날짜·방향·금액의 은행 원본을 가져오면 기존 후보 대사 절차를 사용합니다. 원본 도착 후 표시 ID·sourceType은 실제 은행 원본으로 바뀌며 돈은 다시 반영하지 않습니다. 등록 전에 이미 같은 은행 거래가 있으면 `BANK_TRANSFER_EXISTING_TRANSACTION`(409)으로 중복 생성을 막고 기존 은행 거래에서 이체로 설정하도록 안내합니다. 복수 후보는 기존 모호성 오류로 확인을 요구합니다.
+- 기존 `POST /transfers/{id}/cancel`로 양쪽 장부 반영을 함께 취소합니다. 확정 상태의 삭제는 거부하며, 취소 후 `transactions/delete`에 deletionGroups의 두 표시 ID를 함께 보냅니다. 한쪽만 보내면 `BANK_TRANSFER_DELETE_PAIR_REQUIRED`(409)입니다. 실제 원본이 없어도 수동 이체의 삭제 감사 이력을 남기며 원본이 연결돼 있으면 함께 소프트 삭제합니다.
+
 ### 한쪽 은행 원본에서 양쪽 이체 반영 (2026-11-06)
 
-사용자 요청에 따라 신규 화면은 `transfer:true, transferAccountId`를 함께 제출합니다. `transferAccountId`는 같은 관리대상의 다른 사용 중 공용 통장이며 수납·기타 입금·비용 배분은 함께 제출하지 않습니다. 출금에서 `103 통장간 거래` 선택은 이 분류로 전환하며 `Expense.accountCode=103` 비용 요청으로 보내지 않습니다. 수동 입금·지출에는 이체 생성을 추가하지 않습니다.
+사용자 요청에 따라 신규 화면은 `transfer:true, transferAccountId`를 함께 제출합니다. `transferAccountId`는 같은 관리대상의 다른 사용 중 공용 통장이며 수납·기타 입금·비용 배분은 함께 제출하지 않습니다. 출금의 별도 이체 체크는 이 분류로 전환하며 `Expense.accountCode=103` 비용 요청으로 보내지 않습니다. 수동 입금·지출의 새 이체 생성은 아래 별도 계약을 사용합니다.
 
 원본은 한 건만 저장하고 이체에 `103 통장간 거래`(ASSET)를 연결합니다. Workspace는 양쪽 행에 `transferCandidate:true, transferId, transferAccountId, automaticTransfer:true`를 반환합니다. 상대 은행 원본이 아직 없으면 파생 행의 `sourceType`은 `TRANSFER_AUTO`, `id`는 이체 ID, `balance`는 null입니다. 이 행은 실제 은행 원본이나 수납·지출이 아닙니다. 장부 잔액에는 반대 방향으로 한 번 반영하고 실제 은행 확인 잔액은 만들지 않습니다.
 
@@ -147,6 +156,8 @@ Workspace에 `accounts:[{id,bankName,last4,alias,isPrimary,status}]`를 추가�
 같은 통장·다른 대상·종료 통장은 `INVALID_TRANSFER_ACCOUNT`(400), 103 기존 설정 충돌은 `BANK_TRANSFER_ACCOUNT_CONFLICT`(409)입니다. 전체 등록·대사·취소는 관리대상 행 잠금 안에서 원자적으로 처리합니다.
 
 동별 이동 요청은 `Selection.transferAllocations` 또는 `POST /transfers/from-transaction`의 `allocations`에 `[{buildingId,amount}]`를 보냅니다. 기존 이체의 미설정 이동금액은 `POST /transfers/{id}/allocations`의 `{allocations}`로 확정합니다. 같은 대상의 활성 동·양수 정수 원·중복 없는 동·이체 전액 합계를 검증합니다. 동일 배분의 재시도는 허용하고 이미 확정한 다른 배분은 `BANK_TRANSFER_ALLOCATION_CONFLICT`로 거부합니다. 기존 필드 생략 요청은 호환하지만 동이 있는데 미설정한 이체는 잔고 pending에 표시합니다. 양쪽 Workspace 행과 후속 상대 원본 미리보기는 `transferAllocations`를 반환합니다. Entry의 `transactionId`는 상세 이동용 실제 원본 ID이며 파생 Entry ID와 구분합니다.
+
+2026-11-07 동별 이체 한도: 저장 시 관리대상 잠금 안에서 기존 통장×동 원장을 재조회합니다. 입금 원본에서 설정해도 출금 통장의 소유금을 검증합니다. 보유금이 미확정이면 `BANK_TRANSFER_BALANCE_REQUIRED`(409), 한도 초과는 `BANK_TRANSFER_BALANCE_EXCEEDED`(409)이며 해당 요청 전체를 롤백합니다. 같은 배분의 재시도와 후속 상대 원본 대사는 기존 한도를 다시 소모하지 않습니다. 일반 지출의 확정 API에는 이 제한을 적용하지 않습니다. 은행 원본 이체 화면은 기존 잔고 API의 이체월~현재월 범위를 사용하고 수동 이체는 위 transfer-funds API로 통장 전체 한도까지 조회합니다. 한도 자체를 저장하는 테이블은 추가하지 않습니다. 업무 기준은 [다중 통장 운영](../domain/domainRules.md#다중-통장-운영)을 따릅니다.
 
 `Selection.transfer`는 선택 입력이며 생략·null은 `false`로 처리합니다. 일반 입출금과 이전 클라이언트의 multipart 요청을 허용하되 명시한 `true`는 유지하고, 잘못된 boolean 값이나 다른 요청 필드의 검증을 완화하지 않습니다.
 

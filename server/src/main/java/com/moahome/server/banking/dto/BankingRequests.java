@@ -132,6 +132,15 @@ public final class BankingRequests {
 		}
 	}
 
+	public record ManualTransfer(@NotNull UUID id, @NotNull UUID fromAccountId, @NotNull UUID toAccountId,
+		@NotNull LocalDate date, @NotNull @Pattern(regexp = "[0-9]{1,15}") String amount,
+		@TextInput(max = 500, optional = true) String note, @NotNull @Size(max = 100) List<@NotNull @Valid TransferAllocation> allocations) {
+		public ManualTransfer {
+			note = TextValues.optional(note);
+			allocations = allocations == null ? List.of() : List.copyOf(allocations);
+		}
+	}
+
 	public record TransferFromTransaction(@NotNull UUID id, @NotNull UUID transactionId,
 	    @NotNull UUID counterpartAccountId,
 	    @Size(max = 100) List<@NotNull @Valid TransferAllocation> allocations) {

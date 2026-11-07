@@ -85,3 +85,7 @@ export {
 export type {
   TransferAllocationPart
 } from './model/transferAllocationTypes';
+
+export type {
+  ManualTransferSeed
+} from './model/manualTransferTypes';

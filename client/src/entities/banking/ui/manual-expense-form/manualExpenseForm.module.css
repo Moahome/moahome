@@ -2,6 +2,10 @@
 .modal {
   --form-control-foreground: var(--input-foreground);
   --form-control-placeholder: var(--input-placeholder);
+  --manual-transfer-columns: 2;
+  --manual-transfer-body-padding: 0;
+  --manual-transfer-body-margin: 0;
+  --manual-transfer-actions-padding: 8px 0 0;
   min-width: 0;
   color: var(--input-foreground);
   background: var(--card);
@@ -16,6 +20,8 @@
 }
 
 .modal {
+  --manual-transfer-body-padding: 0 32px;
+  --manual-transfer-actions-padding: 0 32px 22px;
   width: min(960px, calc(100vw - 48px));
   max-height: calc(100dvh - 48px);
   margin: auto;
@@ -171,5 +177,21 @@
 
   .section-title {
     font-size: 18px;
+  }
+}
+
+.transfer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  color: var(--foreground);
+  font-size: 15px;
+  cursor: pointer;
+
+  input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
   }
 }

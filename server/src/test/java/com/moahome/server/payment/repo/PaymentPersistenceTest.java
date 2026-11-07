@@ -3711,6 +3711,237 @@ class PaymentPersistenceTest {
 		assertThat(count("bank_transfer_postings")).isEqualTo(2);
 	}
 
+	/** 입금 쪽에서 설정해도 상대 출금 통장의 한도를 잠금 안에서 검증하고 실패한 이체는 전부 롤백합니다. */
+	@Test
+	void transferRequiresKnownOutgoingFundsAndRejectsPerBuildingOverdraftWithBalancedTotal() {
+		List<UUID> owned = manualIncomeBuildings();
+		UUID first = bankAccountSettings.read(user, property).accountId();
+		UUID second = addAccount("090", "카카오뱅크", "000123456789", "출금 통장").accountId();
+		seedAccountOpening(first, "100000");
+		seedAccountOpening(second, "10000");
+		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(LocalDate.of(2026,9,30), List.of(
+			new BankingBalanceRequests.OpeningPart(owned.getFirst(), "50000"),
+			new BankingBalanceRequests.OpeningPart(owned.getLast(), "50000")), first));
+		UUID source = transferFile(first, "INCOME", "10000", "110000");
+		UUID transfer = UUID.randomUUID();
+		List<BankingRequests.TransferAllocation> excessive = List.of(
+			new BankingRequests.TransferAllocation(owned.getFirst(), "8000"),
+			new BankingRequests.TransferAllocation(owned.getLast(), "2000"));
+		assertThatThrownBy(() -> banking.postTransfer(user, property,
+			new BankingRequests.TransferFromTransaction(transfer, source, second, excessive)))
+			.isInstanceOfSatisfying(PaymentException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_BALANCE_REQUIRED"));
+		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(LocalDate.of(2026,9,30), List.of(
+			new BankingBalanceRequests.OpeningPart(owned.getFirst(), "7000"),
+			new BankingBalanceRequests.OpeningPart(owned.getLast(), "3000")), second));
+		assertThatThrownBy(() -> banking.postTransfer(user, property,
+			new BankingRequests.TransferFromTransaction(transfer, source, second, excessive)))
+			.isInstanceOfSatisfying(PaymentException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_BALANCE_EXCEEDED"));
+		assertThat(count("bank_transfer_postings")).isZero();
+		assertThat(count("bank_transfer_allocations")).isZero();
+		List<BankingRequests.TransferAllocation> exact = List.of(
+			new BankingRequests.TransferAllocation(owned.getFirst(), "7000"),
+			new BankingRequests.TransferAllocation(owned.getLast(), "3000"));
+		var request = new BankingRequests.TransferFromTransaction(transfer, source, second, exact);
+		banking.postTransfer(user, property, request);
+		banking.postTransfer(user, property, request);
+		assertOwned(second, owned.getFirst(), "0");
+		assertOwned(second, owned.getLast(), "0");
+		assertThat(count("bank_transfer_allocations")).isEqualTo(2);
+		// 전기료 등 실제 비용은 보유금이 부족해도 기록하며 이체의 자금 한도를 적용하지 않습니다.
+		banking.manualExpense(user, property, new BankingRequests.ManualExpense(UUID.randomUUID(), second,
+			LocalDate.of(2026,10,15), "1000", "전기료", null, "AMOUNT",
+			List.of(new BankingRequests.Allocation(owned.getFirst(), "102동", "1000", null))));
+		assertOwned(second, owned.getFirst(), "-1000");
+		UUID next = transferFile(second, "EXPENSE", "1", "-1001");
+		assertThatThrownBy(() -> banking.postTransfer(user, property,
+			new BankingRequests.TransferFromTransaction(UUID.randomUUID(), next, first,
+				List.of(new BankingRequests.TransferAllocation(owned.getFirst(), "1")))))
+			.isInstanceOfSatisfying(PaymentException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_BALANCE_EXCEEDED"));
+	}
+
+
+	/** 수동 이체는 원본 없이 한 번 이동하고 은행 양쪽 원본 도착·취소·묶음 삭제에서도 돈을 중복시키지 않습니다. */
+	@Test
+	void manualTransferPreservesMoneyExcludesProfitAndReconcilesBothBankSources() {
+		List<UUID> owned = manualIncomeBuildings();
+		UUID first = bankAccountSettings.read(user, property).accountId();
+		UUID second = addAccount("090", "카카오뱅크", "000123456789", "예비비").accountId();
+		seedAccountOpening(first, "100000");
+		seedAccountOpening(second, "100000");
+		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(LocalDate.of(2026,9,30), List.of(
+			new BankingBalanceRequests.OpeningPart(owned.getFirst(), "70000"), new BankingBalanceRequests.OpeningPart(owned.getLast(), "30000")), first));
+		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(LocalDate.of(2026,9,30), List.of(
+			new BankingBalanceRequests.OpeningPart(owned.getFirst(), "20000"), new BankingBalanceRequests.OpeningPart(owned.getLast(), "80000")), second));
+		List<BankingRequests.TransferAllocation> parts = List.of(new BankingRequests.TransferAllocation(owned.getFirst(), "6000"),
+			new BankingRequests.TransferAllocation(owned.getLast(), "4000"));
+		UUID id = UUID.randomUUID();
+		var input = new BankingRequests.ManualTransfer(id, first, second, LocalDate.of(2026,10,15), "10000", "예비비 이동", parts);
+		var before = incomeStatements.get(user, property, "2026-10", "2026-10", null).records();
+		var saved = banking.manualTransfer(user, property, input);
+		assertThat(saved.rows()).hasSize(2).allMatch(row -> row.sourceType().equals("TRANSFER_MANUAL")
+			&& row.transferId().equals(id) && row.paymentId() == null && row.expense() == null && row.balance() == null);
+		assertThat(count("bank_transactions")).isZero();
+		assertThat(count("payments")).isZero();
+		assertThat(count("expenses")).isZero();
+		assertLedger(first, "90000");
+		assertLedger(second, "110000");
+		assertOwned(first, owned.getFirst(), "64000");
+		assertOwned(second, owned.getFirst(), "26000");
+		assertThat(incomeStatements.get(user, property, "2026-10", "2026-10", null).records()).isEqualTo(before);
+		banking.manualTransfer(user, property, input);
+		assertThat(count("bank_transfer_postings")).isEqualTo(1);
+		assertThatThrownBy(() -> jdbc.update("update bank_transfer_postings set manual_amount=9999 where id=?", id))
+			.isInstanceOf(DataIntegrityViolationException.class);
+		List<UUID> display = saved.rows().stream().map(row -> row.id()).toList();
+		assertThatThrownBy(() -> banking.deleteMany(user, property, new BankingRequests.DeleteMany(display)))
+			.isInstanceOfSatisfying(PaymentException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_CANCEL_REQUIRED"));
+		// 은행 원본 없는 두 표시 행도 취소·양쪽 선택 삭제하며 재시도로 부활하지 않습니다.
+		banking.cancelTransfer(user, property, id);
+		assertThatThrownBy(() -> banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(display.getFirst()))))
+			.isInstanceOfSatisfying(PaymentException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_DELETE_PAIR_REQUIRED"));
+		banking.deleteMany(user, property, new BankingRequests.DeleteMany(display));
+		banking.deleteMany(user, property, new BankingRequests.DeleteMany(display));
+		assertThat(banking.manualTransfer(user, property, input).rows()).isEmpty();
+		assertLedger(first, "100000");
+		assertLedger(second, "100000");
+		UUID nextId = UUID.randomUUID();
+		banking.manualTransfer(user, property, new BankingRequests.ManualTransfer(nextId, first, second, input.date(), "10000", null, parts));
+		var outgoing = csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 10:00:00,예비비 이동,10000,0,90000");
+		var outgoingPreview = banking.preview(user, property, outgoing, first).rows().getFirst();
+		assertThat(outgoingPreview.transferId()).isEqualTo(nextId);
+		banking.upload(user, property, outgoing, new BankingRequests.Import(List.of(new BankingRequests.Selection(outgoingPreview.id(),
+			null, null, null, null, null, true, second, nextId, parts)), first));
+		var incoming = kakaoFile(csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 10:00:00,예비비 이동,0,10000,110000"));
+		var incomingPreview = banking.preview(user, property, incoming, second).rows().getFirst();
+		assertThat(incomingPreview.transferId()).isEqualTo(nextId);
+		var reconciled = banking.upload(user, property, incoming, new BankingRequests.Import(List.of(new BankingRequests.Selection(incomingPreview.id(),
+			null, null, null, null, null, true, first, nextId, parts)), second));
+		assertThat(reconciled.rows()).hasSize(2).allMatch(row -> row.sourceType().equals("BANK_IMPORT") && row.transferId().equals(nextId));
+		assertLedger(first, "90000");
+		assertLedger(second, "110000");
+		assertOwned(first, owned.getFirst(), "64000");
+		assertOwned(second, owned.getFirst(), "26000");
+		assertThat(incomeStatements.get(user, property, "2026-10", "2026-10", null).records()).isEqualTo(before);
+		banking.cancelTransfer(user, property, nextId);
+		banking.deleteMany(user, property, new BankingRequests.DeleteMany(reconciled.rows().stream().map(row -> row.id()).toList()));
+		assertLedger(first, "100000");
+		assertLedger(second, "100000");
+		assertThat(banking.workspace(user, property).rows()).isEmpty();
+	}
+
+	/** 수동 이체는 잘못된 통장·미래일·자금 초과·불완전 귀속을 전부 거부하고 이체 일부만 남기지 않습니다. */
+	@Test
+	void manualTransferRejectsInvalidAccountsOverdraftAndPartialAllocation() {
+		List<UUID> owned = manualIncomeBuildings();
+		UUID first = bankAccountSettings.read(user, property).accountId();
+		UUID second = addAccount("090", "카카오뱅크", "000123456789", "예비비").accountId();
+		seedAccountOpening(first, "10000");
+		seedAccountOpening(second, "100000");
+		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(LocalDate.of(2026,9,30), List.of(
+			new BankingBalanceRequests.OpeningPart(owned.getFirst(), "3000"), new BankingBalanceRequests.OpeningPart(owned.getLast(), "7000")), first));
+		for (var input : List.of(
+			new BankingRequests.ManualTransfer(UUID.randomUUID(), first, first, LocalDate.of(2026,10,15), "100", null, List.of()),
+			new BankingRequests.ManualTransfer(UUID.randomUUID(), first, second, LocalDate.of(2027,1,1), "100", null, List.of()),
+			new BankingRequests.ManualTransfer(UUID.randomUUID(), first, second, LocalDate.of(2026,10,15), "10001", null, List.of()),
+			new BankingRequests.ManualTransfer(UUID.randomUUID(), first, second, LocalDate.of(2026,10,15), "10000", null,
+				List.of(new BankingRequests.TransferAllocation(owned.getFirst(), "4000"), new BankingRequests.TransferAllocation(owned.getLast(), "6000"))),
+			new BankingRequests.ManualTransfer(UUID.randomUUID(), first, second, LocalDate.of(2026,10,15), "10000", null,
+				List.of(new BankingRequests.TransferAllocation(owned.getFirst(), "3000")))))
+			assertThatThrownBy(() -> banking.manualTransfer(user, property, input)).isInstanceOf(PaymentException.class);
+		assertThat(count("bank_transfer_postings")).isZero();
+		assertThat(count("bank_transfer_allocations")).isZero();
+		assertLedger(first, "10000");
+		transferFile(first, "EXPENSE", "100", "9900");
+		assertThatThrownBy(() -> banking.manualTransfer(user, property, new BankingRequests.ManualTransfer(UUID.randomUUID(),
+			first, second, LocalDate.of(2026,10,15), "100", null, List.of(new BankingRequests.TransferAllocation(owned.getFirst(), "100")))))
+			.isInstanceOfSatisfying(PaymentException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_EXISTING_TRANSACTION"));
+		assertThat(count("bank_transfer_postings")).isZero();
+	}
+
+	/** 동 없는 관리대상도 통장 자금 한도만 확인해 수동 이체를 등록하고 취소할 수 있습니다. */
+	@Test
+	void manualTransferWithoutBuildingsUsesAccountFundsAndNeverCreatesExpenseOrReceipt() {
+		UUID first = bankAccountSettings.read(user, property).accountId();
+		UUID second = addAccount("090", "카카오뱅크", "000123456789", "예비비").accountId();
+		seedAccountOpening(first, "10000");
+		seedAccountOpening(second, "0");
+		var request = new BankingRequests.ManualTransfer(UUID.randomUUID(), first, second, LocalDate.of(2026,10,15), "10000", null, List.of());
+		assertThat(banking.manualTransfer(user, property, request).rows()).hasSize(2);
+		assertLedger(first, "0");
+		assertLedger(second, "10000");
+		assertThat(count("expenses")).isZero();
+		assertThat(count("payments")).isZero();
+		banking.cancelTransfer(user, property, request.id());
+		assertLedger(first, "10000");
+		assertLedger(second, "0");
+	}
+
+	/** 운영 기준 69개 Migration의 은행 이체·원본을 보존한 채 수동 이체 구조로 한 번 업그레이드합니다. */
+	@Test
+	void manualTransferMigrationPreservesCurrentBankPostingAndImmutableSource() {
+		UUID first = bankAccountSettings.read(user, property).accountId();
+		UUID second = addAccount("090", "카카오뱅크", "000123456789", "예비비").accountId();
+		UUID source = transferFile(first, "EXPENSE", "10000", "90000");
+		UUID transfer = UUID.randomUUID();
+		banking.postTransfer(user, property, new BankingRequests.TransferFromTransaction(transfer, source, second));
+		String schema = "manual_transfer_" + UUID.randomUUID().toString().replace("-", "");
+		Flyway previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+			.schemas(schema).defaultSchema(schema).target("20261107001509").load();
+		previous.migrate();
+		try {
+			new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+				for (String table : List.of("users", "properties", "buildings", "units", "bank_accounts", "accounting_profiles",
+					"accounting_accounts", "bank_transactions", "bank_transfer_postings", "bank_transfer_allocations"))
+					copyPreviousTable(schema, table);
+			});
+			String before = jdbc.queryForObject("select to_jsonb(p)::text from " + schema + ".bank_transfer_postings p where id=?", String.class, transfer);
+			var sources = jdbc.queryForList("select * from " + schema + ".bank_transactions order by id");
+			Flyway next = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "").schemas(schema).defaultSchema(schema).load();
+			assertThat(next.migrate().migrationsExecuted).isEqualTo(1);
+			next.validate();
+			assertThat(jdbc.queryForObject("select (to_jsonb(p)-'manual_outgoing_account_id'-'manual_date'-'manual_amount'-'manual_memo_encrypted'-'deleted_at'-'deleted_by')::text from "
+				+ schema + ".bank_transfer_postings p where id=?", String.class, transfer)).isEqualTo(before);
+			assertThat(jdbc.queryForList("select * from " + schema + ".bank_transactions order by id")).isEqualTo(sources);
+			assertThatThrownBy(() -> jdbc.update("update " + schema + ".bank_transfer_postings set counterpart_account_id=? where id=?", first, transfer))
+				.isInstanceOf(DataIntegrityViolationException.class);
+			jdbc.update("update " + schema + ".bank_transfer_postings set canceled_at=now(),canceled_by=? where id=?", user, transfer);
+			assertThat(jdbc.queryForObject("select source_transaction_id from " + schema + ".bank_transfer_postings where id=?", UUID.class, transfer)).isEqualTo(source);
+		} finally {
+			jdbc.execute("drop schema " + schema + " cascade");
+		}
+	}
+
+	/** 같은 출금 통장의 자금을 동시에 옮겨도 관리대상 잠금 뒤 최신 잔고를 읽어 한 번만 허용합니다. */
+	@Test
+	void concurrentManualTransfersCannotSpendTheSameAccountFunds() throws Exception {
+		UUID first = bankAccountSettings.read(user, property).accountId();
+		UUID second = addAccount("090", "카카오뱅크", "000123456789", "예비비").accountId();
+		seedAccountOpening(first, "10000");
+		seedAccountOpening(second, "0");
+		CountDownLatch gate = new CountDownLatch(1);
+		try (var pool = Executors.newFixedThreadPool(2)) {
+			List<Future<Boolean>> results = new ArrayList<>();
+			for (int i = 0; i < 2; i++) results.add(pool.submit(() -> {
+				gate.await();
+				try {
+					banking.manualTransfer(user, property, new BankingRequests.ManualTransfer(UUID.randomUUID(), first, second,
+						LocalDate.of(2026,10,15), "6000", null, List.of()));
+					return true;
+				} catch (PaymentException error) {
+					assertThat(error.code()).isEqualTo("BANK_TRANSFER_BALANCE_EXCEEDED");
+					return false;
+				}
+			}));
+			gate.countDown();
+			int success = 0;
+			for (Future<Boolean> result : results) if (result.get(10, TimeUnit.SECONDS)) success++;
+			assertThat(success).isEqualTo(1);
+		}
+		assertLedger(first, "4000");
+		assertLedger(second, "6000");
+		assertThat(count("bank_transfer_postings")).isEqualTo(1);
+	}
+
 	private void assertOwned(UUID account, UUID building, String expected) {
 		assertThat(cashBalances.workspace(user, property, "2026-10", account).buildings().stream()
 		    .filter(row -> row.id().equals(building)).findFirst().orElseThrow().balance()).isEqualTo(expected);

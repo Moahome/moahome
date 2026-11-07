@@ -3374,7 +3374,7 @@ for (const width of [1440, 390]) {
         name: '입금 용도',
         exact: true
       }).click();
-      await expect(page.getByRole('option')).toHaveText(['세대 관리비 직접 지정', '외부 분담금·수리비 등 기타 입금', '동별 입금 · 직접 배분']);
+      await expect(page.getByRole('option')).toHaveText(['세대 관리비 직접 지정', '외부 분담금·수리비 등 기타 입금', '동별 입금 · 직접 배분', '계좌 이체']);
       return form;
     }
     let form = await open();

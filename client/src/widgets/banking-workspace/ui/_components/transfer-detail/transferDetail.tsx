@@ -2,7 +2,6 @@
 
 import {
   getBankAccountLabel,
-  TransferAllocationEditor,
   calculateTransferAllocation,
   type TransferAllocationPart
 } from '@/entities/banking';
@@ -35,6 +34,7 @@ import type {
   BankingWorkspaceData
 } from '../../../api/bankingApiTypes';
 import styles from './transferDetail.module.css';
+import { TransferAllocation } from '../transfer-allocation/transferAllocation';
 
 /** 한쪽 은행 원본에서 상대 통장을 지정하고 PC·모바일에서 양쪽 장부 반영과 취소를 함께 처리합니다. */
 export function TransferDetail({ propertyId, row, data, presentation = 'modal', onClose }: {
@@ -197,8 +197,11 @@ export function TransferDetail({ propertyId, row, data, presentation = 'modal', 
             <p>
               선택한 동의 보유금을 상대 통장의 같은 동으로 옮깁니다.
             </p>
-            <TransferAllocationEditor
+            <TransferAllocation
               key={row.id}
+              propertyId={propertyId}
+              outgoingAccountId={fromAccount ?? ''}
+              date={row.date}
               total={row.amount}
               buildings={data.buildings}
               value={allocations}

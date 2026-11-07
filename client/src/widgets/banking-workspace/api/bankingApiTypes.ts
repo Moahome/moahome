@@ -11,7 +11,7 @@ export type BankingExpense = ExpenseDraft & {
 
 export type BankingTransaction = {
   id: string;
-  sourceType?: 'BANK_IMPORT' | 'MANUAL' | 'TRANSFER_AUTO';
+  sourceType?: 'BANK_IMPORT' | 'MANUAL' | 'TRANSFER_AUTO' | 'TRANSFER_MANUAL';
   accountId: string;
   date: string;
   time: string | null;

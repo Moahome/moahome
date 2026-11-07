@@ -11,7 +11,18 @@ export function BankingManualPage({ propertyId }: { propertyId: string }) {
     <ManualPayment
       presentation={'page'}
       onClose={() => router.replace(`/manage/${propertyId}/banking/transactions`)}
-      onCreated={(id, date) => router.replace(`/manage/${propertyId}/banking/receipts/${id}?month=${date.slice(0, 7)}`)}
+      onCreated={(id, date, transferAccountId) => {
+        if (transferAccountId) {
+          const query = new URLSearchParams({
+            month: date.slice(0, 7),
+            account: transferAccountId,
+            registered: 'transfer'
+          });
+          router.replace(`/manage/${propertyId}/banking/transactions?${query}`);
+          return;
+        }
+        router.replace(`/manage/${propertyId}/banking/receipts/${id}?month=${date.slice(0, 7)}`);
+      }}
     />
   );
 }

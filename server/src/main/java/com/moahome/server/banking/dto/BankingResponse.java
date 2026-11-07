@@ -8,6 +8,13 @@ public final class BankingResponse {
 	private BankingResponse() {
 	}
 
+	public record TransferFund(UUID buildingId, String available) {
+	}
+
+	public record TransferFunds(UUID propertyId, UUID accountId, LocalDate date, String accountAvailable,
+		List<TransferFund> buildings) {
+	}
+
 	public record Building(UUID id, String label) {
 	}
 

@@ -266,10 +266,11 @@ public class BankingService {
 		Set<UUID> grouped = new HashSet<>();
 		List<BankingResponse.DeletionGroup> result = new ArrayList<>();
 		for (var posting : transferPostings.all(property)) {
-			UUID counterpart = posting.getCounterpartTransactionId() == null ? posting.getId() : posting.getCounterpartTransactionId();
-			if (!visible.contains(posting.getSourceTransactionId()) || !visible.contains(counterpart))
+			UUID source = posting.isManual() ? posting.outgoingDisplayId() : posting.getSourceTransactionId();
+			UUID counterpart = posting.isManual() ? posting.incomingDisplayId() : posting.getCounterpartTransactionId() == null ? posting.getId() : posting.getCounterpartTransactionId();
+			if (!visible.contains(source) || !visible.contains(counterpart))
 				continue;
-			List<UUID> pair = List.of(posting.getSourceTransactionId(), counterpart);
+			List<UUID> pair = List.of(source, counterpart);
 			result.add(new BankingResponse.DeletionGroup(posting.getId(), pair, posting.getCanceledAt() == null));
 			grouped.addAll(pair);
 		}
@@ -324,7 +325,7 @@ public class BankingService {
 			}
 			var candidate = candidates.get(id);
 			var pendingTransfer = transferPostings.pending(pendingTransfers, account.getId(), row.date(), row.direction(), row.amount());
-			UUID otherAccount = pendingTransfer == null ? null : pendingTransfer.source().getBankAccountId();
+			UUID otherAccount = pendingTransfer == null ? null : pendingTransfer.otherAccountId();
 			rows.add(new BankingResponse.Transaction(id, account.getId(), row.date(), row.time(), row.payer(),
 			    row.memo(), row.amount().toPlainString(), row.balance() == null ? null : row.balance().toPlainString(),
 			    row.direction(), BankTransactionKeys.ruleKey(row.payer(), security), null,
@@ -518,6 +519,16 @@ public class BankingService {
 		return workspace(user, property);
 	}
 
+	/** 기존 입출금과 같은 권한·관리대상 잠금에서 수동 이체 한 건과 양쪽 소유금을 원자적으로 확정합니다. */
+	@Transactional(isolation = Isolation.READ_COMMITTED)
+	public BankingResponse.Workspace manualTransfer(UUID user, UUID property, BankingRequests.ManualTransfer request) {
+		requireManagementAccess(user, property);
+		properties.findForUnitUpdate(property).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+		requireManagementAccess(user, property);
+		transferPostings.manual(property, request, user);
+		return workspace(user, property);
+	}
+
 	/** 기존 이체의 동별 소유금 이동을 같은 관리대상 잠금 안에서 한 번 확정합니다. */
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public BankingResponse.Workspace allocateTransfer(UUID user, UUID property, UUID transfer, BankingRequests.TransferAllocations request) {
@@ -558,7 +569,7 @@ public class BankingService {
 		var outgoing = transferSource(property, request.outgoingId());
 		var incoming = transferSource(property, request.incomingId());
 		if (transferPostings.all(property).stream().anyMatch(value ->
-		    Set.of(outgoing.getId(), incoming.getId()).contains(value.getSourceTransactionId())
+		    (value.getSourceTransactionId() != null && Set.of(outgoing.getId(), incoming.getId()).contains(value.getSourceTransactionId()))
 		    || (value.getCounterpartTransactionId() != null && Set.of(outgoing.getId(), incoming.getId()).contains(value.getCounterpartTransactionId()))))
 			throw new PaymentException("BANK_TRANSFER_CONFLICT");
 		if (!"EXPENSE".equals(outgoing.getDirection()) || !"INCOME".equals(incoming.getDirection())
@@ -645,6 +656,7 @@ public class BankingService {
 		payments.removeBankReceipts(user, property, ids);
 		var at = OffsetDateTime.now(clock);
 		manualExpenses.forEach(value -> value.removeManual(user, at));
+		transferPostings.removeManualSelections(property, requested, user, at);
 		expenses.flush();
 		selected.forEach(t -> t.softDelete(user, at));
 		transactions.flush();

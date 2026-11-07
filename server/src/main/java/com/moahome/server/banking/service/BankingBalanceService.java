@@ -141,6 +141,71 @@ public class BankingBalanceService {
 		return value.toPlainString();
 	}
 
+	/** 이체일부터 현재까지의 최소 보유금으로 과거 이체가 뒤의 확정 거래까지 초과시키지 않게 합니다. */
+	public Map<UUID, BigDecimal> transferBalances(UUID user, UUID property, UUID accountId, LocalDate date) {
+		BankingBalanceResponse.Workspace data = workspace(user, property, YearMonth.from(date).toString(),
+			YearMonth.from(today()).toString(), accountId);
+		Map<UUID, BigDecimal> available = new HashMap<>();
+		// 사용 전 통장으로 조회 범위가 전체로 복원되면 다른 통장의 소유금을 한도로 사용하지 않습니다.
+		if (!accountId.equals(data.accountId()))
+			return available;
+		for (BankingBalanceResponse.Building building : data.buildings()) {
+			if (building.balance() == null || data.legacyOpening() != null)
+				continue;
+			BigDecimal balance = new BigDecimal(building.balance());
+			Map<LocalDate, BigDecimal> later = new TreeMap<>();
+			for (BankingBalanceResponse.Entry entry : data.entries()) {
+				if (building.id().equals(entry.buildingId()) && accountId.equals(entry.accountId())
+					&& entry.date().isAfter(date)) {
+					BigDecimal net = new BigDecimal(entry.income()).subtract(new BigDecimal(entry.expense()));
+					later.merge(entry.date(), net, BigDecimal::add);
+					balance = balance.subtract(net);
+				}
+			}
+			BigDecimal limit = balance;
+			for (BigDecimal net : later.values()) {
+				balance = balance.add(net);
+				limit = limit.min(balance);
+			}
+			available.put(building.id(), limit);
+		}
+		return available;
+	}
+
+	/** 출금 통장의 실제 장부 한도와 동별 소유금 한도를 같은 조회에서 제공합니다. */
+	public BankingResponse.TransferFunds transferFunds(UUID user, UUID property, UUID account, LocalDate date) {
+		if (date == null || date.isAfter(today())) throw new PaymentException("INVALID_MANUAL_TRANSFER");
+		BankingBalanceResponse.Workspace data = workspace(user, property, YearMonth.from(date).toString(),
+			YearMonth.from(today()).toString(), account);
+		String available = null;
+		if (account.equals(data.accountId())) {
+			String closing = data.accounts().stream().filter(value -> account.equals(value.id()))
+				.map(BankingBalanceResponse.AccountBalance::calculatedBalance).filter(Objects::nonNull).findFirst().orElse(null);
+			if (closing != null) {
+				List<BankTransaction> bank = transactions.findByPropertyId(property).stream().filter(value -> value.getDeletedAt() == null).toList();
+				List<Payment> receipts = payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property).stream().filter(this::active).toList();
+				List<BuildingCashCalculation.Movement> movements = accountMovements(property, account, bank, receipts,
+					expenses.findByPropertyIdOrderByConfirmedAtDesc(property));
+				Map<LocalDate, BigDecimal> later = new TreeMap<>();
+				BigDecimal balance = new BigDecimal(closing);
+				for (BuildingCashCalculation.Movement movement : movements) {
+					if (!movement.date().isAfter(date) || movement.date().isAfter(today())) continue;
+					BigDecimal net = movement.income().subtract(movement.expense());
+					later.merge(movement.date(), net, BigDecimal::add);
+					balance = balance.subtract(net);
+				}
+				BigDecimal limit = balance;
+				for (BigDecimal net : later.values()) { balance = balance.add(net); limit = limit.min(balance); }
+				available = amount(limit.max(BigDecimal.ZERO));
+			}
+		}
+		Map<UUID, BigDecimal> owned = transferBalances(user, property, account, date);
+		return new BankingResponse.TransferFunds(property, account, date, available, data.buildings().stream().map(value -> {
+			BigDecimal limit = owned.get(value.id());
+			return new BankingResponse.TransferFund(value.id(), limit == null ? null : amount(limit.max(BigDecimal.ZERO)));
+		}).toList());
+	}
+
 	/** 한 시점의 확정 현금·외부 회수 이력을 읽고 기준일 이전은 확인된 동별 현금을 역산하고 귀속 미확인 금액은 임의 배분하지 않습니다. */
 	public BankingBalanceResponse.Workspace workspace(UUID user, UUID property, String rawMonth) {
 		return workspace(user, property, rawMonth, null);
@@ -652,13 +717,14 @@ public class BankingBalanceService {
 	private AccountCalculation calculateObservedAccount(UUID property, UUID account, LocalDate end,
 	    BankBalanceSelection.Candidate observed, Map<UUID, BankTransaction> bank, List<Payment> receipts, List<Expense> expenses) {
 		if (observed == null || observed.amount() == null || !"READY".equals(observed.status())) return null;
-		List<BankTransferPosting> relevant = transferPostings.all(property).stream().filter(posting -> {
+		List<BankTransferPosting> relevant = transferPostings.all(property).stream().filter(posting -> !posting.isManual()).filter(posting -> {
 			BankTransaction source = bank.get(posting.getSourceTransactionId());
 			return source != null && !source.getTransactionDate().isAfter(end)
 			    && (account.equals(source.getBankAccountId()) || account.equals(posting.getCounterpartAccountId()));
 		}).toList();
 		BigDecimal balance = new BigDecimal(observed.amount());
-		Set<UUID> canceled = transferPostings.canceledSources(property);
+		Set<UUID> canceled = new HashSet<>(transferPostings.canceledSources(property));
+		canceled.addAll(transferPostings.manualSources(property));
 		for (BankTransaction row : bank.values()) {
 			if (row.getDeletedAt() != null || !account.equals(row.getBankAccountId()) || row.getTransactionDate().isAfter(end) || canceled.contains(row.getId())) continue;
 			if (row.getId().equals(observed.id())) continue;
@@ -687,6 +753,18 @@ public class BankingBalanceService {
 				// 은행 확인값에 이미 포함된 취소 이체만 장부에서 역방향으로 제거합니다.
 				if (!after) balance = balance.add("INCOME".equals(row.getDirection()) ? row.getAmount().negate() : row.getAmount());
 			}
+		}
+		for (BankTransferPosting posting : transferPostings.all(property)) {
+			if (!posting.isManual() || posting.getManualDate().isAfter(end)
+				|| (!account.equals(posting.getManualOutgoingAccountId()) && !account.equals(posting.getCounterpartAccountId()))) continue;
+			boolean outgoing = account.equals(posting.getManualOutgoingAccountId());
+			BigDecimal net = outgoing ? posting.getManualAmount().negate() : posting.getManualAmount();
+			BankTransaction actual = bank.get(outgoing ? posting.getSourceTransactionId() : posting.getCounterpartTransactionId());
+			Boolean after = actual == null ? afterManualObservation(posting.getManualDate(), posting.getCreatedAt(), observed)
+				: actual.getId().equals(observed.id()) ? false : afterObservation(actual, observed);
+			if (after == null) return null;
+			if (posting.getCanceledAt() == null && after) balance = balance.add(net);
+			if (posting.getCanceledAt() != null && actual != null && !after) balance = balance.subtract(net);
 		}
 		// 출처가 아니라 실제 입출금 날짜를 기준으로 최신 확인 이후의 수동 거래도 모두 반영합니다.
 		// 같은 날의 마감 확인에는 당일 거래가 이미 포함되므로 중복 합산하지 않습니다.
@@ -737,10 +815,18 @@ public class BankingBalanceService {
 
 	/** 출처별로 돈을 재합산하지 않고 하나의 시작 금액에 유효 원본·수기·이체를 한 번씩 누적합니다. */
 	private AccountCalculation calculateFromOpening(UUID property, UUID account, YearMonth month, BigDecimal opening,
-	    LocalDate cutoff, List<BankTransaction> bank, List<Payment> receipts, List<Expense> expenses) {
+		LocalDate cutoff, List<BankTransaction> bank, List<Payment> receipts, List<Expense> expenses) {
+		return new AccountCalculation(BuildingCashCalculation.calculate(opening, cutoff, month,
+			accountMovements(property, account, bank, receipts, expenses)).balance(), cutoff);
+	}
+
+	/** 동일한 원본·수기·이체 목록을 통장 잔고와 이체 가능액 계산에서 재사용합니다. */
+	private List<BuildingCashCalculation.Movement> accountMovements(UUID property, UUID account,
+		List<BankTransaction> bank, List<Payment> receipts, List<Expense> expenses) {
 		ArrayList<BuildingCashCalculation.Movement> movements = new ArrayList<BuildingCashCalculation.Movement>();
 		// 통장의 실제 이동은 동별 배분 여부와 무관하므로 미분류 원본·외부 지출·내부 이체도 전액 반영합니다.
-		Set<UUID> canceledTransfers = transferPostings.canceledSources(property);
+		Set<UUID> canceledTransfers = new HashSet<>(transferPostings.canceledSources(property));
+		canceledTransfers.addAll(transferPostings.manualSources(property));
 		for (var row : bank) {
 			if (canceledTransfers.contains(row.getId()) || !account.equals(row.getBankAccountId()))
 				continue;
@@ -750,7 +836,7 @@ public class BankingBalanceService {
 		}
 		// 반대편 원본 도착 전의 자동 장부 이동만 추가합니다. 실제 원본은 위 루프에서 한 번 반영합니다.
 		for (var posting : transferPostings.all(property)) {
-			if (posting.getCanceledAt() != null || posting.getCounterpartTransactionId() != null
+			if (posting.isManual() || posting.getCanceledAt() != null || posting.getCounterpartTransactionId() != null
 			    || !account.equals(posting.getCounterpartAccountId())) continue;
 			BankTransaction source = bank.stream().filter(value -> value.getId().equals(posting.getSourceTransactionId())).findFirst().orElse(null);
 			if (source == null) continue;
@@ -758,6 +844,11 @@ public class BankingBalanceService {
 			    "EXPENSE".equals(source.getDirection()) ? source.getAmount() : BigDecimal.ZERO,
 			    "INCOME".equals(source.getDirection()) ? source.getAmount() : BigDecimal.ZERO));
 		}
+		for (BankingResponse.Transaction row : transferPostings.manualRows(property))
+			if (account.equals(row.accountId()) && "TRANSFER".equals(row.status()))
+				movements.add(new BuildingCashCalculation.Movement(row.date(),
+					"INCOME".equals(row.direction()) ? new BigDecimal(row.amount()) : BigDecimal.ZERO,
+					"EXPENSE".equals(row.direction()) ? new BigDecimal(row.amount()) : BigDecimal.ZERO));
 		// 확정한 수기 입금은 용도와 무관하게 반영하고, 은행에 연결된 입금은 원본과 중복 합산하지 않습니다.
 		for (var receipt : receipts) {
 			if (!account.equals(receipt.getBankAccountId()) || receipt.getBankTransactionId() != null
@@ -773,8 +864,7 @@ public class BankingBalanceService {
 			movements.add(new BuildingCashCalculation.Movement(expense.getExpenseDate(), BigDecimal.ZERO,
 			    expense.getTotalAmount()));
 		}
-		return new AccountCalculation(BuildingCashCalculation.calculate(opening, cutoff, month, movements).balance(),
-		    cutoff);
+		return movements;
 	}
 
 	/** 통장 초기 기준값을 버전으로 기록하고 날짜 정정은 확인한 동별 보유금·필요 부과와 함께 저장합니다. 은행 원본은 보존합니다. */
