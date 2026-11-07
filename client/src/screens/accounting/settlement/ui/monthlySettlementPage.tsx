@@ -185,7 +185,6 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 value: report.bankIncome,
                 icon: 'wallet',
                 tone: 'primary',
-                description: '은행 원본·수동 등록 기준',
                 help: '해당 월 은행 원본과 은행 미연결 확정 수동 입금입니다. 내부 이체도 포함합니다.'
               },
               {
@@ -193,7 +192,6 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 value: report.bankExpense,
                 icon: 'card',
                 tone: 'warning',
-                description: '외부 부담·내부 이체 포함',
                 help: '해당 월 은행 원본과 수동 지출입니다. 외부 부담분과 내부 이체도 포함합니다.'
               },
               {
@@ -201,7 +199,6 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 value: report.householdIncome,
                 icon: 'coins',
                 tone: 'success',
-                description: '확정된 세대 입금 전액',
                 help: '해당 월 확정된 세대 관리비 입금 전액입니다. 청구 충당액과 구분합니다.'
               },
               {
@@ -209,7 +206,6 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 value: report.buildingBalance,
                 icon: 'building',
                 tone: 'teal',
-                description: '조회 월말 동별 합계',
                 help: '조회 월말의 동별 보유금 합계입니다. 외부 부담금·미배분 자금으로 통장 잔액과 다를 수 있습니다.'
               },
               {
@@ -217,7 +213,6 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 value: report.applied,
                 icon: 'receipt',
                 tone: 'teal',
-                description: '',
                 help: '선택 월 청구에 충당한 납부액입니다. 이전 선입금에서 충당한 금액도 포함합니다.'
               },
               {
@@ -225,7 +220,6 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 value: report.receivable,
                 icon: 'document',
                 tone: 'danger',
-                description: '',
                 help: '선택 월 신규 청구 중 남은 미납액입니다. 이전 달 미납은 누적 원장에서 구분합니다.'
               },
               {
@@ -233,7 +227,6 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 value: report.billed,
                 icon: 'coins',
                 tone: 'neutral',
-                description: '',
                 help: '기존 월별 수납 표의 당월 발생액이며 0원·음수 원금액도 포함합니다.'
               },
               {
@@ -241,7 +234,6 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 value: report.outstanding,
                 icon: 'alert',
                 tone: 'warning',
-                description: '',
                 help: '선택한 월에 지출한 외부 부담금 중 미회수액입니다. 정산 제외분은 합산하지 않습니다.'
               }
             ] as const).map((item) => (
@@ -257,7 +249,6 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 )}
                 density={'compact'}
                 tone={item.tone}
-                description={item.description || undefined}
                 help={(
                   <InfoTooltip
                     size={'sm'}
