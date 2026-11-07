@@ -80,6 +80,7 @@ public class ExpenseService {
 		    original.getAmount(), request.mode(), request.saveAsRule(),
 		    BankTransactionKeys.ruleKey(security.decrypt(original.getPayerNameEncrypted()), security), actor,
 		    OffsetDateTime.now(clock), expenseAccounts.select(original.getPropertyId(), request.accountCode(), actor)));
+		expenseAccounts.remember(expense, category, actor);
 		ArrayList<ExpenseAllocation> parts = new ArrayList<ExpenseAllocation>();
 		for (int i = 0; i < shares.size(); i++) {
 			var share = shares.get(i);
@@ -112,6 +113,7 @@ public class ExpenseService {
 		var expense = expenses.saveAndFlush(Expense.manual(request.id(), property, request.accountId(), request.date(),
 		    security.protect(category).encrypted(), note == null ? null : security.protect(note).encrypted(), total,
 		    request.mode(), actor, OffsetDateTime.now(clock), expenseAccounts.select(property, request.accountCode(), actor)));
+		expenseAccounts.remember(expense, category, actor);
 		ArrayList<ExpenseAllocation> parts = new ArrayList<>();
 		for (int i = 0; i < shares.size(); i++) {
 			var share = shares.get(i);

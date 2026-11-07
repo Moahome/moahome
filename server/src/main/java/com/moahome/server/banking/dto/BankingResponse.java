@@ -28,9 +28,13 @@ public final class BankingResponse {
 	}
 
 	public record Expense(UUID id, String category, String note, String mode, boolean saveAsRule,
-	    List<Allocation> allocations, String accountCode, String accountName) {
+	    List<Allocation> allocations, String accountCode, String accountName, boolean accountResolved) {
+		public Expense(UUID id, String category, String note, String mode, boolean saveAsRule,
+		    List<Allocation> allocations, String accountCode, String accountName) {
+			this(id, category, note, mode, saveAsRule, allocations, accountCode, accountName, false);
+		}
 		public Expense(UUID id, String category, String note, String mode, boolean saveAsRule, List<Allocation> allocations) {
-			this(id, category, note, mode, saveAsRule, allocations, null, null);
+			this(id, category, note, mode, saveAsRule, allocations, null, null, false);
 		}
 	}
 

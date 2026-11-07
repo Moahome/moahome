@@ -1,10 +1,11 @@
 package com.moahome.server.billing.service;
 
 import java.util.ArrayList;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -51,7 +52,7 @@ public class BillingIncomeSourceService {
 				charge.getBuildingName(), charge.getUnitNumber(), charge.getDisplayName(), charge.getTotalAmount(),
 				byCharge.getOrDefault(charge.getId(), List.of())
 					.stream().map(item -> new BillingIncomeSource.Item(item.getId(), item.getSourceTemplateItemId(), item.getItemName(),
-						item.getItemCode(), item.getAmount(), item.getRevenueAccountId())).toList()));
+						item.getItemCode(), item.getAmount(), item.getRevenueAccountId())).toList(), period.getBillingDate()));
 		}
 		return List.copyOf(result);
 	}
@@ -62,4 +63,23 @@ public class BillingIncomeSourceService {
 		return get(property).stream().map(source -> YearMonth.parse(source.month())).min(YearMonth::compareTo)
 			.orElse(plannedFirstMonth == null ? null : YearMonth.from(plannedFirstMonth));
 	}
+	public record ReceivableSource(UUID id, UUID unitId, String buildingName, String unitNumber,
+		LocalDate date, BigDecimal amount, boolean opening) {
+	}
+
+	/** 미수 원본은 수익 항목 분류와 분리하며 인계 미수도 당시 동·호수와 기준 날짜를 보존합니다. */
+	@Transactional(readOnly = true)
+	public List<ReceivableSource> receivables(UUID property) {
+		Map<UUID, BillingPeriod> byPeriod = periods.findByPropertyIdOrderByBillingYearDescBillingMonthDesc(property)
+			.stream().collect(Collectors.toMap(BillingPeriod::getId, Function.identity()));
+		return charges.findByPropertyId(property).stream().filter(charge -> "ISSUED".equals(charge.getStatus()))
+			.map(charge -> {
+				boolean opening = "OPENING_RECEIVABLE".equals(charge.getChargeType());
+				LocalDate date = opening ? charge.getDueDate()
+					: byPeriod.get(charge.getBillingPeriodId()).getBillingDate();
+				return new ReceivableSource(charge.getId(), charge.getUnitId(), charge.getBuildingName(),
+					charge.getUnitNumber(), date, charge.getTotalAmount(), opening);
+			}).toList();
+	}
+
 }

@@ -1,9 +1,11 @@
 package com.moahome.server.accounting.dto;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 public record IncomeStatementResponse(UUID propertyId, String propertyName, OffsetDateTime generatedAt,
 	Range range, Configuration configuration, boolean canManage, String completeness,
@@ -30,11 +32,24 @@ public record IncomeStatementResponse(UUID propertyId, String propertyName, Offs
 	public record Building(UUID id, String name, boolean deleted) {
 	}
 
-	public record Account(UUID id, String code, String name, String group, String systemKey) {
+	public record Account(UUID id, String code, String name, String group, String systemKey, boolean active) {
+		public Account(UUID id, String code, String name, String group, String systemKey) {
+			this(id, code, name, group, systemKey, true);
+		}
 	}
 
+	@Schema(name = "IncomeStatementEntry")
 	public record Entry(String id, UUID accountId, String accountName, String group, String month,
-		UUID buildingId, String amount) {
+		UUID buildingId, String amount, Source source) {
+		public Entry(String id, UUID accountId, String accountName, String group, String month,
+			UUID buildingId, String amount) {
+			this(id, accountId, accountName, group, month, buildingId, amount, null);
+		}
+	}
+
+	/** 부과월과 실제 거래일을 구분하고 기존 업무 상세로 되돌아갈 식별자를 보존합니다. */
+	@Schema(name = "AccountingSource")
+	public record Source(String kind, UUID id, LocalDate date, LocalTime time, String name, String context, String path) {
 	}
 
 	public record Issue(String id, String code, String label, String amount, String path, UUID expenseId,

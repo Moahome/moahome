@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import com.moahome.server.accounting.domain.AccountingAccount;
+import com.moahome.server.expense.service.PayableSourceService;
 import com.moahome.server.accounting.domain.AccountingProfile;
 import com.moahome.server.accounting.domain.AccountingTransferMatch;
 import com.moahome.server.accounting.domain.DefaultAccount;
@@ -67,6 +68,7 @@ public class IncomeStatementService {
 	private final BankingBalanceService bankingBalances;
 
 	private final Clock clock;
+	private final PayableSourceService payableSources;
 	private final AccountingTransferService accountingTransfers;
 	private final PaymentService payments;
 
@@ -74,7 +76,7 @@ public class IncomeStatementService {
 		BuildingRepository buildings, AccountingProfileRepository profiles, AccountingAccountRepository accounts,
 		ExpenseAccountingReviewRepository reviews, RevenueAccountingReviewRepository revenueReviews,
 		BillingIncomeSourceService billing, BankingService banking, BankingBalanceService bankingBalances,
-		Clock clock, AccountingTransferService accountingTransfers, PaymentService payments) {
+		Clock clock, AccountingTransferService accountingTransfers, PaymentService payments, PayableSourceService payableSources) {
 		this.access = access;
 		this.properties = properties;
 		this.buildings = buildings;
@@ -88,6 +90,7 @@ public class IncomeStatementService {
 		this.clock = clock;
 		this.accountingTransfers = accountingTransfers;
 		this.payments = payments;
+		this.payableSources = payableSources;
 	}
 
 	/** 같은 읽기 스냅샷에서 확정 부과와 확인한 지출을 조회하며 수납·인계·내부 이체를 수익으로 재계산하지 않습니다. */
@@ -105,7 +108,8 @@ public class IncomeStatementService {
 			throw new AccountingException("INVALID_ACCOUNTING_BUILDING");
 		AccountingProfile profile = profiles.findById(propertyId).orElse(null);
 		List<AccountingAccount> sourceAccounts = AccountingAccount.withDefaults(propertyId,
-			accounts.findByPropertyIdOrderByCreatedAtAscIdAsc(propertyId), actor, OffsetDateTime.now(clock));
+			accounts.findByPropertyIdOrderByCreatedAtAscIdAsc(propertyId), actor, OffsetDateTime.now(clock)).stream()
+			.filter(value -> value.getDeletedAt() == null).toList();
 		YearMonth firstMonth = billing.firstMonth(propertyId, property.getFirstBillingMonth());
 		List<Entry> records = new ArrayList<>();
 		List<Issue> issues = new ArrayList<>();
@@ -136,6 +140,7 @@ public class IncomeStatementService {
 				Map<UUID, BigDecimal> recoveries = appendReceivables(actor, property, sourceAccounts, start, end, receivables);
 				appendExpenses(actor, property, sourceAccounts, start, end, buildingId, records, issues, expenseRows, recoveries,
 					otherIncomes);
+				appendPayables(propertyId, sourceAccounts, start, end, buildingId, records);
 				if (!issues.isEmpty())
 					completeness = "REVIEW_REQUIRED";
 			}
@@ -148,7 +153,7 @@ public class IncomeStatementService {
 				value.getDeletedAt() != null))
 				.toList(), sourceAccounts.stream().sorted(Comparator.comparing(AccountingAccount::getCode))
 				.map(account -> new IncomeStatementResponse.Account(account.getId(),
-					account.getCode(), account.getName(), group(account), account.getSystemKey())).toList(),
+					account.getCode(), account.getName(), group(account), account.getSystemKey(), account.isSelectable())).toList(),
 			List.copyOf(records), List.copyOf(issues), List.copyOf(expenseRows), List.copyOf(revenueItems), List.copyOf(receivables),
 			List.copyOf(otherIncomes), List.copyOf(households));
 	}
@@ -207,7 +212,9 @@ public class IncomeStatementService {
 					continue;
 				}
 				records.add(new Entry("charge:" + item.id(), account.getId(), account.getName(), group(account),
-					source.month(), target, item.amount().toPlainString()));
+					source.month(), target, item.amount().toPlainString(),
+					new IncomeStatementResponse.Source("CHARGE", source.chargeId(), source.billingDate(), null, item.name(),
+						billingContext(source), path)));
 			}
 		}
 		for (var item : candidates.values())
@@ -247,9 +254,12 @@ public class IncomeStatementService {
 			var incoming = receipts.get(value.getPaymentId());
 			return outgoing != null && incoming != null && AccountingTransferService.canMatch(outgoing, incoming);
 		}).toList();
+		Set<UUID> paidPayables = payableSources.paidExpenseIds(property.getId());
 		Set<UUID> transferredReceipts = matches.stream().map(value -> value.getPaymentId()).collect(Collectors.toSet());
 		AccountingAccount transferAccount = sourceAccounts.stream().filter(AccountingAccount::isBankTransfer).findFirst().orElseThrow();
 		for (BankingResponse.Transaction row : sources) {
+			if (row.expense() != null && paidPayables.contains(row.expense().id()))
+				continue;
 			// 입금은 수납 상세 ID로 연결합니다. 연결이 없는 원본을 출금 상세로 오인하지 않습니다.
 			String path = "INCOME".equals(row.direction())
 				? (row.paymentId() == null ? "/banking/transactions" : "/banking/receipts/" + row.paymentId())
@@ -285,7 +295,7 @@ public class IncomeStatementService {
 				continue;
 			AccountingAccount account = review == null ? sourceAccounts.stream()
 				.filter(value -> value.getCode().equals(expense.accountCode()) && value.getReportGroup().isExpense())
-				.findFirst().orElseGet(() -> ExpenseAccountService.match(expense.category(), sourceAccounts))
+				.findFirst().orElseGet(() -> expense.accountResolved() ? null : ExpenseAccountService.match(expense.category(), sourceAccounts))
 				: byAccount.get(review.getAccountId());
 			BigDecimal ownAmount = property.isHasBuildings() ? expense.allocations().stream()
 				.filter(allocation -> allocation.buildingId() != null)
@@ -326,13 +336,14 @@ public class IncomeStatementService {
 				throw new IllegalStateException("Invalid expense account");
 			if (!property.isHasBuildings()) {
 				records.add(new Entry("expense:" + expense.id(), account.getId(), account.getName(), group(account),
-					month, null, row.amount()));
+					month, null, row.amount(), expenseSource(row, path)));
 				continue;
 			}
 			for (BankingResponse.Allocation allocation : expense.allocations()) {
 				if (allocation.buildingId() != null && (buildingId == null || buildingId.equals(allocation.buildingId())))
 					records.add(new Entry("expense:" + expense.id() + ":" + allocation.buildingId(), account.getId(),
-						account.getName(), group(account), month, allocation.buildingId(), allocation.amount()));
+						account.getName(), group(account), month, allocation.buildingId(), allocation.amount(),
+						expenseSource(row, path)));
 			}
 		}
 	}
@@ -346,7 +357,7 @@ public class IncomeStatementService {
 		String month = YearMonth.from(row.date()).toString();
 		if (!property.isHasBuildings()) {
 			records.add(new Entry("income:" + row.paymentId(), account.getId(), account.getName(), group(account),
-				month, null, amount.toPlainString()));
+				month, null, amount.toPlainString(), incomeSource(row)));
 			otherIncomes.add(new IncomeStatementResponse.OtherIncome(row.paymentId(), row.id(), row.date(),
 				transactionName(row), amount.toPlainString(), account.getId()));
 			return;
@@ -368,7 +379,7 @@ public class IncomeStatementService {
 		for (BankingResponse.Allocation part : allocation.allocations()) {
 			if (part.buildingId() != null && (buildingId == null || buildingId.equals(part.buildingId()))) {
 				records.add(new Entry("income:" + row.paymentId() + ":" + part.buildingId(), account.getId(),
-					account.getName(), group(account), month, part.buildingId(), part.amount()));
+					account.getName(), group(account), month, part.buildingId(), part.amount(), incomeSource(row)));
 				selected = selected.add(new BigDecimal(part.amount()));
 			}
 		}
@@ -400,6 +411,18 @@ public class IncomeStatementService {
 				recoveries.merge(recovery.paymentId(), new BigDecimal(recovery.amount()), BigDecimal::add);
 		}
 		return recoveries;
+	}
+
+	/** 원장은 기존 지출 상세를 열며 실제 거래일과 회계 귀속 월을 서로 덮어쓰지 않습니다. */
+	private IncomeStatementResponse.Source expenseSource(BankingResponse.Transaction row, String path) {
+		return new IncomeStatementResponse.Source("EXPENSE", row.expense().id(), row.date(), row.time(),
+			row.expense().category(), transactionContext(row), path);
+	}
+
+	/** 기타 입금은 은행 원본 유무와 무관하게 수납 ID로 기존 입금 상세에 연결합니다. */
+	private IncomeStatementResponse.Source incomeSource(BankingResponse.Transaction row) {
+		return new IncomeStatementResponse.Source("OTHER_INCOME", row.paymentId(), row.date(), row.time(),
+			transactionName(row), transactionContext(row), "/banking/receipts/" + row.paymentId());
 	}
 
 	/** 현재 세대 정보로 과거 귀속을 추정하지 않고 청구 당시 동·호수·표시명으로 원본을 구분합니다. */
@@ -454,4 +477,19 @@ public class IncomeStatementService {
 			case OTHER_EXPENSE -> "otherExpense";
 		};
 	}
+	/** 미지급 비용은 발생일에 한 번 인식하고 실제 지급 원본은 기존 현금 집계에만 남깁니다. */
+	private void appendPayables(UUID property, List<AccountingAccount> accounts, YearMonth start, YearMonth end,
+		UUID buildingId, List<Entry> records) {
+		for (var payable : payableSources.items(property)) {
+			String month = YearMonth.from(payable.date()).toString();
+			if (!"REGISTERED".equals(payable.status()) || !within(month, start, end)
+				|| (buildingId != null && !buildingId.equals(payable.buildingId())))
+				continue;
+			var account = accounts.stream().filter(value -> value.getId().equals(payable.accountId())).findFirst().orElseThrow();
+			records.add(new Entry("payable-expense:" + payable.id(), account.getId(), account.getName(), group(account),
+				month, payable.buildingId(), payable.amount(), new IncomeStatementResponse.Source("PAYABLE", payable.id(),
+					payable.date(), null, payable.name(), payable.counterparty(), "/accounting/payables/" + payable.id())));
+		}
+	}
+
 }
