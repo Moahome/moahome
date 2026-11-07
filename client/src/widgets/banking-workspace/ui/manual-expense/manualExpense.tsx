@@ -10,6 +10,8 @@ import {
   type ManualTransferSeed,
   type ManualExpenseValues
 } from '@/entities/banking';
+import { PayableManager } from '@/features/payable-management';
+import { useRouter } from 'next/navigation';
 import { ManualBankTransfer } from '@/features/manual-bank-transfer';
 import { useSession } from '@/entities/session';
 import { LoadingState } from '@/shared/ui/state-message';
@@ -32,6 +34,9 @@ import {
 export function ManualExpense({ propertyId, initialAccountId, presentation = 'modal', onClose, onCreated }: {
   propertyId: string; initialAccountId?: string; presentation?: 'modal' | 'page'; onClose: () => void; onCreated: (id: string, date: string, accountId: string, transfer?: boolean) => void;
 }) {
+  const router = useRouter();
+  const [payableMode, setPayableMode] = useState(false);
+  const [createdPayable, setCreatedPayable] = useState<string | null>(null);
   const session = useSession();
   const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const cache = useQueryClient();
@@ -79,8 +84,28 @@ export function ManualExpense({ propertyId, initialAccountId, presentation = 'mo
       })}
     />
   );
+  if (createdPayable) return (
+    <PayableManager
+      propertyId={propertyId}
+      payableId={createdPayable}
+      presentation={presentation}
+      onClose={onClose}
+    />
+  );
   return (
     <ManualExpenseForm
+      onPayable={(enabled) => { setPayableMode(enabled); if (enabled) setTransferSeed(null); }}
+      renderPayable={payableMode ? (selector) => (
+        <PayableManager
+          propertyId={propertyId}
+          presentation={'embedded'}
+          onClose={onClose}
+          onBusyChange={setBusy}
+          onCreated={(id) => { if (presentation === 'page') router.replace(`/manage/${propertyId}/accounting/payables/${id}`); else setCreatedPayable(id); }}
+        >
+          {selector}
+        </PayableManager>
+      ) : undefined}
       onTransfer={setTransferSeed}
       renderTransfer={transferSeed ? (selector) => (
         <ManualBankTransfer

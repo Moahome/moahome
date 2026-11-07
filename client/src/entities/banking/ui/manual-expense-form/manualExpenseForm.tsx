@@ -33,7 +33,9 @@ import {
 import styles from './manualExpenseForm.module.css';
 
 /** PC 모달과 모바일 페이지에서 같은 등록·배분·재시도를 사용하고 저장 성공 후 원장을 갱신합니다. */
-export function ManualExpenseForm({ accounts: accountOptions, expenseAccounts, buildings: buildingOptions, asOf, initialAccountId, presentation = 'modal', title = '수동 지출 등록', busy = false, initialValue, onCancel, onClose, onSubmit, onTransfer, renderTransfer }: {
+export function ManualExpenseForm({ accounts: accountOptions, expenseAccounts, buildings: buildingOptions, asOf, initialAccountId, presentation = 'modal', title = '수동 지출 등록', busy = false, initialValue, onCancel, onClose, onSubmit, onTransfer, renderTransfer, onPayable, renderPayable }: {
+  onPayable?: (enabled: boolean) => void;
+  renderPayable?: (selector: ReactNode) => ReactNode;
   onTransfer?: (seed: ManualTransferSeed | null) => void;
   renderTransfer?: (selector: ReactNode) => ReactNode;
   expenseAccounts?: readonly ExpenseAccountOption[];
@@ -152,6 +154,22 @@ export function ManualExpenseForm({ accounts: accountOptions, expenseAccounts, b
     </label>
   ) : null;
 
+  const paymentControl = onPayable ? (
+    <Dropdown
+      label={'지급 상태'}
+      value={renderPayable ? 'UNPAID' : 'PAID'}
+      disabled={busy}
+      options={[{
+        value: 'PAID',
+        label: '지급 완료'
+      }, {
+        value: 'UNPAID',
+        label: '미지급'
+      }]}
+      onChange={(value) => onPayable(value === 'UNPAID')}
+    />
+  ) : null;
+
   const content = (
     <>
       {presentation === 'page' ? (
@@ -189,7 +207,10 @@ export function ManualExpenseForm({ accounts: accountOptions, expenseAccounts, b
           />
         </header>
       )}
-      {renderTransfer ? renderTransfer(transferControl) : (
+      {renderPayable ? renderPayable(paymentControl) : renderTransfer ? renderTransfer(<>
+        {paymentControl}
+        {transferControl}
+      </>) : (
         <form
           onSubmit={submit}
           noValidate
@@ -198,6 +219,7 @@ export function ManualExpenseForm({ accounts: accountOptions, expenseAccounts, b
           <div
             className={styles.body}
           >
+            {paymentControl}
             <fieldset
               disabled={busy}
               className={styles.fields}

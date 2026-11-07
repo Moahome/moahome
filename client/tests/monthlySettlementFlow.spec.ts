@@ -190,12 +190,16 @@ for (const width of [1440, 390]) {
       name: '손익계산서',
       exact: true
     })).toBeVisible();
-    for (const title of ['계정별 원장', '계정과목 설정']) {
+    for (const title of ['계정과목 설정']) {
       await expect(page.getByRole('link', {
         name: `${title} 구현 예정`,
         exact: true
       })).toBeVisible();
     }
+    await expect(page.getByRole('link', {
+      name: '계정별 원장',
+      exact: true
+    })).toBeVisible();
     await expect(page.getByRole('link', {
       name: '통장 대사',
       exact: true
@@ -619,7 +623,6 @@ for (const width of [1440, 390]) {
 }
 
 for (const [path, title] of [
-  ['ledger', '계정별 원장'],
   ['accounts', '계정과목 설정']
 ]) {
   test(`${title} 메뉴는 구현 예정 상태를 표시하고 새로고침에도 선택을 유지`, async ({ page }, testInfo) => {

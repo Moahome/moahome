@@ -85,6 +85,22 @@ function ManagementShellContent({ propertyId, children }: { propertyId: string; 
 /** 직접 접근에서도 같은 관리대상 안의 목록·상세로 돌아가는 모바일 헤더를 구성합니다. */
 function getMobileBack(pathname: string, basePath: string, month: string | null, account: string | null, period: URLSearchParams, datePeriod: URLSearchParams, context: URLSearchParams) {
   const periodSuffix = period.size ? `?${period}` : '';
+  if (pathname.startsWith(`${basePath}/accounting/payables/`)) {
+    return {
+      href: `${basePath}/accounting/ledger${context.size ? `?${context}` : ''}`,
+      label: '뒤로가기',
+      title: pathname.endsWith('/new') ? '미지급 등록' : '미지급 상세'
+    };
+  }
+  if (pathname === `${basePath}/accounting/ledger/billing`) {
+    const params = new URLSearchParams(context);
+    params.delete('item');
+    return {
+      href: `${basePath}/accounting/ledger?${params}`,
+      label: '뒤로가기',
+      title: '관리비 부과 상세'
+    };
+  }
   if (pathname === `${basePath}/accounting/income-statement/sources` || pathname === `${basePath}/accounting/income-statement/review`) {
     const reviewing = pathname.endsWith('/review');
     const kind = context.get('kind');
@@ -103,10 +119,29 @@ function getMobileBack(pathname: string, basePath: string, month: string | null,
       title: reviewing ? titles[kind ?? ''] ?? '손익 분류' : '손익 반영 자료'
     };
   }
-  const downloadPath = pathname.match(/\/(banking\/(?:monthly|balances|expenses)|payments\/monthly|accounting\/(?:settlement|income-statement))\/download$/);
+  const downloadPath = pathname.match(/\/(banking\/(?:monthly|balances|expenses)|payments\/monthly|accounting\/(?:settlement|income-statement|ledger))\/download$/);
   if (downloadPath) {
     const downloadQuery = new URLSearchParams(downloadPath[1] === 'banking/expenses' ? datePeriod : period);
     if (/^[0-9a-f-]{36}$/i.test(account ?? '')) downloadQuery.set('account', account!);
+    // 원장 다운로드 직접 접근도 허용된 필터·페이지로 복귀하며 임의 URL은 받지 않습니다.
+    if (downloadPath[1] === 'banking/balances') {
+      const building = context.get('building');
+      if (/^[0-9a-f-]{36}$/i.test(building ?? '')) downloadQuery.set('building', building!);
+    }
+    if (downloadPath[1] === 'accounting/ledger') {
+      downloadQuery.delete('account');
+      context.getAll('account').filter((id) => /^[0-9a-f-]{36}$/i.test(id)).forEach((id) => downloadQuery.append('account', id));
+      const bank = context.get('bank');
+      if (/^[0-9a-f-]{36}$/i.test(bank ?? '')) downloadQuery.set('bank', bank!);
+      const building = context.get('building');
+      if (/^[0-9a-f-]{36}$/i.test(building ?? '')) downloadQuery.set('building', building!);
+      const page = Number(context.get('page'));
+      if (Number.isSafeInteger(page) && page > 0) downloadQuery.set('page', String(page));
+      const sort = context.get('sort');
+      if (sort === 'latest' || sort === 'oldest') downloadQuery.set('sort', sort);
+      const size = Number(context.get('size'));
+      if ([10, 20, 50].includes(size)) downloadQuery.set('size', String(size));
+    }
     return {
       href: `${basePath}/${downloadPath[1]}${downloadQuery.size ? `?${downloadQuery}` : ''}`,
       label: '뒤로가기',
@@ -131,6 +166,8 @@ function getMobileBack(pathname: string, basePath: string, month: string | null,
   const balanceQuery = new URLSearchParams(period);
   if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month ?? '')) balanceQuery.set('month', month!);
   if (/^[0-9a-f-]{36}$/i.test(account ?? '')) balanceQuery.set('account', account!);
+  const balanceBuilding = context.get('building');
+  if (/^[0-9a-f-]{36}$/i.test(balanceBuilding ?? '')) balanceQuery.set('building', balanceBuilding!);
   if (pathname.startsWith(`${basePath}/banking/balances/`)) {
     const panelTitle = pathname.endsWith('/banking/balances/details/initial') ? '초기 잔액 정정' : pathname.endsWith('/banking/balances/details/account') ? '통장 상세' : '동별 잔고·정산';
     return {
