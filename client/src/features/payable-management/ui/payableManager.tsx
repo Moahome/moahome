@@ -16,6 +16,8 @@ import { formatInteger } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { CalendarPicker } from '@/shared/ui/calendar-picker';
 import { ClientModal } from '@/shared/ui/client-modal';
+import { ListCard } from '@/shared/ui/list-card';
+import { ListHeader } from '@/shared/ui/list-header';
 import {
   AmountInput,
   Dropdown,
@@ -106,33 +108,42 @@ export function PayableManager({ propertyId, payableId, presentation = 'modal', 
   }
 
   const title = payableId ? '미지급 상세' : '미지급 등록';
-  const Heading = presentation === 'page' ? 'h1' : 'h2';
   const content = (
     <div
       className={[styles.content, presentation === 'embedded' ? styles.embedded : ''].filter(Boolean).join(' ')}
     >
-      {presentation !== 'embedded' && (
-        <header>
-          <Heading
+      {presentation === 'page' ? (
+        <ListHeader
+          className={styles['page-header']}
+          menu={'회계·정산'}
+          title={title}
+          titleId={'payable-title'}
+          description={payableId
+            ? '미지급 내역과 지급 연결 이력을 확인합니다.'
+            : '아직 지급하지 않은 비용을 등록합니다. 실제 출금은 등록되지 않으며, 지급 후 기존 지출을 연결합니다.'}
+        />
+      ) : presentation === 'modal' && (
+        <header
+          className={styles['modal-header']}
+        >
+          <h2
             id={'payable-title'}
           >
             {title}
-          </Heading>
-          {presentation === 'modal' && (
-            <Button
-              variant={'ghost'}
-              size={'sm'}
-              iconOnly
-              aria-label={'미지급 상세 닫기'}
-              disabled={busy}
-              onClick={onClose}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'close'}
-                />
-              )}
-            />
-          )}
+          </h2>
+          <Button
+            variant={'ghost'}
+            size={'sm'}
+            iconOnly
+            aria-label={'미지급 상세 닫기'}
+            disabled={busy}
+            onClick={onClose}
+            leadingIcon={(
+              <ServiceIcon
+                name={'close'}
+              />
+            )}
+          />
         </header>
       )}
       {children}
@@ -150,9 +161,11 @@ export function PayableManager({ propertyId, payableId, presentation = 'modal', 
           className={styles.form}
           onSubmit={(event) => { event.preventDefault(); void perform('create'); }}
         >
-          <p>
-            아직 지급하지 않은 비용을 등록합니다. 실제 출금은 등록되지 않으며, 지급 후 기존 지출을 연결합니다.
-          </p>
+          {presentation !== 'page' && (
+            <p>
+              아직 지급하지 않은 비용을 등록합니다. 실제 출금은 등록되지 않으며, 지급 후 기존 지출을 연결합니다.
+            </p>
+          )}
           <CalendarPicker
             label={'발생일'}
             value={form.date}
@@ -504,7 +517,12 @@ export function PayableManager({ propertyId, payableId, presentation = 'modal', 
       ) : null}
     </div>
   );
-  if (presentation !== 'modal') return content;
+  if (presentation === 'page') return (
+    <ListCard>
+      {content}
+    </ListCard>
+  );
+  if (presentation === 'embedded') return content;
   return (
     <ClientModal
       className={styles.modal}
