@@ -5,6 +5,7 @@ import {
   getBankAccountLabel
 } from '@/entities/banking';
 import { formatWon } from '@/shared/lib/format';
+import { formatBuildingUnitText } from '@/entities/property';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
 import {
@@ -176,7 +177,7 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false, childr
               입금자명
             </dt>
             <dd>
-              {payment.payer}
+              {formatBuildingUnitText(payment.payer)}
             </dd>
           </div>
           <div>
@@ -193,7 +194,7 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false, childr
                 은행 메모
               </dt>
               <dd>
-                {payment.memo}
+                {formatBuildingUnitText(payment.memo)}
               </dd>
             </div>
           )}
@@ -207,7 +208,7 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false, childr
             {linkedBank.date}
             {' '}
             ·
-            {linkedBank.payer}
+            {formatBuildingUnitText(linkedBank.payer)}
             {' '}
             ·
             {formatWon(linkedBank.amount)}
@@ -352,7 +353,7 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false, childr
           <p
             className={styles['unit-name']}
           >
-            {ledger.units.find((unit) => unit.id === unitId)?.label ?? '세대 미지정'}
+            {formatBuildingUnitText(ledger.units.find((unit) => unit.id === unitId)?.label ?? '세대 미지정')}
           </p>
         )}
       {!otherIncome && candidates.length > 0 && (
@@ -375,10 +376,10 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false, childr
               key={candidate.id}
             >
               <strong>
-                {ledger.units.find((unit) => unit.id === candidate.unitId)?.label ?? '세대 확인 필요'}
+                {formatBuildingUnitText(ledger.units.find((unit) => unit.id === candidate.unitId)?.label ?? '세대 확인 필요')}
                 {' · '}
                 {' '}
-                {candidate.payer}
+                {formatBuildingUnitText(candidate.payer)}
                 {' '}
                 ·
                 {' '}
