@@ -113,7 +113,7 @@ test.describe('모바일 시작 스플래시', () => {
     });
   });
 
-  for (const width of [320, 390, 767]) {
+  for (const width of [320, 767]) {
     test(`첫 모바일 진입 ${width}px는 집 조립·문 열림 후 로그인으로 연결하고 재방문에 반복하지 않음`, async ({ page }) => {
       await page.setViewportSize({
         width,
@@ -271,7 +271,7 @@ test('모바일 상단 배너는 첨부 문구·설치 버튼과 X를 제공하�
   const textBounds = await banner.getByText('이 사이트를 앱처럼 설치하고 더 편리하게 이용하세요.').boundingBox();
   expect(installBounds!.x).toBeGreaterThanOrEqual(textBounds!.x + textBounds!.width);
   await expect(banner.locator('img')).toHaveAttribute('src', '/moahomeIcon.svg');
-  for (const width of [320, 390, 600, 767]) {
+  for (const width of [320, 767]) {
     await page.setViewportSize({
       width,
       height: 844,

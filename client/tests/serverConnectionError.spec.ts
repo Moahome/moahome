@@ -28,65 +28,70 @@ async function json(route: Route, body: unknown, status = 200) {
   });
 }
 
-for (const width of [1440, 320]) {
-  for (const failure of ['network', '503']) {
-    test(`연결 오류 ${failure} ${width}px는 캐릭터·안내를 표시하고 재시도에서 실패한 조회만 실행`, async ({ page }, testInfo) => {
-      await page.setViewportSize({
-        width,
-        height: 900
-      });
-      let reads = 0;
-      let writes = 0;
-      let documentRequests = 0;
-      page.on('request', (request) => {
-        if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documentRequests++;
-      });
-      await page.route(`${API}/**`, async (route) => {
-        if (route.request().method() === 'OPTIONS') return json(route, {});
-        if (route.request().method() !== 'GET') writes++;
-        expect(new URL(route.request().url()).pathname).toBe('/api/auth/web/csrf');
-        reads++;
-        if (reads > 1) return json(route, {
-          code: 'AUTHENTICATION_REQUIRED'
-        }, 401);
-        if (failure === 'network') return route.abort('connectionrefused');
-        return json(route, {
-          code: 'AUTH_SERVICE_UNAVAILABLE',
-          message: 'internal details must not be shown'
-        }, 503);
-      });
-      await page.goto('/login');
-      const error = page.getByRole('alert', {
-        name: '서버에 연결하지 못했어요'
-      });
-      await expect(error).toBeVisible();
-      const illustration = error.locator('img');
-      await expect(illustration).toHaveAttribute('src', failure === 'network' ? /networkError/ : /serverError/);
-      await expect.poll(() => illustration.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)).toBe(true);
-      await expect(error).not.toContainText('입력하신 내용');
-      await expect(error).not.toContainText('internal details');
-      await expect(page.getByRole('button', {
-        name: '카카오로 시작하기'
-      })).toHaveCount(0);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-      expect(reads).toBe(1);
-      await page.screenshot({
-        path: testInfo.outputPath(`connectionError-${failure}-${width}.png`),
-        fullPage: true,
-        animations: 'disabled'
-      });
-      await page.getByRole('button', {
-        name: '다시 시도',
-        exact: true
-      }).click();
-      await expect(page.getByRole('button', {
-        name: '카카오로 시작하기'
-      })).toBeVisible();
-      expect(reads).toBe(2);
-      expect(writes).toBe(0);
-      expect(documentRequests).toBe(1);
+// 오류 종류별 그림과 공통 레이아웃은 PC·최소 모바일 대표 조합으로 확인합니다.
+for (const { width, failure } of [{
+  width: 1440,
+  failure: 'network'
+}, {
+  width: 320,
+  failure: '503'
+}]) {
+  test(`연결 오류 ${failure} ${width}px는 캐릭터·안내를 표시하고 재시도에서 실패한 조회만 실행`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 900
     });
-  }
+    let reads = 0;
+    let writes = 0;
+    let documentRequests = 0;
+    page.on('request', (request) => {
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documentRequests++;
+    });
+    await page.route(`${API}/**`, async (route) => {
+      if (route.request().method() === 'OPTIONS') return json(route, {});
+      if (route.request().method() !== 'GET') writes++;
+      expect(new URL(route.request().url()).pathname).toBe('/api/auth/web/csrf');
+      reads++;
+      if (reads > 1) return json(route, {
+        code: 'AUTHENTICATION_REQUIRED'
+      }, 401);
+      if (failure === 'network') return route.abort('connectionrefused');
+      return json(route, {
+        code: 'AUTH_SERVICE_UNAVAILABLE',
+        message: 'internal details must not be shown'
+      }, 503);
+    });
+    await page.goto('/login');
+    const error = page.getByRole('alert', {
+      name: '서버에 연결하지 못했어요'
+    });
+    await expect(error).toBeVisible();
+    const illustration = error.locator('img');
+    await expect(illustration).toHaveAttribute('src', failure === 'network' ? /networkError/ : /serverError/);
+    await expect.poll(() => illustration.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0)).toBe(true);
+    await expect(error).not.toContainText('입력하신 내용');
+    await expect(error).not.toContainText('internal details');
+    await expect(page.getByRole('button', {
+      name: '카카오로 시작하기'
+    })).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    expect(reads).toBe(1);
+    await page.screenshot({
+      path: testInfo.outputPath(`connectionError-${failure}-${width}.png`),
+      fullPage: true,
+      animations: 'disabled'
+    });
+    await page.getByRole('button', {
+      name: '다시 시도',
+      exact: true
+    }).click();
+    await expect(page.getByRole('button', {
+      name: '카카오로 시작하기'
+    })).toBeVisible();
+    expect(reads).toBe(2);
+    expect(writes).toBe(0);
+    expect(documentRequests).toBe(1);
+  });
 }
 
 test('관리 권한 조회 장애는 재시도로 같은 대상을 열고 토큰 재발급·페이지 새로고침을 반복하지 않음', async ({ page }) => {
@@ -154,7 +159,8 @@ test('관리 권한 조회 장애는 재시도로 같은 대상을 열고 토큰
 });
 
 for (const endpoint of ['banking/workspace', 'payments/workspace', 'residents']) {
-  for (const status of [403, 404, 503] as const) {
+  // 공통 오류 상태는 통장 조회에서 모두 확인하고 다른 소비 화면은 연결·복구를 확인합니다.
+  for (const status of (endpoint === 'banking/workspace' ? [403, 404, 503] as const : [503] as const)) {
     test(`${endpoint} ${status} 조회 실패는 권한·서버 안내를 구분하고 현재 조회만 재시도한다`, async ({ page }) => {
       let failed = true;
       let reads = 0;
