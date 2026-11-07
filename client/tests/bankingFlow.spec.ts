@@ -1921,9 +1921,21 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     name: '외부 부담금',
     exact: true
   })).toContainText('61,330원');
-  await table.getByLabel('102동 선택', {
+  await expect(table.getByRole('checkbox')).toHaveCount(0);
+  await expect(table.getByRole('columnheader', {
+    name: '선택',
     exact: true
-  }).check();
+  })).toHaveCount(0);
+  await page.getByRole('combobox', {
+    name: '조회 동',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '102동',
+    exact: true
+  }).click();
+  await expect(table.locator('tbody tr')).toHaveCount(1);
+  await expect(table).not.toContainText('103동');
   const exported = page.waitForEvent('download');
   await page.getByRole('button', {
     name: '다운로드',
@@ -1951,8 +1963,12 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     exact: true
   }).click();
   expect(strFromU8(reportZip['xl/sharedStrings.xml'])).not.toContain('103동');
-  await page.getByRole('button', {
-    name: '선택 해제',
+  await page.getByRole('combobox', {
+    name: '조회 동',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '전체 동',
     exact: true
   }).click();
   await page.evaluate(() => window.scrollTo(0, 0));

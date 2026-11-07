@@ -218,7 +218,7 @@ function OpeningBalanceAction({ missing, onOpen }: { missing: boolean; onOpen: (
     </div>
   );
 }
-/** 조회 조건·선택 동을 유지하며 실제 서버 잔고와 외부 입금 연결을 표시합니다. */
+/** 기간·통장·동 조회 조건을 유지하며 실제 서버 잔고와 외부 입금 연결을 표시합니다. */
 export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDetail }: {
     propertyId: string;
     buildingId?: string;
@@ -235,6 +235,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   const startMonth = range.startMonth;
   const periodLabel = formatMonthRange(range);
   const accountId = params.get('account') ?? 'ALL';
+  const buildingFilter = params.get('building') ?? 'ALL';
   const [search, setSearch] = useState(params.get('search') ?? '');
   const [sort, setSort] = useState('name');
   const [filter, setFilter] = useState(params.get('filter') ?? 'ALL');
@@ -242,7 +243,6 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   const [incomeSearch, setIncomeSearch] = useState('');
   const [externalFilter, setExternalFilter] = useState(() => params.get('externalStatus') === 'UNRECOVERED' ? 'UNRECOVERED' : 'ACTIVE');
   const [externalSearch, setExternalSearch] = useState('');
-  const [selected, setSelected] = useState<string[]>([]);
   const [detail, setDetail] = useState<string | null>(null);
   const [accountDetailId, setAccountDetailId] = useState<string | null>(null);
   const [initialAccountId, setInitialAccountId] = useState<string | null>(null);
@@ -310,7 +310,10 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   const bankHelp = '등록된 통장 잔액을 표시합니다.';
   const differenceDescription = '통장 잔액 − 동별 잔고';
   const missing = data.buildings.filter((b) => b.active && b.status === 'OPENING_REQUIRED');
-  const filtered = sortExpenseLabels(data.buildings).filter((b) => b.label.includes(search.trim()) && (filter === 'ALL' || (filter === 'NEEDS_OPENING' && b.status === 'OPENING_REQUIRED') || (filter === 'NEGATIVE' && b.balance !== null && BigInt(b.balance) < BigInt(0))));
+  const buildings = sortExpenseLabels(data.buildings);
+  const selectedBuilding = buildings.find((building) => building.id === buildingFilter);
+  // 동 필터는 목록·그래프·다운로드 범위를 좁히며 통장 전체 잔액과 전체 동의 대조 기준은 유지합니다.
+  const filtered = buildings.filter((b) => (!selectedBuilding || b.id === selectedBuilding.id) && b.label.includes(search.trim()) && (filter === 'ALL' || (filter === 'NEEDS_OPENING' && b.status === 'OPENING_REQUIRED') || (filter === 'NEGATIVE' && b.balance !== null && BigInt(b.balance) < BigInt(0))));
   if (sort !== 'name')
     filtered.sort((a, b) => {
       if (a.balance === null || b.balance === null)
@@ -318,10 +321,10 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       const left = BigInt(a.balance), right = BigInt(b.balance);
       return left === right ? 0 : (left > right ? 1 : -1) * (sort === 'high' ? -1 : 1);
     });
-  const exportRows = selected.length ? filtered.filter((b) => selected.includes(b.id)) : filtered;
   const detailBuilding = data.buildings.find((b) => b.id === (buildingId ?? detail));
   const balanceQuery = getMonthRangeQuery(params, month);
   if (selectedAccount) balanceQuery.set('account', selectedAccount.id);
+  if (selectedBuilding) balanceQuery.set('building', selectedBuilding.id);
   const balanceListHref = `/manage/${propertyId}/banking/balances?${balanceQuery}`;
   /** 변경 성공 후 서버 조회를 갱신하고 실패한 폼은 닫지 않습니다. */
   async function saved(message: string, keepOpen = false) {
@@ -401,7 +404,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
             data={snapshot}
             presentation={presentation}
             initialAccountId={selectedAccount?.id ?? ''}
-            initialBuildingId={selected.length === 1 ? selected[0] : ''}
+            initialBuildingId={selectedBuilding?.id ?? ''}
             onClose={onClose}
           />
         )
@@ -539,19 +542,6 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     );
   const buildingColumns: DataTableColumn<BalanceBuilding>[] = [
     {
-      key: 'select',
-      header: '선택',
-      width: 60,
-      render: (b) => (
-        <input
-          type={'checkbox'}
-          aria-label={`${b.label} 선택`}
-          checked={selected.includes(b.id)}
-          onChange={(e) => setSelected((current) => e.target.checked ? [...current, b.id] : current.filter((id) => id !== b.id))}
-        />
-      )
-    },
-    {
       key: 'building',
       header: '동',
       render: (b) => (
@@ -640,9 +630,6 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         className={styles['query-card']}
         aria-label={'조회 조건'}
       >
-        <h2>
-          조회 조건
-        </h2>
         <div
           className={styles['query-controls']}
         >
@@ -654,7 +641,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
               labelHidden
               value={range}
               onChange={(value) => {
-                setSelected([]); setDetail(null);
+                setDetail(null);
                 const next = setMonthRangeQuery(new URLSearchParams(params.toString()), value);
                 router.replace(`?${next}`, {
                   scroll: false
@@ -682,6 +669,26 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
               }))]}
             />
           )}
+          <Dropdown
+            aria-label={'조회 동'}
+            value={selectedBuilding?.id ?? 'ALL'}
+            onChange={(value) => {
+              const next = new URLSearchParams(params.toString());
+              if (value === 'ALL') next.delete('building');
+              else next.set('building', value);
+              setDetail(null);
+              router.replace(`?${next}`, {
+                scroll: false
+              });
+            }}
+            options={[{
+              value: 'ALL',
+              label: '전체 동'
+            }, ...buildings.map((building) => ({
+              value: building.id,
+              label: building.label
+            }))]}
+          />
         </div>
       </section>
       {data.cutoffDate && (
@@ -805,20 +812,20 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         </p>
         <PagedTable
           label={'동별 잔고'}
-          hasFilters={Boolean(search.trim() || filter !== 'ALL')}
+          hasFilters={Boolean(selectedBuilding || search.trim() || filter !== 'ALL')}
           rows={filtered}
           columns={buildingColumns}
           onRowClick={openDetail}
           toolbar={(
             <>
               <Input
-                label={'동 검색'}
+                aria-label={'동 검색'}
                 value={search}
-                onChange={(e) => { setSearch(e.target.value);setSelected([]); }}
+                onChange={(e) => setSearch(e.target.value)}
                 placeholder={'예: 102동'}
               />
               <Dropdown
-                label={'잔고 정렬'}
+                aria-label={'잔고 정렬'}
                 value={sort}
                 onChange={setSort}
                 options={[{
@@ -833,9 +840,9 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
                 }]}
               />
               <Dropdown
-                label={'잔고 상태'}
+                aria-label={'잔고 상태'}
                 value={filter}
-                onChange={(value) => { setFilter(value);setSelected([]); }}
+                onChange={setFilter}
                 options={[{
                   value: 'ALL',
                   label: '전체'
@@ -850,25 +857,6 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
             </>
           )}
         />
-        {selected.length > 0 && (
-          <div
-            className={styles['selection-summary']}
-          >
-            <span>
-              선택
-              {exportRows.length}
-              개 동 · 합계
-              {exportRows.every((b) => b.balance !== null) ? money(exportRows.reduce((sum, b) => sum + BigInt(b.balance!), BigInt(0))) : '설정 필요'}
-            </span>
-            <Button
-              variant={'outline'}
-              size={'sm'}
-              onClick={() => setSelected([])}
-            >
-              선택 해제
-            </Button>
-          </div>
-        )}
       </section>
       <div
         className={styles['lower-grid']}
