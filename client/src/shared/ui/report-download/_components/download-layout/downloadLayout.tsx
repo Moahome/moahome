@@ -12,7 +12,7 @@ import styles from './downloadLayout.module.css';
 /** 자료·형식별 처리는 호출자가 맡고 모든 다운로드의 헤더·본문·푸터와 표시 방식을 통일합니다. */
 export function DownloadLayout({ title, description, children, footer, presentation = 'modal', busy = false, closeLabel = '다운로드 미리보기 닫기', onClose }: {
   title: string;
-  description: string;
+  description?: string;
   children: ReactNode;
   footer: ReactNode;
   presentation?: 'modal' | 'page';
@@ -33,11 +33,13 @@ export function DownloadLayout({ title, description, children, footer, presentat
           >
             {title}
           </h2>
-          <p
-            id={descriptionId}
-          >
-            {description}
-          </p>
+          {description && (
+            <p
+              id={descriptionId}
+            >
+              {description}
+            </p>
+          )}
         </div>
         {presentation === 'modal' && (
           <Button
@@ -71,7 +73,7 @@ export function DownloadLayout({ title, description, children, footer, presentat
     <section
       className={styles.page}
       aria-labelledby={titleId}
-      aria-describedby={descriptionId}
+      aria-describedby={description ? descriptionId : undefined}
     >
       {content}
     </section>
@@ -83,7 +85,7 @@ export function DownloadLayout({ title, description, children, footer, presentat
       onClose={onClose}
       busy={busy}
       aria-labelledby={titleId}
-      aria-describedby={descriptionId}
+      aria-describedby={description ? descriptionId : undefined}
     >
       {content}
     </ClientModal>

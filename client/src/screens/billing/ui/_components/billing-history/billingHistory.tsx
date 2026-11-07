@@ -17,7 +17,7 @@ import {
   useBillingHistory,
   useBillingMonth
 } from '../../_hooks/useBillingData';
-import { BillingDetail } from '../billing-detail/billingDetail';
+import { BillingDetail } from '@/entities/billing';
 import { BillingLoadState } from '../billing-load-state/billingLoadState';
 import styles from './billingHistory.module.css';
 
