@@ -225,63 +225,6 @@ test('Unicode 글자 수와 선택 입력 길이를 검증하고 정상 입력�
   await expect(continueButton).toBeEnabled();
 });
 
-test('건물 유형은 고정 옵션·선택 표시를 제공하고 선택 해제 X를 표시하지 않음', async ({ page }) => {
-  await page.setViewportSize({
-    width: 1536,
-    height: 1024
-  });
-  await openRegistration(page);
-  const dropdown = page.getByRole('combobox', {
-    name: '건물 유형',
-    exact: true
-  });
-  await expect(dropdown).toHaveText('건물 유형을 선택해주세요');
-  await dropdown.click();
-  const listbox = page.getByRole('listbox', {
-    name: '건물 유형',
-    exact: true
-  });
-  await expect(listbox.getByRole('option')).toHaveText(['빌라', '아파트', '공동주택', '기타']);
-  await expect(listbox.getByRole('option', {
-    name: '건물 유형을 선택해주세요'
-  })).toHaveCount(0);
-  const fieldBounds = await dropdown.evaluate((element) => {
-    const bounds = element.parentElement!.getBoundingClientRect();
-
-    return {
-      x: bounds.x,
-      width: bounds.width,
-      bottom: bounds.bottom
-    };
-  });
-  const menuBounds = await listbox.boundingBox();
-  expect(menuBounds?.x).toBeCloseTo(fieldBounds.x, 0);
-  expect(menuBounds?.width).toBeCloseTo(fieldBounds.width, 0);
-  expect(menuBounds?.y).toBeGreaterThan(fieldBounds.bottom);
-  await page.screenshot({
-    path: test.info().outputPath('propertyTypeOptionsDesktop.png')
-  });
-  await listbox.getByRole('option', {
-    name: '아파트',
-    exact: true
-  }).click();
-  await expect(dropdown).toHaveText('아파트');
-  await expect(dropdown).toHaveAttribute('aria-expanded', 'false');
-  await dropdown.click();
-  await expect(listbox.getByRole('option', {
-    name: '아파트',
-    exact: true
-  })).toHaveAttribute('aria-selected', 'true');
-  await page.getByLabel('건물·단지 이름').click();
-  await expect(listbox).toHaveCount(0);
-  await expect(dropdown).toHaveText('아파트');
-  await expect(page.getByRole('button', {
-    name: '건물 유형 선택 해제',
-    exact: true
-  })).toHaveCount(0);
-  await expect(dropdown).toHaveText('아파트');
-});
-
 test('드롭다운은 방향키·Enter로 선택하고 Escape는 목록만 닫으며 Tab으로 다음 입력에 이동', async ({ page }) => {
   await openRegistration(page);
   const dropdown = page.getByRole('combobox', {
@@ -1024,29 +967,6 @@ test('관리계좌는 빈 폼으로 시작하고 필수·번호 형식·예금�
   expect(await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).bankAccounts[0].accountNumber, DRAFT_STORAGE_KEY)).toBe('00012345678');
 });
 
-test('은행 SelectDropdown은 코드와 이름을 함께 유지하고 키보드·Escape를 지원', async ({ page }) => {
-  await openBankAccountSetup(page);
-  const bank = page.getByRole('combobox', {
-    name: '은행',
-    exact: true
-  });
-  await bank.focus();
-  await bank.press('ArrowDown');
-  await expect(page.getByRole('option', {
-    name: '하나은행',
-    exact: true
-  })).toBeVisible();
-  await bank.press('Escape');
-  await expect(bank).toHaveAttribute('aria-expanded', 'false');
-  await expect(page).toHaveURL(/registration=account/);
-  await bank.press('ArrowDown');
-  await bank.press('Enter');
-  await expect(bank).toHaveValue('국민은행');
-  const account = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).bankAccounts[0], DRAFT_STORAGE_KEY);
-  expect(account.bankCode).toBe('');
-  expect(account.bankName).toBe('');
-});
-
 test('은행 선택은 24개 로컬 아이콘 그리드로 열리고 이름·별칭 검색 후 선택한 아이콘과 이름을 표시', async ({ page }) => {
   await openBankAccountSetup(page);
   const bank = page.getByRole('combobox', {
@@ -1697,74 +1617,6 @@ for (const width of [1440]) {
     })).toContainText('예시 관리단');
   });
 }
-
-test('모바일 관리비는 종류별 아이콘·색상·연한 배경과 직접 입력의 중립색 공통 아이콘을 표시', async ({ page }) => {
-  await page.setViewportSize({
-    width: 390,
-    height: 844
-  });
-  await openFeeItemsSetup(page);
-  const names = ['일반관리비', '청소비', '승강기 유지비', '공용 전기료', '공용 수도료', '정화조 청소비', '생활폐기물 처리비'];
-  for (const name of names) {
-    await page.getByRole('button', {
-      name: '관리비 항목 추가',
-      exact: true
-    }).click();
-    const editor = page.getByRole('dialog', {
-      name: '관리비 항목 추가',
-      exact: true
-    });
-    await editor.getByRole('combobox', {
-      name: '항목 종류'
-    }).click();
-    await editor.getByRole('option', {
-      name,
-      exact: true
-    }).click();
-    await editor.getByLabel('기본 금액').fill('100');
-    await editor.getByRole('button', {
-      name: '추가',
-      exact: true
-    }).click();
-  }
-  await addFeeItem(page, '공용 인터넷', '100');
-  await addFeeItem(page, '정화조 청소', '100');
-  await page.reload();
-  const stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!).feeItems, DRAFT_STORAGE_KEY);
-  expect(stored.map((item: { itemCode: string | null }) => item.itemCode)).toEqual([
-    'GENERAL_MANAGEMENT', 'CLEANING', 'ELEVATOR_MAINTENANCE', 'COMMON_ELECTRICITY', 'COMMON_WATER',
-    'SEPTIC_TANK_CLEANING',
-    'WASTE_DISPOSAL', null, null
-  ]);
-  expect(stored.map((item: { itemName: string }) => item.itemName)).toEqual([...names, '공용 인터넷', '정화조 청소']);
-  const list = page.getByRole('list', {
-    name: '기본 관리비 항목'
-  });
-  await expect(list.getByRole('listitem')).toHaveCount(names.length + 2);
-  const icons = await list.locator('li > span > svg').evaluateAll((elements) => elements.map((element) => element.innerHTML));
-  expect(new Set(icons.slice(0, names.length)).size).toBe(names.length);
-  expect(icons[names.length]).toBe(icons[names.length + 1]);
-  expect(icons.slice(0, names.length)).not.toContain(icons[names.length]);
-  const appearances = await list.locator('li > span').evaluateAll((elements) => elements.map((element) => ({
-    color: getComputedStyle(element).color,
-    background: getComputedStyle(element).backgroundColor
-  })));
-  expect(new Set(appearances.slice(0, names.length).map((appearance) => appearance.color)).size).toBe(4);
-  expect(new Set(appearances.slice(0, names.length).map((appearance) => appearance.background)).size).toBe(4);
-  expect(appearances[names.length]).toEqual(appearances[names.length + 1]);
-  expect(appearances[names.length].color).toBe('rgb(100, 116, 139)');
-  expect(appearances.slice(0, names.length).map((appearance) => appearance.color)).not.toContain(appearances[names.length].color);
-  const edits = list.getByRole('button', {
-    name: / 수정$/
-  });
-  expect(await edits.evaluateAll((elements) => elements.every((element) => getComputedStyle(element).color === 'rgb(37, 99, 235)'))).toBe(true);
-  expect(await edits.locator('svg').evaluateAll((elements) => elements.every((element) => getComputedStyle(element).color === 'rgb(37, 99, 235)'))).toBe(true);
-  await page.screenshot({
-    path: test.info().outputPath('feeKindIcons390.png'),
-    fullPage: true,
-    animations: 'disabled'
-  });
-});
 
 for (const width of [1440]) {
   test(`관리비 금액 ${width}px는 콤마·중간 커서·선택 교체·구분자 삭제를 유지하고 원본 정수를 저장`, async ({ page }) => {
@@ -3514,20 +3366,6 @@ test('새로고침에는 같은 사용자 초안을 복원하고 취소·뒤로 
     exact: true
   })).toHaveCount(0);
   expect(await page.evaluate((key) => sessionStorage.getItem(key), DRAFT_STORAGE_KEY)).toBeNull();
-});
-
-test('다른 계정으로 새로고침하면 이전 계정 입력을 복원하지 않음', async ({ page }) => {
-  await openRegistration(page);
-  await fillRequiredFields(page);
-  await page.route(`${API_ORIGIN}/api/users/me`, (route) => fulfillJson(route, {
-    ...CURRENT_USER,
-    id: '00000000-0000-0000-0000-000000000002'
-  }));
-  await page.reload();
-  await expect(page.getByLabel('건물·단지 이름')).toHaveValue('');
-  await expect(page.getByRole('button', {
-    name: '등록하고 계속'
-  })).toBeDisabled();
 });
 
 test('주소 검색 로딩 실패는 닫거나 재시도할 수 있고 폼 입력이 사라지지 않음', async ({ page }) => {

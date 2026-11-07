@@ -34,10 +34,10 @@ export async function getIncomeStatementWorkspace({ propertyId, startMonth, endM
     || !Number.isFinite(Date.parse(value.generatedAt)) || !value.range || !isValidMonthRange(value.range)
     || (startMonth !== undefined && (value.range.startMonth !== startMonth || value.range.endMonth !== endMonth))
     || typeof value.canManage !== 'boolean'
-    || !['SETUP_REQUIRED', 'BEFORE_START', 'READY', 'REVIEW_REQUIRED'].includes(value.completeness)
+    || !['NO_BILLING', 'SETUP_REQUIRED', 'BEFORE_START', 'READY', 'REVIEW_REQUIRED'].includes(value.completeness)
     || !Array.isArray(value.buildings) || !Array.isArray(value.accounts) || !Array.isArray(value.records)
     || !Array.isArray(value.issues) || !Array.isArray(value.expenses) || !Array.isArray(value.revenueItems)) invalid();
-  if (value.completeness !== 'SETUP_REQUIRED' && (!value.configuration || !isValidMonth(value.configuration.startMonth)
+  if (!['NO_BILLING', 'SETUP_REQUIRED'].includes(value.completeness) && (!value.configuration || !isValidMonth(value.configuration.startMonth)
     || !Number.isInteger(value.configuration.fiscalYearStartMonth) || value.configuration.fiscalYearStartMonth < 1
     || value.configuration.fiscalYearStartMonth > 12)) invalid();
   // 표시용 추가 필드가 없는 이전 서버 응답도 읽되, 제공된 값의 형식과 기존 금액·연결 검증은 유지합니다.
@@ -62,14 +62,20 @@ export async function getIncomeStatementWorkspace({ propertyId, startMonth, endM
     || value.expenses.some((row) => !row || !id(row.id) || !id(row.transactionId) || !amount(row.amount)
       || typeof row.name !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)
       || !Number.isInteger(row.revision) || row.revision < 0
-      || (row.accountId !== null && !value.accounts.some((account) => account.id === row.accountId && account.group.endsWith('Expense')))
+      || (row.accountId !== null && !value.accounts.some((account) => account.id === row.accountId
+        && (account.group.endsWith('Expense') || (account.group === 'asset' && account.code === '103'))))
+      || (row.transferPaymentId != null && !id(row.transferPaymentId))
+      || (row.transferCandidates !== undefined && (!Array.isArray(row.transferCandidates)
+        || row.transferCandidates.some((candidate) => !candidate || !id(candidate.paymentId)
+          || typeof candidate.accountName !== 'string' || typeof candidate.name !== 'string'
+          || !/^\d{4}-\d{2}-\d{2}$/.test(candidate.date) || !amount(candidate.amount))))
       || (row.recognitionMonth !== null && !isValidMonth(row.recognitionMonth)))
     || value.revenueItems.some((row) => !row || !id(row.id) || typeof row.name !== 'string' || !amount(row.amount)
       || typeof row.recognized !== 'boolean' || !Number.isInteger(row.revision) || row.revision < 0)) invalid();
   if (new Set(value.records.map((row) => row.id)).size !== value.records.length
     || (value.completeness === 'READY' && value.issues.length)
     || (value.completeness === 'REVIEW_REQUIRED' && !value.issues.length)
-    || (['SETUP_REQUIRED', 'BEFORE_START'].includes(value.completeness) && value.records.length)) invalid();
+    || (['NO_BILLING', 'SETUP_REQUIRED', 'BEFORE_START'].includes(value.completeness) && value.records.length)) invalid();
   if (value.receivables !== undefined && (!Array.isArray(value.receivables) || value.receivables.some((row) =>
     !row || !id(row.id) || !/^1\d{2}$/.test(row.accountCode) || typeof row.name !== 'string'
     || typeof row.counterparty !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)
@@ -79,7 +85,14 @@ export async function getIncomeStatementWorkspace({ propertyId, startMonth, endM
   if (value.otherIncomes !== undefined && (!Array.isArray(value.otherIncomes) || value.otherIncomes.some((row) =>
     !row || !id(row.id) || !id(row.transactionId) || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)
     || typeof row.name !== 'string' || !amount(row.amount)
-    || !value.accounts.some((account) => account.id === row.accountId && account.group === 'otherRevenue')))) invalid();
+    || !value.accounts.some((account) => account.id === row.accountId
+      && (account.group === 'otherRevenue' || (account.group === 'asset' && account.code === '103')))))) invalid();
+  if (value.households !== undefined && (!Array.isArray(value.households) || value.households.some((row) =>
+    !row || !id(row.unitId) || typeof row.label !== 'string' || !amount(row.receivable) || !amount(row.advance)
+    || BigInt(row.receivable) < BigInt(0) || BigInt(row.advance) < BigInt(0)
+    || !value.accounts.some((account) => account.id === row.receivableAccountId && account.code === '102' && account.group === 'asset')
+    || !value.accounts.some((account) => account.id === row.advanceAccountId && account.code === '201' && account.group === 'liability')
+    || typeof row.path !== 'string' || !row.path.startsWith('/banking/monthly/')))) invalid();
   return {
     ...value,
     availableRange: {

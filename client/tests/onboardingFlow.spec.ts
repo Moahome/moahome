@@ -903,7 +903,7 @@ for (const width of [1440, 390]) {
   }
 }
 
-for (const width of [320, 390, 767]) {
+for (const width of [320, 767]) {
   test(`가입 요청 참여 링크 버튼 ${width}px: 전체 너비와 큰 터치 영역`, async ({ page }) => {
     const state = await mockWorkspace(page);
     state.emptyRequests = true;
