@@ -1,6 +1,6 @@
 # 손익계산서 API
 
-상태: 2026-11-04 원천 업무 조회·관리자 분류 저장 구현. 정식 차변/대변 전표·계정별 원장·마감 API는 포함하지 않습니다. 업무 기준은 [회계 도메인 규칙](../domain/domainRules.md#9-회계), 저장·동시성은 [Server 설계](../../server/docs/incomeStatement.md), 화면은 [Client 설계](../../client/docs/incomeStatement.md)를 참조합니다.
+상태: 2026-11-04 원천 업무 조회·관리자 분류 저장 구현. 정식 차변/대변 전표·마감 API는 포함하지 않습니다. 수익·비용의 원천별 내역 조회는 [계정별 원장 API](accountLedgerApi.md)를 참조합니다. 업무 기준은 [회계 도메인 규칙](../domain/domainRules.md#9-회계), 저장·동시성은 [Server 설계](../../server/docs/incomeStatement.md), 화면은 [Client 설계](../../client/docs/incomeStatement.md)를 참조합니다.
 
 ## 인증과 공통 형식
 
@@ -26,7 +26,7 @@
 | `canManage` | 현재 사용자의 분류 저장 권한 |
 | `completeness` | 아래 상태 |
 | `buildings` | 조회 가능한 `{id,name,deleted}`; 과거 귀속 확인에 필요한 삭제 동 포함. deleted는 삭제 여부이며 현재 선택 목록과 구분 |
-| `accounts` | `{id,code,name,group,systemKey}`; 코드 오름차순. group은 `asset/liability/operatingRevenue/operatingExpense/otherRevenue/otherExpense`이며 자산·부채 과목은 손익 합계에서 제외 |
+| `accounts` | `{id,code,name,group,systemKey,active}`; 코드 오름차순. group은 `asset/liability/operatingRevenue/operatingExpense/otherRevenue/otherExpense`이며 자산·부채 과목은 손익 합계에서 제외 |
 | `records` | 반영 가능한 `{id,accountId,accountName,group,month,buildingId,amount}`; 관리대상 전체 귀속은 buildingId=null |
 | `issues` | 미반영 `{id,code,label,sourceName,sourceContext,amount,path,expenseId,revenueItemId}`; label은 확인 사유, sourceName은 원본 이름, sourceContext는 원본 식별 설명. 분류 가능한 원천 ID 외 식별자 필드는 null |
 | `expenses` | 유효 지출의 `{id,transactionId,date,name,amount,accountId,recognitionMonth,revision,transferCandidates,transferPaymentId}` |
@@ -59,7 +59,7 @@
 {"name":"청소비","group":"OPERATING_EXPENSE"}
 ```
 
-`name` 1~100자, `group`은 `OPERATING_EXPENSE/OTHER_EXPENSE`, 선택 `code`는 `800~899`의 세 자리 문자열입니다. 코드를 생략하면 추가 과목 범위 `814~899`의 빈 코드를 배정하며 중복은 409입니다. 성공 200 `{"id":"uuid"}`. 같은 관리대상·분류·이름은 동일 ID를 반환합니다. 현재 API는 과목 변경·삭제·전체 계정과목 설정 기능을 제공하지 않습니다.
+`name` 1~100자, `group`은 `OPERATING_EXPENSE/OTHER_EXPENSE`, 비용 선택 `code`는 `800~899`의 세 자리 문자열입니다. 전체 유형 추가는 계정과목 API 계약을 따릅니다. 코드를 생략하면 추가 과목 범위 `814~899`의 빈 코드를 배정하며 중복은 409입니다. 성공 200 `{"id":"uuid"}`. 같은 관리대상·분류·이름은 동일 ID를 반환합니다. 과목 추가는 [계정과목 API](accountingAccountsApi.md)의 같은 경로를 사용하며 과목 수정·사용 중지·삭제도 해당 계약을 따릅니다.
 
 ## 지출 계정과목 매칭
 
@@ -93,3 +93,5 @@
 | 500 | `ACCOUNTING_REQUEST_FAILED`: 처리 실패 |
 
 오류 본문은 `{code,message}`이며 SQL·사유 원문·내부 예외를 노출하지 않습니다. 충돌·저장 실패 시 Client는 입력을 유지하고 저장 성공 후 해당 관리대상의 손익 자료를 다시 조회합니다.
+
+202 미지급 등록의 비용은 발생일에 인식하고 연결한 기존 지급 지출은 비용에 다시 더하지 않습니다. 지급·해제·취소 계약은 [미지급 API](payableApi.md)를 따릅니다.
