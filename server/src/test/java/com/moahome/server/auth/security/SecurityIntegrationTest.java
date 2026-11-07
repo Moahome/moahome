@@ -1,7 +1,10 @@
 package com.moahome.server.auth.security;
 
+import com.moahome.server.expense.service.PayableService;
+import com.moahome.server.expense.service.PayableSourceService;
 import com.moahome.server.banking.service.BankTransferPostingService;
 import com.moahome.server.accounting.service.AccountingWriteService;
+import com.moahome.server.accounting.service.AccountingAccountSettingsService;
 import com.moahome.server.accounting.service.AccountingTransferService;
 import com.moahome.server.accounting.service.IncomeStatementService;
 import com.moahome.server.billing.service.BillingIncomeSourceService;
@@ -160,10 +163,18 @@ class SecurityIntegrationTest {
 	private RedisAuthSessionRepository sessions;
 
 	@MockitoBean
+	private PayableService payables;
+	@MockitoBean
+	private PayableSourceService payableSources;
+
+	@MockitoBean
 	BankTransferPostingService bankTransferPostings;
 
 	@MockitoBean
 	private AccountingWriteService accountingWrites;
+
+	@MockitoBean
+	private AccountingAccountSettingsService accountingAccounts;
 
 	@MockitoBean
 	private AccountingTransferService accountingTransfers;

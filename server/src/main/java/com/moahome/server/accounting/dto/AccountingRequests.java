@@ -19,7 +19,18 @@ public final class AccountingRequests {
 	}
 
 	public record CreateAccount(@NotBlank @Size(max = 100) String name, @NotNull IncomeGroup group,
-		@Pattern(regexp = "8[0-9]{2}") String code) {
+		@Pattern(regexp = "[12489][0-9]{2}") String code) {
+	}
+
+	public record EditAccount(@NotBlank @Size(max = 100) String name, @NotNull IncomeGroup group,
+		@NotBlank @Pattern(regexp = "[12489][0-9]{2}") String code,
+		@NotNull @Min(0) Integer expectedRevision) {
+	}
+
+	public record AccountStatus(@NotNull Boolean active, @NotNull @Min(0) Integer expectedRevision) {
+	}
+
+	public record DeleteAccount(@NotNull @Min(0) Integer expectedRevision) {
 	}
 
 	public record ReviewExpense(@NotNull UUID accountId,

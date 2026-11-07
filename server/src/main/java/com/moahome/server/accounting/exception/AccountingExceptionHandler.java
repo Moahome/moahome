@@ -11,11 +11,14 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import com.moahome.server.accounting.controller.IncomeStatementController;
+import com.moahome.server.accounting.controller.AccountLedgerController;
 import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.auth.security.AuthErrorHandler.ErrorResponse;
 import com.moahome.server.user.exception.UserException;
+import com.moahome.server.expense.controller.PayableController;
+import com.moahome.server.accounting.controller.AccountingAccountController;
 
-@RestControllerAdvice(assignableTypes = IncomeStatementController.class)
+@RestControllerAdvice(assignableTypes = {IncomeStatementController.class, AccountLedgerController.class, PayableController.class, AccountingAccountController.class})
 public class AccountingExceptionHandler {
 	@ExceptionHandler(AccountingException.class)
 	public ResponseEntity<ErrorResponse> accounting(AccountingException exception) {
@@ -24,6 +27,20 @@ public class AccountingExceptionHandler {
 		if (code.endsWith("NOT_FOUND"))
 			status = HttpStatus.NOT_FOUND;
 		String message = switch (code) {
+			case "ACCOUNTING_ACCOUNT_PROTECTED" -> "기본 제공 과목의 보호된 항목은 변경할 수 없습니다.";
+			case "ACCOUNTING_ACCOUNT_USED" -> "사용한 과목은 코드·유형·손익 분류를 변경하거나 삭제할 수 없습니다.";
+			case "ACCOUNTING_ACCOUNT_CONFLICT" -> "다른 변경이 저장됐습니다. 최신 과목 정보를 다시 확인해주세요.";
+			case "ACCOUNTING_CODE_CONFLICT" -> "같은 코드 또는 같은 분류의 과목명이 이미 있습니다.";
+			case "ACCOUNTING_CODE_EXHAUSTED" -> "이 유형에 배정할 수 있는 코드가 없습니다.";
+			case "ACCOUNTING_ACCOUNT_NOT_FOUND" -> "계정과목을 찾을 수 없습니다.";
+			case "INVALID_ACCOUNTING_ACCOUNT" -> "사용 가능한 과목과 유형에 맞는 코드를 확인해주세요.";
+			case "INVALID_PAYABLE_REQUEST", "INVALID_PAYABLE_AMOUNT" -> "발생일과 1원 이상의 미지급 금액을 확인해주세요.";
+			case "INVALID_PAYABLE_PAYMENT" -> "같은 비용 과목·동의 확정 출금을 선택해주세요. 이미 연결했거나 발생일 이전의 출금은 사용할 수 없습니다.";
+			case "PAYABLE_PAYMENT_EXCEEDS_REMAINING" -> "출금액이 남은 미지급 금액을 초과합니다.";
+			case "PAYABLE_HAS_PAYMENTS" -> "지급 연결을 먼저 해제한 뒤 등록을 취소해주세요.";
+			case "PAYABLE_CANCELED" -> "취소된 미지급금에는 지급을 연결할 수 없습니다.";
+			case "PAYABLE_REQUEST_CONFLICT" -> "같은 요청의 등록 내용이 다릅니다. 최신 내역을 확인해주세요.";
+			case "PAYABLE_NOT_FOUND" -> "미지급 내역을 찾을 수 없습니다.";
 			case "ACCOUNTING_SETUP_REQUIRED" -> "회계 시작 기준을 먼저 설정해주세요.";
 			case "ACCOUNTING_BILLING_REQUIRED" -> "첫 관리비 부과 이후 자동 연결됩니다.";
 			case "INVALID_ACCOUNTING_TRANSFER" -> "같은 날짜·금액과 동별 배분의 다른 통장 입금을 선택해주세요.";

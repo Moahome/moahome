@@ -173,7 +173,8 @@ public class BankingService {
 		});
 		Map<UUID, BankTransaction> byId = originals.stream().collect(Collectors.toMap(bankTransaction -> bankTransaction.getId(), t -> t));
 		Map<UUID, AccountingAccount> selectedAccounts = expenseAccounts.latest(property);
-		List<AccountingAccount> sourceAccounts = accountingAccounts.findByPropertyIdOrderByCreatedAtAscIdAsc(property);
+		List<AccountingAccount> sourceAccounts = AccountingAccount.withDefaults(property,
+		    accountingAccounts.findByPropertyIdOrderByCreatedAtAscIdAsc(property), user, OffsetDateTime.now(clock));
 		for (var e : expenses.findByPropertyIdOrderByConfirmedAtDesc(property)) {
 			List<BankingResponse.Allocation> shares = parts.getOrDefault(e.getId(), List.of()).stream()
 			    .map(a -> new BankingResponse.Allocation(a.getBuildingId(),
@@ -182,14 +183,14 @@ public class BankingService {
 			    .toList();
 			String category = security.decrypt(e.getCategoryEncrypted());
 			var accountingAccount = selectedAccounts.get(e.getId());
-			if (accountingAccount == null && e.getAccountingAccountId() != null) {
+			if (accountingAccount == null && !selectedAccounts.containsKey(e.getId()) && e.getAccountingAccountId() != null) {
 				accountingAccount = sourceAccounts.stream().filter(value -> value.getId().equals(e.getAccountingAccountId())).findFirst().orElseThrow();
 			}
-			if (accountingAccount == null) accountingAccount = ExpenseAccountService.match(category, sourceAccounts);
+			if (accountingAccount == null && !selectedAccounts.containsKey(e.getId())) accountingAccount = ExpenseAccountService.match(category, sourceAccounts);
 			var result = new BankingResponse.Expense(e.getId(), category,
 			    security.decrypt(e.getMemoEncrypted()), e.getAllocationMode(), e.isSaveAsRule(), shares,
 			    accountingAccount == null ? null : accountingAccount.getCode(),
-			    accountingAccount == null ? null : accountingAccount.getName());
+			    accountingAccount == null ? null : accountingAccount.getName(), true);
 			if ("MANUAL".equals(e.getSourceType())) {
 				manualRows.add(new BankingResponse.Transaction(e.getId(), e.getBankAccountId(), e.getExpenseDate(),
 				    null, result.category(), result.note(), e.getTotalAmount().toPlainString(), null, "EXPENSE", "",

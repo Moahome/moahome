@@ -1,6 +1,12 @@
 package com.moahome.server.payment.repo;
 
 import com.moahome.server.banking.service.BankTransferPostingService;
+import com.moahome.server.expense.service.PayableService;
+import com.moahome.server.expense.service.PayableSourceService;
+import com.moahome.server.expense.dto.PayableRequests;
+import com.moahome.server.accounting.service.AccountLedgerService;
+import com.moahome.server.accounting.service.AccountLedgerBankService;
+import com.moahome.server.accounting.service.AccountLedgerAssetService;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -105,7 +111,7 @@ import static org.assertj.core.api.Assertions.*;
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({BankBillingStartService.class, InitialBalanceCorrections.class, BankBalanceCheckService.class,
+@Import({AccountLedgerBankService.class, PayableService.class, PayableSourceService.class, AccountLedgerService.class, AccountLedgerAssetService.class, BankBillingStartService.class, InitialBalanceCorrections.class, BankBalanceCheckService.class,
         InvitationCredentialMigrationCallback.class,
         IncomeAllocationService.class,
         BankAccountService.class,
@@ -137,6 +143,10 @@ class PaymentPersistenceTest {
 	@Autowired
 	StringRedisTemplate redis;
 
+	@Autowired
+	PayableService payables;
+	@Autowired
+	AccountLedgerService accountLedger;
 	@Autowired
 	PaymentService service;
 
@@ -3251,6 +3261,95 @@ class PaymentPersistenceTest {
 		        account));
 	}
 
+	/** 10만원 미지급 발생 후 4만·6만원 지급을 연결해도 비용은 한 번, 현금은 실제 출금만 반영합니다. */
+	@Test
+	void payablePartialPaymentsRecognizeCostOnceAndKeepCashAndCancellationAudit() {
+		UUID bank = bankAccountSettings.read(user, property).accountId();
+		seedAccountOpening(bank, "200000");
+		var workspace = payables.workspace(user, property);
+		UUID cost = workspace.accounts().stream().filter(value -> value.code().equals("802")).findFirst().orElseThrow().id();
+		UUID payable = UUID.randomUUID();
+		var request = new PayableRequests.Create(payable, LocalDate.of(2026, 10, 1), "10월 청소 용역비", "청소 업체", "청구서 확인",
+			cost, null, "100000");
+		payables.create(user, property, request);
+		payables.create(user, property, request);
+		assertThat(count("payable_expenses")).isEqualTo(1);
+		assertThat(count("expenses")).isZero();
+		assertThat(payableCost()).isEqualByComparingTo("100000");
+		assertThat(cashBalances.workspace(user, property, "2026-10", bank).accounts().getFirst().calculatedBalance()).isEqualTo("200000");
+		UUID firstExpense = UUID.randomUUID();
+		banking.manualExpense(user, property, new BankingRequests.ManualExpense(firstExpense, bank, LocalDate.of(2026, 10, 10),
+			"40000", "청소비", "실제 1차 지급", "PROPERTY", List.of(), "802"));
+		UUID firstLink = UUID.randomUUID();
+		var payment = new PayableRequests.Settle(firstLink, firstExpense);
+		payables.settle(user, property, payable, payment);
+		payables.settle(user, property, payable, payment);
+		assertThat(count("payable_settlements")).isEqualTo(1);
+		assertThat(payables.workspace(user, property).items().getFirst().remaining()).isEqualTo("60000");
+		assertThat(payableCost()).isEqualByComparingTo("100000");
+		assertThatThrownBy(() -> jdbc.update("update expenses set deleted_at=now(),deleted_by=? where id=?", user, firstExpense))
+			.isInstanceOf(DataAccessException.class);
+		UUID secondExpense = UUID.randomUUID();
+		banking.manualExpense(user, property, new BankingRequests.ManualExpense(secondExpense, bank, LocalDate.of(2026, 10, 15),
+			"60000", "청소비", "실제 2차 지급", "PROPERTY", List.of(), "802"));
+		UUID secondLink = UUID.randomUUID();
+		payables.settle(user, property, payable, new PayableRequests.Settle(secondLink, secondExpense));
+		assertThat(payables.workspace(user, property).items().getFirst().remaining()).isEqualTo("0");
+		assertThat(payableCost()).isEqualByComparingTo("100000");
+		assertThat(count("expenses")).isEqualTo(2);
+		assertThat(count("bank_transactions")).isZero();
+		assertThat(cashBalances.workspace(user, property, "2026-10", bank).accounts().getFirst().calculatedBalance()).isEqualTo("100000");
+		UUID cashAccount = incomeStatements.get(user, property, "2026-10", "2026-10", null).accounts().stream()
+			.filter(value -> "BANK".equals(value.systemKey())).findFirst().orElseThrow().id();
+		var bankLedger = accountLedger.get(user, property, "2026-10", "2026-10", null, cashAccount);
+		assertThat(bankLedger.bankBalances()).singleElement().satisfies(value -> {
+			assertThat(value.openingBalance()).isEqualTo("200000");
+			assertThat(value.income()).isEqualTo("0");
+			assertThat(value.expense()).isEqualTo("100000");
+			assertThat(value.closingBalance()).isEqualTo("100000");
+		});
+		assertThat(bankLedger.rows()).extracting(row -> row.cashBalance().ledgerBalance()).containsExactly("100000", "160000");
+		UUID payableAccount = jdbc.queryForObject("select payable_account_id from payable_expenses where id=?", UUID.class, payable);
+		var ledger = accountLedger.get(user, property, "2026-10", "2026-10", null, payableAccount);
+		assertThat(ledger.supported()).isTrue();
+		assertThat(ledger.rows()).extracting(row -> row.entry().amount()).containsExactly("-60000", "-40000", "100000");
+		assertThat(ledger.rows()).extracting(row -> row.cumulativeAmount()).containsExactly("0", "60000", "100000");
+		assertThatThrownBy(() -> payables.cancel(user, property, payable)).isInstanceOf(AccountingException.class);
+		payables.cancelPayment(user, property, payable, firstLink);
+		assertThat(payables.workspace(user, property).items().getFirst().remaining()).isEqualTo("40000");
+		assertThat(payableCost()).isEqualByComparingTo("140000");
+		payables.cancelPayment(user, property, payable, secondLink);
+		payables.cancel(user, property, payable);
+		assertThat(payables.workspace(user, property).items().getFirst().status()).isEqualTo("CANCELED");
+		assertThat(payables.workspace(user, property).items().getFirst().remaining()).isEqualTo("0");
+		assertThat(payableCost()).isEqualByComparingTo("100000");
+		assertThat(accountLedger.get(user, property, "2026-10", "2026-10", null, payableAccount).rows()).isEmpty();
+	}
+
+	/** 잔액 초과·이전 날짜·다른 과목의 지급은 원본과 연결을 바꾸지 않고 거부합니다. */
+	@Test
+	void payableRejectsOverpaymentAndChangedReplayWithoutPartialWrites() {
+		UUID bank = bankAccountSettings.read(user, property).accountId();
+		UUID cost = payables.workspace(user, property).accounts().stream().filter(value -> value.code().equals("802")).findFirst().orElseThrow().id();
+		UUID payable = UUID.randomUUID();
+		payables.create(user, property, new PayableRequests.Create(payable, LocalDate.of(2026, 10, 10), "청소비", "업체", null, cost, null, "10000"));
+		UUID expense = UUID.randomUUID();
+		banking.manualExpense(user, property, new BankingRequests.ManualExpense(expense, bank, LocalDate.of(2026, 10, 15),
+			"20000", "청소비", null, "PROPERTY", List.of(), "802"));
+		assertThatThrownBy(() -> payables.settle(user, property, payable, new PayableRequests.Settle(UUID.randomUUID(), expense)))
+			.isInstanceOf(AccountingException.class).hasMessage("PAYABLE_PAYMENT_EXCEEDS_REMAINING");
+		assertThatThrownBy(() -> payables.create(user, property, new PayableRequests.Create(payable, LocalDate.of(2026, 10, 10),
+			"청소비", "다른 업체", null, cost, null, "10000"))).isInstanceOf(AccountingException.class).hasMessage("PAYABLE_REQUEST_CONFLICT");
+		assertThat(count("payable_settlements")).isZero();
+		assertThat(payables.workspace(user, property).items().getFirst().remaining()).isEqualTo("10000");
+	}
+
+	private BigDecimal payableCost() {
+		return incomeStatements.get(user, property, "2026-10", "2026-10", null).records().stream()
+			.filter(value -> value.group().endsWith("Expense")).map(value -> new BigDecimal(value.amount()))
+			.reduce(BigDecimal.ZERO, BigDecimal::add);
+	}
+
 	@TestConfiguration
 	static class TestBeans {
 		@Bean
@@ -3897,7 +3996,9 @@ class PaymentPersistenceTest {
 			String before = jdbc.queryForObject("select to_jsonb(p)::text from " + schema + ".bank_transfer_postings p where id=?", String.class, transfer);
 			var sources = jdbc.queryForList("select * from " + schema + ".bank_transactions order by id");
 			Flyway next = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "").schemas(schema).defaultSchema(schema).load();
-			assertThat(next.migrate().migrationsExecuted).isEqualTo(1);
+			// 수동 이체 확장과 후속 미지급 저장을 적용해도 기존 이체·은행 원본을 보존해야 합니다.
+			int pendingMigrations = next.info().pending().length;
+				assertThat(next.migrate().migrationsExecuted).isEqualTo(pendingMigrations);
 			next.validate();
 			assertThat(jdbc.queryForObject("select (to_jsonb(p)-'manual_outgoing_account_id'-'manual_date'-'manual_amount'-'manual_memo_encrypted'-'deleted_at'-'deleted_by')::text from "
 				+ schema + ".bank_transfer_postings p where id=?", String.class, transfer)).isEqualTo(before);

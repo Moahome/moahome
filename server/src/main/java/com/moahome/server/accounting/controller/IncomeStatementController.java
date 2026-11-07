@@ -1,6 +1,5 @@
 package com.moahome.server.accounting.controller;
 
-import java.util.Map;
 import java.util.UUID;
 import jakarta.validation.Valid;
 import org.springframework.http.CacheControl;
@@ -48,13 +47,6 @@ public class IncomeStatementController {
 		@Valid @RequestBody AccountingRequests.Configure request) {
 		writes.configure(UUID.fromString(user.userId()), propertyId, request);
 		return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
-	}
-
-	@PostMapping("/accounts")
-	public ResponseEntity<Map<String, UUID>> createAccount(@AuthenticationPrincipal AuthPrincipal user,
-		@PathVariable UUID propertyId, @Valid @RequestBody AccountingRequests.CreateAccount request) {
-		return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Map.of("id",
-			writes.createAccount(UUID.fromString(user.userId()), propertyId, request)));
 	}
 
 	@PostMapping("/expenses/{expenseId}/reviews")

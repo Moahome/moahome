@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import com.moahome.server.expense.service.PayableSourceService;
 import com.moahome.server.accounting.domain.AccountingAccount;
 import com.moahome.server.accounting.domain.AccountingProfile;
 import com.moahome.server.accounting.domain.DefaultAccount;
@@ -65,7 +66,7 @@ class IncomeStatementServiceTest {
 	private final PaymentService payments = mock(PaymentService.class);
 	private final AccountingTransferService accountingTransfers = mock(AccountingTransferService.class);
 	private final IncomeStatementService service = new IncomeStatementService(access, properties, buildings, profiles,
-		accounts, reviews, revenues, billing, banking, balances, clock, accountingTransfers, payments);
+		accounts, reviews, revenues, billing, banking, balances, clock, accountingTransfers, payments, mock(PayableSourceService.class));
 	private final AccountingAccount revenue = AccountingAccount.create(propertyId, "401", "관리비수입",
 		IncomeGroup.OPERATING_REVENUE, "MANAGEMENT_REVENUE", actor, at);
 	private final AccountingAccount cost = AccountingAccount.create(propertyId, "802", "청소비",
@@ -276,6 +277,9 @@ class IncomeStatementServiceTest {
 			assertThat(value.accountId()).isEqualTo(otherIncome.getId());
 			assertThat(value.group()).isEqualTo("otherRevenue");
 			assertThat(value.amount()).isEqualTo("218");
+			assertThat(value.source().kind()).isEqualTo("OTHER_INCOME");
+			assertThat(value.source().id()).isEqualTo(paymentId);
+			assertThat(value.source().path()).isEqualTo("/banking/receipts/" + paymentId);
 		});
 		assertThat(result.otherIncomes().getFirst().id()).isEqualTo(paymentId);
 	}
@@ -313,6 +317,9 @@ class IncomeStatementServiceTest {
 		assertThat(result.records()).singleElement().satisfies(record -> {
 			assertThat(record.month()).isEqualTo("2026-10");
 			assertThat(record.amount()).isEqualTo("100");
+			assertThat(record.source().kind()).isEqualTo("EXPENSE");
+			assertThat(record.source().id()).isEqualTo(expenseId);
+			assertThat(record.source().date()).isEqualTo(LocalDate.of(2026, 10, 12));
 		});
 		verify(reviews, never()).save(any());
 	}
@@ -351,12 +358,18 @@ class IncomeStatementServiceTest {
 
 	@Test
 	void automaticallyRecognizesStandardManagementChargesWithoutOpeningClassification() {
-		when(billing.get(propertyId)).thenReturn(List.of(new BillingIncomeSource(UUID.randomUUID(), UUID.randomUUID(),
+		UUID chargeId = UUID.randomUUID(), unitId = UUID.randomUUID();
+		when(billing.get(propertyId)).thenReturn(List.of(new BillingIncomeSource(chargeId, unitId,
 			"2026-10", "", "101", null, new BigDecimal("3000000"), List.of(new BillingIncomeSource.Item(
 				UUID.randomUUID(), itemId, "일반관리비", FeeItemCode.GENERAL_MANAGEMENT, new BigDecimal("3000000"), null)))));
 		var result = service.get(actor, propertyId, "2026-10", "2026-10", null);
 		assertThat(result.records()).hasSize(1);
 		assertThat(result.records().getFirst().accountId()).isEqualTo(revenue.getId());
+		assertThat(result.records().getFirst().source().kind()).isEqualTo("CHARGE");
+		assertThat(result.records().getFirst().source().id()).isEqualTo(chargeId);
+		assertThat(result.records().getFirst().source().date()).isEqualTo(LocalDate.of(2026, 10, 1));
+		assertThat(result.records().getFirst().source().path())
+			.isEqualTo("/banking/monthly/2026-10/" + unitId + "?month=2026-10");
 		assertThat(result.revenueItems().getFirst().recognized()).isTrue();
 		assertThat(result.issues()).isEmpty();
 	}

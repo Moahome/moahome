@@ -179,6 +179,16 @@ public class PaymentService {
 		return ledger(user, property);
 	}
 
+	/** 과거 입금의 동 귀속은 현재 세대 위치로 추측하지 않고 수납에 저장된 현금 귀속만 제공합니다. */
+	public Map<UUID, UUID> cashBuildings(UUID user, UUID property) {
+		requireManagementAccess(user, property);
+		Map<UUID, UUID> result = new HashMap<>();
+		payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property).stream()
+			.filter(payment -> payment.getDeletedAt() == null && payment.getCashBuildingId() != null)
+			.forEach(payment -> result.put(payment.getId(), payment.getCashBuildingId()));
+		return Map.copyOf(result);
+	}
+
 	private PaymentResponse.Ledger ledger(UUID user, UUID property) {
 		List<ResidentItem> residentRows = residents.list(user, property).residents();
 		Map<UUID, ResidentItem> reps = residentRows.stream().filter(r -> r.representative() && r.unitId() != null)

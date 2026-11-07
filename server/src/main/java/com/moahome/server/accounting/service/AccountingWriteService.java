@@ -6,7 +6,6 @@ import java.time.YearMonth;
 import java.util.UUID;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.stream.IntStream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.moahome.server.accounting.domain.AccountingAccount;
@@ -91,36 +90,6 @@ public class AccountingWriteService {
 			.filter(value -> current.stream().noneMatch(account -> account.getId().equals(value.getId()))).toList());
 	}
 
-	/** 비용 과목은 관리자가 명시하고 같은 분류·명칭의 재요청은 기존 ID를 반환합니다. */
-	public UUID createAccount(UUID actor, UUID property, AccountingRequests.CreateAccount request) {
-		requireAdminAndLock(actor, property);
-		ensureConfigured(actor, property);
-		if (request.group() == null || !request.group().isExpense())
-			throw new AccountingException("INVALID_ACCOUNTING_ACCOUNT");
-		String name = TextValues.required(request.name(), 100);
-		List<AccountingAccount> current = accounts.findByPropertyIdOrderByCreatedAtAscIdAsc(property);
-		AccountingAccount existing = current.stream()
-			.filter(account -> account.getReportGroup() == request.group() && account.getName().equals(name))
-			.findFirst().orElse(null);
-		if (existing != null) {
-			if (request.code() != null && !request.code().equals(existing.getCode()))
-				throw new AccountingException("ACCOUNTING_CODE_CONFLICT");
-			return existing.getId();
-		}
-		// 사용자 지정 보험료 812·잡비 813까지 보존하고 추가 과목은 814부터 빈 코드를 배정합니다.
-		String code = request.code();
-		if (code == null) {
-			code = IntStream.rangeClosed(814, 899).mapToObj(String::valueOf)
-				.filter(value -> current.stream().noneMatch(account -> value.equals(account.getCode())))
-				.findFirst().orElseThrow(() -> new AccountingException("ACCOUNTING_CODE_EXHAUSTED"));
-		}
-		String selectedCode = code;
-		if (!request.group().acceptsCode(code) || current.stream().anyMatch(account -> selectedCode.equals(account.getCode())))
-			throw new AccountingException("ACCOUNTING_CODE_CONFLICT");
-		return accounts.saveAndFlush(AccountingAccount.create(property, code, name, request.group(), null,
-			actor, OffsetDateTime.now(clock))).getId();
-	}
-
 	/** 확인 저장과 원천 변경은 같은 관리대상 잠금을 사용하며 정정은 기존 이력 대신 새 버전을 추가합니다. */
 	public void reviewExpense(UUID actor, UUID property, UUID expenseId, AccountingRequests.ReviewExpense request) {
 		requireAdminAndLock(actor, property);
@@ -160,6 +129,9 @@ public class AccountingWriteService {
 				&& value.getPaymentId().equals(request.counterpartPaymentId())))
 			&& actor.equals(previous.getConfirmedBy()) && reason.equals(security.decrypt(previous.getReasonEncrypted())))
 			return;
+		// 중지 전 성공한 동일 요청의 재전송은 위에서 성공시키되 새로운 연결은 차단합니다.
+		if (!account.isSelectable())
+			throw new AccountingException("INVALID_ACCOUNTING_ACCOUNT");
 		int revision = previous == null ? 0 : previous.getRevision();
 		if (revision != request.expectedRevision())
 			throw new AccountingException("ACCOUNTING_REVIEW_CONFLICT");

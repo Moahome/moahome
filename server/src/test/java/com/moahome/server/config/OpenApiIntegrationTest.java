@@ -1,5 +1,8 @@
 package com.moahome.server.config;
 
+import com.moahome.server.expense.service.PayableService;
+import com.moahome.server.expense.service.PayableSourceService;
+import com.moahome.server.accounting.service.AccountingAccountSettingsService;
 import com.moahome.server.banking.service.BankTransferPostingService;
 import com.moahome.server.accounting.service.AccountingWriteService;
 import com.moahome.server.accounting.service.AccountingTransferService;
@@ -86,10 +89,18 @@ class OpenApiIntegrationTest {
 	private ObjectMapper mapper;
 
 	@MockitoBean
+	private PayableService payables;
+	@MockitoBean
+	private PayableSourceService payableSources;
+
+	@MockitoBean
 	BankTransferPostingService bankTransferPostings;
 
 	@MockitoBean
 	private AccountingWriteService accountingWrites;
+
+	@MockitoBean
+	private AccountingAccountSettingsService accountingAccounts;
 
 	@MockitoBean
 	private AccountingTransferService accountingTransfers;
@@ -283,7 +294,7 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(
 		    mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(119);
+		assertThat(document.path("paths").properties()).hasSize(127);
 		assertThat(document.path("paths").path("/api/property-registrations/resident-import/preview").at("/post/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/residents/deleted").at("/get/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/banking/transfers/manual")
@@ -294,6 +305,12 @@ class OpenApiIntegrationTest {
 		    .at("/post/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/accounting/income-statement")
 			.at("/get/security/0/bearerAuth").isArray()).isTrue();
+		assertThat(document.path("paths").path("/api/properties/{propertyId}/accounting/ledger")
+			.at("/get/security/0/bearerAuth").isArray()).isTrue();
+		assertThat(document.at("/components/schemas/AccountLedgerRow/properties/entry/$ref").asString())
+			.isEqualTo("#/components/schemas/IncomeStatementEntry");
+		assertThat(document.at("/components/schemas/IncomeStatementEntry/properties/source/$ref").asString())
+			.isEqualTo("#/components/schemas/AccountingSource");
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/dashboard")
 			.at("/get/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.at("/paths/~1api~1properties~1{propertyId}~1banking~1balances~1initial-billing-impact/get").isMissingNode()).isFalse();
