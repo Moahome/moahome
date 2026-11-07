@@ -47,7 +47,8 @@ public class ExpenseAccountingReview {
 	/** 출금 원본은 바꾸지 않고 확인한 과목·귀속 월과 정정 사유를 매 버전 추가해 보존합니다. */
 	public static ExpenseAccountingReview create(UUID property, UUID expense, AccountingAccount account,
 		YearMonth month, int revision, String encryptedReason, UUID actor, OffsetDateTime at) {
-		if (!property.equals(account.getPropertyId()) || !account.getReportGroup().isExpense() || revision < 1)
+		if (!property.equals(account.getPropertyId())
+			|| (!account.getReportGroup().isExpense() && !account.isBankTransfer()) || revision < 1)
 			throw new IllegalArgumentException("Invalid expense review");
 		ExpenseAccountingReview review = new ExpenseAccountingReview();
 		review.id = UUID.randomUUID();

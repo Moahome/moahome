@@ -108,7 +108,7 @@ Expense는 `{ category, note?, mode, saveAsRule, allocations }`, mode는 `EQUAL 
 
 ### 통장 거래·수동 수납 혼합 선택 삭제 (2026-10-18)
 
-사용자 요청으로 기존 `/transactions/delete`의 요청을 `{transactionIds: UUID[], paymentIds?: UUID[]}`로 확장했습니다. 은행 원본 ID는 최대 5,000개, 은행에 연결되지 않은 MANUAL 수납 ID는 최대 1,000개이며 한쪽 배열은 비워도 되지만 전체 빈 선택은 거부합니다. 이전 transactionIds만 보내는 요청도 유지합니다. 소속·수동 출처·은행 미연결·삭제 가능 상태를 검증하고 같은 관리대상 잠금·트랜잭션에서 모두 처리하므로 하나라도 실패하면 전체 롤백합니다.
+사용자 요청으로 기존 `/transactions/delete`의 요청을 `{transactionIds: UUID[], paymentIds?: UUID[], manualExpenseIds?: UUID[]}`로 확장했습니다. 은행 원본 ID는 최대 5,000개, 은행에 연결되지 않은 MANUAL 수납 ID와 수동 지출 ID는 각각 최대 1,000개이며 한쪽 배열은 비워도 되지만 전체 빈 선택은 거부합니다. 이전 transactionIds만 보내는 요청도 유지합니다. 소속·수동 출처·은행 미연결·삭제 가능 상태를 검증하고 같은 관리대상 잠금·트랜잭션에서 모두 처리하므로 하나라도 실패하면 전체 롤백합니다.
 
 수동 PENDING·ON_HOLD·CONFIRMED·CANCELED를 모두 선택 삭제할 수 있습니다. 확정 수동 수납은 별도 선행 취소 없이 서버가 같은 트랜잭션에서 수납·충당을 취소한 뒤 소프트 삭제하고 누적 충당·선입금을 다시 계산합니다. 취소 상태·사유·충당·감사 이력은 보존하고 삭제 이벤트는 같은 선택 재시도에 한 번만 남깁니다. 은행 취소 이력을 임의의 수동 ID로 삭제하거나 다른 관리대상 수납을 삭제할 수 없습니다. 은행 원본 삭제의 기존 취소·재가져오기 정책은 유지합니다.
 
@@ -324,3 +324,10 @@ Workspace는 `expenseAccounts: [{code,name}]`를 코드순으로 반환합니다
 ### 업로드 세대 검색 정보 (2026-11-06)
 
 관리자용 Workspace의 `units`는 `{id,label,residentNames}`를 반환합니다. 기존 수납 원장의 선택 가능한 세대·현재 소속 주민 이름을 그대로 전달하며 별도 주민 검색 API나 이름 기반의 확정 정책을 추가하지 않습니다. Client는 동·호수·대표 및 가족 이름으로 후보를 검색하고 실제 세대 UUID만 제출합니다.
+
+
+### 취소 이체 묶음 선택과 수동 지출 삭제 (2026-11-07)
+
+Workspace는 `deletionGroups: [{id,transactionIds: UUID[2],requiresCancellation:boolean}]`를 반환합니다. 현재 살아 있는 연결된 두 표시 행을 제공하고 과거 재연결 이력을 중복 묶지 않습니다. 확정 이체는 requiresCancellation=true이며 먼저 `/transfers/{id}/cancel`을 실행해야 합니다. 취소 후 한쪽 선택·해제는 다른 통장·페이지의 반대쪽에도 적용합니다. 선택 확인창에는 양쪽 통장과 금액을 표시하며 두 ID를 같은 삭제 요청에 보냅니다. 한쪽만 보내면 BANK_TRANSFER_DELETE_PAIR_REQUIRED, 확정 상태면 BANK_TRANSFER_CANCEL_REQUIRED이며 전체 변경을 롤백합니다. 자동 생성 상대 행의 ID도 표시 ID로 전송하고 서버가 실제 원본으로 해석합니다.
+
+manualExpenseIds는 MANUAL 지출만 허용합니다. 삭제자·시각을 기록해 활성 목록·잔고·손익에서 제외하되 확정 원본·배분·분류 이력은 보존합니다. 활성 103 연결은 먼저 해제해야 하며 삭제하면서 이체를 자동 취소하지 않습니다.

@@ -62,6 +62,12 @@ import com.moahome.server.common.security.*;
 import com.moahome.server.config.InvitationCredentialMigrationCallback;
 import com.moahome.server.config.PhoneSecurityProperties;
 import com.moahome.server.expense.service.ExpenseService;
+import com.moahome.server.accounting.dto.AccountingRequests;
+import com.moahome.server.accounting.exception.AccountingException;
+import com.moahome.server.accounting.service.AccountingTransferService;
+import com.moahome.server.accounting.service.AccountingWriteService;
+import com.moahome.server.accounting.service.IncomeStatementService;
+import com.moahome.server.accounting.service.ExpenseAccountService;
 import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.membership.domain.ResidentInviteCode;
 import com.moahome.server.membership.dto.MemberRequests;
@@ -107,7 +113,7 @@ import static org.assertj.core.api.Assertions.*;
         BankingService.class,
         BankTransferPostingService.class,
         ExpenseService.class,
-        com.moahome.server.accounting.service.ExpenseAccountService.class,
+        ExpenseAccountService.class, AccountingTransferService.class, AccountingWriteService.class, IncomeStatementService.class, BillingIncomeSourceService.class,
         CumulativePaymentService.class, PaymentService.class,
         PayerMatchService.class,
         BankTransactionReader.class, BillingTemplates.class, BillingGenerationService.class, BillingService.class,
@@ -139,6 +145,12 @@ class PaymentPersistenceTest {
 
 	@Autowired
 	BankingService banking;
+
+	@Autowired
+	AccountingWriteService accountingWrites;
+
+	@Autowired
+	IncomeStatementService incomeStatements;
 
 	@Autowired
 	BankingBalanceService cashBalances;
@@ -3050,6 +3062,92 @@ class PaymentPersistenceTest {
 		}
 	}
 
+	/** 수동 원본도 103으로 연결하고 재분류·삭제해도 현금 원장과 불변 감사 이력이 일치해야 합니다. */
+	@Test
+	void manualTransferClassificationPreservesCashAndRequiresCancellationBeforeDeletion() {
+		List<UUID> targets = manualIncomeBuildings();
+		UUID incomingAccount = bankAccountSettings.read(user, property).accountId();
+		UUID outgoingAccount = addAccount("090", "카카오뱅크", "3333012345678", "예비비").accountId();
+		seedAccountOpening(incomingAccount, "100000");
+		seedAccountOpening(outgoingAccount, "100000");
+		UUID expense = UUID.randomUUID(), receipt = UUID.randomUUID(), interest = UUID.randomUUID();
+		LocalDate date = LocalDate.of(2026, 10, 15);
+		banking.manualExpense(user, property, manualExpenseRequest(expense, outgoingAccount, date, "10000", targets));
+		service.manual(user, property, new PaymentRequests.Manual(receipt, null, date, "10000", incomingAccount,
+			"SHARED", "카카오뱅크", "예금이자", null, manualIncomeSplit(targets, "EQUAL", "0", "0")));
+		service.manual(user, property, new PaymentRequests.Manual(interest, null, date, "106", incomingAccount,
+			"SHARED", "은행", "예금이자", null, manualIncomeSplit(targets, "EQUAL", "0", "0")));
+		var cash = cashBalances.workspace(user, property, "2026-10");
+		var initial = incomeStatements.get(user, property, "2026-10", "2026-10", null);
+		UUID transfer = initial.accounts().stream().filter(a -> a.code().equals("103")).findFirst().orElseThrow().id();
+		UUID cost = initial.accounts().stream().filter(a -> a.code().equals("802")).findFirst().orElseThrow().id();
+		assertThat(initial.expenses()).singleElement().satisfies(row ->
+			assertThat(row.transferCandidates()).extracting(c -> c.paymentId()).containsExactly(receipt));
+		assertThatThrownBy(() -> accountingWrites.reviewExpense(user, property, expense,
+			new AccountingRequests.ReviewExpense(transfer, null, 0, null, interest)))
+			.isInstanceOf(AccountingException.class);
+		assertThat(count("expense_accounting_reviews")).isZero();
+		accountingWrites.reviewExpense(user, property, expense,
+			new AccountingRequests.ReviewExpense(transfer, null, 0, null, receipt));
+		var classified = incomeStatements.get(user, property, "2026-10", "2026-10", null);
+		assertThat(classified.expenses()).singleElement().satisfies(row -> {
+			assertThat(row.accountId()).isEqualTo(transfer);
+			assertThat(row.transferPaymentId()).isEqualTo(receipt);
+		});
+		assertThat(classified.records()).noneMatch(row -> row.id().contains(expense.toString()) || row.id().contains(receipt.toString()));
+		assertThat(classified.otherIncomes()).anyMatch(row -> row.id().equals(interest));
+		assertThat(cashBalances.workspace(user, property, "2026-10").accounts()).isEqualTo(cash.accounts());
+		assertThat(cashBalances.workspace(user, property, "2026-10").buildings()).isEqualTo(cash.buildings());
+		accountingWrites.reviewExpense(user, property, expense, new AccountingRequests.ReviewExpense(cost, null, 1, null));
+		assertThat(incomeStatements.get(user, property, "2026-10", "2026-10", null).records())
+			.anyMatch(row -> row.id().contains(expense.toString())).anyMatch(row -> row.id().contains(receipt.toString()));
+		accountingWrites.reviewExpense(user, property, expense,
+			new AccountingRequests.ReviewExpense(transfer, null, 2, null, receipt));
+		assertThatThrownBy(() -> banking.deleteMany(user, property,
+			new BankingRequests.DeleteMany(List.of(), List.of(), List.of(expense))))
+			.isInstanceOfSatisfying(PaymentException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_CANCEL_REQUIRED"));
+		accountingWrites.reviewExpense(user, property, expense, new AccountingRequests.ReviewExpense(cost, null, 3, null));
+		banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(), List.of(receipt), List.of(expense)));
+		assertThat(banking.workspace(user, property).rows()).noneMatch(row -> row.expense() != null);
+		assertThat(service.workspace(user, property).payments()).noneMatch(row -> row.id().equals(receipt));
+		assertThat(count("expenses")).isEqualTo(1);
+		assertThat(count("expense_allocations")).isEqualTo(2);
+		assertThat(count("accounting_transfer_matches")).isEqualTo(2);
+		assertThat(count("expense_accounting_reviews")).isEqualTo(4);
+		assertThat(jdbc.queryForObject("select status from payments where id=?", String.class, receipt)).isEqualTo("CANCELED");
+		assertLedger(outgoingAccount, "100000");
+		assertLedger(incomingAccount, "100106");
+		assertThatThrownBy(() -> banking.manualExpense(user, property,
+			manualExpenseRequest(expense, outgoingAccount, date, "10000", targets))).isInstanceOf(PaymentException.class);
+	}
+
+	/** 확정 이체는 선행 취소를 요구하고 취소 후에도 한쪽만 삭제하지 못하게 보호합니다. */
+	@Test
+	void deletingTransferRequiresExplicitCancellationAndBothDisplayedRows() {
+		UUID first = bankAccountSettings.read(user, property).accountId();
+		UUID second = addAccount("090", "카카오뱅크", "3333012345678", "예비비").accountId();
+		seedAccountOpening(first, "100000");
+		seedAccountOpening(second, "100000");
+		UUID original = transferFile(first, "EXPENSE", "10000", "90000");
+		UUID transfer = UUID.randomUUID();
+		banking.postTransfer(user, property, new BankingRequests.TransferFromTransaction(transfer, original, second));
+		assertThatThrownBy(() -> banking.deleteMany(user, property,
+			new BankingRequests.DeleteMany(List.of(original, UUID.randomUUID())))).isInstanceOf(PaymentException.class);
+		assertLedger(first, "90000");
+		assertLedger(second, "110000");
+		assertThatThrownBy(() -> banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(original, transfer))))
+			.isInstanceOfSatisfying(PaymentException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_CANCEL_REQUIRED"));
+		banking.cancelTransfer(user, property, transfer);
+		assertThatThrownBy(() -> banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(original))))
+			.isInstanceOfSatisfying(PaymentException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_DELETE_PAIR_REQUIRED"));
+		banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(original, transfer)));
+		assertThat(banking.workspace(user, property).rows()).isEmpty();
+		assertLedger(first, "100000");
+		assertLedger(second, "100000");
+		assertThat(count("bank_transactions")).isEqualTo(1);
+		assertThat(jdbc.queryForObject("select canceled_at is not null from bank_transfer_postings where id=?", Boolean.class, transfer)).isTrue();
+	}
+
 	private BankingRequests.ManualExpense manualExpenseRequest(UUID id, UUID account, LocalDate date, String amount,
 	    List<UUID> targets) {
 		return new BankingRequests.ManualExpense(id, account, date, amount, "공용 청소비", "직접 등록", "EQUAL",
@@ -3601,8 +3699,8 @@ class PaymentPersistenceTest {
 		    "999999", OffsetDateTime.now(clock), "BANK_APP", null));
 		assertLedger(first, "100000");
 		assertLedger(second, "100000");
-		// 취소된 자동 표시 행도 같은 이체의 양쪽 원본을 삭제한 뒤 다시 가져올 수 있습니다.
-		banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(transfer)));
+		// 취소 후 편집에서 자동 선택한 두 표시 행을 함께 요청합니다.
+		banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(source, transfer)));
 		assertThat(banking.workspace(user, property).rows()).isEmpty();
 		assertLedger(first, "100000");
 		assertLedger(second, "100000");
@@ -3652,8 +3750,6 @@ class PaymentPersistenceTest {
 		assertLedger(second, "90000");
 		banking.upload(user, property, incomingFile, selection);
 		assertThat(count("bank_transfer_postings")).isEqualTo(1);
-		assertThatThrownBy(() -> banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(source.id()))))
-		    .isInstanceOfSatisfying(PaymentException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_CANCEL_REQUIRED"));
 
 		var outgoingFile = kakaoFile(csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 09:01:00,하나로 이체,10000,0,90000"));
 		var outgoing = banking.preview(user, property, outgoingFile, second).rows().getFirst();
@@ -3787,9 +3883,6 @@ class PaymentPersistenceTest {
 		        List.of(new BankingRequests.Allocation(null, "외부", "10000", null)))))
 		    .isInstanceOfSatisfying(PaymentException.class,
 		        e -> assertThat(e.code()).isEqualTo("BANK_TRANSFER_CONFLICT"));
-		assertThatThrownBy(() -> banking.deleteMany(user, property,
-		    new BankingRequests.DeleteMany(List.of(outgoing)))).isInstanceOfSatisfying(
-		        PaymentException.class, e -> assertThat(e.code()).isEqualTo("BANK_TRANSFER_DELETE_PAIR_REQUIRED"));
 		assertThatThrownBy(() -> jdbc.update("update bank_transactions set amount=9999 where id=?", outgoing))
 		    .isInstanceOf(DataAccessException.class);
 		banking.cancelTransfer(user, property, request.id());
@@ -3798,6 +3891,14 @@ class PaymentPersistenceTest {
 		assertThat(cashBalances.workspace(user, property, "2026-10").pending()).hasSize(2);
 		var relink = new BankingRequests.Transfer(UUID.randomUUID(), outgoing, incoming);
 		banking.connectTransfer(user, property, relink);
+		assertThat(banking.workspace(user, property).deletionGroups()).singleElement()
+			.satisfies(group -> assertThat(group.requiresCancellation()).isTrue());
+		assertThatThrownBy(() -> banking.deleteMany(user, property,
+			new BankingRequests.DeleteMany(List.of(outgoing, incoming))))
+			.isInstanceOfSatisfying(PaymentException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_CANCEL_REQUIRED"));
+		banking.cancelTransfer(user, property, relink.id());
+		assertThatThrownBy(() -> banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(outgoing))))
+			.isInstanceOfSatisfying(PaymentException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_DELETE_PAIR_REQUIRED"));
 		banking.deleteMany(user, property,
 		    new BankingRequests.DeleteMany(List.of(outgoing, incoming)));
 		assertThat(banking.workspace(user, property).rows()).isEmpty();

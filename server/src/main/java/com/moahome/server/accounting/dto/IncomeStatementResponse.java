@@ -8,7 +8,19 @@ import java.util.UUID;
 public record IncomeStatementResponse(UUID propertyId, String propertyName, OffsetDateTime generatedAt,
 	Range range, Configuration configuration, boolean canManage, String completeness,
 	List<Building> buildings, List<Account> accounts, List<Entry> records, List<Issue> issues,
-	List<Expense> expenses, List<RevenueItem> revenueItems, List<Receivable> receivables, List<OtherIncome> otherIncomes) {
+	List<Expense> expenses, List<RevenueItem> revenueItems, List<Receivable> receivables, List<OtherIncome> otherIncomes,
+	List<Household> households) {
+	public IncomeStatementResponse(UUID propertyId, String propertyName, OffsetDateTime generatedAt,
+		Range range, Configuration configuration, boolean canManage, String completeness,
+		List<Building> buildings, List<Account> accounts, List<Entry> records, List<Issue> issues,
+		List<Expense> expenses, List<RevenueItem> revenueItems, List<Receivable> receivables, List<OtherIncome> otherIncomes) {
+		this(propertyId, propertyName, generatedAt, range, configuration, canManage, completeness, buildings,
+			accounts, records, issues, expenses, revenueItems, receivables, otherIncomes, List.of());
+	}
+
+	public record Household(UUID unitId, String label, UUID receivableAccountId, UUID advanceAccountId,
+		String receivable, String advance, String path) {
+	}
 	public record Range(String startMonth, String endMonth) {
 	}
 
@@ -40,6 +52,13 @@ public record IncomeStatementResponse(UUID propertyId, String propertyName, Offs
 	}
 
 	public record Expense(UUID id, UUID transactionId, LocalDate date, String name, String amount,
-		UUID accountId, String recognitionMonth, int revision) {
+		UUID accountId, String recognitionMonth, int revision, List<TransferCandidate> transferCandidates, UUID transferPaymentId) {
+		public Expense(UUID id, UUID transactionId, LocalDate date, String name, String amount,
+			UUID accountId, String recognitionMonth, int revision) {
+			this(id, transactionId, date, name, amount, accountId, recognitionMonth, revision, List.of(), null);
+		}
+	}
+
+	public record TransferCandidate(UUID paymentId, String accountName, String name, LocalDate date, String amount) {
 	}
 }

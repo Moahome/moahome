@@ -61,6 +61,22 @@ public class Expense {
 	@Column(name = "confirmed_at", nullable = false, columnDefinition = "timestamptz")
 	private OffsetDateTime confirmedAt;
 
+	@Column(name = "deleted_at", columnDefinition = "timestamptz")
+	private OffsetDateTime deletedAt;
+
+	@Column(name = "deleted_by")
+	private UUID deletedBy;
+
+	/** 확정 원본과 배분 이력은 보존하고 수동 지출 삭제를 한 번만 기록해 활성 집계에서 취소합니다. */
+	public void removeManual(UUID actor, OffsetDateTime at) {
+		if (!"MANUAL".equals(sourceType) || actor == null || at == null)
+			throw new PaymentException("EXPENSE_DELETE_NOT_ALLOWED");
+		if (deletedAt != null)
+			return;
+		deletedAt = at;
+		deletedBy = actor;
+	}
+
 	protected Expense() {
 	}
 

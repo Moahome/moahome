@@ -24,7 +24,10 @@ public final class AccountingRequests {
 
 	public record ReviewExpense(@NotNull UUID accountId,
 		@Pattern(regexp = "[1-9][0-9]{3}-(0[1-9]|1[0-2])") String recognitionMonth,
-		@NotNull @Min(0) Integer expectedRevision, @Size(max = 500) String reason) {
+		@NotNull @Min(0) Integer expectedRevision, @Size(max = 500) String reason, UUID counterpartPaymentId) {
+		public ReviewExpense(UUID accountId, String recognitionMonth, Integer expectedRevision, String reason) {
+			this(accountId, recognitionMonth, expectedRevision, reason, null);
+		}
 	}
 
 	public record ReviewRevenue(@NotNull Boolean recognized, @NotNull @Min(0) Integer expectedRevision,
