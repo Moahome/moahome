@@ -34,6 +34,10 @@ public interface BankAccountRepository extends JpaRepository<BankAccount, UUID> 
 	      UNION ALL SELECT bank_account_id, expense_date FROM expenses WHERE property_id=:propertyId
 	      UNION ALL SELECT p.counterpart_account_id,t.transaction_date FROM bank_transfer_postings p
 	        JOIN bank_transactions t ON t.id=p.source_transaction_id WHERE p.property_id=:propertyId
+          UNION ALL SELECT manual_outgoing_account_id,manual_date FROM bank_transfer_postings
+            WHERE property_id=:propertyId AND manual_outgoing_account_id IS NOT NULL
+          UNION ALL SELECT counterpart_account_id,manual_date FROM bank_transfer_postings
+            WHERE property_id=:propertyId AND manual_outgoing_account_id IS NOT NULL
 
 	    )
 	    SELECT a.id AS "accountId",min(u.used_on) AS "firstUse" FROM common_accounts a

@@ -11,7 +11,6 @@ import {
 } from '@/shared/ui/state-message';
 import {
   BankImportEditor,
-  TransferAllocationEditor,
   calculateTransferAllocation,
   type TransferAllocationPart,
   getExpenseAccountLabel,
@@ -96,6 +95,7 @@ import {
 import { getAccountsForRange } from '../../model/bankAccountVisibility';
 import { BankImportActions } from '../_components/bank-import-actions/bankImportActions';
 import { TransferDetail } from '../_components/transfer-detail/transferDetail';
+import { TransferAllocation } from '../_components/transfer-allocation/transferAllocation';
 import {
   getBankingDuplicateIds,
   getBankingReviewRange
@@ -109,7 +109,7 @@ type ReceiptDraft = { kind: 'AUTO' | 'HOUSEHOLD' | 'OTHER' | 'SHARED'; unitId: s
 /** 필터·페이지를 바꿔도 파일 전체의 선택·분류 초안을 유지하고 실제 저장은 서버 원본 재검증으로 처리합니다. */
 export function BankingWorkspace({ propertyId, view = 'transactions', renderReceiptDetail, receiptRows = [], renderManualRegistration }: {
   receiptRows?: (BankingTransaction & { source: 'MANUAL' | 'BANK_IMPORT'; deletable: boolean })[];
-  renderManualRegistration?: (onClose: () => void, onCreated: (id: string, date: string) => void) => ReactNode;
+  renderManualRegistration?: (onClose: () => void, onCreated: (id: string, date: string, transferAccountId?: string) => void) => ReactNode;
   propertyId: string;
   view?: 'transactions' | 'expenses' | 'upload';
   renderReceiptDetail?: (paymentId: string, onClose: () => void, onProcessed: (id: string, status: string) => void) => ReactNode;
@@ -156,15 +156,15 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [notice, setNotice] = useState<{ id: number; message: string; tone: 'success' | 'error' } | null>(() => (
-    (view === 'transactions' && searchParams.get('imported') === '1') || (view === 'transactions' && searchParams.get('registered') === '1') ? {
+    (view === 'transactions' && searchParams.get('imported') === '1') || (view === 'transactions' && ['1', 'transfer'].includes(searchParams.get('registered') ?? '')) ? {
       id: 0,
-      message: searchParams.get('registered') === '1' ? '지출을 등록했어요.' : '선택한 거래를 저장했어요.',
+      message: searchParams.get('registered') === 'transfer' ? '계좌 간 이체를 등록했어요.' : searchParams.get('registered') === '1' ? '지출을 등록했어요.' : '선택한 거래를 저장했어요.',
       tone: 'success'
     } : null
   ));
   // 업로드 뒤 목록에서 성공 알림을 한 번 표시하고 새로고침 시 다시 뜨지 않게 이동 표식을 지웁니다.
   useEffect(() => {
-    if (!['transactions', 'expenses'].includes(view) || (searchParams.get('imported') !== '1' && searchParams.get('registered') !== '1')) return;
+    if (!['transactions', 'expenses'].includes(view) || (searchParams.get('imported') !== '1' && !['1', 'transfer'].includes(searchParams.get('registered') ?? ''))) return;
     const query = new URLSearchParams(searchParams.toString());
     query.delete('imported');
     query.delete('registered');
@@ -264,7 +264,10 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const receiptIds = new Set(receiptById.keys());
   /** 은행 원본과 미연결 수동 수납을 선택 삭제하며 확정 수납의 취소는 서버에서 함께 처리합니다. */
   function canDelete(row: BankingTransaction) {
-    return row.sourceType !== 'MANUAL' && (row.sourceType !== 'TRANSFER_AUTO' || row.status === 'CANCELED') && (!row.automaticTransfer || row.status === 'CANCELED') && (receiptById.get(row.id)?.deletable ?? !receiptIds.has(row.id));
+    if (row.status === 'TRANSFER' || row.expense?.accountCode === '103'
+      || data?.deletionGroups?.some((group) => group.requiresCancellation && group.transactionIds.includes(row.id))) return false;
+    if (row.sourceType === 'MANUAL' && row.direction === 'EXPENSE') return true;
+    return receiptById.get(row.id)?.deletable ?? !receiptIds.has(row.id);
   }
   // 수동 수납은 은행 원본을 만들지 않으며 연결 전 항목만 함께 표시합니다. 연결되면 은행 행 하나로 남습니다.
   const source = preview?.rows ?? (view === 'upload' ? [] : [...data.rows, ...(view === 'transactions' ? receiptRows : [])]
@@ -276,7 +279,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
     && (view !== 'expenses' || row.expense?.allocations.some((part) => data.buildings.some((item) => item.id === part.buildingId)))
     && (status === 'ALL' || (status === 'CONFIRMED' && ['CONFIRMED', 'LINKED', 'TRANSFER'].includes(row.status)) || (status === 'PENDING' && ['PENDING', 'TRANSFER_PENDING'].includes(row.status)) || (status === 'ON_HOLD' && row.status === 'ON_HOLD'))
     && (view !== 'expenses' || building === 'ALL' || row.expense?.allocations.some((a) => a.buildingId === building))
-    && `${row.payer} ${row.memo ?? ''} ${row.unitLabel} ${row.expense?.category ?? ''} ${row.expense?.note ?? ''} ${row.transferCandidate || (preview && transferRows.includes(row.id)) ? '103 통장간 거래' : getExpenseAccountLabel(row.expense)}`.includes(search.trim()));
+    && `${row.payer} ${row.memo ?? ''} ${row.unitLabel} ${row.expense?.category ?? ''} ${row.expense?.note ?? ''} ${row.transferCandidate || (preview && transferRows.includes(row.id)) ? '계좌 이체' : getExpenseAccountLabel(row.expense)}`.includes(search.trim()));
   // 조회 월·통장·검색·상태 조건이 적용된 빈 결과는 등록 자료 자체가 없는 상태와 구분합니다.
   const hasFilters = Boolean(review || search.trim() || accountId !== 'ALL' || direction !== 'ALL' || status !== 'ALL'
     || (preview && processing !== 'ALL')
@@ -329,13 +332,25 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   const selectionScope = JSON.stringify([propertyId, accountId, dateRange.startDate, dateRange.endDate, direction, status, review, search, pageSize, currentPage]);
   const isSelecting = view === 'transactions' && !preview && selection?.scope === selectionScope;
   const selectableRows = visible.filter(canDelete);
-  const deletingRows = isSelecting ? selectableRows.filter((row) => selection.ids.includes(row.id)) : [];
+  // 삭제 범위는 화면 필터와 분리해 다른 통장·페이지에 있는 상대 거래도 확인창과 요청에 포함합니다.
+  const allDeletionRows = [...data.rows, ...receiptRows];
+  const deletingRows = isSelecting ? allDeletionRows.filter((row) => selection.ids.includes(row.id)) : [];
+  function linkedDeletionIds(ids: string[]) {
+    const result = new Set(ids);
+    for (const group of data?.deletionGroups ?? []) {
+      if (!group.requiresCancellation && group.transactionIds.some((id) => result.has(id))) {
+        group.transactionIds.forEach((id) => result.add(id));
+      }
+    }
+    return [...result];
+  }
   function toggleDeletion(id: string) {
     if (busyRef.current || !visible.some((row) => row.id === id && canDelete(row))) return;
     setSelection({
       scope: selectionScope,
       ids: deletingRows.some((row) => row.id === id)
-        ? deletingRows.filter((row) => row.id !== id).map((row) => row.id) : [...deletingRows.map((row) => row.id), id]
+        ? deletingRows.filter((row) => !linkedDeletionIds([id]).includes(row.id)).map((row) => row.id)
+        : linkedDeletionIds([...deletingRows.map((row) => row.id), id])
     });
   }
   /** 기간 적용은 URL·통장 범위·선택·페이지를 함께 바꿔 합계와 목록이 같은 조건을 사용하게 합니다. */
@@ -378,9 +393,12 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
       await cache.cancelQueries({
         queryKey
       });
-      const saved = await deleteBankingTransactions(propertyId, deletingRows.filter((row) => !receiptIds.has(row.id)).map((row) => row.id), deletingRows.filter((row) => receiptIds.has(row.id)).map((row) => row.paymentId!));
+      const saved = await deleteBankingTransactions(propertyId,
+        deletingRows.filter((row) => !receiptIds.has(row.id) && row.sourceType !== 'MANUAL').map((row) => row.id),
+        deletingRows.filter((row) => receiptIds.has(row.id)).map((row) => row.paymentId!),
+        deletingRows.filter((row) => row.sourceType === 'MANUAL' && row.direction === 'EXPENSE').map((row) => row.id));
       setPropertyQueryData(cache, queryKey, saved, propertyScope);
-      await Promise.all(['payment-workspace', 'banking-balances', 'billing'].map((key) => cache.invalidateQueries({
+      await Promise.all(['payment-workspace', 'banking-balances', 'billing', 'income-statement', 'monthly-settlement', 'dashboard'].map((key) => cache.invalidateQueries({
         queryKey: [key, session.data?.id, propertyId]
       })));
       setDeleteOpen(false); setSelection(null); setPage(1);
@@ -511,7 +529,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
   }
   /** 신규 상대 통장은 사용 중 계좌만 선택하며 서버가 제시한 기존 이체는 종료 계좌도 그대로 확인합니다. */
   function canTransfer(row: BankingTransaction) {
-    return Boolean(row.transferId) || accounts.some((account) => account.id !== row.accountId && account.status === 'ACTIVE');
+    return Boolean(row.transferId) || (data?.accounts ?? []).filter((account) => account.status === 'ACTIVE').length > 1;
   }
 
   /** 저장 전 거래 설정은 공통 모달에서 편집하고 닫아도 파일별 초안을 보존합니다. */
@@ -524,7 +542,6 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
       >
         <BankImportEditor
           direction={row.direction}
-          allowTransfer={canTransfer(row)}
           expenseAccounts={data.expenseAccounts}
           amount={row.amount}
           suggestedUnitId={row.unitId}
@@ -538,10 +555,6 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
             [row.id]: draft
           }))}
           onExpenseChange={(draft) => {
-            if (draft.accountCode === '103') {
-              setTransferRows((current) => current.includes(row.id) ? current : [...current, row.id]);
-              return;
-            }
             setNotice(null); setExpenses((current) => ({
               ...current,
               [row.id]: draft
@@ -1185,10 +1198,10 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                       type={'checkbox'}
                       aria-label={'현재 페이지 거래 전체 선택'}
                       disabled={busy || !selectableRows.length}
-                      checked={Boolean(selectableRows.length) && deletingRows.length === selectableRows.length}
+                      checked={Boolean(selectableRows.length) && selectableRows.every((row) => deletingRows.some((selected) => selected.id === row.id))}
                       onChange={(event) => setSelection({
                         scope: selectionScope,
-                        ids: event.target.checked ? selectableRows.map((row) => row.id) : []
+                        ids: event.target.checked ? linkedDeletionIds(selectableRows.map((row) => row.id)) : []
                       })}
                     />
                   ),
@@ -1197,7 +1210,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                       type={'checkbox'}
                       aria-label={`${row.payer} 거래 선택`}
                       disabled={busy || !canDelete(row)}
-                      title={!canDelete(row) ? row.sourceType === 'MANUAL' ? '수동 지출의 확정 이력은 직접 삭제할 수 없습니다.' : '확정 수납은 먼저 취소해주세요. 은행 취소 이력은 원본에서 관리합니다.' : undefined}
+                      title={!canDelete(row) ? row.status === 'TRANSFER' ? '이체를 먼저 취소한 뒤 양쪽 거래를 함께 삭제해주세요.' : '연결된 원본 거래에서 취소·삭제해주세요.' : undefined}
                       checked={deletingRows.some((item) => item.id === row.id)}
                       onChange={() => toggleDeletion(row.id)}
                     />
@@ -1249,7 +1262,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                 ...(view === 'expenses' ? [{
                   key: 'expense-account',
                   header: '계정과목',
-                  render: (row: BankingTransaction) => row.transferCandidate || (preview && transferRows.includes(row.id)) ? '103 통장간 거래' : row.direction === 'EXPENSE'
+                  render: (row: BankingTransaction) => row.transferCandidate || (preview && transferRows.includes(row.id)) ? '계좌 이체' : row.direction === 'EXPENSE'
                     ? getExpenseAccountLabel(preview ? {
                       ...expenseDraft(row),
                       accountName: data.expenseAccounts?.find((account) => account.code === expenseDraft(row).accountCode)?.name
@@ -1465,7 +1478,11 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                     {transferDescription}
                   </p>
                   {buildings.length > 0 && (
-                    <TransferAllocationEditor
+                    <TransferAllocation
+                      key={row.id}
+                      propertyId={propertyId}
+                      outgoingAccountId={row.direction === 'EXPENSE' ? row.accountId : transferAccounts[row.id] ?? ''}
+                      date={row.date}
                       total={row.amount}
                       buildings={buildings}
                       value={transferAllocations[row.id] ?? []}
@@ -1523,7 +1540,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
           propertyId={propertyId}
           initialAccountId={activeAccountId}
           onClose={() => setManualExpenseOpen(false)}
-          onCreated={(_id, date, savedAccountId) => {
+          onCreated={(_id, date, savedAccountId, transfer) => {
             setManualExpenseOpen(false);
             setAccountId(savedAccountId);
             setBuilding('ALL');
@@ -1538,18 +1555,31 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
             router.replace(`/manage/${propertyId}/banking/transactions?${query}`, {
               scroll: false
             });
-            notify('지출을 등록했어요.', 'success');
+            notify(transfer ? '계좌 간 이체를 등록했어요.' : '지출을 등록했어요.', 'success');
           }}
         />
       )}
-      {manualOpen && renderManualRegistration?.(() => setManualOpen(false), (id, date) => {
+      {manualOpen && renderManualRegistration?.(() => setManualOpen(false), (id, date, transferAccountId) => {
         setManualOpen(false);
         setSelection(null);
-        changeMonth(date.slice(0, 7));
         setDirection('INCOME');
         setStatus('ALL');
         setSearch('');
         setPage(1);
+        if (transferAccountId) {
+          setAccountId(transferAccountId);
+          setDetail(null);
+          const query = new URLSearchParams({
+            month: date.slice(0, 7),
+            account: transferAccountId
+          });
+          router.replace(`/manage/${propertyId}/banking/transactions?${query}`, {
+            scroll: false
+          });
+          notify('계좌 간 이체를 등록했어요.', 'success');
+          return;
+        }
+        changeMonth(date.slice(0, 7));
         setDetail({
           id,
           kind: 'receipt'
@@ -1609,7 +1639,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
                     {`${row.payer || '거래'} · ${row.direction === 'INCOME' ? '입금' : '출금'} ${formatWon(row.amount)}`}
                   </strong>
                   <span>
-                    {`${row.date.replaceAll('-', '. ')}${row.time ? `  ${row.time.slice(0, 8)}` : ''}`}
+                    {`${data.accounts?.find((account) => account.id === row.accountId)?.alias ?? data.accounts?.find((account) => account.id === row.accountId)?.bankName ?? '관리 통장'} · ${row.date.replaceAll('-', '. ')}${row.time ? `  ${row.time.slice(0, 8)}` : ''}`}
                   </span>
                 </li>
               ))}
@@ -1618,7 +1648,7 @@ export function BankingWorkspace({ propertyId, view = 'transactions', renderRece
               id={'banking-delete-description'}
               className={styles['delete-description']}
             >
-              연결된 수납은 취소되며, 처리 이력은 보관됩니다.
+              확정된 수납·지출은 취소 이력을 남기고 삭제하며 처리 이력은 보관됩니다. 이체는 먼저 취소해야 하며 연결된 양쪽 거래를 함께 삭제합니다.
             </p>
             {deleteError && (
               <p

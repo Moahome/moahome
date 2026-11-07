@@ -18,11 +18,11 @@ export function BankingManualExpensePage({ propertyId }: { propertyId: string })
       presentation={'page'}
       initialAccountId={initialAccountId}
       onClose={() => router.replace(`/manage/${propertyId}/banking/transactions`)}
-      onCreated={(_id, date, accountId) => {
+      onCreated={(_id, date, accountId, transfer) => {
         const query = new URLSearchParams({
           month: date.slice(0, 7),
           account: accountId,
-          registered: '1'
+          registered: transfer ? 'transfer' : '1'
         });
         router.replace(`/manage/${propertyId}/banking/transactions?${query}`);
       }}

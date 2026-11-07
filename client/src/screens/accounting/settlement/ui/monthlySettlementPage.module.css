@@ -40,10 +40,6 @@
       border-radius: 14px;
     }
 
-    > article:nth-child(-n + 4) {
-      min-height: 128px;
-      padding: 20px 18px;
-    }
   }
 
   .checklist,
@@ -174,7 +170,6 @@
     .header-actions { width: 100%; }
     .header-controls { justify-items: start; }
     .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .summary > article { min-height: 112px; }
   }
 
   @media (width <= 767px) {
@@ -190,8 +185,7 @@
 
   @media (width <= 540px) {
     .summary { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-    .summary > article,
-    .summary > article:nth-child(-n + 4) { min-height: 92px; padding: 16px; }
+    .summary > article { padding: 16px; }
   }
 
   @media (prefers-reduced-motion: reduce) {

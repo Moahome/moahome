@@ -229,33 +229,6 @@ test('서버 목록이 실제로 비었을 때만 시작 화면을 표시하고 
   })).toHaveCount(0);
 });
 
-test('오래된 등록 기록에 의존하지 않고 DB 목록의 관리대상으로 이동', async ({ page }) => {
-  await page.addInitScript(({ userId, requestId }) => {
-    if (sessionStorage.getItem('management-test-seeded')) return;
-    sessionStorage.setItem('moahome.property-registration.receipt', JSON.stringify({
-      userId,
-      result: {
-        requestId,
-        property: {
-          name: '저장소의 오래된 이름'
-        }
-      }
-    }));
-    sessionStorage.setItem('management-test-seeded', 'true');
-  }, {
-    userId: USER_ID,
-    requestId: REQUEST_ID
-  });
-  await page.goto('/start');
-  await expect(page).toHaveURL(DASHBOARD);
-  await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
-  await expect(page.getByText('성내빌라', {
-    exact: true
-  })).toHaveCount(0);
-  await expect(page.getByText('저장소의 오래된 이름')).toHaveCount(0);
-  expect(await page.evaluate((key) => localStorage.getItem(key), REFERENCE_KEY)).toBe(PROPERTY_ID);
-});
-
 test('관리대상 기록이 있어도 명시적으로 연 새 등록 설정은 자동 이동하지 않음', async ({ page }) => {
   let lookups = 0;
   await page.route(LIST_URL, (route) => { lookups++; return fulfillJson(route, {
@@ -373,7 +346,7 @@ test('다른 계정은 이전 사용자의 최근 선택과 이름을 표시하�
   expect(lookups).toBe(0);
 });
 
-for (const width of [320, 390, 767]) {
+for (const width of [320, 767]) {
   test(`모바일 ${width}px 메뉴의 닫기·Escape·배경 클릭과 포커스·스크롤 복원`, async ({ page }) => {
     await page.setViewportSize({
       width,

@@ -32,7 +32,7 @@ public class AccountingProfile {
 	protected AccountingProfile() {
 	}
 
-	/** 실제 시작 월은 관리자가 명시하며 통장 시작일이나 과거 청구를 근거로 자동 확정하지 않습니다. */
+	/** 회계 시작은 첫 부과월로 연결하고 기존 저장 이력은 직접 덮어쓰지 않습니다. */
 	public static AccountingProfile create(UUID property, YearMonth start, int fiscalStart, UUID actor,
 		OffsetDateTime at) {
 		if (fiscalStart < 1 || fiscalStart > 12)

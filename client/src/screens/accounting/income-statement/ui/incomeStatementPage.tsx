@@ -138,8 +138,7 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
     const params = new URLSearchParams(search.toString());
     params.delete('sources');
     params.set('kind', target.kind);
-    if (target.kind !== 'setup') params.set('item', target.value.id);
-    else params.delete('item');
+    params.set('item', target.value.id);
     router.push(`${base}/review?${params}`);
   }
 
@@ -150,17 +149,13 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
       return;
     }
     const params = new URLSearchParams(search.toString());
-    const setup = params.get('kind') === 'setup';
     params.delete('kind');
     params.delete('item');
-    if (!goBackToPreviousRoute()) router.replace(`${base}${setup ? '' : '/sources'}?${params}`);
+    if (!goBackToPreviousRoute()) router.replace(`${base}/sources?${params}`);
   }
 
   /** 주소의 ID는 현재 관리대상 응답에서만 찾아 다른 대상·삭제 원천을 입력 화면에 연결하지 않습니다. */
   function getPageEditor(): AccountingEditorTarget | null {
-    if (search.get('kind') === 'setup') return {
-      kind: 'setup'
-    };
     const item = search.get('item');
     if (search.get('kind') === 'expense') {
       const value = data?.expenses.find((value) => value.id === item);
@@ -308,7 +303,8 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
           </span>
         </div>
         {report && data && (data.issues.length > 0 || data.expenses.length > 0 || data.revenueItems.length > 0
-          || (data.receivables?.length ?? 0) > 0 || (data.otherIncomes?.length ?? 0) > 0) && (
+          || (data.receivables?.length ?? 0) > 0 || (data.otherIncomes?.length ?? 0) > 0
+          || (data.households?.length ?? 0) > 0) && (
           <Button
             variant={'outline'}
             size={'sm'}
@@ -386,27 +382,18 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
           })}
         />
       )}
-      {ready && data.completeness === 'SETUP_REQUIRED' && (
+      {ready && ['NO_BILLING', 'SETUP_REQUIRED'].includes(data.completeness) && (
         <StateMessage
-          variant={'review-required'}
-          title={'회계 시작 기준을 설정해주세요.'}
-          description={data.canManage ? '확인할 회계 시작 월과 회계연도 시작 월을 지정한 뒤 자료를 연결합니다.' : '관리소장에게 회계 시작 기준 설정을 요청해주세요.'}
-          actions={data.canManage && (
-            <Button
-              onClick={() => openEditor({
-                kind: 'setup'
-              })}
-            >
-              회계 시작 설정
-            </Button>
-          )}
+          variant={'no-results'}
+          title={'아직 확정된 관리비 부과가 없습니다.'}
+          description={'첫 부과월을 기준으로 회계 자료가 자동 연결됩니다.'}
         />
       )}
       {ready && data.completeness === 'BEFORE_START' && (
         <StateMessage
           variant={'no-results'}
-          title={'회계 시작 월 이전의 기간입니다.'}
-          description={`회계 시작 월: ${data.configuration?.startMonth}. 조회 기간을 다시 선택해주세요.`}
+          title={'첫 부과월 이전의 기간입니다.'}
+          description={`첫 부과월: ${data.configuration?.startMonth}. 조회 기간을 다시 선택해주세요.`}
         />
       )}
       {report && (

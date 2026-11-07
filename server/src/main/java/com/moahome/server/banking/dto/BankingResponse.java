@@ -8,6 +8,13 @@ public final class BankingResponse {
 	private BankingResponse() {
 	}
 
+	public record TransferFund(UUID buildingId, String available) {
+	}
+
+	public record TransferFunds(UUID propertyId, UUID accountId, LocalDate date, String accountAvailable,
+		List<TransferFund> buildings) {
+	}
+
 	public record Building(UUID id, String label) {
 	}
 
@@ -68,7 +75,11 @@ public final class BankingResponse {
 
 	public record Workspace(UUID propertyId, LocalDate asOf, List<Building> buildings, List<Unit> units,
 	    List<Transaction> rows, List<Rule> rules, List<Account> accounts,
-	    List<ExpenseAccountOption> expenseAccounts) {
+	    List<ExpenseAccountOption> expenseAccounts, List<DeletionGroup> deletionGroups) {
+		public Workspace(UUID propertyId, LocalDate asOf, List<Building> buildings, List<Unit> units,
+		    List<Transaction> rows, List<Rule> rules, List<Account> accounts, List<ExpenseAccountOption> expenseAccounts) {
+			this(propertyId, asOf, buildings, units, rows, rules, accounts, expenseAccounts, List.of());
+		}
 		public Workspace(UUID propertyId, LocalDate asOf, List<Building> buildings, List<Unit> units,
 		    List<Transaction> rows, List<Rule> rules, List<Account> accounts) {
 			this(propertyId, asOf, buildings, units, rows, rules, accounts, List.of());
@@ -77,6 +88,9 @@ public final class BankingResponse {
 		    List<Transaction> rows, List<Rule> rules) {
 			this(propertyId, asOf, buildings, units, rows, rules, List.of());
 		}
+	}
+
+	public record DeletionGroup(UUID id, List<UUID> transactionIds, boolean requiresCancellation) {
 	}
 
 	public record Account(UUID id, String bankName, String last4, String alias, boolean isPrimary, String status,

@@ -93,7 +93,8 @@ public class DashboardService {
 
 	/** 동일 통장·날짜·방향·금액은 검토 후보일 뿐이며 자동 중복 제외나 실제 수납 취소를 하지 않습니다. */
 	private long duplicateCount(List<BankingResponse.Transaction> rows, PaymentResponse.Ledger ledger, LocalDate today) {
-		Set<String> bankKeys = rows.stream().filter(row -> !"MANUAL".equals(row.sourceType()) && !"TRANSFER_AUTO".equals(row.sourceType()))
+		Set<String> bankKeys = rows.stream().filter(row -> !"MANUAL".equals(row.sourceType()) && !"TRANSFER_AUTO".equals(row.sourceType())
+			&& !"TRANSFER_MANUAL".equals(row.sourceType()))
 			.map(row -> comparisonKey(row.accountId(), row.date(), row.direction(), row.amount()))
 			.collect(Collectors.toSet());
 		long expenses = rows.stream().filter(row -> "MANUAL".equals(row.sourceType())

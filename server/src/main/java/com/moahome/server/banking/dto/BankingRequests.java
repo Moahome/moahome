@@ -103,10 +103,16 @@ public final class BankingRequests {
 	}
 
 	public record DeleteMany(@Size(max = 5000) List<@NotNull UUID> transactionIds,
-	    @Size(max = 1000) List<@NotNull UUID> paymentIds) {
+	    @Size(max = 1000) List<@NotNull UUID> paymentIds,
+	    @Size(max = 1000) List<@NotNull UUID> manualExpenseIds) {
 		public DeleteMany {
 			transactionIds = transactionIds == null ? List.of() : transactionIds;
 			paymentIds = paymentIds == null ? List.of() : paymentIds;
+			manualExpenseIds = manualExpenseIds == null ? List.of() : manualExpenseIds;
+		}
+
+		public DeleteMany(List<UUID> transactionIds, List<UUID> paymentIds) {
+			this(transactionIds, paymentIds, List.of());
 		}
 
 		public DeleteMany(List<UUID> transactionIds) {
@@ -116,13 +122,22 @@ public final class BankingRequests {
 		@AssertTrue(message = "INVALID_SELECTION")
 		@JsonIgnore
 		public boolean isSelectionValid() {
-			return !transactionIds.isEmpty() || !paymentIds.isEmpty();
+			return !transactionIds.isEmpty() || !paymentIds.isEmpty() || !manualExpenseIds.isEmpty();
 		}
 	}
 
 	public record Import(@NotEmpty @Size(max = 5000) List<@NotNull @Valid Selection> rows, UUID accountId) {
 		public Import(List<Selection> rows) {
 			this(rows, null);
+		}
+	}
+
+	public record ManualTransfer(@NotNull UUID id, @NotNull UUID fromAccountId, @NotNull UUID toAccountId,
+		@NotNull LocalDate date, @NotNull @Pattern(regexp = "[0-9]{1,15}") String amount,
+		@TextInput(max = 500, optional = true) String note, @NotNull @Size(max = 100) List<@NotNull @Valid TransferAllocation> allocations) {
+		public ManualTransfer {
+			note = TextValues.optional(note);
+			allocations = allocations == null ? List.of() : List.copyOf(allocations);
 		}
 	}
 

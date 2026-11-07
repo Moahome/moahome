@@ -2,8 +2,7 @@
 
 import {
   useState,
-  useEffect,
-  useRef
+  useEffect
 } from 'react';
 import { AllocationEditor } from '../allocation-editor/allocationEditor';
 import {
@@ -12,9 +11,11 @@ import {
 } from '../../model/allocation';
 import type { ExpenseDraft } from '../../model/allocationTypes';
 import type { TransferAllocationPart } from '../../model/transferAllocationTypes';
+import { calculateTransferAllocation } from '../../model/transferAllocation';
 
 /** 기존 배분 편집기로 선택 동·균등·비율·금액을 확인하며 저장에는 확정된 동별 금액만 전달합니다. */
-export function TransferAllocationEditor({ total, buildings, value, onChange, disabled = false }: {
+export function TransferAllocationEditor({ total, buildings, value, onChange, disabled = false, limits }: {
+  limits?: Readonly<Record<string, string | null>>;
   total: string;
   buildings: readonly { id: string; label: string }[];
   value: readonly TransferAllocationPart[];
@@ -35,25 +36,19 @@ export function TransferAllocationEditor({ total, buildings, value, onChange, di
       percentage: null
     })))
   }));
-  const initialized = useRef(false);
+  const calculated = calculateExpenseAllocation(total, draft, 'income');
+  const allocation = calculateTransferAllocation(total, calculated.allocations.filter((part) => part.buildingId).map((part) => ({
+    buildingId: part.buildingId!,
+    amount: part.amount
+  })), buildings.length > 0, limits);
+  // 한도 조회·통장 변경 시에도 다시 검증해 이전 통장의 유효한 배분으로 저장 버튼이 열리지 않게 합니다.
   useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
-    if (value.length) return;
-    const calculated = calculateExpenseAllocation(total, draft, 'income');
-    onChange(calculated.error ? [] : calculated.allocations.filter((part) => part.buildingId).map((part) => ({
-      buildingId: part.buildingId!,
-      amount: part.amount
-    })));
-  }, [total, draft, value, onChange]);
+    const next = calculated.error || allocation.error ? [] : allocation.allocations;
+    if (JSON.stringify(next) !== JSON.stringify(value)) onChange(next);
+  }, [calculated.error, allocation.error, allocation.allocations, value, onChange]);
 
   function change(next: ExpenseDraft) {
     setDraft(next);
-    const calculated = calculateExpenseAllocation(total, next, 'income');
-    onChange(calculated.error ? [] : calculated.allocations.filter((part) => part.buildingId).map((part) => ({
-      buildingId: part.buildingId!,
-      amount: part.amount
-    })));
   }
   return (
     <AllocationEditor
@@ -66,6 +61,8 @@ export function TransferAllocationEditor({ total, buildings, value, onChange, di
       showDetails={false}
       showRule={false}
       compact
+      limits={limits}
+      validationError={allocation.error}
     />
   );
 }

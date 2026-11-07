@@ -1,3 +1,6 @@
+import { calculateTransferAllocation } from '../src/entities/banking/model/transferAllocation';
+import { getTransferLimits } from '../src/widgets/banking-workspace/model/transferBalance';
+import type { BalanceWorkspace } from '../src/widgets/banking-workspace/api/bankingBalanceApiTypes';
 import {
   expect,
   test
@@ -681,10 +684,12 @@ test('업무 검토 기간은 실제 거래일이며 중복 의심은 은행 원
     status: 'CANCELED'
   };
   expect([...getBankingDuplicateIds([original, manual, canceled], '2026-11-01')]).toEqual(['receipt:manual']);
-  expect([...getBankingDuplicateIds([{
-    ...original,
-    sourceType: 'TRANSFER_AUTO'
-  }, manual], '2026-11-01')]).toEqual([]);
+  for (const sourceType of ['TRANSFER_AUTO', 'TRANSFER_MANUAL'] as const) {
+    expect([...getBankingDuplicateIds([{
+      ...original,
+      sourceType
+    }, manual], '2026-11-01')]).toEqual([]);
+  }
   expect([...getBankingDuplicateIds([{
     ...original,
     automaticTransfer: true,
@@ -726,4 +731,87 @@ test('통장 표시명은 이름을 우선하고 이름이 없으면 은행과 �
   expect(getBankAccountLabel({
     label: '하나은행 ····5107 · 사용 종료'
   })).toBe('사용 종료');
+});
+
+
+test('동별 이체는 합계가 맞아도 출금 통장 한도 초과·미확인을 거부하고 잔액 채우기는 한도까지만 반영', () => {
+  const parts = [{
+    buildingId: '102',
+    amount: '7000'
+  }, {
+    buildingId: '103',
+    amount: '3000'
+  }];
+  const limits = {
+    '102': '6000',
+    '103': '4000'
+  };
+  expect(calculateTransferAllocation('10000', parts, true, limits).error).toContain('보유금을 초과');
+  expect(calculateTransferAllocation('10000', parts, true, {}).error).toContain('먼저 확인');
+  expect(calculateTransferAllocation('10000', [{
+    buildingId: '102',
+    amount: '6000'
+  }, {
+    buildingId: '103',
+    amount: '4000'
+  }], true, limits).error).toBe('');
+  expect(calculateTransferAllocation('1', [{
+    buildingId: '102',
+    amount: '1'
+  }], true, {
+    '102': '-50'
+  }).error).toContain('초과');
+  const original = draft('AMOUNT', [{
+    label: '102동',
+    amount: '1000'
+  }, {
+    label: '103동',
+    amount: '0'
+  }]);
+  const filled = fillAllocationRemainder('10000', original, 0, '6000');
+  expect(filled.allocations.map((part) => part.amount)).toEqual(['6000', '0']);
+  expect(fillAllocationRemainder('10000', filled, 0, '6000')).toBe(filled);
+  expect(fillAllocationRemainder('10000', original, 0, null)).toBe(original);
+});
+
+test('이체 한도는 이후 입금을 미리 쓰지 않고 이후 확정 출금까지 지키며 다른 통장·미설정은 사용하지 않음', () => {
+  const data = {
+    accountId: 'source',
+    buildings: [{
+      id: '102',
+      balance: '9000'
+    }, {
+      id: '103',
+      balance: null
+    }],
+    entries: [
+      {
+        buildingId: '102',
+        accountId: 'source',
+        date: '2026-11-03',
+        income: '5000',
+        expense: '0'
+      },
+      {
+        buildingId: '102',
+        accountId: 'source',
+        date: '2026-11-02',
+        income: '0',
+        expense: '2000'
+      },
+      {
+        buildingId: '102',
+        accountId: 'other',
+        date: '2026-11-02',
+        income: '999999',
+        expense: '0'
+      }
+    ]
+  } as unknown as BalanceWorkspace;
+  expect(getTransferLimits(data, 'source', '2026-11-01')).toEqual({
+    '102': '4000',
+    '103': null
+  });
+  expect(getTransferLimits(data, 'other', '2026-11-01')).toEqual({});
+  expect(getTransferLimits(undefined, 'source', '2026-11-01')).toEqual({});
 });

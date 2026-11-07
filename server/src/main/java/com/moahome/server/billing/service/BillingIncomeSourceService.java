@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -52,5 +54,12 @@ public class BillingIncomeSourceService {
 						item.getItemCode(), item.getAmount(), item.getRevenueAccountId())).toList()));
 		}
 		return List.copyOf(result);
+	}
+
+	/** 실제 첫 확정 부과월을 우선하고 아직 부과 전이면 관리 시작 때 정한 첫 부과월을 사용합니다. */
+	@Transactional(readOnly = true)
+	public YearMonth firstMonth(UUID property, LocalDate plannedFirstMonth) {
+		return get(property).stream().map(source -> YearMonth.parse(source.month())).min(YearMonth::compareTo)
+			.orElse(plannedFirstMonth == null ? null : YearMonth.from(plannedFirstMonth));
 	}
 }

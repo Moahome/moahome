@@ -63,16 +63,21 @@ export function calculateExpenseAllocation(total: string, draft: ExpenseDraft, p
 }
 
 /** 직접 금액 입력에서 관리자가 지정한 한 곳에만 양수 잔액을 더하며 다른 몫은 보존합니다. */
-export function fillAllocationRemainder(total: string, draft: ExpenseDraft, index: number): ExpenseDraft {
+export function fillAllocationRemainder(total: string, draft: ExpenseDraft, index: number, limit?: string | null): ExpenseDraft {
   if (draft.mode !== 'AMOUNT' || !draft.allocations[index] || !/^[0-9]{1,15}$/.test(total)
     || draft.allocations.some((share) => !/^[0-9]{0,15}$/.test(share.amount))) return draft;
   const result = calculateExpenseAllocation(total, draft);
   if (result.remaining <= BigInt(0)) return draft;
+  if (limit === null) return draft;
+  const current = BigInt(draft.allocations[index].amount || '0');
+  const capacity = limit === undefined ? result.remaining : BigInt(limit) - current;
+  if (capacity <= BigInt(0)) return draft;
+  const added = result.remaining < capacity ? result.remaining : capacity;
   return {
     ...draft,
     allocations: draft.allocations.map((share, position) => position === index ? {
       ...share,
-      amount: (BigInt(share.amount || '0') + result.remaining).toString()
+      amount: (current + added).toString()
     } : share)
   };
 }

@@ -5,10 +5,6 @@ import {
   SelectDropdown,
   Input
 } from '@/shared/ui/form-controls';
-import {
-  BANK_TRANSFER_ACCOUNT,
-  DEFAULT_EXPENSE_ACCOUNTS
-} from '../../constants/expenseAccounts';
 import { getReceiptUnitSearchOptions } from '../../lib/receiptUnitOptions';
 import type { ManualReceiptUnit } from '../../model/manualReceiptTypes';
 import { ExpenseAccountSelect } from '../expense-account-select/expenseAccountSelect';
@@ -21,7 +17,7 @@ import { AllocationEditor } from '../allocation-editor/allocationEditor';
 import styles from './bankImportEditor.module.css';
 
 /** 운영 업로드와 초기 설정에서 동일한 입금 용도·세대 지정·지출 배분 입력을 사용합니다. */
-export function BankImportEditor({ direction, amount, suggestedUnitId, units, buildings, expenseAccounts, receipt, expense, onReceiptChange, onExpenseChange, allowTransfer = false, disabled = false }: {
+export function BankImportEditor({ direction, amount, suggestedUnitId, units, buildings, expenseAccounts, receipt, expense, onReceiptChange, onExpenseChange, disabled = false }: {
   direction: string;
   amount: string;
   expenseAccounts?: readonly ExpenseAccountOption[];
@@ -33,9 +29,7 @@ export function BankImportEditor({ direction, amount, suggestedUnitId, units, bu
   onReceiptChange: (draft: BankReceiptDraft) => void;
   onExpenseChange: (draft: ExpenseDraft) => void;
   disabled?: boolean;
-  allowTransfer?: boolean;
 }) {
-  const accountOptions = allowTransfer ? [BANK_TRANSFER_ACCOUNT, ...(expenseAccounts ?? DEFAULT_EXPENSE_ACCOUNTS)] : expenseAccounts;
   if (direction === 'EXPENSE' && !buildings.length) return (
     <div
       className={styles.editor}
@@ -55,7 +49,7 @@ export function BankImportEditor({ direction, amount, suggestedUnitId, units, bu
       />
       <ExpenseAccountSelect
         value={expense.accountCode}
-        options={accountOptions}
+        options={expenseAccounts}
         disabled={disabled}
         onChange={(accountCode) => onExpenseChange({
           ...expense,
@@ -79,7 +73,7 @@ export function BankImportEditor({ direction, amount, suggestedUnitId, units, bu
   if (direction === 'EXPENSE') return (
     <AllocationEditor
       total={amount}
-      expenseAccounts={accountOptions}
+      expenseAccounts={expenseAccounts}
       draft={expense}
       buildings={buildings}
       disabled={disabled}

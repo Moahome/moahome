@@ -29,6 +29,13 @@ public class BankingBalanceController {
 		this.billingStart = billingStart;
 	}
 
+	@GetMapping("/transfer-funds")
+	public ResponseEntity<BankingResponse.TransferFunds> transferFunds(@AuthenticationPrincipal AuthPrincipal user,
+		@PathVariable UUID propertyId, @RequestParam UUID accountId, @RequestParam LocalDate date) {
+		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+			.body(service.transferFunds(UUID.fromString(user.userId()), propertyId, accountId, date));
+	}
+
 	@GetMapping("/initial-billing-impact")
 	public ResponseEntity<BankBillingImpact> billingImpact(@AuthenticationPrincipal AuthPrincipal user,
 	    @PathVariable UUID propertyId, @RequestParam LocalDate cutoffDate,

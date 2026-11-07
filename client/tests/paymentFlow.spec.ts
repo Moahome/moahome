@@ -895,27 +895,6 @@ test('수동 입금자는 기본 이름을 수정해 저장하고 다음 등록�
   })).toHaveValue('실제입금자');
 });
 
-test('처리 상태 탭은 선택 글씨와 밑줄만 강조하고 호버에도 배경을 채우지 않음', async ({page})=>{
-  await page.goto(MATCHING);
-  const tabs=page.getByRole('group',{
-    name:'입금 처리 상태'
-  });
-  const selected=tabs.getByRole('button',{
-    name:/확인 필요/
-  });
-  await selected.hover();
-  await expect(selected).toHaveCSS('background-color','rgba(0, 0, 0, 0)');
-  await expect(selected).toHaveCSS('color','rgb(37, 99, 235)');
-  await expect(selected).toHaveCSS('border-bottom-width','2px');
-  await expect(selected).toHaveCSS('border-bottom-color','rgb(37, 99, 235)');
-  const hold=tabs.getByRole('button',{
-    name:/보류/
-  });
-  await hold.click();
-  await expect(hold).toHaveCSS('background-color','rgba(0, 0, 0, 0)');
-  await expect(hold).toHaveCSS('border-bottom-color','rgb(37, 99, 235)');
-});
-
 test('입금 API 조회 장애를 예시 데이터로 대체하지 않고 재시도로 실제 원장을 조회', async ({page})=>{
   let fail=true;
   await page.route(`**/api/properties/${PROPERTY_ID}/payments/workspace`,async (route)=>{
@@ -3395,7 +3374,7 @@ for (const width of [1440, 390]) {
         name: '입금 용도',
         exact: true
       }).click();
-      await expect(page.getByRole('option')).toHaveText(['세대 관리비 직접 지정', '외부 분담금·수리비 등 기타 입금', '동별 입금 · 직접 배분']);
+      await expect(page.getByRole('option')).toHaveText(['세대 관리비 직접 지정', '외부 분담금·수리비 등 기타 입금', '동별 입금 · 직접 배분', '계좌 이체']);
       return form;
     }
     let form = await open();

@@ -25,6 +25,16 @@ export interface AccountingExpense {
   accountId: string | null;
   recognitionMonth: string | null;
   revision: number;
+  transferCandidates?: AccountingTransferCandidate[];
+  transferPaymentId?: string | null;
+}
+
+export interface AccountingTransferCandidate {
+  paymentId: string;
+  accountName: string;
+  name: string;
+  date: string;
+  amount: string;
 }
 
 export interface AccountingRevenueItem {
@@ -50,7 +60,7 @@ export interface IncomeStatementWorkspace extends IncomeStatementSource {
   generatedAt: string;
   range: MonthRange;
   canManage: boolean;
-  completeness: 'SETUP_REQUIRED' | 'BEFORE_START' | 'READY' | 'REVIEW_REQUIRED';
+  completeness: 'NO_BILLING' | 'SETUP_REQUIRED' | 'BEFORE_START' | 'READY' | 'REVIEW_REQUIRED';
   configuration: { startMonth: string; fiscalYearStartMonth: number } | null;
   issues: AccountingIssue[];
   expenses: AccountingExpense[];
@@ -59,6 +69,17 @@ export interface IncomeStatementWorkspace extends IncomeStatementSource {
   buildings: { id: string; name: string; deleted?: boolean }[];
   receivables?: AccountingReceivable[];
   otherIncomes?: AccountingOtherIncome[];
+  households?: AccountingHouseholdBalance[];
+}
+
+export interface AccountingHouseholdBalance {
+  unitId: string;
+  label: string;
+  receivableAccountId: string;
+  advanceAccountId: string;
+  receivable: string;
+  advance: string;
+  path: string;
 }
 
 export interface AccountingOtherIncome {
@@ -110,6 +131,7 @@ export interface ReviewAccountingExpenseRequest {
   recognitionMonth?: string;
   expectedRevision: number;
   reason?: string;
+  counterpartPaymentId?: string;
 }
 
 export interface ReviewAccountingRevenueRequest {

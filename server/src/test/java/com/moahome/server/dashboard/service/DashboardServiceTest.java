@@ -129,6 +129,18 @@ class DashboardServiceTest {
 		verifyNoMoreInteractions(banking);
 	}
 
+	/** 수동 이체의 표시 행은 은행 원본이 아니므로 같은 금액의 수동 수납을 중복 경고하지 않습니다. */
+	@Test
+	void manualTransferProjectionDoesNotPretendToBeAnOriginalBankTransaction() {
+		sources(PropertyMemberRole.ADMIN);
+		var transfer = transaction(today, "INCOME", "TRANSFER", "100", "TRANSFER_MANUAL");
+		when(banking.workspace(user, property)).thenReturn(new BankingResponse.Workspace(property, today, List.of(),
+			List.of(), List.of(transfer), List.of(), List.of()));
+		when(payments.workspace(user, property)).thenReturn(new PaymentResponse.Ledger(property, today, List.of(),
+			List.of(), List.of(), List.of(payment("CONFIRMED", null)), List.of()));
+		assertEquals(0, service.get(user, property, null).tasks().duplicates());
+	}
+
 	@Test
 	void rejectsInvalidMonthBeforeSourcesAndPropagatesSourceFailure() {
 		sources(PropertyMemberRole.ADMIN);

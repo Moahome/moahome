@@ -97,6 +97,8 @@ public class ExpenseService {
 			throw new PaymentException("INVALID_MANUAL_EXPENSE");
 		var previous = expenses.findById(request.id());
 		if (previous.isPresent()) {
+			if (previous.get().getDeletedAt() != null)
+				throw new PaymentException("BANK_REQUEST_CONFLICT");
 			requireSameManual(previous.get(), property, request, actor);
 			expenseAccounts.requireSameInitial(property, previous.get().getAccountingAccountId(), request.accountCode());
 			return;

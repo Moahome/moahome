@@ -14,6 +14,12 @@ import type {
   SettlementRecoveryStatus
 } from './monthlySettlementTypes';
 
+const CASH_SOURCE_LABELS: Readonly<Record<string, string>> = {
+  TRANSFER_AUTO: '이체 자동 반영',
+  TRANSFER_MANUAL: '수동 이체',
+  MANUAL: '수동 지출'
+};
+
 /** 실제 입출금과 청구 충당을 분리하고 취소·연결된 수동 입금은 은행 원본과 중복 합산하지 않습니다. */
 export function getSettlementReport(data: MonthlySettlementSnapshot) {
   const month = data.month;
@@ -25,7 +31,7 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
     label: row.expense?.category || row.payer,
     amount: BigInt(row.amount),
     direction: row.direction,
-    source: row.sourceType === 'TRANSFER_AUTO' ? '이체 자동 반영' : row.sourceType === 'MANUAL' ? '수동 지출' : '은행 원본',
+    source: CASH_SOURCE_LABELS[row.sourceType ?? ''] ?? '은행 원본',
     transfer: row.transferId != null
   }));
   const manual = data.payments.payments.filter((row) => row.source === 'MANUAL' && row.status === 'CONFIRMED'
@@ -74,9 +80,9 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
   const unclassified = bankRows.filter((row) => !['CONFIRMED', 'TRANSFER'].includes(row.status));
   const unresolvedCharges = collections.filter((row) => row.settlementPending);
   // 은행 원본의 비교 키를 먼저 모아 많은 거래에서도 중복 후보를 반복 전수 탐색하지 않습니다.
-  const bankKeys = new Set(bankRows.filter((row) => row.sourceType !== 'MANUAL' && row.sourceType !== 'TRANSFER_AUTO')
+  const bankKeys = new Set(bankRows.filter((row) => row.sourceType !== 'MANUAL' && row.sourceType !== 'TRANSFER_AUTO' && row.sourceType !== 'TRANSFER_MANUAL')
     .map((row) => `${row.accountId}:${row.date}:${row.direction}:${BigInt(row.amount)}`));
-  const potentialManualDuplicates = cash.filter((row) => row.source.startsWith('수동')
+  const potentialManualDuplicates = cash.filter((row) => !row.transfer && row.source.startsWith('수동')
     && bankKeys.has(`${row.accountId}:${row.date}:${row.direction}:${row.amount}`));
   const checks: SettlementCheck[] = [
     {

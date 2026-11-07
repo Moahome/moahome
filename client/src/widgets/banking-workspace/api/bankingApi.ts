@@ -24,7 +24,7 @@ const AMOUNT = /^[0-9]{1,15}$/;
 /** 서버가 확정한 범위·방향·원 단위 금액을 확인한 뒤 화면에 반영합니다. */
 function validRows(rows: BankingTransaction[]): boolean {
   return Array.isArray(rows) && rows.length <= 100_000 && rows.every((row) => row && UUID.test(row.id) && UUID.test(row.accountId)
-    && (row.sourceType === undefined || ['BANK_IMPORT', 'MANUAL', 'TRANSFER_AUTO'].includes(row.sourceType))
+    && (row.sourceType === undefined || ['BANK_IMPORT', 'MANUAL', 'TRANSFER_AUTO', 'TRANSFER_MANUAL'].includes(row.sourceType))
     && (row.transferId == null || UUID.test(row.transferId))
     && (row.transferAccountId == null || UUID.test(row.transferAccountId))
     && (row.transferAllocations === undefined || (Array.isArray(row.transferAllocations) && row.transferAllocations.every((part) => UUID.test(part.buildingId) && AMOUNT.test(part.amount) && BigInt(part.amount) > BigInt(0))
@@ -33,6 +33,8 @@ function validRows(rows: BankingTransaction[]): boolean {
     && (row.sourceType !== 'TRANSFER_AUTO' || (row.automaticTransfer === true && Boolean(row.transferId)
       && Boolean(row.transferAccountId) && row.transferCandidate === true && ['TRANSFER', 'CANCELED'].includes(row.status)
       && row.balance === null && row.paymentId === null && row.expense === null && row.incomeAllocation == null))
+    && (row.sourceType !== 'TRANSFER_MANUAL' || (row.automaticTransfer === true && Boolean(row.transferId) && Boolean(row.transferAccountId)
+      && row.transferCandidate === true && ['TRANSFER', 'CANCELED'].includes(row.status) && row.balance === null && row.paymentId === null && row.expense === null))
     && (row.sourceType !== 'MANUAL' || (row.direction === 'EXPENSE' && row.status === 'CONFIRMED'
       && row.expense?.id === row.id && row.balance === null && row.paymentId === null))
     && /^\d{4}-\d{2}-\d{2}$/.test(row.date) && typeof row.payer === 'string' && typeof row.amount === 'string'
@@ -76,6 +78,13 @@ export function readWorkspace(result: BankingWorkspaceData, propertyId: string):
     || !result.units.every((u) => UUID.test(u.id) && typeof u.label === 'string'
       && (u.residentNames === undefined || (Array.isArray(u.residentNames) && u.residentNames.every((name) => typeof name === 'string')))) || !Array.isArray(result.rules)) {
     throw new ApiError(200, 'INVALID_RESPONSE', '통장 응답을 확인할 수 없습니다.');
+  }
+  if (result.deletionGroups !== undefined && (!Array.isArray(result.deletionGroups)
+    || result.deletionGroups.some((group) => !group || !UUID.test(group.id)
+      || typeof group.requiresCancellation !== 'boolean' || !Array.isArray(group.transactionIds)
+      || group.transactionIds.length !== 2 || new Set(group.transactionIds).size !== 2
+      || group.transactionIds.some((id) => !UUID.test(id) || !result.rows.some((row) => row.id === id))))) {
+    throw new ApiError(200, 'INVALID_RESPONSE', '이체 연결 정보를 확인할 수 없습니다.');
   }
   return result;
 }
@@ -135,7 +144,7 @@ export async function createManualExpense(propertyId: string, data: ManualExpens
   }), propertyId);
 }
 /** 선택한 은행 원본·미연결 수동 입금을 함께 삭제하고 서버가 재계산한 목록을 반환합니다. */
-export async function deleteBankingTransactions(propertyId: string, transactionIds: string[], paymentIds: string[] = []) {
+export async function deleteBankingTransactions(propertyId: string, transactionIds: string[], paymentIds: string[] = [], manualExpenseIds: string[] = []) {
   return readWorkspace(await authenticatedAPI<BankingWorkspaceData>({
     url: `/api/properties/${propertyId}/banking/transactions/delete`,
     method: 'POST',
@@ -143,6 +152,9 @@ export async function deleteBankingTransactions(propertyId: string, transactionI
       transactionIds,
       ...(paymentIds.length ? {
         paymentIds
+      } : {}),
+      ...(manualExpenseIds.length ? {
+        manualExpenseIds
       } : {})
     }
   }), propertyId);
@@ -196,13 +208,15 @@ export function bankingError(error: unknown): string {
     INVALID_MANUAL_EXPENSE: '지출명과 0원보다 큰 출금액을 입력해주세요.',
     INVALID_MANUAL_EXPENSE_DATE: '오늘 또는 이전 출금일을 선택해주세요.',
     INVALID_TRANSFER_ALLOCATION: '이체할 동과 금액을 확인해주세요.',
+    BANK_TRANSFER_BALANCE_REQUIRED: '출금 통장의 동별 기준 잔고를 먼저 확인해주세요.',
+    BANK_TRANSFER_BALANCE_EXCEEDED: '동별 이체금액이 출금 통장의 보유금을 초과합니다. 최신 보유금을 확인해주세요.',
     BANK_TRANSFER_ALLOCATION_MISMATCH: '동별 이체금액 합계를 전체 이체금액과 맞춰주세요.',
     BANK_TRANSFER_ALLOCATION_CONFLICT: '이미 저장한 동별 이동금액과 다릅니다. 최신 이체 내역을 확인해주세요.',
     INVALID_TRANSFER_ACCOUNT: '이체한 상대 관리 통장을 선택해주세요.',
     BANK_TRANSFER_MATCH_AMBIGUOUS: '날짜·금액이 같은 이체가 여러 건입니다. 거래를 확인한 뒤 다시 시도해주세요.',
     BANK_TRANSFER_CONFIRM_REQUIRED: '이미 상대 통장에 반영된 이체입니다. 관리 통장 간 이체로 확인해주세요.',
     BANK_TRANSFER_CANCEL_REQUIRED: '이체 상세에서 양쪽 장부 반영을 먼저 취소해주세요.',
-    BANK_TRANSFER_ACCOUNT_CONFLICT: '103 통장간 거래 계정 설정을 확인해주세요.',
+    BANK_TRANSFER_ACCOUNT_CONFLICT: '계좌 이체 설정을 확인해주세요.',
     BANK_TRANSFER_CONFLICT: '다른 통장의 같은 금액 입출금인지 확인해주세요. 이미 처리된 연결은 다시 열어주세요.',
     BANK_TRANSFER_DELETE_PAIR_REQUIRED: '연결된 이체는 연결을 해제한 뒤 삭제하거나 양쪽 거래를 함께 선택해주세요.',
     PAYMENT_DELETE_NOT_ALLOWED: '은행에 연결된 수납은 해당 은행 거래를 선택해 삭제해주세요.',

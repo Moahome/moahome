@@ -3,6 +3,7 @@ package com.moahome.server.banking.service;
 import com.moahome.server.accounting.domain.AccountingAccount;
 import com.moahome.server.accounting.repo.AccountingAccountRepository;
 import com.moahome.server.accounting.service.ExpenseAccountService;
+import com.moahome.server.accounting.service.AccountingTransferService;
 import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -21,6 +22,7 @@ import com.moahome.server.common.security.PaymentTextSecurity;
 import com.moahome.server.expense.domain.ExpenseAllocation;
 import com.moahome.server.expense.repo.*;
 import com.moahome.server.expense.service.ExpenseService;
+import com.moahome.server.expense.domain.Expense;
 import com.moahome.server.payment.domain.Payment;
 import com.moahome.server.payment.dto.PaymentResponse;
 import com.moahome.server.payment.exception.PaymentException;
@@ -53,6 +55,7 @@ public class BankingService {
 	private final BankTransferPostingService transferPostings;
 	private final ExpenseAccountService expenseAccounts;
 	private final AccountingAccountRepository accountingAccounts;
+	private final AccountingTransferService accountingTransfers;
 
 	private final PaymentService payments;
 
@@ -77,7 +80,8 @@ public class BankingService {
 	    BankTransferRepository transfers,
 	    IncomeAllocationService incomeAllocationService,
 	    ExpenseAccountService expenseAccounts,
-	    AccountingAccountRepository accountingAccounts, BankTransferPostingService transferPostings) {
+	    AccountingAccountRepository accountingAccounts, BankTransferPostingService transferPostings,
+	    AccountingTransferService accountingTransfers) {
 		this.access = access;
 		this.properties = properties;
 		this.buildings = buildings;
@@ -89,6 +93,7 @@ public class BankingService {
 		this.transferPostings = transferPostings;
 		this.expenseAccounts = expenseAccounts;
 		this.accountingAccounts = accountingAccounts;
+		this.accountingTransfers = accountingTransfers;
 		this.payments = payments;
 		this.reader = reader;
 		this.security = security;
@@ -125,6 +130,22 @@ public class BankingService {
 
 	private LocalDate today() {
 		return LocalDate.now(clock.withZone(BillingCalendar.ZONE));
+	}
+
+	/** 은행 원본이 없는 실제 수동 입금도 손익 원천에 전달하며 기초 선납 인계는 새 입금으로 만들지 않습니다. */
+	public List<BankingResponse.Transaction> manualIncomeSources(UUID user, UUID property) {
+		requireManagementAccess(user, property);
+		PaymentResponse.Ledger ledger = payments.workspace(user, property);
+		return ledger.payments().stream()
+		    .filter(value -> "MANUAL".equals(value.source()) && value.bankTransactionId() == null
+		        && Set.of("CONFIRMED", "OPENING").contains(value.status()))
+		    .map(value -> new BankingResponse.Transaction(value.id(), value.accountId(), value.date(), null,
+		        value.payer(), value.memo(), value.amount(), null, "INCOME", "", value.id(), "CONFIRMED",
+		        value.unitId(), "OTHER".equals(value.receiptType()) ? value.incomeCategory()
+		            : ledger.units().stream().filter(unit -> unit.id().toString().equals(value.unitId()))
+		                .map(PaymentResponse.Unit::label).findFirst().orElse(""),
+		        null, value.incomeAllocation(), value.receiptType(), false, null, "MANUAL"))
+		    .toList();
 	}
 
 	private boolean allowed(Property target, LocalDate date) {
@@ -236,7 +257,35 @@ public class BankingService {
 			        return new BankingResponse.Account(a.getId(), a.getBankName(), a.getAccountLast4(), a.getAlias(),
 			            a.isPrimary(), a.getStatus().name(), a.getBankCode(), BankImportFormat.support(a.getBankCode()),
 			            a.availableFrom(firstUse), a.getValidTo(), firstUse != null);
-		        }).toList(), expenseAccounts.options(property));
+		        }).toList(), expenseAccounts.options(property), deletionGroups(property, rows));
+	}
+
+	/** 취소 후에도 연결 식별자를 별도로 제공해 다른 통장·페이지의 상대 거래까지 함께 선택합니다. */
+	private List<BankingResponse.DeletionGroup> deletionGroups(UUID property, List<BankingResponse.Transaction> rows) {
+		Set<UUID> visible = rows.stream().map(BankingResponse.Transaction::id).collect(Collectors.toSet());
+		Set<UUID> grouped = new HashSet<>();
+		List<BankingResponse.DeletionGroup> result = new ArrayList<>();
+		for (var posting : transferPostings.all(property)) {
+			UUID source = posting.isManual() ? posting.outgoingDisplayId() : posting.getSourceTransactionId();
+			UUID counterpart = posting.isManual() ? posting.incomingDisplayId() : posting.getCounterpartTransactionId() == null ? posting.getId() : posting.getCounterpartTransactionId();
+			if (!visible.contains(source) || !visible.contains(counterpart))
+				continue;
+			List<UUID> pair = List.of(source, counterpart);
+			result.add(new BankingResponse.DeletionGroup(posting.getId(), pair, posting.getCanceledAt() == null));
+			grouped.addAll(pair);
+		}
+		// 재연결한 원본은 최신 연결 하나에만 속합니다. 과거 취소 이력으로 다른 상대를 추가하지 않습니다.
+		for (var transfer : transfers.findByPropertyId(property).stream()
+			.sorted(Comparator.comparing((BankTransfer value) -> value.getCanceledAt() != null)
+				.thenComparing(BankTransfer::getCreatedAt, Comparator.reverseOrder())).toList()) {
+			if (!visible.contains(transfer.getOutgoingId()) || !visible.contains(transfer.getIncomingId())
+				|| grouped.contains(transfer.getOutgoingId()) || grouped.contains(transfer.getIncomingId()))
+				continue;
+			List<UUID> pair = List.of(transfer.getOutgoingId(), transfer.getIncomingId());
+			result.add(new BankingResponse.DeletionGroup(transfer.getId(), pair, transfer.getCanceledAt() == null));
+			grouped.addAll(pair);
+		}
+		return List.copyOf(result);
 	}
 
 	/** 미리보기는 저장하지 않고 기존 입금 후보와 출금을 한 목록으로 반환합니다. 인계 이전 거래는 따로 셉니다. */
@@ -276,7 +325,7 @@ public class BankingService {
 			}
 			var candidate = candidates.get(id);
 			var pendingTransfer = transferPostings.pending(pendingTransfers, account.getId(), row.date(), row.direction(), row.amount());
-			UUID otherAccount = pendingTransfer == null ? null : pendingTransfer.source().getBankAccountId();
+			UUID otherAccount = pendingTransfer == null ? null : pendingTransfer.otherAccountId();
 			rows.add(new BankingResponse.Transaction(id, account.getId(), row.date(), row.time(), row.payer(),
 			    row.memo(), row.amount().toPlainString(), row.balance() == null ? null : row.balance().toPlainString(),
 			    row.direction(), BankTransactionKeys.ruleKey(row.payer(), security), null,
@@ -470,6 +519,16 @@ public class BankingService {
 		return workspace(user, property);
 	}
 
+	/** 기존 입출금과 같은 권한·관리대상 잠금에서 수동 이체 한 건과 양쪽 소유금을 원자적으로 확정합니다. */
+	@Transactional(isolation = Isolation.READ_COMMITTED)
+	public BankingResponse.Workspace manualTransfer(UUID user, UUID property, BankingRequests.ManualTransfer request) {
+		requireManagementAccess(user, property);
+		properties.findForUnitUpdate(property).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+		requireManagementAccess(user, property);
+		transferPostings.manual(property, request, user);
+		return workspace(user, property);
+	}
+
 	/** 기존 이체의 동별 소유금 이동을 같은 관리대상 잠금 안에서 한 번 확정합니다. */
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public BankingResponse.Workspace allocateTransfer(UUID user, UUID property, UUID transfer, BankingRequests.TransferAllocations request) {
@@ -510,7 +569,7 @@ public class BankingService {
 		var outgoing = transferSource(property, request.outgoingId());
 		var incoming = transferSource(property, request.incomingId());
 		if (transferPostings.all(property).stream().anyMatch(value ->
-		    Set.of(outgoing.getId(), incoming.getId()).contains(value.getSourceTransactionId())
+		    (value.getSourceTransactionId() != null && Set.of(outgoing.getId(), incoming.getId()).contains(value.getSourceTransactionId()))
 		    || (value.getCounterpartTransactionId() != null && Set.of(outgoing.getId(), incoming.getId()).contains(value.getCounterpartTransactionId()))))
 			throw new PaymentException("BANK_TRANSFER_CONFLICT");
 		if (!"EXPENSE".equals(outgoing.getDirection()) || !"INCOME".equals(incoming.getDirection())
@@ -553,30 +612,52 @@ public class BankingService {
 		requireManagementAccess(user, property);
 		properties.findForUnitUpdate(property).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
 		requireManagementAccess(user, property);
-		LinkedHashSet<UUID> ids = new LinkedHashSet<>(transferPostings.deletionSources(property, new LinkedHashSet<>(request.transactionIds())));
+		LinkedHashSet<UUID> requested = new LinkedHashSet<>(request.transactionIds());
+		LinkedHashSet<UUID> manualIds = new LinkedHashSet<>(request.paymentIds());
+		LinkedHashSet<UUID> expenseIds = new LinkedHashSet<>(request.manualExpenseIds());
+		// 확정 이체는 삭제가 취소를 대신하지 않습니다. 먼저 명시적으로 연결·반영을 취소해야 합니다.
+		for (var match : accountingTransfers.current(property)) {
+			var outgoing = expenses.findById(match.getExpenseId()).orElseThrow();
+			var incoming = receiptRepository.findById(match.getPaymentId()).orElseThrow();
+			if (expenseIds.contains(outgoing.getId()) || manualIds.contains(incoming.getId())
+				|| requested.contains(outgoing.getBankTransactionId()) || requested.contains(incoming.getBankTransactionId()))
+				throw new PaymentException("BANK_TRANSFER_CANCEL_REQUIRED");
+		}
+		if (transferPostings.all(property).stream().anyMatch(value -> value.getCanceledAt() == null
+			&& (requested.contains(value.getId()) || requested.contains(value.getSourceTransactionId())
+				|| requested.contains(value.getCounterpartTransactionId()))))
+			throw new PaymentException("BANK_TRANSFER_CANCEL_REQUIRED");
+		for (var group : deletionGroups(property, workspace(user, property).rows())) {
+			if (group.transactionIds().stream().noneMatch(requested::contains))
+				continue;
+			if (group.requiresCancellation())
+				throw new PaymentException("BANK_TRANSFER_CANCEL_REQUIRED");
+			if (!requested.containsAll(group.transactionIds()))
+				throw new PaymentException("BANK_TRANSFER_DELETE_PAIR_REQUIRED");
+		}
+		LinkedHashSet<UUID> ids = new LinkedHashSet<>(transferPostings.deletionSources(property, requested));
 		List<BankTransaction> selected = transactions.findAllById(ids);
 		if (selected.size() != ids.size() || selected.stream().anyMatch(t -> !property.equals(t.getPropertyId())))
 			throw new PaymentException("BANK_TRANSACTION_NOT_FOUND");
-		if (transferPostings.all(property).stream().anyMatch(value -> value.getCanceledAt() == null
-		    && (ids.contains(value.getSourceTransactionId()) || ids.contains(value.getCounterpartTransactionId()))))
-			throw new PaymentException("BANK_TRANSFER_CANCEL_REQUIRED");
-		// 연결된 이체는 양쪽을 함께 삭제해야 상대 통장에 설명 없는 단독 거래가 남지 않습니다.
-		if (transfers.findByPropertyId(property).stream().anyMatch(
-		    t -> t.getCanceledAt() == null && (ids.contains(t.getOutgoingId()) != ids.contains(t.getIncomingId()))))
-			throw new PaymentException("BANK_TRANSFER_DELETE_PAIR_REQUIRED");
 		// 은행 원본과 수동 수납 선택은 구분하며 다른 대상·은행 연결 수납은 수동 삭제로 우회하지 못합니다.
-		LinkedHashSet<UUID> manualIds = new LinkedHashSet<>(request.paymentIds());
 		List<Payment> manual = receiptRepository.findAllById(manualIds);
 		if (manual.size() != manualIds.size() || manual.stream().anyMatch(p -> !property.equals(p.getPropertyId())))
 			throw new PaymentException("PAYMENT_NOT_FOUND");
 		if (manual.stream().anyMatch(p -> !"MANUAL".equals(p.getSourceType()) || p.getBankTransactionId() != null))
 			throw new PaymentException("PAYMENT_DELETE_NOT_ALLOWED");
+		List<Expense> manualExpenses = expenses.findAllById(expenseIds);
+		if (manualExpenses.size() != expenseIds.size() || manualExpenses.stream()
+		    .anyMatch(value -> !property.equals(value.getPropertyId()) || !"MANUAL".equals(value.getSourceType())))
+			throw new PaymentException("EXPENSE_DELETE_NOT_ALLOWED");
 		// 한 선택이라도 삭제 불가이면 은행 원본 취소까지 모두 롤백합니다. 취소 사유와 수납 이벤트는 보존합니다.
 		if (!manualIds.isEmpty())
 			payments.removeManualReceipts(user, property, manualIds);
 		// 확정 수납·충당은 기존 취소 흐름과 같은 이력을 남깁니다. 출금 분류·배분은 원본과 함께 보관합니다.
 		payments.removeBankReceipts(user, property, ids);
 		var at = OffsetDateTime.now(clock);
+		manualExpenses.forEach(value -> value.removeManual(user, at));
+		transferPostings.removeManualSelections(property, requested, user, at);
+		expenses.flush();
 		selected.forEach(t -> t.softDelete(user, at));
 		transactions.flush();
 		return workspace(user, property);

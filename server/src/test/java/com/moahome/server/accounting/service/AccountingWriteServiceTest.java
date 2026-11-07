@@ -51,13 +51,17 @@ class AccountingWriteServiceTest {
 	private final BankingService banking = mock(BankingService.class);
 	private final PaymentTextSecurity security = mock(PaymentTextSecurity.class);
 	private final Clock clock = Clock.systemUTC();
+	private final AccountingTransferService accountingTransfers = mock(AccountingTransferService.class);
 	private final AccountingWriteService service = new AccountingWriteService(access, properties, profiles, accounts,
-		reviews, revenues, billing, banking, security, clock);
+		reviews, revenues, billing, banking, security, clock, accountingTransfers);
 	private final AccountingAccount account = AccountingAccount.create(propertyId, "812", "비용", IncomeGroup.OPERATING_EXPENSE,
 		null, actor, OffsetDateTime.now(clock));
 
 	@BeforeEach
 	void setup() {
+		when(billing.firstMonth(propertyId, null)).thenReturn(YearMonth.of(2026, 10));
+		when(profiles.existsById(propertyId)).thenReturn(true);
+		when(accounts.findByPropertyIdOrderByCreatedAtAscIdAsc(propertyId)).thenReturn(List.of(account));
 		when(access.getManagementContext(actor, propertyId)).thenReturn(
 			new ManagementPropertyResponse(propertyId, "관리대상", PropertyMemberRole.ADMIN));
 		when(properties.findForUnitUpdate(propertyId)).thenReturn(Optional.of(mock(Property.class)));

@@ -22,7 +22,7 @@ export function ExpenseAccountSelect({ value, onChange, options = DEFAULT_EXPENS
       options={[{
         value: '',
         label: '자동 매칭'
-      }, ...[...options].sort((left, right) => left.code.localeCompare(right.code)).map((account) => ({
+      }, ...[...options.filter((account) => account.code !== '103')].sort((left, right) => left.code.localeCompare(right.code)).map((account) => ({
         value: account.code,
         label: `${account.code} ${account.name}`
       }))]}

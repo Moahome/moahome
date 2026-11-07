@@ -73,6 +73,8 @@
 }
 
 .page {
+  display: grid;
+  gap: 16px;
   width: min(100%, 640px);
   max-height: none;
   margin: 0 auto;
@@ -94,10 +96,16 @@
 .modal {
   overflow: hidden;
 
+  &[open] {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
   form {
     display: flex;
     flex-direction: column;
-    max-height: calc(100dvh - 82px);
+    min-height: 0;
   }
 
   .body {

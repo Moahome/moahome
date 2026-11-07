@@ -1,3 +1,7 @@
+import {
+  mockSettlement,
+  SETTLEMENT_PROPERTY
+} from './support/monthlySettlement';
 import { closeReportPreview } from './support/reportDownload';
 import { selectMonthRange } from './support/monthRange';
 import {
@@ -4180,7 +4184,7 @@ for (const width of [1440, 320]) {
         id: second,
         label: '카카오뱅크 ····5678 · 예비비',
         status: 'CLOSED',
-        balance: null,
+        balance: '2338114',
         asOf: null,
         calculatedBalance: '200000',
         calculationBasisDate: '2026-09-30'
@@ -4349,6 +4353,8 @@ for (const width of [1440, 320]) {
     await expect(detail).toContainText('사용 종료');
     await expect(detail).toContainText('장부 잔액');
     await expect(detail).toContainText('200,000원');
+    // 보존된 은행 확인값이 현재 장부 잔액을 덮어쓰지 않는지는 이 상세 흐름에서 함께 검증합니다.
+    await expect(detail).not.toContainText('2,338,114원');
     await detail.getByRole('button', {
       name: '현재 장부 잔액 도움말',
       exact: true
@@ -5080,6 +5086,11 @@ for (const width of [1440, 390]) {
       }).click();
       await register.click();
     }
+    // 종료 통장은 개수에서 제외하므로 사용 중 통장이 하나면 이체 체크를 표시하지 않습니다.
+    await expect(page.getByRole('checkbox', {
+      name: '계좌 이체',
+      exact: true
+    })).toHaveCount(0);
     for (const title of ['기본 정보', '배분 설정', '배분 금액', '메모']) {
       await expect(page.getByRole('heading', {
         name: new RegExp(title)
@@ -5469,282 +5480,6 @@ for (const width of [1440, 390]) {
 }
 
 
-for (const width of [1440, 425]) {
-  test(`은행 확인 기록은 ${width}px 통장 상세에 노출하지 않고 장부 잔액만 표시`, async ({ page }, testInfo) => {
-    await page.setViewportSize({
-      width,
-      height: 1000
-    });
-    let checkRequests = 0;
-    await page.route('http://localhost:8080/**', async (route) => {
-      const url = new URL(route.request().url());
-      const path = url.pathname;
-      const method = route.request().method();
-      const status = method === 'OPTIONS' ? 204 : 200;
-      let body: unknown = {};
-      if (path.endsWith('/csrf')) body = {
-        csrfToken: 'csrf'
-      };
-      else if (path.endsWith('/refresh')) body = {
-        accessToken: 'access',
-        tokenType: 'Bearer',
-        accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
-      };
-      else if (path === '/api/users/me') body = {
-        id: id(1),
-        displayName: '관리자',
-        profileImageUrl: null,
-        systemRole: 'USER',
-        canCreateProperty: true,
-        status: 'ACTIVE'
-      };
-      else if (path.endsWith('/payments/workspace')) body = {
-        propertyId: PROPERTY,
-        asOf: '2026-10-24',
-        accounts: [],
-        units: [],
-        charges: [],
-        payments: [],
-        history: []
-      };
-      else if (path.endsWith('/access-context')) body = {
-        residentEligible: false,
-        propertyId: PROPERTY,
-        name: '모아빌라',
-        role: 'ADMIN'
-      };
-      else if (path.endsWith('/managed-properties')) body = {
-        properties: [{
-          propertyId: PROPERTY,
-          name: '모아빌라',
-          role: 'ADMIN'
-        }]
-      };
-      else if (path.endsWith(`/banking/account/${ACCOUNT}`)) body = {
-        propertyId: PROPERTY,
-        accountId: ACCOUNT,
-        updatedAt: '2026-10-15T00:00:00Z',
-        bankCode: '081',
-        bankName: '하나은행',
-        last4: '1234',
-        holderName: '관리단',
-        alias: '관리비',
-        isPrimary: true,
-        status: 'ACTIVE'
-      };
-      else if (path.includes('/banking/balances/checks')) {
-        checkRequests++;
-        body = {};
-      }
-      else if (path.endsWith('/banking/balances')) body = {
-        propertyId: PROPERTY,
-        month: '2026-10',
-        cutoffDate: null,
-        bankBalance: '2338114',
-        bankAsOf: null,
-        buildings: [],
-        entries: [],
-        externals: [],
-        incomes: [],
-        pending: [],
-        accounts: [{
-          id: ACCOUNT,
-          label: '하나은행 ····1234 · 관리비',
-          status: 'ACTIVE',
-          balance: '2338114',
-          calculatedBalance: '900000',
-          calculationBasisDate: '2026-09-30',
-          asOf: '2026-10-14 09:20:00'
-        }, {
-          id: id(11),
-          label: '카카오뱅크 ····1020 · 예비비',
-          status: 'ACTIVE',
-          balance: null,
-          asOf: null,
-          calculatedBalance: '1522910',
-          calculationBasisDate: '2026-09-30'
-        }]
-      };
-      await route.fulfill({
-        status,
-        contentType: 'application/json',
-        headers: {
-          'Access-Control-Allow-Origin': 'http://localhost:3100',
-          'Access-Control-Allow-Credentials': 'true',
-          'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-CSRF-TOKEN',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
-        },
-        body: status === 204 ? '' : JSON.stringify(body)
-      });
-    });
-    await page.goto(`${BASE}/balances?month=2026-10`);
-    await expect(page.getByRole('article', {
-      name: '통장 잔액 합계 2,422,910원',
-      exact: true
-    })).toBeVisible();
-    if (width === 425) {
-      const sizes = page.getByRole('combobox', {
-        name: '동별 잔고 표시 개수',
-        exact: true
-      });
-      const state = page.getByRole('combobox', {
-        name: '잔고 상태',
-        exact: true
-      });
-      await expect(sizes).toBeVisible();
-      expect((await sizes.boundingBox())!.width).toBeGreaterThan((await state.boundingBox())!.width * 1.8);
-    }
-
-    await page.getByRole('button', {
-      name: '관리비 통장 상세 보기',
-      exact: true
-    }).click();
-    const detail = width > 767 ? page.getByRole('dialog', {
-      name: '통장 상세',
-      exact: true
-    }) : page.getByRole('main');
-    await expect(detail.getByText('900,000원', {
-      exact: true
-    }).first()).toBeVisible();
-    await expect(detail).not.toContainText('2,338,114원');
-    await expect(detail).not.toContainText('은행 확인');
-    await expect(page.getByRole('button', {
-      name: '확인 이력',
-      exact: true
-    })).toHaveCount(0);
-    await expect(page.getByRole('button', {
-      name: '은행 잔액 직접 확인',
-      exact: true
-    })).toHaveCount(0);
-    expect(checkRequests).toBe(0);
-    await page.screenshot({
-      path: testInfo.outputPath(`ledgerAccount${width}.png`),
-      fullPage: true
-    });
-  });
-}
-
-for (const width of [1920, 390, 320]) {
-  test(`은행 확인 카드는 통장 선택·입출금 필터와 무관하게 없고 요약 카드가 전체 너비를 채운다 (${width}px)`, async ({ page }) => {
-    await page.setViewportSize({
-      width,
-      height: 1000
-    });
-    await page.route('http://localhost:8080/**', async (route) => {
-      const path = new URL(route.request().url()).pathname;
-      let body: unknown = {};
-      if (path.endsWith('/csrf')) body = {
-        csrfToken: 'test-csrf'
-      };
-      else if (path.endsWith('/refresh')) body = {
-        accessToken: 'test-access',
-        tokenType: 'Bearer',
-        accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
-      };
-      else if (path === '/api/users/me') body = {
-        id: id(1),
-        displayName: '관리자',
-        profileImageUrl: null,
-        systemRole: 'USER',
-        canCreateProperty: true,
-        status: 'ACTIVE'
-      };
-      else if (path.endsWith('/access-context')) body = {
-        residentEligible: false,
-        propertyId: PROPERTY,
-        name: '모아빌라',
-        role: 'ADMIN'
-      };
-      else if (path.endsWith('/managed-properties')) body = {
-        properties: [{
-          propertyId: PROPERTY,
-          name: '모아빌라',
-          role: 'ADMIN'
-        }]
-      };
-      else if (path.endsWith('/payments/workspace')) body = {
-        propertyId: PROPERTY,
-        asOf: '2026-10-15',
-        accounts: [{
-          id: ACCOUNT,
-          label: '가상 통장'
-        }],
-        units: [],
-        charges: [],
-        payments: [],
-        history: []
-      };
-      else if (path.endsWith('/banking/workspace')) body = {
-        propertyId: PROPERTY,
-        asOf: '2026-10-15',
-        accounts: [IMPORT_ACCOUNT],
-        buildings: [],
-        units: [],
-        rows: [row(700, 'INCOME', '가상입금', '50000'), row(701, 'EXPENSE', '가상지출', '20000')],
-        rules: []
-      };
-      await route.fulfill({
-        json: body
-      });
-    });
-    await page.goto(`${BASE}/transactions`);
-    const summary = page.locator('[data-view="transactions"]');
-    const filters = page.getByRole('group', {
-      name: '입출금 필터'
-    });
-    const balance = summary.getByRole('article').filter({
-      hasText: '최근 은행 확인 잔액'
-    });
-    const accountFilter = page.getByRole('combobox', {
-      name: '조회 통장',
-      exact: true
-    });
-    for (const specific of [false, true]) {
-      if (specific) {
-        await accountFilter.click();
-        await page.getByRole('option', {
-          name: /하나은행/
-        }).click();
-      }
-      for (const direction of ['전체', '입금', '출금']) {
-        await filters.getByRole('button', {
-          name: new RegExp(`^${direction}`)
-        }).click();
-        const expected = direction === '전체' ? 4 : 3;
-        await expect(summary.getByRole('article')).toHaveCount(expected);
-        await expect(balance).toHaveCount(0);
-        const parent = (await summary.boundingBox())!;
-        const cards = await summary.getByRole('article').evaluateAll((elements) => elements.map((element) => {
-          const bounds = element.getBoundingClientRect();
-          return {
-            left: bounds.left,
-            right: bounds.right,
-            width: bounds.width,
-            top: bounds.top
-          };
-        }));
-        expect(Math.abs(cards[0].left - parent.x)).toBeLessThan(1);
-        expect(Math.abs(Math.max(...cards.map((card) => card.right)) - (parent.x + parent.width))).toBeLessThan(1);
-        expect(Math.max(...cards.map((c) => c.width)) - Math.min(...cards.map((c) => c.width))).toBeLessThan(1);
-        if (width === 1920) {
-          expect(cards.every((card) => Math.abs(card.top - cards[0].top) < 1)).toBe(true);
-          await summary.screenshot({
-            path: test.info().outputPath(`summary-${specific ? 'account' : 'all'}-${direction}-${width}.png`)
-          });
-        }
-        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      }
-    }
-    await accountFilter.click();
-    await page.getByRole('option', {
-      name: '전체 통장',
-      exact: true
-    }).click();
-    await expect(balance).toHaveCount(0);
-    await expect(summary.getByRole('article')).toHaveCount(3);
-  });
-}
-
 for (const { width, handover } of [{
   width: 1440,
   handover: false
@@ -6094,7 +5829,7 @@ for (const { width, handover } of [{
 }
 
 /** 한쪽 은행 출금에서 103을 선택해 상대 통장을 반영하고 취소·후속 원본 대사까지 같은 이체로 처리합니다. */
-test('103 통장간 거래 선택은 상대 통장 지정·양쪽 반영·취소·취소 후 원본 대사를 연결', async ({ page }, testInfo) => {
+test('계좌 이체 체크는 과목에서 제외하고 상대 통장 지정·양쪽 반영·취소·취소 후 원본 대사를 연결', async ({ page }, testInfo) => {
   const second = id(11), transferId = id(980);
   const accounts = [{
     ...IMPORT_ACCOUNT,
@@ -6157,6 +5892,42 @@ test('103 통장간 거래 선택은 상대 통장 지정·양쪽 반영·취소
         role: 'ADMIN'
       }]
     };
+    else if (path.endsWith('/banking/balances')) {
+      const query = new URL(route.request().url()).searchParams;
+      body = {
+        propertyId: PROPERTY,
+        month: query.get('month'),
+        startMonth: query.get('startMonth') ?? query.get('month'),
+        accountId: query.get('accountId'),
+        cutoffDate: '2026-09-30',
+        bankBalance: null,
+        bankAsOf: null,
+        buildings: [{
+          id: BUILDING_A,
+          label: '102동',
+          active: true,
+          startBalance: '6000',
+          balance: '6000',
+          income: '0',
+          expense: '0',
+          status: 'READY'
+        },
+        {
+          id: BUILDING_B,
+          label: '103동',
+          active: true,
+          startBalance: '4000',
+          balance: '4000',
+          income: '0',
+          expense: '0',
+          status: 'READY'
+        }],
+        entries: [],
+        externals: [],
+        incomes: [],
+        pending: []
+      };
+    }
     else if (path.endsWith('/payments/workspace')) body = {
       propertyId: PROPERTY,
       asOf: saved.asOf,
@@ -6295,10 +6066,14 @@ test('103 통장간 거래 선택은 상대 통장 지정·양쪽 반영·취소
     name: '계정과목',
     exact: true
   }).click();
-  await page.getByRole('option', {
-    name: '103 통장간 거래',
+  await expect(page.getByRole('option').filter({
+    hasText: /103|계좌 이체|통장간 거래/
+  })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await editor.getByRole('checkbox', {
+    name: '관리 통장 간 이체',
     exact: true
-  }).click();
+  }).check();
   await expect(editor.getByRole('checkbox', {
     name: '관리 통장 간 이체',
     exact: true
@@ -6340,6 +6115,21 @@ test('103 통장간 거래 선택은 상대 통장 지정·양쪽 반영·취소
     name: '금액 직접 입력',
     exact: true
   }).click();
+  await expect(editor).toContainText('이체 가능 6,000원');
+  await editor.getByLabel('102동 배분액', {
+    exact: true
+  }).fill('7000');
+  await editor.getByLabel('103동 배분액', {
+    exact: true
+  }).fill('3000');
+  await expect(editor.getByRole('button', {
+    name: '설정 완료',
+    exact: true
+  })).toBeDisabled();
+  await expect(editor).toContainText('보유금을 초과');
+  await expect(editor.getByText('배분 완료', {
+    exact: true
+  })).toHaveCount(0);
   await editor.getByLabel('102동 배분액', {
     exact: true
   }).fill('6000');
@@ -6352,7 +6142,10 @@ test('103 통장간 거래 선택은 상대 통장 지정·양쪽 반영·취소
   }).click();
   await expect(editor.getByLabel('103동 배분액', {
     exact: true
-  })).toHaveValue('4000');
+  })).toHaveValue('4,000');
+  await expect(editor.getByLabel('102동 배분액', {
+    exact: true
+  })).toHaveValue('6,000');
 
   await editor.screenshot({
     path: testInfo.outputPath('transfer103Settings.png'),
@@ -6453,3 +6246,495 @@ test('103 통장간 거래 선택은 상대 통장 지정·양쪽 반영·취소
   await expect(page).toHaveURL(/banking\/transactions/);
   expect(uploadBody).toContain(`"matchTransferId":"${transferId}"`);
 });
+
+for (const width of [1440, 390]) {
+  test(`취소 이체 편집 ${width}px는 다른 통장에 숨은 상대 거래도 함께 선택·해제하고 한 요청으로 삭제한다`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    await mockSettlement(page);
+    const second = id(9910), transfer = id(9911);
+    let canceled = false, deleted = false;
+    const accounts = [{
+      ...IMPORT_ACCOUNT,
+      alias: '출금 통장'
+    }, {
+      ...IMPORT_ACCOUNT,
+      id: second,
+      alias: '입금 통장',
+      isPrimary: false
+    }];
+    const workspace = (): BankingWorkspaceData => ({
+      propertyId: SETTLEMENT_PROPERTY,
+      asOf: '2026-10-17',
+      accounts,
+      buildings: [],
+      units: [],
+      rules: [],
+      rows: deleted ? [] : [
+        {
+          ...row(9912, 'EXPENSE', '연결 출금', '10000'),
+          transferCandidate: true,
+          transferId: transfer,
+          status: canceled ? 'CANCELED' : 'TRANSFER'
+        },
+        {
+          ...row(9913, 'INCOME', '연결 입금', '10000'),
+          accountId: second,
+          transferCandidate: true,
+          transferId: transfer,
+          status: canceled ? 'CANCELED' : 'TRANSFER'
+        }
+      ],
+      deletionGroups: deleted ? [] : [{
+        id: transfer,
+        transactionIds: [id(9912), id(9913)],
+        requiresCancellation: !canceled
+      }]
+    });
+    await page.route('http://localhost:8080/api/properties/*/banking/workspace', (route) => route.fulfill({
+      json: workspace()
+    }));
+    let deleteBody: unknown;
+    await page.route('http://localhost:8080/api/properties/*/banking/transactions/delete', async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fulfill({
+        status: 200
+      });
+      deleteBody = route.request().postDataJSON();
+      deleted = true;
+      await route.fulfill({
+        json: workspace()
+      });
+    });
+    const href = `/manage/${SETTLEMENT_PROPERTY}/banking/transactions?month=2026-10&account=${ACCOUNT}`;
+    await page.goto(href);
+    await expect(page.getByRole('table', {
+      name: '통장 거래',
+      exact: true
+    })).toContainText('연결 출금');
+    await expect(page.getByRole('button', {
+      name: '편집',
+      exact: true
+    })).toBeDisabled();
+    // 취소 완료 응답을 재조회합니다. 화면에는 출금 통장 한쪽만 보입니다.
+    canceled = true;
+    await page.reload();
+    await page.getByRole('button', {
+      name: /^취소 내역/
+    }).click();
+    await page.getByRole('button', {
+      name: '편집',
+      exact: true
+    }).click();
+    const checkbox = page.getByLabel('연결 출금 거래 선택', {
+      exact: true
+    });
+    await checkbox.check();
+    await page.getByRole('button', {
+      name: '선택 삭제',
+      exact: true
+    }).click();
+    const dialog = page.getByRole('dialog', {
+      name: '거래를 삭제할까요?',
+      exact: true
+    });
+    await expect(dialog.getByRole('listitem')).toHaveCount(2);
+    await expect(dialog).toContainText('연결 입금');
+    await expect(dialog).toContainText('입금 통장');
+    await page.screenshot({
+      path: test.info().outputPath('linkedTransferDeletion.png')
+    });
+    await page.getByRole('button', {
+      name: '선택 삭제 확인 닫기',
+      exact: true
+    }).click();
+    await checkbox.uncheck();
+    await expect(page.getByRole('button', {
+      name: '선택 삭제',
+      exact: true
+    })).toBeDisabled();
+    await checkbox.check();
+    await page.getByRole('button', {
+      name: '선택 삭제',
+      exact: true
+    }).click();
+    await dialog.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(deleteBody).toEqual({
+      transactionIds: [id(9912), id(9913)]
+    });
+    await expect(page.getByRole('table', {
+      name: '통장 거래',
+      exact: true
+    })).not.toContainText('연결 출금');
+  });
+}
+
+
+for (const entry of ['income', 'expense'] as const) {
+  test(`수동 ${entry === 'income' ? '입금 PC' : '지출 모바일'}에서 같은 계좌 간 이체 폼으로 한 번 저장하고 실패 재시도를 처리`, async ({ page }, testInfo) => {
+    const second = id(9921), incoming = id(9923);
+    const accounts = [{
+      ...IMPORT_ACCOUNT,
+      alias: '관리 통장'
+    }, {
+      ...IMPORT_ACCOUNT,
+      id: second,
+      alias: '예비비',
+      isPrimary: false
+    }];
+    const buildings = [{
+      id: BUILDING_A,
+      label: '102동'
+    }, {
+      id: BUILDING_B,
+      label: '103동'
+    }];
+    let workspace: BankingWorkspaceData = {
+      propertyId: PROPERTY,
+      asOf: '2026-10-23',
+      accounts,
+      buildings,
+      units: [],
+      rows: [],
+      rules: []
+    };
+    const requests: Record<string, unknown>[] = [];
+    await page.setViewportSize({
+      width: entry === 'income' ? 1440 : 390,
+      height: 900
+    });
+    await page.route('http://localhost:8080/**', async (route) => {
+      const url = new URL(route.request().url()), path = url.pathname;
+      let body: unknown = {};
+      if (path.endsWith('/csrf')) body = {
+        csrfToken: 'test-csrf'
+      };
+      else if (path.endsWith('/refresh')) body = {
+        accessToken: 'test-access',
+        tokenType: 'Bearer',
+        accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
+      };
+      else if (path === '/api/users/me') body = {
+        id: id(1),
+        displayName: '관리자',
+        profileImageUrl: null,
+        systemRole: 'USER',
+        canCreateProperty: true,
+        status: 'ACTIVE'
+      };
+      else if (path.endsWith('/access-context')) body = {
+        propertyId: PROPERTY,
+        name: '모아빌라',
+        role: 'ADMIN',
+        residentEligible: false
+      };
+      else if (path.endsWith('/managed-properties')) body = {
+        properties: [{
+          propertyId: PROPERTY,
+          name: '모아빌라',
+          role: 'ADMIN'
+        }]
+      };
+      else if (path.endsWith('/payments/workspace')) body = {
+        propertyId: PROPERTY,
+        asOf: workspace.asOf,
+        accounts: accounts.map((account) => ({
+          ...account,
+          label: account.alias
+        })),
+        buildings,
+        units: [],
+        charges: [],
+        payments: [],
+        history: []
+      };
+      else if (path.endsWith('/banking/workspace')) body = workspace;
+      else if (path.endsWith('/balances/transfer-funds')) body = {
+        propertyId: PROPERTY,
+        accountId: url.searchParams.get('accountId'),
+        date: url.searchParams.get('date'),
+        accountAvailable: '10000',
+        buildings: [{
+          buildingId: BUILDING_A,
+          available: '6000'
+        }, {
+          buildingId: BUILDING_B,
+          available: '4000'
+        }]
+      };
+      else if (path.endsWith('/transfers/manual')) {
+        const input = route.request().postDataJSON(); requests.push(input);
+        if (requests.length === 1) return route.fulfill({
+          status: 503,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            code: 'TEMPORARY_FAILURE'
+          })
+        });
+        workspace = {
+          ...workspace,
+          rows: ['EXPENSE', 'INCOME'].map((direction) => ({
+            ...row(9922, direction as 'EXPENSE' | 'INCOME', '통장간 거래', input.amount),
+            id: direction === 'EXPENSE' ? input.id : incoming,
+            accountId: direction === 'EXPENSE' ? input.fromAccountId : input.toAccountId,
+            date: input.date,
+            time: null,
+            balance: null,
+            status: 'TRANSFER',
+            sourceType: 'TRANSFER_MANUAL',
+            transferCandidate: true,
+            transferId: input.id,
+            transferAccountId: direction === 'EXPENSE' ? input.toAccountId : input.fromAccountId,
+            automaticTransfer: true,
+            transferAllocations: input.allocations,
+            memo: input.note ?? null
+          })),
+          deletionGroups: [{
+            id: input.id,
+            transactionIds: [input.id, incoming],
+            requiresCancellation: true
+          }]
+        };
+        body = workspace;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(body)
+      });
+    });
+    // PC에서는 입금 용도·지출 이체 체크를 바꿔도 같은 모달과 너비를 유지합니다.
+    await page.setViewportSize({
+      width: 1440,
+      height: 900
+    });
+    await page.goto(`${BASE}/transactions?month=2026-10`);
+    const title = entry === 'income' ? '수동 입금 등록' : '수동 지출 등록';
+    const selectorName = entry === 'income' ? '입금 용도' : '계정과목';
+    await page.getByRole('button', {
+      name: title,
+      exact: true
+    }).click();
+    const originalModal = page.getByRole('dialog', {
+      name: title,
+      exact: true
+    });
+    const originalHandle = await originalModal.elementHandle();
+    const originalBox = (await originalModal.boundingBox())!;
+    if (entry === 'income') {
+      await page.getByRole('combobox', {
+        name: selectorName,
+        exact: true
+      }).click();
+      await page.getByRole('option', {
+        name: '계좌 이체',
+        exact: true
+      }).click();
+    } else {
+      await page.getByRole('combobox', {
+        name: '계정과목',
+        exact: true
+      }).click();
+      await expect(page.getByRole('option').filter({
+        hasText: /103|계좌 이체|통장간 거래/
+      })).toHaveCount(0);
+      await page.keyboard.press('Escape');
+      await page.getByRole('checkbox', {
+        name: '계좌 이체',
+        exact: true
+      }).check();
+    }
+    expect(await originalHandle!.evaluate((element) => element.isConnected)).toBe(true);
+    expect((await originalModal.boundingBox())!.width).toBe(originalBox.width);
+    await expect(originalModal.getByRole('heading', {
+      name: title,
+      exact: true
+    })).toBeVisible();
+    await expect(originalModal).not.toContainText('103 통장간 거래');
+    await expect(originalModal).not.toContainText('수익·비용');
+    if (entry === 'income') {
+      await page.getByRole('combobox', {
+        name: selectorName,
+        exact: true
+      }).click();
+      await page.getByRole('option', {
+        name: '세대 관리비 직접 지정',
+        exact: true
+      }).click();
+    } else {
+      await page.getByRole('checkbox', {
+        name: '계좌 이체',
+        exact: true
+      }).uncheck();
+    }
+    await expect(originalModal.getByRole('textbox', {
+      name: entry === 'income' ? '입금액' : '출금액',
+      exact: true
+    })).toBeVisible();
+    expect(await originalHandle!.evaluate((element) => element.isConnected)).toBe(true);
+    await originalModal.getByRole('button', {
+      name: `${title} 닫기`,
+      exact: true
+    }).click();
+    await expect(originalModal).toHaveCount(0);
+    await page.setViewportSize({
+      width: entry === 'income' ? 1440 : 390,
+      height: 900
+    });
+
+    await page.getByRole('button', {
+      name: entry === 'income' ? '수동 입금 등록' : '수동 지출 등록',
+      exact: true
+    }).click();
+    if (entry === 'income') {
+      await page.getByRole('combobox', {
+        name: '입금 용도',
+        exact: true
+      }).click();
+      await page.getByRole('option', {
+        name: '계좌 이체',
+        exact: true
+      }).click();
+    } else {
+      await expect(page).toHaveURL(/banking\/manual-expense/);
+      await page.getByRole('checkbox', {
+        name: '계좌 이체',
+        exact: true
+      }).check();
+    }
+    const form = entry === 'income' ? page.getByRole('dialog') : page.locator('main');
+    await expect(page.getByRole('heading', {
+      name: entry === 'income' ? '수동 입금 등록' : '수동 지출 등록',
+      exact: true
+    })).toBeVisible();
+    const accountLabel = entry === 'income' ? '출금 통장' : '입금 통장';
+    await page.getByRole('combobox', {
+      name: accountLabel,
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '예비비',
+      exact: true
+    }).click();
+    await page.getByRole('textbox', {
+      name: '이체금액',
+      exact: true
+    }).fill('10000');
+    await expect(page.getByRole('textbox', {
+      name: '이체금액',
+      exact: true
+    })).toHaveValue('10,000');
+    await expect(form).toContainText('통장 이체 가능 10,000원');
+    const availableAmount = form.getByText('통장 이체 가능 10,000원', {
+      exact: true
+    });
+    await expect(availableAmount).toHaveCSS('font-size', '16px');
+    await expect(availableAmount.locator('strong')).toHaveCSS('font-size', '18px');
+    await page.getByRole('textbox', {
+      name: '이체금액',
+      exact: true
+    }).fill('10001');
+    const limitWarning = form.getByRole('alert').filter({
+      hasText: '이체금액이 출금 통장의 보유금을 초과합니다.'
+    });
+    await expect(limitWarning).toHaveCSS('color', 'rgb(239, 68, 68)');
+    await expect(limitWarning).toHaveCSS('font-size', '16px');
+    await page.getByRole('textbox', {
+      name: '이체금액',
+      exact: true
+    }).fill('10000');
+    await page.getByRole('combobox', {
+      name: '나누는 방법',
+      exact: true
+    }).click();
+    await page.getByRole('option', {
+      name: '금액 직접 입력',
+      exact: true
+    }).click();
+    await page.getByRole('textbox', {
+      name: '102동 배분액',
+      exact: true
+    }).fill('7000');
+    await page.getByRole('textbox', {
+      name: '103동 배분액',
+      exact: true
+    }).fill('3000');
+    await expect(page.getByRole('button', {
+      name: '등록',
+      exact: true
+    })).toBeDisabled();
+    await page.getByRole('textbox', {
+      name: '102동 배분액',
+      exact: true
+    }).fill('6000');
+    await page.getByRole('textbox', {
+      name: '103동 배분액',
+      exact: true
+    }).fill('4000');
+    await expect(page.getByRole('button', {
+      name: '등록',
+      exact: true
+    })).toBeEnabled();
+    await page.emulateMedia({
+      reducedMotion: 'reduce'
+    });
+    if (entry === 'income') {
+      const modalBox = (await form.boundingBox())!;
+      const saveBox = (await page.getByRole('button', {
+        name: '등록',
+        exact: true
+      }).boundingBox())!;
+      expect(Math.abs(modalBox.x + modalBox.width / 2 - 720)).toBeLessThan(1);
+      expect(saveBox.y + saveBox.height).toBeLessThanOrEqual(modalBox.y + modalBox.height);
+      await page.getByRole('textbox', {
+        name: '메모',
+        exact: true
+      }).fill('통장 간 자금 이동');
+      await expect(page.getByRole('heading', {
+        name: entry === 'income' ? '수동 입금 등록' : '수동 지출 등록',
+        exact: true
+      })).toBeInViewport();
+      const memoBox = (await page.getByRole('textbox', {
+        name: '메모',
+        exact: true
+      }).boundingBox())!;
+      const footerButton = (await page.getByRole('button', {
+        name: '등록',
+        exact: true
+      }).boundingBox())!;
+      expect(memoBox.y + memoBox.height - footerButton.y).toBeLessThan(1);
+    }
+    await page.screenshot({
+      path: testInfo.outputPath(`manual-transfer-${entry}.png`),
+      fullPage: true
+    });
+    await page.getByRole('button', {
+      name: '등록',
+      exact: true
+    }).click();
+    await expect(form.getByRole('alert')).toContainText('저장하지 못했어요');
+    await expect(page.getByRole('textbox', {
+      name: '이체금액',
+      exact: true
+    })).toHaveValue('10,000');
+    await page.getByRole('button', {
+      name: '등록',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(/banking\/transactions/);
+    expect(requests).toHaveLength(2); expect(requests[0]).toEqual(requests[1]);
+    expect(requests[0]).toMatchObject({
+      fromAccountId: entry === 'income' ? second : ACCOUNT,
+      toAccountId: entry === 'income' ? ACCOUNT : second,
+      amount: '10000'
+    });
+    await expect(page.getByRole('row').filter({
+      hasText: '통장간 거래'
+    }).first()).toBeVisible();
+  });
+}

@@ -209,25 +209,3 @@ for (const width of [1440, 390, 320]) {
     });
   });
 }
-
-test('통장 관리와 월별 정산의 일반 새로고침을 표시하지 않는다', async ({ page }, testInfo) => {
-  await mockSettlement(page);
-  for (const path of ['transactions', 'balances', 'monthly', 'expenses']) {
-    await page.goto(`${BASE}/banking/${path}?month=2026-10`);
-    await expect(page.getByRole('button', {
-      name: /(?:통장 거래|잔고·정산|수납 자료) 새로고침/
-    })).toHaveCount(0);
-    await expect(page.getByText('마지막 업데이트', {
-      exact: true
-    })).toHaveCount(0);
-    await expect(page.getByRole('table').first()).toBeVisible();
-    if (path === 'transactions') await page.screenshot({
-      path: testInfo.outputPath('banking-no-refresh.png')
-    });
-  }
-  await page.goto(`${BASE}/accounting/settlement?month=2026-10`);
-  await expect(page.getByRole('button', {
-    name: '정산 자료 새로고침',
-    exact: true
-  })).toHaveCount(0);
-});

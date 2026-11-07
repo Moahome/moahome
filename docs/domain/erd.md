@@ -1244,8 +1244,10 @@ Soft Delete 없음.
 - bank_accounts.account_alias: 선택 varchar(100). 용도 Enum이나 필수 동 연결을 추가하지 않습니다. 미삭제 `(property_id,bank_code,account_number_hmac)` 유일 인덱스와 활성 기본 통장 유일 인덱스를 적용합니다. 지연 제약으로 커밋 시 공용 활성 기본 계좌 정확히 1개를 검증합니다. 기본 전환·종료는 과거 FK를 바꾸지 않습니다.
 - bank_transactions.transfer_candidate: NOT NULL boolean, 기존 원본은 false로 보정합니다. 원본 금액·방향은 유지하고 내부 이동의 업무 분류 여부만 나타냅니다.
 - bank_transfers: UUID id PK, property_id, outgoing_id, incoming_id, created_by/created_at, 선택 canceled_by/canceled_at. 같은 대상의 원본 복합 FK와 활성 입금·출금별 유일 인덱스를 사용합니다. 방향·통장 차이·금액 일치·유효 원본을 DB에서도 검사합니다. 연결은 삭제·덮어쓰기하지 않고 취소 감사만 한 번 기록합니다.
-- bank_transfer_allocations(2026-11-06): UUID `id` PK, `property_id`, `transfer_id`, `building_id`, 양수 원 단위 `amount`, 생성자·시각. 같은 대상 이체·동의 복합 FK, 이체×동 유일성, 전액 합계의 지연 검증을 둡니다. 이동 배분은 덮어쓰거나 삭제하지 않고 이체 취소 여부로 양쪽 집계를 함께 제외합니다. `V20261106110951__connect_transfer_building_ownership.sql`에 구현했습니다.
-- bank_transfer_postings(2026-11-06): UUID `id` PK, `property_id`, 필수 `source_transaction_id`(유일), `counterpart_account_id`, 선택 `counterpart_transaction_id`(유일), `accounting_account_id`, 생성자·시각과 선택 취소자·시각. 원본·상대 통장·103 자산 계정은 같은 대상의 복합 FK로 연결합니다. 실제 상대 원본이 없을 때만 이체에서 장부 행을 파생하며 은행 원본 테이블에 가짜 거래를 추가하지 않습니다. 상대 원본은 같은 날짜·금액·반대 방향·지정 통장으로 한 번만 대사합니다. 기존 이체·다른 자동 이체와 원본 중복 사용, 수납·지출 분류 중복, 이력 삭제와 활성 원본 삭제를 DB에서도 차단합니다. 취소 상태·생성 정보는 불변이며 취소 후 대사는 원본 연결만 허용합니다. `V20261106101642__add_single_source_bank_transfer_postings.sql`은 기존 회계 설정에 누락된 103 자산 계정을 추가하며 같은 코드를 덮어쓰지 않습니다.
+- bank_transfer_allocations(2026-11-06): UUID `id` PK, `property_id`, `transfer_id`, `building_id`, 양수 원 단위 `amount`, 생성자·시각. 같은 대상 이체·동의 복합 FK, 이체×동 유일성, 전액 합계의 지연 검증을 둡니다. 이동 배분은 덮어쓰거나 삭제하지 않고 이체 취소 여부로 양쪽 집계를 함께 제외합니다. `V20261106110951__connect_transfer_building_ownership.sql`에 구현했습니다. 2026-11-07 동별 이체 한도 검증은 기존 원장·보유금을 읽는 서비스 검증이며 새 한도 컬럼이나 Migration을 추가하지 않습니다.
+- bank_transfer_postings(2026-11-06): UUID `id` PK, `property_id`, 은행 원본 기반에서는 필수인 `source_transaction_id`(유일), `counterpart_account_id`, 선택 `counterpart_transaction_id`(유일), `accounting_account_id`, 생성자·시각과 선택 취소자·시각. 원본·상대 통장·103 자산 계정은 같은 대상의 복합 FK로 연결합니다. 실제 상대 원본이 없을 때만 이체에서 장부 행을 파생하며 은행 원본 테이블에 가짜 거래를 추가하지 않습니다. 상대 원본은 같은 날짜·금액·반대 방향·지정 통장으로 한 번만 대사합니다. 기존 이체·다른 자동 이체와 원본 중복 사용, 수납·지출 분류 중복, 이력 삭제와 활성 원본 삭제를 DB에서도 차단합니다. 취소 상태·생성 정보는 불변이며 취소 후 대사는 원본 연결만 허용합니다. `V20261106101642__add_single_source_bank_transfer_postings.sql`은 기존 회계 설정에 누락된 103 자산 계정을 추가하며 같은 코드를 덮어쓰지 않습니다.
+
+- 수동 이체 확장(2026-11-07): `V20261107022457__support_manual_bank_transfers.sql`은 기존 bank_transfer_postings를 보존하면서 `source_transaction_id`의 NOT NULL을 해제합니다. `manual_outgoing_account_id`(같은 대상 통장 FK), `manual_date`, 양수 `manual_amount numeric(15,0)`, 선택 `manual_memo_encrypted`, 선택 `deleted_at/deleted_by`를 추가합니다. 은행 원본 기반은 수동 스냅샷을 비우고 수동 기반은 출금 통장·날짜·금액을 모두 보관하도록 CHECK로 구분합니다. 수동의 counterpart_account_id는 입금 통장입니다. source_transaction_id는 후속 실제 출금 원본, counterpart_transaction_id는 후속 실제 입금 원본을 각각 한 번 연결합니다. 통장·날짜·방향·금액·103 자산 계정·중복 분류를 DB에서 검증합니다. 원문 메모는 암호화하며 은행 거래·수납·지출 테이블에 가짜 행을 생성하지 않습니다. 생성 스냅샷·대사 원본·취소 감사·삭제 감사는 덮어쓸 수 없고 물리 삭제를 금지합니다. 동이 있는 수동 이체는 커밋 시 전액 동별 이동을 지연 제약으로 검증합니다. 기존 69개 Migration 적용 스키마의 원본 보존과 빈 스키마 전체 적용을 PostgreSQL 통합 테스트로 확인합니다.
 
 - DB는 이체 원본의 수납·지출 생성과 금액·계좌·분류 변형을 막고 연결 중인 원본 삭제는 지연 제약으로 양쪽 동시 삭제를 검증합니다. 취소한 연결은 보존하며 새 UUID로 다시 연결합니다.
 
@@ -1355,7 +1357,7 @@ Soft Delete 없음.
 | rule_key | char(64) | Y | BANK_IMPORT는 원본 적요 HMAC, MANUAL은 null |
 | confirmed_by / confirmed_at | uuid / timestamptz | N | 확정자·시각 |
 
-은행 지출의 날짜·통장은 연결된 원본과 같아야 하며 수동 지출은 직접 입력합니다. 확정 지출·배분은 후속 `V20261017083529__protect_confirmed_expense_history.sql`의 수정·삭제 트리거로 보호하며 취소 정책을 임의로 추가하지 않습니다.
+은행 지출의 날짜·통장은 연결된 원본과 같아야 하며 수동 지출은 직접 입력합니다. 확정 지출·배분 본문은 불변으로 보호합니다. 2026-11-07 후속 Migration은 MANUAL 지출의 삭제 감사만 허용하고 본문·배분은 유지합니다.
 
 수동 출금의 실제 제약·Migration은 아래 [저장 구현](#수동-지출-등록-저장-구현-2026-10-23)을 참조합니다. 취소·은행 연결 이력은 후속 정책입니다.
 
@@ -1437,12 +1439,12 @@ Soft Delete 없음.
 
 `expenses`에 `source_type varchar(20) NOT NULL`, `bank_account_id uuid NOT NULL`, `expense_date date NOT NULL`을 추가합니다. 기존 은행 지출의 통장·날짜는 원본에서 보정하고 ID·금액·암호문·배분을 유지합니다. 기존 삭제된 원본의 지출도 보정하며 소프트 삭제 상태를 되돌리지 않습니다. 같은 관리대상의 통장 복합 FK와 통장·날짜 조회 인덱스를 추가합니다.
 
-`bank_transaction_id`와 `rule_key`는 nullable로 바꾸되 CHECK로 출처별 구조를 제한합니다. BANK_IMPORT는 기존 은행 원본·규칙 키가 필수이고 MANUAL은 둘 다 null, save_as_rule=false입니다. 수동 지출 ID는 요청 UUID입니다. 기존 `expense_allocations`를 재사용해 합계·비율·균등 금액을 커밋 시 검증합니다. 지출·배분의 UPDATE·DELETE 금지, 기존 은행 원본 방향·금액·통장·날짜 보호와 선택 삭제 감사를 유지합니다. 수동 출금은 은행 원본이나 확인 잔액을 만들지 않습니다.
+`bank_transaction_id`와 `rule_key`는 nullable로 바꾸되 CHECK로 출처별 구조를 제한합니다. BANK_IMPORT는 기존 은행 원본·규칙 키가 필수이고 MANUAL은 둘 다 null, save_as_rule=false입니다. 수동 지출 ID는 요청 UUID입니다. 기존 `expense_allocations`를 재사용해 합계·비율·균등 금액을 커밋 시 검증합니다. 지출·배분 본문의 UPDATE·DELETE 금지(수동 지출의 삭제 감사는 2026-11-07 후속 예외), 기존 은행 원본 방향·금액·통장·날짜 보호와 선택 삭제 감사를 유지합니다. 수동 출금은 은행 원본이나 확인 잔액을 만들지 않습니다.
 
 
 ## 후속 저장 설계: 지출 취소·은행 연결
 
-수동 지출의 취소·은행 원본 연결·연결 해제는 미구현입니다. 요청 UUID·행위자·시각·사유와 연결 수명주기를 확정 지출·배분 본문과 분리해 보존하는 설계를 검토합니다. 같은 관리대상·통장·출금 방향·금액과 원본별 활성 연결의 유일성이 필요하지만, 연결 해제·원본 삭제·외부 회수 후 취소의 정책과 상세 DDL은 미정입니다. 기존 불변 트리거와 적용된 Migration을 임의로 바꾸지 않습니다.
+2026-11-07 후속으로 수동 지출의 감사 보존 삭제는 구현하며 은행 원본 연결·연결 해제·부분 취소는 미구현입니다. 요청 UUID·행위자·시각·사유와 연결 수명주기를 확정 지출·배분 본문과 분리해 보존하는 설계를 검토합니다. 같은 관리대상·통장·출금 방향·금액과 원본별 활성 연결의 유일성이 필요하지만, 연결 해제·원본 삭제·외부 회수 후 취소의 정책과 상세 DDL은 미정입니다. 기존 불변 트리거와 적용된 Migration을 임의로 바꾸지 않습니다.
 
 은행 원본 순서의 영속 저장·같은 시각 거래의 대사는 후속 검토입니다. 파일 순번을 은행의 고유 식별자로 사용하거나 부족한 시각을 생성하지 않습니다.
 
@@ -1477,7 +1479,7 @@ Soft Delete 없음.
 
 `V20261105133047`은 보험료 812를 추가하고 기존 잡비를 813으로 이동합니다. 계정 ID·참조는 유지하며 새 기본 코드와 충돌한 사용자 과목은 814부터 빈 코드로 이동합니다. 불변 트리거는 일회 이관 중에만 해제하고 복원합니다. 추가 컬럼이나 금액 보정은 없습니다.
 
-표준 일반관리비의 `fee_template_items/charge_items.revenue_account_id`를 관리비수입 ID로 연결합니다. 금액·청구 ID·수납 배분은 변경하지 않습니다. 외부 미수금 조회는 기존 부담 배분·실제 회수 연결을 읽으며 별도 미수금 복제 테이블·가상 입금을 만들지 않습니다. 명칭 이력·사용 중지·정식 전표·마감은 남은 범위입니다.
+기존 Migration은 표준 일반관리비의 `fee_template_items/charge_items.revenue_account_id`를 관리비수입 ID로 연결합니다. 2026-11-07 후속 조회 구현은 이 컬럼이나 표준 코드가 없는 사용자 지정 항목·차감도 확정 관리비의 구성으로 401에 자동 합산하며 별도 DB 보정이나 지출을 만들지 않습니다. 저장된 명시적 수익 제외 이력은 우선합니다. 금액·청구 ID·수납 배분은 변경하지 않습니다. 외부 미수금 조회는 기존 부담 배분·실제 회수 연결을 읽으며 별도 미수금 복제 테이블·가상 입금을 만들지 않습니다. 명칭 이력·사용 중지·정식 전표·마감은 남은 범위입니다.
 
 ---
 
@@ -1944,4 +1946,18 @@ system_admin_events는 request_id UUID PK, actor_id / target_id → users FK, ac
 
 `V20261106092754__link_expenses_to_accounting_accounts.sql`은 `expenses.accounting_account_id` nullable UUID를 추가합니다. `(property_id, accounting_account_id)`는 `accounting_accounts(property_id,id)`를 참조하고 INSERT 트리거로 비용 그룹만 허용합니다. 기존 행은 NULL로 유지하며 기존 불변 원본·배분 보호를 유지합니다.
 
-초기 설정·회계 시작 설정 전에도 선택을 보존하기 위해 최초 과목을 지출 원본에 저장합니다. 해당 기본 과목이 아직 없으면 같은 등록 트랜잭션에서 생성하되 `accounting_profiles`와 시작 월은 자동 생성하지 않습니다. 이후 회계 설정은 이미 있는 기본 코드의 계정 ID를 유지하고 빠진 기본 과목만 추가합니다. 최신 `expense_accounting_reviews`가 최초 선택보다 우선하고 최초 선택이 없는 원본만 기존 자동 매칭을 적용합니다. API 표시 코드를 연결 FK로 저장하지 않습니다.
+초기 설정·첫 회계 분류 저장 전에도 선택을 보존하기 위해 최초 과목을 지출 원본에 저장합니다. 해당 기본 과목이 아직 없으면 같은 등록 트랜잭션에서 생성하되 `accounting_profiles`와 시작 월은 자동 생성하지 않습니다. 이후 첫 회계 분류 저장은 기존 계정 ID를 유지하고 빠진 기본 과목만 추가합니다. 최신 `expense_accounting_reviews`가 최초 선택보다 우선하고 최초 선택이 없는 원본만 기존 자동 매칭을 적용합니다. API 표시 코드를 연결 FK로 저장하지 않습니다.
+
+
+### 손익 자동 기준·기존 현금 재분류·수동 지출 삭제 (2026-11-07)
+
+`accounting_profiles.start_month`는 과거 설정 이력으로 보존합니다. 유효 손익 조회 시작은 최초 월별 부과월(없으면 properties.first_billing_month)에서 계산하며 기존 행의 UPDATE로 맞추지 않습니다. 102·201 세대별 월말 잔액은 유효 기존 원장에서 조회 계산하고 새 수익·은행 원본·전표 테이블을 만들지 않습니다.
+
+`V20261107001509__support_cash_reclassification_and_manual_expense_deletion.sql`:
+
+| 테이블 | 추가 필드·제약 |
+| --- | --- |
+| expenses | deleted_at timestamptz, deleted_by UUID FK users; 함께 null 또는 함께 기록. MANUAL만 삭제 감사 전이 허용하며 본문·배분·최초 과목은 불변 |
+| accounting_transfer_matches | review_id PK/FK expense_accounting_reviews, property_id FK properties, expense_id·payment_id 관리대상 복합 FK. UPDATE/DELETE 불가 |
+
+매칭 insert는 최신 103 지출 분류, 유효 OTHER 확정 입금, 동일 날짜·전액·다른 통장, 동별 동일 배분, 외부 회수 미사용, 다른 활성 매칭의 입금 중복 사용 금지를 검사합니다. 비용 재매칭은 새 revision을 추가하고 과거 매칭은 남깁니다. 실제 현금의 취소·삭제와 분류 정정은 구분하며 확정 은행 이체의 삭제는 사용자의 선행 취소와 양쪽 원본 선택을 요구합니다.
