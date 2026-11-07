@@ -26,6 +26,7 @@ import com.moahome.server.auth.exception.AuthErrorCode;
 import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.banking.dto.BankingResponse;
 import com.moahome.server.banking.service.BankingService;
+import com.moahome.server.payment.service.PaymentService;
 import com.moahome.server.banking.service.BankingBalanceService;
 import com.moahome.server.banking.dto.BankingBalanceResponse;
 import com.moahome.server.billing.domain.FeeItemCode;
@@ -61,8 +62,10 @@ class IncomeStatementServiceTest {
 	private final BillingIncomeSourceService billing = mock(BillingIncomeSourceService.class);
 	private final BankingService banking = mock(BankingService.class);
 	private final BankingBalanceService balances = mock(BankingBalanceService.class);
+	private final PaymentService payments = mock(PaymentService.class);
+	private final AccountingTransferService accountingTransfers = mock(AccountingTransferService.class);
 	private final IncomeStatementService service = new IncomeStatementService(access, properties, buildings, profiles,
-		accounts, reviews, revenues, billing, banking, balances, clock);
+		accounts, reviews, revenues, billing, banking, balances, clock, accountingTransfers, payments);
 	private final AccountingAccount revenue = AccountingAccount.create(propertyId, "401", "관리비수입",
 		IncomeGroup.OPERATING_REVENUE, "MANAGEMENT_REVENUE", actor, at);
 	private final AccountingAccount cost = AccountingAccount.create(propertyId, "802", "청소비",
@@ -70,6 +73,7 @@ class IncomeStatementServiceTest {
 
 	@BeforeEach
 	void setup() {
+		when(billing.firstMonth(propertyId, null)).thenReturn(YearMonth.of(2026, 10));
 		when(access.getManagementContext(actor, propertyId))
 			.thenReturn(new ManagementPropertyResponse(propertyId, "테스트 관리대상", PropertyMemberRole.ADMIN));
 		Property property = mock(Property.class);
@@ -91,14 +95,46 @@ class IncomeStatementServiceTest {
 		verifyNoInteractions(properties, billing, banking, profiles);
 	}
 
+	/** 첫 부과월과 기본 계정은 조회에서 자동 연결하되 설정·원장에 쓰지 않습니다. */
 	@Test
-	void requiresExplicitSetupAndUsesKoreanDefaultMonth() {
+	void derivesStartFromFirstBillingWithoutManualSetupOrWritingOnGet() {
 		when(profiles.findById(propertyId)).thenReturn(Optional.empty());
 		var result = service.get(actor, propertyId, null, null, null);
-		assertThat(result.completeness()).isEqualTo("SETUP_REQUIRED");
+		assertThat(result.completeness()).isEqualTo("READY");
+		assertThat(result.configuration().startMonth()).isEqualTo("2026-10");
 		assertThat(result.range().startMonth()).isEqualTo("2026-11");
+		assertThat(result.accounts()).extracting(value -> value.code()).contains("102", "103", "201", "401");
+		verify(profiles, never()).save(any());
+		verify(accounts, never()).saveAllAndFlush(any());
+	}
+
+	@Test
+	void returnsNoBillingWithoutAskingForAnAccountingStartDate() {
+		when(billing.firstMonth(propertyId, null)).thenReturn(null);
+		var result = service.get(actor, propertyId, null, null, null);
+		assertThat(result.completeness()).isEqualTo("NO_BILLING");
+		assertThat(result.configuration()).isNull();
 		assertThat(result.records()).isEmpty();
-		verifyNoInteractions(billing, banking);
+	}
+
+	/** 감액이 포함된 확정 부과 20건을 모두 반영하고 이미 저장된 늦은 시작일이 과거 부과를 숨기지 않습니다. */
+	@Test
+	void recognizesTwentyAdjustedBillsFromFirstBillingEvenWhenLegacyStartWasLater() {
+		when(profiles.findById(propertyId)).thenReturn(Optional.of(AccountingProfile.create(propertyId,
+			YearMonth.of(2026, 11), 1, actor, at)));
+		UUID discount = UUID.randomUUID();
+		when(billing.get(propertyId)).thenReturn(java.util.stream.IntStream.range(0, 20)
+			.mapToObj(index -> new BillingIncomeSource(UUID.randomUUID(), UUID.randomUUID(), "2026-10", "", "" + index,
+				null, new BigDecimal("50000"), List.of(
+					new BillingIncomeSource.Item(UUID.randomUUID(), itemId, "일반관리비", FeeItemCode.GENERAL_MANAGEMENT, new BigDecimal("70000"), null),
+					new BillingIncomeSource.Item(UUID.randomUUID(), discount, "일반관리비 감액", FeeItemCode.GENERAL_MANAGEMENT, new BigDecimal("-20000"), null))))
+			.toList());
+		var result = service.get(actor, propertyId, "2026-10", "2026-10", null);
+		assertThat(result.configuration().startMonth()).isEqualTo("2026-10");
+		assertThat(result.records().stream().map(row -> new BigDecimal(row.amount())).reduce(BigDecimal.ZERO, BigDecimal::add))
+			.isEqualByComparingTo("1000000");
+		assertThat(result.issues()).isEmpty();
+		assertThat(result.completeness()).isEqualTo("READY");
 		verify(profiles, never()).save(any());
 	}
 
@@ -335,7 +371,8 @@ class IncomeStatementServiceTest {
 	@Test
 	void doesNotTurnSourceFailureOrPreStartPeriodIntoZeroProfit() {
 		assertThat(service.get(actor, propertyId, "2026-09", "2026-10", null).completeness()).isEqualTo("BEFORE_START");
-		verifyNoInteractions(billing, banking);
+		verify(billing, never()).get(any());
+		verifyNoInteractions(banking);
 		when(billing.get(propertyId)).thenThrow(new IllegalStateException("source unavailable"));
 		assertThatThrownBy(() -> service.get(actor, propertyId, "2026-10", "2026-10", null))
 			.isInstanceOf(IllegalStateException.class);

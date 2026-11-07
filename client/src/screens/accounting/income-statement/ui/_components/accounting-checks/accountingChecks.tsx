@@ -95,10 +95,28 @@ export function AccountingChecks({ data, onEdit, onSource, onClose, presentation
       context: `거래일 ${value.date}`,
       date: value.date,
       amount: value.amount,
-      status: '901 영업외수익',
+      status: data.accounts.filter((account) => account.id === value.accountId)
+        .map((account) => [account.code, account.name].filter(Boolean).join(' ')).join(' ') || '901 영업외수익',
       path: `/banking/receipts/${value.id}`,
       pending: false
     })),
+    ...(data.households ?? []).flatMap((value) => [{
+      id: `receivable:${value.unitId}`,
+      name: `102 미수금 · ${value.label}`,
+      context: `${data.range.endMonth} 월말 잔액`,
+      amount: value.receivable,
+      status: '미납 자동 연결',
+      path: value.path,
+      pending: false
+    }, {
+      id: `advance:${value.unitId}`,
+      name: `201 선수금 · ${value.label}`,
+      context: `${data.range.endMonth} 월말 잔액`,
+      amount: value.advance,
+      status: '선입금 자동 연결',
+      path: value.path,
+      pending: false
+    }].filter((row) => BigInt(row.amount) > BigInt(0))),
     ...(data.receivables ?? []).filter((value) => value.date.slice(0, 7) >= data.range.startMonth
       && value.date.slice(0, 7) <= data.range.endMonth).map((value) => ({
       id: `receivable:${value.id}`,
@@ -119,7 +137,8 @@ export function AccountingChecks({ data, onEdit, onSource, onClose, presentation
       amount: issue.amount,
       status: issue.label,
       path: issue.path,
-      actionLabel: issue.code === 'OTHER_INCOME_BUILDING_REQUIRED' ? '동 지정' : undefined,
+      actionLabel: issue.code === 'OTHER_INCOME_BUILDING_REQUIRED' ? '동 지정'
+        : issue.code.startsWith('CHARGE_') ? '부과 내역' : undefined,
       pending: true
     }))
   ];

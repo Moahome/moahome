@@ -13,7 +13,7 @@
 `GET /income-statement?startMonth=2026-07&endMonth=2026-10&buildingId={uuid}`
 
 - 시작·종료 월은 둘 다 생략하거나 둘 다 지정합니다. 생략하면 한국 현재 월이며 포함 범위는 최대 120개월입니다. `buildingId` 생략은 전체입니다.
-- 회계 시작 월 이전을 포함하면 `BEFORE_START`이며 부분 기간을 몰래 잘라 합산하지 않습니다.
+- 첫 부과월 이전을 포함하면 `BEFORE_START`이며 부분 기간을 몰래 잘라 합산하지 않습니다.
 - 조회는 청구 생성·회계 분류 저장·기초 잔액 생성을 실행하지 않습니다.
 
 응답 필드:
@@ -22,37 +22,34 @@
 | --- | --- |
 | `propertyId/propertyName/generatedAt` | 관리대상·조회 시각 |
 | `range` | `startMonth/endMonth` |
-| `configuration` | 미설정이면 null, 설정 후 `startMonth/fiscalYearStartMonth` |
+| `configuration` | 첫 부과 기준이 없으면 null, 있으면 `startMonth/fiscalYearStartMonth`; startMonth는 기존 설정과 무관한 유효 첫 부과월 |
 | `canManage` | 현재 사용자의 분류 저장 권한 |
 | `completeness` | 아래 상태 |
 | `buildings` | 조회 가능한 `{id,name,deleted}`; 과거 귀속 확인에 필요한 삭제 동 포함. deleted는 삭제 여부이며 현재 선택 목록과 구분 |
 | `accounts` | `{id,code,name,group,systemKey}`; 코드 오름차순. group은 `asset/liability/operatingRevenue/operatingExpense/otherRevenue/otherExpense`이며 자산·부채 과목은 손익 합계에서 제외 |
 | `records` | 반영 가능한 `{id,accountId,accountName,group,month,buildingId,amount}`; 관리대상 전체 귀속은 buildingId=null |
 | `issues` | 미반영 `{id,code,label,sourceName,sourceContext,amount,path,expenseId,revenueItemId}`; label은 확인 사유, sourceName은 원본 이름, sourceContext는 원본 식별 설명. 분류 가능한 원천 ID 외 식별자 필드는 null |
-| `expenses` | 유효 지출의 `{id,transactionId,date,name,amount,accountId,recognitionMonth,revision}` |
+| `expenses` | 유효 지출의 `{id,transactionId,date,name,amount,accountId,recognitionMonth,revision,transferCandidates,transferPaymentId}` |
 | `revenueItems` | 동일 부과 항목 ID별 `{id,name,amount,recognized,revision,sourceContext}`; 실제 부과월을 원본별로 표시 |
 | `receivables` | 외부 부담별 `{id,accountCode,name,date,counterparty,amount,received,remaining,path}`; 발생 지출 날짜가 선택 기간에 속한 `102 미수금`의 발생·회수·조회 종료 월말 잔액. 손익에 합산하지 않음 |
-| `otherIncomes` | 자동 연결된 기타 입금의 `{id,transactionId,date,name,amount,accountId}`; id는 수납 ID. 기존 실제 회수액을 제외한 `901 영업외수익`이며 기존 동 배분으로 집계 |
+| `households` | `{unitId,label,receivableAccountId,advanceAccountId,receivable,advance,path}`; 조회 종료 월말 미납 102·선입금 201 자동 잔액. 손익 records에 포함하지 않음 |
+| `otherIncomes` | 자동 연결된 기타 입금의 `{id,transactionId,date,name,amount,accountId}`; id는 수납 ID. 기존 실제 회수액을 제외한 `901 영업외수익`이며 기존 동 배분으로 집계. 103으로 연결한 입금은 accountId=103이며 손익 records에서 제외 |
 
-`SETUP_REQUIRED`는 회계 시작 기준 미설정, `BEFORE_START`는 시작 전 조회, `REVIEW_REQUIRED`는 미반영 자료가 남은 잠정 합계, `READY`는 현재 등록·확인 자료를 집계할 수 있는 상태입니다. `READY`도 기초 잔액·자동전표 대조 또는 마감 완료를 보증하지 않습니다.
+`NO_BILLING`은 첫 부과 기준 없음, `BEFORE_START`는 첫 부과월 전 조회, `REVIEW_REQUIRED`는 미반영 자료가 남은 잠정 합계, `READY`는 현재 등록·확인 자료를 집계할 수 있는 상태입니다. `READY`도 기초 잔액·자동전표 대조 또는 마감 완료를 보증하지 않습니다.
 
-`issues.path`는 기존 업무의 관리대상 기준 상대 경로입니다. 지출은 통장 거래 ID, 입금은 수납 ID, 0원·음수 청구 등은 해당 월·세대의 수납 상세로 연결합니다. 부과 항목은 여러 청구를 묶으므로 부과 이력에서 확인합니다. Client는 상세 종류에 따라 기존 PC 모달·모바일 경로를 재사용합니다.
+`issues.path`는 기존 업무의 관리대상 기준 상대 경로입니다. 지출은 통장 거래 ID, 입금은 수납 ID, 음수 청구·합계 불일치 등은 해당 월·세대의 수납 상세로 연결합니다. 부과 항목은 여러 청구를 묶으므로 부과 이력에서 확인합니다. Client는 상세 종류에 따라 기존 PC 모달·모바일 경로를 재사용합니다.
 
 2026-11-05 표시 보완: 같은 사유·금액의 거래도 구분할 수 있도록 `sourceName/sourceContext`를 제공합니다. 지출은 지출명·거래일·기존 부담처, 입출금은 적요·거래일·확인 가능한 세대, 개별 청구는 `관리비 부과`와 부과월·당시 동/호수/표시명을 사용합니다. 동이 비어 있으면 동 정보 없음을 표시하고 현재 세대 정보로 과거 귀속을 보정하지 않습니다. `buildings`의 삭제 동을 이름으로 합치거나 제거해 과거 원천을 유실하지 않으며, Client는 새 선택지에서 삭제 동을 제외합니다.
 
 서버·Client 적용 시차를 고려해 Client는 위 추가 표시 필드가 없는 기존 응답도 허용하고 제공된 필드의 형식은 검사합니다. 기존 금액·관리대상·원천 연결 검증은 유지합니다. 원본 식별 정보·삭제 동 구분의 완전한 표시는 새 Server 응답 적용이 필요합니다.
 
-지출은 입력 코드·기본 과목명·통상 표기를 같은 관리대상의 계정 ID에 자동 매칭합니다. 기본 비용 월은 기존 지출 날짜의 월이며 과목이 연결되면 바로 반영합니다. 기존 명시적 귀속 이력은 보존하고 비용 과목이 미연결인 건만 확인 대상으로 반환합니다. 외부 부담금은 `102 미수금`에 자동 연결하며 비용 원천의 amount는 우리 동들의 부담액만 포함합니다. 회수 입금은 기존 실제 연결액만큼 미수금을 줄이고, 나머지 확정 기타 입금은 `901 영업외수익`에 자동 연결합니다. 동이 있는 대상은 기존 입금 배분을 사용하고 미지정 입금만 `OTHER_INCOME_BUILDING_REQUIRED`로 원본 배분 화면에 연결합니다. 일반관리비에 예치·적립 선택을 반복 요구하지 않습니다. 0원·음수 청구, 과거 동 귀속 불명, 미분류·보류 거래도 원천 금액과 연결을 제공합니다.
+지출은 입력 코드·기본 과목명·통상 표기를 같은 관리대상의 계정 ID에 자동 매칭합니다. 기본 비용 월은 기존 지출 날짜의 월이며 과목이 연결되면 바로 반영합니다. 기존 명시적 귀속 이력은 보존하고 비용 과목이 미연결인 건만 확인 대상으로 반환합니다. 외부 부담금은 `102 미수금`에 자동 연결하며 비용 원천의 amount는 우리 동들의 부담액만 포함합니다. 회수 입금은 기존 실제 연결액만큼 미수금을 줄이고, 나머지 확정 기타 입금은 `901 영업외수익`에 자동 연결합니다. 동이 있는 대상은 기존 입금 배분을 사용하고 미지정 입금만 `OTHER_INCOME_BUILDING_REQUIRED`로 원본 배분 화면에 연결합니다. 일반관리비에 예치·적립 선택을 반복 요구하지 않습니다. 청구 전체가 음수인 건·합계 불일치, 과거 동 귀속 불명, 미분류·보류 거래도 원천 금액과 연결을 제공합니다.
 
-## 시작 기준
+## 첫 부과 기준 자동 적용
 
-`POST /settings`
+별도 시작 날짜 설정 화면은 제공하지 않습니다. 유효한 최초 월별 부과월, 없으면 관리대상 firstBillingMonth를 사용합니다. 기존 accounting_profiles.start_month는 변경하지 않고 조회 기준만 첫 부과월로 계산합니다. 조회 시 DB를 쓰지 않고 누락 기본 계정 ID를 결정적으로 생성해 반환합니다. 첫 분류 저장은 관리대상 잠금 안에서 같은 ID의 계정과 필요한 프로필을 저장합니다.
 
-```json
-{"startMonth":"2026-07","fiscalYearStartMonth":1}
-```
-
-성공 204. 시작 기준과 해당 관리대상의 기본 계정 18개(812 보험료·813 잡비·901 영업외수익 포함)를 함께 생성합니다. 기존 계정 ID를 유지한 코드 이관은 `V20261105105439`를 따릅니다. 같은 설정 재전송은 성공하며 다른 값으로 덮어쓰기는 409입니다. 시작 기준 정정·기초 잔액 인계·마감은 이 API가 처리하지 않습니다.
+구 Client의 `POST /settings {startMonth,fiscalYearStartMonth}`는 호환용으로 유지하지만 요청 날짜로 기존 기준을 덮어쓰지 않고 자동 초기화만 수행합니다. 부과 기준이 없으면 `ACCOUNTING_BILLING_REQUIRED`입니다.
 
 ## 비용 과목 추가
 
@@ -72,7 +69,7 @@
 {"accountId":"uuid","expectedRevision":0}
 ```
 
-성공 204. 별도 날짜·귀속 월·변경 사유를 입력받지 않습니다. 첫 매칭 revision=0 이후 조회한 최신 revision을 전송합니다. Server는 원본 지출 날짜로 매칭 월을 결정합니다. 기존 Client의 recognitionMonth는 선택 호환 필드이며 저장 월 결정에 사용하지 않습니다. reason도 선택 호환 필드이며 생략하면 기존 감사 이력에는 `계정과목 매칭`을 기록합니다. 유효한 확정 지출과 같은 관리대상의 비용 과목을 검사합니다. 출금일·금액·동 배분 원본은 변경하지 않습니다. 시작 월 이전 귀속도 확인할 수 있으나 시작 전 손익 조회는 제공하지 않습니다. 동일 요청 재시도는 중복 이력을 만들지 않고 다른 최신 확인이 저장됐으면 409입니다.
+성공 204. 별도 날짜·귀속 월·변경 사유를 입력받지 않습니다. 첫 매칭 revision=0 이후 조회한 최신 revision을 전송합니다. Server는 원본 지출 날짜로 매칭 월을 결정합니다. 기존 Client의 recognitionMonth는 선택 호환 필드이며 저장 월 결정에 사용하지 않습니다. reason도 선택 호환 필드이며 생략하면 기존 감사 이력에는 `계정과목 매칭`을 기록합니다. 유효한 확정 지출과 같은 관리대상의 비용 과목 또는 자산 103을 검사합니다. 103은 `counterpartPaymentId`가 필수이며 기타 입금의 날짜·금액·다른 통장·동별 배분과 다른 활성 연결 사용 여부를 검증합니다. 후보는 `transferCandidates: [{paymentId,accountName,name,date,amount}]`, 현재 상대는 `transferPaymentId`로 반환합니다. 비용 과목 재매칭은 기존 연결을 종료하고 양쪽의 정상 손익을 다시 계산하며 과거 연결 이력은 보존합니다. 출금일·금액·동 배분 원본은 변경하지 않습니다. 시작 월 이전 귀속도 확인할 수 있으나 시작 전 손익 조회는 제공하지 않습니다. 동일 요청 재시도는 중복 이력을 만들지 않고 다른 최신 확인이 저장됐으면 409입니다.
 
 ## 부과 항목의 수익 성격 확인 및 정정
 
@@ -88,10 +85,10 @@
 
 | 상태 | 코드·의미 |
 | --- | --- |
-| 400 | `INVALID_ACCOUNTING_REQUEST`, `INVALID_ACCOUNTING_ACCOUNT` 등 입력·조회 조건 오류 |
+| 400 | `INVALID_ACCOUNTING_REQUEST`, `INVALID_ACCOUNTING_ACCOUNT`, `INVALID_ACCOUNTING_TRANSFER` 등 입력·조회 조건 오류 |
 | 401/403 | 기존 인증·역할·관리대상 접근 오류 |
 | 404 | `ACCOUNTING_SOURCE_NOT_FOUND`: 삭제·취소 등 현재 유효 원천 없음 |
-| 409 | `ACCOUNTING_SETUP_REQUIRED`, `ACCOUNTING_SETTINGS_CONFLICT`, `ACCOUNTING_REVIEW_CONFLICT`, `ACCOUNTING_EXTERNAL_REVIEW_REQUIRED` |
+| 409 | `ACCOUNTING_BILLING_REQUIRED`, `ACCOUNTING_REVIEW_CONFLICT`, `ACCOUNTING_EXTERNAL_REVIEW_REQUIRED` |
 | 503 | `ACCOUNTING_SERVICE_UNAVAILABLE`: 저장소 조회 실패 |
 | 500 | `ACCOUNTING_REQUEST_FAILED`: 처리 실패 |
 

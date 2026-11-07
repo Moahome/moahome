@@ -116,7 +116,7 @@ export async function mockAccountingLifecycle(page: Page, options: { accounts?: 
     costAccount: settlementId(8304)
   };
   const state = {
-    configured: false,
+    configured: true,
     revenue: false,
     revenueRevision: 0,
     expenseMonth: null as string | null,

@@ -2,6 +2,7 @@ package com.moahome.server.config;
 
 import com.moahome.server.banking.service.BankTransferPostingService;
 import com.moahome.server.accounting.service.AccountingWriteService;
+import com.moahome.server.accounting.service.AccountingTransferService;
 import com.moahome.server.accounting.service.IncomeStatementService;
 import com.moahome.server.billing.service.BillingIncomeSourceService;
 import jakarta.persistence.EntityManager;
@@ -89,6 +90,9 @@ class OpenApiIntegrationTest {
 
 	@MockitoBean
 	private AccountingWriteService accountingWrites;
+
+	@MockitoBean
+	private AccountingTransferService accountingTransfers;
 
 	@MockitoBean
 	private com.moahome.server.accounting.service.ExpenseAccountService expenseAccounts;

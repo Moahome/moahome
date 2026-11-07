@@ -235,6 +235,11 @@ public class BankTransferPostingService {
 		for (BankTransferPosting posting : all(property)) {
 			if (posting.getCanceledAt() == null || !(requested.contains(posting.getId())
 			    || requested.contains(posting.getSourceTransactionId()) || requested.contains(posting.getCounterpartTransactionId()))) continue;
+			// 상대 은행 원본까지 도착한 이체는 두 원본을 명시적으로 함께 선택해야 한쪽만 남지 않습니다.
+			if (posting.getCounterpartTransactionId() != null
+				&& (!requested.contains(posting.getSourceTransactionId())
+					|| !requested.contains(posting.getCounterpartTransactionId())))
+				throw new PaymentException("BANK_TRANSFER_DELETE_PAIR_REQUIRED");
 			ids.remove(posting.getId());
 			ids.add(posting.getSourceTransactionId());
 			if (posting.getCounterpartTransactionId() != null) ids.add(posting.getCounterpartTransactionId());

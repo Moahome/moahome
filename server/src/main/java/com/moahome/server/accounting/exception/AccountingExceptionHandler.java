@@ -25,6 +25,8 @@ public class AccountingExceptionHandler {
 			status = HttpStatus.NOT_FOUND;
 		String message = switch (code) {
 			case "ACCOUNTING_SETUP_REQUIRED" -> "회계 시작 기준을 먼저 설정해주세요.";
+			case "ACCOUNTING_BILLING_REQUIRED" -> "첫 관리비 부과 이후 자동 연결됩니다.";
+			case "INVALID_ACCOUNTING_TRANSFER" -> "같은 날짜·금액과 동별 배분의 다른 통장 입금을 선택해주세요.";
 			case "ACCOUNTING_SETTINGS_CONFLICT" -> "저장한 회계 시작 기준은 덮어쓸 수 없습니다.";
 			case "ACCOUNTING_REVIEW_CONFLICT" -> "다른 확인 내역이 저장됐습니다. 최신 자료를 다시 확인해주세요.";
 			case "ACCOUNTING_SOURCE_NOT_FOUND" -> "현재 유효한 지출을 찾을 수 없습니다.";

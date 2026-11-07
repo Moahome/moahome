@@ -1,3 +1,7 @@
+import {
+  mockSettlement,
+  SETTLEMENT_PROPERTY
+} from './support/monthlySettlement';
 import { closeReportPreview } from './support/reportDownload';
 import { selectMonthRange } from './support/monthRange';
 import {
@@ -6453,3 +6457,130 @@ test('103 통장간 거래 선택은 상대 통장 지정·양쪽 반영·취소
   await expect(page).toHaveURL(/banking\/transactions/);
   expect(uploadBody).toContain(`"matchTransferId":"${transferId}"`);
 });
+
+for (const width of [1440, 390]) {
+  test(`취소 이체 편집 ${width}px는 다른 통장에 숨은 상대 거래도 함께 선택·해제하고 한 요청으로 삭제한다`, async ({ page }) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    await mockSettlement(page);
+    const second = id(9910), transfer = id(9911);
+    let canceled = false, deleted = false;
+    const accounts = [{
+      ...IMPORT_ACCOUNT,
+      alias: '출금 통장'
+    }, {
+      ...IMPORT_ACCOUNT,
+      id: second,
+      alias: '입금 통장',
+      isPrimary: false
+    }];
+    const workspace = (): BankingWorkspaceData => ({
+      propertyId: SETTLEMENT_PROPERTY,
+      asOf: '2026-10-17',
+      accounts,
+      buildings: [],
+      units: [],
+      rules: [],
+      rows: deleted ? [] : [
+        {
+          ...row(9912, 'EXPENSE', '연결 출금', '10000'),
+          transferCandidate: true,
+          transferId: transfer,
+          status: canceled ? 'CANCELED' : 'TRANSFER'
+        },
+        {
+          ...row(9913, 'INCOME', '연결 입금', '10000'),
+          accountId: second,
+          transferCandidate: true,
+          transferId: transfer,
+          status: canceled ? 'CANCELED' : 'TRANSFER'
+        }
+      ],
+      deletionGroups: deleted ? [] : [{
+        id: transfer,
+        transactionIds: [id(9912), id(9913)],
+        requiresCancellation: !canceled
+      }]
+    });
+    await page.route('http://localhost:8080/api/properties/*/banking/workspace', (route) => route.fulfill({
+      json: workspace()
+    }));
+    let deleteBody: unknown;
+    await page.route('http://localhost:8080/api/properties/*/banking/transactions/delete', async (route) => {
+      if (route.request().method() === 'OPTIONS') return route.fulfill({
+        status: 200
+      });
+      deleteBody = route.request().postDataJSON();
+      deleted = true;
+      await route.fulfill({
+        json: workspace()
+      });
+    });
+    const href = `/manage/${SETTLEMENT_PROPERTY}/banking/transactions?month=2026-10&account=${ACCOUNT}`;
+    await page.goto(href);
+    await expect(page.getByRole('table', {
+      name: '통장 거래',
+      exact: true
+    })).toContainText('연결 출금');
+    await expect(page.getByRole('button', {
+      name: '편집',
+      exact: true
+    })).toBeDisabled();
+    // 취소 완료 응답을 재조회합니다. 화면에는 출금 통장 한쪽만 보입니다.
+    canceled = true;
+    await page.reload();
+    await page.getByRole('button', {
+      name: /^취소 내역/
+    }).click();
+    await page.getByRole('button', {
+      name: '편집',
+      exact: true
+    }).click();
+    const checkbox = page.getByLabel('연결 출금 거래 선택', {
+      exact: true
+    });
+    await checkbox.check();
+    await page.getByRole('button', {
+      name: '선택 삭제',
+      exact: true
+    }).click();
+    const dialog = page.getByRole('dialog', {
+      name: '거래를 삭제할까요?',
+      exact: true
+    });
+    await expect(dialog.getByRole('listitem')).toHaveCount(2);
+    await expect(dialog).toContainText('연결 입금');
+    await expect(dialog).toContainText('입금 통장');
+    await page.screenshot({
+      path: test.info().outputPath('linkedTransferDeletion.png')
+    });
+    await page.getByRole('button', {
+      name: '선택 삭제 확인 닫기',
+      exact: true
+    }).click();
+    await checkbox.uncheck();
+    await expect(page.getByRole('button', {
+      name: '선택 삭제',
+      exact: true
+    })).toBeDisabled();
+    await checkbox.check();
+    await page.getByRole('button', {
+      name: '선택 삭제',
+      exact: true
+    }).click();
+    await dialog.getByRole('button', {
+      name: '삭제',
+      exact: true
+    }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(deleteBody).toEqual({
+      transactionIds: [id(9912), id(9913)]
+    });
+    await expect(page.getByRole('table', {
+      name: '통장 거래',
+      exact: true
+    })).not.toContainText('연결 출금');
+  });
+}

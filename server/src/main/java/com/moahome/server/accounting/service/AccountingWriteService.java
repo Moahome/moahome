@@ -5,12 +5,11 @@ import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.util.UUID;
 import java.util.List;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.stream.IntStream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.moahome.server.accounting.domain.AccountingAccount;
-import com.moahome.server.accounting.domain.DefaultAccount;
 import com.moahome.server.accounting.domain.AccountingProfile;
 import com.moahome.server.accounting.domain.ExpenseAccountingReview;
 import com.moahome.server.accounting.domain.IncomeGroup;
@@ -24,7 +23,8 @@ import com.moahome.server.accounting.repo.RevenueAccountingReviewRepository;
 import com.moahome.server.auth.exception.AuthErrorCode;
 import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.banking.service.BankingService;
-import com.moahome.server.billing.domain.BillingCalendar;
+import com.moahome.server.banking.dto.BankingResponse;
+import com.moahome.server.accounting.domain.AccountingTransferMatch;
 import com.moahome.server.billing.service.BillingIncomeSourceService;
 import com.moahome.server.common.security.PaymentTextSecurity;
 import com.moahome.server.common.validation.TextValues;
@@ -50,11 +50,13 @@ public class AccountingWriteService {
 	private final PaymentTextSecurity security;
 
 	private final Clock clock;
+	private final AccountingTransferService accountingTransfers;
 
 	public AccountingWriteService(ManagementAccessService access, PropertyRepository properties,
 		AccountingProfileRepository profiles, AccountingAccountRepository accounts,
 		ExpenseAccountingReviewRepository reviews, RevenueAccountingReviewRepository revenueReviews,
-		BillingIncomeSourceService billing, BankingService banking, PaymentTextSecurity security, Clock clock) {
+		BillingIncomeSourceService billing, BankingService banking, PaymentTextSecurity security, Clock clock,
+		AccountingTransferService accountingTransfers) {
 		this.access = access;
 		this.properties = properties;
 		this.profiles = profiles;
@@ -65,33 +67,34 @@ public class AccountingWriteService {
 		this.banking = banking;
 		this.security = security;
 		this.clock = clock;
+		this.accountingTransfers = accountingTransfers;
 	}
 
 	/** 관리대상 잠금으로 초기 설정·기본 과목 생성을 직렬화하고 기존 회계 시작 기준은 덮어쓰지 않습니다. */
 	public void configure(UUID actor, UUID property, AccountingRequests.Configure request) {
 		requireAdminAndLock(actor, property);
-		YearMonth start = BillingCalendar.parseMonth(request.startMonth());
-		AccountingProfile existing = profiles.findById(property).orElse(null);
-		if (existing != null) {
-			if (!existing.getStartMonth().equals(start.atDay(1))
-				|| existing.getFiscalYearStartMonth() != request.fiscalYearStartMonth())
-				throw new AccountingException("ACCOUNTING_SETTINGS_CONFLICT");
-			return;
-		}
+		// 이전 Client의 요청도 날짜를 덮어쓰지 않고 첫 부과 기준의 자동 초기화만 수행합니다.
+		ensureConfigured(actor, property);
+	}
+
+	/** 조회는 쓰지 않고 첫 분류 저장의 잠금 안에서 첫 부과 기준·기본 계정을 필요한 만큼만 저장합니다. */
+	private void ensureConfigured(UUID actor, UUID property) {
+		var target = properties.findById(property).orElseThrow();
+		YearMonth start = billing.firstMonth(property, target.getFirstBillingMonth());
+		if (start == null)
+			throw new AccountingException("ACCOUNTING_BILLING_REQUIRED");
 		OffsetDateTime at = OffsetDateTime.now(clock);
-		profiles.saveAndFlush(AccountingProfile.create(property, start, request.fiscalYearStartMonth(), actor, at));
+		if (!profiles.existsById(property))
+			profiles.saveAndFlush(AccountingProfile.create(property, start, 1, actor, at));
 		List<AccountingAccount> current = accounts.findByPropertyIdOrderByCreatedAtAscIdAsc(property);
-		accounts.saveAllAndFlush(Arrays.stream(DefaultAccount.values())
-			.filter(value -> current.stream().noneMatch(account -> account.getCode().equals(value.getCode())))
-			.map(value -> AccountingAccount.create(
-			property, value.getCode(), value.getName(), value.getGroup(), value.getSystemKey(), actor, at)).toList());
+		accounts.saveAllAndFlush(AccountingAccount.withDefaults(property, current, actor, at).stream()
+			.filter(value -> current.stream().noneMatch(account -> account.getId().equals(value.getId()))).toList());
 	}
 
 	/** 비용 과목은 관리자가 명시하고 같은 분류·명칭의 재요청은 기존 ID를 반환합니다. */
 	public UUID createAccount(UUID actor, UUID property, AccountingRequests.CreateAccount request) {
 		requireAdminAndLock(actor, property);
-		if (!profiles.existsById(property))
-			throw new AccountingException("ACCOUNTING_SETUP_REQUIRED");
+		ensureConfigured(actor, property);
 		if (request.group() == null || !request.group().isExpense())
 			throw new AccountingException("INVALID_ACCOUNTING_ACCOUNT");
 		String name = TextValues.required(request.name(), 100);
@@ -121,12 +124,12 @@ public class AccountingWriteService {
 	/** 확인 저장과 원천 변경은 같은 관리대상 잠금을 사용하며 정정은 기존 이력 대신 새 버전을 추가합니다. */
 	public void reviewExpense(UUID actor, UUID property, UUID expenseId, AccountingRequests.ReviewExpense request) {
 		requireAdminAndLock(actor, property);
-		profiles.findById(property)
-			.orElseThrow(() -> new AccountingException("ACCOUNTING_SETUP_REQUIRED"));
+		ensureConfigured(actor, property);
 		if (request.expectedRevision() < 0)
 			throw new AccountingException("INVALID_ACCOUNTING_REVIEW");
 		AccountingAccount account = accounts.findById(request.accountId())
-			.filter(value -> property.equals(value.getPropertyId()) && value.getReportGroup().isExpense())
+			.filter(value -> property.equals(value.getPropertyId())
+				&& (value.getReportGroup().isExpense() || value.isBankTransfer()))
 			.orElseThrow(() -> new AccountingException("INVALID_ACCOUNTING_ACCOUNT"));
 		// 삭제된 은행 원본·수동 지출과 다른 관리대상의 원천은 현재 업무 조회와 같은 기준으로 거부합니다.
 		var source = banking.workspace(actor, property).rows().stream()
@@ -138,23 +141,38 @@ public class AccountingWriteService {
 		String reason = matchingReason(request.reason());
 		ExpenseAccountingReview previous = reviews.findFirstByPropertyIdAndExpenseIdOrderByRevisionDesc(property,
 			expenseId).orElse(null);
+		List<AccountingTransferMatch> currentMatches = accountingTransfers.current(property);
+		if (account.isBankTransfer()) {
+			List<BankingResponse.Transaction> receipts = new ArrayList<>(banking.workspace(actor, property).rows());
+			receipts.addAll(banking.manualIncomeSources(actor, property));
+			boolean valid = receipts.stream().anyMatch(value -> value.paymentId() != null
+				&& value.paymentId().equals(request.counterpartPaymentId()) && AccountingTransferService.canMatch(source, value));
+			if (!valid || currentMatches.stream().anyMatch(value -> !expenseId.equals(value.getExpenseId())
+				&& value.getPaymentId().equals(request.counterpartPaymentId())))
+				throw new AccountingException("INVALID_ACCOUNTING_TRANSFER");
+		} else if (request.counterpartPaymentId() != null) {
+			throw new AccountingException("INVALID_ACCOUNTING_TRANSFER");
+		}
 		// 응답 유실의 같은 저장은 중복 이력을 만들지 않으며 충돌하는 다른 수정은 최신 버전 재확인을 요구합니다.
 		if (previous != null && account.getId().equals(previous.getAccountId())
 			&& previous.getRecognitionMonth().equals(month.atDay(1))
+			&& (!account.isBankTransfer() || currentMatches.stream().anyMatch(value -> value.getReviewId().equals(previous.getId())
+				&& value.getPaymentId().equals(request.counterpartPaymentId())))
 			&& actor.equals(previous.getConfirmedBy()) && reason.equals(security.decrypt(previous.getReasonEncrypted())))
 			return;
 		int revision = previous == null ? 0 : previous.getRevision();
 		if (revision != request.expectedRevision())
 			throw new AccountingException("ACCOUNTING_REVIEW_CONFLICT");
-		reviews.saveAndFlush(ExpenseAccountingReview.create(property, expenseId, account, month, revision + 1,
+		ExpenseAccountingReview saved = reviews.saveAndFlush(ExpenseAccountingReview.create(property, expenseId, account, month, revision + 1,
 			security.protect(reason).encrypted(), actor, OffsetDateTime.now(clock)));
+		if (account.isBankTransfer())
+			accountingTransfers.record(saved, request.counterpartPaymentId());
 	}
 
 	/** 코드·명칭으로 성격을 추정하지 않고 기존 동일 부과 항목의 일반 수익 여부를 관리자가 확인합니다. */
 	public void reviewRevenue(UUID actor, UUID property, UUID itemId, AccountingRequests.ReviewRevenue request) {
 		requireAdminAndLock(actor, property);
-		if (!profiles.existsById(property))
-			throw new AccountingException("ACCOUNTING_SETUP_REQUIRED");
+		ensureConfigured(actor, property);
 		boolean exists = billing.get(property).stream().flatMap(source -> source.items().stream())
 			.anyMatch(item -> itemId.equals(item.sourceTemplateItemId()));
 		if (!exists)

@@ -9,10 +9,8 @@ import {
   Dropdown,
   Input
 } from '@/shared/ui/form-controls';
-import { MonthPicker } from '@/shared/ui/month-picker';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
-  configureAccounting,
   createAccountingAccount,
   reviewAccountingExpense,
   reviewAccountingRevenue
@@ -24,8 +22,7 @@ import type {
 } from '../../../api/incomeStatementApiTypes';
 import styles from './accountingEditor.module.css';
 
-export type AccountingEditorTarget = { kind: 'setup' }
-  | { kind: 'expense'; value: AccountingExpense }
+export type AccountingEditorTarget = { kind: 'expense'; value: AccountingExpense }
   | { kind: 'revenue'; value: AccountingRevenueItem };
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -34,7 +31,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   ACCOUNTING_SOURCE_NOT_FOUND: '삭제되었거나 현재 유효하지 않은 원천입니다. 최신 자료를 다시 확인해주세요.',
   ACCOUNTING_SETUP_REQUIRED: '회계 시작 기준을 먼저 설정해주세요.',
   ACCOUNTING_EXTERNAL_REVIEW_REQUIRED: '외부 부담·회수 권리의 회계 처리를 먼저 확인해주세요.',
-  INVALID_ACCOUNTING_ACCOUNT: '선택한 비용 과목을 확인해주세요.',
+  INVALID_ACCOUNTING_ACCOUNT: '선택한 계정과목을 확인해주세요.',
+  INVALID_ACCOUNTING_TRANSFER: '같은 날짜·금액과 동별 배분의 상대 입금을 선택해주세요.',
+  ACCOUNTING_BILLING_REQUIRED: '첫 관리비 부과 이후 자동 연결됩니다.',
   INVALID_ACCOUNTING_REQUEST: '회계 입력 내용을 확인해주세요.'
 };
 
@@ -50,21 +49,22 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved, p
   const expense = target.kind === 'expense' ? target.value : null;
   const revenue = target.kind === 'revenue' ? target.value : null;
   // API 반환·등록 순서와 관계없이 비용 과목은 코드 오름차순으로 선택합니다.
-  const accounts = data.accounts.filter((account) => account.group.endsWith('Expense'))
+  const accounts = data.accounts.filter((account) => account.group.endsWith('Expense')
+    || (account.group === 'asset' && account.code === '103' && expense?.transferCandidates !== undefined))
     .sort((left, right) => (left.code ?? '999').localeCompare(right.code ?? '999', 'ko', {
       numeric: true
     }) || left.name.localeCompare(right.name, 'ko'));
-  const [month, setMonth] = useState('');
-  const [fiscalStart, setFiscalStart] = useState('');
   const [accountId, setAccountId] = useState(expense?.accountId ?? (accounts.length ? '' : 'new'));
+  const [counterpartPaymentId, setCounterpartPaymentId] = useState(expense?.transferPaymentId ?? '');
+  const isTransfer = accounts.find((account) => account.id === accountId)?.code === '103';
   const [accountName, setAccountName] = useState('');
   const [accountCode, setAccountCode] = useState('');
   const [accountGroup, setAccountGroup] = useState<'OPERATING_EXPENSE' | 'OTHER_EXPENSE'>('OPERATING_EXPENSE');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const title = target.kind === 'setup' ? '회계 시작 기준' : expense ? '지출 매칭' : '수익 매칭';
-  const ready = target.kind === 'setup' ? Boolean(month && fiscalStart)
-    : Boolean(expense ? accountId && (accountId !== 'new' || accountName.trim()) : revenue);
+  const title = expense ? '지출 매칭' : '수익 매칭';
+  const ready = Boolean(expense ? accountId && (accountId !== 'new' || accountName.trim())
+    && (!isTransfer || counterpartPaymentId) : revenue);
 
   /** 과목 추가와 지출 확인은 순서대로 요청하고 재시도는 서버의 명칭·버전 중복 방지 규칙을 따릅니다. */
   async function save() {
@@ -72,12 +72,7 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved, p
     setBusy(true);
     setError('');
     try {
-      if (target.kind === 'setup') {
-        await configureAccounting(propertyId, {
-          startMonth: month,
-          fiscalYearStartMonth: Number(fiscalStart)
-        });
-      } else if (expense) {
+      if (expense) {
         const selected = accountId === 'new'
           ? await createAccountingAccount(propertyId, {
             name: accountName.trim(),
@@ -87,6 +82,9 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved, p
         await reviewAccountingExpense(propertyId, expense.id, {
           accountId: selected,
           expectedRevision: expense.revision,
+          ...(isTransfer ? {
+            counterpartPaymentId
+          } : {}),
           // 이전 서버도 같은 원본 날짜로 저장하도록 요청 형식만 호환하고 별도 입력은 받지 않습니다.
           recognitionMonth: expense.date.slice(0, 7),
           reason: '계정과목 매칭'
@@ -138,112 +136,111 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved, p
         <div
           className={styles.body}
         >
-          {target.kind === 'setup' ? (
-            <>
-              <p>
-                기존 인계 미수·선입금·통장 잔액을 신규 수익으로 만들지 않습니다. 저장한 시작 기준은 직접 덮어쓸 수 없으니 확인 후 저장해주세요.
-              </p>
-              <MonthPicker
-                label={'회계 시작 월'}
-                required
-                variant={'input'}
-                placeholder={'월 선택'}
-                value={month}
-                disabled={busy}
-                onChange={setMonth}
-              />
-              <Dropdown
-                label={'회계연도 시작 월'}
-                required
-                value={fiscalStart}
-                disabled={busy}
-                options={Array.from({
-                  length: 12
-                }, (_, index) => ({
-                  value: String(index + 1),
-                  label: `${index + 1}월`
-                }))}
-                onChange={setFiscalStart}
-              />
-            </>
-          ) : (
-            <>
-              <div
-                className={styles.source}
-              >
-                <strong>
-                  {expense?.name ?? revenue?.name}
-                </strong>
-                <span>
-                  {formatInteger(expense?.amount ?? revenue?.amount ?? '0')}
-                  원
-                </span>
-                {expense && <small>
-                  {'출금일 '}
-                  {expense.date}
-                </small>}
-              </div>
-              {expense ? (
-                <>
-                  <Dropdown
-                    label={'비용 과목'}
-                    required
-                    value={accountId}
-                    disabled={busy}
-                    options={[...accounts.map((account) => ({
-                      value: account.id,
-                      label: [account.code, account.name].filter(Boolean).join(' ')
-                    })), {
-                      value: 'new',
-                      label: '새 비용 과목'
-                    }]}
-                    onChange={setAccountId}
-                  />
-                  {accountId === 'new' && (
-                    <>
-                      <Input
-                        label={'계정 코드'}
-                        value={accountCode}
-                        placeholder={'미입력 시 814~899 자동 배정'}
-                        maxLength={3}
-                        inputMode={'numeric'}
-                        disabled={busy}
-                        onChange={(event) => setAccountCode(event.target.value.replace(/\D/g, ''))}
-                      />
-                      <Input
-                        label={'과목명'}
-                        required
-                        value={accountName}
-                        maxLength={100}
-                        disabled={busy}
-                        onChange={(event) => setAccountName(event.target.value)}
-                      />
-                      <Dropdown
-                        label={'보고서 분류'}
-                        required
-                        value={accountGroup}
-                        disabled={busy}
-                        options={[{
-                          value: 'OPERATING_EXPENSE',
-                          label: '운영비용'
-                        }, {
-                          value: 'OTHER_EXPENSE',
-                          label: '영업외비용'
-                        }]}
-                        onChange={(value) => setAccountGroup(value as 'OPERATING_EXPENSE' | 'OTHER_EXPENSE')}
-                      />
-                    </>
-                  )}
-                </>
-              ) : (
-                <Input
+          <>
+            <div
+              className={styles.source}
+            >
+              <strong>
+                {expense?.name ?? revenue?.name}
+              </strong>
+              <span>
+                {formatInteger(expense?.amount ?? revenue?.amount ?? '0')}
+                원
+              </span>
+              {expense && <small>
+                {'출금일 '}
+                {expense.date}
+              </small>}
+            </div>
+            {expense ? (
+              <>
+                <Dropdown
                   label={'계정과목'}
-                  value={'401 관리비수입'}
-                  readOnly
+                  required
+                  value={accountId}
+                  disabled={busy}
+                  options={[...accounts.map((account) => ({
+                    value: account.id,
+                    label: [account.code, account.name].filter(Boolean).join(' ')
+                  })), {
+                    value: 'new',
+                    label: '새 비용 과목'
+                  }]}
+                  onChange={(value) => {
+                    setAccountId(value);
+                    const candidate = expense.transferCandidates?.length === 1 ? expense.transferCandidates[0].paymentId : '';
+                    setCounterpartPaymentId(expense.transferPaymentId ?? candidate);
+                  }}
                 />
-              )}
-            </>
-          )}
+                {isTransfer && (
+                  <>
+                    <Dropdown
+                      label={'상대 입금'}
+                      required
+                      value={counterpartPaymentId}
+                      disabled={busy}
+                      options={(expense.transferCandidates ?? []).map((candidate) => ({
+                        value: candidate.paymentId,
+                        label: `${candidate.accountName} · ${candidate.name} · ${formatInteger(candidate.amount)}원`
+                      }))}
+                      onChange={setCounterpartPaymentId}
+                    />
+                    <p>
+                      이미 등록된 두 거래를 연결합니다. 통장 잔액·동별 배분은 유지하고 양쪽 모두 수익·비용에서 제외합니다.
+                    </p>
+                    {!expense.transferCandidates?.length && (
+                      <p
+                        role={'alert'}
+                      >
+                        같은 날짜·금액·동별 배분의 다른 통장 입금이 없습니다. 통장 거래 내역을 확인해주세요.
+                      </p>
+                    )}
+                  </>
+                )}
+                {accountId === 'new' && (
+                  <>
+                    <Input
+                      label={'계정 코드'}
+                      value={accountCode}
+                      placeholder={'미입력 시 814~899 자동 배정'}
+                      maxLength={3}
+                      inputMode={'numeric'}
+                      disabled={busy}
+                      onChange={(event) => setAccountCode(event.target.value.replace(/\D/g, ''))}
+                    />
+                    <Input
+                      label={'과목명'}
+                      required
+                      value={accountName}
+                      maxLength={100}
+                      disabled={busy}
+                      onChange={(event) => setAccountName(event.target.value)}
+                    />
+                    <Dropdown
+                      label={'보고서 분류'}
+                      required
+                      value={accountGroup}
+                      disabled={busy}
+                      options={[{
+                        value: 'OPERATING_EXPENSE',
+                        label: '운영비용'
+                      }, {
+                        value: 'OTHER_EXPENSE',
+                        label: '영업외비용'
+                      }]}
+                      onChange={(value) => setAccountGroup(value as 'OPERATING_EXPENSE' | 'OTHER_EXPENSE')}
+                    />
+                  </>
+                )}
+              </>
+            ) : (
+              <Input
+                label={'계정과목'}
+                value={'401 관리비수입'}
+                readOnly
+              />
+            )}
+          </>
           {error && (
             <p
               role={'alert'}
@@ -265,7 +262,7 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved, p
             disabled={!ready}
             loading={busy}
           >
-            {target.kind === 'setup' ? '저장' : '매칭'}
+            매칭
           </Button>
         </footer>
       </form>

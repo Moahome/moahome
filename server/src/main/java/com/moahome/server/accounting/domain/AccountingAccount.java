@@ -3,6 +3,9 @@ package com.moahome.server.accounting.domain;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
+import java.nio.charset.StandardCharsets;
 import com.moahome.server.common.validation.TextValues;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -42,6 +45,26 @@ public class AccountingAccount {
 	private OffsetDateTime createdAt;
 
 	protected AccountingAccount() {
+	}
+
+	public boolean isBankTransfer() {
+		return reportGroup == IncomeGroup.ASSET && DefaultAccount.BANK_TRANSFER.getCode().equals(code);
+	}
+
+	/** 첫 조회의 가상 기본 계정과 첫 저장의 ID를 같게 유지하며 기존에 사용한 계정 ID는 교체하지 않습니다. */
+	public static List<AccountingAccount> withDefaults(UUID property, List<AccountingAccount> existing,
+		UUID actor, OffsetDateTime at) {
+		List<AccountingAccount> result = new ArrayList<>(existing);
+		for (DefaultAccount value : DefaultAccount.values()) {
+			if (result.stream().anyMatch(account -> value.getCode().equals(account.getCode())))
+				continue;
+			AccountingAccount account = create(property, value.getCode(), value.getName(), value.getGroup(),
+				value.getSystemKey(), actor, at);
+			account.id = UUID.nameUUIDFromBytes(("moahome:accounting:" + property + ":" + value.getCode())
+				.getBytes(StandardCharsets.UTF_8));
+			result.add(account);
+		}
+		return List.copyOf(result);
 	}
 
 	/** 코드와 유형을 함께 검증하며 표시 코드와 별개인 계정 ID로 원천을 연결합니다. */

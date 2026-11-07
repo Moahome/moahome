@@ -14,6 +14,7 @@ import java.util.UUID;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.Comparator;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import com.moahome.server.accounting.domain.AccountingAccount;
 import com.moahome.server.accounting.domain.AccountingProfile;
+import com.moahome.server.accounting.domain.AccountingTransferMatch;
 import com.moahome.server.accounting.domain.DefaultAccount;
 import com.moahome.server.accounting.domain.ExpenseAccountingReview;
 import com.moahome.server.accounting.domain.RevenueAccountingReview;
@@ -37,7 +39,6 @@ import com.moahome.server.banking.service.BankingService;
 import com.moahome.server.banking.service.BankingBalanceService;
 import com.moahome.server.banking.dto.BankingBalanceResponse;
 import com.moahome.server.billing.domain.BillingCalendar;
-import com.moahome.server.billing.domain.FeeItemCode;
 import com.moahome.server.billing.dto.BillingIncomeSource;
 import com.moahome.server.billing.service.BillingIncomeSourceService;
 import com.moahome.server.membership.domain.PropertyMemberRole;
@@ -46,6 +47,7 @@ import com.moahome.server.property.domain.Property;
 import com.moahome.server.property.repo.BuildingRepository;
 import com.moahome.server.property.repo.PropertyRepository;
 import com.moahome.server.property.service.ManagementAccessService;
+import com.moahome.server.payment.service.PaymentService;
 
 @Service
 public class IncomeStatementService {
@@ -65,12 +67,14 @@ public class IncomeStatementService {
 	private final BankingBalanceService bankingBalances;
 
 	private final Clock clock;
+	private final AccountingTransferService accountingTransfers;
+	private final PaymentService payments;
 
 	public IncomeStatementService(ManagementAccessService access, PropertyRepository properties,
 		BuildingRepository buildings, AccountingProfileRepository profiles, AccountingAccountRepository accounts,
 		ExpenseAccountingReviewRepository reviews, RevenueAccountingReviewRepository revenueReviews,
 		BillingIncomeSourceService billing, BankingService banking, BankingBalanceService bankingBalances,
-		Clock clock) {
+		Clock clock, AccountingTransferService accountingTransfers, PaymentService payments) {
 		this.access = access;
 		this.properties = properties;
 		this.buildings = buildings;
@@ -82,6 +86,8 @@ public class IncomeStatementService {
 		this.banking = banking;
 		this.bankingBalances = bankingBalances;
 		this.clock = clock;
+		this.accountingTransfers = accountingTransfers;
+		this.payments = payments;
 	}
 
 	/** 같은 읽기 스냅샷에서 확정 부과와 확인한 지출을 조회하며 수납·인계·내부 이체를 수익으로 재계산하지 않습니다. */
@@ -98,17 +104,31 @@ public class IncomeStatementService {
 		if (buildingId != null && sourceBuildings.stream().noneMatch(value -> value.getId().equals(buildingId)))
 			throw new AccountingException("INVALID_ACCOUNTING_BUILDING");
 		AccountingProfile profile = profiles.findById(propertyId).orElse(null);
-		List<AccountingAccount> sourceAccounts = accounts.findByPropertyIdOrderByCreatedAtAscIdAsc(propertyId);
+		List<AccountingAccount> sourceAccounts = AccountingAccount.withDefaults(propertyId,
+			accounts.findByPropertyIdOrderByCreatedAtAscIdAsc(propertyId), actor, OffsetDateTime.now(clock));
+		YearMonth firstMonth = billing.firstMonth(propertyId, property.getFirstBillingMonth());
 		List<Entry> records = new ArrayList<>();
 		List<Issue> issues = new ArrayList<>();
 		List<IncomeStatementResponse.Expense> expenseRows = new ArrayList<>();
 		List<IncomeStatementResponse.RevenueItem> revenueItems = new ArrayList<>();
 		List<IncomeStatementResponse.Receivable> receivables = new ArrayList<>();
 		List<IncomeStatementResponse.OtherIncome> otherIncomes = new ArrayList<>();
-		String completeness = "SETUP_REQUIRED";
-		if (profile != null) {
-			completeness = start.atDay(1).isBefore(profile.getStartMonth()) ? "BEFORE_START" : "READY";
+		List<IncomeStatementResponse.Household> households = new ArrayList<>();
+		String completeness = "NO_BILLING";
+		if (firstMonth != null) {
+			completeness = start.isBefore(firstMonth) ? "BEFORE_START" : "READY";
 			if ("READY".equals(completeness)) {
+				var ledger = payments.workspace(actor, propertyId);
+				UUID receivable = sourceAccounts.stream().filter(value -> "RECEIVABLE".equals(value.getSystemKey()))
+					.findFirst().orElseThrow().getId();
+				UUID advance = sourceAccounts.stream().filter(value -> "ADVANCE_RECEIPT".equals(value.getSystemKey()))
+					.findFirst().orElseThrow().getId();
+				for (var value : HouseholdAccountingBalances.calculate(ledger, end, receivable, advance)) {
+					if (buildingId == null || (ledger != null && ledger.units().stream().filter(unit -> unit.id().equals(value.unitId()))
+						.anyMatch(unit -> sourceBuildings.stream().filter(building -> building.getId().equals(buildingId))
+							.anyMatch(building -> building.getName().equals(unit.buildingName())))))
+						households.add(value);
+				}
 				AccountingAccount revenueAccount = sourceAccounts.stream()
 					.filter(account -> "MANAGEMENT_REVENUE".equals(account.getSystemKey())).findFirst()
 					.orElseThrow(() -> new IllegalStateException("Missing management revenue account"));
@@ -121,16 +141,16 @@ public class IncomeStatementService {
 			}
 		}
 		return new IncomeStatementResponse(propertyId, context.name(), OffsetDateTime.now(clock),
-			new IncomeStatementResponse.Range(start.toString(), end.toString()), profile == null ? null
-				: new IncomeStatementResponse.Configuration(YearMonth.from(profile.getStartMonth()).toString(),
-					profile.getFiscalYearStartMonth()), context.role() == PropertyMemberRole.ADMIN, completeness,
+			new IncomeStatementResponse.Range(start.toString(), end.toString()), firstMonth == null ? null
+				: new IncomeStatementResponse.Configuration(firstMonth.toString(),
+					profile == null ? 1 : profile.getFiscalYearStartMonth()), context.role() == PropertyMemberRole.ADMIN, completeness,
 			sourceBuildings.stream().map(value -> new IncomeStatementResponse.Building(value.getId(), value.getName(),
 				value.getDeletedAt() != null))
 				.toList(), sourceAccounts.stream().sorted(Comparator.comparing(AccountingAccount::getCode))
 				.map(account -> new IncomeStatementResponse.Account(account.getId(),
 					account.getCode(), account.getName(), group(account), account.getSystemKey())).toList(),
 			List.copyOf(records), List.copyOf(issues), List.copyOf(expenseRows), List.copyOf(revenueItems), List.copyOf(receivables),
-			List.copyOf(otherIncomes));
+			List.copyOf(otherIncomes), List.copyOf(households));
 	}
 
 	/** 표준 관리비는 기본 수익으로 자동 연결하고 원본 항목·부과월과 명시적 분류 이력은 유지합니다. */
@@ -159,9 +179,10 @@ public class IncomeStatementService {
 				continue;
 			BigDecimal itemTotal = source.items().stream().map(BillingIncomeSource.Item::amount)
 				.reduce(BigDecimal.ZERO, BigDecimal::add);
-			if (source.amount().signum() <= 0 || source.items().stream().anyMatch(item -> item.amount().signum() < 0)) {
+			// 감액 항목이 포함된 정상 청구를 통째로 버리지 않습니다. 총액이 음수인 환급성 청구만 별도로 확인합니다.
+			if (source.amount().signum() < 0) {
 				issues.add(new Issue("charge:" + source.chargeId(), "CHARGE_POLICY_REVIEW_REQUIRED",
-					"0원·음수 청구의 회계 처리 확인 필요", source.amount().toPlainString(), path, null,
+					"음수 청구의 회계 처리 확인 필요", source.amount().toPlainString(), path, null,
 					null, "관리비 부과", billingContext(source)));
 				continue;
 			}
@@ -177,7 +198,7 @@ public class IncomeStatementService {
 				RevenueAccountingReview review = latest.get(item.sourceTemplateItemId());
 				// 기존 자료의 명칭 표기도 같은 기본 계정으로 연결하며 수납을 새 수익으로 만들지 않습니다.
 				boolean recognized = review == null ? (account.getId().equals(item.revenueAccountId())
-					|| item.code() == FeeItemCode.GENERAL_MANAGEMENT
+					|| item.code() != null
 					|| Set.of("일반관리비", "관리비", "관리비수입", "관리비수익").contains(item.name().replaceAll("(?U)\\s+", "")))
 					: review.isRecognized();
 				sourceMonths.computeIfAbsent(item.sourceTemplateItemId(), key -> new TreeSet<>()).add(source.month());
@@ -213,7 +234,25 @@ public class IncomeStatementService {
 		Map<UUID, ExpenseAccountingReview> latest = new HashMap<>();
 		for (ExpenseAccountingReview review : reviews.findByPropertyIdOrderByRevisionDesc(property.getId()))
 			latest.putIfAbsent(review.getExpenseId(), review);
-		for (BankingResponse.Transaction row : banking.workspace(actor, property.getId()).rows()) {
+		BankingResponse.Workspace bank = banking.workspace(actor, property.getId());
+		List<BankingResponse.Transaction> sources = new ArrayList<>(bank.rows());
+		Set<UUID> recordedReceipts = sources.stream().map(BankingResponse.Transaction::paymentId)
+			.filter(Objects::nonNull).collect(Collectors.toSet());
+		// Client에서만 합치던 수동 입금을 서버 집계에도 연결하고, 은행 연결 수납은 ID로 중복 제거합니다.
+		banking.manualIncomeSources(actor, property.getId()).stream()
+			.filter(row -> !recordedReceipts.contains(row.paymentId())).forEach(sources::add);
+		Map<UUID, BankingResponse.Transaction> receipts = sources.stream().filter(row -> row.paymentId() != null)
+			.collect(Collectors.toMap(BankingResponse.Transaction::paymentId, Function.identity(), (first, duplicate) -> first));
+		Map<UUID, BankingResponse.Transaction> outgoings = sources.stream().filter(row -> row.expense() != null)
+			.collect(Collectors.toMap(row -> row.expense().id(), Function.identity()));
+		List<AccountingTransferMatch> matches = accountingTransfers.current(property.getId()).stream().filter(value -> {
+			var outgoing = outgoings.get(value.getExpenseId());
+			var incoming = receipts.get(value.getPaymentId());
+			return outgoing != null && incoming != null && AccountingTransferService.canMatch(outgoing, incoming);
+		}).toList();
+		Set<UUID> transferredReceipts = matches.stream().map(value -> value.getPaymentId()).collect(Collectors.toSet());
+		AccountingAccount transferAccount = sourceAccounts.stream().filter(AccountingAccount::isBankTransfer).findFirst().orElseThrow();
+		for (BankingResponse.Transaction row : sources) {
 			// 입금은 수납 상세 ID로 연결합니다. 연결이 없는 원본을 출금 상세로 오인하지 않습니다.
 			String path = "INCOME".equals(row.direction())
 				? (row.paymentId() == null ? "/banking/transactions" : "/banking/receipts/" + row.paymentId())
@@ -228,6 +267,11 @@ public class IncomeStatementService {
 			if ("INCOME".equals(row.direction()) && "CONFIRMED".equals(row.status())
 				&& !"HOUSEHOLD".equals(row.receiptType())
 				&& within(YearMonth.from(row.date()).toString(), start, end)) {
+				if (transferredReceipts.contains(row.paymentId())) {
+					otherIncomes.add(new IncomeStatementResponse.OtherIncome(row.paymentId(), row.id(), row.date(),
+						transactionName(row), row.amount(), transferAccount.getId()));
+					continue;
+				}
 				// 실제 회수 연결액은 102 미수금 감소이며 입금의 나머지 금액만 별도 분류 대상으로 남깁니다.
 				BigDecimal unclassified = new BigDecimal(row.amount())
 					.subtract(recoveries.getOrDefault(row.paymentId(), BigDecimal.ZERO));
@@ -259,11 +303,28 @@ public class IncomeStatementService {
 				issues.add(new Issue("expense:" + expense.id(), "EXPENSE_ACCOUNTING_REVIEW_REQUIRED",
 					expense.category() + " 과목 확인 필요", ownAmount.toPlainString(), path,
 					expense.id(), null, expense.category(), transactionContext(row)));
+			UUID matchedReceipt = matches.stream().filter(value -> value.getExpenseId().equals(expense.id()))
+				.map(value -> value.getPaymentId()).findFirst().orElse(null);
+			List<IncomeStatementResponse.TransferCandidate> candidates = receipts.values().stream()
+				.filter(value -> AccountingTransferService.canMatch(row, value))
+				.filter(value -> !transferredReceipts.contains(value.paymentId()) || value.paymentId().equals(matchedReceipt))
+				.sorted(Comparator.comparing(BankingResponse.Transaction::paymentId))
+				.map(value -> new IncomeStatementResponse.TransferCandidate(value.paymentId(),
+					bank.accounts().stream().filter(bankAccount -> bankAccount.id().equals(value.accountId()))
+						.map(bankAccount -> bankAccount.alias() == null ? bankAccount.bankName() : bankAccount.alias()).findFirst().orElse("관리 통장"),
+					transactionName(value), value.date(), value.amount())).toList();
 			expenseRows.add(new IncomeStatementResponse.Expense(expense.id(), row.id(), row.date(), expense.category(),
 				ownAmount.toPlainString(), account == null ? null : account.getId(), month,
-				review == null ? 0 : review.getRevision()));
+				review == null ? 0 : review.getRevision(), candidates, matchedReceipt));
 			if (account == null)
 				continue;
+			if (account.isBankTransfer()) {
+				if (matchedReceipt == null)
+					issues.add(new Issue("expense:" + expense.id(), "TRANSFER_COUNTERPART_REQUIRED",
+						"103 상대 입금 확인 필요", ownAmount.toPlainString(), path, expense.id(), null,
+						expense.category(), transactionContext(row)));
+				continue;
+			}
 			if (!account.getReportGroup().isExpense())
 				throw new IllegalStateException("Invalid expense account");
 			if (!property.isHasBuildings()) {

@@ -77,6 +77,13 @@ export function readWorkspace(result: BankingWorkspaceData, propertyId: string):
       && (u.residentNames === undefined || (Array.isArray(u.residentNames) && u.residentNames.every((name) => typeof name === 'string')))) || !Array.isArray(result.rules)) {
     throw new ApiError(200, 'INVALID_RESPONSE', '통장 응답을 확인할 수 없습니다.');
   }
+  if (result.deletionGroups !== undefined && (!Array.isArray(result.deletionGroups)
+    || result.deletionGroups.some((group) => !group || !UUID.test(group.id)
+      || typeof group.requiresCancellation !== 'boolean' || !Array.isArray(group.transactionIds)
+      || group.transactionIds.length !== 2 || new Set(group.transactionIds).size !== 2
+      || group.transactionIds.some((id) => !UUID.test(id) || !result.rows.some((row) => row.id === id))))) {
+    throw new ApiError(200, 'INVALID_RESPONSE', '이체 연결 정보를 확인할 수 없습니다.');
+  }
   return result;
 }
 export async function getBankingWorkspace(propertyId: string, signal?: AbortSignal) {
@@ -135,7 +142,7 @@ export async function createManualExpense(propertyId: string, data: ManualExpens
   }), propertyId);
 }
 /** 선택한 은행 원본·미연결 수동 입금을 함께 삭제하고 서버가 재계산한 목록을 반환합니다. */
-export async function deleteBankingTransactions(propertyId: string, transactionIds: string[], paymentIds: string[] = []) {
+export async function deleteBankingTransactions(propertyId: string, transactionIds: string[], paymentIds: string[] = [], manualExpenseIds: string[] = []) {
   return readWorkspace(await authenticatedAPI<BankingWorkspaceData>({
     url: `/api/properties/${propertyId}/banking/transactions/delete`,
     method: 'POST',
@@ -143,6 +150,9 @@ export async function deleteBankingTransactions(propertyId: string, transactionI
       transactionIds,
       ...(paymentIds.length ? {
         paymentIds
+      } : {}),
+      ...(manualExpenseIds.length ? {
+        manualExpenseIds
       } : {})
     }
   }), propertyId);

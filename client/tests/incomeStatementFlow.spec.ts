@@ -270,7 +270,7 @@ test('비용 과목은 서버 반환 순서와 관계없이 801부터 계정 코
     exact: true
   }).click();
   await page.getByRole('combobox', {
-    name: '비용 과목',
+    name: '계정과목',
     exact: true
   }).click();
   await expect(page.getByRole('option')).toHaveText([...names.map((name, index) => `${codes[index]} ${name}`), '새 비용 과목']);
@@ -535,7 +535,7 @@ test('360px까지 페이지 넘침 없이 표시하고 모바일 다운로드 �
     exact: true
   })).toHaveCount(0);
   await page.goto(`${BASE}?startMonth=2026-06&endMonth=2026-10`);
-  await expect(page.getByText('회계 시작 월 이전의 기간입니다.', {
+  await expect(page.getByText('첫 부과월 이전의 기간입니다.', {
     exact: true
   })).toBeVisible();
   await expect(page.getByRole('button', {
@@ -553,35 +553,10 @@ test('별도 날짜·사유 입력 없이 과목을 매칭하고 실패 시 선�
   await mockSettlement(page);
   const state = await mockAccountingLifecycle(page);
   await page.goto(`${BASE}?startMonth=2026-10&endMonth=2026-10`);
-  await page.getByRole('button', {
+  await expect(page.getByRole('button', {
     name: '회계 시작 설정',
     exact: true
-  }).click();
-  await page.getByRole('button', {
-    name: /^회계 시작 월:/
-  }).click();
-  await page.getByRole('dialog', {
-    name: '회계 시작 월',
-    exact: true
-  }).getByRole('button', {
-    name: '2026년 10월',
-    exact: true
-  }).click();
-  await page.getByRole('combobox', {
-    name: '회계연도 시작 월',
-    exact: true
-  }).click();
-  await page.getByRole('option', {
-    name: '1월',
-    exact: true
-  }).click();
-  await page.getByRole('dialog', {
-    name: '회계 시작 기준',
-    exact: true
-  }).getByRole('button', {
-    name: '저장',
-    exact: true
-  }).click();
+  })).toHaveCount(0);
   await expect(page.getByRole('note')).toContainText('잠정 손익');
   await page.getByRole('button', {
     name: '확인 필요 2건',
@@ -685,7 +660,7 @@ test('별도 날짜·사유 입력 없이 과목을 매칭하고 실패 시 선�
     exact: true
   }).click();
   const selectedAccount = page.getByRole('combobox', {
-    name: '비용 과목',
+    name: '계정과목',
     exact: true
   });
   await expect(selectedAccount).toHaveText('청소비');
@@ -904,4 +879,219 @@ test('모바일 원천은 독립 상세와 헤더 뒤로가기로 목록의 페�
     exact: true
   })).toHaveAttribute('aria-current', 'page');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('수동 지출의 103 매칭은 기존 상대 입금까지 연결하고 미납 102·선입금 201을 손익에 합산하지 않는다', async ({ page }) => {
+  await page.setViewportSize({
+    width: 1440,
+    height: 1000
+  });
+  await mockSettlement(page);
+  const ids = {
+    revenue: settlementId(9701),
+    transfer: settlementId(9702),
+    receivable: settlementId(9703),
+    advance: settlementId(9704),
+    other: settlementId(9705),
+    expense: settlementId(9706),
+    receipt: settlementId(9707),
+    interest: settlementId(9708)
+  };
+  let matched = false;
+  const accounts = [
+    {
+      id: ids.revenue,
+      code: '401',
+      name: '관리비수입',
+      group: 'operatingRevenue',
+      systemKey: 'MANAGEMENT_REVENUE'
+    },
+    {
+      id: ids.transfer,
+      code: '103',
+      name: '통장간 거래',
+      group: 'asset',
+      systemKey: null
+    },
+    {
+      id: ids.receivable,
+      code: '102',
+      name: '미수금',
+      group: 'asset',
+      systemKey: 'RECEIVABLE'
+    },
+    {
+      id: ids.advance,
+      code: '201',
+      name: '선수금',
+      group: 'liability',
+      systemKey: 'ADVANCE_RECEIPT'
+    },
+    {
+      id: ids.other,
+      code: '901',
+      name: '영업외수익',
+      group: 'otherRevenue',
+      systemKey: 'OTHER_INCOME'
+    }
+  ];
+  const workspace = () => ({
+    ...incomeFixture(),
+    range: {
+      startMonth: '2026-10',
+      endMonth: '2026-10'
+    },
+    buildings: [],
+    accounts,
+    completeness: matched ? 'READY' : 'REVIEW_REQUIRED',
+    records: [
+      {
+        id: 'charge:1',
+        accountId: ids.revenue,
+        accountName: '관리비수입',
+        group: 'operatingRevenue',
+        month: '2026-10',
+        buildingId: null,
+        amount: '1000000'
+      },
+      {
+        id: 'income:interest',
+        accountId: ids.other,
+        accountName: '영업외수익',
+        group: 'otherRevenue',
+        month: '2026-10',
+        buildingId: null,
+        amount: '106'
+      },
+      ...(!matched ? [{
+        id: 'income:transfer',
+        accountId: ids.other,
+        accountName: '영업외수익',
+        group: 'otherRevenue',
+        month: '2026-10',
+        buildingId: null,
+        amount: '1523016'
+      }] : [])
+    ],
+    issues: matched ? [] : [{
+      id: 'expense:1',
+      code: 'EXPENSE_ACCOUNTING_REVIEW_REQUIRED',
+      label: '과목 확인 필요',
+      sourceName: '하나은행계좌로',
+      amount: '1523016',
+      path: `/banking/transactions/${ids.expense}`,
+      expenseId: ids.expense,
+      revenueItemId: null
+    }],
+    expenses: [{
+      id: ids.expense,
+      transactionId: ids.expense,
+      date: '2026-10-15',
+      name: '하나은행계좌로',
+      amount: '1523016',
+      accountId: matched ? ids.transfer : null,
+      recognitionMonth: '2026-10',
+      revision: matched ? 1 : 0,
+      transferCandidates: [{
+        paymentId: ids.receipt,
+        accountName: '기본 관리 통장',
+        name: '카카오뱅크',
+        date: '2026-10-15',
+        amount: '1523016'
+      }],
+      transferPaymentId: matched ? ids.receipt : null
+    }],
+    otherIncomes: [{
+      id: ids.receipt,
+      transactionId: ids.receipt,
+      date: '2026-10-15',
+      name: '카카오뱅크',
+      amount: '1523016',
+      accountId: matched ? ids.transfer : ids.other
+    }],
+    households: [{
+      unitId: settlementId(9710),
+      label: '103동 201호',
+      receivableAccountId: ids.receivable,
+      advanceAccountId: ids.advance,
+      receivable: '50000',
+      advance: '30000',
+      path: `/banking/monthly/2026-10/${settlementId(9710)}?month=2026-10`
+    }]
+  });
+  await page.route('http://localhost:8080/api/properties/*/accounting/income-statement**', (route) => route.fulfill({
+    json: workspace()
+  }));
+  let saved: unknown;
+  await page.route('http://localhost:8080/api/properties/*/accounting/expenses/*/reviews', async (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({
+      status: 200
+    });
+    saved = route.request().postDataJSON();
+    matched = true;
+    await route.fulfill({
+      status: 204
+    });
+  });
+  await page.goto(`${BASE}?startMonth=2026-10&endMonth=2026-10`);
+  await expect(page.getByRole('button', {
+    name: '회계 시작 설정',
+    exact: true
+  })).toHaveCount(0);
+  await page.getByRole('button', {
+    name: '확인 필요 1건',
+    exact: true
+  }).click();
+  await page.getByRole('button', {
+    name: '하나은행계좌로 매칭',
+    exact: true
+  }).click();
+  await page.getByRole('combobox', {
+    name: '계정과목',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '103 통장간 거래',
+    exact: true
+  }).click();
+  await expect(page.getByRole('combobox', {
+    name: '상대 입금',
+    exact: true
+  })).toContainText('카카오뱅크');
+  await page.getByRole('dialog', {
+    name: '지출 매칭',
+    exact: true
+  }).getByRole('button', {
+    name: '매칭',
+    exact: true
+  }).click();
+  expect(saved).toMatchObject({
+    accountId: ids.transfer,
+    counterpartPaymentId: ids.receipt,
+    expectedRevision: 0
+  });
+  await expect(page.getByRole('article', {
+    name: '기간 순손익 1,000,106원',
+    exact: true
+  })).toBeVisible();
+  await page.getByRole('combobox', {
+    name: '반영 상태',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '전체',
+    exact: true
+  }).click();
+  await expect(page.getByText('102 미수금 · 103동 201호', {
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByText('201 선수금 · 103동 201호', {
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByText('미납 자동 연결', {
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByText('선입금 자동 연결', {
+    exact: true
+  })).toBeVisible();
 });

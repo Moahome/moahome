@@ -103,10 +103,16 @@ public final class BankingRequests {
 	}
 
 	public record DeleteMany(@Size(max = 5000) List<@NotNull UUID> transactionIds,
-	    @Size(max = 1000) List<@NotNull UUID> paymentIds) {
+	    @Size(max = 1000) List<@NotNull UUID> paymentIds,
+	    @Size(max = 1000) List<@NotNull UUID> manualExpenseIds) {
 		public DeleteMany {
 			transactionIds = transactionIds == null ? List.of() : transactionIds;
 			paymentIds = paymentIds == null ? List.of() : paymentIds;
+			manualExpenseIds = manualExpenseIds == null ? List.of() : manualExpenseIds;
+		}
+
+		public DeleteMany(List<UUID> transactionIds, List<UUID> paymentIds) {
+			this(transactionIds, paymentIds, List.of());
 		}
 
 		public DeleteMany(List<UUID> transactionIds) {
@@ -116,7 +122,7 @@ public final class BankingRequests {
 		@AssertTrue(message = "INVALID_SELECTION")
 		@JsonIgnore
 		public boolean isSelectionValid() {
-			return !transactionIds.isEmpty() || !paymentIds.isEmpty();
+			return !transactionIds.isEmpty() || !paymentIds.isEmpty() || !manualExpenseIds.isEmpty();
 		}
 	}
 
