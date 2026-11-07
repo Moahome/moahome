@@ -1,4 +1,5 @@
 import { mockIncomeStatement } from './support/incomeStatement';
+import { mockAccountingAccounts } from './support/accountingAccounts';
 import {
   reportPreview,
   closeReportPreview
@@ -192,7 +193,7 @@ for (const width of [1440, 390]) {
     })).toBeVisible();
     for (const title of ['계정과목 설정']) {
       await expect(page.getByRole('link', {
-        name: `${title} 구현 예정`,
+        name: title,
         exact: true
       })).toBeVisible();
     }
@@ -625,11 +626,12 @@ for (const width of [1440, 390]) {
 for (const [path, title] of [
   ['accounts', '계정과목 설정']
 ]) {
-  test(`${title} 메뉴는 구현 예정 상태를 표시하고 새로고침에도 선택을 유지`, async ({ page }, testInfo) => {
+  test(`${title} 메뉴는 실제 과목 목록을 표시하고 새로고침에도 선택을 유지`, async ({ page }, testInfo) => {
     await mockSettlement(page);
+    await mockAccountingAccounts(page);
     await page.goto(`${BASE}?month=2026-10`);
     const link = page.getByRole('link', {
-      name: `${title} 구현 예정`,
+      name: title,
       exact: true
     });
     await link.click();
@@ -639,8 +641,8 @@ for (const [path, title] of [
       name: title,
       exact: true
     })).toBeVisible();
-    await expect(page.getByRole('status', {
-      name: '구현 예정',
+    await expect(page.getByRole('table', {
+      name: '계정과목 목록',
       exact: true
     })).toBeVisible();
     await page.reload();

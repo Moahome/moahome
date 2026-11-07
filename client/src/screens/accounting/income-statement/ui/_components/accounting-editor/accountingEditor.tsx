@@ -49,12 +49,12 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved, p
   const expense = target.kind === 'expense' ? target.value : null;
   const revenue = target.kind === 'revenue' ? target.value : null;
   // API 반환·등록 순서와 관계없이 비용 과목은 코드 오름차순으로 선택합니다.
-  const accounts = data.accounts.filter((account) => account.group.endsWith('Expense')
-    || (account.group === 'asset' && account.code === '103' && expense?.transferCandidates !== undefined))
+  const accounts = data.accounts.filter((account) => account.active !== false && (account.group.endsWith('Expense')
+    || (account.group === 'asset' && account.code === '103' && expense?.transferCandidates !== undefined)))
     .sort((left, right) => (left.code ?? '999').localeCompare(right.code ?? '999', 'ko', {
       numeric: true
     }) || left.name.localeCompare(right.name, 'ko'));
-  const [accountId, setAccountId] = useState(expense?.accountId ?? (accounts.length ? '' : 'new'));
+  const [accountId, setAccountId] = useState(accounts.find((account) => account.id === expense?.accountId)?.id ?? (accounts.length ? '' : 'new'));
   const [counterpartPaymentId, setCounterpartPaymentId] = useState(expense?.transferPaymentId ?? '');
   const isTransfer = accounts.find((account) => account.id === accountId)?.code === '103';
   const [accountName, setAccountName] = useState('');

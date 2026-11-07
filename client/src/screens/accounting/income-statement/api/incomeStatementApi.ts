@@ -7,8 +7,6 @@ import {
 } from '@/shared/lib/month-range';
 import type {
   ConfigureAccountingRequest,
-  CreateAccountingAccountRequest,
-  CreateAccountingAccountResponse,
   IncomeStatementQuery,
   IncomeStatementWorkspace,
   ReviewAccountingExpenseRequest,
@@ -119,15 +117,9 @@ export async function configureAccounting(propertyId: string, request: Configure
   });
 }
 
-export async function createAccountingAccount(propertyId: string, request: CreateAccountingAccountRequest) {
-  const result = await authenticatedAPI<CreateAccountingAccountResponse>({
-    method: 'POST',
-    url: `/api/properties/${propertyId}/accounting/accounts`,
-    data: request
-  });
-  if (!result || !isPropertyId(result.id)) throw new ApiError(200, 'INVALID_RESPONSE', '과목을 확인할 수 없습니다.');
-  return result.id;
-}
+export {
+  createAccountingAccount
+} from '@/features/accounting-accounts';
 
 export async function reviewAccountingExpense(propertyId: string, expenseId: string, request: ReviewAccountingExpenseRequest) {
   await authenticatedAPI<void>({

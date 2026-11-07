@@ -26,7 +26,7 @@ export function RequestError({ error, onRetry, retrying = false, inputPreserved 
     />
   );
   const status = error instanceof ApiError ? error.status : 0;
-  let variant: 'forbidden' | 'not-found' | undefined;
+  let variant: 'forbidden' | 'not-found' | 'server-error' = 'server-error';
   let title = '정보를 불러오지 못했어요';
   let description = '잠시 후 다시 시도해주세요.';
   if (status === 403) {

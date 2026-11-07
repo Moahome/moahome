@@ -11,6 +11,7 @@ export function SummaryCard({
   tone = 'neutral',
   valueTone = 'neutral',
   density = 'comfortable',
+  surface = 'card',
   description,
   help,
 }: {
@@ -22,6 +23,7 @@ export function SummaryCard({
   tone?: 'primary' | 'teal' | 'success' | 'neutral' | 'warning' | 'danger';
   valueTone?: 'neutral' | 'danger';
   density?: 'comfortable' | 'compact';
+  surface?: 'card' | 'subtle';
   description?: string;
   help?: ReactNode;
 }) {
@@ -31,6 +33,7 @@ export function SummaryCard({
       data-tone={tone}
       data-value-tone={valueTone}
       data-density={density}
+      data-surface={surface}
       aria-label={`${label} ${value}${unit}`}
     >
       <span
