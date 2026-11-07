@@ -117,17 +117,26 @@ class IncomeStatementServiceTest {
 		assertThat(result.records()).isEmpty();
 	}
 
-	/** 감액이 포함된 확정 부과 20건을 모두 반영하고 이미 저장된 늦은 시작일이 과거 부과를 숨기지 않습니다. */
+	/** 코드 없는 수선비 차감을 포함한 세대당 5만원의 확정 부과 20건은 관리비수입 100만원이어야 합니다. */
 	@Test
 	void recognizesTwentyAdjustedBillsFromFirstBillingEvenWhenLegacyStartWasLater() {
 		when(profiles.findById(propertyId)).thenReturn(Optional.of(AccountingProfile.create(propertyId,
 			YearMonth.of(2026, 11), 1, actor, at)));
+		UUID cleaning = UUID.randomUUID(), elevator = UUID.randomUUID(), electricity = UUID.randomUUID();
 		UUID discount = UUID.randomUUID();
 		when(billing.get(propertyId)).thenReturn(java.util.stream.IntStream.range(0, 20)
 			.mapToObj(index -> new BillingIncomeSource(UUID.randomUUID(), UUID.randomUUID(), "2026-10", "", "" + index,
 				null, new BigDecimal("50000"), List.of(
-					new BillingIncomeSource.Item(UUID.randomUUID(), itemId, "일반관리비", FeeItemCode.GENERAL_MANAGEMENT, new BigDecimal("70000"), null),
-					new BillingIncomeSource.Item(UUID.randomUUID(), discount, "일반관리비 감액", FeeItemCode.GENERAL_MANAGEMENT, new BigDecimal("-20000"), null))))
+					new BillingIncomeSource.Item(UUID.randomUUID(), itemId, "일반관리비",
+						FeeItemCode.GENERAL_MANAGEMENT, new BigDecimal("15000"), null),
+					new BillingIncomeSource.Item(UUID.randomUUID(), cleaning, "청소비",
+						FeeItemCode.CLEANING, new BigDecimal("8000"), null),
+					new BillingIncomeSource.Item(UUID.randomUUID(), elevator, "승강기유지비",
+						FeeItemCode.ELEVATOR_MAINTENANCE, new BigDecimal("25300"), null),
+					new BillingIncomeSource.Item(UUID.randomUUID(), electricity, "공용전기료",
+						FeeItemCode.COMMON_ELECTRICITY, new BigDecimal("5000"), null),
+					new BillingIncomeSource.Item(UUID.randomUUID(), discount, "수선비", null,
+						new BigDecimal("-3300"), null))))
 			.toList());
 		var result = service.get(actor, propertyId, "2026-10", "2026-10", null);
 		assertThat(result.configuration().startMonth()).isEqualTo("2026-10");
@@ -135,11 +144,16 @@ class IncomeStatementServiceTest {
 			.isEqualByComparingTo("1000000");
 		assertThat(result.issues()).isEmpty();
 		assertThat(result.completeness()).isEqualTo("READY");
+		assertThat(result.revenueItems()).hasSize(5).allMatch(value -> value.recognized());
+		assertThat(result.revenueItems()).filteredOn(value -> value.name().equals("수선비"))
+			.extracting(value -> value.amount()).containsExactly("-66000");
+		assertThat(result.records()).allMatch(value -> value.accountId().equals(revenue.getId()));
+		assertThat(result.expenses()).isEmpty();
 		verify(profiles, never()).save(any());
 	}
 
 	@Test
-	void onlyRecognizesExplicitlyConfirmedRevenueAndLeavesNegativeAndUnknownItemsVisible() {
+	void respectsExplicitRevenueExclusionsAndLeavesWholeNegativeChargesVisible() {
 		var confirmed = new BillingIncomeSource.Item(UUID.randomUUID(), itemId, "사용자 지정 이름", null,
 			new BigDecimal("200"), null);
 		var unconfirmed = new BillingIncomeSource.Item(UUID.randomUUID(), UUID.randomUUID(), "기본 관리비",
@@ -149,7 +163,8 @@ class IncomeStatementServiceTest {
 				List.of(confirmed, unconfirmed)),
 			new BillingIncomeSource(UUID.randomUUID(), UUID.randomUUID(), "2026-10", "", "102", null, new BigDecimal("-10"), List.of())));
 		when(revenues.findByPropertyIdOrderByRevisionDesc(propertyId)).thenReturn(List.of(
-			RevenueAccountingReview.create(propertyId, itemId, true, 1, "encrypted", actor, at)));
+			RevenueAccountingReview.create(propertyId, itemId, true, 1, "encrypted", actor, at),
+			RevenueAccountingReview.create(propertyId, unconfirmed.sourceTemplateItemId(), false, 1, "encrypted", actor, at)));
 		var result = service.get(actor, propertyId, "2026-10", "2026-10", null);
 		assertThat(result.records()).hasSize(1);
 		assertThat(result.records().getFirst().amount()).isEqualTo("200");

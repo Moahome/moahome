@@ -153,7 +153,7 @@ public class IncomeStatementService {
 			List.copyOf(otherIncomes), List.copyOf(households));
 	}
 
-	/** 표준 관리비는 기본 수익으로 자동 연결하고 원본 항목·부과월과 명시적 분류 이력은 유지합니다. */
+	/** 확정 관리비의 구성 항목을 부호 그대로 수익에 합산하고 관리자가 저장한 별도 분류만 우선합니다. */
 	private void appendBilling(Property property, List<Building> sourceBuildings, AccountingAccount account,
 		YearMonth start, YearMonth end, UUID buildingId, List<Entry> records, List<Issue> issues,
 		List<IncomeStatementResponse.RevenueItem> revenueItems) {
@@ -196,11 +196,8 @@ public class IncomeStatementService {
 				if (item.amount().signum() == 0)
 					continue;
 				RevenueAccountingReview review = latest.get(item.sourceTemplateItemId());
-				// 기존 자료의 명칭 표기도 같은 기본 계정으로 연결하며 수납을 새 수익으로 만들지 않습니다.
-				boolean recognized = review == null ? (account.getId().equals(item.revenueAccountId())
-					|| item.code() != null
-					|| Set.of("일반관리비", "관리비", "관리비수입", "관리비수익").contains(item.name().replaceAll("(?U)\\s+", "")))
-					: review.isRecognized();
+				// 사용자 지정 이름·코드 없는 차감도 확정 부과액의 일부입니다. 이름으로 제외하면 청구 합계와 수익이 달라집니다.
+				boolean recognized = review == null || review.isRecognized();
 				sourceMonths.computeIfAbsent(item.sourceTemplateItemId(), key -> new TreeSet<>()).add(source.month());
 				IncomeStatementResponse.RevenueItem previous = candidates.get(item.sourceTemplateItemId());
 				BigDecimal amount = item.amount().add(previous == null ? BigDecimal.ZERO : new BigDecimal(previous.amount()));
