@@ -1,6 +1,9 @@
 package com.moahome.server.user.repo;
 
 import java.time.Clock;
+import java.io.ByteArrayOutputStream;
+import java.awt.image.BufferedImage;
+import javax.imageio.ImageIO;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -25,6 +28,8 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,15 +43,22 @@ import com.moahome.server.user.domain.User;
 import com.moahome.server.user.domain.UserStatus;
 import com.moahome.server.user.exception.UserException;
 import com.moahome.server.user.service.UserService;
+import com.moahome.server.user.service.ProfileImageService;
+import com.moahome.server.user.service.ProfileImageProcessor;
+import com.moahome.server.user.service.ProfileImageStorage;
+import com.moahome.server.user.dto.ProfileSaveRequest;
 import com.moahome.server.user.support.PostgresTestServer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
 
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ImportAutoConfiguration(FlywayAutoConfiguration.class)
-@Import({ UserService.class, SocialAccountService.class, UserPersistenceTest.TestBeans.class })
+@Import({ UserService.class, SocialAccountService.class, ProfileImageService.class,
+        ProfileImageProcessor.class, UserPersistenceTest.TestBeans.class })
 @ActiveProfiles("database-test")
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
@@ -70,6 +82,12 @@ class UserPersistenceTest {
 
 	@Autowired
 	private Flyway flyway;
+
+	@Autowired
+	private ProfileImageService profileImages;
+
+	@MockitoBean
+	private ProfileImageStorage imageStorage;
 
 	@DynamicPropertySource
 	static void infrastructure(DynamicPropertyRegistry registry) {
@@ -103,6 +121,67 @@ class UserPersistenceTest {
 		assertThat(persisted.getLastLoginAt()).isNotNull();
 		assertThat(persisted.getSystemRole()).isEqualTo(SystemRole.USER);
 		assertThat(phoneColumns("public")).isZero();
+	}
+
+	@Test
+	void changedDisplayNamePersistsAndSubsequentSocialLoginDoesNotOverwriteIt() {
+		UUID id = socialAccounts.resolveVerifiedUser(profile("profile-update", null));
+		String image = users.findById(id).orElseThrow().getProfileImageUrl();
+		userService.updateDisplayName(id, " 새 표시 이름 ");
+		assertThat(users.findById(id).orElseThrow().getDisplayName()).isEqualTo("새 표시 이름");
+		assertThat(socialAccounts.resolveVerifiedUser(profile("profile-update", null))).isEqualTo(id);
+		User persisted = users.findById(id).orElseThrow();
+		assertThat(persisted.getDisplayName()).isEqualTo("새 표시 이름");
+		assertThat(persisted.getProfileImageUrl()).isEqualTo(image);
+	}
+
+	@Test
+	void profileImageReplacementAndRemovalPersistBeforeDeletingThePreviousObject() throws Exception {
+		UUID id = socialAccounts.resolveVerifiedUser(profile("photo-profile", null));
+		String first = "/api/users/me/profile-image?v=" + UUID.randomUUID();
+		String second = "/api/users/me/profile-image?v=" + UUID.randomUUID();
+		when(imageStorage.upload(eq(id), any(byte[].class))).thenReturn(first, second);
+		profileImages.save(id, new ProfileSaveRequest("사진 이름", false, photo()));
+		assertThat(users.findById(id).orElseThrow().getProfileImageUrl()).isEqualTo(first);
+		doAnswer(invocation -> {
+			assertThat(users.findById(id).orElseThrow().getProfileImageUrl()).isEqualTo(second);
+			return null;
+		}).when(imageStorage).deleteQuietly(id, first);
+		profileImages.save(id, new ProfileSaveRequest("새 사진 이름", false, photo()));
+		verify(imageStorage).deleteQuietly(id, first);
+		userService.updateDisplayName(id, "이름만 변경");
+		assertThat(users.findById(id).orElseThrow().getProfileImageUrl()).isEqualTo(second);
+		socialAccounts.resolveVerifiedUser(profile("photo-profile", null));
+		assertThat(users.findById(id).orElseThrow().getProfileImageUrl()).isEqualTo(second);
+		profileImages.save(id, new ProfileSaveRequest("삭제 후 이름", true, null));
+		assertThat(users.findById(id).orElseThrow().getProfileImageUrl()).isNull();
+		assertThat(users.findById(id).orElseThrow().getDisplayName()).isEqualTo("삭제 후 이름");
+		verify(imageStorage).deleteQuietly(id, second);
+	}
+
+	@Test
+	void rollbackRemovesOnlyNewUploadAndPreservesExistingProfile() throws Exception {
+		UUID id = socialAccounts.resolveVerifiedUser(profile("photo-rollback", null));
+		String original = "/api/users/me/profile-image?v=" + UUID.randomUUID();
+		String uploaded = "/api/users/me/profile-image?v=" + UUID.randomUUID();
+		userService.saveProfile(id, "기존 이름", original, true);
+		when(imageStorage.upload(eq(id), any(byte[].class))).thenReturn(uploaded);
+		assertThatThrownBy(() -> profileImages.save(id, new ProfileSaveRequest(" ", false, photo())))
+		    .isInstanceOf(IllegalArgumentException.class);
+		assertThat(users.findById(id).orElseThrow().getProfileImageUrl()).isEqualTo(original);
+		assertThat(users.findById(id).orElseThrow().getDisplayName()).isEqualTo("기존 이름");
+		verify(imageStorage).deleteQuietly(id, uploaded);
+		verify(imageStorage, never()).deleteQuietly(id, original);
+		userService.suspend(id);
+		assertThatThrownBy(() -> profileImages.save(id, new ProfileSaveRequest("다른 이름", true, null)))
+		    .isInstanceOf(UserException.class);
+		verify(imageStorage, never()).deleteQuietly(id, original);
+	}
+
+	private MockMultipartFile photo() throws Exception {
+		ByteArrayOutputStream output = new ByteArrayOutputStream();
+		ImageIO.write(new BufferedImage(2, 2, BufferedImage.TYPE_INT_RGB), "png", output);
+		return new MockMultipartFile("image", "photo.png", "image/png", output.toByteArray());
 	}
 
 	@Test

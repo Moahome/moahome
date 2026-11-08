@@ -1,5 +1,5 @@
 package com.moahome.server.user.domain;
 
 public enum UserStatus {
-	ACTIVE, SUSPENDED, WITHDRAWN
+	ACTIVE, SUSPENDED, WITHDRAWAL_PENDING, WITHDRAWN
 }

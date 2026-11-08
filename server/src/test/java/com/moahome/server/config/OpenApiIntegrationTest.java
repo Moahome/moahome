@@ -29,6 +29,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
 
 import com.moahome.server.auth.repo.SocialAccountRepository;
+import com.moahome.server.user.service.AccountLifecycleService;
 import com.moahome.server.auth.service.AuthService;
 import com.moahome.server.banking.service.BankAccountService;
 import com.moahome.server.banking.service.BankBalanceCheckService;
@@ -82,6 +83,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class OpenApiIntegrationTest {
+	@MockitoBean
+	private AccountLifecycleService accountLifecycle;
+
 	@Autowired
 	private MockMvc mvc;
 
@@ -294,7 +298,15 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(
 		    mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(127);
+		assertThat(document.path("paths").properties()).hasSize(131);
+		assertThat(document.path("paths").path("/api/users/me/profile")
+		    .at("/put/security/0/bearerAuth").isArray()).isTrue();
+		assertThat(document.path("paths").path("/api/users/me/profile")
+		    .at("/put/requestBody/content/multipart~1form-data").isMissingNode()).isFalse();
+		assertThat(document.path("paths").path("/api/users/me/profile-image")
+		    .at("/get/responses/200/content/image~1png/schema/format").asText()).isEqualTo("binary");
+		assertThat(document.path("paths").path("/api/users/me/profile-image")
+		    .at("/get/responses/404/content/application~1json").isMissingNode()).isFalse();
 		assertThat(document.path("paths").path("/api/property-registrations/resident-import/preview").at("/post/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/residents/deleted").at("/get/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/properties/{propertyId}/banking/transfers/manual")

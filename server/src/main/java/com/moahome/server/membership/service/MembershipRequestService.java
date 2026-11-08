@@ -196,7 +196,7 @@ public class MembershipRequestService {
 		    || residents.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, request.getUserId()).stream()
 		        .anyMatch(r -> !r.getId().equals(person.getId())))
 			throw new PaymentException("MEMBER_ROLE_CONFLICT");
-		var user = users.requireActive(request.getUserId());
+		var user = users.requireActiveForUpdate(request.getUserId());
 		List<PropertyMember> current = members.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, user.getId())
 		    .stream().filter(propertyMember -> propertyMember.isCurrent()).toList();
 		if (current.size() > 1 || (!current.isEmpty() && current.getFirst().getRole() != PropertyMemberRole.RESIDENT))

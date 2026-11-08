@@ -46,4 +46,38 @@ class UserTest {
 		assertThatThrownBy(() -> user.recordLogin(now)).isInstanceOfSatisfying(UserException.class,
 		    exception -> assertThat(exception.code()).isEqualTo(UserErrorCode.ACCOUNT_UNAVAILABLE));
 	}
+
+	@Test
+	void withdrawalKeepsProfileForThirtyDaysAndRecoveryDoesNotReviveOldAuthenticationVersion() {
+		User user = User.create("보관할 이름", "https://example.test/photo.png");
+		user.requestWithdrawal(now);
+		assertThat(user.getStatus()).isEqualTo(UserStatus.WITHDRAWAL_PENDING);
+		assertThat(user.getWithdrawalExpiresAt()).isEqualTo(now.plusDays(30));
+		assertThat(user.getDisplayName()).isEqualTo("보관할 이름");
+		assertThat(user.getAuthVersion()).isEqualTo(1);
+		assertUnavailable(user);
+		assertThatThrownBy(() -> user.completeWithdrawal(now.plusDays(30).minusNanos(1))).isInstanceOf(UserException.class);
+		user.recoverWithdrawal(now.plusDays(30).minusNanos(1));
+		assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
+		assertThat(user.getAuthVersion()).isEqualTo(1);
+		assertThat(user.getWithdrawalExpiresAt()).isNull();
+		assertThat(user.getProfileImageUrl()).isEqualTo("https://example.test/photo.png");
+	}
+
+	@Test
+	void exactDeadlineDisallowsRecoveryAndAllowsIrreversibleProfileErasure() {
+		User user = User.create("지울 이름", "https://example.test/photo.png");
+		user.promoteToSystemAdministrator();
+		user.changePropertyCreationPermission(true);
+		user.requestWithdrawal(now);
+		assertThat(user.isRecoverable(now.plusDays(30))).isFalse();
+		assertThatThrownBy(() -> user.recoverWithdrawal(now.plusDays(30))).isInstanceOf(UserException.class);
+		user.completeWithdrawal(now.plusDays(30));
+		assertThat(user.getStatus()).isEqualTo(UserStatus.WITHDRAWN);
+		assertThat(user.getDisplayName()).isEqualTo("탈퇴한 사용자");
+		assertThat(user.getProfileImageUrl()).isNull();
+		assertThat(user.getSystemRole()).isEqualTo(SystemRole.USER);
+		assertThat(user.isPropertyCreationAllowed()).isFalse();
+		assertThatThrownBy(() -> user.recoverWithdrawal(now.plusDays(30))).isInstanceOf(UserException.class);
+	}
 }

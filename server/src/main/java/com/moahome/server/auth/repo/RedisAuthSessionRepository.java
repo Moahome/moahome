@@ -22,7 +22,8 @@ public class RedisAuthSessionRepository {
 	private static final DefaultRedisScript<Long> CREATE = new DefaultRedisScript<>("""
 		if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
 		redis.call('HSET', KEYS[1], 'userId', ARGV[1], 'clientType', ARGV[2],
-		    'refreshHash', ARGV[3], 'csrfToken', ARGV[4], 'loginAt', ARGV[5], 'expiresAt', ARGV[6])
+		    'refreshHash', ARGV[3], 'csrfToken', ARGV[4], 'loginAt', ARGV[5], 'expiresAt', ARGV[6],
+		    'accountVersion', ARGV[7], 'recoveryOnly', ARGV[8])
 		redis.call('EXPIREAT', KEYS[1], ARGV[6])
 		return 1
 		""", Long.class);
@@ -56,7 +57,8 @@ public class RedisAuthSessionRepository {
 		try {
 			Long result = redis.execute(CREATE, List.of(key(session.sessionId())), session.userId(),
 			    session.clientType().name(), session.refreshHash(), session.csrfToken(),
-			    Long.toString(session.loginAt().getEpochSecond()), Long.toString(session.expiresAt().getEpochSecond()));
+			    Long.toString(session.loginAt().getEpochSecond()), Long.toString(session.expiresAt().getEpochSecond()),
+			    Long.toString(session.accountVersion()), Boolean.toString(session.recoveryOnly()));
 			if (!Long.valueOf(1).equals(result)) {
 				throw new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE);
 			}
@@ -74,7 +76,9 @@ public class RedisAuthSessionRepository {
 			return Optional.of(new AuthSession(sessionId, (String) fields.get("userId"),
 			    ClientType.valueOf((String) fields.get("clientType")), (String) fields.get("refreshHash"),
 			    (String) fields.get("csrfToken"), Instant.ofEpochSecond(Long.parseLong((String) fields.get("loginAt"))),
-			    Instant.ofEpochSecond(Long.parseLong((String) fields.get("expiresAt")))));
+			    Instant.ofEpochSecond(Long.parseLong((String) fields.get("expiresAt"))),
+			    Long.parseLong((String) fields.getOrDefault("accountVersion", "0")),
+			    "true".equals(fields.get("recoveryOnly"))));
 		} catch (DataAccessException | IllegalArgumentException | NullPointerException exception) {
 			throw unavailable();
 		}

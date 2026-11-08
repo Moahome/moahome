@@ -64,6 +64,16 @@ public class PropertyMember {
 		return status == PropertyMemberStatus.ACTIVE && endedAt == null && deletedAt == null;
 	}
 
+	/** 계정 확정 탈퇴는 거주·회계 기록을 건드리지 않고 남은 서비스 참여만 종료합니다. */
+	public void endForAccountWithdrawal(OffsetDateTime at) {
+		if (!isCurrent()) {
+			return;
+		}
+		status = PropertyMemberStatus.INACTIVE;
+		endedAt = Objects.requireNonNull(at);
+		updatedAt = at;
+	}
+
 	/** 본인 나가기는 현재 참여만 종료하며 관리소장은 인계 전 스스로 종료할 수 없습니다. */
 	public void leave(OffsetDateTime at) {
 		if (!isCurrent() || role == PropertyMemberRole.ADMIN)

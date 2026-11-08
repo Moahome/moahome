@@ -46,6 +46,15 @@ public class User {
 	@Column(name = "last_login_at", columnDefinition = "timestamptz")
 	private OffsetDateTime lastLoginAt;
 
+	@Column(name = "withdrawal_requested_at", columnDefinition = "timestamptz")
+	private OffsetDateTime withdrawalRequestedAt;
+
+	@Column(name = "withdrawal_expires_at", columnDefinition = "timestamptz")
+	private OffsetDateTime withdrawalExpiresAt;
+
+	@Column(name = "auth_version", nullable = false)
+	private long authVersion;
+
 	@Column(name = "created_at", nullable = false, updatable = false, columnDefinition = "timestamptz")
 	private OffsetDateTime createdAt;
 
@@ -74,6 +83,7 @@ public class User {
 		return new User(displayName, profileImageUrl);
 	}
 
+	/** 정상 계정에서만 검증한 표시 이름·이미지를 변경하며 주민 명부나 권한은 다루지 않습니다. */
 	public void updateProfile(String displayName, String profileImageUrl) {
 		requireActive();
 		validateProfile(displayName, profileImageUrl);
@@ -135,6 +145,46 @@ public class User {
 		    || (imageUrl != null && (imageUrl.isBlank() || imageUrl.length() > 500))) {
 			throw new IllegalArgumentException("Invalid user profile");
 		}
+	}
+
+	/** 30일간 개인정보·참여를 보관하되 기존 모든 기기의 세션은 영구 무효화합니다. */
+	public void requestWithdrawal(OffsetDateTime at) {
+		requireActive();
+		withdrawalRequestedAt = Objects.requireNonNull(at);
+		withdrawalExpiresAt = at.plusDays(30);
+		authVersion = Math.addExact(authVersion, 1);
+		status = UserStatus.WITHDRAWAL_PENDING;
+	}
+
+	public boolean isRecoverable(OffsetDateTime at) {
+		return status == UserStatus.WITHDRAWAL_PENDING && deletedAt == null
+		    && withdrawalExpiresAt != null && at.isBefore(withdrawalExpiresAt);
+	}
+
+	/** 계정만 정상화하며 유예 중 종료·회수된 참여 권한은 다시 만들지 않습니다. */
+	public void recoverWithdrawal(OffsetDateTime at) {
+		if (!isRecoverable(at)) {
+			throw new UserException(UserErrorCode.INVALID_STATE);
+		}
+		status = UserStatus.ACTIVE;
+		withdrawalRequestedAt = null;
+		withdrawalExpiresAt = null;
+	}
+
+	/** 기한 만료 후 이름·사진·플랫폼 권한을 제거하고 업무 FK에 필요한 최소 계정 행만 남깁니다. */
+	public void completeWithdrawal(OffsetDateTime at) {
+		if (status != UserStatus.WITHDRAWAL_PENDING || withdrawalExpiresAt == null || at.isBefore(withdrawalExpiresAt)) {
+			throw new UserException(UserErrorCode.INVALID_STATE);
+		}
+		withdraw(id, at);
+		displayName = "탈퇴한 사용자";
+		profileImageUrl = null;
+		systemRole = SystemRole.USER;
+		propertyCreationAllowed = false;
+		lastLoginAt = null;
+		withdrawalRequestedAt = null;
+		withdrawalExpiresAt = null;
+		authVersion = Math.addExact(authVersion, 1);
 	}
 
 	@PrePersist

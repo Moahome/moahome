@@ -26,6 +26,8 @@ public class WebAuthSupport {
 
 	public static final String LOGOUT_PATH = COOKIE_PATH + "/logout";
 
+	public static final String RECOVERY_PATH = COOKIE_PATH + "/account-recovery";
+
 	public static final String SESSION_ATTRIBUTE = AuthSession.class.getName();
 
 	private final SecurityProperties properties;
@@ -39,8 +41,9 @@ public class WebAuthSupport {
 
 	public static boolean isWebAuthRequest(HttpServletRequest request) {
 		String path = request.getRequestURI().substring(request.getContextPath().length());
-		return ("GET".equals(request.getMethod()) && CSRF_PATH.equals(path))
-		    || ("POST".equals(request.getMethod()) && (REFRESH_PATH.equals(path) || LOGOUT_PATH.equals(path)));
+		return ("GET".equals(request.getMethod()) && (CSRF_PATH.equals(path) || RECOVERY_PATH.equals(path)))
+		    || ("POST".equals(request.getMethod())
+		        && (REFRESH_PATH.equals(path) || LOGOUT_PATH.equals(path) || RECOVERY_PATH.equals(path)));
 	}
 
 	public String refreshToken(HttpServletRequest request) {
