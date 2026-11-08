@@ -167,6 +167,7 @@ export function UnitEntryPage({
   if (mode === 'buildings') return (
     <>
       <BuildingManager
+        allowCreation={false}
         minimumBuildingCount={1}
         deletionDescription={'연결된 세대와 주민을 삭제하고 주민 이용 권한을 종료합니다. 당월 청구는 취소하며 과거 부과 이력은 유지합니다.'}
         presentation={'page'}
