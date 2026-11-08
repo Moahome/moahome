@@ -11,7 +11,7 @@
 | POST | `/api/system-admin/users/{userId}/creation-permission` | `{requestId,allowed,expectedAllowed}` → 현재 회원 상세 |
 | POST | `/api/system-admin/users/{userId}/promotion` | `{requestId}` → 현재 회원 상세 |
 
-회원 상세는 `{id,displayName,status,systemRole,canCreateProperty,createdAt}`입니다. `status`는 ACTIVE / SUSPENDED / WITHDRAWN, `systemRole`은 USER / ADMIN이며 삭제된 계정은 목록·상세에서 제외합니다. 변경 대상은 정상 계정만 허용합니다. 회원 목록은 가입 시각 내림차순·ID 오름차순입니다. 소셜 식별자·연락처·계좌 정보는 반환하지 않습니다.
+회원 상세는 `{id,displayName,status,systemRole,canCreateProperty,createdAt}`입니다. `status`는 ACTIVE / SUSPENDED / WITHDRAWAL_PENDING / WITHDRAWN, `systemRole`은 USER / ADMIN이며 삭제된 계정은 목록·상세에서 제외합니다. 2026-11-08 추가한 탈퇴 유예 계정은 조회에 포함하며 변경 대상은 정상 계정만 허용합니다. 회원 목록은 가입 시각 내림차순·ID 오름차순입니다. 소셜 식별자·연락처·계좌 정보는 반환하지 않습니다.
 
 `requestId`는 변경 시 생성한 UUID입니다. 같은 처리자·대상·동작·요청 값으로 재전송하면 이미 완료한 변경을 다시 적용하지 않고 현재 회원 정보를 반환합니다. 생성 권한의 같은 요청은 최초 `expectedAllowed`도 같아야 합니다. 이후 다른 요청으로 회수한 권한을 과거 요청 재시도로 다시 열지 않습니다. 다른 내용의 UUID 재사용은 `409 / ADMIN_REQUEST_CONFLICT`, 조회 당시의 생성 권한과 다르면 `409 / ADMIN_STATE_CONFLICT`입니다. 관리자 승격은 생성 권한을 유지하며 관리자 역할 해제 API는 제공하지 않습니다.
 

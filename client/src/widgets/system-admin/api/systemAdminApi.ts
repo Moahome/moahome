@@ -11,7 +11,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** 권한 응답의 누락·잘못된 역할을 허용으로 추정하지 않습니다. */
 function readMember(value: SystemMember): SystemMember {
   if (!value || !UUID.test(value.id) || typeof value.displayName !== 'string'
-    || !['ACTIVE', 'SUSPENDED', 'WITHDRAWN'].includes(value.status)
+    || !['ACTIVE', 'SUSPENDED', 'WITHDRAWAL_PENDING', 'WITHDRAWN'].includes(value.status)
     || !['USER', 'ADMIN'].includes(value.systemRole) || typeof value.canCreateProperty !== 'boolean'
     || typeof value.createdAt !== 'string' || !Number.isFinite(Date.parse(value.createdAt))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '회원 정보를 확인할 수 없습니다.');

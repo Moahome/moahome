@@ -1,7 +1,7 @@
 export interface SystemMember {
   id: string;
   displayName: string;
-  status: 'ACTIVE' | 'SUSPENDED' | 'WITHDRAWN';
+  status: 'ACTIVE' | 'SUSPENDED' | 'WITHDRAWAL_PENDING' | 'WITHDRAWN';
   systemRole: 'USER' | 'ADMIN';
   canCreateProperty: boolean;
   createdAt: string;

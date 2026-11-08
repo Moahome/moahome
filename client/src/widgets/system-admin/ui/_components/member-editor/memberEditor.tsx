@@ -20,6 +20,7 @@ import {
   systemAdminError
 } from '../../../api/systemAdminApi';
 import type { AdminCommand } from '../../../api/systemAdminApiTypes';
+import { getMemberStatusLabel } from '../../_utils/memberStatus';
 import styles from './memberEditor.module.css';
 
 /** 회원의 전체 식별자와 두 권한을 구분하고 확인한 변경만 서버에 요청합니다. */
@@ -108,7 +109,7 @@ export function MemberEditor({ userId }: { userId: string }) {
             계정 상태
           </dt>
           <dd>
-            {member.status === 'ACTIVE' ? '정상' : '이용 제한'}
+            {getMemberStatusLabel(member.status)}
           </dd>
         </div>
         <div>
