@@ -441,7 +441,7 @@ test('설치 창이 실패하면 재시도 가능한 브라우저 설치 안내�
   await expect(page.getByRole('dialog')).toContainText('설치 창을 열지 못했어요.');
 });
 
-test('독립 앱으로 실행하면 설치 배너를 표시하지 않는다', async ({ page }) => {
+test('독립 앱으로 실행하면 설치 배너와 설정의 설치 항목을 표시하지 않는다', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'userAgent', {
       value: 'Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 Mobile KAKAOTALK/26.1.0',
@@ -458,6 +458,20 @@ test('독립 앱으로 실행하면 설치 배너를 표시하지 않는다', as
     name: BANNER_NAME,
   })).toHaveCount(0);
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  await mockSession(page, 'ADMIN');
+  await page.goto(`/manage/${PROPERTY_ID}/settings`);
+  await expect(page.getByRole('main').getByRole('heading', {
+    name: '설정',
+    exact: true
+  })).toBeVisible();
+  await expect(page.getByRole('heading', {
+    name: '모아홈 앱',
+    exact: true
+  })).toHaveCount(0);
+  await expect(page.getByRole('button', {
+    name: '앱 설치',
+    exact: true
+  })).toHaveCount(0);
 });
 
 /** 데스크톱에서는 OS 앱 실행을 대신하지 않고 사용자 클릭이 만든 브라우저 열기 요청만 기록합니다. */
@@ -612,8 +626,12 @@ test('카카오톡 설정에서는 배너 숨김 중에도 OS에 열기를 요�
   await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')));
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('button', {
-    name: '설치됨',
-  })).toBeDisabled();
+    name: '설치됨'
+  })).toHaveCount(0);
+  await expect(page.getByRole('heading', {
+    name: '모아홈 앱',
+    exact: true
+  })).toHaveCount(0);
 });
 
 for (const role of ['ADMIN', 'RESIDENT'] as const) {
@@ -634,9 +652,14 @@ for (const role of ['ADMIN', 'RESIDENT'] as const) {
       name: '설치 방법 닫기',
     }).click();
     await page.evaluate(() => window.dispatchEvent(new Event('appinstalled')));
+    await expect(install).toHaveCount(0);
     await expect(page.getByRole('button', {
-      name: '설치됨',
-    })).toBeDisabled();
+      name: '설치됨'
+    })).toHaveCount(0);
+    await expect(page.getByRole('heading', {
+      name: '모아홈 앱',
+      exact: true
+    })).toHaveCount(0);
     await page.setViewportSize({
       width: 1440,
       height: 960,
