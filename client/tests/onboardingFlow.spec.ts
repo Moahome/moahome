@@ -575,78 +575,35 @@ test('모바일 주민 상세는 헤더 뒤로가기와 기존 수정 폼의 역
 
 
 
-test('설정에서 관리대상이 있는 계정도 추가 화면에 진입하고 일반 시작의 기본 이동은 유지', async ({ page }) => {
+test('설정의 생성 권한 보유자는 바로 등록하고 참여는 목록 상단의 초대 입력으로 진행', async ({ page }) => {
   await mockWorkspace(page);
   await page.goto(`${BASE}/settings`);
-  const settings = page.getByRole('region', {
-    name: '설정 항목',
-    exact: true
-  });
-  await expect(settings.getByRole('button', {
-    name: '등록 및 참여',
-    exact: true
-  })).toBeVisible();
-  await expect(settings.getByRole('button', {
-    name: '계좌 관리',
-    exact: true
-  })).toBeVisible();
-  await expect(settings.getByRole('button', {
-    name: '나가기',
-    exact: true
-  })).toBeVisible();
-  await expect(page.getByRole('main')).not.toContainText('초대 신청');
-  await expect(page.getByRole('main')).not.toContainText('외부 부담당자');
-  await page.screenshot({
-    path: test.info().outputPath('settings.png'),
-    fullPage: true,
-    animations: 'disabled'
-  });
-  await test.info().attach('설정 항목', {
-    path: test.info().outputPath('settings.png'),
-    contentType: 'image/png'
-  });
   await page.getByRole('button', {
-    name: '등록 및 참여',
-    exact: true
-  }).click();
-  await expect(page).toHaveURL('/properties/add');
-  await expect(page.getByRole('heading', {
-    name: '등록 및 참여'
-  })).toBeVisible();
-  await expect(page.getByRole('button', {
     name: '관리할 곳 만들기',
     exact: true
-  })).toBeVisible();
-  await expect(page.getByRole('button', {
-    name: '초대코드로 참여하기',
+  }).click();
+  await expect(page).toHaveURL('/properties/add?registration=basic');
+  await expect(page.getByRole('textbox', {
+    name: '건물·단지 이름',
     exact: true
   })).toBeVisible();
-  await page.reload();
-  await expect(page.getByRole('heading', {
-    name: '등록 및 참여'
-  })).toBeVisible();
+  await page.goto(`${BASE}/settings`);
   await page.getByRole('button', {
-    name: '초대코드로 참여하기',
+    name: '참여 중인 곳',
     exact: true
   }).click();
-  const invitation = page.getByRole('dialog', {
-    name: '초대코드로 참여하기'
+  const modal = page.getByRole('dialog', {
+    name: '참여 중인 곳',
+    exact: true
   });
-  await expect(page).toHaveURL('/properties/add');
-  await expect(invitation).toBeVisible();
-  await expect(invitation).toHaveCSS('background-color', 'rgb(255, 255, 255)');
-  await expect(invitation.getByRole('heading')).toHaveCSS('font-size', '24px');
-  await expect(invitation.getByRole('button', {
-    name: '초대코드 입력 닫기'
-  }).locator('svg')).toBeVisible();
-  await page.screenshot({
-    path: test.info().outputPath('invitationCodeModal.png'),
-    animations: 'disabled'
-  });
-  await invitation.getByRole('button', {
-    name: '초대코드 입력 닫기'
+  await expect(modal.getByRole('textbox', {
+    name: '초대코드',
+    exact: true
+  })).toBeVisible();
+  await modal.getByRole('button', {
+    name: '참여 중인 곳 닫기',
+    exact: true
   }).click();
-  await expect(invitation).toHaveCount(0);
   await page.goto('/start');
   await expect(page).toHaveURL(`${BASE}/dashboard`);
 });
@@ -674,20 +631,18 @@ test('추가 화면은 모바일에서도 기존 초대 입력과 등록 폼을 
     name: '초대코드로 참여하기',
     exact: true
   }).click();
-  await expect(page).toHaveURL('/invitations');
+  await expect(page).toHaveURL('/properties');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('banner')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   await expect(page.getByRole('textbox', {
     name: '초대코드',
     exact: true
   })).toBeVisible();
-  const invitationForm = await page.getByRole('main').locator('form').boundingBox();
-  const invitationSubmit = await page.getByRole('button', {
+  await expect(page.getByRole('button', {
     name: '참여 신청',
     exact: true
-  }).boundingBox();
-  expect(invitationSubmit!.width).toBe(invitationForm!.width);
-  expect(invitationSubmit!.height).toBeGreaterThanOrEqual(56);
+  })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({
     path: test.info().outputPath('invitationCodeMobile.png'),
     fullPage: true,
@@ -1305,7 +1260,7 @@ test('부담당자의 설정에도 계좌 관리를 제공', async ({ page }) =>
     exact: true
   })).toBeVisible();
   await expect(page.getByRole('button', {
-    name: '등록 및 참여',
+    name: '관리할 곳 만들기',
     exact: true
   })).toBeVisible();
 });
@@ -2295,7 +2250,7 @@ for (const code of ['B-ABCD-EFGH-JKLM', 'R-ABCD-EFGH-JKLM']) {
 }
 
 for (const width of [1440, 375]) {
-  test(`최초 시작의 주민 참여 ${width}px는 PC 모달·모바일 페이지로 열린다`, async ({ page }) => {
+  test(`최초 시작의 주민 참여 ${width}px는 참여 목록의 초대 입력으로 연결`, async ({ page }) => {
     const state = await mockWorkspace(page); state.hasManagedProperties = false;
     await page.setViewportSize({
       width,
@@ -2306,27 +2261,12 @@ for (const width of [1440, 375]) {
       name: '주민으로 참여하기',
       exact: true
     }).click();
-    if (width >= 768) {
-      await expect(page).toHaveURL('/start');
-      const modal = page.getByRole('dialog', {
-        name: '초대코드로 참여하기'
-      });
-      await expect(modal.getByRole('textbox', {
-        name: '초대코드'
-      })).toBeVisible();
-      await page.keyboard.press('Escape');
-      await expect(modal).toHaveCount(0);
-      await expect(page.getByRole('button', {
-        name: '주민으로 참여하기',
-        exact: true
-      })).toBeFocused();
-    } else {
-      await expect(page).toHaveURL('/join');
-      await expect(page.getByRole('dialog')).toHaveCount(0);
-      await expect(page.getByRole('textbox', {
-        name: '초대코드'
-      })).toBeVisible();
-    }
+    await expect(page).toHaveURL('/properties');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.getByRole('textbox', {
+      name: '초대코드',
+      exact: true
+    })).toBeVisible();
   });
 }
 for (const path of ['/join', '/invitations']) {
@@ -3196,4 +3136,57 @@ test('계좌별 시작 잔액은 은행 코드가 없는 이전 응답에도 하
     await expect(logo).toBeVisible();
     expect(await logo.evaluate((element) => (element as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
   }
+});
+
+test('참여 목록 상단 초대 입력은 기존 가입 API로 신청하고 확인 후 입력과 목록을 갱신', async ({ page }) => {
+  const state = await mockWorkspace(page);
+  state.hasManagedProperties = false;
+  await page.setViewportSize({
+    width: 375,
+    height: 900
+  });
+  await page.goto('/properties');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('textbox', {
+    name: '초대코드',
+    exact: true
+  }).fill('B-ABCD-EFGH-JKLM');
+  await page.getByRole('button', {
+    name: '참여 신청',
+    exact: true
+  }).click();
+  await page.getByRole('textbox', {
+    name: '이름',
+    exact: true
+  }).fill('새 신청자');
+  await page.getByRole('combobox', {
+    name: '동·호수',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '102동 201호',
+    exact: true
+  }).click();
+  await page.getByRole('button', {
+    name: '가입 신청',
+    exact: true
+  }).click();
+  await expect(page.getByRole('status').filter({
+    hasText: '가입을 신청했어요.'
+  })).toBeVisible();
+  expect(state.writes.find((entry) => entry.path.endsWith('/membership-requests'))?.body).toMatchObject({
+    code: 'B-ABCD-EFGH-JKLM',
+    name: '새 신청자'
+  });
+  await page.getByRole('button', {
+    name: '확인',
+    exact: true
+  }).click();
+  await expect(page.getByRole('textbox', {
+    name: '초대코드',
+    exact: true
+  })).toHaveValue('');
+  await expect(page.getByText('아직 참여 중인 곳이 없어요.', {
+    exact: true
+  })).toBeVisible();
 });

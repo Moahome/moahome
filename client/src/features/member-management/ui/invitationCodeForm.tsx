@@ -61,6 +61,7 @@ interface InvitationCodeFormProps {
   propertyId?: string;
   responsive?: boolean;
   onClose?: () => void;
+  compactEntry?: boolean;
 }
 
 function subscribeDesktop(notify: () => void) {
@@ -124,7 +125,7 @@ export function InvitationCodeForm(props: InvitationCodeFormProps) {
 }
 
 /** 코드 검증 후 일반 신청과 개인 정보 확인을 구분하며 원문은 메모리에만 보관합니다. */
-function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeading }: InvitationCodeFormProps & { showHeading?: boolean }) {
+function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeading, compactEntry = false }: InvitationCodeFormProps & { showHeading?: boolean }) {
   const session = useSession();
   const router = useRouter();
   const incoming = useSyncExternalStore(subscribeFragment, readFragment, () => '');
@@ -263,7 +264,8 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
       if (options || preview || !/^[RB]-/i.test(code.trim())) {
         setCode('');
         setPhone('');
-        window.history.replaceState(null, '', window.location.pathname);
+        // 가입 링크의 코드만 제거하고 참여 목록의 현재 대상·실제 뒤로가기 기록은 보존합니다.
+        window.history.replaceState(window.history.state, '', `${window.location.pathname}${window.location.search}`);
       }
     } catch (failure) {
       setError(memberManagementError(failure));
@@ -379,7 +381,7 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
         </header>
       )}
       <form
-        className={styles.form}
+        className={`${styles.form} ${compactEntry && !options && !preview ? styles['code-entry'] : ''}`}
         onSubmit={(event) => { event.preventDefault(); void submit(); }}
       >
         {!options && !preview && (

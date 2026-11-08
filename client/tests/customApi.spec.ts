@@ -350,6 +350,37 @@ test('multipart 파일은 JSON 변환·Content-Type 지정 없이 Bearer와 함�
   });
 });
 
+test('인증 이미지 바이트를 Blob으로 읽고 실패는 기존 JSON 오류 계약으로 유지', async () => {
+  globalThis.fetch = async (_input, options) => {
+    expect(new Headers(options?.headers).get('Authorization')).toBe('Bearer test-access');
+    expect(options?.cache).toBe('no-store');
+    return new Response(new Uint8Array([1, 2, 3]), {
+      headers: {
+        'Content-Type': 'image/png'
+      }
+    });
+  };
+  const options = {
+    url: '/api/users/me/profile-image?v=test',
+    responseType: 'blob' as const,
+    headers: {
+      Authorization: 'Bearer test-access'
+    }
+  };
+  const image = await customAPI<Blob>(options);
+  expect(image.type).toBe('image/png');
+  expect(new Uint8Array(await image.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
+  globalThis.fetch = async () => Response.json({
+    code: 'PROFILE_IMAGE_NOT_FOUND'
+  }, {
+    status: 404
+  });
+  await expect(customAPI(options)).rejects.toMatchObject({
+    status: 404,
+    code: 'PROFILE_IMAGE_NOT_FOUND'
+  });
+});
+
 test('호출자 취소·본문 읽기 취소·타임아웃은 네트워크 장애와 구분', async () => {
   const canceled = new AbortController();
   canceled.abort();

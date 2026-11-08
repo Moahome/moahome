@@ -18,6 +18,8 @@ export interface ResidentPropertiesResponse {
   properties: ResidentProperty[];
 }
 
+export type ParticipatingProperty = ManagementProperty | ResidentProperty;
+
 export interface PropertyAccessContext {
   propertyId: string;
   name: string;

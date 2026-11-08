@@ -14,6 +14,28 @@
     }
   }
 
+  &[data-variant='profile'] {
+    margin-top: 0;
+
+    button {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 50px;
+      border: 0;
+      border-radius: 12px;
+      background: var(--background);
+      color: var(--sub-text);
+      font-size: 15px;
+      font-weight: 500;
+
+      &:hover {
+        background: color-mix(in srgb, var(--sub-text) 10%, var(--card));
+      }
+    }
+  }
+
   button {
     width: 100%;
     padding: 10px 16px;

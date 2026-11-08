@@ -70,3 +70,6 @@ export {
   endPropertyQueryScope,
   setPropertyQueryData
 } from './model/propertyQueryScope';
+export {
+  canShowPropertyCreation
+} from './model/propertyCreationVisibility';

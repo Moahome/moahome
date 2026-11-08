@@ -49,11 +49,6 @@ export function UnitListPage({
     >
       <UnitListHeader
         titleRef={controller.listTitleRef}
-        hasBuildings={data.hasBuildings}
-        canAdd={!data.hasBuildings || data.buildings.length > 0}
-        onManageBuildings={controller.openBuildings}
-        onAutomaticAdd={controller.openAutomatic}
-        onAdd={() => controller.openEditor(null)}
       />
       <UnitListSummary
         units={data.units}

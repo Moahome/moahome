@@ -77,11 +77,15 @@ export function LoginCallbackPage() {
   }
 
   useEffect(() => {
+    if (session.error instanceof ApiError && session.error.code === 'ACCOUNT_RECOVERY_REQUIRED') {
+      router.replace('/account/recovery');
+      return;
+    }
     // 본인 정보까지 확인한 후 이동하며 콜백을 이력에 남기지 않아 뒤로 가기로 복원을 반복하지 않습니다.
     if (!session.isFetching && session.isSuccess) {
       router.replace('/start');
     }
-  }, [router, session.isFetching, session.isSuccess]);
+  }, [router, session.isFetching, session.isSuccess, session.error]);
 
   /** 재시도가 가능한 조회 실패나 일시 장애에 한해 세션 복원을 다시 요청합니다. */
   function retryRestore() {

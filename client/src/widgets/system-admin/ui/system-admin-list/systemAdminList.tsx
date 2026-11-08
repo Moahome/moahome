@@ -27,6 +27,7 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import { getSystemMembers } from '../../api/systemAdminApi';
 import { SystemAdminShell } from '../_components/system-admin-shell/systemAdminShell';
 import { MemberEditor } from '../_components/member-editor/memberEditor';
+import { getMemberStatusLabel } from '../_utils/memberStatus';
 import styles from './systemAdminList.module.css';
 
 export function SystemAdminList({ administrators = false, header }: { administrators?: boolean; header: ReactNode }) {
@@ -163,7 +164,7 @@ function MemberList({ administrators }: { administrators: boolean }) {
               {
                 key: 'status',
                 header: '계정 상태',
-                render: (row) => row.status === 'ACTIVE' ? '정상' : '이용 제한'
+                render: (row) => getMemberStatusLabel(row.status)
               },
               {
                 key: 'role',

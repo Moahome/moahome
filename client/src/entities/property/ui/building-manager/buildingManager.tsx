@@ -22,7 +22,7 @@ import { getSortedBuildings } from '../../model/unitSorting';
 import { UnitDeleteConfirmation } from '../unit-delete-confirmation/unitDeleteConfirmation';
 import styles from './buildingManager.module.css';
 
-/** 등록 초안과 저장된 동에서 같은 목록·입력을 사용하며 삭제는 호출자가 지원하는 경우에만 제공합니다. */
+/** 등록 초안과 저장된 동에서 목록·입력을 공유하며 추가·삭제 노출은 호출 화면이 결정합니다. */
 export function BuildingManager({
   buildings,
   units,
@@ -33,6 +33,7 @@ export function BuildingManager({
   errorMessage = '',
   presentation = 'modal',
   minimumBuildingCount = 0,
+  allowCreation = true,
   deletionDescription = '동과 해당 동에 입력한 모든 세대가 함께 삭제됩니다.',
 }: {
   buildings: BuildingDraft[];
@@ -44,10 +45,12 @@ export function BuildingManager({
   errorMessage?: string;
   presentation?: 'modal' | 'page';
   minimumBuildingCount?: number;
+  allowCreation?: boolean;
   deletionDescription?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const addButtonRef = useRef<HTMLButtonElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   // undefined는 목록, null은 새 동, 문자열은 기존 동 수정 상태입니다.
   const [editingId, setEditingId] = useState<string | null | undefined>(undefined);
   const [name, setName] = useState('');
@@ -65,13 +68,14 @@ export function BuildingManager({
       return;
     }
 
-    addButtonRef.current?.focus();
+    (addButtonRef.current ?? titleRef.current)?.focus();
   }, [editingId]);
 
   /** 동일 ID로 동 이름을 검증하고 저장 성공 후 목록으로 돌아갑니다. 저장 실패에는 입력을 유지합니다. */
   async function saveBuilding(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
+    // 운영 화면은 신규 동 인계가 준비될 때까지 이름 수정만 허용합니다.
+    if (busy || editingId === undefined || (editingId === null && !allowCreation)) return;
     const nextName = normalizeBuildingName(name);
     const failure = getBuildingNameError(nextName, buildings, editingId ?? undefined);
 
@@ -103,7 +107,9 @@ export function BuildingManager({
         className={styles.header}
       >
         <Title
+          ref={titleRef}
           id={'building-manager-title'}
+          tabIndex={-1}
         >
           동 관리
         </Title>
@@ -168,7 +174,7 @@ export function BuildingManager({
           <p
             className={styles.description}
           >
-            관리할 동을 추가하거나 이름을 수정할 수 있어요.
+            {allowCreation ? '관리할 동을 추가하거나 이름을 수정할 수 있어요.' : '등록된 동의 이름을 수정할 수 있어요.'}
           </p>
           {buildings.length > 0 ? (
             <ul
@@ -252,24 +258,26 @@ export function BuildingManager({
               {message}
             </p>
           )}
-          <Button
-            ref={addButtonRef}
-            disabled={busy}
-            variant={'outline'}
-            className={styles.add}
-            onClick={() => {
-              setEditingId(null);
-              setName('');
-              setMessage('');
-            }}
-            leadingIcon={(
-              <ServiceIcon
-                name={'plus'}
-              />
-            )}
-          >
-            동 추가
-          </Button>
+          {allowCreation && (
+            <Button
+              ref={addButtonRef}
+              disabled={busy}
+              variant={'outline'}
+              className={styles.add}
+              onClick={() => {
+                setEditingId(null);
+                setName('');
+                setMessage('');
+              }}
+              leadingIcon={(
+                <ServiceIcon
+                  name={'plus'}
+                />
+              )}
+            >
+              동 추가
+            </Button>
+          )}
         </>
       )}
       {pendingBuilding && (
@@ -309,7 +317,7 @@ export function BuildingManager({
 
   return (
     <ClientModal
-      initialFocusRef={addButtonRef}
+      initialFocusRef={allowCreation ? addButtonRef : titleRef}
       onClose={onClose}
       busy={busy}
       className={styles.dialog}

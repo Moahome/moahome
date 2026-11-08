@@ -9,7 +9,8 @@ import type {
   ManagementProperty,
   PropertyAccessContext,
   ResidentProperty,
-  ResidentPropertiesResponse
+  ResidentPropertiesResponse,
+  ParticipatingProperty
 } from './managementAccessApiTypes';
 
 /** 잘못된 자료형·주민 역할을 관리 권한으로 해석하지 않습니다. */
@@ -58,6 +59,19 @@ export async function getResidentProperties(signal?: AbortSignal): Promise<Resid
     throw new ApiError(200, 'INVALID_RESPONSE', '주민 참여 정보를 확인할 수 없습니다.');
   }
   return response.properties;
+}
+
+/** 두 참여 목록이 모두 확인된 경우에만 합치며 역할 충돌이나 일부 조회 실패를 정상 목록으로 숨기지 않습니다. */
+export async function getParticipatingProperties(signal?: AbortSignal): Promise<ParticipatingProperty[]> {
+  const [managed, resident] = await Promise.all([
+    getManagedProperties(signal),
+    getResidentProperties(signal)
+  ]);
+  const properties = [...managed, ...resident];
+  if (new Set(properties.map((property) => property.propertyId)).size !== properties.length) {
+    throw new ApiError(200, 'INVALID_RESPONSE', '참여 중인 곳의 역할을 확인할 수 없습니다.');
+  }
+  return properties;
 }
 
 /** 현재 대상의 역할과 주민 자격만 읽고 다른 대상이나 잘못된 응답을 접근 근거로 사용하지 않습니다. */

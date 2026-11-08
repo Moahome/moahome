@@ -10,6 +10,40 @@ export async function getCurrentUser(): Promise<CurrentUser> {
     url: '/api/users/me'
   });
 
+  return readCurrentUser(user);
+}
+
+/** 본인의 표시 이름만 저장하고 서버의 최신 계정 정보를 반환합니다. 이미지·명부·권한은 전송하지 않습니다. */
+export async function updateCurrentUserDisplayName(displayName: string): Promise<CurrentUser> {
+  const user = await authenticatedAPI<CurrentUser>({
+    url: '/api/users/me',
+    method: 'PATCH',
+    data: {
+      displayName
+    }
+  });
+
+  return readCurrentUser(user);
+}
+
+/** 사진과 이름을 같은 요청으로 저장하며 사용자 ID·S3 키·임의 이미지 주소를 전송하지 않습니다. */
+export async function saveCurrentUserProfile(displayName: string, image: File | null, removeImage: boolean): Promise<CurrentUser> {
+  const data = new FormData();
+  data.set('displayName', displayName);
+  data.set('removeImage', String(removeImage));
+  if (image) data.set('image', image);
+  const user = await authenticatedAPI<CurrentUser>({
+    url: '/api/users/me/profile',
+    method: 'PUT',
+    data,
+    timeoutMs: 35_000
+  });
+
+  return readCurrentUser(user);
+}
+
+/** 조회와 수정 응답에 같은 검증을 적용해 잘못된 계정 정보가 전역 캐시에 들어가지 않게 합니다. */
+function readCurrentUser(user: CurrentUser): CurrentUser {
   if (
     !user ||
     typeof user.id !== 'string' ||

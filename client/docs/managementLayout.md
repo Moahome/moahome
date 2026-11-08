@@ -70,12 +70,14 @@ src/screens/management-dashboard/
 src/widgets/management-layout/
 ├── index.ts
 └── ui/
-    ├── managementLayout.tsx
-    ├── managementLayout.module.css
+    ├── management-layout/
+    │   ├── managementLayout.tsx
+    │   └── managementLayout.module.css
+    ├── management-navigation/
+    │   ├── managementNavigation.tsx
+    │   └── managementNavigation.module.css
     ├── _components/
     │   └── management-sidebar/
-    │       ├── managementSidebar.tsx
-    │       ├── managementSidebar.module.css
     │       ├── sidebar-dropdown/
     │       │   ├── sidebarDropdown.tsx
     │       │   └── sidebarDropdown.module.css
@@ -90,14 +92,14 @@ src/widgets/management-layout/
 | --- | --- |
 | `ManagementLayout` | 현재 접근 확인, PC / 모바일 배치와 `children` 본문 조합 |
 | `ServiceHeader` | 시작·관리 화면이 공유하는 모아홈 로고, 프로필·계정 메뉴와 알림 표시 |
-| `ManagementSidebar` | PC 사이드바·모바일 드로어가 공유하는 메뉴 목록, 그룹과 단일 링크 배치 |
+| `ManagementNavigation` | PC 사이드바·모바일 드로어가 공유하는 메뉴 목록, 그룹과 단일 링크 배치 |
 | `SidebarDropdown` | 상위 그룹의 펼침 버튼, 열림 상태·화살표·하위 목록과 접근성 처리 |
 | `SidebarLink` | 메뉴 목적지의 Next.js `Link`, 현재 페이지 강조와 준비 중 표시 |
 | `managementNavigation` | 메뉴 ID·이름·아이콘·그룹 자식·목적지 경로·이동 가능 상태 |
 
-단일 진입 UI인 `ManagementLayout`은 `ui/`에 TSX와 CSS Module을 함께 두고, 내부 보조 컴포넌트는 `_components/` 아래의 컴포넌트별 폴더에 둡니다. 사이드바 전용 드롭다운과 링크는 `management-sidebar` 내부에 두고 별도 파일로 구현합니다. `ManagementSidebar`는 이 컴포넌트를 조합하며 펼침 동작과 각 링크의 표현을 한 파일에 작성하지 않습니다.
+공개 UI인 `ManagementLayout`과 `ManagementNavigation`은 각각 `ui/management-layout/`, `ui/management-navigation/`에 TSX와 CSS Module을 함께 두고, 내부 보조 컴포넌트는 `_components/` 아래의 컴포넌트별 폴더에 둡니다. 사이드바 전용 드롭다운과 링크는 `management-sidebar` 내부에 두고 별도 파일로 구현합니다. `ManagementNavigation`은 이 컴포넌트를 조합하며 펼침 동작과 각 링크의 표현을 한 파일에 작성하지 않습니다.
 
-Widget 외부에는 `ManagementLayout`의 공개 API를 제공합니다. 페이지는 공통 레이아웃이 적용된 경로 아래에 본문을 연결하므로 사이드바를 페이지마다 가져오지 않습니다. Widget이 상위 레이어의 `screens`를 참조하지 않으며 링크는 URL로 페이지를 연결합니다.
+Widget 외부에는 `ManagementLayout`과 관리 메뉴 전용 `ManagementNavigation`의 공개 API를 제공합니다. 관리 경로의 페이지는 공통 레이아웃에 본문을 연결합니다. 내 정보 화면은 현재 서버 관리 목록으로 확인한 대상의 모바일 메뉴에만 `ManagementNavigation`을 재사용하며 전체 관리 레이아웃이나 접근 필수 조건을 붙이지 않습니다. Widget이 상위 레이어의 `screens`를 참조하지 않으며 링크는 URL로 페이지를 연결합니다.
 
 ### 메뉴별 목적지
 
@@ -201,7 +203,7 @@ PC에서는 기존 모아홈 헤더 아래 왼쪽 사이드바와 오른쪽 본�
 
 드로어는 오른쪽 화면 밖에서 왼쪽으로 들어오고 닫을 때는 오른쪽으로 나갑니다. 닫기 버튼·Escape·바깥 배경·브라우저 뒤로가기로 닫으며 열린 동안 배경 스크롤과 포커스를 제한합니다. 메뉴를 열 때 같은 URL의 임시 이력을 추가해 뒤로가기가 본문 페이지를 벗어나지 않게 합니다. 메뉴의 링크로 이동할 때는 이 기록을 대체하며, 화면 크기 변경·이탈 시에도 모션과 스크롤 잠금을 정리합니다. 모션 감소 설정에서는 즉시 표시·닫습니다.
 
-PC와 모바일은 같은 `ManagementSidebar`, `SidebarDropdown`, `SidebarLink`와 메뉴 설정을 사용합니다. 모바일에서는 메뉴 목록만 스크롤하고 프로필과 하단 로그아웃을 유지합니다. 준비 중인 메뉴도 링크를 누르면 해당 안내 화면으로 이동하고 모바일 드로어를 닫습니다.
+PC와 모바일은 같은 `ManagementNavigation`, `SidebarDropdown`, `SidebarLink`와 메뉴 설정을 사용합니다. 모바일에서는 메뉴 목록만 스크롤하고 프로필과 하단 로그아웃을 유지합니다. 준비 중인 메뉴도 링크를 누르면 해당 안내 화면으로 이동하고 모바일 드로어를 닫습니다.
 
 ### 모바일 상세 복귀와 방문 기록 (2026-11-01)
 

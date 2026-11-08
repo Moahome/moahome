@@ -118,10 +118,11 @@ async function requestAPI<T = unknown>({
   headers: customHeaders,
   timeoutMs = 15_000,
   signal,
+  responseType = 'json',
 }: CustomApiOptions): Promise<T> {
   const url = getApiUrl(path);
   const headers = new Headers(customHeaders);
-  headers.set('Accept', 'application/json');
+  headers.set('Accept', responseType === 'blob' ? 'image/png, application/json' : 'application/json');
   let body: BodyInit | undefined;
 
   if (method === 'GET') {
@@ -151,6 +152,12 @@ async function requestAPI<T = unknown>({
       // 응답 대기가 무한정 계속되어 세션 복원 잠금이 유지되는 상황을 방지합니다.
       signal: requestSignal,
     });
+    // 이미지도 같은 Bearer·만료 재발급·취소 경계를 사용합니다. 실패 응답은 기존 JSON 오류로 처리합니다.
+    if (response.ok && responseType === 'blob') {
+      const blob = await response.blob();
+      requestSignal.throwIfAborted();
+      return blob as T;
+    }
     responseText = await response.text();
     requestSignal.throwIfAborted();
   } catch {

@@ -7,3 +7,6 @@ export {
 export {
   ResidentSettingsPage
 } from './ui/resident-settings-page/residentSettingsPage';
+export {
+  ParticipatingPropertiesPage
+} from './ui/participating-properties-page/participatingPropertiesPage';

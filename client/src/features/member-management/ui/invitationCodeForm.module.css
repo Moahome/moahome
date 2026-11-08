@@ -8,6 +8,23 @@
   }
 }
 
+.code-entry {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+
+  > p {
+    grid-column: 1 / -1;
+    font-size: 12px;
+  }
+
+  > .actions {
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0;
+  }
+}
+
 .modal {
   width: min(100% - 32px, 640px);
   padding: 28px;

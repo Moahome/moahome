@@ -1083,24 +1083,13 @@ test('시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
     name: '주민으로 참여하기',
     exact: true
   }).click();
-  // 현재 설계는 PC의 같은 화면 모달과 모바일의 독립 가입 경로를 구분합니다.
-  await expect(page).toHaveURL(/\/start$/);
-  const invitation = page.getByRole('dialog', {
-    name: '초대코드로 참여하기',
-    exact: true
-  });
-  await expect(invitation.getByRole('textbox', {
+  await expect(page).toHaveURL('/properties');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('textbox', {
     name: '초대코드',
     exact: true
   })).toBeVisible();
-  await test.info().attach('PC 주민 참여 모달', {
-    body: await page.screenshot(),
-    contentType: 'image/png'
-  });
-  await invitation.getByRole('button', {
-    name: '초대코드 입력 닫기',
-    exact: true
-  }).click();
+  await page.goBack();
   await page.getByRole('button', {
     name: /^승인 대기 중인 요청/
   }).click();
@@ -1131,7 +1120,7 @@ test('시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
     name: '주민으로 참여하기',
     exact: true
   }).click();
-  await expect(page).toHaveURL(/\/join$/);
+  await expect(page).toHaveURL('/properties');
   await expect(page.getByRole('textbox', {
     name: '초대코드',
     exact: true
@@ -1147,10 +1136,17 @@ test('시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
   await page.getByRole('button', {
     name: '모아 주민님 메뉴 열기'
   }).click();
-  await expect(page.getByRole('dialog', {
+  const mobileMenu = page.getByRole('dialog', {
     name: '메뉴',
     exact: true
-  }).getByText('모아홈에 오신 것을 환영해요.')).toBeVisible();
+  });
+  await expect(mobileMenu.getByText('모아 주민님', {
+    exact: true
+  })).toBeVisible();
+  await expect(mobileMenu.getByRole('link', {
+    name: '내 정보',
+    exact: true
+  })).toHaveAttribute('href', '/account');
   // 생성 진입 때 최신 권한을 다시 확인하고 주민 참여에는 추가 조회를 요구하지 않습니다.
   expect(requests).toEqual(['csrf', 'refresh', 'me', 'me']);
 });

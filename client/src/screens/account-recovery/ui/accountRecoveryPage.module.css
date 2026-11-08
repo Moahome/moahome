@@ -1,0 +1,96 @@
+.page {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  padding: 40px 20px;
+  background: var(--background);
+}
+
+.card {
+  display: grid;
+  justify-items: center;
+  gap: 20px;
+  width: min(480px, 100%);
+  padding: 40px 32px;
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  background: var(--card);
+  text-align: center;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+
+  h1 {
+    font-size: 26px;
+    font-weight: 750;
+    color: var(--foreground);
+  }
+
+  > p {
+    color: var(--sub-text);
+    line-height: 1.8;
+  }
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 22px;
+  font-weight: 750;
+  color: var(--foreground);
+
+  img {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+  }
+
+  > span { white-space: nowrap; }
+}
+
+.symbol {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  color: var(--primary);
+  background: var(--button-primary-background);
+}
+
+.deadline {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 20px 16px;
+  border-radius: 12px;
+  background: var(--background);
+
+  span {
+    color: var(--sub-text);
+    font-size: 14px;
+  }
+
+  strong {
+    color: var(--foreground);
+    line-height: 1.7;
+  }
+}
+
+.actions {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.card > .error {
+  color: var(--danger);
+}
+
+@media (max-width: 767px) {
+  .card {
+    padding: 32px 20px;
+  }
+}

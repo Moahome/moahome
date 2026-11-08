@@ -232,19 +232,10 @@ test('일반 회원은 관리자 자료와 생성 화면에 접근하지 못하�
     exact: true
   })).toBeVisible();
   await page.goto('/start');
-  await page.getByRole('button', {
+  await expect(page.getByRole('button', {
     name: '관리할 곳 만들기',
     exact: true
-  }).click();
-  await expect(page.getByRole('dialog', {
-    name: '생성 권한이 필요합니다.',
-    exact: true
-  })).toBeVisible();
-  await expect(page).toHaveURL('/start');
-  await page.getByRole('dialog').getByRole('button', {
-    name: '확인',
-    exact: true
-  }).click();
+  })).toHaveCount(0);
   await expect(page.getByRole('button', {
     name: '주민으로 참여하기',
     exact: true
@@ -301,4 +292,32 @@ test('시스템 관리자도 생성 자동 허용 없이 모바일 상세에서 
     exact: true
   }).click();
   await expect(page).toHaveURL('/admin');
+});
+
+test('탈퇴 유예 회원이 있어도 목록·상세를 조회하고 권한 변경을 허용하지 않는다', async ({ page }) => {
+  const api = await mockSystemAdmin(page);
+  api.users[1].status = 'WITHDRAWAL_PENDING';
+  await page.goto('/admin');
+  const row = page.getByRole('table', {
+    name: '회원 관리',
+    exact: true
+  }).getByRole('row').filter({
+    hasText: '테스트 회원'
+  });
+  await expect(row).toContainText('탈퇴 유예');
+  await row.click();
+  const detail = page.getByRole('dialog', {
+    name: '회원 상세',
+    exact: true
+  });
+  await expect(detail).toContainText('탈퇴 유예');
+  await expect(detail.getByRole('button', {
+    name: '생성 권한 부여',
+    exact: true
+  })).toBeDisabled();
+  await expect(detail.getByRole('button', {
+    name: '시스템 관리자 승격',
+    exact: true
+  })).toBeDisabled();
+  expect(api.commands).toHaveLength(0);
 });

@@ -1,0 +1,138 @@
+.modal {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--foreground);
+
+  &[open] {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+
+  h2 {
+    font-size: 22px;
+    font-weight: 750;
+  }
+}
+
+.body {
+  min-height: 0;
+  padding: 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.groups {
+  display: grid;
+  gap: 24px;
+}
+
+.content {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+
+.invitation {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+
+  h3 {
+    font-size: 18px;
+    font-weight: 700;
+  }
+}
+
+.group {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+
+  h3 {
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+}
+
+.list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  .property {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) 18px;
+    gap: 12px;
+    width: 100%;
+    padding: 16px;
+    border-color: var(--border);
+    color: var(--foreground);
+    text-align: left;
+    white-space: normal;
+  }
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 7%, var(--card));
+  color: var(--primary);
+}
+
+.identity {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.name {
+  overflow-wrap: anywhere;
+}
+
+.role {
+  color: var(--sub-text);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+@media (max-width: 767px) {
+  .header {
+    padding: 12px 16px;
+
+    h2 {
+      font-size: 18px;
+    }
+  }
+
+  .body {
+    padding: 16px;
+  }
+
+  .list .property {
+    gap: 8px;
+    padding: 12px;
+  }
+}

@@ -7,7 +7,7 @@ import {
 } from 'react';
 import { useSession } from '@/entities/session';
 import type { CurrentUser } from '@/entities/session';
-import { LogoutButton } from '@/features/logout';
+import { AccountMenu } from './_components/account-menu/accountMenu';
 import { goBackToPreviousRoute } from '@/shared/lib/navigation-history';
 import { BrandMark } from '@/shared/ui/brand-mark';
 import { NoticeDialog } from '@/shared/ui/notice-dialog';
@@ -120,22 +120,31 @@ export function ServiceHeader({
             <div
               className={styles['profile-panel']}
             >
-              <strong>
-                {profile.displayName}
-                님
-              </strong>
-              <p>
-                모아홈에 오신 것을 환영해요.
-              </p>
-              {session.data?.systemRole === 'ADMIN' && (
-                <Link
-                  className={styles['system-link']}
-                  href={'/admin'}
+              <div
+                className={styles['account-summary']}
+              >
+                <HeaderAvatar
+                  user={profile}
+                />
+                <div>
+                  <strong>
+                    {profile.displayName}
+                    님
+                  </strong>
+                </div>
+                <span
+                  className={styles['account-check']}
+                  aria-hidden
                 >
-                  시스템 관리
-                </Link>
-              )}
-              <LogoutButton />
+                  <ServiceIcon
+                    name={'check'}
+                    size={10}
+                  />
+                </span>
+              </div>
+              <AccountMenu
+                systemAdministrator={session.data?.systemRole === 'ADMIN'}
+              />
             </div>
           </details>
           <HeaderMobileMenu

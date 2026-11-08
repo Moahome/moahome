@@ -557,3 +557,12 @@
     transition: none;
   }
 }
+.withdrawal-notice {
+  margin-bottom: 20px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--button-primary-background);
+  color: var(--primary);
+  font-size: 14px;
+  line-height: 1.8;
+}

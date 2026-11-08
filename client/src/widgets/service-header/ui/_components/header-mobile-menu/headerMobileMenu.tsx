@@ -9,6 +9,7 @@ import {
   type ReactNode
 } from 'react';
 import type { CurrentUser } from '@/entities/session';
+import { AccountMenu } from '../account-menu/accountMenu';
 import { LogoutButton } from '@/features/logout';
 import { HeaderAvatar } from '../header-avatar/headerAvatar';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -252,11 +253,6 @@ export function HeaderMobileMenu({
                 {user.displayName}
                 님
               </strong>
-              {!isManagement && (
-                <p>
-                  모아홈에 오신 것을 환영해요.
-                </p>
-              )}
             </div>
           </div>
           {content ? (
@@ -275,11 +271,35 @@ export function HeaderMobileMenu({
               className={styles.navigation}
               aria-label={'모바일 주요 메뉴'}
             >
+              <p
+                className={styles['navigation-label']}
+              >
+                바로가기
+              </p>
               <Link
                 href={homeHref}
+                aria-label={homeLabel}
                 onClick={closeMenu}
               >
-                {homeLabel}
+                <span
+                  className={styles['shortcut-icon']}
+                  aria-hidden
+                >
+                  <ServiceIcon
+                    name={'home'}
+                    size={20}
+                  />
+                </span>
+                <span
+                  className={styles['shortcut-copy']}
+                >
+                  <strong>
+                    {homeLabel}
+                  </strong>
+                  <span>
+                    {homeLabel === '시작 화면' ? '모아홈 시작 페이지로 이동' : `${homeLabel}으로 이동`}
+                  </span>
+                </span>
                 <ServiceIcon
                   name={'chevron'}
                 />
@@ -287,19 +307,20 @@ export function HeaderMobileMenu({
             </nav>
           )}
           <div
+            className={styles['account-menu']}
+          >
+            <AccountMenu
+              systemAdministrator={systemAdministrator}
+              replace={isManagement}
+              showLogout={false}
+              onNavigate={closeForNavigation}
+            />
+          </div>
+          <div
             className={styles.footer}
           >
-            {systemAdministrator && (
-              <Link
-                className={styles['system-link']}
-                href={'/admin'}
-                onClick={closeMenu}
-              >
-                시스템 관리
-              </Link>
-            )}
             <LogoutButton
-              variant={'menu'}
+              variant={'profile'}
             />
           </div>
         </div>

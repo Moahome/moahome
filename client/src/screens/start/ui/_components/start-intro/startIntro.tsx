@@ -3,7 +3,11 @@ import { WelcomePuppy } from '../welcome-puppy/welcomePuppy';
 import motion from '../../startMotion.module.css';
 import styles from './startIntro.module.css';
 
-export function StartIntro({ additional = false }: { additional?: boolean }) {
+export function StartIntro({ additional = false, canCreateProperty = true }: { additional?: boolean; canCreateProperty?: boolean }) {
+  const additionalTitle = canCreateProperty ? '등록 및 참여' : '참여하기';
+  const additionalDescription = canCreateProperty
+    ? '새로운 관리대상을 만들거나 받은 초대코드로 참여해주세요.'
+    : '받은 초대코드로 참여하거나 참여 중인 곳을 선택해주세요.';
   return (
     <section
       className={`${styles.intro} ${motion.reveal}`}
@@ -12,13 +16,13 @@ export function StartIntro({ additional = false }: { additional?: boolean }) {
       <h1
         id={'home-title'}
       >
-        {additional ? '등록 및 참여' : '모아홈을 시작해 보세요!'}
+        {additional ? additionalTitle : '모아홈을 시작해 보세요!'}
         <WelcomePuppy />
       </h1>
       <p
         className={styles['desktop-description']}
       >
-        {additional ? '새로운 관리대상을 만들거나 받은 초대코드로 참여해주세요.' : '모아홈을 시작하려면 아래에서 원하는 방법을 선택해주세요.'}
+        {additional ? additionalDescription : '받은 초대코드로 우리 집에 참여해보세요.'}
       </p>
       <p
         className={styles['mobile-description']}

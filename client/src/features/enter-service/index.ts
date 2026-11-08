@@ -1,6 +1,7 @@
 export {
   useManagementEntry,
   useResidentProperties,
+  useParticipatingProperties,
   useManagementContext
 } from './model/useManagementAccess';
 
