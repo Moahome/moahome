@@ -107,6 +107,22 @@ Compose는 `server/`에서 실행할 때 기존 `.env`를 변수 치환에 사�
 Spring은 별도로 `local` Profile의 `.env` Import를 통해 같은 파일을 읽습니다.
 변수 치환 방식은 [Docker Compose 환경변수 문서](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/)를 참고합니다.
 
+### 프로필 사진 S3
+
+사진 API 계약은 [본인 프로필 API](../api/userProfileApi.md), 외부 저장소·DB 처리 순서와 실패 시 정리는 [Server 구현](../../server/docs/userProfile.md)을 따릅니다.
+
+| 변수 | 용도 |
+| --- | --- |
+| `S3_BUCKET_NAME` | 비공개 프로필 사진 버킷. 비어 있으면 사진 저장소 요청만 503 |
+| `AWS_REGION` | 버킷 리전. 기본 `ap-northeast-2` |
+| `AWS_PROFILE` | 로컬 개발에서 선택할 AWS CLI 프로필 이름. 운영에서는 비워 기본 인증 체인을 사용 |
+
+로컬 `server/.env`에는 버킷·리전과 `AWS_PROFILE=moahome-dev`만 설정할 수 있습니다. 키는 사용자가 `aws configure --profile moahome-dev`로 Mac의 AWS 공유 인증 파일에 저장하며 Client 환경변수나 프로젝트 소스에 복사하지 않습니다. `S3Config`가 선택한 프로필을 명시적으로 SDK에 전달하므로 Spring이 `.env`를 읽는 것과 OS 환경변수로 export하는 것을 혼동하지 않습니다.
+
+운영은 Mac의 인증 파일을 자동으로 가져오지 않습니다. 운영 전용 버킷과 `profiles/*`의 GetObject·PutObject·DeleteObject 권한을 별도로 준비합니다. 역할 인증이 가능한 환경은 기본 SDK 체인으로 역할을 사용하고, 역할을 제공할 수 없는 실행 환경은 서버 전용 IAM 사용자의 `AWS_ACCESS_KEY_ID`·`AWS_SECRET_ACCESS_KEY`를 보호된 런타임 설정으로 주입합니다. 임시 인증이면 `AWS_SESSION_TOKEN`도 필요합니다. 현재 운영 Compose는 `.env.prod`를 컨테이너 환경변수로 전달하므로 해당 SDK 기본 체인이 읽을 수 있습니다. 로컬 개발용 `moahome-dev` 프로필을 운영에 지정하지 않습니다.
+
+`server/deploy/.env.example`은 값 없는 양식이며 실제 운영 설정·키·버킷 생성과 배포를 대신하지 않습니다. 현재 생성한 개발 버킷·로컬 IAM 연결 확인을 운영 사용 설정 완료로 보고하지 않습니다. 인증 설정 변경 후 서버를 재시작합니다. 서버가 S3로 통신하므로 브라우저용 버킷 CORS와 공개 읽기 권한은 추가하지 않습니다.
+
 ### 카카오 로그인 설정
 
 카카오 로그인은 Server가 Authorization Code 교환과 사용자 검증을 처리하고 PKCE S256을 함께 적용합니다. 상세 흐름과 검증 책임은 [JWT 인증 설계](securityDesign.md)의 카카오 로그인 절을 따릅니다. `application.yml`의 OAuth 설정, Server 로그인 시작 / 콜백과 Client 로그인 버튼 / 콜백 화면은 구현되어 있습니다. Client의 관리자 진입 분기는 [서비스 진입 설계](../../client/docs/serviceEntry.md)를 따릅니다. 주민 진입과 네이티브 앱 로그인 코드 교환은 후속 범위입니다.

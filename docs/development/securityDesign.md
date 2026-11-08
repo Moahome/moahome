@@ -44,7 +44,7 @@
 - Access Token은 `localStorage`, `sessionStorage`나 영속 상태 저장소에 저장하지 않습니다. 새로고침 후에는 Refresh 쿠키로 Access Token을 다시 발급받습니다.
 - Refresh Token은 웹 JSON 응답이나 JavaScript에 노출하지 않습니다.
 - Refresh 쿠키 이름은 `moahome-refresh`, Path는 `/api/auth/web`, 속성은 `HttpOnly`, `Secure`, `SameSite=Lax`로 정합니다. Domain을 지정하지 않아 API 호스트에만 적용합니다.
-- 쿠키 Max-Age는 최초 로그인 후 14일까지 남은 시간이며, Rotation으로 연장하지 않습니다. 삭제할 때도 같은 이름과 Path를 사용합니다.
+- 일반 쿠키 Max-Age는 최초 로그인 후 14일까지 남은 시간이며, Rotation으로 연장하지 않습니다. 탈퇴 유예 계정의 복구 전용 쿠키는 10분입니다. 삭제할 때도 같은 이름과 Path를 사용합니다.
 - 운영 웹과 API는 HTTPS와 동일 사이트의 도메인 구성을 기준으로 합니다. 로컬 HTTP 개발에서만 `Secure=false`를 허용하며 `localhost`와 `127.0.0.1`을 혼용하지 않습니다.
 - 쿠키를 사용하는 요청에는 `credentials: include`를 사용합니다. 토큰 응답은 `Cache-Control: no-store`로 캐시하지 않습니다.
 - 로그인 성공 시 Refresh 쿠키를 설정하고 Client로 이동합니다. Client가 재발급 API에서 Access Token을 받아 서비스를 시작합니다. 리다이렉트 URL에 서비스 토큰을 넣지 않습니다.
@@ -90,7 +90,10 @@
 | `POST /api/auth/web/logout` | 웹 Refresh 쿠키, 허용 Origin, `X-CSRF-TOKEN` 헤더 | `204`, Refresh 쿠키 삭제 |
 | `POST /api/auth/app/refresh` | JSON의 `refreshToken`, 앱 세션 검증 | 두 토큰과 만료시각 JSON |
 | `POST /api/auth/app/logout` | JSON의 `refreshToken`, 앱 세션 검증 | `204` |
-| `GET /api/users/me` | Access Token Bearer, Redis 세션과 정상 계정 검증 | `id`, `displayName`, `profileImageUrl`, `systemRole`, `status`, `canCreateProperty` JSON |
+| `GET /api/users/me` | Access Token Bearer, Redis 세션과 정상 계정 검증 | [본인 프로필 계약](../api/userProfileApi.md)의 계정 정보 JSON |
+| `PATCH /api/users/me` | 같은 Bearer·정상 계정 검증, 계정 행 잠금 | [본인 프로필 계약](../api/userProfileApi.md)의 표시 이름 수정 |
+| `PUT /api/users/me/profile` | 같은 Bearer·정상 계정 검증, 계정 행 잠금 | 이름·사진 변경·삭제를 함께 저장 |
+| `GET /api/users/me/profile-image` | 같은 Bearer·정상 계정 검증 | 인증 계정의 현재 사진 바이트. Token을 URL에 넣지 않음 |
 
 웹 Access 응답에는 `accessToken`, `tokenType`, `accessExpiresAt`이 있습니다. 앱 재발급 응답에는 추가로 `refreshToken`, `refreshExpiresAt`이 있습니다. 인증 오류 응답은 `code`, `message` 구조이며, Access 만료는 `401 / ACCESS_TOKEN_EXPIRED`, 세션 만료는 `401 / SESSION_EXPIRED`, 토큰 재사용은 `401 / REFRESH_TOKEN_REUSED`, 권한 부족은 `403 / ACCESS_DENIED`, CSRF 실패는 `403 / CSRF_INVALID`, Redis 장애는 `503 / AUTH_SERVICE_UNAVAILABLE`로 구분합니다.
 
@@ -203,8 +206,8 @@ Security 테스트는 토큰 만료와 종류 혼용, 서명·발급자·대상 
 - `SocialAccountService.resolveVerifiedUser()`는 동일한 소셜 식별자의 가입 / 로그인을 PostgreSQL 트랜잭션 advisory lock으로 직렬화합니다. DB의 부분 유일 인덱스도 삭제되지 않은 소셜 식별자의 중복을 차단합니다.
 - `VerifiedSocialProfile`은 서버의 제공자 검증 결과를 전달하는 내부 자료형입니다. 자료형 생성만으로 OAuth 검증이 수행되는 것은 아닙니다. Client가 보낸 사용자 ID나 이메일로 직접 생성하여 로그인시키지 않습니다.
 - `SocialLoginService.loginVerified()`는 외부 DB 트랜잭션 안에서 실행할 수 없습니다. 사용자 / 소셜 계정 저장 커밋 후 Redis 세션을 생성합니다. Redis 세션 생성이 실패하면 DB 계정은 유지하고 로그인 재시도 시 기존 계정을 사용합니다.
-- ACTIVE 계정만 세션 생성, Access Token 인증과 토큰 재발급을 허용합니다. 매 요청에서 DB의 계정 상태를 확인하여 정지 / 탈퇴 계정의 기존 토큰도 차단합니다. 로그아웃은 해당 계정의 현재 Redis 세션으로 처리할 수 있습니다.
-- `SocialAccountService.withdrawUser()`는 사용자와 연결된 소셜 계정을 함께 소프트 삭제합니다. 권한 확인을 마친 서버 호출자가 실제 처리자 ID를 전달해야 합니다. 탈퇴와 정지 / 해제의 공개 API는 아직 제공하지 않습니다.
+- ACTIVE 계정만 일반 세션 생성, Access Token 인증과 토큰 재발급을 허용합니다. 매 요청에서 DB의 계정 상태·인증 버전을 확인하여 정지 / 탈퇴 계정의 기존 토큰도 차단합니다. 로그아웃은 해당 계정의 현재 Redis 세션으로 처리할 수 있습니다.
+- 본인 탈퇴 공개 API는 `AccountLifecycleService`로 30일 유예를 시작하며 최종 개인정보 정리도 이 경계를 사용합니다. 기존 내부 `SocialAccountService.withdrawUser()`의 즉시 소프트 삭제는 HTTP로 노출하지 않습니다. 정지 / 해제의 공개 API는 제공하지 않습니다.
 - `users`에는 전화번호와 휴대폰 인증 정보를 저장하지 않습니다. 로그인은 소셜 식별자로 처리하고 연락처는 주민 명부와 가입 요청 정보에서 관리합니다.
 - 플랫폼 운영 권한(`users.system_role`)과 관리대상별 역할(`property_members.role`)을 구분합니다. `system_role`은 Entity / 후속 Migration으로 저장하며 신규 가입과 기존 계정의 기본값은 `USER`입니다. DB는 `USER` / `ADMIN`만 허용합니다. 플랫폼 관리자 지정 / 회수 API와 플랫폼 운영 기능은 아직 제공하지 않으며, 플랫폼 역할을 JWT 전역 역할이나 관리대상 권한 우회에 사용하지 않습니다.
 - 주민은 동이 있는 경우 동과 호수, 동이 없는 경우 호수로 세대를 지정해 가입을 요청합니다. 관리자가 기존 주민 명부를 확인하거나 필요한 주민을 신규 등록하고 승인한 뒤 계정과 주민 정보를 연결합니다. 주민 연결, 세대 관계, 권한과 가입 요청 상태는 하나의 DB 트랜잭션에서 반영합니다. 전화번호 일치만으로 자동 연결하거나 권한을 부여하지 않습니다.
@@ -215,4 +218,14 @@ Security 테스트는 토큰 만료와 종류 혼용, 서명·발급자·대상 
 - 주민 목록 엑셀 내보내기는 [별도 POST API](../api/residentManagementApi.md#주민-목록-엑셀-다운로드)에서 현재 관리소장 권한·같은 대상의 미삭제 주민 ID 전체를 검증하고 전체 번호를 반환합니다. 미리보기는 주민명·마스킹 연락처(`**** 5678`)·동호수를 표시하고 파일에만 전체 연락처를 포함합니다. 원문을 조회 캐시·저장소·URL에 보관하지 않습니다.
 - 기본 상세는 끝 네 자리만 반환합니다. 전체 번호 공개는 별도 POST에서 관리소장 권한을 다시 확인하고 `no-store`로 반환합니다. 브라우저 원문은 일시 컴포넌트 상태에만 두며 숨김·모드 전환·이탈 시 폐기합니다. 수정·삭제의 대표 승계와 신청 연락처 변경·주민 접근권한 종료는 [주민 API](../api/residentManagementApi.md#주민-상세연락처-공개수정삭제)를 따릅니다.
 - 기존 사용자 전화번호 컬럼은 후속 Migration으로 제거합니다. 이 Migration은 기존 계정 연락처를 삭제하며 주민 명부로 이전하지 않습니다. 적용 전 기존 연락처의 보존 필요 여부를 확인하고, 보존이 필요하면 DB 백업 또는 승인된 대상에 대한 별도 이관을 먼저 수행합니다. 기존 계정과 소셜 로그인 연결은 유지합니다. Migration 실패 시 PostgreSQL 트랜잭션으로 롤백되며, 적용 후 삭제된 연락처 복구에는 적용 전 백업이 필요합니다. `ALTER TABLE`의 잠금과 실행 시간은 적용 대상 DB에서 확인합니다.
-- 재가입, 상태와 연락처 업무 기준은 [도메인 규칙](../domain/domainRules.md)을 따릅니다. 탈퇴 개인정보 보존 / 파기 정책은 미정이며, 현재 소프트 삭제가 개인정보 파기를 수행하지는 않습니다.
+- 재가입, 상태·탈퇴 개인정보 처리와 연락처 업무 기준은 [도메인 규칙](../domain/domainRules.md)을 따릅니다. 회원 탈퇴·복구 계약은 [본인 프로필 API](../api/userProfileApi.md#회원-탈퇴-사전-확인신청)를 따릅니다.
+
+## 탈퇴 유예의 세션 무효화와 복구 (2026-11-08)
+
+`users.auth_version`은 기본 0이며 Redis `AuthSession`의 `accountVersion`에 로그인 시점의 값을 보관합니다. 기존 Redis 행에서 필드가 없으면 0으로 읽어 배포 전 정상 세션과 호환합니다. 탈퇴 신청과 최종 삭제는 DB 버전을 증가시키고 Access·Refresh 인증은 현재 버전과 일치해야 합니다. Redis 전체 사용자 키 검색에 의존하지 않으며 30일 내 복구해도 버전을 되돌리지 않아 과거 기기의 토큰을 다시 허용하지 않습니다. 종료된 Redis 행은 기존 TTL로 정리됩니다.
+
+유예 중 동일 카카오 계정을 재인증하면 일반 세션 대신 `recoveryOnly=true`인 10분 WEB 세션을 생성하고 `/account/recovery`로 리다이렉트합니다. 검증한 소셜 식별자와 저장된 계정으로만 생성하며 브라우저가 계정 ID·복구 대상을 입력하지 않습니다. 이 세션은 일반 Access 인증·Refresh Rotation을 거부하고 계정 복구 조회·실행과 로그아웃에만 사용합니다. 복구 API는 기존 `/api/auth/web` 쿠키·허용 Origin 검증을 재사용하며 POST에는 세션의 CSRF 토큰도 필요합니다. 일반 세션·Bearer로 복구 전용 쿠키를 대체할 수 없습니다.
+
+복구 API는 DB 잠금 아래 마감 시각을 다시 확인하고 정상화한 뒤 새 일반 세션으로 교체합니다. DB 성공 후 Redis 실패는 원래의 짧은 복구 세션으로 재시도할 수 있습니다. 기한이 지난 유예 계정은 비동기 정리가 지연돼도 개인정보 조회·복구를 거부합니다. 정리 후 같은 카카오 계정의 가입은 새 사용자 ID를 발급하며 과거 참여를 연결하지 않습니다.
+
+Client는 탈퇴 성공에 현재 메모리·Query 캐시를 비우고 로그인으로 이동합니다. 같은 브라우저의 다른 탭에는 토큰 없이 계정 ID만 BroadcastChannel로 전달합니다. 다른 기기의 인증 차단은 서버가 보장하며 탭 알림을 보안 검증으로 대신하지 않습니다. 복구 페이지에서는 전역 일반 세션 복원을 중지하여 복구 쿠키를 일반 재발급에 소비하지 않습니다.

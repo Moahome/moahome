@@ -234,7 +234,7 @@ public class MemberManagementService {
 		// 주민을 관리자 역할로 올리는 권한만 관리소장에게 남깁니다. 일반 업무·주민으로 내리기는 관리자에게 허용합니다.
 		if (input.role() == PropertyMemberRole.MANAGER && member.getRole() != PropertyMemberRole.MANAGER)
 			requireAdmin(actor, property);
-		accounts.requireActive(member.getUserId());
+		accounts.requireActiveForUpdate(member.getUserId());
 		uniqueMember(property, member.getUserId());
 		if (member.getRole() != input.expectedRole() || member.getRole() == PropertyMemberRole.ADMIN
 		    || input.role() == PropertyMemberRole.ADMIN || member.getUserId().equals(actor))
@@ -255,7 +255,7 @@ public class MemberManagementService {
 		var target = requiredMember(property, memberId);
 		if (target.getUserId().equals(actor) || target.getRole() != expected)
 			throw failure("MEMBER_ROLE_CONFLICT");
-		accounts.requireActive(target.getUserId());
+		accounts.requireActiveForUpdate(target.getUserId());
 		uniqueMember(property, target.getUserId());
 		List<PropertyMember> chiefs = members.findByPropertyIdAndDeletedAtIsNull(property).stream()
 		    .filter(m -> m.isCurrent() && m.getRole() == PropertyMemberRole.ADMIN).toList();
@@ -342,7 +342,7 @@ public class MemberManagementService {
 			return workspace(actor, property);
 		if (invitation.getRevision() != revision || !"REQUESTED".equals(invitation.getStatus()))
 			throw failure("MEMBER_ROLE_CONFLICT");
-		var user = accounts.requireActive(invitation.getRequestedBy());
+		var user = accounts.requireActiveForUpdate(invitation.getRequestedBy());
 		List<PropertyMember> existing = members.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, user.getId())
 		    .stream().filter(propertyMember -> propertyMember.isCurrent()).toList();
 		if (existing.size() > 1 || (!existing.isEmpty() && existing.getFirst().getRole() == PropertyMemberRole.ADMIN))

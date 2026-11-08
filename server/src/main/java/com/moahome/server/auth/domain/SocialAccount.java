@@ -36,7 +36,7 @@ public class SocialAccount {
 	@Column(nullable = false, length = 20, updatable = false)
 	private SocialProvider provider;
 
-	@Column(name = "provider_user_id", nullable = false, length = 255, updatable = false)
+	@Column(name = "provider_user_id", nullable = false, length = 255)
 	private String providerUserId;
 
 	@Column(name = "provider_email", length = 255)
@@ -89,6 +89,13 @@ public class SocialAccount {
 		Objects.requireNonNull(at, "Deletion time is required");
 		deletedAt = at;
 		deletedBy = actorId;
+	}
+
+	/** 소셜 행의 내부 ID·삭제 이력은 보존하고 복구 불가 시점에 제공자 개인정보를 제거합니다. */
+	public void eraseForWithdrawal(UUID actorId, OffsetDateTime at) {
+		delete(actorId, at);
+		providerEmail = null;
+		providerUserId = "withdrawn:" + id;
 	}
 
 	@PrePersist

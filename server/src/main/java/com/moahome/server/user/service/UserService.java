@@ -7,7 +7,9 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 
 import com.moahome.server.user.domain.User;
+import com.moahome.server.user.domain.UserStatus;
 import com.moahome.server.user.dto.CurrentUserResponse;
+import com.moahome.server.user.dto.ProfileSaveResult;
 import com.moahome.server.user.exception.UserErrorCode;
 import com.moahome.server.user.exception.UserException;
 import com.moahome.server.user.repo.UserRepository;
@@ -48,9 +50,76 @@ public class UserService {
 	/** 정상 계정의 최신 프로필과 플랫폼 역할을 조회하며 관리대상 권한으로 해석하지 않습니다. */
 	@Transactional(readOnly = true)
 	public CurrentUserResponse getCurrentUser(UUID userId) {
-		User user = requireActive(userId);
+		return toResponse(requireActive(userId));
+	}
+
+	/** 본인 계정 잠금 아래 최신 상태를 확인하고 표시 이름만 바꿉니다. 주민 명부는 변경하지 않습니다. */
+	@Transactional
+	public CurrentUserResponse updateDisplayName(UUID userId, String displayName) {
+		return saveProfile(userId, displayName, null, false).user();
+	}
+
+	/** 이름과 사진 참조를 같은 잠금·트랜잭션에서 바꾸고 실제 교체된 이전 참조를 정리에 반환합니다. */
+	@Transactional
+	public ProfileSaveResult saveProfile(UUID userId, String displayName, String imageUrl, boolean replaceImage) {
+		User user = requireForUpdate(userId);
+		// 정지·탈퇴·권한 변경과 같은 잠금을 사용하고 대기 중 바뀐 이미지와 권한을 덮어쓰지 않습니다.
+		entityManager.refresh(user, LockModeType.PESSIMISTIC_WRITE);
+		String previousImageUrl = user.getProfileImageUrl();
+		user.updateProfile(displayName, replaceImage ? imageUrl : previousImageUrl);
+		users.flush();
+		return new ProfileSaveResult(toResponse(user), previousImageUrl);
+	}
+
+	private CurrentUserResponse toResponse(User user) {
 		return new CurrentUserResponse(user.getId(), user.getDisplayName(), user.getProfileImageUrl(),
 		    user.getSystemRole(), user.getStatus(), user.isPropertyCreationAllowed());
+	}
+
+	/** 참여 부여·인계와 탈퇴는 같은 사용자 잠금 아래 최신 상태를 재검사합니다. */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public User requireActiveForUpdate(UUID userId) {
+		User user = lockForLifecycle(userId);
+		user.requireActive();
+		return user;
+	}
+
+	/** 복구·만료도 동일 잠금을 사용하고 대기 중 바뀐 1차 캐시를 새로 읽습니다. */
+	@Transactional(propagation = Propagation.MANDATORY)
+	public User lockForLifecycle(UUID userId) {
+		User user = requireForUpdate(userId);
+		entityManager.refresh(user, LockModeType.PESSIMISTIC_WRITE);
+		return user;
+	}
+
+	@Transactional(readOnly = true)
+	public long authenticationVersion(UUID userId) {
+		return requireActive(userId).getAuthVersion();
+	}
+
+	/** 복구 세션 발급은 소셜 인증과 유예 기간 확인을 모두 거친 계정에만 허용합니다. */
+	@Transactional(readOnly = true)
+	public long recoveryAuthenticationVersion(UUID userId) {
+		User user = users.findByIdAndDeletedAtIsNull(userId).orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND));
+		if (!user.isRecoverable(OffsetDateTime.now(clock))) {
+			throw new AuthException(AuthErrorCode.ACCOUNT_RECOVERY_EXPIRED);
+		}
+		return user.getAuthVersion();
+	}
+
+	/** TTL과 별개로 영속 인증 세대를 확인해 복구 이후에도 과거 토큰을 다시 허용하지 않습니다. */
+	@Transactional(readOnly = true)
+	public void verifyAuthenticationVersion(UUID userId, long version) {
+		User user = users.findByIdAndDeletedAtIsNull(userId).orElseThrow(() -> new UserException(UserErrorCode.USER_NOT_FOUND));
+		if (user.getAuthVersion() != version) {
+			throw new AuthException(AuthErrorCode.SESSION_EXPIRED);
+		}
+	}
+
+	@Transactional(readOnly = true)
+	public boolean requiresAccountRecovery(UUID userId) {
+		return users.findByIdAndDeletedAtIsNull(userId)
+		    .map(user -> user.getStatus() == UserStatus.WITHDRAWAL_PENDING).orElse(false);
 	}
 
 	/** 등록 화면의 검증·파일 미리보기에서도 현재 DB의 생성 허용 여부를 확인합니다. */

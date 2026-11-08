@@ -112,6 +112,7 @@ import com.moahome.server.user.exception.UserErrorCode;
 import com.moahome.server.user.exception.UserException;
 import com.moahome.server.user.repo.UserRepository;
 import com.moahome.server.user.service.UserService;
+import com.moahome.server.user.service.AccountLifecycleService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -138,6 +139,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @Import(KakaoOAuthIntegrationTest.TestBeans.class)
 class KakaoOAuthIntegrationTest {
+	@MockitoBean
+	private AccountLifecycleService accountLifecycle;
+
 	private static final RedisTestServer REDIS = new RedisTestServer();
 
 	private static final UUID USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
@@ -380,6 +384,23 @@ class KakaoOAuthIntegrationTest {
 		    properties.clientSecret());
 		assertThat(UriComponentsBuilder.fromUriString(first.result().getResponse().getRedirectedUrl()).build()
 		    .getQueryParams()).doesNotContainKey("prompt");
+	}
+
+	@Test
+	void pendingWithdrawalRedirectsToRecoveryWithRecoveryOnlyCookieAfterProviderVerification() throws Exception {
+		when(users.requiresAccountRecovery(USER_ID)).thenReturn(true);
+		when(users.recoveryAuthenticationVersion(USER_ID)).thenReturn(1L);
+		var attempt = start();
+		expectLogin(attempt, USER_RESPONSE);
+		var response = callback(attempt).andExpect(status().isFound())
+		    .andExpect(header().string("Location", properties.webLoginSuccessUri().resolve("/account/recovery").toString()))
+		    .andExpect(cookie().httpOnly(WebAuthSupport.COOKIE_NAME, true)).andReturn().getResponse();
+		var session = auth.authenticateRefresh(response.getCookie(WebAuthSupport.COOKIE_NAME).getValue(), ClientType.WEB);
+		assertThat(session.recoveryOnly()).isTrue();
+		assertThat(session.accountVersion()).isEqualTo(1L);
+		assertThat(session.expiresAt().getEpochSecond())
+		    .isEqualTo(clock.instant().plus(Duration.ofMinutes(10)).getEpochSecond());
+		verify(identities).resolveVerifiedUser(any(VerifiedSocialProfile.class));
 	}
 
 	@Test
