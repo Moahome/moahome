@@ -2,6 +2,7 @@ package com.moahome.server.auth.service;
 
 import java.security.SecureRandom;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
@@ -45,21 +46,38 @@ public class AuthService {
 			throw new IllegalArgumentException("Verified user and client type are required");
 		}
 		requireActiveAccount(verifiedUserId);
+		return createSession(verifiedUserId, clientType, false, users.authenticationVersion(UUID.fromString(verifiedUserId)));
+	}
+
+	/** 소셜 인증된 유예 계정에는 일반 업무 권한 대신 10분짜리 복구 전용 쿠키 세션을 발급합니다. */
+	public WebLoginResult startWebLoginSession(UUID userId) {
+		boolean recovery = users.requiresAccountRecovery(userId);
+		TokenService.TokenPair pair = recovery
+		    ? createSession(userId.toString(), ClientType.WEB, true, users.recoveryAuthenticationVersion(userId))
+		    : startSession(userId.toString(), ClientType.WEB);
+		return new WebLoginResult(pair, recovery);
+	}
+
+	private TokenService.TokenPair createSession(String userId, ClientType clientType, boolean recovery, long version) {
 		Instant now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
 		String sessionId = UUID.randomUUID().toString();
-		Instant expiresAt = now.plus(TokenService.REFRESH_LIFETIME);
-		TokenService.TokenPair pair = tokens.issue(verifiedUserId, sessionId, expiresAt);
+		Instant expiresAt = now.plus(recovery ? Duration.ofMinutes(10) : TokenService.REFRESH_LIFETIME);
+		TokenService.TokenPair pair = tokens.issue(userId, sessionId, expiresAt);
 		byte[] csrfBytes = new byte[32];
 		random.nextBytes(csrfBytes);
-		sessions.create(new AuthSession(sessionId, verifiedUserId, clientType, TokenService.hash(pair.refreshToken()),
-		    Base64.getUrlEncoder().withoutPadding().encodeToString(csrfBytes), now, expiresAt));
+		sessions.create(new AuthSession(sessionId, userId, clientType, TokenService.hash(pair.refreshToken()),
+		    Base64.getUrlEncoder().withoutPadding().encodeToString(csrfBytes), now, expiresAt, version, recovery));
 		return pair;
 	}
 
 	public AuthPrincipal authenticateAccess(String accessToken) {
 		Jwt jwt = tokens.readAccess(accessToken);
 		AuthSession session = requireSession(jwt);
+		if (session.recoveryOnly()) {
+			throw new AuthException(AuthErrorCode.ACCOUNT_RECOVERY_REQUIRED);
+		}
 		requireActiveAccount(session.userId());
+		verifyAccountVersion(session);
 		return new AuthPrincipal(session.userId(), session.sessionId());
 	}
 
@@ -69,12 +87,16 @@ public class AuthService {
 		if (session.clientType() != clientType) {
 			throw new AuthException(AuthErrorCode.INVALID_TOKEN);
 		}
+		verifyAccountVersion(session);
 		requireSuccess(sessions.checkRefresh(session, TokenService.hash(refreshToken)));
 		return session;
 	}
 
 	public TokenService.TokenPair refresh(String refreshToken, ClientType clientType) {
 		AuthSession session = authenticateRefresh(refreshToken, clientType);
+		if (session.recoveryOnly()) {
+			throw new AuthException(AuthErrorCode.ACCOUNT_RECOVERY_REQUIRED);
+		}
 		requireActiveAccount(session.userId());
 		TokenService.TokenPair pair = tokens.issue(session.userId(), session.sessionId(), session.expiresAt());
 		requireSuccess(
@@ -85,6 +107,33 @@ public class AuthService {
 	public void logout(String refreshToken, ClientType clientType) {
 		AuthSession session = authenticateRefresh(refreshToken, clientType);
 		requireSuccess(sessions.logout(session, TokenService.hash(refreshToken)));
+	}
+
+	/** 복구는 정상 DB 반영 후 새 일반 세션으로 교체합니다. 기존 복구 쿠키는 업무 토큰으로 승격하지 않습니다. */
+	public TokenService.TokenPair completeRecoverySession(AuthSession session) {
+		if (!session.recoveryOnly() || session.clientType() != ClientType.WEB) {
+			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
+		}
+		TokenService.TokenPair pair = startSession(session.userId(), ClientType.WEB);
+		requireSuccess(sessions.logout(session, session.refreshHash()));
+		return pair;
+	}
+
+	private void verifyAccountVersion(AuthSession session) {
+		try {
+			users.verifyAuthenticationVersion(UUID.fromString(session.userId()), session.accountVersion());
+		} catch (UserException exception) {
+			throw new AuthException(AuthErrorCode.ACCOUNT_UNAVAILABLE);
+		} catch (DataAccessException exception) {
+			throw new AuthException(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE);
+		}
+	}
+
+	public record WebLoginResult(TokenService.TokenPair tokens, boolean recoveryRequired) {
+		@Override
+		public String toString() {
+			return "WebLoginResult[REDACTED]";
+		}
 	}
 
 	private AuthSession requireSession(Jwt jwt) {

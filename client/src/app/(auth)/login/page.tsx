@@ -10,13 +10,15 @@ export default async function Page({
 }: {
   searchParams: Promise<{
     error?: string | string[];
+    withdrawal?: string | string[];
   }>;
 }) {
-  const { error } = await searchParams;
+  const { error, withdrawal } = await searchParams;
 
   return (
     <LoginPage
       errorCode={typeof error === 'string' ? error : undefined}
+      withdrawalRequested={withdrawal === 'requested'}
     />
   );
 }

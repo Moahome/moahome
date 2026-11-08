@@ -1,0 +1,75 @@
+.menu {
+  padding: 16px 12px 12px;
+}
+
+.label {
+  padding: 0 8px 8px;
+  color: var(--sub-text);
+  font-size: 11px;
+}
+
+.link {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
+  min-height: 70px;
+  padding: 12px;
+  border-radius: 12px;
+
+  &:hover {
+    background: var(--background);
+  }
+
+  > svg { color: var(--sub-text); }
+
+  &[aria-current='page'] {
+    background: color-mix(in srgb, var(--primary) 6%, var(--card));
+
+    strong, > svg { color: var(--primary); }
+
+    .icon {
+      background: color-mix(in srgb, var(--primary) 12%, var(--card));
+      color: var(--primary);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+  }
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: var(--background);
+  color: var(--sub-text);
+}
+
+.copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  word-break: keep-all;
+
+  strong {
+    color: var(--foreground);
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  > span {
+    color: var(--sub-text);
+    font-size: 12px;
+  }
+}
+
+.logout {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}

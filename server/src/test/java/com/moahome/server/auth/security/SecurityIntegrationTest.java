@@ -112,6 +112,15 @@ import com.moahome.server.user.exception.UserErrorCode;
 import com.moahome.server.user.exception.UserException;
 import com.moahome.server.user.repo.UserRepository;
 import com.moahome.server.user.service.UserService;
+import com.moahome.server.user.service.AccountLifecycleService;
+import com.moahome.server.user.dto.AccountRecoveryResponse;
+import com.moahome.server.user.dto.WithdrawalReceipt;
+import com.moahome.server.user.dto.WithdrawalStatus;
+import java.time.OffsetDateTime;
+import java.util.concurrent.atomic.AtomicLong;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
+import com.moahome.server.user.service.ProfileImageService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -127,6 +136,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import org.springframework.http.HttpMethod;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -137,6 +149,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @Import({SecurityIntegrationTest.TestBeans.class, SecurityIntegrationTest.ProbeController.class})
 class SecurityIntegrationTest {
+	@MockitoBean
+	private AccountLifecycleService accountLifecycle;
+
 	private static final String ORIGIN = "http://localhost:3000";
 
 	private static final RedisTestServer REDIS = new RedisTestServer();
@@ -158,6 +173,9 @@ class SecurityIntegrationTest {
 
 	@Autowired
 	private MutableClock clock;
+
+	@MockitoBean
+	private ProfileImageService profileImages;
 
 	@MockitoSpyBean
 	private RedisAuthSessionRepository sessions;
@@ -478,6 +496,119 @@ class SecurityIntegrationTest {
 		    .andExpect(jsonPath("systemRole").value("USER")).andExpect(jsonPath("status").value("ACTIVE"))
 		    .andExpect(jsonPath("$.length()").value(6));
 		verify(users).getCurrentUser(userId);
+	}
+
+	@Test
+	void profileWriteRequiresBearerAndPreservesAuthenticatedIdentity() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+		var pair = auth.startSession(userId.toString(), ClientType.WEB);
+		when(users.updateDisplayName(userId, "새 이름"))
+		    .thenReturn(new CurrentUserResponse(userId, "새 이름", null, SystemRole.USER, UserStatus.ACTIVE));
+		String body = "{\"displayName\":\"새 이름\"}";
+		mvc.perform(patch("/api/users/me").contentType(MediaType.APPLICATION_JSON).content(body))
+		    .andExpect(status().isUnauthorized());
+		mvc.perform(patch("/api/users/me").cookie(refreshCookie(pair))
+		    .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
+		mvc.perform(patch("/api/users/me").header("Authorization", "Bearer " + pair.accessToken())
+		    .param("userId", UUID.randomUUID().toString()).contentType(MediaType.APPLICATION_JSON).content(body))
+		    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+		    .andExpect(jsonPath("id").value(userId.toString())).andExpect(jsonPath("displayName").value("새 이름"));
+		verify(users).updateDisplayName(userId, "새 이름");
+	}
+
+	@Test
+	void withdrawalRequiresExplicitConfirmationAndUsesOnlyBearerIdentity() throws Exception {
+		UUID id = UUID.fromString("00000000-0000-0000-0000-000000000001");
+		var pair = auth.startSession(id.toString(), ClientType.WEB);
+		mvc.perform(post("/api/users/me/withdrawal").cookie(refreshCookie(pair))
+		    .contentType(MediaType.APPLICATION_JSON).content("{\"confirmed\":true}"))
+		    .andExpect(status().isUnauthorized());
+		mvc.perform(post("/api/users/me/withdrawal").header("Authorization", "Bearer " + pair.accessToken())
+		    .contentType(MediaType.APPLICATION_JSON).content("{\"confirmed\":false}"))
+		    .andExpect(status().isBadRequest());
+		Mockito.verifyNoInteractions(accountLifecycle);
+		when(accountLifecycle.status(id)).thenReturn(new WithdrawalStatus(id, true, List.of()));
+		mvc.perform(get("/api/users/me/withdrawal").header("Authorization", "Bearer " + pair.accessToken()))
+		    .andExpect(status().isOk()).andExpect(jsonPath("userId").value(id.toString()));
+		OffsetDateTime at = OffsetDateTime.now(clock);
+		when(accountLifecycle.request(id)).thenReturn(new WithdrawalReceipt(at, at.plusDays(30)));
+		mvc.perform(post("/api/users/me/withdrawal").header("Authorization", "Bearer " + pair.accessToken())
+		    .contentType(MediaType.APPLICATION_JSON).content("{\"confirmed\":true,\"userId\":\"another-account\"}"))
+		    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+		    .andExpect(header().string("Set-Cookie", containsString("Max-Age=0")));
+		verify(accountLifecycle).request(id);
+	}
+
+	@Test
+	void recoveryOnlyCookieRequiresOriginAndCsrfAndOldDeviceTokensStayInvalidAfterRecovery() throws Exception {
+		UUID id = UUID.fromString("00000000-0000-0000-0000-000000000001");
+		AtomicLong version = new AtomicLong(0);
+		when(users.authenticationVersion(id)).thenAnswer(invocation -> version.get());
+		doAnswer(invocation -> {
+			if (invocation.<Long>getArgument(1) != version.get()) throw new AuthException(AuthErrorCode.SESSION_EXPIRED);
+			return null;
+		}).when(users).verifyAuthenticationVersion(Mockito.eq(id), anyLong());
+		var oldWeb = auth.startSession(id.toString(), ClientType.WEB);
+		var oldApp = auth.startSession(id.toString(), ClientType.APP);
+		version.set(1);
+		for (String access : List.of(oldWeb.accessToken(), oldApp.accessToken())) {
+			mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + access)).andExpect(status().isUnauthorized());
+		}
+		mvc.perform(appRequest(AppAuthController.REFRESH_PATH, oldApp.refreshToken())).andExpect(status().isUnauthorized());
+		when(users.requiresAccountRecovery(id)).thenReturn(true);
+		when(users.recoveryAuthenticationVersion(id)).thenReturn(1L);
+		var recovery = auth.startWebLoginSession(id);
+		assertThat(recovery.recoveryRequired()).isTrue();
+		assertThat(recovery.tokens().refreshExpiresAt()).isEqualTo(clock.instant().plus(Duration.ofMinutes(10)));
+		String csrf = csrfToken(recovery.tokens());
+		OffsetDateTime at = OffsetDateTime.now(clock);
+		when(accountLifecycle.recovery(id, csrf)).thenReturn(new AccountRecoveryResponse("PENDING", "복구 계정", at,
+		    at.plusDays(30), csrf));
+		mvc.perform(get(WebAuthSupport.RECOVERY_PATH).cookie(refreshCookie(recovery.tokens())).header("Origin", ORIGIN))
+		    .andExpect(status().isOk()).andExpect(jsonPath("state").value("PENDING"));
+		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + recovery.tokens().accessToken()))
+		    .andExpect(status().isForbidden()).andExpect(jsonPath("code").value("ACCOUNT_RECOVERY_REQUIRED"));
+		mvc.perform(post(WebAuthSupport.REFRESH_PATH).cookie(refreshCookie(recovery.tokens())).header("Origin", ORIGIN)
+		    .header("X-CSRF-TOKEN", csrf)).andExpect(status().isForbidden());
+		mvc.perform(post(WebAuthSupport.RECOVERY_PATH).cookie(refreshCookie(recovery.tokens())).header("Origin", ORIGIN))
+		    .andExpect(status().isForbidden());
+		mvc.perform(post(WebAuthSupport.RECOVERY_PATH).cookie(refreshCookie(recovery.tokens()))
+		    .header("Origin", "https://untrusted.example.test").header("X-CSRF-TOKEN", csrf)).andExpect(status().isForbidden());
+		var restored = mvc.perform(post(WebAuthSupport.RECOVERY_PATH).cookie(refreshCookie(recovery.tokens()))
+		    .header("Origin", ORIGIN).header("X-CSRF-TOKEN", csrf)).andExpect(status().isNoContent()).andReturn();
+		verify(accountLifecycle).recover(id);
+		String cookieValue = restored.getResponse().getHeader("Set-Cookie").split(";", 2)[0]
+		    .substring(WebAuthSupport.COOKIE_NAME.length() + 1);
+		Cookie cookie = new Cookie(WebAuthSupport.COOKIE_NAME, cookieValue);
+		String csrfBody = mvc.perform(get(WebAuthSupport.CSRF_PATH).cookie(cookie).header("Origin", ORIGIN))
+		    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+		String nextCsrf = mapper.readTree(csrfBody).get("csrfToken").asString();
+		var rotated = mvc.perform(post(WebAuthSupport.REFRESH_PATH).cookie(cookie).header("Origin", ORIGIN)
+		    .header("X-CSRF-TOKEN", nextCsrf)).andExpect(status().isOk()).andReturn().getResponse();
+		String accessBody = rotated.getContentAsString();
+		String access = mapper.readTree(accessBody).get("accessToken").asString();
+		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + access)).andExpect(status().isOk());
+		mvc.perform(get("/api/test/identity").header("Authorization", "Bearer " + oldWeb.accessToken()))
+		    .andExpect(status().isUnauthorized());
+		Cookie rotatedCookie = rotated.getCookie(WebAuthSupport.COOKIE_NAME);
+		mvc.perform(get(WebAuthSupport.RECOVERY_PATH).cookie(rotatedCookie).header("Origin", ORIGIN))
+		    .andExpect(status().isForbidden());
+	}
+
+	@Test
+	void privatePhotoReadAndRemovalRejectRefreshCookieAndUseOnlyBearerAccount() throws Exception {
+		UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+		var pair = auth.startSession(userId.toString(), ClientType.WEB);
+		mvc.perform(get("/api/users/me/profile-image").cookie(refreshCookie(pair)))
+		    .andExpect(status().isUnauthorized());
+		mvc.perform(multipart(HttpMethod.PUT, "/api/users/me/profile").cookie(refreshCookie(pair))
+		    .param("displayName", "이름").param("removeImage", "true")).andExpect(status().isUnauthorized());
+		Mockito.verifyNoInteractions(profileImages);
+		when(profileImages.read(userId)).thenReturn(new byte[] { 1, 2 });
+		mvc.perform(get("/api/users/me/profile-image").header("Authorization", "Bearer " + pair.accessToken())
+		    .param("userId", UUID.randomUUID().toString()).param("v", UUID.randomUUID().toString()))
+		    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"));
+		verify(profileImages).read(userId);
 	}
 
 	@Test

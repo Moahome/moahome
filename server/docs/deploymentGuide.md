@@ -127,6 +127,8 @@ chmod 644 certs/rds-ca.pem
 
 위 복사는 최초 준비 때만 수행합니다. 앱 환경 파일은 Compose raw 형식으로 읽으므로 값을 따옴표로 감싸지 않고 셸에서 `source`하지 않습니다. 필수 키 목록·생성·교체 방식은 [개발 가이드](../../docs/development/developmentGuide.md#server-환경변수)를 참조합니다. 실제 값을 명령줄·Git·로그에 넣지 않습니다.
 
+프로필 사진을 사용할 때는 [S3 환경 설정](../../docs/development/developmentGuide.md#프로필-사진-s3)에 따라 운영 버킷과 런타임 인증을 `.env.prod`에 준비합니다. Mac의 AWS 프로필이나 인증 파일을 이미지에 복사하지 않습니다. 앱은 비공개 버킷의 `profiles/*`만 사용하며 이전 사진 정리의 장애 처리는 [Server 프로필 구현](userProfile.md)을 확인합니다. 예제 파일에 변수를 추가한 것을 운영 서버의 실제 설정·배포 완료로 보지 않습니다.
+
 Redis·Nginx는 로컬 검증에 사용한 digest를 양식과 Compose 기본값에 고정했습니다. 버전을 올릴 때 두 위치를 함께 갱신하고 로컬 통합 검증을 다시 수행합니다. RDS CA는 컨테이너의 비루트 사용자가 읽을 수 있어야 하며 암호화 키·개인키와 달리 공개 인증서입니다.
 
 비공개 GHCR 이미지는 패키지 읽기 권한만 가진 토큰을 사용해 `sudo docker login ghcr.io --username <계정> --password-stdin`으로 로그인합니다. 토큰은 표준입력으로 전달하고 명령 인자로 적지 않습니다. Docker 자격 증명 파일의 권한·토큰 만료도 관리합니다.

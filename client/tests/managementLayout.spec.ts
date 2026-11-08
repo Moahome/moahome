@@ -145,7 +145,7 @@ test('브라우저 등록 기록 없이 DB 목록으로 대시보드에 이동�
   })).toHaveText('모아홈');
   const account = header.getByLabel('임준현님 계정 정보');
   await expect(account).toHaveText('임준현님');
-  await expect(account.locator('img')).toHaveAttribute('src', '/moahomeIcon.svg');
+  await expect(account.locator('img')).toHaveAttribute('src', /\/moahomeIcon\.svg$/);
   await account.click();
   await expect(header.getByRole('button', {
     name: '로그아웃',

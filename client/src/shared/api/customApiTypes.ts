@@ -7,6 +7,7 @@ export interface CustomApiOptions {
   headers?: HeadersInit;
   timeoutMs?: number;
   signal?: AbortSignal;
+  responseType?: 'json' | 'blob';
 }
 
 export interface ApiFieldError {

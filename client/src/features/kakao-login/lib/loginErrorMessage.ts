@@ -4,6 +4,7 @@ const LOGIN_ERROR_MESSAGES: Record<string, string> = {
   OAUTH_PROFILE_INVALID: '카카오 계정 정보를 확인하지 못했어요. 다시 로그인해 주세요.',
   OAUTH_PROVIDER_UNAVAILABLE: '카카오 로그인에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.',
   ACCOUNT_UNAVAILABLE: '현재 이용할 수 없는 계정이에요.',
+  ACCOUNT_RECOVERY_EXPIRED: '30일 유예 기간이 지나 기존 계정을 복구할 수 없습니다. 잠시 후 다시 로그인해주세요.',
   AUTH_SERVICE_UNAVAILABLE: '로그인 서비스를 잠시 이용할 수 없어요. 잠시 후 다시 시도해 주세요.',
   OAUTH_LOGIN_FAILED: '로그인을 완료하지 못했어요. 다시 로그인해 주세요.',
 };

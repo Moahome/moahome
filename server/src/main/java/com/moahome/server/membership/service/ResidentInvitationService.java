@@ -252,6 +252,8 @@ public class ResidentInvitationService {
 	/** 일회용 수락과 계정·주민 권한·승인 출처를 같은 트랜잭션에 반영하며 실패 시 모두 롤백합니다. */
 	private void connect(ResidentInvitation invitation, Resident resident, UUID reviewer) {
 		UUID actor = invitation.getRequestedBy();
+		// 탈퇴 신청과 같은 사용자 잠금으로, 승인 대기 중 바뀐 계정 상태를 놓치지 않습니다.
+		users.requireActiveForUpdate(actor);
 		canConnect(invitation, actor);
 		var at = now();
 		resident.connectApprovedUser(actor, at);

@@ -46,9 +46,12 @@ public class OAuthLoginHandler implements AuthenticationSuccessHandler, Authenti
 				redirectFailure(response, "OAUTH_LOGIN_FAILED");
 				return;
 			}
-			var pair = logins.loginVerified(user.profile(), ClientType.WEB);
+			var result = logins.loginWebVerified(user.profile());
+			var pair = result.tokens();
 			response.addHeader(HttpHeaders.SET_COOKIE, web.refreshCookie(pair.refreshToken(), pair.refreshExpiresAt()));
-			redirect(response, properties.webLoginSuccessUri().toString());
+			redirect(response, result.recoveryRequired()
+			    ? properties.webLoginSuccessUri().resolve("/account/recovery").toString()
+			    : properties.webLoginSuccessUri().toString());
 		} catch (UserException exception) {
 			redirectFailure(response, "ACCOUNT_UNAVAILABLE");
 		} catch (AuthException exception) {

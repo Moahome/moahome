@@ -1,6 +1,7 @@
-import Image from 'next/image';
-import type { CurrentUser } from '@/entities/session';
-import { ServiceIcon } from '@/shared/ui/service-icon';
+import {
+  ProfileAvatar,
+  type CurrentUser
+} from '@/entities/session';
 import styles from './headerAvatar.module.css';
 
 export function HeaderAvatar({
@@ -12,19 +13,9 @@ export function HeaderAvatar({
     <span
       className={styles.avatar}
     >
-      {user.profileImageUrl ? (
-        <Image
-          src={user.profileImageUrl}
-          alt={''}
-          width={44}
-          height={44}
-          unoptimized
-        />
-      ) : (
-        <ServiceIcon
-          name={'person'}
-        />
-      )}
+      <ProfileAvatar
+        imageUrl={user.profileImageUrl}
+      />
     </span>
   );
 }

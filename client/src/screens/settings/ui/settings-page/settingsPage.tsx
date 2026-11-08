@@ -61,6 +61,35 @@ export function SettingsPage({ propertyId }: { propertyId: string }) {
               aria-hidden
             >
               <ServiceIcon
+                name={'person'}
+              />
+            </span>
+            <div
+              className={styles.copy}
+            >
+              <h3>
+                내 정보
+              </h3>
+              <p>
+                프로필을 확인하고 모아홈에서 사용하는 이름을 변경하세요.
+              </p>
+            </div>
+            <Button
+              onClick={() => router.push('/account')}
+            >
+              내 정보
+            </Button>
+          </div>
+        </ListCard>
+        <ListCard>
+          <div
+            className={styles.item}
+          >
+            <span
+              className={styles.icon}
+              aria-hidden
+            >
+              <ServiceIcon
                 name={'home'}
               />
             </span>

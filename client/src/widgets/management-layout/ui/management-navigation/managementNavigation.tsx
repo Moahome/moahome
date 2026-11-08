@@ -4,13 +4,13 @@ import { usePathname } from 'next/navigation';
 import { useId } from 'react';
 import { Button } from '@/shared/ui/button';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import { MANAGEMENT_NAVIGATION } from '../../_constants/managementNavigation';
-import { SidebarDropdown } from './sidebar-dropdown/sidebarDropdown';
-import { SidebarLink } from './sidebar-link/sidebarLink';
-import styles from './managementSidebar.module.css';
+import { MANAGEMENT_NAVIGATION } from '../_constants/managementNavigation';
+import { SidebarDropdown } from '../_components/management-sidebar/sidebar-dropdown/sidebarDropdown';
+import { SidebarLink } from '../_components/management-sidebar/sidebar-link/sidebarLink';
+import styles from './managementNavigation.module.css';
 
 /** 메뉴를 조합하고 PC에서는 맨 아래에 유지되는 아이콘 버튼으로 사이드바를 접고 펼칩니다. */
-export function ManagementSidebar({
+export function ManagementNavigation({
   propertyId,
   onNavigate,
   variant = 'sidebar',

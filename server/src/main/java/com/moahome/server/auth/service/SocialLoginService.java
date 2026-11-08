@@ -29,4 +29,10 @@ public class SocialLoginService {
 		UUID userId = socialAccounts.resolveVerifiedUser(profile);
 		return auth.startSession(userId.toString(), clientType);
 	}
+
+	/** 검증된 동일 소셜 계정만 정상 로그인 또는 복구 전용 로그인으로 분기합니다. */
+	@Transactional(propagation = Propagation.NEVER)
+	public AuthService.WebLoginResult loginWebVerified(VerifiedSocialProfile profile) {
+		return auth.startWebLoginSession(socialAccounts.resolveVerifiedUser(Objects.requireNonNull(profile)));
+	}
 }

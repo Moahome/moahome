@@ -20,5 +20,26 @@ export type {
   WebSession
 } from './model/sessionStoreTypes';
 export {
-  useSession
+  useSession,
+  CURRENT_USER_QUERY_KEY
 } from './model/useSession';
+export {
+  updateCurrentUserDisplayName,
+  saveCurrentUserProfile
+} from './api/currentUserApi';
+export {
+  ProfileAvatar
+} from './ui/profileAvatar';
+export {
+  getWithdrawalStatus,
+  requestAccountWithdrawal,
+  getAccountRecovery,
+  recoverAccount,
+  notifyAccountWithdrawal,
+  subscribeAccountWithdrawal
+} from './api/accountLifecycleApi';
+export type {
+  WithdrawalStatus,
+  WithdrawalReceipt,
+  AccountRecovery
+} from './api/accountLifecycleApiTypes';

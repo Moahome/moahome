@@ -228,10 +228,13 @@ deleted_by
 |---|---|---:|---|
 | `id` | uuid | N | PK |
 | `display_name` | varchar(50) | N | 카카오 닉네임 등 표시명. 공백만 있는 값도 허용하지 않음 |
-| `profile_image_url` | varchar(500) | Y | 프로필 이미지 URL |
+| `profile_image_url` | varchar(500) | Y | 기존 소셜 이미지 URL 또는 본인 사진 API 상대 URL. null은 기본 아이콘. S3 사진은 `/api/users/me/profile-image?v=<UUID>`를 저장하고 계정 ID·버전으로 객체 키를 서버에서 결정 |
 | `system_role` | varchar(20) | N | 플랫폼 역할: `USER / ADMIN`. 기존 계정 / 일반 가입 기본값 `USER`. Entity / 후속 Migration에 구현 |
 | `property_creation_allowed` | boolean | N | 관리대상 생성 허용. 기존·신규 계정 기본 false, 시스템 역할과 독립 |
-| `status` | varchar(20) | N | `ACTIVE / SUSPENDED / WITHDRAWN` |
+| `status` | varchar(20) | N | `ACTIVE / SUSPENDED / WITHDRAWAL_PENDING / WITHDRAWN` |
+| `withdrawal_requested_at` | timestamptz | Y | 탈퇴 유예 신청 시각. 유예 상태에서만 존재 |
+| `withdrawal_expires_at` | timestamptz | Y | 신청 시각 + 720시간. 이 시각부터 복구 불가 |
+| `auth_version` | bigint | N | 기본 0, 음수 불가. 탈퇴 신청·확정 시 증가하며 복구 시 유지 |
 | `last_login_at` | timestamptz | Y | 마지막 로그인 |
 | `created_at` | timestamptz | N | 생성시각 |
 | `updated_at` | timestamptz | N | 수정시각 |
@@ -263,6 +266,12 @@ users 1 : 0..N residents
 
 ---
 
+### 탈퇴 유예 저장 (2026-11-08)
+
+`V20261108055709__support_account_withdrawal_grace_period.sql`은 위 세 컬럼과 상태를 추가합니다. 기존 계정은 인증 버전 0·유예 시각 null로 유지합니다. CHECK는 유예 상태일 때만 두 시각이 존재하고 정확히 720시간 차이가 나도록 제한합니다. 미삭제 유예 계정의 `(withdrawal_expires_at, id)` 부분 인덱스로 만료 대상을 조회합니다. 기존 최종 탈퇴 행은 복구 대상으로 바꾸지 않습니다.
+
+최종 삭제는 사용자 FK를 유지하면서 이름을 비식별 표시로 대체하고 사진·마지막 로그인·권한을 제거합니다. 유예 중 참여는 유지하며, 최종 삭제에서 현재 `property_members`만 종료하고 `member_role_events`에 종료를 기록합니다. 주민 명부·세대 관계·회계 자료는 유지합니다. 상태·보존 기준은 [회원 탈퇴와 복구](domainRules.md#회원-탈퇴와-복구-2026-11-08)를 따릅니다.
+
 ## 4.2 social_accounts
 
 ### 목적
@@ -276,8 +285,8 @@ users 1 : 0..N residents
 | `id` | uuid | N | PK |
 | `user_id` | uuid | N | FK → users.id |
 | `provider` | varchar(20) | N | 현재 `KAKAO` |
-| `provider_user_id` | varchar(255) | N | 외부 Provider 사용자 고유 ID |
-| `provider_email` | varchar(255) | Y | 제공받는 경우만 저장 |
+| `provider_user_id` | varchar(255) | N | 외부 Provider 사용자 고유 ID. 최종 탈퇴에서는 `withdrawn:<소셜 행 UUID>`로 대체하여 원문 제거 |
+| `provider_email` | varchar(255) | Y | 제공받는 경우만 저장. 최종 탈퇴 시 null |
 | `created_at` | timestamptz | N | 생성 |
 | `updated_at` | timestamptz | N | 수정 |
 | `deleted_at` | timestamptz | Y | 소프트 삭제 |

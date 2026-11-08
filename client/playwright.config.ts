@@ -20,11 +20,11 @@ export default defineConfig({
   projects: [
     {
       name: 'api',
-      testMatch: ['accountingAccountsApi.spec.ts', 'payableApi.spec.ts', 'accountLedgerApi.spec.ts', 'incomeStatementApi.spec.ts', 'incomeStatement.spec.ts', 'architecture.spec.ts', 'customApi.spec.ts', 'sessionRestore.spec.ts', 'authenticatedApi.spec.ts', 'feeItems.spec.ts', 'formatter.spec.ts', 'equalSplit.spec.ts', 'calculator.spec.ts', 'residentExport.spec.ts', 'billingModel.spec.ts', 'paymentPreview.spec.ts', 'bankingAllocation.spec.ts', 'monthlySettlement.spec.ts', 'balanceReport.spec.ts', 'monthlyCollectionReport.spec.ts', 'monthRange.spec.ts', 'dashboard.spec.ts']
+      testMatch: ['imageCrop.spec.ts', 'accountingAccountsApi.spec.ts', 'payableApi.spec.ts', 'accountLedgerApi.spec.ts', 'incomeStatementApi.spec.ts', 'incomeStatement.spec.ts', 'architecture.spec.ts', 'customApi.spec.ts', 'sessionRestore.spec.ts', 'authenticatedApi.spec.ts', 'feeItems.spec.ts', 'formatter.spec.ts', 'equalSplit.spec.ts', 'calculator.spec.ts', 'residentExport.spec.ts', 'billingModel.spec.ts', 'paymentPreview.spec.ts', 'bankingAllocation.spec.ts', 'monthlySettlement.spec.ts', 'balanceReport.spec.ts', 'monthlyCollectionReport.spec.ts', 'monthRange.spec.ts', 'dashboard.spec.ts']
     },
     {
       name: 'chromium',
-      testMatch: ['accountingAccountsFlow.spec.ts', 'payableFlow.spec.ts', 'accountLedgerFlow.spec.ts', 'incomeStatementFlow.spec.ts', 'systemAdminFlow.spec.ts', 'reportDownloadFlow.spec.ts', 'authFlow.spec.ts', 'propertyRegistration.spec.ts', 'managementLayout.spec.ts', 'billingFlow.spec.ts', 'paymentFlow.spec.ts', 'onboardingFlow.spec.ts', 'bankingFlow.spec.ts', 'serverConnectionError.spec.ts', 'stateMessages.spec.ts', 'monthlySettlementFlow.spec.ts', 'balanceReportFlow.spec.ts', 'sharePreview.spec.ts', 'pwaFlow.spec.ts', 'monthlyCollectionReportFlow.spec.ts', 'monthRangeFlow.spec.ts', 'dashboardFlow.spec.ts'],
+      testMatch: ['accountLifecycleFlow.spec.ts', 'accountFlow.spec.ts', 'accountingAccountsFlow.spec.ts', 'payableFlow.spec.ts', 'accountLedgerFlow.spec.ts', 'incomeStatementFlow.spec.ts', 'systemAdminFlow.spec.ts', 'reportDownloadFlow.spec.ts', 'authFlow.spec.ts', 'propertyRegistration.spec.ts', 'managementLayout.spec.ts', 'billingFlow.spec.ts', 'paymentFlow.spec.ts', 'onboardingFlow.spec.ts', 'bankingFlow.spec.ts', 'serverConnectionError.spec.ts', 'stateMessages.spec.ts', 'monthlySettlementFlow.spec.ts', 'balanceReportFlow.spec.ts', 'sharePreview.spec.ts', 'pwaFlow.spec.ts', 'monthlyCollectionReportFlow.spec.ts', 'monthRangeFlow.spec.ts', 'dashboardFlow.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
         channel: process.env.PLAYWRIGHT_CHANNEL,

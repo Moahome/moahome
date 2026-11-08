@@ -1,0 +1,105 @@
+.dialog {
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 24px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--card);
+  color: var(--foreground);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+
+  h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 750;
+  }
+}
+
+.description {
+  margin: 12px 0 24px;
+  color: var(--sub-text);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.stage {
+  position: relative;
+  width: min(320px, 100%);
+  aspect-ratio: 1;
+  margin-inline: auto;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--background);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--primary);
+    outline-offset: 4px;
+  }
+}
+
+.image {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  max-width: none;
+  pointer-events: none;
+}
+
+.mask {
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--card);
+  border-radius: 50%;
+  box-shadow: 0 0 0 400px color-mix(in srgb, var(--foreground) 60%, transparent);
+  pointer-events: none;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+
+  label {
+    color: var(--sub-text);
+    font-size: 14px;
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    accent-color: var(--primary);
+  }
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+@media (max-width: 767px) {
+  .dialog {
+    padding: 20px;
+  }
+
+  .actions > button {
+    flex: 1;
+    min-width: 0;
+  }
+}

@@ -8,6 +8,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 public interface PropertyMemberRepository extends JpaRepository<PropertyMember, UUID> {
+	List<PropertyMember> findByUserIdAndDeletedAtIsNull(UUID userId);
+
+	/** 탈퇴와 참여 변경은 대상 잠금 → 사용자 잠금 순서로 직렬화합니다. */
+	@Query("select distinct m.propertyId from PropertyMember m where m.userId = :userId "
+	    + "and m.status = com.moahome.server.membership.domain.PropertyMemberStatus.ACTIVE "
+	    + "and m.endedAt is null and m.deletedAt is null")
+	List<UUID> findCurrentPropertyIds(UUID userId);
 	List<PropertyMember> findByPropertyIdAndDeletedAtIsNull(UUID propertyId);
 
 	List<PropertyMember> findByPropertyIdAndUserIdAndDeletedAtIsNull(UUID propertyId, UUID userId);

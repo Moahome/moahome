@@ -5,13 +5,14 @@ import {
   useQueryClient
 } from '@tanstack/react-query';
 import { logoutSession } from '@/entities/session';
+import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './logoutButton.module.css';
 
 /** 서버 로그아웃 성공 후 사용자 조회 캐시를 비우고 새로운 비로그인 앱 상태로 이동합니다. */
 export function LogoutButton({
   variant = 'button',
 }: {
-  variant?: 'button' | 'menu';
+  variant?: 'button' | 'menu' | 'profile';
 }) {
   const queryClient = useQueryClient();
   const logout = useMutation({
@@ -36,6 +37,12 @@ export function LogoutButton({
         aria-busy={logout.isPending}
         onClick={() => logout.mutate()}
       >
+        {variant === 'profile' && (
+          <ServiceIcon
+            name={'arrow'}
+            size={16}
+          />
+        )}
         {logout.isPending ? '로그아웃 중…' : '로그아웃'}
       </button>
       {logout.isError && (

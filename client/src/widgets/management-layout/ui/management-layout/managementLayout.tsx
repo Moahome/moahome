@@ -17,8 +17,8 @@ import { usePathname } from 'next/navigation';
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { usePreservedWorkspace } from '@/shared/lib/preserved-workspace';
 import { FloatingCalculator } from '@/shared/ui/amount-calculator';
-import { ManagementAccessState } from './_components/management-access-state/managementAccessState';
-import { ManagementSidebar } from './_components/management-sidebar/managementSidebar';
+import { ManagementAccessState } from '../_components/management-access-state/managementAccessState';
+import { ManagementNavigation } from '../management-navigation/managementNavigation';
 import styles from './managementLayout.module.css';
 
 type HeaderSlots = {
@@ -193,7 +193,7 @@ function ManagementFrame({
         {header({
           mobileContent: (onNavigate) => (
             <>
-              <ManagementSidebar
+              <ManagementNavigation
                 propertyId={propertyId}
                 onNavigate={onNavigate}
                 variant={'drawer'}
@@ -209,7 +209,7 @@ function ManagementFrame({
         <aside
           className={styles.sidebar}
         >
-          <ManagementSidebar
+          <ManagementNavigation
             propertyId={propertyId}
             collapsed={sidebarCollapsed}
             onToggle={() => setSidebarCollapsed((previous) => !previous)}
