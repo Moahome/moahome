@@ -1083,24 +1083,13 @@ test('시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
     name: '주민으로 참여하기',
     exact: true
   }).click();
-  // 현재 설계는 PC의 같은 화면 모달과 모바일의 독립 가입 경로를 구분합니다.
-  await expect(page).toHaveURL(/\/start$/);
-  const invitation = page.getByRole('dialog', {
-    name: '초대코드로 참여하기',
-    exact: true
-  });
-  await expect(invitation.getByRole('textbox', {
+  await expect(page).toHaveURL('/properties');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByRole('textbox', {
     name: '초대코드',
     exact: true
   })).toBeVisible();
-  await test.info().attach('PC 주민 참여 모달', {
-    body: await page.screenshot(),
-    contentType: 'image/png'
-  });
-  await invitation.getByRole('button', {
-    name: '초대코드 입력 닫기',
-    exact: true
-  }).click();
+  await page.goBack();
   await page.getByRole('button', {
     name: /^승인 대기 중인 요청/
   }).click();
@@ -1131,7 +1120,7 @@ test('시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
     name: '주민으로 참여하기',
     exact: true
   }).click();
-  await expect(page).toHaveURL(/\/join$/);
+  await expect(page).toHaveURL('/properties');
   await expect(page.getByRole('textbox', {
     name: '초대코드',
     exact: true

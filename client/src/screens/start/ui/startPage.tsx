@@ -10,7 +10,10 @@ import {
   useState
 } from 'react';
 import { useSession } from '@/entities/session';
-import { getManagementDashboardPath } from '@/entities/property';
+import {
+  canShowPropertyCreation,
+  getManagementDashboardPath
+} from '@/entities/property';
 import {
   PropertyRegistrationFlow,
   hasPendingRegistration
@@ -19,10 +22,6 @@ import {
   useManagementEntry,
   useResidentProperties
 } from '@/features/enter-service';
-import { InvitationCodeForm } from '@/features/member-management';
-import { ClientModal } from '@/shared/ui/client-modal';
-import { Button } from '@/shared/ui/button';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import { ApiError } from '@/shared/api';
 import { NeighborhoodIllustration } from '@/shared/ui/neighborhood-illustration';
 import { ServiceHeader } from '@/widgets/service-header';
@@ -37,14 +36,12 @@ import motion from './startMotion.module.css';
 
 /** 세션을 확인하고 명시적 추가 진입에서는 기존 관리대상으로의 자동 이동을 생략합니다. */
 export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional' }) {
-  const [invitationOpen, setInvitationOpen] = useState(false);
-  const [invitationBusy, setInvitationBusy] = useState(false);
-  const invitationTitleRef = useRef<HTMLHeadingElement>(null);
   const additional = mode === 'additional';
   const entryPath = additional ? '/properties/add' : '/start';
   const session = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const canCreateProperty = canShowPropertyCreation(session.data?.canCreateProperty ?? false, searchParams.get('creationPreview'));
   const requestedRegistration = searchParams.get('registration');
   const registration = requestedRegistration === 'administrator' ? 'units' : requestedRegistration;
   const completionRequestId = searchParams.get('requestId');
@@ -133,7 +130,7 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
       showNotice('권한 확인 실패', '잠시 후 다시 시도해주세요.');
       return;
     }
-    if (!latest.data.canCreateProperty) {
+    if (!canShowPropertyCreation(latest.data.canCreateProperty, searchParams.get('creationPreview'))) {
       showNotice('생성 권한이 필요합니다.', '시스템 관리자에게 생성 권한을 부여받아주세요.');
       return;
     }
@@ -188,7 +185,7 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
           onNotify={() => showNotice('알림', '알림 기능을 준비하고 있어요.')}
         />
       </div>
-      {registrationStep && registrationStep !== 'complete' && !hasPendingSubmission && !session.data.canCreateProperty && (
+      {registrationStep && registrationStep !== 'complete' && !hasPendingSubmission && !canCreateProperty && (
         <main
           className={styles.main}
         >
@@ -199,7 +196,7 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
           />
         </main>
       )}
-      {registrationStep && (registrationStep === 'complete' || hasPendingSubmission || session.data.canCreateProperty) && (
+      {registrationStep && (registrationStep === 'complete' || hasPendingSubmission || canCreateProperty) && (
         <PropertyRegistrationFlow
           key={session.data.id}
           userId={session.data.id}
@@ -218,25 +215,22 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
         >
           <StartIntro
             additional={additional}
+            canCreateProperty={canCreateProperty}
           />
           <div
             className={styles['start-options']}
+            data-can-create={canCreateProperty}
           >
-            <StartCard
-              kind={'create'}
-              onSelect={() => void startCreation()}
-            />
+            {canCreateProperty && (
+              <StartCard
+                kind={'create'}
+                onSelect={() => void startCreation()}
+              />
+            )}
             <StartCard
               kind={'join'}
               invitation={additional}
-              onSelect={() => {
-                // 최초 시작과 추가 참여 모두 PC에서는 현재 화면의 공통 모달을 엽니다.
-                if (!window.matchMedia('(max-width: 767px)').matches) {
-                  setInvitationOpen(true);
-                  return;
-                }
-                router.push(additional ? '/invitations' : '/join');
-              }}
+              onSelect={() => router.push('/properties')}
             />
           </div>
           <PendingRequestCard
@@ -259,41 +253,6 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
       >
         우리의 공간이 더 특별해지는, 모아홈
       </footer>
-      {invitationOpen && (
-        <ClientModal
-          className={styles['invitation-modal']}
-          aria-labelledby={'invitation-modal-title'}
-          initialFocusRef={invitationTitleRef}
-          busy={invitationBusy}
-          onClose={() => setInvitationOpen(false)}
-        >
-          <header>
-            <h2
-              id={'invitation-modal-title'}
-              ref={invitationTitleRef}
-              tabIndex={-1}
-            >
-              초대코드로 참여하기
-            </h2>
-            <Button
-              variant={'ghost'}
-              iconOnly
-              aria-label={'초대코드 입력 닫기'}
-              disabled={invitationBusy}
-              onClick={() => setInvitationOpen(false)}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'close'}
-                />
-              )}
-            />
-          </header>
-          <InvitationCodeForm
-            onBusyChange={setInvitationBusy}
-            onComplete={() => setInvitationOpen(false)}
-          />
-        </ClientModal>
-      )}
       <NoticeDialog
         dialogRef={dialogRef}
         title={notice.title}

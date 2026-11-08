@@ -1,9 +1,13 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import {
+  useRouter,
+  useSearchParams
+} from 'next/navigation';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSession } from '@/entities/session';
+import { canShowPropertyCreation } from '@/entities/property';
 import {
   clearPropertyQueries,
   forgetRecentProperty,
@@ -17,6 +21,7 @@ import { ListHeader } from '@/shared/ui/list-header';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { Toast } from '@/shared/ui/toast';
 import { BankAccountEditor } from '../_components/bank-account-editor/bankAccountEditor';
+import { ParticipatingProperties } from '../_components/participating-properties/participatingProperties';
 import styles from './settingsPage.module.css';
 
 /** 현재 역할에 맞는 설정과 본인의 나가기 흐름을 조합합니다. */
@@ -24,8 +29,11 @@ export function SettingsPage({ propertyId }: { propertyId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const session = useSession();
+  const params = useSearchParams();
+  const canCreateProperty = canShowPropertyCreation(session.data?.canCreateProperty ?? false, params.get('creationPreview'));
   const context = useManagementContext(session.data?.id, propertyId, false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
   const [saved, setSaved] = useState(false);
 
   return (
@@ -53,26 +61,63 @@ export function SettingsPage({ propertyId }: { propertyId: string }) {
               aria-hidden
             >
               <ServiceIcon
-                name={'building'}
+                name={'home'}
               />
             </span>
             <div
               className={styles.copy}
             >
               <h3>
-                빌라·공동주택 등록 및 참여
+                참여 중인 곳
               </h3>
               <p>
-                새로운 빌라·공동주택을 등록하거나 주민으로 참여하세요.
+                초대코드로 참여하거나 참여 중인 곳을 선택하세요.
               </p>
             </div>
             <Button
-              onClick={() => router.push('/properties/add')}
+              onClick={() => {
+                if (window.matchMedia('(max-width: 767px)').matches) {
+                  router.push(`/properties?propertyId=${propertyId}`);
+                  return;
+                }
+                setPropertiesOpen(true);
+              }}
             >
-              등록 및 참여
+              참여 중인 곳
             </Button>
           </div>
         </ListCard>
+        {canCreateProperty && (
+          <ListCard>
+            <div
+              className={styles.item}
+            >
+              <span
+                className={styles.icon}
+                aria-hidden
+              >
+                <ServiceIcon
+                  name={'building'}
+                />
+              </span>
+              <div
+                className={styles.copy}
+              >
+                <h3>
+                  빌라·공동주택 등록
+                </h3>
+                <p>
+                  새로운 빌라·공동주택을 등록하고 관리를 시작하세요.
+                </p>
+              </div>
+              <Button
+                onClick={() => router.push('/properties/add?registration=basic')}
+              >
+                관리할 곳 만들기
+              </Button>
+            </div>
+          </ListCard>
+        )}
         {context.data && context.data.role !== 'RESIDENT' && (
           <ListCard>
             <div
@@ -153,6 +198,13 @@ export function SettingsPage({ propertyId }: { propertyId: string }) {
           </ListCard>
         )}
       </section>
+      {propertiesOpen && session.data && (
+        <ParticipatingProperties
+          userId={session.data.id}
+          currentPropertyId={propertyId}
+          onClose={() => setPropertiesOpen(false)}
+        />
+      )}
       {accountOpen && (
         <BankAccountEditor
           propertyId={propertyId}

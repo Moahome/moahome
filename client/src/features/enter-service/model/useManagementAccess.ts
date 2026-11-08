@@ -8,6 +8,7 @@ import {
 import {
   getManagedProperties,
   getResidentProperties,
+  getParticipatingProperties,
   getPropertyAccessContext
 } from '../api/managementAccessApi';
 import {
@@ -58,6 +59,17 @@ export function useResidentProperties(userId: string | undefined, enabled = true
     queryKey: ['resident-properties', userId],
     enabled: Boolean(userId) && enabled,
     queryFn: ({ signal }) => getResidentProperties(signal),
+    gcTime: 0
+  });
+}
+
+/** 모달을 열 때마다 본인 계정의 현재 관리자·주민 참여를 함께 확인합니다. 닫힌 목록은 보관하지 않습니다. */
+export function useParticipatingProperties(userId: string | undefined) {
+  return useQuery({
+    ...FRESH_ACCESS_QUERY_OPTIONS,
+    queryKey: ['participating-properties', userId],
+    enabled: Boolean(userId),
+    queryFn: ({ signal }) => getParticipatingProperties(signal),
     gcTime: 0
   });
 }

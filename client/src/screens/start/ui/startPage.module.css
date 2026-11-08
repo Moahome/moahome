@@ -37,6 +37,12 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
   margin-top: 36px;
+
+  &[data-can-create='false'] {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 440px;
+    margin-inline: auto;
+  }
 }
 
 .background-left,
@@ -123,36 +129,5 @@
   .background-left svg,
   .background-right svg {
     animation: none;
-  }
-}
-
-.invitation-modal {
-  width: min(560px, calc(100% - 32px));
-  max-height: calc(100dvh - 48px);
-  margin: auto;
-  padding: 28px;
-  overflow-y: auto;
-  color: var(--foreground);
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-
-  &::backdrop {
-    background: color-mix(in srgb, var(--foreground) 40%, transparent);
-  }
-
-  > header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 24px;
-
-    h2 {
-      margin: 0;
-      font-size: 24px;
-      font-weight: 750;
-      outline: none;
-    }
   }
 }

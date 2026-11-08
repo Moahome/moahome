@@ -232,19 +232,10 @@ test('일반 회원은 관리자 자료와 생성 화면에 접근하지 못하�
     exact: true
   })).toBeVisible();
   await page.goto('/start');
-  await page.getByRole('button', {
+  await expect(page.getByRole('button', {
     name: '관리할 곳 만들기',
     exact: true
-  }).click();
-  await expect(page.getByRole('dialog', {
-    name: '생성 권한이 필요합니다.',
-    exact: true
-  })).toBeVisible();
-  await expect(page).toHaveURL('/start');
-  await page.getByRole('dialog').getByRole('button', {
-    name: '확인',
-    exact: true
-  }).click();
+  })).toHaveCount(0);
   await expect(page.getByRole('button', {
     name: '주민으로 참여하기',
     exact: true
