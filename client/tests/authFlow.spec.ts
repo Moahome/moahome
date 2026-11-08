@@ -1136,10 +1136,17 @@ test('시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
   await page.getByRole('button', {
     name: '모아 주민님 메뉴 열기'
   }).click();
-  await expect(page.getByRole('dialog', {
+  const mobileMenu = page.getByRole('dialog', {
     name: '메뉴',
     exact: true
-  }).getByText('모아홈에 오신 것을 환영해요.')).toBeVisible();
+  });
+  await expect(mobileMenu.getByText('모아 주민님', {
+    exact: true
+  })).toBeVisible();
+  await expect(mobileMenu.getByRole('link', {
+    name: '내 정보',
+    exact: true
+  })).toHaveAttribute('href', '/account');
   // 생성 진입 때 최신 권한을 다시 확인하고 주민 참여에는 추가 조회를 요구하지 않습니다.
   expect(requests).toEqual(['csrf', 'refresh', 'me', 'me']);
 });
