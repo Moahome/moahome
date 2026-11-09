@@ -42,7 +42,7 @@ async function downloadExcel(page: Page) {
 }
 
 for (const width of [1440, 390]) {
-  test(`정산 현황 ${width}px는 회계 메뉴·기존 집계·Excel·조회 월 이동을 제공`, async ({ page }, testInfo) => {
+  test(`정산 현황 ${width}px는 회계 메뉴·기존 집계·Excel·조회 월 이동을 제공`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -124,10 +124,6 @@ for (const width of [1440, 390]) {
       expect(sizeBox!.y + sizeBox!.height).toBeLessThan(tableBox!.y);
       await expect(page.getByRole('contentinfo').getByRole('combobox')).toHaveCount(0);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-      await page.screenshot({
-        path: testInfo.outputPath(`monthly-settlement-${width}-${name}.png`),
-        fullPage: true
-      });
     }
     const statusBox = await page.getByRole('combobox', {
       name: '납부 상태'
@@ -229,10 +225,6 @@ for (const width of [1440, 390]) {
       name: '월별 수납 현황',
       exact: true
     }).last()).toHaveAttribute('href', `/manage/${SETTLEMENT_PROPERTY}/banking/monthly?month=2026-10`);
-    await page.screenshot({
-      path: testInfo.outputPath(`monthly-settlement-${width}.png`),
-      fullPage: true
-    });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.getByRole('button', {
       name: '조회 월: 2026년 10월',
@@ -533,9 +525,6 @@ for (const width of [1440, 390]) {
       exact: true
     })).toHaveCount(0);
     await expect(modal.getByText('지난달 부담금')).toHaveCount(0);
-    await page.screenshot({
-      path: testInfo.outputPath(`monthly-preview-${width}.png`)
-    });
     await modal.getByRole('radio', {
       name: 'PDF',
       exact: true
@@ -615,9 +604,6 @@ for (const width of [1440, 390]) {
     const files = unzipSync(await readFile((await zip.path())!));
     expect(Object.keys(files)).toHaveLength(3);
     for (const bytes of Object.values(files)) expect([...bytes.subarray(0, 8)]).toEqual([137, 80, 78, 71, 13, 10, 26, 10]);
-    await page.screenshot({
-      path: testInfo.outputPath(`monthly-image-${width}.png`)
-    });
     await closeReportPreview(page);
     await expect(modal).toHaveCount(0);
   });
@@ -626,7 +612,7 @@ for (const width of [1440, 390]) {
 for (const [path, title] of [
   ['accounts', '계정과목 설정']
 ]) {
-  test(`${title} 메뉴는 실제 과목 목록을 표시하고 새로고침에도 선택을 유지`, async ({ page }, testInfo) => {
+  test(`${title} 메뉴는 실제 과목 목록을 표시하고 새로고침에도 선택을 유지`, async ({ page }) => {
     await mockSettlement(page);
     await mockAccountingAccounts(page);
     await page.goto(`${BASE}?month=2026-10`);
@@ -651,11 +637,6 @@ for (const [path, title] of [
       name: '회계·정산',
       exact: true
     })).toHaveAttribute('aria-expanded', 'true');
-    await page.screenshot({
-      path: testInfo.outputPath(`accounting-${path}.png`),
-      animations: 'disabled',
-      fullPage: true
-    });
   });
 }
 

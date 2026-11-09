@@ -114,7 +114,7 @@ async function mockSystemAdmin(page: Page, options: { ordinary?: boolean; failFi
   };
 }
 
-test('시스템 회원 관리 PC는 검색·권한 확인·실패 재시도·관리자 목록을 지원', async ({ page }, testInfo) => {
+test('시스템 회원 관리 PC는 검색·권한 확인·실패 재시도·관리자 목록을 지원', async ({ page }) => {
   const api = await mockSystemAdmin(page, {
     failFirst: true
   });
@@ -183,10 +183,6 @@ test('시스템 회원 관리 PC는 검색·권한 확인·실패 재시도·관
     exact: true
   })).toBeVisible();
   expect(api.commands[1]).toEqual(api.commands[0]);
-  await page.screenshot({
-    path: testInfo.outputPath('system-admin-member-desktop.png'),
-    fullPage: true
-  });
   await detail.getByRole('button', {
     name: '시스템 관리자 승격',
     exact: true
@@ -242,7 +238,7 @@ test('일반 회원은 관리자 자료와 생성 화면에 접근하지 못하�
   })).toBeEnabled();
 });
 
-test('시스템 관리자도 생성 자동 허용 없이 모바일 상세에서 승격·회수와 실제 뒤로가기를 지원', async ({ page }, testInfo) => {
+test('시스템 관리자도 생성 자동 허용 없이 모바일 상세에서 승격·회수와 실제 뒤로가기를 지원', async ({ page }) => {
   await mockSystemAdmin(page);
   await page.setViewportSize({
     width: 390,
@@ -283,10 +279,6 @@ test('시스템 관리자도 생성 자동 허용 없이 모바일 상세에서 
     name: '시스템 관리자 승격',
     exact: true
   })).toHaveCount(0);
-  await page.screenshot({
-    path: testInfo.outputPath('system-admin-member-mobile.png'),
-    fullPage: true
-  });
   await page.getByRole('link', {
     name: '뒤로가기',
     exact: true

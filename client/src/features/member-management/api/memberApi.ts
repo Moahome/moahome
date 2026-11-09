@@ -10,7 +10,7 @@ import type {
 
 export const MEMBER_ROLE_LABELS: Record<MemberRole, string> = {
   ADMIN: '관리소장',
-  MANAGER: '부담당자',
+  MANAGER: '동대표',
   RESIDENT: '주민'
 };
 function read(value: MemberWorkspace, property: string) {

@@ -157,7 +157,7 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
     })).toHaveCount(0);
   });
 
-  test('파일 검증 로딩은 중복 업로드를 막고 성공 응답 후 미리보기로 전환', async ({ page }, testInfo) => {
+  test('파일 검증 로딩은 중복 업로드를 막고 성공 응답 후 미리보기로 전환', async ({ page }) => {
     await page.setViewportSize({
       width: 320,
       height: 900
@@ -229,10 +229,6 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
         dataTransfer: data
       }));
     });
-    await page.screenshot({
-      path: testInfo.outputPath('uploadLoading-320.png'),
-      fullPage: true
-    });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     finish();
     await expect(page.getByRole('heading', {
@@ -244,7 +240,7 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
   });
 
   for (const width of [1440, 320]) {
-    test(`메뉴 로딩 통일 ${width}px는 조회 중 큰 캐릭터를 중앙에 표시하고 추가 테두리 없이 실패 상태로 전환`, async ({ page }, testInfo) => {
+    test(`메뉴 로딩 통일 ${width}px는 조회 중 큰 캐릭터를 중앙에 표시하고 추가 테두리 없이 실패 상태로 전환`, async ({ page }) => {
       await page.setViewportSize({
         width,
         height: 1000
@@ -289,17 +285,13 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
         const bounds = await image.boundingBox();
         expect(bounds?.width).toBeGreaterThan(width >= 1000 ? 390 : 150);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-        await page.screenshot({
-          path: testInfo.outputPath(`loading-${path.replaceAll('/', '-')}-${width}.png`),
-          fullPage: true
-        });
         finish();
         await expect(page.getByRole('main').getByRole('alert').first()).toBeVisible();
         await expect(page.locator('img[data-state="loading"]')).toHaveCount(0);
       }
     });
 
-    test(`로딩 안내 ${width}px는 짧은 회전 표시 뒤 캐릭터를 보여주고 조회 완료 시 빈 목록으로 전환`, async ({ page }, testInfo) => {
+    test(`로딩 안내 ${width}px는 짧은 회전 표시 뒤 캐릭터를 보여주고 조회 완료 시 빈 목록으로 전환`, async ({ page }) => {
       await page.setViewportSize({
         width,
         height: 900
@@ -339,10 +331,6 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
       await expect(image).not.toHaveCSS('animation-name', 'none');
       await expect(loading.locator('span[aria-hidden="true"]')).not.toHaveCSS('animation-name', 'none');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-      await page.screenshot({
-        path: testInfo.outputPath(`loading-${width}.png`),
-        fullPage: true
-      });
       await page.emulateMedia({
         reducedMotion: 'reduce'
       });
@@ -355,7 +343,7 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
       await expect(page.locator('img[data-state="loading"]')).toHaveCount(0);
     });
 
-    test(`404 안내 ${width}px는 잘못된 URL에 지도 그림과 홈 링크를 제공`, async ({ page }, testInfo) => {
+    test(`404 안내 ${width}px는 잘못된 URL에 지도 그림과 홈 링크를 제공`, async ({ page }) => {
       await page.setViewportSize({
         width,
         height: 900
@@ -380,10 +368,6 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
         exact: true
       })).toHaveCSS('text-decoration-line', 'underline');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-      await page.screenshot({
-        path: testInfo.outputPath(`notFound-${width}.png`),
-        fullPage: true
-      });
     });
 
     test(`로그인 필요 ${width}px는 초대 정보를 조회하지 않고 기존 로그인·재확인 동작을 표시`, async ({ page }) => {
@@ -416,7 +400,7 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     });
 
-    test(`업로드 안내 ${width}px는 파일 선택 전 그림을 표시하고 지원 통장 확인을 우회하지 않음`, async ({ page }, testInfo) => {
+    test(`업로드 안내 ${width}px는 파일 선택 전 그림을 표시하고 지원 통장 확인을 우회하지 않음`, async ({ page }) => {
       await page.setViewportSize({
         width,
         height: 900
@@ -430,13 +414,9 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
         name: '파일 선택'
       })).toBeDisabled();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-      await page.screenshot({
-        path: testInfo.outputPath(`fileUpload-${width}.png`),
-        fullPage: true
-      });
     });
 
-    test(`빈 목록·검색 결과 없음 ${width}px는 그림을 구분하고 조건을 유지하며 불필요한 재조회·저장 없음`, async ({ page }, testInfo) => {
+    test(`빈 목록·검색 결과 없음 ${width}px는 그림을 구분하고 조건을 유지하며 불필요한 재조회·저장 없음`, async ({ page }) => {
       await page.setViewportSize({
         width,
         height: 900
@@ -470,10 +450,6 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
         await expect(search).toHaveValue('없는검색어');
         await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-        if (path === 'residents') await page.screenshot({
-          path: testInfo.outputPath(`noResults-${width}.png`),
-          fullPage: true
-        });
         await search.fill('');
         await expect(empty).toBeVisible();
         expect(reads).toBe(baselineReads);
@@ -482,7 +458,7 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
       }
     });
 
-    test(`대시보드 ${width}px에서 준비 중 공지·차량 메뉴로 이동하고 모바일 메뉴를 닫음`, async ({ page }, testInfo) => {
+    test(`대시보드 ${width}px에서 준비 중 공지·차량 메뉴로 이동하고 모바일 메뉴를 닫음`, async ({ page }) => {
       await page.setViewportSize({
         width,
         height: 900
@@ -524,10 +500,6 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
         if (width < 768) await expect(navigation).toBeHidden();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       }
-      await page.screenshot({
-        path: testInfo.outputPath(`comingSoon-${width}.png`),
-        fullPage: true
-      });
     });
   }
 }

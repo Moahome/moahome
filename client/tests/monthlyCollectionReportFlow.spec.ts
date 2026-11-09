@@ -311,7 +311,7 @@ function reportFixture() {
 }
 
 for (const width of [1440, 390]) {
-  test(`${width}px 월별 수납은 빌라 이름으로 Excel·가로 PDF·전체 PNG 미리보기와 다운로드를 제공`, async ({ page }, testInfo) => {
+  test(`${width}px 월별 수납은 빌라 이름으로 Excel·가로 PDF·전체 PNG 미리보기와 다운로드를 제공`, async ({ page }) => {
     test.setTimeout(60000);
     await page.setViewportSize({
       width,
@@ -342,9 +342,6 @@ for (const width of [1440, 390]) {
     expect(buttonBox!.y).toBeGreaterThanOrEqual(filterBox!.y + filterBox!.height);
     expect(buttonBox!.y + buttonBox!.height).toBeLessThanOrEqual(tableBox!.y);
     expect(buttonBox!.x + buttonBox!.width).toBeLessThanOrEqual(editBox!.x);
-    await page.screenshot({
-      path: testInfo.outputPath(`monthly-toolbar-${width}.png`)
-    });
     await opener.click();
     const modal = reportPreview(page);
     await expect(modal.getByRole('heading', {
@@ -355,9 +352,6 @@ for (const width of [1440, 390]) {
       exact: true,
     })).toBeVisible();
     expect(await modal.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-    await page.screenshot({
-      path: testInfo.outputPath(`monthly-excel-${width}.png`),
-    });
 
     const excelReady = page.waitForEvent('download');
     await modal.getByRole('button', {
@@ -417,9 +411,6 @@ for (const width of [1440, 390]) {
       exact: true
     })).toBeVisible({
       timeout: 30000
-    });
-    await page.screenshot({
-      path: testInfo.outputPath(`monthly-image-${width}.png`),
     });
     const zipReady = page.waitForEvent('download');
     await modal.getByRole('button', {
@@ -758,11 +749,6 @@ for (const width of [1440, 390]) {
       behavior: 'instant'
     }));
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
-    await page.screenshot({
-      path: `/tmp/moahome-monthly-selection-${width}.png`,
-      fullPage: true,
-      animations: 'disabled'
-    });
     await downloadButton.click();
     const modal = reportPreview(page);
     for (const label of ['102동 201호', '102동 202호', '102동 212호']) await expect(modal.getByText(label, {
@@ -772,10 +758,6 @@ for (const width of [1440, 390]) {
       exact: true
     })).toHaveCount(0);
     await expect(modal).toContainText('선택 3세대');
-    await modal.screenshot({
-      path: `/tmp/moahome-monthly-selection-report-${width}.png`,
-      animations: 'disabled'
-    });
     const excelReady = page.waitForEvent('download');
     await modal.getByRole('button', {
       name: 'Excel 다운로드',

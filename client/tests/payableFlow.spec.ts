@@ -18,7 +18,7 @@ const MONTH = getCurrentMonth();
 const ORIGIN = `${LEDGER}?startMonth=${MONTH}&endMonth=${MONTH}&account=${LEDGER_PAYABLE}`;
 
 for (const width of [1440, 390]) {
-  test(`${width}px 미지급 등록·부분 지급·해제는 원본을 보존하고 202 원장에 반영한다`, async ({ page }, testInfo) => {
+  test(`${width}px 미지급 등록·부분 지급·해제는 원본을 보존하고 202 원장에 반영한다`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 1000
@@ -92,10 +92,6 @@ for (const width of [1440, 390]) {
     await expect(page.getByText('지급 완료', {
       exact: true
     })).toBeVisible();
-    await page.screenshot({
-      path: testInfo.outputPath(`payable-paid-${width}.png`),
-      fullPage: true
-    });
     await page.goto(ORIGIN);
     await expect(page.getByRole('button', {
       name: '미지급 등록',

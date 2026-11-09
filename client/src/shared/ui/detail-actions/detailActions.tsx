@@ -1,7 +1,7 @@
 import { Button } from '@/shared/ui/button';
 import styles from './detailActions.module.css';
 
-/** 모바일 상세는 헤더 뒤로가기로 복귀하며 푸터에는 수정·삭제만 남깁니다. 모달은 닫기도 제공합니다. */
+/** 상세의 수정·삭제를 제공하며 모달의 하단 닫기는 호출 화면에서 생략할 수 있습니다. */
 export function DetailActions({
   onClose,
   onEdit,
@@ -9,6 +9,7 @@ export function DetailActions({
   busy = false,
   editDisabled = false,
   presentation = 'modal',
+  showClose = true,
 }: {
   onClose: () => void;
   onEdit: () => void;
@@ -16,13 +17,14 @@ export function DetailActions({
   busy?: boolean;
   editDisabled?: boolean;
   presentation?: 'modal' | 'page';
+  showClose?: boolean;
 }) {
   return (
     <footer
       className={styles.actions}
       data-presentation={presentation}
     >
-      {presentation === 'modal' && (
+      {presentation === 'modal' && showClose && (
         <Button
           variant={'outline'}
           tone={'neutral'}

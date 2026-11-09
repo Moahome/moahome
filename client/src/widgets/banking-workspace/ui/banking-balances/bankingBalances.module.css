@@ -750,10 +750,6 @@
   line-height: 1.7;
 }
 
-.account-control {
-  min-height: 50px;
-}
-
 .query-controls {
   label {
     font-size: 13px;

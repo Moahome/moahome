@@ -198,11 +198,6 @@ test('브라우저 등록 기록 없이 DB 목록으로 대시보드에 이동�
   await expect(navigation.getByText('통장 거래', {
     exact: true
   })).toBeVisible();
-  await page.screenshot({
-    path: test.info().outputPath('managementDesktop.png'),
-    fullPage: true,
-    animations: 'disabled'
-  });
   expect(await page.evaluate((key) => localStorage.getItem(key), REFERENCE_KEY)).toBe(PROPERTY_ID);
 });
 
@@ -346,65 +341,65 @@ test('다른 계정은 이전 사용자의 최근 선택과 이름을 표시하�
   expect(lookups).toBe(0);
 });
 
-for (const width of [320, 767]) {
-  test(`모바일 ${width}px 메뉴의 닫기·Escape·배경 클릭과 포커스·스크롤 복원`, async ({ page }) => {
-    await page.setViewportSize({
-      width,
-      height: 844
-    });
-    await page.goto(DASHBOARD);
-    await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
-    const opener = page.getByRole('button', {
-      name: '임준현님 메뉴 열기',
-      exact: true
-    });
-    const drawer = page.getByRole('dialog', {
-      name: '메뉴',
-      exact: true
-    });
-    await opener.click();
-    await expect(drawer).toBeVisible();
-    await expect(drawer.getByRole('combobox')).toHaveCount(0);
-    await expect(page.getByRole('button', {
-      name: '관리 메뉴 열기',
-      exact: true
-    })).toHaveCount(0);
-    await drawer.getByRole('button', {
-      name: '세대 관리',
-      exact: true
-    }).click();
-    await expect(drawer.getByText('세대 목록', {
-      exact: true
-    })).toBeVisible();
-    await expect.poll(() => drawer.locator('img').evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`managementMobile${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
-    await page.keyboard.press('Escape');
-    await expect(drawer).not.toBeVisible();
-    await expect(opener).toBeFocused();
-    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe('');
-    await opener.click();
-    await page.mouse.click(3, 250);
-    await expect(drawer).not.toBeVisible();
-    await opener.click();
-    await drawer.getByRole('button', {
-      name: '메뉴 닫기',
-      exact: true
-    }).click();
-    await expect(drawer).not.toBeVisible();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await opener.click();
-    await page.setViewportSize({
-      width: 1440,
-      height: 960
-    });
-    await expect(drawer).not.toBeVisible();
-    await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe('');
+test('모바일 메뉴의 닫기·Escape·배경 클릭과 포커스·스크롤 복원·PC 경계 전환', async ({ page }) => {
+  await page.setViewportSize({
+    width: 320,
+    height: 844
   });
-}
+  await page.goto(DASHBOARD);
+  await expect(page.getByRole('main')).toContainText('관리 현황을 한눈에 확인하세요.');
+  const opener = page.getByRole('button', {
+    name: '임준현님 메뉴 열기',
+    exact: true
+  });
+  const drawer = page.getByRole('dialog', {
+    name: '메뉴',
+    exact: true
+  });
+  await opener.click();
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole('combobox')).toHaveCount(0);
+  await expect(page.getByRole('button', {
+    name: '관리 메뉴 열기',
+    exact: true
+  })).toHaveCount(0);
+  await drawer.getByRole('button', {
+    name: '세대 관리',
+    exact: true
+  }).click();
+  await expect(drawer.getByText('세대 목록', {
+    exact: true
+  })).toBeVisible();
+  await expect.poll(() => drawer.locator('img').evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(drawer).not.toBeVisible();
+  await expect(opener).toBeFocused();
+  await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe('');
+  await opener.click();
+  await page.mouse.click(3, 250);
+  await expect(drawer).not.toBeVisible();
+  await opener.click();
+  await drawer.getByRole('button', {
+    name: '메뉴 닫기',
+    exact: true
+  }).click();
+  await expect(drawer).not.toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await opener.click();
+  // 모바일 경계에서도 열린 메뉴를 유지하고 PC 경계로 넘어가면 닫습니다.
+  await page.setViewportSize({
+    width: 767,
+    height: 960
+  });
+  await expect(drawer).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.setViewportSize({
+    width: 768,
+    height: 960
+  });
+  await expect(drawer).not.toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe('');
+});
 
 test('프로필은 오른쪽 관리 드로어 하나를 열고 뒤로가기는 메뉴만 닫음', async ({ page }) => {
   await page.setViewportSize({
@@ -701,7 +696,7 @@ test.describe('모바일 헤더 방문 기록', () => {
 });
 
 for (const width of [1440]) {
-  test(`세대 상세 ${width}px는 행·키보드로 열고 닫기·수정·상세 삭제의 진입점을 구분`, async ({ page }, testInfo) => {
+  test(`세대 상세 ${width}px는 행·키보드로 열고 닫기·수정·상세 삭제의 진입점을 구분`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -772,10 +767,6 @@ for (const width of [1440]) {
       const rect = element.getBoundingClientRect();
       return rect.left >= 0 && rect.right <= innerWidth;
     })).toBe(true);
-    await page.screenshot({
-      path: testInfo.outputPath('unitDetail.png'),
-      fullPage: true
-    });
     await detail.getByRole('button', {
       name: '닫기',
       exact: true
@@ -899,17 +890,9 @@ test('세대 페이지는 저장 목록을 조회하고 검색·상태 필터·�
     // clientWidth의 정수 반올림 때문에 정상적인 77.08px 문자를 77px 넘침으로 오판하지 않습니다.
     return bounds.width <= element.getBoundingClientRect().width + 1 && range.getClientRects().length === 1;
   })).toBe(true);
-  await test.info().attach('세대 목록 표시 개수 선택', {
-    body: await page.screenshot(),
-    contentType: 'image/png'
-  });
   await page.keyboard.press('Escape');
   await page.evaluate(() => window.scrollTo(0, 0));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
-  await page.screenshot({
-    path: test.info().outputPath('householdsDesktop.png'),
-    fullPage: true
-  });
   await main.getByRole('button', {
     name: '2페이지',
     exact: true
@@ -1460,10 +1443,6 @@ for (const width of [1440, 375]) {
           exact: true
         })).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-        await page.screenshot({
-          path: test.info().outputPath(`${path === HOUSEHOLDS ? 'units' : 'residents'}NoBuildings.png`),
-          fullPage: true
-        });
       }
     });
   }
@@ -1729,10 +1708,6 @@ for (const width of [1440, 375, 320]) {
       hasText: '김민수'
     })).toContainText('301호');
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-    await page.screenshot({
-      path: test.info().outputPath(`residents${width}.png`),
-      fullPage: true
-    });
   });
 }
 
@@ -1980,11 +1955,6 @@ for (const width of [1440, 320]) {
       })).toBeVisible();
     }
     await fillResidentRegistration(page);
-    await page.screenshot({
-      path: test.info().outputPath(`residentRegistration${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.getByRole('button', {
       name: '등록',
@@ -2018,10 +1988,6 @@ for (const width of [1440, 320]) {
     const noticeBox = (await notice.boundingBox())!;
     expect(noticeBox.width).toBeGreaterThan(noticeBox.height * 2);
     expect(Math.abs(noticeBox.x + noticeBox.width / 2 - width / 2)).toBeLessThan(2);
-    await page.screenshot({
-      path: test.info().outputPath(`residentSuccessToast${width}.png`),
-      animations: 'disabled'
-    });
     await expect(page).toHaveURL(RESIDENTS);
     expect(posts).toBe(1);
     expect(await page.evaluate(() => Object.values(localStorage).some((value) => value.includes('새 주민')))).toBe(false);
@@ -2365,11 +2331,6 @@ for (const width of [320]) {
     await expect(main.getByText('B1층', {
       exact: true
     })).toBeVisible();
-    await page.screenshot({
-      path: test.info().outputPath(`unitDetailMobile${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await banner.getByRole('link', {
       name: '뒤로가기'
@@ -2589,11 +2550,6 @@ for (const width of [1440, 320]) {
       name: '주민 검색'
     }).fill('');
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.screenshot({
-      path: test.info().outputPath(`residentImportPreview${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.getByRole('button', {
       name: '선택한 주민 등록 (9명)',
@@ -2765,11 +2721,6 @@ test('엑셀 파일 드래그는 배경·테두리·안내를 강조하고 이�
     dataTransfer
   });
   await expect(zone).toHaveCSS('border-style', 'solid');
-  await page.screenshot({
-    path: test.info().outputPath('residentImportDragging.png'),
-    fullPage: true,
-    animations: 'disabled'
-  });
   await select.dispatchEvent('dragleave', {
     dataTransfer
   });
@@ -3058,15 +3009,6 @@ for (const width of [1440, 320]) {
     })).toBeVisible();
     await expect(view).toContainText('수정 주민');
     await expect(view).toContainText('•••• 5432');
-    await page.screenshot({
-      path: test.info().outputPath(`residentDetail${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
-    await test.info().attach(`주민 상세 ${width}px`, {
-      path: test.info().outputPath(`residentDetail${width}.png`),
-      contentType: 'image/png'
-    });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     expect(await page.evaluate(() => [...Object.values(localStorage), ...Object.values(sessionStorage)].some((value) => value.includes('+82101231234') || value.includes('010-9876-5432')))).toBe(false);
     await view.getByRole('button', {
@@ -3300,10 +3242,6 @@ for (const width of [1440, 320]) {
       exact: true
     })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`unitResidents${width}.png`),
-      fullPage: true
-    });
     await occupied.getByRole('button', {
       name: '301호 상세 보기',
       exact: true
@@ -3491,10 +3429,6 @@ for (const width of [320]) {
       name: '생성될 세대 미리보기'
     })).toContainText('201호');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`unitAutomaticPage${width}.png`),
-      fullPage: true
-    });
     await main.getByRole('button', {
       name: '추가',
       exact: true
@@ -3565,10 +3499,6 @@ test('업무 403 재확인의 대기·503·재시도는 오류 화면만 표시�
     name: '관리 메뉴'
   })).toHaveCount(0);
   await expect(page.getByRole('main')).toHaveCount(1);
-  await page.screenshot({
-    path: test.info().outputPath('accessErrorOnly.png'),
-    fullPage: true
-  });
   await expect(name).toHaveValue(value);
   await page.getByRole('button', {
     name: '다시 시도',
@@ -3579,10 +3509,6 @@ test('업무 403 재확인의 대기·503·재시도는 오류 화면만 표시�
   await expect(name).toHaveValue(value);
   await expect(name).toHaveAttribute('data-preserved', 'yes');
   await expect(page).toHaveURL(RESIDENTS);
-  await page.screenshot({
-    path: test.info().outputPath('preservedRegistration.png'),
-    fullPage: true
-  });
 });
 
 for (const width of [1440]) {
@@ -3946,10 +3872,6 @@ for (const width of [1440, 390]) {
     })).toHaveCount(0);
     await expect(name).not.toBeVisible();
     await expect(name).toHaveValue('새 주민');
-    await page.screenshot({
-      path: test.info().outputPath(`accessErrorOnly${width}.png`),
-      fullPage: true
-    });
     failed = false;
     await page.getByRole('button', {
       name: '다시 시도',
@@ -3963,7 +3885,7 @@ for (const width of [1440, 390]) {
 
 for (const width of [1440, 390]) {
   for (const reason of ['SERVICE_ONLY', 'MOVE_OUT'] as const) {
-    test(`나가기 ${width}px ${reason} 선택 후 본인 참여를 종료하고 시작 화면으로 이동`, async ({ page }, testInfo) => {
+    test(`나가기 ${width}px ${reason} 선택 후 본인 참여를 종료하고 시작 화면으로 이동`, async ({ page }) => {
       await page.setViewportSize({
         width,
         height: 900
@@ -4033,10 +3955,6 @@ for (const width of [1440, 390]) {
         const bounds = await dialog.boundingBox();
         expect(bounds!.x).toBeGreaterThanOrEqual(0);
         expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
-        await page.screenshot({
-          path: testInfo.outputPath('leave-mobile.png'),
-          fullPage: true
-        });
       }
       await dialog.getByRole('button', {
         name: '나가기',
@@ -4383,11 +4301,6 @@ for (const width of [1440]) {
       name: '주민 이름',
       exact: true
     }).fill('변경한 대표');
-    await page.screenshot({
-      path: `/tmp/moahome-resident-edit-representative-${width}.png`,
-      animations: 'disabled',
-      fullPage: true
-    });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await view.getByRole('button', {
       name: '수정',
@@ -4501,10 +4414,6 @@ for (const width of [1440]) {
     await expect(page.getByText('주민 정보를 수정했어요.', {
       exact: true
     })).toHaveCount(0);
-    await page.screenshot({
-      path: test.info().outputPath(`representativeFailureToast${width}.png`),
-      fullPage: true
-    });
   });
 }
 
@@ -4663,7 +4572,7 @@ test('설정 참여 목록은 현재 선택을 비활성화하고 관리자·주
     exact: true
   })).toBeDisabled();
   await expect(dialog.getByRole('button', {
-    name: '부담당 빌라 부담당자',
+    name: '부담당 빌라 동대표',
     exact: true
   })).toBeEnabled();
   await expect(dialog.getByRole('button', {
@@ -4693,7 +4602,7 @@ test('설정 참여 목록은 현재 선택을 비활성화하고 관리자·주
     exact: true
   })).toBeDisabled();
   await dialog.getByRole('button', {
-    name: '부담당 빌라 부담당자',
+    name: '부담당 빌라 동대표',
     exact: true
   }).click();
   await expect(page).toHaveURL(`/manage/${OTHER_MANAGED_PROPERTY.propertyId}/dashboard`);
@@ -4845,10 +4754,6 @@ test('모바일 참여 목록은 독립 페이지에서 역할별로 구분하�
     name: `${name} 주민`,
     exact: true
   })).toBeVisible();
-  await page.screenshot({
-    path: test.info().outputPath('participatingPropertiesMobile.png'),
-    fullPage: true
-  });
   await page.getByRole('banner').getByRole('link', {
     name: '뒤로가기',
     exact: true

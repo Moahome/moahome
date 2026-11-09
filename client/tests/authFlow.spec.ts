@@ -568,9 +568,6 @@ test('모바일 시작 화면은 긴 닉네임에도 가로로 넘치지 않음'
     }).map((animation) => animation.finished));
   });
   expect(await menu.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-  await page.screenshot({
-    path: test.info().outputPath('startMobileLongName.png')
-  });
 });
 
 test('모바일 사이드 메뉴는 닫기·바깥 영역·Escape·데스크톱 전환 시 닫히고 스크롤 복구', async ({ page }) => {
@@ -702,9 +699,6 @@ test('모바일 랜딩은 로그인된 사용자에게 시작하기를 표시하
     exact: true
   })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({
-    path: test.info().outputPath('landingSignedInMobile.png')
-  });
   await entry.click();
   await expect(page).toHaveURL(/\/start$/);
   await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe('');
@@ -734,9 +728,6 @@ test('랜딩은 세션 복원 중 로그인 링크 대신 대기 상태를 표�
     name: '시작하기',
     exact: true
   })).toHaveAttribute('href', '/start');
-  await page.screenshot({
-    path: test.info().outputPath('landingSignedInDesktop.png')
-  });
 });
 
 test('로그인 직접 접근은 본인 정보 확인 전 폼을 숨기고 정상 세션이면 시작 화면으로 대체', async ({ page }) => {
@@ -765,17 +756,11 @@ test('로그인 직접 접근은 본인 정보 확인 전 폼을 숨기고 정�
     name: '카카오로 시작하기'
   })).toHaveCount(0);
   await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0);
-  await page.screenshot({
-    path: test.info().outputPath('loginCheckingDesktop.png')
-  });
   await page.setViewportSize({
     width: 360,
     height: 800
   });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({
-    path: test.info().outputPath('loginCheckingMobile.png')
-  });
   await page.setViewportSize({
     width: 1280,
     height: 720
@@ -1054,10 +1039,6 @@ test('시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
     name: '주민으로 참여하기'
   })).toBeVisible();
   await expect(page.getByLabel('모아 주민님 계정 정보')).toBeVisible();
-  await page.screenshot({
-    path: test.info().outputPath('startDesktop.png'),
-    fullPage: true
-  });
 
   const createCard = page.locator('section[data-kind="create"]');
   // 최초 등장 완료 후 안내창으로 포커스가 옮겨져도 카드가 다시 투명해지면 안 됩니다.
@@ -1112,10 +1093,6 @@ test('시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
     name: '주민으로 참여하기'
   })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({
-    path: test.info().outputPath('startMobile.png'),
-    fullPage: true
-  });
   await page.getByRole('button', {
     name: '주민으로 참여하기',
     exact: true
@@ -1125,12 +1102,6 @@ test('시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
     name: '초대코드',
     exact: true
   })).toBeVisible();
-  await test.info().attach('모바일 주민 참여 페이지', {
-    body: await page.screenshot({
-      fullPage: true
-    }),
-    contentType: 'image/png'
-  });
   await page.goBack();
   await expect(page).toHaveURL(/\/start$/);
   await page.getByRole('button', {

@@ -261,7 +261,7 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
                 역할
               </dt>
               <dd>
-                {resident.serviceRole === 'ADMIN' ? '관리소장' : resident.serviceRole === 'MANAGER' ? '부담당자' : resident.serviceRole === 'RESIDENT' ? '주민' : resident.serviceRole === 'CONFLICT' ? '권한 확인 필요' : '—'}
+                {resident.serviceRole === 'ADMIN' ? '관리소장' : resident.serviceRole === 'MANAGER' ? '동대표' : resident.serviceRole === 'RESIDENT' ? '주민' : resident.serviceRole === 'CONFLICT' ? '권한 확인 필요' : '—'}
               </dd>
             </div>
             <div>
@@ -284,6 +284,7 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
           {canModify && (
             <DetailActions
               presentation={presentation}
+              showClose={false}
               onClose={onClose}
               onEdit={() => changeMode('edit')}
               onDelete={() => changeMode('delete')}

@@ -108,7 +108,7 @@ test('모바일 다운로드는 실제 이전 조회로 복귀하고 새로고�
   })).toBeVisible();
 });
 
-test('한 장 PDF의 그리기 실패도 공통 그림과 같은 페이지 재시도로 복구한다', async ({ page }, testInfo) => {
+test('한 장 PDF의 그리기 실패도 공통 그림과 같은 페이지 재시도로 복구한다', async ({ page }) => {
   await page.setViewportSize({
     width: 390,
     height: 844
@@ -142,10 +142,6 @@ test('한 장 PDF의 그리기 실패도 공통 그림과 같은 페이지 재�
   await expect(preview.getByRole('button', {
     name: 'PDF 다음 페이지'
   })).toBeDisabled();
-  await page.screenshot({
-    path: testInfo.outputPath('mobile-pdf-error.png'),
-    fullPage: true
-  });
   await preview.getByRole('button', {
     name: '다시 시도',
     exact: true
@@ -158,7 +154,7 @@ test('한 장 PDF의 그리기 실패도 공통 그림과 같은 페이지 재�
 });
 
 for (const width of [1440, 390, 320]) {
-  test(`다운로드 미리보기 ${width}px는 형식 선택·오류 그림·저장 버튼이 넘치지 않는다`, async ({ page }, testInfo) => {
+  test(`다운로드 미리보기 ${width}px는 형식 선택·오류 그림·저장 버튼이 넘치지 않는다`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 950
@@ -191,10 +187,6 @@ for (const width of [1440, 390, 320]) {
       exact: true
     })).toBeDisabled();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({
-      path: testInfo.outputPath(`download-error-${width}.png`),
-      fullPage: width < 768
-    });
     await preview.getByRole('button', {
       name: '다시 시도',
       exact: true
@@ -203,9 +195,5 @@ for (const width of [1440, 390, 320]) {
       name: '이미지 1페이지 미리보기',
       exact: true
     })).toBeVisible();
-    await page.screenshot({
-      path: testInfo.outputPath(`download-ready-${width}.png`),
-      fullPage: width < 768
-    });
   });
 }

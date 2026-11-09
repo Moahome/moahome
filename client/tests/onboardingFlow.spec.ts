@@ -416,9 +416,6 @@ test('주민 상세는 기존 필드 행에 역할만 표시하고 초대·코�
   await expect(dialog).not.toContainText('권한 관리');
   await expect(dialog).not.toContainText('초대');
   expect((await dialog.boundingBox())!.width).toBeLessThanOrEqual(620);
-  await page.screenshot({
-    path: test.info().outputPath('residentDetail.png')
-  });
   await dialog.getByRole('button', {
     name: '수정',
     exact: true
@@ -447,18 +444,15 @@ test('역할 변경은 기존 주민 수정 모달에서 일반 정보와 한 �
     exact: true
   }).click();
   await page.getByRole('option', {
-    name: '부담당자',
+    name: '동대표',
     exact: true
   }).click();
-  await page.screenshot({
-    path: test.info().outputPath('residentEdit.png')
-  });
   await dialog.getByRole('button', {
     name: '수정',
     exact: true
   }).click();
   await expect(dialog.locator('dd').filter({
-    hasText: /^부담당자$/
+    hasText: /^동대표$/
   })).toHaveCount(1);
   expect(state.writes.filter((r) => r.path.includes('/residents/'))).toHaveLength(1);
   expect(state.writes.at(-1)!.body).toMatchObject({
@@ -540,10 +534,6 @@ test('잔액 인계는 내부 탭을 유지하며 실패 시 입력 보존·저�
   }).click();
   await expect(page.getByText('인계 확정 완료 · 기준일 이전 입금은 신규 수납으로 반영하지 않습니다.')).toBeVisible();
   expect(state.writes.filter((r) => r.path.endsWith('/confirm'))).toHaveLength(1);
-  await page.screenshot({
-    path: test.info().outputPath('openingBalance.png'),
-    fullPage: true
-  });
 });
 
 test('모바일 주민 상세는 헤더 뒤로가기와 기존 수정 폼의 역할 선택을 사용', async ({ page }) => {
@@ -567,10 +557,6 @@ test('모바일 주민 상세는 헤더 뒤로가기와 기존 수정 폼의 역
     exact: true
   })).toBeEnabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({
-    path: test.info().outputPath('residentEditMobile.png'),
-    fullPage: true
-  });
 });
 
 
@@ -622,11 +608,6 @@ test('추가 화면은 모바일에서도 기존 초대 입력과 등록 폼을 
   await expect(page.getByRole('button', {
     name: /승인 대기 중인 요청/
   })).toHaveCSS('background-color', 'rgb(255, 255, 255)');
-  await page.screenshot({
-    path: test.info().outputPath('additionalEntryMobile.png'),
-    fullPage: true,
-    animations: 'disabled'
-  });
   await page.getByRole('button', {
     name: '초대코드로 참여하기',
     exact: true
@@ -643,11 +624,6 @@ test('추가 화면은 모바일에서도 기존 초대 입력과 등록 폼을 
     exact: true
   })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({
-    path: test.info().outputPath('invitationCodeMobile.png'),
-    fullPage: true,
-    animations: 'disabled'
-  });
   await page.goBack();
   await page.getByRole('button', {
     name: '관리할 곳 만들기',
@@ -737,11 +713,6 @@ test('기존 잔액 탭은 스크롤바 없는 탭과 상태 카드·다음 조�
   })).toBeVisible();
   const tabs = page.getByRole('tablist');
   expect(await tabs.evaluate((element) => { const css = getComputedStyle(element); return ['auto','scroll'].includes(css.overflowY); })).toBe(false);
-  await page.screenshot({
-    path: test.info().outputPath('openingExisting.png'),
-    fullPage: true,
-    animations: 'disabled'
-  });
   await page.getByRole('button', {
     name: '월별 부과 보기',
     exact: true
@@ -755,107 +726,102 @@ test('빈 가입 요청은 흰 목록 카드 안에서 표 헤더·빈 상태를
   await expect(page.getByRole('table', {
     name: '가입 요청 목록'
   })).toContainText('아직 가입 요청이 없어요');
-  await page.screenshot({
-    path: test.info().outputPath('emptySignupRequests.png'),
-    fullPage: true,
-    animations: 'disabled'
-  });
 });
 
-for (const width of [1440, 390]) {
-  for (const representative of [false, true]) {
-    test(`기존 관리소장 연결 UI ${width}px: 대표 ${representative ? '유지' : '자동 지정 없음'}·실제 저장`, async ({ page }) => {
-      const state = await mockWorkspace(page);
-      await page.setViewportSize({
-        width,
-        height: 960
-      });
-      await page.route(`${API}/api/properties/${PROPERTY}/residents`, (route) => json(route, {
-        propertyId: PROPERTY,
-        hasBuildings: false,
-        buildings: [],
-        residents: [{
-          id: id(10),
-          name: '김주민',
-          phoneLast4: '1234',
-          unitId: id(101),
-          buildingId: null,
-          unitNumber: '101',
-          relationType: 'TENANT',
-          representative,
-          signupStatus: state.chiefLinked ? 'APPROVED' : 'NOT_JOINED',
-          serviceRole: state.chiefLinked ? 'ADMIN' : null
-        }]
-      }));
-      await page.goto(`${BASE}/residents`);
-      await page.getByRole('button', {
-        name: '내 계정 연결',
-        exact: true
-      }).click();
-      const content = width > 767 ? page.getByRole('dialog', {
-        name: '내 관리소장 계정 연결'
-      }) : page.getByRole('main');
-      await expect(content.getByRole('heading', {
-        name: '내 관리소장 계정 연결',
-        exact: true
-      })).toBeVisible();
-      await expect(content).toContainText('현재 로그인 계정');
-      await expect(content).toContainText('관리자');
-      if (width < 768) {
-        await expect(page).toHaveURL(`${BASE}/residents/account-link`);
-        await page.reload();
-        await expect(page.getByRole('button', {
-          name: '주민 목록',
-          exact: true
-        })).toHaveCount(0);
-      }
-      await content.getByRole('combobox', {
-        name: '주민 명부의 본인'
-      }).click();
-      await page.getByRole('option', {
-        name: /김주민 · 101호/
-      }).click();
-      await expect(content.getByRole('region', {
-        name: '연결할 주민 정보'
-      })).toContainText(representative ? '대표 유지' : '대표 아님 (유지)');
-      await content.getByRole('button', {
-        name: '계정 연결',
-        exact: true
-      }).click();
-      await expect(page.getByText('관리소장 계정을 주민 명부에 연결했어요.')).toBeVisible();
+// PC 모달·모바일 페이지와 대표 유지·자동 지정 방지를 대표 조합으로 검증합니다.
+for (const { width, representative } of [{
+  width: 1440,
+  representative: false
+}, {
+  width: 390,
+  representative: true
+}]) {
+  test(`기존 관리소장 연결 UI ${width}px: 대표 ${representative ? '유지' : '자동 지정 없음'}·실제 저장`, async ({ page }) => {
+    const state = await mockWorkspace(page);
+    await page.setViewportSize({
+      width,
+      height: 960
+    });
+    await page.route(`${API}/api/properties/${PROPERTY}/residents`, (route) => json(route, {
+      propertyId: PROPERTY,
+      hasBuildings: false,
+      buildings: [],
+      residents: [{
+        id: id(10),
+        name: '김주민',
+        phoneLast4: '1234',
+        unitId: id(101),
+        buildingId: null,
+        unitNumber: '101',
+        relationType: 'TENANT',
+        representative,
+        signupStatus: state.chiefLinked ? 'APPROVED' : 'NOT_JOINED',
+        serviceRole: state.chiefLinked ? 'ADMIN' : null
+      }]
+    }));
+    await page.goto(`${BASE}/residents`);
+    await page.getByRole('button', {
+      name: '내 계정 연결',
+      exact: true
+    }).click();
+    const content = width > 767 ? page.getByRole('dialog', {
+      name: '내 관리소장 계정 연결'
+    }) : page.getByRole('main');
+    await expect(content.getByRole('heading', {
+      name: '내 관리소장 계정 연결',
+      exact: true
+    })).toBeVisible();
+    await expect(content).toContainText('현재 로그인 계정');
+    await expect(content).toContainText('관리자');
+    if (width < 768) {
+      await expect(page).toHaveURL(`${BASE}/residents/account-link`);
+      await page.reload();
       await expect(page.getByRole('button', {
-        name: '내 계정 연결',
+        name: '주민 목록',
         exact: true
       })).toHaveCount(0);
-      const row = page.getByRole('table', {
-        name: '주민 목록'
-      }).getByRole('row').filter({
-        hasText: '김주민'
-      });
-      await expect(row).toContainText('관리소장');
-      await expect(row).toContainText('가입 완료');
-      expect(state.writes).toEqual([{
-        path: `/api/properties/${PROPERTY}/members/me/resident`,
-        body: {
-          residentId: id(10),
-          expectedUnitId: id(101)
-        }
-      }]);
-      await page.reload();
-      await expect(page.getByRole('table', {
-        name: '주민 목록'
-      }).getByRole('row').filter({
-        hasText: '김주민'
-      })).toContainText('관리소장');
-      await page.screenshot({
-        path: test.info().outputPath(`chiefLink${width}.png`),
-        fullPage: true,
-        animations: 'disabled'
-      });
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await expect(page).toHaveURL(`${BASE}/residents`);
+    }
+    await content.getByRole('combobox', {
+      name: '주민 명부의 본인'
+    }).click();
+    await page.getByRole('option', {
+      name: /김주민 · 101호/
+    }).click();
+    await expect(content.getByRole('region', {
+      name: '연결할 주민 정보'
+    })).toContainText(representative ? '대표 유지' : '대표 아님 (유지)');
+    await content.getByRole('button', {
+      name: '계정 연결',
+      exact: true
+    }).click();
+    await expect(page.getByText('관리소장 계정을 주민 명부에 연결했어요.')).toBeVisible();
+    await expect(page.getByRole('button', {
+      name: '내 계정 연결',
+      exact: true
+    })).toHaveCount(0);
+    const row = page.getByRole('table', {
+      name: '주민 목록'
+    }).getByRole('row').filter({
+      hasText: '김주민'
     });
-  }
+    await expect(row).toContainText('관리소장');
+    await expect(row).toContainText('가입 완료');
+    expect(state.writes).toEqual([{
+      path: `/api/properties/${PROPERTY}/members/me/resident`,
+      body: {
+        residentId: id(10),
+        expectedUnitId: id(101)
+      }
+    }]);
+    await page.reload();
+    await expect(page.getByRole('table', {
+      name: '주민 목록'
+    }).getByRole('row').filter({
+      hasText: '김주민'
+    })).toContainText('관리소장');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await expect(page).toHaveURL(`${BASE}/residents`);
+  });
 }
 
 for (const width of [320, 767]) {
@@ -879,11 +845,6 @@ for (const width of [320, 767]) {
       exact: true
     }).locator('..').locator('..').boundingBox();
     expect(Math.abs(buttonBounds!.width - headerBounds!.width)).toBeLessThanOrEqual(1);
-    await page.screenshot({
-      path: test.info().outputPath(`joinRequestButton${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
   });
 }
 
@@ -1075,10 +1036,6 @@ for (const width of [1440, 390]) {
       name: '뒤로가기',
       exact: true
     })).toHaveCount(0);
-    await page.screenshot({
-      path: test.info().outputPath(`settingsOverview${width}.png`),
-      fullPage: true
-    });
     await page.getByRole('button', {
       name: '계좌 관리',
       exact: true
@@ -1101,10 +1058,6 @@ for (const width of [1440, 390]) {
       exact: true
     })).toHaveCount(0);
     await expect.poll(() => dialog.locator('img[src="/banks/bank004.png"]').evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`bankAccountList${width}.png`),
-      fullPage: true
-    });
     await dialog.getByRole('button', {
       name: '수정',
       exact: true
@@ -1150,11 +1103,6 @@ for (const width of [1440, 390]) {
       exact: true
     })).toHaveValue('00098765432');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`bankAccountCorrection${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     await dialog.getByRole('button', {
       name: '변경 저장',
       exact: true
@@ -1182,11 +1130,6 @@ for (const width of [1440, 390]) {
     const bounds = (await toast.boundingBox())!;
     expect(Math.abs(bounds.x + bounds.width / 2 - width / 2)).toBeLessThan(1);
 
-    await page.screenshot({
-      path: test.info().outputPath(`accountSuccessToast${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     expect(writes).toHaveLength(2);
     expect(writes[0]).toEqual(writes[1]);
     expect(writes[1]).toEqual({
@@ -1363,10 +1306,6 @@ for (const width of [1440, 390]) {
     await expect(confirmation).toBeInViewport();
     await expect(confirmation).toContainText('과거 거래 내역은 보존합니다.');
     await expect(card).not.toContainText('삭제할까요?');
-    await page.screenshot({
-      path: test.info().outputPath(`bankAccountDeleteConfirmation${width}.png`),
-      fullPage: true
-    });
     await expect(confirmation.getByRole('button', {
       name: '취소',
       exact: true
@@ -1411,10 +1350,6 @@ for (const width of [1440, 390]) {
     })).toHaveCount(7);
     expect(writes).toBe(2);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`bankAccountDeleted${width}.png`),
-      fullPage: true
-    });
     if (width <= 767) await page.getByRole('link', {
       name: '뒤로가기',
       exact: true
@@ -1504,10 +1439,6 @@ test('모바일 계좌 관리 직접 접근·새로고침·로딩·오류에서�
   }).click();
   await expect(content).toContainText('관리비 통장');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({
-    path: test.info().outputPath('mobileBankAccountsPage.png'),
-    fullPage: true
-  });
   await back.click();
   await expect(page).toHaveURL(`${BASE}/settings`);
 });
@@ -1526,11 +1457,6 @@ test('가입 요청은 미연결 주민 전원을 공용 표에서 검색·페�
     name: '동 필터',
     exact: true
   })).toHaveCount(0);
-  await page.screenshot({
-    path: test.info().outputPath('unlinkedResidentsDesktop.png'),
-    fullPage: true,
-    animations: 'disabled'
-  });
   await page.getByRole('navigation', {
     name: '미연결 주민 페이지'
   }).getByRole('button', {
@@ -1744,10 +1670,6 @@ test('주민별 개인 초대를 발급하고 코드·바로 가입 링크 전�
     })).toHaveCSS('color', 'rgb(37, 99, 235)');
   }
 
-  await page.screenshot({
-    path: test.info().outputPath('personalInvitationDesktop.png'),
-    animations: 'disabled'
-  });
 
   expect(state.writes.some((r) => r.path.endsWith('/resident-invitations/residents/' + id(1000)))).toBe(true);
   await modal.getByRole('button', {
@@ -2038,7 +1960,7 @@ test('개인 초대 정정 요청은 승인 관리에서 이름·선택 연락�
 });
 
 for (const width of [1440, 320]) {
-  test(`승인 관리 탭 ${width}px는 두 출처와 필터를 분리하고 초대 가입 표·페이지·선택 탭을 유지`, async ({ page }, testInfo) => {
+  test(`승인 관리 탭 ${width}px는 두 출처와 필터를 분리하고 초대 가입 표·페이지·선택 탭을 유지`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 1000
@@ -2130,11 +2052,6 @@ for (const width of [1440, 320]) {
       hasText: '초대주민03'
     })).toContainText('연락처 없음');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await page.screenshot({
-      path: testInfo.outputPath(`invitationTab-${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     await panel.getByRole('combobox', {
       name: '페이지당 초대 가입 내역 수'
     }).click();
@@ -2204,10 +2121,6 @@ test('개인 초대 모달은 모바일에서 전달 버튼 3개가 전체 너�
     expect(box!.height).toBeGreaterThanOrEqual(56);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({
-    path: test.info().outputPath('personalInvitationMobile.png'),
-    animations: 'disabled'
-  });
 });
 
 
@@ -2296,11 +2209,6 @@ for (const width of [1440, 375]) {
       name: '수정',
       exact: true
     })).toBeVisible();
-    await page.screenshot({
-      path: test.info().outputPath('residentParticipation.png'),
-      fullPage: true,
-      animations: 'disabled'
-    });
     const primary = page.getByRole('button', {
       name: '참여하기',
       exact: true
@@ -2612,10 +2520,6 @@ for (const width of [1440]) {
     await page.addStyleTag({
       content: 'nextjs-portal { display: none; }'
     });
-    await page.screenshot({
-      path: `/tmp/moahome-opening-${width}.png`,
-      fullPage: true
-    });
     await page.getByRole('textbox', {
       name: '기존 잔액 세대 검색'
     }).fill('전월 미납');
@@ -2883,10 +2787,6 @@ for (const width of [1440, 320]) {
       name: '기존 잔액 엑셀 업로드',
       exact: true
     })).toBeVisible();
-    await page.screenshot({
-      path: `/tmp/moahome-opening-upload-${width}.png`,
-      fullPage: true
-    });
     const downloadEvent = page.waitForEvent('download');
     await view.getByRole('button', {
       name: '엑셀 양식 다운로드',
@@ -3057,11 +2957,6 @@ for (const width of [1440, 390]) {
     await expect(form.getByRole('alert')).toContainText('정정 사유');
     expect(requests).toHaveLength(0);
     await form.getByLabel('정정 사유').fill('기준일과 시작 금액 오입력 정정');
-    await page.screenshot({
-      path: `/tmp/moahome-initial-correction-${width}.png`,
-      animations: 'disabled',
-      fullPage: true
-    });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await form.getByRole('button', {
       name: '정정 저장',
