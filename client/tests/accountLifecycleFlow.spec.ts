@@ -145,9 +145,6 @@ test('모바일 탈퇴 카드는 짧은 안내와 카드 너비를 채우는 버
   }));
   expect(Math.abs(width.button - width.card)).toBeLessThan(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await section.screenshot({
-    path: test.info().outputPath('accountWithdrawalMobile.png')
-  });
   await button.click();
   const dialog = page.getByRole('dialog', {
     name: '회원 탈퇴',
@@ -259,10 +256,6 @@ test('복구 페이지는 일반 토큰을 발급받지 않고 복구 전용 쿠
   }).boundingBox();
   expect(brand!.width).toBeLessThan(180);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({
-    path: test.info().outputPath('accountRecoveryMobile.png'),
-    fullPage: true
-  });
   state.failed = true;
   await page.getByRole('button', {
     name: '계정 복구',

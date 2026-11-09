@@ -425,7 +425,7 @@ test('모바일 상세의 세대 선택은 청구월과 관계없이 현재 명�
   })).toHaveCount(0);
 });
 
-test('입금일도 공통 달력에서 날짜를 선택하고 모달은 X로 닫으며 푸터는 오른쪽 정렬', async ({ page }, testInfo) => {
+test('입금일도 공통 달력에서 날짜를 선택하고 모달은 X로 닫으며 푸터는 오른쪽 정렬', async ({ page }) => {
   await page.setViewportSize({
     width: 1440,
     height: 1000
@@ -461,10 +461,6 @@ test('입금일도 공통 달력에서 날짜를 선택하고 모달은 X로 닫
   expect(calendarBox!.x).toBeGreaterThanOrEqual(bounds!.x);
   expect(calendarBox!.x + calendarBox!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width);
   expect(calendarBox!.y + calendarBox!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height);
-  await page.screenshot({
-    path: testInfo.outputPath('manual-calendar.png'),
-    animations: 'disabled'
-  });
   // 서버 기준일(10월 15일) 이전 날짜로 선택·포커스를 확인해 미래 날짜 허용 여부에 의존하지 않습니다.
   await calendar.getByRole('button', {
     name: '2026년 10월 10일',
@@ -485,7 +481,7 @@ test('입금일도 공통 달력에서 날짜를 선택하고 모달은 X로 닫
 });
 
 for (const width of [320, 390, 768, 1100, 1440]) {
-  test(`${width}px 입금 목록의 카드·주요 버튼이 잘리거나 겹치지 않음`, async ({ page }, testInfo) => {
+  test(`${width}px 입금 목록의 카드·주요 버튼이 잘리거나 겹치지 않음`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 1000
@@ -517,15 +513,10 @@ for (const width of [320, 390, 768, 1100, 1440]) {
       });
       expect(fits).toBe(true);
     }
-    await page.screenshot({
-      animations: 'disabled',
-      path: testInfo.outputPath(`matching-${width}.png`),
-      fullPage: true
-    });
   });
 }
 
-test('월별 수납 상세는 PC 중앙 모달이고 모바일 독립 페이지', async ({ page }, testInfo) => {
+test('월별 수납 상세는 PC 중앙 모달이고 모바일 독립 페이지', async ({ page }) => {
   const monthly = `/manage/${PROPERTY_ID}/payments/monthly`;
   await page.setViewportSize({
     width: 1440,
@@ -542,10 +533,6 @@ test('월별 수납 상세는 PC 중앙 모달이고 모바일 독립 페이지'
   const bounds = await modal.boundingBox();
   expect(Math.abs(bounds!.x + bounds!.width / 2 - 720)).toBeLessThan(3);
   expect(Math.abs(bounds!.y + bounds!.height / 2 - 500)).toBeLessThan(3);
-  await page.screenshot({
-    animations: 'disabled',
-    path: testInfo.outputPath('monthly-modal.png')
-  });
   await modal.getByRole('button', {
     name: '수납 상세 닫기'
   }).click();
@@ -571,7 +558,7 @@ test('월별 수납 상세는 PC 중앙 모달이고 모바일 독립 페이지'
 });
 
 for (const width of [320, 390, 1100, 1440]) {
-  test(`${width}px 열린 달력은 본문 안에 있고 검색 오른쪽 동 필터와 표시 개수·별도 상태 탭 배치`, async ({ page }, testInfo) => {
+  test(`${width}px 열린 달력은 본문 안에 있고 검색 오른쪽 동 필터와 표시 개수·별도 상태 탭 배치`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -625,16 +612,12 @@ for (const width of [320, 390, 1100, 1440]) {
     expect(bounds!.x).toBeGreaterThanOrEqual(main!.x);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(900);
-    await page.screenshot({
-      animations: 'disabled',
-      path: testInfo.outputPath(`calendar-${width}.png`)
-    });
     await page.keyboard.press('Escape');
     await expect(month).toBeFocused();
   });
 }
 
-test('드래그한 은행 엑셀은 미리보기 후 가져오고 같은 파일을 다시 올려도 중복 수납을 만들지 않음', async ({ page }, testInfo) => {
+test('드래그한 은행 엑셀은 미리보기 후 가져오고 같은 파일을 다시 올려도 중복 수납을 만들지 않음', async ({ page }) => {
   const { default: writeExcelFile } = await import('write-excel-file/universal');
   const values = [['입금일', '입금자명', '입금액'], ['2026-10-15', '드래그입금', '30000']];
   const blob = await writeExcelFile(values.map((row) => row.map((value) => ({
@@ -677,10 +660,6 @@ test('드래그한 은행 엑셀은 미리보기 후 가져오고 같은 파일�
   await expect(modal.getByRole('table', {
     name: '은행 거래 미리보기'
   })).toContainText('드래그입금');
-  await page.screenshot({
-    animations: 'disabled',
-    path: testInfo.outputPath('bank-upload.png')
-  });
   await modal.getByRole('button', {
     name: /^(선택한 \d+건 가져오기|입금 거래 가져오기)$/,
     exact: true
@@ -749,7 +728,7 @@ test('은행 XLS 원본을 변환 없이 서버 미리보기와 가져오기에 
   })).toHaveCount(1);
 });
 
-test('좁고 낮은 화면에서도 입금일 달력이 모달 경계를 지키고 Escape는 달력만 닫음', async ({ page }, testInfo) => {
+test('좁고 낮은 화면에서도 입금일 달력이 모달 경계를 지키고 Escape는 달력만 닫음', async ({ page }) => {
   await page.setViewportSize({
     width: 390,
     height: 680
@@ -784,10 +763,6 @@ test('좁고 낮은 화면에서도 입금일 달력이 모달 경계를 지키�
   expect(popup!.x + popup!.width).toBeLessThanOrEqual(bounds!.x + bounds!.width);
   expect(popup!.y).toBeGreaterThanOrEqual(bounds!.y);
   expect(popup!.y + popup!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height);
-  await page.screenshot({
-    path: testInfo.outputPath('manual-calendar-mobile.png'),
-    animations: 'disabled'
-  });
   await page.keyboard.press('Escape');
   await expect(trigger).toBeFocused();
   await expect(modal).toBeVisible();
@@ -998,7 +973,7 @@ test('수동 저장 실패는 입력을 보존하고 같은 요청 ID로 다시 
   expect(requests).toHaveLength(2);expect(requests[1]).toBe(requests[0]);
 });
 
-test('월별 수납 현황은 실제 부과 세대의 대표 이름을 표시하고 최근 입금자 열은 제거', async ({ page }, testInfo) => {
+test('월별 수납 현황은 실제 부과 세대의 대표 이름을 표시하고 최근 입금자 열은 제거', async ({ page }) => {
   await page.setViewportSize({
     width: 1440,
     height: 1000
@@ -1023,11 +998,6 @@ test('월별 수납 현황은 실제 부과 세대의 대표 이름을 표시하
   await expect(page.getByText('부과 제외', {
     exact: true
   })).toHaveCount(0);
-  await page.screenshot({
-    animations: 'disabled',
-    path: testInfo.outputPath('billed-units-monthly.png'),
-    fullPage: true
-  });
   await page.goto(MATCHING);
   await expect(page.getByRole('columnheader', {
     name: '추천 이유'
@@ -1036,7 +1006,7 @@ test('월별 수납 현황은 실제 부과 세대의 대표 이름을 표시하
 
 for (const view of ['matching', 'monthly'] as const) {
   for (const width of [320, 1440]) {
-    test(`${width}px ${view} 목록의 페이지 이동·표시 개수·필터 초기화·빈 결과와 전체 합계`, async ({ page }, testInfo) => {
+    test(`${width}px ${view} 목록의 페이지 이동·표시 개수·필터 초기화·빈 결과와 전체 합계`, async ({ page }) => {
       await page.setViewportSize({
         width,
         height: 1000
@@ -1202,11 +1172,6 @@ for (const view of ['matching', 'monthly'] as const) {
         }).click();
       }
       await expect(summary).toBeVisible();
-      await page.screenshot({
-        animations: 'disabled',
-        path: testInfo.outputPath(`${view}-pagination-${width}.png`),
-        fullPage: true
-      });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
       await selectMonthRange(page, '2026-11');
       await expect(table).toContainText(matching ? '조건에 맞는 입금 거래가 없습니다.' : '조건에 맞는 세대가 없습니다.');
@@ -1217,7 +1182,7 @@ for (const view of ['matching', 'monthly'] as const) {
   }
 }
 
-test('수납 상세의 최근 입금일은 날짜·빈 값 모두 금액과 같은 오른쪽 끝에 표시', async ({ page }, testInfo) => {
+test('수납 상세의 최근 입금일은 날짜·빈 값 모두 금액과 같은 오른쪽 끝에 표시', async ({ page }) => {
   const ledger = storedLedger();
   ledger.payments = ledger.payments.filter((payment) => payment.unitId !== id('202'));
   await page.route(`**/api/properties/${PROPERTY_ID}/payments/workspace`, async (route) => {
@@ -1260,68 +1225,58 @@ test('수납 상세의 최근 입금일은 날짜·빈 값 모두 금액과 같�
     const latestBox = await latest.boundingBox();
     const amountBox = await amount.boundingBox();
     expect(Math.abs(latestBox!.x + latestBox!.width - amountBox!.x - amountBox!.width)).toBeLessThan(2);
-    await page.screenshot({
-      animations: 'disabled',
-      path: testInfo.outputPath(`latest-payment-${unit}.png`)
-    });
     await modal.getByRole('button', {
       name: '수납 상세 닫기'
     }).click();
   }
 });
 
-for (const width of [390, 767]) {
-  for (const view of ['matching', 'monthly'] as const) {
-    test(`${width}px ${view} 모바일 상세는 직접 접근·새로고침·대상 없음에도 헤더 뒤로가기만 제공`, async ({ page }, testInfo) => {
-      await page.setViewportSize({
-        width,
-        height: 900
-      });
-      const monthly = view === 'monthly';
-      const list = `/manage/${PROPERTY_ID}/payments/${view}`;
-      const detail = monthly ? `${list}/2026-10/${id('101')}` : `${list}/${id('b1')}`;
-      const back = page.getByRole('banner').getByRole('link', {
-        name: '뒤로가기'
-      });
-      await page.goto(detail);
-      await expect(back).toBeVisible();
-      await page.reload();
-      await expect(back).toBeVisible();
-      await expect(page.getByRole('main').getByRole('heading', {
-        name: monthly ? '101호 수납 상세' : '입금 처리 상세',
-        exact: true
-      })).toBeVisible();
-      await expect(page.getByRole('main').getByRole('button', {
-        name: /^(목록|목록으로|주민 목록|세대 목록으로)$/
-      })).toHaveCount(0);
-      await page.screenshot({
-        animations: 'disabled',
-        path: testInfo.outputPath(`${view}-mobile-detail-${width}.png`)
-      });
-      await back.click();
-      await expect(page).toHaveURL(list);
-      if (monthly) {
-        const download = page.getByRole('button', {
-          name: '다운로드',
-          exact: true
-        });
-        // 상세에서 돌아온 목록의 다운로드 사용 가능 여부를 확인하고 예전 전체 너비 배치를 강제하지 않습니다.
-        await expect(download).toBeVisible();
-        await expect(download).toBeEnabled();
-      }
-      await page.goto(monthly ? `${list}/2026-10/${id('missing')}` : `${list}/${id('missing')}`);
-      await expect(back).toBeVisible();
-      await expect(page.getByRole('main').getByRole('button', {
-        name: /^(목록|목록으로|주민 목록|세대 목록으로)$/
-      })).toHaveCount(0);
-      await back.click();
-      await expect(page).toHaveURL(list);
+for (const view of ['matching', 'monthly'] as const) {
+  test(`${view} 모바일 상세는 직접 접근·새로고침·대상 없음에도 헤더 뒤로가기만 제공`, async ({ page }) => {
+    await page.setViewportSize({
+      width: 390,
+      height: 900
     });
-  }
+    const monthly = view === 'monthly';
+    const list = `/manage/${PROPERTY_ID}/payments/${view}`;
+    const detail = monthly ? `${list}/2026-10/${id('101')}` : `${list}/${id('b1')}`;
+    const back = page.getByRole('banner').getByRole('link', {
+      name: '뒤로가기'
+    });
+    await page.goto(detail);
+    await expect(back).toBeVisible();
+    await page.reload();
+    await expect(back).toBeVisible();
+    await expect(page.getByRole('main').getByRole('heading', {
+      name: monthly ? '101호 수납 상세' : '입금 처리 상세',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('button', {
+      name: /^(목록|목록으로|주민 목록|세대 목록으로)$/
+    })).toHaveCount(0);
+    await back.click();
+    await expect(page).toHaveURL(list);
+    if (monthly) {
+      const download = page.getByRole('button', {
+        name: '다운로드',
+        exact: true
+      });
+      // 상세에서 돌아온 목록의 다운로드 사용 가능 여부를 확인하고 예전 전체 너비 배치를 강제하지 않습니다.
+      await expect(download).toBeVisible();
+      await expect(download).toBeEnabled();
+    }
+    await page.goto(monthly ? `${list}/2026-10/${id('missing')}` : `${list}/${id('missing')}`);
+    await expect(back).toBeVisible();
+    await expect(page.getByRole('main').getByRole('button', {
+      name: /^(목록|목록으로|주민 목록|세대 목록으로)$/
+    })).toHaveCount(0);
+    await back.click();
+    await expect(page).toHaveURL(list);
+  });
 }
 
 for (const width of [1440, 320]) {
-  test(`${width}px 수납 상세는 미납·일부납부·납부완료·정산 상태별 금액과 색상을 구분`, async ({ page }, testInfo) => {
+  test(`${width}px 수납 상세는 미납·일부납부·납부완료·정산 상태별 금액과 색상을 구분`, async ({ page }) => {
     const ledger = storedLedger();
     // 전월 미수 3만원을 먼저 충당한 뒤 당월 청구에도 1만원이 반영돼야 일부납부 사례입니다.
     ledger.payments.push({
@@ -1455,11 +1410,6 @@ for (const width of [1440, 320]) {
           name: '미납금액 계산 내역'
         })).toContainText('-5,000원');
       }
-      await page.screenshot({
-        animations: 'disabled',
-        path: testInfo.outputPath(`monthly-detail-${item.unit}-${width}.png`),
-        fullPage: width < 768
-      });
       if (width >= 768) {
         await detail.evaluate((element) => { element.scrollTop = element.scrollHeight; });
         const close = detail.getByRole('button', {
@@ -1481,7 +1431,7 @@ for (const width of [1440, 320]) {
   });
 }
 
-test('같은 달 두 입금은 모두 확정하고 납부완료와 초과 선입금 잔액을 함께 유지', async ({ page }, testInfo) => {
+test('같은 달 두 입금은 모두 확정하고 납부완료와 초과 선입금 잔액을 함께 유지', async ({ page }) => {
   let ledger = storedLedger();
   const unit = {
     ...ledger.units[0],
@@ -1566,10 +1516,6 @@ test('같은 달 두 입금은 모두 확정하고 납부완료와 초과 선입
       await expect(editor.getByRole('region', {
         name: '누적 수납 미리보기'
       })).toContainText(/선입금 잔액\s*50,000원/);
-      await page.screenshot({
-        path: testInfo.outputPath('cumulative-prepayment-desktop.png'),
-        fullPage: true
-      });
     }
     await expect(editor.getByText('몇 월 관리비로 반영할까요?')).toHaveCount(0);
     await editor.getByRole('button', {
@@ -1616,7 +1562,7 @@ test('이미 가져온 명단 일치 입금은 개별 모달 없이 한 번에 �
 });
 
 for (const width of [1440, 390]) {
-  test(`${width}px 목록 편집에서 한 건씩 선택하고 선택 삭제 후 새로고침에도 제거`, async ({ page }, testInfo) => {
+  test(`${width}px 목록 편집에서 한 건씩 선택하고 선택 삭제 후 새로고침에도 제거`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 1000
@@ -1652,11 +1598,6 @@ for (const width of [1440, 390]) {
       name: '선택 삭제',
       exact: true
     }).click();
-    await page.screenshot({
-      path: testInfo.outputPath(`selected-payment-delete-${width}.png`),
-      animations: 'disabled',
-      fullPage: true
-    });
     await dialog.getByRole('button', {
       name: '삭제',
       exact: true
@@ -1674,7 +1615,7 @@ for (const width of [1440, 390]) {
   });
 }
 
-test('선택 삭제 실패는 오류 토스트로 표시하고 선택·확인창을 유지하며 재시도 시 표시 시간을 초기화', async ({ page }, testInfo) => {
+test('선택 삭제 실패는 오류 토스트로 표시하고 선택·확인창을 유지하며 재시도 시 표시 시간을 초기화', async ({ page }) => {
   await page.setViewportSize({
     width: 1440,
     height: 1000
@@ -1725,11 +1666,6 @@ test('선택 삭제 실패는 오류 토스트로 표시하고 선택·확인창
     exact: true
   }).click();
   await page.clock.runFor(1000);await expect(toast).toBeVisible();
-  await page.screenshot({
-    path: testInfo.outputPath('payment-delete-error-toast.png'),
-    animations: 'disabled',
-    fullPage: true
-  });
   await page.clock.runFor(4000);await expect(toast).toHaveCount(0);await expect(dialog).toBeVisible();
 });
 
@@ -2051,7 +1987,7 @@ for (const width of [1440, 390]) {
     await expect(table.getByRole('rowheader')).toHaveCount(4);
   });
 
-  test(`${width}px 월별 수납 상세는 대표 정보의 최근 입금자를 제거하고 원본 입금 3건을 표시`, async ({ page }, testInfo) => {
+  test(`${width}px 월별 수납 상세는 대표 정보의 최근 입금자를 제거하고 원본 입금 3건을 표시`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 1000
@@ -2133,9 +2069,6 @@ for (const width of [1440, 390]) {
       exact: true
     })).toBeEnabled();
     await expect(recentReceipts.getByRole('link')).toHaveCount(0);
-    await recentReceipts.screenshot({
-      path: testInfo.outputPath(`recent-receipts-${width}.png`)
-    });
     await recentReceipts.getByRole('button', {
       name: '전체 내역',
       exact: true
@@ -2187,10 +2120,6 @@ for (const width of [1440, 390]) {
     await expect(history.getByRole('row')).toHaveCount(17);
     await page.reload();
     await expect(history.getByRole('row')).toHaveCount(11);
-    await page.screenshot({
-      path: testInfo.outputPath(`receipt-history-${width}.png`),
-      fullPage: true
-    });
     if (width > 767) {
       await page.getByRole('button', {
         name: '목록',
@@ -2215,7 +2144,7 @@ for (const width of [1440, 390]) {
 }
 
 for (const width of [1440]) {
-  test(`${width}px 월별 수납은 검색 오른쪽 동 필터와 상태별 세대 수를 함께 적용`, async ({ page }, testInfo) => {
+  test(`${width}px 월별 수납은 검색 오른쪽 동 필터와 상태별 세대 수를 함께 적용`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 1000
@@ -2295,16 +2224,11 @@ for (const width of [1440]) {
     }).click();
     await expect(table.getByRole('rowheader')).toHaveCount(3);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
-    await page.screenshot({
-      path: testInfo.outputPath(`monthly-building-counts-${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
   });
 }
 
 for (const width of [1440, 320]) {
-  test(`${width}px 기타 입금은 항목·메모로 확정하고 별도 합계·검색·취소 이력을 제공`, async ({ page }, testInfo) => {
+  test(`${width}px 기타 입금은 항목·메모로 확정하고 별도 합계·검색·취소 이력을 제공`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 1000
@@ -2388,10 +2312,6 @@ for (const width of [1440, 320]) {
     await expect(page.getByRole('table', {
       name: '입금 거래'
     })).toContainText('이홈');
-    await page.screenshot({
-      path: testInfo.outputPath(`otherIncome${width}.png`),
-      fullPage: true
-    });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.getByRole('row').filter({
       hasText: '이홈'
@@ -2440,7 +2360,7 @@ for (const width of [1440, 320]) {
 }
 
 for (const width of [1440, 320]) {
-  test(`${width}px 은행 미리보기는 10건씩 표시하고 페이지별 제외·전체 해제·실패 재시도 선택을 유지`, async ({ page }, testInfo) => {
+  test(`${width}px 은행 미리보기는 10건씩 표시하고 페이지별 제외·전체 해제·실패 재시도 선택을 유지`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 1000
@@ -2574,10 +2494,6 @@ for (const width of [1440, 320]) {
       name: '선택한 13건 가져오기',
       exact: true
     })).toBeEnabled();
-    await page.screenshot({
-      path: testInfo.outputPath(`bankSelection${width}.png`),
-      fullPage: true
-    });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await modal.getByRole('button', {
       name: '선택한 13건 가져오기',
@@ -2643,7 +2559,7 @@ test('기타 입금 확정은 선택 메모를 비워도 서버에 빈 문자열
 });
 
 for (const width of [1440]) {
-  test(`${width}px 월별 실제 입금 합계는 세대·기타·전체를 구분하고 세대 필터와 독립`, async ({ page }, testInfo) => {
+  test(`${width}px 월별 실제 입금 합계는 세대·기타·전체를 구분하고 세대 필터와 독립`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 1000
@@ -2774,10 +2690,6 @@ for (const width of [1440]) {
     await expect(summary.getByRole('article', {
       name: '당월 전체 입금액 184,178원'
     })).toBeVisible();
-    await page.screenshot({
-      path: testInfo.outputPath(`monthlyIncome${width}.png`),
-      fullPage: true
-    });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await selectMonthRange(page, '2026-09');
     await expect(summary.getByRole('article', {
@@ -2792,7 +2704,7 @@ for (const width of [1440]) {
   });
 }
 
-test('통장 입금과 월별 수납은 PC에서 목록을 유지한 모달로 열고 모바일은 상세 주소로 이동', async ({ page }, testInfo) => {
+test('통장 입금과 월별 수납은 PC에서 목록을 유지한 모달로 열고 모바일은 상세 주소로 이동', async ({ page }) => {
   const ledger = storedLedger();
   const payment = ledger.payments.find((item) => item.payer === '김모아')!;
   const transactions = `/manage/${PROPERTY_ID}/banking/transactions`;
@@ -2844,10 +2756,6 @@ test('통장 입금과 월별 수납은 PC에서 목록을 유지한 모달로 �
     exact: true
   })).toBeVisible();
   await expect(page).toHaveURL(transactions);
-  await page.screenshot({
-    animations: 'disabled',
-    path: testInfo.outputPath('bankingReceiptDesktop.png')
-  });
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.goto(monthly);
@@ -3055,10 +2963,6 @@ for (const width of [1440, 320]) {
     await expect(manual).toContainText('처리 완료');
     await expect(manual).toContainText('김모아');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`bankingManual${width}.png`),
-      fullPage: true
-    });
   });
 }
 
@@ -3210,10 +3114,6 @@ for (const width of [1440, 390]) {
     await expect(confirmation.getByRole('list', {
       name: '삭제할 거래'
     })).toContainText('김모아 · 입금 5,001원');
-    await page.screenshot({
-      path: test.info().outputPath(`bankingDelete${width}.png`),
-      fullPage: true
-    });
     await confirmation.getByRole('button', {
       name: '삭제',
       exact: true
@@ -3267,7 +3167,7 @@ for (const width of [1440, 390]) {
 }
 
 for (const width of [1440, 390]) {
-  test(`수동 입금 용도 ${width}px는 세대·기타·동별 배분 입력을 분리하고 저장·재시도·새로고침을 유지`, async ({ page }, testInfo) => {
+  test(`수동 입금 용도 ${width}px는 세대·기타·동별 배분 입력을 분리하고 저장·재시도·새로고침을 유지`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -3529,17 +3429,8 @@ for (const width of [1440, 390]) {
         name: '등록',
         exact: true
       })).toBeInViewport();
-      await form.screenshot({
-        path: testInfo.outputPath(`manualSharedIncome${width}.png`),
-        animations: 'disabled'
-      });
     } else {
       await page.evaluate(() => window.scrollTo(0, 0));
-      await page.screenshot({
-        path: testInfo.outputPath(`manualSharedIncome${width}.png`),
-        fullPage: true,
-        animations: 'disabled'
-      });
     }
     await form.getByRole('button', {
       name: '등록',
@@ -3586,7 +3477,7 @@ for (const width of [1440, 390]) {
 }
 
 for (const width of [1440, 390]) {
-  test(`기타 입금 상세 개선 ${width}px는 하단 닫기 없이 배분·확정 취소와 PC 고정 헤더를 제공`, async ({ page }, testInfo) => {
+  test(`기타 입금 상세 개선 ${width}px는 하단 닫기 없이 배분·확정 취소와 PC 고정 헤더를 제공`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 1100
@@ -3735,10 +3626,6 @@ for (const width of [1440, 390]) {
       })).toBeInViewport();
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await detail.screenshot({
-      path: testInfo.outputPath(`otherIncomeDetail${width}.png`),
-      animations: 'disabled'
-    });
     if (width > 767) await detail.getByRole('button', {
       name: '입금 상세 닫기',
       exact: true
@@ -3976,10 +3863,6 @@ for (const width of [1440, 390]) {
       name: '102동 101호 수납 상세'
     })).toBeVisible();
     await expect(view).toContainText('선입금 잔액');
-    await page.screenshot({
-      path: test.info().outputPath(`prepaid-${width}.png`),
-      fullPage: true
-    });
     await page.goto(`/manage/${PROPERTY_ID}/payments/monthly?month=2026-11`);
     const november = page.getByRole('table', {
       name: '세대별 월별 수납 현황'
@@ -3992,10 +3875,6 @@ for (const width of [1440, 390]) {
     await expect(prepaidRow.getByText('-20,000원', {
       exact: true
     })).toHaveCSS('color', 'rgb(239, 68, 68)');
-    await page.screenshot({
-      path: `/tmp/moahome-prepaid-carry-${width}.png`,
-      fullPage: true
-    });
 
   });
 }

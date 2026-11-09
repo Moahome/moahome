@@ -71,7 +71,7 @@ async function mockDashboard(page: Page, state = {
 }
 
 for (const width of [1440, 390, 320]) {
-  test(`대시보드 ${width}px는 실제 요약·현재 업무·납부 현황·통장·6개월 추이를 표시`, async ({ page }, testInfo) => {
+  test(`대시보드 ${width}px는 실제 요약·현재 업무·납부 현황·통장·6개월 추이를 표시`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 1000
@@ -115,11 +115,6 @@ for (const width of [1440, 390, 320]) {
     })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     expect(requests).toEqual(['2026-10']);
-    await page.screenshot({
-      path: testInfo.outputPath(`dashboard-${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
   });
 }
 
@@ -259,7 +254,7 @@ test.describe('대시보드 모바일 반응형', () => {
     hasTouch: true
   });
 
-  test('그래프 양 끝 툴팁은 잘리지 않고 360px부터 요약 카드를 두 열로 표시', async ({ page }, testInfo) => {
+  test('그래프 양 끝 툴팁은 잘리지 않고 360px부터 요약 카드를 두 열로 표시', async ({ page }) => {
     await mockDashboard(page, undefined, (month) => {
       const data = dashboardFixture(month);
       data.payments.charges.find((charge) => charge.month === data.month)!.amount = '1000000';
@@ -318,10 +313,6 @@ test.describe('대시보드 모바일 반응형', () => {
     });
     await bars.nth(10).tap();
     await expect(tooltip).toContainText('1,000,000원');
-    await page.screenshot({
-      path: testInfo.outputPath('dashboard425Grid.png'),
-      fullPage: true
-    });
     await page.setViewportSize({
       width: 320,
       height: 1000
@@ -331,10 +322,6 @@ test.describe('대시보드 모바일 반응형', () => {
     expect(resized.x + resized.width).toBeLessThanOrEqual(320);
     await bars.nth(11).tap();
     await expect(tooltip).toContainText('납부반영액');
-    await page.screenshot({
-      path: testInfo.outputPath('dashboard320Tooltip.png'),
-      fullPage: true
-    });
     await bars.nth(11).press('Escape');
     await expect(tooltip).toHaveCount(0);
   });

@@ -369,10 +369,6 @@ for (const width of [1440, 320]) {
       name:'조회 월: 2026년 11월',
       exact:true
     }).click();
-    await page.screenshot({
-      path:test.info().outputPath(`billingCalendar${width}.png`),
-      fullPage:true
-    });
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     await page.keyboard.press('Escape');
     const detailOrigin = page.url();
@@ -386,10 +382,6 @@ for (const width of [1440, 320]) {
         name: '닫기',
         exact: true
       })).toHaveCount(0);
-      await page.screenshot({
-        path: test.info().outputPath(`billingDetail${width}.png`),
-        fullPage: true
-      });
       await modal.getByRole('button', {
         name: '상세 닫기',
         exact: true
@@ -401,10 +393,6 @@ for (const width of [1440, 320]) {
         name:'청구 상세 항목',
         exact:true
       })).toBeVisible();
-      await page.screenshot({
-        path: test.info().outputPath(`billingDetail${width}.png`),
-        fullPage: true
-      });
       await page.getByRole('link',{
         name:'뒤로가기',
         exact:true
@@ -490,10 +478,6 @@ for (const width of [1440, 320]) {
         exact: true
       })).toHaveAttribute('aria-current', 'page');
     }
-    await page.screenshot({
-      path: test.info().outputPath(`billingHistoryDetail${width}.png`),
-      fullPage: true
-    });
     if (width >= 768) {
       await page.keyboard.press('Escape');
     } else {
@@ -509,10 +493,6 @@ for (const width of [1440, 320]) {
       name:'관리비 설정',
       exact:true
     }).click(); await expect(main.getByRole('textbox')).toHaveCount(0);
-    await page.screenshot({
-      path:test.info().outputPath(`billingSettings${width}.png`),
-      fullPage:true
-    });
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
     {
       await main.getByRole('button', {
@@ -523,10 +503,6 @@ for (const width of [1440, 320]) {
         name: '항목 1 기본 금액',
         exact: true
       }).waitFor();
-      await page.screenshot({
-        path: test.info().outputPath(`billingSettingsEdit${width}.png`),
-        fullPage: true
-      });
       const currentToggle = page.getByRole('button', {
         name: /현재 적용 항목/
       });
@@ -552,10 +528,6 @@ for (const width of [1440, 320]) {
         await Promise.all(element.getAnimations({
           subtree: true
         }).map((animation) => animation.finished));
-      });
-      await page.screenshot({
-        path: test.info().outputPath(`billingSettingsExpanded${width}.png`),
-        fullPage: true
       });
       await currentToggle.focus();
       await page.keyboard.press('Enter');
@@ -600,10 +572,6 @@ test('동 구분이 없으면 동 필터·동 열을 숨기고 대표 주민 검
     exact: true
   }).click();
   await expect(table.getByRole('row')).toHaveCount(11);
-  await page.screenshot({
-    path: test.info().outputPath('billingNoBuildings.png'),
-    fullPage: true
-  });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 test('현재 월 납부기한과 다음 달 변경 적용월을 구분하고 월 전환 때 갱신한다', async ({ page }) => {
@@ -664,10 +632,6 @@ test('오류 모달은 헤더 X·바깥 클릭으로 닫고 재시도하면 상�
     exact: true
   }).click();
   await expect(modal).toBeVisible();
-  await page.screenshot({
-    path: test.info().outputPath('billingErrorModal.png'),
-    fullPage: true
-  });
   await page.mouse.click(8, 8);
   await expect(modal).not.toBeVisible();
   await history.getByRole('button').first().click();
@@ -809,11 +773,6 @@ for (const width of [1600, 1280, 390, 320]) {
     expect(metrics.height).toBeLessThanOrEqual(metrics.line + 1);
     expect(metrics.width).toBeLessThan(metrics.card);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`millionSummary${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
   });
 }
 
@@ -938,10 +897,6 @@ for (const width of [1440]) {
       exact: true
     }).fill('102동 다음 달 수선비');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`billingIndependentModes${width}.png`),
-      fullPage: true
-    });
     await page.getByRole('button', {
       name: '다음 달 예약 저장',
       exact: true
@@ -1027,10 +982,6 @@ for (const width of [1440]) {
     }).click();
     await expect(scheduled).toContainText('60,000원');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`billingBuildingSummary${width}.png`),
-      fullPage: true
-    });
   });
 }
 
@@ -1243,10 +1194,6 @@ for (const width of [1440]) {
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
     expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`billingCalculator${width}.png`),
-      fullPage: true
-    });
     await page.keyboard.press('Escape');
     await expect(dialog).not.toBeVisible();
     await expect(trigger).toBeFocused();
@@ -1361,10 +1308,6 @@ for (const width of [1440, 320]) {
       exact: true
     })).toBeVisible();
     expect(state.writes).toHaveLength(0);
-    await page.screenshot({
-      path: test.info().outputPath(`singleBaseItem${width}.png`),
-      fullPage: true
-    });
   });
 
   test(`고정 계산기는 일반·분담 탭과 키패드·복사를 제공하고 메뉴 이동 시 닫힌다 ${width}px`, async ({ page }) => {
@@ -1394,10 +1337,6 @@ for (const width of [1440, 320]) {
       exact: true
     }).boundingBox();
     expect(save!.y + save!.height).toBeLessThan(scrolled!.y);
-    await page.screenshot({
-      path: test.info().outputPath(`floatingCalculator${width}.png`),
-      fullPage: false
-    });
     await trigger.click();
     const dialog = page.getByRole('dialog', {
       name: '금액 계산기',
@@ -1464,10 +1403,6 @@ for (const width of [1440, 320]) {
     const bounds = await dialog.boundingBox();
     expect(Math.abs(bounds!.x + bounds!.width / 2 - width / 2)).toBeLessThanOrEqual(1);
     expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`generalCalculator${width}.png`),
-      fullPage: true
-    });
     await page.keyboard.press('Escape');
     await expect(trigger).toBeFocused();
     await trigger.click();

@@ -11,7 +11,7 @@ import { accountingAccountsFixture } from './support/accountingAccounts';
 
 const BASE = `/manage/${SETTLEMENT_PROPERTY}/accounting/accounts`;
 
-test('조회 중·잘못된 응답에는 제목·목록 카드 없이 공통 캐릭터 상태를 표시한다', async ({ page }, testInfo) => {
+test('조회 중·잘못된 응답에는 제목·목록 카드 없이 공통 캐릭터 상태를 표시한다', async ({ page }) => {
   await mockSettlement(page);
   let release = () => {};
   const response = new Promise<void>((resolve) => { release = resolve; });
@@ -33,10 +33,6 @@ test('조회 중·잘못된 응답에는 제목·목록 카드 없이 공통 캐
   await expect(page.getByRole('heading', {
     level: 1
   })).toHaveCount(0);
-  await page.screenshot({
-    path: testInfo.outputPath('accounts-loading.png'),
-    fullPage: true
-  });
   release();
   await expect(page.getByRole('main').getByRole('alert')).toBeVisible();
   await expect(page.getByRole('main').getByRole('alert').locator('img')).toHaveAttribute('src', /serverError/);
@@ -47,13 +43,9 @@ test('조회 중·잘못된 응답에는 제목·목록 카드 없이 공통 캐
     name: '계정과목 목록',
     exact: true
   })).toHaveCount(0);
-  await page.screenshot({
-    path: testInfo.outputPath('accounts-invalid-response.png'),
-    fullPage: true
-  });
 });
 
-test('계정 목록은 코드순이고 기본 비용은 중지·재개하며 필수 과목은 보호한다', async ({ page }, testInfo) => {
+test('계정 목록은 코드순이고 기본 비용은 중지·재개하며 필수 과목은 보호한다', async ({ page }) => {
   await mockSettlement(page);
   await mockAccountingAccounts(page);
   await page.goto(BASE);
@@ -81,9 +73,6 @@ test('계정 목록은 코드순이고 기본 비용은 중지·재개하며 필
   await expect(dialog.getByText('아직 변경 이력이 없습니다.', {
     exact: true
   })).toBeVisible();
-  await page.screenshot({
-    path: testInfo.outputPath('accounts-detail-desktop.png')
-  });
   await expect(dialog.getByRole('button', {
     name: '사용 중지',
     exact: true
@@ -129,10 +118,6 @@ test('계정 목록은 코드순이고 기본 비용은 중지·재개하며 필
     name: '코드·과목명 검색',
     exact: true
   }).clear();
-  await page.screenshot({
-    path: testInfo.outputPath('accounts-desktop.png'),
-    fullPage: true
-  });
 });
 
 test('사용한 추가 과목은 이름만 변경하며 충돌 때 입력을 유지한다', async ({ page }) => {
@@ -298,7 +283,7 @@ test('부담당자는 조회만 하고 조회 실패를 기본 과목으로 대�
   })).toBeVisible();
 });
 
-test('모바일에서 흰색 목록과 입력창이 화면을 넘지 않는다', async ({ page }, testInfo) => {
+test('모바일에서 흰색 목록과 입력창이 화면을 넘지 않는다', async ({ page }) => {
   await mockSettlement(page);
   await mockAccountingAccounts(page);
   await page.setViewportSize({
@@ -318,10 +303,6 @@ test('모바일에서 흰색 목록과 입력창이 화면을 넘지 않는다',
     while (current && getComputedStyle(current).backgroundColor === 'rgba(0, 0, 0, 0)') current = current.parentElement;
     return current && getComputedStyle(current).backgroundColor;
   })).toBe('rgb(255, 255, 255)');
-  await page.screenshot({
-    path: testInfo.outputPath('accounts-mobile.png'),
-    fullPage: true
-  });
   await page.getByRole('table', {
     name: '계정과목 목록',
     exact: true
@@ -336,9 +317,6 @@ test('모바일에서 흰색 목록과 입력창이 화면을 넘지 않는다',
     name: '계정과목 상세',
     exact: true
   })).toBeInViewport();
-  await page.screenshot({
-    path: testInfo.outputPath('accounts-detail-mobile.png')
-  });
   await page.getByRole('button', {
     name: '닫기',
     exact: true
@@ -360,8 +338,4 @@ test('모바일에서 흰색 목록과 입력창이 화면을 넘지 않는다',
     exact: true
   })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.screenshot({
-    path: testInfo.outputPath('accounts-editor-320.png'),
-    fullPage: true
-  });
 });

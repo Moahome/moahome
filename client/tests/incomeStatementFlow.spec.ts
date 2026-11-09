@@ -84,7 +84,7 @@ test('기타 입금만 있는 기간에도 반영 내역에서 901 자동 매칭
   await expect(income).toContainText('901 영업외수익');
 });
 
-test('확인 목록은 선택 월의 미수금만 거래일 내림차순으로 표시하고 0원 회수 완료를 강조한다', async ({ page }, testInfo) => {
+test('확인 목록은 선택 월의 미수금만 거래일 내림차순으로 표시하고 0원 회수 완료를 강조한다', async ({ page }) => {
   await mockSettlement(page);
   const source = incomeFixture();
   const cost = source.accounts.find((account) => account.group === 'operatingExpense')!;
@@ -177,12 +177,9 @@ test('확인 목록은 선택 월의 미수금만 거래일 내림차순으로 �
   });
   await expect(partial).toContainText('40원');
   await expect(partial).toContainText('일부 회수');
-  await list.screenshot({
-    path: testInfo.outputPath('income-sorted-receivables.png')
-  });
 });
 
-test('모바일 확인 목록과 분류는 독립 페이지이며 헤더 뒤로가기로 같은 목록을 복원한다', async ({ page }, testInfo) => {
+test('모바일 확인 목록과 분류는 독립 페이지이며 헤더 뒤로가기로 같은 목록을 복원한다', async ({ page }) => {
   await page.setViewportSize({
     width: 375,
     height: 900
@@ -211,10 +208,6 @@ test('모바일 확인 목록과 분류는 독립 페이지이며 헤더 뒤로�
   await expect(page.getByRole('main').getByText('손익계산서', {
     exact: true
   })).toHaveCount(0);
-  await page.screenshot({
-    path: testInfo.outputPath('income-checks-mobile.png'),
-    fullPage: true
-  });
   await page.getByRole('button', {
     name: '청소비 매칭',
     exact: true
@@ -231,10 +224,6 @@ test('모바일 확인 목록과 분류는 독립 페이지이며 헤더 뒤로�
   })).toHaveCount(0);
   await expect(page.getByRole('dialog')).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({
-    path: testInfo.outputPath('income-review-mobile.png'),
-    fullPage: true
-  });
   await page.getByRole('link', {
     name: '뒤로가기',
     exact: true
@@ -317,9 +306,6 @@ test('손익 조회는 기간·동·누계와 점 말풍선을 연결하고 같�
   await expect(accounts.getByRole('row', {
     name: /^기간 순손익/
   })).toHaveCSS('background-color', 'rgb(191, 219, 254)');
-  await statement.screenshot({
-    path: testInfo.outputPath('income-blue-table.png')
-  });
   const statementBounds = (await statement.boundingBox())!;
   const trendBounds = (await trend.boundingBox())!;
   expect(trendBounds.y).toBeGreaterThanOrEqual(statementBounds.y + statementBounds.height);
@@ -333,14 +319,7 @@ test('손익 조회는 기간·동·누계와 점 말풍선을 연결하고 같�
   await expect(page.getByRole('tooltip')).toContainText('240,000원');
   await expect(page.getByRole('tooltip')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
   expect(await description.evaluate((element) => element.getBoundingClientRect().top + window.scrollY)).toBe(before);
-  await trend.screenshot({
-    path: testInfo.outputPath('income-point-tooltip.png')
-  });
   await page.keyboard.press('Escape');
-  await page.screenshot({
-    path: testInfo.outputPath('income-desktop.png'),
-    fullPage: true
-  });
 
   const filters = page.getByRole('form', {
     name: '손익 조회 조건'
@@ -407,9 +386,6 @@ test('손익 조회는 기간·동·누계와 점 말풍선을 연결하고 같�
   await expect(excelTable.getByRole('row', {
     name: /^기간 순손익/
   })).toHaveCSS('background-color', 'rgb(191, 219, 254)');
-  await excelTable.screenshot({
-    path: testInfo.outputPath('income-excel-sections.png')
-  });
   const excelReady = page.waitForEvent('download');
   await modal.getByRole('button', {
     name: 'Excel 다운로드',
@@ -433,12 +409,6 @@ test('손익 조회는 기간·동·누계와 점 말풍선을 연결하고 같�
     name: 'PDF 1페이지 미리보기',
     exact: true
   })).toBeVisible();
-  await modal.getByRole('img', {
-    name: 'PDF 1페이지 미리보기',
-    exact: true
-  }).screenshot({
-    path: testInfo.outputPath('income-pdf-1.png')
-  });
   await modal.getByRole('button', {
     name: 'PDF 다음 페이지',
     exact: true
@@ -447,12 +417,6 @@ test('손익 조회는 기간·동·누계와 점 말풍선을 연결하고 같�
     name: 'PDF 2페이지 미리보기',
     exact: true
   })).toBeVisible();
-  await modal.getByRole('img', {
-    name: 'PDF 2페이지 미리보기',
-    exact: true
-  }).screenshot({
-    path: testInfo.outputPath('income-pdf-2.png')
-  });
   const pdfReady = page.waitForEvent('download');
   await modal.getByRole('button', {
     name: 'PDF 다운로드',
@@ -484,65 +448,67 @@ test('손익 조회는 기간·동·누계와 점 말풍선을 연결하고 같�
   await closeReportPreview(page);
 });
 
-test('360px까지 페이지 넘침 없이 표시하고 모바일 다운로드 복귀·직접 접근·자료 없는 기간을 구분한다', async ({ page }, testInfo) => {
-  await mockSettlement(page);
-  await mockIncomeStatement(page);
-  await page.setViewportSize({
-    width: 375,
-    height: 900
+test.describe('손익 모바일 반응형', () => {
+  test.use({
+    hasTouch: true
   });
-  await page.goto(BASE);
-  for (const width of [375, 360, 320, 768]) {
+
+  test('360px까지 페이지 넘침 없이 표시하고 모바일 다운로드 복귀·직접 접근·자료 없는 기간을 구분한다', async ({ page }) => {
+    await mockSettlement(page);
+    await mockIncomeStatement(page);
     await page.setViewportSize({
-      width,
+      width: 375,
       height: 900
     });
-    await expect(page.getByRole('heading', {
-      name: '손익계산서',
-      exact: true,
-      level: 1
-    })).toBeVisible();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({
-      path: testInfo.outputPath(`income-${width}.png`),
-      fullPage: true
+    await page.goto(BASE);
+    for (const width of [375, 360, 320, 768]) {
+      await page.setViewportSize({
+        width,
+        height: 900
+      });
+      await expect(page.getByRole('heading', {
+        name: '손익계산서',
+        exact: true,
+        level: 1
+      })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+    await page.setViewportSize({
+      width: 375,
+      height: 900
     });
-  }
-  await page.setViewportSize({
-    width: 375,
-    height: 900
+    const point = page.locator('circle[aria-label^="2026-07"]');
+    await point.tap();
+    await expect(page.getByRole('tooltip')).toBeVisible();
+    const tooltip = (await page.getByRole('tooltip').boundingBox())!;
+    expect(tooltip.x).toBeGreaterThanOrEqual(0);
+    expect(tooltip.x + tooltip.width).toBeLessThanOrEqual(375);
+    await page.getByRole('button', {
+      name: '다운로드',
+      exact: true
+    }).click();
+    await expect(page).toHaveURL(/income-statement\/download/);
+    await expect(page.getByRole('region', {
+      name: '테스트 관리대상 손익계산서',
+      exact: true
+    })).toBeVisible();
+    await closeReportPreview(page);
+    await expect(page).toHaveURL(new RegExp(`${BASE}$`));
+    await page.goto(`${BASE}/download`);
+    await expect(page.getByRole('button', {
+      name: 'Excel 다운로드',
+      exact: true
+    })).toHaveCount(0);
+    await page.goto(`${BASE}?startMonth=2026-06&endMonth=2026-10`);
+    await expect(page.getByText('첫 부과월 이전의 기간입니다.', {
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('button', {
+      name: '다운로드',
+      exact: true
+    })).toBeDisabled();
+    await expect(page.getByRole('article')).toHaveCount(0);
   });
-  const point = page.locator('circle[aria-label^="2026-07"]');
-  await point.click();
-  await expect(page.getByRole('tooltip')).toBeVisible();
-  const tooltip = (await page.getByRole('tooltip').boundingBox())!;
-  expect(tooltip.x).toBeGreaterThanOrEqual(0);
-  expect(tooltip.x + tooltip.width).toBeLessThanOrEqual(375);
-  await page.getByRole('button', {
-    name: '다운로드',
-    exact: true
-  }).click();
-  await expect(page).toHaveURL(/income-statement\/download/);
-  await expect(page.getByRole('region', {
-    name: '테스트 관리대상 손익계산서',
-    exact: true
-  })).toBeVisible();
-  await closeReportPreview(page);
-  await expect(page).toHaveURL(new RegExp(`${BASE}$`));
-  await page.goto(`${BASE}/download`);
-  await expect(page.getByRole('button', {
-    name: 'Excel 다운로드',
-    exact: true
-  })).toHaveCount(0);
-  await page.goto(`${BASE}?startMonth=2026-06&endMonth=2026-10`);
-  await expect(page.getByText('첫 부과월 이전의 기간입니다.', {
-    exact: true
-  })).toBeVisible();
-  await expect(page.getByRole('button', {
-    name: '다운로드',
-    exact: true
-  })).toBeDisabled();
-  await expect(page.getByRole('article')).toHaveCount(0);
 });
 
 test('별도 날짜·사유 입력 없이 과목을 매칭하고 실패 시 선택을 보존한다', async ({ page }) => {
@@ -731,7 +697,7 @@ test('잘못된 손익 서버 응답도 공통 서버 오류 이미지를 표시
 });
 
 
-test('원천 목록은 페이지를 나누고 PC에서 기존 지출·수납·입금 상세 모달을 연다', async ({ page }, testInfo) => {
+test('원천 목록은 페이지를 나누고 PC에서 기존 지출·수납·입금 상세 모달을 연다', async ({ page }) => {
   await page.setViewportSize({
     width: 1440,
     height: 1000
@@ -833,9 +799,6 @@ test('원천 목록은 페이지를 나누고 PC에서 기존 지출·수납·�
     name: '입금 상세 닫기',
     exact: true
   }).click();
-  await list.screenshot({
-    path: testInfo.outputPath('income-sources.png')
-  });
 });
 
 

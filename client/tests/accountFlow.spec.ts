@@ -137,10 +137,6 @@ test('공통 사진 크롭은 모바일 원형 미리보기에서 확대·이동
   await stage.focus();
   for (let step = 0; step < 20; step++) await stage.press('ArrowRight');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({
-    path: test.info().outputPath('imageCropMobile.png'),
-    fullPage: true
-  });
   await applyPhotoCrop(page);
   const cropped = await main.getByRole('img', {
     name: '프로필 사진',
@@ -413,10 +409,6 @@ test('사진과 이름은 함께 저장하고 비공개 사진을 Bearer로 표�
     name: '수정',
     exact: true
   }).click();
-  await page.screenshot({
-    path: test.info().outputPath('accountPhotoEditDesktop.png'),
-    fullPage: true
-  });
   await main.getByRole('button', {
     name: '사진 삭제',
     exact: true
@@ -625,9 +617,6 @@ test('모바일 관리 메뉴·설정은 같은 계정 화면으로 연결하고
     name: '내 정보',
     exact: true
   })).toHaveAttribute('aria-current', 'page');
-  await menu.screenshot({
-    path: test.info().outputPath('accountMenuMobile.png')
-  });
   await menu.getByRole('button', {
     name: '메뉴 닫기',
     exact: true
@@ -651,10 +640,6 @@ test('모바일 관리 메뉴·설정은 같은 계정 화면으로 연결하고
     name: /목록/
   })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({
-    path: test.info().outputPath('accountEditMobile.png'),
-    fullPage: true
-  });
   await page.getByRole('banner').getByRole('link', {
     name: '뒤로가기',
     exact: true
@@ -747,10 +732,6 @@ test('프로필 카드는 계정 요약·내 정보·시스템 관리자 전용 
     name: '로그아웃',
     exact: true
   })).toBeVisible();
-  await page.screenshot({
-    path: test.info().outputPath('profileCardDesktop.png'),
-    fullPage: true
-  });
 });
 
 for (const canCreate of [false, true]) {

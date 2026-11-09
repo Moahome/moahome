@@ -36,7 +36,7 @@ for (const { width, failure } of [{
   width: 320,
   failure: '503'
 }]) {
-  test(`연결 오류 ${failure} ${width}px는 캐릭터·안내를 표시하고 재시도에서 실패한 조회만 실행`, async ({ page }, testInfo) => {
+  test(`연결 오류 ${failure} ${width}px는 캐릭터·안내를 표시하고 재시도에서 실패한 조회만 실행`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -76,11 +76,6 @@ for (const { width, failure } of [{
     })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     expect(reads).toBe(1);
-    await page.screenshot({
-      path: testInfo.outputPath(`connectionError-${failure}-${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     await page.getByRole('button', {
       name: '다시 시도',
       exact: true

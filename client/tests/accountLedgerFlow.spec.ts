@@ -25,7 +25,7 @@ const BASE = `/manage/${SETTLEMENT_PROPERTY}/accounting/ledger`;
 const RANGE = 'startMonth=2026-10&endMonth=2026-10';
 
 for (const width of [1440, 390]) {
-  test(`일반관리비 ${width}px는 100만원 부과 한 행에서 동·호수순 부과 상세를 연다`, async ({ page }, testInfo) => {
+  test(`일반관리비 ${width}px는 100만원 부과 한 행에서 동·호수순 부과 상세를 연다`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 1000
@@ -55,11 +55,6 @@ for (const width of [1440, 390]) {
     await expect(page.getByText('남은 미납금액', {
       exact: true
     })).toHaveCount(0);
-    await page.screenshot({
-      path: testInfo.outputPath(`billing-from-ledger-${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     if (width >= 768) await page.keyboard.press('Escape');
     else await page.getByRole('link', {
       name: '뒤로가기',
@@ -77,7 +72,7 @@ for (const width of [1440, 390]) {
 }
 
 for (const width of [1440, 360]) {
-  test(`원장 표 ${width}px는 흰색 카드·공통 빈 상태 그림·한 줄 적요를 표시한다`, async ({ page }, testInfo) => {
+  test(`원장 표 ${width}px는 흰색 카드·공통 빈 상태 그림·한 줄 적요를 표시한다`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 1000
@@ -115,11 +110,6 @@ for (const width of [1440, 360]) {
     await expect(table).not.toContainText('부담처');
     expect(await region.evaluate((element) => getComputedStyle(element.parentElement!).backgroundColor)).toBe('rgb(255, 255, 255)');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await page.screenshot({
-      path: testInfo.outputPath(`ledger-table-${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     await page.goto(`${BASE}?startMonth=2026-11&endMonth=2026-11`);
     const empty = region.getByRole('status', {
       name: '선택한 조건의 반영 내역이 없습니다.',
@@ -127,11 +117,6 @@ for (const width of [1440, 360]) {
     });
     await expect(empty.locator('img')).toHaveAttribute('src', /noResults/);
     await expect.poll(() => empty.locator('img').evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
-    await page.screenshot({
-      path: testInfo.outputPath(`ledger-empty-${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
   });
 }
 
@@ -207,11 +192,6 @@ for (const width of [1440, 360]) {
     }
     await expect(table.getByRole('row').nth(1)).toContainText('청소 작업 13');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await page.screenshot({
-      path: testInfo.outputPath(`ledger-${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     await page.getByRole('button', {
       name: '다운로드',
       exact: true
@@ -259,11 +239,6 @@ for (const width of [1440, 360]) {
       name: 'PDF 1페이지 미리보기',
       exact: true
     })).toBeVisible();
-    await page.screenshot({
-      path: testInfo.outputPath(`ledger-pdf-${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     if (width >= 768) {
       await page.getByRole('radio', {
         name: '이미지 (PNG)',
@@ -355,7 +330,7 @@ test('확인 필요 자료를 표시하고 모바일 다운로드 직접 접근�
 });
 
 
-test('계정 목록 조회 실패에 UUID를 표시하지 않고 재조회하면 선택한 코드·명칭을 복원한다', async ({ page }, testInfo) => {
+test('계정 목록 조회 실패에 UUID를 표시하지 않고 재조회하면 선택한 코드·명칭을 복원한다', async ({ page }) => {
   await mockSettlement(page);
   await mockLedger(page, {
     failure: true
@@ -376,10 +351,6 @@ test('계정 목록 조회 실패에 UUID를 표시하지 않고 재조회하면
   })).toBeDisabled();
   await expect(page.locator('body')).not.toContainText(LEDGER_COST);
   await expect(page.locator('body')).not.toContainText(LEDGER_BUILDING);
-  await page.screenshot({
-    path: testInfo.outputPath('ledger-lookup-failure.png'),
-    fullPage: true
-  });
   await mockLedger(page);
   await page.getByRole('button', {
     name: /다시 시도|재시도/
@@ -395,7 +366,7 @@ test('계정 목록 조회 실패에 UUID를 표시하지 않고 재조회하면
   })).toBeVisible();
 });
 
-test('100·200 원장을 코드순으로 표시하고 날짜 정렬·페이지·다운로드에서 누계를 유지한다', async ({ page }, testInfo) => {
+test('100·200 원장을 코드순으로 표시하고 날짜 정렬·페이지·다운로드에서 누계를 유지한다', async ({ page }) => {
   const { assetLedgerFixture, LEDGER_ADVANCE } = await import('./support/accountLedger');
   await mockSettlement(page);
   await page.route('http://localhost:8080/api/properties/*/accounting/ledger**', (route) => route.fulfill({
@@ -456,14 +427,10 @@ test('100·200 원장을 코드순으로 표시하고 날짜 정렬·페이지·
     name: '원장 표시 개수',
     exact: true
   })).toBeVisible();
-  await page.screenshot({
-    path: testInfo.outputPath('ledger-advance-mobile.png'),
-    fullPage: true
-  });
 });
 
 for (const width of [1440, 390]) {
-  test(`${width}px 계정 다중 선택은 코드순을 고정하고 과목 안의 날짜 방향만 바꾼다`, async ({ page }, testInfo) => {
+  test(`${width}px 계정 다중 선택은 코드순을 고정하고 과목 안의 날짜 방향만 바꾼다`, async ({ page }) => {
     const { assetLedgerFixture, ledgerFixture, LEDGER_BANK } = await import('./support/accountLedger');
     await page.setViewportSize({
       width,
@@ -546,11 +513,6 @@ for (const width of [1440, 390]) {
     await expect(account).toContainText('101 통장 외 1개');
     await expect(sort).toHaveText('오래된순');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await page.screenshot({
-      path: testInfo.outputPath(`ledger-multiple-${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
   });
 }
 

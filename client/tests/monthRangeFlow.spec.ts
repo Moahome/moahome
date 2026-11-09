@@ -69,7 +69,7 @@ function fixture() {
 }
 
 for (const width of [1440, 320]) {
-  test(`월 기간 ${width}px는 연도 경계·최신순 월별 내역·취소·역전 검증과 모바일 복귀를 유지`, async ({ page }, testInfo) => {
+  test(`월 기간 ${width}px는 연도 경계·최신순 월별 내역·취소·역전 검증과 모바일 복귀를 유지`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 1000
@@ -197,9 +197,6 @@ for (const width of [1440, 320]) {
     await preset.hover();
     expect(await preset.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(appearance.background);
     expect(await preset.evaluate((element) => getComputedStyle(element).borderColor)).toBe(appearance.border);
-    await panel.screenshot({
-      path: testInfo.outputPath(`periodPanel${width}.png`)
-    });
     const bounds = await panel.boundingBox();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
@@ -225,10 +222,6 @@ for (const width of [1440, 320]) {
     await expect(panel.getByRole('alert')).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(rows).toHaveCount(5);
-    await page.screenshot({
-      path: testInfo.outputPath(`monthRange${width}.png`),
-      fullPage: true
-    });
     if (width < 768) {
       await rows.first().click();
       await expect(page).toHaveURL(/monthly\/2027-03\/.*startMonth=2026-11&endMonth=2027-03/);
@@ -276,7 +269,7 @@ test('통장 거래 기간은 시작·종료 월 전체 날짜를 포함하고 �
 
 });
 
-test('기간 보고서는 월 범위와 최신 월부터의 내역을 PDF·PNG에 겹침 없이 저장한다', async ({ page }, testInfo) => {
+test('기간 보고서는 월 범위와 최신 월부터의 내역을 PDF·PNG에 겹침 없이 저장한다', async ({ page }) => {
   await mockSettlement(page, {
     failure: false,
     wrongProperty: false
@@ -326,10 +319,6 @@ test('기간 보고서는 월 범위와 최신 월부터의 내역을 PDF·PNG�
   await expect(dialog.getByRole('img', {
     name: /미리보기/
   }).first()).toBeVisible();
-  await page.screenshot({
-    path: testInfo.outputPath('monthRangeReport.png'),
-    fullPage: true
-  });
   const image = page.waitForEvent('download');
   await dialog.getByRole('button', {
     name: '이미지 다운로드',

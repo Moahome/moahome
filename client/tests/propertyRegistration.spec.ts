@@ -296,9 +296,6 @@ test('모바일 목록은 화면 안에 표시하고 공통 라디오는 키보�
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
   expect(bounds!.y).toBeGreaterThanOrEqual(0);
   expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(844);
-  await page.screenshot({
-    path: test.info().outputPath('propertyTypeOptionsMobile.png')
-  });
   await listbox.getByRole('option', {
     name: '빌라',
     exact: true
@@ -1146,10 +1143,6 @@ test('은행 선택은 짧은 모바일 화면과 화면 축소 후에도 입력
       width: 390,
       height
     });
-    await page.screenshot({
-      path: test.info().outputPath(`shortModal${height}.png`),
-      fullPage: true
-    });
     await expect.poll(async () => {
       const inputBounds = await bank.boundingBox();
       const menuBounds = await list.boundingBox();
@@ -1335,18 +1328,8 @@ for (const width of [1440, 390, 320]) {
     const inputBounds = await bank.boundingBox();
     expect(bounds!.y).toBeGreaterThan(inputBounds!.y + inputBounds!.height);
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(width > 640 ? 1000 : 844);
-    await page.screenshot({
-      path: test.info().outputPath(`bankSelectGrid${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     await bank.fill('bnk');
     await expect(page.getByRole('option')).toHaveCount(2);
-    await page.screenshot({
-      path: test.info().outputPath(`bankSelectSearch${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     await page.keyboard.press('Escape');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.getByRole('button', {
@@ -1357,11 +1340,6 @@ for (const width of [1440, 390, 320]) {
       name: '관리계좌 및 잔고',
       exact: true
     }).click();
-    await page.screenshot({
-      path: test.info().outputPath(`bankAccount${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     if (width <= 640) {
       await expect(page.getByLabel('6단계 중 4단계: 관리계좌 및 잔고')).toBeVisible();
       await page.getByRole('button', {
@@ -1489,10 +1467,6 @@ for (const width of [1440]) {
     await expect(editor.locator('[aria-invalid="true"]')).toHaveCount(0);
     await kind.click();
     await expect(editor.getByRole('option')).toHaveCount(8);
-    await page.screenshot({
-      path: test.info().outputPath(`feeKindMenu${width}.png`),
-      animations: 'disabled'
-    });
     await editor.getByRole('option', {
       name: '청소비',
       exact: true
@@ -1502,10 +1476,6 @@ for (const width of [1440]) {
     await expect(editor.getByText('계단·복도 등 공용 공간 청소', {
       exact: true
     })).toBeVisible();
-    await page.screenshot({
-      path: test.info().outputPath(`feeKindSelected${width}.png`),
-      animations: 'disabled'
-    });
     await expect(editor.getByRole('button', {
       name: '추가',
       exact: true
@@ -1707,11 +1677,6 @@ for (const width of [1440]) {
     }).click();
     await expect(page.getByLabel('기본 금액')).toHaveValue('-12,345');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`feeAmountFormatter${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
   });
 }
 
@@ -1948,11 +1913,6 @@ for (const width of [1440, 390, 320]) {
       height: width > 640 ? 1000 : 844
     });
     await openFeeItemsSetup(page);
-    await page.screenshot({
-      path: test.info().outputPath(`feeItemsEmpty${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     for (const [name, amount] of [['일반관리비', '15000'], ['청소용역비', '8000'], ['엘리베이터비', '25300'], ['기타(수선비 등)', '1700']]) {
       await addFeeItem(page, name, amount);
     }
@@ -1963,11 +1923,6 @@ for (const width of [1440, 390, 320]) {
       name: '관리비 설정',
       exact: true
     }).click();
-    await page.screenshot({
-      path: test.info().outputPath(`feeItems${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     if (width <= 640) await expect(page.getByLabel('6단계 중 5단계: 관리비 설정')).toBeVisible();
     await addFeeItem(page, '긴 항목명'.repeat(16), '-999999999999999');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
@@ -2106,9 +2061,6 @@ test('세대 자동 입력은 층별 미리보기에서 중복을 제외하고 �
   const previewRows = automatic.getByRole('table').locator('tbody tr');
   await expect(previewRows.locator('td:first-child')).toHaveText(['201호', '202호', '301호', '302호', '401호', '402호', '501호', '502호', '601호', '602호']);
   await expect(previewRows.first()).toContainText('중복 제외');
-  await page.screenshot({
-    path: test.info().outputPath('automaticUnitsDesktop.png')
-  });
   await automatic.getByRole('button', {
     name: '추가',
     exact: true
@@ -2230,9 +2182,6 @@ test('동 없는 자동 입력은 잘못된 범위를 막고 취소에 세대를
   await openAutomatic.click();
   expect(await automatic.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   await add.scrollIntoViewIfNeeded();
-  await page.screenshot({
-    path: test.info().outputPath('automaticUnits320.png')
-  });
   await add.click();
   await expect(automatic).toHaveCount(0);
   const stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
@@ -2295,9 +2244,6 @@ test('세대 자동 입력은 지하를 B로 표시하고 0층을 제외한 수�
   await expect(rows.locator('td:nth-child(2)')).toHaveText(['B2층', 'B2층', 'B1층', 'B1층', '1층', '1층']);
   await expect(add).toBeEnabled();
   await add.scrollIntoViewIfNeeded();
-  await page.screenshot({
-    path: test.info().outputPath('automaticBasement320.png')
-  });
   await add.click();
   const stored = await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY);
   expect(stored.units).toHaveLength(6);
@@ -2494,9 +2440,6 @@ for (const viewport of [{
       exact: true
     }).click();
     await expect(clear).toHaveCSS('color', 'rgb(239, 68, 68)');
-    await page.screenshot({
-      path: test.info().outputPath('buildingUnitsClearManager.png')
-    });
     await clear.click();
     await expect(confirmation).toContainText('101동과 연결된 4세대');
     await expect(confirmation).toContainText('동과 해당 동에 입력한 모든 세대가 함께 삭제됩니다.');
@@ -2523,9 +2466,6 @@ for (const viewport of [{
     await expect(confirm).toHaveCSS('background-color', 'rgb(255, 255, 255)');
     await expect(confirm).toHaveCSS('color', 'rgb(239, 68, 68)');
     expect(await confirmation.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath('buildingUnitsClearConfirmation.png')
-    });
     await confirm.click();
     await expect(confirmation).toHaveCount(0);
     await expect(manager).toBeVisible();
@@ -2668,9 +2608,6 @@ for (const viewport of [{
     await expect(page.getByRole('status').filter({
       hasText: '101동 · 총 10세대'
     })).toBeVisible();
-    await page.screenshot({
-      path: test.info().outputPath('unitListEditHeading.png')
-    });
     await page.getByRole('button', {
       name: '편집',
       exact: true
@@ -2719,10 +2656,6 @@ for (const viewport of [{
     await room('101동 201호 선택').check();
     await room('101동 602호 선택').check();
     await expect(all).toHaveJSProperty('indeterminate', true);
-    await page.screenshot({
-      path: test.info().outputPath('selectedUnits.png'),
-      fullPage: true
-    });
     const deleteSelected = page.getByRole('button', {
       name: '선택한 2세대 삭제',
       exact: true
@@ -2745,9 +2678,6 @@ for (const viewport of [{
     }).click();
     expect(await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY)).toEqual(before);
     await deleteSelected.click();
-    await page.screenshot({
-      path: test.info().outputPath('selectedUnitsConfirmation.png')
-    });
     await confirmation.getByRole('button', {
       name: '삭제',
       exact: true
@@ -2937,10 +2867,6 @@ test('모바일 동 선택과 검색을 단순하게 표시하고 동 관리에�
   await search.fill('202');
   await expect(page.getByText('검색 결과가 없어요.')).toBeVisible();
   await search.clear();
-  await page.screenshot({
-    path: test.info().outputPath('unitSetupBuildingsMobile.png'),
-    fullPage: true
-  });
 
   await manageButton.click();
   await manager.getByRole('button', {
@@ -3063,10 +2989,6 @@ test('동·세대는 숫자를 인식하는 이름순으로 표시하고 PC 삭�
     name: '102호 삭제',
     exact: true
   })).toHaveCSS('color', 'rgb(239, 68, 68)');
-  await page.screenshot({
-    path: test.info().outputPath('sortedUnitSetupDesktop.png'),
-    fullPage: true
-  });
   await page.getByRole('button', {
     name: '102호 삭제',
     exact: true
@@ -3143,9 +3065,6 @@ test('동·세대는 숫자를 인식하는 이름순으로 표시하고 PC 삭�
   });
   await mobileDelete.scrollIntoViewIfNeeded();
   expect(await editor.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-  await page.screenshot({
-    path: test.info().outputPath('buildingUnitEditor320.png')
-  });
   await mobileDelete.click();
   await expect(confirmation).toContainText('1동 101호');
   await expect(confirmation.getByRole('button', {
@@ -3159,9 +3078,6 @@ test('동·세대는 숫자를 인식하는 이름순으로 표시하고 PC 삭�
   })).toHaveValue('101');
   await expect(mobileDelete).toBeFocused();
   await mobileDelete.click();
-  await page.screenshot({
-    path: test.info().outputPath('unitDeleteConfirmation320.png')
-  });
   await confirmUnitDeletion(page);
   await expect(page.locator('body')).not.toHaveCSS('overflow', 'hidden');
   await expect(editor).toHaveCount(0);
@@ -3253,10 +3169,6 @@ test('동·세대 화면은 PC·모바일 표와 고정 하단 버튼을 표시�
     name: '호수',
     exact: true
   })).toBeVisible();
-  await page.screenshot({
-    path: test.info().outputPath('unitSetupDesktop.png'),
-    fullPage: true
-  });
   await page.setViewportSize({
     width: 390,
     height: 844
@@ -3269,10 +3181,6 @@ test('동·세대 화면은 PC·모바일 표와 고정 하단 버튼을 표시�
     name: '다음',
     exact: true
   })).toBeInViewport();
-  await page.screenshot({
-    path: test.info().outputPath('unitSetupMobile.png'),
-    fullPage: true
-  });
   await page.getByRole('button', {
     name: '302호 수정',
     exact: true
@@ -3319,9 +3227,6 @@ test('동·세대 화면은 PC·모바일 표와 고정 하단 버튼을 표시�
   expect(cancelBox.y).toBe(saveBox.y);
   expect(cancelBox.x + cancelBox.width).toBeLessThan(saveBox.x);
   expect(await editor.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-  await page.screenshot({
-    path: test.info().outputPath('unitEditor320.png')
-  });
   await save.click();
   await expect(editor).toHaveCount(0);
   await page.getByRole('button', {
@@ -3462,10 +3367,6 @@ test('PC 모달·모바일 전체 화면에서 가로 넘침 없이 표시하고
   await page.locator('section[data-kind]').evaluateAll(async (elements) => {
     await Promise.all(elements.flatMap((element) => element.getAnimations().map((animation) => animation.finished)));
   });
-  await page.screenshot({
-    path: test.info().outputPath('propertyRegistrationDesktop.png'),
-    fullPage: true
-  });
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
   await page.setViewportSize({
@@ -3501,15 +3402,9 @@ test('PC 모달·모바일 전체 화면에서 가로 넘침 없이 표시하고
     exact: true
   })).toBeHidden();
   expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
-  await page.screenshot({
-    path: test.info().outputPath('propertyRegistrationMobile.png')
-  });
   await page.getByRole('button', {
     name: '등록하고 계속'
   }).scrollIntoViewIfNeeded();
-  await page.screenshot({
-    path: test.info().outputPath('propertyRegistrationMobileBottom.png')
-  });
   await page.setViewportSize({
     width: 320,
     height: 640
@@ -3653,10 +3548,6 @@ for (const width of [1440]) {
     })).toHaveCount(0);
     await expect(page.getByRole('main')).not.toContainText('조작된 이전 정보');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`resultChecking${width}.png`),
-      fullPage: true
-    });
     release();
     await expect(page.getByRole('heading', {
       name: '관리할 곳이 등록되었습니다!'
@@ -4040,11 +3931,6 @@ for (const width of [1440, 320]) {
     await expect(account).toContainText('변경 관리단');
     expect(posts).toBe(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`registrationReview${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
   });
 }
 
@@ -4373,11 +4259,6 @@ for (const width of [1440, 320]) {
       previousBottom = Math.max(...positions.map((position) => position.bottom));
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`reviewUnitFloors${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
   });
 }
 
@@ -4851,11 +4732,6 @@ for (const closeMethod of ['닫기 버튼', 'Escape', '배경 클릭']) {
     expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (closeMethod === '닫기 버튼') {
-      await page.screenshot({
-        path: test.info().outputPath('registrationRecovery320.png'),
-        fullPage: true,
-        animations: 'disabled'
-      });
     }
     await checkButton.click();
     await expect(dialog).toBeVisible();
@@ -5109,20 +4985,12 @@ for (const width of [1440, 320]) {
     });
     await expect(loading).toBeVisible();
     await expect(loading).toContainText('관리계좌 및 기본 관리비');
-    await page.screenshot({
-      path: test.info().outputPath(`registrationLoading${width}.png`),
-      animations: 'disabled'
-    });
     release();
     const failure = page.getByRole('dialog', {
       name: '등록에 실패했습니다',
       exact: true
     });
     await expect(failure).toBeVisible();
-    await page.screenshot({
-      path: test.info().outputPath(`registrationFailure${width}.png`),
-      animations: 'disabled'
-    });
     await failure.getByRole('button', {
       name: '등록 정보로 돌아가기',
       exact: true
@@ -5146,11 +5014,6 @@ for (const width of [1440, 320]) {
     })).toContainText('하나은행 5678');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`registrationComplete${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     expect(posts).toBe(2);
   });
 }
@@ -5218,11 +5081,6 @@ for (const hasBuildings of [false, true]) {
     await expect(page.getByRole('radio', {
       name: /^거주 관리소장/
     })).toBeChecked();
-    await page.screenshot({
-      path: test.info().outputPath(`creatorProfile${hasBuildings ? 'Mobile' : 'Desktop'}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     await page.getByRole('button', {
       name: '다음',
       exact: true
@@ -5506,10 +5364,6 @@ for (const width of [320]) {
     const fieldsBounds = await card.boundingBox();
     expect(fieldsBounds!.x - panelBounds!.x).toBeGreaterThanOrEqual(16);
     await expectFixedSetupHeader(page);
-    await panel.screenshot({
-      path: test.info().outputPath(`administratorCard${width}.png`),
-      animations: 'disabled'
-    });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   });
 }
@@ -5612,11 +5466,6 @@ for (const width of [1440, 390]) {
         name: '다음',
         exact: true
       })).toBeEnabled();
-      await page.screenshot({
-        path: test.info().outputPath(`administratorStep${width}${hasBuildings ? 'WithBuildings' : 'NoBuilding'}.png`),
-        fullPage: true,
-        animations: 'disabled'
-      });
       await page.getByRole('button', {
         name: '다음',
         exact: true
@@ -5794,10 +5643,6 @@ for (const width of [1440, 320]) {
       }).locator('..')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-    await page.screenshot({
-      path: test.info().outputPath(`openingUnits${width}.png`),
-      fullPage: true
-    });
     await page.reload();
     await page.getByRole('button', {
       name: '기존 미납·선납',
@@ -5863,10 +5708,6 @@ for (const width of [1440, 320]) {
     }
     await expect(dateControl).toContainText('통장 기준일');
 
-    await page.screenshot({
-      path: test.info().outputPath(`openingAccount${width}.png`),
-      fullPage: true
-    });
     await page.getByRole('button', {
       name: '다음',
       exact: true
@@ -5998,11 +5839,6 @@ for (const width of [1440, 390]) {
     await modal.getByRole('switch', {
       name: '기본 납부계좌로 사용'
     }).check();
-    await page.screenshot({
-      path: test.info().outputPath(`accountModal${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     await saveAccountEditor(page);
     const second = page.getByRole('group', {
       name: '통장 2',
@@ -6117,11 +5953,6 @@ for (const width of [1440, 390]) {
       return null;
     });
     expect(actionBackground).toBe('rgb(255, 255, 255)');
-    await page.screenshot({
-      path: test.info().outputPath(`accountList${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
   });
 }
 
@@ -6215,15 +6046,7 @@ for (const width of [1440, 390]) {
       name: '삭제',
       exact: true
     })).toHaveAttribute('data-tone', 'danger');
-    await page.screenshot({
-      path: test.info().outputPath(`transactionDetail${width}.png`),
-      fullPage: true
-    });
     await edit.click();
-    await page.screenshot({
-      path: test.info().outputPath(`transactionEdit${width}.png`),
-      fullPage: true
-    });
     await expect(page.getByRole('textbox', {
       name: '출금액',
       exact: true
@@ -6329,10 +6152,6 @@ for (const width of [1440, 390]) {
       exact: true
     })).toBeVisible();
     await expect(next).toBeEnabled();
-    await page.screenshot({
-      path: test.info().outputPath(`initialTransactions${width}.png`),
-      fullPage: true
-    });
   });
 }
 
@@ -6642,10 +6461,6 @@ for (const width of [1440, 390]) {
     await expect(tooltip).not.toContainText('시작 방법');
     await expect(tooltip).toContainText('직접 입력: 실제 잔액과 필요한 입출금을 직접 입력합니다.');
     await expect(tooltip).toContainText('지원하는 은행에서만 선택할 수 있습니다.');
-    await page.screenshot({
-      path: test.info().outputPath(`startMethodHelp${width}.png`),
-      animations: 'disabled'
-    });
     await page.keyboard.press('Escape');
     await upload.check();
     await expect(page.getByRole('button', {

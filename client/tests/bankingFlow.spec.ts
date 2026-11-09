@@ -84,7 +84,7 @@ function row(index: number, direction: 'INCOME' | 'EXPENSE', payer: string, amou
 }
 
 for (const width of [1440, 390]) {
-  test(`외부 부담금 거래 삭제 ${width}px는 출금 전체 범위 확인·취소·실패 재시도 후 동별 잔고를 갱신`, async ({ page }, testInfo) => {
+  test(`외부 부담금 거래 삭제 ${width}px는 출금 전체 범위 확인·취소·실패 재시도 후 동별 잔고를 갱신`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -281,11 +281,6 @@ for (const width of [1440, 390]) {
       name: '거래 삭제',
       exact: true
     }).click();
-    await page.screenshot({
-      path: testInfo.outputPath(`externalDelete${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     await page.getByRole('button', {
       name: '삭제',
       exact: true
@@ -605,10 +600,6 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
     exact: true
   }).click();
   await expect(household).toHaveValue('102동 501호');
-  await receiptEditor.screenshot({
-    path: test.info().outputPath('receiptResidentSearch.png'),
-    animations: 'disabled'
-  });
   await receiptEditor.getByRole('combobox', {
     name: '입금 용도',
     exact: true
@@ -645,14 +636,6 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
       name: '기타 입금 (1)',
       exact: true
     })).toBeInViewport();
-    await page.screenshot({
-      path: test.info().outputPath(`processingFilter${width}.png`),
-      fullPage: true
-    });
-    await test.info().attach(`업로드 처리 필터 ${width}px`, {
-      path: test.info().outputPath(`processingFilter${width}.png`),
-      contentType: 'image/png'
-    });
     await page.keyboard.press('Escape');
   }
   await page.setViewportSize({
@@ -825,22 +808,12 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
   await expect(editor.getByText('남은 금액 0원', {
     exact: true
   })).toBeVisible();
-  await page.screenshot({
-    animations: 'disabled',
-    path: test.info().outputPath('expenseSettingsDesktop.png'),
-    fullPage: true
-  });
   await page.setViewportSize({
     width: 390,
     height: 844
   });
   await expect(settings).toBeVisible();
   expect(await settings.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
-  await page.screenshot({
-    animations: 'disabled',
-    path: test.info().outputPath('expenseSettingsMobile.png'),
-    fullPage: true
-  });
   await page.setViewportSize({
     width: 1440,
     height: 1000
@@ -919,11 +892,6 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
   await expect(detail.getByText('전기료', {
     exact: true
   })).toHaveCount(1);
-  await page.screenshot({
-    animations: 'disabled',
-    path: test.info().outputPath('bankingDesktop.png'),
-    fullPage: true
-  });
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.setViewportSize({
@@ -949,11 +917,6 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
     await expect(allocations.getByRole('listitem')).toHaveText(['102동25%45,665원', '103동25%45,665원', '외부 101동50%91,330원']);
   }
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({
-    animations: 'disabled',
-    path: test.info().outputPath('bankingMobile.png'),
-    fullPage: true
-  });
   await page.setViewportSize({
     width: 1440,
     height: 1000
@@ -977,11 +940,6 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
     exact: true
   })).toHaveCount(0);
   await expect(page.getByText(/매칭|배분|적요|비용 항목/)).toHaveCount(0);
-  await page.screenshot({
-    animations: 'disabled',
-    path: test.info().outputPath('expenseDesktop.png'),
-    fullPage: true
-  });
   const building = page.getByRole('combobox', {
     name: '부담 동',
     exact: true
@@ -1014,11 +972,6 @@ test('업로드 페이지에서 필터·페이지 선택을 유지하고 전기�
   await page.setViewportSize({
     width: 390,
     height: 844
-  });
-  await page.screenshot({
-    animations: 'disabled',
-    path: test.info().outputPath('expenseMobile.png'),
-    fullPage: true
   });
   const current = saved.rows[0];
   saved = {
@@ -1444,11 +1397,6 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   await expect(bankingGroup).toHaveAttribute('aria-expanded', 'false');
   await expect(bankingGroup).toHaveCSS('color', 'rgb(37, 99, 235)');
   await expect(bankingGroup.locator('svg').first()).toHaveCSS('color', 'rgb(37, 99, 235)');
-  await page.screenshot({
-    path: test.info().outputPath('currentBankingGroupClosed.png'),
-    fullPage: true,
-    animations: 'disabled'
-  });
   await bankingGroup.click();
 
   const table = page.getByRole('table', {
@@ -1484,10 +1432,6 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   await expect(tooltip).toContainText('기준일의 동별 보유금을 등록합니다.');
   await tooltip.hover();
   await expect(tooltip).toBeVisible();
-  await page.screenshot({
-    path: test.info().outputPath('openingHelpDesktop.png'),
-    fullPage: false
-  });
   await page.mouse.move(0, 0);
   await expect(tooltip).toHaveCount(0);
   await help.focus();
@@ -1503,10 +1447,6 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     exact: true
   });
   expect((await externalSize.boundingBox())!.width).toBeLessThanOrEqual(160);
-  await page.screenshot({
-    path: test.info().outputPath('balancesBeforeSetup.png'),
-    fullPage: true
-  });
   await page.getByRole('button', {
     name: '시작 잔고 설정',
     exact: true
@@ -1547,17 +1487,9 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     exact: true
   })).toHaveValue('600,000');
   expect((await setup.boundingBox())!.height).toBe(initialHeight);
-  await page.screenshot({
-    path: test.info().outputPath('openingDesktop.png'),
-    fullPage: false
-  });
   await page.setViewportSize({
     width: 390,
     height: 844
-  });
-  await page.screenshot({
-    path: test.info().outputPath('openingMobile.png'),
-    fullPage: false
   });
   await expect(setup.getByRole('button', {
     name: '확정',
@@ -1706,10 +1638,6 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   }).getByRole('row')).toHaveCount(2);
   await expect(graphDialog).toContainText('-45,665원');
   await expect(graphDialog.getByRole('img')).toHaveAccessibleName(/월 입출금 차액 -45,665원/);
-  await page.screenshot({
-    path: test.info().outputPath('graphDesktop.png'),
-    fullPage: false
-  });
   await page.keyboard.press('Escape');
   await page.evaluate(() => window.scrollTo(0, 0));
   await table.getByRole('row').filter({
@@ -1869,10 +1797,6 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     name: '정산 대상으로 복원',
     exact: true
   })).toBeInViewport();
-  await page.screenshot({
-    path: test.info().outputPath('excludedSettlementMobile.png'),
-    fullPage: false
-  });
   await page.setViewportSize({
     width: 1440,
     height: 1000
@@ -1972,11 +1896,6 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     exact: true
   }).click();
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({
-    path: test.info().outputPath('balancesDesktop.png'),
-    fullPage: true,
-    animations: 'disabled'
-  });
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({
       width,
@@ -1996,10 +1915,6 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     const rect = element.getBoundingClientRect();
     return rect.left >= 0 && rect.right <= innerWidth;
   })).toBe(true);
-  await page.screenshot({
-    path: test.info().outputPath('openingHelpMobile.png'),
-    fullPage: false
-  });
   await page.getByRole('heading', {
     name: '동별 잔고·정산',
     exact: true
@@ -2034,10 +1949,6 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     name: '동별 입금 출금 비교',
     exact: true
   })).toContainText('109동');
-  await page.screenshot({
-    path: test.info().outputPath('graphMobilePage.png'),
-    fullPage: true
-  });
   await backToBalances.click();
   await expect(page).toHaveURL(`${BASE}/balances?month=2026-10`);
   await page.getByRole('button', {
@@ -2098,10 +2009,6 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     name: '연결할 기타 입금',
     exact: true
   })).toBeVisible();
-  await page.screenshot({
-    path: test.info().outputPath('settlementMobilePage.png'),
-    fullPage: true
-  });
   await page.getByRole('button', {
     name: '정산에서 제외',
     exact: true
@@ -2179,11 +2086,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   }
-  await page.screenshot({
-    path: test.info().outputPath('balancesMobile.png'),
-    fullPage: true,
-    animations: 'disabled'
-  });  await page.getByRole('table', {
+  await page.getByRole('table', {
     name: '동별 상세 원장',
     exact: true
   }).getByRole('row').filter({
@@ -2253,10 +2156,6 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     name: '변경 저장',
     exact: true
   })).toBeInViewport();
-  await page.screenshot({
-    path: test.info().outputPath('openingCorrectionMobile.png'),
-    fullPage: false
-  });
   await page.setViewportSize({
     width: 1440,
     height: 1000
@@ -2535,10 +2434,6 @@ test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭�
     name: '기타 입금 동별 배분',
     exact: true
   })).toContainText('750원');
-  await page.screenshot({
-    path: test.info().outputPath('incomeAllocationMobile.png'),
-    fullPage: true
-  });
   await page.goto(`${BASE}/transactions`);
   await page.setViewportSize({
     width: 1440,
@@ -2588,10 +2483,6 @@ test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭�
     name: '삭제',
     exact: true
   })).toBeInViewport();
-  await page.screenshot({
-    path: test.info().outputPath('deleteTransactionsMobile.png'),
-    fullPage: false
-  });
   await deletion.getByRole('button', {
     name: '삭제',
     exact: true
@@ -2760,15 +2651,10 @@ test('기타 입금을 동별로 배분하고 편집에서 입출금 선택 삭�
     });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   }
-  await page.screenshot({
-    path: test.info().outputPath('transactionProcessingContent.png'),
-    fullPage: true,
-    animations: 'disabled'
-  });
 });
 
 for (const width of [1440, 390]) {
-  test(`다중 통장 ${width}px에서 통장별 조회·이체 연결·선택 통장 업로드 처리`, async ({ page }, testInfo) => {
+  test(`다중 통장 ${width}px에서 통장별 조회·이체 연결·선택 통장 업로드 처리`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -2990,11 +2876,6 @@ for (const width of [1440, 390]) {
     await expect(page.getByRole('article', {
       name: /최근 은행 확인 잔액/
     })).toHaveCount(0);
-    await page.screenshot({
-      path: test.info().outputPath(`multipleBanking${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     await page.getByRole('button', {
       name: '엑셀 업로드',
       exact: true
@@ -3019,10 +2900,6 @@ for (const width of [1440, 390]) {
       name: '다음 이체',
       exact: true
     });
-    await editor.screenshot({
-      path: testInfo.outputPath(`transactionSettings${width}.png`),
-      animations: 'disabled'
-    });
     const transfer = editor.getByRole('checkbox', {
       name: '관리 통장 간 이체',
       exact: true
@@ -3038,11 +2915,6 @@ for (const width of [1440, 390]) {
     expect(Math.abs(receiptBounds.x - transferBounds.x)).toBeLessThan(1);
     expect(receiptBounds.x - modalBounds.x).toBeGreaterThanOrEqual(16);
     expect(modalBounds.x + modalBounds.width - receiptBounds.x - receiptBounds.width).toBeGreaterThanOrEqual(16);
-    await page.screenshot({
-      path: testInfo.outputPath(`receiptSettingsPage${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
 
     await expect(editor.getByRole('combobox', {
       name: '입금 용도',
@@ -3066,10 +2938,6 @@ for (const width of [1440, 390]) {
     await page.getByRole('option').filter({
       hasText: '관리비'
     }).click();
-    await editor.screenshot({
-      path: testInfo.outputPath(`transferSettings${width}.png`),
-      animations: 'disabled'
-    });
     await expect(editor.getByText('수납·지출 집계에서 제외됩니다.', {
       exact: true
     })).toHaveCount(0);
@@ -3119,10 +2987,6 @@ for (const width of [1440, 390]) {
       expect(expenseAccountBox.x).toBeGreaterThan(expenseSearchBox.x + expenseSearchBox.width);
       expect(Math.abs(expenseAccountBox.y - expenseSearchBox.y)).toBeLessThanOrEqual(1);
     } else expect(expenseAccountBox.y).toBeGreaterThanOrEqual(expenseSearchBox.y + expenseSearchBox.height);
-    await page.screenshot({
-      path: testInfo.outputPath(`expenseAccountFilter${width}.png`),
-      fullPage: true
-    });
   });
 }
 
@@ -3253,9 +3117,6 @@ for (const width of [1440, 320]) {
     await expect(rows.nth(2)).not.toContainText('00:00');
     await expect(card.getByRole('tooltip')).toHaveCount(0);
     await card.scrollIntoViewIfNeeded();
-    await card.screenshot({
-      path: test.info().outputPath(`accountBalances${width}.png`)
-    });
     const info = card.getByRole('button', {
       name: '통장별 장부 잔액 도움말',
       exact: true
@@ -3268,10 +3129,6 @@ for (const width of [1440, 320]) {
     const bounds = await tooltip.boundingBox();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
-    await page.screenshot({
-      path: test.info().outputPath(`accountBalanceHelp${width}.png`),
-      fullPage: true
-    });
     await card.getByRole('heading').click();
     await expect(tooltip).toHaveCount(0);
     await info.focus();
@@ -3305,11 +3162,6 @@ for (const width of [1440, 320]) {
         || tipBounds!.y + tipBounds!.height <= helpBounds!.y).toBe(true);
       expect(tipBounds!.x).toBeGreaterThanOrEqual(0);
       expect(tipBounds!.x + tipBounds!.width).toBeLessThanOrEqual(width);
-      await page.screenshot({
-        path: test.info().outputPath(`summaryHelp${label}${width}.png`),
-        fullPage: true,
-        animations: 'disabled'
-      });
       await help.press('Escape');
       await expect(explanation).toHaveCount(0);
       await page.getByRole('heading', {
@@ -3341,7 +3193,7 @@ for (const { width, unassigned } of [{
   width: 390,
   unassigned: true
 }]) {
-  test(`통장 선택과 동별 기준 잔고 ${width}px는 입력·조회 범위와 공통 필터 디자인을 유지${unassigned ? ' · 기존 잔고 확인' : ''}`, async ({ page }, testInfo) => {
+  test(`통장 선택과 동별 기준 잔고 ${width}px는 입력·조회 범위와 공통 필터 디자인을 유지${unassigned ? ' · 기존 잔고 확인' : ''}`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -3587,7 +3439,8 @@ for (const { width, unassigned } of [{
       name: /^조회 기간:/,
       exact: true
     });
-    expect((await selector.boundingBox())!.height).toBe((await monthControl.boundingBox())!.height);
+    // 드롭다운의 테두리는 바깥 컨트롤에 있으므로 달력과 같은 외곽 기준으로 비교합니다.
+    expect((await selector.locator('..').boundingBox())!.height).toBe((await monthControl.boundingBox())!.height);
     await expect(page.getByRole('button', {
       name: /^조회 기간:/
     })).toBeVisible();
@@ -3622,11 +3475,6 @@ for (const { width, unassigned } of [{
       await expect(page.getByText('통장 구분 전에 저장한 기준일과 잔고를 표시했습니다.', {
         exact: false
       })).toBeVisible();
-      await page.screenshot({
-        path: testInfo.outputPath(`legacyCashConfirmation${width}.png`),
-        fullPage: true,
-        animations: 'disabled'
-      });
       await page.getByRole('button', {
         name: '확정',
         exact: true
@@ -3659,18 +3507,6 @@ for (const { width, unassigned } of [{
       name: '잔고 기준일',
       exact: true
     })).toContainText('2026-07-01');
-    if (width < 768) await page.screenshot({
-      path: `/tmp/moahome-opening-design-${width}.png`,
-      fullPage: true,
-      animations: 'disabled'
-    });
-    else await page.getByRole('dialog', {
-      name: '기준 잔고 확인',
-      exact: true
-    }).screenshot({
-      path: `/tmp/moahome-opening-design-${width}.png`,
-      animations: 'disabled'
-    });
     await choose(displayLabels[1]);
     await expect(amount).toHaveValue('200,000');
     await expect(page.getByRole('group', {
@@ -3692,11 +3528,6 @@ for (const { width, unassigned } of [{
     await amount.fill('500000');
     await choose(displayLabels[0]); await expect(amount).toHaveValue('688,582');
     await choose(displayLabels[1]); await expect(amount).toHaveValue('500,000');
-    await page.screenshot({
-      path: testInfo.outputPath(`buildingAccountOpening${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     await page.getByRole('button', {
       name: '변경 저장',
       exact: true
@@ -3781,16 +3612,11 @@ for (const { width, unassigned } of [{
       exact: true
     }).first()).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await page.screenshot({
-      path: testInfo.outputPath(`accountBalanceFilter${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
   });
 }
 
 for (const width of [1440]) {
-  test(`기준 잔고와 입금이 있는 통장 ${width}px는 계산 잔액을 표시하고 혼합 합계와 차액도 같은 기준으로 비교`, async ({ page }, testInfo) => {
+  test(`기준 잔고와 입금이 있는 통장 ${width}px는 계산 잔액을 표시하고 혼합 합계와 차액도 같은 기준으로 비교`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -3957,11 +3783,6 @@ for (const width of [1440]) {
     await expect(page.getByRole('tooltip')).toContainText('통장 잔액 − 동별 잔고');
     await differenceHelp.press('Escape');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await page.screenshot({
-      path: testInfo.outputPath(`calculatedAccountBalance${width}.png`),
-      fullPage: true,
-      animations: 'disabled'
-    });
     await page.reload();
     await expect(summary).toBeVisible();
     mixed = true;
@@ -3981,10 +3802,6 @@ for (const width of [1440]) {
       name: '잔고 차이 확인',
       exact: true
     }).locator('..').locator('dd').first()).toHaveText('-66,718원');
-    await page.screenshot({
-      path: testInfo.outputPath(`mixedBalanceDifference${width}.png`),
-      fullPage: true
-    });
     await page.getByRole('button', {
       name: '잔고 차이 내역 확인',
       exact: true
@@ -4000,7 +3817,7 @@ for (const width of [1440]) {
 }
 
 for (const width of [1440]) {
-  test(`사용 전 월의 통장 ${width}px는 선택 목록과 합계에서 빠지고 오래된 URL도 전체 통장으로 복원`, async ({ page }, testInfo) => {
+  test(`사용 전 월의 통장 ${width}px는 선택 목록과 합계에서 빠지고 오래된 URL도 전체 통장으로 복원`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -4134,10 +3951,6 @@ for (const width of [1440]) {
       exact: true
     })).toHaveCount(0);
     await page.keyboard.press('Escape');
-    await page.screenshot({
-      path: testInfo.outputPath(`accountBeforeUse${width}.png`),
-      fullPage: true
-    });
     await page.reload();
     await expect(selector).toContainText('전체 통장');
     await selectMonthRange(page, '2026-09');
@@ -4163,7 +3976,7 @@ for (const width of [1440]) {
 }
 
 for (const width of [1440, 320]) {
-  test(`통장 상세 ${width}px는 선택 통장·번호 공개와 숨김·재진입 마스킹·모바일 복귀를 유지`, async ({ page }, testInfo) => {
+  test(`통장 상세 ${width}px는 선택 통장·번호 공개와 숨김·재진입 마스킹·모바일 복귀를 유지`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -4432,14 +4245,6 @@ for (const width of [1440, 320]) {
       exact: true
     })).toHaveAttribute('aria-pressed', 'true');
     expect(await page.evaluate((raw) => [...Object.values(localStorage), ...Object.values(sessionStorage)].some((value) => value.includes(raw)), number)).toBe(false);
-    await page.screenshot({
-      path: testInfo.outputPath(`bankAccountDetail${width}.png`),
-      fullPage: true
-    });
-    await testInfo.attach(`통장 상세 ${width}px`, {
-      path: testInfo.outputPath(`bankAccountDetail${width}.png`),
-      contentType: 'image/png'
-    });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
     await detail.getByRole('button', {
       name: '숨기기',
@@ -4699,10 +4504,6 @@ for (const width of [1440, 320]) {
         if (width <= 767) {
           await expect(actions).toHaveCSS('background-color', 'rgb(255, 255, 255)');
           await expect(save).toHaveCSS('opacity', '1');
-          await page.screenshot({
-            path: test.info().outputPath(`bankImportEmptySelection${width}.png`),
-            fullPage: true
-          });
         }
         await all.check();
         await expect(actions).toContainText('선택한 거래 13건');
@@ -4760,9 +4561,6 @@ for (const width of [1440, 320]) {
       await expect(tooltip).toContainText('중복·인계 이전 제외 후 전체 거래 기준');
       await page.keyboard.press('Escape');
       await expect(tooltip).toHaveCount(0);
-      if (index === 2) await income.locator('..').screenshot({
-        path: test.info().outputPath(`bankImportSummary${width}.png`)
-      });
       await expect(net).toHaveAttribute('data-value-tone', index === 2 ? 'danger' : 'neutral');
       // 검색·선택·입출금 필터로 파일 전체 합계를 줄이지 않습니다.
       await page.getByLabel('검증상대0 거래 선택', {
@@ -4797,10 +4595,6 @@ for (const width of [1440, 320]) {
         const actionBox = await actions.boundingBox();
         expect(paginationBox!.y + paginationBox!.height).toBeLessThanOrEqual(actionBox!.y);
         expect(actionBox!.y + actionBox!.height).toBeCloseTo(width <= 767 ? 884 : 876, 0);
-        await page.screenshot({
-          path: test.info().outputPath(`bankImportActionBar${width}.png`),
-          fullPage: true
-        });
       }
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
@@ -4821,15 +4615,11 @@ for (const width of [1440, 320]) {
       exact: true
     })).toBeDisabled();
     expect(previews).toBe(3);
-    await page.screenshot({
-      path: test.info().outputPath('bankImportUnsupported.png'),
-      fullPage: true
-    });
   });
 }
 
 for (const width of [1440, 390]) {
-  test(`수동 지출 등록 ${width}px는 통장 거래 진입·입력 정렬·배분·과거 날짜·실패 재시도·목록 복귀를 처리`, async ({ page }, testInfo) => {
+  test(`수동 지출 등록 ${width}px는 통장 거래 진입·입력 정렬·배분·과거 날짜·실패 재시도·목록 복귀를 처리`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -5162,10 +4952,6 @@ for (const width of [1440, 390]) {
       expect(addSize.y).toBeGreaterThanOrEqual(lastChip.y + lastChip.height);
     }
 
-    await page.screenshot({
-      path: testInfo.outputPath(`manual-expense-design-${width}.png`),
-      fullPage: true
-    });
     if (width === 1440) {
       await page.setViewportSize({
         width,
@@ -5263,10 +5049,6 @@ for (const width of [1440, 390]) {
       expect(size.height).toBe(amountSize.height);
     }
     await expect(page.locator('[popover]:popover-open')).toHaveCount(0);
-    await page.screenshot({
-      path: testInfo.outputPath(`manual-expense-amount-${width}.png`),
-      fullPage: true
-    });
     await page.getByRole('combobox', {
       name: '나누는 방법'
     }).click();
@@ -5287,10 +5069,6 @@ for (const width of [1440, 390]) {
       expect(size.height).toBe(ratioSize.height);
     }
     await expect(page.locator('[popover]:popover-open')).toHaveCount(0);
-    await page.screenshot({
-      path: testInfo.outputPath(`manual-expense-ratio-${width}.png`),
-      fullPage: true
-    });
     await page.getByRole('combobox', {
       name: '나누는 방법'
     }).click();
@@ -5397,10 +5175,6 @@ for (const width of [1440, 390]) {
       exact: true
     }).click();
     await expect(page.locator('[popover]:popover-open')).toHaveCount(0);
-    await page.screenshot({
-      path: testInfo.outputPath(`manual-expense-${width}.png`),
-      fullPage: true
-    });
     const submit = page.getByRole('button', {
       name: '등록',
       exact: true
@@ -5494,7 +5268,6 @@ for (const width of [1440, 390]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 }
-
 
 for (const { width, handover } of [{
   width: 1440,
@@ -5724,10 +5497,6 @@ for (const { width, handover } of [{
       name: '초기 잔액 정정',
       exact: true
     })).toBeVisible();
-    await page.screenshot({
-      path: `/tmp/moahome-bank-initial-menu-${width}.png`,
-      animations: 'disabled'
-    });
     await page.getByRole('button', {
       name: '초기 잔액 정정',
       exact: true
@@ -5754,11 +5523,6 @@ for (const { width, handover } of [{
       name: '정정 사유',
       exact: true
     }).fill('초기 금액 오입력 정정');
-    await page.screenshot({
-      path: `/tmp/moahome-bank-initial-${width}-${handover}.png`,
-      fullPage: true,
-      animations: 'disabled'
-    });
     await view.getByRole('button', {
       name: '정정 저장',
       exact: true
@@ -5800,10 +5564,6 @@ for (const { width, handover } of [{
       })).toBeDisabled();
       expect(writes).toHaveLength(2);
       await editor.getByRole('checkbox').check();
-      await page.screenshot({
-        path: `/tmp/moahome-bank-billing-confirmation-${width}.png`,
-        fullPage: true
-      });
       await editor.getByRole('button', {
         name: '정정 저장',
         exact: true
@@ -5826,10 +5586,6 @@ for (const { width, handover } of [{
       name: '초기 잔액 정정',
       exact: true
     })).toHaveCount(0);
-    await page.screenshot({
-      path: `/tmp/moahome-bank-initial-menu-locked-${width}.png`,
-      animations: 'disabled'
-    });
     await page.goto(`${BASE}/balances/details/initial?month=2026-10&target=${target}`);
     const lockedView = page.getByRole('main');
     await expect(lockedView.getByRole('textbox', {
@@ -5845,7 +5601,7 @@ for (const { width, handover } of [{
 }
 
 /** 한쪽 은행 출금에서 103을 선택해 상대 통장을 반영하고 취소·후속 원본 대사까지 같은 이체로 처리합니다. */
-test('계좌 이체 체크는 과목에서 제외하고 상대 통장 지정·양쪽 반영·취소·취소 후 원본 대사를 연결', async ({ page }, testInfo) => {
+test('계좌 이체 체크는 과목에서 제외하고 상대 통장 지정·양쪽 반영·취소·취소 후 원본 대사를 연결', async ({ page }) => {
   const second = id(11), transferId = id(980);
   const accounts = [{
     ...IMPORT_ACCOUNT,
@@ -6163,10 +5919,6 @@ test('계좌 이체 체크는 과목에서 제외하고 상대 통장 지정·�
     exact: true
   })).toHaveValue('6,000');
 
-  await editor.screenshot({
-    path: testInfo.outputPath('transfer103Settings.png'),
-    animations: 'disabled'
-  });
   await editor.getByRole('button', {
     name: '설정 완료',
     exact: true
@@ -6216,10 +5968,6 @@ test('계좌 이체 체크는 과목에서 제외하고 상대 통장 지정·�
   });
   await expect(noticeIcon).toHaveCSS('width', '24px');
   await expect(noticeIcon).toHaveCSS('height', '24px');
-  await detail.screenshot({
-    path: '/tmp/moahome-transfer-completed-detail.png',
-    animations: 'disabled'
-  });
   await expect(detail.getByRole('button', {
     name: '취소',
     exact: true
@@ -6358,9 +6106,6 @@ for (const width of [1440, 390]) {
     await expect(dialog.getByRole('listitem')).toHaveCount(2);
     await expect(dialog).toContainText('연결 입금');
     await expect(dialog).toContainText('입금 통장');
-    await page.screenshot({
-      path: test.info().outputPath('linkedTransferDeletion.png')
-    });
     await page.getByRole('button', {
       name: '선택 삭제 확인 닫기',
       exact: true
@@ -6390,9 +6135,8 @@ for (const width of [1440, 390]) {
   });
 }
 
-
 for (const entry of ['income', 'expense'] as const) {
-  test(`수동 ${entry === 'income' ? '입금 PC' : '지출 모바일'}에서 같은 계좌 간 이체 폼으로 한 번 저장하고 실패 재시도를 처리`, async ({ page }, testInfo) => {
+  test(`수동 ${entry === 'income' ? '입금 PC' : '지출 모바일'}에서 같은 계좌 간 이체 폼으로 한 번 저장하고 실패 재시도를 처리`, async ({ page }) => {
     const second = id(9921), incoming = id(9923);
     const accounts = [{
       ...IMPORT_ACCOUNT,
@@ -6725,10 +6469,6 @@ for (const entry of ['income', 'expense'] as const) {
       }).boundingBox())!;
       expect(memoBox.y + memoBox.height - footerButton.y).toBeLessThan(1);
     }
-    await page.screenshot({
-      path: testInfo.outputPath(`manual-transfer-${entry}.png`),
-      fullPage: true
-    });
     await page.getByRole('button', {
       name: '등록',
       exact: true

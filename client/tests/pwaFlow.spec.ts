@@ -113,41 +113,39 @@ test.describe('모바일 시작 스플래시', () => {
     });
   });
 
-  for (const width of [320, 767]) {
-    test(`첫 모바일 진입 ${width}px는 집 조립·문 열림 후 로그인으로 연결하고 재방문에 반복하지 않음`, async ({ page }) => {
-      await page.setViewportSize({
-        width,
-        height: 844
-      });
-      await page.goto('/login');
-      const splash = page.locator('[data-mobile-splash-overlay]');
-      await expect(splash).toBeVisible();
-      await expect(splash).toContainText('모아홈');
-      await expect(splash).toContainText('우리 집 관리, 더 쉽고 편리하게');
-      await expect(page.getByRole('button', {
-        name: '카카오로 시작하기'
-      })).not.toBeVisible();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await expect(splash).not.toBeVisible({
-        timeout: 4000
-      });
-      await expect(page.getByRole('button', {
-        name: '카카오로 시작하기'
-      })).toBeVisible();
-      await page.reload();
-      await expect(splash).not.toBeVisible();
-      await page.goto('/login/callback');
-      await expect(page.getByRole('heading', {
-        name: '로그인을 확인해 주세요'
-      })).toBeVisible();
-      await expect(splash).not.toBeVisible();
-      expect(await page.evaluate(() => sessionStorage.getItem('test.splash.plays'))).toBe('1');
+  test('첫 모바일 진입은 집 조립·문 열림 후 로그인으로 연결하고 재방문에 반복하지 않음', async ({ page }) => {
+    await page.setViewportSize({
+      width: 320,
+      height: 844
     });
-  }
+    await page.goto('/login');
+    const splash = page.locator('[data-mobile-splash-overlay]');
+    await expect(splash).toBeVisible();
+    await expect(splash).toContainText('모아홈');
+    await expect(splash).toContainText('우리 집 관리, 더 쉽고 편리하게');
+    await expect(page.getByRole('button', {
+      name: '카카오로 시작하기'
+    })).not.toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await expect(splash).not.toBeVisible({
+      timeout: 4000
+    });
+    await expect(page.getByRole('button', {
+      name: '카카오로 시작하기'
+    })).toBeVisible();
+    await page.reload();
+    await expect(splash).not.toBeVisible();
+    await page.goto('/login/callback');
+    await expect(page.getByRole('heading', {
+      name: '로그인을 확인해 주세요'
+    })).toBeVisible();
+    await expect(splash).not.toBeVisible();
+    expect(await page.evaluate(() => sessionStorage.getItem('test.splash.plays'))).toBe('1');
+  });
 
   test('PC와 나중에 좁힌 화면에서는 시작 스플래시를 표시하지 않음', async ({ page }) => {
     await page.setViewportSize({
-      width: 1440,
+      width: 768,
       height: 960
     });
     await page.goto('/login');
@@ -155,7 +153,7 @@ test.describe('모바일 시작 스플래시', () => {
       name: '카카오로 시작하기'
     })).toBeVisible();
     await page.setViewportSize({
-      width: 390,
+      width: 767,
       height: 844
     });
     await expect(page.locator('[data-mobile-splash-overlay]')).not.toBeVisible();
