@@ -447,7 +447,7 @@ test('역할 변경은 기존 주민 수정 모달에서 일반 정보와 한 �
     exact: true
   }).click();
   await page.getByRole('option', {
-    name: '부담당자',
+    name: '동대표',
     exact: true
   }).click();
   await page.screenshot({
@@ -458,7 +458,7 @@ test('역할 변경은 기존 주민 수정 모달에서 일반 정보와 한 �
     exact: true
   }).click();
   await expect(dialog.locator('dd').filter({
-    hasText: /^부담당자$/
+    hasText: /^동대표$/
   })).toHaveCount(1);
   expect(state.writes.filter((r) => r.path.includes('/residents/'))).toHaveLength(1);
   expect(state.writes.at(-1)!.body).toMatchObject({

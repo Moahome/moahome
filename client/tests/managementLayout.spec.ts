@@ -4663,7 +4663,7 @@ test('설정 참여 목록은 현재 선택을 비활성화하고 관리자·주
     exact: true
   })).toBeDisabled();
   await expect(dialog.getByRole('button', {
-    name: '부담당 빌라 부담당자',
+    name: '부담당 빌라 동대표',
     exact: true
   })).toBeEnabled();
   await expect(dialog.getByRole('button', {
@@ -4693,7 +4693,7 @@ test('설정 참여 목록은 현재 선택을 비활성화하고 관리자·주
     exact: true
   })).toBeDisabled();
   await dialog.getByRole('button', {
-    name: '부담당 빌라 부담당자',
+    name: '부담당 빌라 동대표',
     exact: true
   }).click();
   await expect(page).toHaveURL(`/manage/${OTHER_MANAGED_PROPERTY.propertyId}/dashboard`);

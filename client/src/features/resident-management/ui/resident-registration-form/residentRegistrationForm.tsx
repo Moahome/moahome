@@ -434,7 +434,7 @@ export function ResidentRegistrationForm({
               },
               {
                 value: 'MANAGER',
-                label: '부담당자'
+                label: '동대표'
               }
             ]}
             placeholder={'가입 승인 후 변경 가능'}
