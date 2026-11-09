@@ -220,6 +220,16 @@ export function ResidentRegistrationForm({
     </div>
   );
 
+  const cancelButton = (
+    <Button
+      variant={'outline'}
+      onClick={onCancel}
+      disabled={busy}
+    >
+      취소
+    </Button>
+  );
+
   return (
     <form
       className={styles.form}
@@ -448,13 +458,7 @@ export function ResidentRegistrationForm({
       <div
         className={styles.actions}
       >
-        <Button
-          variant={'outline'}
-          onClick={onCancel}
-          disabled={busy}
-        >
-          취소
-        </Button>
+        {!resident && cancelButton}
         <Button
           type={'submit'}
           variant={resident ? 'outline' : 'primary'}
@@ -463,6 +467,7 @@ export function ResidentRegistrationForm({
         >
           {busy ? pendingLabel : submitLabel}
         </Button>
+        {resident && cancelButton}
       </div>
     </form>
   );

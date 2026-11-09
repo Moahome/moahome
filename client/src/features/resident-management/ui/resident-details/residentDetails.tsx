@@ -284,6 +284,7 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
           {canModify && (
             <DetailActions
               presentation={presentation}
+              showClose={false}
               onClose={onClose}
               onEdit={() => changeMode('edit')}
               onDelete={() => changeMode('delete')}
