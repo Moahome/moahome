@@ -652,7 +652,6 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           {!!data.accounts?.length && (
             <Dropdown
               aria-label={'조회 통장'}
-              className={styles['account-control']}
               value={selectedAccount?.id ?? 'ALL'}
               onChange={(value) => {
                 const next = new URLSearchParams(params.toString()); next.set('account', value);
