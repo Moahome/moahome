@@ -32,6 +32,6 @@ public final class InitialBalanceCorrection {
 		}
 	}
 
-	public record History(UUID id, String kind, LocalDate previousDate, LocalDate newDate,
+	public record History(UUID id, String kind, UUID bankAccountId, LocalDate previousDate, LocalDate newDate,
 	    List<Detail> details, String reason, UUID changedBy, String changedByName, OffsetDateTime changedAt) {}
 }

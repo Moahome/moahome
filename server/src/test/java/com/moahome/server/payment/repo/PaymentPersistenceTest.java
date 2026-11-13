@@ -2875,6 +2875,80 @@ class PaymentPersistenceTest {
 		jdbc.execute("drop schema " + schema + " cascade");
 	}
 
+	/** 지출의 비율·조정 금액을 함께 저장하고 재시도·DB 제약·입금과의 검증 경계를 확인합니다. */
+	@Test
+	void expenseRatioRemainderPersistsPercentagesAndRejectsChangedReplayAndDatabaseRedistribution() {
+		List<UUID> targets = manualIncomeBuildings();
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		var request = new BankingRequests.ManualExpense(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15),
+		    "172210", "전기요금", null, "RATIO", List.of(
+		        new BankingRequests.Allocation(null, "외부 101동", "86105", "50"),
+		        new BankingRequests.Allocation(targets.getFirst(), null, "43053", "25"),
+		        new BankingRequests.Allocation(targets.getLast(), null, "43052", "25")));
+		var saved = banking.manualExpense(user, property, request).rows().getFirst().expense();
+		assertThat(saved.mode()).isEqualTo("RATIO");
+		assertThat(saved.allocations()).extracting(part -> part.amount()).containsExactly("86105", "43053", "43052");
+		assertThat(saved.allocations()).extracting(part -> part.percentage()).containsExactly("50.00", "25.00", "25.00");
+		banking.manualExpense(user, property, request);
+		assertThat(count("expenses")).isEqualTo(1);
+		var changed = new BankingRequests.ManualExpense(request.id(), account, request.date(), request.amount(),
+		    request.category(), null, "RATIO", List.of(
+		        new BankingRequests.Allocation(null, "외부 101동", "86106", "50"),
+		        new BankingRequests.Allocation(targets.getFirst(), null, "43052", "25"),
+		        new BankingRequests.Allocation(targets.getLast(), null, "43052", "25")));
+		assertThatThrownBy(() -> banking.manualExpense(user, property, changed)).hasMessage("BANK_REQUEST_CONFLICT");
+		UUID invalid = UUID.randomUUID();
+		assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+			jdbc.update("insert into expenses(id,property_id,bank_account_id,source_type,expense_date,category_encrypted,total_amount,allocation_mode,save_as_rule,confirmed_by,confirmed_at) "
+			    + "select ?,property_id,bank_account_id,source_type,expense_date,category_encrypted,total_amount,allocation_mode,false,confirmed_by,confirmed_at from expenses where id=?",
+			    invalid, request.id());
+			jdbc.update("insert into expense_allocations(id,property_id,expense_id,building_id,target_label_encrypted,allocated_amount,percentage,sort_order) "
+			    + "select gen_random_uuid(),property_id,?,building_id,target_label_encrypted,case sort_order when 0 then 86104 when 1 then 43054 else 43052 end,percentage,sort_order from expense_allocations where expense_id=?",
+			    invalid, request.id());
+		})).hasStackTraceContaining("invalid expense ratio remainder");
+		assertThat(count("expenses")).isEqualTo(1);
+		// 같은 계산기를 쓰는 입금은 지출용 나머지 배분을 받아들이지 않습니다.
+		var receipt = service.importFile(user, property, bank("입금 비율 검증", "101")).payments().getFirst();
+		service.confirmOtherIncome(user, property, receipt.id(), new PaymentRequests.OtherIncome("이자", null));
+		assertThatThrownBy(() -> banking.confirmIncomeAllocation(user, property, receipt.bankTransactionId(),
+		    new BankingRequests.Expense("이자", null, "RATIO", false, List.of(
+		        new BankingRequests.Allocation(targets.getFirst(), null, "51", "50"),
+		        new BankingRequests.Allocation(targets.getLast(), null, "50", "50")))))
+		    .hasMessage("ALLOCATION_REMAINDER_REQUIRED");
+	}
+
+	/** 기적용 DB의 확정 지출과 체크섬은 보존하고 후속 Migration으로 비율 검증 함수만 확장합니다. */
+	@Test
+	void expenseRemainderMigrationPreservesExistingAllocations() {
+		List<UUID> targets = manualIncomeBuildings();
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		banking.manualExpense(user, property,
+		    manualExpenseRequest(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15), "10000", targets));
+		String schema = "expense_remainder_" + UUID.randomUUID().toString().replace("-", "");
+		var previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		    .schemas(schema).defaultSchema(schema).target("20261108055709").load();
+		previous.migrate();
+		try {
+			new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+				jdbc.execute("set local search_path to " + schema + ",public");
+				for (String table : List.of("users", "properties", "buildings", "units", "bank_accounts",
+				    "accounting_accounts", "expenses", "expense_allocations"))
+					copyPreviousTable(schema, table);
+			});
+			var snapshots = jdbc.queryForList("select * from " + schema + ".expense_allocations order by id");
+				var checksums = jdbc.queryForList("select version,checksum from " + schema + ".flyway_schema_history where version is not null order by installed_rank");
+			var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+			    .schemas(schema).defaultSchema(schema).load();
+			assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
+			upgraded.validate();
+			assertThat(jdbc.queryForList("select * from " + schema + ".expense_allocations order by id")).isEqualTo(snapshots);
+			assertThat(jdbc.queryForList("select version,checksum from " + schema
+			    + ".flyway_schema_history where version<>'20261113074851' order by installed_rank")).isEqualTo(checksums);
+		} finally {
+			jdbc.execute("drop schema " + schema + " cascade");
+		}
+	}
+
 	/** 은행 원본 없는 등록은 요청 UUID로 멱등 처리하고 지출·배분·작성자를 확정 이력으로 보존합니다. */
 	@Test
 	void manualExpenseStoresWithoutBankSourceAndRejectsChangedReplay() {
@@ -4584,6 +4658,75 @@ class PaymentPersistenceTest {
 		    new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(), LocalDate.of(2026, 9, 30),
 		        List.of(new BankingBalanceRequests.OpeningCorrectionPart(building, "1", 1L)), account, "날짜 분리 시도")))
 		    .hasMessage("CASH_OPENING_BANK_DATE_MISMATCH");
+	}
+
+	/** 날짜가 같아도 통장·동별 기준 금액을 함께 검증하고 응답 유실 재시도는 중복 반영하지 않습니다. */
+	@Test
+	void amountOnlyBankCorrectionRequiresBuildingConfirmationAndUpdatesBothBalancesOnce() {
+		newHandoverTarget();
+		LocalDate cutoff = LocalDate.of(2026, 10, 14);
+		confirmHandover(draftHandover(cutoff, "2026-11"));
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		cashBalances.saveAccountOpening(user, property, new BankingBalanceRequests.AccountOpening(UUID.randomUUID(),
+		    account, cutoff, "1522910", 0L, "통장 시작 금액 확인"));
+		UUID first = UUID.randomUUID(), second = UUID.randomUUID();
+		jdbc.update("insert into buildings(id,property_id,name,sort_order,status,created_at,updated_at) values (?,?,?,0,'ACTIVE',now(),now()),(?,?,?,1,'ACTIVE',now(),now())",
+		    first, property, "102동", second, property, "103동");
+		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(cutoff,
+		    List.of(new BankingBalanceRequests.OpeningPart(first, "511455"),
+		        new BankingBalanceRequests.OpeningPart(second, "1011455")), account));
+		var incomplete = new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account, cutoff,
+		    "1523016", 1L, "이자 106원 기준 정정");
+		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, incomplete))
+		    .hasMessage("INITIAL_BUILDING_CONFIRMATION_REQUIRED");
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).accounts()).singleElement()
+		    .satisfies(row -> assertThat(row.openingBalance()).isEqualTo("1522910"));
+		var stale = new BankingBalanceRequests.AccountOpening(incomplete.id(), account, cutoff,
+		    incomplete.amount(), 1L, incomplete.reason(), null, false,
+		    List.of(new BankingBalanceRequests.OpeningCorrectionPart(first, "511508", 0L),
+		        new BankingBalanceRequests.OpeningCorrectionPart(second, "1011508", 1L)));
+		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, stale))
+		    .hasMessage("CASH_OPENING_CONFLICT");
+		assertThat(jdbc.queryForObject("select amount from building_cash_openings where building_id=?", BigDecimal.class, first))
+		    .isEqualByComparingTo("511455");
+		var exceeded = new BankingBalanceRequests.AccountOpening(incomplete.id(), account, cutoff,
+		    incomplete.amount(), 1L, incomplete.reason(), null, false,
+		    List.of(new BankingBalanceRequests.OpeningCorrectionPart(first, "511455", 0L),
+		        new BankingBalanceRequests.OpeningCorrectionPart(second, "101141000", 0L)));
+		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, exceeded))
+		    .hasMessage("INITIAL_BUILDING_TOTAL_EXCEEDED");
+		assertThat(jdbc.queryForObject("select amount from building_cash_openings where building_id=?", BigDecimal.class, second))
+		    .isEqualByComparingTo("1011455");
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).accounts()).singleElement()
+		    .satisfies(row -> assertThat(row.openingBalance()).isEqualTo("1522910"));
+		var confirmed = new BankingBalanceRequests.AccountOpening(incomplete.id(), account, cutoff,
+		    incomplete.amount(), 1L, incomplete.reason(), null, false,
+		    List.of(new BankingBalanceRequests.OpeningCorrectionPart(first, "511508", 0L),
+		        new BankingBalanceRequests.OpeningCorrectionPart(second, "1011508", 0L)));
+		cashBalances.saveAccountOpening(user, property, confirmed);
+		cashBalances.saveAccountOpening(user, property, confirmed);
+		var after = cashBalances.workspace(user, property, "2026-11", account);
+		assertThat(after.accounts()).singleElement().satisfies(row -> {
+			assertThat(row.openingBalance()).isEqualTo("1523016");
+			assertThat(row.calculatedBalance()).isEqualTo("1523016");
+		});
+		assertThat(after.buildings()).filteredOn(row -> row.id().equals(first)).singleElement().satisfies(row -> {
+			assertThat(row.startBalance()).isEqualTo("511508");
+			assertThat(row.balance()).isEqualTo("511508");
+			assertThat(row.openingRevision()).isEqualTo(1);
+		});
+		assertThat(after.buildings()).filteredOn(row -> row.id().equals(second)).singleElement().satisfies(row -> {
+			assertThat(row.startBalance()).isEqualTo("1011508");
+			assertThat(row.balance()).isEqualTo("1011508");
+			assertThat(row.openingRevision()).isEqualTo(1);
+		});
+		assertThat(opening.workspace(user, property).corrections()).filteredOn(row -> row.id().equals(confirmed.id()))
+		    .singleElement().satisfies(row -> {
+			assertThat(row.details()).hasSize(3);
+			assertThat(row.bankAccountId()).isEqualTo(account);
+		});
+		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, stale))
+		    .hasMessage("BANK_OPENING_CONFLICT");
 	}
 
 	/** 추가 통장도 각각 다른 날짜의 실제 잔액을 등록하고 동별 현금·입금·인계는 만들지 않습니다. */
