@@ -33,11 +33,11 @@ import {
   closeBankAccount,
   getBankAccounts,
   saveBankAccount
-} from '../../../api/bankAccountApi';
-import type { ManagedBankAccount } from '../../../api/bankAccountApiTypes';
+} from '../api/bankAccountApi';
+import type { ManagedBankAccount } from '../api/bankAccountApiTypes';
 import styles from './bankAccountEditor.module.css';
 
-/** 통장 원문은 이 설정 안에서만 조회하고 목록·추가·정정·사용 종료 후 관련 업무 캐시를 갱신합니다. */
+/** 설정·통장 상세에서 편집기를 공유하고 원문은 열린 편집기 안에서만 보관합니다. */
 export function BankAccountEditor({ propertyId, onClose, onSaved, presentation = 'modal', initialAccountId }: {
   propertyId: string; onClose: () => void; onSaved: () => void;
   presentation?: 'modal' | 'page';
@@ -74,7 +74,7 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
     await accounts.refetch();
     await cache.invalidateQueries({
       predicate: (query) => query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
-      && ['payment-workspace', 'banking-workspace', 'banking-balances', 'billing-workspace'].includes(String(query.queryKey[0]))
+      && ['payment-workspace', 'banking-workspace', 'banking-balances', 'billing-workspace', 'bank-account-detail'].includes(String(query.queryKey[0]))
     });
     setRequestedId(undefined);setEditing(null);setClosing(null);onSaved();
   }
@@ -127,7 +127,11 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
           id={activeEditing.id}
           original={activeEditing.original}
           primaryId={primary.accountId}
-          onCancel={() => { setRequestedId(undefined); setEditing(null); }}
+          onCancel={() => {
+            // 통장 상세에서 연 정정은 관리 목록으로 빠지지 않고 원래 상세로 복귀합니다.
+            if (initialAccountId && presentation === 'modal') { onClose(); return; }
+            setRequestedId(undefined); setEditing(null);
+          }}
           onSaved={refresh}
           onBusy={setBusy}
         />
@@ -343,7 +347,7 @@ function AccountForm({ propertyId, id, original, primaryId, onCancel, onSaved, o
           disabled={!valid || busy}
           loading={busy}
         >
-          {original ? '변경 저장' : '통장 추가'}
+          {original ? '저장' : '통장 추가'}
         </Button>
       </footer>
     </form>

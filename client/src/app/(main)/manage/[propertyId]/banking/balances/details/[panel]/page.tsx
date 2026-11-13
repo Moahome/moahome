@@ -4,6 +4,7 @@ import { BankingBalancePanelPage } from '@/screens/banking/balance-panel';
 
 const PANEL_TITLES = {
   initial: '초기 잔액 정정',
+  history: '정정 내역',
   account: '통장 상세',
   opening: '기준 잔고 확인',
   chart: '동별 입금·지출 비교',

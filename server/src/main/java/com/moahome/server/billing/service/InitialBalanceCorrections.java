@@ -76,10 +76,16 @@ public class InitialBalanceCorrections {
 	/** 인계 화면의 관리 권한을 확인한 호출자에게만 전후 값과 현재 변경자 표시명을 반환합니다. */
 	public List<InitialBalanceCorrection.History> history(UUID property) {
 		return changes.findByPropertyIdOrderByChangedAtDesc(property).stream().map(row ->
-		    new InitialBalanceCorrection.History(row.getId(), row.getKind(), row.getPreviousDate(), row.getNewDate(),
+		    new InitialBalanceCorrection.History(row.getId(), row.getKind(), accountId(row.getRequestBody()), row.getPreviousDate(), row.getNewDate(),
 		        Arrays.asList(mapper.readValue(row.getDetails(), InitialBalanceCorrection.Detail[].class)),
 		        row.getReason(), row.getChangedBy(),
 		        users.findById(row.getChangedBy()).map(u -> u.getDisplayName()).orElse("탈퇴한 사용자"),
 		        row.getChangedAt())).toList();
+	}
+
+	/** 저장 당시 요청의 통장만 식별해 같은 동을 사용하는 다른 통장 이력을 섞지 않습니다. */
+	private UUID accountId(String requestBody) {
+		var value = mapper.readTree(requestBody).get("accountId");
+		return value == null || value.isNull() ? null : UUID.fromString(value.asString());
 	}
 }

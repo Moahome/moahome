@@ -4660,6 +4660,75 @@ class PaymentPersistenceTest {
 		    .hasMessage("CASH_OPENING_BANK_DATE_MISMATCH");
 	}
 
+	/** 날짜가 같아도 통장·동별 기준 금액을 함께 검증하고 응답 유실 재시도는 중복 반영하지 않습니다. */
+	@Test
+	void amountOnlyBankCorrectionRequiresBuildingConfirmationAndUpdatesBothBalancesOnce() {
+		newHandoverTarget();
+		LocalDate cutoff = LocalDate.of(2026, 10, 14);
+		confirmHandover(draftHandover(cutoff, "2026-11"));
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		cashBalances.saveAccountOpening(user, property, new BankingBalanceRequests.AccountOpening(UUID.randomUUID(),
+		    account, cutoff, "1522910", 0L, "통장 시작 금액 확인"));
+		UUID first = UUID.randomUUID(), second = UUID.randomUUID();
+		jdbc.update("insert into buildings(id,property_id,name,sort_order,status,created_at,updated_at) values (?,?,?,0,'ACTIVE',now(),now()),(?,?,?,1,'ACTIVE',now(),now())",
+		    first, property, "102동", second, property, "103동");
+		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(cutoff,
+		    List.of(new BankingBalanceRequests.OpeningPart(first, "511455"),
+		        new BankingBalanceRequests.OpeningPart(second, "1011455")), account));
+		var incomplete = new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account, cutoff,
+		    "1523016", 1L, "이자 106원 기준 정정");
+		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, incomplete))
+		    .hasMessage("INITIAL_BUILDING_CONFIRMATION_REQUIRED");
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).accounts()).singleElement()
+		    .satisfies(row -> assertThat(row.openingBalance()).isEqualTo("1522910"));
+		var stale = new BankingBalanceRequests.AccountOpening(incomplete.id(), account, cutoff,
+		    incomplete.amount(), 1L, incomplete.reason(), null, false,
+		    List.of(new BankingBalanceRequests.OpeningCorrectionPart(first, "511508", 0L),
+		        new BankingBalanceRequests.OpeningCorrectionPart(second, "1011508", 1L)));
+		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, stale))
+		    .hasMessage("CASH_OPENING_CONFLICT");
+		assertThat(jdbc.queryForObject("select amount from building_cash_openings where building_id=?", BigDecimal.class, first))
+		    .isEqualByComparingTo("511455");
+		var exceeded = new BankingBalanceRequests.AccountOpening(incomplete.id(), account, cutoff,
+		    incomplete.amount(), 1L, incomplete.reason(), null, false,
+		    List.of(new BankingBalanceRequests.OpeningCorrectionPart(first, "511455", 0L),
+		        new BankingBalanceRequests.OpeningCorrectionPart(second, "101141000", 0L)));
+		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, exceeded))
+		    .hasMessage("INITIAL_BUILDING_TOTAL_EXCEEDED");
+		assertThat(jdbc.queryForObject("select amount from building_cash_openings where building_id=?", BigDecimal.class, second))
+		    .isEqualByComparingTo("1011455");
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).accounts()).singleElement()
+		    .satisfies(row -> assertThat(row.openingBalance()).isEqualTo("1522910"));
+		var confirmed = new BankingBalanceRequests.AccountOpening(incomplete.id(), account, cutoff,
+		    incomplete.amount(), 1L, incomplete.reason(), null, false,
+		    List.of(new BankingBalanceRequests.OpeningCorrectionPart(first, "511508", 0L),
+		        new BankingBalanceRequests.OpeningCorrectionPart(second, "1011508", 0L)));
+		cashBalances.saveAccountOpening(user, property, confirmed);
+		cashBalances.saveAccountOpening(user, property, confirmed);
+		var after = cashBalances.workspace(user, property, "2026-11", account);
+		assertThat(after.accounts()).singleElement().satisfies(row -> {
+			assertThat(row.openingBalance()).isEqualTo("1523016");
+			assertThat(row.calculatedBalance()).isEqualTo("1523016");
+		});
+		assertThat(after.buildings()).filteredOn(row -> row.id().equals(first)).singleElement().satisfies(row -> {
+			assertThat(row.startBalance()).isEqualTo("511508");
+			assertThat(row.balance()).isEqualTo("511508");
+			assertThat(row.openingRevision()).isEqualTo(1);
+		});
+		assertThat(after.buildings()).filteredOn(row -> row.id().equals(second)).singleElement().satisfies(row -> {
+			assertThat(row.startBalance()).isEqualTo("1011508");
+			assertThat(row.balance()).isEqualTo("1011508");
+			assertThat(row.openingRevision()).isEqualTo(1);
+		});
+		assertThat(opening.workspace(user, property).corrections()).filteredOn(row -> row.id().equals(confirmed.id()))
+		    .singleElement().satisfies(row -> {
+			assertThat(row.details()).hasSize(3);
+			assertThat(row.bankAccountId()).isEqualTo(account);
+		});
+		assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, stale))
+		    .hasMessage("BANK_OPENING_CONFLICT");
+	}
+
 	/** 추가 통장도 각각 다른 날짜의 실제 잔액을 등록하고 동별 현금·입금·인계는 만들지 않습니다. */
 	@Test
 	void accountOpeningsUseIndependentDatesAndDoNotCreateBuildingCashOrReceipts() {

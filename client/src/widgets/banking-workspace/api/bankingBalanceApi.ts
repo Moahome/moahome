@@ -135,6 +135,7 @@ export function balanceError(error: unknown): string {
     INITIAL_BILLING_HAS_CHARGES: '이미 부과한 월을 제외하도록 기준일을 변경할 수 없어요.',
     INITIAL_BILLING_SETTINGS_REQUIRED: '변경할 기간의 관리비 설정이 없어 기준일을 변경할 수 없어요.',
     INITIAL_BUILDING_CONFIRMATION_REQUIRED: '새 통장 기준일의 모든 동별 보유금을 확인해주세요.',
+    INITIAL_BUILDING_TOTAL_EXCEEDED: '동별 합계는 통장 시작 잔액을 넘을 수 없습니다.',
     CASH_OPENING_BANK_DATE_MISMATCH: '동별 잔고는 통장 초기 잔액 기준일과 같아야 해요. 통장 정정 화면에서 날짜를 변경해주세요.',
     INVALID_BANK_OPENING: '통장의 기초 잔액을 0원 이상의 원 단위로 입력해주세요.',
     INVALID_BANK_OPENING_DATE: '통장별 기준일은 오늘 또는 이전 날짜로 선택해주세요.',

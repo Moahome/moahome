@@ -15,6 +15,7 @@ import styles from './amountInput.module.css';
 export interface AmountInputProps extends Omit<InputProps, 'value' | 'defaultValue' | 'onChange' | 'digitsOnly' | 'type' | 'pattern' | 'inputMode'> {
   value: string;
   onChange: (value: string) => void;
+  maxAmount?: string;
 }
 
 /** 빈칸과 입력 중 음수 부호는 그대로 두어 금액 확정 전에도 자연스럽게 입력하게 합니다. */
@@ -42,6 +43,7 @@ export function AmountInput({
   onChange,
   onKeyDown,
   onPaste,
+  maxAmount,
   className,
   ...inputProps
 }: AmountInputProps) {
@@ -49,6 +51,13 @@ export function AmountInput({
 
   /** 편집 직후 표시값과 선택 영역을 함께 반영해 중간 입력·범위 선택에서도 커서를 보존합니다. */
   function applyValue(input: HTMLInputElement, raw: string, start: number, end = start) {
+    // 상한 초과 입력은 표시값도 되돌립니다. 기존 초과값은 줄여서 복구할 수 있게 합니다.
+    if (/^-?[0-9]+$/.test(raw) && maxAmount !== undefined && /^-?[0-9]+$/.test(maxAmount)
+      && BigInt(raw) > BigInt(maxAmount) && (!/^-?[0-9]+$/.test(value) || BigInt(raw) >= BigInt(value))) {
+      input.value = displayValue;
+      input.setSelectionRange(Math.min(start, displayValue.length), Math.min(end, displayValue.length));
+      return;
+    }
     const display = formatEditingAmount(raw);
     const direction = input.selectionDirection ?? 'none';
     input.value = display;

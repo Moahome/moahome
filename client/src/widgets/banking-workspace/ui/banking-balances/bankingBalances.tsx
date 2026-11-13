@@ -8,6 +8,7 @@ import {
 import { ApiError } from '@/shared/api';
 import { useSession } from '@/entities/session';
 import { useManagementContext } from '@/features/enter-service';
+import { BankAccountEditor } from '@/features/bank-account-management';
 import { getOpeningBalances } from '@/features/billing-management';
 import {
   formatInteger,
@@ -52,6 +53,7 @@ import {
 import {
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -101,10 +103,11 @@ type Action = {
     kind: 'opening' | 'settlement' | 'assignment' | 'difference';
     id?: string;
 };
-export type BalancePanel = Action['kind'] | 'chart' | 'account' | 'initial';
+export type BalancePanel = Action['kind'] | 'chart' | 'account' | 'initial' | 'history';
 const PANEL_TITLES: Record<BalancePanel, string> = {
   account: '통장 상세',
   initial: '초기 잔액 정정',
+  history: '정정 내역',
   opening: '기준 잔고 확인',
   chart: '동별 입금·지출 비교',
   difference: '잔고 차이 내역',
@@ -245,7 +248,9 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   const [externalSearch, setExternalSearch] = useState('');
   const [detail, setDetail] = useState<string | null>(null);
   const [accountDetailId, setAccountDetailId] = useState<string | null>(null);
-  const [initialAccountId, setInitialAccountId] = useState<string | null>(null);
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const [historyAccountId, setHistoryAccountId] = useState<string | null>(null);
+  const [initialAccountId, setInitialAccountId] = useState<string | null>(() => params.get('initial'));
   const [chartOpen, setChartOpen] = useState(false);
   const [action, setAction] = useState<Action | null>(null);
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
@@ -261,6 +266,18 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     gcTime: 0
   });
   const data = query.data;
+  // 공유한 정정 링크도 PC에서는 목록 위 모달로 열고 모바일에서는 기존 상세 경로를 사용합니다.
+  useEffect(() => {
+    const target = params.get('initial');
+    if (!target || panel) return;
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      const next = new URLSearchParams(params.toString());
+      next.delete('initial');
+      next.set('target', target);
+      router.replace(`/manage/${propertyId}/banking/balances/details/initial?${next}`);
+      return;
+    }
+  }, [params, panel, propertyId, router]);
   useEffect(() => {
     if (!data || query.isFetching || params.get('externalStatus') !== 'UNRECOVERED') return;
     document.getElementById('external-settlements')?.scrollIntoView({
@@ -326,6 +343,18 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
   if (selectedAccount) balanceQuery.set('account', selectedAccount.id);
   if (selectedBuilding) balanceQuery.set('building', selectedBuilding.id);
   const balanceListHref = `/manage/${propertyId}/banking/balances?${balanceQuery}`;
+  /** 정정창을 닫으면 같은 통장 상세의 잔액·정정 내역을 표시하고 직접 진입 쿼리는 제거합니다. */
+  function closeInitial() {
+    setAccountDetailId(initialAccountId);
+    setInitialAccountId(null);
+    if (params.has('initial')) {
+      const next = new URLSearchParams(params.toString());
+      next.delete('initial');
+      router.replace(`/manage/${propertyId}/banking/balances?${next}`, {
+        scroll: false
+      });
+    }
+  }
   /** 변경 성공 후 서버 조회를 갱신하고 실패한 폼은 닫지 않습니다. */
   async function saved(message: string, keepOpen = false) {
     await cache.invalidateQueries({
@@ -364,6 +393,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
     }
     if (kind === 'initial') setAccountDetailId(null);
     if (kind === 'initial') { setInitialAccountId(id ?? null); return; }
+    if (kind === 'history') { setHistoryAccountId(id ?? null); return; }
     if (kind === 'account') {
       setAccountDetailId(id ?? null);
       return;
@@ -436,7 +466,9 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           propertyId={propertyId}
           account={account}
           month={month}
-          onInitial={data?.initialCorrectionAllowed === true ? () => openPanel('initial', account.id) : undefined}
+          onInitial={data?.initialCorrectionAllowed === true && account.status === 'ACTIVE'
+            ? () => openPanel('initial', account.id) : undefined}
+          onHistory={() => openPanel('history', account.id)}
         />
         <div
           className={styles['account-actions']}
@@ -446,7 +478,14 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           <Button
             variant={'outline'}
             disabled={account.status !== 'ACTIVE'}
-            onClick={() => router.push(`/manage/${propertyId}/settings/accounts?edit=${encodeURIComponent(account.id)}`)}
+            onClick={() => {
+              if (window.matchMedia('(max-width: 767px)').matches) {
+                router.push(`/manage/${propertyId}/settings/accounts?edit=${encodeURIComponent(account.id)}`);
+                return;
+              }
+              // 목록·필터와 상세 대상은 유지하고 원문을 표시하는 편집 모달로 전환합니다.
+              setEditingAccountId(account.id);
+            }}
           >
             통장 정보 수정
           </Button>
@@ -462,8 +501,35 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       </>
     );
   }
+  /** 저장·취소 후 같은 상세를 다시 열어 최신 정보와 마스킹된 번호를 표시합니다. */
+  function renderAccountEditor() {
+    if (!editingAccountId) return null;
+    return (
+      <BankAccountEditor
+        key={editingAccountId}
+        propertyId={propertyId}
+        initialAccountId={editingAccountId}
+        onClose={() => setEditingAccountId(null)}
+        onSaved={() => {
+          setEditingAccountId(null);
+          setNotice({
+            message: '통장 정보를 수정했어요.',
+            tone: 'success'
+          });
+        }}
+      />
+    );
+  }
   if (panel) {
     const closePage = () => router.replace(balanceListHref);
+    if (panel === 'history') return (
+      <BankAccountHistory
+        propertyId={propertyId}
+        accountId={params.get('target') ?? ''}
+        presentation={'page'}
+        onClose={closePage}
+      />
+    );
     if (panel === 'initial') {
       const target = data.accounts?.find((row) => row.id === params.get('target'));
       return target ? (
@@ -490,6 +556,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         onClose={closePage}
       >
         {renderAccountDetail(params.get('target'))}
+        {renderAccountEditor()}
       </DetailDialog>
     );
     if (panel === 'chart') return (
@@ -1110,14 +1177,14 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           propertyId={propertyId}
           data={data}
           account={data.accounts.find((row) => row.id === initialAccountId)!}
-          onClose={() => setInitialAccountId(null)}
+          onClose={closeInitial}
           onSaved={async () => {
-            setInitialAccountId(null);
             await saved('초기 잔액을 정정했어요.');
+            closeInitial();
           }}
         />
       )}
-      {accountDetailId && (
+      {accountDetailId && !editingAccountId && !historyAccountId && (
         <DetailDialog
           title={'통장 상세'}
           className={styles['account-dialog']}
@@ -1125,6 +1192,14 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         >
           {renderAccountDetail(accountDetailId)}
         </DetailDialog>
+      )}
+      {renderAccountEditor()}
+      {historyAccountId && (
+        <BankAccountHistory
+          propertyId={propertyId}
+          accountId={historyAccountId}
+          onClose={() => setHistoryAccountId(null)}
+        />
       )}
       {chartOpen && (
         <ChartDialog
@@ -1546,7 +1621,7 @@ function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
     </div>
   );
 }
-/** 통장 행에서 초기 기준만 정정하며 확정 인계 통장과 독립 통장의 저장 원천을 유지합니다. */
+/** 선택 통장의 시작 금액과 등록된 동별 보유금을 함께 확인하고 한 요청으로 정정합니다. */
 function BankInitialBalanceEditor({ propertyId, account, data, onClose, onSaved, presentation = 'modal' }: {
   propertyId: string;
   account: AccountBalance;
@@ -1557,15 +1632,11 @@ function BankInitialBalanceEditor({ propertyId, account, data, onClose, onSaved,
 }) {
   const session = useSession();
   const cache = useQueryClient();
-  const source = useQuery({
-    queryKey: ['opening-balances', session.data?.id, propertyId],
-    queryFn: ({ signal }) => getOpeningBalances(propertyId, signal),
-    enabled: Boolean(session.data),
-    retry: false,
-    staleTime: 0
-  });
-  const [date, setDate] = useState(account.openingDate ?? '');
-  const [amount, setAmount] = useState(account.openingBalance ?? '');
+  const formId = useId();
+  // 편집 중 부모 조회가 갱신돼도 제출 기준 버전과 입력 당시 원본을 바꾸지 않습니다.
+  const [original] = useState(account);
+  const [date, setDate] = useState(original.openingDate ?? '');
+  const [amount, setAmount] = useState(original.openingBalance ?? '');
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -1574,7 +1645,7 @@ function BankInitialBalanceEditor({ propertyId, account, data, onClose, onSaved,
   const request = useRef<{ body: string; id: string } | null>(null);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   const allowed = data.initialCorrectionAllowed === true && account.status === 'ACTIVE';
-  const dateChanged = date !== (account.openingDate ?? '');
+  const dateChanged = date !== (original.openingDate ?? '');
   const [confirmedToken, setConfirmedToken] = useState('');
   const [buildingAmounts, setBuildingAmounts] = useState<Record<string, string>>({});
   const impact = useQuery({
@@ -1587,15 +1658,23 @@ function BankInitialBalanceEditor({ propertyId, account, data, onClose, onSaved,
   const cash = useQuery({
     queryKey: ['bank-initial-building-balances', session.data?.id, propertyId, account.id, data.month],
     queryFn: ({ signal }) => getBankingBalances(propertyId, data.month, account.id, signal),
-    enabled: allowed && dateChanged && data.buildings.length > 0,
-    retry: false
+    enabled: data.buildings.length > 0,
+    retry: false,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false
   });
-  const affectedBuildings = dateChanged && cash.data?.cutoffDate !== date
-    ? cash.data?.buildings.filter((row) => row.openingBalance != null) ?? [] : [];
+  const affectedBuildings = cash.data?.buildings.filter((row) => row.openingBalance != null) ?? [];
+  const buildingAmountsValid = affectedBuildings.every((row) => /^-?[0-9]{1,15}$/.test(buildingAmounts[row.id] ?? row.openingBalance!));
+  const buildingTotal = buildingAmountsValid
+    ? affectedBuildings.reduce((sum, row) => sum + BigInt(buildingAmounts[row.id] ?? row.openingBalance!), BigInt(0)) : null;
   const needsConfirmation = Boolean(impact.data?.changed || impact.data?.missingMonths.length);
-  const impactReady = !dateChanged || (impact.isSuccess && !impact.isFetching && !impact.data.blockedReason
-    && (!needsConfirmation || confirmedToken === impact.data.token)
-    && (!data.buildings.length || cash.isSuccess));
+  const bankAmount = /^[0-9]{1,15}$/.test(amount) ? BigInt(amount) : null;
+  const buildingRemaining = bankAmount !== null && buildingTotal !== null ? bankAmount - buildingTotal : null;
+  const buildingTotalExceeded = buildingRemaining !== null && buildingRemaining < BigInt(0);
+  const impactReady = (!data.buildings.length || (cash.isSuccess && !cash.isFetching)) && buildingAmountsValid && !buildingTotalExceeded
+    && (!dateChanged || (impact.isSuccess && !impact.isFetching && !impact.data.blockedReason
+      && (!needsConfirmation || confirmedToken === impact.data.token)));
   return (
     <DetailDialog
       title={'초기 잔액 정정'}
@@ -1603,14 +1682,38 @@ function BankInitialBalanceEditor({ propertyId, account, data, onClose, onSaved,
       compact
       busy={busy}
       onClose={onClose}
+      footer={(
+        <div
+          className={styles.actions}
+        >
+          <Button
+            variant={'outline'}
+            disabled={busy}
+            onClick={onClose}
+          >
+            취소
+          </Button>
+          {allowed && (
+            <Button
+              type={'submit'}
+              form={formId}
+              loading={busy}
+              disabled={!impactReady}
+            >
+              저장
+            </Button>
+          )}
+        </div>
+      )}
     >
       <form
+        id={formId}
         className={styles['initial-editor']}
         noValidate
         aria-busy={busy}
         onSubmit={async (event) => {
           event.preventDefault();
-          if (pending.current || !allowed || !source.isSuccess || !impactReady) return;
+          if (pending.current || !allowed || !impactReady) return;
           if (!date || !/^[0-9]{1,15}$/.test(amount) || !reason.trim() || [...reason.trim()].length > 500) {
             setError('초기 기준일, 시작 잔액과 정정 사유를 확인해주세요.'); return;
           }
@@ -1637,7 +1740,7 @@ function BankInitialBalanceEditor({ propertyId, account, data, onClose, onSaved,
               accountId: account.id,
               cutoffDate: date,
               amount,
-              revision: account.openingRevision ?? 0,
+              revision: original.openingRevision ?? 0,
               reason: reason.trim(),
               billingToken: dateChanged ? impact.data?.token : undefined,
               confirmBilling: dateChanged && needsConfirmation && confirmedToken === impact.data?.token,
@@ -1652,7 +1755,6 @@ function BankInitialBalanceEditor({ propertyId, account, data, onClose, onSaved,
             if (!active.current) return;
             await cache.invalidateQueries({
               predicate: (query) => query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
-            && ['opening-balances', 'banking-balances', 'monthly-settlement'].includes(String(query.queryKey[0]))
             });
             if (active.current) await onSaved();
           } catch (failure) {
@@ -1725,21 +1827,21 @@ function BankInitialBalanceEditor({ propertyId, account, data, onClose, onSaved,
         <p>
           기본 관리 통장의 기준일을 바꾸면 관리비 부과 시작월도 함께 맞춥니다. 금액만 정정하면 부과월은 유지합니다.
         </p>
-        {source.isPending && (
+        {data.buildings.length > 0 && cash.isPending && (
           <LoadingState
-            title={'초기 잔액을 확인하고 있어요.'}
+            title={'동별 시작 잔액을 확인하고 있어요.'}
             layout={'inline'}
           />
         )}
-        {source.isError && (
+        {cash.isError && (
           <RequestError
-            error={source.error}
-            onRetry={() => void source.refetch()}
+            error={cash.error}
+            onRetry={() => void cash.refetch()}
           />
         )}
         <fieldset
           className={styles['initial-fields']}
-          disabled={busy || !allowed || !source.isSuccess}
+          disabled={busy || !allowed}
         >
           <CalendarPicker
             label={'초기 기준일'}
@@ -1751,13 +1853,6 @@ function BankInitialBalanceEditor({ propertyId, account, data, onClose, onSaved,
             label={'시작 잔액'}
             value={amount}
             onChange={setAmount}
-          />
-          <Input
-            label={'정정 사유'}
-            required
-            maxLength={500}
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
           />
         </fieldset>
         {dateChanged && (
@@ -1819,42 +1914,103 @@ function BankInitialBalanceEditor({ propertyId, account, data, onClose, onSaved,
                 )}
               </>
             )}
-            {cash.isError && (
-              <p
-                role={'alert'}
-              >
-                {balanceError(cash.error)}
-              </p>
-            )}
-            {affectedBuildings.length > 0 && (
-              <fieldset
-                className={styles['initial-fields']}
-                disabled={busy}
-              >
-                <legend>
-                  {date}
-                  {' '}
-                  기준 동별 보유금
-                </legend>
-                <p>
-                  기존 동별 잔고의 날짜도 바뀝니다. 새 기준일의 금액을 확인해주세요.
-                </p>
-                {affectedBuildings.map((row) => (
+          </section>
+        )}
+        {affectedBuildings.length > 0 && (
+          <fieldset
+            className={styles['initial-fields']}
+            disabled={busy || !allowed}
+          >
+            <legend>
+              동별 시작 잔액
+            </legend>
+            <p
+              className={styles.muted}
+            >
+              {date}
+              {' '}
+              기준으로 각 동의 금액도 함께 확인해주세요.
+            </p>
+            {affectedBuildings.map((row) => {
+              const current = buildingAmounts[row.id] ?? row.openingBalance!;
+              // 선택 동을 비워도 상한을 유지하도록 나머지 동의 합계만 따로 계산합니다.
+              const others = affectedBuildings.filter((part) => part.id !== row.id)
+                .map((part) => buildingAmounts[part.id] ?? part.openingBalance!);
+              const maximum = bankAmount !== null && others.every((value) => /^-?[0-9]{1,15}$/.test(value))
+                ? String(bankAmount - others.reduce((sum, value) => sum + BigInt(value), BigInt(0))) : undefined;
+              const fillRemaining = maximum !== undefined && (current === '' || /^-?[0-9]{1,15}$/.test(current))
+                ? BigInt(maximum) - BigInt(current || '0') : null;
+              return (
+                <div
+                  key={row.id}
+                  className={styles['building-opening-row']}
+                >
                   <AmountInput
-                    key={row.id}
                     label={row.label}
-                    value={buildingAmounts[row.id] ?? row.openingBalance!}
+                    value={current}
+                    maxAmount={maximum}
+                    maxLength={20}
                     onChange={(value) => setBuildingAmounts((previous) => ({
                       ...previous,
                       [row.id]: value
                     }))}
                     required
                   />
-                ))}
-              </fieldset>
+                  <Button
+                    variant={'outline'}
+                    aria-label={`${row.label} 남은 금액`}
+                    disabled={fillRemaining === null || fillRemaining <= BigInt(0)}
+                    onClick={() => {
+                      if (maximum === undefined || fillRemaining === null || fillRemaining <= BigInt(0)) return;
+                      setBuildingAmounts((previous) => ({
+                        ...previous,
+                        [row.id]: maximum
+                      }));
+                    }}
+                  >
+                    남은 금액
+                  </Button>
+                </div>
+              );
+            })}
+            {buildingTotalExceeded && (
+              <p
+                role={'alert'}
+                className={styles.error}
+              >
+                동별 합계는 통장 시작 잔액을 넘을 수 없습니다.
+              </p>
             )}
-          </section>
+            <dl
+              className={styles.overview}
+            >
+              <div>
+                <dt>
+                  동별 시작 잔액 합계
+                </dt>
+                <dd>
+                  {buildingTotal === null ? '입력 확인 필요' : money(buildingTotal)}
+                </dd>
+              </div>
+              <div>
+                <dt>
+                  통장 시작 잔액과 차이
+                </dt>
+                <dd>
+                  {buildingTotal === null || !/^[0-9]{1,15}$/.test(amount) ? '입력 확인 필요' : money(BigInt(amount) - buildingTotal)}
+                </dd>
+              </div>
+            </dl>
+          </fieldset>
         )}
+        <Input
+          label={'정정 사유'}
+          required
+          maxLength={500}
+          value={reason}
+          disabled={busy || !allowed}
+          onChange={(event) => setReason(event.target.value)}
+        />
         {error && (
           <p
             role={'alert'}
@@ -1863,81 +2019,136 @@ function BankInitialBalanceEditor({ propertyId, account, data, onClose, onSaved,
             {error}
           </p>
         )}
-        <div
-          className={styles.actions}
-        >
-          <Button
-            variant={'outline'}
-            disabled={busy}
-            onClick={onClose}
-          >
-            취소
-          </Button>
-          {allowed && (
-            <Button
-              type={'submit'}
-              loading={busy}
-              disabled={!allowed || !source.isSuccess || !impactReady}
-            >
-              정정 저장
-            </Button>
-          )}
-        </div>
       </form>
-      {!!source.data?.corrections?.some((row) => row.details.some((part) => part.targetId === account.id)) && (
-        <section
-          className={styles['initial-history']}
-        >
-          <h3>
-            정정 이력
-          </h3>
-          <ul>
-            {source.data.corrections.filter((row) => row.details.some((part) => part.targetId === account.id)).map((row) => (
-              <li
-                key={row.id}
+    </DetailDialog>
+  );
+}
+
+/** 정정 버튼을 누를 때만 해당 통장의 이력을 읽고 공통 표에 다섯 건씩 표시합니다. */
+function BankAccountHistory({ propertyId, accountId, onClose, presentation = 'modal' }: {
+  propertyId: string;
+  accountId: string;
+  onClose: () => void;
+  presentation?: 'modal' | 'page';
+}) {
+  const session = useSession();
+  const [page, setPage] = useState(1);
+  const query = useQuery({
+    queryKey: ['bank-account-corrections', session.data?.id, propertyId, accountId],
+    queryFn: ({ signal }) => getOpeningBalances(propertyId, signal),
+    enabled: Boolean(session.data),
+    retry: false,
+    gcTime: 0,
+    refetchOnWindowFocus: false
+  });
+  // 같은 동 이름이 여러 통장에 있어도 저장 당시 통장 ID가 일치하는 기록만 조회합니다.
+  const changes = (query.data?.corrections ?? []).filter((change) => change.bankAccountId === accountId
+    || change.details.some((part) => part.targetId === accountId))
+    .sort((a, b) => Date.parse(b.changedAt) - Date.parse(a.changedAt));
+  const pageCount = Math.max(1, Math.ceil(changes.length / 5));
+  const currentPage = Math.min(page, pageCount);
+  return (
+    <DetailDialog
+      title={'정정 내역'}
+      className={styles['correction-dialog']}
+      presentation={presentation}
+      onClose={onClose}
+      footer={query.isSuccess && changes.length > 0 ? (
+        <Pagination
+          label={'정정 내역 페이지'}
+          unit={'건'}
+          total={changes.length}
+          page={currentPage}
+          pageCount={pageCount}
+          pageSize={5}
+          onPageChange={setPage}
+        />
+      ) : undefined}
+    >
+      {query.isPending && (
+        <LoadingState
+          title={'정정 내역을 불러오고 있어요.'}
+          layout={'inline'}
+        />
+      )}
+      {query.isError && (
+        <RequestError
+          error={query.error}
+          onRetry={() => void query.refetch()}
+        />
+      )}
+      {query.isSuccess && (
+        <DataTable
+          label={'정정 내역'}
+          rows={changes.slice((currentPage - 1) * 5, currentPage * 5)}
+          getRowKey={(change) => change.id}
+          minWidth={760}
+          emptyState={(
+            <StateMessage
+              variant={'empty-data'}
+              layout={'inline'}
+              title={'정정 내역이 없습니다.'}
+            />
+          )}
+          columns={[{
+            key: 'date',
+            header: '수정일',
+            width: 120,
+            render: (change) => new Date(change.changedAt).toLocaleDateString('sv-SE', {
+              timeZone: 'Asia/Seoul'
+            })
+          }, {
+            key: 'details',
+            header: '변경 내용',
+            render: (change) => (
+              <div
+                className={styles['correction-changes']}
               >
-                <strong>
-                  {row.previousDate ?? '미설정'}
-                  {' '}
-                  →
-                  {' '}
-                  {row.newDate ?? '미설정'}
-                </strong>
-                {row.details.filter((part) => part.targetId === account.id).map((part) => (
-                  <p
+                {change.details.filter((part) => change.kind !== 'HANDOVER' || part.targetId === accountId).map((part) => (
+                  <div
                     key={part.targetId}
                   >
-                    {part.previousAmount === null ? '미설정' : formatWon(part.previousAmount)}
-                    {' '}
-                    →
-                    {' '}
-                    {part.newAmount === null ? '미설정' : formatWon(part.newAmount)}
-                  </p>
+                    <span>
+                      {part.targetId === accountId ? '통장 시작 잔액' : part.label}
+                    </span>
+                    {(part.previousAmount !== null || part.newAmount !== null) && (
+                      <strong>
+                        {part.previousAmount === null ? '미설정' : formatWon(part.previousAmount)}
+                        {' '}
+                        →
+                        {' '}
+                        {part.newAmount === null ? '미설정' : formatWon(part.newAmount)}
+                      </strong>
+                    )}
+                    {part.previousDate !== part.newDate && <span>
+                      {part.previousDate ?? '미설정'}
+                      {' '}
+                      →
+                      {' '}
+                      {part.newDate ?? '미설정'}
+                    </span>}
+                    {part.newBillingMonth && <span>
+                      첫 부과월
+                      {part.previousBillingMonth}
+                      {' '}
+                      →
+                      {part.newBillingMonth}
+                    </span>}
+                  </div>
                 ))}
-                {row.details.filter((part) => part.newBillingMonth).map((part) => (
-                  <p
-                    key={`billing-${part.targetId}`}
-                  >
-                    {`부과월 ${part.previousBillingMonth} → ${part.newBillingMonth}`}
-                    {part.generatedMonths?.length ? ` · 추가 부과: ${part.generatedMonths.join(', ')}` : ''}
-                  </p>
-                ))}
-                <p>
-                  {row.reason}
-                </p>
-                <small>
-                  {row.changedByName}
-                  {' '}
-                  ·
-                  {' '}
-                  {new Date(row.changedAt).toLocaleString('ko-KR', {
-                    timeZone: 'Asia/Seoul'
-                  })}
-                </small>
-              </li>
-            ))}
-          </ul>
-        </section>
+              </div>
+            )
+          }, {
+            key: 'reason',
+            header: '사유',
+            render: (change) => change.reason
+          }, {
+            key: 'actor',
+            header: '수정자',
+            width: 100,
+            render: (change) => change.changedByName
+          }]}
+        />
       )}
     </DetailDialog>
   );
@@ -2431,7 +2642,7 @@ function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, p
                 disabled={busy || (action.kind === 'settlement' && !options.length)}
                 onClick={() => { void submit(); }}
               >
-                {action.kind === 'settlement' ? '입금 연결 확정' : editingOpening ? '변경 저장' : '확정'}
+                {action.kind === 'settlement' ? '입금 연결 확정' : editingOpening ? '저장' : '확정'}
               </Button>
             )}
           </div>
@@ -2835,7 +3046,7 @@ function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, p
       {action.kind === 'difference' && (
         <>
           <p>
-            같은 조회 월말의 통장 장부 잔액에서 동별 잔고 합계를 뺀 차이입니다. 미분류 거래·외부 부담금·공통 자금이나 초기 동별 귀속 설정에 따라 차이가 생길 수 있습니다. 차이만으로 오류를 판단하거나 특정 동에 자동 배분하지 않습니다.
+            통장 장부 잔액과 동별 잔고 합계의 차이입니다.
           </p>
           <dl
             className={styles.overview}

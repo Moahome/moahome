@@ -185,7 +185,7 @@ CONFIRMED의 재확정은 원 결과를 반환합니다. 취소는 확정 수납
 
 `POST /api/properties/{propertyId}/billing/opening-balances/{batchId}/initial-corrections`는 확정 인계의 초기 기준일·통장 시작 금액만 정정합니다. 요청은 `{id,revision,cutoffDate,reason,accounts:[{accountId,amount}]}`입니다. id는 클라이언트 요청 UUID, revision은 조회한 batch 버전이며 accounts는 해당 인계에 저장된 통장 전체를 중복 없이 제출합니다. reason은 공백 제외 1~500자, amount는 기존 0 이상 15자리 원 단위 계약을 유지합니다.
 
-기존 인계 GET·저장 응답에 `correctionDeadline:date|null`, `initialCorrectionAllowed:boolean`, `corrections:History[]`를 추가합니다. History는 `{id,kind,previousDate,newDate,details,reason,changedBy,changedByName,changedAt}`이며 kind는 `HANDOVER / BUILDING / ACCOUNT`입니다. details는 `{targetId,label,previousDate,newDate,previousAmount,newAmount}` 배열입니다. 초기 미설정 값은 null이고 금액은 원 단위 문자열입니다. 변경자 이름은 조회 시 현재 프로필 표시명이며 식별용 UUID를 함께 보존합니다. 정정 결과도 전체 인계 응답으로 반환합니다.
+기존 인계 GET·저장 응답에 `correctionDeadline:date|null`, `initialCorrectionAllowed:boolean`, `corrections:History[]`를 추가합니다. History는 `{id,kind,bankAccountId,previousDate,newDate,details,reason,changedBy,changedByName,changedAt}`이며 kind는 `HANDOVER / BUILDING / ACCOUNT`입니다. bankAccountId는 통장·동별 정정 요청에 기록된 선택 통장 ID이며 미분류 또는 여러 통장의 인계 정정은 null입니다. details는 `{targetId,label,previousDate,newDate,previousAmount,newAmount}` 배열입니다. 초기 미설정 값은 null이고 금액은 원 단위 문자열입니다. 변경자 이름은 조회 시 현재 프로필 표시명이며 식별용 UUID를 함께 보존합니다. 정정 결과도 전체 인계 응답으로 반환합니다.
 
 관리 시작 시각·세대 미납·선납·실제 수납·기존 월별 청구 금액은 유지합니다. 첫 부과월은 후속 통장 기준일 연동 정책에서 명시적 확인 후 변경할 수 있습니다. 기준일 변경으로 기존 거래의 적용 구분이 달라지면 거부하며 원본을 자동 수정하지 않습니다. 취소·재저장·재확정으로 잠금 기한을 우회할 수 없습니다. 업무 기한·권한·이력은 [도메인 정책](../domain/domainRules.md#초기-기준일시작-금액-정정-기한-2026-11-01)을 참조합니다.
 

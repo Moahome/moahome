@@ -100,11 +100,11 @@
   background: color-mix(in srgb, var(--primary) 4%, var(--card));
   overflow-wrap: anywhere;
 
-  > small { color: var(--sub-text); font-size: 16px; }
 }
 
 .balance-heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   color: var(--sub-text);
@@ -125,6 +125,14 @@
 .state { display: grid; justify-items: start; gap: 12px; color: var(--sub-text); }
 
 .balance-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.balance-basis {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  > small { color: var(--sub-text); font-size: 16px; }
+}
 
 @media (max-width: 767px) {
   .content { gap: 20px; }
@@ -140,5 +148,5 @@
   .fields dd { font-size: 16px; }
   .number { gap: 12px; }
   .balance { padding: 18px; }
-  .balance > small { font-size: 13px; }
+  .balance-basis > small { font-size: 13px; }
 }

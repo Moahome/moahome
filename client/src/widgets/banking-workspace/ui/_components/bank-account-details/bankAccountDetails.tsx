@@ -1,6 +1,7 @@
 'use client';
 
 import { LoadingState } from '@/shared/ui/state-message';
+import { RequestError } from '@/shared/ui/server-connection-error';
 
 import {
   BankIcon,
@@ -34,11 +35,12 @@ const STATUS_LABELS = {
 };
 
 /** PC·모바일에서 같은 통장 정보를 표시하고 전체 번호는 공개 중인 컴포넌트에만 보관합니다. */
-export function BankAccountDetails({ propertyId, account, month, onInitial }: {
+export function BankAccountDetails({ propertyId, account, month, onInitial, onHistory }: {
   propertyId: string;
   account: AccountBalance;
   month: string;
   onInitial?: () => void;
+  onHistory?: () => void;
 }) {
   const session = useSession();
   const query = useQuery({
@@ -86,20 +88,10 @@ export function BankAccountDetails({ propertyId, account, month, onInitial }: {
     />
   );
   if (!query.data || query.isError) return (
-    <div
-      className={styles.state}
-      role={'alert'}
-    >
-      <p>
-        통장 정보를 확인하지 못했어요. 접근 권한과 통장 정보를 확인해주세요.
-      </p>
-      <Button
-        variant={'outline'}
-        onClick={() => { setNumber(null); void query.refetch(); }}
-      >
-        다시 조회
-      </Button>
-    </div>
+    <RequestError
+      error={query.error}
+      onRetry={() => { setNumber(null); void query.refetch(); }}
+    />
   );
   const detail = query.data;
   const display = getAccountBalanceDisplay(account);
@@ -223,24 +215,35 @@ export function BankAccountDetails({ propertyId, account, month, onInitial }: {
         >
           {display.amount === null ? '확인된 잔액 없음' : formatWon(display.amount)}
         </strong>
-        <small>
-          {display.calculated ? getBalancePeriodLabel(month) : display.description}
-        </small>
-        {onInitial && (
-          <div
-            className={styles['balance-actions']}
-          >
-            {onInitial && (
-              <Button
-                variant={'text'}
-                size={'sm'}
-                onClick={onInitial}
-              >
-                초기 잔액 정정
-              </Button>
-            )}
-          </div>
-        )}
+        <div
+          className={styles['balance-basis']}
+        >
+          <small>
+            {display.calculated ? getBalancePeriodLabel(month) : display.description}
+          </small>
+          {(onInitial || onHistory) && (
+            <div
+              className={styles['balance-actions']}
+            >
+              {onInitial && (
+                <Button
+                  variant={'outline'}
+                  onClick={onInitial}
+                >
+                  초기 잔액 정정
+                </Button>
+              )}
+              {onHistory && (
+                <Button
+                  variant={'outline'}
+                  onClick={onHistory}
+                >
+                  정정 내역
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );

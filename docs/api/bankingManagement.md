@@ -316,8 +316,10 @@ checks는 실제 확인시점·기록시점 내림차순의 전체 이력이며 
 정책은 [도메인 규칙](../domain/domainRules.md#통장-초기-기준일부과-시작월동별-보유금-연동-2026-11-01)을 따릅니다.
 
 - `GET /api/properties/{propertyId}/banking/balances/initial-billing-impact?accountId={id}&cutoffDate=YYYY-MM-DD`: 관리 권한 확인 후 `{primary,dateChanged,changed,previousMonth,nextMonth,missingMonths:[{month,unitCount,amount,initialSettings}],blockedReason,token}`을 반환합니다. no-store 조회이며 저장하지 않습니다. initialSettings는 과거 설정이 없어 초기 기본 항목을 사용할 월입니다.
-- `POST .../account-openings`: 기존 `{id,accountId,cutoffDate,amount,revision,reason}`에 선택 `billingToken`, `confirmBilling`, `buildings:[{buildingId,amount,revision}]`를 추가합니다. 부과월 변경·누락 청구가 있으면 최신 토큰과 true 동의가 필수입니다. 등록된 동의 날짜가 바뀌면 모든 해당 동의 금액·버전이 필수입니다. 인계 출처 통장도 선택 통장의 독립 정정 버전으로 기록합니다.
+- `POST .../account-openings`: 기존 `{id,accountId,cutoffDate,amount,revision,reason}`에 선택 `billingToken`, `confirmBilling`, `buildings:[{buildingId,amount,revision}]`를 추가합니다. 부과월 변경·누락 청구가 있으면 최신 토큰과 true 동의가 필수입니다. 등록된 동의 날짜가 바뀌거나 통장 시작 금액을 정정하면 모든 해당 동의 금액·버전이 필수입니다. 날짜가 같아도 전달한 동별 금액을 함께 정정하고, 실제 금액·날짜가 그대로인 동은 버전을 증가시키지 않습니다. 동별 기준값이 없는 통장에는 동별 행을 자동 생성하지 않습니다. 인계 출처 통장도 선택 통장의 독립 정정 버전으로 기록합니다.
 - 저장은 관리대상 잠금 아래 계획을 다시 계산하며 확인 누락·변경은 `INITIAL_BILLING_CONFIRMATION_REQUIRED`, 확정 수납은 `INITIAL_BILLING_HAS_RECEIPTS`, 이미 충당한 인계 선납은 `INITIAL_BILLING_HAS_APPLICATIONS`, 기존 부과 제외는 `INITIAL_BILLING_HAS_CHARGES`, 설정 근거 없음은 `INITIAL_BILLING_SETTINGS_REQUIRED`, 동별 확인 누락은 `INITIAL_BUILDING_CONFIRMATION_REQUIRED`로 전체 거부합니다. 기존 권한·기한·버전·거래 재분류 차단·재시도 계약을 유지합니다.
+- `account-openings`의 동별 시작 금액 합계가 요청한 통장 시작 금액보다 크면 `409 INITIAL_BUILDING_TOTAL_EXCEEDED`로 통장·동별 금액·정정 이력을 모두 저장하지 않습니다. 일부 남은 금액은 자동 배분하지 않습니다.
+- 통장 상세의 정정 내역은 [공통 인계 조회](billingApi.md#초기-기준-정정-2026-11-01)의 `corrections[].bankAccountId` 또는 인계 상세의 통장 대상 ID로 해당 통장 이력만 표시합니다. 저장 구조와 재시도 본문은 바꾸지 않습니다.
 - 동별 `openings` / `openings/corrections`는 선택 통장 초기 기준일이 있으면 같은 날짜만 허용합니다. 다르면 `CASH_OPENING_BANK_DATE_MISMATCH`입니다. 날짜 변경은 통장 초기 정정에서 처리하며 운영 중 은행 확인 기록에는 영향을 주지 않습니다.
 
 ### 잔고 월 기간 조회 (2026-11-01)
