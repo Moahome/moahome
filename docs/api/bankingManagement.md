@@ -26,7 +26,7 @@
 
 506,000원 승강기 비용을 두 동에 균등 배분하면 각 253,000원입니다. 182,660원 전기료를 25%·25%·50%로 지정하면 45,665원·45,665원·91,330원입니다. 외부 부담처 이름과 비율은 관리자가 지정합니다. 25%씩만 입력해 남은 50%를 누락하면 확정할 수 없습니다.
 
-균등·비율 계산의 원 미만은 직접 금액 조정으로 해결합니다. 직접 금액의 합계도 원본 출금과 같아야 합니다. 현재 한 출금에는 지출명 하나를 저장합니다. 별도 비용 항목 입력은 받지 않으며 여러 비용 항목 분할은 후속 설계입니다.
+균등 계산의 원 미만은 직접 금액 조정으로 해결합니다. 지출 비율의 원 미만은 `mode=RATIO`·기존 `percentage`를 유지하고 `allocations[].amount`에 확인한 원 단위 금액을 함께 보냅니다. 각 비율 금액을 절사한 뒤 남은 정수 원 전액을 명시한 한 곳에만 더해야 하며 다른 몫은 절사 금액 그대로입니다. 비율 100%·양수·합계를 Server와 DB가 함께 검증합니다. 나머지 선택이 없으면 `ALLOCATION_REMAINDER_REQUIRED`, 임의 재배분은 `EXPENSE_ALLOCATION_MISMATCH`로 거부합니다. 같은 요청 재시도는 조정된 금액·비율을 비교하고 다른 부담처로 바꾼 재시도는 기존 `BANK_REQUEST_CONFLICT`입니다. 기타 입금의 원 미만 조정은 기존 직접 금액 정책을 유지합니다. 현재 한 출금에는 지출명 하나를 저장합니다. 별도 비용 항목 입력은 받지 않으며 여러 비용 항목 분할은 후속 설계입니다.
 
 규칙 저장은 별도 전역 규칙 관리 기능이 아니라 확정 지출의 배분 스냅샷을 재사용하는 구현입니다. 같은 계좌·내용의 가장 최근 저장 규칙을 다음 미리보기에 제안합니다. 내용 앞의 1~2자리 월 숫자와 선택 `월`·공백을 제외해 반복 월을 대조합니다. 이는 제안만 하며 관리자가 검토하고 선택 처리합니다. 직접 금액 규칙은 이전 금액을 제안하므로 출금액이 달라졌다면 조정해야 합니다.
 
@@ -316,8 +316,10 @@ checks는 실제 확인시점·기록시점 내림차순의 전체 이력이며 
 정책은 [도메인 규칙](../domain/domainRules.md#통장-초기-기준일부과-시작월동별-보유금-연동-2026-11-01)을 따릅니다.
 
 - `GET /api/properties/{propertyId}/banking/balances/initial-billing-impact?accountId={id}&cutoffDate=YYYY-MM-DD`: 관리 권한 확인 후 `{primary,dateChanged,changed,previousMonth,nextMonth,missingMonths:[{month,unitCount,amount,initialSettings}],blockedReason,token}`을 반환합니다. no-store 조회이며 저장하지 않습니다. initialSettings는 과거 설정이 없어 초기 기본 항목을 사용할 월입니다.
-- `POST .../account-openings`: 기존 `{id,accountId,cutoffDate,amount,revision,reason}`에 선택 `billingToken`, `confirmBilling`, `buildings:[{buildingId,amount,revision}]`를 추가합니다. 부과월 변경·누락 청구가 있으면 최신 토큰과 true 동의가 필수입니다. 등록된 동의 날짜가 바뀌면 모든 해당 동의 금액·버전이 필수입니다. 인계 출처 통장도 선택 통장의 독립 정정 버전으로 기록합니다.
+- `POST .../account-openings`: 기존 `{id,accountId,cutoffDate,amount,revision,reason}`에 선택 `billingToken`, `confirmBilling`, `buildings:[{buildingId,amount,revision}]`를 추가합니다. 부과월 변경·누락 청구가 있으면 최신 토큰과 true 동의가 필수입니다. 등록된 동의 날짜가 바뀌거나 통장 시작 금액을 정정하면 모든 해당 동의 금액·버전이 필수입니다. 날짜가 같아도 전달한 동별 금액을 함께 정정하고, 실제 금액·날짜가 그대로인 동은 버전을 증가시키지 않습니다. 동별 기준값이 없는 통장에는 동별 행을 자동 생성하지 않습니다. 인계 출처 통장도 선택 통장의 독립 정정 버전으로 기록합니다.
 - 저장은 관리대상 잠금 아래 계획을 다시 계산하며 확인 누락·변경은 `INITIAL_BILLING_CONFIRMATION_REQUIRED`, 확정 수납은 `INITIAL_BILLING_HAS_RECEIPTS`, 이미 충당한 인계 선납은 `INITIAL_BILLING_HAS_APPLICATIONS`, 기존 부과 제외는 `INITIAL_BILLING_HAS_CHARGES`, 설정 근거 없음은 `INITIAL_BILLING_SETTINGS_REQUIRED`, 동별 확인 누락은 `INITIAL_BUILDING_CONFIRMATION_REQUIRED`로 전체 거부합니다. 기존 권한·기한·버전·거래 재분류 차단·재시도 계약을 유지합니다.
+- `account-openings`의 동별 시작 금액 합계가 요청한 통장 시작 금액보다 크면 `409 INITIAL_BUILDING_TOTAL_EXCEEDED`로 통장·동별 금액·정정 이력을 모두 저장하지 않습니다. 일부 남은 금액은 자동 배분하지 않습니다.
+- 통장 상세의 정정 내역은 [공통 인계 조회](billingApi.md#초기-기준-정정-2026-11-01)의 `corrections[].bankAccountId` 또는 인계 상세의 통장 대상 ID로 해당 통장 이력만 표시합니다. 저장 구조와 재시도 본문은 바꾸지 않습니다.
 - 동별 `openings` / `openings/corrections`는 선택 통장 초기 기준일이 있으면 같은 날짜만 허용합니다. 다르면 `CASH_OPENING_BANK_DATE_MISMATCH`입니다. 날짜 변경은 통장 초기 정정에서 처리하며 운영 중 은행 확인 기록에는 영향을 주지 않습니다.
 
 ### 잔고 월 기간 조회 (2026-11-01)

@@ -57,7 +57,8 @@ public class IncomeAllocationService {
 			    .filter(v -> property.equals(v.getPropertyId()) && v.getDeletedAt() == null
 			        && v.getStatus() == BuildingStatus.ACTIVE)
 			    .orElseThrow(() -> new PaymentException("INVALID_EXPENSE_TARGET"));
-			return new Expense.Share(b.getId(), b.getName(), a.amount(),
+			// 입금의 원 미만 조정은 기존 직접 금액 입력 정책을 유지하며 지출용 나머지 배분을 적용하지 않습니다.
+			return new Expense.Share(b.getId(), b.getName(), "AMOUNT".equals(request.mode()) ? a.amount() : null,
 			    a.percentage());
 		}).toList();
 		List<BigDecimal> amounts = Expense.allocate(receipt.getAmount(),

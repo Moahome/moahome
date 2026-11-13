@@ -867,7 +867,7 @@ public class BankingBalanceService {
 		return movements;
 	}
 
-	/** 통장 초기 기준값을 버전으로 기록하고 날짜 정정은 확인한 동별 보유금·필요 부과와 함께 저장합니다. 은행 원본은 보존합니다. */
+	/** 통장 초기 금액·날짜 정정을 확인한 동별 보유금과 함께 기록하고 필요한 부과만 반영합니다. */
 	@Transactional(isolation = Isolation.READ_COMMITTED)
 	public void saveAccountOpening(UUID user, UUID property, BankingBalanceRequests.AccountOpening request) {
 		lock(user, property);
@@ -914,7 +914,7 @@ public class BankingBalanceService {
 		    previous == null ? null : previous.getAmount().toPlainString(), request.amount()));
 		if (billingImpact.changed() || !billingImpact.missingMonths().isEmpty())
 			details.add(billingStart.detail(property, billingImpact));
-		alignBuildingOpenings(user, property, request, details);
+		alignBuildingOpenings(user, property, request, previous, details);
 		corrections.record(request.id(), property, user, "ACCOUNT", request, request.reason(),
 		    previous == null ? null : previous.getCutoffDate(), request.cutoffDate(),
 		    details);
@@ -924,12 +924,18 @@ public class BankingBalanceService {
 		billingStart.apply(property, request.cutoffDate(), billingImpact);
 	}
 
-	/** 통장 날짜를 옮길 때 등록된 동의 보유금도 새 날짜 값으로 확인받고 전부 함께 정정합니다. */
+	/** 통장 금액만 바꾸는 경우에도 동별 몫을 확인받고 같은 트랜잭션에서 명시한 금액만 정정합니다. */
 	private void alignBuildingOpenings(UUID actor, UUID property, BankingBalanceRequests.AccountOpening request,
-	    List<InitialBalanceCorrection.Detail> details) {
+	    BankOpeningBalance previous, List<InitialBalanceCorrection.Detail> details) {
 		List<BuildingCashOpening> saved = openings.findByPropertyId(property).stream()
 		    .filter(row -> request.accountId().equals(row.getBankAccountId())).toList();
-		if (saved.stream().allMatch(row -> row.getCutoffDate().equals(request.cutoffDate())))
+		boolean amountChanged = previous != null
+		    && previous.getAmount().compareTo(new BigDecimal(request.amount())) != 0;
+		if (!amountChanged && request.buildings() == null
+		    && saved.stream().allMatch(row -> row.getCutoffDate().equals(request.cutoffDate())))
+			return;
+		// 동별 보유금을 등록하지 않은 통장에는 가상의 동이나 자동 배분을 만들지 않습니다.
+		if (saved.isEmpty() && (request.buildings() == null || request.buildings().isEmpty()))
 			return;
 		if (request.buildings() == null || request.buildings().size() != saved.size())
 			throw new PaymentException("INITIAL_BUILDING_CONFIRMATION_REQUIRED");
@@ -940,14 +946,27 @@ public class BankingBalanceService {
 		}
 		Map<UUID, String> names = buildings.findByPropertyId(property).stream()
 		    .collect(Collectors.toMap(Building::getId, Building::getName));
+		List<BuildingCashOpening> changed = new ArrayList<>();
+		BigDecimal buildingTotal = BigDecimal.ZERO;
 		for (var row : saved) {
 			var part = parts.get(row.getBuildingId());
 			if (part == null || row.getRevision() != part.revision())
 				throw new PaymentException("CASH_OPENING_CONFLICT");
+			if (part.amount() == null || !part.amount().matches("-?[0-9]{1,15}"))
+				throw new PaymentException("INVALID_CASH_OPENING");
+			buildingTotal = buildingTotal.add(new BigDecimal(part.amount()));
+			if (row.getCutoffDate().equals(request.cutoffDate())
+			    && row.getAmount().compareTo(new BigDecimal(part.amount())) == 0)
+				continue;
+			changed.add(row);
 			details.add(new InitialBalanceCorrection.Detail(row.getBuildingId(), names.getOrDefault(row.getBuildingId(), "동"),
 			    row.getCutoffDate(), request.cutoffDate(), row.getAmount().toPlainString(), part.amount()));
 		}
-		for (var row : saved)
+		// 통장 시작 금액보다 큰 동별 귀속을 저장하지 않으며 모든 검증 후에만 실제 값을 바꿉니다.
+		if (buildingTotal.compareTo(new BigDecimal(request.amount())) > 0)
+			throw new PaymentException("INITIAL_BUILDING_TOTAL_EXCEEDED");
+		// 모든 동의 버전을 먼저 검증해 일부 동만 변경되거나 미확인 차액이 자동 귀속되지 않게 합니다.
+		for (var row : changed)
 			row.correct(request.cutoffDate(), parts.get(row.getBuildingId()).amount(), request.id(), actor, OffsetDateTime.now(clock));
 		openings.flush();
 	}

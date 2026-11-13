@@ -810,9 +810,10 @@ class BillingPersistenceTest {
 	}
 
 	private void addMember(UUID property, UUID user, String role) {
+		// 탈퇴 시각도 같은 업무 Clock을 사용하므로 실행일에 따라 가입일이 더 늦어지지 않게 합니다.
 		jdbc.update(
-		    "insert into property_members(id,property_id,user_id,role,status,joined_at,created_at,updated_at) values (?,?,?,?,'ACTIVE',now(),now(),now())",
-		    UUID.randomUUID(), property, user, role);
+		    "insert into property_members(id,property_id,user_id,role,status,joined_at,created_at,updated_at) values (?,?,?,?,'ACTIVE',?,now(),now())",
+		    UUID.randomUUID(), property, user, role, OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC));
 	}
 
 	private UUID addRequest(UUID unit, UUID user, UUID resident, String status) {

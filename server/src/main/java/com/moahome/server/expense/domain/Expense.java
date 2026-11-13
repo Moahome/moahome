@@ -83,7 +83,7 @@ public class Expense {
 	public record Share(UUID buildingId, String label, String amount, String percentage) {
 	}
 
-	/** 원 단위 배분만 허용하며 나머지는 숨겨 배정하지 않고 직접 금액 조정을 요구합니다. */
+	/** 원 단위 합계를 검증하며 비율 절사의 나머지는 관리자가 명시한 한 부담처에만 허용합니다. */
 	public static List<BigDecimal> allocate(BigDecimal total, String mode, List<Share> shares) {
 		if ("PROPERTY".equals(mode) && total != null && total.signum() > 0 && shares != null && shares.isEmpty())
 			return List.of();
@@ -93,6 +93,7 @@ public class Expense {
 		HashSet<String> keys = new HashSet<String>();
 		ArrayList<BigDecimal> result = new ArrayList<BigDecimal>();
 		BigDecimal ratio = BigDecimal.ZERO;
+		boolean fractional = false;
 		for (var share : shares) {
 			if (share == null || share.label() == null || share.label().isBlank() || share.label().length() > 100
 			    || !keys.add(
@@ -109,7 +110,9 @@ public class Expense {
 					if (percentage.signum() <= 0 || percentage.compareTo(new BigDecimal("100")) > 0)
 						throw new PaymentException("INVALID_EXPENSE_ALLOCATION");
 					ratio = ratio.add(percentage);
-					amount = total.multiply(percentage).divide(new BigDecimal("100"), 0, RoundingMode.UNNECESSARY);
+					BigDecimal numerator = total.multiply(percentage);
+					fractional |= numerator.remainder(new BigDecimal("100")).signum() != 0;
+					amount = numerator.divide(new BigDecimal("100"), 0, RoundingMode.DOWN);
 				} else {
 					if (share.amount() == null || !share.amount().matches("[0-9]{1,15}"))
 						throw new PaymentException("INVALID_EXPENSE_ALLOCATION");
@@ -118,14 +121,40 @@ public class Expense {
 			} catch (ArithmeticException exception) {
 				throw new PaymentException("ALLOCATION_REMAINDER_REQUIRED");
 			}
-			if (amount.signum() <= 0)
-				throw new PaymentException("INVALID_EXPENSE_ALLOCATION");
 			result.add(amount);
 		}
-		if (("RATIO".equals(mode) && ratio.compareTo(new BigDecimal("100")) != 0)
-		    || result.stream().reduce(BigDecimal.ZERO, (bigDecimal, next) -> bigDecimal.add(next)).compareTo(total) != 0)
+		if ("RATIO".equals(mode) && ratio.compareTo(new BigDecimal("100")) != 0)
+			throw new PaymentException("EXPENSE_ALLOCATION_MISMATCH");
+		if (fractional)
+			result = ratioAmountsWithRemainder(total, shares, result);
+		if (result.stream().anyMatch(amount -> amount.signum() <= 0))
+			throw new PaymentException("INVALID_EXPENSE_ALLOCATION");
+		if (result.stream().reduce(BigDecimal.ZERO, BigDecimal::add).compareTo(total) != 0)
 			throw new PaymentException("EXPENSE_ALLOCATION_MISMATCH");
 		return List.copyOf(result);
+	}
+
+	/** 100% 비율의 절사 금액은 보존하고 남은 정수 원 전액을 선택한 한 곳에만 더했는지 확인합니다. */
+	private static ArrayList<BigDecimal> ratioAmountsWithRemainder(BigDecimal total, List<Share> shares,
+	    List<BigDecimal> baseAmounts) {
+		BigDecimal remainder = total.subtract(baseAmounts.stream().reduce(BigDecimal.ZERO, BigDecimal::add));
+		ArrayList<BigDecimal> result = new ArrayList<>();
+		int recipients = 0;
+		for (int i = 0; i < shares.size(); i++) {
+			String input = shares.get(i).amount();
+			if (input == null || !input.matches("[0-9]{1,15}"))
+				throw new PaymentException("ALLOCATION_REMAINDER_REQUIRED");
+			BigDecimal amount = new BigDecimal(input);
+			BigDecimal difference = amount.subtract(baseAmounts.get(i));
+			if (difference.signum() != 0) {
+				if (difference.compareTo(remainder) != 0 || ++recipients > 1)
+					throw new PaymentException("EXPENSE_ALLOCATION_MISMATCH");
+			}
+			result.add(amount);
+		}
+		if (recipients != 1)
+			throw new PaymentException("ALLOCATION_REMAINDER_REQUIRED");
+		return result;
 	}
 
 	/** 은행 원본은 유지하고 검증된 비용 분류와 당시 배분 방식을 확정 기록으로 남깁니다. */
