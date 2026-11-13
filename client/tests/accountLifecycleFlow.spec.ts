@@ -8,7 +8,7 @@ const USER_ID = '00000000-0000-4000-8000-000000000099';
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000088';
 
 /** 실제 계정·세션을 건드리지 않고 탈퇴·재인증·복구 상태의 HTTP 계약만 모의 처리합니다. */
-async function mockLifecycle(page: Page, recovery = false) {
+async function mockLifecycle(page: Page, recovery = false, account?: { withdrawn: boolean }) {
   const state = {
     loggedOut: false,
     recovery,
@@ -17,7 +17,9 @@ async function mockLifecycle(page: Page, recovery = false) {
     withdrawals: 0,
     recoveries: 0,
     refreshes: 0,
-    csrfReads: 0
+    csrfReads: 0,
+    userReads: 0,
+    sessionUnavailable: false
   };
   await page.route('http://localhost:8080/**', async (route) => {
     const request = route.request();
@@ -28,12 +30,12 @@ async function mockLifecycle(page: Page, recovery = false) {
     if (method === 'OPTIONS') body = {};
     else if (path === '/api/auth/web/csrf') {
       state.csrfReads++;
-      body = state.loggedOut ? {
+      body = state.loggedOut || account?.withdrawn ? {
         code: 'SESSION_EXPIRED'
       } : {
         csrfToken: 'test-csrf'
       };
-      if (state.loggedOut) status = 401;
+      if (state.loggedOut || account?.withdrawn) status = 401;
     } else if (path === '/api/auth/web/refresh') {
       state.refreshes++;
       body = state.recovery ? {
@@ -85,6 +87,7 @@ async function mockLifecycle(page: Page, recovery = false) {
         }; }
         else {
           state.loggedOut = true;
+          if (account) account.withdrawn = true;
           body = {
             requestedAt: new Date().toISOString(),
             recoverableUntil: new Date(Date.now() + 30 * 86400000).toISOString()
@@ -92,8 +95,19 @@ async function mockLifecycle(page: Page, recovery = false) {
         }
       }
     } else if (path === '/api/users/me') {
+      state.userReads++;
       expect(request.headers().authorization).toBe('Bearer test-access');
-      body = {
+      if (state.loggedOut || account?.withdrawn) {
+        status = 403;
+        body = {
+          code: 'ACCOUNT_UNAVAILABLE'
+        };
+      } else if (state.sessionUnavailable) {
+        status = 503;
+        body = {
+          code: 'AUTH_SERVICE_UNAVAILABLE'
+        };
+      } else body = {
         id: USER_ID,
         displayName: '복구 회원',
         profileImageUrl: null,
@@ -235,6 +249,80 @@ test('탈퇴 실패에는 로그인과 확인창을 유지하고 성공하면 �
   })).toHaveCount(0);
   expect(state.withdrawals).toBe(2);
   await other.close();
+});
+
+for (const trigger of ['주기 확인', '앱 복귀'] as const) {
+  test(`다른 기기의 탈퇴는 별도 브라우저에서도 ${trigger}으로 로그아웃을 반영한다`, async ({ page, browser }) => {
+    // 별도 Context는 쿠키·BroadcastChannel을 공유하지 않아 다른 기기의 세션을 재현합니다.
+    const account = {
+      withdrawn: false
+    };
+    await mockLifecycle(page, false, account);
+    const otherContext = await browser.newContext();
+    try {
+      const other = await otherContext.newPage();
+      await other.clock.install();
+      const otherState = await mockLifecycle(other, false, account);
+      await page.goto('/account');
+      await other.goto('/account');
+      await expect(other.getByRole('button', {
+        name: '탈퇴하기',
+        exact: true
+      })).toBeVisible();
+      const refreshes = otherState.refreshes;
+      await page.getByRole('button', {
+        name: '탈퇴하기',
+        exact: true
+      }).click();
+      await page.getByRole('dialog', {
+        name: '회원 탈퇴',
+        exact: true
+      })
+        .getByRole('button', {
+          name: '탈퇴 신청',
+          exact: true
+        }).click();
+      await expect(page).toHaveURL('/login?withdrawal=requested');
+      await expect(other).toHaveURL('/account');
+
+      if (trigger === '주기 확인') await other.clock.runFor(15_001);
+      else await other.evaluate(() => window.dispatchEvent(new Event('focus')));
+
+      await expect(other).toHaveURL('/login');
+      await expect(other.getByText('복구 회원', {
+        exact: true
+      })).toHaveCount(0);
+      // 유효한 Access를 검증하므로 탈퇴 확인 자체가 Refresh Rotation을 반복하지 않습니다.
+      expect(otherState.refreshes).toBe(refreshes);
+      expect(otherState.userReads).toBeGreaterThan(1);
+    } finally {
+      await otherContext.close();
+    }
+  });
+}
+
+test('기기별 세션 확인 중 저장소 장애는 로그인과 화면을 유지하고 다음 확인을 계속한다', async ({ page }) => {
+  await page.clock.install();
+  const state = await mockLifecycle(page);
+  await page.goto('/account');
+  const withdrawal = page.getByRole('button', {
+    name: '탈퇴하기',
+    exact: true
+  });
+  await expect(withdrawal).toBeVisible();
+  const reads = state.userReads;
+  const refreshes = state.refreshes;
+  state.sessionUnavailable = true;
+  await page.clock.runFor(15_001);
+  await expect.poll(() => state.userReads).toBeGreaterThan(reads);
+  await expect(page).toHaveURL('/account');
+  await expect(withdrawal).toBeVisible();
+  state.sessionUnavailable = false;
+  const failedReads = state.userReads;
+  await page.clock.runFor(15_001);
+  await expect.poll(() => state.userReads).toBeGreaterThan(failedReads);
+  await expect(withdrawal).toBeVisible();
+  expect(state.refreshes).toBe(refreshes);
 });
 
 test('복구 페이지는 일반 토큰을 발급받지 않고 복구 전용 쿠키로 안내하며 실패 후 재시도한다', async ({ page }) => {
