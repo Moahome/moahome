@@ -6,7 +6,10 @@ import {
   type CustomApiOptions
 } from '@/shared/api';
 import { restoreSession } from '../model/restoreSession';
-import { getSession } from '../model/sessionStore';
+import {
+  getSession,
+  invalidateSession
+} from '../model/sessionStore';
 import type { WebSession } from '../model/sessionStoreTypes';
 
 const forbiddenListeners = new Set<(propertyId: string) => void>();
@@ -56,6 +59,12 @@ export async function authenticatedAPI<T = unknown>(options: CustomApiOptions): 
     try {
       return await customAPI<T>(request);
     } catch (error) {
+      // 탈퇴·세션 종료는 개별 화면의 오류로만 남기지 않고 전체 로그인 화면과 캐시를 정리합니다.
+      // 일반 권한 거부와 저장소 장애는 세션 종료의 근거가 아닙니다.
+      if (error instanceof ApiError && ((error.status === 401 && error.code !== 'ACCESS_TOKEN_EXPIRED')
+        || (error.status === 403 && ['ACCOUNT_UNAVAILABLE', 'ACCOUNT_RECOVERY_REQUIRED'].includes(error.code)))) {
+        invalidateSession(headers.get('Authorization')?.slice('Bearer '.length) ?? '');
+      }
       const match = /^\/api\/properties\/([0-9a-f-]{36})\/(.+)$/i.exec(options.url.split('?')[0]);
       if (error instanceof ApiError && error.status === 403 && match
         && !['access-context', 'management-context'].includes(match[2])

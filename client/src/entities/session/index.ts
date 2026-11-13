@@ -14,7 +14,8 @@ export {
 export {
   clearSession,
   getSession,
-  setSession
+  setSession,
+  subscribeSessionInvalidation
 } from './model/sessionStore';
 export type {
   WebSession
@@ -24,6 +25,7 @@ export {
   CURRENT_USER_QUERY_KEY
 } from './model/useSession';
 export {
+  getCurrentUser,
   updateCurrentUserDisplayName,
   saveCurrentUserProfile
 } from './api/currentUserApi';

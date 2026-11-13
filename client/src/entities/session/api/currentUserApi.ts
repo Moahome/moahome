@@ -5,9 +5,10 @@ import { authenticatedAPI } from './authenticatedApi';
 import type { CurrentUser } from './currentUserApiTypes';
 
 /** 인증된 본인 정보를 조회하고 잘못된 응답을 로그인 성공으로 표시하지 않습니다. */
-export async function getCurrentUser(): Promise<CurrentUser> {
+export async function getCurrentUser(signal?: AbortSignal): Promise<CurrentUser> {
   const user = await authenticatedAPI<CurrentUser>({
-    url: '/api/users/me'
+    url: '/api/users/me',
+    signal
   });
 
   return readCurrentUser(user);

@@ -638,7 +638,7 @@ test('모바일 사이드 메뉴는 닫기·바깥 영역·Escape·데스크톱 
   await expect(page.getByLabel('모아 주민님 계정 정보')).toBeVisible();
 });
 
-test('랜딩에서 전역 복원하고 화면 이동·포커스 전환은 복원과 내 정보 조회를 반복하지 않음', async ({ page }) => {
+test('랜딩의 전역 복원은 화면 이동에서 재사용하고 포커스 복귀는 토큰 교체 없이 인증을 확인한다', async ({ page }) => {
   const requests: string[] = [];
   await page.route(`${API_ORIGIN}/api/auth/web/**`, async (route) => {
     const action = route.request().url().endsWith('/csrf') ? 'csrf' : 'refresh';
@@ -666,11 +666,12 @@ test('랜딩에서 전역 복원하고 화면 이동·포커스 전환은 복원
     name: '시작하기',
     exact: true
   })).toBeVisible();
+  expect(requests).toEqual(['csrf', 'refresh', 'me']);
   await page.evaluate(() => {
     window.dispatchEvent(new Event('blur'));
     window.dispatchEvent(new Event('focus'));
   });
-  expect(requests).toEqual(['csrf', 'refresh', 'me']);
+  await expect.poll(() => requests).toEqual(['csrf', 'refresh', 'me', 'me']);
 });
 
 test('모바일 랜딩은 로그인된 사용자에게 시작하기를 표시하고 시작 화면으로 이동', async ({ page }) => {
