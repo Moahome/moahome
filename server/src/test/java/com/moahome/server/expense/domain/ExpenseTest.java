@@ -38,4 +38,33 @@ class ExpenseTest {
 			assertThatThrownBy(() -> Expense.allocate(new BigDecimal("100"), "AMOUNT", shares))
 			    .isInstanceOf(RuntimeException.class);
 	}
+
+	/** 비율은 유지하며 절사 후 남은 1원 전액을 명시한 부담처에만 반영합니다. */
+	@Test
+	void ratioRemainderPreservesPercentagesAndOtherShares() {
+		var shares = List.of(share("외부 101동", "86105", "50"), share("102동", "43053", "25"),
+		    share("103동", "43052", "25"));
+		assertThat(Expense.allocate(new BigDecimal("172210"), "RATIO", shares))
+		    .containsExactly(new BigDecimal("86105"), new BigDecimal("43053"), new BigDecimal("43052"));
+		assertThat(shares).extracting(Expense.Share::percentage).containsExactly("50", "25", "25");
+		assertThat(Expense.allocate(new BigDecimal("172210"), "RATIO",
+		    List.of(share("외부", "86106", "50"), share("102", "43052", "25"), share("103", "43052", "25"))))
+		    .containsExactly(new BigDecimal("86106"), new BigDecimal("43052"), new BigDecimal("43052"));
+	}
+
+	/** 비율 미완성·선택 누락·초과 이동·둘 이상의 조정은 나머지 버튼 요청으로 우회할 수 없습니다. */
+	@Test
+	void ratioRemainderRejectsMissingSelectionAndArbitraryRedistribution() {
+		for (var parts : List.of(
+		    List.of(share("a", "43052", "25"), share("b", "43052", "25")),
+		    List.of(share("a", null, "50"), share("b", null, "25"), share("c", null, "25")),
+		    List.of(share("a", "86105", "50"), share("b", "43052", "25"), share("c", "43052", "25")),
+		    List.of(share("a", "86104", "50"), share("b", "43054", "25"), share("c", "43052", "25"))))
+			assertThatThrownBy(() -> Expense.allocate(new BigDecimal("172210"), "RATIO", parts))
+			    .isInstanceOf(RuntimeException.class);
+		// 절사 금액이 0원이더라도 명시한 한 곳에 나머지를 더해 모든 최종 몫이 양수이면 허용합니다.
+		assertThat(Expense.allocate(new BigDecimal("3"), "RATIO",
+		    List.of(share("a", "1", "10"), share("b", "2", "90"))))
+		    .containsExactly(BigDecimal.ONE, new BigDecimal("2"));
+	}
 }

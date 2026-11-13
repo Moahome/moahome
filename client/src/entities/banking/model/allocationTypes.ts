@@ -5,6 +5,15 @@ export type BankingAllocation = {
   percentage: string | null;
 };
 
+export interface ExpenseAllocationResult {
+  allocations: BankingAllocation[];
+  allocated: bigint;
+  remaining: bigint;
+  canFillRatioRemainder: boolean;
+  allocationError: string;
+  error: string;
+}
+
 export interface ExpenseAccountOption {
   code: string;
   name: string;

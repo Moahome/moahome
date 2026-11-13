@@ -1,6 +1,8 @@
 import {
   mockSettlement,
-  SETTLEMENT_PROPERTY
+  SETTLEMENT_PROPERTY,
+  SETTLEMENT_ACCOUNT,
+  settlementFixture
 } from './support/monthlySettlement';
 import { closeReportPreview } from './support/reportDownload';
 import { selectMonthRange } from './support/monthRange';
@@ -3974,6 +3976,205 @@ for (const width of [1440]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 }
+
+test('지출 비율의 남은 금액 버튼은 선택 부담처에 1원만 더하고 비율을 유지해 저장', async ({ page }, testInfo) => {
+  await page.setViewportSize({
+    width: 1440,
+    height: 1000
+  });
+  const data = settlementFixture();
+  const secondBuilding = id(103);
+  data.banking.buildings.push({
+    id: secondBuilding,
+    label: '103동'
+  });
+  data.banking.rows = [];
+  await mockSettlement(page, undefined, 0, () => data);
+  const requests: Record<string, unknown>[] = [];
+  await page.route(`http://localhost:8080/api/properties/${SETTLEMENT_PROPERTY}/banking/expenses/manual`, async route => {
+    const headers = {
+      'Access-Control-Allow-Origin': 'http://localhost:3100',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-CSRF-TOKEN',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({
+      status: 204,
+      headers
+    });
+    const request = route.request().postDataJSON();
+    requests.push(request);
+    if (requests.length === 1) return route.fulfill({
+      status: 503,
+      headers,
+      json: {
+        code: 'TEMPORARY_ERROR'
+      }
+    });
+    data.banking.rows = [{
+      ...row(9991, 'EXPENSE', '전기요금', '172210'),
+      id: request.id,
+      accountId: SETTLEMENT_ACCOUNT,
+      sourceType: 'MANUAL',
+      date: request.date,
+      status: 'CONFIRMED',
+      balance: null,
+      expense: {
+        id: request.id,
+        category: '전기요금',
+        note: '',
+        mode: request.mode,
+        saveAsRule: false,
+        allocations: request.allocations
+      }
+    }];
+    await route.fulfill({
+      headers,
+      json: data.banking
+    });
+  });
+  await page.goto(`/manage/${SETTLEMENT_PROPERTY}/banking/transactions?month=2026-10`);
+  await page.getByRole('button', {
+    name: '수동 지출 등록',
+    exact: true
+  }).click();
+  const dialog = page.getByRole('dialog', {
+    name: '수동 지출 등록',
+    exact: true
+  });
+  await dialog.getByRole('textbox', {
+    name: '지출명',
+    exact: true
+  }).fill('전기요금');
+  await dialog.getByRole('textbox', {
+    name: '출금액',
+    exact: true
+  }).fill('172210');
+  const method = dialog.getByRole('combobox', {
+    name: '나누는 방법',
+    exact: true
+  });
+  await method.click();
+  await page.getByRole('option', {
+    name: '비율 지정',
+    exact: true
+  }).click();
+  await dialog.getByRole('button', {
+    name: '외부·공통 부담처 추가',
+    exact: true
+  }).click();
+  await dialog.getByRole('textbox', {
+    name: '외부 부담처 3',
+    exact: true
+  }).fill('101동');
+  for (const name of ['102동', '103동']) await dialog.getByRole('textbox', {
+    name: `${name} 부담 비율`,
+    exact: true
+  }).fill('25');
+  await dialog.getByRole('textbox', {
+    name: '101동 부담 비율',
+    exact: true
+  }).fill('50');
+  const fill = dialog.getByRole('button', {
+    name: '102동 남은 금액',
+    exact: true
+  });
+  await expect(fill).toBeEnabled();
+  await expect(dialog.getByText('남은 금액 1원', {
+    exact: true
+  })).toBeVisible();
+  await dialog.getByText('남은 금액 1원', {
+    exact: true
+  }).scrollIntoViewIfNeeded();
+  await dialog.screenshot({
+    path: testInfo.outputPath('expenseRemainderBefore.png')
+  });
+  await fill.click();
+  await expect(method).toHaveText('비율 지정');
+  await expect(dialog.getByRole('textbox', {
+    name: '102동 부담 비율',
+    exact: true
+  })).toHaveValue('25');
+  await expect(dialog.getByText('43,053원', {
+    exact: true
+  })).toBeVisible();
+  await expect(dialog.getByText('남은 금액 0원', {
+    exact: true
+  })).toBeVisible();
+  await expect(fill).toBeDisabled();
+  await expect(dialog.getByText('남은 1원 반영', {
+    exact: true
+  })).toHaveCount(0);
+  await expect(dialog.getByRole('button', {
+    name: '취소',
+    exact: true
+  })).toHaveCSS('border-top-color', 'rgb(191, 219, 254)');
+  await dialog.screenshot({
+    path: testInfo.outputPath('expenseRemainderAfter.png')
+  });
+  // 비율을 다시 입력하면 기존 나머지 배정을 초기화해 새 계산에 몰래 재사용하지 않습니다.
+  await dialog.getByRole('textbox', {
+    name: '102동 부담 비율',
+    exact: true
+  }).fill('24');
+  await expect(fill).toBeDisabled();
+  await dialog.getByRole('textbox', {
+    name: '102동 부담 비율',
+    exact: true
+  }).fill('25');
+  await expect(dialog.getByText('남은 금액 1원', {
+    exact: true
+  })).toBeVisible();
+  await fill.click();
+  await page.setViewportSize({
+    width: 390,
+    height: 844
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await expect(fill).toBeVisible();
+  await dialog.screenshot({
+    path: testInfo.outputPath('expenseRemainderMobile.png')
+  });
+  await page.setViewportSize({
+    width: 1440,
+    height: 1000
+  });
+  const save = dialog.getByRole('button', {
+    name: '등록',
+    exact: true
+  });
+  await save.click();
+  await expect(dialog.getByRole('alert')).toBeVisible();
+  await expect(method).toHaveText('비율 지정');
+  await expect(dialog.getByText('43,053원', {
+    exact: true
+  })).toBeVisible();
+  await save.click();
+  await expect(dialog).toHaveCount(0);
+  expect(requests).toHaveLength(2);
+  expect(requests[0]).toEqual(requests[1]);
+  expect(requests[1]).toMatchObject({
+    mode: 'RATIO',
+    amount: '172210',
+    allocations: [
+      {
+        label: '102동',
+        percentage: '25',
+        amount: '43053'
+      },
+      {
+        label: '103동',
+        percentage: '25',
+        amount: '43052'
+      },
+      {
+        label: '101동',
+        percentage: '50',
+        amount: '86105'
+      }
+    ]
+  });
+});
 
 for (const width of [1440, 320]) {
   test(`통장 상세 ${width}px는 선택 통장·번호 공개와 숨김·재진입 마스킹·모바일 복귀를 유지`, async ({ page }) => {

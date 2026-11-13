@@ -108,6 +108,30 @@
   }
 }
 
+.calculated-amount {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+
+  > strong {
+    white-space: nowrap;
+  }
+
+  .ratio-remainder {
+    flex-shrink: 0;
+    min-height: 42px;
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+}
+
+.editor[data-expense='true'][data-mode='RATIO'] .share {
+  grid-template-columns: minmax(0, 1fr) 80px 14px minmax(190px, 1fr) 32px;
+}
+
 .warning {
   color: var(--sub-text);
   margin: 0;
@@ -274,6 +298,10 @@
     grid-template-columns: minmax(0, 1fr) var(--allocation-value-width) 12px var(--allocation-value-width) var(--allocation-action-width);
   }
 
+  &[data-mode='RATIO'][data-expense='true'] .share {
+    grid-template-columns: minmax(0, 1fr) var(--allocation-value-width) 12px minmax(210px, 1fr) var(--allocation-action-width);
+  }
+
   &[data-mode='AMOUNT'] .share {
     grid-template-columns: minmax(0, 1fr) auto;
 
@@ -328,6 +356,21 @@
 }
 
 @media (max-width: 767px) {
+  .editor[data-expense='true'][data-mode='RATIO'] .share,
+  .editor[data-expense='true'][data-mode='RATIO'][data-sectioned='true'] .share {
+    grid-template-columns: minmax(0, 1fr) 72px 12px 32px;
+
+    .calculated-amount {
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+
+    > button:last-child {
+      grid-column: 4;
+      grid-row: 1;
+    }
+  }
+
   .editor[data-mode='AMOUNT'] .share,
   .editor[data-mode='AMOUNT'][data-sectioned='true'] .share {
     grid-template-columns: minmax(0, 1fr) 40px;
@@ -359,7 +402,8 @@
     padding: 16px;
     font-size: 16px;
 
-    > strong {
+    > strong,
+    .calculated-amount > strong {
       font-size: 18px;
     }
   }

@@ -2875,6 +2875,80 @@ class PaymentPersistenceTest {
 		jdbc.execute("drop schema " + schema + " cascade");
 	}
 
+	/** 지출의 비율·조정 금액을 함께 저장하고 재시도·DB 제약·입금과의 검증 경계를 확인합니다. */
+	@Test
+	void expenseRatioRemainderPersistsPercentagesAndRejectsChangedReplayAndDatabaseRedistribution() {
+		List<UUID> targets = manualIncomeBuildings();
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		var request = new BankingRequests.ManualExpense(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15),
+		    "172210", "전기요금", null, "RATIO", List.of(
+		        new BankingRequests.Allocation(null, "외부 101동", "86105", "50"),
+		        new BankingRequests.Allocation(targets.getFirst(), null, "43053", "25"),
+		        new BankingRequests.Allocation(targets.getLast(), null, "43052", "25")));
+		var saved = banking.manualExpense(user, property, request).rows().getFirst().expense();
+		assertThat(saved.mode()).isEqualTo("RATIO");
+		assertThat(saved.allocations()).extracting(part -> part.amount()).containsExactly("86105", "43053", "43052");
+		assertThat(saved.allocations()).extracting(part -> part.percentage()).containsExactly("50.00", "25.00", "25.00");
+		banking.manualExpense(user, property, request);
+		assertThat(count("expenses")).isEqualTo(1);
+		var changed = new BankingRequests.ManualExpense(request.id(), account, request.date(), request.amount(),
+		    request.category(), null, "RATIO", List.of(
+		        new BankingRequests.Allocation(null, "외부 101동", "86106", "50"),
+		        new BankingRequests.Allocation(targets.getFirst(), null, "43052", "25"),
+		        new BankingRequests.Allocation(targets.getLast(), null, "43052", "25")));
+		assertThatThrownBy(() -> banking.manualExpense(user, property, changed)).hasMessage("BANK_REQUEST_CONFLICT");
+		UUID invalid = UUID.randomUUID();
+		assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+			jdbc.update("insert into expenses(id,property_id,bank_account_id,source_type,expense_date,category_encrypted,total_amount,allocation_mode,save_as_rule,confirmed_by,confirmed_at) "
+			    + "select ?,property_id,bank_account_id,source_type,expense_date,category_encrypted,total_amount,allocation_mode,false,confirmed_by,confirmed_at from expenses where id=?",
+			    invalid, request.id());
+			jdbc.update("insert into expense_allocations(id,property_id,expense_id,building_id,target_label_encrypted,allocated_amount,percentage,sort_order) "
+			    + "select gen_random_uuid(),property_id,?,building_id,target_label_encrypted,case sort_order when 0 then 86104 when 1 then 43054 else 43052 end,percentage,sort_order from expense_allocations where expense_id=?",
+			    invalid, request.id());
+		})).hasStackTraceContaining("invalid expense ratio remainder");
+		assertThat(count("expenses")).isEqualTo(1);
+		// 같은 계산기를 쓰는 입금은 지출용 나머지 배분을 받아들이지 않습니다.
+		var receipt = service.importFile(user, property, bank("입금 비율 검증", "101")).payments().getFirst();
+		service.confirmOtherIncome(user, property, receipt.id(), new PaymentRequests.OtherIncome("이자", null));
+		assertThatThrownBy(() -> banking.confirmIncomeAllocation(user, property, receipt.bankTransactionId(),
+		    new BankingRequests.Expense("이자", null, "RATIO", false, List.of(
+		        new BankingRequests.Allocation(targets.getFirst(), null, "51", "50"),
+		        new BankingRequests.Allocation(targets.getLast(), null, "50", "50")))))
+		    .hasMessage("ALLOCATION_REMAINDER_REQUIRED");
+	}
+
+	/** 기적용 DB의 확정 지출과 체크섬은 보존하고 후속 Migration으로 비율 검증 함수만 확장합니다. */
+	@Test
+	void expenseRemainderMigrationPreservesExistingAllocations() {
+		List<UUID> targets = manualIncomeBuildings();
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		banking.manualExpense(user, property,
+		    manualExpenseRequest(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15), "10000", targets));
+		String schema = "expense_remainder_" + UUID.randomUUID().toString().replace("-", "");
+		var previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		    .schemas(schema).defaultSchema(schema).target("20261108055709").load();
+		previous.migrate();
+		try {
+			new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+				jdbc.execute("set local search_path to " + schema + ",public");
+				for (String table : List.of("users", "properties", "buildings", "units", "bank_accounts",
+				    "accounting_accounts", "expenses", "expense_allocations"))
+					copyPreviousTable(schema, table);
+			});
+			var snapshots = jdbc.queryForList("select * from " + schema + ".expense_allocations order by id");
+				var checksums = jdbc.queryForList("select version,checksum from " + schema + ".flyway_schema_history where version is not null order by installed_rank");
+			var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+			    .schemas(schema).defaultSchema(schema).load();
+			assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
+			upgraded.validate();
+			assertThat(jdbc.queryForList("select * from " + schema + ".expense_allocations order by id")).isEqualTo(snapshots);
+			assertThat(jdbc.queryForList("select version,checksum from " + schema
+			    + ".flyway_schema_history where version<>'20261113074851' order by installed_rank")).isEqualTo(checksums);
+		} finally {
+			jdbc.execute("drop schema " + schema + " cascade");
+		}
+	}
+
 	/** 은행 원본 없는 등록은 요청 UUID로 멱등 처리하고 지출·배분·작성자를 확정 이력으로 보존합니다. */
 	@Test
 	void manualExpenseStoresWithoutBankSourceAndRejectsChangedReplay() {

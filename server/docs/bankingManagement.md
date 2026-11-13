@@ -30,6 +30,8 @@ ExpenseService는 호출자가 확보한 권한·잠금 아래 원본이 출금�
 
 ## 동별 보유금·외부 회수 저장
 
+지출 비율의 명시적 나머지 배분은 [특수 배분 계약](../../docs/api/bankingManagement.md#특수-배분)을 따릅니다. `Expense.allocate`는 원 비율의 절사 금액과 한 부담처의 나머지 전액 가산만 허용하며 저장·재시도에서 같은 계산을 사용합니다. DB의 지연 제약도 동일한 조건을 검사하므로 합계만 맞춘 임의 재배분은 커밋할 수 없습니다. `IncomeAllocationService`는 비율의 직접 금액을 받지 않아 지출용 확장이 입금 정책을 변경하지 않습니다.
+
 `BankingBalanceService`는 잔고 조회를 repeatable-read로, 변경을 read-committed와 관리대상 행 잠금으로 처리합니다. 같은 잠금을 쓰는 수납 확정·취소·파일 업로드와 시작값·회수액 갱신을 직렬화합니다. Controller는 ADMIN 확인과 계산을 Service에 위임하며 응답을 캐시하지 않습니다. [공통 계약](../../docs/api/bankingManagement.md#동별-잔고외부-회수-api)과 [ERD](../../docs/domain/erd.md#95-building_cash_openings)를 참조합니다.
 
 신규 HOUSEHOLD 수납은 PaymentService의 자동·직접·누적 확정 경로에서 확정 당시 동 ID를 보존합니다. 세대 이동으로 스냅샷을 바꾸지 않습니다. 기존 null인 확정 HOUSEHOLD 은행 입금은 후속 Migration에서 연결 세대의 동으로 자동 기록합니다. 이후 같은 조건의 이관·확정도 DB 트리거가 최초 연결 동을 기록하고 이미 저장된 동은 유지합니다. 세대 연결·동 정보가 없을 때만 관리자 확인을 유지합니다. 은행 원본을 연결하지 않은 수동 세대 수납과 세대 선납 인계는 동별 현금에 반영하지 않습니다. 수동 기타·동별 입금은 [수동 저장 설계](payment.md#수동-기타동별-입금-2026-10-18)를 적용합니다.

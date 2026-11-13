@@ -354,7 +354,6 @@ export function ManualExpenseForm({ accounts: accountOptions, expenseAccounts, b
             {(presentation === 'modal' || onCancel) && (
               <Button
                 variant={'outline'}
-                tone={'neutral'}
                 disabled={busy}
                 onClick={onCancel ?? onClose}
               >
