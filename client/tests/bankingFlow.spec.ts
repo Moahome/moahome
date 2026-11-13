@@ -4658,14 +4658,14 @@ for (const width of [1440, 320]) {
     failDetail = false;
     malformedDetail = true;
     await detail.getByRole('button', {
-      name: '다시 조회',
+      name: '다시 시도',
       exact: true
     }).click();
     await expect(detail.getByRole('alert')).toBeVisible();
     await expect(detail).not.toContainText(number);
     malformedDetail = false;
     await detail.getByRole('button', {
-      name: '다시 조회',
+      name: '다시 시도',
       exact: true
     }).click();
     await expect(detail).toContainText('테스트 예금주');
