@@ -17,6 +17,7 @@ const isDate = (value: unknown) => typeof value === 'string' && /^\d{4}-\d{2}-\d
 /** 불완전한 정정 이력이 화면에 섞이지 않도록 대상·전후 날짜와 금액을 검증합니다. */
 function validHistory(row: InitialBalanceHistory) {
   return row && isPropertyId(row.id) && ['HANDOVER', 'BUILDING', 'ACCOUNT'].includes(row.kind)
+    && (row.bankAccountId === undefined || row.bankAccountId === null || isPropertyId(row.bankAccountId))
     && (row.previousDate === null || isDate(row.previousDate)) && (row.newDate === null || isDate(row.newDate))
     && typeof row.reason === 'string' && isPropertyId(row.changedBy) && typeof row.changedByName === 'string'
     && Number.isFinite(Date.parse(row.changedAt)) && Array.isArray(row.details)

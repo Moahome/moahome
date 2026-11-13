@@ -1082,7 +1082,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).fill('');
     await expect(dialog.getByRole('button', {
-      name: '변경 저장',
+      name: '저장',
       exact: true
     })).toBeDisabled();
     await dialog.getByRole('textbox', {
@@ -1094,7 +1094,7 @@ for (const width of [1440, 390]) {
       exact: true
     }).fill('00098765432');
     await dialog.getByRole('button', {
-      name: '변경 저장',
+      name: '저장',
       exact: true
     }).click();
     await expect(dialog.getByRole('alert')).toBeVisible();
@@ -1104,7 +1104,7 @@ for (const width of [1440, 390]) {
     })).toHaveValue('00098765432');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await dialog.getByRole('button', {
-      name: '변경 저장',
+      name: '저장',
       exact: true
     }).click();
     await expect(dialog.getByText('신한은행 00098765432 · 정정 예금주', {

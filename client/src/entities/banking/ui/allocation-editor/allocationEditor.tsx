@@ -31,20 +31,28 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
   const transfer = purpose === 'transfer';
   const result = calculateExpenseAllocation(total, draft, income ? 'income' : 'expense');
   const allocationError = validationError || result.allocationError;
+  /** 대상·비율을 수정하면 이전에 지정한 나머지를 새 배분에 자동으로 넘기지 않습니다. */
+  function resetRatioRemainder(allocations: ExpenseDraft['allocations'], mode = draft.mode) {
+    if (mode !== 'RATIO') return allocations;
+    return allocations.map((share) => ({
+      ...share,
+      amount: ''
+    }));
+  }
   function changeMode(mode: ExpenseDraft['mode']) {
     onChange({
       ...draft,
       mode,
-      allocations: mode === 'AMOUNT' ? result.allocations : draft.allocations
+      allocations: mode === 'AMOUNT' ? result.allocations : resetRatioRemainder(draft.allocations, mode)
     });
   }
   function changeShare(index: number, patch: Partial<ExpenseDraft['allocations'][number]>) {
     onChange({
       ...draft,
-      allocations: draft.allocations.map((a, i) => i === index ? {
+      allocations: resetRatioRemainder(draft.allocations.map((a, i) => i === index ? {
         ...a,
         ...patch
-      } : a)
+      } : a))
     });
   }
   return (
@@ -52,6 +60,7 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
       className={styles.editor}
       aria-label={transfer ? '이체 배분 설정' : income ? '입금 배분 설정' : '지출 설정'}
       data-mode={draft.mode}
+      data-expense={!income}
       data-transfer={transfer}
       data-compact={compact}
       data-sectioned={sectioned}
@@ -132,13 +141,13 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
                 onChange={(event) => onChange({
                   ...draft,
                   allocations: event.target.checked
-                    ? sortExpenseLabels([...draft.allocations, {
+                    ? sortExpenseLabels(resetRatioRemainder([...draft.allocations, {
                       buildingId: building.id,
                       label: building.label,
                       amount: '',
                       percentage: ''
-                    }])
-                    : draft.allocations.filter((a) => a.buildingId !== building.id)
+                    }]))
+                    : resetRatioRemainder(draft.allocations.filter((a) => a.buildingId !== building.id))
                 })}
               />
               {building.label}
@@ -157,12 +166,12 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
               disabled={disabled}
               onClick={() => onChange({
                 ...draft,
-                allocations: [...draft.allocations, {
+                allocations: resetRatioRemainder([...draft.allocations, {
                   buildingId: null,
                   label: '',
                   amount: '',
                   percentage: ''
-                }]
+                }])
               })}
             >
               외부·공통 부담처 추가
@@ -280,9 +289,25 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
                 </Button>
               </div>
             ) : (
-              <strong>
-                {formatWon(result.allocations[index].amount)}
-              </strong>
+              <div
+                className={styles['calculated-amount']}
+              >
+                <strong>
+                  {formatWon(result.allocations[index].amount)}
+                </strong>
+                {!income && draft.mode === 'RATIO' && (
+                  <Button
+                    variant={'outline'}
+                    size={'sm'}
+                    className={styles['ratio-remainder']}
+                    aria-label={`${share.label || '외부 부담처'} 남은 금액`}
+                    disabled={disabled || !result.canFillRatioRemainder}
+                    onClick={() => onChange(fillAllocationRemainder(total, draft, index))}
+                  >
+                    남은 금액
+                  </Button>
+                )}
+              </div>
             )}
             {!share.buildingId && (
               <Button
@@ -298,7 +323,7 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
                 disabled={disabled}
                 onClick={() => onChange({
                   ...draft,
-                  allocations: draft.allocations.filter((_, i) => i !== index)
+                  allocations: resetRatioRemainder(draft.allocations.filter((_, i) => i !== index))
                 })}
               />
             )}

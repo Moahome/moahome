@@ -97,6 +97,39 @@ test('입금 항목 누락은 정상 배분 금액의 완료 상태와 분리해
   expect(result.remaining).toBe(BigInt(0));
 });
 
+test('비율 배분의 남은 1원은 선택한 곳에만 더하고 비율·모드를 유지하며 반복 적용하지 않음', () => {
+  const original = draft('RATIO', [
+    {
+      label: '외부 101동',
+      percentage: '50'
+    },
+    {
+      label: '102동',
+      percentage: '25'
+    },
+    {
+      label: '103동',
+      percentage: '25'
+    }
+  ]);
+  const filled = fillAllocationRemainder('172210', original, 1);
+  expect(filled.mode).toBe('RATIO');
+  expect(filled.allocations.map((part) => part.percentage)).toEqual(['50', '25', '25']);
+  expect(filled.allocations.map((part) => part.amount)).toEqual(['86105', '43053', '43052']);
+  const result = calculateExpenseAllocation('172210', filled);
+  expect(result.error).toBe('');
+  expect(result.remaining).toBe(BigInt(0));
+  expect(fillAllocationRemainder('172210', filled, 1)).toBe(filled);
+  expect(original.allocations.map((part) => part.amount)).toEqual(['', '', '']);
+  expect(calculateExpenseAllocation('172211', filled).error).not.toBe('');
+  const invalid = {
+    ...original,
+    allocations: original.allocations.slice(1)
+  };
+  expect(fillAllocationRemainder('172210', invalid, 0)).toBe(invalid);
+  expect(calculateExpenseAllocation('172210', filled, 'income').error).not.toBe('');
+});
+
 test('수동 입금 기본 이름은 세대별 최근 확정 입금만 사용하고 취소·미확정·기타 입금은 제외', async () => {
   const { getManualReceiptUnits } = await import('../src/widgets/payment-workspace/model/paymentPreview');
   const { createPaymentSample } = await import('../src/widgets/payment-workspace/model/paymentSample');

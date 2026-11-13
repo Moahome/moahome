@@ -24,6 +24,7 @@ export interface InitialBalanceDetail {
 export interface InitialBalanceHistory {
   id: string;
   kind: 'HANDOVER' | 'BUILDING' | 'ACCOUNT';
+  bankAccountId?: string | null;
   previousDate: string | null;
   newDate: string | null;
   details: InitialBalanceDetail[];

@@ -20,7 +20,7 @@ import { ListCard } from '@/shared/ui/list-card';
 import { ListHeader } from '@/shared/ui/list-header';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { Toast } from '@/shared/ui/toast';
-import { BankAccountEditor } from '../_components/bank-account-editor/bankAccountEditor';
+import { BankAccountEditor } from '@/features/bank-account-management';
 import { ParticipatingProperties } from '../_components/participating-properties/participatingProperties';
 import styles from './settingsPage.module.css';
 

@@ -67,7 +67,7 @@
 
 .transaction-cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   margin: 0;
 
@@ -267,6 +267,10 @@
 
     > div {
       padding: 16px 12px;
+
+      &[data-kind='balance'] {
+        grid-column: 1 / -1;
+      }
 
       &[data-kind='amount'] dd {
         font-size: 22px;
