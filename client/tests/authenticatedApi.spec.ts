@@ -14,6 +14,7 @@ import {
   getSession,
   restoreSession,
   setSession,
+  subscribeSessionInvalidation,
   type WebSession
 } from '../src/entities/session';
 
@@ -183,6 +184,8 @@ for (const [status, code] of [
   [401, 'SESSION_EXPIRED'],
   [401, 'REFRESH_TOKEN_EXPIRED'],
   [401, 'REFRESH_TOKEN_REUSED'],
+  [403, 'ACCOUNT_UNAVAILABLE'],
+  [403, 'ACCOUNT_RECOVERY_REQUIRED'],
   [403, 'ACCESS_DENIED'],
   [403, 'ACCESS_TOKEN_EXPIRED'],
   [503, 'AUTH_SERVICE_UNAVAILABLE'],
@@ -206,9 +209,65 @@ for (const [status, code] of [
       code
     });
     expect(requests).toBe(1);
-    expect(getSession()).toBe(previousSession);
+    const sessionEnded = status === 401 || ['ACCOUNT_UNAVAILABLE', 'ACCOUNT_RECOVERY_REQUIRED'].includes(code);
+    expect(getSession()).toBe(sessionEnded ? null : previousSession);
   });
 }
+
+test('탈퇴로 동시 요청이 거부되면 세션 종료를 한 번만 전역에 알린다', async () => {
+  let invalidations = 0;
+  const unsubscribe = subscribeSessionInvalidation(() => { invalidations++; });
+  globalThis.fetch = async () => Response.json({
+    code: 'ACCOUNT_UNAVAILABLE'
+  }, {
+    status: 403
+  });
+  try {
+    const results = await Promise.allSettled([
+      authenticatedAPI({
+        url: '/api/first'
+      }),
+      authenticatedAPI({
+        url: '/api/second'
+      })
+    ]);
+    expect(results.every((result) => result.status === 'rejected')).toBe(true);
+    expect(getSession()).toBeNull();
+    expect(invalidations).toBe(1);
+  } finally {
+    unsubscribe();
+  }
+});
+
+test('이전 계정의 늦은 인증 거부는 새 로그인 세션을 종료하지 않는다', async () => {
+  let releaseResponse: () => void = () => {};
+  const responseGate = new Promise<void>((resolve) => { releaseResponse = resolve; });
+  let invalidations = 0;
+  const unsubscribe = subscribeSessionInvalidation(() => { invalidations++; });
+  globalThis.fetch = async () => {
+    await responseGate;
+    return Response.json({
+      code: 'SESSION_EXPIRED'
+    }, {
+      status: 401
+    });
+  };
+  try {
+    const request = authenticatedAPI({
+      url: '/api/example'
+    });
+    const newSession = createSession('test-new-account-access');
+    setSession(newSession);
+    releaseResponse();
+    await expect(request).rejects.toMatchObject({
+      code: 'SESSION_EXPIRED'
+    });
+    expect(getSession()).toBe(newSession);
+    expect(invalidations).toBe(0);
+  } finally {
+    unsubscribe();
+  }
+});
 
 test('업무 요청의 네트워크 실패는 자동 재시도하지 않음', async () => {
   let requests = 0;

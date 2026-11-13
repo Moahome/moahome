@@ -7,6 +7,7 @@ import {
 import {
   clearSession,
   getSession,
+  invalidateSession,
   setSession
 } from './sessionStore';
 import type { WebSession } from './sessionStoreTypes';
@@ -107,8 +108,8 @@ export function restoreSession(expiredAccessToken?: string): Promise<WebSession>
     .catch((error: unknown) => {
       // 저장소 장애(503)는 로그인 만료로 취급하지 않습니다. 인증 거부만 현재 메모리 세션을 지웁니다.
       if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
-        clearSession();
-        requiresLogin = true;
+        if (currentSession) invalidateSession(currentSession.accessToken);
+        requiresLogin = !getSession();
       }
 
       throw error;
