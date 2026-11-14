@@ -4,6 +4,8 @@
 
 작성일: 2026-10-05. 수정일: 2026-11-06. 관리대상 등록 Controller / Service / Entity와 Migration을 구현했습니다. 이 문서는 저장 흐름과 현재 구현 범위를 설명하며 후속 주민 / 계좌 변경 / 월별 부과 정책은 확정하지 않습니다.
 
+2026-11-14 공통화: 등록·관리비 Converter는 `common/json/StrictJsonMapper`로 엄격한 Mapper 복사본 생성을 공유합니다. 전역 Mapper와 적용 DTO 범위는 유지하며 등록 requestId와 필드별 안전한 오류 검증은 등록 Converter에 남깁니다. 등록 잠금 키의 SHA-256 계산만 `common/security/Sha256`으로 위임하고 키 입력·long 변환·3초 제한·timeout 복원은 기존 등록 잠금 구현을 유지합니다.
+
 ## 1. 검증과 계층 책임
 
 - Controller는 인증된 사용자, 요청 DTO와 입력 검증 결과를 Service에 전달하고 API 계약의 HTTP 상태 / 응답을 반환합니다. Repository를 직접 호출하지 않습니다.
