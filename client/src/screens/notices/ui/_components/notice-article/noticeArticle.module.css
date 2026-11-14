@@ -337,6 +337,10 @@
       padding-top: 20px;
       border-top: 1px solid var(--border);
 
+      &:has(> button:only-child) {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
       > button {
         min-width: 0;
       }

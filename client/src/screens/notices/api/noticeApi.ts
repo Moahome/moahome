@@ -33,6 +33,7 @@ export async function getNotices(propertyId: string, page: number, query: string
 function readDetail(data: NoticeDetail, propertyId: string, id: string) {
   if (!data || data.propertyId !== propertyId || data.id !== id || typeof data.title !== 'string'
     || typeof data.canEdit !== 'boolean'
+    || typeof data.canDelete !== 'boolean'
     || typeof data.content !== 'string' || typeof data.important !== 'boolean'
     || !Number.isSafeInteger(data.version) || data.version < 1) {
     throw new ApiError(200, 'INVALID_RESPONSE', '공지사항을 확인할 수 없습니다.');

@@ -16,6 +16,6 @@ public final class NoticeResponse {
 	}
 
 	public record Detail(UUID propertyId, UUID id, long number, String title, String content, boolean important,
-		OffsetDateTime createdAt, OffsetDateTime updatedAt, long views, long version, boolean canEdit, String authorName) {
+		OffsetDateTime createdAt, OffsetDateTime updatedAt, long views, long version, boolean canEdit, boolean canDelete, String authorName) {
 	}
 }

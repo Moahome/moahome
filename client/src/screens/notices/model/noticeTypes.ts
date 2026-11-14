@@ -21,6 +21,7 @@ export interface NoticeDetail extends NoticeSummary {
   updatedAt: string;
   version: number;
   canEdit: boolean;
+  canDelete: boolean;
   authorName: string;
 }
 

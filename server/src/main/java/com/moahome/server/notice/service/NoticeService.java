@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.notice.dto.NoticeResponse;
 import com.moahome.server.notice.dto.NoticeSaveRequest;
 import com.moahome.server.notice.repo.NoticeRepository;
@@ -59,14 +60,14 @@ public class NoticeService {
 	/** 작성자 본인의 확인·수정 진입은 집계하지 않고 다른 관리자의 열람 횟수만 올립니다. */
 	@Transactional
 	public NoticeResponse.Detail get(UUID actor, UUID propertyId, UUID id) {
-		access.getManagementContext(actor, propertyId);
+		PropertyMemberRole role = access.getManagementContext(actor, propertyId).role();
 		NoticeRepository.Stored current = requireVisible(propertyId, id);
 		// 화면 숨김이나 클라이언트 값에 의존하지 않고 저장된 원래 작성자와 인증된 사용자를 비교합니다.
 		if (current.createdBy().equals(actor)) {
-			return response(current, actor);
+			return response(current, actor, role);
 		}
 		notices.incrementViews(propertyId, id);
-		return response(requireVisible(propertyId, id), actor);
+		return response(requireVisible(propertyId, id), actor, role);
 	}
 
 	/** 같은 작업 ID 재전송은 내용을 비교해 기존 결과를 반환하고 수정 버전 충돌은 덮어쓰지 않습니다. */
@@ -76,7 +77,7 @@ public class NoticeService {
 		validateContent(request.content());
 		String fingerprint = fingerprint(request);
 		notices.lock(propertyId);
-		access.getManagementContext(actor, propertyId);
+		PropertyMemberRole role = access.getManagementContext(actor, propertyId).role();
 		NoticeRepository.Stored current = notices.find(propertyId, id).orElse(null);
 		if (current == null) {
 			if (request.expectedVersion() != 0) {
@@ -84,12 +85,12 @@ public class NoticeService {
 			}
 			notices.create(propertyId, id, actor, request, fingerprint, OffsetDateTime.now(clock));
 			assets.bindContent(actor, propertyId, id, mapper.readTree(request.content()));
-			return response(requireVisible(propertyId, id), actor);
+			return response(requireVisible(propertyId, id), actor, role);
 		}
 		if (current.deletedAt() != null) {
 			throw new ResponseStatusException(HttpStatus.NOT_FOUND);
 		}
-		// 관리소장·부관리자 역할이 있어도 다른 사람이 작성한 공지를 수정하지 못하게 합니다.
+		// 관리소장·동대표 역할이 있어도 다른 사람이 작성한 공지를 수정하지 못하게 합니다.
 		if (!current.createdBy().equals(actor)) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN);
 		}
@@ -98,26 +99,26 @@ public class NoticeService {
 			if (!previous.equals(fingerprint)) {
 				throw new ResponseStatusException(HttpStatus.CONFLICT);
 			}
-			return response(current, actor);
+			return response(current, actor, role);
 		}
 		if (current.detail().version() != request.expectedVersion()) {
 			throw new ResponseStatusException(HttpStatus.CONFLICT);
 		}
 		notices.update(propertyId, id, actor, request, fingerprint, OffsetDateTime.now(clock));
 		assets.bindContent(actor, propertyId, id, mapper.readTree(request.content()));
-		return response(requireVisible(propertyId, id), actor);
+		return response(requireVisible(propertyId, id), actor, role);
 	}
 
-	/** 이미 삭제한 글의 재요청은 성공 처리하며 오래된 화면으로 새 수정 내용을 삭제하지 않습니다. */
+	/** 현재 삭제 권한을 확인하고 이미 삭제한 글은 성공 처리하며 오래된 버전의 삭제는 거부합니다. */
 	@Transactional
 	public void delete(UUID actor, UUID propertyId, UUID id, long version) {
 		access.getManagementContext(actor, propertyId);
 		notices.lock(propertyId);
-		access.getManagementContext(actor, propertyId);
+		PropertyMemberRole role = access.getManagementContext(actor, propertyId).role();
 		NoticeRepository.Stored current = notices.find(propertyId, id)
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-		// 삭제 재시도 역시 원래 작성자만 허용하며 관리자 역할로 타인의 글을 삭제하지 못하게 합니다.
-		if (!current.createdBy().equals(actor)) {
+		// 관리소장은 타인의 공지도 삭제할 수 있지만 동대표는 작성한 글만 삭제합니다. 재시도도 현재 역할을 검사합니다.
+		if (!canDelete(current, actor, role)) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN);
 		}
 		if (current.deletedAt() != null) {
@@ -134,11 +135,17 @@ public class NoticeService {
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
 	}
 
-	/** 상세 응답은 현재 로그인 사용자와 원래 작성자를 비교한 수정 가능 여부만 공개합니다. */
-	private NoticeResponse.Detail response(NoticeRepository.Stored stored, UUID actor) {
+	/** 작성자 전용 수정 권한과 관리소장·작성자의 삭제 권한을 분리해 응답합니다. */
+	private NoticeResponse.Detail response(NoticeRepository.Stored stored, UUID actor, PropertyMemberRole role) {
 		NoticeResponse.Detail row = stored.detail();
 		return new NoticeResponse.Detail(row.propertyId(), row.id(), row.number(), row.title(), row.content(),
-			row.important(), row.createdAt(), row.updatedAt(), row.views(), row.version(), stored.createdBy().equals(actor), row.authorName());
+			row.important(), row.createdAt(), row.updatedAt(), row.views(), row.version(), stored.createdBy().equals(actor),
+			canDelete(stored, actor, role), row.authorName());
+	}
+
+	/** 버튼 표시와 실제 삭제 요청에 같은 기준을 사용하며 역할은 현재 관리대상에서 확인한 값만 받습니다. */
+	private boolean canDelete(NoticeRepository.Stored stored, UUID actor, PropertyMemberRole role) {
+		return role == PropertyMemberRole.ADMIN || stored.createdBy().equals(actor);
 	}
 
 	/** HTML 원문을 저장하지 않고 편집기가 지원하는 문서·서식과 제한된 이미지·링크만 허용합니다. */

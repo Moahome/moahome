@@ -8,6 +8,7 @@ import java.util.concurrent.Executors;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -19,6 +20,8 @@ import com.moahome.server.notice.dto.NoticeResponse;
 import com.moahome.server.notice.dto.NoticeSaveRequest;
 import com.moahome.server.notice.repo.NoticeRepository;
 import com.moahome.server.notice.repo.NoticeAssetRepository;
+import com.moahome.server.membership.domain.PropertyMemberRole;
+import com.moahome.server.property.dto.ManagementPropertyResponse;
 import org.springframework.mock.web.MockMultipartFile;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -52,6 +55,8 @@ class NoticePersistenceTest {
 			flyway.migrate();
 			flyway.validate();
 			ManagementAccessService access = mock(ManagementAccessService.class);
+			when(access.getManagementContext(any(UUID.class), any(UUID.class)))
+				.thenReturn(new ManagementPropertyResponse(property, "관리대상", PropertyMemberRole.MANAGER));
 			NoticeRepository repository = new NoticeRepository(jdbc);
 			NoticeAssetRepository assetRepository = new NoticeAssetRepository(jdbc);
 			NoticeAssetStorage storage = mock(NoticeAssetStorage.class);
@@ -62,6 +67,8 @@ class NoticePersistenceTest {
 			NoticeSaveRequest first = request(0, "일반 공지", false);
 			NoticeResponse.Detail created = tx.execute(status -> service.save(actor, property, firstId, first));
 			assertThat(created.number()).isEqualTo(1);
+			assertThat(created.canEdit()).isTrue();
+			assertThat(created.canDelete()).isTrue();
 			// 작성자의 반복 열람은 제외하고 다른 사용자의 동시 열람은 원자적으로 누적합니다.
 			assertThat(tx.execute(status -> service.get(actor, property, firstId)).views()).isZero();
 			assertThat(tx.execute(status -> service.get(actor, property, firstId)).views()).isZero();
@@ -72,6 +79,7 @@ class NoticePersistenceTest {
 					() -> tx.execute(status -> service.get(viewer, property, firstId)));
 				for (var result : executor.invokeAll(calls)) {
 					assertThat(result.get().canEdit()).isFalse();
+					assertThat(result.get().canDelete()).isFalse();
 				}
 			}
 			assertThat(tx.execute(status -> service.get(actor, property, firstId)).views()).isEqualTo(2);
@@ -154,6 +162,80 @@ class NoticePersistenceTest {
 
 			doThrow(new AuthException(AuthErrorCode.ACCESS_DENIED)).when(access).getManagementContext(actor, property);
 			assertThatThrownBy(() -> service.list(actor, property, 1, "", "title")).isInstanceOf(AuthException.class);
+		}
+	}
+
+	@Test
+	void chiefDeletesOthersNoticesButManagersOnlyDeleteTheirOwnAndRetriesRecheckPermissions() throws Exception {
+		try (PostgresTestServer postgres = new PostgresTestServer()) {
+			DriverManagerDataSource source = new DriverManagerDataSource(postgres.jdbcUrl(), postgres.username(), "");
+			JdbcTemplate jdbc = new JdbcTemplate(source);
+			Flyway.configure().dataSource(source).load().migrate();
+			UUID property = UUID.randomUUID();
+			UUID author = UUID.randomUUID();
+			UUID chief = UUID.randomUUID();
+			UUID otherManager = UUID.randomUUID();
+			for (UUID user : List.of(author, chief, otherManager)) {
+				jdbc.update("insert into users(id,display_name,status) values (?,'권한 테스트','ACTIVE')", user);
+			}
+			jdbc.update("insert into properties(id,name,address,has_buildings,status,created_at,updated_at) "
+				+ "values (?,'관리대상','주소',false,'ACTIVE',now(),now())", property);
+			ManagementAccessService access = mock(ManagementAccessService.class);
+			ManagementPropertyResponse managerContext = new ManagementPropertyResponse(property, "관리대상", PropertyMemberRole.MANAGER);
+			when(access.getManagementContext(author, property)).thenReturn(managerContext);
+			when(access.getManagementContext(otherManager, property)).thenReturn(managerContext);
+			when(access.getManagementContext(chief, property))
+				.thenReturn(new ManagementPropertyResponse(property, "관리대상", PropertyMemberRole.ADMIN));
+			NoticeRepository repository = new NoticeRepository(jdbc);
+			NoticeAssetService assets = new NoticeAssetService(new NoticeAssetRepository(jdbc), repository,
+				mock(NoticeAssetStorage.class), access);
+			NoticeService service = new NoticeService(repository, access, JsonMapper.builder().build(), Clock.systemUTC(), assets);
+			TransactionTemplate tx = new TransactionTemplate(new DataSourceTransactionManager(source));
+			UUID id = UUID.randomUUID();
+			tx.execute(status -> service.save(author, property, id, request(0, "동대표가 작성한 공지", false)));
+			NoticeResponse.Detail forChief = tx.execute(status -> service.get(chief, property, id));
+			assertThat(forChief.canEdit()).isFalse();
+			assertThat(forChief.canDelete()).isTrue();
+			NoticeResponse.Detail forManager = tx.execute(status -> service.get(otherManager, property, id));
+			assertThat(forManager.canEdit()).isFalse();
+			assertThat(forManager.canDelete()).isFalse();
+			assertThatThrownBy(() -> tx.executeWithoutResult(status -> service.delete(otherManager, property, id, 1)))
+				.isInstanceOfSatisfying(ResponseStatusException.class,
+					error -> assertThat(error.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+			assertThatThrownBy(() -> tx.execute(status -> service.save(chief, property, id, request(1, "타인 글 수정", false))))
+				.isInstanceOfSatisfying(ResponseStatusException.class,
+					error -> assertThat(error.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+			assertThatThrownBy(() -> tx.executeWithoutResult(status -> service.delete(chief, property, id, 2)))
+				.isInstanceOfSatisfying(ResponseStatusException.class,
+					error -> assertThat(error.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+			UUID foreignProperty = UUID.randomUUID();
+			doThrow(new AuthException(AuthErrorCode.ACCESS_DENIED)).when(access).getManagementContext(chief, foreignProperty);
+			assertThatThrownBy(() -> tx.executeWithoutResult(status -> service.delete(chief, foreignProperty, id, 1)))
+				.isInstanceOf(AuthException.class);
+
+			// 동시에 삭제해도 소프트 삭제와 버전 증가는 한 번이며 실제 삭제한 관리소장을 기록합니다.
+			try (var executor = Executors.newFixedThreadPool(2)) {
+				Callable<Void> remove = () -> {
+					tx.executeWithoutResult(status -> service.delete(chief, property, id, 1));
+					return null;
+				};
+				for (var result : executor.invokeAll(List.of(remove, remove))) {
+					result.get();
+				}
+			}
+			NoticeRepository.Stored deleted = repository.find(property, id).orElseThrow();
+			assertThat(deleted.deletedAt()).isNotNull();
+			assertThat(deleted.detail().version()).isEqualTo(2);
+			assertThat(deleted.createdBy()).isEqualTo(author);
+			assertThat(jdbc.queryForObject("select updated_by from notices where id = ?", UUID.class, id)).isEqualTo(chief);
+			tx.executeWithoutResult(status -> service.delete(author, property, id, 1));
+			assertThatThrownBy(() -> tx.executeWithoutResult(status -> service.delete(otherManager, property, id, 1)))
+				.isInstanceOfSatisfying(ResponseStatusException.class,
+					error -> assertThat(error.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+			when(access.getManagementContext(chief, property)).thenReturn(managerContext);
+			assertThatThrownBy(() -> tx.executeWithoutResult(status -> service.delete(chief, property, id, 1)))
+				.isInstanceOfSatisfying(ResponseStatusException.class,
+					error -> assertThat(error.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
 		}
 	}
 

@@ -23,7 +23,7 @@ public class NoticeRepository {
 		rs.getObject("property_id", UUID.class), rs.getObject("id", UUID.class), rs.getLong("number"),
 		rs.getString("title"), rs.getString("content"), rs.getBoolean("important"),
 		rs.getObject("created_at", OffsetDateTime.class), rs.getObject("updated_at", OffsetDateTime.class),
-		rs.getLong("views"), rs.getLong("version"), false, rs.getString("author_name")), rs.getObject("deleted_at", OffsetDateTime.class),
+		rs.getLong("views"), rs.getLong("version"), false, false, rs.getString("author_name")), rs.getObject("deleted_at", OffsetDateTime.class),
 		rs.getString("creation_fingerprint"), rs.getObject("last_request_id", UUID.class), rs.getString("last_fingerprint"),
 		rs.getObject("created_by", UUID.class));
 

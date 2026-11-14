@@ -314,7 +314,7 @@ function NoticeComposer({ propertyId, notice, userId }: { propertyId: string; no
   );
 }
 
-/** 상세의 제목·작성 정보·본문과 작성자 전용 관리 행동을 공통 카드로 구성합니다. */
+/** 상세의 제목·작성 정보·본문과 권한별 관리 행동을 공통 카드로 구성합니다. */
 function NoticeReader({ propertyId, notice }: { propertyId: string; notice: NoticeDetail }) {
   const router = useRouter();
   const queries = useQueryClient();
@@ -324,9 +324,9 @@ function NoticeReader({ propertyId, notice }: { propertyId: string; notice: Noti
   const lock = useRef(false);
   const base = `/manage/${propertyId}/notices`;
 
-  /** 삭제는 작성자에게만 제공하고 동일한 글·버전으로 재시도합니다. */
+  /** 서버가 제공한 삭제 권한으로 실행을 제한하고 같은 글·버전으로 재시도합니다. */
   async function remove() {
-    if (lock.current || !notice.canEdit) return;
+    if (lock.current || !notice.canDelete) return;
     lock.current = true;
     setBusy(true);
     try {
@@ -437,38 +437,42 @@ function NoticeReader({ propertyId, notice }: { propertyId: string; notice: Noti
               content={notice.content}
             />
           </div>
-          {notice.canEdit && (
+          {(notice.canEdit || notice.canDelete) && (
             <div
               className={styles['reader-actions']}
               role={'group'}
               aria-label={'공지 관리'}
             >
-              <Button
-                variant={'outline'}
-                tone={'success'}
-                disabled={busy}
-                leadingIcon={(
-                  <ServiceIcon
-                    name={'pen'}
-                  />
-                )}
-                onClick={() => router.push(`${base}/${notice.id}/edit`)}
-              >
-                수정
-              </Button>
-              <Button
-                variant={'outline'}
-                tone={'danger'}
-                disabled={busy}
-                leadingIcon={(
-                  <ServiceIcon
-                    name={'trash'}
-                  />
-                )}
-                onClick={() => setConfirming(true)}
-              >
-                삭제
-              </Button>
+              {notice.canEdit && (
+                <Button
+                  variant={'outline'}
+                  tone={'success'}
+                  disabled={busy}
+                  leadingIcon={(
+                    <ServiceIcon
+                      name={'pen'}
+                    />
+                  )}
+                  onClick={() => router.push(`${base}/${notice.id}/edit`)}
+                >
+                  수정
+                </Button>
+              )}
+              {notice.canDelete && (
+                <Button
+                  variant={'outline'}
+                  tone={'danger'}
+                  disabled={busy}
+                  leadingIcon={(
+                    <ServiceIcon
+                      name={'trash'}
+                    />
+                  )}
+                  onClick={() => setConfirming(true)}
+                >
+                  삭제
+                </Button>
+              )}
             </div>
           )}
         </div>

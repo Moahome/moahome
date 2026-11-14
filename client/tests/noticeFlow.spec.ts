@@ -22,7 +22,7 @@ const CONTENT = JSON.stringify({
 });
 
 /** 공지 API만 모의 처리하고 실제 관리 레이아웃·검색·편집·상세·모바일 표시를 연결합니다. */
-async function mockNotices(page: Page, content = CONTENT) {
+async function mockNotices(page: Page, content = CONTENT, canDeleteOthers = true) {
   await mockSettlement(page);
   const rows = [
     ['11월 공용 전기설비 점검 안내', true],
@@ -43,7 +43,8 @@ async function mockNotices(page: Page, content = CONTENT) {
     views: 42 + index,
     version: 1,
     authorName: '관리자',
-    canEdit: index != 1
+    canEdit: index !== 1,
+    canDelete: index !== 1 || canDeleteOthers
   }));
   const saves: unknown[] = [];
   await page.route(/\/api\/properties\/[^/]+\/notices(?:\/|\?|$)/, async (route) => {
@@ -106,6 +107,7 @@ async function mockNotices(page: Page, content = CONTENT) {
         updatedAt: '2026-11-13T02:00:00Z',
         views: existing?.views ?? 0,
         canEdit: true,
+        canDelete: true,
         authorName: existing?.authorName ?? '관리자',
         version: input.expectedVersion + 1
       };
@@ -507,7 +509,7 @@ test('기존 토큰 색상을 RGB 선택기로 불러오고 기본색 복원은 
   await expect(editor.locator('span')).toHaveCSS('font-size', '20px');
 });
 
-test('모바일은 번호를 유지하고 배지 없이 카드·건수를 표시하며 타인 글의 수정·삭제를 숨긴다', async ({ page }) => {
+test('모바일은 번호·카드·건수를 유지하고 삭제 권한이 있는 타인 글은 수정 없이 삭제한다', async ({ page }) => {
   await mockNotices(page);
   await page.setViewportSize({
     width: 390,
@@ -522,6 +524,36 @@ test('모바일은 번호를 유지하고 배지 없이 카드·건수를 표시
   await expect(table.locator('tbody tr').first().locator('td').first()).toHaveText('6');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.goto(`${BASE}/${settlementId(201)}`);
+  await expect(page.getByRole('button', {
+    name: '수정',
+    exact: true
+  })).toHaveCount(0);
+  await expect(page.getByRole('button', {
+    name: '삭제',
+    exact: true
+  })).toBeVisible();
+  await page.getByRole('button', {
+    name: '삭제',
+    exact: true
+  }).click();
+  await page.getByRole('dialog').getByRole('button', {
+    name: '삭제',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(BASE);
+  await expect(page.getByRole('rowheader', {
+    name: '관리비 납부 계좌 안내',
+    exact: true
+  })).toHaveCount(0);
+});
+
+test('삭제 권한이 없는 타인 글에서는 수정·삭제 버튼을 모두 숨긴다', async ({ page }) => {
+  await mockNotices(page, CONTENT, false);
+  await page.goto(`${BASE}/${settlementId(201)}`);
+  await expect(page.getByRole('heading', {
+    name: '관리비 납부 계좌 안내',
+    exact: true
+  })).toBeVisible();
   await expect(page.getByRole('button', {
     name: '수정',
     exact: true
