@@ -49,4 +49,6 @@ export interface NoticeDraft {
 }
 
 
-export type NoticeAsset = { id: string; name: string; size: number; data: string };
+export type {
+  NoticeAsset
+} from '@/entities/notice';
