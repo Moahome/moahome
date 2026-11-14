@@ -1,9 +1,7 @@
 package com.moahome.server.notice.service;
 
+import com.moahome.server.common.security.Sha256;
 import java.io.IOException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
 import java.util.UUID;
 import javax.imageio.ImageIO;
 import java.io.ByteArrayInputStream;
@@ -164,10 +162,6 @@ public class NoticeAssetService {
 	}
 
 	private String hash(byte[] bytes) {
-		try {
-			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-		} catch (NoSuchAlgorithmException exception) {
-			throw new IllegalStateException(exception);
-		}
+		return Sha256.hex(bytes);
 	}
 }

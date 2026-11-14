@@ -3,16 +3,13 @@ package com.moahome.server.common.security;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
-import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.Map;
 
-import javax.crypto.Cipher;
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
-import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import com.moahome.server.config.PhoneSecurityProperties;
@@ -32,8 +29,6 @@ public class PhoneSecurity {
 	private final Map<String, SecretKey> encryptionKeys;
 
 	private final SecretKey hmacKey;
-
-	private final SecureRandom random = new SecureRandom();
 
 	public PhoneSecurity(PhoneSecurityProperties properties) {
 		activeKeyId = properties.activeKeyId();
@@ -71,14 +66,10 @@ public class PhoneSecurity {
 
 	public String encrypt(String phone) {
 		String normalized = normalize(phone);
-		byte[] nonce = new byte[NONCE_LENGTH];
-		random.nextBytes(nonce);
+		byte[] nonce = AesGcm.nonce();
 		try {
-			Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-			cipher.init(Cipher.ENCRYPT_MODE, encryptionKeys.get(activeKeyId),
-			    new GCMParameterSpec(TAG_LENGTH_BITS, nonce));
-			cipher.updateAAD(aad(activeKeyId));
-			byte[] encrypted = cipher.doFinal(normalized.getBytes(StandardCharsets.UTF_8));
+			byte[] encrypted = AesGcm.encrypt(encryptionKeys.get(activeKeyId), nonce, aad(activeKeyId),
+			    normalized.getBytes(StandardCharsets.UTF_8));
 			Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
 			return FORMAT_VERSION + ":" + activeKeyId + ":" + encoder.encodeToString(nonce) + ":"
 			    + encoder.encodeToString(encrypted);
@@ -101,11 +92,8 @@ public class PhoneSecurity {
 			if (nonce.length != NONCE_LENGTH || ciphertext.length <= TAG_LENGTH_BITS / 8) {
 				throw new IllegalArgumentException("Invalid encrypted phone value");
 			}
-			Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-			cipher.init(Cipher.DECRYPT_MODE, encryptionKeys.get(parts[1]),
-			    new GCMParameterSpec(TAG_LENGTH_BITS, nonce));
-			cipher.updateAAD(aad(parts[1]));
-			return normalize(new String(cipher.doFinal(ciphertext), StandardCharsets.UTF_8));
+			return normalize(new String(AesGcm.decrypt(encryptionKeys.get(parts[1]), nonce, aad(parts[1]), ciphertext),
+			    StandardCharsets.UTF_8));
 		} catch (GeneralSecurityException | IllegalArgumentException exception) {
 			throw new IllegalArgumentException("Phone decryption failed");
 		}

@@ -13,7 +13,6 @@ public final class InvitationCodeSecurity {
 
 	private final Map<String, SecretKey> keys;
 
-	private final SecureRandom random = new SecureRandom();
 	public InvitationCodeSecurity(AccountSecurityProperties properties) {
 		activeKeyId = properties.activeKeyId();
 		Map<String, SecretKey> loaded = new HashMap<>();
@@ -34,15 +33,12 @@ public final class InvitationCodeSecurity {
 	public String encrypt(UUID property, UUID invitation, String code) {
 		if (code == null || !code.matches("R(?:-[A-HJ-NP-Z2-9]{4}){3}"))
 			throw new IllegalArgumentException("Invalid invitation code");
-		byte[] nonce = new byte[12];
-		random.nextBytes(nonce);
+		byte[] nonce = AesGcm.nonce();
 		try {
-			Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-			cipher.init(Cipher.ENCRYPT_MODE, keys.get(activeKeyId), new GCMParameterSpec(128, nonce));
-			cipher.updateAAD(aad(activeKeyId, property, invitation));
 			var base64 = Base64.getUrlEncoder().withoutPadding();
 			return "v1:" + activeKeyId + ":" + base64.encodeToString(nonce) + ":"
-			    + base64.encodeToString(cipher.doFinal(code.getBytes(StandardCharsets.UTF_8)));
+			    + base64.encodeToString(AesGcm.encrypt(keys.get(activeKeyId), nonce,
+			        aad(activeKeyId, property, invitation), code.getBytes(StandardCharsets.UTF_8)));
 		} catch (GeneralSecurityException failure) {
 			throw new IllegalStateException("Invitation protection failed");
 		}
@@ -59,10 +55,8 @@ public final class InvitationCodeSecurity {
 			byte[] nonce = Base64.getUrlDecoder().decode(parts[2]);
 			if (nonce.length != 12)
 				throw new IllegalArgumentException("Invalid invitation nonce");
-			Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-			cipher.init(Cipher.DECRYPT_MODE, keys.get(parts[1]), new GCMParameterSpec(128, nonce));
-			cipher.updateAAD(aad(parts[1], property, invitation));
-			return new String(cipher.doFinal(Base64.getUrlDecoder().decode(parts[3])), StandardCharsets.UTF_8);
+			return new String(AesGcm.decrypt(keys.get(parts[1]), nonce, aad(parts[1], property, invitation),
+			    Base64.getUrlDecoder().decode(parts[3])), StandardCharsets.UTF_8);
 		} catch (GeneralSecurityException | IllegalArgumentException failure) {
 			throw new IllegalArgumentException("Invitation recovery failed");
 		}

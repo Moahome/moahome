@@ -1,5 +1,6 @@
 package com.moahome.server.banking.service;
 
+import com.moahome.server.common.security.Sha256;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.util.*;
@@ -32,12 +33,7 @@ public final class BankTransactionKeys {
 	}
 
 	private static String digest(String value) {
-		try {
-			return HexFormat.of()
-			    .formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
-		} catch (NoSuchAlgorithmException exception) {
-			throw new IllegalStateException("Missing SHA-256");
-		}
+		return Sha256.hex(value);
 	}
 
 	public static UUID previewId(String key) {

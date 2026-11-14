@@ -16,8 +16,6 @@ public class PaymentTextSecurity {
 
 	private final SecretKey hmacKey;
 
-	private final SecureRandom random = new SecureRandom();
-
 	public PaymentTextSecurity(AccountSecurityProperties properties) {
 		activeKeyId = properties.activeKeyId();
 		Map<String, SecretKey> keys = new HashMap<>();
@@ -41,15 +39,12 @@ public class PaymentTextSecurity {
 	/** 입금자명·메모·처리 사유를 용도 구분된 AES-GCM으로 암호화합니다. */
 	public ProtectedText protect(String number) {
 		requireNumber(number);
-		byte[] nonce = new byte[12];
-		random.nextBytes(nonce);
+		byte[] nonce = AesGcm.nonce();
 		try {
-			Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-			cipher.init(Cipher.ENCRYPT_MODE, encryptionKeys.get(activeKeyId), new GCMParameterSpec(128, nonce));
-			cipher.updateAAD(aad(activeKeyId));
 			Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
 			String encrypted = "v1:" + activeKeyId + ":" + encoder.encodeToString(nonce) + ":"
-			    + encoder.encodeToString(cipher.doFinal(number.getBytes(StandardCharsets.UTF_8)));
+			    + encoder.encodeToString(AesGcm.encrypt(encryptionKeys.get(activeKeyId), nonce, aad(activeKeyId),
+			        number.getBytes(StandardCharsets.UTF_8)));
 			Mac mac = Mac.getInstance("HmacSHA256");
 			mac.init(hmacKey);
 			mac.update("moahome:payment-text:v1:".getBytes(StandardCharsets.UTF_8));
@@ -76,10 +71,8 @@ public class PaymentTextSecurity {
 			if (nonce.length != 12) {
 				throw new IllegalArgumentException("Invalid encrypted account");
 			}
-			Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-			cipher.init(Cipher.DECRYPT_MODE, encryptionKeys.get(parts[1]), new GCMParameterSpec(128, nonce));
-			cipher.updateAAD(aad(parts[1]));
-			String number = new String(cipher.doFinal(Base64.getUrlDecoder().decode(parts[3])), StandardCharsets.UTF_8);
+			String number = new String(AesGcm.decrypt(encryptionKeys.get(parts[1]), nonce, aad(parts[1]),
+			    Base64.getUrlDecoder().decode(parts[3])), StandardCharsets.UTF_8);
 			requireNumber(number);
 			return number;
 		} catch (GeneralSecurityException | IllegalArgumentException exception) {
@@ -89,8 +82,7 @@ public class PaymentTextSecurity {
 
 	/** 입금자명 매칭은 유니코드 정규화·공백 제거 후 HMAC으로 비교하며 원문은 로그에 남기지 않습니다. */
 	public String nameHash(String value) {
-		String normalized = Normalizer.normalize(value, Normalizer.Form.NFC).replaceAll("(?U)\\s+",
-		    "");
+		String normalized = Normalizer.normalize(value, Normalizer.Form.NFC).replaceAll("(?U)\\s+", "");
 		requireNumber(normalized);
 		try {
 			Mac mac = Mac.getInstance("HmacSHA256");
