@@ -8,7 +8,7 @@ import com.moahome.server.membership.dto.ResidentInvitations;
 import com.moahome.server.membership.repo.ResidentJoinCodeRepository;
 import com.moahome.server.membership.repo.RedisInvitationCodeRepository;
 import static com.moahome.server.membership.repo.RedisInvitationCodeRepository.Kind.SHARED;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.membership.exception.MembershipException;
 import com.moahome.server.property.repo.PropertyRepository;
 import com.moahome.server.property.service.ManagementAccessService;
 import org.springframework.stereotype.Service;
@@ -33,7 +33,7 @@ public class ResidentJoinCodeService {
 	public ResidentJoinCode require(UUID property, String value) {
 		var code = codes.findByCodeHash(ResidentInviteCode.hash(value))
 		    .filter(c -> c.getPropertyId().equals(property) && c.isLive(OffsetDateTime.now(clock)))
-		    .orElseThrow(() -> new PaymentException("INVALID_INVITATION"));
+		    .orElseThrow(() -> new MembershipException("INVALID_INVITATION"));
 		temporaryCodes.require(SHARED, code.getId(), property, code.getCodeHash(), code.getExpiresAt());
 		return code;
 	}
@@ -41,7 +41,7 @@ public class ResidentJoinCodeService {
 	/** 유효한 공통 코드에서만 가입할 관리대상을 결정하며 주민 정보는 반환하지 않습니다. */
 	public UUID property(String value) {
 		var code = codes.findByCodeHash(ResidentInviteCode.hash(value)).filter(c -> c.isLive(OffsetDateTime.now(clock)))
-		    .orElseThrow(() -> new PaymentException("INVALID_INVITATION"));
+		    .orElseThrow(() -> new MembershipException("INVALID_INVITATION"));
 		temporaryCodes.require(SHARED, code.getId(), code.getPropertyId(), code.getCodeHash(), code.getExpiresAt());
 		return code.getPropertyId();
 	}

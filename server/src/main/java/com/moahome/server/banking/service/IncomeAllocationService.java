@@ -15,7 +15,7 @@ import com.moahome.server.banking.repo.*;
 import com.moahome.server.common.security.PaymentTextSecurity;
 import com.moahome.server.expense.domain.Expense;
 import com.moahome.server.payment.domain.Payment;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
 import com.moahome.server.property.domain.BuildingStatus;
 import com.moahome.server.property.repo.BuildingRepository;
 
@@ -46,17 +46,17 @@ public class IncomeAllocationService {
 	public void allocate(Payment receipt, BankingRequests.Expense request, UUID user) {
 		if (!Set.of("CONFIRMED", "OPENING").contains(receipt.getStatus()) || !"OTHER".equals(receipt.getReceiptType())
 		    || receipt.getDeletedAt() != null || request.saveAsRule() || "PROPERTY".equals(request.mode()))
-			throw new PaymentException("OTHER_INCOME_REQUIRED");
+			throw new BankingException("OTHER_INCOME_REQUIRED");
 		var property = receipt.getPropertyId();
 		if (settlementLinks.findByPropertyId(property).stream().anyMatch(l -> receipt.getId().equals(l.getPaymentId())))
-			throw new PaymentException("INCOME_ALREADY_SETTLED");
+			throw new BankingException("INCOME_ALREADY_SETTLED");
 		List<Expense.Share> shares = request.allocations().stream().map(a -> {
 			if (a.buildingId() == null)
-				throw new PaymentException("INVALID_EXPENSE_TARGET");
+				throw new BankingException("INVALID_EXPENSE_TARGET");
 			var b = buildings.findById(a.buildingId())
 			    .filter(v -> property.equals(v.getPropertyId()) && v.getDeletedAt() == null
 			        && v.getStatus() == BuildingStatus.ACTIVE)
-			    .orElseThrow(() -> new PaymentException("INVALID_EXPENSE_TARGET"));
+			    .orElseThrow(() -> new BankingException("INVALID_EXPENSE_TARGET"));
 			// 입금의 원 미만 조정은 기존 직접 금액 입력 정책을 유지하며 지출용 나머지 배분을 적용하지 않습니다.
 			return new Expense.Share(b.getId(), b.getName(), "AMOUNT".equals(request.mode()) ? a.amount() : null,
 			    a.percentage());
@@ -71,12 +71,12 @@ public class IncomeAllocationService {
 			    : null;
 			if (!previous.isEmpty()) {
 				if (previous.size() != shares.size())
-					throw new PaymentException("BANK_REQUEST_CONFLICT");
+					throw new BankingException("BANK_REQUEST_CONFLICT");
 				var saved = previous.get(i);
 				if (!saved.getBuildingId().equals(part.buildingId()) || saved.getAmount().compareTo(amounts.get(i)) != 0
 				    || !saved.getAllocationMode().equals(request.mode())
 				    || !Objects.equals(saved.getPercentage(), percentage))
-					throw new PaymentException("BANK_REQUEST_CONFLICT");
+					throw new BankingException("BANK_REQUEST_CONFLICT");
 				continue;
 			}
 			result.add(IncomeAllocation.create(property, receipt.getId(), part.buildingId(),

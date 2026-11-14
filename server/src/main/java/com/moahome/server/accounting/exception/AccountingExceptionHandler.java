@@ -1,8 +1,8 @@
 package com.moahome.server.accounting.exception;
 
+import com.moahome.server.common.error.ErrorResponses;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -13,7 +13,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import com.moahome.server.accounting.controller.IncomeStatementController;
 import com.moahome.server.accounting.controller.AccountLedgerController;
 import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.auth.security.AuthErrorHandler.ErrorResponse;
+import com.moahome.server.common.error.ErrorResponse;
 import com.moahome.server.user.exception.UserException;
 import com.moahome.server.expense.controller.PayableController;
 import com.moahome.server.accounting.controller.AccountingAccountController;
@@ -85,6 +85,6 @@ public class AccountingExceptionHandler {
 	}
 
 	private ResponseEntity<ErrorResponse> error(HttpStatus status, String code, String message) {
-		return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(new ErrorResponse(code, message));
+		return ErrorResponses.of(status, code, message);
 	}
 }

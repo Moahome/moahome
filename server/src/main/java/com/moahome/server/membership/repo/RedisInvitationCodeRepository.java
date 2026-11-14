@@ -17,7 +17,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.membership.exception.MembershipException;
 
 /** 초대의 임시 검증값과 재전달 암호문만 TTL로 보관하고 신청·승인 원장은 DB에 유지합니다. */
 @Repository
@@ -61,7 +61,7 @@ public class RedisInvitationCodeRepository {
 		requireTransaction();
 		long ttl = Duration.between(clock.instant(), expiresAt.toInstant()).toMillis();
 		if (ttl <= 0)
-			throw new PaymentException("INVALID_INVITATION");
+			throw new MembershipException("INVALID_INVITATION");
 		try {
 			Long result = redis.execute(CREATE, List.of(key(kind, id)), property.toString(), hash,
 			    epoch(expiresAt), encrypted == null ? "" : encrypted, Long.toString(ttl));
@@ -86,7 +86,7 @@ public class RedisInvitationCodeRepository {
 			String encrypted = redis.execute(REQUIRE, List.of(key(kind, id)), property.toString(), hash,
 			    epoch(expiresAt), Long.toString(clock.instant().toEpochMilli()));
 			if (encrypted == null)
-				throw new PaymentException("INVALID_INVITATION");
+				throw new MembershipException("INVALID_INVITATION");
 			return encrypted;
 		} catch (DataAccessException exception) {
 			throw unavailable();
@@ -127,7 +127,7 @@ public class RedisInvitationCodeRepository {
 		return Long.toString(time.toInstant().toEpochMilli());
 	}
 
-	private PaymentException unavailable() {
-		return new PaymentException("INVITATION_SERVICE_UNAVAILABLE");
+	private MembershipException unavailable() {
+		return new MembershipException("INVITATION_SERVICE_UNAVAILABLE");
 	}
 }

@@ -5,7 +5,7 @@ import java.time.Instant;
 import com.moahome.server.auth.domain.ClientType;
 import com.moahome.server.auth.service.AuthService;
 import com.moahome.server.auth.service.TokenService;
-import com.moahome.server.auth.security.AuthErrorHandler;
+import com.moahome.server.common.error.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -25,10 +25,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @Tag(name = "앱 인증", description = "JSON의 앱 Refresh Token으로 재발급 / 로그아웃하며 웹 쿠키를 사용하지 않습니다.")
 @ApiResponses({
-        @ApiResponse(responseCode = "400", description = "INVALID_REQUEST: 잘못된 Refresh Token 요청", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
-        @ApiResponse(responseCode = "401", description = "유효하지 않거나 만료된 토큰 / 세션, REFRESH_TOKEN_REUSED", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
-        @ApiResponse(responseCode = "403", description = "ACCOUNT_UNAVAILABLE / ACCESS_DENIED", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
-        @ApiResponse(responseCode = "503", description = "AUTH_SERVICE_UNAVAILABLE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))) })
+        @ApiResponse(responseCode = "400", description = "INVALID_REQUEST: 잘못된 Refresh Token 요청", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "401", description = "유효하지 않거나 만료된 토큰 / 세션, REFRESH_TOKEN_REUSED", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "403", description = "ACCOUNT_UNAVAILABLE / ACCESS_DENIED", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "503", description = "AUTH_SERVICE_UNAVAILABLE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))) })
 public class AppAuthController {
 	public static final String REFRESH_PATH = "/api/auth/app/refresh";
 

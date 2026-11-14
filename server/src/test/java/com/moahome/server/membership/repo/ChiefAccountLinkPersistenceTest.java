@@ -26,7 +26,7 @@ import org.springframework.transaction.annotation.*;
 import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.membership.domain.*;
 import com.moahome.server.membership.service.MemberManagementService;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.membership.exception.MembershipException;
 import com.moahome.server.property.domain.*;
 import com.moahome.server.property.repo.*;
 import com.moahome.server.property.service.ManagementAccessService;
@@ -128,7 +128,7 @@ class ChiefAccountLinkPersistenceTest {
 	}
 
 	private void assertConflict(Runnable action, String code) {
-		assertThatThrownBy(action::run).isInstanceOfSatisfying(PaymentException.class,
+		assertThatThrownBy(action::run).isInstanceOfSatisfying(MembershipException.class,
 		    failure -> assertThat(failure.code()).isEqualTo(code));
 	}
 
@@ -242,7 +242,7 @@ class ChiefAccountLinkPersistenceTest {
 				try {
 					connect(person);
 					return "OK";
-				} catch (PaymentException failure) {
+				} catch (MembershipException failure) {
 					return failure.code();
 				}
 			})).toList();

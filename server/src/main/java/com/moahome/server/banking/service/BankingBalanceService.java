@@ -26,7 +26,7 @@ import com.moahome.server.expense.domain.Expense;
 import com.moahome.server.expense.domain.ExpenseAllocation;
 import com.moahome.server.expense.repo.*;
 import com.moahome.server.payment.domain.Payment;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
 import com.moahome.server.payment.repo.PaymentRepository;
 import com.moahome.server.property.domain.Building;
 import com.moahome.server.property.domain.BuildingStatus;
@@ -174,7 +174,7 @@ public class BankingBalanceService {
 
 	/** 출금 통장의 실제 장부 한도와 동별 소유금 한도를 같은 조회에서 제공합니다. */
 	public BankingResponse.TransferFunds transferFunds(UUID user, UUID property, UUID account, LocalDate date) {
-		if (date == null || date.isAfter(today())) throw new PaymentException("INVALID_MANUAL_TRANSFER");
+		if (date == null || date.isAfter(today())) throw new BankingException("INVALID_MANUAL_TRANSFER");
 		BankingBalanceResponse.Workspace data = workspace(user, property, YearMonth.from(date).toString(),
 			YearMonth.from(today()).toString(), account);
 		String available = null;
@@ -223,13 +223,13 @@ public class BankingBalanceService {
 		YearMonth startMonth = BillingCalendar.parseMonth(rawStartMonth);
 		YearMonth month = BillingCalendar.parseMonth(rawMonth);
 		if (startMonth.isAfter(month))
-			throw new PaymentException("INVALID_BALANCE_PERIOD");
+			throw new BankingException("INVALID_BALANCE_PERIOD");
 		LocalDate end = month.atEndOfMonth();
 		List<BankAccount> common = accounts.findByPropertyIdAndDeletedAtIsNull(property).stream()
 		    .filter(a -> a.getBuildingId() == null).toList();
 		if (common.stream().filter(a -> a.isPrimary() && a.getStatus() == BankAccountStatus.ACTIVE).count() != 1
 		    || (accountId != null && common.stream().noneMatch(a -> a.getId().equals(accountId))))
-			throw new PaymentException("PAYMENT_ACCOUNT_UNAVAILABLE");
+			throw new BankingException("PAYMENT_ACCOUNT_UNAVAILABLE");
 		List<BuildingCashOpening> allOpenings = openings.findByPropertyId(property);
 		List<Expense> allExpenses = expenses.findByPropertyIdOrderByConfirmedAtDesc(property);
 		List<BankTransaction> allBankHistory = transactions.findByPropertyId(property);
@@ -880,23 +880,23 @@ public class BankingBalanceService {
 			    || !user.equals(saved.getRecordedBy()) || !request.accountId().equals(saved.getBankAccountId())
 			    || !request.cutoffDate().equals(saved.getCutoffDate()) || saved.getRevision() != request.revision() + 1
 			    || saved.getAmount().compareTo(new BigDecimal(request.amount())) != 0)
-				throw new PaymentException("BANK_OPENING_CONFLICT");
+				throw new BankingException("BANK_OPENING_CONFLICT");
 			return;
 		}
 		corrections.requireAllowed(properties.findById(property).orElseThrow());
 		if (request.cutoffDate().isAfter(today()))
-			throw new PaymentException("INVALID_BANK_OPENING_DATE");
+			throw new BankingException("INVALID_BANK_OPENING_DATE");
 		if (request.amount() == null || !request.amount().matches("[0-9]{1,15}"))
-			throw new PaymentException("INVALID_BANK_OPENING");
+			throw new BankingException("INVALID_BANK_OPENING");
 		accounts.findById(request.accountId())
 		    .filter(a -> property.equals(a.getPropertyId()) && a.getDeletedAt() == null && a.getBuildingId() == null
 		        && a.getStatus() == BankAccountStatus.ACTIVE)
-		    .orElseThrow(() -> new PaymentException("PAYMENT_ACCOUNT_UNAVAILABLE"));
+		    .orElseThrow(() -> new BankingException("PAYMENT_ACCOUNT_UNAVAILABLE"));
 		long revision = bankOpenings.findByPropertyIdAndBatchIdIsNullOrderByRevisionDesc(property).stream()
 		    .filter(o -> o.getBankAccountId().equals(request.accountId())).mapToLong(o -> o.getRevision()).max()
 		    .orElse(0);
 		if (revision != request.revision())
-			throw new PaymentException("BANK_OPENING_CONFLICT");
+			throw new BankingException("BANK_OPENING_CONFLICT");
 		List<BankOpeningBalance> previousRows = bankOpenings.findByPropertyIdAndBatchIdIsNullOrderByRevisionDesc(property)
 		    .stream().filter(o -> o.getBankAccountId().equals(request.accountId())).toList();
 		var previous = previousRows.isEmpty()
@@ -938,11 +938,11 @@ public class BankingBalanceService {
 		if (saved.isEmpty() && (request.buildings() == null || request.buildings().isEmpty()))
 			return;
 		if (request.buildings() == null || request.buildings().size() != saved.size())
-			throw new PaymentException("INITIAL_BUILDING_CONFIRMATION_REQUIRED");
+			throw new BankingException("INITIAL_BUILDING_CONFIRMATION_REQUIRED");
 		Map<UUID, BankingBalanceRequests.OpeningCorrectionPart> parts = new HashMap<>();
 		for (var part : request.buildings()) {
 			if (parts.put(part.buildingId(), part) != null)
-				throw new PaymentException("CASH_OPENING_CONFLICT");
+				throw new BankingException("CASH_OPENING_CONFLICT");
 		}
 		Map<UUID, String> names = buildings.findByPropertyId(property).stream()
 		    .collect(Collectors.toMap(Building::getId, Building::getName));
@@ -951,9 +951,9 @@ public class BankingBalanceService {
 		for (var row : saved) {
 			var part = parts.get(row.getBuildingId());
 			if (part == null || row.getRevision() != part.revision())
-				throw new PaymentException("CASH_OPENING_CONFLICT");
+				throw new BankingException("CASH_OPENING_CONFLICT");
 			if (part.amount() == null || !part.amount().matches("-?[0-9]{1,15}"))
-				throw new PaymentException("INVALID_CASH_OPENING");
+				throw new BankingException("INVALID_CASH_OPENING");
 			buildingTotal = buildingTotal.add(new BigDecimal(part.amount()));
 			if (row.getCutoffDate().equals(request.cutoffDate())
 			    && row.getAmount().compareTo(new BigDecimal(part.amount())) == 0)
@@ -964,7 +964,7 @@ public class BankingBalanceService {
 		}
 		// 통장 시작 금액보다 큰 동별 귀속을 저장하지 않으며 모든 검증 후에만 실제 값을 바꿉니다.
 		if (buildingTotal.compareTo(new BigDecimal(request.amount())) > 0)
-			throw new PaymentException("INITIAL_BUILDING_TOTAL_EXCEEDED");
+			throw new BankingException("INITIAL_BUILDING_TOTAL_EXCEEDED");
 		// 모든 동의 버전을 먼저 검증해 일부 동만 변경되거나 미확인 차액이 자동 귀속되지 않게 합니다.
 		for (var row : changed)
 			row.correct(request.cutoffDate(), parts.get(row.getBuildingId()).amount(), request.id(), actor, OffsetDateTime.now(clock));
@@ -985,7 +985,7 @@ public class BankingBalanceService {
 			    .map(BankOpeningBalance::getCutoffDate);
 		}
 		if (date.isPresent() && !date.get().equals(cutoff))
-			throw new PaymentException("CASH_OPENING_BANK_DATE_MISMATCH");
+			throw new BankingException("CASH_OPENING_BANK_DATE_MISMATCH");
 	}
 
 	/** 통장별 기준값은 같은 관리대상의 공용 통장만 허용하며 종료 통장도 과거 값 정정에 사용할 수 있습니다. */
@@ -994,7 +994,7 @@ public class BankingBalanceService {
 			return; // 이전 인계·API의 미분류 합계는 특정 통장으로 추정하지 않습니다.
 		accounts.findById(accountId)
 		    .filter(a -> property.equals(a.getPropertyId()) && a.getDeletedAt() == null && a.getBuildingId() == null)
-		    .orElseThrow(() -> new PaymentException("PAYMENT_ACCOUNT_UNAVAILABLE"));
+		    .orElseThrow(() -> new BankingException("PAYMENT_ACCOUNT_UNAVAILABLE"));
 	}
 
 	/** 기준일 마감 잔고는 한 번만 등록합니다. 같은 내용 재시도와 이후 추가된 동의 최초 등록만 허용합니다. */
@@ -1004,12 +1004,12 @@ public class BankingBalanceService {
 		requireBankCutoff(property, request.accountId(), request.cutoffDate());
 		var cutoff = request.cutoffDate();
 		if (cutoff.isAfter(today()))
-			throw new PaymentException("INVALID_CASH_OPENING_DATE");
+			throw new BankingException("INVALID_CASH_OPENING_DATE");
 		requireOpeningAccount(property, request.accountId());
 		List<BuildingCashOpening> saved = openings.findByPropertyId(property).stream()
 		    .filter(o -> Objects.equals(request.accountId(), o.getBankAccountId())).toList();
 		if (saved.stream().anyMatch(o -> !o.getCutoffDate().equals(cutoff)))
-			throw new PaymentException("CASH_OPENING_CONFLICT");
+			throw new BankingException("CASH_OPENING_CONFLICT");
 		Map<UUID, BuildingCashOpening> byId = saved.stream()
 		    .collect(Collectors.toMap(buildingCashOpening -> buildingCashOpening.getBuildingId(), o -> o));
 		Set<UUID> current = buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(property).stream()
@@ -1018,18 +1018,18 @@ public class BankingBalanceService {
 		ArrayList<BuildingCashOpening> added = new ArrayList<BuildingCashOpening>();
 		for (var part : request.buildings()) {
 			if (!current.contains(part.buildingId()) || !seen.add(part.buildingId()))
-				throw new PaymentException("INVALID_CASH_OPENING");
+				throw new BankingException("INVALID_CASH_OPENING");
 			var previous = byId.get(part.buildingId());
 			if (previous != null) {
 				if (previous.getAmount().compareTo(new BigDecimal(part.amount())) != 0)
-					throw new PaymentException("CASH_OPENING_CONFLICT");
+					throw new BankingException("CASH_OPENING_CONFLICT");
 				continue;
 			}
 			added.add(BuildingCashOpening.create(property, request.accountId(), part.buildingId(), cutoff,
 			    part.amount(), user, OffsetDateTime.now(clock)));
 		}
 		if (!current.stream().allMatch(id -> byId.containsKey(id) || seen.contains(id)))
-			throw new PaymentException("INVALID_CASH_OPENING");
+			throw new BankingException("INVALID_CASH_OPENING");
 		var currentProperty = properties.findById(property).orElseThrow();
 		// 초기 등록 트랜잭션은 운영 시작 전 동별 값을 먼저 저장합니다. 운영 중 추가만 기한을 검사합니다.
 		if (!added.isEmpty() && currentProperty.getManagementStartedAt() != null)
@@ -1053,7 +1053,7 @@ public class BankingBalanceService {
 			Set<UUID> ids = request.buildings().stream().map(openingCorrectionPart -> openingCorrectionPart.buildingId())
 			    .collect(Collectors.toSet());
 			if (repeated.size() != request.buildings().size() || ids.size() != request.buildings().size())
-				throw new PaymentException("CASH_OPENING_CONFLICT");
+				throw new BankingException("CASH_OPENING_CONFLICT");
 			for (var part : request.buildings()) {
 				var change = repeatedByBuilding.get(part.buildingId());
 				if (change == null || !property.equals(change.getPropertyId())
@@ -1061,25 +1061,25 @@ public class BankingBalanceService {
 				    || !request.cutoffDate().equals(change.getNewCutoffDate())
 				    || change.getNewAmount().compareTo(new BigDecimal(part.amount())) != 0
 				    || change.getPreviousRevision() != part.revision())
-					throw new PaymentException("CASH_OPENING_CONFLICT");
+					throw new BankingException("CASH_OPENING_CONFLICT");
 			}
 			return;
 		}
 		if (request.cutoffDate().isAfter(today()))
-			throw new PaymentException("INVALID_CASH_OPENING_DATE");
+			throw new BankingException("INVALID_CASH_OPENING_DATE");
 		List<BuildingCashOpening> saved = openings.findByPropertyId(property).stream()
 		    .filter(o -> Objects.equals(request.accountId(), o.getBankAccountId())).toList();
 		Map<UUID, BuildingCashOpening> byId = saved.stream()
 		    .collect(Collectors.toMap(buildingCashOpening -> buildingCashOpening.getBuildingId(), o -> o));
 		if (saved.isEmpty() || request.buildings().size() != saved.size())
-			throw new PaymentException("INVALID_CASH_OPENING");
+			throw new BankingException("INVALID_CASH_OPENING");
 		HashSet<UUID> seen = new HashSet<UUID>();
 		for (var part : request.buildings()) {
 			var current = byId.get(part.buildingId());
 			if (current == null || !seen.add(part.buildingId()))
-				throw new PaymentException("INVALID_CASH_OPENING");
+				throw new BankingException("INVALID_CASH_OPENING");
 			if (current.getRevision() != part.revision())
-				throw new PaymentException("CASH_OPENING_CONFLICT");
+				throw new BankingException("CASH_OPENING_CONFLICT");
 		}
 		Map<UUID, String> labels = buildings.findByPropertyId(property).stream()
 		    .collect(Collectors.toMap(Building::getId, Building::getName));
@@ -1105,10 +1105,10 @@ public class BankingBalanceService {
 		lock(user, property);
 		var p = payments.findById(request.paymentId())
 		    .filter(v -> property.equals(v.getPropertyId()) && active(v) && v.getBankTransactionId() != null)
-		    .orElseThrow(() -> new PaymentException("PAYMENT_NOT_FOUND"));
+		    .orElseThrow(() -> new BankingException("PAYMENT_NOT_FOUND"));
 		buildings.findByIdAndPropertyIdAndDeletedAtIsNull(request.buildingId(), property)
 		    .filter(b -> b.getStatus() == BuildingStatus.ACTIVE)
-		    .orElseThrow(() -> new PaymentException("INVALID_EXPENSE_TARGET"));
+		    .orElseThrow(() -> new BankingException("INVALID_EXPENSE_TARGET"));
 		p.assignCashBuilding(request.buildingId());
 		payments.flush();
 	}
@@ -1123,20 +1123,20 @@ public class BankingBalanceService {
 			if (!property.equals(p.getPropertyId()) || !p.getAllocationId().equals(request.allocationId())
 			    || !p.getPaymentId().equals(request.paymentId())
 			    || p.getAmount().compareTo(new BigDecimal(request.amount())) != 0)
-				throw new PaymentException("EXTERNAL_SETTLEMENT_CONFLICT");
+				throw new BankingException("EXTERNAL_SETTLEMENT_CONFLICT");
 			return;
 		}
 		var data = workspace(user, property, YearMonth.from(today()).toString());
 		var external = data.externals().stream().filter(e -> e.id().equals(request.allocationId())).findFirst()
-		    .orElseThrow(() -> new PaymentException("INVALID_EXTERNAL_SETTLEMENT"));
+		    .orElseThrow(() -> new BankingException("INVALID_EXTERNAL_SETTLEMENT"));
 		if (external.excluded())
-			throw new PaymentException("EXTERNAL_SETTLEMENT_EXCLUDED");
+			throw new BankingException("EXTERNAL_SETTLEMENT_EXCLUDED");
 		var income = data.incomes().stream().filter(i -> i.id().equals(request.paymentId()) && "OTHER".equals(i.kind()))
-		    .findFirst().orElseThrow(() -> new PaymentException("INVALID_EXTERNAL_SETTLEMENT"));
+		    .findFirst().orElseThrow(() -> new BankingException("INVALID_EXTERNAL_SETTLEMENT"));
 		var value = new BigDecimal(request.amount());
 		if (value.signum() <= 0 || value.compareTo(new BigDecimal(external.remaining())) > 0
 		    || value.compareTo(new BigDecimal(income.available())) > 0)
-			throw new PaymentException("EXTERNAL_SETTLEMENT_EXCEEDED");
+			throw new BankingException("EXTERNAL_SETTLEMENT_EXCEEDED");
 		links.saveAndFlush(ExternalSettlementLink.create(request.id(), property, request.allocationId(),
 		    request.paymentId(), request.amount(), user, OffsetDateTime.now(clock)));
 	}
@@ -1150,17 +1150,17 @@ public class BankingBalanceService {
 			var saved = repeated.get();
 			if (!property.equals(saved.getPropertyId()) || !request.allocationId().equals(saved.getAllocationId())
 			    || saved.isExcluded() != request.excluded() || saved.getRevision() != request.revision() + 1)
-				throw new PaymentException("EXTERNAL_SETTLEMENT_DECISION_CONFLICT");
+				throw new BankingException("EXTERNAL_SETTLEMENT_DECISION_CONFLICT");
 			return;
 		}
 		allocations.findById(request.allocationId())
 		    .filter(a -> property.equals(a.getPropertyId()) && a.getBuildingId() == null)
-		    .orElseThrow(() -> new PaymentException("INVALID_EXTERNAL_SETTLEMENT"));
+		    .orElseThrow(() -> new BankingException("INVALID_EXTERNAL_SETTLEMENT"));
 		var latest = decisions.findFirstByPropertyIdAndAllocationIdOrderByRevisionDesc(property,
 		    request.allocationId());
 		long revision = latest.map(externalSettlementDecision -> externalSettlementDecision.getRevision()).orElse(0L);
 		if (revision != request.revision())
-			throw new PaymentException("EXTERNAL_SETTLEMENT_DECISION_CONFLICT");
+			throw new BankingException("EXTERNAL_SETTLEMENT_DECISION_CONFLICT");
 		decisions.saveAndFlush(ExternalSettlementDecision.create(request.id(), property, request.allocationId(),
 		    request.excluded(), revision + 1, user, OffsetDateTime.now(clock)));
 	}

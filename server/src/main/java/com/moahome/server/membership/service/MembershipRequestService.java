@@ -14,7 +14,7 @@ import com.moahome.server.common.security.PhoneConsent;
 import com.moahome.server.membership.domain.*;
 import com.moahome.server.membership.dto.SignupRequests;
 import com.moahome.server.membership.repo.*;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.membership.exception.MembershipException;
 import com.moahome.server.property.domain.*;
 import com.moahome.server.property.repo.*;
 import com.moahome.server.property.service.ManagementAccessService;
@@ -83,7 +83,7 @@ public class MembershipRequestService {
 	private Property target(UUID property) {
 		return properties.findById(property)
 		    .filter(p -> p.getDeletedAt() == null && p.getStatus() == PropertyStatus.ACTIVE)
-		    .orElseThrow(() -> new PaymentException("MEMBER_NOT_FOUND"));
+		    .orElseThrow(() -> new MembershipException("MEMBER_NOT_FOUND"));
 	}
 
 	private void lockManager(UUID actor, UUID property) {
@@ -112,7 +112,7 @@ public class MembershipRequestService {
 	@Transactional
 	public SignupRequests.Result request(UUID actor, UUID property, SignupRequests.Create input) {
 		users.requireActive(actor);
-		properties.findForUnitUpdate(property).orElseThrow(() -> new PaymentException("MEMBER_NOT_FOUND"));
+		properties.findForUnitUpdate(property).orElseThrow(() -> new MembershipException("MEMBER_NOT_FOUND"));
 		target(property);
 		var code = joinCodes.require(property, input.code());
 		String name = TextValues.required(input.name(), 50);
@@ -124,7 +124,7 @@ public class MembershipRequestService {
 			return new SignupRequests.Result(existing.getFirst().getId(), "PENDING");
 		if (members.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, actor).stream()
 		    .anyMatch(propertyMember -> propertyMember.isCurrent()))
-			throw new PaymentException("MEMBER_ROLE_CONFLICT");
+			throw new MembershipException("MEMBER_ROLE_CONFLICT");
 		ResidentRegistrationService.requirePhoneConsent(input.phone(), input.phoneConsent());
 		var protectedPhone = registrations.protectPhone(input.phone());
 		var created = MembershipRequest.request(property, input.unitId(), actor,
@@ -172,7 +172,7 @@ public class MembershipRequestService {
 
 	private MembershipRequest required(UUID property, UUID id) {
 		return requests.findById(id).filter(r -> property.equals(r.getPropertyId()) && r.getDeletedAt() == null)
-		    .orElseThrow(() -> new PaymentException("MEMBER_NOT_FOUND"));
+		    .orElseThrow(() -> new MembershipException("MEMBER_NOT_FOUND"));
 	}
 
 	/** 관리소장·부담당자가 선택한 현재 세대 주민에게 계정·RESIDENT 참여·신청 승인을 함께 연결합니다. */
@@ -184,23 +184,23 @@ public class MembershipRequestService {
 			return workspace(actor, property);
 		if (!"PENDING".equals(request.getStatus())
 		    || !request.getUpdatedAt().toInstant().equals(input.expectedUpdatedAt().toInstant()))
-			throw new PaymentException("MEMBER_ROLE_CONFLICT");
+			throw new MembershipException("MEMBER_ROLE_CONFLICT");
 		var person = residents.findByIdAndPropertyId(input.residentId(), property).filter(r -> r.getDeletedAt() == null)
-		    .orElseThrow(() -> new PaymentException("MEMBER_NOT_FOUND"));
+		    .orElseThrow(() -> new MembershipException("MEMBER_NOT_FOUND"));
 		var affiliation = affiliations
 		    .findByPropertyIdAndResidentIdAndStatusAndDeletedAtIsNull(property, person.getId(), "ACTIVE")
-		    .orElseThrow(() -> new PaymentException("MEMBER_RESIDENT_REQUIRED"));
+		    .orElseThrow(() -> new MembershipException("MEMBER_RESIDENT_REQUIRED"));
 		if (!affiliation.getUnitId().equals(request.getUnitId())
 		    || !unitLabels(property).containsKey(request.getUnitId())
 		    || (person.getUserId() != null && !person.getUserId().equals(request.getUserId()))
 		    || residents.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, request.getUserId()).stream()
 		        .anyMatch(r -> !r.getId().equals(person.getId())))
-			throw new PaymentException("MEMBER_ROLE_CONFLICT");
+			throw new MembershipException("MEMBER_ROLE_CONFLICT");
 		var user = users.requireActiveForUpdate(request.getUserId());
 		List<PropertyMember> current = members.findByPropertyIdAndUserIdAndDeletedAtIsNull(property, user.getId())
 		    .stream().filter(propertyMember -> propertyMember.isCurrent()).toList();
 		if (current.size() > 1 || (!current.isEmpty() && current.getFirst().getRole() != PropertyMemberRole.RESIDENT))
-			throw new PaymentException("MEMBER_ROLE_CONFLICT");
+			throw new MembershipException("MEMBER_ROLE_CONFLICT");
 		var at = now();
 		person.connectApprovedUser(user.getId(), at);
 		if (current.isEmpty()) {
@@ -223,7 +223,7 @@ public class MembershipRequestService {
 			return workspace(actor, property);
 		if (!"PENDING".equals(request.getStatus())
 		    || !request.getUpdatedAt().toInstant().equals(input.expectedUpdatedAt().toInstant()))
-			throw new PaymentException("MEMBER_ROLE_CONFLICT");
+			throw new MembershipException("MEMBER_ROLE_CONFLICT");
 		request.reject(actor, now());
 		requests.flush();
 		return workspace(actor, property);

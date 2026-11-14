@@ -20,7 +20,7 @@ import com.moahome.server.banking.domain.BankAccountStatus;
 import com.moahome.server.banking.dto.BankAccountSettings;
 import com.moahome.server.banking.repo.BankAccountRepository;
 import com.moahome.server.common.security.AccountNumberSecurity;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
 import com.moahome.server.property.repo.PropertyRepository;
 import com.moahome.server.property.service.ManagementAccessService;
 
@@ -84,7 +84,7 @@ public class BankAccountService {
 		properties.findForUnitUpdate(propertyId).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
 		var account = primaryAccount(propertyId);
 		if (!account.getId().equals(request.accountId()))
-			throw new PaymentException("BANK_ACCOUNT_CONFLICT");
+			throw new BankingException("BANK_ACCOUNT_CONFLICT");
 		var protectedNumber = security.protect(request.accountNumber());
 		// 응답 유실 후 같은 값의 재시도는 다시 정정하지 않고 현재 저장 결과를 반환합니다.
 		boolean same = account.getBankCode().equals(request.bankCode())
@@ -94,12 +94,12 @@ public class BankAccountService {
 		if (same)
 			return response(account);
 		if (!account.getUpdatedAt().isEqual(request.updatedAt()))
-			throw new PaymentException("BANK_ACCOUNT_CONFLICT");
+			throw new BankingException("BANK_ACCOUNT_CONFLICT");
 		boolean duplicate = accounts.findByPropertyIdAndDeletedAtIsNull(propertyId).stream()
 		    .anyMatch(other -> !other.getId().equals(account.getId()) && other.getBankCode().equals(request.bankCode())
 		        && other.getAccountNumberHmac().equals(protectedNumber.hmac()));
 		if (duplicate)
-			throw new PaymentException("BANK_ACCOUNT_DUPLICATE");
+			throw new BankingException("BANK_ACCOUNT_DUPLICATE");
 		account.correctDetails(request.bankCode(), request.bankName(), request.holderName(), protectedNumber);
 		accounts.flush();
 		return response(account);
@@ -117,7 +117,7 @@ public class BankAccountService {
 		        && account.getStatus() == BankAccountStatus.ACTIVE)
 		    .toList();
 		if (current.size() != 1)
-			throw new PaymentException("PAYMENT_ACCOUNT_UNAVAILABLE");
+			throw new BankingException("PAYMENT_ACCOUNT_UNAVAILABLE");
 		return current.getFirst();
 	}
 
@@ -139,7 +139,7 @@ public class BankAccountService {
 		var existing = accounts.findById(request.accountId());
 		var account = existing.orElse(null);
 		if (account != null && (!propertyId.equals(account.getPropertyId()) || account.getDeletedAt() != null))
-			throw new PaymentException("BANK_ACCOUNT_CONFLICT");
+			throw new BankingException("BANK_ACCOUNT_CONFLICT");
 		boolean same = account != null && account.getStatus() == BankAccountStatus.ACTIVE
 		    && account.getBankCode().equals(request.bankCode()) && account.getBankName().equals(request.bankName())
 		    && account.getHolderNameSnapshot().equals(request.holderName())
@@ -152,16 +152,16 @@ public class BankAccountService {
 		if (!primary.getId().equals(request.primaryAccountId())
 		    || (account != null && !account.getUpdatedAt().equals(request.updatedAt()))
 		    || (account == null && request.updatedAt() != null))
-			throw new PaymentException("BANK_ACCOUNT_CONFLICT");
+			throw new BankingException("BANK_ACCOUNT_CONFLICT");
 		if (account != null && account.getStatus() != BankAccountStatus.ACTIVE)
-			throw new PaymentException("BANK_ACCOUNT_CLOSED");
+			throw new BankingException("BANK_ACCOUNT_CLOSED");
 		if (account != null && account.isPrimary() && !request.isPrimary())
-			throw new PaymentException("BANK_ACCOUNT_PRIMARY_REQUIRED");
+			throw new BankingException("BANK_ACCOUNT_PRIMARY_REQUIRED");
 		var selectedId = request.accountId();
 		if (accounts.findByPropertyIdAndDeletedAtIsNull(propertyId).stream()
 		    .anyMatch(other -> !other.getId().equals(selectedId) && other.getBankCode().equals(request.bankCode())
 		        && other.getAccountNumberHmac().equals(number.hmac())))
-			throw new PaymentException("BANK_ACCOUNT_DUPLICATE");
+			throw new BankingException("BANK_ACCOUNT_DUPLICATE");
 		if (account == null) {
 			account = BankAccount.register(request.accountId(), property, request.bankCode(), request.bankName(),
 			    request.holderName(), number, request.alias(), accounts.nextRegistrationOrder(propertyId),
@@ -190,13 +190,13 @@ public class BankAccountService {
 		requireManagementAccess(userId, propertyId);
 		var account = accounts.findById(id)
 		    .filter(a -> propertyId.equals(a.getPropertyId()) && a.getDeletedAt() == null)
-		    .orElseThrow(() -> new PaymentException("BANK_ACCOUNT_CONFLICT"));
+		    .orElseThrow(() -> new BankingException("BANK_ACCOUNT_CONFLICT"));
 		if (account.getStatus() == BankAccountStatus.CLOSED)
 			return response(account);
 		if (!account.getUpdatedAt().equals(request.updatedAt()))
-			throw new PaymentException("BANK_ACCOUNT_CONFLICT");
+			throw new BankingException("BANK_ACCOUNT_CONFLICT");
 		if (account.isPrimary())
-			throw new PaymentException("BANK_ACCOUNT_PRIMARY_REQUIRED");
+			throw new BankingException("BANK_ACCOUNT_PRIMARY_REQUIRED");
 		account.close(LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul"))));
 		accounts.flush();
 		return response(account);

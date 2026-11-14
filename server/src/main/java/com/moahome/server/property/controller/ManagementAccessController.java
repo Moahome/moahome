@@ -1,10 +1,11 @@
 package com.moahome.server.property.controller;
 
+import com.moahome.server.common.error.ErrorResponses;
 import java.util.UUID;
 import com.moahome.server.auth.domain.AuthPrincipal;
 import com.moahome.server.auth.exception.AuthErrorCode;
 import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.auth.security.AuthErrorHandler.ErrorResponse;
+import com.moahome.server.common.error.ErrorResponse;
 import com.moahome.server.property.dto.ManagedPropertiesResponse;
 import com.moahome.server.property.dto.PropertyAccessContextResponse;
 import com.moahome.server.property.dto.ManagementPropertyResponse;
@@ -91,7 +92,6 @@ public class ManagementAccessController {
 	}
 
 	private ResponseEntity<ErrorResponse> error(int status, String code, String message) {
-		return ResponseEntity.status(status).cacheControl(CacheControl.noStore())
-		    .body(new ErrorResponse(code, message));
+		return ErrorResponses.of(status, code, message);
 	}
 }

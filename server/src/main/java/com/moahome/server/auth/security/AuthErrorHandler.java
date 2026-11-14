@@ -2,7 +2,7 @@ package com.moahome.server.auth.security;
 
 import java.io.IOException;
 
-import io.swagger.v3.oas.annotations.media.Schema;
+import com.moahome.server.common.error.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
@@ -47,8 +47,4 @@ public class AuthErrorHandler implements AuthenticationEntryPoint, AccessDeniedH
 		response.getWriter().write(mapper.writeValueAsString(new ErrorResponse(code.name(), code.message())));
 	}
 
-	@Schema(name = "AuthErrorResponse", description = "인증 / 계정 오류. 입력 원문과 토큰은 포함하지 않습니다.")
-	public record ErrorResponse(@Schema(example = "AUTHENTICATION_REQUIRED") String code,
-	    @Schema(example = "인증이 필요합니다.") String message) {
-	}
 }

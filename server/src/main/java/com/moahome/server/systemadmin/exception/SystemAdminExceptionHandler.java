@@ -1,8 +1,9 @@
 package com.moahome.server.systemadmin.exception;
 
+import com.moahome.server.common.error.ErrorResponses;
+import com.moahome.server.common.error.ErrorResponse;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.dao.DataAccessException;
-import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -18,9 +19,6 @@ import com.moahome.server.user.exception.UserException;
 
 @RestControllerAdvice(assignableTypes = SystemAdminController.class)
 public class SystemAdminExceptionHandler {
-	public record ErrorResponse(String code, String message) {
-	}
-
 	@ExceptionHandler(SystemAdminException.class)
 	public ResponseEntity<ErrorResponse> business(SystemAdminException exception) {
 		return error(exception.status(), exception.code(), exception.getMessage());
@@ -50,6 +48,6 @@ public class SystemAdminExceptionHandler {
 	}
 
 	private ResponseEntity<ErrorResponse> error(HttpStatus status, String code, String message) {
-		return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(new ErrorResponse(code, message));
+		return ErrorResponses.of(status, code, message);
 	}
 }

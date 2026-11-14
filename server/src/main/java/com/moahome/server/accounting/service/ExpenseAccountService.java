@@ -6,7 +6,7 @@ import java.util.*;
 import org.springframework.stereotype.Service;
 import com.moahome.server.accounting.domain.*;
 import com.moahome.server.accounting.dto.ExpenseAccountOption;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.expense.exception.ExpenseException;
 import com.moahome.server.accounting.repo.*;
 import com.moahome.server.expense.domain.Expense;
 
@@ -41,12 +41,12 @@ public class ExpenseAccountService {
 		    .filter(value -> value.getCode().equals(code) && value.getReportGroup().isExpense()).findFirst().orElse(null);
 		if (account != null) {
 			if (!account.isSelectable())
-				throw new PaymentException("INVALID_ACCOUNTING_ACCOUNT");
+				throw new ExpenseException("INVALID_ACCOUNTING_ACCOUNT");
 			return account.getId();
 		}
 		DefaultAccount value = Arrays.stream(DefaultAccount.values())
 		    .filter(item -> item.getGroup().isExpense() && item.getCode().equals(code)).findFirst()
-		    .orElseThrow(() -> new PaymentException("INVALID_ACCOUNTING_ACCOUNT"));
+		    .orElseThrow(() -> new ExpenseException("INVALID_ACCOUNTING_ACCOUNT"));
 		return accounts.saveAndFlush(AccountingAccount.create(property, value.getCode(), value.getName(),
 		    value.getGroup(), value.getSystemKey(), actor, OffsetDateTime.now(clock))).getId();
 	}
@@ -69,7 +69,7 @@ public class ExpenseAccountService {
 		String previous = accountId == null ? null : accounts.findById(accountId)
 		    .filter(value -> property.equals(value.getPropertyId())).orElseThrow().getCode();
 		if (!Objects.equals(previous, code == null || code.isBlank() ? null : code))
-			throw new PaymentException("BANK_REQUEST_CONFLICT");
+			throw new ExpenseException("BANK_REQUEST_CONFLICT");
 	}
 
 	/** 최신 명시적 매칭을 일괄 조회해 통장·지출 조회와 손익이 같은 과목을 표시하게 합니다. */

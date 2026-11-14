@@ -7,7 +7,7 @@ import com.moahome.server.auth.domain.ClientType;
 import com.moahome.server.auth.security.WebAuthSupport;
 import com.moahome.server.auth.service.AuthService;
 import com.moahome.server.auth.service.TokenService;
-import com.moahome.server.auth.security.AuthErrorHandler;
+import com.moahome.server.common.error.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
@@ -31,9 +31,9 @@ import org.springframework.web.bind.annotation.RestController;
     + "POST에는 허용된 Origin과 X-CSRF-TOKEN이 필요합니다. local Profile에서는 http://localhost:4000을 자동 허용합니다.")
 @SecurityRequirement(name = "webRefreshCookie")
 @ApiResponses({
-        @ApiResponse(responseCode = "401", description = "쿠키 없음, 유효하지 않거나 만료된 토큰 / 세션, REFRESH_TOKEN_REUSED", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
-        @ApiResponse(responseCode = "403", description = "CSRF_INVALID / ACCOUNT_UNAVAILABLE / ACCESS_DENIED", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
-        @ApiResponse(responseCode = "503", description = "AUTH_SERVICE_UNAVAILABLE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))) })
+        @ApiResponse(responseCode = "401", description = "쿠키 없음, 유효하지 않거나 만료된 토큰 / 세션, REFRESH_TOKEN_REUSED", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "403", description = "CSRF_INVALID / ACCOUNT_UNAVAILABLE / ACCESS_DENIED", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "503", description = "AUTH_SERVICE_UNAVAILABLE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))) })
 public class WebAuthController {
 	private final AuthService auth;
 

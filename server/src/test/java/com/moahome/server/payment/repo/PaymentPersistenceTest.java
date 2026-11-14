@@ -85,7 +85,7 @@ import com.moahome.server.membership.service.MembershipRequestService;
 import com.moahome.server.membership.service.ResidentInvitationService;
 import com.moahome.server.membership.service.ResidentJoinCodeService;
 import com.moahome.server.payment.dto.*;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.common.error.BusinessException;
 import com.moahome.server.payment.service.CumulativePaymentService;
 import com.moahome.server.payment.service.PayerMatchService;
 import com.moahome.server.payment.service.PaymentService;
@@ -539,11 +539,11 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> balanceChecks.create(user, property,
 		    new BankBalanceCheckRequests.Create(input.id(), account, "101",
 		        input.checkedAt(), "OTHER", null)))
-		    .isInstanceOfSatisfying(PaymentException.class, e -> assertThat(e.code()).isEqualTo("BANK_CHECK_CONFLICT"));
+		    .isInstanceOfSatisfying(BusinessException.class, e -> assertThat(e.code()).isEqualTo("BANK_CHECK_CONFLICT"));
 		assertThatThrownBy(() -> balanceChecks.create(user, property,
 		    new BankBalanceCheckRequests.Create(UUID.randomUUID(), account, "100",
 		        OffsetDateTime.now(clock).plusSeconds(1), "OTHER", null)))
-		    .isInstanceOfSatisfying(PaymentException.class,
+		    .isInstanceOfSatisfying(BusinessException.class,
 		        e -> assertThat(e.code()).isEqualTo("INVALID_BANK_CHECK_TIME"));
 		assertThatThrownBy(() -> balanceChecks.history(user, property, UUID.randomUUID()))
 		    .isInstanceOf(AuthException.class);
@@ -756,7 +756,7 @@ class PaymentPersistenceTest {
 		assertThat(rows).extracting(r -> r.status()).containsOnly("CONFIRMED");
 		assertThatThrownBy(() -> service.confirm(user, target, ledger.payments().getFirst().id(),
 		    new PaymentRequests.Confirm(UUID.fromString(ledger.payments().getFirst().unitId()), null, null)))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 	}
 
 	/** 수기 입출금도 함께 저장하고 기준일 이후 입금만 기존 미수와 계산 잔액에 반영합니다. */
@@ -959,7 +959,7 @@ class PaymentPersistenceTest {
 		var stale = new BankAccountSettings.Request(before.accountId(),
 		    before.updatedAt(), "004", "국민은행", "00011112222", "다른 정정");
 		assertThatThrownBy(() -> bankAccountSettings.correct(user, property, stale)).isInstanceOfSatisfying(
-		    PaymentException.class, e -> assertThat(e.code()).isEqualTo("BANK_ACCOUNT_CONFLICT"));
+		    BusinessException.class, e -> assertThat(e.code()).isEqualTo("BANK_ACCOUNT_CONFLICT"));
 		var next = new BankAccountSettings.Request(saved.accountId(), saved.updatedAt(),
 		    "004", "국민은행", saved.accountNumber(), "최종 예금주");
 		assertThat(bankAccountSettings.correct(user, property, next).holderName()).isEqualTo("최종 예금주");
@@ -1271,7 +1271,7 @@ class PaymentPersistenceTest {
 			assertThat(e.remaining()).isEqualTo("91330");
 		});
 		assertThat(excluded.buildings()).isEqualTo(before.buildings());
-		assertThatThrownBy(() -> cashBalances.settle(user, property, link)).isInstanceOf(PaymentException.class)
+		assertThatThrownBy(() -> cashBalances.settle(user, property, link)).isInstanceOf(BusinessException.class)
 		    .hasMessage("EXTERNAL_SETTLEMENT_EXCLUDED");
 		assertThatThrownBy(() -> jdbc.update(
 		    "insert into external_settlement_links(id,property_id,allocation_id,payment_id,amount,created_by,created_at) values (?,?,?,?,1,?,now())",
@@ -1281,7 +1281,7 @@ class PaymentPersistenceTest {
 		    () -> cashBalances.decideSettlement(user, property,
 		        new BankingBalanceRequests.SettlementDecision(UUID.randomUUID(),
 		            external, false, 0L)))
-		    .isInstanceOf(PaymentException.class).hasMessage("EXTERNAL_SETTLEMENT_DECISION_CONFLICT");
+		    .isInstanceOf(BusinessException.class).hasMessage("EXTERNAL_SETTLEMENT_DECISION_CONFLICT");
 		cashBalances.decideSettlement(user, property,
 		    new BankingBalanceRequests.SettlementDecision(UUID.randomUUID(), external,
 		        false, 1L));
@@ -1313,7 +1313,7 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> cashBalances.settle(user, property,
 		    new BankingBalanceRequests.Settlement(UUID.randomUUID(), external,
 		        imported.id(), "15000")))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		cashBalances.settle(user, property, new BankingBalanceRequests.Settlement(
 		    UUID.randomUUID(), external, imported.id(), "10000"));
 		assertThat(cashBalances.workspace(user, property, "2026-10").externals().getFirst().remaining())
@@ -1384,18 +1384,18 @@ class PaymentPersistenceTest {
 		    () -> cashBalances.correctOpenings(user, property,
 		        new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
 		            request.cutoffDate(), parts)))
-		    .isInstanceOf(PaymentException.class).hasMessage("CASH_OPENING_CONFLICT");
+		    .isInstanceOf(BusinessException.class).hasMessage("CASH_OPENING_CONFLICT");
 		assertThatThrownBy(() -> cashBalances.correctOpenings(user, property,
 		    new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
 		        request.cutoffDate(), List.of(parts.getFirst()))))
-		    .isInstanceOf(PaymentException.class).hasMessage("INVALID_CASH_OPENING");
+		    .isInstanceOf(BusinessException.class).hasMessage("INVALID_CASH_OPENING");
 		List<BankingBalanceRequests.OpeningCorrectionPart> next = List.of(
 		    new BankingBalanceRequests.OpeningCorrectionPart(first, "510000", 1L),
 		    new BankingBalanceRequests.OpeningCorrectionPart(second, "260000", 1L));
 		assertThatThrownBy(() -> cashBalances.correctOpenings(user, property,
 		    new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
 		        LocalDate.of(2026, 10, 16), next)))
-		    .isInstanceOf(PaymentException.class).hasMessage("INVALID_CASH_OPENING_DATE");
+		    .isInstanceOf(BusinessException.class).hasMessage("INVALID_CASH_OPENING_DATE");
 		cashBalances.correctOpenings(user, property,
 		    new BankingBalanceRequests.OpeningCorrection(UUID.randomUUID(),
 		        request.cutoffDate(), next));
@@ -1524,7 +1524,7 @@ class PaymentPersistenceTest {
 		        null),
 		    new BankingRequests.Selection(preview.rows().get(1).id(), null, null, null,
 		        expense)));
-		assertThatThrownBy(() -> banking.upload(user, property, file, selected)).isInstanceOf(PaymentException.class);
+		assertThatThrownBy(() -> banking.upload(user, property, file, selected)).isInstanceOf(BusinessException.class);
 		assertThat(count("bank_transactions")).isZero();
 		assertThat(count("payments")).isZero();
 		assertThat(count("expenses")).isZero();
@@ -1535,7 +1535,7 @@ class PaymentPersistenceTest {
 		    new BankingRequests.Import(
 		        List.of(new BankingRequests.Selection(preview.rows().get(1).id(), null,
 		            null, null, foreignExpense)))))
-		    .isInstanceOfSatisfying(PaymentException.class,
+		    .isInstanceOfSatisfying(BusinessException.class,
 		        e -> assertThat(e.code()).isEqualTo("INVALID_EXPENSE_TARGET"));
 		assertThat(count("bank_transactions")).isZero();
 	}
@@ -1602,7 +1602,7 @@ class PaymentPersistenceTest {
 		    List.of(new BankingRequests.Allocation(first, null, null, "25"),
 		        new BankingRequests.Allocation(second, null, null, "75")));
 		assertThatThrownBy(() -> banking.confirmIncomeAllocation(user, property, original.id(), changed))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		banking.deleteMany(user, property,
 		    new BankingRequests.DeleteMany(List.of(original.id())));
 		assertThat(cashBalances.workspace(user, property, "2026-10").buildings()).extracting(b -> b.income())
@@ -1697,7 +1697,7 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> cashBalances.settle(user, property,
 		    new BankingBalanceRequests.Settlement(UUID.randomUUID(), target,
 		        interest.paymentId(), "100")))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		assertThatThrownBy(() -> jdbc.update(
 		    "insert into external_settlement_links(id,property_id,allocation_id,payment_id,amount,created_by,created_at) values (?,?,?,?,100,?,now())",
 		    UUID.randomUUID(), property, target, interest.paymentId(), user))
@@ -1706,7 +1706,7 @@ class PaymentPersistenceTest {
 		    UUID.randomUUID(), target, recovery.paymentId(), "100"));
 		assertThatThrownBy(() -> banking.confirmIncomeAllocation(user, property, recovery.id(),
 		    new BankingRequests.Expense("외부회수", null, "EQUAL", false, shares)))
-		    .isInstanceOfSatisfying(PaymentException.class,
+		    .isInstanceOfSatisfying(BusinessException.class,
 		        e -> assertThat(e.code()).isEqualTo("INCOME_ALREADY_SETTLED"));
 		assertThat(cashBalances.workspace(user, property, "2026-10").incomes()).singleElement()
 		    .satisfies(r -> assertThat(r.available()).isEqualTo("400"));
@@ -1735,13 +1735,13 @@ class PaymentPersistenceTest {
 		    new BankingRequests.Import(
 		        List.of(new BankingRequests.Selection(preview.rows().getFirst().id(),
 		            null, "이자", null, null, split)))))
-		    .isInstanceOfSatisfying(PaymentException.class,
+		    .isInstanceOfSatisfying(BusinessException.class,
 		        e -> assertThat(e.code()).isEqualTo("ALLOCATION_REMAINDER_REQUIRED"));
 		assertThat(count("bank_transactions")).isZero();
 		assertThat(count("payments")).isZero();
 		var saved = service.importFile(user, property, bank("김대표", "50000")).payments().getFirst();
 		assertThatThrownBy(() -> banking.confirmIncomeAllocation(user, property, saved.bankTransactionId(), split))
-		    .isInstanceOfSatisfying(PaymentException.class,
+		    .isInstanceOfSatisfying(BusinessException.class,
 		        e -> assertThat(e.code()).isEqualTo("OTHER_INCOME_REQUIRED"));
 	}
 
@@ -1760,7 +1760,7 @@ class PaymentPersistenceTest {
 		var remove = new BankingRequests.DeleteMany(ids);
 		assertThatThrownBy(() -> banking.deleteMany(user, property,
 		    new BankingRequests.DeleteMany(List.of(ids.getFirst(), UUID.randomUUID()))))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		assertThat(banking.workspace(user, property).rows()).hasSize(2);
 		assertThat(banking.deleteMany(user, property, remove).rows()).isEmpty();
 		assertThat(service.workspace(user, property).payments()).isEmpty();
@@ -1836,7 +1836,7 @@ class PaymentPersistenceTest {
 		assertThat(service.workspace(user, property).payments()).hasSize(1);
 		assertThatThrownBy(() -> service.manual(user, property,
 		    new PaymentRequests.Manual(UUID.randomUUID(), unit, LocalDate.of(2026, 10, 14), "100")))
-		    .isInstanceOfSatisfying(PaymentException.class,
+		    .isInstanceOfSatisfying(BusinessException.class,
 		        e -> assertThat(e.code()).isEqualTo("PAYMENT_BEFORE_OPENING_CUTOFF"));
 		clock.set(Instant.parse("2026-10-31T15:00:00Z"));
 		billing.generate(property, YearMonth.of(2026, 11));
@@ -1883,7 +1883,7 @@ class PaymentPersistenceTest {
 		var latest = opening.workspace(user, property).batch();
 		assertThatThrownBy(() -> opening.cancel(user, property, latest.id(),
 		    new OpeningBalanceRequest.Cancel(latest.revision(), "재정정")))
-		    .isInstanceOfSatisfying(PaymentException.class,
+		    .isInstanceOfSatisfying(BusinessException.class,
 		        e -> assertThat(e.code()).isEqualTo("OPENING_ALREADY_HAS_RECEIPTS"));
 	}
 
@@ -1981,7 +1981,7 @@ class PaymentPersistenceTest {
 		var expired = memberManagement.issue(user, property, null);
 		assertThat(expired.expiresAt().toInstant()).isEqualTo(clock.instant().plusSeconds(1800));
 		clock.set(clock.instant().plusSeconds(1800));
-		assertThatThrownBy(() -> memberManagement.claim(joining, expired.code())).isInstanceOf(PaymentException.class);
+		assertThatThrownBy(() -> memberManagement.claim(joining, expired.code())).isInstanceOf(BusinessException.class);
 		var invite = memberManagement.issue(user, property, null);
 		memberManagement.claim(joining, invite.code());
 		assertThat(redis.hasKey("membership:invitation:manager:" + invite.id())).isFalse();
@@ -2042,10 +2042,10 @@ class PaymentPersistenceTest {
 		for (var ids : List.of(List.<UUID>of(), List.of(valid, UUID.randomUUID())))
 			assertThatThrownBy(
 			    () -> service.importFile(user, property, file, new PaymentRequests.BankImportSelection(ids)))
-			    .isInstanceOfSatisfying(PaymentException.class,
+			    .isInstanceOfSatisfying(BusinessException.class,
 			        e -> assertThat(e.code()).isEqualTo("INVALID_BANK_SELECTION"));
 		assertThatThrownBy(() -> service.importFile(user, property, bank("김대표", "60000"),
-		    new PaymentRequests.BankImportSelection(List.of(valid)))).isInstanceOf(PaymentException.class);
+		    new PaymentRequests.BankImportSelection(List.of(valid)))).isInstanceOf(BusinessException.class);
 		assertThat(count("bank_transactions")).isZero();
 		assertThat(count("payments")).isZero();
 		assertThat(count("payment_events")).isZero();
@@ -2084,10 +2084,10 @@ class PaymentPersistenceTest {
 		assertThat(jdbc.queryForObject("select count(*) from payment_events where action='OTHER_INCOME_CONFIRMED'",
 		    Long.class)).isEqualTo(1);
 		assertThatThrownBy(() -> service.confirmOtherIncome(user, property, original.id(),
-		    new PaymentRequests.OtherIncome("이자", null))).isInstanceOf(PaymentException.class);
+		    new PaymentRequests.OtherIncome("이자", null))).isInstanceOf(BusinessException.class);
 		assertThatThrownBy(
 		    () -> service.confirm(user, property, original.id(), new PaymentRequests.Confirm(unit, null, null)))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 	}
 
 	/** 분류 취소는 최초 이력을 보존하고 같은 원본을 다시 검토하게 하며 재요청으로 초안을 늘리지 않습니다. */
@@ -2124,12 +2124,12 @@ class PaymentPersistenceTest {
 		    .isInstanceOf(AuthException.class);
 		assertThatThrownBy(
 		    () -> service.confirmOtherIncome(user, property, original.id(), new PaymentRequests.OtherIncome(" ", null)))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		assertThatThrownBy(() -> service.confirmOtherIncome(user, property, manual("50000"), request))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		service.hold(user, property, original.id(), "확인 중");
 		assertThatThrownBy(() -> service.confirmOtherIncome(user, property, original.id(), request))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		service.resume(user, property, original.id());
 		jdbc.execute(
 		    "create function fail_payment_event() returns trigger language plpgsql as $$ begin if NEW.action='OTHER_INCOME_CONFIRMED' then raise exception 'test failure';end if;return NEW;end $$");
@@ -2222,7 +2222,7 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> service.manual(user, property,
 		    new PaymentRequests.Manual(id, unit, request.date(), "42000", null,
 		        "HOUSEHOLD", "다른입금자", null, null, null)))
-		    .isInstanceOfSatisfying(PaymentException.class,
+		    .isInstanceOfSatisfying(BusinessException.class,
 		        e -> assertThat(e.code()).isEqualTo("PAYMENT_REQUEST_CONFLICT"));
 		var confirmed = service.confirm(user, property, id, new PaymentRequests.Confirm(unit, null, null));
 		assertThat(confirmed.payments()).singleElement().satisfies(payment -> {
@@ -2486,7 +2486,7 @@ class PaymentPersistenceTest {
 		var ledger = service.importFile(user, property, bank("김대표", "50000"));
 		var bank = ledger.payments().stream().filter(p -> p.source().equals("BANK_IMPORT")).findFirst().orElseThrow();
 		assertThatThrownBy(() -> service.confirm(user, property, bank.id(), confirm("50000")))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		var linked = service.link(user, property, bank.id(), manual);
 		assertThat(linked.payments().stream().filter(p -> p.status().equals("CONFIRMED"))).hasSize(1);
 		assertThat(count("payment_allocations")).isEqualTo(1);
@@ -2526,7 +2526,7 @@ class PaymentPersistenceTest {
 					try {
 						service.confirm(user, property, id, confirm("50000"));
 						return true;
-					} catch (PaymentException exception) {
+					} catch (BusinessException exception) {
 						return false;
 					}
 				}));
@@ -2546,8 +2546,8 @@ class PaymentPersistenceTest {
 	void confirmedReceiptUsesCancellationAndKeepsBankOriginalForReview() {
 		var file = bank("김대표", "80000");
 		var payment = service.importFile(user, property, file).payments().getFirst();
-		assertThatThrownBy(() -> service.delete(user, property, payment.id())).isInstanceOf(PaymentException.class)
-		    .extracting(e -> ((PaymentException) e).code()).isEqualTo("PAYMENT_DELETE_NOT_ALLOWED");
+		assertThatThrownBy(() -> service.delete(user, property, payment.id())).isInstanceOf(BusinessException.class)
+		    .extracting(e -> ((BusinessException) e).code()).isEqualTo("PAYMENT_DELETE_NOT_ALLOWED");
 		assertThat(service.workspace(user, property).payments()).hasSize(1)
 		    .allMatch(p -> p.status().equals("CONFIRMED"));
 		var canceled = service.cancel(user, property, payment.id(), "납부 세대 확인 정정");
@@ -2632,7 +2632,7 @@ class PaymentPersistenceTest {
 		UUID confirmed = manual("50000");
 		service.confirm(user, property, confirmed, new PaymentRequests.Confirm(unit, null, null));
 		assertThatThrownBy(() -> service.deleteMany(user, property,
-		    new PaymentRequests.DeleteMany(List.of(ids.getFirst(), confirmed)))).isInstanceOf(PaymentException.class);
+		    new PaymentRequests.DeleteMany(List.of(ids.getFirst(), confirmed)))).isInstanceOf(BusinessException.class);
 		assertThat(service.preview(user, property, file).duplicateCount()).isEqualTo(2);
 		assertThat(service.workspace(user, property).payments()).hasSize(3);
 		service.deleteMany(user, property, new PaymentRequests.DeleteMany(ids));
@@ -2773,9 +2773,9 @@ class PaymentPersistenceTest {
 		assertThat(service.workspace(user, property).charges().stream().filter(c -> c.id().equals(charge)).findFirst()
 		    .orElseThrow().amount()).isEqualTo("-500");
 		assertThatThrownBy(() -> service.confirm(user, property, id, confirm("1")))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		jdbc.update("update unit_residents set is_household_rep=false where unit_id=?", unit);
-		assertThatThrownBy(() -> manual("50000")).isInstanceOf(PaymentException.class);
+		assertThatThrownBy(() -> manual("50000")).isInstanceOf(BusinessException.class);
 		jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", property, user);
 		assertThatThrownBy(() -> service.workspace(user, property)).isInstanceOf(AuthException.class);
 	}
@@ -2971,7 +2971,7 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> banking.manualExpense(user, property,
 		    new BankingRequests.ManualExpense(request.id(), account, request.date(), "12000", request.category(),
 		        request.note(), request.mode(), request.allocations())))
-		    .isInstanceOf(PaymentException.class).hasMessage("BANK_REQUEST_CONFLICT");
+		    .isInstanceOf(BusinessException.class).hasMessage("BANK_REQUEST_CONFLICT");
 		jdbc.update("update buildings set name='이름 변경',status='INACTIVE' where id=?", targets.getFirst());
 		assertThat(banking.manualExpense(user, property, request).rows().getFirst().expense().allocations())
 		    .extracting(a -> a.label()).contains("102동");
@@ -2995,11 +2995,11 @@ class PaymentPersistenceTest {
 		assertThat(jdbc.queryForObject("select count(*) from accounting_profiles where property_id=?", Integer.class, property)).isZero();
 		assertThat(jdbc.queryForObject("select a.code from expenses e join accounting_accounts a on a.id=e.accounting_account_id where e.id=?", String.class, selected.id())).isEqualTo("812");
 		assertThat(banking.manualExpense(user, property, selected).rows()).hasSize(1);
-		assertThatThrownBy(() -> banking.manualExpense(user, property, original)).isInstanceOf(PaymentException.class);
+		assertThatThrownBy(() -> banking.manualExpense(user, property, original)).isInstanceOf(BusinessException.class);
 		var invalid = new BankingRequests.ManualExpense(UUID.randomUUID(), account, original.date(), "10000",
 		    original.category(), original.note(), original.mode(), original.allocations(), "899");
 		assertThatThrownBy(() -> banking.manualExpense(user, property, invalid))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		assertThat(banking.workspace(user, property).rows()).hasSize(1);
 		assertThat(banking.workspace(user, property).expenseAccounts()).extracting(value -> value.code())
 		    .contains("801", "812", "813").doesNotContain("401");
@@ -3055,7 +3055,7 @@ class PaymentPersistenceTest {
 		    manualExpenseRequest(UUID.randomUUID(), account, request.date(), "10001", targets),
 		    manualExpenseRequest(UUID.randomUUID(), account, request.date(), "10000", List.of(UUID.randomUUID()))))
 			assertThatThrownBy(() -> banking.manualExpense(user, property, invalid))
-			    .isInstanceOf(PaymentException.class);
+			    .isInstanceOf(BusinessException.class);
 		assertThat(count("expenses")).isZero();
 		assertThat(count("expense_allocations")).isZero();
 		assertThat(count("bank_transactions")).isZero();
@@ -3189,7 +3189,7 @@ class PaymentPersistenceTest {
 			new AccountingRequests.ReviewExpense(transfer, null, 2, null, receipt));
 		assertThatThrownBy(() -> banking.deleteMany(user, property,
 			new BankingRequests.DeleteMany(List.of(), List.of(), List.of(expense))))
-			.isInstanceOfSatisfying(PaymentException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_CANCEL_REQUIRED"));
+			.isInstanceOfSatisfying(BusinessException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_CANCEL_REQUIRED"));
 		accountingWrites.reviewExpense(user, property, expense, new AccountingRequests.ReviewExpense(cost, null, 3, null));
 		banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(), List.of(receipt), List.of(expense)));
 		assertThat(banking.workspace(user, property).rows()).noneMatch(row -> row.expense() != null);
@@ -3202,7 +3202,7 @@ class PaymentPersistenceTest {
 		assertLedger(outgoingAccount, "100000");
 		assertLedger(incomingAccount, "100106");
 		assertThatThrownBy(() -> banking.manualExpense(user, property,
-			manualExpenseRequest(expense, outgoingAccount, date, "10000", targets))).isInstanceOf(PaymentException.class);
+			manualExpenseRequest(expense, outgoingAccount, date, "10000", targets))).isInstanceOf(BusinessException.class);
 	}
 
 	/** 확정 이체는 선행 취소를 요구하고 취소 후에도 한쪽만 삭제하지 못하게 보호합니다. */
@@ -3216,14 +3216,14 @@ class PaymentPersistenceTest {
 		UUID transfer = UUID.randomUUID();
 		banking.postTransfer(user, property, new BankingRequests.TransferFromTransaction(transfer, original, second));
 		assertThatThrownBy(() -> banking.deleteMany(user, property,
-			new BankingRequests.DeleteMany(List.of(original, UUID.randomUUID())))).isInstanceOf(PaymentException.class);
+			new BankingRequests.DeleteMany(List.of(original, UUID.randomUUID())))).isInstanceOf(BusinessException.class);
 		assertLedger(first, "90000");
 		assertLedger(second, "110000");
 		assertThatThrownBy(() -> banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(original, transfer))))
-			.isInstanceOfSatisfying(PaymentException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_CANCEL_REQUIRED"));
+			.isInstanceOfSatisfying(BusinessException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_CANCEL_REQUIRED"));
 		banking.cancelTransfer(user, property, transfer);
 		assertThatThrownBy(() -> banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(original))))
-			.isInstanceOfSatisfying(PaymentException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_DELETE_PAIR_REQUIRED"));
+			.isInstanceOfSatisfying(BusinessException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_DELETE_PAIR_REQUIRED"));
 		banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(original, transfer)));
 		assertThat(banking.workspace(user, property).rows()).isEmpty();
 		assertLedger(first, "100000");
@@ -3547,7 +3547,7 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> banking.deleteMany(user, property,
 		    new BankingRequests.DeleteMany(List.of(original),
 		        List.of(manual, imported.id()))))
-		    .isInstanceOf(PaymentException.class).extracting(e -> ((PaymentException) e).code())
+		    .isInstanceOf(BusinessException.class).extracting(e -> ((BusinessException) e).code())
 		    .isEqualTo("PAYMENT_DELETE_NOT_ALLOWED");
 		assertThat(
 		    jdbc.queryForObject("select deleted_at is null from bank_transactions where id=?", Boolean.class, original))
@@ -3598,7 +3598,7 @@ class PaymentPersistenceTest {
 		    .isEqualTo(first.accountId());
 		assertThatThrownBy(() -> bankAccountSettings.close(user, property, primary.accountId(),
 		    new BankAccountSettings.Close(primary.updatedAt()))).isInstanceOfSatisfying(
-		        PaymentException.class, e -> assertThat(e.code()).isEqualTo("BANK_ACCOUNT_PRIMARY_REQUIRED"));
+		        BusinessException.class, e -> assertThat(e.code()).isEqualTo("BANK_ACCOUNT_PRIMARY_REQUIRED"));
 		var old = bankAccountSettings.list(user, property).stream().filter(a -> a.accountId().equals(first.accountId()))
 		    .findFirst().orElseThrow();
 		var closed = bankAccountSettings.close(user, property, old.accountId(),
@@ -3608,11 +3608,11 @@ class PaymentPersistenceTest {
 		assertThat(service.workspace(user, property).payments())
 		    .anyMatch(p -> p.id().equals(manual) && p.accountId().equals(old.accountId()));
 		assertThatThrownBy(() -> banking.preview(user, property, bank("김대표", "5000"), old.accountId()))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		assertThatThrownBy(() -> bankAccountSettings.save(user, property,
 		    new BankAccountSettings.Save(UUID.randomUUID(), null, "090", "카카오뱅크",
 		        second.accountNumber(), "예시", null, false, primary.accountId())))
-		    .isInstanceOfSatisfying(PaymentException.class,
+		    .isInstanceOfSatisfying(BusinessException.class,
 		        e -> assertThat(e.code()).isEqualTo("BANK_ACCOUNT_DUPLICATE"));
 	}
 
@@ -3670,7 +3670,7 @@ class PaymentPersistenceTest {
 		    new BankAccountSettings.Save(id, account.updatedAt(), account.bankCode(),
 		        account.bankName(), account.accountNumber(), account.holderName(), "오래된 변경", false,
 		        primary.accountId())))
-		    .isInstanceOfSatisfying(PaymentException.class,
+		    .isInstanceOfSatisfying(BusinessException.class,
 		        e -> assertThat(e.code()).isEqualTo("BANK_ACCOUNT_CONFLICT"));
 		bankAccountSettings.save(user, property,
 		    new BankAccountSettings.Save(id, renamed.updatedAt(), renamed.bankCode(),
@@ -3679,17 +3679,17 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> bankAccountSettings.save(user, property,
 		    new BankAccountSettings.Save(UUID.randomUUID(), null, "004", "국민은행",
 		        "00033334444", "관리단", null, true, primary.accountId())))
-		    .isInstanceOfSatisfying(PaymentException.class,
+		    .isInstanceOfSatisfying(BusinessException.class,
 		        e -> assertThat(e.code()).isEqualTo("BANK_ACCOUNT_CONFLICT"));
 		var other = registration.register(user, RegistrationFixtures.request(UUID.randomUUID(), false)).response()
 		    .property().id();
 		assertThatThrownBy(() -> banking.preview(user, other, bank("김대표", "5000"), id))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		assertThatThrownBy(() -> bankAccountSettings.save(user, other,
 		    new BankAccountSettings.Save(id, renamed.updatedAt(), renamed.bankCode(),
 		        renamed.bankName(), renamed.accountNumber(), renamed.holderName(), renamed.alias(), false,
 		        bankAccountSettings.read(user, other).accountId())))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		jdbc.update("update property_members set role='RESIDENT' where property_id=? and user_id=?", property, user);
 		assertThatThrownBy(() -> bankAccountSettings.list(user, property)).isInstanceOf(AuthException.class);
 		assertThatThrownBy(() -> bankAccountSettings.save(user, property, request)).isInstanceOf(AuthException.class);
@@ -3860,7 +3860,7 @@ class PaymentPersistenceTest {
 		assertThat(count("bank_transfer_allocations")).isEqualTo(2);
 		assertThatThrownBy(() -> banking.allocateTransfer(user, property, transfer, new BankingRequests.TransferAllocations(List.of(
 		    new BankingRequests.TransferAllocation(owned.getFirst(), "10000")))))
-		    .isInstanceOfSatisfying(PaymentException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_ALLOCATION_CONFLICT"));
+		    .isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_ALLOCATION_CONFLICT"));
 		banking.cancelTransfer(user, property, transfer);
 		assertOwned(first, owned.getFirst(), "70000");
 		assertOwned(second, owned.getFirst(), "20000");
@@ -3902,13 +3902,13 @@ class PaymentPersistenceTest {
 			new BankingRequests.TransferAllocation(owned.getLast(), "2000"));
 		assertThatThrownBy(() -> banking.postTransfer(user, property,
 			new BankingRequests.TransferFromTransaction(transfer, source, second, excessive)))
-			.isInstanceOfSatisfying(PaymentException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_BALANCE_REQUIRED"));
+			.isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_BALANCE_REQUIRED"));
 		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(LocalDate.of(2026,9,30), List.of(
 			new BankingBalanceRequests.OpeningPart(owned.getFirst(), "7000"),
 			new BankingBalanceRequests.OpeningPart(owned.getLast(), "3000")), second));
 		assertThatThrownBy(() -> banking.postTransfer(user, property,
 			new BankingRequests.TransferFromTransaction(transfer, source, second, excessive)))
-			.isInstanceOfSatisfying(PaymentException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_BALANCE_EXCEEDED"));
+			.isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_BALANCE_EXCEEDED"));
 		assertThat(count("bank_transfer_postings")).isZero();
 		assertThat(count("bank_transfer_allocations")).isZero();
 		List<BankingRequests.TransferAllocation> exact = List.of(
@@ -3929,7 +3929,7 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> banking.postTransfer(user, property,
 			new BankingRequests.TransferFromTransaction(UUID.randomUUID(), next, first,
 				List.of(new BankingRequests.TransferAllocation(owned.getFirst(), "1")))))
-			.isInstanceOfSatisfying(PaymentException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_BALANCE_EXCEEDED"));
+			.isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_BALANCE_EXCEEDED"));
 	}
 
 
@@ -3967,11 +3967,11 @@ class PaymentPersistenceTest {
 			.isInstanceOf(DataIntegrityViolationException.class);
 		List<UUID> display = saved.rows().stream().map(row -> row.id()).toList();
 		assertThatThrownBy(() -> banking.deleteMany(user, property, new BankingRequests.DeleteMany(display)))
-			.isInstanceOfSatisfying(PaymentException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_CANCEL_REQUIRED"));
+			.isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_CANCEL_REQUIRED"));
 		// 은행 원본 없는 두 표시 행도 취소·양쪽 선택 삭제하며 재시도로 부활하지 않습니다.
 		banking.cancelTransfer(user, property, id);
 		assertThatThrownBy(() -> banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(display.getFirst()))))
-			.isInstanceOfSatisfying(PaymentException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_DELETE_PAIR_REQUIRED"));
+			.isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_DELETE_PAIR_REQUIRED"));
 		banking.deleteMany(user, property, new BankingRequests.DeleteMany(display));
 		banking.deleteMany(user, property, new BankingRequests.DeleteMany(display));
 		assertThat(banking.manualTransfer(user, property, input).rows()).isEmpty();
@@ -4020,14 +4020,14 @@ class PaymentPersistenceTest {
 				List.of(new BankingRequests.TransferAllocation(owned.getFirst(), "4000"), new BankingRequests.TransferAllocation(owned.getLast(), "6000"))),
 			new BankingRequests.ManualTransfer(UUID.randomUUID(), first, second, LocalDate.of(2026,10,15), "10000", null,
 				List.of(new BankingRequests.TransferAllocation(owned.getFirst(), "3000")))))
-			assertThatThrownBy(() -> banking.manualTransfer(user, property, input)).isInstanceOf(PaymentException.class);
+			assertThatThrownBy(() -> banking.manualTransfer(user, property, input)).isInstanceOf(BusinessException.class);
 		assertThat(count("bank_transfer_postings")).isZero();
 		assertThat(count("bank_transfer_allocations")).isZero();
 		assertLedger(first, "10000");
 		transferFile(first, "EXPENSE", "100", "9900");
 		assertThatThrownBy(() -> banking.manualTransfer(user, property, new BankingRequests.ManualTransfer(UUID.randomUUID(),
 			first, second, LocalDate.of(2026,10,15), "100", null, List.of(new BankingRequests.TransferAllocation(owned.getFirst(), "100")))))
-			.isInstanceOfSatisfying(PaymentException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_EXISTING_TRANSACTION"));
+			.isInstanceOfSatisfying(BusinessException.class, error -> assertThat(error.code()).isEqualTo("BANK_TRANSFER_EXISTING_TRANSACTION"));
 		assertThat(count("bank_transfer_postings")).isZero();
 	}
 
@@ -4102,7 +4102,7 @@ class PaymentPersistenceTest {
 					banking.manualTransfer(user, property, new BankingRequests.ManualTransfer(UUID.randomUUID(), first, second,
 						LocalDate.of(2026,10,15), "6000", null, List.of()));
 					return true;
-				} catch (PaymentException error) {
+				} catch (BusinessException error) {
 					assertThat(error.code()).isEqualTo("BANK_TRANSFER_BALANCE_EXCEEDED");
 					return false;
 				}
@@ -4163,7 +4163,7 @@ class PaymentPersistenceTest {
 		assertThat(outgoing.transferAccountId()).isEqualTo(first);
 		assertThatThrownBy(() -> banking.upload(user, property, outgoingFile,
 		    new BankingRequests.Import(List.of(new BankingRequests.Selection(outgoing.id(), null, null, null, null)), second)))
-		    .isInstanceOfSatisfying(PaymentException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_CONFIRM_REQUIRED"));
+		    .isInstanceOfSatisfying(BusinessException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_CONFIRM_REQUIRED"));
 		var matched = banking.upload(user, property, outgoingFile, new BankingRequests.Import(List.of(
 		    new BankingRequests.Selection(outgoing.id(), null, null, null, null, null, true, first, source.transferId())), second));
 		assertThat(matched.rows()).hasSize(2).noneMatch(row -> row.sourceType().equals("TRANSFER_AUTO"));
@@ -4229,14 +4229,14 @@ class PaymentPersistenceTest {
 		for (UUID invalid : List.of(first, UUID.randomUUID()))
 			assertThatThrownBy(() -> banking.postTransfer(user, property,
 			    new BankingRequests.TransferFromTransaction(UUID.randomUUID(), original, invalid)))
-			    .isInstanceOfSatisfying(PaymentException.class, failure -> assertThat(failure.code()).isEqualTo("INVALID_TRANSFER_ACCOUNT"));
+			    .isInstanceOfSatisfying(BusinessException.class, failure -> assertThat(failure.code()).isEqualTo("INVALID_TRANSFER_ACCOUNT"));
 		var file = kakaoFile(csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 09:00:00,청소,10000,0,90000"));
 		var preview = banking.preview(user, property, file, second).rows().getFirst();
 		banking.upload(user, property, file, new BankingRequests.Import(List.of(new BankingRequests.Selection(
 		    preview.id(), null, null, null, new BankingRequests.Expense("청소", null, "PROPERTY", false, List.of()))), second));
 		assertThatThrownBy(() -> banking.postTransfer(user, property,
 		    new BankingRequests.TransferFromTransaction(UUID.randomUUID(), original, second)))
-		    .isInstanceOfSatisfying(PaymentException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_CONFLICT"));
+		    .isInstanceOfSatisfying(BusinessException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_CONFLICT"));
 		assertThat(count("bank_transfer_postings")).isZero();
 		assertThat(count("expenses")).isEqualTo(1);
 	}
@@ -4252,7 +4252,7 @@ class PaymentPersistenceTest {
 		    new BankingRequests.Selection(row.id(), null, null, null, null, null, true, second, null)).toList(), first));
 		var counterpart = kakaoFile(csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 09:01:00,내부 이동,0,10000,110000"));
 		assertThatThrownBy(() -> banking.preview(user, property, counterpart, second))
-		    .isInstanceOfSatisfying(PaymentException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_MATCH_AMBIGUOUS"));
+		    .isInstanceOfSatisfying(BusinessException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_MATCH_AMBIGUOUS"));
 		assertThat(count("bank_transfer_postings")).isEqualTo(2);
 		assertThat(count("bank_transactions")).isEqualTo(2);
 	}
@@ -4287,7 +4287,7 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> banking.confirmExpense(user, property, outgoing,
 		    new BankingRequests.Expense("이체", null, "AMOUNT", false,
 		        List.of(new BankingRequests.Allocation(null, "외부", "10000", null)))))
-		    .isInstanceOfSatisfying(PaymentException.class,
+		    .isInstanceOfSatisfying(BusinessException.class,
 		        e -> assertThat(e.code()).isEqualTo("BANK_TRANSFER_CONFLICT"));
 		assertThatThrownBy(() -> jdbc.update("update bank_transactions set amount=9999 where id=?", outgoing))
 		    .isInstanceOf(DataAccessException.class);
@@ -4301,10 +4301,10 @@ class PaymentPersistenceTest {
 			.satisfies(group -> assertThat(group.requiresCancellation()).isTrue());
 		assertThatThrownBy(() -> banking.deleteMany(user, property,
 			new BankingRequests.DeleteMany(List.of(outgoing, incoming))))
-			.isInstanceOfSatisfying(PaymentException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_CANCEL_REQUIRED"));
+			.isInstanceOfSatisfying(BusinessException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_CANCEL_REQUIRED"));
 		banking.cancelTransfer(user, property, relink.id());
 		assertThatThrownBy(() -> banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(outgoing))))
-			.isInstanceOfSatisfying(PaymentException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_DELETE_PAIR_REQUIRED"));
+			.isInstanceOfSatisfying(BusinessException.class, failure -> assertThat(failure.code()).isEqualTo("BANK_TRANSFER_DELETE_PAIR_REQUIRED"));
 		banking.deleteMany(user, property,
 		    new BankingRequests.DeleteMany(List.of(outgoing, incoming)));
 		assertThat(banking.workspace(user, property).rows()).isEmpty();
@@ -4324,7 +4324,7 @@ class PaymentPersistenceTest {
 		for (UUID incoming : List.of(sameAccount, wrongAmount))
 			assertThatThrownBy(() -> banking.connectTransfer(user, property,
 			    new BankingRequests.Transfer(UUID.randomUUID(), outgoing, incoming)))
-			    .isInstanceOf(PaymentException.class);
+			    .isInstanceOf(BusinessException.class);
 		long sources = count("bank_transactions");
 		var file = kakaoFile(
 		    csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 10:00:00,김대표,0,5000,25000\n2026-10-15 11:00:00,청소,10000,0,15000"));
@@ -4336,7 +4336,7 @@ class PaymentPersistenceTest {
 		        .map(r -> new BankingRequests.Selection(r.id(), null, null, null,
 		            r.direction().equals("EXPENSE") ? invalid : null))
 		        .toList(), second.accountId())))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		assertThat(count("bank_transactions")).isEqualTo(sources);
 		assertThat(count("payments")).isZero();
 	}
@@ -4391,7 +4391,7 @@ class PaymentPersistenceTest {
 		});
 		assertThatThrownBy(() -> service.manual(user, property,
 		    new PaymentRequests.Manual(id, null, request.date(), "12000", null, "OTHER", "다른 입금자", "수리비", null, null)))
-		    .isInstanceOfSatisfying(PaymentException.class,
+		    .isInstanceOfSatisfying(BusinessException.class,
 		        e -> assertThat(e.code()).isEqualTo("PAYMENT_REQUEST_CONFLICT"));
 		service.cancel(user, property, id, "잘못 입력");
 		assertThat(cashBalances.workspace(user, property, "2026-10").incomes()).isEmpty();
@@ -4409,7 +4409,7 @@ class PaymentPersistenceTest {
 		    new PaymentRequests.Manual(UUID.randomUUID(), null, date, "1000", null, "OTHER", "외부", null, null, null),
 		    new PaymentRequests.Manual(UUID.randomUUID(), null, date, "1000", null, "SHARED", "은행", "이자", null, null),
 		    new PaymentRequests.Manual(UUID.randomUUID(), null, date, "1000", null, "AUTO", "김대표", null, null, null)))
-			assertThatThrownBy(() -> service.manual(user, property, request)).isInstanceOf(PaymentException.class);
+			assertThatThrownBy(() -> service.manual(user, property, request)).isInstanceOf(BusinessException.class);
 		assertThat(count("payments")).isZero();
 	}
 
@@ -4449,7 +4449,7 @@ class PaymentPersistenceTest {
 		    manualIncomeSplit(List.of(targets.getFirst(), UUID.randomUUID()), "AMOUNT", "500", "501"))) {
 			var request = new PaymentRequests.Manual(UUID.randomUUID(), null, date, "1001", null, "SHARED", "은행",
 			    "예금이자", null, split);
-			assertThatThrownBy(() -> service.manual(user, property, request)).isInstanceOf(PaymentException.class);
+			assertThatThrownBy(() -> service.manual(user, property, request)).isInstanceOf(BusinessException.class);
 		}
 		assertThat(count("payments")).isZero();
 		assertThat(count("income_allocations")).isZero();
@@ -4459,7 +4459,7 @@ class PaymentPersistenceTest {
 		service.manual(user, property, request);
 		var changed = new PaymentRequests.Manual(request.id(), null, date, "1001", null, "SHARED", "은행", "예금이자", null,
 		    manualIncomeSplit(targets, "AMOUNT", "501", "500"));
-		assertThatThrownBy(() -> service.manual(user, property, changed)).isInstanceOf(PaymentException.class);
+		assertThatThrownBy(() -> service.manual(user, property, changed)).isInstanceOf(BusinessException.class);
 		assertThat(count("payments")).isEqualTo(1);
 		assertThat(count("income_allocations")).isEqualTo(2);
 	}
@@ -4512,7 +4512,7 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> cashBalances.settle(user, property,
 		    new BankingBalanceRequests.Settlement(UUID.randomUUID(), external.id(),
 		        shared, "500")))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		service.cancel(user, property, receipt, "오입금");
 		assertThat(cashBalances.workspace(user, property, "2026-10").externals().getFirst().received()).isEqualTo("0");
 	}
@@ -4782,7 +4782,7 @@ class PaymentPersistenceTest {
 		    new BankingBalanceRequests.AccountOpening(b.id(), account, b.cutoffDate(),
 		        "5000000", 1L)))
 			assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, invalid)).isInstanceOfSatisfying(
-			    PaymentException.class, e -> assertThat(e.code()).isEqualTo("BANK_OPENING_CONFLICT"));
+			    BusinessException.class, e -> assertThat(e.code()).isEqualTo("BANK_OPENING_CONFLICT"));
 		assertThatThrownBy(() -> jdbc.update("update bank_opening_balances set amount=1 where id=?", b.id()))
 		    .isInstanceOf(DataAccessException.class);
 		assertThatThrownBy(() -> jdbc.update("delete from bank_opening_balances where id=?", b.id()))
@@ -4831,7 +4831,7 @@ class PaymentPersistenceTest {
 		    new BankingBalanceRequests.AccountOpening(UUID.randomUUID(),
 		        second.accountId(), LocalDate.of(2026, 10, 1), "0", 0L)))
 			assertThatThrownBy(() -> cashBalances.saveAccountOpening(user, property, invalid))
-			    .isInstanceOf(PaymentException.class);
+			    .isInstanceOf(BusinessException.class);
 		var outsider = users.saveAndFlush(User.create("외부관리자", null)).getId();
 		assertThatThrownBy(() -> cashBalances.saveAccountOpening(outsider, property,
 		    new BankingBalanceRequests.AccountOpening(UUID.randomUUID(), account,
@@ -5006,7 +5006,7 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> cashBalances.correctOpenings(user, property,
 		    new BankingBalanceRequests.OpeningCorrection(correction.id(), b.cutoffDate(),
 		        correction.buildings(), second)))
-		    .isInstanceOfSatisfying(PaymentException.class,
+		    .isInstanceOfSatisfying(BusinessException.class,
 		        e -> assertThat(e.code()).isEqualTo("CASH_OPENING_CONFLICT"));
 		addAccount("020", "우리은행", "100200300400", "추가 통장");
 		assertThat(cashBalances.workspace(user, property, "2026-10").buildings())
@@ -5249,14 +5249,14 @@ class PaymentPersistenceTest {
 		assertThatThrownBy(() -> cashBalances.saveOpenings(user, property,
 		    new BankingBalanceRequests.Opening(LocalDate.of(2026, 10, 1), rows,
 		        UUID.randomUUID())))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		assertThatThrownBy(() -> cashBalances.saveOpenings(user, property,
 		    new BankingBalanceRequests.Opening(LocalDate.of(2026, 10, 1), rows, own)))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		assertThat(jdbc.queryForObject("select count(*) from building_cash_openings where bank_account_id is not null",
 		    Long.class)).isZero();
 		assertThatThrownBy(() -> cashBalances.workspace(user, property, "2026-10", UUID.randomUUID()))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 	}
 
 	/** 지원 여부는 은행명이나 Client 버튼이 아니라 저장된 코드로 검사하며 호환 업로드도 우회하지 않습니다. */
@@ -5269,17 +5269,17 @@ class PaymentPersistenceTest {
 			assertThat(a.bankCode()).isEqualTo("032");
 			assertThat(a.importSupport().enabled()).isFalse();
 		});
-		assertThatThrownBy(() -> banking.preview(user, property, file, account)).isInstanceOf(PaymentException.class)
+		assertThatThrownBy(() -> banking.preview(user, property, file, account)).isInstanceOf(BusinessException.class)
 		    .hasMessage("BANK_IMPORT_UNSUPPORTED");
 		assertThatThrownBy(() -> banking.upload(user, property, file,
 		    new BankingRequests.Import(
 		        List.of(new BankingRequests.Selection(UUID.randomUUID(), null, null,
 		            null, null)),
 		        account)))
-		    .isInstanceOf(PaymentException.class).hasMessage("BANK_IMPORT_UNSUPPORTED");
-		assertThatThrownBy(() -> service.preview(user, property, file)).isInstanceOf(PaymentException.class)
+		    .isInstanceOf(BusinessException.class).hasMessage("BANK_IMPORT_UNSUPPORTED");
+		assertThatThrownBy(() -> service.preview(user, property, file)).isInstanceOf(BusinessException.class)
 		    .hasMessage("BANK_IMPORT_UNSUPPORTED");
-		assertThatThrownBy(() -> service.importFile(user, property, file)).isInstanceOf(PaymentException.class)
+		assertThatThrownBy(() -> service.importFile(user, property, file)).isInstanceOf(BusinessException.class)
 		    .hasMessage("BANK_IMPORT_UNSUPPORTED");
 		assertThat(count("bank_transactions")).isZero();
 		assertThat(count("payments")).isZero();
@@ -5376,7 +5376,7 @@ class PaymentPersistenceTest {
 		    "select count(*) from property_members where property_id=? and user_id=? and role='RESIDENT'",
 		    Integer.class, property, joining)).isEqualTo(1);
 		UUID another = users.saveAndFlush(User.create("다른 초대 사용자", null)).getId();
-		assertThatThrownBy(() -> personalInvites.accept(another, input)).isInstanceOf(PaymentException.class);
+		assertThatThrownBy(() -> personalInvites.accept(another, input)).isInstanceOf(BusinessException.class);
 	}
 
 	@Test
@@ -5429,13 +5429,13 @@ class PaymentPersistenceTest {
 		var first = personalInvites.issue(user, property, person);
 		var second = personalInvites.issue(user, property, person);
 		UUID joining = users.saveAndFlush(User.create("만료 확인", null)).getId();
-		assertThatThrownBy(() -> personalInvites.preview(joining, first.token())).isInstanceOf(PaymentException.class);
+		assertThatThrownBy(() -> personalInvites.preview(joining, first.token())).isInstanceOf(BusinessException.class);
 		jdbc.update(
 		    "update resident_invitations set created_at=created_at-interval '2 days',expires_at=created_at-interval '1 day' where id=?",
 		    second.id());
 		assertThatThrownBy(() -> personalInvites.accept(joining,
 		    new ResidentInvitations.Claim(second.token(), false, null, null, null)))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		assertThat(jdbc.queryForObject("select user_id from residents where id=?", UUID.class, person)).isNull();
 	}
 
@@ -5453,7 +5453,7 @@ class PaymentPersistenceTest {
 		joinCodes.revoke(user, property);
 		assertThatThrownBy(() -> signupRequests.request(joining, property,
 		    new SignupRequests.Create(unit, "신청한 실명", null, code)))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 	}
 
 	@Test
@@ -5483,17 +5483,17 @@ class PaymentPersistenceTest {
 		var issued = personalInvites.issue(user, property, person);
 		redis.delete("membership:invitation:resident:" + issued.id());
 		assertThatThrownBy(() -> personalInvites.share(user, property, issued.id()))
-		    .isInstanceOf(PaymentException.class).hasMessage("INVALID_INVITATION");
+		    .isInstanceOf(BusinessException.class).hasMessage("INVALID_INVITATION");
 		assertThatThrownBy(() -> personalInvites.restore(user, property, issued.id(),
-		    ResidentInviteCode.create("R"))).isInstanceOf(PaymentException.class);
+		    ResidentInviteCode.create("R"))).isInstanceOf(BusinessException.class);
 		assertThatThrownBy(() -> personalInvites.restore(user, property, issued.id(), issued.token()))
-		    .isInstanceOf(PaymentException.class).hasMessage("INVALID_INVITATION");
+		    .isInstanceOf(BusinessException.class).hasMessage("INVALID_INVITATION");
 		assertThat(jdbc.queryForObject("select count(*) from resident_invitations where property_id=?", Integer.class,
 		    property)).isEqualTo(1);
 		UUID joining = users.saveAndFlush(User.create("기존 링크 수락", null)).getId();
 		assertThatThrownBy(() -> personalInvites.accept(joining,
 		    new ResidentInvitations.Claim(issued.token(), false, null, null, null))
-		).isInstanceOf(PaymentException.class).hasMessage("INVALID_INVITATION");
+		).isInstanceOf(BusinessException.class).hasMessage("INVALID_INVITATION");
 		assertThat(jdbc.queryForObject("select user_id from residents where id=?", UUID.class, person)).isNull();
 	}
 
@@ -5504,13 +5504,13 @@ class PaymentPersistenceTest {
 		var first = personalInvites.issue(user, property, person);
 		var second = personalInvites.issue(user, property, person);
 		assertThatThrownBy(() -> personalInvites.share(user, property, first.id()))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		assertThat(redis.hasKey("membership:invitation:resident:" + first.id())).isFalse();
 		UUID joining = users.saveAndFlush(User.create("초대 이용", null)).getId();
 		personalInvites.accept(joining,
 		    new ResidentInvitations.Claim(second.token(), false, null, null, null));
 		assertThatThrownBy(() -> personalInvites.share(user, property, second.id()))
-		    .isInstanceOf(PaymentException.class);
+		    .isInstanceOf(BusinessException.class);
 		assertThat(redis.hasKey("membership:invitation:resident:" + second.id())).isFalse();
 	}
 
@@ -5587,7 +5587,7 @@ class PaymentPersistenceTest {
 			List<Future<Boolean>> attempts = accounts.stream().map(account -> pool.submit(() -> {
 				start.await();
 				try { personalInvites.accept(account, input); return true; }
-				catch (PaymentException exception) { return false; }
+				catch (BusinessException exception) { return false; }
 			})).toList();
 			start.countDown();
 			int accepted = 0;

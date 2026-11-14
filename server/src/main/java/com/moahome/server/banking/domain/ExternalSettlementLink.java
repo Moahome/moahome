@@ -5,7 +5,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 import jakarta.persistence.*;
 import lombok.Getter;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
 
 @Getter
 @Entity
@@ -39,7 +39,7 @@ public class ExternalSettlementLink {
 	public static ExternalSettlementLink create(UUID id, UUID property, UUID allocation, UUID payment, String amount,
 	    UUID actor, OffsetDateTime at) {
 		if (amount == null || !amount.matches("[0-9]{1,15}") || new BigDecimal(amount).signum() <= 0)
-			throw new PaymentException("INVALID_EXTERNAL_SETTLEMENT");
+			throw new BankingException("INVALID_EXTERNAL_SETTLEMENT");
 		var row = new ExternalSettlementLink();
 		row.id = id;
 		row.propertyId = property;

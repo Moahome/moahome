@@ -17,7 +17,8 @@ import com.moahome.server.banking.service.*;
 import com.moahome.server.billing.domain.*;
 import com.moahome.server.common.security.PaymentTextSecurity;
 import com.moahome.server.expense.service.ExpenseService;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
+import com.moahome.server.common.error.BusinessException;
 import com.moahome.server.payment.service.PaymentService;
 import com.moahome.server.property.domain.*;
 import com.moahome.server.property.dto.*;
@@ -76,7 +77,7 @@ public class RegistrationBankImportService {
 		Set<String> seen = new HashSet<>();
 		for (var row : source) {
 			if (row.date().isAfter(today()))
-				throw new PaymentException("INVALID_PAYMENT_DATE");
+				throw new BankingException("INVALID_PAYMENT_DATE");
 			String key = BankTransactionKeys.key(row, security);
 			if (seen.add(key))
 				rows.add(new Row(BankTransactionKeys.previewId(key), row.date(), row.time(), row.payer(), row.memo(),
@@ -97,13 +98,13 @@ public class RegistrationBankImportService {
 			for (var row : opening.manualTransactions() == null ? List.<RegistrationManualTransaction>of() : opening.manualTransactions()) {
 				if (!manualIds.add(row.id()) || row.accountIndex() >= request.bankAccounts().size() || row.date().isAfter(today())
 				    || new BigDecimal(row.amount()).signum() <= 0 || (row.unitIndex() != null && row.unitIndex() >= request.units().size()))
-					throw new PaymentException("INVALID_BANK_SELECTION");
+					throw new BankingException("INVALID_BANK_SELECTION");
 				if ("EXPENSE".equals(row.direction())) {
-					if (row.allocation() == null || row.unitIndex() != null) throw new PaymentException("INVALID_BANK_SELECTION");
+					if (row.allocation() == null || row.unitIndex() != null) throw new BankingException("INVALID_BANK_SELECTION");
 				} else if (("HOUSEHOLD".equals(row.purpose()) != (row.unitIndex() != null))
 				    || (!"HOUSEHOLD".equals(row.purpose()) && (row.category() == null || row.category().isBlank()))
 				    || ("SHARED".equals(row.purpose()) != (row.allocation() != null))) {
-					throw new PaymentException("INVALID_BANK_SELECTION");
+					throw new BankingException("INVALID_BANK_SELECTION");
 				}
 				validateShares(row.allocation(), request);
 			}
@@ -111,16 +112,16 @@ public class RegistrationBankImportService {
 			Set<String> seen = new HashSet<>();
 			for (var file : opening.bankImports() == null ? List.<RegistrationBankImport>of() : opening.bankImports()) {
 				if (file.accountIndex() >= request.bankAccounts().size())
-					throw new PaymentException("INVALID_BANK_SELECTION");
+					throw new BankingException("INVALID_BANK_SELECTION");
 				total += file.content().length();
 				if (total > 28_000_000)
-					throw new PaymentException("INVALID_BANK_FILE");
+					throw new BankingException("INVALID_BANK_FILE");
 				var available = source(file, request.bankAccounts().get(file.accountIndex()).bankCode());
 				for (var choice : file.rows()) {
 					var row = available.get(choice.id());
 					if (row == null || !seen.add(file.accountIndex() + ":" + choice.id())
 					    || (choice.unitIndex() != null && choice.unitIndex() >= request.units().size()))
-						throw new PaymentException("INVALID_BANK_SELECTION");
+						throw new BankingException("INVALID_BANK_SELECTION");
 					if (choice.transferAllocations() != null) {
 						Set<String> allocationIds = new HashSet<>();
 						Set<String> buildingIds = request.buildings().stream().map(value -> value.clientId()).collect(Collectors.toSet());
@@ -128,37 +129,37 @@ public class RegistrationBankImportService {
 						for (var part : choice.transferAllocations()) {
 							BigDecimal amount = new BigDecimal(part.amount());
 							if (!choice.transfer() || amount.signum() <= 0 || !buildingIds.contains(part.buildingClientId())
-							    || !allocationIds.add(part.buildingClientId())) throw new PaymentException("INVALID_TRANSFER_ALLOCATION");
+							    || !allocationIds.add(part.buildingClientId())) throw new BankingException("INVALID_TRANSFER_ALLOCATION");
 							allocated = allocated.add(amount);
 						}
-						if (allocated.compareTo(row.amount()) != 0) throw new PaymentException("BANK_TRANSFER_ALLOCATION_MISMATCH");
+						if (allocated.compareTo(row.amount()) != 0) throw new BankingException("BANK_TRANSFER_ALLOCATION_MISMATCH");
 					}
 					if (choice.transferAccountIndex() != null && (!choice.transfer()
 					    || choice.transferAccountIndex() >= request.bankAccounts().size()
 					    || choice.transferAccountIndex().equals(file.accountIndex())))
-						throw new PaymentException("INVALID_TRANSFER_ACCOUNT");
+						throw new BankingException("INVALID_TRANSFER_ACCOUNT");
 					if (choice.transfer()) {
 						if (request.bankAccounts().size() < 2)
-							throw new PaymentException("INVALID_TRANSFER_ACCOUNT");
+							throw new BankingException("INVALID_TRANSFER_ACCOUNT");
 						if (choice.unitIndex() != null || choice.incomeCategory() != null || choice.incomeNote() != null
 						    || choice.expense() != null || choice.incomeAllocation() != null)
-							throw new PaymentException("INVALID_BANK_SELECTION");
+							throw new BankingException("INVALID_BANK_SELECTION");
 						continue;
 					}
 					if ("INCOME".equals(row.direction())) {
 						if (choice.expense() != null || (choice.unitIndex() != null && choice.incomeCategory() != null)
 						    || (choice.incomeAllocation() != null && (choice.unitIndex() != null || choice.incomeCategory() == null))
 						    || (!row.date().isAfter(opening.cutoffDate()) && choice.unitIndex() == null && choice.incomeCategory() == null))
-							throw new PaymentException("INVALID_BANK_SELECTION");
+							throw new BankingException("INVALID_BANK_SELECTION");
 					} else if (choice.expense() == null || choice.unitIndex() != null || choice.incomeCategory() != null
 					    || choice.incomeNote() != null || choice.incomeAllocation() != null) {
-						throw new PaymentException("INVALID_BANK_SELECTION");
+						throw new BankingException("INVALID_BANK_SELECTION");
 					}
 					validateShares(choice.expense(), request);
 					validateShares(choice.incomeAllocation(), request);
 				}
 			}
-		} catch (PaymentException | IllegalArgumentException failure) {
+		} catch (BusinessException | IllegalArgumentException failure) {
 			throw invalid();
 		}
 	}
@@ -167,7 +168,7 @@ public class RegistrationBankImportService {
 		if (distribution == null) return;
 		Set<String> buildingIds = request.buildings().stream().map(b -> b.clientId()).collect(Collectors.toSet());
 		if (distribution.allocations().stream().anyMatch(a -> a.buildingClientId() != null && !buildingIds.contains(a.buildingClientId())))
-			throw new PaymentException("INVALID_EXPENSE_TARGET");
+			throw new BankingException("INVALID_EXPENSE_TARGET");
 	}
 
 	/** 입출금 모두 같은 등록 트랜잭션에 참여합니다. 기준일까지 입금은 새 미수에 충당하지 않습니다. */
@@ -227,7 +228,7 @@ public class RegistrationBankImportService {
 				if (!subsequent.isEmpty())
 					banking.upload(actor, property.getId(), decode(file), new BankingRequests.Import(subsequent, account.getId()));
 			}
-		} catch (PaymentException | IllegalArgumentException failure) {
+		} catch (BusinessException | IllegalArgumentException failure) {
 			throw invalid();
 		}
 	}
@@ -242,7 +243,7 @@ public class RegistrationBankImportService {
 	private Map<UUID, BankTransactionReader.Row> source(RegistrationBankImport input, String bankCode) {
 		Map<UUID, BankTransactionReader.Row> rows = new LinkedHashMap<>();
 		for (var row : reader.readAll(decode(input), bankCode)) {
-			if (row.date().isAfter(today())) throw new PaymentException("INVALID_PAYMENT_DATE");
+			if (row.date().isAfter(today())) throw new BankingException("INVALID_PAYMENT_DATE");
 			rows.putIfAbsent(BankTransactionKeys.previewId(BankTransactionKeys.key(row, security)), row);
 		}
 		return rows;

@@ -8,7 +8,7 @@ import com.moahome.server.billing.domain.*;
 import com.moahome.server.billing.dto.InitialBalanceCorrection;
 import com.moahome.server.billing.repo.InitialBalanceChangeRepository;
 import com.moahome.server.common.validation.TextValues;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.billing.exception.OpeningBalanceException;
 import com.moahome.server.property.domain.Property;
 import com.moahome.server.user.repo.UserRepository;
 
@@ -47,7 +47,7 @@ public class InitialBalanceCorrections {
 
 	public void requireAllowed(Property property) {
 		if (!allowed(property))
-			throw new PaymentException("INITIAL_BALANCE_LOCKED");
+			throw new OpeningBalanceException("INITIAL_BALANCE_LOCKED");
 	}
 
 	/** 성공한 동일 요청은 기한이 지난 뒤에도 재적용하지 않으며 다른 본문·대상·처리자의 ID 재사용은 거부합니다. */
@@ -57,7 +57,7 @@ public class InitialBalanceCorrections {
 			return false;
 		if (!property.equals(saved.getPropertyId()) || !actor.equals(saved.getChangedBy())
 		    || !kind.equals(saved.getKind()) || !mapper.writeValueAsString(input).equals(saved.getRequestBody()))
-			throw new PaymentException(switch (kind) {
+			throw new OpeningBalanceException(switch (kind) {
 				case "ACCOUNT" -> "BANK_OPENING_CONFLICT";
 				case "BUILDING" -> "CASH_OPENING_CONFLICT";
 				default -> "INITIAL_BALANCE_CONFLICT";

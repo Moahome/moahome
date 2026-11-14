@@ -1,7 +1,6 @@
 package com.moahome.server.billing.service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
+import com.moahome.server.common.security.Sha256;
 import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -15,7 +14,7 @@ import com.moahome.server.billing.dto.*;
 import com.moahome.server.billing.exception.BillingException;
 import com.moahome.server.billing.repo.*;
 import com.moahome.server.expense.repo.ExpenseRepository;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.billing.exception.OpeningBalanceException;
 import com.moahome.server.payment.repo.PaymentRepository;
 import com.moahome.server.property.repo.PropertyRepository;
 import com.moahome.server.property.service.ManagementAccessService;
@@ -68,11 +67,11 @@ public class BankBillingStartService {
 		access.getManagementContext(actor, propertyId);
 		var property = properties.findById(propertyId).orElseThrow();
 		if (cutoff == null || cutoff.isAfter(LocalDate.now(clock.withZone(BillingCalendar.ZONE))))
-			throw new PaymentException("INVALID_INITIAL_BALANCE_DATE");
+			throw new OpeningBalanceException("INVALID_INITIAL_BALANCE_DATE");
 		var account = accounts.findByPropertyIdAndDeletedAtIsNull(propertyId).stream()
 		    .filter(a -> accountId == null ? a.isPrimary() : a.getId().equals(accountId))
 		    .filter(a -> a.getBuildingId() == null && a.getStatus() == BankAccountStatus.ACTIVE)
-		    .findFirst().orElseThrow(() -> new PaymentException("PAYMENT_ACCOUNT_UNAVAILABLE"));
+		    .findFirst().orElseThrow(() -> new OpeningBalanceException("PAYMENT_ACCOUNT_UNAVAILABLE"));
 		String previousMonth = BillingCalendar.firstMonth(property).toString();
 		LocalDate previousDate = property.getBalanceCutoffDate();
 		if (accountId != null) {
@@ -133,10 +132,10 @@ public class BankBillingStartService {
 	    boolean confirmed) {
 		var impact = preview(actor, property, account, cutoff);
 		if (impact.blockedReason() != null)
-			throw new PaymentException(impact.blockedReason());
+			throw new OpeningBalanceException(impact.blockedReason());
 		if ((impact.changed() || !impact.missingMonths().isEmpty())
 		    && (!confirmed || !impact.token().equals(token)))
-			throw new PaymentException("INITIAL_BILLING_CONFIRMATION_REQUIRED");
+			throw new OpeningBalanceException("INITIAL_BILLING_CONFIRMATION_REQUIRED");
 		return impact;
 	}
 
@@ -175,10 +174,6 @@ public class BankBillingStartService {
 	}
 
 	private String fingerprint(String value) {
-		try {
-			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
-		} catch (java.security.NoSuchAlgorithmException failure) {
-			throw new IllegalStateException(failure);
-		}
+		return Sha256.hex(value);
 	}
 }

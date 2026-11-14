@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.mock.web.MockMultipartFile;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
 import static org.assertj.core.api.Assertions.*;
 
 class BankImportFormatReaderTest {
@@ -69,7 +69,7 @@ class BankImportFormatReaderTest {
 				case HANA -> "081";
 				case KAKAO -> "090";
 			};
-			assertThatThrownBy(() -> reader.readAll(file, otherCode)).isInstanceOf(PaymentException.class);
+			assertThatThrownBy(() -> reader.readAll(file, otherCode)).isInstanceOf(BankingException.class);
 		}
 	}
 
@@ -81,7 +81,7 @@ class BankImportFormatReaderTest {
 		String renamed = sample.name().endsWith(".xls") ? "은행.xlsx" : "은행.xls";
 		var mismatched = new MockMultipartFile("file", renamed, "application/octet-stream", original.getBytes());
 		assertThatThrownBy(() -> reader.readAll(mismatched, sample.code()))
-		    .isInstanceOf(PaymentException.class).hasMessage("INVALID_BANK_FILE");
+		    .isInstanceOf(BankingException.class).hasMessage("INVALID_BANK_FILE");
 	}
 
 	@Test
@@ -107,7 +107,7 @@ class BankImportFormatReaderTest {
 		for (String code : List.of("032", "012", "SAMPLE", "81")) {
 			assertThat(BankImportFormat.support(code).enabled()).isFalse();
 			assertThatThrownBy(() -> reader.readAll(new MockMultipartFile("file", new byte[] { 1 }), code))
-			    .isInstanceOf(PaymentException.class).hasMessage("BANK_IMPORT_UNSUPPORTED");
+			    .isInstanceOf(BankingException.class).hasMessage("BANK_IMPORT_UNSUPPORTED");
 		}
 	}
 

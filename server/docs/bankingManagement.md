@@ -4,6 +4,8 @@
 
 2026-10-23의 은행별 Reader·신한 매핑·입금 중복 호환을 구현했습니다. 은행 파일 해석과 수동 지출 저장은 아래 구현 절을 따르며 취소·은행 연결은 후속 범위입니다.
 
+2026-11-14 공통화: 통장 오류는 `BankingException`, 지출 오류는 `ExpenseException`으로 구분하고 기존 외부 코드·상태를 유지합니다. 공통 `BusinessExceptionHandler`·`ErrorResponses`가 HTTP 분류와 응답 생성을 담당하며 통장 Advice가 입력·DB 오류 안내를 정합니다. `BankTransactionKeys`의 거래 식별 입력·버전·직렬화는 유지하고 SHA-256 계산만 공통화했습니다.
+
 ## 책임과 처리 순서
 
 BankTransactionReader.readAll은 입출금 원본을 읽고 기존 read는 입금만 반환합니다. 입출금이 동시에 양수인 행·잘못된 날짜·수식 등은 거부합니다. 같은 가맹점 출금과 환불 입금은 방향을 나누어 보존합니다.

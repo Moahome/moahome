@@ -155,7 +155,7 @@ phoneAction은 KEEP / SET / REMOVE입니다. SET일 때만 phone을 필수로 �
 | 503 | INVITATION_SERVICE_UNAVAILABLE | Redis 연결/명령 장애. 현재 입력 유지·재시도. 만료로 단정하지 않음 |
 | 기존 상태 | 기존 계정·연결 충돌·명부 변경 오류 | 기존 업무 계약 유지 |
 
-이전 오류 표의 INVALID_INVITATION 409는 실제 `PaymentExceptionHandler`의 `INVALID_` 접두사 처리인 400과 달랐으므로 실제 계약과 맞춥니다. 503 처리를 구현했습니다. 모든 응답은 no-store이며 토큰·암호문·SQL·개인정보를 오류에 포함하지 않습니다. DB 커밋 후 Redis 삭제 실패를 가입 실패 503으로 바꾸지 않습니다. 실패 유형과 영구 상태를 구분한 재시도는 [Server 정합성 설계](../../server/docs/memberManagement.md#db와-redis의-확정-순서)를 따릅니다.
+`INVALID_INVITATION`은 400, Redis 연결·명령 장애는 `INVITATION_SERVICE_UNAVAILABLE` 503으로 반환합니다. 모든 응답은 no-store이며 토큰·암호문·SQL·개인정보를 오류에 포함하지 않습니다. DB 커밋 후 Redis 삭제 실패를 가입 실패 503으로 바꾸지 않습니다. 실패 유형과 영구 상태를 구분한 재시도는 [Server 정합성 설계](../../server/docs/memberManagement.md#db와-redis의-확정-순서)를 따릅니다.
 
 ## 본인 나가기 (2026-10-25)
 

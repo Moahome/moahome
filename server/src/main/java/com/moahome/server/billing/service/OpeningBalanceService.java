@@ -19,7 +19,7 @@ import com.moahome.server.billing.dto.*;
 import com.moahome.server.billing.repo.*;
 import com.moahome.server.common.security.PaymentTextSecurity;
 import com.moahome.server.common.validation.TextValues;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.billing.exception.OpeningBalanceException;
 import com.moahome.server.payment.repo.PaymentRepository;
 import com.moahome.server.payment.service.CumulativePaymentService;
 import com.moahome.server.property.domain.*;
@@ -172,7 +172,7 @@ public class OpeningBalanceService {
 			batch = existing.get();
 			if (!"DRAFT".equals(batch.getStatus()) || !batch.getId().equals(input.batchId()) || input.revision() == null
 			    || batch.getRevision() != input.revision())
-				throw new PaymentException("OPENING_BALANCE_CONFLICT");
+				throw new OpeningBalanceException("OPENING_BALANCE_CONFLICT");
 			batch.revise(input.cutoffDate(), first);
 			items.deleteByBatchId(batch.getId());
 			bankBalances.deleteByBatchId(batch.getId());
@@ -180,7 +180,7 @@ public class OpeningBalanceService {
 			bankBalances.flush();
 		} else {
 			if (input.batchId() != null)
-				throw new PaymentException("OPENING_BALANCE_CONFLICT");
+				throw new OpeningBalanceException("OPENING_BALANCE_CONFLICT");
 			batch = batches.saveAndFlush(
 			    OpeningBalanceBatch.draft(propertyId, input.cutoffDate(), first, actor, OffsetDateTime.now(clock)));
 		}
@@ -188,12 +188,12 @@ public class OpeningBalanceService {
 		    .collect(Collectors.toSet());
 		if (input.units().size() != currentUnits.size() || !input.units().stream()
 		    .map(unitInput -> unitInput.unitId()).collect(Collectors.toSet()).equals(currentUnits))
-			throw new PaymentException("OPENING_TARGETS_CHANGED");
+			throw new OpeningBalanceException("OPENING_TARGETS_CHANGED");
 		Set<UUID> currentAccounts = accounts.findByPropertyIdAndDeletedAtIsNull(propertyId).stream().map(a -> a.getId())
 		    .collect(Collectors.toSet());
 		if (input.accounts().size() != currentAccounts.size() || !input.accounts().stream()
 		    .map(accountInput -> accountInput.accountId()).collect(Collectors.toSet()).equals(currentAccounts))
-			throw new PaymentException("OPENING_TARGETS_CHANGED");
+			throw new OpeningBalanceException("OPENING_TARGETS_CHANGED");
 		for (var entry : input.units()) {
 			if (entry.originMonth() != null && !entry.originMonth().isBlank()
 			    && BillingCalendar.parseMonth(entry.originMonth()).isAfter(YearMonth.from(input.cutoffDate())))
@@ -216,14 +216,14 @@ public class OpeningBalanceService {
 	private void validateDates(Property property, LocalDate cutoff, YearMonth first) {
 		if (cutoff == null || cutoff.isAfter(LocalDate.now(clock.withZone(BillingCalendar.ZONE)))
 		    || !BillingCalendar.validStart(cutoff, first) || first.isAfter(BillingCalendar.currentMonth(clock).plusMonths(1)))
-			throw new PaymentException("INVALID_OPENING_DATES");
+			throw new OpeningBalanceException("INVALID_OPENING_DATES");
 		if (property.getManagementStartedAt() != null
 		    && (property.getBalanceCutoffDate() == null || !property.getBalanceCutoffDate().equals(cutoff)
 		        || !property.getFirstBillingMonth().equals(first.atDay(1))))
-			throw new PaymentException("OPENING_BALANCE_CONFLICT");
+			throw new OpeningBalanceException("OPENING_BALANCE_CONFLICT");
 		if (payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property.getId()).stream().anyMatch(
 		    p -> p.getDeletedAt() == null && "CONFIRMED".equals(p.getStatus()) && !p.getPaymentDate().isAfter(cutoff)))
-			throw new PaymentException("OPENING_ALREADY_HAS_RECEIPTS");
+			throw new OpeningBalanceException("OPENING_ALREADY_HAS_RECEIPTS");
 	}
 
 	/** 인계와 운영 개시·첫 부과·선납 충당을 함께 확정하며 실패하면 어떤 단계도 남기지 않습니다. */
@@ -236,19 +236,19 @@ public class OpeningBalanceService {
 		if (property.getManagementStartedAt() != null)
 			corrections.requireAllowed(property);
 		if (!"DRAFT".equals(batch.getStatus()) || batch.getRevision() != revision)
-			throw new PaymentException("OPENING_BALANCE_CONFLICT");
+			throw new OpeningBalanceException("OPENING_BALANCE_CONFLICT");
 		var first = YearMonth.from(batch.getFirstBillingMonth());
 		validateDates(property, batch.getCutoffDate(), first);
 		List<OpeningBalanceItem> entryRows = items.findByBatchId(batchId);
 		Map<UUID, Unit> live = units.findByPropertyIdAndDeletedAtIsNull(propertyId).stream()
 		    .collect(Collectors.toMap(element -> element.getId(), u -> u));
 		if (!entryRows.stream().map(openingBalanceItem -> openingBalanceItem.getUnitId()).collect(Collectors.toSet()).equals(live.keySet()))
-			throw new PaymentException("OPENING_TARGETS_CHANGED");
+			throw new OpeningBalanceException("OPENING_TARGETS_CHANGED");
 		Set<UUID> liveAccounts = accounts.findByPropertyIdAndDeletedAtIsNull(propertyId).stream().map(a -> a.getId())
 		    .collect(Collectors.toSet());
 		if (!bankBalances.findByBatchId(batchId).stream().map(bankOpeningBalance -> bankOpeningBalance.getBankAccountId())
 		    .collect(Collectors.toSet()).equals(liveAccounts))
-			throw new PaymentException("OPENING_TARGETS_CHANGED");
+			throw new OpeningBalanceException("OPENING_TARGETS_CHANGED");
 		Map<UUID, String> names = buildings.findByPropertyId(propertyId).stream()
 		    .collect(Collectors.toMap(building -> building.getId(), building -> building.getName()));
 		var at = OffsetDateTime.now(clock);
@@ -282,11 +282,11 @@ public class OpeningBalanceService {
 		if ("CANCELED".equals(batch.getStatus()))
 			return response(propertyId);
 		if (batch.getRevision() != input.revision() || !"CONFIRMED".equals(batch.getStatus()))
-			throw new PaymentException("OPENING_BALANCE_CONFLICT");
+			throw new OpeningBalanceException("OPENING_BALANCE_CONFLICT");
 		corrections.requireAllowed(properties.findById(propertyId).orElseThrow());
 		if (payments.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(propertyId).stream()
 		    .anyMatch(p -> "CONFIRMED".equals(p.getStatus())))
-			throw new PaymentException("OPENING_ALREADY_HAS_RECEIPTS");
+			throw new OpeningBalanceException("OPENING_ALREADY_HAS_RECEIPTS");
 		Set<UUID> rowIds = items.findByBatchId(batchId).stream().map(openingBalanceItem -> openingBalanceItem.getId())
 		    .collect(Collectors.toSet());
 		applications.findByPropertyId(propertyId).stream().filter(a -> rowIds.contains(a.getOpeningItemId()))
@@ -312,18 +312,18 @@ public class OpeningBalanceService {
 		corrections.requireAllowed(property);
 		var batch = required(propertyId, batchId);
 		if (!"CONFIRMED".equals(batch.getStatus()) || batch.getRevision() != input.revision())
-			throw new PaymentException("INITIAL_BALANCE_CONFLICT");
+			throw new OpeningBalanceException("INITIAL_BALANCE_CONFLICT");
 		LocalDate cutoff = input.cutoffDate();
 		if (cutoff == null || cutoff.isAfter(LocalDate.now(clock.withZone(BillingCalendar.ZONE))))
-			throw new PaymentException("INVALID_INITIAL_BALANCE_DATE");
+			throw new OpeningBalanceException("INVALID_INITIAL_BALANCE_DATE");
 		List<OpeningBalanceItem> entries = items.findByBatchId(batchId);
 		if (entries.stream().anyMatch(i -> i.getOriginMonth() != null
 		    && YearMonth.parse(i.getOriginMonth()).isAfter(YearMonth.from(cutoff))))
-			throw new PaymentException("INVALID_INITIAL_BALANCE_DATE");
+			throw new OpeningBalanceException("INVALID_INITIAL_BALANCE_DATE");
 		LocalDate previous = batch.getCutoffDate();
 		// 동별 잔고가 있는 통장은 개별 정정창에서 새 날짜의 보유금까지 함께 확인해야 합니다.
 		if (!previous.equals(cutoff) && !buildings.findByPropertyIdAndDeletedAtIsNullOrderBySortOrderAscNameAsc(propertyId).isEmpty())
-			throw new PaymentException("INITIAL_BALANCE_USE_BANK_CORRECTION");
+			throw new OpeningBalanceException("INITIAL_BALANCE_USE_BANK_CORRECTION");
 		var billingImpact = billingStart.require(actor, propertyId, null, cutoff, input.billingToken(), input.confirmBilling());
 		// 기준일을 넘나드는 기존 거래를 자동으로 초기 이력/운영 거래로 바꾸지 않습니다.
 		if (!previous.equals(cutoff) && (
@@ -332,16 +332,16 @@ public class OpeningBalanceService {
 		        .anyMatch(p -> crosses(p.getPaymentDate(), previous, cutoff))
 		    || expenses.findByPropertyIdOrderByConfirmedAtDesc(propertyId).stream()
 		        .anyMatch(e -> crosses(e.getExpenseDate(), previous, cutoff))))
-			throw new PaymentException("INITIAL_BALANCE_TRANSACTION_CONFLICT");
+			throw new OpeningBalanceException("INITIAL_BALANCE_TRANSACTION_CONFLICT");
 		List<BankOpeningBalance> saved = bankBalances.findByBatchId(batchId);
 		Map<UUID, String> amounts = new HashMap<>();
 		for (var part : input.accounts()) {
 			money(part.amount());
 			if (amounts.put(part.accountId(), part.amount()) != null)
-				throw new PaymentException("INITIAL_BALANCE_CONFLICT");
+				throw new OpeningBalanceException("INITIAL_BALANCE_CONFLICT");
 		}
 		if (!amounts.keySet().equals(saved.stream().map(BankOpeningBalance::getBankAccountId).collect(Collectors.toSet())))
-			throw new PaymentException("OPENING_TARGETS_CHANGED");
+			throw new OpeningBalanceException("OPENING_TARGETS_CHANGED");
 		Map<UUID, String> labels = accounts.findByPropertyIdAndDeletedAtIsNull(propertyId).stream()
 		    .collect(Collectors.toMap(a -> a.getId(), a -> bankAccountLabel(a)));
 		List<InitialBalanceCorrection.Detail> details = new ArrayList<>(saved.stream().map(row ->
@@ -380,7 +380,7 @@ public class OpeningBalanceService {
 
 	private OpeningBalanceBatch required(UUID property, UUID id) {
 		return batches.findById(id).filter(b -> property.equals(b.getPropertyId()))
-		    .orElseThrow(() -> new PaymentException("OPENING_NOT_FOUND"));
+		    .orElseThrow(() -> new OpeningBalanceException("OPENING_NOT_FOUND"));
 	}
 
 	private BigDecimal money(String amount) {

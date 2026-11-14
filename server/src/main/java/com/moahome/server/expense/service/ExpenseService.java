@@ -11,7 +11,7 @@ import com.moahome.server.common.security.PaymentTextSecurity;
 import com.moahome.server.common.validation.TextValues;
 import com.moahome.server.expense.domain.*;
 import com.moahome.server.expense.repo.*;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.expense.exception.ExpenseException;
 import com.moahome.server.property.domain.BuildingStatus;
 import com.moahome.server.property.repo.BuildingRepository;
 import com.moahome.server.property.repo.PropertyRepository;
@@ -49,9 +49,9 @@ public class ExpenseService {
 	@Transactional
 	public void confirm(BankTransaction original, BankingRequests.Expense request, UUID actor) {
 		if (original.isTransferCandidate())
-			throw new PaymentException("BANK_TRANSFER_CONFLICT");
+			throw new ExpenseException("BANK_TRANSFER_CONFLICT");
 		if (!"EXPENSE".equals(original.getDirection()) || original.getDeletedAt() != null)
-			throw new PaymentException("INVALID_BANK_SELECTION");
+			throw new ExpenseException("INVALID_BANK_SELECTION");
 		List<Expense.Share> shares = shares(original.getPropertyId(), request);
 		List<BigDecimal> amounts = Expense.allocate(original.getAmount(), request.mode(), shares);
 		String category = TextValues.required(request.category(), 100), note = TextValues.optional(request.note(), 500);
@@ -71,7 +71,7 @@ public class ExpenseService {
 				    && saved.get(i).getAllocatedAmount().compareTo(amounts.get(i)) == 0
 				    && Objects.equals(saved.get(i).getPercentage(), percentage(shares.get(i), request.mode()));
 			if (!same)
-				throw new PaymentException("BANK_REQUEST_CONFLICT");
+				throw new ExpenseException("BANK_REQUEST_CONFLICT");
 			return;
 		}
 		var expense = expenses.saveAndFlush(Expense.create(original.getPropertyId(), original.getId(),
@@ -95,11 +95,11 @@ public class ExpenseService {
 	public void manual(UUID property, BankingRequests.ManualExpense request, UUID actor) {
 		if (request.amount() == null || !request.amount().matches("[0-9]{1,15}")
 		    || new BigDecimal(request.amount()).signum() <= 0)
-			throw new PaymentException("INVALID_MANUAL_EXPENSE");
+			throw new ExpenseException("INVALID_MANUAL_EXPENSE");
 		var previous = expenses.findById(request.id());
 		if (previous.isPresent()) {
 			if (previous.get().getDeletedAt() != null)
-				throw new PaymentException("BANK_REQUEST_CONFLICT");
+				throw new ExpenseException("BANK_REQUEST_CONFLICT");
 			requireSameManual(previous.get(), property, request, actor);
 			expenseAccounts.requireSameInitial(property, previous.get().getAccountingAccountId(), request.accountCode());
 			return;
@@ -135,7 +135,7 @@ public class ExpenseService {
 		    || !TextValues.required(request.category(), 100).equals(security.decrypt(saved.getCategoryEncrypted()))
 		    || !Objects.equals(TextValues.optional(request.note(), 500), security.decrypt(saved.getMemoEncrypted()))
 		    || parts.size() != request.allocations().size())
-			throw new PaymentException("BANK_REQUEST_CONFLICT");
+			throw new ExpenseException("BANK_REQUEST_CONFLICT");
 		ArrayList<Expense.Share> shares = new ArrayList<>();
 		for (int i = 0; i < parts.size(); i++) {
 			var input = request.allocations().get(i);
@@ -143,14 +143,14 @@ public class ExpenseService {
 			String label = security.decrypt(part.getTargetLabelEncrypted());
 			if (!Objects.equals(input.buildingId(), part.getBuildingId())
 			    || (input.buildingId() == null && !label.equals(TextValues.required(input.label(), 100))))
-				throw new PaymentException("BANK_REQUEST_CONFLICT");
+				throw new ExpenseException("BANK_REQUEST_CONFLICT");
 			shares.add(new Expense.Share(input.buildingId(), label, input.amount(), input.percentage()));
 		}
 		List<BigDecimal> amounts = Expense.allocate(saved.getTotalAmount(), request.mode(), shares);
 		for (int i = 0; i < parts.size(); i++) {
 			if (parts.get(i).getAllocatedAmount().compareTo(amounts.get(i)) != 0
 			    || !Objects.equals(parts.get(i).getPercentage(), percentage(shares.get(i), request.mode())))
-				throw new PaymentException("BANK_REQUEST_CONFLICT");
+				throw new ExpenseException("BANK_REQUEST_CONFLICT");
 		}
 	}
 
@@ -158,7 +158,7 @@ public class ExpenseService {
 	private List<Expense.Share> shares(UUID property, BankingRequests.Expense request) {
 		if ("PROPERTY".equals(request.mode())) {
 			if (properties.findById(property).orElseThrow().isHasBuildings() || !request.allocations().isEmpty())
-				throw new PaymentException("INVALID_EXPENSE_TARGET");
+				throw new ExpenseException("INVALID_EXPENSE_TARGET");
 			return List.of();
 		}
 		return request.allocations().stream().map(a -> {
@@ -166,7 +166,7 @@ public class ExpenseService {
 			    : buildings.findById(a.buildingId())
 			        .filter(v -> property.equals(v.getPropertyId()) && v.getDeletedAt() == null
 			            && v.getStatus() == BuildingStatus.ACTIVE)
-			        .orElseThrow(() -> new PaymentException("INVALID_EXPENSE_TARGET")).getName();
+			        .orElseThrow(() -> new ExpenseException("INVALID_EXPENSE_TARGET")).getName();
 			return new Expense.Share(a.buildingId(), label, a.amount(), a.percentage());
 		}).toList();
 	}

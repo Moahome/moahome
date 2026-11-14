@@ -16,7 +16,7 @@ import com.moahome.server.banking.domain.*;
 import com.moahome.server.banking.dto.*;
 import com.moahome.server.banking.repo.*;
 import com.moahome.server.common.security.PaymentTextSecurity;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
 import com.moahome.server.property.repo.PropertyRepository;
 import com.moahome.server.property.service.ManagementAccessService;
 import com.moahome.server.user.repo.UserRepository;
@@ -90,13 +90,13 @@ public class BankBalanceCheckService {
 			    || !row.getCheckedAt().toInstant().equals(input.checkedAt().toInstant())
 			    || !row.getSourceType().equals(input.sourceType())
 			    || !Objects.equals(security.decrypt(row.getMemoEncrypted()), memo))
-				throw new PaymentException("BANK_CHECK_CONFLICT");
+				throw new BankingException("BANK_CHECK_CONFLICT");
 			return;
 		}
 		if (account(actor, property, input.accountId()).getStatus() != BankAccountStatus.ACTIVE)
-			throw new PaymentException("PAYMENT_ACCOUNT_UNAVAILABLE");
+			throw new BankingException("PAYMENT_ACCOUNT_UNAVAILABLE");
 		if (input.checkedAt().toInstant().isAfter(clock.instant()))
-			throw new PaymentException("INVALID_BANK_CHECK_TIME");
+			throw new BankingException("INVALID_BANK_CHECK_TIME");
 		checks.saveAndFlush(
 		    BankBalanceCheck.create(input.id(), property, input.accountId(), new BigDecimal(input.amount()),
 		        input.checkedAt(), input.sourceType(), actor, encrypt(memo), OffsetDateTime.now(clock)));
@@ -114,7 +114,7 @@ public class BankBalanceCheckService {
 		if (row.getCanceledAt() != null) {
 			if (!input.id().equals(row.getCancelRequestId()) || !actor.equals(row.getCanceledBy())
 			    || !Objects.equals(reason, security.decrypt(row.getCancelReasonEncrypted())))
-				throw new PaymentException("BANK_CHECK_CONFLICT");
+				throw new BankingException("BANK_CHECK_CONFLICT");
 			return;
 		}
 		row.cancel(input.id(), actor, encrypt(reason), OffsetDateTime.now(clock));

@@ -1,7 +1,8 @@
 package com.moahome.server.billing.exception;
 
+import com.moahome.server.common.error.ErrorResponses;
 import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.auth.security.AuthErrorHandler.ErrorResponse;
+import com.moahome.server.common.error.ErrorResponse;
 import com.moahome.server.billing.controller.BillingController;
 import com.moahome.server.user.exception.UserException;
 import org.springframework.dao.DataAccessException;
@@ -54,7 +55,6 @@ public class BillingExceptionHandler {
 	}
 
 	private ResponseEntity<ErrorResponse> error(HttpStatus status, String code, String message) {
-		return ResponseEntity.status(status).cacheControl(CacheControl.noStore())
-		    .body(new ErrorResponse(code, message));
+		return ErrorResponses.of(status, code, message);
 	}
 }

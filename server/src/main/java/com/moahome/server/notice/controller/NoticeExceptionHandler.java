@@ -1,10 +1,10 @@
 package com.moahome.server.notice.controller;
 
+import com.moahome.server.common.error.ErrorResponses;
 import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.auth.security.AuthErrorHandler.ErrorResponse;
+import com.moahome.server.common.error.ErrorResponse;
 import com.moahome.server.user.exception.UserException;
 import org.springframework.dao.DataAccessException;
-import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.transaction.TransactionException;
@@ -53,6 +53,6 @@ public class NoticeExceptionHandler {
 	}
 
 	private ResponseEntity<ErrorResponse> error(int status, String code, String message) {
-		return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(new ErrorResponse(code, message));
+		return ErrorResponses.of(status, code, message);
 	}
 }

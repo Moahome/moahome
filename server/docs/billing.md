@@ -2,6 +2,8 @@
 
 상태: 실제 API·설정 버전·월별 청구 생성과 자동 확정 구현. 정책은 [도메인 규칙](../../docs/domain/domainRules.md#5-관리비-부과--청구), 요청 / 응답 / 오류는 [관리비 API](../../docs/api/billingApi.md), 컬럼·제약은 [ERD](../../docs/domain/erd.md#7-관리비-부과)를 기준으로 합니다.
 
+2026-11-14 공통화: 엄격한 JSON 설정은 `common/json/StrictJsonMapper`, SHA-256 계산은 `common/security/Sha256`을 재사용합니다. 적용 DTO·revisionId 추가 검증·지문에 넣는 DTO 직렬화는 유지합니다. 기존 잔액 업무는 `OpeningBalanceException`과 전용 Advice로 분리하고 공통 오류 응답 생성을 사용합니다. 기존 외부 오류 코드·HTTP 상태는 유지하고 기본 안내만 해당 업무 문구로 변경합니다.
+
 ## 설정 변경
 
 BillingService는 매 요청 ManagementAccessService로 현재 권한을 확인합니다. 저장 시 세대 관리와 같은 Property 행의 비관적 잠금을 획득한 뒤 최신 revisionId와 서버 기준 다음 달을 검증합니다. 성공하면 기존 템플릿·항목을 변경하지 않고 증가한 revision의 템플릿과 항목을 함께 추가합니다. 사유·변경자·적용월을 보존합니다. 합계는 BigDecimal로 계산하고 numeric(15,0) 범위를 검증합니다.

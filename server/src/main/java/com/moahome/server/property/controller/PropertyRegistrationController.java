@@ -16,7 +16,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import com.moahome.server.auth.domain.AuthPrincipal;
-import com.moahome.server.auth.security.AuthErrorHandler;
+import com.moahome.server.common.error.ErrorResponse;
 import com.moahome.server.property.dto.*;
 import com.moahome.server.property.exception.RegistrationErrorCode;
 import com.moahome.server.property.exception.RegistrationException;
@@ -29,8 +29,8 @@ import com.moahome.server.property.service.PropertyRegistrationService;
 @SecurityRequirement(name = "bearerAuth")
 @ApiResponses({
         @ApiResponse(responseCode = "400", description = "INVALID_REQUEST: 잘못된 입력 또는 요청 형식", content = @Content(mediaType = "application/json", schema = @Schema(implementation = RegistrationExceptionHandler.ErrorResponse.class))),
-        @ApiResponse(responseCode = "401", description = "인증 없음, 유효하지 않거나 만료된 토큰 / 세션", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
-        @ApiResponse(responseCode = "403", description = "ACCOUNT_UNAVAILABLE / ACCESS_DENIED / PROPERTY_CREATION_NOT_ALLOWED", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
+        @ApiResponse(responseCode = "401", description = "인증 없음, 유효하지 않거나 만료된 토큰 / 세션", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+        @ApiResponse(responseCode = "403", description = "ACCOUNT_UNAVAILABLE / ACCESS_DENIED / PROPERTY_CREATION_NOT_ALLOWED", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
         @ApiResponse(responseCode = "500", description = "INTERNAL_SERVER_ERROR", content = @Content(mediaType = "application/json", schema = @Schema(implementation = RegistrationExceptionHandler.ErrorResponse.class))),
         @ApiResponse(responseCode = "503", description = "AUTH_SERVICE_UNAVAILABLE / REGISTRATION_SERVICE_UNAVAILABLE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = RegistrationExceptionHandler.ErrorResponse.class))) })
 public class PropertyRegistrationController {

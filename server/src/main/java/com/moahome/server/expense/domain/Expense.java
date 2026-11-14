@@ -9,7 +9,7 @@ import lombok.Getter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.expense.exception.ExpenseException;
 
 @Getter
 @Entity
@@ -70,7 +70,7 @@ public class Expense {
 	/** 확정 원본과 배분 이력은 보존하고 수동 지출 삭제를 한 번만 기록해 활성 집계에서 취소합니다. */
 	public void removeManual(UUID actor, OffsetDateTime at) {
 		if (!"MANUAL".equals(sourceType) || actor == null || at == null)
-			throw new PaymentException("EXPENSE_DELETE_NOT_ALLOWED");
+			throw new ExpenseException("EXPENSE_DELETE_NOT_ALLOWED");
 		if (deletedAt != null)
 			return;
 		deletedAt = at;
@@ -89,7 +89,7 @@ public class Expense {
 			return List.of();
 		if (total == null || total.signum() <= 0 || shares == null || shares.isEmpty() || shares.size() > 100
 		    || !Set.of("EQUAL", "RATIO", "AMOUNT").contains(mode))
-			throw new PaymentException("INVALID_EXPENSE_ALLOCATION");
+			throw new ExpenseException("INVALID_EXPENSE_ALLOCATION");
 		HashSet<String> keys = new HashSet<String>();
 		ArrayList<BigDecimal> result = new ArrayList<BigDecimal>();
 		BigDecimal ratio = BigDecimal.ZERO;
@@ -98,39 +98,39 @@ public class Expense {
 			if (share == null || share.label() == null || share.label().isBlank() || share.label().length() > 100
 			    || !keys.add(
 			        share.buildingId() == null ? "external:" + share.label().strip() : share.buildingId().toString()))
-				throw new PaymentException("INVALID_EXPENSE_ALLOCATION");
+				throw new ExpenseException("INVALID_EXPENSE_ALLOCATION");
 			BigDecimal amount;
 			try {
 				if ("EQUAL".equals(mode))
 					amount = total.divide(BigDecimal.valueOf(shares.size()), 0, RoundingMode.UNNECESSARY);
 				else if ("RATIO".equals(mode)) {
 					if (share.percentage() == null || !share.percentage().matches("[0-9]{1,3}(\\.[0-9]{1,2})?"))
-						throw new PaymentException("INVALID_EXPENSE_ALLOCATION");
+						throw new ExpenseException("INVALID_EXPENSE_ALLOCATION");
 					var percentage = new BigDecimal(share.percentage());
 					if (percentage.signum() <= 0 || percentage.compareTo(new BigDecimal("100")) > 0)
-						throw new PaymentException("INVALID_EXPENSE_ALLOCATION");
+						throw new ExpenseException("INVALID_EXPENSE_ALLOCATION");
 					ratio = ratio.add(percentage);
 					BigDecimal numerator = total.multiply(percentage);
 					fractional |= numerator.remainder(new BigDecimal("100")).signum() != 0;
 					amount = numerator.divide(new BigDecimal("100"), 0, RoundingMode.DOWN);
 				} else {
 					if (share.amount() == null || !share.amount().matches("[0-9]{1,15}"))
-						throw new PaymentException("INVALID_EXPENSE_ALLOCATION");
+						throw new ExpenseException("INVALID_EXPENSE_ALLOCATION");
 					amount = new BigDecimal(share.amount());
 				}
 			} catch (ArithmeticException exception) {
-				throw new PaymentException("ALLOCATION_REMAINDER_REQUIRED");
+				throw new ExpenseException("ALLOCATION_REMAINDER_REQUIRED");
 			}
 			result.add(amount);
 		}
 		if ("RATIO".equals(mode) && ratio.compareTo(new BigDecimal("100")) != 0)
-			throw new PaymentException("EXPENSE_ALLOCATION_MISMATCH");
+			throw new ExpenseException("EXPENSE_ALLOCATION_MISMATCH");
 		if (fractional)
 			result = ratioAmountsWithRemainder(total, shares, result);
 		if (result.stream().anyMatch(amount -> amount.signum() <= 0))
-			throw new PaymentException("INVALID_EXPENSE_ALLOCATION");
+			throw new ExpenseException("INVALID_EXPENSE_ALLOCATION");
 		if (result.stream().reduce(BigDecimal.ZERO, BigDecimal::add).compareTo(total) != 0)
-			throw new PaymentException("EXPENSE_ALLOCATION_MISMATCH");
+			throw new ExpenseException("EXPENSE_ALLOCATION_MISMATCH");
 		return List.copyOf(result);
 	}
 
@@ -143,17 +143,17 @@ public class Expense {
 		for (int i = 0; i < shares.size(); i++) {
 			String input = shares.get(i).amount();
 			if (input == null || !input.matches("[0-9]{1,15}"))
-				throw new PaymentException("ALLOCATION_REMAINDER_REQUIRED");
+				throw new ExpenseException("ALLOCATION_REMAINDER_REQUIRED");
 			BigDecimal amount = new BigDecimal(input);
 			BigDecimal difference = amount.subtract(baseAmounts.get(i));
 			if (difference.signum() != 0) {
 				if (difference.compareTo(remainder) != 0 || ++recipients > 1)
-					throw new PaymentException("EXPENSE_ALLOCATION_MISMATCH");
+					throw new ExpenseException("EXPENSE_ALLOCATION_MISMATCH");
 			}
 			result.add(amount);
 		}
 		if (recipients != 1)
-			throw new PaymentException("ALLOCATION_REMAINDER_REQUIRED");
+			throw new ExpenseException("ALLOCATION_REMAINDER_REQUIRED");
 		return result;
 	}
 
@@ -199,7 +199,7 @@ public class Expense {
 		if (id == null || property == null || account == null || date == null || actor == null || at == null
 		    || category == null || category.isBlank() || total == null || total.signum() <= 0
 		    || total.scale() > 0 || total.precision() > 15 || !Set.of("EQUAL", "RATIO", "AMOUNT", "PROPERTY").contains(mode))
-			throw new PaymentException("INVALID_MANUAL_EXPENSE");
+			throw new ExpenseException("INVALID_MANUAL_EXPENSE");
 		var e = create(property, null, account, date, category, memo, total, mode, false, null, actor, at, accountingAccountId);
 		e.id = id;
 		e.sourceType = "MANUAL";

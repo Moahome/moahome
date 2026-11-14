@@ -10,7 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.moahome.server.billing.domain.BillingCalendar;
 import com.moahome.server.billing.dto.OpeningBalanceRequest;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.billing.exception.OpeningBalanceException;
 
 @Service
 public class OpeningBalanceExcelReader {
@@ -18,7 +18,7 @@ public class OpeningBalanceExcelReader {
 	public List<OpeningBalanceRequest.UnitInput> read(MultipartFile file) {
 		if (file == null || file.isEmpty() || file.getSize() > 5 * 1024 * 1024 || file.getOriginalFilename() == null
 		    || !file.getOriginalFilename().toLowerCase(Locale.ROOT).endsWith(".xlsx"))
-			throw new PaymentException("INVALID_OPENING_FILE");
+			throw new OpeningBalanceException("INVALID_OPENING_FILE");
 		try (var input = file.getInputStream(); var book = new XSSFWorkbook(input)) {
 			if (book.getNumberOfSheets() == 0)
 				throw new IllegalArgumentException();
@@ -65,7 +65,7 @@ public class OpeningBalanceExcelReader {
 				throw new IllegalArgumentException();
 			return rows;
 		} catch (Exception failure) {
-			throw new PaymentException("INVALID_OPENING_FILE");
+			throw new OpeningBalanceException("INVALID_OPENING_FILE");
 		}
 	}
 
