@@ -1,5 +1,6 @@
 package com.moahome.server.notice.repo;
 
+import com.moahome.server.common.persistence.AdvisoryLocks;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -18,7 +19,7 @@ public class NoticeAssetRepository {
 
 	/** 같은 업로드 ID의 동시 재전송을 직렬화하여 S3 키·메타데이터가 서로 달라지지 않게 합니다. */
 	public void lock(UUID id) {
-		jdbc.queryForList("select pg_advisory_xact_lock(hashtextextended(?, 0))", "moahome:notice-asset:" + id);
+		AdvisoryLocks.acquire(jdbc, "moahome:notice-asset:" + id);
 	}
 
 	public Optional<Asset> find(UUID id) {
