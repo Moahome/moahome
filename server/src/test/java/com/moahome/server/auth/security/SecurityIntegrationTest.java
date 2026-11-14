@@ -11,6 +11,8 @@ import com.moahome.server.billing.service.BillingIncomeSourceService;
 import jakarta.persistence.EntityManager;
 import com.moahome.server.systemadmin.service.SystemAdminService;
 import com.moahome.server.systemadmin.repo.SystemAdminRequestLock;
+import com.moahome.server.notice.repo.NoticeRepository;
+import com.moahome.server.notice.repo.NoticeAssetRepository;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
@@ -214,6 +216,12 @@ class SecurityIntegrationTest {
 
 	@MockitoBean
 	private SystemAdminRequestLock systemAdminRequestLock;
+
+	@MockitoBean
+	private NoticeRepository noticeRepository;
+
+	@MockitoBean
+	private NoticeAssetRepository noticeAssetRepository;
 
 	@MockitoBean
 	private ResidentInvitationService residentInvitations;

@@ -11,6 +11,8 @@ import com.moahome.server.billing.service.BillingIncomeSourceService;
 import jakarta.persistence.EntityManager;
 import com.moahome.server.systemadmin.service.SystemAdminService;
 import com.moahome.server.systemadmin.repo.SystemAdminRequestLock;
+import com.moahome.server.notice.repo.NoticeRepository;
+import com.moahome.server.notice.repo.NoticeAssetRepository;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.List;
@@ -126,6 +128,12 @@ class OpenApiIntegrationTest {
 
 	@MockitoBean
 	private SystemAdminRequestLock systemAdminRequestLock;
+
+	@MockitoBean
+	private NoticeRepository noticeRepository;
+
+	@MockitoBean
+	private NoticeAssetRepository noticeAssetRepository;
 
 	@MockitoBean
 	private ResidentInvitationService residentInvitations;
@@ -298,7 +306,7 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(
 		    mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(131);
+		assertThat(document.path("paths").properties()).hasSize(134);
 		assertThat(document.path("paths").path("/api/users/me/profile")
 		    .at("/put/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/users/me/profile")

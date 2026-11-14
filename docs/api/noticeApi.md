@@ -1,0 +1,41 @@
+# 공지사항 API
+
+현재 관리자 화면의 구현 계약입니다. 주민 공개 열람·문자 발송·대상 선택·게시 기간은 포함하지 않습니다. 업무 방향은 [도메인 규칙](../domain/domainRules.md#건물-안내와-주민-메시지의-확정-방향)을 참조합니다.
+
+모든 요청은 Bearer 인증과 현재 관리대상 접근 권한이 필요합니다. 수정·삭제는 원래 작성자만 허용합니다. 응답은 `Cache-Control: no-store`를 사용합니다.
+
+기본 경로: `/api/properties/{propertyId}/notices`
+
+| 메서드·경로 | 요청 | 결과 |
+| --- | --- | --- |
+| `GET /` | `page`(1부터), `query`, `field`(`title` 또는 `content`) | `propertyId`, `items`, `total`, `page`, `pageCount`. 페이지당 10개, 상단 표시 우선·번호 내림차순 |
+| `GET /{id}` | 공지 ID | 제목·본문 JSON 문자열·작성자 이름·시각·조회수·버전·`canEdit`. 작성자를 제외한 다른 사용자의 열람마다 조회수 증가 |
+| `PUT /{id}` | `requestId`, `expectedVersion`, `title`, `content`, `important` | 저장한 상세 |
+| `DELETE /{id}` | `version` 쿼리 | `204`, 소프트 삭제 |
+| `PUT /assets/{assetId}` | multipart `file`, `image`(기본 false) | `id`, `name`, `size`, `data`(인증된 자산 API 상대 경로) |
+| `GET /assets/{assetId}` | 자산 ID | S3 원본 바이트, MIME·다운로드 파일명·`nosniff` |
+
+## 저장과 재시도
+
+- 상세 조회는 현재 관리 권한을 확인한 뒤 원래 작성자와 인증된 사용자가 다를 때만 조회수를 증가시킵니다. 작성자의 반복 열람·수정 화면 진입과 권한 없는 요청은 집계하지 않습니다. 다른 사용자의 재조회·재시도는 각각 집계하며 고유 열람 인원이 아닙니다. 기존 누적 조회수는 열람자별 기록이 없어 소급 보정하지 않습니다.
+- 새 공지는 Client가 만든 공지 UUID를 유지하며 `expectedVersion: 0`으로 저장합니다. 같은 ID·같은 본문의 재전송은 기존 글을 반환하고 다른 본문은 `409`입니다.
+- 수정은 조회한 `version`과 새 `requestId`를 전송합니다. 같은 `requestId`·같은 본문은 기존 결과를 반환합니다. 기대 버전이나 같은 요청의 본문이 다르면 `409`입니다.
+- 저장의 제목·본문·상단 표시·기대 버전을 SHA-256으로 비교합니다. 같은 관리대상의 저장을 PostgreSQL advisory lock으로 직렬화하며 번호는 삭제 후 재사용하지 않습니다.
+- 응답 유실에는 공지 ID·요청 ID·제출한 본문을 유지해 같은 요청을 다시 보냅니다. 재시도도 현재 권한을 확인합니다. 이미 삭제한 글의 삭제 재시도는 원래 작성자에게 `204`입니다.
+- 업로드는 같은 `assetId`로 재시도합니다. 업로더·관리대상·파일명·종류·바이트 해시가 같으면 기존 참조를 반환하고, 같은 ID의 다른 파일은 `409`입니다.
+
+## 이미지·첨부파일
+
+- 신규 업로드 원본은 기존 S3 클라이언트·버킷의 `notices/` 경로에 저장합니다. DB `notice_assets`에는 자산 ID·관리대상·업로더·연결 공지·S3 키·파일명·MIME·크기·해시·이미지 여부를 저장합니다.
+- 본문 이미지는 JSON 노드의 `attrs.src`, 첨부파일은 루트 `files` 배열의 `data`에 자산 API 상대 경로를 저장합니다. 여러 이미지와 파일을 각기 독립된 자산으로 참조합니다.
+- 글자 크기와 색상은 `textStyle` mark의 `attrs.fontSize`·`attrs.color`에 보존합니다. 현재 편집기는 RGB 색상 선택기를 사용하고 선택한 색상은 `#RRGGBB`로 저장합니다. 기존 공통 색상 토큰 참조(`var(--primary)`, `var(--danger)` 등)도 열람·수정을 유지합니다. 기본색 복원은 색상 속성만 해제해 다른 서식을 유지합니다.
+- 업로드당 20MiB, 첨부파일 목록은 최대 10개입니다. 본문 이미지 형식은 PNG·JPEG·WebP입니다. 일반 첨부는 `application/octet-stream` 다운로드로 제공합니다.
+- 업로드 직후에는 업로더만 읽을 수 있습니다. 게시·수정과 같은 DB 트랜잭션에서 파일을 공지에 연결합니다. 다른 관리대상·다른 업로더·다른 공지의 자산 참조는 거부합니다.
+- 게시된 자산을 다른 관리자가 읽으려면 현재 관리 권한과 삭제되지 않은 연결 공지가 필요합니다. S3 공개 URL이나 프런트엔드 AWS 키를 사용하지 않습니다.
+- S3 쓰기와 DB 커밋은 원자적이지 않습니다. 서버가 결정한 ID·해시 기반 키로 재시도합니다. DB 저장 실패 후 미참조 객체가 남을 수 있으며 자동 정리 배치는 아직 없습니다. 초안 복구를 보존하기 위해 본문에서 제거한 파일을 즉시 물리 삭제하지 않습니다.
+- 기존 Base64 이미지·첨부는 호환 열람·수정을 유지하며 자동 이관하지 않습니다. 새 파일 선택은 S3 업로드를 사용합니다.
+- 버킷 IAM에는 기존 `profiles/*`와 별도로 `notices/*`의 GetObject·PutObject·DeleteObject 권한이 필요합니다. S3 미설정·접근 실패에는 `503 NOTICE_STORAGE_UNAVAILABLE`을 반환하며 DB Base64 저장으로 대체하지 않습니다.
+
+## 오류
+
+입력 `400 INVALID_NOTICE_REQUEST`, 권한 `403 NOTICE_EDIT_FORBIDDEN`, 찾을 수 없음 `404 NOTICE_NOT_FOUND`, 버전·재시도 충돌 `409 NOTICE_CONFLICT`, S3 실패 `503 NOTICE_STORAGE_UNAVAILABLE`, DB 실패 `503 NOTICE_SERVICE_UNAVAILABLE`로 응답합니다. 인증 오류는 공통 인증 계약을 따릅니다.

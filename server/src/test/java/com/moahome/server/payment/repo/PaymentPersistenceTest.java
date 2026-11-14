@@ -2938,7 +2938,7 @@ class PaymentPersistenceTest {
 			var snapshots = jdbc.queryForList("select * from " + schema + ".expense_allocations order by id");
 				var checksums = jdbc.queryForList("select version,checksum from " + schema + ".flyway_schema_history where version is not null order by installed_rank");
 			var upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
-			    .schemas(schema).defaultSchema(schema).load();
+			    .schemas(schema).defaultSchema(schema).target("20261113074851").load();
 			assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
 			upgraded.validate();
 			assertThat(jdbc.queryForList("select * from " + schema + ".expense_allocations order by id")).isEqualTo(snapshots);
