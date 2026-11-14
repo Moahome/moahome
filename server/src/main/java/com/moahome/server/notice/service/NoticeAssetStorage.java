@@ -1,55 +1,39 @@
 package com.moahome.server.notice.service;
 
-import java.io.IOException;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-import com.moahome.server.config.S3Properties;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.core.exception.SdkException;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import com.moahome.server.common.storage.S3Storage;
+import com.moahome.server.common.storage.StorageException;
 
-/** 기존 S3 클라이언트·버킷 설정을 재사용하며 공지 객체는 profiles와 다른 키 공간에 보관합니다. */
+/** 공지의 파일 메타데이터 검증과 오류 정책을 유지하며 S3 호출은 공통 저장소에 위임합니다. */
 @Service
 public class NoticeAssetStorage {
-	private final S3Client client;
-	private final S3Properties properties;
 
-	public NoticeAssetStorage(ObjectProvider<S3Client> clients, S3Properties properties) {
-		this.client = clients.getIfAvailable();
-		this.properties = properties;
-	}
+	private final S3Storage storage;
 
-	private void requireReady() {
-		if (client == null || properties.bucket() == null || properties.bucket().isBlank()) {
-			throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE);
-		}
+	public NoticeAssetStorage(S3Storage storage) {
+		this.storage = storage;
 	}
 
 	/** 키는 서버가 결정하며 응답 유실 시에도 같은 ID·해시의 객체만 다시 저장합니다. */
 	public void put(String key, byte[] bytes, String contentType) {
-		requireReady();
 		try {
-			client.putObject(PutObjectRequest.builder().bucket(properties.bucket()).key(key)
-				.contentType(contentType).cacheControl("private, no-store").build(), RequestBody.fromBytes(bytes));
-		} catch (SdkException exception) {
+			storage.put(key, bytes, contentType);
+		} catch (StorageException exception) {
 			throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE);
 		}
 	}
 
-	/** 인증·권한을 확인한 메타데이터의 키만 읽고 예상 크기보다 큰 객체를 반환하지 않습니다. */
+	/** 권한을 확인한 메타데이터의 키만 읽고 크기가 다르거나 객체가 없으면 기존 저장소 장애로 안내합니다. */
 	public byte[] read(String key, long size) {
-		requireReady();
-		try (var response = client.getObject(GetObjectRequest.builder().bucket(properties.bucket()).key(key).build())) {
-			byte[] bytes = response.readNBytes(Math.toIntExact(size) + 1);
+		try {
+			byte[] bytes = storage.read(key, Math.toIntExact(size)).bytes();
 			if (bytes.length != size) {
 				throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE);
 			}
 			return bytes;
-		} catch (SdkException | IOException exception) {
+		} catch (StorageException exception) {
 			throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE);
 		}
 	}

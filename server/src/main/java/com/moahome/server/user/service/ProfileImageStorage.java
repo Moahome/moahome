@@ -1,46 +1,41 @@
 package com.moahome.server.user.service;
 
-import java.io.IOException;
 import java.util.UUID;
+import com.moahome.server.common.storage.S3Storage;
+import com.moahome.server.common.storage.StorageException;
+import com.moahome.server.common.storage.StorageException.Reason;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.moahome.server.config.S3Properties;
 import com.moahome.server.user.exception.ProfileImageException;
 import com.moahome.server.user.exception.ProfileImageException.Code;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
-
-import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.core.exception.SdkException;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.GetObjectResponse;
-import software.amazon.awssdk.services.s3.model.GetObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
-import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 @Service
 public class ProfileImageStorage {
 	private static final Logger LOG = LoggerFactory.getLogger(ProfileImageStorage.class);
-	private static final String URL_PREFIX = "/api/users/me/profile-image?v=";
-	private static final Pattern REFERENCE = Pattern.compile(Pattern.quote(URL_PREFIX)
-	    + "([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})");
-	private static final int MAX_STORED_BYTES = 2 * 1024 * 1024;
-	private final S3Client client;
-	private final S3Properties properties;
 
-	public ProfileImageStorage(ObjectProvider<S3Client> clients, S3Properties properties) {
-		this.client = clients.getIfAvailable();
-		this.properties = properties;
+	private static final String URL_PREFIX = "/api/users/me/profile-image?v=";
+
+	private static final Pattern REFERENCE = Pattern
+	    .compile(Pattern.quote(URL_PREFIX) + "([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})");
+
+	private static final int MAX_STORED_BYTES = 2 * 1024 * 1024;
+
+	private final S3Storage storage;
+
+	public ProfileImageStorage(S3Storage storage) {
+		this.storage = storage;
 	}
 
+	/** 저장소 준비 오류는 프로필 API의 기존 오류 코드로 변환합니다. */
 	public void requireReady() {
-		if (client == null || properties.bucket() == null || properties.bucket().isBlank()) {
+		try {
+			storage.requireReady();
+		} catch (StorageException exception) {
 			throw new ProfileImageException(Code.PROFILE_IMAGE_UNAVAILABLE);
 		}
 	}
@@ -50,10 +45,9 @@ public class ProfileImageStorage {
 		requireReady();
 		String reference = URL_PREFIX + UUID.randomUUID();
 		try {
-			client.putObject(PutObjectRequest.builder().bucket(properties.bucket()).key(key(userId, reference))
-			    .contentType("image/png").cacheControl("private, no-store").build(), RequestBody.fromBytes(image));
+			storage.put(key(userId, reference), image, "image/png");
 			return reference;
-		} catch (SdkException exception) {
+		} catch (StorageException exception) {
 			// 응답 유실 시 업로드 성공 여부가 불명확할 수 있어 미확정 객체는 운영 점검 대상입니다.
 			throw new ProfileImageException(Code.PROFILE_IMAGE_UNAVAILABLE);
 		}
@@ -63,18 +57,16 @@ public class ProfileImageStorage {
 	public byte[] read(UUID userId, String reference) {
 		requireReady();
 		String objectKey = key(userId, reference);
-		try (ResponseInputStream<GetObjectResponse> response = client.getObject(GetObjectRequest.builder()
-		    .bucket(properties.bucket()).key(objectKey).build())) {
-			byte[] image = response.readNBytes(MAX_STORED_BYTES + 1);
-			if (image.length == 0 || image.length > MAX_STORED_BYTES
-			    || !"image/png".equals(response.response().contentType())) {
+		try {
+			var object = storage.read(objectKey, MAX_STORED_BYTES);
+			byte[] image = object.bytes();
+			if (image.length == 0 || !"image/png".equals(object.contentType())) {
 				throw new ProfileImageException(Code.PROFILE_IMAGE_UNAVAILABLE);
 			}
 			return image;
-		} catch (NoSuchKeyException exception) {
-			throw new ProfileImageException(Code.PROFILE_IMAGE_NOT_FOUND);
-		} catch (SdkException | IOException exception) {
-			throw new ProfileImageException(Code.PROFILE_IMAGE_UNAVAILABLE);
+		} catch (StorageException exception) {
+			throw new ProfileImageException(
+			    exception.reason() == Reason.NOT_FOUND ? Code.PROFILE_IMAGE_NOT_FOUND : Code.PROFILE_IMAGE_UNAVAILABLE);
 		}
 	}
 
@@ -85,7 +77,7 @@ public class ProfileImageStorage {
 		}
 		try {
 			requireReady();
-			client.deleteObject(DeleteObjectRequest.builder().bucket(properties.bucket()).key(key(userId, reference)).build());
+			storage.delete(key(userId, reference));
 		} catch (RuntimeException exception) {
 			// 원문 파일명·AWS 응답·키·사용자 개인정보는 로그에 포함하지 않습니다.
 			LOG.warn("프로필 사진 객체 정리에 실패했습니다. 미참조 객체 점검이 필요합니다.");
@@ -99,8 +91,8 @@ public class ProfileImageStorage {
 		}
 		requireReady();
 		try {
-			client.deleteObject(DeleteObjectRequest.builder().bucket(properties.bucket()).key(key(userId, reference)).build());
-		} catch (SdkException exception) {
+			storage.delete(key(userId, reference));
+		} catch (StorageException exception) {
 			throw new ProfileImageException(Code.PROFILE_IMAGE_UNAVAILABLE);
 		}
 	}

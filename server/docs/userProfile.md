@@ -2,6 +2,8 @@
 
 공통 요청·응답·파일 제한은 [본인 프로필 API](../../docs/api/userProfileApi.md), 저장 컬럼은 [ERD](../../docs/domain/erd.md#41-users)를 따릅니다. 사진 자체는 별도 테이블·Migration 없이 기존 컬럼을 사용합니다. 탈퇴 유예 상태·인증 버전은 아래 후속 Migration으로 추가합니다.
 
+2026-11-14 공통화: `ProfileImageStorage`와 공지의 `NoticeAssetStorage`는 `common/storage/S3Storage`로 SDK 호출·준비 확인·저장소 오류 변환을 공유합니다. 프로필 참조·키 생성, PNG·크기 검증, 교체 후 정리와 탈퇴 정리의 서로 다른 실패 정책은 `ProfileImageStorage`에 유지합니다.
+
 ## 저장과 정리 순서
 
 `ProfileImageService.save`는 정상 계정 확인 → 파일 검증·PNG 재인코딩 → 새 객체 업로드 → 최신 계정 행 잠금 아래 이름·사진 참조 변경 → DB 커밋 → 이전 객체 삭제 순서로 처리합니다. 소셜 이미지나 외부 주소는 삭제 대상에 포함하지 않습니다.

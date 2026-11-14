@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.util.UUID;
 
 import com.moahome.server.config.S3Properties;
+import com.moahome.server.common.storage.S3Storage;
 import com.moahome.server.user.exception.ProfileImageException;
 import com.moahome.server.user.exception.ProfileImageException.Code;
 
@@ -20,6 +21,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -33,7 +35,7 @@ class ProfileImageStorageTest {
 	private ProfileImageStorage storage(S3Client value) {
 		ObjectProvider<S3Client> clients = mock(ObjectProvider.class);
 		when(clients.getIfAvailable()).thenReturn(value);
-		return new ProfileImageStorage(clients, new S3Properties("test-private-bucket", "ap-northeast-2", ""));
+		return new ProfileImageStorage(new S3Storage(clients, new S3Properties("test-private-bucket", "ap-northeast-2", "")));
 	}
 
 	@Test
@@ -78,6 +80,22 @@ class ProfileImageStorageTest {
 		assertThatThrownBy(() -> storage.read(userId, reference)).isInstanceOf(ProfileImageException.class);
 		when(client.getObject(any(GetObjectRequest.class))).thenReturn(response("image/png", new byte[2 * 1024 * 1024 + 1]));
 		assertThatThrownBy(() -> storage.read(userId, reference)).isInstanceOf(ProfileImageException.class);
+	}
+
+	@Test
+	void missingPhotoAndWithdrawalCleanupKeepTheirDistinctFailurePolicies() {
+		ProfileImageStorage storage = storage(client);
+		String reference = "/api/users/me/profile-image?v=" + UUID.randomUUID();
+		when(client.getObject(any(GetObjectRequest.class)))
+			.thenThrow(NoSuchKeyException.builder().build());
+		assertThatThrownBy(() -> storage.read(userId, reference))
+			.isInstanceOfSatisfying(ProfileImageException.class,
+				failure -> assertThat(failure.code()).isEqualTo(Code.PROFILE_IMAGE_NOT_FOUND));
+		when(client.deleteObject(any(DeleteObjectRequest.class)))
+			.thenThrow(S3Exception.builder().statusCode(503).build());
+		assertThatThrownBy(() -> storage.deleteForAccountWithdrawal(userId, reference))
+			.isInstanceOfSatisfying(ProfileImageException.class,
+				failure -> assertThat(failure.code()).isEqualTo(Code.PROFILE_IMAGE_UNAVAILABLE));
 	}
 
 	private ResponseInputStream<GetObjectResponse> response(String type, byte[] bytes) {
