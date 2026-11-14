@@ -49,7 +49,7 @@
 - 주민 대상 알림톡/SMS는 우선 `residents`의 전화번호를 사용
 - 향후 계정 자체 휴대폰 인증/복구/공통 연락처 기능이 필요하면 `user_contacts` 같은 별도 엔티티 검토
 
-[건물별 공지·명부 발송·채널톡 문의 기획](../plans/residentCommunication.md)에 따른 공지·수신 대상·발송 결과·상담 연결·차량 자료의 저장 구조는 아직 설계하지 않았습니다. 기존 `residents`와 `Property`를 참조하는 방향이며, 채널톡 식별정보를 로그인 계정이나 `property_members` 접근 권한으로 대신 사용하지 않습니다. 수신자별 접근 링크도 미확정 설계안으로, 이 ERD에 확정 테이블·컬럼이나 Migration을 추가하지 않습니다.
+관리자 공지와 파일의 `notices`·`notice_assets`는 [공지사항 API](../api/noticeApi.md) 및 기존 Migration으로 구현했습니다. [주민 비로그인 열람·전용 링크](../plans/residentCommunication.md#주민-비로그인-열람과-전용-링크), 수신 대상·발송 결과·상담 연결·차량 자료의 저장 구조는 후속 설계입니다. 기존 `residents`와 `Property`를 참조하는 방향이며, 채널톡 식별정보를 로그인 계정이나 `property_members` 접근 권한으로 대신 사용하지 않습니다. 수신자별 접근 링크·열람 세션은 미확정 설계안으로, 이번 문서 기획을 이유로 확정 테이블·컬럼이나 Migration을 추가하지 않습니다.
 
 ### 0.3 User와 Resident 관계
 

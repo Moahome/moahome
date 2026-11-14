@@ -42,7 +42,7 @@
 
 - [관리대상 생성 권한과 시스템 관리 개발 계획](plans/systemAdministration.md)
 - [관리비 부과 변경 기획](plans/billingSettings.md)
-- [건물별 공지·주민 안내 기획](plans/residentCommunication.md) · [공지사항 화면·편집기 우선 기획](plans/residentCommunication.md#공지사항-우선-기획)
+- [건물별 공지·주민 안내 기획](plans/residentCommunication.md) · [공지사항 구현 상태](plans/residentCommunication.md#공지사항-우선-기획) · [주민 비로그인 열람·전용 링크 설계안](plans/residentCommunication.md#주민-비로그인-열람과-전용-링크)
 - [초기 설정 주민 명부·전화번호 동의 구현 범위](plans/residentRegistrationSetup.md)
 - [회계·정산과 손익계산서 확정 범위·개발 계획](plans/accountingSettlement.md)
 - [기본 계정 코드·통장 입출금 연결 설계](plans/accountingSettlement.md#31-기본-계정-코드)
