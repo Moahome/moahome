@@ -22,7 +22,7 @@ MemberManagementService는 역할 변경·인계·외부 관리자 초대와 본
 
 ## 가입 요청 대상과 승인 관리 조회
 
-`MembershipRequestService.unlinkedResidents`는 현재 관리소장·부관리자 참여 확인 후 `ResidentRepository.findUnlinkedResidents`로 같은 관리대상의 미삭제·계정 미연결 주민을 조회합니다. 승인 상태 조회와 분리하고 이름·끝 네 자리·현재 동·호수·주민 구분만 읽습니다. 현재 세대가 없어도 LEFT JOIN으로 주민 행을 유지하며 계정 ID·전화번호 암호문을 읽거나 복호화하지 않습니다.
+`MembershipRequestService.unlinkedResidents`는 현재 관리소장·동대표 참여 확인 후 `ResidentRepository.findUnlinkedResidents`로 같은 관리대상의 미삭제·계정 미연결 주민을 조회합니다. 승인 상태 조회와 분리하고 이름·끝 네 자리·현재 동·호수·주민 구분만 읽습니다. 현재 세대가 없어도 LEFT JOIN으로 주민 행을 유지하며 계정 ID·전화번호 암호문을 읽거나 복호화하지 않습니다.
 
 실제 신청 workspace와 승인·거절 트랜잭션은 그대로 사용합니다. 미연결 주민을 승인 대기 요청으로 생성하지 않으며 검색·페이지네이션은 Client에서 수행합니다. 개인 초대·공통 코드 저장은 아래 별도 서비스와 Migration에서 처리합니다.
 

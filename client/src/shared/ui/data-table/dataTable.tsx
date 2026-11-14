@@ -25,6 +25,8 @@ export function DataTable<Row>({
   onRowClick,
   expandedRowKey,
   renderExpandedRow,
+  getRowClassName,
+  className,
 }: {
   label: string;
   rows: readonly Row[];
@@ -35,10 +37,12 @@ export function DataTable<Row>({
   onRowClick?: (row: Row) => void;
   expandedRowKey?: string | null;
   renderExpandedRow?: (row: Row) => ReactNode;
+  getRowClassName?: (row: Row) => string | undefined;
+  className?: string;
 }) {
   return (
     <div
-      className={styles.scroll}
+      className={[styles.scroll, className].filter(Boolean).join(' ')}
       tabIndex={0}
       role={'region'}
       aria-label={`${label} 표 스크롤`}
@@ -73,6 +77,7 @@ export function DataTable<Row>({
               key={getRowKey(row)}
             >
               <tr
+                className={getRowClassName?.(row)}
                 data-clickable={Boolean(onRowClick)}
                 tabIndex={onRowClick ? 0 : undefined}
                 onKeyDown={onRowClick ? (event) => {

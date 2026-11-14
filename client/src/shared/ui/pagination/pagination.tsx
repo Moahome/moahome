@@ -12,6 +12,7 @@ export function Pagination({
   pageCount,
   pageSize,
   onPageChange,
+  showCount = true,
 }: {
   label: string;
   unit: string;
@@ -20,6 +21,7 @@ export function Pagination({
   pageCount: number;
   pageSize: number;
   onPageChange: (page: number) => void;
+  showCount?: boolean;
 }) {
   const firstPage = Math.floor((page - 1) / 5) * 5 + 1;
   const lastPage = Math.min(firstPage + 4, pageCount);
@@ -31,16 +33,19 @@ export function Pagination({
   return (
     <footer
       className={styles.footer}
+      data-show-count={showCount}
     >
-      <p
-        className={styles.count}
-        aria-live={'polite'}
-      >
-        총
-        {total}
-        {unit}
-        {total > 0 && ` 중 ${firstIndex + 1}–${Math.min(firstIndex + pageSize, total)}`}
-      </p>
+      {showCount && (
+        <p
+          className={styles.count}
+          aria-live={'polite'}
+        >
+          총
+          {total}
+          {unit}
+          {total > 0 && ` 중 ${firstIndex + 1}–${Math.min(firstIndex + pageSize, total)}`}
+        </p>
+      )}
       <nav
         className={styles.pagination}
         aria-label={label}

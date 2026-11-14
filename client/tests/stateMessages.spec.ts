@@ -85,6 +85,13 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
       };
       if (path.endsWith('/access-context')) return json(route, property);
       if (path.endsWith('/dashboard')) return json(route, emptyDashboardFixture(PROPERTY));
+      if (path.endsWith('/notices')) return json(route, {
+        propertyId: PROPERTY,
+        items: [],
+        total: 0,
+        page: 1,
+        pageCount: 1
+      });
       if (path.endsWith('/managed-properties')) return json(route, {
         properties: [property]
       });
@@ -458,7 +465,7 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
       }
     });
 
-    test(`대시보드 ${width}px에서 준비 중 공지·차량 메뉴로 이동하고 모바일 메뉴를 닫음`, async ({ page }) => {
+    test(`대시보드 ${width}px에서 공지 목록·준비 중 차량 메뉴로 이동하고 모바일 메뉴를 닫음`, async ({ page }) => {
       await page.setViewportSize({
         width,
         height: 900
@@ -494,9 +501,9 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
           exact: true
         })).toBeVisible();
         const state = page.getByRole('status', {
-          name: '새로운 기능을 준비하고 있어요!'
+          name: path === 'notices' ? '아직 등록된 공지사항이 없어요.' : '새로운 기능을 준비하고 있어요!'
         });
-        await expect(state.locator('img')).toHaveAttribute('src', /comingSoon/);
+        await expect(state.locator('img')).toHaveAttribute('src', path === 'notices' ? /emptyNotice/ : /comingSoon/);
         if (width < 768) await expect(navigation).toBeHidden();
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       }

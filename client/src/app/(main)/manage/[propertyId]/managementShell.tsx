@@ -85,6 +85,13 @@ function ManagementShellContent({ propertyId, children }: { propertyId: string; 
 /** 직접 접근에서도 같은 관리대상 안의 목록·상세로 돌아가는 모바일 헤더를 구성합니다. */
 function getMobileBack(pathname: string, basePath: string, month: string | null, account: string | null, period: URLSearchParams, datePeriod: URLSearchParams, context: URLSearchParams) {
   const periodSuffix = period.size ? `?${period}` : '';
+  if (pathname.startsWith(`${basePath}/notices/`)) {
+    return {
+      href: pathname.endsWith('/edit') ? pathname.slice(0, -5) : `${basePath}/notices`,
+      label: '뒤로가기',
+      title: pathname.endsWith('/new') ? '공지 작성' : pathname.endsWith('/edit') ? '공지 수정' : '공지사항'
+    };
+  }
   if (pathname.startsWith(`${basePath}/accounting/payables/`)) {
     return {
       href: `${basePath}/accounting/ledger${context.size ? `?${context}` : ''}`,

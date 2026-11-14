@@ -1,10 +1,11 @@
-import { ComingSoonPage } from '@/screens/coming-soon';
+import { NoticePage } from '@/screens/notices';
 
-export default function Page() {
+export default async function Page({ params }: PageProps<'/manage/[propertyId]/notices'>) {
+  const { propertyId } = await params;
+
   return (
-    <ComingSoonPage
-      menu={'공지사항'}
-      title={'공지사항'}
+    <NoticePage
+      propertyId={propertyId}
     />
   );
 }

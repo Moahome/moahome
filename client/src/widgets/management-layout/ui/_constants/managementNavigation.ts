@@ -146,7 +146,7 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
     label: '공지사항',
     icon: 'notice',
     path: 'notices',
-    available: false
+    available: true
   },
   {
     id: 'settings',
