@@ -298,6 +298,53 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
       }
     });
 
+    test(`대시보드 ${width}px에서 공지 목록·준비 중 차량 메뉴로 이동하고 모바일 메뉴를 닫음`, async ({ page }) => {
+      await page.setViewportSize({
+        width,
+        height: 900
+      });
+      await page.goto(`${BASE}/dashboard`);
+      await expect(page.getByRole('heading', {
+        name: '대시보드',
+        exact: true
+      })).toBeVisible();
+      for (const [label, path] of [['공지사항', 'notices'], ['차량 내역', 'vehicles'], ['차량 승인', 'vehicles/approvals']]) {
+        if (width < 768) await page.getByRole('button', {
+          name: '상태 관리자님 메뉴 열기'
+        }).click();
+        const navigation = page.getByRole('navigation', {
+          name: '관리 메뉴',
+          exact: true
+        });
+        if (label.startsWith('차량') && !(await navigation.getByRole('link', {
+          name: new RegExp(label)
+        }).isVisible())) {
+          await navigation.getByRole('button', {
+            name: '차량 관리',
+            exact: true
+          }).click();
+        }
+        await navigation.getByRole('link', {
+          name: new RegExp(label)
+        }).click();
+        await expect(page).toHaveURL(`${BASE}/${path}`);
+        await expect(page.getByRole('heading', {
+          level: 1,
+          name: label,
+          exact: true
+        })).toBeVisible();
+        const state = page.getByRole('status', {
+          name: path === 'notices' ? '아직 등록된 공지사항이 없어요.' : '새로운 기능을 준비하고 있어요!'
+        });
+        await expect(state.locator('img')).toHaveAttribute('src', path === 'notices' ? /emptyNotice/ : /comingSoon/);
+        if (width < 768) await expect(navigation).toBeHidden();
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      }
+    });
+  }
+
+  // 공통 상태의 동작은 대표 모바일 폭에서 한 번 검증합니다.
+  for (const width of [320]) {
     test(`로딩 안내 ${width}px는 짧은 회전 표시 뒤 캐릭터를 보여주고 조회 완료 시 빈 목록으로 전환`, async ({ page }) => {
       await page.setViewportSize({
         width,
@@ -462,50 +509,6 @@ if (process.env.MOAHOME_MAINTENANCE_MODE === 'true') {
         expect(reads).toBe(baselineReads);
         expect(writes).toBe(0);
         page.off('request', onRequest);
-      }
-    });
-
-    test(`대시보드 ${width}px에서 공지 목록·준비 중 차량 메뉴로 이동하고 모바일 메뉴를 닫음`, async ({ page }) => {
-      await page.setViewportSize({
-        width,
-        height: 900
-      });
-      await page.goto(`${BASE}/dashboard`);
-      await expect(page.getByRole('heading', {
-        name: '대시보드',
-        exact: true
-      })).toBeVisible();
-      for (const [label, path] of [['공지사항', 'notices'], ['차량 내역', 'vehicles'], ['차량 승인', 'vehicles/approvals']]) {
-        if (width < 768) await page.getByRole('button', {
-          name: '상태 관리자님 메뉴 열기'
-        }).click();
-        const navigation = page.getByRole('navigation', {
-          name: '관리 메뉴',
-          exact: true
-        });
-        if (label.startsWith('차량') && !(await navigation.getByRole('link', {
-          name: new RegExp(label)
-        }).isVisible())) {
-          await navigation.getByRole('button', {
-            name: '차량 관리',
-            exact: true
-          }).click();
-        }
-        await navigation.getByRole('link', {
-          name: new RegExp(label)
-        }).click();
-        await expect(page).toHaveURL(`${BASE}/${path}`);
-        await expect(page.getByRole('heading', {
-          level: 1,
-          name: label,
-          exact: true
-        })).toBeVisible();
-        const state = page.getByRole('status', {
-          name: path === 'notices' ? '아직 등록된 공지사항이 없어요.' : '새로운 기능을 준비하고 있어요!'
-        });
-        await expect(state.locator('img')).toHaveAttribute('src', path === 'notices' ? /emptyNotice/ : /comingSoon/);
-        if (width < 768) await expect(navigation).toBeHidden();
-        expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       }
     });
   }

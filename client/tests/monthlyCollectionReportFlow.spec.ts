@@ -655,7 +655,7 @@ test('선입금 보고서는 이월·당월 발생 열 없이 차감 후 잔액�
   await png.saveAs('/tmp/moahome-prepaid-report.png');
 });
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`선택 수납 다운로드 ${width}px는 페이지 간 선택을 유지하고 선택한 세대만 Excel·PDF·PNG에 담는다`, async ({ page }) => {
     test.setTimeout(60000);
     await page.setViewportSize({

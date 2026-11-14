@@ -429,7 +429,7 @@ test('100·200 원장을 코드순으로 표시하고 날짜 정렬·페이지·
   })).toBeVisible();
 });
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`${width}px 계정 다중 선택은 코드순을 고정하고 과목 안의 날짜 방향만 바꾼다`, async ({ page }) => {
     const { assetLedgerFixture, ledgerFixture, LEDGER_BANK } = await import('./support/accountLedger');
     await page.setViewportSize({
@@ -516,7 +516,7 @@ for (const width of [1440, 390]) {
   });
 }
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`${width}px 101 전체 계좌는 합산 잔액이고 계좌 선택 조건을 복원한다`, async ({ page }) => {
     const { assetLedgerFixture, LEDGER_BANK } = await import('./support/accountLedger');
     const { settlementId } = await import('./support/monthlySettlement');

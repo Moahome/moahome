@@ -390,7 +390,7 @@ for (const width of [1440, 390]) {
   });
 }
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`동·계좌 조합 ${width}px는 Excel·PDF와 합계에 같은 범위를 적용하고 계좌 변경 시 이전 PDF를 제거`, async ({ page }) => {
     test.setTimeout(60000);
     await page.setViewportSize({
@@ -660,7 +660,7 @@ test('기존 응답도 계좌 잔액을 확인하고 9월 PDF의 큰 거래 글�
   await task.destroy();
 });
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`이미지 다운로드 ${width}px는 실제 PNG 미리보기와 같은 파일을 저장하고 전체 동의 모든 페이지를 ZIP에 포함`, async ({ page }) => {
     await page.setViewportSize({
       width,

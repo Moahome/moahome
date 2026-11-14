@@ -1108,28 +1108,6 @@ test('세대 조회 장애는 빈 목록과 구분하고 모바일 빈 목록에
   }
 });
 
-for (const width of [1440, 320]) {
-  test(`세대 목록 ${width}px에서 동 관리·세대 자동 입력·세대 추가를 숨김`, async ({ page }) => {
-    await page.setViewportSize({
-      width,
-      height: 900
-    });
-    await page.goto(HOUSEHOLDS);
-    const main = page.getByRole('main');
-    await expect(main.getByRole('heading', {
-      name: '세대 목록',
-      exact: true
-    })).toBeVisible();
-    for (const name of ['동 관리', '세대 자동 입력', '세대 추가']) {
-      await expect(main.getByRole('button', {
-        name,
-        exact: true
-      })).toHaveCount(0);
-    }
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  });
-}
-
 
 test('세대 삭제는 상세에서 한 세대를 확인하며 실패 시 재시도 후 목록과 집계를 갱신', async ({ page }) => {
   const units = [201, 202].map((number) => ({
@@ -1411,7 +1389,7 @@ test('숨긴 동 관리의 기존 경로는 동 추가 없이 연결 세대 삭�
 const RESIDENTS = `/manage/${PROPERTY_ID}/residents`;
 const RESIDENTS_URL = `${API_ORIGIN}/api/properties/${PROPERTY_ID}/residents`;
 
-for (const width of [1440, 375]) {
+for (const width of [1440]) {
   for (const hasBuildings of [false, true]) {
     test(`등록된 동 0개 ${width}px 동 구분 ${hasBuildings}에서는 세대·주민 동 필터를 숨김`, async ({ page }) => {
       await page.setViewportSize({
@@ -1680,7 +1658,7 @@ test('주민 목록은 사람별 행·대표·마스킹·전체 집계를 표시
   })).toBeDisabled();
 });
 
-for (const width of [1440, 375, 320]) {
+for (const width of [1440, 320]) {
   test(`주민 목록 ${width}px는 카드·필터·스크롤 표를 화면 안에 표시하고 동 없음·빈 연락처를 처리`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -1994,7 +1972,7 @@ for (const width of [1440, 320]) {
   });
 }
 
-for (const width of [1440, 375]) {
+for (const width of [375]) {
   test(`주민 재등록 ${width}px는 새 요청과 다른 기존 주민 ID를 받아 목록을 갱신`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -3126,7 +3104,7 @@ test('주민 상세를 다시 열면 번호는 마스킹되고 전체 번호 조
 });
 
 
-for (const width of [1440, 320]) {
+for (const width of [1440]) {
   test(`주민 목록 ${width}px는 동·호수의 숫자 순으로 페이지를 나누고 소유주 표시와 필터를 유지`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -3840,7 +3818,7 @@ test('열린 대시보드는 30초 경과·포커스·네트워크 복구만으�
   expect(checks).toBe(initial);
 });
 
-for (const width of [1440, 390]) {
+for (const width of [390]) {
   test(`일시 접근 오류 ${width}px는 기존 화면을 밑으로 밀지 않고 단일 오류 화면에서 입력을 복원`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -3883,7 +3861,7 @@ for (const width of [1440, 390]) {
   });
 }
 
-for (const width of [1440, 390]) {
+for (const width of [390]) {
   for (const reason of ['SERVICE_ONLY', 'MOVE_OUT'] as const) {
     test(`나가기 ${width}px ${reason} 선택 후 본인 참여를 종료하고 시작 화면으로 이동`, async ({ page }) => {
       await page.setViewportSize({

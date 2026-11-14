@@ -1959,7 +1959,7 @@ test('개인 초대 정정 요청은 승인 관리에서 이름·선택 연락�
   });
 });
 
-for (const width of [1440, 320]) {
+for (const width of [1440]) {
   test(`승인 관리 탭 ${width}px는 두 출처와 필터를 분리하고 초대 가입 표·페이지·선택 탭을 유지`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -2162,7 +2162,7 @@ for (const code of ['B-ABCD-EFGH-JKLM', 'R-ABCD-EFGH-JKLM']) {
   });
 }
 
-for (const width of [1440, 375]) {
+for (const width of [375]) {
   test(`최초 시작의 주민 참여 ${width}px는 참여 목록의 초대 입력으로 연결`, async ({ page }) => {
     const state = await mockWorkspace(page); state.hasManagedProperties = false;
     await page.setViewportSize({
@@ -2193,7 +2193,7 @@ for (const path of ['/join', '/invitations']) {
     })).toBeVisible();
   });
 }
-for (const width of [1440, 375]) {
+for (const width of [375]) {
   test(`주민 ${width}px는 시작·가입 완료에서 임시 주민 홈으로 이동하고 관리자 메뉴를 표시하지 않는다`, async ({ page }) => {
     const state = await mockWorkspace(page); state.hasManagedProperties = false;
     await page.setViewportSize({

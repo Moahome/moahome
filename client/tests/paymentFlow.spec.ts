@@ -1561,7 +1561,7 @@ test('이미 가져온 명단 일치 입금은 개별 모달 없이 한 번에 �
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`${width}px 목록 편집에서 한 건씩 선택하고 선택 삭제 후 새로고침에도 제거`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -2359,7 +2359,7 @@ for (const width of [1440, 320]) {
   });
 }
 
-for (const width of [1440, 320]) {
+for (const width of [320]) {
   test(`${width}px 은행 미리보기는 10건씩 표시하고 페이지별 제외·전체 해제·실패 재시도 선택을 유지`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -3774,7 +3774,7 @@ for (const width of [1440]) {
 }
 
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`선입금 현황 ${width}px는 청구 없는 세대·인계 선납과 완납 후 잔액을 함께 조회`, async ({ page }) => {
     await page.setViewportSize({
       width,

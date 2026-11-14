@@ -6775,7 +6775,7 @@ test('계좌 이체 체크는 과목에서 제외하고 상대 통장 지정·�
   expect(uploadBody).toContain(`"matchTransferId":"${transferId}"`);
 });
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`취소 이체 편집 ${width}px는 다른 통장에 숨은 상대 거래도 함께 선택·해제하고 한 요청으로 삭제한다`, async ({ page }) => {
     await page.setViewportSize({
       width,

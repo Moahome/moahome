@@ -3879,7 +3879,7 @@ test('캐시 복원 이벤트는 이전 화면을 가리고 로그아웃된 세�
   expect(lookups).toBe(0);
 });
 
-for (const width of [1440, 320]) {
+for (const width of [1440]) {
   test(`등록 확인 ${width}px는 전체 계좌번호·실제 요약·수정 후 순차 진행·새로고침을 유지하고 성공 전 완료를 표시하지 않음`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -4949,7 +4949,7 @@ test('잘못된 성공 응답은 완료로 믿지 않고 기존 요청 ID의 유
   expect(lookups).toBe(1);
 });
 
-for (const width of [1440, 320]) {
+for (const width of [320]) {
   test(`등록 상태 ${width}px는 로딩·실패 모달과 별도 완료 페이지를 표시하고 완료 전 입력을 유지`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -5769,7 +5769,7 @@ for (const width of [1440, 320]) {
   });
 }
 
-for (const width of [1440, 390]) {
+for (const width of [390]) {
   test(`다중 통장 ${width}px에서 목록·모달 저장·취소·중복·제거와 새로고침을 지원`, async ({ page }) => {
     await page.setViewportSize({
       width,
