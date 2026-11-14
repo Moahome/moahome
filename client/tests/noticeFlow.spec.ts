@@ -139,6 +139,74 @@ async function mockNotices(page: Page, content = CONTENT, canDeleteOthers = true
   return saves;
 }
 
+test('별도 공개 설정 없이 공지를 관리하고 건물 링크를 발급·회수', async ({ page }) => {
+  await mockNotices(page);
+  let link: { id: string; token: string; createdAt: string } | null = null;
+  await page.route(/\/api\/properties\/[^/]+\/resident-notices\//, async (route) => {
+    const headers = {
+      'Access-Control-Allow-Origin': 'http://localhost:3100',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Headers': 'authorization, content-type',
+      'Access-Control-Allow-Methods': 'GET, PUT, DELETE, OPTIONS'
+    };
+    if (route.request().method() === 'OPTIONS') return route.fulfill({
+      status: 204,
+      headers
+    });
+    const path = new URL(route.request().url()).pathname;
+    if (route.request().method() === 'PUT') {
+      const id = path.split('/').at(-1)!;
+      link = {
+        id,
+        token: `${id}.${'A'.repeat(43)}`,
+        createdAt: '2026-11-14T00:00:00Z'
+      };
+    }
+    if (route.request().method() === 'DELETE') { link = null; return route.fulfill({
+      headers,
+      status: 204
+    }); }
+    return route.fulfill({
+      headers,
+      json: link
+    });
+  });
+  await page.goto(`${BASE}/${settlementId(200)}`);
+  await expect(page.getByText('관리자 전용', {
+    exact: true
+  })).toHaveCount(0);
+  await expect(page.getByRole('button', {
+    name: '주민 공개',
+    exact: true
+  })).toHaveCount(0);
+  await page.goto(BASE);
+  await page.getByRole('button', {
+    name: '주민 열람 링크',
+    exact: true
+  }).click();
+  const links = page.getByRole('dialog', {
+    name: '주민 열람 링크',
+    exact: true
+  });
+  await links.getByRole('button', {
+    name: '링크 발급'
+  }).click();
+  await expect(links.getByRole('textbox', {
+    name: '주민 열람 주소'
+  })).toHaveValue(/\/notices#token=/);
+  await links.getByRole('button', {
+    name: '링크 회수'
+  }).click();
+  await expect(links).toContainText('기존 링크와 열람 중인 화면');
+  await links.getByRole('button', {
+    name: '회수',
+    exact: true
+  }).click();
+  await expect(links.getByRole('button', {
+    name: '링크 발급'
+  })).toBeVisible();
+});
+
 
 test('파일 첨부·저장 후 목록·상세 다운로드·작성자 수정·삭제를 연결한다', async ({ page }) => {
   const saves = await mockNotices(page);

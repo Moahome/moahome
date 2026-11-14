@@ -1,6 +1,7 @@
 package com.moahome.server.config;
 
 import com.moahome.server.auth.security.WebAuthSupport;
+import com.moahome.server.notice.controller.ResidentNoticeController;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
@@ -30,6 +31,10 @@ public class OpenApiConfig {
 		        .addSecuritySchemes("bearerAuth",
 		            new SecurityScheme().type(SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("JWT")
 		                .description("카카오 로그인 후 받은 Access Token을 입력합니다. Bearer 접두사는 자동으로 추가됩니다."))
+		        .addSecuritySchemes("noticeAccessCookie",
+		            new SecurityScheme().type(SecurityScheme.Type.APIKEY).in(SecurityScheme.In.COOKIE)
+		                .name(ResidentNoticeController.COOKIE)
+		                .description("주민 링크 교환으로 발급한 읽기 전용 HttpOnly 쿠키입니다. 관리자 인증으로 사용할 수 없습니다."))
 		        .addSecuritySchemes("webRefreshCookie",
 		            new SecurityScheme().type(SecurityScheme.Type.APIKEY).in(SecurityScheme.In.COOKIE)
 		                .name(WebAuthSupport.COOKIE_NAME).description("로그인 시 설정된 HttpOnly Refresh 쿠키를 브라우저가 자동 전송합니다. "

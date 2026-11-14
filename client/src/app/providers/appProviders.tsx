@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode
 } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   useSession,
   clearSession,
@@ -86,14 +87,16 @@ export function AppProviders({
   children: ReactNode;
 }) {
   const [queryClient] = useState(() => new QueryClient());
+  const pathname = usePathname();
+  const residentNotice = pathname === '/notices' || pathname.startsWith('/notices/');
   useEffect(() => trackNavigationHistory(), []);
 
   return (
     <QueryClientProvider
       client={queryClient}
     >
-      <SessionBootstrap />
-      <RegistrationDraftLifecycle />
+      {!residentNotice && <SessionBootstrap />}
+      {!residentNotice && <RegistrationDraftLifecycle />}
       <AppInstallProvider>
         {children}
       </AppInstallProvider>

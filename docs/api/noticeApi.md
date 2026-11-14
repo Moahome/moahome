@@ -1,8 +1,8 @@
 # 공지사항 API
 
-현재 관리자 화면의 구현 계약입니다. 주민 비로그인 열람·문자 발송·대상 선택·게시 기간은 포함하지 않습니다. 업무 방향은 [도메인 규칙](../domain/domainRules.md#건물-안내와-주민-메시지의-확정-방향), 후속 접근 방식은 [주민 비로그인 열람·전용 링크 설계안](../plans/residentCommunication.md#주민-비로그인-열람과-전용-링크)을 참조합니다. 전용 링크와 열람 세션은 아직 구현 계약이 아니며 아래 관리자 Bearer 인증을 대체하지 않습니다.
+관리자 공지 관리와 주민 비로그인 열람의 구현 계약입니다. 메시지 자동 발송·수신자 지정·게시 기간은 후속 범위입니다. 업무 방향은 [도메인 규칙](../domain/domainRules.md#건물-안내와-주민-메시지의-확정-방향), 주민 화면 범위는 [주민 안내 기획](../plans/residentCommunication.md#주민-비로그인-열람과-전용-링크)을 참조합니다. 구현과 운영 배포는 구분합니다.
 
-모든 요청은 Bearer 인증과 현재 관리대상 접근 권한이 필요합니다. 수정은 원래 작성자만 허용합니다. 삭제는 해당 관리대상의 관리소장(`ADMIN`) 또는 원래 작성자에게 허용하며 동대표(`MANAGER`)는 타인의 공지를 삭제할 수 없습니다. 응답은 `Cache-Control: no-store`를 사용합니다.
+아래 관리자 요청은 Bearer 인증과 현재 관리대상 접근 권한이 필요합니다. 수정은 원래 작성자만 허용합니다. 삭제는 해당 관리대상의 관리소장(`ADMIN`) 또는 원래 작성자에게 허용하며 동대표(`MANAGER`)는 타인의 공지를 삭제할 수 없습니다. 응답은 `Cache-Control: no-store`를 사용합니다.
 
 기본 경로: `/api/properties/{propertyId}/notices`
 
@@ -39,3 +39,52 @@
 ## 오류
 
 입력 `400 INVALID_NOTICE_REQUEST`, 권한 `403 NOTICE_EDIT_FORBIDDEN`, 찾을 수 없음 `404 NOTICE_NOT_FOUND`, 버전·재시도 충돌 `409 NOTICE_CONFLICT`, S3 실패 `503 NOTICE_STORAGE_UNAVAILABLE`, DB 실패 `503 NOTICE_SERVICE_UNAVAILABLE`로 응답합니다. 인증 오류는 공통 인증 계약을 따릅니다.
+
+
+## 주민 공개와 건물 링크 관리
+
+2026-11-14 사용자 결정: 같은 관리대상(`Property`)의 모든 미삭제 공지 목록·상세를 허용하며, 링크는 관리자가 회수할 때까지 재사용합니다. 첫 구현은 건물별 활성 링크 하나입니다. 발송받은 주민 본인이나 실거주 여부를 인증하는 수단은 아닙니다.
+
+관리자 기본 경로: `/api/properties/{propertyId}/resident-notices`. 현재 `ADMIN`·`MANAGER` 접근을 검증하며 링크 발급·복사·회수는 두 역할 모두 허용합니다. 공지 삭제 권한은 기존 계약을 유지합니다.
+
+| 메서드·경로 | 요청 | 결과 |
+| --- | --- | --- |
+| `GET /access-link` | 없음 | 활성 링크의 `id`, `token`, `createdAt`. 활성 링크가 없으면 빈 응답 |
+| `PUT /access-link/{id}` | Client가 유지하는 발급 UUID, 본문 없음 | 활성 링크 정보 |
+| `DELETE /access-link/{id}` | 링크 UUID | `204`, 반복 회수도 성공 |
+
+- 후속 사용자 정정: 공지사항은 모두 주민 공개입니다. 기존·새 글 모두 별도 공개 동작 없이 건물 링크에서 열람하며, 관리자 전용 구분·공개 버튼·공개 중단 API를 제거했습니다. 본문 수정도 주민 화면에 반영됩니다.
+- 발급은 같은 관리대상 잠금과 활성 링크의 부분 UNIQUE 인덱스로 직렬화합니다. 활성 링크가 있으면 그것을 반환하며 새 토큰으로 교체하지 않습니다. 같은 발급 ID의 재시도도 기존 결과를 반환합니다. 다른 관리대상의 ID나 회수된 ID의 재사용은 `409`입니다. DB 롤백 시 발급 기록도 남지 않습니다. 응답 유실에는 같은 ID로 재시도하거나 활성 링크를 조회합니다.
+- 회수 이후 새 발급에는 새 UUID를 사용합니다. 회수는 이미 발급한 세션에도 적용되며 **다음 서버 요청부터** 거부합니다. 이미 내려받은 본문·파일을 원격 삭제하지는 않습니다.
+- 링크는 `/notices#token={token}` 형태입니다. 관리자 화면은 주소 복사만 제공하며 알림톡·문자·채널톡 메시지를 발송하지 않습니다.
+- 링크·본문·파일·오류 응답은 `no-store`입니다. 링크 원문을 로그나 브라우저 저장소에 남기지 않습니다.
+
+## 주민 읽기 API
+
+기본 경로: `/api/notice-access`. 관리자 Bearer 대신 **주민 열람 전용 쿠키**를 검증합니다. 세션의 관리대상으로 범위를 결정하므로 요청에 다른 건물 ID를 넣어 범위를 바꿀 수 없습니다. 일반 주소나 공지·자산 ID만으로는 자료를 반환하지 않습니다.
+
+| 메서드·경로 | 요청 | 결과 |
+| --- | --- | --- |
+| `POST /sessions` | JSON `{token}`(최대 100자), 허용된 `Origin` | `204`, 읽기 전용 쿠키 발급. 링크를 소비하지 않음 |
+| `GET /context` | 주민 쿠키 | `propertyId`, `name` |
+| `GET /notices` | `page`(1~1,000,000), `query`(제목, 최대 100자) | `propertyId`, `importantItems`, `items`, `total`, `page`, `pageCount` |
+| `GET /notices/{id}` | 공지 ID | `propertyId`, `id`, `title`, `important`, `createdAt`, `content`, `authorName` |
+| `GET /notices/{noticeId}/assets/{assetId}` | 공지·자산 ID | 허용된 원본 바이트·MIME·파일명·`nosniff` |
+
+2026-11-14 사용자 정정: 중요 공지는 `importantItems`에, 일반 공지는 `items`에 분리해 같은 글을 중복 반환하지 않습니다. 두 목록은 같은 제목 검색을 적용하고 각각 고정 번호 내림차순입니다. 중요 공지는 페이지와 관계없이 반환하며, 일반 공지만 페이지당 10개씩 조회합니다. `total`과 `pageCount`는 일반 공지 기준입니다. 화면의 검색 총 건수는 `total + importantItems.length`입니다. 항목은 `id`, `title`, `important`, `createdAt`만 반환합니다. 상세에는 2026-11-14 사용자 요청에 따라 원래 작성자의 현재 표시 이름(`authorName`)을 추가합니다. 작성자 ID·연락처·번호·관리 권한·관리자 조회수는 주민 응답에서 제외합니다. 주민 열람은 현재 관리자 조회수에 합산하지 않으며 주민별 읽음·통계를 구현한 것으로 취급하지 않습니다.
+
+세션을 검증한 뒤 같은 관리대상의 모든 미삭제 공지를 허용합니다. 글별 공개 플래그는 사용하지 않습니다. 파일은 해당 공지에 연결되어 있고 **현재 본문 이미지 또는 첨부 목록에 참조된 자산**이어야 합니다. 초안·다른 건물·다른 공지·제거된 파일은 차단합니다. 공지 삭제·링크 회수는 본문·파일의 이후 요청에 함께 적용합니다. 관리자 API의 인증을 해제하지 않습니다.
+
+세션 교환은 `application/json`과 기존 허용 Origin 검증을 요구합니다. 주민 링크 페이지는 별도 버튼 없이 POST로 자동 교환한 뒤 목록으로 이동합니다. 단순 HTTP GET·HTML/OG 미리보기 자체는 세션을 만들지 않습니다. JavaScript를 실행하는 방문자는 자동 교환할 수 있으나 링크 소비나 조회수 집계는 하지 않습니다. 같은 링크의 재교환은 읽기 세션을 새로 만들 뿐 업무 데이터·조회수를 변경하지 않습니다. Redis 실패 시 쿠키를 발급하지 않습니다. 응답 유실에는 같은 링크로 다시 시도합니다.
+
+쿠키는 `moahome-notice-access`, Path `/api/notice-access`, HttpOnly, SameSite=Lax이며 Secure는 기존 `cookie-secure` 설정을 따릅니다(운영 true). 절대 수명은 12시간이며 요청마다 연장하지 않습니다. 쿠키 만료·삭제·Redis 소실 뒤에도 회수 전 링크로 새 세션을 발급받을 수 있습니다. API와 프런트는 기존 인증과 같이 동일 사이트 구성이 필요합니다.
+
+| 오류 | 의미 |
+| --- | --- |
+| `401 NOTICE_ACCESS_REQUIRED` | 링크·세션 없음, 잘못됨, 만료 또는 회수. 주민·건물 존재 여부를 구별해 주지 않음 |
+| `403 CSRF_INVALID` | 세션 교환의 Origin 거부 |
+| `404 NOTICE_NOT_FOUND` | 현재 세션에 허용되지 않거나 삭제된 공지·파일 |
+| `409 NOTICE_CONFLICT` | 다른 건물 또는 회수된 발급 ID 재사용 |
+| `503 NOTICE_SERVICE_UNAVAILABLE` / `NOTICE_STORAGE_UNAVAILABLE` | DB·Redis 또는 파일 저장소 장애 |
+
+UI·주소 처리와 저장·키 교체의 세부 구현은 [Client 주민 공지](../../client/docs/residentNotices.md), [Server 주민 공지](../../server/docs/residentNotices.md)를 참조합니다.

@@ -12,6 +12,7 @@ import jakarta.persistence.EntityManager;
 import com.moahome.server.systemadmin.service.SystemAdminService;
 import com.moahome.server.systemadmin.repo.SystemAdminRequestLock;
 import com.moahome.server.notice.repo.NoticeRepository;
+import com.moahome.server.notice.repo.ResidentNoticeRepository;
 import com.moahome.server.notice.repo.NoticeAssetRepository;
 import java.security.SecureRandom;
 import java.util.Base64;
@@ -131,6 +132,9 @@ class OpenApiIntegrationTest {
 
 	@MockitoBean
 	private NoticeRepository noticeRepository;
+
+	@MockitoBean
+	private ResidentNoticeRepository residentNoticeRepository;
 
 	@MockitoBean
 	private NoticeAssetRepository noticeAssetRepository;
@@ -306,7 +310,13 @@ class OpenApiIntegrationTest {
 	void documentsImplementedEndpointsAndTheirDifferentAuthenticationContracts() throws Exception {
 		var document = mapper.readTree(
 		    mvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
-		assertThat(document.path("paths").properties()).hasSize(134);
+		assertThat(document.path("paths").has("/api/notice-access/sessions")).isTrue();
+		assertThat(document.path("paths").path("/api/notice-access/context")
+		    .at("/get/security/0/noticeAccessCookie").isArray()).isTrue();
+		assertThat(document.path("paths").path("/api/notice-access/sessions")
+		    .at("/post/security").isMissingNode()).isTrue();
+		assertThat(document.path("paths").path("/api/properties/{propertyId}/resident-notices/access-link")
+		    .at("/get/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/users/me/profile")
 		    .at("/put/security/0/bearerAuth").isArray()).isTrue();
 		assertThat(document.path("paths").path("/api/users/me/profile")

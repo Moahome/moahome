@@ -11,6 +11,12 @@
     margin-bottom: 20px;
   }
 
+  .list-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   .board {
 
     tbody tr:last-child {
@@ -55,6 +61,8 @@
 
     .list-actions {
       width: 100%;
+      flex-direction: column-reverse;
+      align-items: stretch;
     }
 
     .write-button {

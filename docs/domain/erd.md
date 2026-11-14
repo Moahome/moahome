@@ -49,7 +49,21 @@
 - 주민 대상 알림톡/SMS는 우선 `residents`의 전화번호를 사용
 - 향후 계정 자체 휴대폰 인증/복구/공통 연락처 기능이 필요하면 `user_contacts` 같은 별도 엔티티 검토
 
-관리자 공지와 파일의 `notices`·`notice_assets`는 [공지사항 API](../api/noticeApi.md) 및 기존 Migration으로 구현했습니다. [주민 비로그인 열람·전용 링크](../plans/residentCommunication.md#주민-비로그인-열람과-전용-링크), 수신 대상·발송 결과·상담 연결·차량 자료의 저장 구조는 후속 설계입니다. 기존 `residents`와 `Property`를 참조하는 방향이며, 채널톡 식별정보를 로그인 계정이나 `property_members` 접근 권한으로 대신 사용하지 않습니다. 수신자별 접근 링크·열람 세션은 미확정 설계안으로, 이번 문서 기획을 이유로 확정 테이블·컬럼이나 Migration을 추가하지 않습니다.
+관리자 공지·파일과 주민 링크는 [공지사항 API](../api/noticeApi.md)와 Migration으로 구현했습니다. 같은 건물의 미삭제 공지 모두를 주민 링크에서 조회합니다. 별도 공개 여부 컬럼은 사용하지 않습니다. 이전 개발 Migration에서 추가했던 `resident_published`와 해당 인덱스는 후속 `V20261114045931__remove_notice_publication_setting.sql`로 제거합니다. `notice_assets`의 연결 공지와 현재 본문 참조를 함께 확인해 파일 접근을 제한합니다. 수신 대상·발송 결과·상담 연결·차량 자료의 저장 구조는 후속 설계이며 채널톡 식별정보로 `property_members` 권한을 대신하지 않습니다.
+
+주민 링크의 `notice_access_links`는 다음 필드를 저장합니다. Migration: `V20261114041732__add_resident_notice_access.sql`.
+
+| 컬럼 | 자료형·제약 | 의미 |
+| --- | --- | --- |
+| `id` | uuid PK | 발급·재시도 식별자, 회수 후 재사용 금지 |
+| `property_id` | uuid FK → properties | 열람할 관리대상 |
+| `created_by` | uuid FK → users | 발급한 관리자 |
+| `nonce` | varchar(43) NOT NULL | 링크 재구성용 난수, 토큰 원문과 구분 |
+| `token_hash` | varchar(64) UNIQUE NOT NULL | 발급 당시 토큰의 SHA-256 |
+| `created_at` | timestamptz NOT NULL | 발급 시각 |
+| `revoked_at` | timestamptz nullable | 관리자 회수 시각, null은 활성 |
+
+활성 링크는 `property_id WHERE revoked_at IS NULL` 부분 UNIQUE 인덱스로 하나만 허용합니다. 명부 수신자나 로그인 주민과 연결하지 않습니다. 열람 세션은 영속 업무 원본이 아니며 별도 Redis 키에 링크 ID만 12시간 보관합니다. 정확한 수명·재시도는 API 계약을 따릅니다.
 
 ### 0.3 User와 Resident 관계
 
