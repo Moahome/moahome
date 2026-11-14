@@ -5,6 +5,11 @@
   gap: 20px;
   padding-top: 24px;
 
+  &[data-show-count='false'] {
+    display: flex;
+    justify-content: center;
+  }
+
   .count {
     color: var(--sub-text);
     font-size: 14px;

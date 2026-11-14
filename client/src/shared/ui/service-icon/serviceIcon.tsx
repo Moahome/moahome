@@ -1,6 +1,92 @@
 import type { CSSProperties } from 'react';
 
 const ICON_PATHS = {
+  palette: <>
+    <path
+      d={'M12 3a9 9 0 1 0 0 18h1a2 2 0 0 0 1.4-3.4 1.5 1.5 0 0 1 1.1-2.6H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8Z'}
+    />
+    <circle
+      cx={7.5}
+      cy={10}
+      r={0.7}
+      fill={'currentColor'}
+    />
+    <circle
+      cx={10}
+      cy={6.5}
+      r={0.7}
+      fill={'currentColor'}
+    />
+    <circle
+      cx={14.5}
+      cy={6.5}
+      r={0.7}
+      fill={'currentColor'}
+    />
+    <circle
+      cx={17.5}
+      cy={10}
+      r={0.7}
+      fill={'currentColor'}
+    />
+  </>,
+  bold: (
+    <path
+      d={'M6 4h7a4 4 0 0 1 0 8H6m0 0h8a4 4 0 0 1 0 8H6V4'}
+    />
+  ),
+  italic: (
+    <path
+      d={'M10 4h9M5 20h9M15 4 9 20'}
+    />
+  ),
+  underline: (
+    <path
+      d={'M6 3v7a6 6 0 0 0 12 0V3M4 21h16'}
+    />
+  ),
+  'list-bullet': (
+    <path
+      d={'M9 5h12M9 12h12M9 19h12M3 5h.01M3 12h.01M3 19h.01'}
+    />
+  ),
+  'list-number': (
+    <path
+      d={'M10 5h11M10 12h11M10 19h11M3 3h1v5M3 8h2M2 13c0-2 4-2 4 0 0 1-4 3-4 4h4M2 20h4'}
+    />
+  ),
+  'align-left': (
+    <path
+      d={'M3 5h18M3 10h12M3 15h18M3 20h12'}
+    />
+  ),
+  'align-center': (
+    <path
+      d={'M3 5h18M6 10h12M3 15h18M6 20h12'}
+    />
+  ),
+  'align-right': (
+    <path
+      d={'M3 5h18M9 10h12M3 15h18M9 20h12'}
+    />
+  ),
+  image: <>
+    <rect
+      x={3}
+      y={3}
+      width={18}
+      height={18}
+      rx={2}
+    />
+    <circle
+      cx={8}
+      cy={8}
+      r={1.5}
+    />
+    <path
+      d={'m21 15-5-5L5 21M3 16l4-4 4 4'}
+    />
+  </>,
   phone: (
     <path
       d={'M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7l.4 3a2 2 0 0 1-.6 1.7L7.6 9.7a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 1.7-.6l3 .4a2 2 0 0 1 2.4 2.7Z'}
@@ -177,6 +263,33 @@ const ICON_PATHS = {
         d={'M12 6v6l4 3'}
       />
     </>
+  ),
+  calendar: <>
+    <rect
+      x={3}
+      y={5}
+      width={18}
+      height={16}
+      rx={2}
+    />
+    <path
+      d={'M16 3v4M8 3v4M3 11h18'}
+    />
+  </>,
+  eye: <>
+    <path
+      d={'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z'}
+    />
+    <circle
+      cx={12}
+      cy={12}
+      r={3}
+    />
+  </>,
+  paperclip: (
+    <path
+      d={'m21 11-9 9a6 6 0 0 1-8.5-8.5L13 2a4 4 0 0 1 5.7 5.7l-9.5 9.5a2 2 0 0 1-2.8-2.8L15 6'}
+    />
   ),
   alert: (
     <>

@@ -15,7 +15,7 @@ export function ListToolbar({
   unit: string;
   sizeLabel: string;
   pageSize: number;
-  onSizeChange: (size: number) => void;
+  onSizeChange?: (size: number) => void;
   actions?: ReactNode;
 }) {
   return (
@@ -33,20 +33,22 @@ export function ListToolbar({
         className={styles.controls}
       >
         {actions}
-        <div
-          className={styles.size}
-        >
-          <Dropdown
-            aria-label={sizeLabel}
-            required
-            value={String(pageSize)}
-            options={[10, 20, 50].map((size) => ({
-              value: String(size),
-              label: `${size}개씩 보기`
-            }))}
-            onChange={(value) => onSizeChange(Number(value))}
-          />
-        </div>
+        {onSizeChange && (
+          <div
+            className={styles.size}
+          >
+            <Dropdown
+              aria-label={sizeLabel}
+              required
+              value={String(pageSize)}
+              options={[10, 20, 50].map((size) => ({
+                value: String(size),
+                label: `${size}개씩 보기`
+              }))}
+              onChange={(value) => onSizeChange(Number(value))}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

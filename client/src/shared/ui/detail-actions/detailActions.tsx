@@ -12,11 +12,11 @@ export function DetailActions({
   showClose = true,
 }: {
   onClose: () => void;
-  onEdit: () => void;
+  onEdit?: () => void;
   onDelete: () => void;
   busy?: boolean;
   editDisabled?: boolean;
-  presentation?: 'modal' | 'page';
+  presentation?: 'modal' | 'page' | 'inline';
   showClose?: boolean;
 }) {
   return (
@@ -34,14 +34,16 @@ export function DetailActions({
           닫기
         </Button>
       )}
-      <Button
-        variant={'outline'}
-        tone={'success'}
-        onClick={onEdit}
-        disabled={busy || editDisabled}
-      >
-        수정
-      </Button>
+      {onEdit && (
+        <Button
+          variant={'outline'}
+          tone={'success'}
+          onClick={onEdit}
+          disabled={busy || editDisabled}
+        >
+          수정
+        </Button>
+      )}
       <Button
         variant={'outline'}
         tone={'danger'}
