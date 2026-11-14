@@ -97,7 +97,8 @@ export function trackNavigationHistory() {
     return 0;
   }
 
-  ensurePosition();
+  let observedPosition = ensurePosition();
+  let restoringPosition = false;
 
   /** 새 이동은 앞으로 가기 기록을 버리고, 같은 주소의 드로어 임시 항목도 실제 한 칸으로 셉니다. */
   const pushState: History['pushState'] = (data, unused, url) => {
@@ -116,6 +117,7 @@ export function trackNavigationHistory() {
       record.urls.shift();
       record.start++;
     }
+    observedPosition = position;
     saveHistory();
   };
 
@@ -131,8 +133,27 @@ export function trackNavigationHistory() {
       }
     }, unused, url);
     record.urls[position - record.start] = getNavigationUrl();
+    observedPosition = position;
     saveHistory();
   };
+
+  /** 복구 가능한 화면 이탈은 Next.js가 경로를 복원하기 전에 확인하고 취소하면 원래 이력 위치로 되돌립니다. */
+  function confirmHistoryNavigation(event: PopStateEvent) {
+    const target = getEntry();
+    if (!target || target.id !== activeHistory?.id) return;
+    if (restoringPosition) { restoringPosition = false; return; }
+    if (target.position === observedPosition) return;
+    // 공통 헤더 뒤로가기는 호출 시 이미 확인했으므로 같은 이동에서 다시 묻지 않습니다.
+    if (!returning && !window.dispatchEvent(new Event('moahome:before-navigation', {
+      cancelable: true
+    }))) {
+      event.stopImmediatePropagation();
+      restoringPosition = true;
+      history.go(observedPosition - target.position);
+      return;
+    }
+    observedPosition = target.position;
+  }
 
   /** 기존 항목으로 이동한 뒤 누락된 복귀 조건만 대체해 월·탭과 방문 위치를 함께 보존합니다. */
   function finishReturning() {
@@ -161,12 +182,16 @@ export function trackNavigationHistory() {
 
   history.pushState = pushState;
   history.replaceState = replaceState;
+  window.addEventListener('popstate', confirmHistoryNavigation, true);
   window.addEventListener('popstate', finishReturning);
   window.addEventListener('hashchange', resetOnHashChange);
 }
 
 /** 헤더도 기기 뒤로가기와 같이 실제 이전 화면으로 이동하고, 이력이 없는 직접 진입만 호출자의 대체 경로를 사용합니다. */
 export function goBackToPreviousRoute() {
+  if (!window.dispatchEvent(new Event('moahome:before-navigation', {
+    cancelable: true
+  }))) return true;
   if (returning) return true;
   const position = getPosition();
   if (!activeHistory || position === null) return false;
