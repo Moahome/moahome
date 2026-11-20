@@ -114,7 +114,7 @@ Widget 외부에는 `ManagementLayout`과 관리 메뉴 전용 `ManagementNaviga
 | 세대 관리 | 승인 관리 | `/invitations` | 연결됨 |
 | 없음 | 관리비 부과 | `/billing/monthly` | 연결됨 |
 | 통장 관리 | 통장 거래 | `/banking/transactions` | 연결됨 |
-| 통장 관리 | 동별 잔고·정산 | `/banking/balances` | 연결됨 |
+| 통장 관리 | 잔고·정산 | `/banking/balances` | 연결됨 |
 | 통장 관리 | 월별 수납 현황 | `/banking/monthly` | 연결됨 |
 | 통장 관리 | 지출 내역 | `/banking/expenses` | 연결됨 |
 | 회계·정산 | 정산 현황 | `/accounting/settlement` | 기존 월별 정산 연결 |

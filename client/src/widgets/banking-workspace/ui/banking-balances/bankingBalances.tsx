@@ -293,7 +293,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       scroll: false
     });
   }, [data, accountId, params, router]);
-  const title = panel ? PANEL_TITLES[panel] : buildingId ? '동별 상세 원장' : '동별 잔고·정산';
+  const title = panel ? PANEL_TITLES[panel] : buildingId ? '동별 상세 원장' : '잔고·정산';
   if (!data && !query.isPending) return (
     <RequestError
       error={query.error}
@@ -661,7 +661,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         actionsClassName={styles['header-actions']}
         titleId={'balance-title'}
         menu={'통장 관리'}
-        title={'동별 잔고·정산'}
+        title={'잔고·정산'}
         description={'은행 거래를 기준으로 각 동의 보유금과 외부 부담금을 확인합니다.'}
         actions={(
           <>

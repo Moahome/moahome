@@ -73,7 +73,7 @@ export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
       },
       {
         id: 'building-balances',
-        label: '동별 잔고·정산',
+        label: '잔고·정산',
         path: 'banking/balances',
         available: true
       },

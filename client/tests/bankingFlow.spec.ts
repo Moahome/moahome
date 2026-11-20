@@ -1388,7 +1388,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     height: 1000
   });
   await page.goto(`${BASE}/balances?month=2026-10`);
-  await expect(page).toHaveTitle('동별 잔고·정산 | 모아홈');
+  await expect(page).toHaveTitle('잔고·정산 | 모아홈');
   const bankingGroup = page.getByRole('navigation', {
     name: '관리 메뉴'
   }).getByRole('button', {
@@ -1441,7 +1441,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   await page.keyboard.press('Escape');
   await expect(tooltip).toHaveCount(0);
   await page.getByRole('heading', {
-    name: '동별 잔고·정산',
+    name: '잔고·정산',
     exact: true
   }).click();
   const externalSize = page.getByRole('combobox', {
@@ -1922,7 +1922,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     return rect.left >= 0 && rect.right <= innerWidth;
   })).toBe(true);
   await page.getByRole('heading', {
-    name: '동별 잔고·정산',
+    name: '잔고·정산',
     exact: true
   }).click();
   await expect(tooltip).toHaveCount(0);
@@ -3171,13 +3171,13 @@ for (const width of [1440, 320]) {
       await help.press('Escape');
       await expect(explanation).toHaveCount(0);
       await page.getByRole('heading', {
-        name: '동별 잔고·정산',
+        name: '잔고·정산',
         exact: true
       }).click();
       await help.focus();
       await expect(explanation).toBeVisible();
       await page.getByRole('heading', {
-        name: '동별 잔고·정산',
+        name: '잔고·정산',
         exact: true
       }).click();
       await expect(explanation).toHaveCount(0);
@@ -3486,7 +3486,7 @@ for (const { width, unassigned } of [{
         exact: true
       }).click();
       await expect(page.getByRole('heading', {
-        name: '동별 잔고·정산',
+        name: '잔고·정산',
         exact: true
       })).toBeVisible();
       expect(requests[0]).toMatchObject({
@@ -3547,7 +3547,7 @@ for (const { width, unassigned } of [{
       exact: true
     }).click();
     await expect(page.getByRole('heading', {
-      name: '동별 잔고·정산',
+      name: '잔고·정산',
       exact: true
     })).toBeVisible();
     expect(requests[1]).toEqual(requests[0]);
