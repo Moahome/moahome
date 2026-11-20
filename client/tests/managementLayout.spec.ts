@@ -774,9 +774,12 @@ for (const width of [1440]) {
     await expect(detail.getByRole('heading', {
       name: /주민별.*설정/
     })).toHaveCount(0);
-    await detail.getByRole('button', {
+    await expect(detail.getByRole('button', {
       name: '닫기',
       exact: true
+    })).toHaveCount(0);
+    await detail.getByRole('button', {
+      name: '세대 상세 닫기'
     }).click();
     await trigger.focus();
     await page.keyboard.press('Enter');
