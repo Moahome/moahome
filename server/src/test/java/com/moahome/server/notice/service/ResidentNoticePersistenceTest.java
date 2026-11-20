@@ -2,6 +2,8 @@ package com.moahome.server.notice.service;
 
 import java.security.SecureRandom;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -83,7 +85,8 @@ class ResidentNoticePersistenceTest {
 			try {
 				StringRedisTemplate redis = new StringRedisTemplate(connection);
 				ResidentNoticeService service = new ResidentNoticeService(residents, notices, assets, storage, access, tokens,
-				    redis, Clock.systemUTC(), JsonMapper.builder().build());
+				    redis, Clock.fixed(Instant.parse("2026-11-20T00:00:00.123456789Z"), ZoneOffset.UTC),
+				    JsonMapper.builder().build());
 				TransactionTemplate tx = new TransactionTemplate(new DataSourceTransactionManager(source));
 				UUID requestId = UUID.randomUUID();
 				ResidentNoticeResponse.Link link;

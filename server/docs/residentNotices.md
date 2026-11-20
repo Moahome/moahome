@@ -2,7 +2,7 @@
 
 정책과 요청·응답·재시도는 [공지사항 API](../../docs/api/noticeApi.md#주민-공개와-건물-링크-관리), 테이블은 [ERD](../../docs/domain/erd.md#02-현재-전화번호-정책)를 따릅니다. 이 문서는 서버 내부의 저장·잠금·키 처리를 설명합니다.
 
-ResidentNoticeService는 기존 공지 Repository·파일 저장소와 ManagementAccessService를 재사용합니다. 링크 발급·회수는 기존 공지의 관리대상 advisory lock을 획득한 후 현재 관리 권한을 다시 검증합니다. 활성 링크는 PostgreSQL 부분 UNIQUE 인덱스로 보호하며 DB 업무 변경은 동일 트랜잭션에 커밋합니다. 회수된 발급 ID를 새 발급에 재사용하지 않습니다.
+ResidentNoticeService는 기존 공지 Repository·파일 저장소와 ManagementAccessService를 재사용합니다. 링크 발급·회수는 기존 공지의 관리대상 advisory lock을 획득한 후 현재 관리 권한을 다시 검증합니다. 활성 링크는 PostgreSQL 부분 UNIQUE 인덱스로 보호하며 DB 업무 변경은 동일 트랜잭션에 커밋합니다. 회수된 발급 ID를 새 발급에 재사용하지 않습니다. 최초 발급 응답도 저장한 행을 다시 읽어 PostgreSQL의 시각 정밀도를 따릅니다. 동시 발급·재조회에서 같은 링크의 생성 시각이 달라지지 않게 합니다.
 
 NoticeLinkTokens는 링크 UUID와 SecureRandom 난수, 공지 전용 도메인 문자열 `moahome:notice-access:v1:`을 기존 계좌 보안 HMAC 키에 결합합니다. DB에는 난수와 발급 토큰의 SHA-256만 저장합니다. 토큰·세션 원문이나 개인정보는 로그에 남기지 않습니다. 별도 환경 변수를 추가하지 않으며 기존 `ACCOUNT_HMAC_KEY_BASE64` 설정이 발급·다시 복사에 필요합니다. 다른 도메인의 HMAC 결과와 호환되지 않습니다.
 

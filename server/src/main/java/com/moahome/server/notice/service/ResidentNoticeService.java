@@ -72,7 +72,8 @@ public class ResidentNoticeService {
 		String token = tokens.token(id, nonce);
 		Grant grant = new Grant(id, propertyId, nonce, Sha256.hex(token), OffsetDateTime.now(clock), null);
 		residents.createGrant(grant, actor);
-		return link(grant);
+		// PostgreSQL에 저장된 시각 정밀도를 기준으로 최초 발급과 동시 요청·재조회 결과를 일치시킵니다.
+		return link(residents.findGrant(id).orElseThrow());
 	}
 
 	/** 회수는 반복해도 성공하며 이미 발급한 세션도 다음 요청부터 같은 DB 상태를 보고 거부합니다. */
