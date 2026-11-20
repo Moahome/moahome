@@ -32,7 +32,7 @@ export function readLedger(value: PreviewLedger & PaymentLedgerIdentity, propert
         && p.unitId === '' && p.allocations?.length === 0 && typeof p.incomeCategory === 'string' && Boolean(p.incomeCategory.trim())))
       && (p.incomeAllocation == null || (p.receiptType === 'OTHER' && UUID.test(p.incomeAllocation.id)
         && ['EQUAL', 'RATIO', 'AMOUNT'].includes(p.incomeAllocation.mode) && Array.isArray(p.incomeAllocation.allocations)
-        && p.incomeAllocation.allocations.length > 0 && p.incomeAllocation.allocations.every((a) => UUID.test(a.buildingId ?? '') && typeof a.label === 'string' && /^[0-9]{1,15}$/.test(a.amount) && BigInt(a.amount) > BigInt(0))
+        && p.incomeAllocation.allocations.length > 0 && p.incomeAllocation.allocations.every((a) => (a.buildingId === null || UUID.test(a.buildingId)) && typeof a.label === 'string' && /^[0-9]{1,15}$/.test(a.amount) && BigInt(a.amount) > BigInt(0))
         && p.incomeAllocation.allocations.reduce((sum, a) => sum + BigInt(a.amount), BigInt(0)) === BigInt(p.amount)))
       && (p.incomeNote === undefined || p.incomeNote === null || typeof p.incomeNote === 'string')
       && Array.isArray(p.allocations) && p.allocations.every((a) => UUID.test(a.chargeId) && /^[0-9]{1,15}$/.test(a.amount)))) {

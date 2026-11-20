@@ -2907,14 +2907,15 @@ class PaymentPersistenceTest {
 			    invalid, request.id());
 		})).hasStackTraceContaining("invalid expense ratio remainder");
 		assertThat(count("expenses")).isEqualTo(1);
-		// 같은 계산기를 쓰는 입금은 지출용 나머지 배분을 받아들이지 않습니다.
+		// 입금도 같은 계산기로 선택한 한 곳의 잔액을 허용하고 입력한 비율을 보존합니다.
 		var receipt = service.importFile(user, property, bank("입금 비율 검증", "101")).payments().getFirst();
 		service.confirmOtherIncome(user, property, receipt.id(), new PaymentRequests.OtherIncome("이자", null));
-		assertThatThrownBy(() -> banking.confirmIncomeAllocation(user, property, receipt.bankTransactionId(),
+		var confirmed = banking.confirmIncomeAllocation(user, property, receipt.bankTransactionId(),
 		    new BankingRequests.Expense("이자", null, "RATIO", false, List.of(
 		        new BankingRequests.Allocation(targets.getFirst(), null, "51", "50"),
-		        new BankingRequests.Allocation(targets.getLast(), null, "50", "50")))))
-		    .hasMessage("ALLOCATION_REMAINDER_REQUIRED");
+		        new BankingRequests.Allocation(targets.getLast(), null, "50", "50"))));
+		assertThat(confirmed.rows()).filteredOn(r -> receipt.id().equals(r.paymentId())).singleElement()
+		    .satisfies(r -> assertThat(r.incomeAllocation().allocations()).extracting(a -> a.amount()).containsExactly("51", "50"));
 	}
 
 	/** 기적용 DB의 확정 지출과 체크섬은 보존하고 후속 Migration으로 비율 검증 함수만 확장합니다. */
@@ -4558,6 +4559,69 @@ class PaymentPersistenceTest {
 		jdbc.update("insert into bank_opening_balances(id,property_id,bank_account_id,cutoff_date,amount,revision,"
 		    + "recorded_by,recorded_at) values (?,?,?,date '2026-09-30',?,1,?,now())",
 		    UUID.randomUUID(), property, account, new BigDecimal(amount), user);
+	}
+
+	/** 혼합 입금의 외부 몫·비율 잔액·기존 정산 연결을 실제 PostgreSQL에서 함께 검증합니다. */
+	@Test
+	void mixedIncomeKeepsExternalMoneyOutOfBuildingFundsAndReusesSettlement() {
+		List<UUID> targets = manualIncomeBuildings();
+		jdbc.update("update properties set has_buildings=true where id=?", property);
+		var file = csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 08:00:00,KT04,0,709926,709926");
+		var preview = banking.preview(user, property, file);
+		var split = new BankingRequests.Expense("KT04", null, "RATIO", false, List.of(
+		    new BankingRequests.Allocation(targets.getFirst(), null, "177482", "25"),
+		    new BankingRequests.Allocation(targets.getLast(), null, "177481", "25"),
+		    new BankingRequests.Allocation(null, "101동", "354963", "50")));
+		var saved = banking.upload(user, property, file, new BankingRequests.Import(List.of(
+		    new BankingRequests.Selection(preview.rows().getFirst().id(), null, "KT04", null, null, split))));
+		var incoming = saved.rows().getFirst();
+		var cash = cashBalances.workspace(user, property, "2026-10");
+		assertThat(cash.buildings()).extracting(b -> b.income()).containsExactlyInAnyOrder("177482", "177481");
+		assertThat(cash.entries()).hasSize(2);
+		var fund = cash.incomes().stream().filter(i -> "EXTERNAL".equals(i.kind())).findFirst().orElseThrow();
+		assertThat(fund.amount()).isEqualTo("354963");
+		assertThat(fund.available()).isEqualTo("354963");
+		assertThat(fund.paymentId()).isEqualTo(incoming.paymentId());
+		assertThat(cash.accounts()).singleElement().satisfies(a -> assertThat(a.calculatedBalance()).isEqualTo("709926"));
+		assertThat(incomeStatements.get(user, property, "2026-10", "2026-10", null).otherIncomes())
+		    .singleElement().satisfies(i -> assertThat(i.amount()).isEqualTo("354963"));
+		var outgoingFile = csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 09:00:00,외부 KT 지출,354963,0,354963");
+		var outgoingPreview = banking.preview(user, property, outgoingFile);
+		var expense = new BankingRequests.Expense("외부 KT 지출", null, "EQUAL", false,
+		    List.of(new BankingRequests.Allocation(null, "101동", "354963", null)));
+		var outgoingSaved = banking.upload(user, property, outgoingFile, new BankingRequests.Import(List.of(
+		    new BankingRequests.Selection(outgoingPreview.rows().getFirst().id(), null, null, null, expense))));
+		var external = cashBalances.workspace(user, property, "2026-10").externals().getFirst();
+		assertThatThrownBy(() -> cashBalances.settle(user, property, new BankingBalanceRequests.Settlement(
+		    UUID.randomUUID(), external.id(), incoming.paymentId(), "354964", fund.id())))
+		    .isInstanceOf(BusinessException.class);
+		UUID internal = jdbc.queryForObject("select id from income_allocations where payment_id=? and building_id=?", UUID.class,
+		    incoming.paymentId(), targets.getFirst());
+		assertThatThrownBy(() -> cashBalances.settle(user, property, new BankingBalanceRequests.Settlement(
+		    UUID.randomUUID(), external.id(), incoming.paymentId(), "1", internal))).isInstanceOf(BusinessException.class);
+		// API를 우회해도 내부 동 몫은 외부 사용으로 커밋할 수 없습니다.
+		assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(status ->
+		    jdbc.update("insert into external_settlement_links(id,property_id,allocation_id,payment_id,income_allocation_id,amount,created_by,created_at) values (?,?,?,?,?,1,?,now())",
+		        UUID.randomUUID(), property, external.id(), incoming.paymentId(), internal, user)))
+		    .hasStackTraceContaining("external income share required");
+		var request = new BankingBalanceRequests.Settlement(UUID.randomUUID(), external.id(), incoming.paymentId(), "354963", fund.id());
+		cashBalances.settle(user, property, request);
+		cashBalances.settle(user, property, request);
+		// 정산 후 같은 입금 배분 재시도도 새 배분·회수를 만들지 않습니다.
+		banking.confirmIncomeAllocation(user, property, incoming.id(), split);
+		var settled = cashBalances.workspace(user, property, "2026-10");
+		assertThat(settled.incomes()).filteredOn(i -> "EXTERNAL".equals(i.kind())).singleElement()
+		    .satisfies(i -> assertThat(i.available()).isEqualTo("0"));
+		assertThat(settled.externals().getFirst().remaining()).isEqualTo("0");
+		assertThat(settled.buildings()).extracting(b -> b.income()).containsExactlyInAnyOrder("177482", "177481");
+		assertThat(incomeStatements.get(user, property, "2026-10", "2026-10", null).otherIncomes())
+		    .singleElement().satisfies(i -> assertThat(i.amount()).isEqualTo("354963"));
+		banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(outgoingSaved.rows().getFirst().id())));
+		assertThat(cashBalances.workspace(user, property, "2026-10").incomes()).filteredOn(i -> "EXTERNAL".equals(i.kind()))
+		    .singleElement().satisfies(i -> assertThat(i.available()).isEqualTo("354963"));
+		clock.set(Instant.parse("2026-11-15T00:00:00Z"));
+		assertThat(cashBalances.workspace(user, property, "2026-11").incomes()).filteredOn(i -> "EXTERNAL".equals(i.kind()))
+		    .singleElement().satisfies(i -> assertThat(i.available()).isEqualTo("354963"));
 	}
 
 	private List<UUID> manualIncomeBuildings() {

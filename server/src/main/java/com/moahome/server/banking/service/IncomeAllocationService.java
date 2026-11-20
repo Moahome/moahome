@@ -48,22 +48,26 @@ public class IncomeAllocationService {
 		    || receipt.getDeletedAt() != null || request.saveAsRule() || "PROPERTY".equals(request.mode()))
 			throw new BankingException("OTHER_INCOME_REQUIRED");
 		var property = receipt.getPropertyId();
-		if (settlementLinks.findByPropertyId(property).stream().anyMatch(l -> receipt.getId().equals(l.getPaymentId())))
+		List<IncomeAllocation> previous = incomeAllocations.findByPaymentIdOrderBySortOrderAsc(receipt.getId());
+		// 저장된 동일 배분의 재시도는 이후 외부 정산 연결 여부와 관계없이 기존 결과를 확인합니다.
+		if (previous.isEmpty() && settlementLinks.findByPropertyId(property).stream()
+		    .anyMatch(l -> receipt.getId().equals(l.getPaymentId())))
 			throw new BankingException("INCOME_ALREADY_SETTLED");
 		List<Expense.Share> shares = request.allocations().stream().map(a -> {
+			// 외부 동 몫은 실제 동·세대를 만들지 않고 당시 표시명과 금액으로 보존합니다.
 			if (a.buildingId() == null)
-				throw new BankingException("INVALID_EXPENSE_TARGET");
+				return new Expense.Share(null, a.label() == null ? null : a.label().strip(),
+				    a.amount(), a.percentage());
 			var b = buildings.findById(a.buildingId())
 			    .filter(v -> property.equals(v.getPropertyId()) && v.getDeletedAt() == null
 			        && v.getStatus() == BuildingStatus.ACTIVE)
 			    .orElseThrow(() -> new BankingException("INVALID_EXPENSE_TARGET"));
-			// 입금의 원 미만 조정은 기존 직접 금액 입력 정책을 유지하며 지출용 나머지 배분을 적용하지 않습니다.
-			return new Expense.Share(b.getId(), b.getName(), "AMOUNT".equals(request.mode()) ? a.amount() : null,
+			// 입금도 지출과 같은 계산기를 사용해 명시한 한 곳에만 비율 절사 잔액을 더합니다.
+			return new Expense.Share(b.getId(), b.getName(), a.amount(),
 			    a.percentage());
 		}).toList();
 		List<BigDecimal> amounts = Expense.allocate(receipt.getAmount(),
 		    request.mode(), shares);
-		List<IncomeAllocation> previous = incomeAllocations.findByPaymentIdOrderBySortOrderAsc(receipt.getId());
 		ArrayList<IncomeAllocation> result = new ArrayList<IncomeAllocation>();
 		for (int i = 0; i < shares.size(); i++) {
 			var part = shares.get(i);
@@ -73,7 +77,9 @@ public class IncomeAllocationService {
 				if (previous.size() != shares.size())
 					throw new BankingException("BANK_REQUEST_CONFLICT");
 				var saved = previous.get(i);
-				if (!saved.getBuildingId().equals(part.buildingId()) || saved.getAmount().compareTo(amounts.get(i)) != 0
+				if (!Objects.equals(saved.getBuildingId(), part.buildingId())
+				    || (part.buildingId() == null && !Objects.equals(security.decrypt(saved.getBuildingLabelEncrypted()), part.label()))
+				    || saved.getAmount().compareTo(amounts.get(i)) != 0
 				    || !saved.getAllocationMode().equals(request.mode())
 				    || !Objects.equals(saved.getPercentage(), percentage))
 					throw new BankingException("BANK_REQUEST_CONFLICT");

@@ -59,7 +59,8 @@ export type BalanceIncome = {
   payer: string;
   amount: string;
   available: string;
-  kind: 'HOUSEHOLD' | 'OTHER';
+  kind: 'HOUSEHOLD' | 'OTHER' | 'EXTERNAL';
+  paymentId?: string | null;
   linkedBuildingId?: string | null;
   linkedUnitLabel?: string | null;
 };
@@ -138,6 +139,7 @@ export interface CashIncomeInput {
 }
 
 export interface ExternalSettlementInput {
+  incomeAllocationId?: string | null;
   id: string;
   allocationId: string;
   paymentId: string;

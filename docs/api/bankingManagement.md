@@ -26,7 +26,7 @@
 
 506,000원 승강기 비용을 두 동에 균등 배분하면 각 253,000원입니다. 182,660원 전기료를 25%·25%·50%로 지정하면 45,665원·45,665원·91,330원입니다. 외부 부담처 이름과 비율은 관리자가 지정합니다. 25%씩만 입력해 남은 50%를 누락하면 확정할 수 없습니다.
 
-균등 계산의 원 미만은 직접 금액 조정으로 해결합니다. 지출 비율의 원 미만은 `mode=RATIO`·기존 `percentage`를 유지하고 `allocations[].amount`에 확인한 원 단위 금액을 함께 보냅니다. 각 비율 금액을 절사한 뒤 남은 정수 원 전액을 명시한 한 곳에만 더해야 하며 다른 몫은 절사 금액 그대로입니다. 비율 100%·양수·합계를 Server와 DB가 함께 검증합니다. 나머지 선택이 없으면 `ALLOCATION_REMAINDER_REQUIRED`, 임의 재배분은 `EXPENSE_ALLOCATION_MISMATCH`로 거부합니다. 같은 요청 재시도는 조정된 금액·비율을 비교하고 다른 부담처로 바꾼 재시도는 기존 `BANK_REQUEST_CONFLICT`입니다. 기타 입금의 원 미만 조정은 기존 직접 금액 정책을 유지합니다. 현재 한 출금에는 지출명 하나를 저장합니다. 별도 비용 항목 입력은 받지 않으며 여러 비용 항목 분할은 후속 설계입니다.
+균등 계산의 원 미만은 직접 금액 조정으로 해결합니다. 지출 비율의 원 미만은 `mode=RATIO`·기존 `percentage`를 유지하고 `allocations[].amount`에 확인한 원 단위 금액을 함께 보냅니다. 각 비율 금액을 절사한 뒤 남은 정수 원 전액을 명시한 한 곳에만 더해야 하며 다른 몫은 절사 금액 그대로입니다. 비율 100%·양수·합계를 Server와 DB가 함께 검증합니다. 나머지 선택이 없으면 `ALLOCATION_REMAINDER_REQUIRED`, 임의 재배분은 `EXPENSE_ALLOCATION_MISMATCH`로 거부합니다. 같은 요청 재시도는 조정된 금액·비율을 비교하고 다른 부담처로 바꾼 재시도는 기존 `BANK_REQUEST_CONFLICT`입니다. 2026-11-20 후속 요청으로 기타 입금의 비율 절사 나머지도 동일한 원 단위 금액·비율 검증을 사용합니다. 현재 한 출금에는 지출명 하나를 저장합니다. 별도 비용 항목 입력은 받지 않으며 여러 비용 항목 분할은 후속 설계입니다.
 
 규칙 저장은 별도 전역 규칙 관리 기능이 아니라 확정 지출의 배분 스냅샷을 재사용하는 구현입니다. 같은 계좌·내용의 가장 최근 저장 규칙을 다음 미리보기에 제안합니다. 내용 앞의 1~2자리 월 숫자와 선택 `월`·공백을 제외해 반복 월을 대조합니다. 이는 제안만 하며 관리자가 검토하고 선택 처리합니다. 직접 금액 규칙은 이전 금액을 제안하므로 출금액이 달라졌다면 조정해야 합니다.
 
@@ -89,12 +89,22 @@ Expense는 `{ category, note?, mode, saveAsRule, allocations }`, mode는 `EQUAL 
 ## 통장 거래 선택 삭제·기타 입금 배분 API
 
 - `POST /api/properties/{propertyId}/banking/transactions/delete`: `{transactionIds: UUID[]}`. 1~5,000개, ADMIN / MANAGER 업무이며 전체 소속 검증 후 원자적으로 처리합니다. 연결 수납·충당을 취소하고 원본은 소프트 삭제합니다. 응답은 최신 Workspace이며 `Cache-Control: no-store`입니다. 이미 삭제한 ID 재요청은 무효과이며 재등록한 새 ID에 영향을 주지 않습니다. 다른 관리대상·없는 ID는 `BANK_TRANSACTION_NOT_FOUND`로 전체 거부합니다.
-- `POST /api/properties/{propertyId}/banking/transactions/{id}/income-allocation`: 지출 배분과 같은 `{category, note?, mode, saveAsRule:false, allocations:[{buildingId,amount?,percentage?}]}` 구조입니다. 실제 항목명·메모는 확정 기타 입금의 값을 유지하고 이 API는 배분만 저장합니다. `EQUAL`, `RATIO`, `AMOUNT`를 지원하며 관리 동을 명시하고 전액 합계를 검증합니다. 같은 확정 배분 재시도는 한 번만 반영하고 다른 값은 `BANK_REQUEST_CONFLICT`로 거부합니다.
+- `POST /api/properties/{propertyId}/banking/transactions/{id}/income-allocation`: 지출 배분과 같은 `{category, note?, mode, saveAsRule:false, allocations:[{buildingId,label?,amount?,percentage?}]}` 구조입니다. 실제 항목명·메모는 확정 기타 입금의 값을 유지하고 이 API는 배분만 저장합니다. `EQUAL`, `RATIO`, `AMOUNT`를 지원하며 관리 동 또는 `buildingId:null`인 외부 동을 명시하고 전액 합계를 검증합니다. 외부 동은 1~100자의 `label`이 필수입니다. 같은 확정 배분 재시도는 한 번만 반영하고 다른 값은 `BANK_REQUEST_CONFLICT`로 거부합니다.
 - 업로드 Selection에 선택 필드 `incomeAllocation`을 추가합니다. 이 필드를 보내면 `incomeCategory`가 필요하며 `unitId`·`expense`와 함께 보낼 수 없습니다. 수납 확정·배분 저장은 한 트랜잭션이므로 배분 실패 시 입금 원본까지 롤백합니다.
 - Workspace 거래에 `receiptType`과 `incomeAllocation`을 추가합니다. `incomeAllocation`은 기존 Expense 응답과 같은 구조이며 ID는 수납 ID, `saveAsRule`은 false입니다. 세대 입금·미배분 기타 입금은 null입니다. 동별 잔고 Entry에는 배분된 동마다 해당 몫의 income을 표시하되 실제 은행 잔액과 기타 입금 전체 합계는 복제하지 않습니다.
-- `OTHER_INCOME_REQUIRED`: 확정 기타 입금이 아님. `INCOME_ALREADY_SETTLED`: 외부 회수에 이미 사용한 입금. 대상·금액·비율 검증은 기존 배분 오류를 재사용합니다. 동별 배분 입금은 외부 회수 후보·사용 가능 입금 목록에서 제외합니다. 삭제한 출금의 기존 회수 연결은 보관하되 활성 회수 집계에서 제외하여 연결 입금의 사용 가능액을 복원합니다.
+- `OTHER_INCOME_REQUIRED`: 확정 기타 입금이 아님. `INCOME_ALREADY_SETTLED`: 외부 회수에 이미 사용한 입금. 대상·금액·비율 검증은 기존 배분 오류를 재사용합니다. 내부 동 몫은 외부 정산에 사용할 수 없습니다. 외부 몫은 아래 계약에 따라 기존 정산의 사용 가능 입금으로 제공합니다. 삭제한 출금의 기존 회수 연결은 보관하되 활성 회수 집계에서 제외하여 연결 입금의 사용 가능액을 복원합니다.
 
 2026-10-18 후속 요청으로 잔고 응답의 각 `externals`에 원본 출금 `transactionId`와 전체 출금액 `transactionAmount`를 제공합니다. 외부 부담금 상세의 잘못 등록된 거래 삭제는 위 `/banking/transactions/delete`에 해당 원본 ID를 보내며 별도 삭제 API나 DB 구조를 추가하지 않습니다. 외부 부담액만 제거하거나 확정 배분 금액을 변경하지 않고, 원본 삭제에 따라 해당 출금의 동별 지출·외부 정산을 모두 유효 계산에서 제외합니다. 권한·원자성·재시도·이력 보존은 기존 선택 삭제 계약을 따릅니다.
+
+### 외부 동 몫·비율 잔액·기존 정산 연결 (2026-11-20)
+
+- 업로드·수동 SHARED·저장 입금의 배분은 같은 계약을 사용합니다. 외부 몫은 `buildingId:null,label`로 저장하고 관리 동별 Entry·잔고·수익에서 제외합니다. 실제 통장 입금은 전액 한 번만 반영합니다.
+- 비율 합계는 100%입니다. 각 몫을 절사한 뒤 선택한 한 곳의 `amount`에만 남은 정수 원을 더하고 기존 `percentage`·`mode=RATIO`를 유지합니다. 명시한 나머지가 없으면 `ALLOCATION_REMAINDER_REQUIRED`, 임의 재배분·합계 불일치는 기존 배분 오류입니다.
+- 잔고 Workspace의 `incomes`에 `kind:EXTERNAL`을 추가합니다. 이 행의 `id`는 외부 입금 배분 UUID, `paymentId`는 원 수납 UUID, `amount`는 외부 몫, `available`은 조회 기말까지 유효 지출과 연결하고 남은 금액입니다. 조회 시작 월 이전에 입금한 미사용 보관금도 통장 기준일 이후의 유효 원본이면 다음 달로 이어서 제공합니다. 동일 통장·기준일 이후의 자료를 사용하며 기초 외부 자금이 미확인인 경우 과거 입금을 미사용 전액으로 추정하지 않습니다. 기존 HOUSEHOLD·OTHER 행의 ID 의미는 유지합니다.
+- 기존 `POST .../banking/balances/settlements`의 `{id,allocationId,paymentId,amount}`에 선택 `incomeAllocationId`를 추가합니다. 혼합 입금 연결은 외부 몫의 UUID를 반드시 지정합니다. 같은 관리대상·통장의 확정 외부 지출에만 연결하며 내부 동 몫·다른 수납의 배분·초과 사용은 거부합니다. 지급 전 받은 돈도 지출 발생 후 명시적으로 연결할 수 있습니다.
+- 연결 후 외부 보관 잔액과 지출 미회수액이 같은 금액만큼 줄어듭니다. 기존 회수 입금 연결 흐름을 재사용하며 이름으로 자동 상계하지 않습니다. 입금·지출 원본을 복제하거나 관리 동 잔고를 늘리지 않습니다.
+- 재시도는 같은 `id`와 제출 본문을 유지합니다. 동일 ID의 배분 ID·수납·외부 몫·금액 변경은 `EXTERNAL_SETTLEMENT_CONFLICT`입니다. 관리대상 잠금과 DB 지연 한도 제약으로 동시 요청을 직렬화합니다. 응답 유실에는 최신 잔고의 연결 기록·보관 잔액을 조회하거나 동일 요청으로 확인하며 새 ID로 무조건 재전송하지 않습니다.
+- 입금 취소·원본 삭제는 보관금과 유효 정산에서 함께 제외합니다. 출금 삭제는 사용액을 되돌리며 연결 이력은 보존합니다. 보관금 사용액은 원래 수익에서 제외한 외부 몫이므로 내부 수익에서 다시 빼지 않습니다.
 
 ## 기존 관리계좌 정보 정정 API
 

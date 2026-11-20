@@ -1111,7 +1111,9 @@ DB 지연 제약은 실제 수납 배분과 기존 선납 충당의 합계가 �
 
 ### income_allocations (2026-10-17 구현)
 
-기타 입금의 동별 보유금 귀속입니다. UUID `id` PK, `property_id`, `payment_id`, `building_id`, 암호화한 `building_label_encrypted`, 원 단위 `amount numeric(15,0)`, 비율 `percentage numeric(5,2)`, `allocation_mode`, `sort_order`, `created_by`, `created_at`을 저장합니다. 수납·동은 같은 관리대상의 복합 FK로 연결하고 `(payment_id,building_id)`, `(payment_id,sort_order)`는 UNIQUE입니다. 지연 제약으로 실제 확정 OTHER 입금·전액 합계·비율·균등 금액과 외부 회수 중복을 검증하며 UPDATE·DELETE를 금지합니다. 취소·삭제 후에도 배분 이력을 보존합니다. 후속 `V20261018050254__support_manual_income_purposes.sql`에서 은행 원본 없는 MANUAL·SHARED의 확정 전액 배분을 허용하며 유효한 수동 동별 입금도 잔고에 반영합니다. 은행에 연결한 뒤에는 활성 원본을 함께 검사해 이중 집계하지 않습니다. 원본·확인 잔액은 생성하지 않습니다.
+기타 입금의 동별 보유금 귀속입니다. UUID `id` PK, `property_id`, `payment_id`, `building_id`, 암호화한 `building_label_encrypted`, 원 단위 `amount numeric(15,0)`, 비율 `percentage numeric(5,2)`, `allocation_mode`, `sort_order`, `created_by`, `created_at`을 저장합니다. 수납·동은 같은 관리대상의 복합 FK로 연결하고 `(payment_id,building_id)`, `(payment_id,sort_order)`는 UNIQUE입니다. 지연 제약으로 실제 확정 OTHER 입금·전액 합계·비율·균등 금액과 내부 몫의 외부 정산 사용 금지를 검증하며 UPDATE·DELETE를 금지합니다. 취소·삭제 후에도 배분 이력을 보존합니다. 후속 `V20261018050254__support_manual_income_purposes.sql`에서 은행 원본 없는 MANUAL·SHARED의 확정 전액 배분을 허용하며 유효한 수동 동별 입금도 잔고에 반영합니다. 은행에 연결한 뒤에는 활성 원본을 함께 검사해 이중 집계하지 않습니다. 원본·확인 잔액은 생성하지 않습니다.
+
+2026-11-20 `V20261120115540__support_external_income_shares.sql`에서 `building_id`를 nullable로 확장했습니다. NULL은 외부 동의 보관금 몫이며 암호화 표시명을 보존합니다. 입금 비율도 지출과 동일하게 절사 후 명시한 한 곳에만 나머지를 더하도록 DB에서 검증합니다. `external_settlement_links.income_allocation_id`는 선택 외부 몫을 참조하며 `(property_id,payment_id,income_allocation_id)` 복합 FK로 같은 수납의 배분인지 검사합니다. 기존 연결은 NULL을 유지하며 배분 없는 기타 입금만 사용할 수 있습니다. 한도 검증은 유효 지출의 활성 사용액과 외부 몫 금액을 비교하고 삭제된 지출의 이력은 사용액에서 제외합니다.
 
 통장 선택 삭제는 기존 `bank_transactions.deleted_at/deleted_by`와 수납 취소·삭제 이벤트를 사용합니다. 확정 지출·배분의 불변성은 유지하며 연결 수납을 취소한 뒤 삭제자·시각이 있는 원본의 소프트 삭제를 허용합니다. 삭제 표시는 되돌려 덮어쓰지 않고 재가져오기는 새 ID를 생성합니다.
 
@@ -1249,7 +1251,7 @@ Soft Delete 없음.
 
 ## 9.6 external_settlement_links
 
-2026-10-17 구현. `id` 요청 UUID PK, `property_id`, `allocation_id`, `payment_id`, 양수 `amount numeric(15,0)`, `created_by`, `created_at`을 저장합니다. 지출 배분·수납은 같은 관리대상 복합 FK로 연결합니다. 확정된 외부 부담처와 같은 통장의 유효한 확정 OTHER 수납을 연결합니다. 은행 수납과 허용된 수동 OTHER를 포함하며 동별 배분에 사용한 입금은 제외합니다. DB 지연 트리거가 입금·부담액 한도를 검사하며 연결 이력의 UPDATE·DELETE는 차단합니다. 취소 수납의 연결은 삭제하지 않고 유효 회수 합계에서 제외합니다.
+2026-10-17 구현. `id` 요청 UUID PK, `property_id`, `allocation_id`, `payment_id`, 양수 `amount numeric(15,0)`, `created_by`, `created_at`을 저장합니다. 지출 배분·수납은 같은 관리대상 복합 FK로 연결합니다. 확정된 외부 부담처와 같은 통장의 유효한 확정 OTHER 수납을 연결합니다. 은행 수납과 허용된 수동 OTHER를 포함합니다. 혼합 배분 입금은 선택한 외부 몫만 사용하며 내부 몫은 제외합니다. DB 지연 트리거가 입금·부담액 한도를 검사하며 연결 이력의 UPDATE·DELETE는 차단합니다. 취소 수납의 연결은 삭제하지 않고 유효 회수 합계에서 제외합니다.
 
 ---
 

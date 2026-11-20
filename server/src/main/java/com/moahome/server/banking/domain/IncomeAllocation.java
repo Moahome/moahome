@@ -20,7 +20,7 @@ public class IncomeAllocation {
 	@Column(name = "payment_id", nullable = false)
 	private UUID paymentId;
 
-	@Column(name = "building_id", nullable = false)
+	@Column(name = "building_id")
 	private UUID buildingId;
 
 	@Column(name = "building_label_encrypted", nullable = false, columnDefinition = "text")

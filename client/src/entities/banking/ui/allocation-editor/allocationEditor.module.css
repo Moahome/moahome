@@ -128,7 +128,7 @@
   }
 }
 
-.editor[data-expense='true'][data-mode='RATIO'] .share {
+.editor[data-transfer='false'][data-mode='RATIO'] .share {
   grid-template-columns: minmax(0, 1fr) 80px 14px minmax(190px, 1fr) 32px;
 }
 
@@ -298,7 +298,7 @@
     grid-template-columns: minmax(0, 1fr) var(--allocation-value-width) 12px var(--allocation-value-width) var(--allocation-action-width);
   }
 
-  &[data-mode='RATIO'][data-expense='true'] .share {
+  &[data-mode='RATIO'][data-transfer='false'] .share {
     grid-template-columns: minmax(0, 1fr) var(--allocation-value-width) 12px minmax(210px, 1fr) var(--allocation-action-width);
   }
 
@@ -356,8 +356,8 @@
 }
 
 @media (max-width: 767px) {
-  .editor[data-expense='true'][data-mode='RATIO'] .share,
-  .editor[data-expense='true'][data-mode='RATIO'][data-sectioned='true'] .share {
+  .editor[data-transfer='false'][data-mode='RATIO'] .share,
+  .editor[data-transfer='false'][data-mode='RATIO'][data-sectioned='true'] .share {
     grid-template-columns: minmax(0, 1fr) 72px 12px 32px;
 
     .calculated-amount {

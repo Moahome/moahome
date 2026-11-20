@@ -263,7 +263,8 @@ public class BankingBalanceService {
 		for (var p : allReceipts) {
 			if ("OTHER".equals(p.getReceiptType()) && distributed.containsKey(p.getId())) {
 				var original = allBankById.get(p.getBankTransactionId());
-				for (var part : distributed.get(p.getId()))
+				// 외부 보관금은 통장 전액에는 남기고 관리 동별 입금·보유금 원장에서는 제외합니다.
+				for (var part : distributed.get(p.getId()).stream().filter(a -> a.getBuildingId() != null).toList())
 					allEntries.add(new BankingBalanceResponse.Entry(original == null ? p.getId() : original.getId(),
 					    part.getBuildingId(), p.getPaymentDate(),
 					    original == null ? null : original.getTransactionTime(),
@@ -482,6 +483,7 @@ public class BankingBalanceService {
 		List<ExpenseAllocation> parts = allParts.stream().filter(a -> expenseById.containsKey(a.getExpenseId()))
 		    .toList();
 		// 삭제한 출금의 회수 연결은 이력만 유지하고 기타 입금의 사용 가능액을 다시 엽니다.
+		Map<UUID, ExpenseAllocation> partsById = parts.stream().collect(Collectors.toMap(ExpenseAllocation::getId, a -> a));
 		Set<UUID> liveParts = parts.stream().map(a -> a.getId()).collect(Collectors.toSet());
 		List<ExternalSettlementLink> savedLinks = allLinks.stream()
 		    .filter(l -> receiptById.containsKey(l.getPaymentId()) && liveParts.contains(l.getAllocationId())).toList();
@@ -570,7 +572,7 @@ public class BankingBalanceService {
 			    .filter(l -> l.getAllocationId().equals(part.getId())).map(l -> {
 				    var p = receiptById.get(l.getPaymentId());
 				    return new BankingBalanceResponse.Recovery(l.getId(), p.getId(), p.getPaymentDate(),
-				        security.decrypt(p.getPayerNameEncrypted()), amount(l.getAmount()));
+				        security.decrypt(p.getPayerNameEncrypted()), amount(l.getAmount()), l.getIncomeAllocationId());
 			    }).toList();
 			var recovered = recoveries.stream().map(r -> new BigDecimal(r.amount())).reduce(BigDecimal.ZERO,
 			    (bigDecimal, other) -> bigDecimal.add(other));
@@ -591,6 +593,24 @@ public class BankingBalanceService {
 		ArrayList<BankingBalanceResponse.Income> income = new ArrayList<BankingBalanceResponse.Income>();
 		for (var p : receipts) {
 			if (!"CONFIRMED".equals(p.getStatus())) continue;
+			// 보관금은 기간 입금이 아니라 기말 자금이므로 이전 달에 받은 미사용 몫도 이어서 제공합니다.
+			// 통장 기준일 이전에 이미 사용했을 수 있는 돈은 초기 잔액으로 추정하지 않습니다.
+			LocalDate fundCutoff = legacy ? cutoff : savedOpenings.stream()
+			    .filter(o -> p.getBankAccountId().equals(o.getBankAccountId()))
+			    .map(BuildingCashOpening::getCutoffDate).findFirst().orElse(null);
+			if (fundCutoff != null && p.getPaymentDate().isAfter(fundCutoff) && !p.getPaymentDate().isAfter(end)) {
+				for (IncomeAllocation share : distributed.getOrDefault(p.getId(), List.of())) {
+					if (share.getBuildingId() != null)
+						continue;
+					BigDecimal used = savedLinks.stream().filter(l -> share.getId().equals(l.getIncomeAllocationId()))
+					    .filter(l -> !expenseById.get(partsById.get(l.getAllocationId()).getExpenseId()).getExpenseDate().isAfter(end))
+					    .map(ExternalSettlementLink::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+					income.add(new BankingBalanceResponse.Income(share.getId(), p.getBankTransactionId(), p.getPaymentDate(),
+					    security.decrypt(share.getBuildingLabelEncrypted()) + " · " + security.decrypt(p.getIncomeCategoryEncrypted()),
+					    amount(share.getAmount()), amount(share.getAmount().subtract(used)), "EXTERNAL", null, null,
+					    p.getBankAccountId(), p.getId()));
+				}
+			}
 			if (!p.getPaymentDate().isAfter(reviewStart))
 				continue;
 			if (("HOUSEHOLD".equals(p.getReceiptType()) && p.getCashBuildingId() != null)
@@ -1122,6 +1142,7 @@ public class BankingBalanceService {
 			var p = previous.get();
 			if (!property.equals(p.getPropertyId()) || !p.getAllocationId().equals(request.allocationId())
 			    || !p.getPaymentId().equals(request.paymentId())
+			    || !Objects.equals(p.getIncomeAllocationId(), request.incomeAllocationId())
 			    || p.getAmount().compareTo(new BigDecimal(request.amount())) != 0)
 				throw new BankingException("EXTERNAL_SETTLEMENT_CONFLICT");
 			return;
@@ -1131,14 +1152,18 @@ public class BankingBalanceService {
 		    .orElseThrow(() -> new BankingException("INVALID_EXTERNAL_SETTLEMENT"));
 		if (external.excluded())
 			throw new BankingException("EXTERNAL_SETTLEMENT_EXCLUDED");
-		var income = data.incomes().stream().filter(i -> i.id().equals(request.paymentId()) && "OTHER".equals(i.kind()))
+		var income = data.incomes().stream().filter(i -> request.incomeAllocationId() == null
+		    ? i.id().equals(request.paymentId()) && "OTHER".equals(i.kind())
+		    : i.id().equals(request.incomeAllocationId()) && request.paymentId().equals(i.paymentId()) && "EXTERNAL".equals(i.kind()))
 		    .findFirst().orElseThrow(() -> new BankingException("INVALID_EXTERNAL_SETTLEMENT"));
 		var value = new BigDecimal(request.amount());
+		if (!Objects.equals(external.accountId(), income.accountId()))
+			throw new BankingException("INVALID_EXTERNAL_SETTLEMENT");
 		if (value.signum() <= 0 || value.compareTo(new BigDecimal(external.remaining())) > 0
 		    || value.compareTo(new BigDecimal(income.available())) > 0)
 			throw new BankingException("EXTERNAL_SETTLEMENT_EXCEEDED");
 		links.saveAndFlush(ExternalSettlementLink.create(request.id(), property, request.allocationId(),
-		    request.paymentId(), request.amount(), user, OffsetDateTime.now(clock)));
+		    request.paymentId(), request.incomeAllocationId(), request.amount(), user, OffsetDateTime.now(clock)));
 	}
 
 	/** 정산 대상을 제외·복원하되 실제 입출금·배분액·회수액은 변경하지 않습니다. 재시도는 같은 요청 ID로 처리합니다. */

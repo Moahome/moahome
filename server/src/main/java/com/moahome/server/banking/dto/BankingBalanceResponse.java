@@ -42,11 +42,18 @@ public final class BankingBalanceResponse {
 		}
 	}
 
-	public record Recovery(UUID id, UUID paymentId, LocalDate date, String payer, String amount) {
+	public record Recovery(UUID id, UUID paymentId, LocalDate date, String payer, String amount, UUID incomeAllocationId) {
+		public Recovery(UUID id, UUID paymentId, LocalDate date, String payer, String amount) {
+			this(id, paymentId, date, payer, amount, null);
+		}
 	}
 
 	public record Income(UUID id, UUID transactionId, LocalDate date, String payer, String amount, String available,
-	    String kind, UUID linkedBuildingId, String linkedUnitLabel, UUID accountId) {
+	    String kind, UUID linkedBuildingId, String linkedUnitLabel, UUID accountId, UUID paymentId) {
+		public Income(UUID id, UUID transactionId, LocalDate date, String payer, String amount, String available,
+		    String kind, UUID linkedBuildingId, String linkedUnitLabel, UUID accountId) {
+			this(id, transactionId, date, payer, amount, available, kind, linkedBuildingId, linkedUnitLabel, accountId, null);
+		}
 		public Income(UUID id, UUID transactionId, LocalDate date, String payer, String amount, String available,
 		    String kind, UUID linkedBuildingId, String linkedUnitLabel) {
 			this(id, transactionId, date, payer, amount, available, kind, linkedBuildingId, linkedUnitLabel, null);

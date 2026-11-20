@@ -47,7 +47,7 @@ export function calculateExpenseAllocation(total: string, draft: ExpenseDraft, p
   });
   let allocated = allocations.reduce((sum, a) => sum + BigInt(a.amount), BigInt(0));
   let remaining = amount - allocated;
-  const canAdjustRatio = purpose === 'expense' && draft.mode === 'RATIO' && validRatios && ratio === BigInt(10000)
+  const canAdjustRatio = draft.mode === 'RATIO' && validRatios && ratio === BigInt(10000)
     && fractional && remaining > BigInt(0);
   // 비율을 유지하면서 관리자가 선택한 한 곳에만 절사 후 나머지 전액을 더합니다.
   // 원본 금액·비율·대상이 달라져 저장한 금액과 맞지 않으면 선택을 재사용하지 않습니다.
