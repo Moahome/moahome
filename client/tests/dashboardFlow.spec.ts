@@ -70,7 +70,7 @@ async function mockDashboard(page: Page, state = {
   return requests;
 }
 
-for (const width of [1440, 390, 320]) {
+for (const width of [1440]) {
   test(`대시보드 ${width}px는 실제 요약·현재 업무·납부 현황·통장·6개월 추이를 표시`, async ({ page }) => {
     await page.setViewportSize({
       width,

@@ -127,7 +127,7 @@ test('비율 배분의 남은 1원은 선택한 곳에만 더하고 비율·모�
     allocations: original.allocations.slice(1)
   };
   expect(fillAllocationRemainder('172210', invalid, 0)).toBe(invalid);
-  expect(calculateExpenseAllocation('172210', filled, 'income').error).not.toBe('');
+  expect(calculateExpenseAllocation('172210', filled, 'income').error).toBe('');
 });
 
 test('수동 입금 기본 이름은 세대별 최근 확정 입금만 사용하고 취소·미확정·기타 입금은 제외', async () => {
@@ -847,4 +847,32 @@ test('이체 한도는 이후 입금을 미리 쓰지 않고 이후 확정 출�
   });
   expect(getTransferLimits(data, 'other', '2026-11-01')).toEqual({});
   expect(getTransferLimits(undefined, 'source', '2026-11-01')).toEqual({});
+});
+
+
+test('입금 709926원의 25·25·50% 배분은 선택한 곳에 남은 1원을 더해 같은 규칙으로 확정', () => {
+  const original = draft('RATIO', [
+    {
+      label: '102동',
+      percentage: '25'
+    },
+    {
+      label: '103동',
+      percentage: '25'
+    },
+    {
+      label: '101동',
+      percentage: '50'
+    }
+  ]);
+  const before = calculateExpenseAllocation('709926', original, 'income');
+  expect(before.remaining).toBe(BigInt(1));
+  expect(before.canFillRatioRemainder).toBe(true);
+  expect(before.allocations.map((p) => p.amount)).toEqual(['177481', '177481', '354963']);
+  const filled = fillAllocationRemainder('709926', original, 0);
+  expect(filled.mode).toBe('RATIO');
+  expect(filled.allocations.map((p) => p.percentage)).toEqual(['25', '25', '50']);
+  expect(filled.allocations.map((p) => p.amount)).toEqual(['177482', '177481', '354963']);
+  expect(calculateExpenseAllocation('709926', filled, 'income').error).toBe('');
+  expect(fillAllocationRemainder('709926', filled, 2)).toBe(filled);
 });

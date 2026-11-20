@@ -2,6 +2,7 @@ package com.moahome.server.resident.repo;
 
 import java.io.ByteArrayOutputStream;
 import java.security.SecureRandom;
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -604,6 +605,10 @@ class ResidentDirectoryPersistenceTest {
 		upgraded.validate();
 		List<Map<String, Object>> upgradedRoster = jdbc.queryForList("select * from " + schema + ".residents");
 		for (var row : upgradedRoster) {
+			var previousRow = roster.stream().filter(item -> item.get("id").equals(row.get("id"))).findFirst().orElseThrow();
+			// 과거 연락처 보정 Migration은 수정 시각을 갱신하지만 명부와 관계 자료는 보존합니다.
+			assertThat((Timestamp) row.get("updated_at")).isAfterOrEqualTo((Timestamp) previousRow.get("updated_at"));
+			row.put("updated_at", previousRow.get("updated_at"));
 			assertThat(row.get("phone_consent")).isEqualTo(false);
 			row.keySet().removeIf(key -> key.startsWith("phone_consent"));
 		}
@@ -1349,6 +1354,32 @@ class ResidentDirectoryPersistenceTest {
 		    Integer.class, property.getId())).isEqualTo(2);
 		assertThat(jdbc.queryForObject("select count(*) from unit_residents where unit_id=? and status='ACTIVE'",
 		    Integer.class, unit.getId())).isEqualTo(2);
+	}
+
+	/** 설정이 있던 스키마에서 전용 컬럼만 제거하고 주민의 다른 값은 보존합니다. */
+	@Test
+	void removedNotificationSettingPreservesResidentData() {
+		String schema = "removed_setting_" + UUID.randomUUID().toString().replace("-", "");
+		Flyway previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "").schemas(schema)
+		    .defaultSchema(schema).target("20261120111312").load();
+		previous.migrate();
+		UUID propertyId = UUID.randomUUID();
+		jdbc.update("insert into " + schema
+		    + ".properties(id,name,address,has_buildings,status,created_at,updated_at) values (?,'이관 대상','주소',false,'ACTIVE',now(),now())", propertyId);
+		for (boolean enabled : List.of(true, false)) {
+			jdbc.update("insert into " + schema
+			    + ".residents(id,property_id,name,status,phone_encrypted,phone_hmac,phone_last4,sms_enabled,created_at,updated_at) values (?,?,?,'ACTIVE','opaque',?,'1234',?,now(),now())",
+			    UUID.randomUUID(), propertyId, "기존 주민 " + enabled, "a".repeat(64), enabled);
+		}
+		List<Map<String, Object>> before = jdbc.queryForList("select * from " + schema + ".residents order by id");
+		before.forEach(row -> row.remove("sms_enabled"));
+		Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "").schemas(schema)
+		    .defaultSchema(schema).load();
+		upgraded.migrate();
+		upgraded.validate();
+		assertThat(jdbc.queryForList("select * from " + schema + ".residents order by id")).isEqualTo(before);
+		assertThat(jdbc.queryForObject("select count(*) from information_schema.columns where table_schema=? and table_name='residents' and column_name in ('sms_enabled','alimtalk_enabled')",
+		    Integer.class, schema)).isZero();
 	}
 
 	private Property property(boolean hasBuildings) {

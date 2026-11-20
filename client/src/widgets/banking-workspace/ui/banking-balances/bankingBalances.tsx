@@ -293,7 +293,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       scroll: false
     });
   }, [data, accountId, params, router]);
-  const title = panel ? PANEL_TITLES[panel] : buildingId ? '동별 상세 원장' : '동별 잔고·정산';
+  const title = panel ? PANEL_TITLES[panel] : buildingId ? '동별 상세 원장' : '잔고·정산';
   if (!data && !query.isPending) return (
     <RequestError
       error={query.error}
@@ -661,7 +661,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         actionsClassName={styles['header-actions']}
         titleId={'balance-title'}
         menu={'통장 관리'}
-        title={'동별 잔고·정산'}
+        title={'잔고·정산'}
         description={'은행 거래를 기준으로 각 동의 보유금과 외부 부담금을 확인합니다.'}
         actions={(
           <>
@@ -972,6 +972,14 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
             </div>
             <div>
               <dt>
+                외부 보관금 잔액
+              </dt>
+              <dd>
+                {money(data.incomes.filter((i) => i.kind === 'EXTERNAL').reduce((sum, i) => sum + BigInt(i.available), BigInt(0)))}
+              </dd>
+            </div>
+            <div>
+              <dt>
                 조회 기간 외부 대납 미회수액
               </dt>
               <dd>
@@ -992,7 +1000,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
                 귀속 확인할 입금
               </dt>
               <dd>
-                {data.incomes.filter((i) => BigInt(i.available) > BigInt(0)).length}
+                {data.incomes.filter((i) => i.kind !== 'EXTERNAL' && BigInt(i.available) > BigInt(0)).length}
                 건
               </dd>
             </div>
@@ -1000,7 +1008,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           <p
             className={styles.muted}
           >
-            외부 대납금·기타 입금·미분류 거래·시작 잔고 차이를 확인해야 합니다. 차이를 특정 동에 자동 반영하지 않습니다.
+            외부 보관금·외부 대납금·기타 입금·미분류 거래·시작 잔고 차이를 확인해주세요. 차이를 특정 동에 자동 반영하지 않습니다.
           </p>
           <button
             type={'button'}
@@ -1010,6 +1018,45 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           />
         </section>
       </div>
+      {data.incomes.some((i) => i.kind === 'EXTERNAL') && (
+        <section
+          className={styles.card}
+        >
+          <h2>
+            외부 보관금
+          </h2>
+          <p
+            className={styles.muted}
+          >
+            관리 동 잔고에 포함하지 않는 돈입니다. 외부 부담금 정산에서 입금을 연결하면 사용액이 반영됩니다.
+          </p>
+          <PagedTable
+            label={'외부 보관금'}
+            rows={data.incomes.filter((i) => i.kind === 'EXTERNAL')}
+            columns={[{
+              key: 'date',
+              header: '입금일',
+              render: (i) => i.date
+            }, {
+              key: 'payer',
+              header: '외부 동·입금 항목',
+              render: (i) => i.payer
+            }, {
+              key: 'amount',
+              header: '입금액',
+              render: (i) => money(i.amount)
+            }, {
+              key: 'used',
+              header: '연결 사용액',
+              render: (i) => money(BigInt(i.amount) - BigInt(i.available))
+            }, {
+              key: 'available',
+              header: '보관 잔액',
+              render: (i) => money(i.available)
+            }]}
+          />
+        </section>
+      )}
       <section
         className={styles.card}
         id={'external-settlements'}
@@ -1020,7 +1067,7 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         <p
           className={styles.muted}
         >
-          선택한 기간에 지출한 부담금입니다. 회수액은 조회 기말까지 실제 기타 입금을 연결한 금액입니다.
+          선택한 기간의 외부 지출입니다. 먼저 받은 외부 보관금이나 실제 기타 입금을 연결한 만큼 정산에 반영합니다.
         </p>
         <PagedTable
           label={'외부 부담금'}
@@ -2378,7 +2425,7 @@ function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, p
   const enteredCount = openingTargets.filter((b) => /^-?[0-9]{1,15}$/.test(amounts[b.id] ?? '')).length;
   const external = data.externals.find((e) => e.id === action.id);
   const income = data.incomes.find((i) => i.id === action.id);
-  const options = data.incomes.filter((i) => i.kind === 'OTHER' && BigInt(i.available) > BigInt(0) && (!external?.accountId || i.accountId === external.accountId));
+  const options = data.incomes.filter((i) => ['OTHER', 'EXTERNAL'].includes(i.kind) && BigInt(i.available) > BigInt(0) && (!external?.accountId || i.accountId === external.accountId));
   const title = {
     opening: editingOpening ? '기준 잔고 수정' : missing.length ? '동별 시작 잔고 설정' : '기준 잔고 확인',
     settlement: '외부 부담금 정산',
@@ -2436,7 +2483,10 @@ function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, p
         await settleExternalExpense(propertyId, {
           id: requestId,
           allocationId: external.id,
-          paymentId: payment,
+          paymentId: options.find((i) => i.id === payment)?.paymentId ?? payment,
+          ...(options.find((i) => i.id === payment)?.kind === 'EXTERNAL' ? {
+            incomeAllocationId: payment
+          } : {}),
           amount
         });
       if (action.kind === 'assignment' && income)
@@ -2979,7 +3029,7 @@ function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, p
           {!external.excluded && BigInt(external.remaining) > BigInt(0) && (
             <>
               <SelectDropdown
-                label={'연결할 기타 입금'}
+                label={'연결할 입금·외부 보관금'}
                 value={payment}
                 onChange={(value) => { setPayment(value); const available = BigInt(options.find((i) => i.id === value)!.available); setAmount((available < BigInt(external.remaining) ? available : BigInt(external.remaining)).toString()); }}
                 options={options.map((i) => ({
@@ -3063,6 +3113,14 @@ function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, p
             </div>
             <div>
               <dt>
+                외부 보관금 잔액
+              </dt>
+              <dd>
+                {money(data.incomes.filter((i) => i.kind === 'EXTERNAL').reduce((sum, i) => sum + BigInt(i.available), BigInt(0)))}
+              </dd>
+            </div>
+            <div>
+              <dt>
                 조회 기간 외부 대납 미회수액
               </dt>
               <dd>
@@ -3095,7 +3153,7 @@ function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, p
           </h3>
           <PagedTable
             label={'귀속 확인할 입금'}
-            rows={data.incomes.filter((i) => BigInt(i.available) > BigInt(0))}
+            rows={data.incomes.filter((i) => i.kind !== 'EXTERNAL' && BigInt(i.available) > BigInt(0))}
             columns={[{
               key: 'date',
               header: '입금일',

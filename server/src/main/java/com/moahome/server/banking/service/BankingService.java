@@ -25,7 +25,7 @@ import com.moahome.server.expense.service.ExpenseService;
 import com.moahome.server.expense.domain.Expense;
 import com.moahome.server.payment.domain.Payment;
 import com.moahome.server.payment.dto.PaymentResponse;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
 import com.moahome.server.payment.repo.PaymentRepository;
 import com.moahome.server.payment.service.PaymentService;
 import com.moahome.server.property.domain.*;
@@ -114,7 +114,7 @@ public class BankingService {
 		    .filter(a -> a.isPrimary() && a.getBuildingId() == null && a.getStatus() == BankAccountStatus.ACTIVE)
 		    .toList();
 		if (list.size() != 1)
-			throw new PaymentException("PAYMENT_ACCOUNT_UNAVAILABLE");
+			throw new BankingException("PAYMENT_ACCOUNT_UNAVAILABLE");
 		return list.getFirst();
 	}
 
@@ -125,7 +125,7 @@ public class BankingService {
 		return accounts.findById(id)
 		    .filter(a -> property.equals(a.getPropertyId()) && a.getDeletedAt() == null && a.getBuildingId() == null
 		        && a.getStatus() == BankAccountStatus.ACTIVE)
-		    .orElseThrow(() -> new PaymentException("PAYMENT_ACCOUNT_UNAVAILABLE"));
+		    .orElseThrow(() -> new BankingException("PAYMENT_ACCOUNT_UNAVAILABLE"));
 	}
 
 	private LocalDate today() {
@@ -313,7 +313,7 @@ public class BankingService {
 		List<BankTransferPostingService.PendingTransfer> pendingTransfers = transferPostings.pendingTransfers(property);
 		for (var row : incoming) {
 			if (row.date().isAfter(today()))
-				throw new PaymentException("INVALID_PAYMENT_DATE");
+				throw new BankingException("INVALID_PAYMENT_DATE");
 			if (!allowed(target, row.date())) {
 				before++;
 				continue;
@@ -350,13 +350,13 @@ public class BankingService {
 		    .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
 		requireManagementAccess(user, property);
 		if (target.getManagementStartedAt() == null)
-			throw new PaymentException("OPENING_BALANCE_REQUIRED");
+			throw new BankingException("OPENING_BALANCE_REQUIRED");
 		var account = account(property, selection.accountId());
 		List<BankTransactionReader.Row> source = reader.readAll(file, account.getBankCode());
 		LinkedHashMap<UUID, BankTransactionReader.Row> available = new LinkedHashMap<UUID, BankTransactionReader.Row>();
 		for (var row : source) {
 			if (row.date().isAfter(today()))
-				throw new PaymentException("INVALID_PAYMENT_DATE");
+				throw new BankingException("INVALID_PAYMENT_DATE");
 			available.putIfAbsent(BankTransactionKeys.previewId(BankTransactionKeys.key(row, security)), row);
 		}
 		BankTransactionDuplicates duplicates = new BankTransactionDuplicates(transactions.findByPropertyId(property),
@@ -373,11 +373,11 @@ public class BankingService {
 		for (var item : selection.rows()) {
 			var row = available.get(item.id());
 			if (row == null || !selected.add(item.id()) || !allowed(target, row.date()))
-				throw new PaymentException("INVALID_BANK_SELECTION");
+				throw new BankingException("INVALID_BANK_SELECTION");
 			if (item.transfer()) {
 				if (item.expense() != null || item.incomeAllocation() != null || item.unitId() != null
 				    || item.incomeCategory() != null || item.incomeNote() != null)
-					throw new PaymentException("INVALID_BANK_SELECTION");
+					throw new BankingException("INVALID_BANK_SELECTION");
 				BankTransaction original = saveTransferSource(property, account.getId(), row, user);
 				if (item.transferAccountId() != null || item.matchTransferId() != null) {
 					transferPostings.record(UUID.randomUUID(), original, item.transferAccountId(), item.matchTransferId(), user, item.transferAllocations());
@@ -388,11 +388,11 @@ public class BankingService {
 			// 이미 반대편을 자동 반영한 거래를 일반 수납·지출로 다시 저장하면 중복 차감되므로 확인을 요구합니다.
 			if (item.transferAccountId() != null || item.matchTransferId() != null || item.transferAllocations() != null
 			    || transferPostings.pending(pendingTransfers, account.getId(), row.date(), row.direction(), row.amount()) != null)
-				throw new PaymentException("BANK_TRANSFER_CONFIRM_REQUIRED");
+				throw new BankingException("BANK_TRANSFER_CONFIRM_REQUIRED");
 			if ("INCOME".equals(row.direction())) {
 				if (item.expense() != null || (item.unitId() != null && item.incomeCategory() != null)
 				    || (item.incomeAllocation() != null && (item.unitId() != null || item.incomeCategory() == null)))
-					throw new PaymentException("INVALID_BANK_SELECTION");
+					throw new BankingException("INVALID_BANK_SELECTION");
 				income.add(row);
 				choices.put(item.id(),
 				    new PaymentService.BankReceiptChoice(item.unitId(), item.incomeCategory(), item.incomeNote()));
@@ -400,7 +400,7 @@ public class BankingService {
 			}
 			if (item.unitId() != null || item.incomeCategory() != null || item.incomeNote() != null
 			    || item.incomeAllocation() != null)
-				throw new PaymentException("INVALID_BANK_SELECTION");
+				throw new BankingException("INVALID_BANK_SELECTION");
 			String key = BankTransactionKeys.key(row, security);
 			var previous = duplicates.find(row);
 			BankTransaction original;
@@ -436,7 +436,7 @@ public class BankingService {
 		    .find(row);
 		if (previous.isPresent()) {
 			if (!previous.get().isTransferCandidate())
-				throw new PaymentException("BANK_TRANSFER_CONFLICT");
+				throw new BankingException("BANK_TRANSFER_CONFLICT");
 			return previous.get();
 		}
 		var original = BankTransaction.create(property, account, row.date(), row.amount(),
@@ -457,10 +457,10 @@ public class BankingService {
 		    .orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
 		requireManagementAccess(user, property);
 		if (target.getManagementStartedAt() == null)
-			throw new PaymentException("OPENING_BALANCE_REQUIRED");
+			throw new BankingException("OPENING_BALANCE_REQUIRED");
 		account(property, request.accountId());
 		if (request.date() == null || request.date().isAfter(today()))
-			throw new PaymentException("INVALID_MANUAL_EXPENSE_DATE");
+			throw new BankingException("INVALID_MANUAL_EXPENSE_DATE");
 		expenseService.manual(property, request, user);
 		return workspace(user, property);
 	}
@@ -474,7 +474,7 @@ public class BankingService {
 		requireManagementAccess(user, property);
 		var original = transactions.findById(id)
 		    .filter(t -> property.equals(t.getPropertyId()) && t.getDeletedAt() == null)
-		    .orElseThrow(() -> new PaymentException("BANK_TRANSACTION_NOT_FOUND"));
+		    .orElseThrow(() -> new BankingException("BANK_TRANSACTION_NOT_FOUND"));
 		expenseService.confirm(original, request, user);
 		return workspace(user, property);
 	}
@@ -488,7 +488,7 @@ public class BankingService {
 		requireManagementAccess(user, property);
 		var original = transactions.findById(transactionId)
 		    .filter(t -> property.equals(t.getPropertyId()) && t.getDeletedAt() == null)
-		    .orElseThrow(() -> new PaymentException("BANK_TRANSACTION_NOT_FOUND"));
+		    .orElseThrow(() -> new BankingException("BANK_TRANSACTION_NOT_FOUND"));
 		allocateIncome(original, request, user);
 		return workspace(user, property);
 	}
@@ -496,14 +496,14 @@ public class BankingService {
 	/** 같은 배분 재시도는 이중 저장하지 않으며 당시 동 이름·금액을 변경 불가 이력으로 남깁니다. */
 	private void allocateIncome(BankTransaction original, BankingRequests.Expense request, UUID user) {
 		if (original.isTransferCandidate())
-			throw new PaymentException("BANK_TRANSFER_CONFLICT");
+			throw new BankingException("BANK_TRANSFER_CONFLICT");
 		if (!"INCOME".equals(original.getDirection()) || original.getDeletedAt() != null || request.saveAsRule())
-			throw new PaymentException("INVALID_BANK_SELECTION");
+			throw new BankingException("INVALID_BANK_SELECTION");
 		var property = original.getPropertyId();
 		var receipt = receiptRepository.findByPropertyIdOrderByPaymentDateDescCreatedAtDesc(property).stream()
 		    .filter(p -> original.getId().equals(p.getBankTransactionId()) && p.getDeletedAt() == null
 		        && "CONFIRMED".equals(p.getStatus()) && "OTHER".equals(p.getReceiptType()))
-		    .findFirst().orElseThrow(() -> new PaymentException("OTHER_INCOME_REQUIRED"));
+		    .findFirst().orElseThrow(() -> new BankingException("OTHER_INCOME_REQUIRED"));
 		incomeAllocationService.allocate(receipt, request, user);
 	}
 
@@ -515,7 +515,7 @@ public class BankingService {
 		requireManagementAccess(user, property);
 		BankTransaction source = transactions.findById(request.transactionId())
 		    .filter(value -> property.equals(value.getPropertyId()) && value.getDeletedAt() == null)
-		    .orElseThrow(() -> new PaymentException("BANK_TRANSACTION_NOT_FOUND"));
+		    .orElseThrow(() -> new BankingException("BANK_TRANSACTION_NOT_FOUND"));
 		transferPostings.record(request.id(), source, request.counterpartAccountId(), null, user, request.allocations());
 		return workspace(user, property);
 	}
@@ -539,7 +539,7 @@ public class BankingService {
 		// 종전 두 원본 연결도 원본과 연결 이력을 보존하며 같은 이체 기록으로 전환합니다.
 		if (transferPostings.all(property).stream().noneMatch(value -> value.getId().equals(transfer))) {
 			BankTransfer previous = transfers.findById(transfer).filter(value -> property.equals(value.getPropertyId()) && value.getCanceledAt() == null)
-			    .orElseThrow(() -> new PaymentException("BANK_TRANSFER_CONFLICT"));
+			    .orElseThrow(() -> new BankingException("BANK_TRANSFER_CONFLICT"));
 			BankTransaction source = transferSource(property, previous.getOutgoingId());
 			BankTransaction target = transferSource(property, previous.getIncomingId());
 			previous.cancel(user, OffsetDateTime.now(clock));
@@ -562,26 +562,26 @@ public class BankingService {
 			var saved = previous.get();
 			if (!property.equals(saved.getPropertyId()) || !request.outgoingId().equals(saved.getOutgoingId())
 			    || !request.incomingId().equals(saved.getIncomingId()))
-				throw new PaymentException("BANK_TRANSFER_CONFLICT");
+				throw new BankingException("BANK_TRANSFER_CONFLICT");
 			return workspace(user, property);
 		}
 		if (request.outgoingId().equals(request.incomingId()))
-			throw new PaymentException("BANK_TRANSFER_CONFLICT");
+			throw new BankingException("BANK_TRANSFER_CONFLICT");
 		var outgoing = transferSource(property, request.outgoingId());
 		var incoming = transferSource(property, request.incomingId());
 		if (transferPostings.all(property).stream().anyMatch(value ->
 		    (value.getSourceTransactionId() != null && Set.of(outgoing.getId(), incoming.getId()).contains(value.getSourceTransactionId()))
 		    || (value.getCounterpartTransactionId() != null && Set.of(outgoing.getId(), incoming.getId()).contains(value.getCounterpartTransactionId()))))
-			throw new PaymentException("BANK_TRANSFER_CONFLICT");
+			throw new BankingException("BANK_TRANSFER_CONFLICT");
 		if (!"EXPENSE".equals(outgoing.getDirection()) || !"INCOME".equals(incoming.getDirection())
 		    || outgoing.getBankAccountId().equals(incoming.getBankAccountId())
 		    || outgoing.getAmount().compareTo(incoming.getAmount()) != 0)
-			throw new PaymentException("BANK_TRANSFER_CONFLICT");
+			throw new BankingException("BANK_TRANSFER_CONFLICT");
 		List<BankTransfer> used = transfers.findByPropertyId(property).stream().filter(t -> t.getCanceledAt() == null)
 		    .toList();
 		if (used.stream()
 		    .anyMatch(t -> t.getOutgoingId().equals(outgoing.getId()) || t.getIncomingId().equals(incoming.getId())))
-			throw new PaymentException("BANK_TRANSFER_CONFLICT");
+			throw new BankingException("BANK_TRANSFER_CONFLICT");
 		transfers.saveAndFlush(BankTransfer.connect(request.id(), property, outgoing.getId(), incoming.getId(), user,
 		    OffsetDateTime.now(clock)));
 		return workspace(user, property);
@@ -590,7 +590,7 @@ public class BankingService {
 	private BankTransaction transferSource(UUID property, UUID id) {
 		return transactions.findById(id)
 		    .filter(t -> property.equals(t.getPropertyId()) && t.getDeletedAt() == null && t.isTransferCandidate())
-		    .orElseThrow(() -> new PaymentException("BANK_TRANSFER_CONFLICT"));
+		    .orElseThrow(() -> new BankingException("BANK_TRANSFER_CONFLICT"));
 	}
 
 	/** 잘못 연결한 이체만 취소하고 원본과 연결 이력을 보존합니다. 재시도는 무효과입니다. */
@@ -601,7 +601,7 @@ public class BankingService {
 		requireManagementAccess(user, property);
 		if (transferPostings.cancel(property, id, user)) return workspace(user, property);
 		var transfer = transfers.findById(id).filter(t -> property.equals(t.getPropertyId()))
-		    .orElseThrow(() -> new PaymentException("BANK_TRANSFER_CONFLICT"));
+		    .orElseThrow(() -> new BankingException("BANK_TRANSFER_CONFLICT"));
 		transfer.cancel(user, OffsetDateTime.now(clock));
 		transfers.flush();
 		return workspace(user, property);
@@ -622,34 +622,34 @@ public class BankingService {
 			var incoming = receiptRepository.findById(match.getPaymentId()).orElseThrow();
 			if (expenseIds.contains(outgoing.getId()) || manualIds.contains(incoming.getId())
 				|| requested.contains(outgoing.getBankTransactionId()) || requested.contains(incoming.getBankTransactionId()))
-				throw new PaymentException("BANK_TRANSFER_CANCEL_REQUIRED");
+				throw new BankingException("BANK_TRANSFER_CANCEL_REQUIRED");
 		}
 		if (transferPostings.all(property).stream().anyMatch(value -> value.getCanceledAt() == null
 			&& (requested.contains(value.getId()) || requested.contains(value.getSourceTransactionId())
 				|| requested.contains(value.getCounterpartTransactionId()))))
-			throw new PaymentException("BANK_TRANSFER_CANCEL_REQUIRED");
+			throw new BankingException("BANK_TRANSFER_CANCEL_REQUIRED");
 		for (var group : deletionGroups(property, workspace(user, property).rows())) {
 			if (group.transactionIds().stream().noneMatch(requested::contains))
 				continue;
 			if (group.requiresCancellation())
-				throw new PaymentException("BANK_TRANSFER_CANCEL_REQUIRED");
+				throw new BankingException("BANK_TRANSFER_CANCEL_REQUIRED");
 			if (!requested.containsAll(group.transactionIds()))
-				throw new PaymentException("BANK_TRANSFER_DELETE_PAIR_REQUIRED");
+				throw new BankingException("BANK_TRANSFER_DELETE_PAIR_REQUIRED");
 		}
 		LinkedHashSet<UUID> ids = new LinkedHashSet<>(transferPostings.deletionSources(property, requested));
 		List<BankTransaction> selected = transactions.findAllById(ids);
 		if (selected.size() != ids.size() || selected.stream().anyMatch(t -> !property.equals(t.getPropertyId())))
-			throw new PaymentException("BANK_TRANSACTION_NOT_FOUND");
+			throw new BankingException("BANK_TRANSACTION_NOT_FOUND");
 		// 은행 원본과 수동 수납 선택은 구분하며 다른 대상·은행 연결 수납은 수동 삭제로 우회하지 못합니다.
 		List<Payment> manual = receiptRepository.findAllById(manualIds);
 		if (manual.size() != manualIds.size() || manual.stream().anyMatch(p -> !property.equals(p.getPropertyId())))
-			throw new PaymentException("PAYMENT_NOT_FOUND");
+			throw new BankingException("PAYMENT_NOT_FOUND");
 		if (manual.stream().anyMatch(p -> !"MANUAL".equals(p.getSourceType()) || p.getBankTransactionId() != null))
-			throw new PaymentException("PAYMENT_DELETE_NOT_ALLOWED");
+			throw new BankingException("PAYMENT_DELETE_NOT_ALLOWED");
 		List<Expense> manualExpenses = expenses.findAllById(expenseIds);
 		if (manualExpenses.size() != expenseIds.size() || manualExpenses.stream()
 		    .anyMatch(value -> !property.equals(value.getPropertyId()) || !"MANUAL".equals(value.getSourceType())))
-			throw new PaymentException("EXPENSE_DELETE_NOT_ALLOWED");
+			throw new BankingException("EXPENSE_DELETE_NOT_ALLOWED");
 		// 한 선택이라도 삭제 불가이면 은행 원본 취소까지 모두 롤백합니다. 취소 사유와 수납 이벤트는 보존합니다.
 		if (!manualIds.isEmpty())
 			payments.removeManualReceipts(user, property, manualIds);

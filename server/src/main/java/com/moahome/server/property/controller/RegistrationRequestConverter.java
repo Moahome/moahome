@@ -1,5 +1,6 @@
 package com.moahome.server.property.controller;
 
+import com.moahome.server.common.json.StrictJsonMapper;
 import java.io.IOException;
 import com.moahome.server.property.dto.BasicInfoRequest;
 import com.moahome.server.property.dto.PropertyRegistrationRequest;
@@ -8,10 +9,6 @@ import org.springframework.http.converter.*;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.*;
-import tools.jackson.core.StreamReadFeature;
-import tools.jackson.databind.cfg.CoercionAction;
-import tools.jackson.databind.cfg.CoercionInputShape;
-import tools.jackson.databind.type.LogicalType;
 import com.moahome.server.property.exception.RegistrationException;
 import tools.jackson.databind.exc.MismatchedInputException;
 import tools.jackson.databind.exc.InvalidFormatException;
@@ -24,20 +21,7 @@ public class RegistrationRequestConverter extends AbstractHttpMessageConverter<O
 
 	public RegistrationRequestConverter(ObjectMapper mapper) {
 		super(MediaType.APPLICATION_JSON, new MediaType("application", "*+json"));
-		this.mapper = mapper.rebuild().disable(MapperFeature.ALLOW_COERCION_OF_SCALARS)
-		    .disable(DeserializationFeature.ACCEPT_FLOAT_AS_INT)
-		    .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-		    .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
-		    .withCoercionConfig(LogicalType.Textual,
-		        coercion -> coercion.setCoercion(CoercionInputShape.Integer, CoercionAction.Fail)
-		            .setCoercion(CoercionInputShape.Float, CoercionAction.Fail)
-		            .setCoercion(CoercionInputShape.Boolean, CoercionAction.Fail))
-		    .withCoercionConfig(LogicalType.Enum,
-		        coercion -> coercion.setCoercion(CoercionInputShape.Integer, CoercionAction.Fail)
-		            .setCoercion(CoercionInputShape.Float, CoercionAction.Fail)
-		            .setCoercion(CoercionInputShape.Boolean, CoercionAction.Fail)
-		            .setCoercion(CoercionInputShape.EmptyString, CoercionAction.Fail))
-		    .build();
+		this.mapper = StrictJsonMapper.create(mapper);
 	}
 
 	@Override

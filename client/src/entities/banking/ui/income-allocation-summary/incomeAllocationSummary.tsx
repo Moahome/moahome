@@ -121,7 +121,7 @@ export function IncomeAllocationSummary({ total, allocations, label = '저장된
                   <td
                     className={styles.note}
                   >
-                    —
+                    {part.buildingId === null ? '외부 보관금' : '관리 동'}
                   </td>
                 </tr>
               );

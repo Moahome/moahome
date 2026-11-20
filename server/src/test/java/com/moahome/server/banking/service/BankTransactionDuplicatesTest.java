@@ -5,7 +5,7 @@ import java.time.*;
 import java.util.*;
 import com.moahome.server.banking.domain.BankTransaction;
 import com.moahome.server.common.security.PaymentTextSecurity;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
@@ -52,7 +52,7 @@ class BankTransactionDuplicatesTest {
 	void missingInformationRequiresReviewInsteadOfGuessing() {
 		var saved = original(row(null, null), true);
 		assertThatThrownBy(() -> new BankTransactionDuplicates(List.of(saved), account, security)
-		    .find(row("09:00:00", "100000"))).isInstanceOf(PaymentException.class)
+		    .find(row("09:00:00", "100000"))).isInstanceOf(BankingException.class)
 		    .hasMessage("BANK_DUPLICATE_REVIEW_REQUIRED");
 	}
 
@@ -62,7 +62,7 @@ class BankTransactionDuplicatesTest {
 		var saved = BankTransaction.create(property, account, source.date(), source.amount(), "encrypted",
 		    "hash:과거 거래종류", null, null, "legacy-wrong-mapping", actor, OffsetDateTime.now(), source.time(), source.balance());
 		assertThatThrownBy(() -> new BankTransactionDuplicates(List.of(saved), account, security).find(source))
-		    .isInstanceOf(PaymentException.class).hasMessage("BANK_DUPLICATE_REVIEW_REQUIRED");
+		    .isInstanceOf(BankingException.class).hasMessage("BANK_DUPLICATE_REVIEW_REQUIRED");
 	}
 
 	@Test

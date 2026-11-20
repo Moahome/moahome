@@ -18,7 +18,7 @@ import com.moahome.server.property.domain.BuildingStatus;
 import com.moahome.server.banking.repo.*;
 import com.moahome.server.expense.repo.ExpenseRepository;
 import com.moahome.server.payment.repo.PaymentRepository;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
 
 @Service
 public class BankTransferPostingService {
@@ -58,7 +58,6 @@ public class BankTransferPostingService {
 		return postings.findByPropertyId(property).stream().filter(value -> value.getDeletedAt() == null).toList();
 	}
 
-
 	/** 후보에는 실제로 도착해야 할 통장·방향을 명시해 수동 이체 양쪽 원본도 각각 한 번 대사합니다. */
 	public record PendingTransfer(BankTransferPosting posting, UUID accountId, UUID otherAccountId,
 		LocalDate date, String direction, BigDecimal amount) {
@@ -90,7 +89,7 @@ public class BankTransferPostingService {
 		String direction, BigDecimal amount) {
 		List<PendingTransfer> matches = candidates.stream().filter(value -> account.equals(value.accountId())
 			&& date.equals(value.date()) && direction.equals(value.direction()) && amount.compareTo(value.amount()) == 0).toList();
-		if (matches.size() > 1) throw new PaymentException("BANK_TRANSFER_MATCH_AMBIGUOUS");
+		if (matches.size() > 1) throw new BankingException("BANK_TRANSFER_MATCH_AMBIGUOUS");
 		return matches.isEmpty() ? null : matches.getFirst();
 	}
 
@@ -113,12 +112,12 @@ public class BankTransferPostingService {
 			else other = transactions.findById(previous.getSourceTransactionId()).orElseThrow().getBankAccountId();
 			if ((counterpartAccount != null && !counterpartAccount.equals(other))
 			    || (expectedMatch != null && !expectedMatch.equals(previous.getId())))
-				throw new PaymentException("BANK_REQUEST_CONFLICT");
+				throw new BankingException("BANK_REQUEST_CONFLICT");
 			attach(previous, allocationInput, actor);
 			return previous;
 		}
 		if (postings.existsById(id))
-			throw new PaymentException("BANK_REQUEST_CONFLICT");
+			throw new BankingException("BANK_REQUEST_CONFLICT");
 		requireUnassigned(source);
 		PendingTransfer match = pending(pendingTransfers(property), source.getBankAccountId(), source.getTransactionDate(),
 		    source.getDirection(), source.getAmount());
@@ -127,7 +126,7 @@ public class BankTransferPostingService {
 			UUID otherAccount = match.otherAccountId();
 			if ((expectedMatch != null && !expectedMatch.equals(pending.getId()))
 			    || (counterpartAccount != null && !counterpartAccount.equals(otherAccount)))
-				throw new PaymentException("BANK_TRANSFER_CONFLICT");
+				throw new BankingException("BANK_TRANSFER_CONFLICT");
 			source.markTransferCandidate();
 			transactions.flush();
 			if (pending.isManual()) pending.reconcileManual(source);
@@ -136,12 +135,12 @@ public class BankTransferPostingService {
 			attach(pending, allocationInput, actor);
 			return pending;
 		}
-		if (expectedMatch != null) throw new PaymentException("BANK_TRANSFER_CONFLICT");
+		if (expectedMatch != null) throw new BankingException("BANK_TRANSFER_CONFLICT");
 		if (counterpartAccount == null || counterpartAccount.equals(source.getBankAccountId()))
-			throw new PaymentException("INVALID_TRANSFER_ACCOUNT");
+			throw new BankingException("INVALID_TRANSFER_ACCOUNT");
 		accounts.findById(counterpartAccount).filter(value -> property.equals(value.getPropertyId())
 		    && value.getDeletedAt() == null && value.getBuildingId() == null && value.getStatus() == BankAccountStatus.ACTIVE)
-		    .orElseThrow(() -> new PaymentException("INVALID_TRANSFER_ACCOUNT"));
+		    .orElseThrow(() -> new BankingException("INVALID_TRANSFER_ACCOUNT"));
 		BankTransferPosting posting = BankTransferPosting.create(id, property, source.getId(), counterpartAccount,
 		    transferAccount(property, actor), actor, OffsetDateTime.now(clock));
 		// 상대 원본이 먼저 등록된 경우 이미 분류한 거래는 바꾸지 않고 유일한 미분류 원본만 대사합니다.
@@ -149,7 +148,7 @@ public class BankTransferPostingService {
 		    .filter(value -> value.getDeletedAt() == null && counterpartAccount.equals(value.getBankAccountId())
 		        && value.getTransactionDate().equals(source.getTransactionDate())
 		        && !value.getDirection().equals(source.getDirection()) && value.getAmount().compareTo(source.getAmount()) == 0).toList();
-		if (candidates.size() > 1) throw new PaymentException("BANK_TRANSFER_MATCH_AMBIGUOUS");
+		if (candidates.size() > 1) throw new BankingException("BANK_TRANSFER_MATCH_AMBIGUOUS");
 		if (!candidates.isEmpty()) {
 			BankTransaction counterpart = candidates.getFirst();
 			requireUnassigned(counterpart);
@@ -176,30 +175,30 @@ public class BankTransferPostingService {
 				|| !allocations(property, previous.getId()).equals(request.allocations().stream()
 					.map(value -> new BankingRequests.TransferAllocation(value.buildingId(), new BigDecimal(value.amount()).toPlainString()))
 					.sorted(Comparator.comparing(value -> value.buildingId().toString())).toList()))
-				throw new PaymentException("BANK_REQUEST_CONFLICT");
+				throw new BankingException("BANK_REQUEST_CONFLICT");
 			return previous;
 		}
-		if (transactions.existsById(request.id())) throw new PaymentException("BANK_REQUEST_CONFLICT");
+		if (transactions.existsById(request.id())) throw new BankingException("BANK_REQUEST_CONFLICT");
 		if (request.fromAccountId().equals(request.toAccountId()) || new BigDecimal(request.amount()).signum() <= 0
 			|| request.date().isAfter(LocalDate.now(clock.withZone(ZoneId.of("Asia/Seoul")))))
-			throw new PaymentException("INVALID_MANUAL_TRANSFER");
+			throw new BankingException("INVALID_MANUAL_TRANSFER");
 		for (UUID account : List.of(request.fromAccountId(), request.toAccountId()))
 			accounts.findById(account).filter(value -> property.equals(value.getPropertyId()) && value.getDeletedAt() == null
 				&& value.getBuildingId() == null && value.getStatus() == BankAccountStatus.ACTIVE)
-				.orElseThrow(() -> new PaymentException("INVALID_TRANSFER_ACCOUNT"));
+				.orElseThrow(() -> new BankingException("INVALID_TRANSFER_ACCOUNT"));
 		// 이미 가져온 동일 원본이 있으면 새 수동 이동을 만들지 않고 기존 거래에서 이체로 설정하게 합니다.
 		if (originals(property).values().stream().anyMatch(value -> value.getDeletedAt() == null
 			&& request.date().equals(value.getTransactionDate()) && value.getAmount().compareTo(new BigDecimal(request.amount())) == 0
 			&& ((request.fromAccountId().equals(value.getBankAccountId()) && "EXPENSE".equals(value.getDirection()))
 				|| (request.toAccountId().equals(value.getBankAccountId()) && "INCOME".equals(value.getDirection())))))
-			throw new PaymentException("BANK_TRANSFER_EXISTING_TRANSACTION");
+			throw new BankingException("BANK_TRANSFER_EXISTING_TRANSACTION");
 		BankingResponse.TransferFunds funds = balances.transferFunds(actor, property, request.fromAccountId(), request.date());
-		if (funds.accountAvailable() == null) throw new PaymentException("BANK_TRANSFER_BALANCE_REQUIRED");
+		if (funds.accountAvailable() == null) throw new BankingException("BANK_TRANSFER_BALANCE_REQUIRED");
 		if (new BigDecimal(request.amount()).compareTo(new BigDecimal(funds.accountAvailable()).max(BigDecimal.ZERO)) > 0)
-			throw new PaymentException("BANK_TRANSFER_BALANCE_EXCEEDED");
+			throw new BankingException("BANK_TRANSFER_BALANCE_EXCEEDED");
 		if (buildings.findByPropertyId(property).stream().anyMatch(value -> value.getDeletedAt() == null
 			&& value.getStatus() == BuildingStatus.ACTIVE) && request.allocations().isEmpty())
-			throw new PaymentException("INVALID_TRANSFER_ALLOCATION");
+			throw new BankingException("INVALID_TRANSFER_ALLOCATION");
 		BankTransferPosting posting = BankTransferPosting.manual(request.id(), property, request.fromAccountId(), request.toAccountId(),
 			request.date(), new BigDecimal(request.amount()), request.note() == null ? null : security.protect(request.note()).encrypted(),
 			transferAccount(property, actor), actor, OffsetDateTime.now(clock));
@@ -243,7 +242,7 @@ public class BankTransferPostingService {
 	/** 이미 등록한 이체에도 귀속 누락분을 한 번 확정할 수 있으며 기존 금액을 덮어쓰지 않습니다. */
 	public void allocate(UUID property, UUID transfer, List<BankingRequests.TransferAllocation> input, UUID actor) {
 		BankTransferPosting posting = postings.findById(transfer).filter(value -> property.equals(value.getPropertyId()))
-		    .orElseThrow(() -> new PaymentException("BANK_TRANSFER_CONFLICT"));
+		    .orElseThrow(() -> new BankingException("BANK_TRANSFER_CONFLICT"));
 		attach(posting, input, actor);
 	}
 
@@ -261,10 +260,10 @@ public class BankTransferPostingService {
 		    .map(value -> new BankingRequests.TransferAllocation(value.buildingId(), new BigDecimal(value.amount()).toPlainString()))
 		    .sorted(Comparator.comparing(value -> value.buildingId().toString())).toList();
 		if (!existing.isEmpty()) {
-			if (!existing.equals(sorted)) throw new PaymentException("BANK_TRANSFER_ALLOCATION_CONFLICT");
+			if (!existing.equals(sorted)) throw new BankingException("BANK_TRANSFER_ALLOCATION_CONFLICT");
 			return;
 		}
-		if (posting.getCanceledAt() != null || input.isEmpty()) throw new PaymentException("BANK_TRANSFER_ALLOCATION_CONFLICT");
+		if (posting.getCanceledAt() != null || input.isEmpty()) throw new BankingException("BANK_TRANSFER_ALLOCATION_CONFLICT");
 		BankTransaction source = posting.isManual() ? null : transactions.findById(posting.getSourceTransactionId()).orElseThrow();
 		BigDecimal expected = posting.isManual() ? posting.getManualAmount() : source.getAmount();
 		Set<UUID> ids = new HashSet<>();
@@ -273,10 +272,10 @@ public class BankTransferPostingService {
 			BigDecimal amount = new BigDecimal(part.amount());
 			if (amount.signum() <= 0 || !ids.add(part.buildingId()) || buildings.findById(part.buildingId())
 			    .filter(value -> posting.getPropertyId().equals(value.getPropertyId()) && value.getDeletedAt() == null
-			        && value.getStatus() == BuildingStatus.ACTIVE).isEmpty()) throw new PaymentException("INVALID_TRANSFER_ALLOCATION");
+			        && value.getStatus() == BuildingStatus.ACTIVE).isEmpty()) throw new BankingException("INVALID_TRANSFER_ALLOCATION");
 			total = total.add(amount);
 		}
-		if (total.compareTo(expected) != 0) throw new PaymentException("BANK_TRANSFER_ALLOCATION_MISMATCH");
+		if (total.compareTo(expected) != 0) throw new BankingException("BANK_TRANSFER_ALLOCATION_MISMATCH");
 		// 입금 원본으로 설정해도 한도는 상대 출금 통장의 동별 소유금입니다. 관리대상 잠금 안에서 매번 재조회합니다.
 		UUID outgoingAccount = outgoingAccount(posting, source);
 		Map<UUID, BigDecimal> available = balances.transferBalances(actor, posting.getPropertyId(), outgoingAccount,
@@ -284,9 +283,9 @@ public class BankTransferPostingService {
 		for (BankingRequests.TransferAllocation part : input) {
 			BigDecimal limit = available.get(part.buildingId());
 			if (limit == null)
-				throw new PaymentException("BANK_TRANSFER_BALANCE_REQUIRED");
+				throw new BankingException("BANK_TRANSFER_BALANCE_REQUIRED");
 			if (new BigDecimal(part.amount()).compareTo(limit.max(BigDecimal.ZERO)) > 0)
-				throw new PaymentException("BANK_TRANSFER_BALANCE_EXCEEDED");
+				throw new BankingException("BANK_TRANSFER_BALANCE_EXCEEDED");
 		}
 		OffsetDateTime at = OffsetDateTime.now(clock);
 		allocationRepository.saveAllAndFlush(input.stream().map(part -> BankTransferAllocation.create(posting.getPropertyId(),
@@ -329,7 +328,7 @@ public class BankTransferPostingService {
 		        && (source.getId().equals(value.getOutgoingId()) || source.getId().equals(value.getIncomingId())))
 		    || all(source.getPropertyId()).stream().anyMatch(value -> source.getId().equals(value.getSourceTransactionId())
 		        || source.getId().equals(value.getCounterpartTransactionId())))
-			throw new PaymentException("BANK_TRANSFER_CONFLICT");
+			throw new BankingException("BANK_TRANSFER_CONFLICT");
 	}
 
 	/** 기존 은행 원본을 보존하며 취소한 이체의 양쪽 장부 반영만 함께 제외합니다. */
@@ -348,9 +347,9 @@ public class BankTransferPostingService {
 		for (BankTransferPosting posting : postings.findByPropertyId(property)) {
 			if (posting.isManual()) {
 				if (!requested.contains(posting.outgoingDisplayId()) && !requested.contains(posting.incomingDisplayId())) continue;
-				if (posting.getCanceledAt() == null) throw new PaymentException("BANK_TRANSFER_CANCEL_REQUIRED");
+				if (posting.getCanceledAt() == null) throw new BankingException("BANK_TRANSFER_CANCEL_REQUIRED");
 				if (!requested.contains(posting.outgoingDisplayId()) || !requested.contains(posting.incomingDisplayId()))
-					throw new PaymentException("BANK_TRANSFER_DELETE_PAIR_REQUIRED");
+					throw new BankingException("BANK_TRANSFER_DELETE_PAIR_REQUIRED");
 				ids.remove(posting.outgoingDisplayId());
 				ids.remove(posting.incomingDisplayId());
 				if (posting.getSourceTransactionId() != null) ids.add(posting.getSourceTransactionId());
@@ -361,7 +360,7 @@ public class BankTransferPostingService {
 				|| requested.contains(posting.getSourceTransactionId()) || requested.contains(posting.getCounterpartTransactionId()))) continue;
 			if (posting.getCounterpartTransactionId() != null && (!requested.contains(posting.getSourceTransactionId())
 				|| !requested.contains(posting.getCounterpartTransactionId())))
-				throw new PaymentException("BANK_TRANSFER_DELETE_PAIR_REQUIRED");
+				throw new BankingException("BANK_TRANSFER_DELETE_PAIR_REQUIRED");
 			ids.remove(posting.getId());
 			ids.add(posting.getSourceTransactionId());
 			if (posting.getCounterpartTransactionId() != null) ids.add(posting.getCounterpartTransactionId());
@@ -445,7 +444,7 @@ public class BankTransferPostingService {
 		    .filter(value -> "103".equals(value.getCode())).findFirst().orElse(null);
 		if (existing != null) {
 			if (existing.getReportGroup() != IncomeGroup.ASSET || !"통장간 거래".equals(existing.getName()))
-				throw new PaymentException("BANK_TRANSFER_ACCOUNT_CONFLICT");
+				throw new BankingException("BANK_TRANSFER_ACCOUNT_CONFLICT");
 			return existing.getId();
 		}
 		return accounting.saveAndFlush(AccountingAccount.create(property, "103", "통장간 거래", IncomeGroup.ASSET,

@@ -1,5 +1,6 @@
 package com.moahome.server.resident.exception;
 
+import com.moahome.server.common.error.ErrorResponses;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.*;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -9,8 +10,8 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.auth.security.AuthErrorHandler.ErrorResponse;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.common.error.ErrorResponse;
+import com.moahome.server.membership.exception.MembershipException;
 import com.moahome.server.resident.controller.ResidentExportController;
 import com.moahome.server.resident.controller.ResidentImportController;
 import com.moahome.server.resident.controller.ResidentListController;
@@ -24,8 +25,8 @@ import com.moahome.server.property.controller.RegistrationResidentPreviewControl
         ResidentManagementController.class,
         ResidentExportController.class })
 public class ResidentListExceptionHandler {
-	@ExceptionHandler(PaymentException.class)
-	public ResponseEntity<ErrorResponse> role(PaymentException exception) {
+	@ExceptionHandler(MembershipException.class)
+	public ResponseEntity<ErrorResponse> role(MembershipException exception) {
 		return error(HttpStatus.CONFLICT, exception.code(), "현재 연결 계정과 역할을 확인해주세요.");
 	}
 
@@ -79,7 +80,6 @@ public class ResidentListExceptionHandler {
 	}
 
 	private ResponseEntity<ErrorResponse> error(HttpStatus status, String code, String message) {
-		return ResponseEntity.status(status).cacheControl(CacheControl.noStore())
-		    .body(new ErrorResponse(code, message));
+		return ErrorResponses.of(status, code, message);
 	}
 }

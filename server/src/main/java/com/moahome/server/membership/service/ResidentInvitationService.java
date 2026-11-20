@@ -17,7 +17,7 @@ import com.moahome.server.common.validation.TextValues;
 import com.moahome.server.membership.domain.*;
 import com.moahome.server.membership.dto.ResidentInvitations;
 import com.moahome.server.membership.repo.*;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.membership.exception.MembershipException;
 import com.moahome.server.property.domain.*;
 import com.moahome.server.property.repo.*;
 import com.moahome.server.property.service.ManagementAccessService;
@@ -368,7 +368,7 @@ public class ResidentInvitationService {
 		return workspace(actor, property);
 	}
 
-	private PaymentException failure(String code) {
-		return new PaymentException(code);
+	private MembershipException failure(String code) {
+		return new MembershipException(code);
 	}
 }

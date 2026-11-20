@@ -54,6 +54,9 @@ public final class BankingBalanceRequests {
 	}
 
 	public record Settlement(@NotNull UUID id, @NotNull UUID allocationId, @NotNull UUID paymentId,
-	    @NotNull @Pattern(regexp = "[0-9]{1,15}") String amount) {
+	    @NotNull @Pattern(regexp = "[0-9]{1,15}") String amount, UUID incomeAllocationId) {
+		public Settlement(UUID id, UUID allocationId, UUID paymentId, String amount) {
+			this(id, allocationId, paymentId, amount, null);
+		}
 	}
 }

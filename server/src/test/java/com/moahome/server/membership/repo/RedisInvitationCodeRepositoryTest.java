@@ -13,7 +13,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.moahome.server.auth.support.RedisTestServer;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.membership.exception.MembershipException;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -31,7 +31,7 @@ class RedisInvitationCodeRepositoryTest {
 			var repository = new RedisInvitationCodeRepository(new StringRedisTemplate(factory), Clock.systemUTC());
 			assertThatThrownBy(() -> repository.require(RedisInvitationCodeRepository.Kind.RESIDENT, UUID.randomUUID(),
 			    UUID.randomUUID(), "a".repeat(64), OffsetDateTime.now().plusMinutes(30)))
-			    .isInstanceOfSatisfying(PaymentException.class, error -> assertThat(error.code()).isEqualTo("INVITATION_SERVICE_UNAVAILABLE"));
+			    .isInstanceOfSatisfying(MembershipException.class, error -> assertThat(error.code()).isEqualTo("INVITATION_SERVICE_UNAVAILABLE"));
 		} finally { factory.destroy(); }
 	}
 

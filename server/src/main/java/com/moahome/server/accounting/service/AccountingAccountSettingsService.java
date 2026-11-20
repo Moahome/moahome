@@ -26,6 +26,7 @@ import com.moahome.server.expense.repo.ExpenseRepository;
 import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.property.repo.PropertyRepository;
 import com.moahome.server.property.service.ManagementAccessService;
+import com.moahome.server.property.service.ManagementWriteAccess;
 
 @Service
 @Transactional
@@ -117,9 +118,7 @@ public class AccountingAccountSettingsService {
 
 	/** 관리대상 잠금과 역할 재확인 후 기본 과목·기존 자동 분류를 같은 트랜잭션으로 저장합니다. */
 	private List<AccountingAccount> prepare(UUID actor, UUID property) {
-		requireAdmin(actor, property);
-		properties.findForUnitUpdate(property).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		requireAdmin(actor, property);
+		ManagementWriteAccess.requireAdminAndLock(access, properties, actor, property);
 		List<AccountingAccount> existing = accounts.findByPropertyIdOrderByCreatedAtAscIdAsc(property);
 		List<AccountingAccount> all = available(actor, property);
 		accounts.saveAllAndFlush(all.stream().filter(value -> existing.stream()

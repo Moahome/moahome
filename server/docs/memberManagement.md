@@ -77,7 +77,9 @@ PaymentPersistenceTest에 전화번호 없는 개인 수락·타 계정 재사�
 | `membership/repo/ResidentInvitationRepository.java`, `ResidentJoinCodeRepository.java`, `MemberInvitationRepository.java` | DB 해시로 초대 출처 조회 | 미사용 인증을 이 조회만으로 허용하지 않음 |
 | `auth/repo/RedisAuthSessionRepository.java`, `RedisOAuthStateRepository.java` | 세션·OAuth Redis 저장과 Lua | 연결·구현 관례 재사용, 키 공간은 분리 |
 | `membership/repo/RedisInvitationCodeRepository.java` | 이전 전 없음 | 구현. 생성·검증 Lua와 DB 완료 콜백 |
-| `payment/exception/PaymentExceptionHandler.java` | 기존 공통 업무 오류 처리 | Redis 초대 장애 503 분기 구현 |
+| `membership/exception/MembershipException.java`, `MembershipExceptionHandler.java` | 회원·초대 오류 코드·상태·안내 | Redis 초대 장애 503과 기존 400·404·409 분류 유지 |
+
+`common/error/BusinessExceptionHandler`와 `ErrorResponses`는 예외 분류·응답 생성·no-store를 공유합니다. 회원 입력·DB 충돌·장애의 안내는 회원·초대 문구를 사용하며, DB 오류의 `PAYMENT_CONFLICT` / `PAYMENT_SERVICE_UNAVAILABLE` 코드는 기존 API 호환을 위해 유지합니다. SHA-256 계산은 `common/security/Sha256`, AES-GCM 내부 호출은 `common/security/AesGcm`을 사용하고 초대 원문 구성·키·대상별 AAD·v1 저장 형식은 초대 업무에 남깁니다.
 
 Controller는 기존 `membership/controller/ResidentInvitationController.java`, `ResidentInvitationClaimController.java`, `MembershipRequestController.java`, `InvitationClaimController.java`, `MemberManagementController.java`의 HTTP 경계를 유지합니다. API 경로·본문·응답은 공통 계약을 기준으로 합니다.
 

@@ -4,7 +4,8 @@ import java.util.UUID;
 
 import com.moahome.server.auth.domain.AuthPrincipal;
 import com.moahome.server.auth.exception.AuthErrorCode;
-import com.moahome.server.auth.security.AuthErrorHandler;
+import com.moahome.server.common.error.ErrorResponse;
+import com.moahome.server.common.error.ErrorResponses;
 import com.moahome.server.user.dto.CurrentUserResponse;
 import com.moahome.server.user.dto.ProfileUpdateRequest;
 import com.moahome.server.user.dto.ProfileSaveRequest;
@@ -56,9 +57,9 @@ public class UserController {
 	@Operation(summary = "내 정보 조회", description = "검증된 Access Token의 정상 계정을 조회합니다. systemRole은 플랫폼 역할이며 관리대상별 역할과 구분합니다.")
 	@ApiResponses({
 	        @ApiResponse(responseCode = "200", description = "로그인 계정 정보", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CurrentUserResponse.class))),
-	        @ApiResponse(responseCode = "401", description = "인증 없음, 유효하지 않거나 만료된 토큰 / 세션", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
-	        @ApiResponse(responseCode = "403", description = "ACCOUNT_UNAVAILABLE / ACCESS_DENIED", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
-	        @ApiResponse(responseCode = "503", description = "AUTH_SERVICE_UNAVAILABLE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))) })
+	        @ApiResponse(responseCode = "401", description = "인증 없음, 유효하지 않거나 만료된 토큰 / 세션", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+	        @ApiResponse(responseCode = "403", description = "ACCOUNT_UNAVAILABLE / ACCESS_DENIED", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+	        @ApiResponse(responseCode = "503", description = "AUTH_SERVICE_UNAVAILABLE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))) })
 	public ResponseEntity<CurrentUserResponse> me(
 	    @Parameter(hidden = true) @AuthenticationPrincipal AuthPrincipal principal) {
 		return ResponseEntity.ok().cacheControl(CacheControl.noStore())
@@ -86,11 +87,11 @@ public class UserController {
 	@Operation(summary = "내 이름·프로필 사진 저장", description = "displayName과 선택적인 image 또는 removeImage를 저장합니다. PNG/JPEG, 최대 5MB.")
 	@ApiResponses({
 	        @ApiResponse(responseCode = "200", description = "저장한 본인 정보", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CurrentUserResponse.class))),
-	        @ApiResponse(responseCode = "400", description = "INVALID_REQUEST / INVALID_PROFILE_IMAGE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
-	        @ApiResponse(responseCode = "401", description = "인증 실패", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
-	        @ApiResponse(responseCode = "403", description = "ACCOUNT_UNAVAILABLE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
-	        @ApiResponse(responseCode = "413", description = "PROFILE_IMAGE_TOO_LARGE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
-	        @ApiResponse(responseCode = "503", description = "PROFILE_IMAGE_UNAVAILABLE / AUTH_SERVICE_UNAVAILABLE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))) })
+	        @ApiResponse(responseCode = "400", description = "INVALID_REQUEST / INVALID_PROFILE_IMAGE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+	        @ApiResponse(responseCode = "401", description = "인증 실패", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+	        @ApiResponse(responseCode = "403", description = "ACCOUNT_UNAVAILABLE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+	        @ApiResponse(responseCode = "413", description = "PROFILE_IMAGE_TOO_LARGE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+	        @ApiResponse(responseCode = "503", description = "PROFILE_IMAGE_UNAVAILABLE / AUTH_SERVICE_UNAVAILABLE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))) })
 	public ResponseEntity<CurrentUserResponse> saveProfile(
 	    @Parameter(hidden = true) @AuthenticationPrincipal AuthPrincipal principal,
 	    @Valid @ModelAttribute ProfileSaveRequest request) {
@@ -103,10 +104,10 @@ public class UserController {
 	@Operation(summary = "내 프로필 사진 조회", description = "본인 현재 사진의 PNG 바이트입니다. v는 화면 캐시 구분용이며 다른 사진 선택에 사용하지 않습니다.")
 	@ApiResponses({
 	        @ApiResponse(responseCode = "200", description = "현재 프로필 사진", content = @Content(mediaType = "image/png", schema = @Schema(type = "string", format = "binary"))),
-	        @ApiResponse(responseCode = "401", description = "인증 실패", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
-	        @ApiResponse(responseCode = "403", description = "ACCOUNT_UNAVAILABLE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
-	        @ApiResponse(responseCode = "404", description = "PROFILE_IMAGE_NOT_FOUND", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))),
-	        @ApiResponse(responseCode = "503", description = "PROFILE_IMAGE_UNAVAILABLE / AUTH_SERVICE_UNAVAILABLE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthErrorHandler.ErrorResponse.class))) })
+	        @ApiResponse(responseCode = "401", description = "인증 실패", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+	        @ApiResponse(responseCode = "403", description = "ACCOUNT_UNAVAILABLE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+	        @ApiResponse(responseCode = "404", description = "PROFILE_IMAGE_NOT_FOUND", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))),
+	        @ApiResponse(responseCode = "503", description = "PROFILE_IMAGE_UNAVAILABLE / AUTH_SERVICE_UNAVAILABLE", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ErrorResponse.class))) })
 	public ResponseEntity<byte[]> profileImage(
 	    @Parameter(hidden = true) @AuthenticationPrincipal AuthPrincipal principal) {
 		return ResponseEntity.ok().cacheControl(CacheControl.noStore()).contentType(MediaType.IMAGE_PNG)
@@ -116,40 +117,40 @@ public class UserController {
 
 	/** 사진 오류에도 원본 이미지나 저장소 응답을 포함하지 않는 고정 계약을 사용합니다. */
 	@ExceptionHandler(ProfileImageException.class)
-	public ResponseEntity<AuthErrorHandler.ErrorResponse> invalidImage(ProfileImageException exception) {
+	public ResponseEntity<ErrorResponse> invalidImage(ProfileImageException exception) {
 		ProfileImageException.Code code = exception.code();
-		return ResponseEntity.status(code.status()).cacheControl(CacheControl.noStore())
+		return ErrorResponses.builder(code.status())
 		    .contentType(MediaType.APPLICATION_JSON)
-		    .body(new AuthErrorHandler.ErrorResponse(code.name(), code.message()));
+		    .body(new ErrorResponse(code.name(), code.message()));
 	}
 
 	@ExceptionHandler(MaxUploadSizeExceededException.class)
-	public ResponseEntity<AuthErrorHandler.ErrorResponse> oversizedImage(MaxUploadSizeExceededException exception) {
+	public ResponseEntity<ErrorResponse> oversizedImage(MaxUploadSizeExceededException exception) {
 		return invalidImage(new ProfileImageException(ProfileImageException.Code.PROFILE_IMAGE_TOO_LARGE));
 	}
 
 	/** 잘못된 입력은 원문이나 내부 검증 내용을 공개하지 않고 고정 오류로 반환합니다. */
 	@ExceptionHandler({ MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
 	        IllegalArgumentException.class })
-	public ResponseEntity<AuthErrorHandler.ErrorResponse> invalidProfile(Exception exception) {
+	public ResponseEntity<ErrorResponse> invalidProfile(Exception exception) {
 		return error(AuthErrorCode.INVALID_REQUEST);
 	}
 
 	/** 인증 필터 통과 후 계정이 정지·탈퇴되더라도 이용 불가 응답으로 차단합니다. */
 	@ExceptionHandler(UserException.class)
-	public ResponseEntity<AuthErrorHandler.ErrorResponse> handleUnavailableAccount(UserException exception) {
+	public ResponseEntity<ErrorResponse> handleUnavailableAccount(UserException exception) {
 		return error(AuthErrorCode.ACCOUNT_UNAVAILABLE);
 	}
 
 	/** 조회·저장 장애를 로그인 만료와 구분하고 내부 저장소 오류를 응답에 노출하지 않습니다. */
 	@ExceptionHandler(DataAccessException.class)
-	public ResponseEntity<AuthErrorHandler.ErrorResponse> handleUnavailableStorage(DataAccessException exception) {
+	public ResponseEntity<ErrorResponse> handleUnavailableStorage(DataAccessException exception) {
 		return error(AuthErrorCode.AUTH_SERVICE_UNAVAILABLE);
 	}
 
-	private ResponseEntity<AuthErrorHandler.ErrorResponse> error(AuthErrorCode code) {
-		return ResponseEntity.status(code.status()).cacheControl(CacheControl.noStore())
+	private ResponseEntity<ErrorResponse> error(AuthErrorCode code) {
+		return ErrorResponses.builder(code.status())
 		    .contentType(MediaType.APPLICATION_JSON)
-		    .body(new AuthErrorHandler.ErrorResponse(code.name(), code.message()));
+		    .body(new ErrorResponse(code.name(), code.message()));
 	}
 }

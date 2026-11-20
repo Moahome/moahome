@@ -1,6 +1,6 @@
 package com.moahome.server.membership.service;
 
-import java.nio.charset.StandardCharsets;
+import com.moahome.server.common.security.Sha256;
 import java.security.*;
 import java.time.*;
 import java.util.*;
@@ -12,7 +12,7 @@ import com.moahome.server.auth.exception.*;
 import com.moahome.server.membership.domain.*;
 import com.moahome.server.membership.dto.*;
 import com.moahome.server.membership.repo.*;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.membership.exception.MembershipException;
 import com.moahome.server.property.domain.PropertyStatus;
 import com.moahome.server.property.repo.PropertyRepository;
 import com.moahome.server.property.repo.UnitRepository;
@@ -386,15 +386,10 @@ public class MemberManagementService {
 	}
 
 	private String hash(String code) {
-		try {
-			return HexFormat.of()
-			    .formatHex(MessageDigest.getInstance("SHA-256").digest(code.getBytes(StandardCharsets.UTF_8)));
-		} catch (NoSuchAlgorithmException failure) {
-			throw new IllegalStateException("SHA-256 unavailable");
-		}
+		return Sha256.hex(code);
 	}
 
-	private PaymentException failure(String code) {
-		return new PaymentException(code);
+	private MembershipException failure(String code) {
+		return new MembershipException(code);
 	}
 }

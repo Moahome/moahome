@@ -134,6 +134,7 @@ export function UnitDetail({
       </dl>
       <DetailActions
         presentation={presentation}
+        showClose={false}
         onClose={onClose}
         onEdit={onEdit}
         onDelete={onDelete}

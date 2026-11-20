@@ -1,11 +1,8 @@
 package com.moahome.server.notice.service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import com.moahome.server.common.security.Sha256;
 import java.time.Clock;
 import java.time.OffsetDateTime;
-import java.util.HexFormat;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.Set;
@@ -213,13 +210,9 @@ public class NoticeService {
 
 	/** 본문 원문을 로그에 남기지 않고 동일 작업의 제목·내용·중요 설정을 SHA-256으로 비교합니다. */
 	private String fingerprint(NoticeSaveRequest request) {
-		try {
-			String value = mapper.writeValueAsString(new Object[] {
-				request.title().strip(), request.content(), request.important(), request.expectedVersion()
-			});
-			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
-		} catch (NoSuchAlgorithmException exception) {
-			throw new IllegalStateException(exception);
-		}
+		String value = mapper.writeValueAsString(new Object[] {
+			request.title().strip(), request.content(), request.important(), request.expectedVersion()
+		});
+		return Sha256.hex(value);
 	}
 }

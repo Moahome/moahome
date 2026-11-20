@@ -18,8 +18,6 @@ import com.moahome.server.accounting.domain.DefaultAccount;
 import com.moahome.server.accounting.exception.AccountingException;
 import com.moahome.server.accounting.repo.AccountingAccountRepository;
 import com.moahome.server.accounting.service.ExpenseAccountService;
-import com.moahome.server.auth.exception.AuthErrorCode;
-import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.banking.dto.BankingResponse;
 import com.moahome.server.banking.service.BankingService;
 import com.moahome.server.billing.domain.BillingCalendar;
@@ -37,6 +35,7 @@ import com.moahome.server.property.domain.BuildingStatus;
 import com.moahome.server.property.repo.BuildingRepository;
 import com.moahome.server.property.repo.PropertyRepository;
 import com.moahome.server.property.service.ManagementAccessService;
+import com.moahome.server.property.service.ManagementWriteAccess;
 
 @Service
 public class PayableService {
@@ -209,10 +208,6 @@ public class PayableService {
 
 	/** 회계 변경은 ADMIN만 허용하고 잠금 이후에도 현재 역할을 다시 확인합니다. */
 	private void lock(UUID actor, UUID property) {
-		if (access.getManagementContext(actor, property).role() != PropertyMemberRole.ADMIN)
-			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
-		properties.findForUnitUpdate(property).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		if (access.getManagementContext(actor, property).role() != PropertyMemberRole.ADMIN)
-			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
+		ManagementWriteAccess.requireAdminAndLock(access, properties, actor, property);
 	}
 }

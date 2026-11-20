@@ -17,7 +17,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
 
 @Component
 public class BankTransactionReader {
@@ -69,7 +69,7 @@ public class BankTransactionReader {
 		List<BankTransactionReader.Row> income = rows.stream().filter(row -> "INCOME".equals(row.direction()))
 		    .toList();
 		if (income.isEmpty())
-			throw new PaymentException("EMPTY_BANK_FILE");
+			throw new BankingException("EMPTY_BANK_FILE");
 		return income;
 	}
 
@@ -84,7 +84,7 @@ public class BankTransactionReader {
 
 	private List<Row> readAll(MultipartFile file, BankImportFormat format) {
 		if (file == null || file.isEmpty() || file.getSize() > 5 * 1024 * 1024 || file.getOriginalFilename() == null)
-			throw new PaymentException("INVALID_BANK_FILE");
+			throw new BankingException("INVALID_BANK_FILE");
 		if (format != null)
 			format.validateFilename(file.getOriginalFilename());
 		try {
@@ -98,11 +98,11 @@ public class BankTransactionReader {
 				    StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)
 				        .decode(ByteBuffer.wrap(bytes)).toString());
 			else
-				throw new PaymentException("INVALID_BANK_FILE");
+				throw new BankingException("INVALID_BANK_FILE");
 			var columns = format == null ? findColumns(rows) : findColumns(rows, format);
 			List<List<String>> transactions = rows.subList(columns.header() + 1, rows.size());
 			if (transactions.size() > MAX_TRANSACTION_ROWS)
-				throw new PaymentException("BANK_ROW_LIMIT");
+				throw new BankingException("BANK_ROW_LIMIT");
 			List<Row> result = new ArrayList<>();
 			for (var row : transactions) {
 				if (isSummaryRow(row, columns))
@@ -116,27 +116,27 @@ public class BankTransactionReader {
 				if (reversal) {
 					// 음수 출금은 실제 잔액 증가입니다. 원문은 메모에 보존하고 자동 세대 수납에서는 제외합니다.
 					if (!raw.isEmpty() && (!raw.matches("[0-9]{1,15}") || new BigDecimal(raw).signum() != 0))
-						throw new PaymentException("INVALID_BANK_ROW");
+						throw new BankingException("INVALID_BANK_ROW");
 					raw = new BigDecimal(withdrawal).abs().toPlainString();
 					withdrawal = "";
 				}
 				if (columns.sharedAmount()) {
 					String label = cell(row, columns.direction()).strip();
 					if (!List.of("입금", "출금").contains(label) || !raw.matches("-?[0-9]{1,15}"))
-						throw new PaymentException("INVALID_BANK_ROW");
+						throw new BankingException("INVALID_BANK_ROW");
 					direction = "출금".equals(label) ? "EXPENSE" : "INCOME";
 					if ("INCOME".equals(direction) && raw.startsWith("-"))
-						throw new PaymentException("INVALID_BANK_ROW");
+						throw new BankingException("INVALID_BANK_ROW");
 					raw = new BigDecimal(raw).abs().toPlainString();
 				} else {
 					if (!raw.isEmpty() && !raw.matches("[0-9]{1,15}"))
-						throw new PaymentException("INVALID_BANK_ROW");
+						throw new BankingException("INVALID_BANK_ROW");
 					if (!withdrawal.isEmpty() && !withdrawal.matches("[0-9]{1,15}"))
-						throw new PaymentException("INVALID_BANK_ROW");
+						throw new BankingException("INVALID_BANK_ROW");
 					boolean hasIncome = !raw.isEmpty() && new BigDecimal(raw).signum() > 0;
 					boolean hasExpense = !withdrawal.isEmpty() && new BigDecimal(withdrawal).signum() > 0;
 					if (hasIncome && hasExpense)
-						throw new PaymentException("INVALID_BANK_ROW");
+						throw new BankingException("INVALID_BANK_ROW");
 					if (!hasIncome && !hasExpense)
 						continue;
 					if (hasExpense) {
@@ -146,7 +146,7 @@ public class BankTransactionReader {
 				}
 				BigDecimal value = new BigDecimal(raw);
 				if (value.signum() <= 0)
-					throw new PaymentException("INVALID_BANK_ROW");
+					throw new BankingException("INVALID_BANK_ROW");
 				String depositor = cell(row, columns.payer()).strip();
 				boolean autoMatchEligible = !reversal && !depositor.isBlank();
 				if (depositor.isBlank() && columns.fallbackPayer() >= 0)
@@ -156,7 +156,7 @@ public class BankTransactionReader {
 					text = (text.isBlank() ? "" : text + "\n") + "은행 원문 출금금액(원): " + originalWithdrawal;
 				String reference = cell(row, columns.reference()).strip();
 				if (depositor.isBlank() || depositor.length() > 100 || text.length() > 500 || reference.length() > 200)
-					throw new PaymentException("INVALID_BANK_ROW");
+					throw new BankingException("INVALID_BANK_ROW");
 				String rawDate = cell(row, columns.date()).strip().replaceAll("\\s+", " ").replace('.', '-').replace('/', '-');
 				LocalDate day;
 				if (rawDate.matches("[0-9]{8}"))
@@ -168,9 +168,9 @@ public class BankTransactionReader {
 				} else if (rawDate.matches("[0-9]{1,6}(\\.[0-9]+)?"))
 					day = DateUtil.getLocalDateTime(Double.parseDouble(rawDate)).toLocalDate();
 				else
-					throw new PaymentException("INVALID_BANK_ROW");
+					throw new BankingException("INVALID_BANK_ROW");
 				if (day.getYear() < 1000 || day.getYear() > 9999)
-					throw new PaymentException("INVALID_BANK_ROW");
+					throw new BankingException("INVALID_BANK_ROW");
 				String timeValue = cell(row, columns.time()).strip();
 				if (timeValue.isEmpty() && rawDate.split("[ T]").length > 1)
 					timeValue = rawDate.split("[ T]")[1];
@@ -179,18 +179,18 @@ public class BankTransactionReader {
 				LocalTime time = timeValue.isEmpty() ? null : LocalTime.parse(timeValue);
 				String rawBalance = cell(row, columns.balance()).replace(",", "").replace("원", "").strip();
 				if (!rawBalance.isEmpty() && !rawBalance.matches("-?[0-9]{1,15}"))
-					throw new PaymentException("INVALID_BANK_ROW");
+					throw new BankingException("INVALID_BANK_ROW");
 				BigDecimal balance = rawBalance.isEmpty() ? null : new BigDecimal(rawBalance);
 				result.add(new Row(day, depositor, value, text.isEmpty() ? null : text,
 				    reference.isEmpty() ? null : reference, time, balance, direction, autoMatchEligible));
 			}
 			if (result.isEmpty())
-				throw new PaymentException("EMPTY_BANK_FILE");
+				throw new BankingException("EMPTY_BANK_FILE");
 			return List.copyOf(result);
-		} catch (PaymentException exception) {
+		} catch (BankingException exception) {
 			throw exception;
 		} catch (Exception exception) {
-			throw new PaymentException("INVALID_BANK_FILE");
+			throw new BankingException("INVALID_BANK_FILE");
 		}
 	}
 
@@ -230,7 +230,7 @@ public class BankTransactionReader {
 			    column(header, List.of("거래시간", "입금시간", "시간", "time")),
 			    column(header, List.of("잔액", "거래후잔액", "balance")), direction, sharedAmount, List.of(), -1);
 		}
-		throw new PaymentException("INVALID_BANK_HEADER");
+		throw new BankingException("INVALID_BANK_HEADER");
 	}
 
 	/** 선택 은행의 필수 헤더를 한 행에서 확인하고 거래 종류와 상대 이름을 혼동하지 않습니다. */
@@ -240,7 +240,7 @@ public class BankTransactionReader {
 			Columns columns = findColumns(rows);
 			List<String> header = normalizedHeader(rows.get(columns.header()));
 			if (column(header, List.of("거래금액", "기재내용", "보낸분/받는분", "내용", "거래기록사항")) >= 0)
-				throw new PaymentException("INVALID_BANK_HEADER");
+				throw new BankingException("INVALID_BANK_HEADER");
 			return columns;
 		}
 		for (int index = 0; index < Math.min(rows.size(), MAX_HEADER_ROWS); index++) {
@@ -263,7 +263,7 @@ public class BankTransactionReader {
 			    column(header, List.of("거래번호", "거래고유번호")), time, balance, direction,
 			    format == BankImportFormat.KAKAO, memos, fallback);
 		}
-		throw new PaymentException("INVALID_BANK_HEADER");
+		throw new BankingException("INVALID_BANK_HEADER");
 	}
 
 	private List<String> normalizedHeader(List<String> header) {
@@ -298,7 +298,7 @@ public class BankTransactionReader {
 	private List<List<String>> excel(byte[] bytes, boolean legacy) throws IOException {
 		var magic = FileMagic.valueOf(bytes);
 		if (magic != (legacy ? FileMagic.OLE2 : FileMagic.OOXML))
-			throw new PaymentException("INVALID_BANK_FILE");
+			throw new BankingException("INVALID_BANK_FILE");
 		if (!legacy)
 			validateZip(bytes);
 		try (Workbook workbook = legacy ? new HSSFWorkbook(new ByteArrayInputStream(bytes))
@@ -315,28 +315,28 @@ public class BankTransactionReader {
 			byte[] buffer = new byte[8192];
 			while (zip.getNextEntry() != null) {
 				if (++entries > 200)
-					throw new PaymentException("INVALID_BANK_FILE");
+					throw new BankingException("INVALID_BANK_FILE");
 				int size;
 				while ((size = zip.read(buffer)) != -1)
 					if ((expanded += size) > 20 * 1024 * 1024)
-						throw new PaymentException("INVALID_BANK_FILE");
+						throw new BankingException("INVALID_BANK_FILE");
 			}
 			if (entries == 0)
-				throw new PaymentException("INVALID_BANK_FILE");
+				throw new BankingException("INVALID_BANK_FILE");
 		}
 	}
 
 	/** 첫 시트의 값만 읽으며 수식·매크로를 실행하지 않고 수식·오류 셀은 거부합니다. */
 	private List<List<String>> workbookRows(Workbook workbook) {
 		if (workbook.getNumberOfSheets() == 0)
-			throw new PaymentException("INVALID_BANK_FILE");
+			throw new BankingException("INVALID_BANK_FILE");
 		var sheet = workbook.getSheetAt(0);
 		if (sheet.getLastRowNum() >= MAX_TRANSACTION_ROWS + MAX_HEADER_ROWS)
-			throw new PaymentException("BANK_ROW_LIMIT");
+			throw new BankingException("BANK_ROW_LIMIT");
 		List<List<String>> rows = new ArrayList<>();
 		for (org.apache.poi.ss.usermodel.Row row : sheet) {
 			if (row.getLastCellNum() > 100)
-				throw new PaymentException("INVALID_BANK_FILE");
+				throw new BankingException("INVALID_BANK_FILE");
 			List<String> values = new ArrayList<>();
 			for (int index = 0; index < row.getLastCellNum(); index++) {
 				Cell cell = row.getCell(index);
@@ -348,7 +348,7 @@ public class BankTransactionReader {
 					values.add(DateUtil.isCellDateFormatted(cell) ? cell.getLocalDateTimeCellValue().toString()
 					    : BigDecimal.valueOf(cell.getNumericCellValue()).stripTrailingZeros().toPlainString());
 				else
-					throw new PaymentException("INVALID_BANK_ROW");
+					throw new BankingException("INVALID_BANK_ROW");
 			}
 			if (values.stream().anyMatch(value -> !value.isBlank()))
 				rows.add(values);
@@ -371,7 +371,7 @@ public class BankTransactionReader {
 				} else if (quoted || cell.isEmpty())
 					quoted = !quoted;
 				else
-					throw new PaymentException("INVALID_BANK_FILE");
+					throw new BankingException("INVALID_BANK_FILE");
 			} else if (character == ',' && !quoted) {
 				row.add(cell.toString());
 				cell.setLength(0);
@@ -386,10 +386,10 @@ public class BankTransactionReader {
 			} else
 				cell.append(character);
 			if (rows.size() > MAX_TRANSACTION_ROWS + MAX_HEADER_ROWS || row.size() > 100 || cell.length() > 1000)
-				throw new PaymentException("BANK_ROW_LIMIT");
+				throw new BankingException("BANK_ROW_LIMIT");
 		}
 		if (quoted)
-			throw new PaymentException("INVALID_BANK_FILE");
+			throw new BankingException("INVALID_BANK_FILE");
 		row.add(cell.toString());
 		if (row.stream().anyMatch(value -> !value.isBlank()))
 			rows.add(List.copyOf(row));

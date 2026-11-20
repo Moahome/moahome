@@ -1,104 +1,15 @@
 package com.moahome.server.payment.exception;
 
-import org.springframework.dao.DataAccessException;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.*;
-import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-import org.springframework.web.multipart.MaxUploadSizeExceededException;
-import org.springframework.web.multipart.support.MissingServletRequestPartException;
-
-import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.auth.security.AuthErrorHandler.ErrorResponse;
-import com.moahome.server.banking.controller.BankAccountController;
-import com.moahome.server.banking.controller.BankBalanceCheckController;
-import com.moahome.server.banking.controller.BankingBalanceController;
-import com.moahome.server.banking.controller.BankingController;
-import com.moahome.server.billing.controller.OpeningBalanceController;
-import com.moahome.server.closing.controller.MonthlySettlementController;
-import com.moahome.server.dashboard.controller.DashboardController;
-import com.moahome.server.membership.controller.InvitationClaimController;
-import com.moahome.server.membership.controller.MemberManagementController;
-import com.moahome.server.membership.controller.MembershipRequestController;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import com.moahome.server.common.error.BusinessExceptionHandler;
 import com.moahome.server.payment.controller.PaymentController;
-import com.moahome.server.property.controller.RegistrationBankImportController;
-import com.moahome.server.user.exception.UserException;
-import com.moahome.server.resident.exception.ResidentRegistrationException;
 
-@RestControllerAdvice(assignableTypes = {PaymentController.class, RegistrationBankImportController.class,
-        BankingController.class,
-        BankingBalanceController.class,
-        BankBalanceCheckController.class,
-        BankAccountController.class,
-        MonthlySettlementController.class,
-        DashboardController.class,
-        OpeningBalanceController.class,
-        MemberManagementController.class,
-        InvitationClaimController.class,
-        MembershipRequestController.class})
-public class PaymentExceptionHandler {
-	/** 가입 신청·개인 초대도 주민 입력과 같은 전화번호 동의 오류를 반환합니다. */
-	@ExceptionHandler(ResidentRegistrationException.class)
-	public ResponseEntity<ErrorResponse> resident(ResidentRegistrationException exception) {
-		return error(exception.code().status, exception.code().name(), exception.code().message);
-	}
-	@ExceptionHandler(PaymentException.class)
-	public ResponseEntity<ErrorResponse> billing(PaymentException exception) {
-		var code = exception.code();
-		if (code.equals("MEMBER_TRANSFER_REQUIRED"))
-			return error(HttpStatus.CONFLICT, code, "다른 사람에게 관리소장 역할을 인계한 뒤 나갈 수 있어요.");
-		if (code.equals("MEMBER_REPRESENTATIVE_REQUIRED"))
-			return error(HttpStatus.CONFLICT, code, "관리소장에게 세대 대표 변경을 요청한 뒤 퇴거해주세요.");
-		if (code.equals("INVITATION_SERVICE_UNAVAILABLE"))
-			return error(HttpStatus.SERVICE_UNAVAILABLE, code, "초대코드를 처리하지 못했습니다. 잠시 후 다시 시도해주세요.");
-		HttpStatus status = HttpStatus.CONFLICT;
-		if (code.startsWith("INVALID_") || code.equals("BANK_ROW_LIMIT") || code.equals("EMPTY_BANK_FILE")
-		    || code.equals("BANK_IMPORT_UNSUPPORTED"))
-			status = HttpStatus.BAD_REQUEST;
-		if (code.endsWith("NOT_FOUND"))
-			status = HttpStatus.NOT_FOUND;
-		return error(status, code, "입금 정보를 확인해주세요.");
-	}
+@RestControllerAdvice(assignableTypes = {PaymentController.class})
+public class PaymentExceptionHandler extends BusinessExceptionHandler {
 
-	/** 입력 원문과 검증기의 내부 문구 대신 고정된 오류만 반환합니다. */
-	@ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
-	        MethodArgumentTypeMismatchException.class, IllegalArgumentException.class,
-	        MissingServletRequestPartException.class,
-	        MaxUploadSizeExceededException.class})
-	public ResponseEntity<ErrorResponse> invalid(Exception exception) {
-		return error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "입금 정보를 확인해주세요.");
-	}
-
-	@ExceptionHandler(AuthException.class)
-	public ResponseEntity<ErrorResponse> auth(AuthException exception) {
-		return error(exception.code().status(), exception.code().name(), exception.code().message());
-	}
-
-	@ExceptionHandler(UserException.class)
-	public ResponseEntity<ErrorResponse> account(UserException exception) {
-		return error(HttpStatus.FORBIDDEN, "ACCOUNT_UNAVAILABLE", "계정을 사용할 수 없습니다.");
-	}
-
-	/** DB 유일성 충돌도 동일한 중복 안내로 반환하고 SQL·제약 이름은 노출하지 않습니다. */
-	@ExceptionHandler(DataIntegrityViolationException.class)
-	public ResponseEntity<ErrorResponse> duplicate(DataIntegrityViolationException exception) {
-		return error(HttpStatus.CONFLICT, "PAYMENT_CONFLICT", "입금 정보가 변경되었습니다. 다시 확인해주세요.");
-	}
-
-	@ExceptionHandler(DataAccessException.class)
-	public ResponseEntity<ErrorResponse> unavailable(DataAccessException exception) {
-		return error(HttpStatus.SERVICE_UNAVAILABLE, "PAYMENT_SERVICE_UNAVAILABLE", "입금 정보를 처리하지 못했습니다.");
-	}
-
-	@ExceptionHandler(Exception.class)
-	public ResponseEntity<ErrorResponse> unexpected(Exception exception) {
-		return error(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR", "요청을 처리하지 못했습니다.");
-	}
-
-	private ResponseEntity<ErrorResponse> error(HttpStatus status, String code, String message) {
-		return ResponseEntity.status(status).cacheControl(CacheControl.noStore())
-		    .body(new ErrorResponse(code, message));
+	public PaymentExceptionHandler() {
+		// 기존 Client·API 계약과의 호환을 위해 저장소 오류 코드 이름은 유지합니다.
+		super("입금 정보를 확인해주세요.", "PAYMENT_CONFLICT", "입금 정보가 변경되었습니다. 다시 확인해주세요.",
+			"PAYMENT_SERVICE_UNAVAILABLE", "입금 정보를 처리하지 못했습니다.");
 	}
 }

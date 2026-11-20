@@ -355,7 +355,7 @@ public class IncomeStatementService {
 		AccountingAccount account = sourceAccounts.stream().filter(value -> "OTHER_INCOME".equals(value.getSystemKey()))
 			.findFirst().orElseThrow(() -> new IllegalStateException("Missing other income account"));
 		String month = YearMonth.from(row.date()).toString();
-		if (!property.isHasBuildings()) {
+		if (!property.isHasBuildings() && row.incomeAllocation() == null) {
 			records.add(new Entry("income:" + row.paymentId(), account.getId(), account.getName(), group(account),
 				month, null, amount.toPlainString(), incomeSource(row)));
 			otherIncomes.add(new IncomeStatementResponse.OtherIncome(row.paymentId(), row.id(), row.date(),
@@ -407,7 +407,9 @@ public class IncomeStatementService {
 				receivables.add(new IncomeStatementResponse.Receivable(row.id(), account.getCode(), row.expenseName(), row.date(),
 					row.label(), row.amount(), row.received(), row.remaining(), path));
 			// 발생 월이 조회 밖이어도 당기 회수 입금은 수익으로 중복 인식하지 않도록 대조에 남깁니다.
-			for (BankingBalanceResponse.Recovery recovery : row.recoveries())
+			// 외부 보관금 사용액은 애초에 우리 동 수익이 아니므로 입금 전체에서 다시 차감하지 않습니다.
+			for (BankingBalanceResponse.Recovery recovery : row.recoveries().stream()
+			    .filter(value -> value.incomeAllocationId() == null).toList())
 				recoveries.merge(recovery.paymentId(), new BigDecimal(recovery.amount()), BigDecimal::add);
 		}
 		return recoveries;

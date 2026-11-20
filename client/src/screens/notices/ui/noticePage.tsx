@@ -27,6 +27,7 @@ import { getNotices } from '../api/noticeApi';
 import type { NoticeSummary } from '../model/noticeTypes';
 import type { NoticePageProps } from '../model/noticeTypes';
 import { NoticeArticle } from './_components/notice-article/noticeArticle';
+import { NoticeAccessLink } from './_components/notice-access-link/noticeAccessLink';
 import styles from './noticePage.module.css';
 
 /** 게시글 번호는 고정 여부와 관계없이 유지하고 제목의 배지와 행 배경으로 고정를 구분합니다. */
@@ -136,17 +137,22 @@ function NoticeListPage({ propertyId }: { propertyId: string }) {
         description={'건물의 공지사항을 등록하고 관리합니다.'}
         actionsClassName={styles['list-actions']}
         actions={(
-          <Button
-            className={styles['write-button']}
-            onClick={() => router.push(`${base}/new`)}
-            leadingIcon={(
-              <ServiceIcon
-                name={'plus'}
-              />
-            )}
-          >
-            공지 작성
-          </Button>
+          <>
+            <NoticeAccessLink
+              propertyId={propertyId}
+            />
+            <Button
+              className={styles['write-button']}
+              onClick={() => router.push(`${base}/new`)}
+              leadingIcon={(
+                <ServiceIcon
+                  name={'plus'}
+                />
+              )}
+            >
+              공지 작성
+            </Button>
+          </>
         )}
       />
       <ListCard>

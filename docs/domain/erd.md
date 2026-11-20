@@ -46,10 +46,25 @@
 - `users.phone` 없음
 - `social_accounts.phone` 없음
 - `residents.phone_*` 사용
-- 주민 대상 알림톡/SMS는 우선 `residents`의 전화번호를 사용
 - 향후 계정 자체 휴대폰 인증/복구/공통 연락처 기능이 필요하면 `user_contacts` 같은 별도 엔티티 검토
 
-[건물별 공지·명부 발송·채널톡 문의 기획](../plans/residentCommunication.md)에 따른 공지·수신 대상·발송 결과·상담 연결·차량 자료의 저장 구조는 아직 설계하지 않았습니다. 기존 `residents`와 `Property`를 참조하는 방향이며, 채널톡 식별정보를 로그인 계정이나 `property_members` 접근 권한으로 대신 사용하지 않습니다. 수신자별 접근 링크도 미확정 설계안으로, 이 ERD에 확정 테이블·컬럼이나 Migration을 추가하지 않습니다.
+2026-11-20 주민 메시지 발송 설정은 폐기했습니다. 과거 적용된 Migration 이력은 유지하며 `V20261120113624__remove_resident_notification_setting.sql`이 전용 설정 컬럼과 제약을 제거합니다. 현재 주민·연락처·관계 자료는 유지합니다.
+
+관리자 공지·파일과 주민 링크는 [공지사항 API](../api/noticeApi.md)와 Migration으로 구현했습니다. 같은 건물의 미삭제 공지 모두를 주민 링크에서 조회합니다. 별도 공개 여부 컬럼은 사용하지 않습니다. 이전 개발 Migration에서 추가했던 `resident_published`와 해당 인덱스는 후속 `V20261114045931__remove_notice_publication_setting.sql`로 제거합니다. `notice_assets`의 연결 공지와 현재 본문 참조를 함께 확인해 파일 접근을 제한합니다. 상담 연결·차량 자료의 저장 구조는 후속 설계이며 채널톡 식별정보로 `property_members` 권한을 대신하지 않습니다.
+
+주민 링크의 `notice_access_links`는 다음 필드를 저장합니다. Migration: `V20261114041732__add_resident_notice_access.sql`.
+
+| 컬럼 | 자료형·제약 | 의미 |
+| --- | --- | --- |
+| `id` | uuid PK | 발급·재시도 식별자, 회수 후 재사용 금지 |
+| `property_id` | uuid FK → properties | 열람할 관리대상 |
+| `created_by` | uuid FK → users | 발급한 관리자 |
+| `nonce` | varchar(43) NOT NULL | 링크 재구성용 난수, 토큰 원문과 구분 |
+| `token_hash` | varchar(64) UNIQUE NOT NULL | 발급 당시 토큰의 SHA-256 |
+| `created_at` | timestamptz NOT NULL | 발급 시각 |
+| `revoked_at` | timestamptz nullable | 관리자 회수 시각, null은 활성 |
+
+활성 링크는 `property_id WHERE revoked_at IS NULL` 부분 UNIQUE 인덱스로 하나만 허용합니다. 명부 수신자나 로그인 주민과 연결하지 않습니다. 열람 세션은 영속 업무 원본이 아니며 별도 Redis 키에 링크 ID만 12시간 보관합니다. 정확한 수명·재시도는 API 계약을 따릅니다.
 
 ### 0.3 User와 Resident 관계
 
@@ -1096,7 +1111,9 @@ DB 지연 제약은 실제 수납 배분과 기존 선납 충당의 합계가 �
 
 ### income_allocations (2026-10-17 구현)
 
-기타 입금의 동별 보유금 귀속입니다. UUID `id` PK, `property_id`, `payment_id`, `building_id`, 암호화한 `building_label_encrypted`, 원 단위 `amount numeric(15,0)`, 비율 `percentage numeric(5,2)`, `allocation_mode`, `sort_order`, `created_by`, `created_at`을 저장합니다. 수납·동은 같은 관리대상의 복합 FK로 연결하고 `(payment_id,building_id)`, `(payment_id,sort_order)`는 UNIQUE입니다. 지연 제약으로 실제 확정 OTHER 입금·전액 합계·비율·균등 금액과 외부 회수 중복을 검증하며 UPDATE·DELETE를 금지합니다. 취소·삭제 후에도 배분 이력을 보존합니다. 후속 `V20261018050254__support_manual_income_purposes.sql`에서 은행 원본 없는 MANUAL·SHARED의 확정 전액 배분을 허용하며 유효한 수동 동별 입금도 잔고에 반영합니다. 은행에 연결한 뒤에는 활성 원본을 함께 검사해 이중 집계하지 않습니다. 원본·확인 잔액은 생성하지 않습니다.
+기타 입금의 동별 보유금 귀속입니다. UUID `id` PK, `property_id`, `payment_id`, `building_id`, 암호화한 `building_label_encrypted`, 원 단위 `amount numeric(15,0)`, 비율 `percentage numeric(5,2)`, `allocation_mode`, `sort_order`, `created_by`, `created_at`을 저장합니다. 수납·동은 같은 관리대상의 복합 FK로 연결하고 `(payment_id,building_id)`, `(payment_id,sort_order)`는 UNIQUE입니다. 지연 제약으로 실제 확정 OTHER 입금·전액 합계·비율·균등 금액과 내부 몫의 외부 정산 사용 금지를 검증하며 UPDATE·DELETE를 금지합니다. 취소·삭제 후에도 배분 이력을 보존합니다. 후속 `V20261018050254__support_manual_income_purposes.sql`에서 은행 원본 없는 MANUAL·SHARED의 확정 전액 배분을 허용하며 유효한 수동 동별 입금도 잔고에 반영합니다. 은행에 연결한 뒤에는 활성 원본을 함께 검사해 이중 집계하지 않습니다. 원본·확인 잔액은 생성하지 않습니다.
+
+2026-11-20 `V20261120115540__support_external_income_shares.sql`에서 `building_id`를 nullable로 확장했습니다. NULL은 외부 동의 보관금 몫이며 암호화 표시명을 보존합니다. 입금 비율도 지출과 동일하게 절사 후 명시한 한 곳에만 나머지를 더하도록 DB에서 검증합니다. `external_settlement_links.income_allocation_id`는 선택 외부 몫을 참조하며 `(property_id,payment_id,income_allocation_id)` 복합 FK로 같은 수납의 배분인지 검사합니다. 기존 연결은 NULL을 유지하며 배분 없는 기타 입금만 사용할 수 있습니다. 한도 검증은 유효 지출의 활성 사용액과 외부 몫 금액을 비교하고 삭제된 지출의 이력은 사용액에서 제외합니다.
 
 통장 선택 삭제는 기존 `bank_transactions.deleted_at/deleted_by`와 수납 취소·삭제 이벤트를 사용합니다. 확정 지출·배분의 불변성은 유지하며 연결 수납을 취소한 뒤 삭제자·시각이 있는 원본의 소프트 삭제를 허용합니다. 삭제 표시는 되돌려 덮어쓰지 않고 재가져오기는 새 ID를 생성합니다.
 
@@ -1234,7 +1251,7 @@ Soft Delete 없음.
 
 ## 9.6 external_settlement_links
 
-2026-10-17 구현. `id` 요청 UUID PK, `property_id`, `allocation_id`, `payment_id`, 양수 `amount numeric(15,0)`, `created_by`, `created_at`을 저장합니다. 지출 배분·수납은 같은 관리대상 복합 FK로 연결합니다. 확정된 외부 부담처와 같은 통장의 유효한 확정 OTHER 수납을 연결합니다. 은행 수납과 허용된 수동 OTHER를 포함하며 동별 배분에 사용한 입금은 제외합니다. DB 지연 트리거가 입금·부담액 한도를 검사하며 연결 이력의 UPDATE·DELETE는 차단합니다. 취소 수납의 연결은 삭제하지 않고 유효 회수 합계에서 제외합니다.
+2026-10-17 구현. `id` 요청 UUID PK, `property_id`, `allocation_id`, `payment_id`, 양수 `amount numeric(15,0)`, `created_by`, `created_at`을 저장합니다. 지출 배분·수납은 같은 관리대상 복합 FK로 연결합니다. 확정된 외부 부담처와 같은 통장의 유효한 확정 OTHER 수납을 연결합니다. 은행 수납과 허용된 수동 OTHER를 포함합니다. 혼합 배분 입금은 선택한 외부 몫만 사용하며 내부 몫은 제외합니다. DB 지연 트리거가 입금·부담액 한도를 검사하며 연결 이력의 UPDATE·DELETE는 차단합니다. 취소 수납의 연결은 삭제하지 않고 유효 회수 합계에서 제외합니다.
 
 ---
 

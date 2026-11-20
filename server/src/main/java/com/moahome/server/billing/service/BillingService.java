@@ -1,9 +1,7 @@
 package com.moahome.server.billing.service;
 
+import com.moahome.server.common.security.Sha256;
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
@@ -217,12 +215,7 @@ public class BillingService {
 
 	/** 요청 원문은 로그에 남기지 않고 정규화 DTO의 지문만 보존해 응답 유실 재시도의 중복 부과를 막습니다. */
 	private String fingerprint(BillingSettingsRequest request) {
-		try {
-			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-			    .digest(request.toString().getBytes(StandardCharsets.UTF_8)));
-		} catch (NoSuchAlgorithmException exception) {
-			throw new IllegalStateException("Billing request digest unavailable", exception);
-		}
+		return Sha256.hex(request.toString());
 	}
 
 	/** 모든 현재 동의 설정·동 소속과 기본+임시의 세대당 최종 합계를 저장 전에 검증합니다. */

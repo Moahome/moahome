@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -21,7 +23,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import com.moahome.server.auth.domain.AuthPrincipal;
 import com.moahome.server.membership.dto.MemberRequests;
 import com.moahome.server.membership.service.MemberManagementService;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.membership.exception.MembershipException;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -75,12 +77,33 @@ class MemberLeaveControllerTest {
 	@Test
 	void returnsActionableTransferAndRepresentativeConflicts() throws Exception {
 		for (String code : List.of("MEMBER_TRANSFER_REQUIRED", "MEMBER_REPRESENTATIVE_REQUIRED")) {
-			doThrow(new PaymentException(code)).when(service).leave(eq(actor), eq(property), any());
+			doThrow(new MembershipException(code)).when(service).leave(eq(actor), eq(property), any());
 			mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON)
 			    .content("{\"reason\":\"MOVE_OUT\"}"))
 			    .andExpect(status().isConflict()).andExpect(jsonPath("code").value(code))
 			    .andExpect(header().string("Cache-Control", "no-store"));
 		}
+	}
+
+	@Test
+	void invalidAndStorageFailuresUseMembershipGuidanceAndPreserveExistingErrorCodes() throws Exception {
+		mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON).content("{}"))
+			.andExpect(status().isBadRequest()).andExpect(jsonPath("code").value("INVALID_REQUEST"))
+			.andExpect(jsonPath("message").value("회원·초대 정보를 확인해주세요."));
+		doThrow(new DataIntegrityViolationException("private-sql"))
+			.when(service).leave(eq(actor), eq(property), any());
+		mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON)
+			.content("{\"reason\":\"SERVICE_ONLY\"}"))
+			.andExpect(status().isConflict()).andExpect(jsonPath("code").value("PAYMENT_CONFLICT"))
+			.andExpect(jsonPath("message").value("회원·초대 정보가 변경되었습니다. 다시 확인해주세요."))
+			.andExpect(header().string("Cache-Control", "no-store"));
+		doThrow(new DataAccessResourceFailureException("private-sql"))
+			.when(service).leave(eq(actor), eq(property), any());
+		mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON)
+			.content("{\"reason\":\"SERVICE_ONLY\"}"))
+			.andExpect(status().isServiceUnavailable())
+			.andExpect(jsonPath("code").value("PAYMENT_SERVICE_UNAVAILABLE"))
+			.andExpect(jsonPath("message").value("회원·초대 정보를 처리하지 못했습니다."));
 	}
 
 	@TestConfiguration

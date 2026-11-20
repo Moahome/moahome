@@ -1,7 +1,7 @@
 package com.moahome.server.banking.service;
 
 import java.util.*;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
 import com.moahome.server.banking.dto.BankingResponse.ImportSupport;
 
 /** 은행별 열 매핑과 공통 Excel 지원 범위를 화면 안내와 서버 검증에서 함께 사용합니다. */
@@ -45,7 +45,7 @@ public enum BankImportFormat {
 	/** 목록 밖 코드와 다른 기관 코드를 같은 은행명이라는 이유로 허용하지 않습니다. */
 	public static BankImportFormat require(String code) {
 		return Arrays.stream(values()).filter(format -> format.bankCode.equals(code)).findFirst()
-		    .orElseThrow(() -> new PaymentException("BANK_IMPORT_UNSUPPORTED"));
+		    .orElseThrow(() -> new BankingException("BANK_IMPORT_UNSUPPORTED"));
 	}
 
 	public static ImportSupport support(String code) {
@@ -57,6 +57,6 @@ public enum BankImportFormat {
 	/** 지원 Excel 확장자와 기존 CSV 호환 범위를 검사하며 실제 파일 내용은 Reader에서 별도로 검증합니다. */
 	void validateFilename(String filename) {
 		if (filename == null || extensions.stream().noneMatch(filename.toLowerCase(Locale.ROOT)::endsWith))
-			throw new PaymentException("INVALID_BANK_FILE");
+			throw new BankingException("INVALID_BANK_FILE");
 	}
 }

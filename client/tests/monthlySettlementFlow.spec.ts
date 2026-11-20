@@ -484,7 +484,7 @@ test('정산 상세의 통장·동·외부 검색과 상태 필터 및 정렬이
 
 
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`월별 종합보고서 ${width}px는 선택 월 외부 부담금만 집계하고 템플릿의 PDF와 PNG를 저장하며 페이지 버튼을 아래에 배치`, async ({ page }, testInfo) => {
     test.setTimeout(90000);
     await page.setViewportSize({

@@ -279,7 +279,7 @@ export function SettlementDetails({ report, month, propertyId }: {
           <Link
             href={href('banking/balances')}
           >
-            동별 잔고·정산
+            잔고·정산
           </Link>
         </div>
         <div

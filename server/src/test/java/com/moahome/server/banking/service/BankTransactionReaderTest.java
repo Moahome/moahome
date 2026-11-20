@@ -12,7 +12,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
 
 import static org.assertj.core.api.Assertions.*;
 
@@ -26,7 +26,7 @@ class BankTransactionReaderTest {
 		assertThat(rows.getFirst().amount()).isEqualByComparingTo("50000");
 		assertThat(rows.getFirst().memo()).contains("\n");
 		for (String row : List.of("2026-02-30,김대표,50000", "2026-10-15,김대표,1.5", "2026-10-15,김대표,-1"))
-			assertThatThrownBy(() -> reader.read(csv("입금일,입금자명,입금액\n" + row))).isInstanceOf(PaymentException.class);
+			assertThatThrownBy(() -> reader.read(csv("입금일,입금자명,입금액\n" + row))).isInstanceOf(BankingException.class);
 	}
 
 	@Test
@@ -49,7 +49,7 @@ class BankTransactionReaderTest {
 			workbook.write(bytes);
 			assertThatThrownBy(() -> reader
 			    .read(new MockMultipartFile("file", "거래.xlsx", "application/octet-stream", bytes.toByteArray())))
-			    .isInstanceOf(PaymentException.class);
+			    .isInstanceOf(BankingException.class);
 		}
 	}
 
@@ -93,7 +93,7 @@ class BankTransactionReaderTest {
 			assertThat(rows.getFirst().balance()).isEqualByComparingTo("100000");
 			assertThat(rows.getLast().balance()).isEqualByComparingTo("108000");
 			sheet.getRow(6).getCell(4).setCellFormula("1+1");
-			assertThatThrownBy(() -> reader.read(excel(workbook, "수식.xls"))).isInstanceOf(PaymentException.class);
+			assertThatThrownBy(() -> reader.read(excel(workbook, "수식.xls"))).isInstanceOf(BankingException.class);
 		}
 	}
 
@@ -115,22 +115,22 @@ class BankTransactionReaderTest {
 			row.createCell(3).setCellValue(50000);
 			row.createCell(4).setCellValue(150000);
 			assertThat(reader.read(excel(workbook, "은행.xlsx")).getFirst().payer()).isEqualTo("김대표");
-			assertThatThrownBy(() -> reader.read(excel(workbook, "확장자만변경.xls"))).isInstanceOf(PaymentException.class);
+			assertThatThrownBy(() -> reader.read(excel(workbook, "확장자만변경.xls"))).isInstanceOf(BankingException.class);
 		}
 	}
 
 	@Test
 	void rejectsAmbiguousDirectionMissingHeadersAndDisguisedXls() {
 		assertThatThrownBy(() -> reader.read(csv("거래일시,적요,출금액,입금액\n2026-10-15,김대표,1000,50000")))
-		    .isInstanceOf(PaymentException.class).hasMessage("INVALID_BANK_ROW");
+		    .isInstanceOf(BankingException.class).hasMessage("INVALID_BANK_ROW");
 		assertThatThrownBy(() -> reader.read(csv("거래일시,적요,입금액\n2026-10-15,김대표,50000")))
-		    .isInstanceOf(PaymentException.class).hasMessage("INVALID_BANK_HEADER");
+		    .isInstanceOf(BankingException.class).hasMessage("INVALID_BANK_HEADER");
 		assertThatThrownBy(() -> reader
 		    .read(new MockMultipartFile("file", "은행.xls", "application/vnd.ms-excel", "<html>은행</html>".getBytes())))
-		    .isInstanceOf(PaymentException.class).hasMessage("INVALID_BANK_FILE");
+		    .isInstanceOf(BankingException.class).hasMessage("INVALID_BANK_FILE");
 		assertThatThrownBy(() -> reader.read(csv("거래일시,적요,출금액,입금액\n2026-10-15,청소비,50000,0")))
-		    .isInstanceOf(PaymentException.class).hasMessage("EMPTY_BANK_FILE");
-		assertThatThrownBy(() -> reader.read(csv("거래일시,적요,출금액,입금액\n,김대표,0,50000"))).isInstanceOf(PaymentException.class)
+		    .isInstanceOf(BankingException.class).hasMessage("EMPTY_BANK_FILE");
+		assertThatThrownBy(() -> reader.read(csv("거래일시,적요,출금액,입금액\n,김대표,0,50000"))).isInstanceOf(BankingException.class)
 		    .hasMessage("INVALID_BANK_ROW");
 	}
 
@@ -140,7 +140,7 @@ class BankTransactionReaderTest {
 		String source = header + "2026-10-15 09:12:34,김대표,0,50000\n".repeat(5000);
 		assertThat(reader.read(csv(source))).hasSize(5000);
 		assertThatThrownBy(() -> reader.read(csv(source + "2026-10-15,김대표,0,50000")))
-		    .isInstanceOf(PaymentException.class).hasMessage("BANK_ROW_LIMIT");
+		    .isInstanceOf(BankingException.class).hasMessage("BANK_ROW_LIMIT");
 	}
 
 	/** 카카오의 공용 거래금액·구분·내용 양식을 읽고 출금과 입금을 섞어 수납하지 않습니다. */
@@ -175,7 +175,7 @@ class BankTransactionReaderTest {
 			});
 			assertThat(rows.getFirst().balance()).isEqualByComparingTo("150000");
 			sheet.getRow(11).getCell(3).setCellFormula("1+1");
-			assertThatThrownBy(() -> reader.read(excel(workbook, "카카오수식.xlsx"))).isInstanceOf(PaymentException.class);
+			assertThatThrownBy(() -> reader.read(excel(workbook, "카카오수식.xlsx"))).isInstanceOf(BankingException.class);
 		}
 	}
 
@@ -185,11 +185,11 @@ class BankTransactionReaderTest {
 		for (String transaction : List.of("입금,-50000", "이체,50000", "입금,1.5", "출금,invalid"))
 			assertThatThrownBy(
 			    () -> reader.read(csv(header + "2026.07.17 17:38:28," + transaction + ",150000,일반입금,103동501,관리비")))
-			    .isInstanceOf(PaymentException.class).hasMessage("INVALID_BANK_ROW");
+			    .isInstanceOf(BankingException.class).hasMessage("INVALID_BANK_ROW");
 		assertThatThrownBy(() -> reader.read(csv("거래일시,거래금액,내용\n2026-07-17,50000,103동501")))
-		    .isInstanceOf(PaymentException.class).hasMessage("INVALID_BANK_HEADER");
+		    .isInstanceOf(BankingException.class).hasMessage("INVALID_BANK_HEADER");
 		assertThatThrownBy(() -> reader.read(csv(header + "2026-07-17,출금,50000,100000,이체,검증,메모")))
-		    .isInstanceOf(PaymentException.class).hasMessage("EMPTY_BANK_FILE");
+		    .isInstanceOf(BankingException.class).hasMessage("EMPTY_BANK_FILE");
 		assertThat(reader.read(csv(header + "2026-07-17,입금,50000,100000,일반입금,103동501,"))).singleElement()
 		    .satisfies(row -> assertThat(row.memo()).isNull());
 	}

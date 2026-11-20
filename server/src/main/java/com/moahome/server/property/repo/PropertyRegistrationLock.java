@@ -1,9 +1,8 @@
 package com.moahome.server.property.repo;
 
+import com.moahome.server.common.security.Sha256;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.sql.SQLException;
 import java.util.UUID;
 
@@ -40,12 +39,8 @@ public class PropertyRegistrationLock {
 	}
 
 	static long key(UUID userId, UUID requestId) {
-		try {
-			byte[] digest = MessageDigest.getInstance("SHA-256")
-			    .digest(("moahome:property-registration:" + userId + ":" + requestId).getBytes(StandardCharsets.UTF_8));
-			return ByteBuffer.wrap(digest).getLong();
-		} catch (NoSuchAlgorithmException exception) {
-			throw new IllegalStateException("Registration lock key failed");
-		}
+		byte[] digest = Sha256.digest(("moahome:property-registration:" + userId + ":" + requestId)
+			.getBytes(StandardCharsets.UTF_8));
+		return ByteBuffer.wrap(digest).getLong();
 	}
 }

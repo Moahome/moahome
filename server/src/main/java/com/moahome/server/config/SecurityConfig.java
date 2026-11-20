@@ -186,6 +186,10 @@ public class SecurityConfig {
 		        }))
 		    .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(errors).accessDeniedHandler(errors))
 		    .authorizeHttpRequests(requests -> requests.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+		        // 주민 API는 별도 읽기 쿠키를 서비스에서 검증하며 관리자 API의 Bearer 인증은 유지합니다.
+		        .requestMatchers(HttpMethod.POST, "/api/notice-access/sessions").permitAll()
+		        .requestMatchers(HttpMethod.GET, "/api/notice-access/context", "/api/notice-access/notices",
+		            "/api/notice-access/notices/{id}", "/api/notice-access/notices/{id}/assets/{assetId}").permitAll()
 		        // 배포 점검은 상태만 공개하고 다른 Actuator·업무 경로의 인증은 유지합니다.
 		        .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/readiness").permitAll()
 		        .requestMatchers(HttpMethod.GET, KakaoOAuthConfig.START_PATH, KakaoOAuthConfig.CALLBACK_PATH)

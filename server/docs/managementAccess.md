@@ -87,3 +87,7 @@ Service / Controller 단위 검사, 기존 Bearer Security 통합 검사와 격�
 - 역할 변경·인계의 Property 잠금·현재 actor 권한·예상 역할·주민 연결 검증·역할 이력과 각 업무 API의 현재 DB 권한 검사는 유지합니다. 주민 세부 업무 API는 아직 없으므로 구현된 것으로 간주하지 않습니다.
 
 검증은 `ManagementAccessServiceTest`, `ManagementAccessPersistenceTest`, `SecurityIntegrationTest`, `OpenApiIntegrationTest`와 `PaymentPersistenceTest`에 추가했습니다. 세 역할·주민 연결 유무·역할 충돌·계정/대상 분리·종료/삭제·현재 역할 변경 후 조회와 이전 관리자 업무 거부를 확인합니다. 실행 결과는 [공통 작업 검증 기록](memberManagement.md#구현-순서와-검증-상태)을 참조합니다.
+
+## 6. 쓰기 권한 절차 재사용 (2026-11-14)
+
+회계 변경·과목 설정·미지급 변경은 `ManagementWriteAccess.requireAdminAndLock`을 재사용합니다. 호출자의 기존 쓰기 트랜잭션에서 현재 ADMIN 확인 → Property 행 잠금 → 현재 ADMIN 재확인 순서를 유지합니다. 별도 트랜잭션을 시작하거나 MANAGER까지 허용 범위를 넓히지 않습니다. 명부·공지 등 다른 권한 정책을 이 ADMIN 전용 절차로 일괄 대체하지 않습니다.

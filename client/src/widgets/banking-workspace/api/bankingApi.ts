@@ -46,7 +46,7 @@ function validRows(rows: BankingTransaction[]): boolean {
     && (row.incomeAllocation == null || (row.direction === 'INCOME' && row.receiptType === 'OTHER'
       && UUID.test(row.incomeAllocation.id) && typeof row.incomeAllocation.category === 'string'
       && ['EQUAL', 'RATIO', 'AMOUNT'].includes(row.incomeAllocation.mode) && Array.isArray(row.incomeAllocation.allocations)
-      && row.incomeAllocation.allocations.length > 0 && row.incomeAllocation.allocations.every((a) => UUID.test(a.buildingId ?? '') && typeof a.label === 'string' && AMOUNT.test(a.amount) && BigInt(a.amount) > BigInt(0))
+      && row.incomeAllocation.allocations.length > 0 && row.incomeAllocation.allocations.every((a) => (a.buildingId === null || UUID.test(a.buildingId)) && typeof a.label === 'string' && AMOUNT.test(a.amount) && BigInt(a.amount) > BigInt(0))
       && row.incomeAllocation.allocations.reduce((sum, a) => sum + BigInt(a.amount), BigInt(0)) === BigInt(row.amount)))
     && (row.expense === null || (UUID.test(row.expense.id) && typeof row.expense.category === 'string'
       && (row.expense.accountCode == null || (typeof row.expense.accountCode === 'string' && /^8\d{2}$/.test(row.expense.accountCode)))

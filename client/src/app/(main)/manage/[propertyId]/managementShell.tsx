@@ -176,10 +176,10 @@ function getMobileBack(pathname: string, basePath: string, month: string | null,
   const balanceBuilding = context.get('building');
   if (/^[0-9a-f-]{36}$/i.test(balanceBuilding ?? '')) balanceQuery.set('building', balanceBuilding!);
   if (pathname.startsWith(`${basePath}/banking/balances/`)) {
-    const panelTitle = pathname.endsWith('/banking/balances/details/initial') ? '초기 잔액 정정' : pathname.endsWith('/banking/balances/details/account') ? '통장 상세' : '동별 잔고·정산';
+    const panelTitle = pathname.endsWith('/banking/balances/details/initial') ? '초기 잔액 정정' : pathname.endsWith('/banking/balances/details/account') ? '통장 상세' : '잔고·정산';
     return {
       href: `${basePath}/banking/balances${balanceQuery.size ? `?${balanceQuery}` : ''}`,
-      label: '동별 잔고·정산으로 돌아가기',
+      label: '잔고·정산으로 돌아가기',
       title: pathname.startsWith(`${basePath}/banking/balances/details/`) ? panelTitle : '동별 상세 원장'
     };
   }

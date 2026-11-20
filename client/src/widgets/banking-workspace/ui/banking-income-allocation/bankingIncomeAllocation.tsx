@@ -94,7 +94,7 @@ export function BankingIncomeAllocation({ propertyId, paymentId, onBusyChange }:
             동별 입금 배분
           </h3>
           <p>
-            이자 등 공동 입금을 각 동에 나누어 잔고에 반영합니다. 외부 부담금 회수에는 동별 배분을 사용하지 않습니다.
+            공동 입금을 관리 동과 외부 동의 몫으로 나눕니다. 관리 동 몫은 동별 잔고에, 외부 몫은 외부 보관금에 반영합니다.
           </p>
           <AllocationEditor
             purpose={'income'}

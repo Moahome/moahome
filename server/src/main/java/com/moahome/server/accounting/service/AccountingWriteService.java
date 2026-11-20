@@ -11,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 import com.moahome.server.accounting.domain.AccountingAccount;
 import com.moahome.server.accounting.domain.AccountingProfile;
 import com.moahome.server.accounting.domain.ExpenseAccountingReview;
-import com.moahome.server.accounting.domain.IncomeGroup;
 import com.moahome.server.accounting.domain.RevenueAccountingReview;
 import com.moahome.server.accounting.dto.AccountingRequests;
 import com.moahome.server.accounting.exception.AccountingException;
@@ -19,17 +18,15 @@ import com.moahome.server.accounting.repo.AccountingAccountRepository;
 import com.moahome.server.accounting.repo.AccountingProfileRepository;
 import com.moahome.server.accounting.repo.ExpenseAccountingReviewRepository;
 import com.moahome.server.accounting.repo.RevenueAccountingReviewRepository;
-import com.moahome.server.auth.exception.AuthErrorCode;
-import com.moahome.server.auth.exception.AuthException;
 import com.moahome.server.banking.service.BankingService;
 import com.moahome.server.banking.dto.BankingResponse;
 import com.moahome.server.accounting.domain.AccountingTransferMatch;
 import com.moahome.server.billing.service.BillingIncomeSourceService;
 import com.moahome.server.common.security.PaymentTextSecurity;
 import com.moahome.server.common.validation.TextValues;
-import com.moahome.server.membership.domain.PropertyMemberRole;
 import com.moahome.server.property.repo.PropertyRepository;
 import com.moahome.server.property.service.ManagementAccessService;
+import com.moahome.server.property.service.ManagementWriteAccess;
 
 @Service
 @Transactional
@@ -170,12 +167,6 @@ public class AccountingWriteService {
 
 	/** 조회 권한과 설정·회계 확인 권한을 구분하고 잠금 전에도 서버에서 현재 역할을 검사합니다. */
 	private void requireAdminAndLock(UUID actor, UUID property) {
-		if (access.getManagementContext(actor, property).role() != PropertyMemberRole.ADMIN)
-			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
-		properties.findForUnitUpdate(property)
-			.orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
-		// 잠금 대기 중 역할이 인계·해제됐을 수 있으므로 실제 저장 직전에 현재 참여를 다시 확인합니다.
-		if (access.getManagementContext(actor, property).role() != PropertyMemberRole.ADMIN)
-			throw new AuthException(AuthErrorCode.ACCESS_DENIED);
+		ManagementWriteAccess.requireAdminAndLock(access, properties, actor, property);
 	}
 }

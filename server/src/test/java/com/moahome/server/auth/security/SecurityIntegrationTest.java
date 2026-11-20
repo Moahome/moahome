@@ -12,6 +12,9 @@ import jakarta.persistence.EntityManager;
 import com.moahome.server.systemadmin.service.SystemAdminService;
 import com.moahome.server.systemadmin.repo.SystemAdminRequestLock;
 import com.moahome.server.notice.repo.NoticeRepository;
+import com.moahome.server.notice.repo.ResidentNoticeRepository;
+import com.moahome.server.notice.dto.ResidentNoticeResponse;
+import com.moahome.server.common.security.Sha256;
 import com.moahome.server.notice.repo.NoticeAssetRepository;
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -21,6 +24,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -221,6 +225,9 @@ class SecurityIntegrationTest {
 	private NoticeRepository noticeRepository;
 
 	@MockitoBean
+	private ResidentNoticeRepository residentNoticeRepository;
+
+	@MockitoBean
 	private NoticeAssetRepository noticeAssetRepository;
 
 	@MockitoBean
@@ -369,6 +376,42 @@ class SecurityIntegrationTest {
 			mvc.perform(get(path)).andExpect(status().isUnauthorized());
 		}
 		mvc.perform(post("/actuator/health")).andExpect(status().isUnauthorized());
+	}
+
+	/** 익명 읽기 쿠키는 별도 Origin 검증을 거치며 관리자 Bearer 권한을 대신하지 않습니다. */
+	@Test
+	void residentNoticeSessionRequiresLinkAndOriginAndCannotAccessManagement() throws Exception {
+		UUID grantId = UUID.randomUUID();
+		UUID property = UUID.randomUUID();
+		byte[] randomToken = new byte[32];
+		new SecureRandom().nextBytes(randomToken);
+		String token = grantId + "." + Base64.getUrlEncoder().withoutPadding().encodeToString(randomToken);
+		var grant = new ResidentNoticeRepository.Grant(grantId, property, "unused", Sha256.hex(token),
+		    OffsetDateTime.now(), null);
+		when(residentNoticeRepository.findGrant(grantId)).thenReturn(Optional.of(grant));
+		when(residentNoticeRepository.context(property))
+		    .thenReturn(Optional.of(new ResidentNoticeResponse.Context(property, "주민 건물")));
+		mvc.perform(get("/api/notice-access/context")).andExpect(status().isUnauthorized())
+		    .andExpect(jsonPath("code").value("NOTICE_ACCESS_REQUIRED"));
+		String body = "{\"token\":\"" + token + "\"}";
+		mvc.perform(post("/api/notice-access/sessions").contentType(MediaType.APPLICATION_JSON).content(body))
+		    .andExpect(status().isForbidden());
+		mvc.perform(post("/api/notice-access/sessions").header("Origin", "https://evil.example")
+		    .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
+		var response = mvc.perform(post("/api/notice-access/sessions").header("Origin", "https://app.example.test")
+		    .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isNoContent())
+		    .andExpect(header().string("Cache-Control", "no-store"))
+		    .andExpect(cookie().httpOnly("moahome-notice-access", true))
+		    .andExpect(cookie().secure("moahome-notice-access", true))
+		    .andExpect(cookie().path("moahome-notice-access", "/api/notice-access"))
+		    .andExpect(cookie().maxAge("moahome-notice-access", 43200)).andReturn().getResponse();
+		Cookie guest = response.getCookie("moahome-notice-access");
+		mvc.perform(get("/api/notice-access/context").cookie(guest)).andExpect(status().isOk())
+		    .andExpect(jsonPath("propertyId").value(property.toString()));
+		mvc.perform(get("/api/properties/" + property + "/notices").cookie(guest))
+		    .andExpect(status().isUnauthorized());
+		mvc.perform(put("/api/notice-access/notices/" + UUID.randomUUID()).cookie(guest))
+		    .andExpect(status().isUnauthorized());
 	}
 
 	/** 링크·코드를 알아도 Bearer 인증 전에는 초대 확인·신청·수락 서비스에 도달하지 않습니다. */

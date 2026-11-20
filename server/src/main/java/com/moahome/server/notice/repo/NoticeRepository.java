@@ -1,5 +1,6 @@
 package com.moahome.server.notice.repo;
 
+import com.moahome.server.common.persistence.AdvisoryLocks;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -33,7 +34,7 @@ public class NoticeRepository {
 
 	/** 생성·수정·삭제를 같은 대상 안에서 직렬화하며 트랜잭션 롤백 시 번호와 본문도 함께 되돌립니다. */
 	public void lock(UUID propertyId) {
-		jdbc.queryForList("select pg_advisory_xact_lock(hashtextextended(?, 0))", "moahome:notices:" + propertyId);
+		AdvisoryLocks.acquire(jdbc, "moahome:notices:" + propertyId);
 	}
 
 	public Optional<Stored> find(UUID propertyId, UUID id) {

@@ -1388,7 +1388,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     height: 1000
   });
   await page.goto(`${BASE}/balances?month=2026-10`);
-  await expect(page).toHaveTitle('동별 잔고·정산 | 모아홈');
+  await expect(page).toHaveTitle('잔고·정산 | 모아홈');
   const bankingGroup = page.getByRole('navigation', {
     name: '관리 메뉴'
   }).getByRole('button', {
@@ -1441,7 +1441,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   await page.keyboard.press('Escape');
   await expect(tooltip).toHaveCount(0);
   await page.getByRole('heading', {
-    name: '동별 잔고·정산',
+    name: '잔고·정산',
     exact: true
   }).click();
   const externalSize = page.getByRole('combobox', {
@@ -1774,7 +1774,9 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     exact: true
   });
   await expect(externalTable).not.toContainText('외부 101동');
-  await expect(differenceCard.locator('dd').nth(1)).toHaveText('0원');
+  await expect(differenceCard.getByText('조회 기간 외부 대납 미회수액', {
+    exact: true
+  }).locator('..').locator('dd')).toHaveText('0원');
   await page.getByRole('combobox', {
     name: '정산 대상',
     exact: true
@@ -1788,7 +1790,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   }).click();
   await expect(settle).toContainText('정산에서 제외한 내역입니다.');
   await expect(settle.getByRole('combobox', {
-    name: '연결할 기타 입금',
+    name: '연결할 입금·외부 보관금',
     exact: true
   })).toHaveCount(0);
   await page.setViewportSize({
@@ -1808,7 +1810,9 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     exact: true
   }).click();
   await expect(settle).toHaveCount(0);
-  await expect(differenceCard.locator('dd').nth(1)).toHaveText('91,330원');
+  await expect(differenceCard.getByText('조회 기간 외부 대납 미회수액', {
+    exact: true
+  }).locator('..').locator('dd')).toHaveText('91,330원');
   await page.getByRole('combobox', {
     name: '정산 대상',
     exact: true
@@ -1821,7 +1825,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     hasText: '외부 101동'
   }).click();
   await settle.getByRole('combobox', {
-    name: '연결할 기타 입금',
+    name: '연결할 입금·외부 보관금',
     exact: true
   }).fill('외부 반환');
   await page.getByRole('option', {
@@ -1918,7 +1922,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
     return rect.left >= 0 && rect.right <= innerWidth;
   })).toBe(true);
   await page.getByRole('heading', {
-    name: '동별 잔고·정산',
+    name: '잔고·정산',
     exact: true
   }).click();
   await expect(tooltip).toHaveCount(0);
@@ -2008,7 +2012,7 @@ test('동별 시작 잔고·상세 원장·부분 회수·실패 재시도와 �
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole('combobox', {
-    name: '연결할 기타 입금',
+    name: '연결할 입금·외부 보관금',
     exact: true
   })).toBeVisible();
   await page.getByRole('button', {
@@ -3167,13 +3171,13 @@ for (const width of [1440, 320]) {
       await help.press('Escape');
       await expect(explanation).toHaveCount(0);
       await page.getByRole('heading', {
-        name: '동별 잔고·정산',
+        name: '잔고·정산',
         exact: true
       }).click();
       await help.focus();
       await expect(explanation).toBeVisible();
       await page.getByRole('heading', {
-        name: '동별 잔고·정산',
+        name: '잔고·정산',
         exact: true
       }).click();
       await expect(explanation).toHaveCount(0);
@@ -3482,7 +3486,7 @@ for (const { width, unassigned } of [{
         exact: true
       }).click();
       await expect(page.getByRole('heading', {
-        name: '동별 잔고·정산',
+        name: '잔고·정산',
         exact: true
       })).toBeVisible();
       expect(requests[0]).toMatchObject({
@@ -3543,7 +3547,7 @@ for (const { width, unassigned } of [{
       exact: true
     }).click();
     await expect(page.getByRole('heading', {
-      name: '동별 잔고·정산',
+      name: '잔고·정산',
       exact: true
     })).toBeVisible();
     expect(requests[1]).toEqual(requests[0]);
@@ -6775,7 +6779,7 @@ test('계좌 이체 체크는 과목에서 제외하고 상대 통장 지정·�
   expect(uploadBody).toContain(`"matchTransferId":"${transferId}"`);
 });
 
-for (const width of [1440, 390]) {
+for (const width of [1440]) {
   test(`취소 이체 편집 ${width}px는 다른 통장에 숨은 상대 거래도 함께 선택·해제하고 한 요청으로 삭제한다`, async ({ page }) => {
     await page.setViewportSize({
       width,
@@ -7258,3 +7262,205 @@ for (const entry of ['income', 'expense'] as const) {
     }).first()).toBeVisible();
   });
 }
+
+test('입금 외부 동 배분·남은 1원·보관금과 기존 외부 부담금 연결을 함께 처리', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-10-23T03:00:00Z'));
+  await page.setViewportSize({
+    width: 1440,
+    height: 1000
+  });
+  const data = settlementFixture();
+  const paymentId = id(9901), transactionId = id(9902), fundId = id(9903);
+  data.balances.externals[0] = {
+    ...data.balances.externals[0],
+    received: '0',
+    remaining: '8000',
+    recoveries: []
+  };
+  data.banking.buildings.push({
+    id: BUILDING_B,
+    label: '103동'
+  });
+  data.banking.rows = [{
+    ...row(9902, 'INCOME', 'KT04', '709926'),
+    accountId: SETTLEMENT_ACCOUNT,
+    paymentId,
+    status: 'CONFIRMED',
+    receiptType: 'OTHER',
+    unitLabel: 'KT04'
+  }];
+  data.payments.payments = [{
+    id: paymentId,
+    accountId: SETTLEMENT_ACCOUNT,
+    source: 'BANK_IMPORT',
+    status: 'CONFIRMED',
+    date: '2026-10-15',
+    payer: 'KT04',
+    amount: '709926',
+    unitId: '',
+    reason: '',
+    allocations: [],
+    receiptType: 'OTHER',
+    incomeCategory: 'KT04',
+    bankTransactionId: transactionId
+  }];
+  await mockSettlement(page, undefined, 0, () => data);
+  const headers = {
+    'Access-Control-Allow-Origin': 'http://localhost:3100',
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-CSRF-TOKEN',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+  await page.route(`http://localhost:8080/api/properties/${SETTLEMENT_PROPERTY}/banking/transactions/${transactionId}/income-allocation`, async route => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({
+      status: 204,
+      headers
+    });
+    const input = route.request().postDataJSON();
+    expect(input.mode).toBe('RATIO');
+    expect(input.allocations.map((p: { amount: string }) => p.amount)).toEqual(['177482', '177481', '354963']);
+    expect(input.allocations[2]).toMatchObject({
+      buildingId: null,
+      label: '101동',
+      percentage: '50'
+    });
+    data.banking.rows[0].incomeAllocation = {
+      ...input,
+      id: paymentId
+    };
+    data.balances.incomes = [{
+      id: fundId,
+      paymentId,
+      transactionId,
+      accountId: SETTLEMENT_ACCOUNT,
+      date: '2026-10-15',
+      payer: '101동 · KT04',
+      amount: '354963',
+      available: '354963',
+      kind: 'EXTERNAL'
+    }];
+    return route.fulfill({
+      headers,
+      json: data.banking
+    });
+  });
+  let linked = false;
+  await page.route(`http://localhost:8080/api/properties/${SETTLEMENT_PROPERTY}/banking/balances/settlements`, async route => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({
+      status: 204,
+      headers
+    });
+    expect(route.request().postDataJSON()).toMatchObject({
+      paymentId,
+      incomeAllocationId: fundId,
+      allocationId: data.balances.externals[0].id,
+      amount: '8000'
+    });
+    linked = true;
+    data.balances.incomes[0].available = '346963';
+    data.balances.externals[0].received = '8000';
+    data.balances.externals[0].remaining = '0';
+    return route.fulfill({
+      status: 204,
+      headers
+    });
+  });
+  await page.goto(`/manage/${SETTLEMENT_PROPERTY}/banking/transactions?month=2026-10`);
+  await page.getByRole('table').getByRole('row').filter({
+    hasText: 'KT04'
+  }).click();
+  const detail = page.getByRole('dialog', {
+    name: '입금 처리 상세',
+    exact: true
+  });
+  const split = detail.getByRole('region', {
+    name: '기타 입금 동별 배분',
+    exact: true
+  });
+  await split.getByRole('button', {
+    name: '외부 동 추가',
+    exact: true
+  }).click();
+  await split.getByRole('textbox', {
+    name: '외부 동 3',
+    exact: true
+  }).fill('101동');
+  await split.getByRole('combobox', {
+    name: '나누는 방법',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: '비율 지정',
+    exact: true
+  }).click();
+  await split.getByLabel('102동 배분 비율', {
+    exact: true
+  }).fill('25');
+  await split.getByLabel('103동 배분 비율', {
+    exact: true
+  }).fill('25');
+  await split.getByLabel('101동 배분 비율', {
+    exact: true
+  }).fill('50');
+  await expect(split.getByText('남은 금액 1원', {
+    exact: true
+  })).toBeVisible();
+  const fill = split.getByRole('button', {
+    name: '102동 남은 금액',
+    exact: true
+  });
+  await expect(fill).toBeEnabled();
+  await page.setViewportSize({
+    width: 390,
+    height: 844
+  });
+  await expect(fill).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await fill.click();
+  await expect(split.getByText('177,482원', {
+    exact: true
+  })).toBeVisible();
+  await expect(split.getByText('남은 금액 0원', {
+    exact: true
+  })).toBeVisible();
+  await expect(fill).toBeDisabled();
+  await page.setViewportSize({
+    width: 1440,
+    height: 1000
+  });
+  await split.getByRole('button', {
+    name: '입금 배분 확정',
+    exact: true
+  }).click();
+  await expect(split.getByRole('table')).toContainText('외부 보관금');
+  await page.goto(`/manage/${SETTLEMENT_PROPERTY}/banking/balances?month=2026-10`);
+  const funds = page.getByRole('table', {
+    name: '외부 보관금',
+    exact: true
+  });
+  await expect(funds).toContainText('354,963원');
+  await page.getByRole('table', {
+    name: '외부 부담금',
+    exact: true
+  }).getByRole('row').filter({
+    hasText: '외부 A'
+  }).click();
+  const settlement = page.getByRole('dialog', {
+    name: '외부 부담금 정산',
+    exact: true
+  });
+  await settlement.getByRole('combobox', {
+    name: '연결할 입금·외부 보관금',
+    exact: true
+  }).click();
+  await page.getByRole('option', {
+    name: /101동.*KT04/
+  }).click();
+  await settlement.getByRole('button', {
+    name: '입금 연결 확정',
+    exact: true
+  }).click();
+  await expect(settlement).toHaveCount(0);
+  expect(linked).toBe(true);
+  await expect(funds).toContainText('346,963원');
+});

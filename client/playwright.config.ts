@@ -24,7 +24,7 @@ export default defineConfig({
     },
     {
       name: 'chromium',
-      testMatch: ['noticeFlow.spec.ts', 'accountLifecycleFlow.spec.ts', 'accountFlow.spec.ts', 'accountingAccountsFlow.spec.ts', 'payableFlow.spec.ts', 'accountLedgerFlow.spec.ts', 'incomeStatementFlow.spec.ts', 'systemAdminFlow.spec.ts', 'reportDownloadFlow.spec.ts', 'authFlow.spec.ts', 'propertyRegistration.spec.ts', 'managementLayout.spec.ts', 'billingFlow.spec.ts', 'paymentFlow.spec.ts', 'onboardingFlow.spec.ts', 'bankingFlow.spec.ts', 'serverConnectionError.spec.ts', 'stateMessages.spec.ts', 'monthlySettlementFlow.spec.ts', 'balanceReportFlow.spec.ts', 'sharePreview.spec.ts', 'pwaFlow.spec.ts', 'monthlyCollectionReportFlow.spec.ts', 'monthRangeFlow.spec.ts', 'dashboardFlow.spec.ts'],
+      testMatch: ['residentNoticeFlow.spec.ts', 'noticeFlow.spec.ts', 'accountLifecycleFlow.spec.ts', 'accountFlow.spec.ts', 'accountingAccountsFlow.spec.ts', 'payableFlow.spec.ts', 'accountLedgerFlow.spec.ts', 'incomeStatementFlow.spec.ts', 'systemAdminFlow.spec.ts', 'reportDownloadFlow.spec.ts', 'authFlow.spec.ts', 'propertyRegistration.spec.ts', 'managementLayout.spec.ts', 'billingFlow.spec.ts', 'paymentFlow.spec.ts', 'onboardingFlow.spec.ts', 'bankingFlow.spec.ts', 'serverConnectionError.spec.ts', 'stateMessages.spec.ts', 'monthlySettlementFlow.spec.ts', 'balanceReportFlow.spec.ts', 'sharePreview.spec.ts', 'pwaFlow.spec.ts', 'monthlyCollectionReportFlow.spec.ts', 'monthRangeFlow.spec.ts', 'dashboardFlow.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
         channel: process.env.PLAYWRIGHT_CHANNEL,

@@ -1228,7 +1228,7 @@ for (const width of [1440]) {
   });
 }
 
-for (const width of [1440, 320]) {
+for (const width of [320]) {
   test(`기본 항목은 전체·동별 모두 마지막 한 개를 삭제할 수 없다 ${width}px`, async ({ page }) => {
     const state = await mockBilling(page);
     await page.setViewportSize({

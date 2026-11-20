@@ -100,7 +100,7 @@ export function getMonthlyReportDocuments(data: MonthlySettlementSnapshot): Repo
       }, ...moneyColumns(['기초 보유금', '월 입금', '부담 지출', '기말 보유금'])],
       rows: report.buildings.map((row) => [row.label, amount(row.startBalance), BigInt(row.income), BigInt(row.expense), amount(row.balance)]),
       total: ['합계', amount(sumBalances(report.buildings.map((row) => row.startBalance))), report.buildings.reduce((total, row) => total + BigInt(row.income), BigInt(0)), report.buildings.reduce((total, row) => total + BigInt(row.expense), BigInt(0)), amount(report.buildingBalance)],
-      note: '동별 거래 후 잔액을 포함한 상세 명세는 동별 잔고·정산에서 내려받습니다.'
+      note: '동별 거래 후 잔액을 포함한 상세 명세는 잔고·정산에서 내려받습니다.'
     },
     {
       ...common,

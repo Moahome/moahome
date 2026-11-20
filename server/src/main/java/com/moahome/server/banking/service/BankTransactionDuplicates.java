@@ -5,7 +5,7 @@ import java.time.*;
 import java.util.*;
 import com.moahome.server.banking.domain.BankTransaction;
 import com.moahome.server.common.security.PaymentTextSecurity;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
 
 /** 같은 통장의 활성 원본을 한 번 색인해 새 키·과거 키의 교차 재업로드를 함께 확인합니다. */
 public final class BankTransactionDuplicates {
@@ -42,7 +42,7 @@ public final class BankTransactionDuplicates {
 				// 신한의 과거 열 매핑 등으로 이름이 달라도 같은 일시·잔액이면 재수납하지 않습니다.
 				if (row.time() != null && row.balance() != null && row.time().equals(original.getTransactionTime())
 				    && original.getBalance() != null && row.balance().compareTo(original.getBalance()) == 0)
-					throw new PaymentException("BANK_DUPLICATE_REVIEW_REQUIRED");
+					throw new BankingException("BANK_DUPLICATE_REVIEW_REQUIRED");
 				continue;
 			}
 			if (row.reference() != null && original.getBankReference() != null) {
@@ -57,7 +57,7 @@ public final class BankTransactionDuplicates {
 			if (complete && (row.time() != null || row.balance() != null
 			    || legacy.equals(original.getDeduplicationKey())))
 				return Optional.of(original);
-			throw new PaymentException("BANK_DUPLICATE_REVIEW_REQUIRED");
+			throw new BankingException("BANK_DUPLICATE_REVIEW_REQUIRED");
 		}
 		return Optional.empty();
 	}

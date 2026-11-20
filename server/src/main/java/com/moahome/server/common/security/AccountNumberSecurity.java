@@ -14,8 +14,6 @@ public class AccountNumberSecurity {
 
 	private final SecretKey hmacKey;
 
-	private final SecureRandom random = new SecureRandom();
-
 	public AccountNumberSecurity(AccountSecurityProperties properties) {
 		activeKeyId = properties.activeKeyId();
 		Map<String, SecretKey> keys = new HashMap<>();
@@ -39,15 +37,12 @@ public class AccountNumberSecurity {
 	/** 정규화된 계좌번호를 AES-GCM으로 암호화하고 검색용 HMAC과 마지막 네 자리만 분리합니다. */
 	public ProtectedAccountNumber protect(String number) {
 		requireNumber(number);
-		byte[] nonce = new byte[12];
-		random.nextBytes(nonce);
+		byte[] nonce = AesGcm.nonce();
 		try {
-			Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-			cipher.init(Cipher.ENCRYPT_MODE, encryptionKeys.get(activeKeyId), new GCMParameterSpec(128, nonce));
-			cipher.updateAAD(aad(activeKeyId));
 			Base64.Encoder encoder = Base64.getUrlEncoder().withoutPadding();
 			String encrypted = "v1:" + activeKeyId + ":" + encoder.encodeToString(nonce) + ":"
-			    + encoder.encodeToString(cipher.doFinal(number.getBytes(StandardCharsets.UTF_8)));
+			    + encoder.encodeToString(AesGcm.encrypt(encryptionKeys.get(activeKeyId), nonce, aad(activeKeyId),
+			        number.getBytes(StandardCharsets.UTF_8)));
 			Mac mac = Mac.getInstance("HmacSHA256");
 			mac.init(hmacKey);
 			mac.update("moahome:bank-account:v1:".getBytes(StandardCharsets.UTF_8));
@@ -72,10 +67,8 @@ public class AccountNumberSecurity {
 			if (nonce.length != 12) {
 				throw new IllegalArgumentException("Invalid encrypted account");
 			}
-			Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-			cipher.init(Cipher.DECRYPT_MODE, encryptionKeys.get(parts[1]), new GCMParameterSpec(128, nonce));
-			cipher.updateAAD(aad(parts[1]));
-			String number = new String(cipher.doFinal(Base64.getUrlDecoder().decode(parts[3])), StandardCharsets.UTF_8);
+			String number = new String(AesGcm.decrypt(encryptionKeys.get(parts[1]), nonce, aad(parts[1]),
+			    Base64.getUrlDecoder().decode(parts[3])), StandardCharsets.UTF_8);
 			requireNumber(number);
 			return number;
 		} catch (GeneralSecurityException | IllegalArgumentException exception) {

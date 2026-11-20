@@ -20,7 +20,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import com.moahome.server.auth.domain.AuthPrincipal;
 import com.moahome.server.banking.service.BankingService;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
@@ -173,12 +173,12 @@ class BankingControllerTest {
 	void unsupportedBankIsBadRequestAndAmbiguousDuplicateIsConflict() throws Exception {
 		var file = new MockMultipartFile("file", "은행.xls", "application/vnd.ms-excel", new byte[] { 1 });
 		when(service.preview(eq(user), eq(property), any(), any()))
-		    .thenThrow(new PaymentException("BANK_IMPORT_UNSUPPORTED"));
+		    .thenThrow(new BankingException("BANK_IMPORT_UNSUPPORTED"));
 		mvc.perform(multipart(base() + "/import/preview").file(file).with(identity()))
 		    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("BANK_IMPORT_UNSUPPORTED"))
 		    .andExpect(header().string("Cache-Control", "no-store"));
 		when(service.preview(eq(user), eq(property), any(), any()))
-		    .thenThrow(new PaymentException("BANK_DUPLICATE_REVIEW_REQUIRED"));
+		    .thenThrow(new BankingException("BANK_DUPLICATE_REVIEW_REQUIRED"));
 		mvc.perform(multipart(base() + "/import/preview").file(file).with(identity()))
 		    .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("BANK_DUPLICATE_REVIEW_REQUIRED"));
 	}
@@ -219,6 +219,18 @@ class BankingControllerTest {
 		    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"));
 		verify(service).postTransfer(eq(user), eq(property), argThat(request -> request.id().equals(id)
 		    && request.transactionId().equals(transaction) && request.counterpartAccountId().equals(counterpart)));
+	}
+
+	@Test
+	void retainsBusinessStatusAndCodeWithBankingGuidance() throws Exception {
+		when(service.workspace(user, property)).thenThrow(new BankingException("INVALID_BANK_SELECTION"));
+		mvc.perform(get(base() + "/workspace").with(identity()))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("code").value("INVALID_BANK_SELECTION"))
+			.andExpect(jsonPath("message").value("통장 정보를 확인해주세요."))
+			.andExpect(header().string("Cache-Control", "no-store"));
+		doThrow(new BankingException("BANK_ACCOUNT_NOT_FOUND")).when(service).workspace(user, property);
+		mvc.perform(get(base() + "/workspace").with(identity())).andExpect(status().isNotFound());
 	}
 
 	@TestConfiguration

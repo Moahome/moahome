@@ -1,10 +1,10 @@
 package com.moahome.server.notice.controller;
 
+import com.moahome.server.common.error.ErrorResponses;
 import com.moahome.server.auth.exception.AuthException;
-import com.moahome.server.auth.security.AuthErrorHandler.ErrorResponse;
+import com.moahome.server.common.error.ErrorResponse;
 import com.moahome.server.user.exception.UserException;
 import org.springframework.dao.DataAccessException;
-import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.transaction.TransactionException;
@@ -14,7 +14,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 
-@RestControllerAdvice(assignableTypes = NoticeController.class)
+@RestControllerAdvice(assignableTypes = { NoticeController.class, ResidentNoticeController.class,
+	ResidentNoticeManagementController.class })
 public class NoticeExceptionHandler {
 
 	/** 입력 원문·SQL·본문을 노출하지 않고 상태에 대응하는 오류 코드만 전달합니다. */
@@ -22,6 +23,7 @@ public class NoticeExceptionHandler {
 	public ResponseEntity<ErrorResponse> notice(ResponseStatusException exception) {
 		int status = exception.getStatusCode().value();
 		String code = switch (status) {
+			case 401 -> "NOTICE_ACCESS_REQUIRED";
 			case 403 -> "NOTICE_EDIT_FORBIDDEN";
 			case 404 -> "NOTICE_NOT_FOUND";
 			case 409 -> "NOTICE_CONFLICT";
@@ -53,6 +55,6 @@ public class NoticeExceptionHandler {
 	}
 
 	private ResponseEntity<ErrorResponse> error(int status, String code, String message) {
-		return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(new ErrorResponse(code, message));
+		return ErrorResponses.of(status, code, message);
 	}
 }

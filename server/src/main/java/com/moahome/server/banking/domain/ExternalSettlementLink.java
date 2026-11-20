@@ -5,7 +5,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 import jakarta.persistence.*;
 import lombok.Getter;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
 
 @Getter
 @Entity
@@ -23,6 +23,9 @@ public class ExternalSettlementLink {
 	@Column(name = "payment_id", nullable = false)
 	private UUID paymentId;
 
+	@Column(name = "income_allocation_id")
+	private UUID incomeAllocationId;
+
 	@Column(nullable = false, precision = 15, scale = 0)
 	private BigDecimal amount;
 
@@ -38,13 +41,20 @@ public class ExternalSettlementLink {
 	/** 요청 ID로 재시도를 식별하며 외부 부담액·입금 잔여 한도는 잠금을 가진 서비스가 함께 검증합니다. */
 	public static ExternalSettlementLink create(UUID id, UUID property, UUID allocation, UUID payment, String amount,
 	    UUID actor, OffsetDateTime at) {
+		return create(id, property, allocation, payment, null, amount, actor, at);
+	}
+
+	/** 혼합 입금은 외부 몫의 배분 ID를 함께 보존해 내부 동 자금을 정산에 쓰지 못하게 합니다. */
+	public static ExternalSettlementLink create(UUID id, UUID property, UUID allocation, UUID payment,
+	    UUID incomeAllocation, String amount, UUID actor, OffsetDateTime at) {
 		if (amount == null || !amount.matches("[0-9]{1,15}") || new BigDecimal(amount).signum() <= 0)
-			throw new PaymentException("INVALID_EXTERNAL_SETTLEMENT");
+			throw new BankingException("INVALID_EXTERNAL_SETTLEMENT");
 		var row = new ExternalSettlementLink();
 		row.id = id;
 		row.propertyId = property;
 		row.allocationId = allocation;
 		row.paymentId = payment;
+		row.incomeAllocationId = incomeAllocation;
 		row.amount = new BigDecimal(amount);
 		row.createdBy = actor;
 		row.createdAt = at;

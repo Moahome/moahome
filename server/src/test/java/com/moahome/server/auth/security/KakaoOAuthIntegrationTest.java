@@ -12,6 +12,7 @@ import jakarta.persistence.EntityManager;
 import com.moahome.server.systemadmin.service.SystemAdminService;
 import com.moahome.server.systemadmin.repo.SystemAdminRequestLock;
 import com.moahome.server.notice.repo.NoticeRepository;
+import com.moahome.server.notice.repo.ResidentNoticeRepository;
 import com.moahome.server.notice.repo.NoticeAssetRepository;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -224,6 +225,9 @@ class KakaoOAuthIntegrationTest {
 
 	@MockitoBean
 	private NoticeRepository noticeRepository;
+
+	@MockitoBean
+	private ResidentNoticeRepository residentNoticeRepository;
 
 	@MockitoBean
 	private NoticeAssetRepository noticeAssetRepository;

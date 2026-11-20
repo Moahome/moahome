@@ -1,13 +1,10 @@
 package com.moahome.server.auth.service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import com.moahome.server.common.security.Sha256;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
@@ -79,12 +76,7 @@ public class TokenService {
 	}
 
 	public static String hash(String token) {
-		try {
-			return HexFormat.of()
-			    .formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8)));
-		} catch (NoSuchAlgorithmException exception) {
-			throw new IllegalStateException("SHA-256 is unavailable", exception);
-		}
+		return Sha256.hex(token);
 	}
 
 	/** 선택한 종류별 서명기로 발급자, 대상, 사용자와 세션 식별자를 포함한 JWT를 생성합니다. */

@@ -5,7 +5,7 @@ import java.time.*;
 import java.util.UUID;
 import jakarta.persistence.*;
 import lombok.Getter;
-import com.moahome.server.payment.exception.PaymentException;
+import com.moahome.server.banking.exception.BankingException;
 
 @Getter
 @Entity
@@ -60,7 +60,7 @@ public class BuildingCashOpening {
 	public static BuildingCashOpening create(UUID property, UUID account, UUID building, LocalDate cutoff,
 	    String amount, UUID actor, OffsetDateTime at) {
 		if (amount == null || !amount.matches("-?[0-9]{1,15}"))
-			throw new PaymentException("INVALID_CASH_OPENING");
+			throw new BankingException("INVALID_CASH_OPENING");
 		var row = new BuildingCashOpening();
 		row.bankAccountId = account;
 		row.id = UUID.randomUUID();
@@ -76,7 +76,7 @@ public class BuildingCashOpening {
 	/** 사용자가 확인한 새 기준일·마감 잔고를 함께 반영하고 DB가 이전 값과 수정자를 이력에 보관하게 합니다. */
 	public void correct(LocalDate cutoff, String amount, UUID request, UUID actor, OffsetDateTime at) {
 		if (amount == null || !amount.matches("-?[0-9]{1,15}"))
-			throw new PaymentException("INVALID_CASH_OPENING");
+			throw new BankingException("INVALID_CASH_OPENING");
 		this.cutoffDate = cutoff;
 		this.amount = new BigDecimal(amount);
 		this.correctionRequestId = request;

@@ -29,6 +29,7 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
 }) {
   const income = purpose !== 'expense';
   const transfer = purpose === 'transfer';
+  const externalTarget = income ? '외부 동' : '외부 부담처';
   const result = calculateExpenseAllocation(total, draft, income ? 'income' : 'expense');
   const allocationError = validationError || result.allocationError;
   /** 대상·비율을 수정하면 이전에 지정한 나머지를 새 배분에 자동으로 넘기지 않습니다. */
@@ -153,7 +154,7 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
               {building.label}
             </label>
           ))}
-          {!income && (
+          {!transfer && (
             <Button
               variant={'outline'}
               size={sectioned ? 'md' : 'sm'}
@@ -174,14 +175,14 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
                 }])
               })}
             >
-              외부·공통 부담처 추가
+              {income ? '외부 동 추가' : '외부·공통 부담처 추가'}
             </Button>
           )}
         </div>
         <p
           className={styles.help}
         >
-          {transfer ? '선택한 동에 이체금액을 나눕니다.' : income ? '선택한 동에 입금액을 나눕니다.' : '선택한 곳에 출금액을 나눕니다. 외부 부담액도 지정해주세요.'}
+          {transfer ? '선택한 동에 이체금액을 나눕니다.' : income ? '관리 동과 외부 동에 입금액을 나눕니다. 외부 몫은 관리 동 잔고에 포함하지 않습니다.' : '선택한 곳에 출금액을 나눕니다. 외부 부담액도 지정해주세요.'}
         </p>
       </div>
       <div
@@ -225,7 +226,7 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
               </div>
             ) : (
               <Input
-                aria-label={`외부 부담처 ${index + 1}`}
+                aria-label={`${externalTarget} ${index + 1}`}
                 placeholder={'예: 외부 101동'}
                 value={share.label}
                 maxLength={100}
@@ -236,7 +237,7 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
             )}
             {draft.mode === 'RATIO' && (
               <Input
-                aria-label={`${share.label || '외부 부담처'} ${income ? '배분 비율' : '부담 비율'}`}
+                aria-label={`${share.label || externalTarget} ${income ? '배분 비율' : '부담 비율'}`}
                 className={styles['share-value']}
                 inputMode={'decimal'}
                 placeholder={'25'}
@@ -267,7 +268,7 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
                   />
                 ) : (
                   <Input
-                    aria-label={`${share.label || '외부 부담처'} ${income ? '배분액' : '부담액'}`}
+                    aria-label={`${share.label || externalTarget} ${income ? '배분액' : '부담액'}`}
                     className={styles['share-value']}
                     inputMode={'numeric'}
                     maxLength={15}
@@ -280,7 +281,7 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
                 <Button
                   variant={'outline'}
                   className={styles['fill-remainder']}
-                  aria-label={`${share.label || '외부 부담처'} 잔액 채우기`}
+                  aria-label={`${share.label || externalTarget} 잔액 채우기`}
                   disabled={disabled || result.remaining <= BigInt(0) || draft.allocations.some((part) => !/^[0-9]{0,15}$/.test(part.amount))
                     || (limits !== undefined && (limits[share.buildingId ?? ''] == null || BigInt(limits[share.buildingId ?? '']!) <= BigInt(share.amount || '0')))}
                   onClick={() => onChange(fillAllocationRemainder(total, draft, index, limits === undefined ? undefined : limits[share.buildingId ?? ''] ?? null))}
@@ -295,12 +296,12 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
                 <strong>
                   {formatWon(result.allocations[index].amount)}
                 </strong>
-                {!income && draft.mode === 'RATIO' && (
+                {!transfer && draft.mode === 'RATIO' && (
                   <Button
                     variant={'outline'}
                     size={'sm'}
                     className={styles['ratio-remainder']}
-                    aria-label={`${share.label || '외부 부담처'} 남은 금액`}
+                    aria-label={`${share.label || externalTarget} 남은 금액`}
                     disabled={disabled || !result.canFillRatioRemainder}
                     onClick={() => onChange(fillAllocationRemainder(total, draft, index))}
                   >
@@ -314,7 +315,7 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
                 variant={'ghost'}
                 size={'sm'}
                 iconOnly
-                aria-label={`${share.label || '외부 부담처'} 제거`}
+                aria-label={`${share.label || externalTarget} 제거`}
                 leadingIcon={(
                   <ServiceIcon
                     name={'close'}
