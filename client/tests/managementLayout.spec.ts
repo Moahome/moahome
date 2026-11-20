@@ -167,6 +167,9 @@ test('브라우저 등록 기록 없이 DB 목록으로 대시보드에 이동�
   const navigation = page.getByRole('navigation', {
     name: '관리 메뉴'
   });
+  await expect(navigation.getByRole('link', {
+    name: /알림 관리|알림톡 관리/
+  })).toHaveCount(0);
   const dashboard = navigation.getByRole('link', {
     name: '대시보드',
     exact: true
@@ -767,6 +770,10 @@ for (const width of [1440]) {
       const rect = element.getBoundingClientRect();
       return rect.left >= 0 && rect.right <= innerWidth;
     })).toBe(true);
+    await expect(detail.getByRole('switch')).toHaveCount(0);
+    await expect(detail.getByRole('heading', {
+      name: /주민별.*설정/
+    })).toHaveCount(0);
     await detail.getByRole('button', {
       name: '닫기',
       exact: true

@@ -46,10 +46,11 @@
 - `users.phone` 없음
 - `social_accounts.phone` 없음
 - `residents.phone_*` 사용
-- 주민 대상 알림톡/SMS는 우선 `residents`의 전화번호를 사용
 - 향후 계정 자체 휴대폰 인증/복구/공통 연락처 기능이 필요하면 `user_contacts` 같은 별도 엔티티 검토
 
-관리자 공지·파일과 주민 링크는 [공지사항 API](../api/noticeApi.md)와 Migration으로 구현했습니다. 같은 건물의 미삭제 공지 모두를 주민 링크에서 조회합니다. 별도 공개 여부 컬럼은 사용하지 않습니다. 이전 개발 Migration에서 추가했던 `resident_published`와 해당 인덱스는 후속 `V20261114045931__remove_notice_publication_setting.sql`로 제거합니다. `notice_assets`의 연결 공지와 현재 본문 참조를 함께 확인해 파일 접근을 제한합니다. 수신 대상·발송 결과·상담 연결·차량 자료의 저장 구조는 후속 설계이며 채널톡 식별정보로 `property_members` 권한을 대신하지 않습니다.
+2026-11-20 주민 메시지 발송 설정은 폐기했습니다. 과거 적용된 Migration 이력은 유지하며 `V20261120113624__remove_resident_notification_setting.sql`이 전용 설정 컬럼과 제약을 제거합니다. 현재 주민·연락처·관계 자료는 유지합니다.
+
+관리자 공지·파일과 주민 링크는 [공지사항 API](../api/noticeApi.md)와 Migration으로 구현했습니다. 같은 건물의 미삭제 공지 모두를 주민 링크에서 조회합니다. 별도 공개 여부 컬럼은 사용하지 않습니다. 이전 개발 Migration에서 추가했던 `resident_published`와 해당 인덱스는 후속 `V20261114045931__remove_notice_publication_setting.sql`로 제거합니다. `notice_assets`의 연결 공지와 현재 본문 참조를 함께 확인해 파일 접근을 제한합니다. 상담 연결·차량 자료의 저장 구조는 후속 설계이며 채널톡 식별정보로 `property_members` 권한을 대신하지 않습니다.
 
 주민 링크의 `notice_access_links`는 다음 필드를 저장합니다. Migration: `V20261114041732__add_resident_notice_access.sql`.
 
