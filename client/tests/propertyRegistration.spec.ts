@@ -5461,7 +5461,14 @@ for (const width of [1440, 390]) {
       }).click();
       await expect(page).toHaveURL(/registration=units/);
       await expect(page.getByRole('alert').first()).toBeVisible();
+      // 담당자 입력으로 포커스가 이동한 뒤 수정해 지연된 포커스가 연락처 삭제를 가로채지 않게 합니다.
+      await expect.poll(() => page.getByRole('region', {
+        name: '관리 담당자 설정',
+        exact: true
+      })
+        .evaluate((element) => element.contains(document.activeElement))).toBe(true);
       await phone.clear();
+      await expect(phone).toHaveValue('');
       await expect(page.getByRole('button', {
         name: '다음',
         exact: true
