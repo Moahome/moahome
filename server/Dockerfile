@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
-FROM eclipse-temurin:21-jdk AS builder
+# 빌드와 실행에 같은 보안 패치를 사용하고 태그 변경에도 검증한 이미지를 유지합니다.
+FROM eclipse-temurin:21.0.13.1_2-jdk@sha256:cc9c4fb30bc63de16c227ac3c69f237a10537449ed7ab29fae21c6441470f69c AS builder
 WORKDIR /build
 COPY gradlew build.gradle settings.gradle ./
 COPY gradle/ gradle/
@@ -7,7 +8,7 @@ COPY src/main/ src/main/
 RUN chmod +x gradlew
 RUN --mount=type=cache,target=/root/.gradle ./gradlew --no-daemon bootJar
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:21.0.13.1_2-jre@sha256:b57b0a974dc5ba8b24009a97aeb9ffd178e172727736279e5de73605f40c6813
 # 컨테이너 내부 준비 상태 점검에만 curl을 사용하며 루트 권한으로 앱을 실행하지 않습니다.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \

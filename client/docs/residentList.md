@@ -123,7 +123,7 @@
 
 ## 9. 목록 공통 구성
 
-주민 목록과 세대 목록은 `shared/ui/list-header`(상위 메뉴명·제목·설명·오른쪽 버튼), `shared/ui/list-toolbar`(조회 건수·선택적 버튼 영역·페이지당 표시 개수), `shared/ui/list-card`(필터·툴바·표·페이지네이션의 배경·여백)를 공유합니다. 화면별 필터·열 정의·API·페이지 계산은 각 화면에서 관리합니다. `SummaryCard`, `DataTable`, `Pagination`도 기존 공통 컴포넌트를 유지합니다. 공통 성공 토스트의 연한 연두색 배경·진한 글씨와 PC 상단 직사각형/모바일 하단 캡슐형 배치는 [Client 공통 알림 규칙](../AGENTS.md#공통-모달과-처리-알림)을 따릅니다.
+주민 목록과 세대 목록은 `shared/ui/list-header`(상위 메뉴명·제목·설명·오른쪽 버튼), `shared/ui/list-toolbar`(조회 건수·선택적 버튼 영역·페이지당 표시 개수), `shared/ui/list-card`(필터·툴바·표·페이지네이션의 배경·여백)를 공유합니다. 화면별 필터·열 정의·API·페이지 계산은 각 화면에서 관리합니다. `SummaryCard`, `DataTable`, `Pagination`도 기존 공통 컴포넌트를 유지합니다. 공통 성공 토스트의 색상과 PC 상단 직사각형/모바일 하단 캡슐형 배치는 [Client 공통 알림 규칙](../AGENTS.md#공통-모달과-처리-알림)을 따릅니다.
 
 ### 삭제 후 명부 재입력
 

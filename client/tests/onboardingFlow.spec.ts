@@ -1118,8 +1118,8 @@ for (const width of [1440, 390]) {
     }).filter({
       hasText: '계좌 정보를 변경했어요.'
     });
-    await expect(toast).toHaveCSS('background-color', 'rgb(236, 252, 203)');
-    await expect(toast.getByRole('status')).toHaveCSS('color', 'rgb(22, 101, 52)');
+    await expect(toast).toHaveCSS('background-color', 'rgb(0, 121, 29)');
+    await expect(toast.getByRole('status')).toHaveCSS('color', 'rgb(255, 255, 255)');
     await expect(toast).toHaveCSS('border-radius', width < 768 ? '999px' : '8px');
     // 애니메이션이 끝난 실제 좌표로 PC 상단·모바일 하단 배치를 검증합니다.
     await expect.poll(async () => {

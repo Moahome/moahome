@@ -1964,8 +1964,8 @@ for (const width of [1440, 320]) {
     const notice = page.getByRole('status').filter({
       hasText: '주민을 등록했어요.'
     }).locator('..');
-    await expect(notice).toHaveCSS('background-color', 'rgb(236, 252, 203)');
-    await expect(notice).toHaveCSS('color', 'rgb(22, 101, 52)');
+    await expect(notice).toHaveCSS('background-color', 'rgb(0, 121, 29)');
+    await expect(notice).toHaveCSS('color', 'rgb(255, 255, 255)');
     await expect(notice).toHaveCSS('border-radius', width < 768 ? '999px' : '8px');
     await expect(notice.getByRole('status')).toHaveCSS('font-size', width < 768 ? '14px' : '16px');
     await expect.poll(async () => (await notice.boundingBox())!.height).toBeLessThanOrEqual(width < 768 ? 50 : 60);

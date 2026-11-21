@@ -27,6 +27,12 @@
 
 운영 호스트는 Ubuntu LTS, Docker Engine과 Compose 플러그인 2.30 이상, Bash·curl·Certbot·flock·Python 3.10 이상을 사용합니다. Python은 이미지 정리에 표준 라이브러리만 사용하며 별도 패키지를 설치하지 않습니다. Compose의 raw env_file과 준비 대기를 지원하는 버전이 필요합니다. Docker 설치는 [공식 Ubuntu 안내](https://docs.docker.com/engine/install/ubuntu/)를 따릅니다. 호스트의 JDK·Gradle·PostgreSQL 서버 설치는 필요하지 않습니다.
 
+2026-11-21 Java 보안 패치 변경: Dockerfile의 빌드 JDK와 실행 JRE는 Temurin `21.0.13.1+2`의 버전 태그·digest로 고정하고 Server CI의 테스트 JDK도 같은 버전을 사용합니다. 네 자리 CSPU 버전 해석을 지원하는 `setup-java@v6`를 사용합니다. 고정한 이미지 인덱스는 현재 `linux/amd64`만 포함합니다. Apple Silicon Mac에서 운영 이미지를 검증할 때는 아래처럼 플랫폼을 지정합니다. 이 설정 변경만으로 기존 운영 API의 Java가 갱신되지는 않으며 새 이미지를 검증·배포해야 합니다.
+
+```bash
+DOCKER_DEFAULT_PLATFORM=linux/amd64 bash server/scripts/verifyDeployment.sh
+```
+
 ## 2. 유료 리소스 생성 전 로컬 검증
 
 저장소 루트에서 Docker 엔진을 실행한 뒤 아래 명령을 수행합니다. 스크립트는 호스트의 Bash·Python 3·OpenSSL·curl·JDK 21의 `jar`를 사용합니다.

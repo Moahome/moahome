@@ -26,10 +26,11 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-java@v5
+      # 네 자리 CSPU 버전(21.0.13.1)을 해석하는 setup-java를 사용합니다.
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "21.0.13.1+2"
       - uses: gradle/actions/setup-gradle@v5
       - name: Prepare isolated test executables
         run: |
