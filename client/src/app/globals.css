@@ -46,9 +46,11 @@ html {
   /* 엑셀 버튼에 사용하는 진한 초록색입니다. */
   --success-dark: #166534;
   --excel-background: var(--success-dark);
-  /* 2026-10-31 사용자 지정: 성공 토스트는 연한 연두색 배경과 진한 글씨를 사용합니다. */
-  --toast-success-background: #ecfccb;
-  --toast-success-foreground: var(--success-dark);
+  /* 회수 완료 배지는 토스트와 분리해 기존 연두색 배경을 유지합니다. */
+  --success-soft-background: #ecfccb;
+  /* 2026-11-21 사용자 시안: 성공 토스트는 진한 초록색 배경과 흰색 글씨를 사용합니다. */
+  --toast-success-background: #00791d;
+  --toast-success-foreground: var(--card);
   /* 등록 확인 화면의 항목 아이콘은 제공된 시안의 색상 구분을 사용합니다. */
   --registration-icon-building: #7c3aed;
   --registration-icon-units: var(--secondary-teal);

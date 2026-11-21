@@ -202,8 +202,8 @@
     }
 
     &[data-recovered='true'] {
-      background: var(--toast-success-background);
-      color: var(--toast-success-foreground);
+      background: var(--success-soft-background);
+      color: var(--success-dark);
       font-weight: 600;
     }
   }

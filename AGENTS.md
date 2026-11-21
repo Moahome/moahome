@@ -71,6 +71,7 @@ Server는 Layered Architecture를 사용합니다.
 - Sub Text: `#64748B`
 - Border: `#E2E8F0`
 - Success: `#16A34A`
+- 성공 토스트: 2026-11-21 사용자 지정의 진한 초록색 배경 `#00791D`·흰색 글씨를 사용하며 `--toast-success-background`, `--toast-success-foreground` 공통 토큰으로 관리합니다. 다른 성공 상태의 색상과 구분합니다.
 - Warning: `#F59E0B`
 - Danger: `#EF4444`
 - 손익 그래프 비용: `#F4A261` (2026-11-05 사용자 지정, 공통 `--chart-expense` 토큰)
