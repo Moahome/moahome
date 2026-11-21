@@ -43,6 +43,7 @@ export function ResidentListSummary({
     >
       {items.map((item) => (
         <SummaryCard
+          density={'compact'}
           key={item.label}
           label={item.label}
           value={item.value}
