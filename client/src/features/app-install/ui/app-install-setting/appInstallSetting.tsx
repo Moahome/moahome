@@ -11,7 +11,8 @@ import styles from './appInstallSetting.module.css';
 export function AppInstallSetting() {
   const installation = useContext(AppInstallContext);
 
-  if (!installation?.available || installation.installed) return null;
+  if (!installation?.available || installation.installed)
+    return null;
 
   return (
     <ListCard>

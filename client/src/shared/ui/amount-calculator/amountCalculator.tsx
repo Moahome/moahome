@@ -51,7 +51,9 @@ export function AmountCalculator({
   const [calculation, setCalculation] = useState<CalculatorResult | null>(null);
   const [amount, setAmount] = useState('');
   const [count, setCount] = useState('');
-  const [notice, setNotice] = useState<{ id: number; message: string; tone: 'success' | 'error' } | null>(null);
+  const [notice, setNotice] = useState<{ id: number;
+message: string;
+tone: 'success' | 'error' } | null>(null);
   const noticeCounter = useRef(0);
   const result = calculateEqualSplit(amount, count);
   const invalidAmount = Boolean(amount) && !/^[0-9]{1,15}$/.test(amount);
@@ -100,7 +102,8 @@ export function AmountCalculator({
     }
   }
 
-  if (!open) return null;
+  if (!open)
+    return null;
 
   return (
     <ClientModal
@@ -155,7 +158,9 @@ export function AmountCalculator({
           }] as const).map((item, index) => (
             <Button
               key={item.id}
-              ref={(element) => { tabRefs.current[index] = element; }}
+              ref={(element) => {
+                tabRefs.current[index] = element;
+              }}
               variant={'ghost'}
               role={'tab'}
               id={`${titleId}-${item.id}-tab`}
@@ -164,11 +169,14 @@ export function AmountCalculator({
               tabIndex={tab === item.id ? 0 : -1}
               onClick={() => setTab(item.id)}
               onKeyDown={(event) => {
-                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key))
+                  return;
                 event.preventDefault();
                 let target = 1 - index;
-                if (event.key === 'Home') target = 0;
-                if (event.key === 'End') target = 1;
+                if (event.key === 'Home')
+                  target = 0;
+                if (event.key === 'End')
+                  target = 1;
                 setTab(target === 0 ? 'general' : 'split');
                 tabRefs.current[target]?.focus();
               }}
@@ -187,7 +195,10 @@ export function AmountCalculator({
             expression={expression}
             result={calculation}
             inputRef={calculationInput}
-            onChange={(next) => { setExpression(next); setCalculation(null); }}
+            onChange={(next) => {
+              setExpression(next);
+              setCalculation(null);
+            }}
             onCalculate={() => setCalculation(evaluateExpression(expression))}
             onCopy={copyAmount}
           />

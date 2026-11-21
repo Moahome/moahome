@@ -12,6 +12,7 @@ export function KakaoLoginButton() {
     // 카카오톡 내부 브라우저는 prompt=login을 지원하지 않아 외부 브라우저 사용을 안내합니다.
     if (forceLogin && /KAKAOTALK/i.test(navigator.userAgent)) {
       setNotice('다른 계정으로 로그인하려면 Chrome이나 Safari에서 열어주세요.');
+
       return;
     }
 

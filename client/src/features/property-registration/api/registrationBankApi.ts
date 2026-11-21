@@ -11,7 +11,9 @@ export async function getRegistrationBankSupport(bankCode: string, signal?: Abor
     url: `/api/property-registrations/bank-import/support?bankCode=${encodeURIComponent(bankCode)}`,
     signal
   });
-  if (!support || typeof support.enabled !== 'boolean' || !Array.isArray(support.extensions) || !support.extensions.every((extension) => ['.xls', '.xlsx', '.csv'].includes(extension)) || typeof support.message !== 'string') throw new ApiError(200, 'INVALID_RESPONSE', '업로드 지원 정보를 확인할 수 없습니다.');
+  if (!support || typeof support.enabled !== 'boolean' || !Array.isArray(support.extensions) || !support.extensions.every((extension) => ['.xls', '.xlsx', '.csv'].includes(extension)) || typeof support.message !== 'string')
+    throw new ApiError(200, 'INVALID_RESPONSE', '업로드 지원 정보를 확인할 수 없습니다.');
+
   return support;
 }
 
@@ -28,7 +30,9 @@ export async function previewRegistrationBank(file: File, bankCode: string): Pro
   });
   if (!result || !Array.isArray(result.rows) || !result.rows.length || result.rows.length > 5000 || !result.period
     || !result.rows.every((row) => /^[0-9a-f-]{36}$/i.test(row.id) && /^\d{4}-\d{2}-\d{2}$/.test(row.date) && typeof row.payer === 'string' && ['INCOME', 'EXPENSE'].includes(row.direction) && /^[0-9]{1,15}$/.test(row.amount) && BigInt(row.amount) > BigInt(0) && (row.balance === null || /^-?[0-9]{1,15}$/.test(row.balance)) && typeof row.autoMatchEligible === 'boolean')
-    || new Set(result.rows.map((row) => row.id)).size !== result.rows.length) throw new ApiError(200, 'INVALID_RESPONSE', '거래내역을 확인할 수 없습니다.');
+    || new Set(result.rows.map((row) => row.id)).size !== result.rows.length)
+    throw new ApiError(200, 'INVALID_RESPONSE', '거래내역을 확인할 수 없습니다.');
+
   return result;
 }
 

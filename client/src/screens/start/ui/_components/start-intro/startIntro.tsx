@@ -3,11 +3,16 @@ import { WelcomePuppy } from '../welcome-puppy/welcomePuppy';
 import motion from '../../startMotion.module.css';
 import styles from './startIntro.module.css';
 
-export function StartIntro({ additional = false, canCreateProperty = true }: { additional?: boolean; canCreateProperty?: boolean }) {
+export function StartIntro({
+  additional = false,
+  canCreateProperty = true
+}: { additional?: boolean;
+canCreateProperty?: boolean }) {
   const additionalTitle = canCreateProperty ? '등록 및 참여' : '참여하기';
   const additionalDescription = canCreateProperty
     ? '새로운 관리대상을 만들거나 받은 초대코드로 참여해주세요.'
     : '받은 초대코드로 참여하거나 참여 중인 곳을 선택해주세요.';
+
   return (
     <section
       className={`${styles.intro} ${motion.reveal}`}

@@ -32,12 +32,13 @@ const BASE: CellObject = {
 
 /** 15자리 이내 원화는 계산 가능한 숫자로, 더 큰 합계는 Excel의 15자리 한계를 피해 정확한 문자열로 저장합니다. */
 function cell(value: ReportValue, style: CellObject = {}): CellObject {
-  if (typeof value === 'string') return {
-    ...BASE,
-    ...style,
-    value,
-    type: String
-  };
+  if (typeof value === 'string')
+    return {
+      ...BASE,
+      ...style,
+      value,
+      type: String
+    };
   if (value >= -BigInt('999999999999999') && value <= BigInt('999999999999999')) {
     return {
       ...BASE,
@@ -47,6 +48,7 @@ function cell(value: ReportValue, style: CellObject = {}): CellObject {
       format: '#,##0"원"'
     };
   }
+
   return {
     ...BASE,
     ...style,
@@ -62,13 +64,17 @@ export {
 
 /** 손익처럼 음수 강조를 요청한 보고서만 원 금액의 부호로 글자색을 결정합니다. */
 function getAmountColor(value: ReportValue, highlightNegative: boolean, fallback: string) {
-  if (highlightNegative && typeof value === 'bigint' && value < BigInt(0)) return COLORS.danger;
+  if (highlightNegative && typeof value === 'bigint' && value < BigInt(0))
+    return COLORS.danger;
+
   return fallback;
 }
 
 /** 계층형 표의 세부 행은 흰색으로 두어 파란 대분류와 구분하고 일반 목록은 기존 교차 배경을 사용합니다. */
 function getRowBackground(index: number, rowKinds?: ReportDefinition['rowKinds']) {
-  if (rowKinds) return rowKinds[index] === 'section' ? COLORS.heading : COLORS.white;
+  if (rowKinds)
+    return rowKinds[index] === 'section' ? COLORS.heading : COLORS.white;
+
   return index % 2 === 0 ? COLORS.alternate : COLORS.white;
 }
 
@@ -79,6 +85,7 @@ function table(columns: readonly ReportColumn[], rows: readonly (readonly Report
     borderColor: COLORS.sectionBorder,
     borderStyle: 'thin'
   } : {};
+
   return [
     columns.map((column) => cell(column.label, {
       ...border,
@@ -99,7 +106,18 @@ function table(columns: readonly ReportColumn[], rows: readonly (readonly Report
 }
 
 /** 한 보고서 시트의 내용·표시 옵션을 구성해 원장별 추가 시트도 같은 문서 서식을 사용합니다. */
-function reportSheet({ title, description, sheet, columns, rows, rowKinds, summary, total, note, highlightNegative = false }: ReportDefinition) {
+function reportSheet({
+  title,
+  description,
+  sheet,
+  columns,
+  rows,
+  rowKinds,
+  summary,
+  total,
+  note,
+  highlightNegative = false
+}: ReportDefinition) {
   const width = columns.length;
   // 두 열 보고서에서도 값 열을 한 칸 확보해 columnSpan 0과 음수 길이 배열을 만들지 않습니다.
   const labelSpan = Math.min(width - 1, Math.max(1, Math.ceil(width * 0.6)));
@@ -146,18 +164,19 @@ function reportSheet({ title, description, sheet, columns, rows, rowKinds, summa
     })],
     ...table(columns, rows, highlightNegative, rowKinds)
   ];
-  if (total) data.push(columns.map((column, index) => cell(total[index] ?? '', {
-    height: 48,
-    fontSize: 16,
-    fontWeight: 'bold',
-    textColor: getAmountColor(total[index] ?? '', highlightNegative, COLORS.primary),
-    backgroundColor: rowKinds ? COLORS.total : COLORS.summary,
-    ...(rowKinds ? {
-      borderColor: COLORS.sectionBorder,
-      borderStyle: 'thin' as const
-    } : {}),
-    align: column.align ?? 'left'
-  })));
+  if (total)
+    data.push(columns.map((column, index) => cell(total[index] ?? '', {
+      height: 48,
+      fontSize: 16,
+      fontWeight: 'bold',
+      textColor: getAmountColor(total[index] ?? '', highlightNegative, COLORS.primary),
+      backgroundColor: rowKinds ? COLORS.total : COLORS.summary,
+      ...(rowKinds ? {
+        borderColor: COLORS.sectionBorder,
+        borderStyle: 'thin' as const
+      } : {}),
+      align: column.align ?? 'left'
+    })));
   data.push([cell('', {
     height: 16
   })], merged(note, {
@@ -165,12 +184,15 @@ function reportSheet({ title, description, sheet, columns, rows, rowKinds, summa
     fontSize: 11,
     textColor: COLORS.muted
   }));
+
   return {
     data,
     sheet,
     showGridLines: false,
     stickyRowsCount: summary.length + 5,
-    columns: columns.map(({ width }) => ({
+    columns: columns.map(({
+      width
+    }) => ({
       width
     })),
     ...(columns.length > 5 ? {
@@ -181,20 +203,30 @@ function reportSheet({ title, description, sheet, columns, rows, rowKinds, summa
 
 /** 실제 다운로드 때만 라이브러리를 읽고 요약·선택한 상세 원장을 한 파일로 저장합니다. */
 export async function createReportWorkbook(definition: ReportDefinition & { additionalSheets?: readonly ReportDefinition[] }): Promise<Blob> {
-  const { default: writeExcelFile } = await import('write-excel-file/universal');
+  const {
+    default: writeExcelFile
+  } = await import('write-excel-file/universal');
 
   return writeExcelFile([reportSheet(definition), ...(definition.additionalSheets ?? []).map(reportSheet)]).toBlob();
 }
 
 /** 재업로드용 첫 시트의 헤더·문자열을 유지하고 작성 안내는 별도 시트에 배치합니다. */
-export async function createInputWorkbook({ title, sheet, columns, rows, instructions }: {
+export async function createInputWorkbook({
+  title,
+  sheet,
+  columns,
+  rows,
+  instructions
+}: {
   title: string;
   sheet: string;
   columns: readonly ReportColumn[];
   rows: readonly (readonly string[])[];
   instructions: readonly string[];
 }): Promise<Blob> {
-  const { default: writeExcelFile } = await import('write-excel-file/universal');
+  const {
+    default: writeExcelFile
+  } = await import('write-excel-file/universal');
   const guide: SheetData = [
     [cell(title, {
       columnSpan: 2,
@@ -217,7 +249,9 @@ export async function createInputWorkbook({ title, sheet, columns, rows, instruc
       data: table(columns, rows),
       showGridLines: false,
       stickyRowsCount: 1,
-      columns: columns.map(({ width }) => ({
+      columns: columns.map(({
+        width
+      }) => ({
         width
       }))
     },

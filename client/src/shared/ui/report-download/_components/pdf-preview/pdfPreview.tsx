@@ -13,7 +13,11 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './pdfPreview.module.css';
 
 /** 다운로드할 PDF 자체를 읽어 모바일에서도 브라우저 내장 뷰어에 의존하지 않고 출력 페이지를 보여줍니다. */
-export function PdfPreview({ blob, orientation = 'portrait' }: { blob: Blob; orientation?: 'portrait' | 'landscape' }) {
+export function PdfPreview({
+  blob,
+  orientation = 'portrait'
+}: { blob: Blob;
+orientation?: 'portrait' | 'landscape' }) {
   const [document, setDocument] = useState<PDFDocumentProxy | null>(null);
   const [error, setError] = useState(false);
   const [page, setPage] = useState(1);
@@ -21,47 +25,61 @@ export function PdfPreview({ blob, orientation = 'portrait' }: { blob: Blob; ori
   useEffect(() => {
     let active = true;
     let task: ReturnType<typeof import('pdfjs-dist/legacy/build/pdf.mjs')['getDocument']> | undefined;
+
     async function open() {
       try {
         // 최신 Map API가 없는 설치 앱에서도 표시하도록 본체와 Worker 모두 같은 버전의 호환 빌드를 사용합니다.
         const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
         pdfjs.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/legacy/build/pdf.worker.min.mjs', import.meta.url).toString();
         const bytes = await blob.arrayBuffer();
-        if (!active) return;
+        if (!active)
+          return;
         task = pdfjs.getDocument({
           data: bytes
         });
         const result = await task.promise;
-        if (active) setDocument(result);
+        if (active)
+          setDocument(result);
       } catch {
-        if (active) setError(true);
+        if (active)
+          setError(true);
       }
     }
+
     void open();
-    return () => { active = false; void task?.destroy(); };
+
+    return () => {
+      active = false;
+      void task?.destroy();
+    };
   }, [blob, retry]);
-  if (error) return (
-    <StateMessage
-      variant={'review-required'}
-      layout={'inline'}
-      role={'alert'}
-      title={'PDF 미리보기를 표시하지 못했어요'}
-      description={'다시 시도하거나 PDF 파일을 내려받아 확인해주세요.'}
-      actions={(
-        <Button
-          variant={'outline'}
-          onClick={() => { setError(false); setRetry((value) => value + 1); }}
-        >
-          다시 시도
-        </Button>
-      )}
-    />
-  );
-  if (!document) return (
-    <LoadingState
-      title={'PDF 미리보기를 불러오고 있어요.'}
-    />
-  );
+  if (error)
+    return (
+      <StateMessage
+        variant={'review-required'}
+        layout={'inline'}
+        role={'alert'}
+        title={'PDF 미리보기를 표시하지 못했어요'}
+        description={'다시 시도하거나 PDF 파일을 내려받아 확인해주세요.'}
+        actions={(
+          <Button
+            variant={'outline'}
+            onClick={() => {
+              setError(false);
+              setRetry((value) => value + 1);
+            }}
+          >
+            다시 시도
+          </Button>
+        )}
+      />
+    );
+  if (!document)
+    return (
+      <LoadingState
+        title={'PDF 미리보기를 불러오고 있어요.'}
+      />
+    );
 
   return (
     <div
@@ -118,7 +136,11 @@ export function PdfPreview({ blob, orientation = 'portrait' }: { blob: Blob; ori
 }
 
 /** 페이지 전환·닫기 시 진행 중인 캔버스 작업을 취소해 이전 페이지가 새 화면을 덮어쓰지 않게 합니다. */
-function PdfPage({ document, page }: { document: PDFDocumentProxy; page: number }) {
+function PdfPage({
+  document,
+  page
+}: { document: PDFDocumentProxy;
+page: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -127,7 +149,8 @@ function PdfPage({ document, page }: { document: PDFDocumentProxy; page: number 
     let active = true;
     let task: ReturnType<Awaited<ReturnType<PDFDocumentProxy['getPage']>>['render']> | undefined;
     void document.getPage(page).then(async (pdfPage) => {
-      if (!active || !canvas.current) return;
+      if (!active || !canvas.current)
+        return;
       const viewport = pdfPage.getViewport({
         scale: 1.5
       });
@@ -138,9 +161,17 @@ function PdfPage({ document, page }: { document: PDFDocumentProxy; page: number 
         viewport
       });
       await task.promise;
-      if (active) setReady(true);
-    }).catch(() => { if (active) setFailed(true); });
-    return () => { active = false; task?.cancel(); };
+      if (active)
+        setReady(true);
+    }).catch(() => {
+      if (active)
+        setFailed(true);
+    });
+
+    return () => {
+      active = false;
+      task?.cancel();
+    };
   }, [document, page, retry]);
 
   return (
@@ -163,7 +194,10 @@ function PdfPage({ document, page }: { document: PDFDocumentProxy; page: number 
           actions={(
             <Button
               variant={'outline'}
-              onClick={() => { setFailed(false); setRetry((value) => value + 1); }}
+              onClick={() => {
+                setFailed(false);
+                setRetry((value) => value + 1);
+              }}
             >
               다시 시도
             </Button>

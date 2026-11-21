@@ -44,49 +44,60 @@ import { removeNoticeDraft } from '../../../model/noticeDraft';
 import styles from './noticeArticle.module.css';
 
 /** 같은 공지의 상세와 편집을 연결하고 현재 사용자·관리대상별로 조회 캐시를 격리합니다. */
-export function NoticeArticle({ propertyId, noticeId, mode }: NoticePageProps) {
+export function NoticeArticle({
+  propertyId,
+  noticeId,
+  mode
+}: NoticePageProps) {
   const session = useSession();
   const query = useQuery({
     queryKey: ['notice', session.data?.id, propertyId, noticeId],
-    queryFn: ({ signal }) => getNotice(propertyId, noticeId!, signal),
+    queryFn: ({
+      signal
+    }) => getNotice(propertyId, noticeId!, signal),
     enabled: Boolean(session.data && noticeId),
     retry: false,
     refetchOnWindowFocus: false,
     staleTime: Infinity
   });
 
-  if (mode === 'create') return (
-    <NoticeComposer
-      propertyId={propertyId}
-      userId={session.data?.id ?? ''}
-    />
-  );
-  if (query.isPending) return (
-    <LoadingState
-      title={'공지사항을 불러오고 있어요.'}
-    />
-  );
-  if (query.isError) return (
-    <RequestError
-      error={query.error}
-      retrying={query.isFetching}
-      onRetry={() => void query.refetch()}
-    />
-  );
-  if (mode === 'edit' && !query.data.canEdit) return (
-    <StateMessage
-      variant={'forbidden'}
-      title={'작성자만 수정할 수 있어요.'}
-    />
-  );
-  if (mode === 'edit') return (
-    <NoticeComposer
-      key={`${query.data.id}:${query.data.version}`}
-      propertyId={propertyId}
-      notice={query.data}
-      userId={session.data?.id ?? ''}
-    />
-  );
+  if (mode === 'create')
+    return (
+      <NoticeComposer
+        propertyId={propertyId}
+        userId={session.data?.id ?? ''}
+      />
+    );
+  if (query.isPending)
+    return (
+      <LoadingState
+        title={'공지사항을 불러오고 있어요.'}
+      />
+    );
+  if (query.isError)
+    return (
+      <RequestError
+        error={query.error}
+        retrying={query.isFetching}
+        onRetry={() => void query.refetch()}
+      />
+    );
+  if (mode === 'edit' && !query.data.canEdit)
+    return (
+      <StateMessage
+        variant={'forbidden'}
+        title={'작성자만 수정할 수 있어요.'}
+      />
+    );
+  if (mode === 'edit')
+    return (
+      <NoticeComposer
+        key={`${query.data.id}:${query.data.version}`}
+        propertyId={propertyId}
+        notice={query.data}
+        userId={session.data?.id ?? ''}
+      />
+    );
 
   return (
     <NoticeReader
@@ -97,7 +108,13 @@ export function NoticeArticle({ propertyId, noticeId, mode }: NoticePageProps) {
 }
 
 /** 제출 당시 요청 ID·본문을 보관해 통신 재시도에서도 같은 작업을 반복하며 동시에 저장하지 않습니다. */
-function NoticeComposer({ propertyId, notice, userId }: { propertyId: string; notice?: NoticeDetail; userId: string }) {
+function NoticeComposer({
+  propertyId,
+  notice,
+  userId
+}: { propertyId: string;
+notice?: NoticeDetail;
+userId: string }) {
   const router = useRouter();
   const queries = useQueryClient();
   const [title, setTitle] = useState(notice?.title ?? '');
@@ -110,7 +127,8 @@ function NoticeComposer({ propertyId, notice, userId }: { propertyId: string; no
   const [restored, setRestored] = useState(false);
   const [uncertain, setUncertain] = useState(false);
   const lock = useRef(false);
-  const submission = useRef<{ id: string; request: NoticeSaveRequest } | null>(null);
+  const submission = useRef<{ id: string;
+request: NoticeSaveRequest } | null>(null);
   const base = `/manage/${propertyId}/notices`;
   const draftKey = `${userId}:${propertyId}:${notice?.id ?? 'new'}`;
 
@@ -122,26 +140,30 @@ function NoticeComposer({ propertyId, notice, userId }: { propertyId: string; no
 
   /** 저장 실패 원인이 통신이라면 입력을 잠그고 같은 요청의 재시도만 허용합니다. */
   async function submit() {
-    if (lock.current || imageReading) return;
+    if (lock.current || imageReading)
+      return;
     if (!title.trim()) {
       setError('제목을 입력해주세요.');
+
       return;
     }
     const document = JSON.parse(content);
     if (!JSON.stringify(document).includes('"text":') && !JSON.stringify(document).includes('"type":"image"')) {
       setError('내용을 입력해주세요.');
+
       return;
     }
-    if (!submission.current) submission.current = {
-      id: notice?.id ?? crypto.randomUUID(),
-      request: {
-        requestId: crypto.randomUUID(),
-        expectedVersion: notice?.version ?? 0,
-        title: title.trim(),
-        content,
-        important
-      }
-    };
+    if (!submission.current)
+      submission.current = {
+        id: notice?.id ?? crypto.randomUUID(),
+        request: {
+          requestId: crypto.randomUUID(),
+          expectedVersion: notice?.version ?? 0,
+          title: title.trim(),
+          content,
+          important
+        }
+      };
     lock.current = true;
     setBusy(true);
     setError('');
@@ -155,7 +177,8 @@ function NoticeComposer({ propertyId, notice, userId }: { propertyId: string; no
     } catch (failure) {
       const unknown = !(failure instanceof ApiError) || failure.status === 0 || failure.status >= 500 || failure.code === 'INVALID_RESPONSE';
       setUncertain(unknown);
-      if (!unknown) submission.current = null;
+      if (!unknown)
+        submission.current = null;
       setError(failure instanceof ApiError && failure.status === 409
         ? '다른 관리자가 내용을 변경했습니다. 최신 공지를 확인해주세요.'
         : unknown ? '저장 결과를 확인하지 못했어요. 다시 저장하면 같은 요청으로 결과를 확인합니다.' : '저장하지 못했어요. 입력 내용을 확인해주세요.');
@@ -176,7 +199,10 @@ function NoticeComposer({ propertyId, notice, userId }: { propertyId: string; no
         titleId={'notice-compose-title'}
       />
       <form
-        onSubmit={(event) => { event.preventDefault(); void submit(); }}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
       >
         <ListCard>
           <div
@@ -259,7 +285,8 @@ function NoticeComposer({ propertyId, notice, userId }: { propertyId: string; no
             variant={'outline'}
             disabled={busy}
             onClick={() => {
-              if (!goBackToPreviousRoute()) router.replace(notice ? `${base}/${notice.id}` : base);
+              if (!goBackToPreviousRoute())
+                router.replace(notice ? `${base}/${notice.id}` : base);
             }}
           >
             취소
@@ -315,7 +342,11 @@ function NoticeComposer({ propertyId, notice, userId }: { propertyId: string; no
 }
 
 /** 상세의 제목·작성 정보·본문과 권한별 관리 행동을 공통 카드로 구성합니다. */
-function NoticeReader({ propertyId, notice }: { propertyId: string; notice: NoticeDetail }) {
+function NoticeReader({
+  propertyId,
+  notice
+}: { propertyId: string;
+notice: NoticeDetail }) {
   const router = useRouter();
   const queries = useQueryClient();
   const [confirming, setConfirming] = useState(false);
@@ -326,7 +357,8 @@ function NoticeReader({ propertyId, notice }: { propertyId: string; notice: Noti
 
   /** 서버가 제공한 삭제 권한으로 실행을 제한하고 같은 글·버전으로 재시도합니다. */
   async function remove() {
-    if (lock.current || !notice.canDelete) return;
+    if (lock.current || !notice.canDelete)
+      return;
     lock.current = true;
     setBusy(true);
     try {
@@ -348,7 +380,8 @@ function NoticeReader({ propertyId, notice }: { propertyId: string; notice: Noti
 
   /** 방문한 목록의 조회 조건을 복원하고 직접 진입한 경우에는 같은 관리대상의 목록을 엽니다. */
   function returnToList() {
-    if (!goBackToRoute(base, (href) => router.replace(href))) router.push(base);
+    if (!goBackToRoute(base, (href) => router.replace(href)))
+      router.push(base);
   }
 
   return (

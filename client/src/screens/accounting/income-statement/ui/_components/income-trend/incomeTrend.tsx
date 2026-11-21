@@ -18,12 +18,21 @@ import type { IncomeStatementReport } from '../../../model/incomeStatementTypes'
 import styles from './incomeTrend.module.css';
 
 /** 기간 내 월별·누계는 같은 월 자료를 사용하고 적자는 기준선 아래에 표시합니다. */
-export function IncomeTrend({ report, cumulative, onModeChange }: {
+export function IncomeTrend({
+  report,
+  cumulative,
+  onModeChange
+}: {
   report: IncomeStatementReport;
   cumulative: boolean;
   onModeChange: (value: boolean) => void;
 }) {
-  const [active, setActive] = useState<{ month: string; left: number; top: number; width: number; arrow: number; below: boolean } | null>(null);
+  const [active, setActive] = useState<{ month: string;
+left: number;
+top: number;
+width: number;
+arrow: number;
+below: boolean } | null>(null);
   const [chartWidth, setChartWidth] = useState(600);
   const scroll = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -45,27 +54,35 @@ export function IncomeTrend({ report, cumulative, onModeChange }: {
   const unit = top >= BigInt(10000) ? BigInt(10000) : BigInt(1);
 
   useEffect(() => {
-    if (!scroll.current) return;
+    if (!scroll.current)
+      return;
     const observer = new ResizeObserver(([entry]) => {
       setChartWidth(Math.floor(entry.contentRect.width));
       setActive(null);
     });
     observer.observe(scroll.current);
+
     return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active)
+      return;
+
     function closeOutside(event: PointerEvent) {
-      if (event.target instanceof Node && !stage.current?.contains(event.target)) setActive(null);
+      if (event.target instanceof Node && !stage.current?.contains(event.target))
+        setActive(null);
     }
+
     document.addEventListener('pointerdown', closeOutside);
+
     return () => document.removeEventListener('pointerdown', closeOutside);
   }, [active]);
 
   /** 말풍선을 선택한 점에 붙이고 가로 스크롤 중에도 현재 보이는 그래프 폭 안에 제한합니다. */
   function showTooltip(month: string, point: SVGCircleElement) {
-    if (!stage.current || !scroll.current) return;
+    if (!stage.current || !scroll.current)
+      return;
     const pointBounds = point.getBoundingClientRect();
     const bounds = stage.current.getBoundingClientRect();
     const tooltipWidth = Math.min(228, scroll.current.clientWidth - 16);
@@ -107,7 +124,10 @@ export function IncomeTrend({ report, cumulative, onModeChange }: {
               size={'sm'}
               variant={'ghost'}
               aria-pressed={cumulative === value}
-              onClick={() => { onModeChange(value); setActive(null); }}
+              onClick={() => {
+                onModeChange(value);
+                setActive(null);
+              }}
             >
               {value ? '누계' : '월별'}
             </Button>
@@ -152,7 +172,8 @@ export function IncomeTrend({ report, cumulative, onModeChange }: {
             width
           }}
           onPointerDown={(event) => {
-            if (!(event.target instanceof SVGCircleElement)) setActive(null);
+            if (!(event.target instanceof SVGCircleElement))
+              setActive(null);
           }}
         >
           <svg
@@ -181,6 +202,7 @@ export function IncomeTrend({ report, cumulative, onModeChange }: {
             </text>
             {[0, 1, 2, 3, 4].map((index) => {
               const amount = top - (top - bottom) * BigInt(index) / BigInt(4);
+
               return (
                 <g
                   key={index}
@@ -255,12 +277,21 @@ export function IncomeTrend({ report, cumulative, onModeChange }: {
                 tabIndex={0}
                 aria-describedby={active?.month === row.month ? tooltipId : undefined}
                 aria-label={`${row.month} ${cumulative ? '누계 ' : ''}수익 ${formatInteger(row.revenue)}원, 비용 ${formatInteger(row.expense)}원, 순손익 ${formatInteger(row.profit)}원`}
-                onPointerEnter={(event) => { if (event.pointerType === 'mouse') showTooltip(row.month, event.currentTarget); }}
-                onPointerLeave={(event) => { if (event.pointerType === 'mouse') setActive(null); }}
+                onPointerEnter={(event) => {
+                  if (event.pointerType === 'mouse')
+                    showTooltip(row.month, event.currentTarget);
+                }}
+                onPointerLeave={(event) => {
+                  if (event.pointerType === 'mouse')
+                    setActive(null);
+                }}
                 onFocus={(event) => showTooltip(row.month, event.currentTarget)}
                 onBlur={() => setActive(null)}
                 onClick={(event) => showTooltip(row.month, event.currentTarget)}
-                onKeyDown={(event) => { if (event.key === 'Escape') setActive(null); }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape')
+                    setActive(null);
+                }}
               />
             ))}
           </svg>

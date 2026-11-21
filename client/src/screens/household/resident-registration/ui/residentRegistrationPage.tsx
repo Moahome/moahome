@@ -20,11 +20,12 @@ export function ResidentRegistrationPage({
   const session = useSession();
   const context = useManagementContext(session.data?.id, propertyId, false);
   const listPath = `/manage/${propertyId}/residents`;
-  if (!context.data) return (
-    <LoadingState
-      title={'등록 권한을 확인하고 있어요.'}
-    />
-  );
+  if (!context.data)
+    return (
+      <LoadingState
+        title={'등록 권한을 확인하고 있어요.'}
+      />
+    );
 
   return (
     <section

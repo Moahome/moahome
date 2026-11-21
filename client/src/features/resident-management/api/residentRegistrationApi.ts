@@ -46,6 +46,8 @@ export async function getDeletedResidents(propertyId: string, signal?: AbortSign
     signal,
     url: `/api/properties/${propertyId}/residents/deleted`
   });
-  if (!Array.isArray(rows) || rows.some((row) => !row || !isPropertyId(row.id) || typeof row.name !== 'string')) throw new ApiError(200, 'INVALID_RESPONSE', '삭제 명부를 확인할 수 없습니다.');
+  if (!Array.isArray(rows) || rows.some((row) => !row || !isPropertyId(row.id) || typeof row.name !== 'string'))
+    throw new ApiError(200, 'INVALID_RESPONSE', '삭제 명부를 확인할 수 없습니다.');
+
   return rows;
 }

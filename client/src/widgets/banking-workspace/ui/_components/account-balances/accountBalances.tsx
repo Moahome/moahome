@@ -20,7 +20,7 @@ import styles from './accountBalances.module.css';
 /** 통장별 장부와 동별 보유금을 표시하고 행 전체를 통해 상세로 이동합니다. */
 export function AccountBalances({
   data,
-  onOpen,
+  onOpen
 }: {
   data: BalanceWorkspace;
   onOpen: (accountId: string) => void;
@@ -55,7 +55,8 @@ export function AccountBalances({
           const display = getAccountBalanceDisplay(account);
           const buildingBalance = getAccountBuildingBalance(data, account.id);
           let buildingAmount = buildingBalance === null ? '설정 필요' : formatWon(buildingBalance);
-          if (!data.buildings.length) buildingAmount = '동 구분 없음';
+          if (!data.buildings.length)
+            buildingAmount = '동 구분 없음';
 
           return (
             <li

@@ -32,7 +32,8 @@ export async function saveCurrentUserProfile(displayName: string, image: File | 
   const data = new FormData();
   data.set('displayName', displayName);
   data.set('removeImage', String(removeImage));
-  if (image) data.set('image', image);
+  if (image)
+    data.set('image', image);
   const user = await authenticatedAPI<CurrentUser>({
     url: '/api/users/me/profile',
     method: 'PUT',

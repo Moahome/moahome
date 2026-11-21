@@ -53,7 +53,9 @@ export function NoticePage(props: NoticePageProps) {
   );
 }
 
-function NoticeListPage({ propertyId }: { propertyId: string }) {
+function NoticeListPage({
+  propertyId
+}: { propertyId: string }) {
   const session = useSession();
   const router = useRouter();
   const search = useSearchParams();
@@ -65,7 +67,9 @@ function NoticeListPage({ propertyId }: { propertyId: string }) {
   const [input, setInput] = useState(query);
   const notices = useQuery({
     queryKey: ['notices', session.data?.id, propertyId, page, query, field],
-    queryFn: ({ signal }) => getNotices(propertyId, page, query, field, signal),
+    queryFn: ({
+      signal
+    }) => getNotices(propertyId, page, query, field, signal),
     enabled: Boolean(session.data),
     retry: false
   });
@@ -73,9 +77,12 @@ function NoticeListPage({ propertyId }: { propertyId: string }) {
   /** 검색과 페이지를 주소에 보관해 상세에서 돌아오거나 새로고침해도 같은 목록을 엽니다. */
   function changeSearch(nextPage: number, nextQuery = query, nextField = field) {
     const params = new URLSearchParams();
-    if (nextPage > 1) params.set('page', String(nextPage));
-    if (nextQuery) params.set('query', nextQuery);
-    if (nextField !== 'title') params.set('field', nextField);
+    if (nextPage > 1)
+      params.set('page', String(nextPage));
+    if (nextQuery)
+      params.set('query', nextQuery);
+    if (nextField !== 'title')
+      params.set('field', nextField);
     router.push(`${base}${params.size ? `?${params}` : ''}`, {
       scroll: false
     });

@@ -37,8 +37,18 @@ import styles from './transferDetail.module.css';
 import { TransferAllocation } from '../transfer-allocation/transferAllocation';
 
 /** 한쪽 은행 원본에서 상대 통장을 지정하고 PC·모바일에서 양쪽 장부 반영과 취소를 함께 처리합니다. */
-export function TransferDetail({ propertyId, row, data, presentation = 'modal', onClose }: {
-  propertyId: string; row: BankingTransaction; data: BankingWorkspaceData; presentation?: 'modal' | 'page'; onClose?: () => void;
+export function TransferDetail({
+  propertyId,
+  row,
+  data,
+  presentation = 'modal',
+  onClose
+}: {
+  propertyId: string;
+row: BankingTransaction;
+data: BankingWorkspaceData;
+presentation?: 'modal' | 'page';
+onClose?: () => void;
 }) {
   const session = useSession();
   const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
@@ -52,15 +62,26 @@ export function TransferDetail({ propertyId, row, data, presentation = 'modal', 
   const pending = useRef(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+
   function label(accountId: string) {
     const account = data.accounts?.find((account) => account.id === accountId);
+
     return account ? getBankAccountLabel(account) : '관리계좌';
   }
+
   /** 요청 UUID를 실패 재시도에 유지하고 같은 금액이라는 이유만으로 상대 통장을 자동 확정하지 않습니다. */
   async function submit(saveAllocation = false) {
-    if (pending.current || row.status === 'CANCELED' || (!row.transferId && !target)) return;
-    if ((!row.transferId || saveAllocation) && allocation.error) { setError(allocation.error); return; }
-    pending.current = true;setBusy(true);setError('');setSaved(false);
+    if (pending.current || row.status === 'CANCELED' || (!row.transferId && !target))
+      return;
+    if ((!row.transferId || saveAllocation) && allocation.error) {
+      setError(allocation.error);
+
+      return;
+    }
+    pending.current = true;
+    setBusy(true);
+    setError('');
+    setSaved(false);
     try {
       let result: BankingWorkspaceData;
       if (saveAllocation && row.transferId) {
@@ -83,10 +104,18 @@ export function TransferDetail({ propertyId, row, data, presentation = 'modal', 
       await Promise.all(['banking-balances', 'monthly-settlement', 'dashboard', 'income-statement'].map((key) => cache.invalidateQueries({
         queryKey: [key, session.data?.id, propertyId]
       })));
-      setTarget('');setRequestId(crypto.randomUUID());setSaved(true);onClose?.();
-    } catch (failure) { setError(bankingError(failure)); }
-    finally { pending.current = false;setBusy(false); }
+      setTarget('');
+      setRequestId(crypto.randomUUID());
+      setSaved(true);
+      onClose?.();
+    } catch (failure) {
+      setError(bankingError(failure));
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
   }
+
   const connectedAccount = row.transferAccountId ?? target;
   const fromAccount = row.direction === 'INCOME' ? connectedAccount : row.accountId;
   const toAccount = row.direction === 'INCOME' ? row.accountId : connectedAccount;
@@ -179,7 +208,10 @@ export function TransferDetail({ propertyId, row, data, presentation = 'modal', 
           <Dropdown
             label={row.direction === 'INCOME' ? '출금 통장' : '입금 통장'}
             value={target}
-            onChange={(value) => { setTarget(value);setRequestId(crypto.randomUUID()); }}
+            onChange={(value) => {
+              setTarget(value);
+              setRequestId(crypto.randomUUID());
+            }}
             disabled={busy}
             options={(data.accounts ?? []).filter((account) => account.id !== row.accountId && account.status === 'ACTIVE').map((account) => ({
               value: account.id,
@@ -286,19 +318,21 @@ export function TransferDetail({ propertyId, row, data, presentation = 'modal', 
       )}
     </>
   );
-  if (presentation === 'page') return (
-    <section
-      className={styles.page}
-    >
-      <ListHeader
-        menu={'통장 관리'}
-        title={'계좌 간 이체'}
-        titleId={'transfer-title'}
-        description={'통장과 동별 자금 이동을 확인합니다.'}
-      />
-      {content}
-    </section>
-  );
+  if (presentation === 'page')
+    return (
+      <section
+        className={styles.page}
+      >
+        <ListHeader
+          menu={'통장 관리'}
+          title={'계좌 간 이체'}
+          titleId={'transfer-title'}
+          description={'통장과 동별 자금 이동을 확인합니다.'}
+        />
+        {content}
+      </section>
+    );
+
   return (
     <ClientModal
       className={styles.modal}

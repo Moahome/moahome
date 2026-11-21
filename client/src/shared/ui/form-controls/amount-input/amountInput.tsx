@@ -20,7 +20,8 @@ export interface AmountInputProps extends Omit<InputProps, 'value' | 'defaultVal
 
 /** 빈칸과 입력 중 음수 부호는 그대로 두어 금액 확정 전에도 자연스럽게 입력하게 합니다. */
 function formatEditingAmount(value: string): string {
-  if (value === '' || value === '-') return value;
+  if (value === '' || value === '-')
+    return value;
 
   return formatInteger(value);
 }
@@ -30,7 +31,8 @@ function getDisplayPosition(display: string, rawPosition: number): number {
   let position = 0;
   let characters = 0;
   while (position < display.length && characters < rawPosition) {
-    if (display[position] !== ',') characters++;
+    if (display[position] !== ',')
+      characters++;
     position++;
   }
 
@@ -56,6 +58,7 @@ export function AmountInput({
       && BigInt(raw) > BigInt(maxAmount) && (!/^-?[0-9]+$/.test(value) || BigInt(raw) >= BigInt(value))) {
       input.value = displayValue;
       input.setSelectionRange(Math.min(start, displayValue.length), Math.min(end, displayValue.length));
+
       return;
     }
     const display = formatEditingAmount(raw);
@@ -75,6 +78,7 @@ export function AmountInput({
     if (!/^-?[0-9]*$/.test(raw)) {
       input.value = displayValue;
       input.setSelectionRange(Math.min(start, displayValue.length), Math.min(end, displayValue.length));
+
       return;
     }
 
@@ -84,16 +88,20 @@ export function AmountInput({
   /** 콤마 경계의 Backspace·Delete는 인접 숫자를 지워 같은 콤마가 계속 복원되는 동작을 막습니다. */
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     onKeyDown?.(event);
-    if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey)
+      return;
 
     const input = event.currentTarget;
-    if (input.readOnly || input.disabled) return;
+    if (input.readOnly || input.disabled)
+      return;
     const start = input.selectionStart;
-    if (start === null || start !== input.selectionEnd) return;
+    if (start === null || start !== input.selectionEnd)
+      return;
 
     const backward = event.key === 'Backspace' && displayValue[start - 1] === ',';
     const forward = event.key === 'Delete' && displayValue[start] === ',';
-    if (!backward && !forward) return;
+    if (!backward && !forward)
+      return;
 
     event.preventDefault();
     const rawPosition = displayValue.slice(0, start).replaceAll(',', '').length;
@@ -105,8 +113,10 @@ export function AmountInput({
   /** 붙여넣기는 정수 또는 올바른 천 단위 구분만 허용해 잘못된 콤마를 조용히 제거하지 않습니다. */
   function handlePaste(event: ClipboardEvent<HTMLInputElement>) {
     onPaste?.(event);
-    if (event.defaultPrevented) return;
-    if (!/^-?(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)$/.test(event.clipboardData.getData('text'))) event.preventDefault();
+    if (event.defaultPrevented)
+      return;
+    if (!/^-?(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)$/.test(event.clipboardData.getData('text')))
+      event.preventDefault();
   }
 
   return (

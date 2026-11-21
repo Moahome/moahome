@@ -20,14 +20,17 @@ import styles from './billingTemplateSummary.module.css';
 
 /** 각 동의 세대당 금액을 합산하지 않고 최소·최대 범위로 요약합니다. */
 function amountRange(amounts: bigint[]): ReactNode {
-  if (!amounts.length) return '미설정';
+  if (!amounts.length)
+    return '미설정';
   const min = amounts.reduce((a, b) => a < b ? a : b);
   const max = amounts.reduce((a, b) => a > b ? a : b);
-  if (min === max) return (
-    <AmountValue
-      value={min}
-    />
-  );
+  if (min === max)
+    return (
+      <AmountValue
+        value={min}
+      />
+    );
+
   return (
     <>
       <AmountValue
@@ -44,7 +47,9 @@ function amountRange(amounts: bigint[]): ReactNode {
 }
 
 /** 음수 원 금액만 Danger로 표시하고 혼합 범위의 양수 끝값은 기본 색상을 유지합니다. */
-function AmountValue({ value }: { value: bigint }) {
+function AmountValue({
+  value
+}: { value: bigint }) {
   return (
     <span
       className={value < BigInt(0) ? styles.negative : undefined}
@@ -55,7 +60,12 @@ function AmountValue({ value }: { value: bigint }) {
 }
 
 /** 항목별 비교는 표시용으로만 묶고 실제 저장·부과는 각 동의 독립 설정을 유지합니다. */
-export function BillingTemplateSummary({ template, buildings, label, showTemporary = true }: {
+export function BillingTemplateSummary({
+  template,
+  buildings,
+  label,
+  showTemporary = true
+}: {
   template: BillingTemplate;
   buildings: BillingBuilding[];
   label: string;
@@ -68,7 +78,9 @@ export function BillingTemplateSummary({ template, buildings, label, showTempora
     items: plan.items
   }]
     : plan.buildingItems.filter((group) => buildings.some((building) => building.id === group.buildingId));
-  const rows = new Map<string, { id: string; name: string; amounts: Map<string | null, bigint> }>();
+  const rows = new Map<string, { id: string;
+name: string;
+amounts: Map<string | null, bigint> }>();
   for (const group of groups) {
     const occurrences = new Map<string, number>();
     for (const item of group.items) {
@@ -159,6 +171,7 @@ export function BillingTemplateSummary({ template, buildings, label, showTempora
             header: '적용 현황',
             render: (row) => {
               const same = plan.mode === 'ALL' || row.amounts.size === buildings.length && new Set([...row.amounts.values()].map(String)).size === 1;
+
               return (
                 <span
                   className={styles.badge}

@@ -12,6 +12,7 @@ export const CURRENT_USER_QUERY_KEY = ['session', 'current-user'] as const;
 async function loadCurrentUser() {
   try {
     await restoreSession();
+
     return await getCurrentUser();
   } catch (error) {
     if (error instanceof ApiError && (error.status === 401 || error.code === 'ACCOUNT_UNAVAILABLE')) {

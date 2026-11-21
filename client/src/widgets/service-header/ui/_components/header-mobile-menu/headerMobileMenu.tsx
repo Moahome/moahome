@@ -51,7 +51,8 @@ export function HeaderMobileMenu({
 
     /** 메뉴에서 뒤로가기를 누르면 현재 페이지를 유지하고 메뉴만 닫습니다. */
     function closeOnBack() {
-      if (!ownsHistoryRef.current || window.history.state?.moahomeMenu === historyId) return;
+      if (!ownsHistoryRef.current || window.history.state?.moahomeMenu === historyId)
+        return;
       ownsHistoryRef.current = false;
       dialogRef.current?.dispatchEvent(new Event('cancel', {
         cancelable: true
@@ -60,13 +61,17 @@ export function HeaderMobileMenu({
 
     mobileQuery.addEventListener('change', closeOnDesktop);
     window.addEventListener('popstate', closeOnBack);
+
     return () => {
       mobileQuery.removeEventListener('change', closeOnDesktop);
       window.removeEventListener('popstate', closeOnBack);
       animationsRef.current.forEach((animation) => animation.cancel());
       // 페이지 이동 중 언마운트에서는 이력을 이동시키지 않고 메뉴 표시만 제거합니다.
       if (ownsHistoryRef.current && window.history.state?.moahomeMenu === historyId) {
-        const { moahomeMenu: _menu, ...state } = window.history.state;
+        const {
+          moahomeMenu: _menu,
+          ...state
+        } = window.history.state;
         window.history.replaceState(state, '');
       }
     };
@@ -79,6 +84,7 @@ export function HeaderMobileMenu({
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+
     return () => {
       document.body.style.overflow = previousOverflow;
     };
@@ -125,7 +131,8 @@ export function HeaderMobileMenu({
 
   /** 모달을 표시한 프레임 안에서 이동을 시작하고 포커스 이동으로 인한 스크롤을 막습니다. */
   function openMenu() {
-    if (dialogRef.current?.open) return;
+    if (dialogRef.current?.open)
+      return;
     dialogRef.current?.showModal();
     if (isManagement) {
       window.history.pushState({
@@ -152,6 +159,7 @@ export function HeaderMobileMenu({
 
     if (!animation) {
       dialogRef.current.close();
+
       return;
     }
 
@@ -175,7 +183,10 @@ export function HeaderMobileMenu({
   /** 메뉴에서 선택한 페이지는 메뉴의 임시 이력을 대체하므로 닫기에서 다시 뒤로가지 않습니다. */
   function closeForNavigation() {
     if (ownsHistoryRef.current && window.history.state?.moahomeMenu === historyId) {
-      const { moahomeMenu: _menu, ...state } = window.history.state;
+      const {
+        moahomeMenu: _menu,
+        ...state
+      } = window.history.state;
       window.history.replaceState(state, '');
       ownsHistoryRef.current = false;
     }
@@ -330,7 +341,10 @@ export function HeaderMobileMenu({
 }
 
 /** 메뉴 콘텐츠에는 이동 이벤트만 전달하고 드로어의 참조·애니메이션 상태는 노출하지 않습니다. */
-function MobileMenuContent({ renderContent, onNavigate }: {
+function MobileMenuContent({
+  renderContent,
+  onNavigate
+}: {
   renderContent: (onNavigate: () => void) => ReactNode;
   onNavigate: () => void;
 }) {

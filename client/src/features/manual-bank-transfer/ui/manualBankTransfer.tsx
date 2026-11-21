@@ -35,10 +35,22 @@ import {
 import styles from './manualBankTransfer.module.css';
 
 /** 기존 입금·지출 모달의 본문에 이체 입력만 조합하며 모달 자체를 교체하지 않습니다. */
-export function ManualBankTransfer({ propertyId, accounts, buildings, asOf, seed, children, onClose, onCreated, onBusyChange }: {
+export function ManualBankTransfer({
+  propertyId,
+  accounts,
+  buildings,
+  asOf,
+  seed,
+  children,
+  onClose,
+  onCreated,
+  onBusyChange
+}: {
   propertyId: string;
-  accounts: readonly { id: string; label: string }[];
-  buildings: readonly { id: string; label: string }[];
+  accounts: readonly { id: string;
+label: string }[];
+  buildings: readonly { id: string;
+label: string }[];
   asOf: string;
   seed: ManualTransferSeed;
   children: ReactNode;
@@ -49,7 +61,10 @@ export function ManualBankTransfer({ propertyId, accounts, buildings, asOf, seed
   const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; };
+
+    return () => {
+      mounted.current = false;
+    };
   }, []);
   const session = useSession();
   const scope = capturePropertyQueryScope(session.data?.id, propertyId);
@@ -66,7 +81,9 @@ export function ManualBankTransfer({ propertyId, accounts, buildings, asOf, seed
   const [error, setError] = useState('');
   const funds = useQuery({
     queryKey: ['banking-balances', session.data?.id, propertyId, 'manual-transfer', from, date],
-    queryFn: ({ signal }) => getManualTransferFunds(propertyId, from, date, signal),
+    queryFn: ({
+      signal
+    }) => getManualTransferFunds(propertyId, from, date, signal),
     enabled: Boolean(session.data && accounts.some((account) => account.id === from) && date && date <= asOf),
     retry: false,
     staleTime: 0,
@@ -84,7 +101,8 @@ export function ManualBankTransfer({ propertyId, accounts, buildings, asOf, seed
   async function submit(event: FormEvent) {
     event.preventDefault();
     event.stopPropagation();
-    if (pending.current || !canSave) return;
+    if (pending.current || !canSave)
+      return;
     pending.current = true;
     setBusy(true);
     onBusyChange(true);
@@ -103,7 +121,8 @@ export function ManualBankTransfer({ propertyId, accounts, buildings, asOf, seed
         queryKey: [key, session.data?.id, propertyId]
       })));
       const current = cache.getQueryData<{ id: string }>(['session', 'current-user']);
-      if (mounted.current && current?.id === scope.userId && capturePropertyQueryScope(scope.userId, propertyId).revision === scope.revision) onCreated(id, date, from, to);
+      if (mounted.current && current?.id === scope.userId && capturePropertyQueryScope(scope.userId, propertyId).revision === scope.revision)
+        onCreated(id, date, from, to);
     } catch (failure) {
       setError(manualTransferError(failure));
       void funds.refetch();
@@ -113,10 +132,13 @@ export function ManualBankTransfer({ propertyId, accounts, buildings, asOf, seed
       onBusyChange(false);
     }
   }
+
   return (
     <form
       className={styles.form}
-      onSubmit={(event) => { void submit(event); }}
+      onSubmit={(event) => {
+        void submit(event);
+      }}
     >
       <div
         className={styles.body}
@@ -135,7 +157,8 @@ export function ManualBankTransfer({ propertyId, accounts, buildings, asOf, seed
               value={from}
               onChange={(value) => {
                 setFrom(value);
-                if (value === to) setTo('');
+                if (value === to)
+                  setTo('');
               }}
               options={accounts.map((account) => ({
                 value: account.id,
@@ -197,7 +220,9 @@ export function ManualBankTransfer({ propertyId, accounts, buildings, asOf, seed
               이체 가능 금액을 불러오지 못했어요.
               <Button
                 variant={'text'}
-                onClick={() => { void funds.refetch(); }}
+                onClick={() => {
+                  void funds.refetch();
+                }}
               >
                 다시 시도
               </Button>

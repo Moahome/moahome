@@ -20,19 +20,26 @@ import type { NoticeLocation } from '../../../../model/noticeLocationTypes';
 import styles from './noticeLocation.module.css';
 
 /** 저장 좌표에 마커를 표시하며 창 크기 변경·모달 닫기 때 지도 DOM과 관찰자를 정리합니다. */
-function LocationMap({ location }: { location: NoticeLocation }) {
+function LocationMap({
+  location
+}: { location: NoticeLocation }) {
   const container = useRef<HTMLDivElement>(null);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const { latitude, longitude } = location;
+  const {
+    latitude,
+    longitude
+  } = location;
 
   useEffect(() => {
     const element = container.current;
-    if (!element) return;
+    if (!element)
+      return;
     let disposed = false;
     let disposeMap: (() => void) | undefined;
     void loadKakaoMaps().then((maps) => {
-      if (disposed) return;
+      if (disposed)
+        return;
       const position = new maps.LatLng(latitude, longitude);
       const map = new maps.Map(element, {
         center: position,
@@ -53,10 +60,21 @@ function LocationMap({ location }: { location: NoticeLocation }) {
         map.setCenter(center);
       });
       observer.observe(element);
-      disposeMap = () => { observer.disconnect(); marker.setMap(null); element.replaceChildren(); };
+      disposeMap = () => {
+        observer.disconnect();
+        marker.setMap(null);
+        element.replaceChildren();
+      };
       setState('ready');
-    }).catch(() => { if (!disposed) setState('error'); });
-    return () => { disposed = true; disposeMap?.(); };
+    }).catch(() => {
+      if (!disposed)
+        setState('error');
+    });
+
+    return () => {
+      disposed = true;
+      disposeMap?.();
+    };
   }, [latitude, longitude, attempt]);
 
   return (
@@ -86,7 +104,10 @@ function LocationMap({ location }: { location: NoticeLocation }) {
             <Button
               size={'sm'}
               variant={'outline'}
-              onClick={() => { setState('loading'); setAttempt((value) => value + 1); }}
+              onClick={() => {
+                setState('loading');
+                setAttempt((value) => value + 1);
+              }}
             >
               다시 시도
             </Button>
@@ -98,13 +119,19 @@ function LocationMap({ location }: { location: NoticeLocation }) {
 }
 
 /** 작성·열람에 같은 장소 카드를 사용하고 외부 길찾기 주소는 저장된 값으로만 구성합니다. */
-export function NoticeLocationCard({ location, disabled, onEdit, onRemove }: {
+export function NoticeLocationCard({
+  location,
+  disabled,
+  onEdit,
+  onRemove
+}: {
   location: NoticeLocation;
   disabled?: boolean;
   onEdit?: () => void;
   onRemove?: () => void;
 }) {
   const titleId = useId();
+
   return (
     <section
       className={styles.location}
@@ -204,7 +231,12 @@ export function NoticeLocationCard({ location, disabled, onEdit, onRemove }: {
 }
 
 /** 공통 주소 검색의 결과를 선택하면 좌표를 조회하고 확인한 장소만 공지에 반영합니다. */
-export function NoticeLocationPicker({ initialLocation, disabled, onConfirm, onClose }: {
+export function NoticeLocationPicker({
+  initialLocation,
+  disabled,
+  onConfirm,
+  onClose
+}: {
   initialLocation: NoticeLocation | null;
   disabled: boolean;
   onConfirm: (location: NoticeLocation) => void;
@@ -225,12 +257,16 @@ export function NoticeLocationPicker({ initialLocation, disabled, onConfirm, onC
 
   useEffect(() => {
     active.current = true;
-    return () => { active.current = false; };
+
+    return () => {
+      active.current = false;
+    };
   }, []);
 
   /** 선택한 주소만 좌표로 변환하며 닫힌 창에 늦게 도착한 결과와 중복 선택은 반영하지 않습니다. */
   const selectAddress = useCallback(async (address: string, buildingName: string) => {
-    if (searching.current || disabled) return;
+    if (searching.current || disabled)
+      return;
     setChosenAddress({
       address,
       name: buildingName
@@ -242,19 +278,26 @@ export function NoticeLocationPicker({ initialLocation, disabled, onConfirm, onC
     setSelection(null);
     try {
       const found = await searchNoticeLocations(address);
-      if (!active.current) return;
+      if (!active.current)
+        return;
       const location = found.find((item) => item.address === address) ?? found[0];
-      if (!location) { setMessage('선택한 주소의 위치를 찾지 못했어요. 다른 주소를 검색해주세요.'); return; }
+      if (!location) {
+        setMessage('선택한 주소의 위치를 찾지 못했어요. 다른 주소를 검색해주세요.');
+
+        return;
+      }
       setSelection({
         ...location,
         address
       });
       setName(buildingName || location.name);
     } catch {
-      if (active.current) setMessage('지도 위치를 불러오지 못했어요. 다시 시도해주세요.');
+      if (active.current)
+        setMessage('지도 위치를 불러오지 못했어요. 다시 시도해주세요.');
     } finally {
       searching.current = false;
-      if (active.current) setBusy(false);
+      if (active.current)
+        setBusy(false);
     }
   }, [disabled]);
 
@@ -378,10 +421,11 @@ export function NoticeLocationPicker({ initialLocation, disabled, onConfirm, onC
         <Button
           disabled={disabled || busy || findingAddress || !selection || !name.trim()}
           onClick={() => {
-            if (!disabled && !searching.current && !findingAddress && selection && name.trim()) onConfirm({
-              ...selection,
-              name: name.trim()
-            });
+            if (!disabled && !searching.current && !findingAddress && selection && name.trim())
+              onConfirm({
+                ...selection,
+                name: name.trim()
+              });
           }}
         >
           {initialLocation ? '적용' : '추가'}

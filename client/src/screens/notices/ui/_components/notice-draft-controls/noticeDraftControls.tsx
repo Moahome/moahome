@@ -23,7 +23,14 @@ import {
 import styles from './noticeDraftControls.module.css';
 
 /** 이전 초안은 명시적으로 불러오며 작성 중 변경은 나가기 전에 같은 계정·관리대상에 자동 저장합니다. */
-export function NoticeDraftControls({ value, disabled, onRestore, children, getSubmission, baseline }: {
+export function NoticeDraftControls({
+  value,
+  disabled,
+  onRestore,
+  children,
+  getSubmission,
+  baseline
+}: {
   value: NoticeDraft;
   baseline: Pick<NoticeDraft, 'title' | 'content' | 'important'>;
   getSubmission?: () => NoticeDraft['submission'];
@@ -50,34 +57,47 @@ export function NoticeDraftControls({ value, disabled, onRestore, children, getS
   const restoreOnEntry = useEffectEvent((draft: NoticeDraft) => onRestore(draft));
   const currentSubmission = useEffectEvent(() => getSubmission?.() ?? null);
 
-  useEffect(() => { latest.current = value; }, [value]);
+  useEffect(() => {
+    latest.current = value;
+  }, [value]);
 
   useEffect(() => {
     let active = true;
     readNoticeDraft(value.key).then(async (draft) => {
-      if (!active) return;
+      if (!active)
+        return;
       if (draft) {
         const changed = getNoticeDraftSignature(draft) !== getNoticeDraftSignature(baselineValue.current);
         const restore = changed && window.confirm('이전에 작성하던 내용이 있습니다. 불러올까요?');
         // 확인과 취소 모두 소비합니다. 불러온 내용 자체를 다시 자동 저장하지 않습니다.
         await clearNoticeDrafts(value.key);
-        if (!active) return;
-        if (restore) { restoreOnEntry(draft); baselineValue.current = draft; }
+        if (!active)
+          return;
+        if (restore) {
+          restoreOnEntry(draft);
+          baselineValue.current = draft;
+        }
       }
       setDrafts([]);
       setReady(true);
       paused.current = false;
     }).catch(() => {
-      if (!active) return;
+      if (!active)
+        return;
       setFailed(true);
       setMessage('작성 내용을 임시저장할 수 없어요. 브라우저 저장 공간을 확인해주세요.');
     });
+
     function removed(event: Event) {
-      if ((event as CustomEvent<string>).detail !== value.key) return;
+      if ((event as CustomEvent<string>).detail !== value.key)
+        return;
       complete.current = true;
-      if (timer.current) clearTimeout(timer.current);
+      if (timer.current)
+        clearTimeout(timer.current);
     }
+
     window.addEventListener(DRAFT_REMOVED_EVENT, removed);
+
     return () => {
       active = false;
       window.removeEventListener(DRAFT_REMOVED_EVENT, removed);
@@ -85,8 +105,10 @@ export function NoticeDraftControls({ value, disabled, onRestore, children, getS
   }, [value.key]);
 
   useEffect(() => {
-    if (!ready || disabled || complete.current) return;
-    if (getNoticeDraftSignature(value) === deletedSignature.current) return;
+    if (!ready || disabled || complete.current)
+      return;
+    if (getNoticeDraftSignature(value) === deletedSignature.current)
+      return;
     deletedSignature.current = null;
     const changed = getNoticeDraftSignature(value) !== getNoticeDraftSignature(baselineValue.current);
     if (!hasNoticeDraftContent(value) || !changed) {
@@ -94,10 +116,12 @@ export function NoticeDraftControls({ value, disabled, onRestore, children, getS
         autoWritten.current = false;
         void clearNoticeDrafts(value.key).then(() => setDrafts([])).catch(() => {});
       }
+
       return;
     }
     timer.current = setTimeout(() => {
-      if (manualLock.current || paused.current) return;
+      if (manualLock.current || paused.current)
+        return;
       const draft = {
         ...latest.current,
         submission: currentSubmission(),
@@ -105,13 +129,18 @@ export function NoticeDraftControls({ value, disabled, onRestore, children, getS
       };
       autoWritten.current = true;
       autoSaveTask.current = (autoSaveTask.current ?? Promise.resolve()).then(() => saveNoticeDraft(draft)).then(() => {
-        if (!manualLock.current) setDrafts([draft]);
+        if (!manualLock.current)
+          setDrafts([draft]);
       }).catch(() => {
         setFailed(true);
         setMessage('자동 저장하지 못했어요. 임시저장을 다시 시도해주세요.');
       });
     }, 300);
-    return () => { if (timer.current) clearTimeout(timer.current); };
+
+    return () => {
+      if (timer.current)
+        clearTimeout(timer.current);
+    };
   }, [value, ready, disabled]);
 
   useEffect(() => {
@@ -120,49 +149,74 @@ export function NoticeDraftControls({ value, disabled, onRestore, children, getS
       const draft = latest.current;
       if (complete.current || paused.current || manualLock.current || !hasNoticeDraftContent(draft)
         || getNoticeDraftSignature(draft) === deletedSignature.current
-        || getNoticeDraftSignature(draft) === getNoticeDraftSignature(baselineValue.current)) return;
-      if (timer.current) clearTimeout(timer.current);
+        || getNoticeDraftSignature(draft) === getNoticeDraftSignature(baselineValue.current))
+        return;
+      if (timer.current)
+        clearTimeout(timer.current);
       void saveNoticeDraft({
         ...draft,
         submission: currentSubmission(),
         savedAt: new Date().toISOString()
       }).catch(() => {});
     }
+
     window.addEventListener('pagehide', flush);
-    return () => { window.removeEventListener('pagehide', flush); flush(); };
+
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      flush();
+    };
   }, []);
 
   useEffect(() => {
-    function hasChanges() { const current = latest.current, base = baselineValue.current; return hasNoticeDraftContent(current) && (getNoticeDraftSignature(current) !== getNoticeDraftSignature(base)); }
+    function hasChanges() {
+      const current = latest.current, base = baselineValue.current;
+
+      return hasNoticeDraftContent(current) && (getNoticeDraftSignature(current) !== getNoticeDraftSignature(base));
+    }
+
     function confirmExit(event: BeforeUnloadEvent) {
-      if (complete.current || !hasChanges()) return;
+      if (complete.current || !hasChanges())
+        return;
       event.preventDefault();
       event.returnValue = '';
     }
+
     function confirmLink(event: MouseEvent) {
-      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || complete.current || !hasChanges()) return;
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || complete.current || !hasChanges())
+        return;
       const target = event.target instanceof Element ? event.target.closest('a[href]') : null;
-      if (!(target instanceof HTMLAnchorElement) || target.target === '_blank' || target.href === window.location.href) return;
+      if (!(target instanceof HTMLAnchorElement) || target.target === '_blank' || target.href === window.location.href)
+        return;
       if (!window.confirm('저장하지 않은 변경 내용이 있습니다. 나가시겠습니까?')) {
         event.preventDefault();
         event.stopImmediatePropagation();
       }
     }
+
     function confirmNavigation(event: Event) {
       if (!complete.current && hasChanges() && !window.confirm('저장하지 않은 변경 내용이 있습니다. 나가시겠습니까?')) {
         event.preventDefault();
       }
     }
+
     window.addEventListener('moahome:before-navigation', confirmNavigation);
     window.addEventListener('beforeunload', confirmExit);
     document.addEventListener('click', confirmLink, true);
-    return () => { window.removeEventListener('moahome:before-navigation', confirmNavigation); window.removeEventListener('beforeunload', confirmExit); document.removeEventListener('click', confirmLink, true); };
+
+    return () => {
+      window.removeEventListener('moahome:before-navigation', confirmNavigation);
+      window.removeEventListener('beforeunload', confirmExit);
+      document.removeEventListener('click', confirmLink, true);
+    };
   }, []);
 
   async function save() {
-    if (manualLock.current || saving || disabled || !hasNoticeDraftContent(value)) return;
+    if (manualLock.current || saving || disabled || !hasNoticeDraftContent(value))
+      return;
     manualLock.current = true;
-    if (timer.current) clearTimeout(timer.current);
+    if (timer.current)
+      clearTimeout(timer.current);
     setSaving(true);
     try {
       const draft = {
@@ -181,12 +235,16 @@ export function NoticeDraftControls({ value, disabled, onRestore, children, getS
     } catch {
       setFailed(true);
       setMessage('임시저장하지 못했어요. 입력 내용은 유지됩니다.');
-    } finally { manualLock.current = false; setSaving(false); }
+    } finally {
+      manualLock.current = false;
+      setSaving(false);
+    }
   }
 
   /** 목록에서 불러온 경우에도 한 번 소비한 초안은 다시 표시하지 않습니다. */
   async function restoreSaved(draft: NoticeDraft) {
-    if (manualLock.current) return;
+    if (manualLock.current)
+      return;
     manualLock.current = true;
     setDraftBusy(true);
     try {
@@ -200,17 +258,22 @@ export function NoticeDraftControls({ value, disabled, onRestore, children, getS
     } catch {
       setFailed(true);
       setMessage('임시저장 내용을 불러오지 못했어요. 다시 시도해주세요.');
-    } finally { manualLock.current = false; setDraftBusy(false); }
+    } finally {
+      manualLock.current = false;
+      setDraftBusy(false);
+    }
   }
 
   /** 진행 중 자동 저장을 마친 뒤 초안만 삭제하고, 같은 입력의 자동 재생성은 실제 수정 전까지 막습니다. */
   async function deleteSaved(draft: NoticeDraft) {
-    if (manualLock.current) return;
+    if (manualLock.current)
+      return;
     manualLock.current = true;
     setDraftBusy(true);
     const previousSignature = deletedSignature.current;
     deletedSignature.current = getNoticeDraftSignature(latest.current);
-    if (timer.current) clearTimeout(timer.current);
+    if (timer.current)
+      clearTimeout(timer.current);
     try {
       // 앞선 저장이 삭제 뒤에 완료되어 초안을 되살리지 않도록 IndexedDB 작업 순서를 맞춥니다.
       await autoSaveTask.current;

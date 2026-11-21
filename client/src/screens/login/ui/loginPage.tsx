@@ -22,7 +22,11 @@ import { LoginFooter } from './_components/login-footer/loginFooter';
 import styles from './loginPage.module.css';
 
 /** 세션 확인이 끝난 비로그인 사용자에게만 로그인 수단을 표시하고 정상 사용자는 시작 화면으로 이동합니다. */
-export function LoginPage({ errorCode, withdrawalRequested = false }: { errorCode?: string; withdrawalRequested?: boolean }) {
+export function LoginPage({
+  errorCode,
+  withdrawalRequested = false
+}: { errorCode?: string;
+withdrawalRequested?: boolean }) {
   const session = useSession();
   const router = useRouter();
   const pageRef = useHistoryRevalidation<HTMLDivElement>();
@@ -36,6 +40,7 @@ export function LoginPage({ errorCode, withdrawalRequested = false }: { errorCod
   useEffect(() => {
     if (session.error instanceof ApiError && session.error.code === 'ACCOUNT_RECOVERY_REQUIRED') {
       router.replace('/account/recovery');
+
       return;
     }
     // 본인 정보까지 검증한 뒤 로그인 URL을 이력에서 교체해 뒤로 가기로 로그인 폼에 돌아오지 않게 합니다.
@@ -52,16 +57,17 @@ export function LoginPage({ errorCode, withdrawalRequested = false }: { errorCod
   }
 
   if (isChecking || !canLogin) {
-    if (!isChecking && isServerConnectionError(session.error)) return (
-      <main
-        className={`${styles.page} ${styles['session-state']}`}
-      >
-        <ServerConnectionError
-          error={session.error}
-          onRetry={retrySession}
-        />
-      </main>
-    );
+    if (!isChecking && isServerConnectionError(session.error))
+      return (
+        <main
+          className={`${styles.page} ${styles['session-state']}`}
+        >
+          <ServerConnectionError
+            error={session.error}
+            onRetry={retrySession}
+          />
+        </main>
+      );
     let description = '잠시만 기다려 주세요.';
 
     if (!isChecking) {

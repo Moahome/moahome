@@ -7,13 +7,19 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './accountMenu.module.css';
 
 /** PC 프로필 카드와 모바일 메뉴가 같은 계정 항목·권한·설명 표현을 사용합니다. */
-export function AccountMenu({ systemAdministrator, replace = false, showLogout = true, onNavigate }: {
+export function AccountMenu({
+  systemAdministrator,
+  replace = false,
+  showLogout = true,
+  onNavigate
+}: {
   systemAdministrator: boolean;
   replace?: boolean;
   showLogout?: boolean;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+
   return (
     <div
       className={styles.menu}

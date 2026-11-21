@@ -79,7 +79,8 @@ function createEmptyDraft(): RegistrationDraft {
 
 /** 브라우저 저장소의 세대도 타입과 ID를 확인하되 수정 중인 동 참조 불일치는 화면에서 해결합니다. */
 function isUnitDraft(value: unknown): value is UnitDraft {
-  if (!value || typeof value !== 'object') return false;
+  if (!value || typeof value !== 'object')
+    return false;
 
   const unit = value as UnitDraft;
 
@@ -103,6 +104,7 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
 
     if (navigation?.type !== 'reload' || !stored) {
       discardRegistrationDraft();
+
       return createEmptyDraft();
     }
 
@@ -132,6 +134,7 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
       || new Set(buildings.map((building) => building.clientId)).size !== buildings.length
       || new Set(units.map((unit) => unit.clientId)).size !== units.length) {
       discardRegistrationDraft();
+
       return createEmptyDraft();
     }
 
@@ -142,16 +145,21 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
     const residents = restoreRegistrationResidents(data.residents);
     const residentsValid = !getResidentSetupError(residents, units, administrator);
     let step: RegistrationStep = 'basic';
-    if (basicInfoValidated && ['units', 'administrator', 'residents', 'account', 'fees', 'review'].includes(data.step)) step = 'units';
-    if (['residents', 'account', 'fees', 'review'].includes(data.step) && unitsValid) step = 'residents';
-    if (['account', 'fees', 'review'].includes(data.step) && residentsValid && unitsValid && !getUnitOpeningError(openingBalances, units)) step = 'account';
+    if (basicInfoValidated && ['units', 'administrator', 'residents', 'account', 'fees', 'review'].includes(data.step))
+      step = 'units';
+    if (['residents', 'account', 'fees', 'review'].includes(data.step) && unitsValid)
+      step = 'residents';
+    if (['account', 'fees', 'review'].includes(data.step) && residentsValid && unitsValid && !getUnitOpeningError(openingBalances, units))
+      step = 'account';
 
     // 이전 단일 통장 초안도 첫 계좌와 확인된 잔액으로 보존하며 새 통장 잔액은 추측하지 않습니다.
     const sourceAccounts: unknown[] = Array.isArray(data.bankAccounts) ? data.bankAccounts : [data.bankAccount];
     const bankAccounts = sourceAccounts.map((value, index): RegistrationAccount => {
-      if (!isBankAccountDraft(value)) return createRegistrationAccount(`account-${index}`, index === 0);
+      if (!isBankAccountDraft(value))
+        return createRegistrationAccount(`account-${index}`, index === 0);
       const legacy = value as RegistrationAccount;
       const number = normalizeAccountNumber(value.accountNumber);
+
       return {
         bankCode: value.bankCode,
         bankName: value.bankName,
@@ -163,12 +171,15 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
         openingAmount: typeof legacy.openingAmount === 'string' ? legacy.openingAmount : index === 0 ? openingBalances.accountAmount : ''
       };
     });
-    if (!bankAccounts.length || new Set(bankAccounts.map((account) => account.clientId)).size !== bankAccounts.length) return createEmptyDraft();
-    if (['fees', 'review'].includes(data.step) && unitsValid && step === 'account' && !getRegistrationAccountsError(bankAccounts) && !getCashOpeningError(openingBalances, buildings, bankAccounts)) step = 'fees';
+    if (!bankAccounts.length || new Set(bankAccounts.map((account) => account.clientId)).size !== bankAccounts.length)
+      return createEmptyDraft();
+    if (['fees', 'review'].includes(data.step) && unitsValid && step === 'account' && !getRegistrationAccountsError(bankAccounts) && !getCashOpeningError(openingBalances, buildings, bankAccounts))
+      step = 'fees';
 
     // 코드 필드가 없던 기존 초안은 직접 입력으로 복원하고 이름으로 종류를 추측하지 않습니다.
     const feeItems = Array.isArray(data.feeItems) ? data.feeItems.map((item: unknown) => {
-      if (!item || typeof item !== 'object') return item;
+      if (!item || typeof item !== 'object')
+        return item;
 
       return {
         ...item,
@@ -176,7 +187,8 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
       };
     }) : data.feeItems;
 
-    if (data.step === 'review' && step === 'fees' && isFeeItemDraftList(feeItems) && !getFeeItemsError(feeItems) && !getFirstBillingError(openingBalances)) step = 'review';
+    if (data.step === 'review' && step === 'fees' && isFeeItemDraftList(feeItems) && !getFeeItemsError(feeItems) && !getFirstBillingError(openingBalances))
+      step = 'review';
 
     return {
       administrator,
@@ -209,6 +221,7 @@ export function restoreRegistrationDraft(userId: string): RegistrationDraft {
     };
   } catch {
     discardRegistrationDraft();
+
     return createEmptyDraft();
   }
 }

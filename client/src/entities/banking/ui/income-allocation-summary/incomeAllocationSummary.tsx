@@ -6,11 +6,13 @@ import styles from './incomeAllocationSummary.module.css';
 
 /** 저장된 금액의 표시 비율만 소수 둘째 자리로 반올림하며 실제 배분 금액은 바꾸지 않습니다. */
 function displayRatio(amount: bigint, total: bigint) {
-  if (total <= BigInt(0)) return {
-    value: 0,
-    label: '—'
-  };
+  if (total <= BigInt(0))
+    return {
+      value: 0,
+      label: '—'
+    };
   const rate = (amount * BigInt(20000) + total) / (total * BigInt(2));
+
   return {
     value: Number(rate),
     label: `${(Number(rate) / 100).toLocaleString('ko-KR', {
@@ -20,7 +22,12 @@ function displayRatio(amount: bigint, total: bigint) {
 }
 
 /** 수동·은행 입금의 확정 배분을 같은 표로 보여주고 취소된 이력을 완료 상태로 안내하지 않습니다. */
-export function IncomeAllocationSummary({ total, allocations, label = '저장된 동별 배분', active = true }: {
+export function IncomeAllocationSummary({
+  total,
+  allocations,
+  label = '저장된 동별 배분',
+  active = true
+}: {
   total: string;
   allocations: readonly BankingAllocation[];
   label?: string;
@@ -31,8 +38,10 @@ export function IncomeAllocationSummary({ total, allocations, label = '저장된
   const complete = active && amount > BigInt(0) && sum === amount;
   const totalRatio = displayRatio(sum, amount);
   let status = '배분 금액 합계를 확인해주세요.';
-  if (complete) status = '총 금액이 모두 배분되었습니다.';
-  if (!active) status = '취소된 배분 내역입니다.';
+  if (complete)
+    status = '총 금액이 모두 배분되었습니다.';
+  if (!active)
+    status = '취소된 배분 내역입니다.';
 
   return (
     <section
@@ -90,6 +99,7 @@ export function IncomeAllocationSummary({ total, allocations, label = '저장된
           <tbody>
             {sortExpenseLabels(allocations).map((part) => {
               const ratio = displayRatio(BigInt(part.amount), amount);
+
               return (
                 <tr
                   key={part.buildingId ?? part.label}

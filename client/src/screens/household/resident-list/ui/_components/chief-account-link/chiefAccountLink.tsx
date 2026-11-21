@@ -19,7 +19,13 @@ import type { ResidentList } from '../../../api/residentApiTypes';
 import styles from './chiefAccountLink.module.css';
 
 /** 현재 로그인한 관리소장 본인을 명부와 연결하고 저장 성공 뒤 최신 명부로 역할·가입 상태를 갱신합니다. */
-export function ChiefAccountLink({ propertyId, data, presentation = 'modal', onClose, onLinked }: {
+export function ChiefAccountLink({
+  propertyId,
+  data,
+  presentation = 'modal',
+  onClose,
+  onLinked
+}: {
   propertyId: string;
   data: ResidentList;
   presentation?: 'modal' | 'page';
@@ -41,7 +47,8 @@ export function ChiefAccountLink({ propertyId, data, presentation = 'modal', onC
 
   /** 중복 클릭을 막고 실패하면 선택을 유지합니다. 응답 유실 후 같은 본인 연결 재시도는 서버에서 중복 저장하지 않습니다. */
   async function connectAccount() {
-    if (!administrator || !selected?.unitId || pending.current) return;
+    if (!administrator || !selected?.unitId || pending.current)
+      return;
     pending.current = true;
     setBusy(true);
     setErrorMessage('');
@@ -71,6 +78,7 @@ export function ChiefAccountLink({ propertyId, data, presentation = 'modal', onC
 
   function unitLabel(resident: ResidentList['residents'][number]) {
     const building = data.hasBuildings ? data.buildings.find((item) => item.id === resident.buildingId)?.name : '';
+
     return [building, resident.unitNumber ? `${resident.unitNumber}호` : '세대 미연결'].filter(Boolean).join(' ');
   }
 
@@ -155,7 +163,10 @@ export function ChiefAccountLink({ propertyId, data, presentation = 'modal', onC
             value: resident.id,
             label: `${resident.name} · ${unitLabel(resident)}${resident.phoneLast4 ? ` · 연락처 끝 ${resident.phoneLast4}` : ''}`
           }))}
-          onChange={(value) => { setResidentId(value); setErrorMessage(''); }}
+          onChange={(value) => {
+            setResidentId(value);
+            setErrorMessage('');
+          }}
         />
         {!candidates.length && (
           <p
@@ -253,13 +264,15 @@ export function ChiefAccountLink({ propertyId, data, presentation = 'modal', onC
     </>
   );
 
-  if (presentation === 'page') return (
-    <section
-      className={styles.page}
-    >
-      {content}
-    </section>
-  );
+  if (presentation === 'page')
+    return (
+      <section
+        className={styles.page}
+      >
+        {content}
+      </section>
+    );
+
   return (
     <ClientModal
       className={styles.modal}

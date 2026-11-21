@@ -37,7 +37,8 @@ export function AccountRecoveryPage() {
 
   /** 서버 복구와 쿠키 교체가 모두 성공하면 전체 앱을 새로 열어 이전 사용자 캐시를 재사용하지 않습니다. */
   async function recover() {
-    if (busy || !account.data) return;
+    if (busy || !account.data)
+      return;
     setBusy(true);
     setFailure('');
     try {
@@ -46,14 +47,16 @@ export function AccountRecoveryPage() {
       window.location.replace('/start');
     } catch (error) {
       setFailure('계정을 복구하지 못했어요. 잠시 후 다시 시도해주세요.');
-      if (error instanceof ApiError && [401, 403, 410].includes(error.status)) void account.refetch();
+      if (error instanceof ApiError && [401, 403, 410].includes(error.status))
+        void account.refetch();
     } finally {
       setBusy(false);
     }
   }
 
   async function logout() {
-    if (busy) return;
+    if (busy)
+      return;
     setBusy(true);
     setFailure('');
     try {

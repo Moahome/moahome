@@ -14,7 +14,11 @@ const STATUS_LABELS: Record<string, string> = {
   TRANSFER_PENDING: '이체 연결 대기'
 };
 
-export function DashboardTransactions({ report, href, onOpen }: {
+export function DashboardTransactions({
+  report,
+  href,
+  onOpen
+}: {
   report: DashboardReport;
   href: string;
   onOpen: (row: DashboardReport['recent'][number]) => void;

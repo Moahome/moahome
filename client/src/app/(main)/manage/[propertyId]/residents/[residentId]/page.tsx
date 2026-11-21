@@ -9,8 +9,13 @@ export const metadata: Metadata = {
   }
 };
 
-export default async function Page({ params }: PageProps<'/manage/[propertyId]/residents/[residentId]'>) {
-  const { propertyId, residentId } = await params;
+export default async function Page({
+  params
+}: PageProps<'/manage/[propertyId]/residents/[residentId]'>) {
+  const {
+    propertyId,
+    residentId
+  } = await params;
 
   return (
     <ResidentDetailPage

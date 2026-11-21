@@ -38,8 +38,16 @@ import type { ManagedBankAccount } from '../api/bankAccountApiTypes';
 import styles from './bankAccountEditor.module.css';
 
 /** 설정·통장 상세에서 편집기를 공유하고 원문은 열린 편집기 안에서만 보관합니다. */
-export function BankAccountEditor({ propertyId, onClose, onSaved, presentation = 'modal', initialAccountId }: {
-  propertyId: string; onClose: () => void; onSaved: () => void;
+export function BankAccountEditor({
+  propertyId,
+  onClose,
+  onSaved,
+  presentation = 'modal',
+  initialAccountId
+}: {
+  propertyId: string;
+onClose: () => void;
+onSaved: () => void;
   presentation?: 'modal' | 'page';
   initialAccountId?: string;
 }) {
@@ -47,13 +55,16 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
   const cache = useQueryClient();
   const accounts = useQuery({
     queryKey: ['bank-account-settings', session.data?.id, propertyId],
-    queryFn: ({ signal }) => getBankAccounts(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getBankAccounts(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0,
     refetchOnWindowFocus: false
   });
-  const [editing, setEditing] = useState<{ id: string; original: ManagedBankAccount | null } | null>(null);
+  const [editing, setEditing] = useState<{ id: string;
+original: ManagedBankAccount | null } | null>(null);
   const [requestedId, setRequestedId] = useState(initialAccountId);
   const [closing, setClosing] = useState<ManagedBankAccount | null>(null);
   const [busy, setBusy] = useState(false);
@@ -76,15 +87,28 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
       predicate: (query) => query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
       && ['payment-workspace', 'banking-workspace', 'banking-balances', 'billing-workspace', 'bank-account-detail'].includes(String(query.queryKey[0]))
     });
-    setRequestedId(undefined);setEditing(null);setClosing(null);onSaved();
+    setRequestedId(undefined);
+    setEditing(null);
+    setClosing(null);
+    onSaved();
   }
+
   /** 삭제 확인한 통장의 사용을 종료하고 과거 거래는 보존한 채 목록과 업무 캐시를 갱신합니다. */
   async function endUse() {
-    if (!closing || pending.current) return;
-    pending.current = true;setBusy(true);setMessage('');
-    try { await closeBankAccount(propertyId, closing);await refresh(); }
-    catch (error) { setMessage(bankAccountError(error)); }
-    finally { pending.current = false;setBusy(false); }
+    if (!closing || pending.current)
+      return;
+    pending.current = true;
+    setBusy(true);
+    setMessage('');
+    try {
+      await closeBankAccount(propertyId, closing);
+      await refresh();
+    } catch (error) {
+      setMessage(bankAccountError(error));
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
   }
 
   const title = activeEditing ? (activeEditing.original ? '통장 수정' : '통장 추가') : '공동 납부계좌 관리';
@@ -129,8 +153,13 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
           primaryId={primary.accountId}
           onCancel={() => {
             // 통장 상세에서 연 정정은 관리 목록으로 빠지지 않고 원래 상세로 복귀합니다.
-            if (initialAccountId && presentation === 'modal') { onClose(); return; }
-            setRequestedId(undefined); setEditing(null);
+            if (initialAccountId && presentation === 'modal') {
+              onClose();
+
+              return;
+            }
+            setRequestedId(undefined);
+            setEditing(null);
           }}
           onSaved={refresh}
           onBusy={setBusy}
@@ -194,10 +223,14 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
                         variant={'text'}
                         tone={'success'}
                         disabled={busy}
-                        onClick={() => { setMessage('');setClosing(null);setEditing({
-                          id: account.accountId,
-                          original: account
-                        }); }}
+                        onClick={() => {
+                          setMessage('');
+                          setClosing(null);
+                          setEditing({
+                            id: account.accountId,
+                            original: account
+                          });
+                        }}
                       >
                         수정
                       </Button>
@@ -207,7 +240,10 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
                           variant={'text'}
                           tone={'danger'}
                           disabled={busy}
-                          onClick={() => { setMessage('');setClosing(account); }}
+                          onClick={() => {
+                            setMessage('');
+                            setClosing(account);
+                          }}
                         >
                           삭제
                         </Button>
@@ -222,10 +258,14 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
             <Button
               variant={'outline'}
               disabled={busy}
-              onClick={() => { setMessage('');setClosing(null);setEditing({
-                id: crypto.randomUUID(),
-                original: null
-              }); }}
+              onClick={() => {
+                setMessage('');
+                setClosing(null);
+                setEditing({
+                  id: crypto.randomUUID(),
+                  original: null
+                });
+              }}
             >
               통장 추가
             </Button>
@@ -246,24 +286,28 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
           description={'삭제한 통장은 목록에서 숨기고 과거 거래 내역은 보존합니다.'}
           busy={busy}
           errorMessage={message}
-          onClose={() => { setMessage('');setClosing(null); }}
+          onClose={() => {
+            setMessage('');
+            setClosing(null);
+          }}
           onConfirm={() => void endUse()}
         />
       )}
     </>
   );
 
-  if (presentation === 'page') return (
-    <section
-      className={styles.page}
-      aria-label={'관리계좌'}
-    >
-      {header}
-      <ListCard>
-        {content}
-      </ListCard>
-    </section>
-  );
+  if (presentation === 'page')
+    return (
+      <section
+        className={styles.page}
+        aria-label={'관리계좌'}
+      >
+        {header}
+        <ListCard>
+          {content}
+        </ListCard>
+      </section>
+    );
 
   return (
     <ClientModal
@@ -279,9 +323,22 @@ export function BankAccountEditor({ propertyId, onClose, onSaved, presentation =
 }
 
 /** 추가 요청 ID·조회 버전·입력은 저장 실패에도 유지해 중복 생성과 오래된 정보 덮어쓰기를 막습니다. */
-function AccountForm({ propertyId, id, original, primaryId, onCancel, onSaved, onBusy }: {
-  propertyId: string; id: string; original: ManagedBankAccount | null; primaryId: string;
-  onCancel: () => void; onSaved: () => Promise<void>; onBusy: (busy: boolean) => void;
+function AccountForm({
+  propertyId,
+  id,
+  original,
+  primaryId,
+  onCancel,
+  onSaved,
+  onBusy
+}: {
+  propertyId: string;
+id: string;
+original: ManagedBankAccount | null;
+primaryId: string;
+  onCancel: () => void;
+onSaved: () => Promise<void>;
+onBusy: (busy: boolean) => void;
 }) {
   const [draft, setDraft] = useState<BankAccountDraft>(() => original ? {
     ...original,
@@ -294,14 +351,27 @@ function AccountForm({ propertyId, id, original, primaryId, onCancel, onSaved, o
   const [message, setMessage] = useState('');
   const pending = useRef(false);
   const valid = Object.keys(getBankAccountErrors(draft)).length === 0;
+
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!valid || pending.current) return;
-    pending.current = true;setBusy(true);onBusy(true);setMessage('');
-    try { await saveBankAccount(propertyId, id, original, draft, primaryId);await onSaved(); }
-    catch (error) { setMessage(bankAccountError(error)); }
-    finally { pending.current = false;setBusy(false);onBusy(false); }
+    if (!valid || pending.current)
+      return;
+    pending.current = true;
+    setBusy(true);
+    onBusy(true);
+    setMessage('');
+    try {
+      await saveBankAccount(propertyId, id, original, draft, primaryId);
+      await onSaved();
+    } catch (error) {
+      setMessage(bankAccountError(error));
+    } finally {
+      pending.current = false;
+      setBusy(false);
+      onBusy(false);
+    }
   }
+
   return (
     <form
       onSubmit={submit}
@@ -318,10 +388,13 @@ function AccountForm({ propertyId, id, original, primaryId, onCancel, onSaved, o
           title={original ? getBankAccountLabel(original) : '새 통장'}
           account={draft}
           onChange={setDraft}
-          onPrimaryChange={(checked) => { if (!original?.isPrimary || checked) setDraft({
-            ...draft,
-            isPrimary: checked
-          }); }}
+          onPrimaryChange={(checked) => {
+            if (!original?.isPrimary || checked)
+              setDraft({
+                ...draft,
+                isPrimary: checked
+              });
+          }}
           disabled={busy}
         />
         {message && (

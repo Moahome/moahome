@@ -53,8 +53,17 @@ import {
 import styles from './monthlyCollection.module.css';
 
 /** 월별 실제 입금 합계와 청구의 이월·충당·미수를 함께 표시하되 두 기준의 금액을 섞지 않습니다. */
-export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath, filters, onFiltersChange,
-  selectedRowKeys, onSelectionChange, onToggleSelection }: {
+export function MonthlyCollection({
+  propertyId,
+  range,
+  onRangeChange,
+  detailPath,
+  filters,
+  onFiltersChange,
+  selectedRowKeys,
+  onSelectionChange,
+  onToggleSelection
+}: {
   propertyId: string;
   range: MonthRange;
   onRangeChange: (range: MonthRange) => void;
@@ -68,17 +77,25 @@ export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { ledger } = usePaymentWorkspace();
-  const { query, status, building } = filters;
+  const {
+    ledger
+  } = usePaymentWorkspace();
+  const {
+    query,
+    status,
+    building
+  } = filters;
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [selected, setSelected] = useState<{ unitId: string; month: string } | null>(() => {
-    const unitId = searchParams.get('unit');
-    return unitId ? {
-      unitId,
-      month: range.endMonth
-    } : null;
-  });
+  const [selected, setSelected] = useState<{ unitId: string;
+month: string } | null>(() => {
+  const unitId = searchParams.get('unit');
+
+  return unitId ? {
+    unitId,
+    month: range.endMonth
+  } : null;
+});
   const multipleMonths = range.startMonth !== range.endMonth;
   const rows = getMonthlyRangeRows(ledger, range);
   const income = getMonthlyRangeIncome(ledger, range);
@@ -97,10 +114,14 @@ export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath
   const visibleSelectedCount = visible.filter((row) => checkedIds.has(getMonthlyRowKey(row))).length;
   const sum = (key: 'carry' | 'billed' | 'applied' | 'balance') => sumMonthlyRangeRows(rows, range, key);
   const chargeSummary = getMonthlyChargeSummary(rows);
+
   /** 상단 납부·미수는 신규 청구 기준으로 표시하고 이월 원장 값은 그대로 유지합니다. */
   function summaryValue(key: string) {
-    if (key === 'balance') return chargeSummary.receivable;
-    if (key === 'applied') return chargeSummary.applied;
+    if (key === 'balance')
+      return chargeSummary.receivable;
+    if (key === 'applied')
+      return chargeSummary.applied;
+
     return sum(key as 'carry' | 'billed');
   }
 
@@ -197,12 +218,17 @@ export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath
         type={'checkbox'}
         aria-label={multipleMonths ? '현재 페이지 월별 내역 전체 선택' : '현재 페이지 세대 전체 선택'}
         checked={visible.length > 0 && visibleSelectedCount === visible.length}
-        ref={(element) => { if (element) element.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visible.length; }}
+        ref={(element) => {
+          if (element)
+            element.indeterminate = visibleSelectedCount > 0 && visibleSelectedCount < visible.length;
+        }}
         onChange={(event) => {
           const next = new Set(selectedRowKeys);
           visible.forEach((row) => {
-            if (event.target.checked) next.add(getMonthlyRowKey(row));
-            else next.delete(getMonthlyRowKey(row));
+            if (event.target.checked)
+              next.add(getMonthlyRowKey(row));
+            else
+              next.delete(getMonthlyRowKey(row));
           });
           onSelectionChange([...next]);
         }}
@@ -222,8 +248,10 @@ export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath
   /** 페이지를 넘겨도 선택한 월·세대 행을 유지하며 다른 월의 같은 세대는 독립적으로 선택합니다. */
   function toggleSelection(rowKey: string) {
     const next = new Set(selectedRowKeys);
-    if (next.has(rowKey)) next.delete(rowKey);
-    else next.add(rowKey);
+    if (next.has(rowKey))
+      next.delete(rowKey);
+    else
+      next.add(rowKey);
     onSelectionChange([...next]);
   }
 
@@ -232,6 +260,7 @@ export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath
     if (window.matchMedia('(max-width: 767px)').matches) {
       const period = getMonthRangeQuery(searchParams);
       router.push(`${detailPath ?? `/manage/${propertyId}/payments/monthly`}/${month}/${encodeURIComponent(unitId)}${period.size ? `?${period}` : ''}`);
+
       return;
     }
     setSelected({
@@ -414,7 +443,9 @@ export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath
                 onFiltersChange({
                   ...filters,
                   building: value
-                });setSelected(null);setPage(1);
+                });
+                setSelected(null);
+                setPage(1);
               }}
             />
             <Dropdown
@@ -502,7 +533,8 @@ export function MonthlyCollection({ propertyId, range, onRangeChange, detailPath
           unitId={selected.unitId}
           onClose={() => {
             setSelected(null);
-            if (!searchParams.has('unit')) return;
+            if (!searchParams.has('unit'))
+              return;
             const query = new URLSearchParams(searchParams.toString());
             query.delete('unit');
             router.replace(`${pathname}${query.size ? `?${query}` : ''}`, {

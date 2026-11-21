@@ -32,7 +32,9 @@ export function getBuildingLedger(building: BalanceBuilding, entries: readonly B
   return entries.filter((e) => e.buildingId === building.id && isBalanceDateInRange(e.date, month, startMonth))
     .sort((a, b) => `${a.date} ${a.time ?? ''} ${a.id}`.localeCompare(`${b.date} ${b.time ?? ''} ${b.id}`))
     .map((e) => {
-      if (balance !== null) balance += BigInt(e.income) - BigInt(e.expense);
+      if (balance !== null)
+        balance += BigInt(e.income) - BigInt(e.expense);
+
       return {
         ...e,
         balance
@@ -43,5 +45,6 @@ export function getBuildingLedger(building: BalanceBuilding, entries: readonly B
 /** 화면과 보고서가 같은 월 경계로 기간 내 거래를 판정해 일부 달의 내역이 빠지지 않게 합니다. */
 export function isBalanceDateInRange(date: string, endMonth: string, startMonth = endMonth) {
   const month = date.slice(0, 7);
+
   return month >= startMonth && month <= endMonth;
 }

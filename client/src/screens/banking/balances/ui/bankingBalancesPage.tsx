@@ -1,10 +1,13 @@
 'use client';
+
 import { PaymentDetail } from '@/widgets/payment-workspace';
 import {
   BankingBalances,
   BankingIncomeAllocation
 } from '@/widgets/banking-workspace';
-export function BankingBalancesPage({ propertyId }: {
+export function BankingBalancesPage({
+  propertyId
+}: {
     propertyId: string;
 }) {
   return (

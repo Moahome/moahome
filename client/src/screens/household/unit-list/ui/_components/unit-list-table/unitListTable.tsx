@@ -36,11 +36,12 @@ export function UnitListTable({
   });
   const identity = (unit: UnitDraft) => `${hasBuildings ? `${buildingNames.get(unit.buildingClientId ?? '') ?? '—'} ` : ''}${numberLabel(unit)}`;
   const columns: DataTableColumn<UnitDraft>[] = [];
-  if (hasBuildings) columns.push({
-    key: 'building',
-    header: '동',
-    render: (unit) => buildingNames.get(unit.buildingClientId ?? '') ?? '—'
-  });
+  if (hasBuildings)
+    columns.push({
+      key: 'building',
+      header: '동',
+      render: (unit) => buildingNames.get(unit.buildingClientId ?? '') ?? '—'
+    });
   columns.push(
     {
       key: 'number',
@@ -94,13 +95,14 @@ export function UnitListTable({
       header: '가입 현황',
       render: (unit) => {
         const summary = residentSummaries?.[unit.clientId];
-        if (!summary) return (
-          <span
-            className={styles.unavailable}
-          >
-            —
-          </span>
-        );
+        if (!summary)
+          return (
+            <span
+              className={styles.unavailable}
+            >
+              —
+            </span>
+          );
 
         return getUnitSignupLabel(summary);
       }

@@ -56,56 +56,73 @@ const DATE = new Intl.DateTimeFormat('ko-KR', {
 });
 
 /** 주민 화면은 관리자 레이아웃과 세션 복원을 사용하지 않으며 링크의 건물 범위를 먼저 확인합니다. */
-export function ResidentNoticePage({ propertyId, noticeId }: { propertyId?: string; noticeId?: string }) {
+export function ResidentNoticePage({
+  propertyId,
+  noticeId
+}: { propertyId?: string;
+noticeId?: string }) {
   const router = useRouter();
   const base = `/notices/${propertyId}`;
   const context = useQuery({
     queryKey: ['resident-notices', 'context'],
-    queryFn: ({ signal }) => getResidentNoticeContext(signal),
+    queryFn: ({
+      signal
+    }) => getResidentNoticeContext(signal),
     enabled: Boolean(propertyId),
     retry: false,
     gcTime: 0,
     refetchInterval: 30_000
   });
+
   function returnToList() {
-    if (!goBackToRoute(base, (href) => router.replace(href))) router.push(base);
+    if (!goBackToRoute(base, (href) => router.replace(href)))
+      router.push(base);
   }
+
   const permitted = Boolean(propertyId && context.data?.propertyId === propertyId && !context.isError);
+
   /** 진입과 읽기 오류를 먼저 처리해 허용되지 않은 본문을 렌더링하지 않습니다. */
   function renderContent() {
-    if (!propertyId) return (
-      <NoticeEntrance />
-    );
-    if (context.isPending) return (
-      <LoadingState />
-    );
-    if (context.isError) return (
-      <ResidentNoticeError
-        error={context.error}
-        onRetry={() => void context.refetch()}
-      />
-    );
-    if (!permitted) return (
-      <StateMessage
-        variant={'forbidden'}
-        title={'이 링크로 열람할 수 없는 건물이에요'}
-        description={'관리사무소에서 안내받은 링크로 다시 접속해주세요.'}
-      />
-    );
-    if (noticeId) return (
-      <ResidentNoticeArticle
-        key={noticeId}
-        propertyId={propertyId}
-        noticeId={noticeId}
-        onBack={returnToList}
-      />
-    );
+    if (!propertyId)
+      return (
+        <NoticeEntrance />
+      );
+    if (context.isPending)
+      return (
+        <LoadingState />
+      );
+    if (context.isError)
+      return (
+        <ResidentNoticeError
+          error={context.error}
+          onRetry={() => void context.refetch()}
+        />
+      );
+    if (!permitted)
+      return (
+        <StateMessage
+          variant={'forbidden'}
+          title={'이 링크로 열람할 수 없는 건물이에요'}
+          description={'관리사무소에서 안내받은 링크로 다시 접속해주세요.'}
+        />
+      );
+    if (noticeId)
+      return (
+        <ResidentNoticeArticle
+          key={noticeId}
+          propertyId={propertyId}
+          noticeId={noticeId}
+          onBack={returnToList}
+        />
+      );
+
     return (
       <ResidentNoticeList
         propertyId={propertyId}
       />
     );
   }
+
   return (
     <div
       className={styles.page}
@@ -174,12 +191,14 @@ function NoticeEntrance() {
   const router = useRouter();
   const cache = useQueryClient();
   const captured = useRef(false);
-  const [entry, setEntry] = useState<{ ready: boolean; token: string }>({
-    ready: false,
-    token: ''
-  });
+  const [entry, setEntry] = useState<{ ready: boolean;
+token: string }>({
+  ready: false,
+  token: ''
+});
   useEffect(() => {
-    if (captured.current) return;
+    if (captured.current)
+      return;
     captured.current = true;
     const token = new URLSearchParams(window.location.hash.slice(1)).get('token') ?? '';
     window.history.replaceState(window.history.state, '', window.location.pathname);
@@ -200,6 +219,7 @@ function NoticeEntrance() {
           predicate: (query) => query.queryKey[1] !== 'entrance'
         });
       }
+
       return getResidentNoticeContext();
     },
     enabled: entry.ready,
@@ -209,14 +229,17 @@ function NoticeEntrance() {
     gcTime: 0
   });
   useEffect(() => {
-    if (context.data) router.replace(`/notices/${context.data.propertyId}`);
+    if (context.data)
+      router.replace(`/notices/${context.data.propertyId}`);
   }, [context.data, router]);
-  if (context.isError) return (
-    <ResidentNoticeError
-      error={context.error}
-      onRetry={() => void context.refetch()}
-    />
-  );
+  if (context.isError)
+    return (
+      <ResidentNoticeError
+        error={context.error}
+        onRetry={() => void context.refetch()}
+      />
+    );
+
   return (
     <LoadingState
       title={'공지사항을 불러오고 있어요.'}
@@ -224,14 +247,20 @@ function NoticeEntrance() {
   );
 }
 
-function ResidentNoticeError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
-  if (!error || (error instanceof ApiError && error.status === 401)) return (
-    <StateMessage
-      variant={'forbidden'}
-      title={'안내받은 링크로 접속해주세요'}
-      description={'링크가 회수되었거나 열람 시간이 지났을 수 있어요. 관리사무소에서 받은 링크를 다시 열어주세요.'}
-    />
-  );
+function ResidentNoticeError({
+  error,
+  onRetry
+}: { error: unknown;
+onRetry: () => void }) {
+  if (!error || (error instanceof ApiError && error.status === 401))
+    return (
+      <StateMessage
+        variant={'forbidden'}
+        title={'안내받은 링크로 접속해주세요'}
+        description={'링크가 회수되었거나 열람 시간이 지났을 수 있어요. 관리사무소에서 받은 링크를 다시 열어주세요.'}
+      />
+    );
+
   return (
     <RequestError
       error={error}
@@ -240,12 +269,15 @@ function ResidentNoticeError({ error, onRetry }: { error: unknown; onRetry: () =
   );
 }
 
-function ResidentNoticeList({ propertyId }: { propertyId: string }) {
+function ResidentNoticeList({
+  propertyId
+}: { propertyId: string }) {
   const router = useRouter();
   const search = useSearchParams();
   const rawPage = Number(search.get('page') ?? 1);
   const page = Number.isSafeInteger(rawPage) && rawPage > 0 && rawPage <= 1_000_000 ? rawPage : 1;
   const query = search.get('query') ?? '';
+
   return (
     <ResidentNoticeListContent
       key={`${propertyId}:${query}:${page}`}
@@ -254,8 +286,10 @@ function ResidentNoticeList({ propertyId }: { propertyId: string }) {
       query={query}
       onNavigate={(nextPage, nextQuery) => {
         const params = new URLSearchParams();
-        if (nextPage > 1) params.set('page', String(nextPage));
-        if (nextQuery) params.set('query', nextQuery);
+        if (nextPage > 1)
+          params.set('page', String(nextPage));
+        if (nextQuery)
+          params.set('query', nextQuery);
         router.push(`/notices/${propertyId}${params.size ? `?${params}` : ''}`, {
           scroll: false
         });
@@ -264,14 +298,24 @@ function ResidentNoticeList({ propertyId }: { propertyId: string }) {
   );
 }
 
-function ResidentNoticeListContent({ propertyId, page, query, onNavigate }: {
-  propertyId: string; page: number; query: string; onNavigate: (page: number, query: string) => void;
+function ResidentNoticeListContent({
+  propertyId,
+  page,
+  query,
+  onNavigate
+}: {
+  propertyId: string;
+page: number;
+query: string;
+onNavigate: (page: number, query: string) => void;
 }) {
   const router = useRouter();
   const [input, setInput] = useState(query);
   const list = useQuery({
     queryKey: ['resident-notices', propertyId, page, query],
-    queryFn: ({ signal }) => getResidentNotices(propertyId, page, query, signal),
+    queryFn: ({
+      signal
+    }) => getResidentNotices(propertyId, page, query, signal),
     retry: false,
     gcTime: 0,
     refetchInterval: 30_000
@@ -312,6 +356,7 @@ function ResidentNoticeListContent({ propertyId, page, query, onNavigate }: {
       )
     }
   ];
+
   return (
     <section
       className={styles.list}
@@ -324,7 +369,10 @@ function ResidentNoticeListContent({ propertyId, page, query, onNavigate }: {
         <form
           className={styles.search}
           role={'search'}
-          onSubmit={(event) => { event.preventDefault(); onNavigate(1, input.trim()); }}
+          onSubmit={(event) => {
+            event.preventDefault();
+            onNavigate(1, input.trim());
+          }}
         >
           <Input
             aria-label={'공지 제목 검색'}
@@ -447,24 +495,35 @@ function ResidentNoticeListContent({ propertyId, page, query, onNavigate }: {
   );
 }
 
-function ResidentNoticeArticle({ propertyId, noticeId, onBack }: { propertyId: string; noticeId: string; onBack: () => void }) {
+function ResidentNoticeArticle({
+  propertyId,
+  noticeId,
+  onBack
+}: { propertyId: string;
+noticeId: string;
+onBack: () => void }) {
   const notice = useQuery({
     queryKey: ['resident-notices', propertyId, noticeId],
-    queryFn: ({ signal }) => getResidentNotice(propertyId, noticeId, signal),
+    queryFn: ({
+      signal
+    }) => getResidentNotice(propertyId, noticeId, signal),
     retry: false,
     gcTime: 0,
     refetchInterval: 30_000
   });
   const readAsset = useCallback((reference: string, signal?: AbortSignal) => readResidentNoticeAsset(propertyId, noticeId, reference, signal), [propertyId, noticeId]);
-  if (notice.isPending) return (
-    <LoadingState />
-  );
-  if (notice.isError) return (
-    <ResidentNoticeError
-      error={notice.error}
-      onRetry={() => void notice.refetch()}
-    />
-  );
+  if (notice.isPending)
+    return (
+      <LoadingState />
+    );
+  if (notice.isError)
+    return (
+      <ResidentNoticeError
+        error={notice.error}
+        onRetry={() => void notice.refetch()}
+      />
+    );
+
   return (
     <article
       className={styles.article}

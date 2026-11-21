@@ -10,7 +10,11 @@ const COLORS = {
 };
 
 /** 도넛은 기존 수납 대상의 세대 수이며 실제 입금액의 비율과 혼동하지 않게 이름을 구분합니다. */
-export function DashboardPaymentStatus({ report, href }: { report: DashboardReport; href: string }) {
+export function DashboardPaymentStatus({
+  report,
+  href
+}: { report: DashboardReport;
+href: string }) {
   let end = 0;
   const segments = report.states.map((row) => {
     const start = end;

@@ -56,7 +56,8 @@ export function FeeItemEditor({
     itemName: resolvedItemName,
     defaultAmount
   });
-  if (!feeKind) errors.itemCode = '항목 종류를 선택해주세요.';
+  if (!feeKind)
+    errors.itemCode = '항목 종류를 선택해주세요.';
   const title = `관리비 항목 ${item ? '수정' : '추가'}`;
 
   useEffect(() => {
@@ -66,19 +67,23 @@ export function FeeItemEditor({
     dialog?.showModal();
     document.body.style.overflow = 'hidden';
     kindRef.current?.focus();
+
     return () => {
       dialog?.close();
       document.body.style.overflow = previousOverflow;
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected)
+        previousFocus.focus();
     };
   }, []);
 
   /** 추천 이름은 선택지로 고정하고 직접 입력으로 전환하면 이전 이름·검증 표시를 비워 새로 작성하게 합니다. */
   function changeFeeKind(value: string) {
-    if (value === feeKind) return;
+    if (value === feeKind)
+      return;
 
     const option = FEE_ITEM_OPTIONS.find((entry) => entry.value === value);
-    if (!option && value !== DIRECT_INPUT) return;
+    if (!option && value !== DIRECT_INPUT)
+      return;
 
     setFeeKind(value);
     setItemName('');
@@ -97,7 +102,8 @@ export function FeeItemEditor({
       itemName: true,
       defaultAmount: true
     });
-    if (Object.keys(errors).length) return;
+    if (Object.keys(errors).length)
+      return;
     onSave({
       clientId: item?.clientId ?? crypto.randomUUID(),
       itemCode: selectedOption?.value ?? null,

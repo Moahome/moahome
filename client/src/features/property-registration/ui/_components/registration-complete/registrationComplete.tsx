@@ -2,7 +2,6 @@
 
 import { getBankAccountLabel } from '@/entities/banking';
 
-
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { StateIllustration } from '@/shared/ui/state-message';
@@ -37,38 +36,40 @@ export function RegistrationComplete({
   const router = useRouter();
   const hasDraft = showDetails && draft.basicInfoValidated && draft.units.length > 0;
   const primary = draft.bankAccounts.find((account) => account.isPrimary) ?? draft.bankAccounts[0];
-  const information: { label: string; value: string; icon: ServiceIconName }[] = [
-    {
-      label: '관리할 곳',
-      value: result.property.name,
-      icon: 'building'
-    },
-    {
-      label: '주소',
-      value: hasDraft ? [draft.basicInfo.address, draft.basicInfo.addressDetail].filter(Boolean).join(' ') : '주소 등록 완료',
-      icon: 'location'
-    },
-    {
-      label: '동·세대',
-      value: `${result.property.hasBuildings ? `${result.summary.buildingCount}개 동` : '동 없음'} · 총 ${result.summary.unitCount}세대`,
-      icon: 'users'
-    },
-    {
-      label: '관리계좌',
-      value: hasDraft ? `${draft.bankAccounts.length}개 통장 · 기본 ${getBankAccountLabel(primary)}` : `관리계좌 ${result.summary.bankAccountCount}개 등록 완료`,
-      icon: 'bank'
-    },
-    {
-      label: '예금주',
-      value: hasDraft ? primary.holderName : '예금주 등록 완료',
-      icon: 'person'
-    },
-    {
-      label: '세대당 월 기본 관리비',
-      value: formatWon(result.summary.monthlyDefaultAmount),
-      icon: 'coins'
-    }
-  ];
+  const information: { label: string;
+value: string;
+icon: ServiceIconName }[] = [
+  {
+    label: '관리할 곳',
+    value: result.property.name,
+    icon: 'building'
+  },
+  {
+    label: '주소',
+    value: hasDraft ? [draft.basicInfo.address, draft.basicInfo.addressDetail].filter(Boolean).join(' ') : '주소 등록 완료',
+    icon: 'location'
+  },
+  {
+    label: '동·세대',
+    value: `${result.property.hasBuildings ? `${result.summary.buildingCount}개 동` : '동 없음'} · 총 ${result.summary.unitCount}세대`,
+    icon: 'users'
+  },
+  {
+    label: '관리계좌',
+    value: hasDraft ? `${draft.bankAccounts.length}개 통장 · 기본 ${getBankAccountLabel(primary)}` : `관리계좌 ${result.summary.bankAccountCount}개 등록 완료`,
+    icon: 'bank'
+  },
+  {
+    label: '예금주',
+    value: hasDraft ? primary.holderName : '예금주 등록 완료',
+    icon: 'person'
+  },
+  {
+    label: '세대당 월 기본 관리비',
+    value: formatWon(result.summary.monthlyDefaultAmount),
+    icon: 'coins'
+  }
+];
 
   useEffect(() => {
     headingRef.current?.focus({

@@ -61,6 +61,7 @@ function requireRepresentativeResult(result: ResidentDetail, unitId: string | nu
     || (result.currentRepresentativeId !== undefined && result.currentRepresentativeId !== result.id)) {
     throw new ApiError(200, 'REPRESENTATIVE_NOT_APPLIED', '대표 지정이 반영되지 않았습니다.');
   }
+
   return result;
 }
 
@@ -70,6 +71,7 @@ export async function updateResident(propertyId: string, residentId: string, inp
     method: 'PUT',
     data: input
   }), propertyId, residentId);
+
   return input.designateRepresentative ? requireRepresentativeResult(result, input.unitId) : result;
 }
 
@@ -85,6 +87,7 @@ export async function designateResidentRepresentative(propertyId: string, reside
         expectedRepresentativeResidentId: resident.currentRepresentativeId ?? null
       }
     }), propertyId, resident.id);
+
     return requireRepresentativeResult(result, resident.unitId);
   } catch (error) {
     // 명부 부재는 기존 오류를 유지하고, 전용 경로를 제공하지 않는 서버의 404를 구분합니다.

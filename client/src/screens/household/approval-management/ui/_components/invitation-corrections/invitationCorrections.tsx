@@ -35,7 +35,11 @@ import { Pagination } from '@/shared/ui/pagination';
 import styles from './invitationCorrections.module.css';
 
 /** 개인 초대의 정정 대기는 기존 일반 신청과 출처를 구분하고 명부 수정 권한이 있는 관리자만 검토합니다. */
-export function InvitationCorrections({ propertyId, onBusyChange }: { propertyId: string; onBusyChange: (busy: boolean) => void }) {
+export function InvitationCorrections({
+  propertyId,
+  onBusyChange
+}: { propertyId: string;
+onBusyChange: (busy: boolean) => void }) {
   const session = useSession();
   const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const client = useQueryClient();
@@ -43,7 +47,9 @@ export function InvitationCorrections({ propertyId, onBusyChange }: { propertyId
   const key = ['resident-invitations', session.data?.id, propertyId];
   const query = useQuery({
     queryKey: key,
-    queryFn: ({ signal }) => getResidentInvitations(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getResidentInvitations(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
@@ -57,10 +63,14 @@ export function InvitationCorrections({ propertyId, onBusyChange }: { propertyId
   const rows = (query.data?.invitations ?? []).filter((row) => ['CHANGE_REQUESTED', 'APPROVED', 'REJECTED'].includes(row.status));
   const pages = Math.max(1, Math.ceil(rows.length / size));
   const current = Math.min(page, pages);
+
   /** 정정 검토 응답 전에는 탭 이동과 중복 처리를 막고 서버 결과로만 목록을 갱신합니다. */
   async function review(row: ResidentInvitation, action: 'approve' | 'reject') {
-    if (pending.current) return;
-    pending.current = true; setBusy(true); setNotice('');
+    if (pending.current)
+      return;
+    pending.current = true;
+    setBusy(true);
+    setNotice('');
     onBusyChange(true);
     try {
       setPropertyQueryData(client, key, await reviewResidentInvitation(propertyId, row.id, row.revision, action), propertyScope);
@@ -69,22 +79,31 @@ export function InvitationCorrections({ propertyId, onBusyChange }: { propertyId
           && q.queryKey[1] === session.data?.id && q.queryKey[2] === propertyId
       });
       setNotice(action === 'approve' ? '명부를 정정하고 주민 가입을 승인했어요.' : '정정 요청을 거절했어요. 명부는 변경하지 않았습니다.');
-    } catch (failure) { setNotice(memberManagementError(failure)); }
-    finally { pending.current = false; setBusy(false); onBusyChange(false); }
+    } catch (failure) {
+      setNotice(memberManagementError(failure));
+    } finally {
+      pending.current = false;
+      setBusy(false);
+      onBusyChange(false);
+    }
   }
-  if (query.isPending) return (
-    <LoadingState
-      title={'개인 초대 요청을 불러오고 있어요.'}
-    />
-  );
-  if (query.isError) return (
-    <RequestError
-      error={query.error}
-      onRetry={() => void query.refetch({
-        cancelRefetch: false
-      })}
-    />
-  );
+
+  if (query.isPending)
+    return (
+      <LoadingState
+        title={'개인 초대 요청을 불러오고 있어요.'}
+      />
+    );
+  if (query.isError)
+    return (
+      <RequestError
+        error={query.error}
+        onRetry={() => void query.refetch({
+          cancelRefetch: false
+        })}
+      />
+    );
+
   return (
     <ListCard>
       <ListToolbar
@@ -92,7 +111,10 @@ export function InvitationCorrections({ propertyId, onBusyChange }: { propertyId
         unit={'건'}
         sizeLabel={'페이지당 초대 가입 내역 수'}
         pageSize={size}
-        onSizeChange={(value) => { setSize(value); setPage(1); }}
+        onSizeChange={(value) => {
+          setSize(value);
+          setPage(1);
+        }}
       />
       <DataTable
         label={'초대 가입 목록'}
@@ -156,8 +178,11 @@ export function InvitationCorrections({ propertyId, onBusyChange }: { propertyId
             key: 'actions',
             header: '처리',
             render: (row) => {
-              if (row.status !== 'CHANGE_REQUESTED') return '—';
-              if (!context.data) return '권한 확인 중';
+              if (row.status !== 'CHANGE_REQUESTED')
+                return '—';
+              if (!context.data)
+                return '권한 확인 중';
+
               return (
                 <div
                   className={styles.actions}

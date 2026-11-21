@@ -1,6 +1,8 @@
 import { ServiceHeader } from '@/widgets/service-header';
 import { SystemAdminMemberDetail } from '@/widgets/system-admin';
-export function SystemMemberDetailPage({ userId }: { userId: string }) {
+export function SystemMemberDetailPage({
+  userId
+}: { userId: string }) {
   return (
     <SystemAdminMemberDetail
       userId={userId}

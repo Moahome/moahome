@@ -52,23 +52,27 @@ export function ManagementLayout({
   usePreservedWorkspace(suspended, workspaceRef, errorRef);
 
   useEffect(() => {
-    if (requiresLogin) window.location.replace('/login');
+    if (requiresLogin)
+      window.location.replace('/login');
   }, [requiresLogin]);
 
   useEffect(() => {
     /** 캐시 복원 전 개인정보를 숨기고 새 문서에서 로그인과 등록 결과를 다시 확인합니다. */
     function hideLeavingPage() {
-      if (!pageRef.current) return;
+      if (!pageRef.current)
+        return;
       pageRef.current.style.display = 'none';
       pageRef.current.inert = true;
     }
 
     function revalidateRestoredPage(event: PageTransitionEvent) {
-      if (event.persisted) window.location.reload();
+      if (event.persisted)
+        window.location.reload();
     }
 
     window.addEventListener('pagehide', hideLeavingPage);
     window.addEventListener('pageshow', revalidateRestoredPage);
+
     return () => {
       window.removeEventListener('pagehide', hideLeavingPage);
       window.removeEventListener('pageshow', revalidateRestoredPage);

@@ -20,6 +20,8 @@ export const metadata: Metadata = {
   }
 };
 
-export default function ResidentNoticeLayout({ children }: { children: ReactNode }) {
+export default function ResidentNoticeLayout({
+  children
+}: { children: ReactNode }) {
   return children;
 }

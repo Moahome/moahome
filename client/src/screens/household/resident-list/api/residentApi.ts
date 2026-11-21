@@ -15,9 +15,11 @@ export async function getResidents(propertyId: string, signal?: AbortSignal): Pr
   });
   const invalid = () => new ApiError(200, 'INVALID_RESPONSE', '주민 목록을 확인할 수 없습니다.');
   if (!result || result.propertyId !== propertyId || typeof result.hasBuildings !== 'boolean'
-    || !Array.isArray(result.buildings) || !Array.isArray(result.residents)) throw invalid();
+    || !Array.isArray(result.buildings) || !Array.isArray(result.residents))
+    throw invalid();
   if (result.buildings.some((building) => !building || !isPropertyId(building.id)
-    || typeof building.name !== 'string' || !building.name.trim())) throw invalid();
+    || typeof building.name !== 'string' || !building.name.trim()))
+    throw invalid();
   const ids = new Set<string>();
   for (const row of result.residents) {
     if (!row || !isPropertyId(row.id) || ids.has(row.id) || typeof row.name !== 'string' || !row.name.trim()
@@ -26,11 +28,16 @@ export async function getResidents(propertyId: string, signal?: AbortSignal): Pr
       || !(row.buildingId === null || isPropertyId(row.buildingId))
       || !(row.unitNumber === null || (typeof row.unitNumber === 'string' && Boolean(row.unitNumber.trim())))
       || !(row.relationType === null || RESIDENT_RELATION_OPTIONS.some((option) => option.value === row.relationType))
-      || typeof row.representative !== 'boolean' || !RESIDENT_SIGNUP_OPTIONS.some((option) => option.value === row.signupStatus)) throw invalid();
-    if (!(row.serviceRole === undefined || row.serviceRole === null || ['ADMIN', 'MANAGER', 'RESIDENT', 'CONFLICT'].includes(row.serviceRole))) throw invalid();
-    if (row.unitId === null && (row.buildingId !== null || row.unitNumber !== null || row.relationType !== null || row.representative)) throw invalid();
-    if (row.unitId !== null && (row.unitNumber === null || row.relationType === null)) throw invalid();
-    if (!result.hasBuildings && row.buildingId !== null) throw invalid();
+      || typeof row.representative !== 'boolean' || !RESIDENT_SIGNUP_OPTIONS.some((option) => option.value === row.signupStatus))
+      throw invalid();
+    if (!(row.serviceRole === undefined || row.serviceRole === null || ['ADMIN', 'MANAGER', 'RESIDENT', 'CONFLICT'].includes(row.serviceRole)))
+      throw invalid();
+    if (row.unitId === null && (row.buildingId !== null || row.unitNumber !== null || row.relationType !== null || row.representative))
+      throw invalid();
+    if (row.unitId !== null && (row.unitNumber === null || row.relationType === null))
+      throw invalid();
+    if (!result.hasBuildings && row.buildingId !== null)
+      throw invalid();
     ids.add(row.id);
   }
 

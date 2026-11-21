@@ -273,7 +273,7 @@ for (const width of [1440, 390]) {
   });
 }
 for (const width of [1440, 320]) {
-  test(`관리비 ${width}px 검색·페이지·달력·행 상세와 직접 재진입`, async ({page}) => {
+  test(`관리비 ${width}px 검색·페이지·달력·행 상세와 직접 재진입`, async ({ page }) => {
     await mockBilling(page); await page.setViewportSize({
       width,
       height:960
@@ -654,7 +654,7 @@ test('오류 모달은 헤더 X·바깥 클릭으로 닫고 재시도하면 상�
   await page.mouse.click(8, 8);
   await expect(modal).not.toBeVisible();
 });
-test('설정하기는 별도 편집 페이지·사유 필수·음수와 0원 저장·새로고침 보존', async ({page}) => {
+test('설정하기는 별도 편집 페이지·사유 필수·음수와 0원 저장·새로고침 보존', async ({ page }) => {
   const state=await mockBilling(page); await page.goto(`${BASE}?tab=items`); const main=page.getByRole('main');
   await main.getByRole('button',{
     name:'설정하기',
@@ -723,7 +723,7 @@ test('설정하기는 별도 편집 페이지·사유 필수·음수와 0원 저
     exact:true
   })).toHaveValue('');
 });
-test('업무 API 권한·장애·다른 대상 응답을 빈 청구로 숨기지 않음', async ({page}) => {
+test('업무 API 권한·장애·다른 대상 응답을 빈 청구로 숨기지 않음', async ({ page }) => {
   const state=await mockBilling(page); state.monthFailure=403; await page.goto(BASE); const main=page.getByRole('main');
   await expect(main.getByText('접근 권한을 확인해주세요',{
     exact:true

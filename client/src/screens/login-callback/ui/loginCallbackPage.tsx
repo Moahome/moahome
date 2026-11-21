@@ -79,6 +79,7 @@ export function LoginCallbackPage() {
   useEffect(() => {
     if (session.error instanceof ApiError && session.error.code === 'ACCOUNT_RECOVERY_REQUIRED') {
       router.replace('/account/recovery');
+
       return;
     }
     // 본인 정보까지 확인한 후 이동하며 콜백을 이력에 남기지 않아 뒤로 가기로 복원을 반복하지 않습니다.
@@ -103,17 +104,18 @@ export function LoginCallbackPage() {
     description = state.message;
   }
 
-  if (state.status === 'error' && state.canRetry && isServerConnectionError(session.error)) return (
-    <main
-      ref={pageRef}
-      className={styles.page}
-    >
-      <ServerConnectionError
-        error={session.error}
-        onRetry={retryRestore}
-      />
-    </main>
-  );
+  if (state.status === 'error' && state.canRetry && isServerConnectionError(session.error))
+    return (
+      <main
+        ref={pageRef}
+        className={styles.page}
+      >
+        <ServerConnectionError
+          error={session.error}
+          onRetry={retryRestore}
+        />
+      </main>
+    );
 
   return (
     <main

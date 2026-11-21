@@ -15,8 +15,10 @@ import type {
 
 /** 잘못된 자료형·주민 역할을 관리 권한으로 해석하지 않습니다. */
 function isManagementProperty(value: unknown): value is ManagementProperty {
-  if (!value || typeof value !== 'object') return false;
+  if (!value || typeof value !== 'object')
+    return false;
   const property = value as Partial<ManagementProperty>;
+
   return isPropertyId(property.propertyId) && typeof property.name === 'string' && Boolean(property.name.trim())
     && (property.role === 'ADMIN' || property.role === 'MANAGER');
 }
@@ -33,6 +35,7 @@ export async function getManagedProperties(signal?: AbortSignal): Promise<Manage
   if (new Set(response.properties.map((property) => property.propertyId)).size !== response.properties.length) {
     throw new ApiError(200, 'INVALID_RESPONSE', '관리할 곳 목록을 확인할 수 없습니다.');
   }
+
   return response.properties;
 }
 
@@ -45,6 +48,7 @@ export async function getManagementContext(propertyId: string, signal?: AbortSig
   if (!isManagementProperty(response) || response.propertyId !== propertyId) {
     throw new ApiError(200, 'INVALID_RESPONSE', '관리 권한을 확인할 수 없습니다.');
   }
+
   return response;
 }
 
@@ -58,6 +62,7 @@ export async function getResidentProperties(signal?: AbortSignal): Promise<Resid
     || new Set(response.properties.map((row) => row.propertyId)).size !== response.properties.length) {
     throw new ApiError(200, 'INVALID_RESPONSE', '주민 참여 정보를 확인할 수 없습니다.');
   }
+
   return response.properties;
 }
 
@@ -71,6 +76,7 @@ export async function getParticipatingProperties(signal?: AbortSignal): Promise<
   if (new Set(properties.map((property) => property.propertyId)).size !== properties.length) {
     throw new ApiError(200, 'INVALID_RESPONSE', '참여 중인 곳의 역할을 확인할 수 없습니다.');
   }
+
   return properties;
 }
 
@@ -85,5 +91,6 @@ export async function getPropertyAccessContext(propertyId: string, signal?: Abor
     || !['ADMIN', 'MANAGER', 'RESIDENT'].includes(response.role) || typeof response.residentEligible !== 'boolean') {
     throw new ApiError(200, 'INVALID_RESPONSE', '현재 접근 권한을 확인할 수 없습니다.');
   }
+
   return response;
 }

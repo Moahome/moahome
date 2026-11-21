@@ -4,6 +4,7 @@ import { useId } from 'react';
 
 export function NeighborhoodIllustration() {
   const illustrationId = useId();
+
   return (
     <svg
       viewBox={'0 0 680 330'}

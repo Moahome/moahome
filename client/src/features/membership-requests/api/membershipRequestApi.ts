@@ -35,6 +35,7 @@ function read(value: SignupWorkspace, property: string) {
 
   return value;
 }
+
 export async function getSignupRequests(property: string, signal?: AbortSignal) {
   return read(await authenticatedAPI<SignupWorkspace>({
     signal,

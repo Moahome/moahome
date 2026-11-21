@@ -9,8 +9,13 @@ export const metadata: Metadata = {
   }
 };
 
-export default async function Page({ params }: PageProps<'/manage/[propertyId]/billing/monthly/initial-correction'>) {
-  const { propertyId } = await params;
+export default async function Page({
+  params
+}: PageProps<'/manage/[propertyId]/billing/monthly/initial-correction'>) {
+  const {
+    propertyId
+  } = await params;
+
   return (
     <BillingOpeningCorrectionPage
       propertyId={propertyId}

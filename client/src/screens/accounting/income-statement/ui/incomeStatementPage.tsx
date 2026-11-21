@@ -48,15 +48,21 @@ import { IncomeTrend } from './_components/income-trend/incomeTrend';
 import styles from './incomeStatementPage.module.css';
 
 /** 서버가 권한·원천·확인 상태를 검사한 자료만 조회 조건별 손익과 보고서에 연결합니다. */
-export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
+export function IncomeStatementPage({
+  propertyId,
+  presentation = 'main'
+}: {
   propertyId: string;
   presentation?: 'main' | 'sources' | 'review';
 }) {
   const search = useSearchParams();
   const router = useRouter();
-  const { openDownload } = useReportDownload();
+  const {
+    openDownload
+  } = useReportDownload();
   const filterQuery = new URLSearchParams(search.toString());
-  for (const key of ['view', 'sources', 'sourceStatus', 'sourcePage', 'sourceSize', 'kind', 'item']) filterQuery.delete(key);
+  for (const key of ['view', 'sources', 'sourceStatus', 'sourcePage', 'sourceSize', 'kind', 'item'])
+    filterQuery.delete(key);
   const queryKey = filterQuery.toString();
   const session = useSession();
   const cache = useQueryClient();
@@ -73,7 +79,9 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
   const validQuery = (!requested || isValidMonthRange(requested)) && (!buildingId || isPropertyId(buildingId));
   const query = useQuery({
     queryKey: ['income-statement', session.data?.id, propertyId, requested?.startMonth, requested?.endMonth, buildingId],
-    queryFn: ({ signal }) => getIncomeStatementWorkspace({
+    queryFn: ({
+      signal
+    }) => getIncomeStatementWorkspace({
       propertyId,
       startMonth: requested?.startMonth,
       endMonth: requested?.endMonth,
@@ -120,10 +128,12 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
       if (window.matchMedia('(max-width: 767px)').matches) {
         params.delete('sources');
         router.push(`${base}/sources?${params}`);
+
         return;
       }
     } else {
-      for (const key of ['sources', 'sourceStatus', 'sourcePage', 'sourceSize']) params.delete(key);
+      for (const key of ['sources', 'sourceStatus', 'sourcePage', 'sourceSize'])
+        params.delete(key);
     }
     router.replace(`${base}${params.size ? `?${params}` : ''}`, {
       scroll: false
@@ -134,6 +144,7 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
   function openEditor(target: AccountingEditorTarget) {
     if (!window.matchMedia('(max-width: 767px)').matches) {
       setEditor(target);
+
       return;
     }
     const params = new URLSearchParams(search.toString());
@@ -147,12 +158,14 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
   function closeEditor() {
     if (presentation !== 'review') {
       setEditor(null);
+
       return;
     }
     const params = new URLSearchParams(search.toString());
     params.delete('kind');
     params.delete('item');
-    if (!goBackToPreviousRoute()) router.replace(`${base}/sources?${params}`);
+    if (!goBackToPreviousRoute())
+      router.replace(`${base}/sources?${params}`);
   }
 
   /** 주소의 ID는 현재 관리대상 응답에서만 찾아 다른 대상·삭제 원천을 입력 화면에 연결하지 않습니다. */
@@ -160,6 +173,7 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
     const item = search.get('item');
     if (search.get('kind') === 'expense') {
       const value = data?.expenses.find((value) => value.id === item);
+
       return value ? {
         kind: 'expense',
         value
@@ -167,20 +181,25 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
     }
     if (search.get('kind') === 'revenue') {
       const value = data?.revenueItems.find((value) => value.id === item);
+
       return value ? {
         kind: 'revenue',
         value
       } : null;
     }
+
     return null;
   }
 
   /** 기간 선택창의 조회와 바깥 조회 버튼을 같은 처리로 연결하며 확정한 새 기간을 바로 주소에 반영합니다. */
   function applyFilters(nextRange = draft.range) {
-    if (!isValidMonthRange(nextRange)) return;
+    if (!isValidMonthRange(nextRange))
+      return;
     const params = setMonthRangeQuery(new URLSearchParams(search.toString()), nextRange);
-    if (draft.buildingId) params.set('building', draft.buildingId);
-    else params.delete('building');
+    if (draft.buildingId)
+      params.set('building', draft.buildingId);
+    else
+      params.delete('building');
     router.replace(`${base}?${params}`, {
       scroll: false
     });
@@ -189,53 +208,65 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
   /** 모바일 다운로드에서 복귀해도 월별·누계 선택을 같은 주소에서 복원합니다. */
   function changeMode(value: boolean) {
     const params = new URLSearchParams(search.toString());
-    if (value) params.set('view', 'cumulative');
-    else params.delete('view');
+    if (value)
+      params.set('view', 'cumulative');
+    else
+      params.delete('view');
     router.replace(`${base}${params.size ? `?${params}` : ''}`, {
       scroll: false
     });
   }
 
   if (presentation !== 'main') {
-    if (!validQuery) return (
-      <StateMessage
-        variant={'no-results'}
-        title={'조회 기간·동을 다시 선택해주세요.'}
-      />
-    );
-    if (query.isError) return (
-      <RequestError
-        error={query.error}
-        onRetry={() => void query.refetch()}
-      />
-    );
-    if (!data || query.isPending) return (
-      <LoadingState
-        title={'손익 자료를 불러오고 있어요.'}
-      />
-    );
-    if (presentation === 'sources') return (
-      <AccountingChecks
-        data={data}
-        presentation={'page'}
-        onClose={() => { if (!goBackToPreviousRoute()) router.replace(base); }}
-        onEdit={openEditor}
-        onSource={(path) => router.push(`/manage/${propertyId}${path}`)}
-      />
-    );
+    if (!validQuery)
+      return (
+        <StateMessage
+          variant={'no-results'}
+          title={'조회 기간·동을 다시 선택해주세요.'}
+        />
+      );
+    if (query.isError)
+      return (
+        <RequestError
+          error={query.error}
+          onRetry={() => void query.refetch()}
+        />
+      );
+    if (!data || query.isPending)
+      return (
+        <LoadingState
+          title={'손익 자료를 불러오고 있어요.'}
+        />
+      );
+    if (presentation === 'sources')
+      return (
+        <AccountingChecks
+          data={data}
+          presentation={'page'}
+          onClose={() => {
+            if (!goBackToPreviousRoute())
+              router.replace(base);
+          }}
+          onEdit={openEditor}
+          onSource={(path) => router.push(`/manage/${propertyId}${path}`)}
+        />
+      );
     const target = getPageEditor();
-    if (!data.canManage) return (
-      <StateMessage
-        variant={'forbidden'}
-        title={'분류 권한이 없습니다.'}
-      />
-    );
-    if (!target) return (
-      <StateMessage
-        variant={'not-found'}
-        title={'분류할 자료를 찾을 수 없습니다.'}
-      />
-    );
+    if (!data.canManage)
+      return (
+        <StateMessage
+          variant={'forbidden'}
+          title={'분류 권한이 없습니다.'}
+        />
+      );
+    if (!target)
+      return (
+        <StateMessage
+          variant={'not-found'}
+          title={'분류할 자료를 찾을 수 없습니다.'}
+        />
+      );
+
     return (
       <AccountingEditor
         propertyId={propertyId}
@@ -243,9 +274,11 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
         target={target}
         presentation={'page'}
         onClose={closeEditor}
-        onSaved={async () => { await cache.invalidateQueries({
-          queryKey: ['income-statement', session.data?.id, propertyId]
-        }); }}
+        onSaved={async () => {
+          await cache.invalidateQueries({
+            queryKey: ['income-statement', session.data?.id, propertyId]
+          });
+        }}
       />
     );
   }
@@ -270,7 +303,8 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
               />
             )}
             onClick={() => {
-              if (!report) return;
+              if (!report)
+                return;
               openDownload({
                 pageHref: `${base}/download?${search.toString()}`,
                 render: (presentation, onClose) => (
@@ -318,7 +352,10 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
       <form
         className={styles.filters}
         aria-label={'손익 조회 조건'}
-        onSubmit={(event) => { event.preventDefault(); applyFilters(); }}
+        onSubmit={(event) => {
+          event.preventDefault();
+          applyFilters();
+        }}
       >
         <Dropdown
           aria-label={'조회 동'}
@@ -542,6 +579,7 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
           onSource={(path) => {
             if (window.matchMedia('(max-width: 767px)').matches || path.startsWith('/billing/') || path.startsWith('/banking/balances') || path === '/banking/transactions') {
               router.push(`/manage/${propertyId}${path}`);
+
               return;
             }
             setSource(path);
@@ -566,9 +604,11 @@ export function IncomeStatementPage({ propertyId, presentation = 'main' }: {
           data={data}
           target={editor}
           onClose={closeEditor}
-          onSaved={async () => { await cache.invalidateQueries({
-            queryKey: ['income-statement', session.data?.id, propertyId]
-          }); }}
+          onSaved={async () => {
+            await cache.invalidateQueries({
+              queryKey: ['income-statement', session.data?.id, propertyId]
+            });
+          }}
         />
       )}
     </div>

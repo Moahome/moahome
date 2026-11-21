@@ -44,14 +44,20 @@ interface PaymentWorkspaceContextValue {
 const PaymentWorkspaceContext = createContext<PaymentWorkspaceContextValue | null>(null);
 
 /** 계정·관리대상별 실제 원장을 조회하고 조회 장애를 예시 데이터나 빈 수납으로 대체하지 않습니다. */
-export function PaymentWorkspaceProvider({ propertyId, children }: { propertyId: string; children: ReactNode }) {
+export function PaymentWorkspaceProvider({
+  propertyId,
+  children
+}: { propertyId: string;
+children: ReactNode }) {
   const session = useSession();
   const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const cache = useQueryClient();
   const key = ['payment-workspace', session.data?.id, propertyId];
   const query = useQuery({
     queryKey: key,
-    queryFn: ({ signal }) => getPaymentLedger(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getPaymentLedger(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     staleTime: 0,
@@ -62,12 +68,15 @@ export function PaymentWorkspaceProvider({ propertyId, children }: { propertyId:
   const [selectedMonth, setMonth] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const [notice, setNotice] = useState<{ id: number; message: string } | null>(null);
+  const [notice, setNotice] = useState<{ id: number;
+message: string } | null>(null);
 
   /** 중복 클릭을 동기적으로 차단하고 서버 응답으로만 교체하며 실패 시 입력과 기존 원장을 유지합니다. */
   async function update(command: PaymentCommand, message: string, onSaved?: (ledger: PreviewLedger) => void): Promise<string | null> {
-    if (busyRef.current) return '입금을 처리하고 있어요. 잠시 기다려주세요.';
-    busyRef.current = true; setBusy(true);
+    if (busyRef.current)
+      return '입금을 처리하고 있어요. 잠시 기다려주세요.';
+    busyRef.current = true;
+    setBusy(true);
     await cache.cancelQueries({
       queryKey: key
     });
@@ -90,29 +99,37 @@ export function PaymentWorkspaceProvider({ propertyId, children }: { propertyId:
         id: Date.now(),
         message
       });
+
       return null;
     } catch (error) {
       // 충돌 이후 최신 청구 잔액은 다시 읽되 폼의 초안은 그대로 보존합니다.
       void cache.invalidateQueries({
         queryKey: key
       });
+
       return paymentError(error);
-    } finally { busyRef.current = false; setBusy(false); }
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
   }
 
-  if (!session.data || query.isPending) return (
-    <LoadingState
-      title={'입금 정보를 불러오고 있어요.'}
-    />
-  );
-  if (!query.data) return (
-    <RequestError
-      error={query.error}
-      onRetry={() => void query.refetch({
-        cancelRefetch: false
-      })}
-    />
-  );
+  if (!session.data || query.isPending)
+    return (
+      <LoadingState
+        title={'입금 정보를 불러오고 있어요.'}
+      />
+    );
+  if (!query.data)
+    return (
+      <RequestError
+        error={query.error}
+        onRetry={() => void query.refetch({
+          cancelRefetch: false
+        })}
+      />
+    );
+
   return (
     <PaymentWorkspaceContext.Provider
       value={{
@@ -125,9 +142,11 @@ export function PaymentWorkspaceProvider({ propertyId, children }: { propertyId:
         updatedAt: query.dataUpdatedAt,
         refreshing: query.isFetching,
         refreshFailed: query.isError,
-        refresh: () => { void query.refetch({
-          cancelRefetch: false
-        }); }
+        refresh: () => {
+          void query.refetch({
+            cancelRefetch: false
+          });
+        }
       }}
     >
       {children}
@@ -143,6 +162,8 @@ export function PaymentWorkspaceProvider({ propertyId, children }: { propertyId:
 }
 export function usePaymentWorkspace() {
   const value = useContext(PaymentWorkspaceContext);
-  if (!value) throw new Error('입금 관리 레이아웃이 필요합니다.');
+  if (!value)
+    throw new Error('입금 관리 레이아웃이 필요합니다.');
+
   return value;
 }

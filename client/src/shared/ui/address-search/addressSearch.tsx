@@ -35,19 +35,22 @@ export function AddressSearch({
     const container = containerRef.current;
 
     loadPostcodeService().then((service) => {
-      if (!active || !container) return;
+      if (!active || !container)
+        return;
 
       container.replaceChildren();
       new service.Postcode({
         width: '100%',
         height: '100%',
         oncomplete: (data) => {
-          if (!active) return;
+          if (!active)
+            return;
 
           const address = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
 
           if (!(address || data.address)?.trim()) {
             setHasError(true);
+
             return;
           }
 
@@ -56,7 +59,8 @@ export function AddressSearch({
       }).embed(container);
       setIsLoading(false);
     }).catch(() => {
-      if (!active) return;
+      if (!active)
+        return;
 
       setIsLoading(false);
       setHasError(true);
@@ -107,15 +111,16 @@ export function AddressSearch({
     </>
   );
 
-  if (inline) return (
-    <div
-      className={styles.inline}
-      role={'region'}
-      aria-label={'주소 검색'}
-    >
-      {content}
-    </div>
-  );
+  if (inline)
+    return (
+      <div
+        className={styles.inline}
+        role={'region'}
+        aria-label={'주소 검색'}
+      >
+        {content}
+      </div>
+    );
 
   return (
     <ClientModal

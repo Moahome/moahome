@@ -56,14 +56,22 @@ import { formatInteger } from '@/shared/lib/format';
 import styles from './openingBalances.module.css';
 
 /** 계정·관리대상별 초안을 읽고 저장 성공한 서버 버전으로만 편집 화면을 교체합니다. */
-export function OpeningBalances({ propertyId, uploadPage = false, correctionPage = false }: { propertyId: string; uploadPage?: boolean; correctionPage?: boolean }) {
+export function OpeningBalances({
+  propertyId,
+  uploadPage = false,
+  correctionPage = false
+}: { propertyId: string;
+uploadPage?: boolean;
+correctionPage?: boolean }) {
   const session = useSession();
   const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const client = useQueryClient();
   const queryKey = ['opening-balances', session.data?.id, propertyId];
   const query = useQuery({
     queryKey,
-    queryFn: ({ signal }) => getOpeningBalances(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getOpeningBalances(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
@@ -79,19 +87,21 @@ export function OpeningBalances({ propertyId, uploadPage = false, correctionPage
   const draftSeed = draftQuery.data;
   const currentDraft = draftSeed && draftSeed.batchId === (query.data?.batch?.id ?? null)
     && draftSeed.revision === (query.data?.batch?.revision ?? null) ? draftSeed : null;
-  if (query.isPending) return (
-    <LoadingState
-      title={'기존 잔액을 불러오고 있어요.'}
-    />
-  );
-  if (query.isError) return (
-    <RequestError
-      error={query.error}
-      onRetry={() => void query.refetch({
-        cancelRefetch: false
-      })}
-    />
-  );
+  if (query.isPending)
+    return (
+      <LoadingState
+        title={'기존 잔액을 불러오고 있어요.'}
+      />
+    );
+  if (query.isError)
+    return (
+      <RequestError
+        error={query.error}
+        onRetry={() => void query.refetch({
+          cancelRefetch: false
+        })}
+      />
+    );
 
   return (
     <OpeningForm
@@ -132,7 +142,19 @@ export function OpeningBalances({ propertyId, uploadPage = false, correctionPage
   );
 }
 
-function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, onDraft }: { data: OpeningWorkspace; initialDraft: DraftSeed | null; uploadPage: boolean; correctionPage: boolean; onDraft: (draft: DraftSeed) => void; onSaved: (data: OpeningWorkspace, seed?: DraftSeed) => void }) {
+function OpeningForm({
+  data,
+  initialDraft,
+  onSaved,
+  uploadPage,
+  correctionPage,
+  onDraft
+}: { data: OpeningWorkspace;
+initialDraft: DraftSeed | null;
+uploadPage: boolean;
+correctionPage: boolean;
+onDraft: (draft: DraftSeed) => void;
+onSaved: (data: OpeningWorkspace, seed?: DraftSeed) => void }) {
   const router = useRouter();
   const month = data.asOf.slice(0, 7);
   const previousEnd = new Date(`${month}-01T00:00:00Z`);
@@ -145,7 +167,13 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const active = useRef(false);
-  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
+  useEffect(() => {
+    active.current = true;
+
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const [notice, setNotice] = useState(initialDraft?.message ?? '');
   const [noticeTone, setNoticeTone] = useState<'success' | 'error'>(initialDraft?.message ? 'success' : 'error');
   const [noticeId, setNoticeId] = useState(0);
@@ -180,6 +208,7 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
     if (window.matchMedia('(max-width: 767px)').matches) {
       onDraft(snapshot());
       router.push(`/manage/${data.propertyId}/billing/monthly/opening-upload`);
+
       return;
     }
     setImporting(true);
@@ -187,48 +216,76 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
 
   /** 같은 오류를 재시도해도 알림 시간을 다시 시작하며 입력은 유지합니다. */
   function showNotice(message: string, tone: 'success' | 'error' = 'error') {
-    setNotice(message); setNoticeTone(tone); setNoticeId((id) => id + 1);
+    setNotice(message);
+    setNoticeTone(tone);
+    setNoticeId((id) => id + 1);
   }
 
   /** 저장 중 중복 클릭과 입력 변경을 막고 실패하면 작성 내용을 유지합니다. */
   async function run(action: () => Promise<OpeningWorkspace>, seed?: DraftSeed) {
-    if (pending.current) return;
-    pending.current = true; setBusy(true); setNotice('');
-    try { onSaved(await action(), seed); }
-    catch (failure) { showNotice(openingBalanceError(failure)); }
-    finally { pending.current = false; setBusy(false); }
+    if (pending.current)
+      return;
+    pending.current = true;
+    setBusy(true);
+    setNotice('');
+    try {
+      onSaved(await action(), seed);
+    } catch (failure) {
+      showNotice(openingBalanceError(failure));
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
   }
+
   /** 표시 중인 페이지와 관계없이 전체 세대·계좌를 검증하고 표시 메타데이터는 저장 요청에서 제외합니다. */
   async function save() {
     if (units.some((u) => !/^[0-9]{1,15}$/.test(u.receivable) || !/^[0-9]{1,15}$/.test(u.credit))
-      || accounts.some((a) => !/^[0-9]{1,15}$/.test(a.amount))) { showNotice('금액은 0원 이상의 정수로 입력해주세요.'); return; }
+      || accounts.some((a) => !/^[0-9]{1,15}$/.test(a.amount))) {
+      showNotice('금액은 0원 이상의 정수로 입력해주세요.');
+
+      return;
+    }
     const input: OpeningInput = {
       batchId: data.batch?.id ?? null,
       revision: data.batch?.revision ?? null,
       cutoffDate: cutoff,
       firstBillingMonth: first,
-      units: units.map(({ unitId, receivable, credit, originMonth, responsibility }) => ({
+      units: units.map(({
+        unitId,
+        receivable,
+        credit,
+        originMonth,
+        responsibility
+      }) => ({
         unitId,
         receivable,
         credit,
         originMonth,
         responsibility
       })),
-      accounts: accounts.map(({ accountId, amount }) => ({
+      accounts: accounts.map(({
+        accountId,
+        amount
+      }) => ({
         accountId,
         amount
       }))
     };
     await run(() => saveOpeningBalances(data.propertyId, input));
   }
+
   /** 서버의 엑셀 검증 결과를 편집 초안에만 반영하며 별도 저장·확정 전에는 원장을 변경하지 않습니다. */
   async function upload(file: File) {
-    if (pending.current) return;
-    pending.current = true; setBusy(true);
+    if (pending.current)
+      return;
+    pending.current = true;
+    setBusy(true);
     try {
       const result = await previewOpeningExcel(data.propertyId, file);
       // 모바일 헤더 뒤로가기 뒤의 늦은 검증 응답이 새 편집 화면을 덮어쓰지 않게 합니다.
-      if (!active.current) return;
+      if (!active.current)
+        return;
       const indexed = new Map(result.map((u) => [u.unitId, u]));
       const updated = units.map((unit) => ({
         ...unit,
@@ -243,13 +300,21 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
           message
         });
         goBackToRoute(`/manage/${data.propertyId}/billing/monthly?tab=opening`, (href) => router.replace(href));
+
         return;
       }
-      setUnits(updated); setDirty(true); setImporting(false);
+      setUnits(updated);
+      setDirty(true);
+      setImporting(false);
       showNotice(message, 'success');
-    } catch (error) { showNotice(openingBalanceError(error)); }
-    finally { pending.current = false; setBusy(false); }
+    } catch (error) {
+      showNotice(openingBalanceError(error));
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
   }
+
   /** 재업로드 헤더와 세대 식별자는 유지하고 공통 서식·작성 안내만 적용합니다. */
   async function download() {
     const headers = ['세대 ID', '세대', '기존 미납', '기존 선납', '발생월', '부담 주체 메모'];
@@ -264,95 +329,102 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
       instructions: ['첫 시트의 열 제목·순서와 세대 ID를 변경하지 마세요.', '기존 미납·기존 선납은 원 단위 숫자로 입력합니다. 수식은 사용할 수 없습니다.', '발생월과 부담 주체 메모는 선택 항목입니다.', '이 양식의 세대 미납·선납은 동별 통장 보유금과 별개입니다.']
     });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');link.href = url;link.download = '기존_잔액_인계.xlsx';link.click();
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = '기존_잔액_인계.xlsx';
+    link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  if (legacy) return (
-    <div
-      className={styles.panel}
-    >
+
+  if (legacy)
+    return (
+      <div
+        className={styles.panel}
+      >
+        <ListCard>
+          <section
+            className={styles['existing-state']}
+            aria-labelledby={'existing-balance-title'}
+          >
+            <div
+              className={styles['state-icon']}
+            >
+              <ServiceIcon
+                name={'receipt'}
+              />
+            </div>
+            <h2
+              id={'existing-balance-title'}
+            >
+              이미 관리비 부과를 시작한 곳이에요
+            </h2>
+            <p>
+              기존 잔액 인계는 첫 관리비를 부과하기 전에 입력합니다.
+              <br />
+              이곳에 저장된 관리비와 납부 내역은 아래에서 확인할 수 있어요.
+            </p>
+            <div
+              className={styles['state-actions']}
+            >
+              <Button
+                onClick={() => router.push(`/manage/${data.propertyId}/billing/monthly?tab=monthly`)}
+              >
+                월별 부과 보기
+              </Button>
+              <Button
+                variant={'outline'}
+                onClick={() => router.push(`/manage/${data.propertyId}/payments/monthly`)}
+              >
+                수납 현황 보기
+              </Button>
+            </div>
+          </section>
+        </ListCard>
+        <InitialBalanceHistoryView
+          changes={data.corrections}
+        />
+      </div>
+    );
+
+  if (correctionPage)
+    return (
       <ListCard>
-        <section
-          className={styles['existing-state']}
-          aria-labelledby={'existing-balance-title'}
-        >
-          <div
-            className={styles['state-icon']}
-          >
-            <ServiceIcon
-              name={'receipt'}
-            />
-          </div>
-          <h2
-            id={'existing-balance-title'}
-          >
-            이미 관리비 부과를 시작한 곳이에요
-          </h2>
-          <p>
-            기존 잔액 인계는 첫 관리비를 부과하기 전에 입력합니다.
-            <br />
-            이곳에 저장된 관리비와 납부 내역은 아래에서 확인할 수 있어요.
-          </p>
-          <div
-            className={styles['state-actions']}
-          >
-            <Button
-              onClick={() => router.push(`/manage/${data.propertyId}/billing/monthly?tab=monthly`)}
-            >
-              월별 부과 보기
-            </Button>
-            <Button
-              variant={'outline'}
-              onClick={() => router.push(`/manage/${data.propertyId}/payments/monthly`)}
-            >
-              수납 현황 보기
-            </Button>
-          </div>
-        </section>
+        <InitialBalanceEditor
+          data={data}
+          page
+          onClose={() => goBackToRoute(`/manage/${data.propertyId}/billing/monthly?tab=opening`, (href) => router.replace(href))}
+          onSaved={(saved) => {
+            onSaved(saved);
+            goBackToRoute(`/manage/${data.propertyId}/billing/monthly?tab=opening`, (href) => router.replace(href));
+          }}
+        />
       </ListCard>
-      <InitialBalanceHistoryView
-        changes={data.corrections}
-      />
-    </div>
-  );
+    );
 
-  if (correctionPage) return (
-    <ListCard>
-      <InitialBalanceEditor
-        data={data}
-        page
-        onClose={() => goBackToRoute(`/manage/${data.propertyId}/billing/monthly?tab=opening`, (href) => router.replace(href))}
-        onSaved={(saved) => {
-          onSaved(saved);
-          goBackToRoute(`/manage/${data.propertyId}/billing/monthly?tab=opening`, (href) => router.replace(href));
-        }}
-      />
-    </ListCard>
-  );
-
-  if (uploadPage) return (
-    <ListCard>
-      {confirmed ? (
-        <p>
-          확정된 인계입니다. 기존 잔액 인계 화면에서 정정한 뒤 업로드해주세요.
-        </p>
-      ) : (
-        <OpeningUploadContent
-          busy={busy}
-          onFile={(file) => void upload(file)}
-          onDownload={() => void download()}
-        />
-      )}
-      {notice && (
-        <Toast
-          key={noticeId}
-          tone={noticeTone}
-          message={notice}
-          onClose={() => setNotice('')}
-        />
-      )}
-    </ListCard>
-  );
+  if (uploadPage)
+    return (
+      <ListCard>
+        {confirmed ? (
+          <p>
+            확정된 인계입니다. 기존 잔액 인계 화면에서 정정한 뒤 업로드해주세요.
+          </p>
+        ) : (
+          <OpeningUploadContent
+            busy={busy}
+            onFile={(file) => void upload(file)}
+            onDownload={() => void download()}
+          />
+        )}
+        {notice && (
+          <Toast
+            key={noticeId}
+            tone={noticeTone}
+            message={notice}
+            onClose={() => setNotice('')}
+          />
+        )}
+      </ListCard>
+    );
 
   const selected = units.find((unit) => unit.unitId === editing);
 
@@ -397,7 +469,9 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
                     disabled={busy || data.initialCorrectionAllowed !== true}
                     onClick={() => {
                       if (window.matchMedia('(max-width: 767px)').matches) {
-                        router.push(`/manage/${data.propertyId}/billing/monthly/initial-correction`); return;
+                        router.push(`/manage/${data.propertyId}/billing/monthly/initial-correction`);
+
+                        return;
                       }
                       setCorrectingInitial(true);
                     }}
@@ -409,7 +483,10 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
                   <Button
                     variant={'outline'}
                     disabled={busy || data.initialCorrectionAllowed === false}
-                    onClick={() => { setCorrectionId(null); setCanceling(true); }}
+                    onClick={() => {
+                      setCorrectionId(null);
+                      setCanceling(true);
+                    }}
                   >
                     인계 정정
                   </Button>
@@ -459,14 +536,20 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
             label={'기존 장부 기준일'}
             value={cutoff}
             maxDate={data.asOf}
-            onChange={(value) => { setCutoff(value); setDirty(true); }}
+            onChange={(value) => {
+              setCutoff(value);
+              setDirty(true);
+            }}
             required
           />
           <CalendarPicker
             label={'첫 신규 관리비 부과월'}
             mode={'month'}
             value={first}
-            onChange={(value) => { setFirst(value); setDirty(true); }}
+            onChange={(value) => {
+              setFirst(value);
+              setDirty(true);
+            }}
             required
           />
         </fieldset>
@@ -547,7 +630,12 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
         locked={initialLocked}
         onUpload={openUpload}
         onEdit={(unitId) => {
-          if (confirmed) { setCorrectionId(unitId); setCanceling(true); return; }
+          if (confirmed) {
+            setCorrectionId(unitId);
+            setCanceling(true);
+
+            return;
+          }
           setEditing(unitId);
         }}
       />
@@ -574,6 +662,7 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
             const bankCode = data.accounts.find((row) => row.accountId === account.accountId)?.bankCode
               ?? account.bankCode
               ?? BANK_OPTIONS.find((bank) => account.label.startsWith(`${bank.label} ····`))?.value;
+
             return (
               <div
                 className={styles.account}
@@ -615,7 +704,8 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
                       setAccounts((rows) => rows.map((row) => row.accountId === account.accountId ? {
                         ...row,
                         amount: value
-                      } : row)); setDirty(true);
+                      } : row));
+                      setDirty(true);
                     }}
                   />
                 )}
@@ -684,7 +774,10 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
         <InitialBalanceEditor
           data={data}
           onClose={() => setCorrectingInitial(false)}
-          onSaved={(saved) => { setCorrectingInitial(false); onSaved(saved); }}
+          onSaved={(saved) => {
+            setCorrectingInitial(false);
+            onSaved(saved);
+          }}
         />
       )}
       {selected && (
@@ -692,7 +785,9 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
           unit={selected}
           onClose={() => setEditing(null)}
           onApply={(unit) => {
-            setUnits((rows) => rows.map((row) => row.unitId === unit.unitId ? unit : row)); setDirty(true); setEditing(null);
+            setUnits((rows) => rows.map((row) => row.unitId === unit.unitId ? unit : row));
+            setDirty(true);
+            setEditing(null);
           }}
         />
       )}
@@ -810,8 +905,12 @@ function OpeningForm({ data, initialDraft, onSaved, uploadPage, correctionPage, 
 }
 
 /** 정정 기한이나 원 인계 유무와 무관하게 저장한 초기 기준 정정 이력은 계속 조회합니다. */
-function InitialBalanceHistoryView({ changes }: { changes?: OpeningWorkspace['corrections'] }) {
-  if (!changes?.length) return null;
+function InitialBalanceHistoryView({
+  changes
+}: { changes?: OpeningWorkspace['corrections'] }) {
+  if (!changes?.length)
+    return null;
+
   return (
     <ListCard>
       <h2>

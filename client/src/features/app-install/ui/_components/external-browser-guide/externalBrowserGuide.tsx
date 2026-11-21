@@ -14,7 +14,10 @@ interface ExternalBrowserGuideProps {
 }
 
 /** iPhone 또는 브라우저 열기 요청 실패 시에만 수동 전환·주소 복사를 제공합니다. */
-export function ExternalBrowserGuide({ ios, installUrl }: ExternalBrowserGuideProps) {
+export function ExternalBrowserGuide({
+  ios,
+  installUrl
+}: ExternalBrowserGuideProps) {
   const addressRef = useRef<HTMLInputElement>(null);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 

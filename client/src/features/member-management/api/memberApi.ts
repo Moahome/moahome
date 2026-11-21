@@ -13,6 +13,7 @@ export const MEMBER_ROLE_LABELS: Record<MemberRole, string> = {
   MANAGER: '동대표',
   RESIDENT: '주민'
 };
+
 function read(value: MemberWorkspace, property: string) {
   if (!value || value.propertyId !== property || !Array.isArray(value.members) || !Array.isArray(value.invitations)
     || value.members.some((m) => !isPropertyId(m.memberId) || typeof m.name !== 'string' || !Object.hasOwn(MEMBER_ROLE_LABELS, m.role))
@@ -23,6 +24,7 @@ function read(value: MemberWorkspace, property: string) {
 
   return value;
 }
+
 export async function getMembers(property: string, signal?: AbortSignal) {
   return read(await authenticatedAPI<MemberWorkspace>({
     signal,
@@ -108,12 +110,14 @@ export async function requestMemberInvitation(code: string) {
       code: code.trim()
     }
   });
-  if (!result || typeof result.propertyName !== 'string' || result.status !== 'REQUESTED') throw new ApiError(200, 'INVALID_RESPONSE', '초대 신청 결과를 확인할 수 없습니다.');
+  if (!result || typeof result.propertyName !== 'string' || result.status !== 'REQUESTED')
+    throw new ApiError(200, 'INVALID_RESPONSE', '초대 신청 결과를 확인할 수 없습니다.');
 
   return result;
 }
 export function memberManagementError(error: unknown) {
-  if (!(error instanceof ApiError)) return '권한 정보를 처리하지 못했어요. 다시 확인해주세요.';
+  if (!(error instanceof ApiError))
+    return '권한 정보를 처리하지 못했어요. 다시 확인해주세요.';
   const messages: Record<string, string> = {
     PHONE_CONSENT_REQUIRED: '전화번호 수집·이용 동의를 확인해주세요.',
     MEMBER_ACCOUNT_REQUIRED: '계정 연결과 가입 승인이 완료된 주민만 역할을 변경할 수 있어요.',

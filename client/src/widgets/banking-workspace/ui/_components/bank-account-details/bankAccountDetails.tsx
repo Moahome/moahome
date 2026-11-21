@@ -35,7 +35,13 @@ const STATUS_LABELS = {
 };
 
 /** PC·모바일에서 같은 통장 정보를 표시하고 전체 번호는 공개 중인 컴포넌트에만 보관합니다. */
-export function BankAccountDetails({ propertyId, account, month, onInitial, onHistory }: {
+export function BankAccountDetails({
+  propertyId,
+  account,
+  month,
+  onInitial,
+  onHistory
+}: {
   propertyId: string;
   account: AccountBalance;
   month: string;
@@ -45,7 +51,9 @@ export function BankAccountDetails({ propertyId, account, month, onInitial, onHi
   const session = useSession();
   const query = useQuery({
     queryKey: ['bank-account-detail', session.data?.id, propertyId, account.id],
-    queryFn: ({ signal }) => getBankAccountDetail(propertyId, account.id, signal),
+    queryFn: ({
+      signal
+    }) => getBankAccountDetail(propertyId, account.id, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0,
@@ -58,41 +66,54 @@ export function BankAccountDetails({ propertyId, account, month, onInitial, onHi
   const pending = useRef(false);
   useEffect(() => {
     active.current = true;
-    return () => { active.current = false; };
+
+    return () => {
+      active.current = false;
+    };
   }, []);
 
   /** 닫힌 상세의 늦은 공개 응답을 버리고 실패하면 마스킹과 재시도 버튼을 유지합니다. */
   async function toggleNumber() {
     if (number !== null) {
       setNumber(null);
+
       return;
     }
-    if (!query.data || pending.current) return;
+    if (!query.data || pending.current)
+      return;
     pending.current = true;
     setBusy(true);
     setError('');
     try {
       const revealed = await revealBankAccountNumber(query.data);
-      if (active.current) setNumber(revealed);
+      if (active.current)
+        setNumber(revealed);
     } catch {
-      if (active.current) setError('계좌번호를 확인하지 못했어요. 통장 정보를 다시 조회한 뒤 시도해주세요.');
+      if (active.current)
+        setError('계좌번호를 확인하지 못했어요. 통장 정보를 다시 조회한 뒤 시도해주세요.');
     } finally {
       pending.current = false;
-      if (active.current) setBusy(false);
+      if (active.current)
+        setBusy(false);
     }
   }
 
-  if (query.isPending) return (
-    <LoadingState
-      title={'통장 정보를 불러오고 있어요.'}
-    />
-  );
-  if (!query.data || query.isError) return (
-    <RequestError
-      error={query.error}
-      onRetry={() => { setNumber(null); void query.refetch(); }}
-    />
-  );
+  if (query.isPending)
+    return (
+      <LoadingState
+        title={'통장 정보를 불러오고 있어요.'}
+      />
+    );
+  if (!query.data || query.isError)
+    return (
+      <RequestError
+        error={query.error}
+        onRetry={() => {
+          setNumber(null);
+          void query.refetch();
+        }}
+      />
+    );
   const detail = query.data;
   const display = getAccountBalanceDisplay(account);
 
@@ -183,7 +204,11 @@ export function BankAccountDetails({ propertyId, account, month, onInitial, onHi
           </p>
           <Button
             variant={'outline'}
-            onClick={() => { setNumber(null); setError(''); void query.refetch(); }}
+            onClick={() => {
+              setNumber(null);
+              setError('');
+              void query.refetch();
+            }}
           >
             통장 정보 다시 조회
           </Button>

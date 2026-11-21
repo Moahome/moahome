@@ -25,13 +25,18 @@ export function clearSession() {
 
 /** 이전 요청의 늦은 인증 오류가 새 로그인이나 갱신된 토큰을 종료하지 않도록 현재 토큰만 무효화합니다. */
 export function invalidateSession(accessToken: string) {
-  if (getSession()?.accessToken !== accessToken) return;
+  if (getSession()?.accessToken !== accessToken)
+    return;
   clearSession();
-  for (const listener of invalidationListeners) listener();
+  for (const listener of invalidationListeners)
+    listener();
 }
 
 /** 서버에서 세션 종료를 확인하면 전역 화면과 계정 캐시도 함께 정리하도록 알립니다. */
 export function subscribeSessionInvalidation(listener: () => void) {
   invalidationListeners.add(listener);
-  return () => { invalidationListeners.delete(listener); };
+
+  return () => {
+    invalidationListeners.delete(listener);
+  };
 }

@@ -52,7 +52,8 @@ export function ResidentListPage({
   const [exportIds, setExportIds] = useState<string[] | null>(null);
   const [message, setMessage] = useState(accountLinked ? '관리소장 계정을 주민 명부에 연결했어요.' : deleted ? '주민을 삭제했어요.' : registered ? '주민을 등록했어요.' : '');
   useEffect(() => {
-    if (registered || deleted || accountLinked) window.history.replaceState(null, '', `/manage/${propertyId}/residents`);
+    if (registered || deleted || accountLinked)
+      window.history.replaceState(null, '', `/manage/${propertyId}/residents`);
   }, [registered, deleted, accountLinked, propertyId]);
   const controller = useResidentList(propertyId);
 
@@ -60,6 +61,7 @@ export function ResidentListPage({
   function openRegistration() {
     if (window.matchMedia('(max-width: 767px)').matches) {
       router.push(`/manage/${propertyId}/residents/new`);
+
       return;
     }
     setRegistering(true);
@@ -69,6 +71,7 @@ export function ResidentListPage({
   function openDetail(residentId: string) {
     if (window.matchMedia('(max-width: 767px)').matches) {
       router.push(`/manage/${propertyId}/residents/${residentId}`);
+
       return;
     }
     setDetailId(residentId);
@@ -83,15 +86,22 @@ export function ResidentListPage({
           && query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
     });
   }
-  const { list, data, view } = controller;
+
+  const {
+    list,
+    data,
+    view
+  } = controller;
 
   /** 필터·정렬된 전체 결과를 고정해 웹 미리보기를 열고 모바일에는 ID만 일시 전달합니다. */
   function openExport() {
-    if (!view.filtered.length || !session.data) return;
+    if (!view.filtered.length || !session.data)
+      return;
     const ids = view.filtered.map((row) => row.id);
     if (window.matchMedia('(max-width: 767px)').matches) {
       queryClient.setQueryData(getResidentExportSelectionKey(session.data.id, propertyId), ids);
       router.push(`/manage/${propertyId}/residents/export`);
+
       return;
     }
     setExportIds(ids);
@@ -118,6 +128,7 @@ export function ResidentListPage({
                 onClick={() => {
                   if (window.matchMedia('(max-width: 767px)').matches) {
                     router.push(`/manage/${propertyId}/residents/account-link`);
+
                     return;
                   }
                   setLinkingChief(true);
@@ -225,7 +236,10 @@ export function ResidentListPage({
           propertyId={propertyId}
           data={data}
           onClose={() => setLinkingChief(false)}
-          onLinked={() => { setLinkingChief(false); setMessage('관리소장 계정을 주민 명부에 연결했어요.'); }}
+          onLinked={() => {
+            setLinkingChief(false);
+            setMessage('관리소장 계정을 주민 명부에 연결했어요.');
+          }}
         />
       )}
       {registering && (
@@ -242,7 +256,10 @@ export function ResidentListPage({
           residentId={detailId}
           canPromote={context.data?.role === 'ADMIN'}
           onClose={() => setDetailId(null)}
-          onDeleted={() => { setDetailId(null); setMessage('주민을 삭제했어요.'); }}
+          onDeleted={() => {
+            setDetailId(null);
+            setMessage('주민을 삭제했어요.');
+          }}
         />
       )}
       {message && (

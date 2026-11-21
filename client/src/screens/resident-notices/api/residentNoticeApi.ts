@@ -28,7 +28,9 @@ export async function getResidentNoticeContext(signal?: AbortSignal) {
     url: `${BASE}/context`,
     signal
   });
-  if (!data || !UUID.test(data.propertyId) || typeof data.name !== 'string') throw invalidResponse();
+  if (!data || !UUID.test(data.propertyId) || typeof data.name !== 'string')
+    throw invalidResponse();
+
   return data;
 }
 
@@ -54,7 +56,9 @@ export async function getResidentNotices(propertyId: string, page: number, query
   if (!data || data.propertyId !== propertyId || data.page !== page || !Array.isArray(data.items)
     || !Array.isArray(data.importantItems) || !data.importantItems.every((row) => validSummary(row) && row.important)
     || !data.items.every((row) => validSummary(row) && !row.important) || !Number.isSafeInteger(data.total) || data.total < 0
-    || !Number.isSafeInteger(data.pageCount) || data.pageCount < 1) throw invalidResponse();
+    || !Number.isSafeInteger(data.pageCount) || data.pageCount < 1)
+    throw invalidResponse();
+
   return data;
 }
 
@@ -64,10 +68,15 @@ export async function getResidentNotice(propertyId: string, id: string, signal?:
     signal
   });
   if (!data || data.propertyId !== propertyId || data.id !== id || !validSummary(data)
-    || typeof data.content !== 'string' || typeof data.authorName !== 'string') throw invalidResponse();
+    || typeof data.content !== 'string' || typeof data.authorName !== 'string')
+    throw invalidResponse();
   try {
-    if (JSON.parse(data.content).type !== 'doc') throw invalidResponse();
-  } catch { throw invalidResponse(); }
+    if (JSON.parse(data.content).type !== 'doc')
+      throw invalidResponse();
+  } catch {
+    throw invalidResponse();
+  }
+
   return data;
 }
 
@@ -75,7 +84,9 @@ export async function getResidentNotice(propertyId: string, id: string, signal?:
 export function readResidentNoticeAsset(propertyId: string, noticeId: string, reference: string, signal?: AbortSignal) {
   const prefix = `/api/properties/${propertyId}/notices/assets/`;
   const id = reference.startsWith(prefix) ? reference.slice(prefix.length) : '';
-  if (!UUID.test(id)) throw new ApiError(400, 'INVALID_NOTICE_ASSET', '첨부파일 주소를 확인해주세요.');
+  if (!UUID.test(id))
+    throw new ApiError(400, 'INVALID_NOTICE_ASSET', '첨부파일 주소를 확인해주세요.');
+
   return customAPI<Blob>({
     url: `${BASE}/notices/${noticeId}/assets/${id}`,
     responseType: 'blob',

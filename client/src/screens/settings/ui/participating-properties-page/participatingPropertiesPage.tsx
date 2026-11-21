@@ -30,21 +30,27 @@ export function ParticipatingPropertiesPage() {
     && (session.error.status === 401 || session.error.code === 'ACCOUNT_UNAVAILABLE');
 
   useEffect(() => {
-    if (denied) router.replace('/login');
+    if (denied)
+      router.replace('/login');
   }, [denied, router]);
 
   useEffect(() => {
     function hideLeavingPage() {
-      if (!pageRef.current) return;
+      if (!pageRef.current)
+        return;
       pageRef.current.hidden = true;
       pageRef.current.inert = true;
     }
+
     // 이전 계정의 참여 목록이 문서 캐시에서 노출되지 않게 현재 세션과 참여를 다시 확인합니다.
     function restorePage(event: PageTransitionEvent) {
-      if (event.persisted) window.location.reload();
+      if (event.persisted)
+        window.location.reload();
     }
+
     window.addEventListener('pagehide', hideLeavingPage);
     window.addEventListener('pageshow', restorePage);
+
     return () => {
       window.removeEventListener('pagehide', hideLeavingPage);
       window.removeEventListener('pageshow', restorePage);

@@ -67,7 +67,9 @@ export function useUnitList(propertyId: string, saved?: string) {
   const queryKey = ['property-units', session.data?.id, propertyId];
   const list = useQuery({
     queryKey,
-    queryFn: ({ signal }) => getUnits(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getUnits(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     staleTime: 0,
@@ -85,12 +87,14 @@ export function useUnitList(propertyId: string, saved?: string) {
     deleted: '세대를 삭제했어요.'
   };
   const savedMessage = saved && Object.hasOwn(savedMessages, saved) ? savedMessages[saved] : undefined;
-  const [notice, setNotice] = useState<{ id: string; message: string } | null>(() => savedMessage ? {
-    id: 'page-save',
-    message: savedMessage
-  } : null);
+  const [notice, setNotice] = useState<{ id: string;
+message: string } | null>(() => savedMessage ? {
+  id: 'page-save',
+  message: savedMessage
+} : null);
   useEffect(() => {
-    if (savedMessage) window.history.replaceState(window.history.state, '', `/manage/${propertyId}/households`);
+    if (savedMessage)
+      window.history.replaceState(window.history.state, '', `/manage/${propertyId}/households`);
   }, [propertyId, savedMessage]);
   const clearNotice = useCallback(() => setNotice(null), []);
   const [dialog, setDialog] = useState<UnitListDialog>(null);
@@ -119,7 +123,8 @@ export function useUnitList(propertyId: string, saved?: string) {
   });
   const buildingMutation = useMutation({
     mutationFn: (command: BuildingCommand) => {
-      if (command.kind === 'delete') return deleteBuilding(propertyId, command.buildingId);
+      if (command.kind === 'delete')
+        return deleteBuilding(propertyId, command.buildingId);
       const id = data.buildings.some((building) => building.clientId === command.building.clientId) ? command.building.clientId : null;
 
       return saveBuilding(propertyId, command.building, id);
@@ -135,6 +140,7 @@ export function useUnitList(propertyId: string, saved?: string) {
           buildingId: ''
         } : previous);
         notify('동과 연결된 세대를 삭제했어요.');
+
         return;
       }
       notify('동 정보를 저장했어요.');
@@ -177,6 +183,7 @@ export function useUnitList(propertyId: string, saved?: string) {
     if (window.matchMedia('(max-width: 767px)').matches) {
       const path = clientId ? `${clientId}/edit` : 'new';
       router.push(`/manage/${propertyId}/households/${path}${!clientId && filters.buildingId ? `?buildingId=${filters.buildingId}` : ''}`);
+
       return;
     }
     unitMutation.reset();
@@ -204,7 +211,8 @@ export function useUnitList(propertyId: string, saved?: string) {
 
   /** 상세에서 확인한 현재 세대만 삭제 대상으로 보관하며 실제 요청은 확인 후 실행합니다. */
   function requestDeletion(unitId: string) {
-    if (!data.units.some((unit) => unit.clientId === unitId)) return;
+    if (!data.units.some((unit) => unit.clientId === unitId))
+      return;
     deleteMutation.reset();
     setPendingDeletion(unitId);
   }
@@ -213,6 +221,7 @@ export function useUnitList(propertyId: string, saved?: string) {
   async function executeBuildingCommand(command: BuildingCommand) {
     try {
       await buildingMutation.mutateAsync(command);
+
       return true;
     } catch {
       return false;
@@ -222,7 +231,8 @@ export function useUnitList(propertyId: string, saved?: string) {
   /** 미리보기와 같은 규칙으로 새 세대만 만들고 서버의 원자적 일괄 저장을 요청합니다. */
   function addAutomatic(buildingId: string | null) {
     const additions = createAutomaticUnits(automaticRule, buildingId, data.hasBuildings, data.buildings, data.units);
-    if (additions.length) automaticMutation.mutate(additions);
+    if (additions.length)
+      automaticMutation.mutate(additions);
   }
 
   return {
@@ -247,6 +257,7 @@ export function useUnitList(propertyId: string, saved?: string) {
     openDetail: (unitId: string) => {
       if (window.matchMedia('(max-width: 767px)').matches) {
         router.push(`/manage/${propertyId}/households/${unitId}`);
+
         return;
       }
       setDialog({
@@ -267,6 +278,7 @@ export function useUnitList(propertyId: string, saved?: string) {
     openBuildings: () => {
       if (window.matchMedia('(max-width: 767px)').matches) {
         router.push(`/manage/${propertyId}/households/buildings`);
+
         return;
       }
       buildingMutation.reset();
@@ -277,6 +289,7 @@ export function useUnitList(propertyId: string, saved?: string) {
     openAutomatic: () => {
       if (window.matchMedia('(max-width: 767px)').matches) {
         router.push(`/manage/${propertyId}/households/automatic${filters.buildingId ? `?buildingId=${filters.buildingId}` : ''}`);
+
         return;
       }
       automaticMutation.reset();

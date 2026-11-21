@@ -21,25 +21,53 @@ import type {
 import styles from './allocationEditor.module.css';
 
 /** 부담 동과 외부 부담처를 명시적으로 정하고 합계·원 미만 잔여액을 확인하게 합니다. */
-export function AllocationEditor({ total, draft, buildings, expenseAccounts, onChange, disabled = false, purpose = 'expense', showDetails = true, compact = false, showRule = true, sectioned = false, limits, validationError }: {
+export function AllocationEditor({
+  total,
+  draft,
+  buildings,
+  expenseAccounts,
+  onChange,
+  disabled = false,
+  purpose = 'expense',
+  showDetails = true,
+  compact = false,
+  showRule = true,
+  sectioned = false,
+  limits,
+  validationError
+}: {
   limits?: Readonly<Record<string, string | null>>;
   validationError?: string;
   expenseAccounts?: readonly ExpenseAccountOption[];
-  total: string; draft: ExpenseDraft; buildings: { id: string; label: string }[]; onChange: (draft: ExpenseDraft) => void; disabled?: boolean; purpose?: 'expense' | 'income' | 'transfer'; showDetails?: boolean; compact?: boolean; showRule?: boolean; sectioned?: boolean;
+  total: string;
+draft: ExpenseDraft;
+buildings: { id: string;
+label: string }[];
+onChange: (draft: ExpenseDraft) => void;
+disabled?: boolean;
+purpose?: 'expense' | 'income' | 'transfer';
+showDetails?: boolean;
+compact?: boolean;
+showRule?: boolean;
+sectioned?: boolean;
 }) {
   const income = purpose !== 'expense';
   const transfer = purpose === 'transfer';
   const externalTarget = income ? '외부 동' : '외부 부담처';
   const result = calculateExpenseAllocation(total, draft, income ? 'income' : 'expense');
   const allocationError = validationError || result.allocationError;
+
   /** 대상·비율을 수정하면 이전에 지정한 나머지를 새 배분에 자동으로 넘기지 않습니다. */
   function resetRatioRemainder(allocations: ExpenseDraft['allocations'], mode = draft.mode) {
-    if (mode !== 'RATIO') return allocations;
+    if (mode !== 'RATIO')
+      return allocations;
+
     return allocations.map((share) => ({
       ...share,
       amount: ''
     }));
   }
+
   function changeMode(mode: ExpenseDraft['mode']) {
     onChange({
       ...draft,
@@ -47,6 +75,7 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
       allocations: mode === 'AMOUNT' ? result.allocations : resetRatioRemainder(draft.allocations, mode)
     });
   }
+
   function changeShare(index: number, patch: Partial<ExpenseDraft['allocations'][number]>) {
     onChange({
       ...draft,
@@ -56,6 +85,7 @@ export function AllocationEditor({ total, draft, buildings, expenseAccounts, onC
       } : a))
     });
   }
+
   return (
     <fieldset
       className={styles.editor}

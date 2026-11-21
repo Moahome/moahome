@@ -23,7 +23,11 @@ import { LoadingState } from '@/shared/ui/state-message';
 import styles from './accountWithdrawal.module.css';
 
 /** 즉시 삭제와 구분한 30일 유예 안내를 확인받고, 성공할 때만 현재 로그인과 계정 캐시를 비웁니다. */
-export function AccountWithdrawal({ userId, disabled }: { userId: string; disabled: boolean }) {
+export function AccountWithdrawal({
+  userId,
+  disabled
+}: { userId: string;
+disabled: boolean }) {
   const cache = useQueryClient();
   const [open, setOpen] = useState(false);
 
@@ -59,7 +63,8 @@ export function AccountWithdrawal({ userId, disabled }: { userId: string; disabl
           userId={userId}
           onClose={() => setOpen(false)}
           onComplete={() => {
-            if (cache.getQueryData<CurrentUser>(CURRENT_USER_QUERY_KEY)?.id !== userId) return;
+            if (cache.getQueryData<CurrentUser>(CURRENT_USER_QUERY_KEY)?.id !== userId)
+              return;
             notifyAccountWithdrawal(userId);
             clearSession();
             cache.clear();
@@ -71,7 +76,11 @@ export function AccountWithdrawal({ userId, disabled }: { userId: string; disabl
   );
 }
 
-function WithdrawalDialog({ userId, onClose, onComplete }: {
+function WithdrawalDialog({
+  userId,
+  onClose,
+  onComplete
+}: {
   userId: string;
   onClose: () => void;
   onComplete: () => void;
@@ -89,7 +98,8 @@ function WithdrawalDialog({ userId, onClose, onComplete }: {
   const valid = status.data?.userId === userId;
 
   async function submit() {
-    if (busy || status.isFetching || !valid || !status.data?.canWithdraw) return;
+    if (busy || status.isFetching || !valid || !status.data?.canWithdraw)
+      return;
     setBusy(true);
     setFailure('');
     try {
@@ -98,12 +108,14 @@ function WithdrawalDialog({ userId, onClose, onComplete }: {
     } catch (error) {
       if (error instanceof ApiError && (error.status === 401 || error.code === 'ACCOUNT_UNAVAILABLE')) {
         window.location.replace('/login');
+
         return;
       }
       setFailure(error instanceof ApiError && error.status === 409
         ? '참여 정보가 변경됐어요. 아래 내용을 다시 확인해주세요.'
         : '탈퇴 신청을 완료하지 못했어요. 잠시 후 다시 시도해주세요.');
-      if (error instanceof ApiError && error.status === 409) void status.refetch();
+      if (error instanceof ApiError && error.status === 409)
+        void status.refetch();
     } finally {
       setBusy(false);
     }

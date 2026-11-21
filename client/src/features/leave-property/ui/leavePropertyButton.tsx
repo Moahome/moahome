@@ -51,7 +51,11 @@ export function LeavePropertyButton({
       <Button
         tone={'danger'}
         variant={'outline'}
-        onClick={() => { setReason(null); leave.reset(); setOpen(true); }}
+        onClick={() => {
+          setReason(null);
+          leave.reset();
+          setOpen(true);
+        }}
       >
         나가기
       </Button>
@@ -66,7 +70,8 @@ export function LeavePropertyButton({
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              if (!reason || chief || leave.isPending) return;
+              if (!reason || chief || leave.isPending)
+                return;
               leave.mutate(reason);
             }}
           >

@@ -5,11 +5,14 @@ let loadingService: Promise<PostcodeService> | null = null;
 
 /** 공식 주소 검색 스크립트를 공유하고 로딩 실패·시간 초과 후에는 새 요청으로 재시도합니다. */
 export function loadPostcodeService(): Promise<PostcodeService> {
-  const browser = window as Window & { kakao?: PostcodeService; daum?: PostcodeService };
+  const browser = window as Window & { kakao?: PostcodeService;
+daum?: PostcodeService };
   const existing = browser.kakao?.Postcode ? browser.kakao : browser.daum;
 
-  if (existing?.Postcode) return Promise.resolve(existing);
-  if (loadingService) return loadingService;
+  if (existing?.Postcode)
+    return Promise.resolve(existing);
+  if (loadingService)
+    return loadingService;
 
   loadingService = new Promise<PostcodeService>((resolve, reject) => {
     const script = document.createElement('script');
@@ -30,6 +33,7 @@ export function loadPostcodeService(): Promise<PostcodeService> {
 
       if (!service?.Postcode) {
         fail();
+
         return;
       }
 

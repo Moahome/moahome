@@ -61,11 +61,17 @@ import { LedgerDownload } from './_components/ledger-download/ledgerDownload';
 import styles from './accountLedgerPage.module.css';
 
 /** 기존 통장·미수·선수금·손익 원본과 적용 조건을 같은 원장에서 조회합니다. */
-export function AccountLedgerPage({ propertyId, presentation = 'main' }: { propertyId: string; presentation?: 'main' | 'billing' }) {
+export function AccountLedgerPage({
+  propertyId,
+  presentation = 'main'
+}: { propertyId: string;
+presentation?: 'main' | 'billing' }) {
   const search = useSearchParams();
   const router = useRouter();
   const session = useSession();
-  const { openDownload } = useReportDownload();
+  const {
+    openDownload
+  } = useReportDownload();
   const base = `/manage/${propertyId}/accounting/ledger`;
   const queryString = search.toString();
   const accountIds = [...new Set(search.getAll('account'))].filter(Boolean).sort();
@@ -79,7 +85,9 @@ export function AccountLedgerPage({ propertyId, presentation = 'main' }: { prope
     && (!buildingId || isPropertyId(buildingId)) && (!bankAccountId || isPropertyId(bankAccountId));
   const query = useQuery({
     queryKey: ['account-ledger', session.data?.id, propertyId, requested?.startMonth, requested?.endMonth, buildingId, accountIds, bankAccountId],
-    queryFn: ({ signal }) => getAccountLedger({
+    queryFn: ({
+      signal
+    }) => getAccountLedger({
       propertyId,
       startMonth: requested?.startMonth,
       endMonth: requested?.endMonth,
@@ -126,13 +134,17 @@ export function AccountLedgerPage({ propertyId, presentation = 'main' }: { prope
 
   /** 조회 전 입력과 적용된 주소를 구분하고 새 조건에서는 첫 페이지부터 표시합니다. */
   function apply(nextRange = draft.range) {
-    if (!isValidMonthRange(nextRange)) return;
+    if (!isValidMonthRange(nextRange))
+      return;
     const params = setMonthRangeQuery(new URLSearchParams(search.toString()), nextRange);
-    if (draft.accountIds.join(',') !== accountIds.join(',')) params.delete('bank');
+    if (draft.accountIds.join(',') !== accountIds.join(','))
+      params.delete('bank');
     params.delete('account');
     draft.accountIds.forEach((id) => params.append('account', id));
-    if (draft.buildingId) params.set('building', draft.buildingId);
-    else params.delete('building');
+    if (draft.buildingId)
+      params.set('building', draft.buildingId);
+    else
+      params.delete('building');
     params.delete('page');
     router.replace(`${base}?${params}`, {
       scroll: false
@@ -152,14 +164,18 @@ export function AccountLedgerPage({ propertyId, presentation = 'main' }: { prope
   /** 기존 원본 상세를 PC 모달로 재사용하고 모바일에서는 기존 독립 상세 경로로 이동합니다. */
   function openSource(row: LedgerRow) {
     if (row.entry.source.kind === 'PAYABLE') {
-      if (window.matchMedia('(max-width: 767px)').matches) router.push(`/manage/${propertyId}${row.entry.source.path}?${search}`);
-      else setPayableSelection({
-        id: row.entry.source.id!
-      });
+      if (window.matchMedia('(max-width: 767px)').matches)
+        router.push(`/manage/${propertyId}${row.entry.source.path}?${search}`);
+      else
+        setPayableSelection({
+          id: row.entry.source.id!
+        });
+
       return;
     }
     if (['BANK', 'TRANSFER', 'EXTERNAL', 'OPENING_CREDIT'].includes(row.entry.source.kind)) {
       router.push(`/manage/${propertyId}${row.entry.source.path}`);
+
       return;
     }
     if (window.matchMedia('(max-width: 767px)').matches) {
@@ -167,9 +183,11 @@ export function AccountLedgerPage({ propertyId, presentation = 'main' }: { prope
         const params = new URLSearchParams(search.toString());
         params.set('item', row.entry.id);
         router.push(`${base}/billing?${params}`);
+
         return;
       }
       router.push(`/manage/${propertyId}${row.entry.source.path}`);
+
       return;
     }
     setSourceRow(row);
@@ -181,26 +199,31 @@ export function AccountLedgerPage({ propertyId, presentation = 'main' }: { prope
   }
 
   const incomeParams = setMonthRangeQuery(new URLSearchParams(), range);
-  if (buildingId) incomeParams.set('building', buildingId);
+  if (buildingId)
+    incomeParams.set('building', buildingId);
   if (presentation === 'billing') {
-    if (query.isFetching) return (
-      <LoadingState
-        title={'부과 내역을 불러오고 있어요.'}
-      />
-    );
-    if (query.isError) return (
-      <RequestError
-        error={query.error}
-        onRetry={() => void query.refetch()}
-      />
-    );
+    if (query.isFetching)
+      return (
+        <LoadingState
+          title={'부과 내역을 불러오고 있어요.'}
+        />
+      );
+    if (query.isError)
+      return (
+        <RequestError
+          error={query.error}
+          onRetry={() => void query.refetch()}
+        />
+      );
     const selected = data?.rows.find((row) => row.entry.id === search.get('item') && row.entry.source.kind === 'BILLING');
-    if (!selected) return (
-      <StateMessage
-        variant={'not-found'}
-        title={'부과 내역을 찾을 수 없습니다.'}
-      />
-    );
+    if (!selected)
+      return (
+        <StateMessage
+          variant={'not-found'}
+          title={'부과 내역을 찾을 수 없습니다.'}
+        />
+      );
+
     return (
       <BillingPeriodDetail
         propertyId={propertyId}
@@ -209,7 +232,8 @@ export function AccountLedgerPage({ propertyId, presentation = 'main' }: { prope
         expectedAmount={selected.entry.amount}
         presentation={'page'}
         onClose={() => {
-          if (goBackToPreviousRoute()) return;
+          if (goBackToPreviousRoute())
+            return;
           const params = new URLSearchParams(search.toString());
           params.delete('item');
           router.replace(`${base}?${params}`);
@@ -217,6 +241,7 @@ export function AccountLedgerPage({ propertyId, presentation = 'main' }: { prope
       />
     );
   }
+
   return (
     <div
       className={styles.page}
@@ -238,7 +263,8 @@ export function AccountLedgerPage({ propertyId, presentation = 'main' }: { prope
                 />
               )}
               onClick={() => {
-                if (!canShow) return;
+                if (!canShow)
+                  return;
                 openDownload({
                   pageHref: `${base}/download?${search}`,
                   render: (presentation, onClose) => (
@@ -259,17 +285,23 @@ export function AccountLedgerPage({ propertyId, presentation = 'main' }: { prope
       <form
         className={styles.filters}
         aria-label={'원장 조회 조건'}
-        onSubmit={(event) => { event.preventDefault(); apply(); }}
+        onSubmit={(event) => {
+          event.preventDefault();
+          apply();
+        }}
       >
         <MonthRangePicker
           label={'조회 기간'}
           labelHidden
           value={draft.range}
           referenceMonth={currentMonth}
-          onChange={(value) => { setSelection({
-            ...draft,
-            range: value
-          }); apply(value); }}
+          onChange={(value) => {
+            setSelection({
+              ...draft,
+              range: value
+            });
+            apply(value);
+          }}
         />
         <Dropdown
           aria-label={'계정과목'}
@@ -486,7 +518,9 @@ export function AccountLedgerPage({ propertyId, presentation = 'main' }: { prope
                         }))]}
                         onChange={(value) => {
                           const params = new URLSearchParams(search.toString());
-                          if (value) params.set('bank', value); else params.delete('bank');
+                          if (value)
+                            params.set('bank', value); else
+                            params.delete('bank');
                           params.delete('page');
                           router.replace(`${base}?${params}`, {
                             scroll: false
@@ -509,8 +543,10 @@ export function AccountLedgerPage({ propertyId, presentation = 'main' }: { prope
                       ]}
                       onChange={(value) => {
                         const params = new URLSearchParams(search.toString());
-                        if (value === 'latest') params.delete('sort');
-                        else params.set('sort', value);
+                        if (value === 'latest')
+                          params.delete('sort');
+                        else
+                          params.set('sort', value);
                         params.delete('page');
                         router.replace(`${base}?${params}`, {
                           scroll: false
@@ -538,13 +574,17 @@ export function AccountLedgerPage({ propertyId, presentation = 'main' }: { prope
                   {
                     key: 'account',
                     header: '계정과목',
-                    render: ({ entry }) => `${accounts.find((account) => account.id === entry.accountId)?.code} ${entry.accountName}`
+                    render: ({
+                      entry
+                    }) => `${accounts.find((account) => account.id === entry.accountId)?.code} ${entry.accountName}`
                   },
                   {
                     key: 'name',
                     header: '적요',
                     rowHeader: true,
-                    render: ({ entry }) => (
+                    render: ({
+                      entry
+                    }) => (
                       <span
                         className={styles.description}
                       >
@@ -555,23 +595,31 @@ export function AccountLedgerPage({ propertyId, presentation = 'main' }: { prope
                   {
                     key: 'building',
                     header: '동',
-                    render: ({ entry }) => data.buildings.find((building) => building.id === entry.buildingId)?.name ?? '전체'
+                    render: ({
+                      entry
+                    }) => data.buildings.find((building) => building.id === entry.buildingId)?.name ?? '전체'
                   },
                   {
                     key: 'month',
                     header: '귀속 월',
-                    render: ({ entry }) => entry.month
+                    render: ({
+                      entry
+                    }) => entry.month
                   },
                   {
                     key: 'date',
                     header: getLedgerDateLabel(data),
-                    render: ({ entry }) => entry.source.date ?? '—'
+                    render: ({
+                      entry
+                    }) => entry.source.date ?? '—'
                   },
                   {
                     key: 'amount',
                     header: '반영액',
                     align: 'right',
-                    render: ({ entry }) => (
+                    render: ({
+                      entry
+                    }) => (
                       <span
                         className={BigInt(entry.amount) < BigInt(0) ? styles.negative : undefined}
                       >
@@ -614,7 +662,10 @@ export function AccountLedgerPage({ propertyId, presentation = 'main' }: { prope
           onCreated={(id) => setPayableSelection({
             id
           })}
-          onClose={() => { setPayableSelection(null); void query.refetch(); }}
+          onClose={() => {
+            setPayableSelection(null);
+            void query.refetch();
+          }}
         />
       )}
       {source?.kind === 'EXPENSE' && (

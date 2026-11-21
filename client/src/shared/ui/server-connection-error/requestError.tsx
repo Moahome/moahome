@@ -10,21 +10,28 @@ import { StateMessage } from '@/shared/ui/state-message';
 import { Button } from '@/shared/ui/button';
 
 /** 네트워크·서버 장애와 권한·대상 없음의 그림을 구분하고 해당 조회만 재시도합니다. */
-export function RequestError({ error, onRetry, retrying = false, inputPreserved = false }: {
+export function RequestError({
+  error,
+  onRetry,
+  retrying = false,
+  inputPreserved = false
+}: {
   error: unknown;
   onRetry?: () => void;
   retrying?: boolean;
   inputPreserved?: boolean;
 }) {
-  if (isRequestCanceled(error)) return null;
-  if (isServerConnectionError(error)) return (
-    <ServerConnectionError
-      error={error}
-      onRetry={onRetry}
-      retrying={retrying}
-      inputPreserved={inputPreserved}
-    />
-  );
+  if (isRequestCanceled(error))
+    return null;
+  if (isServerConnectionError(error))
+    return (
+      <ServerConnectionError
+        error={error}
+        onRetry={onRetry}
+        retrying={retrying}
+        inputPreserved={inputPreserved}
+      />
+    );
   const status = error instanceof ApiError ? error.status : 0;
   let variant: 'forbidden' | 'not-found' | 'server-error' = 'server-error';
   let title = '정보를 불러오지 못했어요';
@@ -39,6 +46,7 @@ export function RequestError({ error, onRetry, retrying = false, inputPreserved 
     title = '요청한 정보를 찾을 수 없어요';
     description = '주소가 올바른지 확인해주세요.';
   }
+
   return (
     <StateMessage
       variant={variant}

@@ -63,7 +63,11 @@ export type BankingAccount = {
 };
 
 export type BankingWorkspaceData = {
-  deletionGroups?: { id: string; transactionIds: string[]; requiresCancellation: boolean }[];
+  deletionGroups?: {
+    id: string;
+    transactionIds: string[];
+    requiresCancellation: boolean;
+  }[];
   accounts?: BankingAccount[];
   expenseAccounts?: ExpenseAccountOption[];
   propertyId: string;

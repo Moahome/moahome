@@ -16,9 +16,13 @@ export interface IncomeStatementSource {
   propertyName?: string;
   isExample?: boolean;
   notice?: string;
-  issues?: readonly { label: string; amount: string; sourceName?: string; sourceContext?: string }[];
+  issues?: readonly { label: string;
+amount: string;
+sourceName?: string;
+sourceContext?: string }[];
   availableRange: MonthRange;
-  buildings: readonly { id: string; name: string }[];
+  buildings: readonly { id: string;
+name: string }[];
   records: readonly IncomeRecord[];
 }
 
@@ -40,7 +44,8 @@ export interface IncomeStatementReport {
   propertyName: string;
   isExample: boolean;
   notice: string;
-  issues: readonly { label: string; amount: string }[];
+  issues: readonly { label: string;
+amount: string }[];
   range: MonthRange;
   buildingName: string;
   revenue: bigint;

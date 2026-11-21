@@ -37,6 +37,7 @@ export function RegistrationPreviewPage() {
     phoneConsent: false,
     unitClientId: units[0].clientId
   };
+
   return (
     <div
       className={styles.preview}
@@ -56,7 +57,10 @@ export function RegistrationPreviewPage() {
           <Button
             variant={'outline'}
             size={'sm'}
-            onClick={() => { setHasBuildings(!hasBuildings); setResidents([]); }}
+            onClick={() => {
+              setHasBuildings(!hasBuildings);
+              setResidents([]);
+            }}
           >
             {hasBuildings ? '동 없음 보기' : '동 있음 보기'}
           </Button>
@@ -84,7 +88,10 @@ export function RegistrationPreviewPage() {
           <Button
             variant={'ghost'}
             size={'sm'}
-            onClick={() => { setResidents([]); setNotice(''); }}
+            onClick={() => {
+              setResidents([]);
+              setNotice('');
+            }}
           >
             초기화
           </Button>

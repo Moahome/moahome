@@ -3,7 +3,11 @@
 import { BankingIncomeAllocation } from '@/widgets/banking-workspace';
 import { PaymentDetailPage } from '@/widgets/payment-workspace';
 
-export function BankingReceiptDetailPage({ propertyId, paymentId }: { propertyId: string; paymentId: string }) {
+export function BankingReceiptDetailPage({
+  propertyId,
+  paymentId
+}: { propertyId: string;
+paymentId: string }) {
   return (
     <PaymentDetailPage
       propertyId={propertyId}

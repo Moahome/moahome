@@ -12,7 +12,14 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './requestReview.module.css';
 
 /** 기존 주민 상세와 같은 크기·필드 행·행동 배치로 신청 확인과 명부 선택을 제공합니다. */
-export function RequestReview({ request, presentation, busy, onClose, onApprove, onReject }: {
+export function RequestReview({
+  request,
+  presentation,
+  busy,
+  onClose,
+  onApprove,
+  onReject
+}: {
   request: SignupRequest;
   presentation: 'page' | 'modal';
   busy: boolean;
@@ -137,13 +144,14 @@ export function RequestReview({ request, presentation, busy, onClose, onApprove,
     </>
   );
 
-  if (presentation === 'page') return (
-    <section
-      className={styles.page}
-    >
-      {content}
-    </section>
-  );
+  if (presentation === 'page')
+    return (
+      <section
+        className={styles.page}
+      >
+        {content}
+      </section>
+    );
 
   return (
     <ClientModal

@@ -9,6 +9,7 @@ export function downloadResult(rows: ImportRow[]) {
 
     return `"${safe.replaceAll('"', '""')}"`;
   }
+
   const labels: Record<string, string> = {
     SUCCESS: '등록 성공',
     DUPLICATE: '중복 제외',

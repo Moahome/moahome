@@ -9,14 +9,18 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './imagePreview.module.css';
 
 /** 실제 내려받는 PNG를 페이지별로 보여주고 이미지가 바뀌거나 창을 닫으면 Object URL을 해제합니다. */
-export function ImagePreview({ images }: { images: readonly Blob[] }) {
+export function ImagePreview({
+  images
+}: { images: readonly Blob[] }) {
   const [page, setPage] = useState(0);
   const image = useRef<HTMLImageElement>(null);
   const [failed, setFailed] = useState(false);
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     const next = URL.createObjectURL(images[page]);
-    if (image.current) image.current.src = next;
+    if (image.current)
+      image.current.src = next;
+
     return () => URL.revokeObjectURL(next);
   }, [images, page, retry]);
 
@@ -39,7 +43,10 @@ export function ImagePreview({ images }: { images: readonly Blob[] }) {
           actions={(
             <Button
               variant={'outline'}
-              onClick={() => { setFailed(false); setRetry((value) => value + 1); }}
+              onClick={() => {
+                setFailed(false);
+                setRetry((value) => value + 1);
+              }}
             >
               다시 시도
             </Button>
@@ -73,7 +80,10 @@ export function ImagePreview({ images }: { images: readonly Blob[] }) {
             iconOnly
             aria-label={'이미지 이전 페이지'}
             disabled={page === 0}
-            onClick={() => { setFailed(false); setPage(page - 1); }}
+            onClick={() => {
+              setFailed(false);
+              setPage(page - 1);
+            }}
           >
             <ServiceIcon
               name={'chevron'}
@@ -86,7 +96,10 @@ export function ImagePreview({ images }: { images: readonly Blob[] }) {
             iconOnly
             aria-label={'이미지 다음 페이지'}
             disabled={page === images.length - 1}
-            onClick={() => { setFailed(false); setPage(page + 1); }}
+            onClick={() => {
+              setFailed(false);
+              setPage(page + 1);
+            }}
           >
             <ServiceIcon
               name={'chevron'}

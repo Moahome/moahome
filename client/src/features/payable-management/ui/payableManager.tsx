@@ -39,7 +39,15 @@ import {
 import styles from './payableManager.module.css';
 
 /** 등록·기존 출금 연결·연결 해제는 같은 원본을 다시 조회하고 관련 손익·원장을 함께 갱신합니다. */
-export function PayableManager({ propertyId, payableId, presentation = 'modal', onClose, onCreated, children, onBusyChange }: {
+export function PayableManager({
+  propertyId,
+  payableId,
+  presentation = 'modal',
+  onClose,
+  onCreated,
+  children,
+  onBusyChange
+}: {
   propertyId: string;
   payableId?: string;
   presentation?: 'modal' | 'page' | 'embedded';
@@ -52,7 +60,9 @@ export function PayableManager({ propertyId, payableId, presentation = 'modal', 
   const cache = useQueryClient();
   const query = useQuery({
     queryKey: ['payables', session.data?.id, propertyId],
-    queryFn: ({ signal }) => getPayables(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getPayables(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
@@ -83,28 +93,49 @@ export function PayableManager({ propertyId, payableId, presentation = 'modal', 
 
   /** 실패 재시도는 요청 ID를 유지하며 성공 후에만 후보 선택·확인을 비웁니다. */
   async function perform(action: string) {
-    if (working.current || !data?.canManage) return;
+    if (working.current || !data?.canManage)
+      return;
     if (action === 'create' && (!form.accountId || (data.hasBuildings && !form.buildingId))) {
-      setError('비용 계정과목과 부담 동을 선택해주세요.'); return;
+      setError('비용 계정과목과 부담 동을 선택해주세요.');
+
+      return;
     }
-    working.current = true; setBusy(true); onBusyChange?.(true); setError('');
+    working.current = true;
+    setBusy(true);
+    onBusyChange?.(true);
+    setError('');
     try {
-      if (action === 'create') await createPayable(propertyId, {
-        ...form,
-        id: requestId,
-        buildingId: form.buildingId || null
-      });
-      else if (action === 'settle' && payableId) await settlePayable(propertyId, payableId, paymentRequest, expenseId);
-      else if (action === 'cancel' && payableId) await cancelPayable(propertyId, payableId);
-      else if (action.startsWith('unlink:') && payableId) await cancelPayablePayment(propertyId, payableId, action.slice(7));
+      if (action === 'create')
+        await createPayable(propertyId, {
+          ...form,
+          id: requestId,
+          buildingId: form.buildingId || null
+        });
+      else if (action === 'settle' && payableId)
+        await settlePayable(propertyId, payableId, paymentRequest, expenseId);
+      else if (action === 'cancel' && payableId)
+        await cancelPayable(propertyId, payableId);
+      else if (action.startsWith('unlink:') && payableId)
+        await cancelPayablePayment(propertyId, payableId, action.slice(7));
       await query.refetch();
       await Promise.all(['account-ledger', 'income-statement', 'monthly-settlement'].map((key) => cache.invalidateQueries({
         queryKey: [key, session.data?.id, propertyId]
       })));
-      setConfirmation(null); setExpenseId(''); setPaymentRequest(crypto.randomUUID());
-      if (action === 'create') { if (onCreated) onCreated(requestId); else onClose(); }
-    } catch (failure) { setError(failure instanceof Error ? failure.message : '미지급 처리를 완료하지 못했습니다.'); }
-    finally { working.current = false; setBusy(false); onBusyChange?.(false); }
+      setConfirmation(null);
+      setExpenseId('');
+      setPaymentRequest(crypto.randomUUID());
+      if (action === 'create') {
+        if (onCreated)
+          onCreated(requestId); else
+          onClose();
+      }
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : '미지급 처리를 완료하지 못했습니다.');
+    } finally {
+      working.current = false;
+      setBusy(false);
+      onBusyChange?.(false);
+    }
   }
 
   const title = payableId ? '미지급 상세' : '미지급 등록';
@@ -159,7 +190,10 @@ export function PayableManager({ propertyId, payableId, presentation = 'modal', 
       ) : data && !payableId ? data.canManage ? (
         <form
           className={styles.form}
-          onSubmit={(event) => { event.preventDefault(); void perform('create'); }}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void perform('create');
+          }}
         >
           {presentation !== 'page' && (
             <p>
@@ -441,7 +475,10 @@ export function PayableManager({ propertyId, payableId, presentation = 'modal', 
                       value: value.expenseId,
                       label: `${value.date} · ${value.name} · ${money(value.amount)}`
                     }))}
-                    onChange={(value) => { setExpenseId(value); setPaymentRequest(crypto.randomUUID()); }}
+                    onChange={(value) => {
+                      setExpenseId(value);
+                      setPaymentRequest(crypto.randomUUID());
+                    }}
                   />
                   {candidates.length === 0 && (
                     <p>
@@ -492,7 +529,10 @@ export function PayableManager({ propertyId, payableId, presentation = 'modal', 
                 <Button
                   variant={'outline'}
                   disabled={busy}
-                  onClick={() => { setConfirmation(null); setError(''); }}
+                  onClick={() => {
+                    setConfirmation(null);
+                    setError('');
+                  }}
                 >
                   취소
                 </Button>
@@ -517,12 +557,15 @@ export function PayableManager({ propertyId, payableId, presentation = 'modal', 
       ) : null}
     </div>
   );
-  if (presentation === 'page') return (
-    <ListCard>
-      {content}
-    </ListCard>
-  );
-  if (presentation === 'embedded') return content;
+  if (presentation === 'page')
+    return (
+      <ListCard>
+        {content}
+      </ListCard>
+    );
+  if (presentation === 'embedded')
+    return content;
+
   return (
     <ClientModal
       className={styles.modal}

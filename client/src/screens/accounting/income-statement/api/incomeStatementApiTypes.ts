@@ -62,12 +62,15 @@ export interface IncomeStatementWorkspace extends IncomeStatementSource {
   range: MonthRange;
   canManage: boolean;
   completeness: 'NO_BILLING' | 'SETUP_REQUIRED' | 'BEFORE_START' | 'READY' | 'REVIEW_REQUIRED';
-  configuration: { startMonth: string; fiscalYearStartMonth: number } | null;
+  configuration: { startMonth: string;
+fiscalYearStartMonth: number } | null;
   issues: AccountingIssue[];
   expenses: AccountingExpense[];
   revenueItems: AccountingRevenueItem[];
   accounts: AccountingAccount[];
-  buildings: { id: string; name: string; deleted?: boolean }[];
+  buildings: { id: string;
+name: string;
+deleted?: boolean }[];
   receivables?: AccountingReceivable[];
   otherIncomes?: AccountingOtherIncome[];
   households?: AccountingHouseholdBalance[];

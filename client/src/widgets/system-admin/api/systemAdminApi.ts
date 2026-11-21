@@ -16,6 +16,7 @@ function readMember(value: SystemMember): SystemMember {
     || typeof value.createdAt !== 'string' || !Number.isFinite(Date.parse(value.createdAt))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '회원 정보를 확인할 수 없습니다.');
   }
+
   return value;
 }
 
@@ -35,6 +36,7 @@ export async function getSystemMembers(filters: MemberSearch, signal?: AbortSign
     throw new ApiError(200, 'INVALID_RESPONSE', '회원 목록을 확인할 수 없습니다.');
   }
   result.users.forEach(readMember);
+
   return result;
 }
 export async function getSystemMember(id: string, signal?: AbortSignal) {
@@ -42,23 +44,31 @@ export async function getSystemMember(id: string, signal?: AbortSignal) {
     url: `/api/system-admin/users/${id}`,
     signal
   }));
-  if (result.id !== id) throw new ApiError(200, 'INVALID_RESPONSE', '회원 정보를 확인할 수 없습니다.');
+  if (result.id !== id)
+    throw new ApiError(200, 'INVALID_RESPONSE', '회원 정보를 확인할 수 없습니다.');
+
   return result;
 }
 
 /** 화면의 명시적 확인 이후에만 변경하고 응답 유실 재시도에는 같은 요청 UUID를 사용합니다. */
 export async function changeSystemMember(id: string, command: AdminCommand) {
-  const { kind, ...data } = command;
+  const {
+    kind,
+    ...data
+  } = command;
   const result = readMember(await authenticatedAPI<SystemMember>({
     url: `/api/system-admin/users/${id}/${kind === 'permission' ? 'creation-permission' : 'promotion'}`,
     method: 'POST',
     data
   }));
-  if (result.id !== id) throw new ApiError(200, 'INVALID_RESPONSE', '회원 정보를 확인할 수 없습니다.');
+  if (result.id !== id)
+    throw new ApiError(200, 'INVALID_RESPONSE', '회원 정보를 확인할 수 없습니다.');
+
   return result;
 }
 export function systemAdminError(error: unknown): string {
-  if (!(error instanceof ApiError)) return '권한을 변경하지 못했습니다. 다시 시도해주세요.';
+  if (!(error instanceof ApiError))
+    return '권한을 변경하지 못했습니다. 다시 시도해주세요.';
   const messages: Record<string, string> = {
     ACCESS_DENIED: '시스템 관리자 권한을 확인해주세요.',
     ACCOUNT_UNAVAILABLE: '이용할 수 없는 계정입니다.',
@@ -68,5 +78,6 @@ export function systemAdminError(error: unknown): string {
     ADMIN_SERVICE_UNAVAILABLE: '시스템 관리를 일시적으로 사용할 수 없습니다.',
     INVALID_RESPONSE: '회원 정보를 확인할 수 없습니다.'
   };
+
   return messages[error.code] ?? '권한을 변경하지 못했습니다. 다시 시도해주세요.';
 }

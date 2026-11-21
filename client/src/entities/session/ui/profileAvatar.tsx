@@ -24,7 +24,9 @@ export function ProfileAvatar({
   const privateImage = Boolean(imageUrl?.startsWith('/api/users/me/profile-image?'));
   const image = useQuery({
     queryKey: ['session', 'profile-image', imageUrl],
-    queryFn: async ({ signal }) => {
+    queryFn: async ({
+      signal
+    }) => {
       const blob = await authenticatedAPI<Blob>({
         url: imageUrl!,
         responseType: 'blob',
@@ -33,6 +35,7 @@ export function ProfileAvatar({
       if (blob.type !== 'image/png' || blob.size > 2 * 1024 * 1024) {
         throw new ApiError(200, 'INVALID_RESPONSE', '사진을 확인할 수 없습니다.');
       }
+
       return blob;
     },
     enabled: privateImage,
@@ -83,7 +86,12 @@ export function ProfileAvatar({
 }
 
 /** 인증된 바이트만 브라우저 이미지로 연결하고 이미지 교체·언마운트 때 메모리 주소를 해제합니다. */
-function PrivateAvatarImage({ blob, size, alt, onError }: {
+function PrivateAvatarImage({
+  blob,
+  size,
+  alt,
+  onError
+}: {
   blob: Blob;
   size: number;
   alt: string;
@@ -92,7 +100,9 @@ function PrivateAvatarImage({ blob, size, alt, onError }: {
   const image = useRef<HTMLImageElement>(null);
   useEffect(() => {
     const url = URL.createObjectURL(blob);
-    if (image.current) image.current.src = url;
+    if (image.current)
+      image.current.src = url;
+
     return () => URL.revokeObjectURL(url);
   }, [blob]);
 

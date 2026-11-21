@@ -13,7 +13,8 @@ export function getExpenseReportDocument(rows: readonly BankingTransaction[], bu
   const amount = rows.reduce((sum, row) => sum + getExpenseAmount(row, buildingIds), BigInt(0));
   const month = context?.month ?? rows[0]?.date.slice(0, 7) ?? '';
   let period = month ? month.replace('-', '년 ') + '월' : '전체 기간';
-  if (context?.period) period = formatDateRange(context.period);
+  if (context?.period)
+    period = formatDateRange(context.period);
   const scope = `${period} · ${context?.buildingLabel ?? '선택 동'}`;
 
   return {

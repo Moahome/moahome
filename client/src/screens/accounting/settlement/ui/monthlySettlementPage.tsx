@@ -55,13 +55,18 @@ const CHECK_DESCRIPTIONS: Record<string, string> = {
 
 /** 점검 대상이 없다는 표시를 업무 마감·대사 완료 상태로 오해하지 않도록 구분합니다. */
 function getCheckLabel(id: string, count: number): string {
-  if (count === 0) return '확인 항목 없음';
-  if (id === 'external') return '미회수';
+  if (count === 0)
+    return '확인 항목 없음';
+  if (id === 'external')
+    return '미회수';
+
   return '확인 필요';
 }
 
 /** 월별 정산의 조회·점검·다운로드를 연결하고 원천 업무와 마감 상태는 변경하지 않습니다. */
-export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
+export function MonthlySettlementPage({
+  propertyId
+}: { propertyId: string }) {
   const session = useSession();
   const router = useRouter();
   const search = useSearchParams();
@@ -70,12 +75,16 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
   const base = `/manage/${propertyId}`;
   const query = useQuery({
     queryKey: ['monthly-settlement', session.data?.id, propertyId, rawMonth],
-    queryFn: ({ signal }) => getMonthlySettlement(propertyId, rawMonth ?? undefined, signal),
+    queryFn: ({
+      signal
+    }) => getMonthlySettlement(propertyId, rawMonth ?? undefined, signal),
     enabled: Boolean(session.data) && validMonth,
     retry: false,
     gcTime: 0
   });
-  const { openDownload } = useReportDownload();
+  const {
+    openDownload
+  } = useReportDownload();
   const data = query.data;
   const ready = Boolean(data && !query.isFetching && !query.isError && validMonth);
   const report = ready && data ? getSettlementReport(data) : null;
@@ -128,7 +137,8 @@ export function MonthlySettlementPage({ propertyId }: { propertyId: string }) {
                 )}
                 disabled={!ready}
                 onClick={() => {
-                  if (!ready || !data) return;
+                  if (!ready || !data)
+                    return;
                   openDownload({
                     pageHref: `${base}/accounting/settlement/download?month=${month}`,
                     render: (presentation, onClose) => (

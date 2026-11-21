@@ -24,6 +24,7 @@ export async function getWithdrawalStatus(): Promise<WithdrawalStatus> {
     || result.canWithdraw !== (result.managedProperties.length === 0)) {
     throw new ApiError(200, 'INVALID_RESPONSE', '탈퇴 가능 여부를 확인하지 못했어요.');
   }
+
   return result;
 }
 
@@ -41,6 +42,7 @@ export async function requestAccountWithdrawal(): Promise<WithdrawalReceipt> {
     || Date.parse(result.recoverableUntil) <= Date.parse(result.requestedAt)) {
     throw new ApiError(200, 'INVALID_RESPONSE', '탈퇴 신청 결과를 확인하지 못했어요. 다시 로그인해주세요.');
   }
+
   return result;
 }
 
@@ -55,12 +57,14 @@ export async function getAccountRecovery(): Promise<AccountRecovery> {
       || !Number.isFinite(Date.parse(result.requestedAt)) || !Number.isFinite(Date.parse(result.recoverableUntil))))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '계정 복구 정보를 확인하지 못했어요.');
   }
+
   return result;
 }
 
 /** 정상 Refresh Rotation·로그아웃과 같은 브라우저 잠금으로 복구 쿠키 교체의 응답 순서를 보장합니다. */
 export async function recoverAccount(csrfToken: string): Promise<void> {
-  if (!navigator.locks) throw new ApiError(0, 'BROWSER_UNSUPPORTED', '브라우저를 업데이트해주세요.');
+  if (!navigator.locks)
+    throw new ApiError(0, 'BROWSER_UNSUPPORTED', '브라우저를 업데이트해주세요.');
   await navigator.locks.request(SESSION_LOCK_NAME, async () => {
     await customAPI<void>({
       url: '/api/auth/web/account-recovery',
@@ -75,7 +79,8 @@ export async function recoverAccount(csrfToken: string): Promise<void> {
 
 /** 같은 브라우저의 다른 탭도 이전 계정 화면을 즉시 비우도록 내부 계정 ID만 알립니다. */
 export function notifyAccountWithdrawal(userId: string) {
-  if (typeof BroadcastChannel === 'undefined') return;
+  if (typeof BroadcastChannel === 'undefined')
+    return;
   const channel = new BroadcastChannel('moahome-account-lifecycle');
   channel.postMessage({
     type: 'withdrawal-requested',
@@ -85,12 +90,15 @@ export function notifyAccountWithdrawal(userId: string) {
 }
 
 export function subscribeAccountWithdrawal(onWithdrawal: (userId: string) => void) {
-  if (typeof BroadcastChannel === 'undefined') return () => {};
+  if (typeof BroadcastChannel === 'undefined')
+    return () => {};
   const channel = new BroadcastChannel('moahome-account-lifecycle');
   channel.onmessage = (event: MessageEvent<unknown>) => {
     const data = event.data;
     if (data && typeof data === 'object' && 'type' in data && data.type === 'withdrawal-requested'
-      && 'userId' in data && typeof data.userId === 'string') onWithdrawal(data.userId);
+      && 'userId' in data && typeof data.userId === 'string')
+      onWithdrawal(data.userId);
   };
+
   return () => channel.close();
 }

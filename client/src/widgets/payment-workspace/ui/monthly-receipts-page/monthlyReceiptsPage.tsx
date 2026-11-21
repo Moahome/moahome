@@ -15,13 +15,19 @@ import { usePaymentWorkspace } from '../payment-workspace-provider/paymentWorksp
 import styles from './monthlyReceiptsPage.module.css';
 
 /** 세대의 확정 입금을 최신순으로 조회하며 연도·표시 개수는 조회 결과만 제한하고 수납 계산은 변경하지 않습니다. */
-export function MonthlyReceiptsPage({ month, unitId, listPath }: {
+export function MonthlyReceiptsPage({
+  month,
+  unitId,
+  listPath
+}: {
   month: string;
   unitId: string;
   listPath: string;
 }) {
   const router = useRouter();
-  const { ledger } = usePaymentWorkspace();
+  const {
+    ledger
+  } = usePaymentWorkspace();
   const [year, setYear] = useState('ALL');
   const [pageSize, setPageSize] = useState(10);
   const [page, setPage] = useState(1);
@@ -92,7 +98,10 @@ export function MonthlyReceiptsPage({ month, unitId, listPath }: {
                   label: `${value}년`
                 }))
               ]}
-              onChange={(value) => { setYear(value); setPage(1); }}
+              onChange={(value) => {
+                setYear(value);
+                setPage(1);
+              }}
             />
             <Dropdown
               aria-label={'입금 내역 표시 개수'}
@@ -101,7 +110,10 @@ export function MonthlyReceiptsPage({ month, unitId, listPath }: {
                 value: String(value),
                 label: `${value}개씩 보기`
               }))}
-              onChange={(value) => { setPageSize(Number(value)); setPage(1); }}
+              onChange={(value) => {
+                setPageSize(Number(value));
+                setPage(1);
+              }}
             />
           </div>
           <DataTable

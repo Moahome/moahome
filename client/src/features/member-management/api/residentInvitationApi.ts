@@ -23,6 +23,7 @@ export async function issueResidentInvitation(propertyId: string, residentId?: s
   if (!value || !isPropertyId(value.id) || !/^[RB](?:-[A-HJ-NP-Z2-9]{4}){3}$/.test(value.token) || !Number.isFinite(Date.parse(value.expiresAt))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '초대코드를 확인할 수 없습니다.');
   }
+
   return value;
 }
 /** 같은 유효 코드를 다시 받아 전달하며 발급 시각·유효기간을 바꾸지 않습니다. */
@@ -34,6 +35,7 @@ export async function openResidentInvitation(propertyId: string, id: string) {
   if (!value || value.id !== id || (value.token !== null && !/^R(?:-[A-HJ-NP-Z2-9]{4}){3}$/.test(value.token)) || !Number.isFinite(Date.parse(value.expiresAt))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '초대코드를 확인할 수 없습니다.');
   }
+
   return value;
 }
 /** 사용자가 보관한 원문만 기존 초대에 복원하며 새 초대를 만들거나 유효기간을 연장하지 않습니다. */
@@ -48,6 +50,7 @@ export async function restoreResidentInvitation(propertyId: string, id: string, 
   if (!value || value.id !== id || !/^R(?:-[A-HJ-NP-Z2-9]{4}){3}$/.test(value.token) || !Number.isFinite(Date.parse(value.expiresAt))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '초대코드를 확인할 수 없습니다.');
   }
+
   return value;
 }
 export async function getResidentInvitations(propertyId: string, signal?: AbortSignal) {
@@ -56,14 +59,17 @@ export async function getResidentInvitations(propertyId: string, signal?: AbortS
     url: `/api/properties/${propertyId}/resident-invitations`
   }), propertyId);
 }
+
 function read(value: ResidentInvitationWorkspace, propertyId: string) {
   if (!value || value.propertyId !== propertyId || !Array.isArray(value.invitations)
     || value.invitations.some((row) => !isPropertyId(row.id) || !isPropertyId(row.residentId) || typeof row.name !== 'string'
       || !Number.isSafeInteger(row.revision) || !['ISSUED', 'EXPIRED', 'CHANGE_REQUESTED', 'APPROVED', 'REVOKED', 'REJECTED'].includes(row.status))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '초대 목록을 확인할 수 없습니다.');
   }
+
   return value;
 }
+
 export async function reviewResidentInvitation(propertyId: string, id: string, revision: number, action: 'approve' | 'reject' | 'revoke') {
   return read(await authenticatedAPI<ResidentInvitationWorkspace>({
     url: `/api/properties/${propertyId}/resident-invitations/${id}/${action}`,
@@ -85,7 +91,9 @@ export async function previewResidentInvitation(token: string) {
     || !(value.phoneLast4 === null || (typeof value.phoneLast4 === 'string' && /^\d{4}$/.test(value.phoneLast4)))
     || !(value.phoneConsent === undefined || typeof value.phoneConsent === 'boolean')
     || (value.phoneConsent === true && value.phoneLast4 === null)
-    || !['ISSUED', 'CHANGE_REQUESTED', 'APPROVED'].includes(value.status)) throw new ApiError(200, 'INVALID_RESPONSE', '초대 정보를 확인할 수 없습니다.');
+    || !['ISSUED', 'CHANGE_REQUESTED', 'APPROVED'].includes(value.status))
+    throw new ApiError(200, 'INVALID_RESPONSE', '초대 정보를 확인할 수 없습니다.');
+
   return value;
 }
 export async function acceptResidentInvitation(input: ResidentInvitationAcceptance) {
@@ -94,7 +102,9 @@ export async function acceptResidentInvitation(input: ResidentInvitationAcceptan
     method: 'POST',
     data: input
   });
-  if (!value || !['APPROVED', 'CHANGE_REQUESTED'].includes(value.status)) throw new ApiError(200, 'INVALID_RESPONSE', '가입 결과를 확인할 수 없습니다.');
+  if (!value || !['APPROVED', 'CHANGE_REQUESTED'].includes(value.status))
+    throw new ApiError(200, 'INVALID_RESPONSE', '가입 결과를 확인할 수 없습니다.');
+
   return value;
 }
 export async function getResidentJoinOptions(token: string) {
@@ -106,7 +116,9 @@ export async function getResidentJoinOptions(token: string) {
     }
   });
   if (!value || !isPropertyId(value.propertyId) || typeof value.propertyName !== 'string' || !Array.isArray(value.units)
-    || value.units.some((unit) => !isPropertyId(unit.unitId) || typeof unit.label !== 'string')) throw new ApiError(200, 'INVALID_RESPONSE', '참여 정보를 확인할 수 없습니다.');
+    || value.units.some((unit) => !isPropertyId(unit.unitId) || typeof unit.label !== 'string'))
+    throw new ApiError(200, 'INVALID_RESPONSE', '참여 정보를 확인할 수 없습니다.');
+
   return value;
 }
 export async function submitResidentJoin(propertyId: string, input: ResidentJoinSubmission) {
@@ -115,6 +127,8 @@ export async function submitResidentJoin(propertyId: string, input: ResidentJoin
     method: 'POST',
     data: input
   });
-  if (!value || !isPropertyId(value.id) || value.status !== 'PENDING') throw new ApiError(200, 'INVALID_RESPONSE', '가입 신청을 확인할 수 없습니다.');
+  if (!value || !isPropertyId(value.id) || value.status !== 'PENDING')
+    throw new ApiError(200, 'INVALID_RESPONSE', '가입 신청을 확인할 수 없습니다.');
+
   return value;
 }

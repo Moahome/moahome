@@ -128,11 +128,14 @@ export function Dropdown({
     const trigger = triggerRef.current;
     const menu = menuRef.current;
 
-    if (!isOpen || !trigger || !menu) return;
+    if (!isOpen || !trigger || !menu)
+      return;
 
     // Popover의 최상위 표시 영역을 사용해 모달의 overflow에도 목록이 잘리지 않게 합니다.
-    if (typeof menu.showPopover === 'function') menu.showPopover();
-    else menu.removeAttribute('popover');
+    if (typeof menu.showPopover === 'function')
+      menu.showPopover();
+    else
+      menu.removeAttribute('popover');
 
     const updatePosition = () => positionMenu(trigger, menu);
     updatePosition();
@@ -144,7 +147,8 @@ export function Dropdown({
 
     /** 다른 입력을 누르면 선택을 변경하지 않고 펼친 목록만 닫습니다. */
     function closeOnOutsidePointer(event: PointerEvent) {
-      if (!trigger?.parentElement?.contains(event.target as Node)) setIsOpen(false);
+      if (!trigger?.parentElement?.contains(event.target as Node))
+        setIsOpen(false);
     }
 
     document.addEventListener('pointerdown', closeOnOutsidePointer);
@@ -155,12 +159,14 @@ export function Dropdown({
       window.removeEventListener('scroll', updatePosition, true);
       window.visualViewport?.removeEventListener('resize', updatePosition);
       document.removeEventListener('pointerdown', closeOnOutsidePointer);
-      if (typeof menu.hidePopover === 'function' && menu.matches(':popover-open')) menu.hidePopover();
+      if (typeof menu.hidePopover === 'function' && menu.matches(':popover-open'))
+        menu.hidePopover();
     };
   }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen || activeIndex < 0) return;
+    if (!isOpen || activeIndex < 0)
+      return;
 
     document.getElementById(`${controlId}-option-${activeIndex}`)?.scrollIntoView({
       block: 'nearest'
@@ -170,7 +176,8 @@ export function Dropdown({
   useEffect(() => {
     const nativeForm = inputRef.current?.form;
 
-    if (!nativeForm || value !== undefined) return;
+    if (!nativeForm || value !== undefined)
+      return;
 
     /** 비제어 선택은 기본 form reset 동작에 맞춰 최초 선택값으로 돌아갑니다. */
     function resetValue() {
@@ -179,12 +186,14 @@ export function Dropdown({
     }
 
     nativeForm.addEventListener('reset', resetValue);
+
     return () => nativeForm.removeEventListener('reset', resetValue);
   }, [defaultValue, value]);
 
   /** 비활성 선택을 건너뛰고 현재 선택 또는 목록 양 끝에서 탐색을 시작합니다. */
   function openMenu(fromEnd = false) {
-    if (triggerRef.current?.matches(':disabled') || enabledOptions.length === 0) return;
+    if (triggerRef.current?.matches(':disabled') || enabledOptions.length === 0)
+      return;
 
     const current = enabledOptions.find((option) => option.value === selectedValue);
     setActiveValue(current?.value ?? enabledOptions[fromEnd ? enabledOptions.length - 1 : 0].value);
@@ -193,7 +202,8 @@ export function Dropdown({
 
   /** 선택값만 호출자에 전달하고 선택 해제는 필수 입력에 허용하지 않습니다. */
   function selectValue(nextValue: string) {
-    if (triggerRef.current?.matches(':disabled') || (!nextValue && required)) return;
+    if (triggerRef.current?.matches(':disabled') || (!nextValue && required))
+      return;
 
     // 다중 선택은 목록을 유지하고 전체 항목을 누르면 명시적인 선택을 모두 해제합니다.
     if (multiple) {
@@ -201,10 +211,12 @@ export function Dropdown({
         ? selectedValues.filter((item) => item !== nextValue && item !== '')
         : options.filter((option) => option.value && (option.value === nextValue || selectedValues.includes(option.value)))
           .map((option) => option.value);
-      if (value === undefined) setInternalValue(next);
+      if (value === undefined)
+        setInternalValue(next);
       (onChange as ((values: string[]) => void) | undefined)?.(next);
     } else {
-      if (value === undefined) setInternalValue([nextValue]);
+      if (value === undefined)
+        setInternalValue([nextValue]);
       (onChange as ((value: string) => void) | undefined)?.(nextValue);
       setIsOpen(false);
     }
@@ -219,11 +231,13 @@ export function Dropdown({
       event.preventDefault();
       event.stopPropagation();
       setIsOpen(false);
+
       return;
     }
 
     if (event.key === 'Tab') {
       setIsOpen(false);
+
       return;
     }
 
@@ -231,27 +245,36 @@ export function Dropdown({
       event.preventDefault();
       if (!isOpen) {
         openMenu(event.key === 'ArrowUp' || event.key === 'End');
+
         return;
       }
 
       const currentIndex = enabledOptions.findIndex((option) => option.value === activeValue);
       let nextIndex = event.key === 'ArrowUp' ? currentIndex - 1 : currentIndex + 1;
-      if (event.key === 'Home') nextIndex = 0;
-      if (event.key === 'End') nextIndex = enabledOptions.length - 1;
+      if (event.key === 'Home')
+        nextIndex = 0;
+      if (event.key === 'End')
+        nextIndex = enabledOptions.length - 1;
       const next = enabledOptions[Math.max(0, Math.min(nextIndex, enabledOptions.length - 1))];
-      if (next) setActiveValue(next.value);
+      if (next)
+        setActiveValue(next.value);
+
       return;
     }
 
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      if (!isOpen) openMenu();
-      else selectValue(activeValue);
+      if (!isOpen)
+        openMenu();
+      else
+        selectValue(activeValue);
+
       return;
     }
 
     // 문자 탐색은 IME 조합과 브라우저 단축키를 가로채지 않습니다.
-    if (event.key.length !== 1 || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.key.length !== 1 || event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey)
+      return;
 
     const now = performance.now();
     const previousText = now - searchRef.current.time < 700 ? searchRef.current.text : '';
@@ -261,7 +284,8 @@ export function Dropdown({
       time: now
     };
     const match = enabledOptions.find((option) => option.label.toLocaleLowerCase().startsWith(text));
-    if (!match) return;
+    if (!match)
+      return;
 
     event.preventDefault();
     setActiveValue(match.value);
@@ -321,7 +345,8 @@ export function Dropdown({
         onKeyDown={handleKeyDown}
         onBlur={(event) => {
           onBlur?.(event);
-          if (!event.currentTarget.parentElement?.contains(event.relatedTarget)) setIsOpen(false);
+          if (!event.currentTarget.parentElement?.contains(event.relatedTarget))
+            setIsOpen(false);
         }}
       >
         <span
@@ -376,10 +401,12 @@ export function Dropdown({
             data-active={activeValue === option.value || undefined}
             onMouseDown={(event) => event.preventDefault()}
             onPointerMove={() => {
-              if (!option.disabled) setActiveValue(option.value);
+              if (!option.disabled)
+                setActiveValue(option.value);
             }}
             onClick={() => {
-              if (isOpen && !option.disabled) selectValue(option.value);
+              if (isOpen && !option.disabled)
+                selectValue(option.value);
             }}
           >
             <span>

@@ -30,6 +30,7 @@ export async function getAccountingAccounts(propertyId: string, signal?: AbortSi
     || new Set(value.accounts.map((row) => row.code)).size !== value.accounts.length) {
     throw new ApiError(200, 'INVALID_RESPONSE', '계정과목을 확인할 수 없습니다.');
   }
+
   return {
     ...value,
     accounts: [...value.accounts].sort((left, right) => left.code.localeCompare(right.code))
@@ -43,7 +44,9 @@ export async function createAccountingAccount(propertyId: string, request: Creat
     url: base(propertyId),
     data: request
   });
-  if (!result || !isPropertyId(result.id)) throw new ApiError(200, 'INVALID_RESPONSE', '과목을 확인할 수 없습니다.');
+  if (!result || !isPropertyId(result.id))
+    throw new ApiError(200, 'INVALID_RESPONSE', '과목을 확인할 수 없습니다.');
+
   return result.id;
 }
 
@@ -87,5 +90,6 @@ export async function getAccountingAccountHistory(propertyId: string, id: string
     || (row.deletedAt !== null && !Number.isFinite(Date.parse(row.deletedAt))))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '변경 이력을 확인할 수 없습니다.');
   }
+
   return value;
 }

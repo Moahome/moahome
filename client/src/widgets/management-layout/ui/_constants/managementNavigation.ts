@@ -12,7 +12,8 @@ type ManagementMenuItem = {
   id: string;
   label: string;
   icon: ServiceIconName;
-} & ({ children: ManagementMenuLink[] } | { path: string; available: boolean });
+} & ({ children: ManagementMenuLink[] } | { path: string;
+available: boolean });
 
 export const MANAGEMENT_NAVIGATION: ManagementMenuItem[] = [
   {

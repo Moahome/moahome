@@ -48,6 +48,7 @@ export function readLedger(value: PreviewLedger & PaymentLedgerIdentity, propert
     || value.openingCredits?.some((c) => !ids.has(c.unitId))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '입금 응답을 확인할 수 없습니다.');
   }
+
   return value;
 }
 export async function getPaymentLedger(propertyId: string, signal?: AbortSignal): Promise<PreviewLedger> {
@@ -60,12 +61,14 @@ export async function getPaymentLedger(propertyId: string, signal?: AbortSignal)
 export async function mutatePayment(propertyId: string, command: PaymentCommand): Promise<PreviewLedger> {
   const path = `/api/properties/${propertyId}/payments`;
   if (command.type === 'import') {
-    const data = new FormData(); data.append('file', command.file);
+    const data = new FormData();
+    data.append('file', command.file);
     data.append('selection', new Blob([JSON.stringify({
       transactionIds: command.transactionIds
     })], {
       type: 'application/json'
     }));
+
     return readLedger(await authenticatedAPI({
       url: `${path}/import`,
       method: 'POST',
@@ -74,11 +77,16 @@ export async function mutatePayment(propertyId: string, command: PaymentCommand)
     }), propertyId);
   }
   let url = path;
-  if (command.type === 'delete-many') url += '/delete';
-  else if (command.type === 'delete') url += `/${command.id}`;
-  else if (command.type === 'confirm-matches' || command.type === 'manual') url += `/${command.type}`;
-  else url += `/${command.id}/${command.type}`;
+  if (command.type === 'delete-many')
+    url += '/delete';
+  else if (command.type === 'delete')
+    url += `/${command.id}`;
+  else if (command.type === 'confirm-matches' || command.type === 'manual')
+    url += `/${command.type}`;
+  else
+    url += `/${command.id}/${command.type}`;
   const data = 'data' in command ? command.data : undefined;
+
   return readLedger(await authenticatedAPI({
     url,
     method: command.type === 'delete' ? 'DELETE' : 'POST',
@@ -87,7 +95,8 @@ export async function mutatePayment(propertyId: string, command: PaymentCommand)
 }
 /** 미리보기와 실제 가져오기 모두 서버에서 원본 파일을 검증해 조작된 행 데이터로 저장하지 않습니다. */
 export async function previewBankFile(propertyId: string, file: File): Promise<BankFilePreview> {
-  const data = new FormData(); data.append('file', file);
+  const data = new FormData();
+  data.append('file', file);
   const result = await authenticatedAPI<BankFilePreviewResponse>({
     url: `/api/properties/${propertyId}/payments/import/preview`,
     method: 'POST',
@@ -99,11 +108,13 @@ export async function previewBankFile(propertyId: string, file: File): Promise<B
       && UUID.test(row.accountId) && typeof row.payer === 'string' && isPreviewDate(row.date) && /^[0-9]{1,15}$/.test(row.amount))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '은행 거래 응답을 확인할 수 없습니다.');
   }
+
   return result;
 }
 
 export function paymentError(error: unknown): string {
-  if (!(error instanceof ApiError)) return '입금 정보를 처리하지 못했어요.';
+  if (!(error instanceof ApiError))
+    return '입금 정보를 처리하지 못했어요.';
   const messages: Record<string, string> = {
     OPENING_BALANCE_REQUIRED: '관리비 부과의 기존 잔액 인계에서 관리 시작을 먼저 확정해주세요.',
     PAYMENT_BEFORE_OPENING_CUTOFF: '기존 장부 기준일 이전 입금은 인계 잔액에 포함되어 신규 수납으로 반영할 수 없어요.',
@@ -135,5 +146,6 @@ export function paymentError(error: unknown): string {
     INVALID_RESPONSE: '서버의 입금 응답을 확인할 수 없어요.',
     NETWORK_ERROR: '서버에 연결하지 못했어요. 입력을 유지하고 다시 시도해주세요.'
   };
+
   return messages[error.code] ?? '입금 정보를 처리하지 못했어요. 다시 확인해주세요.';
 }

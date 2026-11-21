@@ -34,7 +34,8 @@ export interface ResidentInvitationPreview {
 export interface ResidentJoinOptions {
   propertyId: string;
   propertyName: string;
-  units: { unitId: string; label: string }[];
+  units: { unitId: string;
+label: string }[];
 }
 export interface ResidentInvitationAcceptance {
   token: string;
@@ -53,7 +54,8 @@ export interface ResidentJoinSubmission {
 }
 
 export interface ResidentInvitationResult { status: string; }
-export interface ResidentJoinResult { id: string; status: string; }
+export interface ResidentJoinResult { id: string;
+status: string; }
 
 export interface ResidentInvitationShare {
   id: string;

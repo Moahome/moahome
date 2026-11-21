@@ -65,7 +65,8 @@ export function SubmissionDialog({
     return () => {
       dialog?.close();
       document.body.style.overflow = previousOverflow;
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) previousFocus.focus();
+      if (previousFocus instanceof HTMLElement && previousFocus.isConnected)
+        previousFocus.focus();
     };
   }, []);
 
@@ -75,9 +76,11 @@ export function SubmissionDialog({
 
   /** 모달 닫기와 등록 취소를 구분해 미확인 요청은 그대로 두고 확인 화면으로 돌아갑니다. */
   function dismiss() {
-    if (busy) return;
+    if (busy)
+      return;
     if (failed) {
       onDismissFailure(false);
+
       return;
     }
     onDismiss();
@@ -101,7 +104,8 @@ export function SubmissionDialog({
           || event.clientY < bounds.top || event.clientY > bounds.bottom;
       }}
       onClick={(event) => {
-        if (event.target === event.currentTarget && backdropPointerDown.current) dismiss();
+        if (event.target === event.currentTarget && backdropPointerDown.current)
+          dismiss();
       }}
     >
       {!busy && (

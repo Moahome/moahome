@@ -23,6 +23,7 @@ export function getMonthlyReportDocuments(data: MonthlySettlementSnapshot): Repo
   const included = report.external.filter((row) => !row.excluded);
   const sumExternal = (field: 'amount' | 'received' | 'remaining') => included.reduce((total, row) => total + BigInt(row[field]), BigInt(0));
   const sumCollections = (field: 'carry' | 'prepaid' | 'applied' | 'balance') => report.collections.reduce((total, row) => total + row[field], BigInt(0));
+
   return [
     {
       ...common,
@@ -175,6 +176,9 @@ export function getMonthlyReportDocuments(data: MonthlySettlementSnapshot): Repo
 
 /** 템플릿의 요약과 세부 표를 한 시트로 저장합니다. */
 export async function createMonthlyReportWorkbook(data: MonthlySettlementSnapshot): Promise<Blob> {
-  const { createMonthlyStyledWorkbook } = await import('./monthlyReportWorkbook');
+  const {
+    createMonthlyStyledWorkbook
+  } = await import('./monthlyReportWorkbook');
+
   return createMonthlyStyledWorkbook(getMonthlyReportDocuments(data));
 }

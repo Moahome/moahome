@@ -87,6 +87,7 @@ export async function uploadNoticeAsset(propertyId: string, file: File, image: b
     || asset.data !== `/api/properties/${propertyId}/notices/assets/${id}`) {
     throw new ApiError(200, 'INVALID_RESPONSE', '첨부파일 저장 결과를 확인할 수 없습니다.');
   }
+
   return asset;
 }
 
@@ -95,6 +96,7 @@ export async function readNoticeAsset(reference: string, signal?: AbortSignal) {
   if (!/^\/api\/properties\/[0-9a-f-]{36}\/notices\/assets\/[0-9a-f-]{36}$/.test(reference)) {
     throw new ApiError(400, 'INVALID_NOTICE_ASSET', '첨부파일 주소를 확인해주세요.');
   }
+
   return authenticatedAPI<Blob>({
     url: reference,
     responseType: 'blob',

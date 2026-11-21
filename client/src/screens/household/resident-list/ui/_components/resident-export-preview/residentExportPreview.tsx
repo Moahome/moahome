@@ -51,9 +51,11 @@ export function ResidentExportPreview({
     let active = true;
     // 전체 연락처는 React Query 캐시를 통하지 않고 현재 미리보기 컴포넌트 상태에만 둡니다.
     void getResidentExport(propertyId, residentIds).then((result) => {
-      if (active) setRows(result);
+      if (active)
+        setRows(result);
     }).catch((error: unknown) => {
-      if (!active) return;
+      if (!active)
+        return;
       setFailed(true);
       setFailure(error);
     });
@@ -66,17 +68,20 @@ export function ResidentExportPreview({
 
   /** 미리보기의 전체 주민에 연락처를 포함해 파일을 만들고 중복 클릭·이탈 후 저장을 막습니다. */
   async function download() {
-    if (!rows?.length || busyRef.current) return;
+    if (!rows?.length || busyRef.current)
+      return;
     busyRef.current = true;
     setBusy(true);
     setNotice('');
     try {
       await downloadResidents(rows, () => activeRef.current);
     } catch {
-      if (activeRef.current) setNotice('엑셀 다운로드에 실패했어요. 다시 시도해주세요.');
+      if (activeRef.current)
+        setNotice('엑셀 다운로드에 실패했어요. 다시 시도해주세요.');
     } finally {
       busyRef.current = false;
-      if (activeRef.current) setBusy(false);
+      if (activeRef.current)
+        setBusy(false);
     }
   }
 
@@ -120,7 +125,12 @@ export function ResidentExportPreview({
       {failed && (
         <RequestError
           error={failure}
-          onRetry={() => { setFailed(false); setFailure(null); setNotice(''); setRetry((value) => value + 1); }}
+          onRetry={() => {
+            setFailed(false);
+            setFailure(null);
+            setNotice('');
+            setRetry((value) => value + 1);
+          }}
         />
       )}
       {rows && (

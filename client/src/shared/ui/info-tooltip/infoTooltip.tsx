@@ -15,7 +15,14 @@ import { ServiceIcon } from '../service-icon';
 import styles from './infoTooltip.module.css';
 
 /** 짧은 도움말을 버튼 주변의 화면 안에 열고 마우스·키보드·터치에서 같은 닫기 동작을 제공합니다. */
-export function InfoTooltip({ label, title, children, note, size = 'md', compact = false }: {
+export function InfoTooltip({
+  label,
+  title,
+  children,
+  note,
+  size = 'md',
+  compact = false
+}: {
   label: string;
   title?: string;
   children: ReactNode;
@@ -42,12 +49,15 @@ export function InfoTooltip({ label, title, children, note, size = 'md', compact
   }
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open)
+      return;
     const updatePosition = () => {
       const bounds = root.current?.getBoundingClientRect();
-      if (!bounds) return;
+      if (!bounds)
+        return;
       const panel = tooltip.current;
-      if (!panel) return;
+      if (!panel)
+        return;
       // 모달 도움말은 같은 네이티브 모달에 표시하고 모달·뷰포트의 안쪽 경계에서 위치를 정합니다.
       const dialog = root.current?.closest('dialog[open]')?.getBoundingClientRect();
       const viewport = window.visualViewport;
@@ -77,10 +87,12 @@ export function InfoTooltip({ label, title, children, note, size = 'md', compact
     };
     updatePosition();
     const observer = new ResizeObserver(updatePosition);
-    if (tooltip.current) observer.observe(tooltip.current);
+    if (tooltip.current)
+      observer.observe(tooltip.current);
     window.addEventListener('resize', updatePosition);
     window.visualViewport?.addEventListener('resize', updatePosition);
     window.addEventListener('scroll', updatePosition, true);
+
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', updatePosition);
@@ -90,19 +102,23 @@ export function InfoTooltip({ label, title, children, note, size = 'md', compact
   }, [open, target]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open)
+      return;
     const outside = (event: PointerEvent) => {
       const target = event.target as Node;
-      if (!root.current?.contains(target) && !tooltip.current?.contains(target)) setOpen(false);
+      if (!root.current?.contains(target) && !tooltip.current?.contains(target))
+        setOpen(false);
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
+      if (event.key !== 'Escape')
+        return;
       // 도움말을 먼저 닫고 같은 Escape로 부모 네이티브 모달까지 취소되는 것을 막습니다.
       event.preventDefault();
       setOpen(false);
     };
     document.addEventListener('pointerdown', outside);
     document.addEventListener('keydown', escape);
+
     return () => {
       document.removeEventListener('pointerdown', outside);
       document.removeEventListener('keydown', escape);
@@ -115,12 +131,15 @@ export function InfoTooltip({ label, title, children, note, size = 'md', compact
       className={styles.root}
       onMouseEnter={showTooltip}
       onMouseLeave={(event) => {
-        if (event.relatedTarget instanceof Node && tooltip.current?.contains(event.relatedTarget)) return;
-        if (!root.current?.contains(document.activeElement)) setOpen(false);
+        if (event.relatedTarget instanceof Node && tooltip.current?.contains(event.relatedTarget))
+          return;
+        if (!root.current?.contains(document.activeElement))
+          setOpen(false);
       }}
       onFocus={showTooltip}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+        if (!event.currentTarget.contains(event.relatedTarget))
+          setOpen(false);
       }}
     >
       <Button
@@ -155,8 +174,10 @@ export function InfoTooltip({ label, title, children, note, size = 'md', compact
           } as CSSProperties}
           onMouseEnter={showTooltip}
           onMouseLeave={(event) => {
-            if (event.relatedTarget instanceof Node && root.current?.contains(event.relatedTarget)) return;
-            if (!root.current?.contains(document.activeElement)) setOpen(false);
+            if (event.relatedTarget instanceof Node && root.current?.contains(event.relatedTarget))
+              return;
+            if (!root.current?.contains(document.activeElement))
+              setOpen(false);
           }}
         >
           <span

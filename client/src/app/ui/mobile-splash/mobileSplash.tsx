@@ -2,7 +2,9 @@ import type { ReactNode } from 'react';
 import styles from './mobileSplash.module.css';
 
 /** 기존 로고의 집·지붕·문을 조립하고 실제 페이지 준비와 독립적으로 한 번만 마무리합니다. */
-export function MobileSplash({ children }: { children: ReactNode }) {
+export function MobileSplash({
+  children
+}: { children: ReactNode }) {
   return (
     <>
       <div

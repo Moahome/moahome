@@ -23,12 +23,15 @@ export function getBalanceReportBuildingOptions(data: BalanceReportSnapshot) {
       label: building.label
     }));
   for (const entry of data.balances.entries) {
-    if (!isBalanceDateInRange(entry.date, data.month, data.startMonth) || (BigInt(entry.income) === BigInt(0) && BigInt(entry.expense) === BigInt(0))) continue;
-    if (!groups.some((group) => group.id === entry.buildingId)) groups.push({
-      id: entry.buildingId,
-      label: '동 확인 필요'
-    });
+    if (!isBalanceDateInRange(entry.date, data.month, data.startMonth) || (BigInt(entry.income) === BigInt(0) && BigInt(entry.expense) === BigInt(0)))
+      continue;
+    if (!groups.some((group) => group.id === entry.buildingId))
+      groups.push({
+        id: entry.buildingId,
+        label: '동 확인 필요'
+      });
   }
+
   return sortExpenseLabels(groups);
 }
 
@@ -50,9 +53,11 @@ export function getBalanceReportDocument(data: BalanceReportSnapshot, buildingId
   const groups = getBalanceReportBuildingOptions(data);
   const selected = groups.find((group) => group.id === buildingId);
   // 잘못된 선택을 전체 동으로 넓혀 다른 동의 내역을 파일에 넣지 않습니다.
-  if (buildingId && !selected) throw new Error('INVALID_SETTLEMENT_BUILDING');
+  if (buildingId && !selected)
+    throw new Error('INVALID_SETTLEMENT_BUILDING');
   const selectedAccount = getBalanceReportAccountOptions(data).find((account) => account.id === accountId);
-  if (accountId && !selectedAccount) throw new Error('INVALID_SETTLEMENT_ACCOUNT');
+  if (accountId && !selectedAccount)
+    throw new Error('INVALID_SETTLEMENT_ACCOUNT');
   const scope = selected?.label ?? '전체 동';
   const generatedAt = formatReportTimestamp(data.generatedAt);
   const entries = data.balances.entries.filter((row) => isBalanceDateInRange(row.date, data.month, data.startMonth)
@@ -83,19 +88,23 @@ export function getBalanceReportDocument(data: BalanceReportSnapshot, buildingId
       income += received;
       expense += paid;
       // 월초 보유금에서 날짜순으로 누적하며 기준 잔액이 미설정이면 가짜 0원 잔액을 만들지 않습니다.
-      if (running !== null) running += received - paid;
+      if (running !== null)
+        running += received - paid;
       const account = data.banking.accounts?.find((item) => item.id === entry.accountId)
         ?? data.balances.accounts?.find((item) => item.id === entry.accountId);
       let direction = '지출';
-      if (received !== BigInt(0)) direction = paid !== BigInt(0) ? '입금·지출' : '입금';
+      if (received !== BigInt(0))
+        direction = paid !== BigInt(0) ? '입금·지출' : '입금';
       rows.push([group.label, entry.date, account ? getBankAccountLabel(account) : '통장 미확인',
         direction, entry.label, received, paid, running ?? '설정 필요']);
     }
-    if (!movements.length) rows.push([group.label, '', '', '내역 없음', '조회 기간의 입금·지출 내역이 없습니다.', '', '', start == null ? '설정 필요' : BigInt(start)]);
+    if (!movements.length)
+      rows.push([group.label, '', '', '내역 없음', '조회 기간의 입금·지출 내역이 없습니다.', '', '', start == null ? '설정 필요' : BigInt(start)]);
     rows.push([group.label, '기초 잔액', start == null ? '설정 필요' : BigInt(start), '동별 합계', '', income, expense, end == null ? '설정 필요' : BigInt(end)]);
     totalIncome += income;
     totalExpense += expense;
   }
+
   return {
     title: selected ? `${data.propertyName} ${selected.label} 입출금 내역` : `${data.propertyName} 동별 입출금 내역`,
     sheet: '동별 입출금 내역',
@@ -171,6 +180,7 @@ export function getBalanceReportSections(document: ReportDefinition) {
   return [...new Set(document.rows.map((row) => String(row[0])))].map((label) => {
     const own = document.rows.filter((row) => row[0] === label);
     const subtotal = own.find((row) => row[3] === '동별 합계');
+
     return {
       label,
       start: typeof subtotal?.[2] === 'bigint' ? subtotal[2] : null,
@@ -184,6 +194,9 @@ export function getBalanceReportSections(document: ReportDefinition) {
 
 /** 선택한 동·계좌의 월 전체 입출금을 미리보기와 같은 한 시트로 저장합니다. */
 export async function createBalanceReportWorkbook(data: BalanceReportSnapshot, buildingId = '', accountId = ''): Promise<Blob> {
-  const { createBalanceStyledWorkbook } = await import('./balanceReportWorkbook');
+  const {
+    createBalanceStyledWorkbook
+  } = await import('./balanceReportWorkbook');
+
   return createBalanceStyledWorkbook(getBalanceReportDocument(data, buildingId, accountId));
 }

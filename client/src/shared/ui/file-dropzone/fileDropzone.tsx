@@ -13,7 +13,15 @@ import {
 import styles from './fileDropzone.module.css';
 
 /** 기존 주민 업로드의 파일 선택·드래그 표시를 공유하고 파일 검증은 호출 화면에 맡깁니다. */
-export function FileDropzone({ label, inputLabel, accept, description, busy = false, disabled = false, onFile }: {
+export function FileDropzone({
+  label,
+  inputLabel,
+  accept,
+  description,
+  busy = false,
+  disabled = false,
+  onFile
+}: {
   label: string;
   inputLabel: string;
   accept: string;
@@ -33,7 +41,8 @@ export function FileDropzone({ label, inputLabel, accept, description, busy = fa
   }
 
   function upload(file?: File) {
-    if (!file || busy || disabled) return;
+    if (!file || busy || disabled)
+      return;
     onFile(file);
   }
 
@@ -48,7 +57,8 @@ export function FileDropzone({ label, inputLabel, accept, description, busy = fa
         data-dragging={dragging && !busy && !disabled}
         onDragEnter={(event) => {
           event.preventDefault();
-          if (busy || disabled || !event.dataTransfer.types.includes('Files')) return;
+          if (busy || disabled || !event.dataTransfer.types.includes('Files'))
+            return;
           dragDepth.current += 1;
           setDragging(true);
         }}
@@ -59,7 +69,8 @@ export function FileDropzone({ label, inputLabel, accept, description, busy = fa
         onDragLeave={(event) => {
           event.preventDefault();
           dragDepth.current = Math.max(0, dragDepth.current - 1);
-          if (!dragDepth.current) setDragging(false);
+          if (!dragDepth.current)
+            setDragging(false);
         }}
         onDrop={(event) => {
           event.preventDefault();

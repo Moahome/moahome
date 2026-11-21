@@ -36,16 +36,17 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
   }));
   const manual = data.payments.payments.filter((row) => row.source === 'MANUAL' && row.status === 'CONFIRMED'
     && !row.bankTransactionId && !row.linkedPaymentId && row.date.startsWith(month));
-  for (const row of manual) cash.push({
-    id: row.id,
-    accountId: row.accountId,
-    date: row.date,
-    label: row.payer,
-    amount: BigInt(row.amount),
-    direction: 'INCOME',
-    source: '수동 입금',
-    transfer: false
-  });
+  for (const row of manual)
+    cash.push({
+      id: row.id,
+      accountId: row.accountId,
+      date: row.date,
+      label: row.payer,
+      amount: BigInt(row.amount),
+      direction: 'INCOME',
+      source: '수동 입금',
+      transfer: false
+    });
   cash.sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   // 기존 월별 수납 표의 이월·선입금 충당과 정산 확인 상태를 그대로 사용합니다.
   const collections = getMonthlyPreviewRows(data.payments, month);
@@ -69,6 +70,7 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
   const accounts: SettlementAccount[] = (data.balances.accounts ?? []).map((row) => {
     // 정산·보고서도 통장 상세와 같은 장부값을 사용하며 확인일이나 은행 참고 금액으로 교체하지 않습니다.
     const display = getAccountBalanceDisplay(row);
+
     return {
       id: row.id,
       label: getBankAccountLabel(data.banking.accounts?.find((account) => account.id === row.id) ?? row),
@@ -128,6 +130,7 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
       path: 'banking/balances'
     }
   ];
+
   return {
     cash,
     collections,
@@ -149,15 +152,20 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
 
 /** 제외 내역은 회수 완료로 바꾸지 않고 유효 회수액과 잔여액으로 회수 진행 상태를 표시합니다. */
 function getExternalRecoveryStatus(row: MonthlySettlementSnapshot['balances']['externals'][number]): SettlementRecoveryStatus {
-  if (row.excluded) return '정산 제외';
-  if (BigInt(row.remaining) === BigInt(0)) return '회수 완료';
-  if (BigInt(row.received) > BigInt(0)) return '일부 회수';
+  if (row.excluded)
+    return '정산 제외';
+  if (BigInt(row.remaining) === BigInt(0))
+    return '회수 완료';
+  if (BigInt(row.received) > BigInt(0))
+    return '일부 회수';
+
   return '회수 필요';
 }
 
 /** 검색은 표시명에만 적용하고 월 전체 집계와 내려받을 원천 자료는 바꾸지 않습니다. */
 function matchesSettlementQuery(query: string, ...values: string[]) {
   const keyword = query.trim().toLocaleLowerCase('ko-KR');
+
   return values.join(' ').toLocaleLowerCase('ko-KR').includes(keyword);
 }
 
@@ -169,10 +177,14 @@ export function filterSettlementAccounts(rows: SettlementAccount[], query: strin
 /** 동 검색과 보유금 설정 여부로 좁히되 미설정 금액을 0원으로 취급하지 않습니다. */
 export function filterSettlementBuildings(rows: MonthlySettlementSnapshot['balances']['buildings'], query: string, status: string) {
   return rows.filter((row) => {
-    if (!matchesSettlementQuery(query, row.label)) return false;
+    if (!matchesSettlementQuery(query, row.label))
+      return false;
     const configured = row.startBalance !== null && row.balance !== null;
-    if (status === '설정됨') return configured;
-    if (status === '설정 필요') return !configured;
+    if (status === '설정됨')
+      return configured;
+    if (status === '설정 필요')
+      return !configured;
+
     return true;
   });
 }
@@ -180,8 +192,11 @@ export function filterSettlementBuildings(rows: MonthlySettlementSnapshot['balan
 /** 미회수 전체에는 회수 필요·일부 회수만 포함하며 정산 제외 이력을 섞지 않습니다. */
 export function filterSettlementExternal(rows: SettlementExternal[], query: string, status: string) {
   return rows.filter((row) => {
-    if (!matchesSettlementQuery(query, row.label, row.expenseName)) return false;
-    if (status === '미회수 전체') return row.recoveryStatus === '회수 필요' || row.recoveryStatus === '일부 회수';
+    if (!matchesSettlementQuery(query, row.label, row.expenseName))
+      return false;
+    if (status === '미회수 전체')
+      return row.recoveryStatus === '회수 필요' || row.recoveryStatus === '일부 회수';
+
     return status === '전체' || row.recoveryStatus === status;
   });
 }

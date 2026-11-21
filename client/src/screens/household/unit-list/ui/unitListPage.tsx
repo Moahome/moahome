@@ -25,22 +25,28 @@ export function UnitListPage({
   saved?: string;
 }) {
   const controller = useUnitList(propertyId, saved);
-  const { list, data, view } = controller;
+  const {
+    list,
+    data,
+    view
+  } = controller;
 
-  if (list.isPending) return (
-    <LoadingState
-      title={'세대 목록을 불러오고 있어요.'}
-    />
-  );
+  if (list.isPending)
+    return (
+      <LoadingState
+        title={'세대 목록을 불러오고 있어요.'}
+      />
+    );
 
-  if (list.isError) return (
-    <RequestError
-      error={list.error}
-      onRetry={() => void list.refetch({
-        cancelRefetch: false
-      })}
-    />
-  );
+  if (list.isError)
+    return (
+      <RequestError
+        error={list.error}
+        onRetry={() => void list.refetch({
+          cancelRefetch: false
+        })}
+      />
+    );
 
   return (
     <section

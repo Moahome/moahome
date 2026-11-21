@@ -7,16 +7,22 @@ import type { AccountLedgerWorkspace } from '../api/accountLedgerApiTypes';
 export const LEDGER_NOTICE = '101 통장은 기초잔액에 입금을 더하고 출금을 뺀 잔액을 표시합니다. 전체 계좌는 101 합산 잔액이며 계좌를 선택하면 해당 계좌만 계산합니다. 다른 과목의 기간 누계는 조회 기간 반영액입니다.';
 
 /** 자산·부채 조회는 손익 대신 해당 과목의 증가·감소를 같은 원본 금액으로 표시합니다. */
-export function getLedgerSummary(data: AccountLedgerWorkspace): { label: string; value: bigint }[] {
+export function getLedgerSummary(data: AccountLedgerWorkspace): { label: string;
+value: bigint }[] {
   const account = data.accounts.find((row) => row.id === data.accountId);
   if (account && ['asset', 'liability'].includes(account.group)) {
     let increase = BigInt(0);
     let decrease = BigInt(0);
-    for (const { entry } of data.rows) {
+    for (const {
+      entry
+    } of data.rows) {
       const amount = BigInt(entry.amount);
-      if (amount > 0) increase += amount;
-      else decrease -= amount;
+      if (amount > 0)
+        increase += amount;
+      else
+        decrease -= amount;
     }
+
     return [{
       label: '증가 반영액',
       value: increase
@@ -25,6 +31,7 @@ export function getLedgerSummary(data: AccountLedgerWorkspace): { label: string;
       value: decrease
     }];
   }
+
   return [{
     label: '수익 반영액',
     value: BigInt(data.revenue)
@@ -37,9 +44,13 @@ export function getLedgerSummary(data: AccountLedgerWorkspace): { label: string;
 /** 부과 수익에는 부과일, 자금 거래에는 거래일을 표시하고 혼합 조회는 공통 일자로 구분합니다. */
 export function getLedgerDateLabel(data: AccountLedgerWorkspace): string {
   const selected = data.accounts.find((account) => account.id === data.accountId);
-  if (selected?.systemKey === 'MANAGEMENT_REVENUE') return '부과일';
-  if (selected && ['RECEIVABLE', 'ADVANCE_RECEIPT', 'PAYABLE'].includes(selected.systemKey ?? '')) return '반영일';
-  if (selected) return '거래일';
+  if (selected?.systemKey === 'MANAGEMENT_REVENUE')
+    return '부과일';
+  if (selected && ['RECEIVABLE', 'ADVANCE_RECEIPT', 'PAYABLE'].includes(selected.systemKey ?? ''))
+    return '반영일';
+  if (selected)
+    return '거래일';
+
   return '일자';
 }
 
@@ -47,8 +58,10 @@ export function getLedgerDateLabel(data: AccountLedgerWorkspace): string {
 export function getLedgerAccountLabel(data: AccountLedgerWorkspace): string {
   const selected = data.accounts.filter((account) => data.accountIds.includes(account.id))
     .sort((left, right) => left.code.localeCompare(right.code));
-  if (!selected.length) return '전체 계정과목';
+  if (!selected.length)
+    return '전체 계정과목';
   const first = `${selected[0].code} ${selected[0].name}`;
+
   return selected.length === 1 ? first : `${first} 외 ${selected.length - 1}개`;
 }
 
@@ -58,6 +71,7 @@ export function getLedgerDocuments(data: AccountLedgerWorkspace): ReportDefiniti
   const bankName = data.bankBalances.find((bank) => bank.accountId === data.bankAccountId)?.name;
   const description = `${data.propertyName} · ${formatMonthRange(data.range)} · ${building?.name ?? '전체 동'} · ${getLedgerAccountLabel(data)}${bankName ? ` · ${bankName}` : ''}`;
   const note = `${LEDGER_NOTICE}${data.issues.length ? ' 확인 필요 자료는 합계에 포함하지 않았습니다. 확인 목록은 선택 기간·동의 전체 과목 기준입니다.' : ''}`;
+
   return [{
     title: '계정별 원장',
     sheet: '계정별 원장',
@@ -95,8 +109,13 @@ export function getLedgerDocuments(data: AccountLedgerWorkspace): ReportDefiniti
         align: 'right'
       },
     ],
-    rows: data.rows.map(({ entry, cumulativeAmount, cashBalance }) => {
+    rows: data.rows.map(({
+      entry,
+      cumulativeAmount,
+      cashBalance
+    }) => {
       const account = data.accounts.find((row) => row.id === entry.accountId)!;
+
       return [`${account.code} ${account.name}`, entry.source.name,
         data.buildings.find((row) => row.id === entry.buildingId)?.name ?? '전체', entry.month, entry.source.date ?? '—',
         BigInt(entry.amount), cashBalance ? (cashBalance.ledgerBalance === null ? '확인 필요' : BigInt(cashBalance.ledgerBalance)) : BigInt(cumulativeAmount),
@@ -134,7 +153,9 @@ export function getLedgerDocuments(data: AccountLedgerWorkspace): ReportDefiniti
 
 /** 중앙 요약 카드·조회 범위·단정한 거래 표를 같은 원천의 PDF·PNG에 적용합니다. */
 export async function createLedgerPdf(data: AccountLedgerWorkspace): Promise<Blob> {
-  const [{ autoTable }, pdf] = await Promise.all([import('jspdf-autotable'), createReportPdfDocument()]);
+  const [{
+    autoTable
+  }, pdf] = await Promise.all([import('jspdf-autotable'), createReportPdfDocument()]);
   const documents = getLedgerDocuments(data);
   const tokens = getComputedStyle(document.documentElement);
   const color = (name: string) => tokens.getPropertyValue(name).trim();
@@ -157,9 +178,12 @@ export async function createLedgerPdf(data: AccountLedgerWorkspace): Promise<Blo
 
   /** 긴 관리대상명·계정명도 지정한 문서 영역을 넘지 않게 줄이며 금액은 아래에서 별도로 보존합니다. */
   function textWithin(text: string, width: number): string {
-    if (pdf.getTextWidth(text) <= width) return text;
+    if (pdf.getTextWidth(text) <= width)
+      return text;
     let result = text;
-    while (result.length && pdf.getTextWidth(`${result}…`) > width) result = result.slice(0, -1);
+    while (result.length && pdf.getTextWidth(`${result}…`) > width)
+      result = result.slice(0, -1);
+
     return `${result}…`;
   }
 
@@ -210,7 +234,8 @@ export async function createLedgerPdf(data: AccountLedgerWorkspace): Promise<Blo
         value: getLedgerAccountLabel(data)
       }
     ];
-    for (const x of [81, 133]) pdf.line(x, 44, x, 56);
+    for (const x of [81, 133])
+      pdf.line(x, 44, x, 56);
     for (const item of scope) {
       pdf.setFont('Pretendard', 'normal');
       pdf.setFontSize(7);
@@ -252,7 +277,8 @@ export async function createLedgerPdf(data: AccountLedgerWorkspace): Promise<Blo
         let size = 17;
         pdf.setFontSize(size);
         // 큰 원화 합계도 소수점·단위 축약이나 말줄임 없이 정확한 숫자를 모두 표시합니다.
-        while (size > 8 && pdf.getTextWidth(value) > 43) pdf.setFontSize(--size);
+        while (size > 8 && pdf.getTextWidth(value) > 43)
+          pdf.setFontSize(--size);
         pdf.setTextColor(index === 0 ? palette.text : accent);
         pdf.text(value, x + 5, 102);
         const unitX = x + 6 + pdf.getTextWidth(value);
@@ -292,7 +318,8 @@ export async function createLedgerPdf(data: AccountLedgerWorkspace): Promise<Blo
   }
 
   for (const [index, report] of documents.entries()) {
-    if (index) pdf.addPage();
+    if (index)
+      pdf.addPage();
     const top = report.summary.length ? 127 : 78;
     autoTable(pdf, {
       startY: top,
@@ -349,13 +376,19 @@ export async function createLedgerPdf(data: AccountLedgerWorkspace): Promise<Blo
           cellWidth: 34
         }
       } : {},
-      willDrawPage() { frame(report); },
+      willDrawPage() {
+        frame(report);
+      },
       didParseCell(cell) {
-        if (report.columns[cell.column.index].align === 'right') cell.cell.styles.halign = 'right';
+        if (report.columns[cell.column.index].align === 'right')
+          cell.cell.styles.halign = 'right';
         const value = report.rows[cell.row.index]?.[cell.column.index];
-        if (cell.section !== 'body' || typeof value !== 'bigint') return;
-        if (value < BigInt(0)) cell.cell.styles.textColor = palette.danger;
-        else if (index === 0 && cell.column.index === report.columns.length - 1) cell.cell.styles.textColor = palette.primary;
+        if (cell.section !== 'body' || typeof value !== 'bigint')
+          return;
+        if (value < BigInt(0))
+          cell.cell.styles.textColor = palette.danger;
+        else if (index === 0 && cell.column.index === report.columns.length - 1)
+          cell.cell.styles.textColor = palette.primary;
       }
     });
   }
@@ -372,5 +405,6 @@ export async function createLedgerPdf(data: AccountLedgerWorkspace): Promise<Blo
       align: 'right'
     });
   }
+
   return pdf.output('blob');
 }

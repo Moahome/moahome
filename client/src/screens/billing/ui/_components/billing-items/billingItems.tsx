@@ -14,10 +14,16 @@ import { BillingTemplateSummary } from '../billing-template-summary/billingTempl
 import styles from './billingItems.module.css';
 
 /** 관리비 설정 탭은 현재·예약 설정을 조회하며 명시적인 설정하기에서만 별도 편집 페이지로 이동합니다. */
-export function BillingItems({ propertyId, settings }: { propertyId: string; settings: BillingSettings }) {
+export function BillingItems({
+  propertyId,
+  settings
+}: { propertyId: string;
+settings: BillingSettings }) {
   const router = useRouter();
   // 현재 청구의 납부기한과 지금 변경할 설정의 적용월을 구분하고 서버 한국시간 기준월을 사용합니다.
-  const { dueDate } = getBillingDates(settings.currentMonth);
+  const {
+    dueDate
+  } = getBillingDates(settings.currentMonth);
   const effectiveMonth = shiftBillingMonth(settings.currentMonth, 1);
   const [, dueMonth, dueDay] = dueDate.split('-');
 
@@ -95,7 +101,14 @@ export function BillingItems({ propertyId, settings }: { propertyId: string; set
     </div>
   );
 }
-function TemplateCard({ template, title, buildings }: { template: BillingTemplate; title: string; buildings: NonNullable<BillingSettings['buildings']> }) {
+
+function TemplateCard({
+  template,
+  title,
+  buildings
+}: { template: BillingTemplate;
+title: string;
+buildings: NonNullable<BillingSettings['buildings']> }) {
   return (
     <ListCard>
       <div

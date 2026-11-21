@@ -10,8 +10,12 @@ import {
   usePaymentWorkspace
 } from '@/widgets/payment-workspace';
 
-export function BankingTransactionsPage({ propertyId }: { propertyId: string }) {
-  const { ledger } = usePaymentWorkspace();
+export function BankingTransactionsPage({
+  propertyId
+}: { propertyId: string }) {
+  const {
+    ledger
+  } = usePaymentWorkspace();
   const receiptRows = ledger.payments.filter((payment) => (payment.source === 'MANUAL' && !payment.bankTransactionId) || payment.status === 'CANCELED').map((payment) => ({
     id: `receipt:${payment.id}`,
     source: payment.source,

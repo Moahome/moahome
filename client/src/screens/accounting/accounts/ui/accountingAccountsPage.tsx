@@ -34,12 +34,16 @@ import { AccountEditor } from './_components/account-editor/accountEditor';
 import styles from './accountingAccountsPage.module.css';
 
 /** 서버의 권한·과목 목록을 기준으로 검색·분류·페이지 이동을 제공하고 변경 후 관련 조회를 갱신합니다. */
-export function AccountingAccountsPage({ propertyId }: { propertyId: string }) {
+export function AccountingAccountsPage({
+  propertyId
+}: { propertyId: string }) {
   const session = useSession();
   const cache = useQueryClient();
   const query = useQuery({
     queryKey: ['accounting-accounts', session.data?.id, propertyId],
-    queryFn: ({ signal }) => getAccountingAccounts(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getAccountingAccounts(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
@@ -68,18 +72,20 @@ export function AccountingAccountsPage({ propertyId }: { propertyId: string }) {
     })));
   }
 
-  if (query.isPending) return (
-    <LoadingState
-      title={'계정과목을 불러오고 있어요.'}
-    />
-  );
-  if (query.isError) return (
-    <RequestError
-      error={query.error}
-      retrying={query.isFetching}
-      onRetry={() => void query.refetch()}
-    />
-  );
+  if (query.isPending)
+    return (
+      <LoadingState
+        title={'계정과목을 불러오고 있어요.'}
+      />
+    );
+  if (query.isError)
+    return (
+      <RequestError
+        error={query.error}
+        retrying={query.isFetching}
+        onRetry={() => void query.refetch()}
+      />
+    );
 
   return (
     <section
@@ -114,7 +120,10 @@ export function AccountingAccountsPage({ propertyId }: { propertyId: string }) {
             <FilterTabs
               label={'계정과목 사용 상태'}
               value={status}
-              onChange={(value) => { setStatus(value); setPage(1); }}
+              onChange={(value) => {
+                setStatus(value);
+                setPage(1);
+              }}
               items={[
                 {
                   value: 'all',
@@ -145,7 +154,10 @@ export function AccountingAccountsPage({ propertyId }: { propertyId: string }) {
                     name={'search'}
                   />
                 )}
-                onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
               />
               <Dropdown
                 aria-label={'계정 유형'}
@@ -154,7 +166,10 @@ export function AccountingAccountsPage({ propertyId }: { propertyId: string }) {
                   value,
                   label: value === '전체' ? '전체 유형' : value
                 }))}
-                onChange={(value) => { setType(value); setPage(1); }}
+                onChange={(value) => {
+                  setType(value);
+                  setPage(1);
+                }}
               />
             </div>
             <ListToolbar
@@ -162,7 +177,10 @@ export function AccountingAccountsPage({ propertyId }: { propertyId: string }) {
               unit={'개'}
               sizeLabel={'계정과목 표시 개수'}
               pageSize={pageSize}
-              onSizeChange={(value) => { setPageSize(value); setPage(1); }}
+              onSizeChange={(value) => {
+                setPageSize(value);
+                setPage(1);
+              }}
             />
             <DataTable
               label={'계정과목 목록'}

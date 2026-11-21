@@ -26,30 +26,64 @@ const PdfPreview = lazy(() => import('./_components/pdf-preview/pdfPreview').the
 })));
 
 /** 보고서 내용은 호출자가 정하고 파일 형식·실제 PDF/PNG 미리보기·저장·오류 처리를 각 보고서가 함께 사용합니다. */
-export function ReportDownload({ title, description, filename, sourceKey, documents, highlights = [], scopeLabel, createWorkbook, createPdf, excelDescription = '보고서 · 한 시트', pdfDescription = 'A4 세로 보고서', renderFilters, pending = false, error = '', onRetry, onClose, presentation = 'modal', formats = ['excel', 'pdf', 'image'] }: {
+export function ReportDownload({
+  title,
+  description,
+  filename,
+  sourceKey,
+  documents,
+  highlights = [],
+  scopeLabel,
+  createWorkbook,
+  createPdf,
+  excelDescription = '보고서 · 한 시트',
+  pdfDescription = 'A4 세로 보고서',
+  renderFilters,
+  pending = false,
+  error = '',
+  onRetry,
+  onClose,
+  presentation = 'modal',
+  formats = ['excel', 'pdf', 'image']
+}: {
   presentation?: 'modal' | 'page';
   formats?: readonly ('excel' | 'pdf' | 'image')[];
-  title: string; description?: string; filename: string; sourceKey: string;
+  title: string;
+description?: string;
+filename: string;
+sourceKey: string;
   documents: readonly ReportDefinition[];
-  highlights?: readonly { label: string; value: string | bigint; tone?: 'primary' | 'teal' | 'success' | 'danger' }[];
+  highlights?: readonly { label: string;
+value: string | bigint;
+tone?: 'primary' | 'teal' | 'success' | 'danger' }[];
   scopeLabel: string;
-  createWorkbook: () => Promise<Blob>; createPdf?: () => Promise<Blob>;
+  createWorkbook: () => Promise<Blob>;
+createPdf?: () => Promise<Blob>;
   excelDescription?: string;
   pdfDescription?: string;
   renderFilters?: (busy: boolean) => ReactNode;
-  pending?: boolean; error?: string; onRetry?: () => void; onClose: () => void;
+  pending?: boolean;
+error?: string;
+onRetry?: () => void;
+onClose: () => void;
 }) {
   const [format, setFormat] = useState<'excel' | 'pdf' | 'image'>(formats[0] ?? 'excel');
-  const [pdfState, setPdfState] = useState<{ key: string; blob: Blob } | null>(null);
-  const [imageState, setImageState] = useState<{ key: string; images: Blob[] } | null>(null);
-  const [failure, setFailure] = useState<{ key: string; value: string } | null>(null);
+  const [pdfState, setPdfState] = useState<{ key: string;
+blob: Blob } | null>(null);
+  const [imageState, setImageState] = useState<{ key: string;
+images: Blob[] } | null>(null);
+  const [failure, setFailure] = useState<{ key: string;
+value: string } | null>(null);
   const [retry, setRetry] = useState(0);
   const [busy, setBusy] = useState(false);
   const downloadBusy = useRef(false);
   const active = useRef(true);
   useEffect(() => {
     active.current = true;
-    return () => { active.current = false; };
+
+    return () => {
+      active.current = false;
+    };
   }, []);
   const pdf = pdfState?.key === sourceKey ? pdfState.blob : null;
   const images = imageState?.key === sourceKey ? imageState.images : null;
@@ -58,57 +92,93 @@ export function ReportDownload({ title, description, filename, sourceKey, docume
 
   // 범위가 바뀌면 키로 이전 Blob을 즉시 제외하고 늦게 완성된 이전 자료도 저장하지 않습니다.
   useEffect(() => {
-    if (format === 'excel' || pdf || pending || error || !createPdf) return;
+    if (format === 'excel' || pdf || pending || error || !createPdf)
+      return;
     let active = true;
-    void createPdf().then((blob) => { if (active) setPdfState({
-      key: sourceKey,
-      blob
-    }); })
-      .catch(() => { if (active) setFailure({
-        key: sourceKey,
-        value: 'PDF 파일을 만들지 못했어요. 다시 시도해주세요.'
-      }); });
-    return () => { active = false; };
+    void createPdf().then((blob) => {
+      if (active)
+        setPdfState({
+          key: sourceKey,
+          blob
+        });
+    })
+      .catch(() => {
+        if (active)
+          setFailure({
+            key: sourceKey,
+            value: 'PDF 파일을 만들지 못했어요. 다시 시도해주세요.'
+          });
+      });
+
+    return () => {
+      active = false;
+    };
   }, [format, pdf, pending, error, createPdf, sourceKey, retry]);
 
   // 실제 PNG를 미리보기와 저장에 함께 사용하고 화면·범위 변경 시 변환을 취소합니다.
   useEffect(() => {
-    if (format !== 'image' || !pdf || images || pending || error) return;
+    if (format !== 'image' || !pdf || images || pending || error)
+      return;
     const controller = new AbortController();
-    void import('@/shared/lib/report-images').then(({ createReportImages }) => createReportImages(pdf, controller.signal))
-      .then((result) => { if (!controller.signal.aborted) setImageState({
-        key: sourceKey,
-        images: result
-      }); })
-      .catch(() => { if (!controller.signal.aborted) setFailure({
-        key: sourceKey,
-        value: '이미지를 만들지 못했어요. 다시 시도해주세요.'
-      }); });
+    void import('@/shared/lib/report-images').then(({
+      createReportImages
+    }) => createReportImages(pdf, controller.signal))
+      .then((result) => {
+        if (!controller.signal.aborted)
+          setImageState({
+            key: sourceKey,
+            images: result
+          });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setFailure({
+            key: sourceKey,
+            value: '이미지를 만들지 못했어요. 다시 시도해주세요.'
+          });
+      });
+
     return () => controller.abort();
   }, [format, pdf, images, pending, error, sourceKey, retry]);
 
   /** 미리본 자료만 저장하고 중복 클릭과 Object URL 누수를 막습니다. */
   async function download() {
-    if (downloadBusy.current || unavailable) return;
-    downloadBusy.current = true; setBusy(true); setFailure(null);
+    if (downloadBusy.current || unavailable)
+      return;
+    downloadBusy.current = true;
+    setBusy(true);
+    setFailure(null);
     try {
-      let blob: Blob; let extension: string;
+      let blob: Blob;
+      let extension: string;
       if (format === 'image') {
-        const { createReportImageDownload } = await import('@/shared/lib/report-images');
-        ({ blob, extension } = await createReportImageDownload(images!, filename));
+        const {
+          createReportImageDownload
+        } = await import('@/shared/lib/report-images');
+        ({
+          blob, extension
+        } = await createReportImageDownload(images!, filename));
       } else {
         blob = format === 'pdf' ? pdf! : await createWorkbook();
         extension = format === 'pdf' ? 'pdf' : 'xlsx';
       }
-      if (!active.current) return;
+      if (!active.current)
+        return;
       const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${filename}.${extension}`; anchor.click();
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${filename}.${extension}`;
+      anchor.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch { setFailure({
-      key: sourceKey,
-      value: '파일을 내려받지 못했어요. 다시 시도해주세요.'
-    }); }
-    finally { downloadBusy.current = false; setBusy(false); }
+    } catch {
+      setFailure({
+        key: sourceKey,
+        value: '파일을 내려받지 못했어요. 다시 시도해주세요.'
+      });
+    } finally {
+      downloadBusy.current = false;
+      setBusy(false);
+    }
   }
 
   const footer = (
@@ -187,7 +257,10 @@ export function ReportDownload({ title, description, filename, sourceKey, docume
                 description={item.description}
                 value={item.value}
                 checked={format === item.value}
-                onChange={() => { setFormat(item.value); setFailure(null); }}
+                onChange={() => {
+                  setFormat(item.value);
+                  setFailure(null);
+                }}
                 variant={'card'}
               />
             ))}
@@ -250,6 +323,7 @@ export function ReportDownload({ title, description, filename, sourceKey, docume
                   values,
                   kind: index < sheet.rows.length ? sheet.rowKinds?.[index] : 'total'
                 }));
+
                 return (
                   <section
                     key={sheet.title}
@@ -372,7 +446,10 @@ export function ReportDownload({ title, description, filename, sourceKey, docume
                   actions={(
                     <Button
                       variant={'outline'}
-                      onClick={() => { setFailure(null); setRetry((value) => value + 1); }}
+                      onClick={() => {
+                        setFailure(null);
+                        setRetry((value) => value + 1);
+                      }}
                     >
                       다시 시도
                     </Button>

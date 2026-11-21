@@ -26,9 +26,11 @@ const reportedErrors = new WeakSet<object>();
 
 /** 개발 콘솔에는 실패 위치와 안전한 진단 정보만 남기며, 전송부·화면이 같은 오류를 중복 기록하지 않습니다. */
 export function reportApiError(error: unknown, context: Pick<CustomApiOptions, 'url' | 'method'> | ApiErrorSource) {
-  if (isRequestCanceled(error) || process.env.NODE_ENV !== 'development') return;
+  if (isRequestCanceled(error) || process.env.NODE_ENV !== 'development')
+    return;
   if (error !== null && typeof error === 'object') {
-    if (reportedErrors.has(error)) return;
+    if (reportedErrors.has(error))
+      return;
     reportedErrors.add(error);
   }
   let path: string | undefined;
@@ -61,7 +63,8 @@ export function reportApiError(error: unknown, context: Pick<CustomApiOptions, '
 
 /** 응답 원문·메시지 대신 형식이 확인된 필드 경로와 이유만 보존해 화면의 안내에 사용합니다. */
 function readFieldErrors(result: unknown): ApiFieldError[] {
-  if (!result || typeof result !== 'object' || !('errors' in result) || !Array.isArray(result.errors)) return [];
+  if (!result || typeof result !== 'object' || !('errors' in result) || !Array.isArray(result.errors))
+    return [];
 
   const reasons = ['REQUIRED', 'INVALID_TYPE', 'INVALID_FORMAT', 'TOO_LONG', 'OUT_OF_RANGE', 'DUPLICATE', 'INVALID_REFERENCE', 'INVALID_COMBINATION'];
 
@@ -156,6 +159,7 @@ async function requestAPI<T = unknown>({
     if (response.ok && responseType === 'blob') {
       const blob = await response.blob();
       requestSignal.throwIfAborted();
+
       return blob as T;
     }
     responseText = await response.text();

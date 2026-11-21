@@ -41,7 +41,13 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 /** 과목의 보호·사용 여부에 따라 입력과 행동을 제한하고 실패 시 입력을 유지합니다. 서버에서도 같은 규칙을 검증합니다. */
-export function AccountEditor({ propertyId, account, canManage, onClose, onSaved }: {
+export function AccountEditor({
+  propertyId,
+  account,
+  canManage,
+  onClose,
+  onSaved
+}: {
   propertyId: string;
   account: AccountingAccountSetting | null;
   canManage: boolean;
@@ -59,36 +65,46 @@ export function AccountEditor({ propertyId, account, canManage, onClose, onSaved
   const permissions = account ? getAccountPermissions(account, canManage) : null;
   const history = useQuery({
     queryKey: ['accounting-account-history', session.data?.id, propertyId, account?.id, account?.revision],
-    queryFn: ({ signal }) => getAccountingAccountHistory(propertyId, account!.id, signal),
+    queryFn: ({
+      signal
+    }) => getAccountingAccountHistory(propertyId, account!.id, signal),
     enabled: Boolean(account),
     retry: false,
     gcTime: 0
   });
   const codeError = code && !acceptsAccountCode(group, code) ? '선택한 유형에 맞는 세 자리 코드를 입력해주세요.' : '';
   let title = account ? '계정과목 상세' : '과목 추가';
-  if (account && editing) title = '과목 수정';
-  if (confirmation === 'delete') title = '과목 삭제';
-  if (confirmation === 'status') title = account?.active ? '사용 중지' : '사용 재개';
+  if (account && editing)
+    title = '과목 수정';
+  if (confirmation === 'delete')
+    title = '과목 삭제';
+  if (confirmation === 'status')
+    title = account?.active ? '사용 중지' : '사용 재개';
 
   /** 확인한 최신 revision을 전송하고 저장·상태 변경·삭제가 성공했을 때만 목록을 갱신합니다. */
   async function save(action: 'save' | 'status' | 'delete') {
-    if (busy || !canManage) return;
+    if (busy || !canManage)
+      return;
     setBusy(true);
     setError('');
     try {
-      if (action === 'delete' && account) await deleteAccountingAccount(propertyId, account.id, account.revision);
-      else if (action === 'status' && account) await changeAccountingAccountStatus(propertyId, account.id, !account.active, account.revision);
-      else if (account) await editAccountingAccount(propertyId, account.id, {
-        name: name.trim(),
-        code,
-        group,
-        expectedRevision: account.revision
-      });
-      else await createAccountingAccount(propertyId, {
-        name: name.trim(),
-        code: code || undefined,
-        group
-      });
+      if (action === 'delete' && account)
+        await deleteAccountingAccount(propertyId, account.id, account.revision);
+      else if (action === 'status' && account)
+        await changeAccountingAccountStatus(propertyId, account.id, !account.active, account.revision);
+      else if (account)
+        await editAccountingAccount(propertyId, account.id, {
+          name: name.trim(),
+          code,
+          group,
+          expectedRevision: account.revision
+        });
+      else
+        await createAccountingAccount(propertyId, {
+          name: name.trim(),
+          code: code || undefined,
+          group
+        });
       await onSaved();
     } catch (cause) {
       setError(cause instanceof ApiError ? ERROR_MESSAGES[cause.code] ?? '저장하지 못했어요. 입력을 확인한 뒤 다시 시도해주세요.' : '저장하지 못했어요. 잠시 후 다시 시도해주세요.');
@@ -158,7 +174,10 @@ export function AccountEditor({ propertyId, account, canManage, onClose, onSaved
             <Button
               variant={'outline'}
               disabled={busy}
-              onClick={() => { setConfirmation(null); setError(''); }}
+              onClick={() => {
+                setConfirmation(null);
+                setError('');
+              }}
             >
               취소
             </Button>
@@ -173,7 +192,11 @@ export function AccountEditor({ propertyId, account, canManage, onClose, onSaved
         </>
       ) : (
         <form
-          onSubmit={(event) => { event.preventDefault(); if (!codeError && name.trim()) void save('save'); }}
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!codeError && name.trim())
+              void save('save');
+          }}
         >
           <div
             className={styles.body}
@@ -354,7 +377,16 @@ export function AccountEditor({ propertyId, account, canManage, onClose, onSaved
                   <Button
                     variant={'outline'}
                     disabled={busy}
-                    onClick={() => { if (!account) onClose(); else { setEditing(false); setName(account.name); setCode(account.code); setGroup(account.group); setError(''); } }}
+                    onClick={() => {
+                      if (!account)
+                        onClose(); else {
+                        setEditing(false);
+                        setName(account.name);
+                        setCode(account.code);
+                        setGroup(account.group);
+                        setError('');
+                      }
+                    }}
                   >
                     취소
                   </Button>
@@ -373,7 +405,10 @@ export function AccountEditor({ propertyId, account, canManage, onClose, onSaved
                     <Button
                       variant={'outline'}
                       tone={'danger'}
-                      onClick={() => { setConfirmation('delete'); setError(''); }}
+                      onClick={() => {
+                        setConfirmation('delete');
+                        setError('');
+                      }}
                     >
                       삭제
                     </Button>
@@ -381,7 +416,10 @@ export function AccountEditor({ propertyId, account, canManage, onClose, onSaved
                   {permissions?.changeStatus && (
                     <Button
                       variant={'outline'}
-                      onClick={() => { setConfirmation('status'); setError(''); }}
+                      onClick={() => {
+                        setConfirmation('status');
+                        setError('');
+                      }}
                     >
                       {account?.active ? '사용 중지' : '재개'}
                     </Button>

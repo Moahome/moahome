@@ -31,11 +31,15 @@ export function useManagementEntry(userId: string | undefined, enabled = true) {
     ...FRESH_ACCESS_QUERY_OPTIONS,
     queryKey: getManagedPropertiesQueryKey(userId),
     enabled: Boolean(userId) && enabled,
-    queryFn: async ({ signal }) => {
+    queryFn: async ({
+      signal
+    }) => {
       const properties = await getManagedProperties(signal);
       const recentId = readRecentProperty(userId!);
       const recent = properties.find((property) => property.propertyId === recentId);
-      if (recentId && !recent) forgetRecentProperty(userId!, recentId);
+      if (recentId && !recent)
+        forgetRecentProperty(userId!, recentId);
+
       return recent ?? properties[0] ?? null;
     }
   });
@@ -48,7 +52,9 @@ export function useManagementContext(userId: string | undefined, propertyId: str
     refetchOnMount: revalidateOnMount ? 'always' : false,
     queryKey: ['property-access', userId, propertyId],
     enabled: Boolean(userId) && isPropertyId(propertyId),
-    queryFn: ({ signal }) => getPropertyAccessContext(propertyId, signal)
+    queryFn: ({
+      signal
+    }) => getPropertyAccessContext(propertyId, signal)
   });
 }
 
@@ -58,7 +64,9 @@ export function useResidentProperties(userId: string | undefined, enabled = true
     ...FRESH_ACCESS_QUERY_OPTIONS,
     queryKey: ['resident-properties', userId],
     enabled: Boolean(userId) && enabled,
-    queryFn: ({ signal }) => getResidentProperties(signal),
+    queryFn: ({
+      signal
+    }) => getResidentProperties(signal),
     gcTime: 0
   });
 }
@@ -69,7 +77,9 @@ export function useParticipatingProperties(userId: string | undefined) {
     ...FRESH_ACCESS_QUERY_OPTIONS,
     queryKey: ['participating-properties', userId],
     enabled: Boolean(userId),
-    queryFn: ({ signal }) => getParticipatingProperties(signal),
+    queryFn: ({
+      signal
+    }) => getParticipatingProperties(signal),
     gcTime: 0
   });
 }

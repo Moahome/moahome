@@ -57,7 +57,9 @@ type FormatTool = {
 /** 문서에는 영구 API 참조만 남기고 화면의 이미지에만 인증해서 읽은 임시 Blob URL을 사용합니다. */
 function createPrivateImage(readAsset: NoticeAssetReader) {
   return Image.extend({
-    renderHTML({ HTMLAttributes }) {
+    renderHTML({
+      HTMLAttributes
+    }) {
     // 초기 HTML 생성 중에도 인증 없는 img 요청이 발생하지 않게 API 참조를 src에 넣지 않습니다.
       return ['img', {
         ...HTMLAttributes,
@@ -65,24 +67,37 @@ function createPrivateImage(readAsset: NoticeAssetReader) {
       }];
     },
     addNodeView() {
-      return ({ node }) => {
+      return ({
+        node
+      }) => {
         const img = document.createElement('img');
         const controller = new AbortController();
         let objectUrl: string | null = null;
         img.alt = node.attrs.alt ?? '';
         img.draggable = true;
         const src = String(node.attrs.src ?? '');
-        if (src.startsWith('data:image/')) img.src = src;
-        else void readAsset(src, controller.signal).then((blob) => {
-          if (controller.signal.aborted) return;
-          objectUrl = URL.createObjectURL(blob);
-          img.src = objectUrl;
-        }).catch(() => { if (!controller.signal.aborted) img.alt = '이미지를 불러오지 못했습니다.'; });
+        if (src.startsWith('data:image/'))
+          img.src = src;
+        else
+          void readAsset(src, controller.signal).then((blob) => {
+            if (controller.signal.aborted)
+              return;
+            objectUrl = URL.createObjectURL(blob);
+            img.src = objectUrl;
+          }).catch(() => {
+            if (!controller.signal.aborted)
+              img.alt = '이미지를 불러오지 못했습니다.';
+          });
+
         return {
           dom: img,
           selectNode: () => img.classList.add('ProseMirror-selectednode'),
           deselectNode: () => img.classList.remove('ProseMirror-selectednode'),
-          destroy: () => { controller.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); }
+          destroy: () => {
+            controller.abort();
+            if (objectUrl)
+              URL.revokeObjectURL(objectUrl);
+          }
         };
       };
     }
@@ -90,7 +105,15 @@ function createPrivateImage(readAsset: NoticeAssetReader) {
 }
 
 /** 같은 문서로 편집·상세 열람을 제공하고 선택한 이미지는 명시적으로 변경·삭제합니다. */
-export function NoticeEditor({ readAsset, uploadAsset, initialContent, onChange, onBusyChange, disabled = false, readOnly = false }: {
+export function NoticeEditor({
+  readAsset,
+  uploadAsset,
+  initialContent,
+  onChange,
+  onBusyChange,
+  disabled = false,
+  readOnly = false
+}: {
   readAsset: NoticeAssetReader;
   uploadAsset?: NoticeAssetUploader;
   initialContent?: string;
@@ -140,7 +163,9 @@ export function NoticeEditor({ readAsset, uploadAsset, initialContent, onChange,
       }
     },
     // 편집기가 문서 외 속성을 제거하므로 선택 장소를 함께 보내 본문 편집 중에도 유지합니다.
-    onUpdate: ({ editor: current }) => onChange?.(JSON.stringify({
+    onUpdate: ({
+      editor: current
+    }) => onChange?.(JSON.stringify({
       ...current.getJSON(),
       ...(locationRef.current ? {
         location: locationRef.current
@@ -157,24 +182,32 @@ export function NoticeEditor({ readAsset, uploadAsset, initialContent, onChange,
   // 예전 토큰 색상과 RGB 문자열도 현재 테마에서 해석해 네이티브 색상 선택기의 HEX 값으로 표시합니다.
   useEffect(() => {
     const input = colorInput.current;
-    if (!input) return;
+    if (!input)
+      return;
     const channels = getComputedStyle(input).color.match(/[\d.]+/g)?.slice(0, 3).map(Number);
-    if (channels?.length !== 3) return;
+    if (channels?.length !== 3)
+      return;
     input.value = `#${channels.map((value) => Math.round(value).toString(16).padStart(2, '0')).join('')}`;
   }, [selectedColor]);
 
   /** 파일을 고르기 전 이미지 위치를 기억해 교체 대상과 다른 이미지를 바꾸지 않습니다. */
   function chooseImage(replace = false) {
-    if (!editor || disabled || reading) return;
+    if (!editor || disabled || reading)
+      return;
     replacement.current = replace && editor.isActive('image') ? editor.state.selection.from : null;
-    if (upload.current) { upload.current.multiple = !replace; upload.current.click(); }
+    if (upload.current) {
+      upload.current.multiple = !replace;
+      upload.current.click();
+    }
   }
 
   /** 선택한 글자를 보존해 이미지를 삽입하고 읽는 동안 게시를 막습니다. */
   async function insertImages(selected: File[]) {
-    if (!selected.length || !editor || !uploadAsset || disabled || readingLock.current) return;
+    if (!selected.length || !editor || !uploadAsset || disabled || readingLock.current)
+      return;
     if (selected.some((file) => !['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 20 * 1024 * 1024)) {
       setError('PNG·JPG·WebP 이미지를 20MB 이하로 선택해주세요.');
+
       return;
     }
     readingLock.current = true;
@@ -197,9 +230,11 @@ export function NoticeEditor({ readAsset, uploadAsset, initialContent, onChange,
           // 새 이미지에 초점을 두어 삽입 직후에도 변경·삭제 버튼을 바로 제공합니다.
           let selected: number | null = null;
           editor.state.doc.descendants((node, pos) => {
-            if (selected === null && node.type.name === 'image' && node.attrs.src === source && pos >= Math.max(0, from - 1)) selected = pos;
+            if (selected === null && node.type.name === 'image' && node.attrs.src === source && pos >= Math.max(0, from - 1))
+              selected = pos;
           });
-          if (selected !== null) editor.commands.setNodeSelection(selected);
+          if (selected !== null)
+            editor.commands.setNodeSelection(selected);
         }
         replacement.current = null;
       }
@@ -210,19 +245,22 @@ export function NoticeEditor({ readAsset, uploadAsset, initialContent, onChange,
       readingLock.current = false;
       setReading(false);
       onBusyChange?.(false);
-      if (upload.current) upload.current.value = '';
+      if (upload.current)
+        upload.current.value = '';
     }
   }
 
   /** 이미지 선택 상태에서만 해당 노드를 제거하며 앞뒤 본문은 유지합니다. */
   function removeImage() {
-    if (!editor || disabled || reading || !editor.isActive('image')) return;
+    if (!editor || disabled || reading || !editor.isActive('image'))
+      return;
     editor.chain().focus().deleteSelection().run();
   }
 
   /** 장소 변경도 본문 변경으로 알리고 기존 첨부·초안·저장 재시도 흐름을 유지합니다. */
   function changeLocation(next: NoticeLocation | null) {
-    if (!editor || disabled || readOnly || reading) return;
+    if (!editor || disabled || readOnly || reading)
+      return;
     locationRef.current = next;
     setLocation(next);
     onChange?.(JSON.stringify({
@@ -236,9 +274,11 @@ export function NoticeEditor({ readAsset, uploadAsset, initialContent, onChange,
 
   /** 선택 영역의 글자색만 바꾸고 기본색 복원 시 크기·굵기 등 다른 서식은 유지합니다. */
   function changeTextColor(color: string) {
-    if (!editor || disabled || reading) return;
+    if (!editor || disabled || reading)
+      return;
     if (color === 'default') {
       editor.chain().focus().unsetColor().run();
+
       return;
     }
     // 색상표에서 연속으로 값을 고를 수 있도록 네이티브 선택기의 포커스를 유지합니다.
@@ -357,8 +397,13 @@ export function NoticeEditor({ readAsset, uploadAsset, initialContent, onChange,
                   }
                 ]}
                 onChange={(value) => {
-                  if (!editor) return;
-                  if (value === 'paragraph') { editor.chain().focus().setParagraph().run(); return; }
+                  if (!editor)
+                    return;
+                  if (value === 'paragraph') {
+                    editor.chain().focus().setParagraph().run();
+
+                    return;
+                  }
                   const heading = Number(value.slice(1)) as 1 | 2 | 3;
                   editor.chain().focus().unsetFontSize().setHeading({
                     level: heading
@@ -547,7 +592,8 @@ export function NoticeEditor({ readAsset, uploadAsset, initialContent, onChange,
       <div
         onPaste={(event) => {
           const files = Array.from(event.clipboardData.files).filter((entry) => entry.type.startsWith('image/'));
-          if (!files.length || readOnly || disabled) return;
+          if (!files.length || readOnly || disabled)
+            return;
           event.preventDefault();
           replacement.current = null;
           void insertImages(files);

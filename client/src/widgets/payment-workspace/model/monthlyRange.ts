@@ -24,8 +24,11 @@ export function getMonthlyRangeRows(ledger: PreviewLedger, range: MonthRange): M
 /** 발생·반영액만 기간 합산하고 이월은 시작 월, 미수·선입금은 종료 월의 잔액으로 계산합니다. */
 export function sumMonthlyRangeRows(rows: MonthlyRangeRow[], range: MonthRange, key: 'carry' | 'billed' | 'applied' | 'balance' | 'prepaid') {
   return rows.reduce((total, row) => {
-    if (key === 'carry' && row.month !== range.startMonth) return total;
-    if ((key === 'balance' || key === 'prepaid') && row.month !== range.endMonth) return total;
+    if (key === 'carry' && row.month !== range.startMonth)
+      return total;
+    if ((key === 'balance' || key === 'prepaid') && row.month !== range.endMonth)
+      return total;
+
     return total + row[key] + (key === 'billed' ? row.settlementAmount ?? BigInt(0) : BigInt(0));
   }, BigInt(0));
 }

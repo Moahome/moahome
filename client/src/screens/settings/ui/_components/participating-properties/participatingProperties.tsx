@@ -20,7 +20,12 @@ import {
 import styles from './participatingProperties.module.css';
 
 /** 현재 계정의 참여를 조회하고 선택한 역할의 화면으로 이동합니다. 실제 접근 권한은 목적지에서 다시 확인합니다. */
-export function ParticipatingProperties({ userId, currentPropertyId, onClose, presentation = 'modal' }: {
+export function ParticipatingProperties({
+  userId,
+  currentPropertyId,
+  onClose,
+  presentation = 'modal'
+}: {
   userId: string;
   currentPropertyId?: string;
   onClose?: () => void;
@@ -172,11 +177,12 @@ export function ParticipatingProperties({ userId, currentPropertyId, onClose, pr
     </div>
   );
 
-  if (presentation === 'page') return (
-    <ListCard>
-      {body}
-    </ListCard>
-  );
+  if (presentation === 'page')
+    return (
+      <ListCard>
+        {body}
+      </ListCard>
+    );
 
   return (
     <ClientModal

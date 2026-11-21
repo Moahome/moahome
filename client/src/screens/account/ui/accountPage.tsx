@@ -47,21 +47,27 @@ export function AccountPage() {
     && (session.error.status === 401 || session.error.code === 'ACCOUNT_UNAVAILABLE');
 
   useEffect(() => {
-    if (denied) router.replace('/login');
+    if (denied)
+      router.replace('/login');
   }, [denied, router]);
 
   useEffect(() => {
     // 브라우저 기록 캐시가 로그아웃 전 계정 정보를 다시 표시하지 않도록 복원 시 현재 세션을 조회합니다.
     function hideLeavingPage() {
-      if (!pageRef.current) return;
+      if (!pageRef.current)
+        return;
       pageRef.current.hidden = true;
       pageRef.current.inert = true;
     }
+
     function restorePage(event: PageTransitionEvent) {
-      if (event.persisted) window.location.reload();
+      if (event.persisted)
+        window.location.reload();
     }
+
     window.addEventListener('pagehide', hideLeavingPage);
     window.addEventListener('pageshow', restorePage);
+
     return () => {
       window.removeEventListener('pagehide', hideLeavingPage);
       window.removeEventListener('pageshow', restorePage);
@@ -130,7 +136,9 @@ export function AccountPage() {
 }
 
 /** 조회 화면에서 명시적으로 편집하고 이름·크롭 사진의 저장 결과를 전역 헤더에 함께 반영합니다. */
-function AccountDetails({ user }: { user: CurrentUser }) {
+function AccountDetails({
+  user
+}: { user: CurrentUser }) {
   const cache = useQueryClient();
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -141,7 +149,8 @@ function AccountDetails({ user }: { user: CurrentUser }) {
   const [error, setError] = useState('');
   const [photoError, setPhotoError] = useState('');
   const [photoErrorVersion, setPhotoErrorVersion] = useState(0);
-  const [photo, setPhoto] = useState<{ file: File; url: string } | null>(null);
+  const [photo, setPhoto] = useState<{ file: File;
+url: string } | null>(null);
   const [removeImage, setRemoveImage] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const preparing = cropFile !== null;
@@ -151,21 +160,25 @@ function AccountDetails({ user }: { user: CurrentUser }) {
   const validation = getDisplayNameError(displayName);
 
   useEffect(() => {
-    if (editing) inputRef.current?.focus();
+    if (editing)
+      inputRef.current?.focus();
   }, [editing]);
 
   useEffect(() => () => {
-    if (photo) URL.revokeObjectURL(photo.url);
+    if (photo)
+      URL.revokeObjectURL(photo.url);
   }, [photo]);
 
   /** 검증한 파일은 공통 크롭 모달로 보내며 취소하면 이전 사진 초안을 그대로 유지합니다. */
   function selectPhoto(file: File | undefined) {
-    if (!file || busy || preparing) return;
+    if (!file || busy || preparing)
+      return;
     setPhotoError('');
     const failure = getProfileImageError(file);
     if (failure) {
       setPhotoErrorVersion((value) => value + 1);
       setPhotoError(failure);
+
       return;
     }
     setCropFile(file);
@@ -184,7 +197,8 @@ function AccountDetails({ user }: { user: CurrentUser }) {
   /** 서버 저장이 성공한 경우에만 캐시를 바꾸며 실패하면 현재 입력으로 다시 시도할 수 있습니다. */
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending.current || validation || preparing) return;
+    if (pending.current || validation || preparing)
+      return;
     pending.current = true;
     setBusy(true);
     setError('');
@@ -193,21 +207,25 @@ function AccountDetails({ user }: { user: CurrentUser }) {
       const updated = photo || removeImage
         ? await saveCurrentUserProfile(displayName.trim(), photo?.file ?? null, removeImage)
         : await updateCurrentUserDisplayName(displayName.trim());
-      if (updated.id !== user.id) throw new ApiError(200, 'INVALID_RESPONSE', '계정 정보를 확인할 수 없습니다.');
+      if (updated.id !== user.id)
+        throw new ApiError(200, 'INVALID_RESPONSE', '계정 정보를 확인할 수 없습니다.');
       // 저장 중 계정이 바뀌면 이전 계정의 늦은 응답을 새 세션에 덮어쓰지 않습니다.
-      if (cache.getQueryData<CurrentUser>(CURRENT_USER_QUERY_KEY)?.id !== user.id) return;
+      if (cache.getQueryData<CurrentUser>(CURRENT_USER_QUERY_KEY)?.id !== user.id)
+        return;
       cache.setQueryData(CURRENT_USER_QUERY_KEY, updated);
       finishEditing();
       setSaved(photo || removeImage ? '프로필을 변경했어요.' : '이름을 변경했어요.');
     } catch (failure) {
       if (failure instanceof ApiError && (failure.status === 401 || failure.code === 'ACCOUNT_UNAVAILABLE')) {
         router.replace('/login');
+
         return;
       }
       if (photo || removeImage) {
         setPhotoError(failure instanceof ApiError && failure.code === 'PROFILE_IMAGE_TOO_LARGE'
           ? '사진은 5MB 이하로 선택해주세요.'
           : '프로필을 저장하지 못했어요. 잠시 후 다시 시도해주세요.');
+
         return;
       }
       setError(failure instanceof ApiError && failure.code === 'INVALID_REQUEST'

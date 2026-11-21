@@ -24,6 +24,7 @@ export async function getManualTransferFunds(propertyId: string, accountId: stri
     || new Set(data.buildings.map((value) => value.buildingId)).size !== data.buildings.length) {
     throw new ApiError(200, 'INVALID_RESPONSE', '이체 가능 금액을 확인할 수 없습니다.');
   }
+
   return data;
 }
 
@@ -34,11 +35,13 @@ export async function createManualBankTransfer(propertyId: string, data: ManualB
     method: 'POST',
     data
   });
-  if (result?.propertyId !== propertyId) throw new ApiError(200, 'INVALID_RESPONSE', '이체 결과를 확인할 수 없습니다.');
+  if (result?.propertyId !== propertyId)
+    throw new ApiError(200, 'INVALID_RESPONSE', '이체 결과를 확인할 수 없습니다.');
 }
 
 export function manualTransferError(error: unknown): string {
-  if (!(error instanceof ApiError)) return '이체를 저장하지 못했어요. 잠시 후 다시 시도해주세요.';
+  if (!(error instanceof ApiError))
+    return '이체를 저장하지 못했어요. 잠시 후 다시 시도해주세요.';
   const messages: Record<string, string> = {
     BANK_TRANSFER_BALANCE_REQUIRED: '출금 통장과 동별 기준 잔고를 먼저 확인해주세요.',
     BANK_TRANSFER_BALANCE_EXCEEDED: '이체금액이 출금 통장의 보유금을 초과합니다. 최신 금액을 확인해주세요.',
@@ -47,5 +50,6 @@ export function manualTransferError(error: unknown): string {
     INVALID_TRANSFER_ACCOUNT: '서로 다른 사용 중인 관리 통장을 선택해주세요.',
     BANK_TRANSFER_ACCOUNT_CONFLICT: '계좌 이체 설정을 확인해주세요.'
   };
+
   return messages[error.code ?? ''] ?? '이체를 저장하지 못했어요. 입력 내용을 확인한 뒤 다시 시도해주세요.';
 }

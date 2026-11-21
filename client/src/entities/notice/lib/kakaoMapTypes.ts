@@ -14,7 +14,8 @@ export interface KakaoAddressResult {
   address_name: string;
   x: string;
   y: string;
-  road_address?: { address_name: string; building_name: string } | null;
+  road_address?: { address_name: string;
+building_name: string } | null;
 }
 
 export interface KakaoMaps {
@@ -30,9 +31,11 @@ export interface KakaoMaps {
   }) => KakaoMapInstance;
   ZoomControl: new () => object;
   ControlPosition: { RIGHT: number };
-  Marker: new (options: { map: KakaoMapInstance; position: KakaoMapPoint }) => { setMap(map: KakaoMapInstance | null): void };
+  Marker: new (options: { map: KakaoMapInstance;
+position: KakaoMapPoint }) => { setMap(map: KakaoMapInstance | null): void };
   services: {
-    Status: { OK: string; ZERO_RESULT: string };
+    Status: { OK: string;
+ZERO_RESULT: string };
     Geocoder: new () => {
       addressSearch(address: string, callback: (results: KakaoAddressResult[], status: string) => void, options: { size: number }): void;
     };

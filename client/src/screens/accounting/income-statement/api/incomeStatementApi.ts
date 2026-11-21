@@ -14,7 +14,13 @@ import type {
 } from './incomeStatementApiTypes';
 
 /** 응답 장애·다른 대상·잘못된 원화나 범위를 예시·0원 자료로 대체하지 않습니다. */
-export async function getIncomeStatementWorkspace({ propertyId, startMonth, endMonth, buildingId, signal }: IncomeStatementQuery): Promise<IncomeStatementWorkspace> {
+export async function getIncomeStatementWorkspace({
+  propertyId,
+  startMonth,
+  endMonth,
+  buildingId,
+  signal
+}: IncomeStatementQuery): Promise<IncomeStatementWorkspace> {
   const value = await authenticatedAPI<IncomeStatementWorkspace>({
     url: `/api/properties/${propertyId}/accounting/income-statement`,
     data: {
@@ -24,7 +30,9 @@ export async function getIncomeStatementWorkspace({ propertyId, startMonth, endM
     },
     signal
   });
-  const invalid = () => { throw new ApiError(200, 'INVALID_RESPONSE', '손익 자료를 확인할 수 없습니다.'); };
+  const invalid = () => {
+    throw new ApiError(200, 'INVALID_RESPONSE', '손익 자료를 확인할 수 없습니다.');
+  };
   const amount = (value: unknown) => typeof value === 'string' && /^-?\d{1,30}$/.test(value);
   const id = (value: unknown) => typeof value === 'string' && isPropertyId(value);
   const group = (value: unknown) => ['operatingRevenue', 'operatingExpense', 'otherRevenue', 'otherExpense'].includes(String(value));
@@ -34,10 +42,12 @@ export async function getIncomeStatementWorkspace({ propertyId, startMonth, endM
     || typeof value.canManage !== 'boolean'
     || !['NO_BILLING', 'SETUP_REQUIRED', 'BEFORE_START', 'READY', 'REVIEW_REQUIRED'].includes(value.completeness)
     || !Array.isArray(value.buildings) || !Array.isArray(value.accounts) || !Array.isArray(value.records)
-    || !Array.isArray(value.issues) || !Array.isArray(value.expenses) || !Array.isArray(value.revenueItems)) invalid();
+    || !Array.isArray(value.issues) || !Array.isArray(value.expenses) || !Array.isArray(value.revenueItems))
+    invalid();
   if (!['NO_BILLING', 'SETUP_REQUIRED'].includes(value.completeness) && (!value.configuration || !isValidMonth(value.configuration.startMonth)
     || !Number.isInteger(value.configuration.fiscalYearStartMonth) || value.configuration.fiscalYearStartMonth < 1
-    || value.configuration.fiscalYearStartMonth > 12)) invalid();
+    || value.configuration.fiscalYearStartMonth > 12))
+    invalid();
   // 표시용 추가 필드가 없는 이전 서버 응답도 읽되, 제공된 값의 형식과 기존 금액·연결 검증은 유지합니다.
   if (value.buildings.some((row) => !row || !id(row.id) || typeof row.name !== 'string'
       || (row.deleted !== undefined && typeof row.deleted !== 'boolean'))
@@ -69,28 +79,34 @@ export async function getIncomeStatementWorkspace({ propertyId, startMonth, endM
           || !/^\d{4}-\d{2}-\d{2}$/.test(candidate.date) || !amount(candidate.amount))))
       || (row.recognitionMonth !== null && !isValidMonth(row.recognitionMonth)))
     || value.revenueItems.some((row) => !row || !id(row.id) || typeof row.name !== 'string' || !amount(row.amount)
-      || typeof row.recognized !== 'boolean' || !Number.isInteger(row.revision) || row.revision < 0)) invalid();
+      || typeof row.recognized !== 'boolean' || !Number.isInteger(row.revision) || row.revision < 0))
+    invalid();
   if (new Set(value.records.map((row) => row.id)).size !== value.records.length
     || (value.completeness === 'READY' && value.issues.length)
     || (value.completeness === 'REVIEW_REQUIRED' && !value.issues.length)
-    || (['NO_BILLING', 'SETUP_REQUIRED', 'BEFORE_START'].includes(value.completeness) && value.records.length)) invalid();
+    || (['NO_BILLING', 'SETUP_REQUIRED', 'BEFORE_START'].includes(value.completeness) && value.records.length))
+    invalid();
   if (value.receivables !== undefined && (!Array.isArray(value.receivables) || value.receivables.some((row) =>
     !row || !id(row.id) || !/^1\d{2}$/.test(row.accountCode) || typeof row.name !== 'string'
     || typeof row.counterparty !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)
     || !amount(row.amount) || !amount(row.received) || !amount(row.remaining)
     || BigInt(row.amount) - BigInt(row.received) !== BigInt(row.remaining)
-    || typeof row.path !== 'string' || !row.path.startsWith('/banking/')))) invalid();
+    || typeof row.path !== 'string' || !row.path.startsWith('/banking/'))))
+    invalid();
   if (value.otherIncomes !== undefined && (!Array.isArray(value.otherIncomes) || value.otherIncomes.some((row) =>
     !row || !id(row.id) || !id(row.transactionId) || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)
     || typeof row.name !== 'string' || !amount(row.amount)
     || !value.accounts.some((account) => account.id === row.accountId
-      && (account.group === 'otherRevenue' || (account.group === 'asset' && account.code === '103')))))) invalid();
+      && (account.group === 'otherRevenue' || (account.group === 'asset' && account.code === '103'))))))
+    invalid();
   if (value.households !== undefined && (!Array.isArray(value.households) || value.households.some((row) =>
     !row || !id(row.unitId) || typeof row.label !== 'string' || !amount(row.receivable) || !amount(row.advance)
     || BigInt(row.receivable) < BigInt(0) || BigInt(row.advance) < BigInt(0)
     || !value.accounts.some((account) => account.id === row.receivableAccountId && account.code === '102' && account.group === 'asset')
     || !value.accounts.some((account) => account.id === row.advanceAccountId && account.code === '201' && account.group === 'liability')
-    || typeof row.path !== 'string' || !row.path.startsWith('/banking/monthly/')))) invalid();
+    || typeof row.path !== 'string' || !row.path.startsWith('/banking/monthly/'))))
+    invalid();
+
   return {
     ...value,
     availableRange: {

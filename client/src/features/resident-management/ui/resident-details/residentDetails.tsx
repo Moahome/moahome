@@ -41,7 +41,14 @@ import { ResidentRegistrationForm } from '../resident-registration-form/resident
 import styles from './residentDetails.module.css';
 
 /** 웹 모달·모바일 페이지에서 같은 상세·수정·삭제를 사용하고 공개 번호는 이 컴포넌트의 일시 상태에만 둡니다. */
-export function ResidentDetails({ propertyId, residentId, presentation = 'modal', onClose, onDeleted, canPromote = false }: {
+export function ResidentDetails({
+  propertyId,
+  residentId,
+  presentation = 'modal',
+  onClose,
+  onDeleted,
+  canPromote = false
+}: {
   propertyId: string;
   residentId: string;
   presentation?: 'modal' | 'page';
@@ -55,7 +62,9 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
   const queryKey = ['resident-detail', session.data?.id, propertyId, residentId];
   const query = useQuery({
     queryKey,
-    queryFn: ({ signal }) => getResidentDetail(propertyId, residentId, signal),
+    queryFn: ({
+      signal
+    }) => getResidentDetail(propertyId, residentId, signal),
     enabled: Boolean(session.data),
     retry: false,
     staleTime: 0,
@@ -71,7 +80,13 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
   const active = useRef(false);
   const pending = useRef(false);
   const titleRef = useRef<HTMLHeadingElement>(null);
-  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
+  useEffect(() => {
+    active.current = true;
+
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const resident = query.data;
   const canModify = Boolean(resident && (resident.serviceRole !== 'ADMIN' || canPromote));
   const Title = presentation === 'page' ? 'h1' : 'h2';
@@ -79,68 +94,94 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
 
   /** 실패 시 확인 화면을 유지하며 성공한 뒤 이전·새 대표의 상세와 세대·주민 목록을 다시 읽습니다. */
   async function confirmRepresentative() {
-    if (!resident || pending.current) return;
+    if (!resident || pending.current)
+      return;
     pending.current = true;
-    setBusy(true); setError('');
+    setBusy(true);
+    setError('');
     try {
       const saved = await designateResidentRepresentative(propertyId, resident);
-      if (!active.current) return;
+      if (!active.current)
+        return;
       setPropertyQueryData(client, queryKey, saved, propertyScope);
       void client.invalidateQueries({
         predicate: (query) => ['property-residents', 'property-units', 'resident-detail'].includes(String(query.queryKey[0]))
           && query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
       });
-      changeMode('detail'); setMessage('대표 주민을 지정했어요.');
+      changeMode('detail');
+      setMessage('대표 주민을 지정했어요.');
     } catch (failure) {
-      if (active.current) setError(getResidentManagementError(failure));
+      if (active.current)
+        setError(getResidentManagementError(failure));
     } finally {
       pending.current = false;
-      if (active.current) setBusy(false);
+      if (active.current)
+        setBusy(false);
     }
   }
 
   /** 숨기기·수정·삭제 전환에서는 공개 번호를 즉시 버리고 조회 실패에도 기존 마스킹을 유지합니다. */
   async function togglePhone() {
-    if (phone !== null) { setPhone(null); return; }
-    if (pending.current) return;
+    if (phone !== null) {
+      setPhone(null);
+
+      return;
+    }
+    if (pending.current)
+      return;
     pending.current = true;
-    setBusy(true); setError('');
+    setBusy(true);
+    setError('');
     try {
       const revealed = await revealResidentPhone(propertyId, residentId);
-      if (active.current) setPhone(revealed);
+      if (active.current)
+        setPhone(revealed);
     } catch (failure) {
-      if (active.current) setError(getResidentManagementError(failure));
+      if (active.current)
+        setError(getResidentManagementError(failure));
     } finally {
       pending.current = false;
-      if (active.current) setBusy(false);
+      if (active.current)
+        setBusy(false);
     }
   }
 
   function changeMode(next: typeof mode) {
-    setPhone(null); setError(''); setMessage(''); setReplacement(''); setMode(next);
+    setPhone(null);
+    setError('');
+    setMessage('');
+    setReplacement('');
+    setMode(next);
   }
 
   /** 대표 선택을 먼저 검증하며 실패는 상세·선택을 유지하고 성공에만 목록으로 복귀합니다. */
   async function confirmDelete() {
-    if (!resident || pending.current) return;
+    if (!resident || pending.current)
+      return;
     if (resident.representativeCandidates.length && !replacement) {
-      setError('남은 주민 중 새 대표를 선택해주세요.'); return;
+      setError('남은 주민 중 새 대표를 선택해주세요.');
+
+      return;
     }
     pending.current = true;
-    setBusy(true); setError('');
+    setBusy(true);
+    setError('');
     try {
       await deleteResident(propertyId, residentId, resident.updatedAt, replacement || null);
-      if (!active.current) return;
+      if (!active.current)
+        return;
       void client.invalidateQueries({
         predicate: (query) => ['property-residents', 'property-units'].includes(String(query.queryKey[0]))
           && query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
       });
       onDeleted();
     } catch (failure) {
-      if (active.current) setError(getResidentManagementError(failure));
+      if (active.current)
+        setError(getResidentManagementError(failure));
     } finally {
       pending.current = false;
-      if (active.current) setBusy(false);
+      if (active.current)
+        setBusy(false);
     }
   }
 
@@ -300,15 +341,20 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
           propertyId={propertyId}
           resident={resident}
           onBusyChange={setBusy}
-          onCancel={() => { changeMode('detail'); void query.refetch(); }}
+          onCancel={() => {
+            changeMode('detail');
+            void query.refetch();
+          }}
           onSaved={(saved) => {
             setBusy(false);
-            if (saved) setPropertyQueryData(client, queryKey, saved, propertyScope);
+            if (saved)
+              setPropertyQueryData(client, queryKey, saved, propertyScope);
             void client.invalidateQueries({
               predicate: (query) => ['property-residents', 'property-units'].includes(String(query.queryKey[0]))
           && query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
             });
-            changeMode('detail'); setMessage('주민 정보를 수정했어요.');
+            changeMode('detail');
+            setMessage('주민 정보를 수정했어요.');
           }}
         />
       )}
@@ -386,7 +432,10 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
             <Button
               variant={'outline'}
               disabled={busy}
-              onClick={() => { changeMode('detail'); void query.refetch(); }}
+              onClick={() => {
+                changeMode('detail');
+                void query.refetch();
+              }}
             >
               취소
             </Button>
@@ -417,14 +466,15 @@ export function ResidentDetails({ propertyId, residentId, presentation = 'modal'
     </>
   );
 
-  if (presentation === 'page') return (
-    <section
-      className={styles.page}
-      aria-labelledby={'resident-detail-title'}
-    >
-      {content}
-    </section>
-  );
+  if (presentation === 'page')
+    return (
+      <section
+        className={styles.page}
+        aria-labelledby={'resident-detail-title'}
+      >
+        {content}
+      </section>
+    );
 
   return (
     <ClientModal

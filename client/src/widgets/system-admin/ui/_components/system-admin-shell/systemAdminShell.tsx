@@ -1,4 +1,5 @@
 'use client';
+
 import Link from 'next/link';
 import {
   useEffect,
@@ -15,23 +16,33 @@ import {
 import styles from './systemAdminShell.module.css';
 
 /** 관리대상 소속과 독립적으로 시스템 역할을 확인하고 계정 전환 시 하위 화면을 새로 만듭니다. */
-export function SystemAdminShell({ children, header, administrators = false }: { children: ReactNode; header: ReactNode; administrators?: boolean }) {
+export function SystemAdminShell({
+  children,
+  header,
+  administrators = false
+}: { children: ReactNode;
+header: ReactNode;
+administrators?: boolean }) {
   const session = useSession();
   const router = useRouter();
   useEffect(() => {
-    if (session.isError && session.error instanceof ApiError && session.error.status === 401) router.replace('/login');
+    if (session.isError && session.error instanceof ApiError && session.error.status === 401)
+      router.replace('/login');
   }, [session.isError, session.error, router]);
-  if (session.isPending) return (
-    <LoadingState
-      title={'계정 권한을 확인하고 있어요.'}
-    />
-  );
-  if (session.isError) return (
-    <RequestError
-      error={session.error}
-      onRetry={() => void session.refetch()}
-    />
-  );
+  if (session.isPending)
+    return (
+      <LoadingState
+        title={'계정 권한을 확인하고 있어요.'}
+      />
+    );
+  if (session.isError)
+    return (
+      <RequestError
+        error={session.error}
+        onRetry={() => void session.refetch()}
+      />
+    );
+
   return (
     <div
       className={styles.shell}

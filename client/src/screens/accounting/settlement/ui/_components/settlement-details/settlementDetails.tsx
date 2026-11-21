@@ -53,7 +53,11 @@ const DETAIL_TABS = [
 const money = (value: string | bigint | null) => value === null ? '자료 확인 필요' : formatWon(value);
 
 /** 한 번 조회한 정산 자료를 탭별로 탐색하며 검색·페이지 구분은 Excel의 전체 명세를 바꾸지 않습니다. */
-export function SettlementDetails({ report, month, propertyId }: {
+export function SettlementDetails({
+  report,
+  month,
+  propertyId
+}: {
   report: ReturnType<typeof getSettlementReport>;
   month: string;
   propertyId: string;
@@ -67,11 +71,14 @@ export function SettlementDetails({ report, month, propertyId }: {
   useEffect(() => {
     const selected = refs.current[DETAIL_TABS.findIndex((item) => item.id === tab)];
     const list = selected?.parentElement;
-    if (!selected || !list) return;
+    if (!selected || !list)
+      return;
     const button = selected.getBoundingClientRect();
     const bounds = list.getBoundingClientRect();
-    if (button.left < bounds.left) list.scrollLeft -= bounds.left - button.left;
-    if (button.right > bounds.right) list.scrollLeft += button.right - bounds.right;
+    if (button.left < bounds.left)
+      list.scrollLeft -= bounds.left - button.left;
+    if (button.right > bounds.right)
+      list.scrollLeft += button.right - bounds.right;
   }, [tab]);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('전체');
@@ -108,7 +115,7 @@ export function SettlementDetails({ report, month, propertyId }: {
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, pageCount);
   const href = (path: string) => `/manage/${propertyId}/${path}?month=${month}`;
-  const pageRows = <Row,>(rows: Row[]) => rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const pageRows = <Row, >(rows: Row[]) => rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   /** 탭 선택을 URL에 남겨 새로고침과 직접 진입에서도 같은 상세를 보여줍니다. */
   function changeTab(value: typeof DETAIL_TABS[number]['id']) {
@@ -124,11 +131,16 @@ export function SettlementDetails({ report, month, propertyId }: {
   /** 방향키와 Home·End로 선택·포커스를 함께 옮기고 Tab 키는 선택 탭만 거칩니다. */
   function handleTabKey(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let next = index;
-    if (event.key === 'ArrowRight') next = (index + 1) % DETAIL_TABS.length;
-    else if (event.key === 'ArrowLeft') next = (index + DETAIL_TABS.length - 1) % DETAIL_TABS.length;
-    else if (event.key === 'Home') next = 0;
-    else if (event.key === 'End') next = DETAIL_TABS.length - 1;
-    else return;
+    if (event.key === 'ArrowRight')
+      next = (index + 1) % DETAIL_TABS.length;
+    else if (event.key === 'ArrowLeft')
+      next = (index + DETAIL_TABS.length - 1) % DETAIL_TABS.length;
+    else if (event.key === 'Home')
+      next = 0;
+    else if (event.key === 'End')
+      next = DETAIL_TABS.length - 1;
+    else
+      return;
     event.preventDefault();
     refs.current[next]?.focus();
     changeTab(DETAIL_TABS[next].id);
@@ -142,7 +154,10 @@ export function SettlementDetails({ report, month, propertyId }: {
         value: String(size),
         label: `${size}개씩 보기`
       }))}
-      onChange={(value) => { setPageSize(Number(value)); setPage(1); }}
+      onChange={(value) => {
+        setPageSize(Number(value));
+        setPage(1);
+      }}
     />
   );
 
@@ -158,7 +173,9 @@ export function SettlementDetails({ report, month, propertyId }: {
         {DETAIL_TABS.map((item, index) => (
           <Button
             key={item.id}
-            ref={(element) => { refs.current[index] = element; }}
+            ref={(element) => {
+              refs.current[index] = element;
+            }}
             variant={'ghost'}
             role={'tab'}
             id={`settlement-tab-${item.id}`}
@@ -212,7 +229,10 @@ export function SettlementDetails({ report, month, propertyId }: {
               />
             )}
             value={accountQuery}
-            onChange={(event) => { setAccountQuery(event.target.value); setPage(1); }}
+            onChange={(event) => {
+              setAccountQuery(event.target.value);
+              setPage(1);
+            }}
           />
           {pageSizeControl}
           <Button
@@ -223,7 +243,10 @@ export function SettlementDetails({ report, month, propertyId }: {
                 name={'reset'}
               />
             )}
-            onClick={() => { setAccountQuery(''); setPage(1); }}
+            onClick={() => {
+              setAccountQuery('');
+              setPage(1);
+            }}
           >
             초기화
           </Button>
@@ -295,7 +318,10 @@ export function SettlementDetails({ report, month, propertyId }: {
               />
             )}
             value={buildingQuery}
-            onChange={(event) => { setBuildingQuery(event.target.value); setPage(1); }}
+            onChange={(event) => {
+              setBuildingQuery(event.target.value);
+              setPage(1);
+            }}
           />
           <Dropdown
             aria-label={'보유금 설정 상태'}
@@ -304,7 +330,10 @@ export function SettlementDetails({ report, month, propertyId }: {
               value,
               label: value === '전체' ? '전체 상태' : value
             }))}
-            onChange={(value) => { setBuildingStatus(value); setPage(1); }}
+            onChange={(value) => {
+              setBuildingStatus(value);
+              setPage(1);
+            }}
           />
           {pageSizeControl}
           <Button
@@ -315,7 +344,11 @@ export function SettlementDetails({ report, month, propertyId }: {
                 name={'reset'}
               />
             )}
-            onClick={() => { setBuildingQuery(''); setBuildingStatus('전체'); setPage(1); }}
+            onClick={() => {
+              setBuildingQuery('');
+              setBuildingStatus('전체');
+              setPage(1);
+            }}
           >
             초기화
           </Button>
@@ -401,7 +434,10 @@ export function SettlementDetails({ report, month, propertyId }: {
               />
             )}
             value={query}
-            onChange={(event) => { setQuery(event.target.value); setPage(1); }}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setPage(1);
+            }}
           />
           <Dropdown
             aria-label={'납부 상태'}
@@ -410,7 +446,10 @@ export function SettlementDetails({ report, month, propertyId }: {
               value,
               label: value === '전체' ? '전체 상태' : value
             }))}
-            onChange={(value) => { setStatus(value); setPage(1); }}
+            onChange={(value) => {
+              setStatus(value);
+              setPage(1);
+            }}
           />
           <Dropdown
             aria-label={'조회 동'}
@@ -422,7 +461,10 @@ export function SettlementDetails({ report, month, propertyId }: {
               value,
               label: value
             }))]}
-            onChange={(value) => { setBuilding(value); setPage(1); }}
+            onChange={(value) => {
+              setBuilding(value);
+              setPage(1);
+            }}
           />
           {pageSizeControl}
           <Button
@@ -433,7 +475,12 @@ export function SettlementDetails({ report, month, propertyId }: {
                 name={'reset'}
               />
             )}
-            onClick={() => { setQuery(''); setStatus('전체'); setBuilding(''); setPage(1); }}
+            onClick={() => {
+              setQuery('');
+              setStatus('전체');
+              setBuilding('');
+              setPage(1);
+            }}
           >
             초기화
           </Button>
@@ -539,7 +586,10 @@ export function SettlementDetails({ report, month, propertyId }: {
               />
             )}
             value={externalQuery}
-            onChange={(event) => { setExternalQuery(event.target.value); setPage(1); }}
+            onChange={(event) => {
+              setExternalQuery(event.target.value);
+              setPage(1);
+            }}
           />
           <Dropdown
             aria-label={'회수 상태'}
@@ -548,7 +598,10 @@ export function SettlementDetails({ report, month, propertyId }: {
               value,
               label: value === '전체' ? '전체 상태' : value
             }))}
-            onChange={(value) => { setExternalStatus(value); setPage(1); }}
+            onChange={(value) => {
+              setExternalStatus(value);
+              setPage(1);
+            }}
           />
           {pageSizeControl}
           <Button
@@ -559,7 +612,11 @@ export function SettlementDetails({ report, month, propertyId }: {
                 name={'reset'}
               />
             )}
-            onClick={() => { setExternalQuery(''); setExternalStatus('전체'); setPage(1); }}
+            onClick={() => {
+              setExternalQuery('');
+              setExternalStatus('전체');
+              setPage(1);
+            }}
           >
             초기화
           </Button>

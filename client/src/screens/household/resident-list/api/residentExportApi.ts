@@ -15,12 +15,14 @@ export async function getResidentExport(propertyId: string, residentIds: readonl
     }
   });
   const invalid = () => new ApiError(200, 'INVALID_RESPONSE', '다운로드할 주민 정보를 확인할 수 없습니다.');
-  if (!result || !Array.isArray(result.residents) || result.residents.length !== residentIds.length) throw invalid();
+  if (!result || !Array.isArray(result.residents) || result.residents.length !== residentIds.length)
+    throw invalid();
 
   return result.residents.map((row) => {
     if (!row || typeof row.name !== 'string' || !row.name.trim()
       || !(row.phone === null || (typeof row.phone === 'string' && /^\+[1-9][0-9]{3,14}$/.test(row.phone)))
-      || typeof row.unitLabel !== 'string' || !row.unitLabel.trim()) throw invalid();
+      || typeof row.unitLabel !== 'string' || !row.unitLabel.trim())
+      throw invalid();
 
     // 서버에 필드가 추가되어도 내보내기에 허용한 세 값만 미리보기와 파일에 전달합니다.
     return {

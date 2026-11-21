@@ -82,7 +82,8 @@ export function AutomaticUnitEditor({
   /** 잘못된 규칙이나 전체 중복에는 기존 입력을 유지하고 추가 시 부모에서 현재 목록을 다시 검증합니다. */
   function submitUnits(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || !canAdd) return;
+    if (busy || !canAdd)
+      return;
 
     onAdd(selectedBuildingId);
   }
@@ -296,14 +297,15 @@ export function AutomaticUnitEditor({
     </>
   );
 
-  if (presentation === 'page') return (
-    <section
-      className={styles.page}
-      aria-labelledby={'automatic-unit-title'}
-    >
-      {content}
-    </section>
-  );
+  if (presentation === 'page')
+    return (
+      <section
+        className={styles.page}
+        aria-labelledby={'automatic-unit-title'}
+      >
+        {content}
+      </section>
+    );
 
   return (
     <ClientModal

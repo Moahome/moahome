@@ -9,7 +9,6 @@ import styles from './invitationClaimPage.module.css';
 export function InvitationClaimPage() {
   const router = useRouter();
 
-
   return (
     <div>
       <ServiceHeader

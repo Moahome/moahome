@@ -102,15 +102,22 @@ export function PropertyRegistrationFlow({
   const confirmingResult = (submission.isCompletionLookup && submission.status !== 'complete') || resultMismatch;
   const locked = submission.status !== 'idle';
   let currentStep: RegistrationStep | 'complete' = 'basic';
-  if (step !== 'basic' && draft.basicInfoValidated) currentStep = 'units';
-  if (['residents', 'account', 'fees', 'review'].includes(step) && draft.basicInfoValidated && unitsValid) currentStep = 'residents';
-  if (['account', 'fees', 'review'].includes(step) && currentStep === 'residents' && residentsValid) currentStep = 'account';
-  if (['fees', 'review'].includes(step) && currentStep === 'account' && accountValid) currentStep = 'fees';
-  if (step === 'review' && currentStep === 'fees' && feesValid) currentStep = 'review';
+  if (step !== 'basic' && draft.basicInfoValidated)
+    currentStep = 'units';
+  if (['residents', 'account', 'fees', 'review'].includes(step) && draft.basicInfoValidated && unitsValid)
+    currentStep = 'residents';
+  if (['account', 'fees', 'review'].includes(step) && currentStep === 'residents' && residentsValid)
+    currentStep = 'account';
+  if (['fees', 'review'].includes(step) && currentStep === 'account' && accountValid)
+    currentStep = 'fees';
+  if (step === 'review' && currentStep === 'fees' && feesValid)
+    currentStep = 'review';
   // 제출 이후에는 URL 뒤로가기도 수정으로 처리하지 않고 저장 결과부터 확인합니다.
-  if (locked) currentStep = 'review';
+  if (locked)
+    currentStep = 'review';
   // 저장 성공 뒤에는 이전 단계 이력도 완료 화면으로 치환해 같은 등록을 다시 제출하지 않습니다.
-  if (submission.status === 'complete' && submission.result) currentStep = 'complete';
+  if (submission.status === 'complete' && submission.result)
+    currentStep = 'complete';
 
   useEffect(() => () => {
     discardRegistrationDraft();
@@ -121,6 +128,7 @@ export function PropertyRegistrationFlow({
   useEffect(() => {
     if (currentStep === 'complete' || submission.isCompletionLookup) {
       discardRegistrationDraft();
+
       return;
     }
     saveRegistrationDraft(userId, {
@@ -130,20 +138,24 @@ export function PropertyRegistrationFlow({
   }, [userId, draft, currentStep, submission.isCompletionLookup]);
 
   useEffect(() => {
-    if (confirmingResult) return;
+    if (confirmingResult)
+      return;
     const requestId = currentStep === 'complete' ? submission.result?.requestId : null;
-    if (step === currentStep && (!requestId || completionRequestId === requestId)) return;
+    if (step === currentStep && (!requestId || completionRequestId === requestId))
+      return;
     const query = new URLSearchParams({
       registration: currentStep
     });
-    if (requestId) query.set('requestId', requestId);
+    if (requestId)
+      query.set('requestId', requestId);
     router.replace(`${entryPath}?${query}`, {
       scroll: false
     });
   }, [step, currentStep, completionRequestId, submission.result, confirmingResult, router, entryPath]);
 
   useEffect(() => {
-    if (inputMessage) errorRef.current?.focus();
+    if (inputMessage)
+      errorRef.current?.focus();
   }, [inputMessage, currentStep]);
 
   /** 기본 정보 변경은 기존 동·세대를 유지하고 서버 검증 상태만 해제합니다. */
@@ -179,7 +191,8 @@ export function PropertyRegistrationFlow({
 
   /** 요약에서 수정 단계로 가도 입력을 유지하며 다음은 항상 다음 순서로 진행하고 제출 후에는 이동을 막습니다. */
   function navigateSetup(nextStep: RegistrationStep) {
-    if (locked) return;
+    if (locked)
+      return;
     setInputMessage('');
     setDraft((previous) => ({
       ...previous,
@@ -226,6 +239,7 @@ export function PropertyRegistrationFlow({
   let content;
   const transactionId = searchParams.get('transaction');
   const transactionAccountId = searchParams.get('account');
+
   function closeTransactionPage() {
     const query = new URLSearchParams({
       registration: 'account',
@@ -237,6 +251,7 @@ export function PropertyRegistrationFlow({
       scroll: false
     });
   }
+
   if (!locked && currentStep === 'account' && transactionId) {
     const account = draft.bankAccounts.find((entry) => entry.clientId === transactionAccountId);
     const record = draft.openingBalances.manualTransactions?.find((entry) => entry.id === transactionId && entry.accountClientId === account?.clientId);
@@ -274,27 +289,35 @@ export function PropertyRegistrationFlow({
             buildings={draft.buildings}
             presentation={'page'}
             onClose={closeTransactionPage}
-            onDelete={record ? () => { setDraft((previous) => ({
-              ...previous,
-              openingBalances: {
-                ...previous.openingBalances,
-                manualTransactions: previous.openingBalances.manualTransactions?.filter((entry) => entry.id !== record.id)
-              }
-            })); closeTransactionPage(); } : undefined}
+            onDelete={record ? () => {
+              setDraft((previous) => ({
+                ...previous,
+                openingBalances: {
+                  ...previous.openingBalances,
+                  manualTransactions: previous.openingBalances.manualTransactions?.filter((entry) => entry.id !== record.id)
+                }
+              }));
+              closeTransactionPage();
+            } : undefined}
             onSave={(value) => {
               const next = {
                 ...value,
                 id: record?.id ?? crypto.randomUUID(),
                 accountClientId: account.clientId
               };
-              setDraft((previous) => { const records = previous.openingBalances.manualTransactions ?? []; return {
-                ...previous,
-                openingBalances: {
-                  ...previous.openingBalances,
-                  manualTransactions: record ? records.map((entry) => entry.id === record.id ? next : entry) : [...records, next]
-                }
-              }; });
-              if (!record) closeTransactionPage();
+              setDraft((previous) => {
+                const records = previous.openingBalances.manualTransactions ?? [];
+
+                return {
+                  ...previous,
+                  openingBalances: {
+                    ...previous.openingBalances,
+                    manualTransactions: record ? records.map((entry) => entry.id === record.id ? next : entry) : [...records, next]
+                  }
+                };
+              });
+              if (!record)
+                closeTransactionPage();
             }}
           />
         ) : (

@@ -17,7 +17,6 @@ export type {
   MemberWorkspace
 } from './api/memberApiTypes';
 
-
 export {
   InvitationCodeForm
 } from './ui/invitationCodeForm';

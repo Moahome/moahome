@@ -37,16 +37,27 @@ const ReportDownload = dynamic(() => import('@/shared/ui/report-download').then(
 const MONTHLY_REPORT_LAYOUT_VERSION = 4;
 
 /** 다운로드를 열 때 현재 권한에서 확인한 빌라 이름·원장·조회 조건을 같은 자료로 고정합니다. */
-export function MonthlyExportButton({ month, range, filters, selectedRowKeys }: {
+export function MonthlyExportButton({
+  month,
+  range,
+  filters,
+  selectedRowKeys
+}: {
   month: string;
   range: MonthRange;
   filters: MonthlyCollectionFilters;
   selectedRowKeys?: readonly string[];
 }) {
-  const { ledger, propertyId, busy } = usePaymentWorkspace();
+  const {
+    ledger,
+    propertyId,
+    busy
+  } = usePaymentWorkspace();
   const session = useSession();
   const context = useManagementContext(session.data?.id, propertyId, false);
-  const { openDownload } = useReportDownload();
+  const {
+    openDownload
+  } = useReportDownload();
   const pathname = usePathname();
   const search = useSearchParams();
 
@@ -56,7 +67,8 @@ export function MonthlyExportButton({ month, range, filters, selectedRowKeys }: 
         variant={'outline'}
         disabled={busy || !context.data?.name || selectedRowKeys?.length === 0}
         onClick={() => {
-          if (!context.data?.name || selectedRowKeys?.length === 0) return;
+          if (!context.data?.name || selectedRowKeys?.length === 0)
+            return;
           const snapshot: MonthlyReportSnapshot = {
             propertyId,
             propertyName: context.data.name,
@@ -96,7 +108,13 @@ export function MonthlyExportButton({ month, range, filters, selectedRowKeys }: 
 }
 
 /** 열린 시점의 자료를 세 형식에서 공유해 미리보기와 실제 저장 내용을 일치시킵니다. */
-function MonthlyDownload({ data, onClose, presentation }: { data: MonthlyReportSnapshot; onClose: () => void; presentation: 'modal' | 'page' }) {
+function MonthlyDownload({
+  data,
+  onClose,
+  presentation
+}: { data: MonthlyReportSnapshot;
+onClose: () => void;
+presentation: 'modal' | 'page' }) {
   const document = useMemo(() => getMonthlyReportDocument(data), [data]);
   const createWorkbook = useCallback(() => createMonthlyWorkbook(data), [data]);
   const createPdf = useCallback(() => import('../../../model/monthlyReportPdf').then((module) => module.createMonthlyCollectionPdf(data)), [data]);

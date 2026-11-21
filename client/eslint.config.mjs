@@ -14,6 +14,24 @@ import nextTs from 'eslint-config-next/typescript';
 import importNewlines from 'eslint-plugin-import-newlines';
 import unusedImports from 'eslint-plugin-unused-imports';
 
+const OBJECT_CURLY_NEWLINE_OPTIONS = {
+  ObjectExpression: {
+    multiline: true,
+    minProperties: 1
+  },
+  ObjectPattern: {
+    consistent: true
+  },
+  ImportDeclaration: {
+    multiline: true,
+    minProperties: 2
+  },
+  ExportDeclaration: {
+    multiline: true,
+    minProperties: 1
+  },
+};
+
 const SOURCE_DIRECTORY = fileURLToPath(new URL('./src/', import.meta.url));
 const LAYERS = ['app', 'screens', 'widgets', 'features', 'entities', 'shared'];
 const SCREEN_GROUPS = new Set(['household', 'payment', 'banking', 'accounting', 'system-admin']);
@@ -228,6 +246,36 @@ const eslintConfig = defineConfig([
       'architecture/import-boundaries': 'error',
       'architecture/ui-folders': 'error',
       'architecture/type-files': 'error',
+      'max-statements-per-line': ['error', {
+        max: 1
+      }],
+      'brace-style': ['error', '1tbs', {
+        allowSingleLine: false
+      }],
+      'nonblock-statement-body-position': ['error', 'below'],
+      'padding-line-between-statements': ['error',
+        {
+          blankLine: 'always',
+          prev: '*',
+          next: 'function'
+        },
+        {
+          blankLine: 'always',
+          prev: 'function',
+          next: '*'
+        },
+        {
+          blankLine: 'always',
+          prev: '*',
+          next: 'return'
+        }
+      ],
+      'keyword-spacing': 'error',
+      'space-before-blocks': 'error',
+      'space-infix-ops': 'error',
+      'comma-spacing': 'error',
+      'semi-spacing': 'error',
+      'key-spacing': 'error',
       'react/jsx-one-expression-per-line': ['error', {
         allow: 'none'
       }],
@@ -261,23 +309,7 @@ const eslintConfig = defineConfig([
       quotes: ['warn', 'single', {
         avoidEscape: true
       }],
-      'object-curly-newline': ['warn', {
-        ObjectExpression: {
-          multiline: true,
-          minProperties: 1
-        },
-        ObjectPattern: {
-          consistent: true
-        },
-        ImportDeclaration: {
-          multiline: true,
-          minProperties: 2
-        },
-        ExportDeclaration: {
-          multiline: true,
-          minProperties: 1
-        },
-      }],
+      'object-curly-newline': ['warn', OBJECT_CURLY_NEWLINE_OPTIONS],
       'object-property-newline': ['warn', {
         allowAllPropertiesOnSameLine: false
       }],
@@ -293,7 +325,10 @@ const eslintConfig = defineConfig([
         items: 1,
         'max-len': 999
       }],
-      indent: ['warn', 2],
+      indent: ['warn', 2, {
+        ignoredNodes: ['JSXElement', 'JSXElement > *', 'JSXFragment', 'JSXFragment > *']
+      }],
+      'object-curly-spacing': ['warn', 'always'],
       // 객체 줄바꿈 자동 수정이 남긴 공백도 함께 정리해 Git 차이에 서식 오류가 남지 않게 합니다.
       'no-trailing-spaces': 'warn',
     },
@@ -302,6 +337,18 @@ const eslintConfig = defineConfig([
         version: 'detect'
       },
     },
+  },
+  {
+    files: ['src/**/*.{ts,tsx,js,jsx,mts,mjs}'],
+    rules: {
+      'object-curly-newline': ['warn', {
+        ...OBJECT_CURLY_NEWLINE_OPTIONS,
+        ObjectPattern: {
+          multiline: true,
+          minProperties: 1
+        }
+      }]
+    }
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([

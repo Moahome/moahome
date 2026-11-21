@@ -13,7 +13,10 @@ export async function previewRegistrationResidents(file: File, hasBuildings: boo
   data.append('setup', new Blob([JSON.stringify({
     hasBuildings,
     buildings,
-    units: units.map(({ buildingClientId, unitNumber }) => ({
+    units: units.map(({
+      buildingClientId,
+      unitNumber
+    }) => ({
       buildingClientId,
       unitNumber
     })),
@@ -24,6 +27,7 @@ export async function previewRegistrationResidents(file: File, hasBuildings: boo
   })], {
     type: 'application/json'
   }));
+
   return authenticatedAPI<RegistrationResidentImportRow[]>({
     url: '/api/property-registrations/resident-import/preview',
     method: 'POST',

@@ -17,7 +17,12 @@ import type { RegistrationAccount } from '../../../model/bankAccountTypes';
 import styles from './registrationAccountDialog.module.css';
 
 /** 모달의 편집본은 저장할 때만 목록에 반영해 취소·닫기·새로고침으로 미확정 통장이 추가되지 않게 합니다. */
-export function RegistrationAccountDialog({ account, accounts, onSave, onClose }: {
+export function RegistrationAccountDialog({
+  account,
+  accounts,
+  onSave,
+  onClose
+}: {
   account: RegistrationAccount;
   accounts: RegistrationAccount[];
   onSave: (account: RegistrationAccount) => void;
@@ -37,8 +42,13 @@ export function RegistrationAccountDialog({ account, accounts, onSave, onClose }
   /** 필수 계좌 정보·중복과 기본 계좌 유지를 확인한 뒤 초안 한 건을 저장합니다. */
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!valid) return;
-    if (duplicate) { setDuplicateNotice((value) => value + 1); return; }
+    if (!valid)
+      return;
+    if (duplicate) {
+      setDuplicateNotice((value) => value + 1);
+
+      return;
+    }
     onSave(draft);
   }
 

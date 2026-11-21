@@ -54,6 +54,7 @@ export function Input({
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     if (digitsOnly && !/^[0-9]*$/.test(event.currentTarget.value)) {
       event.currentTarget.value = String(inputProps.value ?? acceptedValueRef.current);
+
       return;
     }
 

@@ -9,7 +9,15 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './invitationMenu.module.css';
 
 /** 미발급은 바로 초대하고 발급 후에는 같은 행에서 전달·재발급·철회를 선택합니다. */
-export function InvitationMenu({ name, active, reviewing, disabled, onOpen, onIssue, onRevoke }: {
+export function InvitationMenu({
+  name,
+  active,
+  reviewing,
+  disabled,
+  onOpen,
+  onIssue,
+  onRevoke
+}: {
   name: string;
   active: boolean;
   reviewing: boolean;
@@ -25,10 +33,23 @@ export function InvitationMenu({ name, active, reviewing, disabled, onOpen, onIs
     left: 0,
     top: 0
   });
-  function close() { menu.current?.hidePopover(); trigger.current?.focus(); }
+
+  function close() {
+    menu.current?.hidePopover();
+    trigger.current?.focus();
+  }
+
   function toggle() {
-    if (!active) { onIssue(); return; }
-    if (open) { close(); return; }
+    if (!active) {
+      onIssue();
+
+      return;
+    }
+    if (open) {
+      close();
+
+      return;
+    }
     const bounds = trigger.current!.getBoundingClientRect();
     const menuHeight = 142;
     const below = bounds.bottom + 8;
@@ -39,6 +60,7 @@ export function InvitationMenu({ name, active, reviewing, disabled, onOpen, onIs
     menu.current?.showPopover();
     menu.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
   }
+
   return (
     <div
       className={styles.root}
@@ -68,7 +90,12 @@ export function InvitationMenu({ name, active, reviewing, disabled, onOpen, onIs
           </span>
         ) : undefined}
         onClick={toggle}
-        onKeyDown={(event) => { if (active && event.key === 'ArrowDown') { event.preventDefault(); toggle(); } }}
+        onKeyDown={(event) => {
+          if (active && event.key === 'ArrowDown') {
+            event.preventDefault();
+            toggle();
+          }
+        }}
       >
         개인 초대
       </Button>
@@ -80,12 +107,21 @@ export function InvitationMenu({ name, active, reviewing, disabled, onOpen, onIs
         className={styles.menu}
         style={position}
         onToggle={(event) => setOpen(event.newState === 'open')}
-        onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget) && event.relatedTarget !== trigger.current) close(); }}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget) && event.relatedTarget !== trigger.current)
+            close();
+        }}
         onKeyDown={(event) => {
           const items = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
           const current = items.indexOf(document.activeElement as HTMLButtonElement);
-          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); items[(current + (event.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus(); }
-          if (event.key === 'Escape') { event.preventDefault(); close(); }
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            items[(current + (event.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
+          }
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            close();
+          }
         }}
       >
         <Button
@@ -97,7 +133,10 @@ export function InvitationMenu({ name, active, reviewing, disabled, onOpen, onIs
               name={'link'}
             />
           )}
-          onClick={() => { close(); onOpen(); }}
+          onClick={() => {
+            close();
+            onOpen();
+          }}
         >
           개인 초대
         </Button>
@@ -110,7 +149,10 @@ export function InvitationMenu({ name, active, reviewing, disabled, onOpen, onIs
               name={'reset'}
             />
           )}
-          onClick={() => { close(); onIssue(); }}
+          onClick={() => {
+            close();
+            onIssue();
+          }}
         >
           재발급
         </Button>
@@ -123,7 +165,10 @@ export function InvitationMenu({ name, active, reviewing, disabled, onOpen, onIs
               name={'close'}
             />
           )}
-          onClick={() => { close(); onRevoke(); }}
+          onClick={() => {
+            close();
+            onRevoke();
+          }}
         >
           철회
         </Button>

@@ -52,24 +52,33 @@ export function ResidentHomePage() {
   const rows = scoped ? (access.ready && access.data ? [access.data] : []) : properties.data;
   const failure = session.error ?? (scoped ? access.error : properties.error ?? (needsEntry ? management.error : null));
   const denied = failure instanceof ApiError && (failure.status === 401 || failure.code === 'ACCOUNT_UNAVAILABLE');
-  useEffect(() => { if (denied) router.replace('/login'); }, [denied, router]);
+  useEffect(() => {
+    if (denied)
+      router.replace('/login');
+  }, [denied, router]);
   useEffect(() => {
     // 새 주민 목록이 실제로 비었을 때만 현재 관리 목록까지 확인해 승격과 전체 참여 종료를 구분합니다.
-    if (!needsEntry || !management.isFetchedAfterMount || !management.isSuccess || management.isFetching) return;
+    if (!needsEntry || !management.isFetchedAfterMount || !management.isSuccess || management.isFetching)
+      return;
     router.replace(management.data ? getManagementDashboardPath(management.data.propertyId) : '/start');
   }, [needsEntry, management.isFetchedAfterMount, management.isSuccess, management.isFetching, management.data, router]);
   useEffect(() => {
     /** 브라우저 기록 캐시에 남은 참여 정보는 새 문서의 현재 세션·권한으로 재검증합니다. */
     function hideLeavingPage() {
-      if (!pageRef.current) return;
+      if (!pageRef.current)
+        return;
       pageRef.current.style.display = 'none';
       pageRef.current.inert = true;
     }
+
     function revalidateRestoredPage(event: PageTransitionEvent) {
-      if (event.persisted) window.location.reload();
+      if (event.persisted)
+        window.location.reload();
     }
+
     window.addEventListener('pagehide', hideLeavingPage);
     window.addEventListener('pageshow', revalidateRestoredPage);
+
     return () => {
       window.removeEventListener('pagehide', hideLeavingPage);
       window.removeEventListener('pageshow', revalidateRestoredPage);
@@ -80,34 +89,41 @@ export function ResidentHomePage() {
 
   /** 실패한 조회만 재시도하고 일시 장애나 취소를 참여 종료로 해석하지 않습니다. */
   function retry() {
-    if (!session.data) return void session.refetch({
-      cancelRefetch: false
-    });
-    if (scoped) return void access.revalidate();
-    if (needsEntry && management.error) return void management.refetch({
-      cancelRefetch: false
-    });
+    if (!session.data)
+      return void session.refetch({
+        cancelRefetch: false
+      });
+    if (scoped)
+      return void access.revalidate();
+    if (needsEntry && management.error)
+      return void management.refetch({
+        cancelRefetch: false
+      });
     void properties.refetch({
       cancelRefetch: false
     });
   }
-  if (scoped && !isPropertyId(propertyId)) return (
-    <StateMessage
-      title={'등록된 곳의 주소가 올바르지 않아요.'}
-    />
-  );
-  if (scoped && access.blocked) return (
-    <StateMessage
-      title={access.data?.role === 'RESIDENT' && !access.data.residentEligible ? '주민 연결을 확인해주세요.' : '현재 접근 가능한 화면으로 이동하고 있어요.'}
-      actions={(
-        <Button
-          onClick={() => router.replace('/start')}
-        >
-          시작 화면으로
-        </Button>
-      )}
-    />
-  );
+
+  if (scoped && !isPropertyId(propertyId))
+    return (
+      <StateMessage
+        title={'등록된 곳의 주소가 올바르지 않아요.'}
+      />
+    );
+  if (scoped && access.blocked)
+    return (
+      <StateMessage
+        title={access.data?.role === 'RESIDENT' && !access.data.residentEligible ? '주민 연결을 확인해주세요.' : '현재 접근 가능한 화면으로 이동하고 있어요.'}
+        actions={(
+          <Button
+            onClick={() => router.replace('/start')}
+          >
+            시작 화면으로
+          </Button>
+        )}
+      />
+    );
+
   return (
     <div
       ref={pageRef}

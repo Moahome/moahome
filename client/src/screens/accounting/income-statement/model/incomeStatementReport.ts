@@ -26,6 +26,7 @@ export function getIncomeReportDocuments(report: IncomeStatementReport, cumulati
     }
   ];
   const note = report.isExample ? '화면 확인용 가상 자료이며 실제 관리대상의 회계 자료가 아닙니다.' : report.notice;
+
   return [{
     title: report.isExample ? '손익계산서 (예시)' : '손익계산서',
     highlightNegative: true,
@@ -94,7 +95,9 @@ export function getIncomeReportDocuments(report: IncomeStatementReport, cumulati
 
 /** 공통 한글 PDF 설정을 재사용하고 같은 월 자료로 그래프·표를 그려 이미지 출력과 일치시킵니다. */
 export async function createIncomeReportPdf(report: IncomeStatementReport, cumulative: boolean): Promise<Blob> {
-  const [{ autoTable }, pdf] = await Promise.all([import('jspdf-autotable'), createReportPdfDocument()]);
+  const [{
+    autoTable
+  }, pdf] = await Promise.all([import('jspdf-autotable'), createReportPdfDocument()]);
   const documents = getIncomeReportDocuments(report, cumulative);
   const colors = {
     text: '#0F172A',
@@ -209,10 +212,15 @@ export async function createIncomeReportPdf(report: IncomeStatementReport, cumul
         data.cell.styles.fillColor = row?.kind === 'total' ? statementColors.total : statementColors.section;
         data.cell.styles.fontStyle = 'bold';
       }
-      if (data.section === 'body' && data.column.index === 0 && row?.kind === 'total') data.cell.styles.textColor = colors.primary;
-      if (data.section === 'body' && data.column.index === 1 && row?.amount < BigInt(0)) data.cell.styles.textColor = statementColors.negative;
+      if (data.section === 'body' && data.column.index === 0 && row?.kind === 'total')
+        data.cell.styles.textColor = colors.primary;
+      if (data.section === 'body' && data.column.index === 1 && row?.amount < BigInt(0))
+        data.cell.styles.textColor = statementColors.negative;
     },
-    didDrawPage(data) { if (data.pageNumber > 1) header('손익계산서 (계속)'); }
+    didDrawPage(data) {
+      if (data.pageNumber > 1)
+        header('손익계산서 (계속)');
+    }
   });
 
   pdf.addPage();
@@ -220,7 +228,10 @@ export async function createIncomeReportPdf(report: IncomeStatementReport, cumul
   const trend = getIncomeTrend(report, cumulative);
   // 긴 조회 기간은 그래프를 일정한 월 수로 나눠 축·막대가 겹치지 않게 합니다.
   for (let offset = 0; offset < trend.length; offset += 8) {
-    if (offset > 0) { pdf.addPage(); header(cumulative ? '기간 누계 손익 (계속)' : '월별 손익 추이 (계속)'); }
+    if (offset > 0) {
+      pdf.addPage();
+      header(cumulative ? '기간 누계 손익 (계속)' : '월별 손익 추이 (계속)');
+    }
     const rows = trend.slice(offset, offset + 8);
     const values = rows.flatMap((row) => [row.revenue, row.expense, row.profit]);
     const top = values.reduce((max, value) => value > max ? value : max, BigInt(1));
@@ -271,9 +282,12 @@ export async function createIncomeReportPdf(report: IncomeStatementReport, cumul
       pdf.setFillColor(colors.white);
       pdf.circle(x(index), y(row.profit), 1.1, 'FD');
     });
-    pdf.setTextColor(colors.primary); pdf.text('■ 수익', 55, 130);
-    pdf.setTextColor(expenseColor); pdf.text('■ 비용', 90, 130);
-    pdf.setTextColor(colors.teal); pdf.text('─ 순손익', 125, 130);
+    pdf.setTextColor(colors.primary);
+    pdf.text('■ 수익', 55, 130);
+    pdf.setTextColor(expenseColor);
+    pdf.text('■ 비용', 90, 130);
+    pdf.setTextColor(colors.teal);
+    pdf.text('─ 순손익', 125, 130);
     autoTable(pdf, {
       startY: 138,
       margin: {
@@ -310,14 +324,18 @@ export async function createIncomeReportPdf(report: IncomeStatementReport, cumul
         }
       },
       didParseCell(data) {
-        if (data.section === 'head' && data.column.index > 0) data.cell.styles.halign = 'right';
-        if (data.section !== 'body') return;
+        if (data.section === 'head' && data.column.index > 0)
+          data.cell.styles.halign = 'right';
+        if (data.section !== 'body')
+          return;
         // 라이브러리의 기본 교차 행 색상보다 우선해 홀수·짝수 행 전체에 실제 블루 채움을 기록합니다.
         data.cell.styles.fillColor = data.row.index % 2 === 0 ? trendTableColors.odd : trendTableColors.even;
         const row = rows[data.row.index];
         const value = [null, row.revenue, row.expense, row.profit][data.column.index];
-        if (value !== null && value < BigInt(0)) data.cell.styles.textColor = colors.danger;
-        else if (data.column.index === 3) data.cell.styles.textColor = colors.primary;
+        if (value !== null && value < BigInt(0))
+          data.cell.styles.textColor = colors.danger;
+        else if (data.column.index === 3)
+          data.cell.styles.textColor = colors.primary;
       }
     });
   }
@@ -349,9 +367,16 @@ export async function createIncomeReportPdf(report: IncomeStatementReport, cumul
           halign: 'right'
         }
       },
-      didDrawPage(data) { if (data.pageNumber > 1) header('회계 확인 필요 (계속)'); },
-      didParseCell(data) { if (data.section === 'body' && data.column.index === 1 && BigInt(report.issues[data.row.index].amount) < BigInt(0)) data.cell.styles.textColor = colors.danger; }
+      didDrawPage(data) {
+        if (data.pageNumber > 1)
+          header('회계 확인 필요 (계속)');
+      },
+      didParseCell(data) {
+        if (data.section === 'body' && data.column.index === 1 && BigInt(report.issues[data.row.index].amount) < BigInt(0))
+          data.cell.styles.textColor = colors.danger;
+      }
     });
   }
+
   return pdf.output('blob');
 }

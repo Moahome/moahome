@@ -22,7 +22,12 @@ const ITEM_OPTIONS = [...FEE_ITEM_OPTIONS, {
 }];
 
 /** 전체·동별 편집의 기본 항목을 최소 하나 유지하며 종류·직접 입력·금액 규칙을 공유합니다. */
-export function BillingItemEditor({ items, onChange, onAdd, title }: {
+export function BillingItemEditor({
+  items,
+  onChange,
+  onAdd,
+  title
+}: {
   items: BillingItem[];
   onChange: (items: BillingItem[]) => void;
   onAdd: () => void;
@@ -135,9 +140,12 @@ export function BillingItemEditor({ items, onChange, onAdd, title }: {
   );
 }
 
-
 /** 기본·임시 모두 추천 종류를 선택하며 기타를 명시적으로 선택했을 때만 항목명을 입력합니다. */
-export function BillingItemFields({ item, labelPrefix, onChange }: {
+export function BillingItemFields({
+  item,
+  labelPrefix,
+  onChange
+}: {
   item: BillingItem;
   labelPrefix: string;
   onChange: (item: BillingItem) => void;

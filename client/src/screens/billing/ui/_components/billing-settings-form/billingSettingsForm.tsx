@@ -42,7 +42,13 @@ import {
 import styles from './billingSettingsForm.module.css';
 
 /** 두 부과 범위를 독립적으로 편집하고 다음 달 한정 항목을 반복 설정과 구분해 저장합니다. */
-export function BillingSettingsForm({ settings, nextMonth, onApply, busy, errorMessage }: {
+export function BillingSettingsForm({
+  settings,
+  nextMonth,
+  onApply,
+  busy,
+  errorMessage
+}: {
   settings: BillingSettings;
   nextMonth: string;
   onApply: (settings: ScheduledSettings) => Promise<boolean>;
@@ -110,6 +116,7 @@ export function BillingSettingsForm({ settings, nextMonth, onApply, busy, errorM
     const total = previewError ? null : sumBillingItems(getPlanItems(futurePlan, building.id || null));
     const currentExtra = currentPlan.temporaryItems.every((item) => /^-?[0-9]+$/.test(item.amount))
       ? sumBillingItems(getPlanItems(currentPlan, building.id || null)) : null;
+
     return {
       ...building,
       base,
@@ -135,6 +142,7 @@ export function BillingSettingsForm({ settings, nextMonth, onApply, busy, errorM
 
   function newItem(): BillingItem {
     counter.current += 1;
+
     return {
       id: `new-${counter.current}`,
       code: null,
@@ -165,7 +173,8 @@ export function BillingSettingsForm({ settings, nextMonth, onApply, busy, errorM
   async function applySettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitted(true);
-    if (error || !changed || busy) return;
+    if (error || !changed || busy)
+      return;
     const fingerprint = JSON.stringify({
       plan,
       temporaryMonth: nextMonth,
@@ -303,6 +312,7 @@ export function BillingSettingsForm({ settings, nextMonth, onApply, busy, errorM
                       items
                     } : group)
                   }));
+
                   return (
                     <div
                       key={building.id}

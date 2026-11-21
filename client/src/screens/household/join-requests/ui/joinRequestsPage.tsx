@@ -67,18 +67,25 @@ export function JoinRequestsPage({
   const context = useManagementContext(session.data?.id, propertyId, false);
   const invitations = useQuery({
     queryKey: ['resident-invitations', session.data?.id, propertyId],
-    queryFn: ({ signal }) => getResidentInvitations(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getResidentInvitations(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
   });
-  const [issued, setIssued] = useState<{ value: ResidentInvitationShare; name: string; personal: boolean; resident?: UnlinkedResident } | null>(null);
+  const [issued, setIssued] = useState<{ value: ResidentInvitationShare;
+name: string;
+personal: boolean;
+resident?: UnlinkedResident } | null>(null);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const canIssue = Boolean(context.data);
   const query = useQuery({
     queryKey: ['unlinked-residents', session.data?.id, propertyId],
-    queryFn: ({ signal }) => getUnlinkedResidents(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getUnlinkedResidents(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
@@ -118,8 +125,10 @@ export function JoinRequestsPage({
 
   /** 실제 발급이 성공한 뒤에만 코드를 표시하며 개인 초대는 선택한 주민 ID로 서버에서 검증합니다. */
   async function issue(resident?: UnlinkedResident) {
-    if (pending.current) return;
-    pending.current = true; setBusy(true);
+    if (pending.current)
+      return;
+    pending.current = true;
+    setBusy(true);
     try {
       const value = await issueResidentInvitation(propertyId, resident?.residentId);
 
@@ -130,13 +139,20 @@ export function JoinRequestsPage({
         resident
       });
       void invitations.refetch();
-    } catch (failure) { setNotice(memberManagementError(failure)); }
-    finally { pending.current = false; setBusy(false); }
+    } catch (failure) {
+      setNotice(memberManagementError(failure));
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
   }
+
   /** 다시 열기는 재발급과 분리해 기존 전달 링크와 최초 만료 시각을 유지합니다. */
   async function open(resident: UnlinkedResident, invitation: ResidentInvitation) {
-    if (pending.current) return;
-    pending.current = true; setBusy(true);
+    if (pending.current)
+      return;
+    pending.current = true;
+    setBusy(true);
     try {
       const value = await openResidentInvitation(propertyId, invitation.id);
       setIssued({
@@ -145,17 +161,28 @@ export function JoinRequestsPage({
         personal: true,
         resident
       });
-    } catch (failure) { setNotice(memberManagementError(failure)); }
-    finally { pending.current = false; setBusy(false); }
+    } catch (failure) {
+      setNotice(memberManagementError(failure));
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
   }
+
   async function revoke(invitation: ResidentInvitation) {
-    if (pending.current) return;
-    pending.current = true; setBusy(true);
+    if (pending.current)
+      return;
+    pending.current = true;
+    setBusy(true);
     try {
       setPropertyQueryData(client, ['resident-invitations', session.data?.id, propertyId], await reviewResidentInvitation(propertyId, invitation.id, invitation.revision, 'revoke'), propertyScope);
       setNotice('개인 초대를 철회했어요.');
-    } catch (failure) { setNotice(memberManagementError(failure)); }
-    finally { pending.current = false; setBusy(false); }
+    } catch (failure) {
+      setNotice(memberManagementError(failure));
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
   }
 
   return (
@@ -325,17 +352,25 @@ export function JoinRequestsPage({
                 key: 'invite',
                 header: '개인 초대',
                 render: (row) => {
-                  if (!canIssue) return '관리소장 발급';
+                  if (!canIssue)
+                    return '관리소장 발급';
                   const current = invitations.data?.invitations.find((item) => item.residentId === row.residentId && ['ISSUED', 'CHANGE_REQUESTED'].includes(item.status));
+
                   return (
                     <InvitationMenu
                       name={row.name}
                       active={Boolean(current)}
                       reviewing={current?.status === 'CHANGE_REQUESTED'}
                       disabled={busy || row.unitNumber === null}
-                      onOpen={() => { if (current) void open(row, current); }}
+                      onOpen={() => {
+                        if (current)
+                          void open(row, current);
+                      }}
                       onIssue={() => void issue(row)}
-                      onRevoke={() => { if (current) void revoke(current); }}
+                      onRevoke={() => {
+                        if (current)
+                          void revoke(current);
+                      }}
                     />
                   );
                 }
@@ -357,7 +392,9 @@ export function JoinRequestsPage({
         <InvitationShare
           key={issued.value.id}
           issued={issued.value}
-          onRestored={() => { void invitations.refetch(); }}
+          onRestored={() => {
+            void invitations.refetch();
+          }}
           name={issued.name}
           personal={issued.personal}
           propertyId={propertyId}
@@ -376,7 +413,8 @@ export function JoinRequestsPage({
 
 /** 현재 세대가 없는 주민도 목록에서 제외하지 않고 소속 없음으로 구분합니다. */
 function unitLabel(resident: UnlinkedResident) {
-  if (resident.unitNumber === null) return '소속 없음';
+  if (resident.unitNumber === null)
+    return '소속 없음';
 
   return `${resident.buildingName ? `${resident.buildingName} ` : ''}${resident.unitNumber}호`;
 }

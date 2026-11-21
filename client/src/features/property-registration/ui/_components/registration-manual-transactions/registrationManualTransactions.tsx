@@ -1,6 +1,5 @@
 'use client';
 
-
 import { getExpenseAccountLabel } from '@/entities/banking';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
@@ -19,7 +18,14 @@ import { RegistrationTransactionEditor } from '../registration-transaction-edito
 import styles from './registrationManualTransactions.module.css';
 
 /** 기존 입금 모달과 지출 배분 입력으로 입출금 초안을 만들고 최종 등록에서 함께 저장합니다. */
-export function RegistrationManualTransactions({ account, records, units, buildings, onChange, onOpenPage }: {
+export function RegistrationManualTransactions({
+  account,
+  records,
+  units,
+  buildings,
+  onChange,
+  onOpenPage
+}: {
   onOpenPage?: (accountId: string, direction: 'INCOME' | 'EXPENSE', transactionId?: string) => void;
   account: RegistrationAccount;
   records: RegistrationManualTransaction[];
@@ -37,14 +43,17 @@ export function RegistrationManualTransactions({ account, records, units, buildi
     id: unit.clientId,
     label: `${buildings.find((building) => building.clientId === unit.buildingClientId)?.name ?? ''} ${unit.unitNumber}${unit.unitNumber.endsWith('호') ? '' : '호'}`.trim()
   }));
+
   function openEditor(nextDirection: 'INCOME' | 'EXPENSE', record?: RegistrationManualTransaction) {
     if (window.matchMedia('(max-width: 767px)').matches && onOpenPage) {
       onOpenPage(account.clientId, nextDirection, record?.id);
+
       return;
     }
     setEditingId(record?.id ?? crypto.randomUUID());
     setDirection(nextDirection);
   }
+
   function save(record: Omit<RegistrationManualTransaction, 'id' | 'accountClientId'>) {
     const next = {
       ...record,
@@ -53,7 +62,8 @@ export function RegistrationManualTransactions({ account, records, units, buildi
     };
     const editing = records.some((entry) => entry.id === editingId);
     onChange(editing ? records.map((entry) => entry.id === editingId ? next : entry) : [...records, next]);
-    if (!editing) setDirection(null);
+    if (!editing)
+      setDirection(null);
   }
 
   return (
@@ -158,7 +168,10 @@ export function RegistrationManualTransactions({ account, records, units, buildi
             buildings={buildings}
             onSave={save}
             onClose={() => setDirection(null)}
-            onDelete={records.some((record) => record.id === editingId) ? () => { onChange(records.filter((record) => record.id !== editingId)); setDirection(null); } : undefined}
+            onDelete={records.some((record) => record.id === editingId) ? () => {
+              onChange(records.filter((record) => record.id !== editingId));
+              setDirection(null);
+            } : undefined}
           />
         ), document.body)}
       </div>

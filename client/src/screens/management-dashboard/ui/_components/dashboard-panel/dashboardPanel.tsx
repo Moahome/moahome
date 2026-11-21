@@ -3,7 +3,13 @@ import type { ReactNode } from 'react';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './dashboardPanel.module.css';
 
-export function DashboardPanel({ title, href, linkLabel = '전체 내역', note, children }: {
+export function DashboardPanel({
+  title,
+  href,
+  linkLabel = '전체 내역',
+  note,
+  children
+}: {
   title: string;
   href?: string;
   linkLabel?: string;

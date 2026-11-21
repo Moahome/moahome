@@ -89,7 +89,8 @@ export function FeeItemsSetup({
 
   /** 확인한 항목 ID만 제거하며 취소 시 편집창과 미확정 입력을 그대로 유지합니다. */
   function deleteItem() {
-    if (!pendingItem) return;
+    if (!pendingItem)
+      return;
     onChange(items.filter((item) => item.clientId !== pendingItem.clientId));
     setPendingDeleteId(null);
     setEditing(null);
@@ -98,7 +99,8 @@ export function FeeItemsSetup({
 
   /** 유효한 항목의 요약 단계로 이동하며 최종 저장은 확인 화면에서만 시작합니다. */
   function continueSetup() {
-    if (error) return;
+    if (error)
+      return;
     onNext();
   }
 

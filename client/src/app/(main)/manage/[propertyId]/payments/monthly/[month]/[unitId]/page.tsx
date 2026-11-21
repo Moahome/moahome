@@ -10,9 +10,16 @@ export const metadata: Metadata = {
   }
 };
 
-export default async function Page({ params }: PageProps<'/manage/[propertyId]/payments/monthly/[month]/[unitId]'>) {
-  const { propertyId, month, unitId } = await params;
-  if (!/^[1-9][0-9]{3}-(0[1-9]|1[0-2])$/.test(month)) notFound();
+export default async function Page({
+  params
+}: PageProps<'/manage/[propertyId]/payments/monthly/[month]/[unitId]'>) {
+  const {
+    propertyId,
+    month,
+    unitId
+  } = await params;
+  if (!/^[1-9][0-9]{3}-(0[1-9]|1[0-2])$/.test(month))
+    notFound();
 
   return (
     <PaymentMonthlyDetailPage
