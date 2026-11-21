@@ -189,7 +189,7 @@ Workspace에 `accounts:[{id,bankName,last4,alias,isPrimary,status}]`를 추가�
 
 통장 목록 응답 배열은 저장된 최초 등록 순서입니다. 초기 설정의 입력 순서를 유지하고 추가 통장은 뒤에 붙이며 기본 지정 변경·은행명 정정은 순서를 바꾸지 않습니다. 별도 순서 변경 API는 제공하지 않습니다.
 
-accounts의 각 항목은 `calculatedBalance: 원 단위 부호 있는 문자열|null`, `calculationBasisDate: YYYY-MM-DD|null`, `calculationSource: INITIAL_BALANCE|TRANSACTION_LEDGER|UNAVAILABLE`를 반환합니다. 계산 기준은 [통장 거래 원장 정책](../domain/domainRules.md#기준-잔고-기반-통장-계산-잔액-표시-2026-10-18-후속)을 따릅니다. Client의 현재 금액·합계·동별 차이와 대시보드·정산은 같은 calculatedBalance를 사용합니다. 계산값이 없는 모든 응답은 참고 balance로 현재 잔액을 대체하지 않습니다. balance·asOf·confirmation은 기존 저장 자료의 호환 메타데이터이며 현재 금액·합계·정산 점검·화면·보고서에 사용하지 않습니다. 현재 월의 대시보드 계산 날짜는 월말과 오늘 중 빠른 날짜입니다.
+accounts의 각 항목은 `calculatedBalance: 원 단위 부호 있는 문자열|null`, `calculationBasisDate: YYYY-MM-DD|null`, `calculationSource: INITIAL_BALANCE|TRANSACTION_LEDGER|UNAVAILABLE`를 반환합니다. 계산 기준은 [통장 거래 원장 정책](../domain/domainRules.md#기준-잔고-기반-통장-계산-잔액-표시-2026-10-18-후속)을 따릅니다. Client의 현재 금액·합계·동별 차이와 대시보드·정산은 같은 calculatedBalance를 사용합니다. 계산값이 없는 모든 응답은 참고 balance로 현재 잔액을 대체하지 않습니다. balance·asOf·confirmation은 기존 저장 자료의 호환 메타데이터이며 현재 금액·합계·정산 점검·화면·보고서에 사용하지 않습니다. 2026-11-21 사용자 정정: 통장별 `lastUpdatedAt: ISO 8601 UTC 시각|null`은 잔액 원천 자료를 실제로 저장·업로드·수정·취소·삭제한 마지막 시각입니다. 조회 월말·오늘·마지막 거래일과 구분하며 단순 조회로 변경되지 않습니다. 은행 원본, 수납, 지출, 확정 초기 잔액·동별 기준값의 저장·정정 이력과 양쪽 통장 이체의 변경 시각을 해당 관리대상·통장별로 집계합니다. 이 시각은 선택 월의 마감 시각이 아니라 해당 통장 자료 전체의 최종 변경 시각이며 은행 직접 확인 기록과 별칭 변경은 포함하지 않습니다. 기존 저장 기록만 사용하므로 기록이 없으면 null이고 오늘로 채우지 않습니다.
 
 `accounts`에는 조회 월 말까지 사용 근거가 있는 통장만 포함하며 같은 계좌 집합으로 동별 합계·입출금·정산을 계산합니다. 같은 관리대상에 속하지만 사용 전인 accountId를 요청하면 응답 accountId는 null이고 해당 월의 전체 통장 결과를 반환합니다. 다른 관리대상의 계좌는 기존대로 거부합니다. 사용 근거 판정은 위 공통 계산 기준을 따르며 해당 월에 사용한 통장이 없으면 accounts·buildings는 빈 목록, 은행 잔액과 기준일은 null입니다.
 

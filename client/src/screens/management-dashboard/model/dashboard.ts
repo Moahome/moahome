@@ -1,5 +1,4 @@
 import { getBankAccountLabel } from '@/entities/banking';
-import { getMonthDateRange } from '@/shared/lib/date-range';
 import { getMonthsInRange } from '@/shared/lib/month-range';
 import {
   getAccountsForMonth,
@@ -50,8 +49,6 @@ export function getDashboardReport(data: DashboardSnapshot) {
       .reduce((total, part) => total + BigInt(part.amount), BigInt(0))), BigInt(0));
   const accounts = getAccountsForMonth(data.banking.accounts ?? [], data.month).map((account) => {
     const balance = data.balances.accounts?.find((row) => row.id === account.id);
-    const end = getMonthDateRange(data.month).endDate;
-    const cutoff = end < data.businessDate ? end : data.businessDate;
     // 대시보드도 통장 상세와 같은 장부 계산값만 사용하고 은행 확인일·금액에 영향받지 않습니다.
     const display = balance ? getAccountBalanceDisplay(balance) : null;
 
@@ -60,7 +57,11 @@ export function getDashboardReport(data: DashboardSnapshot) {
       label: getBankAccountLabel(account),
       balance: display?.amount ?? null,
       calculated: display?.calculated ?? false,
-      balanceDate: display?.calculated ? cutoff : null,
+      // 최종 갱신은 서버가 보존한 저장 시각이며 조회일·거래일로 대체하지 않습니다.
+      lastUpdatedAt: balance?.lastUpdatedAt ?? null,
+      balanceDate: balance?.lastUpdatedAt ? new Intl.DateTimeFormat('sv-SE', {
+        timeZone: 'Asia/Seoul'
+      }).format(new Date(balance.lastUpdatedAt)) : null,
       calculatedBalance: balance?.calculatedBalance ?? null
     };
   });
@@ -75,7 +76,8 @@ export function getDashboardReport(data: DashboardSnapshot) {
   for (const payment of data.payments.payments) {
     if (payment.source !== 'MANUAL' || payment.bankTransactionId || payment.linkedPaymentId
       || payment.status === 'CANCELED' || payment.status === 'LINKED' || !payment.date.startsWith(`${data.month}-`)
-      || payment.date > data.businessDate) continue;
+      || payment.date > data.businessDate)
+      continue;
     recent.push({
       id: `receipt:${payment.id}`,
       accountId: payment.accountId,
@@ -135,7 +137,8 @@ export function getDashboardReport(data: DashboardSnapshot) {
 
 /** 그래프 좌표만 한정된 비율로 변환하며 원금액의 큰 정수 정밀도는 유지합니다. */
 export function getChartRatio(value: bigint, maximum: bigint): number {
-  if (maximum === BigInt(0)) return 0;
+  if (maximum === BigInt(0))
+    return 0;
   const absolute = value < BigInt(0) ? -value : value;
 
   return Number(absolute * BigInt(10000) / maximum) / 10000;

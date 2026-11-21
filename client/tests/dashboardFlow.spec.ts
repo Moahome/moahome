@@ -71,7 +71,9 @@ async function mockDashboard(page: Page, state = {
 }
 
 for (const width of [1440]) {
-  test(`대시보드 ${width}px는 실제 요약·현재 업무·납부 현황·통장·6개월 추이를 표시`, async ({ page }) => {
+  test(`대시보드 ${width}px는 실제 요약·현재 업무·납부 현황·통장·6개월 추이를 표시`, async ({
+    page
+  }) => {
     await page.setViewportSize({
       width,
       height: 1000
@@ -118,7 +120,9 @@ for (const width of [1440]) {
   });
 }
 
-test('월 전환은 URL과 전체 지표를 바꾸고 현재 업무 링크는 과거 월로 제한하지 않음', async ({ page }) => {
+test('월 전환은 URL과 전체 지표를 바꾸고 현재 업무 링크는 과거 월로 제한하지 않음', async ({
+  page
+}) => {
   const requests = await mockDashboard(page);
   await page.goto(`${BASE}?month=2026-10`);
   await page.getByRole('button', {
@@ -145,7 +149,9 @@ test('월 전환은 URL과 전체 지표를 바꾸고 현재 업무 링크는 �
   })).toBeVisible();
 });
 
-test('조회 실패·범위 오류는 0원으로 바꾸지 않고 현재 조회만 재시도', async ({ page }) => {
+test('조회 실패·범위 오류는 0원으로 바꾸지 않고 현재 조회만 재시도', async ({
+  page
+}) => {
   const state = {
     failure: true,
     wrongProperty: false,
@@ -183,7 +189,9 @@ test('조회 실패·범위 오류는 0원으로 바꾸지 않고 현재 조회�
   expect(requests).toHaveLength(3);
 });
 
-test('잘못된 월은 API를 호출하지 않고 월 선택으로 복구', async ({ page }) => {
+test('잘못된 월은 API를 호출하지 않고 월 선택으로 복구', async ({
+  page
+}) => {
   const requests = await mockDashboard(page);
   await page.goto(`${BASE}?month=2026-13`);
   await expect(page.getByRole('heading', {
@@ -192,7 +200,9 @@ test('잘못된 월은 API를 호출하지 않고 월 선택으로 복구', asyn
   expect(requests).toHaveLength(0);
 });
 
-test('PC 최근 수동 입금은 기존 모달을 열고 닫을 때 대시보드를 재조회', async ({ page }) => {
+test('PC 최근 수동 입금은 기존 모달을 열고 닫을 때 대시보드를 재조회', async ({
+  page
+}) => {
   const requests = await mockDashboard(page);
   await page.goto(`${BASE}?month=2026-10`);
   const row = page.getByRole('table', {
@@ -210,7 +220,9 @@ test('PC 최근 수동 입금은 기존 모달을 열고 닫을 때 대시보드
   await expect.poll(() => requests.length).toBe(2);
 });
 
-test('모바일 최근 거래는 상세로 이동하고 헤더로 같은 월의 출발 대시보드에 복귀', async ({ page }) => {
+test('모바일 최근 거래는 상세로 이동하고 헤더로 같은 월의 출발 대시보드에 복귀', async ({
+  page
+}) => {
   await page.setViewportSize({
     width: 390,
     height: 844
@@ -232,7 +244,9 @@ test('모바일 최근 거래는 상세로 이동하고 헤더로 같은 월의 
   await expect(page).toHaveURL(`${BASE}?month=2026-10`);
 });
 
-test('그래프 호버·키보드 초점은 선택한 막대 하나의 금액만 보여주고 Escape로 닫음', async ({ page }) => {
+test('그래프 호버·키보드 초점은 선택한 막대 하나의 금액만 보여주고 Escape로 닫음', async ({
+  page
+}) => {
   await mockDashboard(page);
   await page.goto(`${BASE}?month=2026-10`);
   const bar = page.locator('rect[aria-label="2026-10 청구액 50,000원"]');
@@ -254,7 +268,9 @@ test.describe('대시보드 모바일 반응형', () => {
     hasTouch: true
   });
 
-  test('그래프 양 끝 툴팁은 잘리지 않고 360px부터 요약 카드를 두 열로 표시', async ({ page }) => {
+  test('그래프 양 끝 툴팁은 잘리지 않고 360px부터 요약 카드를 두 열로 표시', async ({
+    page
+  }) => {
     await mockDashboard(page, undefined, (month) => {
       const data = dashboardFixture(month);
       data.payments.charges.find((charge) => charge.month === data.month)!.amount = '1000000';
@@ -327,7 +343,9 @@ test.describe('대시보드 모바일 반응형', () => {
   });
 });
 
-test('0건 업무도 클릭할 수 있고 중복 의심은 후보가 없는 목록으로 연결하며 가상 연도를 표시하지 않음', async ({ page }) => {
+test('0건 업무도 클릭할 수 있고 중복 의심은 후보가 없는 목록으로 연결하며 가상 연도를 표시하지 않음', async ({
+  page
+}) => {
   await mockDashboard(page);
   await page.goto(`${BASE}?month=2026-10`);
   await page.getByRole('link', {
@@ -345,7 +363,9 @@ test('0건 업무도 클릭할 수 있고 중복 의심은 후보가 없는 목�
 });
 
 for (const [label, direction, review] of [['확인 필요 입금', 'INCOME', 'income'], ['미분류 출금', 'EXPENSE', 'expenses']]) {
-  test(`${label}은 해당 입출금 탭과 확인 필요 상태로 열고 완료 거래를 제외`, async ({ page }) => {
+  test(`${label}은 해당 입출금 탭과 확인 필요 상태로 열고 완료 거래를 제외`, async ({
+    page
+  }) => {
     await mockDashboard(page);
     await page.goto(`${BASE}?month=2026-10`);
     await page.getByRole('link', {
@@ -367,11 +387,14 @@ for (const [label, direction, review] of [['확인 필요 입금', 'INCOME', 'in
   });
 }
 
-test('대시보드와 통장 상세는 다른 은행 확인 금액을 노출하지 않고 같은 장부 잔액을 표시', async ({ page }) => {
+test('대시보드와 통장 상세는 다른 은행 확인 금액을 노출하지 않고 같은 장부 잔액을 표시', async ({
+  page
+}) => {
   await mockDashboard(page);
   await page.route('http://localhost:8080/api/properties/*/dashboard*', (route) => {
     const data = dashboardFixture();
     data.balances.accounts![0].balance = '999999';
+    data.balances.accounts![0].lastUpdatedAt = '2026-10-18T15:30:00Z';
     data.balances.accounts![0].calculatedBalance = '90000';
     return route.fulfill({
       headers: {
@@ -404,6 +427,9 @@ test('대시보드와 통장 상세는 다른 은행 확인 금액을 노출하�
     }
   }));
   await page.goto(`${BASE}?month=2026-10`);
+  await expect(page.getByText('최종 업데이트 2026-10-19', {
+    exact: true
+  })).toBeVisible();
   await page.getByRole('button', {
     name: '하나은행 1234 통장 상세',
     exact: true
@@ -420,7 +446,9 @@ test('대시보드와 통장 상세는 다른 은행 확인 금액을 노출하�
   await expect(detail).not.toContainText('초기 잔액 설정 필요');
 });
 
-test('공용 새로고침은 업데이트 시각·파란 버튼과 실패 상태를 표시하고 현재 조회만 다시 실행', async ({ page }) => {
+test('공용 새로고침은 업데이트 시각·파란 버튼과 실패 상태를 표시하고 현재 조회만 다시 실행', async ({
+  page
+}) => {
   const state = {
     failure: false,
     wrongProperty: false,
@@ -454,7 +482,9 @@ test('공용 새로고침은 업데이트 시각·파란 버튼과 실패 상태
 });
 
 
-test('모바일 통장 상세의 헤더·기기 뒤로가기는 대시보드 또는 잔고의 실제 출발 화면과 조회 조건으로 복귀', async ({ page }) => {
+test('모바일 통장 상세의 헤더·기기 뒤로가기는 대시보드 또는 잔고의 실제 출발 화면과 조회 조건으로 복귀', async ({
+  page
+}) => {
   await page.setViewportSize({
     width: 390,
     height: 900

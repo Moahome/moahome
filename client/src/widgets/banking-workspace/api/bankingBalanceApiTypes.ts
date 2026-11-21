@@ -66,6 +66,7 @@ export type BalanceIncome = {
 };
 
 export type AccountBalance = {
+  lastUpdatedAt?: string | null;
   id: string;
   label: string;
   status: string;
@@ -74,7 +75,15 @@ export type AccountBalance = {
   openingDate?: string | null;
   openingBalance?: string | null;
   openingRevision?: number;
-  confirmation?: { source: string; method?: string | null; sourceId: string | null; date: string; time: string | null; precision: 'DATE' | 'TIME' | 'DAY_END'; status: 'READY' | 'ORDER_UNCLEAR' | 'BALANCE_MISSING' } | null;
+  confirmation?: {
+    source: string;
+    method?: string | null;
+    sourceId: string | null;
+    date: string;
+    time: string | null;
+    precision: 'DATE' | 'TIME' | 'DAY_END';
+    status: 'READY' | 'ORDER_UNCLEAR' | 'BALANCE_MISSING';
+  } | null;
   comparisonTimeDifferent?: boolean;
   calculatedBalance?: string | null;
   calculationBasisDate?: string | null;
@@ -162,7 +171,11 @@ export interface BankInitialBalanceInput {
   reason: string;
   billingToken?: string;
   confirmBilling?: boolean;
-  buildings?: { buildingId: string; amount: string; revision: number }[];
+  buildings?: {
+    buildingId: string;
+    amount: string;
+    revision: number;
+  }[];
 }
 
 export interface BankBillingImpact {
@@ -171,7 +184,12 @@ export interface BankBillingImpact {
   changed: boolean;
   previousMonth: string;
   nextMonth: string;
-  missingMonths: { month: string; unitCount: number; amount: string; initialSettings?: boolean }[];
+  missingMonths: {
+    month: string;
+    unitCount: number;
+    amount: string;
+    initialSettings?: boolean;
+  }[];
   blockedReason: string | null;
   token: string;
 }

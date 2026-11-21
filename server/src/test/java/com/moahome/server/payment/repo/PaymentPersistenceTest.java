@@ -5079,6 +5079,41 @@ class PaymentPersistenceTest {
 		    .allMatch(r -> "READY".equals(r.status()));
 	}
 
+	/** 조회일·거래일이 아니라 실제 저장·업로드·취소 시각을 보존하고 다른 통장 변경은 섞지 않습니다. */
+	@Test
+	void accountDataUpdateTimestampSurvivesReadsAndTracksActualWrites() {
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		jdbc.update("insert into bank_opening_balances(id,property_id,bank_account_id,cutoff_date,amount,revision,"
+		    + "recorded_by,recorded_at) values (?,?,?,date '2026-09-30',500000,1,?,?)",
+		    UUID.randomUUID(), property, account, user, OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC));
+		Instant openingAt = clock.instant();
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).accounts().getFirst().lastUpdatedAt())
+		    .isEqualTo(openingAt);
+		clock.advance(Duration.ofDays(1));
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).accounts().getFirst().lastUpdatedAt())
+		    .isEqualTo(openingAt);
+		UUID receipt = UUID.randomUUID();
+		service.manual(user, property, new PaymentRequests.Manual(receipt, null, LocalDate.of(2026, 10, 15),
+		    "10000", account, "OTHER", "수동 입금", "자료 갱신", null, null));
+		Instant savedAt = clock.instant();
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).accounts().getFirst().lastUpdatedAt())
+		    .isEqualTo(savedAt);
+		clock.advance(Duration.ofHours(1));
+		service.cancel(user, property, receipt, "등록 취소");
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).accounts().getFirst().lastUpdatedAt())
+		    .isEqualTo(clock.instant());
+		Instant canceledAt = clock.instant();
+		clock.advance(Duration.ofDays(1));
+		UUID other = addAccount("090", "카카오뱅크", "3333012345678", "다른 통장").accountId();
+		service.manual(user, property, new PaymentRequests.Manual(UUID.randomUUID(), null, LocalDate.of(2026, 10, 15),
+		    "10000", other, "OTHER", "다른 통장 입금", "자료 갱신", null, null));
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).accounts().stream()
+		    .filter(row -> account.equals(row.id())).findFirst().orElseThrow().lastUpdatedAt()).isEqualTo(canceledAt);
+		service.importFile(user, property, bank("은행업로드", "20000"));
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).accounts().stream()
+		    .filter(row -> account.equals(row.id())).findFirst().orElseThrow().lastUpdatedAt()).isEqualTo(clock.instant());
+	}
+
 	/** 동이 없어도 수동 입출금으로 장부가 변하며 직접 확인·다른 통장·동별 설정과 분리합니다. */
 	@Test
 	void accountLedgerUsesPostedTransactionsAndKeepsBankChecksAsReference() {
