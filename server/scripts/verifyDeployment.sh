@@ -129,6 +129,8 @@ services:
 EOF
 
 compose config --quiet
+# Mac에서 운영 플랫폼을 지정해 검사할 때 기존 ARM 캐시 대신 같은 플랫폼의 의존 이미지를 준비합니다.
+compose pull postgres redis nginx
 compose up -d --wait --wait-timeout 240
 container_uid=$(compose exec -T api id -u)
 [[ "$container_uid" == 10001 ]]
