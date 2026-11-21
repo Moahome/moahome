@@ -39,7 +39,8 @@ export interface InitialBalanceInput {
   revision: number;
   cutoffDate: string;
   reason: string;
-  accounts: { accountId: string; amount: string }[];
+  accounts: { accountId: string;
+amount: string }[];
 }
 
 export interface OpeningWorkspace {

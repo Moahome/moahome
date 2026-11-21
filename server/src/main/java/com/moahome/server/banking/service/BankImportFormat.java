@@ -6,6 +6,7 @@ import com.moahome.server.banking.dto.BankingResponse.ImportSupport;
 
 /** 은행별 열 매핑과 공통 Excel 지원 범위를 화면 안내와 서버 검증에서 함께 사용합니다. */
 public enum BankImportFormat {
+	COMMON("COMMON", false, "거래일", "입금자·거래내용", "입금액", "출금액", "거래후잔액", List.of("메모")),
 	KB("004", false, "거래일시", "보낸분/받는분", "입금액(원)", "출금액(원)", "잔액(원)",
 	    List.of("내통장표시", "적요", "메모")),
 	IBK("003", false, "거래일시", "상대계좌예금주명", "입금", "출금", "거래후잔액",
@@ -33,7 +34,7 @@ public enum BankImportFormat {
 	    String expense, String balance, List<String> memos) {
 		this.bankCode = bankCode;
 		// Excel 컨테이너는 은행과 무관하게 모두 지원하고 CSV만 기존 은행별 호환 범위를 유지합니다.
-		this.extensions = csvSupported ? List.of(".xls", ".xlsx", ".csv") : List.of(".xls", ".xlsx");
+		this.extensions = "COMMON".equals(bankCode) ? List.of(".xlsx") : csvSupported ? List.of(".xls", ".xlsx", ".csv") : List.of(".xls", ".xlsx");
 		this.date = date;
 		this.payer = payer;
 		this.income = income;
@@ -44,12 +45,12 @@ public enum BankImportFormat {
 
 	/** 목록 밖 코드와 다른 기관 코드를 같은 은행명이라는 이유로 허용하지 않습니다. */
 	public static BankImportFormat require(String code) {
-		return Arrays.stream(values()).filter(format -> format.bankCode.equals(code)).findFirst()
+		return Arrays.stream(values()).filter(format -> format != COMMON && format.bankCode.equals(code)).findFirst()
 		    .orElseThrow(() -> new BankingException("BANK_IMPORT_UNSUPPORTED"));
 	}
 
 	public static ImportSupport support(String code) {
-		return Arrays.stream(values()).filter(format -> format.bankCode.equals(code)).findFirst()
+		return Arrays.stream(values()).filter(format -> format != COMMON && format.bankCode.equals(code)).findFirst()
 		    .map(format -> new ImportSupport(true, format.extensions, "지원 형식: " + String.join(" · ", format.extensions)))
 		    .orElseGet(() -> new ImportSupport(false, List.of(), "이 은행의 거래내역 업로드는 아직 지원하지 않습니다."));
 	}

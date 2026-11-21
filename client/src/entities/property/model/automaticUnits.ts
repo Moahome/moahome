@@ -34,9 +34,11 @@ function getRuleErrors(rule: AutomaticUnitRule): AutomaticUnitErrors {
   if (!/^[0-9]+$/.test(count) || Number(count) < 1 || Number(count) > 99) {
     errors.unitsPerFloor = '층당 세대 수는 1~99개로 입력해주세요.';
   }
-  if (Object.keys(errors).length) return errors;
+  if (Object.keys(errors).length)
+    return errors;
   if (Number(rule.startFloor) > Number(rule.endFloor)) {
     errors.endFloor = '마지막 층은 시작 층 이상이어야 합니다.';
+
     return errors;
   }
   const startFloor = Number(rule.startFloor);
@@ -45,6 +47,7 @@ function getRuleErrors(rule: AutomaticUnitRule): AutomaticUnitErrors {
   const floorCount = endFloor - startFloor + 1 - (startFloor <= 0 && endFloor >= 0 ? 1 : 0);
   if (!floorCount) {
     errors.endFloor = '0층은 생성하지 않습니다. 지하 또는 지상 층을 포함해주세요.';
+
     return errors;
   }
   if (floorCount * Number(count) > MAX_AUTOMATIC_UNITS) {
@@ -67,16 +70,18 @@ export function getAutomaticUnitPreview(rule: AutomaticUnitRule, buildingClientI
     isDuplicate: boolean;
   }> = [];
 
-  if (Object.keys(errors).length) return {
-    errors,
-    entries,
-    duplicateCount: 0,
-    newCount: 0
-  };
+  if (Object.keys(errors).length)
+    return {
+      errors,
+      entries,
+      duplicateCount: 0,
+      newCount: 0
+    };
 
   const existingNumbers = new Set(units.filter((unit) => unit.buildingClientId === buildingClientId).map((unit) => unit.unitNumber.trim()));
   for (let floor = Number(rule.startFloor); floor <= Number(rule.endFloor); floor += 1) {
-    if (floor === 0) continue;
+    if (floor === 0)
+      continue;
 
     // 층 값은 정수로 보존하고 지하 호수의 음수 기호만 B 접두사로 변환합니다.
     const floorNumber = floor < 0 ? `B${Math.abs(floor)}` : String(floor);
@@ -103,7 +108,8 @@ export function getAutomaticUnitPreview(rule: AutomaticUnitRule, buildingClientI
 export function createAutomaticUnits(rule: AutomaticUnitRule, buildingClientId: string | null, hasBuildings: boolean, buildings: BuildingDraft[], units: UnitDraft[]): UnitDraft[] {
   const preview = getAutomaticUnitPreview(rule, buildingClientId, hasBuildings, buildings, units);
 
-  if (Object.keys(preview.errors).length) return [];
+  if (Object.keys(preview.errors).length)
+    return [];
 
   return preview.entries.filter((entry) => !entry.isDuplicate).map((entry) => ({
     clientId: crypto.randomUUID(),

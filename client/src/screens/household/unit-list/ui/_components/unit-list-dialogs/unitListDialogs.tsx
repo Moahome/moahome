@@ -16,7 +16,14 @@ export function UnitListDialogs({
 }: {
   controller: UnitListController;
 }) {
-  const { data, dialog, unitMutation, buildingMutation, automaticMutation, deleteMutation } = controller;
+  const {
+    data,
+    dialog,
+    unitMutation,
+    buildingMutation,
+    automaticMutation,
+    deleteMutation
+  } = controller;
   const detailUnit = dialog?.kind === 'detail' ? data.units.find((unit) => unit.clientId === dialog.unitId) : undefined;
 
   return (
@@ -90,7 +97,8 @@ export function UnitListDialogs({
           busy={deleteMutation.isPending}
           errorMessage={deleteMutation.isError ? getUnitManagementError(deleteMutation.error) : ''}
           onConfirm={() => {
-            if (controller.pendingUnit) deleteMutation.mutate(controller.pendingUnit.clientId);
+            if (controller.pendingUnit)
+              deleteMutation.mutate(controller.pendingUnit.clientId);
           }}
           onClose={controller.closeDeletion}
         >

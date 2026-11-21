@@ -1,4 +1,4 @@
-import type { UNIT_STATUS_OPTIONS } from '../constants/propertyOptions';
+import type { UNIT_STATUS_OPTIONS } from '../constant/propertyOptions';
 
 export interface BuildingDraft {
   clientId: string;

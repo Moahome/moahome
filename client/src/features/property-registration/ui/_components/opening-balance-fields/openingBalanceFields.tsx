@@ -20,7 +20,15 @@ import { getSortedBuildings } from '../../_utils/setupSorting';
 import styles from './openingBalanceFields.module.css';
 
 /** 기존 입력 페이지 안에서 인계 금액과 기준일을 확인하며 최종 제출 전에는 서버에 저장하지 않습니다. */
-export function OpeningBalanceFields({ kind, opening, units, buildings, onChange, hideAccountAmount = false, showErrors = false }: {
+export function OpeningBalanceFields({
+  kind,
+  opening,
+  units,
+  buildings,
+  onChange,
+  hideAccountAmount = false,
+  showErrors = false
+}: {
   showErrors?: boolean;
   hideAccountAmount?: boolean;
   kind: 'units' | 'account' | 'fees';
@@ -41,6 +49,7 @@ export function OpeningBalanceFields({ kind, opening, units, buildings, onChange
       ...opening,
       units: Object.fromEntries(units.map((unit) => {
         const value = opening.units[unit.clientId];
+
         return [unit.clientId, {
           receivable: value?.receivable || '0',
           credit: value?.credit || '0'
@@ -48,133 +57,137 @@ export function OpeningBalanceFields({ kind, opening, units, buildings, onChange
       }))
     });
   }
-  if (kind === 'units') return (
-    <section
-      className={styles.panel}
-      aria-label={'기존 미납·선납 설정'}
-    >
-      <h3>
-        기존 미납·선납
-      </h3>
-      <p>
-        아래 세대 목록에 기존 장부의 남은 금액을 입력하세요. 통장 잔액과는 별도로 관리합니다.
-      </p>
-      <CalendarPicker
-        label={'기존 장부 기준일'}
-        labelHelp={(
-          <InfoTooltip
-            label={'기존 장부 기준일 안내'}
-            title={'기존 장부 기준일'}
-            size={'sm'}
-          >
-            선택한 날짜의 마감 시점에 남아 있는 세대별 미납·선납 금액을 입력해주세요.
-            <br />
-            장부를 정리하기 쉽게 매월 1일 또는 말일을 권장합니다. 오늘 또는 이전의 다른 날짜도 선택할 수 있습니다.
-            <br />
-            통장 실제 잔액과 세대별 미납·선납은 별도로 관리합니다.
-          </InfoTooltip>
-        )}
-        variant={'input'}
-        maxDate={getOpeningToday}
-        error={showErrors && (!opening.cutoffDate || opening.cutoffDate > getOpeningToday()) ? '기존 장부 기준일을 오늘 또는 이전 날짜로 선택해주세요.' : undefined}
-        value={opening.cutoffDate}
-        onChange={(cutoffDate) => onChange({
-          ...opening,
-          cutoffDate
-        })}
-        required
-      />
-      <fieldset
-        className={styles.choices}
-        aria-describedby={showErrors && !opening.unitMode ? 'opening-unit-mode-error' : undefined}
+
+  if (kind === 'units')
+    return (
+      <section
+        className={styles.panel}
+        aria-label={'기존 미납·선납 설정'}
       >
-        <legend>
-          기존 미납·선납 여부
-          <span
-            className={styles.required}
-            aria-hidden={'true'}
-          >
-            {' '}
-            *
-          </span>
-        </legend>
-        <Radio
-          name={'opening-unit-mode'}
-          aria-invalid={showErrors && !opening.unitMode || undefined}
-          label={'기존 미납·선납 없음'}
-          checked={opening.unitMode === 'NONE'}
-          onChange={() => onChange({
-            ...opening,
-            unitMode: 'NONE'
-          })}
-        />
-        <Radio
-          name={'opening-unit-mode'}
-          aria-invalid={showErrors && !opening.unitMode || undefined}
-          label={'세대별 금액 입력'}
-          checked={opening.unitMode === 'ENTER'}
-          onChange={() => onChange({
-            ...opening,
-            unitMode: 'ENTER'
-          })}
-        />
-      </fieldset>
-      {showErrors && !opening.unitMode && (
-        <p
-          id={'opening-unit-mode-error'}
-          className={styles.error}
-        >
-          기존 미납·선납 없음 또는 세대별 금액 입력을 선택해주세요.
-        </p>
-      )}
-      {opening.unitMode === 'ENTER' && (
-        <Button
-          variant={'outline'}
-          onClick={confirmZeroAmounts}
-          disabled={!units.length}
-        >
-          빈 금액 0원으로 확인
-        </Button>
-      )}
-      {opening.unitMode === 'NONE' && (
+        <h3>
+          기존 미납·선납
+        </h3>
         <p>
-          모든 세대의 기존 미납·선납을 0원으로 인계합니다.
+          아래 세대 목록에 기존 장부의 남은 금액을 입력하세요. 통장 잔액과는 별도로 관리합니다.
         </p>
-      )}
-    </section>
-  );
-  if (kind === 'fees') return (
-    <section
-      className={styles.panel}
-      aria-label={'관리 시작 기준'}
-    >
-      <h3>
-        관리 시작 기준
-      </h3>
-      <p>
-        {'기존 장부 기준일: '}
-        <strong>
-          {opening.cutoffDate || '동·세대에서 선택해주세요.'}
-        </strong>
-      </p>
-      <CalendarPicker
-        label={'첫 신규 관리비 부과월'}
-        mode={'month'}
-        value={opening.firstBillingMonth}
-        disabled={opening.automaticBilling === true}
-        onChange={(firstBillingMonth) => onChange({
-          ...opening,
-          firstBillingMonth
-        })}
-        required
-      />
-      <p>
-        {opening.automaticBilling
-          ? '기본 관리 통장 기준일이 월중이면 그달 전액부터, 월말이면 다음 달부터 부과합니다. 최종 등록 시 첫 부과월부터 현재 월까지 청구를 생성합니다. 기존 미납에 같은 기간 관리비가 중복되지 않는지 확인해주세요.'
-          : '이전 초안의 첫 부과월입니다. 통장 기준일을 수정하면 부과월을 자동 계산합니다.'}
-      </p>
-    </section>
-  );
+        <CalendarPicker
+          label={'기존 장부 기준일'}
+          labelHelp={(
+            <InfoTooltip
+              label={'기존 장부 기준일 안내'}
+              title={'기존 장부 기준일'}
+              size={'sm'}
+            >
+              선택한 날짜의 마감 시점에 남아 있는 세대별 미납·선납 금액을 입력해주세요.
+              <br />
+              장부를 정리하기 쉽게 매월 1일 또는 말일을 권장합니다. 오늘 또는 이전의 다른 날짜도 선택할 수 있습니다.
+              <br />
+              통장 실제 잔액과 세대별 미납·선납은 별도로 관리합니다.
+            </InfoTooltip>
+          )}
+          variant={'input'}
+          maxDate={getOpeningToday}
+          error={showErrors && (!opening.cutoffDate || opening.cutoffDate > getOpeningToday()) ? '기존 장부 기준일을 오늘 또는 이전 날짜로 선택해주세요.' : undefined}
+          value={opening.cutoffDate}
+          onChange={(cutoffDate) => onChange({
+            ...opening,
+            cutoffDate
+          })}
+          required
+        />
+        <fieldset
+          className={styles.choices}
+          aria-describedby={showErrors && !opening.unitMode ? 'opening-unit-mode-error' : undefined}
+        >
+          <legend>
+            기존 미납·선납 여부
+            <span
+              className={styles.required}
+              aria-hidden={'true'}
+            >
+              {' '}
+              *
+            </span>
+          </legend>
+          <Radio
+            name={'opening-unit-mode'}
+            aria-invalid={showErrors && !opening.unitMode || undefined}
+            label={'기존 미납·선납 없음'}
+            checked={opening.unitMode === 'NONE'}
+            onChange={() => onChange({
+              ...opening,
+              unitMode: 'NONE'
+            })}
+          />
+          <Radio
+            name={'opening-unit-mode'}
+            aria-invalid={showErrors && !opening.unitMode || undefined}
+            label={'세대별 금액 입력'}
+            checked={opening.unitMode === 'ENTER'}
+            onChange={() => onChange({
+              ...opening,
+              unitMode: 'ENTER'
+            })}
+          />
+        </fieldset>
+        {showErrors && !opening.unitMode && (
+          <p
+            id={'opening-unit-mode-error'}
+            className={styles.error}
+          >
+            기존 미납·선납 없음 또는 세대별 금액 입력을 선택해주세요.
+          </p>
+        )}
+        {opening.unitMode === 'ENTER' && (
+          <Button
+            variant={'outline'}
+            onClick={confirmZeroAmounts}
+            disabled={!units.length}
+          >
+            빈 금액 0원으로 확인
+          </Button>
+        )}
+        {opening.unitMode === 'NONE' && (
+          <p>
+            모든 세대의 기존 미납·선납을 0원으로 인계합니다.
+          </p>
+        )}
+      </section>
+    );
+  if (kind === 'fees')
+    return (
+      <section
+        className={styles.panel}
+        aria-label={'관리 시작 기준'}
+      >
+        <h3>
+          관리 시작 기준
+        </h3>
+        <p>
+          {'기존 장부 기준일: '}
+          <strong>
+            {opening.cutoffDate || '동·세대에서 선택해주세요.'}
+          </strong>
+        </p>
+        <CalendarPicker
+          label={'첫 신규 관리비 부과월'}
+          mode={'month'}
+          value={opening.firstBillingMonth}
+          disabled={opening.automaticBilling === true}
+          onChange={(firstBillingMonth) => onChange({
+            ...opening,
+            firstBillingMonth
+          })}
+          required
+        />
+        <p>
+          {opening.automaticBilling
+            ? '기본 관리 통장 기준일이 월중이면 그달 전액부터, 월말이면 다음 달부터 부과합니다. 최종 등록 시 첫 부과월부터 현재 월까지 청구를 생성합니다. 기존 미납에 같은 기간 관리비가 중복되지 않는지 확인해주세요.'
+            : '이전 초안의 첫 부과월입니다. 통장 기준일을 수정하면 부과월을 자동 계산합니다.'}
+        </p>
+      </section>
+    );
+
   return (
     <section
       className={styles.panel}

@@ -21,7 +21,12 @@ function subscribeMobile(onChange: () => void) {
 }
 
 /** PC·모바일 모두 작업바를 고정하고 실제 높이·하단 여백만큼 본문 공간을 확보합니다. */
-export function BankImportActions({ selectedCount, incomeCount, busy, onSave }: {
+export function BankImportActions({
+  selectedCount,
+  incomeCount,
+  busy,
+  onSave
+}: {
   selectedCount: number;
   incomeCount: number;
   busy: boolean;
@@ -39,7 +44,8 @@ export function BankImportActions({ selectedCount, incomeCount, busy, onSave }: 
   useLayoutEffect(() => {
     const bar = barRef.current;
     const slot = slotRef.current;
-    if (!bar || !slot) return;
+    if (!bar || !slot)
+      return;
     // 사이드바 접힘·화면 회전에도 PC 작업바는 현재 본문 폭을 따르고 마지막 행은 가리지 않습니다.
     const measure = () => {
       const bounds = slot.getBoundingClientRect();

@@ -38,18 +38,23 @@ export function ResidentSettingsPage() {
   usePreservedWorkspace(Boolean(failure) && access.ready, workspaceRef, errorRef);
 
   useEffect(() => {
-    if (requiresLogin) window.location.replace('/login');
+    if (requiresLogin)
+      window.location.replace('/login');
   }, [requiresLogin]);
 
   useEffect(() => {
     function hideLeavingPage() {
-      if (!pageRef.current) return;
+      if (!pageRef.current)
+        return;
       pageRef.current.hidden = true;
       pageRef.current.inert = true;
     }
+
     function restorePage(event: PageTransitionEvent) {
-      if (event.persisted) window.location.reload();
+      if (event.persisted)
+        window.location.reload();
     }
+
     window.addEventListener('pagehide', hideLeavingPage);
     window.addEventListener('pageshow', restorePage);
 
@@ -59,16 +64,18 @@ export function ResidentSettingsPage() {
     };
   }, []);
 
-  if (!isPropertyId(propertyId)) return (
-    <StateMessage
-      title={'등록된 곳의 주소가 올바르지 않아요.'}
-    />
-  );
-  if (access.blocked) return (
-    <StateMessage
-      title={'현재 접근 가능한 화면으로 이동하거나 주민 연결을 확인해주세요.'}
-    />
-  );
+  if (!isPropertyId(propertyId))
+    return (
+      <StateMessage
+        title={'등록된 곳의 주소가 올바르지 않아요.'}
+      />
+    );
+  if (access.blocked)
+    return (
+      <StateMessage
+        title={'현재 접근 가능한 화면으로 이동하거나 주민 연결을 확인해주세요.'}
+      />
+    );
 
   return (
     <div
@@ -83,7 +90,11 @@ export function ResidentSettingsPage() {
           <RequestError
             error={failure}
             inputPreserved={access.ready}
-            onRetry={() => { if (session.data) void access.revalidate(); else void session.refetch(); }}
+            onRetry={() => {
+              if (session.data)
+                void access.revalidate(); else
+                void session.refetch();
+            }}
           />
         </main>
       )}

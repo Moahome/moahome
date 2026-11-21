@@ -20,14 +20,18 @@ import { useBillingSettings } from '../_hooks/useBillingData';
 import styles from './billingSettingsPage.module.css';
 
 /** 조회한 최신 버전으로 편집하고 저장 성공 뒤 서버 설정을 재조회해 읽기 화면으로 돌아갑니다. */
-export function BillingSettingsPage({ propertyId }: { propertyId: string }) {
+export function BillingSettingsPage({
+  propertyId
+}: { propertyId: string }) {
   const router = useRouter();
   const session = useSession();
   const queryClient = useQueryClient();
   const query = useBillingSettings(propertyId);
   const mutation = useMutation({
     mutationFn: (draft: ScheduledSettings) => {
-      if (!query.data) throw new Error('Settings unavailable');
+      if (!query.data)
+        throw new Error('Settings unavailable');
+
       return saveBillingSettings(propertyId, query.data, draft, draft.reason);
     },
     retry: false,
@@ -38,18 +42,20 @@ export function BillingSettingsPage({ propertyId }: { propertyId: string }) {
       const current = draft.temporaryItems.find((item) => item.month && item.month !== draft.month)?.month;
       if (current) {
         router.replace(`/manage/${propertyId}/billing/monthly?tab=monthly&month=${current}&added=1`);
+
         return;
       }
       router.replace(`/manage/${propertyId}/billing/monthly?tab=items&saved=1`);
     }
   });
-  if (query.isPending || query.isError) return (
-    <BillingLoadState
-      pending={query.isPending}
-      error={query.error}
-      onRetry={() => query.refetch()}
-    />
-  );
+  if (query.isPending || query.isError)
+    return (
+      <BillingLoadState
+        pending={query.isPending}
+        error={query.error}
+        onRetry={() => query.refetch()}
+      />
+    );
   const settings = query.data;
   const nextMonth = shiftBillingMonth(settings.currentMonth, 1);
 
@@ -79,7 +85,15 @@ export function BillingSettingsPage({ propertyId }: { propertyId: string }) {
         nextMonth={nextMonth}
         busy={mutation.isPending}
         errorMessage={mutation.isError ? getBillingError(mutation.error) : ''}
-        onApply={async (draft) => { try { await mutation.mutateAsync(draft); return true; } catch { return false; } }}
+        onApply={async (draft) => {
+          try {
+            await mutation.mutateAsync(draft);
+
+            return true;
+          } catch {
+            return false;
+          }
+        }}
       />
     </section>
   );

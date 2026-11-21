@@ -19,6 +19,7 @@ export function getConfirmedUnitReceipts(ledger: PreviewLedger, unitId: string, 
 /** 월별 표와 엑셀에서 같은 검색·동·납부 상태를 적용하고 페이지 구분은 호출 화면에 맡깁니다. */
 export function filterMonthlyPreviewRows<Row extends MonthlyPreviewRow>(rows: Row[], filters: MonthlyCollectionFilters): Row[] {
   const query = filters.query.trim();
+
   return rows.filter((row) => (!filters.building || row.buildingName === filters.building)
     && `${row.unitLabel} ${row.representativeName}`.includes(query)
     && (filters.status === '전체' || (filters.status === '선입금' ? row.prepaid > BigInt(0) : row.status === filters.status)));
@@ -39,8 +40,10 @@ export function getManualReceiptUnits(ledger: PreviewLedger) {
     && payment.receiptType !== 'OTHER' && payment.unitId && payment.payer.trim())
     .sort((left, right) => right.date.localeCompare(left.date));
   for (const payment of confirmed) {
-    if (!recentPayers.has(payment.unitId)) recentPayers.set(payment.unitId, payment.payer);
+    if (!recentPayers.has(payment.unitId))
+      recentPayers.set(payment.unitId, payment.payer);
   }
+
   return getPreviewSelectableUnits(ledger).map((unit) => ({
     ...unit,
     recentPayerName: recentPayers.get(unit.id)
@@ -118,11 +121,15 @@ export function getMonthlyPreviewRows(ledger: PreviewLedger, month: string): Mon
     const statusApplied = billed > BigInt(0) ? billed - monthlyBalance : applied;
     let status: MonthlyPreviewRow['status'] = '미납';
     // 입금 시점과 무관하게 이번 달 청구에 충당됐는지만 보며 선납으로 전액 충당돼도 납부완료입니다.
-    if (statusBalance === BigInt(0)) status = '납부완료';
-    else if (statusApplied > BigInt(0)) status = '일부납부';
+    if (statusBalance === BigInt(0))
+      status = '납부완료';
+    else if (statusApplied > BigInt(0))
+      status = '일부납부';
     // 당월 관리비의 납부 상태를 우선하며, 부과 없이 잔액만 보유한 세대를 선입금으로 표시합니다.
-    if (!billedUnitIds.has(unit.id) && prepaid > BigInt(0)) status = '선입금';
-    if (settlementPending) status = '정산 확인 필요';
+    if (!billedUnitIds.has(unit.id) && prepaid > BigInt(0))
+      status = '선입금';
+    if (settlementPending)
+      status = '정산 확인 필요';
 
     const row: MonthlyPreviewRow = {
       unitId: unit.id,
@@ -139,6 +146,7 @@ export function getMonthlyPreviewRows(ledger: PreviewLedger, month: string): Mon
       settlementPending,
       latestDate: payments.map((payment) => payment.date).sort().at(-1) ?? '—'
     };
+
     return row;
   }).filter((row) => billedUnitIds.has(row.unitId) || row.prepaid > BigInt(0));
 }
@@ -155,11 +163,15 @@ export function getMonthlyPreviewIncome(ledger: PreviewLedger, month: string) {
   getPreviewDueDate(month);
   let household = BigInt(0), other = BigInt(0), otherCount = 0;
   for (const payment of ledger.payments) {
-    if (!['CONFIRMED', 'OPENING'].includes(payment.status) || !payment.date.startsWith(month) || payment.date > ledger.asOf) continue;
+    if (!['CONFIRMED', 'OPENING'].includes(payment.status) || !payment.date.startsWith(month) || payment.date > ledger.asOf)
+      continue;
     if (payment.receiptType === 'OTHER') {
-      other += BigInt(payment.amount);otherCount++;
-    } else household += BigInt(payment.amount);
+      other += BigInt(payment.amount);
+      otherCount++;
+    } else
+      household += BigInt(payment.amount);
   }
+
   return {
     household,
     other,
@@ -190,6 +202,7 @@ export function getCumulativePreviewBalance(ledger: PreviewLedger, unitId: strin
 /** 테스트 원장의 수납 확정도 세대 지정만으로 전액 누적하며 미납이 없어도 선입금을 저장합니다. */
 export function confirmCumulativePreviewPayment(ledger: PreviewLedger, id: string, draft: CumulativePaymentDraft): PreviewLedger {
   const payment = requirePreviewPayment(ledger, id);
+
   return confirmPreviewPayment(ledger, id, {
     ...recommendPreviewAllocation(ledger, payment, draft.unitId),
     separateReason: draft.separateReason
@@ -200,14 +213,16 @@ const MAX_PAYMENT_AMOUNT = BigInt('999999999999999');
 
 /** 잘못된 날짜를 다음 달로 보정하지 않고 실제 달력 날짜만 허용합니다. */
 export function isPreviewDate(value: string): boolean {
-  if (!/^[1-9][0-9]{3}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/.test(value)) return false;
+  if (!/^[1-9][0-9]{3}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/.test(value))
+    return false;
 
   return new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 }
 
 /** 모든 청구월의 실제 월말을 사용해 윤년·2월·30일인 달에도 같은 정책을 적용합니다. */
 export function getPreviewDueDate(month: string): string {
-  if (!/^[1-9][0-9]{3}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('청구월을 확인해주세요.');
+  if (!/^[1-9][0-9]{3}-(0[1-9]|1[0-2])$/.test(month))
+    throw new Error('청구월을 확인해주세요.');
   const [year, number] = month.split('-').map(Number);
   const last = new Date(Date.UTC(year, number, 0)).getUTCDate();
 
@@ -231,7 +246,8 @@ export function getPreviewPaid(ledger: PreviewLedger, chargeId: string): bigint 
 }
 
 export function getPreviewOutstanding(ledger: PreviewLedger, charge: PreviewCharge): bigint {
-  if (!canPreviewAllocate(charge)) return BigInt(0);
+  if (!canPreviewAllocate(charge))
+    return BigInt(0);
 
   return BigInt(charge.amount) - getPreviewPaid(ledger, charge.id);
 }
@@ -243,12 +259,17 @@ export function getPreviewReceivables(ledger: PreviewLedger, unitId: string): Pr
 }
 
 export function getPreviewChargeLabel(ledger: PreviewLedger, charge: PreviewCharge): string {
-  if (charge.status === 'CANCELED') return '청구 취소';
-  if (charge.status === 'EXCLUDED_VACANT') return '공실 제외';
-  if (BigInt(charge.amount) <= BigInt(0)) return '정산 정책 확인 필요';
+  if (charge.status === 'CANCELED')
+    return '청구 취소';
+  if (charge.status === 'EXCLUDED_VACANT')
+    return '공실 제외';
+  if (BigInt(charge.amount) <= BigInt(0))
+    return '정산 정책 확인 필요';
   const paid = getPreviewPaid(ledger, charge.id);
-  if (paid === BigInt(charge.amount)) return '납부완료';
-  if (paid > BigInt(0)) return '일부납부';
+  if (paid === BigInt(charge.amount))
+    return '납부완료';
+  if (paid > BigInt(0))
+    return '일부납부';
 
   return '미납';
 }
@@ -275,7 +296,8 @@ export function recommendPreviewAllocation(ledger: PreviewLedger, payment: Previ
 
 /** 후보 추천은 금액·계좌·날짜를 우선 대조하며 실제 연결은 별도의 명시적 선택으로 수행합니다. */
 export function getPreviewDuplicateCandidates(ledger: PreviewLedger, bank: PreviewPayment): PreviewPayment[] {
-  if (bank.source !== 'BANK_IMPORT' || bank.status !== 'PENDING') return [];
+  if (bank.source !== 'BANK_IMPORT' || bank.status !== 'PENDING')
+    return [];
 
   return ledger.payments.filter((manual) => manual.source === 'MANUAL' && manual.status === 'CONFIRMED'
     && !manual.bankTransactionId && manual.amount === bank.amount && manual.accountId === bank.accountId
@@ -284,28 +306,41 @@ export function getPreviewDuplicateCandidates(ledger: PreviewLedger, bank: Previ
 
 function requirePreviewPayment(ledger: PreviewLedger, id: string): PreviewPayment {
   const payment = ledger.payments.find((item) => item.id === id);
-  if (!payment) throw new Error('입금 내역을 찾을 수 없어요.');
+  if (!payment)
+    throw new Error('입금 내역을 찾을 수 없어요.');
 
   return payment;
 }
 
 function positivePreviewAmount(value: string): bigint {
-  if (!/^[0-9]+$/.test(value)) throw new Error('금액을 정수 원 단위로 입력해주세요.');
+  if (!/^[0-9]+$/.test(value))
+    throw new Error('금액을 정수 원 단위로 입력해주세요.');
   const amount = BigInt(value);
-  if (amount <= BigInt(0) || amount > MAX_PAYMENT_AMOUNT) throw new Error('입금액은 1~999,999,999,999,999원으로 입력해주세요.');
+  if (amount <= BigInt(0) || amount > MAX_PAYMENT_AMOUNT)
+    throw new Error('입금액은 1~999,999,999,999,999원으로 입력해주세요.');
 
   return amount;
 }
 
 /** 초안을 새 항목으로 추가하며 같은 ID의 중복 생성과 잘못된 계좌·세대·날짜를 거부합니다. */
 export function addPreviewManual(ledger: PreviewLedger, input: {
-  id: string; accountId: string; unitId: string; date: string; payer: string; amount: string;
+  id: string;
+accountId: string;
+unitId: string;
+date: string;
+payer: string;
+amount: string;
 }): PreviewLedger {
-  if (ledger.payments.some((payment) => payment.id === input.id)) throw new Error('이미 등록한 입금이에요.');
-  if (!ledger.accounts.some((account) => account.id === input.accountId)) throw new Error('관리계좌를 선택해주세요.');
-  if (!ledger.units.some((unit) => unit.id === input.unitId)) throw new Error('세대를 선택해주세요.');
-  if (!isPreviewDate(input.date)) throw new Error('입금일을 확인해주세요.');
-  if (!input.payer.trim() || input.payer.trim().length > 100) throw new Error('입금자명은 1~100자로 입력해주세요.');
+  if (ledger.payments.some((payment) => payment.id === input.id))
+    throw new Error('이미 등록한 입금이에요.');
+  if (!ledger.accounts.some((account) => account.id === input.accountId))
+    throw new Error('관리계좌를 선택해주세요.');
+  if (!ledger.units.some((unit) => unit.id === input.unitId))
+    throw new Error('세대를 선택해주세요.');
+  if (!isPreviewDate(input.date))
+    throw new Error('입금일을 확인해주세요.');
+  if (!input.payer.trim() || input.payer.trim().length > 100)
+    throw new Error('입금자명은 1~100자로 입력해주세요.');
   const amount = positivePreviewAmount(input.amount).toString();
   const payment: PreviewPayment = {
     ...input,
@@ -326,8 +361,10 @@ export function addPreviewManual(ledger: PreviewLedger, input: {
 /** 최신 잔액·상태·중복 후보를 다시 검증해 시안에서도 과배분과 중복 확정을 막습니다. */
 export function confirmPreviewPayment(ledger: PreviewLedger, id: string, draft: PreviewDraft): PreviewLedger {
   const payment = requirePreviewPayment(ledger, id);
-  if (payment.status !== 'PENDING') throw new Error('확인 필요 상태의 입금만 확정할 수 있어요.');
-  if (!ledger.units.some((unit) => unit.id === draft.unitId)) throw new Error('세대를 선택해주세요.');
+  if (payment.status !== 'PENDING')
+    throw new Error('확인 필요 상태의 입금만 확정할 수 있어요.');
+  if (!ledger.units.some((unit) => unit.id === draft.unitId))
+    throw new Error('세대를 선택해주세요.');
   if (getPreviewDuplicateCandidates(ledger, payment).length && !draft.separateReason?.trim()) {
     throw new Error('기존 수동 수납을 먼저 확인해주세요. 별도 입금이면 사유를 입력해주세요.');
   }
@@ -335,20 +372,26 @@ export function confirmPreviewPayment(ledger: PreviewLedger, id: string, draft: 
   const seen = new Set<string>();
   const allocations: PreviewAllocation[] = [];
   for (const allocation of draft.allocations) {
-    if (seen.has(allocation.chargeId)) throw new Error('같은 청구월을 중복 지정할 수 없어요.');
+    if (seen.has(allocation.chargeId))
+      throw new Error('같은 청구월을 중복 지정할 수 없어요.');
     seen.add(allocation.chargeId);
     const charge = ledger.charges.find((item) => item.id === allocation.chargeId);
-    if (!charge || charge.unitId !== draft.unitId || !canPreviewAllocate(charge)) throw new Error('반영할 수 없는 청구가 포함되어 있어요.');
-    if (!/^[0-9]+$/.test(allocation.amount)) throw new Error('반영액을 0원 이상의 정수로 입력해주세요.');
+    if (!charge || charge.unitId !== draft.unitId || !canPreviewAllocate(charge))
+      throw new Error('반영할 수 없는 청구가 포함되어 있어요.');
+    if (!/^[0-9]+$/.test(allocation.amount))
+      throw new Error('반영액을 0원 이상의 정수로 입력해주세요.');
     const amount = BigInt(allocation.amount);
-    if (amount > getPreviewOutstanding(ledger, charge)) throw new Error('반영액이 남은 청구액을 초과했어요. 다시 확인해주세요.');
+    if (amount > getPreviewOutstanding(ledger, charge))
+      throw new Error('반영액이 남은 청구액을 초과했어요. 다시 확인해주세요.');
     total += amount;
-    if (amount > BigInt(0)) allocations.push({
-      ...allocation,
-      amount: amount.toString()
-    });
+    if (amount > BigInt(0))
+      allocations.push({
+        ...allocation,
+        amount: amount.toString()
+      });
   }
-  if (total > positivePreviewAmount(payment.amount)) throw new Error('반영액 합계가 입금액을 초과했어요.');
+  if (total > positivePreviewAmount(payment.amount))
+    throw new Error('반영액 합계가 입금액을 초과했어요.');
   const updated: PreviewPayment = {
     ...payment,
     status: 'CONFIRMED',
@@ -378,20 +421,23 @@ export function linkPreviewPayment(ledger: PreviewLedger, bankId: string, manual
     throw new Error('연결할 수 없는 상태예요. 최신 내역을 확인해주세요.');
   }
   if (bank.accountId !== manual.accountId || bank.amount !== manual.amount || bank.date !== manual.date
-    || (bank.unitId && bank.unitId !== manual.unitId)) throw new Error('계좌·금액·입금일·세대가 일치하는지 확인해주세요.');
+    || (bank.unitId && bank.unitId !== manual.unitId))
+    throw new Error('계좌·금액·입금일·세대가 일치하는지 확인해주세요.');
 
   return {
     ...ledger,
     payments: ledger.payments.map((item) => {
-      if (item.id === bankId) return {
-        ...item,
-        status: 'LINKED',
-        linkedPaymentId: manualId
-      };
-      if (item.id === manualId) return {
-        ...item,
-        bankTransactionId: bankId
-      };
+      if (item.id === bankId)
+        return {
+          ...item,
+          status: 'LINKED',
+          linkedPaymentId: manualId
+        };
+      if (item.id === manualId)
+        return {
+          ...item,
+          bankTransactionId: bankId
+        };
 
       return item;
     }),
@@ -406,24 +452,29 @@ export function linkPreviewPayment(ledger: PreviewLedger, bankId: string, manual
 /** 최초 취소 사유와 배분 이력을 남기며 재시도해도 잔액이 두 번 복원되지 않게 합니다. */
 export function cancelPreviewPayment(ledger: PreviewLedger, id: string, reason: string): PreviewLedger {
   const payment = requirePreviewPayment(ledger, id);
-  if (payment.status === 'CANCELED') return ledger;
-  if (payment.status !== 'CONFIRMED') throw new Error('확정된 수납만 취소할 수 있어요.');
-  if (!reason.trim()) throw new Error('취소 사유를 입력해주세요.');
+  if (payment.status === 'CANCELED')
+    return ledger;
+  if (payment.status !== 'CONFIRMED')
+    throw new Error('확정된 수납만 취소할 수 있어요.');
+  if (!reason.trim())
+    throw new Error('취소 사유를 입력해주세요.');
 
   return {
     ...ledger,
     payments: ledger.payments.map((item) => {
-      if (item.id === id) return {
-        ...item,
-        status: 'CANCELED',
-        cancelReason: reason.trim(),
-        bankTransactionId: undefined
-      };
-      if (item.linkedPaymentId === id) return {
-        ...item,
-        status: 'PENDING',
-        linkedPaymentId: undefined
-      };
+      if (item.id === id)
+        return {
+          ...item,
+          status: 'CANCELED',
+          cancelReason: reason.trim(),
+          bankTransactionId: undefined
+        };
+      if (item.linkedPaymentId === id)
+        return {
+          ...item,
+          status: 'PENDING',
+          linkedPaymentId: undefined
+        };
 
       return item;
     }),
@@ -438,8 +489,10 @@ export function cancelPreviewPayment(ledger: PreviewLedger, id: string, reason: 
 /** 보류는 납부 상태에 영향을 주지 않으며 은행 원본 검토 항목에서만 사용합니다. */
 export function holdPreviewPayment(ledger: PreviewLedger, id: string, reason: string): PreviewLedger {
   const payment = requirePreviewPayment(ledger, id);
-  if (payment.source !== 'BANK_IMPORT' || payment.status !== 'PENDING') throw new Error('확인 필요 은행 입금만 보류할 수 있어요.');
-  if (!reason.trim()) throw new Error('보류 사유를 입력해주세요.');
+  if (payment.source !== 'BANK_IMPORT' || payment.status !== 'PENDING')
+    throw new Error('확인 필요 은행 입금만 보류할 수 있어요.');
+  if (!reason.trim())
+    throw new Error('보류 사유를 입력해주세요.');
 
   return {
     ...ledger,
@@ -453,7 +506,8 @@ export function holdPreviewPayment(ledger: PreviewLedger, id: string, reason: st
 
 export function resumePreviewPayment(ledger: PreviewLedger, id: string): PreviewLedger {
   const payment = requirePreviewPayment(ledger, id);
-  if (payment.status !== 'ON_HOLD') throw new Error('보류 중인 입금만 다시 검토할 수 있어요.');
+  if (payment.status !== 'ON_HOLD')
+    throw new Error('보류 중인 입금만 다시 검토할 수 있어요.');
 
   return {
     ...ledger,
@@ -468,7 +522,8 @@ export function resumePreviewPayment(ledger: PreviewLedger, id: string): Preview
 export function importPreviewPayments(ledger: PreviewLedger, payments: PreviewPayment[]): PreviewLedger {
   const existing = new Set(ledger.payments.filter((payment) => payment.source === 'BANK_IMPORT').map((payment) => payment.id));
   const incoming = payments.filter((payment) => {
-    if (existing.has(payment.id)) return false;
+    if (existing.has(payment.id))
+      return false;
     existing.add(payment.id);
 
     return true;

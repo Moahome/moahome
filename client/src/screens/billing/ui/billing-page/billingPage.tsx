@@ -46,7 +46,8 @@ export function BillingPage({
     message: added ? '이번 달 임시 관리비를 추가 부과했어요.' : '다음 달 적용 설정을 저장했어요.'
   } : null);
   useEffect(() => {
-    if (!saved && !added) return;
+    if (!saved && !added)
+      return;
     const next = new URLSearchParams(query.toString());
     next.delete('saved');
     next.delete('added');
@@ -56,7 +57,8 @@ export function BillingPage({
 
   /** 탭 변경을 이력에 남겨 직접 진입·새로고침·뒤로가기가 같은 화면을 선택하게 합니다. */
   function changeTab(next: BillingTab) {
-    if (next === tab) return;
+    if (next === tab)
+      return;
     const params = new URLSearchParams(query.toString());
     params.set('tab', next);
     router.push(`${pathname}?${params.toString()}`, {
@@ -67,23 +69,29 @@ export function BillingPage({
   /** 방향키·Home/End는 탭 선택과 포커스를 함께 이동하며 Tab은 선택한 탭만 거칩니다. */
   function handleTabKey(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let next = index;
-    if (event.key === 'ArrowRight') next = (index + 1) % BILLING_TABS.length;
-    else if (event.key === 'ArrowLeft') next = (index + BILLING_TABS.length - 1) % BILLING_TABS.length;
-    else if (event.key === 'Home') next = 0;
-    else if (event.key === 'End') next = BILLING_TABS.length - 1;
-    else return;
+    if (event.key === 'ArrowRight')
+      next = (index + 1) % BILLING_TABS.length;
+    else if (event.key === 'ArrowLeft')
+      next = (index + BILLING_TABS.length - 1) % BILLING_TABS.length;
+    else if (event.key === 'Home')
+      next = 0;
+    else if (event.key === 'End')
+      next = BILLING_TABS.length - 1;
+    else
+      return;
     event.preventDefault();
     tabRefs.current[next]?.focus();
     changeTab(BILLING_TABS[next].id);
   }
 
-  if (settings.isPending || settings.isError) return (
-    <BillingLoadState
-      pending={settings.isPending}
-      error={settings.error}
-      onRetry={() => settings.refetch()}
-    />
-  );
+  if (settings.isPending || settings.isError)
+    return (
+      <BillingLoadState
+        pending={settings.isPending}
+        error={settings.error}
+        onRetry={() => settings.refetch()}
+      />
+    );
 
   return (
     <section
@@ -104,7 +112,9 @@ export function BillingPage({
         {BILLING_TABS.map((item, index) => (
           <Button
             key={item.id}
-            ref={(element) => { tabRefs.current[index] = element; }}
+            ref={(element) => {
+              tabRefs.current[index] = element;
+            }}
             id={`billing-tab-${item.id}`}
             className={styles.tab}
             variant={'ghost'}

@@ -5,14 +5,17 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './queryRefresh.module.css';
 
 function getRefreshStatus(refreshing: boolean, failed: boolean, valid: boolean) {
-  if (refreshing) return {
-    state: 'refreshing',
-    label: '업데이트 중'
-  };
-  if (failed) return {
-    state: 'failed',
-    label: '업데이트 실패'
-  };
+  if (refreshing)
+    return {
+      state: 'refreshing',
+      label: '업데이트 중'
+    };
+  if (failed)
+    return {
+      state: 'failed',
+      label: '업데이트 실패'
+    };
+
   return {
     state: valid ? 'ready' : 'waiting',
     label: '마지막 업데이트'
@@ -20,7 +23,15 @@ function getRefreshStatus(refreshing: boolean, failed: boolean, valid: boolean) 
 }
 
 /** 마지막 조회 시각과 조회 상태를 공통으로 표시하고 클릭한 조회만 다시 실행합니다. */
-export function QueryRefresh({ updatedAt, refreshing = false, failed = false, disabled = false, onRefresh, label = '자료 새로고침', className }: {
+export function QueryRefresh({
+  updatedAt,
+  refreshing = false,
+  failed = false,
+  disabled = false,
+  onRefresh,
+  label = '자료 새로고침',
+  className
+}: {
   updatedAt?: string | number | null;
   refreshing?: boolean;
   failed?: boolean;

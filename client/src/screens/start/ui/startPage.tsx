@@ -35,7 +35,9 @@ import styles from './startPage.module.css';
 import motion from './startMotion.module.css';
 
 /** 세션을 확인하고 명시적 추가 진입에서는 기존 관리대상으로의 자동 이동을 생략합니다. */
-export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional' }) {
+export function StartPage({
+  mode = 'initial'
+}: { mode?: 'initial' | 'additional' }) {
   const additional = mode === 'additional';
   const entryPath = additional ? '/properties/add' : '/start';
   const session = useSession();
@@ -67,10 +69,12 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
   }, [router, session.isFetching, requiresLogin]);
 
   useEffect(() => {
-    if (additional || registrationStep || hasPendingSubmission || registeredProperty.isFetching) return;
+    if (additional || registrationStep || hasPendingSubmission || registeredProperty.isFetching)
+      return;
     const error = registeredProperty.error ?? residentProperties.error;
     if (error instanceof ApiError && (error.status === 401 || error.code === 'ACCOUNT_UNAVAILABLE')) {
       window.location.replace('/login');
+
       return;
     }
     if (registeredProperty.isSuccess && registeredProperty.data) {
@@ -79,14 +83,16 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
   }, [additional, registrationStep, hasPendingSubmission, registeredProperty.data, registeredProperty.error, registeredProperty.isFetching, registeredProperty.isSuccess, residentProperties.error, router]);
 
   useEffect(() => {
-    if (additional || registrationStep || hasPendingSubmission || registeredProperty.data || registeredProperty.isFetching || !residentProperties.data?.length) return;
+    if (additional || registrationStep || hasPendingSubmission || registeredProperty.data || registeredProperty.isFetching || !residentProperties.data?.length)
+      return;
     router.replace('/resident');
   }, [additional, registrationStep, hasPendingSubmission, registeredProperty.data, registeredProperty.isFetching, residentProperties.data, router]);
 
   useEffect(() => {
     /** 브라우저가 문서를 보관하기 전에 개인정보를 가려 로그아웃 뒤 복원 프레임에도 노출하지 않습니다. */
     function hideLeavingPage() {
-      if (!pageRef.current) return;
+      if (!pageRef.current)
+        return;
       // 펼친 상세의 visibility: visible에도 숨김이 유지되도록 부모의 렌더링 자체를 중단합니다.
       pageRef.current.style.display = 'none';
       pageRef.current.inert = true;
@@ -94,11 +100,13 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
 
     /** bfcache 복원은 이전 로그인 메모리도 복원하므로 새 문서에서 세션과 결과 권한을 재검증합니다. */
     function revalidateRestoredPage(event: PageTransitionEvent) {
-      if (event.persisted) window.location.reload();
+      if (event.persisted)
+        window.location.reload();
     }
 
     window.addEventListener('pagehide', hideLeavingPage);
     window.addEventListener('pageshow', revalidateRestoredPage);
+
     return () => {
       window.removeEventListener('pagehide', hideLeavingPage);
       window.removeEventListener('pageshow', revalidateRestoredPage);
@@ -128,10 +136,12 @@ export function StartPage({ mode = 'initial' }: { mode?: 'initial' | 'additional
     });
     if (!latest.isSuccess) {
       showNotice('권한 확인 실패', '잠시 후 다시 시도해주세요.');
+
       return;
     }
     if (!canShowPropertyCreation(latest.data.canCreateProperty, searchParams.get('creationPreview'))) {
       showNotice('생성 권한이 필요합니다.', '시스템 관리자에게 생성 권한을 부여받아주세요.');
+
       return;
     }
     router.push(`${entryPath}?registration=basic`, {

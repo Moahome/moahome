@@ -31,19 +31,22 @@ function SessionBootstrap() {
   const cache = useQueryClient();
   useEffect(() => subscribeSessionInvalidation(() => {
     // 최초 로그인 검증의 실패는 콜백 화면이 안내합니다. 확인된 로그인 화면만 강제 종료합니다.
-    if (!cache.getQueryData<CurrentUser>(CURRENT_USER_QUERY_KEY)) return;
+    if (!cache.getQueryData<CurrentUser>(CURRENT_USER_QUERY_KEY))
+      return;
     cache.clear();
     window.location.replace('/login');
   }), [cache]);
 
   useEffect(() => {
-    if (!session.data?.id) return;
+    if (!session.data?.id)
+      return;
     let pending: AbortController | null = null;
 
     /** 다른 기기의 탈퇴도 확인하며, 기존 화면의 조회·편집 상태를 바꾸지 않고 인증만 재검증합니다. */
     async function revalidate() {
       if (pending || !getSession() || document.visibilityState === 'hidden'
-        || window.location.pathname === '/account/recovery') return;
+        || window.location.pathname === '/account/recovery')
+        return;
       const controller = new AbortController();
       pending = controller;
       try {
@@ -51,15 +54,19 @@ function SessionBootstrap() {
       } catch {
         // 인증 거부는 공통 API가 전역에 알립니다. 일시 장애·취소는 로그인과 편집 내용을 유지합니다.
       } finally {
-        if (pending === controller) pending = null;
+        if (pending === controller)
+          pending = null;
       }
     }
 
     // 숨겨진 기기는 복귀 시 확인하고, 켜둔 화면도 사용자 조작 없이 전체 로그아웃을 반영합니다.
-    const timer = window.setInterval(() => { void revalidate(); }, 15_000);
+    const timer = window.setInterval(() => {
+      void revalidate();
+    }, 15_000);
     window.addEventListener('focus', revalidate);
     window.addEventListener('online', revalidate);
     document.addEventListener('visibilitychange', revalidate);
+
     return () => {
       window.clearInterval(timer);
       window.removeEventListener('focus', revalidate);
@@ -71,7 +78,8 @@ function SessionBootstrap() {
 
   useEffect(() => subscribeAccountWithdrawal((userId) => {
     const current = cache.getQueryData<CurrentUser>(CURRENT_USER_QUERY_KEY);
-    if (current && current.id !== userId) return;
+    if (current && current.id !== userId)
+      return;
     clearSession();
     cache.clear();
     window.location.replace('/login?withdrawal=requested');

@@ -5,6 +5,7 @@ export function GET(request: Request) {
       status: 404
     });
   }
+
   return new Response(null, {
     status: 307,
     headers: {

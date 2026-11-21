@@ -31,6 +31,7 @@ export function Toast({
       const dialogs = document.querySelectorAll<HTMLDialogElement>('dialog[open]');
       setTarget(dialogs.item(dialogs.length - 1) ?? document.body);
     }
+
     updateTarget();
     const observer = new MutationObserver(updateTarget);
     observer.observe(document.body, {
@@ -39,6 +40,7 @@ export function Toast({
       attributes: true,
       attributeFilter: ['open']
     });
+
     return () => observer.disconnect();
   }, []);
 
@@ -49,16 +51,20 @@ export function Toast({
   useEffect(() => {
     // 마우스·포커스나 부모 재렌더링과 관계없이 표시 시간을 지키고 퇴장 애니메이션을 시작합니다.
     const timer = window.setTimeout(() => setLeaving(true), duration);
+
     return () => window.clearTimeout(timer);
   }, [duration]);
 
   useEffect(() => {
-    if (!leaving) return;
+    if (!leaving)
+      return;
     const timer = window.setTimeout(() => closeRef.current(), 180);
+
     return () => window.clearTimeout(timer);
   }, [leaving]);
 
-  if (!target) return null;
+  if (!target)
+    return null;
 
   return createPortal(
     <div

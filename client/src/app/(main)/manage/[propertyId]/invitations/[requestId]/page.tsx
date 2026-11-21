@@ -9,8 +9,14 @@ export const metadata: Metadata = {
   }
 };
 
-export default async function Page({ params }: { params: Promise<{ propertyId: string; requestId: string }> }) {
-  const { propertyId, requestId } = await params;
+export default async function Page({
+  params
+}: { params: Promise<{ propertyId: string;
+requestId: string }> }) {
+  const {
+    propertyId,
+    requestId
+  } = await params;
 
   return (
     <ApprovalManagementPage

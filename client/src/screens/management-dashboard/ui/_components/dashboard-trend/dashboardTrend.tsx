@@ -12,8 +12,13 @@ import { DashboardPanel } from '../dashboard-panel/dashboardPanel';
 import styles from './dashboardTrend.module.css';
 
 /** 큰 금액은 비율 좌표로만 변환하고 음수 청구도 기준선 아래에 원금액 그대로 설명합니다. */
-export function DashboardTrend({ trend, href }: { trend: DashboardReport['trend']; href: string }) {
-  const [active, setActive] = useState<{ index: number; series: 'billed' | 'applied' } | null>(null);
+export function DashboardTrend({
+  trend,
+  href
+}: { trend: DashboardReport['trend'];
+href: string }) {
+  const [active, setActive] = useState<{ index: number;
+series: 'billed' | 'applied' } | null>(null);
   const tooltipId = useId();
   const selected = active === null ? undefined : trend[active.index];
   const selectedValue = selected && active ? selected[active.series] : null;
@@ -102,7 +107,10 @@ export function DashboardTrend({ trend, href }: { trend: DashboardReport['trend'
                         index,
                         series: key
                       })}
-                      onKeyDown={(event) => { if (event.key === 'Escape') setActive(null); }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape')
+                          setActive(null);
+                      }}
                     />
                   );
                 })}

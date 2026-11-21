@@ -14,7 +14,13 @@ import { AdministratorUnitFields } from '../administrator-unit-fields/administra
 import styles from './administratorProfile.module.css';
 
 /** 기존 세대 초안에서 본인의 거주 세대를 선택하고 외부 선택에서는 주민 정보를 제출하지 않습니다. */
-export function AdministratorProfile({ profile, units, buildings, hasBuildings, onChange }: {
+export function AdministratorProfile({
+  profile,
+  units,
+  buildings,
+  hasBuildings,
+  onChange
+}: {
   profile: AdministratorDraft;
   units: UnitDraft[];
   buildings: BuildingDraft[];

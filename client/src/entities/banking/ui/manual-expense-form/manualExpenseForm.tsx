@@ -33,7 +33,24 @@ import {
 import styles from './manualExpenseForm.module.css';
 
 /** PC 모달과 모바일 페이지에서 같은 등록·배분·재시도를 사용하고 저장 성공 후 원장을 갱신합니다. */
-export function ManualExpenseForm({ accounts: accountOptions, expenseAccounts, buildings: buildingOptions, asOf, initialAccountId, presentation = 'modal', title = '수동 지출 등록', busy = false, initialValue, onCancel, onClose, onSubmit, onTransfer, renderTransfer, onPayable, renderPayable }: {
+export function ManualExpenseForm({
+  accounts: accountOptions,
+  expenseAccounts,
+  buildings: buildingOptions,
+  asOf,
+  initialAccountId,
+  presentation = 'modal',
+  title = '수동 지출 등록',
+  busy = false,
+  initialValue,
+  onCancel,
+  onClose,
+  onSubmit,
+  onTransfer,
+  renderTransfer,
+  onPayable,
+  renderPayable
+}: {
   onPayable?: (enabled: boolean) => void;
   renderPayable?: (selector: ReactNode) => ReactNode;
   onTransfer?: (seed: ManualTransferSeed | null) => void;
@@ -41,8 +58,14 @@ export function ManualExpenseForm({ accounts: accountOptions, expenseAccounts, b
   expenseAccounts?: readonly ExpenseAccountOption[];
   initialValue?: ManualExpenseValues;
   onCancel?: () => void;
-  accounts: { id: string; bankName: string; last4: string; alias?: string | null; isPrimary?: boolean; status: string }[];
-  buildings: { id: string; label: string }[];
+  accounts: { id: string;
+bankName: string;
+last4: string;
+alias?: string | null;
+isPrimary?: boolean;
+status: string }[];
+  buildings: { id: string;
+label: string }[];
   asOf: string;
   initialAccountId?: string;
   presentation?: 'modal' | 'page';
@@ -95,21 +118,26 @@ export function ManualExpenseForm({ accounts: accountOptions, expenseAccounts, b
   async function submit(event: FormEvent) {
     event.preventDefault();
     event.stopPropagation();
-    if (!data || busyRef.current) return;
+    if (!data || busyRef.current)
+      return;
     if (!accounts.some((account) => account.id === accountId)) {
       setError('출금 통장을 선택해주세요.');
+
       return;
     }
     if (!date || date > data.asOf) {
       setError('오늘 또는 이전 출금일을 선택해주세요.');
+
       return;
     }
     if (!validAmount) {
       setError('0원보다 큰 출금액을 입력해주세요.');
+
       return;
     }
     if (split.error) {
       setError(split.error);
+
       return;
     }
     busyRef.current = true;
@@ -127,7 +155,8 @@ export function ManualExpenseForm({ accounts: accountOptions, expenseAccounts, b
         mode: draft.mode,
         allocations: split.allocations
       });
-      if (failure) setError(failure);
+      if (failure)
+        setError(failure);
     } finally {
       busyRef.current = false;
     }
@@ -374,13 +403,14 @@ export function ManualExpenseForm({ accounts: accountOptions, expenseAccounts, b
     </>
   );
 
-  if (presentation === 'page') return (
-    <section
-      className={styles.page}
-    >
-      {content}
-    </section>
-  );
+  if (presentation === 'page')
+    return (
+      <section
+        className={styles.page}
+      >
+        {content}
+      </section>
+    );
 
   return (
     <ClientModal

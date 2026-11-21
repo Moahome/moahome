@@ -13,8 +13,11 @@ export const ACCOUNT_GROUP_LABELS: Record<AccountGroup, string> = {
 };
 
 export function getAccountType(group: AccountGroup) {
-  if (group === 'ASSET') return '자산';
-  if (group === 'LIABILITY') return '부채';
+  if (group === 'ASSET')
+    return '자산';
+  if (group === 'LIABILITY')
+    return '부채';
+
   return group.endsWith('REVENUE') ? '수익' : '비용';
 }
 
@@ -29,8 +32,12 @@ export function getAccountPermissions(account: AccountingAccountSetting, canMana
 }
 
 export function acceptsAccountCode(group: AccountGroup, code: string) {
-  if (group === 'ASSET') return /^1\d{2}$/.test(code);
-  if (group === 'LIABILITY') return /^2\d{2}$/.test(code);
-  if (group === 'OTHER_REVENUE') return /^[49]\d{2}$/.test(code);
+  if (group === 'ASSET')
+    return /^1\d{2}$/.test(code);
+  if (group === 'LIABILITY')
+    return /^2\d{2}$/.test(code);
+  if (group === 'OTHER_REVENUE')
+    return /^[49]\d{2}$/.test(code);
+
   return group.endsWith('REVENUE') ? /^4\d{2}$/.test(code) : /^8\d{2}$/.test(code);
 }

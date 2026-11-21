@@ -68,7 +68,8 @@ export function UnitSetup({
 }) {
   const [view, setView] = useState<'units' | 'balances'>('units');
   const [attempted, setAttempted] = useState(false);
-  const [notice, setNotice] = useState<{ id: number; message: string } | null>(null);
+  const [notice, setNotice] = useState<{ id: number;
+message: string } | null>(null);
   const rootRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const hasBuildings = basicInfo.hasBuildings === true;
@@ -127,7 +128,8 @@ export function UnitSetup({
   /** 확인 시점의 목록으로 중복을 다시 제외하고 생성한 세대 전체를 한 번에 초안에 반영합니다. */
   function addAutomaticUnits(buildingClientId: string | null) {
     const generated = createAutomaticUnits(automaticUnitRule, buildingClientId, hasBuildings, buildings, units);
-    if (!generated.length) return;
+    if (!generated.length)
+      return;
 
     onChange(buildings, [...units, ...generated]);
     setAutomaticTarget(null);
@@ -140,6 +142,7 @@ export function UnitSetup({
     }
 
     onChange(buildings.filter((entry) => entry.clientId !== clientId), units);
+
     return null;
   }
 
@@ -161,27 +164,33 @@ export function UnitSetup({
 
   /** 초안 항목만 제거하고 동 삭제의 참조 검증은 관리 창과 편집 창에서 공유합니다. */
   function deleteEntry() {
-    if (!editing?.clientId) return null;
+    if (!editing?.clientId)
+      return null;
 
     if (editing.kind === 'building') {
       const failure = deleteBuilding(editing.clientId);
 
-      if (failure) return failure;
+      if (failure)
+        return failure;
     } else {
       setPendingUnitId(editing.clientId);
+
       return null;
     }
 
     setEditing(null);
+
     return null;
   }
 
   /** 삭제 확인 전에는 초안을 유지하며 확인한 세대만 제거하고 해당 편집 창도 닫습니다. */
   function confirmUnitDeletion() {
-    if (!pendingUnitId) return;
+    if (!pendingUnitId)
+      return;
 
     deleteUnit(pendingUnitId);
-    if (editing?.kind === 'unit' && editing.clientId === pendingUnitId) setEditing(null);
+    if (editing?.kind === 'unit' && editing.clientId === pendingUnitId)
+      setEditing(null);
     setPendingUnitId(null);
   }
 
@@ -196,7 +205,8 @@ export function UnitSetup({
   /** 누락한 탭을 열고 해당 입력으로 이동해 무엇을 확인해야 하는지 바로 알 수 있게 합니다. */
   function locateMissing(index: number) {
     const item = missing[index];
-    if (!item?.message) return;
+    if (!item?.message)
+      return;
     const message = item.message;
     setNotice((previous) => ({
       id: (previous?.id ?? 0) + 1,
@@ -217,7 +227,11 @@ export function UnitSetup({
 
   /** 다음 버튼은 누락 위치를 안내하고 검증이 끝난 경우에만 단계 이동을 허용합니다. */
   function continueSetup() {
-    if (!canContinue) { locateMissing(0); return; }
+    if (!canContinue) {
+      locateMissing(0);
+
+      return;
+    }
 
     onNext();
   }

@@ -26,6 +26,7 @@ export function setPropertyQueryData<T>(client: QueryClient, key: QueryKey, data
   const currentUser = client.getQueryData(['session', 'current-user']);
   if (!scope.userId || !currentUser || typeof currentUser !== 'object' || !('id' in currentUser)
     || currentUser.id !== scope.userId || key[1] !== scope.userId || key[2] !== scope.propertyId
-    || capturePropertyQueryScope(scope.userId, scope.propertyId).revision !== scope.revision) return;
+    || capturePropertyQueryScope(scope.userId, scope.propertyId).revision !== scope.revision)
+    return;
   client.setQueryData(key, data);
 }

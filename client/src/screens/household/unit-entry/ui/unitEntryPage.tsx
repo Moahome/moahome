@@ -56,10 +56,13 @@ export function UnitEntryPage({
   const listPath = `/manage/${propertyId}/households`;
   const [confirmingDeletion, setConfirmingDeletion] = useState(false);
   const [automaticRule, setAutomaticRule] = useState(EMPTY_AUTOMATIC_UNIT_RULE);
-  const [notice, setNotice] = useState<{ id: string; message: string } | null>(null);
+  const [notice, setNotice] = useState<{ id: string;
+message: string } | null>(null);
   const list = useQuery({
     queryKey,
-    queryFn: ({ signal }) => getUnits(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getUnits(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     staleTime: 0,
@@ -78,8 +81,11 @@ export function UnitEntryPage({
     onSuccess: () => finish('deleted')
   });
   const buildingMutation = useMutation({
-    mutationFn: (command: { kind: 'save'; building: BuildingDraft } | { kind: 'delete'; buildingId: string }) => {
-      if (command.kind === 'delete') return deleteBuilding(propertyId, command.buildingId);
+    mutationFn: (command: { kind: 'save';
+building: BuildingDraft } | { kind: 'delete';
+buildingId: string }) => {
+      if (command.kind === 'delete')
+        return deleteBuilding(propertyId, command.buildingId);
       const editingId = list.data?.buildings.some((entry) => entry.clientId === command.building.clientId) ? command.building.clientId : null;
 
       return saveBuilding(propertyId, command.building, editingId);
@@ -103,9 +109,11 @@ export function UnitEntryPage({
 
   /** 동 관리의 저장·삭제 실패는 호출 폼과 확인 창을 유지하고 성공한 경우에만 목록 상태로 전환합니다. */
   async function executeBuildingCommand(command: Parameters<typeof buildingMutation.mutateAsync>[0]) {
-    if (buildingMutation.isPending) return false;
+    if (buildingMutation.isPending)
+      return false;
     try {
       await buildingMutation.mutateAsync(command);
+
       return true;
     } catch {
       return false;
@@ -126,116 +134,126 @@ export function UnitEntryPage({
     router.replace(mode === 'edit' ? `${listPath}/${unitId}` : listPath);
   }
 
-  if (list.isPending) return (
-    <LoadingState
-      title={'세대 정보를 불러오고 있어요.'}
-    />
-  );
+  if (list.isPending)
+    return (
+      <LoadingState
+        title={'세대 정보를 불러오고 있어요.'}
+      />
+    );
 
-  if (list.isError) return (
-    <RequestError
-      error={list.error}
-      onRetry={() => void list.refetch({
-        cancelRefetch: false
-      })}
-    />
-  );
+  if (list.isError)
+    return (
+      <RequestError
+        error={list.error}
+        onRetry={() => void list.refetch({
+          cancelRefetch: false
+        })}
+      />
+    );
 
   const data = list.data;
   const unit = data.units.find((entry) => entry.clientId === unitId);
   const cannotCreate = (mode === 'create' || mode === 'automatic') && data.hasBuildings && !data.buildings.length;
   const cannotManageBuildings = mode === 'buildings' && !data.hasBuildings;
-  if (((mode === 'detail' || mode === 'edit') && !unit) || cannotCreate || cannotManageBuildings || (mode === 'edit' && unit?.status === 'INACTIVE')) return (
-    <section
-      className={styles.state}
-      role={'alert'}
-    >
-      <h1>
-        {cannotManageBuildings ? '동 구분이 없는 관리대상이에요.' : cannotCreate ? '먼저 동을 등록해주세요.' : '세대를 확인할 수 없거나 수정할 수 없어요.'}
-      </h1>
-      {mode !== 'detail' && (
-        <Button
-          variant={'outline'}
-          onClick={() => router.replace(listPath)}
-        >
-          세대 목록으로
-        </Button>
-      )}
-    </section>
-  );
+  if (((mode === 'detail' || mode === 'edit') && !unit) || cannotCreate || cannotManageBuildings || (mode === 'edit' && unit?.status === 'INACTIVE'))
+    return (
+      <section
+        className={styles.state}
+        role={'alert'}
+      >
+        <h1>
+          {cannotManageBuildings ? '동 구분이 없는 관리대상이에요.' : cannotCreate ? '먼저 동을 등록해주세요.' : '세대를 확인할 수 없거나 수정할 수 없어요.'}
+        </h1>
+        {mode !== 'detail' && (
+          <Button
+            variant={'outline'}
+            onClick={() => router.replace(listPath)}
+          >
+            세대 목록으로
+          </Button>
+        )}
+      </section>
+    );
 
-  if (mode === 'buildings') return (
-    <>
-      <BuildingManager
-        allowCreation={false}
-        minimumBuildingCount={1}
-        deletionDescription={'연결된 세대와 주민을 삭제하고 주민 이용 권한을 종료합니다. 당월 청구는 취소하며 과거 부과 이력은 유지합니다.'}
+  if (mode === 'buildings')
+    return (
+      <>
+        <BuildingManager
+          allowCreation={false}
+          minimumBuildingCount={1}
+          deletionDescription={'연결된 세대와 주민을 삭제하고 주민 이용 권한을 종료합니다. 당월 청구는 취소하며 과거 부과 이력은 유지합니다.'}
+          presentation={'page'}
+          buildings={data.buildings}
+          units={data.units}
+          onSave={(building) => executeBuildingCommand({
+            kind: 'save',
+            building
+          })}
+          onDelete={(buildingId) => executeBuildingCommand({
+            kind: 'delete',
+            buildingId
+          })}
+          onClose={closePage}
+          busy={buildingMutation.isPending}
+          errorMessage={buildingMutation.isError ? getUnitManagementError(buildingMutation.error) : ''}
+        />
+        {notice && (
+          <Toast
+            key={notice.id}
+            message={notice.message}
+            onClose={() => setNotice(null)}
+          />
+        )}
+      </>
+    );
+
+  if (mode === 'automatic')
+    return (
+      <AutomaticUnitEditor
         presentation={'page'}
+        rule={automaticRule}
+        onRuleChange={setAutomaticRule}
+        hasBuildings={data.hasBuildings}
         buildings={data.buildings}
         units={data.units}
-        onSave={(building) => executeBuildingCommand({
-          kind: 'save',
-          building
-        })}
-        onDelete={(buildingId) => executeBuildingCommand({
-          kind: 'delete',
-          buildingId
-        })}
+        initialBuildingClientId={data.buildings.some((entry) => entry.clientId === buildingId) ? buildingId : undefined}
+        onAdd={(selectedBuildingId) => {
+          if (automaticMutation.isPending)
+            return;
+          const additions = createAutomaticUnits(automaticRule, selectedBuildingId, data.hasBuildings, data.buildings, data.units);
+          if (additions.length)
+            automaticMutation.mutate(additions);
+        }}
         onClose={closePage}
-        busy={buildingMutation.isPending}
-        errorMessage={buildingMutation.isError ? getUnitManagementError(buildingMutation.error) : ''}
+        busy={automaticMutation.isPending}
+        errorMessage={automaticMutation.isError ? getUnitManagementError(automaticMutation.error) : ''}
       />
-      {notice && (
-        <Toast
-          key={notice.id}
-          message={notice.message}
-          onClose={() => setNotice(null)}
-        />
-      )}
-    </>
-  );
+    );
 
-  if (mode === 'automatic') return (
-    <AutomaticUnitEditor
-      presentation={'page'}
-      rule={automaticRule}
-      onRuleChange={setAutomaticRule}
-      hasBuildings={data.hasBuildings}
-      buildings={data.buildings}
-      units={data.units}
-      initialBuildingClientId={data.buildings.some((entry) => entry.clientId === buildingId) ? buildingId : undefined}
-      onAdd={(selectedBuildingId) => {
-        if (automaticMutation.isPending) return;
-        const additions = createAutomaticUnits(automaticRule, selectedBuildingId, data.hasBuildings, data.buildings, data.units);
-        if (additions.length) automaticMutation.mutate(additions);
-      }}
-      onClose={closePage}
-      busy={automaticMutation.isPending}
-      errorMessage={automaticMutation.isError ? getUnitManagementError(automaticMutation.error) : ''}
-    />
-  );
+  if (mode !== 'detail')
+    return (
+      <BuildingUnitFormModal
+        presentation={'page'}
+        target={{
+          kind: 'unit',
+          clientId: mode === 'edit' ? unitId! : null,
+          buildingClientId: data.buildings.some((building) => building.clientId === buildingId) ? buildingId : undefined
+        }}
+        hasBuildings={data.hasBuildings}
+        buildings={data.buildings}
+        units={data.units}
+        onSaveUnit={(entry) => {
+          if (!save.isPending)
+            save.mutate(entry);
+        }}
+        onClose={closePage}
+        busy={save.isPending}
+        errorMessage={save.isError ? getUnitManagementError(save.error) : ''}
+      />
+    );
 
-  if (mode !== 'detail') return (
-    <BuildingUnitFormModal
-      presentation={'page'}
-      target={{
-        kind: 'unit',
-        clientId: mode === 'edit' ? unitId! : null,
-        buildingClientId: data.buildings.some((building) => building.clientId === buildingId) ? buildingId : undefined
-      }}
-      hasBuildings={data.hasBuildings}
-      buildings={data.buildings}
-      units={data.units}
-      onSaveUnit={(entry) => {
-        if (!save.isPending) save.mutate(entry);
-      }}
-      onClose={closePage}
-      busy={save.isPending}
-      errorMessage={save.isError ? getUnitManagementError(save.error) : ''}
-    />
-  );
-
-  if (!unit) return null;
+  if (!unit)
+    return null;
   const buildingName = data.buildings.find((building) => building.clientId === unit.buildingClientId)?.name;
 
   return (
@@ -261,7 +279,8 @@ export function UnitEntryPage({
           busy={deletion.isPending}
           errorMessage={deletion.isError ? getUnitManagementError(deletion.error) : ''}
           onConfirm={() => {
-            if (!deletion.isPending) deletion.mutate();
+            if (!deletion.isPending)
+              deletion.mutate();
           }}
           onClose={() => setConfirmingDeletion(false)}
         >

@@ -54,6 +54,7 @@ function validRows(rows: BankingTransaction[]): boolean {
       && ['EQUAL', 'RATIO', 'AMOUNT', 'PROPERTY'].includes(row.expense.mode) && Array.isArray(row.expense.allocations)
       && row.expense.allocations.every((a) => (a.buildingId === null || UUID.test(a.buildingId)) && typeof a.label === 'string' && AMOUNT.test(a.amount)))));
 }
+
 export function readWorkspace(result: BankingWorkspaceData, propertyId: string): BankingWorkspaceData {
   if (result?.expenseAccounts !== undefined && (!Array.isArray(result.expenseAccounts)
     || result.expenseAccounts.some((account) => !account || typeof account.code !== 'string' || !/^8\d{2}$/.test(account.code)
@@ -72,7 +73,8 @@ export function readWorkspace(result: BankingWorkspaceData, propertyId: string):
       && typeof a.bankCode === 'string' && typeof a.importSupport.enabled === 'boolean'
       && typeof a.importSupport.message === 'string' && Array.isArray(a.importSupport.extensions)
       && a.importSupport.extensions.every((extension) => ['.xls', '.xlsx', '.csv'].includes(extension))
-      && (a.importSupport.enabled ? a.importSupport.extensions.length > 0 : a.importSupport.extensions.length === 0)))))) throw new ApiError(200, 'INVALID_RESPONSE', '통장 목록을 확인할 수 없습니다.');
+      && (a.importSupport.enabled ? a.importSupport.extensions.length > 0 : a.importSupport.extensions.length === 0))))))
+    throw new ApiError(200, 'INVALID_RESPONSE', '통장 목록을 확인할 수 없습니다.');
   if (!result || result.propertyId !== propertyId || !validRows(result.rows) || !Array.isArray(result.buildings)
     || !result.buildings.every((b) => UUID.test(b.id) && typeof b.label === 'string') || !Array.isArray(result.units)
     || !result.units.every((u) => UUID.test(u.id) && typeof u.label === 'string'
@@ -86,6 +88,7 @@ export function readWorkspace(result: BankingWorkspaceData, propertyId: string):
       || group.transactionIds.some((id) => !UUID.test(id) || !result.rows.some((row) => row.id === id))))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '이체 연결 정보를 확인할 수 없습니다.');
   }
+
   return result;
 }
 export async function getBankingWorkspace(propertyId: string, signal?: AbortSignal) {
@@ -95,8 +98,10 @@ export async function getBankingWorkspace(propertyId: string, signal?: AbortSign
   }), propertyId);
 }
 export async function previewBankingFile(propertyId: string, file: File, accountId?: string) {
-  const data = new FormData(); data.append('file', file);
-  if (accountId) data.append('accountId', accountId);
+  const data = new FormData();
+  data.append('file', file);
+  if (accountId)
+    data.append('accountId', accountId);
   const result = await authenticatedAPI<BankingPreview>({
     url: `/api/properties/${propertyId}/banking/import/preview`,
     method: 'POST',
@@ -109,17 +114,20 @@ export async function previewBankingFile(propertyId: string, file: File, account
     || !Number.isInteger(result.duplicateCount) || result.duplicateCount < 0 || !Number.isInteger(result.beforeCutoffCount) || result.beforeCutoffCount < 0) {
     throw new ApiError(200, 'INVALID_RESPONSE', '미리보기 응답을 확인할 수 없습니다.');
   }
+
   return result;
 }
 /** 선택 ID와 분류만 전송하고 원본 일시·금액은 서버가 파일을 다시 읽어 검증합니다. */
 export async function importBankingFile(propertyId: string, file: File, rows: BankingSelection[], accountId?: string) {
-  const data = new FormData(); data.append('file', file);
+  const data = new FormData();
+  data.append('file', file);
   data.append('selection', new Blob([JSON.stringify({
     rows,
     accountId
   })], {
     type: 'application/json'
   }));
+
   return readWorkspace(await authenticatedAPI<BankingWorkspaceData>({
     url: `/api/properties/${propertyId}/banking/import`,
     method: 'POST',
@@ -202,7 +210,8 @@ export function bankingError(error: unknown): string {
   reportApiError(error, {
     source: '통장 관리'
   });
-  if (!(error instanceof ApiError)) return '통장 정보를 처리하지 못했어요. 다시 시도해주세요.';
+  if (!(error instanceof ApiError))
+    return '통장 정보를 처리하지 못했어요. 다시 시도해주세요.';
   const messages: Record<string, string> = {
     INVALID_ACCOUNTING_ACCOUNT: '선택한 비용 과목을 확인해주세요.',
     INVALID_MANUAL_EXPENSE: '지출명과 0원보다 큰 출금액을 입력해주세요.',
@@ -242,5 +251,6 @@ export function bankingError(error: unknown): string {
     PAYMENT_UNIT_UNAVAILABLE: '현재 사용 중인 세대를 다시 선택해주세요.',
     NETWORK_ERROR: '서버에 연결하지 못했어요. 선택과 입력을 유지하고 다시 시도해주세요.',
   };
+
   return messages[error.code] ?? '통장 정보를 처리하지 못했어요. 입력을 확인하고 다시 시도해주세요.';
 }

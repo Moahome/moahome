@@ -1,0 +1,28 @@
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}.correction-dialog { width: min(1120px, calc(100vw - 40px)); }
+.correction-changes {
+  display: grid;
+  gap: 12px;
+  > div { display: grid; gap: 4px; }
+  span { color: var(--sub-text); }
+  strong { font-variant-numeric: tabular-nums; }
+}
+.account-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+
+  @media (max-width: 767px) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

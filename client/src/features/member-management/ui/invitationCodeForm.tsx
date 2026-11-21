@@ -46,13 +46,18 @@ import styles from './invitationCodeForm.module.css';
 /** 링크 fragment는 서버에 보내지 않고 클라이언트에서만 구독해 가입 폼을 바로 엽니다. */
 function subscribeFragment(notify: () => void) {
   window.addEventListener('hashchange', notify);
+
   return () => window.removeEventListener('hashchange', notify);
 }
+
 function readFragment() {
   try {
     const value = decodeURIComponent(window.location.hash.slice(1));
+
     return /^[RB](?:-[A-HJ-NP-Z2-9]{4}){3}$/i.test(value) ? value : '';
-  } catch { return ''; }
+  } catch {
+    return '';
+  }
 }
 
 interface InvitationCodeFormProps {
@@ -67,9 +72,13 @@ interface InvitationCodeFormProps {
 function subscribeDesktop(notify: () => void) {
   const media = window.matchMedia('(min-width: 768px)');
   media.addEventListener('change', notify);
+
   return () => media.removeEventListener('change', notify);
 }
-function readDesktop() { return window.matchMedia('(min-width: 768px)').matches; }
+
+function readDesktop() {
+  return window.matchMedia('(min-width: 768px)').matches;
+}
 
 /** 직접 코드 입력도 PC에서는 공통 모달을 사용하고, 초대 링크는 입력 단계를 건너뜁니다. */
 export function InvitationCodeForm(props: InvitationCodeFormProps) {
@@ -79,12 +88,14 @@ export function InvitationCodeForm(props: InvitationCodeFormProps) {
   const heading = useRef<HTMLHeadingElement>(null);
   const [openedFromLink] = useState(() => typeof window !== 'undefined' && Boolean(readFragment()));
   const modal = props.responsive && desktop && !incoming && !openedFromLink;
-  if (!modal) return (
-    <InvitationCodeContent
-      {...props}
-      showHeading={props.responsive}
-    />
-  );
+  if (!modal)
+    return (
+      <InvitationCodeContent
+        {...props}
+        showHeading={props.responsive}
+      />
+    );
+
   return (
     <ClientModal
       className={styles.modal}
@@ -125,7 +136,13 @@ export function InvitationCodeForm(props: InvitationCodeFormProps) {
 }
 
 /** 코드 검증 후 일반 신청과 개인 정보 확인을 구분하며 원문은 메모리에만 보관합니다. */
-function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeading, compactEntry = false }: InvitationCodeFormProps & { showHeading?: boolean }) {
+function InvitationCodeContent({
+  onBusyChange,
+  onComplete,
+  propertyId,
+  showHeading,
+  compactEntry = false
+}: InvitationCodeFormProps & { showHeading?: boolean }) {
   const session = useSession();
   const router = useRouter();
   const incoming = useSyncExternalStore(subscribeFragment, readFragment, () => '');
@@ -152,20 +169,23 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
   const linkOpened = useRef(false);
   const loginStarted = useRef(false);
 
-
-
   useEffect(() => {
     /** 로그인 창을 직접 연 뒤 돌아오면 새 문서에서 세션을 복원합니다. 이전 인증 실패 메모리를 임의 해제하지 않습니다. */
     function restoreLogin() {
-      if (!currentUser && loginStarted.current) window.location.reload();
+      if (!currentUser && loginStarted.current)
+        window.location.reload();
     }
+
     window.addEventListener('focus', restoreLogin);
+
     return () => window.removeEventListener('focus', restoreLogin);
   }, [currentUser]);
 
   useEffect(() => {
-    if (!openingLink || !currentUser || !code || linkOpened.current) return;
+    if (!openingLink || !currentUser || !code || linkOpened.current)
+      return;
     linkOpened.current = true;
+
     /** 링크에 담긴 코드는 자동 검증해 입력 화면을 건너뛰고 가입·정보 확인 화면을 바로 엽니다. */
     async function openLink() {
       setBusy(true);
@@ -173,32 +193,46 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
       try {
         if (/^B-/i.test(code)) {
           const value = await getResidentJoinOptions(code);
-          if (propertyId && value.propertyId !== propertyId) throw new Error('Invalid invitation');
+          if (propertyId && value.propertyId !== propertyId)
+            throw new Error('Invalid invitation');
           setOptions(value);
         } else {
           const value = await previewResidentInvitation(code);
           setPreview(value);
           setName(value.name);
-          if (value.status === 'APPROVED') setResult({
-            status: 'APPROVED',
-            message: '주민 가입이 완료되었어요.'
-          });
-          if (value.status === 'CHANGE_REQUESTED') setResult({
-            status: 'CHANGE_REQUESTED',
-            message: '정보 정정을 요청했어요. 관리자 확인 후 가입이 완료됩니다.'
-          });
+          if (value.status === 'APPROVED')
+            setResult({
+              status: 'APPROVED',
+              message: '주민 가입이 완료되었어요.'
+            });
+          if (value.status === 'CHANGE_REQUESTED')
+            setResult({
+              status: 'CHANGE_REQUESTED',
+              message: '정보 정정을 요청했어요. 관리자 확인 후 가입이 완료됩니다.'
+            });
         }
-      } catch (failure) { setError(memberManagementError(failure)); setLinkError(true); }
-      finally { setBusy(false); onBusyChange?.(false); }
+      } catch (failure) {
+        setError(memberManagementError(failure));
+        setLinkError(true);
+      } finally {
+        setBusy(false);
+        onBusyChange?.(false);
+      }
     }
+
     void openLink();
   }, [openingLink, currentUser, code, propertyId, onBusyChange]);
 
   /** 검증 성공 전에는 명부·권한을 변경하지 않으며 선택 연락처가 비어 있으면 null로 보냅니다. */
   async function submit() {
-    if (pending.current || !code.trim() || !session.data) return;
+    if (pending.current || !code.trim() || !session.data)
+      return;
     const needsPhoneConsent = options || (preview && correction && phoneAction === 'SET' && !hasExistingPhoneConsent(preview));
-    if (needsPhoneConsent && phone.trim() && !phoneConsent) { setError('전화번호 수집·이용 동의를 확인해주세요.'); return; }
+    if (needsPhoneConsent && phone.trim() && !phoneConsent) {
+      setError('전화번호 수집·이용 동의를 확인해주세요.');
+
+      return;
+    }
     pending.current = true;
     setBusy(true);
     onBusyChange?.(true);
@@ -240,20 +274,23 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
         });
       } else if (/^B[A-HJ-NP-Z2-9]{12}$/i.test(code.trim().replaceAll('-', ''))) {
         const value = await getResidentJoinOptions(code);
-        if (propertyId && value.propertyId !== propertyId) throw new Error('다른 관리대상의 초대코드입니다.');
+        if (propertyId && value.propertyId !== propertyId)
+          throw new Error('다른 관리대상의 초대코드입니다.');
         setOptions(value);
       } else if (/^R[A-HJ-NP-Z2-9]{12}$/i.test(code.trim().replaceAll('-', ''))) {
         const value = await previewResidentInvitation(code);
         setPreview(value);
         setName(value.name);
-        if (value.status === 'APPROVED') setResult({
-          status: 'APPROVED',
-          message: '주민 가입이 완료되었어요.'
-        });
-        if (value.status === 'CHANGE_REQUESTED') setResult({
-          status: 'CHANGE_REQUESTED',
-          message: '정보 정정을 요청했어요. 관리자 확인 후 가입이 완료됩니다.'
-        });
+        if (value.status === 'APPROVED')
+          setResult({
+            status: 'APPROVED',
+            message: '주민 가입이 완료되었어요.'
+          });
+        if (value.status === 'CHANGE_REQUESTED')
+          setResult({
+            status: 'CHANGE_REQUESTED',
+            message: '정보 정정을 요청했어요. 관리자 확인 후 가입이 완료됩니다.'
+          });
       } else {
         const response = await requestMemberInvitation(code);
         setResult({
@@ -304,52 +341,58 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
     );
   }
 
-  if (!session.data && (session.isPending || session.isFetching)) return (
-    <LoadingState
-      title={'로그인 정보를 확인하고 있어요.'}
-    />
-  );
+  if (!session.data && (session.isPending || session.isFetching))
+    return (
+      <LoadingState
+        title={'로그인 정보를 확인하고 있어요.'}
+      />
+    );
 
-  if (!session.data && session.isError && isServerConnectionError(session.error)) return (
-    <ServerConnectionError
-      error={session.error}
-      onRetry={() => void session.refetch({
-        cancelRefetch: false
-      })}
-    />
-  );
+  if (!session.data && session.isError && isServerConnectionError(session.error))
+    return (
+      <ServerConnectionError
+        error={session.error}
+        onRetry={() => void session.refetch({
+          cancelRefetch: false
+        })}
+      />
+    );
 
-  if (!session.data) return (
-    <StateMessage
-      variant={'login-required'}
-      layout={'inline'}
-      description={'카카오 로그인이 필요해요. 로그인한 뒤 이 화면에서 가입을 계속할 수 있어요.'}
-      actions={(
-        <>
-          <Link
-            href={'/login'}
-            target={'_blank'}
-            rel={'noopener noreferrer'}
-            onClick={() => { loginStarted.current = true; }}
-          >
-            카카오 로그인
-          </Link>
-          <Button
-            variant={'outline'}
-            onClick={() => window.location.reload()}
-          >
-            로그인 확인
-          </Button>
-        </>
-      )}
-    />
-  );
+  if (!session.data)
+    return (
+      <StateMessage
+        variant={'login-required'}
+        layout={'inline'}
+        description={'카카오 로그인이 필요해요. 로그인한 뒤 이 화면에서 가입을 계속할 수 있어요.'}
+        actions={(
+          <>
+            <Link
+              href={'/login'}
+              target={'_blank'}
+              rel={'noopener noreferrer'}
+              onClick={() => {
+                loginStarted.current = true;
+              }}
+            >
+              카카오 로그인
+            </Link>
+            <Button
+              variant={'outline'}
+              onClick={() => window.location.reload()}
+            >
+              로그인 확인
+            </Button>
+          </>
+        )}
+      />
+    );
 
-  if (openingLink) return (
-    <LoadingState
-      title={'초대를 확인하고 있어요.'}
-    />
-  );
+  if (openingLink)
+    return (
+      <LoadingState
+        title={'초대를 확인하고 있어요.'}
+      />
+    );
 
   return (
     <>
@@ -382,7 +425,10 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
       )}
       <form
         className={`${styles.form} ${compactEntry && !options && !preview ? styles['code-entry'] : ''}`}
-        onSubmit={(event) => { event.preventDefault(); void submit(); }}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
       >
         {!options && !preview && (
           <Input
@@ -432,7 +478,10 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
               autoComplete={'tel'}
               placeholder={'010-1234-5678'}
               disabled={busy}
-              onChange={(event) => { setPhone(event.target.value); setPhoneConsent(false); }}
+              onChange={(event) => {
+                setPhone(event.target.value);
+                setPhoneConsent(false);
+              }}
             />
             <PhoneConsent
               self
@@ -527,7 +576,11 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
                     value: 'REMOVE',
                     label: '연락처 없음'
                   }]}
-                  onChange={(value) => { setPhoneAction(value); setPhoneConsent(false); setPhone(''); }}
+                  onChange={(value) => {
+                    setPhoneAction(value);
+                    setPhoneConsent(false);
+                    setPhone('');
+                  }}
                   disabled={busy}
                 />
                 {phoneAction === 'SET' && (
@@ -536,7 +589,10 @@ function InvitationCodeContent({ onBusyChange, onComplete, propertyId, showHeadi
                     type={'tel'}
                     value={phone}
                     disabled={busy}
-                    onChange={(event) => { setPhone(event.target.value); setPhoneConsent(false); }}
+                    onChange={(event) => {
+                      setPhone(event.target.value);
+                      setPhoneConsent(false);
+                    }}
                     required
                   />
                 )}

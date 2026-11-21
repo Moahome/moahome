@@ -76,7 +76,9 @@ export function ApprovalManagementPage({
   const key = ['membership-requests', session.data?.id, propertyId];
   const query = useQuery({
     queryKey: key,
-    queryFn: ({ signal }) => getSignupRequests(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getSignupRequests(propertyId, signal),
     enabled: Boolean(session.data) && tab === 'requests',
     retry: false,
     gcTime: 0
@@ -100,10 +102,13 @@ export function ApprovalManagementPage({
 
   /** 탭은 URL에 보존하고 검색·필터는 일반 가입 요청에만 적용해 두 출처가 섞이지 않게 합니다. */
   function changeTab(value: typeof APPROVAL_TABS[number]['id']) {
-    if (busy || value === tab) return;
+    if (busy || value === tab)
+      return;
     const next = new URLSearchParams(params.toString());
-    if (value === 'requests') next.delete('tab');
-    else next.set('tab', value);
+    if (value === 'requests')
+      next.delete('tab');
+    else
+      next.set('tab', value);
     setSelectedId('');
     router.replace(`/manage/${propertyId}/invitations${next.size ? `?${next}` : ''}`, {
       scroll: false
@@ -113,18 +118,25 @@ export function ApprovalManagementPage({
   /** 방향키와 Home/End는 탭 선택·포커스를 함께 이동하고 Tab은 선택한 탭만 거칩니다. */
   function handleTabKey(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let next = index;
-    if (event.key === 'ArrowRight') next = (index + 1) % APPROVAL_TABS.length;
-    else if (event.key === 'ArrowLeft') next = (index + APPROVAL_TABS.length - 1) % APPROVAL_TABS.length;
-    else if (event.key === 'Home') next = 0;
-    else if (event.key === 'End') next = APPROVAL_TABS.length - 1;
-    else return;
+    if (event.key === 'ArrowRight')
+      next = (index + 1) % APPROVAL_TABS.length;
+    else if (event.key === 'ArrowLeft')
+      next = (index + APPROVAL_TABS.length - 1) % APPROVAL_TABS.length;
+    else if (event.key === 'Home')
+      next = 0;
+    else if (event.key === 'End')
+      next = APPROVAL_TABS.length - 1;
+    else
+      return;
     event.preventDefault();
     tabRefs.current[next]?.focus();
     changeTab(APPROVAL_TABS[next].id);
   }
+
   /** 실제 신청을 검토한 성공 결과만 반영하고 미연결 명부도 함께 갱신합니다. */
   async function review(request: SignupRequest, resident: string | null) {
-    if (pending.current) return;
+    if (pending.current)
+      return;
     pending.current = true;
     setBusy(true);
     try {
@@ -142,21 +154,26 @@ export function ApprovalManagementPage({
       setBusy(false);
     }
   }
+
   /** 모바일은 헤더 뒤로가기가 있는 상세로, PC는 동일 목록 위 확인 모달로 이동합니다. */
   function open(request: SignupRequest) {
-    if (window.matchMedia('(max-width: 767px)').matches) router.push(`/manage/${propertyId}/invitations/${request.id}`);
-    else setSelectedId(request.id);
+    if (window.matchMedia('(max-width: 767px)').matches)
+      router.push(`/manage/${propertyId}/invitations/${request.id}`);
+    else
+      setSelectedId(request.id);
   }
-  if (requestId && selected) return (
-    <RequestReview
-      request={selected}
-      presentation={'page'}
-      busy={busy}
-      onClose={close}
-      onApprove={(id) => void review(selected, id)}
-      onReject={() => void review(selected, null)}
-    />
-  );
+
+  if (requestId && selected)
+    return (
+      <RequestReview
+        request={selected}
+        presentation={'page'}
+        busy={busy}
+        onClose={close}
+        onApprove={(id) => void review(selected, id)}
+        onReject={() => void review(selected, null)}
+      />
+    );
 
   return (
     <section
@@ -178,7 +195,9 @@ export function ApprovalManagementPage({
           {APPROVAL_TABS.map((item, index) => (
             <Button
               key={item.id}
-              ref={(element) => { tabRefs.current[index] = element; }}
+              ref={(element) => {
+                tabRefs.current[index] = element;
+              }}
               className={styles.tab}
               id={`approval-tab-${item.id}`}
               variant={'ghost'}

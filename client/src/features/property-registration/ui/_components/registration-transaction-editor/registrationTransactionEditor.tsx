@@ -22,7 +22,17 @@ import type {
 import styles from './registrationTransactionEditor.module.css';
 
 /** PC 모달과 모바일 페이지가 같은 공용 입출금 폼·초안 수정·삭제를 사용합니다. */
-export function RegistrationTransactionEditor({ account, record, direction, units, buildings, presentation = 'modal', onSave, onDelete, onClose }: {
+export function RegistrationTransactionEditor({
+  account,
+  record,
+  direction,
+  units,
+  buildings,
+  presentation = 'modal',
+  onSave,
+  onDelete,
+  onClose
+}: {
   account: RegistrationAccount;
   record?: RegistrationManualTransaction;
   direction: 'INCOME' | 'EXPENSE';
@@ -199,6 +209,7 @@ export function RegistrationTransactionEditor({ account, record, direction, unit
         )}
       </>
     );
+
     return presentation === 'page' ? (
       <section
         className={styles.page}
@@ -215,49 +226,58 @@ export function RegistrationTransactionEditor({ account, record, direction, unit
       </ClientModal>
     );
   }
+
   function save(value: Omit<RegistrationManualTransaction, 'id' | 'accountClientId'>) {
     onSave(value);
-    if (record) setMode('detail');
+    if (record)
+      setMode('detail');
   }
+
   const cancelEdit = record ? () => setMode('detail') : undefined;
-  if (direction === 'INCOME') return (
-    <ManualReceiptForm
-      title={title}
-      presentation={presentation}
-      accounts={[{
-        id: account.clientId,
-        label: getBankAccountLabel(account),
-        isPrimary: true
-      }]}
-      units={labels}
-      buildings={targets}
-      asOf={getOpeningToday()}
-      onClose={onClose}
-      onCancel={cancelEdit}
-      initialValue={record ? {
-        accountId: account.clientId,
-        purpose: record.purpose,
-        date: record.date,
-        amount: record.amount,
-        payer: record.payer,
-        unitId: record.unitClientId,
-        category: record.category,
-        note: record.note,
-        incomeAllocation: record.allocation
-      } : undefined}
-      onSubmit={async (value) => { save({
-        direction: 'INCOME',
-        date: value.date,
-        amount: value.amount,
-        payer: value.payer,
-        purpose: value.purpose,
-        unitClientId: value.unitId,
-        category: value.category,
-        note: value.note,
-        allocation: value.incomeAllocation
-      }); return null; }}
-    />
-  );
+  if (direction === 'INCOME')
+    return (
+      <ManualReceiptForm
+        title={title}
+        presentation={presentation}
+        accounts={[{
+          id: account.clientId,
+          label: getBankAccountLabel(account),
+          isPrimary: true
+        }]}
+        units={labels}
+        buildings={targets}
+        asOf={getOpeningToday()}
+        onClose={onClose}
+        onCancel={cancelEdit}
+        initialValue={record ? {
+          accountId: account.clientId,
+          purpose: record.purpose,
+          date: record.date,
+          amount: record.amount,
+          payer: record.payer,
+          unitId: record.unitClientId,
+          category: record.category,
+          note: record.note,
+          incomeAllocation: record.allocation
+        } : undefined}
+        onSubmit={async (value) => {
+          save({
+            direction: 'INCOME',
+            date: value.date,
+            amount: value.amount,
+            payer: value.payer,
+            purpose: value.purpose,
+            unitClientId: value.unitId,
+            category: value.category,
+            note: value.note,
+            allocation: value.incomeAllocation
+          });
+
+          return null;
+        }}
+      />
+    );
+
   return (
     <ManualExpenseForm
       title={title}
@@ -285,23 +305,27 @@ export function RegistrationTransactionEditor({ account, record, direction, unit
         mode: record.allocation?.mode ?? 'PROPERTY',
         allocations: record.allocation?.allocations ?? []
       } : undefined}
-      onSubmit={async (value) => { save({
-        direction: 'EXPENSE',
-        date: value.date,
-        amount: value.amount,
-        payer: value.category,
-        purpose: 'OTHER',
-        category: value.category,
-        note: value.note,
-        allocation: {
+      onSubmit={async (value) => {
+        save({
+          direction: 'EXPENSE',
+          date: value.date,
+          amount: value.amount,
+          payer: value.category,
+          purpose: 'OTHER',
           category: value.category,
-          accountCode: value.accountCode,
           note: value.note,
-          mode: value.mode,
-          saveAsRule: false,
-          allocations: value.allocations
-        }
-      }); return null; }}
+          allocation: {
+            category: value.category,
+            accountCode: value.accountCode,
+            note: value.note,
+            mode: value.mode,
+            saveAsRule: false,
+            allocations: value.allocations
+          }
+        });
+
+        return null;
+      }}
     />
   );
 }

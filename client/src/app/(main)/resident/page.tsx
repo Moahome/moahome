@@ -8,8 +8,10 @@ export const metadata: Metadata = {
   title: '주민 홈'
 };
 
-export default function Page() { return (
-  <Suspense>
-    <ResidentHomePage />
-  </Suspense>
-); }
+export default function Page() {
+  return (
+    <Suspense>
+      <ResidentHomePage />
+    </Suspense>
+  );
+}

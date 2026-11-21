@@ -160,6 +160,36 @@ class NoticePersistenceTest {
 				new NoticeSaveRequest(UUID.randomUUID(), 0, "RGB 공지", rgbContent, false)));
 			assertThat(tx.execute(status -> service.get(actor, property, rgbId)).content()).isEqualTo(rgbContent);
 
+			// 장소도 본문과 같은 트랜잭션·재시도 지문에 포함하고 수정·삭제 뒤 원문을 그대로 조회합니다.
+			String location = "{\"name\":\"서울특별시청\",\"address\":\"서울특별시 중구 세종대로 110\","
+				+ "\"latitude\":37.5663,\"longitude\":126.9779}";
+			String mapContent = CONTENT.substring(0, CONTENT.length() - 1) + ",\"location\":" + location + "}";
+			UUID mapId = UUID.randomUUID();
+			NoticeSaveRequest mapRequest = new NoticeSaveRequest(UUID.randomUUID(), 0, "장소 안내", mapContent, false);
+			assertThat(tx.execute(status -> service.save(actor, property, mapId, mapRequest)).content()).isEqualTo(mapContent);
+			assertThat(tx.execute(status -> service.save(actor, property, mapId, mapRequest)).version()).isEqualTo(1);
+			String changedMap = mapContent.replace("서울특별시청", "시청 정문");
+			assertThatThrownBy(() -> tx.execute(status -> service.save(actor, property, mapId,
+				new NoticeSaveRequest(mapRequest.requestId(), 0, "장소 안내", changedMap, false))))
+				.isInstanceOfSatisfying(ResponseStatusException.class,
+					error -> assertThat(error.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+			tx.execute(status -> service.save(actor, property, mapId,
+				new NoticeSaveRequest(UUID.randomUUID(), 1, "장소 안내", changedMap, false)));
+			assertThat(service.get(actor, property, mapId).content()).isEqualTo(changedMap);
+			tx.execute(status -> service.save(actor, property, mapId,
+				new NoticeSaveRequest(UUID.randomUUID(), 2, "장소 제거", CONTENT, false)));
+			assertThat(service.get(actor, property, mapId).content()).isEqualTo(CONTENT);
+			for (String invalid : List.of("[]", location.replace("37.5663", "91"),
+				location.replace("126.9779", "181"), location.replace("37.5663", "\"37.5663\""),
+				location.replace("서울특별시청", " "), location.replace("서울특별시청", "가".repeat(101)),
+				location.replace("서울특별시 중구 세종대로 110", "가".repeat(301)))) {
+				String invalidContent = CONTENT.substring(0, CONTENT.length() - 1) + ",\"location\":" + invalid + "}";
+				assertThatThrownBy(() -> tx.execute(status -> service.save(actor, property, UUID.randomUUID(),
+					new NoticeSaveRequest(UUID.randomUUID(), 0, "잘못된 장소", invalidContent, false))))
+					.isInstanceOfSatisfying(ResponseStatusException.class,
+						error -> assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+			}
+
 			doThrow(new AuthException(AuthErrorCode.ACCESS_DENIED)).when(access).getManagementContext(actor, property);
 			assertThatThrownBy(() -> service.list(actor, property, 1, "", "title")).isInstanceOf(AuthException.class);
 		}

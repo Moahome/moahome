@@ -22,7 +22,9 @@ import { BillingLoadState } from '../billing-load-state/billingLoadState';
 import styles from './billingHistory.module.css';
 
 /** 실제 확정된 이력만 검색·페이지로 나누며 행 클릭은 웹 모달·모바일 페이지로 연결합니다. */
-export function BillingHistory({ propertyId }: { propertyId: string }) {
+export function BillingHistory({
+  propertyId
+}: { propertyId: string }) {
   const router = useRouter();
   const list = useBillingHistory(propertyId);
   const [filter, setFilter] = useState('');
@@ -35,20 +37,24 @@ export function BillingHistory({ propertyId }: { propertyId: string }) {
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   function openDetail(period: BillingPeriod) {
     if (window.matchMedia('(max-width: 767px)').matches) {
       router.push(`/manage/${propertyId}/billing/monthly/history/${period.month}`);
+
       return;
     }
     setDetailMonth(period.month);
   }
-  if (list.isPending || list.isError) return (
-    <BillingLoadState
-      pending={list.isPending}
-      error={list.error}
-      onRetry={() => list.refetch()}
-    />
-  );
+
+  if (list.isPending || list.isError)
+    return (
+      <BillingLoadState
+        pending={list.isPending}
+        error={list.error}
+        onRetry={() => list.refetch()}
+      />
+    );
 
   return (
     <ListCard>
@@ -70,7 +76,10 @@ export function BillingHistory({ propertyId }: { propertyId: string }) {
             label={'이력 조회 월'}
             value={filter}
             clearable
-            onChange={(month) => { setFilter(month); setPage(1); }}
+            onChange={(month) => {
+              setFilter(month);
+              setPage(1);
+            }}
           />
         </div>
       </div>
@@ -86,7 +95,10 @@ export function BillingHistory({ propertyId }: { propertyId: string }) {
               name={'search'}
             />
           )}
-          onChange={(event) => { setQuery(event.target.value); setPage(1); }}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setPage(1);
+          }}
         />
         <Button
           variant={'outline'}
@@ -96,7 +108,11 @@ export function BillingHistory({ propertyId }: { propertyId: string }) {
               name={'reset'}
             />
           )}
-          onClick={() => { setQuery(''); setFilter(''); setPage(1); }}
+          onClick={() => {
+            setQuery('');
+            setFilter('');
+            setPage(1);
+          }}
         >
           초기화
         </Button>
@@ -106,7 +122,10 @@ export function BillingHistory({ propertyId }: { propertyId: string }) {
         unit={'건'}
         sizeLabel={'부과 이력 표시 개수'}
         pageSize={pageSize}
-        onSizeChange={(size) => { setPageSize(size); setPage(1); }}
+        onSizeChange={(size) => {
+          setPageSize(size);
+          setPage(1);
+        }}
       />
       <DataTable
         label={'관리비 부과 이력'}
@@ -197,45 +216,53 @@ export function BillingHistory({ propertyId }: { propertyId: string }) {
     </ListCard>
   );
 }
-function PeriodDetail({ propertyId, month, onClose }: { propertyId: string; month: string; onClose: () => void }) {
+
+function PeriodDetail({
+  propertyId,
+  month,
+  onClose
+}: { propertyId: string;
+month: string;
+onClose: () => void }) {
   const list = useBillingMonth(propertyId, month);
-  if (list.isPending || list.isError) return (
-    <ClientModal
-      className={styles['detail-state']}
-      aria-labelledby={'billing-detail-state-title'}
-      onClose={onClose}
-      closeOnOutsideClick
-    >
-      <header
-        className={styles['detail-state-header']}
+  if (list.isPending || list.isError)
+    return (
+      <ClientModal
+        className={styles['detail-state']}
+        aria-labelledby={'billing-detail-state-title'}
+        onClose={onClose}
+        closeOnOutsideClick
       >
-        <h2
-          id={'billing-detail-state-title'}
+        <header
+          className={styles['detail-state-header']}
         >
-          {formatBillingMonth(month)}
-          {' '}
-          부과 상세
-        </h2>
-        <Button
-          variant={'ghost'}
-          size={'sm'}
-          iconOnly
-          aria-label={'상세 닫기'}
-          onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
+          <h2
+            id={'billing-detail-state-title'}
+          >
+            {formatBillingMonth(month)}
+            {' '}
+            부과 상세
+          </h2>
+          <Button
+            variant={'ghost'}
+            size={'sm'}
+            iconOnly
+            aria-label={'상세 닫기'}
+            onClick={onClose}
+            leadingIcon={(
+              <ServiceIcon
+                name={'close'}
+              />
+            )}
+          />
+        </header>
+        <BillingLoadState
+          pending={list.isPending}
+          error={list.error}
+          onRetry={() => list.refetch()}
         />
-      </header>
-      <BillingLoadState
-        pending={list.isPending}
-        error={list.error}
-        onRetry={() => list.refetch()}
-      />
-    </ClientModal>
-  );
+      </ClientModal>
+    );
 
   return (
     <BillingDetail

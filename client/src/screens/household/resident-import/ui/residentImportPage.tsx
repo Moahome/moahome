@@ -40,7 +40,9 @@ export function ResidentImportPage({
   const context = useManagementContext(session.data?.id, propertyId, false);
   const options = useQuery({
     queryKey: ['resident-registration-units', session.data?.id, propertyId],
-    queryFn: ({ signal }) => getRegistrationOptions(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getRegistrationOptions(propertyId, signal),
     enabled: Boolean(session.data && context.data),
     retry: false,
     staleTime: 0,
@@ -48,7 +50,14 @@ export function ResidentImportPage({
     refetchOnWindowFocus: false
   });
   const controller = useResidentImport(propertyId);
-  const { result, selected, busy, error, completed, attempted } = controller;
+  const {
+    result,
+    selected,
+    busy,
+    error,
+    completed,
+    attempted
+  } = controller;
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -59,12 +68,16 @@ export function ResidentImportPage({
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   let step = 1;
-  if (result) step = 2;
-  if (completed) step = 3;
+  if (result)
+    step = 2;
+  if (completed)
+    step = 3;
   const title = ['주민 엑셀 업로드', '업로드 데이터 확인', '주민 등록 완료'][step - 1];
   let saveLabel = `선택한 주민 등록 (${selected.length}명)`;
-  if (attempted) saveLabel = '같은 요청으로 다시 시도';
-  if (busy === 'save') saveLabel = '등록 중…';
+  if (attempted)
+    saveLabel = '같은 요청으로 다시 시도';
+  if (busy === 'save')
+    saveLabel = '등록 중…';
   const listPath = `/manage/${propertyId}/residents`;
   const header = (
     <ListHeader
@@ -95,37 +108,38 @@ export function ResidentImportPage({
   }
 
   // 관리대상의 동 유무를 확인하기 전에는 잘못된 양식을 내려받지 않도록 업로드를 준비하지 않습니다.
-  if (!options.data) return (
-    <section
-      className={styles.page}
-      aria-labelledby={'resident-import-title'}
-    >
-      {header}
-      {options.isError ? (
-        <RequestError
-          error={options.error}
-          onRetry={() => void options.refetch({
-            cancelRefetch: false
-          })}
-        />
-      ) : (
-        <LoadingState
-          title={'관리대상에 맞는 양식을 준비하고 있어요.'}
-        />
-      )}
-    </section>
-  );
+  if (!options.data)
+    return (
+      <section
+        className={styles.page}
+        aria-labelledby={'resident-import-title'}
+      >
+        {header}
+        {options.isError ? (
+          <RequestError
+            error={options.error}
+            onRetry={() => void options.refetch({
+              cancelRefetch: false
+            })}
+          />
+        ) : (
+          <LoadingState
+            title={'관리대상에 맞는 양식을 준비하고 있어요.'}
+          />
+        )}
+      </section>
+    );
   const hasBuildings = options.data.hasBuildings;
 
   /** 새 파일의 결과에 이전 검색·페이지 조건이 적용되지 않도록 표시 상태를 초기화합니다. */
   function upload(file?: File) {
-    if (!file || busy) return;
+    if (!file || busy)
+      return;
     setPage(1)
     setQuery('')
     setFilter('');
     void controller.upload(file);
   }
-
 
   return (
     <section
@@ -289,7 +303,7 @@ export function ResidentImportPage({
                 options={[{
                   value: '',
                   label: '전체'
-                }, ...Object.entries(IMPORT_STATUS_LABELS).filter(([value]) => completed ? value !== 'READY' : ['READY','DUPLICATE','ERROR'].includes(value)).map(([value,label]) => ({
+                }, ...Object.entries(IMPORT_STATUS_LABELS).filter(([value]) => completed ? value !== 'READY' : ['READY', 'DUPLICATE', 'ERROR'].includes(value)).map(([value, label]) => ({
                   value,
                   label
                 }))]}
@@ -302,7 +316,7 @@ export function ResidentImportPage({
                   setPageSize(Number(value));
                   setPage(1);
                 }}
-                options={[10,20,50].map((value) => ({
+                options={[10, 20, 50].map((value) => ({
                   value: String(value),
                   label: `${value}명씩 보기`
                 }))}

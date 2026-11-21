@@ -42,7 +42,9 @@ import { DashboardTrend } from './_components/dashboard-trend/dashboardTrend';
 import styles from './managementDashboardPage.module.css';
 
 /** 월별 자료와 현재 업무를 구분하고 실제 원천 조회가 성공한 범위만 대시보드로 표시합니다. */
-export function ManagementDashboardPage({ propertyId }: { propertyId: string }) {
+export function ManagementDashboardPage({
+  propertyId
+}: { propertyId: string }) {
   const session = useSession();
   const router = useRouter();
   const search = useSearchParams();
@@ -51,7 +53,9 @@ export function ManagementDashboardPage({ propertyId }: { propertyId: string }) 
   const base = `/manage/${propertyId}`;
   const query = useQuery({
     queryKey: ['dashboard', session.data?.id, propertyId, requestedMonth],
-    queryFn: ({ signal }) => getDashboard(propertyId, requestedMonth ?? undefined, signal),
+    queryFn: ({
+      signal
+    }) => getDashboard(propertyId, requestedMonth ?? undefined, signal),
     enabled: Boolean(session.data) && validMonth,
     retry: false,
     staleTime: 0,
@@ -63,7 +67,10 @@ export function ManagementDashboardPage({ propertyId }: { propertyId: string }) 
   const data = validMonth && !query.isError ? query.data : undefined;
   const month = validMonth ? requestedMonth ?? data?.month ?? '' : '';
   const report = data ? getDashboardReport(data) : null;
-  const [detail, setDetail] = useState<{ id: string; kind: 'account' | 'receipt' | 'expense'; propertyId: string; month: string } | null>(null);
+  const [detail, setDetail] = useState<{ id: string;
+kind: 'account' | 'receipt' | 'expense';
+propertyId: string;
+month: string } | null>(null);
   const activeDetail = detail?.propertyId === propertyId && detail.month === month ? detail : null;
   const selectedAccount = data?.balances.accounts?.find((account) => account.id === activeDetail?.id);
   const href = (path: string) => `${base}/${path}?month=${month}`;
@@ -82,6 +89,7 @@ export function ManagementDashboardPage({ propertyId }: { propertyId: string }) 
     const receipt = Boolean(row.paymentId && !row.transferId && !row.transferCandidate);
     if (window.matchMedia('(max-width: 767px)').matches) {
       router.push(`${base}/banking/${receipt ? `receipts/${row.paymentId}` : `transactions/${row.id}`}?month=${month}`);
+
       return;
     }
     setDetail({
@@ -95,6 +103,7 @@ export function ManagementDashboardPage({ propertyId }: { propertyId: string }) 
   function openAccount(id: string) {
     if (window.matchMedia('(max-width: 767px)').matches) {
       router.push(`${base}/banking/balances/details/account?month=${month}&target=${encodeURIComponent(id)}`);
+
       return;
     }
     setDetail({

@@ -8,7 +8,9 @@ import { getBalanceReportSections } from './balanceReport';
 
 /** 첨부 엑셀의 제목 띠·가로 요약 카드·동별 명세를 한 시트에 구성하고 공통 숫자 정밀도 처리를 재사용합니다. */
 export async function createBalanceStyledWorkbook(document: ReportDefinition): Promise<Blob> {
-  const { default: writeExcelFile } = await import('write-excel-file/universal');
+  const {
+    default: writeExcelFile
+  } = await import('write-excel-file/universal');
   const sections = getBalanceReportSections(document);
   const colors = {
     text: '#0F172A',
@@ -83,6 +85,7 @@ export async function createBalanceStyledWorkbook(document: ReportDefinition): P
       backgroundColor: colors.soft
     })));
   }
+
   cards(summary('기초 잔액'), document.total?.[5] ?? BigInt(0), document.total?.[6] ?? BigInt(0), summary('월말 잔액'));
   data.push(blank(), band('동별 자금 요약'));
   data.push(['동', '기초 잔액', '입금 합계', '지출 합계', '월말 잔액', '입금 건수', '지출 건수', '전체 건수'].map((label) => cell(label, {
@@ -112,9 +115,10 @@ export async function createBalanceStyledWorkbook(document: ReportDefinition): P
       backgroundColor: colors.soft,
       align: index >= 3 ? 'right' : 'left'
     })));
-    if (!section.rows.length) data.push(merge('조회 월의 입금·지출 내역이 없습니다.', 8, {
-      textColor: colors.muted
-    }));
+    if (!section.rows.length)
+      data.push(merge('조회 월의 입금·지출 내역이 없습니다.', 8, {
+        textColor: colors.muted
+      }));
     for (const [index, row] of section.rows.entries()) {
       const values = [row[1], row[3], row[4], row[5], row[6], row[7]];
       data.push(values.flatMap((value, column) => merge(value, spans[column], {
@@ -157,6 +161,7 @@ export async function createBalanceStyledWorkbook(document: ReportDefinition): P
     fontSize: 9,
     textColor: colors.muted
   }));
+
   return writeExcelFile([{
     sheet: document.sheet,
     data,

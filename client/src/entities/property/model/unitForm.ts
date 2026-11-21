@@ -1,5 +1,5 @@
 import { getTextLength } from '@/shared/lib/format';
-import { UNIT_STATUS_OPTIONS } from '../constants/propertyOptions';
+import { UNIT_STATUS_OPTIONS } from '../constant/propertyOptions';
 import type {
   BuildingDraft,
   UnitDraft,
@@ -11,7 +11,8 @@ import type {
 export function normalizeBuildingName(name: string) {
   const normalizedName = name.trim();
 
-  if (!normalizedName) return '';
+  if (!normalizedName)
+    return '';
 
   return normalizedName.endsWith('동') ? normalizedName : `${normalizedName}동`;
 }
@@ -20,9 +21,12 @@ export function normalizeBuildingName(name: string) {
 export function getBuildingNameError(name: string, buildings: BuildingDraft[], editingId?: string) {
   const normalizedName = normalizeBuildingName(name);
 
-  if (!normalizedName) return '동 이름을 입력해주세요.';
-  if (getTextLength(normalizedName) > 50) return '동 이름은 50자 이내로 입력해주세요.';
-  if (buildings.some((entry) => entry.clientId !== editingId && normalizeBuildingName(entry.name) === normalizedName)) return '이미 등록한 동 이름이에요.';
+  if (!normalizedName)
+    return '동 이름을 입력해주세요.';
+  if (getTextLength(normalizedName) > 50)
+    return '동 이름은 50자 이내로 입력해주세요.';
+  if (buildings.some((entry) => entry.clientId !== editingId && normalizeBuildingName(entry.name) === normalizedName))
+    return '이미 등록한 동 이름이에요.';
 
   return null;
 }
@@ -35,16 +39,20 @@ export function getUnitFormErrors(form: UnitForm, hasBuildings: boolean, buildin
   const buildingClientId = hasBuildings ? form.buildingClientId : null;
   const floor = form.floor.trim();
 
-  if (!numberLength) errors.unitNumber = '호수를 입력해주세요.';
-  if (numberLength > 30) errors.unitNumber = '호수는 30자 이내로 입력해주세요.';
-  if (getTextLength(form.displayName) > 50) errors.displayName = '세대 별칭은 50자 이내로 입력해주세요.';
+  if (!numberLength)
+    errors.unitNumber = '호수를 입력해주세요.';
+  if (numberLength > 30)
+    errors.unitNumber = '호수는 30자 이내로 입력해주세요.';
+  if (getTextLength(form.displayName) > 50)
+    errors.displayName = '세대 별칭은 50자 이내로 입력해주세요.';
   if (hasBuildings && !buildings.some((building) => building.clientId === buildingClientId)) {
     errors.buildingClientId = '세대가 속한 동을 선택해주세요.';
   }
   if (floor && (!Number.isInteger(Number(floor)) || Number(floor) < -32768 || Number(floor) > 32767)) {
     errors.floor = '층은 -32,768~32,767 사이의 정수로 입력해주세요.';
   }
-  if (!UNIT_STATUS_OPTIONS.some((option) => option.value === form.status)) errors.status = '세대 상태를 선택해주세요.';
+  if (!UNIT_STATUS_OPTIONS.some((option) => option.value === form.status))
+    errors.status = '세대 상태를 선택해주세요.';
   if (units.some((unit) => unit.clientId !== editingId && unit.buildingClientId === buildingClientId && unit.unitNumber === form.unitNumber.trim())) {
     errors.unitNumber = hasBuildings ? '같은 동에 이미 등록한 호수예요.' : '이미 등록한 호수예요.';
   }

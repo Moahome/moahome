@@ -13,7 +13,14 @@ import { PaymentEditor } from '../payment-editor/paymentEditor';
 import styles from './paymentDetail.module.css';
 
 /** PC 모달과 모바일 페이지는 동일한 상세 내용을 조합하고 바깥 컨테이너만 구분합니다. */
-export function PaymentDetail({ paymentId, presentation = 'modal', menuLabel = '입금 관리', onClose, onProcessed, renderSupplement }: {
+export function PaymentDetail({
+  paymentId,
+  presentation = 'modal',
+  menuLabel = '입금 관리',
+  onClose,
+  onProcessed,
+  renderSupplement
+}: {
   renderSupplement?: (onBusyChange: (busy: boolean) => void) => ReactNode;
   paymentId: string;
   presentation?: 'modal' | 'page';
@@ -21,7 +28,9 @@ export function PaymentDetail({ paymentId, presentation = 'modal', menuLabel = '
   onClose: () => void;
   onProcessed: (id: string, status: PreviewPayment['status'], receiptType?: PreviewPayment['receiptType']) => void;
 }) {
-  const { busy: workspaceBusy } = usePaymentWorkspace();
+  const {
+    busy: workspaceBusy
+  } = usePaymentWorkspace();
   const [supplementBusy, setSupplementBusy] = useState(false);
   const busy = workspaceBusy || supplementBusy;
   const Title = presentation === 'page' ? 'h1' : 'h2';
@@ -69,14 +78,15 @@ export function PaymentDetail({ paymentId, presentation = 'modal', menuLabel = '
       </div>
     </>
   );
-  if (presentation === 'page') return (
-    <section
-      className={styles.page}
-      aria-label={'입금 상세 페이지'}
-    >
-      {content}
-    </section>
-  );
+  if (presentation === 'page')
+    return (
+      <section
+        className={styles.page}
+        aria-label={'입금 상세 페이지'}
+      >
+        {content}
+      </section>
+    );
 
   return (
     <ClientModal

@@ -5,12 +5,13 @@ import type {
 
 /** 현재 통장 금액은 장부 계산값으로만 표시하고 은행 확인 기록을 현재 잔액으로 대체하지 않습니다. */
 export function getAccountBalanceDisplay(account: AccountBalance) {
-  if (account.calculatedBalance != null && account.calculationBasisDate) return {
-    amount: account.calculatedBalance,
-    calculated: true,
-    label: '현재 장부 잔액',
-    description: account.calculationSource === 'BANK_CONFIRMATION_TRANSFER' || account.calculationSource === 'LATEST_BALANCE' || account.calculationSource === 'TRANSACTION_LEDGER' ? `${account.calculationBasisDate} 거래 원장 기준 · 이후 입출금 반영` : `${account.calculationBasisDate} 초기 잔액 기준 · 등록 입출금 반영`
-  };
+  if (account.calculatedBalance != null && account.calculationBasisDate)
+    return {
+      amount: account.calculatedBalance,
+      calculated: true,
+      label: '현재 장부 잔액',
+      description: account.calculationSource === 'BANK_CONFIRMATION_TRANSFER' || account.calculationSource === 'LATEST_BALANCE' || account.calculationSource === 'TRANSACTION_LEDGER' ? `${account.calculationBasisDate} 거래 원장 기준 · 이후 입출금 반영` : `${account.calculationBasisDate} 초기 잔액 기준 · 등록 입출금 반영`
+    };
 
   return {
     amount: null,
@@ -42,16 +43,20 @@ export function getBalancePeriodLabel(month: string) {
 
 /** 조회 중인 통장과 동별 귀속의 범위를 일치시키고 누락된 동별 금액을 0원으로 채우지 않습니다. */
 export function getAccountBuildingBalance(data: BalanceWorkspace, accountId: string) {
-  if (!data.buildings.length) return null;
+  if (!data.buildings.length)
+    return null;
   const scoped = data.accountId === accountId || (!data.accountId && data.accounts?.length === 1 && data.accounts[0].id === accountId);
   const amounts = data.buildings.flatMap((building) => {
-    if (scoped) return [building.balance];
+    if (scoped)
+      return [building.balance];
     const own = building.accountBalances?.find((row) => row.accountId === accountId);
-    if (!own && !building.active) return [];
+    if (!own && !building.active)
+      return [];
 
     return [own?.balance ?? null];
   });
-  if (!amounts.length || amounts.some((amount) => amount === null)) return null;
+  if (!amounts.length || amounts.some((amount) => amount === null))
+    return null;
 
   return amounts.reduce((sum, amount) => sum + BigInt(amount!), BigInt(0)).toString();
 }

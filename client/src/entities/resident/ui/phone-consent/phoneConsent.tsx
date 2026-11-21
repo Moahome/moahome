@@ -4,7 +4,13 @@ import { useId } from 'react';
 import styles from './phoneConsent.module.css';
 
 /** 본인의 동의와 관리자의 사전 동의 확인을 구분하며 동의가 필요한 입력의 명시적 선택을 전달합니다. */
-export function PhoneConsent({ checked, onChange, self = false, disabled = false, error }: {
+export function PhoneConsent({
+  checked,
+  onChange,
+  self = false,
+  disabled = false,
+  error
+}: {
   checked: boolean;
   onChange: (checked: boolean) => void;
   self?: boolean;
@@ -12,6 +18,7 @@ export function PhoneConsent({ checked, onChange, self = false, disabled = false
   error?: string;
 }) {
   const id = useId();
+
   return (
     <div
       className={styles.consent}

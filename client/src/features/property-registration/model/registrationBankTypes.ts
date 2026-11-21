@@ -32,7 +32,8 @@ export interface RegistrationBankDraft {
   accountNumber: string;
   rows: RegistrationBankRow[];
   choices: Record<string, RegistrationBankChoice>;
-  period: { from: string; to: string };
+  period: { from: string;
+to: string };
 }
 
 export interface RegistrationManualTransaction {
@@ -57,7 +58,8 @@ export interface RegistrationBankSupport {
 
 export interface RegistrationBankPreview {
   rows: RegistrationBankRow[];
-  period: { from: string; to: string };
+  period: { from: string;
+to: string };
   support: RegistrationBankSupport;
   duplicateCount: number;
 }

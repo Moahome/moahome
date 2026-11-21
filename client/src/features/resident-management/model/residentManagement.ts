@@ -2,7 +2,8 @@ import { ApiError } from '@/shared/api';
 
 /** 서버 원문과 개인정보를 그대로 노출하지 않고 수정·삭제·번호 공개의 업무 오류를 안내합니다. */
 export function getResidentManagementError(error: unknown) {
-  if (!(error instanceof ApiError)) return '처리하지 못했어요. 입력을 확인하고 다시 시도해주세요.';
+  if (!(error instanceof ApiError))
+    return '처리하지 못했어요. 입력을 확인하고 다시 시도해주세요.';
   const messages: Record<string, string> = {
     MEMBER_ACCOUNT_REQUIRED: '가입 승인이 완료된 주민만 역할을 변경할 수 있어요.',
     MEMBER_ROLE_CONFLICT: '역할이 변경됐어요. 최신 주민 정보를 확인해주세요.',
@@ -21,8 +22,10 @@ export function getResidentManagementError(error: unknown) {
     PHONE_SECURITY_UNAVAILABLE: '연락처를 처리할 수 없어요. 서버의 연락처 설정을 확인해주세요.',
     ACCESS_DENIED: '이 주민 정보를 변경할 권한이 없어요.'
   };
-  if (Object.hasOwn(messages, error.code)) return messages[error.code];
-  if (error.status === 401) return '로그인이 만료되었어요. 다시 로그인해주세요.';
+  if (Object.hasOwn(messages, error.code))
+    return messages[error.code];
+  if (error.status === 401)
+    return '로그인이 만료되었어요. 다시 로그인해주세요.';
 
   return '처리 결과를 확인하지 못했어요. 다시 시도하거나 최신 정보를 확인해주세요.';
 }

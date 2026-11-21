@@ -8,7 +8,7 @@ import {
   useState,
   type ClipboardEvent
 } from 'react';
-import { BANK_OPTIONS } from '../../constants/bankOptions';
+import { BANK_OPTIONS } from '../../constant/bankOptions';
 import {
   getBankAccountErrors,
   normalizeAccountNumber
@@ -26,7 +26,11 @@ const BANK_SELECT_OPTIONS = BANK_OPTIONS.map((option) => ({
 }));
 
 /** 초기 등록과 설정의 계좌 정정에서 같은 은행 선택·번호 입력·예금주 검증을 사용합니다. */
-export function BankAccountFields({ account, onChange, fieldClassName }: {
+export function BankAccountFields({
+  account,
+  onChange,
+  fieldClassName
+}: {
   account: BankAccountDraft;
   onChange: (account: BankAccountDraft) => void;
   fieldClassName?: string;
@@ -45,7 +49,8 @@ export function BankAccountFields({ account, onChange, fieldClassName }: {
   function pasteAccountNumber(event: ClipboardEvent<HTMLInputElement>) {
     event.preventDefault();
     const number = normalizeAccountNumber(event.clipboardData.getData('text'));
-    if (!/^[0-9]+$/.test(number)) return;
+    if (!/^[0-9]+$/.test(number))
+      return;
 
     const input = event.currentTarget;
     const start = input.selectionStart ?? input.value.length;
@@ -84,10 +89,11 @@ export function BankAccountFields({ account, onChange, fieldClassName }: {
         }))}
         onChange={(bankCode) => {
           const bank = BANK_OPTIONS.find((option) => option.value === bankCode);
-          if (bank) updateAccount({
-            bankCode: bank.value,
-            bankName: bank.label
-          });
+          if (bank)
+            updateAccount({
+              bankCode: bank.value,
+              bankName: bank.label
+            });
         }}
       />
       <Input

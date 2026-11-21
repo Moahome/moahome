@@ -1,7 +1,8 @@
 export interface WithdrawalStatus {
   userId: string;
   canWithdraw: boolean;
-  managedProperties: { id: string; name: string }[];
+  managedProperties: { id: string;
+name: string }[];
 }
 
 export interface WithdrawalReceipt {

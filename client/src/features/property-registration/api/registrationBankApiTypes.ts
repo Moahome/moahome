@@ -9,7 +9,8 @@ export interface RegistrationBankImportRequest {
     incomeNote?: string;
     transfer: boolean;
     transferAccountIndex?: number;
-    transferAllocations?: { buildingClientId: string; amount: string }[];
+    transferAllocations?: { buildingClientId: string;
+amount: string }[];
     expense?: RegistrationBankDistribution;
     incomeAllocation?: RegistrationBankDistribution;
   }[];

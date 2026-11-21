@@ -9,8 +9,13 @@ export const metadata: Metadata = {
   }
 };
 
-export default async function Page({ params, searchParams }: PageProps<'/manage/[propertyId]/households/automatic'>) {
-  const { propertyId } = await params;
+export default async function Page({
+  params,
+  searchParams
+}: PageProps<'/manage/[propertyId]/households/automatic'>) {
+  const {
+    propertyId
+  } = await params;
   const query = await searchParams;
 
   return (

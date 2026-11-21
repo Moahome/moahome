@@ -6,7 +6,11 @@ import { useManagementContext } from '@/features/enter-service';
 import { ResidentDetails } from '@/features/resident-management';
 
 /** 모바일 상세는 모달 없이 독립 주소에서 공통 상세·수정·삭제를 조합합니다. 권한은 각 서버 요청에서 확인합니다. */
-export function ResidentDetailPage({ propertyId, residentId }: { propertyId: string; residentId: string }) {
+export function ResidentDetailPage({
+  propertyId,
+  residentId
+}: { propertyId: string;
+residentId: string }) {
   const router = useRouter();
   const session = useSession();
   const context = useManagementContext(session.data?.id, propertyId, false);

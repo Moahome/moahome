@@ -9,8 +9,12 @@ export const metadata: Metadata = {
   }
 };
 
-export default async function Page({ params }: PageProps<'/manage/[propertyId]/payments/monthly'>) {
-  const { propertyId } = await params;
+export default async function Page({
+  params
+}: PageProps<'/manage/[propertyId]/payments/monthly'>) {
+  const {
+    propertyId
+  } = await params;
 
   return (
     <PaymentMonthlyPage

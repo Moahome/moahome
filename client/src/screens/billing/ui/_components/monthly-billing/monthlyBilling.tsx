@@ -37,8 +37,14 @@ import { BillingLoadState } from '../billing-load-state/billingLoadState';
 import styles from './monthlyBilling.module.css';
 
 /** 저장된 월별 청구와 예정액을 조회하고 검색·표시 개수·페이지를 세대 목록과 같은 방식으로 조합합니다. */
-export function MonthlyBilling({ propertyId, settings, onOpenItems }: {
-  propertyId: string; settings: BillingSettings; onOpenItems: () => void;
+export function MonthlyBilling({
+  propertyId,
+  settings,
+  onOpenItems
+}: {
+  propertyId: string;
+settings: BillingSettings;
+onOpenItems: () => void;
 }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -49,7 +55,8 @@ export function MonthlyBilling({ propertyId, settings, onOpenItems }: {
   const [building, setBuilding] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [detail, setDetail] = useState<{ month: string; charge: BillingCharge } | null>(null);
+  const [detail, setDetail] = useState<{ month: string;
+charge: BillingCharge } | null>(null);
   const charges = getSortedBillingCharges(list.data?.charges ?? []);
   const hasBuildings = list.data?.hasBuildings ?? false;
   // 확정 내역의 동명도 선택할 수 있도록 해당 월의 실제 청구에서 필터 선택지를 구성합니다.
@@ -78,10 +85,12 @@ export function MonthlyBilling({ propertyId, settings, onOpenItems }: {
     setBuilding('');
     setDetail(null);
   }
+
   /** 모바일은 직접 재진입 가능한 상세 주소로 이동하고 PC는 현재 목록 위에 상세 모달을 엽니다. */
   function openDetail(charge: BillingCharge) {
     if (window.matchMedia('(max-width: 767px)').matches) {
       router.push(`/manage/${propertyId}/billing/monthly/${month}/${charge.unitId}`);
+
       return;
     }
     setDetail({
@@ -156,6 +165,7 @@ export function MonthlyBilling({ propertyId, settings, onOpenItems }: {
             className={styles.summary}
           >
             <SummaryCard
+              density={'compact'}
               label={'부과 대상'}
               value={charges.length}
               unit={'세대'}
@@ -167,6 +177,7 @@ export function MonthlyBilling({ propertyId, settings, onOpenItems }: {
               )}
             />
             <SummaryCard
+              density={'compact'}
               label={'세대당 기본 금액'}
               value={formatInteger(list.data.baseAmount)}
               unit={'원'}
@@ -177,6 +188,7 @@ export function MonthlyBilling({ propertyId, settings, onOpenItems }: {
               )}
             />
             <SummaryCard
+              density={'compact'}
               label={'확정 세대'}
               value={upcoming ? 0 : charges.length}
               unit={'세대'}
@@ -188,6 +200,7 @@ export function MonthlyBilling({ propertyId, settings, onOpenItems }: {
               )}
             />
             <SummaryCard
+              density={'compact'}
               label={upcoming ? '청구 예정 합계' : '확정 청구 합계'}
               value={formatInteger(total)}
               unit={'원'}
@@ -257,7 +270,10 @@ export function MonthlyBilling({ propertyId, settings, onOpenItems }: {
                     name={'search'}
                   />
                 )}
-                onChange={(event) => { setQuery(event.target.value); setPage(1); }}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setPage(1);
+                }}
               />
               {hasBuildings && (
                 <Dropdown
@@ -271,13 +287,20 @@ export function MonthlyBilling({ propertyId, settings, onOpenItems }: {
                     value: name,
                     label: name
                   }))]}
-                  onChange={(value) => { setBuilding(value === 'ALL' ? '' : value); setPage(1); }}
+                  onChange={(value) => {
+                    setBuilding(value === 'ALL' ? '' : value);
+                    setPage(1);
+                  }}
                 />
               )}
               <Button
                 variant={'outline'}
                 disabled={!hasFilters}
-                onClick={() => { setQuery(''); setBuilding(''); setPage(1); }}
+                onClick={() => {
+                  setQuery('');
+                  setBuilding('');
+                  setPage(1);
+                }}
                 leadingIcon={(
                   <ServiceIcon
                     name={'reset'}
@@ -292,7 +315,10 @@ export function MonthlyBilling({ propertyId, settings, onOpenItems }: {
               unit={'세대'}
               sizeLabel={'관리비 표시 개수'}
               pageSize={pageSize}
-              onSizeChange={(size) => { setPageSize(size); setPage(1); }}
+              onSizeChange={(size) => {
+                setPageSize(size);
+                setPage(1);
+              }}
             />
             <DataTable
               label={'세대별 관리비'}

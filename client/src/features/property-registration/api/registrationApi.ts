@@ -78,6 +78,7 @@ export async function submitRegistration(request: RegistrationRequest) {
     || parsed.managementStart.cashCutoffDate !== request.openingBalances.cashCutoffDate)) {
     throw new ApiError(200, 'INVALID_RESPONSE', '관리 시작 결과를 확인할 수 없습니다.');
   }
+
   return parsed;
 }
 

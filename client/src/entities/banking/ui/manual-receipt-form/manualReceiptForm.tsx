@@ -29,15 +29,33 @@ import type {
 import styles from './manualReceiptForm.module.css';
 
 /** 입금 용도에 필요한 입력만 표시하고 세대 수납·기타 입금·동별 배분을 같은 수동 등록으로 처리합니다. */
-export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '', presentation = 'modal', title = '수동 입금 등록', busy = false, initialValue, onCancel, onClose, onSubmit, onTransfer, renderTransfer }: {
+export function ManualReceiptForm({
+  accounts,
+  units,
+  buildings,
+  asOf,
+  unitId = '',
+  presentation = 'modal',
+  title = '수동 입금 등록',
+  busy = false,
+  initialValue,
+  onCancel,
+  onClose,
+  onSubmit,
+  onTransfer,
+  renderTransfer
+}: {
   onTransfer?: (seed: ManualTransferSeed | null) => void;
   renderTransfer?: (selector: ReactNode) => ReactNode;
   initialValue?: ManualReceiptValues;
   onCancel?: () => void;
   title?: string;
-  accounts: { id: string; label: string; isPrimary?: boolean }[];
+  accounts: { id: string;
+label: string;
+isPrimary?: boolean }[];
   units: ManualReceiptUnit[];
-  buildings: { id: string; label: string }[];
+  buildings: { id: string;
+label: string }[];
   asOf: string;
   presentation?: 'modal' | 'page';
   busy?: boolean;
@@ -75,7 +93,8 @@ export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '
   const payer = household ? householdPayers[unit] ?? selectedUnit?.recentPayerName ?? selectedUnit?.representativeName ?? '' : enteredPayer;
   const [amount, setAmount] = useState(initialValue?.amount ?? '');
   const [error, setError] = useState('');
-  const [requestError, setRequestError] = useState<{ message: string; id: number } | null>(null);
+  const [requestError, setRequestError] = useState<{ message: string;
+id: number } | null>(null);
 
   const split = calculateExpenseAllocation(amount || '0', allocation, 'income');
   const notices = {
@@ -90,15 +109,48 @@ export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '
   async function submit(event: FormEvent) {
     event.preventDefault();
     event.stopPropagation();
-    if (purpose === 'TRANSFER') return;
-    if (!purpose) { setError('입금 용도를 선택해주세요.'); return; }
-    if (!activeAccounts.some((account) => account.id === accountId)) { setError('입금된 통장을 선택해주세요.'); return; }
-    if (household && !selectedUnit) { setError('입금된 세대를 선택해주세요.'); return; }
-    if (!payer.trim()) { setError('입금자명을 입력해주세요.'); return; }
-    if (!/^[0-9]{1,15}$/.test(amount) || BigInt(amount) <= BigInt(0)) { setError('0원보다 큰 입금액을 입력해주세요.'); return; }
-    if (other && !allocation.category.trim()) { setError('입금 항목을 입력해주세요.'); return; }
-    if (purpose === 'SHARED' && split.error) { setError(split.error); return; }
-    if (!date || date > asOf) { setError('오늘 또는 이전 입금일을 선택해주세요.'); return; }
+    if (purpose === 'TRANSFER')
+      return;
+    if (!purpose) {
+      setError('입금 용도를 선택해주세요.');
+
+      return;
+    }
+    if (!activeAccounts.some((account) => account.id === accountId)) {
+      setError('입금된 통장을 선택해주세요.');
+
+      return;
+    }
+    if (household && !selectedUnit) {
+      setError('입금된 세대를 선택해주세요.');
+
+      return;
+    }
+    if (!payer.trim()) {
+      setError('입금자명을 입력해주세요.');
+
+      return;
+    }
+    if (!/^[0-9]{1,15}$/.test(amount) || BigInt(amount) <= BigInt(0)) {
+      setError('0원보다 큰 입금액을 입력해주세요.');
+
+      return;
+    }
+    if (other && !allocation.category.trim()) {
+      setError('입금 항목을 입력해주세요.');
+
+      return;
+    }
+    if (purpose === 'SHARED' && split.error) {
+      setError(split.error);
+
+      return;
+    }
+    if (!date || date > asOf) {
+      setError('오늘 또는 이전 입금일을 선택해주세요.');
+
+      return;
+    }
     const failure = await onSubmit({
       purpose,
       unitId: household ? unit : undefined,
@@ -113,10 +165,14 @@ export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '
       date,
       amount
     });
-    if (failure) { setRequestError((current) => ({
-      message: failure,
-      id: (current?.id ?? 0) + 1
-    })); return; }
+    if (failure) {
+      setRequestError((current) => ({
+        message: failure,
+        id: (current?.id ?? 0) + 1
+      }));
+
+      return;
+    }
   }
 
   const Title = presentation === 'page' ? 'h1' : 'h2';
@@ -240,11 +296,13 @@ export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '
                 disabled={busy}
                 onChange={(event) => {
                   const value = event.target.value;
-                  if (household) setHouseholdPayers((current) => ({
-                    ...current,
-                    [unit]: value
-                  }));
-                  else setEnteredPayer(value);
+                  if (household)
+                    setHouseholdPayers((current) => ({
+                      ...current,
+                      [unit]: value
+                    }));
+                  else
+                    setEnteredPayer(value);
                 }}
                 placeholder={'은행에 표시된 입금자명'}
                 maxLength={100}
@@ -350,14 +408,15 @@ export function ManualReceiptForm({ accounts, units, buildings, asOf, unitId = '
     </>
   );
 
-  if (presentation === 'page') return (
-    <section
-      className={styles.page}
-      aria-labelledby={'manual-payment-title'}
-    >
-      {content}
-    </section>
-  );
+  if (presentation === 'page')
+    return (
+      <section
+        className={styles.page}
+        aria-labelledby={'manual-payment-title'}
+      >
+        {content}
+      </section>
+    );
 
   return (
     <ClientModal

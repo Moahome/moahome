@@ -24,7 +24,9 @@ import {
 import styles from './noticeAccessLink.module.css';
 
 /** 주민 공개 공지 전체를 읽는 건물 링크를 발급·복사·회수하며 메시지를 자동 발송하지 않습니다. */
-export function NoticeAccessLink({ propertyId }: { propertyId: string }) {
+export function NoticeAccessLink({
+  propertyId
+}: { propertyId: string }) {
   const session = useSession();
   const cache = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -32,11 +34,14 @@ export function NoticeAccessLink({ propertyId }: { propertyId: string }) {
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
   const requestId = useRef<string | null>(null);
-  const [toast, setToast] = useState<{ message: string; error?: boolean } | null>(null);
+  const [toast, setToast] = useState<{ message: string;
+error?: boolean } | null>(null);
   const key = ['notice-access-link', session.data?.id, propertyId];
   const link = useQuery({
     queryKey: key,
-    queryFn: ({ signal }) => getNoticeAccessLink(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getNoticeAccessLink(propertyId, signal),
     enabled: open && Boolean(session.data),
     retry: false,
     gcTime: 0
@@ -45,7 +50,8 @@ export function NoticeAccessLink({ propertyId }: { propertyId: string }) {
 
   /** 같은 발급 ID는 성공을 확인할 때까지 유지하고 회수한 ID로 새 링크를 되살리지 않습니다. */
   async function create() {
-    if (lock.current) return;
+    if (lock.current)
+      return;
     lock.current = true;
     setBusy(true);
     requestId.current ??= crypto.randomUUID();
@@ -55,15 +61,20 @@ export function NoticeAccessLink({ propertyId }: { propertyId: string }) {
       setToast({
         message: '주민 열람 링크를 발급했어요.'
       });
-    } catch { setToast({
-      message: '링크 발급 결과를 확인하지 못했어요. 다시 발급을 누르면 같은 요청을 확인해요.',
-      error: true
-    }); }
-    finally { lock.current = false; setBusy(false); }
+    } catch {
+      setToast({
+        message: '링크 발급 결과를 확인하지 못했어요. 다시 발급을 누르면 같은 요청을 확인해요.',
+        error: true
+      });
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
   }
 
   async function revoke() {
-    if (!link.data || lock.current) return;
+    if (!link.data || lock.current)
+      return;
     lock.current = true;
     setBusy(true);
     try {
@@ -74,11 +85,15 @@ export function NoticeAccessLink({ propertyId }: { propertyId: string }) {
       setToast({
         message: '주민 열람 링크를 회수했어요.'
       });
-    } catch { setToast({
-      message: '회수 결과를 확인하지 못했어요. 다시 시도해주세요.',
-      error: true
-    }); }
-    finally { lock.current = false; setBusy(false); }
+    } catch {
+      setToast({
+        message: '회수 결과를 확인하지 못했어요. 다시 시도해주세요.',
+        error: true
+      });
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
   }
 
   async function copy() {
@@ -87,10 +102,12 @@ export function NoticeAccessLink({ propertyId }: { propertyId: string }) {
       setToast({
         message: '주민 열람 링크를 복사했어요.'
       });
-    } catch { setToast({
-      message: '링크를 선택해서 직접 복사해주세요.',
-      error: true
-    }); }
+    } catch {
+      setToast({
+        message: '링크를 선택해서 직접 복사해주세요.',
+        error: true
+      });
+    }
   }
 
   return (
@@ -111,7 +128,10 @@ export function NoticeAccessLink({ propertyId }: { propertyId: string }) {
           className={styles.modal}
           aria-labelledby={'notice-access-link-title'}
           busy={busy}
-          onClose={() => { setOpen(false); setConfirm(false); }}
+          onClose={() => {
+            setOpen(false);
+            setConfirm(false);
+          }}
         >
           <header>
             <h2
@@ -124,7 +144,10 @@ export function NoticeAccessLink({ propertyId }: { propertyId: string }) {
               iconOnly
               aria-label={'닫기'}
               disabled={busy}
-              onClick={() => { setOpen(false); setConfirm(false); }}
+              onClick={() => {
+                setOpen(false);
+                setConfirm(false);
+              }}
             >
               <ServiceIcon
                 name={'close'}

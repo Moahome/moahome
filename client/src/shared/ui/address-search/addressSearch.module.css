@@ -42,3 +42,15 @@
 .retry-button {
   margin-top: 16px;
 }
+
+.inline {
+  margin-top: 20px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+
+  .search-container {
+    height: min(400px, calc(100dvh - 240px));
+    min-height: 280px;
+  }
+}

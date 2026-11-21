@@ -13,7 +13,21 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './calendarPicker.module.css';
 
 /** 월·날짜 선택을 같은 달력으로 제공하고 선택 후 호출 버튼으로 포커스를 돌려줍니다. */
-export function CalendarPicker({ label, value, onChange, mode = 'date', clearable = false, required = false, labelHidden = false, placeholder, variant = 'default', maxDate, error, labelHelp, disabled = false }: {
+export function CalendarPicker({
+  label,
+  value,
+  onChange,
+  mode = 'date',
+  clearable = false,
+  required = false,
+  labelHidden = false,
+  placeholder,
+  variant = 'default',
+  maxDate,
+  error,
+  labelHelp,
+  disabled = false
+}: {
   labelHelp?: ReactNode;
   label: string;
   disabled?: boolean;
@@ -50,7 +64,8 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
   function moveMonth(delta: number) {
     const next = new Date(year, month - 1 + delta, 1);
     const nextMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
-    if (maximumMonth && nextMonth > maximumMonth) return;
+    if (maximumMonth && nextMonth > maximumMonth)
+      return;
     setYear(next.getFullYear());
     setMonth(next.getMonth() + 1);
   }
@@ -59,19 +74,24 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
   useLayoutEffect(() => {
     const popup = calendar.current;
     const button = trigger.current;
-    if (!popup || !button) return;
+    if (!popup || !button)
+      return;
     if (!open) {
       const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 180;
       const timer = window.setTimeout(() => {
-        if (popup.matches(':popover-open')) popup.hidePopover();
+        if (popup.matches(':popover-open'))
+          popup.hidePopover();
       }, delay);
+
       return () => window.clearTimeout(timer);
     }
-    if (!popup.matches(':popover-open')) popup.showPopover();
+    if (!popup.matches(':popover-open'))
+      popup.showPopover();
 
     /** 입력 왼쪽을 기준으로 열고, 본문·모달과 뷰포트 안에서 위치와 최대 높이를 제한합니다. */
     function positionCalendar() {
-      if (!popup || !button) return;
+      if (!popup || !button)
+        return;
       const anchor = button.getBoundingClientRect();
       const boundary = button.closest('dialog[open], main')?.getBoundingClientRect();
       const viewport = window.visualViewport;
@@ -102,6 +122,7 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
     window.addEventListener('resize', positionCalendar);
     window.addEventListener('scroll', positionCalendar, true);
     window.visualViewport?.addEventListener('resize', positionCalendar);
+
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', positionCalendar);
@@ -111,19 +132,24 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
   }, [open, year, month, choosingMonth]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open)
+      return;
     const focusTarget = selected.current?.disabled ? calendar.current?.querySelector<HTMLButtonElement>('button:not(:disabled)') : selected.current;
     (focusTarget ?? trigger.current)?.focus();
+
     function outside(event: PointerEvent) {
-      if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false);
+      if (event.target instanceof Node && !root.current?.contains(event.target))
+        setOpen(false);
     }
+
     document.addEventListener('pointerdown', outside);
 
     return () => document.removeEventListener('pointerdown', outside);
   }, [open, choosingMonth]);
 
   function choose(nextValue: string) {
-    if (nextValue && maximum && nextValue > (mode === 'month' ? maximum.slice(0, 7) : maximum)) return;
+    if (nextValue && maximum && nextValue > (mode === 'month' ? maximum.slice(0, 7) : maximum))
+      return;
     onChange(nextValue);
     setOpen(false);
     trigger.current?.focus();
@@ -135,10 +161,12 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
       data-variant={variant}
       ref={root}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+        if (!event.currentTarget.contains(event.relatedTarget))
+          setOpen(false);
       }}
       onKeyDown={(event) => {
-        if (event.key !== 'Escape' || !open) return;
+        if (event.key !== 'Escape' || !open)
+          return;
         event.preventDefault();
         event.stopPropagation();
         setOpen(false);
@@ -276,7 +304,11 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
                   aria-pressed={value === monthValue}
                   disabled={Boolean(maximumMonth && monthValue > maximumMonth)}
                   onClick={() => {
-                    if (mode === 'month') { choose(monthValue); return; }
+                    if (mode === 'month') {
+                      choose(monthValue);
+
+                      return;
+                    }
                     setMonth(month);
                     setChoosingMonth(false);
                   }}
@@ -309,6 +341,7 @@ export function CalendarPicker({ label, value, onChange, mode = 'date', clearabl
               length: days
             }, (_, index) => index + 1).map((day) => {
               const date = `${monthValue}-${String(day).padStart(2, '0')}`;
+
               return (
                 <Button
                   key={date}

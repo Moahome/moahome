@@ -5,8 +5,17 @@ export const metadata: Metadata = {
   title: '세대 수납 상세'
 };
 
-export default async function Page({ params }: { params: Promise<{ propertyId: string; month: string; unitId: string }> }) {
-  const { propertyId, month, unitId } = await params;
+export default async function Page({
+  params
+}: { params: Promise<{ propertyId: string;
+month: string;
+unitId: string }> }) {
+  const {
+    propertyId,
+    month,
+    unitId
+  } = await params;
+
   return (
     <BankingMonthlyDetailPage
       propertyId={propertyId}

@@ -13,7 +13,11 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './openingBalances.module.css';
 
 /** 행의 수정값은 적용 전까지 별도로 보관하며 취소 시 전체 인계 초안을 변경하지 않습니다. */
-export function OpeningUnitEditor({ unit, onClose, onApply }: {
+export function OpeningUnitEditor({
+  unit,
+  onClose,
+  onApply
+}: {
   unit: OpeningWorkspace['units'][number];
   onClose: () => void;
   onApply: (unit: OpeningWorkspace['units'][number]) => void;
@@ -54,7 +58,9 @@ export function OpeningUnitEditor({ unit, onClose, onApply }: {
         onSubmit={(event) => {
           event.preventDefault();
           if (!/^[0-9]{1,15}$/.test(draft.receivable) || !/^[0-9]{1,15}$/.test(draft.credit)) {
-            setError('금액은 0원 이상의 정수로 입력해주세요.'); return;
+            setError('금액은 0원 이상의 정수로 입력해주세요.');
+
+            return;
           }
           onApply(draft);
         }}

@@ -14,7 +14,12 @@ import {
 import type { IncomeStatementReport } from '../../../model/incomeStatementTypes';
 
 /** 열기 시점의 조회 자료를 Excel·PDF·PNG 미리보기와 저장에 공통으로 사용합니다. */
-export function IncomeDownload({ report, cumulative, presentation, onClose }: {
+export function IncomeDownload({
+  report,
+  cumulative,
+  presentation,
+  onClose
+}: {
   report: IncomeStatementReport;
   cumulative: boolean;
   presentation: 'modal' | 'page';

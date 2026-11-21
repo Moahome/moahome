@@ -766,13 +766,20 @@ public class PaymentService {
 	public PaymentResponse.ImportPreview preview(UUID user, UUID property, MultipartFile file, UUID accountId) {
 		requireManagementAccess(user, property);
 		var account = selectedAccount(property, accountId);
+		return previewBankRows(user, property, reader.read(file, account.getBankCode()), account.getId());
+	}
+
+	/** 서버가 검증한 입금 원본에 은행 양식과 공통 양식이 같은 매칭·중복 기준을 적용합니다. */
+	public PaymentResponse.ImportPreview previewBankRows(UUID user, UUID property,
+	    List<BankTransactionReader.Row> rows, UUID accountId) {
+		requireManagementAccess(user, property);
+		var account = selectedAccount(property, accountId);
 		BankTransactionDuplicates existing = new BankTransactionDuplicates(transactions.findByPropertyId(property),
 		    account.getId(), security);
 		Set<String> seen = new HashSet<>();
 		List<PaymentResponse.Unit> unitRows = ledger(user, property).units();
 		List<ResidentItem> residentRows = residents.list(user, property).residents();
 		PayerMatchService.Context matchContext = payerMatches.context(property);
-		List<BankTransactionReader.Row> rows = reader.read(file, account.getBankCode());
 		List<PaymentResponse.Payment> result = new ArrayList<>();
 		int duplicated = 0;
 		for (var row : rows) {

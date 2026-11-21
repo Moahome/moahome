@@ -22,11 +22,12 @@ export function ResidentExportPage({
   propertyId: string;
 }) {
   const session = useSession();
-  if (!session.data) return (
-    <LoadingState
-      title={'다운로드 권한을 확인하고 있어요.'}
-    />
-  );
+  if (!session.data)
+    return (
+      <LoadingState
+        title={'다운로드 권한을 확인하고 있어요.'}
+      />
+    );
 
   return (
     <ExportSelection
@@ -55,13 +56,14 @@ function ExportSelection({
     });
   }, [client, userId, propertyId]);
   const onClose = () => router.replace(`/manage/${propertyId}/residents`);
-  if (!ids.length) return (
-    <StateMessage
-      variant={'review-required'}
-      title={'다운로드할 주민을 다시 선택해주세요'}
-      description={'이전 화면에서 엑셀 다운로드를 다시 선택해주세요.'}
-    />
-  );
+  if (!ids.length)
+    return (
+      <StateMessage
+        variant={'review-required'}
+        title={'다운로드할 주민을 다시 선택해주세요'}
+        description={'이전 화면에서 엑셀 다운로드를 다시 선택해주세요.'}
+      />
+    );
 
   return (
     <ResidentExportPreview

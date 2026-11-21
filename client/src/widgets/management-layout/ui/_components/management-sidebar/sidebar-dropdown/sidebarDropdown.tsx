@@ -47,6 +47,7 @@ export function SidebarDropdown({
         ...previous,
         open: true
       }));
+
       return;
     }
     setExpansion((previous) => ({

@@ -13,7 +13,10 @@ export default async function Page({
     withdrawal?: string | string[];
   }>;
 }) {
-  const { error, withdrawal } = await searchParams;
+  const {
+    error,
+    withdrawal
+  } = await searchParams;
 
   return (
     <LoginPage

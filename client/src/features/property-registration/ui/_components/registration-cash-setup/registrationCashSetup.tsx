@@ -2,7 +2,6 @@
 
 import { getBankAccountLabel } from '@/entities/banking';
 
-
 import {
   useEffect,
   useId,
@@ -94,7 +93,9 @@ export function RegistrationCashSetup({
   const startMethod = account ? opening.startMethods?.[account.clientId] ?? 'MANUAL' : 'MANUAL';
   const bankSupport = useQuery({
     queryKey: ['registration-bank-support', account?.bankCode],
-    queryFn: ({ signal }) => getRegistrationBankSupport(account?.bankCode ?? '', signal),
+    queryFn: ({
+      signal
+    }) => getRegistrationBankSupport(account?.bankCode ?? '', signal),
     enabled: Boolean(account?.bankCode),
     retry: false,
     refetchOnWindowFocus: false,
@@ -103,7 +104,8 @@ export function RegistrationCashSetup({
 
   // 지원 여부가 확정된 뒤에만 업로드 선택지를 제공합니다. 미지원 통장의 복원 초안은 직접 입력으로 전환합니다.
   useEffect(() => {
-    if (!account || bankSupport.data?.enabled !== false || startMethod !== 'UPLOAD') return;
+    if (!account || bankSupport.data?.enabled !== false || startMethod !== 'UPLOAD')
+      return;
     onOpeningChange({
       ...opening,
       startMethods: {
@@ -113,10 +115,10 @@ export function RegistrationCashSetup({
     });
   }, [account, bankSupport.data, startMethod, opening, onOpeningChange]);
 
-
   /** 한 통장의 입력만 바꾸고 다른 통장·동의 초안은 유지합니다. */
   function updateBuilding(amount: string) {
-    if (!account || !building) return;
+    if (!account || !building)
+      return;
     const current = Object.fromEntries(
       buildings.map((row) => [
         row.clientId,
@@ -151,12 +153,14 @@ export function RegistrationCashSetup({
         role={'tablist'}
         aria-label={'시작 잔고 입력 종류'}
         onKeyDown={(event) => {
-          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key))
+            return;
           event.preventDefault();
           const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role=tab]'));
           const index = buttons.indexOf(event.target as HTMLButtonElement);
           const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
-          buttons[next]?.click(); buttons[next]?.focus();
+          buttons[next]?.click();
+          buttons[next]?.focus();
         }}
       >
         {(['account', 'building'] as const)
@@ -313,7 +317,9 @@ export function RegistrationCashSetup({
                 </p>
                 <Button
                   variant={'text'}
-                  onClick={() => { void bankSupport.refetch(); }}
+                  onClick={() => {
+                    void bankSupport.refetch();
+                  }}
                 >
                   다시 시도
                 </Button>

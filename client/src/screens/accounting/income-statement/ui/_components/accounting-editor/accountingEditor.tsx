@@ -22,8 +22,10 @@ import type {
 } from '../../../api/incomeStatementApiTypes';
 import styles from './accountingEditor.module.css';
 
-export type AccountingEditorTarget = { kind: 'expense'; value: AccountingExpense }
-  | { kind: 'revenue'; value: AccountingRevenueItem };
+export type AccountingEditorTarget = { kind: 'expense';
+value: AccountingExpense }
+  | { kind: 'revenue';
+value: AccountingRevenueItem };
 
 const ERROR_MESSAGES: Record<string, string> = {
   ACCOUNTING_REVIEW_CONFLICT: '다른 확인 내역이 저장됐습니다. 최신 회계 자료를 다시 확인해주세요.',
@@ -38,7 +40,14 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 /** 기존 지출 날짜를 재사용해 계정과목만 매칭하고 실패 시 선택을 유지합니다. */
-export function AccountingEditor({ propertyId, data, target, onClose, onSaved, presentation = 'modal' }: {
+export function AccountingEditor({
+  propertyId,
+  data,
+  target,
+  onClose,
+  onSaved,
+  presentation = 'modal'
+}: {
   propertyId: string;
   presentation?: 'modal' | 'page';
   data: IncomeStatementWorkspace;
@@ -68,7 +77,8 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved, p
 
   /** 과목 추가와 지출 확인은 순서대로 요청하고 재시도는 서버의 명칭·버전 중복 방지 규칙을 따릅니다. */
   async function save() {
-    if (!ready || busy) return;
+    if (!ready || busy)
+      return;
     setBusy(true);
     setError('');
     try {
@@ -131,7 +141,10 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved, p
         </header>
       )}
       <form
-        onSubmit={(event) => { event.preventDefault(); void save(); }}
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}
       >
         <div
           className={styles.body}
@@ -269,14 +282,15 @@ export function AccountingEditor({ propertyId, data, target, onClose, onSaved, p
     </>
   );
 
-  if (presentation === 'page') return (
-    <section
-      className={`${styles.panel} ${styles.page}`}
-      aria-label={title}
-    >
-      {content}
-    </section>
-  );
+  if (presentation === 'page')
+    return (
+      <section
+        className={`${styles.panel} ${styles.page}`}
+        aria-label={title}
+      >
+        {content}
+      </section>
+    );
 
   return (
     <ClientModal

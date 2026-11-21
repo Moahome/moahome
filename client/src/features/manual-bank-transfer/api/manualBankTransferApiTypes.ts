@@ -15,7 +15,8 @@ export interface ManualTransferFunds {
   accountId: string;
   date: string;
   accountAvailable: string | null;
-  buildings: { buildingId: string; available: string | null }[];
+  buildings: { buildingId: string;
+available: string | null }[];
 }
 
 export interface ManualBankTransferResult { propertyId: string; }

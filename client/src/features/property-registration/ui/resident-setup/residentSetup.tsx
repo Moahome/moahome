@@ -49,7 +49,17 @@ import { SetupProgress } from '../_components/setup-progress/setupProgress';
 import styles from './residentSetup.module.css';
 
 /** 직접 입력과 업로드가 같은 주민 초안을 편집하며 최종 설정 제출 전에는 명부를 저장하지 않습니다. */
-export function ResidentSetup({ propertyName, hasBuildings, buildings, units, administrator, residents, onChange, onPrevious, onNext }: {
+export function ResidentSetup({
+  propertyName,
+  hasBuildings,
+  buildings,
+  units,
+  administrator,
+  residents,
+  onChange,
+  onPrevious,
+  onNext
+}: {
   propertyName: string;
   hasBuildings: boolean;
   buildings: BuildingDraft[];
@@ -92,15 +102,16 @@ export function ResidentSetup({ propertyName, hasBuildings, buildings, units, ad
     ...resident,
     administrator: false
   }));
-  if (managerUnit) roster.unshift({
-    clientId: 'administrator',
-    unitClientId: managerUnit.clientId,
-    name: administrator.name,
-    phone: administrator.phone,
-    phoneConsent: administrator.phoneConsent === true,
-    relationType: 'OTHER',
-    administrator: true
-  });
+  if (managerUnit)
+    roster.unshift({
+      clientId: 'administrator',
+      unitClientId: managerUnit.clientId,
+      name: administrator.name,
+      phone: administrator.phone,
+      phoneConsent: administrator.phoneConsent === true,
+      relationType: 'OTHER',
+      administrator: true
+    });
   const pageCount = Math.max(1, Math.ceil(roster.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const visibleResidents = roster.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -119,12 +130,17 @@ export function ResidentSetup({ propertyName, hasBuildings, buildings, units, ad
       top: 0,
       behavior: 'instant'
     });
-    return () => { active.current = false; };
+
+    return () => {
+      active.current = false;
+    };
   }, []);
 
   function unitLabel(unitClientId: string) {
     const unit = units.find((entry) => entry.clientId === unitClientId);
-    if (!unit) return '세대 확인 필요';
+    if (!unit)
+      return '세대 확인 필요';
+
     return [buildings.find((building) => building.clientId === unit.buildingClientId)?.name, getUnitLabel(unit)].filter(Boolean).join(' ');
   }
 
@@ -132,7 +148,11 @@ export function ResidentSetup({ propertyName, hasBuildings, buildings, units, ad
   function saveResident(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const error = getResidentDraftError(form, units, administrator);
-    if (error) { setMessage(error); return; }
+    if (error) {
+      setMessage(error);
+
+      return;
+    }
     const resident = {
       ...form,
       clientId: editing ?? crypto.randomUUID(),
@@ -141,9 +161,14 @@ export function ResidentSetup({ propertyName, hasBuildings, buildings, units, ad
     };
     const next = editing ? included.map((entry) => entry.clientId === editing ? resident : entry) : [...included, resident];
     const listError = getResidentSetupError(next, units, administrator);
-    if (listError) { setMessage(listError); return; }
+    if (listError) {
+      setMessage(listError);
+
+      return;
+    }
     onChange(next);
-    if (!editing) setPage(Math.max(1, Math.ceil(next.length / pageSize)));
+    if (!editing)
+      setPage(Math.max(1, Math.ceil(next.length / pageSize)));
     setEditing(null);
     setEditorOpen(false);
     setForm({
@@ -159,20 +184,32 @@ export function ResidentSetup({ propertyName, hasBuildings, buildings, units, ad
 
   /** 새 파일의 검증 결과만 교체하며 이미 추가한 주민 초안과 직접 입력은 유지합니다. */
   async function upload(file: File) {
-    if (uploadLock.current) return;
-    if (!file.name.toLowerCase().endsWith('.xlsx') || !file.size || file.size > 5 * 1024 * 1024) { setMessage('5MB 이하의 .xlsx 파일을 선택해주세요.'); return; }
+    if (uploadLock.current)
+      return;
+    if (!file.name.toLowerCase().endsWith('.xlsx') || !file.size || file.size > 5 * 1024 * 1024) {
+      setMessage('5MB 이하의 .xlsx 파일을 선택해주세요.');
+
+      return;
+    }
     uploadLock.current = true;
     setBusy(true);
     setMessage('');
     try {
       const rows = await previewRegistrationResidents(file, hasBuildings, buildings, units, administrator);
-      if (!active.current) return;
+      if (!active.current)
+        return;
       setImportRows(rows);
       setImportPage(1);
       setSelected(rows.filter((row) => row.status === 'READY').map((row) => row.rowNumber));
       setFileName(file.name);
-    } catch { if (active.current) setMessage('파일을 검증하지 못했어요. 양식과 서버 연결을 확인해주세요.'); }
-    finally { uploadLock.current = false; if (active.current) setBusy(false); }
+    } catch {
+      if (active.current)
+        setMessage('파일을 검증하지 못했어요. 양식과 서버 연결을 확인해주세요.');
+    } finally {
+      uploadLock.current = false;
+      if (active.current)
+        setBusy(false);
+    }
   }
 
   /** 검증 뒤 바뀐 세대·담당자도 다시 확인하고 선택한 정상 행만 현재 초안 끝에 추가합니다. */
@@ -189,7 +226,10 @@ export function ResidentSetup({ propertyName, hasBuildings, buildings, units, ad
         phoneConsent: row.phoneConsent,
         relationType: row.relationType
       };
-      if (getResidentDraftError(resident, units, administrator) || getResidentSetupError([...next, resident], units, administrator)) { skipped++; continue; }
+      if (getResidentDraftError(resident, units, administrator) || getResidentSetupError([...next, resident], units, administrator)) {
+        skipped++;
+        continue;
+      }
       next.push(resident);
     }
     onChange(next);
@@ -277,7 +317,10 @@ export function ResidentSetup({ propertyName, hasBuildings, buildings, units, ad
         {editorOpen && (
           <ClientModal
             className={styles.dialog}
-            onClose={() => { setEditorOpen(false); setMessage(''); }}
+            onClose={() => {
+              setEditorOpen(false);
+              setMessage('');
+            }}
             aria-labelledby={'resident-editor-title'}
             initialFocusRef={editorHeading}
           >
@@ -302,7 +345,10 @@ export function ResidentSetup({ propertyName, hasBuildings, buildings, units, ad
                 variant={'ghost'}
                 iconOnly
                 aria-label={'주민 입력 닫기'}
-                onClick={() => { setEditorOpen(false); setMessage(''); }}
+                onClick={() => {
+                  setEditorOpen(false);
+                  setMessage('');
+                }}
                 leadingIcon={(
                   <ServiceIcon
                     name={'close'}
@@ -342,10 +388,13 @@ export function ResidentSetup({ propertyName, hasBuildings, buildings, units, ad
                       value: building.clientId,
                       label: building.name
                     }))}
-                    onChange={(value) => { setBuildingId(value); setForm({
-                      ...form,
-                      unitClientId: ''
-                    }); }}
+                    onChange={(value) => {
+                      setBuildingId(value);
+                      setForm({
+                        ...form,
+                        unitClientId: ''
+                      });
+                    }}
                   />
                 )}
                 <SelectDropdown
@@ -422,7 +471,10 @@ export function ResidentSetup({ propertyName, hasBuildings, buildings, units, ad
               >
                 <Button
                   variant={'outline'}
-                  onClick={() => { setEditorOpen(false); setMessage(''); }}
+                  onClick={() => {
+                    setEditorOpen(false);
+                    setMessage('');
+                  }}
                 >
                   취소
                 </Button>
@@ -574,7 +626,11 @@ export function ResidentSetup({ propertyName, hasBuildings, buildings, units, ad
                   value: String(size),
                   label: `${size}명씩`
                 }))}
-                onChange={(value) => { setPageSize(Number(value)); setPage(1); setImportPage(1); }}
+                onChange={(value) => {
+                  setPageSize(Number(value));
+                  setPage(1);
+                  setImportPage(1);
+                }}
               />
               {mode === 'MANUAL' && (
                 <Button
@@ -584,14 +640,20 @@ export function ResidentSetup({ propertyName, hasBuildings, buildings, units, ad
                       name={'plus'}
                     />
                   )}
-                  onClick={() => { setEditing(null); setForm({
-                    clientId: '',
-                    unitClientId: '',
-                    name: '',
-                    phone: '',
-                    phoneConsent: false,
-                    relationType: 'OTHER'
-                  }); setBuildingId(''); setMessage(''); setEditorOpen(true); }}
+                  onClick={() => {
+                    setEditing(null);
+                    setForm({
+                      clientId: '',
+                      unitClientId: '',
+                      name: '',
+                      phone: '',
+                      phoneConsent: false,
+                      relationType: 'OTHER'
+                    });
+                    setBuildingId('');
+                    setMessage('');
+                    setEditorOpen(true);
+                  }}
                 >
                   주민 추가
                 </Button>
@@ -662,7 +724,19 @@ export function ResidentSetup({ propertyName, hasBuildings, buildings, units, ad
                           name={'pen'}
                         />
                       )}
-                      onClick={() => { if (resident.administrator) { onPrevious(); return; } setForm(resident); setEditing(resident.clientId); setBuildingId(units.find((unit) => unit.clientId === resident.unitClientId)?.buildingClientId ?? ''); setMode('MANUAL'); setMessage(''); setEditorOpen(true); }}
+                      onClick={() => {
+                        if (resident.administrator) {
+                          onPrevious();
+
+                          return;
+                        }
+                        setForm(resident);
+                        setEditing(resident.clientId);
+                        setBuildingId(units.find((unit) => unit.clientId === resident.unitClientId)?.buildingClientId ?? '');
+                        setMode('MANUAL');
+                        setMessage('');
+                        setEditorOpen(true);
+                      }}
                     />
                     {!resident.administrator && (
                       <IconButton
@@ -676,12 +750,18 @@ export function ResidentSetup({ propertyName, hasBuildings, buildings, units, ad
                             name={'trash'}
                           />
                         )}
-                        onClick={() => { onChange(residents.filter((entry) => entry.clientId !== resident.clientId)); if (editing === resident.clientId) { setEditing(null); setForm({
-                          ...form,
-                          name: '',
-                          phone: '',
-                          phoneConsent: false
-                        }); } }}
+                        onClick={() => {
+                          onChange(residents.filter((entry) => entry.clientId !== resident.clientId));
+                          if (editing === resident.clientId) {
+                            setEditing(null);
+                            setForm({
+                              ...form,
+                              name: '',
+                              phone: '',
+                              phoneConsent: false
+                            });
+                          }
+                        }}
                       />
                     )}
                   </div>
@@ -738,7 +818,10 @@ export function ResidentSetup({ propertyName, hasBuildings, buildings, units, ad
               이전
             </Button>
             <Button
-              onClick={() => { if (!error) onNext(); }}
+              onClick={() => {
+                if (!error)
+                  onNext();
+              }}
               disabled={Boolean(error)}
               trailingIcon={(
                 <ServiceIcon

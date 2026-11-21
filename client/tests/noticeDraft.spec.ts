@@ -2,7 +2,10 @@ import {
   expect,
   test
 } from '@playwright/test';
-import { getNoticeDraftSignature } from '../src/screens/notices/model/noticeDraft';
+import {
+  getNoticeDraftSignature,
+  hasNoticeDraftContent
+} from '../src/screens/notices/model/noticeDraft';
 
 const original = {
   title: '점검 안내',
@@ -77,4 +80,41 @@ test('실제 제목·본문·고정 설정·서식·파일 변화는 수정으�
       })
     }
   ]) expect(getNoticeDraftSignature(changed)).not.toBe(before);
+});
+
+test('장소만 선택한 초안도 복구 대상으로 보관하고 장소 수정·삭제를 변경으로 판단한다', () => {
+  const document = {
+    type: 'doc',
+    content: [{
+      type: 'paragraph'
+    }],
+    location: {
+      name: '모임 장소',
+      address: '서울특별시 중구 세종대로 110',
+      latitude: 37.5663,
+      longitude: 126.9779
+    }
+  };
+  const draft = {
+    title: '',
+    important: false,
+    content: JSON.stringify(document)
+  };
+  expect(hasNoticeDraftContent(draft)).toBe(true);
+  const before = getNoticeDraftSignature(draft);
+  for (const location of [null, {
+    ...document.location,
+    name: '변경 장소'
+  }, {
+    ...document.location,
+    latitude: 37.567
+  }]) {
+    expect(getNoticeDraftSignature({
+      ...draft,
+      content: JSON.stringify({
+        ...document,
+        location
+      })
+    })).not.toBe(before);
+  }
 });

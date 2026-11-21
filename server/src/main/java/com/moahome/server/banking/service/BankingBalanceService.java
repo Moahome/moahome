@@ -301,6 +301,10 @@ public class BankingBalanceService {
 		    : bankOpenings.findByBatchId(confirmedBatches.getFirst().getId());
 		Map<UUID, BankOpeningBalance> independent = independentOpenings.stream()
 		    .collect(Collectors.toMap(o -> o.getBankAccountId(), o -> o, (latest, older) -> latest));
+		// 한 번의 집계로 통장별 자료 변경 시각을 읽어 조회할 때마다 날짜가 바뀌지 않게 합니다.
+		Map<UUID, Instant> updatedAtByAccount = accounts.dataUpdates(property).stream()
+		    .filter(row -> row.getUpdatedAt() != null)
+		    .collect(Collectors.toMap(BankAccountRepository.DataUpdate::getAccountId, BankAccountRepository.DataUpdate::getUpdatedAt));
 		ArrayList<BankingBalanceResponse.AccountBalance> allAccountBalances = new ArrayList<BankingBalanceResponse.AccountBalance>();
 		for (var account : common) {
 			List<BankTransaction> accountRows = allBank.stream()
@@ -421,7 +425,7 @@ public class BankingBalanceService {
 			            directChecks.stream().filter(check -> check.getId().equals(selected.id()))
 			                .map(bankBalanceCheck -> bankBalanceCheck.getSourceType()).findFirst().orElse(null)),
 			    selected != null && (!selected.date().equals(end) || !selected.precision().equals("DAY_END")),
-			    calculated == null ? "UNAVAILABLE" : calculated.source()));
+			    calculated == null ? "UNAVAILABLE" : calculated.source(), updatedAtByAccount.get(account.getId())));
 		}
 		Map<UUID, BankAccountRepository.Usage> usage = accounts.findUsageByPropertyId(property).stream()
 		    .collect(Collectors.toMap(entry -> entry.getAccountId(), item -> item));

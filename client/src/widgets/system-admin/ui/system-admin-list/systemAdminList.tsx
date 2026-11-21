@@ -1,4 +1,5 @@
 'use client';
+
 import {
   useState,
   type ReactNode
@@ -30,7 +31,11 @@ import { MemberEditor } from '../_components/member-editor/memberEditor';
 import { getMemberStatusLabel } from '../_utils/memberStatus';
 import styles from './systemAdminList.module.css';
 
-export function SystemAdminList({ administrators = false, header }: { administrators?: boolean; header: ReactNode }) {
+export function SystemAdminList({
+  administrators = false,
+  header
+}: { administrators?: boolean;
+header: ReactNode }) {
   return (
     <SystemAdminShell
       administrators={administrators}
@@ -44,7 +49,9 @@ export function SystemAdminList({ administrators = false, header }: { administra
 }
 
 /** 검색·페이지 조건을 URL에 유지하고 PC 상세 모달과 모바일 상세 경로를 구분합니다. */
-function MemberList({ administrators }: { administrators: boolean }) {
+function MemberList({
+  administrators
+}: { administrators: boolean }) {
   const session = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -61,15 +68,23 @@ function MemberList({ administrators }: { administrators: boolean }) {
   };
   const query = useQuery({
     queryKey: ['system-admin-users', session.data?.id, filters],
-    queryFn: ({ signal }) => getSystemMembers(filters, signal),
+    queryFn: ({
+      signal
+    }) => getSystemMembers(filters, signal),
     retry: false,
     gcTime: 0
   });
+
   function navigate(patch: Record<string, string>) {
     const params = new URLSearchParams(searchParams);
-    for (const [key, value] of Object.entries(patch)) { if (value) params.set(key, value); else params.delete(key); }
+    for (const [key, value] of Object.entries(patch)) {
+      if (value)
+        params.set(key, value); else
+        params.delete(key);
+    }
     router.push(`${administrators ? '/admin/administrators' : '/admin'}?${params}`);
   }
+
   return (
     <div
       className={styles.workspace}
@@ -82,10 +97,13 @@ function MemberList({ administrators }: { administrators: boolean }) {
       />
       <form
         className={styles.filters}
-        onSubmit={(event) => { event.preventDefault(); navigate({
-          query: search.trim(),
-          page: '1'
-        }); }}
+        onSubmit={(event) => {
+          event.preventDefault();
+          navigate({
+            query: search.trim(),
+            page: '1'
+          });
+        }}
       >
         <Input
           label={'회원 검색'}
@@ -133,7 +151,11 @@ function MemberList({ administrators }: { administrators: boolean }) {
             getRowKey={(row) => row.id}
             minWidth={720}
             onRowClick={(row) => {
-              if (window.matchMedia('(max-width: 767px)').matches) { router.push(`/admin/members/${row.id}`); return; }
+              if (window.matchMedia('(max-width: 767px)').matches) {
+                router.push(`/admin/members/${row.id}`);
+
+                return;
+              }
               setSelected(row.id);
             }}
             emptyState={(

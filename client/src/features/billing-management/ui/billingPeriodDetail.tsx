@@ -18,7 +18,14 @@ import { getBillingMonth } from '../api/billingApi';
 import styles from './billingPeriodDetail.module.css';
 
 /** 원장에 포함된 확정 부과 항목만 기존 부과 상세에 전달하고 세대별 미납액과 섞지 않습니다. */
-export function BillingPeriodDetail({ propertyId, month, itemIds, expectedAmount, presentation, onClose }: {
+export function BillingPeriodDetail({
+  propertyId,
+  month,
+  itemIds,
+  expectedAmount,
+  presentation,
+  onClose
+}: {
   propertyId: string;
   month: string;
   itemIds: readonly string[];
@@ -29,7 +36,9 @@ export function BillingPeriodDetail({ propertyId, month, itemIds, expectedAmount
   const session = useSession();
   const query = useQuery({
     queryKey: ['billing', session.data?.id, propertyId, `month:${month}:`],
-    queryFn: ({ signal }) => getBillingMonth(propertyId, month, undefined, signal),
+    queryFn: ({
+      signal
+    }) => getBillingMonth(propertyId, month, undefined, signal),
     enabled: Boolean(session.data),
     retry: false,
     staleTime: 0,
@@ -44,15 +53,16 @@ export function BillingPeriodDetail({ propertyId, month, itemIds, expectedAmount
   const found = new Set(charges.flatMap((charge) => charge.items.map((item) => item.id)));
   const amount = charges.reduce((sum, charge) => sum + sumBillingItems(charge.items), BigInt(0));
   const matched = query.data?.status === 'ISSUED' && found.size === selected.size && amount === BigInt(expectedAmount);
-  if (!query.isPending && !query.isError && matched) return (
-    <BillingDetail
-      month={month}
-      charges={charges}
-      hasBuildings={query.data!.hasBuildings}
-      presentation={presentation}
-      onClose={onClose}
-    />
-  );
+  if (!query.isPending && !query.isError && matched)
+    return (
+      <BillingDetail
+        month={month}
+        charges={charges}
+        hasBuildings={query.data!.hasBuildings}
+        presentation={presentation}
+        onClose={onClose}
+      />
+    );
   let state = (
     <StateMessage
       variant={'review-required'}
@@ -68,17 +78,19 @@ export function BillingPeriodDetail({ propertyId, month, itemIds, expectedAmount
       )}
     />
   );
-  if (query.isPending) state = (
-    <LoadingState
-      title={'부과 내역을 불러오고 있어요.'}
-    />
-  );
-  if (query.isError) state = (
-    <RequestError
-      error={query.error}
-      onRetry={() => void query.refetch()}
-    />
-  );
+  if (query.isPending)
+    state = (
+      <LoadingState
+        title={'부과 내역을 불러오고 있어요.'}
+      />
+    );
+  if (query.isError)
+    state = (
+      <RequestError
+        error={query.error}
+        onRetry={() => void query.refetch()}
+      />
+    );
   const content = (
     <>
       <header
@@ -108,13 +120,15 @@ export function BillingPeriodDetail({ propertyId, month, itemIds, expectedAmount
       {state}
     </>
   );
-  if (presentation === 'page') return (
-    <section
-      className={styles.page}
-    >
-      {content}
-    </section>
-  );
+  if (presentation === 'page')
+    return (
+      <section
+        className={styles.page}
+      >
+        {content}
+      </section>
+    );
+
   return (
     <ClientModal
       className={styles.modal}

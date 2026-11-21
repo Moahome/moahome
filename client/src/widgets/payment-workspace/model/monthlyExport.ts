@@ -17,7 +17,11 @@ import type {
 
 /** 현재 조회 조건과 선택한 세대만 문서·합계에 포함하며 선택이 없는 편집 상태를 전체 출력으로 바꾸지 않습니다. */
 export function getMonthlyReportDocument(data: MonthlyReportSnapshot): ReportDefinition {
-  const { ledger, month, filters } = data;
+  const {
+    ledger,
+    month,
+    filters
+  } = data;
   const range = data.range ?? {
     startMonth: month,
     endMonth: month
@@ -55,8 +59,11 @@ export function getMonthlyReportDocument(data: MonthlyReportSnapshot): ReportDef
       : ['세대', '세대 대표', '전월 이월액', '당월 발생액', ...(showApplied ? ['당월 수납 반영액'] : []), ...(showBalance ? ['미수금 잔액'] : []), '상태'])].map((label, index, labels) => {
       const amount = index >= amountStart && index < labels.length - 1;
       let align: 'left' | 'center' | 'right' = 'center';
-      if (index === 0) align = 'left';
-      if (amount) align = 'right';
+      if (index === 0)
+        align = 'left';
+      if (amount)
+        align = 'right';
+
       return {
         label,
         width: amount ? 25 : 22,
@@ -111,6 +118,7 @@ export function getMonthlyReportMetrics(document: ReportDefinition): MonthlyRepo
     ['선입금 잔액', 'teal'],
   ] as const).flatMap(([label, tone]) => {
     const index = document.columns.findIndex((column) => column.label === label);
+
     return index < 0 ? [] : [{
       label: document.summary.find((item) => item.label === '조회 월')?.value.toString().includes(' ~ ') ? ({
         '전월 이월액': '시작 월 이월액',
@@ -127,6 +135,9 @@ export function getMonthlyReportMetrics(document: ReportDefinition): MonthlyRepo
 
 /** Excel도 미리보기·PDF와 같은 문서 정의를 사용해 선택 조건과 금액이 달라지지 않게 합니다. */
 export async function createMonthlyWorkbook(data: MonthlyReportSnapshot): Promise<Blob> {
-  const { createMonthlyStyledWorkbook } = await import('./monthlyReportWorkbook');
+  const {
+    createMonthlyStyledWorkbook
+  } = await import('./monthlyReportWorkbook');
+
   return createMonthlyStyledWorkbook(getMonthlyReportDocument(data));
 }

@@ -48,7 +48,8 @@ export async function commitResidents(propertyId: string, importId: string, rowN
 }
 
 export function getImportError(error: unknown) {
-  if (!(error instanceof ApiError)) return '처리하지 못했어요. 다시 시도해주세요.';
+  if (!(error instanceof ApiError))
+    return '처리하지 못했어요. 다시 시도해주세요.';
   const messages: Record<string, string> = {
     INVALID_EXCEL_FILE: '5MB 이하의 올바른 .xlsx 파일을 선택해주세요.',
     EXCEL_ROW_LIMIT: '한 번에 최대 1,000행까지 등록할 수 있어요.',
@@ -59,8 +60,10 @@ export function getImportError(error: unknown) {
     ACCESS_DENIED: '주민을 등록할 권한이 없어요.',
     INVALID_REQUEST: '선택한 주민 정보를 확인해주세요.'
   };
-  if (Object.hasOwn(messages, error.code)) return messages[error.code];
-  if (error.status === 401) return '로그인이 만료되었어요. 다시 로그인해주세요.';
+  if (Object.hasOwn(messages, error.code))
+    return messages[error.code];
+  if (error.status === 401)
+    return '로그인이 만료되었어요. 다시 로그인해주세요.';
 
   return '처리 결과를 확인하지 못했어요. 같은 요청으로 다시 시도해주세요.';
 }

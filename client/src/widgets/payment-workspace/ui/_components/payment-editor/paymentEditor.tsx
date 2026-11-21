@@ -46,18 +46,30 @@ export function getPaymentStatusLabel(payment: PreviewPayment): string {
 }
 
 /** 입력값은 초안으로 유지하고 확정 순간의 최신 원장으로 다시 검증합니다. */
-export function PaymentEditor({ paymentId, onProcessed, disabled = false, children }: {
+export function PaymentEditor({
+  paymentId,
+  onProcessed,
+  disabled = false,
+  children
+}: {
   children?: ReactNode;
-  disabled?: boolean; paymentId: string; onProcessed?: (id: string, status: PreviewPayment['status'], receiptType?: PreviewPayment['receiptType']) => void;
+  disabled?: boolean;
+paymentId: string;
+onProcessed?: (id: string, status: PreviewPayment['status'], receiptType?: PreviewPayment['receiptType']) => void;
 }) {
-  const { ledger, update, busy: workspaceBusy } = usePaymentWorkspace();
+  const {
+    ledger,
+    update,
+    busy: workspaceBusy
+  } = usePaymentWorkspace();
   const busy = workspaceBusy || disabled;
   const payment = ledger.payments.find((item) => item.id === paymentId)!;
   const selectableUnits = getPreviewSelectableUnits(ledger);
   const [draft, setDraft] = useState<CumulativePaymentDraft>({
     unitId: selectableUnits.some((unit) => unit.id === payment.unitId) ? payment.unitId : ''
   });
-  const [error, setError] = useState<{ message: string; id: number } | null>(null);
+  const [error, setError] = useState<{ message: string;
+id: number } | null>(null);
   const [action, setAction] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [receiptType, setReceiptType] = useState<'HOUSEHOLD' | 'OTHER'>(payment.receiptType ?? 'HOUSEHOLD');
@@ -74,50 +86,63 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false, childr
   /** 보류·삭제·원본 연결도 별도 확인창에서 검토하며 실패하면 현재 초안을 보존합니다. */
   async function performAction() {
     let failure: string | null = null;
-    if (action === 'other-income') failure = await update({
-      type: 'other-income',
-      id: paymentId,
-      data: {
-        category: category.trim(),
-        note: note.trim() || undefined
-      }
-    }, '기타 입금으로 확정했어요.');
-    else if (action === 'confirm') failure = await update({
-      type: 'confirm',
-      id: paymentId,
-      data: draft
-    }, '수납을 확정했어요.');
-    else if (action === 'cancel') failure = await update({
-      type: 'cancel',
-      id: paymentId,
-      data: {
-        reason
-      }
-    }, otherIncome ? '기타 입금 확정을 취소했어요.' : '납부를 취소했어요.');
-    else if (action === 'hold') failure = await update({
-      type: 'hold',
-      id: paymentId,
-      data: {
-        reason
-      }
-    }, '입금을 보류했어요.');
-    else if (action?.startsWith('link:')) failure = await update({
-      type: 'link',
-      id: paymentId,
-      data: {
-        paymentId: action.slice(5)
-      }
-    }, '기존 수납에 연결했어요. 수납액은 그대로입니다.');
-    if (failure) { setError((current) => ({
-      message: failure,
-      id: (current?.id ?? 0) + 1
-    })); return; }
+    if (action === 'other-income')
+      failure = await update({
+        type: 'other-income',
+        id: paymentId,
+        data: {
+          category: category.trim(),
+          note: note.trim() || undefined
+        }
+      }, '기타 입금으로 확정했어요.');
+    else if (action === 'confirm')
+      failure = await update({
+        type: 'confirm',
+        id: paymentId,
+        data: draft
+      }, '수납을 확정했어요.');
+    else if (action === 'cancel')
+      failure = await update({
+        type: 'cancel',
+        id: paymentId,
+        data: {
+          reason
+        }
+      }, otherIncome ? '기타 입금 확정을 취소했어요.' : '납부를 취소했어요.');
+    else if (action === 'hold')
+      failure = await update({
+        type: 'hold',
+        id: paymentId,
+        data: {
+          reason
+        }
+      }, '입금을 보류했어요.');
+    else if (action?.startsWith('link:'))
+      failure = await update({
+        type: 'link',
+        id: paymentId,
+        data: {
+          paymentId: action.slice(5)
+        }
+      }, '기존 수납에 연결했어요. 수납액은 그대로입니다.');
+    if (failure) {
+      setError((current) => ({
+        message: failure,
+        id: (current?.id ?? 0) + 1
+      }));
+
+      return;
+    }
     setError(null);
     setAction(null);
-    if (action === 'confirm' || action === 'other-income') onProcessed?.(paymentId, 'CONFIRMED', receiptType);
-    if (action === 'cancel') onProcessed?.(paymentId, 'CANCELED');
-    if (action === 'hold') onProcessed?.(paymentId, 'ON_HOLD');
-    if (action?.startsWith('link:')) onProcessed?.(action.slice(5), 'CONFIRMED');
+    if (action === 'confirm' || action === 'other-income')
+      onProcessed?.(paymentId, 'CONFIRMED', receiptType);
+    if (action === 'cancel')
+      onProcessed?.(paymentId, 'CANCELED');
+    if (action === 'hold')
+      onProcessed?.(paymentId, 'ON_HOLD');
+    if (action?.startsWith('link:'))
+      onProcessed?.(action.slice(5), 'CONFIRMED');
   }
 
   function openAction(next: string) {
@@ -231,7 +256,10 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false, childr
         <SelectDropdown
           label={'입금 분류'}
           value={receiptType}
-          onChange={(value) => { setReceiptType(value as 'HOUSEHOLD' | 'OTHER'); setError(null); }}
+          onChange={(value) => {
+            setReceiptType(value as 'HOUSEHOLD' | 'OTHER');
+            setError(null);
+          }}
           options={[{
             value: 'HOUSEHOLD',
             label: '세대 납부'
@@ -343,9 +371,12 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false, childr
           label={'반영할 세대'}
           placeholder={'이름 또는 동·호수로 검색'}
           value={unitId}
-          onChange={(value) => { setDraft({
-            unitId: value
-          }); setError(null); }}
+          onChange={(value) => {
+            setDraft({
+              unitId: value
+            });
+            setError(null);
+          }}
           options={getPreviewUnitSearchOptions(ledger)}
         />
       )
@@ -508,13 +539,21 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false, childr
         )}
         {payment.status === 'ON_HOLD' && (
           <Button
-            onClick={async () => { const failure = await update({
-              type: 'resume',
-              id: paymentId
-            }, '다시 검토할 수 있어요.'); if (failure) { setError((current) => ({
-              message: failure,
-              id: (current?.id ?? 0) + 1
-            })); return; } onProcessed?.(paymentId, 'PENDING'); }}
+            onClick={async () => {
+              const failure = await update({
+                type: 'resume',
+                id: paymentId
+              }, '다시 검토할 수 있어요.');
+              if (failure) {
+                setError((current) => ({
+                  message: failure,
+                  id: (current?.id ?? 0) + 1
+                }));
+
+                return;
+              }
+              onProcessed?.(paymentId, 'PENDING');
+            }}
           >
             보류 해제
           </Button>
@@ -534,7 +573,10 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false, childr
       {action && (
         <ClientModal
           className={styles.modal}
-          onClose={() => { setAction(null); setError(null); }}
+          onClose={() => {
+            setAction(null);
+            setError(null);
+          }}
           busy={busy}
           aria-labelledby={'payment-action-title'}
         >
@@ -552,7 +594,10 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false, childr
               size={'sm'}
               aria-label={'처리 확인 닫기'}
               disabled={busy}
-              onClick={() => { setAction(null); setError(null); }}
+              onClick={() => {
+                setAction(null);
+                setError(null);
+              }}
               leadingIcon={(
                 <ServiceIcon
                   name={'close'}
@@ -608,7 +653,10 @@ export function PaymentEditor({ paymentId, onProcessed, disabled = false, childr
             <Button
               variant={'outline'}
               disabled={busy}
-              onClick={() => { setAction(null); setError(null); }}
+              onClick={() => {
+                setAction(null);
+                setError(null);
+              }}
             >
               취소
             </Button>

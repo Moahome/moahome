@@ -45,9 +45,9 @@ export interface NoticeDraft {
   content: string;
   important: boolean;
   savedAt: string;
-  submission: { id: string; request: NoticeSaveRequest } | null;
+  submission: { id: string;
+request: NoticeSaveRequest } | null;
 }
-
 
 export type {
   NoticeAsset

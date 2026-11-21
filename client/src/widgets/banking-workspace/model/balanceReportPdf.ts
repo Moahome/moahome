@@ -11,19 +11,22 @@ import {
 
 /** 첨부 A4 세로 시안처럼 동별 페이지·기초/입금/지출/월말 잔액 요약·거래 명세를 같은 선택 범위로 출력합니다. */
 export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildingId = '', accountId = ''): Promise<Blob> {
-  const [{ autoTable }, pdf] = await Promise.all([import('jspdf-autotable'), createReportPdfDocument()]);
+  const [{
+    autoTable
+  }, pdf] = await Promise.all([import('jspdf-autotable'), createReportPdfDocument()]);
   const document = getBalanceReportDocument(data, buildingId, accountId);
   const period = data.startMonth && data.startMonth !== data.month ? `${data.startMonth.replace('-', '.')} ~ ${data.month.replace('-', '.')}` : `${data.month.slice(0, 4)}년 ${Number(data.month.slice(5))}월`;
   // 소계·전체 합계는 Excel과 같은 문서 정의에서 읽고 빈 동 안내는 거래 건수에 포함하지 않습니다.
   const sections = getBalanceReportSections(document);
-  if (!sections.length) sections.push({
-    label: '전체 동',
-    start: null,
-    end: null,
-    rows: [],
-    income: BigInt(0),
-    expense: BigInt(0)
-  });
+  if (!sections.length)
+    sections.push({
+      label: '전체 동',
+      start: null,
+      end: null,
+      rows: [],
+      income: BigInt(0),
+      expense: BigInt(0)
+    });
   pdf.setProperties({
     title: `${document.title} ${period}`,
     subject: '동별 입금·지출 내역',
@@ -49,11 +52,14 @@ export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildi
   const pageLabels = new Map<number, string>();
 
   for (const [index, section] of sections.entries()) {
-    if (index) pdf.addPage();
+    if (index)
+      pdf.addPage();
     const names = [...new Set(section.rows.map((row) => String(row[2])))];
     let accountLabel = selectedAccount;
-    if (!accountId && names.length === 1) accountLabel = names[0];
-    if (!accountId && names.length > 1) accountLabel = `전체 계좌 · ${names.length}개 계좌`;
+    if (!accountId && names.length === 1)
+      accountLabel = names[0];
+    if (!accountId && names.length > 1)
+      accountLabel = `전체 계좌 · ${names.length}개 계좌`;
     const foot = [[{
       content: `${section.label} 소계`,
       colSpan: 3
@@ -147,17 +153,22 @@ export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildi
           cell.cell.styles.textColor = cell.cell.raw === '0원' ? colors.muted : colors.text;
           cell.cell.styles.fontStyle = cell.cell.raw === '0원' ? 'normal' : 'bold';
         }
-        if (cell.section === 'body' && cell.column.index === 1 && section.rows.length) cell.cell.text = [];
-        if (cell.section === 'foot' && cell.column.index >= 3) cell.cell.styles.halign = 'right';
-        if (cell.section === 'foot' && cell.row.index > 0 && cell.column.index >= 3) cell.cell.styles.textColor = colors.primary;
+        if (cell.section === 'body' && cell.column.index === 1 && section.rows.length)
+          cell.cell.text = [];
+        if (cell.section === 'foot' && cell.column.index >= 3)
+          cell.cell.styles.halign = 'right';
+        if (cell.section === 'foot' && cell.row.index > 0 && cell.column.index >= 3)
+          cell.cell.styles.textColor = colors.primary;
       },
       didDrawCell: (cell) => {
-        if (cell.section !== 'body' || cell.column.index !== 1 || !section.rows.length) return;
+        if (cell.section !== 'body' || cell.column.index !== 1 || !section.rows.length)
+          return;
         const label = String(cell.cell.raw);
         const outgoing = label === '지출';
         pdf.setFillColor(outgoing ? colors.red : colors.blue);
         pdf.roundedRect(cell.cell.x + 1, cell.cell.y + (cell.cell.height - 5.8) / 2, cell.cell.width - 2, 5.8, 2.9, 2.9, 'F');
-        pdf.setFont('Pretendard', 'bold'); pdf.setFontSize(10);
+        pdf.setFont('Pretendard', 'bold');
+        pdf.setFontSize(10);
         pdf.setTextColor(outgoing ? colors.danger : colors.primary);
         pdf.text(label, cell.cell.x + cell.cell.width / 2, cell.cell.y + cell.cell.height / 2 + 1.2, {
           align: 'center'
@@ -167,35 +178,56 @@ export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildi
         const page = pdf.getCurrentPageInfo().pageNumber;
         pageLabels.set(page, section.label);
         // 같은 동의 이어지는 페이지에는 큰 제목·조회 정보·요약 카드를 반복하지 않습니다.
-        if (tablePage.pageNumber > 1) return;
-        pdf.setFillColor(colors.primary); pdf.roundedRect(12, 8.5, 1, 5.5, 0.5, 0.5, 'F');
-        pdf.setFont('Pretendard', 'normal'); pdf.setFontSize(8); pdf.setTextColor(colors.primary);
+        if (tablePage.pageNumber > 1)
+          return;
+        pdf.setFillColor(colors.primary);
+        pdf.roundedRect(12, 8.5, 1, 5.5, 0.5, 0.5, 'F');
+        pdf.setFont('Pretendard', 'normal');
+        pdf.setFontSize(8);
+        pdf.setTextColor(colors.primary);
         pdf.text('MOAHOME  /  MONTHLY REPORT', 15.5, 12.8);
-        pdf.setFont('Pretendard', 'bold'); pdf.setFontSize(17.5); pdf.setTextColor(colors.text);
+        pdf.setFont('Pretendard', 'bold');
+        pdf.setFontSize(17.5);
+        pdf.setTextColor(colors.text);
         // 등록 가능한 긴 관리대상 이름도 오른쪽 여백을 넘지 않도록 제목 크기를 맞춥니다.
         const titleWidth = pdf.getTextWidth(document.title);
-        if (titleWidth > 186) pdf.setFontSize(17.5 * 186 / titleWidth);
+        if (titleWidth > 186)
+          pdf.setFontSize(17.5 * 186 / titleWidth);
         pdf.text(document.title, 12, 25.5);
-        pdf.setFont('Pretendard', 'normal'); pdf.setFontSize(8.5); pdf.setTextColor(colors.muted);
+        pdf.setFont('Pretendard', 'normal');
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(colors.muted);
         pdf.text(`${period}  |  지출액은 각 동의 실제 부담액 기준입니다.`, 12, 31.5);
-        pdf.setFillColor(colors.alternate); pdf.setDrawColor(colors.border); pdf.setLineWidth(0.2);
+        pdf.setFillColor(colors.alternate);
+        pdf.setDrawColor(colors.border);
+        pdf.setLineWidth(0.2);
         pdf.roundedRect(12, 36.5, 186, 16, 3, 3, 'FD');
-        pdf.setFontSize(8); pdf.text('조회 대상', 16.5, 42); pdf.text('통장', 52, 42);
+        pdf.setFontSize(8);
+        pdf.text('조회 대상', 16.5, 42);
+        pdf.text('통장', 52, 42);
         pdf.line(47.5, 40, 47.5, 48.5);
-        pdf.setFont('Pretendard', 'bold'); pdf.setTextColor(colors.text); pdf.setFontSize(11);
+        pdf.setFont('Pretendard', 'bold');
+        pdf.setTextColor(colors.text);
+        pdf.setFontSize(11);
         pdf.text(section.label, 16.5, 48);
         pdf.setFontSize(8.5);
         pdf.text(accountLabel, 52, 48, {
           maxWidth: 102
         });
-        pdf.setTextColor(colors.primary); pdf.setFontSize(8);
+        pdf.setTextColor(colors.primary);
+        pdf.setFontSize(8);
         pdf.text(`${section.rows.length}건 / 전체 ${totalCount}건`, 194, 48, {
           align: 'right'
         });
-        pdf.setFont('Pretendard', 'normal'); pdf.setTextColor(colors.muted); pdf.setFontSize(8);
+        pdf.setFont('Pretendard', 'normal');
+        pdf.setTextColor(colors.muted);
+        pdf.setFontSize(8);
         pdf.text(`조회 시각: ${generatedAt}`, 12, 59);
-        pdf.setFillColor(colors.amber); pdf.roundedRect(165, 54.5, 33, 6, 3, 3, 'F');
-        pdf.setTextColor('#A16207'); pdf.setFont('Pretendard', 'bold'); pdf.text(getReportPeriodLabel(data), 194, 58.5, {
+        pdf.setFillColor(colors.amber);
+        pdf.roundedRect(165, 54.5, 33, 6, 3, 3, 'F');
+        pdf.setTextColor('#A16207');
+        pdf.setFont('Pretendard', 'bold');
+        pdf.text(getReportPeriodLabel(data), 194, 58.5, {
           align: 'right'
         });
         const cards = [{
@@ -217,17 +249,31 @@ export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildi
         }];
         cards.forEach((card, cardIndex) => {
           const x = 12 + cardIndex * 47.25;
-          pdf.setFillColor(colors.white); pdf.setDrawColor(colors.border); pdf.roundedRect(x, 66, 44.25, 20, 2.5, 2.5, 'FD');
-          pdf.setFillColor(card.color); pdf.roundedRect(x + 3.5, 71, 1, 10.5, 0.4, 0.4, 'F');
-          pdf.setFont('Pretendard', 'normal'); pdf.setFontSize(8); pdf.setTextColor(colors.muted); pdf.text(card.label, x + 7.5, 73.5);
-          pdf.setFont('Pretendard', 'bold'); pdf.setTextColor(card.color);
+          pdf.setFillColor(colors.white);
+          pdf.setDrawColor(colors.border);
+          pdf.roundedRect(x, 66, 44.25, 20, 2.5, 2.5, 'FD');
+          pdf.setFillColor(card.color);
+          pdf.roundedRect(x + 3.5, 71, 1, 10.5, 0.4, 0.4, 'F');
+          pdf.setFont('Pretendard', 'normal');
+          pdf.setFontSize(8);
+          pdf.setTextColor(colors.muted);
+          pdf.text(card.label, x + 7.5, 73.5);
+          pdf.setFont('Pretendard', 'bold');
+          pdf.setTextColor(card.color);
           const value = money(card.value);
           pdf.setFontSize(11.5);
-          if (pdf.getTextWidth(value) > 34) pdf.setFontSize(11.5 * 34 / pdf.getTextWidth(value));
+          if (pdf.getTextWidth(value) > 34)
+            pdf.setFontSize(11.5 * 34 / pdf.getTextWidth(value));
           pdf.text(value, x + 7.5, 81.5);
         });
-        pdf.setFont('Pretendard', 'bold'); pdf.setFontSize(13); pdf.setTextColor(colors.text); pdf.text(`${section.label} 거래 명세`, 12, 93);
-        pdf.setFont('Pretendard', 'normal'); pdf.setFontSize(9); pdf.setTextColor(colors.muted); pdf.text('거래일 기준 오름차순 · 동별 누적 잔액', 198, 93, {
+        pdf.setFont('Pretendard', 'bold');
+        pdf.setFontSize(13);
+        pdf.setTextColor(colors.text);
+        pdf.text(`${section.label} 거래 명세`, 12, 93);
+        pdf.setFont('Pretendard', 'normal');
+        pdf.setFontSize(9);
+        pdf.setTextColor(colors.muted);
+        pdf.text('거래일 기준 오름차순 · 동별 누적 잔액', 198, 93, {
           align: 'right'
         });
       }
@@ -235,16 +281,23 @@ export async function createBalanceReportPdf(data: BalanceReportSnapshot, buildi
   }
   const pages = pdf.getNumberOfPages();
   for (let page = 1; page <= pages; page++) {
-    pdf.setPage(page); pdf.setFont('Pretendard', 'normal'); pdf.setFontSize(9); pdf.setTextColor(colors.text);
+    pdf.setPage(page);
+    pdf.setFont('Pretendard', 'normal');
+    pdf.setFontSize(9);
+    pdf.setTextColor(colors.text);
     pdf.text(`${pageLabels.get(page)} · ${page} / ${pages}`, 198, 12.8, {
       align: 'right'
     });
-    pdf.setDrawColor(colors.border); pdf.setLineWidth(0.2); pdf.line(12, 279, 198, 279);
-    pdf.setFontSize(8); pdf.setTextColor(colors.muted);
+    pdf.setDrawColor(colors.border);
+    pdf.setLineWidth(0.2);
+    pdf.line(12, 279, 198, 279);
+    pdf.setFontSize(8);
+    pdf.setTextColor(colors.muted);
     pdf.text('기초 잔액 + 입금액 - 지출액 = 월말 잔액 · 동별 자금 기준', 12, 285);
     pdf.text(`${period}   |   ${page} / ${pages}`, 198, 285, {
       align: 'right'
     });
   }
+
   return pdf.output('blob');
 }

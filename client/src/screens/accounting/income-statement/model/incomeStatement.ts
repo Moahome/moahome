@@ -15,7 +15,8 @@ export function getIncomeStatement(source: IncomeStatementSource, range: MonthRa
   // 제공 범위 밖의 월을 0원으로 채워 자료가 있는 기간처럼 표시하지 않습니다.
   if (!isValidMonthRange(range) || range.startMonth < source.availableRange.startMonth
     || range.endMonth > source.availableRange.endMonth
-    || (buildingId && !source.buildings.some((building) => building.id === buildingId))) return null;
+    || (buildingId && !source.buildings.some((building) => building.id === buildingId)))
+    return null;
   const selected = source.records.filter((record) => record.month >= range.startMonth
     && record.month <= range.endMonth && (!buildingId || record.buildingId === buildingId));
   const sum = (group: IncomeGroup) => selected.filter((record) => record.group === group)
@@ -34,13 +35,15 @@ export function getIncomeStatement(source: IncomeStatementSource, range: MonthRa
     for (const record of selected.filter((record) => record.group === group)) {
       const existing = accounts.get(record.accountId);
       const amount = BigInt(record.amount) * (group === 'otherExpense' ? -BigInt(1) : BigInt(1));
-      if (existing) existing.amount += amount;
-      else accounts.set(record.accountId, {
-        id: `${group}:${record.accountId}`,
-        label: record.accountName,
-        amount,
-        kind: 'account'
-      });
+      if (existing)
+        existing.amount += amount;
+      else
+        accounts.set(record.accountId, {
+          id: `${group}:${record.accountId}`,
+          label: record.accountName,
+          amount,
+          kind: 'account'
+        });
     }
     // API가 제공한 코드·명칭 표시값을 숫자 오름차순으로 정렬해 거래 입력 순서를 표·다운로드에 노출하지 않습니다.
     rows.push(...[...accounts.values()].sort((left, right) => left.label.localeCompare(right.label, 'ko', {
@@ -91,6 +94,7 @@ export function getIncomeStatement(source: IncomeStatementSource, range: MonthRa
       .reduce((total, record) => total + BigInt(record.amount), BigInt(0));
     const revenue = monthTotal(true);
     const expense = monthTotal(false);
+
     return {
       month,
       revenue,
@@ -120,12 +124,15 @@ export function getIncomeStatement(source: IncomeStatementSource, range: MonthRa
 
 /** 그래프의 누계는 조회 시작 월부터만 더하며 보고서의 기간 합계는 바꾸지 않습니다. */
 export function getIncomeTrend(report: IncomeStatementReport, cumulative: boolean) {
-  if (!cumulative) return report.monthly;
+  if (!cumulative)
+    return report.monthly;
   let revenue = BigInt(0);
   let expense = BigInt(0);
+
   return report.monthly.map((row) => {
     revenue += row.revenue;
     expense += row.expense;
+
     return {
       month: row.month,
       revenue,

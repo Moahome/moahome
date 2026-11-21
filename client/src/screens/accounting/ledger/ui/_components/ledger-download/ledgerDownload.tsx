@@ -13,7 +13,11 @@ import {
 } from '../../../model/accountLedgerReport';
 
 /** 다운로드를 연 시점의 전체 조회 자료를 보관하며 목록의 페이지 수로 출력 범위를 줄이지 않습니다. */
-export function LedgerDownload({ data, presentation, onClose }: {
+export function LedgerDownload({
+  data,
+  presentation,
+  onClose
+}: {
   data: AccountLedgerWorkspace;
   presentation: 'modal' | 'page';
   onClose: () => void;
@@ -26,6 +30,7 @@ export function LedgerDownload({ data, presentation, onClose }: {
   const createPdf = useCallback(() => createLedgerPdf(data), [data]);
   const codes = data.accounts.filter((row) => data.accountIds.includes(row.id)).map((row) => row.code).sort().join('-');
   const building = data.buildings.find((row) => row.id === data.buildingId);
+
   return (
     <ReportDownload
       title={`${data.propertyName} 계정별 원장`}

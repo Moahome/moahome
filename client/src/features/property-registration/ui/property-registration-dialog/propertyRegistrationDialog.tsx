@@ -31,15 +31,19 @@ import type {
   BasicInfo,
   BasicInfoDraft
 } from '../../model/basicInfoTypes';
-import { AddressSearch } from '../_components/address-search/addressSearch';
+import { AddressSearch } from '@/shared/ui/address-search';
 import styles from './propertyRegistrationDialog.module.css';
 
 /** 오류 코드를 안전한 화면 안내로 바꾸고 서버 응답 원문을 노출하지 않습니다. */
 function getValidationError(error: unknown) {
-  if (!(error instanceof ApiError)) return '기본 정보를 확인하지 못했어요. 다시 시도해주세요.';
-  if (error.code === 'INVALID_REQUEST') return '입력한 기본 정보를 확인해주세요.';
-  if (error.code === 'ACCESS_DENIED') return '기본 정보를 확인할 권한이 없어요.';
-  if (error.code === 'INVALID_RESPONSE') return '검증 결과를 확인하지 못했어요. 다시 시도해주세요.';
+  if (!(error instanceof ApiError))
+    return '기본 정보를 확인하지 못했어요. 다시 시도해주세요.';
+  if (error.code === 'INVALID_REQUEST')
+    return '입력한 기본 정보를 확인해주세요.';
+  if (error.code === 'ACCESS_DENIED')
+    return '기본 정보를 확인할 권한이 없어요.';
+  if (error.code === 'INVALID_RESPONSE')
+    return '검증 결과를 확인하지 못했어요. 다시 시도해주세요.';
 
   return '서버에 연결하지 못했어요. 잠시 후 다시 시도해주세요.';
 }
@@ -111,7 +115,8 @@ export function PropertyRegistrationDialog({
   async function submitBasicInfo(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!canContinue || requestInFlight.current) return;
+    if (!canContinue || requestInFlight.current)
+      return;
 
     requestInFlight.current = true;
     setIsValidating(true);
@@ -120,22 +125,26 @@ export function PropertyRegistrationDialog({
     try {
       const basicInfo = await validateBasicInfo(normalizeBasicInfo(draft));
 
-      if (!activeRef.current) return;
+      if (!activeRef.current)
+        return;
 
       onValidated(basicInfo);
     } catch (error) {
-      if (!activeRef.current) return;
+      if (!activeRef.current)
+        return;
 
       // 인증·계정 오류에만 초안을 폐기하고 로그인으로 이동하며 통신 실패는 입력을 유지합니다.
       if (error instanceof ApiError && (error.status === 401 || error.code === 'ACCOUNT_UNAVAILABLE')) {
         router.replace('/login');
+
         return;
       }
 
       setErrorMessage(getValidationError(error));
     } finally {
       requestInFlight.current = false;
-      if (activeRef.current) setIsValidating(false);
+      if (activeRef.current)
+        setIsValidating(false);
     }
   }
 
@@ -263,7 +272,8 @@ export function PropertyRegistrationDialog({
                 )}
                 onClick={() => setIsSearching(true)}
                 onKeyDown={(event) => {
-                  if (event.key !== 'Enter' && event.key !== ' ') return;
+                  if (event.key !== 'Enter' && event.key !== ' ')
+                    return;
 
                   event.preventDefault();
                   setIsSearching(true);

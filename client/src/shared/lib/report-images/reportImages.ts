@@ -7,7 +7,9 @@ export async function createReportImages(blob: Blob, signal: AbortSignal): Promi
   const task = pdfjs.getDocument({
     data: await blob.arrayBuffer()
   });
-  const abort = () => { void task.destroy(); };
+  const abort = () => {
+    void task.destroy();
+  };
   signal.addEventListener('abort', abort, {
     once: true
   });
@@ -40,6 +42,7 @@ export async function createReportImages(blob: Blob, signal: AbortSignal): Promi
       }
     }
     signal.throwIfAborted();
+
     return images;
   } finally {
     signal.removeEventListener('abort', abort);
@@ -48,15 +51,22 @@ export async function createReportImages(blob: Blob, signal: AbortSignal): Promi
 }
 
 /** 한 페이지는 PNG로 저장하고 여러 페이지는 하나의 ZIP에 모두 담아 브라우저의 연속 다운로드 차단을 피합니다. */
-export async function createReportImageDownload(images: readonly Blob[], filename: string): Promise<{ blob: Blob; extension: string }> {
-  if (!images.length) throw new Error('PNG_UNAVAILABLE');
-  if (images.length === 1) return {
-    blob: images[0],
-    extension: 'png'
-  };
-  const { zipSync } = await import('fflate');
+export async function createReportImageDownload(images: readonly Blob[], filename: string): Promise<{ blob: Blob;
+extension: string }> {
+  if (!images.length)
+    throw new Error('PNG_UNAVAILABLE');
+  if (images.length === 1)
+    return {
+      blob: images[0],
+      extension: 'png'
+    };
+  const {
+    zipSync
+  } = await import('fflate');
   const files: Record<string, Uint8Array> = {};
-  for (const [index, image] of images.entries()) files[`${filename}_${String(index + 1).padStart(2, '0')}.png`] = new Uint8Array(await image.arrayBuffer());
+  for (const [index, image] of images.entries())
+    files[`${filename}_${String(index + 1).padStart(2, '0')}.png`] = new Uint8Array(await image.arrayBuffer());
+
   return {
     blob: new Blob([zipSync(files, {
       level: 0

@@ -1,7 +1,11 @@
 import styles from './residentImportGuide.module.css';
 
 /** 초기 설정과 운영 주민 업로드가 같은 양식·동의 안내를 사용하고 동 없는 양식은 호수로만 설명합니다. */
-export function ResidentImportGuide({ hasBuildings, initialSetup = false }: { hasBuildings: boolean; initialSetup?: boolean }) {
+export function ResidentImportGuide({
+  hasBuildings,
+  initialSetup = false
+}: { hasBuildings: boolean;
+initialSetup?: boolean }) {
   return (
     <section
       className={styles.guide}

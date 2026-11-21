@@ -100,7 +100,14 @@ public final class BankingBalanceResponse {
 
 	public record AccountBalance(UUID id, String label, String status, String balance, String asOf,
 	    LocalDate openingDate, String openingBalance, long openingRevision, String calculatedBalance,
-	    LocalDate calculationBasisDate, Confirmation confirmation, boolean comparisonTimeDifferent, String calculationSource) {
+	    LocalDate calculationBasisDate, Confirmation confirmation, boolean comparisonTimeDifferent, String calculationSource,
+	    Instant lastUpdatedAt) {
+		public AccountBalance(UUID id, String label, String status, String balance, String asOf, LocalDate openingDate,
+		    String openingBalance, long openingRevision, String calculatedBalance, LocalDate calculationBasisDate,
+		    Confirmation confirmation, boolean comparisonTimeDifferent, String calculationSource) {
+			this(id, label, status, balance, asOf, openingDate, openingBalance, openingRevision, calculatedBalance,
+			    calculationBasisDate, confirmation, comparisonTimeDifferent, calculationSource, null);
+		}
 		public AccountBalance(UUID id, String label, String status, String balance, String asOf, LocalDate openingDate,
 		    String openingBalance, long openingRevision, String calculatedBalance, LocalDate calculationBasisDate,
 		    Confirmation confirmation, boolean comparisonTimeDifferent) {

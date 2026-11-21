@@ -1,5 +1,5 @@
 import { getTextLength } from '@/shared/lib/format';
-import { BANK_OPTIONS } from '../constants/bankOptions';
+import { BANK_OPTIONS } from '../constant/bankOptions';
 import type {
   BankAccountDraft,
   BankAccountErrors
@@ -25,21 +25,27 @@ export function getBankAccountErrors(draft: BankAccountDraft): BankAccountErrors
 
   const bank = BANK_OPTIONS.find((option) => option.value === draft.bankCode);
 
-  if (!bank || bank.label !== draft.bankName) errors.bankCode = '은행을 선택해주세요.';
-  if (!number) errors.accountNumber = '계좌번호를 입력해주세요.';
+  if (!bank || bank.label !== draft.bankName)
+    errors.bankCode = '은행을 선택해주세요.';
+  if (!number)
+    errors.accountNumber = '계좌번호를 입력해주세요.';
   else if (!/^[0-9]{4,50}$/.test(number)) {
     errors.accountNumber = '계좌번호는 숫자 4~50자리로 입력해주세요.';
   }
-  if (getTextLength(draft.holderName) === 0) errors.holderName = '예금주를 입력해주세요.';
-  if (getTextLength(draft.holderName) > 50) errors.holderName = '예금주는 50자 이내로 입력해주세요.';
-  if (getTextLength(draft.alias ?? '') > 100) errors.alias = '통장 별칭은 100자 이내로 입력해주세요.';
+  if (getTextLength(draft.holderName) === 0)
+    errors.holderName = '예금주를 입력해주세요.';
+  if (getTextLength(draft.holderName) > 50)
+    errors.holderName = '예금주는 50자 이내로 입력해주세요.';
+  if (getTextLength(draft.alias ?? '') > 100)
+    errors.alias = '통장 별칭은 100자 이내로 입력해주세요.';
 
   return errors;
 }
 
 /** 저장소의 이전 버전·손상된 계좌 입력을 안전하게 판별하고 업무 유효성은 폼에서 다시 확인합니다. */
 export function isBankAccountDraft(value: unknown): value is BankAccountDraft {
-  if (!value || typeof value !== 'object') return false;
+  if (!value || typeof value !== 'object')
+    return false;
 
   const account = value as BankAccountDraft;
 

@@ -24,5 +24,6 @@ export async function getMonthlySettlement(propertyId: string, month?: string, s
   readBankingWorkspace(data.banking, propertyId);
   readBankingBalances(data.balances, propertyId, data.month);
   readPaymentLedger(data.payments, propertyId);
+
   return data;
 }

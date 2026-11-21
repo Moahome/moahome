@@ -5,7 +5,8 @@ export function formatInteger(value: string | bigint | number): string {
   }
 
   const integer = String(value);
-  if (!/^-?[0-9]+$/.test(integer)) throw new TypeError('정수만 표시할 수 있습니다.');
+  if (!/^-?[0-9]+$/.test(integer))
+    throw new TypeError('정수만 표시할 수 있습니다.');
 
   return integer.replace(/\B(?=([0-9]{3})+(?![0-9]))/g, ',');
 }

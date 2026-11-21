@@ -61,7 +61,9 @@ export function ResidentRegistrationForm({
   const session = useSession();
   const options = useQuery({
     queryKey: ['resident-registration-units', session.data?.id, propertyId],
-    queryFn: ({ signal }) => getRegistrationOptions(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getRegistrationOptions(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     staleTime: 0,
@@ -75,7 +77,9 @@ export function ResidentRegistrationForm({
   const [restoreResidentId, setRestoreResidentId] = useState('');
   const deletedOptions = useQuery({
     queryKey: ['deleted-residents', session.data?.id, propertyId],
-    queryFn: ({ signal }) => getDeletedResidents(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getDeletedResidents(propertyId, signal),
     enabled: !resident && restoreMode && Boolean(session.data),
     staleTime: 0,
     gcTime: 0,
@@ -97,6 +101,7 @@ export function ResidentRegistrationForm({
   const requestId = useRef<string | null>(null);
   useEffect(() => {
     activeRef.current = true;
+
     return () => {
       activeRef.current = false;
     };
@@ -120,11 +125,13 @@ export function ResidentRegistrationForm({
   let phoneError = '';
   try {
     normalizedPhone = normalizeResidentPhone(resident && phoneAction !== 'REPLACE' ? '' : phone);
-    if (resident && phoneAction === 'REPLACE' && !normalizedPhone) phoneError = '새 연락처를 입력해주세요.';
+    if (resident && phoneAction === 'REPLACE' && !normalizedPhone)
+      phoneError = '새 연락처를 입력해주세요.';
   } catch {
     phoneError = '올바른 연락처를 입력해주세요.';
   }
-  if (normalizedPhone && needsPhoneConsent && !phoneConsent) phoneError = '전화번호 수집·이용 동의를 확인해주세요.';
+  if (normalizedPhone && needsPhoneConsent && !phoneConsent)
+    phoneError = '전화번호 수집·이용 동의를 확인해주세요.';
   const nameError = !name.trim() || [...name.trim()].length > 50 ? '이름을 1~50자로 입력해주세요.' : '';
   const unitError = !selectable.some((unit) => unit.clientId === unitId) ? '호수를 선택해주세요.' : '';
   const relationError = !RESIDENT_RELATION_OPTIONS.some((item) => item.value === relationType) ? '주민 구분을 선택해주세요.' : '';
@@ -137,7 +144,8 @@ export function ResidentRegistrationForm({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAttempted(true);
-    if (pendingRef.current || !options.isSuccess || nameError || phoneError || unitError || relationError || representativeError || (restoreMode && !restoreResidentId)) return;
+    if (pendingRef.current || !options.isSuccess || nameError || phoneError || unitError || relationError || representativeError || (restoreMode && !restoreResidentId))
+      return;
     pendingRef.current = true;
     setBusy(true);
     setMessage('');
@@ -165,7 +173,9 @@ export function ResidentRegistrationForm({
             expectedServiceRole: resident.serviceRole as 'MANAGER' | 'RESIDENT'
           } : {})
         });
-        if (activeRef.current) onSaved(saved);
+        if (activeRef.current)
+          onSaved(saved);
+
         return;
       }
       await registerResident(propertyId, {
@@ -179,9 +189,11 @@ export function ResidentRegistrationForm({
         unitId,
         relationType
       });
-      if (activeRef.current) onSaved();
+      if (activeRef.current)
+        onSaved();
     } catch (error) {
-      if (activeRef.current) setMessage(resident ? getResidentManagementError(error) : getResidentRegistrationError(error));
+      if (activeRef.current)
+        setMessage(resident ? getResidentManagementError(error) : getResidentRegistrationError(error));
     } finally {
       pendingRef.current = false;
       if (activeRef.current) {
@@ -191,34 +203,37 @@ export function ResidentRegistrationForm({
     }
   }
 
-  if (options.isPending) return (
-    <LoadingState
-      title={'등록할 세대를 불러오고 있어요.'}
-    />
-  );
-  if (options.isError) return (
-    <RequestError
-      error={options.error}
-      onRetry={() => void options.refetch({
-        cancelRefetch: false
-      })}
-    />
-  );
-  if (!units.length) return (
-    <div
-      className={styles.state}
-    >
-      <p>
-        주민을 등록하려면 먼저 세대를 등록해주세요.
-      </p>
-      <Button
-        variant={'outline'}
-        onClick={onCancel}
+  if (options.isPending)
+    return (
+      <LoadingState
+        title={'등록할 세대를 불러오고 있어요.'}
+      />
+    );
+  if (options.isError)
+    return (
+      <RequestError
+        error={options.error}
+        onRetry={() => void options.refetch({
+          cancelRefetch: false
+        })}
+      />
+    );
+  if (!units.length)
+    return (
+      <div
+        className={styles.state}
       >
-        돌아가기
-      </Button>
-    </div>
-  );
+        <p>
+          주민을 등록하려면 먼저 세대를 등록해주세요.
+        </p>
+        <Button
+          variant={'outline'}
+          onClick={onCancel}
+        >
+          돌아가기
+        </Button>
+      </div>
+    );
 
   const cancelButton = (
     <Button
@@ -252,7 +267,10 @@ export function ResidentRegistrationForm({
               value: 'RESTORE',
               label: '삭제 명부에서 복구'
             }]}
-            onChange={(value) => { setRestoreMode(value === 'RESTORE'); setRestoreResidentId(''); }}
+            onChange={(value) => {
+              setRestoreMode(value === 'RESTORE');
+              setRestoreResidentId('');
+            }}
           />
         )}
         {!resident && restoreMode && (
@@ -265,7 +283,10 @@ export function ResidentRegistrationForm({
               label: row.name
             }))}
             placeholder={deletedOptions.isPending ? '삭제 명부를 불러오는 중…' : '삭제한 주민을 선택해주세요'}
-            onChange={(value) => { setRestoreResidentId(value); setName(deletedOptions.data?.find((row) => row.id === value)?.name ?? ''); }}
+            onChange={(value) => {
+              setRestoreResidentId(value);
+              setName(deletedOptions.data?.find((row) => row.id === value)?.name ?? '');
+            }}
             error={attempted && !restoreResidentId ? '복구할 주민을 선택해주세요.' : undefined}
           />
         )}
@@ -305,7 +326,11 @@ export function ResidentRegistrationForm({
                 label: '연락처 삭제·동의 철회'
               }])
             ]}
-            onChange={(value) => { setPhoneAction(value as 'KEEP' | 'REPLACE' | 'REMOVE'); setPhone(''); setPhoneConsent(false); }}
+            onChange={(value) => {
+              setPhoneAction(value as 'KEEP' | 'REPLACE' | 'REMOVE');
+              setPhone('');
+              setPhoneConsent(false);
+            }}
           />
         )}
         {(!resident || phoneAction === 'REPLACE') && (
@@ -316,7 +341,10 @@ export function ResidentRegistrationForm({
             type={'tel'}
             autoComplete={'off'}
             value={phone}
-            onChange={(event) => { setPhone(event.target.value); setPhoneConsent(false); }}
+            onChange={(event) => {
+              setPhone(event.target.value);
+              setPhoneConsent(false);
+            }}
             error={attempted ? phoneError : undefined}
             placeholder={'010-1234-5678'}
             description={'목록에는 끝 4자리만 표시됩니다.'}
@@ -357,7 +385,10 @@ export function ResidentRegistrationForm({
             label: /호$/.test(unit.unitNumber) ? unit.unitNumber : `${unit.unitNumber}호`
           }))}
           disabled={Boolean(data?.hasBuildings && !buildingId)}
-          onChange={(value) => { setUnitId(value); setDesignateRepresentative(false); }}
+          onChange={(value) => {
+            setUnitId(value);
+            setDesignateRepresentative(false);
+          }}
           placeholder={'호수 선택 또는 검색'}
           error={attempted ? unitError : undefined}
         />

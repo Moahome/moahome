@@ -54,7 +54,7 @@ src/screens/management-dashboard/
 
 후속 메뉴도 각자의 `screens` 공개 API를 연결합니다. 주민 목록은 `screens/household/resident-list`의 공개 API를 연결하며 [주민 목록](residentList.md)을 따릅니다. 관리비는 `screens/billing`의 공개 API와 `ui/billing-page/billingPage.tsx`를 연결하며 탭을 별도 사이드바 하위 메뉴나 형제 화면 슬라이스로 나누지 않습니다.
 
-- `layout.tsx`는 Client 조합 경계인 `managementShell.tsx`로 본문을 연결합니다. 이 조합은 `widgets/management-layout`의 현재 권한 확인과 메뉴 슬롯을 `widgets/service-header`에 전달하며 두 Widget은 서로를 직접 참조하지 않습니다. 라우터의 `layout.tsx`는 Server Component로 유지합니다.
+- `layout.tsx`는 Client 조합 경계인 `app/providers/managementLayoutProvider.tsx`로 본문을 연결합니다. 이 조합은 `widgets/management-layout`의 현재 권한 확인과 메뉴 슬롯을 `widgets/service-header`에 전달하며 두 Widget은 서로를 직접 참조하지 않습니다. 라우터의 `layout.tsx`는 Server Component로 유지합니다.
 - `ManagementLayout`은 인증·현재 접근 확인, 사이드바, 모바일 메뉴 버튼과 본문 영역을 조합합니다. 전용 조회 API로 현재 관리자 역할을 검증합니다. 메뉴 목록·드롭다운·링크의 JSX와 스타일은 각각의 컴포넌트가 담당합니다.
 - 하위 `page.tsx`는 해당 `screens`의 공개 API로 본문을 연결합니다. 관리대상 안에서 페이지를 바꾸면 공통 틀은 유지하고 `children`으로 들어오는 본문만 바꿉니다.
 - 본문의 `main` 영역은 공통 레이아웃에서 한 번 제공합니다. 대시보드 화면 안에 별도의 `main`을 중첩하지 않습니다.
@@ -213,7 +213,7 @@ PC와 모바일은 같은 `ManagementNavigation`, `SidebarDropdown`, `SidebarLin
 
 `AppProviders`가 Next.js 상태를 유지하며 `pushState`·`replaceState`를 관찰합니다. 탭의 `sessionStorage`에는 최근 최대 50개 경로와 `month`·`account`·`buildingId`·`tab`·`propertyId`·`startMonth`·`endMonth`·`startDate`·`endDate`·`target`만 저장하여 새로고침 후에도 관찰 위치를 복원합니다. 초대 fragment·검색어·인증 정보·업무 본문은 복사하지 않습니다. 검색어 등 나머지 조회 조건은 브라우저의 원래 기록에 남아 있습니다.
 
-직접 진입, 다른 문서 이동, 저장소 차단 후 새로고침, 추적 범위 밖 기록처럼 이전 위치를 확인할 수 없을 때만 `managementShell.tsx`에서 정한 대체 경로로 현재 항목을 `replace`합니다. `history.length`·referrer로 이전 화면을 추측하지 않습니다. 브라우저가 추가한 fragment 이동은 새 관찰 구간으로 분리합니다. 탐색 정보는 권한 판단에 사용하지 않습니다.
+직접 진입, 다른 문서 이동, 저장소 차단 후 새로고침, 추적 범위 밖 기록처럼 이전 위치를 확인할 수 없을 때만 `app/providers/managementLayoutProvider.tsx`에서 정한 대체 경로로 현재 항목을 `replace`합니다. `history.length`·referrer로 이전 화면을 추측하지 않습니다. 브라우저가 추가한 fragment 이동은 새 관찰 구간으로 분리합니다. 탐색 정보는 권한 판단에 사용하지 않습니다.
 
 홈이 최초 진입점일 때의 기기 뒤로가기 결과는 브라우저·설치형 앱의 실행 방식에 따릅니다. 앱에서 강제 종료하거나 외부 사이트의 과거 기록을 삭제하지 않습니다. 로그인 기록은 [서비스 진입의 로그인 이후 뒤로가기](serviceEntry.md#로그인-이후-뒤로가기-2026-11-01)에서 별도로 다룹니다.
 
@@ -433,3 +433,5 @@ HTTP signal 및 오류 분리→업무 Query 전달·계정 범위→서버 acce
 사용자 헤더 시안의 업데이트 표시·구분선·파란 새로고침 버튼을 `shared/ui/query-refresh`의 QueryRefresh로 공유합니다. 대시보드·월별 정산·통장 거래·잔고·정산·월별 수납/입금 확인에 적용합니다. 성공은 Success 표시, 조회 중은 Primary, 실패는 Danger이며 시각은 한국시간으로 표시합니다. 기존 Query만 다시 조회하고 저장·수납 확정을 반복하지 않습니다. 좁은 화면에서는 시각을 줄바꿈하고 버튼과 시각이 화면을 넘지 않게 합니다.
 
 계정과목 설정도 세대 목록처럼 제목을 카드 밖에 두고 필터·툴바·표·페이지네이션만 공통 ListCard로 감쌉니다. 조회 중에는 카드 없이 공통 LoadingState를, 실패하면 RequestError만 표시합니다. 일반 조회 오류도 기존 서버 오류 이미지를 사용하며 오류 안내만 있는 빈 카드를 만들지 않습니다.
+
+2026-11-21 카드 표시 통일: 관리비 부과·세대 목록·주민 목록의 상단 요약도 공통 `SummaryCard`의 `density="compact"`를 사용합니다. 별도 카드 컴포넌트를 추가하거나 화면 CSS에서 공통 카드의 크기를 덮어쓰지 않습니다.

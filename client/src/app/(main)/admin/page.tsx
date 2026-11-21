@@ -8,8 +8,10 @@ export const metadata: Metadata = {
     follow: false
   }
 };
-export default function Page() { return (
-  <Suspense>
-    <SystemMemberListPage />
-  </Suspense>
-); }
+export default function Page() {
+  return (
+    <Suspense>
+      <SystemMemberListPage />
+    </Suspense>
+  );
+}

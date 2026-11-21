@@ -25,7 +25,8 @@ import { CalendarPicker } from '@/shared/ui/calendar-picker';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './calendarRangePicker.module.css';
 
-const MONTH_PRESETS: { value: MonthRangePreset; label: string }[] = [
+const MONTH_PRESETS: { value: MonthRangePreset;
+label: string }[] = [
   {
     value: 'thisMonth',
     label: '이번 달'
@@ -37,7 +38,8 @@ const MONTH_PRESETS: { value: MonthRangePreset; label: string }[] = [
     label: '올해'
   }
 ];
-const DATE_PRESETS: { value: DateRangePreset; label: string }[] = [
+const DATE_PRESETS: { value: DateRangePreset;
+label: string }[] = [
   {
     value: 'thisMonth',
     label: '이번 달'
@@ -51,10 +53,20 @@ const DATE_PRESETS: { value: DateRangePreset; label: string }[] = [
 ];
 
 /** 날짜·월 달력을 재사용하고 조회를 누를 때만 완성된 기간을 반영합니다. 닫으면 적용 전 선택은 버립니다. */
-export function CalendarRangePicker({ mode, value, onChange, label = '조회 기간', labelHidden = false, referenceDate, disabled = false }: {
+export function CalendarRangePicker({
+  mode,
+  value,
+  onChange,
+  label = '조회 기간',
+  labelHidden = false,
+  referenceDate,
+  disabled = false
+}: {
   mode: 'date' | 'month';
-  value: { start: string; end: string };
-  onChange: (value: { start: string; end: string }) => void;
+  value: { start: string;
+end: string };
+  onChange: (value: { start: string;
+end: string }) => void;
   label?: string;
   labelHidden?: boolean;
   referenceDate?: string;
@@ -75,6 +87,7 @@ export function CalendarRangePicker({ mode, value, onChange, label = '조회 기
   const presets = mode === 'month'
     ? MONTH_PRESETS.map((preset) => {
       const range = getPresetMonthRange(preset.value, today.slice(0, 7));
+
       return {
         label: preset.label,
         range: {
@@ -85,6 +98,7 @@ export function CalendarRangePicker({ mode, value, onChange, label = '조회 기
     })
     : DATE_PRESETS.map((preset) => {
       const range = getPresetDateRange(preset.value, today);
+
       return {
         label: preset.label,
         range: {
@@ -94,7 +108,8 @@ export function CalendarRangePicker({ mode, value, onChange, label = '조회 기
       };
     });
 
-  function formatValue(period: { start: string; end: string }) {
+  function formatValue(period: { start: string;
+end: string }) {
     return mode === 'month' ? formatMonthRange({
       startMonth: period.start,
       endMonth: period.end
@@ -108,15 +123,23 @@ export function CalendarRangePicker({ mode, value, onChange, label = '조회 기
   useLayoutEffect(() => {
     const panel = popup.current;
     const button = trigger.current;
-    if (!panel || !button) return;
+    if (!panel || !button)
+      return;
     if (!open) {
       const delay = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 180;
-      const timer = window.setTimeout(() => { if (panel.matches(':popover-open')) panel.hidePopover(); }, delay);
+      const timer = window.setTimeout(() => {
+        if (panel.matches(':popover-open'))
+          panel.hidePopover();
+      }, delay);
+
       return () => window.clearTimeout(timer);
     }
-    if (!panel.matches(':popover-open')) panel.showPopover();
+    if (!panel.matches(':popover-open'))
+      panel.showPopover();
+
     function position() {
-      if (!panel || !button) return;
+      if (!panel || !button)
+        return;
       const anchor = button.getBoundingClientRect();
       const boundary = button.closest('dialog[open], main')?.getBoundingClientRect();
       const viewport = window.visualViewport;
@@ -134,6 +157,7 @@ export function CalendarRangePicker({ mode, value, onChange, label = '조회 기
       panel.style.left = `${Math.max(left, Math.min(anchor.left, right - width))}px`;
       panel.style.top = `${openAbove ? anchor.top - height - 6 : anchor.bottom + 6}px`;
     }
+
     position();
     const observer = new ResizeObserver(position);
     observer.observe(button);
@@ -141,6 +165,7 @@ export function CalendarRangePicker({ mode, value, onChange, label = '조회 기
     window.addEventListener('resize', position);
     window.addEventListener('scroll', position, true);
     window.visualViewport?.addEventListener('resize', position);
+
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', position);
@@ -150,12 +175,17 @@ export function CalendarRangePicker({ mode, value, onChange, label = '조회 기
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open)
+      return;
     first.current?.focus();
+
     function outside(event: PointerEvent) {
-      if (event.target instanceof Node && !root.current?.contains(event.target)) setOpen(false);
+      if (event.target instanceof Node && !root.current?.contains(event.target))
+        setOpen(false);
     }
+
     document.addEventListener('pointerdown', outside);
+
     return () => document.removeEventListener('pointerdown', outside);
   }, [open]);
 
@@ -169,6 +199,7 @@ export function CalendarRangePicker({ mode, value, onChange, label = '조회 기
       endDate: draft.end
     }))) {
       setError(`${startLabel}과 ${endLabel}을 확인해주세요. ${startLabel}은 ${endLabel}보다 늦을 수 없어요.`);
+
       return;
     }
     onChange(draft);
@@ -180,9 +211,13 @@ export function CalendarRangePicker({ mode, value, onChange, label = '조회 기
     <div
       className={styles.picker}
       ref={root}
-      onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget))
+          setOpen(false);
+      }}
       onKeyDown={(event) => {
-        if (event.key !== 'Escape' || !open) return;
+        if (event.key !== 'Escape' || !open)
+          return;
         event.preventDefault();
         event.stopPropagation();
         setOpen(false);
@@ -206,7 +241,12 @@ export function CalendarRangePicker({ mode, value, onChange, label = '조회 기
         aria-haspopup={'dialog'}
         aria-expanded={open}
         aria-controls={open ? id : undefined}
-        onClick={() => { setDraft(value); setCustom(!presets.some((preset) => preset.range.start === value.start && preset.range.end === value.end)); setError(''); setOpen((previous) => !previous); }}
+        onClick={() => {
+          setDraft(value);
+          setCustom(!presets.some((preset) => preset.range.start === value.start && preset.range.end === value.end));
+          setError('');
+          setOpen((previous) => !previous);
+        }}
       >
         <ServiceIcon
           name={'closing'}
@@ -246,6 +286,7 @@ export function CalendarRangePicker({ mode, value, onChange, label = '조회 기
           {presets.map((preset, index) => {
             const range = preset.range;
             const selected = !custom && range.start === draft.start && range.end === draft.end;
+
             return (
               <Button
                 key={preset.label}
@@ -253,7 +294,11 @@ export function CalendarRangePicker({ mode, value, onChange, label = '조회 기
                 variant={selected ? 'primary' : 'ghost'}
                 size={'sm'}
                 aria-pressed={selected}
-                onClick={() => { setDraft(range); setCustom(false); setError(''); }}
+                onClick={() => {
+                  setDraft(range);
+                  setCustom(false);
+                  setError('');
+                }}
               >
                 {preset.label}
               </Button>
@@ -276,20 +321,28 @@ export function CalendarRangePicker({ mode, value, onChange, label = '조회 기
             label={startLabel}
             variant={'input'}
             value={draft.start}
-            onChange={(start) => { setDraft((previous) => ({
-              ...previous,
-              start
-            })); setCustom(true); setError(''); }}
+            onChange={(start) => {
+              setDraft((previous) => ({
+                ...previous,
+                start
+              }));
+              setCustom(true);
+              setError('');
+            }}
           />
           <CalendarPicker
             mode={mode}
             label={endLabel}
             variant={'input'}
             value={draft.end}
-            onChange={(end) => { setDraft((previous) => ({
-              ...previous,
-              end
-            })); setCustom(true); setError(''); }}
+            onChange={(end) => {
+              setDraft((previous) => ({
+                ...previous,
+                end
+              }));
+              setCustom(true);
+              setError('');
+            }}
           />
         </div>
         {error && (
@@ -306,7 +359,10 @@ export function CalendarRangePicker({ mode, value, onChange, label = '조회 기
           <Button
             variant={'outline'}
             tone={'neutral'}
-            onClick={() => { setOpen(false); trigger.current?.focus(); }}
+            onClick={() => {
+              setOpen(false);
+              trigger.current?.focus();
+            }}
           >
             취소
           </Button>

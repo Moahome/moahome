@@ -14,6 +14,7 @@ function readAccount<T extends Omit<BankAccountSettings, 'alias'>>(value: T, pro
     || typeof value.accountNumber !== 'string' || !/^[0-9]{4,50}$/.test(value.accountNumber)) {
     throw new ApiError(200, 'INVALID_RESPONSE', '계좌 정보를 확인하지 못했어요.');
   }
+
   return value;
 }
 
@@ -63,7 +64,9 @@ export async function getBankAccounts(propertyId: string, signal?: AbortSignal) 
   });
   if (!Array.isArray(rows) || !rows.every((row) => readAccount(row, propertyId) && typeof row.isPrimary === 'boolean'
     && ['ACTIVE', 'INACTIVE', 'CLOSED'].includes(row.status) && (row.alias === null || typeof row.alias === 'string'))
-    || new Set(rows.map((row) => row.accountId)).size !== rows.length) throw new ApiError(200, 'INVALID_RESPONSE', '관리계좌 목록을 확인하지 못했어요.');
+    || new Set(rows.map((row) => row.accountId)).size !== rows.length)
+    throw new ApiError(200, 'INVALID_RESPONSE', '관리계좌 목록을 확인하지 못했어요.');
+
   return rows;
 }
 

@@ -79,7 +79,11 @@ export function LandingPage() {
               <div
                 className={styles['role-highlights']}
               >
-                {SERVICE_FEATURES.map(({ icon, title, summary }, index) => (
+                {SERVICE_FEATURES.map(({
+                  icon,
+                  title,
+                  summary
+                }, index) => (
                   <a
                     href={`#role-${index}`}
                     className={styles['role-highlight']}
@@ -133,7 +137,11 @@ export function LandingPage() {
           <div
             className={styles.benefits}
           >
-            {BENEFITS.map(({ icon, title, description }) => (
+            {BENEFITS.map(({
+              icon,
+              title,
+              description
+            }) => (
               <article
                 className={styles.benefit}
                 data-reveal
@@ -218,7 +226,12 @@ export function LandingPage() {
           <div
             className={styles['service-cards']}
           >
-            {SERVICE_FEATURES.map(({ icon, title, description, items }, index) => (
+            {SERVICE_FEATURES.map(({
+              icon,
+              title,
+              description,
+              items
+            }, index) => (
               <article
                 className={styles['service-card']}
                 data-reveal
@@ -312,7 +325,11 @@ export function LandingPage() {
             <div
               className={styles['audience-cards']}
             >
-              {AUDIENCE_ITEMS.map(({ title, text, icon }) => (
+              {AUDIENCE_ITEMS.map(({
+                title,
+                text,
+                icon
+              }) => (
                 <article
                   data-reveal
                   key={title}
@@ -361,7 +378,10 @@ export function LandingPage() {
           <div
             className={styles['faq-list']}
           >
-            {FAQ_ITEMS.map(({ question, answer }) => (
+            {FAQ_ITEMS.map(({
+              question,
+              answer
+            }) => (
               <details
                 className={styles['faq-item']}
                 name={'landing-faq'}

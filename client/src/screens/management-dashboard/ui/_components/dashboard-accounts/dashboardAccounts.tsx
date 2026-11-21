@@ -6,7 +6,11 @@ import { DashboardPanel } from '../dashboard-panel/dashboardPanel';
 import styles from './dashboardAccounts.module.css';
 
 /** 상세와 같은 장부 우선 잔액을 표시하며 누락된 통장 금액을 0원으로 합산하지 않습니다. */
-export function DashboardAccounts({ report, href, onOpen }: {
+export function DashboardAccounts({
+  report,
+  href,
+  onOpen
+}: {
   report: DashboardReport;
   href: string;
   onOpen: (id: string) => void;
@@ -56,7 +60,7 @@ export function DashboardAccounts({ report, href, onOpen }: {
                   {account.balance === null ? '확인 필요' : formatWon(account.balance)}
                 </strong>
                 <small>
-                  {account.balance === null ? '잔액 자료가 필요해요.' : `${account.balanceDate} · 장부 계산`}
+                  {account.balance === null ? '잔액 자료가 필요해요.' : account.balanceDate ? `최종 업데이트 ${account.balanceDate}` : null}
                 </small>
               </span>
               <ServiceIcon

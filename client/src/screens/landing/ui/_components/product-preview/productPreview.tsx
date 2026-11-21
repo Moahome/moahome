@@ -58,7 +58,11 @@ function DashboardPreview() {
         <div
           className={styles['preview-menu']}
         >
-          {PREVIEW_MENU.map(({ icon, label, expandable }, index) => (
+          {PREVIEW_MENU.map(({
+            icon,
+            label,
+            expandable
+          }, index) => (
             <div
               className={styles['menu-group']}
               key={label}
@@ -73,10 +77,10 @@ function DashboardPreview() {
                   {label}
                 </span>
                 {expandable && (
-                  <ServiceIcon
-                    name={'chevron'}
-                    direction={'right'}
-                  />
+                <ServiceIcon
+                  name={'chevron'}
+                  direction={'right'}
+                />
                 )}
               </div>
             </div>
@@ -128,7 +132,13 @@ function DashboardPreview() {
           <div
             className={styles['preview-stats']}
           >
-            {PREVIEW_STATS.map(({ icon, label, amount, note, tone }) => (
+            {PREVIEW_STATS.map(({
+              icon,
+              label,
+              amount,
+              note,
+              tone
+            }) => (
               <div
                 className={styles[`${tone}-stat`]}
                 key={label}
@@ -167,7 +177,10 @@ function DashboardPreview() {
                   현재 기준
                 </small>
               </h4>
-              {PREVIEW_TASKS.map(({ label, count }) => (
+              {PREVIEW_TASKS.map(({
+                label,
+                count
+              }) => (
                 <div
                   className={styles['task-row']}
                   key={label}
@@ -319,7 +332,12 @@ function DashboardPreview() {
                   </tr>
                 </thead>
                 <tbody>
-                  {PREVIEW_TRANSACTIONS.map(({ date, label, amount, status }) => (
+                  {PREVIEW_TRANSACTIONS.map(({
+                    date,
+                    label,
+                    amount,
+                    status
+                  }) => (
                     <tr
                       key={label}
                     >
@@ -444,7 +462,10 @@ function ResidentPreview() {
       <div
         className={styles['phone-actions']}
       >
-        {PREVIEW_PHONE_ACTIONS.map(({ icon, label }) => (
+        {PREVIEW_PHONE_ACTIONS.map(({
+          icon,
+          label
+        }) => (
           <div
             key={label}
           >
@@ -489,7 +510,10 @@ function ResidentPreview() {
       <div
         className={styles['phone-navigation']}
       >
-        {PREVIEW_PHONE_NAVIGATION.map(({ icon, label }) => (
+        {PREVIEW_PHONE_NAVIGATION.map(({
+          icon,
+          label
+        }) => (
           <span
             key={label}
           >

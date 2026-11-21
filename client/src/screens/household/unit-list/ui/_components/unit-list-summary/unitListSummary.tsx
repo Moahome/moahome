@@ -34,6 +34,7 @@ export function UnitListSummary({
     >
       {items.map((item) => (
         <SummaryCard
+          density={'compact'}
           key={item.tone}
           label={item.label}
           value={item.count}

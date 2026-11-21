@@ -7,12 +7,15 @@ import {
 } from 'react';
 import styles from './landingMotion.module.css';
 
-export function LandingMotion({ children }: { children: ReactNode }) {
+export function LandingMotion({
+  children
+}: { children: ReactNode }) {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const root = rootRef.current;
-    if (!root || !('IntersectionObserver' in window)) return;
+    if (!root || !('IntersectionObserver' in window))
+      return;
 
     const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
     const revealElements = root.querySelectorAll<HTMLElement>('[data-reveal]');
@@ -20,7 +23,8 @@ export function LandingMotion({ children }: { children: ReactNode }) {
     const revealObserver = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
+          if (!entry.isIntersecting)
+            return;
           (entry.target as HTMLElement).dataset.revealState = 'visible';
           revealObserver.unobserve(entry.target);
         });
@@ -31,7 +35,8 @@ export function LandingMotion({ children }: { children: ReactNode }) {
     );
 
     const previewObserver = new IntersectionObserver(([entry]) => {
-      if (preview) preview.dataset.motionVisible = String(entry.isIntersecting);
+      if (preview)
+        preview.dataset.motionVisible = String(entry.isIntersecting);
     });
 
     function updateMotionPreference() {
@@ -39,16 +44,19 @@ export function LandingMotion({ children }: { children: ReactNode }) {
       revealElements.forEach((element) => {
         if (motionQuery.matches) {
           delete element.dataset.revealState;
+
           return;
         }
-        if (element.dataset.revealState === 'visible') return;
+        if (element.dataset.revealState === 'visible')
+          return;
         element.dataset.revealState = 'pending';
         revealObserver.observe(element);
       });
     }
 
     updateMotionPreference();
-    if (preview) previewObserver.observe(preview);
+    if (preview)
+      previewObserver.observe(preview);
     motionQuery.addEventListener('change', updateMotionPreference);
 
     return () => {
@@ -58,7 +66,8 @@ export function LandingMotion({ children }: { children: ReactNode }) {
       revealElements.forEach((element) => {
         delete element.dataset.revealState;
       });
-      if (preview) delete preview.dataset.motionVisible;
+      if (preview)
+        delete preview.dataset.motionVisible;
     };
   }, []);
 

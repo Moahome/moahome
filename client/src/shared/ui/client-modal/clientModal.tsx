@@ -41,14 +41,16 @@ export function ClientModal({
     // 중첩된 삭제 확인은 부모 모달이 소유한 스크롤 잠금을 해제하지 않습니다.
     const ownsScrollLock = !document.querySelector('dialog[open]');
     dialog?.showModal();
-    if (ownsScrollLock) document.body.style.overflow = 'hidden';
+    if (ownsScrollLock)
+      document.body.style.overflow = 'hidden';
     initialFocusRef?.current?.focus({
       preventScroll: true
     });
 
     return () => {
       dialog?.close();
-      if (ownsScrollLock) document.body.style.overflow = previousOverflow;
+      if (ownsScrollLock)
+        document.body.style.overflow = previousOverflow;
       // 삭제로 이전 버튼이 사라졌거나 비활성화되면 지정한 대체 버튼·부모 창으로 돌아갑니다.
       const canRestoreFocus = previousFocus instanceof HTMLElement && previousFocus.isConnected && !previousFocus.matches(':disabled');
       const nextFocus = canRestoreFocus ? previousFocus : (fallbackFocus ?? previousDialog?.querySelector<HTMLElement>('button:not(:disabled)'));
@@ -71,17 +73,20 @@ export function ClientModal({
       }}
       onClick={(event) => {
         onClick?.(event);
-        if (!closeOnOutsideClick || busy || event.defaultPrevented || !outsidePointerDown.current) return;
+        if (!closeOnOutsideClick || busy || event.defaultPrevented || !outsidePointerDown.current)
+          return;
         const bounds = event.currentTarget.getBoundingClientRect();
         // 모달 안에서 시작한 드래그와 내부 여백 클릭은 닫기로 처리하지 않습니다.
         const outside = event.target === event.currentTarget
           && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom);
-        if (outside) onClose();
+        if (outside)
+          onClose();
       }}
       onCancel={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (!busy) onClose();
+        if (!busy)
+          onClose();
       }}
     >
       {children}

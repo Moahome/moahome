@@ -27,7 +27,9 @@ function getBrowserIntent(installUrl: string) {
 }
 
 /** 화면 전환 전에 설치 이벤트를 보관하고 모바일 배너와 설정의 설치 동작을 공유합니다. */
-export function AppInstallProvider({ children }: { children: ReactNode }) {
+export function AppInstallProvider({
+  children
+}: { children: ReactNode }) {
   const pathname = usePathname();
   const promptRef = useRef<BeforeInstallPromptEvent | null>(null);
   const busyRef = useRef(false);
@@ -61,18 +63,21 @@ export function AppInstallProvider({ children }: { children: ReactNode }) {
     function syncDismissal() {
       try {
         const storedUntil = Number(localStorage.getItem(DISMISSED_UNTIL_KEY));
-        if (Number.isFinite(storedUntil)) dismissedUntilRef.current = Math.max(storedUntil, dismissedUntilRef.current);
+        if (Number.isFinite(storedUntil))
+          dismissedUntilRef.current = Math.max(storedUntil, dismissedUntilRef.current);
       } catch {
         // 비공개 모드 등으로 저장소를 사용할 수 없어도 현재 창에서는 한 시간 숨김을 유지합니다.
       }
       const remaining = dismissedUntilRef.current - Date.now();
       setDismissed(remaining > 0);
       clearTimeout(dismissalTimer);
-      if (remaining > 0) dismissalTimer = setTimeout(syncDismissal, remaining);
+      if (remaining > 0)
+        dismissalTimer = setTimeout(syncDismissal, remaining);
     }
 
     function handleStorage(event: StorageEvent) {
-      if (event.key === DISMISSED_UNTIL_KEY || event.key === null) syncDismissal();
+      if (event.key === DISMISSED_UNTIL_KEY || event.key === null)
+        syncDismissal();
     }
 
     syncDismissalRef.current = syncDismissal;
@@ -97,8 +102,10 @@ export function AppInstallProvider({ children }: { children: ReactNode }) {
 
     /** 브라우저가 제공한 일회용 이벤트만 저장하고 설치 창은 사용자가 누를 때 엽니다. */
     function capturePrompt(event: Event) {
-      if (!mobileQuery.matches) return;
-      if (!('prompt' in event) || typeof event.prompt !== 'function' || !('userChoice' in event)) return;
+      if (!mobileQuery.matches)
+        return;
+      if (!('prompt' in event) || typeof event.prompt !== 'function' || !('userChoice' in event))
+        return;
       event.preventDefault();
       promptRef.current = event as BeforeInstallPromptEvent;
     }
@@ -146,7 +153,8 @@ export function AppInstallProvider({ children }: { children: ReactNode }) {
 
   /** Android 카카오톡에서는 클릭 시 OS에 브라우저 열기를 요청하고 일반 설치 이벤트는 한 번만 소비합니다. */
   async function install() {
-    if (!available || isInstalled || busyRef.current) return;
+    if (!available || isInstalled || busyRef.current)
+      return;
     setFailed(false);
     if (environment.kakao && environment.android) {
       try {
@@ -157,12 +165,14 @@ export function AppInstallProvider({ children }: { children: ReactNode }) {
         setFailed(true);
         setGuideOpen(true);
       }
+
       return;
     }
 
     const event = promptRef.current;
     if (environment.kakao || !event) {
       setGuideOpen(true);
+
       return;
     }
 
@@ -187,8 +197,10 @@ export function AppInstallProvider({ children }: { children: ReactNode }) {
   }
 
   let guideTitle = '모아홈 앱 설치';
-  if (environment.ios) guideTitle = '홈 화면에 추가';
-  if (environment.kakao) guideTitle = '외부 브라우저에서 설치';
+  if (environment.ios)
+    guideTitle = '홈 화면에 추가';
+  if (environment.kakao)
+    guideTitle = '외부 브라우저에서 설치';
 
   return (
     <AppInstallContext.Provider

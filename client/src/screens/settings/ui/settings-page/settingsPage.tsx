@@ -25,7 +25,9 @@ import { ParticipatingProperties } from '../_components/participating-properties
 import styles from './settingsPage.module.css';
 
 /** 현재 역할에 맞는 설정과 본인의 나가기 흐름을 조합합니다. */
-export function SettingsPage({ propertyId }: { propertyId: string }) {
+export function SettingsPage({
+  propertyId
+}: { propertyId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const session = useSession();
@@ -107,6 +109,7 @@ export function SettingsPage({ propertyId }: { propertyId: string }) {
               onClick={() => {
                 if (window.matchMedia('(max-width: 767px)').matches) {
                   router.push(`/properties?propertyId=${propertyId}`);
+
                   return;
                 }
                 setPropertiesOpen(true);
@@ -174,9 +177,11 @@ export function SettingsPage({ propertyId }: { propertyId: string }) {
                 onClick={() => {
                   if (window.matchMedia('(max-width: 767px)').matches) {
                     router.push(`/manage/${propertyId}/settings/accounts`);
+
                     return;
                   }
-                  setSaved(false); setAccountOpen(true);
+                  setSaved(false);
+                  setAccountOpen(true);
                 }}
               >
                 계좌 관리
@@ -238,7 +243,9 @@ export function SettingsPage({ propertyId }: { propertyId: string }) {
         <BankAccountEditor
           propertyId={propertyId}
           onClose={() => setAccountOpen(false)}
-          onSaved={() => { setSaved(true); }}
+          onSaved={() => {
+            setSaved(true);
+          }}
         />
       )}
       {saved && (

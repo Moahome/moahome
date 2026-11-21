@@ -3,6 +3,10 @@ import {
   test,
   type Page
 } from '@playwright/test';
+import {
+  mockNoticeMap,
+  NOTICE_LOCATION
+} from './support/noticeMap';
 
 const PROPERTY = 'b06f4ab1-0331-41c2-8304-d20f062298a0';
 const NOTICE = 'c54cd857-fd59-4123-a38a-12497e6c82ba';
@@ -10,6 +14,7 @@ const ASSET = 'c54cd857-fd59-4123-a38a-12497e6c82bb';
 const TOKEN = `${NOTICE}.${'A'.repeat(43)}`;
 const CONTENT = JSON.stringify({
   type: 'doc',
+  location: NOTICE_LOCATION,
   content: [
     {
       type: 'paragraph',
@@ -71,6 +76,7 @@ const CONTENT = JSON.stringify({
 
 /** 읽기 API만 모의 처리하고 실제 공통 표·문서·첨부·라우팅을 사용합니다. */
 async function mockResidentNotices(page: Page, initialAuthorized = false) {
+  await mockNoticeMap(page);
   let authorized = initialAuthorized;
   let revoked = false;
   let exchanges = 0;
@@ -210,6 +216,13 @@ test('링크를 열면 중간 화면 없이 공지 목록·본문·첨부를 읽
   await expect(page.getByRole('document', {
     name: '공지 본문'
   })).toContainText('양해와 협조');
+  const location = page.getByRole('region', {
+    name: '장소 안내'
+  });
+  await expect(location).toContainText(NOTICE_LOCATION.address);
+  await expect(location.getByRole('link', {
+    name: '길찾기'
+  })).toHaveAttribute('href', /map\.kakao\.com\/link\/to\//);
   await expect(page.getByText('작성자 김관리', {
     exact: true
   })).toBeVisible();

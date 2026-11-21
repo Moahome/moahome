@@ -43,7 +43,12 @@ import { TransferDetail } from '../_components/transfer-detail/transferDetail';
 import styles from './bankingExpensePage.module.css';
 
 /** PC 모달과 모바일 상세에서 같은 원본·확정 지출을 조회하고 저장 중에는 닫기를 막습니다. */
-export function BankingExpensePage({ propertyId, transactionId, presentation = 'page', onClose }: {
+export function BankingExpensePage({
+  propertyId,
+  transactionId,
+  presentation = 'page',
+  onClose
+}: {
   propertyId: string;
   transactionId: string;
   presentation?: 'page' | 'modal';
@@ -55,7 +60,9 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
   const queryKey = ['banking-workspace', session.data?.id, propertyId];
   const workspace = useQuery({
     queryKey,
-    queryFn: ({ signal }) => getBankingWorkspace(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getBankingWorkspace(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false,
     gcTime: 0
@@ -66,24 +73,27 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
   const busyRef = useRef(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(false);
+
   function present(content: ReactNode) {
-    if (presentation === 'page') return (
-      <section
-        className={styles.page}
-      >
-        <ListHeader
-          menu={'통장 관리'}
-          title={'지출 상세'}
-          titleId={'expense-title'}
-          description={workspace.data?.buildings.length ? '거래 내용과 각 동의 지출액을 확인합니다.' : '거래 내용과 지출액을 확인합니다.'}
-        />
-        <div
-          className={styles.body}
+    if (presentation === 'page')
+      return (
+        <section
+          className={styles.page}
         >
-          {content}
-        </div>
-      </section>
-    );
+          <ListHeader
+            menu={'통장 관리'}
+            title={'지출 상세'}
+            titleId={'expense-title'}
+            description={workspace.data?.buildings.length ? '거래 내용과 각 동의 지출액을 확인합니다.' : '거래 내용과 지출액을 확인합니다.'}
+          />
+          <div
+            className={styles.body}
+          >
+            {content}
+          </div>
+        </section>
+      );
+
     return (
       <ClientModal
         className={styles.modal}
@@ -127,46 +137,59 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
       </ClientModal>
     );
   }
-  if (workspace.isPending) return present(
-    <LoadingState
-      title={'거래 정보를 불러오고 있어요.'}
-    />
-  );
-  if (!workspace.data) return present(
-    <RequestError
-      error={workspace.error}
-      onRetry={() => void workspace.refetch({
-        cancelRefetch: false
-      })}
-    />
-  );
+
+  if (workspace.isPending)
+    return present(
+      <LoadingState
+        title={'거래 정보를 불러오고 있어요.'}
+      />
+    );
+  if (!workspace.data)
+    return present(
+      <RequestError
+        error={workspace.error}
+        onRetry={() => void workspace.refetch({
+          cancelRefetch: false
+        })}
+      />
+    );
   const transfer = workspace.data.rows.find((item) => item.id === transactionId && (item.transferCandidate || transferSelected));
-  if (transfer) return (
-    <TransferDetail
-      propertyId={propertyId}
-      row={transfer}
-      data={workspace.data}
-      presentation={presentation}
-      onClose={onClose}
-    />
-  );
+  if (transfer)
+    return (
+      <TransferDetail
+        propertyId={propertyId}
+        row={transfer}
+        data={workspace.data}
+        presentation={presentation}
+        onClose={onClose}
+      />
+    );
   const row = workspace.data.rows.find((item) => item.id === transactionId && item.direction === 'EXPENSE');
-  if (!row) return present(
-    <section>
-      <h3>
-        출금 내역을 찾을 수 없습니다.
-      </h3>
-      <p>
-        현재 관리대상의 거래를 확인해주세요.
-      </p>
-    </section>
-  );
+  if (!row)
+    return present(
+      <section>
+        <h3>
+          출금 내역을 찾을 수 없습니다.
+        </h3>
+        <p>
+          현재 관리대상의 거래를 확인해주세요.
+        </p>
+      </section>
+    );
   const draft = edited ?? createExpenseDraft(row, workspace.data);
+
   async function confirm() {
-    if (!row || busyRef.current) return;
+    if (!row || busyRef.current)
+      return;
     const calculated = calculateExpenseAllocation(row.amount, draft);
-    if (calculated.error) { setError(calculated.error); return; }
-    busyRef.current = true; setBusy(true); setError('');
+    if (calculated.error) {
+      setError(calculated.error);
+
+      return;
+    }
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
     try {
       await cache.cancelQueries({
         queryKey
@@ -175,14 +198,21 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
         ...draft,
         allocations: calculated.allocations
       });
-      setPropertyQueryData(cache, queryKey, saved, propertyScope); setEdited(null); setNotice(true);
+      setPropertyQueryData(cache, queryKey, saved, propertyScope);
+      setEdited(null);
+      setNotice(true);
       // 원장에서 열린 지출을 확정하면 해당 동의 잔고와 누적 원장도 다시 조회합니다.
       void cache.invalidateQueries({
         queryKey: ['banking-balances', session.data?.id, propertyId]
       });
-    } catch (failure) { setError(bankingError(failure)); }
-    finally { busyRef.current = false; setBusy(false); }
+    } catch (failure) {
+      setError(bankingError(failure));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
   }
+
   const expenseName = row.expense?.category ?? row.payer;
   const originalDetails = [
     {
@@ -210,6 +240,7 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
       kind: 'date'
     }
   ] as const;
+
   return present(
     <>
       <header
@@ -387,7 +418,9 @@ export function BankingExpensePage({ propertyId, transactionId, presentation = '
               <Button
                 disabled={busy}
                 loading={busy}
-                onClick={() => { void confirm(); }}
+                onClick={() => {
+                  void confirm();
+                }}
               >
                 지출 확정
               </Button>

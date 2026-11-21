@@ -20,11 +20,13 @@ export function getUnitSetupError(hasBuildings: boolean, buildings: BuildingDraf
   if (!hasBuildings && (buildings.length || units.some((unit) => unit.buildingClientId !== null))) {
     return '동 구분이 변경되었어요. 기존 동 연결을 해제해주세요.';
   }
-  if (hasBuildings && !buildings.length) return '관리할 동을 하나 이상 추가해주세요.';
+  if (hasBuildings && !buildings.length)
+    return '관리할 동을 하나 이상 추가해주세요.';
   if (hasBuildings && buildings.some((building) => getBuildingNameError(building.name, buildings, building.clientId))) {
     return '등록한 동 이름을 확인해주세요.';
   }
-  if (!units.length) return '관리할 세대를 하나 이상 추가해주세요.';
+  if (!units.length)
+    return '관리할 세대를 하나 이상 추가해주세요.';
 
   for (const unit of units) {
     const errors = getUnitFormErrors({
@@ -35,7 +37,8 @@ export function getUnitSetupError(hasBuildings: boolean, buildings: BuildingDraf
       status: unit.status,
     }, hasBuildings, buildings, units, unit.clientId);
 
-    if (Object.keys(errors).length) return `${getUnitLabel(unit)}의 동과 세대 정보를 확인해주세요.`;
+    if (Object.keys(errors).length)
+      return `${getUnitLabel(unit)}의 동과 세대 정보를 확인해주세요.`;
   }
 
   return null;

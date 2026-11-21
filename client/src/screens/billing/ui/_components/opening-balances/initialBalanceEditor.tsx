@@ -2,7 +2,6 @@
 
 import { getBankAccountLabel } from '@/entities/banking';
 
-
 import {
   useEffect,
   useRef,
@@ -24,7 +23,12 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './openingBalances.module.css';
 
 /** 초기 기준만 정정하며 실패에는 입력·요청 ID를 유지하고 모바일에서는 독립 페이지로 표시합니다. */
-export function InitialBalanceEditor({ data, page = false, onClose, onSaved }: {
+export function InitialBalanceEditor({
+  data,
+  page = false,
+  onClose,
+  onSaved
+}: {
   data: OpeningWorkspace;
   page?: boolean;
   onClose: () => void;
@@ -36,9 +40,16 @@ export function InitialBalanceEditor({ data, page = false, onClose, onSaved }: {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
-  const request = useRef<{ body: string; id: string } | null>(null);
+  const request = useRef<{ body: string;
+id: string } | null>(null);
   const active = useRef(false);
-  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
+  useEffect(() => {
+    active.current = true;
+
+    return () => {
+      active.current = false;
+    };
+  }, []);
   const allowed = data.initialCorrectionAllowed === true && data.batch?.status === 'CONFIRMED';
   const content = (
     <>
@@ -71,36 +82,48 @@ export function InitialBalanceEditor({ data, page = false, onClose, onSaved }: {
         aria-busy={busy}
         onSubmit={async (event) => {
           event.preventDefault();
-          if (pending.current || !allowed || !data.batch) return;
+          if (pending.current || !allowed || !data.batch)
+            return;
           if (!cutoff || !reason.trim() || [...reason.trim()].length > 500 || accounts.some((a) => !/^[0-9]{1,15}$/.test(a.amount))) {
-            setError('기준일, 시작 금액과 정정 사유를 확인해주세요.'); return;
+            setError('기준일, 시작 금액과 정정 사유를 확인해주세요.');
+
+            return;
           }
           const payload = {
             revision: data.batch.revision,
             cutoffDate: cutoff,
             reason: reason.trim(),
-            accounts: accounts.map(({ accountId, amount }) => ({
+            accounts: accounts.map(({
+              accountId,
+              amount
+            }) => ({
               accountId,
               amount
             }))
           };
           const body = JSON.stringify(payload);
-          if (request.current?.body !== body) request.current = {
-            body,
-            id: crypto.randomUUID()
-          };
-          pending.current = true; setBusy(true); setError('');
+          if (request.current?.body !== body)
+            request.current = {
+              body,
+              id: crypto.randomUUID()
+            };
+          pending.current = true;
+          setBusy(true);
+          setError('');
           try {
             const saved = await correctInitialBalances(data.propertyId, data.batch.id, {
               id: request.current.id,
               ...payload
             });
-            if (active.current) onSaved(saved);
+            if (active.current)
+              onSaved(saved);
           } catch (failure) {
-            if (active.current) setError(openingBalanceError(failure));
+            if (active.current)
+              setError(openingBalanceError(failure));
           } finally {
             pending.current = false;
-            if (active.current) setBusy(false);
+            if (active.current)
+              setBusy(false);
           }
         }}
       >
@@ -178,7 +201,9 @@ export function InitialBalanceEditor({ data, page = false, onClose, onSaved }: {
       </form>
     </>
   );
-  if (page) return content;
+  if (page)
+    return content;
+
   return (
     <ClientModal
       className={styles.modal}

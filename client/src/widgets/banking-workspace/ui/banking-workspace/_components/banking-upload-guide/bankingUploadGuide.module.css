@@ -1,0 +1,60 @@
+.template-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid var(--excel-background);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--excel-background);
+  font-weight: 600;
+  text-align: center;
+  transition: background-color 150ms ease, border-color 150ms ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--excel-background) 6%, var(--card));
+  }
+
+  &:focus-visible {
+    outline: 3px solid var(--excel-background);
+    outline-offset: 3px;
+  }
+
+  svg {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+  }
+}
+
+.guide {
+  margin-top: 24px;
+  padding: 22px 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+
+  h2 {
+    margin-bottom: 16px;
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  ul {
+    display: grid;
+    gap: 9px;
+    padding-left: 21px;
+    color: var(--sub-text);
+    font-size: 16px;
+    line-height: 1.8;
+    list-style: disc;
+  }
+}
+
+@media (max-width: 640px) {
+  .guide {
+    padding: 18px 16px;
+  }
+}

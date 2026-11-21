@@ -7,11 +7,13 @@ function base(propertyId: string) {
 }
 
 function readLink(link: NoticeAccessLink | null | undefined) {
-  if (link == null) return null;
+  if (link == null)
+    return null;
   if (typeof link.id !== 'string' || !Number.isFinite(Date.parse(link.createdAt))
     || (link.token !== null && !/^[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/.test(link.token))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '주민 열람 링크를 확인할 수 없습니다.');
   }
+
   return link;
 }
 
@@ -28,7 +30,9 @@ export async function createNoticeAccessLink(propertyId: string, requestId: stri
     url: `${base(propertyId)}/access-link/${requestId}`,
     method: 'PUT'
   }));
-  if (!result) throw new ApiError(200, 'INVALID_RESPONSE', '링크 발급 결과를 확인할 수 없습니다.');
+  if (!result)
+    throw new ApiError(200, 'INVALID_RESPONSE', '링크 발급 결과를 확인할 수 없습니다.');
+
   return result;
 }
 

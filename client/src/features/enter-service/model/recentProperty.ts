@@ -6,15 +6,19 @@ const RECENT_PROPERTY_PREFIX = 'moahome.management.recent-property.';
 export function readRecentProperty(userId: string): string | null {
   try {
     const id = localStorage.getItem(RECENT_PROPERTY_PREFIX + userId);
-    if (isPropertyId(id)) return id;
+    if (isPropertyId(id))
+      return id;
     localStorage.removeItem(RECENT_PROPERTY_PREFIX + userId);
   } catch { /* 저장소가 차단되어도 서버 목록의 첫 대상으로 진입합니다. */ }
+
   return null;
 }
 
 /** 서버의 현재 관리 권한 확인에 성공한 대상만 기억합니다. */
 export function rememberRecentProperty(userId: string, propertyId: string) {
-  try { localStorage.setItem(RECENT_PROPERTY_PREFIX + userId, propertyId); } catch { /* 진입 자체는 유지합니다. */ }
+  try {
+    localStorage.setItem(RECENT_PROPERTY_PREFIX + userId, propertyId);
+  } catch { /* 진입 자체는 유지합니다. */ }
 }
 
 /** 늦은 이전 대상의 접근 거부가 새로 선택한 대상을 지우지 않도록 비교합니다. */

@@ -31,6 +31,7 @@ export async function getBankingBalances(propertyId: string, month: string, acco
       } : {})
     }
   });
+
   return readBankingBalances(data, propertyId, month, accountId, startMonth);
 }
 
@@ -42,7 +43,7 @@ export function readBankingBalances(data: BalanceWorkspace, propertyId: string, 
     || (data.legacyOpening != null && (!/^\d{4}-\d{2}-\d{2}$/.test(data.legacyOpening.cutoffDate) || !Array.isArray(data.legacyOpening.buildings) || data.legacyOpening.buildings.some((part) => typeof part.buildingId !== 'string' || !validAmount(part.amount))))
     || !Array.isArray(data.externals) || !Array.isArray(data.incomes) || !Array.isArray(data.pending)
     || (data.bankBalance !== null && !validAmount(data.bankBalance))
-    || (data.accounts !== undefined && (!Array.isArray(data.accounts) || data.accounts.some((a) => typeof a.id !== 'string' || typeof a.label !== 'string' || (a.calculatedBalance != null && (!validAmount(a.calculatedBalance) || !/^\d{4}-\d{2}-\d{2}$/.test(a.calculationBasisDate ?? ''))) || (a.calculationBasisDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(a.calculationBasisDate)) || (a.openingDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(a.openingDate)) || (a.openingBalance != null && !validNonnegative(a.openingBalance)) || (a.openingRevision !== undefined && (!Number.isSafeInteger(a.openingRevision) || a.openingRevision < 0)) || (a.balance !== null && !validAmount(a.balance)))))
+    || (data.accounts !== undefined && (!Array.isArray(data.accounts) || data.accounts.some((a) => typeof a.id !== 'string' || typeof a.label !== 'string' || (a.lastUpdatedAt != null && (typeof a.lastUpdatedAt !== 'string' || !Number.isFinite(Date.parse(a.lastUpdatedAt)) || !/(Z|[+-]\d{2}:\d{2})$/.test(a.lastUpdatedAt))) || (a.calculatedBalance != null && (!validAmount(a.calculatedBalance) || !/^\d{4}-\d{2}-\d{2}$/.test(a.calculationBasisDate ?? ''))) || (a.calculationBasisDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(a.calculationBasisDate)) || (a.openingDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(a.openingDate)) || (a.openingBalance != null && !validNonnegative(a.openingBalance)) || (a.openingRevision !== undefined && (!Number.isSafeInteger(a.openingRevision) || a.openingRevision < 0)) || (a.balance !== null && !validAmount(a.balance)))))
     || data.buildings.some((b) => (b.accountBalances !== undefined && (!Array.isArray(b.accountBalances) || b.accountBalances.some((account) => !UUID.test(account.accountId) || (account.startBalance !== null && !validAmount(account.startBalance)) || (account.balance !== null && !validAmount(account.balance))))) || (b.openingRevision !== undefined && (!Number.isSafeInteger(b.openingRevision) || b.openingRevision < 0)) || (b.openingBalance != null && !validAmount(b.openingBalance)) || ![b.income, b.expense].every(validNonnegative) || (b.balance !== null && !validAmount(b.balance)) || (b.startBalance !== null && !validAmount(b.startBalance)) || !['READY', 'OPENING_REQUIRED'].includes(b.status))
     || data.entries.some((e) => ![e.income, e.expense].every(validNonnegative))
     || data.externals.some((e) => (e.excluded !== undefined && typeof e.excluded !== 'boolean') || (e.decisionRevision !== undefined && (!Number.isSafeInteger(e.decisionRevision) || e.decisionRevision < 0)) || ![e.amount, e.received, e.remaining].every(validNonnegative) || BigInt(e.received) + BigInt(e.remaining) !== BigInt(e.amount) || ((e.transactionId !== undefined || e.transactionAmount !== undefined) && (typeof e.transactionId !== 'string' || !UUID.test(e.transactionId) || !validNonnegative(e.transactionAmount) || BigInt(e.transactionAmount) < BigInt(e.amount))) || !Array.isArray(e.recoveries) || e.recoveries.some((r) => !validNonnegative(r.amount)))
@@ -50,6 +51,7 @@ export function readBankingBalances(data: BalanceWorkspace, propertyId: string, 
     || data.pending.some((p) => !validNonnegative(p.amount))) {
     throw new ApiError(200, 'INVALID_RESPONSE', '동별 잔고 응답을 확인할 수 없습니다.');
   }
+
   return data;
 }
 
@@ -81,6 +83,7 @@ export async function getBankBillingImpact(propertyId: string, accountId: string
     || !(result.blockedReason === null || typeof result.blockedReason === 'string')) {
     throw new ApiError(200, 'INVALID_RESPONSE', '부과 변경 내용을 확인할 수 없습니다.');
   }
+
   return result;
 }
 
@@ -122,7 +125,8 @@ export async function decideExternalSettlement(propertyId: string, data: Externa
   });
 }
 export function balanceError(error: unknown): string {
-  if (!(error instanceof ApiError)) return '처리하지 못했어요. 입력을 유지하고 다시 시도해주세요.';
+  if (!(error instanceof ApiError))
+    return '처리하지 못했어요. 입력을 유지하고 다시 시도해주세요.';
   const messages: Record<string, string> = {
     INVALID_BANK_CHECK_TIME: '은행에서 확인한 날짜와 시각을 현재 또는 이전으로 입력해주세요.',
     BANK_CHECK_CONFLICT: '같은 요청이 다른 내용으로 처리됐어요. 최신 확인 이력을 다시 열어주세요.',
@@ -151,5 +155,6 @@ export function balanceError(error: unknown): string {
     EXTERNAL_SETTLEMENT_EXCEEDED: '연결 금액이 입금 잔여액 또는 외부 부담 잔여액보다 큽니다.',
     EXTERNAL_SETTLEMENT_CONFLICT: '이 요청은 다른 내용으로 처리됐어요. 최신 내역을 확인해주세요.'
   };
+
   return messages[error.code] ?? '처리하지 못했어요. 입력을 유지하고 다시 시도해주세요.';
 }

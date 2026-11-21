@@ -212,3 +212,19 @@ test('같은 장부의 대시보드·정산·보고서는 은행 확인일·금�
   expect(getMonthlyReportDocuments(data)[2].rows[0][1]).toBe(BigInt(0));
   expect(getSettlementReport(data).checks.find((row) => row.id === 'accounts')?.count).toBe(0);
 });
+
+
+test('통장 최종 업데이트는 저장 시각의 한국 날짜이며 조회일·거래일 변경으로 바뀌지 않는다', () => {
+  const data = dashboardFixture();
+  data.balances.accounts![0].lastUpdatedAt = '2026-10-18T15:30:00Z';
+  const before = getDashboardReport(readDashboard(data, SETTLEMENT_PROPERTY, '2026-10'));
+  expect(before.accounts[0].balanceDate).toBe('2026-10-19');
+  data.businessDate = data.payments.asOf = data.banking.asOf = '2026-10-25';
+  data.generatedAt = '2026-10-25T00:00:00Z';
+  expect(getDashboardReport(data).accounts[0].balanceDate).toBe('2026-10-19');
+  expect(getDashboardReport(data).accounts[0].balance).toBe(before.accounts[0].balance);
+  data.balances.accounts![0].lastUpdatedAt = null;
+  expect(getDashboardReport(data).accounts[0].balanceDate).toBeNull();
+  data.balances.accounts![0].lastUpdatedAt = '2026-10-25';
+  expect(() => readDashboard(data, SETTLEMENT_PROPERTY, '2026-10')).toThrow();
+});

@@ -15,7 +15,14 @@ import { formatInteger } from '@/shared/lib/format';
 import styles from './openingBalances.module.css';
 
 /** 목록의 검색·필터는 표시에만 적용하고 저장할 전체 세대는 부모의 편집 상태에 유지합니다. */
-export function OpeningUnitList({ units, busy, confirmed, locked = false, onEdit, onUpload }: {
+export function OpeningUnitList({
+  units,
+  busy,
+  confirmed,
+  locked = false,
+  onEdit,
+  onUpload
+}: {
   units: OpeningWorkspace['units'];
   busy: boolean;
   confirmed: boolean;
@@ -85,7 +92,10 @@ export function OpeningUnitList({ units, busy, confirmed, locked = false, onEdit
             />
           )}
           value={query}
-          onChange={(event) => { setQuery(event.target.value); setPage(1); }}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setPage(1);
+          }}
         />
         <Dropdown
           aria-label={'기존 잔액 동 필터'}
@@ -97,7 +107,10 @@ export function OpeningUnitList({ units, busy, confirmed, locked = false, onEdit
             value,
             label
           }))]}
-          onChange={(value) => { setBuilding(value); setPage(1); }}
+          onChange={(value) => {
+            setBuilding(value);
+            setPage(1);
+          }}
         />
         <Dropdown
           aria-label={'기존 잔액 상태 필터'}
@@ -115,7 +128,10 @@ export function OpeningUnitList({ units, busy, confirmed, locked = false, onEdit
             value: 'empty',
             label: '없음'
           }]}
-          onChange={(value) => { setStatus(value); setPage(1); }}
+          onChange={(value) => {
+            setStatus(value);
+            setPage(1);
+          }}
         />
         <Dropdown
           aria-label={'기존 잔액 표시 개수'}
@@ -124,7 +140,10 @@ export function OpeningUnitList({ units, busy, confirmed, locked = false, onEdit
             value: String(size),
             label: `${size}개씩 보기`
           }))}
-          onChange={(value) => { setPageSize(Number(value)); setPage(1); }}
+          onChange={(value) => {
+            setPageSize(Number(value));
+            setPage(1);
+          }}
         />
       </div>
       <DataTable

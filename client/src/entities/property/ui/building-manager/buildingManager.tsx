@@ -65,6 +65,7 @@ export function BuildingManager({
   useEffect(() => {
     if (editingId !== undefined) {
       inputRef.current?.focus();
+
       return;
     }
 
@@ -75,27 +76,32 @@ export function BuildingManager({
   async function saveBuilding(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     // 운영 화면은 신규 동 인계가 준비될 때까지 이름 수정만 허용합니다.
-    if (busy || editingId === undefined || (editingId === null && !allowCreation)) return;
+    if (busy || editingId === undefined || (editingId === null && !allowCreation))
+      return;
     const nextName = normalizeBuildingName(name);
     const failure = getBuildingNameError(nextName, buildings, editingId ?? undefined);
 
-    if (failure) return setMessage(failure);
+    if (failure)
+      return setMessage(failure);
 
     const saved = await onSave({
       clientId: editingId ?? crypto.randomUUID(),
       name: nextName
     });
-    if (saved === false) return;
+    if (saved === false)
+      return;
     setMessage('');
     setEditingId(undefined);
   }
 
   /** 확인한 동과 연결 세대를 함께 제거하며 취소 전에는 초안을 변경하지 않습니다. */
   async function confirmBuildingDeletion() {
-    if (!pendingBuilding || !onDelete || !canDelete || busy) return;
+    if (!pendingBuilding || !onDelete || !canDelete || busy)
+      return;
 
     const deleted = await onDelete(pendingBuilding.clientId);
-    if (deleted === false) return;
+    if (deleted === false)
+      return;
     setPendingBuildingId(null);
     setMessage('');
   }
@@ -306,14 +312,15 @@ export function BuildingManager({
     </>
   );
 
-  if (presentation === 'page') return (
-    <section
-      className={styles.page}
-      aria-labelledby={'building-manager-title'}
-    >
-      {content}
-    </section>
-  );
+  if (presentation === 'page')
+    return (
+      <section
+        className={styles.page}
+        aria-labelledby={'building-manager-title'}
+      >
+        {content}
+      </section>
+    );
 
   return (
     <ClientModal

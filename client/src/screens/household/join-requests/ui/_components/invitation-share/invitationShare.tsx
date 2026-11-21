@@ -16,7 +16,14 @@ import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './invitationShare.module.css';
 
 /** 같은 초대를 코드 또는 바로 가입 가능한 링크로 전달하며 메시지는 기기의 공유 기능에서 선택합니다. */
-export function InvitationShare({ issued, name, propertyId, personal, onClose, onRestored }: {
+export function InvitationShare({
+  issued,
+  name,
+  propertyId,
+  personal,
+  onClose,
+  onRestored
+}: {
   issued: ResidentInvitationShare;
   name: string;
   propertyId: string;
@@ -35,16 +42,23 @@ export function InvitationShare({ issued, name, propertyId, personal, onClose, o
   const validity = personal ? '30분' : '24시간';
   // 서버가 개인 초대코드를 읽지 않고도 주민용 미리보기를 선택할 수 있게 공유 용도만 쿼리로 전달합니다.
   const link = () => `${window.location.origin}${personal ? '/invitations?type=resident' : `/join/${propertyId}`}#${token}`;
+
   async function copy(kind: 'code' | 'link') {
-    if (!token) return;
+    if (!token)
+      return;
     try {
       await navigator.clipboard.writeText(kind === 'code' ? token : link());
       setFailed(false);
       setNotice(kind === 'code' ? '초대코드를 복사했어요.' : '가입 링크를 복사했어요.');
-    } catch { setFailed(true); setNotice('복사할 수 없어요. 표시된 코드를 선택해 복사해주세요.'); }
+    } catch {
+      setFailed(true);
+      setNotice('복사할 수 없어요. 표시된 코드를 선택해 복사해주세요.');
+    }
   }
+
   async function share() {
-    if (!token) return;
+    if (!token)
+      return;
     const text = `모아홈 초대코드: ${token}\n발급 후 ${validity} 동안 사용할 수 있어요.\n${link()}`;
     try {
       if (typeof navigator.share === 'function') {
@@ -53,6 +67,7 @@ export function InvitationShare({ issued, name, propertyId, personal, onClose, o
           text,
           url: link()
         });
+
         return;
       }
       // 공유 API가 없는 PC에서는 전송했다고 표시하지 않고 문자·카카오톡에 붙여넣을 문장을 복사합니다.
@@ -60,23 +75,40 @@ export function InvitationShare({ issued, name, propertyId, personal, onClose, o
       setFailed(false);
       setNotice('초대 메시지를 복사했어요. 문자·카카오톡에 붙여넣어 전달하세요.');
     } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      setFailed(true); setNotice('공유할 수 없어요. 코드 또는 링크를 복사해주세요.');
+      if (error instanceof DOMException && error.name === 'AbortError')
+        return;
+      setFailed(true);
+      setNotice('공유할 수 없어요. 코드 또는 링크를 복사해주세요.');
     }
   }
+
   /** 붙여넣은 링크는 로컬에서 fragment만 추출하고 서버에는 코드를 본문으로만 보냅니다. */
   async function restore() {
-    if (pending.current) return;
-    pending.current = true; setRestoring(true); setRestoreError('');
+    if (pending.current)
+      return;
+    pending.current = true;
+    setRestoring(true);
+    setRestoreError('');
     try {
       const input = original.trim();
       const value = /^R-?/i.test(input) ? input : decodeURIComponent(new URL(input).hash.slice(1));
-      if (!/^R[A-HJ-NP-Z2-9]{12}$/i.test(value.replaceAll('-', ''))) { setRestoreError('기존 개인 초대코드나 가입 링크를 확인해주세요.'); return; }
+      if (!/^R[A-HJ-NP-Z2-9]{12}$/i.test(value.replaceAll('-', ''))) {
+        setRestoreError('기존 개인 초대코드나 가입 링크를 확인해주세요.');
+
+        return;
+      }
       const restored = await restoreResidentInvitation(propertyId, issued.id, value);
-      setToken(restored.token); setOriginal(''); onRestored();
-    } catch (failure) { setRestoreError(failure instanceof TypeError || failure instanceof URIError ? '기존 개인 초대코드나 가입 링크를 확인해주세요.' : memberManagementError(failure)); }
-    finally { pending.current = false; setRestoring(false); }
+      setToken(restored.token);
+      setOriginal('');
+      onRestored();
+    } catch (failure) {
+      setRestoreError(failure instanceof TypeError || failure instanceof URIError ? '기존 개인 초대코드나 가입 링크를 확인해주세요.' : memberManagementError(failure));
+    } finally {
+      pending.current = false;
+      setRestoring(false);
+    }
   }
+
   return (
     <ClientModal
       className={styles.modal}
@@ -129,7 +161,10 @@ export function InvitationShare({ issued, name, propertyId, personal, onClose, o
         {!token && (
           <form
             className={styles.recovery}
-            onSubmit={(event) => { event.preventDefault(); void restore(); }}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void restore();
+            }}
           >
             <p>
               보관한 기존 초대코드나 가입 링크로 초대를 복원해주세요. 기존 링크와 만료 시각은 유지됩니다.

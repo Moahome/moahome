@@ -39,7 +39,8 @@ export function ServiceHeader({
   const session = useSession();
   const profile = user ?? session.data;
   const noticeRef = useRef<HTMLDialogElement>(null);
-  if (!profile) return null;
+  if (!profile)
+    return null;
 
   return (
     <>
@@ -57,7 +58,8 @@ export function ServiceHeader({
               replace
               onNavigate={(event) => {
                 // 실제 이전 화면으로 돌아가며 직접 접근처럼 방문 기록이 없을 때만 대체 경로를 사용합니다.
-                if (goBackToPreviousRoute()) event.preventDefault();
+                if (goBackToPreviousRoute())
+                  event.preventDefault();
               }}
               aria-label={'뒤로가기'}
               className={styles['back-link']}

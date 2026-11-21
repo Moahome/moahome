@@ -3,24 +3,34 @@ export type {
   NoticeDraft
 } from './noticeTypes';
 
-
 const DATABASE = 'moahome-notice-drafts';
 const STORE = 'drafts';
 export const DRAFT_REMOVED_EVENT = 'moahome-notice-draft-removed';
 
-/** 제목·실제 본문·이미지 중 하나라도 있어야 초안 저장과 복구 확인을 제공합니다. */
+/** 제목·실제 본문·이미지·장소 중 하나라도 있어야 초안 저장과 복구 확인을 제공합니다. */
 export function hasNoticeDraftContent(draft: Pick<NoticeDraft, 'title' | 'content'>): boolean {
-  if (draft.title.trim()) return true;
+  if (draft.title.trim())
+    return true;
   try {
     const visit = (node: unknown): boolean => {
-      if (!node || typeof node !== 'object') return false;
-      const item = node as { type?: string; text?: string; attrs?: { src?: string }; content?: unknown[] };
-      if (item.type === 'text' && typeof item.text === 'string' && item.text.trim()) return true;
-      if (item.type === 'image' && typeof item.attrs?.src === 'string' && item.attrs.src) return true;
+      if (!node || typeof node !== 'object')
+        return false;
+      const item = node as { type?: string;
+text?: string;
+attrs?: { src?: string };
+content?: unknown[] };
+      if (item.type === 'text' && typeof item.text === 'string' && item.text.trim())
+        return true;
+      if (item.type === 'image' && typeof item.attrs?.src === 'string' && item.attrs.src)
+        return true;
+
       return Array.isArray(item.content) && item.content.some(visit);
     };
 
     const document = JSON.parse(draft.content);
+    if (typeof document.location?.address === 'string' && document.location.address.trim())
+      return true;
+
     return (Array.isArray(document.files) && document.files.length > 0) || visit(document);
   } catch {
     return false;
@@ -43,6 +53,7 @@ async function database(): Promise<IDBDatabase> {
 /** 이전 버전의 여러 저장본이 있으면 해당 화면에서 가장 최근의 한 건만 복구 후보로 사용합니다. */
 export async function readNoticeDraft(key: string): Promise<NoticeDraft | null> {
   const drafts = await listNoticeDrafts(key);
+
   return drafts[0] ?? null;
 }
 
@@ -58,7 +69,9 @@ export async function saveNoticeDraft(draft: NoticeDraft) {
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
     });
-  } finally { db.close(); }
+  } finally {
+    db.close();
+  }
 }
 
 /** 게시 성공을 먼저 알려 대기 중 자동 저장이 삭제한 초안을 다시 만들지 못하게 합니다. */
@@ -83,7 +96,9 @@ export async function clearNoticeDrafts(key: string) {
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
     });
-  } finally { db.close(); }
+  } finally {
+    db.close();
+  }
 }
 
 /** 화면별 한 건만 제공하며 기존 중복 저장본은 가장 최근 내용으로 통합해 읽습니다. */
@@ -105,7 +120,9 @@ export async function listNoticeDrafts(key: string): Promise<NoticeDraft[]> {
       };
       transaction.onerror = () => reject(transaction.error);
     });
-  } finally { db.close(); }
+  } finally {
+    db.close();
+  }
 }
 
 /** 속성 순서와 편집기 기본값을 정규화해 화면에 영향을 주는 제목·본문·서식·파일만 비교합니다. */
@@ -114,28 +131,37 @@ export function getNoticeDraftSignature(draft: Pick<NoticeDraft, 'title' | 'cont
   try {
     content = JSON.stringify(normalizeDocument(JSON.parse(content)));
   } catch { /* 잘못된 본문은 그대로 비교하고 저장 API의 검증을 받습니다. */ }
+
   return JSON.stringify([draft.title, content, draft.important]);
 }
 
 /** 문서 객체의 키 순서는 무시하되 문단·이미지·파일 순서와 실제로 지정한 서식은 보존합니다. */
 function normalizeDocument(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(normalizeDocument);
-  if (!value || typeof value !== 'object') return value;
+  if (Array.isArray(value))
+    return value.map(normalizeDocument);
+  if (!value || typeof value !== 'object')
+    return value;
   const object = value as Record<string, unknown>;
   const result: Record<string, unknown> = {};
   for (const key of Object.keys(object).sort()) {
     const original = object[key];
-    if (original === null || original === undefined) continue;
+    if (original === null || original === undefined)
+      continue;
     if (key === 'attrs' && original && typeof original === 'object') {
       const attributes = {
         ...original
       } as Record<string, unknown>;
-      if (attributes.textAlign === 'left') delete attributes.textAlign;
-      if (object.type === 'orderedList' && attributes.start === 1) delete attributes.start;
-      if (object.type === 'heading' && attributes.level === 1) delete attributes.level;
-      if (object.type === 'textStyle' && attributes.fontSize === '16px') delete attributes.fontSize;
+      if (attributes.textAlign === 'left')
+        delete attributes.textAlign;
+      if (object.type === 'orderedList' && attributes.start === 1)
+        delete attributes.start;
+      if (object.type === 'heading' && attributes.level === 1)
+        delete attributes.level;
+      if (object.type === 'textStyle' && attributes.fontSize === '16px')
+        delete attributes.fontSize;
       const normalized = normalizeDocument(attributes) as Record<string, unknown>;
-      if (Object.keys(normalized).length) result[key] = normalized;
+      if (Object.keys(normalized).length)
+        result[key] = normalized;
       continue;
     }
     let normalized = normalizeDocument(original);
@@ -144,8 +170,10 @@ function normalizeDocument(value: unknown): unknown {
       marks.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
       normalized = marks;
     }
-    if (Array.isArray(normalized) && !normalized.length && ['files', 'content', 'marks'].includes(key)) continue;
+    if (Array.isArray(normalized) && !normalized.length && ['files', 'content', 'marks'].includes(key))
+      continue;
     result[key] = normalized;
   }
+
   return result;
 }

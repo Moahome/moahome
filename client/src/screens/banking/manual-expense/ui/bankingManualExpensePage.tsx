@@ -7,7 +7,9 @@ import {
 import { ManualExpense } from '@/widgets/banking-workspace';
 
 /** 직접 접근에도 등록할 수 있고 저장 후 출금일·통장을 선택한 통장 거래 목록으로 복귀합니다. */
-export function BankingManualExpensePage({ propertyId }: { propertyId: string }) {
+export function BankingManualExpensePage({
+  propertyId
+}: { propertyId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialAccountId = searchParams.get('account') ?? undefined;

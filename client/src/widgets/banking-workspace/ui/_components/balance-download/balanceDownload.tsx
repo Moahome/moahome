@@ -19,9 +19,18 @@ import {
 } from '../../../model/balanceReport';
 
 /** 잔고 화면에서 동별 입출금 명세를 출력하며 동·계좌 선택과 미확인 잔액 조회를 같은 범위로 유지합니다. */
-export function BalanceDownload({ data, initialAccountId = '', initialBuildingId = '', onClose, presentation = 'modal' }: {
+export function BalanceDownload({
+  data,
+  initialAccountId = '',
+  initialBuildingId = '',
+  onClose,
+  presentation = 'modal'
+}: {
   presentation?: 'modal' | 'page';
-  data: BalanceReportSnapshot; initialAccountId?: string; initialBuildingId?: string; onClose: () => void;
+  data: BalanceReportSnapshot;
+initialAccountId?: string;
+initialBuildingId?: string;
+onClose: () => void;
 }) {
   const session = useSession();
   const startMonth = data.startMonth ?? data.month;
@@ -35,7 +44,9 @@ export function BalanceDownload({ data, initialAccountId = '', initialBuildingId
   const needsAccountBalance = Boolean(accountId) && data.balances.buildings.every((building) => building.accountBalances === undefined);
   const accountBalances = useQuery({
     queryKey: ['balance-download-account-balances', session.data?.id, data.propertyId, data.month, startMonth, data.generatedAt, accountId],
-    queryFn: ({ signal }) => getBankingBalances(data.propertyId, data.month, accountId, signal, startMonth),
+    queryFn: ({
+      signal
+    }) => getBankingBalances(data.propertyId, data.month, accountId, signal, startMonth),
     enabled: needsAccountBalance,
     staleTime: Infinity,
     gcTime: 0,

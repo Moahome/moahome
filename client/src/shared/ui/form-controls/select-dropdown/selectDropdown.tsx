@@ -140,11 +140,14 @@ export function SelectDropdown({
   useLayoutEffect(() => {
     const input = inputRef.current;
     const menu = menuRef.current;
-    if (!expanded || !input || !menu) return;
+    if (!expanded || !input || !menu)
+      return;
 
     // Popover 최상위 영역에서 표시해 부모 카드·모달의 overflow에도 목록이 잘리지 않게 합니다.
-    if (typeof menu.showPopover === 'function') menu.showPopover();
-    else menu.removeAttribute('popover');
+    if (typeof menu.showPopover === 'function')
+      menu.showPopover();
+    else
+      menu.removeAttribute('popover');
     const updatePosition = () => positionMenu(input, menu);
     updatePosition();
     const observer = new ResizeObserver(updatePosition);
@@ -163,6 +166,7 @@ export function SelectDropdown({
     }
 
     document.addEventListener('pointerdown', closeOutside);
+
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', updatePosition);
@@ -170,18 +174,22 @@ export function SelectDropdown({
       window.visualViewport?.removeEventListener('resize', updatePosition);
       window.visualViewport?.removeEventListener('scroll', updatePosition);
       document.removeEventListener('pointerdown', closeOutside);
-      if (typeof menu.hidePopover === 'function' && menu.matches(':popover-open')) menu.hidePopover();
+      if (typeof menu.hidePopover === 'function' && menu.matches(':popover-open'))
+        menu.hidePopover();
     };
   }, [expanded]);
 
   useEffect(() => {
-    if (!expanded || !activeOption || !menuRef.current) return;
+    if (!expanded || !activeOption || !menuRef.current)
+      return;
     const option = document.getElementById(`${controlId}-option-${encodeURIComponent(activeOption.value)}`);
     const menu = menuRef.current;
-    if (!option) return;
+    if (!option)
+      return;
 
     // 페이지를 움직이지 않고 현재 후보만 팝업의 스크롤 영역 안으로 이동합니다.
-    if (option.offsetTop < menu.scrollTop) menu.scrollTop = option.offsetTop;
+    if (option.offsetTop < menu.scrollTop)
+      menu.scrollTop = option.offsetTop;
     if (option.offsetTop + option.offsetHeight > menu.scrollTop + menu.clientHeight) {
       menu.scrollTop = option.offsetTop + option.offsetHeight - menu.clientHeight;
     }
@@ -189,7 +197,8 @@ export function SelectDropdown({
 
   useEffect(() => {
     const nativeForm = nativeRef.current?.form;
-    if (!nativeForm || value !== undefined) return;
+    if (!nativeForm || value !== undefined)
+      return;
 
     /** 비제어 선택은 form reset에서 기본값으로 돌아가며 검색 상태도 함께 폐기합니다. */
     function resetValue() {
@@ -199,12 +208,14 @@ export function SelectDropdown({
     }
 
     nativeForm.addEventListener('reset', resetValue);
+
     return () => nativeForm.removeEventListener('reset', resetValue);
   }, [value, defaultValue]);
 
   /** 목록을 열 때 검색을 비워 전체를 표시하고 현재 선택을 탐색의 시작점으로 유지합니다. */
   function openMenu(fromEnd = false) {
-    if (disabled || readOnly) return;
+    if (disabled || readOnly)
+      return;
     setQuery(null);
     const enabled = options.filter((option) => !option.disabled);
     setActiveValue(enabled.find((option) => option.value === selectedValue)?.value
@@ -219,8 +230,10 @@ export function SelectDropdown({
   /** 검색어를 선택값으로 저장하지 않으며 활성 선택지만 확정해 호출자에게 전달합니다. */
   function selectValue(nextValue: string) {
     const option = options.find((entry) => entry.value === nextValue);
-    if (disabled || readOnly || (!nextValue && required) || (nextValue && (!option || option.disabled))) return;
-    if (value === undefined) setInternalValue(nextValue);
+    if (disabled || readOnly || (!nextValue && required) || (nextValue && (!option || option.disabled)))
+      return;
+    if (value === undefined)
+      setInternalValue(nextValue);
     onChange?.(nextValue);
     setQuery(null);
     setIsOpen(false);
@@ -232,35 +245,43 @@ export function SelectDropdown({
   /** 한글 조합과 입력 편집은 유지하고 위아래 키로 탐색·Enter로 확정·Escape로 검색을 취소합니다. */
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     onKeyDown?.(event);
-    if (event.defaultPrevented || composingRef.current || event.nativeEvent.isComposing || event.keyCode === 229 || disabled || readOnly) return;
+    if (event.defaultPrevented || composingRef.current || event.nativeEvent.isComposing || event.keyCode === 229 || disabled || readOnly)
+      return;
     if (event.key === 'Escape' && expanded) {
       event.preventDefault();
       event.stopPropagation();
       setIsOpen(false);
       setQuery(null);
+
       return;
     }
     if (event.key === 'Tab') {
       setIsOpen(false);
       setQuery(null);
+
       return;
     }
-    if (event.ctrlKey || event.metaKey) return;
+    if (event.ctrlKey || event.metaKey)
+      return;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       if (!expanded) {
         openMenu(event.key === 'ArrowUp');
+
         return;
       }
       const index = enabledOptions.findIndex((option) => option.value === activeOption?.value);
       const nextIndex = Math.max(0, Math.min(index + (event.key === 'ArrowUp' ? -1 : 1), enabledOptions.length - 1));
       setActiveValue(enabledOptions[nextIndex]?.value ?? '');
+
       return;
     }
     if (event.key === 'Enter') {
       event.preventDefault();
-      if (!expanded) openMenu();
-      else if (activeOption) selectValue(activeOption.value);
+      if (!expanded)
+        openMenu();
+      else if (activeOption)
+        selectValue(activeOption.value);
     }
   }
 
@@ -326,7 +347,8 @@ export function SelectDropdown({
         aria-activedescendant={expanded && activeOption ? optionId(activeOption.value) : undefined}
         onClick={(event) => {
           onClick?.(event);
-          if (!event.defaultPrevented && !expanded) openMenu();
+          if (!event.defaultPrevented && !expanded)
+            openMenu();
         }}
         onFocus={(event) => {
           event.currentTarget.select();
@@ -388,7 +410,8 @@ export function SelectDropdown({
         aria-expanded={expanded}
         onPointerDown={(event) => event.preventDefault()}
         onClick={() => {
-          if (!expanded) openMenu();
+          if (!expanded)
+            openMenu();
           else {
             setIsOpen(false);
             setQuery(null);
@@ -425,10 +448,12 @@ export function SelectDropdown({
             data-icon-position={option.iconPosition ?? iconPosition}
             onPointerDown={(event) => event.preventDefault()}
             onPointerMove={(event) => {
-              if (event.pointerType === 'mouse' && !option.disabled) setActiveValue(option.value);
+              if (event.pointerType === 'mouse' && !option.disabled)
+                setActiveValue(option.value);
             }}
             onClick={() => {
-              if (expanded) selectValue(option.value);
+              if (expanded)
+                selectValue(option.value);
             }}
           >
             {option.icon && (

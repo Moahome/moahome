@@ -7,8 +7,16 @@ export const metadata: Metadata = {
     follow: false
   }
 };
-export default async function Page({ params }: PageProps<'/admin/members/[userId]'>) { const { userId } = await params; return (
-  <SystemMemberDetailPage
-    userId={userId}
-  />
-); }
+export default async function Page({
+  params
+}: PageProps<'/admin/members/[userId]'>) {
+  const {
+    userId
+  } = await params;
+
+  return (
+    <SystemMemberDetailPage
+      userId={userId}
+    />
+  );
+}

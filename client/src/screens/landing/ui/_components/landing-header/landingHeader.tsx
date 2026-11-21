@@ -14,7 +14,9 @@ import { BrandLogo } from '../brand-logo/brandLogo';
 import styles from './landingHeader.module.css';
 
 /** 복원 중에는 진입을 기다리고 본인 정보가 확인된 사용자는 로그인 없이 시작 화면으로 연결합니다. */
-function EntryLink({ onClick }: { onClick?: () => void }) {
+function EntryLink({
+  onClick
+}: { onClick?: () => void }) {
   const session = useSession();
 
   return (
@@ -51,17 +53,21 @@ export function LandingHeader() {
   useEffect(() => {
     const mobileQuery = window.matchMedia('(max-width: 768px)');
     const closeOnDesktop = () => {
-      if (!mobileQuery.matches) dialogRef.current?.close();
+      if (!mobileQuery.matches)
+        dialogRef.current?.close();
     };
     mobileQuery.addEventListener('change', closeOnDesktop);
+
     return () => mobileQuery.removeEventListener('change', closeOnDesktop);
   }, []);
 
   useEffect(() => {
-    if (!isMenuOpen) return;
+    if (!isMenuOpen)
+      return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+
     return () => {
       document.body.style.overflow = previousOverflow;
     };
@@ -95,7 +101,10 @@ export function LandingHeader() {
           className={styles.navigation}
           aria-label={'주요 메뉴'}
         >
-          {NAVIGATION_ITEMS.map(({ href, label }) => (
+          {NAVIGATION_ITEMS.map(({
+            href,
+            label
+          }) => (
             <a
               key={href}
               href={href}
@@ -175,7 +184,10 @@ export function LandingHeader() {
             className={styles['drawer-navigation']}
             aria-label={'모바일 주요 메뉴'}
           >
-            {NAVIGATION_ITEMS.map(({ href, label }, index) => (
+            {NAVIGATION_ITEMS.map(({
+              href,
+              label
+            }, index) => (
               <a
                 key={href}
                 href={href}

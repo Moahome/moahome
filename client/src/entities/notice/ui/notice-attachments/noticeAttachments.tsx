@@ -17,9 +17,15 @@ import type {
 } from '../../model/noticeAssetTypes';
 import styles from './noticeAttachments.module.css';
 
-
 /** 첨부파일은 공지 본문과 같은 저장 요청에 포함해 게시·수정·초안 복구 시 함께 보존합니다. */
-export function NoticeAttachments({ readAsset, uploadAsset, content, onChange, onBusyChange, disabled = false }: {
+export function NoticeAttachments({
+  readAsset,
+  uploadAsset,
+  content,
+  onChange,
+  onBusyChange,
+  disabled = false
+}: {
   readAsset: NoticeAssetReader;
   uploadAsset?: NoticeAssetUploader;
   content: string;
@@ -36,9 +42,11 @@ export function NoticeAttachments({ readAsset, uploadAsset, content, onChange, o
 
   /** 허용 용량 안에서 파일을 읽고 성공한 파일만 목록에 추가합니다. */
   async function add(selected: FileList | null) {
-    if (!selected || !uploadAsset || uploadLock.current || disabled || !onChange) return;
+    if (!selected || !uploadAsset || uploadLock.current || disabled || !onChange)
+      return;
     if (files.length + selected.length > 10 || Array.from(selected).some((file) => file.size > 20 * 1024 * 1024)) {
       setError('첨부파일은 최대 10개, 파일당 20MB까지 선택할 수 있어요.');
+
       return;
     }
     uploadLock.current = true;
@@ -59,13 +67,21 @@ export function NoticeAttachments({ readAsset, uploadAsset, content, onChange, o
         files: [...files, ...added]
       });
       onChange(next);
-    } catch { setError('파일을 읽지 못했어요. 다시 선택해주세요.'); }
-    finally { uploadLock.current = false; setBusy(false); onBusyChange?.(false); if (input.current) input.current.value = ''; }
+    } catch {
+      setError('파일을 읽지 못했어요. 다시 선택해주세요.');
+    } finally {
+      uploadLock.current = false;
+      setBusy(false);
+      onBusyChange?.(false);
+      if (input.current)
+        input.current.value = '';
+    }
   }
 
   /** 인증된 파일 응답만 다운로드하며 예전 Base64 첨부도 그대로 열 수 있게 유지합니다. */
   async function download(file: NoticeAsset) {
-    if (busy) return;
+    if (busy)
+      return;
     setBusy(true);
     let url: string | null = null;
     try {
@@ -75,11 +91,17 @@ export function NoticeAttachments({ readAsset, uploadAsset, content, onChange, o
       link.href = url;
       link.download = file.name;
       link.click();
-    } catch { setError('파일을 다운로드하지 못했어요. 다시 시도해주세요.'); }
-    finally { if (url) setTimeout(() => URL.revokeObjectURL(url!), 30_000); setBusy(false); }
+    } catch {
+      setError('파일을 다운로드하지 못했어요. 다시 시도해주세요.');
+    } finally {
+      if (url)
+        setTimeout(() => URL.revokeObjectURL(url!), 30_000);
+      setBusy(false);
+    }
   }
 
-  if (!onChange && files.length === 0) return null;
+  if (!onChange && files.length === 0)
+    return null;
 
   return (
     <section
@@ -215,32 +237,47 @@ export function NoticeAttachments({ readAsset, uploadAsset, content, onChange, o
 }
 
 /** 첨부 이미지도 인증해서 읽은 썸네일과 확대 보기를 제공하며 화면 종료 시 임시 URL을 해제합니다. */
-function AttachmentPreview({ file, readAsset }: { file: NoticeAsset; readAsset: NoticeAssetReader }) {
-  const [image, setImage] = useState<{ reference: string; url: string } | null>(null);
+function AttachmentPreview({
+  file,
+  readAsset
+}: { file: NoticeAsset;
+readAsset: NoticeAssetReader }) {
+  const [image, setImage] = useState<{ reference: string;
+url: string } | null>(null);
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
     let active = true;
     let objectUrl: string | null = null;
     const controller = new AbortController();
-    if (file.data.startsWith('data:')) return;
+    if (file.data.startsWith('data:'))
+      return;
     void readAsset(file.data, controller.signal).then((blob) => {
-      if (!active) return;
+      if (!active)
+        return;
       objectUrl = URL.createObjectURL(blob);
       setImage({
         reference: file.data,
         url: objectUrl
       });
     }).catch(() => {});
-    return () => { active = false; controller.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
+
+    return () => {
+      active = false;
+      controller.abort();
+      if (objectUrl)
+        URL.revokeObjectURL(objectUrl);
+    };
   }, [file.data, readAsset]);
   const source = file.data.startsWith('data:') ? file.data : image?.reference === file.data ? image.url : null;
-  if (!source) return (
-    <span
-      className={styles['preview-loading']}
-    >
-      이미지 불러오는 중
-    </span>
-  );
+  if (!source)
+    return (
+      <span
+        className={styles['preview-loading']}
+      >
+        이미지 불러오는 중
+      </span>
+    );
+
   return (
     <>
       <button

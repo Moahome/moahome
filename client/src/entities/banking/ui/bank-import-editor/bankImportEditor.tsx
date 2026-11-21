@@ -17,69 +17,85 @@ import { AllocationEditor } from '../allocation-editor/allocationEditor';
 import styles from './bankImportEditor.module.css';
 
 /** 운영 업로드와 초기 설정에서 동일한 입금 용도·세대 지정·지출 배분 입력을 사용합니다. */
-export function BankImportEditor({ direction, amount, suggestedUnitId, units, buildings, expenseAccounts, receipt, expense, onReceiptChange, onExpenseChange, disabled = false }: {
+export function BankImportEditor({
+  direction,
+  amount,
+  suggestedUnitId,
+  units,
+  buildings,
+  expenseAccounts,
+  receipt,
+  expense,
+  onReceiptChange,
+  onExpenseChange,
+  disabled = false
+}: {
   direction: string;
   amount: string;
   expenseAccounts?: readonly ExpenseAccountOption[];
   suggestedUnitId?: string;
   units: ManualReceiptUnit[];
-  buildings: { id: string; label: string }[];
+  buildings: { id: string;
+label: string }[];
   receipt: BankReceiptDraft;
   expense: ExpenseDraft;
   onReceiptChange: (draft: BankReceiptDraft) => void;
   onExpenseChange: (draft: ExpenseDraft) => void;
   disabled?: boolean;
 }) {
-  if (direction === 'EXPENSE' && !buildings.length) return (
-    <div
-      className={styles.editor}
-    >
-      <Input
-        label={'지출명'}
+  if (direction === 'EXPENSE' && !buildings.length)
+    return (
+      <div
+        className={styles.editor}
+      >
+        <Input
+          label={'지출명'}
+          disabled={disabled}
+          required
+          value={expense.category}
+          maxLength={100}
+          onChange={(event) => onExpenseChange({
+            ...expense,
+            category: event.target.value,
+            mode: 'PROPERTY',
+            allocations: []
+          })}
+        />
+        <ExpenseAccountSelect
+          value={expense.accountCode}
+          options={expenseAccounts}
+          disabled={disabled}
+          onChange={(accountCode) => onExpenseChange({
+            ...expense,
+            accountCode
+          })}
+        />
+        <Input
+          label={'메모'}
+          disabled={disabled}
+          value={expense.note}
+          maxLength={500}
+          onChange={(event) => onExpenseChange({
+            ...expense,
+            note: event.target.value,
+            mode: 'PROPERTY',
+            allocations: []
+          })}
+        />
+      </div>
+    );
+  if (direction === 'EXPENSE')
+    return (
+      <AllocationEditor
+        total={amount}
+        expenseAccounts={expenseAccounts}
+        draft={expense}
+        buildings={buildings}
         disabled={disabled}
-        required
-        value={expense.category}
-        maxLength={100}
-        onChange={(event) => onExpenseChange({
-          ...expense,
-          category: event.target.value,
-          mode: 'PROPERTY',
-          allocations: []
-        })}
+        onChange={onExpenseChange}
       />
-      <ExpenseAccountSelect
-        value={expense.accountCode}
-        options={expenseAccounts}
-        disabled={disabled}
-        onChange={(accountCode) => onExpenseChange({
-          ...expense,
-          accountCode
-        })}
-      />
-      <Input
-        label={'메모'}
-        disabled={disabled}
-        value={expense.note}
-        maxLength={500}
-        onChange={(event) => onExpenseChange({
-          ...expense,
-          note: event.target.value,
-          mode: 'PROPERTY',
-          allocations: []
-        })}
-      />
-    </div>
-  );
-  if (direction === 'EXPENSE') return (
-    <AllocationEditor
-      total={amount}
-      expenseAccounts={expenseAccounts}
-      draft={expense}
-      buildings={buildings}
-      disabled={disabled}
-      onChange={onExpenseChange}
-    />
-  );
+    );
+
   return (
     <fieldset
       className={styles.editor}

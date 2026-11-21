@@ -17,7 +17,14 @@ const KEYS = [
 ];
 
 /** 일반 계산은 계산식·결과만 편집하며 업무 입력이나 저장 기능을 호출하지 않습니다. */
-export function BasicCalculator({ expression, result, inputRef, onChange, onCalculate, onCopy }: {
+export function BasicCalculator({
+  expression,
+  result,
+  inputRef,
+  onChange,
+  onCalculate,
+  onCopy
+}: {
   expression: string;
   result: CalculatorResult | null;
   inputRef: RefObject<HTMLInputElement | null>;
@@ -32,10 +39,12 @@ export function BasicCalculator({ expression, result, inputRef, onChange, onCalc
   function pressKey(key: string) {
     if (key === '=') {
       onCalculate();
+
       return;
     }
     if (key === 'C') {
       onChange('');
+
       return;
     }
     const input = inputRef.current;
@@ -44,7 +53,8 @@ export function BasicCalculator({ expression, result, inputRef, onChange, onCalc
     const removeStart = key === '⌫' && start === end ? Math.max(0, start - 1) : start;
     const insert = key === '⌫' ? '' : key;
     const next = expression.slice(0, removeStart) + insert + expression.slice(end);
-    if (next.length > 256) return;
+    if (next.length > 256)
+      return;
     onChange(next);
     // 터치 키패드에서 시스템 키보드를 강제로 열지 않고 다음 편집 위치만 보존합니다.
     requestAnimationFrame(() => input?.setSelectionRange(removeStart + insert.length, removeStart + insert.length));
@@ -66,7 +76,8 @@ export function BasicCalculator({ expression, result, inputRef, onChange, onCalc
         error={result && !result.ok ? result.error : undefined}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key !== 'Enter') return;
+          if (event.key !== 'Enter')
+            return;
           event.preventDefault();
           onCalculate();
         }}
@@ -108,7 +119,10 @@ export function BasicCalculator({ expression, result, inputRef, onChange, onCalc
       <Button
         variant={'outline'}
         disabled={!result?.ok}
-        onClick={() => { if (result?.ok) onCopy(result.value); }}
+        onClick={() => {
+          if (result?.ok)
+            onCopy(result.value);
+        }}
         leadingIcon={(
           <ServiceIcon
             name={'copy'}

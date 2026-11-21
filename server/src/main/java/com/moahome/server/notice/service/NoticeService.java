@@ -153,6 +153,7 @@ public class NoticeService {
 				throw new IllegalArgumentException();
 			}
 			validateNode(document, 0);
+			validateLocation(document.path("location"));
 			JsonNode files = document.path("files");
 			if (!files.isMissingNode() && (!files.isArray() || files.size() > 10)) {
 				throw new IllegalArgumentException();
@@ -178,6 +179,30 @@ public class NoticeService {
 
 	private boolean isAssetReference(String value) {
 		return value.matches("/api/properties/[0-9a-f-]{36}/notices/assets/[0-9a-f-]{36}");
+	}
+
+	/** 장소는 공지 JSON의 선택 정보로 저장하고 임의 외부 HTML·URL 대신 검증한 표시값과 좌표만 사용합니다. */
+	private void validateLocation(JsonNode location) {
+		if (location.isMissingNode() || location.isNull()) {
+			return;
+		}
+		if (!location.isObject() || !isLocationText(location.path("name"), 100)
+			|| !isLocationText(location.path("address"), 300)
+			|| !isCoordinate(location.path("latitude"), 90) || !isCoordinate(location.path("longitude"), 180)) {
+			throw new IllegalArgumentException();
+		}
+	}
+
+	/** 표시명·주소는 원문 HTML로 해석하지 않으며 제어문자와 공백뿐인 값은 저장하지 않습니다. */
+	private boolean isLocationText(JsonNode value, int maximumLength) {
+		return value.isString() && !value.asString().isBlank() && value.asString().length() <= maximumLength
+			&& value.asString().chars().noneMatch(Character::isISOControl);
+	}
+
+	/** 숫자 문자열·무한대·범위를 벗어난 좌표는 지도 SDK에 전달되기 전에 거부합니다. */
+	private boolean isCoordinate(JsonNode value, double maximum) {
+		double coordinate = value.asDouble(Double.NaN);
+		return value.isNumber() && Double.isFinite(coordinate) && Math.abs(coordinate) <= maximum;
 	}
 
 	private void validateNode(JsonNode node, int depth) {

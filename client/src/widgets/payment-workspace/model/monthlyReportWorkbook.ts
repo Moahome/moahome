@@ -10,7 +10,9 @@ import { getMonthlyReportMetrics } from './monthlyExport';
 
 /** 첨부 시안의 큰 빌라 제목·금액 카드·옅은 표·합계를 한 시트에 담고 공통 정수·문자열 보호를 재사용합니다. */
 export async function createMonthlyStyledWorkbook(document: ReportDefinition): Promise<Blob> {
-  const { default: writeExcelFile } = await import('write-excel-file/universal');
+  const {
+    default: writeExcelFile
+  } = await import('write-excel-file/universal');
   const colors = {
     text: '#0F172A',
     muted: '#64748B',
@@ -105,6 +107,7 @@ export async function createMonthlyStyledWorkbook(document: ReportDefinition): P
     data.push(document.columns.map((column, index) => {
       const value = row[index] ?? '';
       const statusColor = statusColors[String(value)];
+
       return cell(value, {
         align: column.align,
         textColor: typeof value === 'bigint' && value < BigInt(0) ? colors.danger : statusColor ?? colors.text,
@@ -115,20 +118,22 @@ export async function createMonthlyStyledWorkbook(document: ReportDefinition): P
       });
     }));
   }
-  if (!document.rows.length) data.push(merge('조회 조건에 맞는 내역이 없습니다.', width, {
-    textColor: colors.muted,
-    align: 'center',
-  }));
-  if (document.total) data.push(document.columns.map((column, index) => cell(document.total?.[index] ?? '', {
-    textColor: typeof document.total?.[index] === 'bigint' && document.total[index] < BigInt(0) ? colors.danger : colors.text,
-    align: column.align,
-    fontSize: 16,
-    fontWeight: 'bold',
-    backgroundColor: tint(colors.primary),
-    height: 44,
-    borderColor: colors.muted,
-    borderStyle: 'medium',
-  })));
+  if (!document.rows.length)
+    data.push(merge('조회 조건에 맞는 내역이 없습니다.', width, {
+      textColor: colors.muted,
+      align: 'center',
+    }));
+  if (document.total)
+    data.push(document.columns.map((column, index) => cell(document.total?.[index] ?? '', {
+      textColor: typeof document.total?.[index] === 'bigint' && document.total[index] < BigInt(0) ? colors.danger : colors.text,
+      align: column.align,
+      fontSize: 16,
+      fontWeight: 'bold',
+      backgroundColor: tint(colors.primary),
+      height: 44,
+      borderColor: colors.muted,
+      borderStyle: 'medium',
+    })));
   data.push([cell('', {
     height: 14
   })]);

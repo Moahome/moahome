@@ -1,4 +1,5 @@
 'use client';
+
 import {
   useRef,
   useState
@@ -24,12 +25,16 @@ import { getMemberStatusLabel } from '../../_utils/memberStatus';
 import styles from './memberEditor.module.css';
 
 /** 회원의 전체 식별자와 두 권한을 구분하고 확인한 변경만 서버에 요청합니다. */
-export function MemberEditor({ userId }: { userId: string }) {
+export function MemberEditor({
+  userId
+}: { userId: string }) {
   const session = useSession();
   const cache = useQueryClient();
   const query = useQuery({
     queryKey: ['system-admin-member', session.data?.id, userId],
-    queryFn: ({ signal }) => getSystemMember(userId, signal),
+    queryFn: ({
+      signal
+    }) => getSystemMember(userId, signal),
     enabled: session.data?.systemRole === 'ADMIN',
     retry: false,
     gcTime: 0
@@ -42,11 +47,15 @@ export function MemberEditor({ userId }: { userId: string }) {
 
   /** 실패 시 요청 ID와 입력을 유지해 응답 유실·중복 클릭에도 한 번만 변경합니다. */
   async function save() {
-    if (!command || pending.current) return;
-    pending.current = true; setBusy(true); setError('');
+    if (!command || pending.current)
+      return;
+    pending.current = true;
+    setBusy(true);
+    setError('');
     try {
       await changeSystemMember(userId, command);
-      setCommand(null); setNotice('권한을 변경했습니다.');
+      setCommand(null);
+      setNotice('권한을 변경했습니다.');
       // 이전 계정의 캐시를 새로 생성하지 않고 존재하는 조회만 무효화합니다.
       await Promise.all([
         cache.invalidateQueries({
@@ -62,23 +71,31 @@ export function MemberEditor({ userId }: { userId: string }) {
     } catch (failure) {
       setError(systemAdminError(failure));
       if (failure instanceof ApiError && failure.code === 'ADMIN_STATE_CONFLICT') {
-        setCommand(null); void query.refetch();
+        setCommand(null);
+        void query.refetch();
       }
-    } finally { pending.current = false; setBusy(false); }
+    } finally {
+      pending.current = false;
+      setBusy(false);
+    }
   }
-  if (query.isPending) return (
-    <LoadingState
-      title={'회원 정보를 불러오고 있어요.'}
-    />
-  );
-  if (query.isError) return (
-    <RequestError
-      error={query.error}
-      onRetry={() => void query.refetch()}
-    />
-  );
+
+  if (query.isPending)
+    return (
+      <LoadingState
+        title={'회원 정보를 불러오고 있어요.'}
+      />
+    );
+  if (query.isError)
+    return (
+      <RequestError
+        error={query.error}
+        onRetry={() => void query.refetch()}
+      />
+    );
   const member = query.data;
   const title = command?.kind === 'promotion' ? '시스템 관리자로 승격할까요?' : `생성 권한을 ${command?.kind === 'permission' && command.allowed ? '부여' : '회수'}할까요?`;
+
   return (
     <div
       className={styles.editor}
@@ -144,12 +161,15 @@ export function MemberEditor({ userId }: { userId: string }) {
       >
         <Button
           disabled={busy || member.status !== 'ACTIVE'}
-          onClick={() => { setError(''); setCommand({
-            kind: 'permission',
-            requestId: crypto.randomUUID(),
-            allowed: !member.canCreateProperty,
-            expectedAllowed: member.canCreateProperty
-          }); }}
+          onClick={() => {
+            setError('');
+            setCommand({
+              kind: 'permission',
+              requestId: crypto.randomUUID(),
+              allowed: !member.canCreateProperty,
+              expectedAllowed: member.canCreateProperty
+            });
+          }}
         >
           {member.canCreateProperty ? '생성 권한 회수' : '생성 권한 부여'}
         </Button>
@@ -157,10 +177,13 @@ export function MemberEditor({ userId }: { userId: string }) {
           <Button
             variant={'outline'}
             disabled={busy || member.status !== 'ACTIVE'}
-            onClick={() => { setError(''); setCommand({
-              kind: 'promotion',
-              requestId: crypto.randomUUID()
-            }); }}
+            onClick={() => {
+              setError('');
+              setCommand({
+                kind: 'promotion',
+                requestId: crypto.randomUUID()
+              });
+            }}
           >
             시스템 관리자 승격
           </Button>
@@ -185,7 +208,10 @@ export function MemberEditor({ userId }: { userId: string }) {
           aria-labelledby={'system-admin-confirm-title'}
           className={styles.confirm}
           busy={busy}
-          onClose={() => { if (!busy) setCommand(null); }}
+          onClose={() => {
+            if (!busy)
+              setCommand(null);
+          }}
         >
           <h2
             id={'system-admin-confirm-title'}

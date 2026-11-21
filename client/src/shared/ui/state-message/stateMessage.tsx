@@ -71,13 +71,17 @@ const STATE_MESSAGES = {
 } as const;
 
 /** 그림만 필요한 기존 완료·업로드·검토 UI도 동일한 상태 자산과 크기를 재사용합니다. */
-export function StateIllustration({ variant, layout = 'page' }: {
+export function StateIllustration({
+  variant,
+  layout = 'page'
+}: {
   variant: keyof typeof STATE_MESSAGES;
   layout?: 'page' | 'inline';
 }) {
   const landscape = variant === 'server-error' || variant === 'loading';
   let sizes = layout === 'inline' ? '200px' : '(max-width: 600px) 80vw, 420px';
-  if (variant === 'loading') sizes = '(max-width: 600px) 100vw, 400px';
+  if (variant === 'loading')
+    sizes = '(max-width: 600px) 100vw, 400px';
 
   return (
     <Image

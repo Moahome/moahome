@@ -31,8 +31,18 @@ import {
 } from '../../api/bankingApi';
 
 /** 기존 지출 모달을 표시하고 운영 화면의 API·캐시 갱신은 이 widget에서 처리합니다. */
-export function ManualExpense({ propertyId, initialAccountId, presentation = 'modal', onClose, onCreated }: {
-  propertyId: string; initialAccountId?: string; presentation?: 'modal' | 'page'; onClose: () => void; onCreated: (id: string, date: string, accountId: string, transfer?: boolean) => void;
+export function ManualExpense({
+  propertyId,
+  initialAccountId,
+  presentation = 'modal',
+  onClose,
+  onCreated
+}: {
+  propertyId: string;
+initialAccountId?: string;
+presentation?: 'modal' | 'page';
+onClose: () => void;
+onCreated: (id: string, date: string, accountId: string, transfer?: boolean) => void;
 }) {
   const router = useRouter();
   const [payableMode, setPayableMode] = useState(false);
@@ -43,7 +53,9 @@ export function ManualExpense({ propertyId, initialAccountId, presentation = 'mo
   const queryKey = ['banking-workspace', session.data?.id, propertyId];
   const workspace = useQuery({
     queryKey,
-    queryFn: ({ signal }) => getBankingWorkspace(propertyId, signal),
+    queryFn: ({
+      signal
+    }) => getBankingWorkspace(propertyId, signal),
     enabled: Boolean(session.data),
     retry: false
   });
@@ -51,9 +63,12 @@ export function ManualExpense({ propertyId, initialAccountId, presentation = 'mo
   const [requestId] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+
   async function submit(values: ManualExpenseValues) {
-    if (busyRef.current) return null;
-    busyRef.current = true; setBusy(true);
+    if (busyRef.current)
+      return null;
+    busyRef.current = true;
+    setBusy(true);
     try {
       await cache.cancelQueries({
         queryKey
@@ -67,41 +82,59 @@ export function ManualExpense({ propertyId, initialAccountId, presentation = 'mo
         queryKey: ['banking-balances', session.data?.id, propertyId]
       });
       onCreated(requestId, values.date, values.accountId);
+
       return null;
-    } catch (error) { return bankingError(error); }
-    finally { busyRef.current = false; setBusy(false); }
+    } catch (error) {
+      return bankingError(error);
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
   }
-  if (workspace.isPending) return (
-    <LoadingState
-      title={'지출 등록 정보를 불러오고 있어요.'}
-    />
-  );
-  if (!workspace.data) return (
-    <RequestError
-      error={workspace.error}
-      onRetry={() => void workspace.refetch({
-        cancelRefetch: false
-      })}
-    />
-  );
-  if (createdPayable) return (
-    <PayableManager
-      propertyId={propertyId}
-      payableId={createdPayable}
-      presentation={presentation}
-      onClose={onClose}
-    />
-  );
+
+  if (workspace.isPending)
+    return (
+      <LoadingState
+        title={'지출 등록 정보를 불러오고 있어요.'}
+      />
+    );
+  if (!workspace.data)
+    return (
+      <RequestError
+        error={workspace.error}
+        onRetry={() => void workspace.refetch({
+          cancelRefetch: false
+        })}
+      />
+    );
+  if (createdPayable)
+    return (
+      <PayableManager
+        propertyId={propertyId}
+        payableId={createdPayable}
+        presentation={presentation}
+        onClose={onClose}
+      />
+    );
+
   return (
     <ManualExpenseForm
-      onPayable={(enabled) => { setPayableMode(enabled); if (enabled) setTransferSeed(null); }}
+      onPayable={(enabled) => {
+        setPayableMode(enabled);
+        if (enabled)
+          setTransferSeed(null);
+      }}
       renderPayable={payableMode ? (selector) => (
         <PayableManager
           propertyId={propertyId}
           presentation={'embedded'}
           onClose={onClose}
           onBusyChange={setBusy}
-          onCreated={(id) => { if (presentation === 'page') router.replace(`/manage/${propertyId}/accounting/payables/${id}`); else setCreatedPayable(id); }}
+          onCreated={(id) => {
+            if (presentation === 'page')
+              router.replace(`/manage/${propertyId}/accounting/payables/${id}`); else
+              setCreatedPayable(id);
+          }}
         >
           {selector}
         </PayableManager>

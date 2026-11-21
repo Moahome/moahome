@@ -7,8 +7,15 @@ export const metadata: Metadata = {
     follow: false
   }
 };
-export default async function Page({ params }: PageProps<'/manage/[propertyId]/billing/monthly/[month]/[unitId]'>) {
-  const { propertyId, month, unitId } = await params;
+export default async function Page({
+  params
+}: PageProps<'/manage/[propertyId]/billing/monthly/[month]/[unitId]'>) {
+  const {
+    propertyId,
+    month,
+    unitId
+  } = await params;
+
   return (
     <BillingDetailPage
       propertyId={propertyId}

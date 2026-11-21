@@ -1,528 +1,80 @@
 'use client';
 
+import {
+  BalanceAccountContent,
+  BalanceAccountEditor
+} from './_components/balance-account-panels/balanceAccountPanels';
+
+import { BalanceOverview } from './_components/balance-overview/balanceOverview';
+import { BalanceSettlements } from './_components/balance-settlements/balanceSettlements';
+import { LoadingState } from '@/shared/ui/state-message';
+import { RequestError } from '@/shared/ui/server-connection-error';
+import { useBankingBalancesQuery } from './_hooks/useBankingBalancesQuery';
+import { useBankingBalances } from './_hooks/useBankingBalances';
 import { getBankAccountLabel } from '@/entities/banking';
-import {
-  LoadingState,
-  StateMessage
-} from '@/shared/ui/state-message';
-import { ApiError } from '@/shared/api';
-import { useSession } from '@/entities/session';
-import { useManagementContext } from '@/features/enter-service';
-import { BankAccountEditor } from '@/features/bank-account-management';
-import { getOpeningBalances } from '@/features/billing-management';
-import {
-  formatInteger,
-  formatWon
-} from '@/shared/lib/format';
+
 import { Button } from '@/shared/ui/button';
-import { CalendarPicker } from '@/shared/ui/calendar-picker';
-import { ClientModal } from '@/shared/ui/client-modal';
-import {
-  DataTable,
-  type DataTableColumn
-} from '@/shared/ui/data-table';
-import {
-  AmountInput,
-  Dropdown,
-  Input,
-  SelectDropdown
-} from '@/shared/ui/form-controls';
-import { InfoTooltip } from '@/shared/ui/info-tooltip';
+import { Dropdown } from '@/shared/ui/form-controls';
 import { ListHeader } from '@/shared/ui/list-header';
 import { MonthRangePicker } from '@/shared/ui/month-range-picker';
-import {
-  formatMonthRange,
-  getQueryMonthRange,
-  getMonthRangeQuery,
-  setMonthRangeQuery
-} from '@/shared/lib/month-range';
-import { Pagination } from '@/shared/ui/pagination';
-import { RequestError } from '@/shared/ui/server-connection-error';
+import { setMonthRangeQuery } from '@/shared/lib/month-range';
 import { ServiceIcon } from '@/shared/ui/service-icon';
-import { SummaryCard } from '@/shared/ui/summary-card';
 import { Toast } from '@/shared/ui/toast';
-import {
-  useQuery,
-  useQueryClient,
-  type QueryFilters
-} from '@tanstack/react-query';
-import {
-  useRouter,
-  useSearchParams
-} from 'next/navigation';
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode
-} from 'react';
-import {
-  bankingError,
-  getBankingWorkspace,
-  deleteBankingTransactions
-} from '../../api/bankingApi';
-import {
-  assignCashIncome,
-  balanceError,
-  correctCashOpenings,
-  decideExternalSettlement,
-  getBankingBalances,
-  getBankBillingImpact,
-  saveCashOpenings,
-  saveBankInitialBalance,
-  settleExternalExpense
-} from '../../api/bankingBalanceApi';
-import type {
-  AccountBalance,
-  BalanceBuilding,
-  BalanceEntry,
-  BalanceWorkspace
-} from '../../api/bankingBalanceApiTypes';
-import {
-  getAccountBalanceTotal,
-  getBalancePeriodLabel
-} from '../../model/accountBalance';
-import {
-  getBalanceSummary,
-  getBuildingLedger,
-  getExternalExpensesForRange
-} from '../../model/balanceLedger';
-import { sortExpenseLabels } from '../../model/expenseAllocation';
-import { AccountBalances } from '../_components/account-balances/accountBalances';
-import { BankAccountDetails } from '../_components/bank-account-details/bankAccountDetails';
-import { BankingExpensePage } from '../banking-expense-page/bankingExpensePage';
-import { useReportDownload } from '@/shared/ui/report-download';
-import { BalanceDownload } from '../_components/balance-download/balanceDownload';
-import type { BalanceReportSnapshot } from '../../model/balanceReportTypes';
+import { OpeningBalanceAction } from './_components/balance-common/balanceCommon';
+import { ChartDialog } from './_components/balance-chart/balanceChart';
+import { BuildingLedger } from './_components/building-ledger/buildingLedger';
+import { BankInitialBalanceEditor } from './_components/balance-account-panels/balanceAccountPanels';
+import { BankAccountHistory } from './_components/balance-account-panels/balanceAccountPanels';
+import { DetailDialog } from './_components/balance-common/balanceCommon';
+import { BalanceActionDialog } from './_components/balance-operations/balanceOperations';
 import styles from './bankingBalances.module.css';
-type Action = {
-    kind: 'opening' | 'settlement' | 'assignment' | 'difference';
-    id?: string;
-};
-export type BalancePanel = Action['kind'] | 'chart' | 'account' | 'initial' | 'history';
-const PANEL_TITLES: Record<BalancePanel, string> = {
-  account: '통장 상세',
-  initial: '초기 잔액 정정',
-  history: '정정 내역',
-  opening: '기준 잔고 확인',
-  chart: '동별 입금·지출 비교',
-  difference: '잔고 차이 내역',
-  settlement: '외부 부담금 정산',
-  assignment: '입금 귀속 동 확인'
-};
-const money = (value: string | bigint | null) => value === null ? '설정 필요' : formatWon(value);
-/** 조회 동작과 도움말 터치를 분리하고 마우스·키보드·터치에서 같은 설명을 제공합니다. */
-function OpeningBalanceAction({ missing, onOpen }: { missing: boolean; onOpen: () => void }) {
-  const root = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  const label = missing ? '시작 잔고 설정' : '기준 잔고 확인';
-  const [tooltipWidth, setTooltipWidth] = useState(400);
 
-  // 버튼 왼쪽 정렬을 유지하고 화면 오른쪽에 남은 공간 안에서 설명 너비를 제한합니다.
-  useLayoutEffect(() => {
-    if (!open) return;
-    const position = () => {
-      const bounds = root.current?.getBoundingClientRect();
-      if (!bounds) return;
-      setTooltipWidth(Math.min(400, window.innerWidth - 40, window.innerWidth - 21 - bounds.left));
-    };
-    position();
-    window.addEventListener('resize', position);
-    return () => window.removeEventListener('resize', position);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const outside = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('pointerdown', outside);
-    document.addEventListener('keydown', escape);
-    return () => {
-      document.removeEventListener('pointerdown', outside);
-      document.removeEventListener('keydown', escape);
-    };
-  }, [open]);
+/** 기간·통장·동 조회 조건을 유지하며 실제 서버 잔고와 외부 입금 연결을 표시합니다. */
+export function BankingBalances(props: Parameters<typeof useBankingBalances>[0]) {
+  const loadedQuery = useBankingBalancesQuery(props.propertyId);
+  if (loadedQuery.isPending)
+    return (
+      <LoadingState
+        title={'잔고를 불러오고 있어요.'}
+      />
+    );
+  if (!loadedQuery.data)
+    return (
+      <RequestError
+        error={loadedQuery.error}
+        onRetry={() => void loadedQuery.refetch({
+          cancelRefetch: false
+        })}
+      />
+    );
 
   return (
-    <div
-      ref={root}
-      className={styles['opening-action']}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => {
-        if (!root.current?.contains(document.activeElement)) setOpen(false);
-      }}
-      onFocus={() => setOpen(true)}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
-      }}
-    >
-      <Button
-        className={styles['opening-info']}
-        variant={'ghost'}
-        iconOnly
-        aria-label={'기준 잔고 도움말'}
-        aria-expanded={open}
-        aria-controls={'opening-balance-description'}
-        aria-describedby={open ? 'opening-balance-description' : undefined}
-        onClick={() => setOpen(true)}
-        leadingIcon={(
-          <ServiceIcon
-            name={'info'}
-          />
-        )}
-      />
-      <Button
-        className={styles['opening-button']}
-        aria-describedby={open ? 'opening-balance-description' : undefined}
-        onClick={() => { setOpen(false); onOpen(); }}
-      >
-        {label}
-      </Button>
-      {open && (
-        <div
-          id={'opening-balance-description'}
-          role={'tooltip'}
-          className={styles['opening-tooltip']}
-          style={{
-            '--opening-tooltip-width': `${tooltipWidth}px`
-          } as CSSProperties}
-        >
-          <span
-            className={styles['opening-tooltip-icon']}
-            aria-hidden={'true'}
-          >
-            <ServiceIcon
-              name={'info'}
-            />
-          </span>
-          <div
-            className={styles['opening-tooltip-content']}
-          >
-            <strong>
-              {label}
-            </strong>
-            <p>
-              {missing ? '기준일의 동별 보유금을 등록합니다.' : '등록한 동별 기준 잔고를 확인·수정합니다.'}
-            </p>
-            <small>
-              은행 실시간 잔액 조회는 아닙니다.
-            </small>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-/** 기간·통장·동 조회 조건을 유지하며 실제 서버 잔고와 외부 입금 연결을 표시합니다. */
-export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDetail }: {
-    propertyId: string;
-    buildingId?: string;
-    panel?: BalancePanel;
-    renderReceiptDetail?: (paymentId: string, onClose: () => void) => ReactNode;
-}) {
-  const session = useSession();
-  const context = useManagementContext(session.data?.id, propertyId, false);
-  const cache = useQueryClient();
-  const router = useRouter();
-  const params = useSearchParams();
-  const range = getQueryMonthRange(params);
-  const month = range.endMonth;
-  const startMonth = range.startMonth;
-  const periodLabel = formatMonthRange(range);
-  const accountId = params.get('account') ?? 'ALL';
-  const buildingFilter = params.get('building') ?? 'ALL';
-  const [search, setSearch] = useState(params.get('search') ?? '');
-  const [sort, setSort] = useState('name');
-  const [filter, setFilter] = useState(params.get('filter') ?? 'ALL');
-  const [incomeBuilding, setIncomeBuilding] = useState('ALL');
-  const [incomeSearch, setIncomeSearch] = useState('');
-  const [externalFilter, setExternalFilter] = useState(() => params.get('externalStatus') === 'UNRECOVERED' ? 'UNRECOVERED' : 'ACTIVE');
-  const [externalSearch, setExternalSearch] = useState('');
-  const [detail, setDetail] = useState<string | null>(null);
-  const [accountDetailId, setAccountDetailId] = useState<string | null>(null);
-  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
-  const [historyAccountId, setHistoryAccountId] = useState<string | null>(null);
-  const [initialAccountId, setInitialAccountId] = useState<string | null>(() => params.get('initial'));
-  const [chartOpen, setChartOpen] = useState(false);
-  const [action, setAction] = useState<Action | null>(null);
-  const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
-  const { openDownload } = useReportDownload();
-  const [exporting, setExporting] = useState(false);
-  const exportBusy = useRef(false);
-  const downloadButton = useRef<HTMLButtonElement>(null);
-  const query = useQuery({
-    queryKey: ['banking-balances', session.data?.id, propertyId, month, accountId, startMonth],
-    queryFn: ({ signal }) => getBankingBalances(propertyId, month, accountId === 'ALL' ? undefined : accountId, signal, startMonth),
-    enabled: Boolean(session.data),
-    retry: false,
-    gcTime: 0
-  });
-  const data = query.data;
-  // 공유한 정정 링크도 PC에서는 목록 위 모달로 열고 모바일에서는 기존 상세 경로를 사용합니다.
-  useEffect(() => {
-    const target = params.get('initial');
-    if (!target || panel) return;
-    if (window.matchMedia('(max-width: 767px)').matches) {
-      const next = new URLSearchParams(params.toString());
-      next.delete('initial');
-      next.set('target', target);
-      router.replace(`/manage/${propertyId}/banking/balances/details/initial?${next}`);
-      return;
-    }
-  }, [params, panel, propertyId, router]);
-  useEffect(() => {
-    if (!data || query.isFetching || params.get('externalStatus') !== 'UNRECOVERED') return;
-    document.getElementById('external-settlements')?.scrollIntoView({
-      block: 'start'
-    });
-  }, [data, query.isFetching, params]);
-  // 사용 전 월의 오래된 선택 URL도 서버가 확정한 전체 범위로 맞춰 새로고침·상세 이동에서 되살아나지 않게 합니다.
-  useEffect(() => {
-    if (!data?.accounts || data.accountId !== null || accountId === 'ALL' || data.accounts.some((account) => account.id === accountId)) return;
-    const next = new URLSearchParams(params.toString());
-    next.set('account', 'ALL');
-    router.replace(`?${next}`, {
-      scroll: false
-    });
-  }, [data, accountId, params, router]);
-  const title = panel ? PANEL_TITLES[panel] : buildingId ? '동별 상세 원장' : '잔고·정산';
-  if (!data && !query.isPending) return (
-    <RequestError
-      error={query.error}
-      onRetry={() => { void query.refetch({
-        cancelRefetch: false
-      }); }}
+    <BankingBalancesContent
+      {...props}
+      loadedQuery={loadedQuery}
     />
   );
-  if (!data)
+}
+
+function BankingBalancesContent({
+  loadedQuery,
+  ...props
+}: Parameters<typeof useBankingBalances>[0] & { loadedQuery: ReturnType<typeof useBankingBalancesQuery> }) {
+  const {
+    propertyId,
+    renderReceiptDetail
+  } = props;
+
+  const state = useBankingBalances(props, loadedQuery);
+
+  if (state.kind === 'history') {
+    const {
+      propertyId,
+      closePage,
+      params
+    } = state;
+
     return (
-      <section
-        className={styles.page}
-      >
-        <ListHeader
-          className={styles.header}
-          titleId={'balance-title'}
-          menu={'통장 관리'}
-          title={title}
-          description={'은행 거래를 기준으로 동별 보유금과 외부 부담금을 확인합니다.'}
-        />
-        <LoadingState
-          title={'잔고를 불러오고 있어요.'}
-        />
-      </section>
-    );
-  const summary = getBalanceSummary(data);
-  const selectedAccount = data.accounts?.find((account) => account.id === accountId);
-  const { amount: bankBalance } = getAccountBalanceTotal(data);
-  const bankLabel = selectedAccount ? '선택 통장 잔액' : '통장 잔액 합계';
-  const bankAsOf = getBalancePeriodLabel(month);
-  const bankHelp = '등록된 통장 잔액을 표시합니다.';
-  const differenceDescription = '통장 잔액 − 동별 잔고';
-  const missing = data.buildings.filter((b) => b.active && b.status === 'OPENING_REQUIRED');
-  const buildings = sortExpenseLabels(data.buildings);
-  const selectedBuilding = buildings.find((building) => building.id === buildingFilter);
-  // 동 필터는 목록·그래프·다운로드 범위를 좁히며 통장 전체 잔액과 전체 동의 대조 기준은 유지합니다.
-  const filtered = buildings.filter((b) => (!selectedBuilding || b.id === selectedBuilding.id) && b.label.includes(search.trim()) && (filter === 'ALL' || (filter === 'NEEDS_OPENING' && b.status === 'OPENING_REQUIRED') || (filter === 'NEGATIVE' && b.balance !== null && BigInt(b.balance) < BigInt(0))));
-  if (sort !== 'name')
-    filtered.sort((a, b) => {
-      if (a.balance === null || b.balance === null)
-        return a.balance === b.balance ? 0 : a.balance === null ? 1 : -1;
-      const left = BigInt(a.balance), right = BigInt(b.balance);
-      return left === right ? 0 : (left > right ? 1 : -1) * (sort === 'high' ? -1 : 1);
-    });
-  const detailBuilding = data.buildings.find((b) => b.id === (buildingId ?? detail));
-  const balanceQuery = getMonthRangeQuery(params, month);
-  if (selectedAccount) balanceQuery.set('account', selectedAccount.id);
-  if (selectedBuilding) balanceQuery.set('building', selectedBuilding.id);
-  const balanceListHref = `/manage/${propertyId}/banking/balances?${balanceQuery}`;
-  /** 정정창을 닫으면 같은 통장 상세의 잔액·정정 내역을 표시하고 직접 진입 쿼리는 제거합니다. */
-  function closeInitial() {
-    setAccountDetailId(initialAccountId);
-    setInitialAccountId(null);
-    if (params.has('initial')) {
-      const next = new URLSearchParams(params.toString());
-      next.delete('initial');
-      router.replace(`/manage/${propertyId}/banking/balances?${next}`, {
-        scroll: false
-      });
-    }
-  }
-  /** 변경 성공 후 서버 조회를 갱신하고 실패한 폼은 닫지 않습니다. */
-  async function saved(message: string, keepOpen = false) {
-    await cache.invalidateQueries({
-      queryKey: ['banking-balances', session.data?.id, propertyId]
-    });
-    if (!keepOpen) setAction(null);
-    if (panel && !keepOpen) {
-      router.replace(balanceListHref);
-      return;
-    }
-    setNotice({
-      message,
-      tone: 'success'
-    });
-  }
-  /** PC 목록은 보존하고 모바일 직접 접근·새로고침이 가능한 상세 경로로 연결합니다. */
-  function openDetail(b: BalanceBuilding) {
-    if (window.matchMedia('(max-width: 767px)').matches) {
-      router.push(`/manage/${propertyId}/banking/balances/${b.id}?${balanceQuery}`);
-      return;
-    }
-    setDetail(b.id);
-  }
-  /** 모바일은 월·대상 ID를 가진 독립 페이지, PC는 현재 목록 위의 공통 모달을 사용합니다. */
-  function openPanel(kind: BalancePanel, id?: string) {
-    if (window.matchMedia('(max-width: 767px)').matches) {
-      const queryParams = new URLSearchParams(balanceQuery);
-      if (selectedAccount) queryParams.set('account', selectedAccount.id);
-      if (id) queryParams.set('target', id);
-      if (kind === 'chart') {
-        queryParams.set('search', search);
-        queryParams.set('filter', filter);
-      }
-      router.push(`/manage/${propertyId}/banking/balances/details/${kind}?${queryParams}`);
-      return;
-    }
-    if (kind === 'initial') setAccountDetailId(null);
-    if (kind === 'initial') { setInitialAccountId(id ?? null); return; }
-    if (kind === 'history') { setHistoryAccountId(id ?? null); return; }
-    if (kind === 'account') {
-      setAccountDetailId(id ?? null);
-      return;
-    }
-    if (kind === 'chart') {
-      setChartOpen(true);
-      return;
-    }
-    setAction({
-      kind,
-      id
-    });
-  }
-  /** 현재 권한에서 확인한 빌라 이름과 전체 잔고·통장 정보를 같은 다운로드 자료에 보관합니다. */
-  async function download() {
-    if (exportBusy.current || !data || query.isFetching || query.isError || !context.data?.name) return;
-    exportBusy.current = true;
-    setExporting(true);
-    try {
-      const [banking, balances] = await Promise.all([
-        getBankingWorkspace(propertyId),
-        data.accountId ? getBankingBalances(propertyId, month, undefined, undefined, startMonth) : Promise.resolve(data)
-      ]);
-      const snapshot: BalanceReportSnapshot = {
-        propertyId,
-        propertyName: context.data.name,
-        month,
-        startMonth,
-        generatedAt: new Date().toISOString(),
-        banking,
-        balances
-      };
-      openDownload({
-        focusTarget: downloadButton.current,
-        pageHref: `/manage/${propertyId}/banking/balances/download?${balanceQuery}`,
-        render: (presentation, onClose) => (
-          <BalanceDownload
-            data={snapshot}
-            presentation={presentation}
-            initialAccountId={selectedAccount?.id ?? ''}
-            initialBuildingId={selectedBuilding?.id ?? ''}
-            onClose={onClose}
-          />
-        )
-      });
-    } catch {
-      setNotice({
-        message: '다운로드 자료를 불러오지 못했어요. 다시 시도해주세요.',
-        tone: 'error'
-      });
-    } finally {
-      exportBusy.current = false;
-      setExporting(false);
-    }
-  }
-  /** 조회 월에 포함된 통장만 열고 전체 번호 상태는 사용자·통장·조회 범위가 바뀔 때 폐기합니다. */
-  function renderAccountDetail(id: string | null) {
-    const account = data?.accounts?.find((item) => item.id === id);
-    if (!account) return (
-      <p
-        role={'alert'}
-      >
-        해당 조회 월의 통장 정보를 찾을 수 없어요.
-      </p>
-    );
-    return (
-      <>
-        <BankAccountDetails
-          key={`${session.data?.id}-${propertyId}-${month}-${accountId}-${account.id}`}
-          propertyId={propertyId}
-          account={account}
-          month={month}
-          onInitial={data?.initialCorrectionAllowed === true && account.status === 'ACTIVE'
-            ? () => openPanel('initial', account.id) : undefined}
-          onHistory={() => openPanel('history', account.id)}
-        />
-        <div
-          className={styles['account-actions']}
-          role={'group'}
-          aria-label={'통장 관리'}
-        >
-          <Button
-            variant={'outline'}
-            disabled={account.status !== 'ACTIVE'}
-            onClick={() => {
-              if (window.matchMedia('(max-width: 767px)').matches) {
-                router.push(`/manage/${propertyId}/settings/accounts?edit=${encodeURIComponent(account.id)}`);
-                return;
-              }
-              // 목록·필터와 상세 대상은 유지하고 원문을 표시하는 편집 모달로 전환합니다.
-              setEditingAccountId(account.id);
-            }}
-          >
-            통장 정보 수정
-          </Button>
-          <Button
-            onClick={() => router.push(`/manage/${propertyId}/banking/transactions?${new URLSearchParams({
-              month,
-              account: account.id
-            })}`)}
-          >
-            거래 내역 보기
-          </Button>
-        </div>
-      </>
-    );
-  }
-  /** 저장·취소 후 같은 상세를 다시 열어 최신 정보와 마스킹된 번호를 표시합니다. */
-  function renderAccountEditor() {
-    if (!editingAccountId) return null;
-    return (
-      <BankAccountEditor
-        key={editingAccountId}
-        propertyId={propertyId}
-        initialAccountId={editingAccountId}
-        onClose={() => setEditingAccountId(null)}
-        onSaved={() => {
-          setEditingAccountId(null);
-          setNotice({
-            message: '통장 정보를 수정했어요.',
-            tone: 'success'
-          });
-        }}
-      />
-    );
-  }
-  if (panel) {
-    const closePage = () => router.replace(balanceListHref);
-    if (panel === 'history') return (
       <BankAccountHistory
         propertyId={propertyId}
         accountId={params.get('target') ?? ''}
@@ -530,42 +82,85 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         onClose={closePage}
       />
     );
-    if (panel === 'initial') {
-      const target = data.accounts?.find((row) => row.id === params.get('target'));
-      return target ? (
-        <BankInitialBalanceEditor
-          key={target.id}
-          propertyId={propertyId}
-          account={target}
-          data={data}
-          presentation={'page'}
-          onClose={closePage}
-          onSaved={() => saved('초기 잔액을 정정했어요.')}
-        />
-      ) : (
-        <p>
-          해당 통장을 찾을 수 없습니다.
-        </p>
-      );
-    }
-    if (panel === 'account') return (
+  }
+
+  if (state.kind === 'initial') {
+    const {
+      propertyId,
+      target,
+      closePage,
+      data,
+      saved
+    } = state;
+
+    return target ? (
+      <BankInitialBalanceEditor
+        key={target.id}
+        propertyId={propertyId}
+        account={target}
+        data={data}
+        presentation={'page'}
+        onClose={closePage}
+        onSaved={() => saved('초기 잔액을 정정했어요.')}
+      />
+    ) : (
+      <p>
+        해당 통장을 찾을 수 없습니다.
+      </p>
+    );
+  }
+
+  if (state.kind === 'account') {
+    const {
+      closePage,
+      params,
+      accountContent,
+      accountEditor
+    } = state;
+
+    return (
       <DetailDialog
         title={'통장 상세'}
         className={styles['account-dialog']}
         presentation={'page'}
         onClose={closePage}
       >
-        {renderAccountDetail(params.get('target'))}
-        {renderAccountEditor()}
+        <BalanceAccountContent
+          {...accountContent}
+          targetId={params.get('target')}
+        />
+        <BalanceAccountEditor
+          {...accountEditor}
+        />
       </DetailDialog>
     );
-    if (panel === 'chart') return (
+  }
+
+  if (state.kind === 'chart') {
+    const {
+      closePage,
+      filtered
+    } = state;
+
+    return (
       <ChartDialog
         buildings={filtered}
         presentation={'page'}
         onClose={closePage}
       />
     );
+  }
+
+  if (state.kind === 'operation') {
+    const {
+      propertyId,
+      panel,
+      closePage,
+      params,
+      data,
+      saved
+    } = state;
+
     return (
       <BalanceActionDialog
         key={`${panel}-${params.get('target') ?? ''}`}
@@ -581,7 +176,16 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       />
     );
   }
-  if (buildingId)
+
+  if (state.kind === 'ledger') {
+    const {
+      propertyId,
+      renderReceiptDetail,
+      periodLabel,
+      data,
+      detailBuilding
+    } = state;
+
     return (
       <section
         className={styles.page}
@@ -607,50 +211,67 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
         )}
       </section>
     );
-  const buildingColumns: DataTableColumn<BalanceBuilding>[] = [
-    {
-      key: 'building',
-      header: '동',
-      render: (b) => (
-        <strong>
-          {b.label}
-          {!b.active && (
-            <small
-              className={styles.muted}
-            >
-              보관된 동
-            </small>
-          )}
-        </strong>
-      )
-    },
-    {
-      key: 'start',
-      header: '기초 잔고',
-      render: (b) => money(b.startBalance)
-    },
-    {
-      key: 'income',
-      header: startMonth === month ? '월 입금' : '기간 입금',
-      render: (b) => b.status === 'READY' ? money(b.income) : '—'
-    },
-    {
-      key: 'expense',
-      header: startMonth === month ? '월 지출' : '기간 지출',
-      render: (b) => b.status === 'READY' ? money(b.expense) : '—'
-    },
-    {
-      key: 'balance',
-      header: startMonth === month ? '월말 잔고' : '기말 잔고',
-      render: (b) => (
-        <strong
-          data-negative={b.balance !== null && BigInt(b.balance) < BigInt(0)}
-        >
-          {money(b.balance)}
-        </strong>
-      )
-    }
-  ];
+  }
+
+  const {
+    context,
+    router,
+    params,
+    range,
+    month,
+    startMonth,
+    search,
+    setSearch,
+    sort,
+    setSort,
+    filter,
+    setFilter,
+    incomeBuilding,
+    setIncomeBuilding,
+    incomeSearch,
+    setIncomeSearch,
+    externalFilter,
+    setExternalFilter,
+    externalSearch,
+    setExternalSearch,
+    detail,
+    setDetail,
+    accountDetailId,
+    setAccountDetailId,
+    editingAccountId,
+    historyAccountId,
+    setHistoryAccountId,
+    initialAccountId,
+    chartOpen,
+    setChartOpen,
+    action,
+    setAction,
+    notice,
+    setNotice,
+    exporting,
+    downloadButton,
+    query,
+    data,
+    summary,
+    selectedAccount,
+    bankBalance,
+    bankLabel,
+    bankAsOf,
+    bankHelp,
+    differenceDescription,
+    missing,
+    buildings,
+    selectedBuilding,
+    filtered,
+    detailBuilding,
+    closeInitial,
+    saved,
+    openDetail,
+    openPanel,
+    download,
+    accountContent,
+    accountEditor
+  } = state;
 
   return (
     <section
@@ -680,7 +301,9 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
                 ref={downloadButton}
                 loading={exporting}
                 disabled={query.isFetching || query.isError || !context.data?.name}
-                onClick={() => { void download(); }}
+                onClick={() => {
+                  void download();
+                }}
                 leadingIcon={(
                   <ServiceIcon
                     name={'download'}
@@ -721,7 +344,8 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
               aria-label={'조회 통장'}
               value={selectedAccount?.id ?? 'ALL'}
               onChange={(value) => {
-                const next = new URLSearchParams(params.toString()); next.set('account', value);
+                const next = new URLSearchParams(params.toString());
+                next.set('account', value);
                 router.replace(`?${next}`, {
                   scroll: false
                 });
@@ -740,8 +364,10 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
             value={selectedBuilding?.id ?? 'ALL'}
             onChange={(value) => {
               const next = new URLSearchParams(params.toString());
-              if (value === 'ALL') next.delete('building');
-              else next.set('building', value);
+              if (value === 'ALL')
+                next.delete('building');
+              else
+                next.set('building', value);
               setDetail(null);
               router.replace(`?${next}`, {
                 scroll: false
@@ -767,458 +393,46 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           {' '}
         </p>
       )}
-      <div
-        className={styles.summary}
-      >
-        <SummaryCard
-          density={'compact'}
-          label={bankLabel}
-          value={bankBalance === null ? '확인 필요' : formatInteger(bankBalance)}
-          unit={bankBalance === null ? '' : '원'}
-          help={(
-            <InfoTooltip
-              size={'sm'}
-              label={`${bankLabel} 도움말`}
-              title={bankLabel}
-              note={bankAsOf}
-            >
-              {bankHelp}
-            </InfoTooltip>
-          )}
-          tone={'primary'}
-          icon={(
-            <ServiceIcon
-              name={'bank'}
-            />
-          )}
-        />
-        <SummaryCard
-          density={'compact'}
-          label={'동별 잔고 합계'}
-          help={(
-            <InfoTooltip
-              size={'sm'}
-              label={'동별 잔고 합계 도움말'}
-              title={'동별 잔고 합계'}
-              note={'동에 배분하지 않은 입금은 포함하지 않습니다.'}
-            >
-              {selectedAccount ? '선택한 통장 안에서 각 동에 귀속된 잔고를 합한 금액입니다.' : '조회 중인 모든 통장의 동별 잔고를 합한 금액입니다.'}
-              {summary.total !== null ? ` ${getBalancePeriodLabel(month)} · 동별 귀속 금액` : ' 통장을 선택해 동별 시작 잔고를 등록해주세요.'}
-            </InfoTooltip>
-          )}
-          tone={'warning'}
-          value={summary.total === null ? '설정 필요' : formatInteger(summary.total)}
-          unit={summary.total === null ? '' : '원'}
-          icon={(
-            <ServiceIcon
-              name={'coins'}
-            />
-          )}
-        />
-        <SummaryCard
-          density={'compact'}
-          label={'잔고 차이'}
-          help={(
-            <InfoTooltip
-              size={'sm'}
-              label={'잔고 차이 도움말'}
-              title={'잔고 차이'}
-              note={summary.difference === null ? undefined : differenceDescription}
-            >
-              통장 잔액과 동별 잔고를 비교한 참고 금액입니다.
-            </InfoTooltip>
-          )}
-          value={summary.difference === null ? '확인 필요' : formatInteger(summary.difference)}
-          unit={summary.difference === null ? '' : '원'}
-          tone={'success'}
-          valueTone={summary.difference !== null && summary.difference < BigInt(0) ? 'danger' : 'neutral'}
-          icon={(
-            <ServiceIcon
-              name={'info'}
-            />
-          )}
-        />
-        <SummaryCard
-          density={'compact'}
-          label={'관리 동 수'}
-          value={data.buildings.filter((b) => b.active).length}
-          unit={'개 동'}
-          help={(
-            <InfoTooltip
-              size={'sm'}
-              label={'관리 동 수 도움말'}
-              title={'관리 동 수'}
-            >
-              등록된 관리 동 기준입니다.
-            </InfoTooltip>
-          )}
-          icon={(
-            <ServiceIcon
-              name={'building'}
-            />
-          )}
-        />
-      </div>
-      {!!data.accounts?.length && (
-        <AccountBalances
-          data={data}
-          onOpen={(id) => openPanel('account', id)}
-        />
-      )}
-      <section
-        className={styles.card}
-      >
-        <h2>
-          동별 잔고 목록
-        </h2>
-        <p
-          className={styles.muted}
-        >
-          행을 누르면 상세 원장을 확인합니다. 기초 잔고는 조회 월의 전월 말 잔고입니다.
-        </p>
-        <PagedTable
-          label={'동별 잔고'}
-          hasFilters={Boolean(selectedBuilding || search.trim() || filter !== 'ALL')}
-          rows={filtered}
-          columns={buildingColumns}
-          onRowClick={openDetail}
-          toolbar={(
-            <>
-              <Input
-                aria-label={'동 검색'}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={'예: 102동'}
-              />
-              <Dropdown
-                aria-label={'잔고 정렬'}
-                value={sort}
-                onChange={setSort}
-                options={[{
-                  value: 'name',
-                  label: '동 이름순'
-                }, {
-                  value: 'high',
-                  label: '잔고 높은 순'
-                }, {
-                  value: 'low',
-                  label: '잔고 낮은 순'
-                }]}
-              />
-              <Dropdown
-                aria-label={'잔고 상태'}
-                value={filter}
-                onChange={setFilter}
-                options={[{
-                  value: 'ALL',
-                  label: '전체'
-                }, {
-                  value: 'NEEDS_OPENING',
-                  label: '시작 잔고 필요'
-                }, {
-                  value: 'NEGATIVE',
-                  label: '잔고 부족'
-                }]}
-              />
-            </>
-          )}
-        />
-      </section>
-      <div
-        className={styles['lower-grid']}
-      >
-        <section
-          className={styles.card}
-        >
-          <h2>
-            {startMonth === month ? '월 입금·출금 비중' : '기간 입금·출금 비중'}
-          </h2>
-          <p
-            className={styles.muted}
-          >
-            현재 조회 동
-            {' '}
-            {filtered.length}
-            {startMonth === month ? '개 · 월 입금 / 출금' : '개 · 기간 입금 / 출금'}
-          </p>
-          <button
-            className={styles['chart-trigger']}
-            aria-label={'동별 입금 출금 그래프'}
-            onClick={() => openPanel('chart')}
-          >
-            <BalanceChart
-              rows={filtered}
-            />
-          </button>
-        </section>
-        <section
-          className={[styles.card, styles['difference-card']].join(' ')}
-        >
-          <h2>
-            잔고 차이 확인
-          </h2>
-          <dl
-            className={styles.overview}
-          >
-            <div>
-              <dt>
-                통장 장부 잔액 − 동별 합계
-              </dt>
-              <dd
-                data-negative={summary.difference !== null && summary.difference < BigInt(0)}
-              >
-                {money(summary.difference)}
-              </dd>
-            </div>
-            <div>
-              <dt>
-                외부 보관금 잔액
-              </dt>
-              <dd>
-                {money(data.incomes.filter((i) => i.kind === 'EXTERNAL').reduce((sum, i) => sum + BigInt(i.available), BigInt(0)))}
-              </dd>
-            </div>
-            <div>
-              <dt>
-                조회 기간 외부 대납 미회수액
-              </dt>
-              <dd>
-                {money(summary.external)}
-              </dd>
-            </div>
-            <div>
-              <dt>
-                처리 전 은행 거래
-              </dt>
-              <dd>
-                {data.pending.length}
-                건
-              </dd>
-            </div>
-            <div>
-              <dt>
-                귀속 확인할 입금
-              </dt>
-              <dd>
-                {data.incomes.filter((i) => i.kind !== 'EXTERNAL' && BigInt(i.available) > BigInt(0)).length}
-                건
-              </dd>
-            </div>
-          </dl>
-          <p
-            className={styles.muted}
-          >
-            외부 보관금·외부 대납금·기타 입금·미분류 거래·시작 잔고 차이를 확인해주세요. 차이를 특정 동에 자동 반영하지 않습니다.
-          </p>
-          <button
-            type={'button'}
-            className={styles['difference-trigger']}
-            aria-label={'잔고 차이 내역 확인'}
-            onClick={() => openPanel('difference')}
-          />
-        </section>
-      </div>
-      {data.incomes.some((i) => i.kind === 'EXTERNAL') && (
-        <section
-          className={styles.card}
-        >
-          <h2>
-            외부 보관금
-          </h2>
-          <p
-            className={styles.muted}
-          >
-            관리 동 잔고에 포함하지 않는 돈입니다. 외부 부담금 정산에서 입금을 연결하면 사용액이 반영됩니다.
-          </p>
-          <PagedTable
-            label={'외부 보관금'}
-            rows={data.incomes.filter((i) => i.kind === 'EXTERNAL')}
-            columns={[{
-              key: 'date',
-              header: '입금일',
-              render: (i) => i.date
-            }, {
-              key: 'payer',
-              header: '외부 동·입금 항목',
-              render: (i) => i.payer
-            }, {
-              key: 'amount',
-              header: '입금액',
-              render: (i) => money(i.amount)
-            }, {
-              key: 'used',
-              header: '연결 사용액',
-              render: (i) => money(BigInt(i.amount) - BigInt(i.available))
-            }, {
-              key: 'available',
-              header: '보관 잔액',
-              render: (i) => money(i.available)
-            }]}
-          />
-        </section>
-      )}
-      <section
-        className={styles.card}
-        id={'external-settlements'}
-      >
-        <h2>
-          외부 부담금 정산
-        </h2>
-        <p
-          className={styles.muted}
-        >
-          선택한 기간의 외부 지출입니다. 먼저 받은 외부 보관금이나 실제 기타 입금을 연결한 만큼 정산에 반영합니다.
-        </p>
-        <PagedTable
-          label={'외부 부담금'}
-          hasFilters={Boolean(externalSearch.trim() || externalFilter !== 'ALL')}
-          rows={getExternalExpensesForRange(data).filter((row) => (externalFilter === 'UNRECOVERED' ? !row.excluded && BigInt(row.remaining) > BigInt(0) : externalFilter === 'ALL' || Boolean(row.excluded) === (externalFilter === 'EXCLUDED')) && `${row.label} ${row.expenseName}`.includes(externalSearch.trim())).sort((a, b) => b.date.localeCompare(a.date))}
-          toolbar={(
-            <>
-              <Input
-                label={'외부 부담금 검색'}
-                placeholder={'부담처·지출명 검색'}
-                value={externalSearch}
-                onChange={(event) => setExternalSearch(event.target.value)}
-              />
-              <Dropdown
-                label={'정산 대상'}
-                value={externalFilter}
-                onChange={setExternalFilter}
-                options={[{
-                  value: 'UNRECOVERED',
-                  label: '미회수'
-                }, {
-                  value: 'ACTIVE',
-                  label: '정산 대상'
-                }, {
-                  value: 'EXCLUDED',
-                  label: '정산에서 제외'
-                }, {
-                  value: 'ALL',
-                  label: '전체 내역'
-                }]}
-              />
-            </>
-          )}
-          onRowClick={(row) => openPanel('settlement', row.id)}
-          columns={[
-            {
-              key: 'date',
-              header: '거래일',
-              render: (e) => e.date
-            }, {
-              key: 'name',
-              header: '지출명',
-              render: (e) => e.expenseName
-            }, {
-              key: 'target',
-              header: '부담처',
-              render: (e) => e.label
-            },
-            {
-              key: 'amount',
-              header: '부담액',
-              render: (e) => money(e.amount)
-            }, {
-              key: 'received',
-              header: '회수액',
-              render: (e) => money(e.received)
-            }, {
-              key: 'remaining',
-              header: '남은 금액',
-              render: (e) => money(e.remaining)
-            },
-            {
-              key: 'state',
-              header: '상태',
-              render: (e) => (
-                <span
-                  className={styles.badge}
-                  data-done={!e.excluded && BigInt(e.remaining) === BigInt(0)}
-                  data-excluded={e.excluded}
-                >
-                  {e.excluded ? '정산 제외' : BigInt(e.remaining) === BigInt(0) ? '정산 완료' : BigInt(e.received) > BigInt(0) ? '일부 회수' : '회수 필요'}
-                </span>
-              )
-            }
-          ]}
-        />
-      </section>
-      {data.incomes.some((i) => i.kind === 'HOUSEHOLD') && (
-        <section
-          className={styles.card}
-        >
-          <h2>
-            입금 귀속 동 확인
-          </h2>
-          <p
-            className={styles.muted}
-          >
-            세대가 연결된 확정 입금은 해당 동에 자동 반영됩니다. 세대 연결이나 동 정보가 없는 입금만 확인해주세요.
-          </p>
-          <PagedTable
-            label={'입금 귀속 동 확인'}
-            hasFilters={Boolean(incomeSearch.trim() || incomeBuilding !== 'ALL')}
-            rows={data.incomes.filter((i) => i.kind === 'HOUSEHOLD'
-              && (incomeBuilding === 'ALL' || (incomeBuilding === 'UNKNOWN' ? !i.linkedBuildingId : i.linkedBuildingId === incomeBuilding))
-              && `${i.payer} ${i.linkedUnitLabel ?? ''}`.replace(/\s/g, '').includes(incomeSearch.trim().replace(/\s/g, '')))}
-            toolbar={(
-              <>
-                <Input
-                  label={'입금 검색'}
-                  placeholder={'입금자 또는 연결 세대 검색'}
-                  value={incomeSearch}
-                  onChange={(event) => setIncomeSearch(event.target.value)}
-                />
-                <SelectDropdown
-                  label={'연결 세대 동'}
-                  value={incomeBuilding}
-                  onChange={setIncomeBuilding}
-                  options={[
-                    {
-                      value: 'ALL',
-                      label: '전체 동'
-                    },
-                    {
-                      value: 'UNKNOWN',
-                      label: '세대 미확인'
-                    },
-                    ...sortExpenseLabels(data.buildings).map((b) => ({
-                      value: b.id,
-                      label: b.label
-                    }))
-                  ]}
-                />
-              </>
-            )}
-            onRowClick={(i) => openPanel('assignment', i.id)}
-            columns={[
-              {
-                key: 'date',
-                header: '입금일',
-                render: (i) => i.date
-              }, {
-                key: 'payer',
-                header: '입금자',
-                render: (i) => i.payer
-              }, {
-                key: 'unit',
-                header: '연결 세대',
-                render: (i) => i.linkedUnitLabel ?? '세대 미확인'
-              }, {
-                key: 'amount',
-                header: '입금액',
-                render: (i) => money(i.amount)
-              }, {
-                key: 'action',
-                header: '확인',
-                render: () => '귀속 동 지정'
-              }
-            ]}
-          />
-        </section>
-      )}
+      <BalanceOverview
+        {...{
+          month,
+          startMonth,
+          search,
+          setSearch,
+          sort,
+          setSort,
+          filter,
+          setFilter,
+          data,
+          summary,
+          selectedAccount,
+          bankBalance,
+          bankLabel,
+          bankAsOf,
+          bankHelp,
+          differenceDescription,
+          selectedBuilding,
+          filtered,
+          openDetail,
+          openPanel,
+        }}
+      />
+
+      <BalanceSettlements
+        {...{
+          incomeBuilding,
+          setIncomeBuilding,
+          incomeSearch,
+          setIncomeSearch,
+          externalFilter,
+          setExternalFilter,
+          externalSearch,
+          setExternalSearch,
+          data,
+          openPanel
+        }}
+      />
+
       {initialAccountId && data.accounts?.find((row) => row.id === initialAccountId) && (
         <BankInitialBalanceEditor
           propertyId={propertyId}
@@ -1237,10 +451,15 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
           className={styles['account-dialog']}
           onClose={() => setAccountDetailId(null)}
         >
-          {renderAccountDetail(accountDetailId)}
+          <BalanceAccountContent
+            {...accountContent}
+            targetId={accountDetailId}
+          />
         </DetailDialog>
       )}
-      {renderAccountEditor()}
+      <BalanceAccountEditor
+        {...accountEditor}
+      />
       {historyAccountId && (
         <BankAccountHistory
           propertyId={propertyId}
@@ -1286,1899 +505,5 @@ export function BankingBalances({ propertyId, buildingId, panel, renderReceiptDe
       )}
     </section>
   );
-}
-/** 잔고가 아닌 확인된 입금·출금 합계의 비중을 표시해 음수 잔고나 동 수에 영향을 받지 않게 합니다. */
-function BalanceChart({ rows }: { rows: readonly BalanceBuilding[] }) {
-  const income = rows.reduce((sum, row) => sum + BigInt(row.income), BigInt(0));
-  const expense = rows.reduce((sum, row) => sum + BigInt(row.expense), BigInt(0));
-  const total = income + expense;
-  const net = income - expense;
-  const share = total ? Number(income * BigInt(10000) / total) / 100 : 0;
-  return (
-    <span
-      className={styles['donut-panel']}
-    >
-      <span
-        className={styles.donut}
-        data-empty={total === BigInt(0)}
-        style={{
-          '--chart-share': `${share}%`
-        } as CSSProperties}
-        role={'img'}
-        aria-label={`입금 ${money(income)}, 출금 ${money(-expense)}, 월 입출금 차액 ${money(net)}`}
-      >
-        <span
-          className={styles['donut-center']}
-        >
-          <span>
-            월 입출금 차액
-          </span>
-          <strong
-            data-negative={net < BigInt(0)}
-          >
-            {money(net)}
-          </strong>
-        </span>
-      </span>
-      <span
-        className={styles['donut-legend']}
-      >
-        <span>
-          <span
-            className={styles['donut-marker']}
-            data-kind={'income'}
-          />
-          입금
-          {' '}
-          <strong>
-            {money(income)}
-          </strong>
-        </span>
-        <span>
-          <span
-            className={styles['donut-marker']}
-            data-kind={'expense'}
-          />
-          출금
-          {' '}
-          <strong>
-            {money(-expense)}
-          </strong>
-        </span>
-      </span>
-    </span>
-  );
-}
 
-/** 검색 가능한 동 선택 하나로 그래프와 표의 조회 범위를 함께 변경합니다. */
-function ChartDialog({ buildings, onClose, presentation = 'modal' }: { buildings: readonly BalanceBuilding[]; onClose: () => void; presentation?: 'modal' | 'page' }) {
-  const [building, setBuilding] = useState('ALL');
-  const rows = buildings.filter((row) => building === 'ALL' || row.id === building);
-  return (
-    <DetailDialog
-      title={'동별 입금·지출 비교'}
-      className={styles['chart-dialog']}
-      presentation={presentation}
-      onClose={onClose}
-    >
-      <div
-        className={styles['chart-controls']}
-      >
-        <SelectDropdown
-          label={'동 선택'}
-          value={building}
-          onChange={setBuilding}
-          options={[{
-            value: 'ALL',
-            label: '전체 동'
-          }, ...sortExpenseLabels(buildings).map((row) => ({
-            value: row.id,
-            label: row.label
-          }))]}
-        />
-      </div>
-      <div
-        className={styles['chart-expanded']}
-      >
-        {rows.length ? (
-          <BalanceChart
-            rows={rows}
-          />
-        ) : (
-          <StateMessage
-            variant={building !== 'ALL' ? 'no-results' : 'empty-data'}
-            layout={'inline'}
-            title={'조건에 맞는 동이 없습니다.'}
-          />
-        )}
-      </div>
-      <PagedTable
-        label={'동별 입금 출금 비교'}
-        hasFilters={building !== 'ALL'}
-        rows={rows}
-        columns={[
-          {
-            key: 'building',
-            header: '동',
-            render: (row) => row.label
-          },
-          {
-            key: 'income',
-            header: '입금',
-            render: (row) => money(row.income)
-          },
-          {
-            key: 'expense',
-            header: '출금',
-            render: (row) => money(-BigInt(row.expense))
-          }
-        ]}
-      />
-    </DetailDialog>
-  );
-}
-
-/** 표마다 동일한 표시 개수·페이지 간격을 사용하고 다운로드 범위는 호출자가 전체 결과로 유지합니다. */
-function PagedTable<Row extends {
-    id: string;
-}>({ label, rows, columns, toolbar, onRowClick, hasFilters = false }: {
-    label: string;
-    hasFilters?: boolean;
-    rows: readonly Row[];
-    columns: DataTableColumn<Row>[];
-    toolbar?: ReactNode;
-    onRowClick?: (row: Row) => void;
-}) {
-  const [page, setPage] = useState(1);
-  const [size, setSize] = useState(10);
-  const count = Math.max(1, Math.ceil(rows.length / size));
-  const current = Math.min(page, count);
-  return (
-    <div
-      className={styles['paged-table']}
-    >
-      <div
-        className={styles.filters}
-        data-toolbar={Boolean(toolbar)}
-      >
-        {toolbar}
-        <Dropdown
-          aria-label={`${label} 표시 개수`}
-          value={String(size)}
-          onChange={(v) => { setSize(Number(v)); setPage(1); }}
-          options={[10, 20, 50].map((v) => ({
-            value: String(v),
-            label: `${v}개씩 보기`
-          }))}
-        />
-      </div>
-      <DataTable
-        label={label}
-        rows={rows.slice((current - 1) * size, current * size)}
-        columns={columns.map((column) => ({
-          ...column,
-          align: 'center'
-        }))}
-        getRowKey={(row) => row.id}
-        onRowClick={onRowClick}
-        emptyState={(
-          <StateMessage
-            variant={hasFilters ? 'no-results' : 'empty-data'}
-            layout={'inline'}
-            title={hasFilters ? '조건에 맞는 검색 결과가 없어요.' : '조회할 내역이 없습니다.'}
-          />
-        )}
-        minWidth={columns.length > 5 ? 880 : 620}
-      />
-      {rows.length > 0 && (
-        <Pagination
-          label={`${label} 페이지`}
-          unit={'건'}
-          total={rows.length}
-          page={current}
-          pageCount={count}
-          pageSize={size}
-          onPageChange={setPage}
-        />
-      )}
-    </div>
-  );
-}
-function BuildingLedger({ building, data, propertyId, renderReceiptDetail }: {
-    building: BalanceBuilding;
-    data: BalanceWorkspace;
-    propertyId: string;
-    renderReceiptDetail?: (paymentId: string, onClose: () => void) => ReactNode;
-}) {
-  const router = useRouter();
-  const [direction, setDirection] = useState('ALL');
-  const [search, setSearch] = useState('');
-  const [sort, setSort] = useState('LATEST');
-  const [transactionDetail, setTransactionDetail] = useState<BalanceEntry | null>(null);
-  /** 누적 잔고를 먼저 계산한 뒤 표시만 필터링해 입금·출금 필터가 잔고를 바꾸지 않게 합니다. */
-  function openTransaction(entry: BalanceEntry) {
-    if (window.matchMedia('(max-width: 767px)').matches) {
-      const path = entry.paymentId ? `receipts/${entry.paymentId}` : `transactions/${entry.transactionId ?? entry.id}`;
-      const query = new URLSearchParams({
-        from: 'balance',
-        buildingId: building.id
-      });
-      if (data.startMonth && data.startMonth !== data.month) setMonthRangeQuery(query, {
-        startMonth: data.startMonth,
-        endMonth: data.month
-      });
-      else query.set('month', data.month);
-      if (data.accountId) query.set('account', data.accountId);
-      router.push(`/manage/${propertyId}/banking/${path}?${query}`);
-      return;
-    }
-    setTransactionDetail(entry);
-  }
-  // 누적 잔고는 과거부터 계산하고 정렬 선택은 계산된 행의 표시 순서에만 적용합니다.
-  const entries = getBuildingLedger(building, data.entries, data.month, data.startMonth);
-  if (sort === 'LATEST') entries.reverse();
-  const columns: DataTableColumn<(typeof entries)[number]>[] = [
-    {
-      key: 'date',
-      header: '거래일',
-      width: 140,
-      render: (e) => (
-        <time
-          className={styles['ledger-date']}
-          dateTime={e.date}
-        >
-          {e.date}
-        </time>
-      )
-    }, {
-      key: 'label',
-      header: direction === 'INCOME' ? '입금자' : direction === 'EXPENSE' ? '지출명' : '입금자·지출명',
-      render: (e) => e.label
-    },
-    {
-      key: 'income',
-      header: '입금',
-      render: (e) => BigInt(e.income) === BigInt(0) ? '—' : money(e.income)
-    }, {
-      key: 'expense',
-      header: '출금',
-      render: (e) => BigInt(e.expense) === BigInt(0) ? '—' : money(-BigInt(e.expense))
-    }, {
-      key: 'balance',
-      header: '잔고',
-      render: (e) => (
-        <span
-          data-negative={e.balance !== null && e.balance < BigInt(0)}
-        >
-          {money(e.balance)}
-        </span>
-      )
-    }
-  ];
-  return (
-    <div
-      className={styles.ledger}
-    >
-      <div
-        className={styles['ledger-summary']}
-      >
-        <div>
-          <span>
-            기초 잔고
-          </span>
-          <strong
-            data-negative={building.startBalance !== null && BigInt(building.startBalance!) < BigInt(0)}
-          >
-            {money(building.startBalance)}
-          </strong>
-        </div>
-        <div>
-          <span>
-            {data.startMonth && data.startMonth !== data.month ? '기간 입금' : '월 입금'}
-          </span>
-          <strong>
-            {money(building.income)}
-          </strong>
-        </div>
-        <div>
-          <span>
-            {data.startMonth && data.startMonth !== data.month ? '기간 지출' : '월 지출'}
-          </span>
-          <strong>
-            {money(building.expense)}
-          </strong>
-        </div>
-        <div>
-          <span>
-            {data.startMonth && data.startMonth !== data.month ? '기말 잔고' : '월말 잔고'}
-          </span>
-          <strong
-            data-negative={building.balance !== null && BigInt(building.balance!) < BigInt(0)}
-          >
-            {money(building.balance)}
-          </strong>
-        </div>
-      </div>
-      <p
-        className={styles.muted}
-      >
-        {formatMonthRange({
-          startMonth: data.startMonth ?? data.month,
-          endMonth: data.month
-        })}
-        {' '}
-        · 잔고 기준일
-        {' '}
-        {data.cutoffDate ?? '미설정'}
-        {' '}
-        의 잔고에서 조회 기간의 입출금을 계산합니다.
-      </p>
-      <PagedTable
-        label={'동별 상세 원장'}
-        hasFilters={Boolean(search.trim() || direction !== 'ALL')}
-        rows={entries.filter((entry) => (direction === 'ALL' || BigInt(direction === 'INCOME' ? entry.income : entry.expense) > BigInt(0)) && entry.label.includes(search.trim()))}
-        onRowClick={openTransaction}
-        toolbar={(
-          <>
-            <Input
-              label={'원장 검색'}
-              placeholder={'입금자·지출명 검색'}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-            <Dropdown
-              label={'입출금 구분'}
-              value={direction}
-              onChange={setDirection}
-              options={[{
-                value: 'ALL',
-                label: '전체'
-              }, {
-                value: 'INCOME',
-                label: '입금'
-              }, {
-                value: 'EXPENSE',
-                label: '출금'
-              }]}
-            />
-            <Dropdown
-              label={'정렬'}
-              value={sort}
-              onChange={setSort}
-              options={[{
-                value: 'LATEST',
-                label: '최근순'
-              }, {
-                value: 'OLDEST',
-                label: '오래된순'
-              }]}
-            />
-          </>
-        )}
-        columns={columns.filter((column) => !(direction === 'INCOME' && column.key === 'expense') && !(direction === 'EXPENSE' && column.key === 'income'))}
-      />
-      {transactionDetail && (transactionDetail.paymentId ? renderReceiptDetail?.(transactionDetail.paymentId, () => setTransactionDetail(null)) : (
-        <BankingExpensePage
-          propertyId={propertyId}
-          transactionId={transactionDetail.transactionId ?? transactionDetail.id}
-          presentation={'modal'}
-          onClose={() => setTransactionDetail(null)}
-        />
-      ))}
-    </div>
-  );
-}
-/** 선택 통장의 시작 금액과 등록된 동별 보유금을 함께 확인하고 한 요청으로 정정합니다. */
-function BankInitialBalanceEditor({ propertyId, account, data, onClose, onSaved, presentation = 'modal' }: {
-  propertyId: string;
-  account: AccountBalance;
-  data: BalanceWorkspace;
-  onClose: () => void;
-  onSaved: () => Promise<void>;
-  presentation?: 'modal' | 'page';
-}) {
-  const session = useSession();
-  const cache = useQueryClient();
-  const formId = useId();
-  // 편집 중 부모 조회가 갱신돼도 제출 기준 버전과 입력 당시 원본을 바꾸지 않습니다.
-  const [original] = useState(account);
-  const [date, setDate] = useState(original.openingDate ?? '');
-  const [amount, setAmount] = useState(original.openingBalance ?? '');
-  const [reason, setReason] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const pending = useRef(false);
-  const active = useRef(false);
-  const request = useRef<{ body: string; id: string } | null>(null);
-  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
-  const allowed = data.initialCorrectionAllowed === true && account.status === 'ACTIVE';
-  const dateChanged = date !== (original.openingDate ?? '');
-  const [confirmedToken, setConfirmedToken] = useState('');
-  const [buildingAmounts, setBuildingAmounts] = useState<Record<string, string>>({});
-  const impact = useQuery({
-    queryKey: ['bank-initial-billing-impact', session.data?.id, propertyId, account.id, date],
-    queryFn: ({ signal }) => getBankBillingImpact(propertyId, account.id, date, signal),
-    enabled: allowed && dateChanged && /^\d{4}-\d{2}-\d{2}$/.test(date),
-    retry: false,
-    staleTime: 0
-  });
-  const cash = useQuery({
-    queryKey: ['bank-initial-building-balances', session.data?.id, propertyId, account.id, data.month],
-    queryFn: ({ signal }) => getBankingBalances(propertyId, data.month, account.id, signal),
-    enabled: data.buildings.length > 0,
-    retry: false,
-    gcTime: 0,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false
-  });
-  const affectedBuildings = cash.data?.buildings.filter((row) => row.openingBalance != null) ?? [];
-  const buildingAmountsValid = affectedBuildings.every((row) => /^-?[0-9]{1,15}$/.test(buildingAmounts[row.id] ?? row.openingBalance!));
-  const buildingTotal = buildingAmountsValid
-    ? affectedBuildings.reduce((sum, row) => sum + BigInt(buildingAmounts[row.id] ?? row.openingBalance!), BigInt(0)) : null;
-  const needsConfirmation = Boolean(impact.data?.changed || impact.data?.missingMonths.length);
-  const bankAmount = /^[0-9]{1,15}$/.test(amount) ? BigInt(amount) : null;
-  const buildingRemaining = bankAmount !== null && buildingTotal !== null ? bankAmount - buildingTotal : null;
-  const buildingTotalExceeded = buildingRemaining !== null && buildingRemaining < BigInt(0);
-  const impactReady = (!data.buildings.length || (cash.isSuccess && !cash.isFetching)) && buildingAmountsValid && !buildingTotalExceeded
-    && (!dateChanged || (impact.isSuccess && !impact.isFetching && !impact.data.blockedReason
-      && (!needsConfirmation || confirmedToken === impact.data.token)));
-  return (
-    <DetailDialog
-      title={'초기 잔액 정정'}
-      presentation={presentation}
-      compact
-      busy={busy}
-      onClose={onClose}
-      footer={(
-        <div
-          className={styles.actions}
-        >
-          <Button
-            variant={'outline'}
-            disabled={busy}
-            onClick={onClose}
-          >
-            취소
-          </Button>
-          {allowed && (
-            <Button
-              type={'submit'}
-              form={formId}
-              loading={busy}
-              disabled={!impactReady}
-            >
-              저장
-            </Button>
-          )}
-        </div>
-      )}
-    >
-      <form
-        id={formId}
-        className={styles['initial-editor']}
-        noValidate
-        aria-busy={busy}
-        onSubmit={async (event) => {
-          event.preventDefault();
-          if (pending.current || !allowed || !impactReady) return;
-          if (!date || !/^[0-9]{1,15}$/.test(amount) || !reason.trim() || [...reason.trim()].length > 500) {
-            setError('초기 기준일, 시작 잔액과 정정 사유를 확인해주세요.'); return;
-          }
-          const body = JSON.stringify({
-            date,
-            amount,
-            reason: reason.trim(),
-            billingToken: dateChanged ? impact.data?.token : undefined,
-            confirmBilling: dateChanged && needsConfirmation && confirmedToken === impact.data?.token,
-            buildings: affectedBuildings.map((row) => ({
-              buildingId: row.id,
-              revision: row.openingRevision ?? 0,
-              amount: buildingAmounts[row.id] ?? row.openingBalance!
-            }))
-          });
-          if (request.current?.body !== body) request.current = {
-            body,
-            id: crypto.randomUUID()
-          };
-          pending.current = true; setBusy(true); setError('');
-          try {
-            await saveBankInitialBalance(propertyId, {
-              id: request.current.id,
-              accountId: account.id,
-              cutoffDate: date,
-              amount,
-              revision: original.openingRevision ?? 0,
-              reason: reason.trim(),
-              billingToken: dateChanged ? impact.data?.token : undefined,
-              confirmBilling: dateChanged && needsConfirmation && confirmedToken === impact.data?.token,
-              ...(affectedBuildings.length ? {
-                buildings: affectedBuildings.map((row) => ({
-                  buildingId: row.id,
-                  revision: row.openingRevision ?? 0,
-                  amount: buildingAmounts[row.id] ?? row.openingBalance!
-                }))
-              } : {})
-            });
-            if (!active.current) return;
-            await cache.invalidateQueries({
-              predicate: (query) => query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
-            });
-            if (active.current) await onSaved();
-          } catch (failure) {
-            if (active.current) setError(balanceError(failure));
-            if (failure instanceof ApiError && failure.code === 'INITIAL_BILLING_CONFIRMATION_REQUIRED') {
-              setConfirmedToken('');
-              await impact.refetch();
-            }
-          } finally {
-            pending.current = false;
-            if (active.current) setBusy(false);
-          }
-        }}
-      >
-        <strong>
-          {getBankAccountLabel(account)}
-        </strong>
-        <div
-          className={styles['opening-metrics']}
-        >
-          <div
-            role={'group'}
-            aria-label={'초기 잔고 기준일'}
-          >
-            <span
-              className={styles['opening-symbol']}
-            >
-              <ServiceIcon
-                name={'closing'}
-              />
-            </span>
-            <div>
-              <span>
-                잔고 기준일
-              </span>
-              <strong>
-                {date || '미설정'}
-              </strong>
-            </div>
-          </div>
-          <div
-            role={'group'}
-            aria-label={'정정 기한'}
-            data-locked={!allowed}
-          >
-            <span
-              className={styles['opening-symbol']}
-            >
-              <ServiceIcon
-                name={'clock'}
-              />
-            </span>
-            <div>
-              <span>
-                정정 기한
-              </span>
-              <strong>
-                {data.correctionDeadline ?? '확인 필요'}
-              </strong>
-            </div>
-          </div>
-        </div>
-        {!allowed && (
-          <p
-            role={'status'}
-          >
-            초기 기준 정정이 잠겨 있습니다. 최초 첫 부과월 말일까지만 변경할 수 있습니다.
-          </p>
-        )}
-        <p>
-          기본 관리 통장의 기준일을 바꾸면 관리비 부과 시작월도 함께 맞춥니다. 금액만 정정하면 부과월은 유지합니다.
-        </p>
-        {data.buildings.length > 0 && cash.isPending && (
-          <LoadingState
-            title={'동별 시작 잔액을 확인하고 있어요.'}
-            layout={'inline'}
-          />
-        )}
-        {cash.isError && (
-          <RequestError
-            error={cash.error}
-            onRetry={() => void cash.refetch()}
-          />
-        )}
-        <fieldset
-          className={styles['initial-fields']}
-          disabled={busy || !allowed}
-        >
-          <CalendarPicker
-            label={'초기 기준일'}
-            value={date}
-            onChange={setDate}
-            required
-          />
-          <AmountInput
-            label={'시작 잔액'}
-            value={amount}
-            onChange={setAmount}
-          />
-        </fieldset>
-        {dateChanged && (
-          <section
-            className={styles['billing-impact']}
-            aria-label={'관리비 부과 변경 확인'}
-          >
-            <h3>
-              관리비 부과 변경 확인
-            </h3>
-            {impact.isPending && <p>
-              부과 변경 내용을 확인하고 있어요.
-            </p>}
-            {impact.isError && (
-              <RequestError
-                error={impact.error}
-                onRetry={() => void impact.refetch()}
-              />
-            )}
-            {impact.data && (
-              <>
-                <p>
-                  {impact.data.primary
-                    ? `첫 부과월: ${impact.data.previousMonth} → ${impact.data.nextMonth}`
-                    : '기본 관리 통장이 아니므로 공통 관리비 부과월은 유지합니다.'}
-                </p>
-                {impact.data.missingMonths.map((row) => (
-                  <p
-                    key={row.month}
-                  >
-                    {row.month}
-                    {' '}
-                    ·
-                    {row.unitCount}
-                    세대 ·
-                    {formatWon(row.amount)}
-                    {' '}
-                    추가 부과
-                    {row.initialSettings ? ' · 초기 등록 기본 항목·금액 사용' : ''}
-                  </p>
-                ))}
-                {impact.data.blockedReason && (
-                  <p
-                    role={'alert'}
-                    className={styles.error}
-                  >
-                    {balanceError(new ApiError(409, impact.data.blockedReason, '기준일을 변경할 수 없습니다.'))}
-                  </p>
-                )}
-                {needsConfirmation && !impact.data.blockedReason && (
-                  <label>
-                    <input
-                      type={'checkbox'}
-                      checked={confirmedToken === impact.data.token}
-                      onChange={(event) => setConfirmedToken(event.target.checked ? impact.data!.token : '')}
-                    />
-                    기존 인계 미납·선납과 중복되지 않음을 확인했고, 부과 변경을 함께 반영합니다.
-                  </label>
-                )}
-              </>
-            )}
-          </section>
-        )}
-        {affectedBuildings.length > 0 && (
-          <fieldset
-            className={styles['initial-fields']}
-            disabled={busy || !allowed}
-          >
-            <legend>
-              동별 시작 잔액
-            </legend>
-            <p
-              className={styles.muted}
-            >
-              {date}
-              {' '}
-              기준으로 각 동의 금액도 함께 확인해주세요.
-            </p>
-            {affectedBuildings.map((row) => {
-              const current = buildingAmounts[row.id] ?? row.openingBalance!;
-              // 선택 동을 비워도 상한을 유지하도록 나머지 동의 합계만 따로 계산합니다.
-              const others = affectedBuildings.filter((part) => part.id !== row.id)
-                .map((part) => buildingAmounts[part.id] ?? part.openingBalance!);
-              const maximum = bankAmount !== null && others.every((value) => /^-?[0-9]{1,15}$/.test(value))
-                ? String(bankAmount - others.reduce((sum, value) => sum + BigInt(value), BigInt(0))) : undefined;
-              const fillRemaining = maximum !== undefined && (current === '' || /^-?[0-9]{1,15}$/.test(current))
-                ? BigInt(maximum) - BigInt(current || '0') : null;
-              return (
-                <div
-                  key={row.id}
-                  className={styles['building-opening-row']}
-                >
-                  <AmountInput
-                    label={row.label}
-                    value={current}
-                    maxAmount={maximum}
-                    maxLength={20}
-                    onChange={(value) => setBuildingAmounts((previous) => ({
-                      ...previous,
-                      [row.id]: value
-                    }))}
-                    required
-                  />
-                  <Button
-                    variant={'outline'}
-                    aria-label={`${row.label} 남은 금액`}
-                    disabled={fillRemaining === null || fillRemaining <= BigInt(0)}
-                    onClick={() => {
-                      if (maximum === undefined || fillRemaining === null || fillRemaining <= BigInt(0)) return;
-                      setBuildingAmounts((previous) => ({
-                        ...previous,
-                        [row.id]: maximum
-                      }));
-                    }}
-                  >
-                    남은 금액
-                  </Button>
-                </div>
-              );
-            })}
-            {buildingTotalExceeded && (
-              <p
-                role={'alert'}
-                className={styles.error}
-              >
-                동별 합계는 통장 시작 잔액을 넘을 수 없습니다.
-              </p>
-            )}
-            <dl
-              className={styles.overview}
-            >
-              <div>
-                <dt>
-                  동별 시작 잔액 합계
-                </dt>
-                <dd>
-                  {buildingTotal === null ? '입력 확인 필요' : money(buildingTotal)}
-                </dd>
-              </div>
-              <div>
-                <dt>
-                  통장 시작 잔액과 차이
-                </dt>
-                <dd>
-                  {buildingTotal === null || !/^[0-9]{1,15}$/.test(amount) ? '입력 확인 필요' : money(BigInt(amount) - buildingTotal)}
-                </dd>
-              </div>
-            </dl>
-          </fieldset>
-        )}
-        <Input
-          label={'정정 사유'}
-          required
-          maxLength={500}
-          value={reason}
-          disabled={busy || !allowed}
-          onChange={(event) => setReason(event.target.value)}
-        />
-        {error && (
-          <p
-            role={'alert'}
-            className={styles.error}
-          >
-            {error}
-          </p>
-        )}
-      </form>
-    </DetailDialog>
-  );
-}
-
-/** 정정 버튼을 누를 때만 해당 통장의 이력을 읽고 공통 표에 다섯 건씩 표시합니다. */
-function BankAccountHistory({ propertyId, accountId, onClose, presentation = 'modal' }: {
-  propertyId: string;
-  accountId: string;
-  onClose: () => void;
-  presentation?: 'modal' | 'page';
-}) {
-  const session = useSession();
-  const [page, setPage] = useState(1);
-  const query = useQuery({
-    queryKey: ['bank-account-corrections', session.data?.id, propertyId, accountId],
-    queryFn: ({ signal }) => getOpeningBalances(propertyId, signal),
-    enabled: Boolean(session.data),
-    retry: false,
-    gcTime: 0,
-    refetchOnWindowFocus: false
-  });
-  // 같은 동 이름이 여러 통장에 있어도 저장 당시 통장 ID가 일치하는 기록만 조회합니다.
-  const changes = (query.data?.corrections ?? []).filter((change) => change.bankAccountId === accountId
-    || change.details.some((part) => part.targetId === accountId))
-    .sort((a, b) => Date.parse(b.changedAt) - Date.parse(a.changedAt));
-  const pageCount = Math.max(1, Math.ceil(changes.length / 5));
-  const currentPage = Math.min(page, pageCount);
-  return (
-    <DetailDialog
-      title={'정정 내역'}
-      className={styles['correction-dialog']}
-      presentation={presentation}
-      onClose={onClose}
-      footer={query.isSuccess && changes.length > 0 ? (
-        <Pagination
-          label={'정정 내역 페이지'}
-          unit={'건'}
-          total={changes.length}
-          page={currentPage}
-          pageCount={pageCount}
-          pageSize={5}
-          onPageChange={setPage}
-        />
-      ) : undefined}
-    >
-      {query.isPending && (
-        <LoadingState
-          title={'정정 내역을 불러오고 있어요.'}
-          layout={'inline'}
-        />
-      )}
-      {query.isError && (
-        <RequestError
-          error={query.error}
-          onRetry={() => void query.refetch()}
-        />
-      )}
-      {query.isSuccess && (
-        <DataTable
-          label={'정정 내역'}
-          rows={changes.slice((currentPage - 1) * 5, currentPage * 5)}
-          getRowKey={(change) => change.id}
-          minWidth={760}
-          emptyState={(
-            <StateMessage
-              variant={'empty-data'}
-              layout={'inline'}
-              title={'정정 내역이 없습니다.'}
-            />
-          )}
-          columns={[{
-            key: 'date',
-            header: '수정일',
-            width: 120,
-            render: (change) => new Date(change.changedAt).toLocaleDateString('sv-SE', {
-              timeZone: 'Asia/Seoul'
-            })
-          }, {
-            key: 'details',
-            header: '변경 내용',
-            render: (change) => (
-              <div
-                className={styles['correction-changes']}
-              >
-                {change.details.filter((part) => change.kind !== 'HANDOVER' || part.targetId === accountId).map((part) => (
-                  <div
-                    key={part.targetId}
-                  >
-                    <span>
-                      {part.targetId === accountId ? '통장 시작 잔액' : part.label}
-                    </span>
-                    {(part.previousAmount !== null || part.newAmount !== null) && (
-                      <strong>
-                        {part.previousAmount === null ? '미설정' : formatWon(part.previousAmount)}
-                        {' '}
-                        →
-                        {' '}
-                        {part.newAmount === null ? '미설정' : formatWon(part.newAmount)}
-                      </strong>
-                    )}
-                    {part.previousDate !== part.newDate && <span>
-                      {part.previousDate ?? '미설정'}
-                      {' '}
-                      →
-                      {' '}
-                      {part.newDate ?? '미설정'}
-                    </span>}
-                    {part.newBillingMonth && <span>
-                      첫 부과월
-                      {part.previousBillingMonth}
-                      {' '}
-                      →
-                      {part.newBillingMonth}
-                    </span>}
-                  </div>
-                ))}
-              </div>
-            )
-          }, {
-            key: 'reason',
-            header: '사유',
-            render: (change) => change.reason
-          }, {
-            key: 'actor',
-            header: '수정자',
-            width: 100,
-            render: (change) => change.changedByName
-          }]}
-        />
-      )}
-    </DetailDialog>
-  );
-}
-
-/** 같은 내용을 PC 모달과 모바일 독립 페이지에서 재사용하며 페이지의 복귀는 공통 헤더가 담당합니다. */
-function DetailDialog({ title, children, onClose, busy = false, compact = false, footer, presentation = 'modal', className }: {
-    title: string;
-    children: ReactNode;
-    onClose: () => void;
-    busy?: boolean;
-    compact?: boolean;
-    footer?: ReactNode;
-    presentation?: 'modal' | 'page';
-    className?: string;
-}) {
-  if (presentation === 'page') return (
-    <section
-      className={[styles.page, className].filter(Boolean).join(' ')}
-      aria-label={title}
-    >
-      <ListHeader
-        className={styles.header}
-        titleId={'balance-title'}
-        menu={'통장 관리'}
-        title={title}
-        description={''}
-      />
-      <div
-        className={styles['detail-surface']}
-      >
-        <div
-          className={styles['detail-body']}
-        >
-          {children}
-        </div>
-        {footer && (
-          <footer
-            className={styles['modal-footer']}
-          >
-            {footer}
-          </footer>
-        )}
-      </div>
-    </section>
-  );
-  return (
-    <ClientModal
-      className={[styles.modal, className].filter(Boolean).join(' ')}
-      data-compact={compact}
-      aria-labelledby={'balance-dialog-title'}
-      onClose={onClose}
-      busy={busy}
-      closeOnOutsideClick
-    >
-      <header
-        className={styles['modal-header']}
-      >
-        <div>
-          <p>
-            통장 관리
-          </p>
-          <h2
-            id={'balance-dialog-title'}
-          >
-            {title}
-          </h2>
-        </div>
-        <Button
-          variant={'ghost'}
-          size={'sm'}
-          iconOnly
-          aria-label={`${title} 닫기`}
-          disabled={busy}
-          onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
-        />
-      </header>
-      <div
-        className={styles['modal-body']}
-      >
-        {children}
-      </div>
-      {footer && (
-        <footer
-          className={styles['modal-footer']}
-        >
-          {footer}
-        </footer>
-      )}
-    </ClientModal>
-  );
-}
-/** 동 선택을 바꿔도 시작 잔고 초안을 보존하고 누락 동을 안내합니다. 외부 회수는 명시적인 관리자 입력만 저장하며 실패·재시도에는 입력과 요청 ID를 유지합니다. */
-type OpeningDraftState = {
-  cutoff: string; amounts: Record<string, string>; reason: string; editing: boolean; revisions: Record<string, number>; requestId: string;
-};
-
-type BalanceActionDialogProps = {
-  action: Action;
-  data: BalanceWorkspace;
-  propertyId: string;
-  onClose: () => void;
-  onSaved: (message: string, keepOpen?: boolean) => Promise<void>;
-  presentation?: 'modal' | 'page';
-  openingSelector?: ReactNode;
-  openingAccountId?: string;
-  openingDraft?: OpeningDraftState;
-  onOpeningDraftChange?: (draft: OpeningDraftState) => void;
-};
-
-/** 기존 기준 잔고 화면 안에서 통장을 선택하고 해당 통장의 동별 입력을 불러옵니다. */
-function BalanceActionDialog(props: BalanceActionDialogProps) {
-  const session = useSession();
-  const accounts = props.data.accounts ?? [];
-  const [accountId, setAccountId] = useState(props.action.id ?? props.data.accountId ?? accounts[0]?.id ?? '');
-  const [openingDrafts, setOpeningDrafts] = useState<Record<string, OpeningDraftState>>({});
-  const rememberOpening = useCallback((draft: OpeningDraftState) => {
-    setOpeningDrafts((current) => ({
-      ...current,
-      [accountId]: draft
-    }));
-  }, [accountId]);
-  const scoped = props.action.kind === 'opening' && accounts.length > 0;
-  const query = useQuery({
-    queryKey: ['banking-balances', session.data?.id, props.propertyId, props.data.month, accountId, props.data.startMonth],
-    queryFn: ({ signal }) => getBankingBalances(props.propertyId, props.data.month, accountId, signal, props.data.startMonth),
-    enabled: scoped && Boolean(accountId),
-    retry: false,
-    gcTime: 0
-  });
-  if (!scoped) return (
-    <BalanceOperationsDialog
-      {...props}
-    />
-  );
-  const selector = (
-    <SelectDropdown
-      label={'통장 선택'}
-      value={accountId}
-      onChange={setAccountId}
-      options={accounts.map((account) => ({
-        value: account.id,
-        label: getBankAccountLabel(account)
-      }))}
-    />
-  );
-  if (!query.data) return (
-    <DetailDialog
-      title={'기준 잔고 확인'}
-      presentation={props.presentation}
-      onClose={props.onClose}
-    >
-      {selector}
-      {query.isPending ? (
-        <LoadingState
-          title={'선택한 통장의 동별 기준 잔고를 불러오고 있어요.'}
-          layout={'inline'}
-        />
-      ) : (
-        <p
-          role={'alert'}
-        >
-          {balanceError(query.error)}
-        </p>
-      )}
-    </DetailDialog>
-  );
-  return (
-    <BalanceOperationsDialog
-      key={accountId}
-      {...props}
-      data={query.data}
-      openingAccountId={accountId}
-      openingSelector={selector}
-      openingDraft={openingDrafts[accountId]}
-      onOpeningDraftChange={rememberOpening}
-    />
-  );
-}
-
-function BalanceOperationsDialog({ action, data, propertyId, onClose, onSaved, presentation = 'modal', openingSelector, openingAccountId, openingDraft: cachedOpening, onOpeningDraftChange }: BalanceActionDialogProps) {
-  const session = useSession();
-  const cache = useQueryClient();
-  const bankCutoff = data.accounts?.find((row) => row.id === openingAccountId)?.openingDate ?? '';
-  const cutoff = bankCutoff || data.cutoffDate || data.legacyOpening?.cutoffDate || '';
-  const [amounts, setAmounts] = useState<Record<string, string>>(() => cachedOpening?.amounts ?? {
-    ...Object.fromEntries(data.legacyOpening?.buildings.map((row) => [row.buildingId, row.amount]) ?? []),
-    ...Object.fromEntries(data.buildings.filter((row) => row.openingBalance != null).map((row) => [row.id, row.openingBalance!]))
-  });
-  const [editingOpening, setEditingOpening] = useState(cachedOpening?.editing ?? false);
-  const [correctionReason, setCorrectionReason] = useState(cachedOpening?.reason ?? '');
-  const [openingRevisions] = useState(() => cachedOpening?.revisions ?? Object.fromEntries(data.buildings.map((row) => [row.id, row.openingRevision ?? 0])));
-  const [payment, setPayment] = useState('');
-  const [building, setBuilding] = useState('');
-  const [amount, setAmount] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [decisionBusy, setDecisionBusy] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [decisionRequestId] = useState(() => crypto.randomUUID());
-  const pending = useRef(false);
-  const [requestId] = useState(() => cachedOpening?.requestId ?? crypto.randomUUID());
-  // 통장을 바꾸는 동안 입력과 요청 ID를 보존해 돌아왔을 때도 같은 초안을 이어갑니다.
-  useEffect(() => {
-    if (!openingAccountId || !onOpeningDraftChange) return;
-    onOpeningDraftChange({
-      cutoff,
-      amounts,
-      editing: editingOpening,
-      revisions: openingRevisions,
-      requestId,
-      reason: correctionReason
-    });
-  }, [openingAccountId, onOpeningDraftChange, cutoff, amounts, editingOpening, openingRevisions, requestId, correctionReason]);
-  const missing = sortExpenseLabels(data.buildings.filter((b) => b.active && b.status === 'OPENING_REQUIRED'));
-  const [openingBuilding, setOpeningBuilding] = useState(missing[0]?.id ?? '');
-  const registeredOpenings = sortExpenseLabels(data.buildings.filter((row) => row.openingBalance != null));
-  const openingTargets = editingOpening ? registeredOpenings : missing;
-  const inputOpening = editingOpening || missing.length > 0;
-  const openingOptions = inputOpening ? openingTargets : registeredOpenings;
-  const selectedOpening = openingOptions.find((b) => b.id === openingBuilding) ?? openingOptions[0];
-  const enteredCount = openingTargets.filter((b) => /^-?[0-9]{1,15}$/.test(amounts[b.id] ?? '')).length;
-  const external = data.externals.find((e) => e.id === action.id);
-  const income = data.incomes.find((i) => i.id === action.id);
-  const options = data.incomes.filter((i) => ['OTHER', 'EXTERNAL'].includes(i.kind) && BigInt(i.available) > BigInt(0) && (!external?.accountId || i.accountId === external.accountId));
-  const title = {
-    opening: editingOpening ? '기준 잔고 수정' : missing.length ? '동별 시작 잔고 설정' : '기준 잔고 확인',
-    settlement: '외부 부담금 정산',
-    assignment: '입금 귀속 동 확인',
-    difference: '잔고 차이 내역'
-  }[action.kind];
-  async function submit() {
-    if (pending.current)
-      return;
-    setError('');
-    if (action.kind === 'opening' && editingOpening && (!correctionReason.trim() || [...correctionReason.trim()].length > 500)) {
-      setError('정정 사유를 500자 이내로 입력해주세요.'); return;
-    }
-    if (action.kind === 'opening' && (!cutoff || openingTargets.some((b) => !/^-?[0-9]{1,15}$/.test(amounts[b.id] ?? '')))) {
-      setError('기준일과 각 동의 시작 잔고를 입력해주세요.');
-      const firstMissing = openingTargets.find((b) => !/^-?[0-9]{1,15}$/.test(amounts[b.id] ?? ''));
-      if (firstMissing) setOpeningBuilding(firstMissing.id);
-      return;
-    }
-    if (action.kind === 'settlement' && (!payment || !/^[0-9]{1,15}$/.test(amount) || BigInt(amount) <= BigInt(0))) {
-      setError('연결할 기타 입금과 0원보다 큰 금액을 입력해주세요.');
-      return;
-    }
-    if (action.kind === 'assignment' && !building) {
-      setError('귀속 동을 선택해주세요.');
-      return;
-    }
-    pending.current = true;
-    setBusy(true);
-    try {
-      if (action.kind === 'opening' && editingOpening) {
-        await correctCashOpenings(propertyId, {
-          id: requestId,
-          reason: correctionReason.trim(),
-          accountId: openingAccountId,
-          cutoffDate: cutoff,
-          buildings: openingTargets.map((row) => ({
-            buildingId: row.id,
-            amount: amounts[row.id],
-            revision: openingRevisions[row.id]
-          }))
-        });
-      }
-      if (action.kind === 'opening' && !editingOpening) {
-        await saveCashOpenings(propertyId, {
-          accountId: openingAccountId,
-          cutoffDate: cutoff,
-          buildings: missing.map((row) => ({
-            buildingId: row.id,
-            amount: amounts[row.id]
-          }))
-        });
-      }
-      if (action.kind === 'settlement' && external)
-        await settleExternalExpense(propertyId, {
-          id: requestId,
-          allocationId: external.id,
-          paymentId: options.find((i) => i.id === payment)?.paymentId ?? payment,
-          ...(options.find((i) => i.id === payment)?.kind === 'EXTERNAL' ? {
-            incomeAllocationId: payment
-          } : {}),
-          amount
-        });
-      if (action.kind === 'assignment' && income)
-        await assignCashIncome(propertyId, {
-          paymentId: income.id,
-          buildingId: building
-        });
-      await onSaved('저장했어요.');
-    }
-    catch (failure) {
-      setError(balanceError(failure));
-    }
-    finally {
-      pending.current = false;
-      setBusy(false);
-    }
-  }
-  /** 실제 입금이 없어도 정산에서 제외할 수 있고, 실패 시 같은 요청 ID로 재시도합니다. */
-  async function changeSettlementTarget() {
-    if (pending.current || !external) return;
-    pending.current = true;
-    setBusy(true);
-    setDecisionBusy(true);
-    setError('');
-    try {
-      await decideExternalSettlement(propertyId, {
-        id: decisionRequestId,
-        allocationId: external.id,
-        excluded: !external.excluded,
-        revision: external.decisionRevision ?? 0
-      });
-      await onSaved(external.excluded ? '정산 대상으로 복원했어요.' : '정산에서 제외했어요.');
-    } catch (failure) {
-      setError(balanceError(failure));
-    } finally {
-      pending.current = false;
-      setBusy(false);
-      setDecisionBusy(false);
-    }
-  }
-  /** 외부 부담액만 지우지 않고 잘못 등록된 출금 전체를 기존 소프트 삭제로 제거해 동별 지출도 함께 재계산합니다. */
-  async function deleteExternalTransaction() {
-    if (pending.current || !external?.transactionId) return;
-    pending.current = true;
-    setBusy(true);
-    setError('');
-    const relatedQueries: QueryFilters = {
-      predicate: (query) => query.queryKey[1] === session.data?.id && query.queryKey[2] === propertyId
-        && ['banking-workspace', 'payment-workspace', 'billing'].includes(String(query.queryKey[0]))
-    };
-    try {
-      // 진행 중인 이전 조회가 삭제 후 캐시를 덮어쓰지 않게 하고, 성공 후 관련 화면을 다시 읽습니다.
-      await cache.cancelQueries(relatedQueries);
-      await deleteBankingTransactions(propertyId, [external.transactionId]);
-      await cache.invalidateQueries(relatedQueries);
-      await onSaved('잘못 등록된 거래를 삭제했어요.');
-    } catch (failure) {
-      setError(bankingError(failure));
-    } finally {
-      pending.current = false;
-      setBusy(false);
-    }
-  }
-  if ((action.kind === 'settlement' && !external) || (action.kind === 'assignment' && !income)) return (
-    <DetailDialog
-      title={title}
-      presentation={presentation}
-      onClose={onClose}
-    >
-      <p>
-        해당 내역을 찾을 수 없습니다.
-      </p>
-    </DetailDialog>
-  );
-  if (action.kind === 'settlement' && deleting && external) return (
-    <DetailDialog
-      title={'거래를 삭제할까요?'}
-      presentation={presentation}
-      onClose={onClose}
-      busy={busy}
-      compact
-      footer={(
-        <div
-          className={styles.actions}
-        >
-          <Button
-            variant={'outline'}
-            tone={'neutral'}
-            disabled={busy}
-            onClick={() => { setDeleting(false); setError(''); }}
-          >
-            취소
-          </Button>
-          <Button
-            tone={'danger'}
-            loading={busy}
-            disabled={busy}
-            onClick={() => { void deleteExternalTransaction(); }}
-          >
-            삭제
-          </Button>
-        </div>
-      )}
-    >
-      <div
-        className={styles.form}
-      >
-        <h3>
-          {external.expenseName}
-        </h3>
-        <p>
-          {external.date}
-          {' · 출금 '}
-          {money(external.transactionAmount ?? null)}
-        </p>
-        <p>
-          외부 부담금
-          {' '}
-          {money(external.amount)}
-          과 이 출금에 연결된 모든 동별 지출을 계산에서 제거합니다. 처리 이력은 보관됩니다.
-        </p>
-        {BigInt(external.received) > BigInt(0) && (
-          <p
-            className={styles.muted}
-          >
-            연결한 회수 입금은 삭제하지 않고 다른 정산에 사용할 수 있도록 되돌립니다.
-          </p>
-        )}
-        {error && (
-          <p
-            role={'alert'}
-            className={styles.error}
-          >
-            {error}
-          </p>
-        )}
-      </div>
-    </DetailDialog>
-  );
-  return (
-    <DetailDialog
-      title={title}
-      presentation={presentation}
-      onClose={onClose}
-      busy={busy}
-      compact={action.kind !== 'difference' && action.kind !== 'opening'}
-      className={action.kind === 'opening' ? styles['opening-dialog'] : undefined}
-      footer={(
-        action.kind !== 'difference' && (action.kind !== 'opening' || data.initialCorrectionAllowed !== false) && (
-          <div
-            className={styles.actions}
-          >
-            {action.kind === 'opening' && !inputOpening && data.initialCorrectionAllowed !== false && (
-              <Button
-                onClick={() => setEditingOpening(true)}
-              >
-                기준 잔고 수정
-              </Button>
-            )}
-            {action.kind === 'opening' && editingOpening && (
-              <Button
-                variant={'outline'}
-                tone={'neutral'}
-                disabled={busy}
-                onClick={() => {
-                  setEditingOpening(false);
-                  setAmounts(Object.fromEntries(registeredOpenings.map((row) => [row.id, row.openingBalance!])));
-                  setError('');
-                }}
-              >
-                취소
-              </Button>
-            )}
-            {action.kind === 'settlement' && external && (
-              <Button
-                variant={'outline'}
-                tone={'neutral'}
-                loading={decisionBusy}
-                disabled={busy}
-                onClick={() => { void changeSettlementTarget(); }}
-              >
-                {external.excluded ? '정산 대상으로 복원' : '정산에서 제외'}
-              </Button>
-            )}
-            {action.kind === 'settlement' && external?.transactionId && (
-              <Button
-                variant={'outline'}
-                tone={'danger'}
-                disabled={busy}
-                onClick={() => { setDeleting(true); setError(''); }}
-                leadingIcon={(
-                  <ServiceIcon
-                    name={'trash'}
-                  />
-                )}
-              >
-                거래 삭제
-              </Button>
-            )}
-            {(action.kind !== 'opening' || inputOpening) && (action.kind !== 'opening' || data.initialCorrectionAllowed !== false) && (action.kind !== 'settlement' || (external && !external.excluded && BigInt(external.remaining) > BigInt(0))) && (
-              <Button
-                loading={busy && !decisionBusy}
-                disabled={busy || (action.kind === 'settlement' && !options.length)}
-                onClick={() => { void submit(); }}
-              >
-                {action.kind === 'settlement' ? '입금 연결 확정' : editingOpening ? '저장' : '확정'}
-              </Button>
-            )}
-          </div>
-        )
-      )}
-    >
-      {action.kind === 'opening' && (
-        <fieldset
-          className={styles['opening-workspace']}
-          disabled={busy}
-        >
-          <div
-            className={styles['opening-metrics']}
-          >
-            <div
-              role={'group'}
-              aria-label={'잔고 기준일'}
-            >
-              <span
-                className={styles['opening-symbol']}
-              >
-                <ServiceIcon
-                  name={'closing'}
-                />
-              </span>
-              <div>
-                <span>
-                  잔고 기준일
-                </span>
-                <strong>
-                  {cutoff || '미설정'}
-                </strong>
-              </div>
-            </div>
-            <div
-              role={'group'}
-              aria-label={'정정 기한'}
-              data-locked={data.initialCorrectionAllowed === false}
-            >
-              <span
-                className={styles['opening-symbol']}
-              >
-                <ServiceIcon
-                  name={'clock'}
-                />
-              </span>
-              <div>
-                <span>
-                  정정 기한
-                </span>
-                <strong>
-                  {data.correctionDeadline ?? '확인 필요'}
-                </strong>
-              </div>
-            </div>
-          </div>
-          {data.initialCorrectionAllowed === false && (
-            <p
-              className={styles['opening-locked']}
-              role={'status'}
-            >
-              정정 기한이 지나 초기 기준이 잠겼습니다. 저장된 잔고는 계속 확인할 수 있습니다.
-            </p>
-          )}
-          <section
-            className={styles['opening-section']}
-          >
-            <div
-              className={styles['opening-section-title']}
-            >
-              <span
-                className={styles['opening-symbol']}
-              >
-                <ServiceIcon
-                  name={'bank'}
-                />
-              </span>
-              <div>
-                <h3>
-                  통장 선택
-                </h3>
-                <p>
-                  기준 잔고를 확인할 통장을 선택하세요.
-                </p>
-              </div>
-            </div>
-            {openingSelector}
-            <div
-              className={styles['opening-guide']}
-            >
-              <ServiceIcon
-                name={'info'}
-              />
-              <div>
-                <strong>
-                  선택한 통장의 동별 기준 잔고와 그날 마감 잔고를 입력합니다.
-                </strong>
-                <p>
-                  이후 월은 해당 통장의 입출금을 누적하고 이전 월은 확인된 입출금을 거꾸로 계산합니다.
-                </p>
-              </div>
-            </div>
-            {data.legacyOpening && missing.length > 0 && (
-              <p
-                className={styles['exclusion-note']}
-              >
-                통장 구분 전에 저장한 기준일과 잔고를 표시했습니다. 선택한 통장의 동별 금액이 맞는지 확인한 뒤 확정해주세요.
-              </p>
-            )}
-          </section>
-          {inputOpening && (
-            <fieldset
-              className={styles['initial-fields']}
-              disabled={data.initialCorrectionAllowed === false}
-            >
-              <p>
-                통장 초기 잔액 기준일:
-                {' '}
-                {cutoff || '통장 초기 잔액을 먼저 등록해주세요.'}
-              </p>
-              {data.cutoffDate && data.cutoffDate !== cutoff && (
-                <p
-                  role={'alert'}
-                >
-                  기존 동별 기준일은
-                  {' '}
-                  {data.cutoffDate}
-                  입니다. 통장 기준일
-                  {' '}
-                  {cutoff}
-                  의 동별 금액을 확인한 뒤 저장해주세요.
-                </p>
-              )}
-            </fieldset>
-          )}
-          <section
-            className={styles['opening-section']}
-          >
-            <div
-              className={styles['opening-editor']}
-            >
-              <div
-                className={styles['opening-building-field']}
-              >
-                <div
-                  className={styles['opening-section-title']}
-                >
-                  <span
-                    className={styles['opening-symbol']}
-                  >
-                    <ServiceIcon
-                      name={'building'}
-                    />
-                  </span>
-                  <div>
-                    <h3>
-                      동 선택
-                    </h3>
-                    <p>
-                      잔고를 입력할 동을 선택하세요.
-                    </p>
-                  </div>
-                </div>
-                <SelectDropdown
-                  label={'동 선택'}
-                  placeholder={'동 이름으로 검색'}
-                  value={selectedOpening?.id ?? ''}
-                  onChange={setOpeningBuilding}
-                  options={openingOptions.map((row) => ({
-                    value: row.id,
-                    label: row.label,
-                    searchKeywords: [row.label.replace('동', '')]
-                  }))}
-                />
-              </div>
-              <div
-                className={styles['opening-amount-field']}
-              >
-                <div
-                  className={styles['opening-section-title']}
-                >
-                  <span
-                    className={styles['opening-symbol']}
-                  >
-                    <ServiceIcon
-                      name={'coins'}
-                    />
-                  </span>
-                  <div>
-                    <h3>
-                      {selectedOpening ? `${selectedOpening.label} 기준 잔고` : '기준 잔고'}
-                    </h3>
-                    <p>
-                      선택한 동의 기준 잔고를 입력하세요.
-                    </p>
-                  </div>
-                </div>
-                {selectedOpening && (
-                  <AmountInput
-                    label={`${selectedOpening.label} ${missing.length ? '시작 잔고' : '기준 잔고'}`}
-                    value={inputOpening ? (amounts[selectedOpening.id] ?? '') : (selectedOpening.openingBalance ?? '')}
-                    readOnly={!inputOpening}
-                    disabled={inputOpening && data.initialCorrectionAllowed === false}
-                    trailingContent={(
-                      <span
-                        className={styles['opening-currency']}
-                      >
-                        원
-                      </span>
-                    )}
-                    onChange={(value) => setAmounts((previous) => ({
-                      ...previous,
-                      [selectedOpening.id]: value
-                    }))}
-                  />
-                )}
-              </div>
-            </div>
-            <p
-              className={styles['opening-warning']}
-            >
-              <ServiceIcon
-                name={'alert'}
-              />
-              세대별 미납·선납 금액을 입력하는 곳이 아닙니다. 부족한 동은 음수로 입력할 수 있습니다.
-            </p>
-          </section>
-          {editingOpening && (
-            <Input
-              label={'정정 사유'}
-              value={correctionReason}
-              required
-              maxLength={500}
-              onChange={(event) => setCorrectionReason(event.target.value)}
-            />
-          )}
-          {editingOpening && (
-            <p
-              className={styles.muted}
-            >
-              변경한 기준일의 마감 잔고를 확인해주세요. 변경 전 값과 사유는 정정 이력에 보관합니다.
-            </p>
-          )}
-          <div
-            className={styles['opening-progress']}
-            role={'status'}
-            hidden={!inputOpening}
-          >
-            <span>
-              입력 완료
-              {' '}
-              <strong>
-                {enteredCount}
-                {' '}
-                /
-                {' '}
-                {openingTargets.length}
-                개 동
-              </strong>
-            </span>
-            <span>
-              동을 바꿔도 입력한 금액은 유지됩니다.
-            </span>
-          </div>
-        </fieldset>
-      )}
-      {action.kind === 'settlement' && external && (
-        <fieldset
-          className={styles.form}
-          disabled={busy}
-        >
-          <h3>
-            {external.label}
-            {' '}
-            ·
-            {' '}
-            {external.expenseName}
-          </h3>
-          <dl
-            className={styles.overview}
-          >
-            <div>
-              <dt>
-                부담액
-              </dt>
-              <dd>
-                {money(external.amount)}
-              </dd>
-            </div>
-            <div>
-              <dt>
-                회수액
-              </dt>
-              <dd>
-                {money(external.received)}
-              </dd>
-            </div>
-            <div>
-              <dt>
-                남은 금액
-              </dt>
-              <dd>
-                {money(external.remaining)}
-              </dd>
-            </div>
-          </dl>
-          {external.recoveries.length > 0 && (
-            <ul
-              className={styles.recoveries}
-            >
-              {external.recoveries.map((r) => (
-                <li
-                  key={r.id}
-                >
-                  {r.date}
-                  {' '}
-                  ·
-                  {' '}
-                  {r.payer}
-                  <strong>
-                    {money(r.amount)}
-                  </strong>
-                </li>
-              ))}
-            </ul>
-          )}
-          {external.excluded && (
-            <p
-              className={styles['exclusion-note']}
-            >
-              정산에서 제외한 내역입니다. 통장 거래·지출 원본과 회수 기록은 유지되며, 남은 금액은 미회수 합계에 포함하지 않습니다.
-            </p>
-          )}
-          {!external.excluded && BigInt(external.remaining) > BigInt(0) && (
-            <>
-              <SelectDropdown
-                label={'연결할 입금·외부 보관금'}
-                value={payment}
-                onChange={(value) => { setPayment(value); const available = BigInt(options.find((i) => i.id === value)!.available); setAmount((available < BigInt(external.remaining) ? available : BigInt(external.remaining)).toString()); }}
-                options={options.map((i) => ({
-                  value: i.id,
-                  label: `${i.date} · ${i.payer} · 잔여 ${money(i.available)}`
-                }))}
-              />
-              <AmountInput
-                label={'연결 금액'}
-                value={amount}
-                onChange={setAmount}
-              />
-              {!options.length && (
-                <p
-                  className={styles.muted}
-                >
-                  연결 가능한 기타 입금이 없습니다. 통장 거래에서 실제 입금을 기타 입금으로 확정한 뒤 연결해주세요.
-                </p>
-              )}
-            </>
-          )}
-        </fieldset>
-      )}
-      {action.kind === 'assignment' && income && (
-        <fieldset
-          className={styles.form}
-          disabled={busy}
-        >
-          <p>
-            {income.date}
-            {' '}
-            ·
-            {' '}
-            {income.payer}
-            {' '}
-            ·
-            {' '}
-            {money(income.amount)}
-          </p>
-          <p
-            className={styles.muted}
-          >
-            연결 세대:
-            {income.linkedUnitLabel ?? '세대 미확인'}
-            {' '}
-            · 현재 정보이므로 입금 당시 동을 확인해주세요.
-          </p>
-          <SelectDropdown
-            label={'귀속 동'}
-            value={building}
-            onChange={setBuilding}
-            options={sortExpenseLabels(data.buildings.filter((b) => b.active)).map((b) => ({
-              value: b.id,
-              label: b.label
-            }))}
-          />
-          <p
-            className={styles.muted}
-          >
-            당시 실제 입금이 속한 동을 확인해주세요. 확정 후에는 다른 동으로 덮어쓰지 않습니다.
-          </p>
-        </fieldset>
-      )}
-      {action.kind === 'difference' && (
-        <>
-          <p>
-            통장 장부 잔액과 동별 잔고 합계의 차이입니다.
-          </p>
-          <dl
-            className={styles.overview}
-          >
-            <div>
-              <dt>
-                통장 장부 잔액 − 동별 합계
-              </dt>
-              <dd
-                data-negative={getBalanceSummary(data).difference !== null && getBalanceSummary(data).difference! < BigInt(0)}
-              >
-                {money(getBalanceSummary(data).difference)}
-              </dd>
-            </div>
-            <div>
-              <dt>
-                외부 보관금 잔액
-              </dt>
-              <dd>
-                {money(data.incomes.filter((i) => i.kind === 'EXTERNAL').reduce((sum, i) => sum + BigInt(i.available), BigInt(0)))}
-              </dd>
-            </div>
-            <div>
-              <dt>
-                조회 기간 외부 대납 미회수액
-              </dt>
-              <dd>
-                {money(getBalanceSummary(data).external)}
-              </dd>
-            </div>
-          </dl>
-          <h3>
-            처리 전 은행 거래
-          </h3>
-          <PagedTable
-            label={'처리 전 은행 거래'}
-            rows={data.pending}
-            columns={[{
-              key: 'date',
-              header: '거래일',
-              render: (r) => r.date
-            }, {
-              key: 'label',
-              header: '입금자·지출명',
-              render: (r) => r.label
-            }, {
-              key: 'amount',
-              header: '금액',
-              render: (r) => `${r.direction === 'EXPENSE' ? '출금' : '입금'} ${money(r.amount)}`
-            }]}
-          />
-          <h3>
-            귀속 확인할 입금
-          </h3>
-          <PagedTable
-            label={'귀속 확인할 입금'}
-            rows={data.incomes.filter((i) => i.kind !== 'EXTERNAL' && BigInt(i.available) > BigInt(0))}
-            columns={[{
-              key: 'date',
-              header: '입금일',
-              render: (r) => r.date
-            }, {
-              key: 'payer',
-              header: '입금자',
-              render: (r) => r.payer
-            }, {
-              key: 'amount',
-              header: '미귀속 금액',
-              render: (r) => money(r.available)
-            }]}
-          />
-        </>
-      )}
-      {error && (
-        <p
-          role={'alert'}
-          className={styles.error}
-        >
-          {error}
-        </p>
-      )}
-
-    </DetailDialog>
-  );
 }

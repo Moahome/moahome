@@ -48,7 +48,19 @@ import type {
 import styles from './registrationBankUpload.module.css';
 
 /** 은행별 검증과 기존 거래 설정을 재사용하며 모든 입력은 최종 등록 전까지 초안으로만 유지합니다. */
-export function RegistrationBankUpload({ account, accounts, canTransfer, cutoffDate, draft, units, buildings, support, onChange, onBalance, onBusyChange }: {
+export function RegistrationBankUpload({
+  account,
+  accounts,
+  canTransfer,
+  cutoffDate,
+  draft,
+  units,
+  buildings,
+  support,
+  onChange,
+  onBalance,
+  onBusyChange
+}: {
   support: RegistrationBankSupport;
   account: RegistrationAccount;
   accounts: RegistrationAccount[];
@@ -71,7 +83,8 @@ export function RegistrationBankUpload({ account, accounts, canTransfer, cutoffD
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ id: number; message: string } | null>(null);
+  const [notice, setNotice] = useState<{ id: number;
+message: string } | null>(null);
   const row = draft?.rows.find((entry) => entry.id === editingId);
   const labels = units.map((unit) => ({
     id: unit.clientId,
@@ -84,22 +97,32 @@ export function RegistrationBankUpload({ account, accounts, canTransfer, cutoffD
 
   useEffect(() => {
     activeRef.current = true;
-    return () => { activeRef.current = false; onBusyChange(false); };
+
+    return () => {
+      activeRef.current = false;
+      onBusyChange(false);
+    };
   }, [onBusyChange]);
 
   /** 검증에 실패한 새 파일은 기존 거래 선택·입력을 덮어쓰지 않습니다. */
   async function upload(file: File) {
-    if (!support?.enabled || busyRef.current) return;
+    if (!support?.enabled || busyRef.current)
+      return;
     if (!support.extensions.some((extension) => file.name.toLowerCase().endsWith(extension)) || file.size > 5 * 1024 * 1024) {
       setNotice((previous) => ({
         id: (previous?.id ?? 0) + 1,
         message: `${support.message} · 최대 5MB까지 업로드할 수 있습니다.`
-      })); return;
+      }));
+
+      return;
     }
-    busyRef.current = true; setBusy(true); onBusyChange(true);
+    busyRef.current = true;
+    setBusy(true);
+    onBusyChange(true);
     try {
       const [result, content] = await Promise.all([previewRegistrationBank(file, account.bankCode), readRegistrationBankFile(file)]);
-      if (!activeRef.current) return;
+      if (!activeRef.current)
+        return;
       onChange({
         fileName: file.name,
         content,
@@ -109,20 +132,30 @@ export function RegistrationBankUpload({ account, accounts, canTransfer, cutoffD
         choices: Object.fromEntries(result.rows.map((entry) => [entry.id, createRegistrationBankChoice(entry, units, buildings)])),
         period: result.period
       });
-      setPage(1); setQuery(''); setDirection('ALL'); setProcessing('ALL'); setEditingId(null); setReplacing(false);
+      setPage(1);
+      setQuery('');
+      setDirection('ALL');
+      setProcessing('ALL');
+      setEditingId(null);
+      setReplacing(false);
     } catch (error) {
-      if (activeRef.current) setNotice((previous) => ({
-        id: (previous?.id ?? 0) + 1,
-        message: error instanceof ApiError && error.code === 'INVALID_BANK_HEADER' ? '선택한 통장 은행의 거래내역 파일인지 확인해주세요.' : '은행 파일을 확인하지 못했습니다. 형식과 내용을 확인한 뒤 다시 선택해주세요.'
-      }));
+      if (activeRef.current)
+        setNotice((previous) => ({
+          id: (previous?.id ?? 0) + 1,
+          message: error instanceof ApiError && error.code === 'INVALID_BANK_HEADER' ? '선택한 통장 은행의 거래내역 파일인지 확인해주세요.' : '은행 파일을 확인하지 못했습니다. 형식과 내용을 확인한 뒤 다시 선택해주세요.'
+        }));
     } finally {
       busyRef.current = false;
-      if (activeRef.current) { setBusy(false); onBusyChange(false); }
+      if (activeRef.current) {
+        setBusy(false);
+        onBusyChange(false);
+      }
     }
   }
 
   function updateChoice(id: string, patch: Partial<RegistrationBankChoice>) {
-    if (!draft) return;
+    if (!draft)
+      return;
     onChange({
       ...draft,
       choices: {
@@ -137,21 +170,31 @@ export function RegistrationBankUpload({ account, accounts, canTransfer, cutoffD
 
   function kind(entry: RegistrationBankRow) {
     const choice = draft?.choices[entry.id];
-    if (choice?.transfer) return 'TRANSFER';
-    if (entry.direction === 'EXPENSE') return 'EXPENSE';
+    if (choice?.transfer)
+      return 'TRANSFER';
+    if (entry.direction === 'EXPENSE')
+      return 'EXPENSE';
+
     return choice?.receipt.kind === 'AUTO' ? 'NEEDS' : choice?.receipt.kind ?? 'NEEDS';
   }
 
   function processingLabel(entry: RegistrationBankRow) {
     const choice = draft?.choices[entry.id];
-    if (choice?.transfer) return '관리 통장 간 이체';
+    if (choice?.transfer)
+      return '관리 통장 간 이체';
     if (entry.direction === 'EXPENSE') {
-      if (choice?.expense.mode === 'PROPERTY') return '지출';
+      if (choice?.expense.mode === 'PROPERTY')
+        return '지출';
+
       return choice?.expense.allocations.length ? `지출 · ${choice.expense.allocations.length}곳 부담` : '지출 배분 필요';
     }
-    if (choice?.receipt.kind === 'HOUSEHOLD') return `세대 수납 · ${labels.find((unit) => unit.id === choice.receipt.unitId)?.label ?? '세대 선택 필요'}`;
-    if (choice?.receipt.kind === 'OTHER') return '기타 입금';
-    if (choice?.receipt.kind === 'SHARED') return `동별 입금 · ${choice.expense.allocations.length}개 동 배분`;
+    if (choice?.receipt.kind === 'HOUSEHOLD')
+      return `세대 수납 · ${labels.find((unit) => unit.id === choice.receipt.unitId)?.label ?? '세대 선택 필요'}`;
+    if (choice?.receipt.kind === 'OTHER')
+      return '기타 입금';
+    if (choice?.receipt.kind === 'SHARED')
+      return `동별 입금 · ${choice.expense.allocations.length}개 동 배분`;
+
     return '입금 분류 필요';
   }
 
@@ -166,18 +209,21 @@ export function RegistrationBankUpload({ account, accounts, canTransfer, cutoffD
   const fileBalance = getRegistrationBankBalance(draft, cutoffDate);
 
   useEffect(() => {
-    if (account.openingAmount !== (fileBalance ?? '')) onBalance(fileBalance ?? '');
+    if (account.openingAmount !== (fileBalance ?? ''))
+      onBalance(fileBalance ?? '');
   }, [fileBalance, account.openingAmount, onBalance]);
 
   function selectMany(ids: string[], included: boolean) {
-    if (!draft) return;
+    if (!draft)
+      return;
     const choices = {
       ...draft.choices
     };
-    for (const id of ids) choices[id] = {
-      ...choices[id],
-      included
-    };
+    for (const id of ids)
+      choices[id] = {
+        ...choices[id],
+        included
+      };
     onChange({
       ...draft,
       choices
@@ -186,7 +232,8 @@ export function RegistrationBankUpload({ account, accounts, canTransfer, cutoffD
 
   /** 현재 거래 설정을 검사하되 다른 페이지 거래의 검증은 다음 단계에서도 전체 기준으로 수행합니다. */
   function completeSetting() {
-    if (!draft || !row) return;
+    if (!draft || !row)
+      return;
     // 통장을 하나로 줄였으면 이전 이체 분류를 일반 거래로 다시 확인한 뒤에만 확정합니다.
     const choice = {
       ...draft.choices[row.id],
@@ -200,13 +247,18 @@ export function RegistrationBankUpload({ account, accounts, canTransfer, cutoffD
       },
       rows: [row]
     }, cutoffDate, units, buildings);
-    if (error) { setNotice((previous) => ({
-      id: (previous?.id ?? 0) + 1,
-      message: error
-    })); return; }
-    if (!canTransfer && draft.choices[row.id].transfer) updateChoice(row.id, {
-      transfer: false
-    });
+    if (error) {
+      setNotice((previous) => ({
+        id: (previous?.id ?? 0) + 1,
+        message: error
+      }));
+
+      return;
+    }
+    if (!canTransfer && draft.choices[row.id].transfer)
+      updateChoice(row.id, {
+        transfer: false
+      });
     setEditingId(null);
   }
 
@@ -263,7 +315,11 @@ export function RegistrationBankUpload({ account, accounts, canTransfer, cutoffD
           <FilterTabs
             label={'업로드 입출금 구분'}
             value={direction}
-            onChange={(value) => { setDirection(value); setProcessing('ALL'); setPage(1); }}
+            onChange={(value) => {
+              setDirection(value);
+              setProcessing('ALL');
+              setPage(1);
+            }}
             items={[{
               value: 'ALL',
               label: '전체',
@@ -286,12 +342,18 @@ export function RegistrationBankUpload({ account, accounts, canTransfer, cutoffD
               aria-label={'거래 검색'}
               value={query}
               placeholder={'입금자·지출명으로 검색'}
-              onChange={(event) => { setQuery(event.target.value); setPage(1); }}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(1);
+              }}
             />
             <Dropdown
               label={'처리 내용'}
               value={processing}
-              onChange={(value) => { setProcessing(value); setPage(1); }}
+              onChange={(value) => {
+                setProcessing(value);
+                setPage(1);
+              }}
               options={[{
                 value: 'ALL',
                 label: '전체'
@@ -318,7 +380,10 @@ export function RegistrationBankUpload({ account, accounts, canTransfer, cutoffD
             <Dropdown
               label={'표시 개수'}
               value={String(pageSize)}
-              onChange={(value) => { setPageSize(Number(value)); setPage(1); }}
+              onChange={(value) => {
+                setPageSize(Number(value));
+                setPage(1);
+              }}
               options={[10, 20, 50].map((count) => ({
                 value: String(count),
                 label: `${count}개씩 보기`

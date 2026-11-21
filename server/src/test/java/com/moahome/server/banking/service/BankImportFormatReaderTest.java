@@ -68,6 +68,7 @@ class BankImportFormatReaderTest {
 				case SHINHAN -> "088";
 				case HANA -> "081";
 				case KAKAO -> "090";
+				case COMMON -> "COMMON";
 			};
 			assertThatThrownBy(() -> reader.readAll(file, otherCode)).isInstanceOf(BankingException.class);
 		}

@@ -82,6 +82,13 @@ public class BankTransactionReader {
 		return readAll(file, BankImportFormat.require(bankCode));
 	}
 
+	/** 통장 업로드는 서버의 은행 원본 지원 목록에 없는 코드만 공통 양식으로 읽습니다. */
+	public List<Row> readForBanking(MultipartFile file, String bankCode) {
+		if (BankImportFormat.support(bankCode).enabled())
+			return readAll(file, bankCode);
+		return readAll(file, BankImportFormat.COMMON);
+	}
+
 	private List<Row> readAll(MultipartFile file, BankImportFormat format) {
 		if (file == null || file.isEmpty() || file.getSize() > 5 * 1024 * 1024 || file.getOriginalFilename() == null)
 			throw new BankingException("INVALID_BANK_FILE");
@@ -172,7 +179,7 @@ public class BankTransactionReader {
 				if (day.getYear() < 1000 || day.getYear() > 9999)
 					throw new BankingException("INVALID_BANK_ROW");
 				String timeValue = cell(row, columns.time()).strip();
-				if (timeValue.isEmpty() && rawDate.split("[ T]").length > 1)
+				if (timeValue.isEmpty() && format != BankImportFormat.COMMON && rawDate.split("[ T]").length > 1)
 					timeValue = rawDate.split("[ T]")[1];
 				if (timeValue.contains("T"))
 					timeValue = timeValue.split("T")[1];
@@ -235,6 +242,13 @@ public class BankTransactionReader {
 
 	/** 선택 은행의 필수 헤더를 한 행에서 확인하고 거래 종류와 상대 이름을 혼동하지 않습니다. */
 	private Columns findColumns(List<List<String>> rows, BankImportFormat format) {
+		// 사용자가 제공한 공통 양식의 일곱 열을 그대로 검증하며 은행 원본으로 추측하지 않습니다.
+		if (format == BankImportFormat.COMMON) {
+			List<String> expected = List.of("거래일", "거래시간", "입금자·거래내용", "입금액", "출금액", "거래후잔액", "메모");
+			if (rows.isEmpty() || !normalizedHeader(rows.getFirst()).equals(expected))
+				throw new BankingException("INVALID_BANK_HEADER");
+			return new Columns(0, 0, 2, 3, 4, 6, -1, 1, 5, -1, false, List.of(), -1);
+		}
 		// 하나은행의 기존 입금 전용 CSV 계약은 이 은행 안에서만 호환합니다.
 		if (format == BankImportFormat.HANA) {
 			Columns columns = findColumns(rows);

@@ -12,7 +12,16 @@ import { BankAccountFields } from '../bank-account-fields/bankAccountFields';
 import styles from './bankAccountCard.module.css';
 
 /** 모달에서는 입력을 바로 표시하고, 기존 카드 표시에서는 사용자가 펼친 입력만 탐색할 수 있게 합니다. */
-export function BankAccountCard({ title, account, onChange, onPrimaryChange, onRemove, disabled = false, presentation = 'card', children }: {
+export function BankAccountCard({
+  title,
+  account,
+  onChange,
+  onPrimaryChange,
+  onRemove,
+  disabled = false,
+  presentation = 'card',
+  children
+}: {
   title: string;
   account: BankAccountDraft;
   onChange: (account: BankAccountDraft) => void;

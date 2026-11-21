@@ -9,9 +9,12 @@ import {
 /** 계정·관리대상·조회 조건을 캐시 키에 포함하고 장애를 빈 청구나 예시 데이터로 대체하지 않습니다. */
 function useBillingQuery<T>(propertyId: string, kind: string, queryFn: (signal: AbortSignal) => Promise<T>, refreshWithTime = false) {
   const session = useSession();
+
   return useQuery({
     queryKey: ['billing', session.data?.id, propertyId, kind],
-    queryFn: ({ signal }) => queryFn(signal),
+    queryFn: ({
+      signal
+    }) => queryFn(signal),
     enabled: Boolean(session.data),
     retry: false,
     staleTime: 0,
@@ -22,6 +25,7 @@ function useBillingQuery<T>(propertyId: string, kind: string, queryFn: (signal: 
     refetchOnWindowFocus: refreshWithTime
   });
 }
+
 export function useBillingSettings(propertyId: string) {
   return useBillingQuery(propertyId, 'settings', (signal) => getBillingSettings(propertyId, signal), true);
 }

@@ -25,21 +25,24 @@ import styles from './monthlyDetail.module.css';
 
 /** 미수·수납을 구분해 핵심 금액을 고르며 정산 미확정 부과를 납부완료나 선입금으로 표현하지 않습니다. */
 function getDetailSummary(row: MonthlyPreviewRow) {
-  if (row.settlementPending) return {
-    label: '당월 부과금액',
-    amount: row.billed + (row.settlementAmount ?? BigInt(0)),
-    description: '0원·음수 부과의 정산 처리 여부를 확인해주세요.'
-  };
-  if (row.status === '납부완료') return {
-    label: '당월 수납 반영액',
-    amount: row.applied,
-    description: '조회월 말 기준 남은 미납금액이 없습니다.'
-  };
-  if (row.status === '선입금') return {
-    label: '선입금 잔액',
-    amount: row.prepaid,
-    description: '조회월 말까지 받은 금액 중 관리비에 아직 충당하지 않은 잔액입니다.'
-  };
+  if (row.settlementPending)
+    return {
+      label: '당월 부과금액',
+      amount: row.billed + (row.settlementAmount ?? BigInt(0)),
+      description: '0원·음수 부과의 정산 처리 여부를 확인해주세요.'
+    };
+  if (row.status === '납부완료')
+    return {
+      label: '당월 수납 반영액',
+      amount: row.applied,
+      description: '조회월 말 기준 남은 미납금액이 없습니다.'
+    };
+  if (row.status === '선입금')
+    return {
+      label: '선입금 잔액',
+      amount: row.prepaid,
+      description: '조회월 말까지 받은 금액 중 관리비에 아직 충당하지 않은 잔액입니다.'
+    };
 
   return {
     label: '남은 미납금액',
@@ -49,13 +52,21 @@ function getDetailSummary(row: MonthlyPreviewRow) {
 }
 
 /** 월별 표의 원장 계산을 PC 모달과 모바일 상세 페이지에서 재사용합니다. */
-export function MonthlyDetail({ month, unitId, presentation = 'modal', onClose }: {
+export function MonthlyDetail({
+  month,
+  unitId,
+  presentation = 'modal',
+  onClose
+}: {
   month: string;
   unitId: string;
   presentation?: 'modal' | 'page';
   onClose: () => void;
 }) {
-  const { ledger, propertyId } = usePaymentWorkspace();
+  const {
+    ledger,
+    propertyId
+  } = usePaymentWorkspace();
   const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
@@ -320,14 +331,15 @@ export function MonthlyDetail({ month, unitId, presentation = 'modal', onClose }
       )}
     </>
   );
-  if (presentation === 'page') return (
-    <section
-      className={styles.page}
-      aria-labelledby={'monthly-detail-title'}
-    >
-      {content}
-    </section>
-  );
+  if (presentation === 'page')
+    return (
+      <section
+        className={styles.page}
+        aria-labelledby={'monthly-detail-title'}
+      >
+        {content}
+      </section>
+    );
 
   return (
     <ClientModal

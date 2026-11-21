@@ -2,7 +2,6 @@
 
 import { getBankAccountLabel } from '@/entities/banking';
 
-
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import {
@@ -101,8 +100,10 @@ export function RegistrationReview({
   const hasDraft = (!complete || showResultDetails) && draft.units.length > 0 && draft.feeItems.length > 0;
   const hasOpeningDraft = hasDraft && Boolean(draft.openingBalances.cutoffDate);
   const uploadedRows = draft.bankAccounts.flatMap((account) => {
-    if (draft.openingBalances.startMethods?.[account.clientId] !== 'UPLOAD') return [];
+    if (draft.openingBalances.startMethods?.[account.clientId] !== 'UPLOAD')
+      return [];
     const file = draft.openingBalances.bankImports?.[account.clientId];
+
     return file?.rows.filter((row) => file.choices[row.id]?.included) ?? [];
   });
   const manualRows = (draft.openingBalances.manualTransactions ?? []).filter((record) => draft.bankAccounts.some((account) => account.clientId === record.accountClientId && draft.openingBalances.startMethods?.[account.clientId] !== 'UPLOAD'));
@@ -122,9 +123,10 @@ export function RegistrationReview({
 
   useEffect(() => {
     // 모달 닫기에서 비활성 제출 버튼으로 포커스가 돌아가지 않도록 결과 확인 버튼을 복귀점으로 둡니다.
-    if (status === 'unknown' && !dialogOpen) recoveryRef.current?.focus({
-      preventScroll: true
-    });
+    if (status === 'unknown' && !dialogOpen)
+      recoveryRef.current?.focus({
+        preventScroll: true
+      });
   }, [status, dialogOpen]);
 
   return (
@@ -263,7 +265,11 @@ export function RegistrationReview({
                         거주 세대
                       </dt>
                       <dd>
-                        {(() => { const unit = draft.units.find((row) => row.clientId === draft.administrator.unitClientId); return unit ? [draft.buildings.find((building) => building.clientId === unit.buildingClientId)?.name, getUnitLabel(unit)].filter(Boolean).join(' ') : '세대 선택 필요'; })()}
+                        {(() => {
+                          const unit = draft.units.find((row) => row.clientId === draft.administrator.unitClientId);
+
+                          return unit ? [draft.buildings.find((building) => building.clientId === unit.buildingClientId)?.name, getUnitLabel(unit)].filter(Boolean).join(' ') : '세대 선택 필요';
+                        })()}
                       </dd>
                     </div>
                   </>
@@ -821,9 +827,12 @@ function groupReviewUnitsByFloor(units: UnitDraft[]) {
     floor,
     units: entries
   })).sort((left, right) => {
-    if (left.floor === right.floor) return 0;
-    if (left.floor === null) return 1;
-    if (right.floor === null) return -1;
+    if (left.floor === right.floor)
+      return 0;
+    if (left.floor === null)
+      return 1;
+    if (right.floor === null)
+      return -1;
 
     return left.floor - right.floor;
   });

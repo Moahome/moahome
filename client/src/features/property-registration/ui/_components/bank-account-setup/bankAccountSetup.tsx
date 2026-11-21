@@ -61,9 +61,11 @@ export function BankAccountSetup({
   const headingRef = useRef<HTMLHeadingElement>(null);
   const rootRef = useRef<HTMLElement>(null);
   const [attempted, setAttempted] = useState(false);
-  const [notice, setNotice] = useState<{ id: number; message: string } | null>(null);
+  const [notice, setNotice] = useState<{ id: number;
+message: string } | null>(null);
   const [importBusy, setImportBusy] = useState(false);
-  const [editing, setEditing] = useState<{ account: RegistrationAccount; isNew: boolean } | null>(null);
+  const [editing, setEditing] = useState<{ account: RegistrationAccount;
+isNew: boolean } | null>(null);
   const accountError = getRegistrationAccountsError(accounts);
   const openingError = getRegistrationHistoryError(openingBalances, accounts, units, buildings) || getCashOpeningError(openingBalances, buildings, accounts);
   const isValid = !accountError && !openingError;
@@ -106,7 +108,8 @@ export function BankAccountSetup({
 
   /** 저장한 통장과 잔액을 함께 반영하며 기본 지정 전환도 한 번의 초안 변경으로 처리합니다. */
   function saveAccount(value: RegistrationAccount) {
-    if (!editing) return;
+    if (!editing)
+      return;
     const updated = editing.isNew ? [...accounts, value] : accounts.map((account) => account.clientId === value.clientId ? value : account);
     onChange(updated.map((account) => ({
       ...account,
@@ -117,7 +120,8 @@ export function BankAccountSetup({
 
   /** 최소 한 통장을 유지하고 기본 통장을 제거하면 남은 첫 통장을 기본으로 지정합니다. */
   function removeAccount(clientId: string) {
-    if (accounts.length <= 1) return;
+    if (accounts.length <= 1)
+      return;
     const remaining = accounts.filter((account) => account.clientId !== clientId);
     onChange(remaining.some((account) => account.isPrimary) ? remaining : remaining.map((account, index) => ({
       ...account,
@@ -129,9 +133,15 @@ export function BankAccountSetup({
   function continueSetup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     // 포털로 표시한 입출금 모달의 제출은 React 부모 폼의 단계 이동으로 처리하지 않습니다.
-    if (event.target !== event.currentTarget) return;
-    if (importBusy) return;
-    if (!isValid) { locateMissing(); return; }
+    if (event.target !== event.currentTarget)
+      return;
+    if (importBusy)
+      return;
+    if (!isValid) {
+      locateMissing();
+
+      return;
+    }
 
     onNext();
   }

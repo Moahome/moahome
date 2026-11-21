@@ -37,8 +37,13 @@ export interface PayableWorkspace {
   propertyId: string;
   hasBuildings: boolean;
   canManage: boolean;
-  accounts: { id: string; code: string; name: string; active?: boolean }[];
-  buildings: { id: string; name: string; active: boolean }[];
+  accounts: { id: string;
+code: string;
+name: string;
+active?: boolean }[];
+  buildings: { id: string;
+name: string;
+active: boolean }[];
   items: PayableItem[];
   candidates: PayableCandidate[];
 }

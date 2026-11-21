@@ -5,8 +5,7 @@ export {
   BankingExpensePage
 } from './ui/banking-expense-page/bankingExpensePage';
 export {
-  BankingBalances,
-  type BalancePanel
+  BankingBalances
 } from './ui/banking-balances/bankingBalances';
 
 export {
@@ -43,3 +42,7 @@ export {
 export {
   getAccountBalanceDisplay
 } from './model/accountBalance';
+
+export type {
+  BalancePanel
+} from './model/balancePanelTypes';

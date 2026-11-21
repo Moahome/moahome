@@ -24,7 +24,7 @@ import {
 
 const BASE = `/manage/${SETTLEMENT_PROPERTY}/accounting/settlement`;
 
-/** 다운로드 모달에서 형식을 확정한 뒤 원래 표로 돌아옵니다. */
+/** 파일 생성과 다운로드 시작을 확인한 뒤 미리보기를 닫아 모바일 화면 이탈에 따른 취소를 막습니다. */
 async function downloadExcel(page: Page) {
   await page.getByRole('button', {
     name: '다운로드',
@@ -34,11 +34,18 @@ async function downloadExcel(page: Page) {
     name: 'Excel',
     exact: true
   })).toBeChecked();
+  const downloadReady = page.waitForEvent('download');
+
   await page.getByRole('button', {
     name: 'Excel 다운로드',
     exact: true
   }).click();
+
+  const download = await downloadReady;
+
   await closeReportPreview(page);
+
+  return download;
 }
 
 for (const width of [1440, 390]) {
@@ -213,9 +220,7 @@ for (const width of [1440, 390]) {
       name: '마감 확정',
       exact: true
     })).toHaveCount(0);
-    const downloadReady = page.waitForEvent('download');
-    await downloadExcel(page);
-    const download = await downloadReady;
+    const download = await downloadExcel(page);
     expect(download.suggestedFilename()).toBe('모아홈_월별정산_2026-10.xlsx');
     const archive = unzipSync(await readFile((await download.path())!));
     expect([...strFromU8(archive['xl/workbook.xml']).matchAll(/<sheet\b[^>]*name="([^"]+)"/g)].map((match) => match[1])).toEqual([
@@ -298,9 +303,8 @@ test('수납 상세의 검색·상태·동·페이지 필터와 독립적으로 
     exact: true
   }).click();
   await expect(table.locator('tbody tr')).toHaveCount(1);
-  const downloadReady = page.waitForEvent('download');
-  await downloadExcel(page);
-  const archive = unzipSync(await readFile((await (await downloadReady).path())!));
+  const download = await downloadExcel(page);
+  const archive = unzipSync(await readFile((await download.path())!));
   const xml = Object.entries(archive).filter(([name]) => name.endsWith('.xml')).map(([, bytes]) => strFromU8(bytes)).join('');
   expect(xml).toContain('모아홈 | 월별 정산 종합보고서');
   expect(xml).toContain('수납과 미납');
@@ -464,9 +468,8 @@ test('정산 상세의 통장·동·외부 검색과 상태 필터 및 정렬이
     name: '외부 부담금',
     exact: true
   }).click();
-  const downloadReady = page.waitForEvent('download');
-  await downloadExcel(page);
-  const archive = unzipSync(await readFile((await (await downloadReady).path())!));
+  const download = await downloadExcel(page);
+  const archive = unzipSync(await readFile((await download.path())!));
   const xml = Object.entries(archive).filter(([name]) => name.endsWith('.xml')).map(([, bytes]) => strFromU8(bytes)).join('');
   expect(xml).toContain('모아홈 | 월별 정산 종합보고서');
   expect(xml).toContain('수납과 미납');

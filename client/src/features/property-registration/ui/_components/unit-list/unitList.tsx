@@ -43,7 +43,9 @@ export function UnitList({
   onAutomaticAdd,
   balances,
 }: {
-  balances?: { opening: OpeningBalancesDraft; onChange: (opening: OpeningBalancesDraft) => void; showErrors?: boolean };
+  balances?: { opening: OpeningBalancesDraft;
+onChange: (opening: OpeningBalancesDraft) => void;
+showErrors?: boolean };
   hasBuildings: boolean;
   buildings: BuildingDraft[];
   units: UnitDraft[];
@@ -61,7 +63,8 @@ export function UnitList({
   const [query, setQuery] = useState('');
   const [buildingFilter, setBuildingFilter] = useState('');
   const editButtonRef = useRef<HTMLButtonElement>(null);
-  const [selection, setSelection] = useState<{ scope: string; ids: string[] } | null>(null);
+  const [selection, setSelection] = useState<{ scope: string;
+ids: string[] } | null>(null);
   const [pendingIds, setPendingIds] = useState<string[] | null>(null);
   // 삭제되거나 연결을 해제한 동의 필터 때문에 남은 세대가 숨겨지지 않게 합니다.
   const activeBuildingFilter = hasBuildings && buildings.some((building) => building.clientId === buildingFilter) ? buildingFilter : '';
@@ -82,7 +85,8 @@ export function UnitList({
 
   /** 동 또는 검색 변경 시 선택 모드는 유지하되 이전 범위의 선택을 모두 비웁니다. */
   function changeFilter(nextBuildingFilter: string, nextQuery: string) {
-    if (nextBuildingFilter === activeBuildingFilter && nextQuery === query) return;
+    if (nextBuildingFilter === activeBuildingFilter && nextQuery === query)
+      return;
 
     setBuildingFilter(nextBuildingFilter);
     setQuery(nextQuery);
@@ -108,7 +112,8 @@ export function UnitList({
 
   /** 확인 창에 표시한 현재 목록의 세대만 삭제한 뒤 선택 모드를 종료합니다. */
   function confirmSelectedDeletion() {
-    if (!pendingUnits.length) return;
+    if (!pendingUnits.length)
+      return;
 
     onDeleteSelected(pendingUnits.map((unit) => unit.clientId));
     setPendingIds(null);
@@ -255,7 +260,8 @@ export function UnitList({
                 aria-label={'현재 목록 전체 선택'}
                 checked={filteredUnits.length > 0 && selectedUnits.length === pageUnits.length}
                 ref={(element) => {
-                  if (element) element.indeterminate = selectedUnits.length > 0 && selectedUnits.length < pageUnits.length;
+                  if (element)
+                    element.indeterminate = selectedUnits.length > 0 && selectedUnits.length < pageUnits.length;
                 }}
                 disabled={!filteredUnits.length}
                 onChange={(event) => setSelection({
@@ -292,9 +298,17 @@ export function UnitList({
           >
             현재 목록 미납
             {' '}
-            {formatWon(filteredUnits.reduce((sum, unit) => { const amount = getUnitOpening(balances.opening, unit.clientId).receivable; return sum + (/^[0-9]{1,15}$/.test(amount) ? BigInt(amount) : BigInt(0)); }, BigInt(0)))}
+            {formatWon(filteredUnits.reduce((sum, unit) => {
+              const amount = getUnitOpening(balances.opening, unit.clientId).receivable;
+
+              return sum + (/^[0-9]{1,15}$/.test(amount) ? BigInt(amount) : BigInt(0));
+            }, BigInt(0)))}
             {' · 선납 '}
-            {formatWon(filteredUnits.reduce((sum, unit) => { const amount = getUnitOpening(balances.opening, unit.clientId).credit; return sum + (/^[0-9]{1,15}$/.test(amount) ? BigInt(amount) : BigInt(0)); }, BigInt(0)))}
+            {formatWon(filteredUnits.reduce((sum, unit) => {
+              const amount = getUnitOpening(balances.opening, unit.clientId).credit;
+
+              return sum + (/^[0-9]{1,15}$/.test(amount) ? BigInt(amount) : BigInt(0));
+            }, BigInt(0)))}
             {' · 미입력 금액은 확정 전 확인이 필요합니다.'}
           </p>
         )}

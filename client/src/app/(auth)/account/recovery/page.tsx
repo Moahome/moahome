@@ -10,5 +10,7 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <AccountRecoveryPage />;
+  return (
+    <AccountRecoveryPage />
+  );
 }

@@ -8,6 +8,7 @@ export function sortLedger(data: AccountLedgerWorkspace, sort: LedgerSort): Acco
   const rows = sort === 'oldest' ? [...data.rows].reverse() : [...data.rows];
   const codes = new Map(data.accounts.map((account) => [account.id, account.code]));
   rows.sort((left, right) => (codes.get(left.entry.accountId) ?? '').localeCompare(codes.get(right.entry.accountId) ?? ''));
+
   return {
     ...data,
     rows

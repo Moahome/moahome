@@ -14,7 +14,7 @@ import type { ComponentProps } from 'react';
 /** 통장 행의 상세 클릭과 메뉴 행동을 분리하고 화면 경계·키보드·닫기 전환을 유지합니다. */
 export function BankingActionsMenu({
   label,
-  items,
+  items
 }: {
   label: string;
   items: {
@@ -32,7 +32,8 @@ export function BankingActionsMenu({
   const [above, setAbove] = useState(false);
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open)
+      return;
     const position = () => {
       const bounds = trigger.current?.getBoundingClientRect();
       const height = menu.current?.scrollHeight ?? 130;
@@ -60,6 +61,7 @@ export function BankingActionsMenu({
       menu.current?.querySelector<HTMLButtonElement>('[role=menuitem]')?.focus({
         preventScroll: true,
       });
+
     return () => {
       window.removeEventListener('resize', position);
       window.removeEventListener('scroll', position, true);
@@ -67,11 +69,14 @@ export function BankingActionsMenu({
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open)
+      return;
     const close = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) setOpen(false);
+      if (!root.current?.contains(event.target as Node))
+        setOpen(false);
     };
     document.addEventListener('pointerdown', close);
+
     return () => document.removeEventListener('pointerdown', close);
   }, [open]);
 
@@ -80,7 +85,8 @@ export function BankingActionsMenu({
       ref={root}
       className={styles.root}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+        if (!event.currentTarget.contains(event.relatedTarget))
+          setOpen(false);
       }}
     >
       <Button
@@ -126,6 +132,7 @@ export function BankingActionsMenu({
             event.preventDefault();
             setOpen(false);
             trigger.current?.focus();
+
             return;
           }
           if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key))

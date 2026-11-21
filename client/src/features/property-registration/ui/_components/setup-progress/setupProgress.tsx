@@ -6,8 +6,10 @@ import styles from './setupProgress.module.css';
 const REGISTRATION_STEPS = ['기본 정보', '동·세대 및 담당자', '주민 명부 등록', '관리계좌 및 잔고', '관리비 설정', '최종 확인'];
 
 function getStepState(step: number, currentStep: number) {
-  if (step < currentStep) return 'complete';
-  if (step === currentStep) return 'current';
+  if (step < currentStep)
+    return 'complete';
+  if (step === currentStep)
+    return 'current';
 
   return 'pending';
 }

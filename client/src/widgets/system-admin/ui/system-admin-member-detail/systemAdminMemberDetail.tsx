@@ -1,10 +1,15 @@
 'use client';
+
 import type { ReactNode } from 'react';
 import { ListHeader } from '@/shared/ui/list-header';
 import { MemberEditor } from '../_components/member-editor/memberEditor';
 import { SystemAdminShell } from '../_components/system-admin-shell/systemAdminShell';
 import styles from './systemAdminMemberDetail.module.css';
-export function SystemAdminMemberDetail({ userId, header }: { userId: string; header: ReactNode }) {
+export function SystemAdminMemberDetail({
+  userId,
+  header
+}: { userId: string;
+header: ReactNode }) {
   return (
     <SystemAdminShell
       header={header}

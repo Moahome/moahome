@@ -26,6 +26,7 @@ function validHistory(row: InitialBalanceHistory) {
       && (part.previousAmount === null || (typeof part.previousAmount === 'string' && SIGNED_AMOUNT.test(part.previousAmount)))
       && (part.newAmount === null || (typeof part.newAmount === 'string' && SIGNED_AMOUNT.test(part.newAmount))));
 }
+
 function read(value: OpeningWorkspace, property: string) {
   if (!value || value.propertyId !== property || !Array.isArray(value.units) || !Array.isArray(value.accounts)
     || typeof value.managementStarted !== 'boolean' || !Number.isFinite(Date.parse(value.asOf))
@@ -46,6 +47,7 @@ function read(value: OpeningWorkspace, property: string) {
 
   return value;
 }
+
 export async function getOpeningBalances(property: string, signal?: AbortSignal) {
   return read(await authenticatedAPI<OpeningWorkspace>({
     signal,
@@ -81,7 +83,8 @@ export async function correctInitialBalances(property: string, batchId: string, 
 }
 
 export async function previewOpeningExcel(property: string, file: File) {
-  const data = new FormData(); data.append('file', file);
+  const data = new FormData();
+  data.append('file', file);
   const result = await authenticatedAPI<Omit<OpeningUnit, 'label'>[]>({
     url: `/api/properties/${property}/billing/opening-balances/import/preview`,
     method: 'POST',
@@ -94,7 +97,8 @@ export async function previewOpeningExcel(property: string, file: File) {
   return result;
 }
 export function openingBalanceError(error: unknown) {
-  if (!(error instanceof ApiError)) return '잔액 인계를 처리하지 못했어요. 입력을 유지하고 다시 시도해주세요.';
+  if (!(error instanceof ApiError))
+    return '잔액 인계를 처리하지 못했어요. 입력을 유지하고 다시 시도해주세요.';
   const messages: Record<string, string> = {
     INITIAL_BALANCE_LOCKED: '초기 기준 정정 기간이 지났어요. 시작 금액과 기준일은 잠겨 있습니다.',
     INITIAL_BALANCE_CONFLICT: '초기 기준이 변경됐어요. 최신 값을 불러와 다시 확인해주세요.',

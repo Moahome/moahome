@@ -10,33 +10,42 @@ export function formatReportTimestamp(value: string): string {
     second: '2-digit',
     hourCycle: 'h23'
   }).formatToParts(new Date(value)).map((part) => [part.type, part.value]));
+
   return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second} (한국시간)`;
 }
 
 /** 조회시각의 한국시간 월을 기준으로 지난 월·현재 월·미래 월의 기간 표시를 구분합니다. */
-export function getReportPeriodLabel(data: { month: string; generatedAt: string }): string {
+export function getReportPeriodLabel(data: { month: string;
+generatedAt: string }): string {
   const currentMonth = new Intl.DateTimeFormat('sv-SE', {
     timeZone: 'Asia/Seoul',
     year: 'numeric',
     month: '2-digit'
   }).format(new Date(data.generatedAt));
-  if (data.month < currentMonth) return `${Number(data.month.slice(5))}월 마감`;
+  if (data.month < currentMonth)
+    return `${Number(data.month.slice(5))}월 마감`;
+
   return data.month === currentMonth ? '집계 중' : '집계 예정';
 }
 
 /** 같은 서비스의 한글 폰트만 읽고 업무 자료를 외부 변환 서버로 전송하지 않습니다. */
 async function loadFont(path: string): Promise<string> {
   const response = await fetch(path);
-  if (!response.ok) throw new Error('PDF_FONT_UNAVAILABLE');
+  if (!response.ok)
+    throw new Error('PDF_FONT_UNAVAILABLE');
   const bytes = new Uint8Array(await response.arrayBuffer());
   let binary = '';
-  for (let offset = 0; offset < bytes.length; offset += 32768) binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
+  for (let offset = 0; offset < bytes.length; offset += 32768)
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
+
   return btoa(binary);
 }
 
 /** 보고서별 열 수에 맞춰 A4 방향을 선택하되 기존 보고서는 세로·한글 폰트 설정을 유지합니다. */
 export async function createReportPdfDocument(orientation: 'portrait' | 'landscape' = 'portrait') {
-  const [{ jsPDF }, regular, bold] = await Promise.all([import('jspdf'), loadFont('/fonts/pretendard/pretendardRegular.ttf'), loadFont('/fonts/pretendard/pretendardBold.ttf')]);
+  const [{
+    jsPDF
+  }, regular, bold] = await Promise.all([import('jspdf'), loadFont('/fonts/pretendard/pretendardRegular.ttf'), loadFont('/fonts/pretendard/pretendardBold.ttf')]);
   const pdf = new jsPDF({
     orientation,
     unit: 'mm',
@@ -48,5 +57,6 @@ export async function createReportPdfDocument(orientation: 'portrait' | 'landsca
   pdf.addFont('pretendardRegular.ttf', 'Pretendard', 'normal');
   pdf.addFileToVFS('pretendardBold.ttf', bold);
   pdf.addFont('pretendardBold.ttf', 'Pretendard', 'bold');
+
   return pdf;
 }

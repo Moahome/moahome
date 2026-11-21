@@ -10,7 +10,13 @@ import type {
 import styles from './administratorUnitFields.module.css';
 
 /** 동 변경 시 호수를 다시 선택하게 하며 두 입력 모두 공통 검색 드롭다운을 재사용합니다. */
-export function AdministratorUnitFields({ units, buildings, hasBuildings, unitClientId, onChange }: {
+export function AdministratorUnitFields({
+  units,
+  buildings,
+  hasBuildings,
+  unitClientId,
+  onChange
+}: {
   units: UnitDraft[];
   buildings: BuildingDraft[];
   hasBuildings: boolean;

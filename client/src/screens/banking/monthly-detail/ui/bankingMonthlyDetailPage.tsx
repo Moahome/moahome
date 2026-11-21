@@ -1,6 +1,12 @@
 import { MonthlyDetailPage } from '@/widgets/payment-workspace';
 
-export function BankingMonthlyDetailPage({ propertyId, month, unitId }: { propertyId: string; month: string; unitId: string }) {
+export function BankingMonthlyDetailPage({
+  propertyId,
+  month,
+  unitId
+}: { propertyId: string;
+month: string;
+unitId: string }) {
   return (
     <MonthlyDetailPage
       propertyId={propertyId}

@@ -7,7 +7,9 @@ import type { ReportDefinition } from '@/shared/lib/excel-report';
 
 /** 같은 조회 자료의 일곱 영역을 각각의 시트로 내보내고 기존 제목·표·정확한 원화 셀 서식을 유지합니다. */
 export async function createMonthlyStyledWorkbook(documents: readonly ReportDefinition[]): Promise<Blob> {
-  const { default: writeExcelFile } = await import('write-excel-file/universal');
+  const {
+    default: writeExcelFile
+  } = await import('write-excel-file/universal');
   const overview = documents[0];
   const colors = {
     text: '#0F172A',
@@ -72,9 +74,12 @@ export async function createMonthlyStyledWorkbook(documents: readonly ReportDefi
         const value = row[position] ?? '';
         const status = String(value);
         let textColor = colors.text;
-        if (status === '납부완료' || status === '회수 완료') textColor = colors.success;
-        if (status === '미납' || status === '회수 필요') textColor = colors.danger;
-        if (status === '일부납부' || status === '일부 회수' || status.includes('확인 필요')) textColor = colors.warning;
+        if (status === '납부완료' || status === '회수 완료')
+          textColor = colors.success;
+        if (status === '미납' || status === '회수 필요')
+          textColor = colors.danger;
+        if (status === '일부납부' || status === '일부 회수' || status.includes('확인 필요'))
+          textColor = colors.warning;
 
         return cell(value, {
           height: section.sheet === '입출금 명세' ? 48 : 36,
@@ -84,18 +89,20 @@ export async function createMonthlyStyledWorkbook(documents: readonly ReportDefi
         });
       }));
     }
-    if (!section.rows.length) data.push(merge('해당 월 자료가 없습니다.', width, {
-      height: 36,
-      textColor: colors.muted
-    }));
-    if (section.total) data.push(section.columns.map((column, index) => cell(section.total![index] ?? '', {
-      height: 34,
-      fontSize: 11,
-      fontWeight: 'bold',
-      textColor: colors.primary,
-      backgroundColor: colors.heading,
-      align: column.align ?? 'left'
-    })));
+    if (!section.rows.length)
+      data.push(merge('해당 월 자료가 없습니다.', width, {
+        height: 36,
+        textColor: colors.muted
+      }));
+    if (section.total)
+      data.push(section.columns.map((column, index) => cell(section.total![index] ?? '', {
+        height: 34,
+        fontSize: 11,
+        fontWeight: 'bold',
+        textColor: colors.primary,
+        backgroundColor: colors.heading,
+        align: column.align ?? 'left'
+      })));
     data.push(blank(), merge(section.note, width, {
       height: 44,
       fontSize: 9,

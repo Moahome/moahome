@@ -191,14 +191,15 @@ export function BillingDetail({
       </p>
     </div>
   </>);
-  if (presentation === 'page') return (
-    <section
-      className={styles.page}
-      aria-labelledby={'billing-detail-title'}
-    >
-      {content}
-    </section>
-  );
+  if (presentation === 'page')
+    return (
+      <section
+        className={styles.page}
+        aria-labelledby={'billing-detail-title'}
+      >
+        {content}
+      </section>
+    );
 
   return (
     <ClientModal

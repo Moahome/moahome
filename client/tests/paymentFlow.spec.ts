@@ -870,7 +870,7 @@ test('수동 입금자는 기본 이름을 수정해 저장하고 다음 등록�
   })).toHaveValue('실제입금자');
 });
 
-test('입금 API 조회 장애를 예시 데이터로 대체하지 않고 재시도로 실제 원장을 조회', async ({page})=>{
+test('입금 API 조회 장애를 예시 데이터로 대체하지 않고 재시도로 실제 원장을 조회', async ({ page })=>{
   let fail=true;
   await page.route(`**/api/properties/${PROPERTY_ID}/payments/workspace`,async (route)=>{
     if(route.request().method()!=='GET'||!fail) {await route.fallback();return;}
@@ -906,7 +906,7 @@ test('입금 API 조회 장애를 예시 데이터로 대체하지 않고 재시
   })).toBeVisible();
 });
 
-test('수동 저장 실패는 입력을 보존하고 같은 요청 ID로 다시 저장', async ({page})=>{
+test('수동 저장 실패는 입력을 보존하고 같은 요청 ID로 다시 저장', async ({ page })=>{
   const requests:string[]=[];
   await page.route(`**/api/properties/${PROPERTY_ID}/payments/manual`,async (route)=>{
     if(route.request().method()!=='POST') {await route.fallback();return;}
