@@ -41,6 +41,7 @@ export default defineConfig({
       NEXT_DIST_DIR: '.next-test',
       NEXT_PUBLIC_HOST: 'http://localhost:3100',
       NEXT_PUBLIC_API_HOST: 'http://localhost:8080',
+      NEXT_PUBLIC_KAKAO_MAP_APP_KEY: 'notice-map-test-key',
       NEXT_TELEMETRY_DISABLED: '1',
     },
   },

@@ -1,4 +1,5 @@
 export interface PostcodeResult {
+  buildingName?: string;
   address: string;
   roadAddress: string;
   jibunAddress: string;

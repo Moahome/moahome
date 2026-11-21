@@ -8,7 +8,7 @@ const DATABASE = 'moahome-notice-drafts';
 const STORE = 'drafts';
 export const DRAFT_REMOVED_EVENT = 'moahome-notice-draft-removed';
 
-/** 제목·실제 본문·이미지 중 하나라도 있어야 초안 저장과 복구 확인을 제공합니다. */
+/** 제목·실제 본문·이미지·장소 중 하나라도 있어야 초안 저장과 복구 확인을 제공합니다. */
 export function hasNoticeDraftContent(draft: Pick<NoticeDraft, 'title' | 'content'>): boolean {
   if (draft.title.trim()) return true;
   try {
@@ -21,6 +21,7 @@ export function hasNoticeDraftContent(draft: Pick<NoticeDraft, 'title' | 'conten
     };
 
     const document = JSON.parse(draft.content);
+    if (typeof document.location?.address === 'string' && document.location.address.trim()) return true;
     return (Array.isArray(document.files) && document.files.length > 0) || visit(document);
   } catch {
     return false;

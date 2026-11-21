@@ -31,7 +31,7 @@ import type {
   BasicInfo,
   BasicInfoDraft
 } from '../../model/basicInfoTypes';
-import { AddressSearch } from '../_components/address-search/addressSearch';
+import { AddressSearch } from '@/shared/ui/address-search';
 import styles from './propertyRegistrationDialog.module.css';
 
 /** 오류 코드를 안전한 화면 안내로 바꾸고 서버 응답 원문을 노출하지 않습니다. */

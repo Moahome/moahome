@@ -151,7 +151,7 @@ function NoticeComposer({ propertyId, notice, userId }: { propertyId: string; no
         predicate: (query) => ['notices', 'notice'].includes(String(query.queryKey[0])) && query.queryKey[2] === propertyId
       });
       await removeNoticeDraft(draftKey).catch(() => {});
-      router.replace(base);
+      router.replace(notice ? `${base}/${notice.id}` : base);
     } catch (failure) {
       const unknown = !(failure instanceof ApiError) || failure.status === 0 || failure.status >= 500 || failure.code === 'INVALID_RESPONSE';
       setUncertain(unknown);

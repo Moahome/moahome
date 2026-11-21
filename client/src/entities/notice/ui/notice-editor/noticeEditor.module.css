@@ -23,14 +23,14 @@
   }
 
   .paragraph-picker {
-    --form-control-background: var(--background);
+    --form-control-background: var(--card);
     --form-control-radius: 12px;
 
     width: 110px;
   }
 
   .font-picker {
-    --form-control-background: var(--background);
+    --form-control-background: var(--card);
     --form-control-radius: 12px;
 
     width: 96px;

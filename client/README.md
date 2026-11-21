@@ -35,6 +35,8 @@ npm run dev
 
 ## 화면과 상세 설계
 
+공지 지도는 기존 `client/.env` 또는 빌드 환경의 `NEXT_PUBLIC_KAKAO_MAP_APP_KEY`에 카카오 JavaScript 키를 설정합니다. 카카오맵 사용 설정을 켜고 해당 키의 JavaScript SDK 도메인에 실제 접속 Origin(로컬 `http://localhost:3000`, 운영 주소)을 등록합니다. 운영 환경에도 같은 변수 설정 후 다시 빌드해야 합니다. 주소 검색 후 위치를 확인해 공지에 추가하며, 상세는 저장된 좌표로 지도를 표시합니다. [화면 동작](docs/residentNotices.md#공지-장소-안내), [공유 계약](../docs/api/noticeApi.md#장소-안내)을 참조합니다.
+
 | 영역 | 문서 |
 | --- | --- |
 | 로그인 후 진입·추가 등록 | [서비스 진입](docs/serviceEntry.md), [초기 등록·초안](docs/propertyRegistration.md) |

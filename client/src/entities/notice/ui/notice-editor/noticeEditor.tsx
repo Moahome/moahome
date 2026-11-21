@@ -29,6 +29,12 @@ import type {
   NoticeAssetReader,
   NoticeAssetUploader
 } from '../../model/noticeAssetTypes';
+import { readNoticeLocation } from '../../model/noticeLocation';
+import type { NoticeLocation } from '../../model/noticeLocationTypes';
+import {
+  NoticeLocationCard,
+  NoticeLocationPicker
+} from './_components/notice-location/noticeLocation';
 import styles from './noticeEditor.module.css';
 
 const EMPTY = {
@@ -99,6 +105,9 @@ export function NoticeEditor({ readAsset, uploadAsset, initialContent, onChange,
   const readingLock = useRef(false);
   const [error, setError] = useState('');
   const [reading, setReading] = useState(false);
+  const [location, setLocation] = useState(() => readNoticeLocation(initialContent));
+  const locationRef = useRef(location);
+  const [choosingLocation, setChoosingLocation] = useState(false);
   const PrivateImage = useMemo(() => createPrivateImage(readAsset), [readAsset]);
   const editor = useEditor({
     immediatelyRender: false,
@@ -130,7 +139,13 @@ export function NoticeEditor({ readAsset, uploadAsset, initialContent, onChange,
         'data-placeholder': '내용을 입력해 주세요...'
       }
     },
-    onUpdate: ({ editor: current }) => onChange?.(JSON.stringify(current.getJSON()))
+    // 편집기가 문서 외 속성을 제거하므로 선택 장소를 함께 보내 본문 편집 중에도 유지합니다.
+    onUpdate: ({ editor: current }) => onChange?.(JSON.stringify({
+      ...current.getJSON(),
+      ...(locationRef.current ? {
+        location: locationRef.current
+      } : {})
+    }))
   });
 
   useEffect(() => {
@@ -203,6 +218,20 @@ export function NoticeEditor({ readAsset, uploadAsset, initialContent, onChange,
   function removeImage() {
     if (!editor || disabled || reading || !editor.isActive('image')) return;
     editor.chain().focus().deleteSelection().run();
+  }
+
+  /** 장소 변경도 본문 변경으로 알리고 기존 첨부·초안·저장 재시도 흐름을 유지합니다. */
+  function changeLocation(next: NoticeLocation | null) {
+    if (!editor || disabled || readOnly || reading) return;
+    locationRef.current = next;
+    setLocation(next);
+    onChange?.(JSON.stringify({
+      ...editor.getJSON(),
+      ...(next ? {
+        location: next
+      } : {})
+    }));
+    setChoosingLocation(false);
   }
 
   /** 선택 영역의 글자색만 바꾸고 기본색 복원 시 크기·굵기 등 다른 서식은 유지합니다. */
@@ -457,6 +486,19 @@ export function NoticeEditor({ readAsset, uploadAsset, initialContent, onChange,
                 />
               </Button>
             </div>
+            <Button
+              size={'sm'}
+              disabled={disabled || reading || !editor || Boolean(location)}
+              leadingIcon={(
+                <ServiceIcon
+                  name={'location'}
+                  size={18}
+                />
+              )}
+              onClick={() => setChoosingLocation(true)}
+            >
+              지도 추가
+            </Button>
           </div>
           {imageSelected && (
             <div
@@ -516,6 +558,22 @@ export function NoticeEditor({ readAsset, uploadAsset, initialContent, onChange,
           className={styles.content}
         />
       </div>
+      {location && (
+        <NoticeLocationCard
+          location={location}
+          disabled={disabled || reading}
+          onEdit={readOnly ? undefined : () => setChoosingLocation(true)}
+          onRemove={readOnly ? undefined : () => changeLocation(null)}
+        />
+      )}
+      {choosingLocation && !readOnly && (
+        <NoticeLocationPicker
+          initialLocation={location}
+          disabled={disabled || reading}
+          onConfirm={changeLocation}
+          onClose={() => setChoosingLocation(false)}
+        />
+      )}
       {error && (
         <Toast
           message={error}

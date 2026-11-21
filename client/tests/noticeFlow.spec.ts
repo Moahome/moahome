@@ -8,6 +8,10 @@ import {
   SETTLEMENT_PROPERTY,
   settlementId
 } from './support/monthlySettlement';
+import {
+  mockNoticeMap,
+  NOTICE_LOCATION
+} from './support/noticeMap';
 
 const BASE = `/manage/${SETTLEMENT_PROPERTY}/notices`;
 const CONTENT = JSON.stringify({
@@ -138,6 +142,211 @@ async function mockNotices(page: Page, content = CONTENT, canDeleteOthers = true
 
   return saves;
 }
+
+test('주소 미리보기·지도 추가·초안 복구·저장·수정·삭제와 실패 재시도를 연결한다', async ({ page }) => {
+  const saves = await mockNotices(page);
+  const sdk = await mockNoticeMap(page, true);
+  page.on('dialog', (dialog) => dialog.accept());
+  await page.goto(`${BASE}/new`);
+  const body = page.getByRole('textbox', {
+    name: '공지 내용 편집기',
+    exact: true
+  });
+  await page.getByRole('textbox', {
+    name: '제목',
+    exact: true
+  }).fill('시청 모임');
+  await body.fill('안내 장소에서 모입니다.');
+  await expect(page.getByRole('region', {
+    name: '장소 안내',
+    exact: true
+  })).toHaveCount(0);
+  await page.getByRole('button', {
+    name: '지도 추가',
+    exact: true
+  }).click();
+  let picker = page.getByRole('dialog', {
+    name: '지도 추가',
+    exact: true
+  });
+  await picker.getByRole('textbox', {
+    name: '주소 검색어',
+    exact: true
+  }).fill('세종대로');
+  await picker.getByRole('button', {
+    name: NOTICE_LOCATION.address,
+    exact: true
+  }).click();
+  await expect(picker).toContainText('지도 위치를 불러오지 못했어요.');
+  await picker.getByRole('button', {
+    name: '다시 시도',
+    exact: true
+  }).click();
+  await expect(picker.getByRole('textbox', {
+    name: '장소명',
+    exact: true
+  })).toHaveValue(NOTICE_LOCATION.name);
+  await expect(picker.getByRole('region', {
+    name: /위치 지도/
+  })).toBeVisible();
+  await picker.getByRole('button', {
+    name: '추가',
+    exact: true
+  }).click();
+  const card = page.getByRole('region', {
+    name: '장소 안내',
+    exact: true
+  });
+  await expect(card).toContainText(NOTICE_LOCATION.address);
+  await page.getByLabel('첨부파일 선택', {
+    exact: true
+  }).setInputFiles({
+    name: '모임 안내.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from('모임 장소 안내')
+  });
+  await expect(page.getByRole('button', {
+    name: '모임 안내.txt 제거',
+    exact: true
+  })).toBeVisible();
+  await body.fill('지도 추가 후 본문도 수정합니다.');
+  await page.getByRole('button', {
+    name: '임시저장',
+    exact: true
+  }).click();
+  await expect(page.getByText('임시저장했어요. 다시 들어와도 이어서 작성할 수 있어요.', {
+    exact: true
+  })).toBeVisible();
+  await page.reload();
+  await expect(card).toContainText(NOTICE_LOCATION.name);
+  await expect(body).toContainText('지도 추가 후 본문도 수정합니다.');
+  await page.getByRole('button', {
+    name: '공지 등록',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(BASE);
+  expect(saves).toHaveLength(1);
+  expect(JSON.parse((saves[0] as { content: string }).content).location).toEqual(NOTICE_LOCATION);
+  expect(JSON.parse((saves[0] as { content: string }).content).files[0].name).toBe('모임 안내.txt');
+  await page.getByRole('row', {
+    name: /시청 모임/
+  }).click();
+  await expect(card.getByRole('link', {
+    name: '길찾기'
+  })).toHaveAttribute('href', /map\.kakao\.com\/link\/to\/.+,37\.5663,126\.9779$/);
+  const detailUrl = page.url();
+  await page.screenshot({
+    path: 'test-results/notice-map-desktop.png',
+    fullPage: true
+  });
+  await page.getByRole('button', {
+    name: '수정',
+    exact: true
+  }).click();
+  await card.getByRole('button', {
+    name: '장소 수정'
+  }).click();
+  picker = page.getByRole('dialog', {
+    name: '장소 수정',
+    exact: true
+  });
+  await picker.getByRole('textbox', {
+    name: '장소명',
+    exact: true
+  }).fill('취소할 장소명');
+  await picker.getByRole('button', {
+    name: '취소',
+    exact: true
+  }).click();
+  await expect(card).toContainText(NOTICE_LOCATION.name);
+  await card.getByRole('button', {
+    name: '장소 수정'
+  }).click();
+  picker = page.getByRole('dialog', {
+    name: '장소 수정',
+    exact: true
+  });
+  await picker.getByRole('button', {
+    name: '주소 변경',
+    exact: true
+  }).click();
+  await picker.getByRole('textbox', {
+    name: '주소 검색어',
+    exact: true
+  }).fill('없는 주소');
+  await expect(picker).toContainText('검색 결과가 없습니다.');
+  await expect(picker.getByRole('button', {
+    name: '적용',
+    exact: true
+  })).toBeDisabled();
+  await picker.getByRole('textbox', {
+    name: '주소 검색어',
+    exact: true
+  }).fill('세종대로');
+  await picker.getByRole('button', {
+    name: NOTICE_LOCATION.address,
+    exact: true
+  }).click();
+  await picker.getByRole('textbox', {
+    name: '장소명',
+    exact: true
+  }).fill('시청 정문');
+  await picker.getByRole('button', {
+    name: '적용',
+    exact: true
+  }).click();
+  await expect(card).toContainText('시청 정문');
+  await page.getByRole('button', {
+    name: '변경 저장',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(detailUrl);
+  expect(JSON.parse((saves[1] as { content: string }).content).location.name).toBe('시청 정문');
+  await expect(card).toContainText('시청 정문');
+  await page.setViewportSize({
+    width: 320,
+    height: 800
+  });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({
+    path: 'test-results/notice-map-mobile.png',
+    fullPage: true
+  });
+  await page.getByRole('button', {
+    name: '수정',
+    exact: true
+  }).click();
+  await card.getByRole('button', {
+    name: '장소 수정'
+  }).click();
+  picker = page.getByRole('dialog', {
+    name: '장소 수정',
+    exact: true
+  });
+  const bounds = await picker.boundingBox();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(320);
+  await page.screenshot({
+    path: 'test-results/notice-map-picker-mobile.png',
+    fullPage: true
+  });
+  await picker.getByRole('button', {
+    name: '취소',
+    exact: true
+  }).click();
+  await card.getByRole('button', {
+    name: '장소 삭제'
+  }).click();
+  await expect(card).toHaveCount(0);
+  await page.getByRole('button', {
+    name: '변경 저장',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(detailUrl);
+  expect(JSON.parse((saves[2] as { content: string }).content).location).toBeUndefined();
+  // 최초 실패·성공과 새로고침 뒤 로드만 허용하고 화면 전환마다 SDK를 중복 삽입하지 않습니다.
+  expect(sdk.loads()).toBe(3);
+});
 
 test('별도 공개 설정 없이 공지를 관리하고 건물 링크를 발급·회수', async ({ page }) => {
   await mockNotices(page);
@@ -329,11 +538,11 @@ test('파일 첨부·저장 후 목록·상세 다운로드·작성자 수정·�
     name: '변경 저장',
     exact: true
   }).click();
-  await expect(page).toHaveURL(BASE);
-  await page.getByRole('rowheader', {
+  await expect(page).toHaveURL(new RegExp(`${BASE}/[^/]+$`));
+  await expect(page.getByRole('heading', {
     name: '점검 시간 변경',
     exact: true
-  }).click();
+  })).toBeVisible();
   await expect(page.getByRole('button', {
     name: '점검 안내.txt 다운로드',
     exact: true

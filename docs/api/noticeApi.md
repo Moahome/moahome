@@ -36,6 +36,21 @@
 - 기존 Base64 이미지·첨부는 호환 열람·수정을 유지하며 자동 이관하지 않습니다. 새 파일 선택은 S3 업로드를 사용합니다.
 - 버킷 IAM에는 기존 `profiles/*`와 별도로 `notices/*`의 GetObject·PutObject·DeleteObject 권한이 필요합니다. S3 미설정·접근 실패에는 `503 NOTICE_STORAGE_UNAVAILABLE`을 반환하며 DB Base64 저장으로 대체하지 않습니다.
 
+## 장소 안내
+
+2026-11-21 사용자 시안을 적용해 공지 본문 아래에 선택 장소 한 곳을 표시합니다. `content` JSON 루트에 선택 속성 `location`을 저장합니다. 기존 공지는 속성을 추가하지 않아도 그대로 열람·수정합니다. 별도 지도 HTML·iframe·외부 링크·지도 이미지를 저장하지 않습니다.
+
+| 필드 | 자료형·검증 |
+| --- | --- |
+| `location.name` | 공백뿐이지 않은 문자열, 최대 100자, 제어문자 금지 |
+| `location.address` | 공백뿐이지 않은 문자열, 최대 300자, 제어문자 금지 |
+| `location.latitude` | 유한한 JSON 숫자, -90 이상 90 이하 |
+| `location.longitude` | 유한한 JSON 숫자, -180 이상 180 이하 |
+
+`location` 생략 또는 null은 장소 없음입니다. 다른 자료형·필수 속성 누락·범위를 벗어난 값은 `400 INVALID_NOTICE_REQUEST`입니다. 장소는 본문과 함께 저장하므로 기존 공지 UUID·요청 ID·버전 검증과 재시도 계약을 그대로 적용합니다. 같은 요청 ID에서 장소를 바꾸면 본문 변경과 마찬가지로 `409`이며 장소 수정·삭제는 새 수정 요청으로 저장합니다. 조회와 주민 열람은 같은 `content`를 반환합니다. DB 컬럼·Migration은 추가하지 않습니다.
+
+주소 검색은 기존 관리대상 등록과 공유한 우편번호 검색 UI를 사용하고, 주소 선택 후 카카오 지도 SDK에서 좌표를 조회합니다. 서버는 형식·좌표 범위를 검증하며 실제 주소와 좌표의 일치를 외부에서 다시 검증하지 않습니다. 브라우저 처리·실패·초안은 [Client 공지 화면](../../client/docs/residentNotices.md#공지-장소-안내)을 따릅니다.
+
 ## 오류
 
 입력 `400 INVALID_NOTICE_REQUEST`, 권한 `403 NOTICE_EDIT_FORBIDDEN`, 찾을 수 없음 `404 NOTICE_NOT_FOUND`, 버전·재시도 충돌 `409 NOTICE_CONFLICT`, S3 실패 `503 NOTICE_STORAGE_UNAVAILABLE`, DB 실패 `503 NOTICE_SERVICE_UNAVAILABLE`로 응답합니다. 인증 오류는 공통 인증 계약을 따릅니다.
