@@ -11,6 +11,7 @@ import {
   useBankingFeedback
 } from './useBankingWorkspaceState';
 import {
+  COMMON_BANK_IMPORT_SUPPORT,
   BANKING_DIRECTION_OPTIONS,
   BANKING_PROCESSING_OPTIONS,
   BANKING_VIEW_TITLES,
@@ -195,7 +196,9 @@ deletable: boolean })[];
   const visibleAccountIds = new Set(accounts.map((account) => account.id));
   const activeAccountId = accountId === 'ALL' ? accounts.find((account) => account.isPrimary && account.status === 'ACTIVE')?.id : accountId;
   const importAccount = accounts.find((account) => account.id === activeAccountId);
-  const importSupport = importAccount?.importSupport;
+  // 은행 원본 지원 여부는 서버 응답을 사용하며 미지원 통장만 공통 양식으로 가져옵니다.
+  const usesCommonTemplate = importAccount?.importSupport?.enabled === false;
+  const importSupport = usesCommonTemplate ? COMMON_BANK_IMPORT_SUPPORT : importAccount?.importSupport;
   const canImport = importAccount?.status === 'ACTIVE' && importSupport?.enabled === true;
   const importMessage = importSupport?.message ?? '통장 업로드 지원 정보를 확인할 수 없습니다. 새로고침해주세요.';
 
@@ -443,6 +446,7 @@ deletable: boolean })[];
       activeAccountId,
       importAccount,
       importSupport,
+      usesCommonTemplate,
       canImport,
       importMessage,
       accountLabel,

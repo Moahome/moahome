@@ -129,13 +129,15 @@ export function useBankingImport({
     const selectedAccount = accountId === 'ALL'
       ? workspace.data?.accounts?.find((account) => account.isPrimary && account.status === 'ACTIVE')
       : workspace.data?.accounts?.find((account) => account.id === accountId);
-    if (selectedAccount?.status !== 'ACTIVE' || !selectedAccount.importSupport?.enabled) {
+    if (selectedAccount?.status !== 'ACTIVE' || !selectedAccount.importSupport) {
       notify('선택한 통장의 업로드 지원 정보를 확인해주세요.');
 
       return;
     }
-    if (!selectedAccount.importSupport.extensions.some((extension) => next.name.toLowerCase().endsWith(extension))) {
-      notify(selectedAccount.importSupport.message);
+    const usesCommonTemplate = !selectedAccount.importSupport.enabled;
+    const extensions = usesCommonTemplate ? ['.xlsx'] : selectedAccount.importSupport.extensions;
+    if (!extensions.some((extension) => next.name.toLowerCase().endsWith(extension))) {
+      notify(usesCommonTemplate ? '공통 양식은 .xlsx 파일로 업로드해주세요.' : selectedAccount.importSupport!.message);
 
       return;
     }

@@ -125,3 +125,19 @@ export const BALANCE_SETTLEMENT_FILTER_OPTIONS = [{
   value: 'ALL',
   label: '전체 내역'
 }];
+
+export const COMMON_BANK_IMPORT_SUPPORT = {
+  enabled: true,
+  extensions: ['.xlsx'],
+  message: '지원 형식: .xlsx'
+};
+
+export const BANK_UPLOAD_TEMPLATE_URL = '/bankUploadTemplate.xlsx';
+
+export const COMMON_BANK_UPLOAD_GUIDE = [
+  '첫 행은 거래일 · 거래시간 · 입금자·거래내용 · 입금액 · 출금액 · 거래 후 잔액 · 메모 순서로 유지해주세요.',
+  '거래일과 입금자·거래내용은 필수입니다. 거래일은 YYYY-MM-DD 형식으로 입력해주세요.',
+  '입금액과 출금액 중 한 곳에만 0원보다 큰 정수 금액을 입력해주세요.',
+  '거래시간 · 거래 후 잔액 · 메모는 선택입니다. 은행 자료에 값이 있으면 그대로 입력해주세요.',
+  '거래시간은 HH:mm:ss 형식으로 입력하고 수식은 사용하지 마세요.'
+] as const;

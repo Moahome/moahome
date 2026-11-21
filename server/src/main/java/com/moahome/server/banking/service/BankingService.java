@@ -298,10 +298,11 @@ public class BankingService {
 		requireManagementAccess(user, property);
 		var account = account(property, accountId);
 		var target = properties.findById(property).orElseThrow();
-		List<BankTransactionReader.Row> incoming = reader.readAll(file, account.getBankCode());
+		List<BankTransactionReader.Row> incoming = reader.readForBanking(file, account.getBankCode());
 		List<PaymentResponse.Payment> receiptCandidates = incoming.stream()
 		    .anyMatch(r -> "INCOME".equals(r.direction()))
-		        ? payments.preview(user, property, file, account.getId()).rows()
+		        ? payments.previewBankRows(user, property,
+		            incoming.stream().filter(r -> "INCOME".equals(r.direction())).toList(), account.getId()).rows()
 		        : List.<PaymentResponse.Payment>of();
 		Map<UUID, PaymentResponse.Payment> candidates = receiptCandidates.stream()
 		    .collect(Collectors.toMap(entry -> entry.id(), r -> r));
@@ -352,7 +353,7 @@ public class BankingService {
 		if (target.getManagementStartedAt() == null)
 			throw new BankingException("OPENING_BALANCE_REQUIRED");
 		var account = account(property, selection.accountId());
-		List<BankTransactionReader.Row> source = reader.readAll(file, account.getBankCode());
+		List<BankTransactionReader.Row> source = reader.readForBanking(file, account.getBankCode());
 		LinkedHashMap<UUID, BankTransactionReader.Row> available = new LinkedHashMap<UUID, BankTransactionReader.Row>();
 		for (var row : source) {
 			if (row.date().isAfter(today()))

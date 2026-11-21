@@ -1,5 +1,6 @@
 'use client';
 
+import { BankingUploadGuide } from '../banking-upload-guide/bankingUploadGuide';
 import { useBankingWorkspace } from '../../_hooks/useBankingWorkspace';
 import { Button } from '@/shared/ui/button';
 import { FileDropzone } from '@/shared/ui/file-dropzone';
@@ -36,6 +37,7 @@ export function BankingControls({
   activeAccountId,
   importAccount,
   importSupport,
+  usesCommonTemplate,
   canImport,
   importMessage,
   accountLabel,
@@ -205,17 +207,28 @@ export function BankingControls({
       </div>
     )}
     {view === 'upload' && (!preview || replacingFile) && (
-      <FileDropzone
-        label={'통장 거래 파일 업로드'}
-        inputLabel={'통장 거래 파일 선택'}
-        accept={importSupport?.extensions.join(',') ?? ''}
-        description={canImport ? `${importAccount?.bankName} 거래내역만 업로드해주세요. ${importMessage} · 최대 5MB·5,000행` : `${importAccount?.bankName ?? '선택 통장'}: ${importMessage}`}
-        busy={busy}
-        disabled={!canImport}
-        onFile={(next) => {
-          void readFile(next);
-        }}
-      />
+      <section
+        className={styles['upload-card']}
+        aria-label={'엑셀 파일 업로드'}
+      >
+        <h2>
+          엑셀 파일 업로드
+        </h2>
+        <FileDropzone
+          label={'통장 거래 파일 업로드'}
+          inputLabel={'통장 거래 파일 선택'}
+          accept={importSupport?.extensions.join(',') ?? ''}
+          description={canImport ? `${usesCommonTemplate ? '공통 양식' : importAccount?.bankName} 거래내역만 업로드해주세요. ${importMessage} · 최대 5MB·5,000행` : `${importAccount?.bankName ?? '선택 통장'}: ${importMessage}`}
+          busy={busy}
+          disabled={!canImport}
+          onFile={(next) => {
+            void readFile(next);
+          }}
+        />
+        {usesCommonTemplate && (
+          <BankingUploadGuide />
+        )}
+      </section>
     )}
     {preview && (
       <div

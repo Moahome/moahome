@@ -85,6 +85,164 @@ function row(index: number, direction: 'INCOME' | 'EXPENSE', payer: string, amou
   };
 }
 
+test('미지원 은행 공통 양식은 다운로드·미리보기·파일 실패 복구·선택 저장을 연결', async ({ page }) => {
+  let previews = 0;
+  let saves = 0;
+  const account = {
+    ...IMPORT_ACCOUNT,
+    bankCode: '032',
+    bankName: '부산은행',
+    importSupport: {
+      enabled: false,
+      extensions: [],
+      message: '은행 원본 미지원'
+    }
+  };
+  const transaction = row(99001, 'INCOME', '공통 양식 입금', '50000');
+  const workspace = {
+    propertyId: PROPERTY,
+    asOf: '2026-10-23',
+    accounts: [account],
+    buildings: [],
+    units: [],
+    rows: [],
+    rules: []
+  };
+  await page.route('http://localhost:8080/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    let body: unknown = {};
+    let status = 200;
+    if (path.endsWith('/csrf')) body = {
+      csrfToken: 'test-csrf'
+    };
+    else if (path.endsWith('/refresh')) body = {
+      accessToken: 'test-access',
+      tokenType: 'Bearer',
+      accessExpiresAt: new Date(Date.now() + 3600000).toISOString()
+    };
+    else if (path === '/api/users/me') body = {
+      id: id(1),
+      displayName: '관리자',
+      profileImageUrl: null,
+      systemRole: 'USER',
+      canCreateProperty: true,
+      status: 'ACTIVE'
+    };
+    else if (path.endsWith('/access-context')) body = {
+      residentEligible: false,
+      propertyId: PROPERTY,
+      name: '모아빌라',
+      role: 'ADMIN'
+    };
+    else if (path.endsWith('/managed-properties')) body = {
+      properties: [{
+        propertyId: PROPERTY,
+        name: '모아빌라',
+        role: 'ADMIN'
+      }]
+    };
+    else if (path.endsWith('/payments/workspace')) body = {
+      propertyId: PROPERTY,
+      asOf: workspace.asOf,
+      accounts: [],
+      units: [],
+      charges: [],
+      payments: [],
+      history: []
+    };
+    else if (path.endsWith('/banking/workspace')) body = workspace;
+    else if (path.endsWith('/banking/import/preview')) {
+      previews++;
+      expect(route.request().postDataBuffer()!.toString()).toContain(ACCOUNT);
+      if (previews === 2) {
+        status = 400;
+        body = {
+          code: 'INVALID_BANK_HEADER',
+          message: 'Invalid header'
+        };
+      } else body = {
+        propertyId: PROPERTY,
+        rows: [transaction],
+        duplicateCount: 0,
+        beforeCutoffCount: 0
+      };
+    } else if (path.endsWith('/banking/import')) {
+      saves++;
+      const input = route.request().postDataBuffer()!.toString();
+      expect(input).toContain(ACCOUNT);
+      expect(input).toContain(transaction.id);
+      expect(input).toContain('good.xlsx');
+      expect(input).not.toContain('bad.xlsx');
+      body = {
+        ...workspace,
+        rows: [transaction]
+      };
+    }
+    await route.fulfill({
+      status,
+      contentType: 'application/json',
+      body: JSON.stringify(body)
+    });
+  });
+  await page.goto(`${BASE}/upload?account=${ACCOUNT}`);
+  await expect(page.getByRole('group', {
+    name: '업로드 양식',
+    exact: true
+  })).toHaveCount(0);
+  const uploadCard = page.getByRole('region', {
+    name: '엑셀 파일 업로드',
+    exact: true
+  });
+  await expect(uploadCard).toHaveCSS('background-color', 'rgb(255, 255, 255)');
+  await expect(uploadCard.getByRole('region', {
+    name: '통장 거래 파일 업로드',
+    exact: true
+  })).toBeVisible();
+  await expect(uploadCard.getByRole('region', {
+    name: '공통 양식 작성 안내',
+    exact: true
+  })).toBeVisible();
+  const template = uploadCard.getByRole('link', {
+    name: '엑셀 양식 다운로드'
+  });
+  await expect(template).toBeVisible();
+  const download = await page.request.get((await template.getAttribute('href'))!);
+  expect(download.ok()).toBe(true);
+  expect((await download.body()).subarray(0, 2).toString()).toBe('PK');
+  const file = page.getByLabel('통장 거래 파일 선택');
+  await file.setInputFiles({
+    name: 'good.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: Buffer.from('test')
+  });
+  await expect(page.getByRole('heading', {
+    name: '업로드 미리보기',
+    exact: true
+  })).toBeVisible();
+  await page.getByRole('button', {
+    name: '다른 파일 선택',
+    exact: true
+  }).click();
+  await file.setInputFiles({
+    name: 'bad.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: Buffer.from('test')
+  });
+  await expect(page.getByRole('alert').filter({
+    hasText: '파일 양식이 일치'
+  })).toBeVisible();
+  await expect(page.getByText('good.xlsx', {
+    exact: true
+  })).toBeVisible();
+  await page.getByRole('button', {
+    name: '선택 거래 저장',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/\/banking\/transactions\?imported=1/);
+  expect(previews).toBe(2);
+  expect(saves).toBe(1);
+});
+
 for (const width of [1440, 390]) {
   test(`외부 부담금 거래 삭제 ${width}px는 출금 전체 범위 확인·취소·실패 재시도 후 동별 잔고를 갱신`, async ({ page }) => {
     await page.setViewportSize({
@@ -4700,7 +4858,7 @@ for (const width of [1440, 320]) {
 }
 
 for (const width of [1440, 320]) {
-  test(`은행 코드별 업로드 ${width}px는 두 Excel 형식·CSV와 전체 입출금 합계·차액을 표시하고 미지원 통장을 차단`, async ({ page }) => {
+  test(`은행 코드별 업로드 ${width}px는 두 Excel 형식·CSV와 전체 입출금 합계·차액을 표시하고 미지원 은행은 공통 양식을 사용`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -4802,11 +4960,20 @@ for (const width of [1440, 320]) {
     await expect(page.getByRole('button', {
       name: '파일 선택',
       exact: true
-    })).toBeDisabled();
-    await expect(page.getByLabel('통장 거래 파일 선택')).toBeDisabled();
+    })).toBeEnabled();
+    await expect(page.getByLabel('통장 거래 파일 선택')).toBeEnabled();
+    await expect(page.getByLabel('통장 거래 파일 선택')).toHaveAttribute('accept', '.xlsx');
+    await expect(page.getByRole('group', {
+      name: '업로드 양식',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByRole('link', {
+      name: '엑셀 양식 다운로드',
+      exact: true
+    })).toHaveAttribute('href', '/bankUploadTemplate.xlsx');
     await expect(page.getByRole('region', {
       name: '통장 거래 파일 업로드'
-    })).toContainText('부산은행');
+    })).toContainText('공통 양식');
     await page.getByRole('region', {
       name: '통장 거래 파일 업로드'
     }).evaluate((element) => {
@@ -4831,6 +4998,10 @@ for (const width of [1440, 320]) {
     }).click();
     await expect(page.getByLabel('통장 거래 파일 선택')).toBeEnabled();
     await expect(page.getByLabel('통장 거래 파일 선택')).toHaveAttribute('accept', '.xls,.xlsx,.csv');
+    await expect(page.getByRole('link', {
+      name: '엑셀 양식 다운로드',
+      exact: true
+    })).toHaveCount(0);
     for (const [index, extension] of ['xls', 'xlsx', 'csv'].entries()) {
       if (index > 0) await page.getByRole('button', {
         name: '다른 파일 선택',
@@ -4990,7 +5161,7 @@ for (const width of [1440, 320]) {
     await expect(page.getByRole('button', {
       name: '파일 선택',
       exact: true
-    })).toBeDisabled();
+    })).toBeEnabled();
     expect(previews).toBe(3);
   });
 }

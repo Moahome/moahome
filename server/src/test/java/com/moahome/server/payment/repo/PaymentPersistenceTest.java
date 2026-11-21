@@ -19,6 +19,7 @@ import java.util.concurrent.*;
 
 import jakarta.validation.*;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.FlywayException;
 import org.junit.jupiter.api.*;
@@ -1132,6 +1133,44 @@ class PaymentPersistenceTest {
 		    + "-(select coalesce(sum(a.amount),0) from credit_applications a where a.charge_id=c.id and a.status='ACTIVE')),0)"
 		    + " from charges c where c.property_id=? and c.unit_id=? and c.status='ISSUED' and c.total_amount>0",
 		    BigDecimal.class, property, target);
+	}
+
+	/** 미지원 은행도 공통 양식의 미리보기·선택 저장·재시도에 기존 원자성·중복 기준을 적용합니다. */
+	@Test
+	void commonBankTemplateImportsUnsupportedBankAndDeduplicatesAcrossFormats() throws Exception {
+		UUID account = jdbc.queryForObject("select id from bank_accounts where property_id=?", UUID.class, property);
+		jdbc.update("update bank_accounts set bank_code='032' where id=?", account);
+		MockMultipartFile file;
+		try (var workbook = new XSSFWorkbook(); var bytes = new ByteArrayOutputStream()) {
+			var sheet = workbook.createSheet("은행거래_업로드");
+			List<List<String>> values = List.of(
+			    List.of("거래일", "거래시간", "입금자·거래내용", "입금액", "출금액", "거래 후 잔액", "메모"),
+			    List.of("2026-10-15", "08:00:00", "김대표", "50000", "", "150000", "관리비"),
+			    List.of("2026-10-15", "09:00:00", "전기료", "", "32000", "118000", "공용 전기료"));
+			for (int index = 0; index < values.size(); index++) {
+				var row = sheet.createRow(index);
+				for (int column = 0; column < values.get(index).size(); column++)
+					row.createCell(column).setCellValue(values.get(index).get(column));
+			}
+			workbook.write(bytes);
+			file = new MockMultipartFile("file", "공통양식.xlsx", "application/octet-stream", bytes.toByteArray());
+		}
+		assertThatThrownBy(() -> new BankTransactionReader().readAll(file, "032")).hasMessage("BANK_IMPORT_UNSUPPORTED");
+		var preview = banking.preview(user, property, file, account);
+		assertThat(preview.rows()).hasSize(2);
+		assertThat(preview.rows().getFirst().unitId()).isEqualTo(unit.toString());
+		assertThat(count("bank_transactions")).isZero();
+		var selection = new BankingRequests.Import(preview.rows().stream()
+		    .map(row -> new BankingRequests.Selection(row.id(), null, null, null, null)).toList(), account);
+		banking.upload(user, property, file, selection);
+		banking.upload(user, property, file, selection);
+		assertThat(count("bank_transactions")).isEqualTo(2);
+		assertThat(count("payments")).isEqualTo(1);
+		assertThat(banking.preview(user, property, file, account).duplicateCount()).isEqualTo(2);
+		// 동일 거래를 은행 원본으로 옮겨도 기존 원본을 한 번만 반영합니다.
+		jdbc.update("update bank_accounts set bank_code='081' where id=?", account);
+		var bankFile = csv("거래일시,적요,출금액,입금액,잔액\n2026-10-15 08:00:00,김대표,0,50000,150000\n2026-10-15 09:00:00,전기료,32000,0,118000");
+		assertThat(banking.preview(user, property, bankFile, account).duplicateCount()).isEqualTo(2);
 	}
 
 	/** 입출금을 함께 가져와도 원본은 한 건씩 남고 전기료는 외부 부담을 포함해 정확히 배분됩니다. */
@@ -5358,9 +5397,9 @@ class PaymentPersistenceTest {
 		    .isInstanceOf(BusinessException.class);
 	}
 
-	/** 지원 여부는 은행명이나 Client 버튼이 아니라 저장된 코드로 검사하며 호환 업로드도 우회하지 않습니다. */
+	/** 미지원 은행에는 공통 XLSX만 허용하고 기존 수납 호환 경로의 은행 원본 제한은 유지합니다. */
 	@Test
-	void rejectsUnsupportedBankInPreviewImportAndLegacyEndpoints() {
+	void unsupportedBankRequiresCommonXlsxWhileLegacyEndpointsRemainRestricted() {
 		jdbc.update("update bank_accounts set bank_code='032',bank_name='하나은행' where property_id=?", property);
 		var account = bankAccountSettings.read(user, property).accountId();
 		var file = bank("김대표", "50000");
@@ -5369,13 +5408,13 @@ class PaymentPersistenceTest {
 			assertThat(a.importSupport().enabled()).isFalse();
 		});
 		assertThatThrownBy(() -> banking.preview(user, property, file, account)).isInstanceOf(BusinessException.class)
-		    .hasMessage("BANK_IMPORT_UNSUPPORTED");
+		    .hasMessage("INVALID_BANK_FILE");
 		assertThatThrownBy(() -> banking.upload(user, property, file,
 		    new BankingRequests.Import(
 		        List.of(new BankingRequests.Selection(UUID.randomUUID(), null, null,
 		            null, null)),
 		        account)))
-		    .isInstanceOf(BusinessException.class).hasMessage("BANK_IMPORT_UNSUPPORTED");
+		    .isInstanceOf(BusinessException.class).hasMessage("INVALID_BANK_FILE");
 		assertThatThrownBy(() -> service.preview(user, property, file)).isInstanceOf(BusinessException.class)
 		    .hasMessage("BANK_IMPORT_UNSUPPORTED");
 		assertThatThrownBy(() -> service.importFile(user, property, file)).isInstanceOf(BusinessException.class)
