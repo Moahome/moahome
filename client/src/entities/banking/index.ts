@@ -1,6 +1,6 @@
 export {
   BANK_OPTIONS
-} from './constants/bankOptions';
+} from './constant/bankOptions';
 export {
   BankIcon
 } from './ui/bank-icon/bankIcon';
@@ -38,7 +38,7 @@ export type {
 } from './model/allocationTypes';
 export {
   DEFAULT_EXPENSE_ACCOUNTS
-} from './constants/expenseAccounts';
+} from './constant/expenseAccounts';
 export {
   getExpenseAccountLabel
 } from './lib/expenseAccountLabel';

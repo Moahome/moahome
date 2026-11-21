@@ -5,7 +5,7 @@ import { ClientModal } from '@/shared/ui/client-modal';
 import { DetailActions } from '@/shared/ui/detail-actions';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { useRef } from 'react';
-import { UNIT_STATUS_OPTIONS } from '../../constants/propertyOptions';
+import { UNIT_STATUS_OPTIONS } from '../../constant/propertyOptions';
 import {
   getFloorLabel,
   getUnitLabel
@@ -144,14 +144,15 @@ export function UnitDetail({
     </>
   );
 
-  if (presentation === 'page') return (
-    <section
-      className={styles.page}
-      aria-labelledby={'unit-detail-title'}
-    >
-      {content}
-    </section>
-  );
+  if (presentation === 'page')
+    return (
+      <section
+        className={styles.page}
+        aria-labelledby={'unit-detail-title'}
+      >
+        {content}
+      </section>
+    );
 
   return (
     <ClientModal

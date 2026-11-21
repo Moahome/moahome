@@ -1,9 +1,9 @@
 export {
   FEE_ITEM_OPTIONS
-} from './constants/feeItemOptions';
+} from './constant/feeItemOptions';
 export type {
   FeeItemCode
-} from './constants/feeItemOptionsTypes';
+} from './constant/feeItemOptionsTypes';
 
 export type {
   BillingCharge,

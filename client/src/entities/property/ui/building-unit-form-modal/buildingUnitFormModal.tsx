@@ -12,7 +12,7 @@ import {
   useState,
   type FormEvent
 } from 'react';
-import { UNIT_STATUS_OPTIONS } from '../../constants/propertyOptions';
+import { UNIT_STATUS_OPTIONS } from '../../constant/propertyOptions';
 import {
   getBuildingNameError,
   getUnitFormErrors,
@@ -81,27 +81,32 @@ export function BuildingUnitFormModal({
   /** 오류는 필드에 연결하고 정리한 값만 전달하며 수정 시 호출자가 전달한 기존 ID를 유지합니다. */
   function submitEntry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy) return;
+    if (busy)
+      return;
     setMessage('');
 
     if (isBuilding) {
-      if (!onSaveBuilding) return;
+      if (!onSaveBuilding)
+        return;
       const name = normalizeBuildingName(buildingName);
       const failure = getBuildingNameError(name, buildings, target.clientId ?? undefined);
 
-      if (failure) return setMessage(failure);
+      if (failure)
+        return setMessage(failure);
 
       onSaveBuilding({
         clientId: target.clientId ?? crypto.randomUUID(),
         name
       });
+
       return;
     }
 
     const nextErrors = getUnitFormErrors(form, hasBuildings, buildings, units, target.clientId ?? undefined);
     setErrors(nextErrors);
 
-    if (Object.keys(nextErrors).length) return;
+    if (Object.keys(nextErrors).length)
+      return;
 
     onSaveUnit(normalizeUnitForm(form, hasBuildings, target.clientId ?? crypto.randomUUID()));
   }
@@ -110,7 +115,8 @@ export function BuildingUnitFormModal({
   function deleteEntry() {
     const failure = onDelete?.();
 
-    if (failure) setMessage(failure);
+    if (failure)
+      setMessage(failure);
   }
 
   const Title = presentation === 'page' ? 'h1' : 'h2';
@@ -271,14 +277,15 @@ export function BuildingUnitFormModal({
     </>
   );
 
-  if (presentation === 'page') return (
-    <section
-      className={styles.page}
-      aria-labelledby={'building-unit-form-modal-title'}
-    >
-      {content}
-    </section>
-  );
+  if (presentation === 'page')
+    return (
+      <section
+        className={styles.page}
+        aria-labelledby={'building-unit-form-modal-title'}
+      >
+        {content}
+      </section>
+    );
 
   return (
     <ClientModal

@@ -14,7 +14,7 @@
 - 글자 수 계산, 입력값 정리, 단계별 검증과 추가 / 수정 / 삭제 상태는 등록 화면 / 기능 책임으로 관리합니다. 업무 정책을 범용 입력 컴포넌트 안에 넣지 않습니다.
 - 이름, 동 / 세대 참조, 기본 계좌 수와 금액 등 입력 기준은 공통 API 계약을 참조합니다. 검증 수치나 API JSON 예시를 이 문서에 중복 정의하지 않습니다.
 - 동의 clientId는 초안에서 유지해 세대 참조와 연결합니다. 배열 순서는 최종 요청의 표시 순서로 사용합니다. 화면의 이름순 정렬은 원본 배열을 복사해 적용하므로 초안과 동·세대 연결을 변경하지 않습니다.
-- 건물 유형의 고정 옵션은 빌라 / 아파트 / 공동주택 / 기타이며 선택한 표시 문자열을 API에 전달합니다. 건물 유형과 동 구분 옵션은 `entities/property/constants/propertyOptions.ts`에서 관리합니다. Server의 문자열 계약을 유지하고 새로운 유형 Enum이나 유형별 업무 제한을 추가하지 않습니다. 은행명 / 코드 대응은 [공통 등록 API의 은행 선택 목록](../../docs/api/propertyRegistrationApi.md#은행-선택-목록)을 따르며 `entities/banking/constants/bankOptions.ts`에서 구현합니다.
+- 건물 유형의 고정 옵션은 빌라 / 아파트 / 공동주택 / 기타이며 선택한 표시 문자열을 API에 전달합니다. 건물 유형과 동 구분 옵션은 `entities/property/constant/propertyOptions.ts`에서 관리합니다. Server의 문자열 계약을 유지하고 새로운 유형 Enum이나 유형별 업무 제한을 추가하지 않습니다. 은행명 / 코드 대응은 [공통 등록 API의 은행 선택 목록](../../docs/api/propertyRegistrationApi.md#은행-선택-목록)을 따르며 `entities/banking/constant/bankOptions.ts`에서 구현합니다.
 
 ### 진입 UI의 폴더 배치
 

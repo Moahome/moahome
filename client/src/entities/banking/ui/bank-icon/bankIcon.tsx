@@ -1,5 +1,5 @@
 import Image from 'next/image';
-import { BANK_OPTIONS } from '../../constants/bankOptions';
+import { BANK_OPTIONS } from '../../constant/bankOptions';
 
 /** 은행 식별 아이콘은 로컬 자산을 사용하고 접근 가능한 이름은 함께 표시하는 은행명에서 제공합니다. */
 export function BankIcon({
@@ -8,7 +8,8 @@ export function BankIcon({
   bankCode: string;
 }) {
   const bank = BANK_OPTIONS.find((option) => option.value === bankCode);
-  if (!bank) return null;
+  if (!bank)
+    return null;
 
   return (
     <Image

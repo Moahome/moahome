@@ -1,0 +1,136 @@
+.editor-modal {
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--foreground);
+
+  &::backdrop {
+    background: color-mix(in srgb, var(--foreground) 35%, transparent);
+  }
+
+  &[open] {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+.delete-modal {
+  width: min(560px, calc(100vw - 32px));
+  border: 0;
+}
+
+.delete-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 32px 32px 24px;
+  flex-shrink: 0;
+
+  h2 {
+    font-size: 26px;
+    line-height: 1.4;
+    font-weight: 750;
+  }
+}
+
+.delete-body {
+  padding: 0 32px;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+
+  [role='alert'] {
+    margin-top: 12px;
+    color: var(--danger);
+  }
+}
+
+.delete-transactions {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+
+  li {
+    display: grid;
+    gap: 8px;
+    padding: 24px;
+    border-radius: 12px;
+    background: var(--background);
+  }
+
+  strong {
+    font-size: 20px;
+    line-height: 1.5;
+  }
+
+  span {
+    color: var(--sub-text);
+    font-size: 16px;
+    white-space: pre-wrap;
+  }
+}
+
+.delete-description {
+  margin-top: 16px;
+  color: var(--sub-text);
+  line-height: 1.6;
+}
+
+.delete-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 24px 32px 32px;
+  flex-shrink: 0;
+
+  button {
+    min-width: 96px;
+    min-height: 48px;
+    font-size: 16px;
+    font-weight: 700;
+  }
+}
+
+@media (max-width: 767px) {
+  .delete-header {
+    padding: 24px 20px 20px;
+
+    h2 {
+      font-size: 22px;
+    }
+  }
+
+  .delete-body {
+    padding: 0 20px;
+  }
+
+  .delete-transactions {
+    li {
+      padding: 18px;
+    }
+
+    strong {
+      font-size: 18px;
+    }
+
+    span {
+      font-size: 14px;
+    }
+  }
+
+  .delete-actions {
+    padding: 24px 20px;
+
+    button {
+      min-width: 88px;
+    }
+  }
+}

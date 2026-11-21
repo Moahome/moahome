@@ -96,7 +96,7 @@ test('업무 타입은 전용 파일에 선언하고 UI의 작은 표시 타입�
 test('타입 전용 파일은 타입 import와 재노출만 허용하고 실행 코드를 차단', async () => {
   const filename = 'src/entities/property/model/unitFormTypes.ts';
   expect(await architectureMessages(filename, [
-    "import type { UNIT_STATUS_OPTIONS } from '../constants/propertyOptions';",
+    "import type { UNIT_STATUS_OPTIONS } from '../constant/propertyOptions';",
     "export type UnitStatus = typeof UNIT_STATUS_OPTIONS[number]['value'];",
     "export type { BuildingDraft } from './buildingTypes';"
   ].join('\n'))).toEqual([]);

@@ -2,7 +2,7 @@ export {
   BUILDING_PRESENCE_OPTIONS,
   PROPERTY_TYPE_OPTIONS,
   UNIT_STATUS_OPTIONS
-} from './constants/propertyOptions';
+} from './constant/propertyOptions';
 export {
   formatBuildingUnitText,
   getFloorLabel,

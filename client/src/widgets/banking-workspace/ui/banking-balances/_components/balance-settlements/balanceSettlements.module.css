@@ -1,0 +1,43 @@
+.card {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  overflow: hidden;
+  h2 {
+    margin-bottom: 10px;
+    font-size: 18px;
+    font-weight: 750;
+  }
+}
+.muted {
+  display: block;
+  color: var(--sub-text);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.badge {
+  display: inline-block;
+  padding: 5px 8px;
+  border-radius: 6px;
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, var(--card));
+  font-size: 12px;
+  white-space: nowrap;
+  &[data-excluded='true'] {
+    color: var(--sub-text);
+    background: var(--background);
+  }
+  &[data-done='true'] {
+    color: var(--success);
+    background: color-mix(in srgb, var(--success) 10%, var(--card));
+  }
+}
+@media (max-width: 767px) {
+  .card {
+    padding: 16px;
+  }
+}

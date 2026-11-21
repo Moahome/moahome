@@ -1,83 +1,35 @@
 'use client';
 
 import {
-  capturePropertyQueryScope,
-  setPropertyQueryData
-} from '@/entities/property';
-
-import {
   AllocationEditor,
   IncomeAllocationSummary
 } from '@/entities/banking';
-import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
 import { Toast } from '@/shared/ui/toast';
-import {
-  useQuery,
-  useQueryClient
-} from '@tanstack/react-query';
-import {
-  useRef,
-  useState
-} from 'react';
-import {
-  allocateBankingIncome,
-  bankingError,
-  getBankingWorkspace
-} from '../../api/bankingApi';
-import type { ExpenseDraft } from '../../api/bankingApiTypes';
-import {
-  calculateExpenseAllocation,
-  createExpenseDraft
-} from '../../model/expenseAllocation';
 import styles from './bankingIncomeAllocation.module.css';
 
-/** 확정 기타 입금만 배분하며 원본 한 건·입금 전액을 동별 몫으로 나누어 저장합니다. */
-export function BankingIncomeAllocation({ propertyId, paymentId, onBusyChange }: { propertyId: string; paymentId: string; onBusyChange?: (busy: boolean) => void }) {
-  const session = useSession();
-  const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
-  const cache = useQueryClient();
-  const queryKey = ['banking-workspace', session.data?.id, propertyId];
-  const workspace = useQuery({
-    queryKey,
-    queryFn: ({ signal }) => getBankingWorkspace(propertyId, signal),
-    enabled: Boolean(session.data),
-    retry: false,
-    gcTime: 0
-  });
-  const [edited, setEdited] = useState<ExpenseDraft | null>(null);
-  const [busy, setBusy] = useState(false);
-  const pending = useRef(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState(false);
-  const row = workspace.data?.rows.find((item) => item.paymentId === paymentId);
-  if (!row || row.receiptType !== 'OTHER' || row.status !== 'CONFIRMED') return null;
-  const allocation = row.incomeAllocation;
-  const draft = edited ?? {
-    ...createExpenseDraft(row, workspace.data!),
-    category: row.unitLabel || row.payer
-  };
-  async function save() {
-    if (!row || pending.current) return;
-    const result = calculateExpenseAllocation(row.amount, draft, 'income');
-    if (result.error) { setError(result.error); return; }
-    pending.current = true; setBusy(true); onBusyChange?.(true); setError('');
-    try {
-      await cache.cancelQueries({
-        queryKey
-      });
-      const saved = await allocateBankingIncome(propertyId, row.id, {
-        ...draft,
-        saveAsRule: false,
-        allocations: result.allocations
-      });
-      setPropertyQueryData(cache, queryKey, saved, propertyScope); setNotice(true);
-      void cache.invalidateQueries({
-        queryKey: ['banking-balances', session.data?.id, propertyId]
-      });
-    } catch (failure) { setError(bankingError(failure)); }
-    finally { pending.current = false; setBusy(false); onBusyChange?.(false); }
-  }
+import { useBankingIncomeAllocation } from './_hooks/useBankingIncomeAllocation';
+
+/** 배분 입력과 저장된 배분 결과를 표시하고 상태·저장은 전용 훅에 위임합니다. */
+export function BankingIncomeAllocation(props: { propertyId: string;
+paymentId: string;
+onBusyChange?: (busy: boolean) => void }) {
+  const {
+    row,
+    allocation,
+    draft,
+    buildings,
+    busy,
+    error,
+    notice,
+    setEdited,
+    save,
+    closeNotice
+  } = useBankingIncomeAllocation(props);
+
+  if (!row || !draft || row.receiptType !== 'OTHER' || row.status !== 'CONFIRMED')
+    return null;
+
   return (
     <section
       className={styles.section}
@@ -101,7 +53,7 @@ export function BankingIncomeAllocation({ propertyId, paymentId, onBusyChange }:
             showDetails={false}
             total={row.amount}
             draft={draft}
-            buildings={workspace.data!.buildings}
+            buildings={buildings}
             disabled={busy}
             onChange={setEdited}
           />
@@ -117,7 +69,9 @@ export function BankingIncomeAllocation({ propertyId, paymentId, onBusyChange }:
           >
             <Button
               loading={busy}
-              onClick={() => { void save(); }}
+              onClick={() => {
+                void save();
+              }}
             >
               입금 배분 확정
             </Button>
@@ -127,7 +81,7 @@ export function BankingIncomeAllocation({ propertyId, paymentId, onBusyChange }:
       {notice && (
         <Toast
           message={'동별 입금 배분을 저장했어요.'}
-          onClose={() => setNotice(false)}
+          onClose={closeNotice}
         />
       )}
     </section>
