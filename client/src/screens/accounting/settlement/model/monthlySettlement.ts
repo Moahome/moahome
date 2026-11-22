@@ -86,6 +86,7 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
     .map((row) => `${row.accountId}:${row.date}:${row.direction}:${BigInt(row.amount)}`));
   const potentialManualDuplicates = cash.filter((row) => !row.transfer && row.source.startsWith('수동')
     && bankKeys.has(`${row.accountId}:${row.date}:${row.direction}:${row.amount}`));
+  const hasBuildings = data.banking.buildings.length > 0 || buildings.length > 0;
   const checks: SettlementCheck[] = [
     {
       id: 'classification',
@@ -129,9 +130,13 @@ export function getSettlementReport(data: MonthlySettlementSnapshot) {
       count: external.filter((row) => BigInt(row.remaining) > BigInt(0)).length,
       path: 'banking/balances'
     }
-  ];
+  ].filter((row) => hasBuildings || row.id !== 'buildings');
+  const accountBalance = accounts.length && accounts.every((row) => row.balance !== null)
+    ? accounts.reduce((sum, row) => sum + BigInt(row.balance!), BigInt(0)) : null;
 
   return {
+    hasBuildings,
+    accountBalance,
     cash,
     collections,
     accounts,

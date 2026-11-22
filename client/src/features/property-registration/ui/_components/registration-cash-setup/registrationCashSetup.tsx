@@ -140,13 +140,13 @@ export function RegistrationCashSetup({
   return (
     <section
       className={styles.panel}
-      aria-label={'통장·동별 시작 잔고'}
+      aria-label={buildings.length ? '통장·동별 시작 잔고' : '통장 시작 잔액'}
     >
       <h3>
-        통장·동별 시작 잔고
+        {buildings.length ? '통장·동별 시작 잔고' : '통장 시작 잔액'}
       </h3>
       <p>
-        기준일의 은행 실제 잔액과 통장별로 각 동이 보유한 금액을 입력합니다.
+        {buildings.length ? '기준일의 은행 실제 잔액과 통장별로 각 동이 보유한 금액을 입력합니다.' : '기준일의 은행 실제 잔액을 입력합니다.'}
       </p>
       <div
         className={styles.tabs}
@@ -193,7 +193,7 @@ export function RegistrationCashSetup({
         </h4>
         <p>
           {tab === 'account'
-            ? '선택한 기준일의 은행 실제 잔액을 기록합니다. 동별 시작 보유금은 별도로 입력합니다.'
+            ? (buildings.length ? '선택한 기준일의 은행 실제 잔액을 기록합니다. 동별 시작 보유금은 별도로 입력합니다.' : '선택한 기준일의 은행 실제 잔액을 기록합니다.')
             : '선택한 통장 안에서 각 동이 보유한 금액을 입력하세요. 미납·선납 합계를 옮기지 않습니다.'}
         </p>
         <div

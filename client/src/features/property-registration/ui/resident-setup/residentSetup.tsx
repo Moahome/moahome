@@ -557,7 +557,7 @@ export function ResidentSetup({
                     },
                     {
                       key: 'unit',
-                      header: '동·호수',
+                      header: hasBuildings ? '동·호수' : '호수',
                       render: (row) => [buildings.find((building) => building.clientId === row.buildingClientId)?.name, row.unitNumber].filter(Boolean).join(' ')
                     },
                     {

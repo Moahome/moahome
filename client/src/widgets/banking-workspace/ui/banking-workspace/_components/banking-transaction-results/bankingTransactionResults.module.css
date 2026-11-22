@@ -130,3 +130,9 @@
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 10%, var(--card));
 }
+
+@container (min-width: 941px) {
+  .filters[data-no-building-filter='true'] {
+    grid-template-columns: minmax(250px, 290px) minmax(140px, 1fr) minmax(160px, 220px) 120px;
+  }
+}

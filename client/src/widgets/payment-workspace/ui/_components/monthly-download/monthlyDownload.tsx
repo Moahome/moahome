@@ -24,6 +24,7 @@ import {
   getMonthlyReportDocument,
   getMonthlyReportMetrics
 } from '../../../model/monthlyExport';
+import { getPreviewBuildingOptions } from '../../../model/paymentPreview';
 import type { MonthlyReportSnapshot } from '../../../model/monthlyExportTypes';
 import type { MonthlyCollectionFilters } from '../../../model/paymentPreviewTypes';
 import { usePaymentWorkspace } from '../../payment-workspace-provider/paymentWorkspaceProvider';
@@ -131,12 +132,12 @@ presentation: 'modal' | 'page' }) {
     <ReportDownload
       presentation={presentation}
       title={`${formatMonthRange(range)} 월별 수납 현황`}
-      description={selectionLabel ? '선택한 월별 내역과 해당 합계를 확인하고 내려받으세요.' : '현재 상태·동·검색 조건의 전체 세대를 확인하고 내려받으세요.'}
+      description={selectionLabel ? '선택한 월별 내역과 해당 합계를 확인하고 내려받으세요.' : '현재 조회 조건의 전체 세대를 확인하고 내려받으세요.'}
       filename={filename}
       sourceKey={JSON.stringify([MONTHLY_REPORT_LAYOUT_VERSION, data.propertyId, range, data.generatedAt, data.filters, data.selectedRowKeys])}
       documents={[document]}
       highlights={getMonthlyReportMetrics(document)}
-      scopeLabel={`${data.filters.building || '전체 동'} · ${data.filters.status} · ${selectionLabel || `${document.rows.length}${multipleMonths ? '건 (세대·월)' : '세대'}`}`}
+      scopeLabel={`${data.filters.building || (getPreviewBuildingOptions(data.ledger).length ? '전체 동' : '관리대상 전체')} · ${data.filters.status} · ${selectionLabel || `${document.rows.length}${multipleMonths ? '건 (세대·월)' : '세대'}`}`}
       pdfDescription={'A4 가로 보고서'}
       createWorkbook={createWorkbook}
       createPdf={createPdf}

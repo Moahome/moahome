@@ -1,5 +1,7 @@
 'use client';
 
+import { getUnitColumnLabel } from '@/entities/property';
+
 import {
   useRef,
   useState
@@ -14,6 +16,7 @@ import styles from './requestReview.module.css';
 /** 기존 주민 상세와 같은 크기·필드 행·행동 배치로 신청 확인과 명부 선택을 제공합니다. */
 export function RequestReview({
   request,
+  hasBuildings,
   presentation,
   busy,
   onClose,
@@ -21,6 +24,7 @@ export function RequestReview({
   onReject
 }: {
   request: SignupRequest;
+  hasBuildings: boolean | undefined;
   presentation: 'page' | 'modal';
   busy: boolean;
   onClose: () => void;
@@ -78,7 +82,7 @@ export function RequestReview({
         </div>
         <div>
           <dt>
-            동·호수
+            {getUnitColumnLabel(hasBuildings)}
           </dt>
           <dd>
             {request.unitLabel}

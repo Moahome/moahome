@@ -115,7 +115,7 @@ export function ResidentListPage({
       <ListHeader
         menu={'세대 관리'}
         title={'주민 목록'}
-        description={'등록된 주민을 조회하고 동·호수와 대표 여부를 확인하세요.'}
+        description={data.hasBuildings ? '등록된 주민을 조회하고 동·호수와 대표 여부를 확인하세요.' : '등록된 주민을 조회하고 호수와 대표 여부를 확인하세요.'}
         titleId={'resident-list-title'}
         actions={list.isSuccess && (
           <div

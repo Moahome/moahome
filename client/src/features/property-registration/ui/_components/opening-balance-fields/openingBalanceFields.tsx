@@ -191,10 +191,10 @@ export function OpeningBalanceFields({
   return (
     <section
       className={styles.panel}
-      aria-label={'통장·동별 시작 잔고'}
+      aria-label={buildings.length ? '통장·동별 시작 잔고' : '통장 시작 잔액'}
     >
       <h3>
-        통장·동별 시작 잔고
+        {buildings.length ? '통장·동별 시작 잔고' : '통장 시작 잔액'}
       </h3>
       <p>
         {'통장 실제 잔액은 기존 장부 기준일 '}

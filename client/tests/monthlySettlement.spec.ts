@@ -280,3 +280,24 @@ test('수동 이체는 양쪽 현금에 한 번 표시하고 은행 원본·중�
   expect(canceled.bankIncome).toBe(before.bankIncome);
   expect(canceled.bankExpense).toBe(before.bankExpense);
 });
+
+test('동 없는 정산은 통장 장부 잔액 합계를 사용하고 동별 점검·보고서 영역을 만들지 않는다', async () => {
+  const data = settlementFixture();
+  data.banking.buildings = [];
+  data.balances.buildings = [];
+  data.balances.entries = [];
+  const report = getSettlementReport(data);
+  expect(report.hasBuildings).toBe(false);
+  expect(report.accountBalance).toBe(BigInt(120000));
+  expect(report.buildingBalance).toBeNull();
+  expect(report.checks.some((row) => row.id === 'buildings')).toBe(false);
+  const documents = getMonthlyReportDocuments(data);
+  expect(documents).toHaveLength(6);
+  expect(documents[0].rows.find((row) => row[0] === '통장 잔액 합계')?.[1]).toBe(BigInt(120000));
+  expect(documents.some((document) => document.sheet === '동별 자금')).toBe(false);
+  expect(documents.map((document) => JSON.stringify(document, (_, value) => typeof value === 'bigint' ? String(value) : value)).join()).not.toContain('동별');
+  const workbook = unzipSync(new Uint8Array(await (await createMonthlyReportWorkbook(data)).arrayBuffer()));
+  expect(strFromU8(workbook['xl/workbook.xml'])).not.toContain('동별 자금');
+  data.balances.accounts![0].calculatedBalance = null;
+  expect(getSettlementReport(data).accountBalance).toBeNull();
+});

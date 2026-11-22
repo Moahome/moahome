@@ -285,7 +285,7 @@ export function ResidentImportPage({
             >
               <Input
                 label={'주민 검색'}
-                placeholder={'이름, 동·호수, 연락처 끝 4자리'}
+                placeholder={hasBuildings ? '이름, 동·호수, 연락처 끝 4자리' : '이름, 호수, 연락처 끝 4자리'}
                 value={query}
                 onChange={(event) => {
                   setQuery(event.target.value);

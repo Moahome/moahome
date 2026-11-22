@@ -1,8 +1,10 @@
 import {
+  BuildingFilter,
   UNIT_STATUS_OPTIONS,
   getSortedBuildings,
   type BuildingDraft
 } from '@/entities/property';
+
 import { Button } from '@/shared/ui/button';
 import {
   Dropdown,
@@ -60,17 +62,15 @@ export function UnitListFilters({
         )}
       />
       {showBuildingFilter && (
-        <Dropdown
+        <BuildingFilter
           aria-label={'동 필터'}
           clearable={false}
           value={filters.buildingId || 'ALL'}
-          options={[{
-            value: 'ALL',
-            label: '전체 동'
-          }, ...getSortedBuildings(buildings).map((building) => ({
+          buildings={getSortedBuildings(buildings).map((building) => ({
             value: building.clientId,
             label: building.name
-          }))]}
+          }))}
+          allValue={'ALL'}
           onChange={(value) => onChange({
             ...filters,
             buildingId: value === 'ALL' ? '' : value

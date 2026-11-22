@@ -382,7 +382,7 @@ onBusy: (busy: boolean) => void;
         className={styles.body}
       >
         <p>
-          {original ? '같은 통장의 오입력만 정정합니다. 실제로 다른 통장은 목록에서 추가해주세요.' : '새 통장의 잔액은 거래내역에서 확인하기 전까지 미확인으로 표시합니다. 동별 보유금을 자동으로 늘리지 않습니다.'}
+          {original ? '같은 통장의 오입력만 정정합니다. 실제로 다른 통장은 목록에서 추가해주세요.' : '새 통장의 잔액은 거래내역에서 확인하기 전까지 미확인으로 표시합니다. 보유금을 자동으로 늘리지 않습니다.'}
         </p>
         <BankAccountCard
           title={original ? getBankAccountLabel(original) : '새 통장'}

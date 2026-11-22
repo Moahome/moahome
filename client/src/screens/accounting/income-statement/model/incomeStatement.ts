@@ -113,7 +113,7 @@ export function getIncomeStatement(source: IncomeStatementSource, range: MonthRa
       amount: issue.amount
     })) ?? [],
     range,
-    buildingName: source.buildings.find((building) => building.id === buildingId)?.name ?? '전체 동',
+    buildingName: source.buildings.find((building) => building.id === buildingId)?.name ?? (source.buildings.length ? '전체 동' : '관리대상 전체'),
     revenue,
     expense,
     profit: revenue - expense,

@@ -49,11 +49,17 @@ export function useBankingExpenseDownload({
       return;
     const snapshotRows = [...baseRows];
     const snapshotBuildings = [...expenseBuildingIds];
+    let buildingLabel = '관리대상 전체';
+    let filenameScope = '전체';
+    if (expenseBuildingIds.length) {
+      buildingLabel = building === 'ALL' ? '전체 동' : expenseBuildings.map((item) => item.label).join(' · ');
+      filenameScope = building === 'ALL' ? '전체동' : '선택동';
+    }
     const context = {
       period: {
         ...dateRange
       },
-      buildingLabel: building === 'ALL' ? '전체 동' : expenseBuildings.map((item) => item.label).join(' · '),
+      buildingLabel,
       search: search.trim()
     };
     const document = getExpenseReportDocument(snapshotRows, snapshotBuildings, context);
@@ -64,7 +70,7 @@ export function useBankingExpenseDownload({
           presentation={presentation}
           title={'지출 내역 다운로드'}
           description={'현재 조회 조건의 전체 지출을 확인하고 내려받으세요.'}
-          filename={`모아홈_지출내역_${dateRange.startDate}_${dateRange.endDate}_${building === 'ALL' ? '전체동' : '선택동'}`}
+          filename={`모아홈_지출내역_${dateRange.startDate}_${dateRange.endDate}_${filenameScope}`}
           sourceKey={JSON.stringify([dateRange, building, search])}
           documents={[document]}
           formats={['excel']}

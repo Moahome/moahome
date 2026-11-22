@@ -7,3 +7,6 @@ export {
 export {
   getRegistrationOptions
 } from './api/residentRegistrationApi';
+export {
+  useResidentUnitOptions
+} from './model/useResidentUnitOptions';

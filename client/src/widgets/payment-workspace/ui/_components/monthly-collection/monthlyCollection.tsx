@@ -1,5 +1,7 @@
 'use client';
 
+import { BuildingFilter } from '@/entities/property';
+
 import { StateMessage } from '@/shared/ui/state-message';
 import { Button } from '@/shared/ui/button';
 import {
@@ -96,6 +98,8 @@ month: string } | null>(() => {
     month: range.endMonth
   } : null;
 });
+  const buildingOptions = getPreviewBuildingOptions(ledger);
+  const hasBuildings = buildingOptions.length > 0;
   const multipleMonths = range.startMonth !== range.endMonth;
   const rows = getMonthlyRangeRows(ledger, range);
   const income = getMonthlyRangeIncome(ledger, range);
@@ -330,7 +334,7 @@ month: string } | null>(() => {
         <p>
           {formatMonthRange(range)}
           {' '}
-          동안 실제 받은 전체 동의 입금입니다. 일부납부·선입금을 포함하며, 아래 세대 검색·동 필터와 관계없이 표시합니다.
+          {hasBuildings ? '동안 실제 받은 전체 동의 입금입니다. 일부납부·선입금을 포함하며, 아래 세대 검색·동 필터와 관계없이 표시합니다.' : '동안 실제 받은 관리대상 전체의 입금입니다. 일부납부·선입금을 포함하며, 아래 세대 검색과 관계없이 표시합니다.'}
         </p>
         <div
           className={styles['income-kpis']}
@@ -400,6 +404,7 @@ month: string } | null>(() => {
           />
           <div
             className={styles.filters}
+            data-has-buildings={hasBuildings}
           >
             <MonthRangePicker
               label={'조회 기간'}
@@ -414,7 +419,7 @@ month: string } | null>(() => {
             />
             <Input
               aria-label={'수납 현황 세대 검색'}
-              placeholder={'이름, 동·호수로 검색하세요'}
+              placeholder={hasBuildings ? '이름, 동·호수로 검색하세요' : '이름, 호수로 검색하세요'}
               leadingIcon={(
                 <ServiceIcon
                   name={'search'}
@@ -429,16 +434,10 @@ month: string } | null>(() => {
                 setPage(1);
               }}
             />
-            <Dropdown
+            <BuildingFilter
               aria-label={'수납 현황 동 필터'}
               value={building}
-              options={[
-                {
-                  value: '',
-                  label: '전체 동'
-                },
-                ...getPreviewBuildingOptions(ledger)
-              ]}
+              buildings={buildingOptions}
               onChange={(value) => {
                 onFiltersChange({
                   ...filters,

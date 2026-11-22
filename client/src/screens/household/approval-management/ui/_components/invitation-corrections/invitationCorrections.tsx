@@ -1,9 +1,13 @@
 'use client';
 
+import { useResidentUnitOptions } from '@/features/resident-management';
 import {
+  getUnitColumnLabel,
   capturePropertyQueryScope,
   setPropertyQueryData
 } from '@/entities/property';
+
+
 
 import {
   LoadingState,
@@ -41,6 +45,7 @@ export function InvitationCorrections({
 }: { propertyId: string;
 onBusyChange: (busy: boolean) => void }) {
   const session = useSession();
+  const units = useResidentUnitOptions(propertyId);
   const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const client = useQueryClient();
   const context = useManagementContext(session.data?.id, propertyId, false);
@@ -137,7 +142,7 @@ onBusyChange: (busy: boolean) => void }) {
           },
           {
             key: 'unit',
-            header: '동·호수',
+            header: getUnitColumnLabel(units.data?.hasBuildings),
             render: (row) => row.unitLabel
           },
           {

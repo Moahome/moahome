@@ -1,13 +1,14 @@
 'use client';
 
-import { BankImportEditor } from '@/entities/banking';
-import type { BankingTransaction } from '../../../../api/bankingApiTypes';
-
-import { useBankingWorkspace } from '../../_hooks/useBankingWorkspace';
 import {
+  BankImportEditor,
   calculateTransferAllocation,
   getBankAccountLabel
 } from '@/entities/banking';
+import type { BankingTransaction } from '../../../../api/bankingApiTypes';
+
+import { useBankingWorkspace } from '../../_hooks/useBankingWorkspace';
+
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { ClientModal } from '@/shared/ui/client-modal';
@@ -45,7 +46,7 @@ export function BankingImportSettings({
   if (!row)
     return null;
   const invalid = transferRows.includes(row.id) ? !transferAccounts[row.id] || Boolean(calculateTransferAllocation(row.amount, transferAllocations[row.id] ?? [], buildings.length > 0).error) : row.direction === 'EXPENSE' && Boolean(calculateExpenseAllocation(row.amount, expenseDraft(row)).error);
-  let transferDescription = '선택한 상대 통장도 같은 금액으로 자동 반영합니다. 수납·비용을 새로 만들지 않고 동별 보유금도 함께 옮깁니다.';
+  let transferDescription = data.buildings.length ? '선택한 상대 통장도 같은 금액으로 자동 반영합니다. 수납·비용을 새로 만들지 않고 동별 보유금도 함께 옮깁니다.' : '선택한 상대 통장도 같은 금액으로 자동 반영합니다. 수납·비용을 새로 만들지 않습니다.';
   if (row.transferId)
     transferDescription = '이미 반영한 이체의 은행 원본입니다. 다시 차감하지 않고 기존 이체에 연결합니다.';
   if (row.automaticTransfer && row.status === 'CANCELED')

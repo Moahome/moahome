@@ -1,5 +1,9 @@
+import {
+  BuildingFilter,
+  getSortedBuildings
+} from '@/entities/property';
 import { StateMessage } from '@/shared/ui/state-message';
-import { getSortedBuildings } from '@/entities/property';
+
 import type {
   BillingCharge,
   BillingSettings
@@ -10,10 +14,7 @@ import {
 } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { DataTable } from '@/shared/ui/data-table';
-import {
-  Dropdown,
-  Input
-} from '@/shared/ui/form-controls';
+import { Input } from '@/shared/ui/form-controls';
 import { ListCard } from '@/shared/ui/list-card';
 import { ListToolbar } from '@/shared/ui/list-toolbar';
 import { MonthPicker } from '@/shared/ui/month-picker';
@@ -276,17 +277,15 @@ charge: BillingCharge } | null>(null);
                 }}
               />
               {hasBuildings && (
-                <Dropdown
+                <BuildingFilter
                   aria-label={'동 필터'}
                   clearable={false}
                   value={selectedBuilding || 'ALL'}
-                  options={[{
-                    value: 'ALL',
-                    label: '전체 동'
-                  }, ...buildings.map((name) => ({
+                  buildings={buildings.map((name) => ({
                     value: name,
                     label: name
-                  }))]}
+                  }))}
+                  allValue={'ALL'}
                   onChange={(value) => {
                     setBuilding(value === 'ALL' ? '' : value);
                     setPage(1);

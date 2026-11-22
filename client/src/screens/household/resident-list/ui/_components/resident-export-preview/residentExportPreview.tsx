@@ -1,5 +1,8 @@
 'use client';
 
+import { useResidentUnitOptions } from '@/features/resident-management';
+import { getUnitColumnLabel } from '@/entities/property';
+
 import { LoadingState } from '@/shared/ui/state-message';
 
 import { RequestError } from '@/shared/ui/server-connection-error';
@@ -37,6 +40,8 @@ export function ResidentExportPreview({
   presentation?: 'modal' | 'page';
   onClose: () => void;
 }) {
+  const units = useResidentUnitOptions(propertyId);
+  const unitColumnLabel = getUnitColumnLabel(units.data?.hasBuildings);
   const [rows, setRows] = useState<ResidentExportRow[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [failure, setFailure] = useState<unknown>(null);
@@ -68,13 +73,13 @@ export function ResidentExportPreview({
 
   /** 미리보기의 전체 주민에 연락처를 포함해 파일을 만들고 중복 클릭·이탈 후 저장을 막습니다. */
   async function download() {
-    if (!rows?.length || busyRef.current)
+    if (!rows?.length || !units.data || busyRef.current)
       return;
     busyRef.current = true;
     setBusy(true);
     setNotice('');
     try {
-      await downloadResidents(rows, () => activeRef.current);
+      await downloadResidents(rows, () => activeRef.current, units.data?.hasBuildings);
     } catch {
       if (activeRef.current)
         setNotice('엑셀 다운로드에 실패했어요. 다시 시도해주세요.');
@@ -101,7 +106,7 @@ export function ResidentExportPreview({
         variant={'outline'}
         tone={'excel'}
         loading={busy}
-        disabled={!rows?.length}
+        disabled={!rows?.length || !units.data}
         onClick={() => void download()}
         leadingIcon={(
           <ServiceIcon
@@ -171,7 +176,7 @@ export function ResidentExportPreview({
               },
               {
                 key: 'unitLabel',
-                header: '동·호수',
+                header: unitColumnLabel,
                 align: 'center',
                 render: (row) => row.unitLabel
               }
@@ -200,7 +205,7 @@ export function ResidentExportPreview({
   return (
     <DownloadLayout
       title={'엑셀 다운로드'}
-      description={'주민명·연락처·동·호수를 확인하고 다운로드하세요.'}
+      description={`주민명·연락처·${unitColumnLabel}를 확인하고 다운로드하세요.`}
       presentation={presentation}
       closeLabel={'엑셀 다운로드 닫기'}
       busy={busy}

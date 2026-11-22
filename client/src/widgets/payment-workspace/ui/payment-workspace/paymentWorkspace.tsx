@@ -1,5 +1,7 @@
 'use client';
 
+import { BuildingFilter } from '@/entities/property';
+
 import { getBankAccountLabel } from '@/entities/banking';
 
 import { StateMessage } from '@/shared/ui/state-message';
@@ -431,7 +433,7 @@ ids: string[] } | null>(null);
       <p
         className={styles.notice}
       >
-        {tab === 'OTHER' ? '세대 외 입금을 항목별로 관리합니다. 세대 관리비 납부액과 선입금에는 포함되지 않습니다.' : '명단의 이름·동호수와 일치하는 입금은 자동 확정하며, 세대별 누적 입금액과 선입금을 관리합니다.'}
+        {tab === 'OTHER' ? '세대 외 입금을 항목별로 관리합니다. 세대 관리비 납부액과 선입금에는 포함되지 않습니다.' : '명단의 이름·세대와 일치하는 입금은 자동 확정하며, 세대별 누적 입금액과 선입금을 관리합니다.'}
       </p>
       {view === 'monthly' ? (
         <MonthlyCollection
@@ -556,17 +558,12 @@ ids: string[] } | null>(null);
                     setPage(1);
                   }}
                 />
-                <Dropdown
+                <BuildingFilter
                   aria-label={'입금 세대 동 필터'}
                   disabled={tab === 'OTHER'}
                   value={building}
-                  options={[
-                    {
-                      value: '',
-                      label: '전체 동'
-                    },
-                    ...getPreviewBuildingOptions(ledger)
-                  ]}
+                  buildings={getPreviewBuildingOptions(ledger)
+                  }
                   onChange={(value) => {
                     setSelection(null);
                     setBuilding(value);
@@ -821,7 +818,7 @@ ids: string[] } | null>(null);
             />
           </div>
           <p>
-            이름 또는 동·호수가 한 세대와 일치하는 입금은 가져올 때 자동 확정합니다. 나머지만 세대를 확인해주세요.
+            이름 또는 세대 표기가 한 세대와 일치하는 입금은 가져올 때 자동 확정합니다. 나머지만 세대를 확인해주세요.
           </p>
           <p>
             관리계좌:

@@ -79,6 +79,13 @@ export function useBankingRowPresentation({
         detail: row.unitLabel
       };
     if (row.direction === 'EXPENSE') {
+      // 동 없는 대상은 관리대상 전체 부담이므로 존재하지 않는 부담 동의 확인을 요구하지 않습니다.
+      if (data.buildings.length === 0)
+        return {
+          kind: 'EXPENSE',
+          title: '지출',
+          detail: '관리대상 전체 부담'
+        };
       const draft = preview ? expenseDraft(row) : row.expense;
       // 기존 기준대로 외부로 지정한 동도 부담 동 개수에 포함합니다.
       const count = new Set(draft?.allocations.filter((part) => part.label.trim()).map((part) => part.buildingId ?? `external:${part.label.trim()}`)).size;

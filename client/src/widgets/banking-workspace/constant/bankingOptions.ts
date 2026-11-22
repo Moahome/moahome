@@ -71,6 +71,12 @@ export const BANKING_VIEW_DESCRIPTIONS = {
   upload: '은행 거래 파일을 확인한 뒤 선택한 거래를 저장합니다.'
 };
 
+export const BANKING_VIEW_WITHOUT_BUILDINGS_DESCRIPTIONS = {
+  ...BANKING_VIEW_DESCRIPTIONS,
+  transactions: '통장 거래를 확인하고 세대 입금과 관리대상 지출을 관리합니다.',
+  expenses: '관리대상에서 부담한 지출을 확인합니다.'
+};
+
 export const BALANCE_SORT_OPTIONS = [{
   value: 'name',
   label: '동 이름순'

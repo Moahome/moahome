@@ -54,9 +54,7 @@ export function AccountBalances({
           const name = getBankAccountLabel(account);
           const display = getAccountBalanceDisplay(account);
           const buildingBalance = getAccountBuildingBalance(data, account.id);
-          let buildingAmount = buildingBalance === null ? '설정 필요' : formatWon(buildingBalance);
-          if (!data.buildings.length)
-            buildingAmount = '동 구분 없음';
+          const buildingAmount = buildingBalance === null ? '설정 필요' : formatWon(buildingBalance);
 
           return (
             <li
@@ -110,11 +108,11 @@ export function AccountBalances({
                       {' '}
                       {display.amount === null ? '확인 필요' : formatWon(display.amount)}
                     </span>
-                    <span>
+                    {data.buildings.length > 0 && (<span>
                       동별 보유금
                       {' '}
                       {buildingAmount}
-                    </span>
+                    </span>)}
                   </span>
                 </span>
                 <span

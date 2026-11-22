@@ -1,4 +1,8 @@
-import { mockIncomeStatement } from './support/incomeStatement';
+import { ledgerFixture } from './support/accountLedger';
+import {
+  incomeFixture,
+  mockIncomeStatement
+} from './support/incomeStatement';
 import { mockAccountingAccounts } from './support/accountingAccounts';
 import {
   reportPreview,
@@ -682,4 +686,236 @@ test('손익계산서 메뉴는 실제 조회 화면을 열고 새로고침에�
     name: '손익계산서',
     exact: true
   })).toHaveAttribute('aria-current', 'page');
+});
+
+for (const hasBuildings of [false, true]) {
+  test(`동 유무 공통 표시 ${hasBuildings ? '동 있음' : '동 없음'}은 수납·지출·손익·원장 필터와 주민 열을 구분한다`, async ({ page }) => {
+    const createFixture = () => {
+      const data = settlementFixture();
+      if (!hasBuildings) {
+        data.banking.buildings = [];
+        data.balances.buildings = [];
+        data.balances.entries = [];
+        data.balances.externals = [];
+        data.payments.units = data.payments.units.map((unit) => ({
+          ...unit,
+          label: '101호',
+          buildingName: ''
+        }));
+      }
+      return data;
+    };
+    await mockSettlement(page, {
+      failure: false,
+      wrongProperty: false
+    }, 0, createFixture);
+    const unitId = settlementId(4);
+    const residentId = settlementId(5);
+    const buildingId = hasBuildings ? settlementId(3) : null;
+    const unitLabel = hasBuildings ? '102동 101호' : '101호';
+    const unitOptions = {
+      propertyId: SETTLEMENT_PROPERTY,
+      hasBuildings,
+      buildings: hasBuildings ? [{
+        id: buildingId,
+        name: '102동'
+      }] : [],
+      units: [{
+        id: unitId,
+        buildingId,
+        unitNumber: '101',
+        status: 'ACTIVE'
+      }]
+    };
+    await page.route('http://localhost:8080/api/properties/**', async (route) => {
+      const url = new URL(route.request().url());
+      const path = url.pathname;
+      let body: unknown;
+      if (path.endsWith('/units')) body = unitOptions;
+      else if (path.endsWith('/residents')) body = {
+        ...unitOptions,
+        residents: [{
+          id: residentId,
+          name: '주민',
+          phoneLast4: null,
+          unitId,
+          buildingId,
+          unitNumber: '101',
+          relationType: 'OWNER',
+          representative: true,
+          signupStatus: 'NOT_JOINED'
+        }]
+      };
+      else if (path.endsWith('/membership-requests/unlinked-residents')) body = {
+        propertyId: SETTLEMENT_PROPERTY,
+        residents: [{
+          residentId,
+          name: '주민',
+          phoneLast4: null,
+          buildingName: hasBuildings ? '102동' : null,
+          unitNumber: '101',
+          relationType: 'OWNER'
+        }]
+      };
+      else if (path.endsWith('/membership-requests')) body = {
+        propertyId: SETTLEMENT_PROPERTY,
+        requests: []
+      };
+      else if (path.endsWith('/resident-invitations')) body = {
+        propertyId: SETTLEMENT_PROPERTY,
+        invitations: []
+      };
+      else if (path.endsWith('/accounting/income-statement')) {
+        const data = incomeFixture();
+        data.range = {
+          startMonth: '2026-10',
+          endMonth: '2026-10'
+        };
+        data.records = data.records.filter((record) => record.month === '2026-10');
+        if (!hasBuildings) {
+          data.buildings = [];
+
+        }
+        body = {
+          ...data,
+          records: data.records.map((record) => ({
+            ...record,
+            buildingId: hasBuildings ? record.buildingId : null
+          }))
+        };
+      } else if (path.endsWith('/accounting/ledger')) {
+        const data = ledgerFixture(url.searchParams);
+        if (!hasBuildings) {
+          data.buildings = [];
+          data.rows = data.rows.map((row) => ({
+            ...row,
+            entry: {
+              ...row.entry,
+              buildingId: null
+            }
+          }));
+        }
+        body = data;
+      } else return route.fallback();
+      await route.fulfill({
+        json: body,
+        headers: {
+          'Access-Control-Allow-Origin': 'http://localhost:3100',
+          'Access-Control-Allow-Credentials': 'true'
+        }
+      });
+    });
+    const root = `/manage/${SETTLEMENT_PROPERTY}`;
+    const cases = [
+      ['banking/monthly?month=2026-10', '세대별 월별 수납 현황', '수납 현황 동 필터'],
+      ['banking/expenses?month=2026-10', '지출 내역', '부담 동'],
+      ['accounting/income-statement?startMonth=2026-10&endMonth=2026-10', '계정과목별 손익계산서', '조회 동'],
+      ['accounting/ledger?startMonth=2026-10&endMonth=2026-10', '계정별 원장', '조회 동']
+    ];
+    for (const [path, table, filter] of cases) {
+      await page.goto(`${root}/${path}`);
+      await expect(page.getByRole('table', {
+        name: table,
+        exact: true
+      })).toBeVisible();
+      await expect(page.getByRole('combobox', {
+        name: filter,
+        exact: true
+      })).toHaveCount(hasBuildings ? 1 : 0);
+    }
+    await page.goto(`${root}/banking/balances?month=2026-10`);
+    await expect(page.getByRole('region', {
+      name: '통장별 장부 잔액',
+      exact: true
+    })).toBeVisible();
+    await expect(page.getByRole('article', {
+      name: /^동별 잔고 합계/
+    })).toHaveCount(hasBuildings ? 1 : 0);
+    await expect(page.getByRole('article', {
+      name: /^잔고 차이/
+    })).toHaveCount(hasBuildings ? 1 : 0);
+    await expect(page.getByRole('combobox', {
+      name: '조회 동',
+      exact: true
+    })).toHaveCount(hasBuildings ? 1 : 0);
+    await page.goto(`${BASE}?month=2026-10&tab=buildings`);
+    await expect(page.getByRole('article', {
+      name: hasBuildings ? /^동별 보유금/ : '통장 잔액 합계 120,000원'
+    })).toBeVisible();
+    await expect(page.getByRole('tab', {
+      name: '동별 자금',
+      exact: true
+    })).toHaveCount(hasBuildings ? 1 : 0);
+    for (const [path, table] of [['residents', '주민 목록'], ['join-requests', '미연결 주민 목록'], ['invitations', '가입 요청 목록']]) {
+      await page.goto(`${root}/${path}`);
+      const view = page.getByRole('table', {
+        name: table,
+        exact: true
+      });
+      await expect(view.getByRole('columnheader', {
+        name: hasBuildings ? '동·호수' : '호수',
+        exact: true
+      })).toBeVisible();
+      if (path !== 'invitations')
+        await expect(view).toContainText(unitLabel);
+    }
+  });
+}
+
+test('동 없는 정산 PDF는 통장 합계와 다섯 점검을 표시하고 동별 표를 제외한다', async ({ page }, testInfo) => {
+  const data = settlementFixture();
+  data.banking.buildings = [];
+  data.balances.buildings = [];
+  data.balances.entries = [];
+  data.payments.units = data.payments.units.map((unit) => ({
+    ...unit,
+    label: '101호',
+    buildingName: ''
+  }));
+  await mockSettlement(page, {
+    failure: false,
+    wrongProperty: false
+  }, 0, () => data);
+  await page.goto(`${BASE}?month=2026-10`);
+  await expect(page.getByRole('article', {
+    name: '통장 잔액 합계 120,000원',
+    exact: true
+  })).toBeVisible();
+  await page.getByRole('button', {
+    name: '다운로드',
+    exact: true
+  }).click();
+  const modal = reportPreview(page);
+  await modal.getByRole('radio', {
+    name: 'PDF',
+    exact: true
+  }).check();
+  await expect(modal.getByRole('img', {
+    name: 'PDF 1페이지 미리보기',
+    exact: true
+  })).toBeVisible({
+    timeout: 30000
+  });
+  const ready = page.waitForEvent('download');
+  await modal.getByRole('button', {
+    name: 'PDF 다운로드',
+    exact: true
+  }).click();
+  const download = await ready;
+  await download.saveAs(testInfo.outputPath('noBuildingSettlement.pdf'));
+  const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const task = getDocument({
+    data: new Uint8Array(await readFile((await download.path())!)),
+    useSystemFonts: false
+  });
+  const pdf = await task.promise;
+  const text: string[] = [];
+  for (let index = 1; index <= pdf.numPages; index++) {
+    const content = await (await pdf.getPage(index)).getTextContent();
+    text.push(content.items.map((item) => 'str' in item ? item.str : '').join(' '));
+  }
+  expect(text.join(' ')).toContain('통장 잔액 합계');
+  expect(text.join(' ')).not.toContain('동별');
+  expect(text.join(' ')).toContain('수납·미납 및 외부 부담금');
+  await task.destroy();
 });

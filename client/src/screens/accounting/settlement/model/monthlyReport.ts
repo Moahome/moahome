@@ -24,7 +24,7 @@ export function getMonthlyReportDocuments(data: MonthlySettlementSnapshot): Repo
   const sumExternal = (field: 'amount' | 'received' | 'remaining') => included.reduce((total, row) => total + BigInt(row[field]), BigInt(0));
   const sumCollections = (field: 'carry' | 'prepaid' | 'applied' | 'balance') => report.collections.reduce((total, row) => total + row[field], BigInt(0));
 
-  return [
+  const documents: ReportDefinition[] = [
     {
       ...common,
       title: '월별 정산 종합보고서',
@@ -42,7 +42,7 @@ export function getMonthlyReportDocuments(data: MonthlySettlementSnapshot): Repo
         width: 42
       }],
       rows: [
-        ['통장 입금', report.bankIncome, '은행 원본·유효 수동 포함'], ['통장 출금', report.bankExpense, '외부 부담·내부 이체 포함'], ['세대 실제 입금', report.householdIncome, '입금월 기준'], ['동별 보유금', amount(report.buildingBalance), '조회 월말 동별 합계'],
+        ['통장 입금', report.bankIncome, '은행 원본·유효 수동 포함'], ['통장 출금', report.bankExpense, '외부 부담·내부 이체 포함'], ['세대 실제 입금', report.householdIncome, '입금월 기준'], [report.hasBuildings ? '동별 보유금' : '통장 잔액 합계', amount(report.hasBuildings ? report.buildingBalance : report.accountBalance), report.hasBuildings ? '조회 월말 동별 합계' : '조회 월말 통장 장부 잔액 합계'],
         ['당월 청구액', report.billed, '발행된 당월 청구'], ['청구 납부반영액', amount(report.applied), '과거 선입금 충당 포함'], ['당월 청구 미수금', amount(report.receivable), '선택 월 신규 청구 기준'], ['외부 미회수액', report.outstanding, '선택 월 지출 · 정산 제외분 제외']
       ],
       summary: [{
@@ -55,7 +55,7 @@ export function getMonthlyReportDocuments(data: MonthlySettlementSnapshot): Repo
         label: '조회시각',
         value: formatReportTimestamp(data.generatedAt)
       }],
-      note: '실제 수납·청구 충당·동별 지출·외부 회수는 서로 다른 기준입니다. 통장 입출금 차액을 회계상 손익으로 보지 않습니다.'
+      note: '실제 수납·청구 충당·부담 지출·외부 회수는 서로 다른 기준입니다. 통장 입출금 차액을 회계상 손익으로 보지 않습니다.'
     },
     {
       ...common,
@@ -88,7 +88,7 @@ export function getMonthlyReportDocuments(data: MonthlySettlementSnapshot): Repo
         width: 24
       }],
       rows: report.accounts.map((row) => [row.label, amount(row.balance), row.basis ?? '—']),
-      note: '통장 상세와 같은 장부 계산값입니다. 외부 부담금·미배분 자금으로 동별 보유금 합계와 다를 수 있습니다.'
+      note: report.hasBuildings ? '통장 상세와 같은 장부 계산값입니다. 외부 부담금·미배분 자금으로 동별 보유금 합계와 다를 수 있습니다.' : '통장 상세와 같은 장부 계산값입니다.'
     },
     {
       ...common,
@@ -147,7 +147,7 @@ export function getMonthlyReportDocuments(data: MonthlySettlementSnapshot): Repo
       }],
       rows: report.cash.map((row) => [row.date, getBankAccountLabel(data.banking.accounts?.find((account) => account.id === row.accountId) ?? data.balances.accounts?.find((account) => account.id === row.accountId) ?? data.payments.accounts.find((account) => account.id === row.accountId)), row.label, row.direction === 'INCOME' ? row.amount : BigInt(0), row.direction === 'EXPENSE' ? row.amount : BigInt(0), row.source, row.transfer ? '내부 이체' : '—']),
       total: ['합계', '', '', report.bankIncome, report.bankExpense, '', ''],
-      note: '통장 출금에는 외부 부담과 내부 이체가 포함됩니다. 각 동의 실제 부담 지출과 구분합니다.'
+      note: '통장 출금에는 외부 부담과 내부 이체가 포함됩니다. 관리대상의 실제 부담 지출과 구분합니다.'
     },
     {
       ...common,
@@ -172,6 +172,8 @@ export function getMonthlyReportDocuments(data: MonthlySettlementSnapshot): Repo
       note: '정산 제외 내역은 표시하되 합계에서 제외하고, 외부 회수액은 세대 실제 입금으로 합산하지 않습니다.'
     }
   ];
+
+  return documents.filter((document) => report.hasBuildings || document.sheet !== '동별 자금');
 }
 
 /** 템플릿의 요약과 세부 표를 한 시트로 저장합니다. */

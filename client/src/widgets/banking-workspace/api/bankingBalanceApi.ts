@@ -49,7 +49,7 @@ export function readBankingBalances(data: BalanceWorkspace, propertyId: string, 
     || data.externals.some((e) => (e.excluded !== undefined && typeof e.excluded !== 'boolean') || (e.decisionRevision !== undefined && (!Number.isSafeInteger(e.decisionRevision) || e.decisionRevision < 0)) || ![e.amount, e.received, e.remaining].every(validNonnegative) || BigInt(e.received) + BigInt(e.remaining) !== BigInt(e.amount) || ((e.transactionId !== undefined || e.transactionAmount !== undefined) && (typeof e.transactionId !== 'string' || !UUID.test(e.transactionId) || !validNonnegative(e.transactionAmount) || BigInt(e.transactionAmount) < BigInt(e.amount))) || !Array.isArray(e.recoveries) || e.recoveries.some((r) => !validNonnegative(r.amount)))
     || data.incomes.some((i) => ![i.amount, i.available].every(validNonnegative) || !['HOUSEHOLD', 'OTHER', 'EXTERNAL'].includes(i.kind) || BigInt(i.available) > BigInt(i.amount) || (i.kind === 'EXTERNAL' && !UUID.test(i.paymentId ?? '')))
     || data.pending.some((p) => !validNonnegative(p.amount))) {
-    throw new ApiError(200, 'INVALID_RESPONSE', '동별 잔고 응답을 확인할 수 없습니다.');
+    throw new ApiError(200, 'INVALID_RESPONSE', '잔고 응답을 확인할 수 없습니다.');
   }
 
   return data;
@@ -130,7 +130,7 @@ export function balanceError(error: unknown): string {
   const messages: Record<string, string> = {
     INVALID_BANK_CHECK_TIME: '은행에서 확인한 날짜와 시각을 현재 또는 이전으로 입력해주세요.',
     BANK_CHECK_CONFLICT: '같은 요청이 다른 내용으로 처리됐어요. 최신 확인 이력을 다시 열어주세요.',
-    ACCESS_DENIED: '동별 잔고를 조회할 권한이 없어요.',
+    ACCESS_DENIED: '잔고를 조회할 권한이 없어요.',
     INITIAL_BALANCE_LOCKED: '초기 기준 정정 기간이 지나 변경할 수 없어요.',
     INITIAL_BALANCE_CONFLICT: '초기 기준이 변경됐어요. 최신 값을 확인해주세요.',
     INITIAL_BILLING_CONFIRMATION_REQUIRED: '부과 변경 내역을 다시 확인하고 동의해주세요.',

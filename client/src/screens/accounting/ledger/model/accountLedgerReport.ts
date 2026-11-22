@@ -69,7 +69,7 @@ export function getLedgerAccountLabel(data: AccountLedgerWorkspace): string {
 export function getLedgerDocuments(data: AccountLedgerWorkspace): ReportDefinition[] {
   const building = data.buildings.find((row) => row.id === data.buildingId);
   const bankName = data.bankBalances.find((bank) => bank.accountId === data.bankAccountId)?.name;
-  const description = `${data.propertyName} · ${formatMonthRange(data.range)} · ${building?.name ?? '전체 동'} · ${getLedgerAccountLabel(data)}${bankName ? ` · ${bankName}` : ''}`;
+  const description = `${data.propertyName} · ${formatMonthRange(data.range)} · ${building?.name ?? (data.buildings.length ? '전체 동' : '관리대상 전체')} · ${getLedgerAccountLabel(data)}${bankName ? ` · ${bankName}` : ''}`;
   const note = `${LEDGER_NOTICE}${data.issues.length ? ' 확인 필요 자료는 합계에 포함하지 않았습니다. 확인 목록은 선택 기간·동의 전체 과목 기준입니다.' : ''}`;
 
   return [{
@@ -87,7 +87,7 @@ export function getLedgerDocuments(data: AccountLedgerWorkspace): ReportDefiniti
         width: 30
       },
       {
-        label: '동',
+        label: data.buildings.length ? '동' : '범위',
         width: 16
       },
       {
@@ -225,7 +225,7 @@ export async function createLedgerPdf(data: AccountLedgerWorkspace): Promise<Blo
         x: 87,
         width: 43,
         label: '조회 범위',
-        value: `${building?.name ?? '전체 동'}${data.bankAccountId ? ` · ${data.bankBalances.find((bank) => bank.accountId === data.bankAccountId)?.name ?? ''}` : ''}`
+        value: `${building?.name ?? (data.buildings.length ? '전체 동' : '관리대상 전체')}${data.bankAccountId ? ` · ${data.bankBalances.find((bank) => bank.accountId === data.bankAccountId)?.name ?? ''}` : ''}`
       },
       {
         x: 139,

@@ -1,5 +1,7 @@
 'use client';
 
+import { BuildingFilter } from '@/entities/property';
+
 import { useState } from 'react';
 import type { OpeningWorkspace } from '@/features/billing-management';
 import { Button } from '@/shared/ui/button';
@@ -85,7 +87,7 @@ export function OpeningUnitList({
       >
         <Input
           aria-label={'기존 잔액 세대 검색'}
-          placeholder={'동 / 호수 / 메모 검색'}
+          placeholder={buildingOptions.length ? '동 / 호수 / 메모 검색' : '호수 / 메모 검색'}
           leadingIcon={(
             <ServiceIcon
               name={'search'}
@@ -97,16 +99,13 @@ export function OpeningUnitList({
             setPage(1);
           }}
         />
-        <Dropdown
+        <BuildingFilter
           aria-label={'기존 잔액 동 필터'}
           value={building}
-          options={[{
-            value: '',
-            label: '동 전체'
-          }, ...buildingOptions.map(([value, label]) => ({
+          buildings={buildingOptions.map(([value, label]) => ({
             value,
             label
-          }))]}
+          }))}
           onChange={(value) => {
             setBuilding(value);
             setPage(1);

@@ -3304,9 +3304,7 @@ for (const width of [1440, 320]) {
       exact: true
     })).toBeVisible();
     for (const [label, copy] of [
-      ['통장 잔액 합계', '등록된 통장 잔액을 표시합니다.'],
-      ['동별 잔고 합계', '조회 중인 모든 통장의 동별 잔고를 합한 금액입니다.'],
-      ['잔고 차이', '통장 잔액과 동별 잔고를 비교한 참고 금액입니다.']
+      ['통장 잔액 합계', '등록된 통장 잔액을 표시합니다.']
     ]) {
       const help = page.getByRole('button', {
         name: `${label} 도움말`,
@@ -6414,6 +6412,24 @@ for (const { width, handover } of [{
       name: '기준 잔고 도움말',
       exact: true
     })).toHaveCount(0);
+    await expect(page.getByRole('article', {
+      name: /동별 잔고 합계|잔고 차이|관리 동 수/
+    })).toHaveCount(0);
+    await expect(page.getByRole('combobox', {
+      name: '조회 동',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByRole('heading', {
+      name: /동별 잔고 목록|잔고 차이 확인|월 입금·출금 비중|입금 귀속 동 확인/
+    })).toHaveCount(0);
+    await expect(page.getByRole('button', {
+      name: '잔고 차이 내역 확인',
+      exact: true
+    })).toHaveCount(0);
+    await expect(page.getByRole('region', {
+      name: '통장별 장부 잔액',
+      exact: true
+    })).toBeVisible();
     await page.getByRole('button', {
       name: '예비비 통장 상세 보기',
       exact: true

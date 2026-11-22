@@ -1,8 +1,7 @@
+import { getUnitColumnLabel } from '@/entities/property';
 import { formatResidentPhone } from '@/entities/resident';
 import { createReportWorkbook } from '@/shared/lib/excel-report';
 import type { ResidentExportRow } from '../api/residentExportApiTypes';
-
-export const RESIDENT_EXPORT_HEADERS = ['주민명', '연락처', '동·호수'] as const;
 
 /** 모바일 페이지 이동에는 현재 결과의 ID만 일시 전달하며 전체 연락처는 캐시에 담지 않습니다. */
 export function getResidentExportSelectionKey(userId: string, propertyId: string) {
@@ -15,12 +14,12 @@ export function getResidentExportValues(row: ResidentExportRow) {
 }
 
 /** 공통 보고서 서식에 허용된 세 항목만 내보내고 이름·연락처의 문자열 형식을 유지합니다. */
-export async function createResidentWorkbook(rows: readonly ResidentExportRow[]): Promise<Blob> {
+export async function createResidentWorkbook(rows: readonly ResidentExportRow[], hasBuildings = true): Promise<Blob> {
   return createReportWorkbook({
     title: '모아홈 주민 목록',
     description: '선택한 조회 결과의 주민 명부',
     sheet: '주민 목록',
-    columns: RESIDENT_EXPORT_HEADERS.map((label, index) => ({
+    columns: ['주민명', '연락처', getUnitColumnLabel(hasBuildings)].map((label, index) => ({
       label,
       width: [24, 28, 32][index],
       align: 'center'
@@ -36,6 +35,6 @@ export async function createResidentWorkbook(rows: readonly ResidentExportRow[])
       value: '선택한 조회 결과 전체'
     }],
     rows: rows.map(getResidentExportValues),
-    note: '※ 연락처는 전체 번호로 표시됩니다. 현재 조회 결과의 주민명·연락처·동·호수만 포함합니다.'
+    note: `※ 연락처는 전체 번호로 표시됩니다. 현재 조회 결과의 주민명·연락처·${getUnitColumnLabel(hasBuildings)}만 포함합니다.`
   });
 }

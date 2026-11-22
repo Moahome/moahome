@@ -344,7 +344,7 @@ test('계정 목록 조회 실패에 UUID를 표시하지 않고 재조회하면
   await expect(page.getByRole('combobox', {
     name: '조회 동',
     exact: true
-  })).toHaveText('조회 동 확인 필요');
+  })).toHaveCount(0);
   await expect(page.getByRole('button', {
     name: '다운로드',
     exact: true

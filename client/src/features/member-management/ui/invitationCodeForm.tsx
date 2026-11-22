@@ -461,7 +461,7 @@ function InvitationCodeContent({
               required
             />
             <Dropdown
-              label={'동·호수'}
+              label={'세대'}
               value={unit}
               options={options.units.map((item) => ({
                 value: item.unitId,
@@ -550,7 +550,7 @@ function InvitationCodeContent({
               <p>
                 본인 정보가 맞으면 바로 가입할 수 있어요.
                 <br />
-                다른 사람의 초대나 동·호수가 다르면 담당자에게 문의해주세요.
+                다른 사람의 초대이거나 세대가 다르면 담당자에게 문의해주세요.
               </p>
             </div>
             {correction && (

@@ -1,6 +1,8 @@
+import { BuildingFilter } from '@/entities/property';
 import { StateMessage } from '@/shared/ui/state-message';
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent
@@ -64,12 +66,13 @@ export function SettlementDetails({
 }) {
   const search = useSearchParams();
   const router = useRouter();
+  const tabs = useMemo(() => DETAIL_TABS.filter((item) => report.hasBuildings || item.id !== 'buildings'), [report.hasBuildings]);
   const requested = search.get('tab');
-  const tab = DETAIL_TABS.find((item) => item.id === requested)?.id ?? 'accounts';
+  const tab = tabs.find((item) => item.id === requested)?.id ?? 'accounts';
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   // 직접 진입·뒤로 가기·키보드 이동에서도 선택 탭이 가로 스크롤 영역 안에 보이게 합니다.
   useEffect(() => {
-    const selected = refs.current[DETAIL_TABS.findIndex((item) => item.id === tab)];
+    const selected = refs.current[tabs.findIndex((item) => item.id === tab)];
     const list = selected?.parentElement;
     if (!selected || !list)
       return;
@@ -79,7 +82,7 @@ export function SettlementDetails({
       list.scrollLeft -= bounds.left - button.left;
     if (button.right > bounds.right)
       list.scrollLeft += button.right - bounds.right;
-  }, [tab]);
+  }, [tab, tabs]);
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState('전체');
   const [building, setBuilding] = useState('');
@@ -132,18 +135,18 @@ export function SettlementDetails({
   function handleTabKey(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let next = index;
     if (event.key === 'ArrowRight')
-      next = (index + 1) % DETAIL_TABS.length;
+      next = (index + 1) % tabs.length;
     else if (event.key === 'ArrowLeft')
-      next = (index + DETAIL_TABS.length - 1) % DETAIL_TABS.length;
+      next = (index + tabs.length - 1) % tabs.length;
     else if (event.key === 'Home')
       next = 0;
     else if (event.key === 'End')
-      next = DETAIL_TABS.length - 1;
+      next = tabs.length - 1;
     else
       return;
     event.preventDefault();
     refs.current[next]?.focus();
-    changeTab(DETAIL_TABS[next].id);
+    changeTab(tabs[next].id);
   }
 
   const pageSizeControl = (
@@ -170,7 +173,7 @@ export function SettlementDetails({
         role={'tablist'}
         aria-label={'월별 정산 상세'}
       >
-        {DETAIL_TABS.map((item, index) => (
+        {tabs.map((item, index) => (
           <Button
             key={item.id}
             ref={(element) => {
@@ -283,14 +286,14 @@ export function SettlementDetails({
           ]}
         />
       </section>
-      <section
+      {report.hasBuildings && (<section
         className={styles.panel}
         id={'settlement-panel-buildings'}
         role={'tabpanel'}
         aria-labelledby={'settlement-tab-buildings'}
         hidden={tab !== 'buildings'}
         tabIndex={0}
-      >
+                               >
         <div
           className={styles.heading}
         >
@@ -396,7 +399,7 @@ export function SettlementDetails({
             }
           ]}
         />
-      </section>
+      </section>)}
       <section
         className={styles.panel}
         id={'settlement-panel-collections'}
@@ -451,16 +454,13 @@ export function SettlementDetails({
               setPage(1);
             }}
           />
-          <Dropdown
+          <BuildingFilter
             aria-label={'조회 동'}
             value={building}
-            options={[{
-              value: '',
-              label: '전체 동'
-            }, ...buildingOptions.map((value) => ({
+            buildings={buildingOptions.map((value) => ({
               value,
               label: value
-            }))]}
+            }))}
             onChange={(value) => {
               setBuilding(value);
               setPage(1);

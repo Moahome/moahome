@@ -1777,7 +1777,7 @@ test('공통 가입 링크는 코드 입력 없이 이름 필수·연락처 선�
     exact: true
   }).fill('신청한 실명');
   await page.getByRole('combobox', {
-    name: '동·호수'
+    name: '세대'
   }).click();
   await page.getByRole('option', {
     name: '102동 201호'
@@ -2030,7 +2030,7 @@ for (const width of [1440]) {
       name: '초대 가입 목록'
     });
     await expect(table.locator('tbody tr')).toHaveCount(10);
-    await expect(table.getByRole('columnheader')).toHaveText(['명부 이름', '동·호수', '정정 요청 이름', '연락처', '정정 요청 연락처', '상태', '처리']);
+    await expect(table.getByRole('columnheader')).toHaveText(['명부 이름', '호수', '정정 요청 이름', '연락처', '정정 요청 연락처', '상태', '처리']);
     await expect(panel.getByText('총 23건', {
       exact: true
     })).toBeVisible();
@@ -3055,7 +3055,7 @@ test('참여 목록 상단 초대 입력은 기존 가입 API로 신청하고 �
     exact: true
   }).fill('새 신청자');
   await page.getByRole('combobox', {
-    name: '동·호수',
+    name: '세대',
     exact: true
   }).click();
   await page.getByRole('option', {

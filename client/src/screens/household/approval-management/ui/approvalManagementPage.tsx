@@ -1,9 +1,13 @@
 'use client';
 
+import { useResidentUnitOptions } from '@/features/resident-management';
 import {
+  getUnitColumnLabel,
   capturePropertyQueryScope,
   setPropertyQueryData
 } from '@/entities/property';
+
+
 
 import {
   LoadingState,
@@ -67,6 +71,8 @@ export function ApprovalManagementPage({
   requestId?: string;
 }) {
   const session = useSession();
+  const units = useResidentUnitOptions(propertyId);
+  const unitColumnLabel = getUnitColumnLabel(units.data?.hasBuildings);
   const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const client = useQueryClient();
   const router = useRouter();
@@ -167,6 +173,7 @@ export function ApprovalManagementPage({
     return (
       <RequestReview
         request={selected}
+        hasBuildings={units.data?.hasBuildings}
         presentation={'page'}
         busy={busy}
         onClose={close}
@@ -250,7 +257,7 @@ export function ApprovalManagementPage({
               >
                 <Input
                   aria-label={'가입 신청 검색'}
-                  placeholder={'신청 계정·주민 이름·동·호수·연락처 끝 4자리 검색'}
+                  placeholder={`신청 계정·주민 이름·${unitColumnLabel}·연락처 끝 4자리 검색`}
                   value={search}
                   onChange={(event) => {
                     setSearch(event.target.value);
@@ -342,7 +349,7 @@ export function ApprovalManagementPage({
                   },
                   {
                     key: 'unit',
-                    header: '동·호수',
+                    header: unitColumnLabel,
                     render: (r) => r.unitLabel
                   },
                   {
@@ -407,6 +414,7 @@ export function ApprovalManagementPage({
         <RequestReview
           key={selected.id}
           request={selected}
+          hasBuildings={units.data?.hasBuildings}
           presentation={'modal'}
           busy={busy}
           onClose={close}

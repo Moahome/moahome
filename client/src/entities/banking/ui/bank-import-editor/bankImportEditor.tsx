@@ -139,7 +139,7 @@ label: string }[];
       {receipt.kind === 'HOUSEHOLD' && (
         <SelectDropdown
           label={'수납 세대'}
-          placeholder={'이름 또는 동·호수로 검색'}
+          placeholder={'이름 또는 세대로 검색'}
           emptyMessage={'일치하는 세대가 없습니다.'}
           value={receipt.unitId}
           disabled={disabled}

@@ -263,7 +263,7 @@ export function ResidentDetails({
             </div>
             <div>
               <dt>
-                동·호수
+                {resident.buildingId ? '동·호수' : '호수'}
               </dt>
               <dd>
                 {resident.unitNumber ? `${resident.buildingName ? `${resident.buildingName} ` : ''}${/호$/.test(resident.unitNumber) ? resident.unitNumber : `${resident.unitNumber}호`}` : '현재 소속 없음'}

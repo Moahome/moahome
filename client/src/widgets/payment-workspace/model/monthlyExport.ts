@@ -9,7 +9,10 @@ import {
   formatReportTimestamp,
   getReportPeriodLabel
 } from '@/shared/lib/pdf-report';
-import { filterMonthlyPreviewRows } from './paymentPreview';
+import {
+  getPreviewBuildingOptions,
+  filterMonthlyPreviewRows
+} from './paymentPreview';
 import type {
   MonthlyReportMetric,
   MonthlyReportSnapshot
@@ -80,8 +83,8 @@ export function getMonthlyReportDocument(data: MonthlyReportSnapshot): ReportDef
       label: '집계 기준 월',
       value: formatMonthRange(summaryRange)
     }, {
-      label: '조회 동',
-      value: filters.building || '전체 동'
+      label: getPreviewBuildingOptions(ledger).length ? '조회 동' : '조회 범위',
+      value: filters.building || (getPreviewBuildingOptions(ledger).length ? '전체 동' : '관리대상 전체')
     }, {
       label: '납부 상태',
       value: filters.status

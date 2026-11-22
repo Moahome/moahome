@@ -1,5 +1,7 @@
 'use client';
 
+import { useResidentUnitOptions } from '../../model/useResidentUnitOptions';
+
 import { Toast } from '@/shared/ui/toast';
 import { LoadingState } from '@/shared/ui/state-message';
 
@@ -32,7 +34,6 @@ import { updateResident } from '../../api/residentManagementApi';
 import type { ResidentDetail } from '../../api/residentManagementApiTypes';
 import {
   getDeletedResidents,
-  getRegistrationOptions,
   registerResident
 } from '../../api/residentRegistrationApi';
 import { getResidentManagementError } from '../../model/residentManagement';
@@ -59,17 +60,7 @@ export function ResidentRegistrationForm({
   canPromote?: boolean;
 }) {
   const session = useSession();
-  const options = useQuery({
-    queryKey: ['resident-registration-units', session.data?.id, propertyId],
-    queryFn: ({
-      signal
-    }) => getRegistrationOptions(propertyId, signal),
-    enabled: Boolean(session.data),
-    retry: false,
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnWindowFocus: false
-  });
+  const options = useResidentUnitOptions(propertyId);
   const [name, setName] = useState(resident?.name ?? '');
   const [phone, setPhone] = useState('');
   const [phoneConsent, setPhoneConsent] = useState(false);
@@ -438,7 +429,7 @@ export function ResidentRegistrationForm({
         )}
         {needsRepresentative && (
           <Dropdown
-            label={'기존 동·호수의 새 대표'}
+            label={data?.hasBuildings ? '기존 동·호수의 새 대표' : '기존 호수의 새 대표'}
             required
             value={replacementResidentId}
             options={resident!.representativeCandidates.map((item) => ({
@@ -476,7 +467,7 @@ export function ResidentRegistrationForm({
       <p
         className={styles.notice}
       >
-        {resident ? '연락처 변경은 연결된 가입 신청에도 반영합니다. 동·호수를 옮기는 대표 주민은 기존 세대의 새 대표를 직접 선택해주세요.' : '해당 세대에 처음 등록되는 주민은 대표로 지정됩니다. 주민 등록 후 서비스 가입은 별도로 진행합니다.'}
+        {resident ? '연락처 변경은 연결된 가입 신청에도 반영합니다. 세대를 옮기는 대표 주민은 기존 세대의 새 대표를 직접 선택해주세요.' : '해당 세대에 처음 등록되는 주민은 대표로 지정됩니다. 주민 등록 후 서비스 가입은 별도로 진행합니다.'}
       </p>
       {message && (
         <Toast

@@ -106,7 +106,7 @@ export function BalanceSettlements({
         ]}
       />
     </section>
-    {data.incomes.some((i) => i.kind === 'HOUSEHOLD') && (
+    {data.buildings.length > 0 && data.incomes.some((i) => i.kind === 'HOUSEHOLD') && (
       <section
         className={styles.card}
       >

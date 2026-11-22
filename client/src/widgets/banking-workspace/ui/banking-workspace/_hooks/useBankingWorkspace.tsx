@@ -15,7 +15,8 @@ import {
   BANKING_DIRECTION_OPTIONS,
   BANKING_PROCESSING_OPTIONS,
   BANKING_VIEW_TITLES,
-  BANKING_VIEW_DESCRIPTIONS
+  BANKING_VIEW_DESCRIPTIONS,
+  BANKING_VIEW_WITHOUT_BUILDINGS_DESCRIPTIONS
 } from '../../../constant/bankingOptions';
 import { useBankingImport } from './useBankingImport';
 import { useBankingDateNavigation } from './useBankingDateNavigation';
@@ -314,7 +315,7 @@ deletable: boolean })[];
   const searchPlaceholder = [showIncome && '입금자', (showExpense || view === 'expenses') && '지출명', showIncome && '세대'].filter(Boolean).join('·') + ' 검색';
 
   const title = view === 'upload' && preview ? '업로드 미리보기' : BANKING_VIEW_TITLES[view];
-  const description = BANKING_VIEW_DESCRIPTIONS[view];
+  const description = data.buildings.length > 0 ? BANKING_VIEW_DESCRIPTIONS[view] : BANKING_VIEW_WITHOUT_BUILDINGS_DESCRIPTIONS[view];
   const {
     downloadExpenses
   } = useBankingExpenseDownload({

@@ -6370,7 +6370,7 @@ test('초기 기준일 달력은 2·3단계에서 오늘까지 허용하고 누�
   }).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await expect(page.getByRole('region', {
-    name: '통장·동별 시작 잔고',
+    name: '통장 시작 잔액',
     exact: true
   }).getByText('실제 시작 잔액을 입력해주세요.', {
     exact: true

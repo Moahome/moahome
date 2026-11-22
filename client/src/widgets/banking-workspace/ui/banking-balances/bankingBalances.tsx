@@ -1,5 +1,7 @@
 'use client';
 
+import { BuildingFilter } from '@/entities/property';
+
 import {
   BalanceAccountContent,
   BalanceAccountEditor
@@ -283,7 +285,7 @@ function BankingBalancesContent({
         titleId={'balance-title'}
         menu={'통장 관리'}
         title={'잔고·정산'}
-        description={'은행 거래를 기준으로 각 동의 보유금과 외부 부담금을 확인합니다.'}
+        description={data.buildings.length > 0 ? '은행 거래를 기준으로 각 동의 보유금과 외부 부담금을 확인합니다.' : '은행 거래를 기준으로 통장 잔액과 외부 부담금을 확인합니다.'}
         actions={(
           <>
             <div
@@ -296,6 +298,8 @@ function BankingBalancesContent({
                   onOpen={() => openPanel('opening', selectedAccount?.id)}
                 />
               )}
+              {/* 내려받기는 동별 귀속 명세이므로 동 없는 대상에서 빈 명세를 전체 통장 자료로 표시하지 않습니다. */}
+              {data.buildings.length > 0 && (
               <Button
                 variant={'outline'}
                 ref={downloadButton}
@@ -312,6 +316,7 @@ function BankingBalancesContent({
               >
                 다운로드
               </Button>
+              )}
             </div>
           </>
         )}
@@ -322,6 +327,7 @@ function BankingBalancesContent({
       >
         <div
           className={styles['query-controls']}
+          data-has-buildings={data.buildings.length > 0}
         >
           <div
             className={styles['month-control']}
@@ -359,7 +365,8 @@ function BankingBalancesContent({
               }))]}
             />
           )}
-          <Dropdown
+          {data.buildings.length > 0 && (
+          <BuildingFilter
             aria-label={'조회 동'}
             value={selectedBuilding?.id ?? 'ALL'}
             onChange={(value) => {
@@ -373,14 +380,13 @@ function BankingBalancesContent({
                 scroll: false
               });
             }}
-            options={[{
-              value: 'ALL',
-              label: '전체 동'
-            }, ...buildings.map((building) => ({
+            buildings={buildings.map((building) => ({
               value: building.id,
               label: building.label
-            }))]}
+            }))}
+            allValue={'ALL'}
           />
+          )}
         </div>
       </section>
       {data.cutoffDate && (

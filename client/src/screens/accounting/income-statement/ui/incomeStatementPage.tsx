@@ -1,5 +1,7 @@
 'use client';
 
+import { BuildingFilter } from '@/entities/property';
+
 import Link from 'next/link';
 import { useState } from 'react';
 import {
@@ -34,7 +36,6 @@ import {
 } from '@/shared/lib/month-range';
 import { Button } from '@/shared/ui/button';
 import { DataTable } from '@/shared/ui/data-table';
-import { Dropdown } from '@/shared/ui/form-controls';
 import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { ListHeader } from '@/shared/ui/list-header';
 import { MonthRangePicker } from '@/shared/ui/month-range-picker';
@@ -352,21 +353,19 @@ export function IncomeStatementPage({
       <form
         className={styles.filters}
         aria-label={'손익 조회 조건'}
+        data-has-buildings={selectableBuildings.length > 0}
         onSubmit={(event) => {
           event.preventDefault();
           applyFilters();
         }}
       >
-        <Dropdown
+        <BuildingFilter
           aria-label={'조회 동'}
           value={draft.buildingId}
-          options={[{
-            value: '',
-            label: '전체 동'
-          }, ...selectableBuildings.map((building) => ({
+          buildings={selectableBuildings.map((building) => ({
             value: building.id,
             label: building.deleted ? `${building.name} (삭제된 동)` : building.name
-          }))]}
+          }))}
           onChange={(buildingId) => setSelection({
             ...draft,
             buildingId

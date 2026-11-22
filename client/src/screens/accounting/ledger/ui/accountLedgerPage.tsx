@@ -1,5 +1,11 @@
 'use client';
 
+import {
+  BuildingFilter,
+  getSortedBuildings,
+  isPropertyId
+} from '@/entities/property';
+
 import Link from 'next/link';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -7,10 +13,7 @@ import {
   useRouter,
   useSearchParams
 } from 'next/navigation';
-import {
-  getSortedBuildings,
-  isPropertyId
-} from '@/entities/property';
+
 import { useSession } from '@/entities/session';
 import { PayableManager } from '@/features/payable-management';
 import { BillingPeriodDetail } from '@/features/billing-management';
@@ -285,6 +288,7 @@ presentation?: 'main' | 'billing' }) {
       <form
         className={styles.filters}
         aria-label={'원장 조회 조건'}
+        data-has-buildings={buildings.length > 0}
         onSubmit={(event) => {
           event.preventDefault();
           apply();
@@ -323,20 +327,15 @@ presentation?: 'main' | 'billing' }) {
             accountIds: value
           })}
         />
-        <Dropdown
+        <BuildingFilter
           aria-label={'조회 동'}
           placeholder={query.isError ? '조회 동 확인 필요' : '조회 동'}
           value={draft.buildingId}
-          options={[
-            {
-              value: '',
-              label: '전체 동'
-            },
-            ...buildings.map((building) => ({
-              value: building.id,
-              label: `${building.name}${building.deleted ? ' (삭제된 동)' : ''}`
-            }))
-          ]}
+          buildings={buildings.map((building) => ({
+            value: building.id,
+            label: `${building.name}${building.deleted ? ' (삭제된 동)' : ''}`
+          }))
+          }
           onChange={(value) => setSelection({
             ...draft,
             buildingId: value
@@ -594,10 +593,10 @@ presentation?: 'main' | 'billing' }) {
                   },
                   {
                     key: 'building',
-                    header: '동',
+                    header: data.buildings.length ? '동' : '범위',
                     render: ({
                       entry
-                    }) => data.buildings.find((building) => building.id === entry.buildingId)?.name ?? '전체'
+                    }) => data.buildings.find((building) => building.id === entry.buildingId)?.name ?? (data.buildings.length ? '전체' : '관리대상 전체')
                   },
                   {
                     key: 'month',

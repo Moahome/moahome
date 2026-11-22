@@ -7,7 +7,11 @@ export async function createMonthlyReportPdf(documents: readonly ReportDefinitio
   const [{
     autoTable
   }, pdf] = await Promise.all([import('jspdf-autotable'), createReportPdfDocument()]);
-  const [overview, checks, accounts, buildings, collections, cash, external] = documents;
+  const [overview, checks, accounts] = documents;
+  const buildings = documents.find((document) => document.sheet === '동별 자금');
+  const collections = documents.find((document) => document.sheet === '수납과 미납')!;
+  const cash = documents.find((document) => document.sheet === '입출금 명세')!;
+  const external = documents.find((document) => document.sheet === '외부 부담금')!;
   const color = {
     text: '#0F172A',
     muted: '#64748B',
@@ -194,8 +198,13 @@ export async function createMonthlyReportPdf(documents: readonly ReportDefinitio
     pdf.setFontSize(6.8);
     pdf.text(String(row[2]), x + 3, y + 15.5);
   }
-  heading(buildings.title, 205, '통장 기준 입출금이 아닌 동별 귀속액');
-  table(buildings, 212, [26, 40, 40, 39, 39]);
+  if (buildings) {
+    heading(buildings.title, 205, '통장 기준 입출금이 아닌 동별 귀속액');
+    table(buildings, 212, [26, 40, 40, 39, 39]);
+  } else {
+    // 동별 표를 생략한 보고서도 안내문을 월말 점검 아래에 놓아 상단 제목과 겹치지 않게 합니다.
+    cursor = 147 + Math.ceil(checks.rows.length / 3) * 25;
+  }
   if (cursor < 250) {
     pdf.setFillColor(color.soft);
     pdf.roundedRect(13, cursor + 6, 184, 15, 2, 2, 'F');

@@ -34,7 +34,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   ACCOUNTING_SETUP_REQUIRED: '회계 시작 기준을 먼저 설정해주세요.',
   ACCOUNTING_EXTERNAL_REVIEW_REQUIRED: '외부 부담·회수 권리의 회계 처리를 먼저 확인해주세요.',
   INVALID_ACCOUNTING_ACCOUNT: '선택한 계정과목을 확인해주세요.',
-  INVALID_ACCOUNTING_TRANSFER: '같은 날짜·금액과 동별 배분의 상대 입금을 선택해주세요.',
+  INVALID_ACCOUNTING_TRANSFER: '같은 날짜·금액과 부담 배분의 상대 입금을 선택해주세요.',
   ACCOUNTING_BILLING_REQUIRED: '첫 관리비 부과 이후 자동 연결됩니다.',
   INVALID_ACCOUNTING_REQUEST: '회계 입력 내용을 확인해주세요.'
 };
@@ -199,13 +199,13 @@ export function AccountingEditor({
                       onChange={setCounterpartPaymentId}
                     />
                     <p>
-                      이미 등록된 두 거래를 연결합니다. 통장 잔액·동별 배분은 유지하고 양쪽 모두 수익·비용에서 제외합니다.
+                      이미 등록된 두 거래를 연결합니다. 통장 잔액·부담 배분은 유지하고 양쪽 모두 수익·비용에서 제외합니다.
                     </p>
                     {!expense.transferCandidates?.length && (
                       <p
                         role={'alert'}
                       >
-                        같은 날짜·금액·동별 배분의 다른 통장 입금이 없습니다. 통장 거래 내역을 확인해주세요.
+                        같은 날짜·금액·부담 배분의 다른 통장 입금이 없습니다. 통장 거래 내역을 확인해주세요.
                       </p>
                     )}
                   </>

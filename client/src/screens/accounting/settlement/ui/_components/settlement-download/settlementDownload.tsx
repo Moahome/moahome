@@ -27,7 +27,7 @@ presentation?: 'modal' | 'page' }) {
     <ReportDownload
       presentation={presentation}
       title={`${data.month.replace('-', '년 ')}월 월별 정산 종합보고서`}
-      description={'한 달의 청구·수납·미납, 동별 자금과 외부 부담금 회수 현황을 확인하세요.'}
+      description={data.balances.buildings.length ? '한 달의 청구·수납·미납, 동별 자금과 외부 부담금 회수 현황을 확인하세요.' : '한 달의 청구·수납·미납, 통장 잔액과 외부 부담금 회수 현황을 확인하세요.'}
       filename={`모아홈_월별정산_${data.month}`}
       sourceKey={`${data.propertyId}:${data.month}:${data.generatedAt}`}
       documents={documents}

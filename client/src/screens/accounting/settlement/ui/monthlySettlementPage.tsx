@@ -107,7 +107,7 @@ export function MonthlySettlementPage({
       <ListHeader
         menu={'회계·정산'}
         title={'정산 현황'}
-        description={'한 달의 입출금과 수납, 동별 자금과 확인할 일을 모아봅니다.'}
+        description={report?.hasBuildings ? '한 달의 입출금과 수납, 동별 자금과 확인할 일을 모아봅니다.' : '한 달의 입출금과 수납, 통장 잔액과 확인할 일을 모아봅니다.'}
         titleId={'monthly-settlement-title'}
         className={styles.header}
         actionsClassName={styles['header-actions']}
@@ -212,11 +212,11 @@ export function MonthlySettlementPage({
                 help: '해당 월 확정된 세대 관리비 입금 전액입니다. 청구 충당액과 구분합니다.'
               },
               {
-                label: '동별 보유금',
-                value: report.buildingBalance,
+                label: report.hasBuildings ? '동별 보유금' : '통장 잔액 합계',
+                value: report.hasBuildings ? report.buildingBalance : report.accountBalance,
                 icon: 'building',
                 tone: 'teal',
-                help: '조회 월말의 동별 보유금 합계입니다. 외부 부담금·미배분 자금으로 통장 잔액과 다를 수 있습니다.'
+                help: report.hasBuildings ? '조회 월말의 동별 보유금 합계입니다. 외부 부담금·미배분 자금으로 통장 잔액과 다를 수 있습니다.' : '조회 월말의 통장 장부 잔액을 합한 금액입니다.'
               },
               {
                 label: '청구 납부반영액',

@@ -44,7 +44,7 @@ export function ResidentRegistrationPage({
           주민 등록
         </h1>
         <p>
-          주민 정보와 동·호수를 입력해주세요.
+          주민 정보와 소속 세대를 입력해주세요.
         </p>
       </header>
       <div

@@ -1,9 +1,18 @@
 'use client';
 
+import { useResidentUnitOptions } from '@/features/resident-management';
 import {
+  getUnitColumnLabel,
+  BuildingFilter,
   capturePropertyQueryScope,
-  setPropertyQueryData
+  setPropertyQueryData,
+  getSortedBuildings,
+  getSortedUnits
 } from '@/entities/property';
+
+
+
+
 
 import {
   LoadingState,
@@ -32,10 +41,7 @@ import {
 import { InvitationShare } from './_components/invitation-share/invitationShare';
 import { InvitationMenu } from './_components/invitation-menu/invitationMenu';
 import { useSession } from '@/entities/session';
-import {
-  getSortedBuildings,
-  getSortedUnits
-} from '@/entities/property';
+
 import { RESIDENT_RELATION_OPTIONS } from '@/entities/resident';
 import {
   getUnlinkedResidents,
@@ -62,6 +68,8 @@ export function JoinRequestsPage({
   propertyId: string;
 }) {
   const session = useSession();
+  const units = useResidentUnitOptions(propertyId);
+  const unitColumnLabel = getUnitColumnLabel(units.data?.hasBuildings);
   const propertyScope = capturePropertyQueryScope(session.data?.id, propertyId);
   const client = useQueryClient();
   const context = useManagementContext(session.data?.id, propertyId, false);
@@ -233,7 +241,7 @@ resident?: UnlinkedResident } | null>(null);
           >
             <Input
               aria-label={'미연결 주민 검색'}
-              placeholder={'이름·연락처 끝 4자리·동·호수 검색'}
+              placeholder={`이름·연락처 끝 4자리·${unitColumnLabel} 검색`}
               value={search}
               onChange={(event) => {
                 setSearch(event.target.value);
@@ -246,16 +254,13 @@ resident?: UnlinkedResident } | null>(null);
               )}
             />
             {buildings.length > 0 && (
-              <Dropdown
+              <BuildingFilter
                 aria-label={'동 필터'}
                 value={selectedBuilding}
-                options={[{
-                  value: '',
-                  label: '전체 동'
-                }, ...buildings.map((item) => ({
+                buildings={buildings.map((item) => ({
                   value: item.name,
                   label: item.name
-                }))]}
+                }))}
                 onChange={(value) => {
                   setBuilding(value);
                   setPage(1);
@@ -324,7 +329,7 @@ resident?: UnlinkedResident } | null>(null);
               },
               {
                 key: 'unit',
-                header: '동·호수',
+                header: unitColumnLabel,
                 render: unitLabel
               },
               {

@@ -369,7 +369,7 @@ id: number } | null>(null);
       ) : pending ? (
         <SelectDropdown
           label={'반영할 세대'}
-          placeholder={'이름 또는 동·호수로 검색'}
+          placeholder={ledger.units.some((unit) => unit.buildingName) ? '이름 또는 동·호수로 검색' : '이름 또는 호수로 검색'}
           value={unitId}
           onChange={(value) => {
             setDraft({

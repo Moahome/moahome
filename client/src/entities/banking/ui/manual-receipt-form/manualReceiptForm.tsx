@@ -277,7 +277,7 @@ id: number } | null>(null);
                 value={selectedUnit?.id ?? ''}
                 onChange={setUnit}
                 required
-                placeholder={'이름 또는 동·호수로 검색'}
+                placeholder={'이름 또는 세대로 검색'}
                 disabled={busy}
                 options={getReceiptUnitSearchOptions(units)}
               />

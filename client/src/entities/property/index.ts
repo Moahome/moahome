@@ -73,3 +73,9 @@ export {
 export {
   canShowPropertyCreation
 } from './model/propertyCreationVisibility';
+export {
+  BuildingFilter
+} from './ui/building-filter/buildingFilter';
+export {
+  getUnitColumnLabel
+} from './lib/unitColumnLabel';

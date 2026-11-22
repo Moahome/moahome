@@ -1,3 +1,4 @@
+import { getUnitColumnLabel } from '@/entities/property';
 import { StateMessage } from '@/shared/ui/state-message';
 import {
   RESIDENT_RELATION_OPTIONS,
@@ -53,7 +54,7 @@ export function ResidentListTable({
     },
     {
       key: 'unit',
-      header: '동·호수',
+      header: getUnitColumnLabel(hasBuildings),
       render: (row) => getResidentUnitLabel(row, buildingNames, hasBuildings)
     },
     {

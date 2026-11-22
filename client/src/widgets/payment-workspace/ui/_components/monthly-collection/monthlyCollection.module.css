@@ -132,3 +132,9 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+@container (min-width: 941px) {
+  .filters[data-has-buildings='false'] {
+    grid-template-columns: minmax(240px, 290px) minmax(160px, 1fr) 160px;
+  }
+}

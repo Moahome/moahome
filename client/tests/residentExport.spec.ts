@@ -166,3 +166,14 @@ for (const [filename, headers, relationColumn] of [
     expect(Object.keys(cells).some((key) => !key.endsWith('1'))).toBe(false);
   });
 }
+
+test('동 없는 주민 XLSX는 호수 열로 출력하고 동·호수 표기를 남기지 않는다', async () => {
+  const { cells, strings } = await readWorkbook(await createResidentWorkbook([{
+    name: '주민',
+    phone: null,
+    unitLabel: '101호'
+  }], false));
+  expect([cells.A8, cells.B8, cells.C8]).toEqual(['주민명', '연락처', '호수']);
+  expect(cells.C9).toBe('101호');
+  expect(strings).not.toContain('동·호수');
+});

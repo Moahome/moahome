@@ -1,3 +1,4 @@
+import { BuildingFilter } from '@/entities/property';
 import { useSession } from '@/entities/session';
 import {
   useCallback,
@@ -88,17 +89,14 @@ onClose: () => void;
       onClose={onClose}
       renderFilters={(busy) => (
         <>
-          <Dropdown
+          <BuildingFilter
             label={'조회 동'}
             value={buildingId}
             disabled={busy}
-            options={[{
-              value: '',
-              label: '전체 동'
-            }, ...buildings.map((row) => ({
+            buildings={buildings.map((row) => ({
               value: row.id,
               label: row.label
-            }))]}
+            }))}
             onChange={setBuildingId}
           />
           <Dropdown

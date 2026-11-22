@@ -1,4 +1,6 @@
 'use client';
+
+import { BuildingFilter } from '@/entities/property';
 import { BankingTransactionSummary } from './bankingTransactionSummary';
 import { BankingTransactionTable } from './bankingTransactionTable';
 
@@ -126,6 +128,7 @@ export function BankingTransactionResults({
           <div
             className={styles.filters}
             data-preview={Boolean(preview)}
+            data-no-building-filter={view === 'expenses' && buildings.length === 0}
           >
             {!preview && (
               <DateRangePicker
@@ -187,7 +190,7 @@ export function BankingTransactionResults({
               />
             )}
             {view === 'expenses' && (
-              <Dropdown
+              <BuildingFilter
                 aria-label={'부담 동'}
                 value={building}
                 onChange={(value) => {
@@ -195,13 +198,11 @@ export function BankingTransactionResults({
                   setBuilding(value);
                   setPage(1);
                 }}
-                options={[{
-                  value: 'ALL',
-                  label: '전체 동'
-                }, ...buildings.map((b) => ({
+                buildings={buildings.map((b) => ({
                   value: b.id,
                   label: b.label
-                }))]}
+                }))}
+                allValue={'ALL'}
               />
             )}
 
@@ -236,7 +237,9 @@ export function BankingTransactionResults({
             <p
               className={styles.help}
             >
-              행을 눌러 입금 분류·연결 세대·동별 배분을 설정하세요. 필터·페이지를 바꿔도 선택과 입력은 유지됩니다.
+              {data.buildings.length ? '행을 눌러 입금 분류·연결 세대·동별 배분을 설정하세요.' : '행을 눌러 입금 분류·연결 세대·지출을 설정하세요.'}
+              {' '}
+              필터·페이지를 바꿔도 선택과 입력은 유지됩니다.
             </p>
           )}
           {view === 'transactions' && !preview && (

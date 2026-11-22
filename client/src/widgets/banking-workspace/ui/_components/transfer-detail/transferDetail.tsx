@@ -273,7 +273,7 @@ onClose?: () => void;
           <p
             role={'status'}
           >
-            취소된 이체입니다. 양쪽 통장과 동별 이동을 함께 제외했습니다.
+            {data.buildings.length ? '취소된 이체입니다. 양쪽 통장과 동별 이동을 함께 제외했습니다.' : '취소된 이체입니다. 양쪽 통장의 이동을 함께 제외했습니다.'}
           </p>
         )}
         {error && (
@@ -327,7 +327,7 @@ onClose?: () => void;
           menu={'통장 관리'}
           title={'계좌 간 이체'}
           titleId={'transfer-title'}
-          description={'통장과 동별 자금 이동을 확인합니다.'}
+          description={data.buildings.length ? '통장과 동별 자금 이동을 확인합니다.' : '통장 간 자금 이동을 확인합니다.'}
         />
         {content}
       </section>

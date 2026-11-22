@@ -219,3 +219,10 @@
     }
   }
 }
+
+@container (min-width: 701px) {
+  .page .filters[data-has-buildings='false'] {
+    grid-template-columns: minmax(0, 340px) auto;
+    width: min(100%, 520px);
+  }
+}
