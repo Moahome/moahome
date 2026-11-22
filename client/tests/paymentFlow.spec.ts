@@ -558,7 +558,7 @@ test('월별 수납 상세는 PC 중앙 모달이고 모바일 독립 페이지'
 });
 
 for (const width of [320, 390, 1100, 1440]) {
-  test(`${width}px 열린 달력은 본문 안에 있고 검색 오른쪽 동 필터와 표시 개수·별도 상태 탭 배치`, async ({ page }) => {
+  test(`${width}px 열린 달력은 본문 안에 있고 동 없는 조회의 검색·표시 개수와 별도 상태 탭을 배치`, async ({ page }) => {
     await page.setViewportSize({
       width,
       height: 900
@@ -580,6 +580,9 @@ for (const width of [320, 390, 1100, 1440]) {
       name: '입금 표시 개수'
     });
     await expect(size).toHaveText('10개씩 보기');
+    await expect(page.getByRole('combobox', {
+      name: '입금 세대 동 필터'
+    })).toHaveCount(0);
     const searchBox = await search.boundingBox();
     const tabsBox = await tabs.boundingBox();
     const sizeBox = await size.boundingBox();
@@ -587,12 +590,8 @@ for (const width of [320, 390, 1100, 1440]) {
     if (width === 1440) {
       expect(searchBox!.width).toBeGreaterThan(300);
       const searchField = await search.locator('..').boundingBox();
-      const buildingField = await page.getByRole('combobox', {
-        name: '입금 세대 동 필터'
-      }).locator('..').boundingBox();
       const sizeField = await size.locator('..').boundingBox();
-      expect(buildingField!.x - (searchField!.x + searchField!.width)).toBeLessThan(16);
-      expect(sizeField!.x - (buildingField!.x + buildingField!.width)).toBeLessThan(16);
+      expect(sizeField!.x - (searchField!.x + searchField!.width)).toBeLessThan(16);
       expect(Math.abs(searchBox!.y + searchBox!.height - sizeBox!.y - sizeBox!.height)).toBeLessThan(3);
     }
     await expect(page.getByRole('table', {
