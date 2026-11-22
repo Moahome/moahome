@@ -810,7 +810,7 @@ for (const width of [1440]) {
     }).locator('svg')).toHaveCount(0);
     await expect(detail).not.toBeVisible();
     await editor.getByRole('button', {
-      name: '취소',
+      name: '세대 수정 닫기',
       exact: true
     }).click();
     await expect(trigger).toBeFocused();
@@ -1189,7 +1189,7 @@ test('세대 삭제는 상세에서 한 세대를 확인하며 실패 시 재시
     exact: false
   })).toBeVisible();
   await confirmation.getByRole('button', {
-    name: '취소',
+    name: '세대 삭제 확인 닫기',
     exact: true
   }).click();
   expect(writes).toBe(0);
@@ -1279,7 +1279,7 @@ test('상세 삭제는 요청 대기 중 중복 제출과 닫기를 막고 다�
   }).click();
   await expect.poll(() => writes).toBe(1);
   await expect(confirmation.getByRole('button', {
-    name: '취소',
+    name: '세대 삭제 확인 닫기',
     exact: true
   })).toBeDisabled();
   await expect(confirmation.getByRole('button', {
@@ -1507,8 +1507,12 @@ for (const width of [1440, 320]) {
     await expect(preview).not.toContainText('010-1234-5678');
     await expect(preview).not.toContainText('+821012345678');
     if (width >= 768) {
-      await preview.getByRole('button', {
+      await expect(preview.getByRole('button', {
         name: '닫기',
+        exact: true
+      })).toHaveCount(0);
+      await preview.getByRole('button', {
+        name: '엑셀 다운로드 닫기',
         exact: true
       }).click();
       await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -2366,7 +2370,7 @@ for (const width of [320]) {
     }).click();
     const confirmation = page.getByRole('alertdialog');
     await confirmation.getByRole('button', {
-      name: '취소',
+      name: '세대 삭제 확인 닫기',
       exact: true
     }).click();
     await expect(page).toHaveURL(`${HOUSEHOLDS}/${unitId}`);
@@ -3980,7 +3984,7 @@ for (const width of [390]) {
       exact: true
     })).toBeDisabled();
     await dialog.getByRole('button', {
-      name: '취소',
+      name: '나가기 창 닫기',
       exact: true
     }).click();
     await expect(dialog).toHaveCount(0);

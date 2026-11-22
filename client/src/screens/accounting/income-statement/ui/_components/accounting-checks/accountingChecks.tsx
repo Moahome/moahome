@@ -1,13 +1,18 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   usePathname,
   useRouter,
   useSearchParams
 } from 'next/navigation';
 import { formatInteger } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { Dropdown } from '@/shared/ui/form-controls';
 import { ListToolbar } from '@/shared/ui/list-toolbar';
 import { Pagination } from '@/shared/ui/pagination';
@@ -192,17 +197,9 @@ recovered?: boolean }[] = [
               손익 반영 자료
             </h2>
           </div>
-          <Button
-            variant={'ghost'}
-            size={'sm'}
-            iconOnly
+          <ModalCloseButton
             aria-label={'손익 반영 자료 닫기'}
             onClick={onClose}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         </header>
       )}

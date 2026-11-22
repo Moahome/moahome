@@ -1,9 +1,14 @@
 'use client';
 
+import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { getMonthRangeQuery } from '@/shared/lib/month-range';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   usePathname,
@@ -98,17 +103,9 @@ export function MonthlyDetail({
           </Title>
         </div>
         {presentation === 'modal' && (
-          <Button
-            variant={'ghost'}
-            size={'sm'}
-            iconOnly
+          <ModalCloseButton
             aria-label={'수납 상세 닫기'}
             onClick={onClose}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         )}
       </header>

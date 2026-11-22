@@ -182,10 +182,6 @@
   gap: 10px;
 }
 
-.cancel-button {
-  min-width: 124px;
-}
-
 .continue-button {
   min-width: 220px;
 }
@@ -292,10 +288,6 @@
     .notice-continuation {
       display: none;
     }
-  }
-
-  .cancel-button {
-    display: none;
   }
 
   .continue-button {

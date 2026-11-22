@@ -4,6 +4,7 @@ import {
   useRef,
   useState
 } from 'react';
+import { ModalCloseButton } from '@/shared/ui/client-modal';
 import styles from '../../loginPage.module.css';
 
 export function LoginFooter() {
@@ -45,11 +46,17 @@ export function LoginFooter() {
         className={styles['legal-dialog']}
         aria-labelledby={'legal-title'}
       >
-        <h2
-          id={'legal-title'}
-        >
-          {documentTitle}
-        </h2>
+        <header>
+          <h2
+            id={'legal-title'}
+          >
+            {documentTitle}
+          </h2>
+          <ModalCloseButton
+            aria-label={`${documentTitle} 닫기`}
+            onClick={() => dialogRef.current?.close()}
+          />
+        </header>
         <p>
           {documentTitle}
           을 준비하고 있어요. 서비스 시작 전에 안내해 드릴게요.

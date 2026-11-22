@@ -1,9 +1,14 @@
 'use client';
 
+import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { BANKING_PAGE_SIZES } from '../../../../constant/bankingOptions';
 
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { ListHeader } from '@/shared/ui/list-header';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { type ReactNode } from 'react';
@@ -93,18 +98,10 @@ export function DetailDialog({
             {title}
           </h2>
         </div>
-        <Button
-          variant={'ghost'}
-          size={'sm'}
-          iconOnly
+        <ModalCloseButton
           aria-label={`${title} 닫기`}
           disabled={busy}
           onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
         />
       </header>
       <div

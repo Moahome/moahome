@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { getUnitColumnLabel } from '@/entities/property';
 
 import {
@@ -7,10 +12,9 @@ import {
   useState
 } from 'react';
 import type { SignupRequest } from '@/features/membership-requests';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { Button } from '@/shared/ui/button';
 import { Dropdown } from '@/shared/ui/form-controls';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './requestReview.module.css';
 
 /** 기존 주민 상세와 같은 크기·필드 행·행동 배치로 신청 확인과 명부 선택을 제공합니다. */
@@ -47,17 +51,10 @@ export function RequestReview({
           가입 요청 확인
         </Title>
         {presentation === 'modal' && (
-          <Button
-            variant={'ghost'}
-            iconOnly
+          <ModalCloseButton
             aria-label={'가입 요청 닫기'}
             disabled={busy}
             onClick={onClose}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         )}
       </header>

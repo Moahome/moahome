@@ -1,6 +1,7 @@
 'use client';
 
 import type { RefObject } from 'react';
+import { ModalCloseButton } from '@/shared/ui/client-modal';
 import styles from './noticeDialog.module.css';
 
 export function NoticeDialog({
@@ -19,11 +20,17 @@ export function NoticeDialog({
       aria-labelledby={'notice-title'}
       aria-describedby={'notice-description'}
     >
-      <h2
-        id={'notice-title'}
-      >
-        {title}
-      </h2>
+      <header>
+        <h2
+          id={'notice-title'}
+        >
+          {title}
+        </h2>
+        <ModalCloseButton
+          aria-label={`${title} 닫기`}
+          onClick={() => dialogRef.current?.close()}
+        />
+      </header>
       <p
         id={'notice-description'}
       >

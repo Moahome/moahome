@@ -7,6 +7,7 @@ import {
   type RefObject
 } from 'react';
 import styles from './clientModal.module.css';
+import { ClientModalContext } from './clientModalContext';
 
 interface ClientModalProps extends Omit<ComponentPropsWithoutRef<'dialog'>, 'open' | 'onCancel' | 'onClose'> {
   onClose: () => void;
@@ -89,7 +90,11 @@ export function ClientModal({
           onClose();
       }}
     >
-      {children}
+      <ClientModalContext.Provider
+        value={true}
+      >
+        {children}
+      </ClientModalContext.Provider>
     </dialog>
   );
 }

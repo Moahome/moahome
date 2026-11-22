@@ -1,12 +1,17 @@
 'use client';
 
+import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import {
   Dropdown,
   Input
 } from '@/shared/ui/form-controls';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   useRef,
   useState,
@@ -100,18 +105,10 @@ export function AutomaticUnitEditor({
           세대 자동 입력
         </Title>
         {presentation === 'modal' && (
-          <Button
-            variant={'ghost'}
-            size={'sm'}
-            iconOnly
+          <ModalCloseButton
             aria-label={'세대 자동 입력 닫기'}
             disabled={busy}
             onClick={onClose}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         )}
       </header>
@@ -278,13 +275,13 @@ export function AutomaticUnitEditor({
           <footer
             className={styles.actions}
           >
-            <Button
+            <PageCancelButton
               variant={'outline'}
               disabled={busy}
               onClick={onClose}
             >
               취소
-            </Button>
+            </PageCancelButton>
             <Button
               type={'submit'}
               disabled={!canAdd}

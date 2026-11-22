@@ -4268,7 +4268,7 @@ test('지출 비율의 남은 금액 버튼은 선택 부담처에 1원만 더�
   await expect(dialog.getByRole('button', {
     name: '취소',
     exact: true
-  })).toHaveCSS('border-top-color', 'rgb(191, 219, 254)');
+  })).toHaveCount(0);
   await dialog.screenshot({
     path: testInfo.outputPath('expenseRemainderAfter.png')
   });
@@ -5992,7 +5992,7 @@ test('통장 초기 금액만 정정해도 동별 시작 잔액을 함께 저장
   await expect(linkedEditor).toBeVisible();
   await expect(page).toHaveURL(/\/banking\/balances\?/);
   await linkedEditor.getByRole('button', {
-    name: '취소',
+    name: '초기 잔액 정정 닫기',
     exact: true
   }).click();
   await expect(page).not.toHaveURL(/initial=/);

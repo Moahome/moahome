@@ -92,16 +92,6 @@ export function ResidentExportPreview({
 
   const footer = (
     <div>
-      {presentation === 'modal' && (
-        <Button
-          variant={'outline'}
-          tone={'neutral'}
-          disabled={busy}
-          onClick={onClose}
-        >
-          닫기
-        </Button>
-      )}
       <Button
         variant={'outline'}
         tone={'excel'}

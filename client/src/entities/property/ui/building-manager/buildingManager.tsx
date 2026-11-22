@@ -1,7 +1,12 @@
 'use client';
 
+import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { Input } from '@/shared/ui/form-controls';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
@@ -120,18 +125,10 @@ export function BuildingManager({
           동 관리
         </Title>
         {presentation === 'modal' && (
-          <Button
-            variant={'ghost'}
-            size={'sm'}
-            iconOnly
+          <ModalCloseButton
             aria-label={'동 관리 닫기'}
             disabled={busy}
             onClick={onClose}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         )}
       </header>

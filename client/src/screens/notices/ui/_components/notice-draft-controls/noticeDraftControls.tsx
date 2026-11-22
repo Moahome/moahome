@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   useEffect,
   useEffectEvent,
   useRef,
@@ -8,8 +13,7 @@ import {
   type ReactNode
 } from 'react';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
-import { ServiceIcon } from '@/shared/ui/service-icon';
+
 import { Toast } from '@/shared/ui/toast';
 import {
   DRAFT_REMOVED_EVENT,
@@ -335,20 +339,12 @@ export function NoticeDraftControls({
             >
               임시저장한 글
             </h2>
-            <Button
-              variant={'ghost'}
-              size={'sm'}
-              iconOnly
+            <ModalCloseButton
               aria-label={'닫기'}
               title={'닫기'}
               disabled={draftBusy}
               onClick={() => setShowDrafts(false)}
-            >
-              <ServiceIcon
-                name={'close'}
-                size={22}
-              />
-            </Button>
+            />
           </header>
           {drafts.map((draft) => (
             <div

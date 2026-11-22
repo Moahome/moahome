@@ -170,7 +170,7 @@ test('모바일 탈퇴 카드는 짧은 안내와 카드 너비를 채우는 버
   })).toBeEnabled();
   await expect(dialog).toContainText('30일');
   await dialog.getByRole('button', {
-    name: '취소',
+    name: '회원 탈퇴 창 닫기',
     exact: true
   }).click();
   expect(state.withdrawals).toBe(0);

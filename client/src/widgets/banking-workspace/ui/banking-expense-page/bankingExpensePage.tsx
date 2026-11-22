@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   capturePropertyQueryScope,
   setPropertyQueryData
 } from '@/entities/property';
@@ -14,7 +19,7 @@ import {
 import { useSession } from '@/entities/session';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { ListHeader } from '@/shared/ui/list-header';
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -115,18 +120,10 @@ export function BankingExpensePage({
               지출 상세
             </h2>
           </div>
-          <Button
-            variant={'ghost'}
-            size={'sm'}
-            iconOnly
+          <ModalCloseButton
             aria-label={'지출 상세 닫기'}
             disabled={busy}
             onClick={onClose}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         </header>
         <div

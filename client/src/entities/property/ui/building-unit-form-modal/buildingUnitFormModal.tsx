@@ -1,12 +1,17 @@
 'use client';
 
+import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import {
   Dropdown,
   Input
 } from '@/shared/ui/form-controls';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   useRef,
   useState,
@@ -131,18 +136,10 @@ export function BuildingUnitFormModal({
           {title}
         </Title>
         {presentation === 'modal' && (
-          <Button
-            variant={'ghost'}
-            size={'sm'}
-            iconOnly
+          <ModalCloseButton
             aria-label={`${title} 닫기`}
             onClick={onClose}
             disabled={busy}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         )}
       </header>
@@ -257,13 +254,13 @@ export function BuildingUnitFormModal({
         <footer
           className={styles.actions}
         >
-          <Button
+          <PageCancelButton
             variant={'outline'}
             onClick={onClose}
             disabled={busy}
           >
             취소
-          </Button>
+          </PageCancelButton>
           <Button
             type={'submit'}
             variant={target.clientId ? 'outline' : 'primary'}

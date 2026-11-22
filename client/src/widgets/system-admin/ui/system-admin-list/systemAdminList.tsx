@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   useState,
   type ReactNode
 } from 'react';
@@ -11,7 +16,7 @@ import {
 } from 'next/navigation';
 import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import {
   Input,
   Dropdown
@@ -24,7 +29,6 @@ import {
   LoadingState,
   StateMessage
 } from '@/shared/ui/state-message';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import { getSystemMembers } from '../../api/systemAdminApi';
 import { SystemAdminShell } from '../_components/system-admin-shell/systemAdminShell';
 import { MemberEditor } from '../_components/member-editor/memberEditor';
@@ -238,15 +242,8 @@ function MemberList({
             >
               회원 상세
             </h2>
-            <Button
-              variant={'ghost'}
-              iconOnly
+            <ModalCloseButton
               aria-label={'회원 상세 닫기'}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'close'}
-                />
-              )}
               onClick={() => setSelected('')}
             />
           </header>

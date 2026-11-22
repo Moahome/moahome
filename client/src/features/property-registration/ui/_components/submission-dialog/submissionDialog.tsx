@@ -1,5 +1,7 @@
 'use client';
 
+import { ModalCloseButton } from '@/shared/ui/client-modal';
+
 import {
   useEffect,
   useRef
@@ -109,18 +111,10 @@ export function SubmissionDialog({
       }}
     >
       {!busy && (
-        <Button
-          variant={'ghost'}
-          size={'sm'}
-          iconOnly
+        <ModalCloseButton
           className={styles['close-button']}
           aria-label={'등록 안내 닫기'}
           onClick={dismiss}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
         />
       )}
       {busy ? (

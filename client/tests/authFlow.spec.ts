@@ -1058,7 +1058,7 @@ test('시작 화면의 데스크톱·모바일 구성과 준비 중 기능 안�
     name: '등록하고 계속'
   })).toBeDisabled();
   await page.getByRole('button', {
-    name: '취소',
+    name: '관리할 곳 등록 닫기',
     exact: true
   }).click();
   await page.getByRole('button', {

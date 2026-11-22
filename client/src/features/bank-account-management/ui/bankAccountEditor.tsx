@@ -1,5 +1,11 @@
 'use client';
 
+import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { LoadingState } from '@/shared/ui/state-message';
 
 import { RequestError } from '@/shared/ui/server-connection-error';
@@ -15,10 +21,9 @@ import {
 import { UnitDeleteConfirmation } from '@/entities/property';
 import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { ListCard } from '@/shared/ui/list-card';
 import { ListHeader } from '@/shared/ui/list-header';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   useQuery,
   useQueryClient
@@ -127,17 +132,10 @@ original: ManagedBankAccount | null } | null>(null);
       <h2>
         {title}
       </h2>
-      <Button
-        variant={'ghost'}
-        iconOnly
+      <ModalCloseButton
         aria-label={'관리계좌 닫기'}
         disabled={busy}
         onClick={onClose}
-        leadingIcon={(
-          <ServiceIcon
-            name={'close'}
-          />
-        )}
       />
     </header>
   );
@@ -372,6 +370,8 @@ onBusy: (busy: boolean) => void;
     }
   }
 
+  const CancelButton = original ? Button : PageCancelButton;
+
   return (
     <form
       onSubmit={submit}
@@ -408,13 +408,13 @@ onBusy: (busy: boolean) => void;
       <footer
         className={styles.actions}
       >
-        <Button
+        <CancelButton
           variant={'outline'}
           disabled={busy}
           onClick={onCancel}
         >
           취소
-        </Button>
+        </CancelButton>
         <Button
           type={'submit'}
           disabled={!valid || busy}

@@ -1,6 +1,12 @@
 'use client';
 
 import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   useEffect,
   useId,
   useRef,
@@ -8,8 +14,7 @@ import {
   type PointerEvent
 } from 'react';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
-import { ServiceIcon } from '@/shared/ui/service-icon';
+
 import {
   LoadingState,
   StateMessage
@@ -164,17 +169,11 @@ url: string } | null>(null);
         >
           사진 편집
         </h2>
-        <Button
-          variant={'ghost'}
-          iconOnly
+        <ModalCloseButton
           aria-label={'사진 편집 닫기'}
           disabled={busy}
           onClick={onClose}
-        >
-          <ServiceIcon
-            name={'close'}
-          />
-        </Button>
+        />
       </div>
       <p
         id={`${id}-help`}
@@ -300,13 +299,13 @@ url: string } | null>(null);
       <div
         className={styles.actions}
       >
-        <Button
+        <PageCancelButton
           variant={'outline'}
           disabled={busy}
           onClick={onClose}
         >
           취소
-        </Button>
+        </PageCancelButton>
         <Button
           loading={busy}
           disabled={!image}

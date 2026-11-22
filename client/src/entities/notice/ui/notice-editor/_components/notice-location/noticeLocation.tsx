@@ -1,6 +1,12 @@
 'use client';
 
 import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   useCallback,
   useEffect,
   useId,
@@ -9,7 +15,7 @@ import {
 } from 'react';
 import { Button } from '@/shared/ui/button';
 import { AddressSearch } from '@/shared/ui/address-search';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { Input } from '@/shared/ui/form-controls';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
@@ -322,18 +328,10 @@ export function NoticeLocationPicker({
         >
           {initialLocation ? '장소 수정' : '지도 추가'}
         </h2>
-        <Button
-          variant={'ghost'}
-          size={'sm'}
-          iconOnly
+        <ModalCloseButton
           aria-label={'닫기'}
           onClick={onClose}
-        >
-          <ServiceIcon
-            name={'close'}
-            size={20}
-          />
-        </Button>
+        />
       </header>
       <p
         className={styles.description}
@@ -412,12 +410,12 @@ export function NoticeLocationPicker({
       <footer
         className={styles['picker-actions']}
       >
-        <Button
+        <PageCancelButton
           variant={'outline'}
           onClick={onClose}
         >
           취소
-        </Button>
+        </PageCancelButton>
         <Button
           disabled={disabled || busy || findingAddress || !selection || !name.trim()}
           onClick={() => {

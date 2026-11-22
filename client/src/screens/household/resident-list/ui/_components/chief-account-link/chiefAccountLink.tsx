@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { LoadingState } from '@/shared/ui/state-message';
 
 import { useSession } from '@/entities/session';
@@ -7,7 +12,7 @@ import { useManagementContext } from '@/features/enter-service';
 import { linkOwnChiefResident } from '@/features/member-management';
 import { ApiError } from '@/shared/api';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { Dropdown } from '@/shared/ui/form-controls';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { useQueryClient } from '@tanstack/react-query';
@@ -100,17 +105,10 @@ export function ChiefAccountLink({
           </p>
         </div>
         {presentation === 'modal' && (
-          <Button
-            variant={'ghost'}
-            iconOnly
+          <ModalCloseButton
             aria-label={'계정 연결 닫기'}
             onClick={onClose}
             disabled={busy}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         )}
       </header>
@@ -240,27 +238,18 @@ export function ChiefAccountLink({
           {errorMessage}
         </p>
       )}
-      <footer
-        className={styles.actions}
-      >
-        {presentation === 'modal' && (
-          <Button
-            variant={'outline'}
-            disabled={busy}
-            onClick={onClose}
-          >
-            닫기
-          </Button>
-        )}
-        {administrator && !chief && (
+      {administrator && !chief && (
+        <footer
+          className={styles.actions}
+        >
           <Button
             disabled={!selected || busy}
             onClick={() => void connectAccount()}
           >
             {busy ? '연결 중' : '계정 연결'}
           </Button>
-        )}
-      </footer>
+        </footer>
+      )}
     </>
   );
 

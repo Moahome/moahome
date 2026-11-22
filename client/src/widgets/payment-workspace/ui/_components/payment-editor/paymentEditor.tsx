@@ -1,13 +1,18 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   IncomeAllocationSummary,
   getBankAccountLabel
 } from '@/entities/banking';
 import { formatWon } from '@/shared/lib/format';
 import { formatBuildingUnitText } from '@/entities/property';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import {
   Input,
   SelectDropdown
@@ -588,21 +593,13 @@ id: number } | null>(null);
             >
               {action === 'other-income' ? '기타 입금으로 확정할까요?' : action === 'confirm' ? '이 내용으로 반영할까요?' : action === 'cancel' ? (otherIncome ? '기타 입금 확정을 취소할까요?' : '납부를 취소할까요?') : action === 'hold' ? '입금을 보류할까요?' : '기존 수납에 연결할까요?'}
             </h2>
-            <Button
-              variant={'ghost'}
-              iconOnly
-              size={'sm'}
+            <ModalCloseButton
               aria-label={'처리 확인 닫기'}
               disabled={busy}
               onClick={() => {
                 setAction(null);
                 setError(null);
               }}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'close'}
-                />
-              )}
             />
           </div>
           <p>

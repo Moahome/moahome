@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -35,7 +40,7 @@ import type {
   ResidentInvitationPreview
 } from '../api/residentInvitationApiTypes';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   Input,
@@ -114,17 +119,10 @@ export function InvitationCodeForm(props: InvitationCodeFormProps) {
         >
           초대코드로 참여하기
         </h2>
-        <Button
-          variant={'ghost'}
-          iconOnly
+        <ModalCloseButton
           aria-label={'초대코드 입력 닫기'}
           disabled={busy}
           onClick={props.onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
         />
       </header>
       <InvitationCodeContent

@@ -1,12 +1,17 @@
 'use client';
 
+import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { ApiError } from '@/shared/api';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { Radio } from '@/shared/ui/form-controls';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import { leaveProperty } from '../api/leavePropertyApi';
 import type { LeaveReason } from '../api/leavePropertyApiTypes';
 import styles from './leavePropertyButton.module.css';
@@ -82,17 +87,11 @@ export function LeavePropertyButton({
                 {propertyName}
                 에서 나가시겠어요?
               </h2>
-              <Button
-                variant={'ghost'}
-                iconOnly
+              <ModalCloseButton
                 aria-label={'나가기 창 닫기'}
                 disabled={leave.isPending}
                 onClick={() => setOpen(false)}
-              >
-                <ServiceIcon
-                  name={'close'}
-                />
-              </Button>
+              />
             </header>
             <p
               id={'leave-property-description'}
@@ -147,13 +146,13 @@ export function LeavePropertyButton({
               </p>
             )}
             <footer>
-              <Button
+              <PageCancelButton
                 variant={'outline'}
                 disabled={leave.isPending}
                 onClick={() => setOpen(false)}
               >
                 취소
-              </Button>
+              </PageCancelButton>
               <Button
                 type={'submit'}
                 tone={'danger'}

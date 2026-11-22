@@ -1,6 +1,12 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  PageCancelButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   useRef,
   useState
 } from 'react';
@@ -11,7 +17,7 @@ import {
 import { useSession } from '@/entities/session';
 import { ApiError } from '@/shared/api';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { LoadingState } from '@/shared/ui/state-message';
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { Toast } from '@/shared/ui/toast';
@@ -213,11 +219,20 @@ export function MemberEditor({
               setCommand(null);
           }}
         >
-          <h2
-            id={'system-admin-confirm-title'}
+          <header
+            className={styles['confirm-header']}
           >
-            {title}
-          </h2>
+            <h2
+              id={'system-admin-confirm-title'}
+            >
+              {title}
+            </h2>
+            <ModalCloseButton
+              aria-label={`${title} 닫기`}
+              disabled={busy}
+              onClick={() => setCommand(null)}
+            />
+          </header>
           <p>
             {member.displayName}
           </p>
@@ -240,14 +255,14 @@ export function MemberEditor({
           <div
             className={styles.actions}
           >
-            <Button
+            <PageCancelButton
               variant={'outline'}
               tone={'neutral'}
               disabled={busy}
               onClick={() => setCommand(null)}
             >
               취소
-            </Button>
+            </PageCancelButton>
             <Button
               loading={busy}
               onClick={() => void save()}

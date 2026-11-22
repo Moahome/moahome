@@ -1,0 +1,12 @@
+.close[data-modal-close='true'][data-icon-only='true'][data-size='sm'] {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+
+  > svg {
+    width: 18px;
+    height: 18px;
+  }
+}

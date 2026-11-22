@@ -1,5 +1,11 @@
 'use client';
 
+import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { getReceiptUnitSearchOptions } from '../../lib/receiptUnitOptions';
 import { getBankAccountLabel } from '../../lib/bankAccountLabel';
 
@@ -14,9 +20,8 @@ import type { ManualTransferSeed } from '../../model/manualTransferTypes';
 import type { ExpenseDraft } from '../../model/allocationTypes';
 import { Button } from '@/shared/ui/button';
 import { CalendarPicker } from '@/shared/ui/calendar-picker';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { Toast } from '@/shared/ui/toast';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   AmountInput,
   SelectDropdown,
@@ -191,17 +196,10 @@ id: number } | null>(null);
         </p>
       </div>
       {presentation === 'modal' && (
-        <Button
-          variant={'ghost'}
-          iconOnly
+        <ModalCloseButton
           aria-label={`${title} 닫기`}
           disabled={busy}
           onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
         />
       )}
     </div>
@@ -243,6 +241,8 @@ id: number } | null>(null);
       }] : []).filter((option) => option.value !== 'SHARED' || buildings.length > 0)}
     />
   );
+  const CancelButton = onCancel ? Button : PageCancelButton;
+
   const content = (
     <>
       {heading}
@@ -377,14 +377,14 @@ id: number } | null>(null);
             className={styles.actions}
           >
             {(presentation === 'modal' || onCancel) && (
-              <Button
+              <CancelButton
                 variant={'outline'}
                 tone={'neutral'}
                 disabled={busy}
                 onClick={onCancel ?? onClose}
               >
                 취소
-              </Button>
+              </CancelButton>
             )}
             <Button
               type={'submit'}

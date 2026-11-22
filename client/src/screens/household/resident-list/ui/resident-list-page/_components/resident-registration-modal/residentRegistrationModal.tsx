@@ -1,11 +1,13 @@
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+import {
   useRef,
   useState
 } from 'react';
 import { ResidentRegistrationForm } from '@/features/resident-management';
-import { ClientModal } from '@/shared/ui/client-modal';
-import { Button } from '@/shared/ui/button';
-import { ServiceIcon } from '@/shared/ui/service-icon';
+
 import styles from './residentRegistrationModal.module.css';
 
 /** 공통 모달의 포커스·스크롤·Escape 동작을 재사용하고 저장 중에는 취소와 닫기를 막습니다. */
@@ -44,17 +46,10 @@ export function ResidentRegistrationModal({
             주민 정보와 소속 세대를 입력해주세요.
           </p>
         </div>
-        <Button
-          variant={'ghost'}
-          iconOnly
+        <ModalCloseButton
           aria-label={'주민 등록 닫기'}
           disabled={busy}
           onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
         />
       </header>
       <ResidentRegistrationForm

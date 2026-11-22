@@ -1,8 +1,12 @@
+import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
 import { StateMessage } from '@/shared/ui/state-message';
 import type { BillingPeriod } from '@/entities/billing';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { DataTable } from '@/shared/ui/data-table';
 import { Input } from '@/shared/ui/form-controls';
 import { ListCard } from '@/shared/ui/list-card';
@@ -243,17 +247,9 @@ onClose: () => void }) {
             {' '}
             부과 상세
           </h2>
-          <Button
-            variant={'ghost'}
-            size={'sm'}
-            iconOnly
+          <ModalCloseButton
             aria-label={'상세 닫기'}
             onClick={onClose}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         </header>
         <BillingLoadState

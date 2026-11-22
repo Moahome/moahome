@@ -1,5 +1,7 @@
 'use client';
 
+import { PageCancelButton } from '@/shared/ui/client-modal';
+
 import {
   useEffect,
   useRef,
@@ -266,14 +268,14 @@ label: string }[];
       <footer
         className={styles.actions}
       >
-        <Button
+        <PageCancelButton
           variant={'outline'}
           tone={'neutral'}
           disabled={busy}
           onClick={onClose}
         >
           취소
-        </Button>
+        </PageCancelButton>
         <Button
           disabled={busy || !canSave}
           loading={busy}

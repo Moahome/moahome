@@ -6,10 +6,13 @@ import {
   type RefObject
 } from 'react';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
 import styles from './unitDeleteConfirmation.module.css';
 
-/** 세대·동·관리비 항목 삭제에 같은 확인 절차를 제공하고 중첩 창의 취소·포커스 복귀를 처리합니다. */
+/** 세대·동·관리비 항목 삭제에 같은 확인 절차를 제공하고 중첩 창의 닫기·포커스 복귀를 처리합니다. */
 export function UnitDeleteConfirmation({
   label,
   title = '세대 삭제 확인',
@@ -31,11 +34,11 @@ export function UnitDeleteConfirmation({
   busy?: boolean;
   errorMessage?: string;
 }) {
-  const cancelRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
 
   return (
     <ClientModal
-      initialFocusRef={cancelRef}
+      initialFocusRef={closeRef}
       fallbackFocusRef={fallbackFocusRef}
       onClose={onClose}
       busy={busy}
@@ -44,11 +47,21 @@ export function UnitDeleteConfirmation({
       aria-labelledby={'unit-delete-title'}
       aria-describedby={description ? 'unit-delete-description unit-delete-note' : 'unit-delete-description'}
     >
-      <h2
-        id={'unit-delete-title'}
+      <header
+        className={styles.header}
       >
-        {title}
-      </h2>
+        <h2
+          id={'unit-delete-title'}
+        >
+          {title}
+        </h2>
+        <ModalCloseButton
+          ref={closeRef}
+          aria-label={`${title} 닫기`}
+          disabled={busy}
+          onClick={onClose}
+        />
+      </header>
       <p
         id={'unit-delete-description'}
       >
@@ -76,14 +89,7 @@ export function UnitDeleteConfirmation({
       <div
         className={styles.actions}
       >
-        <Button
-          ref={cancelRef}
-          variant={'outline'}
-          disabled={busy}
-          onClick={onClose}
-        >
-          취소
-        </Button>
+
         <Button
           variant={'outline'}
           tone={'danger'}

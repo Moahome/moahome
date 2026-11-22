@@ -1,12 +1,15 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   useId,
   type ReactNode
 } from 'react';
-import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
-import { ServiceIcon } from '@/shared/ui/service-icon';
+
 import styles from './downloadLayout.module.css';
 
 /** 자료·형식별 처리는 호출자가 맡고 모든 다운로드의 헤더·본문·푸터와 표시 방식을 통일합니다. */
@@ -51,18 +54,11 @@ export function DownloadLayout({
           )}
         </div>
         {presentation === 'modal' && (
-          <Button
-            variant={'ghost'}
-            size={'sm'}
-            iconOnly
+          <ModalCloseButton
             aria-label={closeLabel}
             disabled={busy}
             onClick={onClose}
-          >
-            <ServiceIcon
-              name={'close'}
-            />
-          </Button>
+          />
         )}
       </header>
       <div

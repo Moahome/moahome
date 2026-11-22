@@ -187,16 +187,6 @@ value: string } | null>(null);
         {scopeLabel}
       </p>
       <div>
-        {presentation === 'modal' && (
-          <Button
-            variant={'outline'}
-            tone={'neutral'}
-            disabled={busy}
-            onClick={onClose}
-          >
-            취소
-          </Button>
-        )}
         <Button
           variant={'outline'}
           tone={format === 'excel' ? 'excel' : undefined}

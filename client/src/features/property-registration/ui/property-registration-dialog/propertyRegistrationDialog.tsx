@@ -1,5 +1,7 @@
 'use client';
 
+import { ModalCloseButton } from '@/shared/ui/client-modal';
+
 import {
   BUILDING_PRESENCE_OPTIONS,
   PROPERTY_TYPE_OPTIONS
@@ -179,18 +181,10 @@ export function PropertyRegistrationDialog({
           관리할 곳 등록
         </span>
       </div>
-      <Button
+      <ModalCloseButton
         className={styles['close-button']}
-        variant={'ghost'}
-        size={'sm'}
-        iconOnly
         aria-label={'관리할 곳 등록 닫기'}
         onClick={onClose}
-        leadingIcon={(
-          <ServiceIcon
-            name={'close'}
-          />
-        )}
       />
       <header
         className={styles.intro}
@@ -371,14 +365,6 @@ export function PropertyRegistrationDialog({
         <div
           className={styles.actions}
         >
-          <Button
-            variant={'outline'}
-            size={'lg'}
-            className={styles['cancel-button']}
-            onClick={onClose}
-          >
-            취소
-          </Button>
           <Button
             type={'submit'}
             size={'lg'}

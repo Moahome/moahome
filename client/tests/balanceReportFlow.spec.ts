@@ -206,7 +206,7 @@ test('PDF 생성 실패는 다운로드를 막고 재시도하며 Excel 미리�
   }).check();
   await expect(modal.getByRole('table')).toBeVisible();
   await modal.getByRole('button', {
-    name: '취소',
+    name: '다운로드 미리보기 닫기',
     exact: true
   }).click();
   await expect(modal).toHaveCount(0);

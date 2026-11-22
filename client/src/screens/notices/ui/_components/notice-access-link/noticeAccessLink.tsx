@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   useRef,
   useState
 } from 'react';
@@ -10,7 +15,7 @@ import {
 } from '@tanstack/react-query';
 import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { Input } from '@/shared/ui/form-controls';
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -139,20 +144,14 @@ error?: boolean } | null>(null);
             >
               주민 열람 링크
             </h2>
-            <Button
-              variant={'ghost'}
-              iconOnly
+            <ModalCloseButton
               aria-label={'닫기'}
               disabled={busy}
               onClick={() => {
                 setOpen(false);
                 setConfirm(false);
               }}
-            >
-              <ServiceIcon
-                name={'close'}
-              />
-            </Button>
+            />
           </header>
           <p>
             이 건물의 모든 공지 목록과 상세를 볼 수 있는 링크입니다. 회수할 때까지 재사용할 수 있어요.

@@ -13,10 +13,23 @@ export function reportPreview(page: Page) {
 /** PC 닫기와 모바일 공통 헤더 복귀를 실제 입력으로 확인합니다. */
 export async function closeReportPreview(page: Page) {
   if ((page.viewportSize()?.width ?? 1440) >= 768) {
-    await expect(page.getByRole('button', {
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('button', {
+      name: '취소',
+      exact: true
+    })).toHaveCount(0);
+    await expect(dialog.getByRole('button', {
+      name: '닫기',
+      exact: true
+    })).toHaveCount(0);
+    const close = dialog.getByRole('button', {
       name: '다운로드 미리보기 닫기',
       exact: true
-    })).toBeEnabled();
+    });
+    await expect(close).toBeEnabled();
+    await expect(close).toHaveCSS('width', '32px');
+    await expect(close).toHaveCSS('height', '32px');
+    await expect(close.locator('svg')).toHaveAttribute('width', '18');
     await page.keyboard.press('Escape');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     return;

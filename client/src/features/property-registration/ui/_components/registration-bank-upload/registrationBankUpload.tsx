@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   BankImportEditor,
   TransferAllocationEditor,
   getExpenseAccountLabel
@@ -8,7 +13,7 @@ import {
 import { ApiError } from '@/shared/api';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { DataTable } from '@/shared/ui/data-table';
 import { FileDropzone } from '@/shared/ui/file-dropzone';
 import { FilterTabs } from '@/shared/ui/filter-tabs';
@@ -17,7 +22,6 @@ import {
   Input
 } from '@/shared/ui/form-controls';
 import { Pagination } from '@/shared/ui/pagination';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import { Toast } from '@/shared/ui/toast';
 import { StateMessage } from '@/shared/ui/state-message';
 import {
@@ -509,16 +513,10 @@ message: string } | null>(null);
             >
               거래 설정
             </h2>
-            <Button
-              variant={'ghost'}
-              iconOnly
+            <ModalCloseButton
               aria-label={'거래 설정 닫기'}
               onClick={() => setEditingId(null)}
-            >
-              <ServiceIcon
-                name={'close'}
-              />
-            </Button>
+            />
           </header>
           <div
             className={styles['modal-body']}

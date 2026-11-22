@@ -34,10 +34,6 @@
     }
   }
 
-  .close[data-variant='ghost'] {
-    color: var(--foreground);
-  }
-
   .body {
     padding: 24px;
   }

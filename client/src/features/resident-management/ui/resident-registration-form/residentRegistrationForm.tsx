@@ -1,5 +1,7 @@
 'use client';
 
+import { PageCancelButton } from '@/shared/ui/client-modal';
+
 import { useResidentUnitOptions } from '../../model/useResidentUnitOptions';
 
 import { Toast } from '@/shared/ui/toast';
@@ -226,14 +228,16 @@ export function ResidentRegistrationForm({
       </div>
     );
 
+  const CancelButton = resident ? Button : PageCancelButton;
+
   const cancelButton = (
-    <Button
+    <CancelButton
       variant={'outline'}
       onClick={onCancel}
       disabled={busy}
     >
       취소
-    </Button>
+    </CancelButton>
   );
 
   return (

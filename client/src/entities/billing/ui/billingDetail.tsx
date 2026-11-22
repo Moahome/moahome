@@ -1,14 +1,17 @@
 'use client';
 
+import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { useState } from 'react';
 import type { BillingCharge } from '../model/billingTypes';
 import { formatWon } from '@/shared/lib/format';
-import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { DataTable } from '@/shared/ui/data-table';
 import { ListToolbar } from '@/shared/ui/list-toolbar';
 import { Pagination } from '@/shared/ui/pagination';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import { formatBillingMonth } from '../lib/billingLabel';
 import {
   getBillingDates,
@@ -64,17 +67,9 @@ export function BillingDetail({
         </Title>
       </div>
       {presentation === 'modal' && (
-        <Button
-          variant={'ghost'}
-          size={'sm'}
-          iconOnly
+        <ModalCloseButton
           aria-label={'상세 닫기'}
           onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
         />
       )}
     </header>

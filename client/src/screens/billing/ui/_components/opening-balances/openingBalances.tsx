@@ -1,6 +1,12 @@
 'use client';
 
 import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   capturePropertyQueryScope,
   setPropertyQueryData
 } from '@/entities/property';
@@ -37,7 +43,7 @@ import {
 } from '@/entities/banking';
 import { SummaryCard } from '@/shared/ui/summary-card';
 import { OpeningUnitList } from './openingUnitList';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { InitialBalanceEditor } from './initialBalanceEditor';
 import { OpeningUnitEditor } from './openingUnitEditor';
 import { ListCard } from '@/shared/ui/list-card';
@@ -806,17 +812,10 @@ onSaved: (data: OpeningWorkspace, seed?: DraftSeed) => void }) {
             >
               기존 잔액 엑셀 업로드
             </h2>
-            <Button
-              iconOnly
-              variant={'ghost'}
+            <ModalCloseButton
               aria-label={'엑셀 업로드 닫기'}
               disabled={busy}
               onClick={() => setImporting(false)}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'close'}
-                />
-              )}
             />
           </header>
           <OpeningUploadContent
@@ -841,17 +840,10 @@ onSaved: (data: OpeningWorkspace, seed?: DraftSeed) => void }) {
             >
               확정 인계 정정
             </h2>
-            <Button
-              iconOnly
-              variant={'ghost'}
+            <ModalCloseButton
               aria-label={'확정 인계 정정 닫기'}
               disabled={busy}
               onClick={() => setCanceling(false)}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'close'}
-                />
-              )}
             />
           </header>
           <div
@@ -870,13 +862,13 @@ onSaved: (data: OpeningWorkspace, seed?: DraftSeed) => void }) {
             <div
               className={styles.actions}
             >
-              <Button
+              <PageCancelButton
                 variant={'outline'}
                 disabled={busy}
                 onClick={() => setCanceling(false)}
               >
                 취소
-              </Button>
+              </PageCancelButton>
               <Button
                 tone={'danger'}
                 disabled={busy || !reason.trim()}

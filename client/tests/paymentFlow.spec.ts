@@ -1588,7 +1588,7 @@ for (const width of [1440]) {
       name: '선택한 입금을 삭제할까요?'
     });
     await dialog.getByRole('button', {
-      name: '취소',
+      name: '선택 삭제 확인 닫기',
       exact: true
     }).click();
     await expect(page.getByRole('row').filter({

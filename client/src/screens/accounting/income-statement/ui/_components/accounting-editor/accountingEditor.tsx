@@ -1,15 +1,20 @@
 'use client';
 
+import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { useState } from 'react';
 import { formatInteger } from '@/shared/lib/format';
 import { ApiError } from '@/shared/api';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import {
   Dropdown,
   Input
 } from '@/shared/ui/form-controls';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   createAccountingAccount,
   reviewAccountingExpense,
@@ -125,18 +130,10 @@ export function AccountingEditor({
           >
             {title}
           </h2>
-          <Button
-            variant={'ghost'}
-            size={'sm'}
-            iconOnly
+          <ModalCloseButton
             aria-label={'매칭 닫기'}
             disabled={busy}
             onClick={onClose}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         </header>
       )}
@@ -263,13 +260,13 @@ export function AccountingEditor({
           )}
         </div>
         <footer>
-          <Button
+          <PageCancelButton
             variant={'outline'}
             disabled={busy}
             onClick={onClose}
           >
             취소
-          </Button>
+          </PageCancelButton>
           <Button
             type={'submit'}
             disabled={!ready}

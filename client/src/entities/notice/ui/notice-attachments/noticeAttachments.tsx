@@ -1,12 +1,17 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   useEffect,
   useRef,
   useState
 } from 'react';
 import Image from 'next/image';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { Button } from '@/shared/ui/button';
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { Toast } from '@/shared/ui/toast';
@@ -307,13 +312,10 @@ url: string } | null>(null);
             <strong>
               {file.name}
             </strong>
-            <Button
-              variant={'outline'}
-              tone={'neutral'}
+            <ModalCloseButton
+              aria-label={`${file.name} 미리보기 닫기`}
               onClick={() => setExpanded(false)}
-            >
-              닫기
-            </Button>
+            />
           </div>
           <Image
             src={source}

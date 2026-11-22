@@ -1,12 +1,17 @@
 'use client';
 
 import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   BankAccountCard,
   getBankAccountErrors
 } from '@/entities/banking';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
-import { ServiceIcon } from '@/shared/ui/service-icon';
+
 import { Toast } from '@/shared/ui/toast';
 import {
   useId,
@@ -74,16 +79,9 @@ export function RegistrationAccountDialog({
             관리비 수납과 지출에 사용할 통장을 등록합니다.
           </p>
         </div>
-        <Button
-          variant={'ghost'}
-          iconOnly
+        <ModalCloseButton
           aria-label={'통장 편집 닫기'}
           onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
         />
       </header>
       <form
@@ -122,12 +120,12 @@ export function RegistrationAccountDialog({
         <footer
           className={styles.actions}
         >
-          <Button
+          <PageCancelButton
             variant={'outline'}
             onClick={onClose}
           >
             취소
-          </Button>
+          </PageCancelButton>
           <Button
             type={'submit'}
             disabled={!valid}

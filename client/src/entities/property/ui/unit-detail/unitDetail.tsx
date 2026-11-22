@@ -1,9 +1,11 @@
 'use client';
 
-import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { DetailActions } from '@/shared/ui/detail-actions';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import { useRef } from 'react';
 import { UNIT_STATUS_OPTIONS } from '../../constant/propertyOptions';
 import {
@@ -94,19 +96,11 @@ export function UnitDetail({
           </Title>
         </div>
         {presentation === 'modal' && (
-          <Button
+          <ModalCloseButton
             ref={closeRef}
-            variant={'ghost'}
-            size={'sm'}
-            iconOnly
             aria-label={'세대 상세 닫기'}
             disabled={busy}
             onClick={onClose}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         )}
       </header>
@@ -134,8 +128,6 @@ export function UnitDetail({
       </dl>
       <DetailActions
         presentation={presentation}
-        showClose={false}
-        onClose={onClose}
         onEdit={onEdit}
         onDelete={onDelete}
         busy={busy}

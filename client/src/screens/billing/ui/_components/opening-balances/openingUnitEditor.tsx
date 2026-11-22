@@ -1,15 +1,20 @@
 'use client';
 
+import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { useState } from 'react';
 import type { OpeningWorkspace } from '@/features/billing-management';
 import { Button } from '@/shared/ui/button';
 import { CalendarPicker } from '@/shared/ui/calendar-picker';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import {
   AmountInput,
   Input
 } from '@/shared/ui/form-controls';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import styles from './openingBalances.module.css';
 
 /** 행의 수정값은 적용 전까지 별도로 보관하며 취소 시 전체 인계 초안을 변경하지 않습니다. */
@@ -41,16 +46,9 @@ export function OpeningUnitEditor({
           {' '}
           인계 정정
         </h2>
-        <Button
-          iconOnly
-          variant={'ghost'}
+        <ModalCloseButton
           aria-label={'인계 정정 닫기'}
           onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
         />
       </header>
       <form
@@ -119,12 +117,12 @@ export function OpeningUnitEditor({
         <footer
           className={styles.actions}
         >
-          <Button
+          <PageCancelButton
             variant={'outline'}
             onClick={onClose}
           >
             취소
-          </Button>
+          </PageCancelButton>
           <Button
             type={'submit'}
           >

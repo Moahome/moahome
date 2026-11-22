@@ -1,10 +1,15 @@
 'use client';
 
+import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { useBankingWorkspace } from '../../_hooks/useBankingWorkspace';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
-import { ServiceIcon } from '@/shared/ui/service-icon';
+
 import { TransferDetail } from '../../../_components/transfer-detail/transferDetail';
 import { BankingExpensePage } from '../../../banking-expense-page/bankingExpensePage';
 import { ManualExpense } from '../../../manual-expense/manualExpense';
@@ -135,19 +140,11 @@ export function BankingTransactionDialogs({
           >
             거래를 삭제할까요?
           </h2>
-          <Button
-            variant={'ghost'}
+          <ModalCloseButton
             tone={'neutral'}
-            size={'sm'}
-            iconOnly
             aria-label={'선택 삭제 확인 닫기'}
             disabled={busy}
             onClick={() => setDeleteOpen(false)}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         </header>
         <div
@@ -187,14 +184,14 @@ export function BankingTransactionDialogs({
         <footer
           className={styles['delete-actions']}
         >
-          <Button
+          <PageCancelButton
             variant={'outline'}
             tone={'neutral'}
             disabled={busy}
             onClick={() => setDeleteOpen(false)}
           >
             취소
-          </Button>
+          </PageCancelButton>
           <Button
             tone={'danger'}
             loading={busy}

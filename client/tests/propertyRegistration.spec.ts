@@ -1517,7 +1517,7 @@ for (const width of [1440]) {
     }).click();
     await expect(editor.getByLabel('항목명')).toHaveCount(0);
     await editor.getByRole('button', {
-      name: '취소',
+      name: '관리비 항목 수정 닫기',
       exact: true
     }).click();
     await page.getByRole('button', {
@@ -1728,7 +1728,7 @@ test('관리비 추가창은 빈 이름·부호만 입력·범위 초과를 막�
   await amount.fill('-999999999999999');
   await expect(save).toBeEnabled();
   await editor.getByRole('button', {
-    name: '취소',
+    name: '관리비 항목 추가 닫기',
     exact: true
   }).click();
   await expect(page.getByText('등록된 관리비 항목이 없어요.')).toBeVisible();
@@ -1785,7 +1785,7 @@ for (const width of [1440]) {
         includeHidden: true
       })).toBeHidden();
       await editor.getByRole('button', {
-        name: '취소',
+        name: '관리비 항목 수정 닫기',
         exact: true
       }).click();
     }
@@ -1803,7 +1803,7 @@ for (const width of [1440]) {
     });
     await expect(confirmation).toContainText('차감');
     await expect(confirmation.getByRole('button', {
-      name: '취소',
+      name: /닫기$/,
       exact: true
     })).toBeFocused();
     await page.keyboard.press('Escape');
@@ -2174,7 +2174,7 @@ test('동 없는 자동 입력은 잘못된 범위를 막고 취소에 세대를
   await automatic.getByLabel('층당 세대 수').fill('2');
   await expect(automatic.getByRole('status')).toHaveText('총 10세대 · 추가 10세대 · 중복 제외 0세대');
   await automatic.getByRole('button', {
-    name: '취소',
+    name: '세대 자동 입력 닫기',
     exact: true
   }).click();
   await expect(page.getByText('아직 등록한 세대가 없어요.')).toBeVisible();
@@ -2306,7 +2306,7 @@ test('동별 중복 범위와 이름 수정의 세대 연결을 유지하고 동
     name: '동 삭제 확인',
     exact: true
   }).getByRole('button', {
-    name: '취소',
+    name: '동 삭제 확인 닫기',
     exact: true
   }).click();
   await editBuilding.click();
@@ -2436,7 +2436,7 @@ for (const viewport of [{
       exact: true
     })).toBeEnabled();
     await confirmation.getByRole('button', {
-      name: '취소',
+      name: /닫기$/,
       exact: true
     }).click();
     await expect(clear).toHaveCSS('color', 'rgb(239, 68, 68)');
@@ -2444,11 +2444,11 @@ for (const viewport of [{
     await expect(confirmation).toContainText('101동과 연결된 4세대');
     await expect(confirmation).toContainText('동과 해당 동에 입력한 모든 세대가 함께 삭제됩니다.');
     await expect(confirmation.getByRole('button', {
-      name: '취소',
+      name: /닫기$/,
       exact: true
     })).toBeFocused();
     await confirmation.getByRole('button', {
-      name: '취소',
+      name: /닫기$/,
       exact: true
     }).click();
     await expect(clear).toBeFocused();
@@ -2673,7 +2673,7 @@ for (const viewport of [{
     await expect(room('101동 201호 선택')).toBeChecked();
     await deleteSelected.click();
     await confirmation.getByRole('button', {
-      name: '취소',
+      name: /닫기$/,
       exact: true
     }).click();
     expect(await page.evaluate((key) => JSON.parse(sessionStorage.getItem(key)!), DRAFT_STORAGE_KEY)).toEqual(before);
@@ -2881,7 +2881,7 @@ test('모바일 동 선택과 검색을 단순하게 표시하고 동 관리에�
     name: '동 삭제 확인',
     exact: true
   }).getByRole('button', {
-    name: '취소',
+    name: '동 삭제 확인 닫기',
     exact: true
   }).click();
   await manager.getByRole('button', {
@@ -3006,7 +3006,7 @@ test('동·세대는 숫자를 인식하는 이름순으로 표시하고 PC 삭�
   await expect(confirmDelete).toHaveCSS('color', 'rgb(239, 68, 68)');
   await expect(confirmDelete).toHaveCSS('border-color', 'rgb(239, 68, 68)');
   await confirmation.getByRole('button', {
-    name: '취소',
+    name: /닫기$/,
     exact: true
   }).click();
   await expect(rows.locator('td:first-child strong')).toHaveText(['101호', '102호', '1001호', '201호', '1001호']);
@@ -3068,7 +3068,7 @@ test('동·세대는 숫자를 인식하는 이름순으로 표시하고 PC 삭�
   await mobileDelete.click();
   await expect(confirmation).toContainText('1동 101호');
   await expect(confirmation.getByRole('button', {
-    name: '취소',
+    name: /닫기$/,
     exact: true
   })).toBeFocused();
   await page.keyboard.press('Escape');
@@ -3105,7 +3105,7 @@ test('동·세대와 현재 단계는 새로고침에 복원하고 흐름 이탈
   await expect(page).toHaveURL(/registration=basic$/);
   await expect(page.getByLabel('건물·단지 이름')).toHaveValue('');
   await page.getByRole('button', {
-    name: '취소',
+    name: '관리할 곳 등록 닫기',
     exact: true
   }).click();
   await expect(page).toHaveURL(/\/start$/);
@@ -3207,10 +3207,14 @@ test('동·세대 화면은 PC·모바일 표와 고정 하단 버튼을 표시�
     name: '세대 삭제',
     exact: true
   });
-  const cancel = editor.getByRole('button', {
-    name: '취소',
+  const close = editor.getByRole('button', {
+    name: '세대 수정 닫기',
     exact: true
   });
+  await expect(editor.getByRole('button', {
+    name: '취소',
+    exact: true
+  })).toHaveCount(0);
   const save = editor.getByRole('button', {
     name: '수정',
     exact: true
@@ -3218,14 +3222,12 @@ test('동·세대 화면은 PC·모바일 표와 고정 하단 버튼을 표시�
   await expect(deleteUnit).toHaveCSS('color', 'rgb(239, 68, 68)');
   await expect(deleteUnit).toHaveCSS('border-color', 'rgb(239, 68, 68)');
   await save.scrollIntoViewIfNeeded();
-  const cancelBox = (await cancel.boundingBox())!;
+  await expect(close).toHaveCSS('width', '32px');
+  await expect(close).toHaveCSS('height', '32px');
   const saveBox = (await save.boundingBox())!;
   const deleteBox = (await deleteUnit.boundingBox())!;
-  expect(deleteBox.width).toBe(saveBox.x + saveBox.width - cancelBox.x);
-  expect(deleteBox.y + deleteBox.height).toBeLessThan(cancelBox.y);
-  expect(cancelBox.width).toBe(saveBox.width);
-  expect(cancelBox.y).toBe(saveBox.y);
-  expect(cancelBox.x + cancelBox.width).toBeLessThan(saveBox.x);
+  expect(deleteBox.y + deleteBox.height).toBeLessThan(saveBox.y);
+  expect(deleteBox.width).toBeGreaterThanOrEqual(saveBox.width);
   expect(await editor.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   await save.click();
   await expect(editor).toHaveCount(0);
@@ -3254,7 +3256,7 @@ test('새로고침에는 같은 사용자 초안을 복원하고 취소·뒤로 
     name: /^동 없음/
   })).toBeChecked();
   await page.getByRole('button', {
-    name: '취소',
+    name: '관리할 곳 등록 닫기',
     exact: true
   }).click();
   await expect(page).toHaveURL(/\/start$/);
@@ -3341,7 +3343,7 @@ test('검증 중 취소 후 늦게 도착한 성공 응답은 새 등록 입력�
     name: '확인 중…'
   })).toBeDisabled();
   await page.getByRole('button', {
-    name: '취소',
+    name: '관리할 곳 등록 닫기',
     exact: true
   }).click();
   await page.getByRole('button', {
@@ -5806,7 +5808,7 @@ for (const width of [390]) {
       exact: true
     }).fill('취소할 통장');
     await modal.getByRole('button', {
-      name: '취소',
+      name: '통장 편집 닫기',
       exact: true
     }).click();
     await expect(page.getByRole('group', {
@@ -6040,6 +6042,15 @@ for (const width of [1440, 390]) {
       name: '출금 상세',
       exact: true
     })).toBeVisible();
+    await expect(page.getByRole('button', {
+      name: '닫기',
+      exact: true
+    })).toHaveCount(0);
+    if (width > 767)
+      await expect(page.getByRole('button', {
+        name: '입출금 상세 닫기',
+        exact: true
+      })).toBeVisible();
     await expect(page.getByRole('textbox', {
       name: '출금액',
       exact: true

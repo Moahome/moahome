@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { useState } from 'react';
 import {
   useRouter,
@@ -9,8 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSession } from '@/entities/session';
 import { formatInteger } from '@/shared/lib/format';
 import { isValidMonth } from '@/shared/lib/month-range';
-import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { InfoTooltip } from '@/shared/ui/info-tooltip';
 import { ListHeader } from '@/shared/ui/list-header';
 import { MonthPicker } from '@/shared/ui/month-picker';
@@ -289,17 +293,10 @@ month: string } | null>(null);
             >
               통장 상세
             </h2>
-            <Button
-              variant={'ghost'}
-              size={'sm'}
-              iconOnly
+            <ModalCloseButton
               aria-label={'통장 상세 닫기'}
               onClick={closeDetail}
-            >
-              <ServiceIcon
-                name={'close'}
-              />
-            </Button>
+            />
           </header>
           <BankAccountDetails
             propertyId={propertyId}

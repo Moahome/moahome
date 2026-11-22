@@ -1,6 +1,12 @@
 'use client';
 
 import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   useRef,
   useState
 } from 'react';
@@ -12,7 +18,7 @@ import {
 import { useSession } from '@/entities/session';
 import { ApiError } from '@/shared/api';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { Input } from '@/shared/ui/form-controls';
 import {
   goBackToPreviousRoute,
@@ -542,18 +548,11 @@ notice: NoticeDetail }) {
             >
               공지를 삭제할까요?
             </h2>
-            <Button
-              variant={'ghost'}
-              size={'sm'}
-              iconOnly
+            <ModalCloseButton
               disabled={busy}
               aria-label={'닫기'}
               onClick={() => setConfirming(false)}
-            >
-              <ServiceIcon
-                name={'close'}
-              />
-            </Button>
+            />
           </div>
           <p>
             삭제한 공지는 목록에서 표시되지 않습니다.
@@ -561,14 +560,14 @@ notice: NoticeDetail }) {
           <div
             className={styles.actions}
           >
-            <Button
+            <PageCancelButton
               variant={'outline'}
               tone={'neutral'}
               disabled={busy}
               onClick={() => setConfirming(false)}
             >
               취소
-            </Button>
+            </PageCancelButton>
             <Button
               variant={'outline'}
               tone={'danger'}

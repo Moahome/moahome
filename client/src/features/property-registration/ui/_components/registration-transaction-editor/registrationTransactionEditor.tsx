@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   ManualExpenseForm,
   ManualReceiptForm,
   getExpenseAccountLabel,
@@ -9,9 +14,8 @@ import {
 import { useState } from 'react';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { DetailActions } from '@/shared/ui/detail-actions';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import type { RegistrationAccount } from '../../../model/bankAccountTypes';
 import { getOpeningToday } from '../../../model/openingBalances';
 import type { RegistrationManualTransaction } from '../../../model/registrationBankTypes';
@@ -74,16 +78,9 @@ export function RegistrationTransactionEditor({
             </h2>
           )}
           {presentation === 'modal' && (
-            <Button
-              variant={'ghost'}
-              iconOnly
+            <ModalCloseButton
               aria-label={'입출금 상세 닫기'}
               onClick={onClose}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'close'}
-                />
-              )}
             />
           )}
         </header>
@@ -201,7 +198,6 @@ export function RegistrationTransactionEditor({
             </dl>
             <DetailActions
               presentation={presentation}
-              onClose={onClose}
               onEdit={() => setMode('edit')}
               onDelete={() => setMode('delete')}
             />

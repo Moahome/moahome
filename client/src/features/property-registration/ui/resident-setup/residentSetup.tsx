@@ -1,6 +1,12 @@
 'use client';
 
 import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   useEffect,
   useRef,
   useState
@@ -17,7 +23,7 @@ import {
   normalizeResidentPhone
 } from '@/entities/resident';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { DataTable } from '@/shared/ui/data-table';
 import { IconButton } from '@/shared/ui/icon-button';
 import { Pagination } from '@/shared/ui/pagination';
@@ -341,19 +347,12 @@ export function ResidentSetup({
                   소속 세대와 주민 정보를 입력해주세요.
                 </p>
               </div>
-              <Button
-                variant={'ghost'}
-                iconOnly
+              <ModalCloseButton
                 aria-label={'주민 입력 닫기'}
                 onClick={() => {
                   setEditorOpen(false);
                   setMessage('');
                 }}
-                leadingIcon={(
-                  <ServiceIcon
-                    name={'close'}
-                  />
-                )}
               />
             </header>
             <form
@@ -469,7 +468,7 @@ export function ResidentSetup({
               <div
                 className={styles['add-actions']}
               >
-                <Button
+                <PageCancelButton
                   variant={'outline'}
                   onClick={() => {
                     setEditorOpen(false);
@@ -477,7 +476,7 @@ export function ResidentSetup({
                   }}
                 >
                   취소
-                </Button>
+                </PageCancelButton>
                 <Button
                   type={'submit'}
                 >

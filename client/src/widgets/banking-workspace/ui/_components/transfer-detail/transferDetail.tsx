@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   getBankAccountLabel,
   calculateTransferAllocation,
   type TransferAllocationPart
@@ -14,7 +19,7 @@ import {
 import { useSession } from '@/entities/session';
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { Dropdown } from '@/shared/ui/form-controls';
 import { ListHeader } from '@/shared/ui/list-header';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -356,17 +361,10 @@ onClose?: () => void;
             계좌 간 이체
           </h2>
         </div>
-        <Button
-          variant={'ghost'}
-          iconOnly
+        <ModalCloseButton
           aria-label={'이체 상세 닫기'}
           disabled={busy}
           onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
         />
       </header>
       {content}

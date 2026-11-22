@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { getManagementDashboardPath } from '@/entities/property';
@@ -9,7 +14,7 @@ import {
   MEMBER_ROLE_LABELS
 } from '@/features/member-management';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { ListCard } from '@/shared/ui/list-card';
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -199,17 +204,10 @@ export function ParticipatingProperties({
         >
           참여 중인 곳
         </h2>
-        <Button
-          variant={'ghost'}
-          iconOnly
+        <ModalCloseButton
           aria-label={'참여 중인 곳 닫기'}
           onClick={onClose}
           disabled={invitationBusy}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
         />
       </header>
       <div

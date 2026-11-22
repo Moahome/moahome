@@ -255,7 +255,7 @@ test('주소 미리보기·지도 추가·초안 복구·저장·수정·삭제�
     exact: true
   }).fill('취소할 장소명');
   await picker.getByRole('button', {
-    name: '취소',
+    name: '닫기',
     exact: true
   }).click();
   await expect(card).toContainText(NOTICE_LOCATION.name);
@@ -331,7 +331,7 @@ test('주소 미리보기·지도 추가·초안 복구·저장·수정·삭제�
     fullPage: true
   });
   await picker.getByRole('button', {
-    name: '취소',
+    name: '닫기',
     exact: true
   }).click();
   await card.getByRole('button', {
@@ -477,8 +477,12 @@ test('파일 첨부·저장 후 목록·상세 다운로드·작성자 수정·�
     name: '첨부 사진.png',
     exact: true
   })).toBeVisible();
-  await page.getByRole('dialog').getByRole('button', {
+  await expect(page.getByRole('dialog').getByRole('button', {
     name: '닫기',
+    exact: true
+  })).toHaveCount(0);
+  await page.getByRole('dialog').getByRole('button', {
+    name: '첨부 사진.png 미리보기 닫기',
     exact: true
   }).click();
   await expect.poll(() => page.getByRole('textbox', {

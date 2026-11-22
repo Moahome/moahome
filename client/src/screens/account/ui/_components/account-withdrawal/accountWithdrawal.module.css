@@ -2,7 +2,7 @@
   display: grid;
   gap: 20px;
 
-  > h2 {
+  .dialog-header h2 {
     font-size: 20px;
     font-weight: 750;
   }
@@ -32,7 +32,7 @@
   background: var(--card);
   color: var(--foreground);
 
-  > h2 {
+  .dialog-header h2 {
     margin-bottom: 20px;
     font-size: 22px;
     font-weight: 750;
@@ -88,4 +88,11 @@
     flex: 1;
     min-width: 0;
   }
+}
+
+.dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
 }

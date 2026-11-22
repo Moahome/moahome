@@ -1,5 +1,11 @@
 'use client';
 
+import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { getBankAccountLabel } from '@/entities/banking';
 
 import {
@@ -18,8 +24,7 @@ import {
   AmountInput,
   Input
 } from '@/shared/ui/form-controls';
-import { ClientModal } from '@/shared/ui/client-modal';
-import { ServiceIcon } from '@/shared/ui/service-icon';
+
 import styles from './openingBalances.module.css';
 
 /** 초기 기준만 정정하며 실패에는 입력·요청 ID를 유지하고 모바일에서는 독립 페이지로 표시합니다. */
@@ -62,17 +67,10 @@ id: string } | null>(null);
           >
             초기 기준 정정
           </h2>
-          <Button
-            iconOnly
-            variant={'ghost'}
+          <ModalCloseButton
             aria-label={'초기 기준 정정 닫기'}
             disabled={busy}
             onClick={onClose}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         </header>
       )}
@@ -181,13 +179,13 @@ id: string } | null>(null);
         <div
           className={styles.actions}
         >
-          <Button
+          <PageCancelButton
             variant={'outline'}
             disabled={busy}
             onClick={onClose}
           >
             취소
-          </Button>
+          </PageCancelButton>
           {allowed && (
             <Button
               type={'submit'}

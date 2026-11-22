@@ -1,5 +1,11 @@
 'use client';
 
+import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { BuildingFilter } from '@/entities/property';
 
 import { getBankAccountLabel } from '@/entities/banking';
@@ -10,7 +16,7 @@ import {
   formatWon
 } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { DataTable } from '@/shared/ui/data-table';
 import { FileDropzone } from '@/shared/ui/file-dropzone';
 import { FilterTabs } from '@/shared/ui/filter-tabs';
@@ -804,17 +810,10 @@ ids: string[] } | null>(null);
             >
               통장 내역 가져오기
             </h2>
-            <Button
-              variant={'ghost'}
-              iconOnly
+            <ModalCloseButton
               aria-label={'통장 내역 가져오기 닫기'}
               disabled={reading || busy}
               onClick={() => setImportOpen(false)}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'close'}
-                />
-              )}
             />
           </div>
           <p>
@@ -952,13 +951,13 @@ ids: string[] } | null>(null);
           <div
             className={styles.actions}
           >
-            <Button
+            <PageCancelButton
               variant={'outline'}
               disabled={reading || busy}
               onClick={() => setImportOpen(false)}
             >
               취소
-            </Button>
+            </PageCancelButton>
             <Button
               loading={busy}
               disabled={reading || !selectedImport.length}
@@ -984,18 +983,10 @@ ids: string[] } | null>(null);
             >
               선택한 입금을 삭제할까요?
             </h2>
-            <Button
-              variant={'ghost'}
-              iconOnly
-              size={'sm'}
+            <ModalCloseButton
               aria-label={'선택 삭제 확인 닫기'}
               disabled={busy}
               onClick={() => setDeleteOpen(false)}
-              leadingIcon={(
-                <ServiceIcon
-                  name={'close'}
-                />
-              )}
             />
           </div>
           <p>
@@ -1023,13 +1014,13 @@ ids: string[] } | null>(null);
           <div
             className={styles.actions}
           >
-            <Button
+            <PageCancelButton
               variant={'outline'}
               disabled={busy}
               onClick={() => setDeleteOpen(false)}
             >
               취소
-            </Button>
+            </PageCancelButton>
             <Button
               variant={'outline'}
               tone={'danger'}

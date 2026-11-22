@@ -157,7 +157,7 @@ test('시스템 회원 관리 PC는 검색·권한 확인·실패 재시도·관
     exact: true
   });
   await confirmation.getByRole('button', {
-    name: '취소',
+    name: '생성 권한을 부여할까요? 닫기',
     exact: true
   }).click();
   expect(api.commands).toHaveLength(0);

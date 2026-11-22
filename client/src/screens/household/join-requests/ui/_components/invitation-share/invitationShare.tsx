@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   useRef,
   useState
 } from 'react';
@@ -9,7 +14,7 @@ import {
   memberManagementError,
   type ResidentInvitationShare
 } from '@/features/member-management';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { Button } from '@/shared/ui/button';
 import { Input } from '@/shared/ui/form-controls';
 import { ServiceIcon } from '@/shared/ui/service-icon';
@@ -141,18 +146,11 @@ export function InvitationShare({
             코드나 링크 중 원하는 방식으로 전달하세요.
           </p>
         </div>
-        <Button
+        <ModalCloseButton
           className={styles.close}
-          variant={'ghost'}
-          iconOnly
           aria-label={'초대 전달 닫기'}
           disabled={restoring}
           onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
         />
       </header>
       <div

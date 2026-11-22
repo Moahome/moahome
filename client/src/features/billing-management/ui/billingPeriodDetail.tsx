@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { useQuery } from '@tanstack/react-query';
 import {
   BillingDetail,
@@ -7,8 +12,7 @@ import {
 } from '@/entities/billing';
 import { useSession } from '@/entities/session';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
-import { ServiceIcon } from '@/shared/ui/service-icon';
+
 import { RequestError } from '@/shared/ui/server-connection-error';
 import {
   LoadingState,
@@ -104,16 +108,9 @@ export function BillingPeriodDetail({
           부과 상세
         </h2>
         {presentation === 'modal' && (
-          <Button
-            variant={'ghost'}
-            iconOnly
+          <ModalCloseButton
             aria-label={'상세 닫기'}
             onClick={onClose}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         )}
       </header>

@@ -1,5 +1,7 @@
 'use client';
 
+import { ModalCloseButton } from '@/shared/ui/client-modal';
+
 import { FEE_ITEM_OPTIONS } from '@/entities/billing';
 import { Button } from '@/shared/ui/button';
 import {
@@ -7,7 +9,6 @@ import {
   Dropdown,
   Input
 } from '@/shared/ui/form-controls';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   useEffect,
   useRef,
@@ -130,16 +131,9 @@ export function FeeItemEditor({
         >
           {title}
         </h2>
-        <Button
-          variant={'ghost'}
-          iconOnly
+        <ModalCloseButton
           aria-label={`${title} 닫기`}
           onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
         />
       </header>
       <form
@@ -201,12 +195,6 @@ export function FeeItemEditor({
         <footer
           className={styles.actions}
         >
-          <Button
-            variant={'outline'}
-            onClick={onClose}
-          >
-            취소
-          </Button>
           <Button
             type={'submit'}
             disabled={Object.keys(errors).length > 0}

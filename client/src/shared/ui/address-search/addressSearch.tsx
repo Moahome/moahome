@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { LoadingState } from '@/shared/ui/state-message';
 
 import {
@@ -9,9 +14,8 @@ import {
   useState
 } from 'react';
 import { Button } from '@/shared/ui/button';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import { loadPostcodeService } from '@/shared/lib/postcode';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import styles from './addressSearch.module.css';
 
 /** 폼 위에 주소 검색을 열고 선택한 주소만 전달하며 닫기·실패에는 기존 입력을 유지합니다. */
@@ -136,17 +140,9 @@ export function AddressSearch({
         >
           주소 검색
         </h2>
-        <Button
-          variant={'ghost'}
-          size={'sm'}
-          iconOnly
+        <ModalCloseButton
           aria-label={'주소 검색 닫기'}
           onClick={onClose}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
         />
       </header>
       {content}

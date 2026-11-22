@@ -1,5 +1,7 @@
 'use client';
 
+import { PageCancelButton } from '@/shared/ui/client-modal';
+
 import { BankAccountEditor } from '@/features/bank-account-management';
 import { BankAccountDetails } from '../../../_components/bank-account-details/bankAccountDetails';
 import type {
@@ -89,13 +91,13 @@ export function BankInitialBalanceEditor({
         <div
           className={styles.actions}
         >
-          <Button
+          <PageCancelButton
             variant={'outline'}
             disabled={busy}
             onClick={onClose}
           >
             취소
-          </Button>
+          </PageCancelButton>
           {allowed && (
             <Button
               type={'submit'}

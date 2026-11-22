@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { usePathname } from 'next/navigation';
 import {
   useEffect,
@@ -9,7 +14,7 @@ import {
 } from 'react';
 import { Button } from '@/shared/ui/button';
 import { BrandMark } from '@/shared/ui/brand-mark';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { ServiceIcon } from '@/shared/ui/service-icon';
 import { AppInstallContext } from '../../model/appInstallContext';
 import type { BeforeInstallPromptEvent } from '../../model/appInstallTypes';
@@ -281,17 +286,10 @@ export function AppInstallProvider({
             >
               {guideTitle}
             </h2>
-            <Button
-              variant={'ghost'}
-              size={'sm'}
-              iconOnly
+            <ModalCloseButton
               aria-label={'설치 방법 닫기'}
               onClick={closeGuide}
-            >
-              <ServiceIcon
-                name={'close'}
-              />
-            </Button>
+            />
           </header>
           {environment.kakao ? (
             <>

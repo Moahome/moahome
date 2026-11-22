@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   capturePropertyQueryScope,
   setPropertyQueryData
 } from '@/entities/property';
@@ -26,9 +31,8 @@ import {
 } from '@/entities/resident';
 import { Button } from '@/shared/ui/button';
 import { DetailActions } from '@/shared/ui/detail-actions';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { Dropdown } from '@/shared/ui/form-controls';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import { Toast } from '@/shared/ui/toast';
 import {
   deleteResident,
@@ -198,17 +202,10 @@ export function ResidentDetails({
           {title}
         </Title>
         {presentation === 'modal' && (
-          <Button
-            variant={'ghost'}
-            iconOnly
+          <ModalCloseButton
             aria-label={'주민 상세 닫기'}
             disabled={busy}
             onClick={onClose}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         )}
       </header>
@@ -325,8 +322,6 @@ export function ResidentDetails({
           {canModify && (
             <DetailActions
               presentation={presentation}
-              showClose={false}
-              onClose={onClose}
               onEdit={() => changeMode('edit')}
               onDelete={() => changeMode('delete')}
               busy={busy}

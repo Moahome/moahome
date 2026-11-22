@@ -1,5 +1,11 @@
 'use client';
 
+import {
+  ModalCloseButton,
+  PageCancelButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import Link from 'next/link';
 import { useState } from 'react';
 import {
@@ -16,7 +22,7 @@ import {
 } from '@/entities/session';
 import { ApiError } from '@/shared/api';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { ListCard } from '@/shared/ui/list-card';
 import { RequestError } from '@/shared/ui/server-connection-error';
 import { LoadingState } from '@/shared/ui/state-message';
@@ -128,11 +134,20 @@ function WithdrawalDialog({
       busy={busy}
       onClose={onClose}
     >
-      <h2
-        id={'withdrawal-dialog-title'}
+      <header
+        className={styles['dialog-header']}
       >
-        회원 탈퇴
-      </h2>
+        <h2
+          id={'withdrawal-dialog-title'}
+        >
+          회원 탈퇴
+        </h2>
+        <ModalCloseButton
+          aria-label={'회원 탈퇴 창 닫기'}
+          onClick={onClose}
+          disabled={busy}
+        />
+      </header>
       {status.isPending || status.isFetching ? (
         <LoadingState
           layout={'inline'}
@@ -202,13 +217,13 @@ function WithdrawalDialog({
       <div
         className={styles.actions}
       >
-        <Button
+        <PageCancelButton
           variant={'outline'}
           disabled={busy}
           onClick={onClose}
         >
           취소
-        </Button>
+        </PageCancelButton>
         {valid && status.data?.canWithdraw && (
           <Button
             variant={'outline'}

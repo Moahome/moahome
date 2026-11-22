@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   type ReactNode,
   useRef,
   useState
@@ -15,7 +20,7 @@ import { getTodayDate } from '@/shared/lib/date-range';
 import { formatInteger } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
 import { CalendarPicker } from '@/shared/ui/calendar-picker';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { ListCard } from '@/shared/ui/list-card';
 import { ListHeader } from '@/shared/ui/list-header';
 import {
@@ -28,7 +33,6 @@ import {
   LoadingState,
   StateMessage
 } from '@/shared/ui/state-message';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   cancelPayable,
   cancelPayablePayment,
@@ -162,18 +166,10 @@ export function PayableManager({
           >
             {title}
           </h2>
-          <Button
-            variant={'ghost'}
-            size={'sm'}
-            iconOnly
+          <ModalCloseButton
             aria-label={'미지급 상세 닫기'}
             disabled={busy}
             onClick={onClose}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         </header>
       )}

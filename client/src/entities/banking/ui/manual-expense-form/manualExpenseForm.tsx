@@ -1,19 +1,24 @@
 'use client';
 
+import {
+  PageCancelButton,
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { getBankAccountLabel } from '../../lib/bankAccountLabel';
 
 import { ExpenseAccountSelect } from '../expense-account-select/expenseAccountSelect';
 import { AllocationEditor } from '../allocation-editor/allocationEditor';
 import { Button } from '@/shared/ui/button';
 import { CalendarPicker } from '@/shared/ui/calendar-picker';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import {
   AmountInput,
   Dropdown,
   Input
 } from '@/shared/ui/form-controls';
 import { ListHeader } from '@/shared/ui/list-header';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import {
   useRef,
   useState,
@@ -199,6 +204,8 @@ label: string }[];
     />
   ) : null;
 
+  const CancelButton = onCancel ? Button : PageCancelButton;
+
   const content = (
     <>
       {presentation === 'page' ? (
@@ -222,17 +229,10 @@ label: string }[];
               {title}
             </h2>
           </div>
-          <Button
-            variant={'ghost'}
-            iconOnly
+          <ModalCloseButton
             aria-label={`${title} 닫기`}
             disabled={busy}
             onClick={onClose}
-            leadingIcon={(
-              <ServiceIcon
-                name={'close'}
-              />
-            )}
           />
         </header>
       )}
@@ -381,13 +381,13 @@ label: string }[];
             className={styles.actions}
           >
             {(presentation === 'modal' || onCancel) && (
-              <Button
+              <CancelButton
                 variant={'outline'}
                 disabled={busy}
                 onClick={onCancel ?? onClose}
               >
                 취소
-              </Button>
+              </CancelButton>
             )}
             <Button
               type={'submit'}

@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   useId,
   useRef,
   useState
@@ -10,7 +15,7 @@ import {
   formatWon
 } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import {
   AmountInput,
   Input
@@ -127,18 +132,9 @@ tone: 'success' | 'error' } | null>(null);
             {description}
           </p>
         </div>
-        <Button
-          className={styles.close}
-          variant={'ghost'}
-          size={'sm'}
-          iconOnly
+        <ModalCloseButton
           aria-label={'계산기 닫기'}
           onClick={close}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
         />
       </header>
       <div

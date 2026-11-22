@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSession } from '@/entities/session';
@@ -18,7 +23,7 @@ import {
 } from '@/features/accounting-accounts';
 import { ApiError } from '@/shared/api';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { DataTable } from '@/shared/ui/data-table';
 import {
   Dropdown,
@@ -126,18 +131,11 @@ export function AccountEditor({
         >
           {title}
         </h2>
-        <Button
-          variant={'ghost'}
-          size={'sm'}
-          iconOnly
+        <ModalCloseButton
           aria-label={'닫기'}
           disabled={busy}
           onClick={onClose}
-        >
-          <ServiceIcon
-            name={'close'}
-          />
-        </Button>
+        />
       </header>
       {confirmation ? (
         <>

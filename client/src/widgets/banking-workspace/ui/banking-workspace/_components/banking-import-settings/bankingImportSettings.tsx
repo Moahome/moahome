@@ -1,6 +1,11 @@
 'use client';
 
 import {
+  ModalCloseButton,
+  ClientModal
+} from '@/shared/ui/client-modal';
+
+import {
   BankImportEditor,
   calculateTransferAllocation,
   getBankAccountLabel
@@ -11,9 +16,8 @@ import { useBankingWorkspace } from '../../_hooks/useBankingWorkspace';
 
 import { formatWon } from '@/shared/lib/format';
 import { Button } from '@/shared/ui/button';
-import { ClientModal } from '@/shared/ui/client-modal';
+
 import { Dropdown } from '@/shared/ui/form-controls';
-import { ServiceIcon } from '@/shared/ui/service-icon';
 import { calculateExpenseAllocation } from '../../../../model/expenseAllocation';
 import { TransferAllocation } from '../../../_components/transfer-allocation/transferAllocation';
 import styles from './bankingImportSettings.module.css';
@@ -73,18 +77,10 @@ export function BankingImportSettings({
             {row.payer}
           </h2>
         </div>
-        <Button
-          variant={'ghost'}
-          size={'sm'}
-          iconOnly
+        <ModalCloseButton
           aria-label={'거래 설정 닫기'}
           disabled={busy}
           onClick={() => setEditingId(null)}
-          leadingIcon={(
-            <ServiceIcon
-              name={'close'}
-            />
-          )}
         />
       </header>
       <div

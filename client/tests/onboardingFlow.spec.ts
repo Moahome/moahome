@@ -1307,11 +1307,11 @@ for (const width of [1440, 390]) {
     await expect(confirmation).toContainText('과거 거래 내역은 보존합니다.');
     await expect(card).not.toContainText('삭제할까요?');
     await expect(confirmation.getByRole('button', {
-      name: '취소',
+      name: '통장 삭제 확인 닫기',
       exact: true
     })).toBeFocused();
     await confirmation.getByRole('button', {
-      name: '취소',
+      name: '통장 삭제 확인 닫기',
       exact: true
     }).click();
     expect(writes).toBe(0);
@@ -1335,7 +1335,7 @@ for (const width of [1440, 390]) {
       exact: true
     })).toBeDisabled();
     await expect(confirmation.getByRole('button', {
-      name: '취소',
+      name: '통장 삭제 확인 닫기',
       exact: true
     })).toBeDisabled();
     if (width > 767) await expect(dialog.getByRole('button', {
