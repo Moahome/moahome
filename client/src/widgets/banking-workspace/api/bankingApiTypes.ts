@@ -7,6 +7,7 @@ import type {
 
 export type BankingExpense = ExpenseDraft & {
   id: string;
+  manualBankLinked?: boolean;
 };
 
 export type BankingTransaction = {
@@ -105,15 +106,20 @@ export type BankingPreview = {
 
 export type BankingSelection = {
   id: string;
+  manualExpenseId?: string;
   unitId?: string;
   incomeCategory?: string;
   incomeNote?: string;
-  expense?: ExpenseDraft;
+  expense?: BankingExpenseInput;
   incomeAllocation?: ExpenseDraft;
   transfer?: boolean;
   transferAccountId?: string;
   matchTransferId?: string;
   transferAllocations?: TransferAllocationPart[];
+};
+
+export type BankingExpenseInput = ExpenseDraft & {
+  separateExpense?: boolean;
 };
 
 export type {

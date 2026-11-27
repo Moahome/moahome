@@ -190,8 +190,9 @@ public class BankingService {
 			var result = new BankingResponse.Expense(e.getId(), category,
 			    security.decrypt(e.getMemoEncrypted()), e.getAllocationMode(), e.isSaveAsRule(), shares,
 			    accountingAccount == null ? null : accountingAccount.getCode(),
-			    accountingAccount == null ? null : accountingAccount.getName(), true);
-			if ("MANUAL".equals(e.getSourceType())) {
+			    accountingAccount == null ? null : accountingAccount.getName(), true,
+			    "MANUAL".equals(e.getSourceType()) && e.getBankTransactionId() != null);
+			if ("MANUAL".equals(e.getSourceType()) && e.getBankTransactionId() == null) {
 				manualRows.add(new BankingResponse.Transaction(e.getId(), e.getBankAccountId(), e.getExpenseDate(),
 				    null, result.category(), result.note(), e.getTotalAmount().toPlainString(), null, "EXPENSE", "",
 				    null, "CONFIRMED", "", "", result, null, null, false, null, "MANUAL"));
@@ -377,7 +378,7 @@ public class BankingService {
 				throw new BankingException("INVALID_BANK_SELECTION");
 			if (item.transfer()) {
 				if (item.expense() != null || item.incomeAllocation() != null || item.unitId() != null
-				    || item.incomeCategory() != null || item.incomeNote() != null)
+				    || item.incomeCategory() != null || item.incomeNote() != null || item.manualExpenseId() != null)
 					throw new BankingException("INVALID_BANK_SELECTION");
 				BankTransaction original = saveTransferSource(property, account.getId(), row, user);
 				if (item.transferAccountId() != null || item.matchTransferId() != null) {
@@ -391,7 +392,7 @@ public class BankingService {
 			    || transferPostings.pending(pendingTransfers, account.getId(), row.date(), row.direction(), row.amount()) != null)
 				throw new BankingException("BANK_TRANSFER_CONFIRM_REQUIRED");
 			if ("INCOME".equals(row.direction())) {
-				if (item.expense() != null || (item.unitId() != null && item.incomeCategory() != null)
+				if (item.expense() != null || item.manualExpenseId() != null || (item.unitId() != null && item.incomeCategory() != null)
 				    || (item.incomeAllocation() != null && (item.unitId() != null || item.incomeCategory() == null)))
 					throw new BankingException("INVALID_BANK_SELECTION");
 				income.add(row);
@@ -400,10 +401,13 @@ public class BankingService {
 				continue;
 			}
 			if (item.unitId() != null || item.incomeCategory() != null || item.incomeNote() != null
-			    || item.incomeAllocation() != null)
+			    || item.incomeAllocation() != null || (item.manualExpenseId() != null && item.expense() != null))
 				throw new BankingException("INVALID_BANK_SELECTION");
 			String key = BankTransactionKeys.key(row, security);
 			var previous = duplicates.find(row);
+			if (previous.isEmpty() && item.manualExpenseId() != null
+			    && expenseService.replayDeletedUpload(property, account.getId(), key, item.manualExpenseId()))
+				continue;
 			BankTransaction original;
 			if (previous.isPresent())
 				original = previous.get();
@@ -415,7 +419,9 @@ public class BankingService {
 				original.markExpense();
 				original = transactions.saveAndFlush(original);
 			}
-			if (item.expense() != null)
+			if (item.manualExpenseId() != null)
+				expenseService.linkBank(original, item.manualExpenseId(), user);
+			else if (item.expense() != null)
 				expenseService.confirm(original, item.expense(), user);
 		}
 		if (!income.isEmpty())
@@ -477,6 +483,19 @@ public class BankingService {
 		    .filter(t -> property.equals(t.getPropertyId()) && t.getDeletedAt() == null)
 		    .orElseThrow(() -> new BankingException("BANK_TRANSACTION_NOT_FOUND"));
 		expenseService.confirm(original, request, user);
+		return workspace(user, property);
+	}
+
+	/** 관리대상 잠금 안에서 원본과 기존 지출을 연결하며 재시도는 같은 결과를 반환합니다. */
+	@Transactional
+	public BankingResponse.Workspace linkManualExpense(UUID user, UUID property, UUID transactionId, UUID expenseId) {
+		requireManagementAccess(user, property);
+		properties.findForUnitUpdate(property).orElseThrow(() -> new AuthException(AuthErrorCode.ACCESS_DENIED));
+		requireManagementAccess(user, property);
+		BankTransaction original = transactions.findById(transactionId)
+		    .filter(value -> property.equals(value.getPropertyId()))
+		    .orElseThrow(() -> new BankingException("BANK_TRANSACTION_NOT_FOUND"));
+		expenseService.linkBank(original, expenseId, user);
 		return workspace(user, property);
 	}
 
@@ -649,7 +668,8 @@ public class BankingService {
 			throw new BankingException("PAYMENT_DELETE_NOT_ALLOWED");
 		List<Expense> manualExpenses = expenses.findAllById(expenseIds);
 		if (manualExpenses.size() != expenseIds.size() || manualExpenses.stream()
-		    .anyMatch(value -> !property.equals(value.getPropertyId()) || !"MANUAL".equals(value.getSourceType())))
+		    .anyMatch(value -> !property.equals(value.getPropertyId()) || !"MANUAL".equals(value.getSourceType())
+		        || value.getBankTransactionId() != null))
 			throw new BankingException("EXPENSE_DELETE_NOT_ALLOWED");
 		// 한 선택이라도 삭제 불가이면 은행 원본 취소까지 모두 롤백합니다. 취소 사유와 수납 이벤트는 보존합니다.
 		if (!manualIds.isEmpty())
@@ -662,6 +682,12 @@ public class BankingService {
 		expenses.flush();
 		selected.forEach(t -> t.softDelete(user, at));
 		transactions.flush();
+		// 원본만 삭제하면 기존 지출·배분·회수를 유지하고 수동 지출의 은행 연결만 해제합니다.
+		if (!ids.isEmpty()) {
+			expenses.findByBankTransactionIdIn(ids).stream()
+			    .filter(value -> "MANUAL".equals(value.getSourceType())).forEach(Expense::detachDeletedBank);
+		}
+		expenses.flush();
 		return workspace(user, property);
 	}
 

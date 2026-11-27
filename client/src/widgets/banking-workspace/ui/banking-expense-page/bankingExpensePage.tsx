@@ -45,6 +45,8 @@ import {
   sortExpenseLabels
 } from '../../model/expenseAllocation';
 import { TransferDetail } from '../_components/transfer-detail/transferDetail';
+import { ManualExpenseLink } from '../_components/manual-expense-link/manualExpenseLink';
+import { getManualExpenseLinkCandidates } from '../../model/manualExpenseLink';
 import styles from './bankingExpensePage.module.css';
 
 /** PC 모달과 모바일 상세에서 같은 원본·확정 지출을 조회하고 저장 중에는 닫기를 막습니다. */
@@ -74,10 +76,11 @@ export function BankingExpensePage({
   });
   const [transferSelected, setTransferSelected] = useState(false);
   const [edited, setEdited] = useState<ExpenseDraft | null>(null);
+  const [separateExpense, setSeparateExpense] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState(false);
+  const [notice, setNotice] = useState('');
 
   function present(content: ReactNode) {
     if (presentation === 'page')
@@ -161,7 +164,7 @@ export function BankingExpensePage({
         onClose={onClose}
       />
     );
-  const row = workspace.data.rows.find((item) => item.id === transactionId && item.direction === 'EXPENSE');
+  const row = workspace.data.rows.find((item) => (item.id === transactionId || item.expense?.id === transactionId) && item.direction === 'EXPENSE');
   if (!row)
     return present(
       <section>
@@ -174,6 +177,7 @@ export function BankingExpensePage({
       </section>
     );
   const draft = edited ?? createExpenseDraft(row, workspace.data);
+  const hasManualCandidate = getManualExpenseLinkCandidates(row, workspace.data.rows).length > 0;
 
   async function confirm() {
     if (!row || busyRef.current)
@@ -193,11 +197,12 @@ export function BankingExpensePage({
       });
       const saved = await confirmBankingExpense(propertyId, row.id, {
         ...draft,
+        separateExpense,
         allocations: calculated.allocations
       });
       setPropertyQueryData(cache, queryKey, saved, propertyScope);
       setEdited(null);
-      setNotice(true);
+      setNotice('지출을 확정했어요.');
       // 원장에서 열린 지출을 확정하면 해당 동의 잔고와 누적 원장도 다시 조회합니다.
       void cache.invalidateQueries({
         queryKey: ['banking-balances', session.data?.id, propertyId]
@@ -298,6 +303,20 @@ export function BankingExpensePage({
           </div>
         ))}
       </dl>
+      {row.expense?.manualBankLinked && (
+        <p>
+          기존 수동 지출과 연결된 은행 출금입니다. 은행 원본을 삭제해도 기존 지출·동별 배분·회수 이력은 유지됩니다.
+        </p>
+      )}
+      <ManualExpenseLink
+        key={row.id}
+        propertyId={propertyId}
+        row={row}
+        rows={workspace.data.rows}
+        busy={busy}
+        onBusyChange={setBusy}
+        onLinked={() => setNotice('기존 지출에 연결했어요.')}
+      />
       {row.expense ? (
         <>
           {row.expense.mode !== 'PROPERTY' && (
@@ -402,6 +421,17 @@ export function BankingExpensePage({
               disabled={busy}
               onExpenseChange={setEdited}
             />
+            {hasManualCandidate && (
+              <label>
+                <input
+                  type={'checkbox'}
+                  checked={separateExpense}
+                  disabled={busy}
+                  onChange={(event) => setSeparateExpense(event.target.checked)}
+                />
+                기존 수동 지출과 서로 다른 지출임을 확인했습니다.
+              </label>
+            )}
             {error && (
               <p
                 role={'alert'}
@@ -413,7 +443,7 @@ export function BankingExpensePage({
               className={styles.actions}
             >
               <Button
-                disabled={busy}
+                disabled={busy || (hasManualCandidate && !separateExpense)}
                 loading={busy}
                 onClick={() => {
                   void confirm();
@@ -426,8 +456,8 @@ export function BankingExpensePage({
         )}
       {notice && (
         <Toast
-          message={'지출을 확정했어요.'}
-          onClose={() => setNotice(false)}
+          message={notice}
+          onClose={() => setNotice('')}
         />
       )}
     </>

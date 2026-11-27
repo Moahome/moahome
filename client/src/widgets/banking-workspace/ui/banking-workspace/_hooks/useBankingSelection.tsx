@@ -90,7 +90,8 @@ export function useBankingSelection({
         deletingRows.filter((row) => receiptIds.has(row.id)).map((row) => row.paymentId!),
         deletingRows.filter((row) => row.sourceType === 'MANUAL' && row.direction === 'EXPENSE').map((row) => row.id));
       setPropertyQueryData(cache, queryKey, saved, propertyScope);
-      await Promise.all(['payment-workspace', 'banking-balances', 'billing', 'income-statement', 'monthly-settlement', 'dashboard'].map((key) => cache.invalidateQueries({
+      // 연결 원본 삭제로 수동 지출에 복귀한 결과와 상세 경로를 원장·미지급 조회에도 반영합니다.
+      await Promise.all(['payment-workspace', 'banking-balances', 'billing', 'income-statement', 'monthly-settlement', 'dashboard', 'account-ledger', 'payables'].map((key) => cache.invalidateQueries({
         queryKey: [key, session.data?.id, propertyId]
       })));
       setDeleteOpen(false);

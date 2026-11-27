@@ -76,6 +76,8 @@ export function useBankingUploadDraft() {
 
   const [expenses, setExpenses] = useState<Record<string, ExpenseDraft>>({});
 
+  const [manualExpenseLinks, setManualExpenseLinks] = useState<Record<string, string>>({});
+
   const [receipts, setReceipts] = useState<Record<string, ReceiptDraft>>({});
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -97,6 +99,8 @@ export function useBankingUploadDraft() {
     setExcluded,
     expenses,
     setExpenses,
+    manualExpenseLinks,
+    setManualExpenseLinks,
     receipts,
     setReceipts,
     editingId,

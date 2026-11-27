@@ -7651,3 +7651,247 @@ test('입금 외부 동 배분·남은 1원·보관금과 기존 외부 부담�
   expect(linked).toBe(true);
   await expect(funds).toContainText('346,963원');
 });
+
+for (const width of [1440, 390]) {
+  test(`수동 지출 은행 연결 ${width}: 응답 유실 재시도와 기존 배분·목록 한 건 유지`, async ({ page }, testInfo) => {
+    await page.setViewportSize({
+      width,
+      height: 900
+    });
+    const data = settlementFixture();
+    const manual: BankingTransaction = {
+      ...row(98001, 'EXPENSE', '직접 청소비', '10000'),
+      accountId: SETTLEMENT_ACCOUNT,
+      sourceType: 'MANUAL',
+      status: 'CONFIRMED',
+      balance: null,
+      time: null,
+      expense: {
+        id: id(98001),
+        category: '직접 청소비',
+        note: '기존 메모',
+        mode: 'AMOUNT',
+        saveAsRule: false,
+        allocations: [{
+          buildingId: data.banking.buildings[0].id,
+          label: '102동',
+          amount: '10000',
+          percentage: null
+        }]
+      }
+    };
+    const bank: BankingTransaction = {
+      ...row(98002, 'EXPENSE', '은행 청소비', '10000'),
+      accountId: SETTLEMENT_ACCOUNT,
+      sourceType: 'BANK_IMPORT'
+    };
+    data.banking.rows = [manual, bank];
+    data.payments.payments = [];
+    await mockSettlement(page, {
+      failure: false,
+      wrongProperty: false
+    }, 0, () => data);
+    let calls = 0;
+    await page.route(`**/banking/transactions/${bank.id}/manual-expense`, async (route) => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({
+          status: 200,
+          headers: {
+            'Access-Control-Allow-Origin': 'http://localhost:3100',
+            'Access-Control-Allow-Credentials': 'true',
+            'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-CSRF-TOKEN',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS'
+          }
+        });
+        return;
+      }
+      calls++;
+      expect(route.request().postDataJSON()).toEqual({
+        expenseId: manual.id
+      });
+      data.banking.rows = [{
+        ...bank,
+        status: 'CONFIRMED',
+        expense: {
+          ...manual.expense!,
+          manualBankLinked: true
+        }
+      }];
+      if (calls === 1) {
+        await route.abort('failed');
+        return;
+      }
+      await route.fulfill({
+        json: data.banking,
+        headers: {
+          'Access-Control-Allow-Origin': 'http://localhost:3100',
+          'Access-Control-Allow-Credentials': 'true'
+        }
+      });
+    });
+    const base = `/manage/${SETTLEMENT_PROPERTY}/banking`;
+    await page.goto(`${base}/transactions?month=2026-10`);
+    await page.getByRole('row').filter({
+      hasText: width === 1440 ? '은행 청소비' : '직접 청소비'
+    }).click();
+    const picker = page.getByRole('combobox', {
+      name: width === 1440 ? '기존 수동 지출' : '연결할 은행 출금'
+    });
+    await picker.click();
+    await page.getByRole('option').filter({
+      hasText: width === 1440 ? '직접 청소비' : '은행 청소비'
+    }).click();
+    const connect = page.getByRole('button', {
+      name: '기존 지출 연결',
+      exact: true
+    });
+    await expect(page.getByRole('listbox', {
+      name: width === 1440 ? '기존 수동 지출' : '연결할 은행 출금',
+      includeHidden: true
+    })).toBeHidden();
+    await page.screenshot({
+      path: testInfo.outputPath('manualExpenseLink.png'),
+      fullPage: true
+    });
+    await connect.click();
+    await expect(page.getByRole('alert').filter({
+      hasText: '서버에 연결하지 못했어요'
+    })).toBeVisible();
+    await expect(picker).toContainText(width === 1440 ? '직접 청소비' : '은행 청소비');
+    await connect.click();
+    await expect(page.getByText('기존 수동 지출과 연결된 은행 출금입니다.', {
+      exact: false
+    })).toBeVisible();
+    await expect(page.getByText('기존 메모', {
+      exact: true
+    })).toBeVisible();
+    expect(calls).toBe(2);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    if (width === 1440) await page.getByRole('button', {
+      name: '지출 상세 닫기',
+      exact: true
+    }).click();
+    else await page.getByRole('link', {
+      name: '뒤로가기',
+      exact: true
+    }).click();
+    await expect(page.getByRole('table', {
+      name: '통장 거래',
+      exact: true
+    }).getByRole('row')).toHaveCount(2);
+  });
+}
+
+test('수동 지출 은행 연결 업로드: 중복 후보를 확인하고 기존 지출 ID만 전송', async ({ page }) => {
+  const data = settlementFixture();
+  const manual: BankingTransaction = {
+    ...row(98011, 'EXPENSE', '직접 청소비', '10000'),
+    accountId: SETTLEMENT_ACCOUNT,
+    sourceType: 'MANUAL',
+    status: 'CONFIRMED',
+    time: null,
+    balance: null,
+    expense: {
+      id: id(98011),
+      category: '직접 청소비',
+      note: '',
+      mode: 'AMOUNT',
+      saveAsRule: false,
+      allocations: [{
+        buildingId: data.banking.buildings[0].id,
+        label: '102동',
+        amount: '10000',
+        percentage: null
+      }]
+    }
+  };
+  const bank = {
+    ...row(98012, 'EXPENSE', '은행 청소비', '10000'),
+    accountId: SETTLEMENT_ACCOUNT,
+    sourceType: 'BANK_IMPORT' as const
+  };
+  data.banking.rows = [manual];
+  data.banking.accounts = [{
+    ...IMPORT_ACCOUNT,
+    id: SETTLEMENT_ACCOUNT
+  }];
+  data.payments.payments = [];
+  await mockSettlement(page, {
+    failure: false,
+    wrongProperty: false
+  }, 0, () => data);
+  let saves = 0;
+  const headers = {
+    'Access-Control-Allow-Origin': 'http://localhost:3100',
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-CSRF-TOKEN',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  };
+  await page.route('**/banking/import/preview', (route) => route.fulfill({
+    headers,
+    json: {
+      propertyId: SETTLEMENT_PROPERTY,
+      rows: [bank],
+      duplicateCount: 0,
+      beforeCutoffCount: 0
+    }
+  }));
+  await page.route('**/banking/import', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fulfill({
+        status: 200,
+        headers
+      });
+      return;
+    }
+    saves++;
+    const body = route.request().postDataBuffer()!.toString();
+    expect(body).toContain(`"manualExpenseId":"${manual.id}"`);
+    expect(body).not.toContain('"expense":');
+    data.banking.rows = [{
+      ...bank,
+      status: 'CONFIRMED',
+      expense: {
+        ...manual.expense!,
+        manualBankLinked: true
+      }
+    }];
+    await route.fulfill({
+      headers,
+      json: data.banking
+    });
+  });
+  await page.goto(`/manage/${SETTLEMENT_PROPERTY}/banking/upload?account=${SETTLEMENT_ACCOUNT}`);
+  await page.getByLabel('통장 거래 파일 선택').setInputFiles({
+    name: 'bank.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from('test')
+  });
+  await page.getByRole('button', {
+    name: '선택 거래 저장',
+    exact: true
+  }).click();
+  const picker = page.getByRole('combobox', {
+    name: '기존 수동 지출',
+    exact: true
+  });
+  await expect(picker).toBeVisible();
+  expect(saves).toBe(0);
+  await picker.click();
+  await page.getByRole('option').filter({
+    hasText: '직접 청소비'
+  }).click();
+  await expect(page.getByRole('dialog').getByText('102동 10,000원', {
+    exact: true
+  })).toBeVisible();
+  await page.getByRole('button', {
+    name: '설정 완료',
+    exact: true
+  }).click();
+  await page.getByRole('button', {
+    name: '선택 거래 저장',
+    exact: true
+  }).click();
+  await expect(page).toHaveURL(/banking\/transactions/);
+  expect(saves).toBe(1);
+});

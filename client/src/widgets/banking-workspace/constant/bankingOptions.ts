@@ -147,3 +147,16 @@ export const COMMON_BANK_UPLOAD_GUIDE = [
   '거래시간 · 거래 후 잔액 · 메모는 선택입니다. 은행 자료에 값이 있으면 그대로 입력해주세요.',
   '거래시간은 HH:mm:ss 형식으로 입력하고 수식은 사용하지 마세요.'
 ] as const;
+
+export const NEW_EXPENSE_CHOICE = 'NEW';
+
+export const MANUAL_EXPENSE_LINK_OPTIONS = {
+  importing: {
+    value: NEW_EXPENSE_CHOICE,
+    label: '새 지출 등록'
+  },
+  saved: {
+    value: '',
+    label: '연결 안 함'
+  }
+} as const;

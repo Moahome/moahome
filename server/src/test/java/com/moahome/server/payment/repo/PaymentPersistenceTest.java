@@ -3272,6 +3272,271 @@ class PaymentPersistenceTest {
 		assertThat(jdbc.queryForObject("select canceled_at is not null from bank_transfer_postings where id=?", Boolean.class, transfer)).isTrue();
 	}
 
+	/** 기존 지출·배분을 유지하고 연결·재시도·원본 삭제 전후 통장 잔고를 한 번만 계산합니다. */
+	@Test
+	void manualExpenseBankLinkPreservesAmountsAndDeletionRestoresManual() {
+		List<UUID> targets = manualIncomeBuildings();
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		seedAccountOpening(account, "200000");
+		var request = manualExpenseRequest(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15), "10000", targets);
+		var expense = banking.manualExpense(user, property, request).rows().getFirst().expense();
+		UUID source = importPendingExpense(csv("거래일,적요,출금액,입금액\n2026-10-15,청소비,10000,0"), account);
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).accounts().getFirst().calculatedBalance()).isEqualTo("180000");
+		var linked = banking.linkManualExpense(user, property, source, request.id());
+		assertThat(linked.rows()).singleElement().satisfies(row -> {
+			assertThat(row.id()).isEqualTo(source);
+			assertThat(row.expense().id()).isEqualTo(request.id());
+			assertThat(row.expense().allocations()).isEqualTo(expense.allocations());
+			assertThat(row.expense().manualBankLinked()).isTrue();
+		});
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).accounts().getFirst().calculatedBalance()).isEqualTo("190000");
+		assertThat(count("expenses")).isEqualTo(1);
+		assertThat(count("expense_allocations")).isEqualTo(2);
+		assertThat(count("expense_bank_links")).isEqualTo(1);
+		assertThat(banking.linkManualExpense(user, property, source, request.id()).rows()).hasSize(1);
+		assertThatThrownBy(() -> banking.linkManualExpense(user, property, source, UUID.randomUUID()))
+		    .hasMessage("EXPENSE_BANK_LINK_CONFLICT");
+		assertThatThrownBy(() -> banking.deleteMany(user, property,
+		    new BankingRequests.DeleteMany(List.of(), List.of(), List.of(request.id()))))
+		    .hasMessage("EXPENSE_DELETE_NOT_ALLOWED");
+		banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(source)));
+		var restored = banking.linkManualExpense(user, property, source, request.id());
+		assertThat(restored.rows()).singleElement().satisfies(row -> {
+			assertThat(row.id()).isEqualTo(request.id());
+			assertThat(row.sourceType()).isEqualTo("MANUAL");
+			assertThat(row.expense().manualBankLinked()).isFalse();
+		});
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).accounts().getFirst().calculatedBalance()).isEqualTo("190000");
+		assertThat(count("expense_bank_links")).isEqualTo(1);
+	}
+
+	/** 외부 회수는 지출 배분 ID에 연결되어 은행 연결·원본 삭제 후에도 유지됩니다. */
+	@Test
+	void manualExpenseBankLinkKeepsExternalRecovery() {
+		List<UUID> targets = manualIncomeBuildings();
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		seedAccountOpening(account, "200000");
+		cashBalances.saveOpenings(user, property, new BankingBalanceRequests.Opening(LocalDate.of(2026, 9, 30),
+		    targets.stream().map(id -> new BankingBalanceRequests.OpeningPart(id, "100000")).toList(), account));
+		var request = new BankingRequests.ManualExpense(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15), "3000",
+		    "공동 비용", null, "AMOUNT", List.of(
+		        new BankingRequests.Allocation(targets.getFirst(), null, "2000", null),
+		        new BankingRequests.Allocation(null, "외부 관리단", "1000", null)));
+		banking.manualExpense(user, property, request);
+		var external = cashBalances.workspace(user, property, "2026-10", account).externals().getFirst();
+		UUID payment = UUID.randomUUID();
+		service.manual(user, property, new PaymentRequests.Manual(payment, null, request.date(), "1000", account,
+		    "OTHER", "외부 관리단", "분담금", null, null));
+		cashBalances.settle(user, property,
+		    new BankingBalanceRequests.Settlement(UUID.randomUUID(), external.id(), payment, "1000"));
+		UUID source = importPendingExpense(csv("거래일,적요,출금액,입금액\n2026-10-15,공동비,3000,0"), account);
+		banking.linkManualExpense(user, property, source, request.id());
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).externals()).singleElement()
+		    .satisfies(item -> {
+			    assertThat(item.id()).isEqualTo(external.id());
+			    assertThat(item.remaining()).isEqualTo("0");
+		    });
+		banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(source)));
+		assertThat(cashBalances.workspace(user, property, "2026-10", account).externals().getFirst().remaining()).isEqualTo("0");
+		assertThat(count("external_settlement_links")).isEqualTo(1);
+	}
+
+	/** 선택 전체를 원자적으로 처리하며 별도 지출 확정은 중복 후보의 명시적 확인을 요구합니다. */
+	@Test
+	void manualExpenseBankLinkUploadIsAtomicAndRequiresDuplicateReview() {
+		List<UUID> targets = manualIncomeBuildings();
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		var manual = manualExpenseRequest(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15), "10000", targets);
+		banking.manualExpense(user, property, manual);
+		var file = csv("거래일,적요,출금액,입금액\n2026-10-15,청소1,10000,0\n2026-10-15,청소2,10000,0");
+		var preview = banking.preview(user, property, file, account);
+		var bad = new BankingRequests.Import(preview.rows().stream()
+		    .map(row -> expenseLinkChoice(row.id(), manual.id())).toList(), account);
+		assertThatThrownBy(() -> banking.upload(user, property, file, bad)).hasMessage("EXPENSE_BANK_LINK_CONFLICT");
+		assertThat(count("bank_transactions")).isZero();
+		assertThat(count("expense_bank_links")).isZero();
+		assertThat(jdbc.queryForObject("select bank_transaction_id from expenses where id=?", UUID.class, manual.id())).isNull();
+		var duplicate = new BankingRequests.Expense("별도 비용", null, "EQUAL", false, manual.allocations());
+		var newExpense = new BankingRequests.Import(List.of(new BankingRequests.Selection(preview.rows().getFirst().id(),
+		    null, null, null, duplicate)), account);
+		assertThatThrownBy(() -> banking.upload(user, property, file, newExpense)).hasMessage("EXPENSE_DUPLICATE_REVIEW_REQUIRED");
+		assertThat(count("bank_transactions")).isZero();
+		var selected = new BankingRequests.Import(List.of(expenseLinkChoice(preview.rows().getFirst().id(), manual.id())), account);
+		banking.upload(user, property, file, selected);
+		banking.upload(user, property, file, selected);
+		assertThat(count("bank_transactions")).isEqualTo(1);
+		assertThat(count("expenses")).isEqualTo(1);
+		assertThat(count("expense_bank_links")).isEqualTo(1);
+	}
+
+	/** 커밋 전 롤백 뒤 재시도와 동시 중복 실행은 원본 ID·지출 ID의 같은 연결을 한 번만 반영합니다. */
+	@Test
+	void manualExpenseBankLinkRollsBackAndConcurrentRetriesApplyOnce() throws Exception {
+		List<UUID> targets = manualIncomeBuildings();
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		var manual = manualExpenseRequest(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15), "10000", targets);
+		banking.manualExpense(user, property, manual);
+		UUID source = importPendingExpense(csv("거래일,적요,출금액,입금액\n2026-10-15,청소비,10000,0"), account);
+		new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+			banking.linkManualExpense(user, property, source, manual.id());
+			status.setRollbackOnly();
+		});
+		assertThat(count("expense_bank_links")).isZero();
+		CountDownLatch start = new CountDownLatch(1);
+		try (var pool = Executors.newFixedThreadPool(2)) {
+			List<Future<?>> results = new ArrayList<>();
+			for (int i = 0; i < 2; i++)
+				results.add(pool.submit(() -> {
+					start.await();
+					return banking.linkManualExpense(user, property, source, manual.id());
+				}));
+			start.countDown();
+			for (Future<?> result : results)
+				result.get(15, TimeUnit.SECONDS);
+		}
+		assertThat(count("expense_bank_links")).isEqualTo(1);
+		assertThat(banking.linkManualExpense(user, property, source, manual.id()).rows()).hasSize(1);
+	}
+
+	/** 권한·금액·날짜를 검증하고 직접 SQL로 연결 감사·은행 원본의 무결성을 우회할 수 없습니다. */
+	@Test
+	void manualExpenseBankLinkRejectsInvalidSourcesAndDatabaseBypass() {
+		List<UUID> targets = manualIncomeBuildings();
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		var manual = manualExpenseRequest(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15), "10000", targets);
+		banking.manualExpense(user, property, manual);
+		UUID source = importPendingExpense(csv("거래일,적요,출금액,입금액\n2026-10-15,청소비,10000,0"), account);
+		UUID stranger = users.saveAndFlush(User.create("다른 계정", null)).getId();
+		assertThatThrownBy(() -> banking.linkManualExpense(stranger, property, source, manual.id())).isInstanceOf(AuthException.class);
+		UUID wrongAmount = importPendingExpense(csv("거래일,적요,출금액,입금액\n2026-10-15,다른 금액,12000,0"), account);
+		UUID wrongDate = importPendingExpense(csv("거래일,적요,출금액,입금액\n2026-10-14,다른 날짜,10000,0"), account);
+		for (UUID invalid : List.of(wrongAmount, wrongDate))
+			assertThatThrownBy(() -> banking.linkManualExpense(user, property, invalid, manual.id()))
+			    .hasMessage("EXPENSE_BANK_LINK_CONFLICT");
+		assertThatThrownBy(() -> jdbc.update("update expenses set bank_transaction_id=? where id=?", source, manual.id()))
+		    .isInstanceOf(DataAccessException.class);
+		banking.linkManualExpense(user, property, source, manual.id());
+		assertThatThrownBy(() -> jdbc.update("update expenses set bank_transaction_id=null where id=?", manual.id()))
+		    .isInstanceOf(DataAccessException.class);
+		assertThatThrownBy(() -> jdbc.update("update bank_transactions set transfer_candidate=true where id=?", source))
+		    .isInstanceOf(DataAccessException.class);
+		assertThatThrownBy(() -> jdbc.update("delete from expense_bank_links where bank_transaction_id=?", source))
+		    .isInstanceOf(DataAccessException.class);
+	}
+
+	/** 별개 출금의 명시적 확인은 새 지출을 허용하지만 이미 확정한 두 지출의 병합은 거부합니다. */
+	@Test
+	void manualExpenseBankLinkAllowsExplicitSeparateExpenseAndRejectsConfirmedMerge() {
+		List<UUID> targets = manualIncomeBuildings();
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		var manual = manualExpenseRequest(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15), "10000", targets);
+		banking.manualExpense(user, property, manual);
+		UUID source = importPendingExpense(csv("거래일,적요,출금액,입금액\n2026-10-15,별도 비용,10000,0"), account);
+		var request = new BankingRequests.Expense("별도 비용", null, "EQUAL", false, manual.allocations(), null, true);
+		banking.confirmExpense(user, property, source, request);
+		assertThatThrownBy(() -> banking.linkManualExpense(user, property, source, manual.id()))
+		    .hasMessage("EXPENSE_BANK_LINK_CONFLICT");
+		assertThat(count("expenses")).isEqualTo(2);
+	}
+
+	/** 동 없는 지출도 기존 ID를 유지하며 삭제 뒤 같은 파일 재시도는 원본·연결을 복구하지 않습니다. */
+	@Test
+	void manualExpenseBankLinkUploadRetryAfterDeletionKeepsManualPropertyExpense() {
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		var manual = new BankingRequests.ManualExpense(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15),
+		    "10000", "청소비", null, "PROPERTY", List.of());
+		banking.manualExpense(user, property, manual);
+		var file = csv("거래일,적요,출금액,입금액\n2026-10-15,은행 출금,10000,0");
+		var preview = banking.preview(user, property, file, account);
+		var selection = new BankingRequests.Import(List.of(expenseLinkChoice(preview.rows().getFirst().id(), manual.id())), account);
+		UUID source = banking.upload(user, property, file, selection).rows().getFirst().id();
+		banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(source)));
+		assertThat(banking.upload(user, property, file, selection).rows()).singleElement()
+		    .satisfies(row -> assertThat(row.id()).isEqualTo(manual.id()));
+		assertThat(count("bank_transactions")).isEqualTo(1);
+		assertThat(count("expense_bank_links")).isEqualTo(1);
+	}
+
+	/** 서로 다른 두 은행 출금이 같은 수동 지출을 동시에 점유해도 하나만 연결할 수 있습니다. */
+	@Test
+	void manualExpenseBankLinkCompetingSourcesCannotShareExpense() throws Exception {
+		List<UUID> targets = manualIncomeBuildings();
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		var manual = manualExpenseRequest(UUID.randomUUID(), account, LocalDate.of(2026, 10, 15), "10000", targets);
+		banking.manualExpense(user, property, manual);
+		UUID first = importPendingExpense(csv("거래일,적요,출금액,입금액\n2026-10-15,청소1,10000,0"), account);
+		UUID second = importPendingExpense(csv("거래일,적요,출금액,입금액\n2026-10-15,청소2,10000,0"), account);
+		CountDownLatch start = new CountDownLatch(1);
+		try (var pool = Executors.newFixedThreadPool(2)) {
+			List<Future<Boolean>> results = new ArrayList<>();
+			for (UUID source : List.of(first, second))
+				results.add(pool.submit(() -> {
+					start.await();
+					try {
+						banking.linkManualExpense(user, property, source, manual.id());
+						return true;
+					} catch (BusinessException failure) {
+						return false;
+					}
+				}));
+			start.countDown();
+			int succeeded = 0;
+			for (Future<Boolean> result : results)
+				if (result.get(15, TimeUnit.SECONDS))
+					succeeded++;
+			assertThat(succeeded).isEqualTo(1);
+		}
+		assertThat(count("expense_bank_links")).isEqualTo(1);
+	}
+
+	private UUID importPendingExpense(MockMultipartFile file, UUID account) {
+		var preview = banking.preview(user, property, file, account);
+		var result = banking.upload(user, property, file, new BankingRequests.Import(preview.rows().stream()
+		    .map(row -> new BankingRequests.Selection(row.id(), null, null, null, null)).toList(), account));
+		var pending = preview.rows().getFirst();
+		return result.rows().stream().filter(row -> row.sourceType().equals("BANK_IMPORT")
+		    && row.payer().equals(pending.payer()) && row.date().equals(pending.date()) && row.amount().equals(pending.amount()))
+		    .findFirst().orElseThrow().id();
+	}
+
+	/** 직전 스키마의 활성·삭제 수동 지출과 배분을 보존한 채 새 연결 Migration만 적용합니다. */
+	@Test
+	void manualExpenseBankLinkMigrationPreservesExistingManualHistory() {
+		List<UUID> targets = manualIncomeBuildings();
+		UUID account = bankAccountSettings.read(user, property).accountId();
+		UUID active = UUID.randomUUID(), deleted = UUID.randomUUID();
+		banking.manualExpense(user, property,
+		    manualExpenseRequest(active, account, LocalDate.of(2026, 10, 15), "10000", targets));
+		banking.manualExpense(user, property,
+		    manualExpenseRequest(deleted, account, LocalDate.of(2026, 10, 14), "20000", targets));
+		banking.deleteMany(user, property, new BankingRequests.DeleteMany(List.of(), List.of(), List.of(deleted)));
+		String schema = "expense_link_upgrade_" + UUID.randomUUID().toString().replace("-", "");
+		Flyway previous = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+		    .schemas(schema).defaultSchema(schema).target("20261120115540").load();
+		previous.migrate();
+		try {
+			new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+				for (String table : List.of("users", "properties", "buildings", "units", "bank_accounts", "expenses", "expense_allocations"))
+					copyPreviousTable(schema, table);
+			});
+			var before = jdbc.queryForList("select * from " + schema + ".expenses order by id");
+			var parts = jdbc.queryForList("select * from " + schema + ".expense_allocations order by id");
+			Flyway upgraded = Flyway.configure().dataSource(POSTGRES.jdbcUrl(), POSTGRES.username(), "")
+			    .schemas(schema).defaultSchema(schema).load();
+			assertThat(upgraded.migrate().migrationsExecuted).isEqualTo(1);
+			upgraded.validate();
+			assertThat(jdbc.queryForList("select * from " + schema + ".expenses order by id")).isEqualTo(before);
+			assertThat(jdbc.queryForList("select * from " + schema + ".expense_allocations order by id")).isEqualTo(parts);
+			assertThat(jdbc.queryForObject("select count(*) from " + schema + ".expense_bank_links", Long.class)).isZero();
+		} finally {
+			jdbc.execute("drop schema " + schema + " cascade");
+		}
+	}
+
+	private BankingRequests.Selection expenseLinkChoice(UUID previewId, UUID expense) {
+		return new BankingRequests.Selection(previewId, null, null, null, null, null, false, null, null, null, expense);
+	}
+
 	private BankingRequests.ManualExpense manualExpenseRequest(UUID id, UUID account, LocalDate date, String amount,
 	    List<UUID> targets) {
 		return new BankingRequests.ManualExpense(id, account, date, amount, "공용 청소비", "직접 등록", "EQUAL",

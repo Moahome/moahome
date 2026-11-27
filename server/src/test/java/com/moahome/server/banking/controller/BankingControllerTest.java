@@ -75,6 +75,23 @@ class BankingControllerTest {
 		    argThat(r -> r.note() == null && r.allocations().getFirst().percentage() == null));
 	}
 
+	/** 연결 API도 인증·UUID 입력을 확인하고 처리자는 인증 주체에서만 가져옵니다. */
+	@Test
+	void linksManualExpenseWithAuthenticatedActorAndValidId() throws Exception {
+		String url = base() + "/transactions/" + transaction + "/manual-expense";
+		mvc.perform(post(url).contentType(MediaType.APPLICATION_JSON).content("{}"))
+		    .andExpect(status().isUnauthorized());
+		for (String body : List.of("{}", "{\"expenseId\":null}", "{\"expenseId\":\"invalid\"}"))
+			mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON).content(body))
+			    .andExpect(status().isBadRequest());
+		verifyNoInteractions(service);
+		UUID expense = UUID.randomUUID();
+		mvc.perform(post(url).with(identity()).contentType(MediaType.APPLICATION_JSON)
+		    .content("{\"expenseId\":\"" + expense + "\"}"))
+		    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"));
+		verify(service).linkManualExpense(user, property, transaction, expense);
+	}
+
 	/** 일반 출금은 이체 표시를 생략하는 실제 프론트 요청 형식으로 multipart 변환까지 검증합니다. */
 	@Test
 	void importsNormalExpenseWithoutOptionalTransferFlag() throws Exception {

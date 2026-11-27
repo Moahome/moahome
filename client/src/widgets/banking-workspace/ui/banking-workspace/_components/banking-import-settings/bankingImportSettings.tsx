@@ -1,5 +1,6 @@
 'use client';
 
+import { NEW_EXPENSE_CHOICE } from '../../../../constant/bankingOptions';
 import {
   ModalCloseButton,
   ClientModal
@@ -21,10 +22,14 @@ import { Dropdown } from '@/shared/ui/form-controls';
 import { calculateExpenseAllocation } from '../../../../model/expenseAllocation';
 import { TransferAllocation } from '../../../_components/transfer-allocation/transferAllocation';
 import styles from './bankingImportSettings.module.css';
+import { ManualExpenseChoice } from '../../../_components/manual-expense-link/manualExpenseChoice';
+import { getManualExpenseLinkCandidates } from '../../../../model/manualExpenseLink';
 type Props = ReturnType<typeof useBankingWorkspace>['importSettings'];
 
 /** BankingWorkspace 화면의 ImportSettings 표시 영역을 독립적으로 구성합니다. */
 export function BankingImportSettings({
+  manualExpenseLinks,
+  setManualExpenseLinks,
   propertyId,
   transferRows,
   setTransferRows,
@@ -49,7 +54,18 @@ export function BankingImportSettings({
   const row = preview.rows.find((item) => item.id === editingId);
   if (!row)
     return null;
-  const invalid = transferRows.includes(row.id) ? !transferAccounts[row.id] || Boolean(calculateTransferAllocation(row.amount, transferAllocations[row.id] ?? [], buildings.length > 0).error) : row.direction === 'EXPENSE' && Boolean(calculateExpenseAllocation(row.amount, expenseDraft(row)).error);
+  const linkedExpenseId = manualExpenseLinks[row.id];
+  const candidates = getManualExpenseLinkCandidates(row, data.rows);
+  let invalid = false;
+  if (transferRows.includes(row.id)) {
+    invalid = !transferAccounts[row.id] || Boolean(calculateTransferAllocation(row.amount, transferAllocations[row.id] ?? [], buildings.length > 0).error);
+  } else if (row.direction === 'EXPENSE') {
+    if (linkedExpenseId && linkedExpenseId !== NEW_EXPENSE_CHOICE) {
+      invalid = !candidates.some((candidate) => candidate.id === linkedExpenseId);
+    } else {
+      invalid = (candidates.length > 0 && !linkedExpenseId) || Boolean(calculateExpenseAllocation(row.amount, expenseDraft(row)).error);
+    }
+  }
   let transferDescription = data.buildings.length ? '선택한 상대 통장도 같은 금액으로 자동 반영합니다. 수납·비용을 새로 만들지 않고 동별 보유금도 함께 옮깁니다.' : '선택한 상대 통장도 같은 금액으로 자동 반영합니다. 수납·비용을 새로 만들지 않습니다.';
   if (row.transferId)
     transferDescription = '이미 반영한 이체의 은행 원본입니다. 다시 차감하지 않고 기존 이체에 연결합니다.';
@@ -178,10 +194,23 @@ export function BankingImportSettings({
           )}
         </div>
         )}
-        {!transferRows.includes(row.id) && <BankingDraftEditor
+        {!transferRows.includes(row.id) && row.direction === 'EXPENSE' && (
+          <ManualExpenseChoice
+            row={row}
+            rows={data.rows}
+            value={linkedExpenseId ?? ''}
+            disabled={busy}
+            importing
+            onChange={(value) => setManualExpenseLinks((current) => ({
+              ...current,
+              [row.id]: value
+            }))}
+          />
+        )}
+        {!transferRows.includes(row.id) && (!linkedExpenseId || linkedExpenseId === NEW_EXPENSE_CHOICE) && <BankingDraftEditor
           row={row}
           {...editor}
-                                           />}
+                                                                                                           />}
       </div>
       <footer
         className={styles['editor-actions']}

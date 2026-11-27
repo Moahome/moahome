@@ -32,10 +32,11 @@ public class ExpenseService {
 	private final Clock clock;
 	private final ExpenseAccountService expenseAccounts;
 	private final PropertyRepository properties;
+	private final ExpenseBankLinkRepository bankLinks;
 
 	public ExpenseService(ExpenseRepository expenses, ExpenseAllocationRepository allocations,
 	    BuildingRepository buildings, @Lazy PaymentTextSecurity security, Clock clock, PropertyRepository properties,
-	    ExpenseAccountService expenseAccounts) {
+	    ExpenseAccountService expenseAccounts, ExpenseBankLinkRepository bankLinks) {
 		this.expenses = expenses;
 		this.allocations = allocations;
 		this.buildings = buildings;
@@ -43,6 +44,39 @@ public class ExpenseService {
 		this.clock = clock;
 		this.properties = properties;
 		this.expenseAccounts = expenseAccounts;
+		this.bankLinks = bankLinks;
+	}
+
+	/** 호출자가 확보한 관리대상 잠금 안에서 미확정 출금과 수동 지출을 일대일로 연결합니다. */
+	@Transactional
+	public void linkBank(BankTransaction original, UUID expenseId, UUID actor) {
+		var previous = bankLinks.findById(original.getId());
+		if (previous.isPresent()) {
+			if (!previous.get().getExpenseId().equals(expenseId)
+			    || !previous.get().getPropertyId().equals(original.getPropertyId()))
+				throw new ExpenseException("EXPENSE_BANK_LINK_CONFLICT");
+			// 삭제 후 늦게 도착한 재시도는 현재 결과만 반환하고 은행 원본이나 연결을 되살리지 않습니다.
+			return;
+		}
+		if (!"EXPENSE".equals(original.getDirection()) || original.getDeletedAt() != null
+		    || original.isTransferCandidate() || expenses.findByBankTransactionId(original.getId()).isPresent())
+			throw new ExpenseException("EXPENSE_BANK_LINK_CONFLICT");
+		Expense expense = expenses.findById(expenseId)
+		    .orElseThrow(() -> new ExpenseException("EXPENSE_BANK_LINK_CONFLICT"));
+		expense.attachBank(original.getId(), original.getPropertyId(), original.getBankAccountId(),
+		    original.getTransactionDate(), original.getAmount());
+		bankLinks.saveAndFlush(ExpenseBankLink.create(expense, original.getId(), actor, OffsetDateTime.now(clock)));
+		expenses.flush();
+	}
+
+	/** 삭제 후 늦게 도착한 같은 파일·선택의 재시도는 감사만 확인하며 원본·연결을 복원하지 않습니다. */
+	public boolean replayDeletedUpload(UUID property, UUID account, String key, UUID expenseId) {
+		List<ExpenseBankLink> history = bankLinks.findUploadHistory(property, account, key);
+		if (history.isEmpty())
+			return false;
+		if (history.stream().anyMatch(link -> !expenseId.equals(link.getExpenseId())))
+			throw new ExpenseException("EXPENSE_BANK_LINK_CONFLICT");
+		return true;
 	}
 
 	/** 호출자는 관리대상 잠금·권한을 먼저 확보합니다. 비용과 동별 배분을 함께 저장해 부분 확정을 막습니다. */
@@ -74,6 +108,10 @@ public class ExpenseService {
 				throw new ExpenseException("BANK_REQUEST_CONFLICT");
 			return;
 		}
+		// 같은 조건은 중복 후보일 뿐입니다. 별개 거래라는 명시적 확인 없이 새 지출을 만들지 않습니다.
+		if (!request.separateExpense() && expenses.existsManualCandidate(original.getPropertyId(),
+		    original.getBankAccountId(), original.getTransactionDate(), original.getAmount()))
+			throw new ExpenseException("EXPENSE_DUPLICATE_REVIEW_REQUIRED");
 		var expense = expenses.saveAndFlush(Expense.create(original.getPropertyId(), original.getId(),
 		    original.getBankAccountId(), original.getTransactionDate(),
 		    security.protect(category).encrypted(), note == null ? null : security.protect(note).encrypted(),

@@ -21,6 +21,74 @@ import {
 import { getAccountsForMonth } from '../src/widgets/banking-workspace/model/bankAccountVisibility';
 import { fillAllocationRemainder } from '../src/entities/banking/model/allocation';
 import { createExpenseWorkbook } from '../src/widgets/banking-workspace/model/expenseExport';
+import { getManualExpenseLinkCandidates } from '../src/widgets/banking-workspace/model/manualExpenseLink';
+
+test('수동 지출 연결은 같은 통장·거래일·금액만 후보로 제시하고 확정·이체·기연결을 제외', () => {
+  const bank = {
+    id: 'bank',
+    sourceType: 'BANK_IMPORT',
+    accountId: 'a',
+    date: '2026-10-15',
+    direction: 'EXPENSE',
+    amount: '10000',
+    status: 'PENDING',
+    expense: null
+  } as BankingTransaction;
+  const manual = {
+    ...bank,
+    id: 'manual',
+    sourceType: 'MANUAL',
+    status: 'CONFIRMED',
+    expense: {
+      id: 'manual',
+      category: '청소비',
+      note: '',
+      saveAsRule: false,
+      mode: 'PROPERTY',
+      allocations: []
+    }
+  } as BankingTransaction;
+  const invalid = [
+    {
+      ...manual,
+      id: 'other-account',
+      accountId: 'b'
+    },
+    {
+      ...manual,
+      id: 'other-date',
+      date: '2026-10-14'
+    },
+    {
+      ...manual,
+      id: 'other-amount',
+      amount: '10001'
+    },
+    {
+      ...manual,
+      id: 'transfer',
+      transferCandidate: true
+    },
+    {
+      ...manual,
+      id: 'linked',
+      expense: {
+        ...manual.expense!,
+        manualBankLinked: true
+      }
+    }
+  ];
+  expect(getManualExpenseLinkCandidates(bank, [manual, ...invalid])).toEqual([manual]);
+  expect(getManualExpenseLinkCandidates(manual, [bank, {
+    ...bank,
+    id: 'confirmed',
+    status: 'CONFIRMED'
+  }])).toEqual([bank]);
+  expect(getManualExpenseLinkCandidates({
+    ...bank,
+    transferCandidate: true
+  }, [manual])).toEqual([]);
+});
 
 test('관리실 거래는 내용으로 지출명을 채우고 별도 항목 입력 없이 지출을 준비', () => {
   const row = {

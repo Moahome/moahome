@@ -12,6 +12,7 @@ import type {
 import type { ExpenseDraft } from '@/entities/banking';
 import type {
   BankingPreview,
+  BankingExpenseInput,
   BankingSelection,
   BankingTransaction,
   BankingWorkspaceData
@@ -135,11 +136,22 @@ export async function importBankingFile(propertyId: string, file: File, rows: Ba
     timeoutMs: 60_000
   }), propertyId);
 }
-export async function confirmBankingExpense(propertyId: string, id: string, data: ExpenseDraft) {
+export async function confirmBankingExpense(propertyId: string, id: string, data: BankingExpenseInput) {
   return readWorkspace(await authenticatedAPI<BankingWorkspaceData>({
     url: `/api/properties/${propertyId}/banking/transactions/${id}/expense`,
     method: 'POST',
     data
+  }), propertyId);
+}
+
+/** 은행 원본 ID와 기존 지출 ID가 재시도 식별자이며 연결된 지출 본문은 다시 저장하지 않습니다. */
+export async function linkManualBankingExpense(propertyId: string, transactionId: string, expenseId: string) {
+  return readWorkspace(await authenticatedAPI<BankingWorkspaceData>({
+    url: `/api/properties/${propertyId}/banking/transactions/${transactionId}/manual-expense`,
+    method: 'POST',
+    data: {
+      expenseId
+    }
   }), propertyId);
 }
 
@@ -213,6 +225,8 @@ export function bankingError(error: unknown): string {
   if (!(error instanceof ApiError))
     return '통장 정보를 처리하지 못했어요. 다시 시도해주세요.';
   const messages: Record<string, string> = {
+    EXPENSE_BANK_LINK_CONFLICT: '연결할 거래가 변경됐거나 이미 처리됐어요. 같은 통장·거래일·금액의 미확정 출금과 수동 지출을 다시 확인해주세요.',
+    EXPENSE_DUPLICATE_REVIEW_REQUIRED: '같은 조건의 수동 지출이 있어요. 기존 지출에 연결하거나 서로 다른 지출인지 확인해주세요.',
     INVALID_ACCOUNTING_ACCOUNT: '선택한 비용 과목을 확인해주세요.',
     INVALID_MANUAL_EXPENSE: '지출명과 0원보다 큰 출금액을 입력해주세요.',
     INVALID_MANUAL_EXPENSE_DATE: '오늘 또는 이전 출금일을 선택해주세요.',

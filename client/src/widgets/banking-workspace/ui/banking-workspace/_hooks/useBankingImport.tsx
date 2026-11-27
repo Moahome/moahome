@@ -1,5 +1,6 @@
 'use client';
 
+import { NEW_EXPENSE_CHOICE } from '../../../constant/bankingOptions';
 import type {
   RefObject,
   Dispatch,
@@ -34,6 +35,7 @@ import type {
   ExpenseDraft
 } from '../../../api/bankingApiTypes';
 import { calculateExpenseAllocation } from '../../../model/expenseAllocation';
+import { getManualExpenseLinkCandidates } from '../../../model/manualExpenseLink';
 import type { BankReceiptDraft as ReceiptDraft } from '@/entities/banking';
 interface UseBankingImportOptions {
   busyRef: RefObject<boolean>;
@@ -48,6 +50,8 @@ interface UseBankingImportOptions {
   setFile: Dispatch<SetStateAction<File | null>>;
   setPreview: Dispatch<SetStateAction<BankingPreview | null>>;
   setExcluded: Dispatch<SetStateAction<string[]>>;
+  manualExpenseLinks: Record<string, string>;
+  setManualExpenseLinks: Dispatch<SetStateAction<Record<string, string>>>;
   setExpenses: Dispatch<SetStateAction<Record<string, ExpenseDraft>>>;
   setReceipts: Dispatch<SetStateAction<Record<string, ReceiptDraft>>>;
   setEditingId: Dispatch<SetStateAction<string | null>>;
@@ -95,6 +99,8 @@ export function useBankingImport({
   setPreview,
   setExcluded,
   setExpenses,
+  manualExpenseLinks,
+  setManualExpenseLinks,
   setReceipts,
   setEditingId,
   setReplacingFile,
@@ -154,6 +160,7 @@ export function useBankingImport({
       setPreview(result);
       setExcluded([]);
       setExpenses({});
+      setManualExpenseLinks({});
       setReceipts({});
       setEditingId(null);
       setReplacingFile(false);
@@ -168,7 +175,7 @@ export function useBankingImport({
       busyRef.current = false;
       setBusy(false);
     }
-  }, [busyRef, accountId, workspace, notify, setBusy, propertyId, setTransferRows, setTransferAllocations, setTransferAccounts, setFile, setPreview, setExcluded, setExpenses, setReceipts, setEditingId, setReplacingFile, setDirection, setStatus, setProcessing, setSearch, setPage]);
+  }, [busyRef, accountId, workspace, notify, setBusy, propertyId, setTransferRows, setTransferAllocations, setTransferAccounts, setFile, setPreview, setExcluded, setManualExpenseLinks, setExpenses, setReceipts, setEditingId, setReplacingFile, setDirection, setStatus, setProcessing, setSearch, setPage]);
 
   const resetUpload = useCallback(() => {
     setReplacingFile(false);
@@ -180,11 +187,12 @@ export function useBankingImport({
     setFile(null);
     setExcluded([]);
     setExpenses({});
+    setManualExpenseLinks({});
     setReceipts({});
     setEditingId(null);
     setPage(1);
     setDirection('ALL');
-  }, [setReplacingFile, setProcessing, setTransferRows, setTransferAccounts, setTransferAllocations, setPreview, setFile, setExcluded, setExpenses, setReceipts, setEditingId, setPage, setDirection]);
+  }, [setReplacingFile, setProcessing, setTransferRows, setTransferAccounts, setTransferAllocations, setPreview, setFile, setExcluded, setManualExpenseLinks, setExpenses, setReceipts, setEditingId, setPage, setDirection]);
 
   const commit = useCallback(async () => {
     if (!file || !preview || !selected.length || busyRef.current || !canImport)
@@ -219,6 +227,26 @@ export function useBankingImport({
         continue;
       }
       if (row.direction === 'EXPENSE') {
+        const manualExpenseId = manualExpenseLinks[row.id];
+        if (manualExpenseId && manualExpenseId !== NEW_EXPENSE_CHOICE) {
+          if (rows.some((item) => item.manualExpenseId === manualExpenseId)) {
+            notify('하나의 수동 지출을 여러 출금에 연결할 수 없어요.');
+            setEditingId(row.id);
+
+            return;
+          }
+          rows.push({
+            id: row.id,
+            manualExpenseId
+          });
+          continue;
+        }
+        if (!manualExpenseId && getManualExpenseLinkCandidates(row, data.rows).length) {
+          setEditingId(row.id);
+          notify('같은 조건의 수동 지출이 있어요. 기존 지출 연결 또는 새 지출 등록을 선택해주세요.');
+
+          return;
+        }
         const draft = expenseDraft(row);
         const result = calculateExpenseAllocation(row.amount, draft);
         if (result.error) {
@@ -236,6 +264,7 @@ export function useBankingImport({
           id: row.id,
           expense: {
             ...draft,
+            separateExpense: manualExpenseId === NEW_EXPENSE_CHOICE,
             allocations: result.allocations
           }
         });
@@ -300,8 +329,8 @@ export function useBankingImport({
       void cache.invalidateQueries({
         queryKey: ['billing', session.data?.id, propertyId]
       });
-      // 이체는 양쪽 통장의 장부·정산·대시보드에 동시에 반영되므로 기존 조회도 함께 갱신합니다.
-      for (const key of ['banking-balances', 'monthly-settlement', 'dashboard', 'income-statement']) {
+      // 이체·지출 연결은 잔고뿐 아니라 원장·미지급의 원본 상세 경로도 바꾸므로 함께 갱신합니다.
+      for (const key of ['banking-balances', 'monthly-settlement', 'dashboard', 'income-statement', 'account-ledger', 'payables']) {
         void cache.invalidateQueries({
           queryKey: [key, session.data?.id, propertyId]
         });
@@ -315,7 +344,7 @@ export function useBankingImport({
       busyRef.current = false;
       setBusy(false);
     }
-  }, [file, preview, selected, busyRef, canImport, transferRows, transferAccounts, setEditingId, notify, transferAllocations, buildings, expenseDraft, setProcessing, setDirection, setSearch, setStatus, setPage, pageSize, receiptDraft, setBusy, cache, propertyId, activeAccountId, queryKey, propertyScope, session, resetUpload, router, data]);
+  }, [manualExpenseLinks, file, preview, selected, busyRef, canImport, transferRows, transferAccounts, setEditingId, notify, transferAllocations, buildings, expenseDraft, setProcessing, setDirection, setSearch, setStatus, setPage, pageSize, receiptDraft, setBusy, cache, propertyId, activeAccountId, queryKey, propertyScope, session, resetUpload, router, data]);
 
   return {
     readFile,

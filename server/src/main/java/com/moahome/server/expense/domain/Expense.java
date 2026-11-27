@@ -69,7 +69,7 @@ public class Expense {
 
 	/** 확정 원본과 배분 이력은 보존하고 수동 지출 삭제를 한 번만 기록해 활성 집계에서 취소합니다. */
 	public void removeManual(UUID actor, OffsetDateTime at) {
-		if (!"MANUAL".equals(sourceType) || actor == null || at == null)
+		if (!"MANUAL".equals(sourceType) || bankTransactionId != null || actor == null || at == null)
 			throw new ExpenseException("EXPENSE_DELETE_NOT_ALLOWED");
 		if (deletedAt != null)
 			return;
@@ -78,6 +78,22 @@ public class Expense {
 	}
 
 	protected Expense() {
+	}
+
+	/** 같은 통장·실제 출금일·금액의 은행 원본만 붙이고 기존 과목·배분·확정 이력은 유지합니다. */
+	public void attachBank(UUID transaction, UUID property, UUID account, LocalDate date, BigDecimal amount) {
+		if (!"MANUAL".equals(sourceType) || deletedAt != null || bankTransactionId != null
+		    || !propertyId.equals(property) || !bankAccountId.equals(account) || !expenseDate.equals(date)
+		    || totalAmount.compareTo(amount) != 0 || transaction == null)
+			throw new ExpenseException("EXPENSE_BANK_LINK_CONFLICT");
+		bankTransactionId = transaction;
+	}
+
+	/** 은행 원본 삭제 때 연결만 해제하며 지출과 외부 회수는 수동 등록 상태로 계속 유효합니다. */
+	public void detachDeletedBank() {
+		if (!"MANUAL".equals(sourceType) || bankTransactionId == null || deletedAt != null)
+			throw new ExpenseException("EXPENSE_BANK_LINK_CONFLICT");
+		bankTransactionId = null;
 	}
 
 	public record Share(UUID buildingId, String label, String amount, String percentage) {

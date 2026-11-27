@@ -29,7 +29,12 @@ public final class BankingRequests {
 	public record Expense(@TextInput(max = 100) String category, @TextInput(max = 500, optional = true) String note,
 	    @NotNull @Pattern(regexp = "EQUAL|RATIO|AMOUNT|PROPERTY") String mode, boolean saveAsRule,
 	    @NotNull @Size(max = 100) List<@NotNull @Valid Allocation> allocations,
-	    @Pattern(regexp = "8[0-9]{2}") String accountCode) {
+	    @Pattern(regexp = "8[0-9]{2}") String accountCode,
+	    @JsonSetter(nulls = Nulls.AS_EMPTY) boolean separateExpense) {
+		public Expense(String category, String note, String mode, boolean saveAsRule, List<Allocation> allocations,
+		    String accountCode) {
+			this(category, note, mode, saveAsRule, allocations, accountCode, false);
+		}
 		public Expense(String category, String note, String mode, boolean saveAsRule, List<Allocation> allocations) {
 			this(category, note, mode, saveAsRule, allocations, null);
 		}
@@ -82,7 +87,13 @@ public final class BankingRequests {
 	    @Valid Expense incomeAllocation,
 	    // 일반 거래와 이전 클라이언트는 이체 표시를 생략하므로 해당 필드만 false로 기본 처리합니다.
 	    @JsonSetter(nulls = Nulls.AS_EMPTY) boolean transfer, UUID transferAccountId, UUID matchTransferId,
-	    @Size(max = 100) List<@NotNull @Valid TransferAllocation> transferAllocations) {
+	    @Size(max = 100) List<@NotNull @Valid TransferAllocation> transferAllocations, UUID manualExpenseId) {
+		public Selection(UUID id, UUID unitId, String incomeCategory, String incomeNote, Expense expense,
+		    Expense incomeAllocation, boolean transfer, UUID transferAccountId, UUID matchTransferId,
+		    List<TransferAllocation> transferAllocations) {
+			this(id, unitId, incomeCategory, incomeNote, expense, incomeAllocation, transfer, transferAccountId,
+			    matchTransferId, transferAllocations, null);
+		}
 		public Selection(UUID id, UUID unitId, String incomeCategory, String incomeNote, Expense expense,
 		    Expense incomeAllocation, boolean transfer, UUID transferAccountId, UUID matchTransferId) {
 			this(id, unitId, incomeCategory, incomeNote, expense, incomeAllocation, transfer, transferAccountId, matchTransferId, null);
@@ -100,6 +111,9 @@ public final class BankingRequests {
 		public Selection(UUID id, UUID unitId, String incomeCategory, String incomeNote, Expense expense) {
 			this(id, unitId, incomeCategory, incomeNote, expense, null, false);
 		}
+	}
+
+	public record LinkManualExpense(@NotNull UUID expenseId) {
 	}
 
 	public record DeleteMany(@Size(max = 5000) List<@NotNull UUID> transactionIds,

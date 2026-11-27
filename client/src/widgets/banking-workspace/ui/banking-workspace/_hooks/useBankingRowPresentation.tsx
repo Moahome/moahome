@@ -1,5 +1,6 @@
 'use client';
 
+import { NEW_EXPENSE_CHOICE } from '../../../constant/bankingOptions';
 import type { BankingWorkspaceData } from '../../../api/bankingApiTypes';
 import type {
   Dispatch,
@@ -16,6 +17,7 @@ import { createExpenseDraft } from '../../../model/expenseAllocation';
 import type { BankReceiptDraft as ReceiptDraft } from '@/entities/banking';
 interface UseBankingRowPresentationOptions {
   expenses: Record<string, ExpenseDraft>;
+  manualExpenseLinks: Record<string, string>;
   data: BankingWorkspaceData;
   receipts: Record<string, ReceiptDraft>;
   preview: BankingPreview | null;
@@ -37,6 +39,7 @@ interface UseBankingRowPresentationOptions {
 /** 통장 RowPresentation 책임의 처리와 재시도 흐름을 분리합니다. */
 export function useBankingRowPresentation({
   expenses,
+  manualExpenseLinks,
   data,
   receipts,
   preview,
@@ -79,6 +82,13 @@ export function useBankingRowPresentation({
         detail: row.unitLabel
       };
     if (row.direction === 'EXPENSE') {
+      if (preview && !transferRows.includes(row.id) && manualExpenseLinks[row.id] && manualExpenseLinks[row.id] !== NEW_EXPENSE_CHOICE) {
+        return {
+          kind: 'EXPENSE',
+          title: '기존 지출 연결',
+          detail: data.rows.find((item) => item.id === manualExpenseLinks[row.id])?.expense?.category ?? '선택한 수동 지출 확인'
+        };
+      }
       // 동 없는 대상은 관리대상 전체 부담이므로 존재하지 않는 부담 동의 확인을 요구하지 않습니다.
       if (data.buildings.length === 0)
         return {
@@ -132,7 +142,7 @@ export function useBankingRowPresentation({
       title: ['CONFIRMED', 'LINKED'].includes(row.status) ? '세대 수납' : '세대 확인 필요',
       detail: unitLabel
     };
-  }, [preview, transferRows, expenseDraft, receiptDraft, data]);
+  }, [preview, transferRows, manualExpenseLinks, expenseDraft, receiptDraft, data]);
 
   const canTransfer = useCallback((row: BankingTransaction) => {
     return Boolean(row.transferId) || (data?.accounts ?? []).filter((account) => account.status === 'ACTIVE').length > 1;

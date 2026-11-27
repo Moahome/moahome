@@ -117,6 +117,8 @@ deletable: boolean })[];
     setExcluded,
     expenses,
     setExpenses,
+    manualExpenseLinks,
+    setManualExpenseLinks,
     receipts,
     setReceipts,
     editingId,
@@ -253,6 +255,7 @@ deletable: boolean })[];
     editor
   } = useBankingRowPresentation({
     expenses,
+    manualExpenseLinks,
     data,
     receipts,
     preview,
@@ -363,6 +366,8 @@ deletable: boolean })[];
     setFile,
     setPreview,
     setExcluded,
+    setManualExpenseLinks,
+    manualExpenseLinks,
     setExpenses,
     setReceipts,
     setEditingId,
@@ -525,6 +530,8 @@ deletable: boolean })[];
       processingContent
     },
     importSettings: {
+      manualExpenseLinks,
+      setManualExpenseLinks,
       propertyId,
       transferRows,
       setTransferRows,

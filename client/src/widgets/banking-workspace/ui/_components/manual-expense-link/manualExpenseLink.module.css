@@ -1,0 +1,23 @@
+.choice {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+
+  p {
+    margin: 0;
+    color: var(--sub-text);
+    overflow-wrap: anywhere;
+  }
+}
+
+.link {
+  display: grid;
+  gap: 12px;
+
+  > button {
+    justify-self: end;
+  }
+}

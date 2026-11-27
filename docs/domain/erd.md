@@ -1371,7 +1371,7 @@ Soft Delete 없음.
 | --- | --- | --- | --- |
 | id | uuid | N | PK |
 | property_id | uuid | N | 관리대상 |
-| bank_transaction_id | uuid | Y | 은행 출금 원본, UNIQUE. BANK_IMPORT는 필수, MANUAL은 null |
+| bank_transaction_id | uuid | Y | 은행 출금 원본, UNIQUE. BANK_IMPORT는 필수, MANUAL은 미연결 null·연결 후 원본 ID |
 | source_type | varchar(20) | N | BANK_IMPORT / MANUAL |
 | bank_account_id | uuid | N | 같은 관리대상의 실제 출금 통장 |
 | expense_date | date | N | 실제 출금일 |
@@ -1467,12 +1467,24 @@ Soft Delete 없음.
 
 `expenses`에 `source_type varchar(20) NOT NULL`, `bank_account_id uuid NOT NULL`, `expense_date date NOT NULL`을 추가합니다. 기존 은행 지출의 통장·날짜는 원본에서 보정하고 ID·금액·암호문·배분을 유지합니다. 기존 삭제된 원본의 지출도 보정하며 소프트 삭제 상태를 되돌리지 않습니다. 같은 관리대상의 통장 복합 FK와 통장·날짜 조회 인덱스를 추가합니다.
 
-`bank_transaction_id`와 `rule_key`는 nullable로 바꾸되 CHECK로 출처별 구조를 제한합니다. BANK_IMPORT는 기존 은행 원본·규칙 키가 필수이고 MANUAL은 둘 다 null, save_as_rule=false입니다. 수동 지출 ID는 요청 UUID입니다. 기존 `expense_allocations`를 재사용해 합계·비율·균등 금액을 커밋 시 검증합니다. 지출·배분 본문의 UPDATE·DELETE 금지(수동 지출의 삭제 감사는 2026-11-07 후속 예외), 기존 은행 원본 방향·금액·통장·날짜 보호와 선택 삭제 감사를 유지합니다. 수동 출금은 은행 원본이나 확인 잔액을 만들지 않습니다.
+`bank_transaction_id`와 `rule_key`는 nullable로 바꾸되 CHECK로 출처별 구조를 제한합니다. BANK_IMPORT는 기존 은행 원본·규칙 키가 필수이고 MANUAL은 규칙 키 null·save_as_rule=false입니다. 2026-11-27부터 MANUAL의 bank_transaction_id는 유효한 명시적 연결에서만 설정할 수 있습니다. 수동 지출 ID는 요청 UUID입니다. 기존 `expense_allocations`를 재사용해 합계·비율·균등 금액을 커밋 시 검증합니다. 지출·배분 본문의 UPDATE·DELETE 금지(수동 지출의 삭제 감사는 2026-11-07 후속 예외), 기존 은행 원본 방향·금액·통장·날짜 보호와 선택 삭제 감사를 유지합니다. 수동 출금은 은행 원본이나 확인 잔액을 만들지 않습니다.
 
 
 ## 후속 저장 설계: 지출 취소·은행 연결
 
-2026-11-07 후속으로 수동 지출의 감사 보존 삭제는 구현하며 은행 원본 연결·연결 해제·부분 취소는 미구현입니다. 요청 UUID·행위자·시각·사유와 연결 수명주기를 확정 지출·배분 본문과 분리해 보존하는 설계를 검토합니다. 같은 관리대상·통장·출금 방향·금액과 원본별 활성 연결의 유일성이 필요하지만, 연결 해제·원본 삭제·외부 회수 후 취소의 정책과 상세 DDL은 미정입니다. 기존 불변 트리거와 적용된 Migration을 임의로 바꾸지 않습니다.
+2026-11-07 수동 지출 감사 보존 삭제, 2026-11-27 은행 원본 연결·원본 삭제 후 수동 복귀를 구현했습니다. 별도 연결 해제·부분 취소·확정 지출 병합은 후속 범위입니다. 정책·요청·재시도는 [통장 계약](../api/bankingManagement.md#수동-지출과-은행-출금-연결-2026-11-27)을 따릅니다.
+
+`V20261127045535__link_manual_expenses_to_bank_sources.sql`은 기존 지출·배분을 보정하지 않고 `expense_bank_links` 불변 감사를 추가합니다.
+
+| 컬럼 | 타입 | 제약·의미 |
+| --- | --- | --- |
+| bank_transaction_id | uuid | PK, 관리대상 포함 은행 원본 FK. 한 원본의 최초 연결·재시도 식별 |
+| property_id | uuid | NOT NULL, 관리대상 FK |
+| expense_id | uuid | NOT NULL, 관리대상 포함 기존 지출 FK |
+| linked_by | uuid | NOT NULL, 처리 사용자 FK |
+| linked_at | timestamptz | NOT NULL, 연결 시각 |
+
+활성 연결은 기존 `expenses.bank_transaction_id`의 UNIQUE를 사용합니다. 최초 출처는 MANUAL로 유지하며 본문·과목·배분은 변경하지 않습니다. 불변 트리거의 예외는 미삭제 수동 지출의 최초 은행 연결과 삭제된 은행 원본의 해제뿐입니다. 연결 중 수동 지출 삭제와 다른 원본으로 직접 교체를 금지합니다. 지연 트리거는 같은 관리대상 잠금 아래 통장·날짜·금액·출금 방향·비이체·활성 원본·연결 감사의 일치를 커밋 시 검사합니다. 원본 삭제 후에도 감사 행은 수정·삭제하지 않습니다.
 
 은행 원본 순서의 영속 저장·같은 시각 거래의 대사는 후속 검토입니다. 파일 순번을 은행의 고유 식별자로 사용하거나 부족한 시각을 생성하지 않습니다.
 

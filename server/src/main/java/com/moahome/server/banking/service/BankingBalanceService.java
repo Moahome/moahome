@@ -799,7 +799,7 @@ public class BankingBalanceService {
 				balance = balance.add(receipt.getAmount());
 		}
 		for (Expense expense : expenses) {
-			if (account.equals(expense.getBankAccountId()) && "MANUAL".equals(expense.getSourceType())
+			if (account.equals(expense.getBankAccountId()) && expense.getBankTransactionId() == null && "MANUAL".equals(expense.getSourceType())
 			    && afterManualObservation(expense.getExpenseDate(), expense.getConfirmedAt(), observed) && !expense.getExpenseDate().isAfter(end))
 				balance = balance.subtract(expense.getTotalAmount());
 		}
@@ -883,7 +883,8 @@ public class BankingBalanceService {
 		}
 		// 은행 미연결 수동 출금은 통장에서 전액을 한 번 차감하고 동별 원장은 위 배분액으로 계산합니다.
 		for (var expense : expenses) {
-			if (!"MANUAL".equals(expense.getSourceType()) || !account.equals(expense.getBankAccountId()))
+			if (!"MANUAL".equals(expense.getSourceType()) || expense.getBankTransactionId() != null
+			    || !account.equals(expense.getBankAccountId()))
 				continue;
 			movements.add(new BuildingCashCalculation.Movement(expense.getExpenseDate(), BigDecimal.ZERO,
 			    expense.getTotalAmount()));
